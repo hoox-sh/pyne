@@ -14,9 +14,9 @@ To work from a local checkout, install Hatch and activate the project environmen
 
 Pynescript ships a CLI that mirrors the helper functions in `pynescript.ast.helper`:
 
-- `parse-and-dump` prints a formatted AST for a Pine Script input.
+- `parse-and-dump` prints a formatted AST for a Pine Script™ input.
 - `parse-and-unparse` round-trips a script to verify formatting stability.
-- `download-builtin-scripts` downloads TradingView reference scripts used in tests.
+- `download-builtin-scripts` downloads TradingView® reference scripts used in tests.
 
 ```console
 pynescript parse-and-dump path/to/script.pine

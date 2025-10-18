@@ -30,7 +30,7 @@ try:
 except ModuleNotFoundError:
     warnings.warn(
         (
-            "pynescript.ext.pygments.lexers unavailable; Pine Script syntax "
+            "pynescript.ext.pygments.lexers unavailable; Pine Script™ syntax "
             "highlighting disabled"
         ),
         stacklevel=0,

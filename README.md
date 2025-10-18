@@ -5,14 +5,16 @@
 [![License](https://img.shields.io/pypi/l/pynescript)][license]
 [![Docs](https://img.shields.io/readthedocs/pynescript/latest.svg?label=docs)][docs]
 
-> Parse, analyse, and regenerate TradingView Pine Script with a modern Python toolchain.
+> Parse, analyse, and regenerate TradingView® Pine Script™ with a modern Python toolchain.
 
-After years of experimentation the upstream project stalled. This fork now serves as the primary development home—focused on complete Pine Script compatibility, richer tooling, and open collaboration.
+After years of experimentation the upstream project stalled. This fork now serves as the primary development home—focused on complete Pine Script™ compatibility, richer tooling, and open collaboration.
+
+_Pine Script™ and TradingView® are trademarks of TradingView, Inc. This project is an independent community effort and is not affiliated with or endorsed by TradingView, Inc._
 
 ## Why Pynescript?
 
-- End-to-end Pine Script pipeline: parse, inspect, transform, and unparse with a single library.
-- Battle-tested fixtures that mirror TradingView's built-in indicators to guarantee regressions surface quickly.
+- End-to-end Pine Script™ pipeline: parse, inspect, transform, and unparse with a single library.
+- Battle-tested fixtures that mirror TradingView®'s built-in indicators to guarantee regressions surface quickly.
 - Batteries-included CLI for quick experimentation plus low-level APIs when you need to hack on the AST.
 
 ## Quickstart
@@ -39,12 +41,12 @@ with open("path/to/script.pine", encoding="utf-8") as handle:
 
 tree = parse(text)
 print(dump(tree)[:400])  # take a peek at the AST
-print(unparse(tree))     # round-trip back to Pine Script
+print(unparse(tree))     # round-trip back to Pine Script™
 ```
 
 ## Example Output
 
-Given a Pine Script strategy:
+Given a Pine Script™ strategy:
 
 ```pinescript
 //@version=5
@@ -67,9 +69,9 @@ Running `pynescript parse-and-dump rsi_strategy.pine` yields a rich Python AST d
 
 ## CLI Commands
 
-- `parse-and-dump` — parse Pine Script and print a structured AST.
-- `parse-and-unparse` — round-trip Pine Script to normalise style or validate compatibility.
-- `download-builtin-scripts` — cache TradingView built-ins locally for testing.
+- `parse-and-dump` — parse Pine Script™ and print a structured AST.
+- `parse-and-unparse` — round-trip Pine Script™ to normalise style or validate compatibility.
+- `download-builtin-scripts` — cache TradingView® built-ins locally for testing.
 
 For more automation ideas, see the scripts in `examples/`.
 
@@ -88,7 +90,7 @@ Extended guides live at [pynescript.readthedocs.io][docs]. Start with `usage` fo
 
 ## Roadmap
 
-- Ship full Pine Script v5 grammar coverage and keep fixtures synced with TradingView.
+- Ship full Pine Script™ v5 grammar coverage and keep fixtures synced with TradingView®.
 - Expand the evaluator to support deterministic execution of more built-in functions.
 - Publish architecture notes for contributors and flesh out transformer recipes.
 

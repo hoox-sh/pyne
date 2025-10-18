@@ -15,7 +15,7 @@
 
 ## Testing & Fixtures
 - Core regression: `pytest tests` (or the hatch alias) parses/unparses every `.pine` fixture in `tests/data/builtin_scripts`, comparing reprs for exact structural stability.
-- Refresh fixtures with `pynescript download-builtin-scripts --script-dir tests/data/builtin_scripts`; this script hits TradingView's Pine facade via `src/pynescript/util/pine_facade.py` using `requests` + `tqdm`.
+- Refresh fixtures with `pynescript download-builtin-scripts --script-dir tests/data/builtin_scripts`; this script hits TradingView®'s Pine facade via `src/pynescript/util/pine_facade.py` using `requests` + `tqdm`.
 - `pytest --example-scripts-dir path/to/pine` lets you point at alternate corpora without editing fixtures.
 
 ## Conventions & Utilities
