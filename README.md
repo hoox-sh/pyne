@@ -11,92 +11,241 @@ After years of experimentation the upstream project stalled. This fork now serve
 
 _Pine Script™ and TradingView® are trademarks of TradingView, Inc. This project is an independent community effort and is not affiliated with or endorsed by TradingView, Inc._
 
-## Why Pynescript?
+## Table of Contents
 
-- End-to-end Pine Script™ pipeline: parse, inspect, transform, and unparse with a single library.
-- Battle-tested fixtures that mirror TradingView®'s built-in indicators to guarantee regressions surface quickly.
-- Batteries-included CLI for quick experimentation plus low-level APIs when you need to hack on the AST.
+- [Overview](#overview)
+- [How It Works](#how-it-works)
+- [Features](#features)
+- [Installation](#installation)
+- [Quickstart](#quickstart)
+- [Tool Examples](#tool-examples)
+- [CLI Reference](#cli-reference)
+- [Library API](#library-api)
+- [Project Structure](#project-structure)
+- [Documentation](#documentation)
+- [Roadmap](#roadmap)
+- [Contributing](#contributing)
+- [License](#license)
+- [Support & Feedback](#support--feedback)
 
-## Quickstart
+## Overview
 
-### Install
+Pine Script™ is TradingView®'s powerful scripting language for creating custom indicators, strategies, and alerts directly on charts. It enables traders and analysts to implement complex technical analysis without leaving the platform.
 
-```console
+Pynescript brings this power to Python developers by providing a complete toolchain to parse, analyze, transform, and regenerate Pine Script™ code. Whether you're building trading bots, backtesting strategies, or integrating Pine Script™ into your data pipelines, pynescript offers the flexibility and reliability you need.
+
+Built with modern Python practices, pynescript leverages ANTLR4 for robust parsing, delivers a clean AST for manipulation, and ensures round-trip fidelity for seamless integration.
+
+## How It Works
+
+Here's the pynescript workflow in action:
+
+```mermaid
+graph TD
+    A[Pine Script™ Code] --> B[Parse with ANTLR4]
+    B --> C[Generate AST]
+    C --> D{Choose Action}
+    D --> E[Inspect/Dump AST]
+    D --> F[Transform AST]
+    D --> G[Evaluate Expressions]
+    F --> H[Unparse to Pine Script™]
+    G --> H
+    E --> I[Analysis Complete]
+    H --> J[Regenerated Code]
+```
+
+This diagram illustrates the core pipeline: from source code to AST manipulation and back to executable scripts.
+
+## Features
+
+- **🔍 Complete Parsing**: Full support for Pine Script™ v5 grammar with ANTLR4-powered accuracy.
+- **🛠️ AST Manipulation**: Inspect and transform scripts using a rich Python object model.
+- **🔄 Round-Trip Fidelity**: Parse and unparse scripts without losing formatting or semantics.
+- **💻 CLI Tools**: Command-line utilities for quick parsing, dumping, and validation.
+- **⚡ Evaluation Engine**: Execute deterministic expressions and built-in functions.
+- **🔧 Extensible Architecture**: Visitor patterns for custom analysis and transformation.
+- **🧪 Battle-Tested**: Regression tests against TradingView®'s built-in scripts ensure reliability.
+- **🚀 Modern Tooling**: Hatch for environments, Ruff for linting, pytest for testing.
+
+## Installation
+
+Install pynescript from PyPI:
+
+```bash
 pip install pynescript
 ```
 
-### CLI
+For development, clone the repo and use Hatch:
 
-```console
-pynescript parse-and-dump path/to/script.pine
+```bash
+git clone https://github.com/jango-blockchained/pynescript.git
+cd pynescript
+pip install -e .
 ```
 
-### Library
+## Quickstart
+
+Get started in minutes:
 
 ```python
-from pynescript.ast.helper import parse, dump, unparse
+from pynescript.ast.helper import parse, unparse
 
-with open("path/to/script.pine", encoding="utf-8") as handle:
-    text = handle.read()
-
-tree = parse(text)
-print(dump(tree)[:400])  # take a peek at the AST
-print(unparse(tree))     # round-trip back to Pine Script™
-```
-
-## Example Output
-
-Given a Pine Script™ strategy:
-
-```pinescript
+script = """
 //@version=5
-strategy("RSI Strategy", overlay=true)
-length = input(14)
-overSold = input(30)
-overBought = input(70)
-price = close
-vrsi = ta.rsi(price, length)
-co = ta.crossover(vrsi, overSold)
-cu = ta.crossunder(vrsi, overBought)
-if not na(vrsi)
-    if co
-        strategy.entry("RsiLE", strategy.long, comment="RsiLE")
-    if cu
-        strategy.entry("RsiSE", strategy.short, comment="RsiSE")
+indicator("My RSI")
+rsi(close, 14)
+"""
+
+tree = parse(script)
+regenerated = unparse(tree)
+print(regenerated)
 ```
 
-Running `pynescript parse-and-dump rsi_strategy.pine` yields a rich Python AST describing the script, while `pynescript parse-and-unparse` faithfully round-trips it.
+## Tool Examples
 
-## CLI Commands
+### Parsing and Dumping AST
 
-- `parse-and-dump` — parse Pine Script™ and print a structured AST.
-- `parse-and-unparse` — round-trip Pine Script™ to normalise style or validate compatibility.
-- `download-builtin-scripts` — cache TradingView® built-ins locally for testing.
+Parse a Pine Script™ file and inspect its AST:
 
-For more automation ideas, see the scripts in `examples/`.
+```bash
+pynescript parse-and-dump examples/rsi_strategy.pine
+```
 
-## Project Layout
+Output:
+
+```python
+Script(
+  version=Version(major=5, minor=None),
+  statements=[
+    Annotation(name='version', value='5'),
+    Statement(
+      expr=Call(
+        func=Name(id='indicator'),
+        args=[String(value='My RSI')]
+      )
+    ),
+    Statement(
+      expr=Call(
+        func=Name(id='rsi'),
+        args=[Name(id='close'), Number(value=14)]
+      )
+    )
+  ]
+)
+```
+
+### Round-Trip Unparsing
+
+Normalize script formatting:
+
+```bash
+pynescript parse-and-unparse messy_script.pine > clean_script.pine
+```
+
+### Evaluating Expressions
+
+Compute literal values and built-ins:
+
+```python
+from pynescript.ast.helper import parse
+from pynescript.ast.evaluator import NodeLiteralEvaluator
+
+script = "1 + 2 * 3"
+tree = parse(script)
+evaluator = NodeLiteralEvaluator()
+result = evaluator.visit(tree)
+print(result)  # 7
+```
+
+### Transforming Scripts
+
+Use the transformer to modify ASTs:
+
+```python
+from pynescript.ast.transformer import NodeTransformer
+
+class MyTransformer(NodeTransformer):
+    def visit_Number(self, node):
+        # Double all numbers
+        return node._replace(value=str(int(node.value) * 2))
+
+tree = parse("rsi(close, 14)")
+transformer = MyTransformer()
+new_tree = transformer.visit(tree)
+print(unparse(new_tree))  # rsi(close, 28)
+```
+
+Here's a sequence diagram showing the transformation process:
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant CLI
+    participant Parser
+    participant Transformer
+    participant Unparser
+
+    User->>CLI: Run transform command
+    CLI->>Parser: Parse input script
+    Parser-->>CLI: Return AST
+    CLI->>Transformer: Apply custom logic
+    Transformer-->>CLI: Return modified AST
+    CLI->>Unparser: Unparse to script
+    Unparser-->>CLI: Return output
+    CLI-->>User: Display result
+```
+
+## CLI Reference
+
+- `parse-and-dump <file>` — Parse and print the AST structure.
+- `parse-and-unparse <file>` — Round-trip and output normalized Pine Script™.
+- `download-builtin-scripts [--script-dir DIR]` — Fetch TradingView® built-ins for testing.
+
+## Library API
+
+Core functions in `pynescript.ast.helper`:
+
+- `parse(text: str) -> Script` — Parse Pine Script™ text into an AST.
+- `dump(tree: AST) -> str` — Pretty-print the AST for inspection.
+- `unparse(tree: AST) -> str` — Regenerate Pine Script™ from AST.
+
+For advanced use, explore `evaluator.py`, `transformer.py`, and `visitor.py`.
+
+## Project Structure
 
 ```text
-examples/          # Minimal scripts that demonstrate the library
-src/pynescript/    # Core parser, evaluator, transformer, and CLI code
-tests/             # Regression fixtures and behavioural tests
-docs/              # Sphinx documentation that mirrors the README
+examples/          # Sample scripts showcasing library usage
+src/pynescript/    # Core modules: parser, AST, evaluator, CLI
+  ast/             # ANTLR grammar, ASDL nodes, helpers
+  ext/             # Extensions: Pygments lexer, Nautilus Trader stubs
+  util/            # Utilities: facade for TradingView® API
+tests/             # Comprehensive test suite with fixtures
+docs/              # Sphinx documentation
 ```
 
 ## Documentation
 
-Extended guides live at [pynescript.readthedocs.io][docs]. Start with `usage` for CLI walkthroughs and `reference` for API details.
+Dive deeper at [pynescript.readthedocs.io][docs]:
+
+- [Usage Guide](https://pynescript.readthedocs.io/en/latest/usage.html) — CLI and library tutorials.
+- [API Reference](https://pynescript.readthedocs.io/en/latest/reference.html) — Complete module docs.
+- [Implementation Status](https://pynescript.readthedocs.io/en/latest/pinescript_implementation_status.html) — Feature coverage.
 
 ## Roadmap
 
-- Ship full Pine Script™ v5 grammar coverage and keep fixtures synced with TradingView®.
-- Expand the evaluator to support deterministic execution of more built-in functions.
-- Publish architecture notes for contributors and flesh out transformer recipes.
+- **v1.0**: Full Pine Script™ v5 coverage with evaluator expansion.
+- **v1.1**: Transformer recipes and community extensions.
+- **v2.0**: Multi-version support and performance optimizations.
 
 ## Contributing
 
-We welcome issues, discussions, and pull requests. Check open tasks in the project board, run `hatch run lint:style` and `hatch run test:test` before submitting, and describe how you validated your changes.
+Join the community! We love contributions:
+
+1. Fork and clone the repo.
+2. Run `hatch run lint:style && hatch run test:test`.
+3. Open a PR with your changes and validation details.
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ## License
 
@@ -104,7 +253,7 @@ Distributed under the terms of the [LGPL 3.0 license][license].
 
 ## Support & Feedback
 
-If you spot a bug or need a feature, please [open an issue][issues]. For real-time chat, join the community discussions once they launch.
+Found a bug or have a feature request? [Open an issue][issues]. Let's build something amazing together!
 
 [pypi]: https://pypi.org/project/pynescript/
 [python-version]: https://pypi.org/project/pynescript
