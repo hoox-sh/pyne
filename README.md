@@ -1,230 +1,50 @@
 # Pynescript
 
-[![PyPI](https://img.shields.io/pypi/v/pynescript.svg)][pypi_]
-[![Status](https://img.shields.io/pypi/status/pynescript.svg)][status]
-[![Python Version](https://img.shields.io/pypi/pyversions/pynescript)][python version]
+[![PyPI](https://img.shields.io/pypi/v/pynescript.svg)][pypi]
+[![Python Version](https://img.shields.io/pypi/pyversions/pynescript)][python-version]
 [![License](https://img.shields.io/pypi/l/pynescript)][license]
+[![Docs](https://img.shields.io/readthedocs/pynescript/latest.svg?label=docs)][docs]
 
-[![Read the documentation at https://pynescript.readthedocs.io/](https://img.shields.io/readthedocs/pynescript/latest.svg?label=Read%20the%20Docs)][read the docs]
-[![Tests](https://github.com/elbakramer/pynescript/workflows/Tests/badge.svg)][tests]
-[![Codecov](https://codecov.io/gh/elbakramer/pynescript/branch/main/graph/badge.svg)][codecov]
+> Parse, analyse, and regenerate TradingView Pine Script with a modern Python toolchain.
 
-[pypi_]: https://pypi.org/project/pynescript/
-[status]: https://pypi.org/project/pynescript/
-[python version]: https://pypi.org/project/pynescript
-[read the docs]: https://pynescript.readthedocs.io/
-[tests]: https://github.com/elbakramer/pynescript/actions?workflow=Tests
-[codecov]: https://app.codecov.io/gh/elbakramer/pynescript
+After years of experimentation the upstream project stalled. This fork now serves as the primary development home—focused on complete Pine Script compatibility, richer tooling, and open collaboration.
 
-## Features
+## Why Pynescript?
 
-Handle [Pinescript] using [Python]
+- End-to-end Pine Script pipeline: parse, inspect, transform, and unparse with a single library.
+- Battle-tested fixtures that mirror TradingView's built-in indicators to guarantee regressions surface quickly.
+- Batteries-included CLI for quick experimentation plus low-level APIs when you need to hack on the AST.
 
--   Parse Pinescript code into AST
--   Dump parsed AST
--   Unparse parsed AST back to Pinescript code
+## Quickstart
 
-Given an example pinescript with name of `rsi_strategy.pine`:
-
-```pinescript
-//@version=5
-strategy("RSI Strategy", overlay=true)
-length = input( 14 )
-overSold = input( 30 )
-overBought = input( 70 )
-price = close
-vrsi = ta.rsi(price, length)
-co = ta.crossover(vrsi, overSold)
-cu = ta.crossunder(vrsi, overBought)
-if (not na(vrsi))
-	if (co)
-		strategy.entry("RsiLE", strategy.long, comment="RsiLE")
-	if (cu)
-		strategy.entry("RsiSE", strategy.short, comment="RsiSE")
-//plot(strategy.equity, title="equity", color=color.red, linewidth=2, style=plot.style_areabr)
-```
-
-Parsing script into AST and dumping it:
+### Install
 
 ```console
-$ pynescript parse-and-dump rsi_strategy.pine
+pip install pynescript
 ```
 
-Gives like:
-
-```python
-Script(
-  body=[
-    Expr(
-      value=Call(
-        func=Name(id='strategy', ctx=Load()),
-        args=[
-          Arg(
-            value=Constant(value='RSI Strategy')),
-          Arg(
-            value=Constant(value=True),
-            name='overlay')])),
-    Assign(
-      target=Name(id='length', ctx=Store()),
-      value=Call(
-        func=Name(id='input', ctx=Load()),
-        args=[
-          Arg(
-            value=Constant(value=14))]),
-      annotations=[]),
-    ...
-```
-
-<details>
-    <summary>Full AST dump that is quite long...</summary>
-
-```python
-Script(
-  body=[
-    Expr(
-      value=Call(
-        func=Name(id='strategy', ctx=Load()),
-        args=[
-          Arg(
-            value=Constant(value='RSI Strategy')),
-          Arg(
-            value=Constant(value=True),
-            name='overlay')])),
-    Assign(
-      target=Name(id='length', ctx=Store()),
-      value=Call(
-        func=Name(id='input', ctx=Load()),
-        args=[
-          Arg(
-            value=Constant(value=14))]),
-      annotations=[]),
-    Assign(
-      target=Name(id='overSold', ctx=Store()),
-      value=Call(
-        func=Name(id='input', ctx=Load()),
-        args=[
-          Arg(
-            value=Constant(value=30))]),
-      annotations=[]),
-    Assign(
-      target=Name(id='overBought', ctx=Store()),
-      value=Call(
-        func=Name(id='input', ctx=Load()),
-        args=[
-          Arg(
-            value=Constant(value=70))]),
-      annotations=[]),
-    Assign(
-      target=Name(id='price', ctx=Store()),
-      value=Name(id='close', ctx=Load()),
-      annotations=[]),
-    Assign(
-      target=Name(id='vrsi', ctx=Store()),
-      value=Call(
-        func=Attribute(
-          value=Name(id='ta', ctx=Load()),
-          attr='rsi',
-          ctx=Load()),
-        args=[
-          Arg(
-            value=Name(id='price', ctx=Load())),
-          Arg(
-            value=Name(id='length', ctx=Load()))]),
-      annotations=[]),
-    Assign(
-      target=Name(id='co', ctx=Store()),
-      value=Call(
-        func=Attribute(
-          value=Name(id='ta', ctx=Load()),
-          attr='crossover',
-          ctx=Load()),
-        args=[
-          Arg(
-            value=Name(id='vrsi', ctx=Load())),
-          Arg(
-            value=Name(id='overSold', ctx=Load()))]),
-      annotations=[]),
-    Assign(
-      target=Name(id='cu', ctx=Store()),
-      value=Call(
-        func=Attribute(
-          value=Name(id='ta', ctx=Load()),
-          attr='crossunder',
-          ctx=Load()),
-        args=[
-          Arg(
-            value=Name(id='vrsi', ctx=Load())),
-          Arg(
-            value=Name(id='overBought', ctx=Load()))]),
-      annotations=[]),
-    Expr(
-      value=If(
-        test=UnaryOp(
-          op=Not(),
-          operand=Call(
-            func=Name(id='na', ctx=Load()),
-            args=[
-              Arg(
-                value=Name(id='vrsi', ctx=Load()))])),
-        body=[
-          Expr(
-            value=If(
-              test=Name(id='co', ctx=Load()),
-              body=[
-                Expr(
-                  value=Call(
-                    func=Attribute(
-                      value=Name(id='strategy', ctx=Load()),
-                      attr='entry',
-                      ctx=Load()),
-                    args=[
-                      Arg(
-                        value=Constant(value='RsiLE')),
-                      Arg(
-                        value=Attribute(
-                          value=Name(id='strategy', ctx=Load()),
-                          attr='long',
-                          ctx=Load())),
-                      Arg(
-                        value=Constant(value='RsiLE'),
-                        name='comment')]))],
-              orelse=[])),
-          Expr(
-            value=If(
-              test=Name(id='cu', ctx=Load()),
-              body=[
-                Expr(
-                  value=Call(
-                    func=Attribute(
-                      value=Name(id='strategy', ctx=Load()),
-                      attr='entry',
-                      ctx=Load()),
-                    args=[
-                      Arg(
-                        value=Constant(value='RsiSE')),
-                      Arg(
-                        value=Attribute(
-                          value=Name(id='strategy', ctx=Load()),
-                          attr='short',
-                          ctx=Load())),
-                      Arg(
-                        value=Constant(value='RsiSE'),
-                        name='comment')]))],
-              orelse=[]))],
-        orelse=[]))],
-  annotations=[
-    '//@version=5'])
-```
-
-</details>
-
-Parsing into AST and unparsing it back:
+### CLI
 
 ```console
-$ pynescript parse-and-unparse rsi_strategy.pine
+pynescript parse-and-dump path/to/script.pine
 ```
 
-Gives (with some difference in syntax including spacing):
+### Library
+
+```python
+from pynescript.ast.helper import parse, dump, unparse
+
+with open("path/to/script.pine", encoding="utf-8") as handle:
+    text = handle.read()
+
+tree = parse(text)
+print(dump(tree)[:400])  # take a peek at the AST
+print(unparse(tree))     # round-trip back to Pine Script
+```
+
+## Example Output
+
+Given a Pine Script strategy:
 
 ```pinescript
 //@version=5
@@ -243,41 +63,51 @@ if not na(vrsi)
         strategy.entry("RsiSE", strategy.short, comment="RsiSE")
 ```
 
-## Requirements
+Running `pynescript parse-and-dump rsi_strategy.pine` yields a rich Python AST describing the script, while `pynescript parse-and-unparse` faithfully round-trips it.
 
--   Python 3.10 or higher
+## CLI Commands
 
-## Installation
+- `parse-and-dump` — parse Pine Script and print a structured AST.
+- `parse-and-unparse` — round-trip Pine Script to normalise style or validate compatibility.
+- `download-builtin-scripts` — cache TradingView built-ins locally for testing.
 
-You can install _Pynescript_ via [pip] from [PyPI]:
+For more automation ideas, see the scripts in `examples/`.
 
-```console
-$ pip install pynescript
+## Project Layout
+
+```text
+examples/          # Minimal scripts that demonstrate the library
+src/pynescript/    # Core parser, evaluator, transformer, and CLI code
+tests/             # Regression fixtures and behavioural tests
+docs/              # Sphinx documentation that mirrors the README
 ```
 
-## Usage
+## Documentation
 
-Please see the [Usage][usage] for details.
+Extended guides live at [pynescript.readthedocs.io][docs]. Start with `usage` for CLI walkthroughs and `reference` for API details.
+
+## Roadmap
+
+- Ship full Pine Script v5 grammar coverage and keep fixtures synced with TradingView.
+- Expand the evaluator to support deterministic execution of more built-in functions.
+- Publish architecture notes for contributors and flesh out transformer recipes.
+
+## Contributing
+
+We welcome issues, discussions, and pull requests. Check open tasks in the project board, run `hatch run lint:style` and `hatch run test:test` before submitting, and describe how you validated your changes.
 
 ## License
 
-Distributed under the terms of the [LGPL 3.0 license][license],
-_Pynescript_ is free and open source software.
+Distributed under the terms of the [LGPL 3.0 license][license].
 
-## Issues
+## Support & Feedback
 
-If you encounter any problems,
-please [file an issue] along with a detailed description.
+If you spot a bug or need a feature, please [open an issue][issues]. For real-time chat, join the community discussions once they launch.
 
-[pinescript]: https://www.tradingview.com/pine-script-docs/en/v5/Introduction.html
-[python]: https://www.python.org/
-
-[pip]: https://pip.pypa.io/
-[pypi]: https://pypi.org/
-
-[file an issue]: https://github.com/elbakramer/pynescript/issues
+[pypi]: https://pypi.org/project/pynescript/
+[python-version]: https://pypi.org/project/pynescript
+[license]: https://github.com/jango-blockchained/pynescript/blob/main/LICENSE
+[docs]: https://pynescript.readthedocs.io/
+[issues]: https://github.com/jango-blockchained/pynescript/issues
 
 <!-- github-only -->
-
-[license]: https://github.com/elbakramer/pynescript/blob/main/LICENSE
-[usage]: https://pynescript.readthedocs.io/en/latest/usage.html

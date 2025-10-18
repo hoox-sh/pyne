@@ -1,16 +1,45 @@
 from __future__ import annotations
 
+import pathlib
 import shutil
+import sys
+import warnings
 
-from pathlib import Path
+from sphinx.application import Sphinx  # type: ignore[import]
+from sphinx.ext import apidoc  # type: ignore[import]
+from sphinx.highlighting import lexers as sphinx_lexers  # type: ignore[import]
 
-from sphinx.application import Sphinx
-from sphinx.ext.apidoc import main as sphinx_apidoc_main
+
+sphinx_apidoc_main = apidoc.main
+
+
+DOCS_DIR = pathlib.Path(__file__).parent
+PROJECT_DIR = DOCS_DIR.parent
+SRC_DIR = PROJECT_DIR / "src"
+APIDOC_EXCLUDES = [
+    SRC_DIR / "pynescript/ast/grammar/antlr4/generated",
+    SRC_DIR / "pynescript/ast/grammar/asdl/generated",
+]
+
+sys.path.insert(0, str(SRC_DIR))
+
+try:
+    from pynescript.ext.pygments.lexers import PinescriptLexer
+
+    sphinx_lexers["pinescript"] = PinescriptLexer()
+except ModuleNotFoundError:
+    warnings.warn(
+        (
+            "pynescript.ext.pygments.lexers unavailable; Pine Script syntax "
+            "highlighting disabled"
+        ),
+        stacklevel=0,
+    )
 
 
 project = "Pynescript"
-author = "Yunseong Hwang"
-copyright = "2024, Yunseong Hwang"  # noqa: A001
+author = "Pynescript Maintainers"
+copyright = "2024, Pynescript Maintainers"  # noqa: A001
 extensions = [
     "sphinx.ext.autodoc",
     "sphinx.ext.napoleon",
@@ -18,17 +47,17 @@ extensions = [
     "myst_parser",
 ]
 autodoc_typehints = "description"
+autodoc_mock_imports = [
+    "pyasdl",
+    "nautilus_trader",
+    "tqdm",
+]
 html_theme = "furo"
 
 
 def run_apidoc(_) -> None:
-    docs_conf_path = Path(__file__)
-    docs_dir = docs_conf_path.parent
-
-    project_dir = docs_dir.parent
-
-    output_path = project_dir / "docs/apidoc"
-    module_path = project_dir / "src/pynescript"
+    output_path = PROJECT_DIR / "docs/apidoc"
+    module_path = SRC_DIR / "pynescript"
 
     if output_path.exists():
         shutil.rmtree(output_path)
@@ -42,7 +71,7 @@ def run_apidoc(_) -> None:
         str(module_path),
     ]
 
-    sphinx_apidoc_main(args)
+    sphinx_apidoc_main(args + [str(path) for path in APIDOC_EXCLUDES])
 
 
 def setup(app: Sphinx) -> None:

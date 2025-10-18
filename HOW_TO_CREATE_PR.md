@@ -10,7 +10,7 @@ GitHub has prepared a direct link for you:
 
 1. **Click the link above** (or the one from the git push output)
 
-2. **Change the base repository** to `elbakramer/pynescript`
+2. Verify the base repository stays `jango-blockchained/pynescript`
 
 3. **Copy the PR title and description** from `PR_DESCRIPTION.md`
 
@@ -22,7 +22,7 @@ git push origin complete-pinescript-parsing
 ```
 
 2. **Go to GitHub:**
-   - Navigate to: https://github.com/elbakramer/pynescript
+   - Navigate to: <https://github.com/jango-blockchained/pynescript>
    - You should see a banner saying "complete-pinescript-parsing had recent pushes"
    - Click "Compare & pull request"
 
@@ -34,7 +34,7 @@ git push origin complete-pinescript-parsing
 ## Option 3: Manual Creation
 
 1. **Go directly to PR creation page:**
-   https://github.com/elbakramer/pynescript/compare/main...YOUR_USERNAME:pynescript:complete-pinescript-parsing
+   <https://github.com/jango-blockchained/pynescript/compare/main...YOUR_USERNAME:pynescript:complete-pinescript-parsing>
 
 2. **Fill in the details:**
    - Copy title and description from `PR_DESCRIPTION.md`

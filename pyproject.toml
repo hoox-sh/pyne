@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "pynescript"
 dynamic = ["version"]
-description = "Handle Pinescript using Python"
+description = "Parse, inspect, and regenerate TradingView Pine Script from Python"
 readme = "README.md"
 requires-python = ">=3.10"
 license = "LGPL-3.0-or-later"
@@ -32,9 +32,9 @@ dependencies = [
 ]
 
 [project.urls]
-Documentation = "https://github.com/jango-blockchain/pynescript#readme"
-Issues = "https://github.com/jango-blockchain/pynescript/issues"
-Source = "https://github.com/jango-blockchain/pynescript"
+Documentation = "https://github.com/jango-blockchained/pynescript#readme"
+Issues = "https://github.com/jango-blockchained/pynescript/issues"
+Source = "https://github.com/jango-blockchained/pynescript"
 
 [project.scripts]
 pynescript = "pynescript.__main__:cli"
@@ -93,6 +93,7 @@ dependencies = [
   "sphinx>=7.2.6",
   "sphinx-click>=5.1.0",
   "sphinx-autobuild>=2024.2.4",
+  "antlr4-python3-runtime>=4.13.1",
 ]
 
 [tool.hatch.envs.docs.scripts]
