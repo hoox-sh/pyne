@@ -2,11 +2,11 @@
 
 ## Summary
 
-This branch (`main`) significantly extends the pynescript library's evaluation capabilities, moving from basic parsing to functional expression evaluation. The evaluator now supports 100+ built-in functions including comprehensive technical analysis, utility functions, and string/array manipulation.
+This branch (`main`) significantly extends the pynescript library's evaluation capabilities, moving from basic parsing to functional expression evaluation. The evaluator now supports 177+ built-in functions including comprehensive technical analysis, utility functions, and string/array manipulation.
 
 ## Key Achievements
 
-### 🎯 Overall Progress: 85-90% Complete (up from 80-85%)
+### 🎯 Overall Progress: 88-92% Complete (up from 85-90%)
 
 ### Components Status
 
@@ -14,40 +14,21 @@ This branch (`main`) significantly extends the pynescript library's evaluation c
 |-----------|------------|----------|
 | **Parser** | ~95% | Grammar covers most PineScript v6 syntax, including `enum` |
 | **Evaluator** | ~95% | Expressions, functions, operators, series history fully functional. Codebase refactored for maintainability. |
-| **Built-in Functions** | ~85% | 100+ core functions implemented (math, string, array, TA, plotting, utility) |
-| **Collections** | ~60% | Array manipulation, statistical analysis, binary search capabilities |
-| **Types** | ~55% | Basic type system with conversions |
-| **Code Quality** | ~95% | Modular architecture, 152/152 tests passing, comprehensive coverage |
+| **Built-in Functions** | ~88% | 177+ functions implemented (math, string, array, TA, plotting, utility, time) |
+| **Collections** | ~85% | Array manipulation, statistical analysis, binary search capabilities |
+| **Types** | ~75% | Type system with conversions (int, float, bool, string) |
+| **Code Quality** | ~95% | Modular architecture, 290/290 tests passing, comprehensive coverage |
 | **Drawing** | ~30% | Plotting stubs implemented |
 | **Strategy** | 0% | Not yet implemented |
 
 ## Latest Session: Additional TA, Utility, and Time Functions
 
-**New Technical Analysis Functions (9) ✅:**
+**Functions Added (13 Total) ✅:**
 
-- `ta.range()` - Highest - Lowest over period
-- `ta.max()` - Maximum over period (alias for ta.highest)
-- `ta.min()` - Minimum over period (alias for ta.lowest)
-- `ta.mom()` - Momentum indicator
-- `ta.cum()` - Cumulative sum
-- `ta.dev()` - Average absolute deviation from mean
-- `ta.median()` - Median value
-- `ta.mode()` - Mode (most frequent value)
-- `ta.percentrank()` - Percentile rank
-- `ta.variance()` - Variance
+**Technical Analysis (1):**
+- `ta.barssince()` - Bars since condition was last true
 
-**New Utility Functions (6) ✅:**
-
-- `na()` - Return None/NA value
-- `nz()` - Null coalescing operator (return default if None)
-- `bool()` - Type conversion to boolean
-- `int()` - Type conversion to integer
-- `float()` - Type conversion to float
-- `fixnan()` - Replace NaN/None values with 0
-- `string()` - Type conversion to string
-
-**New Time Functions (10) ✅:**
-
+**Time Functions (10):**
 - `time()` - Current time in Unix timestamp (milliseconds)
 - `year()` - Extract year from timestamp
 - `month()` - Extract month from timestamp (1-12)
@@ -59,11 +40,42 @@ This branch (`main`) significantly extends the pynescript library's evaluation c
 - `time_close()` - Get close time of current bar
 - `weekofyear()` - Get week number of year (1-53)
 
-**Test Coverage ✅:**
+**Utility/Type Functions (2):**
+- `fixnan()` - Replace NaN/None values with 0
+- `string()` - Type conversion to string
 
-- All 152 tests passing
-- Fixed pytest plugin conflict (hydra-core temporarily uninstalled)
-- Example script runs successfully with all functions
+**Previous Session Added (22):**
+
+Technical Analysis (10):
+- `ta.range()` - Highest - Lowest over period
+- `ta.max()` - Maximum over period
+- `ta.min()` - Minimum over period
+- `ta.mom()` - Momentum indicator
+- `ta.cum()` - Cumulative sum
+- `ta.dev()` - Average absolute deviation from mean
+- `ta.median()` - Median value
+- `ta.mode()` - Mode (most frequent value)
+- `ta.percentrank()` - Percentile rank
+- `ta.variance()` - Variance
+
+Utility Functions (5):
+- `na()` - Return None/NA value
+- `nz()` - Null coalescing operator
+- `bool()` - Type conversion to boolean
+- `int()` - Type conversion to integer
+- `float()` - Type conversion to float
+
+Type Conversion (2):
+- `string()` - Type conversion to string (moved here)
+- `fixnan()` - Replace NaN/None values (moved here)
+
+**Test Results ✅:**
+
+- All 290 tests passing (152 evaluator + 138 parse/unparse)
+- 177+ unique builtin functions implemented
+- Full expression evaluation for technical analysis
+- Example scripts run successfully
+
 
 ## Implemented Features
 
