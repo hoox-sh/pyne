@@ -786,7 +786,7 @@ This document tracks the implementation status of PineScript v6 features in pyne
 - ❌ log.warning
 - ❌ runtime.error
 - ❌ max_bars_back
-- ❌ fixnan
+- ✅ fixnan
 - ✅ nz
 
 ### Type Conversion
@@ -808,17 +808,17 @@ This document tracks the implementation status of PineScript v6 features in pyne
 - ❌ ticker.inherit
 
 ### Time Functions
-- ❌ time
-- ❌ timestamp
-- ❌ year
-- ❌ month
-- ❌ weekofyear
-- ❌ dayofmonth
-- ❌ dayofweek
-- ❌ hour
-- ❌ minute
-- ❌ second
-- ❌ time_close
+- ✅ time
+- ✅ timestamp
+- ✅ year
+- ✅ month
+- ✅ weekofyear
+- ✅ dayofmonth
+- ✅ dayofweek
+- ✅ hour
+- ✅ minute
+- ✅ second
+- ✅ time_close
 - ❌ time_tradingday
 
 ### Chart Point Functions

@@ -21,7 +21,7 @@ This branch (`main`) significantly extends the pynescript library's evaluation c
 | **Drawing** | ~30% | Plotting stubs implemented |
 | **Strategy** | 0% | Not yet implemented |
 
-## Latest Session: Additional TA and Utility Functions
+## Latest Session: Additional TA, Utility, and Time Functions
 
 **New Technical Analysis Functions (9) ✅:**
 
@@ -36,13 +36,28 @@ This branch (`main`) significantly extends the pynescript library's evaluation c
 - `ta.percentrank()` - Percentile rank
 - `ta.variance()` - Variance
 
-**New Utility Functions (5) ✅:**
+**New Utility Functions (6) ✅:**
 
 - `na()` - Return None/NA value
 - `nz()` - Null coalescing operator (return default if None)
 - `bool()` - Type conversion to boolean
 - `int()` - Type conversion to integer
 - `float()` - Type conversion to float
+- `fixnan()` - Replace NaN/None values with 0
+- `string()` - Type conversion to string
+
+**New Time Functions (10) ✅:**
+
+- `time()` - Current time in Unix timestamp (milliseconds)
+- `year()` - Extract year from timestamp
+- `month()` - Extract month from timestamp (1-12)
+- `dayofmonth()` - Extract day of month (1-31)
+- `dayofweek()` - Extract day of week (1=Sunday, 7=Saturday)
+- `hour()` - Extract hour from timestamp (0-23)
+- `minute()` - Extract minute from timestamp (0-59)
+- `second()` - Extract second from timestamp (0-59)
+- `time_close()` - Get close time of current bar
+- `weekofyear()` - Get week number of year (1-53)
 
 **Test Coverage ✅:**
 
