@@ -25,4 +25,3 @@ class BuiltinEvaluator(
         dispatch.update(self._technical_builtin_map())
         dispatch.update(self._plotting_builtin_map())
         return dispatch
-

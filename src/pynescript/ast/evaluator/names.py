@@ -6,7 +6,6 @@ from pynescript.ast import node as ast
 
 
 class NameEvaluator:
-
     def visit_Name(self, node: ast.Name) -> Any:
         if node.id in self.context:
             return self.context[node.id]

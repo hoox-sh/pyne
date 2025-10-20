@@ -5,10 +5,11 @@ from flask_cors import CORS
 app = Flask(__name__)
 CORS(app)
 
-@app.route('/run', methods=['POST'])
+
+@app.route("/run", methods=["POST"])
 def run_pine_script():
     data = request.get_json()
-    pine_script = data.get('script', '')
+    pine_script = data.get("script", "")
 
     # Here you would use pynescript to parse and process the script
     # For now, we'll just return a dummy response.
@@ -23,8 +24,8 @@ def run_pine_script():
     # Dummy response
     response_data = {"status": "success", "message": "Pine script received", "data": [1, 2, 3, 4, 5]}
 
-
     return jsonify(response_data)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     app.run(debug=True, port=5002)

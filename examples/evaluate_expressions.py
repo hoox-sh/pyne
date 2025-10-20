@@ -37,63 +37,48 @@ def main():
     print('str.length("hello") =', literal_eval('str.length("hello")'))
     print('str.upper("hello") =', literal_eval('str.upper("hello")'))
     print('str.lower("WORLD") =', literal_eval('str.lower("WORLD")'))
-    print('str.contains("hello world", "wor") =', 
-          literal_eval('str.contains("hello world", "wor")'))
-    print('str.startswith("hello", "hel") =', 
-          literal_eval('str.startswith("hello", "hel")'))
+    print('str.contains("hello world", "wor") =', literal_eval('str.contains("hello world", "wor")'))
+    print('str.startswith("hello", "hel") =', literal_eval('str.startswith("hello", "hel")'))
 
     # Array operations
     print("\n--- Array Operations ---")
     print("[1, 2, 3, 4, 5] =", literal_eval("[1, 2, 3, 4, 5]"))
     print("[1, 2, 3][1] =", literal_eval("[1, 2, 3][1]"))
-    print("array.size([1, 2, 3, 4, 5]) =", 
-          literal_eval("array.size([1, 2, 3, 4, 5])"))
-    print("array.get([10, 20, 30], 2) =", 
-          literal_eval("array.get([10, 20, 30], 2)"))
-    print("array.push([1, 2], 3) =", 
-          literal_eval("array.push([1, 2], 3)"))
-    print("array.pop([1, 2, 3]) =", 
-          literal_eval("array.pop([1, 2, 3])"))
-    print("array.slice([10, 20, 30, 40], 1, 3) =", 
-          literal_eval("array.slice([10, 20, 30, 40], 1, 3)"))
+    print("array.size([1, 2, 3, 4, 5]) =", literal_eval("array.size([1, 2, 3, 4, 5])"))
+    print("array.get([10, 20, 30], 2) =", literal_eval("array.get([10, 20, 30], 2)"))
+    print("array.push([1, 2], 3) =", literal_eval("array.push([1, 2], 3)"))
+    print("array.pop([1, 2, 3]) =", literal_eval("array.pop([1, 2, 3])"))
+    print("array.slice([10, 20, 30, 40], 1, 3) =", literal_eval("array.slice([10, 20, 30, 40], 1, 3)"))
 
     # Technical Analysis - Moving Averages
     print("\n--- Technical Analysis: Moving Averages ---")
     prices = [100, 102, 101, 103, 105, 104, 106, 108, 107, 110]
     print(f"Price series: {prices}")
-    print(f"ta.sma(prices, 5) =", 
-          literal_eval(f"ta.sma({prices}, 5)"))
-    print(f"ta.ema(prices, 5) =", 
-          literal_eval(f"ta.ema({prices}, 5)"))
-    print(f"ta.wma(prices, 5) =", 
-          literal_eval(f"ta.wma({prices}, 5)"))
+    print(f"ta.sma(prices, 5) =", literal_eval(f"ta.sma({prices}, 5)"))
+    print(f"ta.ema(prices, 5) =", literal_eval(f"ta.ema({prices}, 5)"))
+    print(f"ta.wma(prices, 5) =", literal_eval(f"ta.wma({prices}, 5)"))
 
     # Technical Analysis - Indicators
     print("\n--- Technical Analysis: Indicators ---")
-    print(f"ta.rsi(prices, 9) =", 
-          literal_eval(f"ta.rsi({prices}, 9)"))
-    print(f"ta.stdev(prices, 5) =", 
-          literal_eval(f"ta.stdev({prices}, 5)"))
+    print(f"ta.rsi(prices, 9) =", literal_eval(f"ta.rsi({prices}, 9)"))
+    print(f"ta.stdev(prices, 5) =", literal_eval(f"ta.stdev({prices}, 5)"))
     bb = literal_eval(f"ta.bb({prices}, 5, 2)")
-    print(f"ta.bb(prices, 5, 2) = [middle={bb[0]:.2f}, "
-          f"upper={bb[1]:.2f}, lower={bb[2]:.2f}]")
+    print(f"ta.bb(prices, 5, 2) = [middle={bb[0]:.2f}, upper={bb[1]:.2f}, lower={bb[2]:.2f}]")
 
     # Technical Analysis - Range and Change
     print("\n--- Technical Analysis: Range & Change ---")
-    print(f"ta.highest(prices, 5) =", 
-          literal_eval(f"ta.highest({prices}, 5)"))
-    print(f"ta.lowest(prices, 5) =", 
-          literal_eval(f"ta.lowest({prices}, 5)"))
-    print(f"ta.range(prices, 5) =", 
-          literal_eval(f"ta.range({prices}, 5)"))
-    print(f"ta.change(prices, 1) =", 
-          literal_eval(f"ta.change({prices}, 1)"))
+    print(f"ta.highest(prices, 5) =", literal_eval(f"ta.highest({prices}, 5)"))
+    print(f"ta.lowest(prices, 5) =", literal_eval(f"ta.lowest({prices}, 5)"))
+    print(f"ta.range(prices, 5) =", literal_eval(f"ta.range({prices}, 5)"))
+    print(f"ta.change(prices, 1) =", literal_eval(f"ta.change({prices}, 1)"))
 
     # New TA Functions
     print("\n--- New Technical Analysis: MACD & ATR ---")
     macd_result = literal_eval(f"ta.macd({prices}, 12, 26, 9)")
-    print(f"ta.macd(prices, 12, 26, 9) = [macd={macd_result[0]:.2f}, "
-          f"signal={macd_result[1]:.2f}, hist={macd_result[2]:.2f}]")
+    print(
+        f"ta.macd(prices, 12, 26, 9) = [macd={macd_result[0]:.2f}, "
+        f"signal={macd_result[1]:.2f}, hist={macd_result[2]:.2f}]"
+    )
     highs = [101, 103, 102, 104, 106, 105, 107, 109, 108, 111]
     lows = [98, 100, 99, 101, 103, 102, 104, 106, 105, 108]
     closes = prices
@@ -103,8 +88,7 @@ def main():
     # Stochastic Oscillator
     print("\n--- Technical Analysis: Stochastic Oscillator ---")
     stoch_result = literal_eval(f"ta.stoch({highs}, {lows}, {closes}, 5, 3)")
-    print(f"ta.stoch(highs, lows, closes, 5, 3) = "
-          f"[%K={stoch_result[0]:.2f}, %D={stoch_result[1]:.2f}]")
+    print(f"ta.stoch(highs, lows, closes, 5, 3) = [%K={stoch_result[0]:.2f}, %D={stoch_result[1]:.2f}]")
 
     # Average Directional Index
     print("\n--- Technical Analysis: Average Directional Index ---")
@@ -115,52 +99,50 @@ def main():
     print("\n--- Technical Analysis: New Indicators ---")
     cci_result = literal_eval(f"ta.cci({highs}, {lows}, {closes}, 10)")
     print(f"ta.cci(highs, lows, closes, 10) = {cci_result:.2f}")
-    
+
     roc_result = literal_eval(f"ta.roc({closes}, 5)")
     print(f"ta.roc(closes, 5) = {roc_result:.2f}%")
-    
+
     wpr_result = literal_eval(f"ta.wpr({highs}, {lows}, {closes}, 14)")
     print(f"ta.wpr(highs, lows, closes, 14) = {wpr_result:.2f}")
-    
-    volumes = [1000, 1200, 800, 1500, 1100, 1300, 900, 1400, 1600,
-               1100, 1700, 1200, 1800, 1300, 1900]
+
+    volumes = [1000, 1200, 800, 1500, 1100, 1300, 900, 1400, 1600, 1100, 1700, 1200, 1800, 1300, 1900]
     obv_result = literal_eval(f"ta.obv({closes}, {volumes})")
     print(f"ta.obv(closes, volumes) = {obv_result:.0f}")
-    
-    mfi_result = literal_eval(f"ta.mfi({highs}, {lows}, {closes}, "
-                              f"{volumes}, 14)")
+
+    mfi_result = literal_eval(f"ta.mfi({highs}, {lows}, {closes}, {volumes}, 14)")
     print(f"ta.mfi(highs, lows, closes, volumes, 14) = {mfi_result:.2f}")
 
     # New TA functions
     print("\n--- Additional Technical Analysis: New Functions ---")
     cum_result = literal_eval(f"ta.cum({closes})")
     print(f"ta.cum(closes) = {cum_result:.2f}")
-    
+
     dev_result = literal_eval(f"ta.dev({closes}, 5)")
     print(f"ta.dev(closes, 5) = {dev_result:.4f}")
-    
+
     max_result = literal_eval(f"ta.max({closes}, 5)")
     print(f"ta.max(closes, 5) = {max_result:.2f}")
-    
+
     min_result = literal_eval(f"ta.min({closes}, 5)")
     print(f"ta.min(closes, 5) = {min_result:.2f}")
-    
+
     mom_result = literal_eval(f"ta.mom({closes}, 3)")
     print(f"ta.mom(closes, 3) = {mom_result:.2f}")
 
     # More TA functions
     median_result = literal_eval(f"ta.median({closes}, 5)")
     print(f"ta.median(closes, 5) = {median_result:.2f}")
-    
+
     mode_result = literal_eval(f"ta.mode({closes}, 5)")
     print(f"ta.mode(closes, 5) = {mode_result:.2f}")
-    
+
     percentrank_result = literal_eval(f"ta.percentrank({closes}, 5)")
     print(f"ta.percentrank(closes, 5) = {percentrank_result:.2f}")
-    
+
     variance_result = literal_eval(f"ta.variance({closes}, 5)")
     print(f"ta.variance(closes, 5) = {variance_result:.4f}")
-    
+
     # For valuewhen, create a condition series (close > 105)
     conditions = [c > 105 for c in closes]
     valuewhen_result = literal_eval(f"ta.valuewhen({conditions}, {closes}, 1)")
@@ -190,10 +172,10 @@ def main():
     # Series History Access
     print("\n--- Series History Access ---")
     context = {
-        'close': [100, 102, 101, 103, 105, 104, 106, 108, 107, 110],
-        'open': [99, 101, 100, 102, 104, 103, 105, 107, 106, 109],
-        'high': [101, 103, 102, 104, 106, 105, 107, 109, 108, 111],
-        'low': [98, 100, 99, 101, 103, 102, 104, 106, 105, 108],
+        "close": [100, 102, 101, 103, 105, 104, 106, 108, 107, 110],
+        "open": [99, 101, 100, 102, 104, 103, 105, 107, 106, 109],
+        "high": [101, 103, 102, 104, 106, 105, 107, 109, 108, 111],
+        "low": [98, 100, 99, 101, 103, 102, 104, 106, 105, 108],
     }
     print(f"Context series lengths: close={len(context['close'])}, etc.")
     print("close[0] (current) =", literal_eval("close[0]", context))

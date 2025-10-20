@@ -989,11 +989,7 @@ class TechnicalAnalysisMixin(BuiltinDispatchMixin):
 
     def _builtin_ta_linreg(self, args: list[Any]) -> float:
         """Linear Regression value."""
-        if len(args) != BINARY:
-            self._error("ta.linreg takes source series and length")
-
-        series = self._expect_series(args[0], "ta.linreg takes source series and length")
-        length = self._expect_int(args[1], "ta.linreg takes source series and length")
+        series, length = self._expect_series(args, length=BINARY)
 
         if length < 2:
             self._error("ta.linreg length must be at least 2")
@@ -1074,11 +1070,7 @@ class TechnicalAnalysisMixin(BuiltinDispatchMixin):
 
     def _builtin_ta_swma(self, args: list[Any]) -> float:
         """Symmetric Weighted Moving Average."""
-        if len(args) != BINARY:
-            self._error("ta.swma takes source series and length")
-
-        series = self._expect_series(args[0], "ta.swma takes source series and length")
-        length = self._expect_int(args[1], "ta.swma takes source series and length")
+        series, length = self._expect_series(args, length=BINARY)
 
         if length < 1:
             self._error("ta.swma length must be positive")

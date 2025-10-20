@@ -6,7 +6,6 @@ from pynescript.ast import node as ast
 
 
 class LiteralEvaluator:
-
     def visit_Constant(self, node: ast.Constant):
         if node.kind:
             msg = f"unexpected constant kind: {node.kind!s}"

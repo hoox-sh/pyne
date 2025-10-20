@@ -4,7 +4,6 @@ from pynescript.ast import node as ast
 
 
 class StatementEvaluator:
-
     def visit_Script(self, node: ast.Script):
         for stmt in node.body:
             self.visit(stmt)

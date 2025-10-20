@@ -1102,3 +1102,179 @@ def test_evaluator_ta_mfi(expression, expected):
     evaluator = NodeLiteralEvaluator()
     result = evaluator.visit(ast.body)
     assert result == pytest.approx(expected)
+
+
+# New Array Statistical Functions Tests
+
+
+@pytest.mark.parametrize(
+    ("expression", "expected"),
+    [
+        ("array.percentile_linear_interpolation([1, 2, 3, 4, 5], 50)", 3.0),
+        ("array.percentile_linear_interpolation([1, 2, 3, 4, 5], 25)", 2.0),
+        ("array.percentile_linear_interpolation([1, 2, 3, 4, 5], 75)", 4.0),
+    ],
+)
+def test_evaluator_array_percentile_linear_interpolation(expression, expected):
+    ast = helper.parse(expression, mode="eval")
+    evaluator = NodeLiteralEvaluator()
+    result = evaluator.visit(ast.body)
+    assert result == pytest.approx(expected)
+
+
+@pytest.mark.parametrize(
+    ("expression", "expected"),
+    [
+        ("array.percentile_nearest_rank([1, 2, 3, 4, 5], 50)", 3),
+        ("array.percentile_nearest_rank([1, 2, 3, 4, 5], 25)", 1),
+        ("array.percentile_nearest_rank([1, 2, 3, 4, 5], 75)", 4),
+    ],
+)
+def test_evaluator_array_percentile_nearest_rank(expression, expected):
+    ast = helper.parse(expression, mode="eval")
+    evaluator = NodeLiteralEvaluator()
+    result = evaluator.visit(ast.body)
+    assert result == expected
+
+
+@pytest.mark.parametrize(
+    ("expression", "expected"),
+    [
+        ("array.percentrank([1, 2, 3, 4, 5], 3)", pytest.approx(50.0)),
+        ("array.percentrank([1, 2, 3, 4, 5], 1)", pytest.approx(0.0)),
+        ("array.percentrank([1, 2, 3, 4, 5], 5)", pytest.approx(100.0)),
+    ],
+)
+def test_evaluator_array_percentrank(expression, expected):
+    ast = helper.parse(expression, mode="eval")
+    evaluator = NodeLiteralEvaluator()
+    result = evaluator.visit(ast.body)
+    assert result == expected
+
+
+@pytest.mark.parametrize(
+    ("expression", "check"),
+    [
+        ("array.stdev([1, 2, 3, 4, 5])", lambda x: x > 1.4 and x < 1.6),
+        ("array.variance([1, 2, 3, 4, 5])", lambda x: x > 2.0 and x < 2.6),
+    ],
+)
+def test_evaluator_array_stdev_variance(expression, check):
+    ast = helper.parse(expression, mode="eval")
+    evaluator = NodeLiteralEvaluator()
+    result = evaluator.visit(ast.body)
+    assert check(result)
+
+
+@pytest.mark.parametrize(
+    ("expression",),
+    [
+        ("array.standardize([1, 2, 3, 4, 5])",),
+    ],
+)
+def test_evaluator_array_standardize(expression):
+    ast = helper.parse(expression, mode="eval")
+    evaluator = NodeLiteralEvaluator()
+    result = evaluator.visit(ast.body)
+    assert isinstance(result, list)
+    assert len(result) == 5
+    # Mean should be ~0 after standardization
+    mean = sum(result) / len(result)
+    assert abs(mean) < 1e-10
+
+
+@pytest.mark.parametrize(
+    ("expression", "expected"),
+    [
+        ("array.sort_indices([3, 1, 4, 1, 5])", [1, 3, 0, 2, 4]),
+        ("array.sort_indices([5, 4, 3, 2, 1])", [4, 3, 2, 1, 0]),
+    ],
+)
+def test_evaluator_array_sort_indices(expression, expected):
+    ast = helper.parse(expression, mode="eval")
+    evaluator = NodeLiteralEvaluator()
+    result = evaluator.visit(ast.body)
+    assert result == expected
+
+
+@pytest.mark.parametrize(
+    ("expression", "expected"),
+    [
+        ("array.binary_search_leftmost([1, 2, 2, 2, 3], 2)", 1),
+        ("array.binary_search_leftmost([1, 2, 2, 2, 3], 1)", 0),
+        ("array.binary_search_leftmost([1, 2, 2, 2, 3], 5)", -1),
+    ],
+)
+def test_evaluator_array_binary_search_leftmost(expression, expected):
+    ast = helper.parse(expression, mode="eval")
+    evaluator = NodeLiteralEvaluator()
+    result = evaluator.visit(ast.body)
+    assert result == expected
+
+
+@pytest.mark.parametrize(
+    ("expression", "expected"),
+    [
+        ("array.binary_search_rightmost([1, 2, 2, 2, 3], 2)", 3),
+        ("array.binary_search_rightmost([1, 2, 2, 2, 3], 3)", 4),
+        ("array.binary_search_rightmost([1, 2, 2, 2, 3], 5)", -1),
+    ],
+)
+def test_evaluator_array_binary_search_rightmost(expression, expected):
+    ast = helper.parse(expression, mode="eval")
+    evaluator = NodeLiteralEvaluator()
+    result = evaluator.visit(ast.body)
+    assert result == expected
+
+
+# New Technical Analysis Indicators Tests
+
+
+@pytest.mark.parametrize(
+    ("expression",),
+    [
+        ("ta.cog([1, 2, 3, 4, 5], 3)",),
+        ("ta.linreg([1, 2, 3, 4, 5], 3)",),
+    ],
+)
+def test_evaluator_ta_new_indicators(expression):
+    ast = helper.parse(expression, mode="eval")
+    evaluator = NodeLiteralEvaluator()
+    result = evaluator.visit(ast.body)
+    # Just verify they return a number (not NaN for valid inputs)
+    assert isinstance(result, (int, float))
+    assert not math.isnan(result)
+
+
+@pytest.mark.parametrize(
+    ("expression",),
+    [
+        ("ta.swma([1, 2, 3, 4, 5], 3)",),
+    ],
+)
+def test_evaluator_ta_swma(expression):
+    ast = helper.parse(expression, mode="eval")
+    evaluator = NodeLiteralEvaluator()
+    result = evaluator.visit(ast.body)
+    assert isinstance(result, (int, float))
+    # Result should be within the range of input values
+    assert 1 <= result <= 5
+
+
+# Plotting Functions Tests
+
+
+@pytest.mark.parametrize(
+    ("expression", "expected"),
+    [
+        ("plot([1, 2, 3, 4, 5])", None),
+        ("plotbar([1, 2, 3], [2, 3, 4], [0, 1, 2], [1, 2, 3])", None),
+        ("hline(100)", None),
+        ("bgcolor('red')", None),
+    ],
+)
+def test_evaluator_plotting_functions(expression, expected):
+    ast = helper.parse(expression, mode="eval")
+    evaluator = NodeLiteralEvaluator()
+    result = evaluator.visit(ast.body)
+    assert result == expected

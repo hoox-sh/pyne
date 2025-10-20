@@ -9,7 +9,6 @@ from pynescript.ast import node as ast
 
 
 class ExpressionEvaluator:
-
     def visit_BoolOp(self, node: ast.BoolOp):
         if isinstance(node.op, ast.And):
             return all(self.visit(value) for value in node.values)

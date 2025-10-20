@@ -29,10 +29,7 @@ try:
     sphinx_lexers["pinescript"] = PinescriptLexer()
 except ModuleNotFoundError:
     warnings.warn(
-        (
-            "pynescript.ext.pygments.lexers unavailable; Pine Script™ syntax "
-            "highlighting disabled"
-        ),
+        ("pynescript.ext.pygments.lexers unavailable; Pine Script™ syntax highlighting disabled"),
         stacklevel=0,
     )
 

@@ -9,7 +9,6 @@ from pynescript.ast.visitor import NodeVisitor
 
 
 class BaseEvaluator(NodeVisitor):
-
     def __init__(self, context: dict[str, Any] | None = None):
         self.context = context or {}
         self.context.update(
