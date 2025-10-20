@@ -49,6 +49,7 @@ class NumericBuiltinsMixin(BuiltinDispatchMixin):
             "bool": self._builtin_bool,
             "int": self._builtin_int,
             "float": self._builtin_float,
+            "string": self._builtin_string,
         }
 
     def _require_len(
@@ -231,3 +232,15 @@ class NumericBuiltinsMixin(BuiltinDispatchMixin):
             except ValueError:
                 self._error(f"Cannot convert '{value}' to float")
         return float(value)
+
+    def _builtin_string(self, args: list[Any]) -> str:
+        """Convert value to string."""
+        self._require_len(args, UNARY, "string() takes one argument")
+        value = args[0]
+        if isinstance(value, str):
+            return value
+        if isinstance(value, bool):
+            return "true" if value else "false"
+        if value is None:
+            return "na"
+        return str(value)
