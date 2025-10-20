@@ -661,9 +661,9 @@ This document tracks the implementation status of PineScript v6 features in pyne
 - ✅ ta.min
 - ✅ ta.mode
 - ✅ ta.mom
-- ❌ ta.percentile_linear_interpolation
-- ❌ ta.percentile_nearest_rank
-- ❌ ta.percentrank
+- ✅ ta.percentile_linear_interpolation
+- ✅ ta.percentile_nearest_rank
+- ✅ ta.percentrank
 - ❌ ta.pivot_point_levels
 - ❌ ta.pivothigh
 - ❌ ta.pivotlow
@@ -777,19 +777,23 @@ This document tracks the implementation status of PineScript v6 features in pyne
 ### Utility Functions
 - ❌ alert
 - ❌ alertcondition
+- ✅ bool
+- ✅ float
+- ✅ int
+- ✅ na
 - ❌ log.error
 - ❌ log.info
 - ❌ log.warning
 - ❌ runtime.error
 - ❌ max_bars_back
 - ❌ fixnan
-- ❌ nz
+- ✅ nz
 
 ### Type Conversion
-- ❌ int
-- ❌ float
-- ❌ bool
-- ❌ string
+- ✅ int
+- ✅ float
+- ✅ bool
+- ✅ string
 - ❌ color
 
 ### Ticker Functions
