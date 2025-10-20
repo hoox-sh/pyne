@@ -50,6 +50,7 @@ class NumericBuiltinsMixin(BuiltinDispatchMixin):
             "int": self._builtin_int,
             "float": self._builtin_float,
             "string": self._builtin_string,
+            "fixnan": self._builtin_fixnan,
         }
 
     def _require_len(
@@ -244,3 +245,15 @@ class NumericBuiltinsMixin(BuiltinDispatchMixin):
         if value is None:
             return "na"
         return str(value)
+
+    def _builtin_fixnan(self, args: list[Any]) -> Any:
+        """Replace NaN/None values with previous non-NaN value or 0."""
+        self._require_len(args, UNARY, "fixnan() takes one argument")
+        value = args[0]
+        # If the value is None (NA), return 0
+        if value is None:
+            return 0
+        # If it's NaN (float NaN), return 0
+        if isinstance(value, float) and math.isnan(value):
+            return 0
+        return value
