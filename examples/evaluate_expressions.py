@@ -83,7 +83,8 @@ def main():
     lows = [98, 100, 99, 101, 103, 102, 104, 106, 105, 108]
     closes = prices
     atr_result = literal_eval(f"ta.atr({highs}, {lows}, {closes}, 14)")
-    print(f"ta.atr(highs, lows, closes, 14) = {atr_result:.2f}")
+    atr_value = atr_result[-1] if isinstance(atr_result, list) and atr_result else atr_result
+    print(f"ta.atr(highs, lows, closes, 14) = {atr_value:.2f}")
 
     # Stochastic Oscillator
     print("\n--- Technical Analysis: Stochastic Oscillator ---")

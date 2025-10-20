@@ -135,7 +135,7 @@ class TechnicalAnalysisMixin(BuiltinDispatchMixin):
         signal = self._expect_int(args[3], msg)
         return self._macd(series, fast, slow, signal)
 
-    def _builtin_ta_atr(self, args: list[Any]) -> float | None:
+    def _builtin_ta_atr(self, args: list[Any]) -> list[float]:
         msg = "ta.atr expects high, low, close, and length"
         if len(args) != QUATERNARY:
             self._error(msg)
@@ -143,8 +143,7 @@ class TechnicalAnalysisMixin(BuiltinDispatchMixin):
         lows = self._expect_list(args[1], msg)
         closes = self._expect_list(args[2], msg)
         length = self._expect_int(args[3], msg)
-        result = self._atr(highs, lows, closes, length)
-        return result[-1] if result else None
+        return self._atr(highs, lows, closes, length)
 
     def _builtin_ta_stoch(self, args: list[Any]) -> tuple[float, float]:
         msg = "ta.stoch expects high, low, close, length, smooth"
