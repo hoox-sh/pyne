@@ -596,7 +596,7 @@ This document tracks the implementation status of PineScript v6 features in pyne
 - ✅ math.pow
 - ✅ math.random
 - ✅ math.round
-- ❌ math.round_to_mintick
+- ✅ math.round_to_mintick
 - ✅ math.sign
 - ✅ math.sin
 - ✅ math.sqrt
@@ -775,8 +775,8 @@ This document tracks the implementation status of PineScript v6 features in pyne
 - ❌ library
 
 ### Utility Functions
-- ❌ alert
-- ❌ alertcondition
+- ✅ alert
+- ✅ alertcondition
 - ✅ bool
 - ✅ float
 - ✅ int
