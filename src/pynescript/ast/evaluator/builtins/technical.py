@@ -56,6 +56,15 @@ class TechnicalAnalysisMixin(BuiltinDispatchMixin):
             "ta.tsi": self._builtin_ta_tsi,
             "ta.valuewhen": self._builtin_ta_valuewhen,
             "ta.tr": self._builtin_ta_tr,
+            "ta.cog": self._builtin_ta_cog,
+            "ta.dmi": self._builtin_ta_dmi,
+            "ta.kc": self._builtin_ta_kc,
+            "ta.kcw": self._builtin_ta_kcw,
+            "ta.linreg": self._builtin_ta_linreg,
+            "ta.rci": self._builtin_ta_rci,
+            "ta.supertrend": self._builtin_ta_supertrend,
+            "ta.swma": self._builtin_ta_swma,
+            "ta.zigzag": self._builtin_ta_zigzag,
         }
 
     # -- Public entry points -------------------------------------------------
@@ -884,3 +893,242 @@ class TechnicalAnalysisMixin(BuiltinDispatchMixin):
             0.0,
         )
         return last_macd, last_signal, last_hist
+
+    def _builtin_ta_cog(self, args: list[Any]) -> float:
+        """Center of Gravity oscillator."""
+        series, length = self._expect_series(args, length=BINARY)
+
+        if length < 1:
+            self._error("ta.cog length must be positive")
+        if len(series) < length:
+            return math.nan
+
+        window = series[-length:]
+        num_sum = sum((i + 1) * val for i, val in enumerate(reversed(window)) if val is not None)
+        den_sum = sum(val for val in window if val is not None)
+
+        if den_sum == 0:
+            return math.nan
+        return -num_sum / den_sum
+
+    def _builtin_ta_dmi(self, args: list[Any]) -> tuple[float, float]:
+        """Directional Movement Index (returns +DI, -DI)."""
+        if len(args) != QUATERNARY:
+            self._error("ta.dmi takes high, low, close series and length")
+
+        highs = self._expect_series(args[0], "ta.dmi takes high, low, close series and length")
+        lows = self._expect_series(args[1], "ta.dmi takes high, low, close series and length")
+        closes = self._expect_series(args[2], "ta.dmi takes high, low, close series and length")
+        length = self._expect_int(args[3], "ta.dmi takes high, low, close series and length")
+
+        if length < 1:
+            self._error("ta.dmi length must be positive")
+        if not (len(highs) == len(lows) == len(closes)):
+            self._error("ta.dmi series must have equal length")
+
+        plus_dm = []
+        minus_dm = []
+
+        for i in range(len(highs)):
+            if i == 0:
+                plus_dm.append(0.0)
+                minus_dm.append(0.0)
+            else:
+                high_diff = (highs[i] if highs[i] is not None else 0) - (
+                    highs[i - 1] if highs[i - 1] is not None else 0
+                )
+                low_diff = (lows[i - 1] if lows[i - 1] is not None else 0) - (lows[i] if lows[i] is not None else 0)
+                plus_dm.append(high_diff if high_diff > low_diff and high_diff > 0 else 0.0)
+                minus_dm.append(low_diff if low_diff > high_diff and low_diff > 0 else 0.0)
+
+        atr_series = self._builtin_ta_atr([highs, lows, closes, length])
+        atr_val = atr_series[-1] if atr_series else 1
+
+        plus_di = 100 * (sum(plus_dm[-length:]) / length) / atr_val if atr_val else 0
+        minus_di = 100 * (sum(minus_dm[-length:]) / length) / atr_val if atr_val else 0
+
+        return plus_di, minus_di
+
+    def _builtin_ta_kc(self, args: list[Any]) -> tuple[float, float, float]:
+        """Keltner Channels (returns middle, upper, lower)."""
+        if len(args) not in {TERNARY, QUATERNARY}:
+            self._error("ta.kc takes high, low, close series, length, and optional offset_percent")
+
+        highs = self._expect_series(args[0], "ta.kc takes high, low, close series, length")
+        lows = self._expect_series(args[1], "ta.kc takes high, low, close series, length")
+        closes = self._expect_series(args[2], "ta.kc takes high, low, close series, length")
+        length = self._expect_int(args[3] if len(args) > 3 else args[2], "ta.kc length must be integer")
+        offset_percent = 1.0 if len(args) < 4 else (args[3] if isinstance(args[3], (int, float)) else 1.0)
+
+        if length < 1:
+            self._error("ta.kc length must be positive")
+
+        # Middle line = EMA of closes
+        ema_vals = self._ema(closes, length)
+        middle = ema_vals[-1] if ema_vals else math.nan
+
+        # ATR for channel width
+        atr_series = self._builtin_ta_atr([highs, lows, closes, length])
+        atr_val = atr_series[-1] if atr_series else 0
+
+        channel_width = atr_val * offset_percent
+        upper = middle + channel_width if middle is not None else math.nan
+        lower = middle - channel_width if middle is not None else math.nan
+
+        return middle, upper, lower
+
+    def _builtin_ta_kcw(self, args: list[Any]) -> float:
+        """Keltner Channels Width."""
+        if len(args) not in {TERNARY, QUATERNARY}:
+            self._error("ta.kcw takes high, low, close series, length, and optional offset_percent")
+
+        _, upper, lower = self._builtin_ta_kc(args)
+        if math.isnan(upper) or math.isnan(lower):
+            return math.nan
+        return upper - lower
+
+    def _builtin_ta_linreg(self, args: list[Any]) -> float:
+        """Linear Regression value."""
+        if len(args) != BINARY:
+            self._error("ta.linreg takes source series and length")
+
+        series = self._expect_series(args[0], "ta.linreg takes source series and length")
+        length = self._expect_int(args[1], "ta.linreg takes source series and length")
+
+        if length < 2:
+            self._error("ta.linreg length must be at least 2")
+        if len(series) < length:
+            return math.nan
+
+        window = series[-length:]
+        valid_values = [v for v in window if v is not None]
+
+        if len(valid_values) < 2:
+            return math.nan
+
+        x = list(range(len(valid_values)))
+        mean_x = sum(x) / len(x)
+        mean_y = sum(valid_values) / len(valid_values)
+
+        numerator = sum((xi - mean_x) * (yi - mean_y) for xi, yi in zip(x, valid_values, strict=True))
+        denominator = sum((xi - mean_x) ** 2 for xi in x)
+
+        if denominator == 0:
+            return mean_y
+
+        slope = numerator / denominator
+        return slope * (len(valid_values) - 1) + mean_y
+
+    def _builtin_ta_rci(self, args: list[Any]) -> float:
+        """Rank Correlation Index (Spearman's correlation)."""
+        if len(args) != BINARY:
+            self._error("ta.rci takes source series and length")
+
+        series = self._expect_series(args[0], "ta.rci takes source series and length")
+        length = self._expect_int(args[1], "ta.rci takes source series and length")
+
+        if length < 2:
+            self._error("ta.rci length must be at least 2")
+        if len(series) < length:
+            return math.nan
+
+        window = series[-length:]
+        valid_values = [(i, v) for i, v in enumerate(window) if v is not None]
+
+        if len(valid_values) < 2:
+            return math.nan
+
+        ranks_idx = sorted(range(len(valid_values)), key=lambda i: i)
+        ranks_val = sorted(range(len(valid_values)), key=lambda i: valid_values[i][1])
+
+        rank_dict_idx = {idx: rank for rank, idx in enumerate(ranks_idx)}
+        rank_dict_val = {idx: rank for rank, idx in enumerate(ranks_val)}
+
+        d_squared = sum((rank_dict_idx[i] - rank_dict_val[i]) ** 2 for i in range(len(valid_values)))
+        n = len(valid_values)
+        return 1 - (6 * d_squared) / (n * (n * n - 1)) if n > 1 else math.nan
+
+    def _builtin_ta_supertrend(self, args: list[Any]) -> tuple[float, float, int]:
+        """Supertrend indicator (returns final_lowerband, final_upperband, direction)."""
+        if len(args) != TERNARY:
+            self._error("ta.supertrend takes high, low series and length, multiplier")
+
+        highs = self._expect_series(args[0], "ta.supertrend takes high, low, length, multiplier")
+        lows = self._expect_series(args[1], "ta.supertrend takes high, low, length, multiplier")
+        length = self._expect_int(args[2], "ta.supertrend takes high, low, length, multiplier")
+        multiplier = args[3] if len(args) > 3 else 1.0
+
+        if length < 1:
+            self._error("ta.supertrend length must be positive")
+
+        atr_series = self._builtin_ta_atr([highs, lows, [0] * len(highs), length])
+        highest_high = max((h for h in highs[-length:] if h is not None), default=0)
+        lowest_low = min((ll for ll in lows[-length:] if ll is not None), default=0)
+
+        basic_ub = (highest_high + lowest_low) / 2 + multiplier * (atr_series[-1] if atr_series else 0)
+        basic_lb = (highest_high + lowest_low) / 2 - multiplier * (atr_series[-1] if atr_series else 0)
+
+        direction = 1 if highs[-1] > basic_ub else -1 if lows[-1] < basic_lb else 1
+
+        return basic_lb, basic_ub, direction
+
+    def _builtin_ta_swma(self, args: list[Any]) -> float:
+        """Symmetric Weighted Moving Average."""
+        if len(args) != BINARY:
+            self._error("ta.swma takes source series and length")
+
+        series = self._expect_series(args[0], "ta.swma takes source series and length")
+        length = self._expect_int(args[1], "ta.swma takes source series and length")
+
+        if length < 1:
+            self._error("ta.swma length must be positive")
+        if len(series) < length:
+            return math.nan
+
+        window = series[-length:]
+        valid_values = [v for v in window if v is not None]
+
+        if not valid_values:
+            return math.nan
+
+        # Symmetric weights: [1, 2, 3, ..., n, ..., 3, 2, 1]
+        n = len(valid_values)
+        if n == 1:
+            return valid_values[0]
+
+        weights = []
+        for i in range(n):
+            if i < n // 2:
+                weights.append(i + 1)
+            elif i > (n - 1) // 2:
+                weights.append(n - i)
+            else:
+                weights.append(n // 2 + 1)
+
+        weighted_sum = sum(v * w for v, w in zip(valid_values, weights, strict=True))
+        return weighted_sum / sum(weights)
+
+    def _builtin_ta_zigzag(self, args: list[Any]) -> tuple[float, float, int]:
+        """Zigzag pattern detector (returns high, low, direction)."""
+        if len(args) != BINARY:
+            self._error("ta.zigzag takes source series and percent threshold")
+
+        series = self._expect_series(args[0], "ta.zigzag takes source series and percent threshold")
+        threshold = args[1] if isinstance(args[1], (int, float)) else 5.0
+
+        if len(series) < 2:
+            return math.nan, math.nan, 0
+
+        # Find peaks and troughs
+        highs = [v for v in series if v is not None]
+        if len(highs) < 2:
+            return math.nan, math.nan, 0
+
+        recent_high = max(highs[-2:])
+        recent_low = min(highs[-2:])
+
+        percent_change = (recent_high - recent_low) / recent_low * 100 if recent_low else 0
+
+        direction = 1 if recent_high == highs[-1] else -1
+
+        return recent_high, recent_low, 1 if percent_change > threshold else direction

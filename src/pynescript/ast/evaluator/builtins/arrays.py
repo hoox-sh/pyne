@@ -11,6 +11,8 @@ from .base import BuiltinHandler
 UNARY = 1
 BINARY = 2
 TERNARY = 3
+MIN_ARRAY_SIZE = 2
+MAX_PERCENTILE = 100
 
 
 class ArrayBuiltinsMixin(BuiltinDispatchMixin):
@@ -51,7 +53,16 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
             "array.sort": self._builtin_array_sort,
             "array.sum": self._builtin_array_sum,
             "array.binary_search": self._builtin_array_binary_search,
+            "array.binary_search_leftmost": self._builtin_array_binary_search_leftmost,
+            "array.binary_search_rightmost": self._builtin_array_binary_search_rightmost,
             "array.mode": self._builtin_array_mode,
+            "array.percentile_linear_interpolation": self._builtin_array_percentile_linear_interpolation,
+            "array.percentile_nearest_rank": self._builtin_array_percentile_nearest_rank,
+            "array.percentrank": self._builtin_array_percentrank,
+            "array.standardize": self._builtin_array_standardize,
+            "array.stdev": self._builtin_array_stdev,
+            "array.variance": self._builtin_array_variance,
+            "array.sort_indices": self._builtin_array_sort_indices,
             "array.new_bool": self._builtin_array_new_empty,
             "array.new_int": self._builtin_array_new_empty,
             "array.new_float": self._builtin_array_new_empty,
@@ -489,3 +500,186 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
             return sequence.index(value)
         except ValueError:
             return -1
+
+    def _builtin_array_binary_search_leftmost(self, args: list[Any]) -> int:
+        """Binary search for the leftmost (first) occurrence of a value."""
+        if len(args) != BINARY:
+            self._error("array.binary_search_leftmost takes array and value")
+        sequence = self._expect_list(
+            args[0],
+            "array.binary_search_leftmost takes array and value",
+        )
+        value = args[1]
+
+        # Find leftmost position where value could be inserted
+        left, right = 0, len(sequence)
+        while left < right:
+            mid = (left + right) // 2
+            if sequence[mid] < value:
+                left = mid + 1
+            else:
+                right = mid
+
+        # Check if value exists at this position
+        if left < len(sequence) and sequence[left] == value:
+            return left
+        return -1
+
+    def _builtin_array_binary_search_rightmost(self, args: list[Any]) -> int:
+        """Binary search for the rightmost (last) occurrence of a value."""
+        if len(args) != BINARY:
+            self._error("array.binary_search_rightmost takes array and value")
+        sequence = self._expect_list(
+            args[0],
+            "array.binary_search_rightmost takes array and value",
+        )
+        value = args[1]
+
+        # Find rightmost position where value could be inserted
+        left, right = 0, len(sequence)
+        while left < right:
+            mid = (left + right) // 2
+            if value < sequence[mid]:
+                right = mid
+            else:
+                left = mid + 1
+
+        # Check if value exists at position left-1
+        if left > 0 and sequence[left - 1] == value:
+            return left - 1
+        return -1
+
+    def _builtin_array_percentile_linear_interpolation(self, args: list[Any]) -> float:
+        """Calculate percentile using linear interpolation method."""
+        if len(args) != BINARY:
+            self._error("array.percentile_linear_interpolation takes array and percentile")
+        sequence = self._expect_list(
+            args[0],
+            "array.percentile_linear_interpolation takes array and percentile",
+        )
+        percentile = args[1]
+
+        if not isinstance(percentile, (int, float)) or not 0 <= percentile <= MAX_PERCENTILE:
+            self._error("Percentile must be between 0 and 100")
+        if not sequence:
+            self._error("array.percentile_linear_interpolation requires non-empty array")
+
+        sorted_seq = sorted(sequence)
+        n = len(sorted_seq)
+        h = (percentile / MAX_PERCENTILE) * (n - 1)
+        h_floor = int(h)
+        h_frac = h - h_floor
+
+        if h_floor >= n - 1:
+            return float(sorted_seq[-1])
+        if h_floor < 0:
+            return float(sorted_seq[0])
+
+        # Linear interpolation between h_floor and h_floor+1
+        return float(sorted_seq[h_floor] * (1 - h_frac) + sorted_seq[h_floor + 1] * h_frac)
+
+    def _builtin_array_percentile_nearest_rank(self, args: list[Any]) -> Any:
+        """Calculate percentile using nearest rank method."""
+        if len(args) != BINARY:
+            self._error("array.percentile_nearest_rank takes array and percentile")
+        sequence = self._expect_list(
+            args[0],
+            "array.percentile_nearest_rank takes array and percentile",
+        )
+        percentile = args[1]
+
+        if not isinstance(percentile, (int, float)) or not 0 <= percentile <= MAX_PERCENTILE:
+            self._error("Percentile must be between 0 and 100")
+        if not sequence:
+            self._error("array.percentile_nearest_rank requires non-empty array")
+
+        sorted_seq = sorted(sequence)
+        n = len(sorted_seq)
+        rank = max(1, int((percentile / MAX_PERCENTILE) * n + 0.5))
+        return sorted_seq[rank - 1]
+
+    def _builtin_array_percentrank(self, args: list[Any]) -> float:
+        """Calculate percent rank of a value in an array (0-100)."""
+        if len(args) != BINARY:
+            self._error("array.percentrank takes array and value")
+        sequence = self._expect_list(
+            args[0],
+            "array.percentrank takes array and value",
+        )
+        value = args[1]
+
+        if not sequence:
+            self._error("array.percentrank requires non-empty array")
+
+        # Count how many values are <= the given value
+        count = sum(1 for x in sequence if x <= value)
+        # Percent rank is (count - 1) / (n - 1) * 100
+        n = len(sequence)
+        if n == 1:
+            return 0.0
+        return ((count - 1) / (n - 1)) * 100
+
+    def _builtin_array_standardize(self, args: list[Any]) -> list[Any]:
+        """Standardize array values (z-score normalization)."""
+        if len(args) != UNARY:
+            self._error("array.standardize takes an array argument")
+        sequence = self._expect_list(
+            args[0],
+            "array.standardize takes an array argument",
+        )
+
+        if len(sequence) < MIN_ARRAY_SIZE:
+            self._error("array.standardize requires at least 2 values")
+
+        mean = statistics.mean(sequence)
+        stdev = statistics.stdev(sequence)
+
+        if stdev == 0:
+            self._error("Cannot standardize array with zero standard deviation")
+
+        return [(x - mean) / stdev for x in sequence]
+
+    def _builtin_array_stdev(self, args: list[Any]) -> float:
+        """Calculate standard deviation of array values."""
+        if len(args) != UNARY:
+            self._error("array.stdev takes an array argument")
+        sequence = self._expect_list(
+            args[0],
+            "array.stdev takes an array argument",
+        )
+
+        if len(sequence) < MIN_ARRAY_SIZE:
+            self._error("array.stdev requires at least 2 values")
+
+        return statistics.stdev(sequence)
+
+    def _builtin_array_variance(self, args: list[Any]) -> float:
+        """Calculate variance of array values."""
+        if len(args) != UNARY:
+            self._error("array.variance takes an array argument")
+        sequence = self._expect_list(
+            args[0],
+            "array.variance takes an array argument",
+        )
+
+        if len(sequence) < MIN_ARRAY_SIZE:
+            self._error("array.variance requires at least 2 values")
+
+        return statistics.variance(sequence)
+
+    def _builtin_array_sort_indices(self, args: list[Any]) -> list[int]:
+        """Return indices that would sort the array."""
+        if len(args) != UNARY:
+            self._error("array.sort_indices takes an array argument")
+        sequence = self._expect_list(
+            args[0],
+            "array.sort_indices takes an array argument",
+        )
+
+        if not sequence:
+            return []
+
+        # Create list of (value, original_index) tuples, sort by value
+        indexed = [(val, idx) for idx, val in enumerate(sequence)]
+        sorted_indexed = sorted(indexed, key=lambda x: x[0])
+        return [idx for _, idx in sorted_indexed]
