@@ -65,6 +65,16 @@ class TechnicalAnalysisMixin(BuiltinDispatchMixin):
             "ta.supertrend": self._builtin_ta_supertrend,
             "ta.swma": self._builtin_ta_swma,
             "ta.zigzag": self._builtin_ta_zigzag,
+            "ta.range": self._builtin_ta_range,
+            "ta.max": self._builtin_ta_max,
+            "ta.min": self._builtin_ta_min,
+            "ta.mom": self._builtin_ta_mom,
+            "ta.cum": self._builtin_ta_cum,
+            "ta.dev": self._builtin_ta_dev,
+            "ta.median": self._builtin_ta_median,
+            "ta.mode": self._builtin_ta_mode,
+            "ta.percentrank": self._builtin_ta_percentrank,
+            "ta.variance": self._builtin_ta_variance,
         }
 
     # -- Public entry points -------------------------------------------------
@@ -125,7 +135,7 @@ class TechnicalAnalysisMixin(BuiltinDispatchMixin):
         signal = self._expect_int(args[3], msg)
         return self._macd(series, fast, slow, signal)
 
-    def _builtin_ta_atr(self, args: list[Any]) -> list[float]:
+    def _builtin_ta_atr(self, args: list[Any]) -> float | None:
         msg = "ta.atr expects high, low, close, and length"
         if len(args) != QUATERNARY:
             self._error(msg)
@@ -133,7 +143,8 @@ class TechnicalAnalysisMixin(BuiltinDispatchMixin):
         lows = self._expect_list(args[1], msg)
         closes = self._expect_list(args[2], msg)
         length = self._expect_int(args[3], msg)
-        return self._atr(highs, lows, closes, length)
+        result = self._atr(highs, lows, closes, length)
+        return result[-1] if result else None
 
     def _builtin_ta_stoch(self, args: list[Any]) -> tuple[float, float]:
         msg = "ta.stoch expects high, low, close, length, smooth"
@@ -1124,3 +1135,138 @@ class TechnicalAnalysisMixin(BuiltinDispatchMixin):
         direction = 1 if recent_high == highs[-1] else -1
 
         return recent_high, recent_low, 1 if percent_change > threshold else direction
+
+    def _builtin_ta_range(self, args: list[Any]) -> float | None:
+        """Range = highest - lowest over a period."""
+        series, period = self._expect_series(args, length=2)
+        return self._range(series, period)
+
+    def _builtin_ta_max(self, args: list[Any]) -> float | None:
+        """Maximum value over a period (alias for ta.highest)."""
+        series, period = self._expect_series(args, length=2)
+        return self._highest(series, period)
+
+    def _builtin_ta_min(self, args: list[Any]) -> float | None:
+        """Minimum value over a period (alias for ta.lowest)."""
+        series, period = self._expect_series(args, length=2)
+        return self._lowest(series, period)
+
+    def _builtin_ta_mom(self, args: list[Any]) -> float | None:
+        """Momentum = current value - previous value at specified length."""
+        series, period = self._expect_series(args, length=2)
+        return self._momentum(series, period)
+
+    def _builtin_ta_cum(self, args: list[Any]) -> float:
+        """Cumulative sum of values in series."""
+        msg = "ta.cum expects a series"
+        if len(args) != UNARY:
+            self._error(msg)
+        series = self._expect_list(args[0], msg)
+        return self._cumsum(series)
+
+    def _builtin_ta_dev(self, args: list[Any]) -> float | None:
+        """Deviation from mean (standard deviation)."""
+        series, period = self._expect_series(args, length=2)
+        return self._dev(series, period)
+
+    def _builtin_ta_median(self, args: list[Any]) -> float | None:
+        """Median value over a period."""
+        series, period = self._expect_series(args, length=2)
+        return self._median(series, period)
+
+    def _builtin_ta_mode(self, args: list[Any]) -> float | None:
+        """Mode (most frequent value) over a period."""
+        series, period = self._expect_series(args, length=2)
+        return self._mode(series, period)
+
+    def _builtin_ta_percentrank(self, args: list[Any]) -> float | None:
+        """Percentile rank of current value in period."""
+        series, period = self._expect_series(args, length=2)
+        return self._percentrank(series, period)
+
+    def _builtin_ta_variance(self, args: list[Any]) -> float | None:
+        """Variance over a period."""
+        series, period = self._expect_series(args, length=2)
+        return self._variance(series, period)
+
+    def _range(self, series: list[float], period: int) -> float | None:
+        """Range = highest - lowest over a period."""
+        highest = self._highest(series, period)
+        lowest = self._lowest(series, period)
+        if highest is None or lowest is None:
+            return None
+        return highest - lowest
+
+    def _momentum(self, series: list[float], period: int) -> float | None:
+        """Momentum = current value - previous value at specified period."""
+        if len(series) <= period:
+            return None
+        return series[-1] - series[-1 - period] if series[-1] is not None and series[-1 - period] is not None else None
+
+    def _cumsum(self, series: list[Any]) -> float:
+        """Cumulative sum of all values in series."""
+        total = 0.0
+        for value in series:
+            if value is not None and isinstance(value, (int, float)):
+                total += value
+        return total
+
+    def _dev(self, series: list[float], period: int) -> float | None:
+        """Deviation = average absolute deviation from mean."""
+        if len(series) < period:
+            return None
+        window = series[-period:]
+        valid_values = [v for v in window if v is not None]
+        if not valid_values:
+            return None
+        mean = sum(valid_values) / len(valid_values)
+        dev = sum(abs(v - mean) for v in valid_values) / len(valid_values)
+        return dev
+
+    def _median(self, series: list[float], period: int) -> float | None:
+        """Median value over a period."""
+        if len(series) < period:
+            return None
+        window = series[-period:]
+        valid_values = sorted([v for v in window if v is not None])
+        if not valid_values:
+            return None
+        return statistics.median(valid_values)
+
+    def _mode(self, series: list[float], period: int) -> float | None:
+        """Mode (most frequent value) over a period."""
+        if len(series) < period:
+            return None
+        window = series[-period:]
+        valid_values = [v for v in window if v is not None]
+        if not valid_values:
+            return None
+        try:
+            return statistics.mode(valid_values)
+        except statistics.StatisticsError:
+            # No unique mode, return the first value
+            return valid_values[0] if valid_values else None
+
+    def _percentrank(self, series: list[float], period: int) -> float | None:
+        """Percentile rank of current value in period."""
+        if len(series) < period:
+            return None
+        window = series[-period:]
+        valid_values = sorted([v for v in window if v is not None])
+        if not valid_values or len(valid_values) < 2:
+            return 50.0
+        current = series[-1]
+        if current is None:
+            return None
+        count_below = sum(1 for v in valid_values if v < current)
+        return (count_below / len(valid_values)) * 100
+
+    def _variance(self, series: list[float], period: int) -> float | None:
+        """Variance over a period."""
+        if len(series) < period:
+            return None
+        window = series[-period:]
+        valid_values = [v for v in window if v is not None]
+        if len(valid_values) < 2:
+            return None
+        return statistics.variance(valid_values)

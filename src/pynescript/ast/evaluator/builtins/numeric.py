@@ -44,6 +44,11 @@ class NumericBuiltinsMixin(BuiltinDispatchMixin):
             "math.toradians": self._builtin_math_toradians,
             "math.random": self._builtin_math_random,
             "color.new": self._builtin_color_new,
+            "na": self._builtin_na,
+            "nz": self._builtin_nz,
+            "bool": self._builtin_bool,
+            "int": self._builtin_int,
+            "float": self._builtin_float,
         }
 
     def _require_len(
@@ -170,3 +175,59 @@ class NumericBuiltinsMixin(BuiltinDispatchMixin):
     def _builtin_color_new(self, args: list[Any]) -> Any:
         self._require_len(args, UNARY, "color.new takes one argument")
         return f"color({args[0]})"
+
+    def _builtin_na(self, args: list[Any]) -> None:
+        """Return None (not available/NA value in PineScript)."""
+        if args:
+            self._error("na() takes no arguments")
+        return None
+
+    def _builtin_nz(self, args: list[Any]) -> Any:
+        """Replace None with default value."""
+        if not args or len(args) < 2:
+            self._error("nz() takes value and default arguments")
+        value = args[0]
+        default = args[1]
+        return default if value is None else value
+
+    def _builtin_bool(self, args: list[Any]) -> bool:
+        """Convert value to boolean."""
+        self._require_len(args, UNARY, "bool() takes one argument")
+        value = args[0]
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, (int, float)):
+            return bool(value)
+        if isinstance(value, str):
+            return bool(value.lower() in {"true", "yes", "1"})
+        return bool(value)
+
+    def _builtin_int(self, args: list[Any]) -> int:
+        """Convert value to integer."""
+        self._require_len(args, UNARY, "int() takes one argument")
+        value = args[0]
+        if isinstance(value, int):
+            return value
+        if isinstance(value, float):
+            return int(value)
+        if isinstance(value, str):
+            try:
+                return int(float(value))
+            except ValueError:
+                self._error(f"Cannot convert '{value}' to int")
+        return int(value)
+
+    def _builtin_float(self, args: list[Any]) -> float:
+        """Convert value to float."""
+        self._require_len(args, UNARY, "float() takes one argument")
+        value = args[0]
+        if isinstance(value, float):
+            return value
+        if isinstance(value, int):
+            return float(value)
+        if isinstance(value, str):
+            try:
+                return float(value)
+            except ValueError:
+                self._error(f"Cannot convert '{value}' to float")
+        return float(value)
