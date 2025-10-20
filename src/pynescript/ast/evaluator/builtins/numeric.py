@@ -51,6 +51,7 @@ class NumericBuiltinsMixin(BuiltinDispatchMixin):
             "float": self._builtin_float,
             "string": self._builtin_string,
             "fixnan": self._builtin_fixnan,
+            "math.round_to_mintick": self._builtin_math_round_to_mintick,
         }
 
     def _require_len(
@@ -257,3 +258,13 @@ class NumericBuiltinsMixin(BuiltinDispatchMixin):
         if isinstance(value, float) and math.isnan(value):
             return 0
         return value
+
+    def _builtin_math_round_to_mintick(self, args: list[Any]) -> float:
+        """Round value to the nearest tick (minimum price increment)."""
+        self._require_len(args, UNARY, "math.round_to_mintick() takes one")
+        value = args[0]
+        if not isinstance(value, (int, float)):
+            self._error("math.round_to_mintick() requires a numeric value")
+        # In real Pine, this rounds to the symbol's minimum tick size
+        # For general use, we round to 8 decimal places (common default)
+        return round(value, 8)

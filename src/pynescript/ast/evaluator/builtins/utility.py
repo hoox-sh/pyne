@@ -25,6 +25,7 @@ class UtilityFunctionsMixin(BuiltinDispatchMixin):
             "weekofyear": self._builtin_weekofyear,
             "alert": self._builtin_alert,
             "alertcondition": self._builtin_alertcondition,
+            "timestamp": self._builtin_timestamp,
         }
 
     def _builtin_time(self, args: list[Any]) -> int:
@@ -145,3 +146,34 @@ class UtilityFunctionsMixin(BuiltinDispatchMixin):
         _ = args[1]  # message
         if len(args) > 2:
             pass  # freq parameter is ignored
+
+    def _builtin_timestamp(self, args: list[Any]) -> int:
+        """Create Unix timestamp from date/time components."""
+        if len(args) < 3:
+            msg = "timestamp() requires year, month, day"
+            self._error(msg)
+        year = args[0]
+        month = args[1]
+        day = args[2]
+        hour = args[3] if len(args) > 3 else 0
+        minute = args[4] if len(args) > 4 else 0
+        second = args[5] if len(args) > 5 else 0
+
+        for val in [year, month, day, hour, minute, second]:
+            if not isinstance(val, (int, float)):
+                self._error("timestamp() arguments must be numeric")
+
+        try:
+            dt = datetime(
+                int(year),
+                int(month),
+                int(day),
+                int(hour),
+                int(minute),
+                int(second),
+                tzinfo=timezone.utc,
+            )
+            # Return milliseconds since epoch (PineScript standard)
+            return int(dt.timestamp() * 1000)
+        except (ValueError, OSError) as e:
+            self._error(f"Invalid date/time arguments: {e}")
