@@ -1,0 +1,120 @@
+from __future__ import annotations
+
+from datetime import datetime
+from datetime import timezone
+from typing import Any
+
+from .base import BuiltinDispatchMixin
+from .base import BuiltinHandler
+
+
+class UtilityFunctionsMixin(BuiltinDispatchMixin):
+    """Utility and time-related built-in functions."""
+
+    def _utility_builtin_map(self) -> dict[str, BuiltinHandler]:
+        return {
+            "time": self._builtin_time,
+            "year": self._builtin_year,
+            "month": self._builtin_month,
+            "dayofmonth": self._builtin_dayofmonth,
+            "dayofweek": self._builtin_dayofweek,
+            "hour": self._builtin_hour,
+            "minute": self._builtin_minute,
+            "second": self._builtin_second,
+            "time_close": self._builtin_time_close,
+            "weekofyear": self._builtin_weekofyear,
+        }
+
+    def _builtin_time(self, args: list[Any]) -> int:
+        """Get current time in Unix timestamp (milliseconds)."""
+        if args:
+            self._error("time() takes no arguments")
+        return int(datetime.now(timezone.utc).timestamp() * 1000)
+
+    def _builtin_year(self, args: list[Any]) -> int:
+        """Extract year from timestamp."""
+        if len(args) != 1:
+            self._error("year() takes exactly one argument (timestamp)")
+        ts = args[0]
+        if not isinstance(ts, (int, float)):
+            self._error("year() requires a numeric timestamp")
+        # PineScript timestamps are in milliseconds
+        dt = datetime.fromtimestamp(ts / 1000, tz=timezone.utc)
+        return dt.year
+
+    def _builtin_month(self, args: list[Any]) -> int:
+        """Extract month from timestamp (1-12)."""
+        if len(args) != 1:
+            self._error("month() takes exactly one argument (timestamp)")
+        ts = args[0]
+        if not isinstance(ts, (int, float)):
+            self._error("month() requires a numeric timestamp")
+        dt = datetime.fromtimestamp(ts / 1000, tz=timezone.utc)
+        return dt.month
+
+    def _builtin_dayofmonth(self, args: list[Any]) -> int:
+        """Extract day of month from timestamp (1-31)."""
+        if len(args) != 1:
+            self._error("dayofmonth() takes exactly one argument (timestamp)")
+        ts = args[0]
+        if not isinstance(ts, (int, float)):
+            self._error("dayofmonth() requires a numeric timestamp")
+        dt = datetime.fromtimestamp(ts / 1000, tz=timezone.utc)
+        return dt.day
+
+    def _builtin_dayofweek(self, args: list[Any]) -> int:
+        """Extract day of week from timestamp (1=Sunday, 7=Saturday)."""
+        if len(args) != 1:
+            self._error("dayofweek() takes exactly one argument (timestamp)")
+        ts = args[0]
+        if not isinstance(ts, (int, float)):
+            self._error("dayofweek() requires a numeric timestamp")
+        dt = datetime.fromtimestamp(ts / 1000, tz=timezone.utc)
+        # Python: 0=Monday, 6=Sunday; PineScript: 1=Sunday, 7=Saturday
+        return ((dt.weekday() + 1) % 7) + 1
+
+    def _builtin_hour(self, args: list[Any]) -> int:
+        """Extract hour from timestamp (0-23)."""
+        if len(args) != 1:
+            self._error("hour() takes exactly one argument (timestamp)")
+        ts = args[0]
+        if not isinstance(ts, (int, float)):
+            self._error("hour() requires a numeric timestamp")
+        dt = datetime.fromtimestamp(ts / 1000, tz=timezone.utc)
+        return dt.hour
+
+    def _builtin_minute(self, args: list[Any]) -> int:
+        """Extract minute from timestamp (0-59)."""
+        if len(args) != 1:
+            self._error("minute() takes exactly one argument (timestamp)")
+        ts = args[0]
+        if not isinstance(ts, (int, float)):
+            self._error("minute() requires a numeric timestamp")
+        dt = datetime.fromtimestamp(ts / 1000, tz=timezone.utc)
+        return dt.minute
+
+    def _builtin_second(self, args: list[Any]) -> int:
+        """Extract second from timestamp (0-59)."""
+        if len(args) != 1:
+            self._error("second() takes exactly one argument (timestamp)")
+        ts = args[0]
+        if not isinstance(ts, (int, float)):
+            self._error("second() requires a numeric timestamp")
+        dt = datetime.fromtimestamp(ts / 1000, tz=timezone.utc)
+        return dt.second
+
+    def _builtin_time_close(self, args: list[Any]) -> int:
+        """Get close time of current bar (same as time in most contexts)."""
+        if args:
+            self._error("time_close() takes no arguments")
+        return int(datetime.now(timezone.utc).timestamp() * 1000)
+
+    def _builtin_weekofyear(self, args: list[Any]) -> int:
+        """Get week number of the year (1-53)."""
+        if len(args) != 1:
+            self._error("weekofyear() takes exactly one argument (timestamp)")
+        ts = args[0]
+        if not isinstance(ts, (int, float)):
+            self._error("weekofyear() requires a numeric timestamp")
+        dt = datetime.fromtimestamp(ts / 1000, tz=timezone.utc)
+        return dt.isocalendar()[1]
