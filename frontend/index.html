@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TradingView Clone</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="chart-container">
+        <div id="chart"></div>
+    </div>
+    <div class="controls">
+        <textarea id="pine-script-input" placeholder="Enter Pine Script..."></textarea>
+        <button id="run-button">Run</button>
+    </div>
+    <div id="output-container">
+        <pre id="output"></pre>
+    </div>
+    <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>

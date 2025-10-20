@@ -553,6 +553,23 @@ def test_evaluator_str_tostring(expression, expected):
 @pytest.mark.parametrize(
     ("expression", "expected"),
     [
+        ('str.format_time(1672531200000, "yyyy-MM-dd")', "2023-01-01"),
+        (
+            'str.format_time(1672531200000, "yyyy-MM-dd HH:mm:ss", "GMT+3")',
+            "2023-01-01 03:00:00",
+        ),
+    ],
+)
+def test_evaluator_str_format_time(expression, expected):
+    ast = helper.parse(expression, mode="eval")
+    evaluator = NodeLiteralEvaluator()
+    result = evaluator.visit(ast.body)
+    assert result == expected
+
+
+@pytest.mark.parametrize(
+    ("expression", "expected"),
+    [
         ("array.size([1, 2, 3])", 3),
         ("array.size([])", 0),
     ],
@@ -962,3 +979,126 @@ def test_evaluator_ta_atr(expression, expected):
     evaluator = NodeLiteralEvaluator()
     result = evaluator.visit(ast.body)
     assert result == expected
+
+
+@pytest.mark.parametrize(
+    ("expression", "expected"),
+    [
+        (
+            "ta.tr([10, 12, 15], [8, 9, 11], [9, 11, 13])",
+            [math.nan, 3.0, 4.0],
+        ),
+    ],
+)
+def test_evaluator_ta_tr(expression, expected):
+    ast = helper.parse(expression, mode="eval")
+    evaluator = NodeLiteralEvaluator()
+    result = evaluator.visit(ast.body)
+    assert math.isnan(result[0])
+    assert result[1:] == pytest.approx(expected[1:])
+
+
+@pytest.mark.parametrize(
+    ("expression", "expected"),
+    [
+        (
+            "ta.stoch([10, 11, 12, 11, 10], [8, 9, 10, 9, 8], [9, 10, 11, 10, 9], 3, 2)",
+            (25.0, 0.0),
+        ),
+    ],
+)
+def test_evaluator_ta_stoch(expression, expected):
+    ast = helper.parse(expression, mode="eval")
+    evaluator = NodeLiteralEvaluator()
+    result = evaluator.visit(ast.body)
+    assert result == pytest.approx(expected)
+
+
+@pytest.mark.parametrize(
+    ("expression", "expected"),
+    [
+        (
+            "ta.adx([10, 11, 12, 11, 10], [8, 9, 10, 9, 8], [9, 10, 11, 10, 9], 3)",
+            0.0,
+        ),
+    ],
+)
+def test_evaluator_ta_adx(expression, expected):
+    ast = helper.parse(expression, mode="eval")
+    evaluator = NodeLiteralEvaluator()
+    result = evaluator.visit(ast.body)
+    assert result == pytest.approx(expected)
+
+
+@pytest.mark.parametrize(
+    ("expression", "expected"),
+    [
+        (
+            "ta.cci([10, 11, 12, 11, 10], [8, 9, 10, 9, 8], [9, 10, 11, 10, 9], 3)",
+            -100.0,
+        ),
+    ],
+)
+def test_evaluator_ta_cci(expression, expected):
+    ast = helper.parse(expression, mode="eval")
+    evaluator = NodeLiteralEvaluator()
+    result = evaluator.visit(ast.body)
+    assert result == pytest.approx(expected)
+
+
+@pytest.mark.parametrize(
+    ("expression", "expected"),
+    [
+        ("ta.roc([1, 2, 3, 4, 5], 2)", 100.0),
+    ],
+)
+def test_evaluator_ta_roc(expression, expected):
+    ast = helper.parse(expression, mode="eval")
+    evaluator = NodeLiteralEvaluator()
+    result = evaluator.visit(ast.body)
+    assert result == pytest.approx(expected)
+
+
+@pytest.mark.parametrize(
+    ("expression", "expected"),
+    [
+        (
+            "ta.wpr([10, 11, 12, 11, 10], [8, 9, 10, 9, 8], [9, 10, 11, 10, 9], 3)",
+            -75.0,
+        ),
+    ],
+)
+def test_evaluator_ta_wpr(expression, expected):
+    ast = helper.parse(expression, mode="eval")
+    evaluator = NodeLiteralEvaluator()
+    result = evaluator.visit(ast.body)
+    assert result == pytest.approx(expected)
+
+
+@pytest.mark.parametrize(
+    ("expression", "expected"),
+    [
+        ("ta.obv([9, 10, 11, 10, 9], [100, 110, 120, 90, 80])", -50),
+    ],
+)
+def test_evaluator_ta_obv(expression, expected):
+    ast = helper.parse(expression, mode="eval")
+    evaluator = NodeLiteralEvaluator()
+    result = evaluator.visit(ast.body)
+    assert result == pytest.approx(expected)
+
+
+@pytest.mark.parametrize(
+    ("expression", "expected"),
+    [
+        (
+            "ta.mfi([10, 11, 12, 11, 10], [8, 9, 10, 9, 8], [9, 10, 11, 10, 9], [100, 110, 120, 90, 80], 3)",
+            50.0,
+        ),
+    ],
+)
+def test_evaluator_ta_mfi(expression, expected):
+    ast = helper.parse(expression, mode="eval")
+    evaluator = NodeLiteralEvaluator()
+    result = evaluator.visit(ast.body)
+    assert result == pytest.approx(expected)

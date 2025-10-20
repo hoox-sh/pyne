@@ -610,6 +610,7 @@ This document tracks the implementation status of PineScript v6 features in pyne
 - ✅ str.endswith
 - ✅ str.format
 - ❌ str.format_time
+- ✅ str.join
 - ✅ str.length
 - ✅ str.lower
 - ✅ str.match
@@ -678,7 +679,7 @@ This document tracks the implementation status of PineScript v6 features in pyne
 - ✅ ta.stoch
 - ❌ ta.supertrend
 - ❌ ta.swma
-- ❌ ta.tr
+- ✅ ta.tr
 - ✅ ta.tsi
 - ✅ ta.valuewhen
 - ✅ ta.variance

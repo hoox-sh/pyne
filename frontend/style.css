@@ -1,0 +1,61 @@
+body {
+    font-family: sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background-color: #131722;
+    color: #d1d4dc;
+}
+
+.chart-container {
+    width: 80%;
+    height: 500px;
+    margin-top: 20px;
+}
+
+.controls {
+    margin-top: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+#pine-script-input {
+    width: 500px;
+    height: 150px;
+    background-color: #1e222d;
+    color: #d1d4dc;
+    border: 1px solid #494949;
+    border-radius: 4px;
+}
+
+#run-button {
+    margin-top: 10px;
+    padding: 10px 20px;
+    background-color: #2962ff;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+#run-button:hover {
+    background-color: #2979ff;
+}
+
+#output-container {
+    margin-top: 20px;
+    width: 500px;
+    height: 150px;
+    background-color: #1e222d;
+    border: 1px solid #494949;
+    border-radius: 4px;
+    padding: 10px;
+    overflow-y: auto;
+}
+
+#output {
+    margin: 0;
+    font-family: monospace;
+    font-size: 14px;
+}
