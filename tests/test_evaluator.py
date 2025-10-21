@@ -6,6 +6,7 @@ import pytest
 
 from pynescript.ast import helper
 from pynescript.ast.evaluator import NodeLiteralEvaluator
+from pynescript.ast.evaluator.builtins.drawing import TableCell
 
 
 @pytest.mark.parametrize(
@@ -1701,3 +1702,245 @@ def test_evaluator_request_seed(expression, expected_result):
     evaluator = NodeLiteralEvaluator()
     result = evaluator.visit(ast.body)
     assert result == expected_result
+
+
+# DRAWING FUNCTIONS TESTS
+
+
+def test_evaluator_line_new():
+    """Test line.new() creates a line object."""
+    ast = helper.parse("line.new(0, 100.0, 10, 110.0)", mode="eval")
+    evaluator = NodeLiteralEvaluator()
+    result = evaluator.visit(ast.body)
+    assert result is not None
+    assert hasattr(result, "x1")
+    assert hasattr(result, "y1")
+    assert result.x1 == 0
+    assert result.y1 == 100.0
+    assert result.x2 == 10
+    assert result.y2 == 110.0
+
+
+def test_evaluator_line_copy():
+    """Test line.copy() duplicates a line."""
+    ast1 = helper.parse("line.new(5, 50.0, 15, 60.0)", mode="eval")
+    evaluator = NodeLiteralEvaluator()
+    line1 = evaluator.visit(ast1.body)
+
+    ast2 = helper.parse("line.copy(line1)", mode="eval")
+    evaluator.context = {"line1": line1}
+    line2 = evaluator.visit(ast2.body)
+
+    assert line2 is not None
+    assert line2.x1 == line1.x1
+    assert line2.y1 == line1.y1
+
+
+def test_evaluator_line_set_color():
+    """Test line.set_color() modifies line color."""
+    ast1 = helper.parse("line.new(0, 100.0, 10, 110.0)", mode="eval")
+    evaluator = NodeLiteralEvaluator()
+    line = evaluator.visit(ast1.body)
+    assert line.color == "#000000"
+
+    # Modify color
+    line.color = "#FF0000"
+    assert line.color == "#FF0000"
+
+
+def test_evaluator_line_get_coordinates():
+    """Test line.get_x1/y1/x2/y2() retrieve coordinates."""
+    ast = helper.parse("line.new(5, 50.0, 15, 60.0)", mode="eval")
+    evaluator = NodeLiteralEvaluator()
+    line = evaluator.visit(ast.body)
+
+    assert line.x1 == 5
+    assert line.y1 == 50.0
+    assert line.x2 == 15
+    assert line.y2 == 60.0
+
+
+def test_evaluator_box_new():
+    """Test box.new() creates a box object."""
+    ast = helper.parse("box.new(0, 100.0, 10, 110.0)", mode="eval")
+    evaluator = NodeLiteralEvaluator()
+    result = evaluator.visit(ast.body)
+    assert result is not None
+    assert hasattr(result, "left")
+    assert hasattr(result, "top")
+    assert result.left == 0
+    assert result.top == 100.0
+    assert result.right == 10
+    assert result.bottom == 110.0
+
+
+def test_evaluator_box_copy():
+    """Test box.copy() duplicates a box."""
+    ast1 = helper.parse("box.new(5, 50.0, 15, 60.0)", mode="eval")
+    evaluator = NodeLiteralEvaluator()
+    box1 = evaluator.visit(ast1.body)
+
+    ast2 = helper.parse("box.copy(box1)", mode="eval")
+    evaluator.context = {"box1": box1}
+    box2 = evaluator.visit(ast2.body)
+
+    assert box2 is not None
+    assert box2.left == box1.left
+    assert box2.top == box1.top
+
+
+def test_evaluator_box_set_properties():
+    """Test box property setters."""
+    ast = helper.parse("box.new(0, 100.0, 10, 110.0)", mode="eval")
+    evaluator = NodeLiteralEvaluator()
+    box = evaluator.visit(ast.body)
+
+    # Test default values
+    assert box.bgcolor == "rgba(0,0,0,0)"
+    assert box.border_color == "#000000"
+    assert box.border_width == 1
+
+    # Modify properties
+    box.bgcolor = "rgba(255,0,0,0.5)"
+    box.border_color = "#FF0000"
+    box.border_width = 2
+
+    assert box.bgcolor == "rgba(255,0,0,0.5)"
+    assert box.border_color == "#FF0000"
+    assert box.border_width == 2
+
+
+def test_evaluator_box_get_coordinates():
+    """Test box.get_left/right/top/bottom() retrieve coordinates."""
+    ast = helper.parse("box.new(5, 50.0, 15, 60.0)", mode="eval")
+    evaluator = NodeLiteralEvaluator()
+    box = evaluator.visit(ast.body)
+
+    assert box.left == 5
+    assert box.top == 50.0
+    assert box.right == 15
+    assert box.bottom == 60.0
+
+
+def test_evaluator_label_new():
+    """Test label.new() creates a label object."""
+    ast = helper.parse("label.new(10, 100.0, 'Test Label')", mode="eval")
+    evaluator = NodeLiteralEvaluator()
+    result = evaluator.visit(ast.body)
+    assert result is not None
+    assert hasattr(result, "x")
+    assert hasattr(result, "y")
+    assert hasattr(result, "text")
+    assert result.x == 10
+    assert result.y == 100.0
+    assert result.text == "Test Label"
+
+
+def test_evaluator_label_copy():
+    """Test label.copy() duplicates a label."""
+    ast1 = helper.parse("label.new(10, 100.0, 'Test')", mode="eval")
+    evaluator = NodeLiteralEvaluator()
+    label1 = evaluator.visit(ast1.body)
+
+    ast2 = helper.parse("label.copy(label1)", mode="eval")
+    evaluator.context = {"label1": label1}
+    label2 = evaluator.visit(ast2.body)
+
+    assert label2 is not None
+    assert label2.x == label1.x
+    assert label2.y == label1.y
+    assert label2.text == label1.text
+
+
+def test_evaluator_label_set_text():
+    """Test label.set_text() modifies label text."""
+    ast = helper.parse("label.new(10, 100.0, 'Initial')", mode="eval")
+    evaluator = NodeLiteralEvaluator()
+    label = evaluator.visit(ast.body)
+    assert label.text == "Initial"
+
+    label.text = "Modified"
+    assert label.text == "Modified"
+
+
+def test_evaluator_label_properties():
+    """Test label properties."""
+    ast = helper.parse("label.new(10, 100.0, 'Test')", mode="eval")
+    evaluator = NodeLiteralEvaluator()
+    label = evaluator.visit(ast.body)
+
+    # Test default values
+    assert label.xloc == "bar_index"
+    assert label.yloc == "price"
+    assert label.color == "#000000"
+    assert label.textcolor == "#000000"
+    assert label.text_size == "auto"
+
+    # Modify properties
+    label.textcolor = "#FF0000"
+    label.text_size = "small"
+    assert label.textcolor == "#FF0000"
+    assert label.text_size == "small"
+
+
+def test_evaluator_label_get_coordinates():
+    """Test label.get_x/y() retrieve coordinates."""
+    ast = helper.parse("label.new(15, 120.0, 'Test')", mode="eval")
+    evaluator = NodeLiteralEvaluator()
+    label = evaluator.visit(ast.body)
+
+    assert label.x == 15
+    assert label.y == 120.0
+    assert label.text == "Test"
+
+
+def test_evaluator_table_new():
+    """Test table.new() creates a table object."""
+    ast = helper.parse("table.new('top_left', 3, 4)", mode="eval")
+    evaluator = NodeLiteralEvaluator()
+    result = evaluator.visit(ast.body)
+    assert result is not None
+    assert hasattr(result, "position")
+    assert hasattr(result, "rows")
+    assert hasattr(result, "columns")
+    assert result.position == "top_left"
+    assert result.rows == 3
+    assert result.columns == 4
+
+
+def test_evaluator_table_cell_operations():
+    """Test table cell operations."""
+    ast = helper.parse("table.new('top_left', 2, 2)", mode="eval")
+    evaluator = NodeLiteralEvaluator()
+    table = evaluator.visit(ast.body)
+
+    # Set cell text
+    cell = TableCell()
+    cell.text = "Cell 0,0"
+    table.cells[(0, 0)] = cell
+
+    # Get cell text
+    assert table.cells[(0, 0)].text == "Cell 0,0"
+
+    # Modify cell properties
+    cell.textcolor = "#FF0000"
+    cell.bgcolor = "rgba(255,255,0,0.5)"
+    assert cell.textcolor == "#FF0000"
+    assert cell.bgcolor == "rgba(255,255,0,0.5)"
+
+
+def test_evaluator_table_clear():
+    """Test table.clear() removes all cells."""
+    ast = helper.parse("table.new('top_left', 2, 2)", mode="eval")
+    evaluator = NodeLiteralEvaluator()
+    table = evaluator.visit(ast.body)
+
+    # Add cells
+    table.cells[(0, 0)] = TableCell(text="A")
+    table.cells[(0, 1)] = TableCell(text="B")
+
+    assert len(table.cells) == 2
+
+    # Clear
+    table.cells.clear()
+    assert len(table.cells) == 0
