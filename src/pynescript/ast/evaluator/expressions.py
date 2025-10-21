@@ -88,11 +88,11 @@ class ExpressionEvaluator:
         kwargs = {}
 
         for arg in node.args:
-            if arg.name:
-                kwargs[arg.name] = self.visit(arg.value)
+            if arg.name:  # type: ignore[attr-defined]
+                kwargs[arg.name] = self.visit(arg.value)  # type: ignore[attr-defined]
 
             else:
-                args.append(self.visit(arg.value))
+                args.append(self.visit(arg.value))  # type: ignore[attr-defined]
 
         # Handle built-in functions
         if isinstance(func, str):

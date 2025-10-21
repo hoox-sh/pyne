@@ -171,3 +171,54 @@ exclude_lines = [
   "if __name__ == .__main__.:",
   "if TYPE_CHECKING:",
 ]
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+check_untyped_defs = true
+no_implicit_optional = true
+exclude = [
+    "src/pynescript/ast/evaluator_backup\\.py$",
+]
+
+[[tool.mypy.overrides]]
+module = [
+  "pynescript.ast.grammar.antlr4.generated.*",
+  "pynescript.ast.grammar.asdl.generated.*",
+  "pynescript.ast.grammar.antlr4.resource.*",
+  "pynescript.ast.grammar.antlr4.error_listener",
+  "pynescript.ast.grammar.asdl.tool.*",
+]
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = [
+  "tests.*",
+]
+check_untyped_defs = false
+
+[[tool.mypy.overrides]]
+module = [
+  "pynescript.ast.helper",
+  "pynescript.ast.builder",
+]
+disable_error_code = ["no-any-return"]
+
+[[tool.mypy.overrides]]
+module = [
+  "pynescript.ast.evaluator.builtins.*",
+]
+warn_return_any = false
+disable_error_code = ["return-value", "assignment", "arg-type", "operator", "index", "type-var", "union-attr"]
+
+[[tool.mypy.overrides]]
+module = [
+  "antlr4.*",
+  "pytest.*",
+  "nautilus_trader.*",
+  "pyasdl.*",
+]
+ignore_missing_imports = true

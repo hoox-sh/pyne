@@ -33,8 +33,8 @@ def pytest_addoption(parser: Parser):
 def pytest_generate_tests(metafunc: Metafunc):
     if "pinescript_filepath" in metafunc.fixturenames:
         example_scripts_dir: Path = metafunc.config.getoption("--example-scripts-dir")
-        pinescript_filepaths = example_scripts_dir.glob("*.pine")
-        pinescript_filepaths = list(pinescript_filepaths)
+        pinescript_filepaths_iter = example_scripts_dir.glob("*.pine")
+        pinescript_filepaths = list(pinescript_filepaths_iter)
         pinescript_filenames = [path.name for path in pinescript_filepaths]
         metafunc.parametrize(
             argnames="pinescript_filepath",
