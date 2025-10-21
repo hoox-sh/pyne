@@ -37,7 +37,7 @@ class NameEvaluator:
 
     def visit_Subscript(self: EvaluatorProtocol, node: ast.Subscript) -> Any:
         value = self.visit(node.value)
-        slice_ = self.visit(node.slice)
+        slice_ = self.visit(node.slice) if node.slice else None  # type: ignore[arg-type]
         if isinstance(value, list) and isinstance(slice_, int):
             if slice_ < 0:
                 msg = "Negative indices not supported in PineScript"

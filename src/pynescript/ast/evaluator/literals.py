@@ -13,4 +13,4 @@ class LiteralEvaluator:
         return node.value
 
     def visit_Tuple(self, node: ast.Tuple) -> Any:
-        return [self.visit(elt) for elt in node.elts]
+        return [self.visit(elt) for elt in node.elts]  # type: ignore[attr-defined]

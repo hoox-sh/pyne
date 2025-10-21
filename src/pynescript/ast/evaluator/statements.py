@@ -6,15 +6,15 @@ from pynescript.ast import node as ast
 class StatementEvaluator:
     def visit_Script(self, node: ast.Script):
         for stmt in node.body:
-            self.visit(stmt)
+            self.visit(stmt)  # type: ignore[attr-defined]
 
     def visit_Assign(self, node: ast.Assign):
         if node.value:
-            value = self.visit(node.value)
+            value = self.visit(node.value)  # type: ignore[attr-defined]
             if isinstance(node.target, ast.Name):
-                self.context[node.target.id] = value
+                self.context[node.target.id] = value  # type: ignore[attr-defined]
             else:
-                self._error(f"Unsupported assignment target: {type(node.target)}")
+                self._error(f"Unsupported assignment target: {type(node.target)}")  # type: ignore[attr-defined]
 
     def visit_EnumDef(self, node: ast.EnumDef):
         enum_name = node.name
@@ -26,11 +26,11 @@ class StatementEvaluator:
             elif isinstance(stmt, ast.Expr) and isinstance(stmt.value, ast.Name):
                 member_name = stmt.value.id
             else:
-                self._error(f"Unsupported statement in enum body: {type(stmt)}")
+                self._error(f"Unsupported statement in enum body: {type(stmt)}")  # type: ignore[attr-defined]
 
             if member_name:
                 # The value is symbolic, representing member access
                 enum_members[member_name] = f"{enum_name}.{member_name}"
 
         # Store the enum definition in the context
-        self.context[enum_name] = enum_members
+        self.context[enum_name] = enum_members  # type: ignore[attr-defined]

@@ -196,6 +196,13 @@ check_untyped_defs = false
 
 [[tool.mypy.overrides]]
 module = [
+  "pynescript.ast.evaluator.builtins.*",
+  "pynescript.ast.evaluator_backup",
+]
+warn_return_any = false
+
+[[tool.mypy.overrides]]
+module = [
   "antlr4.*",
   "pytest.*",
   "nautilus_trader.*",

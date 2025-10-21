@@ -63,7 +63,7 @@ class PinescriptCommentParser:
     _NAMED_ANNOTATION_PATTERN = re.compile(r"^(//)(\s*)(@)(\s*)(param|field)(\s+)(\w+)(\s+)(.+)$")
     _REGION_BORDER_PATTERN = re.compile(r"^(//)(\s*)(#)(\s*)(region|endregion)$")
 
-    def _parseComment(self, comment: str):  # noqa: C901
+    def _parseComment(self, comment: str) -> tuple[str, tuple[str, ...]] :  # noqa: C901
         m = self._ASSIGNMENT_ANNOTATION_PATTERN.match(comment)
         if m:
             kind = "@="
@@ -475,7 +475,7 @@ class PinescriptASTBuilder(
             orelse=orelse,
         )
         self._setLocations(elif_struct, ctx)
-        elif_struct = ast.Expr(elif_struct)
+        elif_struct = ast.Expr(elif_struct)  # type: ignore[assignment]
         self._setLocations(elif_struct, ctx)
         return [elif_struct]
 
@@ -492,7 +492,7 @@ class PinescriptASTBuilder(
             orelse=orelse,
         )
         self._setLocations(elif_struct, ctx)
-        elif_struct = ast.Expr(elif_struct)
+        elif_struct = ast.Expr(elif_struct)  # type: ignore[assignment]
         self._setLocations(elif_struct, ctx)
         return [elif_struct]
 
@@ -937,7 +937,7 @@ class PinescriptASTBuilder(
             self._setLocations(new_type_spec, array_suffix)
             new_type_spec.lineno = type_spec.lineno
             new_type_spec.col_offset = type_spec.col_offset
-            type_spec = new_type_spec
+            type_spec = new_type_spec  # type: ignore[assignment]
         if type_qual:
             qualifier = self.visit(type_qual)
             new_type_spec = ast.Qualify(
@@ -947,7 +947,7 @@ class PinescriptASTBuilder(
             self._setLocations(new_type_spec, type_qual)
             new_type_spec.end_lineno = type_spec.end_lineno
             new_type_spec.end_col_offset = type_spec.end_col_offset
-            type_spec = new_type_spec
+            type_spec = new_type_spec  # type: ignore[assignment]
         return type_spec
 
     def visitType_qualifier(self, ctx: PinescriptParser.Type_qualifierContext):
