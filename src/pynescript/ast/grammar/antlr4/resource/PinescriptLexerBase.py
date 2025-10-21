@@ -98,12 +98,12 @@ class PinescriptLexerBase(Lexer):
         self._indentLengthStack: deque[int] = deque()
 
     def _resetInternalStates(self):
-        self._currentToken: CommonToken | None = None
-        self._followingToken: CommonToken | None = None
-        self._pendingTokens: list[CommonToken] = []
-        self._lastPendingTokenType: int = 0
-        self._lastPendingTokenTypeFromDefaultChannel: int = 0
-        self._numOpens: int = 0
+        self._currentToken = None
+        self._followingToken = None
+        self._pendingTokens = []
+        self._lastPendingTokenType = 0
+        self._lastPendingTokenTypeFromDefaultChannel = 0
+        self._numOpens = 0
         self._indentLengthStack = deque()
 
     def nextToken(self) -> CommonToken:

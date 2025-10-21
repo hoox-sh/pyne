@@ -87,7 +87,7 @@ class PinescriptCommentParser:
         m = self._NAMED_ANNOTATION_PATTERN.match(comment)
         if m:
             kind = "@1"
-            parts = (m.group(5), m.group(7), m.group(9))
+            parts = (m.group(5), m.group(7), m.group(9))  # type: ignore[assignment]
             if parts[0] in {"param"}:
                 kind += "F"
             elif parts[0] in {"field"}:
@@ -96,10 +96,10 @@ class PinescriptCommentParser:
         m = self._REGION_BORDER_PATTERN.match(comment)
         if m:
             kind = "#"
-            parts = (m.group(5),)
+            parts = (m.group(5),)  # type: ignore[assignment]
             return kind, parts
         kind = "//"
-        parts = (comment,)
+        parts = (comment,)  # type: ignore[assignment]
         return kind, parts
 
 
@@ -931,7 +931,7 @@ class PinescriptASTBuilder(
             new_type_spec.col_offset = type_spec.col_offset
             type_spec = new_type_spec
         if array_suffix:
-            new_type_spec = ast.Subscript(
+            new_type_spec = ast.Subscript(  # type: ignore[assignment]
                 value=type_spec,
             )
             self._setLocations(new_type_spec, array_suffix)
@@ -940,7 +940,7 @@ class PinescriptASTBuilder(
             type_spec = new_type_spec  # type: ignore[assignment]
         if type_qual:
             qualifier = self.visit(type_qual)
-            new_type_spec = ast.Qualify(
+            new_type_spec = ast.Qualify(  # type: ignore[assignment]
                 qualifier=qualifier,
                 value=type_spec,
             )
@@ -1041,7 +1041,7 @@ class PinescriptASTBuilder(
 
     def visitComment(self, ctx: PinescriptParser.CommentContext):
         comment = ctx.getText()
-        kind, parts = self._parseComment(comment)
+        kind, parts = self._parseComment(comment)  # type: ignore[assignment]
         comment = ast.Comment(
             value=comment,
             kind=kind,
