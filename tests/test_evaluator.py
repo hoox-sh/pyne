@@ -7,6 +7,10 @@ import pytest
 from pynescript.ast import helper
 from pynescript.ast.evaluator import NodeLiteralEvaluator
 from pynescript.ast.evaluator.builtins.drawing import TableCell
+from pynescript.ast.evaluator.builtins.strategy import (
+    StrategyState,
+    Trade,
+)
 
 
 @pytest.mark.parametrize(
@@ -1944,3 +1948,252 @@ def test_evaluator_table_clear():
     # Clear
     table.cells.clear()
     assert len(table.cells) == 0
+
+
+# STRATEGY TESTS
+
+
+def test_evaluator_strategy_entry():
+    """Test strategy.entry() creates a position."""
+    StrategyState.reset()
+    ast = helper.parse(
+        "strategy.entry('long_1', 'long', 1.0)", mode="eval"
+    )
+    evaluator = NodeLiteralEvaluator()
+    evaluator.visit(ast.body)
+
+    assert StrategyState.position_direction == "long"
+    assert StrategyState.position_size == 1.0
+
+
+def test_evaluator_strategy_exit():
+    """Test strategy.exit() closes a position."""
+    StrategyState.reset()
+
+    # First create a position
+    ast_entry = helper.parse(
+        "strategy.entry('long_1', 'long', 1.0)", mode="eval"
+    )
+    evaluator = NodeLiteralEvaluator()
+    evaluator.visit(ast_entry.body)
+
+    assert StrategyState.position_size == 1.0
+
+    # Now exit
+    ast_exit = helper.parse(
+        "strategy.exit('exit_1', 'long_1', 1.0)", mode="eval"
+    )
+    evaluator.visit(ast_exit.body)
+
+    assert StrategyState.position_direction == "flat"
+
+
+def test_evaluator_strategy_close_all():
+    """Test strategy.close_all() closes entire position."""
+    StrategyState.reset()
+
+    # Create a position
+    ast_entry = helper.parse(
+        "strategy.entry('long_1', 'long', 5.0)", mode="eval"
+    )
+    evaluator = NodeLiteralEvaluator()
+    evaluator.visit(ast_entry.body)
+
+    assert StrategyState.position_size == 5.0
+
+    # Close all
+    ast_close = helper.parse("strategy.close_all()", mode="eval")
+    evaluator.visit(ast_close.body)
+
+    assert StrategyState.position_direction == "flat"
+    assert StrategyState.position_size == 0.0
+
+
+def test_evaluator_strategy_order():
+    """Test strategy.order() places custom orders."""
+    StrategyState.reset()
+    ast = helper.parse(
+        "strategy.order('order_1', 'buy', 1.0)", mode="eval"
+    )
+    evaluator = NodeLiteralEvaluator()
+    evaluator.visit(ast.body)
+
+    assert "order_1" in StrategyState.pending_orders
+    assert StrategyState.pending_orders["order_1"].direction == "buy"
+
+
+def test_evaluator_strategy_cancel():
+    """Test strategy.cancel() removes pending order."""
+    StrategyState.reset()
+
+    # Place an order
+    ast_order = helper.parse(
+        "strategy.order('order_1', 'buy', 1.0)", mode="eval"
+    )
+    evaluator = NodeLiteralEvaluator()
+    evaluator.visit(ast_order.body)
+
+    assert "order_1" in StrategyState.pending_orders
+
+    # Cancel it
+    ast_cancel = helper.parse("strategy.cancel('order_1')", mode="eval")
+    evaluator.visit(ast_cancel.body)
+
+    assert "order_1" not in StrategyState.pending_orders
+
+
+def test_evaluator_strategy_cancel_all():
+    """Test strategy.cancel_all() removes all pending orders."""
+    StrategyState.reset()
+
+    # Place multiple orders
+    ast1 = helper.parse(
+        "strategy.order('order_1', 'buy', 1.0)", mode="eval"
+    )
+    ast2 = helper.parse(
+        "strategy.order('order_2', 'sell', 1.0)", mode="eval"
+    )
+    evaluator = NodeLiteralEvaluator()
+    evaluator.visit(ast1.body)
+    evaluator.visit(ast2.body)
+
+    assert len(StrategyState.pending_orders) == 2
+
+    # Cancel all
+    ast_cancel = helper.parse("strategy.cancel_all()", mode="eval")
+    evaluator.visit(ast_cancel.body)
+
+    assert len(StrategyState.pending_orders) == 0
+
+
+@pytest.mark.parametrize(
+    ("direction", "entry_price"),
+    [
+        ("long", 100.0),
+        ("short", 100.0),
+    ],
+)
+def test_evaluator_strategy_positions(direction, entry_price):
+    """Test strategy position tracking."""
+    StrategyState.reset()
+    StrategyState.entry_price = entry_price
+    StrategyState.position_direction = direction
+    StrategyState.position_size = 1.0
+
+    # Check position attributes
+    assert StrategyState.position_direction == direction
+    assert StrategyState.entry_price == entry_price
+
+
+def test_evaluator_strategy_risk_max_intraday_loss():
+    """Test strategy.risk.max_intraday_loss() sets loss limit."""
+    StrategyState.reset()
+    ast = helper.parse(
+        "strategy.risk.max_intraday_loss(10.0)", mode="eval"
+    )
+    evaluator = NodeLiteralEvaluator()
+    evaluator.visit(ast.body)
+
+    assert StrategyState.max_intraday_loss == 10.0
+
+
+def test_evaluator_strategy_convert_to_account():
+    """Test strategy.convert_to_account() conversion."""
+    ast = helper.parse(
+        "strategy.convert_to_account(100.0, 'AAPL', '1D')", mode="eval"
+    )
+    evaluator = NodeLiteralEvaluator()
+    result = evaluator.visit(ast.body)
+
+    assert result == 100.0
+
+
+def test_evaluator_strategy_convert_to_symbol():
+    """Test strategy.convert_to_symbol() conversion."""
+    ast = helper.parse(
+        "strategy.convert_to_symbol(100.0, 'AAPL', '1D')", mode="eval"
+    )
+    evaluator = NodeLiteralEvaluator()
+    result = evaluator.visit(ast.body)
+
+    assert result == 100.0
+
+
+def test_evaluator_strategy_default_entry_qty():
+    """Test strategy.default_entry_qty() calculates quantity."""
+    StrategyState.reset()
+    StrategyState.risk_free_capital = 10000.0
+    ast = helper.parse(
+        "strategy.default_entry_qty(100.0)", mode="eval"
+    )
+    evaluator = NodeLiteralEvaluator()
+    result = evaluator.visit(ast.body)
+
+    assert result == 100.0  # 10000 * 1.0 / 100
+
+
+@pytest.mark.parametrize(
+    ("index", "expected_bar", "expected_time"),
+    [
+        (0, 100, 1234567890),
+    ],
+)
+def test_evaluator_strategy_closedtrades(
+    index, expected_bar, expected_time
+):
+    """Test strategy.closedtrades query functions."""
+    StrategyState.reset()
+
+    # Add a closed trade
+    trade = Trade(
+        entry_bar=expected_bar,
+        entry_time=expected_time,
+        entry_price=100.0,
+        exit_bar=110,
+        exit_time=1234567900,
+        exit_price=110.0,
+        direction="long",
+        size=1.0,
+        profit=10.0,
+        commission=0.1,
+    )
+    StrategyState.closed_trades.append(trade)
+
+    # Query closed trades
+    ast_bar = helper.parse(
+        f"strategy.closedtrades.entry_bar_index({index})",
+        mode="eval",
+    )
+    ast_time = helper.parse(
+        f"strategy.closedtrades.entry_time({index})", mode="eval"
+    )
+    evaluator = NodeLiteralEvaluator()
+
+    assert evaluator.visit(ast_bar.body) == expected_bar
+    assert evaluator.visit(ast_time.body) == expected_time
+
+
+def test_evaluator_strategy_closedtrades_profit():
+    """Test strategy.closedtrades.profit query."""
+    StrategyState.reset()
+
+    # Add a closed trade with profit
+    trade = Trade(
+        entry_bar=100,
+        entry_time=1234567890,
+        entry_price=100.0,
+        exit_bar=110,
+        exit_time=1234567900,
+        exit_price=110.0,
+        direction="long",
+        size=1.0,
+        profit=9.9,  # 10.0 - 0.1 commission
+        commission=0.1,
+    )
+    StrategyState.closed_trades.append(trade)
+
+    ast = helper.parse("strategy.closedtrades.profit(0)", mode="eval")
+    evaluator = NodeLiteralEvaluator()
+    result = evaluator.visit(ast.body)
+
+    assert result == 9.9

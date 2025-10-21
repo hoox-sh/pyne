@@ -7,6 +7,7 @@ from .input import InputBuiltinsMixin
 from .numeric import NumericBuiltinsMixin
 from .plotting import PlottingFunctionsMixin
 from .request import RequestBuiltinsMixin
+from .strategy import StrategyBuiltinsMixin
 from .strings import StringBuiltinsMixin
 from .technical import TechnicalAnalysisMixin
 from .utility import UtilityFunctionsMixin
@@ -22,6 +23,7 @@ class BuiltinEvaluator(
     InputBuiltinsMixin,
     RequestBuiltinsMixin,
     DrawingBuiltinsMixin,
+    StrategyBuiltinsMixin,
 ):
     """Aggregate the individual builtin dispatch tables."""
 
@@ -36,4 +38,5 @@ class BuiltinEvaluator(
         dispatch.update(self._input_builtin_map())
         dispatch.update(self._request_builtin_map())
         dispatch.update(self._drawing_builtin_map())
+        dispatch.update(self._strategy_builtin_map())
         return dispatch
