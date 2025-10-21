@@ -136,7 +136,7 @@ class TechnicalAnalysisMixin(BuiltinDispatchMixin):
         signal = self._expect_int(args[3], msg)
         return self._macd(series, fast, slow, signal)
 
-    def _builtin_ta_atr(self, args: list[Any]) -> list[float]:
+    def _builtin_ta_atr(self, args: list[Any]) -> list[float | None]:
         msg = "ta.atr expects high, low, close, and length"
         if len(args) != QUATERNARY:
             self._error(msg)
@@ -249,7 +249,7 @@ class TechnicalAnalysisMixin(BuiltinDispatchMixin):
         sequence = self._expect_list(args[0], msg)
         return self._vwap(sequence)
 
-    def _builtin_ta_vwma(self, args: list[Any]) -> list[float]:
+    def _builtin_ta_vwma(self, args: list[Any]) -> list[float | None]:
         series, period = self._expect_series(args, length=2)
         return self._vwma(series, period)
 
@@ -436,6 +436,8 @@ class TechnicalAnalysisMixin(BuiltinDispatchMixin):
         if not smoothed_k:
             return last_k, 0.0
         last_d = smoothed_k[-1]
+        if last_d is None:
+            last_d = 0.0
         return last_k, last_d
 
     def _adx(
@@ -594,7 +596,7 @@ class TechnicalAnalysisMixin(BuiltinDispatchMixin):
         lows: list[float],
         closes: list[float],
         period: int,
-    ) -> list[float]:
+    ) -> list[float | None]:
         if period <= 0:
             return []
         tr_values: list[float] = []
@@ -1031,7 +1033,7 @@ class TechnicalAnalysisMixin(BuiltinDispatchMixin):
         if len(args) != BINARY:
             self._error("ta.rci takes source series and length")
 
-        series = self._expect_series(args[0], "ta.rci takes source series and length")
+        series = self._expect_list(args[0], "ta.rci takes source series and length")
         length = self._expect_int(args[1], "ta.rci takes source series and length")
 
         if length < 2:
@@ -1060,8 +1062,8 @@ class TechnicalAnalysisMixin(BuiltinDispatchMixin):
         if len(args) != TERNARY:
             self._error("ta.supertrend takes high, low series and length, multiplier")
 
-        highs = self._expect_series(args[0], "ta.supertrend takes high, low, length, multiplier")
-        lows = self._expect_series(args[1], "ta.supertrend takes high, low, length, multiplier")
+        highs = self._expect_list(args[0], "ta.supertrend takes high, low, length, multiplier")
+        lows = self._expect_list(args[1], "ta.supertrend takes high, low, length, multiplier")
         length = self._expect_int(args[2], "ta.supertrend takes high, low, length, multiplier")
         multiplier = args[3] if len(args) > 3 else 1.0
 
@@ -1116,7 +1118,7 @@ class TechnicalAnalysisMixin(BuiltinDispatchMixin):
         if len(args) != BINARY:
             self._error("ta.zigzag takes source series and percent threshold")
 
-        series = self._expect_series(args[0], "ta.zigzag takes source series and percent threshold")
+        series = self._expect_list(args[0], "ta.zigzag takes source series and percent threshold")
         threshold = args[1] if isinstance(args[1], (int, float)) else 5.0
 
         if len(series) < 2:
