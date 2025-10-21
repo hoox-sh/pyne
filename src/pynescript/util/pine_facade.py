@@ -18,6 +18,8 @@ from __future__ import annotations
 
 import pathlib
 
+from urllib.parse import quote
+
 import requests
 import tqdm
 
@@ -34,7 +36,7 @@ def list_builtin_scripts():
 
 def get_script(script_id_part, version):
     url = "https://pine-facade.tradingview.com"
-    path = f"/pine-facade/get/{requests.utils.quote(script_id_part)}/{version}"
+    path = f"/pine-facade/get/{quote(script_id_part)}/{version}"
     params = {"no_4xx": "false"}
     response = requests.get(url + path, params=params, timeout=60)
     response.raise_for_status()
