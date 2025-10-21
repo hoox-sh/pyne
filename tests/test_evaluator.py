@@ -1278,3 +1278,426 @@ def test_evaluator_plotting_functions(expression, expected):
     evaluator = NodeLiteralEvaluator()
     result = evaluator.visit(ast.body)
     assert result == expected
+
+
+# INPUT FUNCTIONS TESTS
+
+
+@pytest.mark.parametrize(
+    ("expression", "expected_keys"),
+    [
+        ("input(100, 'Value')", {"type", "default", "title", "tooltip", "inline", "group", "confirm"}),
+        ("input(50.5, 'Price')", {"type", "default", "title"}),
+        ("input(true, 'Flag')", {"type", "default", "title"}),
+    ],
+)
+def test_evaluator_input_generic(expression, expected_keys):
+    ast = helper.parse(expression, mode="eval")
+    evaluator = NodeLiteralEvaluator()
+    result = evaluator.visit(ast.body)
+    assert isinstance(result, dict)
+    assert expected_keys.issubset(result.keys())
+
+
+def test_evaluator_input_int_type_inference():
+    """Test that input() infers int type from integer defval."""
+    ast = helper.parse("input(14)", mode="eval")
+    evaluator = NodeLiteralEvaluator()
+    result = evaluator.visit(ast.body)
+    assert result["type"] == "int"
+    assert result["default"] == 14
+
+
+def test_evaluator_input_bool_type_inference():
+    """Test that input() infers bool type from boolean defval."""
+    ast = helper.parse("input(true)", mode="eval")
+    evaluator = NodeLiteralEvaluator()
+    result = evaluator.visit(ast.body)
+    assert result["type"] == "bool"
+    assert result["default"] is True
+
+
+def test_evaluator_input_float_type_inference():
+    """Test that input() infers float type from float defval."""
+    ast = helper.parse("input(2.5)", mode="eval")
+    evaluator = NodeLiteralEvaluator()
+    result = evaluator.visit(ast.body)
+    assert result["type"] == "float"
+    assert result["default"] == 2.5
+
+
+def test_evaluator_input_string_type_inference():
+    """Test that input() infers string type from string defval."""
+    ast = helper.parse("input('text')", mode="eval")
+    evaluator = NodeLiteralEvaluator()
+    result = evaluator.visit(ast.body)
+    assert result["type"] == "string"
+    assert result["default"] == "text"
+
+
+@pytest.mark.parametrize(
+    ("expression", "expected_type", "expected_default"),
+    [
+        ("input.bool(true)", "bool", True),
+        ("input.bool(false)", "bool", False),
+        ("input.bool(true, 'Enable')", "bool", True),
+    ],
+)
+def test_evaluator_input_bool(expression, expected_type, expected_default):
+    ast = helper.parse(expression, mode="eval")
+    evaluator = NodeLiteralEvaluator()
+    result = evaluator.visit(ast.body)
+    assert result["type"] == expected_type
+    assert result["default"] == expected_default
+
+
+@pytest.mark.parametrize(
+    ("expression", "expected_type", "expected_default"),
+    [
+        ("input.int(14)", "int", 14),
+        ("input.int(14, 'Length')", "int", 14),
+        ("input.int(14, 'Length', 1, 100)", "int", 14),
+    ],
+)
+def test_evaluator_input_int(expression, expected_type, expected_default):
+    ast = helper.parse(expression, mode="eval")
+    evaluator = NodeLiteralEvaluator()
+    result = evaluator.visit(ast.body)
+    assert result["type"] == expected_type
+    assert result["default"] == expected_default
+
+
+def test_evaluator_input_int_with_constraints():
+    """Test input.int with min/max/step constraints."""
+    ast = helper.parse("input.int(50, 'Value', 10, 100, 5)", mode="eval")
+    evaluator = NodeLiteralEvaluator()
+    result = evaluator.visit(ast.body)
+    assert result["type"] == "int"
+    assert result["default"] == 50
+    assert result["min"] == 10
+    assert result["max"] == 100
+    assert result["step"] == 5
+
+
+@pytest.mark.parametrize(
+    ("expression", "expected_type", "expected_default"),
+    [
+        ("input.float(2.5)", "float", 2.5),
+        ("input.float(2.5, 'Price')", "float", 2.5),
+        ("input.float(2.5, 'Price', 0.0, 10.0)", "float", 2.5),
+    ],
+)
+def test_evaluator_input_float(expression, expected_type, expected_default):
+    ast = helper.parse(expression, mode="eval")
+    evaluator = NodeLiteralEvaluator()
+    result = evaluator.visit(ast.body)
+    assert result["type"] == expected_type
+    assert result["default"] == expected_default
+
+
+def test_evaluator_input_float_with_constraints():
+    """Test input.float with min/max/step constraints."""
+    ast = helper.parse("input.float(1.5, 'Factor', 0.5, 3.0, 0.1)", mode="eval")
+    evaluator = NodeLiteralEvaluator()
+    result = evaluator.visit(ast.body)
+    assert result["type"] == "float"
+    assert result["default"] == 1.5
+    assert result["min"] == 0.5
+    assert result["max"] == 3.0
+    assert result["step"] == 0.1
+
+
+@pytest.mark.parametrize(
+    ("expression", "expected_type", "expected_default"),
+    [
+        ("input.price(100.0)", "price", 100.0),
+        ("input.price(100.0, 'Entry Price')", "price", 100.0),
+    ],
+)
+def test_evaluator_input_price(expression, expected_type, expected_default):
+    ast = helper.parse(expression, mode="eval")
+    evaluator = NodeLiteralEvaluator()
+    result = evaluator.visit(ast.body)
+    assert result["type"] == expected_type
+    assert result["default"] == expected_default
+
+
+@pytest.mark.parametrize(
+    ("expression", "expected_type", "expected_default"),
+    [
+        ("input.string('AAPL')", "string", "AAPL"),
+        ("input.string('default', 'Text')", "string", "default"),
+    ],
+)
+def test_evaluator_input_string(expression, expected_type, expected_default):
+    ast = helper.parse(expression, mode="eval")
+    evaluator = NodeLiteralEvaluator()
+    result = evaluator.visit(ast.body)
+    assert result["type"] == expected_type
+    assert result["default"] == expected_default
+
+
+@pytest.mark.parametrize(
+    ("expression", "expected_type", "expected_default"),
+    [
+        ("input.symbol('AAPL')", "symbol", "AAPL"),
+        ("input.symbol('BTC/USD')", "symbol", "BTC/USD"),
+    ],
+)
+def test_evaluator_input_symbol(expression, expected_type, expected_default):
+    ast = helper.parse(expression, mode="eval")
+    evaluator = NodeLiteralEvaluator()
+    result = evaluator.visit(ast.body)
+    assert result["type"] == expected_type
+    assert result["default"] == expected_default
+
+
+@pytest.mark.parametrize(
+    ("expression", "expected_type"),
+    [
+        ("input.session('0930-1600')", "session"),
+        ("input.session('0900-1700', 'Trading Hours')", "session"),
+    ],
+)
+def test_evaluator_input_session(expression, expected_type):
+    ast = helper.parse(expression, mode="eval")
+    evaluator = NodeLiteralEvaluator()
+    result = evaluator.visit(ast.body)
+    assert result["type"] == expected_type
+
+
+@pytest.mark.parametrize(
+    ("expression", "expected_type", "expected_default"),
+    [
+        ("input.source('close')", "source", "close"),
+        ("input.source('hl2')", "source", "hl2"),
+    ],
+)
+def test_evaluator_input_source(expression, expected_type, expected_default):
+    ast = helper.parse(expression, mode="eval")
+    evaluator = NodeLiteralEvaluator()
+    result = evaluator.visit(ast.body)
+    assert result["type"] == expected_type
+    assert result["default"] == expected_default
+
+
+@pytest.mark.parametrize(
+    ("expression", "expected_type"),
+    [
+        ("input.time(0)", "time"),
+        ("input.time(1630698000, 'Start Time')", "time"),
+    ],
+)
+def test_evaluator_input_time(expression, expected_type):
+    ast = helper.parse(expression, mode="eval")
+    evaluator = NodeLiteralEvaluator()
+    result = evaluator.visit(ast.body)
+    assert result["type"] == expected_type
+
+
+@pytest.mark.parametrize(
+    ("expression", "expected_type", "expected_default"),
+    [
+        ("input.timeframe('D')", "timeframe", "D"),
+        ("input.timeframe('1H')", "timeframe", "1H"),
+    ],
+)
+def test_evaluator_input_timeframe(expression, expected_type, expected_default):
+    ast = helper.parse(expression, mode="eval")
+    evaluator = NodeLiteralEvaluator()
+    result = evaluator.visit(ast.body)
+    assert result["type"] == expected_type
+    assert result["default"] == expected_default
+
+
+@pytest.mark.parametrize(
+    ("expression", "expected_type"),
+    [
+        ("input.color('#FF0000')", "color"),
+        ("input.color('red')", "color"),
+    ],
+)
+def test_evaluator_input_color(expression, expected_type):
+    ast = helper.parse(expression, mode="eval")
+    evaluator = NodeLiteralEvaluator()
+    result = evaluator.visit(ast.body)
+    assert result["type"] == expected_type
+
+
+@pytest.mark.parametrize(
+    ("expression", "expected_type"),
+    [
+        ("input.enum('A', 'Choice', ['A', 'B', 'C'])", "enum"),
+    ],
+)
+def test_evaluator_input_enum(expression, expected_type):
+    ast = helper.parse(expression, mode="eval")
+    evaluator = NodeLiteralEvaluator()
+    result = evaluator.visit(ast.body)
+    assert result["type"] == expected_type
+    assert result["options"] == ["A", "B", "C"]
+
+
+def test_evaluator_input_with_all_parameters():
+    """Test input functions with all optional parameters."""
+    ast = helper.parse(
+        "input.int(50, 'Value', 10, 100, 5, 'Set the threshold', 'group1', 'settings', true)",
+        mode="eval"
+    )
+    evaluator = NodeLiteralEvaluator()
+    result = evaluator.visit(ast.body)
+    assert result["type"] == "int"
+    assert result["default"] == 50
+    assert result["title"] == "Value"
+    assert result["min"] == 10
+    assert result["max"] == 100
+    assert result["step"] == 5
+    assert result["tooltip"] == "Set the threshold"
+    assert result["inline"] == "group1"
+    assert result["group"] == "settings"
+    assert result["confirm"] is True
+
+
+# REQUEST FUNCTIONS TESTS
+
+
+@pytest.mark.parametrize(
+    ("expression", "expected_type"),
+    [
+        ("request.security('AAPL', 'D', 'close')", list),
+        ("request.security('GOOGL', '1H', 'open')", list),
+    ],
+)
+def test_evaluator_request_security(expression, expected_type):
+    ast = helper.parse(expression, mode="eval")
+    evaluator = NodeLiteralEvaluator()
+    result = evaluator.visit(ast.body)
+    assert isinstance(result, expected_type)
+    assert len(result) > 0
+
+
+@pytest.mark.parametrize(
+    ("expression", "expected_type"),
+    [
+        ("request.security_lower_tf('AAPL', '5m', 'close')", list),
+    ],
+)
+def test_evaluator_request_security_lower_tf(expression, expected_type):
+    ast = helper.parse(expression, mode="eval")
+    evaluator = NodeLiteralEvaluator()
+    result = evaluator.visit(ast.body)
+    assert isinstance(result, expected_type)
+    assert len(result) > 0
+
+
+@pytest.mark.parametrize(
+    ("expression", "expected_symbol", "expected_type"),
+    [
+        ("request.dividends('AAPL')", "AAPL", float),
+        ("request.dividends('MSFT')", "MSFT", float),
+    ],
+)
+def test_evaluator_request_dividends(expression, expected_symbol, expected_type):
+    ast = helper.parse(expression, mode="eval")
+    evaluator = NodeLiteralEvaluator()
+    result = evaluator.visit(ast.body)
+    assert isinstance(result, expected_type)
+
+
+@pytest.mark.parametrize(
+    ("expression", "expected_symbol", "expected_type"),
+    [
+        ("request.earnings('AAPL')", "AAPL", float),
+        ("request.earnings('JNJ')", "JNJ", float),
+    ],
+)
+def test_evaluator_request_earnings(expression, expected_symbol, expected_type):
+    ast = helper.parse(expression, mode="eval")
+    evaluator = NodeLiteralEvaluator()
+    result = evaluator.visit(ast.body)
+    assert isinstance(result, expected_type)
+
+
+@pytest.mark.parametrize(
+    ("expression", "expected_symbol", "expected_type"),
+    [
+        ("request.splits('AAPL')", "AAPL", float),
+        ("request.splits('TSLA')", "TSLA", float),
+    ],
+)
+def test_evaluator_request_splits(expression, expected_symbol, expected_type):
+    ast = helper.parse(expression, mode="eval")
+    evaluator = NodeLiteralEvaluator()
+    result = evaluator.visit(ast.body)
+    assert isinstance(result, expected_type)
+    assert result >= 1.0
+
+
+@pytest.mark.parametrize(
+    ("expression", "expected_type"),
+    [
+        ("request.financial('AAPL', 'REVENUE')", float),
+        ("request.financial('MSFT', 'NET_INCOME')", float),
+    ],
+)
+def test_evaluator_request_financial(expression, expected_type):
+    ast = helper.parse(expression, mode="eval")
+    evaluator = NodeLiteralEvaluator()
+    result = evaluator.visit(ast.body)
+    assert isinstance(result, expected_type)
+
+
+@pytest.mark.parametrize(
+    ("expression", "expected_type"),
+    [
+        ("request.quandl('EIA/PET_RWTC_D')", list),
+    ],
+)
+def test_evaluator_request_quandl(expression, expected_type):
+    ast = helper.parse(expression, mode="eval")
+    evaluator = NodeLiteralEvaluator()
+    result = evaluator.visit(ast.body)
+    assert isinstance(result, expected_type)
+
+
+@pytest.mark.parametrize(
+    ("expression", "expected_type"),
+    [
+        ("request.economic('US', 'UNRATE')", list),
+        ("request.economic('EU', 'INFLATION')", list),
+    ],
+)
+def test_evaluator_request_economic(expression, expected_type):
+    ast = helper.parse(expression, mode="eval")
+    evaluator = NodeLiteralEvaluator()
+    result = evaluator.visit(ast.body)
+    assert isinstance(result, expected_type)
+
+
+@pytest.mark.parametrize(
+    ("expression", "expected_type"),
+    [
+        ("request.currency_rate('USD', 'EUR')", float),
+        ("request.currency_rate('GBP', 'USD')", float),
+    ],
+)
+def test_evaluator_request_currency_rate(expression, expected_type):
+    ast = helper.parse(expression, mode="eval")
+    evaluator = NodeLiteralEvaluator()
+    result = evaluator.visit(ast.body)
+    assert isinstance(result, expected_type)
+    assert result > 0
+
+
+@pytest.mark.parametrize(
+    ("expression", "expected_result"),
+    [
+        ("request.seed(42)", None),
+        ("request.seed(0)", None),
+    ],
+)
+def test_evaluator_request_seed(expression, expected_result):
+    ast = helper.parse(expression, mode="eval")
+    evaluator = NodeLiteralEvaluator()
+    result = evaluator.visit(ast.body)
+    assert result == expected_result

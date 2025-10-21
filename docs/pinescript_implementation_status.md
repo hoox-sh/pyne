@@ -1051,18 +1051,106 @@ This document tracks the implementation status of PineScript v6 features in pyne
 - ✅ Arrays
 - ✅ Tuples
 
-## Outstanding Tasks
+## Outstanding Tasks - Prioritized
 
-1. Implement all built-in functions in evaluator/transformer
-2. Add support for collection types (array, matrix, map)
-3. Implement drawing object types and functions
-4. Add strategy simulation capabilities
-5. Implement request.* functions for external data
-6. Add plotting and visualization support
-7. Implement input system for interactive parameters
-8. Add timeframe and security request handling
-9. Implement technical analysis functions
-10. Add math and string utility functions
+**See `IMPLEMENTATION_ROADMAP.txt` for detailed implementation plan.**
+
+### High Priority (63 functions total)
+
+#### Input Functions (~15 functions)
+
+Core interactive parameter system for strategy configuration and indicator settings.
+
+- ❌ input
+- ❌ input.bool
+- ❌ input.int
+- ❌ input.float
+- ❌ input.price
+- ❌ input.string
+- ❌ input.symbol
+- ❌ input.session
+- ❌ input.source
+- ❌ input.time
+- ❌ input.timeframe
+- ❌ input.color
+- ❌ input.enum
+
+#### Request Functions (~10 functions)
+
+External data access for multi-timeframe analysis and fundamental data.
+
+- ❌ request.security
+- ❌ request.security_lower_tf
+- ❌ request.dividends
+- ❌ request.earnings
+- ❌ request.splits
+- ❌ request.financial
+- ❌ request.quandl
+- ❌ request.economic
+- ❌ request.currency_rate
+- ❌ request.seed
+
+#### Drawing Objects (~18 functions)
+
+Visual markup system for chart annotations.
+
+- ❌ line.new, line.delete, line.copy
+- ❌ line.set_x1/y1/x2/y2/extend/xloc/color/width/style
+- ❌ line.get_x1/y1/x2/y2/extend/xloc/color/width/style
+- ❌ box.new, box.delete, box.copy
+- ❌ box.set_left/right/top/bottom/bgcolor/border_color/border_width/border_style/extend/xloc/closed
+- ❌ box.get_left/right/top/bottom/bgcolor/border_color/border_width/border_style
+- ❌ label.new, label.delete, label.copy
+- ❌ label.set_xy/x/y/text/textcolor/text_font_family/text_halign/text_valign/tooltip/color/size/style/xloc/yloc
+- ❌ label.get_x/y/text
+- ❌ table.new, table.delete, table.cell
+- ❌ table.cell_set_text/text_color/bgcolor/border_color/border_width
+- ❌ table.cell_get_text
+- ❌ table.clear, table.merge_cells
+
+#### Strategy Functions (~20 functions)
+
+Trade entry/exit and position management.
+
+- ❌ strategy.entry, strategy.exit, strategy.close, strategy.close_all
+- ❌ strategy.cancel, strategy.cancel_all, strategy.order
+- ❌ strategy.risk.max_position_size, strategy.risk.max_intraday_loss
+- ❌ strategy.convert_to_account, strategy.convert_to_symbol
+- ❌ strategy.default_entry_qty
+- ❌ strategy.closedtrades.entry_bar_index/entry_time/entry_price/exit_bar_index/exit_time/exit_price/profit/size/commission
+- ❌ strategy.opentrades.entry_bar_index/entry_time/entry_price/size/profit/commission
+
+### Medium Priority (21 functions total)
+
+#### Ticker Functions (~8 functions)
+
+- ❌ ticker.new, ticker.modify, ticker.heikinashi, ticker.kagi
+- ❌ ticker.linebreak, ticker.pointfigure, ticker.renko, ticker.standard
+- ❌ ticker.inherit
+
+#### Logging Functions (~3 functions)
+
+- ❌ log.error, log.info, log.warning
+
+#### Advanced Drawing (~8 functions)
+
+- ❌ polyline.new, polyline.delete, polyline.copy
+- ❌ linefill.new, linefill.delete
+- ❌ chart.point.new, chart.point.from_index, chart.point.from_time
+- ❌ chart.point.now, chart.point.copy
+
+### Lower Priority
+
+#### Other Collection/Type Functions
+
+- ❌ matrix.* (35 functions)
+- ❌ map.* (10 functions)
+- ❌ array.new_linefill
+- ❌ indicator, strategy (full support), library
+- ❌ color.new, color.rgb, color.from_gradient
+- ❌ runtime.error, max_bars_back
+- ❌ timeframe.change, timeframe.from_seconds, timeframe.in_seconds
+- ❌ ta.pivothigh, ta.pivotlow, ta.pivot_point_levels
 
 ## Current Implementation Status
 
@@ -1079,6 +1167,7 @@ This document tracks the implementation status of PineScript v6 features in pyne
 ### Recently Implemented (Evaluator)
 
 #### Math Functions (11)
+
 - math.max, math.min, math.abs, math.sqrt
 - math.round, math.floor, math.ceil
 - math.pow, math.log

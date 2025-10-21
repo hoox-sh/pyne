@@ -1,0 +1,215 @@
+# QUICK REFERENCE: Pine Script Implementation Prioritization
+
+## 📍 Where to Start
+
+| Document | Purpose | Read Time | Next Step |
+|----------|---------|-----------|-----------|
+| **START_HERE.md** | Entry point, quick overview, checklists | 10 min | ← Read this first |
+| **IMPLEMENTATION_SUMMARY.md** | Executive summary, phases, timelines | 5 min | Read after START_HERE |
+| **IMPLEMENTATION_ROADMAP.txt** | Detailed specs, patterns, data structures | 30 min | Reference while coding |
+| **docs/pinescript_implementation_status.md** | Current status, all functions | 10 min | Track progress |
+
+---
+
+## 🎯 The 4 Groups at a Glance
+
+```
+GROUP 1: INPUT (15 functions)
+├─ input, input.bool, input.int, input.float, input.price
+├─ input.string, input.symbol, input.session, input.source
+├─ input.time, input.timeframe, input.color, input.enum
+├─ Status: NOT STARTED
+├─ Module: input.py (NEW)
+└─ Est: 3-5 days
+
+GROUP 2: REQUEST (10 functions)
+├─ request.security, request.security_lower_tf
+├─ request.dividends, request.earnings, request.splits
+├─ request.financial, request.quandl, request.economic
+├─ request.currency_rate, request.seed
+├─ Status: NOT STARTED
+├─ Module: request.py (NEW)
+└─ Est: 5-7 days
+
+GROUP 3: DRAWING (18 functions)
+├─ line.new/delete/copy/set_*/get_*
+├─ box.new/delete/copy/set_*/get_*
+├─ label.new/delete/copy/set_*/get_*
+├─ table.new/delete/cell/set_*/get_*/clear/merge_cells
+├─ Status: NOT STARTED
+├─ Module: drawing.py (NEW)
+└─ Est: 7-10 days
+
+GROUP 4: STRATEGY (20 functions)
+├─ strategy.entry, exit, close, close_all, cancel, cancel_all, order
+├─ strategy.risk.*, convert_to_*, default_entry_qty
+├─ strategy.closedtrades.*, opentrades.*
+├─ Status: PARTIALLY IMPLEMENTED
+├─ Module: strategy.py (EXTEND)
+└─ Est: 10-14 days
+```
+
+---
+
+## 🏗️ Implementation Template
+
+For **every function**, follow this pattern:
+
+```python
+# 1. Create handler
+def _handle_function_name(self, args: list[Any]) -> Any:
+    """Return appropriate data structure for this function"""
+    arg1 = args[0] if len(args) > 0 else default_val
+    arg2 = args[1] if len(args) > 1 else default_val
+    # ... validate inputs, process, return result
+
+# 2. Register in dispatch map
+def _build_builtin_map(self) -> dict[str, BuiltinHandler]:
+    return {
+        "function_name": self._handle_function_name,
+        "function.subname": self._handle_function_subname,
+    }
+
+# 3. Write test
+def test_function_name():
+    evaluator = NodeLiteralEvaluator()
+    result = evaluator.eval_call("function_name", [arg1, arg2])
+    assert result == expected_value
+
+# 4. Update docs
+# Change ❌ to ✅ in docs/pinescript_implementation_status.md
+```
+
+---
+
+## 📊 Progress Tracker
+
+Update as you complete functions:
+
+```markdown
+### INPUT FUNCTIONS
+- [x] input              (1/15) ✅
+- [ ] input.bool        (2/15)
+- [ ] input.int         (3/15)
+- [ ] input.float       (4/15)
+- [ ] input.price       (5/15)
+- [ ] input.string      (6/15)
+- [ ] input.symbol      (7/15)
+- [ ] input.session     (8/15)
+- [ ] input.source      (9/15)
+- [ ] input.time        (10/15)
+- [ ] input.timeframe   (11/15)
+- [ ] input.color       (12/15)
+- [ ] input.enum        (13/15)
+
+TOTAL: 1/63 functions (1.6%)
+```
+
+---
+
+## 🔑 Key Decisions
+
+| What | How | Why |
+|------|-----|-----|
+| **Return type for input()** | Dict with metadata | Simulates Pine's declaration-time evaluation |
+| **Return type for request()** | List (series) of values | Represents historical time-series data |
+| **Drawing objects** | Python dataclasses | Clear structure, easy to extend |
+| **Object registry** | Global list in evaluator | Matches Pine's .all collection behavior |
+| **Test coverage** | 95%+ | Catch regressions early |
+
+---
+
+## 🚨 Common Pitfalls
+
+❌ **Don't**: Start without reading START_HERE.md  
+✅ **Do**: Understand the pattern first
+
+❌ **Don't**: Implement all functions at once  
+✅ **Do**: Do 2-3, test, then continue
+
+❌ **Don't**: Skip tests  
+✅ **Do**: Write tests as you code
+
+❌ **Don't**: Forget to update status doc  
+✅ **Do**: Update docs/pinescript_implementation_status.md with each function
+
+❌ **Don't**: Mix groups (INPUT and DRAWING together)  
+✅ **Do**: Complete one group, then move to next
+
+---
+
+## 📝 Files to Create/Modify
+
+**Create (NEW)**
+- src/pynescript/ast/evaluator/builtins/input.py (350-400 lines)
+- src/pynescript/ast/evaluator/builtins/request.py (300-400 lines)
+- src/pynescript/ast/evaluator/builtins/drawing.py (800-1000 lines)
+- src/pynescript/ast/evaluator/builtins/ticker.py (150-200 lines, Phase 2)
+
+**Modify (EXISTING)**
+- src/pynescript/ast/evaluator/builtins/__init__.py (import new classes)
+- src/pynescript/ast/evaluator.py (mix in new evaluators)
+- src/pynescript/ast/evaluator/builtins/strategy.py (expand)
+- src/pynescript/ast/evaluator/builtins/utility.py (add logging)
+- tests/test_evaluator.py (comprehensive test coverage)
+- docs/pinescript_implementation_status.md (update status markers)
+
+---
+
+## ✅ Success Criteria
+
+For each function group:
+- ✅ All functions callable with correct signatures
+- ✅ All parameter combinations handled
+- ✅ Return types correct
+- ✅ 95%+ test coverage
+- ✅ Docstrings on all handlers
+- ✅ No breaking changes to existing tests
+- ✅ Status doc updated
+
+Overall:
+- ✅ Implementation: 50% → 70% complete
+- ✅ 63 new functions implemented
+- ✅ Backward compatibility maintained
+
+---
+
+## 🎓 Learning Resources
+
+**Project Architecture**
+- `copilot-instructions.md` - System design
+- `src/pynescript/ast/helper.py` - Public API
+
+**Implementation Examples**
+- `src/pynescript/ast/evaluator/builtins/numeric.py` - Math functions
+- `src/pynescript/ast/evaluator/builtins/arrays.py` - Array functions
+- `src/pynescript/ast/evaluator/builtins/technical.py` - TA functions
+
+**Testing Patterns**
+- `tests/test_evaluator.py` - Test examples
+- `tests/data/builtin_scripts/` - Pine fixtures
+
+**Pine Script Reference**
+- https://www.tradingview.com/pine-script-docs/
+
+---
+
+## 🚀 First Steps (Next 15 Minutes)
+
+1. **Read** `START_HERE.md` section "🎯 The 63 Functions at a Glance"
+2. **Pick** one function from INPUT group (easiest to start)
+3. **Read** IMPLEMENTATION_ROADMAP.txt section "GROUP 1: INPUT FUNCTIONS"
+4. **Copy** template from above
+5. **Create** `src/pynescript/ast/evaluator/builtins/input.py`
+6. **Implement** first 2-3 handlers (input, input.bool, input.int)
+7. **Write** tests for those handlers
+8. **Run** `pytest tests/test_evaluator.py -v` to verify
+9. **Update** docs/pinescript_implementation_status.md
+
+**That's it! Then repeat for next batch of functions. 🎉**
+
+---
+
+**Questions?** Refer to IMPLEMENTATION_ROADMAP.txt for detailed specs.  
+**Stuck?** Check existing implementations in builtins/ directory.  
+**Ready?** Start with START_HERE.md right now!
