@@ -335,7 +335,7 @@ def _pad_whitespace(source: str) -> str:
     return result
 
 
-def get_source_segment(source: str, node: AST, *, padded: bool = False) -> str:
+def get_source_segment(source: str, node: AST, *, padded: bool = False) -> str | None:
     try:
         if node.end_lineno is None or node.end_col_offset is None:
             return None

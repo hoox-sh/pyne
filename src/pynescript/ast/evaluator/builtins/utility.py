@@ -129,7 +129,8 @@ class UtilityFunctionsMixin(BuiltinDispatchMixin):
         # In a real implementation, this would send the alert
         # For now, we just validate arguments and succeed silently
         if len(args) > 1:
-            pass  # freq parameter is ignored in this stub
+            # freq parameter is ignored in this stub, but ensure it returns None
+            return None
         # Arguments are parsed but not used in stub implementation
         _ = args[0]  # message
 
@@ -145,7 +146,8 @@ class UtilityFunctionsMixin(BuiltinDispatchMixin):
         _ = args[0]  # condition
         _ = args[1]  # message
         if len(args) > 2:
-            pass  # freq parameter is ignored
+            # freq parameter is ignored in this stub, but ensure it returns None
+            return None
 
     def _builtin_timestamp(self, args: list[Any]) -> int:
         """Create Unix timestamp from date/time components."""
@@ -176,4 +178,7 @@ class UtilityFunctionsMixin(BuiltinDispatchMixin):
             # Return milliseconds since epoch (PineScript standard)
             return int(dt.timestamp() * 1000)
         except (ValueError, OSError) as e:
+            # Raise evaluation error; function _error will likely raise an exception
             self._error(f"Invalid date/time arguments: {e}")
+            # For type-checkers, ensure a return value is present
+            return 0

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any
+from typing import Any, NoReturn
 
 
 BuiltinHandler = Callable[[list[Any]], Any]
@@ -27,5 +27,5 @@ class BuiltinDispatchMixin:
         return handler(args)
 
     @staticmethod
-    def _error(message: str) -> None:
+    def _error(message: str) -> NoReturn:
         raise ValueError(message)

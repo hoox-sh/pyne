@@ -4,12 +4,13 @@ import itertools
 import operator
 
 from typing import Any
+from pynescript.ast.evaluator.types import EvaluatorProtocol
 
 from pynescript.ast import node as ast
 
 
 class ExpressionEvaluator:
-    def visit_BoolOp(self, node: ast.BoolOp):
+    def visit_BoolOp(self: EvaluatorProtocol, node: ast.BoolOp):
         if isinstance(node.op, ast.And):
             return all(self.visit(value) for value in node.values)
         if isinstance(node.op, ast.Or):
@@ -17,7 +18,7 @@ class ExpressionEvaluator:
         msg = f"unexpected node operator: {node.op}"
         raise ValueError(msg)
 
-    def visit_BinOp(self, node: ast.BinOp):
+    def visit_BinOp(self: EvaluatorProtocol, node: ast.BinOp):
         left = self.visit(node.left)
         right = self.visit(node.right)
         if isinstance(node.op, ast.Add):
@@ -34,7 +35,7 @@ class ExpressionEvaluator:
             msg = f"Unsupported binary operator: {type(node.op)}"
             raise NotImplementedError(msg)
 
-    def visit_UnaryOp(self, node: ast.UnaryOp):
+    def visit_UnaryOp(self: EvaluatorProtocol, node: ast.UnaryOp):
         if isinstance(node.op, ast.Not):
             return operator.not_(self.visit(node.operand))
         if isinstance(node.op, ast.UAdd):
@@ -44,14 +45,14 @@ class ExpressionEvaluator:
         msg = f"unexpected node operator: {node.op}"
         raise ValueError(msg)
 
-    def visit_Conditional(self, node: ast.Conditional) -> Any:
+    def visit_Conditional(self: EvaluatorProtocol, node: ast.Conditional) -> Any:
         test_result = self.visit(node.test)
         if test_result:
             return self.visit(node.body)
         else:
             return self.visit(node.orelse)
 
-    def visit_Compare(self, node: ast.Compare) -> Any:
+    def visit_Compare(self: EvaluatorProtocol, node: ast.Compare) -> Any:
         comparator_list = [node.left, *node.comparators]
         comparators = map(self.visit, comparator_list)
         compare_ops = [self.visit(op) for op in node.ops]
@@ -62,25 +63,25 @@ class ExpressionEvaluator:
                 return False
         return True
 
-    def visit_Eq(self, _node: ast.Eq):
+    def visit_Eq(self: EvaluatorProtocol, _node: ast.Eq):
         return operator.eq
 
-    def visit_NotEq(self, _node: ast.NotEq):
+    def visit_NotEq(self: EvaluatorProtocol, _node: ast.NotEq):
         return operator.ne
 
-    def visit_Lt(self, _node: ast.Lt):
+    def visit_Lt(self: EvaluatorProtocol, _node: ast.Lt):
         return operator.lt
 
-    def visit_LtE(self, _node: ast.LtE):
+    def visit_LtE(self: EvaluatorProtocol, _node: ast.LtE):
         return operator.le
 
-    def visit_Gt(self, _node: ast.Gt):
+    def visit_Gt(self: EvaluatorProtocol, _node: ast.Gt):
         return operator.gt
 
-    def visit_GtE(self, _node: ast.GtE):
+    def visit_GtE(self: EvaluatorProtocol, _node: ast.GtE):
         return operator.ge
 
-    def visit_Call(self, node: ast.Call):
+    def visit_Call(self: EvaluatorProtocol, node: ast.Call):
         func = self.visit(node.func)
         args = []
 

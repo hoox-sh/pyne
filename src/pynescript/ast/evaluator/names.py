@@ -1,17 +1,18 @@
 from __future__ import annotations
 
 from typing import Any
+from pynescript.ast.evaluator.types import EvaluatorProtocol
 
 from pynescript.ast import node as ast
 
 
 class NameEvaluator:
-    def visit_Name(self, node: ast.Name) -> Any:
+    def visit_Name(self: EvaluatorProtocol, node: ast.Name) -> Any:
         if node.id in self.context:
             return self.context[node.id]
         return node.id
 
-    def visit_Attribute(self, node: ast.Attribute) -> Any:
+    def visit_Attribute(self: EvaluatorProtocol, node: ast.Attribute) -> Any:
         qualified_name = f"{self.visit(node.value)}.{node.attr}"
         if qualified_name in self.context:
             return self.context[qualified_name]
@@ -34,7 +35,7 @@ class NameEvaluator:
 
         return qualified_name
 
-    def visit_Subscript(self, node: ast.Subscript) -> Any:
+    def visit_Subscript(self: EvaluatorProtocol, node: ast.Subscript) -> Any:
         value = self.visit(node.value)
         slice_ = self.visit(node.slice)
         if isinstance(value, list) and isinstance(slice_, int):

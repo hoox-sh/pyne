@@ -80,11 +80,11 @@ class TechnicalAnalysisMixin(BuiltinDispatchMixin):
 
     # -- Public entry points -------------------------------------------------
 
-    def _builtin_ta_sma(self, args: list[Any]) -> list[float]:
+    def _builtin_ta_sma(self, args: list[Any]) -> list[float | None]:
         series, period = self._expect_series(args, length=2)
         return self._sma(series, period)
 
-    def _builtin_ta_ema(self, args: list[Any]) -> list[float]:
+    def _builtin_ta_ema(self, args: list[Any]) -> list[float | None]:
         series, period = self._expect_series(args, length=2)
         return self._ema(series, period)
 
@@ -339,7 +339,7 @@ class TechnicalAnalysisMixin(BuiltinDispatchMixin):
 
     # -- Indicator implementations ------------------------------------------
 
-    def _sma(self, series: list[Any], period: int) -> list[float]:
+    def _sma(self, series: list[Any], period: int) -> list[float | None]:
         result: list[float | None] = []
         if not series or period <= 0:
             return result
@@ -354,7 +354,7 @@ class TechnicalAnalysisMixin(BuiltinDispatchMixin):
             result.append(sum(window) / len(window))
         return result
 
-    def _ema(self, series: list[Any], period: int) -> list[float]:
+    def _ema(self, series: list[Any], period: int) -> list[float | None]:
         if not series or period <= 0:
             return [None] * len(series)
         alpha = 2 / (period + 1)
@@ -927,9 +927,9 @@ class TechnicalAnalysisMixin(BuiltinDispatchMixin):
         if len(args) != QUATERNARY:
             self._error("ta.dmi takes high, low, close series and length")
 
-        highs = self._expect_series(args[0], "ta.dmi takes high, low, close series and length")
-        lows = self._expect_series(args[1], "ta.dmi takes high, low, close series and length")
-        closes = self._expect_series(args[2], "ta.dmi takes high, low, close series and length")
+        highs = self._expect_list(args[0], "ta.dmi takes high, low, close series and length")
+        lows = self._expect_list(args[1], "ta.dmi takes high, low, close series and length")
+        closes = self._expect_list(args[2], "ta.dmi takes high, low, close series and length")
         length = self._expect_int(args[3], "ta.dmi takes high, low, close series and length")
 
         if length < 1:
@@ -965,11 +965,11 @@ class TechnicalAnalysisMixin(BuiltinDispatchMixin):
         if len(args) not in {TERNARY, QUATERNARY}:
             self._error("ta.kc takes high, low, close series, length, and optional offset_percent")
 
-        highs = self._expect_series(args[0], "ta.kc takes high, low, close series, length")
-        lows = self._expect_series(args[1], "ta.kc takes high, low, close series, length")
-        closes = self._expect_series(args[2], "ta.kc takes high, low, close series, length")
-        length = self._expect_int(args[3] if len(args) > 3 else args[2], "ta.kc length must be integer")
-        offset_percent = 1.0 if len(args) < 4 else (args[3] if isinstance(args[3], (int, float)) else 1.0)
+        highs = self._expect_list(args[0], "ta.kc takes high, low, close series, length")
+        lows = self._expect_list(args[1], "ta.kc takes high, low, close series, length")
+        closes = self._expect_list(args[2], "ta.kc takes high, low, close series, length")
+        length = self._expect_int(args[3], "ta.kc length must be integer") if len(args) > 3 else 0
+        offset_percent = 1.0 if len(args) < 5 else (args[4] if isinstance(args[4], (int, float)) else 1.0)
 
         if length < 1:
             self._error("ta.kc length must be positive")
