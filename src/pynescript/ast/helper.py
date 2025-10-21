@@ -39,11 +39,11 @@ from pynescript.util.itertools import grouper
 
 
 def _add_annotations(script, statements, comments):
-    comments_and_statements = itertools.chain(comments, statements)
-    comments_and_statements = sorted(comments_and_statements, key=lambda item: (item.lineno, item.col_offset))
+    comments_and_statements_iter = itertools.chain(comments, statements)
+    sorted_items = sorted(comments_and_statements_iter, key=lambda item: (item.lineno, item.col_offset))
 
-    comments_and_statements = itertools.groupby(comments_and_statements, lambda item: isinstance(item, ast.Comment))
-    comments_and_statements = [(k, list(g)) for k, g in comments_and_statements]
+    grouped = itertools.groupby(sorted_items, lambda item: isinstance(item, ast.Comment))
+    comments_and_statements = [(k, list(g)) for k, g in grouped]
 
     if not comments_and_statements[0][0]:
         comments_and_statements.insert(0, (True, []))
@@ -181,7 +181,7 @@ def dump(  # noqa: C901
     *,
     annotate_fields: bool = True,
     include_attributes: bool = False,
-    indent: int | None = None,
+    indent: int | str | None = None,
 ) -> str:
     def _format(node, level=0):  # noqa: C901, PLR0912
         if indent is not None:
@@ -276,24 +276,24 @@ def _fix_locations(  # noqa: PLR0912
 ) -> None:
     if "lineno" in node._attributes:
         if not hasattr(node, "lineno"):
-            node.lineno = lineno
+            node.lineno = lineno  # type: ignore[attr-defined]
         else:
-            lineno = node.lineno
+            lineno = node.lineno  # type: ignore[attr-defined]
     if "end_lineno" in node._attributes:
         if getattr(node, "end_lineno", None) is None:
-            node.end_lineno = end_lineno
+            node.end_lineno = end_lineno  # type: ignore[attr-defined]
         else:
-            end_lineno = node.end_lineno
+            end_lineno = node.end_lineno  # type: ignore[attr-defined]
     if "col_offset" in node._attributes:
         if not hasattr(node, "col_offset"):
-            node.col_offset = col_offset
+            node.col_offset = col_offset  # type: ignore[attr-defined]
         else:
-            col_offset = node.col_offset
+            col_offset = node.col_offset  # type: ignore[attr-defined]
     if "end_col_offset" in node._attributes:
         if getattr(node, "end_col_offset", None) is None:
-            node.end_col_offset = end_col_offset
+            node.end_col_offset = end_col_offset  # type: ignore[attr-defined]
         else:
-            end_col_offset = node.end_col_offset
+            end_col_offset = node.end_col_offset  # type: ignore[attr-defined]
 
     for child in iter_child_nodes(node):
         _fix_locations(child, lineno, col_offset, end_lineno, end_col_offset)
@@ -307,9 +307,9 @@ def fix_missing_locations(node: AST) -> AST:
 def increment_lineno(node: AST, n: int = 1) -> AST:
     for child in walk(node):
         if "lineno" in child._attributes:
-            child.lineno = getattr(child, "lineno", 0) + n
+            child.lineno = getattr(child, "lineno", 0) + n  # type: ignore[attr-defined]
         if "end_lineno" in child._attributes and (end_lineno := getattr(child, "end_lineno", 0)) is not None:
-            child.end_lineno = end_lineno + n
+            child.end_lineno = end_lineno + n  # type: ignore[attr-defined]
     return node
 
 
@@ -337,12 +337,12 @@ def _pad_whitespace(source: str) -> str:
 
 def get_source_segment(source: str, node: AST, *, padded: bool = False) -> str | None:
     try:
-        if node.end_lineno is None or node.end_col_offset is None:
+        if node.end_lineno is None or node.end_col_offset is None:  # type: ignore[attr-defined]
             return None
-        lineno = node.lineno - 1
-        end_lineno = node.end_lineno - 1
-        col_offset = node.col_offset
-        end_col_offset = node.end_col_offset
+        lineno = node.lineno - 1  # type: ignore[attr-defined]
+        end_lineno = node.end_lineno - 1  # type: ignore[attr-defined]
+        col_offset = node.col_offset  # type: ignore[attr-defined]
+        end_col_offset = node.end_col_offset  # type: ignore[attr-defined]
     except AttributeError:
         return None
 
