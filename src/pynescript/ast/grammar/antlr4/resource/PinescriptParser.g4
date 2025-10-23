@@ -90,7 +90,7 @@ method_definitions: method_definition+;
 method_definition: EXPORT? METHOD name LPAR method_parameter_list? RPAR (RARROW type_specification)? local_block;
 
 method_parameter_list: method_parameter_definition (COMMA method_parameter_definition)* COMMA?;
-method_parameter_definition: THIS type_specification? | parameter_definition;
+method_parameter_definition: THIS name_store | parameter_definition;
 
 // ENUM DECLARATION
 

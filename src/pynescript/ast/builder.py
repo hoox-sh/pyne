@@ -392,12 +392,12 @@ class PinescriptASTBuilder(
         # Check if this is a THIS parameter
         if ctx.THIS():
             # THIS parameter - implicit self
-            type_spec = ctx.type_specification()
-            type_spec = type_spec and self.visit(type_spec)
+            name = ctx.name_store()
+            name = self.visit(name)
             param = ast.Param(
                 name="this",
                 default=None,
-                type=type_spec,
+                type=None,
             )
             self._setLocations(param, ctx)
             return param
