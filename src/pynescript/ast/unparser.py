@@ -179,7 +179,20 @@ class NodeUnparser(NodeVisitor):
         self.write("type ")
         self.write(node.name)
         with self.block():
-            self.traverse(node.body)
+            # Split body into fields and methods for better organization
+            fields = []
+            methods = []
+            for stmt in node.body:
+                if isinstance(stmt, ast.FunctionDef) and stmt.method:
+                    methods.append(stmt)
+                else:
+                    fields.append(stmt)
+            
+            # Unparse fields first, then methods
+            for field in fields:
+                self.traverse(field)
+            for method in methods:
+                self.traverse(method)
 
     def visit_EnumDef(self, node: ast.EnumDef):
         self.fill()
