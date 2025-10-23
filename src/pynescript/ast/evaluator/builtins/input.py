@@ -29,10 +29,10 @@ class InputBuiltinsMixin(BuiltinDispatchMixin):
     def _handle_input(self, args: list[Any]) -> dict[str, Any]:
         """
         input(defval, title, tooltip, inline, group, confirm)
-        
+
         Generic input function that returns parameter metadata.
         Default type is inferred from defval.
-        
+
         Returns dict with parameter metadata.
         """
         defval = args[0] if len(args) > 0 else None
@@ -64,9 +64,9 @@ class InputBuiltinsMixin(BuiltinDispatchMixin):
     def _handle_input_bool(self, args: list[Any]) -> dict[str, Any]:
         """
         input.bool(defval, title, tooltip, inline, group, confirm)
-        
+
         Create a boolean input parameter.
-        
+
         Parameters:
             defval: Default value (bool)
             title: Parameter title (str)
@@ -74,7 +74,7 @@ class InputBuiltinsMixin(BuiltinDispatchMixin):
             inline: Inline group name (str or None)
             group: Parameter group name (str or None)
             confirm: Require user confirmation (bool)
-        
+
         Returns dict with parameter metadata.
         """
         defval = args[0] if len(args) > 0 else False
@@ -100,7 +100,7 @@ class InputBuiltinsMixin(BuiltinDispatchMixin):
                   group, confirm)
 
         Create an integer input parameter.
-        
+
         Parameters:
             defval: Default value (int)
             title: Parameter title (str)
@@ -111,7 +111,7 @@ class InputBuiltinsMixin(BuiltinDispatchMixin):
             inline: Inline group name (str or None)
             group: Parameter group name (str or None)
             confirm: Require user confirmation (bool)
-        
+
         Returns dict with parameter metadata.
         """
         defval = args[0] if len(args) > 0 else 0
@@ -140,9 +140,9 @@ class InputBuiltinsMixin(BuiltinDispatchMixin):
     def _handle_input_float(self, args: list[Any]) -> dict[str, Any]:
         """
         input.float(defval, title, minval, maxval, step, tooltip, inline, group, confirm)
-        
+
         Create a float input parameter.
-        
+
         Parameters:
             defval: Default value (float)
             title: Parameter title (str)
@@ -153,7 +153,7 @@ class InputBuiltinsMixin(BuiltinDispatchMixin):
             inline: Inline group name (str or None)
             group: Parameter group name (str or None)
             confirm: Require user confirmation (bool)
-        
+
         Returns dict with parameter metadata.
         """
         defval = args[0] if len(args) > 0 else 0.0
@@ -182,10 +182,10 @@ class InputBuiltinsMixin(BuiltinDispatchMixin):
     def _handle_input_price(self, args: list[Any]) -> dict[str, Any]:
         """
         input.price(defval, title, minval, maxval, step, tooltip, inline, group, confirm)
-        
+
         Create a price input parameter.
         Price inputs are essentially float inputs optimized for price values.
-        
+
         Parameters:
             defval: Default price value (float)
             title: Parameter title (str)
@@ -196,7 +196,7 @@ class InputBuiltinsMixin(BuiltinDispatchMixin):
             inline: Inline group name (str or None)
             group: Parameter group name (str or None)
             confirm: Require user confirmation (bool)
-        
+
         Returns dict with parameter metadata.
         """
         defval = args[0] if len(args) > 0 else 0.0
@@ -225,9 +225,9 @@ class InputBuiltinsMixin(BuiltinDispatchMixin):
     def _handle_input_string(self, args: list[Any]) -> dict[str, Any]:
         """
         input.string(defval, title, tooltip, inline, group, confirm)
-        
+
         Create a string input parameter.
-        
+
         Parameters:
             defval: Default value (str)
             title: Parameter title (str)
@@ -235,7 +235,7 @@ class InputBuiltinsMixin(BuiltinDispatchMixin):
             inline: Inline group name (str or None)
             group: Parameter group name (str or None)
             confirm: Require user confirmation (bool)
-        
+
         Returns dict with parameter metadata.
         """
         defval = args[0] if len(args) > 0 else ""
@@ -258,10 +258,10 @@ class InputBuiltinsMixin(BuiltinDispatchMixin):
     def _handle_input_symbol(self, args: list[Any]) -> dict[str, Any]:
         """
         input.symbol(defval, title, tooltip, inline, group, confirm)
-        
+
         Create a symbol/ticker input parameter.
         Symbol inputs are specialized string inputs for security symbols.
-        
+
         Parameters:
             defval: Default symbol (str)
             title: Parameter title (str)
@@ -269,7 +269,7 @@ class InputBuiltinsMixin(BuiltinDispatchMixin):
             inline: Inline group name (str or None)
             group: Parameter group name (str or None)
             confirm: Require user confirmation (bool)
-        
+
         Returns dict with parameter metadata.
         """
         defval = args[0] if len(args) > 0 else ""
@@ -292,10 +292,10 @@ class InputBuiltinsMixin(BuiltinDispatchMixin):
     def _handle_input_session(self, args: list[Any]) -> dict[str, Any]:
         """
         input.session(defval, title, tooltip, inline, group, confirm)
-        
+
         Create a session input parameter.
         Session inputs define trading session times (e.g., "0930-1600").
-        
+
         Parameters:
             defval: Default session string (str)
             title: Parameter title (str)
@@ -303,7 +303,7 @@ class InputBuiltinsMixin(BuiltinDispatchMixin):
             inline: Inline group name (str or None)
             group: Parameter group name (str or None)
             confirm: Require user confirmation (bool)
-        
+
         Returns dict with parameter metadata.
         """
         defval = args[0] if len(args) > 0 else ""
@@ -326,10 +326,10 @@ class InputBuiltinsMixin(BuiltinDispatchMixin):
     def _handle_input_source(self, args: list[Any]) -> dict[str, Any]:
         """
         input.source(defval, title, tooltip, inline, group, confirm)
-        
+
         Create a source input parameter.
         Source inputs select OHLCV data sources (close, open, high, low, hl2, hlc3, ohlc4, etc.).
-        
+
         Parameters:
             defval: Default source (str, e.g., "close")
             title: Parameter title (str)
@@ -337,7 +337,7 @@ class InputBuiltinsMixin(BuiltinDispatchMixin):
             inline: Inline group name (str or None)
             group: Parameter group name (str or None)
             confirm: Require user confirmation (bool)
-        
+
         Returns dict with parameter metadata.
         """
         defval = args[0] if len(args) > 0 else "close"
@@ -360,10 +360,10 @@ class InputBuiltinsMixin(BuiltinDispatchMixin):
     def _handle_input_time(self, args: list[Any]) -> dict[str, Any]:
         """
         input.time(defval, title, tooltip, inline, group, confirm)
-        
+
         Create a time input parameter.
         Time inputs select a specific date and time as Unix timestamp.
-        
+
         Parameters:
             defval: Default time (int, Unix timestamp)
             title: Parameter title (str)
@@ -371,7 +371,7 @@ class InputBuiltinsMixin(BuiltinDispatchMixin):
             inline: Inline group name (str or None)
             group: Parameter group name (str or None)
             confirm: Require user confirmation (bool)
-        
+
         Returns dict with parameter metadata.
         """
         defval = args[0] if len(args) > 0 else 0
@@ -394,10 +394,10 @@ class InputBuiltinsMixin(BuiltinDispatchMixin):
     def _handle_input_timeframe(self, args: list[Any]) -> dict[str, Any]:
         """
         input.timeframe(defval, title, tooltip, inline, group, confirm)
-        
+
         Create a timeframe input parameter.
         Timeframe inputs select chart timeframes (e.g., "1", "5", "1H", "D").
-        
+
         Parameters:
             defval: Default timeframe (str)
             title: Parameter title (str)
@@ -405,7 +405,7 @@ class InputBuiltinsMixin(BuiltinDispatchMixin):
             inline: Inline group name (str or None)
             group: Parameter group name (str or None)
             confirm: Require user confirmation (bool)
-        
+
         Returns dict with parameter metadata.
         """
         defval = args[0] if len(args) > 0 else ""
@@ -428,10 +428,10 @@ class InputBuiltinsMixin(BuiltinDispatchMixin):
     def _handle_input_color(self, args: list[Any]) -> dict[str, Any]:
         """
         input.color(defval, title, tooltip, inline, group, confirm)
-        
+
         Create a color input parameter.
         Color inputs select RGBA color values.
-        
+
         Parameters:
             defval: Default color (str, e.g., "#FF0000" or color constant)
             title: Parameter title (str)
@@ -439,7 +439,7 @@ class InputBuiltinsMixin(BuiltinDispatchMixin):
             inline: Inline group name (str or None)
             group: Parameter group name (str or None)
             confirm: Require user confirmation (bool)
-        
+
         Returns dict with parameter metadata.
         """
         defval = args[0] if len(args) > 0 else "#000000"
@@ -462,10 +462,10 @@ class InputBuiltinsMixin(BuiltinDispatchMixin):
     def _handle_input_enum(self, args: list[Any]) -> dict[str, Any]:
         """
         input.enum(defval, title, options, tooltip, inline, group, confirm)
-        
+
         Create an enumeration input parameter.
         Enum inputs provide a dropdown list of predefined options.
-        
+
         Parameters:
             defval: Default option (str)
             title: Parameter title (str)
@@ -474,7 +474,7 @@ class InputBuiltinsMixin(BuiltinDispatchMixin):
             inline: Inline group name (str or None)
             group: Parameter group name (str or None)
             confirm: Require user confirmation (bool)
-        
+
         Returns dict with parameter metadata.
         """
         defval = args[0] if len(args) > 0 else ""

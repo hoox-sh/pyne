@@ -84,64 +84,30 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
             "strategy.cancel_all": self._handle_strategy_cancel_all,
             "strategy.order": self._handle_strategy_order,
             # Risk management
-            "strategy.risk.max_position_size": (
-                self._handle_strategy_risk_max_position_size
-            ),
-            "strategy.risk.max_intraday_loss": (
-                self._handle_strategy_risk_max_intraday_loss
-            ),
+            "strategy.risk.max_position_size": (self._handle_strategy_risk_max_position_size),
+            "strategy.risk.max_intraday_loss": (self._handle_strategy_risk_max_intraday_loss),
             # Unit conversion
-            "strategy.convert_to_account": (
-                self._handle_strategy_convert_to_account
-            ),
-            "strategy.convert_to_symbol": (
-                self._handle_strategy_convert_to_symbol
-            ),
+            "strategy.convert_to_account": (self._handle_strategy_convert_to_account),
+            "strategy.convert_to_symbol": (self._handle_strategy_convert_to_symbol),
             # Quantity calculation
-            "strategy.default_entry_qty": (
-                self._handle_strategy_default_entry_qty
-            ),
+            "strategy.default_entry_qty": (self._handle_strategy_default_entry_qty),
             # Trade history queries
-            "strategy.closedtrades.entry_bar_index": (
-                self._handle_closedtrades_entry_bar_index
-            ),
-            "strategy.closedtrades.entry_time": (
-                self._handle_closedtrades_entry_time
-            ),
-            "strategy.closedtrades.entry_price": (
-                self._handle_closedtrades_entry_price
-            ),
-            "strategy.closedtrades.exit_bar_index": (
-                self._handle_closedtrades_exit_bar_index
-            ),
-            "strategy.closedtrades.exit_time": (
-                self._handle_closedtrades_exit_time
-            ),
-            "strategy.closedtrades.exit_price": (
-                self._handle_closedtrades_exit_price
-            ),
-            "strategy.closedtrades.profit": (
-                self._handle_closedtrades_profit
-            ),
+            "strategy.closedtrades.entry_bar_index": (self._handle_closedtrades_entry_bar_index),
+            "strategy.closedtrades.entry_time": (self._handle_closedtrades_entry_time),
+            "strategy.closedtrades.entry_price": (self._handle_closedtrades_entry_price),
+            "strategy.closedtrades.exit_bar_index": (self._handle_closedtrades_exit_bar_index),
+            "strategy.closedtrades.exit_time": (self._handle_closedtrades_exit_time),
+            "strategy.closedtrades.exit_price": (self._handle_closedtrades_exit_price),
+            "strategy.closedtrades.profit": (self._handle_closedtrades_profit),
             "strategy.closedtrades.size": self._handle_closedtrades_size,
-            "strategy.closedtrades.commission": (
-                self._handle_closedtrades_commission
-            ),
+            "strategy.closedtrades.commission": (self._handle_closedtrades_commission),
             # Open position queries
-            "strategy.opentrades.entry_bar_index": (
-                self._handle_opentrades_entry_bar_index
-            ),
-            "strategy.opentrades.entry_time": (
-                self._handle_opentrades_entry_time
-            ),
-            "strategy.opentrades.entry_price": (
-                self._handle_opentrades_entry_price
-            ),
+            "strategy.opentrades.entry_bar_index": (self._handle_opentrades_entry_bar_index),
+            "strategy.opentrades.entry_time": (self._handle_opentrades_entry_time),
+            "strategy.opentrades.entry_price": (self._handle_opentrades_entry_price),
             "strategy.opentrades.size": self._handle_opentrades_size,
             "strategy.opentrades.profit": self._handle_opentrades_profit,
-            "strategy.opentrades.commission": (
-                self._handle_opentrades_commission
-            ),
+            "strategy.opentrades.commission": (self._handle_opentrades_commission),
         }
 
     # ENTRY/EXIT FUNCTIONS
@@ -167,9 +133,7 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
         limit_price = args[3] if len(args) > 3 else None
 
         # Close existing position if opposite direction
-        if (
-            direction == "long" and StrategyState.position_direction == "short"
-        ) or (
+        if (direction == "long" and StrategyState.position_direction == "short") or (
             direction == "short" and StrategyState.position_direction == "long"
         ):
             self._close_position(100.0, 0, 0)  # Exit at market
@@ -253,9 +217,7 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
         if order_id in StrategyState.pending_orders:
             del StrategyState.pending_orders[order_id]
 
-    def _handle_strategy_cancel_all(
-        self, args: list[Any]
-    ) -> None:
+    def _handle_strategy_cancel_all(self, args: list[Any]) -> None:
         """
         strategy.cancel_all(alert)
 
@@ -301,31 +263,19 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
         else:
             order_type = "market"
 
-        order = Order(
-            order_id, order_type, action, qty, limit_price, stop_price, comment
-        )
+        order = Order(order_id, order_type, action, qty, limit_price, stop_price, comment)
         StrategyState.pending_orders[order_id] = order
 
-    def _close_position(
-        self, exit_price: float, qty: float, exit_time: int
-    ) -> None:
+    def _close_position(self, exit_price: float, qty: float, exit_time: int) -> None:
         """Helper to close a position and record it."""
         if StrategyState.position_direction == "flat":
             return
 
         # Calculate profit
         if StrategyState.position_direction == "long":
-            profit = (
-                (exit_price - StrategyState.entry_price)
-                * qty
-                - StrategyState.commission
-            )
+            profit = (exit_price - StrategyState.entry_price) * qty - StrategyState.commission
         else:  # short
-            profit = (
-                (StrategyState.entry_price - exit_price)
-                * qty
-                - StrategyState.commission
-            )
+            profit = (StrategyState.entry_price - exit_price) * qty - StrategyState.commission
 
         # Record trade
         trade = Trade(
@@ -350,9 +300,7 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
 
     # RISK MANAGEMENT
 
-    def _handle_strategy_risk_max_position_size(
-        self, args: list[Any]
-    ) -> None:
+    def _handle_strategy_risk_max_position_size(self, args: list[Any]) -> None:
         """
         strategy.risk.max_position_size(percent)
 
@@ -365,9 +313,7 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
         """
         # Mock implementation - would limit position size
 
-    def _handle_strategy_risk_max_intraday_loss(
-        self, args: list[Any]
-    ) -> None:
+    def _handle_strategy_risk_max_intraday_loss(self, args: list[Any]) -> None:
         """
         strategy.risk.max_intraday_loss(percent)
 

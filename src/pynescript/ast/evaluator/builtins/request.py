@@ -3,17 +3,21 @@ from __future__ import annotations
 import random
 from typing import Any
 
-from .base import BuiltinDispatchMixin
-from .base import BuiltinHandler
+from .base import BuiltinDispatchMixin, BuiltinHandler
+
+# Define constants for magic numbers
+REQUEST_SECURITY_MIN_ARGS = 2
 
 
 class RequestBuiltinsMixin(BuiltinDispatchMixin):
-    """Request/data fetching functions for multi-timeframe and fundamental data."""
+    """
+    Request/data fetching functions for multi-timeframe and fundamental data.
+    """
 
     def _request_builtin_map(self) -> dict[str, BuiltinHandler]:
         return {
             "request.security": self._handle_request_security,
-            "request.security_lower_tf": self._handle_request_security_lower_tf,
+            "request.security_lower_tf": (self._handle_request_security_lower_tf),
             "request.dividends": self._handle_request_dividends,
             "request.earnings": self._handle_request_earnings,
             "request.splits": self._handle_request_splits,
@@ -23,6 +27,19 @@ class RequestBuiltinsMixin(BuiltinDispatchMixin):
             "request.currency_rate": self._handle_request_currency_rate,
             "request.seed": self._handle_request_seed,
         }
+
+    def _get_expression_prices(self, expression: str, prices: list[float]) -> list[float]:
+        """Return a list of prices based on the expression."""
+        expr = expression.lower()
+        if expr in ("open", "o"):
+            return [p - 0.5 for p in prices]
+        if expr in ("high", "h"):
+            return [p + 1.0 for p in prices]
+        if expr in ("low", "l"):
+            return [p - 1.0 for p in prices]
+        if expr == "volume":
+            return [1000000, 1100000, 1200000, 1050000, 1300000]
+        return prices  # Default to close
 
     def _handle_request_security(self, args: list[Any]) -> Any:
         """
@@ -41,40 +58,33 @@ class RequestBuiltinsMixin(BuiltinDispatchMixin):
         This is a mock implementation that returns deterministic data.
         """
         symbol = args[0] if len(args) > 0 else "AAPL"
-        _timeframe = args[1] if len(args) > 1 else "D"
-        expression = args[2] if len(args) > 2 else "close"
-        _gaps = args[3] if len(args) > 3 else "on"
-        _lookahead = args[4] if len(args) > 4 else "off"
+        # timeframe = args[1] if len(args) > 1 else "D"
+        expression = args[2] if len(args) > REQUEST_SECURITY_MIN_ARGS else "close"
+        # gaps = args[3] if len(args) > 3 else "on"
+        # lookahead = args[4] if len(args) > 4 else "off"
 
-        # Mock implementation: return a series of prices based on symbol
         base_prices = {
             "AAPL": [100.0, 101.5, 102.0, 103.5, 105.0],
             "GOOGL": [1000.0, 1015.5, 1020.0, 1035.5, 1050.0],
             "BTC/USD": [25000.0, 26000.0, 27000.0, 26500.0, 28000.0],
         }
 
-        prices = base_prices.get(
-            str(symbol).upper(),
-            [100.0, 101.0, 102.0, 101.5, 103.0],
-        )
+        if isinstance(symbol, list):
+            result: list[Any] = []
+            for s in symbol:
+                s_prices = base_prices.get(str(s).upper(), [100.0, 101.0, 102.0, 101.5, 103.0])
+                if isinstance(expression, str):
+                    result.append(self._get_expression_prices(expression, s_prices))
+                else:
+                    result.append(s_prices)
+            return result
 
-        # Return the series for the requested expression
+        prices = base_prices.get(str(symbol).upper(), [100.0, 101.0, 102.0, 101.5, 103.0])
         if isinstance(expression, str):
-            if expression.lower() in ("close", "c"):
-                return prices
-            elif expression.lower() in ("open", "o"):
-                return [p - 0.5 for p in prices]
-            elif expression.lower() in ("high", "h"):
-                return [p + 1.0 for p in prices]
-            elif expression.lower() in ("low", "l"):
-                return [p - 1.0 for p in prices]
-            elif expression.lower() == "volume":
-                return [1000000, 1100000, 1200000, 1050000, 1300000]
-
-        # Default: return close prices
+            return self._get_expression_prices(expression, prices)
         return prices
 
-    def _handle_request_security_lower_tf(self, args: list[Any]) -> Any:
+    def _handle_request_security_lower_tf(self, _args: list[Any]) -> Any:
         """
         request.security_lower_tf(symbol, timeframe, expression)
 
@@ -88,14 +98,22 @@ class RequestBuiltinsMixin(BuiltinDispatchMixin):
         Returns list of values from lower timeframe bars.
         This is a mock implementation.
         """
-        _symbol = args[0] if len(args) > 0 else "AAPL"
-        _timeframe = args[1] if len(args) > 1 else "5m"
-        _expression = args[2] if len(args) > 2 else "close"
+        # symbol = args[0] if len(args) > 0 else "AAPL"
+        # timeframe = args[1] if len(args) > 1 else "5m"
+        # expression = args[2] if len(args) > 2 else "close"
 
         # Mock implementation: return intrabar data
         intrabar_prices = [
-            100.0, 100.25, 100.5, 100.75, 101.0,
-            101.25, 101.5, 101.75, 102.0, 102.25,
+            100.0,
+            100.25,
+            100.5,
+            100.75,
+            101.0,
+            101.25,
+            101.5,
+            101.75,
+            102.0,
+            102.25,
         ]
         return intrabar_prices
 
@@ -113,7 +131,7 @@ class RequestBuiltinsMixin(BuiltinDispatchMixin):
         This is a mock implementation.
         """
         symbol = args[0] if len(args) > 0 else "AAPL"
-        _currency = args[1] if len(args) > 1 else "USD"
+        # currency = args[1] if len(args) > 1 else "USD"
 
         # Mock: return dividend amounts for known symbols
         dividends = {
@@ -137,7 +155,7 @@ class RequestBuiltinsMixin(BuiltinDispatchMixin):
         This is a mock implementation.
         """
         symbol = args[0] if len(args) > 0 else "AAPL"
-        _currency = args[1] if len(args) > 1 else "USD"
+        # currency = args[1] if len(args) > 1 else "USD"
 
         # Mock: return EPS for known symbols
         eps = {
@@ -161,7 +179,7 @@ class RequestBuiltinsMixin(BuiltinDispatchMixin):
         This is a mock implementation.
         """
         symbol = args[0] if len(args) > 0 else "AAPL"
-        _currency = args[1] if len(args) > 1 else "USD"
+        # currency = args[1] if len(args) > 1 else "USD"
 
         # Mock: return split ratios (1.0 = no split)
         splits = {
@@ -187,7 +205,7 @@ class RequestBuiltinsMixin(BuiltinDispatchMixin):
         """
         symbol = args[0] if len(args) > 0 else "AAPL"
         financial_id = args[1] if len(args) > 1 else "REVENUE"
-        _period = args[2] if len(args) > 2 else "FY"
+        # period = args[2] if len(args) > 2 else "FY"
 
         # Mock: return financial metrics
         financials = {
@@ -213,13 +231,13 @@ class RequestBuiltinsMixin(BuiltinDispatchMixin):
         This is a mock implementation.
         """
         quandl_code = args[0] if len(args) > 0 else "EIA/PET_RWTC_D"
-        _column = args[1] if len(args) > 1 else "Value"
+        # column = args[1] if len(args) > 1 else "Value"
 
         # Mock: return time series data for common Quandl datasets
         if "PET_RWTC" in str(quandl_code):
             # Oil prices (WTI Crude Oil)
             return [50.0, 51.5, 52.0, 51.0, 53.5, 55.0, 54.5, 56.0]
-        elif "GDPC" in str(quandl_code):
+        if "GDPC" in str(quandl_code):
             # GDP data
             return [21060000, 21200000, 21400000, 21600000]
 
@@ -248,14 +266,14 @@ class RequestBuiltinsMixin(BuiltinDispatchMixin):
             if str(country).upper() == "US":
                 return [3.5, 3.4, 3.6, 3.7, 3.8]
             # EU Unemployment Rate (%)
-            elif str(country).upper() == "EU":
+            if str(country).upper() == "EU":
                 return [6.1, 6.0, 6.2, 6.3, 6.4]
 
-        elif str(indicator_code).upper() == "INFLATION":
+        if str(indicator_code).upper() == "INFLATION":
             # Inflation Rate (%)
             if str(country).upper() == "US":
                 return [3.4, 3.2, 3.0, 2.9, 2.8]
-            elif str(country).upper() == "EU":
+            if str(country).upper() == "EU":
                 return [2.6, 2.4, 2.2, 2.1, 2.0]
 
         # Default: return generic series

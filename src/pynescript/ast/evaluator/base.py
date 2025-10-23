@@ -5,6 +5,7 @@ import math
 from typing import Any
 
 from pynescript.ast import node as ast
+from pynescript.ast.type_system import TypeRegistry
 from pynescript.ast.visitor import NodeVisitor
 
 
@@ -19,6 +20,7 @@ class BaseEvaluator(NodeVisitor):
                 "math.rphi": 2 / (1 + math.sqrt(5)),
             }
         )
+        self.type_registry = TypeRegistry()
 
     def generic_visit(self, node: ast.AST):
         msg = f"unexpected type of node: {type(node)}"

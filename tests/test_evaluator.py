@@ -1546,8 +1546,7 @@ def test_evaluator_input_enum(expression, expected_type):
 def test_evaluator_input_with_all_parameters():
     """Test input functions with all optional parameters."""
     ast = helper.parse(
-        "input.int(50, 'Value', 10, 100, 5, 'Set the threshold', 'group1', 'settings', true)",
-        mode="eval"
+        "input.int(50, 'Value', 10, 100, 5, 'Set the threshold', 'group1', 'settings', true)", mode="eval"
     )
     evaluator = NodeLiteralEvaluator()
     result = evaluator.visit(ast.body)
@@ -1956,9 +1955,7 @@ def test_evaluator_table_clear():
 def test_evaluator_strategy_entry():
     """Test strategy.entry() creates a position."""
     StrategyState.reset()
-    ast = helper.parse(
-        "strategy.entry('long_1', 'long', 1.0)", mode="eval"
-    )
+    ast = helper.parse("strategy.entry('long_1', 'long', 1.0)", mode="eval")
     evaluator = NodeLiteralEvaluator()
     evaluator.visit(ast.body)
 
@@ -1971,18 +1968,14 @@ def test_evaluator_strategy_exit():
     StrategyState.reset()
 
     # First create a position
-    ast_entry = helper.parse(
-        "strategy.entry('long_1', 'long', 1.0)", mode="eval"
-    )
+    ast_entry = helper.parse("strategy.entry('long_1', 'long', 1.0)", mode="eval")
     evaluator = NodeLiteralEvaluator()
     evaluator.visit(ast_entry.body)
 
     assert StrategyState.position_size == 1.0
 
     # Now exit
-    ast_exit = helper.parse(
-        "strategy.exit('exit_1', 'long_1', 1.0)", mode="eval"
-    )
+    ast_exit = helper.parse("strategy.exit('exit_1', 'long_1', 1.0)", mode="eval")
     evaluator.visit(ast_exit.body)
 
     assert StrategyState.position_direction == "flat"
@@ -1993,9 +1986,7 @@ def test_evaluator_strategy_close_all():
     StrategyState.reset()
 
     # Create a position
-    ast_entry = helper.parse(
-        "strategy.entry('long_1', 'long', 5.0)", mode="eval"
-    )
+    ast_entry = helper.parse("strategy.entry('long_1', 'long', 5.0)", mode="eval")
     evaluator = NodeLiteralEvaluator()
     evaluator.visit(ast_entry.body)
 
@@ -2012,9 +2003,7 @@ def test_evaluator_strategy_close_all():
 def test_evaluator_strategy_order():
     """Test strategy.order() places custom orders."""
     StrategyState.reset()
-    ast = helper.parse(
-        "strategy.order('order_1', 'buy', 1.0)", mode="eval"
-    )
+    ast = helper.parse("strategy.order('order_1', 'buy', 1.0)", mode="eval")
     evaluator = NodeLiteralEvaluator()
     evaluator.visit(ast.body)
 
@@ -2027,9 +2016,7 @@ def test_evaluator_strategy_cancel():
     StrategyState.reset()
 
     # Place an order
-    ast_order = helper.parse(
-        "strategy.order('order_1', 'buy', 1.0)", mode="eval"
-    )
+    ast_order = helper.parse("strategy.order('order_1', 'buy', 1.0)", mode="eval")
     evaluator = NodeLiteralEvaluator()
     evaluator.visit(ast_order.body)
 
@@ -2047,12 +2034,8 @@ def test_evaluator_strategy_cancel_all():
     StrategyState.reset()
 
     # Place multiple orders
-    ast1 = helper.parse(
-        "strategy.order('order_1', 'buy', 1.0)", mode="eval"
-    )
-    ast2 = helper.parse(
-        "strategy.order('order_2', 'sell', 1.0)", mode="eval"
-    )
+    ast1 = helper.parse("strategy.order('order_1', 'buy', 1.0)", mode="eval")
+    ast2 = helper.parse("strategy.order('order_2', 'sell', 1.0)", mode="eval")
     evaluator = NodeLiteralEvaluator()
     evaluator.visit(ast1.body)
     evaluator.visit(ast2.body)
@@ -2088,9 +2071,7 @@ def test_evaluator_strategy_positions(direction, entry_price):
 def test_evaluator_strategy_risk_max_intraday_loss():
     """Test strategy.risk.max_intraday_loss() sets loss limit."""
     StrategyState.reset()
-    ast = helper.parse(
-        "strategy.risk.max_intraday_loss(10.0)", mode="eval"
-    )
+    ast = helper.parse("strategy.risk.max_intraday_loss(10.0)", mode="eval")
     evaluator = NodeLiteralEvaluator()
     evaluator.visit(ast.body)
 
@@ -2099,9 +2080,7 @@ def test_evaluator_strategy_risk_max_intraday_loss():
 
 def test_evaluator_strategy_convert_to_account():
     """Test strategy.convert_to_account() conversion."""
-    ast = helper.parse(
-        "strategy.convert_to_account(100.0, 'AAPL', '1D')", mode="eval"
-    )
+    ast = helper.parse("strategy.convert_to_account(100.0, 'AAPL', '1D')", mode="eval")
     evaluator = NodeLiteralEvaluator()
     result = evaluator.visit(ast.body)
 
@@ -2110,9 +2089,7 @@ def test_evaluator_strategy_convert_to_account():
 
 def test_evaluator_strategy_convert_to_symbol():
     """Test strategy.convert_to_symbol() conversion."""
-    ast = helper.parse(
-        "strategy.convert_to_symbol(100.0, 'AAPL', '1D')", mode="eval"
-    )
+    ast = helper.parse("strategy.convert_to_symbol(100.0, 'AAPL', '1D')", mode="eval")
     evaluator = NodeLiteralEvaluator()
     result = evaluator.visit(ast.body)
 
@@ -2123,9 +2100,7 @@ def test_evaluator_strategy_default_entry_qty():
     """Test strategy.default_entry_qty() calculates quantity."""
     StrategyState.reset()
     StrategyState.risk_free_capital = 10000.0
-    ast = helper.parse(
-        "strategy.default_entry_qty(100.0)", mode="eval"
-    )
+    ast = helper.parse("strategy.default_entry_qty(100.0)", mode="eval")
     evaluator = NodeLiteralEvaluator()
     result = evaluator.visit(ast.body)
 
@@ -2138,9 +2113,7 @@ def test_evaluator_strategy_default_entry_qty():
         (0, 100, 1234567890),
     ],
 )
-def test_evaluator_strategy_closedtrades(
-    index, expected_bar, expected_time
-):
+def test_evaluator_strategy_closedtrades(index, expected_bar, expected_time):
     """Test strategy.closedtrades query functions."""
     StrategyState.reset()
 
@@ -2164,9 +2137,7 @@ def test_evaluator_strategy_closedtrades(
         f"strategy.closedtrades.entry_bar_index({index})",
         mode="eval",
     )
-    ast_time = helper.parse(
-        f"strategy.closedtrades.entry_time({index})", mode="eval"
-    )
+    ast_time = helper.parse(f"strategy.closedtrades.entry_time({index})", mode="eval")
     evaluator = NodeLiteralEvaluator()
 
     assert evaluator.visit(ast_bar.body) == expected_bar

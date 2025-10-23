@@ -1282,16 +1282,12 @@ class TechnicalAnalysisMixin(BuiltinDispatchMixin):
         # If condition is a list (series), check from the end backwards
         if isinstance(condition, list):
             for i in range(len(condition) - 1, -1, -1):
-                is_true = condition[i] is True or (
-                    condition[i] is not None and condition[i] is not False
-                )
+                is_true = condition[i] is True or (condition[i] is not None and condition[i] is not False)
                 if is_true:
                     return len(condition) - 1 - i
             return len(condition) - 1
         # If condition is boolean, return 0 if true, 1 if false
-        is_true = condition is True or (
-            condition is not None and condition is not False
-        )
+        is_true = condition is True or (condition is not None and condition is not False)
         if is_true:
             return 0
         return 1

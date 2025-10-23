@@ -79,10 +79,18 @@ parameter_definition: type_specification? name_store (EQUAL expression)?;
 
 // TYPE DECLARATION
 
-type_declaration: EXPORT? TYPE name NEWLINE INDENT field_definitions DEDENT;
+type_declaration: EXPORT? TYPE name NEWLINE INDENT field_definitions method_definitions? DEDENT;
 
 field_definitions: field_definition+;
-field_definition:  type_specification name_store (EQUAL expression)? NEWLINE;
+field_definition:  VARIP? type_specification name_store (EQUAL expression)? NEWLINE;
+
+// METHOD DECLARATIONS
+
+method_definitions: method_definition+;
+method_definition: EXPORT? METHOD name LPAR method_parameter_list? RPAR (RARROW type_specification)? local_block;
+
+method_parameter_list: method_parameter_definition (COMMA method_parameter_definition)* COMMA?;
+method_parameter_definition: THIS type_specification? | parameter_definition;
 
 // ENUM DECLARATION
 

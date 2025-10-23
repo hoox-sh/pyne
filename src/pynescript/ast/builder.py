@@ -63,7 +63,7 @@ class PinescriptCommentParser:
     _NAMED_ANNOTATION_PATTERN = re.compile(r"^(//)(\s*)(@)(\s*)(param|field)(\s+)(\w+)(\s+)(.+)$")
     _REGION_BORDER_PATTERN = re.compile(r"^(//)(\s*)(#)(\s*)(region|endregion)$")
 
-    def _parseComment(self, comment: str) -> tuple[str, tuple[str, ...]] :  # noqa: C901
+    def _parseComment(self, comment: str) -> tuple[str, tuple[str, ...]]:  # noqa: C901
         m = self._ASSIGNMENT_ANNOTATION_PATTERN.match(comment)
         if m:
             kind = "@="
@@ -351,16 +351,75 @@ class PinescriptASTBuilder(
         self._setLocations(param, ctx)
         return param
 
+    def visitMethod_definitions(self, ctx: PinescriptParser.Method_definitionsContext):
+        defs = ctx.method_definition()
+        defs = [self.visit(d) for d in defs]
+        return defs
+
+    def visitMethod_definition(self, ctx: PinescriptParser.Method_definitionContext):
+        name = ctx.name()
+        args = ctx.method_parameter_list()
+        body = ctx.local_block()
+        return_type = ctx.type_specification()
+        export = ctx.EXPORT()
+        
+        name = self.visit(name)
+        args = args and self.visit(args) or []
+        body = self.visit(body)
+        return_type = return_type and self.visit(return_type)
+        export = 1 if export else 0
+        
+        func_def = ast.FunctionDef(
+            name=name,
+            args=args,
+            body=body,
+            method=1,
+            export=export,
+        )
+        self._setLocations(func_def, ctx)
+        return func_def
+
+    def visitMethod_parameter_list(
+        self, ctx: PinescriptParser.Method_parameter_listContext
+    ):
+        params = ctx.method_parameter_definition()
+        params = [self.visit(param) for param in params]
+        return params
+
+    def visitMethod_parameter_definition(
+        self, ctx: PinescriptParser.Method_parameter_definitionContext
+    ):
+        # Check if this is a THIS parameter
+        if ctx.THIS():
+            # THIS parameter - implicit self
+            type_spec = ctx.type_specification()
+            type_spec = type_spec and self.visit(type_spec)
+            param = ast.Param(
+                name="this",
+                default=None,
+                type=type_spec,
+            )
+            self._setLocations(param, ctx)
+            return param
+        else:
+            # Regular parameter - delegate to parameter_definition visitor
+            param_def = ctx.parameter_definition()
+            return self.visit(param_def)
+
     def visitType_declaration(self, ctx: PinescriptParser.Type_declarationContext):
         name = ctx.name()
         body = ctx.field_definitions()
+        methods = ctx.method_definitions()
         export = ctx.EXPORT()
         name = self.visit(name)
         body = self.visit(body)
+        methods = methods and self.visit(methods) or []
         export = 1 if export else 0
+        # Combine field definitions and method definitions in body
+        full_body = body + methods
         type_def = ast.TypeDef(
             name=name,
-            body=body,
+            body=full_body,
             export=export,
         )
         self._setLocations(type_def, ctx)
@@ -392,11 +451,14 @@ class PinescriptASTBuilder(
         value = ctx.expression()
         value = value and self.visit(value)
         type_spec = ctx.type_specification()
-        type_spec = self.visit(type_spec)
+        type_spec = type_spec and self.visit(type_spec)
+        varip = ctx.VARIP()
+        varip = 1 if varip else 0
         stmt = ast.Assign(
             target=target,
             value=value,
             type=type_spec,
+            mode=ast.VarIp() if varip else None,
         )
         self._setLocations(stmt, ctx)
         return stmt

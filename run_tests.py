@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 """Simple test runner without pytest plugin conflicts."""
+
 from __future__ import annotations
 
 import subprocess
@@ -20,4 +21,3 @@ result = subprocess.run(
     check=False,
 )
 sys.exit(result.returncode)
-

@@ -1,4 +1,4 @@
-# Generated from src/pynescript/ast/grammar/antlr4/resource/PinescriptParser.g4 by ANTLR 4.13.2
+# Generated from /home/jango/Git/pynescript/src/pynescript/ast/grammar/antlr4/tool/../resource/PinescriptParser.g4 by ANTLR 4.13.2
 from antlr4 import *
 if "." in __name__:
     from .PinescriptParser import PinescriptParser
@@ -194,6 +194,42 @@ class PinescriptParserListener(ParseTreeListener):
 
     # Exit a parse tree produced by PinescriptParser#field_definition.
     def exitField_definition(self, ctx:PinescriptParser.Field_definitionContext):
+        pass
+
+
+    # Enter a parse tree produced by PinescriptParser#method_definitions.
+    def enterMethod_definitions(self, ctx:PinescriptParser.Method_definitionsContext):
+        pass
+
+    # Exit a parse tree produced by PinescriptParser#method_definitions.
+    def exitMethod_definitions(self, ctx:PinescriptParser.Method_definitionsContext):
+        pass
+
+
+    # Enter a parse tree produced by PinescriptParser#method_definition.
+    def enterMethod_definition(self, ctx:PinescriptParser.Method_definitionContext):
+        pass
+
+    # Exit a parse tree produced by PinescriptParser#method_definition.
+    def exitMethod_definition(self, ctx:PinescriptParser.Method_definitionContext):
+        pass
+
+
+    # Enter a parse tree produced by PinescriptParser#method_parameter_list.
+    def enterMethod_parameter_list(self, ctx:PinescriptParser.Method_parameter_listContext):
+        pass
+
+    # Exit a parse tree produced by PinescriptParser#method_parameter_list.
+    def exitMethod_parameter_list(self, ctx:PinescriptParser.Method_parameter_listContext):
+        pass
+
+
+    # Enter a parse tree produced by PinescriptParser#method_parameter_definition.
+    def enterMethod_parameter_definition(self, ctx:PinescriptParser.Method_parameter_definitionContext):
+        pass
+
+    # Exit a parse tree produced by PinescriptParser#method_parameter_definition.
+    def exitMethod_parameter_definition(self, ctx:PinescriptParser.Method_parameter_definitionContext):
         pass
 
 

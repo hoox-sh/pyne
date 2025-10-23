@@ -217,8 +217,7 @@ class DrawingBuiltinsMixin(BuiltinDispatchMixin):
         line = args[0] if len(args) > 0 else None
         if isinstance(line, Line):
             new_line = Line(
-                line.x1, line.y1, line.x2, line.y2, line.xloc,
-                line.color, line.width, line.style, line.extend
+                line.x1, line.y1, line.x2, line.y2, line.xloc, line.color, line.width, line.style, line.extend
             )
             DrawingRegistry.lines.append(new_line)
             return new_line
@@ -323,10 +322,7 @@ class DrawingBuiltinsMixin(BuiltinDispatchMixin):
         border_style = args[9] if len(args) > 9 else "solid"
         extend = args[10] if len(args) > 10 else "none"
 
-        box = Box(
-            left, top, right, bottom, xloc, closed, bgcolor,
-            border_color, border_width, border_style, extend
-        )
+        box = Box(left, top, right, bottom, xloc, closed, bgcolor, border_color, border_width, border_style, extend)
         DrawingRegistry.boxes.append(box)
         return box
 
@@ -341,9 +337,17 @@ class DrawingBuiltinsMixin(BuiltinDispatchMixin):
         box = args[0] if len(args) > 0 else None
         if isinstance(box, Box):
             new_box = Box(
-                box.left, box.top, box.right, box.bottom, box.xloc,
-                box.closed, box.bgcolor, box.border_color,
-                box.border_width, box.border_style, box.extend
+                box.left,
+                box.top,
+                box.right,
+                box.bottom,
+                box.xloc,
+                box.closed,
+                box.bgcolor,
+                box.border_color,
+                box.border_width,
+                box.border_style,
+                box.extend,
             )
             DrawingRegistry.boxes.append(new_box)
             return new_box
@@ -465,9 +469,19 @@ class DrawingBuiltinsMixin(BuiltinDispatchMixin):
         style = args[12] if len(args) > 12 else "label_center"
 
         label = Label(
-            x, y, text, xloc, yloc, color, textcolor,
-            text_font_family, text_halign, text_valign,
-            text_size, tooltip, style
+            x,
+            y,
+            text,
+            xloc,
+            yloc,
+            color,
+            textcolor,
+            text_font_family,
+            text_halign,
+            text_valign,
+            text_size,
+            tooltip,
+            style,
         )
         DrawingRegistry.labels.append(label)
         return label
@@ -483,10 +497,19 @@ class DrawingBuiltinsMixin(BuiltinDispatchMixin):
         label = args[0] if len(args) > 0 else None
         if isinstance(label, Label):
             new_label = Label(
-                label.x, label.y, label.text, label.xloc, label.yloc,
-                label.color, label.textcolor, label.text_font_family,
-                label.text_halign, label.text_valign, label.text_size,
-                label.tooltip, label.style
+                label.x,
+                label.y,
+                label.text,
+                label.xloc,
+                label.yloc,
+                label.color,
+                label.textcolor,
+                label.text_font_family,
+                label.text_halign,
+                label.text_valign,
+                label.text_size,
+                label.tooltip,
+                label.style,
             )
             DrawingRegistry.labels.append(new_label)
             return new_label
@@ -532,9 +555,7 @@ class DrawingBuiltinsMixin(BuiltinDispatchMixin):
         """label.set_text_font_family(label, font_family)"""
         label = args[0] if len(args) > 0 else None
         if isinstance(label, Label):
-            label.text_font_family = (
-                args[1] if len(args) > 1 else label.text_font_family
-            )
+            label.text_font_family = args[1] if len(args) > 1 else label.text_font_family
         return label
 
     def _handle_label_set_text_halign(self, args: list[Any]) -> Label:
@@ -576,27 +597,21 @@ class DrawingBuiltinsMixin(BuiltinDispatchMixin):
         """label.set_border_color(label, color)"""
         label = args[0] if len(args) > 0 else None
         if isinstance(label, Label):
-            label.border_color = (
-                args[1] if len(args) > 1 else label.border_color
-            )
+            label.border_color = args[1] if len(args) > 1 else label.border_color
         return label
 
     def _handle_label_set_border_width(self, args: list[Any]) -> Label:
         """label.set_border_width(label, width)"""
         label = args[0] if len(args) > 0 else None
         if isinstance(label, Label):
-            label.border_width = (
-                args[1] if len(args) > 1 else label.border_width
-            )
+            label.border_width = args[1] if len(args) > 1 else label.border_width
         return label
 
     def _handle_label_set_border_style(self, args: list[Any]) -> Label:
         """label.set_border_style(label, style)"""
         label = args[0] if len(args) > 0 else None
         if isinstance(label, Label):
-            label.border_style = (
-                args[1] if len(args) > 1 else label.border_style
-            )
+            label.border_style = args[1] if len(args) > 1 else label.border_style
         return label
 
     def _handle_label_set_style(self, args: list[Any]) -> Label:
@@ -648,10 +663,7 @@ class DrawingBuiltinsMixin(BuiltinDispatchMixin):
         border_width = args[6] if len(args) > 6 else 1
         bgcolor = args[7] if len(args) > 7 else "rgba(255,255,255,255)"
 
-        table = Table(
-            position, rows, columns, frame_color, frame_width,
-            border_color, border_width, bgcolor
-        )
+        table = Table(position, rows, columns, frame_color, frame_width, border_color, border_width, bgcolor)
         DrawingRegistry.tables.append(table)
         return table
 

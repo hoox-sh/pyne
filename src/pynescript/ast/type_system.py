@@ -12,14 +12,16 @@ from enum import Enum
 
 class TypeQualifier(Enum):
     """Type qualifiers in Pine Script"""
-    CONST = "const"        # Constant, known at compile time
-    SIMPLE = "simple"      # Simple, not changing per bar
-    SERIES = "series"      # Series, can change per bar
-    INPUT = "input"        # Input parameter from user
+
+    CONST = "const"  # Constant, known at compile time
+    SIMPLE = "simple"  # Simple, not changing per bar
+    SERIES = "series"  # Series, can change per bar
+    INPUT = "input"  # Input parameter from user
 
 
 class BuiltinTypeKind(Enum):
     """Built-in type kinds"""
+
     INT = "int"
     FLOAT = "float"
     BOOL = "bool"
@@ -31,9 +33,7 @@ class BuiltinTypeKind(Enum):
 class Type:
     """Base class for all Pine Script types"""
 
-    def __init__(
-        self, name: str, qualifier: Optional[TypeQualifier] = None
-    ) -> None:
+    def __init__(self, name: str, qualifier: Optional[TypeQualifier] = None) -> None:
         self.name = name
         self.qualifier = qualifier
 
@@ -151,9 +151,7 @@ class MethodSignature:
 class UserDefinedType(Type):
     """Represents a user-defined type (UDT) in Pine Script"""
 
-    def __init__(
-        self, name: str, qualifier: Optional[TypeQualifier] = None
-    ) -> None:
+    def __init__(self, name: str, qualifier: Optional[TypeQualifier] = None) -> None:
         super().__init__(name, qualifier)
         self.fields: dict[str, Field] = {}
         self.methods: dict[str, MethodSignature] = {}
@@ -194,17 +192,13 @@ class ObjectInstance:
     def get_field(self, name: str) -> Any:
         """Get the value of a field"""
         if name not in self.udt.fields:
-            raise AttributeError(
-                f"Field '{name}' not found on type '{self.udt.name}'"
-            )
+            raise AttributeError(f"Field '{name}' not found on type '{self.udt.name}'")
         return self.fields.get(name)
 
     def set_field(self, name: str, value: Any) -> None:
         """Set the value of a field"""
         if name not in self.udt.fields:
-            raise AttributeError(
-                f"Field '{name}' not found on type '{self.udt.name}'"
-            )
+            raise AttributeError(f"Field '{name}' not found on type '{self.udt.name}'")
         self.fields[name] = value
 
     def copy(self) -> ObjectInstance:
@@ -265,9 +259,7 @@ class MethodResolver:
     def __init__(self, type_registry: TypeRegistry) -> None:
         self.type_registry = type_registry
 
-    def resolve_method(
-        self, instance: ObjectInstance, method_name: str, args: list[Any]
-    ) -> Any:
+    def resolve_method(self, instance: ObjectInstance, method_name: str, args: list[Any]) -> Any:
         """
         Resolve and prepare a method call on a UDT instance.
 
@@ -291,17 +283,12 @@ class MethodResolver:
         # Check for user-defined methods
         method_sig = instance.udt.get_method(method_name)
         if not method_sig:
-            raise AttributeError(
-                f"Method '{method_name}' "
-                f"not found on type '{instance.udt.name}'"
-            )
+            raise AttributeError(f"Method '{method_name}' not found on type '{instance.udt.name}'")
 
         return method_sig
 
     @staticmethod
-    def _handle_new(
-        udt: UserDefinedType, args: list[Any]
-    ) -> ObjectInstance:
+    def _handle_new(udt: UserDefinedType, args: list[Any]) -> ObjectInstance:
         """Handle .new() constructor"""
         instance = ObjectInstance(udt)
 

@@ -134,9 +134,7 @@ class UtilityFunctionsMixin(BuiltinDispatchMixin):
         # Arguments are parsed but not used in stub implementation
         _ = args[0]  # message
 
-    def _builtin_alertcondition(
-        self, args: list[Any]
-    ) -> None:
+    def _builtin_alertcondition(self, args: list[Any]) -> None:
         """Define an alert condition (for alerting on specific events)."""
         if len(args) < 2:
             msg = "alertcondition() requires condition and message"
