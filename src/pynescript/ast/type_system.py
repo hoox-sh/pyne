@@ -6,8 +6,8 @@ This module provides the core type system for Pine Script v6.
 
 from __future__ import annotations
 
-from typing import Any, Optional
 from enum import Enum
+from typing import Any
 
 
 class TypeQualifier(Enum):
@@ -33,7 +33,7 @@ class BuiltinTypeKind(Enum):
 class Type:
     """Base class for all Pine Script types"""
 
-    def __init__(self, name: str, qualifier: Optional[TypeQualifier] = None) -> None:
+    def __init__(self, name: str, qualifier: TypeQualifier | None = None) -> None:
         self.name = name
         self.qualifier = qualifier
 
@@ -55,7 +55,7 @@ class BuiltinType(Type):
     def __init__(
         self,
         kind: BuiltinTypeKind,
-        qualifier: Optional[TypeQualifier] = None,
+        qualifier: TypeQualifier | None = None,
     ) -> None:
         name = kind.value
         super().__init__(name, qualifier)
@@ -68,7 +68,7 @@ class ArrayType(Type):
     def __init__(
         self,
         element_type: Type,
-        qualifier: Optional[TypeQualifier] = None,
+        qualifier: TypeQualifier | None = None,
     ) -> None:
         self.element_type = element_type
         typename = f"array<{element_type.name}>"
@@ -81,7 +81,7 @@ class MatrixType(Type):
     def __init__(
         self,
         element_type: Type,
-        qualifier: Optional[TypeQualifier] = None,
+        qualifier: TypeQualifier | None = None,
     ) -> None:
         self.element_type = element_type
         typename = f"matrix<{element_type.name}>"
@@ -95,7 +95,7 @@ class MapType(Type):
         self,
         key_type: Type,
         value_type: Type,
-        qualifier: Optional[TypeQualifier] = None,
+        qualifier: TypeQualifier | None = None,
     ) -> None:
         self.key_type = key_type
         self.value_type = value_type
@@ -110,7 +110,7 @@ class Field:
         self,
         name: str,
         field_type: Type,
-        default_value: Optional[Any] = None,
+        default_value: Any | None = None,
         varip: bool = False,
     ) -> None:
         self.name = name
@@ -134,7 +134,7 @@ class MethodSignature:
         self,
         name: str,
         parameters: list[tuple[str, Type]],
-        return_type: Optional[Type] = None,
+        return_type: Type | None = None,
         is_builtin: bool = False,
     ) -> None:
         self.name = name
@@ -151,7 +151,7 @@ class MethodSignature:
 class UserDefinedType(Type):
     """Represents a user-defined type (UDT) in Pine Script"""
 
-    def __init__(self, name: str, qualifier: Optional[TypeQualifier] = None) -> None:
+    def __init__(self, name: str, qualifier: TypeQualifier | None = None) -> None:
         super().__init__(name, qualifier)
         self.fields: dict[str, Field] = {}
         self.methods: dict[str, MethodSignature] = {}
@@ -161,7 +161,7 @@ class UserDefinedType(Type):
         """Add a field to this UDT"""
         self.fields[field.name] = field
 
-    def get_field(self, name: str) -> Optional[Field]:
+    def get_field(self, name: str) -> Field | None:
         """Get a field by name"""
         return self.fields.get(name)
 
@@ -169,7 +169,7 @@ class UserDefinedType(Type):
         """Add a method to this UDT"""
         self.methods[method.name] = method
 
-    def get_method(self, name: str) -> Optional[MethodSignature]:
+    def get_method(self, name: str) -> MethodSignature | None:
         """Get a method by name"""
         return self.methods.get(name)
 
@@ -192,13 +192,15 @@ class ObjectInstance:
     def get_field(self, name: str) -> Any:
         """Get the value of a field"""
         if name not in self.udt.fields:
-            raise AttributeError(f"Field '{name}' not found on type '{self.udt.name}'")
+            msg = f"Field '{name}' not found on type '{self.udt.name}'"
+            raise AttributeError(msg)
         return self.fields.get(name)
 
     def set_field(self, name: str, value: Any) -> None:
         """Set the value of a field"""
         if name not in self.udt.fields:
-            raise AttributeError(f"Field '{name}' not found on type '{self.udt.name}'")
+            msg = f"Field '{name}' not found on type '{self.udt.name}'"
+            raise AttributeError(msg)
         self.fields[name] = value
 
     def copy(self) -> ObjectInstance:
@@ -235,7 +237,7 @@ class TypeRegistry:
         """Register a user-defined type"""
         self.types[udt.name] = udt
 
-    def get_type(self, name: str) -> Optional[Type]:
+    def get_type(self, name: str) -> Type | None:
         """Get a type by name (checks built-ins first, then UDTs)"""
         if name in self._builtin_types:
             return self._builtin_types[name]
@@ -283,7 +285,8 @@ class MethodResolver:
         # Check for user-defined methods
         method_sig = instance.udt.get_method(method_name)
         if not method_sig:
-            raise AttributeError(f"Method '{method_name}' not found on type '{instance.udt.name}'")
+            msg = f"Method '{method_name}' not found on type '{instance.udt.name}'"
+            raise AttributeError(msg)
 
         return method_sig
 
@@ -307,26 +310,26 @@ class MethodResolver:
 
 
 # Module-level factory functions for common types
-def int_type(qualifier: Optional[TypeQualifier] = None) -> BuiltinType:
+def int_type(qualifier: TypeQualifier | None = None) -> BuiltinType:
     """Create an int type"""
     return BuiltinType(BuiltinTypeKind.INT, qualifier)
 
 
-def float_type(qualifier: Optional[TypeQualifier] = None) -> BuiltinType:
+def float_type(qualifier: TypeQualifier | None = None) -> BuiltinType:
     """Create a float type"""
     return BuiltinType(BuiltinTypeKind.FLOAT, qualifier)
 
 
-def bool_type(qualifier: Optional[TypeQualifier] = None) -> BuiltinType:
+def bool_type(qualifier: TypeQualifier | None = None) -> BuiltinType:
     """Create a bool type"""
     return BuiltinType(BuiltinTypeKind.BOOL, qualifier)
 
 
-def string_type(qualifier: Optional[TypeQualifier] = None) -> BuiltinType:
+def string_type(qualifier: TypeQualifier | None = None) -> BuiltinType:
     """Create a string type"""
     return BuiltinType(BuiltinTypeKind.STRING, qualifier)
 
 
-def color_type(qualifier: Optional[TypeQualifier] = None) -> BuiltinType:
+def color_type(qualifier: TypeQualifier | None = None) -> BuiltinType:
     """Create a color type"""
     return BuiltinType(BuiltinTypeKind.COLOR, qualifier)

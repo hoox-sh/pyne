@@ -1,7 +1,9 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from dataclasses import field
 from typing import Any
+from typing import ClassVar
 
 from .base import BuiltinDispatchMixin
 from .base import BuiltinHandler
@@ -11,11 +13,11 @@ from .base import BuiltinHandler
 class DrawingRegistry:
     """Global registry for drawing objects."""
 
-    lines: list[Line] = []
-    boxes: list[Box] = []
-    labels: list[Label] = []
-    tables: list[Table] = []
-    polylines: list[Polyline] = []
+    lines: ClassVar[list[Line]] = []
+    boxes: ClassVar[list[Box]] = []
+    labels: ClassVar[list[Label]] = []
+    tables: ClassVar[list[Table]] = []
+    polylines: ClassVar[list[Polyline]] = []
 
     @classmethod
     def reset(cls) -> None:

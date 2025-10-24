@@ -25,7 +25,7 @@ from antlr4 import TokenStream
 
 
 class PinescriptParserBase(Parser):
-    # ruff: noqa: N802, N803, N806, A002
+    # ruff: noqa: N802, N803, A002
 
     def __init__(self, input: TokenStream, output: TextIO = sys.stdout):
         super().__init__(input, output)

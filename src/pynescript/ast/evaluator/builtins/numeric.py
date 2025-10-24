@@ -183,7 +183,6 @@ class NumericBuiltinsMixin(BuiltinDispatchMixin):
         """Return None (not available/NA value in PineScript)."""
         if args:
             self._error("na() takes no arguments")
-        return None
 
     def _builtin_nz(self, args: list[Any]) -> Any:
         """Replace None with default value."""

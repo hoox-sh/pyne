@@ -178,7 +178,6 @@ class NodeLiteralEvaluator(NodeVisitor):
         binary = 2
         ternary = 3
         quaternary = 4
-        quinary = 5
 
         builtins = {
             "abs": (lambda args: abs(args[0]) if len(args) == unary else self._error("abs takes exactly one argument")),

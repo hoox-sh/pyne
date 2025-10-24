@@ -32,7 +32,7 @@ from pynescript.ast.error import SyntaxError
 
 
 class PinescriptLexerBase(Lexer):
-    # ruff: noqa: N802, N803, N806, A002
+    # ruff: noqa: N802, N806, A002
 
     """
     - ignore possible leading newlines

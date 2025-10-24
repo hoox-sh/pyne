@@ -1,14 +1,12 @@
 from __future__ import annotations
 
 from pynescript.ast import node as ast
-from pynescript.ast.type_system import (
-    BuiltinType,
-    BuiltinTypeKind,
-    Field,
-    MethodSignature,
-    ObjectInstance,
-    UserDefinedType,
-)
+from pynescript.ast.type_system import BuiltinType
+from pynescript.ast.type_system import BuiltinTypeKind
+from pynescript.ast.type_system import Field
+from pynescript.ast.type_system import MethodSignature
+from pynescript.ast.type_system import ObjectInstance
+from pynescript.ast.type_system import UserDefinedType
 
 
 class StatementEvaluator:

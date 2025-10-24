@@ -42,7 +42,7 @@ class Precedence(IntEnum):
     NOT = FACTOR
     ATOM = auto()
 
-    def next(self):  # noqa: A003
+    def next(self):
         try:
             return self.__class__(self + 1)
         except ValueError:

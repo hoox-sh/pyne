@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+
 # Hex color string lengths
 HEX_COLOR_SHORT_LEN = 6
 HEX_COLOR_LONG_LEN = 8
