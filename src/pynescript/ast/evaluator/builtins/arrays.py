@@ -72,6 +72,9 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
             "array.new_line": self._builtin_array_new_empty,
             "array.new_box": self._builtin_array_new_empty,
             "array.new_table": self._builtin_array_new_empty,
+            "array.new_polyline": self._builtin_array_new_empty,
+            "array.new_linefill": self._builtin_array_new_empty,
+            "array.new_chart.point": self._builtin_array_new_empty,
             "array.unshift": self._builtin_array_unshift,
         }
 
