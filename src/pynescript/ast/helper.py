@@ -75,6 +75,31 @@ def _add_annotations(script, statements, comments):
                 statement.annotations = annotations
 
 
+def _collect_comment_nodes(builder: PinescriptASTBuilder, token_stream: CommonTokenStream) -> list[ast.Comment]:
+    token_stream.fill()
+    comments: list[ast.Comment] = []
+
+    for token in token_stream.tokens:
+        if token is None or token.type != PinescriptLexer.COMMENT:
+            continue
+
+        text = token.text or ""
+        kind, _parts = builder._parseComment(text)
+        comment = ast.Comment(
+            value=text,
+            kind=kind,
+        )
+
+        comment.lineno = token.line  # type: ignore[attr-defined]
+        comment.col_offset = token.column  # type: ignore[attr-defined]
+        comment.end_lineno = token.line  # type: ignore[attr-defined]
+        comment.end_col_offset = token.column + len(text)  # type: ignore[attr-defined]
+
+        comments.append(comment)
+
+    return comments
+
+
 def _parse(
     stream: InputStream,
     mode: str = "exec",
@@ -112,10 +137,7 @@ def _parse(
         if not statements:
             return node
 
-        parser.getTokenStream().channel = PinescriptLexer.COMMENT_CHANNEL
-        parser.reset()
-
-        comments = builder.visit(parser.start_comments())
+        comments = _collect_comment_nodes(builder, token_stream)
 
         if not comments:
             return node

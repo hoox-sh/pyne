@@ -33,6 +33,8 @@ const candleSeries = chart.addCandlestickSeries({
   wickUpColor: '#26a69a',
 });
 
+let overlaySeries = null;
+
 // Dummy data for now
 fetch('https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1d&limit=200')
     .then(res => res.json())
@@ -62,27 +64,28 @@ runButton.addEventListener('click', () => {
     .then(res => res.json())
     .then(data => {
         output.textContent = `Status: ${data.status}\nMessage: ${data.message}`;
-        if (data.data) {
+        if (Array.isArray(data.data)) {
             output.textContent += `\nData: ${JSON.stringify(data.data)}`;
 
-            // If the backend returns indicator data, you can plot it here.
-            // For example, as a line series.
-            const lineSeries = chart.addLineSeries({
-                color: '#2962ff',
-                lineWidth: 2,
-            });
-
-            // This is just an example of how you might map the backend data
-            // to the chart. You will need to adjust this based on the
-            // actual data structure your backend returns.
-            const lineData = data.data.map((value, index) => {
-                const candle = candleSeries.dataByIndex(index);
-                return { time: candle.time, value: value };
-            });
-
-            if (lineData.length > 0) {
-                lineSeries.setData(lineData);
+            if (!overlaySeries) {
+                overlaySeries = chart.addLineSeries({
+                    color: '#2962ff',
+                    lineWidth: 2,
+                });
             }
+
+            const lineData = data.data.reduce((points, value, index) => {
+                const candle = candleSeries.dataByIndex(index);
+                if (!candle) {
+                    return points;
+                }
+                points.push({ time: candle.time, value });
+                return points;
+            }, []);
+
+            overlaySeries.setData(lineData);
+        } else if (overlaySeries) {
+            overlaySeries.setData([]);
         }
     })
     .catch(err => {
