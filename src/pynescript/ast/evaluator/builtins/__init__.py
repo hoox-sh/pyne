@@ -3,6 +3,7 @@ from __future__ import annotations
 from .arrays import ArrayBuiltinsMixin
 from .base import BuiltinHandler
 from .color import register_color_functions
+from .declarations import register_script_declaration_functions
 from .drawing import DrawingBuiltinsMixin
 from .input import InputBuiltinsMixin
 from .logging import register_logging_functions
@@ -54,4 +55,5 @@ class BuiltinEvaluator(
         register_logging_functions(dispatch)
         register_color_functions(dispatch)
         register_timeframe_functions(dispatch)
+        register_script_declaration_functions(dispatch)
         return dispatch

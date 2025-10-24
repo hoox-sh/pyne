@@ -876,7 +876,7 @@ This document tracks the implementation status of PineScript v6 features in pyne
 - ✅ minute
 - ✅ second
 - ✅ time_close
-- ❌ time_tradingday
+- ✅ time_tradingday
 
 ### Chart Point Functions
 - ✅ chart.point.new
@@ -1075,6 +1075,12 @@ This document tracks the implementation status of PineScript v6 features in pyne
 - ✅ @variable
 - ✅ @enum
 - ✅ @strategy_alert_message
+
+## Script Declarations
+
+- ✅ indicator()
+- ✅ strategy()
+- ✅ library()
 
 ## Syntax Features
 
