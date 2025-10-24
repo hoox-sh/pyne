@@ -4,6 +4,7 @@ from .arrays import ArrayBuiltinsMixin
 from .base import BuiltinHandler
 from .drawing import DrawingBuiltinsMixin
 from .input import InputBuiltinsMixin
+from .map_evaluator import MapBuiltinsMixin
 from .matrix_evaluator import MatrixBuiltinsMixin
 from .numeric import NumericBuiltinsMixin
 from .plotting import PlottingFunctionsMixin
@@ -26,6 +27,7 @@ class BuiltinEvaluator(
     DrawingBuiltinsMixin,
     StrategyBuiltinsMixin,
     MatrixBuiltinsMixin,
+    MapBuiltinsMixin,
 ):
     """Aggregate the individual builtin dispatch tables."""
 
@@ -42,4 +44,5 @@ class BuiltinEvaluator(
         dispatch.update(self._drawing_builtin_map())
         dispatch.update(self._strategy_builtin_map())
         dispatch.update(self._matrix_builtin_map())
+        dispatch.update(self._map_builtin_map())
         return dispatch

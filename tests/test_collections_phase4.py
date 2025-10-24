@@ -7,6 +7,7 @@ from typing import Any
 import pytest
 
 from pynescript.ast.evaluator.builtins import BuiltinEvaluator
+from pynescript.ast.evaluator.builtins.map import Map
 from pynescript.ast.evaluator.builtins.matrix import Matrix
 
 
@@ -431,3 +432,188 @@ class TestMatrixEvaluatorIntegration:
 
         # Original unchanged
         assert transposed.get(0, 0) == 1
+
+
+class TestMapEvaluatorIntegration:
+    """Integration tests for Map builtin evaluator."""
+
+    def setup_method(self) -> None:
+        """Set up test evaluator."""
+        self.evaluator = BuiltinEvaluator()
+
+    def _call_builtin(self, name: str, args: list[Any]) -> Any:
+        """Helper to call builtin method."""
+        return self.evaluator._call_builtin(name, args)
+
+    # ========== CORE OPERATIONS ==========
+
+    def test_map_new(self) -> None:
+        """Test map.new creates map."""
+        map_obj = self._call_builtin("map.new", [])
+        assert isinstance(map_obj, Map)
+        assert map_obj.size() == 0
+
+    def test_map_put_get(self) -> None:
+        """Test map.put and map.get."""
+        map_obj = self._call_builtin("map.new", [])
+        self._call_builtin("map.put", [map_obj, "key1", 42])
+        result = self._call_builtin("map.get", [map_obj, "key1"])
+        assert result == 42
+
+    def test_map_put_multiple(self) -> None:
+        """Test putting multiple items."""
+        map_obj = self._call_builtin("map.new", [])
+        self._call_builtin("map.put", [map_obj, "a", 1])
+        self._call_builtin("map.put", [map_obj, "b", 2])
+        self._call_builtin("map.put", [map_obj, "c", 3])
+        assert self._call_builtin("map.size", [map_obj]) == 3
+        assert self._call_builtin("map.get", [map_obj, "b"]) == 2
+
+    def test_map_contains(self) -> None:
+        """Test map.contains."""
+        map_obj = self._call_builtin("map.new", [])
+        self._call_builtin("map.put", [map_obj, "key", 100])
+        assert self._call_builtin("map.contains", [map_obj, "key"]) is True
+        assert self._call_builtin("map.contains", [map_obj, "missing"]) is False
+
+    def test_map_remove(self) -> None:
+        """Test map.remove."""
+        map_obj = self._call_builtin("map.new", [])
+        self._call_builtin("map.put", [map_obj, "a", 1])
+        self._call_builtin("map.put", [map_obj, "b", 2])
+        self._call_builtin("map.remove", [map_obj, "a"])
+        assert self._call_builtin("map.size", [map_obj]) == 1
+        assert self._call_builtin("map.contains", [map_obj, "a"]) is False
+
+    def test_map_clear(self) -> None:
+        """Test map.clear."""
+        map_obj = self._call_builtin("map.new", [])
+        self._call_builtin("map.put", [map_obj, "a", 1])
+        self._call_builtin("map.put", [map_obj, "b", 2])
+        self._call_builtin("map.put", [map_obj, "c", 3])
+        self._call_builtin("map.clear", [map_obj])
+        assert self._call_builtin("map.size", [map_obj]) == 0
+
+    def test_map_keys(self) -> None:
+        """Test map.keys."""
+        map_obj = self._call_builtin("map.new", [])
+        self._call_builtin("map.put", [map_obj, "a", 1])
+        self._call_builtin("map.put", [map_obj, "b", 2])
+        self._call_builtin("map.put", [map_obj, "c", 3])
+        keys = self._call_builtin("map.keys", [map_obj])
+        assert len(keys) == 3
+        assert "a" in keys
+        assert "b" in keys
+        assert "c" in keys
+
+    def test_map_values(self) -> None:
+        """Test map.values."""
+        map_obj = self._call_builtin("map.new", [])
+        self._call_builtin("map.put", [map_obj, "a", 1])
+        self._call_builtin("map.put", [map_obj, "b", 2])
+        self._call_builtin("map.put", [map_obj, "c", 3])
+        values = self._call_builtin("map.values", [map_obj])
+        assert len(values) == 3
+        assert 1 in values
+        assert 2 in values
+        assert 3 in values
+
+    def test_map_size(self) -> None:
+        """Test map.size."""
+        map_obj = self._call_builtin("map.new", [])
+        assert self._call_builtin("map.size", [map_obj]) == 0
+        self._call_builtin("map.put", [map_obj, "a", 1])
+        assert self._call_builtin("map.size", [map_obj]) == 1
+        self._call_builtin("map.put", [map_obj, "b", 2])
+        assert self._call_builtin("map.size", [map_obj]) == 2
+
+    def test_map_copy(self) -> None:
+        """Test map.copy."""
+        map_obj = self._call_builtin("map.new", [])
+        self._call_builtin("map.put", [map_obj, "a", 1])
+        self._call_builtin("map.put", [map_obj, "b", 2])
+        map_copy = self._call_builtin("map.copy", [map_obj])
+        assert self._call_builtin("map.size", [map_copy]) == 2
+        assert self._call_builtin("map.get", [map_copy, "a"]) == 1
+
+    def test_map_copy_independence(self) -> None:
+        """Test copy is independent."""
+        map_obj = self._call_builtin("map.new", [])
+        self._call_builtin("map.put", [map_obj, "a", 1])
+        map_copy = self._call_builtin("map.copy", [map_obj])
+        self._call_builtin("map.put", [map_copy, "b", 2])
+        assert self._call_builtin("map.size", [map_obj]) == 1
+        assert self._call_builtin("map.size", [map_copy]) == 2
+
+    def test_map_put_all(self) -> None:
+        """Test map.put_all."""
+        map1 = self._call_builtin("map.new", [])
+        self._call_builtin("map.put", [map1, "a", 1])
+        self._call_builtin("map.put", [map1, "b", 2])
+
+        map2 = self._call_builtin("map.new", [])
+        self._call_builtin("map.put", [map2, "c", 3])
+        self._call_builtin("map.put_all", [map2, map1])
+        assert self._call_builtin("map.size", [map2]) == 3
+        assert self._call_builtin("map.get", [map2, "a"]) == 1
+        assert self._call_builtin("map.get", [map2, "c"]) == 3
+
+    # ========== EDGE CASES ==========
+
+    def test_map_integer_keys(self) -> None:
+        """Test map with integer keys."""
+        map_obj = self._call_builtin("map.new", [])
+        self._call_builtin("map.put", [map_obj, 1, "one"])
+        self._call_builtin("map.put", [map_obj, 2, "two"])
+        assert self._call_builtin("map.get", [map_obj, 1]) == "one"
+        assert self._call_builtin("map.get", [map_obj, 2]) == "two"
+
+    def test_map_mixed_types(self) -> None:
+        """Test map with mixed value types."""
+        map_obj = self._call_builtin("map.new", [])
+        self._call_builtin("map.put", [map_obj, "str", "hello"])
+        self._call_builtin("map.put", [map_obj, "int", 42])
+        self._call_builtin("map.put", [map_obj, "float", 3.14])
+        assert self._call_builtin("map.get", [map_obj, "str"]) == "hello"
+        assert self._call_builtin("map.get", [map_obj, "int"]) == 42
+        assert self._call_builtin("map.get", [map_obj, "float"]) == 3.14
+
+    def test_map_operations_chain(self) -> None:
+        """Test chaining map operations."""
+        # Create map with initial values
+        map_obj = self._call_builtin("map.new", [])
+        self._call_builtin("map.put", [map_obj, "a", 1])
+        self._call_builtin("map.put", [map_obj, "b", 2])
+        self._call_builtin("map.put", [map_obj, "c", 3])
+        assert self._call_builtin("map.size", [map_obj]) == 3
+
+        # Remove one
+        self._call_builtin("map.remove", [map_obj, "b"])
+        assert self._call_builtin("map.size", [map_obj]) == 2
+
+        # Copy and add more
+        map_copy = self._call_builtin("map.copy", [map_obj])
+        self._call_builtin("map.put", [map_copy, "d", 4])
+        assert self._call_builtin("map.size", [map_copy]) == 3
+        assert self._call_builtin("map.size", [map_obj]) == 2
+
+        # Clear original
+        self._call_builtin("map.clear", [map_obj])
+        assert self._call_builtin("map.size", [map_obj]) == 0
+        assert self._call_builtin("map.size", [map_copy]) == 3
+
+    def test_map_overwrite_value(self) -> None:
+        """Test overwriting existing value."""
+        map_obj = self._call_builtin("map.new", [])
+        self._call_builtin("map.put", [map_obj, "key", 100])
+        assert self._call_builtin("map.get", [map_obj, "key"]) == 100
+        self._call_builtin("map.put", [map_obj, "key", 200])
+        assert self._call_builtin("map.get", [map_obj, "key"]) == 200
+        assert self._call_builtin("map.size", [map_obj]) == 1
+
+    def test_map_none_value(self) -> None:
+        """Test storing None as value."""
+        map_obj = self._call_builtin("map.new", [])
+        self._call_builtin("map.put", [map_obj, "null_key", None])
+        assert self._call_builtin("map.get", [map_obj, "null_key"]) is None
+        assert self._call_builtin("map.contains", [map_obj, "null_key"]) is True
