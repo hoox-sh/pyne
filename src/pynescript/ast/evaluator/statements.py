@@ -34,7 +34,7 @@ class StatementEvaluator:
                 value = self.visit(node.value)  # type: ignore[attr-defined]
                 obj.set_field(node.target.attr, value)
                 return
-        
+
         # For other cases, fall back to regular assignment handling
         msg = f"Unsupported augmented assignment: {type(node.target)}"
         self._error(msg)  # type: ignore[attr-defined]
@@ -88,11 +88,7 @@ class StatementEvaluator:
                         # Skip the THIS parameter (handled specially)
                         if param.name == "this":
                             continue
-                        param_type = (
-                            self._convert_type_spec_to_type(param.type)
-                            if param.type
-                            else None
-                        )
+                        param_type = self._convert_type_spec_to_type(param.type) if param.type else None
                         parameters.append((param.name, param_type))
 
                 method_sig = MethodSignature(

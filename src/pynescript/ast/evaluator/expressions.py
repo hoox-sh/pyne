@@ -159,11 +159,7 @@ class ExpressionEvaluator:
             self.context["this"] = obj_instance  # type: ignore[attr-defined]
 
             # Bind regular parameters
-            param_names = [
-                p.name
-                for p in method_def.args
-                if isinstance(p, ast.Param) and p.name != "this"
-            ]
+            param_names = [p.name for p in method_def.args if isinstance(p, ast.Param) and p.name != "this"]
             for param_name, arg_val in zip(param_names, args, strict=False):
                 self.context[param_name] = arg_val  # type: ignore[attr-defined]
 

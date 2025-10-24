@@ -21,20 +21,21 @@ try:
     ast_1 = helper.parse(test_script_1)
     print("✓ Parsed successfully")
     print(f"AST: {ast_1}")
-    
+
     # Try to unparse and check round-trip
     unparsed_1 = helper.unparse(ast_1)
     print(f"Unparsed:\n{unparsed_1}")
-    
+
     # Try to parse the unparsed version to verify round-trip
     ast_1_rt = helper.parse(unparsed_1)
     print("✓ Round-trip successful")
 except Exception as e:
     print(f"✗ Error: {e}")
     import traceback
+
     traceback.print_exc()
 
-print("\n" + "="*50 + "\n")
+print("\n" + "=" * 50 + "\n")
 
 # Test 2: Parse a type definition with varip field
 test_script_2 = """
@@ -50,19 +51,20 @@ print(test_script_2)
 try:
     ast_2 = helper.parse(test_script_2)
     print("✓ Parsed successfully")
-    
+
     unparsed_2 = helper.unparse(ast_2)
     print(f"Unparsed:\n{unparsed_2}")
-    
+
     # Try round-trip
     ast_2_rt = helper.parse(unparsed_2)
     print("✓ Round-trip successful")
 except Exception as e:
     print(f"✗ Error: {e}")
     import traceback
+
     traceback.print_exc()
 
-print("\n" + "="*50 + "\n")
+print("\n" + "=" * 50 + "\n")
 
 # Test 3: Parse a simple script with type and method
 # (Methods are typically defined at type level, but for now let's test basic parsing)
@@ -89,9 +91,10 @@ try:
 except Exception as e:
     print(f"✗ Error: {e}")
     import traceback
+
     traceback.print_exc()
 
-print("\n" + "="*50 + "\n")
+print("\n" + "=" * 50 + "\n")
 
 # Test 4: Parse and evaluate a simple script with type definition
 test_script_4 = """
@@ -109,16 +112,17 @@ print(test_script_4)
 try:
     ast_4 = helper.parse(test_script_4)
     print("✓ Parsed successfully")
-    
+
     # Try to evaluate
     result = helper.dump(ast_4)
     print("✓ Can dump AST")
-    
+
     unparsed_4 = helper.unparse(ast_4)
     print(f"Unparsed:\n{unparsed_4}")
 except Exception as e:
     print(f"✗ Error: {e}")
     import traceback
+
     traceback.print_exc()
 
 print("\nAll tests completed!")

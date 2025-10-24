@@ -368,16 +368,12 @@ class PinescriptASTBuilder(
         self._setLocations(param, ctx)
         return param
 
-    def visitMethod_parameter_list(
-        self, ctx: PinescriptParser.Method_parameter_listContext
-    ):
+    def visitMethod_parameter_list(self, ctx: PinescriptParser.Method_parameter_listContext):
         params = ctx.method_parameter_definition()
         params = [self.visit(param) for param in params]
         return params
 
-    def visitMethod_parameter_definition(
-        self, ctx: PinescriptParser.Method_parameter_definitionContext
-    ):
+    def visitMethod_parameter_definition(self, ctx: PinescriptParser.Method_parameter_definitionContext):
         # Check if this is a THIS parameter (type_specification name_store)
         if ctx.type_specification() and ctx.name_store():
             # THIS parameter - implicit self

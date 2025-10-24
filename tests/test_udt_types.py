@@ -25,14 +25,14 @@ class TestUserDefinedType:
     def test_create_user_defined_type(self):
         """Create a UDT with fields"""
         udt = UserDefinedType("Trade")
-        
+
         # Add fields
         price_field = Field("price", BuiltinType(BuiltinTypeKind.FLOAT), 100.5)
         qty_field = Field("qty", BuiltinType(BuiltinTypeKind.INT), 0)
-        
+
         udt.add_field(price_field)
         udt.add_field(qty_field)
-        
+
         # Verify fields were added
         assert udt.get_field("price") is price_field
         assert udt.get_field("qty") is qty_field
@@ -57,7 +57,7 @@ class TestField:
         """Create a field with type and default value"""
         field_type = BuiltinType(BuiltinTypeKind.FLOAT)
         field = Field("price", field_type, 99.99)
-        
+
         assert field.name == "price"
         assert field.field_type is field_type
         assert field.default_value == 99.99
@@ -67,7 +67,7 @@ class TestField:
         """Create a field with varip modifier"""
         field_type = BuiltinType(BuiltinTypeKind.INT)
         field = Field("counter", field_type, 0, varip=True)
-        
+
         assert field.name == "counter"
         assert field.varip is True
 
@@ -75,14 +75,14 @@ class TestField:
         """Field can have None as default value"""
         field_type = BuiltinType(BuiltinTypeKind.STRING)
         field = Field("label", field_type, None)
-        
+
         assert field.default_value is None
 
     def test_field_repr(self):
         """Field has proper repr"""
         field_type = BuiltinType(BuiltinTypeKind.FLOAT)
         field = Field("amount", field_type, 100.0)
-        
+
         repr_str = repr(field)
         assert "amount" in repr_str
         assert "100.0" in repr_str
@@ -97,10 +97,10 @@ class TestObjectInstance:
         udt = UserDefinedType("Trade")
         udt.add_field(Field("price", BuiltinType(BuiltinTypeKind.FLOAT), 100.0))
         udt.add_field(Field("qty", BuiltinType(BuiltinTypeKind.INT), 0))
-        
+
         # Create instance
         obj = ObjectInstance(udt)
-        
+
         assert obj.udt is udt
         assert obj.get_field("price") == 100.0
         assert obj.get_field("qty") == 0
@@ -109,10 +109,10 @@ class TestObjectInstance:
         """Set field value on object instance"""
         udt = UserDefinedType("Account")
         udt.add_field(Field("balance", BuiltinType(BuiltinTypeKind.FLOAT), 1000.0))
-        
+
         obj = ObjectInstance(udt)
         assert obj.get_field("balance") == 1000.0
-        
+
         # Mutate field
         obj.set_field("balance", 2000.0)
         assert obj.get_field("balance") == 2000.0
@@ -121,9 +121,9 @@ class TestObjectInstance:
         """Setting non-existent field raises AttributeError"""
         udt = UserDefinedType("Data")
         udt.add_field(Field("value", BuiltinType(BuiltinTypeKind.INT), 0))
-        
+
         obj = ObjectInstance(udt)
-        
+
         with pytest.raises(AttributeError, match="Field 'missing' not found"):
             obj.set_field("missing", 42)
 
@@ -131,9 +131,9 @@ class TestObjectInstance:
         """Getting non-existent field raises AttributeError"""
         udt = UserDefinedType("Data")
         udt.add_field(Field("value", BuiltinType(BuiltinTypeKind.INT), 0))
-        
+
         obj = ObjectInstance(udt)
-        
+
         with pytest.raises(AttributeError, match="Field 'missing' not found"):
             obj.get_field("missing")
 
@@ -141,19 +141,19 @@ class TestObjectInstance:
         """Copy creates a shallow copy of instance"""
         udt = UserDefinedType("Record")
         udt.add_field(Field("amount", BuiltinType(BuiltinTypeKind.FLOAT), 100.0))
-        
+
         obj1 = ObjectInstance(udt)
         obj1.set_field("amount", 150.0)
-        
+
         # Copy object
         obj2 = obj1.copy()
-        
+
         # Verify copy has same values
         assert obj2.get_field("amount") == 150.0
-        
+
         # Mutate original
         obj1.set_field("amount", 200.0)
-        
+
         # Copy should not be affected (shallow copy for primitives)
         assert obj2.get_field("amount") == 150.0
 
@@ -162,11 +162,11 @@ class TestObjectInstance:
         udt = UserDefinedType("Point")
         udt.add_field(Field("x", BuiltinType(BuiltinTypeKind.FLOAT), 0.0))
         udt.add_field(Field("y", BuiltinType(BuiltinTypeKind.FLOAT), 0.0))
-        
+
         obj = ObjectInstance(udt)
         obj.set_field("x", 10.0)
         obj.set_field("y", 20.0)
-        
+
         repr_str = repr(obj)
         assert "Point" in repr_str
         assert "x=10.0" in repr_str or "x = 10.0" in repr_str
@@ -179,13 +179,13 @@ class TestIntegration:
         """Multiple instances of same type are independent"""
         udt = UserDefinedType("Trade")
         udt.add_field(Field("price", BuiltinType(BuiltinTypeKind.FLOAT), 0.0))
-        
+
         obj1 = ObjectInstance(udt)
         obj2 = ObjectInstance(udt)
-        
+
         obj1.set_field("price", 100.0)
         obj2.set_field("price", 200.0)
-        
+
         # Each object has independent state
         assert obj1.get_field("price") == 100.0
         assert obj2.get_field("price") == 200.0
@@ -195,18 +195,18 @@ class TestIntegration:
         # Create inner type
         inner_udt = UserDefinedType("Point")
         inner_udt.add_field(Field("x", BuiltinType(BuiltinTypeKind.FLOAT), 0.0))
-        
+
         # Create outer type that references inner
         outer_udt = UserDefinedType("Line")
         outer_udt.add_field(Field("start", inner_udt, None))
-        
+
         # Create instances
         inner_obj = ObjectInstance(inner_udt)
         inner_obj.set_field("x", 10.0)
-        
+
         outer_obj = ObjectInstance(outer_udt)
         outer_obj.set_field("start", inner_obj)
-        
+
         # Verify nested access
         start_point = outer_obj.get_field("start")
         assert start_point.get_field("x") == 10.0

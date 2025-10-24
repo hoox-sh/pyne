@@ -187,7 +187,7 @@ class NodeUnparser(NodeVisitor):
                     methods.append(stmt)
                 else:
                     fields.append(stmt)
-            
+
             # Unparse fields first, then methods
             for field in fields:
                 self.traverse(field)
