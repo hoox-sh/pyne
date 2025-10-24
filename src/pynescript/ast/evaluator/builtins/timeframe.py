@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+
 # Time unit constants in seconds
 SECONDS_PER_MINUTE = 60
 SECONDS_PER_HOUR = 3600

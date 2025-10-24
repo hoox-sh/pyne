@@ -115,7 +115,7 @@ class PinescriptASTBuilder(
 
     def visitStart_script(self, ctx: PinescriptParser.Start_scriptContext):
         stmts = ctx.statements()
-        body = stmts and self.visit(stmts) or []
+        body = (stmts and self.visit(stmts)) or []
         script = ast.Script(body)
         return script
 
@@ -315,7 +315,7 @@ class PinescriptASTBuilder(
         args = ctx.parameter_list()
         body = ctx.local_block()
         name = self.visit(name)
-        args = args and self.visit(args) or []
+        args = (args and self.visit(args)) or []
         body = self.visit(body)
         export = ctx.EXPORT()
         export = 1 if export else 0
@@ -334,7 +334,7 @@ class PinescriptASTBuilder(
         args = ctx.method_parameter_list()
         body = ctx.local_block()
         name = self.visit(name)
-        args = args and self.visit(args) or []
+        args = (args and self.visit(args)) or []
         body = self.visit(body)
         export = ctx.EXPORT()
         export = 1 if export else 0
@@ -496,7 +496,7 @@ class PinescriptASTBuilder(
         orelse = ctx.else_block()
         test = self.visit(test)
         body = self.visit(body)
-        orelse = orelse and self.visit(orelse) or []
+        orelse = (orelse and self.visit(orelse)) or []
         if_struct = ast.If(
             test=test,
             body=body,
@@ -528,7 +528,7 @@ class PinescriptASTBuilder(
         orelse = ctx.else_block()
         test = self.visit(test)
         body = self.visit(body)
-        orelse = orelse and self.visit(orelse) or []
+        orelse = (orelse and self.visit(orelse)) or []
         elif_struct = ast.If(
             test=test,
             body=body,
@@ -832,7 +832,7 @@ class PinescriptASTBuilder(
                 end_lineno=spec_args.end_lineno,
                 end_col_offset=spec_args.end_col_offset,
             )
-        args = args and self.visit(args) or []
+        args = (args and self.visit(args)) or []
         expr = ast.Call(
             func=func,
             args=args,
@@ -1084,7 +1084,7 @@ class PinescriptASTBuilder(
 
     def visitComment(self, ctx: PinescriptParser.CommentContext):
         comment = ctx.getText()
-        kind, parts = self._parseComment(comment)  # type: ignore[assignment]
+        kind, _parts = self._parseComment(comment)  # type: ignore[assignment]
         comment = ast.Comment(
             value=comment,
             kind=kind,

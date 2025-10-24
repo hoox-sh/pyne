@@ -8,6 +8,7 @@ from .base import BuiltinDispatchMixin
 from .base import BuiltinHandler
 from .map import Map
 
+
 UNARY = 1
 BINARY = 2
 TERNARY = 3
@@ -107,7 +108,7 @@ class MapBuiltinsMixin(BuiltinDispatchMixin):
 
     def _builtin_map_contains(self, args: list[Any]) -> bool:
         """map.contains(map, key) -> bool
-        
+
         Returns true if key exists in map.
         """
         if len(args) < BINARY:
@@ -118,7 +119,7 @@ class MapBuiltinsMixin(BuiltinDispatchMixin):
 
     def _builtin_map_keys(self, args: list[Any]) -> list[Any]:
         """map.keys(map) -> array
-        
+
         Returns array of all keys in map.
         """
         if len(args) < UNARY:
@@ -128,7 +129,7 @@ class MapBuiltinsMixin(BuiltinDispatchMixin):
 
     def _builtin_map_values(self, args: list[Any]) -> list[Any]:
         """map.values(map) -> array
-        
+
         Returns array of all values in map.
         """
         if len(args) < UNARY:
@@ -138,7 +139,7 @@ class MapBuiltinsMixin(BuiltinDispatchMixin):
 
     def _builtin_map_size(self, args: list[Any]) -> int:
         """map.size(map) -> int
-        
+
         Returns number of key-value pairs in map.
         """
         if len(args) < UNARY:
@@ -148,7 +149,7 @@ class MapBuiltinsMixin(BuiltinDispatchMixin):
 
     def _builtin_map_copy(self, args: list[Any]) -> Map[Any, Any]:
         """map.copy(map) -> Map
-        
+
         Creates shallow copy of map.
         """
         if len(args) < UNARY:

@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 from typing import Any
-from pynescript.ast.evaluator.types import EvaluatorProtocol
-from pynescript.ast.type_system import ObjectInstance
 
 from pynescript.ast import node as ast
+from pynescript.ast.evaluator.types import EvaluatorProtocol
+from pynescript.ast.type_system import ObjectInstance
 
 
 class NameEvaluator:

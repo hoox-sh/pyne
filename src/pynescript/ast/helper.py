@@ -232,7 +232,8 @@ def dump(  # noqa: C901
         return repr(node), True
 
     if not isinstance(node, AST):
-        raise TypeError("expected AST, got %r" % node.__class__.__name__)
+        msg = f"expected AST, got {node.__class__.__name__!r}"
+        raise TypeError(msg)
 
     if indent is not None and not isinstance(indent, str):
         indent = " " * indent
@@ -380,15 +381,15 @@ def unparse(node: AST):
 
 
 __all__ = [
-    "parse",
-    "literal_eval",
-    "dump",
-    "iter_fields",
-    "iter_child_nodes",
     "copy_location",
+    "dump",
     "fix_missing_locations",
-    "increment_lineno",
     "get_source_segment",
-    "walk",
+    "increment_lineno",
+    "iter_child_nodes",
+    "iter_fields",
+    "literal_eval",
+    "parse",
     "unparse",
+    "walk",
 ]

@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any, NoReturn
+from typing import Any
+from typing import NoReturn
 
 
 BuiltinHandler = Callable[[list[Any]], Any]

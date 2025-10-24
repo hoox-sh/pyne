@@ -57,7 +57,7 @@ class IndentationError(SyntaxError):  # noqa: A001
 
 
 __all__ = [
-    "SyntaxErrorDetails",
-    "SyntaxError",
     "IndentationError",
+    "SyntaxError",
+    "SyntaxErrorDetails",
 ]

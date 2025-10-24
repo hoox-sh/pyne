@@ -215,6 +215,8 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
             args[2],
             "array.covariance takes two series and length",
         )
+        if length < 2:
+            self._error("array.covariance requires length >= 2")
         return self._covariance(series1, series2, length)
 
     def _builtin_array_every(self, args: list[Any]) -> bool:

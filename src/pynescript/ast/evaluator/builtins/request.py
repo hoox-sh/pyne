@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import random
+
 from typing import Any
 
-from .base import BuiltinDispatchMixin, BuiltinHandler
+from .base import BuiltinDispatchMixin
+from .base import BuiltinHandler
+
 
 # Define constants for magic numbers
 REQUEST_SECURITY_MIN_ARGS = 2

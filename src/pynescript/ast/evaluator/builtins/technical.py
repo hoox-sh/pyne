@@ -1297,7 +1297,7 @@ class TechnicalAnalysisMixin(BuiltinDispatchMixin):
 
     def _builtin_ta_pivothigh(self, args: list[Any]) -> float | None:
         """Find the highest point (pivot high) in a window.
-        
+
         ta.pivothigh(source, leftbars, rightbars)
         Finds a pivot high - a point where left_bars bars to the left are lower
         and right_bars bars to the right are lower.
@@ -1305,23 +1305,23 @@ class TechnicalAnalysisMixin(BuiltinDispatchMixin):
         if len(args) < 3:
             msg = "ta.pivothigh() requires 3 arguments: source, leftbars, rightbars"
             self._error(msg)
-        
+
         source = args[0]
         left_bars = self._expect_int(args[1], "leftbars must be integer")
         right_bars = self._expect_int(args[2], "rightbars must be integer")
-        
+
         # If source is a list (series), check if current value is a pivot high
         if isinstance(source, list):
             if len(source) <= left_bars + right_bars:
                 return None
-            
+
             # Get current value (last in series)
             current_idx = len(source) - 1
             current = source[current_idx]
-            
+
             if current is None:
                 return None
-            
+
             # Check left bars
             for i in range(1, left_bars + 1):
                 if current_idx - i < 0:
@@ -1329,16 +1329,16 @@ class TechnicalAnalysisMixin(BuiltinDispatchMixin):
                 left_val = source[current_idx - i]
                 if left_val is not None and left_val >= current:
                     return None
-            
+
             # Check right bars - would need future bars
             # For now, only check left bars
             return float(current)
-        
+
         return float(source) if source is not None else None
 
     def _builtin_ta_pivotlow(self, args: list[Any]) -> float | None:
         """Find the lowest point (pivot low) in a window.
-        
+
         ta.pivotlow(source, leftbars, rightbars)
         Finds a pivot low - a point where left_bars bars to the left are higher
         and right_bars bars to the right are higher.
@@ -1346,23 +1346,23 @@ class TechnicalAnalysisMixin(BuiltinDispatchMixin):
         if len(args) < 3:
             msg = "ta.pivotlow() requires 3 arguments: source, leftbars, rightbars"
             self._error(msg)
-        
+
         source = args[0]
         left_bars = self._expect_int(args[1], "leftbars must be integer")
         right_bars = self._expect_int(args[2], "rightbars must be integer")
-        
+
         # If source is a list (series), check if current value is a pivot low
         if isinstance(source, list):
             if len(source) <= left_bars + right_bars:
                 return None
-            
+
             # Get current value (last in series)
             current_idx = len(source) - 1
             current = source[current_idx]
-            
+
             if current is None:
                 return None
-            
+
             # Check left bars
             for i in range(1, left_bars + 1):
                 if current_idx - i < 0:
@@ -1370,34 +1370,34 @@ class TechnicalAnalysisMixin(BuiltinDispatchMixin):
                 left_val = source[current_idx - i]
                 if left_val is not None and left_val <= current:
                     return None
-            
+
             # Check right bars - would need future bars
             # For now, only check left bars
             return float(current)
-        
+
         return float(source) if source is not None else None
 
     def _builtin_ta_pivot_point_levels(self, args: list[Any]) -> dict[str, float] | None:
         """Calculate pivot point levels.
-        
+
         ta.pivot_point_levels(high, low, close, is_traditional)
         Returns a dictionary with pivot point levels.
         """
         if len(args) < 3:
             msg = "ta.pivot_point_levels() requires at least 3 arguments: high, low, close"
             self._error(msg)
-        
-        high = self._expect_num(args[0], "high must be numeric")
-        low = self._expect_num(args[1], "low must be numeric")
-        close = self._expect_num(args[2], "close must be numeric")
+
+        high = self._expect_number(args[0], "high must be numeric")
+        low = self._expect_number(args[1], "low must be numeric")
+        close = self._expect_number(args[2], "close must be numeric")
         is_traditional = args[3] if len(args) > 3 else True
-        
+
         if high is None or low is None or close is None:
             return None
-        
+
         # Calculate pivot point levels (traditional pivot points)
         pivot = (high + low + close) / 3.0
-        
+
         if is_traditional:
             # Traditional pivot points
             r1 = 2 * pivot - low
@@ -1415,7 +1415,7 @@ class TechnicalAnalysisMixin(BuiltinDispatchMixin):
             s2 = pivot - 0.618 * diff
             r3 = pivot + diff
             s3 = pivot - diff
-        
+
         return {
             "pivot": pivot,
             "r1": r1,
