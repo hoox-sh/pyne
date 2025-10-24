@@ -22,6 +22,7 @@ class UtilityFunctionsMixin(BuiltinDispatchMixin):
             "minute": self._builtin_minute,
             "second": self._builtin_second,
             "time_close": self._builtin_time_close,
+            "time_tradingday": self._builtin_time_tradingday,
             "weekofyear": self._builtin_weekofyear,
             "alert": self._builtin_alert,
             "alertcondition": self._builtin_alertcondition,
@@ -111,6 +112,15 @@ class UtilityFunctionsMixin(BuiltinDispatchMixin):
         if args:
             self._error("time_close() takes no arguments")
         return int(datetime.now(timezone.utc).timestamp() * 1000)
+
+    def _builtin_time_tradingday(self, args: list[Any]) -> int:
+        """Get trading day timestamp (midnight UTC of current trading day)."""
+        if args:
+            self._error("time_tradingday() takes no arguments")
+        # Return current date at midnight UTC (trading day boundary)
+        now = datetime.now(timezone.utc)
+        trading_day = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        return int(trading_day.timestamp() * 1000)
 
     def _builtin_weekofyear(self, args: list[Any]) -> int:
         """Get week number of the year (1-53)."""

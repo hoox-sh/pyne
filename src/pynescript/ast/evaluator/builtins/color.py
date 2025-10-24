@@ -241,3 +241,4 @@ def register_color_functions(namespace: dict) -> None:
     namespace["color.t"] = color_t
     namespace["color.rgb"] = color_rgb
     namespace["color.from_gradient"] = color_from_gradient
+    namespace["color"] = color_new  # color() is an alias for color.new()
