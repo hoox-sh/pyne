@@ -1387,9 +1387,9 @@ class TechnicalAnalysisMixin(BuiltinDispatchMixin):
             msg = "ta.pivot_point_levels() requires at least 3 arguments: high, low, close"
             self._error(msg)
         
-        high = self._expect_num(args[0], "high must be numeric")
-        low = self._expect_num(args[1], "low must be numeric")
-        close = self._expect_num(args[2], "close must be numeric")
+        high = self._expect_number(args[0], "high must be numeric")
+        low = self._expect_number(args[1], "low must be numeric")
+        close = self._expect_number(args[2], "close must be numeric")
         is_traditional = args[3] if len(args) > 3 else True
         
         if high is None or low is None or close is None:

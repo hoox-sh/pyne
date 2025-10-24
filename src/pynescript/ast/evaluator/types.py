@@ -16,3 +16,9 @@ class EvaluatorProtocol(Protocol):
 
     def _call_builtin(self, name: str, args: list[Any]) -> Any:  # pragma: no cover - typing helper
         ...
+
+    def _invoke_method(self, obj: Any, method_name: str, args: list[Any], kwargs: dict[str, Any]) -> Any:  # pragma: no cover - typing helper
+        ...
+
+    def _handle_udt_new(self, type_obj: Any, args: list[Any], kwargs: dict[str, Any]) -> Any:  # pragma: no cover - typing helper
+        ...
