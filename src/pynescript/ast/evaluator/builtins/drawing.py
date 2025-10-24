@@ -15,6 +15,7 @@ class DrawingRegistry:
     boxes: list[Box] = []
     labels: list[Label] = []
     tables: list[Table] = []
+    polylines: list[Polyline] = []
 
     @classmethod
     def reset(cls) -> None:
@@ -23,6 +24,7 @@ class DrawingRegistry:
         cls.boxes = []
         cls.labels = []
         cls.tables = []
+        cls.polylines = []
 
 
 @dataclass
@@ -109,6 +111,32 @@ class TableCell:
     border_width: int = 1
 
 
+@dataclass
+class ChartPoint:
+    """Represents a point on the chart."""
+
+    time: int | float | None = None
+    index: int | None = None
+    price: float = 0.0
+
+    def copy(self) -> ChartPoint:
+        """Create a copy of the chart point."""
+        return ChartPoint(self.time, self.index, self.price)
+
+
+@dataclass
+class Polyline:
+    """Polyline drawing object."""
+
+    points: list[ChartPoint] = field(default_factory=list)
+    closed: bool = False
+    xloc: str = "bar_index"
+    color: str = "#000000"
+    width: int = 1
+    style: str = "solid"
+    deleted: bool = False
+
+
 class DrawingBuiltinsMixin(BuiltinDispatchMixin):
     """Drawing functions for line, box, label, and table annotations."""
 
@@ -186,6 +214,15 @@ class DrawingBuiltinsMixin(BuiltinDispatchMixin):
             "table.cell_get_text": self._handle_table_cell_get_text,
             "table.clear": self._handle_table_clear,
             "table.merge_cells": self._handle_table_merge_cells,
+            # Chart point functions
+            "chart.point.new": self._handle_chart_point_new,
+            "chart.point.from_index": self._handle_chart_point_from_index,
+            "chart.point.from_time": self._handle_chart_point_from_time,
+            "chart.point.now": self._handle_chart_point_now,
+            "chart.point.copy": self._handle_chart_point_copy,
+            # Polyline functions
+            "polyline.new": self._handle_polyline_new,
+            "polyline.delete": self._handle_polyline_delete,
         }
 
     # LINE HANDLERS
@@ -775,3 +812,64 @@ class DrawingBuiltinsMixin(BuiltinDispatchMixin):
         # Mock implementation - in real Pine Script this would merge cells
         # For now, we just register the merge without doing anything special
         pass
+
+    # CHART POINT HANDLERS
+
+    def _handle_chart_point_new(self, args: list[Any]) -> ChartPoint:
+        """chart.point.new(time, price) - Create a point from time and price"""
+        time = args[0] if len(args) > 0 else None
+        price = args[1] if len(args) > 1 else 0.0
+        return ChartPoint(time=time, price=float(price))
+
+    def _handle_chart_point_from_index(self, args: list[Any]) -> ChartPoint:
+        """chart.point.from_index(index, price) - Create a point from bar index and price"""
+        index = args[0] if len(args) > 0 else 0
+        price = args[1] if len(args) > 1 else 0.0
+        return ChartPoint(index=int(index), price=float(price))
+
+    def _handle_chart_point_from_time(self, args: list[Any]) -> ChartPoint:
+        """chart.point.from_time(time, price) - Create a point from timestamp and price"""
+        time = args[0] if len(args) > 0 else None
+        price = args[1] if len(args) > 1 else 0.0
+        return ChartPoint(time=time, price=float(price))
+
+    def _handle_chart_point_now(self, args: list[Any]) -> ChartPoint:
+        """chart.point.now(price) - Create a point at current bar with given price"""
+        price = args[0] if len(args) > 0 else 0.0
+        # Returns a point at current bar (index not specified, time not specified)
+        return ChartPoint(price=float(price))
+
+    def _handle_chart_point_copy(self, args: list[Any]) -> ChartPoint:
+        """chart.point.copy(point) - Create a copy of a chart point"""
+        point = args[0] if len(args) > 0 else None
+        if isinstance(point, ChartPoint):
+            return point.copy()
+        return ChartPoint()
+
+    # POLYLINE HANDLERS
+
+    def _handle_polyline_new(self, args: list[Any]) -> Polyline:
+        """polyline.new(points, closed, xloc, color, width, style)"""
+        points = args[0] if len(args) > 0 else []
+        closed = args[1] if len(args) > 1 else False
+        xloc = args[2] if len(args) > 2 else "bar_index"
+        color = args[3] if len(args) > 3 else "#000000"
+        width = args[4] if len(args) > 4 else 1
+        style = args[5] if len(args) > 5 else "solid"
+
+        polyline = Polyline(
+            points=list(points) if isinstance(points, list) else [],
+            closed=bool(closed),
+            xloc=str(xloc),
+            color=str(color),
+            width=int(width),
+            style=str(style),
+        )
+        DrawingRegistry.polylines.append(polyline)
+        return polyline
+
+    def _handle_polyline_delete(self, args: list[Any]) -> None:
+        """polyline.delete(polyline)"""
+        polyline = args[0] if len(args) > 0 else None
+        if isinstance(polyline, Polyline):
+            polyline.deleted = True
