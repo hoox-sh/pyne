@@ -36,10 +36,11 @@ statement:  compound_statement | simple_statements;
 
 compound_statement
     : compound_assignment
-    | function_declaration
     | type_declaration
     | enum_declaration
-    | structure_statement;
+    | structure_statement
+    | method_declaration
+    | function_declaration;
 
 // SIMPLE STATEMENTS
 
@@ -72,25 +73,24 @@ compound_augassignment: assignment_target augassign_op structure_expression;
 // FUNCTION DECLARATION
 
 function_declaration
-    : EXPORT? METHOD? name LPAR parameter_list? RPAR RARROW local_block;
+    : EXPORT? name LPAR parameter_list? RPAR RARROW local_block;
 
 parameter_list:       parameter_definition (COMMA parameter_definition)* COMMA?;
 parameter_definition: type_specification? name_store (EQUAL expression)?;
 
+// METHOD DECLARATION
+
+method_declaration: EXPORT? METHOD name LPAR method_parameter_list? RPAR RARROW local_block;
+
+method_parameter_list: method_parameter_definition (COMMA method_parameter_definition)* COMMA?;
+method_parameter_definition: type_specification name_store | parameter_definition;
+
 // TYPE DECLARATION
 
-type_declaration: EXPORT? TYPE name NEWLINE INDENT field_definitions method_definitions? DEDENT;
+type_declaration: EXPORT? TYPE name NEWLINE INDENT field_definitions DEDENT;
 
 field_definitions: field_definition+;
 field_definition:  VARIP? type_specification name_store (EQUAL expression)? NEWLINE;
-
-// METHOD DECLARATIONS
-
-method_definitions: method_definition+;
-method_definition: EXPORT? METHOD name LPAR method_parameter_list? RPAR (RARROW type_specification)? local_block;
-
-method_parameter_list: method_parameter_definition (COMMA method_parameter_definition)* COMMA?;
-method_parameter_definition: THIS name_store | parameter_definition;
 
 // ENUM DECLARATION
 

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 from pynescript.ast.evaluator.types import EvaluatorProtocol
+from pynescript.ast.type_system import ObjectInstance
 
 from pynescript.ast import node as ast
 
@@ -18,6 +19,16 @@ class NameEvaluator:
             return self.context[qualified_name]
 
         value = self.visit(node.value)
+
+        # Handle UDT object field/method access
+        if isinstance(value, ObjectInstance):
+            # Check if it's a method first
+            if value.udt.get_method(node.attr):
+                # Return a bound method marker - (instance, method_name)
+                return ("_method_call", value, node.attr)
+            # Otherwise try to get field
+            return value.get_field(node.attr)
+
         # Handle Enum member access
         if isinstance(value, dict):
             member_name = node.attr

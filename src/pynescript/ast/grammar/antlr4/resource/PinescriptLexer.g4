@@ -49,7 +49,6 @@ OR:       'or';
 SERIES:   'series';
 SIMPLE:   'simple';
 SWITCH:   'switch';
-THIS:     'this';
 TO:       'to';
 TYPE:     'type';
 TRUE:     'true';

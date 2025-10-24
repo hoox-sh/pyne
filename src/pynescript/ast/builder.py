@@ -317,15 +317,32 @@ class PinescriptASTBuilder(
         name = self.visit(name)
         args = args and self.visit(args) or []
         body = self.visit(body)
-        method = ctx.METHOD()
         export = ctx.EXPORT()
-        method = 1 if method else 0
         export = 1 if export else 0
         func_def = ast.FunctionDef(
             name=name,
             args=args,
             body=body,
-            method=method,
+            method=0,  # Regular functions have method=0
+            export=export,
+        )
+        self._setLocations(func_def, ctx)
+        return func_def
+
+    def visitMethod_declaration(self, ctx: PinescriptParser.Method_declarationContext):
+        name = ctx.name()
+        args = ctx.method_parameter_list()
+        body = ctx.local_block()
+        name = self.visit(name)
+        args = args and self.visit(args) or []
+        body = self.visit(body)
+        export = ctx.EXPORT()
+        export = 1 if export else 0
+        func_def = ast.FunctionDef(
+            name=name,
+            args=args,
+            body=body,
+            method=1,  # Methods have method=1
             export=export,
         )
         self._setLocations(func_def, ctx)
@@ -351,34 +368,6 @@ class PinescriptASTBuilder(
         self._setLocations(param, ctx)
         return param
 
-    def visitMethod_definitions(self, ctx: PinescriptParser.Method_definitionsContext):
-        defs = ctx.method_definition()
-        defs = [self.visit(d) for d in defs]
-        return defs
-
-    def visitMethod_definition(self, ctx: PinescriptParser.Method_definitionContext):
-        name = ctx.name()
-        args = ctx.method_parameter_list()
-        body = ctx.local_block()
-        return_type = ctx.type_specification()
-        export = ctx.EXPORT()
-        
-        name = self.visit(name)
-        args = args and self.visit(args) or []
-        body = self.visit(body)
-        return_type = return_type and self.visit(return_type)
-        export = 1 if export else 0
-        
-        func_def = ast.FunctionDef(
-            name=name,
-            args=args,
-            body=body,
-            method=1,
-            export=export,
-        )
-        self._setLocations(func_def, ctx)
-        return func_def
-
     def visitMethod_parameter_list(
         self, ctx: PinescriptParser.Method_parameter_listContext
     ):
@@ -389,15 +378,15 @@ class PinescriptASTBuilder(
     def visitMethod_parameter_definition(
         self, ctx: PinescriptParser.Method_parameter_definitionContext
     ):
-        # Check if this is a THIS parameter
-        if ctx.THIS():
+        # Check if this is a THIS parameter (type_specification name_store)
+        if ctx.type_specification() and ctx.name_store():
             # THIS parameter - implicit self
-            name = ctx.name_store()
-            name = self.visit(name)
+            type_spec = self.visit(ctx.type_specification())
+            name = self.visit(ctx.name_store())
             param = ast.Param(
-                name="this",
+                name=name.id,  # Extract string ID from Name node
                 default=None,
-                type=None,
+                type=type_spec,
             )
             self._setLocations(param, ctx)
             return param
@@ -409,17 +398,13 @@ class PinescriptASTBuilder(
     def visitType_declaration(self, ctx: PinescriptParser.Type_declarationContext):
         name = ctx.name()
         body = ctx.field_definitions()
-        methods = ctx.method_definitions()
         export = ctx.EXPORT()
         name = self.visit(name)
         body = self.visit(body)
-        methods = methods and self.visit(methods) or []
         export = 1 if export else 0
-        # Combine field definitions and method definitions in body
-        full_body = body + methods
         type_def = ast.TypeDef(
             name=name,
-            body=full_body,
+            body=body,
             export=export,
         )
         self._setLocations(type_def, ctx)

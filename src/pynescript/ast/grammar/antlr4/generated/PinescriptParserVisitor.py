@@ -99,6 +99,21 @@ class PinescriptParserVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
+    # Visit a parse tree produced by PinescriptParser#method_declaration.
+    def visitMethod_declaration(self, ctx:PinescriptParser.Method_declarationContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by PinescriptParser#method_parameter_list.
+    def visitMethod_parameter_list(self, ctx:PinescriptParser.Method_parameter_listContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by PinescriptParser#method_parameter_definition.
+    def visitMethod_parameter_definition(self, ctx:PinescriptParser.Method_parameter_definitionContext):
+        return self.visitChildren(ctx)
+
+
     # Visit a parse tree produced by PinescriptParser#type_declaration.
     def visitType_declaration(self, ctx:PinescriptParser.Type_declarationContext):
         return self.visitChildren(ctx)
@@ -111,26 +126,6 @@ class PinescriptParserVisitor(ParseTreeVisitor):
 
     # Visit a parse tree produced by PinescriptParser#field_definition.
     def visitField_definition(self, ctx:PinescriptParser.Field_definitionContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by PinescriptParser#method_definitions.
-    def visitMethod_definitions(self, ctx:PinescriptParser.Method_definitionsContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by PinescriptParser#method_definition.
-    def visitMethod_definition(self, ctx:PinescriptParser.Method_definitionContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by PinescriptParser#method_parameter_list.
-    def visitMethod_parameter_list(self, ctx:PinescriptParser.Method_parameter_listContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by PinescriptParser#method_parameter_definition.
-    def visitMethod_parameter_definition(self, ctx:PinescriptParser.Method_parameter_definitionContext):
         return self.visitChildren(ctx)
 
 

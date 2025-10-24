@@ -1,7 +1,14 @@
 from __future__ import annotations
 
 from pynescript.ast import node as ast
-from pynescript.ast.type_system import BuiltinType, BuiltinTypeKind, Field, UserDefinedType
+from pynescript.ast.type_system import (
+    BuiltinType,
+    BuiltinTypeKind,
+    Field,
+    MethodSignature,
+    ObjectInstance,
+    UserDefinedType,
+)
 
 
 class StatementEvaluator:
@@ -17,6 +24,20 @@ class StatementEvaluator:
             else:
                 msg = f"Unsupported assignment target: {type(node.target)}"
                 self._error(msg)  # type: ignore[attr-defined]
+
+    def visit_AugAssign(self, node: ast.AugAssign):
+        """Handle augmented assignment (e.g., obj.field := value)"""
+        # Handle field mutation on UDT objects
+        if isinstance(node.target, ast.Attribute):
+            obj = self.visit(node.target.value)  # type: ignore[attr-defined]
+            if isinstance(obj, ObjectInstance):
+                value = self.visit(node.value)  # type: ignore[attr-defined]
+                obj.set_field(node.target.attr, value)
+                return
+        
+        # For other cases, fall back to regular assignment handling
+        msg = f"Unsupported augmented assignment: {type(node.target)}"
+        self._error(msg)  # type: ignore[attr-defined]
 
     def visit_TypeDef(self, node: ast.TypeDef):
         """Process a type definition and register it in the TypeRegistry"""
@@ -58,8 +79,35 @@ class StatementEvaluator:
                     udt.add_field(field)
             elif isinstance(stmt, ast.FunctionDef) and stmt.method:
                 # This is a method definition
-                # Methods will be handled later
-                pass
+                # Store the method definition in the UDT
+                method_name = stmt.name
+                # Extract parameter types and names
+                parameters = []
+                for param in stmt.args:
+                    if isinstance(param, ast.Param):
+                        # Skip the THIS parameter (handled specially)
+                        if param.name == "this":
+                            continue
+                        param_type = (
+                            self._convert_type_spec_to_type(param.type)
+                            if param.type
+                            else None
+                        )
+                        parameters.append((param.name, param_type))
+
+                method_sig = MethodSignature(
+                    name=method_name,
+                    parameters=parameters,
+                    return_type=None,  # For now, we don't infer return types
+                    is_builtin=False,
+                )
+                udt.add_method(method_sig)
+
+                # Also store the actual method body for later execution
+                # We'll store it as a special attribute on the UDT
+                if not hasattr(udt, "_method_defs"):
+                    udt._method_defs = {}  # type: ignore
+                udt._method_defs[method_name] = stmt  # type: ignore
 
         # Register the type in the registry
         self.type_registry.register_type(udt)  # type: ignore[attr-defined]
