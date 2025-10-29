@@ -111,6 +111,17 @@ class TechnicalAnalysisMixin(BuiltinDispatchMixin):
             "ta.atr_stop": self._builtin_ta_atr_stop,
             "ta.fractal": self._builtin_ta_fractal,
             "ta.emv": self._builtin_ta_emv,
+            # Phase 8 Tier 3: Specialized indicators
+            "ta.engulfing": self._builtin_ta_engulfing,
+            "ta.hammer": self._builtin_ta_hammer,
+            "ta.gap_detector": self._builtin_ta_gap_detector,
+            "ta.voi": self._builtin_ta_voi,
+            "ta.bid_ask_imbalance": self._builtin_ta_bid_ask_imbalance,
+            "ta.expected_value": self._builtin_ta_expected_value,
+            "ta.skewness": self._builtin_ta_skewness,
+            "ta.kurtosis": self._builtin_ta_kurtosis,
+            "ta.parkinson": self._builtin_ta_parkinson,
+            "ta.garman_klass": self._builtin_ta_garman_klass,
         }
 
     # -- Public entry points -------------------------------------------------
@@ -2513,5 +2524,346 @@ class TechnicalAnalysisMixin(BuiltinDispatchMixin):
 
         emv_sma = sum(valid_emv[-length:]) / length
         return emv_sma
+
+    # Phase 8 Tier 3: Specialized indicators
+
+    def _builtin_ta_engulfing(self, args: list[Any]) -> dict[str, int | bool]:
+        """Engulfing Pattern Detector.
+
+        ta.engulfing(open, high, low, close)
+        Identifies bullish/bearish engulfing patterns.
+        """
+        if len(args) < 4:
+            msg = "ta.engulfing() requires 4 arguments: open, high, low, close"
+            self._error(msg)
+
+        opens = args[0] if isinstance(args[0], list) else [args[0]]
+        closes = args[3] if isinstance(args[3], list) else [args[3]]
+
+        if len(opens) < 2 or len(closes) < 2:
+            return {"is_bullish": False, "is_bearish": False, "pattern_strength": 0.0}
+
+        current_open = opens[-1]
+        current_close = closes[-1]
+
+        prev_open = opens[-2]
+        prev_close = closes[-2]
+
+        # Bullish engulfing: current candle engulfs previous and is green
+        is_bullish = (current_open < prev_close and current_close > prev_open and
+                      current_close > current_open)
+
+        # Bearish engulfing: current candle engulfs previous and is red
+        is_bearish = (current_open > prev_close and current_close < prev_open and
+                      current_close < current_open)
+
+        # Pattern strength (0-1) based on how much body engulfed
+        if is_bullish:
+            engulf_amount = max(0, min(1, (current_close - prev_open) / abs(prev_open - prev_close + 0.0001)))
+        elif is_bearish:
+            engulf_amount = max(0, min(1, (prev_open - current_close) / abs(prev_close - prev_open + 0.0001)))
+        else:
+            engulf_amount = 0.0
+
+        return {"is_bullish": is_bullish, "is_bearish": is_bearish, "pattern_strength": engulf_amount}
+
+    def _builtin_ta_hammer(self, args: list[Any]) -> dict[str, bool | float]:
+        """Hammer/Doji Pattern Detector.
+
+        ta.hammer(open, high, low, close)
+        Identifies hammer and doji patterns.
+        """
+        if len(args) < 4:
+            msg = "ta.hammer() requires 4 arguments: open, high, low, close"
+            self._error(msg)
+
+        opens = args[0] if isinstance(args[0], list) else [args[0]]
+        highs = args[1] if isinstance(args[1], list) else [args[1]]
+        lows = args[2] if isinstance(args[2], list) else [args[2]]
+        closes = args[3] if isinstance(args[3], list) else [args[3]]
+
+        if not opens or not closes:
+            return {"is_hammer": False, "is_doji": False, "pattern_strength": 0.0}
+
+        current_open = opens[-1]
+        current_close = closes[-1]
+        current_high = highs[-1]
+        current_low = lows[-1]
+
+        body_size = abs(current_close - current_open)
+        total_range = current_high - current_low
+        lower_wick = min(current_open, current_close) - current_low
+        upper_wick = current_high - max(current_open, current_close)
+
+        # Doji: open ~= close
+        is_doji = body_size < total_range * 0.1
+
+        # Hammer: small body, long lower wick, short upper wick
+        is_hammer = (
+            body_size > 0 and
+            lower_wick > body_size * 2 and
+            upper_wick < body_size
+        )
+
+        # Pattern strength
+        if is_doji:
+            strength = 1.0 - (body_size / (total_range + 0.0001))
+        elif is_hammer:
+            strength = min(1.0, lower_wick / (total_range + 0.0001))
+        else:
+            strength = 0.0
+
+        return {"is_hammer": is_hammer, "is_doji": is_doji, "pattern_strength": strength}
+
+    def _builtin_ta_gap_detector(self, args: list[Any]) -> dict[str, float | int]:
+        """Gap Pattern Detector.
+
+        ta.gap_detector(high, low, prev_close)
+        Identifies and measures price gaps.
+        """
+        if len(args) < 3:
+            msg = "ta.gap_detector() requires 3 arguments: high, low, prev_close"
+            self._error(msg)
+
+        highs = args[0] if isinstance(args[0], list) else [args[0]]
+        lows = args[1] if isinstance(args[1], list) else [args[1]]
+        prev_close = float(args[2]) if isinstance(args[2], (int, float)) else None
+
+        if not highs or not lows or prev_close is None:
+            return {"gap_size": 0.0, "gap_type": 0, "gap_percent": 0.0}
+
+        current_high = highs[-1]
+        current_low = lows[-1]
+
+        # Upside gap: current low > prev close
+        upside_gap = max(0, current_low - prev_close)
+
+        # Downside gap: current high < prev close
+        downside_gap = max(0, prev_close - current_high)
+
+        if upside_gap > downside_gap:
+            gap_size = upside_gap
+            gap_type = 1  # Upside
+            gap_percent = (upside_gap / prev_close * 100) if prev_close != 0 else 0.0
+        elif downside_gap > 0:
+            gap_size = downside_gap
+            gap_type = -1  # Downside
+            gap_percent = (downside_gap / prev_close * 100) if prev_close != 0 else 0.0
+        else:
+            gap_size = 0.0
+            gap_type = 0  # No gap
+            gap_percent = 0.0
+
+        return {"gap_size": gap_size, "gap_type": gap_type, "gap_percent": gap_percent}
+
+    def _builtin_ta_voi(self, args: list[Any]) -> float:
+        """Volume of Imbalance.
+
+        ta.voi(buy_volume, sell_volume)
+        Measures imbalance in buy vs sell volume.
+        """
+        if len(args) < 2:
+            msg = "ta.voi() requires 2 arguments: buy_volume, sell_volume"
+            self._error(msg)
+
+        buy_vol = float(args[0]) if isinstance(args[0], (int, float)) else 0.0
+        sell_vol = float(args[1]) if isinstance(args[1], (int, float)) else 0.0
+
+        total = buy_vol + sell_vol
+        if total == 0:
+            return 0.0
+
+        voi_value = (buy_vol - sell_vol) / total
+        return voi_value
+
+    def _builtin_ta_bid_ask_imbalance(self, args: list[Any]) -> dict[str, float]:
+        """Bid-Ask Imbalance.
+
+        ta.bid_ask_imbalance(bid_size, ask_size, bid_price, ask_price)
+        Measures market microstructure imbalance.
+        """
+        if len(args) < 4:
+            msg = "ta.bid_ask_imbalance() requires 4 arguments: bid_size, ask_size, bid_price, ask_price"
+            self._error(msg)
+
+        bid_size = float(args[0]) if isinstance(args[0], (int, float)) else 0.0
+        ask_size = float(args[1]) if isinstance(args[1], (int, float)) else 0.0
+        bid_price = float(args[2]) if isinstance(args[2], (int, float)) else 0.0
+        ask_price = float(args[3]) if isinstance(args[3], (int, float)) else 0.0
+
+        total_size = bid_size + ask_size
+        if total_size == 0:
+            return {"imbalance_ratio": 0.0, "spread": 0.0}
+
+        imbalance = (bid_size - ask_size) / total_size
+        spread = ask_price - bid_price if bid_price > 0 else 0.0
+
+        return {"imbalance_ratio": imbalance, "spread": spread}
+
+    def _builtin_ta_expected_value(self, args: list[Any]) -> float:
+        """Expected Value.
+
+        ta.expected_value(returns, probabilities)
+        Calculates statistical expected value.
+        """
+        if len(args) < 2:
+            msg = "ta.expected_value() requires 2 arguments: returns, probabilities"
+            self._error(msg)
+
+        returns = args[0] if isinstance(args[0], list) else [args[0]]
+        probs = args[1] if isinstance(args[1], list) else [args[1]]
+
+        if len(returns) != len(probs):
+            msg = "Returns and probabilities must have same length"
+            self._error(msg)
+
+        total_prob = sum(p for p in probs if isinstance(p, (int, float)))
+        if total_prob == 0:
+            return 0.0
+
+        ev = sum(
+            (r if isinstance(r, (int, float)) else 0.0) * (p if isinstance(p, (int, float)) else 0.0)
+            for r, p in zip(returns, probs)
+        )
+        return ev / total_prob
+
+    def _builtin_ta_skewness(self, args: list[Any]) -> float | None:
+        """Skewness.
+
+        ta.skewness(series, period)
+        Measures asymmetry in distribution.
+        """
+        if len(args) < 2:
+            msg = "ta.skewness() requires 2 arguments: series, period"
+            self._error(msg)
+
+        series = args[0] if isinstance(args[0], list) else [args[0]]
+        period = self._expect_int(args[1], "period must be integer")
+
+        if len(series) < period:
+            return None
+
+        data = series[-period:]
+        valid_data = [x for x in data if isinstance(x, (int, float))]
+
+        if len(valid_data) < period:
+            return None
+
+        mean = sum(valid_data) / len(valid_data)
+        variance = sum((x - mean) ** 2 for x in valid_data) / len(valid_data)
+        std_dev = variance ** 0.5
+
+        if std_dev == 0:
+            return 0.0
+
+        # Skewness = E[(x - mean)³] / std_dev³
+        skewness_val = sum((x - mean) ** 3 for x in valid_data) / (len(valid_data) * (std_dev ** 3))
+        return skewness_val
+
+    def _builtin_ta_kurtosis(self, args: list[Any]) -> float | None:
+        """Kurtosis.
+
+        ta.kurtosis(series, period)
+        Measures tail risk and peakedness.
+        """
+        if len(args) < 2:
+            msg = "ta.kurtosis() requires 2 arguments: series, period"
+            self._error(msg)
+
+        series = args[0] if isinstance(args[0], list) else [args[0]]
+        period = self._expect_int(args[1], "period must be integer")
+
+        if len(series) < period:
+            return None
+
+        data = series[-period:]
+        valid_data = [x for x in data if isinstance(x, (int, float))]
+
+        if len(valid_data) < period:
+            return None
+
+        mean = sum(valid_data) / len(valid_data)
+        variance = sum((x - mean) ** 2 for x in valid_data) / len(valid_data)
+        std_dev = variance ** 0.5
+
+        if std_dev == 0:
+            return 0.0
+
+        # Kurtosis = E[(x - mean)⁴] / std_dev⁴ - 3
+        fourth_moment = sum((x - mean) ** 4 for x in valid_data) / len(valid_data)
+        kurtosis_val = (fourth_moment / (std_dev ** 4)) - 3.0
+        return kurtosis_val
+
+    def _builtin_ta_parkinson(self, args: list[Any]) -> float | None:
+        """Parkinson Volatility.
+
+        ta.parkinson(high, low)
+        Calculates volatility from high-low range.
+        """
+        if len(args) < 2:
+            msg = "ta.parkinson() requires 2 arguments: high, low"
+            self._error(msg)
+
+        highs = args[0] if isinstance(args[0], list) else [args[0]]
+        lows = args[1] if isinstance(args[1], list) else [args[1]]
+
+        if not highs or not lows or len(highs) == 0:
+            return None
+
+        current_high = highs[-1] if isinstance(highs[-1], (int, float)) else None
+        current_low = lows[-1] if isinstance(lows[-1], (int, float)) else None
+
+        if current_high is None or current_low is None or current_high <= current_low:
+            return None
+
+        ratio = current_high / current_low
+        if ratio <= 0:
+            return None
+
+        # Parkinson volatility
+        import math
+        parkinson_vol = math.sqrt(math.log(ratio) ** 2 / (4 * math.log(2)))
+        return parkinson_vol
+
+    def _builtin_ta_garman_klass(self, args: list[Any]) -> float | None:
+        """Garman-Klass Volatility.
+
+        ta.garman_klass(high, low, close, open)
+        Volatility using OHLC data.
+        """
+        if len(args) < 4:
+            msg = "ta.garman_klass() requires 4 arguments: high, low, close, open"
+            self._error(msg)
+
+        highs = args[0] if isinstance(args[0], list) else [args[0]]
+        lows = args[1] if isinstance(args[1], list) else [args[1]]
+        closes = args[2] if isinstance(args[2], list) else [args[2]]
+        opens = args[3] if isinstance(args[3], list) else [args[3]]
+
+        if not highs or not lows or not closes or not opens:
+            return None
+
+        h = highs[-1] if isinstance(highs[-1], (int, float)) else None
+        l = lows[-1] if isinstance(lows[-1], (int, float)) else None
+        c = closes[-1] if isinstance(closes[-1], (int, float)) else None
+        o = opens[-1] if isinstance(opens[-1], (int, float)) else None
+
+        if h is None or l is None or c is None or o is None:
+            return None
+
+        if h <= l or h <= 0 or c <= 0:
+            return None
+
+        import math
+
+        # Garman-Klass volatility formula
+        hl_ratio = h / l
+        co_ratio = c / o
+
+        term1 = 0.5 * (math.log(hl_ratio) ** 2)
+        term2 = (2 * math.log(2) - 1) * (math.log(co_ratio) ** 2)
+
+        gk_vol = math.sqrt(term1 - term2)
+        return gk_vol
 
 
