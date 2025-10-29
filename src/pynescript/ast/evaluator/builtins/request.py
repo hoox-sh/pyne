@@ -51,20 +51,30 @@ class RequestBuiltinsMixin(BuiltinDispatchMixin):
         Request data from another symbol or timeframe.
 
         Parameters:
-            symbol: Symbol/ticker string (str)
-            timeframe: Timeframe string (e.g., "1H", "D") (str)
-            expression: Expression to evaluate (series, value, or variable)
+            symbol: Symbol/ticker string (str or series)
+            timeframe: Timeframe string (e.g., "1H", "D") (str or series - v6 dynamic)
+            expression: Expression to evaluate (series, value, variable, or string - v6 dynamic)
             gaps: Gap handling mode ("on", "off") (str or None)
             lookahead: Lookahead mode ("on", "off", "barmerge") (str or None)
 
         Returns series data or value depending on expression type.
         This is a mock implementation that returns deterministic data.
+        v6 enhancement: Supports series string arguments for dynamic calls.
         """
         symbol = args[0] if len(args) > 0 else "AAPL"
-        # timeframe = args[1] if len(args) > 1 else "D"
+        timeframe = args[1] if len(args) > 1 else "D"
         expression = args[2] if len(args) > REQUEST_SECURITY_MIN_ARGS else "close"
         # gaps = args[3] if len(args) > 3 else "on"
         # lookahead = args[4] if len(args) > 4 else "off"
+
+        # v6 feature: Handle series string arguments for dynamic calls
+        # Convert to string representations if they are series
+        if isinstance(symbol, list):
+            symbol = symbol[-1] if symbol else "AAPL"  # Use last value from series
+        if isinstance(timeframe, list):
+            timeframe = timeframe[-1] if timeframe else "D"  # Use last value from series
+        if isinstance(expression, list):
+            expression = expression[-1] if expression else "close"  # Use last value from series
 
         base_prices = {
             "AAPL": [100.0, 101.5, 102.0, 103.5, 105.0],

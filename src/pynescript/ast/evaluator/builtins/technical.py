@@ -79,6 +79,38 @@ class TechnicalAnalysisMixin(BuiltinDispatchMixin):
             "ta.pivothigh": self._builtin_ta_pivothigh,
             "ta.pivotlow": self._builtin_ta_pivotlow,
             "ta.pivot_point_levels": self._builtin_ta_pivot_point_levels,
+            # Phase 7 enhancements: Missing indicators
+            "ta.iii": self._builtin_ta_iii,
+            "ta.nvi": self._builtin_ta_nvi,
+            "ta.pvi": self._builtin_ta_pvi,
+            "ta.accdist": self._builtin_ta_accdist,
+            "ta.wad": self._builtin_ta_wad,
+            "ta.wvad": self._builtin_ta_wvad,
+            # Phase 8 Tier 1: High-priority indicators
+            "ta.kama": self._builtin_ta_kama,
+            "ta.dema": self._builtin_ta_dema,
+            "ta.tema": self._builtin_ta_tema,
+            "ta.cmf": self._builtin_ta_cmf,
+            "ta.klinger": self._builtin_ta_klinger,
+            "ta.apo": self._builtin_ta_apo,
+            "ta.stoch_smooth": self._builtin_ta_stoch_smooth,
+            "ta.rsi_divergence": self._builtin_ta_rsi_divergence,
+            "ta.macd_signal": self._builtin_ta_macd_signal,
+            # Phase 8 Tier 2: Medium-priority indicators
+            "ta.ichimoku": self._builtin_ta_ichimoku,
+            "ta.donchian": self._builtin_ta_donchian,
+            "ta.stochrsi": self._builtin_ta_stochrsi,
+            "ta.dpo": self._builtin_ta_dpo,
+            "ta.kst": self._builtin_ta_kst,
+            "ta.uo": self._builtin_ta_uo,
+            "ta.bb_pct": self._builtin_ta_bb_pct,
+            "ta.vpt": self._builtin_ta_vpt,
+            "ta.beta": self._builtin_ta_beta,
+            "ta.r_squared": self._builtin_ta_r_squared,
+            "ta.comovement": self._builtin_ta_comovement,
+            "ta.atr_stop": self._builtin_ta_atr_stop,
+            "ta.fractal": self._builtin_ta_fractal,
+            "ta.emv": self._builtin_ta_emv,
         }
 
     # -- Public entry points -------------------------------------------------
@@ -1425,3 +1457,1061 @@ class TechnicalAnalysisMixin(BuiltinDispatchMixin):
             "r3": r3,
             "s3": s3,
         }
+
+    # Phase 7: Missing Indicators
+    def _builtin_ta_iii(self, args: list[Any]) -> float | None:
+        """Intraday Intensity Index - measures money flow without volume data.
+
+        ta.iii(high, low, close)
+        Returns the intraday intensity index value.
+        """
+        min_args = 3
+        if len(args) < min_args:
+            msg = "ta.iii() requires 3 arguments: high, low, close"
+            self._error(msg)
+
+        high = self._expect_number(args[0], "high must be numeric")
+        low = self._expect_number(args[1], "low must be numeric")
+        close = self._expect_number(args[2], "close must be numeric")
+
+        if high is None or low is None or close is None:
+            return None
+
+        # Calculate true range
+        tr = high - low
+        if tr == 0:
+            return 0.0
+
+        # Calculate IIIprice line
+        iii = 2 * close - high - low
+        return iii / tr if tr != 0 else 0.0
+
+    def _builtin_ta_nvi(self, args: list[Any]) -> list[float | None]:
+        """Negative Volume Index - cumulative index when volume decreases.
+
+        ta.nvi(close, volume, period)
+        Returns the NVI series.
+        """
+        min_args = 2
+        if len(args) < min_args:
+            msg = "ta.nvi() requires at least 2 arguments: close, volume"
+            self._error(msg)
+
+        close_series = args[0] if isinstance(args[0], list) else [args[0]]
+        volume_series = args[1] if isinstance(args[1], list) else [args[1]]
+
+        if len(close_series) != len(volume_series):
+            return [None]
+
+        nvi_values = []
+        nvi = 1000.0
+
+        for i in range(len(close_series)):
+            if i == 0:
+                nvi_values.append(nvi)
+                continue
+
+            if close_series[i - 1] != 0:
+                close_change = (close_series[i] - close_series[i - 1]) / close_series[
+                    i - 1
+                ]
+            else:
+                close_change = 0
+            vol = volume_series[i] if isinstance(volume_series[i], (int, float)) else 0
+
+            prev_vol = (
+                volume_series[i - 1]
+                if i > 0 and isinstance(volume_series[i - 1], (int, float))
+                else 0
+            )
+            if vol < prev_vol:
+                nvi = nvi * (1 + close_change)
+
+            nvi_values.append(nvi)
+
+        return nvi_values
+
+    def _builtin_ta_pvi(self, args: list[Any]) -> list[float | None]:
+        """Positive Volume Index - cumulative index when volume increases.
+
+        ta.pvi(close, volume, period)
+        Returns the PVI series.
+        """
+        min_args = 2
+        if len(args) < min_args:
+            msg = "ta.pvi() requires at least 2 arguments: close, volume"
+            self._error(msg)
+
+        close_series = args[0] if isinstance(args[0], list) else [args[0]]
+        volume_series = args[1] if isinstance(args[1], list) else [args[1]]
+
+        if len(close_series) != len(volume_series):
+            return [None]
+
+        pvi_values = []
+        pvi = 1000.0
+
+        for i in range(len(close_series)):
+            if i == 0:
+                pvi_values.append(pvi)
+                continue
+
+            if close_series[i - 1] != 0:
+                close_change = (close_series[i] - close_series[i - 1]) / close_series[
+                    i - 1
+                ]
+            else:
+                close_change = 0
+            vol = volume_series[i] if isinstance(volume_series[i], (int, float)) else 0
+            prev_vol = (
+                volume_series[i - 1]
+                if i > 0 and isinstance(volume_series[i - 1], (int, float))
+                else 0
+            )
+
+            if vol > prev_vol:
+                pvi = pvi * (1 + close_change)
+
+            pvi_values.append(pvi)
+
+        return pvi_values
+
+    def _builtin_ta_accdist(self, args: list[Any]) -> list[float | None]:
+        """Accumulation/Distribution Index - volume-weighted indicator.
+
+        ta.accdist(high, low, close, volume)
+        Returns the A/D series.
+        """
+        min_args = 4
+        if len(args) < min_args:
+            msg = "ta.accdist() requires 4 arguments: high, low, close, volume"
+            self._error(msg)
+
+        high_series = args[0] if isinstance(args[0], list) else [args[0]]
+        low_series = args[1] if isinstance(args[1], list) else [args[1]]
+        close_series = args[2] if isinstance(args[2], list) else [args[2]]
+        volume_series = args[3] if isinstance(args[3], list) else [args[3]]
+
+        ad_values = []
+        ad = 0.0
+
+        for i in range(len(close_series)):
+            high = high_series[i] if i < len(high_series) else 0
+            low = low_series[i] if i < len(low_series) else 0
+            close = close_series[i] if i < len(close_series) else 0
+            vol = volume_series[i] if i < len(volume_series) else 0
+
+            if high == low:
+                clv = 0.0
+            else:
+                clv = ((close - low) - (high - close)) / (high - low)
+
+            ad += clv * vol
+            ad_values.append(ad)
+
+        return ad_values
+
+    def _builtin_ta_wad(self, args: list[Any]) -> list[float | None]:
+        """Williams Accumulation/Distribution - volume accumulation index.
+
+        ta.wad(high, low, close, volume)
+        Returns the WAD series.
+        """
+        min_args = 4
+        if len(args) < min_args:
+            msg = "ta.wad() requires 4 arguments: high, low, close, volume"
+            self._error(msg)
+
+        high_series = args[0] if isinstance(args[0], list) else [args[0]]
+        low_series = args[1] if isinstance(args[1], list) else [args[1]]
+        close_series = args[2] if isinstance(args[2], list) else [args[2]]
+        volume_series = args[3] if isinstance(args[3], list) else [args[3]]
+
+        wad_values = []
+        wad = 0.0
+
+        for i in range(len(close_series)):
+            if i == 0:
+                wad_values.append(0.0)
+                continue
+
+            high = high_series[i] if i < len(high_series) else close_series[i]
+            low = low_series[i] if i < len(low_series) else close_series[i]
+            close = close_series[i] if i < len(close_series) else 0
+            prev_close = (
+                close_series[i - 1] if i > 0 and i - 1 < len(close_series) else 0
+            )
+            vol = volume_series[i] if i < len(volume_series) else 0
+
+            if close > prev_close:
+                wad += vol * (close - low)
+            elif close < prev_close:
+                wad -= vol * (high - close)
+
+            wad_values.append(wad)
+
+        return wad_values
+
+    def _builtin_ta_wvad(self, args: list[Any]) -> list[float | None]:
+        """Williams Volume Accumulation/Distribution - normalized WAD.
+
+        ta.wvad(high, low, close, volume, period)
+        Returns the WVAD series.
+        """
+        min_args = 4
+        if len(args) < min_args:
+            msg = "ta.wvad() requires at least 4 arguments: high, low, close, volume"
+            self._error(msg)
+
+        high_series = args[0] if isinstance(args[0], list) else [args[0]]
+        low_series = args[1] if isinstance(args[1], list) else [args[1]]
+        close_series = args[2] if isinstance(args[2], list) else [args[2]]
+        volume_series = args[3] if isinstance(args[3], list) else [args[3]]
+        period_arg_idx = 4
+        default_period = 20
+        period = (
+            self._expect_int(args[period_arg_idx], "period must be integer")
+            if len(args) > period_arg_idx
+            else default_period
+        )
+
+        # First get raw WAD
+        wad_values = self._builtin_ta_wad([high_series, low_series, close_series, volume_series])
+
+        # Get total volume over period
+        wvad_values = []
+        for i in range(len(wad_values)):
+            start_idx = max(0, i - period + 1)
+            volume_sum = sum(
+                v
+                for v in volume_series[start_idx : i + 1]
+                if isinstance(v, (int, float))
+            )
+
+            if volume_sum > 0:
+                wvad = (
+                    wad_values[i] / volume_sum if wad_values[i] is not None else 0.0
+                )
+            else:
+                wvad = 0.0
+
+            wvad_values.append(wvad)
+
+        return wvad_values
+
+    # -- Phase 8 Tier 1: High-Priority Indicators ---------------------------
+
+    def _builtin_ta_kama(self, args: list[Any]) -> list[float | None]:
+        """Kaufman's Adaptive Moving Average.
+
+        ta.kama(series, length, fast_period, slow_period)
+        Adapts based on market efficiency ratio (smoothing constant).
+        Returns KAMA series.
+        """
+        if len(args) < 4:
+            msg = "ta.kama() requires 4 arguments: series, length, fast_period, slow_period"
+            self._error(msg)
+
+        series = args[0] if isinstance(args[0], list) else [args[0]]
+        length = self._expect_int(args[1], "ta.kama length must be integer")
+        fast = self._expect_int(args[2], "ta.kama fast_period must be integer")
+        slow = self._expect_int(args[3], "ta.kama slow_period must be integer")
+
+        if length < 1:
+            return [None] * len(series)
+
+        kama_values = [None] * length
+        kama = series[length - 1] if length <= len(series) else 0.0
+
+        for i in range(length, len(series)):
+            change = abs(series[i] - series[i - length])
+            volatility = sum(abs(series[i - j] - series[i - j - 1]) for j in range(length))
+
+            if volatility != 0:
+                efficiency = change / volatility
+                fastest = 2.0 / (fast + 1.0)
+                slowest = 2.0 / (slow + 1.0)
+                smoothing = efficiency * (fastest - slowest) + slowest
+                sc = smoothing * smoothing
+            else:
+                sc = (2.0 / (slow + 1.0)) ** 2
+
+            kama = kama + sc * (series[i] - kama)
+            kama_values.append(kama)
+
+        return kama_values
+
+    def _builtin_ta_dema(self, args: list[Any]) -> list[float | None]:
+        """Double Exponential Moving Average.
+
+        ta.dema(series, length)
+        DEMA = 2 * EMA - EMA(EMA)
+        Reduces lag compared to simple EMA.
+        Returns DEMA series.
+        """
+        if len(args) < 2:
+            msg = "ta.dema() requires 2 arguments: series, length"
+            self._error(msg)
+
+        series = args[0] if isinstance(args[0], list) else [args[0]]
+        length = self._expect_int(args[1], "ta.dema length must be integer")
+
+        ema1 = self._ema(series, length)
+        ema2 = self._ema(ema1, length)
+
+        dema_values = []
+        for i in range(len(series)):
+            if ema1[i] is None or ema2[i] is None:
+                dema_values.append(None)
+            else:
+                dema_values.append(2 * ema1[i] - ema2[i])
+
+        return dema_values
+
+    def _builtin_ta_tema(self, args: list[Any]) -> list[float | None]:
+        """Triple Exponential Moving Average.
+
+        ta.tema(series, length)
+        TEMA = 3 * EMA - 3 * EMA(EMA) + EMA(EMA(EMA))
+        Even less lag than DEMA.
+        Returns TEMA series.
+        """
+        if len(args) < 2:
+            msg = "ta.tema() requires 2 arguments: series, length"
+            self._error(msg)
+
+        series = args[0] if isinstance(args[0], list) else [args[0]]
+        length = self._expect_int(args[1], "ta.tema length must be integer")
+
+        ema1 = self._ema(series, length)
+        ema2 = self._ema(ema1, length)
+        ema3 = self._ema(ema2, length)
+
+        tema_values = []
+        for i in range(len(series)):
+            if ema1[i] is None or ema2[i] is None or ema3[i] is None:
+                tema_values.append(None)
+            else:
+                tema_values.append(3 * ema1[i] - 3 * ema2[i] + ema3[i])
+
+        return tema_values
+
+    def _builtin_ta_cmf(self, args: list[Any]) -> list[float | None]:
+        """Chaikin Money Flow indicator.
+
+        ta.cmf(close, high, low, volume, period)
+        Measures money flow into/out of security.
+        Returns CMF series.
+        """
+        if len(args) < 5:
+            msg = "ta.cmf() requires 5 arguments: close, high, low, volume, period"
+            self._error(msg)
+
+        close_series = args[0] if isinstance(args[0], list) else [args[0]]
+        high_series = args[1] if isinstance(args[1], list) else [args[1]]
+        low_series = args[2] if isinstance(args[2], list) else [args[2]]
+        volume_series = args[3] if isinstance(args[3], list) else [args[3]]
+        period = self._expect_int(args[4], "ta.cmf period must be integer")
+
+        cmf_values = []
+        for i in range(len(close_series)):
+            start_idx = max(0, i - period + 1)
+
+            clv_sum = 0.0
+            vol_sum = 0.0
+
+            for j in range(start_idx, i + 1):
+                high_val = high_series[j] if j < len(high_series) else 0
+                low_val = low_series[j] if j < len(low_series) else 0
+                close_val = close_series[j] if j < len(close_series) else 0
+                volume_val = volume_series[j] if j < len(volume_series) else 0
+
+                hl_range = high_val - low_val
+                if hl_range != 0:
+                    clv = ((close_val - low_val) - (high_val - close_val)) / hl_range
+                else:
+                    clv = 0.0
+
+                clv_sum += clv * volume_val
+                vol_sum += volume_val
+
+            cmf = clv_sum / vol_sum if vol_sum > 0 else 0.0
+            cmf_values.append(cmf)
+
+        return cmf_values
+
+    def _builtin_ta_klinger(self, args: list[Any]) -> list[float | None]:
+        """Klinger Oscillator.
+
+        ta.klinger(high, low, close, volume, fast_period, slow_period)
+        Volume-based momentum oscillator.
+        Returns KO series.
+        """
+        if len(args) < 6:
+            msg = "ta.klinger() requires 6 arguments: high, low, close, volume, fast_period, slow_period"
+            self._error(msg)
+
+        close_series = args[2] if isinstance(args[2], list) else [args[2]]
+        volume_series = args[3] if isinstance(args[3], list) else [args[3]]
+        fast_period = self._expect_int(args[4], "ta.klinger fast_period must be integer")
+        slow_period = self._expect_int(args[5], "ta.klinger slow_period must be integer")
+
+        # Calculate true range volume
+        trv_values = []
+        for i in range(len(close_series)):
+            if i == 0:
+                trv = 0.0
+            else:
+                close_val = close_series[i] if i < len(close_series) else 0
+                prev_close = close_series[i - 1] if i > 0 else 0
+                volume_val = volume_series[i] if i < len(volume_series) else 0
+
+                if close_val > prev_close:
+                    trv = volume_val
+                elif close_val < prev_close:
+                    trv = -volume_val
+                else:
+                    trv = 0.0
+
+            trv_values.append(trv)
+
+        # Calculate fast and slow EMAs of cumulative TRV
+        cumsum_trv = []
+        cum = 0.0
+        for trv in trv_values:
+            cum += trv
+            cumsum_trv.append(cum)
+
+        fast_ema = self._ema(cumsum_trv, fast_period)
+        slow_ema = self._ema(cumsum_trv, slow_period)
+
+        ko_values = []
+        for i in range(len(fast_ema)):
+            if fast_ema[i] is None or slow_ema[i] is None:
+                ko_values.append(None)
+            else:
+                ko_values.append(fast_ema[i] - slow_ema[i])
+
+        return ko_values
+
+    def _builtin_ta_apo(self, args: list[Any]) -> list[float | None]:
+        """Absolute Price Oscillator.
+
+        ta.apo(series, fast_period, slow_period)
+        APO = EMA(fast) - EMA(slow)
+        Returns APO series.
+        """
+        if len(args) < 3:
+            msg = "ta.apo() requires 3 arguments: series, fast_period, slow_period"
+            self._error(msg)
+
+        series = args[0] if isinstance(args[0], list) else [args[0]]
+        fast = self._expect_int(args[1], "ta.apo fast_period must be integer")
+        slow = self._expect_int(args[2], "ta.apo slow_period must be integer")
+
+        fast_ema = self._ema(series, fast)
+        slow_ema = self._ema(series, slow)
+
+        apo_values = []
+        for i in range(len(series)):
+            if fast_ema[i] is None or slow_ema[i] is None:
+                apo_values.append(None)
+            else:
+                apo_values.append(fast_ema[i] - slow_ema[i])
+
+        return apo_values
+
+    def _builtin_ta_stoch_smooth(self, args: list[Any]) -> list[float | None]:
+        """Smoothed Stochastic Oscillator.
+
+        ta.stoch_smooth(high, low, close, period, smooth_k, smooth_d)
+        Stochastic with additional smoothing.
+        Returns smoothed stochastic series.
+        """
+        if len(args) < 6:
+            msg = "ta.stoch_smooth() requires 6 arguments: high, low, close, period, smooth_k, smooth_d"
+            self._error(msg)
+
+        high_series = args[0] if isinstance(args[0], list) else [args[0]]
+        low_series = args[1] if isinstance(args[1], list) else [args[1]]
+        close_series = args[2] if isinstance(args[2], list) else [args[2]]
+        period = self._expect_int(args[3], "ta.stoch_smooth period must be integer")
+        smooth_k = self._expect_int(args[4], "ta.stoch_smooth smooth_k must be integer")
+        smooth_d = self._expect_int(args[5], "ta.stoch_smooth smooth_d must be integer")
+
+        # Calculate raw stochastic
+        stoch_values = []
+        for i in range(len(close_series)):
+            start_idx = max(0, i - period + 1)
+            high_max = max(high_series[j] for j in range(start_idx, i + 1) if j < len(high_series))
+            low_min = min(low_series[j] for j in range(start_idx, i + 1) if j < len(low_series))
+            c = close_series[i] if i < len(close_series) else 0
+
+            hl_range = high_max - low_min
+            if hl_range != 0:
+                stoch = 100 * (c - low_min) / hl_range
+            else:
+                stoch = 50.0
+
+            stoch_values.append(stoch)
+
+        # Smooth stochastic
+        smooth_k_ema = self._ema(stoch_values, smooth_k)
+        smooth_d_ema = self._ema(smooth_k_ema, smooth_d)
+
+        return smooth_d_ema
+
+    def _builtin_ta_rsi_divergence(self, args: list[Any]) -> list[float | None]:
+        """RSI Divergence Detector.
+
+        ta.rsi_divergence(rsi_series, period)
+        Detects bullish/bearish divergences in RSI.
+        Returns divergence strength (-1 to 1).
+        """
+        if len(args) < 2:
+            msg = "ta.rsi_divergence() requires 2 arguments: rsi_series, period"
+            self._error(msg)
+
+        rsi_series = args[0] if isinstance(args[0], list) else [args[0]]
+        period = self._expect_int(args[1], "ta.rsi_divergence period must be integer")
+
+        divergence_values = []
+        for i in range(len(rsi_series)):
+            if i < period:
+                divergence_values.append(0.0)
+                continue
+
+            start_idx = max(0, i - period)
+            rsi_values = [rsi_series[j] for j in range(start_idx, i + 1) if rsi_series[j] is not None]
+
+            if len(rsi_values) < 2:
+                divergence_values.append(0.0)
+                continue
+
+            rsi_min = min(rsi_values)
+            rsi_max = max(rsi_values)
+            rsi_range = rsi_max - rsi_min
+
+            if rsi_range > 0:
+                divergence = (rsi_series[i] - rsi_min) / rsi_range * 2 - 1
+            else:
+                divergence = 0.0
+
+            divergence_values.append(divergence)
+
+        return divergence_values
+
+    def _builtin_ta_macd_signal(self, args: list[Any]) -> float | None:
+        """MACD Signal Strength.
+
+        ta.macd_signal(macd_line, signal_line)
+        Measures MACD momentum (difference between MACD and signal).
+        Returns signal strength.
+        """
+        if len(args) < 2:
+            msg = "ta.macd_signal() requires 2 arguments: macd_line, signal_line"
+            self._error(msg)
+
+        macd_line = args[0]
+        signal_line = args[1]
+
+        if macd_line is None or signal_line is None:
+            return None
+
+        strength = float(macd_line) - float(signal_line)
+        return strength
+
+    # Phase 8 Tier 2: Medium-priority indicators
+
+    def _builtin_ta_ichimoku(self, args: list[Any]) -> dict[str, float | None]:
+        """Ichimoku Cloud Components.
+
+        ta.ichimoku(fast_period, slow_period)
+        Returns dict with tenkan_sen, kijun_sen, senkou_span_a, senkou_span_b
+        """
+        if len(args) < 2:
+            msg = "ta.ichimoku() requires 2 arguments: fast_period, slow_period"
+            self._error(msg)
+
+        fast_period = self._expect_int(args[0], "fast_period must be integer")
+        slow_period = self._expect_int(args[1], "slow_period must be integer")
+
+        if fast_period < 1 or slow_period < 1:
+            msg = "Ichimoku periods must be >= 1"
+            self._error(msg)
+
+        # Get current high/low from context
+        highs = self.current_series.get("high", [])
+        lows = self.current_series.get("low", [])
+
+        if not highs or not lows:
+            return {"tenkan_sen": None, "kijun_sen": None, "senkou_span_a": None, "senkou_span_b": None}
+
+        # Tenkan-sen: 9-period high-low midpoint
+        tenkan = None
+        if len(highs) >= fast_period:
+            fast_high = max(highs[-fast_period:])
+            fast_low = min(lows[-fast_period:])
+            tenkan = (fast_high + fast_low) / 2.0
+
+        # Kijun-sen: 26-period high-low midpoint
+        kijun = None
+        if len(highs) >= slow_period:
+            slow_high = max(highs[-slow_period:])
+            slow_low = min(lows[-slow_period:])
+            kijun = (slow_high + slow_low) / 2.0
+
+        # Senkou Span A: midpoint of tenkan and kijun
+        senkou_a = None
+        if tenkan is not None and kijun is not None:
+            senkou_a = (tenkan + kijun) / 2.0
+
+        # Senkou Span B: 52-period high-low midpoint
+        senkou_b = None
+        if len(highs) >= 52:
+            high_52 = max(highs[-52:])
+            low_52 = min(lows[-52:])
+            senkou_b = (high_52 + low_52) / 2.0
+
+        return {"tenkan_sen": tenkan, "kijun_sen": kijun, "senkou_span_a": senkou_a, "senkou_span_b": senkou_b}
+
+    def _builtin_ta_donchian(self, args: list[Any]) -> dict[str, float | None]:
+        """Donchian Channels.
+
+        ta.donchian(length)
+        Returns dict with high, low, mid for specified period.
+        """
+        if len(args) < 1:
+            msg = "ta.donchian() requires 1 argument: length"
+            self._error(msg)
+
+        length = self._expect_int(args[0], "length must be integer")
+
+        if length < 1:
+            msg = "Donchian length must be >= 1"
+            self._error(msg)
+
+        highs = self.current_series.get("high", [])
+        lows = self.current_series.get("low", [])
+
+        if not highs or not lows or len(highs) < length:
+            return {"high": None, "low": None, "mid": None}
+
+        high_val = max(highs[-length:])
+        low_val = min(lows[-length:])
+        mid_val = (high_val + low_val) / 2.0
+
+        return {"high": high_val, "low": low_val, "mid": mid_val}
+
+    def _builtin_ta_stochrsi(self, args: list[Any]) -> dict[str, float | None]:
+        """Stochastic RSI.
+
+        ta.stochrsi(rsi_length, stoch_length)
+        Returns dict with stochrsi value and signal.
+        """
+        if len(args) < 2:
+            msg = "ta.stochrsi() requires 2 arguments: rsi_length, stoch_length"
+            self._error(msg)
+
+        rsi_length = self._expect_int(args[0], "rsi_length must be integer")
+        stoch_length = self._expect_int(args[1], "stoch_length must be integer")
+
+        closes = self.current_series.get("close", [])
+        if not closes or len(closes) < rsi_length:
+            return {"stochrsi": None, "signal": None}
+
+        # Calculate RSI series
+        rsi_series = []
+        for i in range(len(closes)):
+            if i < rsi_length:
+                rsi_series.append(None)
+            else:
+                segment = closes[i - rsi_length + 1 : i + 1]
+                gains = sum(max(0, segment[j] - segment[j - 1]) for j in range(1, len(segment)))
+                losses = sum(max(0, segment[j - 1] - segment[j]) for j in range(1, len(segment)))
+                avg_gain = gains / rsi_length
+                avg_loss = losses / rsi_length
+                rs = avg_gain / avg_loss if avg_loss != 0 else 100.0
+                rsi_val = 100.0 - (100.0 / (1.0 + rs))
+                rsi_series.append(rsi_val)
+
+        # Calculate StochRSI from RSI series
+        valid_rsi = [v for v in rsi_series if v is not None]
+        if len(valid_rsi) < stoch_length:
+            return {"stochrsi": None, "signal": None}
+
+        rsi_high = max(valid_rsi[-stoch_length:])
+        rsi_low = min(valid_rsi[-stoch_length:])
+        rsi_range = rsi_high - rsi_low
+
+        if rsi_range == 0:
+            stochrsi_val = 0.0
+        else:
+            stochrsi_val = (valid_rsi[-1] - rsi_low) / rsi_range * 100.0
+
+        # Signal is EMA of StochRSI
+        signal = stochrsi_val * 0.33 + (getattr(self, "_last_stochrsi_signal", stochrsi_val) * 0.67)
+        self._last_stochrsi_signal = signal
+
+        return {"stochrsi": stochrsi_val, "signal": signal}
+
+    def _builtin_ta_dpo(self, args: list[Any]) -> float | None:
+        """Detrended Price Oscillator.
+
+        ta.dpo(length)
+        Removes trend to identify cycles.
+        """
+        if len(args) < 1:
+            msg = "ta.dpo() requires 1 argument: length"
+            self._error(msg)
+
+        length = self._expect_int(args[0], "length must be integer")
+
+        if length < 1:
+            msg = "DPO length must be >= 1"
+            self._error(msg)
+
+        closes = self.current_series.get("close", [])
+        if not closes or len(closes) < length:
+            return None
+
+        sma_val = sum(closes[-length:]) / length
+        displacement = length // 2 + 1
+
+        if len(closes) < displacement:
+            return None
+
+        dpo_val = closes[-displacement] - sma_val
+        return dpo_val
+
+    def _builtin_ta_kst(self, args: list[Any]) -> float | None:
+        """Know Sure Thing Oscillator.
+
+        ta.kst(length1, length2, length3, length4)
+        Multi-timeframe momentum indicator.
+        """
+        if len(args) < 4:
+            msg = "ta.kst() requires 4 arguments: length1, length2, length3, length4"
+            self._error(msg)
+
+        length1 = self._expect_int(args[0], "length1 must be integer")
+        length2 = self._expect_int(args[1], "length2 must be integer")
+        length3 = self._expect_int(args[2], "length3 must be integer")
+        length4 = self._expect_int(args[3], "length4 must be integer")
+
+        closes = self.current_series.get("close", [])
+        if not closes:
+            return None
+
+        max_len = max(length1, length2, length3, length4)
+        if len(closes) < max_len:
+            return None
+
+        # Calculate ROCs (Rate of Change)
+        roc1 = (closes[-1] - closes[-length1]) / closes[-length1] * 100 if len(closes) >= length1 else 0
+        roc2 = (closes[-1] - closes[-length2]) / closes[-length2] * 100 if len(closes) >= length2 else 0
+        roc3 = (closes[-1] - closes[-length3]) / closes[-length3] * 100 if len(closes) >= length3 else 0
+        roc4 = (closes[-1] - closes[-length4]) / closes[-length4] * 100 if len(closes) >= length4 else 0
+
+        # Weighted sum
+        kst_val = roc1 * 1.0 + roc2 * 2.0 + roc3 * 3.0 + roc4 * 4.0
+        return kst_val / 10.0
+
+    def _builtin_ta_uo(self, args: list[Any]) -> float | None:
+        """Ultimate Oscillator.
+
+        ta.uo(length1, length2, length3)
+        Multi-period momentum indicator.
+        """
+        if len(args) < 3:
+            msg = "ta.uo() requires 3 arguments: length1, length2, length3"
+            self._error(msg)
+
+        length1 = self._expect_int(args[0], "length1 must be integer")
+        length2 = self._expect_int(args[1], "length2 must be integer")
+        length3 = self._expect_int(args[2], "length3 must be integer")
+
+        closes = self.current_series.get("close", [])
+        highs = self.current_series.get("high", [])
+        lows = self.current_series.get("low", [])
+
+        if not closes or not highs or not lows or len(closes) < length3:
+            return None
+
+        max_len = max(length1, length2, length3)
+
+        # True Range and Buying Pressure
+        tr_sum = 0.0
+        bp_sum = 0.0
+        for i in range(len(closes) - max_len, len(closes)):
+            high_low = highs[i] - lows[i]
+            high_close = abs(highs[i] - closes[i - 1]) if i > 0 else high_low
+            low_close = abs(lows[i] - closes[i - 1]) if i > 0 else 0
+            tr = max(high_low, high_close, low_close)
+
+            bp = closes[i] - min(lows[i], closes[i - 1]) if i > 0 else 0
+            tr_sum += tr
+            bp_sum += bp
+
+        if tr_sum == 0:
+            return 0.0
+
+        avg1 = bp_sum / tr_sum
+        avg2 = bp_sum / tr_sum
+        avg3 = bp_sum / tr_sum
+
+        uo_val = 100.0 * ((avg1 * 4.0 + avg2 * 2.0 + avg3) / 7.0)
+        return uo_val
+
+    def _builtin_ta_bb_pct(self, args: list[Any]) -> float | None:
+        """Bollinger Band Percentage.
+
+        ta.bb_pct(length, std_dev)
+        Position between upper and lower bands (0-100).
+        """
+        if len(args) < 2:
+            msg = "ta.bb_pct() requires 2 arguments: length, std_dev"
+            self._error(msg)
+
+        length = self._expect_int(args[0], "length must be integer")
+        std_dev = float(args[1]) if isinstance(args[1], (int, float)) else 2.0
+
+        closes = self.current_series.get("close", [])
+        if not closes or len(closes) < length:
+            return None
+
+        sma_val = sum(closes[-length:]) / length
+        variance = sum((v - sma_val) ** 2 for v in closes[-length:]) / length
+        std_val = variance ** 0.5
+
+        upper = sma_val + (std_val * std_dev)
+        lower = sma_val - (std_val * std_dev)
+
+        if upper == lower:
+            return 50.0
+
+        bb_pct = ((closes[-1] - lower) / (upper - lower)) * 100.0
+        return max(0.0, min(100.0, bb_pct))
+
+    def _builtin_ta_vpt(self, args: list[Any]) -> float | None:
+        """Volume Price Trend.
+
+        ta.vpt(series)
+        Combines volume and price direction.
+        """
+        if len(args) < 1:
+            msg = "ta.vpt() requires 1 argument: series"
+            self._error(msg)
+
+        series = args[0] if isinstance(args[0], list) else [args[0]]
+        closes = self.current_series.get("close", [])
+        volumes = self.current_series.get("volume", [])
+
+        if not closes or not volumes or len(series) < 2:
+            return None
+
+        # VPT = Previous VPT + Volume * (Price Change / Previous Price)
+        prev_close = closes[-2] if len(closes) >= 2 else closes[-1]
+        if prev_close == 0:
+            return 0.0
+
+        price_change_pct = (closes[-1] - prev_close) / prev_close
+        vpt_val = volumes[-1] * price_change_pct
+
+        return vpt_val
+
+    def _builtin_ta_beta(self, args: list[Any]) -> float | None:
+        """Beta Coefficient.
+
+        ta.beta(series1, series2, length)
+        Correlation measure between two series.
+        """
+        if len(args) < 3:
+            msg = "ta.beta() requires 3 arguments: series1, series2, length"
+            self._error(msg)
+
+        series1 = args[0] if isinstance(args[0], list) else [args[0]]
+        series2 = args[1] if isinstance(args[1], list) else [args[1]]
+        length = self._expect_int(args[2], "length must be integer")
+
+        if len(series1) < length or len(series2) < length:
+            return None
+
+        s1 = series1[-length:]
+        s2 = series2[-length:]
+
+        mean1 = sum(s1) / length
+        mean2 = sum(s2) / length
+
+        covariance = sum((s1[i] - mean1) * (s2[i] - mean2) for i in range(length)) / length
+        variance2 = sum((v - mean2) ** 2 for v in s2) / length
+
+        if variance2 == 0:
+            return 0.0
+
+        beta_val = covariance / variance2
+        return beta_val
+
+    def _builtin_ta_r_squared(self, args: list[Any]) -> float | None:
+        """R-Squared (Coefficient of Determination).
+
+        ta.r_squared(series1, series2, length)
+        Measures fit quality (0-1).
+        """
+        if len(args) < 3:
+            msg = "ta.r_squared() requires 3 arguments: series1, series2, length"
+            self._error(msg)
+
+        series1 = args[0] if isinstance(args[0], list) else [args[0]]
+        series2 = args[1] if isinstance(args[1], list) else [args[1]]
+        length = self._expect_int(args[2], "length must be integer")
+
+        if len(series1) < length or len(series2) < length:
+            return None
+
+        s1 = series1[-length:]
+        s2 = series2[-length:]
+
+        mean1 = sum(s1) / length
+        mean2 = sum(s2) / length
+
+        covariance = sum((s1[i] - mean1) * (s2[i] - mean2) for i in range(length)) / length
+        var1 = sum((v - mean1) ** 2 for v in s1) / length
+        var2 = sum((v - mean2) ** 2 for v in s2) / length
+
+        if var1 == 0 or var2 == 0:
+            return 0.0
+
+        correlation = covariance / ((var1 * var2) ** 0.5)
+        r_squared = correlation ** 2
+
+        return max(0.0, min(1.0, r_squared))
+
+    def _builtin_ta_comovement(self, args: list[Any]) -> float | None:
+        """Comovement Index.
+
+        ta.comovement(series1, series2, length)
+        Synchronicity between two series.
+        """
+        if len(args) < 3:
+            msg = "ta.comovement() requires 3 arguments: series1, series2, length"
+            self._error(msg)
+
+        series1 = args[0] if isinstance(args[0], list) else [args[0]]
+        series2 = args[1] if isinstance(args[1], list) else [args[1]]
+        length = self._expect_int(args[2], "length must be integer")
+
+        if len(series1) < length or len(series2) < length:
+            return None
+
+        s1 = series1[-length:]
+        s2 = series2[-length:]
+
+        same_direction = sum(1 for i in range(1, length) if (s1[i] - s1[i - 1]) * (s2[i] - s2[i - 1]) > 0)
+
+        comovement = (same_direction / (length - 1)) * 100.0 if length > 1 else 0.0
+        return comovement
+
+    def _builtin_ta_atr_stop(self, args: list[Any]) -> dict[str, float | None]:
+        """ATR-based Stop Loss.
+
+        ta.atr_stop(atr_value, multiplier)
+        Calculate stop levels based on ATR.
+        """
+        if len(args) < 2:
+            msg = "ta.atr_stop() requires 2 arguments: atr_value, multiplier"
+            self._error(msg)
+
+        atr_val = float(args[0]) if isinstance(args[0], (int, float)) else None
+        multiplier = float(args[1]) if isinstance(args[1], (int, float)) else 2.0
+
+        if atr_val is None or atr_val <= 0:
+            return {"long_stop": None, "short_stop": None}
+
+        closes = self.current_series.get("close", [])
+        if not closes:
+            return {"long_stop": None, "short_stop": None}
+
+        current_close = closes[-1]
+        long_stop = current_close - (atr_val * multiplier)
+        short_stop = current_close + (atr_val * multiplier)
+
+        return {"long_stop": long_stop, "short_stop": short_stop}
+
+    def _builtin_ta_fractal(self, args: list[Any]) -> dict[str, bool]:
+        """Fractal Pattern Detector.
+
+        ta.fractal(period)
+        Identifies high/low fractals.
+        """
+        if len(args) < 1:
+            msg = "ta.fractal() requires 1 argument: period"
+            self._error(msg)
+
+        period = self._expect_int(args[0], "period must be integer")
+
+        if period < 1:
+            msg = "Fractal period must be >= 1"
+            self._error(msg)
+
+        highs = self.current_series.get("high", [])
+        lows = self.current_series.get("low", [])
+
+        if not highs or not lows or len(highs) < period * 2 + 1:
+            return {"is_high_fractal": False, "is_low_fractal": False}
+
+        # Check if current bar is a high fractal
+        current_idx = len(highs) - 1
+        is_high_fractal = highs[current_idx] == max(highs[current_idx - period : current_idx + period + 1])
+
+        # Check if current bar is a low fractal
+        is_low_fractal = lows[current_idx] == min(lows[current_idx - period : current_idx + period + 1])
+
+        return {"is_high_fractal": is_high_fractal, "is_low_fractal": is_low_fractal}
+
+    def _builtin_ta_emv(self, args: list[Any]) -> float | None:
+        """Ease of Movement.
+
+        ta.emv(length)
+        Measures ease of price movement relative to volume.
+        """
+        if len(args) < 1:
+            msg = "ta.emv() requires 1 argument: length"
+            self._error(msg)
+
+        length = self._expect_int(args[0], "length must be integer")
+
+        if length < 1:
+            msg = "EMV length must be >= 1"
+            self._error(msg)
+
+        highs = self.current_series.get("high", [])
+        lows = self.current_series.get("low", [])
+        volumes = self.current_series.get("volume", [])
+
+        if not highs or not lows or not volumes or len(highs) < length:
+            return None
+
+        emv_vals = []
+        for i in range(len(highs)):
+            if i == 0 or volumes[i] == 0:
+                emv_vals.append(None)
+                continue
+
+            distance_moved = ((highs[i] + lows[i]) / 2.0) - ((highs[i - 1] + lows[i - 1]) / 2.0)
+            box_height = highs[i] - lows[i]
+
+            if box_height == 0:
+                emv_vals.append(None)
+            else:
+                emv = (distance_moved / box_height) * (highs[i] - lows[i]) / volumes[i] if volumes[i] != 0 else 0
+                emv_vals.append(emv)
+
+        valid_emv = [v for v in emv_vals if v is not None]
+        if not valid_emv or len(valid_emv) < length:
+            return None
+
+        emv_sma = sum(valid_emv[-length:]) / length
+        return emv_sma
+
+
