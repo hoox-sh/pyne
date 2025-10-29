@@ -122,6 +122,12 @@ class TechnicalAnalysisMixin(BuiltinDispatchMixin):
             "ta.kurtosis": self._builtin_ta_kurtosis,
             "ta.parkinson": self._builtin_ta_parkinson,
             "ta.garman_klass": self._builtin_ta_garman_klass,
+            # Phase 8 Tier 4: Enhancement Variants
+            "ta.sma_weighted": self._builtin_ta_sma_weighted,
+            "ta.ema_cross_signal": self._builtin_ta_ema_cross_signal,
+            "ta.rsi_oversold_overbought": self._builtin_ta_rsi_oversold_overbought,
+            "ta.atr_normalized": self._builtin_ta_atr_normalized,
+            "ta.volume_weighted_momentum": self._builtin_ta_volume_weighted_momentum,
         }
 
     # -- Public entry points -------------------------------------------------
@@ -2865,5 +2871,192 @@ class TechnicalAnalysisMixin(BuiltinDispatchMixin):
 
         gk_vol = math.sqrt(term1 - term2)
         return gk_vol
+
+    # Phase 8 Tier 4: Enhancement Variants
+
+    def _builtin_ta_sma_weighted(self, args: list[Any]) -> float | None:
+        """Weighted SMA - Simple Moving Average with custom weighting.
+
+        ta.sma_weighted(series, period, weight_type)
+        Applies different weighting schemes to SMA calculation.
+        weight_type: "linear", "quadratic", "sqrt" (default: "linear")
+        """
+        if len(args) < 2:
+            msg = "ta.sma_weighted() requires at least 2 arguments: series, period"
+            self._error(msg)
+
+        series = args[0] if isinstance(args[0], list) else [args[0]]
+        period = self._expect_int(args[1], "period must be integer")
+        weight_type = args[2] if len(args) > 2 else "linear"
+
+        if not isinstance(weight_type, str):
+            weight_type = "linear"
+
+        if len(series) < period:
+            return None
+
+        data = series[-period:]
+        valid_data = [x for x in data if isinstance(x, (int, float))]
+
+        if len(valid_data) < period:
+            return None
+
+        # Calculate weights based on type
+        weights = []
+        for i in range(len(valid_data)):
+            if weight_type == "quadratic":
+                weight = (i + 1) ** 2
+            elif weight_type == "sqrt":
+                weight = (i + 1) ** 0.5
+            else:  # linear (default)
+                weight = i + 1
+            weights.append(weight)
+
+        # Weighted average
+        total_weight = sum(weights)
+        weighted_sum = sum(v * w for v, w in zip(valid_data, weights, strict=True))
+        return weighted_sum / total_weight if total_weight > 0 else None
+
+    def _builtin_ta_ema_cross_signal(self, args: list[Any]) -> dict:
+        """EMA Cross Signal - Detects EMA crossover/crossunder signals.
+
+        ta.ema_cross_signal(close, fast_period, slow_period)
+        Returns signal information for EMA crossovers.
+        """
+        if len(args) < 3:
+            msg = "ta.ema_cross_signal() requires 3 arguments: close, fast_period, slow_period"
+            self._error(msg)
+
+        close_series = args[0] if isinstance(args[0], list) else [args[0]]
+        fast_period = self._expect_int(args[1], "fast_period must be integer")
+        slow_period = self._expect_int(args[2], "slow_period must be integer")
+
+        if len(close_series) < max(fast_period, slow_period):
+            return {"crossover": False, "crossunder": False, "signal": 0}
+
+        # Calculate EMAs
+        fast_ema_list = self._ema(close_series, fast_period)
+        slow_ema_list = self._ema(close_series, slow_period)
+
+        if not fast_ema_list or not slow_ema_list:
+            return {"crossover": False, "crossunder": False, "signal": 0}
+
+        fast_current = fast_ema_list[-1] if fast_ema_list[-1] is not None else None
+        fast_prev = fast_ema_list[-2] if len(fast_ema_list) > 1 and fast_ema_list[-2] is not None else None
+        slow_current = slow_ema_list[-1] if slow_ema_list[-1] is not None else None
+        slow_prev = slow_ema_list[-2] if len(slow_ema_list) > 1 and slow_ema_list[-2] is not None else None
+
+        if fast_current is None or slow_current is None or fast_prev is None or slow_prev is None:
+            return {"crossover": False, "crossunder": False, "signal": 0}
+
+        # Detect crossover (fast crosses above slow)
+        crossover = fast_prev <= slow_prev and fast_current > slow_current
+        # Detect crossunder (fast crosses below slow)
+        crossunder = fast_prev >= slow_prev and fast_current < slow_current
+        # Signal: 1 for bullish cross, -1 for bearish cross, 0 for none
+        signal = 1 if crossover else (-1 if crossunder else 0)
+
+        return {"crossover": crossover, "crossunder": crossunder, "signal": signal}
+
+    def _builtin_ta_rsi_oversold_overbought(self, args: list[Any]) -> dict:
+        """RSI Oversold/Overbought Levels - Custom RSI threshold detection.
+
+        ta.rsi_oversold_overbought(rsi_series, oversold_level, overbought_level)
+        Returns boolean flags for oversold/overbought conditions.
+        """
+        if len(args) < 3:
+            msg = "ta.rsi_oversold_overbought() requires 3 arguments: rsi_series, oversold, overbought"
+            self._error(msg)
+
+        rsi_series = args[0] if isinstance(args[0], list) else [args[0]]
+        oversold = self._expect_int(args[1], "oversold must be integer")
+        overbought = self._expect_int(args[2], "overbought must be integer")
+
+        if not rsi_series or len(rsi_series) == 0:
+            return {"is_oversold": False, "is_overbought": False, "rsi": None}
+
+        rsi_current = rsi_series[-1]
+        if rsi_current is None:
+            return {"is_oversold": False, "is_overbought": False, "rsi": None}
+
+        is_oversold = rsi_current < oversold
+        is_overbought = rsi_current > overbought
+
+        return {"is_oversold": is_oversold, "is_overbought": is_overbought, "rsi": rsi_current}
+
+    def _builtin_ta_atr_normalized(self, args: list[Any]) -> float | None:
+        """Normalized ATR - ATR as percentage of current price.
+
+        ta.atr_normalized(high, low, close, period)
+        Returns ATR as a percentage of price for comparable analysis.
+        """
+        if len(args) < 4:
+            msg = "ta.atr_normalized() requires 4 arguments: high, low, close, period"
+            self._error(msg)
+
+        highs = args[0] if isinstance(args[0], list) else [args[0]]
+        lows = args[1] if isinstance(args[1], list) else [args[1]]
+        closes = args[2] if isinstance(args[2], list) else [args[2]]
+        period = self._expect_int(args[3], "period must be integer")
+
+        if len(closes) == 0 or not isinstance(closes[-1], (int, float)):
+            return None
+
+        current_close = closes[-1]
+        if current_close == 0:
+            return None
+
+        # Calculate ATR
+        atr_list = self._atr(highs, lows, closes, period)
+        if not atr_list or atr_list[-1] is None:
+            return None
+
+        atr_current = atr_list[-1]
+        # Normalized ATR as percentage
+        normalized_atr = (atr_current / current_close) * 100
+        return normalized_atr
+
+    def _builtin_ta_volume_weighted_momentum(self, args: list[Any]) -> float | None:
+        """Volume-Weighted Momentum - Momentum adjusted for volume.
+
+        ta.volume_weighted_momentum(close, volume, period)
+        Combines price momentum with volume strength for weighted signal.
+        """
+        if len(args) < 3:
+            msg = "ta.volume_weighted_momentum() requires 3 arguments: close, volume, period"
+            self._error(msg)
+
+        close_series = args[0] if isinstance(args[0], list) else [args[0]]
+        volume_series = args[1] if isinstance(args[1], list) else [args[1]]
+        period = self._expect_int(args[2], "period must be integer")
+
+        if len(close_series) < period or len(volume_series) < period:
+            return None
+
+        close_data = close_series[-period:]
+        volume_data = volume_series[-period:]
+
+        # Filter valid data
+        valid_pairs = [
+            (c, v)
+            for c, v in zip(close_data, volume_data, strict=True)
+            if isinstance(c, (int, float))
+            and isinstance(v, (int, float))
+            and v > 0
+        ]
+
+        if len(valid_pairs) < 2:
+            return None
+
+        # Calculate price change and weighted momentum
+        weighted_momentum = 0.0
+        total_volume = sum(v for c, v in valid_pairs)
+
+        for i in range(1, len(valid_pairs)):
+            price_change = valid_pairs[i][0] - valid_pairs[i - 1][0]
+            volume_weight = valid_pairs[i][1] / total_volume if total_volume > 0 else 0
+            weighted_momentum += price_change * volume_weight
+
+        return weighted_momentum
 
 
