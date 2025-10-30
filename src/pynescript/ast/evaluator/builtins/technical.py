@@ -3555,163 +3555,165 @@ class TechnicalAnalysisMixin(BuiltinDispatchMixin):
         return [high_level, low_level]
 
     # Phase 8 Tier 6: Market Microstructure & Advanced Economics
-    
+
     def _builtin_ta_order_flow_imbalance(self, args: list[Any]) -> float:
         """Order Flow Imbalance - Buy/sell pressure analysis.
-        
+
         ta.order_flow_imbalance(high, low, close, volume, period)
         Returns: Imbalance ratio (-1.0 to 1.0)
         """
         msg = "ta.order_flow_imbalance() requires 5 arguments"
         if len(args) < 5:
             self._error(msg)
-        
+
         high = self._expect_list(args[0], msg)
         low = self._expect_list(args[1], msg)
         close = self._expect_list(args[2], msg)
         volume = self._expect_list(args[3], msg)
         period = self._expect_int(args[4], msg)
-        
+
         if len(high) < period or len(low) < period or period <= 0:
             return 0.0
-        
+
         buy_vol = 0.0
         sell_vol = 0.0
-        
+
         for i in range(-period, 0):
             h = high[i] if isinstance(high[i], (int, float)) else 0
             l = low[i] if isinstance(low[i], (int, float)) else 0
             c = close[i] if isinstance(close[i], (int, float)) else 0
             v = volume[i] if isinstance(volume[i], (int, float)) else 0
-            
+
             if h > l:
                 midpoint = (h + l) / 2
                 if c > midpoint:
                     buy_vol += v
                 else:
                     sell_vol += v
-        
+
         total = buy_vol + sell_vol
         if total == 0:
             return 0.0
-        
+
         return (buy_vol - sell_vol) / total
 
     def _builtin_ta_volume_profile_high(self, args: list[Any]) -> float:
         """Volume Profile High - Highest volume price level.
-        
+
         ta.volume_profile_high(close, volume, period, levels)
         Returns: Price level with highest volume
         """
         msg = "ta.volume_profile_high() requires 4 arguments"
         if len(args) < 4:
             self._error(msg)
-        
+
         close = self._expect_list(args[0], msg)
         volume = self._expect_list(args[1], msg)
         period = self._expect_int(args[2], msg)
         levels = self._expect_int(args[3], msg) if len(args) > 3 else 10
-        
+
         if len(close) < period or period <= 0 or levels <= 0:
             return close[-1] if close else 100.0
-        
-        data = [(close[i], volume[i]) for i in range(-period, 0) 
+
+        data = [(close[i], volume[i]) for i in range(-period, 0)
                 if isinstance(close[i], (int, float)) and isinstance(volume[i], (int, float))]
-        
+
         if not data:
             return close[-1] if close else 100.0
-        
+
         prices = [p for p, v in data]
         min_price = min(prices)
         max_price = max(prices)
-        
+
         if min_price == max_price:
             return min_price
-        
+
         bucket_size = (max_price - min_price) / levels
         buckets = [0.0] * levels
         bucket_prices = [min_price + i * bucket_size for i in range(levels)]
-        
+
         for price, vol in data:
             bucket_idx = min(int((price - min_price) / bucket_size), levels - 1)
             buckets[bucket_idx] += vol
-        
+
         max_idx = buckets.index(max(buckets))
         return bucket_prices[max_idx]
 
     def _builtin_ta_volume_profile_low(self, args: list[Any]) -> float:
         """Volume Profile Low - Lowest volume price level.
-        
+
         ta.volume_profile_low(close, volume, period, levels)
         Returns: Price level with lowest volume
         """
         msg = "ta.volume_profile_low() requires 4 arguments"
         if len(args) < 4:
             self._error(msg)
-        
+
         close = self._expect_list(args[0], msg)
         volume = self._expect_list(args[1], msg)
         period = self._expect_int(args[2], msg)
         levels = self._expect_int(args[3], msg) if len(args) > 3 else 10
-        
+
         if len(close) < period or period <= 0 or levels <= 0:
             return close[-1] if close else 100.0
-        
+
         data = [(close[i], volume[i]) for i in range(-period, 0)
                 if isinstance(close[i], (int, float)) and isinstance(volume[i], (int, float))]
-        
+
         if not data:
             return close[-1] if close else 100.0
-        
+
         prices = [p for p, v in data]
         min_price = min(prices)
         max_price = max(prices)
-        
+
         if min_price == max_price:
             return min_price
-        
+
         bucket_size = (max_price - min_price) / levels
         buckets = [0.0] * levels
         bucket_prices = [min_price + i * bucket_size for i in range(levels)]
-        
+
         for price, vol in data:
             bucket_idx = min(int((price - min_price) / bucket_size), levels - 1)
             buckets[bucket_idx] += vol
-        
+
         min_idx = buckets.index(min(buckets))
         return bucket_prices[min_idx]
 
     def _builtin_ta_spread_analysis(self, args: list[Any]) -> dict[str, Any]:
         """Spread Analysis - Bid-ask spread tracking.
-        
+
         ta.spread_analysis(bid, ask, period)
         Returns: dict with avg_spread, spread_percent, spread_trend
         """
         msg = "ta.spread_analysis() requires 3 arguments"
         if len(args) < 3:
             self._error(msg)
-        
+
         bid = self._expect_list(args[0], msg)
         ask = self._expect_list(args[1], msg)
         period = self._expect_int(args[2], msg)
-        
+
         if len(bid) < period or len(ask) < period or period <= 0:
             return {"avg_spread": 0.0, "spread_percent": 0.0, "spread_trend": "stable"}
-        
+
         spreads = []
         for i in range(-period, 0):
             b = bid[i] if isinstance(bid[i], (int, float)) else 0
             a = ask[i] if isinstance(ask[i], (int, float)) else 0
             if a > b > 0:
                 spreads.append(a - b)
-        
+
         if not spreads:
             return {"avg_spread": 0.0, "spread_percent": 0.0, "spread_trend": "stable"}
-        
+
         avg_spread = sum(spreads) / len(spreads)
-        mid_price = (ask[-1] + bid[-1]) / 2 if isinstance(ask[-1], (int, float)) and isinstance(bid[-1], (int, float)) else 100.0
+        is_valid_ask = isinstance(ask[-1], (int, float))
+        is_valid_bid = isinstance(bid[-1], (int, float))
+        mid_price = (ask[-1] + bid[-1]) / 2 if is_valid_ask and is_valid_bid else 100.0
         spread_percent = (avg_spread / mid_price * 100) if mid_price > 0 else 0.0
-        
+
         if len(spreads) >= 2:
             if spreads[-1] > spreads[0] * 1.1:
                 trend = "increasing"
@@ -3721,197 +3723,210 @@ class TechnicalAnalysisMixin(BuiltinDispatchMixin):
                 trend = "stable"
         else:
             trend = "stable"
-        
+
         return {"avg_spread": avg_spread, "spread_percent": spread_percent, "spread_trend": trend}
 
     def _builtin_ta_momentum_divergence(self, args: list[Any]) -> dict[str, Any]:
         """Momentum Divergence - Multi-timeframe momentum divergence.
-        
+
         ta.momentum_divergence(price, momentum_fast, momentum_slow)
         Returns: dict with divergence_type, strength, bars_since
         """
         msg = "ta.momentum_divergence() requires 3 arguments"
         if len(args) < 3:
             self._error(msg)
-        
+
         price = self._expect_list(args[0], msg)
         mom_fast = self._expect_list(args[1], msg)
         mom_slow = self._expect_list(args[2], msg)
-        
+
         if len(price) < 2 or len(mom_fast) < 2 or len(mom_slow) < 2:
             return {"divergence_type": "none", "strength": 0.0, "bars_since": 0}
-        
+
         price_val = [p for p in price[-2:] if isinstance(p, (int, float))]
         mf_val = [m for m in mom_fast[-2:] if isinstance(m, (int, float))]
         ms_val = [m for m in mom_slow[-2:] if isinstance(m, (int, float))]
-        
+
         if len(price_val) < 2 or len(mf_val) < 2 or len(ms_val) < 2:
             return {"divergence_type": "none", "strength": 0.0, "bars_since": 0}
-        
+
         price_lower = price_val[1] < price_val[0]
         mf_higher = mf_val[1] > mf_val[0]
         ms_higher = ms_val[1] > ms_val[0]
-        
+
         bullish = price_lower and mf_higher and ms_higher
         bearish = not price_lower and not mf_higher and not ms_higher
-        
+
         div_type = "bullish" if bullish else ("bearish" if bearish else "none")
         strength = min(1.0, abs(mf_val[1] - mf_val[0]) / 100.0) if mf_val else 0.0
-        
+
         return {"divergence_type": div_type, "strength": strength, "bars_since": 1}
 
     def _builtin_ta_acceleration_factor(self, args: list[Any]) -> float:
         """Acceleration Factor - Momentum acceleration/deceleration.
-        
+
         ta.acceleration_factor(momentum_list, period)
         Returns: Factor (-2.0 to 2.0)
         """
         msg = "ta.acceleration_factor() requires 2 arguments"
         if len(args) < 2:
             self._error(msg)
-        
+
         momentum = self._expect_list(args[0], msg)
         period = self._expect_int(args[1], msg)
-        
+
         if len(momentum) < period + 1 or period <= 0:
             return 0.0
-        
+
         momentum_clean = [m for m in momentum[-period-1:] if isinstance(m, (int, float))]
         if len(momentum_clean) < 2:
             return 0.0
-        
+
         old_mom = sum(momentum_clean[:-1]) / len(momentum_clean[:-1])
         new_mom = sum(momentum_clean[-1:])
-        
+
         if abs(old_mom) < 1e-10:
             return 0.0
-        
+
         acceleration = (new_mom - old_mom) / old_mom
         return max(-2.0, min(2.0, acceleration))
 
     def _builtin_ta_mean_reversion_score(self, args: list[Any]) -> float:
         """Mean Reversion Score - Probability of price reverting to mean.
-        
+
         ta.mean_reversion_score(close, sma, stdev, period)
         Returns: Score (0-100)
         """
         msg = "ta.mean_reversion_score() requires 4 arguments"
         if len(args) < 4:
             self._error(msg)
-        
+
         close = self._expect_list(args[0], msg)
         sma = self._expect_list(args[1], msg)
         stdev = self._expect_list(args[2], msg)
         period = self._expect_int(args[3], msg)
-        
+
         if len(close) < period or len(sma) < period or period <= 0:
             return 50.0
-        
+
         c = close[-1] if isinstance(close[-1], (int, float)) else 100.0
         s = sma[-1] if isinstance(sma[-1], (int, float)) else 100.0
         sd = stdev[-1] if isinstance(stdev[-1], (int, float)) else 1.0
-        
+
         if sd == 0:
             return 50.0
-        
+
         distance = abs(c - s) / sd
         score = min(100.0, distance * 20)
-        
+
         return max(0.0, min(100.0, score))
 
     def _builtin_ta_momentum_filter(self, args: list[Any]) -> float:
         """Momentum Filter - Adaptive momentum filtering.
-        
+
         ta.momentum_filter(momentum_raw, volume, period)
         Returns: Filtered momentum value
         """
         msg = "ta.momentum_filter() requires 3 arguments"
         if len(args) < 3:
             self._error(msg)
-        
+
         momentum = self._expect_list(args[0], msg)
         volume = self._expect_list(args[1], msg)
         period = self._expect_int(args[2], msg)
-        
+
         if len(momentum) < period or len(volume) < period or period <= 0:
             return 0.0
-        
+
         vol_sum = sum([v for v in volume[-period:] if isinstance(v, (int, float))])
         mom_data = [(momentum[i], volume[i]) for i in range(-period, 0)
                     if isinstance(momentum[i], (int, float)) and isinstance(volume[i], (int, float))]
-        
+
         if not mom_data or vol_sum == 0:
             return 0.0
-        
+
         weighted_mom = sum(m * v for m, v in mom_data) / vol_sum
         return weighted_mom
 
     def _builtin_ta_economic_impact_score(self, args: list[Any]) -> float:
         """Economic Impact Score - Economic data impact on price.
-        
+
         ta.economic_impact_score(price_change, volatility, volume_change)
         Returns: Score (0-100)
         """
         msg = "ta.economic_impact_score() requires 3 arguments"
         if len(args) < 3:
             self._error(msg)
-        
+
         price_change = args[0] if isinstance(args[0], (int, float)) else 0.0
         volatility = args[1] if isinstance(args[1], (int, float)) else 0.0
         volume_change = args[2] if isinstance(args[2], (int, float)) else 0.0
-        
+
         pc_score = min(100.0, abs(price_change) * 20)
         vol_score = min(100.0, volatility * 30)
         vc_score = min(100.0, volume_change * 25)
-        
+
         impact = (pc_score + vol_score + vc_score) / 3
         return max(0.0, min(100.0, impact))
 
     def _builtin_ta_inflation_proxy_indicator(self, args: list[Any]) -> float:
         """Inflation Proxy Indicator - Inflation estimation from technicals.
-        
+
         ta.inflation_proxy_indicator(usd_index, commodity_prices, bond_yields)
         Returns: Score (-100 to 100)
         """
         msg = "ta.inflation_proxy_indicator() requires 3 arguments"
         if len(args) < 3:
             self._error(msg)
-        
+
         usd_idx = self._expect_list(args[0], msg)
         commodities = self._expect_list(args[1], msg)
         yields = self._expect_list(args[2], msg)
-        
+
         if not usd_idx or not commodities or not yields:
             return 0.0
-        
-        usd_change = -((usd_idx[-1] - usd_idx[0]) / usd_idx[0] * 100) if isinstance(usd_idx[0], (int, float)) and isinstance(usd_idx[-1], (int, float)) and usd_idx[0] != 0 else 0.0
-        comm_change = ((commodities[-1] - commodities[0]) / commodities[0] * 100) if isinstance(commodities[0], (int, float)) and isinstance(commodities[-1], (int, float)) and commodities[0] != 0 else 0.0
-        yields_change = yields[-1] - yields[0] if isinstance(yields[-1], (int, float)) and isinstance(yields[0], (int, float)) else 0.0
-        
+
+        # Calculate USD change
+        usd_valid = isinstance(usd_idx[0], (int, float)) and isinstance(usd_idx[-1], (int, float))
+        usd_change = -((usd_idx[-1] - usd_idx[0]) / usd_idx[0] * 100) if usd_valid and usd_idx[0] != 0 else 0.0
+        # Calculate commodity change
+        comm_valid = isinstance(commodities[0], (int, float)) and isinstance(commodities[-1], (int, float))
+        if comm_valid and commodities[0] != 0:
+            comm_change = ((commodities[-1] - commodities[0]) / commodities[0] * 100)
+        else:
+            comm_change = 0.0
+        # Calculate yields change
+        yields_valid = isinstance(yields[-1], (int, float)) and isinstance(yields[0], (int, float))
+        yields_change = yields[-1] - yields[0] if yields_valid else 0.0
+
         inflation_pressure = (usd_change * 0.3 + comm_change * 0.4 + yields_change * 0.3)
         return max(-100.0, min(100.0, inflation_pressure * 10))
 
     def _builtin_ta_employment_cycle_indicator(self, args: list[Any]) -> str:
         """Employment Cycle Indicator - Employment cycle detection.
-        
+
         ta.employment_cycle_indicator(cyclical_stocks, defensive_stocks, unemployment_proxy)
         Returns: "early_cycle" | "mid_cycle" | "late_cycle" | "recession"
         """
         msg = "ta.employment_cycle_indicator() requires 3 arguments"
         if len(args) < 3:
             self._error(msg)
-        
+
         cyclical = self._expect_list(args[0], msg)
         defensive = self._expect_list(args[1], msg)
         unemployment = self._expect_list(args[2], msg)
-        
+
         if not cyclical or not defensive or not unemployment:
             return "mid_cycle"
-        
-        cyc_perf = (cyclical[-1] - cyclical[0]) / cyclical[0] if isinstance(cyclical[0], (int, float)) and isinstance(cyclical[-1], (int, float)) and cyclical[0] != 0 else 0.0
-        def_perf = (defensive[-1] - defensive[0]) / defensive[0] if isinstance(defensive[0], (int, float)) and isinstance(defensive[-1], (int, float)) and defensive[0] != 0 else 0.0
+
+        # Calculate cyclical performance
+        cyc_valid = isinstance(cyclical[0], (int, float)) and isinstance(cyclical[-1], (int, float))
+        cyc_perf = (cyclical[-1] - cyclical[0]) / cyclical[0] if cyc_valid and cyclical[0] != 0 else 0.0
+        # Calculate defensive performance
+        def_valid = isinstance(defensive[0], (int, float)) and isinstance(defensive[-1], (int, float))
+        def_perf = (defensive[-1] - defensive[0]) / defensive[0] if def_valid and defensive[0] != 0 else 0.0
         unemp = unemployment[-1] if isinstance(unemployment[-1], (int, float)) else 0.05
-        
+
         if cyc_perf > def_perf and unemp < 0.04:
             return "early_cycle"
         elif cyc_perf > def_perf and unemp < 0.06:
@@ -3923,87 +3938,89 @@ class TechnicalAnalysisMixin(BuiltinDispatchMixin):
 
     def _builtin_ta_gdp_growth_proxy(self, args: list[Any]) -> float:
         """GDP Growth Proxy - GDP growth estimation from market signals.
-        
+
         ta.gdp_growth_proxy(market_breadth, market_volume, price_momentum)
         Returns: Growth estimate (-2 to 4)
         """
         msg = "ta.gdp_growth_proxy() requires 3 arguments"
         if len(args) < 3:
             self._error(msg)
-        
+
         breadth = self._expect_list(args[0], msg)
         volume = self._expect_list(args[1], msg)
         momentum = self._expect_list(args[2], msg)
-        
+
         if not breadth or not volume or not momentum:
             return 0.0
-        
+
         b_score = (breadth[-1] if isinstance(breadth[-1], (int, float)) else 0.5) * 2 - 1
-        v_change = ((volume[-1] - volume[0]) / volume[0] * 100) if isinstance(volume[0], (int, float)) and isinstance(volume[-1], (int, float)) and volume[0] != 0 else 0.0
+        # Calculate volume change
+        v_valid = isinstance(volume[0], (int, float)) and isinstance(volume[-1], (int, float))
+        v_change = ((volume[-1] - volume[0]) / volume[0] * 100) if v_valid and volume[0] != 0 else 0.0
         m_score = (momentum[-1] if isinstance(momentum[-1], (int, float)) else 0.0) / 100.0
-        
+
         gdp_est = b_score * 1.5 + (v_change / 100.0) + m_score
         return max(-2.0, min(4.0, gdp_est))
 
     def _builtin_ta_fear_greed_index(self, args: list[Any]) -> float:
         """Fear Greed Index - Market psychology measurement.
-        
+
         ta.fear_greed_index(rsi, vix_proxy, put_call_ratio, breadth)
         Returns: Score (-100 to 100)
         """
         msg = "ta.fear_greed_index() requires 4 arguments"
         if len(args) < 4:
             self._error(msg)
-        
+
         rsi = self._expect_list(args[0], msg)
         vix = self._expect_list(args[1], msg)
         put_call = self._expect_list(args[2], msg)
         breadth = self._expect_list(args[3], msg)
-        
+
         rsi_val = rsi[-1] if isinstance(rsi[-1], (int, float)) else 50.0
         vix_val = vix[-1] if isinstance(vix[-1], (int, float)) else 2.0
         pc_val = put_call[-1] if isinstance(put_call[-1], (int, float)) else 1.0
         b_val = breadth[-1] if isinstance(breadth[-1], (int, float)) else 0.5
-        
+
         rsi_fear = (rsi_val - 50) * 1.0
         vix_fear = (vix_val - 2.0) * 10.0
         pc_fear = (1.0 - pc_val) * 50.0
         b_fear = (b_val - 0.5) * 100.0
-        
+
         fear_index = (rsi_fear + vix_fear + pc_fear + b_fear) / 4
         return max(-100.0, min(100.0, fear_index))
 
     def _builtin_ta_crowd_sentiment(self, args: list[Any]) -> float:
         """Crowd Sentiment - Crowd consensus strength.
-        
+
         ta.crowd_sentiment(price_agreement, volume_agreement, time_agreement)
         Returns: Score (0-100)
         """
         msg = "ta.crowd_sentiment() requires 3 arguments"
         if len(args) < 3:
             self._error(msg)
-        
+
         price_agr = args[0] if isinstance(args[0], (int, float)) else 0.5
         vol_agr = args[1] if isinstance(args[1], (int, float)) else 0.5
         time_agr = args[2] if isinstance(args[2], (int, float)) else 0.5
-        
+
         consensus = ((price_agr + vol_agr + time_agr) / 3) * 100
         return max(0.0, min(100.0, consensus))
 
     def _builtin_ta_contrarian_signal(self, args: list[Any]) -> dict[str, Any]:
         """Contrarian Signal - Contrarian trading opportunity detection.
-        
+
         ta.contrarian_signal(sentiment, volatility, time_since_extreme)
         Returns: dict with signal, strength, confidence
         """
         msg = "ta.contrarian_signal() requires 3 arguments"
         if len(args) < 3:
             self._error(msg)
-        
+
         sentiment = args[0] if isinstance(args[0], (int, float)) else 50.0
         volatility = args[1] if isinstance(args[1], (int, float)) else 1.0
         time_extreme = args[2] if isinstance(args[2], (int, float)) else 10
-        
+
         if sentiment > 80 and volatility > 2.0 and time_extreme < 5:
             signal = "strong_contrarian"
             strength = 0.9
@@ -4024,26 +4041,26 @@ class TechnicalAnalysisMixin(BuiltinDispatchMixin):
             signal = "neutral"
             strength = 0.5
             confidence = 0.5
-        
+
         return {"signal": signal, "strength": strength, "confidence": confidence}
 
     def _builtin_ta_cumulative_delta(self, args: list[Any]) -> float:
         """Cumulative Delta - Buy-sell volume delta.
-        
+
         ta.cumulative_delta(close, volume, period)
         Returns: Cumulative signed volume
         """
         msg = "ta.cumulative_delta() requires 3 arguments"
         if len(args) < 3:
             self._error(msg)
-        
+
         close = self._expect_list(args[0], msg)
         volume = self._expect_list(args[1], msg)
         period = self._expect_int(args[2], msg)
-        
+
         if len(close) < period or len(volume) < period or period <= 0:
             return 0.0
-        
+
         delta = 0.0
         for i in range(-period, 0):
             c = close[i] if isinstance(close[i], (int, float)) else 0
@@ -4054,120 +4071,122 @@ class TechnicalAnalysisMixin(BuiltinDispatchMixin):
                     delta += v
                 elif c < prev_c:
                     delta -= v
-        
+
         return delta
 
     def _builtin_ta_volume_momentum(self, args: list[Any]) -> float:
         """Volume Momentum - Rate of change of volume.
-        
+
         ta.volume_momentum(volume, period)
         Returns: Momentum (-100 to 100)
         """
         msg = "ta.volume_momentum() requires 2 arguments"
         if len(args) < 2:
             self._error(msg)
-        
+
         volume = self._expect_list(args[0], msg)
         period = self._expect_int(args[1], msg)
-        
+
         if len(volume) < period + 1 or period <= 0:
             return 0.0
-        
+
         vol_clean = [v for v in volume[-period-1:] if isinstance(v, (int, float))]
         if len(vol_clean) < 2:
             return 0.0
-        
+
         old_vol = sum(vol_clean[:-1]) / len(vol_clean[:-1])
         new_vol = sum(vol_clean[-1:])
-        
+
         if old_vol == 0:
             return 0.0
-        
+
         momentum = ((new_vol - old_vol) / old_vol) * 100.0
         return max(-100.0, min(100.0, momentum))
 
     def _builtin_ta_smart_money_flow(self, args: list[Any]) -> float:
         """Smart Money Flow - Institutional money flow estimation.
-        
+
         ta.smart_money_flow(price_change, volume, time_since_high, time_since_low)
         Returns: Flow intensity (-1.0 to 1.0)
         """
         msg = "ta.smart_money_flow() requires 4 arguments"
         if len(args) < 4:
             self._error(msg)
-        
+
         price_change = args[0] if isinstance(args[0], (int, float)) else 0.0
         volume = args[1] if isinstance(args[1], (int, float)) else 1000.0
         time_high = args[2] if isinstance(args[2], (int, float)) else 10
         time_low = args[3] if isinstance(args[3], (int, float)) else 10
-        
+
         vol_factor = min(1.0, volume / 5000.0)
-        
+
         if price_change > 0 and time_high < time_low:
             flow = vol_factor * 0.8
         elif price_change < 0 and time_low < time_high:
             flow = -vol_factor * 0.8
         else:
             flow = 0.0
-        
+
         return max(-1.0, min(1.0, flow))
 
     def _builtin_ta_liquidity_score(self, args: list[Any]) -> float:
         """Liquidity Score - Market liquidity measurement.
-        
+
         ta.liquidity_score(volume, volatility, bid_ask_spread, period)
         Returns: Score (0-100)
         """
         msg = "ta.liquidity_score() requires 4 arguments"
         if len(args) < 4:
             self._error(msg)
-        
+
         volume = self._expect_list(args[0], msg)
         volatility = self._expect_list(args[1], msg)
         spread = self._expect_list(args[2], msg)
         period = self._expect_int(args[3], msg)
-        
+
         if len(volume) < period or len(volatility) < period or len(spread) < period or period <= 0:
             return 50.0
-        
+
         vol_avg = sum([v for v in volume[-period:] if isinstance(v, (int, float))]) / period if volume else 1000.0
         vol_score = min(100.0, vol_avg / 100.0)
-        
-        vol_avg_volatility = sum([v for v in volatility[-period:] if isinstance(v, (int, float))]) / period if volatility else 1.0
+
+        # Calculate average volatility
+        valid_volatility = [v for v in volatility[-period:] if isinstance(v, (int, float))]
+        vol_avg_volatility = sum(valid_volatility) / period if volatility else 1.0
         volatility_score = max(0.0, 100.0 - vol_avg_volatility * 50.0)
-        
+
         spread_avg = sum([s for s in spread[-period:] if isinstance(s, (int, float))]) / period if spread else 0.1
         spread_score = max(0.0, 100.0 - spread_avg * 100.0)
-        
+
         liquidity = (vol_score * 0.4 + volatility_score * 0.3 + spread_score * 0.3)
         return max(0.0, min(100.0, liquidity))
 
     def _builtin_ta_volume_thrust(self, args: list[Any]) -> bool:
         """Volume Thrust - Volume surge pattern detection.
-        
+
         ta.volume_thrust(close, volume, volume_sma, sensitivity)
         Returns: bool
         """
         msg = "ta.volume_thrust() requires 4 arguments"
         if len(args) < 4:
             self._error(msg)
-        
+
         close = self._expect_list(args[0], msg)
         volume = self._expect_list(args[1], msg)
         vol_sma = self._expect_list(args[2], msg)
         sensitivity = args[3] if isinstance(args[3], (int, float)) else 0.3
-        
+
         if not close or not volume or not vol_sma:
             return False
-        
+
         c_val = close[-1] if isinstance(close[-1], (int, float)) else 100.0
         c_prev = close[-2] if len(close) > 1 and isinstance(close[-2], (int, float)) else 100.0
         v_val = volume[-1] if isinstance(volume[-1], (int, float)) else 1000.0
         vs_val = vol_sma[-1] if isinstance(vol_sma[-1], (int, float)) else 1000.0
-        
+
         volume_spike = v_val > vs_val * (1 + sensitivity)
         price_move = abs(c_val - c_prev) / c_prev > 0.01 if c_prev != 0 else False
-        
+
         return volume_spike and price_move
 
     # ========================================================================
@@ -4176,64 +4195,64 @@ class TechnicalAnalysisMixin(BuiltinDispatchMixin):
 
     def _builtin_ta_trend_confirmation_score(self, args: list[Any]) -> float:
         """Trend Confirmation Score - Multi-signal trend strength.
-        
-        ta.trend_confirmation_score(momentum, trend_alignment, strength, rsi, 
+
+        ta.trend_confirmation_score(momentum, trend_alignment, strength, rsi,
                                      rsi_alignment, support_distance)
         Returns: float (0-100)
         """
         msg = "ta.trend_confirmation_score() requires 6 arguments"
         if len(args) < 6:
             self._error(msg)
-        
+
         momentum = args[0] if isinstance(args[0], (int, float)) else 0.0
         trend_alignment = args[1] if isinstance(args[1], (int, float)) else 0.0
         strength = args[2] if isinstance(args[2], (int, float)) else 1.0
         rsi = args[3] if isinstance(args[3], (int, float)) else 50.0
         rsi_alignment = args[4] if isinstance(args[4], (int, float)) else 0.0
         support_distance = args[5] if isinstance(args[5], (int, float)) else 0.0
-        
+
         momentum_score = min(100.0, abs(momentum) * 20.0)
         trend_score = max(0.0, (trend_alignment + 1.0) / 2.0 * 100.0)
         strength_score = min(100.0, strength * 50.0)
         rsi_score = min(100.0, abs(rsi - 50.0) * 2.0) if abs(rsi - 50.0) > 10.0 else 40.0
         alignment_bonus = 20.0 if abs(rsi_alignment) > 0.5 else 0.0
-        
-        total = (momentum_score * 0.25 + trend_score * 0.3 + strength_score * 0.25 
+
+        total = (momentum_score * 0.25 + trend_score * 0.3 + strength_score * 0.25
                  + rsi_score * 0.15 + alignment_bonus)
         return max(0.0, min(100.0, total))
 
     def _builtin_ta_market_structure_pivot(self, args: list[Any]) -> dict:
         """Market Structure Pivot - Fractal/Swing/Block detection.
-        
+
         ta.market_structure_pivot(high_list, low_list, close_list, period, mode)
         Returns: dict with pivot_price, strength, structure
         """
         msg = "ta.market_structure_pivot() requires 5 arguments"
         if len(args) < 5:
             self._error(msg)
-        
+
         high_list = self._expect_list(args[0], msg)
         low_list = self._expect_list(args[1], msg)
         close_list = self._expect_list(args[2], msg)
         period = self._expect_int(args[3], msg)
         mode = self._expect_int(args[4], msg)
-        
-        if (not high_list or not low_list or not close_list 
+
+        if (not high_list or not low_list or not close_list
                 or len(high_list) < period or period <= 0):
             return {"pivot_price": 100.0, "strength": 50.0, "structure": "neutral"}
-        
+
         h_vals = [h for h in high_list[-period:] if isinstance(h, (int, float))]
         l_vals = [l for l in low_list[-period:] if isinstance(l, (int, float))]
         c_vals = [c for c in close_list[-period:] if isinstance(c, (int, float))]
-        
+
         if not h_vals or not l_vals:
             return {"pivot_price": 100.0, "strength": 50.0, "structure": "neutral"}
-        
+
         pivot_high = max(h_vals)
         pivot_low = min(l_vals)
         pivot_price = (pivot_high + pivot_low) / 2.0
         pivot_range = pivot_high - pivot_low
-        
+
         if mode == 0:  # Fractal
             structure = "fractal"
             strength = min(100.0, pivot_range * 2.0)
@@ -4243,7 +4262,7 @@ class TechnicalAnalysisMixin(BuiltinDispatchMixin):
         else:  # Block
             structure = "block"
             strength = min(100.0, pivot_range * 0.5)
-        
+
         return {
             "pivot_price": pivot_price,
             "structure": structure,
@@ -4252,32 +4271,32 @@ class TechnicalAnalysisMixin(BuiltinDispatchMixin):
 
     def _builtin_ta_volatility_regime_score(self, args: list[Any]) -> dict:
         """Volatility Regime Score - Regime classification.
-        
+
         ta.volatility_regime_score(atr_list, volatility_list, vix_list, threshold)
         Returns: dict with regime, volatility_score, momentum
         """
         msg = "ta.volatility_regime_score() requires 4 arguments"
         if len(args) < 4:
             self._error(msg)
-        
+
         atr_list = self._expect_list(args[0], msg)
         vol_list = self._expect_list(args[1], msg)
         vix_list = self._expect_list(args[2], msg)
         threshold = args[3] if isinstance(args[3], (int, float)) else 50.0
-        
+
         if not atr_list or not vol_list or not vix_list:
             return {"regime": "normal", "volatility_score": 50.0, "momentum": "stable"}
-        
+
         atr_val = atr_list[-1] if isinstance(atr_list[-1], (int, float)) else 2.0
         vol_val = vol_list[-1] if isinstance(vol_list[-1], (int, float)) else 0.02
         vix_val = vix_list[-1] if isinstance(vix_list[-1], (int, float)) else 15.0
-        
+
         atr_score = min(100.0, atr_val * 20.0)
         vol_score = min(100.0, vol_val * 100.0)
         vix_score = min(100.0, vix_val * 2.0)
-        
+
         volatility_score = (atr_score * 0.4 + vol_score * 0.3 + vix_score * 0.3)
-        
+
         if volatility_score < threshold * 0.5:
             regime = "low"
         elif volatility_score < threshold:
@@ -4286,7 +4305,7 @@ class TechnicalAnalysisMixin(BuiltinDispatchMixin):
             regime = "high"
         else:
             regime = "extreme"
-        
+
         # Momentum detection
         if len(atr_list) > 1 and isinstance(atr_list[-2], (int, float)):
             prev_atr = atr_list[-2]
@@ -4298,7 +4317,7 @@ class TechnicalAnalysisMixin(BuiltinDispatchMixin):
                 momentum = "stable"
         else:
             momentum = "stable"
-        
+
         return {
             "regime": regime,
             "volatility_score": volatility_score,
@@ -4307,46 +4326,46 @@ class TechnicalAnalysisMixin(BuiltinDispatchMixin):
 
     def _builtin_ta_correlation_filter(self, args: list[Any]) -> dict:
         """Correlation Filter - Multi-signal agreement.
-        
-        ta.correlation_filter(signal1_list, signal2_list, signal3_list, 
+
+        ta.correlation_filter(signal1_list, signal2_list, signal3_list,
                               num_signals, threshold)
         Returns: dict with is_correlated, signal_agreement, divergence_count
         """
         msg = "ta.correlation_filter() requires 5 arguments"
         if len(args) < 5:
             self._error(msg)
-        
+
         sig1 = self._expect_list(args[0], msg)
         sig2 = self._expect_list(args[1], msg)
         sig3 = self._expect_list(args[2], msg)
         num_signals = self._expect_int(args[3], msg)
         threshold = args[4] if isinstance(args[4], (int, float)) else 0.7
-        
+
         signals = [sig1, sig2, sig3]
         valid_signals = [s for s in signals if s and len(s) > 0]
-        
+
         if len(valid_signals) < 2:
             return {
                 "is_correlated": False,
                 "signal_agreement": 0,
                 "divergence_count": 0,
             }
-        
+
         last_vals = []
         for sig in valid_signals:
             if sig and isinstance(sig[-1], (int, float)):
                 last_vals.append(sig[-1])
-        
+
         if not last_vals:
             return {
                 "is_correlated": False,
                 "signal_agreement": 0,
                 "divergence_count": 0,
             }
-        
+
         agreement_count = 0
         divergence_count = 0
-        
+
         for i in range(len(last_vals) - 1):
             for j in range(i + 1, len(last_vals)):
                 product = last_vals[i] * last_vals[j]
@@ -4354,11 +4373,11 @@ class TechnicalAnalysisMixin(BuiltinDispatchMixin):
                     agreement_count += 1
                 else:
                     divergence_count += 1
-        
+
         total_pairs = len(last_vals) * (len(last_vals) - 1) / 2.0
         signal_agreement = (agreement_count / total_pairs * 100.0) if total_pairs > 0 else 0
         is_correlated = signal_agreement / 100.0 >= threshold
-        
+
         return {
             "is_correlated": is_correlated,
             "signal_agreement": signal_agreement,
@@ -4367,41 +4386,41 @@ class TechnicalAnalysisMixin(BuiltinDispatchMixin):
 
     def _builtin_ta_advanced_breakout_detector(self, args: list[Any]) -> dict:
         """Advanced Breakout Detector - Multiple breakout types.
-        
-        ta.advanced_breakout_detector(price_list, volume_list, level, lookback, 
+
+        ta.advanced_breakout_detector(price_list, volume_list, level, lookback,
                                       volume_multiplier)
         Returns: dict with breakout_detected, breakout_type, pullback_probability
         """
         msg = "ta.advanced_breakout_detector() requires 5 arguments"
         if len(args) < 5:
             self._error(msg)
-        
+
         price = self._expect_list(args[0], msg)
         volume = self._expect_list(args[1], msg)
         level = args[2] if isinstance(args[2], (int, float)) else 100.0
         lookback = self._expect_int(args[3], msg)
         vol_mult = args[4] if isinstance(args[4], (int, float)) else 0.5
-        
+
         if not price or not volume or len(price) < 2 or lookback <= 0:
             return {
                 "breakout_detected": False,
                 "breakout_type": "none",
                 "pullback_probability": 0.5,
             }
-        
+
         current_price = price[-1] if isinstance(price[-1], (int, float)) else 100.0
         prev_price = price[-2] if isinstance(price[-2], (int, float)) else 100.0
         current_vol = volume[-1] if isinstance(volume[-1], (int, float)) else 1000.0
-        
+
         recent_vol = [v for v in volume[-lookback:] if isinstance(v, (int, float))]
         avg_vol = sum(recent_vol) / len(recent_vol) if recent_vol else 1000.0
-        
+
         gap_breakout = current_price > level and prev_price <= level
         close_breakout = current_price > level and abs(current_price - level) < 0.5
         volume_break = current_vol > avg_vol * (1.0 + vol_mult)
-        
+
         breakout_detected = gap_breakout or close_breakout or volume_break
-        
+
         if gap_breakout:
             breakout_type = "gap"
         elif close_breakout and volume_break:
@@ -4410,10 +4429,10 @@ class TechnicalAnalysisMixin(BuiltinDispatchMixin):
             breakout_type = "close_above"
         else:
             breakout_type = "none"
-        
+
         # Pullback probability (higher volume suggests less pullback)
         pullback_prob = max(0.1, 0.8 - (current_vol / avg_vol - 1.0) * 0.3)
-        
+
         return {
             "breakout_detected": breakout_detected,
             "breakout_type": breakout_type,
@@ -4422,53 +4441,53 @@ class TechnicalAnalysisMixin(BuiltinDispatchMixin):
 
     def _builtin_ta_pullback_bounce_level(self, args: list[Any]) -> dict:
         """Pullback/Bounce Level - Fibonacci support/resistance.
-        
-        ta.pullback_bounce_level(high_list, low_list, close_list, trend_direction, 
+
+        ta.pullback_bounce_level(high_list, low_list, close_list, trend_direction,
                                  lookback)
         Returns: dict with primary_level, bounce_probability, support_strength
         """
         msg = "ta.pullback_bounce_level() requires 5 arguments"
         if len(args) < 5:
             self._error(msg)
-        
+
         high = self._expect_list(args[0], msg)
         low = self._expect_list(args[1], msg)
         close = self._expect_list(args[2], msg)
         trend_dir = self._expect_int(args[3], msg)
         lookback = self._expect_int(args[4], msg)
-        
+
         if not high or not low or lookback <= 0:
             return {
                 "primary_level": 100.0,
                 "bounce_probability": 0.5,
                 "support_strength": 50.0,
             }
-        
+
         h_vals = [h for h in high[-lookback:] if isinstance(h, (int, float))]
         l_vals = [l for l in low[-lookback:] if isinstance(l, (int, float))]
-        
+
         if not h_vals or not l_vals:
             return {
                 "primary_level": 100.0,
                 "bounce_probability": 0.5,
                 "support_strength": 50.0,
             }
-        
+
         swing_high = max(h_vals)
         swing_low = min(l_vals)
         swing_range = swing_high - swing_low
-        
+
         if trend_dir > 0:  # Uptrend - look for support (Fibonacci retracement)
             fib_level = swing_low + swing_range * 0.382
         else:  # Downtrend - look for resistance
             fib_level = swing_high - swing_range * 0.382
-        
+
         primary_level = fib_level
-        
+
         # Bounce probability based on volatility
         bounce_prob = min(0.95, 0.5 + (swing_range / swing_high) * 1.0)
         support_strength = min(100.0, (swing_range / swing_high) * 100.0)
-        
+
         return {
             "primary_level": primary_level,
             "bounce_probability": bounce_prob,
@@ -4477,25 +4496,25 @@ class TechnicalAnalysisMixin(BuiltinDispatchMixin):
 
     def _builtin_ta_multi_timeframe_signal(self, args: list[Any]) -> dict:
         """Multi-Timeframe Signal - Alignment across timeframes.
-        
-        ta.multi_timeframe_signal(signal_short, signal_mid, signal_long, 
+
+        ta.multi_timeframe_signal(signal_short, signal_mid, signal_long,
                                   weight_short, weight_mid, weight_long)
         Returns: dict with combined_signal, signal_agreement, alignment_quality
         """
         msg = "ta.multi_timeframe_signal() requires 6 arguments"
         if len(args) < 6:
             self._error(msg)
-        
+
         sig_short = args[0] if isinstance(args[0], (int, float)) else 0.0
         sig_mid = args[1] if isinstance(args[1], (int, float)) else 0.0
         sig_long = args[2] if isinstance(args[2], (int, float)) else 0.0
         w_short = args[3] if isinstance(args[3], (int, float)) else 0.33
         w_mid = args[4] if isinstance(args[4], (int, float)) else 0.33
         w_long = args[5] if isinstance(args[5], (int, float)) else 0.34
-        
+
         combined = sig_short * w_short + sig_mid * w_mid + sig_long * w_long
         combined_signal = max(-1.0, min(1.0, combined))
-        
+
         # Signal agreement counting
         agreement = 0
         if sig_short > 0 and sig_mid > 0 and sig_long > 0:
@@ -4516,9 +4535,9 @@ class TechnicalAnalysisMixin(BuiltinDispatchMixin):
             agreement = 2
         else:
             agreement = 0
-        
+
         alignment_quality = (agreement / 3.0) * 100.0
-        
+
         return {
             "combined_signal": combined_signal,
             "signal_agreement": agreement,
@@ -4527,20 +4546,20 @@ class TechnicalAnalysisMixin(BuiltinDispatchMixin):
 
     def _builtin_ta_position_sizing_score(self, args: list[Any]) -> dict:
         """Position Sizing Score - Risk-based sizing calculation.
-        
-        ta.position_sizing_score(risk_reward_ratio, win_rate, account_risk_factor, 
+
+        ta.position_sizing_score(risk_reward_ratio, win_rate, account_risk_factor,
                                  correlation_to_portfolio)
         Returns: dict with position_size_ratio, kelly_fraction, correlation_adjustment
         """
         msg = "ta.position_sizing_score() requires 4 arguments"
         if len(args) < 4:
             self._error(msg)
-        
+
         rr_ratio = args[0] if isinstance(args[0], (int, float)) else 1.0
         win_rate = args[1] if isinstance(args[1], (int, float)) else 50.0
         acct_risk = args[2] if isinstance(args[2], (int, float)) else 1.0
         correlation = args[3] if isinstance(args[3], (int, float)) else 0.5
-        
+
         # Kelly Criterion: f = (p*b - q) / b
         # where p = win_rate, q = 1-p, b = risk_reward_ratio
         p = win_rate / 100.0
@@ -4548,14 +4567,14 @@ class TechnicalAnalysisMixin(BuiltinDispatchMixin):
         b = max(0.1, rr_ratio)
         kelly = max(0.0, min(0.5, (p * b - q) / b))
         kelly_fraction = kelly * 0.25  # Use fraction of Kelly
-        
+
         # Position sizing based on account risk
         base_position = kelly_fraction * min(0.1, acct_risk / 100.0)
-        
+
         # Adjust for correlation (diversification)
         correlation_adj = 1.0 - (correlation * 0.5)
         position_size_ratio = base_position * correlation_adj
-        
+
         return {
             "position_size_ratio": max(0.0, min(1.0, position_size_ratio)),
             "kelly_fraction": kelly_fraction,
@@ -4564,22 +4583,22 @@ class TechnicalAnalysisMixin(BuiltinDispatchMixin):
 
     def _builtin_ta_optimal_entry_zone(self, args: list[Any]) -> dict:
         """Optimal Entry Zone - Multi-confluence entry detection.
-        
+
         ta.optimal_entry_zone(level1, level2, level3, level4)
         Returns: dict with entry_zone_low, entry_zone_high, best_entry, zone_strength
         """
         msg = "ta.optimal_entry_zone() requires 4 arguments"
         if len(args) < 4:
             self._error(msg)
-        
+
         level1 = args[0] if isinstance(args[0], (int, float)) else 100.0
         level2 = args[1] if isinstance(args[1], (int, float)) else 100.0
         level3 = args[2] if isinstance(args[2], (int, float)) else 100.0
         level4 = args[3] if isinstance(args[3], (int, float)) else 100.0
-        
+
         levels = [level1, level2, level3, level4]
         valid_levels = [l for l in levels if isinstance(l, (int, float))]
-        
+
         if not valid_levels:
             return {
                 "entry_zone_low": 100.0,
@@ -4587,16 +4606,16 @@ class TechnicalAnalysisMixin(BuiltinDispatchMixin):
                 "best_entry": 100.0,
                 "zone_strength": 50.0,
             }
-        
+
         zone_low = min(valid_levels)
         zone_high = max(valid_levels)
         zone_mid = (zone_low + zone_high) / 2.0
         zone_range = zone_high - zone_low
-        
+
         # Zone strength based on confluence
         confluence_count = len([1 for l in levels if abs(l - zone_mid) < zone_range * 0.1])
         zone_strength = min(100.0, confluence_count * 25.0)
-        
+
         return {
             "entry_zone_low": zone_low,
             "entry_zone_high": zone_high,
@@ -4606,38 +4625,38 @@ class TechnicalAnalysisMixin(BuiltinDispatchMixin):
 
     def _builtin_ta_trailing_exit_level(self, args: list[Any]) -> dict:
         """Trailing Exit Level - Dynamic stop loss with profit protection.
-        
-        ta.trailing_exit_level(entry_price, current_price, profit_target_percent, 
+
+        ta.trailing_exit_level(entry_price, current_price, profit_target_percent,
                                trailing_stop_percent, risk_factor)
         Returns: dict with trail_stop, protected_profit, risk_reward_current
         """
         msg = "ta.trailing_exit_level() requires 5 arguments"
         if len(args) < 5:
             self._error(msg)
-        
+
         entry = args[0] if isinstance(args[0], (int, float)) else 100.0
         current = args[1] if isinstance(args[1], (int, float)) else 100.0
         profit_target = args[2] if isinstance(args[2], (int, float)) else 30.0
         trail_stop = args[3] if isinstance(args[3], (int, float)) else 2.0
         risk_factor = args[4] if isinstance(args[4], (int, float)) else 1.0
-        
+
         current_profit = (current - entry) / entry * 100.0 if entry != 0 else 0.0
-        
+
         # Trail stop level
         target_price = entry * (1.0 + profit_target / 100.0)
         trail_level = current * (1.0 - trail_stop / 100.0) * risk_factor
-        
+
         # Ensure trail stop is above entry
         trail_stop_final = max(trail_level, entry * 1.001)
-        
+
         # Protected profit
         protected_profit = max(0.0, current_profit - 0.5)
-        
+
         # Current risk/reward
         current_risk = (current - trail_stop_final) / entry * 100.0 if entry != 0 else 1.0
         target_reward = (target_price - current) / entry * 100.0 if entry != 0 else 1.0
         risk_reward = target_reward / max(0.1, current_risk)
-        
+
         return {
             "trail_stop": trail_stop_final,
             "protected_profit": protected_profit,
@@ -4646,8 +4665,8 @@ class TechnicalAnalysisMixin(BuiltinDispatchMixin):
 
     def _builtin_ta_mean_reversion_entry(self, args: list[Any]) -> dict:
         """Mean Reversion Entry - Statistical reversal detection.
-        
-        ta.mean_reversion_entry(current_price, mean_price, std_dev, lookback, 
+
+        ta.mean_reversion_entry(current_price, mean_price, std_dev, lookback,
                                 z_score_threshold)
         Returns: dict with z_score, is_mean_reversion_setup, reversion_probability,
                  target_price
@@ -4655,25 +4674,25 @@ class TechnicalAnalysisMixin(BuiltinDispatchMixin):
         msg = "ta.mean_reversion_entry() requires 5 arguments"
         if len(args) < 5:
             self._error(msg)
-        
+
         current = args[0] if isinstance(args[0], (int, float)) else 100.0
         mean = args[1] if isinstance(args[1], (int, float)) else 100.0
         std_dev = args[2] if isinstance(args[2], (int, float)) else 1.0
         lookback = self._expect_int(args[3], msg)
         z_threshold = args[4] if isinstance(args[4], (int, float)) else 2.0
-        
+
         # Calculate z-score
         z_score = (current - mean) / max(0.01, std_dev)
-        
+
         # Mean reversion setup (extreme z-score)
         is_setup = abs(z_score) >= z_threshold
-        
+
         # Reversion probability (based on z-score magnitude)
         prob = min(0.95, 0.5 + abs(z_score) / 10.0)
-        
+
         # Target: return toward mean
         target = mean
-        
+
         return {
             "z_score": z_score,
             "is_mean_reversion_setup": is_setup,
@@ -4683,35 +4702,35 @@ class TechnicalAnalysisMixin(BuiltinDispatchMixin):
 
     def _builtin_ta_breakeven_level(self, args: list[Any]) -> dict:
         """Breakeven Level - Calculate position breakeven price.
-        
-        ta.breakeven_level(entry_price, position_size, commission_percent, 
+
+        ta.breakeven_level(entry_price, position_size, commission_percent,
                            slippage_percent, position_type)
         Returns: dict with breakeven_price, total_cost, move_required_percent
         """
         msg = "ta.breakeven_level() requires 5 arguments"
         if len(args) < 5:
             self._error(msg)
-        
+
         entry = args[0] if isinstance(args[0], (int, float)) else 100.0
         size = args[1] if isinstance(args[1], (int, float)) else 1.0
         commission = args[2] if isinstance(args[2], (int, float)) else 0.1
         slippage = args[3] if isinstance(args[3], (int, float)) else 0.05
         pos_type = self._expect_int(args[4], msg)
-        
+
         # Total costs (commission + slippage)
         total_cost_pct = commission + slippage
         cost_per_share = entry * (total_cost_pct / 100.0)
         total_cost = cost_per_share * size
-        
+
         # Breakeven price
         if pos_type > 0:  # Long
             breakeven = entry + (total_cost / size) / entry
         else:  # Short
             breakeven = entry - (total_cost / size) / entry
-        
+
         # Move required
         move_required_pct = abs(breakeven - entry) / entry * 100.0 if entry != 0 else 0.0
-        
+
         return {
             "breakeven_price": breakeven,
             "total_cost": total_cost,
@@ -4720,35 +4739,35 @@ class TechnicalAnalysisMixin(BuiltinDispatchMixin):
 
     def _builtin_ta_drawdown_recovery_level(self, args: list[Any]) -> dict:
         """Drawdown Recovery Level - Estimate recovery requirements.
-        
-        ta.drawdown_recovery_level(peak_price, trough_price, avg_daily_return, 
+
+        ta.drawdown_recovery_level(peak_price, trough_price, avg_daily_return,
                                    lookback)
         Returns: dict with drawdown_percent, recovery_timeframe, recovery_confidence
         """
         msg = "ta.drawdown_recovery_level() requires 4 arguments"
         if len(args) < 4:
             self._error(msg)
-        
+
         peak = args[0] if isinstance(args[0], (int, float)) else 110.0
         trough = args[1] if isinstance(args[1], (int, float)) else 100.0
         daily_ret = args[2] if isinstance(args[2], (int, float)) else 1.0
         lookback = self._expect_int(args[3], msg)
-        
+
         # Drawdown calculation
         drawdown_pct = (peak - trough) / peak * 100.0 if peak != 0 else 0.0
-        
+
         # Recovery timeframe (days needed at daily_ret to recover)
         current_price = trough
         required_return_pct = drawdown_pct / (100.0 - drawdown_pct)
-        
+
         if daily_ret > 0:
             days_to_recover = 1 + (required_return_pct / (daily_ret / 100.0))
         else:
             days_to_recover = lookback * 10
-        
+
         # Recovery confidence (lower drawdown, higher confidence)
         confidence = max(0.1, 1.0 - (drawdown_pct / 100.0))
-        
+
         return {
             "drawdown_percent": drawdown_pct,
             "recovery_timeframe": days_to_recover,
@@ -4757,35 +4776,35 @@ class TechnicalAnalysisMixin(BuiltinDispatchMixin):
 
     def _builtin_ta_risk_reward_asymmetry(self, args: list[Any]) -> dict:
         """Risk/Reward Asymmetry - Asymmetric risk evaluation.
-        
+
         ta.risk_reward_asymmetry(entry_price, stop_loss, take_profit, win_probability)
         Returns: dict with risk_reward_ratio, expected_value, kelly_percentage
         """
         msg = "ta.risk_reward_asymmetry() requires 4 arguments"
         if len(args) < 4:
             self._error(msg)
-        
+
         entry = args[0] if isinstance(args[0], (int, float)) else 100.0
         stop = args[1] if isinstance(args[1], (int, float)) else 98.0
         target = args[2] if isinstance(args[2], (int, float)) else 105.0
         win_prob = args[3] if isinstance(args[3], (int, float)) else 0.6
-        
+
         # Risk and reward
         risk = abs(entry - stop)
         reward = abs(target - entry)
-        
+
         rr_ratio = reward / max(0.01, risk)
-        
+
         # Expected value
         loss_prob = 1.0 - win_prob
         ev = win_prob * reward - loss_prob * risk
-        
+
         # Kelly percentage
         p = win_prob
         q = loss_prob
         b = max(0.01, rr_ratio)
         kelly_pct = max(0.0, min(50.0, (p * b - q) / b * 100.0))
-        
+
         return {
             "risk_reward_ratio": rr_ratio,
             "expected_value": ev,
@@ -4794,31 +4813,31 @@ class TechnicalAnalysisMixin(BuiltinDispatchMixin):
 
     def _builtin_ta_market_timing_index(self, args: list[Any]) -> dict:
         """Market Timing Index - Overall market condition assessment.
-        
-        ta.market_timing_index(trend_score, volatility_score, momentum_score, 
+
+        ta.market_timing_index(trend_score, volatility_score, momentum_score,
                                sentiment_score)
         Returns: dict with timing_index, market_condition, confidence, recommendation
         """
         msg = "ta.market_timing_index() requires 4 arguments"
         if len(args) < 4:
             self._error(msg)
-        
+
         trend = args[0] if isinstance(args[0], (int, float)) else 50.0
         volatility = args[1] if isinstance(args[1], (int, float)) else 50.0
         momentum = args[2] if isinstance(args[2], (int, float)) else 50.0
         sentiment = args[3] if isinstance(args[3], (int, float)) else 0.0
-        
+
         # Normalize to -1 to 1 range
         trend_norm = (trend - 50.0) / 50.0
         volatility_norm = (volatility - 50.0) / 50.0
         momentum_norm = (momentum - 50.0) / 50.0
         sentiment_norm = max(-1.0, min(1.0, sentiment / 100.0))
-        
+
         # Composite index
-        timing_index = (trend_norm * 0.4 + momentum_norm * 0.35 
+        timing_index = (trend_norm * 0.4 + momentum_norm * 0.35
                         + sentiment_norm * 0.25) * 100.0
         timing_index = max(-100.0, min(100.0, timing_index))
-        
+
         # Market condition
         if timing_index > 60.0:
             condition = "optimal_long"
@@ -4830,10 +4849,10 @@ class TechnicalAnalysisMixin(BuiltinDispatchMixin):
             condition = "favorable_short"
         else:
             condition = "optimal_short"
-        
+
         # Confidence based on volatility and agreement
         confidence = 1.0 - (volatility / 100.0) * 0.3
-        
+
         # Recommendation
         if timing_index > 70.0:
             recommendation = "strong_buy"
@@ -4845,7 +4864,7 @@ class TechnicalAnalysisMixin(BuiltinDispatchMixin):
             recommendation = "sell"
         else:
             recommendation = "strong_sell"
-        
+
         return {
             "timing_index": timing_index,
             "market_condition": condition,
@@ -4855,8 +4874,8 @@ class TechnicalAnalysisMixin(BuiltinDispatchMixin):
 
     def _builtin_ta_regime_adaptive_signal(self, args: list[Any]) -> dict:
         """Regime Adaptive Signal - Context-aware signal adjustment.
-        
-        ta.regime_adaptive_signal(base_signal, volatility_regime, trend_regime, 
+
+        ta.regime_adaptive_signal(base_signal, volatility_regime, trend_regime,
                                   lookback)
         Returns: dict with adapted_signal, regime_fit, signal_confidence,
                  strategy_recommendation
@@ -4864,12 +4883,12 @@ class TechnicalAnalysisMixin(BuiltinDispatchMixin):
         msg = "ta.regime_adaptive_signal() requires 4 arguments"
         if len(args) < 4:
             self._error(msg)
-        
+
         signal = args[0] if isinstance(args[0], (int, float)) else 0.5
         vol_regime = args[1] if isinstance(args[1], str) else "normal"
         trend_regime = args[2] if isinstance(args[2], str) else "neutral"
         lookback = self._expect_int(args[3], msg)
-        
+
         # Adapt signal based on volatility regime
         if vol_regime == "high" or vol_regime == "extreme":
             vol_adjustment = 0.7
@@ -4877,7 +4896,7 @@ class TechnicalAnalysisMixin(BuiltinDispatchMixin):
             vol_adjustment = 1.1
         else:
             vol_adjustment = 1.0
-        
+
         # Adapt based on trend regime
         if trend_regime == "trending_up" and signal > 0:
             trend_adjustment = 1.2
@@ -4887,11 +4906,11 @@ class TechnicalAnalysisMixin(BuiltinDispatchMixin):
             trend_adjustment = 0.9
         else:
             trend_adjustment = 1.0
-        
+
         # Apply adjustments
         adapted = signal * vol_adjustment * trend_adjustment
         adapted_signal = max(-1.0, min(1.0, adapted))
-        
+
         # Regime fit (how well signal aligns with regime)
         regime_fit = 0.5
         if trend_regime == "trending_up" and adapted_signal > 0:
@@ -4900,10 +4919,10 @@ class TechnicalAnalysisMixin(BuiltinDispatchMixin):
             regime_fit = 0.9
         elif trend_regime == "ranging":
             regime_fit = 0.7
-        
+
         # Confidence
         confidence = 0.6 + regime_fit * 0.4
-        
+
         # Strategy recommendation
         if adapted_signal > 0.7:
             recommendation = "aggressive_long"
@@ -4915,7 +4934,7 @@ class TechnicalAnalysisMixin(BuiltinDispatchMixin):
             recommendation = "conservative_short"
         else:
             recommendation = "neutral"
-        
+
         return {
             "adapted_signal": adapted_signal,
             "regime_fit": regime_fit,

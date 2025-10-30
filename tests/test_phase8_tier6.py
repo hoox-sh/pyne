@@ -715,7 +715,7 @@ class TestIntegration:
         ofi = evaluator._builtin_ta_order_flow_imbalance([[100, 101, 102, 103, 104], [95, 96, 97, 98, 99], [102, 102.5, 103, 103.5, 104], [1000, 1200, 1100, 1300, 1400], 3])
         mean_rev = evaluator._builtin_ta_mean_reversion_score([[100, 101, 102, 103, 104], [100.5, 100.8, 101.1, 101.4, 101.7], [1.0, 1.1, 1.2, 1.3, 1.4], 3])
         sentiment = evaluator._builtin_ta_crowd_sentiment([0.7, 0.65, 0.75])
-        
+
         # All should return valid values
         assert ofi is not None
         assert mean_rev is not None
