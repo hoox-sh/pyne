@@ -166,6 +166,23 @@ class TechnicalAnalysisMixin(BuiltinDispatchMixin):
             "ta.volume_profile_high": self._builtin_ta_volume_profile_high,
             "ta.volume_profile_low": self._builtin_ta_volume_profile_low,
             "ta.volume_thrust": self._builtin_ta_volume_thrust,
+            # Phase 8 Tier 7: Advanced Trading Strategies & Market Timing
+            "ta.advanced_breakout_detector": self._builtin_ta_advanced_breakout_detector,
+            "ta.breakeven_level": self._builtin_ta_breakeven_level,
+            "ta.correlation_filter": self._builtin_ta_correlation_filter,
+            "ta.drawdown_recovery_level": self._builtin_ta_drawdown_recovery_level,
+            "ta.market_structure_pivot": self._builtin_ta_market_structure_pivot,
+            "ta.market_timing_index": self._builtin_ta_market_timing_index,
+            "ta.mean_reversion_entry": self._builtin_ta_mean_reversion_entry,
+            "ta.multi_timeframe_signal": self._builtin_ta_multi_timeframe_signal,
+            "ta.optimal_entry_zone": self._builtin_ta_optimal_entry_zone,
+            "ta.position_sizing_score": self._builtin_ta_position_sizing_score,
+            "ta.pullback_bounce_level": self._builtin_ta_pullback_bounce_level,
+            "ta.regime_adaptive_signal": self._builtin_ta_regime_adaptive_signal,
+            "ta.risk_reward_asymmetry": self._builtin_ta_risk_reward_asymmetry,
+            "ta.trailing_exit_level": self._builtin_ta_trailing_exit_level,
+            "ta.trend_confirmation_score": self._builtin_ta_trend_confirmation_score,
+            "ta.volatility_regime_score": self._builtin_ta_volatility_regime_score,
         }
 
     # -- Public entry points -------------------------------------------------
@@ -4149,4 +4166,755 @@ class TechnicalAnalysisMixin(BuiltinDispatchMixin):
         
         return volume_spike and price_move
 
+    # ========================================================================
+    # Phase 8 Tier 7: Advanced Trading Strategies & Market Timing (16 functions)
+    # ========================================================================
 
+    def _builtin_ta_trend_confirmation_score(self, args: list[Any]) -> float:
+        """Trend Confirmation Score - Multi-signal trend strength.
+        
+        ta.trend_confirmation_score(momentum, trend_alignment, strength, rsi, 
+                                     rsi_alignment, support_distance)
+        Returns: float (0-100)
+        """
+        msg = "ta.trend_confirmation_score() requires 6 arguments"
+        if len(args) < 6:
+            self._error(msg)
+        
+        momentum = args[0] if isinstance(args[0], (int, float)) else 0.0
+        trend_alignment = args[1] if isinstance(args[1], (int, float)) else 0.0
+        strength = args[2] if isinstance(args[2], (int, float)) else 1.0
+        rsi = args[3] if isinstance(args[3], (int, float)) else 50.0
+        rsi_alignment = args[4] if isinstance(args[4], (int, float)) else 0.0
+        support_distance = args[5] if isinstance(args[5], (int, float)) else 0.0
+        
+        momentum_score = min(100.0, abs(momentum) * 20.0)
+        trend_score = max(0.0, (trend_alignment + 1.0) / 2.0 * 100.0)
+        strength_score = min(100.0, strength * 50.0)
+        rsi_score = min(100.0, abs(rsi - 50.0) * 2.0) if abs(rsi - 50.0) > 10.0 else 40.0
+        alignment_bonus = 20.0 if abs(rsi_alignment) > 0.5 else 0.0
+        
+        total = (momentum_score * 0.25 + trend_score * 0.3 + strength_score * 0.25 
+                 + rsi_score * 0.15 + alignment_bonus)
+        return max(0.0, min(100.0, total))
+
+    def _builtin_ta_market_structure_pivot(self, args: list[Any]) -> dict:
+        """Market Structure Pivot - Fractal/Swing/Block detection.
+        
+        ta.market_structure_pivot(high_list, low_list, close_list, period, mode)
+        Returns: dict with pivot_price, strength, structure
+        """
+        msg = "ta.market_structure_pivot() requires 5 arguments"
+        if len(args) < 5:
+            self._error(msg)
+        
+        high_list = self._expect_list(args[0], msg)
+        low_list = self._expect_list(args[1], msg)
+        close_list = self._expect_list(args[2], msg)
+        period = self._expect_int(args[3], msg)
+        mode = self._expect_int(args[4], msg)
+        
+        if (not high_list or not low_list or not close_list 
+                or len(high_list) < period or period <= 0):
+            return {"pivot_price": 100.0, "strength": 50.0, "structure": "neutral"}
+        
+        h_vals = [h for h in high_list[-period:] if isinstance(h, (int, float))]
+        l_vals = [l for l in low_list[-period:] if isinstance(l, (int, float))]
+        c_vals = [c for c in close_list[-period:] if isinstance(c, (int, float))]
+        
+        if not h_vals or not l_vals:
+            return {"pivot_price": 100.0, "strength": 50.0, "structure": "neutral"}
+        
+        pivot_high = max(h_vals)
+        pivot_low = min(l_vals)
+        pivot_price = (pivot_high + pivot_low) / 2.0
+        pivot_range = pivot_high - pivot_low
+        
+        if mode == 0:  # Fractal
+            structure = "fractal"
+            strength = min(100.0, pivot_range * 2.0)
+        elif mode == 1:  # Swing
+            structure = "swing"
+            strength = min(100.0, pivot_range * 1.5)
+        else:  # Block
+            structure = "block"
+            strength = min(100.0, pivot_range * 0.5)
+        
+        return {
+            "pivot_price": pivot_price,
+            "structure": structure,
+            "strength": strength,
+        }
+
+    def _builtin_ta_volatility_regime_score(self, args: list[Any]) -> dict:
+        """Volatility Regime Score - Regime classification.
+        
+        ta.volatility_regime_score(atr_list, volatility_list, vix_list, threshold)
+        Returns: dict with regime, volatility_score, momentum
+        """
+        msg = "ta.volatility_regime_score() requires 4 arguments"
+        if len(args) < 4:
+            self._error(msg)
+        
+        atr_list = self._expect_list(args[0], msg)
+        vol_list = self._expect_list(args[1], msg)
+        vix_list = self._expect_list(args[2], msg)
+        threshold = args[3] if isinstance(args[3], (int, float)) else 50.0
+        
+        if not atr_list or not vol_list or not vix_list:
+            return {"regime": "normal", "volatility_score": 50.0, "momentum": "stable"}
+        
+        atr_val = atr_list[-1] if isinstance(atr_list[-1], (int, float)) else 2.0
+        vol_val = vol_list[-1] if isinstance(vol_list[-1], (int, float)) else 0.02
+        vix_val = vix_list[-1] if isinstance(vix_list[-1], (int, float)) else 15.0
+        
+        atr_score = min(100.0, atr_val * 20.0)
+        vol_score = min(100.0, vol_val * 100.0)
+        vix_score = min(100.0, vix_val * 2.0)
+        
+        volatility_score = (atr_score * 0.4 + vol_score * 0.3 + vix_score * 0.3)
+        
+        if volatility_score < threshold * 0.5:
+            regime = "low"
+        elif volatility_score < threshold:
+            regime = "normal"
+        elif volatility_score < threshold * 1.5:
+            regime = "high"
+        else:
+            regime = "extreme"
+        
+        # Momentum detection
+        if len(atr_list) > 1 and isinstance(atr_list[-2], (int, float)):
+            prev_atr = atr_list[-2]
+            if atr_val > prev_atr * 1.05:
+                momentum = "accelerating"
+            elif atr_val < prev_atr * 0.95:
+                momentum = "decelerating"
+            else:
+                momentum = "stable"
+        else:
+            momentum = "stable"
+        
+        return {
+            "regime": regime,
+            "volatility_score": volatility_score,
+            "momentum": momentum,
+        }
+
+    def _builtin_ta_correlation_filter(self, args: list[Any]) -> dict:
+        """Correlation Filter - Multi-signal agreement.
+        
+        ta.correlation_filter(signal1_list, signal2_list, signal3_list, 
+                              num_signals, threshold)
+        Returns: dict with is_correlated, signal_agreement, divergence_count
+        """
+        msg = "ta.correlation_filter() requires 5 arguments"
+        if len(args) < 5:
+            self._error(msg)
+        
+        sig1 = self._expect_list(args[0], msg)
+        sig2 = self._expect_list(args[1], msg)
+        sig3 = self._expect_list(args[2], msg)
+        num_signals = self._expect_int(args[3], msg)
+        threshold = args[4] if isinstance(args[4], (int, float)) else 0.7
+        
+        signals = [sig1, sig2, sig3]
+        valid_signals = [s for s in signals if s and len(s) > 0]
+        
+        if len(valid_signals) < 2:
+            return {
+                "is_correlated": False,
+                "signal_agreement": 0,
+                "divergence_count": 0,
+            }
+        
+        last_vals = []
+        for sig in valid_signals:
+            if sig and isinstance(sig[-1], (int, float)):
+                last_vals.append(sig[-1])
+        
+        if not last_vals:
+            return {
+                "is_correlated": False,
+                "signal_agreement": 0,
+                "divergence_count": 0,
+            }
+        
+        agreement_count = 0
+        divergence_count = 0
+        
+        for i in range(len(last_vals) - 1):
+            for j in range(i + 1, len(last_vals)):
+                product = last_vals[i] * last_vals[j]
+                if product > 0:
+                    agreement_count += 1
+                else:
+                    divergence_count += 1
+        
+        total_pairs = len(last_vals) * (len(last_vals) - 1) / 2.0
+        signal_agreement = (agreement_count / total_pairs * 100.0) if total_pairs > 0 else 0
+        is_correlated = signal_agreement / 100.0 >= threshold
+        
+        return {
+            "is_correlated": is_correlated,
+            "signal_agreement": signal_agreement,
+            "divergence_count": divergence_count,
+        }
+
+    def _builtin_ta_advanced_breakout_detector(self, args: list[Any]) -> dict:
+        """Advanced Breakout Detector - Multiple breakout types.
+        
+        ta.advanced_breakout_detector(price_list, volume_list, level, lookback, 
+                                      volume_multiplier)
+        Returns: dict with breakout_detected, breakout_type, pullback_probability
+        """
+        msg = "ta.advanced_breakout_detector() requires 5 arguments"
+        if len(args) < 5:
+            self._error(msg)
+        
+        price = self._expect_list(args[0], msg)
+        volume = self._expect_list(args[1], msg)
+        level = args[2] if isinstance(args[2], (int, float)) else 100.0
+        lookback = self._expect_int(args[3], msg)
+        vol_mult = args[4] if isinstance(args[4], (int, float)) else 0.5
+        
+        if not price or not volume or len(price) < 2 or lookback <= 0:
+            return {
+                "breakout_detected": False,
+                "breakout_type": "none",
+                "pullback_probability": 0.5,
+            }
+        
+        current_price = price[-1] if isinstance(price[-1], (int, float)) else 100.0
+        prev_price = price[-2] if isinstance(price[-2], (int, float)) else 100.0
+        current_vol = volume[-1] if isinstance(volume[-1], (int, float)) else 1000.0
+        
+        recent_vol = [v for v in volume[-lookback:] if isinstance(v, (int, float))]
+        avg_vol = sum(recent_vol) / len(recent_vol) if recent_vol else 1000.0
+        
+        gap_breakout = current_price > level and prev_price <= level
+        close_breakout = current_price > level and abs(current_price - level) < 0.5
+        volume_break = current_vol > avg_vol * (1.0 + vol_mult)
+        
+        breakout_detected = gap_breakout or close_breakout or volume_break
+        
+        if gap_breakout:
+            breakout_type = "gap"
+        elif close_breakout and volume_break:
+            breakout_type = "volume_break"
+        elif close_breakout:
+            breakout_type = "close_above"
+        else:
+            breakout_type = "none"
+        
+        # Pullback probability (higher volume suggests less pullback)
+        pullback_prob = max(0.1, 0.8 - (current_vol / avg_vol - 1.0) * 0.3)
+        
+        return {
+            "breakout_detected": breakout_detected,
+            "breakout_type": breakout_type,
+            "pullback_probability": pullback_prob,
+        }
+
+    def _builtin_ta_pullback_bounce_level(self, args: list[Any]) -> dict:
+        """Pullback/Bounce Level - Fibonacci support/resistance.
+        
+        ta.pullback_bounce_level(high_list, low_list, close_list, trend_direction, 
+                                 lookback)
+        Returns: dict with primary_level, bounce_probability, support_strength
+        """
+        msg = "ta.pullback_bounce_level() requires 5 arguments"
+        if len(args) < 5:
+            self._error(msg)
+        
+        high = self._expect_list(args[0], msg)
+        low = self._expect_list(args[1], msg)
+        close = self._expect_list(args[2], msg)
+        trend_dir = self._expect_int(args[3], msg)
+        lookback = self._expect_int(args[4], msg)
+        
+        if not high or not low or lookback <= 0:
+            return {
+                "primary_level": 100.0,
+                "bounce_probability": 0.5,
+                "support_strength": 50.0,
+            }
+        
+        h_vals = [h for h in high[-lookback:] if isinstance(h, (int, float))]
+        l_vals = [l for l in low[-lookback:] if isinstance(l, (int, float))]
+        
+        if not h_vals or not l_vals:
+            return {
+                "primary_level": 100.0,
+                "bounce_probability": 0.5,
+                "support_strength": 50.0,
+            }
+        
+        swing_high = max(h_vals)
+        swing_low = min(l_vals)
+        swing_range = swing_high - swing_low
+        
+        if trend_dir > 0:  # Uptrend - look for support (Fibonacci retracement)
+            fib_level = swing_low + swing_range * 0.382
+        else:  # Downtrend - look for resistance
+            fib_level = swing_high - swing_range * 0.382
+        
+        primary_level = fib_level
+        
+        # Bounce probability based on volatility
+        bounce_prob = min(0.95, 0.5 + (swing_range / swing_high) * 1.0)
+        support_strength = min(100.0, (swing_range / swing_high) * 100.0)
+        
+        return {
+            "primary_level": primary_level,
+            "bounce_probability": bounce_prob,
+            "support_strength": support_strength,
+        }
+
+    def _builtin_ta_multi_timeframe_signal(self, args: list[Any]) -> dict:
+        """Multi-Timeframe Signal - Alignment across timeframes.
+        
+        ta.multi_timeframe_signal(signal_short, signal_mid, signal_long, 
+                                  weight_short, weight_mid, weight_long)
+        Returns: dict with combined_signal, signal_agreement, alignment_quality
+        """
+        msg = "ta.multi_timeframe_signal() requires 6 arguments"
+        if len(args) < 6:
+            self._error(msg)
+        
+        sig_short = args[0] if isinstance(args[0], (int, float)) else 0.0
+        sig_mid = args[1] if isinstance(args[1], (int, float)) else 0.0
+        sig_long = args[2] if isinstance(args[2], (int, float)) else 0.0
+        w_short = args[3] if isinstance(args[3], (int, float)) else 0.33
+        w_mid = args[4] if isinstance(args[4], (int, float)) else 0.33
+        w_long = args[5] if isinstance(args[5], (int, float)) else 0.34
+        
+        combined = sig_short * w_short + sig_mid * w_mid + sig_long * w_long
+        combined_signal = max(-1.0, min(1.0, combined))
+        
+        # Signal agreement counting
+        agreement = 0
+        if sig_short > 0 and sig_mid > 0 and sig_long > 0:
+            agreement = 3
+        elif sig_short > 0 and sig_mid > 0:
+            agreement = 2
+        elif sig_mid > 0 and sig_long > 0:
+            agreement = 2
+        elif sig_short > 0 and sig_long > 0:
+            agreement = 2
+        elif sig_short < 0 and sig_mid < 0 and sig_long < 0:
+            agreement = 3
+        elif sig_short < 0 and sig_mid < 0:
+            agreement = 2
+        elif sig_mid < 0 and sig_long < 0:
+            agreement = 2
+        elif sig_short < 0 and sig_long < 0:
+            agreement = 2
+        else:
+            agreement = 0
+        
+        alignment_quality = (agreement / 3.0) * 100.0
+        
+        return {
+            "combined_signal": combined_signal,
+            "signal_agreement": agreement,
+            "alignment_quality": alignment_quality,
+        }
+
+    def _builtin_ta_position_sizing_score(self, args: list[Any]) -> dict:
+        """Position Sizing Score - Risk-based sizing calculation.
+        
+        ta.position_sizing_score(risk_reward_ratio, win_rate, account_risk_factor, 
+                                 correlation_to_portfolio)
+        Returns: dict with position_size_ratio, kelly_fraction, correlation_adjustment
+        """
+        msg = "ta.position_sizing_score() requires 4 arguments"
+        if len(args) < 4:
+            self._error(msg)
+        
+        rr_ratio = args[0] if isinstance(args[0], (int, float)) else 1.0
+        win_rate = args[1] if isinstance(args[1], (int, float)) else 50.0
+        acct_risk = args[2] if isinstance(args[2], (int, float)) else 1.0
+        correlation = args[3] if isinstance(args[3], (int, float)) else 0.5
+        
+        # Kelly Criterion: f = (p*b - q) / b
+        # where p = win_rate, q = 1-p, b = risk_reward_ratio
+        p = win_rate / 100.0
+        q = 1.0 - p
+        b = max(0.1, rr_ratio)
+        kelly = max(0.0, min(0.5, (p * b - q) / b))
+        kelly_fraction = kelly * 0.25  # Use fraction of Kelly
+        
+        # Position sizing based on account risk
+        base_position = kelly_fraction * min(0.1, acct_risk / 100.0)
+        
+        # Adjust for correlation (diversification)
+        correlation_adj = 1.0 - (correlation * 0.5)
+        position_size_ratio = base_position * correlation_adj
+        
+        return {
+            "position_size_ratio": max(0.0, min(1.0, position_size_ratio)),
+            "kelly_fraction": kelly_fraction,
+            "correlation_adjustment": correlation_adj,
+        }
+
+    def _builtin_ta_optimal_entry_zone(self, args: list[Any]) -> dict:
+        """Optimal Entry Zone - Multi-confluence entry detection.
+        
+        ta.optimal_entry_zone(level1, level2, level3, level4)
+        Returns: dict with entry_zone_low, entry_zone_high, best_entry, zone_strength
+        """
+        msg = "ta.optimal_entry_zone() requires 4 arguments"
+        if len(args) < 4:
+            self._error(msg)
+        
+        level1 = args[0] if isinstance(args[0], (int, float)) else 100.0
+        level2 = args[1] if isinstance(args[1], (int, float)) else 100.0
+        level3 = args[2] if isinstance(args[2], (int, float)) else 100.0
+        level4 = args[3] if isinstance(args[3], (int, float)) else 100.0
+        
+        levels = [level1, level2, level3, level4]
+        valid_levels = [l for l in levels if isinstance(l, (int, float))]
+        
+        if not valid_levels:
+            return {
+                "entry_zone_low": 100.0,
+                "entry_zone_high": 100.0,
+                "best_entry": 100.0,
+                "zone_strength": 50.0,
+            }
+        
+        zone_low = min(valid_levels)
+        zone_high = max(valid_levels)
+        zone_mid = (zone_low + zone_high) / 2.0
+        zone_range = zone_high - zone_low
+        
+        # Zone strength based on confluence
+        confluence_count = len([1 for l in levels if abs(l - zone_mid) < zone_range * 0.1])
+        zone_strength = min(100.0, confluence_count * 25.0)
+        
+        return {
+            "entry_zone_low": zone_low,
+            "entry_zone_high": zone_high,
+            "best_entry": zone_mid,
+            "zone_strength": zone_strength,
+        }
+
+    def _builtin_ta_trailing_exit_level(self, args: list[Any]) -> dict:
+        """Trailing Exit Level - Dynamic stop loss with profit protection.
+        
+        ta.trailing_exit_level(entry_price, current_price, profit_target_percent, 
+                               trailing_stop_percent, risk_factor)
+        Returns: dict with trail_stop, protected_profit, risk_reward_current
+        """
+        msg = "ta.trailing_exit_level() requires 5 arguments"
+        if len(args) < 5:
+            self._error(msg)
+        
+        entry = args[0] if isinstance(args[0], (int, float)) else 100.0
+        current = args[1] if isinstance(args[1], (int, float)) else 100.0
+        profit_target = args[2] if isinstance(args[2], (int, float)) else 30.0
+        trail_stop = args[3] if isinstance(args[3], (int, float)) else 2.0
+        risk_factor = args[4] if isinstance(args[4], (int, float)) else 1.0
+        
+        current_profit = (current - entry) / entry * 100.0 if entry != 0 else 0.0
+        
+        # Trail stop level
+        target_price = entry * (1.0 + profit_target / 100.0)
+        trail_level = current * (1.0 - trail_stop / 100.0) * risk_factor
+        
+        # Ensure trail stop is above entry
+        trail_stop_final = max(trail_level, entry * 1.001)
+        
+        # Protected profit
+        protected_profit = max(0.0, current_profit - 0.5)
+        
+        # Current risk/reward
+        current_risk = (current - trail_stop_final) / entry * 100.0 if entry != 0 else 1.0
+        target_reward = (target_price - current) / entry * 100.0 if entry != 0 else 1.0
+        risk_reward = target_reward / max(0.1, current_risk)
+        
+        return {
+            "trail_stop": trail_stop_final,
+            "protected_profit": protected_profit,
+            "risk_reward_current": risk_reward,
+        }
+
+    def _builtin_ta_mean_reversion_entry(self, args: list[Any]) -> dict:
+        """Mean Reversion Entry - Statistical reversal detection.
+        
+        ta.mean_reversion_entry(current_price, mean_price, std_dev, lookback, 
+                                z_score_threshold)
+        Returns: dict with z_score, is_mean_reversion_setup, reversion_probability,
+                 target_price
+        """
+        msg = "ta.mean_reversion_entry() requires 5 arguments"
+        if len(args) < 5:
+            self._error(msg)
+        
+        current = args[0] if isinstance(args[0], (int, float)) else 100.0
+        mean = args[1] if isinstance(args[1], (int, float)) else 100.0
+        std_dev = args[2] if isinstance(args[2], (int, float)) else 1.0
+        lookback = self._expect_int(args[3], msg)
+        z_threshold = args[4] if isinstance(args[4], (int, float)) else 2.0
+        
+        # Calculate z-score
+        z_score = (current - mean) / max(0.01, std_dev)
+        
+        # Mean reversion setup (extreme z-score)
+        is_setup = abs(z_score) >= z_threshold
+        
+        # Reversion probability (based on z-score magnitude)
+        prob = min(0.95, 0.5 + abs(z_score) / 10.0)
+        
+        # Target: return toward mean
+        target = mean
+        
+        return {
+            "z_score": z_score,
+            "is_mean_reversion_setup": is_setup,
+            "reversion_probability": prob,
+            "target_price": target,
+        }
+
+    def _builtin_ta_breakeven_level(self, args: list[Any]) -> dict:
+        """Breakeven Level - Calculate position breakeven price.
+        
+        ta.breakeven_level(entry_price, position_size, commission_percent, 
+                           slippage_percent, position_type)
+        Returns: dict with breakeven_price, total_cost, move_required_percent
+        """
+        msg = "ta.breakeven_level() requires 5 arguments"
+        if len(args) < 5:
+            self._error(msg)
+        
+        entry = args[0] if isinstance(args[0], (int, float)) else 100.0
+        size = args[1] if isinstance(args[1], (int, float)) else 1.0
+        commission = args[2] if isinstance(args[2], (int, float)) else 0.1
+        slippage = args[3] if isinstance(args[3], (int, float)) else 0.05
+        pos_type = self._expect_int(args[4], msg)
+        
+        # Total costs (commission + slippage)
+        total_cost_pct = commission + slippage
+        cost_per_share = entry * (total_cost_pct / 100.0)
+        total_cost = cost_per_share * size
+        
+        # Breakeven price
+        if pos_type > 0:  # Long
+            breakeven = entry + (total_cost / size) / entry
+        else:  # Short
+            breakeven = entry - (total_cost / size) / entry
+        
+        # Move required
+        move_required_pct = abs(breakeven - entry) / entry * 100.0 if entry != 0 else 0.0
+        
+        return {
+            "breakeven_price": breakeven,
+            "total_cost": total_cost,
+            "move_required_percent": move_required_pct,
+        }
+
+    def _builtin_ta_drawdown_recovery_level(self, args: list[Any]) -> dict:
+        """Drawdown Recovery Level - Estimate recovery requirements.
+        
+        ta.drawdown_recovery_level(peak_price, trough_price, avg_daily_return, 
+                                   lookback)
+        Returns: dict with drawdown_percent, recovery_timeframe, recovery_confidence
+        """
+        msg = "ta.drawdown_recovery_level() requires 4 arguments"
+        if len(args) < 4:
+            self._error(msg)
+        
+        peak = args[0] if isinstance(args[0], (int, float)) else 110.0
+        trough = args[1] if isinstance(args[1], (int, float)) else 100.0
+        daily_ret = args[2] if isinstance(args[2], (int, float)) else 1.0
+        lookback = self._expect_int(args[3], msg)
+        
+        # Drawdown calculation
+        drawdown_pct = (peak - trough) / peak * 100.0 if peak != 0 else 0.0
+        
+        # Recovery timeframe (days needed at daily_ret to recover)
+        current_price = trough
+        required_return_pct = drawdown_pct / (100.0 - drawdown_pct)
+        
+        if daily_ret > 0:
+            days_to_recover = 1 + (required_return_pct / (daily_ret / 100.0))
+        else:
+            days_to_recover = lookback * 10
+        
+        # Recovery confidence (lower drawdown, higher confidence)
+        confidence = max(0.1, 1.0 - (drawdown_pct / 100.0))
+        
+        return {
+            "drawdown_percent": drawdown_pct,
+            "recovery_timeframe": days_to_recover,
+            "recovery_confidence": confidence,
+        }
+
+    def _builtin_ta_risk_reward_asymmetry(self, args: list[Any]) -> dict:
+        """Risk/Reward Asymmetry - Asymmetric risk evaluation.
+        
+        ta.risk_reward_asymmetry(entry_price, stop_loss, take_profit, win_probability)
+        Returns: dict with risk_reward_ratio, expected_value, kelly_percentage
+        """
+        msg = "ta.risk_reward_asymmetry() requires 4 arguments"
+        if len(args) < 4:
+            self._error(msg)
+        
+        entry = args[0] if isinstance(args[0], (int, float)) else 100.0
+        stop = args[1] if isinstance(args[1], (int, float)) else 98.0
+        target = args[2] if isinstance(args[2], (int, float)) else 105.0
+        win_prob = args[3] if isinstance(args[3], (int, float)) else 0.6
+        
+        # Risk and reward
+        risk = abs(entry - stop)
+        reward = abs(target - entry)
+        
+        rr_ratio = reward / max(0.01, risk)
+        
+        # Expected value
+        loss_prob = 1.0 - win_prob
+        ev = win_prob * reward - loss_prob * risk
+        
+        # Kelly percentage
+        p = win_prob
+        q = loss_prob
+        b = max(0.01, rr_ratio)
+        kelly_pct = max(0.0, min(50.0, (p * b - q) / b * 100.0))
+        
+        return {
+            "risk_reward_ratio": rr_ratio,
+            "expected_value": ev,
+            "kelly_percentage": kelly_pct,
+        }
+
+    def _builtin_ta_market_timing_index(self, args: list[Any]) -> dict:
+        """Market Timing Index - Overall market condition assessment.
+        
+        ta.market_timing_index(trend_score, volatility_score, momentum_score, 
+                               sentiment_score)
+        Returns: dict with timing_index, market_condition, confidence, recommendation
+        """
+        msg = "ta.market_timing_index() requires 4 arguments"
+        if len(args) < 4:
+            self._error(msg)
+        
+        trend = args[0] if isinstance(args[0], (int, float)) else 50.0
+        volatility = args[1] if isinstance(args[1], (int, float)) else 50.0
+        momentum = args[2] if isinstance(args[2], (int, float)) else 50.0
+        sentiment = args[3] if isinstance(args[3], (int, float)) else 0.0
+        
+        # Normalize to -1 to 1 range
+        trend_norm = (trend - 50.0) / 50.0
+        volatility_norm = (volatility - 50.0) / 50.0
+        momentum_norm = (momentum - 50.0) / 50.0
+        sentiment_norm = max(-1.0, min(1.0, sentiment / 100.0))
+        
+        # Composite index
+        timing_index = (trend_norm * 0.4 + momentum_norm * 0.35 
+                        + sentiment_norm * 0.25) * 100.0
+        timing_index = max(-100.0, min(100.0, timing_index))
+        
+        # Market condition
+        if timing_index > 60.0:
+            condition = "optimal_long"
+        elif timing_index > 20.0:
+            condition = "favorable_long"
+        elif timing_index > -20.0:
+            condition = "neutral"
+        elif timing_index > -60.0:
+            condition = "favorable_short"
+        else:
+            condition = "optimal_short"
+        
+        # Confidence based on volatility and agreement
+        confidence = 1.0 - (volatility / 100.0) * 0.3
+        
+        # Recommendation
+        if timing_index > 70.0:
+            recommendation = "strong_buy"
+        elif timing_index > 30.0:
+            recommendation = "buy"
+        elif timing_index > -30.0:
+            recommendation = "hold"
+        elif timing_index > -70.0:
+            recommendation = "sell"
+        else:
+            recommendation = "strong_sell"
+        
+        return {
+            "timing_index": timing_index,
+            "market_condition": condition,
+            "confidence": confidence,
+            "recommendation": recommendation,
+        }
+
+    def _builtin_ta_regime_adaptive_signal(self, args: list[Any]) -> dict:
+        """Regime Adaptive Signal - Context-aware signal adjustment.
+        
+        ta.regime_adaptive_signal(base_signal, volatility_regime, trend_regime, 
+                                  lookback)
+        Returns: dict with adapted_signal, regime_fit, signal_confidence,
+                 strategy_recommendation
+        """
+        msg = "ta.regime_adaptive_signal() requires 4 arguments"
+        if len(args) < 4:
+            self._error(msg)
+        
+        signal = args[0] if isinstance(args[0], (int, float)) else 0.5
+        vol_regime = args[1] if isinstance(args[1], str) else "normal"
+        trend_regime = args[2] if isinstance(args[2], str) else "neutral"
+        lookback = self._expect_int(args[3], msg)
+        
+        # Adapt signal based on volatility regime
+        if vol_regime == "high" or vol_regime == "extreme":
+            vol_adjustment = 0.7
+        elif vol_regime == "low":
+            vol_adjustment = 1.1
+        else:
+            vol_adjustment = 1.0
+        
+        # Adapt based on trend regime
+        if trend_regime == "trending_up" and signal > 0:
+            trend_adjustment = 1.2
+        elif trend_regime == "trending_down" and signal < 0:
+            trend_adjustment = 1.2
+        elif trend_regime == "ranging":
+            trend_adjustment = 0.9
+        else:
+            trend_adjustment = 1.0
+        
+        # Apply adjustments
+        adapted = signal * vol_adjustment * trend_adjustment
+        adapted_signal = max(-1.0, min(1.0, adapted))
+        
+        # Regime fit (how well signal aligns with regime)
+        regime_fit = 0.5
+        if trend_regime == "trending_up" and adapted_signal > 0:
+            regime_fit = 0.9
+        elif trend_regime == "trending_down" and adapted_signal < 0:
+            regime_fit = 0.9
+        elif trend_regime == "ranging":
+            regime_fit = 0.7
+        
+        # Confidence
+        confidence = 0.6 + regime_fit * 0.4
+        
+        # Strategy recommendation
+        if adapted_signal > 0.7:
+            recommendation = "aggressive_long"
+        elif adapted_signal > 0.3:
+            recommendation = "conservative_long"
+        elif adapted_signal < -0.7:
+            recommendation = "aggressive_short"
+        elif adapted_signal < -0.3:
+            recommendation = "conservative_short"
+        else:
+            recommendation = "neutral"
+        
+        return {
+            "adapted_signal": adapted_signal,
+            "regime_fit": regime_fit,
+            "signal_confidence": confidence,
+            "strategy_recommendation": recommendation,
+        }
