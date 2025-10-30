@@ -3,6 +3,8 @@
 Phase 8 Tier 3 Implementation Complete - Status Summary
 """
 
+from __future__ import annotations
+
 print("""
 ╔══════════════════════════════════════════════════════════════════════════╗
 ║           PHASE 8 TIER 3 - SPECIALIZED INDICATORS ✅ COMPLETE            ║
@@ -13,7 +15,7 @@ print("""
 
 ✅ FUNCTIONS IMPLEMENTED: 10
    • ta.engulfing          - Candlestick engulfing pattern detection
-   • ta.hammer             - Hammer/Doji pattern recognition  
+   • ta.hammer             - Hammer/Doji pattern recognition
    • ta.gap_detector       - Price gap identification & measurement
    • ta.voi                - Volume of Imbalance calculation
    • ta.bid_ask_imbalance  - Bid-ask microstructure analysis
@@ -70,7 +72,7 @@ print("""
 
    ✅ tests/test_phase8_tier3.py           20 tests, all passing
    ✅ docs/PHASE_8_TIER3_COMPLETE.md       Complete documentation
-   ✅ docs/PHASE_8_TIER1_COMPLETE.md       Tier 1 documentation  
+   ✅ docs/PHASE_8_TIER1_COMPLETE.md       Tier 1 documentation
    ✅ docs/PHASE_8_TIER2_COMPLETE.md       Tier 2 documentation
 
 🚀 NEXT MILESTONE
@@ -78,7 +80,7 @@ print("""
 
    ⭕ TIER 4: Enhancement Variants (Nov 7-13)
       • Multi-timeframe analysis wrappers
-      • Indicator combination strategies  
+      • Indicator combination strategies
       • Adaptive parameter variants
       • Target: 5+ functions, 10-15 tests
 

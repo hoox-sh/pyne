@@ -6,6 +6,8 @@ This shows how the evaluator can handle various PineScript expressions
 including math, string operations, arrays, and technical analysis functions.
 """
 
+from __future__ import annotations
+
 from pynescript.ast.helper import literal_eval
 
 

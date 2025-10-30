@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 """Simple test to validate Tier 3 function registration."""
+from __future__ import annotations
+
 from src.pynescript.ast.evaluator.builtins.technical import TechnicalBuiltins
 
 # Test that all functions are registered
@@ -8,7 +10,7 @@ builtin_map = tech._technical_builtin_map()
 
 tier3_functions = [
     "ta.engulfing",
-    "ta.hammer", 
+    "ta.hammer",
     "ta.gap_detector",
     "ta.voi",
     "ta.bid_ask_imbalance",

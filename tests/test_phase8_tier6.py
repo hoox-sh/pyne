@@ -326,7 +326,9 @@ class TestEmploymentCycleIndicator:
         cyclical_stocks = [100.0, 102.0, 104.0, 106.0, 108.0]
         defensive_stocks = [100.0, 100.5, 101.0, 101.5, 102.0]
         unemployment_proxy = [0.2, 0.18, 0.16, 0.14, 0.12]
-        cycle = evaluator._builtin_ta_employment_cycle_indicator([cyclical_stocks, defensive_stocks, unemployment_proxy])
+        cycle = evaluator._builtin_ta_employment_cycle_indicator(
+            [cyclical_stocks, defensive_stocks, unemployment_proxy]
+        )
         assert isinstance(cycle, str)
         assert cycle in ["early_cycle", "mid_cycle", "late_cycle", "recession"]
 
@@ -335,7 +337,9 @@ class TestEmploymentCycleIndicator:
         cyclical_stocks = [110.0, 109.0, 108.0, 107.0, 106.0]
         defensive_stocks = [103.0, 104.0, 105.0, 106.0, 107.0]
         unemployment_proxy = [0.1, 0.11, 0.12, 0.13, 0.14]
-        cycle = evaluator._builtin_ta_employment_cycle_indicator([cyclical_stocks, defensive_stocks, unemployment_proxy])
+        cycle = evaluator._builtin_ta_employment_cycle_indicator(
+            [cyclical_stocks, defensive_stocks, unemployment_proxy]
+        )
         assert cycle in ["late_cycle", "mid_cycle", "recession"]
 
     def test_recession_detection(self, evaluator):
@@ -343,7 +347,9 @@ class TestEmploymentCycleIndicator:
         cyclical_stocks = [90.0, 88.0, 86.0, 84.0, 82.0]
         defensive_stocks = [105.0, 106.0, 107.0, 108.0, 109.0]
         unemployment_proxy = [0.2, 0.22, 0.24, 0.26, 0.28]
-        cycle = evaluator._builtin_ta_employment_cycle_indicator([cyclical_stocks, defensive_stocks, unemployment_proxy])
+        cycle = evaluator._builtin_ta_employment_cycle_indicator(
+            [cyclical_stocks, defensive_stocks, unemployment_proxy]
+        )
         assert cycle in ["recession", "late_cycle"]
 
 
@@ -649,14 +655,18 @@ class TestEdgeCases:
         """Test handling of None values in data."""
         close = [100.0, None, 101.0, None, 102.0]
         volume = [1000.0, None, 1100.0, None, 1200.0]
-        result = evaluator._builtin_ta_momentum_divergence([close, [1.0, None, 1.2, None, 1.4], [0.8, None, 1.0, None, 1.2]])
+        result = evaluator._builtin_ta_momentum_divergence(
+            [close, [1.0, None, 1.2, None, 1.4], [0.8, None, 1.0, None, 1.2]]
+        )
         assert result is not None
 
     def test_extreme_values(self, evaluator):
         """Test handling of extreme values."""
         close = [1e10, 1e10 + 1e9, 1e10 + 2e9, 1e10 + 3e9, 1e10 + 4e9]
         volume = [1e15, 1.1e15, 1.2e15, 1.3e15, 1.4e15]
-        result = evaluator._builtin_ta_liquidity_score([volume, [0.001, 0.0009, 0.0008, 0.0007, 0.0006], [0.0001, 0.0001, 0.0001, 0.0001, 0.0001], 3])
+        volatility = [0.001, 0.0009, 0.0008, 0.0007, 0.0006]
+        spread = [0.0001, 0.0001, 0.0001, 0.0001, 0.0001]
+        result = evaluator._builtin_ta_liquidity_score([volume, volatility, spread, 3])
         assert result is not None
 
     def test_zero_volume(self, evaluator):
@@ -688,23 +698,43 @@ class TestIntegration:
     def test_microstructure_with_momentum(self, evaluator):
         """Test combining microstructure with momentum indicators."""
         # Order flow + momentum divergence
-        imbalance = evaluator._builtin_ta_order_flow_imbalance([[100, 101, 102, 103, 104], [95, 96, 97, 98, 99], [102, 102.5, 103, 103.5, 104], [1000, 1200, 1100, 1300, 1400], 3])
-        divergence = evaluator._builtin_ta_momentum_divergence([[100, 101, 102, 103, 104], [1.0, 1.2, 1.4, 1.6, 1.8], [0.8, 1.0, 1.2, 1.4, 1.6]])
+        high = [100, 101, 102, 103, 104]
+        low = [95, 96, 97, 98, 99]
+        close = [102, 102.5, 103, 103.5, 104]
+        volume = [1000, 1200, 1100, 1300, 1400]
+        imbalance = evaluator._builtin_ta_order_flow_imbalance([high, low, close, volume, 3])
+        
+        close2 = [100, 101, 102, 103, 104]
+        rsi = [1.0, 1.2, 1.4, 1.6, 1.8]
+        stoch = [0.8, 1.0, 1.2, 1.4, 1.6]
+        divergence = evaluator._builtin_ta_momentum_divergence([close2, rsi, stoch])
         assert imbalance is not None
         assert divergence is not None
 
     def test_behavioral_with_volume(self, evaluator):
         """Test combining behavioral with volume indicators."""
         # Fear/greed + liquidity
-        fg_index = evaluator._builtin_ta_fear_greed_index([[40, 35, 30, 25, 20], [2.0, 2.1, 2.2, 2.3, 2.4], [1.5, 1.4, 1.3, 1.2, 1.1], [0.3, 0.35, 0.4, 0.45, 0.5]])
-        liquidity = evaluator._builtin_ta_liquidity_score([[5000, 5200, 5400, 5600, 5800], [0.5, 0.45, 0.4, 0.35, 0.3], [0.01, 0.01, 0.01, 0.01, 0.01], 3])
+        vix = [40, 35, 30, 25, 20]
+        put_call = [2.0, 2.1, 2.2, 2.3, 2.4]
+        safe_haven = [1.5, 1.4, 1.3, 1.2, 1.1]
+        margin = [0.3, 0.35, 0.4, 0.45, 0.5]
+        fg_index = evaluator._builtin_ta_fear_greed_index([vix, put_call, safe_haven, margin])
+        
+        volume = [5000, 5200, 5400, 5600, 5800]
+        volatility = [0.5, 0.45, 0.4, 0.35, 0.3]
+        spread = [0.01, 0.01, 0.01, 0.01, 0.01]
+        liquidity = evaluator._builtin_ta_liquidity_score([volume, volatility, spread, 3])
         assert fg_index is not None
         assert liquidity is not None
 
     def test_economic_with_technical(self, evaluator):
         """Test combining economic with technical indicators."""
         # GDP proxy + volume momentum
-        gdp = evaluator._builtin_ta_gdp_growth_proxy([[0.6, 0.65, 0.7, 0.75, 0.8], [1000, 1200, 1400, 1600, 1800], [1.0, 1.2, 1.4, 1.6, 1.8]])
+        breadth = [0.6, 0.65, 0.7, 0.75, 0.8]
+        volume = [1000, 1200, 1400, 1600, 1800]
+        momentum = [1.0, 1.2, 1.4, 1.6, 1.8]
+        gdp = evaluator._builtin_ta_gdp_growth_proxy([breadth, volume, momentum])
+        
         vol_mom = evaluator._builtin_ta_volume_momentum([[1000, 1100, 1200, 1300, 1400], 3])
         assert gdp is not None
         assert vol_mom is not None
@@ -712,10 +742,18 @@ class TestIntegration:
     def test_full_trading_signal_generation(self, evaluator):
         """Test full trading signal generation using multiple Tier 6 functions."""
         # Combine multiple indicators for a complete signal
-        ofi = evaluator._builtin_ta_order_flow_imbalance([[100, 101, 102, 103, 104], [95, 96, 97, 98, 99], [102, 102.5, 103, 103.5, 104], [1000, 1200, 1100, 1300, 1400], 3])
-        mean_rev = evaluator._builtin_ta_mean_reversion_score([[100, 101, 102, 103, 104], [100.5, 100.8, 101.1, 101.4, 101.7], [1.0, 1.1, 1.2, 1.3, 1.4], 3])
-        sentiment = evaluator._builtin_ta_crowd_sentiment([0.7, 0.65, 0.75])
+        high = [100, 101, 102, 103, 104]
+        low = [95, 96, 97, 98, 99]
+        close = [102, 102.5, 103, 103.5, 104]
+        volume = [1000, 1200, 1100, 1300, 1400]
+        ofi = evaluator._builtin_ta_order_flow_imbalance([high, low, close, volume, 3])
         
+        close2 = [100, 101, 102, 103, 104]
+        ma = [100.5, 100.8, 101.1, 101.4, 101.7]
+        volume2 = [1.0, 1.1, 1.2, 1.3, 1.4]
+        mean_rev = evaluator._builtin_ta_mean_reversion_score([close2, ma, volume2, 3])
+        sentiment = evaluator._builtin_ta_crowd_sentiment([0.7, 0.65, 0.75])
+
         # All should return valid values
         assert ofi is not None
         assert mean_rev is not None

@@ -433,7 +433,7 @@ class TestTier5Integration:
         close = [98.0, 99.0, 100.0, 101.0, 102.0]
         atr = [1.0, 1.0, 1.0, 1.0, 1.0]
         condition = evaluator._builtin_ta_market_condition([close, atr, 3, 2])
-        
+
         if condition == "trending_up":
             size = evaluator._builtin_ta_position_sizing([10000.0, 2.0, 102.0, 100.0])
             assert size > 0
@@ -442,7 +442,7 @@ class TestTier5Integration:
         """Test combining signal confluence with strategy score."""
         signals = {"rsi": 1, "macd": 1, "ema": 1}
         confluence = evaluator._builtin_ta_signal_confluence([signals])
-        
+
         if confluence["signal_count"] >= 2:
             score = evaluator._builtin_ta_strategy_score([75.0, 0.5, True, 35.0])
             assert score > 0
@@ -450,7 +450,7 @@ class TestTier5Integration:
     def test_breakout_with_risk_reward(self, evaluator):
         """Test combining breakout detection with risk/reward."""
         result = evaluator._builtin_ta_breakout_detection([102.0, 100.0, 95.0])
-        
+
         if result["is_breakout"]:
             ratio = evaluator._builtin_ta_risk_reward_ratio([100.0, 95.0, 110.0])
             assert ratio > 0
@@ -459,10 +459,10 @@ class TestTier5Integration:
         """Test volatility regime impact on position sizing."""
         atr_low = [0.5, 0.6, 0.55]
         atr_high = [3.0, 3.2, 3.1]
-        
+
         size_low_vol = evaluator._builtin_ta_position_sizing([10000.0, 1.0, 100.0, 95.0])
         size_high_vol = evaluator._builtin_ta_position_sizing([10000.0, 1.0, 100.0, 85.0])
-        
+
         # Both should be positive
         assert size_low_vol > 0
         assert size_high_vol > 0

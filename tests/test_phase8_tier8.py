@@ -301,7 +301,7 @@ class TestIntegration:
         result = evaluator._builtin_ta_intelligent_strategy_synthesizer(
             [trend, momentum, volatility, volume, "trending_up", "balanced"]
         )
-        
+
         assert result["composite_signal"] > 0.5
         assert result["confidence_level"] > 0.6
         assert "long" in result["strategy_recommendation"]
@@ -317,7 +317,7 @@ class TestIntegration:
         result = evaluator._builtin_ta_intelligent_strategy_synthesizer(
             [trend, momentum, volatility, volume, "trending_down", "balanced"]
         )
-        
+
         assert result["composite_signal"] < -0.5
         assert result["confidence_level"] > 0.6
         assert "short" in result["strategy_recommendation"]
@@ -328,14 +328,14 @@ class TestIntegration:
         momentum = [0.4, 0.45, 0.5]
         volatility = [0.6, 0.65, 0.6]
         volume = [0.3, 0.35, 0.3]
-        
+
         conservative = evaluator._builtin_ta_intelligent_strategy_synthesizer(
             [trend, momentum, volatility, volume, "ranging", "conservative"]
         )
         aggressive = evaluator._builtin_ta_intelligent_strategy_synthesizer(
             [trend, momentum, volatility, volume, "ranging", "aggressive"]
         )
-        
+
         assert conservative["risk_level"] < aggressive["risk_level"]
 
     def test_multi_condition_scenario(self, evaluator):
@@ -344,11 +344,11 @@ class TestIntegration:
         momentum = [0.5, -0.4, 0.45]
         volatility = [0.8, 0.85, 0.82]
         volume = [0.4, -0.2, 0.35]
-        
+
         result = evaluator._builtin_ta_intelligent_strategy_synthesizer(
             [trend, momentum, volatility, volume, "volatile", "conservative"]
         )
-        
+
         assert isinstance(result, dict)
         assert all(
             key in result for key in [
@@ -377,7 +377,7 @@ class TestOutputFormat:
         result = evaluator._builtin_ta_intelligent_strategy_synthesizer(
             [[0.5], [0.5], [0.5], [0.5], "ranging", "balanced"]
         )
-        
+
         required_fields = [
             "composite_signal",
             "confidence_level",
@@ -389,7 +389,7 @@ class TestOutputFormat:
             "take_profit_priority",
             "regime_alignment",
         ]
-        
+
         for field in required_fields:
             assert field in result, f"Missing field: {field}"
 
@@ -398,7 +398,7 @@ class TestOutputFormat:
         result = evaluator._builtin_ta_intelligent_strategy_synthesizer(
             [[0.7], [0.6], [0.5], [0.65], "trending_up", "balanced"]
         )
-        
+
         assert -1.0 <= result["composite_signal"] <= 1.0
         assert 0 <= result["confidence_level"] <= 1.0
         assert 0 <= result["risk_level"] <= 100.0
@@ -411,7 +411,7 @@ class TestOutputFormat:
         result = evaluator._builtin_ta_intelligent_strategy_synthesizer(
             [[0.5], [0.5], [0.5], [0.5], "ranging", "balanced"]
         )
-        
+
         valid_recommendations = [
             "aggressive_long",
             "conservative_long",
@@ -419,7 +419,7 @@ class TestOutputFormat:
             "conservative_short",
             "aggressive_short",
         ]
-        
+
         assert result["strategy_recommendation"] in valid_recommendations
 
     def test_holding_period_values(self, evaluator):
@@ -427,7 +427,7 @@ class TestOutputFormat:
         result = evaluator._builtin_ta_intelligent_strategy_synthesizer(
             [[0.5], [0.5], [0.5], [0.5], "ranging", "balanced"]
         )
-        
+
         valid_periods = ["scalp", "day_trade", "swing", "position"]
-        
+
         assert result["holding_period"] in valid_periods

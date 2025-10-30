@@ -285,15 +285,21 @@ class ExampleScriptExecutor:
                 if self.executor.position_size != 0:
                     if result.direction == strategy.long and self.executor.position_size < 0:
                         self.executor.cash += 2 * self.executor.position_amount + self.executor.position_size * price
+                        quantity = -self.executor.position_size
+                        cash = self.executor.cash
                         print(
-                            f"{self.executor.current_date}: action=exit  direction=short price={price} quantity={-self.executor.position_size} cash={self.executor.cash}"
+                            f"{self.executor.current_date}: action=exit  direction=short "
+                            f"price={price} quantity={quantity} cash={cash}"
                         )
                         self.executor.position_size = 0
                         self.executor.position_amount = 0
                     elif result.direction == strategy.short and self.executor.position_size > 0:
                         self.executor.cash += self.executor.position_size * price
+                        quantity = self.executor.position_size
+                        cash = self.executor.cash
                         print(
-                            f"{self.executor.current_date}: action=exit  direction=long  price={price} quantity={self.executor.position_size} cash={self.executor.cash}"
+                            f"{self.executor.current_date}: action=exit  direction=long  "
+                            f"price={price} quantity={quantity} cash={cash}"
                         )
                         self.executor.position_size = 0
                         self.executor.position_amount = 0
@@ -318,15 +324,19 @@ class ExampleScriptExecutor:
                 if self.executor.cash > cash_amount:
                     if result.direction == strategy.long and not self.executor.position_size > 0:
                         self.executor.cash -= cash_amount
+                        cash = self.executor.cash
                         print(
-                            f"{self.executor.current_date}: action=enter direction=long  price={price} quantity={quantity} cash={self.executor.cash}"
+                            f"{self.executor.current_date}: action=enter direction=long  "
+                            f"price={price} quantity={quantity} cash={cash}"
                         )
                         self.executor.position_size = +quantity
                         self.executor.position_amount = cash_amount
                     elif result.direction == strategy.short and not self.executor.position_size < 0:
                         self.executor.cash -= cash_amount
+                        cash = self.executor.cash
                         print(
-                            f"{self.executor.current_date}: action=enter direction=short price={price} quantity={quantity} cash={self.executor.cash}"
+                            f"{self.executor.current_date}: action=enter direction=short "
+                            f"price={price} quantity={quantity} cash={cash}"
                         )
                         self.executor.position_size = -quantity
                         self.executor.position_amount = cash_amount
