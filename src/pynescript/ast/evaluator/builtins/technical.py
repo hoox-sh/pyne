@@ -183,6 +183,10 @@ class TechnicalAnalysisMixin(BuiltinDispatchMixin):
             "ta.trailing_exit_level": self._builtin_ta_trailing_exit_level,
             "ta.trend_confirmation_score": self._builtin_ta_trend_confirmation_score,
             "ta.volatility_regime_score": self._builtin_ta_volatility_regime_score,
+            # Phase 8 Tier 8: Final Capstone Indicator
+            "ta.intelligent_strategy_synthesizer": (
+                self._builtin_ta_intelligent_strategy_synthesizer
+            ),
         }
 
     # -- Public entry points -------------------------------------------------
@@ -4917,4 +4921,202 @@ class TechnicalAnalysisMixin(BuiltinDispatchMixin):
             "regime_fit": regime_fit,
             "signal_confidence": confidence,
             "strategy_recommendation": recommendation,
+        }
+
+    # ========================================================================
+    # Phase 8 Tier 8: Final Capstone Indicator (1 function)
+    # ========================================================================
+
+    def _builtin_ta_intelligent_strategy_synthesizer(self, args: list[Any]) -> dict:
+        """Intelligent Trading Strategy Synthesizer - Meta-indicator synthesis.
+
+        Combines all technical indicator categories into adaptive,
+        context-aware trading signals.
+
+        ta.intelligent_strategy_synthesizer(
+            trend_indicators, momentum_indicators, volatility_indicators,
+            volume_indicators, market_condition, risk_profile
+        )
+
+        Returns: dict with composite signal, confidence, and trading recommendation
+        """
+        msg = "ta.intelligent_strategy_synthesizer() requires 6 arguments"
+        if len(args) < 6:
+            self._error(msg)
+
+        trend_list = self._expect_list(args[0], msg)
+        momentum_list = self._expect_list(args[1], msg)
+        volatility_list = self._expect_list(args[2], msg)
+        volume_list = self._expect_list(args[3], msg)
+        market_condition = (
+            args[4]
+            if isinstance(args[4], str)
+            else "ranging"
+        )
+        risk_profile = (
+            args[5]
+            if isinstance(args[5], str)
+            else "balanced"
+        )
+
+        # Extract numeric values from each category
+        trend_vals = [
+            t for t in trend_list
+            if isinstance(t, (int, float))
+        ]
+        momentum_vals = [
+            m for m in momentum_list
+            if isinstance(m, (int, float))
+        ]
+        volatility_vals = [
+            v for v in volatility_list
+            if isinstance(v, (int, float))
+        ]
+        volume_vals = [
+            vol for vol in volume_list
+            if isinstance(vol, (int, float))
+        ]
+
+        # Calculate average signals from each category
+        trend_avg = (
+            sum(trend_vals) / len(trend_vals)
+            if trend_vals
+            else 0.0
+        )
+        momentum_avg = (
+            sum(momentum_vals) / len(momentum_vals)
+            if momentum_vals
+            else 0.0
+        )
+        volatility_avg = (
+            sum(volatility_vals) / len(volatility_vals)
+            if volatility_vals
+            else 0.5
+        )
+        volume_avg = (
+            sum(volume_vals) / len(volume_vals)
+            if volume_vals
+            else 0.0
+        )
+
+        # Normalize volatility to 0-1 range
+        volatility_normalized = max(0.0, min(1.0, volatility_avg))
+
+        # Composite signal calculation
+        # Trend: 40%, Momentum: 35%, Volume: 25%
+        composite = (
+            trend_avg * 0.4 +
+            momentum_avg * 0.35 +
+            volume_avg * 0.25
+        )
+        composite_signal = max(-1.0, min(1.0, composite))
+
+        # Confidence scoring based on signal agreement
+        agreement_count = 0
+        if abs(trend_avg) > 0.3:
+            agreement_count += 1
+        if abs(momentum_avg) > 0.3:
+            agreement_count += 1
+        if abs(volume_avg) > 0.3:
+            agreement_count += 1
+
+        base_confidence = agreement_count / 3.0
+        volatility_penalty = volatility_normalized * 0.3
+        confidence_level = max(
+            0.1,
+            min(0.99, base_confidence - volatility_penalty)
+        )
+
+        # Strategy recommendation based on composite signal
+        if composite_signal > 0.6:
+            if risk_profile == "aggressive":
+                recommendation = "aggressive_long"
+            else:
+                recommendation = "conservative_long"
+        elif composite_signal > 0.2:
+            recommendation = "conservative_long"
+        elif composite_signal < -0.6:
+            if risk_profile == "aggressive":
+                recommendation = "aggressive_short"
+            else:
+                recommendation = "conservative_short"
+        elif composite_signal < -0.2:
+            recommendation = "conservative_short"
+        else:
+            recommendation = "hold"
+
+        # Risk level based on volatility and risk profile
+        if risk_profile == "conservative":
+            risk_mult = 0.5
+        elif risk_profile == "aggressive":
+            risk_mult = 1.5
+        else:
+            risk_mult = 1.0
+
+        risk_level = volatility_normalized * 50.0 * risk_mult
+
+        # Expected return estimation
+        abs_signal = abs(composite_signal)
+        expected_return = abs_signal * 3.0
+
+        # Holding period based on volatility
+        if volatility_normalized > 0.7:
+            holding_period = "scalp"
+        elif volatility_normalized > 0.5:
+            holding_period = "day_trade"
+        elif abs_signal > 0.5:
+            holding_period = "swing"
+        else:
+            holding_period = "position"
+
+        # Stop loss priority (-1 to 0)
+        if recommendation in ["aggressive_short", "conservative_short"]:
+            stop_loss_priority = -0.7
+        elif recommendation in ["aggressive_long", "conservative_long"]:
+            stop_loss_priority = -0.2
+        else:
+            stop_loss_priority = -0.15
+
+        # Take profit priority (0.5 to 2.0)
+        if recommendation in ["aggressive_long", "aggressive_short"]:
+            take_profit_priority = 1.5
+        elif recommendation in ["conservative_long", "conservative_short"]:
+            take_profit_priority = 1.0
+        else:
+            take_profit_priority = 0.5
+
+        # Regime alignment scoring
+        regime_alignment = 50.0
+
+        if market_condition == "trending_up":
+            if composite_signal > 0:
+                regime_alignment = 90.0
+            elif composite_signal > -0.3:
+                regime_alignment = 60.0
+            else:
+                regime_alignment = 30.0
+        elif market_condition == "trending_down":
+            if composite_signal < 0:
+                regime_alignment = 90.0
+            elif composite_signal < 0.3:
+                regime_alignment = 60.0
+            else:
+                regime_alignment = 30.0
+        elif market_condition == "ranging":
+            regime_alignment = 50.0 + (1.0 - abs_signal) * 30.0
+        elif market_condition == "volatile":
+            regime_alignment = 30.0 + abs_signal * 40.0
+        else:  # dead
+            regime_alignment = 40.0
+
+        return {
+            "composite_signal": composite_signal,
+            "confidence_level": confidence_level,
+            "strategy_recommendation": recommendation,
+            "risk_level": max(0.0, min(100.0, risk_level)),
+            "expected_return": expected_return,
+            "holding_period": holding_period,
+            "stop_loss_priority": stop_loss_priority,
+            "take_profit_priority": take_profit_priority,
+            "regime_alignment": max(0.0, min(100.0, regime_alignment)),
         }
