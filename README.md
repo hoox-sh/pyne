@@ -59,11 +59,11 @@ This diagram illustrates the core pipeline: from source code to AST manipulation
 ## Features
 
 - **🔍 Complete Parsing**: Full support for Pine Script™ v5-v6 grammar with ANTLR4-powered accuracy.
-- **� 88+ Builtin Functions**: Comprehensive implementation of INPUT, REQUEST, DRAWING, and STRATEGY functions (70% coverage).
-- **�🛠️ AST Manipulation**: Inspect and transform scripts using a rich Python object model.
+- **📊 149+ Builtin Functions**: Comprehensive implementation of technical analysis, utilities, drawing, and strategy functions.
+- **🛠️ AST Manipulation**: Inspect and transform scripts using a rich Python object model.
 - **🔄 Round-Trip Fidelity**: Parse and unparse scripts without losing formatting or semantics.
 - **💻 CLI Tools**: Command-line utilities for quick parsing, dumping, and validation.
-- **⚡ Evaluation Engine**: Execute deterministic expressions with 236+ tests (100% pass rate).
+- **⚡ Evaluation Engine**: Execute deterministic expressions with 997 tests (100% pass rate).
 - **🔧 Extensible Architecture**: Visitor patterns for custom analysis and transformation.
 - **🧪 Battle-Tested**: Regression tests against TradingView®'s built-in scripts ensure reliability.
 - **🚀 Modern Tooling**: Hatch for environments, Ruff for linting, pytest for testing.
