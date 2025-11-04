@@ -148,14 +148,15 @@ pynescript parse-and-unparse messy_script.pine > clean_script.pine
 Compute literal values and built-ins:
 
 ```python
-from pynescript.ast.helper import parse
-from pynescript.ast.evaluator import NodeLiteralEvaluator
+from pynescript.ast.helper import literal_eval
 
-script = "1 + 2 * 3"
-tree = parse(script)
-evaluator = NodeLiteralEvaluator()
-result = evaluator.visit(tree)
+result = literal_eval("1 + 2 * 3")
 print(result)  # 7
+
+# Technical analysis
+prices = [100, 102, 101, 103, 105, 104, 106, 108, 107, 110]
+rsi = literal_eval(f"ta.rsi({prices}, 9)")
+print(rsi)  # ~81.25
 ```
 
 ### Transforming Scripts
@@ -163,17 +164,20 @@ print(result)  # 7
 Use the transformer to modify ASTs:
 
 ```python
+from pynescript.ast.helper import parse, unparse
 from pynescript.ast.transformer import NodeTransformer
 
-class MyTransformer(NodeTransformer):
-    def visit_Number(self, node):
-        # Double all numbers
-        return node._replace(value=str(int(node.value) * 2))
+class RenameVariables(NodeTransformer):
+    def visit_Name(self, node):
+        # Rename 'close' to 'price'
+        if node.id == 'close':
+            node.id = 'price'
+        return node
 
-tree = parse("rsi(close, 14)")
-transformer = MyTransformer()
+tree = parse("sma = ta.sma(close, 20)")
+transformer = RenameVariables()
 new_tree = transformer.visit(tree)
-print(unparse(new_tree))  # rsi(close, 28)
+print(unparse(new_tree))  # sma = ta.sma(price, 20)
 ```
 
 Here's a sequence diagram showing the transformation process:
