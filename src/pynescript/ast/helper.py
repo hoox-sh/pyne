@@ -85,7 +85,6 @@ def _add_annotations(script, statements, comments):
                 statement.annotations = annotations
 
 
-
 def _collect_comment_nodes(builder: PinescriptASTBuilder, token_stream: CommonTokenStream) -> list[ast.Comment]:
     token_stream.fill()
     comments: list[ast.Comment] = []

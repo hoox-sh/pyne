@@ -143,4 +143,5 @@ cython_debug/
 
 # Others
 .ignore/
-.pypirc*.stats
+.pypirc
+*.stats
