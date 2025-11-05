@@ -11,6 +11,23 @@ from pynescript.ast.type_system import ObjectInstance
 from pynescript.ast.type_system import UserDefinedType
 
 
+# Optimize: Pre-cache operator references at module level
+_OPERATOR_EQ = operator.eq
+_OPERATOR_NE = operator.ne
+_OPERATOR_LT = operator.lt
+_OPERATOR_LE = operator.le
+_OPERATOR_GT = operator.gt
+_OPERATOR_GE = operator.ge
+_OPERATOR_ADD = operator.add
+_OPERATOR_SUB = operator.sub
+_OPERATOR_MUL = operator.mul
+_OPERATOR_DIV = operator.truediv
+_OPERATOR_MOD = operator.mod
+_OPERATOR_NOT = operator.not_
+_OPERATOR_POS = operator.pos
+_OPERATOR_NEG = operator.neg
+
+
 class ExpressionEvaluator:
     def visit_BoolOp(self: EvaluatorProtocol, node: ast.BoolOp):
         if isinstance(node.op, ast.And):
@@ -24,26 +41,26 @@ class ExpressionEvaluator:
         left = self.visit(node.left)
         right = self.visit(node.right)
         if isinstance(node.op, ast.Add):
-            return operator.add(left, right)
+            return _OPERATOR_ADD(left, right)
         elif isinstance(node.op, ast.Sub):
-            return operator.sub(left, right)
+            return _OPERATOR_SUB(left, right)
         elif isinstance(node.op, ast.Mult):
-            return operator.mul(left, right)
+            return _OPERATOR_MUL(left, right)
         elif isinstance(node.op, ast.Div):
-            return operator.truediv(left, right)
+            return _OPERATOR_DIV(left, right)
         elif isinstance(node.op, ast.Mod):
-            return operator.mod(left, right)
+            return _OPERATOR_MOD(left, right)
         else:
             msg = f"Unsupported binary operator: {type(node.op)}"
             raise NotImplementedError(msg)
 
     def visit_UnaryOp(self: EvaluatorProtocol, node: ast.UnaryOp):
         if isinstance(node.op, ast.Not):
-            return operator.not_(self.visit(node.operand))
+            return _OPERATOR_NOT(self.visit(node.operand))
         if isinstance(node.op, ast.UAdd):
-            return operator.pos(self.visit(node.operand))
+            return _OPERATOR_POS(self.visit(node.operand))
         if isinstance(node.op, ast.USub):
-            return operator.neg(self.visit(node.operand))
+            return _OPERATOR_NEG(self.visit(node.operand))
         msg = f"unexpected node operator: {node.op}"
         raise ValueError(msg)
 
@@ -66,22 +83,22 @@ class ExpressionEvaluator:
         return True
 
     def visit_Eq(self: EvaluatorProtocol, _node: ast.Eq):
-        return operator.eq
+        return _OPERATOR_EQ
 
     def visit_NotEq(self: EvaluatorProtocol, _node: ast.NotEq):
-        return operator.ne
+        return _OPERATOR_NE
 
     def visit_Lt(self: EvaluatorProtocol, _node: ast.Lt):
-        return operator.lt
+        return _OPERATOR_LT
 
     def visit_LtE(self: EvaluatorProtocol, _node: ast.LtE):
-        return operator.le
+        return _OPERATOR_LE
 
     def visit_Gt(self: EvaluatorProtocol, _node: ast.Gt):
-        return operator.gt
+        return _OPERATOR_GT
 
     def visit_GtE(self: EvaluatorProtocol, _node: ast.GtE):
-        return operator.ge
+        return _OPERATOR_GE
 
     def visit_Call(self: EvaluatorProtocol, node: ast.Call):
         func = self.visit(node.func)
