@@ -39,6 +39,10 @@ from pynescript.util.itertools import grouper
 
 
 def _add_annotations(script, statements, comments):
+    # Optimize: early exit if no comments
+    if not comments:
+        return
+        
     comments_and_statements_iter = itertools.chain(comments, statements)
     sorted_items = sorted(comments_and_statements_iter, key=lambda item: (item.lineno, item.col_offset))
 
@@ -53,14 +57,20 @@ def _add_annotations(script, statements, comments):
         for comment, group in comments_and_statements
     ]
 
-    annotations = [c.value for c in grouped_annotations_and_statements[0] if c.kind.endswith("S")]
-
-    if annotations:
-        script.annotations = annotations
+    # Optimize: only process if there are annotations
+    first_group = grouped_annotations_and_statements[0]
+    if first_group:
+        annotations = [c.value for c in first_group if c.kind.endswith("S")]
+        if annotations:
+            script.annotations = annotations
 
     grouped_annotations_and_statement_pairs = grouper(grouped_annotations_and_statements, n=2, incomplete="ignore")
 
     for comments, statement in grouped_annotations_and_statement_pairs:
+        # Optimize: skip if no comments
+        if not comments:
+            continue
+            
         if isinstance(statement, ast.FunctionDef):
             annotations = [c.value for c in comments if c.kind.endswith("F")]
             if annotations:
@@ -75,12 +85,16 @@ def _add_annotations(script, statements, comments):
                 statement.annotations = annotations
 
 
+
 def _collect_comment_nodes(builder: PinescriptASTBuilder, token_stream: CommonTokenStream) -> list[ast.Comment]:
     token_stream.fill()
     comments: list[ast.Comment] = []
 
+    # Optimize: cache COMMENT type lookup
+    comment_type = PinescriptLexer.COMMENT
+    
     for token in token_stream.tokens:
-        if token is None or token.type != PinescriptLexer.COMMENT:
+        if token is None or token.type != comment_type:
             continue
 
         text = token.text or ""
@@ -90,10 +104,12 @@ def _collect_comment_nodes(builder: PinescriptASTBuilder, token_stream: CommonTo
             kind=kind,
         )
 
+        # Optimize: cache text length
+        text_len = len(text)
         comment.lineno = token.line  # type: ignore[attr-defined]
         comment.col_offset = token.column  # type: ignore[attr-defined]
         comment.end_lineno = token.line  # type: ignore[attr-defined]
-        comment.end_col_offset = token.column + len(text)  # type: ignore[attr-defined]
+        comment.end_col_offset = token.column + text_len  # type: ignore[attr-defined]
 
         comments.append(comment)
 

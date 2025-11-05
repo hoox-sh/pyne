@@ -48,8 +48,22 @@ class PinescriptASTLocator:
         }
 
     def _setLocations(self, node: ast.AST, ctx: ParserRuleContext) -> ast.AST:
-        for name, value in self._getLocations(ctx).items():
-            setattr(node, name, value)
+        # Optimized: directly set attributes without creating intermediate dict
+        start = ctx.start
+        stop = ctx.stop
+        stop_len = stop.stop - stop.start + 1
+        stop_nls = stop.text.count("\n")
+        
+        node.lineno = start.line  # type: ignore[attr-defined]
+        node.col_offset = start.column  # type: ignore[attr-defined]
+        node.end_lineno = stop.line + stop_nls  # type: ignore[attr-defined]
+        
+        if stop_nls > 0:
+            stop_nlpos = stop.text.rfind("\n")
+            node.end_col_offset = stop_len - stop_nlpos + 1  # type: ignore[attr-defined]
+        else:
+            node.end_col_offset = stop.column + stop_len  # type: ignore[attr-defined]
+        
         return node
 
 
