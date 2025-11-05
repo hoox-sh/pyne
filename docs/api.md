@@ -6,7 +6,7 @@ This page provides an overview of the PyneScript API organized by functionality.
 
 ### Parsing and Unparsing
 
-The primary entry points for working with Pine Script™ code:
+The primary entry points for working with Pine Script™ code. Use these functions to parse Pine Script™ text into an Abstract Syntax Tree (AST), convert AST back to code, and inspect the structure.
 
 ```{eval-rst}
 .. autofunction:: pynescript.ast.helper.parse
@@ -16,7 +16,7 @@ The primary entry points for working with Pine Script™ code:
 
 ### Evaluation
 
-Execute and evaluate Pine Script™ expressions:
+Execute and evaluate Pine Script™ expressions directly in Python. This function supports deterministic expressions including arithmetic operations, built-in functions, and literal values.
 
 ```{eval-rst}
 .. autofunction:: pynescript.ast.helper.literal_eval
