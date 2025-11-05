@@ -3,7 +3,7 @@
 [![PyPI](https://img.shields.io/pypi/v/pynescript.svg)][pypi]
 [![Python Version](https://img.shields.io/pypi/pyversions/pynescript)][python-version]
 [![License](https://img.shields.io/pypi/l/pynescript)][license]
-[![Docs](https://img.shields.io/readthedocs/pynescript/latest.svg?label=docs)][docs]
+[![Docs](https://img.shields.io/badge/docs-GitHub%20Pages-blue)][docs]
 
 > Parse, analyse, and regenerate TradingView® Pine Script™ with a modern Python toolchain.
 
@@ -230,11 +230,15 @@ docs/              # Sphinx documentation
 
 ## Documentation
 
-Dive deeper at [pynescript.readthedocs.io][docs]:
+Full documentation is available at [GitHub Pages][docs]:
 
-- [Usage Guide](https://pynescript.readthedocs.io/en/latest/usage.html) — CLI and library tutorials.
-- [API Reference](https://pynescript.readthedocs.io/en/latest/reference.html) — Complete module docs.
-- [Implementation Status](https://pynescript.readthedocs.io/en/latest/pinescript_implementation_status.html) — Feature coverage.
+- [Usage Guide](https://jango-blockchained.github.io/PyneScript/usage.html) — Installation and quickstart
+- [Features](https://jango-blockchained.github.io/PyneScript/features.html) — Complete feature list with examples
+- [API Overview](https://jango-blockchained.github.io/PyneScript/api.html) — Organized by functionality
+- [API Reference](https://jango-blockchained.github.io/PyneScript/reference.html) — Complete auto-generated documentation
+- [Implementation Status](https://jango-blockchained.github.io/PyneScript/pinescript_implementation_status.html) — Feature coverage
+
+Documentation is automatically generated from source code and deployed on every commit to ensure 100% coverage.
 
 ## Roadmap
 
@@ -263,7 +267,7 @@ Found a bug or have a feature request? [Open an issue][issues]. Let's build some
 [pypi]: https://pypi.org/project/pynescript/
 [python-version]: https://pypi.org/project/pynescript
 [license]: https://github.com/jango-blockchained/pynescript/blob/main/LICENSE
-[docs]: https://pynescript.readthedocs.io/
+[docs]: https://jango-blockchained.github.io/PyneScript/
 [issues]: https://github.com/jango-blockchained/pynescript/issues
 
 <!-- github-only -->
