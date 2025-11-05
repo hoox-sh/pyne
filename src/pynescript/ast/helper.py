@@ -42,7 +42,7 @@ def _add_annotations(script, statements, comments):
     # Optimize: early exit if no comments
     if not comments:
         return
-        
+
     comments_and_statements_iter = itertools.chain(comments, statements)
     sorted_items = sorted(comments_and_statements_iter, key=lambda item: (item.lineno, item.col_offset))
 
@@ -70,7 +70,7 @@ def _add_annotations(script, statements, comments):
         # Optimize: skip if no comments
         if not comments:
             continue
-            
+
         if isinstance(statement, ast.FunctionDef):
             annotations = [c.value for c in comments if c.kind.endswith("F")]
             if annotations:
@@ -92,7 +92,7 @@ def _collect_comment_nodes(builder: PinescriptASTBuilder, token_stream: CommonTo
 
     # Optimize: cache COMMENT type lookup
     comment_type = PinescriptLexer.COMMENT
-    
+
     for token in token_stream.tokens:
         if token is None or token.type != comment_type:
             continue

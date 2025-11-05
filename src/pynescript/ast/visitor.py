@@ -24,7 +24,7 @@ class NodeVisitor:
     def __init__(self):
         # Optimize: cache visitor methods to avoid repeated getattr calls
         self._visitor_cache: dict[str, callable] = {}
-    
+
     def visit(self, node: AST):
         node_class = node.__class__.__name__
         # Try cache first
