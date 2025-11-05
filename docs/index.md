@@ -10,13 +10,14 @@ end-before: <!-- github-only -->
 ```{toctree}
 ---
 hidden:
-maxdepth: 1
+maxdepth: 2
 ---
 
 usage
+features
+api
 reference
 pinescript_implementation_status
-PROGRESS_REPORT
 License <license>
 Changelog <https://github.com/jango-blockchained/pynescript/releases>
 ```

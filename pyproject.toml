@@ -32,7 +32,7 @@ dependencies = [
 ]
 
 [project.urls]
-Documentation = "https://github.com/jango-blockchained/pynescript#readme"
+Documentation = "https://jango-blockchained.github.io/PyneScript/"
 Issues = "https://github.com/jango-blockchained/pynescript/issues"
 Source = "https://github.com/jango-blockchained/pynescript"
 
