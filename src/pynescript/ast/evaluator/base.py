@@ -23,6 +23,7 @@ _MATH_CONSTANTS = {
 
 class BaseEvaluator(NodeVisitor):
     def __init__(self, context: dict[str, Any] | None = None):
+        super().__init__()  # Initialize visitor cache
         self.context = context or {}
         # Optimize: use pre-computed constants
         self.context.update(_MATH_CONSTANTS)
