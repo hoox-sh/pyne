@@ -21,9 +21,19 @@ from pynescript.ast.node import AST
 
 
 class NodeVisitor:
+    def __init__(self):
+        # Optimize: cache visitor methods to avoid repeated getattr calls
+        self._visitor_cache: dict[str, callable] = {}
+
     def visit(self, node: AST):
-        method = "visit_" + node.__class__.__name__
-        visitor = getattr(self, method, self.generic_visit)
+        node_class = node.__class__.__name__
+        # Try cache first
+        visitor = self._visitor_cache.get(node_class)
+        if visitor is None:
+            # Cache miss, look up and cache the method
+            method = "visit_" + node_class
+            visitor = getattr(self, method, self.generic_visit)
+            self._visitor_cache[node_class] = visitor
         return visitor(node)
 
     def generic_visit(self, node: AST):

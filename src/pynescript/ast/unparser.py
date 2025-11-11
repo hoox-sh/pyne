@@ -53,6 +53,7 @@ class NodeUnparser(NodeVisitor):
     # ruff: noqa: N802, ARG002
 
     def __init__(self):
+        super().__init__()  # Initialize visitor cache
         self._source = []
         self._precedences = {}
         self._indent = 0
