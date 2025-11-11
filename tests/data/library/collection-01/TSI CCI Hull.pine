@@ -1,0 +1,42 @@
+    //@version=4
+//                                                created by SeaSide420
+study("TSI CCI Hull", shorttitle="TSICCI")
+long = input(title="Long Length", type=input.integer, defval=35)
+short = input(title="Short Length", type=input.integer, defval=35)
+signal = input(title="Signal Length", type=input.integer, defval=13)
+price=input(title="Source",type=input.source,defval=open)
+Period=input(14, minval=1)
+lineupper = input(title="Upper Line", type=input.integer, defval=100)
+linelower = input(title="Lower Line", type=input.integer, defval=-100)
+p=price
+length= Period*2
+double_smooth(src, long, short) =>
+    fist_smooth = ema(src, long)
+    ema(fist_smooth, short)
+pc = change(price)
+double_smoothed_pc = double_smooth(pc, long, short)
+double_smoothed_abs_pc = double_smooth(abs(pc), long, short)
+tsi_value = 100 * (double_smoothed_pc / double_smoothed_abs_pc)
+keh = tsi_value*5 > linelower ? color.red : color.lime
+teh = ema(tsi_value*5, signal*5) > lineupper ? color.red : color.lime
+meh = ema(tsi_value*5, signal*5) > tsi_value*5 ? color.red : color.lime
+i1=plot(tsi_value*5, title="TSI Value", color=color.black, linewidth=1,transp=100)
+i2=plot(ema(tsi_value*5, signal*5), title="TSI Signal", color=color.black, linewidth=1,transp=100)
+fill(i1,i2,color=meh,transp=85)
+plot(cross(tsi_value*5, ema(tsi_value*5, signal*5)) ? tsi_value*5 : na, style=plot.style_circles, color=color.black, linewidth=10)
+plot(cross(tsi_value*5, ema(tsi_value*5, signal*5)) ? tsi_value*5 : na, style=plot.style_circles, color=color.white, linewidth=8,transp=0)
+plot(cross(tsi_value*5, ema(tsi_value*5, signal*5)) ? tsi_value*5 : na, style=plot.style_circles, color=meh, linewidth=5)
+n2ma = 2 * wma(p, round(length / 2))
+nma = wma(p, length)
+diff = n2ma - nma
+sqn = round(sqrt(length))
+n1 = wma(diff, sqn)
+cci = (p - n1) / (0.015 * dev(p, length))
+c = cci > 0 ? color.lime : color.red
+c1 = cci > 20 ? color.lime : color.silver
+c2 = cci < -20 ? color.red : color.silver
+cc=plot(cci, color=c, title="CCI Line", linewidth=2)
+cc2=plot(cci[1], color=color.gray, linewidth=1,transp=100)
+fill(cc,cc2,color=c,transp=85)
+plot(cross(20, cci) ? 20 : na, style=plot.style_cross,title="CCI cross UP",  color=c1, linewidth=2,transp=100,offset=-2)
+plot(cross(-20, cci) ? -20 : na, style=plot.style_cross,title="CCI cross down",  color=c2, linewidth=2,transp=100,offset=-2)

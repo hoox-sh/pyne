@@ -1,0 +1,29 @@
+study(title="Mega RSI [SHK]", shorttitle="Mega RSI [SHK]")
+
+i1 = 120
+i2 = i1 + 120
+
+rsi_length=input(14, title="RSI Length")
+rsi_mom_length=input(9, title="RSI Momentum Length")
+rsi_ma_length=input(3, title="RSI MA Length")
+ma_length=input(3, title="SMA Length")
+fastLength=input(13)
+slowLength=input(33)
+
+r=rsi(close, rsi_length)
+rsidelta = mom(r, rsi_mom_length)
+rsisma = sma(rsi(close, rsi_ma_length), ma_length)
+s=rsidelta+rsisma
+
+plot30 = plot(30,color=#FFFFFF00)
+plot70 = plot(70,color=#FFFFFF00)
+fill(plot30,plot70,color=#22222204)
+
+hline(30,color=green,linestyle=dashed)
+hline(50,color=black,linestyle=dotted)
+hline(70,color=red,linestyle=dashed)
+
+plot(s / 2 + i1, color=red, linewidth=2)
+plot(sma(s, fastLength) / 2 + i1, color=green)
+plot(sma(s, slowLength) / 2 + i1, color=red)
+plot(r,color=#880e4f,linewidth=2)

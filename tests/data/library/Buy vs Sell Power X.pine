@@ -1,0 +1,30 @@
+//@version=3
+//@link=https://www.tradingview.com/u/RafaelZioni/
+
+
+study("buy vs sell power x",overlay=false)
+source = close
+hilow = ((high - low)*100)
+openclose = ((close - open)*100)
+vol = (close / hilow)
+spreadv = (openclose * close)
+pt = spreadv + cum(spreadv)
+s = input(5) 
+m = input(9) 
+l = input(14)  
+a = ema(pt, l) - ema(pt, m)
+b = ema(pt, s) - ema(pt, m)
+p=a+b
+plot(b, color=blue,style=line, linewidth=3)
+plot(p,color=red,style=line, linewidth=3)
+//
+showZones   = input(true, title="Show Bullish/Bearish Zones")
+
+// bullish signal rule: 
+bullishRule =b>=p
+// bearish signal rule: 
+bearishRule =b<=p
+// current trading State
+ruleState = 0
+ruleState := bullishRule ? 1 : bearishRule ? -1 : nz(ruleState[1])
+bgcolor(showZones ? ( ruleState==1 ? blue : ruleState==-1 ? red : orange ) : na , title=" Bullish/Bearish Zones", transp=70)

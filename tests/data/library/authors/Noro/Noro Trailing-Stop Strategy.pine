@@ -1,0 +1,35 @@
+//Noro
+//2019
+
+//@version=4
+strategy(title = "Noro's Trailing-Stop Strategy", shorttitle = "Trailing", overlay = true, default_qty_type = strategy.percent_of_equity, default_qty_value = 100, pyramiding = 0)
+
+//Settings
+needlong = input(true, defval = true, title = "Long")
+needshort = input(false, defval = false, title = "Short")
+length = input(20, minval = 1)
+shift = input(0.0, minval = 0, title = "Trailing Stop")
+background = input(false)
+
+//Levels
+max = highest(high, length)
+min = lowest(low, length)
+
+//Trailing
+size = strategy.position_size
+longtrailing = 0.0
+shorttrailing = 0.0
+longtrailing := size <= 0 ? min - ((min / 100) * shift) : max(min - ((min / 100) * shift), longtrailing[1])
+shorttrailing := size >= 0 ? max + ((max / 100) * shift) : min(max + ((max / 100) * shift), shorttrailing[1])
+trailing = size <= 0 ? shorttrailing : longtrailing
+col = size == size[1] ? size > 0 ? color.red : color.lime : na
+plot(trailing, color = col, linewidth = 2, transp = 0)
+
+//Background
+bgcol = background ? size > 0 ? color.lime : color.red : na
+bgcolor(bgcol, transp = 80)
+
+if trailing > 0 and size <= 0
+    strategy.entry("Long", strategy.long, needlong ? na : 0, stop = trailing)
+if trailing > 0 and size >= 0
+    strategy.entry("Short", strategy.short, needshort ? na : 0, stop = trailing)

@@ -1,0 +1,99 @@
+//@version=4
+//@editor=jango_blockchained
+//code from linear regression used https://www.tradingview.com/script/CD7yUWRV-Linear-Regression-Trend-Channel/
+study(" linear regression support and resistance",overlay=true)
+
+
+period     = input(     100, "Period"       , input.integer, minval=3)
+deviations = input(    2.0, "Deviation(s)" , input.float  , minval=0.1, step=0.1)
+periodMinusOne = period-1
+Ex = 0.0, Ey = 0.0, Ex2 = 0.0, Exy = 0.0, for i=0 to periodMinusOne
+    closeI = nz(close[i]), Ex := Ex + i, Ey := Ey + closeI, Ex2 := Ex2 + (i * i), Exy := Exy + (closeI * i)
+ExEx = Ex * Ex, slope = Ex2==ExEx ? 0.0 : (period * Exy - Ex * Ey) / (period * Ex2 - ExEx)
+linearRegression = (Ey - slope * Ex) / period
+intercept = linearRegression + bar_index * slope
+deviation = 0.0, for i=0 to periodMinusOne
+    deviation := deviation + pow(nz(close[i]) - (intercept - slope * (bar_index[i])), 2.0)
+deviation := deviations * sqrt(deviation / periodMinusOne)
+startingPointY = linearRegression + slope / periodMinusOne
+lineColor = startingPointY > startingPointY[1] ? color.blue : color.red
+
+////////////////////////////
+// CALCULATE POINTS //
+////////////////////////////
+P = startingPointY
+R= P     + deviation
+S= P     - deviation
+
+
+calculationToPlotAverageMeanLine=startingPointY
+useUpperDeviation = input(true, "Upper Deviation", input.bool)
+useLowerDeviation = input(true, "Lower Deviation", input.bool)
+
+top=R
+bott=S
+
+calculationToPlotUpperLine=top
+calculationToPlotLowerLine=bott
+
+plotUpperDeviationLine = plot(not useUpperDeviation ? na : calculationToPlotUpperLine, color=color.blue)
+plotAverageMeanLine = plot(calculationToPlotAverageMeanLine, color=color.olive)
+plotLowererDeviationLine = plot(not useLowerDeviation ? na : calculationToPlotLowerLine, color=color.red)
+fill(plotUpperDeviationLine, plotAverageMeanLine, color=color.blue)
+fill(plotLowererDeviationLine, plotAverageMeanLine, color=color.red)
+
+//
+length10 = input(title="Bollinger Length", type=input.integer, defval=34, minval=1)
+multiplier = input(title="Bollinger Deviation", type=input.float, defval=2, minval=1)
+overbought = input(title="Overbought", type=input.integer, defval=1, minval=1)
+oversold = input(title="Oversold", type=input.integer, defval=0, minval=1)
+
+
+smabasis = linearRegression + slope / periodMinusOne
+stdev = stdev(close, length10)
+cierre =  close
+alta =  high
+baja =  low
+basis1 = smabasis
+stdevb =  stdev
+dev5 = multiplier * stdevb  // stdev(cierre, length)
+upper = basis1 + dev5
+lower5 = basis1 - dev5
+
+bbr = (cierre - lower5) / (upper - lower5)
+
+// plot(bbr)
+
+// // MARCA LAS RESISTENCIAS
+pintarojo = 0.0
+pintarojo := nz(pintarojo[1])
+pintarojo := bbr[1] > overbought and bbr < overbought ? alta[1] : nz(pintarojo[1])
+p = plot(pintarojo, color=color.red, style=plot.style_circles, linewidth=2)
+
+// // MARCA LOS SOPORTES
+pintaverde = 0.0
+pintaverde := nz(pintaverde[1])
+pintaverde := bbr[1] < oversold and bbr > oversold ? baja[1] : nz(pintaverde[1])
+g = plot(pintaverde, color=color.black, style=plot.style_circles, linewidth=2)
+//
+nround(x) => 
+    n = round(x / syminfo.mintick) * syminfo.mintick
+
+// TODO: IFLOST COlor
+
+
+//
+disp_panels = input(true, title="Display info panels?")
+linear_label_off = input(20, title="linear label offset")
+linear_label_size = input(size.normal, options=[size.tiny, size.small, size.normal, size.large, size.huge], title="linear label size")
+r1_x = timenow + round(change(time)*linear_label_off)
+r1_y = pintarojo
+text1 = "linear Resistance : " + tostring(nround(pintarojo))
+s1_y = pintaverde
+text3 = "linear Support : " + tostring(nround(pintaverde))
+
+R1_label = disp_panels ? label.new(x=r1_x, y=r1_y, text=text1, xloc=xloc.bar_time, yloc=yloc.price, color=color.orange, style=label.style_labelup, textcolor=color.black, size=linear_label_size) : na
+S1_label = disp_panels ? label.new(x=r1_x, y=s1_y, text=text3, xloc=xloc.bar_time, yloc=yloc.price, color=color.lime, style=label.style_labelup, textcolor=color.black, size=linear_label_size) : na
+
+label.delete(R1_label[1])
+label.delete(S1_label[1])

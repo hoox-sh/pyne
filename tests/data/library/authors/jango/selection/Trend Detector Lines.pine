@@ -1,0 +1,151 @@
+//@version=4
+study(title=" trend detector", shorttitle=" trend detector", overlay=true)
+length = input(100),short = input(false," pred"),src = input(close)
+mult = input(2.),short1 = input(true," trend")
+lenFast = input(1, title="Length of Fast ", type=input.integer, minval=1)
+lenSlow = input(5, title="Length of Slow ", type=input.integer, minval=1)
+lenC = input(10, title="Length of  Curve", type=input.integer, minval=1)
+
+co(sFast, sSlow, lFast, lSlow, lC)=>
+    fastC = sma(sFast, lFast)
+    slowC = sma(sSlow, lSlow)
+    cC = fastC + slowC
+    sma(cC, lC)
+
+closeC = co(close, close, lenFast, lenSlow, lenC)
+//              PLOTTING: 
+//lineColor = closeC > closeC[1] ? color.green : color.red
+
+c20 = closeC/2
+
+//----
+n20 = bar_index
+ts20 = c20
+p1 = short1 ? 1 : length
+//----
+e = cum(abs(src-ts20))/n20*mult
+a = ts20 + e
+b = ts20 - e
+//----
+
+//line Up15 = line.new(n20[p1],a[p1],n20,a,extend=extend.right,color=color.gray,width=1)
+line Md15 = line.new(n20[p1],ts20[p1],n20,ts20,extend=extend.right,color=color.gray,width=1)
+//line Dn15 = line.new(n20[p1],b[p1],n20,b,extend=extend.right,color=color.gray,width=1)
+//----
+//line.delete(Up15[1])
+line.delete(Md15[1])
+//line.delete(Dn15[1])
+//line Up25 = line.new(n20[p1],a[p1],n20,a,extend=extend.left,color=color.gray,width=1)
+line Md25 = line.new(n20[p1],ts20[p1],n20,ts20,extend=extend.left,color=color.gray,width=1)
+//line Dn25 = line.new(n20[p1],b[p1],n20,b,extend=extend.left,color=color.gray,width=1)
+//----
+//line.delete(Up25[1])
+line.delete(Md25[1])
+//line.delete(Dn25[1])
+length1 = input(20, minval=1)
+basis = sma(src, length1)
+dev = mult * stdev(src, length1)
+upper = basis + dev
+lower = basis - dev
+//
+c = basis
+n = bar_index
+ts = c
+p = short ? 1 : length
+line Md = line.new(n[p],ts[p],n,ts,extend=extend.left,color=color.blue,width=3)
+line.delete(Md[1])
+line Md1 = line.new(n[p],ts[p],n,ts,extend=extend.right,color=color.blue,width=3)
+line.delete(Md1[1])
+//
+c1 = upper
+n1 = bar_index
+ts1 = c1
+line Md2 = line.new(n1[p],ts1[p],n1,ts1,extend=extend.left,color=color.red,width=2)
+line.delete(Md2[1])
+line Md3 = line.new(n1[p],ts1[p],n1,ts1,extend=extend.right,color=color.red,width=2)
+line.delete(Md3[1])
+//
+c2 = lower
+n2 = bar_index
+ts2 = c2
+line Md4 = line.new(n2[p],ts2[p],n2,ts2,extend=extend.left,color=color.red,width=2)
+line.delete(Md4[1])
+line Md5 = line.new(n2[p],ts2[p],n2,ts2,extend=extend.right,color=color.red,width=2)
+line.delete(Md5[1])
+//
+// Draw channel.
+len=input(20)
+channelType = input(defval="Bollinger", title="Channel Type", options=["Bollinger", "Donchian", "Envelope"])
+channelLen = input(20, minval=1, title="Channel Length")
+envPer = input(4, title="Envelope %", type=input.float, minval=0) / 100
+
+getChannels(src, len) =>
+    if channelType == "Bollinger"
+        ma = ema(src, len)
+        dev = stdev(src, len)
+        bbUp = ma + 2*dev
+        bbDown = ma - 2*dev
+        [bbUp, bbDown]
+    else
+        if channelType == "Donchian"
+            donUp = highest(high[1], len)
+            donDown = lowest(low[1], len)
+            [donUp, donDown]
+        else 
+            if channelType == "Envelope"
+                ma = ema(src, len)
+                envUp = ma * (1 + envPer)
+                envDown = ma * (1 - envPer)
+                [envUp, envDown]
+            else 
+                [na, na]
+
+[upperchannel, lowerchannel] = getChannels(src, len)
+u = plot(upperchannel, linewidth=1, color=color.gray, title="Upper")
+//plot(avg(upperchannel, lowerchannel), linewidth=1, color=color.maroon, title="Middle")
+l = plot(lowerchannel, linewidth=1, color=color.gray, title="Lower")
+fill(u, l)
+//
+//
+rsilen = input(14, title="RSI Length")
+rsi = rsi(close, rsilen)
+//
+trendDetectionLength = input(4, title="Trend Dection Length 1", type=input.integer)
+float trend = na
+float wave = na
+float vol = na
+
+mov = close>close[1] ? 1 : close<close[1] ? -1 : 0
+trend := (mov != 0) and (mov != mov[1]) ? mov : nz(trend[1])
+isTrending = rising(close, trendDetectionLength) or falling(close, trendDetectionLength)
+wave := (trend != nz(wave[1])) and isTrending ? trend : nz(wave[1])
+vol := wave == wave[1] ? (nz(vol[1])+volume) : volume
+up = wave == 1 ? vol : 0
+dn = wave == 1 ? 0 : vol
+//
+f_draw_infopanel(_x, _y, _line, _text, _color)=>
+    _rep_text = ""
+    for _l = 0 to _line
+        _rep_text := _rep_text + "\n"
+    _rep_text := _rep_text + _text
+    var label _la = na
+    label.delete(_la)
+    _la := label.new(
+         x=_x, y=_y, 
+         text=_rep_text, xloc=xloc.bar_time, yloc=yloc.price, 
+         color=color.gray, style=label.style_labelup, textcolor=_color, size=size.large)
+
+
+posx = timenow + round(change(time)*20)
+posy = highest(100)
+
+f_draw_infopanel(posx, posy, 6, "RSI "+tostring(rsi, "#"), rsi >= 45 ? color.lime : color.red)
+
+f_draw_infopanel(posx, posy, 4, "trend", closeC > closeC[1] ? color.lime : color.red)
+
+f_draw_infopanel(posx, posy, 2, "median", close > basis ? color.lime : color.red)
+
+f_draw_infopanel(posx, posy, 0, "weis", up > dn ? color.lime : color.red)
+
+
+

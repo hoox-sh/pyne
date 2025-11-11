@@ -1,0 +1,156 @@
+//@version=4
+study(title="InfoPanel Divergence Indicator", format=format.price, precision=0, overlay=true)
+
+// --------------------------------------------------------------------------------------------------------||
+// thanks to: RicardoSantos for his script of panel coding
+// --------------------------------------------------------------------------------------------||
+// character list:
+//     ‖ ‗ ― — – ‒
+//     ← ↑ → ↓ ↔ ↕ ↨ ─ 
+//     │ ┌ ┐ └ ┘ ├ ┤ ┬ ┴ ┼ 
+//     ═ ║ ╒ ╓ ╔ ╕ ╖ ╗ ╘ ╙ ╚ ╛ ╜ ╝ ╞ ╟ ╠ ╡ ╢ ╣ ╤ ╥ ╦ ╧ ╨ ╩ ╪ ╫ ╬ 
+//     ▀ ▄ █ ▌ ▐ ░ ▒ ▓ ■ □ ▪ ▫ ▬ ▲ ► ▼ ◄ 
+//     spaces: | | | | | | | | | | | |​|‌|‍|
+
+//INPUTS
+x=input(defval=30,type=input.integer)
+y=input(defval=20,type=input.integer)
+background=input(defval="Black",options=["Black","White"])
+
+
+f_draw_infopanel(_x, _y, _line, _text)=>
+    _rep_text = ""
+    for _l = 0 to _line
+        _rep_text := _rep_text + "\n"
+    _rep_text := _rep_text + _text
+    var label _la = na
+    label.delete(_la)
+    _la := label.new(
+         x=_x, y=_y, 
+         text=_rep_text, xloc=xloc.bar_time, yloc=yloc.price, 
+         color=background=="Black"?color.black:color.white, style=label.style_labelup, textcolor=background=="Black"?color.white:color.black, size=size.small)
+         //)
+
+lapos_x = timenow + round(change(time)*x)
+lapos_y = highest(20)+(syminfo.mintick*y)
+
+
+checkDiv(osc) =>
+    bullishPrice = low
+    priceMins = bullishPrice > bullishPrice[1] and bullishPrice[1] < bullishPrice[2]
+
+    priceRightMin = valuewhen(priceMins, bullishPrice[1], 0)
+    priceLeftMin = valuewhen(priceMins, bullishPrice[1], 1)
+
+    oscRightMin = valuewhen(priceMins, osc[1], 0)
+    oscLeftMin = valuewhen(priceMins, osc[1], 1)
+
+    bullishNDiv = priceLeftMin > priceRightMin and oscLeftMin < oscRightMin
+    bullishHDiv = priceLeftMin < priceRightMin and oscLeftMin > oscRightMin
+
+    bullishNSig = bullishNDiv and not bullishNDiv[1] and bullishPrice[1] < bullishPrice
+    bullishHSig = bullishHDiv and not bullishHDiv[1] and bullishPrice[1] > bullishPrice
+
+
+    bearishPrice = high
+    priceMaxs = bearishPrice < bearishPrice[1] and bearishPrice[1] > bearishPrice[2]
+
+    priceRightMax = valuewhen(priceMaxs, bearishPrice[1], 0)
+    priceLeftMax = valuewhen(priceMaxs, bearishPrice[1], 1)
+
+    oscRightMax = valuewhen(priceMaxs, osc[1], 0)
+    oscLeftMax = valuewhen(priceMaxs, osc[1], 1)
+
+    bearishNDiv = priceLeftMax < priceRightMax and oscLeftMax > oscRightMax
+    bearishHDiv = priceLeftMax > priceRightMax and oscLeftMax < oscRightMax
+
+    bearishNSig = bearishNDiv and not bearishNDiv[1] and bearishPrice[1] < bearishPrice
+    bearishHSig = bearishHDiv and not bearishHDiv[1] and bearishPrice[1] > bearishPrice
+    
+    //output
+    [bullishNSig,bullishHSig,bearishNSig,bearishHSig]
+
+//RSI
+rsiLength=input(14)
+[rsiBNSig,rsiBHSig,rsibNSig,rsibHSig]=checkDiv(rsi(close,rsiLength))
+
+rsiText=rsiBNSig?"ND ▲":rsiBHSig?"HD ▲":rsibNSig?"ND ▼" : rsibHSig?"HD ▼" : "-"
+plotshape(rsiBNSig or rsiBHSig  ? low  : na, location=location.belowbar, style=shape.labelup,   size=size.tiny, color=color.green, text="▲\nRSI", textcolor=color.white, transp=0)
+plotshape(rsibNSig or rsibHSig ? high : na, location=location.abovebar, style=shape.labeldown, size=size.tiny, color=color.red, text="RSI\n▼", textcolor=color.white, transp=0)
+
+//STOCHASTIC
+periodK = input(14, title="K", minval=1)
+periodD = input(3, title="D", minval=1)
+smoothK = input(3, title="Smooth", minval=1)
+k = sma(stoch(close, high, low, periodK), smoothK)
+d = sma(k, periodD)
+[stochBNSig,stochBHSig,stochbNSig,stochbHSig]=checkDiv(k)
+
+stochText=stochBNSig?"ND ▲":stochBHSig?"HD ▲":stochbNSig?"ND ▼" : stochbHSig?"HD ▼" : "-"
+plotshape(stochBNSig or stochBHSig  ? low  : na, location=location.belowbar, style=shape.labelup,   size=size.tiny, color=color.green, text="▲\nStoch", textcolor=color.white, transp=0)
+plotshape(stochbNSig or stochbHSig ? high : na, location=location.abovebar, style=shape.labeldown, size=size.tiny, color=color.red, text="Stoch\n▼", textcolor=color.white, transp=0)
+
+//STOCH RSI
+lengthRSI = input(14, minval=1)
+lengthStoch = input(14, minval=1)
+
+rsi1 = rsi(close, lengthRSI)
+k1 = sma(stoch(rsi1, rsi1, rsi1, lengthStoch), smoothK)
+[stochRSIBNSig,stochRSIBHSig,stochRSIbNSig,stochRSIbHSig]=checkDiv(k1)
+
+stochRSIText=stochRSIBNSig?"ND ▲":stochRSIBHSig?"HD ▲":stochRSIbNSig?"ND ▼" : stochRSIbHSig?"HD ▼" : "-"
+plotshape(stochRSIBNSig or stochRSIBHSig  ? low  : na, location=location.belowbar, style=shape.labelup,   size=size.tiny, color=color.green, text="▲\nSt_RSI", textcolor=color.white, transp=0)
+plotshape(stochRSIbNSig or stochRSIbHSig ? high : na, location=location.abovebar, style=shape.labeldown, size=size.tiny, color=color.red, text="St_RSI\n▼", textcolor=color.white, transp=0)
+
+//CCI
+lengthCCI = input(20, minval=1)
+maCCI = sma(close, lengthCCI)
+cci = (close - maCCI) / (0.015 * dev(close, lengthCCI))
+[cciBNSig,cciBHSig,ccibNSig,ccibHSig]=checkDiv(cci)
+
+cciText=cciBNSig?"ND ▲":cciBHSig?"HD ▲":ccibNSig?"ND ▼" : ccibHSig?"HD ▼" : "-"
+plotshape(cciBNSig or cciBHSig  ? low  : na, location=location.belowbar, style=shape.labelup,   size=size.tiny, color=color.green, text="▲\nCCI", textcolor=color.white, transp=0)
+plotshape(ccibNSig or ccibHSig ? high : na, location=location.abovebar, style=shape.labeldown, size=size.tiny, color=color.red, text="CCI\n▼", textcolor=color.white, transp=0)
+
+//Bollinger B%
+multiBB = input(2.0, minval=0.001, maxval=50, title="Bollinger Bands multiplier")
+lengthBB=input(20, minval=1)
+basisBB = sma(close, lengthBB)
+devBB = multiBB * stdev(close, lengthBB)
+upperBB = basisBB + devBB
+lowerBB = basisBB - devBB
+bbr = (close - lowerBB)/(upperBB - lowerBB)
+[bbrBNSig,bbrBHSig,bbrbNSig,bbrbHSig]=checkDiv(bbr)
+
+bbrText=bbrBNSig?"ND ▲":bbrBHSig?"HD ▲":bbrbNSig?"ND ▼" : bbrbHSig?"HD ▼" : "-"
+plotshape(bbrBNSig or bbrBHSig  ? low  : na, location=location.belowbar, style=shape.labelup,   size=size.tiny, color=color.green, text="▲\n%B", textcolor=color.white, transp=0)
+plotshape(bbrbNSig or bbrbHSig ? high : na, location=location.abovebar, style=shape.labeldown, size=size.tiny, color=color.red, text="%B\n▼", textcolor=color.white, transp=0)
+
+//MACD
+fast_length = input(title="MACD Fast Length", type=input.integer, defval=12)
+slow_length = input(title="MACD Slow Length", type=input.integer, defval=26)
+src = input(title="MACD Source", type=input.source, defval=close)
+signal_length = input(title="MACD Signal Smoothing", type=input.integer, minval = 1, maxval = 50, defval = 9)
+sma_source = input(title="MACD Simple MA(Oscillator)", type=input.bool, defval=false)
+sma_signal = input(title="MACD Simple MA(Signal Line)", type=input.bool, defval=false)
+// Calculating
+fast_ma = sma_source ? sma(src, fast_length) : ema(src, fast_length)
+slow_ma = sma_source ? sma(src, slow_length) : ema(src, slow_length)
+macd = fast_ma - slow_ma
+signal = sma_signal ? sma(macd, signal_length) : ema(macd, signal_length)
+hist = macd - signal
+[macdBNSig,macdBHSig,macdbNSig,macdbHSig]=checkDiv(hist)
+
+macdText=macdBNSig?"ND ▲":macdBHSig?"HD ▲":macdbNSig?"ND ▼" : macdbHSig?"HD ▼" : "-"
+plotshape(macdBNSig or macdBHSig  ? low  : na, location=location.belowbar, style=shape.labelup,   size=size.tiny, color=color.green, text="▲\nMACD", textcolor=color.white, transp=0)
+plotshape(macdbNSig or macdbHSig ? high : na, location=location.abovebar, style=shape.labeldown, size=size.tiny, color=color.red, text="MACD\n▼", textcolor=color.white, transp=0)
+
+f_draw_infopanel(lapos_x, lapos_y, 16, "╚════════════════════╝")
+f_draw_infopanel(lapos_x, lapos_y, 14,  "MACD: "+macdText)
+f_draw_infopanel(lapos_x, lapos_y, 12,  "BB %B: "+bbrText)
+f_draw_infopanel(lapos_x, lapos_y, 10,  "CCI: "+cciText)
+f_draw_infopanel(lapos_x, lapos_y, 8,  "Stochastic RSI: "+stochRSIText)
+f_draw_infopanel(lapos_x, lapos_y, 6,  "Stochastic: "+stochText)
+f_draw_infopanel(lapos_x, lapos_y, 4,  "RSI: "+ rsiText)
+f_draw_infopanel(lapos_x, lapos_y, 2,  "Divergences")
+f_draw_infopanel(lapos_x, lapos_y, 0, "╔════════════════════╗")

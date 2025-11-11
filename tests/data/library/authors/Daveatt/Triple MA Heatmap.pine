@@ -1,0 +1,146 @@
+//@version=4
+//author=@Daveatt
+//inspired by @CosmoaunautCalls script : https://www.tradingview.com/script/UgZOsSS7-Moving-Average-Heatmap-Visualization/
+
+study("MA heatmap", overlay=false)
+
+source = input(close)
+
+typeofMA1 = input(title="Type of MA 1", defval="SMA", options=["RMA", "SMA", "EMA", "WMA", "VWMA", "SMMA", "KMA", "TMA", "HullMA", "DEMA", "TEMA", "CTI"])
+length_ma1 = input(15, title = "MA 1", type=input.integer)
+
+typeofMA2 = input(title="Type of MA 2", defval="SMA", options=["RMA", "SMA", "EMA", "WMA", "VWMA", "SMMA", "KMA", "TMA", "HullMA", "DEMA", "TEMA", "CTI"])
+length_ma2 = input(30, title = "MA 2", type=input.integer)
+
+typeofMA3 = input(title="Type of MA 2", defval="SMA", options=["RMA", "SMA", "EMA", "WMA", "VWMA", "SMMA", "KMA", "TMA", "HullMA", "DEMA", "TEMA", "CTI"])
+length_ma3 = input(60, title = "MA 2", type=input.integer)
+
+
+MA_valuation(ma1, ma2, ma3, mode) =>
+    if (mode == 0) // DOWN
+        if (ma1 < ma2 and ma1 < ma3 and ma2 < ma3)
+            true
+        else
+            false
+    else
+        if (mode == 1) // UP
+            if (ma1 > ma2 and ma1 > ma3 and ma2 > ma3)
+                true
+            else
+                false
+
+
+cti(sm, src, cd) =>
+    di = (sm - 1.0) / 2.0 + 1.0
+    c1 = 2 / (di + 1.0)
+    c2 = 1 - c1
+    c3 = 3.0 * (cd * cd + cd * cd * cd)
+    c4 = -3.0 * (2.0 * cd * cd + cd + cd * cd * cd)
+    c5 = 3.0 * cd + 1.0 + cd * cd * cd + 3.0 * cd * cd
+    i1 = 0.0
+    i2 = 0.0
+    i3 = 0.0
+    i4 = 0.0
+    i5 = 0.0
+    i6 = 0.0
+    i1 := c1*src + c2*nz(i1[1])
+    i2 := c1*i1 + c2*nz(i2[1])
+    i3 := c1*i2 + c2*nz(i3[1])
+    i4 := c1*i3 + c2*nz(i4[1])
+    i5 := c1*i4 + c2*nz(i5[1])
+    i6 := c1*i5 + c2*nz(i6[1])
+        
+    bfr = -cd*cd*cd*i6 + c3*(i5) + c4*(i4) + c5*(i3)
+    bfr
+
+smma(src, len) =>
+    smma = 0.0
+    smma := na(smma[1]) ? sma(src, len) : (smma[1] * (len - 1) + src) / len
+    smma
+
+ma(smoothing, src, length) => 
+    if smoothing == "RMA"
+        rma(src, length)
+    else
+        if smoothing == "SMA"
+            sma(src, length)
+        else 
+            if smoothing == "EMA"
+                ema(src, length)
+            else 
+                if smoothing == "WMA"
+                    wma(src, length)
+				else
+					if smoothing == "VWMA"
+						vwma(src, length)
+					else
+						if smoothing == "SMMA"
+						    smma(src, length)
+						else
+							if smoothing == "HullMA"
+								wma(2 * wma(src, length / 2) - wma(src, length), round(sqrt(length)))
+							else
+								if smoothing == "LSMA"
+									src
+								else
+								    if smoothing == "KMA"
+								        xPrice = src
+                                        xvnoise = abs(xPrice - xPrice[1])
+                                        nfastend = 0.666
+                                        nslowend = 0.0645
+                                        nsignal = abs(xPrice - xPrice[length])
+                                        nnoise = sum(xvnoise, length)
+                                        nefratio = iff(nnoise != 0, nsignal / nnoise, 0)
+                                        nsmooth = pow(nefratio * (nfastend - nslowend) + nslowend, 2) 
+                                        nAMA = 0.0
+                                        nAMA := nz(nAMA[1]) + nsmooth * (xPrice - nz(nAMA[1]))
+                                        nAMA
+								    else
+								        if smoothing == "TMA"
+									        sma(sma(close, length), length)
+						                else
+							                if smoothing == "DEMA"
+							                    emaValue = ema(src, length)
+                                                2 * emaValue - ema(emaValue, length)
+							                else
+							                    if smoothing == "TEMA"
+							                        ema1 = ema(src, length)
+                                                    ema2 = ema(ema1, length)
+                                                    ema3 = ema(ema2, length)
+                                                    (3 * ema1) - (3 * ema2) + ema3
+							                    else
+						                            if smoothing == "CTI"
+                                                        cti(length, src, 0)
+	    								            else
+		    							                src
+
+
+MA1 = ma(typeofMA1, source, length_ma1)
+MA2 = ma(typeofMA2, source, length_ma2)
+MA3 = ma(typeofMA3, source, length_ma3)
+macrossover = MA_valuation(MA1, MA2, MA3, 1)
+macrossunder = MA_valuation(MA1, MA2, MA3, 0) 
+
+//l1  = hline(min + 0 * incr - 0.5 * incr,  color=color(#000000,  100), linewidth = 0, linestyle = dotted)
+h0 = hline(1, color=color.new(color.white, 99), linewidth=0, linestyle=hline.style_dotted)
+h1 = hline(2, color=color.new(color.white, 99), linewidth=0, linestyle=hline.style_dotted)
+h2 = hline(3, color=color.new(color.white, 99), linewidth=0, linestyle=hline.style_dotted)
+//h3 = hline(4, color=color.new(color.white, 99))
+
+since_ma_buy = barssince(macrossover)
+since_ma_sell = barssince(macrossunder)
+//cross_buy = crossunder(since_ma_buy,since_ma_sell) ? 1 : 0
+//cross_sell = crossover(since_ma_buy,since_ma_sell) ? 1 : 0
+curr = 0 - barssince(macrossunder) + barssince(macrossover)
+cross_buy = curr < 0 ?  1 : 0
+cross_sell = curr > 0 ? 1  : 0
+
+heatmap_color() =>
+    since_ma_buy < since_ma_sell ? color.new(color.green, 20) : since_ma_buy > since_ma_sell ? color.new(color.red, 20) : na
+
+fill(h0 ,h1, color=heatmap_color())
+fill(h1, h2, color=heatmap_color())
+//fill(h2, h3, color=heatmap_color())
+
+alertcondition(macrossover, title='Buy Alert MA Cross Over', message='Buy Alert X MA Cross Over')
+alertcondition(macrossunder, title='Sell Alert MA Cross Under', message='Sell Alert X MA Cross Under')

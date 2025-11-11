@@ -1,0 +1,33 @@
+//@version=3
+//@link=https://www.tradingview.com/script/vGvfH3kp-Weis-Wave-Accumulation-v1/
+study("Weis Wave Accumulation v1", shorttitle="wwav1", overlay=false)
+tf=input(720)
+Bandsize= isintraday and interval >= 1 ? tf/interval * 7 : isintraday and interval < 60 ? 60/interval * 24 * 7 : 7
+
+
+//Direction
+dir =0.0
+//Central line
+central = 0.0
+//Previus central line
+pcentral =0.0
+//Volume accumulator in up direction
+volup=0.0
+//Volume accumulator in down direction
+voldown=0.0
+
+central := nz(pcentral[1])
+dir := close - nz(central) >= Bandsize ? 1 : close - nz(central) <= -Bandsize ? -1 : nz(dir[1])
+pcentral := ((dir == 1) and (close > central)) or ((dir == -1) and (close < central)) ? close : nz(pcentral[1])
+
+volup   := dir==1 ? volup[1]+volume : 0
+voldown := dir==-1  ? voldown[1]+volume : 0
+hist = volup+voldown
+
+plot(hist, style=histogram, color=dir==1?aqua:red, title="Accumulator", linewidth=2)
+upp =crossover(volup,0) 
+downn = crossover(voldown,0) 
+plotchar(upp, title="buy", char='B', location=location.bottom, color=green, transp=0, offset=0,size=size.tiny)
+plotchar(downn, title="sell",char='S', offset=0, location=location.top, color=red, transp=0,size=size.tiny)
+alertcondition(upp, title='buy', message='go long')
+alertcondition(downn, title='sell', message='go  short')

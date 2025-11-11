@@ -1,0 +1,206 @@
+//@version=4
+
+//strategy(title = "ONLY LONG V4 [Backtest]", overlay = true, initial_capital = 1000, pyramiding = 100,
+//   calc_on_order_fills = false, calc_on_every_tick = false, default_qty_type = strategy.percent_of_equity, default_qty_value = 100, commission_value = 0.075)
+
+study(title = "ONLY LONG V4 [Alerts]", overlay = true)
+
+// RMI
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+RMI_len = input(34, title="RMI LENGTH", type=input.integer, minval = 1)
+mom = input(13, title="RMI MOMENTUM", type=input.integer, minval = 1)
+
+RMI_os = input(31,title="RMI OVERSOLD", type=input.integer, minval = 0)
+
+RMI(len, m)=>
+    up = ema(max(close - close[m],0), len)
+    dn = ema(max(close[m] - close,0), len)
+    RMI = dn == 0 ? 0 : 100 - 100 / (1 + up / dn)
+    RMI
+
+// ADX
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+ADX_len = input(89, title="ADX LENGTH", type=input.integer, minval = 1)
+th = input(15, title="ADX THRESHOLD", type=input.integer, minval = 0)
+
+calcADX(_len)=>
+    up = change(high)
+	down = -change(low)
+	plusDM = na(up) ? na : (up > down and up > 0 ? up : 0)
+    minusDM = na(down) ? na : (down > up and down > 0 ? down : 0)
+	truerange = rma(tr, _len)
+	_plus = fixnan(100 * rma(plusDM, _len) / truerange)
+	_minus = fixnan(100 * rma(minusDM, _len) / truerange)
+	sum = _plus + _minus
+	_adx = 100 * rma(abs(_plus - _minus) / (sum == 0 ? 1 : sum), _len)
+    [_plus,_minus,_adx] 
+    
+[DIPlus,DIMinus,ADX] = calcADX(ADX_len)
+
+macol = DIPlus > DIMinus and ADX > th ? color.lime : DIPlus < DIMinus and ADX > th ? color.red : color.orange
+
+barcolor(color = macol, title = "ADX")
+
+// RSI 
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+RSI_len = input(55, "RSI LENGHT", minval = 1)
+RSI_os = input(49,title="RSI CENTER LINE", type=input.integer, minval = 0)
+
+RSI(len)=>
+    up_rsi = rma(max(change(close), 0), len)
+    down_rsi = rma(-min(change(close), 0), len)
+    rsi = down_rsi == 0 ? 100 : up_rsi == 0 ? 0 : 100 - (100 / (1 + up_rsi / down_rsi))
+    rsi
+
+// Strategy
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+var bool longCondition = na
+longCondition := crossover(RMI(RMI_len, mom), RMI_os) and (DIPlus < DIMinus and ADX > th) and (RSI(RSI_len) < RSI_os)
+
+// Get the price of the last opened long
+
+var float last_open_longCondition = na
+last_open_longCondition := longCondition ? close : nz(last_open_longCondition[1])
+
+// Get the bar time of the last opened long
+
+var int last_longCondition = 0
+
+last_longCondition := longCondition ? time : nz(last_longCondition[1])
+
+// Stop Loss (Re-entry)
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+sl = input(10, "RE-ENTRY WHEN LOSS %", type = input.float, minval = 0, step = 0.5)
+
+long_sl = crossunder(low, (1-(sl/100))*last_open_longCondition) and not longCondition
+
+// Get the time of the last sl
+
+var int last_long_sl = na
+last_long_sl := long_sl ? time : nz(last_long_sl[1])
+
+// Sl counter
+
+var bool CondIni_long_sl = 0
+CondIni_long_sl := long_sl ? 1 : longCondition ? -1 : nz(CondIni_long_sl[1])
+
+Final_Long_sl = long_sl and nz(CondIni_long_sl[1]) == -1 and not longCondition
+
+// Count your long & short conditions
+
+var int sectionLongs = 0
+sectionLongs := nz(sectionLongs[1])
+
+// Longs & shorts Counter
+
+if longCondition or Final_Long_sl
+    sectionLongs := sectionLongs + 1
+
+// Average price of the position
+
+var float sum_long = 0.0
+
+if longCondition
+    sum_long := nz(last_open_longCondition) + nz(sum_long[1])
+
+if Final_Long_sl
+    sum_long := ((1-(sl/100))*last_open_longCondition) + nz(sum_long[1])
+
+var float Position_Price = 0.0
+Position_Price := nz(Position_Price[1])
+
+Position_Price := longCondition or Final_Long_sl ? sum_long/(sectionLongs) : na
+
+plot(Position_Price, title = "Average Price", color = color.fuchsia, linewidth = 2, style = plot.style_cross, transp = 0)
+
+// Take profit
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+tp = input(1.1, "TAKE PROFIT %", type = input.float, minval = 0, step = 0.1)
+
+long_tp = crossover(high, (1+(tp/100))*fixnan(Position_Price)) and not longCondition
+
+// Get the time of the last tp
+
+var int last_long_tp = na
+last_long_tp := long_tp ? time : nz(last_long_tp[1])
+
+Final_Long_tp = long_tp and last_longCondition > nz(last_long_tp[1])
+
+if Final_Long_tp
+    sum_long := 0.0
+    sectionLongs := 0
+    CondIni_long_sl == 1
+
+// Final Sl Conditions
+
+CondIni_long_sl := long_sl or Final_Long_tp ? 1 : longCondition ? -1 : nz(CondIni_long_sl[1])
+
+// Signals
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+// Long
+
+label.new(
+   x = longCondition[1] ? time : na, 
+   y = na, 
+   text = 'LONG '+tostring(sectionLongs)+"\n"+tostring(open), 
+   color = color.blue, 
+   textcolor = color.black,  
+   style = label.style_labelup, 
+   xloc = xloc.bar_time, 
+   yloc = yloc.belowbar,
+   size = size.tiny)
+
+// Tp
+
+label.new(
+   x = Final_Long_tp ? time : na, 
+   y = na, 
+   text = 'PROFIT '+tostring(tp)+'%', 
+   color = color.orange, 
+   textcolor = color.black,  
+   style = label.style_labeldown, 
+   xloc = xloc.bar_time, 
+   yloc = yloc.abovebar,
+   size = size.tiny) 
+
+ltp = iff(Final_Long_tp, (fixnan(Position_Price)*(1+(tp/100))), na), plot(ltp, style=plot.style_cross, linewidth=3, color = color.white, editable = false)
+
+// Sl
+
+label.new(
+   x = Final_Long_sl ? time : na, 
+   y = na, 
+   text = 'LOSS '+tostring(sl)+'%'+"\n"+"RE-ENTRY", 
+   color = color.green, 
+   textcolor = color.black,  
+   style = label.style_labelup, 
+   xloc = xloc.bar_time, 
+   yloc = yloc.belowbar,
+   size = size.tiny)
+   
+lsl = iff(Final_Long_sl, (last_open_longCondition*(1-(sl/100))), na), plot(lsl, style=plot.style_cross, linewidth=3, color = color.white, editable = false)
+
+// Backtesting
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+//testStartYear = input(2019, "BACKTEST START YEAR", minval = 1, maxval = 2222) 
+//testStartMonth = input(01, "BACKTEST START MONTH", minval = 1, maxval = 12)
+//testStartDay = input(01, "BACKTEST START DAY", minval = 1, maxval = 31)
+//testPeriodStart = timestamp(testStartYear,testStartMonth,testStartDay,0,0)
+
+//strategy.entry("long", strategy.long, when = (longCondition or Final_Long_sl) and (time >= testPeriodStart))
+
+//strategy.exit("TP", "long", limit = (fixnan(Position_Price)*(1+(tp/100))))
+
+// Alerts
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+alertcondition(longCondition[1] or Final_Long_sl, title="Long Alert", message = "LONG")
+alertcondition(Final_Long_tp, title="Long TP Alert", message = "LONG TP")

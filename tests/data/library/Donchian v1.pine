@@ -1,0 +1,238 @@
+//@version=3
+study("Donchian 1", overlay=true)
+tf=input(1440)
+src = close
+length = isintraday and interval >= 1 ? tf/interval * 7 : isintraday and interval < 60 ? 60/interval * 24 * 7 : 7
+mult = input(1.0, minval=0.001, maxval=10, step=0.2)
+dev = mult * stdev(src, length)
+upper = highest(close, length)[1]
+lower = lowest(close, length)[1]
+basis = (upper + lower) / 2
+upper1=upper+dev
+lower1=lower-dev
+plot(basis, color=red,style = line , linewidth = 3) 
+p1a = plot(upper1,color=blue,style = line , linewidth = 3)
+p1b = plot(lower1, color=blue,style = line , linewidth = 3)
+showZones   = input(true, title="Show Bullish/Bearish Zones")
+
+// bullish signal rule: 
+bullishRule =close>=basis
+// bearish signal rule: 
+bearishRule =close<=basis
+// current trading State
+ruleState = 0
+ruleState := bullishRule ? 1 : bearishRule ? -1 : nz(ruleState[1])
+bgcolor(showZones ? ( ruleState==1 ? blue : ruleState==-1 ? red : gray ) : na , title=" Bullish/Bearish Zones", transp=90)
+tf1=input(1440)
+
+lookBack = isintraday and interval >= 1 ? tf1/interval * 7 : isintraday and interval < 60 ? 60/interval * 24 * 7 : 7
+
+High = upper1
+Low = lower1
+
+highRatio = ((close-Low) / (High-Low)) * 500
+lowRatio = -((High-close) / (High-Low)) * 500
+
+z=highRatio+lowRatio
+
+
+// Conditions
+
+longCond = na
+shortCond = na
+longCond := crossover(z,100)
+shortCond := crossunder(z,-100)
+
+// Count your long short conditions for more control with Pyramiding
+
+sectionLongs = 0
+sectionLongs := nz(sectionLongs[1])
+sectionShorts = 0
+sectionShorts := nz(sectionShorts[1])
+
+if longCond
+    sectionLongs := sectionLongs + 1
+    sectionShorts := 0
+
+if shortCond
+    sectionLongs := 0
+    sectionShorts := sectionShorts + 1
+    
+// Pyramiding
+
+pyrl = 1
+
+// These check to see your signal and cross references it against the pyramiding settings above
+
+// These check to see your signal and cross references it against the pyramiding settings above
+
+longCondition = longCond and sectionLongs <= pyrl 
+shortCondition = shortCond and sectionShorts <= pyrl 
+
+// Get the price of the last opened long or short
+
+last_open_longCondition = na
+last_open_shortCondition = na
+last_open_longCondition := longCondition ? open : nz(last_open_longCondition[1])
+last_open_shortCondition := shortCondition ? open : nz(last_open_shortCondition[1])
+
+// Check if your last postion was a long or a short
+
+last_longCondition = na
+last_shortCondition = na
+last_longCondition := longCondition ? time : nz(last_longCondition[1])
+last_shortCondition := shortCondition ? time : nz(last_shortCondition[1])
+
+in_longCondition = last_longCondition > last_shortCondition
+in_shortCondition = last_shortCondition > last_longCondition
+
+// Take profit
+
+isTPl = input(true, "Take Profit Long")
+isTPs = input(true, "Take Profit Short")
+tp = input(5, "Take Profit %", type=float)
+long_tp = isTPl and crossover(high, (1+(tp/100))*last_open_longCondition) and longCondition == 0 and in_longCondition  == 1 
+short_tp = isTPs and crossunder(low, (1-(tp/100))*last_open_shortCondition) and shortCondition == 0 and in_shortCondition == 1 
+
+// Stop Loss
+
+isSLl = input(false, "Stop Loss Long")
+isSLs = input(false, "Stop Loss Short")
+sl= 0.0
+sl := input(3, "Stop Loss %", type=float)
+long_sl = isSLl and crossunder(low, (1-(sl/100))*last_open_longCondition) and longCondition == 0 and in_longCondition == 1
+short_sl = isSLs and crossover(high, (1+(sl/100))*last_open_shortCondition) and shortCondition == 0 and in_shortCondition == 1
+
+// Create a single close for all the different closing conditions.
+
+long_close = long_tp or long_sl ? 1 : 0
+short_close = short_tp or short_sl ? 1 : 0
+
+// Get the time of the last close
+
+last_long_close = na
+last_short_close = na
+last_long_close := long_close ? time : nz(last_long_close[1])
+last_short_close := short_close ? time : nz(last_short_close[1])
+
+
+// Alerts & Signals
+
+bton(b) => b ? 1 : 0
+plotshape(longCondition , title="buy alert", color=green, textcolor=green, transp=0, 
+          style=shape.triangleup, location=location.belowbar, size=size.small,text="LONG",offset=0)
+
+plotshape(shortCondition, title="sell alert", color=red, textcolor=red, transp=0, 
+          style=shape.triangledown, location=location.abovebar, size=size.small,text="SHORT",offset=0)
+plotshape(long_tp and last_longCondition > nz(last_long_close[1]), text ="TP", title="Take Profit Long", style=shape.triangledown, 
+   location=location.abovebar, color = red, editable = false, transp = 0) 
+plotshape(short_tp and last_shortCondition > nz(last_short_close[1]) , text ="TP", title="Take Profit Short", style=shape.triangleup, 
+   location=location.belowbar, color = lime, editable = false, transp = 0) 
+
+ltp = iff(long_tp and last_longCondition > nz(last_long_close[1]), (1+(tp/100))*last_open_longCondition, na)
+plot(ltp, style=cross, linewidth=3, color = white, editable = false)
+stp = iff(short_tp and last_shortCondition > nz(last_short_close[1]), (1-(tp/100))*last_open_shortCondition, na)
+plot(stp, style = cross, linewidth=3, color = white, editable = false)
+
+plotshape(long_sl and last_longCondition > nz(last_long_close[1]), text ="SL", title="Stop Loss Long", style=shape.triangledown, 
+   location=location.abovebar, color = red, editable = false, transp = 0) 
+plotshape(short_sl and last_shortCondition > nz(last_short_close[1]), text ="SL", title="Stop Loss Short", style=shape.triangleup, 
+   location=location.belowbar, color = lime, editable = false, transp = 0) 
+
+lsl = iff(long_sl and last_longCondition > nz(last_long_close[1]), (1-(sl/100))*last_open_longCondition, na)
+plot(lsl, style=cross, linewidth=3, color = white, editable = false)
+ssl = iff(short_sl and last_shortCondition > nz(last_short_close[1]), (1+(sl/100))*last_open_shortCondition, na)
+plot(ssl, style = cross, linewidth=3, color = white, editable = false)
+//
+alertcondition(bton(longCondition), title="Buy Alert")
+alertcondition(bton(shortCondition), title="Sell Alert")
+alertcondition(bton(long_tp and last_longCondition > nz(last_long_close[1])), title="Take Profit Long")
+alertcondition(bton(short_tp and last_shortCondition > nz(last_short_close[1])), title="Take Profit Short")
+alertcondition(bton(long_sl and last_longCondition > nz(last_long_close[1])), title="Stop Loss Long")
+alertcondition(bton(short_sl and last_shortCondition > nz(last_short_close[1])), title="Stop Loss Short")
+//
+// Conditions
+
+longCond1 = na
+shortCond1 = na
+longCond1 :=  isTPl and crossover(high, (1+(tp/100))*last_open_longCondition) and longCondition == 0 and in_longCondition  == 1 
+shortCond1 := isTPs and crossunder(low, (1-(tp/100))*last_open_shortCondition) and shortCondition == 0 and in_shortCondition == 1 
+
+// Count your long short conditions for more control with Pyramiding
+
+sectionLongs1 = 0
+sectionLongs1 := nz(sectionLongs1[1])
+sectionShorts1 = 0
+sectionShorts1 := nz(sectionShorts1[1])
+
+if longCond1
+    sectionLongs1 := sectionLongs1 + 1
+    sectionShorts1 := 0
+
+if shortCond1
+    sectionLongs1 := 0
+    sectionShorts1 := sectionShorts1 + 1
+    
+// Pyramiding
+
+pyrl1 = 1
+
+
+
+longCondition1 = longCond1 and sectionLongs1 <= pyrl1
+shortCondition1 = shortCond1 and sectionShorts1 <= pyrl1 
+
+// Get the price of the last opened long or short
+
+last_open_longCondition1 = na
+last_open_shortCondition1 = na
+last_open_longCondition1 := longCondition1 ? open : nz(last_open_longCondition1[1])
+last_open_shortCondition1 := shortCondition1 ? open : nz(last_open_shortCondition1[1])
+
+// Check if your last postion was a long or a short
+
+last_longCondition1 = na
+last_shortCondition1 = na
+last_longCondition1 := longCondition1 ? time : nz(last_longCondition1[1])
+last_shortCondition1 := shortCondition1 ? time : nz(last_shortCondition1[1])
+
+in_longCondition1 = last_longCondition1 > last_shortCondition1
+in_shortCondition1 = last_shortCondition1 > last_longCondition1
+
+// Take profit
+
+isTPl1 = input(true, "Take Profit Long1")
+isTPs1 = input(true, "Take Profit Short1")
+tp1 = input(2, "Take Profit %", type=float)
+long_tp1 = isTPl1 and crossover(high, (1+(tp/100))*last_open_longCondition1) and longCondition1 == 0 and in_longCondition1  == 1 
+short_tp1 = isTPs1 and crossunder(low, (1-(tp/100))*last_open_shortCondition1) and shortCondition1 == 0 and in_shortCondition1 == 1 
+
+
+// Create a single close for all the different closing conditions.
+
+long_close1 = long_tp1 ? 1 : 0
+short_close1 = short_tp1  ? 1 : 0
+
+// Get the time of the last close
+
+last_long_close1 = na
+last_short_close1 = na
+last_long_close1 := long_close1 ? time : nz(last_long_close1[1])
+last_short_close1 := short_close1 ? time : nz(last_short_close1[1])
+
+
+// Alerts & Signals
+buy1=input(false, "buy again")
+sell1=input(false, "sell again")
+bton1(b1) => b1 ? 1 : 0
+plotshape(buy1 and longCondition1, title = "Buy again", text = "b", style=shape.triangleup, location=location.belowbar, color = blue, editable = false, transp = 0)
+plotshape(sell1 and shortCondition1, title = "Sell again", text = "s", style=shape.triangledown, location=location.abovebar, color = black, editable = false, transp = 0)
+
+plotshape(long_tp1 and last_longCondition1 > nz(last_long_close1[1]), text ="TP1", title="Take Profit Long1", style=shape.triangledown, 
+   location=location.abovebar, color = red, editable = false, transp = 0) 
+plotshape(short_tp1 and last_shortCondition1 > nz(last_short_close1[1]) , text ="TP1", title="Take Profit Short1", style=shape.triangleup, 
+   location=location.belowbar, color = lime, editable = false, transp = 0) 
+alertcondition(bton1(longCondition1), title="Buy Again")
+alertcondition(bton1(shortCondition1), title="Sell Aagin")
+alertcondition(bton1(long_tp1 and last_longCondition1 > nz(last_long_close1[1])), title="Take Profit Long1")
+alertcondition(bton1(short_tp1 and last_shortCondition1 > nz(last_short_close1[1])), title="Take Profit Short1")

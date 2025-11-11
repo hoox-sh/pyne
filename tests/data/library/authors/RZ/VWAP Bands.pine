@@ -1,0 +1,78 @@
+//@version=4
+study(" VWAP BANDS",overlay=true)
+//code for linear taken from pine script manual
+//forecast using Alex grover https://www.tradingview.com/script/OeCCgXkC-Time-Series-Forecast/ 
+multiplier = input(title="VWAP Deviation", type=input.float, defval=2, minval=1)
+src = vwap
+len = input(100)
+offset = 0
+
+calcSlope(src, len) =>
+    sumX = 0.0
+    sumY = 0.0
+    sumXSqr = 0.0
+    sumXY = 0.0
+    for i = 1 to len
+        val = src[len-i]
+        per = i + 1.0
+        sumX := sumX + per
+        sumY := sumY + val
+        sumXSqr := sumXSqr + per * per
+        sumXY := sumXY + val * per
+        
+        
+    slope = (len * sumXY - sumX * sumY) / (len * sumXSqr - sumX * sumX)
+    average = sumY / len
+    intercept = average - slope * sumX / len + slope
+    [slope, average, intercept]
+
+var float tmp = na
+[s, a, i] = calcSlope(src, len)
+
+vwap1=(i + s * (len - offset))
+sdev = stdev(vwap, len)
+dev = multiplier * sdev
+top=vwap1+dev
+bott=vwap1-dev
+calculationToPlotAverageMeanLine=vwap1
+useUpperDeviation = input(true, "Upper Deviation", input.bool)
+useLowerDeviation = input(true, "Lower Deviation", input.bool)
+
+
+
+calculationToPlotUpperLine=top
+calculationToPlotLowerLine=bott
+
+plotUpperDeviationLine = plot(not useUpperDeviation ? na : calculationToPlotUpperLine, color=color.blue)
+plotAverageMeanLine = plot(calculationToPlotAverageMeanLine, color=color.olive)
+plotLowererDeviationLine = plot(not useLowerDeviation ? na : calculationToPlotLowerLine, color=color.red)
+fill(plotUpperDeviationLine, plotAverageMeanLine, color=color.yellow)
+fill(plotLowererDeviationLine, plotAverageMeanLine, color=color.lime)
+
+//
+length = 100,rt = input(false," Trend")
+
+//
+c = vwap1
+n = bar_index
+
+p = rt ? 1 : length
+line Md = line.new(n[p],c[p],n,c,extend=extend.left,color=color.blue,width=3)
+line.delete(Md[1])
+line Md1 = line.new(n[p],c[p],n,c,extend=extend.right,color=color.blue,width=3)
+line.delete(Md1[1])
+//
+c1 = top
+n1 = bar_index
+line Md2 = line.new(n1[p],c1[p],n1,c1,extend=extend.left,color=color.red,width=2)
+line.delete(Md2[1])
+line Md3 = line.new(n1[p],c1[p],n1,c1,extend=extend.right,color=color.red,width=2)
+line.delete(Md3[1])
+//
+c2 = bott
+n2 = bar_index
+line Md4 = line.new(n2[p],c2[p],n2,c2,extend=extend.left,color=color.red,width=2)
+line.delete(Md4[1])
+line Md5 = line.new(n2[p],c2[p],n2,c2,extend=extend.right,color=color.red,width=2)
+line.delete(Md5[1])
+//

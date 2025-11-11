@@ -1,0 +1,212 @@
+//@version=4
+//
+// ▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒ //
+
+strategy(title = " Strategy Death To The Bear ",
+         shorttitle = "PS-DTTB",
+         overlay = true,
+         precision = 8,
+         calc_on_order_fills = true,
+         calc_on_every_tick = true,
+         backtest_fill_limits_assumption = 0,
+         default_qty_type = strategy.fixed,
+         default_qty_value = 2,
+         initial_capital = 10000,
+         pyramiding=6,
+         currency = currency.USD,
+         linktoseries = true)
+
+//
+// ▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒ //
+
+backTestSectionFrom = input(title = "═══════════════ From ═══════════════", defval = true, type = input.bool)
+
+FromMonth         = input(defval = 1, title = "Month", minval = 1)
+FromDay           = input(defval = 1, title = "Day", minval = 1)
+FromYear          = input(defval = 2019, title = "Year", minval = 2014)
+
+backTestSectionTo = input(title = "════════════════ To ════════════════", defval = true, type = input.bool)
+ToMonth           = input(defval = 31, title = "Month", minval = 1)
+ToDay             = input(defval = 12, title = "Day", minval = 1)
+ToYear            = input(defval = 9999, title = "Year", minval = 2014)
+
+backTestPeriod() => (time > timestamp(FromYear, FromMonth, FromDay, 00, 00)) and (time < timestamp(ToYear, ToMonth, ToDay, 23, 59))
+
+TA                = input(title = "═════════ Type Of Attack ══════════", defval = true, type = input.bool)
+
+A1                = input(true, "💣 BOMB")
+A2                = input(false, "🔪 KNIFE")
+A3                = input(false, "🧨 DYNAMITE")
+A4                = input(false, "🗡 DAGGER")
+A5                = input(false, "🔫 GUN")
+A6                = input(false, "🧪 CHEMICAL")
+min_level         = input(defval=0, title="🔹 Minimum Level = ", minval=-100)
+
+TP                = input(title = "═════════ Take Profit ══════════", defval = true, type = input.bool)
+
+perc_atr_tp1      = input(20, step=0.25, title='Take Profit 1 % ATR DAY')
+perc_atr_tp2      = input(30, step=0.25, title='Take Profit 2 % ATR DAY')
+
+EX                = input(title = "═════════ Extra ══════════", defval = true, type = input.bool)
+
+on_symb          = input(title = "Activate weapon symbols", defval = true, type = input.bool)
+mod_symb         = input(defval= "EMOJI", title="🔹 Type of symbol = ", options=["EMOJI", "TEXT"])
+
+//
+// ▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒ //
+
+length = 8
+mult = 2.0
+maj_qual = 6
+maj_len = 30
+min_qual = 5
+min_len = 5
+maj = true
+min = true
+buy_1 = 0.0
+buy_2 = 0.0
+buy_3 = 0.0
+buy_4 = 0.0
+buy_5 = 0.0
+buy_6 = 0.0
+// 
+upper_s = sum(volume * (change(hlc3) <= 0 ? 0 : hlc3), 14)
+lower_s = sum(volume * (change(hlc3) >= 0 ? 0 : hlc3), 14)
+xmf = rsi(upper_s, lower_s)
+basis = sma(ohlc4, 25)
+dev = mult * stdev(ohlc4, 25)
+upper = basis + dev
+lower = basis - dev
+OB1 = (upper + lower) / 2.0
+OB2 = upper - lower
+BollOsc = (ohlc4 - OB1) / OB2 * 100
+xrsi = rsi(ohlc4, 14)
+calc_stoch(src, length, smoothFastD) =>
+    ll = lowest(low, length)
+    hh = highest(high, length)
+    k = 100 * (src - ll) / (hh - ll)
+    sma(k, smoothFastD)
+stoc = calc_stoch(ohlc4, 21, 3)
+trend = (xrsi + xmf + BollOsc + stoc / 3) / 2
+//
+x = bar_index
+y = trend
+x_ = ema(x, length)
+y_ = ema(y, length)
+mx = stdev(x, length)
+my = stdev(y, length)
+c = correlation(x, y, length)
+slope = c * (my / mx)
+inter = y_ - slope * x_
+reg_trend = x * slope + inter
+//
+lele(qual, len) =>
+    bindex = 0.0
+    sindex = 0.0
+    bindex := nz(bindex[1], 0)
+    sindex := nz(sindex[1], 0)
+    ret = 0
+    if close > close[4]
+        bindex := bindex + 1
+        bindex
+    if close < close[4]
+        sindex := sindex + 1
+        sindex
+    if bindex > qual and close < open and high >= highest(high, len)
+        bindex := 0
+        ret := -1
+        ret
+    if sindex > qual and close > open and low <= lowest(low, len)
+        sindex := 0
+        ret := 1
+        ret
+    return = ret
+    return
+
+major = lele(maj_qual, maj_len)
+minor = lele(min_qual, min_len)
+//
+a = 1
+cc = 10
+xATR  = atr(cc)
+nLoss = a * xATR
+src = close
+xATRTrailingStop = 0.0
+xATRTrailingStop := iff(src > nz(xATRTrailingStop[1], 0) and src[1] > nz(xATRTrailingStop[1], 0), max(nz(xATRTrailingStop[1]), src - nLoss),
+   iff(src < nz(xATRTrailingStop[1], 0) and src[1] < nz(xATRTrailingStop[1], 0), min(nz(xATRTrailingStop[1]), src + nLoss), 
+   iff(src > nz(xATRTrailingStop[1], 0), src - nLoss, src + nLoss)))
+pos = 0   
+pos :=	iff(src[1] < nz(xATRTrailingStop[1], 0) and src > nz(xATRTrailingStop[1], 0), 1,
+   iff(src[1] > nz(xATRTrailingStop[1], 0) and src < nz(xATRTrailingStop[1], 0), -1, nz(pos[1], 0))) 
+xcolor = pos == -1 ? color.red: pos == 1 ? color.green : color.blue 
+ema   = ema(src,1)
+above = crossover(ema, xATRTrailingStop)
+below = crossover(xATRTrailingStop, ema)
+buy_a  = src > xATRTrailingStop and above 
+//
+if backTestPeriod()
+
+    if (minor == 1 and min == true and reg_trend <= min_level and A1) or (major == 1 and maj == true and reg_trend <= min_level and A1) or  (major == 1 and maj == true and minor == 1 and min == true and reg_trend <= min_level and A1)
+        buy_1 := 1
+    if  reg_trend[0] > reg_trend[1] and reg_trend[1] > reg_trend[2] and reg_trend <= min_level and A3
+        buy_2 := 1
+    if  crossover(trend, min_level)  and A2
+        buy_3 := 1
+    if  crossunder(reg_trend, trend) and reg_trend <= min_level and trend <= min_level  and A6
+        buy_4 := 1
+    if  reg_trend[0] < min_level and reg_trend[1] < min_level and reg_trend[2] < min_level and reg_trend <= min_level and reg_trend[0] > reg_trend[1] and trend <= min_level and A4
+        buy_5 := 1   
+    if  (reg_trend[0] <= min_level or reg_trend[1] <= min_level or reg_trend[2] <= min_level or trend[0] <= min_level or trend[1] <= min_level or trend[2] <= min_level) and buy_a and A5
+        buy_6 := 1  
+    
+//
+// ▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒ //
+
+plotshape(buy_1 == 1 and on_symb and mod_symb == "EMOJI", text='💣', style=shape.arrowup, location=location.belowbar, color=#32CD32, textcolor=color.black, offset=0, transp=0)
+plotshape(buy_2 == 1 and on_symb and mod_symb == "EMOJI", text='🧨', style=shape.arrowup, location=location.belowbar, color=#32CD32, textcolor=color.black, offset=0, transp=0)
+plotshape(buy_3 == 1 and on_symb and mod_symb == "EMOJI", text='🔪 ', style=shape.arrowup, location=location.belowbar, color=#32CD32, textcolor=color.black, offset=0, transp=0)
+plotshape(buy_4 == 1 and on_symb and mod_symb == "EMOJI", text='🧪  ', style=shape.arrowup, location=location.belowbar, color=#32CD32, textcolor=color.black, offset=0, transp=0)
+plotshape(buy_5 == 1 and on_symb and mod_symb == "EMOJI", text='🗡  ', style=shape.arrowup, location=location.belowbar, color=#32CD32, textcolor=color.black, offset=0, transp=0)
+plotshape(buy_6 == 1 and on_symb and mod_symb == "EMOJI", text='🔫  ', style=shape.arrowup, location=location.belowbar, color=#32CD32, textcolor=color.black, offset=0, transp=0)
+
+plotshape(buy_1 == 1 and on_symb and mod_symb == "TEXT", text='BOMB', style=shape.arrowup, location=location.belowbar, color=#32CD32, textcolor=color.black, offset=0, transp=0, size =size.tiny)
+plotshape(buy_2 == 1 and on_symb and mod_symb == "TEXT", text='DYNAMITE', style=shape.arrowup, location=location.belowbar, color=#32CD32, textcolor=color.black, offset=0, transp=0, size =size.tiny)
+plotshape(buy_3 == 1 and on_symb and mod_symb == "TEXT", text='KNIFE', style=shape.arrowup, location=location.belowbar, color=#32CD32, textcolor=color.black, offset=0, transp=0, size =size.tiny)
+plotshape(buy_4 == 1 and on_symb and mod_symb == "TEXT", text='CHEMICAL', style=shape.arrowup, location=location.belowbar, color=#32CD32, textcolor=color.black, offset=0, transp=0, size =size.tiny)
+plotshape(buy_5 == 1 and on_symb and mod_symb == "TEXT", text='DAGGER', style=shape.arrowup, location=location.belowbar, color=#32CD32, textcolor=color.black, offset=0, transp=0, size =size.tiny)
+plotshape(buy_6 == 1 and on_symb and mod_symb == "TEXT", text='GUN', style=shape.arrowup, location=location.belowbar, color=#32CD32, textcolor=color.black, offset=0, transp=0, size =size.tiny)
+
+//
+// ▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒ //
+
+long_condition = buy_1 == 1 or buy_2 == 1 or buy_3 == 1 or buy_4 == 1 or buy_5 == 1 or buy_6 == 1 
+
+//
+// ▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒ //
+
+ATR = security(syminfo.tickerid,"D", atr(14))
+
+obj_tp1 = perc_atr_tp1 * ATR / 100
+obj_tp2 = perc_atr_tp2 * ATR / 100
+
+float long_sl_level = na 
+
+strategy.entry('Long', strategy.long, when=long_condition)
+
+long_tp_hit = strategy.position_size[1] > 0 and strategy.position_size[0] > 0 and strategy.position_size[1] > strategy.position_size[0]
+
+long_sl_level := long_condition ? 0 : long_tp_hit ? strategy.position_avg_price : long_sl_level[1]
+
+long_tp_level = strategy.position_avg_price + obj_tp1
+long_tp2_level = strategy.position_avg_price + obj_tp2
+ 
+strategy.exit('OUT-1', 'Long', stop=long_sl_level, limit=long_tp_level, qty_percent=50)
+strategy.exit('OUT-2', 'Long', stop=long_sl_level, limit=long_tp2_level, qty_percent=100)
+
+//
+// ▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒ //
+
+
+plot(strategy.position_size > 0 and  long_sl_level > 0? long_sl_level : na, color=#FF0000, style=plot.style_circles, title="Breakeven", transp = 0)
+plot(strategy.position_size > 0 ? long_tp_level : na, color=#32CD32, style=plot.style_circles, title="TP-1", transp = 0)
+plot(strategy.position_size > 0 ? long_tp2_level : na, color=#32CD32, style=plot.style_circles, title="TP-2", transp = 0)

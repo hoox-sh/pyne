@@ -1,0 +1,217 @@
+//   |{------------------------------------------------------------------||
+//   ||   Start of Script
+
+
+//      ____________    ____  ___________________ 
+//     /  _/ ____/ /   / __ \/ ___/_  __/  _/ __ \
+//     / // /_  / /   / / / /\__ \ / /  / // / / /
+//   _/ // __/ / /___/ /_/ /___/ // / _/ // /_/ /  
+//  /___/_/   /_____/\____//____//_(_)___/\____/  
+// 
+//  EVERYTHING IS POSSIBLE, BY THE POWER OF DATA.
+
+
+//@version=4
+//@authors                      = Jan Goischke & Dennis Hilpmann
+
+
+//////////////////////////////////////////////////////////////////////////
+// [IFLOST.io] Risk Reward Panel
+//////////////////////////////////////////////////////////////////////////
+
+
+study(
+ title="[SETUP-02][PA] Profit Panel",
+ shorttitle="[SETUP-02][PA] Profit Panel",
+ overlay=true,
+ precision=6
+ )
+
+
+//////////////////////////////////////////////////////////////////////////
+//-- INPUTS
+//////////////////////////////////////////////////////////////////////////
+
+
+// Entry Price
+float __EXTERN                  = input(type=input.source, defval=close, title="Change data source to > External Signal:")
+
+// PnL Panel positions on the chart
+int __POSX                      = input(80, title="Panel X Position Offset")
+int __POSY                      = input(-50, title="Panel Y Position Offset")
+// int __OFFSET                    = input(0, title="Panel Y Position Offset")
+bool __INCL_COMMISSION          = input(true, title="Include Commission (Exchange Fee)?")
+float __INCL_COMMISSION_PERCENT = input(0.075, title="One-Way Commission %")
+
+
+//////////////////////////////////////////////////////////////////////////
+//-- VARIABLES
+//////////////////////////////////////////////////////////////////////////
+
+
+var string __DIRECTION          = "LONG"
+var float __DIR                 = na
+var float __LAST_PRICE          = 0.0
+
+var bool __TREND_BUY            = false
+var bool __TREND_SELL           = false
+
+
+//////////////////////////////////////////////////////////////////////////
+//-- COLORS
+//////////////////////////////////////////////////////////////////////////
+
+
+//-- __buy, Upward
+color col_green_1           = #4EF9FF
+color col_green_2           = #3CADB1
+color col_green_3           = #26c6da  //* 
+color col_green_4           = #afff00
+color col_green_5           = #CFD80E
+color col_green_6           = #90c818
+
+//-- __sell, Downward
+color col_red_1             = #7b1fa2
+color col_red_2             = #7e57c2
+color col_red_3             = #512da8
+color col_red_4             = #7300de
+color col_red_5             = #4a148c  //*
+color col_red_6             = #2d2456
+
+//-- Idle, Sideward
+color col_yellow_1          = #ffa726
+color col_yellow_2          = #f57c00
+
+
+//////////////////////////////////////////////////////////////////////////
+//-- FUNCTIONS
+//////////////////////////////////////////////////////////////////////////
+
+
+//-- Rounds _val to _decimals places.
+f_rounder(_val, _decimals) => 
+    _p = pow(10,_decimals)
+    float _r = round(abs(_val)*_p)/_p*sign(_val)
+    _r
+
+//-- Int to bool
+f_n2b(_n) =>
+    bool _r = _n == 1 ? true : false
+    _r
+
+//-- Direction to bool
+f_d2b(_d) =>
+    bool _r = _d == 1 ? true : _d == -1 ? false : na
+    _r
+
+//--
+f_format_text(str) =>
+    string _r = str + "\n"
+    _r
+
+//--
+f_calc_pnl() =>
+    float prc                   = 0.0
+    float pnl                   = 0.0
+    float pnl_b                 = 0.0
+    float pnl_s                 = 0.0
+    bool inLoss                 = false
+
+    if(__INCL_COMMISSION)
+        if(__TREND_BUY)
+            prc                    := __LAST_PRICE * (1 + (__INCL_COMMISSION_PERCENT / 100 * 2))
+        if(__TREND_SELL)
+            prc                    := __LAST_PRICE * (1 - (__INCL_COMMISSION_PERCENT / 100 * 2))
+    else
+        prc                    := __LAST_PRICE
+
+    if(__TREND_BUY)
+        if close > prc
+            pnl_b              := abs(((close - prc) / close) * 100)
+            pnl                := pnl_b
+        else // Long in loss
+            pnl_b              := abs(((prc - close) / prc) * 100)
+            pnl                := pnl_b
+            inLoss             := true
+
+    if(__TREND_SELL)
+        if close < prc
+            pnl_s              := abs(((prc - close) / __LAST_PRICE) * 100)
+            pnl                := pnl_s
+        else
+            pnl_s              := abs(((close - prc) / close) * 100)
+            pnl                := pnl_s
+            inLoss             := true
+
+    [pnl, pnl_b, pnl_s, inLoss]
+
+
+//////////////////////////////////////////////////////////////////////////
+//-- CALCULATION
+//////////////////////////////////////////////////////////////////////////
+
+
+__DIR                          := __EXTERN == 0 ? __DIR[1] : __EXTERN
+__LAST_PRICE                   := __DIR[0] != __DIR[1] ? close : __LAST_PRICE[1]
+__DIRECTION                    := __DIR == 1 ? "LONG" : __DIR == -1 ? "SHORT" : __DIRECTION[1]
+
+__TREND_BUY                    := __DIR == 1
+__TREND_SELL                   := __DIR == -1
+
+str_first                       = "◄─┤▌  ↨ "
+str_last                        = "%"
+
+str_down_arrows                 = "▼" + " " + "▼" + " " + "▼" + " " + "▼" + " " + "▼" + " " + "▼" + " " + "▼" + " "
+
+[pnl, pnl_b, pnl_s, inLoss]     = f_calc_pnl()
+
+
+//////////////////////////////////////////////////////////////////////////
+//-- PAINTING
+//////////////////////////////////////////////////////////////////////////
+
+
+label __LABEL_PROFIT            = na
+
+pos_x_pnl                       = time + round(change(time)*__POSX)
+pos_y_pnl                       = __LAST_PRICE + __POSY
+
+panel_text_1                    = f_format_text(str_first + (inLoss == true ? "Loss:" : "Profit:") + tostring(f_rounder(pnl,2), "#.##") + str_last)
+panel_text_final                = panel_text_1
+
+color_PnL                       = __DIR == 1 ? col_green_1 : __DIR == -1 ? col_red_1 : na
+text_color                      = inLoss ? col_red_2 : color.white
+style_Pnl                       = label.style_none //__DIR == 1 ? label.style_labelup : __DIR == -1 ? label.style_labeldown : label.style_none
+
+__LABEL_PROFIT                 := label.new(pos_x_pnl, pos_y_pnl, panel_text_final, xloc=xloc.bar_time, yloc=yloc.price, color=col_red_6, style= style_Pnl, textcolor=text_color, size=size.normal)
+
+label.delete(__LABEL_PROFIT[1])
+
+
+//--------------------------------------
+
+
+label __LABEL_ERROR             = na
+
+pos_x_error                     = time + round(change(time)*__POSX)
+pos_y_error                     = __LAST_PRICE + __POSY
+
+var string Calc_errors          = ""  
+
+if(__EXTERN == close)
+    Calc_errors                := "Please change data source to: External Signal"    
+else
+    Calc_errors                := ""    
+
+if (Calc_errors[0] != "")
+    err_text_1                  = f_format_text("╔══════════ " + "Error Panel" + " ═════=════╗")
+    err_text_2                  = f_format_text(" " + str_down_arrows + " ")
+    err_text_3                  = f_format_text("  " + Calc_errors + "  ")
+    err_text_last               = "\n" + "╚═══════════════════=═══=════╝"
+    final_err_text              = err_text_1 + err_text_2 + err_text_3 + err_text_last
+    __LABEL_ERROR              := label.new(pos_x_error, pos_y_error, final_err_text, color=color.white, textcolor=col_red_1, style=label.style_labelup, yloc=yloc.price, xloc=xloc.bar_time)
+    
+label.delete(__LABEL_ERROR[1])
+
+
+//-- } End of Script

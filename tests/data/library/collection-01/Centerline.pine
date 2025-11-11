@@ -1,0 +1,105 @@
+//@version=4
+//
+// Copyright (c) 2019-present, Alex Orekhov (everget)
+// SuperTrend script may be freely distributed under the terms of the GPL-3.0 license.
+    // Source: Supertrend by Everget
+        // https://www.tradingview.com/script/VLWVV7tH-SuperTrend/
+        
+// Other script references/acknowledgements:
+    // everget, Jurik Moving Average/JMA
+        // https://www.tradingview.com/script/nZuBWW9j-Jurik-Moving-Average/
+    // NomandandTrader, SuperTrend ATR + RSI
+        // https://www.tradingview.com/script/jG2gBNQK-SuperTrend-ATR-RSI/
+        
+/////////
+study("Centerline Supertrend", overlay=false)
+
+normalize(series,normalize_len) =>
+    h = highest(series, normalize_len)
+    l = lowest(series, normalize_len)
+    res = (series - l)/(h - l)
+    
+length = input(title="ATR Period", type=input.integer, defval=22) //22 //15
+mult = input(title="ATR Multiplier", type=input.float, step=0.1, defval=3.0) //3.0 //1.0
+wicks = input(title="Take Wicks into Account ?", type=input.bool, defval=false)
+showLabels = input(title="Show Up/Down Labels ?", type=input.bool, defval=false)
+showShapes =  input(title="Show Up/Down Shapes ?", type=input.bool, defval=true)
+// highlightState = input(title="Highlight State ?", type=input.bool, defval=false)
+
+atr = mult * atr(length)
+//----
+
+
+longStop = hl2 - atr
+longStopPrev = nz(longStop[1], longStop)
+longStop := (wicks ? low[1] : close[1]) > longStopPrev ? max(longStop, longStopPrev) : longStop
+
+shortStop = hl2 + atr
+shortStopPrev = nz(shortStop[1], shortStop)
+shortStop := (wicks ? high[1] : close[1]) < shortStopPrev ? min(shortStop, shortStopPrev) : shortStop
+
+dir = 1
+dir := nz(dir[1], dir)
+dir := dir == -1 and (wicks ? high : close) > shortStopPrev ? 1 : dir == 1 and (wicks ? low : close) < longStopPrev ? -1 : dir
+
+longColor = color.lime
+shortColor = color.red
+noneColor = color.new(color.white, 100)
+//----
+
+// longStopPlot = plot(dir == 1 ? longStop : na, title="Long Stop", style=plot.style_linebr, linewidth=3, color=longColor,transp=0)
+// longStopPlot_logic = dir == 1 ? longStop : na
+buySignal = dir == 1 and dir[1] == -1
+// plotshape(buySignal ? longStop : na, title="Long Stop Start", location=location.absolute, style=shape.circle, size=size.tiny, color=longColor, transp=0)
+// plotshape(buySignal and showLabels ? longStop : na, title="Buy Label", text="UP", location=location.absolute, style=shape.labelup, size=size.tiny, color=longColor, textcolor=color.white, transp=0)
+
+// shortStopPlot = plot(dir == 1 ? na : shortStop, title="Short Stop", style=plot.style_linebr, linewidth=3, color=shortColor,transp=0)
+// shortStopPlot_logic = dir == 1 ? na : shortStop
+sellSignal = dir == -1 and dir[1] == 1
+// plotshape(sellSignal ? shortStop : na, title="Short Stop Start", location=location.absolute, style=shape.circle, size=size.tiny, color=shortColor, transp=0)
+// plotshape(sellSignal and showLabels ? shortStop : na, title="Sell Label", text="DOWN", location=location.absolute, style=shape.labeldown, size=size.tiny, color=shortColor, textcolor=color.white, transp=0)
+
+// midPricePlot = plot(ohlc4, title="", style=plot.style_circles, linewidth=0)
+
+// longFillColor = highlightState ? (dir == 1 ? longColor : noneColor) : noneColor
+// shortFillColor = highlightState ? (dir == -1 ? shortColor : noneColor) : noneColor
+// fill(midPricePlot, longStopPlot, title="Long State Filling", color=longFillColor)
+// fill(midPricePlot, shortStopPlot, title="Short State Filling", color=shortFillColor)
+
+changeCond = dir != dir[1]
+alertcondition(changeCond, title="SuperTrend Direction Change", message="SuperTrend has changed direction!")
+
+both_color = 
+   barssince(buySignal and not sellSignal) <=
+   barssince(sellSignal and not buySignal) ? 
+   color.lime : color.red
+both_average = (longStop + shortStop) / 2
+
+transparent = color.new(color.white,100)
+hline(20, color=transparent, title="Bottom Limit", linestyle=hline.style_dotted)
+// hline(50, color=color.gray, title="Midline", linestyle=hline.style_dotted)
+hline(80, color=transparent, title="Top Limit", linestyle=hline.style_dotted)
+    
+both_average_normalized =  normalize(both_average,length) * 100
+// plot(both_average_normalized, title="ST Average", linewidth=5, color=both_color , transp=0)
+show_middle_indication = input(title="Show Supertrend Indication ?", type=input.bool, defval=true)
+
+plot(show_middle_indication ? 50 : na, color=both_color, style=plot.style_circles, linewidth=2, title="Supertrend", transp=0)
+
+
+// Labels
+plotshape(buySignal and showShapes ? 40 : na, title="Long Stop Start", location=location.absolute, style=shape.triangleup, size=size.tiny, color=longColor, transp=0)
+// plotshape(buySignal and showShapes ? 35 : na, title="Long Stop Start", location=location.absolute, style=shape.triangleup, size=size.tiny, color=longColor, transp=0)
+// plotshape(buySignal and showShapes ? 30 : na, title="Long Stop Start", location=location.absolute, style=shape.triangleup, size=size.tiny, color=longColor, transp=0)
+
+plotshape(buySignal and showLabels ? 40 : na, title="Buy Label", text="UP", location=location.absolute, style=shape.labelup, size=size.tiny, color=longColor, textcolor=color.white, transp=0)
+
+plotshape(sellSignal and showShapes ? 60 : na, title="Short Stop Start", location=location.absolute, style=shape.triangledown, size=size.tiny, color=shortColor, transp=0)
+// plotshape(sellSignal and showShapes ? 65 : na, title="Short Stop Start", location=location.absolute, style=shape.triangledown, size=size.tiny, color=shortColor, transp=0)
+// plotshape(sellSignal and showShapes ? 70 : na, title="Short Stop Start", location=location.absolute, style=shape.triangledown, size=size.tiny, color=shortColor, transp=0)
+
+plotshape(sellSignal and showLabels ? 60 : na, title="Sell Label", text="DOWN", location=location.absolute, style=shape.labeldown, size=size.tiny, color=shortColor, textcolor=color.white, transp=0)
+
+// Alerts
+alertcondition(buySignal, title="SuperTrend Buy", message="SuperTrend Buy!")
+alertcondition(sellSignal, title="SuperTrend Sell", message="SuperTrend Sell!")

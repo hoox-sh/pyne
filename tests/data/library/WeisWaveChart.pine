@@ -1,0 +1,33 @@
+//@version=3
+study("Weis Wave Chart", shorttitle="WWC", overlay=true)
+method = input(defval="ATR", options=["ATR", "Traditional", "Part of Price"], title="Renko Assignment Method")
+methodvalue = input(defval=14.0, type=float, minval=0, title="Value")
+pricesource = input(defval="Close", options=["Close", "High / Low", "Open / Close"], title="Price Source")
+useClose = pricesource == "Close"
+useOpenClose = pricesource == "Open / Close" or useClose
+op = useClose ? close : open
+hi = useOpenClose ? close >= op ? close : op : high
+lo = useOpenClose ? close <= op ? close : op : low
+
+if method == "ATR"
+    methodvalue := atr(round(methodvalue))
+if method == "Part of Price"
+    methodvalue := close/methodvalue
+
+currclose = na
+prevclose = nz(currclose[1])
+prevhigh = prevclose + methodvalue
+prevlow = prevclose - methodvalue
+currclose := hi > prevhigh ? hi : lo < prevlow ? lo : prevclose
+
+direction = na
+direction := currclose > prevclose ? 1 : currclose < prevclose ? -1 : nz(direction[1])
+directionHasChanged = change(direction) != 0
+directionIsUp = direction > 0
+directionIsDown = direction < 0
+
+extr = na
+prevextr = directionHasChanged ? currclose : fixnan(extr[1])
+extr := directionIsUp and hi >= prevextr ? hi : directionIsDown and lo <= prevextr ? lo : prevextr
+
+plot(directionHasChanged or ((barstate.islast and not barstate.isrealtime) or (barstate.isrealtime and not barstate.isconfirmed)) ? extr[1] : na, offset=-1, color=#1155CC, transp=50, linewidth=2, title = "Wave Line")

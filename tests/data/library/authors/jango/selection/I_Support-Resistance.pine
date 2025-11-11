@@ -1,0 +1,74 @@
+
+//////////////////////////////////////////////////////////////////////////
+//-- INDICATOR: SUPPORT & RESISTENS
+//////////////////////////////////////////////////////////////////////////
+
+
+//
+//-- SR: INPUTS
+//
+
+var bool i_sr_activate = input(defval=false, title='SR: Activate')
+var bool i_sr_use_alt_series = input(defval=false, title='SR: Use alternative source?')
+var i_sr_alt_src = input(defval=close, title='SR: Alternative source')
+
+var int i_sr_window1 = input(defval=8, title='SR: Lookback Short', type=input.integer)
+var int i_sr_window2 = input(defval=21, title='SR: Lookback Long', type=input.integer)
+var float i_sr_trade_zone = input(defval=25.0, title='SR: Percent of the range to use for trade zone', type=input.float) * 0.01
+
+//
+//-- CALCULATION
+//
+
+i_sr_high = i_sr_use_alt_series ? i_sr_alt_src : high
+i_sr_low = i_sr_use_alt_series ? i_sr_alt_src : low
+
+i_sr_short_top = valuewhen(i_sr_high >= highest(i_sr_high, i_sr_window1), i_sr_high, 0)
+i_sr_short_bot = valuewhen(i_sr_low <= lowest(i_sr_low, i_sr_window1), i_sr_low, 0)
+i_sr_long_top = valuewhen(i_sr_high >= highest(i_sr_high, i_sr_window2), i_sr_high, 0)
+i_sr_long_bot = valuewhen(i_sr_low <= lowest(i_sr_low, i_sr_window2), i_sr_low, 0)
+
+i_sr_short_resistance = i_sr_activate ? change(i_sr_short_top) != 0 ? na : i_sr_short_top : na
+i_sr_short_support = i_sr_activate ? change(i_sr_short_bot) != 0 ? na : i_sr_short_bot : na
+
+i_sr_long_resistance = i_sr_activate ? change(i_sr_long_top) != 0 ? na : i_sr_long_top : na
+i_sr_long_support = i_sr_activate ? change(i_sr_long_bot) != 0 ? na : i_sr_long_bot :na
+
+i_sr_long_resistance_marker = i_sr_activate ? change(fixnan(i_sr_long_resistance)) != 0 ? i_sr_long_resistance : na : na
+i_sr_long_support_marker = i_sr_activate ? change(fixnan(i_sr_long_support)) != 0 ? i_sr_long_support : na : na
+
+i_sr_range = fixnan(i_sr_short_resistance) - fixnan(i_sr_short_support)
+
+//
+//-- SR: COLORS & PLOTS
+//
+
+i_sr_short_resistance_plot = plot(series=i_sr_short_resistance, title='S-R', color=color.navy, linewidth=1, style=plot.style_linebr, transp=0)
+i_sr_short_support_plot = plot(series=i_sr_short_support, title='S-S', color=color.navy, linewidth=1, style=plot.style_linebr, transp=0)
+i_sr_long_resistance_plot = plot(series=i_sr_long_resistance, title='L-R', color=color.blue, linewidth=4, style=plot.style_linebr, transp=70)
+i_sr_long_support_plot = plot(series=i_sr_long_support, title='L-S', color=color.blue, linewidth=4, style=plot.style_linebr, transp=70)
+i_sr_long_resistance_marker_plot = plot(series=i_sr_long_resistance_marker, title='.R', color=color.blue, linewidth=4, style=plot.style_circles, transp=0)
+i_sr_long_support_marker_plot = plot(series=i_sr_long_support_marker, title='.S', color=color.blue, linewidth=4, style=plot.style_circles, transp=0)
+
+fill(i_sr_short_resistance_plot, i_sr_long_resistance_plot, color=color.orange, transp=80, title="SR: Resistance")
+fill(i_sr_short_support_plot, i_sr_long_support_plot, color=color.olive, transp=80, title="SR: Support")
+
+//  Calculate entry zone:
+float i_sr_short_resistance_trade_limit = na
+float i_sr_short_support_trade_limit = na
+
+if not na(i_sr_short_resistance and i_sr_activate)
+    if not na(i_sr_short_resistance_trade_limit[1])
+        i_sr_short_resistance_trade_limit := i_sr_short_resistance_trade_limit[1]
+    else
+        i_sr_short_resistance_trade_limit := i_sr_short_resistance - i_sr_range * i_sr_trade_zone
+
+if not na(i_sr_short_support and i_sr_activate)
+    if not na(i_sr_short_support_trade_limit[1])
+        i_sr_short_support_trade_limit := i_sr_short_support_trade_limit[1]
+    else
+        i_sr_short_support_trade_limit := i_sr_short_support + i_sr_range * i_sr_trade_zone
+
+i_sr_short_resistance_trade_limit_plot = plot(series=i_sr_short_resistance_trade_limit, title='', color=color.red, linewidth=1, style=plot.style_linebr, transp=0)
+i_sr_short_support_trade_limit_plot = plot(series=i_sr_short_support_trade_limit, title='', color=color.lime, linewidth=1, style=plot.style_linebr, transp=0)
+

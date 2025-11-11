@@ -1,0 +1,39 @@
+//@version=4
+
+study(title='Money Flow V4', shorttitle='MFOV4', overlay=false)
+
+length = input(100)
+
+Dvs = (high - low[1]) + (high[1] - low)
+MLTP = na(Dvs) ? 0 : Dvs != 0 ? round(((high - low[1]) - (high[1] - low )) / Dvs) : 0
+MyVol = na(volume) ? 0 : volume
+Dvsv = MyVol != 0 ? MyVol : 0
+MFV = MLTP * MyVol
+MFO = sum( MFV, length ) / sum( Dvsv, length )
+
+c = plot(MFO, title=" Money Flow", linewidth=2, transp=0)
+plot(0)
+
+s=MFO
+lenFast = input(8, title="Length of Fast EMA ", type=input.integer, minval=1)
+lenSlow = input(26, title="Length of Slow EMA ", type=input.integer, minval=1)
+lenSig = input(9, title="Length of Signal Line", type=input.integer, minval=1)
+//colorBars = input(false, title="Color Bars")
+
+
+o(fastLen, slowLen)=>
+    trend = s
+    fast = ema(trend, fastLen)
+    slow = ema(trend, slowLen)
+    (fast - slow)
+
+_O = o(lenFast, lenSlow)
+signal = ema(_O, lenSig)
+
+
+//  Plotting: 
+barColor = _O >= 0 and _O > signal ? color.teal : _O > 0 and _O < signal ? color.lime : _O < 0 and _O < signal ? color.red : color.orange
+//plot(_O, color=barColor, style=plot.style_histogram, linewidth=3)
+//plot(signal, color=color.aqua, linewidth=3)
+//barcolor(barColor)
+bgcolor(barColor == color.teal or barColor == color.lime ? color.green : color.red)

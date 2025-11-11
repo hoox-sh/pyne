@@ -1,0 +1,12 @@
+//@version=4
+study(title = "[IFLOST.io] Vortex Indicator", shorttitle="[IFLOST.io] VI", format=format.price, precision=4)
+period_ = input(7, title="Period", minval=2)
+
+VMP = sum( abs( high - low[1]), period_ )
+VMM = sum( abs( low - high[1]), period_ )
+STR = sum( atr(1), period_ )
+VIP = VMP / STR
+VIM = VMM / STR
+
+plot(VIP, title="VI +", color=#3BB3E4)
+plot(VIM, title="VI -", color=#FF006E)

@@ -1,0 +1,21 @@
+//@version=3
+strategy("Hull MA and Candle cross", overlay=true, default_qty_type=strategy.percent_of_equity, max_bars_back=420, default_qty_value=100, calc_on_order_fills= true, calc_on_every_tick=true, pyramiding=0)
+z=input(type=integer,defval=50,title="HullMA period")
+candle_cross=input(defval=10)
+price=input(open)
+n2ma=2*wma(price,round(z/2))
+nma=wma(price,z)
+diff=n2ma-nma
+sqn=round(sqrt(z))
+n1=wma(diff,sqn)
+c4=price>n1?green:red
+n1e=plot(price,color=c4,linewidth=1)
+n2e=plot(n1,color=c4,linewidth=1)
+fill(n1e, n2e,color=c4,transp=75)
+plot(cross(price,n1)?n1:na,style=circles,color=c4,linewidth=4)
+longcondition=price>n1 and price>price[candle_cross]
+shortcondition=price<n1 and price<price[candle_cross]
+if (longcondition)
+    strategy.entry("Long",strategy.long)
+if (shortcondition)
+    strategy.entry("Short",strategy.short)

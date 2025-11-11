@@ -1,0 +1,290 @@
+//@version=4
+study(title="Harmonic forecast", shorttitle="harfor", overlay=true)
+length = input(100),short = input(true,"forecast "),short1 = input(false," trend"),src = input(close)
+harm_average(x,y,z)=>3/((1/x)+(1/y)+(1/z))
+T1=harm_average(close[1],close[2],close[3])
+T2=harm_average(T1,T1[1],T1[2])
+T3=harm_average(T2,T2[1],T2[2])
+T4=harm_average(T3,T3[1],T3[2])
+T5=harm_average(T4,T4[1],T4[2])
+T6=harm_average(T5,T5[1],T5[2])
+me=18/(((1/T1)*3)+((1/T2)*3)+((1/T3)*3)+((1/T4)*3)+((1/T5)*3)+((1/T6)*3))
+//
+c = T1
+n = bar_index
+ts = c
+p = short ? 1 : length
+p1 = short1 ? 1 : length
+line Md = line.new(n[p],ts[p],n,ts,extend=extend.right,color=color.blue,width=1)
+line.delete(Md[1])
+
+//
+c1 = T2
+n1 = bar_index
+ts1 = c1
+line Md2 = line.new(n1[p],ts1[p],n1,ts1,extend=extend.right,color=color.blue,width=1)
+line.delete(Md2[1])
+
+//
+c2 = T3
+n2 = bar_index
+ts2 = c2
+line Md4 = line.new(n2[p],ts2[p],n2,ts2,extend=extend.right,color=color.blue,width=1)
+line.delete(Md4[1])
+
+//
+c3 = T4
+n3 = bar_index
+ts3 = c3
+line Md6 = line.new(n3[p],ts3[p],n3,ts3,extend=extend.right,color=color.blue,width=1)
+line.delete(Md6[1])
+
+
+//
+c4 = T5
+n4 = bar_index
+ts4 = c4
+line Md8 = line.new(n4[p],ts4[p],n4,ts4,extend=extend.right,color=color.blue,width=1)
+line.delete(Md8[1])
+
+//
+c5 = T6
+n5 = bar_index
+ts5 = c5
+line Md10 = line.new(n5[p],ts5[p],n5,ts5,extend=extend.right,color=color.blue,width=1)
+line.delete(Md10[1])
+
+//
+c6 = me
+n6 = bar_index
+ts6 = c6
+line Md12 = line.new(n6[p],ts6[p],n6,ts6,extend=extend.right,color=color.black,width=2)
+line.delete(Md12[1])
+//line Md13 = line.new(n6[p],ts6[p],n6,ts6,extend=extend.right,color=color.black,width=3)
+//line.delete(Md13[1])
+//
+///////////////
+// FUNCTIONS //
+///////////////
+
+// Function outputs 1 when it's the first bar of the D/W/M/Y
+is_newbar(res) =>
+    ch = 0
+    if(res == 'Y')
+        t  = year(time('D'))
+        ch := change(t) != 0 ? 1 : 0
+    else
+        t = time(res)
+        ch := change(t) != 0 ? 1 : 0
+    ch
+
+// Rounding levels to min tick
+nround(x) => 
+    n = round(x / syminfo.mintick) * syminfo.mintick
+
+////////////
+// INPUTS //
+////////////
+
+pp_type                = input(title = 'Pivot Type',               defval = "Traditional", options = ["Traditional", "Fibonacci", "Woodie", "Camarilla"]) 
+pp_period              = input(title = "Period",                   defval = "Day",  type = input.string, options = ['Day', 'Week', 'Month', 'Year'])
+show_historical_levels = input(title = "Show Historical Levels?",  defval = false,  type = input.bool)
+show_level_value       = input(title = "Show Levels Value?",       defval = true,   type = input.bool)
+show_current_levels    = input(title = "Show Current Levels",      defval = true,  type = input.bool)
+
+pp_res = pp_period == 'Day' ? 'D' : pp_period == 'Week' ? 'W' : pp_period == 'Month' ? 'M' : 'Y' 
+
+/////////////////////
+// Get HLC from HT //
+
+// Calc Open
+open_cur = 0.0
+open_cur := is_newbar(pp_res) ? open : open_cur[1]
+
+popen = 0.0
+popen := is_newbar(pp_res) ? open_cur[1] : popen[1]
+
+// Calc High
+high_cur = 0.0
+high_cur := is_newbar(pp_res) ? high : max(high_cur[1], high)
+
+phigh = 0.0
+phigh := is_newbar(pp_res) ? high_cur[1] : phigh[1]
+
+// Calc Low
+low_cur = 0.0
+low_cur := is_newbar(pp_res) ? low : min(low_cur[1], low)
+
+plow = 0.0
+plow := is_newbar(pp_res) ? low_cur[1] : plow[1]
+
+// Calc Close
+pclose = 0.0
+pclose := is_newbar(pp_res) ? close[1] : pclose[1]
+
+
+////////////////////////////
+// CALCULATE PIVOT POINTS //
+////////////////////////////
+
+PP = 0.0
+R1 = 0.0, R2 = 0.0, R3 = 0.0
+S1 = 0.0, S2 = 0.0, S3 = 0.0
+
+if (pp_type == "Traditional")
+    PP := (phigh + plow + pclose) / 3
+    R1 := PP     + (PP   - plow)
+    S1 := PP     - (phigh - PP)
+    R2 := PP     + (phigh - plow)
+    S2 := PP     - (phigh - plow)
+    R3 := phigh  + 2 * (PP   - plow) 
+    S3 := plow   - 2 * (phigh - PP) 
+  
+if (pp_type == "Fibonacci")
+    PP := (phigh + plow + pclose) / 3
+    R1 := PP + (phigh - plow) * 0.382
+    S1 := PP - (phigh - plow) * 0.382
+    R2 := PP + (phigh - plow) * 0.618
+    S2 := PP - (phigh - plow) * 0.618
+    R3 := PP + (phigh - plow) * 1.000
+    S3 := PP - (phigh - plow) * 1.000
+  
+if (pp_type == "Woodie")
+    PP := (phigh + plow + 2 * popen) / 4
+    R1 := PP + (PP - plow)
+    S1 := PP - (phigh - PP)
+    R2 := PP + (phigh - plow)
+    S2 := PP - (phigh - plow)
+    R3 := phigh + 2 * (PP - plow) 
+    S3 := plow  - 2 * (phigh - PP)
+    
+if (pp_type == "Camarilla")
+    PP := (phigh + plow + pclose) / 3
+    R1 := pclose + (phigh - plow) * 1.1/12
+    S1 := pclose - (phigh - plow) * 1.1/12
+    R2 := pclose + (phigh - plow) * 1.1/6
+    S2 := pclose - (phigh - plow) * 1.1/6
+    R3 := pclose + (phigh - plow) * 1.1/4
+    S3 := pclose - (phigh - plow) * 1.1/4
+ 
+// Projected levels
+
+prPP = 0.0
+prR1 = 0.0, prR2 = 0.0, prR3 = 0.0
+prS1 = 0.0, prS2 = 0.0, prS3 = 0.0
+  
+if (pp_type == "Traditional")
+    prPP := (high_cur + low_cur + close) / 3
+    prR1 := prPP     + (prPP   - low_cur)
+    prS1 := prPP     - (high_cur - PP)
+    prR2 := prPP     + (high_cur - low_cur)
+    prS2 := prPP     - (high_cur - low_cur)
+    prR3 := phigh  + 2 * (prPP   - low_cur) 
+    prS3 := plow   - 2 * (high_cur - PP)   
+  
+//////////////
+// PLOTTING //
+
+bars_sinse = 0
+bars_sinse := is_newbar(pp_res) ? 0 : bars_sinse[1] + 1
+
+////////////////////////
+// PLOT PIVOTS LEVELS //
+
+vpp_p = line.new(bar_index[min(bars_sinse, 300)], PP, bar_index, PP, color=color.gray,  style =  line.style_solid, extend = extend.none)
+vs1_p = line.new(bar_index[min(bars_sinse, 300)], S1, bar_index, S1, color=color.red,   style =  line.style_solid, extend = extend.none)
+vs2_p = line.new(bar_index[min(bars_sinse, 300)], S2, bar_index, S2, color=color.red,   style =  line.style_solid, extend = extend.none)
+vs3_p = line.new(bar_index[min(bars_sinse, 300)], S3, bar_index, S3, color=color.red,   style =  line.style_solid, extend = extend.none)
+vr1_p = line.new(bar_index[min(bars_sinse, 300)], R1, bar_index, R1, color=color.green, style =  line.style_solid, extend = extend.none)
+vr2_p = line.new(bar_index[min(bars_sinse, 300)], R2, bar_index, R2, color=color.green, style =  line.style_solid, extend = extend.none)
+vr3_p = line.new(bar_index[min(bars_sinse, 300)], R3, bar_index, R3, color=color.green,   style =  line.style_solid, extend = extend.none)
+
+// delete previous lines in the same period
+if (not is_newbar(pp_res) or not show_historical_levels)
+    line.delete(vpp_p[1])
+    line.delete(vs1_p[1]) 
+    line.delete(vs2_p[1])  
+    line.delete(vs3_p[1])  
+    line.delete(vr1_p[1]) 
+    line.delete(vr2_p[1])  
+    line.delete(vr3_p[1]) 
+
+
+
+// Add labels
+label_vpp = label.new(bar_index, PP, text=show_level_value ? ("P"  + " " + tostring(nround(PP))) : "P",  style= label.style_none)
+label_vs1 = label.new(bar_index, S1, text=show_level_value ? ("S1" + " " + tostring(nround(S1))) : "S1", style= label.style_none)
+label_vs2 = label.new(bar_index, S2, text=show_level_value ? ("S2" + " " + tostring(nround(S2))) : "S2", style= label.style_none)
+label_vs3 = label.new(bar_index, S3, text=show_level_value ? ("S3" + " " + tostring(nround(S3))) : "S3", style= label.style_none)
+label_vr1 = label.new(bar_index, R1, text=show_level_value ? ("R1" + " " + tostring(nround(R1))) : "R1", style= label.style_none)
+label_vr2 = label.new(bar_index, R2, text=show_level_value ? ("R2" + " " + tostring(nround(R2))) : "R2", style= label.style_none)
+label_vr3 = label.new(bar_index, R3, text=show_level_value ? ("R3" + " " + tostring(nround(R3))) : "R3", style= label.style_none)
+    
+label.delete(label_vpp[1])
+label.delete(label_vs1[1])
+label.delete(label_vs2[1])
+label.delete(label_vs3[1])
+label.delete(label_vr1[1])
+label.delete(label_vr2[1])
+label.delete(label_vr3[1])    
+    
+// Projected levels    
+line vpp_pr = na
+line vs1_pr = na
+line vs2_pr = na
+line vs3_pr = na
+line vr1_pr = na
+line vr2_pr = na
+line vr3_pr = na
+
+if (show_current_levels)
+    
+    vpp_pr = line.new(bar_index[1], prPP, bar_index, prPP, color=color.gray,  style =  line.style_dashed, extend = extend.right)
+    vs1_pr = line.new(bar_index[1], prS1, bar_index, prS1, color=color.red,   style =  line.style_dashed, extend = extend.right)
+    vs2_pr = line.new(bar_index[1], prS2, bar_index, prS2, color=color.red,   style =  line.style_dashed, extend = extend.right)
+    vs3_pr = line.new(bar_index[1], prS3, bar_index, prS3, color=color.red,   style =  line.style_dashed, extend = extend.right)
+    vr1_pr = line.new(bar_index[1], prR1, bar_index, prR1, color=color.green, style =  line.style_dashed, extend = extend.right)
+    vr2_pr = line.new(bar_index[1], prR2, bar_index, prR2, color=color.green, style =  line.style_dashed, extend = extend.right)
+    vr3_pr = line.new(bar_index[1], prR3, bar_index, prR3, color=color.green, style =  line.style_dashed, extend = extend.right)
+        
+    line.delete(vpp_pr[1])
+    line.delete(vs1_pr[1])
+    line.delete(vs2_pr[1])
+    line.delete(vs3_pr[1])
+    line.delete(vr1_pr[1])
+    line.delete(vr2_pr[1])
+    line.delete(vr3_pr[1])
+//
+
+///////////////
+Pivot = input(true, title="Show Pivot High/Lows")
+LP = input(defval = 4, title = "Left bars for Pivot")
+RP = input(defval = 3, title = "Right bars for Pivot")
+
+PH1 = pivothigh(LP,RP)
+PH  = valuewhen(PH1,PH1,0)
+//plotshape(Pivot and barstate.ishistory?PH1:na,style=shape.circle, color=#FF4500, text = "PH", textcolor=color.orange,location=location.abovebar,  offset=-3, transp = 0, title="Pivot High")
+//plot(Pivot?PH:na,style=plot.style_circles, linewidth=2,color=security(syminfo.tickerid,timeframe.period,high,barmerge.lookahead_off)<=PH?#FF4500:na,title="Pivot High")
+
+PL1 = pivotlow(LP,RP)
+PL  = valuewhen(PL1,PL1,0)
+//plotshape(Pivot and barstate.ishistory?PL1:na,style=shape.circle, color=#6B8E23, text = "PL", textcolor=color.orange,location=location.belowbar,  offset=-3, transp = 0,title="Pivot High")
+//plot(Pivot?PL:na,style=plot.style_circles, linewidth=2, color=security(syminfo.tickerid,timeframe.period,low,barmerge.lookahead_off)>=PL?#6B8E23:na,title="Pivot High")
+
+//
+c20 = Pivot?PH:na
+n20 = bar_index
+ts20 = c20
+
+line Md20 = line.new(n20[p1],ts20[p1],n20,ts20,extend=extend.left,color=color.orange,width=3)
+line.delete(Md20[1])
+line Md21 = line.new(n20[p1],ts20[p1],n20,ts20,extend=extend.right,color=color.orange,width=3)
+line.delete(Md21[1])
+//
+c21 = Pivot?PL:na
+n21 = bar_index
+ts21 = c21
+line Md22 = line.new(n21[p1],ts21[p1],n21,ts21,extend=extend.left,color=color.lime,width=3)
+line.delete(Md22[1])
+line Md23 = line.new(n21[p1],ts21[p1],n21,ts21,extend=extend.right,color=color.lime,width=3)
+line.delete(Md23[1])

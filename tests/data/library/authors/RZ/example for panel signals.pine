@@ -1,0 +1,50 @@
+//@version=4
+strategy("example for panel signals", overlay = true, default_qty_type = strategy.percent_of_equity, default_qty_value = 100, pyramiding = 0)
+//https://www.tradingview.com/script/m2a04xmb-noro-s-shiftma-tp-sl-strategy/
+//Settings
+lo = input(-5.0, title = "Long-line, %")
+tp = input(5.0, title = "Take-profit")
+sl = input(2.0, title = "Stop-loss")
+
+//SMA
+ma = sma(ohlc4, 3)
+long = ma + ((ma / 100) * lo)
+
+//Orders
+avg = strategy.position_avg_price
+if ma > 0
+    strategy.entry("Long", strategy.long, limit = long)
+    strategy.entry("Take", strategy.short, 0, limit = avg + ((avg / 100) * tp))
+    strategy.entry("Stop", strategy.short, 0, stop = avg - ((avg / 100) * sl))
+    
+//Cancel order
+if strategy.position_size == 0
+    strategy.cancel("Take")
+    strategy.cancel("Stop")
+
+//Lines
+plot(long, offset = 1, color = color.black, transp = 0)
+take = avg != 0 ? avg + ((avg / 100) * tp) : long + ((long / 100) * tp)
+stop = avg != 0 ? avg - ((avg / 100) * sl) : long - ((long / 100) * sl)
+takelinecolor = avg == avg[1] and avg != 0 ? color.lime : na
+stoplinecolor = avg == avg[1] and avg != 0 ? color.red : na
+plot(take, offset = 1, color = takelinecolor, linewidth = 3, transp = 0)
+plot(stop, offset = 1, color = stoplinecolor, linewidth = 3, transp = 0)
+//
+disp_panels = input(true, title="Display info panels?")
+h=high
+info_label_off = input(20, title="Info panel offset")
+info_label_size = input(size.large, options=[size.tiny, size.small, size.normal, size.large, size.huge], title="Info panel label size")
+info_panel_x = timenow + round(change(time)*info_label_off)
+info_panel_y = h
+
+info_title= "-=-=-=-=- Info Panel -=-=-=-=-"
+info_div = "\n\n------------------------------"
+a = "\n\ Long : " + tostring(long)
+b = "\n\ Stop loss : " + tostring(stop)
+c = "\n\ TP : " + tostring(take)
+info_text = a+c+b
+info_panel = disp_panels ? label.new(x=info_panel_x, y=info_panel_y, text=info_text, xloc=xloc.bar_time, yloc=yloc.price, color=color.yellow, style=label.style_labelup, textcolor=color.black, size=info_label_size) : na
+label.delete(info_panel[1])
+
+

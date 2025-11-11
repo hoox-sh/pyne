@@ -1,0 +1,75 @@
+//@version
+//@author=jango_blockchained
+
+//////////////////////////////////////////////////////////////////////////
+// [botbox] Moving Fibonacci SR
+//////////////////////////////////////////////////////////////////////////
+
+
+study(title="[botbox] Moving Fibonacci SR", shorttitle="[botbox] Moving Fibonacci SR", overlay=true)
+
+
+
+//////////////////////////////////////////////////////////////////////////
+// Inputs
+//////////////////////////////////////////////////////////////////////////
+
+
+fiblength = input(265)
+
+
+//////////////////////////////////////////////////////////////////////////
+// Colors
+//////////////////////////////////////////////////////////////////////////
+
+
+// Buy, Upward
+clg 	= #4EF9FF
+cdg 	= #3CADB1
+cbg 	= #00BCD4 //Background
+
+// Sell, Downward
+clr 	= #7b1fa2
+cdr 	= #7e57c2	
+cbr 	= #512da8
+
+// Idle, Sideward
+cly 	= #ffa726
+
+
+// New
+cLime 	= #afff00
+cPurple = #4a148c
+
+
+//////////////////////////////////////////////////////////////////////////
+// Calculation
+//////////////////////////////////////////////////////////////////////////
+
+
+maxr = highest(close, fiblength)
+minr = lowest(close, fiblength)
+ranr = maxr - minr
+
+
+//////////////////////////////////////////////////////////////////////////
+// Painting
+//////////////////////////////////////////////////////////////////////////
+
+
+U3=plot( maxr , color=cLime,  title="1")
+U2=plot( maxr - 0.236 * ranr, title="0.764", color=cdg )
+U1=plot( maxr - 0.382 * ranr, title="0.618", color=cbg )
+BASE=plot( maxr - 0.50 * ranr, title="0.5", color=cly )
+D1=plot( minr + 0.382 * ranr, title="0.382", color=clr )
+D2=plot( minr + 0.236 * ranr, title="0.236", color=cdr )
+D3=plot( minr , title="0", color=cPurple )
+
+fill(U3,U2, color=cPurple)
+fill(U2,U1, color=#cly)
+fill(U1,BASE, color=cLime)
+fill(BASE,D1, color=cLme)
+fill(D1,D2, color=#cly)
+fill(D2,D3, color=cPurple)
+
+//ToDo: Alerts

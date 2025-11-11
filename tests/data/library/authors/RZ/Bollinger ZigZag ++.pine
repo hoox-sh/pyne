@@ -1,0 +1,147 @@
+//@version=4
+//@url=https://www.tradingview.com/script/kzPwWu4M-Bollinger-ZigZag/
+study("Bollinger ZigZag ++", overlay=true)
+length10 = input(title="Bollinger Length", type=input.integer, defval=34, minval=1)
+multiplier = input(title="Bollinger Deviation", type=input.float, defval=2, minval=1)
+overbought = input(title="Overbought", type=input.integer, defval=1, minval=1)
+oversold = input(title="Oversold", type=input.integer, defval=0, minval=1)
+custom_timeframe = input(title="Use another Timeframe?", type=input.bool, defval=false)
+highTimeFrame = input(title="Select The Timeframe", type=input.resolution, defval="60")
+res1 = custom_timeframe ? highTimeFrame : timeframe.period
+
+smabasis = sma(close, length10)
+stdev = stdev(close, length10)
+cierre = security(syminfo.tickerid, res1, close, false)
+alta = security(syminfo.tickerid, res1, high, false)
+baja = security(syminfo.tickerid, res1, low, false)
+basis1 = security(syminfo.tickerid, res1, smabasis, false)
+stdevb = security(syminfo.tickerid, res1, stdev, false)
+dev5 = multiplier * stdevb  // stdev(cierre, length)
+upper = basis1 + dev5
+lower5 = basis1 - dev5
+
+bbr = (cierre - lower5) / (upper - lower5)
+
+// plot(bbr)
+
+// // MARCA LAS RESISTENCIAS
+pintarojo = 0.0
+pintarojo := nz(pintarojo[1])
+pintarojo := bbr[1] > overbought and bbr < overbought ? alta[1] : nz(pintarojo[1])
+p = plot(pintarojo, color=color.red, style=plot.style_circles, linewidth=2)
+
+// // MARCA LOS SOPORTES
+pintaverde = 0.0
+pintaverde := nz(pintaverde[1])
+pintaverde := bbr[1] < oversold and bbr > oversold ? baja[1] : nz(pintaverde[1])
+g = plot(pintaverde, color=color.black, style=plot.style_circles, linewidth=2)
+//
+
+//
+Pivot = input(false, title="Show Pivot High/Lows")
+LP = input(defval = 4, title = "Left bars for Pivot")
+RP = input(defval = 3, title = "Right bars for Pivot")
+
+PH1 = pivothigh(LP,RP)
+PH  = valuewhen(PH1,PH1,0)
+plotshape(Pivot and barstate.ishistory?PH1:na,style=shape.circle, color=#FF4500, text = "PH", textcolor=color.orange,location=location.abovebar,  offset=-3, transp = 0, title="Pivot High")
+plot(Pivot?PH:na,style=plot.style_circles, linewidth=2,color=security(syminfo.tickerid,timeframe.period,high,barmerge.lookahead_off)<=PH?#FF4500:na,title="Pivot High")
+
+PL1 = pivotlow(LP,RP)
+PL  = valuewhen(PL1,PL1,0)
+plotshape(Pivot and barstate.ishistory?PL1:na,style=shape.circle, color=#6B8E23, text = "PL", textcolor=color.orange,location=location.belowbar,  offset=-3, transp = 0,title="Pivot High")
+plot(Pivot?PL:na,style=plot.style_circles, linewidth=2, color=security(syminfo.tickerid,timeframe.period,low,barmerge.lookahead_off)>=PL?#6B8E23:na,title="Pivot High")
+
+// inputs
+Depth       = input(12, title="Depth")  // Depth
+Deviation   = input(5, title="Deviation")  // Deviation
+
+// ZigZag
+lastlow = 0.0, lasthigh = 0.0
+lastlow := nz(lastlow[1])
+lasthigh := nz(lasthigh[1])
+
+data(x) =>
+    d = security(syminfo.tickerid, timeframe.period, x, gaps = barmerge.gaps_off,  lookahead = barmerge.lookahead_on)
+    d
+getLow(x, y, z, a) => 
+    lastlow = y
+    v = data(x)
+    m = v==lastlow or data(z) - v > a*syminfo.mintick
+    if v!=lastlow
+        lastlow := v
+    if m
+        v := 0.0
+    [v,lastlow]
+getHigh(x, y, z, a) => 
+    lasthigh = y
+    v = data(x)
+    m = v==lasthigh or v - data(z) > a*syminfo.mintick
+    if v!=lasthigh
+        lasthigh := v
+    if m
+        v := 0.0
+    [v,lasthigh]
+
+[v,e] = getLow(lowest(Depth), lastlow, low, Deviation)
+lastlow := e
+zBB =  v != 0.0
+[v1,e1] = getHigh(highest(Depth), lasthigh, high, Deviation)
+lasthigh := e1
+zSS = v1 != 0.0
+
+zigzagDirection = -1
+zigzagHigh = 0
+zigzagLow = 0
+zigzagDirection := zBB ? 0 : zSS ? 1 : nz(zigzagDirection[1], -1)
+virtualLow = zigzagLow[1] + 1
+if not zBB or (zBB and zigzagDirection == zigzagDirection[1] and low > low[virtualLow])
+    zigzagLow := nz(zigzagLow[1]) + 1
+virtualHigh = zigzagHigh[1] + 1
+if not zSS or (zSS and zigzagDirection == zigzagDirection[1] and high < high[virtualHigh])
+    zigzagHigh := nz(zigzagHigh[1]) + 1
+a=bar_index-zigzagLow
+b=bar_index-zigzagHigh
+var color c = na, c := fixnan(a < b[1] ? color.lime : a > b[1] ? color.red : na)
+line zigzag = line.new(bar_index-zigzagLow, low[zigzagLow], bar_index-zigzagHigh, high[zigzagHigh], color=c, style=line.style_solid, width=2)
+if (zigzagDirection == zigzagDirection[1])
+    line.delete(zigzag[1])
+    
+zzPrevHigh = zigzagHigh[1]
+zzPrevLow = zigzagLow[1]   
+if not na(zzPrevHigh[1])
+    zzPrevHigh := zzPrevHigh[1] + 1
+if not na(zzPrevLow[1])
+    zzPrevLow := zzPrevLow[1] + 1
+if zigzagDirection != zigzagDirection[1]
+    if zigzagDirection == 1
+        zzPrevHigh := zigzagHigh[1] + 1
+    if zigzagDirection == 0
+        zzPrevLow := zigzagLow[1] + 1
+        
+
+//
+f_draw_infopanel(_x, _y, _line, _text, _color)=>
+    _rep_text = ""
+    for _l = 0 to _line
+        _rep_text := _rep_text + "\n"
+    _rep_text := _rep_text + _text
+    var label _la = na
+    label.delete(_la)
+    _la := label.new(
+         x=_x, y=_y, 
+         text=_rep_text, xloc=xloc.bar_time, yloc=yloc.price, 
+         color=color.black, style=label.style_labelup, textcolor=_color, size=size.large)
+
+posx = timenow + round(change(time)*10)
+posy = highest(30)
+
+
+f_draw_infopanel(posx, posy, 0, "Zigzag", a < b ? color.lime : color.red)
+//
+
+//
+zz= crossover(pintaverde,pintaverde[1]) or crossunder(pintaverde,pintaverde[1]) 
+kp= crossover(pintarojo,pintarojo[1]) or crossunder(pintarojo,pintarojo[1]) 
+plotshape(zz,title="Low", color=color.red, style=shape.arrowup,location=location.belowbar,size=size.normal, text="Low",offset=0)
+plotshape(kp  ,title="High", color=color.green, style=shape.arrowdown,size=size.normal, text="High",offset=0)

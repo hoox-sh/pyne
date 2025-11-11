@@ -1,0 +1,238 @@
+//@version=4
+//https://www.tradingview.com/script/n5JV4PPz-follow-the-trend-line/
+//https://www.tradingview.com/script/OeCCgXkC-Time-Series-Forecast/
+study("True Channel Trend",overlay=true)
+length = input(100),mult = input(2.),short = input(false,"forecast trend"),src = input(close)
+lenFast = input(1, title="Length of Fast ", type=input.integer, minval=1)
+lenSlow = input(5, title="Length of Slow ", type=input.integer, minval=1)
+lenC = input(100, title="Length of  Curve", type=input.integer, minval=1)
+
+co(sFast, sSlow, lFast, lSlow, lC)=>
+    fastC = sma(sFast, lFast)
+    slowC = sma(sSlow, lSlow)
+    cC = fastC + slowC
+    sma(cC, lC)
+
+closeC = co(close, close, lenFast, lenSlow, lenC)
+//              PLOTTING: 
+//lineColor = closeC > closeC[1] ? color.green : color.red
+
+c = closeC/2
+
+//----
+n = bar_index
+ts = c
+p = short ? 1 : length
+//----
+e = cum(abs(src-ts))/n*mult
+a = ts + e
+b = ts - e
+//----
+line Up = line.new(n[p],a[p],n,a,extend=extend.left,color=color.red,width=2)
+line Md = line.new(n[p],ts[p],n,ts,extend=extend.left,color=color.blue,width=3)
+line Dn = line.new(n[p],b[p],n,b,extend=extend.left,color=color.green,width=2)
+//----
+line.delete(Up[1])
+line.delete(Md[1])
+line.delete(Dn[1])
+lineColor = closeC > closeC[1] ? color.green : color.red
+plot(ts,color=lineColor,transp=0,linewidth=2)
+//
+lenC1 = input(10, title="Length of  Curve2", type=input.integer, minval=1)
+
+
+
+closeC1 = co(close, close, lenFast, lenSlow, lenC1)
+c1 = closeC1/2
+//----
+n1 = bar_index
+ts1 = c1
+p1 = short ? 1 : length
+//----
+e1 = cum(abs(src-ts1))/n1*mult
+a1 = ts1 + e1
+b1 = ts1 - e1
+//----
+line Up1 = line.new(n1[p1],a1[p1],n1,a1,extend=extend.right,color=color.gray,width=1)
+line Md1 = line.new(n1[p1],ts1[p1],n1,ts1,extend=extend.right,color=color.red,width=2)
+line Dn1 = line.new(n1[p1],b1[p1],n1,b1,extend=extend.right,color=color.gray,width=1)
+//----
+line.delete(Up1[1])
+line.delete(Md1[1])
+line.delete(Dn1[1])
+//
+line Up2 = line.new(n1[p1],a1[p1],n1,a1,extend=extend.left,color=color.gray,width=1)
+line Md2 = line.new(n1[p1],ts1[p1],n1,ts1,extend=extend.left,color=color.red,width=2)
+line Dn2 = line.new(n1[p1],b1[p1],n1,b1,extend=extend.left,color=color.gray,width=1)
+//----
+line.delete(Up2[1])
+line.delete(Md2[1])
+line.delete(Dn2[1])
+lineColor1 = closeC1 > closeC1[1] ? color.blue : color.black
+plot(ts1,color=lineColor1,transp=0,linewidth=2)
+//
+///////////////
+// FUNCTIONS //
+///////////////
+
+// Function outputs 1 when it's the first bar of the D/W/M/Y
+is_newbar(res) =>
+    ch = 0
+    if(res == 'Y')
+        t  = year(time('D'))
+        ch := change(t) != 0 ? 1 : 0
+    else
+        t = time(res)
+        ch := change(t) != 0 ? 1 : 0
+    ch
+
+// Rounding levels to min tick
+nround(x) => 
+    n = round(x / syminfo.mintick) * syminfo.mintick
+
+////////////
+// INPUTS //
+////////////
+
+pp_type                = input(title = 'Pivot Type',               defval = "Traditional") 
+pp_period              = input(title = "Period",                   defval = "Day",  type = input.string, options = ['Day', 'Week', 'Month', 'Year'])
+show_historical_levels = input(title = "Show Historical Levels?",  defval = false,  type = input.bool)
+show_level_value       = input(title = "Show Levels Value?",       defval = false,   type = input.bool)
+show_current_levels    = input(title = "Show Current Levels",      defval = false,  type = input.bool)
+
+pp_res = pp_period == 'Day' ? 'D' : pp_period == 'Week' ? 'W' : pp_period == 'Month' ? 'M' : 'Y' 
+
+/////////////////////
+// Get HLC from HT //
+
+// Calc Open
+open_cur = 0.0
+open_cur := is_newbar(pp_res) ? open : open_cur[1]
+
+popen = 0.0
+popen := is_newbar(pp_res) ? open_cur[1] : popen[1]
+
+// Calc High
+high_cur = 0.0
+high_cur := is_newbar(pp_res) ? high : max(high_cur[1], high)
+
+phigh = 0.0
+phigh := is_newbar(pp_res) ? high_cur[1] : phigh[1]
+
+// Calc Low
+low_cur = 0.0
+low_cur := is_newbar(pp_res) ? low : min(low_cur[1], low)
+
+plow = 0.0
+plow := is_newbar(pp_res) ? low_cur[1] : plow[1]
+
+// Calc Close
+pclose = 0.0
+pclose := is_newbar(pp_res) ? close[1] : pclose[1]
+
+
+////////////////////////////
+// CALCULATE PIVOT POINTS //
+////////////////////////////
+
+PP = 0.0
+R1 = 0.0, R2 = 0.0, R3 = 0.0
+S1 = 0.0, S2 = 0.0, S3 = 0.0
+
+if (pp_type == "Traditional")
+    PP := (phigh + plow + pclose) / 3
+    R1 := PP     + (PP   - plow)
+    S1 := PP     - (phigh - PP)
+    R2 := PP     + (phigh - plow)
+    S2 := PP     - (phigh - plow)
+    R3 := phigh  + 2 * (PP   - plow) 
+    S3 := plow   - 2 * (phigh - PP) 
+  
+
+// Projected levels
+
+prPP = 0.0
+prR1 = 0.0, prR2 = 0.0, prR3 = 0.0
+prS1 = 0.0, prS2 = 0.0, prS3 = 0.0
+  
+if (pp_type == "Traditional")
+    prPP := (high_cur + low_cur + close) / 3
+    prR1 := prPP     + (prPP   - low_cur)
+    prS1 := prPP     - (high_cur - PP)
+    prR2 := prPP     + (high_cur - low_cur)
+    prS2 := prPP     - (high_cur - low_cur)
+    prR3 := phigh  + 2 * (prPP   - low_cur) 
+    prS3 := plow   - 2 * (high_cur - PP)   
+  
+//////////////
+// PLOTTING //
+
+bars_sinse = 0
+bars_sinse := is_newbar(pp_res) ? 0 : bars_sinse[1] + 1
+
+////////////////////////
+// PLOT PIVOTS LEVELS //
+
+vpp_p = line.new(bar_index[min(bars_sinse, 300)], PP, bar_index, PP, color=color.gray,  style =  line.style_solid, extend = extend.none)
+vs1_p = line.new(bar_index[min(bars_sinse, 300)], S1, bar_index, S1, color=color.red,   style =  line.style_solid, extend = extend.none)
+vs2_p = line.new(bar_index[min(bars_sinse, 300)], S2, bar_index, S2, color=color.red,   style =  line.style_solid, extend = extend.none)
+vs3_p = line.new(bar_index[min(bars_sinse, 300)], S3, bar_index, S3, color=color.red,   style =  line.style_solid, extend = extend.none)
+vr1_p = line.new(bar_index[min(bars_sinse, 300)], R1, bar_index, R1, color=color.green, style =  line.style_solid, extend = extend.none)
+vr2_p = line.new(bar_index[min(bars_sinse, 300)], R2, bar_index, R2, color=color.green, style =  line.style_solid, extend = extend.none)
+vr3_p = line.new(bar_index[min(bars_sinse, 300)], R3, bar_index, R3, color=color.green,   style =  line.style_solid, extend = extend.none)
+
+// delete previous lines in the same period
+if (not is_newbar(pp_res) or not show_historical_levels)
+    line.delete(vpp_p[1])
+    line.delete(vs1_p[1]) 
+    line.delete(vs2_p[1])  
+    line.delete(vs3_p[1])  
+    line.delete(vr1_p[1]) 
+    line.delete(vr2_p[1])  
+    line.delete(vr3_p[1]) 
+
+
+
+// Add labels
+label_vpp = label.new(bar_index, PP, text=show_level_value ? ("P"  + " " + tostring(nround(PP))) : "P",  style= label.style_none)
+label_vs1 = label.new(bar_index, S1, text=show_level_value ? ("S1" + " " + tostring(nround(S1))) : "S1", style= label.style_none)
+label_vs2 = label.new(bar_index, S2, text=show_level_value ? ("S2" + " " + tostring(nround(S2))) : "S2", style= label.style_none)
+label_vs3 = label.new(bar_index, S3, text=show_level_value ? ("S3" + " " + tostring(nround(S3))) : "S3", style= label.style_none)
+label_vr1 = label.new(bar_index, R1, text=show_level_value ? ("R1" + " " + tostring(nround(R1))) : "R1", style= label.style_none)
+label_vr2 = label.new(bar_index, R2, text=show_level_value ? ("R2" + " " + tostring(nround(R2))) : "R2", style= label.style_none)
+label_vr3 = label.new(bar_index, R3, text=show_level_value ? ("R3" + " " + tostring(nround(R3))) : "R3", style= label.style_none)
+    
+label.delete(label_vpp[1])
+label.delete(label_vs1[1])
+label.delete(label_vs2[1])
+label.delete(label_vs3[1])
+label.delete(label_vr1[1])
+label.delete(label_vr2[1])
+label.delete(label_vr3[1])    
+    
+// Projected levels    
+line vpp_pr = na
+line vs1_pr = na
+line vs2_pr = na
+line vs3_pr = na
+line vr1_pr = na
+line vr2_pr = na
+line vr3_pr = na
+
+if (show_current_levels)
+    
+    vpp_pr = line.new(bar_index[1], prPP, bar_index, prPP, color=color.gray,  style =  line.style_dashed, extend = extend.right)
+    vs1_pr = line.new(bar_index[1], prS1, bar_index, prS1, color=color.red,   style =  line.style_dashed, extend = extend.right)
+    vs2_pr = line.new(bar_index[1], prS2, bar_index, prS2, color=color.red,   style =  line.style_dashed, extend = extend.right)
+    vs3_pr = line.new(bar_index[1], prS3, bar_index, prS3, color=color.red,   style =  line.style_dashed, extend = extend.right)
+    vr1_pr = line.new(bar_index[1], prR1, bar_index, prR1, color=color.green, style =  line.style_dashed, extend = extend.right)
+    vr2_pr = line.new(bar_index[1], prR2, bar_index, prR2, color=color.green, style =  line.style_dashed, extend = extend.right)
+    vr3_pr = line.new(bar_index[1], prR3, bar_index, prR3, color=color.green, style =  line.style_dashed, extend = extend.right)
+        
+    line.delete(vpp_pr[1])
+    line.delete(vs1_pr[1])
+    line.delete(vs2_pr[1])
+    line.delete(vs3_pr[1])
+    line.delete(vr1_pr[1])
+    line.delete(vr2_pr[1])
+    line.delete(vr3_pr[1])

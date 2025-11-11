@@ -1,0 +1,30 @@
+//@version=4
+study("Linear Slope Oscillator", "LSO", false, format.inherit)
+period     = input(     3, "Period"       , input.integer, minval=3)
+periodMinusOne = period-1
+Ex = 0.0, Ey = 0.0, Ex2 = 0.0, Exy = 0.0, for i=0 to periodMinusOne
+    closeI = nz(close[i]), Ex := Ex + i, Ey := Ey + closeI, Ex2 := Ex2 + (i * i), Exy := Exy + (closeI * i)
+ExEx = Ex * Ex, slope = Ex2==ExEx ? 0.0 : (period * Exy - Ex * Ey) / (period * Ex2 - ExEx)
+s=slope/-1
+lenFast = input(8, title="Length of Fast EMA ", type=input.integer, minval=1)
+lenSlow = input(13, title="Length of Slow EMA ", type=input.integer, minval=1)
+lenSig = input(9, title="Length of Signal Line", type=input.integer, minval=1)
+colorBars = input(true, title="Color Bars")
+
+
+o(fastLen, slowLen)=>
+    trend = s
+    fast = ema(trend, fastLen)
+    slow = ema(trend, slowLen)
+    (fast - slow)
+
+_O = o(lenFast, lenSlow)
+signal = ema(_O, lenSig)
+
+
+//  Plotting: 
+barColor = _O >= 0 and _O > signal ? color.teal : _O > 0 and _O < signal ? color.lime : _O < 0 and _O < signal ? color.red : color.orange
+plot(_O, color=barColor, style=plot.style_histogram, linewidth=3)
+plot(signal, color=color.aqua, linewidth=3)
+barcolor(barColor)
+bgcolor(barColor == color.teal or barColor == color.lime ? color.green : color.red)

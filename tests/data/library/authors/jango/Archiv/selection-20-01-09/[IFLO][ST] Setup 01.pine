@@ -1,0 +1,749 @@
+//   |{------------------------------------------------------------------||
+//   ||   START OF SETUP
+
+
+//      ____________    ____  ___________________ 
+//     /  _/ ____/ /   / __ \/ ___/_  __/  _/ __ \
+//     / // /_  / /   / / / /\__ \ / /  / // / / /
+//   _/ // __/ / /___/ /_/ /___/ // / _/ // /_/ /  
+//  /___/_/   /_____/\____//____//_(_)___/\____/  
+// 
+//  EVERYTHING IS POSSIBLE, BY THE POWER OF DATA.
+
+
+//@version=4
+//@authors                      = Jan Goischke & Dennis Hilpmann
+
+
+StrategyName                    = "[SETUP-02-DEV][ST] Super Trend + Range Filter + ATR + Thereshold"
+ShortStrategyName               = "[S02-DEV][ST] SR + RF + ATR + THS"
+
+IndicatorName                   = "[SETUP-02-DEV][IN] Super Trend + Range Filter + ATR + Thereshold"
+ShortIndicatorName              = "[S02-DEV][IN] SR + RF + ATR + THS"
+
+TradeId                         = "[IFLO]"
+
+InitialCapital                  = 5000
+InitPosition                    = 98
+CommissionValue                 = 0.075
+CommissionType                  = strategy.commission.percent,
+Pyramiding                      = 1
+CalcOnorderFills                = true
+CalcOnTick                      = true
+DefaultQtyType                  = strategy.percent_of_equity
+DefaultQtyValue                 = 100
+Precision                       = 4
+Overlay                         = true
+Slippage                        = 1
+Currency                        = currency.USD
+Format                          = format.price
+
+
+//////////////////////////////////////////////////////////////////////////
+//-- [SETUP-02][ST] Super Range Thereshold Filter Trend
+//////////////////////////////////////////////////////////////////////////
+
+
+strategy(
+ title                          = StrategyName,
+ shorttitle                     = ShortStrategyName,
+ overlay                        = Overlay, 
+ pyramiding                     = Pyramiding, 
+ default_qty_type               = DefaultQtyType, 
+ default_qty_value              = DefaultQtyValue, 
+ initial_capital                = InitialCapital, 
+ commission_type                = CommissionType, 
+ commission_value               = CommissionValue, 
+ slippage                       = Slippage,
+ currency                       = Currency,
+ precision                      = Precision
+ )
+
+
+// study(
+//  title = IndicatorName, 
+//  shorttitle = ShortIndicatorName, 
+//  overlay = Overlay,
+//  precision = Precision
+//  )
+
+
+//-- PANEL IDEAS:
+// 
+// ◄─╢
+// 
+// ┌──────────────────────────┐
+// └──────────────────────────┘
+//   
+// ◄─┤▌  ↨ 5,00%  │
+// 
+//   ┌──────────────────────────
+// ◄─┤ ▌                        
+//   └──────────────────────────
+// 
+// ◄─╫─
+
+//-- CHARACTER LIST:
+// ‖ ‗ ― — – ‒
+// ← ↑ → ↓ ↔ ↕ ↨ ─ 
+// │ ┌ ┐ └ ┘ ├ ┤ ┬ ┴ ┼ 
+// ═ ║ ╒ ╓ ╔ ╕ ╖ ╗ ╘ ╙ ╚ ╛ ╜ ╝ ╞ ╟ ╠ ╡ ╢ ╣ ╤ ╥ ╦ ╧ ╨ ╩ ╪ ╫ ╬ 
+//
+// ▀ ▄ █ ▌ ▐ ░ ▒ ▓ ■ □ ▪ ▫ ▬ ▲ ► ▼ ◄ 
+// spaces: | | | | | | | | | | | |​|‌|‍|
+
+
+//////////////////////////////////////////////////////////////////////////
+//-- SETUP: INPUTS
+//////////////////////////////////////////////////////////////////////////
+
+
+//-- DIVIDER LINE
+string __DL = "▬▬▬▬▬▬▬"
+
+//-- DATA SOURCE
+__SRC                           = input(close, title="DATA SOURCE", type=input.source)
+
+//-- BACKTEST PERIOD
+bool __D1                       = input(false, type=input.bool, title=__DL+" BACKTEST PERIOD "+__DL)
+int __DAYF                      = input(1, title="From Day", minval=1, maxval=31)
+int __MONTHF                    = input(11, title="From Month", minval=1, maxval=12)
+int __YEARF                     = input(2019, title="From Year", minval=2012)
+int __DAYT                      = input(1, title="To Day", minval=1, maxval=31)
+int __MONTHT                    = input(12, title="To Month", minval=1, maxval=12)
+int __YEART                     = input(2020, title="To Year", minval=2019)
+
+//-- TRAILING TP
+bool __D3                       = input(false, type=input.bool, title=__DL+" TRAILING TP "+__DL)
+bool __USE_TLG                  = input(true, type=input.bool, title="Use Trailing Take Profit?")
+float __TLG_PERCENT             = input(2.0, title="Trailing Take Profit (%)",minval=0,step=0.1,type=input.float) * 0.01
+bool  __USE_TLG_TRIGGER         = input(true, title="Use Trailing Take Profit Trigger Level?", type=input.bool)
+float __TLG_PERCENT_TRIGGER     = input(4.0, title="Trailing Take Profit Trigger Level (%)",minval=0,step=0.1,type=input.float) * 0.01
+
+//-- TRAILING SL
+bool __D4                       = input(false, type=input.bool, title=__DL+" TRAILING SL "+__DL)
+bool __USE_SL                   = input(false, "Use Trailing Stop Loss")
+float __SL_PERCENT              = input(2.2,title="Trailing Stop Loss (%)", type=input.float, minval=0.0, step=0.1) * 0.01
+bool __USE_SL_TRIGGER           = input(false, "Use Trailing Stop Loss Trigger Level?")
+float __SL_PERCENT_TRIGGER      = input(4.0, "Trailing Stop Loss Trigger Level (%)",minval=0,step=0.1,type=input.float) * 0.01
+
+//-- PRINTING
+bool __D5                       = input(false, type=input.bool, title=__DL+" PRINTING "+__DL)
+bool __PRINT_BARCOLOR           = input(true, type=input.bool, title="Print Barcolor?")
+bool __PRINT_LASTPRICE          = input(true, type=input.bool, title="Print Last Price Line?")
+bool __PRINT_ALL_COND           = input(false, type=input.bool, title="Print all possible Conditions?")
+bool __PRINT_TLG                = input(false, type=input.bool, title="Print Trailing Take Profit?")
+bool __PRINT_TLG_TRIGGER        = input(false, type=input.bool, title="Print Trailing Take Profit Trigger Level?")
+bool __PRINT_SL                 = input(false, type=input.bool, title="Print Trailing Stop Loss?")
+bool __PRINT_SL_TRIGGER         = input(false, type=input.bool, title="Print Trailing Stop Loss Trigger Level?")
+bool __PRINT_ES                 = input(false, type=input.bool, title="Print External Signal?")
+bool __PRINT_TH                 = input(false, type=input.bool, title="Print Thereshold?")
+bool __DEBUGG                   = input(true, type=input.bool, title="Debugging?")
+
+//-- PREFERENCES
+bool __D6                       = input(false, type=input.bool, title=__DL+" PREFERENCES "+__DL)
+
+
+//////////////////////////////////////////////////////////////////////////
+//-- SETUP: VARIABLES
+//////////////////////////////////////////////////////////////////////////
+
+
+var int __STARTF                = timestamp(__YEARF, __MONTHF, __DAYF, 00, 00)
+var int __FINISHT               = timestamp(__YEART, __MONTHT, __DAYT, 23, 59)
+
+var bool __LONG                 = false
+var bool __SHORT                = false
+
+var bool __CLOSE_LONG           = na
+var bool __CLOSE_SHORT          = na
+
+var float __LAST_CONDITION      = na
+var float __LAST_PRICE          = na
+
+var float __TREND               = 0.0
+
+var int __SINCE_BUY             = na
+var int __SINCE_SELL            = na
+
+var bool __TREND_BUY            = na
+var bool __TREND_SELL           = na
+var bool __TREND_CHANGE         = na
+
+var bool __TLG_TRIGGER_LONG_HIT = false
+var bool __TLG_TRIGGER_SHORT_HIT= false
+
+var bool __SL_TRIGGER_LONG_HIT  = false
+var bool __SL_TRIGGER_SHORT_HIT = false
+
+var bool __COND_LONG_TLG_HIT    = false
+var bool __COND_SHORT_TLG_HIT   = false
+
+var bool __COND_LONG_SL_HIT     = false
+var bool __COND_SHORT_SL_HIT    = false
+
+var bool __COND_LONG_RSI_HIT    = false
+var bool __COND_SHORT_RSI_HIT   = false
+
+var float __LONG_TRAIL_TP       = 0.0
+var float __SHORT_TRAIL_TP      = 0.0
+
+var float __LONG_TRAIL_SL       = 0.0
+var float __SHORT_TRAIL_SL      = 0.0
+
+var float __TP_TRIGGER_PRICE    = 0.0
+var float __SL_TRIGGER_PRICE    = 0.0
+
+var int __EXTERN                = 0
+
+
+//////////////////////////////////////////////////////////////////////////
+//-- SETUP: FUNCTIONS
+//////////////////////////////////////////////////////////////////////////
+//
+// Setup funuctions beginning with a "f_" 
+// Setup intern function variables beginning with a underscore "_var"
+// Setup extern function variables "var"
+// Corresponding to the Setup variables __LONG and __SHORT, the buy and sell function beginning with double underscore followed by UPERCASE letters
+//
+// !!! Variables and functions shares the same namespace !!!
+//
+//////////////////////////////////////////////////////////////////////////
+
+
+//
+//-- MATH FUNCTIONS
+//
+
+//-- Phi
+//@return           float
+f_phi() =>
+    float _phi = 0.5 + sqrt(1.25)
+    _phi
+
+//-- Fibonacci Numbers
+//@return           float
+f_fib(_step) =>
+    float _phi = 1.618
+    float _n_phi = 1/_phi
+    int _r = round(abs(_step >= 0 ? pow(_phi, _step) / sqrt(5.0) : pow(-_n_phi, _step) / sqrt(5)))
+    _r
+
+//-- Bool to integer
+//-- @return        integer
+f_b2n(_b) =>
+    int _r = _b ? 1 : 0
+    _r
+
+//-- Date and start filter
+//-- @return        bool
+f_window() =>
+    bool _r = time >= __STARTF and time <= __FINISHT ? true : false
+    _r
+
+//
+//-- MAIN FUNCTIONS
+//
+_LONG() =>
+    bool _r = (__LONG or __CLOSE_SHORT) and __LAST_CONDITION[1] != 1 and f_window() == true
+    _r
+
+//--
+_LONG_ONLY() =>
+    bool _r = __LONG and __LAST_CONDITION[1] != 1 and f_window() == true
+    _r
+
+//--
+_CLOSE_LONG_ONLY() =>
+    bool _r = __CLOSE_LONG and __LAST_CONDITION[1] != -1 and f_window() == true
+    _r
+
+//--
+_SHORT() =>
+    bool _r = (__SHORT or __CLOSE_LONG) and __LAST_CONDITION[1] != -1 and f_window() == true
+    _r
+
+//--
+_SHORT_ONLY() =>
+    bool _r = __SHORT and __LAST_CONDITION[1] != -1 and f_window() == true
+    _r
+
+//--
+_CLOSE_SHORT_ONLY() =>
+    bool _r = __CLOSE_SHORT and __LAST_CONDITION[1] != 1 and f_window() == true
+    _r
+
+//-- 
+_TP_LONG() =>
+    bool _r = __COND_LONG_TLG_HIT and f_window() == true
+    _r
+
+_TP_SHORT() =>
+    bool _r = __COND_SHORT_TLG_HIT and f_window() == true
+    _r
+
+_SL_LONG() =>
+    bool _r = __COND_LONG_SL_HIT and f_window() == true
+    _r
+
+//--
+_SL_SHORT() =>
+    bool _r = __COND_SHORT_SL_HIT and f_window() == true
+    _r
+
+//-- 
+_RSI_LONG() =>
+    bool _r = __COND_LONG_RSI_HIT and f_window() == true
+    _r
+
+//-- 
+_RSI_SHORT() =>
+    bool _r = __COND_SHORT_RSI_HIT and f_window() == true
+    _r
+
+//////////////////////////////////////////////////////////////////////////
+//-- SETUP: COLORS
+//////////////////////////////////////////////////////////////////////////
+
+
+//--__buy, Upward
+color col_green_1               = color.new(#4EF9FF,0) //*
+color col_green_1_90            = color.new(#4EF9FF,90)
+color col_green_2               = color.new(#3CADB1,0)
+color col_green_3               = color.new(#26c6da,0)  
+color col_green_4               = color.new(#afff00,0)
+color col_green_5               = color.new(#CFD80E,0)
+color col_green_6               = color.new(#90c818,0)
+
+//-- __sell, Downward
+color col_red_1                 = color.new(#7b1fa2,0) //*
+color col_red_1_90              = color.new(#7b1fa2,90) //*
+color col_red_2                 = color.new(#7e57c2,0)
+color col_red_3                 = color.new(#512da8,0)
+color col_red_4                 = color.new(#7300de,0)
+color col_red_5                 = color.new(#4a148c,0)  
+color col_red_6                 = color.new(#2d2456,0)
+
+//-- Idle, Sideward
+color col_yellow_1              = color.new(#ffa726,0)
+color col_yellow_2              = color.new(#f57c00,0)
+
+color col_light_1               = color.new(#FFFFFF,0)
+color col_light_1_50            = color.new(#FFFFFF,50)
+
+color col_dark_1                = color.new(#000000,0)
+color col_dark_1_50             = color.new(#000000,50)
+
+
+//////////////////////////////////////////////////////////////////////////
+//-- INDICATOR: RELATIVE STRENGHT INDEX
+//////////////////////////////////////////////////////////////////////////
+
+
+//
+//-- INPUTS
+//
+
+bool i_rsi_description          = input(false, type=input.bool, title="----- RSI")
+bool i_rsi_activ                = input(true, type=input.bool, title="Use RSI for extra entry and exit condition?")
+bool __PRINT_RSI_BG             = input(true, type=input.bool, title="Show colored background over/under levels?")
+
+int i_rsi_lenght                = input(14, type=input.integer,title="RSI Lenght")
+int i_rsi_overbought            = input(90, type=input.integer,title="RSI Overbought Level")
+int i_rsi_oversold              = input(10, type=input.integer,title="RSI Oversold Level")
+
+//
+//-- VARIABLES
+//
+
+var float i_rsi                 = 0.0
+
+//
+//-- CALCULATION
+//
+
+i_rsi                          := rsi(__SRC, i_rsi_lenght)
+
+
+//////////////////////////////////////////////////////////////////////////
+//-- INDICATOR: RANGE FILTER
+//////////////////////////////////////////////////////////////////////////
+
+
+//
+//-- RF: INPUTS
+//
+
+// Show visualisation
+bool i_rf_print                 = input(defval = false, type=input.bool, title="----- Range Filter")
+
+// Sampling Period 17,12
+int i_rf_per                    = input(defval = 12, minval = 1, type=input.integer, title = "RF: Period")
+
+// Range Multiplier
+float i_rf_mult                 = input(defval = 2.2, minval = 0, type=input.float, step=0.01, title = "RF: Range Multiplier")
+
+// Thereshold - The higher the threshold, the earlier or the later it crossover or crossunder the Super Trend line.
+float i_rf_thl                  = input(title = "RF: Thereshold Long", type = input.float, defval = 0.017, step = 0.0001)
+float i_rf_ths                  = input(title = "RF: Thereshold Short", type = input.float, defval = -0.0045, step = 0.0001)
+
+// Thereshold Minimizer
+bool i_rf_min_th                = input(defval = false, type=input.bool, title = "RF: Minimize Thereshold")
+float i_rf_min_th_factor        = input(defval = 0.9998, type=input.float, minval = 0.05, step=0.0001, title = "RF: Minimize Factor")
+
+bool i_rf_rsi                   = input(false, type=input.bool, title = "RF: Multiply Thereshold by RSI/100")
+
+//
+//-- RF: VARIABLES
+//
+
+var float i_rf_upward           = 0.0
+var float i_rf_downward         = 0.0
+var float i_rf_min_th_score     = 1.0
+
+//
+//-- RF: FUNCTIONS
+//
+
+// Smooth Average Range
+i_smoothrng(_x, _t, _m) =>
+    wper                        = _t / 3 - 1
+    avrng                       = sma(abs(_x - _x[1]), _t)
+    smoothrng                   = sma(avrng, wper) * _m
+    smoothrng
+
+// Range Filter
+i_rngfilt(_x, _r) =>
+    rngfilt                     = _x
+    rngfilt                    := _x > nz(rngfilt[1]) ? _x - _r < nz(rngfilt[1]) ? nz(rngfilt[1]) : _x - _r : _x + _r > nz(rngfilt[1]) ? nz(rngfilt[1]) : _x + _r
+    rngfilt
+
+//
+//-- RF: CALCULATION
+//
+
+// Smoothrange
+float i_rf_smrng                = i_smoothrng(__SRC, i_rf_per, i_rf_mult)
+
+// Range Filter
+float i_rf_filt                 = i_rngfilt(__SRC, i_rf_smrng)
+
+// Filter Direction
+float i_rf_hband                = i_rf_filt + i_rf_smrng 
+float i_rf_lband                = i_rf_filt - i_rf_smrng
+
+float i_rf_filt_scored_th       = i_rf_min_th ? nz(i_rf_min_th_score[1]) : 1
+
+float i_rf_filt_thl             = i_rf_rsi ? ((i_rf_filt * i_rf_thl) - (i_rf_filt * i_rf_thl * (i_rsi / 50))) + i_rf_filt : (i_rf_filt * i_rf_thl * i_rf_filt_scored_th) + i_rf_filt
+float i_rf_filt_ths             = i_rf_rsi ? ((i_rf_filt * i_rf_ths) - (i_rf_filt * i_rf_ths * (100 - i_rsi / 100))) + i_rf_filt : (i_rf_filt * i_rf_ths * i_rf_filt_scored_th) + i_rf_filt 
+
+i_rf_upward                    := i_rf_filt > i_rf_filt[1] ? nz(i_rf_upward[1]) + 1 : i_rf_filt < i_rf_filt[1] ? 0 : nz(i_rf_upward[1])
+i_rf_downward                  := i_rf_filt < i_rf_filt[1] ? nz(i_rf_downward[1]) + 1 : i_rf_filt > i_rf_filt[1] ? 0 : nz(i_rf_downward[1])
+
+//
+//-- RF: COLORS & PLOTS
+//
+
+// Colors
+color i_rf_filtcolor            = i_rf_upward > 0 ? col_green_4 : i_rf_downward > 0 ? col_red_5 : color.white
+color i_rf_barcolor             = (__SRC > i_rf_filt) and (__SRC > __SRC[1]) and (i_rf_upward > 0) ? col_green_1 : (__SRC > i_rf_filt) and (__SRC < __SRC[1]) and (i_rf_upward > 0) ? col_green_5 : (__SRC < i_rf_filt) and (__SRC < __SRC[1]) and (i_rf_downward > 0) ? col_red_5 : (__SRC < i_rf_filt) and (__SRC > __SRC[1]) and (i_rf_downward > 0) ? col_red_2 : col_yellow_1
+
+// Range Filter
+i_rf_filt_p                     = plot(i_rf_print ? i_rf_filt : na, color=i_rf_filtcolor, linewidth=2, title="RF: Range Filter")
+
+// Target
+i_rf_hband_p                    = plot(i_rf_print ? i_rf_hband : na, color=col_green_2, transp=50, title="RF: High Target")
+i_rf_lband_p                    = plot(i_rf_print ? i_rf_lband : na, color=col_red_3, transp=50, title="RF: Low Target")
+
+// Fills
+fill(i_rf_hband_p, i_rf_filt_p, color=col_green_2, title="RF: High Target Range")
+fill(i_rf_lband_p, i_rf_filt_p, color=col_red_3, title="RF: Low Target Range")
+
+// Bar Color
+barcolor(__PRINT_BARCOLOR ? i_rf_barcolor : na)
+
+
+//////////////////////////////////////////////////////////////////////////
+//-- INDICATOR: SUPERTREND
+//////////////////////////////////////////////////////////////////////////
+
+
+//
+//-- ST: INPUTS
+//
+
+i_st_vis_activ                  = input(false, title="----- Super Trend ATR", type=input.bool)
+i_st_factor                     = input(4, minval = 1, maxval = 100, type=input.float,step=0.01,title="ST: Factor")
+i_st_period                     = input(6, minval = 1, maxval = 100, type=input.integer,title="ST: Period")
+
+
+//
+//-- ST: FUNCTIONS
+//
+
+i_supertrend(_factor, _period) =>
+
+    var float   _trendup        = 0.0
+    var float   _trenddown      = 0.0
+    var float   _trend          = 0.0
+
+    _up                         = hl2 - _factor * atr(_period)
+    _down                       = hl2 + _factor * atr(_period)
+
+    _trendup                   := __SRC[1] > _trendup[1] ? max(_up, _trendup[1]) : _up
+    _trenddown                 := __SRC[1] < _trenddown[1] ? min(_down, _trenddown[1]) : _down
+
+    _trend                     := __SRC > _trenddown[1] ? 1 : __SRC < _trendup[1] ? -1 : nz(_trend[1], 1)
+    _supertrend                 = _trend == 1 ? _trendup : _trenddown
+
+    [_trend, _supertrend]
+
+//
+//-- ST: CALCULATION
+//
+
+[i_st_trend, i_st_supertrend]   = i_supertrend(i_st_factor,i_st_period)
+
+//
+//-- ST: COLORS & PLOTS
+//
+
+i_st_linecolor                  = i_st_trend == 1 ? col_green_3 : col_yellow_2
+
+plot(i_st_vis_activ ? i_st_supertrend : na, color = i_st_linecolor, style = plot.style_line, linewidth = 2, title = "ST: SuperTrend")
+
+
+//////////////////////////////////////////////////////////////////////////
+//-- CONDITIONS
+//////////////////////////////////////////////////////////////////////////
+
+
+__LONG                         := crossunder(i_st_supertrend, i_rf_filt_thl)
+__SHORT                        := crossover(i_st_supertrend, i_rf_filt_ths)
+
+
+//////////////////////////////////////////////////////////////////////////
+//-- AFTER CONDITIONS
+//////////////////////////////////////////////////////////////////////////
+
+
+i_rf_min_th_score              := __LONG or __SHORT ? 1 : (i_rf_min_th_score[1] * i_rf_min_th_factor)
+
+//
+//-- SAVE INFORMATION
+//
+
+// trend states
+__SINCE_BUY                    := barssince(_LONG())
+__SINCE_SELL                   := barssince(_SHORT())
+
+__TREND_BUY                    := __SINCE_SELL > __SINCE_BUY
+__TREND_SELL                   := __SINCE_SELL < __SINCE_BUY 
+__TREND_CHANGE                 := (__TREND_BUY and __TREND_SELL[1]) or (__TREND_SELL and __TREND_BUY[1])
+
+
+//////////////////////////////////////////////////////////////////////////
+//-- SETUP: TRAILING TAKE PROFIT
+//////////////////////////////////////////////////////////////////////////
+
+
+__TP_TRIGGER_PRICE             := if (__USE_TLG_TRIGGER)
+    if (__TREND_BUY)
+        __LAST_PRICE[1] * (1 + __TLG_PERCENT_TRIGGER) 
+    else
+        __LAST_PRICE[1] * (1 - __TLG_PERCENT_TRIGGER)
+else
+    -1
+
+__TLG_TRIGGER_LONG_HIT         := __USE_TLG and __USE_TLG_TRIGGER and __TREND_BUY and high >= __TP_TRIGGER_PRICE ? true : __TLG_TRIGGER_LONG_HIT[1]
+__TLG_TRIGGER_SHORT_HIT        := __USE_TLG and __USE_TLG_TRIGGER and __TREND_SELL and low <= __TP_TRIGGER_PRICE ? true : __TLG_TRIGGER_SHORT_HIT[1]
+
+display_long_TLG_trigger        = __USE_TLG and __TREND_BUY  and __TLG_TRIGGER_LONG_HIT == false and __TP_TRIGGER_PRICE != -1
+display_short_TLG_trigger       = __USE_TLG and __TREND_SELL and __TLG_TRIGGER_SHORT_HIT == false and __TP_TRIGGER_PRICE != -1
+display_TLG_trigger             = display_long_TLG_trigger or display_short_TLG_trigger
+
+// Start trailing once trigger is reached
+__LONG_TRAIL_TP                := if __USE_TLG and __TREND_BUY 
+    tpValue = high * (1 + __TLG_PERCENT)
+    max(tpValue, __LONG_TRAIL_TP[1])
+else
+    0
+
+__SHORT_TRAIL_TP               := if __USE_TLG and __TREND_SELL
+    tpValue = low * (1 - __TLG_PERCENT)
+    min(tpValue, __SHORT_TRAIL_TP[1])
+else
+    999999
+
+
+//////////////////////////////////////////////////////////////////////////
+//-- SETUP: TRAILING STOP LOSS
+//////////////////////////////////////////////////////////////////////////
+
+
+__SL_TRIGGER_PRICE             := if (__USE_SL_TRIGGER)
+    if __TREND_BUY
+        __LAST_PRICE[1] * (1 - __SL_PERCENT_TRIGGER) 
+    else
+        __LAST_PRICE[1] * (1 + __SL_PERCENT_TRIGGER)
+else
+    -1
+
+__SL_TRIGGER_LONG_HIT          := __USE_SL and __USE_SL_TRIGGER and __TREND_BUY and low <= __SL_TRIGGER_PRICE ? true : __SL_TRIGGER_LONG_HIT[1]
+__SL_TRIGGER_SHORT_HIT         := __USE_SL and __USE_SL_TRIGGER and __TREND_SELL and high >= __SL_TRIGGER_PRICE ? true : __SL_TRIGGER_SHORT_HIT[1]
+
+display_long_SL_trigger         = __USE_SL and __TREND_BUY  and __USE_SL_TRIGGER and __SL_TRIGGER_LONG_HIT == false and __SL_TRIGGER_PRICE != -1
+display_short_SL_trigger        = __USE_SL and __TREND_SELL and __USE_SL_TRIGGER and __SL_TRIGGER_SHORT_HIT == false and __SL_TRIGGER_PRICE != -1
+display_SL_trigger              = display_long_SL_trigger or display_short_SL_trigger
+
+// Determine trail stop loss prices
+__LONG_TRAIL_SL                := if __USE_SL and __TREND_BUY
+    stopValue = low * (1 - __SL_PERCENT)
+    max(stopValue, __LONG_TRAIL_SL[1])
+else
+    0
+
+__SHORT_TRAIL_SL               := if __USE_SL and __TREND_SELL
+    stopValue = high * (1 + __SL_PERCENT)
+    min(stopValue, __SHORT_TRAIL_SL[1])
+else
+    999999
+
+
+//////////////////////////////////////////////////////////////////////////////////////////
+//-- BEFORE CONDITIONS
+//////////////////////////////////////////////////////////////////////////////////////////
+
+
+//-- TRAILING TAKE PROFIT HIT CONDITIONS TO BE USED IN ALERTS
+__COND_LONG_TLG_HIT            := __USE_TLG and __TREND_BUY  and crossover(high, __LONG_TRAIL_TP[1]) and (__TLG_TRIGGER_LONG_HIT or __USE_TLG_TRIGGER == false) 
+__COND_SHORT_TLG_HIT           := __USE_TLG and __TREND_SELL and crossunder(low, __SHORT_TRAIL_TP[1]) and (__TLG_TRIGGER_SHORT_HIT or __USE_TLG_TRIGGER == false)
+
+//-- TRAILING STOP lOSS HIT CONDITIONS TO BE USED IN ALERTS
+__COND_LONG_SL_HIT             := __USE_SL and __TREND_BUY and crossunder(low, __LONG_TRAIL_SL[1]) and (__SL_TRIGGER_LONG_HIT or __USE_SL_TRIGGER == false)
+__COND_SHORT_SL_HIT            := __USE_SL and __TREND_SELL and crossover(high, __SHORT_TRAIL_SL[1]) and (__SL_TRIGGER_SHORT_HIT or __USE_SL_TRIGGER == false)
+
+__COND_LONG_RSI_HIT            := i_rsi_activ and i_rsi <= i_rsi_oversold
+__COND_SHORT_RSI_HIT           := i_rsi_activ and i_rsi >= i_rsi_overbought
+ 
+//-- COMBINE CONDITIONS
+__CLOSE_LONG                   := __COND_LONG_TLG_HIT or __COND_LONG_SL_HIT or __COND_SHORT_RSI_HIT
+__CLOSE_SHORT                  := __COND_SHORT_TLG_HIT or __COND_SHORT_SL_HIT or __COND_LONG_RSI_HIT
+
+//-- SAVE
+__LAST_PRICE                   := _LONG() or _SHORT() ? __SRC : nz(__LAST_PRICE[1])
+__LAST_CONDITION               := _LONG() ? 1 : _SHORT() ? -1 : nz(__LAST_CONDITION[1])
+__EXTERN                       := _LONG() ? 1 : _SHORT() ? -1 : 0
+
+
+//////////////////////////////////////////////////////////////////////////
+//-- PAINTING
+//////////////////////////////////////////////////////////////////////////
+
+
+//-- Range Filter Thereshold
+plot(__PRINT_TH ? i_rf_filt_ths : na, title="RF: Range - Thereshold Short",transp=50, color=col_red_3, style=plot.style_line, linewidth=1)
+plot(__PRINT_TH ? i_rf_filt_thl : na, title="RF: Range + Thereshold Long",transp=50, color=col_green_3, style=plot.style_line, linewidth=1)
+
+//-- Last Entry Price
+plot(__PRINT_LASTPRICE ? __LAST_PRICE : na, title="__LAST_PRICE", style=plot.style_cross, linewidth=1, color=col_green_4, transp=30)
+
+//-- Entry Condition
+plotshape(_LONG_ONLY(), title="__LONG", color=col_green_3, textcolor=color.white, transp=0, style=shape.labelup, location=location.belowbar, size=size.small, text="L", offset=0)
+plotshape(_SHORT_ONLY(), title="__SHORT", color=col_red_5, textcolor=color.white, transp=0, style=shape.labeldown, location=location.abovebar, size=size.small, text="S", offset=0)
+
+//-- TP
+plotshape(_TP_SHORT(), title="TLG_CLOSE_SHORT_LONG", color=col_green_3, textcolor=color.white, transp=0, style=shape.labelup, location=location.belowbar, size=size.small, text="TTP", offset=0)
+plotshape(_TP_LONG(), title="TLG_CLOSE_LONG_SHORT", color=col_red_5, textcolor=color.white, transp=0, style=shape.labeldown, location=location.abovebar, size=size.small, text="TTP", offset=0)
+
+//-- SL
+plotshape(_SL_SHORT(), title="SL_SHORT", color=col_green_3, textcolor=color.white, transp=0, style=shape.labelup, location=location.belowbar, size=size.small, text="TSL", offset=0)
+plotshape(_SL_LONG(), title="SL_LONG", color=col_red_5, textcolor=color.white, transp=0, style=shape.labeldown, location=location.abovebar, size=size.small, text="TSL", offset=0)
+
+//-- RSI
+plotshape(_RSI_LONG(), title="RSI_LONG", color=col_green_3, textcolor=color.white, transp=0, style=shape.labelup, location=location.belowbar, size=size.small, text="RSI", offset=0)
+plotshape(_RSI_SHORT(), title="RSI_SHORT", color=col_red_5, textcolor=color.white, transp=0, style=shape.labeldown, location=location.abovebar, size=size.small, text="RSI", offset=0)
+
+//-- Additional Condition
+plotshape(__PRINT_ALL_COND ? __LONG : na, title="__LONG_ALL", style=shape.circle, location=location.belowbar, color=col_green_3, size=size.small)
+plotshape(__PRINT_ALL_COND ? __SHORT : na, title="__SHORT_ALL", style=shape.circle, location=location.abovebar, color=col_red_5, size=size.small)
+
+//-- Plot take profits values for confirmation. Display the trailing TP until not hit
+plot(series = __PRINT_TLG and __USE_TLG and __TREND_BUY and high <= __LONG_TRAIL_TP and (__TLG_TRIGGER_LONG_HIT or __USE_TLG_TRIGGER == false) ? __LONG_TRAIL_TP : na, color = col_green_1, style=plot.style_line, linewidth = 1, title = "Long Trail TP")
+plot(series = __PRINT_TLG and __USE_TLG and __TREND_SELL and low >= __SHORT_TRAIL_TP and (__TLG_TRIGGER_SHORT_HIT or __USE_TLG_TRIGGER == false) ? __SHORT_TRAIL_TP : na, color = col_green_1, style = plot.style_line, linewidth = 1, title = "Short Trail TP")
+
+//-- Plot stop loss values for confirmation. Display the trailing SL until not hit
+plot(series = __PRINT_SL and __USE_SL and __TREND_BUY and low >= __LONG_TRAIL_SL and (__SL_TRIGGER_LONG_HIT or __USE_SL_TRIGGER == false) ? __LONG_TRAIL_SL : na, color=col_red_1, style=plot.style_line, linewidth=1, title="Long Trail SL")
+plot(series = __PRINT_SL and __USE_SL and __TREND_SELL and high <= __SHORT_TRAIL_SL and (__SL_TRIGGER_SHORT_HIT or __USE_SL_TRIGGER == false) ? __SHORT_TRAIL_SL : na, color=col_red_1, style=plot.style_line, linewidth=1, title="Short Trail SL")
+
+plot(__PRINT_TLG_TRIGGER and display_TLG_trigger ? __TP_TRIGGER_PRICE : na, title='__TP_TRIGGER_PRICE', transp=0, color=col_yellow_1, style=plot.style_cross, linewidth=1)
+plot(__PRINT_SL_TRIGGER and display_SL_trigger ? __SL_TRIGGER_PRICE : na, title='SLPriceTrigger', transp=0, color=col_red_4, style=plot.style_cross, linewidth=1)
+
+//-- External Signal for Panel Info
+plot(__PRINT_ES ? __EXTERN : na, title="External Signal", style=plot.style_line, linewidth=1, color=col_green_4, transp=100)
+
+
+//////////////////////////////////////////////////////////////////////////
+//-- STRATEGY OR EXECUTION
+//////////////////////////////////////////////////////////////////////////
+
+
+// Submit entry orders
+strategy.entry(TradeId, long=true, when=_LONG())
+strategy.entry(TradeId, long=false, when=_SHORT())
+
+
+// //-- SWING
+// alertcondition(_LONG_ONLY(), title="Open Long / Close Short", message="Open Long / Close Short >>> ONCE PER BAR CLOSE!!! <<<") 
+// alertcondition(_SHORT_ONLY(), title="Open Short / Close Long", message="Open Short / Close Long >>> ONCE PER BAR CLOSE!!! <<<")
+
+// //-- TRAILING TAKE PROFIT
+// alertcondition(_CLOSE_LONG_ONLY(), title="Trailing Take Profit / Stop Loss - Close Long / Open Short", message="Trailing Take Profit / Stop Loss - Close Long / Open Short >>> ONCE PER BAR!!! <<<")
+// alertcondition(_CLOSE_SHORT_ONLY(), title="Trailing Take Profit / Stop Loss - Close Short / Open Long", message="Trailing Take Profit / Stop Loss - Close Short / Open Long >>> ONCE PER BAR!!! <<<")
+
+// //-- POSITION
+// alertcondition(__LONG, title="Additional Open Long ", message="Additional Open Long >>> ONCE PER BAR CLOSE!!! <<<") 
+// alertcondition(__SHORT, title="Additional Open Short", message="Additional Open Short >>> ONCE PER BAR CLOSE!!! <<<")
+
+
+//////////////////////////////////////////////////////////////////////////
+//-- AFTER: STRATEGY OR EXECUTION
+//////////////////////////////////////////////////////////////////////////
+
+
+if(__TREND_CHANGE)
+    __TLG_TRIGGER_LONG_HIT     := false
+    __TLG_TRIGGER_SHORT_HIT    := false 
+    __SL_TRIGGER_LONG_HIT      := false
+    __SL_TRIGGER_SHORT_HIT     := false
+
+
+//////////////////////////////////////////////////////////////////////////
+//-- SETUP: DEBUGGING
+//////////////////////////////////////////////////////////////////////////
+
+
+plot(__DEBUGG ? __LONG_TRAIL_TP : na, title='__LONG_TRAIL_TP', transp=100)
+plot(__DEBUGG ? __SHORT_TRAIL_TP : na, title='__SHORT_TRAIL_TP', transp=100)
+plot(__DEBUGG ? f_b2n(__TLG_TRIGGER_LONG_HIT) : na, title='__TLG_TRIGGER_LONG_HIT', transp=100)
+plot(__DEBUGG ? f_b2n(__TLG_TRIGGER_SHORT_HIT) : na, title='__TLG_TRIGGER_SHORT_HIT', transp=100) 
+plot(__DEBUGG ? __LONG_TRAIL_SL : na, title='__LONG_TRAIL_SL', transp=100)
+plot(__DEBUGG ? __SHORT_TRAIL_SL : na, title='__SHORT_TRAIL_SL', transp=100)
+plot(__DEBUGG ? f_b2n(__SL_TRIGGER_LONG_HIT) : na, title='__SL_TRIGGER_LONG_HIT', transp=100)
+plot(__DEBUGG ? f_b2n(__SL_TRIGGER_SHORT_HIT) : na, title='__SL_TRIGGER_SHORT_HIT', transp=100)
+plot(__DEBUGG ? __LAST_PRICE : na, title='__LAST_PRICE', transp=100)
+
+plot(__DEBUGG ? i_rf_upward : na,   color=color.gray, title="RF: UPWARD")
+plot(__DEBUGG ? i_rf_downward : na, color=color.gray, title="RF: DOWNWARD")
+
+plot(__DEBUGG ? i_rf_min_th_score : na, title="RF: Minimized Score")
+plot(__DEBUGG ? __LAST_CONDITION : na, title="__LAST_CONDITION")
+
+plot(__DEBUGG ? f_b2n(_LONG()) : na, title="_LONG()")
+plot(__DEBUGG ? f_b2n(_LONG_ONLY()) : na, title="_LONG_ONLY()")
+plot(__DEBUGG ? f_b2n(_SHORT()) : na, title="_SHORT()")
+plot(__DEBUGG ? f_b2n(_SHORT_ONLY()) : na, title="_SHORT_ONLY()")
+plot(__DEBUGG ? i_rsi : na, title="RSI")
+
+
+//-- } End of Setup

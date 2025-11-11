@@ -1,0 +1,68 @@
+//@version=4
+study("[RS]Price cage", overlay=true)
+var float op = open
+float avg = cum(close) / (1 + bar_index)
+float slope = (avg - op) / (1 + bar_index)
+float sp = avg-slope
+float dev = abs(close - avg)
+
+var float maxdev = 0.0
+if dev > maxdev
+    maxdev := dev
+
+
+f_line(_multiplier, _color, _width, _style)=>
+    line upper = line.new(x1=bar_index-1, y1=sp + maxdev * _multiplier, x2=bar_index, y2=avg + maxdev * _multiplier, xloc=xloc.bar_index, 
+         extend=extend.both, color=_color, style=_style, width=_width)
+
+//center
+f_line(0.0, color.black, 2, line.style_solid)
+//extremes:
+color ext_col = color.new(color.black, 20)
+f_line(+1.0, ext_col, 2, line.style_solid)
+f_line(-1.0, ext_col, 2, line.style_solid)
+//quarters:
+color q_col = color.new(color.black, 20)
+f_line(+0.50, q_col, 1, line.style_solid)
+f_line(-0.50, q_col, 1, line.style_solid)
+//octavs:
+color oct_col = color.new(color.black, 50)
+f_line(+0.75, oct_col, 1, line.style_dashed)
+f_line(+0.25, oct_col, 1, line.style_dashed)
+f_line(-0.25, oct_col, 1, line.style_dashed)
+f_line(-0.75, oct_col, 1, line.style_dashed)
+
+int length =  input(100)
+float diagonal_avg = sma(close,length)
+var float maxslope = 0.0
+float dslope = change(diagonal_avg)
+if dslope > maxslope
+    maxslope := dslope
+
+f_dline(_multiplier, _color, _width, _style)=>
+    line upper = line.new(x1=bar_index-1, y1=sp + maxdev * _multiplier, x2=bar_index, y2=avg + (maxdev * _multiplier) + maxslope, xloc=xloc.bar_index, 
+         extend=extend.both, color=_color, style=_style, width=_width)
+f_aline(_multiplier, _color, _width, _style)=>
+    line upper = line.new(x1=bar_index-1, y1=sp + maxdev * _multiplier, x2=bar_index, y2=avg + (maxdev * _multiplier) - maxslope, xloc=xloc.bar_index, 
+         extend=extend.both, color=_color, style=_style, width=_width)
+
+color diag_col = color.new(color.orange, 50)
+f_dline(+1.00, diag_col, 1, line.style_dashed)
+f_dline(+0.75, diag_col, 1, line.style_dashed)
+f_dline(+0.50, diag_col, 1, line.style_dashed)
+f_dline(+0.25, diag_col, 1, line.style_dashed)
+f_dline(+0.00, diag_col, 1, line.style_dashed)
+f_dline(-0.25, diag_col, 1, line.style_dashed)
+f_dline(-0.50, diag_col, 1, line.style_dashed)
+f_dline(-0.75, diag_col, 1, line.style_dashed)
+f_dline(-1.00, diag_col, 1, line.style_dashed)
+color anti_col = color.new(color.teal, 50)
+f_aline(+1.00, anti_col, 1, line.style_dashed)
+f_aline(+0.75, anti_col, 1, line.style_dashed)
+f_aline(+0.50, anti_col, 1, line.style_dashed)
+f_aline(+0.25, anti_col, 1, line.style_dashed)
+f_aline(+0.00, anti_col, 1, line.style_dashed)
+f_aline(-0.25, anti_col, 1, line.style_dashed)
+f_aline(-0.50, anti_col, 1, line.style_dashed)
+f_aline(-0.75, anti_col, 1, line.style_dashed)
+f_aline(-1.00, anti_col, 1, line.style_dashed)

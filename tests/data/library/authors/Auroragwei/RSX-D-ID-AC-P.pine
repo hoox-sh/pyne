@@ -1,0 +1,462 @@
+//@version=4
+// Copyright (c) 2019-present, Alex Orekhov (everget)
+    // Jurik RSX script may be freely distributed under the MIT license.
+        // https://www.tradingview.com/script/20TzvKPk-Jurik-RSX/
+        
+//-------------------------------------------------------------------
+// Acknowledgements:
+    //---- Base script:
+        // RSX Divergence — SharkCIA by Jaggedsoft
+            // https://www.tradingview.com/script/ujh3sCzy-RSX-Divergence-SharkCIA/
+        // Jurik Moving Average by Everget 
+            // https://www.tradingview.com/script/nZuBWW9j-Jurik-Moving-Average/ 
+    
+    //---- Divergences/Signals:    
+        // Libertus RSI Divergences
+            // https://www.tradingview.com/script/42wcFfql-Relative-Strength-Index-Divergences-Libertus/
+        // Price Divergence Dectector V3 by JustUncle
+            // https://www.tradingview.com/script/YJdzOueI-Price-Divergence-Detector-V3-revised-by-JustUncleL/
+        // Price Divergence Detector V2 by RicardoSantos
+            // https://www.tradingview.com/script/3oeDh0Yq-RS-Price-Divergence-Detector-V2/
+        // Stochastic RSI with Divergences by Neobutane 
+            // https://www.tradingview.com/script/3ogyZpSE-Stochastic-RSI-with-Divergences/
+        // CCI Stochastic by Daveatt
+            // https://www.tradingview.com/script/XZyG5SOx-CCI-Stochastic-and-a-quick-lesson-on-Scalping-Trading-Systems/
+            
+    //---- Misc. Reference:    
+        // RSI SMA/EMA Cu by Auroagwei
+            // https://www.tradingview.com/script/vYRYjPyi-rsi-sma-ema-cu/
+        // CBCI Cu by Auroagwei
+            // https://www.tradingview.com/script/JhootEsL-cbci-cu/
+        // Chop and explode by fhenry0331
+            // https://www.tradingview.com/script/5X5mhe3z-Chop-and-explode/
+        // T-Step LSMA by RafaelZioni
+            // https://www.tradingview.com/script/N4HM2Q00-T-Step-LSMA-VPT/
+        // Scripts by Jaggedsoft for structure and formatting
+        // Scripts by Everget for structure and formatting
+    
+//-------------------------------------------------------------------
+// RSX-D [ID: AC-P] v08
+    // Author: Auroagwei
+        // https://www.tradingview.com/u/auroagwei/
+study("RSX-D [ID: AC-P]", shorttitle="RSX-D [ID: AC-P]")
+    // Note: Designed for darkmode by default. 
+    
+//-------------------------------------------------------------------
+//---- Input Parameters
+length = input(title="RSX: Length", type=input.integer, defval=14)
+src = input(title="RSX: Source", type=input.source, defval=hlc3)
+obLevel = input(title="RSX: OB Level", type=input.integer, defval=70)
+osLevel = input(title="RSX: OS Level", type=input.integer, defval=30)
+show_rsx= input(true, "Show RSX?")
+
+highlightBreakouts_ema = input(false, title="Show EMA21/55 Up/Down Fill")
+highlightBreakouts = input(title="RSX: Highlight Overbought/Oversold Breakouts?", type=input.bool, defval=true)
+showdivs_lib = input(true, title="RSX: Hide Divs? [Libertus Divs]")
+
+if showdivs_lib  == false
+    showdivs_lib := true
+else
+    showdivs_lib := false
+piv = input(true, "RSX: Hide pivots? [Libertus Divs]")
+shrt = input(true, "RSX: Shorter labels for pivots and Divs? [Libertus Divs]")
+xbars = input(90, "RSX: Div lookback period (bars)? [Libertus Divs]", input.integer, minval=1)
+
+showdivs = input(false, title="RSX Divergences [Neobutane Divs]")
+showdiv_labels2 = input(true,title="RSX Divergences: Mark Hidden Divs [Neobutane Divs]")
+showchan = false //input(false, title="RSX Divergences: Draw Channel [Neobutane Divs]") 
+showhidden = input(false, title="RSX Divergences: Show Hidden Divs with low strikerate [Neobutane Divs]")
+
+showdivs2 = input(false, title="LSMA-D Divergences [Neobutane Divs]")
+showdiv_labels22 = input(true,title="LSMA-D Divergences: Mark Hidden Divs [Neobutane Divs]")
+showchan2 = false //input(false, title="LSMA-D Divergences: Draw Channel [Neobutane Divs]") 
+showhidden2 = input(false, title="LSMA-D Divergences: Show Hidden Divs with low strikerate [Neobutane Divs]")
+
+//---- M1/M2, Midline Trend indication/Zones
+show_m1 = input(true, title="Show M1 Level Marker")
+show_m2 = input(true, title="Show M2 Level Marker")
+
+m1Level = input(title="RSX: M1 Level", type=input.integer, defval=85) //60
+m2Level = input(title="RSX: M2 Level", type=input.integer, defval=15) //40
+
+showArrows = input(true, "Show/Hide all zone indication")
+showArrowsCenter = input(false, "RSX Midline cross indication")
+showArrowsEnter = input(true, "RSX M1/M2 Enter zone indication")
+showArrowsExit = input(true, "RSX M1/M2 Exit zone indication")
+showArrowsrsx_lsmaD = input(true, "RSX/LSMA-D cross indication")
+
+rsx_lsmaD_obLevel = input(title="RSX/LSMA-D cross: OB Level", type=input.integer, defval=70)
+rsx_lsmaD_osLevel = input(title="RSX/LSMA-D cross : OS Level", type=input.integer, defval=30)
+
+//---- LSMA-K and LSMA-D Components
+show_lsmaD = input(true,defval=false,type=input.bool,title="Show LSMA-D line?")
+
+length_lsmaA_lsma  = input(minval=2,defval=20,type=input.integer,title="LSMA-D: LSMA-A Length")
+length_lsmaB_lsma  = input(minval=2,defval=40,type=input.integer,title="LSMA-D: LSMA-B Length")
+length_lsmaC_lsma  = input(minval=2,defval=80,type=input.integer,title="LSMA-D: LSMA-C Length") 
+length_lsmaD_lsma = input(minval=2,defval=10,type=input.integer,title="LSMA-D: Length") 
+
+offset_lsmaA =  input(defval=0,type=input.integer,title="LSMA-D: LSMA-A Offset")
+offset_lsmaB =  input(defval=0,type=input.integer,title="LSMA-D: LSMA-B Offset")
+offset_lsmaC =  input(defval=0,type=input.integer,title="LSMA-D: LSMA-C Offset")
+offset_lsmaD = input(defval=-2,type=input.integer,title="LSMA-D: Offset")
+
+//-------------------------------------------------------------------
+//---- RSX Component (Everget, Jaggedsoft)
+    //---- Note: Probably a solid idea to not touch this section.
+f8 = 100 * src
+f10 = nz(f8[1])
+v8 = f8 - f10
+
+f18 = 3 / (length + 2)
+f20 = 1 - f18
+
+f28 = 0.0
+f28 := f20 * nz(f28[1]) + f18 * v8
+
+f30 = 0.0
+f30 := f18 * f28 + f20 * nz(f30[1])
+vC = f28 * 1.5 - f30 * 0.5
+
+f38 = 0.0
+f38 := f20 * nz(f38[1]) + f18 * vC
+
+f40 = 0.0
+f40 := f18 * f38 + f20 * nz(f40[1])
+v10 = f38 * 1.5 - f40 * 0.5
+
+f48 = 0.0
+f48 := f20 * nz(f48[1]) + f18 * v10
+
+f50 = 0.0
+f50 := f18 * f48 + f20 * nz(f50[1])
+v14 = f48 * 1.5 - f50 * 0.5
+
+f58 = 0.0
+f58 := f20 * nz(f58[1]) + f18 * abs(v8)
+
+f60 = 0.0
+f60 := f18 * f58 + f20 * nz(f60[1])
+v18 = f58 * 1.5 - f60 * 0.5
+
+f68 = 0.0
+f68 := f20 * nz(f68[1]) + f18 * v18
+
+f70 = 0.0
+f70 := f18 * f68 + f20 * nz(f70[1])
+v1C = f68 * 1.5 - f70 * 0.5
+
+f78 = 0.0
+f78 := f20 * nz(f78[1]) + f18 * v1C
+
+f80 = 0.0
+f80 := f18 * f78 + f20 * nz(f80[1])
+v20 = f78 * 1.5 - f80 * 0.5
+
+f88_ = 0.0
+f90_ = 0.0
+
+f88 = 0.0
+f90_ := nz(f90_[1]) == 0 ? 1 : 
+   nz(f88[1]) <= nz(f90_[1]) ? nz(f88[1]) + 1 : nz(f90_[1]) + 1
+f88 := nz(f90_[1]) == 0 and length - 1 >= 5 ? length - 1 : 5
+
+f0 = f88 >= f90_ and f8 != f10 ? 1 : 0
+f90 = f88 == f90_ and f0 == 0 ? 0 : f90_
+
+v4_ = f88 < f90 and v20 > 0 ? (v14 / v20 + 1) * 50 : 50
+rsx = v4_ > 100 ? 100 : v4_ < 0 ? 0 : v4_
+
+rsxColor = rsx > obLevel ? #0ebb23 : rsx < osLevel ? #ff0000 : color.white //#512DA8
+
+lsmaA = linreg(rsx,length_lsmaA_lsma,offset_lsmaA)
+lsmaB = linreg(rsx,length_lsmaB_lsma,offset_lsmaB) 
+lsmaC = linreg(rsx,length_lsmaC_lsma,offset_lsmaC) 
+lsmaD = linreg(((lsmaA + lsmaB + lsmaC) / 3), length_lsmaD_lsma,offset_lsmaD)
+
+//-------------------------------------------------------------------
+//---- Chassis
+transparent = color.new(color.white, 100)
+maxLevelPlot = hline(100, title="Max Level", linestyle=hline.style_dotted, color=transparent)
+obLevelPlot = hline(obLevel, title="Overbought Level", linestyle=hline.style_dotted)
+midline = hline(50, title="Middle Level/Midline", linestyle=hline.style_dotted,color=color.white) //color.silver)
+osLevelPlot = hline(osLevel, title="Oversold Level", linestyle=hline.style_dotted)//,color=color.gray)
+minLevelPlot = hline(0, title="Min Level", linestyle=hline.style_dotted, color=transparent)
+
+fill(obLevelPlot, osLevelPlot, color=color.purple, transp=100,title="RSX OB <--> OS Fill")
+
+//---- M1/M2 Marker 
+    // Custom M1/M2 levels of 40/60 by default
+    // Set to transparent to keep out of the way if not using/needed
+
+m1_color =  show_m1 ? color.aqua	 : transparent
+m2_color =  show_m2 ? color.orange	: transparent
+m1LevelPlot = hline(m1Level, title="RSX: M1 Level", linestyle=hline.style_dotted,color=m1_color) 
+m2LevelPlot = hline(m2Level , title="RSX: M2 Level", linestyle=hline.style_dotted,color=m2_color) 
+//----
+
+obFillColor = rsx > obLevel and highlightBreakouts ? #008000	 : transparent
+osFillColor = rsx < osLevel and highlightBreakouts ? #FF0000	: transparent
+fill(maxLevelPlot, obLevelPlot, color=obFillColor, transp=90, title="RSX OB Fill")
+fill(minLevelPlot, osLevelPlot, color=osFillColor, transp=90, title="RSX OS Fill")
+
+//////////////////
+
+ema21 = ema(close, 21)  //fib
+ema55 = ema(close, 55)  //fib
+
+upEmaFillColor = ema21 > ema55 and highlightBreakouts_ema ? color.orange	 : transparent
+downEmaFillColor = ema21 < ema55  and highlightBreakouts_ema ? color.aqua	: transparent
+
+fill(obLevelPlot, m1LevelPlot, color=upEmaFillColor, transp=70,title="EMA 21/55 Up Fill")
+fill(osLevelPlot, m2LevelPlot, color=downEmaFillColor, transp=70,title="EMA 21/55 Down Fill")
+
+////////////////
+
+//-------------------------------------------------------------------
+plot(show_rsx ? rsx : na , title="RSX", linewidth=2, color=rsxColor, transp=0)
+//-------------------------------------------------------------------
+
+// MA of RSX
+show_sma = input(false, "SMA of RSX")
+show_ema = input(false, "EMA of RSX")
+
+len_sma = input(9, minval=1, title="SMA of RSX Length")
+len_ema = input(45, minval=1, title="EMA of RSX Length") 
+smaRSX = ema(rsx,len_sma )
+emaRSX = ema(rsx,len_ema )
+plot(show_sma ? smaRSX : na, title="SMA of RSX", style=plot.style_line, linewidth=2, color=#26c6da,transp=0)
+plot(show_ema ? emaRSX : na, title="EMA of RSX", style=plot.style_line, linewidth=2, color=#008000	,transp=0)
+//
+plot(show_lsmaD ? lsmaD : na, color=color.fuchsia, linewidth=2,title="LSMA-D",transp=0)
+
+//-------------------------------------------------------------------
+//---- Pivots and Libertus Divergences Component
+hb = abs(highestbars(rsx, xbars))  // Finds bar with highest value in last X bars
+lb = abs(lowestbars(rsx, xbars))  // Finds bar with lowest value in last X bars
+max = float(na)
+max_rsi = float(na)
+min = float(na)
+min_rsi = float(na)
+pivoth = bool(na)
+pivotl = bool(na)
+divbear = bool(na)
+divbull = bool(na)
+
+// If bar with lowest / highest is current bar, use it's value
+max := hb == 0 ? close : na(max[1]) ? close : max[1]
+max_rsi := hb == 0 ? rsx : na(max_rsi[1]) ? rsx : max_rsi[1]
+min := lb == 0 ? close : na(min[1]) ? close : min[1]
+min_rsi := lb == 0 ? rsx : na(min_rsi[1]) ? rsx : min_rsi[1]
+
+// Compare high of current bar being examined with previous bar's high
+// If curr bar high is higher than the max bar high in the lookback window range
+if close > max  // we have a new high
+    max := close  // change variable "max" to use current bar's high value
+    max
+if rsx > max_rsi  // we have a new high
+    max_rsi := rsx  // change variable "max_rsi" to use current bar's RSI value
+    max_rsi
+if close < min  // we have a new low
+    min := close  // change variable "min" to use current bar's low value
+    min
+if rsx < min_rsi  // we have a new low
+    min_rsi := rsx  // change variable "min_rsi" to use current bar's RSI value
+    min_rsi
+
+// Finds pivot point with at least 2 right candles with lower value
+pivoth := max_rsi == max_rsi[2] and max_rsi[2] != max_rsi[3] ? true : na
+pivotl := min_rsi == min_rsi[2] and min_rsi[2] != min_rsi[3] ? true : na
+
+// Detects divergences between price and indicator with 1 candle delay so it filters out repeating divergences
+if max[1] > max[2] and rsx[1] < max_rsi and rsx <= rsx[1]
+    divbear := true
+    divbear
+if min[1] < min[2] and rsx[1] > min_rsi and rsx >= rsx[1]
+    divbull := true
+    divbull
+
+//-------------------------------------------------------------------
+//---- Pivots and Libertus Divergences plotting with offset
+// Longer labels
+plotshape(showdivs_lib ? (shrt ? na : divbear ? rsx[1] + 1 : na) : na, location=location.absolute, style=shape.labeldown, color=#FF0000, size=size.tiny, text="Bear", textcolor=color.white, transp=0, offset=-1)
+plotshape(showdivs_lib  ? (shrt ? na : divbull ? rsx[1] - 1 : na) : na, location=location.absolute, style=shape.labelup, color=#008000	, size=size.tiny, text="Bull", textcolor=color.white, transp=0, offset=-1)
+plotshape(piv ? na : shrt ? na : pivoth ? max_rsi + 1 : na, location=location.absolute, style=shape.labeldown, color=color.blue, size=size.tiny, text="Pivot", textcolor=color.white, transp=0, offset=-2)
+plotshape(piv ? na : shrt ? na : pivotl ? min_rsi - 1 : na, location=location.absolute, style=shape.labelup, color=color.blue, size=size.tiny, text="Pivot", textcolor=color.white, transp=0, offset=-2)
+
+// Shorter labels
+plotshape(showdivs_lib ? (shrt ? divbear ? rsx[1] + 3 : na : na) : na, location=location.absolute, style=shape.triangledown, color=#FF0000, size=size.tiny, transp=0, offset=-1)
+plotshape(showdivs_lib ? (shrt ? divbull ? rsx[1] - 3 : na : na) : na, location=location.absolute, style=shape.triangleup, color=#008000	, size=size.tiny, transp=0, offset=-1)
+plotshape(piv ? na : shrt ? pivoth ? max_rsi + 3 : na : na, location=location.absolute, style=shape.triangledown, color=#0000FF	, size=size.tiny, transp=0, offset=-2)
+plotshape(piv ? na : shrt ? pivotl ? min_rsi - 3 : na : na, location=location.absolute, style=shape.triangleup, color=#0000FF	, size=size.tiny, transp=0, offset=-2)
+
+//-------------------------------------------------------------------
+//---- Secondary Divergence Component for RSX + LSMA-D (Neobutane Divergences)
+k=rsx
+k2=lsmaD
+
+//----
+uselog = true //  input(true, title="Log")
+//@RicardoSantos' Divergence Script (https://www.tradingview.com/script/3oeDh0Yq-RS-Price-Divergence-Detector-V2/)
+f_top_fractal(_src)=>_src[4] < _src[2] and _src[3] < _src[2] and _src[2] > _src[1] and _src[2] > _src[0]
+f_bot_fractal(_src)=>_src[4] > _src[2] and _src[3] > _src[2] and _src[2] < _src[1] and _src[2] < _src[0]
+f_fractalize(_src)=>f_top_fractal(_src) ? 1 : f_bot_fractal(_src) ? -1 : 0
+//----
+fractal_top = f_fractalize(k) > 0 ? k[2] : na
+fractal_bot = f_fractalize(k) < 0 ? k[2] : na
+
+fractal_top2 = f_fractalize(k2) > 0 ? k2[2] : na
+fractal_bot2 = f_fractalize(k2) < 0 ? k2[2] : na
+
+high_prev = valuewhen(fractal_top, k[2], 0)[2]
+high_price = valuewhen(fractal_top, high[2], 0)[2]
+low_prev = valuewhen(fractal_bot, k[2], 0)[2]
+low_price = valuewhen(fractal_bot, low[2], 0)[2]
+
+high_prev2 = valuewhen(fractal_top2, k2[2], 0)[2]
+high_price2 = valuewhen(fractal_top2, high[2], 0)[2]
+low_prev2 = valuewhen(fractal_bot2, k2[2], 0)[2]
+low_price2 = valuewhen(fractal_bot2, low[2], 0)[2]
+
+regular_bearish_div = fractal_top and high[2] > high_price and k[2] < high_prev
+hidden_bearish_div = fractal_top and high[2] < high_price and k[2] > high_prev
+regular_bullish_div = fractal_bot and low[2] < low_price and k[2] > low_prev
+hidden_bullish_div = fractal_bot and low[2] > low_price and k[2] < low_prev
+
+regular_bearish_div2 = fractal_top2 and high[2] > high_price2 and k[2] < high_prev2
+hidden_bearish_div2 = fractal_top2 and high[2] < high_price2 and k[2] > high_prev2
+regular_bullish_div2 = fractal_bot2 and low[2] < low_price2 and k[2] > low_prev2
+hidden_bullish_div2 = fractal_bot2 and low[2] > low_price2 and k[2] < low_prev2
+
+col1 = regular_bearish_div ? #FF0000	 : hidden_bearish_div and showhidden ? #FF0000		: na
+col2 = regular_bullish_div ? #00FF00 : hidden_bullish_div and showhidden ? #00FF00 : na
+col3 = regular_bearish_div ? #FF0000	 : hidden_bearish_div and showhidden ? #FF0000	 : showchan ? color.gray : na
+col4 = regular_bullish_div ? #00FF00 : hidden_bullish_div and showhidden ? #00FF00 : showchan ? color.gray : na
+
+col12 = regular_bearish_div2 ? #FF0000	 : hidden_bearish_div2 and showhidden2 ? #FF0000		: na
+col22 = regular_bullish_div2 ? #00FF00 : hidden_bullish_div2 and showhidden2 ? #00FF00 : na
+col32 = regular_bearish_div2 ? #FF0000	 : hidden_bearish_div2 and showhidden2 ? #FF0000	 : showchan ? color.gray : na
+col42 = regular_bullish_div2 ? #00FF00 : hidden_bullish_div2 and showhidden2 ? #00FF00 : showchan ? color.gray : na
+//-------------------------
+// ---- Neobutane Divergences Plot component
+// plot(showchan?fractal_top:na, title="RSX Divergences: Top Div Channel", offset=-2, color=color.gray,linewidth=2)
+// plot(showchan?fractal_bot:na, title="RSX Divergences: Bottom Div Channel", offset=-2, color=color.gray,linewidth=2)
+
+plot(title='RSX Divergences: H F', series=showdivs and fractal_top ? k[2] : na, color=col1, linewidth=2, offset=-2,transp=20)
+plot(title='RSX Divergences: L F', series=showdivs and fractal_bot ? k[2] : na, color=col2, linewidth=2, offset=-2,transp=20)
+plot(title='RSX Divergences: H D', series=showdivs and fractal_top ? k[2] : na, style=plot.style_circles, color=col3, linewidth=3, offset=-2,transp=20)
+plot(title='RSX Divergences: L D', series=showdivs and fractal_bot ? k[2] : na, style=plot.style_circles, color=col4, linewidth=3, offset=-2,transp=20)
+
+// plot(showchan2?fractal_top2:na, title="LSMA-D Divergences: Top Div Channel", offset=-2, color=color.gray,linewidth=2)
+// plot(showchan2?fractal_bot2:na, title="LSMA-D Divergences: Bottom Div Channel", offset=-2, color=color.gray,linewidth=2)
+
+plot(title='LSMA-D Divergences: H F', series=showdivs2 and fractal_top2 ? k2[2] : na, color=col12, linewidth=2, offset=-2,transp=20)
+plot(title='LSMA-D Divergences: L F', series=showdivs2 and fractal_bot2 ? k2[2] : na, color=col22, linewidth=2, offset=-2,transp=20)
+plot(title='LSMA-D Divergences: H D', series=showdivs2 and fractal_top2 ? k2[2] : na, style=plot.style_circles, color=col32, linewidth=3, offset=-2,transp=20)
+plot(title='LSMA-D Divergences: L D', series=showdivs2 and fractal_bot2 ? k2[2] : na, style=plot.style_circles, color=col42, linewidth=3, offset=-2,transp=20)
+
+// plotshape(title='+Regular Bearish Div Label', series=showdivs and showdiv_labels and regular_bearish_div ? k[2] : na, text='R', style=shape.labeldown, location=location.absolute, color=red, textcolor=white, offset=-2)
+// plotshape(title='+Hidden Bearish Div Label', series=showdivs and showdiv_labels and hidden_bearish_div and showhidden ? k[2] : na, text='H', style=shape.labeldown, location=location.absolute, color=red, textcolor=white, offset=-2)
+// plotshape(title='-Regular Bullish Div Label', series=showdivs and showdiv_labels and regular_bullish_div ? k[2] : na, text='R', style=shape.labelup, location=location.absolute, color=green, textcolor=white, offset=-2)
+// plotshape(title='-Hidden Bearish Div Label', series=showdivs and showdiv_labels and hidden_bullish_div  and showhidden ? k[2] : na, text='H', style=shape.labelup, location=location.absolute, color=green, textcolor=white, offset=-2)
+
+plotshape(title='RSX Divergences: Hidden Bearish Div', series=showdivs and showdiv_labels2 and hidden_bearish_div and showhidden ? k[2] : na,
+  style=shape.square, location=location.absolute, color=#FF0000		, offset=-2,size=size.tiny)
+plotshape(title='RSX Divergences: Hidden Bullish Div', series=showdivs and showdiv_labels2 and hidden_bullish_div  and showhidden ? k[2] : na,
+  style=shape.square, location=location.absolute, color=#00FF00	, offset=-2,size=size.tiny)
+
+plotshape(title='LSMA-D Divergences: Hidden Bearish Div', series=showdivs2 and showdiv_labels22 and hidden_bearish_div2 and showhidden2 ? k2[2] : na,
+  style=shape.square, location=location.absolute, color=#FF0000		, offset=-2,size=size.tiny)
+plotshape(title='LSMA-D Divergences: Hidden Bullish Div', series=showdivs2 and showdiv_labels22 and hidden_bullish_div2  and showhidden2 ? k2[2] : na,
+  style=shape.square, location=location.absolute, color=#00FF00	, offset=-2,size=size.tiny)
+
+//-------------------------------------------------------------------
+//---- Alerts
+
+// Libertus Div Alerts, RSX
+    // [L] Suffix
+alertcondition(divbear, title='RSX: Bear div [L]', message='RSX: Bear div [L]')
+alertcondition(divbull, title='RSX: Bull div [L]', message='RSX: Bull div [L]')
+
+//---- Neobutane Div Alerts, RSX
+    // [NB] Suffix
+alertcondition(regular_bearish_div, "RSX Regular Bear Div [NB]", "RSX Regular Bear Div [NB]") 
+alertcondition(regular_bullish_div, "RSX Regular Bull Div [NB]", "RSX Regular Bull Div [NB]") 
+alertcondition(hidden_bearish_div, "RSX Hidden Bear Div [NB]", "RSX Hidden Bear Div [NB]") 
+alertcondition(hidden_bullish_div, "RSX Hidden Bull Div [NB]", "RSX Hidden Bull Div [NB]") 
+
+//---- Neobutane Div Alerts, LSMA-D
+    // [NB] Suffix
+alertcondition(regular_bearish_div2, "LSMA-D Regular Bear Div [NB]", "LSMA-D Regular Bear Div [NB]") 
+alertcondition(regular_bullish_div2, "LSMA-D Regular Bull Div [NB]", "LSMA-D Regular Bull Div [NB]") 
+alertcondition(hidden_bearish_div2, "LSMA-D Hidden Bear Div [NB]", "LSMA-D Hidden Bear Div [NB]") 
+alertcondition(hidden_bullish_div2, "LSMA-D Hidden Bull Div [NB]", "LSMA-D Hidden Bull Div [NB]") 
+//-------------------------------------------------------------------
+
+//---- M1/M2 and Trending Signal Alert componenent [Daveatt CCI Stoch]
+// showArrows = true
+// showArrowsEnter = true
+// showArrowsExit = true
+// showArrowsCenter = true
+trend_enter = if showArrowsEnter
+    if crossunder(rsx, m2Level)
+        1
+    else
+        if crossover(rsx, m1Level)
+            -1
+    
+trend_exit = if showArrowsExit
+    if crossunder(rsx, m1Level)
+        -1
+    else
+        if crossover(rsx, m2Level)
+            1
+
+trend_center = if showArrowsCenter
+    if crossunder(rsx, 50)
+        -1
+    else
+        if crossover(rsx, 50)
+            1
+
+rsx_lsmaD_cu = rsx >= rsx_lsmaD_obLevel and crossunder(rsx, lsmaD)
+rsx_lsmaD_co = rsx <= rsx_lsmaD_osLevel and crossover(rsx, lsmaD)
+
+
+plotshape((showArrows and showArrowsCenter and trend_center == -1 ) ? 65 : na,
+  color=color.white, transp=20, style=shape.triangledown, size=size.tiny, location=location.absolute, title="-RSX CU Midline")
+plotshape((showArrows and showArrowsCenter and trend_center == 1 ) ? 35 : na,
+  color=color.white, transp=20, style=shape.triangleup, size=size.tiny, location=location.absolute, title="+RSX CO Midline")
+
+plotshape((showArrows and showArrowsExit and trend_exit == -1) ? 100 : na,
+  color=color.aqua, transp=20, style=shape.triangledown, size=size.tiny, location=location.absolute, title="-RSX CU M1")
+plotshape((showArrows and showArrowsEnter and trend_enter == -1) ? 100 : na,
+  color=color.aqua, transp=85, style=shape.triangledown, size=size.tiny, location=location.absolute, title="+RSX CO M1")
+   
+plotshape((showArrows and showArrowsEnter and trend_enter == 1) ? 0 : na,
+  color=color.orange, transp=85, style=shape.triangleup, size=size.tiny,  location=location.absolute, title="-RSX CU M2")
+plotshape((showArrows and showArrowsExit and trend_exit == 1) ? 0 : na,
+  color=color.orange, transp=20, style=shape.triangleup, size=size.tiny, location=location.absolute, title="+RSX CO M2")
+
+// rsx/LSMA-D CU/CO
+plotshape((showArrows and showArrowsrsx_lsmaD and rsx_lsmaD_cu) ? 105 : na,
+  color=color.fuchsia, transp=20, style=shape.triangledown, size=size.tiny, location=location.absolute, title="-RSX CU LSMA-D")
+plotshape((showArrows and showArrowsrsx_lsmaD and rsx_lsmaD_co) ? -5 : na,
+  color=color.fuchsia, transp=20, style=shape.triangleup, size=size.tiny, location=location.absolute, title="+RSX CO LSMA-D")
+   
+//----
+
+alertcondition((showArrowsCenter and trend_center == 1), message="+RSX CO Midline", title="+RSX CO Midline")
+alertcondition((showArrowsCenter and trend_center == -1), message="-RSX CU Midline", title="-RSX CU Midline")
+
+alertcondition((showArrowsExit and trend_exit == -1), message="-RSX CU M1", title="-RSX CU M1")
+alertcondition((showArrowsEnter and trend_enter == -1), message="+RSX CO M1", title="+RSX CO M1")
+
+alertcondition((showArrowsEnter and trend_enter == 1), message="-RSX CU M2", title="-RSX CU M2")
+alertcondition((showArrowsExit and trend_exit == 1), message="+RSX CO M2", title="+RSX CO M2")
+
+alertcondition((rsx_lsmaD_cu), message="-RSX CU LSMA-D", title="-RSX CU LSMA-D")
+alertcondition((rsx_lsmaD_co), message="+RSX CO LSMA-D", title="+RSX CO LSMA-D")
+
+   
+

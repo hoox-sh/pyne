@@ -1,0 +1,27 @@
+//
+// @author LazyBear 
+// List of all my indicators: https://www.tradingview.com/v/4IneGo8h/
+//
+// 2018.07.08
+// LucF added alert conditions for turn to bullish or bearish on the second bar.
+// To use alerts, create an alert, choose this indicator and then choose either of the first 2 conditions.
+// The alerts trigger on the second bar to avoid noise.
+//
+study("Weis Wave Volume with alert [LazyBear]LF", shorttitle="WWV_LBLF")
+trendDetectionLength=input(5, title="Trend detection length")
+showDistributionBelowZero=input(false, type=bool, title="Show bearish bars below zero")
+//
+mov = close>close[1] ? 1 : close<close[1] ? -1 : 0
+trend = (mov != 0) and (mov != mov[1]) ? mov : nz(trend[1])
+isTrending = rising(close, trendDetectionLength) or falling(close, trendDetectionLength) //abs(close-close[1]) >= dif
+wave = (trend != nz(wave[1])) and isTrending ? trend : nz(wave[1])
+vol = wave==wave[1] ? (nz(vol[1])+volume) : volume
+up = wave==1 ? vol : 0
+dn = showDistributionBelowZero ? (wave==1 ? 0 : wave==-1 ? -vol : vol) : (wave==1 ? 0 : vol)
+plot(up, title="Bullish", style=histogram, color=#274E13, transp=0, linewidth=4)
+plot(dn, title="Bearish", style=histogram, color=#660000, transp=0, linewidth=4)
+// Alert conditions
+JustTurnedBullish = (wave==1 and wave[1]==1 and wave[2]!=1)
+JustTurnedBearish = (wave==-1 and wave[1]==-1 and wave[2]!=-1)
+alertcondition(JustTurnedBullish, title="WWV1 turns bullish", message="")
+alertcondition(JustTurnedBearish, title="WWV2 turns bearish", message="")

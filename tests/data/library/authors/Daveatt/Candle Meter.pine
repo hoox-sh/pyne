@@ -1,0 +1,63 @@
+//@version=4
+// All rights reserved
+
+StudyName = "Candle Meter" 
+ShortStudyName = "Candle Meter"
+study(StudyName, shorttitle=ShortStudyName, overlay=false, precision=4)
+
+// if based on same candle
+GreenCandle = close > open
+RedCandle = close < open
+
+// if based on previous candle open
+GreenPrevCandle = close > open[1]
+RedPrevCandle = close < open[1]
+
+// conditons
+barUP = GreenCandle
+barDN = RedCandle
+
+///////////////////////////////////////////////////////////////////////////////
+////////////////////////////// COUNTERS ///////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+var barsFromUp = 0
+var barsFromDn = 0
+barsFromUp := barUP ? barsFromUp + 1 : 0
+barsFromDn := barDN ? barsFromDn + 1 : 0
+
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////// PLOTS ///////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+
+plot_color = barsFromUp > 0 ? color.lime : color.red
+plot(barsFromUp, title="UP Histogram", color=plot_color, style=plot.style_histogram, linewidth=4)
+plot(barsFromDn, title="DN Histogram", color=plot_color, style=plot.style_histogram, linewidth=4)
+
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////// HLINE ///////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+
+hline(9, '9 TD Sequential Line', linestyle=hline.style_solid, linewidth=2, color=color.black)
+hline(13, '12 TD Sequential Line', linestyle=hline.style_solid, linewidth=3, color=color.purple)
+
+///////////////////////////////////////////////////////////////////////////////
+/////////////////////////////// PLOTCHAR //////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+
+var _lbl_UP = label(na)
+if barsFromUp > 0
+    _lbl_UP := label.new(bar_index, barsFromUp+1, tostring(barsFromUp, '#'), textcolor=color.green, style=label.style_none, yloc=yloc.price, xloc=xloc.bar_index, size=size.normal)
+
+var _lbl_DN = label(na)
+if barsFromDn > 0
+    _lbl_DN := label.new(bar_index, barsFromDn+1, tostring(barsFromDn, '#'), textcolor=color.red, style=label.style_none, yloc=yloc.price, xloc=xloc.bar_index, size=size.normal)
+
+
+///////////////////////////////////////////////////////////////////////////////
+/////////////////////////////// ALERTS ////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+
+alertcondition(barsFromUp == 9, title='🔔Sell 9 Alert🔔', message="Sell 9 Alert")
+alertcondition(barsFromDn == 9, title='🔔Buy 9 Alert🔔', message='Buy 9 Alert')
+alertcondition(barsFromUp > 9, title='🔔Sell > 9 Alert🔔', message="Sell > 9 Alert")
+alertcondition(barsFromDn > 9, title='🔔Buy > 9 Alert🔔', message='Buy > 9 Alert')

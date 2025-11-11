@@ -1,0 +1,322 @@
+//   |{------------------------------------------------------------------||
+//   ||   START OF SETUP
+
+
+//      ____________    ____  ___________________ 
+//     /  _/ ____/ /   / __ \/ ___/_  __/  _/ __ \
+//     / // /_  / /   / / / /\__ \ / /  / // / / /
+//   _/ // __/ / /___/ /_/ /___/ // / _/ // /_/ / 
+//  /___/_/   /_____/\____//____//_(_)___/\____/  
+// 
+//  EVERYTHING IS POSSIBLE, BY THE POWER OF DATA.
+
+
+//@version=4
+//@authors                      = Jan Goischke & Dennis Hilpmann
+
+
+IndicatorName                   = "[iflost.io] Ultimate ZigZag Trend"
+ShortIndicatorName              = "[iflost.io] ZZ"
+
+TradeId                         = "[IFLO] T"
+
+InitCapital                     = 5000
+InitPosition                    = 98
+InitCommission                  = 0.075
+
+Precision                       = 0
+Overlay                         = true
+
+Format                          = format.price
+
+//////////////////////////////////////////////////////////////////////////
+//-- [SETUP-02][ST] Super Range Thereshold Filter Trend
+//////////////////////////////////////////////////////////////////////////
+
+
+study(
+ title = IndicatorName, 
+ shorttitle = ShortIndicatorName, 
+ overlay = Overlay,
+ format = Format,
+ precision = Precision
+ )
+
+
+//////////////////////////////////////////////////////////////////////////
+//-- INPUTS
+//////////////////////////////////////////////////////////////////////////
+
+
+__SRC                             = close
+int length                      = input(20, title="")
+int tf                          = input(1440)
+int tPeriods                    = input(30)
+bool disp_panels                = input(true, title="Display info panels?")
+int fibs_label_off              = input(5, title="fibs label offset")
+fibs_label_size                 = input(size.normal, options=[size.tiny, size.small, size.normal, size.large, size.huge], title="fibs label size")
+float st_mult                   = input(0.1,   title = 'Trend Multiplier', minval = 0, maxval = 100, step = 0.01)
+int st_period                   = input(10, title = 'Trend Period',     minval = 1) 
+float percent1                  = input(title="Percent", defval=2, minval=0.001, maxval=20, step=0.001, type=input.float)
+
+
+//////////////////////////////////////////////////////////////////////////
+//-- VARIABLES
+//////////////////////////////////////////////////////////////////////////
+
+
+int mult                        = 2
+float dev                       = mult * stdev(__SRC, length)
+float upper                     = highest(high, length)[1]
+float lower                     = lowest(low, length)[1]
+float basis                     = (upper + lower) / 2
+
+int per = timeframe.isintraday and timeframe.multiplier >= 1 ? 
+ tf / timeframe.multiplier * 7 : 
+ timeframe.isintraday and timeframe.multiplier < 60 ? 
+ 60 / timeframe.multiplier * 24 * 7 : 7
+
+
+//////////////////////////////////////////////////////////////////////////
+//-- COLORS
+//////////////////////////////////////////////////////////////////////////
+
+
+//--__buy, Upward
+color col_green_1               = color.new(#4EF9FF,0) //*
+color col_green_1_90            = color.new(#4EF9FF,90)
+color col_green_2               = color.new(#3CADB1,0)
+color col_green_3               = color.new(#26c6da,0)  
+color col_green_4               = color.new(#afff00,0)
+color col_green_5               = color.new(#CFD80E,0)
+color col_green_6               = color.new(#90c818,0)
+
+//-- __sell, Downward
+color col_red_1                 = color.new(#7b1fa2,0) //*
+color col_red_1_90              = color.new(#7b1fa2,90) //*
+color col_red_2                 = color.new(#7e57c2,0) 
+color col_red_3                 = color.new(#512da8,0)
+color col_red_4                 = color.new(#7300de,0)
+color col_red_5                 = color.new(#4a148c,0)  
+color col_red_6                 = color.new(#2d2456,0)
+
+//-- Idle, Sideward
+color col_yellow_1              = color.new(#ffa726,0)
+color col_yellow_2              = color.new(#f57c00,0)
+
+color col_light_1               = color.new(#FFFFFF,0)
+color col_light_1_50            = color.new(#FFFFFF,50)
+
+color col_dark_1                = color.new(#000000,0)
+color col_dark_1_50             = color.new(#000000,50)
+
+
+//////////////////////////////////////////////////////////////////////////
+//-- FUNCTIONS
+//////////////////////////////////////////////////////////////////////////
+
+
+//-- DONCHAIN
+donchian(len) =>
+    float _r = avg(lowest(len), highest(len))
+    _r
+
+//-- ROUNDING LEVELS TO MIN TICKS
+nround(x) => 
+    float _r = round(x / syminfo.mintick) * syminfo.mintick
+    _r
+
+//-- DRAW INFO PANEL
+f_draw_infopanel(_x, _y, _line, _text, _color) =>
+    _rep_text = ""
+    for _l = 0 to _line
+        _rep_text := _rep_text + "\n"
+    _rep_text := _rep_text + _text
+    var label _la = na
+    label.delete(_la)
+    _la := label.new(
+         x=_x, y=_y, 
+         text=_rep_text, xloc=xloc.bar_time, yloc=yloc.price, 
+         color=color.yellow, style=label.style_none, textcolor=_color, size=size.large)
+
+
+//////////////////////////////////////////////////////////////////////////
+//-- CALCULATION
+//////////////////////////////////////////////////////////////////////////
+
+
+tper = donchian(tPeriods)
+
+//CHANNEL
+hb = highest(high, per)  //High Border
+lb = lowest(low, per)  //Low Border
+dist = hb - lb  //range of the channel 
+med = (hb + lb) / 2  //median of the channel
+
+hf = hb - dist * 0.236  //Highest Fib
+chf = hb - dist * 0.382  //Center High Fib
+clf = hb - dist * 0.618  //Center Low Fib
+lf = hb - dist * 0.764  //Lowest Fib
+
+r1_x = timenow + round(change(time)*fibs_label_off)
+r1_y = hb
+text1 = "High : " + tostring(nround(hb))
+s1_y = lb
+text3 = "low : " + tostring(nround(lb))
+
+posx = timenow + round(change(time)*10)
+posy = highest(30)
+
+up_lev =close - (st_mult * atr(st_period))
+dn_lev = close + (st_mult * atr(st_period))
+
+percent = percent1 * 0.01
+
+hh = 0.00  //Highest High
+hh := nz(hh[1])
+hhh = 0.000
+hhh := nz(hhh[1])
+
+ll = 0.00  //Lowest Low
+ll := nz(ll[1])
+lll = 0.000
+lll := nz(lll[1])
+
+count = 0
+count := nz(count[1]) + 1
+
+trend = 0
+trend := nz(trend[1])
+nimo = dn_lev
+ximo =up_lev
+
+if barstate.isfirst
+    count := 0
+    ll := nimo  //Lowest low 
+    hh := ximo  //Highest high                        
+    lll := low  //Lowest low low
+    hhh := high  //Highest high high 
+    hhh
+if count == 1
+    if ximo >= hh[1]
+        hh := ximo
+        hhh := high
+        trend := 1  //up
+        trend
+    else
+        ll := nimo
+        lll := low
+        trend := -1  //down
+        trend
+
+if count > 1
+
+    if trend[1] > 0  //if trend up
+        hhh := max(hhh[1], high)
+        if ximo >= hh[1]  //if High greater or equal to Highest high
+            hh := ximo
+            hh
+        else
+
+            //else (High is smaller than Highest high)
+            if nimo < hh[1] - hh[1] * percent  //if low < Highest high - Highest high * Percent
+                ll := nimo  //Lowest low = low
+                lll := low
+
+                trend := -1  //trend down
+                trend
+    else
+
+        //else (trend down)
+        lll := min(lll[1], low)
+
+        if nimo <= ll[1]  //if Low smaller or equal to Lowest low
+            ll := nimo  //Lowest low = low 
+            ll
+        else
+
+            //else (Low is greater than Lowest low)
+            if ximo > ll[1] + ll[1] * percent  //if high > Lowest low + Lowest low * Percent
+                hh := ximo  //Highest high = high
+                hhh := high
+
+                trend := 1  //trend up
+                trend
+
+
+pt = trend > trend[1] ? 1 : trend < trend[1] ? -1 : 0  //Change in Trend
+vor = trend == 1 ? hh : trend == -1 ? ll : na
+vor1 = pt == 1 ? ll : pt == -1 ? hh : na
+
+
+//////////////////////////////////////////////////////////////////////////
+//-- CONDITION
+//////////////////////////////////////////////////////////////////////////
+
+
+var int last_cond = 0
+var int signal = 0
+
+long = trend == 1 and trend[1] == -1 
+short = trend == -1 and trend[1] == 1 
+
+last_long = 0.0
+last_short = 0.0
+last_long := long ? time : nz(last_long[1])
+last_short := short ? time : nz(last_short[1])
+
+long_signal = crossover(last_long, last_short)
+short_signal = crossover(last_short, last_long)
+
+signal := long_signal ? 1 : short_signal ? -1 : 0
+last_cond := last_cond[1] != signal ? signal : last_cond[1]
+
+
+//////////////////////////////////////////////////////////////////////////
+//-- PAINTING
+//////////////////////////////////////////////////////////////////////////
+
+
+meanp = plot(med, title="Mean ", color=col_light_1, transp=50)  
+bsign = plot(hb, title="Upper ", color=col_green_1, transp=75, linewidth=1)  
+ssign = plot(lb, title="Lower", color=col_red_1, transp=75, linewidth=1)  
+hf1 = plot(hf, title="Upper fib ", color=col_yellow_1, transp=75, linewidth=1)  
+chf1 = plot(chf, title="center high fib", color=col_yellow_2, transp=85, linewidth=1) 
+clf1 = plot(clf, title="center low fib ", color=col_yellow_2, transp=85, linewidth=1)  
+lf1 = plot(lf, title="low fib", color=col_yellow_1, transp=75, linewidth=1) 
+
+fill(bsign, hf1, title="Upper ", color=col_green_1_90)  
+fill(ssign, lf1, title="Lower", color=col_red_1_90) 
+
+R1_label = disp_panels ? label.new(x=r1_x, y=r1_y, text=text1, xloc=xloc.bar_time, yloc=yloc.price, color=col_red_6, style=label.style_labeldown, textcolor=col_light_1, size=fibs_label_size) : na
+S1_label = disp_panels ? label.new(x=r1_x, y=s1_y, text=text3, xloc=xloc.bar_time, yloc=yloc.price, color=col_red_6, style=label.style_labelup, textcolor=col_light_1, size=fibs_label_size) : na
+
+label.delete(R1_label[1])
+label.delete(S1_label[1])
+
+lineColor = close > tper[1] ? col_green_1 : col_red_1
+p1 = plot(basis, color=col_green_1, title="basis", transp=0)
+p2 = plot(tper, color=col_red_1, title="tper", transp=0)
+fill(p1, p2, color=lineColor)
+
+f_draw_infopanel(posx, posy, 0, close[1] > basis ? "UP" : "DOWN", close[1] > basis ? col_green_1 : col_red_1)
+
+plot(vor, color=trend == 1 ? col_green_1 : col_red_1, style=plot.style_circles, linewidth=1, title="zigi", transp=0, join=true)
+plot(vor1, color=trend == 1 ? col_red_1 : col_green_1, style=plot.style_line, linewidth=1, title="zigzag", transp=0, join=true, offset=-1)
+
+plotshape(long_signal, style=shape.triangleup, size=size.normal, location=location.belowbar, color=col_green_1)
+plotshape(short_signal, style=shape.triangledown, size=size.normal, location=location.abovebar, color=col_red_1)
+
+plot(last_cond, title="OUTPUT - External Signal")
+
+
+//////////////////////////////////////////////////////////////////////////
+//-- ALERTS
+//////////////////////////////////////////////////////////////////////////
+
+
+alertcondition(long_signal, title='Long', message='Long Signal')
+alertcondition(short_signal, title='Short', message='Short Signal')
+
+
+//-- } End of Script
