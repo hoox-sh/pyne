@@ -912,7 +912,13 @@ class PinescriptASTBuilder(
 
     def visitLiteral_number(self, ctx: PinescriptParser.Literal_numberContext):
         text = ctx.getText()
-        number = literal_eval(text)
+        # Handle leading zeros in decimal integers (e.g., 01, 001)
+        # Pine Script allows these, but Python's ast.literal_eval does not
+        if text.isdigit() and len(text) > 1 and text[0] == "0":
+            # Convert to int directly, which handles leading zeros
+            number = int(text)
+        else:
+            number = literal_eval(text)
         return number
 
     def visitLiteral_string(self, ctx: PinescriptParser.Literal_stringContext):

@@ -135,7 +135,7 @@ fragment COLOR_LITERAL_RGB
 fragment NUMBER_LITERAL: INTEGER | FLOAT_NUMBER | IMAG_NUMBER;
 
 fragment INTEGER:        DEC_INTEGER | BIN_INTEGER | OCT_INTEGER | HEX_INTEGER;
-fragment DEC_INTEGER:    NON_ZERO_DIGIT ('_'? DIGIT)* | '0'+ ('_'? '0')*;
+fragment DEC_INTEGER:    NON_ZERO_DIGIT ('_'? DIGIT)* | '0' ('_'? DIGIT)*;
 fragment BIN_INTEGER:    '0' ('b' | 'B') ('_'? BIN_DIGIT)+;
 fragment OCT_INTEGER:    '0' ('o' | 'O') ('_'? OCT_DIGIT)+;
 fragment HEX_INTEGER:    '0' ('x' | 'X') ('_'? HEX_DIGIT)+;
