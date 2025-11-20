@@ -1,4 +1,4 @@
-# Copyright 2024 Yunseong Hwang
+# Copyright 2024-2025 jango_blockchained
 #
 # Licensed under the GNU Lesser General Public License Version 3.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,5 +13,12 @@
 # limitations under the License.
 #
 # SPDX-License-Identifier: LGPL-3.0-or-later
+
+"""PyneScript Extensions and Integrations.
+
+Optional integrations with external tools and frameworks:
+- pygments: Syntax highlighting lexer for Pine Script
+- nautilus_trader: Integration with Nautilus Trader trading bot framework
+"""
 
 from __future__ import annotations

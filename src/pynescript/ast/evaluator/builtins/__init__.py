@@ -1,3 +1,43 @@
+# Copyright 2024-2025 jango_blockchained
+#
+# Licensed under the GNU Lesser General Public License Version 3.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.gnu.org/licenses/lgpl-3.0.en.html
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# SPDX-License-Identifier: LGPL-3.0-or-later
+
+"""Pine Script Built-in Functions and Modules.
+
+Implements all Pine Script built-in functions organized by category:
+
+- Numeric: math.*, min, max, round, etc.
+- String: str.*, tostring, tonumber, etc.
+- Array: array.new, array.push, array.pop, etc.
+- Matrix: matrix operations
+- Map: map (dictionary) operations
+- Technical: ta.* - Technical analysis indicators
+- Plotting: plot, plotshape, etc.
+- Drawing: line, box, table drawing primitives
+- Strategy: strategy.entry, strategy.close, etc.
+- Request: request.security for data fetching
+- Input: input, input.symbol, etc.
+- Utility: type, size, na, etc.
+- Color: color.* constants and functions
+- Ticker: syminfo, ticker functions
+- Timeframe: timeframe.* variables and functions
+- Logging: alert, runtime.error
+
+Each category is implemented as a mixin class composed into BuiltinEvaluator.
+"""
+
 from __future__ import annotations
 
 from .arrays import ArrayBuiltinsMixin

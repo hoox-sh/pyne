@@ -1,4 +1,4 @@
-# Copyright 2024 Yunseong Hwang
+# Copyright 2024-2025 jango_blockchained
 #
 # Licensed under the GNU Lesser General Public License Version 3.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,6 +14,15 @@
 #
 # SPDX-License-Identifier: LGPL-3.0-or-later
 
+"""AST Visitor Pattern Implementation.
+
+Base class for traversing and processing AST nodes using the visitor pattern.
+Subclasses implement visit_<NodeType> methods to handle specific node types.
+
+The visitor dispatches to specialized methods based on node class name,
+with caching for performance optimization.
+"""
+
 from __future__ import annotations
 
 from pynescript.ast.helper import iter_fields
@@ -21,11 +30,28 @@ from pynescript.ast.node import AST
 
 
 class NodeVisitor:
+    """Base visitor for traversing AST nodes.
+
+    Implements the visitor pattern with method dispatch and caching.
+    Subclasses should override visit_<NodeType> methods for custom behavior.
+    """
+
     def __init__(self):
+        """Initialize the visitor with empty method cache."""
         # Optimize: cache visitor methods to avoid repeated getattr calls
         self._visitor_cache: dict[str, callable] = {}
 
     def visit(self, node: AST):
+        """Visit an AST node and dispatch to appropriate handler.
+
+        Looks up and caches visit_<NodeType> methods for performance.
+
+        Args:
+            node: The AST node to visit
+
+        Returns:
+            Result from the visit_<NodeType> method (implementation-dependent)
+        """
         node_class = node.__class__.__name__
         # Try cache first
         visitor = self._visitor_cache.get(node_class)
@@ -37,10 +63,19 @@ class NodeVisitor:
         return visitor(node)
 
     def generic_visit(self, node: AST):
+        """Called if no specific visit method exists for a node type.
+
+        Default implementation recursively visits all child AST nodes.
+
+        Args:
+            node: The AST node being visited
+        """
         for _field, value in iter_fields(node):
+            # Handle list of nodes
             if isinstance(value, list):
                 for item in value:
                     if isinstance(item, AST):
                         self.visit(item)
+            # Handle single node
             elif isinstance(value, AST):
                 self.visit(value)

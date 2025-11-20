@@ -1,4 +1,4 @@
-# Copyright 2024 Yunseong Hwang
+# Copyright 2024-2025 jango_blockchained
 #
 # Licensed under the GNU Lesser General Public License Version 3.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,6 +13,20 @@
 # limitations under the License.
 #
 # SPDX-License-Identifier: LGPL-3.0-or-later
+
+"""AST Node Class Definitions.
+
+Auto-generated ASDL-based node classes for the Pine Script Abstract Syntax Tree.
+Each node type represents a language construct:
+
+- Script: Root module node
+- FunctionDef/TypeDef/EnumDef: Definitions
+- Assign/AugAssign/Return: Statements
+- If/While/For: Control flow
+- BinOp/UnaryOp/Compare: Expressions
+- Call/Subscript/Attribute: Member access
+- Constant/Name/Tuple: Literals and names
+"""
 
 from __future__ import annotations
 

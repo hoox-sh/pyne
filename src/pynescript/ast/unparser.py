@@ -1,4 +1,4 @@
-# Copyright 2024 Yunseong Hwang
+# Copyright 2024-2025 jango_blockchained
 #
 # Licensed under the GNU Lesser General Public License Version 3.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,6 +13,18 @@
 # limitations under the License.
 #
 # SPDX-License-Identifier: LGPL-3.0-or-later
+
+"""AST to Pine Script Source Code Generator.
+
+Converts AST nodes back to syntactically correct Pine Script source code.
+Preserves formatting intent while handling operator precedence and special
+Pine Script syntax conventions.
+
+Main Classes:
+- Precedence: Operator precedence levels for parenthesization decisions
+- NodeUnparser: Main visitor that generates source code from AST nodes
+  (implements visit_* methods for each AST node type)
+"""
 
 from __future__ import annotations
 
@@ -29,20 +41,26 @@ from pynescript.ast.visitor import NodeVisitor
 
 
 class Precedence(IntEnum):
-    TEST = auto()  # '?', ':'
+    """Operator precedence levels for correct parenthesization in output.
+    
+    Higher values bind tighter. Used to determine when to add parentheses
+    around sub-expressions to preserve evaluation order.
+    """
+    TEST = auto()  # '?', ':' - ternary conditional (lowest)
     OR = auto()  # 'or'
     AND = auto()  # 'and'
     EQ = auto()  # '==', '!='
     INEQ = auto()  # '>', '<', '>=', '<='
-    CMP = INEQ
+    CMP = INEQ  # Alias for comparison
     EXPR = auto()
     ARITH = auto()  # '+', '-'
     TERM = auto()  # '*', '/', '%'
     FACTOR = auto()  # unary '+', unary '-', 'not'
-    NOT = FACTOR
-    ATOM = auto()
+    NOT = FACTOR  # Alias for unary not
+    ATOM = auto()  # Highest precedence - literals, names, parenthesized exprs
 
     def next(self):
+        """Get the next higher precedence level."""
         try:
             return self.__class__(self + 1)
         except ValueError:

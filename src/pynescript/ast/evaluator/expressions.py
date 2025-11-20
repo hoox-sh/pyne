@@ -1,3 +1,19 @@
+# Copyright 2024-2025 jango_blockchained
+#
+# Licensed under the GNU Lesser General Public License Version 3.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.gnu.org/licenses/lgpl-3.0.en.html
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# SPDX-License-Identifier: LGPL-3.0-or-later
+
 from __future__ import annotations
 
 import itertools
@@ -12,6 +28,7 @@ from pynescript.ast.type_system import UserDefinedType
 
 
 # Optimize: Pre-cache operator references at module level
+# These imports reduce attribute lookup overhead for frequent operations
 _OPERATOR_EQ = operator.eq
 _OPERATOR_NE = operator.ne
 _OPERATOR_LT = operator.lt
@@ -29,36 +46,96 @@ _OPERATOR_NEG = operator.neg
 
 
 class ExpressionEvaluator:
+    """Evaluates expression AST nodes: boolean, binary, unary, comparisons, and calls.
+
+    Handles all expression types including:
+    - Boolean operations (and, or)
+    - Binary operations (arithmetic, comparison)
+    - Unary operations (not, negation, positive)
+    - Function/method calls with argument handling
+    - Ternary conditionals
+    - List/tuple comprehensions
+    """
+
     def visit_BoolOp(self: EvaluatorProtocol, node: ast.BoolOp):
+        """Evaluate boolean operations (and, or).
+
+        Implements short-circuit evaluation:
+        - 'and': stops at first falsy value
+        - 'or': stops at first truthy value
+
+        Args:
+            node: BoolOp node with operator and list of values
+
+        Returns:
+            Boolean result of the operation
+        """
+        # Evaluate 'and' operation with short-circuit: return first falsy or last value
         if isinstance(node.op, ast.And):
             return all(self.visit(value) for value in node.values)
+        # Evaluate 'or' operation with short-circuit: return first truthy or last value
         if isinstance(node.op, ast.Or):
             return any(self.visit(value) for value in node.values)
         msg = f"unexpected node operator: {node.op}"
         raise ValueError(msg)
 
     def visit_BinOp(self: EvaluatorProtocol, node: ast.BinOp):
+        """Evaluate binary operations (arithmetic, bitwise).
+
+        Supports: +, -, *, /, % (modulo), and bitwise operations.
+
+        Args:
+            node: BinOp node with left operand, right operand, and operator
+
+        Returns:
+            Result of applying the binary operator to the operands
+
+        Raises:
+            NotImplementedError: If operator is not supported
+        """
+        # Evaluate both operands
         left = self.visit(node.left)
         right = self.visit(node.right)
+
+        # Dispatch to the appropriate operator function
         if isinstance(node.op, ast.Add):
+            # Addition: numbers, string concatenation, or list concatenation
             return _OPERATOR_ADD(left, right)
         elif isinstance(node.op, ast.Sub):
+            # Subtraction: numeric only
             return _OPERATOR_SUB(left, right)
         elif isinstance(node.op, ast.Mult):
+            # Multiplication: numbers, string/list repetition
             return _OPERATOR_MUL(left, right)
         elif isinstance(node.op, ast.Div):
+            # Division: always true division (/)
             return _OPERATOR_DIV(left, right)
         elif isinstance(node.op, ast.Mod):
+            # Modulo: remainder after division
             return _OPERATOR_MOD(left, right)
         else:
             msg = f"Unsupported binary operator: {type(node.op)}"
             raise NotImplementedError(msg)
 
     def visit_UnaryOp(self: EvaluatorProtocol, node: ast.UnaryOp):
+        """Evaluate unary operations (not, negation, positive).
+
+        Args:
+            node: UnaryOp node with operand and operator
+
+        Returns:
+            Result of applying the unary operator to the operand
+
+        Raises:
+            ValueError: If operator is not recognized
+        """
+        # Logical negation: inverts boolean value
         if isinstance(node.op, ast.Not):
             return _OPERATOR_NOT(self.visit(node.operand))
+        # Unary positive: no-op but validates operand is numeric
         if isinstance(node.op, ast.UAdd):
             return _OPERATOR_POS(self.visit(node.operand))
+        # Unary negation: negates numeric value
         if isinstance(node.op, ast.USub):
             return _OPERATOR_NEG(self.visit(node.operand))
         msg = f"unexpected node operator: {node.op}"

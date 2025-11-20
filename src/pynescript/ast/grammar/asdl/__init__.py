@@ -1,4 +1,4 @@
-# Copyright 2024 Yunseong Hwang
+# Copyright 2024-2025 jango_blockchained
 #
 # Licensed under the GNU Lesser General Public License Version 3.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,6 +13,13 @@
 # limitations under the License.
 #
 # SPDX-License-Identifier: LGPL-3.0-or-later
+
+"""ASDL (Abstract Syntax Definition Language) AST Node Definitions.
+
+Components:
+- generated: Auto-generated AST node classes from ASDL schema (do not edit)
+- tool: Code generator that creates AST nodes from ASDL definitions
+"""
 
 from __future__ import annotations
 

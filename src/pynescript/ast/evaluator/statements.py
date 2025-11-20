@@ -1,3 +1,19 @@
+# Copyright 2024-2025 jango_blockchained
+#
+# Licensed under the GNU Lesser General Public License Version 3.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.gnu.org/licenses/lgpl-3.0.en.html
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# SPDX-License-Identifier: LGPL-3.0-or-later
+
 from __future__ import annotations
 
 from pynescript.ast import node as ast
@@ -10,26 +26,67 @@ from pynescript.ast.type_system import UserDefinedType
 
 
 class StatementEvaluator:
+    """Evaluates statement nodes: assignments, function definitions, type definitions, and control flow.
+
+    Handles:
+    - Variable assignments and augmented assignments (+=, -=, etc.)
+    - Function and method definitions
+    - User-defined type (UDT) definitions with fields and methods
+    - Control flow (if/else, loops)
+    - Return statements
+    """
+
     def visit_Script(self, node: ast.Script):
+        """Execute all statements in a script.
+
+        Args:
+            node: The Script node containing the body of statements
+        """
+        # Execute each statement in order
         for stmt in node.body:
+            # Delegate to visit method for the statement type
             self.visit(stmt)  # type: ignore[attr-defined]
 
     def visit_Assign(self, node: ast.Assign):
+        """Evaluate an assignment statement.
+
+        Assigns a value to a variable in the current context.
+
+        Args:
+            node: The Assign node with target and value
+
+        Raises:
+            ValueError: If assignment target is not a simple name
+        """
+        # Only proceed if there's a value to assign (not None)
         if node.value:
+            # Evaluate the right-hand side expression
             value = self.visit(node.value)  # type: ignore[attr-defined]
+            # Handle simple name assignment (e.g., x = 5)
             if isinstance(node.target, ast.Name):
+                # Store the value in context under the variable name
                 self.context[node.target.id] = value  # type: ignore[attr-defined]
             else:
                 msg = f"Unsupported assignment target: {type(node.target)}"
                 self._error(msg)  # type: ignore[attr-defined]
 
     def visit_AugAssign(self, node: ast.AugAssign):
-        """Handle augmented assignment (e.g., obj.field := value)"""
-        # Handle field mutation on UDT objects
+        """Handle augmented assignment (e.g., obj.field := value).
+
+        Modifies existing values in-place using operators like +=, -=, etc.
+
+        Args:
+            node: The AugAssign node with target, value, and operator
+        """
+        # Handle field mutation on UDT objects (obj.field := value)
         if isinstance(node.target, ast.Attribute):
+            # Get the object being modified
             obj = self.visit(node.target.value)  # type: ignore[attr-defined]
+            # If it's a UDT instance, set the field on the object
             if isinstance(obj, ObjectInstance):
+                # Evaluate the new value
                 value = self.visit(node.value)  # type: ignore[attr-defined]
+                # Mutate the field directly
                 obj.set_field(node.target.attr, value)
                 return
 

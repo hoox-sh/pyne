@@ -1,4 +1,4 @@
-# Copyright 2024 Yunseong Hwang
+# Copyright 2024-2025 jango_blockchained
 #
 # Licensed under the GNU Lesser General Public License Version 3.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,6 +13,12 @@
 # limitations under the License.
 #
 # SPDX-License-Identifier: LGPL-3.0-or-later
+
+"""TradingView Pine Script Facade - Download Built-in Scripts.
+
+Provides utilities to fetch Pine Script code and documentation from TradingView.
+Includes thread-safe HTTP session management and progress tracking.
+"""
 
 from __future__ import annotations
 
@@ -35,6 +41,14 @@ _THREAD_SESSIONS_LOCK = threading.Lock()
 
 
 def _register_thread_session(session: requests.Session) -> requests.Session:
+    """Register a session for cleanup on thread exit.
+    
+    Args:
+        session: The requests.Session to register
+        
+    Returns:
+        The session passed in (for chaining)
+    """
     with _THREAD_SESSIONS_LOCK:
         _THREAD_SESSIONS.add(session)
     return session

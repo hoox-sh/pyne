@@ -1,4 +1,4 @@
-# Copyright 2024 Yunseong Hwang
+# Copyright 2024-2025 jango_blockchained
 #
 # Licensed under the GNU Lesser General Public License Version 3.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,12 +14,20 @@
 #
 # SPDX-License-Identifier: LGPL-3.0-or-later
 
+"""AST Statement Collector.
+
+Traverses an AST and collects top-level statements for annotation processing.
+Used to pair special comments (//@version, //@description, etc.) with their
+corresponding statement nodes.
+"""
+
 from __future__ import annotations
 
 from pynescript.ast import node as ast
 from pynescript.ast.visitor import NodeVisitor
 
 
+# Statement types that can have nested scopes
 Structure = (
     ast.ForTo,
     ast.ForIn,
@@ -30,23 +38,33 @@ Structure = (
 
 
 class StatementCollector(NodeVisitor):
+    """Collects all statements from an AST for annotation processing.
+
+    Visits an AST tree and yields all top-level statement nodes
+    (FunctionDef, TypeDef, EnumDef, Assign, etc.) in order,
+    enabling annotation comments to be matched to statements.
+    """
     # ruff: noqa: N802
 
     def visit_Script(self, node):
+        """Visit script and yield all statements in order."""
         for stmt in node.body:
             yield from self.visit(stmt)
 
     def visit_FunctionDef(self, node):
+        """Visit function definition and yield it plus inner statements."""
         yield node
         for stmt in node.body:
             yield from self.visit(stmt)
 
     def visit_TypeDef(self, node):
+        """Visit type definition and yield it plus inner statements."""
         yield node
         for stmt in node.body:
             yield from self.visit(stmt)
 
     def visit_EnumDef(self, node):
+        """Visit enum definition and yield it plus inner statements."""
         yield node
         for stmt in node.body:
             yield from self.visit(stmt)

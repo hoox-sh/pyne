@@ -1,4 +1,4 @@
-# Copyright 2024 Yunseong Hwang
+# Copyright 2024-2025 jango_blockchained
 #
 # Licensed under the GNU Lesser General Public License Version 3.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,5 +13,11 @@
 # limitations under the License.
 #
 # SPDX-License-Identifier: LGPL-3.0-or-later
+
+"""ANTLR4 Grammar Code Generation Tools.
+
+Utilities for regenerating lexer and parser from ANTLR4 grammar files.
+Used during development to keep auto-generated code in sync with grammar.
+"""
 
 from __future__ import annotations
