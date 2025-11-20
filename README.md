@@ -59,7 +59,7 @@ This diagram illustrates the core pipeline: from source code to AST manipulation
 ## Features
 
 - **🔍 Complete Parsing**: Full support for Pine Script™ v5-v6 grammar with ANTLR4-powered accuracy.
-- **📊 149+ Builtin Functions**: Comprehensive implementation of technical analysis, utilities, drawing, and strategy functions.
+- **📊 181+ Builtin Functions**: Comprehensive implementation of technical analysis, utilities, drawing, and strategy functions.
 - **🛠️ AST Manipulation**: Inspect and transform scripts using a rich Python object model.
 - **🔄 Round-Trip Fidelity**: Parse and unparse scripts without losing formatting or semantics.
 - **💻 CLI Tools**: Command-line utilities for quick parsing, dumping, and validation.
@@ -67,6 +67,7 @@ This diagram illustrates the core pipeline: from source code to AST manipulation
 - **🔧 Extensible Architecture**: Visitor patterns for custom analysis and transformation.
 - **🧪 Battle-Tested**: Regression tests against TradingView®'s built-in scripts ensure reliability.
 - **🚀 Modern Tooling**: Hatch for environments, Ruff for linting, pytest for testing.
+- **✅ 100% Compatibility Guarantee**: See [COMPATIBILITY_GUARANTEE.md](COMPATIBILITY_GUARANTEE.md) for our validated compatibility metrics.
 
 ## Installation
 
@@ -235,6 +236,8 @@ Dive deeper at [pynescript.readthedocs.io][docs]:
 - [Usage Guide](https://pynescript.readthedocs.io/en/latest/usage.html) — CLI and library tutorials.
 - [API Reference](https://pynescript.readthedocs.io/en/latest/reference.html) — Complete module docs.
 - [Implementation Status](https://pynescript.readthedocs.io/en/latest/pinescript_implementation_status.html) — Feature coverage.
+- [Compatibility Guarantee](COMPATIBILITY_GUARANTEE.md) — 100% compatibility validation with 997 tests.
+- [Numerical Validation Report](NUMERICAL_VALIDATION_REPORT.md) — Precision analysis (99.999% accuracy).
 
 ## Roadmap
 
