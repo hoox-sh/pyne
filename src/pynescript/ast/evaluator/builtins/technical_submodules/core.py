@@ -35,6 +35,15 @@ MIN_SERIES_LENGTH = 2
 class TechnicalHelpers:
     """Shared technical analysis helpers and validation methods."""
 
+    current_series: dict[str, list[Any]]
+
+    def _error(self, message: str) -> Any:
+        """Raise a runtime error.
+
+        This method should be overridden by the host class (Evaluator).
+        """
+        raise NotImplementedError("Must be implemented by host class")
+
     def _expect_series(
         self,
         args: list[Any],
@@ -249,3 +258,49 @@ class TechnicalHelpers:
     def _cross(self, series1: list[float], series2: list[float]) -> bool:
         """Check if series1 crosses series2 (either direction)."""
         return bool(self._crossover(series1, series2) or self._crossunder(series1, series2))
+
+    def _falling(self, series: list[float], period: int) -> bool:
+        """Check if series is falling for period."""
+        if len(series) < period:
+            return False
+        for idx in range(1, period):
+            if series[-idx] <= series[-idx - 1]:
+                return False
+        return True
+
+    def _rising(self, series: list[float], period: int) -> bool:
+        """Check if series is rising for period."""
+        if len(series) < period:
+            return False
+        for idx in range(1, period):
+            if series[-idx] >= series[-idx - 1]:
+                return False
+        return True
+
+    def _highestbars(self, series: list[float], period: int) -> int:
+        """Get offset to highest value in period."""
+        if len(series) < period:
+            return -1
+        window = series[-period:]
+        value = max(window)
+        return -window[::-1].index(value)
+
+    def _lowestbars(self, series: list[float], period: int) -> int:
+        """Get offset to lowest value in period."""
+        if len(series) < period:
+            return -1
+        window = series[-period:]
+        value = min(window)
+        return -window[::-1].index(value)
+
+    def _change(self, source: list[float], length: int = 1) -> float | None:
+        """Calculate change over length."""
+        if len(source) <= length:
+            return None
+        return source[-1] - source[-1 - length]
+
+    def _mom(self, series: list[float], period: int) -> float:
+        """Calculate momentum."""
+        if len(series) <= period:
+            return 0.0
+        return series[-1] - series[-period - 1]

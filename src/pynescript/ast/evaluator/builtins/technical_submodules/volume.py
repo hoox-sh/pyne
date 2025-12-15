@@ -20,7 +20,13 @@ from __future__ import annotations
 
 from typing import Any
 
-from .core import TechnicalHelpers
+from .core import (
+    BINARY,
+    QUATERNARY,
+    QUINARY,
+    TERNARY,
+    TechnicalHelpers,
+)
 
 
 class VolumeIndicators(TechnicalHelpers):
@@ -36,7 +42,7 @@ class VolumeIndicators(TechnicalHelpers):
         Returns OBV value.
         """
         msg = "ta.obv expects close and volume series"
-        if len(args) != 2:  # BINARY
+        if len(args) != BINARY:
             self._error(msg)
         closes = self._expect_list(args[0], msg)
         volumes = self._expect_list(args[1], msg)
@@ -50,7 +56,7 @@ class VolumeIndicators(TechnicalHelpers):
         Returns MFI value (0-100).
         """
         msg = "ta.mfi expects high, low, close, volume, length"
-        if len(args) != 5:  # QUINARY
+        if len(args) != QUINARY:
             self._error(msg)
         highs = self._expect_list(args[0], msg)
         lows = self._expect_list(args[1], msg)
@@ -65,8 +71,7 @@ class VolumeIndicators(TechnicalHelpers):
         ta.accdist(high, low, close, volume)
         Returns the A/D series.
         """
-        min_args = 4
-        if len(args) < min_args:
+        if len(args) < QUATERNARY:
             msg = "ta.accdist() requires 4 arguments: high, low, close, volume"
             self._error(msg)
 
@@ -83,8 +88,7 @@ class VolumeIndicators(TechnicalHelpers):
         ta.wad(high, low, close, volume)
         Returns the WAD series.
         """
-        min_args = 4
-        if len(args) < min_args:
+        if len(args) < QUATERNARY:
             msg = "ta.wad() requires 4 arguments: high, low, close, volume"
             self._error(msg)
 
@@ -101,8 +105,7 @@ class VolumeIndicators(TechnicalHelpers):
         ta.wvad(high, low, close, volume, period)
         Returns the WVAD series.
         """
-        min_args = 4
-        if len(args) < min_args:
+        if len(args) < QUATERNARY:
             msg = "ta.wvad() requires at least 4 arguments: high, low, close, volume"
             self._error(msg)
 
@@ -110,7 +113,7 @@ class VolumeIndicators(TechnicalHelpers):
         low_series = args[1] if isinstance(args[1], list) else [args[1]]
         close_series = args[2] if isinstance(args[2], list) else [args[2]]
         volume_series = args[3] if isinstance(args[3], list) else [args[3]]
-        period_arg_idx = 4
+        period_arg_idx = QUATERNARY
         default_period = 20
         period = (
             self._expect_int(args[period_arg_idx], "period must be integer")
@@ -127,7 +130,7 @@ class VolumeIndicators(TechnicalHelpers):
         Measures money flow into/out of security.
         Returns CMF series.
         """
-        if len(args) < 5:
+        if len(args) < QUINARY:
             msg = "ta.cmf() requires 5 arguments: close, high, low, volume, period"
             self._error(msg)
 
@@ -146,7 +149,8 @@ class VolumeIndicators(TechnicalHelpers):
         Volume-based momentum oscillator.
         Returns KO series.
         """
-        if len(args) < 6:
+        senary = 6
+        if len(args) < senary:
             msg = "ta.klinger() requires 6 arguments: high, low, close, volume, fast_period, slow_period"
             self._error(msg)
 
@@ -164,7 +168,7 @@ class VolumeIndicators(TechnicalHelpers):
         APO = EMA(fast) - EMA(slow)
         Returns APO series.
         """
-        if len(args) < 3:
+        if len(args) < TERNARY:
             msg = "ta.apo() requires 3 arguments: series, fast_period, slow_period"
             self._error(msg)
 
@@ -180,7 +184,8 @@ class VolumeIndicators(TechnicalHelpers):
         ta.vpt(series)
         Combines volume and price direction.
         """
-        if len(args) < 1:
+        unary = 1
+        if len(args) < unary:
             msg = "ta.vpt() requires 1 argument: series"
             self._error(msg)
 
@@ -188,7 +193,7 @@ class VolumeIndicators(TechnicalHelpers):
         closes = self.current_series.get("close", [])
         volumes = self.current_series.get("volume", [])
 
-        if not closes or not volumes or len(series) < 2:
+        if not closes or not volumes or len(series) < BINARY:
             return None
 
         return self._vpt(closes, volumes)
@@ -199,13 +204,14 @@ class VolumeIndicators(TechnicalHelpers):
         ta.emv(length)
         Measures ease of price movement relative to volume.
         """
-        if len(args) < 1:
+        unary = 1
+        if len(args) < unary:
             msg = "ta.emv() requires 1 argument: length"
             self._error(msg)
 
         length = self._expect_int(args[0], "length must be integer")
 
-        if length < 1:
+        if length < unary:
             msg = "EMV length must be >= 1"
             self._error(msg)
 
@@ -217,6 +223,191 @@ class VolumeIndicators(TechnicalHelpers):
             return None
 
         return self._emv(highs, lows, volumes, length)
+
+    def _builtin_ta_iii(self, args: list[Any]) -> float | None:
+        """Intraday Intensity Index - measures money flow without volume data.
+
+        ta.iii(high, low, close)
+        Returns the intraday intensity index value.
+        """
+        if len(args) < TERNARY:
+            msg = "ta.iii() requires 3 arguments: high, low, close"
+            self._error(msg)
+
+        high = self._expect_number(args[0], "high must be numeric")
+        low = self._expect_number(args[1], "low must be numeric")
+        close = self._expect_number(args[2], "close must be numeric")
+
+        if high is None or low is None or close is None:
+            return None
+
+        tr = high - low
+        if tr == 0:
+            return 0.0
+
+        iii = 2 * close - high - low
+        return iii / tr if tr != 0 else 0.0
+
+    def _builtin_ta_nvi(self, args: list[Any]) -> list[float | None]:
+        """Negative Volume Index - cumulative index when volume decreases.
+
+        ta.nvi(close, volume, period)
+        Returns the NVI series.
+        """
+        if len(args) < BINARY:
+            msg = "ta.nvi() requires at least 2 arguments: close, volume"
+            self._error(msg)
+
+        close_series = args[0] if isinstance(args[0], list) else [args[0]]
+        volume_series = args[1] if isinstance(args[1], list) else [args[1]]
+
+        if len(close_series) != len(volume_series):
+            return [None]
+
+        nvi_values = []
+        nvi = 1000.0
+
+        for i in range(len(close_series)):
+            if i == 0:
+                nvi_values.append(nvi)
+                continue
+
+            if close_series[i - 1] != 0:
+                close_change = (close_series[i] - close_series[i - 1]) / close_series[i - 1]
+            else:
+                close_change = 0
+            vol = volume_series[i] if isinstance(volume_series[i], (int, float)) else 0
+
+            prev_vol = (
+                volume_series[i - 1]
+                if i > 0 and isinstance(volume_series[i - 1], (int, float))
+                else 0
+            )
+            if vol < prev_vol:
+                nvi = nvi * (1 + close_change)
+
+            nvi_values.append(nvi)
+
+        return nvi_values
+
+    def _builtin_ta_pvi(self, args: list[Any]) -> list[float | None]:
+        """Positive Volume Index - cumulative index when volume increases.
+
+        ta.pvi(close, volume, period)
+        Returns the PVI series.
+        """
+        if len(args) < BINARY:
+            msg = "ta.pvi() requires at least 2 arguments: close, volume"
+            self._error(msg)
+
+        close_series = args[0] if isinstance(args[0], list) else [args[0]]
+        volume_series = args[1] if isinstance(args[1], list) else [args[1]]
+
+        if len(close_series) != len(volume_series):
+            return [None]
+
+        pvi_values = []
+        pvi = 1000.0
+
+        for i in range(len(close_series)):
+            if i == 0:
+                pvi_values.append(pvi)
+                continue
+
+            if close_series[i - 1] != 0:
+                close_change = (close_series[i] - close_series[i - 1]) / close_series[i - 1]
+            else:
+                close_change = 0
+            vol = volume_series[i] if isinstance(volume_series[i], (int, float)) else 0
+            prev_vol = (
+                volume_series[i - 1]
+                if i > 0 and isinstance(volume_series[i - 1], (int, float))
+                else 0
+            )
+
+            if vol > prev_vol:
+                pvi = pvi * (1 + close_change)
+
+            pvi_values.append(pvi)
+
+        return pvi_values
+
+    def _builtin_ta_voi(self, args: list[Any]) -> float:
+        """Volume of Imbalance.
+
+        ta.voi(buy_volume, sell_volume)
+        Measures imbalance in buy vs sell volume.
+        """
+        if len(args) < BINARY:
+            msg = "ta.voi() requires 2 arguments: buy_volume, sell_volume"
+            self._error(msg)
+
+        buy_vol = float(args[0]) if isinstance(args[0], (int, float)) else 0.0
+        sell_vol = float(args[1]) if isinstance(args[1], (int, float)) else 0.0
+
+        total = buy_vol + sell_vol
+        if total == 0:
+            return 0.0
+
+        voi_value = (buy_vol - sell_vol) / total
+        return voi_value
+
+    def _builtin_ta_bid_ask_imbalance(self, args: list[Any]) -> dict[str, float]:
+        """Bid-Ask Imbalance.
+
+        ta.bid_ask_imbalance(bid_size, ask_size, bid_price, ask_price)
+        Measures market microstructure imbalance.
+        """
+        if len(args) < QUATERNARY:
+            msg = "ta.bid_ask_imbalance() requires 4 arguments: bid_size, ask_size, bid_price, ask_price"
+            self._error(msg)
+
+        bid_size = float(args[0]) if isinstance(args[0], (int, float)) else 0.0
+        ask_size = float(args[1]) if isinstance(args[1], (int, float)) else 0.0
+        bid_price = float(args[2]) if isinstance(args[2], (int, float)) else 0.0
+        ask_price = float(args[3]) if isinstance(args[3], (int, float)) else 0.0
+
+        total_size = bid_size + ask_size
+        if total_size == 0:
+            return {"imbalance_ratio": 0.0, "spread": 0.0}
+
+        imbalance = (bid_size - ask_size) / total_size
+        spread = ask_price - bid_price if bid_price > 0 else 0.0
+
+        return {"imbalance_ratio": imbalance, "spread": spread}
+
+    def _builtin_ta_volume_weighted_momentum(self, args: list[Any]) -> float | None:
+        """Volume Weighted Momentum.
+
+        ta.volume_weighted_momentum(series, volume, length)
+        Returns: Momentum value weighted by volume
+        """
+        if len(args) < TERNARY:
+            msg = "ta.volume_weighted_momentum() requires 3 arguments: series, volume, length"
+            self._error(msg)
+
+        series = args[0] if isinstance(args[0], list) else [args[0]]
+        volume = args[1] if isinstance(args[1], list) else [args[1]]
+        length = self._expect_int(args[2], "length must be integer")
+
+        if len(series) < length or len(volume) < length:
+            return None
+
+        momentum_sum = 0.0
+        volume_sum = 0.0
+
+        for i in range(length):
+            idx = -1 - i
+            if idx - 1 < -len(series):
+                break
+
+            price_change = series[idx] - series[idx - 1]
+            vol = volume[idx] if isinstance(volume[idx], (int, float)) else 0.0
+
+            momentum_sum += price_change * vol
+            volume_sum += vol
+
+        return momentum_sum / volume_sum if volume_sum > 0 else 0.0
 
     # -- Implementation helpers (private _method prefix) --------------------
 
@@ -435,7 +626,7 @@ class VolumeIndicators(TechnicalHelpers):
         fast_ema = self._ema(cumsum_trv, fast_period)
         slow_ema = self._ema(cumsum_trv, slow_period)
 
-        ko_values = []
+        ko_values: list[float | None] = []
         for i in range(len(fast_ema)):
             if fast_ema[i] is None or slow_ema[i] is None:
                 ko_values.append(None)
@@ -449,7 +640,7 @@ class VolumeIndicators(TechnicalHelpers):
         fast_ema = self._ema(series, fast)
         slow_ema = self._ema(series, slow)
 
-        apo_values = []
+        apo_values: list[float | None] = []
         for i in range(len(series)):
             if fast_ema[i] is None or slow_ema[i] is None:
                 apo_values.append(None)
@@ -460,11 +651,11 @@ class VolumeIndicators(TechnicalHelpers):
 
     def _vpt(self, closes: list[Any], volumes: list[Any]) -> float | None:
         """Calculate Volume Price Trend."""
-        if len(closes) < 2:
+        if len(closes) < BINARY:
             return None
 
         # VPT = Previous VPT + Volume * (Price Change / Previous Price)
-        prev_close = closes[-2] if len(closes) >= 2 else closes[-1]
+        prev_close = closes[-2] if len(closes) >= BINARY else closes[-1]
         if prev_close == 0:
             return 0.0
 
@@ -481,7 +672,7 @@ class VolumeIndicators(TechnicalHelpers):
         length: int,
     ) -> float | None:
         """Calculate Ease of Movement."""
-        emv_vals = []
+        emv_vals: list[float | None] = []
         for i in range(len(highs)):
             if i == 0 or volumes[i] == 0:
                 emv_vals.append(None)

@@ -40,8 +40,8 @@ class LiteralEvaluator:
         Raises:
             ValueError: If the constant has an unexpected kind modifier
         """
-        # Check for unexpected constant kind (e.g., unicode, raw strings)
-        if node.kind:
+        # Allow color literals (kind="#")
+        if node.kind and node.kind != "#":
             msg = f"unexpected constant kind: {node.kind!s}"
             raise ValueError(msg)
         # Return the literal value directly

@@ -16,6 +16,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from pynescript.ast import node as ast
 from pynescript.ast.type_system import BuiltinType
 from pynescript.ast.type_system import BuiltinTypeKind
@@ -23,6 +25,16 @@ from pynescript.ast.type_system import Field
 from pynescript.ast.type_system import MethodSignature
 from pynescript.ast.type_system import ObjectInstance
 from pynescript.ast.type_system import UserDefinedType
+
+
+class BreakLoop(Exception):
+    """Signal to break out of a loop."""
+    pass
+
+
+class ContinueLoop(Exception):
+    """Signal to continue to the next iteration of a loop."""
+    pass
 
 
 class StatementEvaluator:
@@ -209,3 +221,185 @@ class StatementEvaluator:
 
         # Store the enum definition in the context
         self.context[enum_name] = enum_members  # type: ignore[attr-defined]
+
+    def visit_Expr(self, node: ast.Expr):
+        """Evaluate an expression statement."""
+        return self.visit(node.value)  # type: ignore[attr-defined]
+
+    def visit_While(self, node: ast.While):
+        """Execute a while loop."""
+        last_result = None
+        while self.visit(node.test):  # type: ignore[attr-defined]
+            result, should_break = self._execute_loop_body(node.body)
+            if result is not None:
+                last_result = result
+            if should_break:
+                break
+        return last_result
+
+    def visit_ForTo(self, node: ast.ForTo):
+        """Execute a for-to loop (numeric range)."""
+        target_name = node.target.id if isinstance(node.target, ast.Name) else None
+        if not target_name:
+            msg = "For loop target must be a name"
+            self._error(msg)  # type: ignore[attr-defined]
+
+        start = self.visit(node.start)  # type: ignore[attr-defined]
+        end = self.visit(node.end)  # type: ignore[attr-defined]
+        step = self.visit(node.step) if node.step else 1  # type: ignore[attr-defined]
+
+        # Pine Script for loops are inclusive of end
+        # Handle step direction
+        def condition(i):
+            return i <= end if step > 0 else i >= end
+
+        current = start
+        last_result = None
+        while condition(current):
+            self.context[target_name] = current  # type: ignore[attr-defined]
+            result, should_break = self._execute_loop_body(node.body)
+            if result is not None:
+                last_result = result
+            if should_break:
+                break
+            current += step
+        return last_result
+
+    def visit_ForIn(self, node: ast.ForIn):
+        """Execute a for-in loop (iteration over collection)."""
+        target_name = node.target.id if isinstance(node.target, ast.Name) else None
+        if not target_name:
+            msg = "For loop target must be a name"
+            self._error(msg)  # type: ignore[attr-defined]
+
+        iterable = self.visit(node.iter)  # type: ignore[attr-defined]
+        
+        # Handle different iterable types (list, Matrix, Map?)
+        # Pine Script 'for x in array' iterates values.
+        if not hasattr(iterable, "__iter__"):
+            msg = f"Object of type {type(iterable)} is not iterable"
+            self._error(msg)  # type: ignore[attr-defined]
+
+        last_result = None
+        for item in iterable:
+            self.context[target_name] = item  # type: ignore[attr-defined]
+            result, should_break = self._execute_loop_body(node.body)
+            if result is not None:
+                last_result = result
+            if should_break:
+                break
+        return last_result
+
+    def visit_Break(self, node: ast.Break):
+        raise BreakLoop
+
+    def visit_Continue(self, node: ast.Continue):
+        raise ContinueLoop
+
+    def visit_FunctionDef(self, node: ast.FunctionDef):
+        """Define a user-defined function."""
+        if node.method:
+            # Methods are handled in TypeDef, but if a method appears outside?
+            # Pine Script methods must be in types or are "methods" on types via 'method' keyword?
+            # If 'method' keyword is used for user-defined methods on built-in types or UDTs.
+            # For now, treat as regular function if not inside TypeDef?
+            # But builder.py sets method=1 for 'method' keyword.
+            pass
+
+        func_name = node.name
+        
+        # Create a closure
+        def user_function(*args, **kwargs):
+            # Create new scope
+            old_context = self.context.copy()  # type: ignore[attr-defined]
+            try:
+                # Bind positional arguments
+                param_names = [arg.name for arg in node.args if isinstance(arg, ast.Param)]
+                for i, value in enumerate(args):
+                    if i < len(param_names):
+                        self.context[param_names[i]] = value  # type: ignore[attr-defined]
+                
+                # Bind keyword arguments
+                for key, value in kwargs.items():
+                    self.context[key] = value  # type: ignore[attr-defined]
+                
+                # Execute body
+                result = None
+                for stmt in node.body:
+                    if isinstance(stmt, ast.Expr):
+                        result = self.visit(stmt.value)  # type: ignore[attr-defined]
+                    else:
+                        self.visit(stmt)  # type: ignore[attr-defined]
+                return result
+            finally:
+                self.context = old_context  # type: ignore[attr-defined]
+
+        self.context[func_name] = user_function  # type: ignore[attr-defined]
+
+    def _execute_block(self, stmts: list[ast.AST]):
+        """Execute a block of statements and return the value of the last expression."""
+        result = None
+        for stmt in stmts:
+            val = self.visit(stmt)  # type: ignore[attr-defined]
+            # In Pine Script, the return value of a block is the value of the last expression.
+            # If the last statement is not an expression (e.g. assignment), it returns na (None).
+            # We update result for every statement.
+            # If visit(stmt) returns None (e.g. Assign), result becomes None.
+            # If visit(stmt) returns value (e.g. Expr, If, Switch), result becomes value.
+            result = val
+        return result
+
+    def visit_If(self, node: ast.If):
+        """Evaluate an if-else structure."""
+        # Evaluate condition
+        if self.visit(node.test):  # type: ignore[attr-defined]
+            # Execute body (block)
+            return self._execute_block(node.body)
+        elif node.orelse:
+            # Execute else/elif
+            if isinstance(node.orelse, list):
+                return self._execute_block(node.orelse)
+            else:
+                # Single node (nested If for elif)
+                return self.visit(node.orelse)  # type: ignore[attr-defined]
+        return None
+
+    def visit_Switch(self, node: ast.Switch):
+        """Evaluate a switch structure."""
+        subject_val = self.visit(node.subject) if node.subject else None  # type: ignore[attr-defined]
+        
+        for case in node.cases:
+            if case.pattern:
+                # Pattern matching
+                pattern_val = self.visit(case.pattern)  # type: ignore[attr-defined]
+                if subject_val is not None:
+                    # Switch with subject: match equality
+                    if subject_val == pattern_val:
+                        return self._execute_block(case.body)
+                else:
+                    # Switch without subject: pattern must be boolean true
+                    if pattern_val:
+                        return self._execute_block(case.body)
+            else:
+                # Default case (no pattern)
+                return self._execute_block(case.body)
+        return None
+
+    def _execute_loop_body(self, stmts: list[ast.AST]) -> tuple[Any, bool]:
+        """Execute loop body. Returns (result, should_break)."""
+        result = None
+        should_break = False
+        try:
+            for stmt in stmts:
+                val = self.visit(stmt)  # type: ignore[attr-defined]
+                if isinstance(stmt, ast.Expr):
+                    result = val
+                elif isinstance(stmt, (ast.If, ast.Switch, ast.ForTo, ast.ForIn, ast.While)):
+                     result = val
+                else:
+                    result = None
+        except BreakLoop:
+            should_break = True
+        except ContinueLoop:
+            pass
+        return result, should_break

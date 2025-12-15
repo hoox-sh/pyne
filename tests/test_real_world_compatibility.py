@@ -68,7 +68,8 @@ class TestRealWorldCompatibility:
         if not builtin_scripts_dir.exists():
             pytest.skip(f"Scripts directory not found: {builtin_scripts_dir}")
 
-        script_files = list(builtin_scripts_dir.glob("*.pine"))
+        # Use rglob to find scripts recursively in subdirectories
+        script_files = list(builtin_scripts_dir.rglob("*.pine"))
         if not script_files:
             pytest.skip(f"No .pine files found in {builtin_scripts_dir}")
 
@@ -91,7 +92,7 @@ class TestRealWorldCompatibility:
         success_rate = (success / total * 100) if total > 0 else 0
 
         print(f"\n{'=' * 80}")
-        print(f"Parse Compatibility Results:")
+        print("Parse Compatibility Results:")
         print(f"  Total scripts: {total}")
         print(f"  Successful: {success} ({success_rate:.2f}%)")
         print(f"  Failed: {len(failed_scripts)}")
@@ -150,7 +151,7 @@ class TestRealWorldCompatibility:
         success_rate = (success / tested * 100) if tested > 0 else 0
 
         print(f"\n{'=' * 80}")
-        print(f"AST Round-Trip Compatibility Results:")
+        print("AST Round-Trip Compatibility Results:")
         print(f"  Total scripts: {total}")
         print(f"  Tested: {tested}")
         print(f"  Skipped (parse failed): {skipped}")
@@ -218,7 +219,7 @@ class TestRealWorldCompatibility:
         success_rate = (success / tested * 100) if tested > 0 else 0
 
         print(f"\n{'=' * 80}")
-        print(f"Structural Integrity Results:")
+        print("Structural Integrity Results:")
         print(f"  Total scripts: {total}")
         print(f"  Tested: {tested}")
         print(f"  Skipped (parse failed): {skipped}")
@@ -305,21 +306,21 @@ class TestRealWorldCompatibility:
 
         # Report results
         print(f"\n{'=' * 80}")
-        print(f"Script Type Coverage Analysis:")
+        print("Script Type Coverage Analysis:")
         print(f"  Total scripts: {script_analysis['total']}")
-        print(f"\n  By Type:")
+        print("\n  By Type:")
         for script_type, count in script_analysis["by_type"].items():
             pct = (count / script_analysis["total"] * 100) if script_analysis["total"] > 0 else 0
             print(f"    {script_type}: {count} ({pct:.1f}%)")
-        print(f"\n  By Version:")
+        print("\n  By Version:")
         for version, count in script_analysis["by_version"].items():
             pct = (count / script_analysis["total"] * 100) if script_analysis["total"] > 0 else 0
             print(f"    {version}: {count} ({pct:.1f}%)")
-        print(f"\n  Feature Usage:")
+        print("\n  Feature Usage:")
         for feature, count in script_analysis["features"].items():
             pct = (count / script_analysis["total"] * 100) if script_analysis["total"] > 0 else 0
             print(f"    {feature}: {count} ({pct:.1f}%)")
-        print(f"\n  Parse Results:")
+        print("\n  Parse Results:")
         success_rate = (
             (script_analysis["parse_success"] / script_analysis["total"] * 100)
             if script_analysis["total"] > 0
@@ -410,7 +411,8 @@ class TestCompatibilityMetrics:
         if not builtin_scripts_dir.exists():
             pytest.skip(f"Scripts directory not found: {builtin_scripts_dir}")
 
-        script_files = list(builtin_scripts_dir.glob("*.pine"))
+        # Use rglob to find scripts recursively
+        script_files = list(builtin_scripts_dir.rglob("*.pine"))
         if not script_files:
             pytest.skip(f"No .pine files found in {builtin_scripts_dir}")
 

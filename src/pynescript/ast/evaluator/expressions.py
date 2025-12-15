@@ -149,14 +149,35 @@ class ExpressionEvaluator:
             return self.visit(node.orelse)
 
     def visit_Compare(self: EvaluatorProtocol, node: ast.Compare) -> Any:
-        comparator_list = [node.left, *node.comparators]
-        comparators = map(self.visit, comparator_list)
-        compare_ops = [self.visit(op) for op in node.ops]
-        comparator_pairs = list(itertools.pairwise(comparators))
-        pairs = zip(compare_ops, comparator_pairs, strict=True)
-        for op, (left, right) in pairs:
+        """Evaluate comparison operations with short-circuiting.
+
+        Evaluates chained comparisons (e.g., a < b < c) efficiently:
+        - Evaluates operands left-to-right
+        - Stops as soon as a comparison fails (short-circuit)
+        - Only evaluates the right operand if the left comparison succeeded
+
+        Args:
+            node: Compare node with left operand, operators, and comparators
+
+        Returns:
+            True if all comparisons are true, False otherwise
+        """
+        # Evaluate the first operand (leftmost)
+        left = self.visit(node.left)
+        
+        # Iterate through pairs of (operator, right_operand)
+        # This loop implements short-circuiting: if any comparison fails,
+        # we return False immediately and stop evaluating remaining operands.
+        for op_node, comparator_node in zip(node.ops, node.comparators, strict=True):
+            op = self.visit(op_node)
+            right = self.visit(comparator_node)
+            
             if not op(left, right):
                 return False
+            
+            # The right operand becomes the left operand for the next comparison
+            left = right
+            
         return True
 
     def visit_Eq(self: EvaluatorProtocol, _node: ast.Eq):
@@ -275,3 +296,62 @@ class ExpressionEvaluator:
         finally:
             # Restore the original context
             self.context = old_context  # type: ignore[attr-defined]
+
+    def visit_If(self: EvaluatorProtocol, node: ast.If) -> Any:
+        """Evaluate an if-expression.
+
+        Args:
+            node: If node with test, body, and orelse
+
+        Returns:
+            The value of the last expression in the executed branch, or None
+        """
+        if self.visit(node.test):
+            result = None
+            for stmt in node.body:
+                if isinstance(stmt, ast.Expr):
+                    result = self.visit(stmt.value)
+                else:
+                    self.visit(stmt)
+            return result
+        else:
+            result = None
+            for stmt in node.orelse:
+                if isinstance(stmt, ast.Expr):
+                    result = self.visit(stmt.value)
+                else:
+                    self.visit(stmt)
+            return result
+
+    def visit_Switch(self: EvaluatorProtocol, node: ast.Switch) -> Any:
+        """Evaluate a switch-expression.
+
+        Args:
+            node: Switch node with subject and cases
+
+        Returns:
+            The value of the executed case block, or None
+        """
+        subject_val = self.visit(node.subject) if node.subject else None
+        
+        for case in node.cases:
+            match = False
+            if case.pattern:
+                pattern_val = self.visit(case.pattern)
+                if subject_val is not None:
+                    match = (subject_val == pattern_val)
+                else:
+                    match = bool(pattern_val)
+            else:
+                # Default case (no pattern)
+                match = True
+            
+            if match:
+                result = None
+                for stmt in case.body:
+                    if isinstance(stmt, ast.Expr):
+                        result = self.visit(stmt.value)
+                    else:
+                        self.visit(stmt)
+                return result
+        return None

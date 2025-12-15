@@ -102,6 +102,87 @@ class PatternIndicators(TechnicalHelpers):
 
         return self._gap_detector(highs, lows, prev_close)
 
+    def _builtin_ta_fractal(self, args: list[Any]) -> dict[str, bool]:
+        """Fractal Pattern Detector.
+
+        ta.fractal(period)
+        Identifies high/low fractals.
+        """
+        if len(args) < 1:
+            msg = "ta.fractal() requires 1 argument: period"
+            self._error(msg)
+
+        period = self._expect_int(args[0], "period must be integer")
+
+        if period < 1:
+            msg = "Fractal period must be >= 1"
+            self._error(msg)
+
+        highs = self.current_series.get("high", [])
+        lows = self.current_series.get("low", [])
+
+        if not highs or not lows or len(highs) < period * 2 + 1:
+            return {"is_high_fractal": False, "is_low_fractal": False}
+
+        # Check if current bar is a high fractal
+        current_idx = len(highs) - 1
+        is_high_fractal = highs[current_idx] == max(
+            highs[current_idx - period : current_idx + period + 1]
+        )
+
+        # Check if current bar is a low fractal
+        is_low_fractal = lows[current_idx] == min(
+            lows[current_idx - period : current_idx + period + 1]
+        )
+
+        return {"is_high_fractal": is_high_fractal, "is_low_fractal": is_low_fractal}
+
+    def _builtin_ta_double_top_bottom(self, args: list[Any]) -> dict[str, Any]:
+        """Double Top/Bottom Pattern - Identifies classic reversal patterns.
+
+        ta.double_top_bottom(high, low, period)
+        Returns: {pattern_type, strength, breakout_level}.
+        """
+        if len(args) < 3:
+            msg = "ta.double_top_bottom() requires 3 arguments"
+            self._error(msg)
+
+        high_list = args[0] if isinstance(args[0], list) else [args[0]]
+        low_list = args[1] if isinstance(args[1], list) else [args[1]]
+        period = self._expect_int(args[2], "period must be integer")
+
+        if len(high_list) < period or len(low_list) < period:
+            return {"pattern_type": "none", "strength": 0.0, "breakout_level": 0.0}
+
+        recent_high = [h for h in high_list[-period:] if isinstance(h, (int, float))]
+        recent_low = [l for l in low_list[-period:] if isinstance(l, (int, float))]
+
+        if len(recent_high) < 3:
+            return {"pattern_type": "none", "strength": 0.0, "breakout_level": 0.0}
+
+        peaks = [recent_high[0]]
+        for i in range(1, len(recent_high) - 1):
+            if (
+                recent_high[i] > recent_high[i - 1]
+                and recent_high[i] > recent_high[i + 1]
+            ):
+                peaks.append(recent_high[i])
+
+        if len(peaks) >= 2:
+            peak_diff = abs(peaks[-1] - peaks[-2])
+            avg_peak = (peaks[-1] + peaks[-2]) / 2.0
+            strength = (
+                1.0 - min(1.0, peak_diff / avg_peak) if avg_peak > 0 else 0.0
+            )
+            breakout_level = min(recent_low) - (avg_peak * 0.1)
+            return {
+                "pattern_type": "double_top",
+                "strength": strength,
+                "breakout_level": breakout_level,
+            }
+
+        return {"pattern_type": "none", "strength": 0.0, "breakout_level": 0.0}
+
     # -- Implementation helpers (private _method prefix) --------------------
 
     def _sar(

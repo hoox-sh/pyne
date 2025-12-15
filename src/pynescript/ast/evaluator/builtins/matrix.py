@@ -39,6 +39,20 @@ class Matrix(Generic[T]):
         # Initialize 2D data structure
         self.data: list[list[Any]] = [[default_value for _ in range(cols)] for _ in range(rows)]
 
+    def __getitem__(self, key: tuple[int, int]) -> Any:
+        """Support m[row, col] syntax."""
+        if not isinstance(key, tuple) or len(key) != 2:
+            msg = "Matrix index must be a tuple (row, col)"
+            raise TypeError(msg)
+        return self.get(key[0], key[1])
+
+    def __setitem__(self, key: tuple[int, int], value: Any) -> None:
+        """Support m[row, col] = value syntax."""
+        if not isinstance(key, tuple) or len(key) != 2:
+            msg = "Matrix index must be a tuple (row, col)"
+            raise TypeError(msg)
+        self.set(key[0], key[1], value)
+
     # ========== CORE METHODS ==========
 
     def get(self, row: int, col: int) -> Any:

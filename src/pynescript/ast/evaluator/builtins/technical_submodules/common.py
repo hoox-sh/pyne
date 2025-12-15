@@ -1,0 +1,690 @@
+# Copyright 2024-2025 jango_blockchained
+#
+# Licensed under the GNU Lesser General Public License Version 3.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.gnu.org/licenses/lgpl-3.0.en.html
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# SPDX-License-Identifier: LGPL-3.0-or-later
+
+"""Common Technical Indicators - Trend, Statistics, and Utilities."""
+
+from __future__ import annotations
+
+import math
+import statistics
+from typing import Any
+
+from .core import (
+    BINARY,
+    QUATERNARY,
+    TERNARY,
+    UNARY,
+    TechnicalHelpers,
+)
+
+
+class CommonIndicators(TechnicalHelpers):
+    """Common technical indicators and statistical functions."""
+
+    # -- Cross functions ----------------------------------------------------
+
+    def _builtin_ta_crossover(self, args: list[Any]) -> bool:
+        """Check if series1 crosses over series2."""
+        series1, series2 = self._expect_two_series(args)
+        return self._crossover(series1, series2)
+
+    def _builtin_ta_crossunder(self, args: list[Any]) -> bool:
+        """Check if series1 crosses under series2."""
+        series1, series2 = self._expect_two_series(args)
+        return self._crossunder(series1, series2)
+
+    def _builtin_ta_cross(self, args: list[Any]) -> bool:
+        """Check if series1 crosses series2."""
+        series1, series2 = self._expect_two_series(args)
+        return self._cross(series1, series2)
+
+    # -- Trend/Direction functions ------------------------------------------
+
+    def _builtin_ta_falling(self, args: list[Any]) -> bool:
+        """Check if series is falling for length bars."""
+        series, period = self._expect_series(args, length=BINARY)
+        return self._falling(series, period)
+
+    def _builtin_ta_rising(self, args: list[Any]) -> bool:
+        """Check if series is rising for length bars."""
+        series, period = self._expect_series(args, length=BINARY)
+        return self._rising(series, period)
+
+    # -- Extremes functions -------------------------------------------------
+
+    def _builtin_ta_highestbars(self, args: list[Any]) -> int:
+        """Offset to the highest value over length bars."""
+        series, period = self._expect_series(args, length=BINARY)
+        return self._highestbars(series, period)
+
+    def _builtin_ta_lowestbars(self, args: list[Any]) -> int:
+        """Offset to the lowest value over length bars."""
+        series, period = self._expect_series(args, length=BINARY)
+        return self._lowestbars(series, period)
+
+    def _builtin_ta_range(self, args: list[Any]) -> float | None:
+        """Range = highest - lowest over a period."""
+        series, period = self._expect_series(args, length=BINARY)
+        return self._range(series, period)
+
+    def _builtin_ta_max(self, args: list[Any]) -> float | None:
+        """Maximum value over a period (alias for ta.highest)."""
+        series, period = self._expect_series(args, length=BINARY)
+        return self._highest(series, period)
+
+    def _builtin_ta_min(self, args: list[Any]) -> float | None:
+        """Minimum value over a period (alias for ta.lowest)."""
+        series, period = self._expect_series(args, length=BINARY)
+        return self._lowest(series, period)
+
+    # -- Statistical/Change functions ---------------------------------------
+
+    def _builtin_ta_change(self, args: list[Any]) -> float | None:
+        """Difference between current value and value length bars ago."""
+        series, period = self._expect_series(args, length=BINARY)
+        return self._change(series, period)
+
+    def _builtin_ta_mom(self, args: list[Any]) -> float | None:
+        """Momentum = current value - previous value at specified length."""
+        series, period = self._expect_series(args, length=BINARY)
+        return self._momentum(series, period)
+
+    def _builtin_ta_cum(self, args: list[Any]) -> float:
+        """Cumulative sum of values in series."""
+        msg = "ta.cum expects a series"
+        if len(args) != UNARY:
+            self._error(msg)
+        series = self._expect_list(args[0], msg)
+        return self._cumsum(series)
+
+    def _builtin_ta_dev(self, args: list[Any]) -> float | None:
+        """Deviation from mean (standard deviation)."""
+        series, period = self._expect_series(args, length=BINARY)
+        return self._dev(series, period)
+
+    def _builtin_ta_median(self, args: list[Any]) -> float | None:
+        """Median value over a period."""
+        series, period = self._expect_series(args, length=BINARY)
+        return self._median(series, period)
+
+    def _builtin_ta_mode(self, args: list[Any]) -> float | None:
+        """Mode (most frequent value) over a period."""
+        series, period = self._expect_series(args, length=BINARY)
+        return self._mode(series, period)
+
+    def _builtin_ta_percentrank(self, args: list[Any]) -> float | None:
+        """Percentile rank of current value in period."""
+        series, period = self._expect_series(args, length=BINARY)
+        return self._percentrank(series, period)
+
+    def _builtin_ta_variance(self, args: list[Any]) -> float | None:
+        """Variance over a period."""
+        series, period = self._expect_series(args, length=BINARY)
+        return self._variance(series, period)
+
+    def _builtin_ta_expected_value(self, args: list[Any]) -> float:
+        """Expected Value.
+
+        ta.expected_value(returns, probabilities)
+        Calculates statistical expected value.
+        """
+        if len(args) < BINARY:
+            msg = "ta.expected_value() requires 2 arguments: returns, probabilities"
+            self._error(msg)
+
+        returns = args[0] if isinstance(args[0], list) else [args[0]]
+        probs = args[1] if isinstance(args[1], list) else [args[1]]
+
+        if len(returns) != len(probs):
+            msg = "Returns and probabilities must have same length"
+            self._error(msg)
+
+        total_prob = sum(p for p in probs if isinstance(p, (int, float)))
+        if total_prob == 0:
+            return 0.0
+
+        ev = sum(
+            (r if isinstance(r, (int, float)) else 0.0) * (p if isinstance(p, (int, float)) else 0.0)
+            for r, p in zip(returns, probs)
+        )
+        return ev / total_prob
+
+    def _builtin_ta_skewness(self, args: list[Any]) -> float | None:
+        """Skewness.
+
+        ta.skewness(series, period)
+        Measures asymmetry in distribution.
+        """
+        if len(args) < 2:
+            msg = "ta.skewness() requires 2 arguments: series, period"
+            self._error(msg)
+
+        series = args[0] if isinstance(args[0], list) else [args[0]]
+        period = self._expect_int(args[1], "period must be integer")
+
+        if len(series) < period:
+            return None
+
+        data = series[-period:]
+        valid_data = [x for x in data if isinstance(x, (int, float))]
+
+        if len(valid_data) < period:
+            return None
+
+        mean = sum(valid_data) / len(valid_data)
+        variance = sum((x - mean) ** 2 for x in valid_data) / len(valid_data)
+        std_dev = variance ** 0.5
+
+        if std_dev == 0:
+            return 0.0
+
+        # Skewness = E[(x - mean)³] / std_dev³
+        skewness_val = sum((x - mean) ** 3 for x in valid_data) / (len(valid_data) * (std_dev ** 3))
+        return skewness_val
+
+    def _builtin_ta_kurtosis(self, args: list[Any]) -> float | None:
+        """Kurtosis.
+
+        ta.kurtosis(series, period)
+        Measures tail risk and peakedness.
+        """
+        if len(args) < 2:
+            msg = "ta.kurtosis() requires 2 arguments: series, period"
+            self._error(msg)
+
+        series = args[0] if isinstance(args[0], list) else [args[0]]
+        period = self._expect_int(args[1], "period must be integer")
+
+        if len(series) < period:
+            return None
+
+        data = series[-period:]
+        valid_data = [x for x in data if isinstance(x, (int, float))]
+
+        if len(valid_data) < period:
+            return None
+
+        mean = sum(valid_data) / len(valid_data)
+        variance = sum((x - mean) ** 2 for x in valid_data) / len(valid_data)
+        std_dev = variance ** 0.5
+
+        if std_dev == 0:
+            return 0.0
+
+        # Kurtosis = E[(x - mean)⁴] / std_dev⁴ - 3
+        fourth_moment = sum((x - mean) ** 4 for x in valid_data) / len(valid_data)
+        kurtosis_val = (fourth_moment / (std_dev ** 4)) - 3.0
+        return kurtosis_val
+
+    def _builtin_ta_parkinson(self, args: list[Any]) -> float | None:
+        """Parkinson Volatility.
+
+        ta.parkinson(high, low)
+        Calculates volatility from high-low range.
+        """
+        if len(args) < 2:
+            msg = "ta.parkinson() requires 2 arguments: high, low"
+            self._error(msg)
+
+        highs = args[0] if isinstance(args[0], list) else [args[0]]
+        lows = args[1] if isinstance(args[1], list) else [args[1]]
+
+        if not highs or not lows or len(highs) == 0:
+            return None
+
+        current_high = highs[-1] if isinstance(highs[-1], (int, float)) else None
+        current_low = lows[-1] if isinstance(lows[-1], (int, float)) else None
+
+        if current_high is None or current_low is None or current_high <= current_low:
+            return None
+
+        ratio = current_high / current_low
+        if ratio <= 0:
+            return None
+
+        # Parkinson volatility
+        parkinson_vol = math.sqrt(math.log(ratio) ** 2 / (4 * math.log(2)))
+        return parkinson_vol
+
+    def _builtin_ta_garman_klass(self, args: list[Any]) -> float | None:
+        """Garman-Klass Volatility.
+
+        ta.garman_klass(high, low, close, open)
+        Volatility using OHLC data.
+        """
+        if len(args) < 4:
+            msg = "ta.garman_klass() requires 4 arguments: high, low, close, open"
+            self._error(msg)
+
+        highs = args[0] if isinstance(args[0], list) else [args[0]]
+        lows = args[1] if isinstance(args[1], list) else [args[1]]
+        closes = args[2] if isinstance(args[2], list) else [args[2]]
+        opens = args[3] if isinstance(args[3], list) else [args[3]]
+
+        if not highs or not lows or not closes or not opens:
+            return None
+
+        h = highs[-1] if isinstance(highs[-1], (int, float)) else None
+        l = lows[-1] if isinstance(lows[-1], (int, float)) else None
+        c = closes[-1] if isinstance(closes[-1], (int, float)) else None
+        o = opens[-1] if isinstance(opens[-1], (int, float)) else None
+
+        if h is None or l is None or c is None or o is None:
+            return None
+
+        if h <= l or h <= 0 or c <= 0:
+            return None
+
+        # Garman-Klass volatility formula
+        hl_ratio = h / l
+        co_ratio = c / o
+
+        term1 = 0.5 * (math.log(hl_ratio) ** 2)
+        term2 = (2 * math.log(2) - 1) * (math.log(co_ratio) ** 2)
+
+        gk_vol = math.sqrt(term1 - term2)
+        return gk_vol
+
+    # -- Other Utilities ----------------------------------------------------
+
+    def _builtin_ta_vwap(self, args: list[Any]) -> float:
+        """Volume Weighted Average Price."""
+        msg = "ta.vwap expects price-volume values"
+        if len(args) != UNARY:
+            self._error(msg)
+        sequence = self._expect_list(args[0], msg)
+        return self._vwap(sequence)
+
+    def _builtin_ta_barssince(self, args: list[Any]) -> int | None:
+        """Bars since condition was last true."""
+        if len(args) != 1:
+            msg = "ta.barssince() takes exactly one argument"
+            self._error(msg)
+        condition = args[0]
+        # If condition is a list (series), check from the end backwards
+        if isinstance(condition, list):
+            for i in range(len(condition) - 1, -1, -1):
+                is_true = condition[i] is True or (condition[i] is not None and condition[i] is not False)
+                if is_true:
+                    return len(condition) - 1 - i
+            return len(condition) - 1
+        # If condition is boolean, return 0 if true, 1 if false
+        is_true = condition is True or (condition is not None and condition is not False)
+        if is_true:
+            return 0
+        return 1
+
+    # -- Phase 7 Missing Indicators -----------------------------------------
+
+    def _builtin_ta_pivothigh(self, args: list[Any]) -> float | None:
+        """Find the highest point (pivot high) in a window."""
+        if len(args) < 3:
+            msg = "ta.pivothigh() requires 3 arguments: source, leftbars, rightbars"
+            self._error(msg)
+
+        source = args[0]
+        left_bars = self._expect_int(args[1], "leftbars must be integer")
+        right_bars = self._expect_int(args[2], "rightbars must be integer")
+
+        if isinstance(source, list):
+            if len(source) <= left_bars + right_bars:
+                return None
+            current_idx = len(source) - 1
+            current = source[current_idx]
+            if current is None:
+                return None
+            for i in range(1, left_bars + 1):
+                if current_idx - i < 0:
+                    return None
+                left_val = source[current_idx - i]
+                if left_val is not None and left_val >= current:
+                    return None
+            return float(current)
+
+        return float(source) if source is not None else None
+
+    def _builtin_ta_pivotlow(self, args: list[Any]) -> float | None:
+        """Find the lowest point (pivot low) in a window."""
+        if len(args) < 3:
+            msg = "ta.pivotlow() requires 3 arguments: source, leftbars, rightbars"
+            self._error(msg)
+
+        source = args[0]
+        left_bars = self._expect_int(args[1], "leftbars must be integer")
+        right_bars = self._expect_int(args[2], "rightbars must be integer")
+
+        if isinstance(source, list):
+            if len(source) <= left_bars + right_bars:
+                return None
+            current_idx = len(source) - 1
+            current = source[current_idx]
+            if current is None:
+                return None
+            for i in range(1, left_bars + 1):
+                if current_idx - i < 0:
+                    return None
+                left_val = source[current_idx - i]
+                if left_val is not None and left_val <= current:
+                    return None
+            return float(current)
+
+        return float(source) if source is not None else None
+
+    def _builtin_ta_pivot_point_levels(self, args: list[Any]) -> dict[str, float] | None:
+        """Calculate pivot point levels."""
+        if len(args) < 3:
+            msg = "ta.pivot_point_levels() requires at least 3 arguments: high, low, close"
+            self._error(msg)
+
+        high = self._expect_number(args[0], "high must be numeric")
+        low = self._expect_number(args[1], "low must be numeric")
+        close = self._expect_number(args[2], "close must be numeric")
+        is_traditional = args[3] if len(args) > 3 else True
+
+        if high is None or low is None or close is None:
+            return None
+
+        pivot = (high + low + close) / 3.0
+
+        if is_traditional:
+            r1 = 2 * pivot - low
+            s1 = 2 * pivot - high
+            r2 = pivot + (high - low)
+            s2 = pivot - (high - low)
+            r3 = high + 2 * (pivot - low)
+            s3 = low - 2 * (high - pivot)
+        else:
+            diff = high - low
+            r1 = pivot + 0.382 * diff
+            s1 = pivot - 0.382 * diff
+            r2 = pivot + 0.618 * diff
+            s2 = pivot - 0.618 * diff
+            r3 = pivot + diff
+            s3 = pivot - diff
+
+        return {
+            "pivot": pivot,
+            "r1": r1,
+            "s1": s1,
+            "r2": r2,
+            "s2": s2,
+            "r3": r3,
+            "s3": s3,
+        }
+
+    def _builtin_ta_cog(self, args: list[Any]) -> float:
+        """Center of Gravity oscillator."""
+        series, length = self._expect_series(args, length=BINARY)
+
+        if length < 1:
+            self._error("ta.cog length must be positive")
+        if len(series) < length:
+            return math.nan
+
+        window = series[-length:]
+        num_sum = sum((i + 1) * val for i, val in enumerate(reversed(window)) if val is not None)
+        den_sum = sum(val for val in window if val is not None)
+
+        if den_sum == 0:
+            return math.nan
+        return -num_sum / den_sum
+
+    def _builtin_ta_dmi(self, args: list[Any]) -> tuple[float, float]:
+        """Directional Movement Index (returns +DI, -DI)."""
+        if len(args) != QUATERNARY:
+            self._error("ta.dmi takes high, low, close series and length")
+
+        highs = self._expect_list(args[0], "ta.dmi takes high, low, close series and length")
+        lows = self._expect_list(args[1], "ta.dmi takes high, low, close series and length")
+        closes = self._expect_list(args[2], "ta.dmi takes high, low, close series and length")
+        length = self._expect_int(args[3], "ta.dmi takes high, low, close series and length")
+
+        if length < 1:
+            self._error("ta.dmi length must be positive")
+        if not (len(highs) == len(lows) == len(closes)):
+            self._error("ta.dmi series must have equal length")
+
+        plus_dm = []
+        minus_dm = []
+
+        for i in range(len(highs)):
+            if i == 0:
+                plus_dm.append(0.0)
+                minus_dm.append(0.0)
+            else:
+                high_diff = (highs[i] if highs[i] is not None else 0) - (
+                    highs[i - 1] if highs[i - 1] is not None else 0
+                )
+                low_diff = (lows[i - 1] if lows[i - 1] is not None else 0) - (lows[i] if lows[i] is not None else 0)
+                plus_dm.append(high_diff if high_diff > low_diff and high_diff > 0 else 0.0)
+                minus_dm.append(low_diff if low_diff > high_diff and low_diff > 0 else 0.0)
+
+        tr_series = self._tr(highs, lows, closes)
+        atr_series = self._rma(tr_series, length)
+        atr_val = atr_series[-1] if atr_series else 1
+
+        plus_di = 100 * (sum(plus_dm[-length:]) / length) / atr_val if atr_val else 0
+        minus_di = 100 * (sum(minus_dm[-length:]) / length) / atr_val if atr_val else 0
+
+        return plus_di, minus_di
+
+    def _builtin_ta_supertrend(self, args: list[Any]) -> tuple[float, float, int]:
+        """Supertrend indicator (returns final_lowerband, final_upperband, direction)."""
+        if len(args) != TERNARY:
+            self._error("ta.supertrend takes high, low series and length, multiplier")
+
+        highs = self._expect_list(args[0], "ta.supertrend takes high, low, length, multiplier")
+        lows = self._expect_list(args[1], "ta.supertrend takes high, low, length, multiplier")
+        length = self._expect_int(args[2], "ta.supertrend takes high, low, length, multiplier")
+        multiplier = args[3] if len(args) > 3 else 1.0
+
+        if length < 1:
+            self._error("ta.supertrend length must be positive")
+
+        tr_series = self._tr(highs, lows, [0.0] * len(highs))
+        atr_series = self._rma(tr_series, length)
+
+        highest_high = max((h for h in highs[-length:] if h is not None), default=0)
+        lowest_low = min((ll for ll in lows[-length:] if ll is not None), default=0)
+
+        basic_ub = (highest_high + lowest_low) / 2 + multiplier * (atr_series[-1] if atr_series else 0)
+        basic_lb = (highest_high + lowest_low) / 2 - multiplier * (atr_series[-1] if atr_series else 0)
+
+        direction = 1 if highs[-1] > basic_ub else -1 if lows[-1] < basic_lb else 1
+
+        return basic_lb, basic_ub, direction
+
+    def _builtin_ta_zigzag(self, args: list[Any]) -> tuple[float, float, int]:
+        """Zigzag pattern detector (returns high, low, direction)."""
+        if len(args) != BINARY:
+            self._error("ta.zigzag takes source series and percent threshold")
+
+        series = self._expect_list(args[0], "ta.zigzag takes source series and percent threshold")
+        threshold = args[1] if isinstance(args[1], (int, float)) else 5.0
+
+        if len(series) < 2:
+            return math.nan, math.nan, 0
+
+        highs = [v for v in series if v is not None]
+        if len(highs) < 2:
+            return math.nan, math.nan, 0
+
+        recent_high = max(highs[-2:])
+        recent_low = min(highs[-2:])
+
+        percent_change = (recent_high - recent_low) / recent_low * 100 if recent_low else 0
+
+        direction = 1 if recent_high == highs[-1] else -1
+
+        return recent_high, recent_low, 1 if percent_change > threshold else direction
+
+    def _builtin_ta_adx(self, args: list[Any]) -> float:
+        """Average Directional Index."""
+        msg = "ta.adx expects high, low, close, and length"
+        if len(args) != QUATERNARY:
+            self._error(msg)
+        highs = self._expect_list(args[0], msg)
+        lows = self._expect_list(args[1], msg)
+        closes = self._expect_list(args[2], msg)
+        length = self._expect_int(args[3], msg)
+        return self._adx(highs, lows, closes, length)
+
+    def _adx(
+        self,
+        highs: list[float],
+        lows: list[float],
+        closes: list[float],
+        period: int,
+    ) -> float:
+        if period <= 0:
+            return 0.0
+        if min(len(highs), len(lows), len(closes)) < period:
+            return 0.0
+        true_ranges = self._tr(highs, lows, closes)
+        plus_dm = [math.nan]
+        minus_dm = [math.nan]
+        for idx in range(1, len(highs)):
+            high_diff = highs[idx] - highs[idx - 1]
+            low_diff = lows[idx - 1] - lows[idx]
+            plus_dm.append(high_diff if high_diff > low_diff and high_diff > 0 else 0.0)
+            minus_dm.append(low_diff if low_diff > high_diff and low_diff > 0 else 0.0)
+        atr = self._rma(true_ranges, period)
+        if not atr or all(value in {None, math.nan, 0} for value in atr):
+            return 0.0
+        plus_di = [100 * dm / tr if tr else 0 for dm, tr in zip(self._rma(plus_dm, period), atr, strict=True)]
+        minus_di = [100 * dm / tr if tr else 0 for dm, tr in zip(self._rma(minus_dm, period), atr, strict=True)]
+        dx = [100 * abs(p - m) / (p + m) if (p + m) else 0 for p, m in zip(plus_di, minus_di, strict=True)]
+        adx_series = self._rma(dx, period)
+        return next(
+            (value for value in reversed(adx_series) if value not in {None, math.nan}),
+            0.0,
+        )
+
+    # -- Implementation Helpers ---------------------------------------------
+
+    def _falling(self, series: list[float], period: int) -> bool:
+        if len(series) < period:
+            return False
+        for idx in range(1, period):
+            if series[-idx] <= series[-idx - 1]:
+                return False
+        return True
+
+    def _rising(self, series: list[float], period: int) -> bool:
+        if len(series) < period:
+            return False
+        for idx in range(1, period):
+            if series[-idx] >= series[-idx - 1]:
+                return False
+        return True
+
+    def _highestbars(self, series: list[float], period: int) -> int:
+        if len(series) < period:
+            return -1
+        window = series[-period:]
+        value = max(window)
+        return -window[::-1].index(value)
+
+    def _lowestbars(self, series: list[float], period: int) -> int:
+        if len(series) < period:
+            return -1
+        window = series[-period:]
+        value = min(window)
+        return -window[::-1].index(value)
+
+    def _range(self, series: list[float], period: int) -> float | None:
+        highest = self._highest(series, period)
+        lowest = self._lowest(series, period)
+        if highest is None or lowest is None:
+            return None
+        return highest - lowest
+
+    def _change(self, source: list[float], length: int = 1) -> float | None:
+        if len(source) <= length:
+            return None
+        return source[-1] - source[-1 - length]
+
+    def _momentum(self, series: list[float], period: int) -> float | None:
+        if len(series) <= period:
+            return None
+        return series[-1] - series[-1 - period] if series[-1] is not None and series[-1 - period] is not None else None
+
+    def _cumsum(self, series: list[Any]) -> float:
+        total = 0.0
+        for value in series:
+            if value is not None and isinstance(value, (int, float)):
+                total += value
+        return total
+
+    def _dev(self, series: list[float], period: int) -> float | None:
+        if len(series) < period:
+            return None
+        window = series[-period:]
+        valid_values = [v for v in window if v is not None]
+        if not valid_values:
+            return None
+        mean = sum(valid_values) / len(valid_values)
+        dev = sum(abs(v - mean) for v in valid_values) / len(valid_values)
+        return dev
+
+    def _median(self, series: list[float], period: int) -> float | None:
+        if len(series) < period:
+            return None
+        window = series[-period:]
+        valid_values = sorted([v for v in window if v is not None])
+        if not valid_values:
+            return None
+        return statistics.median(valid_values)
+
+    def _mode(self, series: list[float], period: int) -> float | None:
+        if len(series) < period:
+            return None
+        window = series[-period:]
+        valid_values = [v for v in window if v is not None]
+        if not valid_values:
+            return None
+        try:
+            return statistics.mode(valid_values)
+        except statistics.StatisticsError:
+            return valid_values[0] if valid_values else None
+
+    def _percentrank(self, series: list[float], period: int) -> float | None:
+        if len(series) < period:
+            return None
+        window = series[-period:]
+        valid_values = sorted([v for v in window if v is not None])
+        if not valid_values or len(valid_values) < 2:
+            return 50.0
+        current = series[-1]
+        if current is None:
+            return None
+        count_below = sum(1 for v in valid_values if v < current)
+        return (count_below / len(valid_values)) * 100
+
+    def _variance(self, series: list[float], period: int) -> float | None:
+        if len(series) < period:
+            return None
+        window = series[-period:]
+        valid_values = [v for v in window if v is not None]
+        if len(valid_values) < 2:
+            return None
+        return statistics.variance(valid_values)
+
+    def _vwap(self, hlc3_volume: list[float]) -> float:
+        if not hlc3_volume:
+            return 0
+        return sum(hlc3_volume) / len(hlc3_volume)
+

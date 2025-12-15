@@ -19,11 +19,13 @@
 from __future__ import annotations
 
 import math
+import statistics
 from typing import Any
 
 from .core import (
     BINARY,
     QUATERNARY,
+    QUINARY,
     TERNARY,
     TechnicalHelpers,
 )
@@ -81,8 +83,8 @@ class VolatilityIndicators(TechnicalHelpers):
         highs = self._expect_list(args[0], "ta.kc takes high, low, close series, length")
         lows = self._expect_list(args[1], "ta.kc takes high, low, close series, length")
         closes = self._expect_list(args[2], "ta.kc takes high, low, close series, length")
-        length = self._expect_int(args[3], "ta.kc length must be integer") if len(args) > 3 else 0
-        offset_percent = 1.0 if len(args) < 5 else (args[4] if isinstance(args[4], (int, float)) else 1.0)
+        length = self._expect_int(args[3], "ta.kc length must be integer") if len(args) > TERNARY else 0
+        offset_percent = 1.0 if len(args) < QUINARY else (args[4] if isinstance(args[4], (int, float)) else 1.0)
 
         if length < 1:
             self._error("ta.kc length must be positive")
@@ -115,7 +117,7 @@ class VolatilityIndicators(TechnicalHelpers):
         """Linear Regression value."""
         series, length = self._expect_series(args, length=BINARY)
 
-        if length < 2:
+        if length < BINARY:
             self._error("ta.linreg length must be at least 2")
         if len(series) < length:
             return math.nan
@@ -123,7 +125,7 @@ class VolatilityIndicators(TechnicalHelpers):
         window = series[-length:]
         valid_values = [v for v in window if v is not None]
 
-        if len(valid_values) < 2:
+        if len(valid_values) < BINARY:
             return math.nan
 
         x = list(range(len(valid_values)))
@@ -147,7 +149,7 @@ class VolatilityIndicators(TechnicalHelpers):
         series = self._expect_list(args[0], "ta.rci takes source series and length")
         length = self._expect_int(args[1], "ta.rci takes source series and length")
 
-        if length < 2:
+        if length < BINARY:
             self._error("ta.rci length must be at least 2")
         if len(series) < length:
             return math.nan
@@ -155,7 +157,7 @@ class VolatilityIndicators(TechnicalHelpers):
         window = series[-length:]
         valid_values = [(i, v) for i, v in enumerate(window) if v is not None]
 
-        if len(valid_values) < 2:
+        if len(valid_values) < BINARY:
             return math.nan
 
         ranks_idx = sorted(range(len(valid_values)), key=lambda i: i)
@@ -192,6 +194,154 @@ class VolatilityIndicators(TechnicalHelpers):
 
         dpo_val = closes[-displacement] - sma_val
         return dpo_val
+
+    def _builtin_ta_bb_pct(self, args: list[Any]) -> float | None:
+        """Bollinger Band Percentage.
+
+        ta.bb_pct(length, std_dev)
+        Position between upper and lower bands (0-100).
+        """
+        if len(args) < BINARY:
+            msg = "ta.bb_pct() requires 2 arguments: length, std_dev"
+            self._error(msg)
+
+        length = self._expect_int(args[0], "length must be integer")
+        std_dev = float(args[1]) if isinstance(args[1], (int, float)) else 2.0
+
+        closes = self.current_series.get("close", [])
+        if not closes or len(closes) < length:
+            return None
+
+        sma_val = sum(closes[-length:]) / length
+        variance = sum((v - sma_val) ** 2 for v in closes[-length:]) / length
+        std_val = variance ** 0.5
+
+        upper = sma_val + (std_val * std_dev)
+        lower = sma_val - (std_val * std_dev)
+
+        if upper == lower:
+            return 50.0
+
+        bb_pct = ((closes[-1] - lower) / (upper - lower)) * 100.0
+        return max(0.0, min(100.0, bb_pct))
+
+    def _builtin_ta_beta(self, args: list[Any]) -> float | None:
+        """Beta Coefficient.
+
+        ta.beta(series1, series2, length)
+        Correlation measure between two series.
+        """
+        if len(args) < TERNARY:
+            msg = "ta.beta() requires 3 arguments: series1, series2, length"
+            self._error(msg)
+
+        series1 = args[0] if isinstance(args[0], list) else [args[0]]
+        series2 = args[1] if isinstance(args[1], list) else [args[1]]
+        length = self._expect_int(args[2], "length must be integer")
+
+        if len(series1) < length or len(series2) < length:
+            return None
+
+        s1 = series1[-length:]
+        s2 = series2[-length:]
+
+        mean1 = sum(s1) / length
+        mean2 = sum(s2) / length
+
+        covariance = sum((s1[i] - mean1) * (s2[i] - mean2) for i in range(length)) / length
+        variance2 = sum((v - mean2) ** 2 for v in s2) / length
+
+        if variance2 == 0:
+            return 0.0
+
+        beta_val = covariance / variance2
+        return beta_val
+
+    def _builtin_ta_r_squared(self, args: list[Any]) -> float | None:
+        """R-Squared (Coefficient of Determination).
+
+        ta.r_squared(series1, series2, length)
+        Measures fit quality (0-1).
+        """
+        if len(args) < TERNARY:
+            msg = "ta.r_squared() requires 3 arguments: series1, series2, length"
+            self._error(msg)
+
+        series1 = args[0] if isinstance(args[0], list) else [args[0]]
+        series2 = args[1] if isinstance(args[1], list) else [args[1]]
+        length = self._expect_int(args[2], "length must be integer")
+
+        if len(series1) < length or len(series2) < length:
+            return None
+
+        s1 = series1[-length:]
+        s2 = series2[-length:]
+
+        mean1 = sum(s1) / length
+        mean2 = sum(s2) / length
+
+        covariance = sum((s1[i] - mean1) * (s2[i] - mean2) for i in range(length)) / length
+        var1 = sum((v - mean1) ** 2 for v in s1) / length
+        var2 = sum((v - mean2) ** 2 for v in s2) / length
+
+        if var1 == 0 or var2 == 0:
+            return 0.0
+
+        correlation = covariance / ((var1 * var2) ** 0.5)
+        r_squared = correlation ** 2
+
+        return max(0.0, min(1.0, r_squared))
+
+    def _builtin_ta_comovement(self, args: list[Any]) -> float | None:
+        """Comovement Index.
+
+        ta.comovement(series1, series2, length)
+        Synchronicity between two series.
+        """
+        if len(args) < TERNARY:
+            msg = "ta.comovement() requires 3 arguments: series1, series2, length"
+            self._error(msg)
+
+        series1 = args[0] if isinstance(args[0], list) else [args[0]]
+        series2 = args[1] if isinstance(args[1], list) else [args[1]]
+        length = self._expect_int(args[2], "length must be integer")
+
+        if len(series1) < length or len(series2) < length:
+            return None
+
+        s1 = series1[-length:]
+        s2 = series2[-length:]
+
+        same_direction = sum(1 for i in range(1, length) if (s1[i] - s1[i - 1]) * (s2[i] - s2[i - 1]) > 0)
+
+        comovement = (same_direction / (length - 1)) * 100.0 if length > 1 else 0.0
+        return comovement
+
+    def _builtin_ta_atr_stop(self, args: list[Any]) -> dict[str, float | None]:
+        """ATR-based Stop Loss.
+
+        ta.atr_stop(atr_value, multiplier)
+        Calculate stop levels based on ATR.
+        """
+        if len(args) < BINARY:
+            msg = "ta.atr_stop() requires 2 arguments: atr_value, multiplier"
+            self._error(msg)
+
+        atr_val = float(args[0]) if isinstance(args[0], (int, float)) else None
+        multiplier = float(args[1]) if isinstance(args[1], (int, float)) else 2.0
+
+        if atr_val is None or atr_val <= 0:
+            return {"long_stop": None, "short_stop": None}
+
+        closes = self.current_series.get("close", [])
+        if not closes:
+            return {"long_stop": None, "short_stop": None}
+
+        current_close = closes[-1]
+        long_stop = current_close - (atr_val * multiplier)
+        short_stop = current_close + (atr_val * multiplier)
+
+        return {"long_stop": long_stop, "short_stop": short_stop}
 
     def _builtin_ta_stochrsi(self, args: list[Any]) -> dict[str, float | None]:
         """Stochastic RSI."""
@@ -241,6 +391,38 @@ class VolatilityIndicators(TechnicalHelpers):
 
         return {"stochrsi": stochrsi_val, "signal": signal}
 
+    def _builtin_ta_atr_normalized(self, args: list[Any]) -> float | None:
+        """Normalized ATR - ATR as percentage of current price.
+
+        ta.atr_normalized(high, low, close, period)
+        Returns ATR as a percentage of price for comparable analysis.
+        """
+        if len(args) < QUATERNARY:
+            msg = "ta.atr_normalized() requires 4 arguments: high, low, close, period"
+            self._error(msg)
+
+        highs = args[0] if isinstance(args[0], list) else [args[0]]
+        lows = args[1] if isinstance(args[1], list) else [args[1]]
+        closes = args[2] if isinstance(args[2], list) else [args[2]]
+        period = self._expect_int(args[3], "period must be integer")
+
+        if len(closes) == 0 or not isinstance(closes[-1], (int, float)):
+            return None
+
+        current_close = closes[-1]
+        if current_close == 0:
+            return None
+
+        # Calculate ATR
+        atr_list = self._atr(highs, lows, closes, period)
+        if not atr_list or atr_list[-1] is None:
+            return None
+
+        atr_current = atr_list[-1]
+        # Normalized ATR as percentage
+        normalized_atr = (atr_current / current_close) * 100
+        return normalized_atr
+
     # Helper implementations
 
     def _atr(
@@ -268,7 +450,6 @@ class VolatilityIndicators(TechnicalHelpers):
         if not tr_values:
             return []
         if len(tr_values) < period:
-            import statistics
             average = statistics.mean(tr_values)
             return [average]
         return self._ema(tr_values, period)

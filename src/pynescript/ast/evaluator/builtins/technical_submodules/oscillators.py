@@ -18,7 +18,6 @@
 
 from __future__ import annotations
 
-import math
 import statistics
 from typing import Any
 
@@ -27,6 +26,7 @@ from .core import (
     QUATERNARY,
     QUINARY,
     TERNARY,
+    UNARY,
     TechnicalHelpers,
 )
 
@@ -109,6 +109,32 @@ class OscillatorIndicators(TechnicalHelpers):
         occurrence = self._expect_int(args[2], msg) if len(args) == TERNARY else 0
         return self._valuewhen(condition, source, occurrence)
 
+    def _builtin_ta_rsi_oversold_overbought(self, args: list[Any]) -> dict:
+        """RSI Oversold/Overbought Levels - Custom RSI threshold detection.
+
+        ta.rsi_oversold_overbought(rsi_series, oversold_level, overbought_level)
+        Returns boolean flags for oversold/overbought conditions.
+        """
+        if len(args) < TERNARY:
+            msg = "ta.rsi_oversold_overbought() requires 3 arguments: rsi_series, oversold, overbought"
+            self._error(msg)
+
+        rsi_series = args[0] if isinstance(args[0], list) else [args[0]]
+        oversold = self._expect_int(args[1], "oversold must be integer")
+        overbought = self._expect_int(args[2], "overbought must be integer")
+
+        if not rsi_series or len(rsi_series) == 0:
+            return {"is_oversold": False, "is_overbought": False, "rsi": None}
+
+        rsi_current = rsi_series[-1]
+        if rsi_current is None:
+            return {"is_oversold": False, "is_overbought": False, "rsi": None}
+
+        is_oversold = rsi_current < oversold
+        is_overbought = rsi_current > overbought
+
+        return {"is_oversold": is_oversold, "is_overbought": is_overbought, "rsi": rsi_current}
+
     def _builtin_ta_rsi_divergence(self, args: list[Any]) -> list[float | None]:
         """RSI Divergence Detector."""
         if len(args) < BINARY:
@@ -127,7 +153,7 @@ class OscillatorIndicators(TechnicalHelpers):
             start_idx = max(0, i - period)
             rsi_values = [rsi_series[j] for j in range(start_idx, i + 1) if rsi_series[j] is not None]
 
-            if len(rsi_values) < 2:
+            if len(rsi_values) < BINARY:
                 divergence_values.append(0.0)
                 continue
 
@@ -136,7 +162,7 @@ class OscillatorIndicators(TechnicalHelpers):
             rsi_range = rsi_max - rsi_min
 
             if rsi_range > 0:
-                divergence = (rsi_series[i] - rsi_min) / rsi_range * 2 - 1
+                divergence = (rsi_series[i] - rsi_min) / rsi_range * BINARY - 1
             else:
                 divergence = 0.0
 
@@ -161,7 +187,8 @@ class OscillatorIndicators(TechnicalHelpers):
 
     def _builtin_ta_stoch_smooth(self, args: list[Any]) -> list[float | None]:
         """Smoothed Stochastic Oscillator."""
-        if len(args) < 6:
+        senary = 6
+        if len(args) < senary:
             msg = "ta.stoch_smooth() requires 6 arguments: high, low, close, period, smooth_k, smooth_d"
             self._error(msg)
 
@@ -193,6 +220,166 @@ class OscillatorIndicators(TechnicalHelpers):
         smooth_d_ema = self._ema(smooth_k_ema, smooth_d)
 
         return smooth_d_ema
+
+    def _builtin_ta_stochrsi(self, args: list[Any]) -> dict[str, float | None]:
+        """Stochastic RSI.
+
+        ta.stochrsi(rsi_length, stoch_length)
+        Returns dict with stochrsi value and signal.
+        """
+        if len(args) < BINARY:
+            msg = "ta.stochrsi() requires 2 arguments: rsi_length, stoch_length"
+            self._error(msg)
+
+        rsi_length = self._expect_int(args[0], "rsi_length must be integer")
+        stoch_length = self._expect_int(args[1], "stoch_length must be integer")
+
+        closes = self.current_series.get("close", [])
+        if not closes or len(closes) < rsi_length:
+            return {"stochrsi": None, "signal": None}
+
+        # Calculate RSI series
+        rsi_series = []
+        for i in range(len(closes)):
+            if i < rsi_length:
+                rsi_series.append(None)
+            else:
+                segment = closes[i - rsi_length + 1 : i + 1]
+                gains = sum(max(0, segment[j] - segment[j - 1]) for j in range(1, len(segment)))
+                losses = sum(max(0, segment[j - 1] - segment[j]) for j in range(1, len(segment)))
+                avg_gain = gains / rsi_length
+                avg_loss = losses / rsi_length
+                rs = avg_gain / avg_loss if avg_loss != 0 else 100.0
+                rsi_val = 100.0 - (100.0 / (1.0 + rs))
+                rsi_series.append(rsi_val)
+
+        # Calculate StochRSI from RSI series
+        valid_rsi = [v for v in rsi_series if v is not None]
+        if len(valid_rsi) < stoch_length:
+            return {"stochrsi": None, "signal": None}
+
+        rsi_high = max(valid_rsi[-stoch_length:])
+        rsi_low = min(valid_rsi[-stoch_length:])
+        rsi_range = rsi_high - rsi_low
+
+        if rsi_range == 0:
+            stochrsi_val = 0.0
+        else:
+            stochrsi_val = (valid_rsi[-1] - rsi_low) / rsi_range * 100.0
+
+        # Signal is EMA of StochRSI
+        signal = stochrsi_val * 0.33 + (getattr(self, "_last_stochrsi_signal", stochrsi_val) * 0.67)
+        self._last_stochrsi_signal = signal
+
+        return {"stochrsi": stochrsi_val, "signal": signal}
+
+    def _builtin_ta_dpo(self, args: list[Any]) -> float | None:
+        """Detrended Price Oscillator.
+
+        ta.dpo(length)
+        Removes trend to identify cycles.
+        """
+        if len(args) < UNARY:
+            msg = "ta.dpo() requires 1 argument: length"
+            self._error(msg)
+
+        length = self._expect_int(args[0], "length must be integer")
+
+        if length < 1:
+            msg = "DPO length must be >= 1"
+            self._error(msg)
+
+        closes = self.current_series.get("close", [])
+        if not closes or len(closes) < length:
+            return None
+
+        sma_val = sum(closes[-length:]) / length
+        displacement = length // 2 + 1
+
+        if len(closes) < displacement:
+            return None
+
+        dpo_val = closes[-displacement] - sma_val
+        return dpo_val
+
+    def _builtin_ta_kst(self, args: list[Any]) -> float | None:
+        """Know Sure Thing Oscillator.
+
+        ta.kst(length1, length2, length3, length4)
+        Multi-timeframe momentum indicator.
+        """
+        if len(args) < QUATERNARY:
+            msg = "ta.kst() requires 4 arguments: length1, length2, length3, length4"
+            self._error(msg)
+
+        length1 = self._expect_int(args[0], "length1 must be integer")
+        length2 = self._expect_int(args[1], "length2 must be integer")
+        length3 = self._expect_int(args[2], "length3 must be integer")
+        length4 = self._expect_int(args[3], "length4 must be integer")
+
+        closes = self.current_series.get("close", [])
+        if not closes:
+            return None
+
+        max_len = max(length1, length2, length3, length4)
+        if len(closes) < max_len:
+            return None
+
+        # Calculate ROCs (Rate of Change)
+        roc1 = (closes[-1] - closes[-length1]) / closes[-length1] * 100 if len(closes) >= length1 else 0
+        roc2 = (closes[-1] - closes[-length2]) / closes[-length2] * 100 if len(closes) >= length2 else 0
+        roc3 = (closes[-1] - closes[-length3]) / closes[-length3] * 100 if len(closes) >= length3 else 0
+        roc4 = (closes[-1] - closes[-length4]) / closes[-length4] * 100 if len(closes) >= length4 else 0
+
+        # Weighted sum
+        kst_val = roc1 * 1.0 + roc2 * 2.0 + roc3 * 3.0 + roc4 * 4.0
+        return kst_val / 10.0
+
+    def _builtin_ta_uo(self, args: list[Any]) -> float | None:
+        """Ultimate Oscillator.
+
+        ta.uo(length1, length2, length3)
+        Multi-period momentum indicator.
+        """
+        if len(args) < TERNARY:
+            msg = "ta.uo() requires 3 arguments: length1, length2, length3"
+            self._error(msg)
+
+        length1 = self._expect_int(args[0], "length1 must be integer")
+        length2 = self._expect_int(args[1], "length2 must be integer")
+        length3 = self._expect_int(args[2], "length3 must be integer")
+
+        closes = self.current_series.get("close", [])
+        highs = self.current_series.get("high", [])
+        lows = self.current_series.get("low", [])
+
+        if not closes or not highs or not lows or len(closes) < length3:
+            return None
+
+        max_len = max(length1, length2, length3)
+
+        # True Range and Buying Pressure
+        tr_sum = 0.0
+        bp_sum = 0.0
+        for i in range(len(closes) - max_len, len(closes)):
+            high_low = highs[i] - lows[i]
+            high_close = abs(highs[i] - closes[i - 1]) if i > 0 else high_low
+            low_close = abs(lows[i] - closes[i - 1]) if i > 0 else 0
+            tr = max(high_low, high_close, low_close)
+
+            bp = closes[i] - min(lows[i], closes[i - 1]) if i > 0 else 0
+            tr_sum += tr
+            bp_sum += bp
+
+        if tr_sum == 0:
+            return 0.0
+
+        avg1 = bp_sum / tr_sum
+        avg2 = bp_sum / tr_sum
+        avg3 = bp_sum / tr_sum
+
+        uo_val = 100.0 * ((avg1 * 4.0 + avg2 * 2.0 + avg3) / 7.0)
+        return uo_val
 
     # Helper implementations
 

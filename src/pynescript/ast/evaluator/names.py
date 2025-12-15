@@ -19,6 +19,7 @@ from __future__ import annotations
 from typing import Any
 
 from pynescript.ast import node as ast
+from pynescript.ast.evaluator.builtins.matrix import Matrix
 from pynescript.ast.evaluator.types import EvaluatorProtocol
 from pynescript.ast.type_system import ObjectInstance
 
@@ -129,6 +130,14 @@ class NameEvaluator:
         value = self.visit(node.value)
         # Evaluate the index/slice expression
         slice_ = self.visit(node.slice) if node.slice else None  # type: ignore[arg-type]
+
+        # Handle Matrix indexing: m[row, col]
+        if isinstance(value, Matrix):
+            # slice_ should be a list [row, col] (from Tuple evaluation)
+            if isinstance(slice_, list) and len(slice_) == 2:
+                return value[(slice_[0], slice_[1])]
+            msg = f"Invalid matrix index: {slice_}. Expected [row, col]."
+            raise ValueError(msg)
 
         # Handle list/array indexing with integer indices
         if isinstance(value, list) and isinstance(slice_, int):

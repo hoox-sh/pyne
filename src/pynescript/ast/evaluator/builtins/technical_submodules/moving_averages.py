@@ -23,6 +23,8 @@ from typing import Any
 
 from .core import (
     BINARY,
+    QUATERNARY,
+    TERNARY,
     TechnicalHelpers,
 )
 
@@ -62,7 +64,7 @@ class MovingAverageIndicators(TechnicalHelpers):
 
     def _builtin_ta_kama(self, args: list[Any]) -> list[float | None]:
         """Kaufman's Adaptive Moving Average."""
-        if len(args) < 4:
+        if len(args) < QUATERNARY:
             msg = "ta.kama() requires 4 arguments: series, length, fast_period, slow_period"
             self._error(msg)
 
@@ -97,7 +99,7 @@ class MovingAverageIndicators(TechnicalHelpers):
 
     def _builtin_ta_dema(self, args: list[Any]) -> list[float | None]:
         """Double Exponential Moving Average - reduces lag."""
-        if len(args) < 2:
+        if len(args) < BINARY:
             msg = "ta.dema() requires 2 arguments: series, length"
             self._error(msg)
 
@@ -107,7 +109,7 @@ class MovingAverageIndicators(TechnicalHelpers):
         ema1 = self._ema(series, length)
         ema2 = self._ema(ema1, length)
 
-        dema_values = []
+        dema_values: list[float | None] = []
         for i in range(len(series)):
             if ema1[i] is None or ema2[i] is None:
                 dema_values.append(None)
@@ -118,7 +120,7 @@ class MovingAverageIndicators(TechnicalHelpers):
 
     def _builtin_ta_tema(self, args: list[Any]) -> list[float | None]:
         """Triple Exponential Moving Average - even less lag than DEMA."""
-        if len(args) < 2:
+        if len(args) < BINARY:
             msg = "ta.tema() requires 2 arguments: series, length"
             self._error(msg)
 
@@ -129,7 +131,7 @@ class MovingAverageIndicators(TechnicalHelpers):
         ema2 = self._ema(ema1, length)
         ema3 = self._ema(ema2, length)
 
-        tema_values = []
+        tema_values: list[float | None] = []
         for i in range(len(series)):
             if ema1[i] is None or ema2[i] is None or ema3[i] is None:
                 tema_values.append(None)
@@ -172,13 +174,13 @@ class MovingAverageIndicators(TechnicalHelpers):
 
     def _builtin_ta_sma_weighted(self, args: list[Any]) -> float | None:
         """Weighted SMA with custom weighting scheme."""
-        if len(args) < 2:
+        if len(args) < BINARY:
             msg = "ta.sma_weighted() requires at least 2 arguments: series, period"
             self._error(msg)
 
         series = args[0] if isinstance(args[0], list) else [args[0]]
         period = self._expect_int(args[1], "period must be integer")
-        weight_type = args[2] if len(args) > 2 else "linear"
+        weight_type = args[2] if len(args) > BINARY else "linear"
 
         if not isinstance(weight_type, str):
             weight_type = "linear"
@@ -207,6 +209,51 @@ class MovingAverageIndicators(TechnicalHelpers):
         total_weight = sum(weights)
         weighted_sum = sum(v * w for v, w in zip(valid_data, weights, strict=True))
         return weighted_sum / total_weight if total_weight > 0 else None
+
+    def _builtin_ta_ema_cross_signal(self, args: list[Any]) -> dict:
+        """EMA Cross Signal - Signal generation from EMA crossover.
+
+        ta.ema_cross_signal(fast_ema, slow_ema, threshold)
+        Returns: dict with signal, strength, trend_direction
+        """
+        if len(args) < TERNARY:
+            msg = "ta.ema_cross_signal() requires 3 arguments: fast_ema, slow_ema, threshold"
+            self._error(msg)
+
+        fast_ema = self._expect_list(args[0], "fast_ema must be a list")
+        slow_ema = self._expect_list(args[1], "slow_ema must be a list")
+        threshold = args[2] if isinstance(args[2], (int, float)) else 0.0
+
+        if len(fast_ema) < BINARY or len(slow_ema) < BINARY:
+            return {"signal": "neutral", "strength": 0.0, "trend_direction": 0}
+
+        curr_fast = fast_ema[-1] if isinstance(fast_ema[-1], (int, float)) else 0.0
+        curr_slow = slow_ema[-1] if isinstance(slow_ema[-1], (int, float)) else 0.0
+        prev_fast = fast_ema[-2] if isinstance(fast_ema[-2], (int, float)) else 0.0
+        prev_slow = slow_ema[-2] if isinstance(slow_ema[-2], (int, float)) else 0.0
+
+        diff = curr_fast - curr_slow
+        prev_diff = prev_fast - prev_slow
+
+        # Crossover detection
+        crossover = prev_diff <= 0 and diff > 0
+        crossunder = prev_diff >= 0 and diff < 0
+
+        strength = abs(diff)
+        trend_direction = 1 if diff > 0 else -1
+
+        if crossover and strength > threshold:
+            signal = "buy"
+        elif crossunder and strength > threshold:
+            signal = "sell"
+        else:
+            signal = "neutral"
+
+        return {
+            "signal": signal,
+            "strength": strength,
+            "trend_direction": trend_direction,
+        }
 
     # Helper implementations
 
