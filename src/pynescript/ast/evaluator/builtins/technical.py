@@ -16,8 +16,6 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 from .base import BuiltinDispatchMixin
 from .base import BuiltinHandler
 from .technical_submodules.advanced import AdvancedIndicators
@@ -26,6 +24,9 @@ from .technical_submodules.common import CommonIndicators
 from .technical_submodules.moving_averages import MovingAverageIndicators
 from .technical_submodules.oscillators import OscillatorIndicators
 from .technical_submodules.patterns import PatternIndicators
+from .technical_submodules.tier6 import Tier6Indicators
+from .technical_submodules.tier7 import Tier7Indicators
+from .technical_submodules.tier8 import Tier8Indicators
 from .technical_submodules.volatility import VolatilityIndicators
 from .technical_submodules.volume import VolumeIndicators
 
@@ -37,6 +38,9 @@ class TechnicalAnalysisMixin(
     MovingAverageIndicators,
     OscillatorIndicators,
     PatternIndicators,
+    Tier6Indicators,
+    Tier7Indicators,
+    Tier8Indicators,
     VolatilityIndicators,
     VolumeIndicators,
     BuiltinDispatchMixin,

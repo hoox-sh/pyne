@@ -49,7 +49,7 @@ class NodeLiteralEvaluator(
     NameEvaluator,
 ):
     """Safe evaluator for literal expressions and built-in functions.
-    
+
     Combines all evaluator mixins for flexible AST node evaluation.
     """
     pass

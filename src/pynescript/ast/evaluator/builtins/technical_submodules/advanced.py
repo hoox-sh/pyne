@@ -20,15 +20,15 @@ from __future__ import annotations
 
 import math
 import statistics
+
 from typing import Any
 
-from .core import (
-    BINARY,
-    QUATERNARY,
-    QUINARY,
-    TERNARY,
-    TechnicalHelpers,
-)
+from .core import BINARY
+from .core import QUATERNARY
+from .core import QUINARY
+from .core import TERNARY
+from .core import TechnicalHelpers
+
 
 # Constants for technical indicator calculations
 MIN_PRICE_EPSILON = 1e-10
@@ -1211,7 +1211,6 @@ class AdvancedIndicators(TechnicalHelpers):
         strength = args[2] if isinstance(args[2], (int, float)) else 1.0
         rsi = args[3] if isinstance(args[3], (int, float)) else 50.0
         rsi_alignment = args[4] if isinstance(args[4], (int, float)) else 0.0
-        support_distance = args[5] if isinstance(args[5], (int, float)) else 0.0
 
         momentum_score = min(100.0, abs(momentum) * 20.0)
         trend_score = max(0.0, (trend_alignment + 1.0) / 2.0 * 100.0)
@@ -1244,8 +1243,7 @@ class AdvancedIndicators(TechnicalHelpers):
             return {"pivot_price": 100.0, "strength": 50.0, "structure": "neutral"}
 
         h_vals = [h for h in high_list[-period:] if isinstance(h, (int, float))]
-        l_vals = [l for l in low_list[-period:] if isinstance(l, (int, float))]
-        c_vals = [c for c in close_list[-period:] if isinstance(c, (int, float))]
+        l_vals = [low_val for low_val in low_list[-period:] if isinstance(low_val, (int, float))]
 
         if not h_vals or not l_vals:
             return {"pivot_price": 100.0, "strength": 50.0, "structure": "neutral"}
@@ -1340,7 +1338,7 @@ class AdvancedIndicators(TechnicalHelpers):
         sig1 = self._expect_list(args[0], msg)
         sig2 = self._expect_list(args[1], msg)
         sig3 = self._expect_list(args[2], msg)
-        num_signals = self._expect_int(args[3], msg)
+        _ = self._expect_int(args[3], msg)
         threshold = args[4] if isinstance(args[4], (int, float)) else 0.7
 
         signals = [sig1, sig2, sig3]
@@ -1454,7 +1452,7 @@ class AdvancedIndicators(TechnicalHelpers):
 
         high = self._expect_list(args[0], msg)
         low = self._expect_list(args[1], msg)
-        close = self._expect_list(args[2], msg)
+        _ = self._expect_list(args[2], msg)
         trend_dir = self._expect_int(args[3], msg)
         lookback = self._expect_int(args[4], msg)
 
@@ -1466,7 +1464,7 @@ class AdvancedIndicators(TechnicalHelpers):
             }
 
         h_vals = [h for h in high[-lookback:] if isinstance(h, (int, float))]
-        l_vals = [l for l in low[-lookback:] if isinstance(l, (int, float))]
+        l_vals = [low_val for low_val in low[-lookback:] if isinstance(low_val, (int, float))]
 
         if not h_vals or not l_vals:
             return {

@@ -27,7 +27,7 @@ from antlr4 import TokenStream
 from antlr4.error.ErrorListener import ErrorListener
 from antlr4.Recognizer import Recognizer
 
-from pynescript.ast.error import SyntaxError
+from pynescript.ast.error import SyntaxError as PinescriptSyntaxError
 from pynescript.ast.error import SyntaxErrorDetails
 
 
@@ -125,9 +125,9 @@ class PinescriptErrorListener(ErrorListener):
             end_lineno,
             end_offset,
         )
-        error = SyntaxError(msg, details)
+        error = PinescriptSyntaxError(msg, details)
 
-        if isinstance(e, SyntaxError):
+        if isinstance(e, PinescriptSyntaxError):
             e.details = error.details
             error = e
         else:

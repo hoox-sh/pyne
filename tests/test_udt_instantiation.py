@@ -21,7 +21,8 @@ Tests the complete flow of UDT object creation, field access, and mutation.
 
 from __future__ import annotations
 
-from pynescript.ast.helper import parse, unparse
+from pynescript.ast.helper import parse
+from pynescript.ast.helper import unparse
 
 
 class TestObjectInstantiation:

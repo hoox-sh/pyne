@@ -26,13 +26,11 @@ from __future__ import annotations
 
 import pytest
 
-from pynescript.ast.type_system import (
-    UserDefinedType,
-    ObjectInstance,
-    Field,
-    BuiltinType,
-    BuiltinTypeKind,
-)
+from pynescript.ast.type_system import BuiltinType
+from pynescript.ast.type_system import BuiltinTypeKind
+from pynescript.ast.type_system import Field
+from pynescript.ast.type_system import ObjectInstance
+from pynescript.ast.type_system import UserDefinedType
 
 
 class TestUserDefinedType:

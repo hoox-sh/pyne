@@ -27,8 +27,8 @@ from antlr4 import Lexer
 from antlr4 import Token
 from antlr4.Token import CommonToken
 
-from pynescript.ast.error import IndentationError
-from pynescript.ast.error import SyntaxError
+from pynescript.ast.error import IndentationError as PinescriptIndentationError
+from pynescript.ast.error import SyntaxError as PinescriptSyntaxError
 
 
 class PinescriptLexerBase(Lexer):
@@ -130,7 +130,7 @@ class PinescriptLexerBase(Lexer):
                 self._handle_STRING_token()
             case self.ERROR_TOKEN:
                 message = "token recognition error at: '" + self._currentToken.text + "'"
-                self._reportLexerError(message, self._currentToken, SyntaxError)
+                self._reportLexerError(message, self._currentToken, PinescriptSyntaxError)
                 self._addPendingToken(self._currentToken)
             case Token.EOF:
                 self._handle_EOF_token()
@@ -164,7 +164,7 @@ class PinescriptLexerBase(Lexer):
             prev_token: CommonToken = self._pendingTokens[-1]
             if self._getIndentationLength(prev_token.text) != 0:
                 message = "first statement indented"
-                self._reportLexerError(message, self._currentToken, IndentationError)
+                self._reportLexerError(message, self._currentToken, PinescriptIndentationError)
                 self._createAndAddPendingToken(self.INDENT, Token.DEFAULT_CHANNEL, message, self._currentToken)
 
     def _getIndentationLength(self, text: str) -> int:
@@ -249,7 +249,7 @@ class PinescriptLexerBase(Lexer):
                     self._createAndAddPendingToken(self.DEDENT, Token.DEFAULT_CHANNEL, None, self._followingToken)
                 else:
                     message = "inconsistent dedent"
-                    self._reportLexerError(message, self._followingToken, IndentationError)
+                    self._reportLexerError(message, self._followingToken, PinescriptIndentationError)
                     self._createAndAddPendingToken(
                         self.ERROR_TOKEN, Token.DEFAULT_CHANNEL, message, self._followingToken
                     )

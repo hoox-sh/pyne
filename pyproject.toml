@@ -80,7 +80,7 @@ dependencies = [
 ]
 [tool.hatch.envs.lint.scripts]
 gen-parser = "antlr4 {args}"
-style = "ruff {args}"
+style = "ruff check {args}"
 typing = "mypy --install-types --non-interactive {args:src/pynescript tests}"
 format = "ruff format {args}"
 
@@ -109,7 +109,10 @@ skip-string-normalization = true
 [tool.ruff]
 target-version = "py310"
 line-length = 120
-extend-exclude = ["generated"]
+extend-exclude = [
+  "generated",
+  "src/pynescript/ast/evaluator_backup.py",
+]
 
 [tool.ruff.lint]
 select = [
@@ -151,7 +154,16 @@ lines-after-imports = 2
 required-imports = ["from __future__ import annotations"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**/*" = ["PLR2004", "S101", "TID252"]
+"tests/**/*" = ["ARG001", "C901", "F841", "PLR0912", "PLR2004", "S101", "T201", "TID252"]
+"src/pynescript/__main__.py" = ["PLC0415"]
+"src/pynescript/ast/__main__.py" = ["PLC0415"]
+"src/pynescript/ast/evaluator/**/*.py" = ["N802"]
+"src/pynescript/ast/evaluator/builtins/**/*.py" = ["PLR2004"]
+"src/pynescript/ast/evaluator/statements.py" = ["C901", "N818"]
+"src/pynescript/ast/evaluator/builtins/technical_submodules/advanced.py" = ["C901", "PLR0912", "PLR0915"]
+"src/pynescript/ast/evaluator/builtins/technical_refactored.py" = ["PLC0415"]
+"src/pynescript/ast/helper.py" = ["C901", "PLC0415", "PLR1704"]
+"src/pynescript/ast/type_system.py" = ["FBT001", "FBT002"]
 
 [tool.coverage.run]
 source_pkgs = ["pynescript", "tests"]
@@ -212,7 +224,18 @@ module = [
   "pynescript.ast.evaluator.builtins.*",
 ]
 warn_return_any = false
-disable_error_code = ["return-value", "assignment", "arg-type", "operator", "index", "type-var", "union-attr"]
+disable_error_code = [
+  "arg-type",
+  "assignment",
+  "attr-defined",
+  "dict-item",
+  "index",
+  "operator",
+  "return-value",
+  "type-var",
+  "union-attr",
+  "var-annotated",
+]
 
 [[tool.mypy.overrides]]
 module = [

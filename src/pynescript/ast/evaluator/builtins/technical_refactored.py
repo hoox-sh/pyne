@@ -34,10 +34,12 @@ from __future__ import annotations
 
 import math
 import statistics
+
 from typing import Any
 
 from .base import BuiltinDispatchMixin
 from .base import BuiltinHandler
+
 
 # Constants
 UNARY = 1
@@ -462,7 +464,7 @@ class TechnicalAnalysisMixin(BuiltinDispatchMixin):
     def _call_original_indicator(self, name: str, args: list[Any]) -> Any:
         """Fallback to original technical.py for indicators not yet migrated."""
         # This will be removed once all indicators are extracted into modules
-        from src.pynescript.ast.evaluator.builtins import technical as original_tech
+        from pynescript.ast.evaluator.builtins import technical as original_tech
 
         handler = getattr(original_tech.TechnicalAnalysisMixin, name, None)
         if handler:

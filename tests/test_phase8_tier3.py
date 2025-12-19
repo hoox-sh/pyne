@@ -31,9 +31,8 @@ Tests for newly implemented technical analysis indicators:
 
 from __future__ import annotations
 
-import pytest
-
-from pynescript.ast.helper import parse, unparse
+from pynescript.ast.helper import parse
+from pynescript.ast.helper import unparse
 
 
 class TestEngulfing:

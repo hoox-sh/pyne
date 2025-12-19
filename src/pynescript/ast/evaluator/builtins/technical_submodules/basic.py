@@ -20,16 +20,15 @@ from __future__ import annotations
 
 import math
 import statistics
+
 from typing import Any
 
+from .core import BINARY
+from .core import QUATERNARY
+from .core import QUINARY
+from .core import TERNARY
+from .core import UNARY
 from .core import TechnicalHelpers
-from .core import (
-    BINARY,
-    QUATERNARY,
-    QUINARY,
-    TERNARY,
-    UNARY,
-)
 
 
 class BasicIndicators(TechnicalHelpers):
@@ -261,13 +260,13 @@ class BasicIndicators(TechnicalHelpers):
 
     def _builtin_ta_supertrend(self, args: list[Any]) -> tuple[float, float, int]:
         """Supertrend indicator (returns final_lowerband, final_upperband, direction)."""
-        if len(args) != TERNARY:
+        if len(args) < TERNARY:
             self._error("ta.supertrend takes high, low series and length, multiplier")
 
         highs = self._expect_list(args[0], "ta.supertrend takes high, low, length, multiplier")
         lows = self._expect_list(args[1], "ta.supertrend takes high, low, length, multiplier")
         length = self._expect_int(args[2], "ta.supertrend takes high, low, length, multiplier")
-        multiplier = args[3] if len(args) > 3 else 1.0
+        multiplier = args[3] if (len(args) > 3 and isinstance(args[3], (int, float))) else 1.0
 
         if length < 1:
             self._error("ta.supertrend length must be positive")
@@ -275,10 +274,17 @@ class BasicIndicators(TechnicalHelpers):
         # This is a simplified implementation as full Supertrend requires state
         # For now we return basic bands based on ATR
         atr_series = self._builtin_ta_atr([highs, lows, [0] * len(highs), length])
-        atr = atr_series[-1] if atr_series else 0
-        
-        # Placeholder return
-        return 0.0, 0.0, 1
+        atr_val = atr_series[-1] if atr_series and isinstance(atr_series[-1], (int, float)) else 0.0
+
+        current_high = highs[-1] if highs and isinstance(highs[-1], (int, float)) else 0.0
+        current_low = lows[-1] if lows and isinstance(lows[-1], (int, float)) else 0.0
+        mid = (current_high + current_low) / 2.0
+
+        final_lowerband = mid - (multiplier * atr_val)
+        final_upperband = mid + (multiplier * atr_val)
+
+        # Full Supertrend direction requires state; return 1 as a stable default.
+        return final_lowerband, final_upperband, 1
 
     def _builtin_ta_linreg(self, args: list[Any]) -> float:
         """Linear Regression value."""

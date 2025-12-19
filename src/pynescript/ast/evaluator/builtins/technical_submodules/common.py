@@ -20,15 +20,14 @@ from __future__ import annotations
 
 import math
 import statistics
+
 from typing import Any
 
-from .core import (
-    BINARY,
-    QUATERNARY,
-    TERNARY,
-    UNARY,
-    TechnicalHelpers,
-)
+from .core import BINARY
+from .core import QUATERNARY
+from .core import TERNARY
+from .core import UNARY
+from .core import TechnicalHelpers
 
 
 class CommonIndicators(TechnicalHelpers):
@@ -158,7 +157,7 @@ class CommonIndicators(TechnicalHelpers):
 
         ev = sum(
             (r if isinstance(r, (int, float)) else 0.0) * (p if isinstance(p, (int, float)) else 0.0)
-            for r, p in zip(returns, probs)
+            for r, p in zip(returns, probs, strict=False)
         )
         return ev / total_prob
 
@@ -277,19 +276,19 @@ class CommonIndicators(TechnicalHelpers):
         if not highs or not lows or not closes or not opens:
             return None
 
-        h = highs[-1] if isinstance(highs[-1], (int, float)) else None
-        l = lows[-1] if isinstance(lows[-1], (int, float)) else None
+        high_val = highs[-1] if isinstance(highs[-1], (int, float)) else None
+        low_val = lows[-1] if isinstance(lows[-1], (int, float)) else None
         c = closes[-1] if isinstance(closes[-1], (int, float)) else None
         o = opens[-1] if isinstance(opens[-1], (int, float)) else None
 
-        if h is None or l is None or c is None or o is None:
+        if high_val is None or low_val is None or c is None or o is None:
             return None
 
-        if h <= l or h <= 0 or c <= 0:
+        if high_val <= low_val or high_val <= 0 or c <= 0:
             return None
 
         # Garman-Klass volatility formula
-        hl_ratio = h / l
+        hl_ratio = high_val / low_val
         co_ratio = c / o
 
         term1 = 0.5 * (math.log(hl_ratio) ** 2)

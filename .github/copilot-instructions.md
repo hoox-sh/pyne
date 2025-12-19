@@ -6,7 +6,7 @@
 ## Architecture
 - Parsing runs through ANTLR grammars (`src/pynescript/ast/grammar/antlr4`) into the 1k-line `PinescriptASTBuilder` visiting parse trees into ASDL-generated nodes (`src/pynescript/ast/grammar/asdl/generated/PinescriptASTNode.py`).
 - `StatementCollector` (`src/pynescript/ast/collector.py`) walks statements to align comment metadata; keep `annotations` lists intact when editing nodes or unparser output drifts.
-- `NodeUnparser` (`src/pynescript/ast/unparser.py`) and `NodeLiteralEvaluator` (`src/pynescript/ast/evaluator.py`) assume canonical node shapes; manipulating ASTs should happen via `NodeTransformer` patterns.
+- `NodeUnparser` (`src/pynescript/ast/unparser.py`) and `NodeLiteralEvaluator` (`src/pynescript/ast/evaluator.py`) assume canonical node shapes. `NodeLiteralEvaluator` aggregates logic from `src/pynescript/ast/evaluator/` submodules; manipulating ASTs should happen via `NodeTransformer` patterns.
 - Comments tagged with `//@version`, `//@description`, etc. become annotation strings; `_add_annotations` in `helper.py` distributes them to script/function/type/variable nodes.
 
 ## Generated Assets
@@ -21,7 +21,7 @@
 ## Conventions & Utilities
 - Always place `from __future__ import annotations` first; Ruff's `required-imports` will fail otherwise.
 - Generated AST nodes expose `_fields`/`_attributes`; traversal helpers (`iter_fields`, `iter_child_nodes`, `walk`) live in `ast/helper.py` and should be reused instead of manual attribute iteration.
-- `NodeLiteralEvaluator` only covers deterministic literals and selected Pine built-ins; extend it cautiously with explicit validation.
+- `NodeLiteralEvaluator` only covers deterministic literals and selected Pine built-ins. Built-in evaluation logic is distributed across `src/pynescript/ast/evaluator/builtins/`, with technical indicators further split in `technical_submodules/`. Extend the appropriate submodule cautiously with explicit validation.
 
 ## Integrations & Docs
 - Pygments lexer adapter (`src/pynescript/ext/pygments/lexers.py`) maps ANTLR token ids to Pygments tokens; revise when grammar tokens change.

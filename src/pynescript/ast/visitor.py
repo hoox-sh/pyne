@@ -25,6 +25,9 @@ with caching for performance optimization.
 
 from __future__ import annotations
 
+from typing import Any
+from typing import Callable
+
 from pynescript.ast.helper import iter_fields
 from pynescript.ast.node import AST
 
@@ -39,9 +42,9 @@ class NodeVisitor:
     def __init__(self):
         """Initialize the visitor with empty method cache."""
         # Optimize: cache visitor methods to avoid repeated getattr calls
-        self._visitor_cache: dict[str, callable] = {}
+        self._visitor_cache: dict[str, Callable[[AST], Any]] = {}
 
-    def visit(self, node: AST):
+    def visit(self, node: AST) -> Any:
         """Visit an AST node and dispatch to appropriate handler.
 
         Looks up and caches visit_<NodeType> methods for performance.
@@ -62,7 +65,7 @@ class NodeVisitor:
             self._visitor_cache[node_class] = visitor
         return visitor(node)
 
-    def generic_visit(self, node: AST):
+    def generic_visit(self, node: AST) -> Any:
         """Called if no specific visit method exists for a node type.
 
         Default implementation recursively visits all child AST nodes.

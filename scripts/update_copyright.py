@@ -136,7 +136,7 @@ def find_files(directory: str, extensions: list[str]) -> list[str]:
 
 def main():
     """Update copyright headers in all common files."""
-    project_root = Path(__file__).parent
+    project_root = Path(__file__).parent.parent
     py_files = find_files(str(project_root / 'src'), ['.py'])
     test_files = find_files(str(project_root / 'tests'), ['.py'])
     example_files = find_files(str(project_root / 'examples'), ['.py'])

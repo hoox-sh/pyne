@@ -16,6 +16,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 from typing import Any
 
 from pynescript.ast import node as ast
@@ -24,6 +26,8 @@ from pynescript.ast.type_system import BuiltinTypeKind
 from pynescript.ast.type_system import Field
 from pynescript.ast.type_system import MethodSignature
 from pynescript.ast.type_system import ObjectInstance
+from pynescript.ast.type_system import Type
+from pynescript.ast.type_system import TypeRegistry
 from pynescript.ast.type_system import UserDefinedType
 
 
@@ -47,6 +51,9 @@ class StatementEvaluator:
     - Control flow (if/else, loops)
     - Return statements
     """
+
+    context: dict[str, Any]
+    type_registry: TypeRegistry
 
     def visit_Script(self, node: ast.Script):
         """Execute all statements in a script.
@@ -155,7 +162,11 @@ class StatementEvaluator:
                         # Skip the THIS parameter (handled specially)
                         if param.name == "this":
                             continue
-                        param_type = self._convert_type_spec_to_type(param.type) if param.type else None
+                        param_type: Type = (
+                            self._convert_type_spec_to_type(param.type)
+                            if param.type
+                            else BuiltinType(BuiltinTypeKind.STRING)
+                        )
                         parameters.append((param.name, param_type))
 
                 method_sig = MethodSignature(
@@ -173,10 +184,10 @@ class StatementEvaluator:
                 udt._method_defs[method_name] = stmt  # type: ignore
 
         # Register the type in the registry
-        self.type_registry.register_type(udt)  # type: ignore[attr-defined]
+        self.type_registry.register_type(udt)
 
         # Also store it in the context for backward compatibility
-        self.context[type_name] = udt  # type: ignore[attr-defined]
+        self.context[type_name] = udt
 
     def _convert_type_spec_to_type(self, type_spec):
         """Convert a type specification AST node to a Type object"""
@@ -184,7 +195,7 @@ class StatementEvaluator:
         if isinstance(type_spec, ast.Name):
             type_name = type_spec.id
             # Try to get from registry first
-            registered = self.type_registry.get_type(type_name)  # type: ignore[attr-defined]
+            registered = self.type_registry.get_type(type_name)
             if registered:
                 return registered
             # Fall back to built-in types
@@ -243,6 +254,7 @@ class StatementEvaluator:
         if not target_name:
             msg = "For loop target must be a name"
             self._error(msg)  # type: ignore[attr-defined]
+            raise RuntimeError(msg)
 
         start = self.visit(node.start)  # type: ignore[attr-defined]
         end = self.visit(node.end)  # type: ignore[attr-defined]
@@ -271,9 +283,10 @@ class StatementEvaluator:
         if not target_name:
             msg = "For loop target must be a name"
             self._error(msg)  # type: ignore[attr-defined]
+            raise RuntimeError(msg)
 
         iterable = self.visit(node.iter)  # type: ignore[attr-defined]
-        
+
         # Handle different iterable types (list, Matrix, Map?)
         # Pine Script 'for x in array' iterates values.
         if not hasattr(iterable, "__iter__"):
@@ -290,10 +303,10 @@ class StatementEvaluator:
                 break
         return last_result
 
-    def visit_Break(self, node: ast.Break):
+    def visit_Break(self, _node: ast.Break):
         raise BreakLoop
 
-    def visit_Continue(self, node: ast.Continue):
+    def visit_Continue(self, _node: ast.Continue):
         raise ContinueLoop
 
     def visit_FunctionDef(self, node: ast.FunctionDef):
@@ -307,7 +320,7 @@ class StatementEvaluator:
             pass
 
         func_name = node.name
-        
+
         # Create a closure
         def user_function(*args, **kwargs):
             # Create new scope
@@ -318,11 +331,11 @@ class StatementEvaluator:
                 for i, value in enumerate(args):
                     if i < len(param_names):
                         self.context[param_names[i]] = value  # type: ignore[attr-defined]
-                
+
                 # Bind keyword arguments
                 for key, value in kwargs.items():
                     self.context[key] = value  # type: ignore[attr-defined]
-                
+
                 # Execute body
                 result = None
                 for stmt in node.body:
@@ -336,7 +349,7 @@ class StatementEvaluator:
 
         self.context[func_name] = user_function  # type: ignore[attr-defined]
 
-    def _execute_block(self, stmts: list[ast.AST]):
+    def _execute_block(self, stmts: Sequence[ast.AST]):
         """Execute a block of statements and return the value of the last expression."""
         result = None
         for stmt in stmts:
@@ -367,25 +380,24 @@ class StatementEvaluator:
     def visit_Switch(self, node: ast.Switch):
         """Evaluate a switch structure."""
         subject_val = self.visit(node.subject) if node.subject else None  # type: ignore[attr-defined]
-        
+
         for case in node.cases:
-            if case.pattern:
+            if case.pattern:  # type: ignore[attr-defined]
                 # Pattern matching
                 pattern_val = self.visit(case.pattern)  # type: ignore[attr-defined]
                 if subject_val is not None:
                     # Switch with subject: match equality
                     if subject_val == pattern_val:
-                        return self._execute_block(case.body)
-                else:
-                    # Switch without subject: pattern must be boolean true
-                    if pattern_val:
-                        return self._execute_block(case.body)
+                        return self._execute_block(case.body)  # type: ignore[arg-type, attr-defined]
+                # Switch without subject: pattern must be boolean true
+                elif pattern_val:
+                    return self._execute_block(case.body)  # type: ignore[arg-type, attr-defined]
             else:
                 # Default case (no pattern)
-                return self._execute_block(case.body)
+                return self._execute_block(case.body)  # type: ignore[arg-type, attr-defined]
         return None
 
-    def _execute_loop_body(self, stmts: list[ast.AST]) -> tuple[Any, bool]:
+    def _execute_loop_body(self, stmts: Sequence[ast.AST]) -> tuple[Any, bool]:
         """Execute loop body. Returns (result, should_break)."""
         result = None
         should_break = False
@@ -395,7 +407,7 @@ class StatementEvaluator:
                 if isinstance(stmt, ast.Expr):
                     result = val
                 elif isinstance(stmt, (ast.If, ast.Switch, ast.ForTo, ast.ForIn, ast.While)):
-                     result = val
+                    result = val
                 else:
                     result = None
         except BreakLoop:

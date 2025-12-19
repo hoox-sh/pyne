@@ -23,7 +23,7 @@ from pynescript.ast import node as ast
 
 class LiteralEvaluator:
     """Evaluates literal value nodes (constants and tuples).
-    
+
     Handles direct value evaluation for constant expressions in the AST,
     including numeric literals, string literals, boolean literals, and tuple literals.
     """

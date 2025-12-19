@@ -18,7 +18,8 @@
 
 from __future__ import annotations
 
-from pynescript.ast.helper import parse, unparse
+from pynescript.ast.helper import parse
+from pynescript.ast.helper import unparse
 
 
 class TestTier2Indicators:

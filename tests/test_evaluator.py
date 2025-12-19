@@ -23,10 +23,8 @@ import pytest
 from pynescript.ast import helper
 from pynescript.ast.evaluator import NodeLiteralEvaluator
 from pynescript.ast.evaluator.builtins.drawing import TableCell
-from pynescript.ast.evaluator.builtins.strategy import (
-    StrategyState,
-    Trade,
-)
+from pynescript.ast.evaluator.builtins.strategy import StrategyState
+from pynescript.ast.evaluator.builtins.strategy import Trade
 
 
 @pytest.mark.parametrize(

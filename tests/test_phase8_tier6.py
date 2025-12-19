@@ -719,7 +719,7 @@ class TestIntegration:
         close = [102, 102.5, 103, 103.5, 104]
         volume = [1000, 1200, 1100, 1300, 1400]
         imbalance = evaluator._builtin_ta_order_flow_imbalance([high, low, close, volume, 3])
-        
+
         close2 = [100, 101, 102, 103, 104]
         rsi = [1.0, 1.2, 1.4, 1.6, 1.8]
         stoch = [0.8, 1.0, 1.2, 1.4, 1.6]
@@ -735,7 +735,7 @@ class TestIntegration:
         safe_haven = [1.5, 1.4, 1.3, 1.2, 1.1]
         margin = [0.3, 0.35, 0.4, 0.45, 0.5]
         fg_index = evaluator._builtin_ta_fear_greed_index([vix, put_call, safe_haven, margin])
-        
+
         volume = [5000, 5200, 5400, 5600, 5800]
         volatility = [0.5, 0.45, 0.4, 0.35, 0.3]
         spread = [0.01, 0.01, 0.01, 0.01, 0.01]
@@ -750,7 +750,7 @@ class TestIntegration:
         volume = [1000, 1200, 1400, 1600, 1800]
         momentum = [1.0, 1.2, 1.4, 1.6, 1.8]
         gdp = evaluator._builtin_ta_gdp_growth_proxy([breadth, volume, momentum])
-        
+
         vol_mom = evaluator._builtin_ta_volume_momentum([[1000, 1100, 1200, 1300, 1400], 3])
         assert gdp is not None
         assert vol_mom is not None
@@ -763,7 +763,7 @@ class TestIntegration:
         close = [102, 102.5, 103, 103.5, 104]
         volume = [1000, 1200, 1100, 1300, 1400]
         ofi = evaluator._builtin_ta_order_flow_imbalance([high, low, close, volume, 3])
-        
+
         close2 = [100, 101, 102, 103, 104]
         ma = [100.5, 100.8, 101.1, 101.4, 101.7]
         volume2 = [1.0, 1.1, 1.2, 1.3, 1.4]

@@ -24,9 +24,12 @@ from pynescript.ast.evaluator.types import EvaluatorProtocol
 from pynescript.ast.type_system import ObjectInstance
 
 
+_MATRIX_INDEX_DIMENSIONS = 2
+
+
 class NameEvaluator:
     """Evaluates name-related AST nodes: identifiers, attributes, subscripts.
-    
+
     Handles resolution of:
     - Simple names (variables, functions) from context
     - Qualified names (module.attribute) with fallback to context lookup
@@ -34,6 +37,7 @@ class NameEvaluator:
     - Enum member access
     - Subscript operations with PineScript-specific indexing semantics
     """
+
     def visit_Name(self: EvaluatorProtocol, node: ast.Name) -> Any:
         """Evaluate a simple name node (variable or identifier reference).
 
@@ -134,7 +138,7 @@ class NameEvaluator:
         # Handle Matrix indexing: m[row, col]
         if isinstance(value, Matrix):
             # slice_ should be a list [row, col] (from Tuple evaluation)
-            if isinstance(slice_, list) and len(slice_) == 2:
+            if isinstance(slice_, list) and len(slice_) == _MATRIX_INDEX_DIMENSIONS:
                 return value[(slice_[0], slice_[1])]
             msg = f"Invalid matrix index: {slice_}. Expected [row, col]."
             raise ValueError(msg)

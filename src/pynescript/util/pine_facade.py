@@ -42,10 +42,10 @@ _THREAD_SESSIONS_LOCK = threading.Lock()
 
 def _register_thread_session(session: requests.Session) -> requests.Session:
     """Register a session for cleanup on thread exit.
-    
+
     Args:
         session: The requests.Session to register
-        
+
     Returns:
         The session passed in (for chaining)
     """

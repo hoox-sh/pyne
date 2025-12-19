@@ -203,7 +203,7 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
         if StrategyState.position_direction != "flat":
             self._close_position(101.0, qty, 0)
 
-    def _handle_strategy_close_all(self, args: list[Any]) -> None:
+    def _handle_strategy_close_all(self, _args: list[Any]) -> None:
         """
         strategy.close_all(comment, alert, ...)
 
@@ -234,7 +234,7 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
         if order_id in StrategyState.pending_orders:
             del StrategyState.pending_orders[order_id]
 
-    def _handle_strategy_cancel_all(self, args: list[Any]) -> None:
+    def _handle_strategy_cancel_all(self, _args: list[Any]) -> None:
         """
         strategy.cancel_all(alert)
 

@@ -21,7 +21,8 @@ Tests the complete flow of ticker, logging, chart.point, and polyline functions.
 
 from __future__ import annotations
 
-from pynescript.ast.helper import parse, unparse
+from pynescript.ast.helper import parse
+from pynescript.ast.helper import unparse
 
 
 class TestTickerFunctions:

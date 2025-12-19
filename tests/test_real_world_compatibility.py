@@ -40,12 +40,15 @@ Success Criteria:
 from __future__ import annotations
 
 import json
+
 from pathlib import Path
 from typing import Any
 
 import pytest
 
-from pynescript.ast.helper import dump, parse, unparse
+from pynescript.ast.helper import dump
+from pynescript.ast.helper import parse
+from pynescript.ast.helper import unparse
 
 
 class TestRealWorldCompatibility:

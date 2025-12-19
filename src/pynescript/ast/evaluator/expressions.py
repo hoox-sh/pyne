@@ -16,7 +16,6 @@
 
 from __future__ import annotations
 
-import itertools
 import operator
 
 from typing import Any
@@ -43,6 +42,8 @@ _OPERATOR_MOD = operator.mod
 _OPERATOR_NOT = operator.not_
 _OPERATOR_POS = operator.pos
 _OPERATOR_NEG = operator.neg
+
+_METHOD_CALL_TUPLE_LENGTH = 3
 
 
 class ExpressionEvaluator:
@@ -164,20 +165,20 @@ class ExpressionEvaluator:
         """
         # Evaluate the first operand (leftmost)
         left = self.visit(node.left)
-        
+
         # Iterate through pairs of (operator, right_operand)
         # This loop implements short-circuiting: if any comparison fails,
         # we return False immediately and stop evaluating remaining operands.
         for op_node, comparator_node in zip(node.ops, node.comparators, strict=True):
             op = self.visit(op_node)
             right = self.visit(comparator_node)
-            
+
             if not op(left, right):
                 return False
-            
+
             # The right operand becomes the left operand for the next comparison
             left = right
-            
+
         return True
 
     def visit_Eq(self: EvaluatorProtocol, _node: ast.Eq):
@@ -212,7 +213,7 @@ class ExpressionEvaluator:
                 args.append(self.visit(arg.value))  # type: ignore[attr-defined]
 
         # Handle method call on UDT objects
-        if isinstance(func, tuple) and len(func) == 3 and func[0] == "_method_call":
+        if isinstance(func, tuple) and len(func) == _METHOD_CALL_TUPLE_LENGTH and func[0] == "_method_call":
             _, obj_instance, method_name = func
             return self._invoke_method(obj_instance, method_name, args, kwargs)
 
@@ -333,11 +334,11 @@ class ExpressionEvaluator:
             The value of the executed case block, or None
         """
         subject_val = self.visit(node.subject) if node.subject else None
-        
+
         for case in node.cases:
             match = False
-            if case.pattern:
-                pattern_val = self.visit(case.pattern)
+            if case.pattern:  # type: ignore[attr-defined]
+                pattern_val = self.visit(case.pattern)  # type: ignore[attr-defined]
                 if subject_val is not None:
                     match = (subject_val == pattern_val)
                 else:
@@ -345,10 +346,10 @@ class ExpressionEvaluator:
             else:
                 # Default case (no pattern)
                 match = True
-            
+
             if match:
                 result = None
-                for stmt in case.body:
+                for stmt in case.body:  # type: ignore[attr-defined]
                     if isinstance(stmt, ast.Expr):
                         result = self.visit(stmt.value)
                     else:

@@ -19,14 +19,13 @@
 from __future__ import annotations
 
 import math
+
 from typing import Any
 
-from .core import (
-    BINARY,
-    QUATERNARY,
-    TERNARY,
-    TechnicalHelpers,
-)
+from .core import BINARY
+from .core import QUATERNARY
+from .core import TERNARY
+from .core import TechnicalHelpers
 
 
 class MovingAverageIndicators(TechnicalHelpers):

@@ -155,7 +155,7 @@ class PatternIndicators(TechnicalHelpers):
             return {"pattern_type": "none", "strength": 0.0, "breakout_level": 0.0}
 
         recent_high = [h for h in high_list[-period:] if isinstance(h, (int, float))]
-        recent_low = [l for l in low_list[-period:] if isinstance(l, (int, float))]
+        recent_low = [low_val for low_val in low_list[-period:] if isinstance(low_val, (int, float))]
 
         if len(recent_high) < 3:
             return {"pattern_type": "none", "strength": 0.0, "breakout_level": 0.0}

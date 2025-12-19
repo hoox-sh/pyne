@@ -42,7 +42,7 @@ from pynescript.ast.visitor import NodeVisitor
 
 class Precedence(IntEnum):
     """Operator precedence levels for correct parenthesization in output.
-    
+
     Higher values bind tighter. Used to determine when to add parentheses
     around sub-expressions to preserve evaluation order.
     """

@@ -192,7 +192,7 @@ def _parse(
     # (e.g., hundreds of nested ternary operators)
     old_limit = sys.getrecursionlimit()
     sys.setrecursionlimit(max(old_limit, 5000))
-    
+
     try:
         lexer = PinescriptLexer(stream)
         token_stream = CommonTokenStream(lexer)
@@ -379,7 +379,7 @@ def literal_eval(node_or_string: AST | str, context: dict[str, Any] | None = Non
     return evaluator.visit(node_or_string)
 
 
-def dump(  # noqa: C901
+def dump(
     node: AST,
     *,
     annotate_fields: bool = True,
@@ -409,7 +409,7 @@ def dump(  # noqa: C901
         Script(body=[Assign(...)])
         >>> print(dump(ast, indent=2))  # Pretty-printed with indentation
     """
-    def _format(node, level=0):  # noqa: C901, PLR0912
+    def _format(node, level=0):  # noqa: PLR0912
         # Prepare indentation and separator based on indent parameter
         if indent is not None:
             level += 1

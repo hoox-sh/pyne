@@ -147,7 +147,7 @@ class TestRiskRewardRatio:
     def test_invalid_ratio(self, evaluator):
         """Test invalid setup (entry = stop)."""
         ratio = evaluator._builtin_ta_risk_reward_ratio([100.0, 100.0, 110.0])
-        assert ratio is None or ratio == float('inf')
+        assert ratio is None or ratio == float("inf")
 
 
 # ============================================================================

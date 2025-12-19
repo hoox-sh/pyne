@@ -20,7 +20,9 @@ from __future__ import annotations
 
 import math
 import statistics
+
 from typing import Any
+
 
 # Constants
 UNARY = 1
@@ -42,7 +44,8 @@ class TechnicalHelpers:
 
         This method should be overridden by the host class (Evaluator).
         """
-        raise NotImplementedError("Must be implemented by host class")
+        msg = "Must be implemented by host class"
+        raise NotImplementedError(msg)
 
     def _expect_series(
         self,

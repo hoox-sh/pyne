@@ -47,7 +47,7 @@ from pynescript.ast.grammar.antlr4.visitor import PinescriptParserVisitor
 
 class PinescriptASTLocator:
     """Extract and manage position metadata from ANTLR parse tree tokens.
-    
+
     Calculates line numbers, column offsets, and end positions from parser tokens
     to preserve source location information in AST nodes for error reporting.
     """
@@ -55,10 +55,10 @@ class PinescriptASTLocator:
 
     def _getLocations(self, ctx: ParserRuleContext) -> dict[str, int]:
         """Extract location info from a parse tree context.
-        
+
         Args:
             ctx: ANTLR parser context node
-            
+
         Returns:
             Dict with lineno, col_offset, end_lineno, end_col_offset keys
         """
@@ -80,11 +80,11 @@ class PinescriptASTLocator:
 
     def _setLocations(self, node: ast.AST, ctx: ParserRuleContext) -> ast.AST:
         """Attach location metadata from parser context to AST node.
-        
+
         Args:
             node: The AST node to annotate
             ctx: The ANTLR parser context providing location data
-            
+
         Returns:
             The modified node with location info attached
         """
@@ -109,7 +109,7 @@ class PinescriptASTLocator:
 
 class PinescriptCommentParser:
     """Parse Pine Script special comment annotations.
-    
+
     Extracts metadata from comments like:
     - //@version 5 (assignment-style)
     - //@description "My Strategy" (named value)
@@ -127,10 +127,10 @@ class PinescriptCommentParser:
 
     def _parseComment(self, comment: str) -> tuple[str, tuple[str, ...]]:  # noqa: C901
         """Parse a comment string to extract annotation kind and parts.
-        
+
         Args:
             comment: The comment text to parse
-            
+
         Returns:
             Tuple of (kind, parts) where kind identifies the comment type
         """

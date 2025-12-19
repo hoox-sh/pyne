@@ -336,7 +336,9 @@ class TestMapDifferentValueTypes:
 
         outer: Map[str, Map[str, int]] = Map()
         outer.put("inner", inner)
-        assert outer.get("inner").get("x") == 10
+        got_inner = outer.get("inner")
+        assert got_inner is not None
+        assert got_inner.get("x") == 10
 
 
 class TestMapEdgeCases:
