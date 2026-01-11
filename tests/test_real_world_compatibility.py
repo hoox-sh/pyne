@@ -1,4 +1,4 @@
-# Copyright 2024-2025 jango_blockchained
+# Copyright 2024-2025 Yunseong Hwang, jango_blockchained
 #
 # Licensed under the GNU Lesser General Public License Version 3.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -408,7 +408,7 @@ class TestCompatibilityMetrics:
         """
         Generate comprehensive compatibility report in JSON format.
 
-        This report can be used to update COMPATIBILITY_GUARANTEE.md
+        This report can be used to update docs/compatibility_guarantee.md
         and track compatibility metrics over time.
         """
         if not builtin_scripts_dir.exists():
@@ -481,7 +481,8 @@ class TestCompatibilityMetrics:
         print(f"{'=' * 80}\n")
 
         # Save report to file
-        report_path = Path(__file__).parent.parent / "compatibility_report.json"
+        report_path = Path(__file__).parent.parent / "reports" / "compatibility_report.json"
+        report_path.parent.mkdir(exist_ok=True)
         report_path.write_text(json.dumps(report, indent=2))
         print(f"Report saved to: {report_path}")
 

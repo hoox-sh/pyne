@@ -1,4 +1,4 @@
-# Copyright 2024-2025 jango_blockchained
+# Copyright 2024-2025 Yunseong Hwang, jango_blockchained
 #
 # Licensed under the GNU Lesser General Public License Version 3.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -40,6 +40,7 @@ Each category is implemented as a mixin class composed into BuiltinEvaluator.
 
 from __future__ import annotations
 
+from .alerts import AlertsMixin
 from .arrays import ArrayBuiltinsMixin
 from .base import BuiltinHandler
 from .color import register_color_functions
@@ -61,6 +62,7 @@ from .utility import UtilityFunctionsMixin
 
 
 class BuiltinEvaluator(
+    AlertsMixin,
     NumericBuiltinsMixin,
     StringBuiltinsMixin,
     ArrayBuiltinsMixin,
@@ -78,6 +80,7 @@ class BuiltinEvaluator(
 
     def _build_builtin_map(self) -> dict[str, BuiltinHandler]:
         dispatch = super()._build_builtin_map()
+        dispatch.update(self._alerts_builtin_map())
         dispatch.update(self._numeric_builtin_map())
         dispatch.update(self._string_builtin_map())
         dispatch.update(self._array_builtin_map())

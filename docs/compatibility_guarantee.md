@@ -1,4 +1,4 @@
-# Copyright 2024-2025 jango_blockchained
+# Copyright 2024-2025 Yunseong Hwang, jango_blockchained
 #
 # Licensed under the GNU Lesser General Public License Version 3.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -24,7 +24,7 @@
 ---
 
 ## 🎯 Executive Summary
-
+ 
 PyneScript provides **100% syntax compatibility** and **95%+ semantic compatibility** with TradingView® Pine Script v5/v6. All core language features, 181+ built-in functions, and technical indicators are fully implemented with comprehensive test coverage.
 
 ### Compatibility Metrics
@@ -338,7 +338,7 @@ pytest tests/ --example-scripts-dir ./test_scripts
 
 ### Numerical Validation
 
-See [NUMERICAL_VALIDATION_REPORT.md](NUMERICAL_VALIDATION_REPORT.md) for:
+See [numerical_validation_report.md](numerical_validation_report.md) for:
 - Detailed indicator comparison methodology
 - Test data generation procedures
 - Statistical analysis of errors
@@ -346,7 +346,7 @@ See [NUMERICAL_VALIDATION_REPORT.md](NUMERICAL_VALIDATION_REPORT.md) for:
 
 ### Real-World Scripts
 
-See [tests/data/builtin_scripts/](tests/data/builtin_scripts/) for:
+See [../tests/data/builtin_scripts/](../tests/data/builtin_scripts/) for:
 - 87 TradingView® built-in indicator scripts
 - Complete parse/unparse validation
 - AST structure verification

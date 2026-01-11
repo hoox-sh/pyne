@@ -67,7 +67,7 @@ This diagram illustrates the core pipeline: from source code to AST manipulation
 - **🔧 Extensible Architecture**: Visitor patterns for custom analysis and transformation.
 - **🧪 Battle-Tested**: Regression tests against TradingView®'s built-in scripts ensure reliability.
 - **🚀 Modern Tooling**: Hatch for environments, Ruff for linting, pytest for testing.
-- **✅ 100% Compatibility Guarantee**: See [COMPATIBILITY_GUARANTEE.md](COMPATIBILITY_GUARANTEE.md) for our validated compatibility metrics.
+- **✅ 100% Compatibility Guarantee**: See [COMPATIBILITY_GUARANTEE.md](docs/compatibility_guarantee.md) for our validated compatibility metrics.
 
 ## Installation
 
@@ -236,8 +236,8 @@ Dive deeper at [pynescript.readthedocs.io][docs]:
 - [Usage Guide](https://pynescript.readthedocs.io/en/latest/usage.html) — CLI and library tutorials.
 - [API Reference](https://pynescript.readthedocs.io/en/latest/reference.html) — Complete module docs.
 - [Implementation Status](https://pynescript.readthedocs.io/en/latest/pinescript_implementation_status.html) — Feature coverage.
-- [Compatibility Guarantee](COMPATIBILITY_GUARANTEE.md) — 100% compatibility validation with 997 tests.
-- [Numerical Validation Report](NUMERICAL_VALIDATION_REPORT.md) — Precision analysis (99.999% accuracy).
+- [Compatibility Guarantee](docs/compatibility_guarantee.md) — 100% compatibility validation with 997 tests.
+- [Numerical Validation Report](docs/numerical_validation_report.md) — Precision analysis (99.999% accuracy).
 
 ## Roadmap
 

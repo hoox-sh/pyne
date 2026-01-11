@@ -1,4 +1,4 @@
-# Copyright 2024-2025 jango_blockchained
+# Copyright 2024-2025 Yunseong Hwang, jango_blockchained
 #
 # Licensed under the GNU Lesser General Public License Version 3.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -40,8 +40,6 @@ class UtilityFunctionsMixin(BuiltinDispatchMixin):
             "time_close": self._builtin_time_close,
             "time_tradingday": self._builtin_time_tradingday,
             "weekofyear": self._builtin_weekofyear,
-            "alert": self._builtin_alert,
-            "alertcondition": self._builtin_alertcondition,
             "timestamp": self._builtin_timestamp,
         }
 
@@ -147,31 +145,6 @@ class UtilityFunctionsMixin(BuiltinDispatchMixin):
             self._error("weekofyear() requires a numeric timestamp")
         dt = datetime.fromtimestamp(ts / 1000, tz=timezone.utc)
         return dt.isocalendar()[1]
-
-    def _builtin_alert(self, args: list[Any]) -> None:
-        """Send an alert notification."""
-        if not args or len(args) < 1:
-            self._error("alert() requires at least a message argument")
-        # In a real implementation, this would send the alert
-        # For now, we just validate arguments and succeed silently
-        if len(args) > 1:
-            # freq parameter is ignored in this stub, but ensure it returns None
-            return None
-        # Arguments are parsed but not used in stub implementation
-        _ = args[0]  # message
-
-    def _builtin_alertcondition(self, args: list[Any]) -> None:
-        """Define an alert condition (for alerting on specific events)."""
-        if len(args) < 2:
-            msg = "alertcondition() requires condition and message"
-            self._error(msg)
-        # In a real implementation, this would register the condition
-        # For now, we just validate arguments and succeed silently
-        _ = args[0]  # condition
-        _ = args[1]  # message
-        if len(args) > 2:
-            # freq parameter is ignored in this stub, but ensure it returns None
-            return None
 
     def _builtin_timestamp(self, args: list[Any]) -> int:
         """Create Unix timestamp from date/time components."""
