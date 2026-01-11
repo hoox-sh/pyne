@@ -41,6 +41,7 @@ class NodeVisitor:
 
     def __init__(self):
         """Initialize the visitor with empty method cache."""
+        super().__init__()
         # Optimize: cache visitor methods to avoid repeated getattr calls
         self._visitor_cache: dict[str, Callable[[AST], Any]] = {}
 

@@ -34,6 +34,9 @@ class Matrix(Generic[T]):
 
     def __init__(self, rows: int = 0, cols: int = 0, default_value: Any = None):
         """Initialize matrix with given dimensions and default value."""
+        if rows < 0 or cols < 0:
+            msg = f"Matrix dimensions must be non-negative, got {rows}x{cols}"
+            raise ValueError(msg)
         self.rows_count = rows
         self.cols_count = cols
         # Initialize 2D data structure
@@ -59,14 +62,14 @@ class Matrix(Generic[T]):
         """Get element at row, col."""
         if not (0 <= row < self.rows_count and 0 <= col < self.cols_count):
             msg = f"Index out of bounds: [{row}][{col}]"
-            raise IndexError(msg)
+            raise ValueError(msg)
         return self.data[row][col]
 
     def set(self, row: int, col: int, value: Any) -> None:
         """Set element at row, col."""
         if not (0 <= row < self.rows_count and 0 <= col < self.cols_count):
             msg = f"Index out of bounds: [{row}][{col}]"
-            raise IndexError(msg)
+            raise ValueError(msg)
         self.data[row][col] = value
 
     def rows(self) -> int:

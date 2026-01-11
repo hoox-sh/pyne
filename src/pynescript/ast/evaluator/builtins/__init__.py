@@ -99,4 +99,13 @@ class BuiltinEvaluator(
         register_color_functions(dispatch)
         register_timeframe_functions(dispatch)
         register_script_declaration_functions(dispatch)
+        register_script_declaration_functions(dispatch)
         return dispatch
+
+    def _error(self, msg: str):
+        """Raise a ValueError with the given message.
+        
+        Required because BuiltinEvaluator is instantiated directly in tests
+        and needs to handle errors without BaseEvaluator's implementation.
+        """
+        raise ValueError(msg)
