@@ -8,7 +8,6 @@ dynamic = ["version"]
 description = "Parse, inspect, and regenerate TradingView® Pine Script™ from Python"
 readme = "README.md"
 requires-python = ">=3.10"
-license = "LGPL-3.0-or-later"
 keywords = ["python", "tradingview", "pinescript"]
 authors = [
   { name = "jango-blockchained" },
@@ -18,11 +17,11 @@ maintainers = [
 ]
 classifiers = [
   "Development Status :: 2 - Pre-Alpha",
-  "License :: OSI Approved :: GNU Lesser General Public License v3 or later (LGPLv3+)",
   "Programming Language :: Python",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
+  "Private :: Do Not Upload",
 ]
 dependencies = [
   "antlr4-python3-runtime>=4.13.1",
@@ -32,9 +31,6 @@ dependencies = [
 ]
 
 [project.urls]
-Documentation = "https://github.com/jango-blockchained/pynescript#readme"
-Issues = "https://github.com/jango-blockchained/pynescript/issues"
-Source = "https://github.com/jango-blockchained/pynescript"
 
 [project.scripts]
 pynescript = "pynescript.__main__:cli"

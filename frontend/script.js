@@ -25,71 +25,98 @@ const chart = LightweightCharts.createChart(document.getElementById('chart'), {
 });
 
 const candleSeries = chart.addCandlestickSeries({
-  upColor: '#26a69a',
-  downColor: '#ef5350',
-  borderDownColor: '#ef5350',
-  borderUpColor: '#26a69a',
-  wickDownColor: '#ef5350',
-  wickUpColor: '#26a69a',
+    upColor: '#26a69a',
+    downColor: '#ef5350',
+    borderDownColor: '#ef5350',
+    borderUpColor: '#26a69a',
+    wickDownColor: '#ef5350',
+    wickUpColor: '#26a69a',
 });
 
 let overlaySeries = null;
 
 // Dummy data for now
-fetch('https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1d&limit=200')
-    .then(res => res.json())
-    .then(data => {
-        const cdata = data.map(d => {
-            return {time:d[0]/1000,open:parseFloat(d[1]),high:parseFloat(d[2]),low:parseFloat(d[3]),close:parseFloat(d[4])}
-        });
-        candleSeries.setData(cdata);
-    })
-    .catch(err => console.log(err));
-
 const runButton = document.getElementById('run-button');
 const pineScriptInput = document.getElementById('pine-script-input');
 const output = document.getElementById('output');
 
+let candleData = []; // Store fetched data globally
+
+// Fetch Binance Data
+fetch('https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1d&limit=200')
+    .then(res => res.json())
+    .then(data => {
+        candleData = data.map(d => {
+            return {
+                time: d[0] / 1000,
+                open: parseFloat(d[1]),
+                high: parseFloat(d[2]),
+                low: parseFloat(d[3]),
+                close: parseFloat(d[4])
+            }
+        });
+        candleSeries.setData(candleData);
+    })
+    .catch(err => console.log(err));
+
+
 runButton.addEventListener('click', () => {
     const pineScript = pineScriptInput.value;
     output.textContent = 'Running...';
+    output.classList.remove('error');
 
     fetch('http://localhost:5002/run', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ script: pineScript }),
+        // Send both script and data
+        body: JSON.stringify({
+            script: pineScript,
+            data: candleData
+        }),
     })
-    .then(res => res.json())
-    .then(data => {
-        output.textContent = `Status: ${data.status}\nMessage: ${data.message}`;
-        if (Array.isArray(data.data)) {
-            output.textContent += `\nData: ${JSON.stringify(data.data)}`;
-
-            if (!overlaySeries) {
-                overlaySeries = chart.addLineSeries({
-                    color: '#2962ff',
-                    lineWidth: 2,
-                });
+        .then(res => res.json())
+        .then(data => {
+            if (data.status === 'error') {
+                output.textContent = `Error: ${data.message}`;
+                output.classList.add('error');
+                console.error(data.message);
+                return;
             }
 
-            const lineData = data.data.reduce((points, value, index) => {
-                const candle = candleSeries.dataByIndex(index);
-                if (!candle) {
-                    return points;
-                }
-                points.push({ time: candle.time, value });
-                return points;
-            }, []);
+            output.textContent = `Status: ${data.status}\nMessage: ${data.message}`;
+            output.textContent += `\nPlots generated: ${data.data.length} points`;
 
-            overlaySeries.setData(lineData);
-        } else if (overlaySeries) {
-            overlaySeries.setData([]);
-        }
-    })
-    .catch(err => {
-        output.textContent = `Error: ${err.message}`;
-        console.error(err);
-    });
+            const plotData = data.data;
+
+            if (Array.isArray(plotData)) {
+                if (!overlaySeries) {
+                    overlaySeries = chart.addLineSeries({
+                        color: '#2962ff',
+                        lineWidth: 2,
+                    });
+                }
+
+                // Map backend results to chart time
+                // Assuming backend returns result for every bar in order
+                const lineData = [];
+                for (let i = 0; i < candleData.length; i++) {
+                    // If plotData is shorter (e.g. calculation starts later), handle indices carefully
+                    // For now assuming 1-to-1 mapping
+                    if (i < plotData.length && plotData[i] !== null) {
+                        lineData.push({
+                            time: candleData[i].time,
+                            value: plotData[i]
+                        });
+                    }
+                }
+
+                overlaySeries.setData(lineData);
+            }
+        })
+        .catch(err => {
+            output.textContent = `Network Error: ${err.message}`;
+            console.error(err);
+        });
 });

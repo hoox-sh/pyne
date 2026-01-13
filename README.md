@@ -1,15 +1,8 @@
 # Pynescript
 
-[![PyPI](https://img.shields.io/pypi/v/pynescript.svg)][pypi]
-[![Python Version](https://img.shields.io/pypi/pyversions/pynescript)][python-version]
-[![License](https://img.shields.io/pypi/l/pynescript)][license]
-[![Docs](https://img.shields.io/readthedocs/pynescript/latest.svg?label=docs)][docs]
-
 > Parse, analyse, and regenerate TradingView® Pine Script™ with a modern Python toolchain.
 
-After years of experimentation the upstream project stalled. This fork now serves as the primary development home—focused on complete Pine Script™ compatibility, richer tooling, and open collaboration.
-
-_Pine Script™ and TradingView® are trademarks of TradingView, Inc. This project is an independent community effort and is not affiliated with or endorsed by TradingView, Inc._
+_Pine Script™ and TradingView® are trademarks of TradingView, Inc. This project is an independent effort and is not affiliated with or endorsed by TradingView, Inc._
 
 ## Table of Contents
 
@@ -24,9 +17,6 @@ _Pine Script™ and TradingView® are trademarks of TradingView, Inc. This proje
 - [Project Structure](#project-structure)
 - [Documentation](#documentation)
 - [Roadmap](#roadmap)
-- [Contributing](#contributing)
-- [License](#license)
-- [Support & Feedback](#support--feedback)
 
 ## Overview
 
@@ -67,20 +57,19 @@ This diagram illustrates the core pipeline: from source code to AST manipulation
 - **🔧 Extensible Architecture**: Visitor patterns for custom analysis and transformation.
 - **🧪 Battle-Tested**: Regression tests against TradingView®'s built-in scripts ensure reliability.
 - **🚀 Modern Tooling**: Hatch for environments, Ruff for linting, pytest for testing.
-- **✅ 100% Compatibility Guarantee**: See [COMPATIBILITY_GUARANTEE.md](docs/compatibility_guarantee.md) for our validated compatibility metrics.
 
 ## Installation
 
-Install pynescript from PyPI:
+Install pynescript from your private repository or source:
 
 ```bash
-pip install pynescript
+pip install .
 ```
 
 For development, clone the repo and use Hatch:
 
 ```bash
-git clone https://github.com/jango-blockchained/pynescript.git
+git clone <repository-url>
 cd pynescript
 pip install -e .
 ```
@@ -181,26 +170,6 @@ new_tree = transformer.visit(tree)
 print(unparse(new_tree))  # sma = ta.sma(price, 20)
 ```
 
-Here's a sequence diagram showing the transformation process:
-
-```mermaid
-sequenceDiagram
-    participant User
-    participant CLI
-    participant Parser
-    participant Transformer
-    participant Unparser
-
-    User->>CLI: Run transform command
-    CLI->>Parser: Parse input script
-    Parser-->>CLI: Return AST
-    CLI->>Transformer: Apply custom logic
-    Transformer-->>CLI: Return modified AST
-    CLI->>Unparser: Unparse to script
-    Unparser-->>CLI: Return output
-    CLI-->>User: Display result
-```
-
 ## CLI Reference
 
 - `parse-and-dump <file>` — Parse and print the AST structure.
@@ -231,42 +200,10 @@ docs/              # Sphinx documentation
 
 ## Documentation
 
-Dive deeper at [pynescript.readthedocs.io][docs]:
-
-- [Usage Guide](https://pynescript.readthedocs.io/en/latest/usage.html) — CLI and library tutorials.
-- [API Reference](https://pynescript.readthedocs.io/en/latest/reference.html) — Complete module docs.
-- [Implementation Status](https://pynescript.readthedocs.io/en/latest/pinescript_implementation_status.html) — Feature coverage.
-- [Compatibility Guarantee](docs/compatibility_guarantee.md) — 100% compatibility validation with 997 tests.
-- [Numerical Validation Report](docs/numerical_validation_report.md) — Precision analysis (99.999% accuracy).
+Dive deeper at internal documentation links.
 
 ## Roadmap
 
 - **v1.0**: Full Pine Script™ v5 coverage with evaluator expansion.
 - **v1.1**: Transformer recipes and community extensions.
 - **v2.0**: Multi-version support and performance optimizations.
-
-## Contributing
-
-Join the community! We love contributions:
-
-1. Fork and clone the repo.
-2. Run `hatch run lint:style && hatch run test:test`.
-3. Open a PR with your changes and validation details.
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
-
-## License
-
-Distributed under the terms of the [LGPL 3.0 license][license].
-
-## Support & Feedback
-
-Found a bug or have a feature request? [Open an issue][issues]. Let's build something amazing together!
-
-[pypi]: https://pypi.org/project/pynescript/
-[python-version]: https://pypi.org/project/pynescript
-[license]: https://github.com/jango-blockchained/pynescript/blob/main/LICENSE
-[docs]: https://pynescript.readthedocs.io/
-[issues]: https://github.com/jango-blockchained/pynescript/issues
-
-<!-- github-only -->
