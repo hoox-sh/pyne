@@ -9,6 +9,11 @@ app = Flask(__name__)
 CORS(app)
 
 
+@app.route("/", methods=["GET"])
+def health_check():
+    return jsonify({"status": "healthy", "message": "Pynescript Server is running. Send POST requests to /run."})
+
+
 @app.route("/run", methods=["POST"])
 def run_pine_script():
     data = request.get_json()
