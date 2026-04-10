@@ -9,15 +9,20 @@ This module was refactored from a single 5,142-line file into a modular structur
 
 Modules:
 - core.py: Shared validation helpers and base utilities
+- basic.py: Basic indicators (SMA, EMA, crossover, Bollinger, ATR, etc)
+- common.py: Common indicators (statistics, trend, pivot, vwap)
 - moving_averages.py: SMA, EMA, KAMA, DEMA, TEMA, HMA, VWMA, SWMA
 - oscillators.py: RSI, STOCH, MACD, CCI, ROC, WPR, TSI, divergence detectors
 - volatility.py: ATR, BB, Keltner Channels, StochRSI, linear regression, etc
-- volume.py: OBV, MFI, CMF, WAD, WAD indicators
+- volume.py: OBV, MFI, CMF, WAD, WVAD indicators
 - patterns.py: Engulfing, Hammer, Gap, Zigzag, Fractals, pivots
-- advanced.py: Market microstructure, regime detection, strategy synthesis (Tiers 5-8)
+- economics.py: Market microstructure & advanced economics
+- strategies.py: Advanced trading strategies & market timing
+- synthesizer.py: Final capstone - intelligent strategy synthesizer
+- advanced.py: Additional advanced indicators
 
-Status: Core helpers created. Individual modules will be composed dynamically.
-The original TechnicalAnalysisMixin remains functional with backward compatibility.
+Status: Fully modularized with 13 focused modules.
+The TechnicalAnalysisMixin composes all modules for backward compatibility.
 """
 
 from __future__ import annotations

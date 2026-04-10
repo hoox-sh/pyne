@@ -95,5 +95,67 @@ def download_builtin_scripts(script_dir):
     download(script_dir)
 
 
+@cli.command(short_help="Lint Pine Script file for issues.")
+@click.argument(
+    "filename",
+    metavar="PATH",
+    type=str,
+    required=False,
+)
+@click.option(
+    "--encoding",
+    default="utf-8",
+    help="Text encoding of the file.",
+)
+@click.option(
+    "--fix",
+    is_flag=True,
+    help="Attempt to fix issues where possible.",
+)
+@click.option(
+    "--fail-on",
+    type=click.Choice(["errors", "warnings", "all"], case_sensitive=False),
+    default="errors",
+    help="Exit with error code on this severity level.",
+)
+def lint(filename, encoding, fix, fail_on):
+    """Lint Pine Script files for issues.
+
+    If no FILE is provided, reads from stdin.
+    Use '-' to read from stdin explicitly.
+    """
+    from pynescript.ast.linter import lint_file, lint_script
+
+    if filename == "-" or filename is None:
+        import sys
+
+        source = sys.stdin.read()
+        warnings = lint_script(source, "<stdin>")
+    else:
+        with open(filename, "r", encoding=encoding) as f:
+            source = f.read()
+        warnings = lint_script(source, filename)
+
+    if not warnings:
+        click.echo("No issues found.")
+        return
+
+    has_errors = any(w.severity == "error" for w in warnings)
+    has_warnings = any(w.severity == "warning" for w in warnings)
+
+    for w in warnings:
+        severity_emoji = "❌" if w.severity == "error" else "⚠️"
+        click.echo(f"{severity_emoji} {w}")
+
+    click.echo(f"\nSummary: {len(warnings)} issue(s) found")
+
+    if fail_on == "errors" and has_errors:
+        raise click.ClickException("Lint failed with errors.")
+    elif fail_on == "warnings" and (has_errors or has_warnings):
+        raise click.ClickException("Lint failed with warnings or errors.")
+    elif fail_on == "all" and warnings:
+        raise click.ClickException("Lint found issues.")
+
+
 if __name__ == "__main__":
     cli(prog_name="pynescript")  # pragma: no cover

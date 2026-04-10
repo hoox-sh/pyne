@@ -28,7 +28,11 @@ class BuiltinDispatchMixin:
             self._builtin_dispatch = dispatch
         handler = dispatch.get(name)
         if handler is None:
-            msg = f"Unknown built-in function: {name}"
+            msg = (
+                f"Unknown built-in function: '{name}'. "
+                f"Available modules: math, str, array, ta, input, request, line, box, label, table, strategy. "
+                f"Use 'ta.<name>' for technical analysis, 'math.<name>' for math functions."
+            )
             raise ValueError(msg)
         return handler(args)
 

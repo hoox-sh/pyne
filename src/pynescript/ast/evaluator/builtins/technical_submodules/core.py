@@ -43,11 +43,11 @@ class TechnicalHelpers:
     ) -> tuple[list[Any], int]:
         """Validate and extract series and period arguments."""
         if len(args) != length:
-            self._error("Invalid argument count for series-based function")
-        series = self._expect_list(args[0], "First argument must be a series")
+            self._error(f"ta.* function requires {length} argument(s), got {len(args)}. Expected: (series, period)")
+        series = self._expect_list(args[0], "First argument must be a list (series)")
         period = self._expect_int(
             args[1],
-            "Second argument must be an integer length",
+            "Second argument must be an integer (period)",
         )
         return series, period
 
@@ -66,19 +66,19 @@ class TechnicalHelpers:
     def _expect_list(self, value: Any, message: str) -> list[Any]:
         """Validate that value is a list."""
         if not isinstance(value, list):
-            self._error(message)
+            self._error(f"{message}. Got: {type(value).__name__}")
         return value
 
     def _expect_int(self, value: Any, message: str) -> int:
         """Validate that value is an integer."""
         if not isinstance(value, int):
-            self._error(message)
+            self._error(f"{message}. Got: {type(value).__name__}")
         return value
 
     def _expect_number(self, value: Any, message: str) -> float:
         """Validate that value is numeric and return as float."""
         if not isinstance(value, int | float):
-            self._error(message)
+            self._error(f"{message}. Got: {type(value).__name__}")
         return float(value)
 
     # Helper methods used across multiple indicators

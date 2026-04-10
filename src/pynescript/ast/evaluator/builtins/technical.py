@@ -10,12 +10,12 @@ from .base import BuiltinHandler
 from .technical_submodules.advanced import AdvancedIndicators
 from .technical_submodules.basic import BasicIndicators
 from .technical_submodules.common import CommonIndicators
+from .technical_submodules.economics import EconomicsIndicators
 from .technical_submodules.moving_averages import MovingAverageIndicators
 from .technical_submodules.oscillators import OscillatorIndicators
 from .technical_submodules.patterns import PatternIndicators
-from .technical_submodules.tier6 import Tier6Indicators
-from .technical_submodules.tier7 import Tier7Indicators
-from .technical_submodules.tier8 import Tier8Indicators
+from .technical_submodules.strategies import StrategiesIndicators
+from .technical_submodules.synthesizer import SynthesizerIndicators
 from .technical_submodules.volatility import VolatilityIndicators
 from .technical_submodules.volume import VolumeIndicators
 
@@ -27,9 +27,9 @@ class TechnicalAnalysisMixin(
     MovingAverageIndicators,
     OscillatorIndicators,
     PatternIndicators,
-    Tier6Indicators,
-    Tier7Indicators,
-    Tier8Indicators,
+    EconomicsIndicators,
+    StrategiesIndicators,
+    SynthesizerIndicators,
     VolatilityIndicators,
     VolumeIndicators,
     BuiltinDispatchMixin,
@@ -199,8 +199,5 @@ class TechnicalAnalysisMixin(
             "ta.trend_confirmation_score": self._builtin_ta_trend_confirmation_score,
             "ta.volatility_regime_score": self._builtin_ta_volatility_regime_score,
             # Phase 8 Tier 8: Final Capstone Indicator
-            "ta.intelligent_strategy_synthesizer": (
-                self._builtin_ta_intelligent_strategy_synthesizer
-            ),
+            "ta.intelligent_strategy_synthesizer": (self._builtin_ta_intelligent_strategy_synthesizer),
         }
-
