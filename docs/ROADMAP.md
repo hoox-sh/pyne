@@ -1,7 +1,7 @@
 # Pynescript Future Roadmap
 
 **Last Updated:** April 10, 2026  
-**Status:** Core Features 100% Complete
+**Status:** Core Features 100% Complete + Enhanced
 
 ---
 
@@ -15,58 +15,74 @@
 | Technical Analysis | 178+ ✅ |
 | Collections (array/matrix/map) | 100% ✅ |
 | Drawing/Strategy/Input/Request | 100% ✅ |
+| Linter | ✅ |
+| Jupyter Integration | ✅ |
+| Data Providers (Yahoo, AlphaVantage, CCXT) | ✅ |
 | Tests | 1021 passing ✅ |
 
 ---
 
-## Roadmap: Future Work
+## Completed Features
+
+### Quick Wins (All Done ✅)
+1. **Better error messages** - Improved with type hints and module suggestions
+2. **Code cleanup** - Removed backup files (evaluator_backup.py, technical_new.py)
+3. **Type hint improvements** - Enhanced mypy configuration
+
+### Short-term (All Done ✅)
+4. **Jupyter support** - Added `pynescript/ext/jupyter.py`:
+   - `%%pinescript` cell magic for running Pine Script
+   - `create_sample_data()` - Generate OHLCV test data
+   - `evaluate_indicator()` - Run indicators with data
+   - `display_indicator_table()` - Display as pandas DataFrame
+
+5. **Script validation/linting** - Added `pynescript/ast/linter.py`:
+   - 7+ lint rules (version, deprecated patterns, naming, style)
+   - CLI: `pynescript lint <file>`
+
+### Medium-term (All Done ✅)
+7. **Real data integration** - Added `pynescript/util/data.py`:
+   - `MockDataProvider` - For testing
+   - `YahooFinanceProvider` - Via yfinance
+   - `AlphaVantageProvider` - Free API
+   - `CCXTProvider` - 100+ crypto exchanges
+   - CLI: `pynescript data SYMBOL --provider`
+
+---
+
+## Roadmap: Remaining Work
 
 ### Phase A: Enhancements (High Value)
 
-#### A1. Real Data Integration
-- Live market data feeds connection
-- Actual economic indicators API
-- Real stock split/dividend data
-
-#### A2. Performance Optimizations
+#### A1. Performance Optimizations
 - JIT compilation for critical paths
 - Vectorized array operations
 - Caching for repeated calculations
 
-#### A3. Extended Analysis
+#### A2. Extended Analysis
 - Machine learning indicator wrappers
 - Advanced statistical functions
 - Complex derivation functions
 
 ---
 
-### Phase B: Developer Experience (Medium Value)
+### Phase B: Developer Experience
 
 #### B1. IDE Integration
 - Language server protocol support
 - Autocomplete for Pine Script
 - Debugging tools and profiling
 
-#### B2. Error Messages
-- Better error diagnostics
-- Location tracking for errors
-- Helpful suggestions for fixes
-
-#### B3. Documentation
+#### B2. Documentation
 - Video tutorials
 - Interactive examples
 - Real-world trading examples
 
 ---
 
-### Phase C: Integration (Medium Value)
+### Phase C: Integration
 
-#### C1. Jupyter Support
-- Notebook integration
-- Interactive visualization
-- REPL improvements
-
-#### C2. API Server
+#### C1. API Server
 - REST API for remote execution
 - Webhook support for alerts
 - Cloud deployment configs
@@ -80,58 +96,62 @@
 - Code optimization suggestions
 - Pine v5 ↔ v6 converter
 
-#### D2. Script Validation
-- Linting rules for Pine Script
-- Style guide enforcement
-- Security checks
-
-#### D3. Advanced Features
+#### D2. Advanced Features
 - Parallel execution support
 - Distributed computing
 - Graph-based optimization
 
 ---
 
-### Phase E: Maintenance (Ongoing)
+## Priority Recommendation
 
-#### E1. Code Cleanup
-- Remove backup files
-- Deduplicate code
-- Optimize imports
+### Short-term (Next)
+1. **API Server** - REST API for remote execution
+2. **IDE Integration** - Language server protocol
 
-#### E2. Testing
-- More edge case coverage
-- Property-based testing
-- Performance benchmarking
+### Medium-term
+3. **Performance optimizations** - JIT, caching, vectorization
+4. **ML wrappers** - Advanced statistical functions
 
-#### E3. Type System
-- Refine mypy configuration
-- Add more type hints
-- Strict mode option
+### Long-term
+5. **Pine v5 ↔ v6 converter** - Specific use case
+6. **Parallel execution** - Performance scaling
 
 ---
 
-## Priority Recommendation
+## Usage Examples
 
-### Immediate (Quick Wins)
-1. **Better error messages** - High impact, low effort
-2. **Code cleanup** - Remove `technical.py` backup files
-3. **Type hint improvements** - Better type safety
+### Jupyter
+```python
+from pynescript.ext.jupyter import load_ipython_extension, create_sample_data
+load_ipython_extension(ipython)
 
-### Short-term (1-2 months)
-4. **Jupyter support** - Great for users
-5. **API server** - Enable cloud deployment
-6. **Script validation/linting** - Add value for developers
+# Then in a cell:
+%%pinescript
+//@version=5
+indicator("SMA")
+plot(ta.sma(close, 14))
+```
 
-### Medium-term (3-6 months)
-7. **Real data integration** - Major feature
-8. **Performance optimization** - Important for scale
-9. **IDE integration** - Language server
+### CLI Lint
+```bash
+pynescript lint script.pine
+pynescript lint --fail-on warnings
+```
 
-### Long-term (6+ months)
-10. **ML wrappers** - Advanced feature
-11. **Parallel execution** - Performance
-12. **Pine v5 ↔ v6 converter** - Specific use case
+### CLI Data
+```bash
+pynescript data AAPL --provider mock
+pynescript data BTC/USDT --provider ccxt --exchange binance
+pynescript data AAPL --provider yahoo --period 6mo
+```
+
+### Python API
+```python
+from pynescript.util.data import get_provider
+provider = get_provider("ccxt", exchange="binance")
+data = provider.fetch("BTC/USDT", "1y")
+```
 
 ---
 

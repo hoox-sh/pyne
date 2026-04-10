@@ -49,11 +49,14 @@ This diagram illustrates the core pipeline: from source code to AST manipulation
 ## Features
 
 - **🔍 Complete Parsing**: Full support for Pine Script™ v5-v6 grammar with ANTLR4-powered accuracy.
-- **📊 181+ Builtin Functions**: Comprehensive implementation of technical analysis, utilities, drawing, and strategy functions.
+- **📊 224+ Builtin Functions**: Comprehensive implementation of technical analysis, utilities, drawing, and strategy functions.
 - **🛠️ AST Manipulation**: Inspect and transform scripts using a rich Python object model.
 - **🔄 Round-Trip Fidelity**: Parse and unparse scripts without losing formatting or semantics.
-- **💻 CLI Tools**: Command-line utilities for quick parsing, dumping, and validation.
-- **⚡ Evaluation Engine**: Execute deterministic expressions with 997 tests (100% pass rate).
+- **💻 CLI Tools**: Command-line utilities for parsing, linting, and data fetching.
+- **⚡ Evaluation Engine**: Execute deterministic expressions with 1000+ tests (100% pass rate).
+- **📝 Linter**: Built-in Pine Script validation with 7+ rules.
+- **📓 Jupyter Support**: Magic commands and helpers for notebook workflows.
+- **📊 Data Providers**: Yahoo Finance, Alpha Vantage, CCXT (100+ crypto exchanges).
 - **🔧 Extensible Architecture**: Visitor patterns for custom analysis and transformation.
 - **🧪 Battle-Tested**: Regression tests against TradingView®'s built-in scripts ensure reliability.
 - **🚀 Modern Tooling**: Hatch for environments, Ruff for linting, pytest for testing.
@@ -170,10 +173,56 @@ new_tree = transformer.visit(tree)
 print(unparse(new_tree))  # sma = ta.sma(price, 20)
 ```
 
+### Linting Pine Script
+
+Check scripts for issues:
+
+```bash
+pynescript lint my_script.pine
+pynescript lint --fail-on warnings my_script.pine
+```
+
+### Fetching Market Data
+
+Get OHLCV data from various providers:
+
+```bash
+# Mock data for testing
+pynescript data AAPL --provider mock
+
+# Yahoo Finance
+pynescript data AAPL --provider yahoo --period 6mo
+
+# Crypto (CCXT)
+pynescript data BTC/USDT --provider ccxt --exchange binance
+```
+
+### Jupyter Integration
+
+Use in Jupyter notebooks:
+
+```python
+from pynescript.ext.jupyter import load_ipython_extension, create_sample_data
+
+load_ipython_extension(ipython)
+
+# Then in a cell:
+%%pinescript
+//@version=5
+indicator("SMA")
+plot(ta.sma(close, 14))
+
+# Or generate sample data:
+data = create_sample_data(100)
+```
+
 ## CLI Reference
 
 - `parse-and-dump <file>` — Parse and print the AST structure.
 - `parse-and-unparse <file>` — Round-trip and output normalized Pine Script™.
+- `lint <file>` — Lint Pine Script for issues (version, deprecated patterns, naming, style).
+- `lint --fail-on warnings` — Fail on warnings.
+- `data <symbol>` — Fetch market data (use `--provider` for source).
 - `download-builtin-scripts [--script-dir DIR]` — Fetch TradingView® built-ins for testing.
 
 ## Library API
@@ -183,6 +232,20 @@ Core functions in `pynescript.ast.helper`:
 - `parse(text: str) -> Script` — Parse Pine Script™ text into an AST.
 - `dump(tree: AST) -> str` — Pretty-print the AST for inspection.
 - `unparse(tree: AST) -> str` — Regenerate Pine Script™ from AST.
+- `literal_eval(expr: str, context: dict) -> Any` — Evaluate expressions with builtins.
+
+Linter in `pynescript.ast.linter`:
+
+- `lint_script(source: str) -> list[LintWarning]` — Lint Pine Script source.
+- `lint_file(filepath: str) -> list[LintWarning]` — Lint a Pine Script file.
+
+Data providers in `pynescript.util.data`:
+
+- `get_provider(name: str, **kwargs) -> DataProvider` — Get provider by name.
+- `MockDataProvider` — For testing.
+- `YahooFinanceProvider` — Via yfinance.
+- `AlphaVantageProvider` — Free API.
+- `CCXTProvider` — 100+ crypto exchanges.
 
 For advanced use, explore `evaluator.py`, `transformer.py`, and `visitor.py`.
 
@@ -191,11 +254,11 @@ For advanced use, explore `evaluator.py`, `transformer.py`, and `visitor.py`.
 ```text
 examples/          # Sample scripts showcasing library usage
 src/pynescript/    # Core modules: parser, AST, evaluator, CLI
-  ast/             # ANTLR grammar, ASDL nodes, helpers
-  ext/             # Extensions: Pygments lexer, Nautilus Trader stubs
-  util/            # Utilities: facade for TradingView® API
+  ast/             # ANTLR grammar, ASDL nodes, helpers, linter
+  ext/             # Extensions: Jupyter, Pygments, Nautilus Trader
+  util/            # Utilities: data providers (Yahoo, CCXT, etc.)
 tests/             # Comprehensive test suite with fixtures
-docs/              # Sphinx documentation
+docs/              # Documentation and roadmap
 ```
 
 ## Documentation
