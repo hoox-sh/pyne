@@ -1,0 +1,60 @@
+# Copyright (C) 2025 jango-blockchained. All Rights Reserved.
+#
+# Docker Compose for local development of Pynescript Pro API
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "5002:8080"
+    environment:
+      - FLASK_ENV=development
+      - FLASK_DEBUG=1
+    volumes:
+      - ./src:/app/src:ro
+      - ./backend:/app/backend:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  # Redis for caching (optional, for production-like dev)
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+    profiles:
+      - with-redis
+
+  # LSP server for VS Code testing
+  lsp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: python -m pynescript.langserver
+    volumes:
+      - ./src:/app/src:ro
+    environment:
+      - PYTHONPATH=/app
+    profiles:
+      - with-lsp
+
+volumes:
+  redis_data:
+
+networks:
+  default:
+    name: pynescript-dev

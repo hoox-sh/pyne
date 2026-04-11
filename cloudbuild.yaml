@@ -1,24 +1,84 @@
+# Copyright (C) 2025 jango-blockchained. All Rights Reserved.
+#
+# Google Cloud Build configuration for Pynescript Pro API
+# Deploys to Cloud Run on every push to main
+
+substitutions:
+  _SERVICE_NAME: pynescript-pro-api
+  _REGION: us-central1
+  _REPOSITORY: pynescript
+
 steps:
   # Build the container image
-  - name: 'gcr.io/cloud-builders/docker'
-    args: ['build', '-t', 'gcr.io/$PROJECT_ID/pynescript-server', '.']
+  - name: gcr.io/cloud-builders/docker
+    id: build
+    args:
+      - build
+      - --tag=gcr.io/$PROJECT_ID/$_REPOSITORY/$_SERVICE_NAME:$COMMIT_SHA
+      - --tag=gcr.io/$PROJECT_ID/$_REPOSITORY/$_SERVICE_NAME:latest
+      - --cache-from=gcr.io/$PROJECT_ID/$_REPOSITORY/$_SERVICE_NAME:latest
+      - .
+    env:
+      - DOCKER_BUILDKIT=1
 
-  # Push the container image to Container Registry
-  - name: 'gcr.io/cloud-builders/docker'
-    args: ['push', 'gcr.io/$PROJECT_ID/pynescript-server']
+  # Push to Container Registry
+  - name: gcr.io/cloud-builders/docker
+    id: push
+    args:
+      - push
+      - --all-tags
+      - gcr.io/$PROJECT_ID/$_REPOSITORY/$_SERVICE_NAME
+    waitFor:
+      - build
 
-  # Deploy container image to Cloud Run
-  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+  # Deploy to Cloud Run
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    id: deploy
     entrypoint: gcloud
     args:
-      - 'run'
-      - 'deploy'
-      - 'pynescript-service'
-      - '--image'
-      - 'gcr.io/$PROJECT_ID/pynescript-server'
-      - '--region'
-      - 'us-central1'
-      - '--allow-unauthenticated'
+      - run
+      - deploy
+      - $_SERVICE_NAME
+      - --image=gcr.io/$PROJECT_ID/$_REPOSITORY/$_SERVICE_NAME:$COMMIT_SHA
+      - --region=$_REGION
+      - --platform=managed
+      - --allow-unauthenticated
+      - --min-instances=0
+      - --max-instances=10
+      - --memory=512Mi
+      - --cpu=1
+      - --concurrency=10
+      - --timeout=60s
+      - --set-env-vars=FLASK_ENV=production
+    waitFor:
+      - push
+
+  # Build LSP binary (for release pipeline)
+  - name: python:3.12-slim
+    id: build-lsp
+    entrypoint: /bin/bash
+    args:
+      - -c
+      - |
+        pip install nuitka cryptography
+        python scripts/build/ci_build.py --jobs=4
+    env:
+      - CRYPTO_KEY=${_METADATA_KEY}
+    waitFor:
+      - build
 
 images:
-  - 'gcr.io/$PROJECT_ID/pynescript-server'
+  - gcr.io/$PROJECT_ID/$_REPOSITORY/$_SERVICE_NAME:$COMMIT_SHA
+  - gcr.io/$PROJECT_ID/$_REPOSITORY/$_SERVICE_NAME:latest
+
+options:
+  machineType: E2_HIGHCPU_8
+  logging: CLOUD_LOGGING_ONLY
+  dynamicSubstitutions: true
+
+timeout: 1200s
+
+tags:
+  - pynescript
+  - backend
+  - api
