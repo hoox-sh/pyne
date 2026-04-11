@@ -1,0 +1,130 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage-schema.json",
+  "name": "Pine Script",
+  "scopeName": "source.pinescript",
+  "fileTypes": ["pine", "pinev5", "pinev6"],
+  "patterns": [
+    {
+      "include": "#comments"
+    },
+    {
+      "include": "#strings"
+    },
+    {
+      "include": "#numbers"
+    },
+    {
+      "include": "#keywords"
+    },
+    {
+      "include": "#types"
+    },
+    {
+      "include": "#builtins"
+    },
+    {
+      "include": "#identifiers"
+    },
+    {
+      "include": "#operators"
+    }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.pinescript",
+          "match": "//.*$"
+        },
+        {
+          "name": "comment.block.pinescript",
+          "begin": "/\\*",
+          "end": "\\*/"
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.pinescript",
+          "begin": "\"",
+          "end": "\"",
+          "patterns": [
+            {
+              "name": "constant.character.escape.pinescript",
+              "match": "\\\\."
+            }
+          ]
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.float.pinescript",
+          "match": "\\b\\d+\\.\\d+\\b"
+        },
+        {
+          "name": "constant.numeric.integer.pinescript",
+          "match": "\\b\\d+\\b"
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.pinescript",
+          "match": "\\b(if|else|for|while|switch|case|default|break|continue|return)\\b"
+        },
+        {
+          "name": "keyword.declaration.pinescript",
+          "match": "\\b(import|export|from|as|type|method|var|varip|const|strategy|indicator|library)\\b"
+        },
+        {
+          "name": "keyword.operator.pinescript",
+          "match": "\\b(and|or|not|in|to)\\b"
+        },
+        {
+          "name": "keyword.other.pinescript",
+          "match": "\\b(true|false|na|void)\\b"
+        }
+      ]
+    },
+    "types": {
+      "patterns": [
+        {
+          "name": "support.type.pinescript",
+          "match": "\\b(color|series|const|input|simple|var|bool|int|float|string|array|matrix|map|line|label|box|table)\\b"
+        }
+      ]
+    },
+    "builtins": {
+      "patterns": [
+        {
+          "name": "support.function.pinescript",
+          "match": "\\b(ta\\.[a-z_]+|strategy\\.[a-z_]+|input\\.[a-z_]+|plot\\.[a-z_]+|array\\.[a-z_]+|matrix\\.[a-z_]+|math\\.[a-z_]+|str\\.[a-z_]+)\\b"
+        },
+        {
+          "name": "support.function.pinescript",
+          "match": "\\b(plot|plotshape|plotchar|hline|fill|alert|strategy\\.entry|strategy\\.exit|strategy\\.order)\\b"
+        }
+      ]
+    },
+    "identifiers": {
+      "patterns": [
+        {
+          "name": "variable.other.pinescript",
+          "match": "\\b[a-z_][a-zA-Z0-9_]*\\b"
+        }
+      ]
+    },
+    "operators": {
+      "patterns": [
+        {
+          "name": "keyword.operator.pinescript",
+          "match": "[+\\-*/%=<>!&|^~?:]+"
+        }
+      ]
+    }
+  }
+}

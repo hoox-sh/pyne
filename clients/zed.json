@@ -1,0 +1,27 @@
+{
+  // Pine Script LSP configuration for Zed
+  // Add to ~/.config/zed/settings.json under "language_servers"
+  // or create ~/.config/zed/settings.json.local with:
+  //
+  // {
+  //   "language_servers": {
+  //     "pynescript": {
+  //       "command": ["pynescript-lsp"],
+  //       "arguments": ["--stdio"]
+  //     }
+  //   }
+  // }
+
+  "languages": {
+    "Pine Script": {
+      "language_servers": ["pynescript"]
+    }
+  },
+  "language_servers": {
+    "pynescript": {
+      "command": "pynescript-lsp",
+      "arguments": ["--stdio"],
+      "languages": ["Pine Script"]
+    }
+  }
+}

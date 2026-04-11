@@ -1,0 +1,116 @@
+{
+  "name": "pynescript",
+  "displayName": "Pine Script",
+  "description": "Pine Script language support with LSP diagnostics, autocomplete, hover, and more",
+  "version": "1.0.0",
+  "publisher": "pynescript",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Linters",
+    "Intelligence"
+  ],
+  "keywords": [
+    "pinescript",
+    "tradingview",
+    "pine script",
+    "lsp",
+    "trading"
+  ],
+  "activationEvents": [
+    "onLanguage:pinescript",
+    "workspaceContains:**/*.pine",
+    "workspaceContains:**/*.pinev5",
+    "workspaceContains:**/*.pinev6"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "pinescript",
+        "aliases": ["Pine Script", "pinescript"],
+        "extensions": [".pine", ".pinev5", ".pinev6"],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "pinescript",
+        "scopeName": "source.pinescript",
+        "path": "./syntaxes/pinescript.tmLanguage.json"
+      }
+    ],
+    "configuration": {
+      "type": "object",
+      "title": "Pine Script",
+      "properties": {
+        "pynescript.lsp.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable/disable the Pine Script language server"
+        },
+        "pynescript.lsp.command": {
+          "type": "string",
+          "default": "pynescript-lsp",
+          "description": "Command to launch the LSP server"
+        },
+        "pynescript.formatting.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable formatting support"
+        },
+        "pynescript.diagnostics.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable diagnostic squiggles"
+        },
+        "pynescript.completion.snippets": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable snippet completions for builtin functions"
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "pynescript.restartServer",
+        "title": "Pine Script: Restart Language Server",
+        "category": "Pine Script"
+      },
+      {
+        "command": "pynescript.formatDocument",
+        "title": "Pine Script: Format Document",
+        "category": "Pine Script"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "pynescript.restartServer",
+          "when": "editorLangId == pinescript"
+        },
+        {
+          "command": "pynescript.formatDocument",
+          "when": "editorLangId == pinescript"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "lint": "eslint src --ext ts"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "@types/vscode": "^1.85.0",
+    "@vscode/test-electron": "^2.3.0",
+    "typescript": "^5.3.0"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
+  }
+}

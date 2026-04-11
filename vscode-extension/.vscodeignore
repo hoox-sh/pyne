@@ -1,0 +1,13 @@
+.vscode/**
+.vscode-test/**
+src/**
+out/**
+node_modules/**
+.git**
+*.ts
+*.map
+tsconfig.json
+.vscodeignore
+*.md
+syntaxes/**
+!syntaxes/pinescript.tmLanguage.json
