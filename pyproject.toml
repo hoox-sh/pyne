@@ -21,7 +21,6 @@ classifiers = [
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
-  "Private :: Do Not Upload",
 ]
 dependencies = [
   "antlr4-python3-runtime>=4.13.1",
@@ -30,10 +29,22 @@ dependencies = [
   "tqdm",
 ]
 
+[project.optional-dependencies]
+lsp = [
+  "pygls>=2.0.0",
+  "lsprotocol>=2024.0.0",
+]
+dev-lsp = [
+  "pygls>=2.0.0",
+  "lsprotocol>=2024.0.0",
+  "pytest-lsp>=0.1.0",
+]
+
 [project.urls]
 
 [project.scripts]
 pynescript = "pynescript.__main__:cli"
+pynescript-lsp = "pynescript.langserver.__main__:main"
 
 [project.entry-points."pygments.lexers"]
 pinescript = "pynescript.ext.pygments.lexers:PinescriptLexer"

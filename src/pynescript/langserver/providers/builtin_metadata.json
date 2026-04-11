@@ -1,0 +1,4340 @@
+{
+  "abs": {
+    "label": "abs",
+    "kind": "function",
+    "detail": "abs(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "abs(${1:arg})",
+    "category": "builtin"
+  },
+  "alert": {
+    "label": "alert",
+    "kind": "function",
+    "detail": "alert(message, freq)",
+    "brief": "Send an alert notification",
+    "documentation": "Send an alert notification.\n\nSignature: alert(message, freq)",
+    "snippet": "alert(${1:arg})",
+    "category": "builtin"
+  },
+  "alertcondition": {
+    "label": "alertcondition",
+    "kind": "function",
+    "detail": "alertcondition(condition, title, message)",
+    "brief": "Define an alert condition",
+    "documentation": "Define an alert condition.\n\nSignature: alertcondition(condition, title, message)",
+    "snippet": "alertcondition(${1:arg})",
+    "category": "builtin"
+  },
+  "array.abs": {
+    "label": "array.abs",
+    "kind": "function",
+    "detail": "array.abs(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "array.abs(${1:param1})",
+    "category": "array"
+  },
+  "array.avg": {
+    "label": "array.avg",
+    "kind": "function",
+    "detail": "array.avg(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "array.avg(${1:param1})",
+    "category": "array"
+  },
+  "array.binary_search": {
+    "label": "array.binary_search",
+    "kind": "function",
+    "detail": "array.binary_search(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "array.binary_search(${1:param1})",
+    "category": "array"
+  },
+  "array.binary_search_leftmost": {
+    "label": "array.binary_search_leftmost",
+    "kind": "function",
+    "detail": "array.binary_search_leftmost(...)",
+    "brief": "Binary search for the leftmost (first) occurrence of a value",
+    "documentation": "Binary search for the leftmost (first) occurrence of a value.",
+    "snippet": "array.binary_search_leftmost(${1:param1})",
+    "category": "array"
+  },
+  "array.binary_search_rightmost": {
+    "label": "array.binary_search_rightmost",
+    "kind": "function",
+    "detail": "array.binary_search_rightmost(...)",
+    "brief": "Binary search for the rightmost (last) occurrence of a value",
+    "documentation": "Binary search for the rightmost (last) occurrence of a value.",
+    "snippet": "array.binary_search_rightmost(${1:param1})",
+    "category": "array"
+  },
+  "array.clear": {
+    "label": "array.clear",
+    "kind": "function",
+    "detail": "array.clear(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "array.clear(${1:param1})",
+    "category": "array"
+  },
+  "array.concat": {
+    "label": "array.concat",
+    "kind": "function",
+    "detail": "array.concat(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "array.concat(${1:param1})",
+    "category": "array"
+  },
+  "array.copy": {
+    "label": "array.copy",
+    "kind": "function",
+    "detail": "array.copy(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "array.copy(${1:param1})",
+    "category": "array"
+  },
+  "array.covariance": {
+    "label": "array.covariance",
+    "kind": "function",
+    "detail": "array.covariance(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "array.covariance(${1:param1})",
+    "category": "array"
+  },
+  "array.every": {
+    "label": "array.every",
+    "kind": "function",
+    "detail": "array.every(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "array.every(${1:param1})",
+    "category": "array"
+  },
+  "array.fill": {
+    "label": "array.fill",
+    "kind": "function",
+    "detail": "array.fill(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "array.fill(${1:param1})",
+    "category": "array"
+  },
+  "array.first": {
+    "label": "array.first",
+    "kind": "function",
+    "detail": "array.first(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "array.first(${1:param1})",
+    "category": "array"
+  },
+  "array.from": {
+    "label": "array.from",
+    "kind": "function",
+    "detail": "array.from(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "array.from(${1:param1})",
+    "category": "array"
+  },
+  "array.get": {
+    "label": "array.get",
+    "kind": "function",
+    "detail": "array.get(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "array.get(${1:param1})",
+    "category": "array"
+  },
+  "array.includes": {
+    "label": "array.includes",
+    "kind": "function",
+    "detail": "array.includes(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "array.includes(${1:param1})",
+    "category": "array"
+  },
+  "array.indexof": {
+    "label": "array.indexof",
+    "kind": "function",
+    "detail": "array.indexof(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "array.indexof(${1:param1})",
+    "category": "array"
+  },
+  "array.insert": {
+    "label": "array.insert",
+    "kind": "function",
+    "detail": "array.insert(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "array.insert(${1:param1})",
+    "category": "array"
+  },
+  "array.join": {
+    "label": "array.join",
+    "kind": "function",
+    "detail": "array.join(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "array.join(${1:param1})",
+    "category": "array"
+  },
+  "array.last": {
+    "label": "array.last",
+    "kind": "function",
+    "detail": "array.last(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "array.last(${1:param1})",
+    "category": "array"
+  },
+  "array.lastindexof": {
+    "label": "array.lastindexof",
+    "kind": "function",
+    "detail": "array.lastindexof(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "array.lastindexof(${1:param1})",
+    "category": "array"
+  },
+  "array.max": {
+    "label": "array.max",
+    "kind": "function",
+    "detail": "array.max(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "array.max(${1:param1})",
+    "category": "array"
+  },
+  "array.median": {
+    "label": "array.median",
+    "kind": "function",
+    "detail": "array.median(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "array.median(${1:param1})",
+    "category": "array"
+  },
+  "array.min": {
+    "label": "array.min",
+    "kind": "function",
+    "detail": "array.min(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "array.min(${1:param1})",
+    "category": "array"
+  },
+  "array.mode": {
+    "label": "array.mode",
+    "kind": "function",
+    "detail": "array.mode(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "array.mode(${1:param1})",
+    "category": "array"
+  },
+  "array.new_bool": {
+    "label": "array.new_bool",
+    "kind": "function",
+    "detail": "array.new_bool(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "array.new_bool(${1:param1})",
+    "category": "array"
+  },
+  "array.new_box": {
+    "label": "array.new_box",
+    "kind": "function",
+    "detail": "array.new_box(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "array.new_box(${1:param1})",
+    "category": "array"
+  },
+  "array.new_chart.point": {
+    "label": "array.new_chart.point",
+    "kind": "function",
+    "detail": "array.new_chart.point(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "array.new_chart.point(${1:param1})",
+    "category": "array"
+  },
+  "array.new_color": {
+    "label": "array.new_color",
+    "kind": "function",
+    "detail": "array.new_color(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "array.new_color(${1:param1})",
+    "category": "array"
+  },
+  "array.new_float": {
+    "label": "array.new_float",
+    "kind": "function",
+    "detail": "array.new_float(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "array.new_float(${1:param1})",
+    "category": "array"
+  },
+  "array.new_int": {
+    "label": "array.new_int",
+    "kind": "function",
+    "detail": "array.new_int(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "array.new_int(${1:param1})",
+    "category": "array"
+  },
+  "array.new_label": {
+    "label": "array.new_label",
+    "kind": "function",
+    "detail": "array.new_label(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "array.new_label(${1:param1})",
+    "category": "array"
+  },
+  "array.new_line": {
+    "label": "array.new_line",
+    "kind": "function",
+    "detail": "array.new_line(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "array.new_line(${1:param1})",
+    "category": "array"
+  },
+  "array.new_linefill": {
+    "label": "array.new_linefill",
+    "kind": "function",
+    "detail": "array.new_linefill(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "array.new_linefill(${1:param1})",
+    "category": "array"
+  },
+  "array.new_polyline": {
+    "label": "array.new_polyline",
+    "kind": "function",
+    "detail": "array.new_polyline(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "array.new_polyline(${1:param1})",
+    "category": "array"
+  },
+  "array.new_string": {
+    "label": "array.new_string",
+    "kind": "function",
+    "detail": "array.new_string(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "array.new_string(${1:param1})",
+    "category": "array"
+  },
+  "array.new_table": {
+    "label": "array.new_table",
+    "kind": "function",
+    "detail": "array.new_table(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "array.new_table(${1:param1})",
+    "category": "array"
+  },
+  "array.percentile_linear_interpolation": {
+    "label": "array.percentile_linear_interpolation",
+    "kind": "function",
+    "detail": "array.percentile_linear_interpolation(...)",
+    "brief": "Calculate percentile using linear interpolation method",
+    "documentation": "Calculate percentile using linear interpolation method.",
+    "snippet": "array.percentile_linear_interpolation(${1:param1})",
+    "category": "array"
+  },
+  "array.percentile_nearest_rank": {
+    "label": "array.percentile_nearest_rank",
+    "kind": "function",
+    "detail": "array.percentile_nearest_rank(...)",
+    "brief": "Calculate percentile using nearest rank method",
+    "documentation": "Calculate percentile using nearest rank method.",
+    "snippet": "array.percentile_nearest_rank(${1:param1})",
+    "category": "array"
+  },
+  "array.percentrank": {
+    "label": "array.percentrank",
+    "kind": "function",
+    "detail": "array.percentrank(...)",
+    "brief": "Calculate percent rank of a value in an array (0-100)",
+    "documentation": "Calculate percent rank of a value in an array (0-100).",
+    "snippet": "array.percentrank(${1:param1})",
+    "category": "array"
+  },
+  "array.pop": {
+    "label": "array.pop",
+    "kind": "function",
+    "detail": "array.pop(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "array.pop(${1:param1}, ${2:param2})",
+    "category": "array"
+  },
+  "array.push": {
+    "label": "array.push",
+    "kind": "function",
+    "detail": "array.push(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "array.push(${1:param1}, ${2:param2})",
+    "category": "array"
+  },
+  "array.range": {
+    "label": "array.range",
+    "kind": "function",
+    "detail": "array.range(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "array.range(${1:param1})",
+    "category": "array"
+  },
+  "array.remove": {
+    "label": "array.remove",
+    "kind": "function",
+    "detail": "array.remove(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "array.remove(${1:param1})",
+    "category": "array"
+  },
+  "array.reverse": {
+    "label": "array.reverse",
+    "kind": "function",
+    "detail": "array.reverse(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "array.reverse(${1:param1})",
+    "category": "array"
+  },
+  "array.set": {
+    "label": "array.set",
+    "kind": "function",
+    "detail": "array.set(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "array.set(${1:param1})",
+    "category": "array"
+  },
+  "array.shift": {
+    "label": "array.shift",
+    "kind": "function",
+    "detail": "array.shift(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "array.shift(${1:param1}, ${2:param2})",
+    "category": "array"
+  },
+  "array.size": {
+    "label": "array.size",
+    "kind": "function",
+    "detail": "array.size(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "array.size(${1:param1})",
+    "category": "array"
+  },
+  "array.slice": {
+    "label": "array.slice",
+    "kind": "function",
+    "detail": "array.slice(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "array.slice(${1:param1})",
+    "category": "array"
+  },
+  "array.some": {
+    "label": "array.some",
+    "kind": "function",
+    "detail": "array.some(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "array.some(${1:param1})",
+    "category": "array"
+  },
+  "array.sort": {
+    "label": "array.sort",
+    "kind": "function",
+    "detail": "array.sort(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "array.sort(${1:param1})",
+    "category": "array"
+  },
+  "array.sort_indices": {
+    "label": "array.sort_indices",
+    "kind": "function",
+    "detail": "array.sort_indices(...)",
+    "brief": "Return indices that would sort the array",
+    "documentation": "Return indices that would sort the array.",
+    "snippet": "array.sort_indices(${1:param1})",
+    "category": "array"
+  },
+  "array.standardize": {
+    "label": "array.standardize",
+    "kind": "function",
+    "detail": "array.standardize(...)",
+    "brief": "Standardize array values (z-score normalization)",
+    "documentation": "Standardize array values (z-score normalization).",
+    "snippet": "array.standardize(${1:param1})",
+    "category": "array"
+  },
+  "array.stdev": {
+    "label": "array.stdev",
+    "kind": "function",
+    "detail": "array.stdev(...)",
+    "brief": "Calculate standard deviation of array values",
+    "documentation": "Calculate standard deviation of array values.",
+    "snippet": "array.stdev(${1:param1})",
+    "category": "array"
+  },
+  "array.sum": {
+    "label": "array.sum",
+    "kind": "function",
+    "detail": "array.sum(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "array.sum(${1:param1})",
+    "category": "array"
+  },
+  "array.unshift": {
+    "label": "array.unshift",
+    "kind": "function",
+    "detail": "array.unshift(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "array.unshift(${1:param1}, ${2:param2})",
+    "category": "array"
+  },
+  "array.variance": {
+    "label": "array.variance",
+    "kind": "function",
+    "detail": "array.variance(...)",
+    "brief": "Calculate variance of array values",
+    "documentation": "Calculate variance of array values.",
+    "snippet": "array.variance(${1:param1})",
+    "category": "array"
+  },
+  "barcolor": {
+    "label": "barcolor",
+    "kind": "function",
+    "detail": "barcolor(...)",
+    "brief": "Stub: barcolor(color, offset, editable, show_last)",
+    "documentation": "Stub: barcolor(color, offset, editable, show_last).",
+    "snippet": "barcolor(${1:arg})",
+    "category": "builtin"
+  },
+  "bgcolor": {
+    "label": "bgcolor",
+    "kind": "function",
+    "detail": "bgcolor(...)",
+    "brief": "Stub: bgcolor(color, title, editable, show_last)",
+    "documentation": "Stub: bgcolor(color, title, editable, show_last).",
+    "snippet": "bgcolor(${1:arg})",
+    "category": "builtin"
+  },
+  "bool": {
+    "label": "bool",
+    "kind": "function",
+    "detail": "bool(...)",
+    "brief": "Convert value to boolean",
+    "documentation": "Convert value to boolean.",
+    "snippet": "bool(${1:arg})",
+    "category": "builtin"
+  },
+  "box.copy": {
+    "label": "box.copy",
+    "kind": "function",
+    "detail": "box.copy(...)",
+    "brief": "box",
+    "documentation": "box.copy(box)",
+    "snippet": "box.copy(${1:param1})",
+    "category": "box"
+  },
+  "box.delete": {
+    "label": "box.delete",
+    "kind": "function",
+    "detail": "box.delete(...)",
+    "brief": "box",
+    "documentation": "box.delete(box)",
+    "snippet": "box.delete(${1:param1})",
+    "category": "box"
+  },
+  "box.get_bottom": {
+    "label": "box.get_bottom",
+    "kind": "function",
+    "detail": "box.get_bottom(...)",
+    "brief": "box",
+    "documentation": "box.get_bottom(box)",
+    "snippet": "box.get_bottom(${1:param1})",
+    "category": "box"
+  },
+  "box.get_left": {
+    "label": "box.get_left",
+    "kind": "function",
+    "detail": "box.get_left(...)",
+    "brief": "box",
+    "documentation": "box.get_left(box)",
+    "snippet": "box.get_left(${1:param1})",
+    "category": "box"
+  },
+  "box.get_right": {
+    "label": "box.get_right",
+    "kind": "function",
+    "detail": "box.get_right(...)",
+    "brief": "box",
+    "documentation": "box.get_right(box)",
+    "snippet": "box.get_right(${1:param1})",
+    "category": "box"
+  },
+  "box.get_top": {
+    "label": "box.get_top",
+    "kind": "function",
+    "detail": "box.get_top(...)",
+    "brief": "box",
+    "documentation": "box.get_top(box)",
+    "snippet": "box.get_top(${1:param1})",
+    "category": "box"
+  },
+  "box.new": {
+    "label": "box.new",
+    "kind": "function",
+    "detail": "box.new(...)",
+    "brief": "box",
+    "documentation": "box.new(left, top, right, bottom, xloc, closed, bgcolor, ...)",
+    "snippet": "box.new(${1:param1})",
+    "category": "box"
+  },
+  "box.set_bgcolor": {
+    "label": "box.set_bgcolor",
+    "kind": "function",
+    "detail": "box.set_bgcolor(...)",
+    "brief": "box",
+    "documentation": "box.set_bgcolor(box, color)",
+    "snippet": "box.set_bgcolor(${1:param1})",
+    "category": "box"
+  },
+  "box.set_border_color": {
+    "label": "box.set_border_color",
+    "kind": "function",
+    "detail": "box.set_border_color(...)",
+    "brief": "box",
+    "documentation": "box.set_border_color(box, color)",
+    "snippet": "box.set_border_color(${1:param1})",
+    "category": "box"
+  },
+  "box.set_border_style": {
+    "label": "box.set_border_style",
+    "kind": "function",
+    "detail": "box.set_border_style(...)",
+    "brief": "box",
+    "documentation": "box.set_border_style(box, style)",
+    "snippet": "box.set_border_style(${1:param1})",
+    "category": "box"
+  },
+  "box.set_border_width": {
+    "label": "box.set_border_width",
+    "kind": "function",
+    "detail": "box.set_border_width(...)",
+    "brief": "box",
+    "documentation": "box.set_border_width(box, width)",
+    "snippet": "box.set_border_width(${1:param1})",
+    "category": "box"
+  },
+  "box.set_bottom": {
+    "label": "box.set_bottom",
+    "kind": "function",
+    "detail": "box.set_bottom(...)",
+    "brief": "box",
+    "documentation": "box.set_bottom(box, bottom)",
+    "snippet": "box.set_bottom(${1:param1})",
+    "category": "box"
+  },
+  "box.set_closed": {
+    "label": "box.set_closed",
+    "kind": "function",
+    "detail": "box.set_closed(...)",
+    "brief": "box",
+    "documentation": "box.set_closed(box, closed)",
+    "snippet": "box.set_closed(${1:param1})",
+    "category": "box"
+  },
+  "box.set_extend": {
+    "label": "box.set_extend",
+    "kind": "function",
+    "detail": "box.set_extend(...)",
+    "brief": "box",
+    "documentation": "box.set_extend(box, extend)",
+    "snippet": "box.set_extend(${1:param1})",
+    "category": "box"
+  },
+  "box.set_left": {
+    "label": "box.set_left",
+    "kind": "function",
+    "detail": "box.set_left(...)",
+    "brief": "box",
+    "documentation": "box.set_left(box, left)",
+    "snippet": "box.set_left(${1:param1})",
+    "category": "box"
+  },
+  "box.set_right": {
+    "label": "box.set_right",
+    "kind": "function",
+    "detail": "box.set_right(...)",
+    "brief": "box",
+    "documentation": "box.set_right(box, right)",
+    "snippet": "box.set_right(${1:param1})",
+    "category": "box"
+  },
+  "box.set_top": {
+    "label": "box.set_top",
+    "kind": "function",
+    "detail": "box.set_top(...)",
+    "brief": "box",
+    "documentation": "box.set_top(box, top)",
+    "snippet": "box.set_top(${1:param1})",
+    "category": "box"
+  },
+  "box.set_xloc": {
+    "label": "box.set_xloc",
+    "kind": "function",
+    "detail": "box.set_xloc(...)",
+    "brief": "box",
+    "documentation": "box.set_xloc(box, xloc)",
+    "snippet": "box.set_xloc(${1:param1})",
+    "category": "box"
+  },
+  "chart.point.copy": {
+    "label": "chart.point.copy",
+    "kind": "function",
+    "detail": "chart.point.copy(...)",
+    "brief": "chart",
+    "documentation": "chart.point.copy(point) - Create a copy of a chart point",
+    "snippet": "chart.point.copy(${1:param1})",
+    "category": "chart"
+  },
+  "chart.point.from_index": {
+    "label": "chart.point.from_index",
+    "kind": "function",
+    "detail": "chart.point.from_index(...)",
+    "brief": "chart",
+    "documentation": "chart.point.from_index(index, price) - Create a point from bar index and price",
+    "snippet": "chart.point.from_index(${1:param1})",
+    "category": "chart"
+  },
+  "chart.point.from_time": {
+    "label": "chart.point.from_time",
+    "kind": "function",
+    "detail": "chart.point.from_time(...)",
+    "brief": "chart",
+    "documentation": "chart.point.from_time(time, price) - Create a point from timestamp and price",
+    "snippet": "chart.point.from_time(${1:param1})",
+    "category": "chart"
+  },
+  "chart.point.new": {
+    "label": "chart.point.new",
+    "kind": "function",
+    "detail": "chart.point.new(...)",
+    "brief": "chart",
+    "documentation": "chart.point.new(time, price) - Create a point from time and price",
+    "snippet": "chart.point.new(${1:param1})",
+    "category": "chart"
+  },
+  "chart.point.now": {
+    "label": "chart.point.now",
+    "kind": "function",
+    "detail": "chart.point.now(...)",
+    "brief": "chart",
+    "documentation": "chart.point.now(price) - Create a point at current bar with given price",
+    "snippet": "chart.point.now(${1:param1})",
+    "category": "chart"
+  },
+  "color": {
+    "label": "color",
+    "kind": "function",
+    "detail": "color(...)",
+    "brief": "Create a new color with optional transparency",
+    "documentation": "Create a new color with optional transparency.\n\nArgs:\n    color: Color value as integer or hex string\n    transp: Transparency percentage (0-100, where 100 is fully transparent)\n\nReturns:\n    Color object",
+    "snippet": "color(${1:arg})",
+    "category": "builtin"
+  },
+  "color.b": {
+    "label": "color.b",
+    "kind": "function",
+    "detail": "color.b(...)",
+    "brief": "Get the blue component of a color",
+    "documentation": "Get the blue component of a color.\n\nArgs:\n    c: Color object\n\nReturns:\n    Blue component (0-255)",
+    "snippet": "color.b(${1:param1})",
+    "category": "color"
+  },
+  "color.from_gradient": {
+    "label": "color.from_gradient",
+    "kind": "function",
+    "detail": "color.from_gradient(...)",
+    "brief": "Create a color gradient between two colors",
+    "documentation": "Create a color gradient between two colors.\n\nInterpolates linearly between two colors based on the value position\nbetween min_val and max_val.\n\nArgs:\n    value: The value to interpolate\n    min_val: Minimum value (maps to color1)\n    max_val: Maximum value (maps to color2)\n    color1: Start color\n    color2: End color\n\nReturns:\n    Interpolated Color object",
+    "snippet": "color.from_gradient(${1:param1})",
+    "category": "color"
+  },
+  "color.g": {
+    "label": "color.g",
+    "kind": "function",
+    "detail": "color.g(...)",
+    "brief": "Get the green component of a color",
+    "documentation": "Get the green component of a color.\n\nArgs:\n    c: Color object\n\nReturns:\n    Green component (0-255)",
+    "snippet": "color.g(${1:param1})",
+    "category": "color"
+  },
+  "color.new": {
+    "label": "color.new",
+    "kind": "function",
+    "detail": "color.new(...)",
+    "brief": "Create a new color with optional transparency",
+    "documentation": "Create a new color with optional transparency.\n\nArgs:\n    color: Color value as integer or hex string\n    transp: Transparency percentage (0-100, where 100 is fully transparent)\n\nReturns:\n    Color object",
+    "snippet": "color.new(${1:param1})",
+    "category": "color"
+  },
+  "color.r": {
+    "label": "color.r",
+    "kind": "function",
+    "detail": "color.r(...)",
+    "brief": "Get the red component of a color",
+    "documentation": "Get the red component of a color.\n\nArgs:\n    c: Color object\n\nReturns:\n    Red component (0-255)",
+    "snippet": "color.r(${1:param1})",
+    "category": "color"
+  },
+  "color.rgb": {
+    "label": "color.rgb",
+    "kind": "function",
+    "detail": "color.rgb(...)",
+    "brief": "Create a color from RGB(A) components",
+    "documentation": "Create a color from RGB(A) components.\n\nArgs:\n    r: Red component (0-255)\n    g: Green component (0-255)\n    b: Blue component (0-255)\n    a: Alpha component (0-255, default 255 for opaque)\n\nReturns:\n    Color object",
+    "snippet": "color.rgb(${1:param1})",
+    "category": "color"
+  },
+  "color.t": {
+    "label": "color.t",
+    "kind": "function",
+    "detail": "color.t(...)",
+    "brief": "Get the transparency of a color",
+    "documentation": "Get the transparency of a color.\n\nArgs:\n    c: Color object\n\nReturns:\n    Transparency value (0-100, where 100 is fully transparent)",
+    "snippet": "color.t(${1:param1})",
+    "category": "color"
+  },
+  "dayofmonth": {
+    "label": "dayofmonth",
+    "kind": "function",
+    "detail": "dayofmonth(...)",
+    "brief": "Extract day of month from timestamp (1-31)",
+    "documentation": "Extract day of month from timestamp (1-31).",
+    "snippet": "dayofmonth(${1:arg})",
+    "category": "builtin"
+  },
+  "dayofweek": {
+    "label": "dayofweek",
+    "kind": "function",
+    "detail": "dayofweek(...)",
+    "brief": "Extract day of week from timestamp (1=Sunday, 7=Saturday)",
+    "documentation": "Extract day of week from timestamp (1=Sunday, 7=Saturday).",
+    "snippet": "dayofweek(${1:arg})",
+    "category": "builtin"
+  },
+  "fill": {
+    "label": "fill",
+    "kind": "function",
+    "detail": "fill(...)",
+    "brief": "Stub: fill(plot1, plot2, color, title, editable, show_last)",
+    "documentation": "Stub: fill(plot1, plot2, color, title, editable, show_last).",
+    "snippet": "fill(${1:arg})",
+    "category": "builtin"
+  },
+  "fixnan": {
+    "label": "fixnan",
+    "kind": "function",
+    "detail": "fixnan(...)",
+    "brief": "Replace NaN/None values with previous non-NaN value or 0",
+    "documentation": "Replace NaN/None values with previous non-NaN value or 0.",
+    "snippet": "fixnan(${1:arg})",
+    "category": "builtin"
+  },
+  "float": {
+    "label": "float",
+    "kind": "function",
+    "detail": "float(...)",
+    "brief": "Convert value to float",
+    "documentation": "Convert value to float.",
+    "snippet": "float(${1:arg})",
+    "category": "builtin"
+  },
+  "hline": {
+    "label": "hline",
+    "kind": "function",
+    "detail": "hline(...)",
+    "brief": "Stub: hline(price, title, color, linestyle, linewidth)",
+    "documentation": "Stub: hline(price, title, color, linestyle, linewidth).",
+    "snippet": "hline(${1:arg})",
+    "category": "builtin"
+  },
+  "hour": {
+    "label": "hour",
+    "kind": "function",
+    "detail": "hour(...)",
+    "brief": "Extract hour from timestamp (0-23)",
+    "documentation": "Extract hour from timestamp (0-23).",
+    "snippet": "hour(${1:arg})",
+    "category": "builtin"
+  },
+  "indicator": {
+    "label": "indicator",
+    "kind": "function",
+    "detail": "indicator(...)",
+    "brief": "Declare an indicator script",
+    "documentation": "Declare an indicator script.\n\nArgs:\n    title: Full title of the indicator\n    description: Description of the indicator\n    **_kwargs: Additional parameters accepted by PineScript\n\nReturns:\n    ScriptDeclaration object with script metadata",
+    "snippet": "indicator(${1:arg})",
+    "category": "builtin"
+  },
+  "input": {
+    "label": "input",
+    "kind": "function",
+    "detail": "input(...)",
+    "brief": "input(defval, title, tooltip, inline, group, confirm)\n\nGeneric input function that returns parame...",
+    "documentation": "input(defval, title, tooltip, inline, group, confirm)\n\nGeneric input function that returns parameter metadata.\nDefault type is inferred from defval.\n\nReturns dict with parameter metadata.",
+    "snippet": "input(${1:arg})",
+    "category": "builtin"
+  },
+  "input.bool": {
+    "label": "input.bool",
+    "kind": "function",
+    "detail": "input.bool(...)",
+    "brief": "input",
+    "documentation": "input.bool(defval, title, tooltip, inline, group, confirm)\n\nCreate a boolean input parameter.\n\nParameters:\n    defval: Default value (bool)\n    title: Parameter title (str)\n    tooltip: Tooltip text (str)\n    inline: Inline group name (str or None)\n    group: Parameter group name (str or None)\n    confirm: Require user confirmation (bool)\n\nReturns dict with parameter metadata.",
+    "snippet": "input.bool(${1:param1})",
+    "category": "input"
+  },
+  "input.color": {
+    "label": "input.color",
+    "kind": "function",
+    "detail": "input.color(...)",
+    "brief": "input",
+    "documentation": "input.color(defval, title, tooltip, inline, group, confirm)\n\nCreate a color input parameter.\nColor inputs select RGBA color values.\n\nParameters:\n    defval: Default color (str, e.g., \"#FF0000\" or color constant)\n    title: Parameter title (str)\n    tooltip: Tooltip text (str)\n    inline: Inline group name (str or None)\n    group: Parameter group name (str or None)\n    confirm: Require user confirmation (bool)\n\nReturns dict with parameter metadata.",
+    "snippet": "input.color(${1:param1})",
+    "category": "input"
+  },
+  "input.enum": {
+    "label": "input.enum",
+    "kind": "function",
+    "detail": "input.enum(...)",
+    "brief": "input",
+    "documentation": "input.enum(defval, title, options, tooltip, inline, group, confirm)\n\nCreate an enumeration input parameter.\nEnum inputs provide a dropdown list of predefined options.\n\nParameters:\n    defval: Default option (str)\n    title: Parameter title (str)\n    options: Possible values (list or tuple of str)\n    tooltip: Tooltip text (str)\n    inline: Inline group name (str or None)\n    group: Parameter group name (str or None)\n    confirm: Require user confirmation (bool)\n\nReturns dict with parameter metadata.",
+    "snippet": "input.enum(${1:param1})",
+    "category": "input"
+  },
+  "input.float": {
+    "label": "input.float",
+    "kind": "function",
+    "detail": "input.float(...)",
+    "brief": "input",
+    "documentation": "input.float(defval, title, minval, maxval, step, tooltip, inline, group, confirm)\n\nCreate a float input parameter.\n\nParameters:\n    defval: Default value (float)\n    title: Parameter title (str)\n    minval: Minimum allowed value (float or None)\n    maxval: Maximum allowed value (float or None)\n    step: Step size for increment (float or None)\n    tooltip: Tooltip text (str)\n    inline: Inline group name (str or None)\n    group: Parameter group name (str or None)\n    confirm: Require user confirmation (bool)\n\nReturns dict with parameter metadata.",
+    "snippet": "input.float(${1:param1})",
+    "category": "input"
+  },
+  "input.int": {
+    "label": "input.int",
+    "kind": "function",
+    "detail": "input.int(...)",
+    "brief": "input",
+    "documentation": "input.int(defval, title, minval, maxval, step, tooltip, inline,\n          group, confirm)\n\nCreate an integer input parameter.\n\nParameters:\n    defval: Default value (int)\n    title: Parameter title (str)\n    minval: Minimum allowed value (int or None)\n    maxval: Maximum allowed value (int or None)\n    step: Step size for increment (int or None)\n    tooltip: Tooltip text (str)\n    inline: Inline group name (str or None)\n    group: Parameter group name (str or None)\n    confirm: Require user confirmation (bool)\n\nReturns dict with parameter metadata.",
+    "snippet": "input.int(${1:param1})",
+    "category": "input"
+  },
+  "input.price": {
+    "label": "input.price",
+    "kind": "function",
+    "detail": "input.price(...)",
+    "brief": "input",
+    "documentation": "input.price(defval, title, minval, maxval, step, tooltip, inline, group, confirm)\n\nCreate a price input parameter.\nPrice inputs are essentially float inputs optimized for price values.\n\nParameters:\n    defval: Default price value (float)\n    title: Parameter title (str)\n    minval: Minimum allowed price (float or None)\n    maxval: Maximum allowed price (float or None)\n    step: Step size for increment (float or None)\n    tooltip: Tooltip text (str)\n    inline: Inline group name (str or None)\n    group: Parameter group name (str or None)\n    confirm: Require user confirmation (bool)\n\nReturns dict with parameter metadata.",
+    "snippet": "input.price(${1:param1})",
+    "category": "input"
+  },
+  "input.session": {
+    "label": "input.session",
+    "kind": "function",
+    "detail": "input.session(...)",
+    "brief": "input",
+    "documentation": "input.session(defval, title, tooltip, inline, group, confirm)\n\nCreate a session input parameter.\nSession inputs define trading session times (e.g., \"0930-1600\").\n\nParameters:\n    defval: Default session string (str)\n    title: Parameter title (str)\n    tooltip: Tooltip text (str)\n    inline: Inline group name (str or None)\n    group: Parameter group name (str or None)\n    confirm: Require user confirmation (bool)\n\nReturns dict with parameter metadata.",
+    "snippet": "input.session(${1:param1})",
+    "category": "input"
+  },
+  "input.source": {
+    "label": "input.source",
+    "kind": "function",
+    "detail": "input.source(...)",
+    "brief": "input",
+    "documentation": "input.source(defval, title, tooltip, inline, group, confirm)\n\nCreate a source input parameter.\nSource inputs select OHLCV data sources (close, open, high, low, hl2, hlc3, ohlc4, etc.).\n\nParameters:\n    defval: Default source (str, e.g., \"close\")\n    title: Parameter title (str)\n    tooltip: Tooltip text (str)\n    inline: Inline group name (str or None)\n    group: Parameter group name (str or None)\n    confirm: Require user confirmation (bool)\n\nReturns dict with parameter metadata.",
+    "snippet": "input.source(${1:param1})",
+    "category": "input"
+  },
+  "input.string": {
+    "label": "input.string",
+    "kind": "function",
+    "detail": "input.string(...)",
+    "brief": "input",
+    "documentation": "input.string(defval, title, tooltip, inline, group, confirm)\n\nCreate a string input parameter.\n\nParameters:\n    defval: Default value (str)\n    title: Parameter title (str)\n    tooltip: Tooltip text (str)\n    inline: Inline group name (str or None)\n    group: Parameter group name (str or None)\n    confirm: Require user confirmation (bool)\n\nReturns dict with parameter metadata.",
+    "snippet": "input.string(${1:param1})",
+    "category": "input"
+  },
+  "input.symbol": {
+    "label": "input.symbol",
+    "kind": "function",
+    "detail": "input.symbol(...)",
+    "brief": "input",
+    "documentation": "input.symbol(defval, title, tooltip, inline, group, confirm)\n\nCreate a symbol/ticker input parameter.\nSymbol inputs are specialized string inputs for security symbols.\n\nParameters:\n    defval: Default symbol (str)\n    title: Parameter title (str)\n    tooltip: Tooltip text (str)\n    inline: Inline group name (str or None)\n    group: Parameter group name (str or None)\n    confirm: Require user confirmation (bool)\n\nReturns dict with parameter metadata.",
+    "snippet": "input.symbol(${1:param1})",
+    "category": "input"
+  },
+  "input.time": {
+    "label": "input.time",
+    "kind": "function",
+    "detail": "input.time(...)",
+    "brief": "input",
+    "documentation": "input.time(defval, title, tooltip, inline, group, confirm)\n\nCreate a time input parameter.\nTime inputs select a specific date and time as Unix timestamp.\n\nParameters:\n    defval: Default time (int, Unix timestamp)\n    title: Parameter title (str)\n    tooltip: Tooltip text (str)\n    inline: Inline group name (str or None)\n    group: Parameter group name (str or None)\n    confirm: Require user confirmation (bool)\n\nReturns dict with parameter metadata.",
+    "snippet": "input.time(${1:param1})",
+    "category": "input"
+  },
+  "input.timeframe": {
+    "label": "input.timeframe",
+    "kind": "function",
+    "detail": "input.timeframe(...)",
+    "brief": "input",
+    "documentation": "input.timeframe(defval, title, tooltip, inline, group, confirm)\n\nCreate a timeframe input parameter.\nTimeframe inputs select chart timeframes (e.g., \"1\", \"5\", \"1H\", \"D\").\n\nParameters:\n    defval: Default timeframe (str)\n    title: Parameter title (str)\n    tooltip: Tooltip text (str)\n    inline: Inline group name (str or None)\n    group: Parameter group name (str or None)\n    confirm: Require user confirmation (bool)\n\nReturns dict with parameter metadata.",
+    "snippet": "input.timeframe(${1:param1})",
+    "category": "input"
+  },
+  "int": {
+    "label": "int",
+    "kind": "function",
+    "detail": "int(...)",
+    "brief": "Convert value to integer",
+    "documentation": "Convert value to integer.",
+    "snippet": "int(${1:arg})",
+    "category": "builtin"
+  },
+  "label.copy": {
+    "label": "label.copy",
+    "kind": "function",
+    "detail": "label.copy(...)",
+    "brief": "label",
+    "documentation": "label.copy(label)",
+    "snippet": "label.copy(${1:param1})",
+    "category": "label"
+  },
+  "label.delete": {
+    "label": "label.delete",
+    "kind": "function",
+    "detail": "label.delete(...)",
+    "brief": "label",
+    "documentation": "label.delete(label)",
+    "snippet": "label.delete(${1:param1})",
+    "category": "label"
+  },
+  "label.get_text": {
+    "label": "label.get_text",
+    "kind": "function",
+    "detail": "label.get_text(...)",
+    "brief": "label",
+    "documentation": "label.get_text(label)",
+    "snippet": "label.get_text(${1:param1})",
+    "category": "label"
+  },
+  "label.get_x": {
+    "label": "label.get_x",
+    "kind": "function",
+    "detail": "label.get_x(...)",
+    "brief": "label",
+    "documentation": "label.get_x(label)",
+    "snippet": "label.get_x(${1:param1})",
+    "category": "label"
+  },
+  "label.get_y": {
+    "label": "label.get_y",
+    "kind": "function",
+    "detail": "label.get_y(...)",
+    "brief": "label",
+    "documentation": "label.get_y(label)",
+    "snippet": "label.get_y(${1:param1})",
+    "category": "label"
+  },
+  "label.new": {
+    "label": "label.new",
+    "kind": "function",
+    "detail": "label.new(...)",
+    "brief": "label",
+    "documentation": "label.new(x, y, text, xloc, yloc, color, textcolor, ...)",
+    "snippet": "label.new(${1:param1})",
+    "category": "label"
+  },
+  "label.set_border_color": {
+    "label": "label.set_border_color",
+    "kind": "function",
+    "detail": "label.set_border_color(...)",
+    "brief": "label",
+    "documentation": "label.set_border_color(label, color)",
+    "snippet": "label.set_border_color(${1:param1})",
+    "category": "label"
+  },
+  "label.set_border_style": {
+    "label": "label.set_border_style",
+    "kind": "function",
+    "detail": "label.set_border_style(...)",
+    "brief": "label",
+    "documentation": "label.set_border_style(label, style)",
+    "snippet": "label.set_border_style(${1:param1})",
+    "category": "label"
+  },
+  "label.set_border_width": {
+    "label": "label.set_border_width",
+    "kind": "function",
+    "detail": "label.set_border_width(...)",
+    "brief": "label",
+    "documentation": "label.set_border_width(label, width)",
+    "snippet": "label.set_border_width(${1:param1})",
+    "category": "label"
+  },
+  "label.set_color": {
+    "label": "label.set_color",
+    "kind": "function",
+    "detail": "label.set_color(...)",
+    "brief": "label",
+    "documentation": "label.set_color(label, color)",
+    "snippet": "label.set_color(${1:param1})",
+    "category": "label"
+  },
+  "label.set_style": {
+    "label": "label.set_style",
+    "kind": "function",
+    "detail": "label.set_style(...)",
+    "brief": "label",
+    "documentation": "label.set_style(label, style)",
+    "snippet": "label.set_style(${1:param1})",
+    "category": "label"
+  },
+  "label.set_text": {
+    "label": "label.set_text",
+    "kind": "function",
+    "detail": "label.set_text(...)",
+    "brief": "label",
+    "documentation": "label.set_text(label, text)",
+    "snippet": "label.set_text(${1:param1})",
+    "category": "label"
+  },
+  "label.set_text_font_family": {
+    "label": "label.set_text_font_family",
+    "kind": "function",
+    "detail": "label.set_text_font_family(...)",
+    "brief": "label",
+    "documentation": "label.set_text_font_family(label, font_family)",
+    "snippet": "label.set_text_font_family(${1:param1})",
+    "category": "label"
+  },
+  "label.set_text_halign": {
+    "label": "label.set_text_halign",
+    "kind": "function",
+    "detail": "label.set_text_halign(...)",
+    "brief": "label",
+    "documentation": "label.set_text_halign(label, halign)",
+    "snippet": "label.set_text_halign(${1:param1})",
+    "category": "label"
+  },
+  "label.set_text_size": {
+    "label": "label.set_text_size",
+    "kind": "function",
+    "detail": "label.set_text_size(...)",
+    "brief": "label",
+    "documentation": "label.set_text_size(label, size)",
+    "snippet": "label.set_text_size(${1:param1})",
+    "category": "label"
+  },
+  "label.set_text_valign": {
+    "label": "label.set_text_valign",
+    "kind": "function",
+    "detail": "label.set_text_valign(...)",
+    "brief": "label",
+    "documentation": "label.set_text_valign(label, valign)",
+    "snippet": "label.set_text_valign(${1:param1})",
+    "category": "label"
+  },
+  "label.set_textcolor": {
+    "label": "label.set_textcolor",
+    "kind": "function",
+    "detail": "label.set_textcolor(...)",
+    "brief": "label",
+    "documentation": "label.set_textcolor(label, color)",
+    "snippet": "label.set_textcolor(${1:param1})",
+    "category": "label"
+  },
+  "label.set_tooltip": {
+    "label": "label.set_tooltip",
+    "kind": "function",
+    "detail": "label.set_tooltip(...)",
+    "brief": "label",
+    "documentation": "label.set_tooltip(label, tooltip)",
+    "snippet": "label.set_tooltip(${1:param1})",
+    "category": "label"
+  },
+  "label.set_x": {
+    "label": "label.set_x",
+    "kind": "function",
+    "detail": "label.set_x(...)",
+    "brief": "label",
+    "documentation": "label.set_x(label, x)",
+    "snippet": "label.set_x(${1:param1})",
+    "category": "label"
+  },
+  "label.set_xloc": {
+    "label": "label.set_xloc",
+    "kind": "function",
+    "detail": "label.set_xloc(...)",
+    "brief": "label",
+    "documentation": "label.set_xloc(label, xloc)",
+    "snippet": "label.set_xloc(${1:param1})",
+    "category": "label"
+  },
+  "label.set_xy": {
+    "label": "label.set_xy",
+    "kind": "function",
+    "detail": "label.set_xy(...)",
+    "brief": "label",
+    "documentation": "label.set_xy(label, x, y)",
+    "snippet": "label.set_xy(${1:param1})",
+    "category": "label"
+  },
+  "label.set_y": {
+    "label": "label.set_y",
+    "kind": "function",
+    "detail": "label.set_y(...)",
+    "brief": "label",
+    "documentation": "label.set_y(label, y)",
+    "snippet": "label.set_y(${1:param1})",
+    "category": "label"
+  },
+  "label.set_yloc": {
+    "label": "label.set_yloc",
+    "kind": "function",
+    "detail": "label.set_yloc(...)",
+    "brief": "label",
+    "documentation": "label.set_yloc(label, yloc)",
+    "snippet": "label.set_yloc(${1:param1})",
+    "category": "label"
+  },
+  "library": {
+    "label": "library",
+    "kind": "function",
+    "detail": "library(...)",
+    "brief": "Declare a library script",
+    "documentation": "Declare a library script.\n\nArgs:\n    title: Full title of the library\n    description: Description of the library\n    **_kwargs: Additional parameters accepted by PineScript\n\nReturns:\n    ScriptDeclaration object with script metadata",
+    "snippet": "library(${1:arg})",
+    "category": "builtin"
+  },
+  "line.copy": {
+    "label": "line.copy",
+    "kind": "function",
+    "detail": "line.copy(...)",
+    "brief": "line",
+    "documentation": "line.copy(line) - Returns a new line with same properties",
+    "snippet": "line.copy(${1:param1})",
+    "category": "line"
+  },
+  "line.delete": {
+    "label": "line.delete",
+    "kind": "function",
+    "detail": "line.delete(...)",
+    "brief": "line",
+    "documentation": "line.delete(line)",
+    "snippet": "line.delete(${1:param1})",
+    "category": "line"
+  },
+  "line.get_x1": {
+    "label": "line.get_x1",
+    "kind": "function",
+    "detail": "line.get_x1(...)",
+    "brief": "line",
+    "documentation": "line.get_x1(line)",
+    "snippet": "line.get_x1(${1:param1})",
+    "category": "line"
+  },
+  "line.get_x2": {
+    "label": "line.get_x2",
+    "kind": "function",
+    "detail": "line.get_x2(...)",
+    "brief": "line",
+    "documentation": "line.get_x2(line)",
+    "snippet": "line.get_x2(${1:param1})",
+    "category": "line"
+  },
+  "line.get_y1": {
+    "label": "line.get_y1",
+    "kind": "function",
+    "detail": "line.get_y1(...)",
+    "brief": "line",
+    "documentation": "line.get_y1(line)",
+    "snippet": "line.get_y1(${1:param1})",
+    "category": "line"
+  },
+  "line.get_y2": {
+    "label": "line.get_y2",
+    "kind": "function",
+    "detail": "line.get_y2(...)",
+    "brief": "line",
+    "documentation": "line.get_y2(line)",
+    "snippet": "line.get_y2(${1:param1})",
+    "category": "line"
+  },
+  "line.new": {
+    "label": "line.new",
+    "kind": "function",
+    "detail": "line.new(...)",
+    "brief": "line",
+    "documentation": "line.new(x1, y1, x2, y2, xloc, closed, color, width, style, extend)",
+    "snippet": "line.new(${1:param1})",
+    "category": "line"
+  },
+  "line.set_color": {
+    "label": "line.set_color",
+    "kind": "function",
+    "detail": "line.set_color(...)",
+    "brief": "line",
+    "documentation": "line.set_color(line, color)",
+    "snippet": "line.set_color(${1:param1})",
+    "category": "line"
+  },
+  "line.set_extend": {
+    "label": "line.set_extend",
+    "kind": "function",
+    "detail": "line.set_extend(...)",
+    "brief": "line",
+    "documentation": "line.set_extend(line, extend)",
+    "snippet": "line.set_extend(${1:param1})",
+    "category": "line"
+  },
+  "line.set_style": {
+    "label": "line.set_style",
+    "kind": "function",
+    "detail": "line.set_style(...)",
+    "brief": "line",
+    "documentation": "line.set_style(line, style)",
+    "snippet": "line.set_style(${1:param1})",
+    "category": "line"
+  },
+  "line.set_width": {
+    "label": "line.set_width",
+    "kind": "function",
+    "detail": "line.set_width(...)",
+    "brief": "line",
+    "documentation": "line.set_width(line, width)",
+    "snippet": "line.set_width(${1:param1})",
+    "category": "line"
+  },
+  "line.set_x1": {
+    "label": "line.set_x1",
+    "kind": "function",
+    "detail": "line.set_x1(...)",
+    "brief": "line",
+    "documentation": "line.set_x1(line, x1)",
+    "snippet": "line.set_x1(${1:param1})",
+    "category": "line"
+  },
+  "line.set_x2": {
+    "label": "line.set_x2",
+    "kind": "function",
+    "detail": "line.set_x2(...)",
+    "brief": "line",
+    "documentation": "line.set_x2(line, x2)",
+    "snippet": "line.set_x2(${1:param1})",
+    "category": "line"
+  },
+  "line.set_xloc": {
+    "label": "line.set_xloc",
+    "kind": "function",
+    "detail": "line.set_xloc(...)",
+    "brief": "line",
+    "documentation": "line.set_xloc(line, xloc)",
+    "snippet": "line.set_xloc(${1:param1})",
+    "category": "line"
+  },
+  "line.set_y1": {
+    "label": "line.set_y1",
+    "kind": "function",
+    "detail": "line.set_y1(...)",
+    "brief": "line",
+    "documentation": "line.set_y1(line, y1)",
+    "snippet": "line.set_y1(${1:param1})",
+    "category": "line"
+  },
+  "line.set_y2": {
+    "label": "line.set_y2",
+    "kind": "function",
+    "detail": "line.set_y2(...)",
+    "brief": "line",
+    "documentation": "line.set_y2(line, y2)",
+    "snippet": "line.set_y2(${1:param1})",
+    "category": "line"
+  },
+  "log.error": {
+    "label": "log.error",
+    "kind": "function",
+    "detail": "log.error(...)",
+    "brief": "Log an error message",
+    "documentation": "Log an error message.\n\nIn PineScript, errors are logged to the console and script execution may halt.\n\nArgs:\n    message: The error message to log",
+    "snippet": "log.error(${1:param1})",
+    "category": "log"
+  },
+  "log.info": {
+    "label": "log.info",
+    "kind": "function",
+    "detail": "log.info(...)",
+    "brief": "Log an info message",
+    "documentation": "Log an info message.\n\nIn PineScript, info messages are logged to the console.\n\nArgs:\n    message: The info message to log",
+    "snippet": "log.info(${1:param1})",
+    "category": "log"
+  },
+  "log.warning": {
+    "label": "log.warning",
+    "kind": "function",
+    "detail": "log.warning(...)",
+    "brief": "Log a warning message",
+    "documentation": "Log a warning message.\n\nIn PineScript, warnings are logged to the console.\n\nArgs:\n    message: The warning message to log",
+    "snippet": "log.warning(${1:param1})",
+    "category": "log"
+  },
+  "map.clear": {
+    "label": "map.clear",
+    "kind": "function",
+    "detail": "map.clear(...)",
+    "brief": "map",
+    "documentation": "map.clear(map) -> void\n\nRemoves all entries from map.",
+    "snippet": "map.clear(${1:param1})",
+    "category": "map"
+  },
+  "map.contains": {
+    "label": "map.contains",
+    "kind": "function",
+    "detail": "map.contains(...)",
+    "brief": "map",
+    "documentation": "map.contains(map, key) -> bool\n\nReturns true if key exists in map.",
+    "snippet": "map.contains(${1:param1})",
+    "category": "map"
+  },
+  "map.copy": {
+    "label": "map.copy",
+    "kind": "function",
+    "detail": "map.copy(...)",
+    "brief": "map",
+    "documentation": "map.copy(map) -> Map\n\nCreates shallow copy of map.",
+    "snippet": "map.copy(${1:param1})",
+    "category": "map"
+  },
+  "map.get": {
+    "label": "map.get",
+    "kind": "function",
+    "detail": "map.get(...)",
+    "brief": "map",
+    "documentation": "map.get(map, key) -> value\n\nReturns value for key, or None if not found.",
+    "snippet": "map.get(${1:param1})",
+    "category": "map"
+  },
+  "map.keys": {
+    "label": "map.keys",
+    "kind": "function",
+    "detail": "map.keys(...)",
+    "brief": "map",
+    "documentation": "map.keys(map) -> array\n\nReturns array of all keys in map.",
+    "snippet": "map.keys(${1:param1})",
+    "category": "map"
+  },
+  "map.new": {
+    "label": "map.new",
+    "kind": "function",
+    "detail": "map.new(...)",
+    "brief": "map",
+    "documentation": "map.new() -> Map\n\nCreates new empty map.",
+    "snippet": "map.new(${1:param1})",
+    "category": "map"
+  },
+  "map.put": {
+    "label": "map.put",
+    "kind": "function",
+    "detail": "map.put(...)",
+    "brief": "map",
+    "documentation": "map.put(map, key, value) -> void\n\nInserts or updates key-value pair.",
+    "snippet": "map.put(${1:param1})",
+    "category": "map"
+  },
+  "map.put_all": {
+    "label": "map.put_all",
+    "kind": "function",
+    "detail": "map.put_all(...)",
+    "brief": "map",
+    "documentation": "map.put_all(map, other_map) -> void\n\nInserts all key-value pairs from another map.",
+    "snippet": "map.put_all(${1:param1})",
+    "category": "map"
+  },
+  "map.remove": {
+    "label": "map.remove",
+    "kind": "function",
+    "detail": "map.remove(...)",
+    "brief": "map",
+    "documentation": "map.remove(map, key) -> void\n\nRemoves key from map (no error if not found).",
+    "snippet": "map.remove(${1:param1})",
+    "category": "map"
+  },
+  "map.size": {
+    "label": "map.size",
+    "kind": "function",
+    "detail": "map.size(...)",
+    "brief": "map",
+    "documentation": "map.size(map) -> int\n\nReturns number of key-value pairs in map.",
+    "snippet": "map.size(${1:param1})",
+    "category": "map"
+  },
+  "map.values": {
+    "label": "map.values",
+    "kind": "function",
+    "detail": "map.values(...)",
+    "brief": "map",
+    "documentation": "map.values(map) -> array\n\nReturns array of all values in map.",
+    "snippet": "map.values(${1:param1})",
+    "category": "map"
+  },
+  "math.abs": {
+    "label": "math.abs",
+    "kind": "function",
+    "detail": "math.abs(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "math.abs(${1:param1})",
+    "category": "math"
+  },
+  "math.acos": {
+    "label": "math.acos",
+    "kind": "function",
+    "detail": "math.acos(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "math.acos(${1:param1})",
+    "category": "math"
+  },
+  "math.asin": {
+    "label": "math.asin",
+    "kind": "function",
+    "detail": "math.asin(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "math.asin(${1:param1})",
+    "category": "math"
+  },
+  "math.atan": {
+    "label": "math.atan",
+    "kind": "function",
+    "detail": "math.atan(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "math.atan(${1:param1})",
+    "category": "math"
+  },
+  "math.avg": {
+    "label": "math.avg",
+    "kind": "function",
+    "detail": "math.avg(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "math.avg(${1:param1})",
+    "category": "math"
+  },
+  "math.ceil": {
+    "label": "math.ceil",
+    "kind": "function",
+    "detail": "math.ceil(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "math.ceil(${1:param1})",
+    "category": "math"
+  },
+  "math.cos": {
+    "label": "math.cos",
+    "kind": "function",
+    "detail": "math.cos(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "math.cos(${1:param1})",
+    "category": "math"
+  },
+  "math.exp": {
+    "label": "math.exp",
+    "kind": "function",
+    "detail": "math.exp(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "math.exp(${1:param1})",
+    "category": "math"
+  },
+  "math.floor": {
+    "label": "math.floor",
+    "kind": "function",
+    "detail": "math.floor(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "math.floor(${1:param1})",
+    "category": "math"
+  },
+  "math.log": {
+    "label": "math.log",
+    "kind": "function",
+    "detail": "math.log(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "math.log(${1:param1})",
+    "category": "math"
+  },
+  "math.log10": {
+    "label": "math.log10",
+    "kind": "function",
+    "detail": "math.log10(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "math.log10(${1:param1})",
+    "category": "math"
+  },
+  "math.max": {
+    "label": "math.max",
+    "kind": "function",
+    "detail": "math.max(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "math.max(${1:param1})",
+    "category": "math"
+  },
+  "math.min": {
+    "label": "math.min",
+    "kind": "function",
+    "detail": "math.min(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "math.min(${1:param1})",
+    "category": "math"
+  },
+  "math.pow": {
+    "label": "math.pow",
+    "kind": "function",
+    "detail": "math.pow(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "math.pow(${1:param1})",
+    "category": "math"
+  },
+  "math.random": {
+    "label": "math.random",
+    "kind": "function",
+    "detail": "math.random(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "math.random(${1:param1})",
+    "category": "math"
+  },
+  "math.round": {
+    "label": "math.round",
+    "kind": "function",
+    "detail": "math.round(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "math.round(${1:param1})",
+    "category": "math"
+  },
+  "math.round_to_mintick": {
+    "label": "math.round_to_mintick",
+    "kind": "function",
+    "detail": "math.round_to_mintick(...)",
+    "brief": "Round value to the nearest tick (minimum price increment)",
+    "documentation": "Round value to the nearest tick (minimum price increment).",
+    "snippet": "math.round_to_mintick(${1:param1})",
+    "category": "math"
+  },
+  "math.sign": {
+    "label": "math.sign",
+    "kind": "function",
+    "detail": "math.sign(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "math.sign(${1:param1})",
+    "category": "math"
+  },
+  "math.sin": {
+    "label": "math.sin",
+    "kind": "function",
+    "detail": "math.sin(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "math.sin(${1:param1})",
+    "category": "math"
+  },
+  "math.sqrt": {
+    "label": "math.sqrt",
+    "kind": "function",
+    "detail": "math.sqrt(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "math.sqrt(${1:param1})",
+    "category": "math"
+  },
+  "math.sum": {
+    "label": "math.sum",
+    "kind": "function",
+    "detail": "math.sum(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "math.sum(${1:param1})",
+    "category": "math"
+  },
+  "math.tan": {
+    "label": "math.tan",
+    "kind": "function",
+    "detail": "math.tan(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "math.tan(${1:param1})",
+    "category": "math"
+  },
+  "math.todegrees": {
+    "label": "math.todegrees",
+    "kind": "function",
+    "detail": "math.todegrees(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "math.todegrees(${1:param1})",
+    "category": "math"
+  },
+  "math.toradians": {
+    "label": "math.toradians",
+    "kind": "function",
+    "detail": "math.toradians(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "math.toradians(${1:param1})",
+    "category": "math"
+  },
+  "matrix.add_col": {
+    "label": "matrix.add_col",
+    "kind": "function",
+    "detail": "matrix.add_col(...)",
+    "brief": "matrix",
+    "documentation": "matrix.add_col(matrix, col_data) -> void",
+    "snippet": "matrix.add_col(${1:param1})",
+    "category": "matrix"
+  },
+  "matrix.add_row": {
+    "label": "matrix.add_row",
+    "kind": "function",
+    "detail": "matrix.add_row(...)",
+    "brief": "matrix",
+    "documentation": "matrix.add_row(matrix, row_data) -> void",
+    "snippet": "matrix.add_row(${1:param1})",
+    "category": "matrix"
+  },
+  "matrix.avg_all": {
+    "label": "matrix.avg_all",
+    "kind": "function",
+    "detail": "matrix.avg_all(...)",
+    "brief": "matrix",
+    "documentation": "matrix.avg_all(matrix) -> float",
+    "snippet": "matrix.avg_all(${1:param1})",
+    "category": "matrix"
+  },
+  "matrix.avg_col": {
+    "label": "matrix.avg_col",
+    "kind": "function",
+    "detail": "matrix.avg_col(...)",
+    "brief": "matrix",
+    "documentation": "matrix.avg_col(matrix, index) -> float",
+    "snippet": "matrix.avg_col(${1:param1})",
+    "category": "matrix"
+  },
+  "matrix.avg_row": {
+    "label": "matrix.avg_row",
+    "kind": "function",
+    "detail": "matrix.avg_row(...)",
+    "brief": "matrix",
+    "documentation": "matrix.avg_row(matrix, index) -> float",
+    "snippet": "matrix.avg_row(${1:param1})",
+    "category": "matrix"
+  },
+  "matrix.columns": {
+    "label": "matrix.columns",
+    "kind": "function",
+    "detail": "matrix.columns(...)",
+    "brief": "matrix",
+    "documentation": "matrix.columns(matrix) -> int",
+    "snippet": "matrix.columns(${1:param1})",
+    "category": "matrix"
+  },
+  "matrix.concat": {
+    "label": "matrix.concat",
+    "kind": "function",
+    "detail": "matrix.concat(...)",
+    "brief": "matrix",
+    "documentation": "matrix.concat(matrix1, matrix2, axis) -> Matrix",
+    "snippet": "matrix.concat(${1:param1})",
+    "category": "matrix"
+  },
+  "matrix.copy": {
+    "label": "matrix.copy",
+    "kind": "function",
+    "detail": "matrix.copy(...)",
+    "brief": "matrix",
+    "documentation": "matrix.copy(matrix) -> Matrix",
+    "snippet": "matrix.copy(${1:param1})",
+    "category": "matrix"
+  },
+  "matrix.copy_col": {
+    "label": "matrix.copy_col",
+    "kind": "function",
+    "detail": "matrix.copy_col(...)",
+    "brief": "matrix",
+    "documentation": "matrix.copy_col(matrix, index) -> array",
+    "snippet": "matrix.copy_col(${1:param1})",
+    "category": "matrix"
+  },
+  "matrix.copy_row": {
+    "label": "matrix.copy_row",
+    "kind": "function",
+    "detail": "matrix.copy_row(...)",
+    "brief": "matrix",
+    "documentation": "matrix.copy_row(matrix, index) -> array",
+    "snippet": "matrix.copy_row(${1:param1})",
+    "category": "matrix"
+  },
+  "matrix.elements_count": {
+    "label": "matrix.elements_count",
+    "kind": "function",
+    "detail": "matrix.elements_count(...)",
+    "brief": "matrix",
+    "documentation": "matrix.elements_count(matrix) -> int",
+    "snippet": "matrix.elements_count(${1:param1})",
+    "category": "matrix"
+  },
+  "matrix.fill": {
+    "label": "matrix.fill",
+    "kind": "function",
+    "detail": "matrix.fill(...)",
+    "brief": "matrix",
+    "documentation": "matrix.fill(matrix, value) -> void",
+    "snippet": "matrix.fill(${1:param1})",
+    "category": "matrix"
+  },
+  "matrix.fill_col": {
+    "label": "matrix.fill_col",
+    "kind": "function",
+    "detail": "matrix.fill_col(...)",
+    "brief": "matrix",
+    "documentation": "matrix.fill_col(matrix, index, value) -> void",
+    "snippet": "matrix.fill_col(${1:param1})",
+    "category": "matrix"
+  },
+  "matrix.fill_diagonal": {
+    "label": "matrix.fill_diagonal",
+    "kind": "function",
+    "detail": "matrix.fill_diagonal(...)",
+    "brief": "matrix",
+    "documentation": "matrix.fill_diagonal(matrix, value) -> void",
+    "snippet": "matrix.fill_diagonal(${1:param1})",
+    "category": "matrix"
+  },
+  "matrix.fill_row": {
+    "label": "matrix.fill_row",
+    "kind": "function",
+    "detail": "matrix.fill_row(...)",
+    "brief": "matrix",
+    "documentation": "matrix.fill_row(matrix, index, value) -> void",
+    "snippet": "matrix.fill_row(${1:param1})",
+    "category": "matrix"
+  },
+  "matrix.get": {
+    "label": "matrix.get",
+    "kind": "function",
+    "detail": "matrix.get(...)",
+    "brief": "matrix",
+    "documentation": "matrix.get(matrix, row, col) -> value",
+    "snippet": "matrix.get(${1:param1})",
+    "category": "matrix"
+  },
+  "matrix.max_all": {
+    "label": "matrix.max_all",
+    "kind": "function",
+    "detail": "matrix.max_all(...)",
+    "brief": "matrix",
+    "documentation": "matrix.max_all(matrix) -> value",
+    "snippet": "matrix.max_all(${1:param1})",
+    "category": "matrix"
+  },
+  "matrix.max_col": {
+    "label": "matrix.max_col",
+    "kind": "function",
+    "detail": "matrix.max_col(...)",
+    "brief": "matrix",
+    "documentation": "matrix.max_col(matrix, index) -> value",
+    "snippet": "matrix.max_col(${1:param1})",
+    "category": "matrix"
+  },
+  "matrix.max_row": {
+    "label": "matrix.max_row",
+    "kind": "function",
+    "detail": "matrix.max_row(...)",
+    "brief": "matrix",
+    "documentation": "matrix.max_row(matrix, index) -> value",
+    "snippet": "matrix.max_row(${1:param1})",
+    "category": "matrix"
+  },
+  "matrix.min_all": {
+    "label": "matrix.min_all",
+    "kind": "function",
+    "detail": "matrix.min_all(...)",
+    "brief": "matrix",
+    "documentation": "matrix.min_all(matrix) -> value",
+    "snippet": "matrix.min_all(${1:param1})",
+    "category": "matrix"
+  },
+  "matrix.min_col": {
+    "label": "matrix.min_col",
+    "kind": "function",
+    "detail": "matrix.min_col(...)",
+    "brief": "matrix",
+    "documentation": "matrix.min_col(matrix, index) -> value",
+    "snippet": "matrix.min_col(${1:param1})",
+    "category": "matrix"
+  },
+  "matrix.min_row": {
+    "label": "matrix.min_row",
+    "kind": "function",
+    "detail": "matrix.min_row(...)",
+    "brief": "matrix",
+    "documentation": "matrix.min_row(matrix, index) -> value",
+    "snippet": "matrix.min_row(${1:param1})",
+    "category": "matrix"
+  },
+  "matrix.mode_all": {
+    "label": "matrix.mode_all",
+    "kind": "function",
+    "detail": "matrix.mode_all(...)",
+    "brief": "matrix",
+    "documentation": "matrix.mode_all(matrix) -> value",
+    "snippet": "matrix.mode_all(${1:param1})",
+    "category": "matrix"
+  },
+  "matrix.mode_col": {
+    "label": "matrix.mode_col",
+    "kind": "function",
+    "detail": "matrix.mode_col(...)",
+    "brief": "matrix",
+    "documentation": "matrix.mode_col(matrix, index) -> value",
+    "snippet": "matrix.mode_col(${1:param1})",
+    "category": "matrix"
+  },
+  "matrix.mode_row": {
+    "label": "matrix.mode_row",
+    "kind": "function",
+    "detail": "matrix.mode_row(...)",
+    "brief": "matrix",
+    "documentation": "matrix.mode_row(matrix, index) -> value",
+    "snippet": "matrix.mode_row(${1:param1})",
+    "category": "matrix"
+  },
+  "matrix.new": {
+    "label": "matrix.new",
+    "kind": "function",
+    "detail": "matrix.new(...)",
+    "brief": "matrix",
+    "documentation": "matrix.new(rows, cols, default_value) -> Matrix",
+    "snippet": "matrix.new(${1:param1})",
+    "category": "matrix"
+  },
+  "matrix.remove_col": {
+    "label": "matrix.remove_col",
+    "kind": "function",
+    "detail": "matrix.remove_col(...)",
+    "brief": "matrix",
+    "documentation": "matrix.remove_col(matrix, index) -> void",
+    "snippet": "matrix.remove_col(${1:param1})",
+    "category": "matrix"
+  },
+  "matrix.remove_row": {
+    "label": "matrix.remove_row",
+    "kind": "function",
+    "detail": "matrix.remove_row(...)",
+    "brief": "matrix",
+    "documentation": "matrix.remove_row(matrix, index) -> void",
+    "snippet": "matrix.remove_row(${1:param1})",
+    "category": "matrix"
+  },
+  "matrix.reshape": {
+    "label": "matrix.reshape",
+    "kind": "function",
+    "detail": "matrix.reshape(...)",
+    "brief": "matrix",
+    "documentation": "matrix.reshape(matrix, rows, cols) -> Matrix",
+    "snippet": "matrix.reshape(${1:param1})",
+    "category": "matrix"
+  },
+  "matrix.reverse_cols": {
+    "label": "matrix.reverse_cols",
+    "kind": "function",
+    "detail": "matrix.reverse_cols(...)",
+    "brief": "matrix",
+    "documentation": "matrix.reverse_cols(matrix) -> void",
+    "snippet": "matrix.reverse_cols(${1:param1})",
+    "category": "matrix"
+  },
+  "matrix.reverse_rows": {
+    "label": "matrix.reverse_rows",
+    "kind": "function",
+    "detail": "matrix.reverse_rows(...)",
+    "brief": "matrix",
+    "documentation": "matrix.reverse_rows(matrix) -> void",
+    "snippet": "matrix.reverse_rows(${1:param1})",
+    "category": "matrix"
+  },
+  "matrix.rows": {
+    "label": "matrix.rows",
+    "kind": "function",
+    "detail": "matrix.rows(...)",
+    "brief": "matrix",
+    "documentation": "matrix.rows(matrix) -> int",
+    "snippet": "matrix.rows(${1:param1})",
+    "category": "matrix"
+  },
+  "matrix.set": {
+    "label": "matrix.set",
+    "kind": "function",
+    "detail": "matrix.set(...)",
+    "brief": "matrix",
+    "documentation": "matrix.set(matrix, row, col, value) -> void",
+    "snippet": "matrix.set(${1:param1})",
+    "category": "matrix"
+  },
+  "matrix.sum_all": {
+    "label": "matrix.sum_all",
+    "kind": "function",
+    "detail": "matrix.sum_all(...)",
+    "brief": "matrix",
+    "documentation": "matrix.sum_all(matrix) -> float",
+    "snippet": "matrix.sum_all(${1:param1})",
+    "category": "matrix"
+  },
+  "matrix.sum_col": {
+    "label": "matrix.sum_col",
+    "kind": "function",
+    "detail": "matrix.sum_col(...)",
+    "brief": "matrix",
+    "documentation": "matrix.sum_col(matrix, index) -> float",
+    "snippet": "matrix.sum_col(${1:param1})",
+    "category": "matrix"
+  },
+  "matrix.sum_row": {
+    "label": "matrix.sum_row",
+    "kind": "function",
+    "detail": "matrix.sum_row(...)",
+    "brief": "matrix",
+    "documentation": "matrix.sum_row(matrix, index) -> float",
+    "snippet": "matrix.sum_row(${1:param1})",
+    "category": "matrix"
+  },
+  "matrix.transpose": {
+    "label": "matrix.transpose",
+    "kind": "function",
+    "detail": "matrix.transpose(...)",
+    "brief": "matrix",
+    "documentation": "matrix.transpose(matrix) -> Matrix",
+    "snippet": "matrix.transpose(${1:param1})",
+    "category": "matrix"
+  },
+  "minute": {
+    "label": "minute",
+    "kind": "function",
+    "detail": "minute(...)",
+    "brief": "Extract minute from timestamp (0-59)",
+    "documentation": "Extract minute from timestamp (0-59).",
+    "snippet": "minute(${1:arg})",
+    "category": "builtin"
+  },
+  "month": {
+    "label": "month",
+    "kind": "function",
+    "detail": "month(...)",
+    "brief": "Extract month from timestamp (1-12)",
+    "documentation": "Extract month from timestamp (1-12).",
+    "snippet": "month(${1:arg})",
+    "category": "builtin"
+  },
+  "na": {
+    "label": "na",
+    "kind": "function",
+    "detail": "na(...)",
+    "brief": "Return None (not available/NA value in PineScript)",
+    "documentation": "Return None (not available/NA value in PineScript).",
+    "snippet": "na(${1:arg})",
+    "category": "builtin"
+  },
+  "nz": {
+    "label": "nz",
+    "kind": "function",
+    "detail": "nz(...)",
+    "brief": "Replace None with default value",
+    "documentation": "Replace None with default value.",
+    "snippet": "nz(${1:arg})",
+    "category": "builtin"
+  },
+  "plot": {
+    "label": "plot",
+    "kind": "function",
+    "detail": "plot(...)",
+    "brief": "Stub: plot(series, title, color, linewidth, style, trackprice)",
+    "documentation": "Stub: plot(series, title, color, linewidth, style, trackprice).",
+    "snippet": "plot(${1:arg})",
+    "category": "builtin"
+  },
+  "plotarrow": {
+    "label": "plotarrow",
+    "kind": "function",
+    "detail": "plotarrow(...)",
+    "brief": "Stub: plotarrow(series, title, colorup, colordown, offset,\nminHeight, maxHeight)",
+    "documentation": "Stub: plotarrow(series, title, colorup, colordown, offset,\nminHeight, maxHeight).",
+    "snippet": "plotarrow(${1:arg})",
+    "category": "builtin"
+  },
+  "plotbar": {
+    "label": "plotbar",
+    "kind": "function",
+    "detail": "plotbar(...)",
+    "brief": "Stub: plotbar(open, high, low, close, title, color,\neditable, show_last)",
+    "documentation": "Stub: plotbar(open, high, low, close, title, color,\neditable, show_last).",
+    "snippet": "plotbar(${1:arg})",
+    "category": "builtin"
+  },
+  "plotcandle": {
+    "label": "plotcandle",
+    "kind": "function",
+    "detail": "plotcandle(...)",
+    "brief": "Stub: plotcandle(open, high, low, close, title, color,\neditable, show_last, wickcolor, bordercolor)",
+    "documentation": "Stub: plotcandle(open, high, low, close, title, color,\neditable, show_last, wickcolor, bordercolor).",
+    "snippet": "plotcandle(${1:arg})",
+    "category": "builtin"
+  },
+  "plotchar": {
+    "label": "plotchar",
+    "kind": "function",
+    "detail": "plotchar(...)",
+    "brief": "Stub: plotchar(series, title, char, location, color, offset,\nsize, editable, show_last)",
+    "documentation": "Stub: plotchar(series, title, char, location, color, offset,\nsize, editable, show_last).",
+    "snippet": "plotchar(${1:arg})",
+    "category": "builtin"
+  },
+  "plotshape": {
+    "label": "plotshape",
+    "kind": "function",
+    "detail": "plotshape(...)",
+    "brief": "Stub: plotshape(series, title, style, location, color,\noffset, text, editable, show_last)",
+    "documentation": "Stub: plotshape(series, title, style, location, color,\noffset, text, editable, show_last).",
+    "snippet": "plotshape(${1:arg})",
+    "category": "builtin"
+  },
+  "polyline.delete": {
+    "label": "polyline.delete",
+    "kind": "function",
+    "detail": "polyline.delete(...)",
+    "brief": "polyline",
+    "documentation": "polyline.delete(polyline)",
+    "snippet": "polyline.delete(${1:param1})",
+    "category": "polyline"
+  },
+  "polyline.new": {
+    "label": "polyline.new",
+    "kind": "function",
+    "detail": "polyline.new(...)",
+    "brief": "polyline",
+    "documentation": "polyline.new(points, closed, xloc, color, width, style)",
+    "snippet": "polyline.new(${1:param1})",
+    "category": "polyline"
+  },
+  "request.currency_rate": {
+    "label": "request.currency_rate",
+    "kind": "function",
+    "detail": "request.currency_rate(...)",
+    "brief": "request",
+    "documentation": "request.currency_rate(from_currency, to_currency)\n\nRequest exchange rate between two currencies.\n\nParameters:\n    from_currency: Source currency code (str, e.g., \"USD\")\n    to_currency: Target currency code (str, e.g., \"EUR\")\n\nReturns exchange rate as float.\nThis is a mock implementation.",
+    "snippet": "request.currency_rate(${1:param1})",
+    "category": "request"
+  },
+  "request.dividends": {
+    "label": "request.dividends",
+    "kind": "function",
+    "detail": "request.dividends(...)",
+    "brief": "request",
+    "documentation": "request.dividends(symbol, currency)\n\nRequest dividend information for a symbol.\n\nParameters:\n    symbol: Symbol/ticker string (str)\n    currency: Currency code (str or None)\n\nReturns dividend amount as float.\nThis is a mock implementation.",
+    "snippet": "request.dividends(${1:param1})",
+    "category": "request"
+  },
+  "request.earnings": {
+    "label": "request.earnings",
+    "kind": "function",
+    "detail": "request.earnings(...)",
+    "brief": "request",
+    "documentation": "request.earnings(symbol, currency)\n\nRequest earnings information for a symbol.\n\nParameters:\n    symbol: Symbol/ticker string (str)\n    currency: Currency code (str or None)\n\nReturns earnings per share as float.\nThis is a mock implementation.",
+    "snippet": "request.earnings(${1:param1})",
+    "category": "request"
+  },
+  "request.economic": {
+    "label": "request.economic",
+    "kind": "function",
+    "detail": "request.economic(...)",
+    "brief": "request",
+    "documentation": "request.economic(country, indicator_code)\n\nRequest economic indicator data (e.g., unemployment, inflation).\n\nParameters:\n    country: Country code (str, e.g., \"US\", \"EU\")\n    indicator_code: Economic indicator code (str)\n\nReturns economic data as series or value.\nThis is a mock implementation.",
+    "snippet": "request.economic(${1:param1})",
+    "category": "request"
+  },
+  "request.financial": {
+    "label": "request.financial",
+    "kind": "function",
+    "detail": "request.financial(...)",
+    "brief": "request",
+    "documentation": "request.financial(symbol, financial_id, period)\n\nRequest financial statement data (from SEC filings).\n\nParameters:\n    symbol: Symbol/ticker string (str)\n    financial_id: Financial metric identifier (str)\n    period: Reporting period (str, e.g., \"FQ\", \"FY\")\n\nReturns financial metric value as float.\nThis is a mock implementation.",
+    "snippet": "request.financial(${1:param1})",
+    "category": "request"
+  },
+  "request.quandl": {
+    "label": "request.quandl",
+    "kind": "function",
+    "detail": "request.quandl(...)",
+    "brief": "request",
+    "documentation": "request.quandl(quandl_code, column)\n\nRequest data from Quandl database.\n\nParameters:\n    quandl_code: Quandl dataset code (str)\n    column: Column name within dataset (str)\n\nReturns series data from Quandl dataset.\nThis is a mock implementation.",
+    "snippet": "request.quandl(${1:param1})",
+    "category": "request"
+  },
+  "request.security": {
+    "label": "request.security",
+    "kind": "function",
+    "detail": "request.security(...)",
+    "brief": "request",
+    "documentation": "request.security(symbol, timeframe, expression, gaps, lookahead)\n\nRequest data from another symbol or timeframe.\n\nParameters:\n    symbol: Symbol/ticker string (str or series)\n    timeframe: Timeframe string (e.g., \"1H\", \"D\") (str or series - v6 dynamic)\n    expression: Expression to evaluate (series, value, variable, or string - v6 dynamic)\n    gaps: Gap handling mode (\"on\", \"off\") (str or None)\n    lookahead: Lookahead mode (\"on\", \"off\", \"barmerge\") (str or None)\n\nReturns series data or value depending on expression type.\nThis is a mock implementation that returns deterministic data.\nv6 enhancement: Supports series string arguments for dynamic calls.",
+    "snippet": "request.security(${1:param1})",
+    "category": "request"
+  },
+  "request.security_lower_tf": {
+    "label": "request.security_lower_tf",
+    "kind": "function",
+    "detail": "request.security_lower_tf(...)",
+    "brief": "request",
+    "documentation": "request.security_lower_tf(symbol, timeframe, expression)\n\nRequest lower timeframe data within the current timeframe.\n\nParameters:\n    symbol: Symbol/ticker string (str)\n    timeframe: Target timeframe (str)\n    expression: Expression to evaluate (Any)\n\nReturns list of values from lower timeframe bars.\nThis is a mock implementation.",
+    "snippet": "request.security_lower_tf(${1:param1})",
+    "category": "request"
+  },
+  "request.seed": {
+    "label": "request.seed",
+    "kind": "function",
+    "detail": "request.seed(...)",
+    "brief": "request",
+    "documentation": "request.seed(seed_value)\n\nSeed the random number generator for reproducible random data.\n\nParameters:\n    seed_value: Random seed (int)\n\nReturns None.\nThis is a mock implementation.",
+    "snippet": "request.seed(${1:param1})",
+    "category": "request"
+  },
+  "request.splits": {
+    "label": "request.splits",
+    "kind": "function",
+    "detail": "request.splits(...)",
+    "brief": "request",
+    "documentation": "request.splits(symbol, currency)\n\nRequest stock split information for a symbol.\n\nParameters:\n    symbol: Symbol/ticker string (str)\n    currency: Currency code (str or None)\n\nReturns split ratio as float.\nThis is a mock implementation.",
+    "snippet": "request.splits(${1:param1})",
+    "category": "request"
+  },
+  "second": {
+    "label": "second",
+    "kind": "function",
+    "detail": "second(...)",
+    "brief": "Extract second from timestamp (0-59)",
+    "documentation": "Extract second from timestamp (0-59).",
+    "snippet": "second(${1:arg})",
+    "category": "builtin"
+  },
+  "str.contains": {
+    "label": "str.contains",
+    "kind": "function",
+    "detail": "str.contains(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "str.contains(${1:param1})",
+    "category": "str"
+  },
+  "str.endswith": {
+    "label": "str.endswith",
+    "kind": "function",
+    "detail": "str.endswith(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "str.endswith(${1:param1})",
+    "category": "str"
+  },
+  "str.format": {
+    "label": "str.format",
+    "kind": "function",
+    "detail": "str.format(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "str.format(${1:param1})",
+    "category": "str"
+  },
+  "str.format_time": {
+    "label": "str.format_time",
+    "kind": "function",
+    "detail": "str.format_time(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "str.format_time(${1:param1})",
+    "category": "str"
+  },
+  "str.join": {
+    "label": "str.join",
+    "kind": "function",
+    "detail": "str.join(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "str.join(${1:param1})",
+    "category": "str"
+  },
+  "str.length": {
+    "label": "str.length",
+    "kind": "function",
+    "detail": "str.length(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "str.length(${1:param1})",
+    "category": "str"
+  },
+  "str.lower": {
+    "label": "str.lower",
+    "kind": "function",
+    "detail": "str.lower(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "str.lower(${1:param1})",
+    "category": "str"
+  },
+  "str.match": {
+    "label": "str.match",
+    "kind": "function",
+    "detail": "str.match(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "str.match(${1:param1})",
+    "category": "str"
+  },
+  "str.pos": {
+    "label": "str.pos",
+    "kind": "function",
+    "detail": "str.pos(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "str.pos(${1:param1})",
+    "category": "str"
+  },
+  "str.repeat": {
+    "label": "str.repeat",
+    "kind": "function",
+    "detail": "str.repeat(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "str.repeat(${1:param1})",
+    "category": "str"
+  },
+  "str.replace": {
+    "label": "str.replace",
+    "kind": "function",
+    "detail": "str.replace(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "str.replace(${1:param1})",
+    "category": "str"
+  },
+  "str.replace_all": {
+    "label": "str.replace_all",
+    "kind": "function",
+    "detail": "str.replace_all(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "str.replace_all(${1:param1})",
+    "category": "str"
+  },
+  "str.split": {
+    "label": "str.split",
+    "kind": "function",
+    "detail": "str.split(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "str.split(${1:param1})",
+    "category": "str"
+  },
+  "str.startswith": {
+    "label": "str.startswith",
+    "kind": "function",
+    "detail": "str.startswith(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "str.startswith(${1:param1})",
+    "category": "str"
+  },
+  "str.substring": {
+    "label": "str.substring",
+    "kind": "function",
+    "detail": "str.substring(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "str.substring(${1:param1})",
+    "category": "str"
+  },
+  "str.tonumber": {
+    "label": "str.tonumber",
+    "kind": "function",
+    "detail": "str.tonumber(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "str.tonumber(${1:param1})",
+    "category": "str"
+  },
+  "str.tostring": {
+    "label": "str.tostring",
+    "kind": "function",
+    "detail": "str.tostring(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "str.tostring(${1:param1})",
+    "category": "str"
+  },
+  "str.trim": {
+    "label": "str.trim",
+    "kind": "function",
+    "detail": "str.trim(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "str.trim(${1:param1})",
+    "category": "str"
+  },
+  "str.upper": {
+    "label": "str.upper",
+    "kind": "function",
+    "detail": "str.upper(...)",
+    "brief": "",
+    "documentation": "",
+    "snippet": "str.upper(${1:param1})",
+    "category": "str"
+  },
+  "strategy": {
+    "label": "strategy",
+    "kind": "function",
+    "detail": "strategy(...)",
+    "brief": "Declare a strategy script",
+    "documentation": "Declare a strategy script.\n\nArgs:\n    title: Full title of the strategy\n    description: Description of the strategy\n    **_kwargs: Additional strategy parameters (pyramiding, default_qty_type, etc.)\n\nReturns:\n    ScriptDeclaration object with script metadata",
+    "snippet": "strategy(${1:arg})",
+    "category": "builtin"
+  },
+  "strategy.cancel": {
+    "label": "strategy.cancel",
+    "kind": "function",
+    "detail": "strategy.cancel(...)",
+    "brief": "strategy",
+    "documentation": "strategy.cancel(id, alert)\n\nCancel a specific pending order.\n\nParameters:\n    id: Order identifier (str)\n    alert: Alert on cancellation (bool or None)\n\nReturns None.",
+    "snippet": "strategy.cancel(${1:param1}, ${2:param2})",
+    "category": "strategy"
+  },
+  "strategy.cancel_all": {
+    "label": "strategy.cancel_all",
+    "kind": "function",
+    "detail": "strategy.cancel_all(...)",
+    "brief": "strategy",
+    "documentation": "strategy.cancel_all(alert)\n\nCancel all pending orders.\n\nParameters:\n    alert: Alert on cancellation (bool or None)\n\nReturns None.",
+    "snippet": "strategy.cancel_all(${1:param1}, ${2:param2})",
+    "category": "strategy"
+  },
+  "strategy.close": {
+    "label": "strategy.close",
+    "kind": "function",
+    "detail": "strategy.close(...)",
+    "brief": "strategy",
+    "documentation": "strategy.close(id, qty, comment, alert, ...)\n\nClose current position or reduce it.\n\nParameters:\n    id: Order identifier (str)\n    qty: Quantity to close (float or None for all)\n    comment: Order comment (str)\n\nReturns None.",
+    "snippet": "strategy.close(${1:param1}, ${2:param2})",
+    "category": "strategy"
+  },
+  "strategy.close_all": {
+    "label": "strategy.close_all",
+    "kind": "function",
+    "detail": "strategy.close_all(...)",
+    "brief": "strategy",
+    "documentation": "strategy.close_all(comment, alert, ...)\n\nClose entire position at market.\n\nParameters:\n    comment: Order comment (str)\n\nReturns None.",
+    "snippet": "strategy.close_all(${1:param1}, ${2:param2})",
+    "category": "strategy"
+  },
+  "strategy.closedtrades.commission": {
+    "label": "strategy.closedtrades.commission",
+    "kind": "function",
+    "detail": "strategy.closedtrades.commission(...)",
+    "brief": "strategy",
+    "documentation": "strategy.closedtrades.commission(trade_index)",
+    "snippet": "strategy.closedtrades.commission(${1:param1}, ${2:param2})",
+    "category": "strategy"
+  },
+  "strategy.closedtrades.entry_bar_index": {
+    "label": "strategy.closedtrades.entry_bar_index",
+    "kind": "function",
+    "detail": "strategy.closedtrades.entry_bar_index(...)",
+    "brief": "strategy",
+    "documentation": "strategy.closedtrades.entry_bar_index(trade_index)",
+    "snippet": "strategy.closedtrades.entry_bar_index(${1:param1}, ${2:param2})",
+    "category": "strategy"
+  },
+  "strategy.closedtrades.entry_price": {
+    "label": "strategy.closedtrades.entry_price",
+    "kind": "function",
+    "detail": "strategy.closedtrades.entry_price(...)",
+    "brief": "strategy",
+    "documentation": "strategy.closedtrades.entry_price(trade_index)",
+    "snippet": "strategy.closedtrades.entry_price(${1:param1}, ${2:param2})",
+    "category": "strategy"
+  },
+  "strategy.closedtrades.entry_time": {
+    "label": "strategy.closedtrades.entry_time",
+    "kind": "function",
+    "detail": "strategy.closedtrades.entry_time(...)",
+    "brief": "strategy",
+    "documentation": "strategy.closedtrades.entry_time(trade_index)",
+    "snippet": "strategy.closedtrades.entry_time(${1:param1}, ${2:param2})",
+    "category": "strategy"
+  },
+  "strategy.closedtrades.exit_bar_index": {
+    "label": "strategy.closedtrades.exit_bar_index",
+    "kind": "function",
+    "detail": "strategy.closedtrades.exit_bar_index(...)",
+    "brief": "strategy",
+    "documentation": "strategy.closedtrades.exit_bar_index(trade_index)",
+    "snippet": "strategy.closedtrades.exit_bar_index(${1:param1}, ${2:param2})",
+    "category": "strategy"
+  },
+  "strategy.closedtrades.exit_price": {
+    "label": "strategy.closedtrades.exit_price",
+    "kind": "function",
+    "detail": "strategy.closedtrades.exit_price(...)",
+    "brief": "strategy",
+    "documentation": "strategy.closedtrades.exit_price(trade_index)",
+    "snippet": "strategy.closedtrades.exit_price(${1:param1}, ${2:param2})",
+    "category": "strategy"
+  },
+  "strategy.closedtrades.exit_time": {
+    "label": "strategy.closedtrades.exit_time",
+    "kind": "function",
+    "detail": "strategy.closedtrades.exit_time(...)",
+    "brief": "strategy",
+    "documentation": "strategy.closedtrades.exit_time(trade_index)",
+    "snippet": "strategy.closedtrades.exit_time(${1:param1}, ${2:param2})",
+    "category": "strategy"
+  },
+  "strategy.closedtrades.profit": {
+    "label": "strategy.closedtrades.profit",
+    "kind": "function",
+    "detail": "strategy.closedtrades.profit(...)",
+    "brief": "strategy",
+    "documentation": "strategy.closedtrades.profit(trade_index)",
+    "snippet": "strategy.closedtrades.profit(${1:param1}, ${2:param2})",
+    "category": "strategy"
+  },
+  "strategy.closedtrades.size": {
+    "label": "strategy.closedtrades.size",
+    "kind": "function",
+    "detail": "strategy.closedtrades.size(...)",
+    "brief": "strategy",
+    "documentation": "strategy.closedtrades.size(trade_index)",
+    "snippet": "strategy.closedtrades.size(${1:param1}, ${2:param2})",
+    "category": "strategy"
+  },
+  "strategy.convert_to_account": {
+    "label": "strategy.convert_to_account",
+    "kind": "function",
+    "detail": "strategy.convert_to_account(...)",
+    "brief": "strategy",
+    "documentation": "strategy.convert_to_account(value, symbol, timeframe)\n\nConvert quantity/price from symbol to account currency/units.\n\nParameters:\n    value: Value to convert (float)\n    symbol: Source symbol (str)\n    timeframe: Timeframe (str)\n\nReturns converted value.",
+    "snippet": "strategy.convert_to_account(${1:param1}, ${2:param2})",
+    "category": "strategy"
+  },
+  "strategy.convert_to_symbol": {
+    "label": "strategy.convert_to_symbol",
+    "kind": "function",
+    "detail": "strategy.convert_to_symbol(...)",
+    "brief": "strategy",
+    "documentation": "strategy.convert_to_symbol(value, symbol, timeframe)\n\nConvert quantity/price from account to symbol units.\n\nParameters:\n    value: Value to convert (float)\n    symbol: Target symbol (str)\n    timeframe: Timeframe (str)\n\nReturns converted value.",
+    "snippet": "strategy.convert_to_symbol(${1:param1}, ${2:param2})",
+    "category": "strategy"
+  },
+  "strategy.default_entry_qty": {
+    "label": "strategy.default_entry_qty",
+    "kind": "function",
+    "detail": "strategy.default_entry_qty(...)",
+    "brief": "strategy",
+    "documentation": "strategy.default_entry_qty(percent_equity)\n\nCalculate default entry quantity based on equity percentage.\n\nParameters:\n    percent_equity: Percentage of equity to use (float)\n\nReturns default quantity.",
+    "snippet": "strategy.default_entry_qty(${1:param1}, ${2:param2})",
+    "category": "strategy"
+  },
+  "strategy.entry": {
+    "label": "strategy.entry",
+    "kind": "function",
+    "detail": "strategy.entry(...)",
+    "brief": "strategy",
+    "documentation": "strategy.entry(id, direction, qty, limit, stop, comment, alert, ...)\n\nCreate entry order for strategy.\n\nParameters:\n    id: Order identifier (str)\n    direction: \"long\" or \"short\" (str)\n    qty: Order quantity (float)\n    limit: Limit price (float or None)\n    stop: Stop price (float or None)\n    comment: Order comment (str)\n\nReturns None. Records trade in strategy state.",
+    "snippet": "strategy.entry(${1:param1}, ${2:param2})",
+    "category": "strategy"
+  },
+  "strategy.exit": {
+    "label": "strategy.exit",
+    "kind": "function",
+    "detail": "strategy.exit(...)",
+    "brief": "strategy",
+    "documentation": "strategy.exit(id, from_entry, qty, limit, stop, comment, alert, ...)\n\nCreate exit order closing a specific entry.\n\nParameters:\n    id: Order identifier (str)\n    from_entry: Entry order to close (str)\n    qty: Quantity to close (float or None for all)\n    limit: Limit price (float or None)\n    stop: Stop price (float or None)\n    comment: Order comment (str)\n\nReturns None. Closes position or partial position.",
+    "snippet": "strategy.exit(${1:param1}, ${2:param2})",
+    "category": "strategy"
+  },
+  "strategy.opentrades.commission": {
+    "label": "strategy.opentrades.commission",
+    "kind": "function",
+    "detail": "strategy.opentrades.commission(...)",
+    "brief": "strategy",
+    "documentation": "strategy.opentrades.commission(trade_index)",
+    "snippet": "strategy.opentrades.commission(${1:param1}, ${2:param2})",
+    "category": "strategy"
+  },
+  "strategy.opentrades.entry_bar_index": {
+    "label": "strategy.opentrades.entry_bar_index",
+    "kind": "function",
+    "detail": "strategy.opentrades.entry_bar_index(...)",
+    "brief": "strategy",
+    "documentation": "strategy.opentrades.entry_bar_index(trade_index)",
+    "snippet": "strategy.opentrades.entry_bar_index(${1:param1}, ${2:param2})",
+    "category": "strategy"
+  },
+  "strategy.opentrades.entry_price": {
+    "label": "strategy.opentrades.entry_price",
+    "kind": "function",
+    "detail": "strategy.opentrades.entry_price(...)",
+    "brief": "strategy",
+    "documentation": "strategy.opentrades.entry_price(trade_index)",
+    "snippet": "strategy.opentrades.entry_price(${1:param1}, ${2:param2})",
+    "category": "strategy"
+  },
+  "strategy.opentrades.entry_time": {
+    "label": "strategy.opentrades.entry_time",
+    "kind": "function",
+    "detail": "strategy.opentrades.entry_time(...)",
+    "brief": "strategy",
+    "documentation": "strategy.opentrades.entry_time(trade_index)",
+    "snippet": "strategy.opentrades.entry_time(${1:param1}, ${2:param2})",
+    "category": "strategy"
+  },
+  "strategy.opentrades.profit": {
+    "label": "strategy.opentrades.profit",
+    "kind": "function",
+    "detail": "strategy.opentrades.profit(...)",
+    "brief": "strategy",
+    "documentation": "strategy.opentrades.profit(trade_index)",
+    "snippet": "strategy.opentrades.profit(${1:param1}, ${2:param2})",
+    "category": "strategy"
+  },
+  "strategy.opentrades.size": {
+    "label": "strategy.opentrades.size",
+    "kind": "function",
+    "detail": "strategy.opentrades.size(...)",
+    "brief": "strategy",
+    "documentation": "strategy.opentrades.size(trade_index)",
+    "snippet": "strategy.opentrades.size(${1:param1}, ${2:param2})",
+    "category": "strategy"
+  },
+  "strategy.order": {
+    "label": "strategy.order",
+    "kind": "function",
+    "detail": "strategy.order(...)",
+    "brief": "strategy",
+    "documentation": "strategy.order(id, action, qty, limit, stop, comment, alert, ...)\n\nPlace a custom order (market, limit, stop, stop-limit).\n\nParameters:\n    id: Order identifier (str)\n    action: \"buy\" or \"sell\" (str)\n    qty: Quantity (float)\n    limit: Limit price for limit/stop-limit (float or None)\n    stop: Stop price for stop/stop-limit (float or None)\n    comment: Order comment (str)\n\nReturns None.",
+    "snippet": "strategy.order(${1:param1}, ${2:param2})",
+    "category": "strategy"
+  },
+  "strategy.risk.max_intraday_loss": {
+    "label": "strategy.risk.max_intraday_loss",
+    "kind": "function",
+    "detail": "strategy.risk.max_intraday_loss(...)",
+    "brief": "strategy",
+    "documentation": "strategy.risk.max_intraday_loss(percent)\n\nSet maximum intraday loss to stop trading.\n\nParameters:\n    percent: Maximum loss in % (float)\n\nReturns None.",
+    "snippet": "strategy.risk.max_intraday_loss(${1:param1}, ${2:param2})",
+    "category": "strategy"
+  },
+  "strategy.risk.max_position_size": {
+    "label": "strategy.risk.max_position_size",
+    "kind": "function",
+    "detail": "strategy.risk.max_position_size(...)",
+    "brief": "strategy",
+    "documentation": "strategy.risk.max_position_size(percent)\n\nSet maximum position size as percentage of account equity.\n\nParameters:\n    percent: Maximum position size in % (float)\n\nReturns None.",
+    "snippet": "strategy.risk.max_position_size(${1:param1}, ${2:param2})",
+    "category": "strategy"
+  },
+  "string": {
+    "label": "string",
+    "kind": "function",
+    "detail": "string(...)",
+    "brief": "Convert value to string",
+    "documentation": "Convert value to string.",
+    "snippet": "string(${1:arg})",
+    "category": "builtin"
+  },
+  "ta.accdist": {
+    "label": "ta.accdist",
+    "kind": "function",
+    "detail": "ta.accdist(...)",
+    "brief": "Accumulation/Distribution Index - volume-weighted indicator",
+    "documentation": "Accumulation/Distribution Index - volume-weighted indicator.\n\nta.accdist(high, low, close, volume)\nReturns the A/D series.",
+    "snippet": "ta.accdist(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.acceleration_factor": {
+    "label": "ta.acceleration_factor",
+    "kind": "function",
+    "detail": "ta.acceleration_factor(...)",
+    "brief": "Acceleration Factor - Momentum acceleration/deceleration",
+    "documentation": "Acceleration Factor - Momentum acceleration/deceleration.\n\nta.acceleration_factor(momentum_list, period)\nReturns: Factor (-2.0 to 2.0)",
+    "snippet": "ta.acceleration_factor(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.advanced_breakout_detector": {
+    "label": "ta.advanced_breakout_detector",
+    "kind": "function",
+    "detail": "ta.advanced_breakout_detector(...)",
+    "brief": "Advanced Breakout Detector - Multiple breakout types",
+    "documentation": "Advanced Breakout Detector - Multiple breakout types.\n\nta.advanced_breakout_detector(price_list, volume_list, level, lookback,\n                              volume_multiplier)\nReturns: dict with breakout_detected, breakout_type, pullback_probability",
+    "snippet": "ta.advanced_breakout_detector(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.adx": {
+    "label": "ta.adx",
+    "kind": "function",
+    "detail": "ta.adx(...)",
+    "brief": "Average Directional Index",
+    "documentation": "Average Directional Index.",
+    "snippet": "ta.adx(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.apo": {
+    "label": "ta.apo",
+    "kind": "function",
+    "detail": "ta.apo(...)",
+    "brief": "Absolute Price Oscillator",
+    "documentation": "Absolute Price Oscillator.\n\nta.apo(series, fast_period, slow_period)\nAPO = EMA(fast) - EMA(slow)\nReturns APO series.",
+    "snippet": "ta.apo(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.atr": {
+    "label": "ta.atr",
+    "kind": "function",
+    "detail": "ta.atr(...)",
+    "brief": "Average True Range",
+    "documentation": "Average True Range.",
+    "snippet": "ta.atr(${1:param1}, ${2:param2}, ${3:param3})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.atr_normalized": {
+    "label": "ta.atr_normalized",
+    "kind": "function",
+    "detail": "ta.atr_normalized(...)",
+    "brief": "Normalized ATR - ATR as percentage of current price",
+    "documentation": "Normalized ATR - ATR as percentage of current price.\n\nta.atr_normalized(high, low, close, period)\nReturns ATR as a percentage of price for comparable analysis.",
+    "snippet": "ta.atr_normalized(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.atr_stop": {
+    "label": "ta.atr_stop",
+    "kind": "function",
+    "detail": "ta.atr_stop(...)",
+    "brief": "ATR-based Stop Loss",
+    "documentation": "ATR-based Stop Loss.\n\nta.atr_stop(atr_value, multiplier)\nCalculate stop levels based on ATR.",
+    "snippet": "ta.atr_stop(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.barssince": {
+    "label": "ta.barssince",
+    "kind": "function",
+    "detail": "ta.barssince(...)",
+    "brief": "Bars since condition was last true",
+    "documentation": "Bars since condition was last true.",
+    "snippet": "ta.barssince(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.bb": {
+    "label": "ta.bb",
+    "kind": "function",
+    "detail": "ta.bb(...)",
+    "brief": "Bollinger Bands",
+    "documentation": "Bollinger Bands.",
+    "snippet": "ta.bb(${1:param1}, ${2:param2}, ${3:param3})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.bb_pct": {
+    "label": "ta.bb_pct",
+    "kind": "function",
+    "detail": "ta.bb_pct(...)",
+    "brief": "Bollinger Band Percentage",
+    "documentation": "Bollinger Band Percentage.\n\nta.bb_pct(length, std_dev)\nPosition between upper and lower bands (0-100).",
+    "snippet": "ta.bb_pct(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.beta": {
+    "label": "ta.beta",
+    "kind": "function",
+    "detail": "ta.beta(...)",
+    "brief": "Beta Coefficient",
+    "documentation": "Beta Coefficient.\n\nta.beta(series1, series2, length)\nCorrelation measure between two series.",
+    "snippet": "ta.beta(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.bid_ask_imbalance": {
+    "label": "ta.bid_ask_imbalance",
+    "kind": "function",
+    "detail": "ta.bid_ask_imbalance(...)",
+    "brief": "Bid-Ask Imbalance",
+    "documentation": "Bid-Ask Imbalance.\n\nta.bid_ask_imbalance(bid_size, ask_size, bid_price, ask_price)\nMeasures market microstructure imbalance.",
+    "snippet": "ta.bid_ask_imbalance(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.breakeven_level": {
+    "label": "ta.breakeven_level",
+    "kind": "function",
+    "detail": "ta.breakeven_level(...)",
+    "brief": "Breakeven Level",
+    "documentation": "Breakeven Level.\n\nta.breakeven_level(entry_price, quantity, commission, slippage, direction)",
+    "snippet": "ta.breakeven_level(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.breakout_detection": {
+    "label": "ta.breakout_detection",
+    "kind": "function",
+    "detail": "ta.breakout_detection(...)",
+    "brief": "Breakout Detection",
+    "documentation": "Breakout Detection.",
+    "snippet": "ta.breakout_detection(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.cci": {
+    "label": "ta.cci",
+    "kind": "function",
+    "detail": "ta.cci(...)",
+    "brief": "Commodity Channel Index",
+    "documentation": "Commodity Channel Index.",
+    "snippet": "ta.cci(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.change": {
+    "label": "ta.change",
+    "kind": "function",
+    "detail": "ta.change(...)",
+    "brief": "Change over period",
+    "documentation": "Change over period.",
+    "snippet": "ta.change(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.cmf": {
+    "label": "ta.cmf",
+    "kind": "function",
+    "detail": "ta.cmf(...)",
+    "brief": "Chaikin Money Flow indicator",
+    "documentation": "Chaikin Money Flow indicator.\n\nta.cmf(close, high, low, volume, period)\nMeasures money flow into/out of security.\nReturns CMF series.",
+    "snippet": "ta.cmf(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.cog": {
+    "label": "ta.cog",
+    "kind": "function",
+    "detail": "ta.cog(...)",
+    "brief": "Center of Gravity oscillator",
+    "documentation": "Center of Gravity oscillator.",
+    "snippet": "ta.cog(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.comovement": {
+    "label": "ta.comovement",
+    "kind": "function",
+    "detail": "ta.comovement(...)",
+    "brief": "Comovement Index",
+    "documentation": "Comovement Index.\n\nta.comovement(series1, series2, length)\nSynchronicity between two series.",
+    "snippet": "ta.comovement(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.contrarian_signal": {
+    "label": "ta.contrarian_signal",
+    "kind": "function",
+    "detail": "ta.contrarian_signal(...)",
+    "brief": "Contrarian Signal - Contrarian trading opportunity detection",
+    "documentation": "Contrarian Signal - Contrarian trading opportunity detection.\n\nta.contrarian_signal(sentiment, volatility, time_since_extreme)\nReturns: dict with signal, strength, confidence",
+    "snippet": "ta.contrarian_signal(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.correlation_filter": {
+    "label": "ta.correlation_filter",
+    "kind": "function",
+    "detail": "ta.correlation_filter(...)",
+    "brief": "Correlation Filter - Multi-signal agreement",
+    "documentation": "Correlation Filter - Multi-signal agreement.\n\nta.correlation_filter(signal1_list, signal2_list, signal3_list,\n                      num_signals, threshold)\nReturns: dict with is_correlated, signal_agreement, divergence_count",
+    "snippet": "ta.correlation_filter(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.cross": {
+    "label": "ta.cross",
+    "kind": "function",
+    "detail": "ta.cross(...)",
+    "brief": "Cross check",
+    "documentation": "Cross check.",
+    "snippet": "ta.cross(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.crossover": {
+    "label": "ta.crossover",
+    "kind": "function",
+    "detail": "ta.crossover(...)",
+    "brief": "Crossover check",
+    "documentation": "Crossover check.",
+    "snippet": "ta.crossover(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.crossunder": {
+    "label": "ta.crossunder",
+    "kind": "function",
+    "detail": "ta.crossunder(...)",
+    "brief": "Crossunder check",
+    "documentation": "Crossunder check.",
+    "snippet": "ta.crossunder(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.crowd_sentiment": {
+    "label": "ta.crowd_sentiment",
+    "kind": "function",
+    "detail": "ta.crowd_sentiment(...)",
+    "brief": "Crowd Sentiment - Crowd consensus strength",
+    "documentation": "Crowd Sentiment - Crowd consensus strength.\n\nta.crowd_sentiment(price_agreement, volume_agreement, time_agreement)\nReturns: Score (0-100)",
+    "snippet": "ta.crowd_sentiment(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.cum": {
+    "label": "ta.cum",
+    "kind": "function",
+    "detail": "ta.cum(...)",
+    "brief": "Cumulative sum of values in series",
+    "documentation": "Cumulative sum of values in series.",
+    "snippet": "ta.cum(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.cumulative_delta": {
+    "label": "ta.cumulative_delta",
+    "kind": "function",
+    "detail": "ta.cumulative_delta(...)",
+    "brief": "Cumulative Delta - Buy-sell volume delta",
+    "documentation": "Cumulative Delta - Buy-sell volume delta.\n\nta.cumulative_delta(close, volume, period)\nReturns: Cumulative signed volume",
+    "snippet": "ta.cumulative_delta(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.dema": {
+    "label": "ta.dema",
+    "kind": "function",
+    "detail": "ta.dema(...)",
+    "brief": "Double Exponential Moving Average - reduces lag",
+    "documentation": "Double Exponential Moving Average - reduces lag.",
+    "snippet": "ta.dema(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.dev": {
+    "label": "ta.dev",
+    "kind": "function",
+    "detail": "ta.dev(...)",
+    "brief": "Deviation from mean (standard deviation)",
+    "documentation": "Deviation from mean (standard deviation).",
+    "snippet": "ta.dev(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.divergence_detector": {
+    "label": "ta.divergence_detector",
+    "kind": "function",
+    "detail": "ta.divergence_detector(...)",
+    "brief": "Divergence Detector",
+    "documentation": "Divergence Detector.",
+    "snippet": "ta.divergence_detector(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.dmi": {
+    "label": "ta.dmi",
+    "kind": "function",
+    "detail": "ta.dmi(...)",
+    "brief": "Directional Movement Index (returns +DI, -DI)",
+    "documentation": "Directional Movement Index (returns +DI, -DI).",
+    "snippet": "ta.dmi(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.donchian": {
+    "label": "ta.donchian",
+    "kind": "function",
+    "detail": "ta.donchian(...)",
+    "brief": "Donchian Channels",
+    "documentation": "Donchian Channels.",
+    "snippet": "ta.donchian(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.double_top_bottom": {
+    "label": "ta.double_top_bottom",
+    "kind": "function",
+    "detail": "ta.double_top_bottom(...)",
+    "brief": "Double Top/Bottom Pattern - Identifies classic reversal patterns",
+    "documentation": "Double Top/Bottom Pattern - Identifies classic reversal patterns.\n\nta.double_top_bottom(high, low, period)\nReturns: {pattern_type, strength, breakout_level}.",
+    "snippet": "ta.double_top_bottom(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.dpo": {
+    "label": "ta.dpo",
+    "kind": "function",
+    "detail": "ta.dpo(...)",
+    "brief": "Detrended Price Oscillator",
+    "documentation": "Detrended Price Oscillator.",
+    "snippet": "ta.dpo(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.drawdown_recovery_level": {
+    "label": "ta.drawdown_recovery_level",
+    "kind": "function",
+    "detail": "ta.drawdown_recovery_level(...)",
+    "brief": "Drawdown Recovery Level",
+    "documentation": "Drawdown Recovery Level.\n\nta.drawdown_recovery_level(peak, current, recovery_factor, period)",
+    "snippet": "ta.drawdown_recovery_level(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.economic_impact_score": {
+    "label": "ta.economic_impact_score",
+    "kind": "function",
+    "detail": "ta.economic_impact_score(...)",
+    "brief": "Economic Impact Score - Economic data impact on price",
+    "documentation": "Economic Impact Score - Economic data impact on price.\n\nta.economic_impact_score(price_change, volatility, volume_change)\nReturns: Score (0-100)",
+    "snippet": "ta.economic_impact_score(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.ema": {
+    "label": "ta.ema",
+    "kind": "function",
+    "detail": "ta.ema(...)",
+    "brief": "Exponential Moving Average",
+    "documentation": "Exponential Moving Average.",
+    "snippet": "ta.ema(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.ema_cross_signal": {
+    "label": "ta.ema_cross_signal",
+    "kind": "function",
+    "detail": "ta.ema_cross_signal(...)",
+    "brief": "EMA Cross Signal - Signal generation from EMA crossover",
+    "documentation": "EMA Cross Signal - Signal generation from EMA crossover.\n\nta.ema_cross_signal(fast_ema, slow_ema, threshold)\nReturns: dict with signal, strength, trend_direction",
+    "snippet": "ta.ema_cross_signal(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.employment_cycle_indicator": {
+    "label": "ta.employment_cycle_indicator",
+    "kind": "function",
+    "detail": "ta.employment_cycle_indicator(...)",
+    "brief": "Employment Cycle Indicator - Employment cycle detection",
+    "documentation": "Employment Cycle Indicator - Employment cycle detection.\n\nta.employment_cycle_indicator(cyclical_stocks, defensive_stocks, unemployment_proxy)\nReturns: \"early_cycle\" | \"mid_cycle\" | \"late_cycle\" | \"recession\"",
+    "snippet": "ta.employment_cycle_indicator(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.emv": {
+    "label": "ta.emv",
+    "kind": "function",
+    "detail": "ta.emv(...)",
+    "brief": "Ease of Movement",
+    "documentation": "Ease of Movement.\n\nta.emv(length)\nMeasures ease of price movement relative to volume.",
+    "snippet": "ta.emv(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.engulfing": {
+    "label": "ta.engulfing",
+    "kind": "function",
+    "detail": "ta.engulfing(...)",
+    "brief": "Engulfing Pattern Detector",
+    "documentation": "Engulfing Pattern Detector.\n\nta.engulfing(open, high, low, close)\nIdentifies bullish/bearish engulfing patterns.",
+    "snippet": "ta.engulfing(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.expected_value": {
+    "label": "ta.expected_value",
+    "kind": "function",
+    "detail": "ta.expected_value(...)",
+    "brief": "Expected Value",
+    "documentation": "Expected Value.\n\nta.expected_value(returns, probabilities)\nCalculates statistical expected value.",
+    "snippet": "ta.expected_value(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.falling": {
+    "label": "ta.falling",
+    "kind": "function",
+    "detail": "ta.falling(...)",
+    "brief": "Falling check",
+    "documentation": "Falling check.",
+    "snippet": "ta.falling(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.fear_greed_index": {
+    "label": "ta.fear_greed_index",
+    "kind": "function",
+    "detail": "ta.fear_greed_index(...)",
+    "brief": "Fear Greed Index - Market psychology measurement",
+    "documentation": "Fear Greed Index - Market psychology measurement.\n\nta.fear_greed_index(rsi, vix_proxy, put_call_ratio, breadth)\nReturns: Score (-100 to 100)",
+    "snippet": "ta.fear_greed_index(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.fractal": {
+    "label": "ta.fractal",
+    "kind": "function",
+    "detail": "ta.fractal(...)",
+    "brief": "Fractal Pattern Detector",
+    "documentation": "Fractal Pattern Detector.\n\nta.fractal(period)\nIdentifies high/low fractals.",
+    "snippet": "ta.fractal(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.gamma_levels": {
+    "label": "ta.gamma_levels",
+    "kind": "function",
+    "detail": "ta.gamma_levels(...)",
+    "brief": "Gamma Levels",
+    "documentation": "Gamma Levels.",
+    "snippet": "ta.gamma_levels(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.gap_detector": {
+    "label": "ta.gap_detector",
+    "kind": "function",
+    "detail": "ta.gap_detector(...)",
+    "brief": "Gap Pattern Detector",
+    "documentation": "Gap Pattern Detector.\n\nta.gap_detector(high, low, prev_close)\nIdentifies and measures price gaps.",
+    "snippet": "ta.gap_detector(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.garman_klass": {
+    "label": "ta.garman_klass",
+    "kind": "function",
+    "detail": "ta.garman_klass(...)",
+    "brief": "Garman-Klass Volatility",
+    "documentation": "Garman-Klass Volatility.\n\nta.garman_klass(high, low, close, open)\nVolatility using OHLC data.",
+    "snippet": "ta.garman_klass(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.gdp_growth_proxy": {
+    "label": "ta.gdp_growth_proxy",
+    "kind": "function",
+    "detail": "ta.gdp_growth_proxy(...)",
+    "brief": "GDP Growth Proxy - GDP growth estimation from market signals",
+    "documentation": "GDP Growth Proxy - GDP growth estimation from market signals.\n\nta.gdp_growth_proxy(market_breadth, market_volume, price_momentum)\nReturns: Growth estimate (-2 to 4)",
+    "snippet": "ta.gdp_growth_proxy(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.hammer": {
+    "label": "ta.hammer",
+    "kind": "function",
+    "detail": "ta.hammer(...)",
+    "brief": "Hammer/Doji Pattern Detector",
+    "documentation": "Hammer/Doji Pattern Detector.\n\nta.hammer(open, high, low, close)\nIdentifies hammer and doji patterns.",
+    "snippet": "ta.hammer(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.highest": {
+    "label": "ta.highest",
+    "kind": "function",
+    "detail": "ta.highest(...)",
+    "brief": "Highest value",
+    "documentation": "Highest value.",
+    "snippet": "ta.highest(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.highestbars": {
+    "label": "ta.highestbars",
+    "kind": "function",
+    "detail": "ta.highestbars(...)",
+    "brief": "Offset to highest value",
+    "documentation": "Offset to highest value.",
+    "snippet": "ta.highestbars(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.hma": {
+    "label": "ta.hma",
+    "kind": "function",
+    "detail": "ta.hma(...)",
+    "brief": "Hull Moving Average",
+    "documentation": "Hull Moving Average.",
+    "snippet": "ta.hma(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.ichimoku": {
+    "label": "ta.ichimoku",
+    "kind": "function",
+    "detail": "ta.ichimoku(...)",
+    "brief": "Ichimoku Cloud Components",
+    "documentation": "Ichimoku Cloud Components.",
+    "snippet": "ta.ichimoku(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.iii": {
+    "label": "ta.iii",
+    "kind": "function",
+    "detail": "ta.iii(...)",
+    "brief": "Intraday Intensity Index - measures money flow without volume data",
+    "documentation": "Intraday Intensity Index - measures money flow without volume data.\n\nta.iii(high, low, close)\nReturns the intraday intensity index value.",
+    "snippet": "ta.iii(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.inflation_proxy_indicator": {
+    "label": "ta.inflation_proxy_indicator",
+    "kind": "function",
+    "detail": "ta.inflation_proxy_indicator(...)",
+    "brief": "Inflation Proxy Indicator - Inflation estimation from technicals",
+    "documentation": "Inflation Proxy Indicator - Inflation estimation from technicals.\n\nta.inflation_proxy_indicator(usd_index, commodity_prices, bond_yields)\nReturns: Score (-100 to 100)",
+    "snippet": "ta.inflation_proxy_indicator(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.inside_bar_pattern": {
+    "label": "ta.inside_bar_pattern",
+    "kind": "function",
+    "detail": "ta.inside_bar_pattern(...)",
+    "brief": "Inside Bar Pattern",
+    "documentation": "Inside Bar Pattern.",
+    "snippet": "ta.inside_bar_pattern(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.intelligent_strategy_synthesizer": {
+    "label": "ta.intelligent_strategy_synthesizer",
+    "kind": "function",
+    "detail": "ta.intelligent_strategy_synthesizer(...)",
+    "brief": "Intelligent Trading Strategy Synthesizer - Meta-indicator synthesis",
+    "documentation": "Intelligent Trading Strategy Synthesizer - Meta-indicator synthesis.\n\nCombines all technical indicator categories into adaptive,\ncontext-aware trading signals.\n\nta.intelligent_strategy_synthesizer(\n    trend_indicators, momentum_indicators, volatility_indicators,\n    volume_indicators, market_condition, risk_profile\n)\n\nReturns: dict with composite signal, confidence, and trading recommendation",
+    "snippet": "ta.intelligent_strategy_synthesizer(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.kama": {
+    "label": "ta.kama",
+    "kind": "function",
+    "detail": "ta.kama(...)",
+    "brief": "Kaufman's Adaptive Moving Average",
+    "documentation": "Kaufman's Adaptive Moving Average.",
+    "snippet": "ta.kama(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.kc": {
+    "label": "ta.kc",
+    "kind": "function",
+    "detail": "ta.kc(...)",
+    "brief": "Keltner Channels (returns middle, upper, lower)",
+    "documentation": "Keltner Channels (returns middle, upper, lower).",
+    "snippet": "ta.kc(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.kcw": {
+    "label": "ta.kcw",
+    "kind": "function",
+    "detail": "ta.kcw(...)",
+    "brief": "Keltner Channels Width",
+    "documentation": "Keltner Channels Width.",
+    "snippet": "ta.kcw(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.kelly_criterion": {
+    "label": "ta.kelly_criterion",
+    "kind": "function",
+    "detail": "ta.kelly_criterion(...)",
+    "brief": "Kelly Criterion",
+    "documentation": "Kelly Criterion.",
+    "snippet": "ta.kelly_criterion(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.klinger": {
+    "label": "ta.klinger",
+    "kind": "function",
+    "detail": "ta.klinger(...)",
+    "brief": "Klinger Oscillator",
+    "documentation": "Klinger Oscillator.\n\nta.klinger(high, low, close, volume, fast_period, slow_period)\nVolume-based momentum oscillator.\nReturns KO series.",
+    "snippet": "ta.klinger(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.kst": {
+    "label": "ta.kst",
+    "kind": "function",
+    "detail": "ta.kst(...)",
+    "brief": "Know Sure Thing Oscillator",
+    "documentation": "Know Sure Thing Oscillator.",
+    "snippet": "ta.kst(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.kurtosis": {
+    "label": "ta.kurtosis",
+    "kind": "function",
+    "detail": "ta.kurtosis(...)",
+    "brief": "Kurtosis",
+    "documentation": "Kurtosis.\n\nta.kurtosis(series, period)\nMeasures tail risk and peakedness.",
+    "snippet": "ta.kurtosis(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.linreg": {
+    "label": "ta.linreg",
+    "kind": "function",
+    "detail": "ta.linreg(...)",
+    "brief": "Linear Regression value",
+    "documentation": "Linear Regression value.",
+    "snippet": "ta.linreg(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.liquidity_score": {
+    "label": "ta.liquidity_score",
+    "kind": "function",
+    "detail": "ta.liquidity_score(...)",
+    "brief": "Liquidity Score - Market liquidity measurement",
+    "documentation": "Liquidity Score - Market liquidity measurement.\n\nta.liquidity_score(volume, volatility, bid_ask_spread, period)\nReturns: Score (0-100)",
+    "snippet": "ta.liquidity_score(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.lowest": {
+    "label": "ta.lowest",
+    "kind": "function",
+    "detail": "ta.lowest(...)",
+    "brief": "Lowest value",
+    "documentation": "Lowest value.",
+    "snippet": "ta.lowest(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.lowestbars": {
+    "label": "ta.lowestbars",
+    "kind": "function",
+    "detail": "ta.lowestbars(...)",
+    "brief": "Offset to lowest value",
+    "documentation": "Offset to lowest value.",
+    "snippet": "ta.lowestbars(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.macd": {
+    "label": "ta.macd",
+    "kind": "function",
+    "detail": "ta.macd(...)",
+    "brief": "MACD (Moving Average Convergence Divergence)",
+    "documentation": "MACD (Moving Average Convergence Divergence).",
+    "snippet": "ta.macd(${1:param1}, ${2:param2}, ${3:param3})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.macd_signal": {
+    "label": "ta.macd_signal",
+    "kind": "function",
+    "detail": "ta.macd_signal(...)",
+    "brief": "MACD Signal Strength",
+    "documentation": "MACD Signal Strength.",
+    "snippet": "ta.macd_signal(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.market_condition": {
+    "label": "ta.market_condition",
+    "kind": "function",
+    "detail": "ta.market_condition(...)",
+    "brief": "Market Condition Detection",
+    "documentation": "Market Condition Detection.",
+    "snippet": "ta.market_condition(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.market_structure_pivot": {
+    "label": "ta.market_structure_pivot",
+    "kind": "function",
+    "detail": "ta.market_structure_pivot(...)",
+    "brief": "Market Structure Pivot - Fractal/Swing/Block detection",
+    "documentation": "Market Structure Pivot - Fractal/Swing/Block detection.\n\nta.market_structure_pivot(high_list, low_list, close_list, period, mode)\nReturns: dict with pivot_price, strength, structure",
+    "snippet": "ta.market_structure_pivot(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.market_timing_index": {
+    "label": "ta.market_timing_index",
+    "kind": "function",
+    "detail": "ta.market_timing_index(...)",
+    "brief": "Market Timing Index",
+    "documentation": "Market Timing Index.\n\nta.market_timing_index(trend, momentum, volatility, sentiment)",
+    "snippet": "ta.market_timing_index(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.max": {
+    "label": "ta.max",
+    "kind": "function",
+    "detail": "ta.max(...)",
+    "brief": "Maximum value over a period (alias for ta",
+    "documentation": "Maximum value over a period (alias for ta.highest).",
+    "snippet": "ta.max(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.max_loss_level": {
+    "label": "ta.max_loss_level",
+    "kind": "function",
+    "detail": "ta.max_loss_level(...)",
+    "brief": "Maximum Loss Stop - Calculates stop for max loss",
+    "documentation": "Maximum Loss Stop - Calculates stop for max loss.\n\nta.max_loss_level(entry, account, max_loss_pct)\nReturns: Stop price.",
+    "snippet": "ta.max_loss_level(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.mean_reversion_entry": {
+    "label": "ta.mean_reversion_entry",
+    "kind": "function",
+    "detail": "ta.mean_reversion_entry(...)",
+    "brief": "Mean Reversion Entry",
+    "documentation": "Mean Reversion Entry.\n\nta.mean_reversion_entry(price, sma, stdev, period, threshold)",
+    "snippet": "ta.mean_reversion_entry(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.mean_reversion_score": {
+    "label": "ta.mean_reversion_score",
+    "kind": "function",
+    "detail": "ta.mean_reversion_score(...)",
+    "brief": "Mean Reversion Score - Probability of price reverting to mean",
+    "documentation": "Mean Reversion Score - Probability of price reverting to mean.\n\nta.mean_reversion_score(close, sma, stdev, period)\nReturns: Score (0-100)",
+    "snippet": "ta.mean_reversion_score(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.median": {
+    "label": "ta.median",
+    "kind": "function",
+    "detail": "ta.median(...)",
+    "brief": "Median value over a period",
+    "documentation": "Median value over a period.",
+    "snippet": "ta.median(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.mfi": {
+    "label": "ta.mfi",
+    "kind": "function",
+    "detail": "ta.mfi(...)",
+    "brief": "Money Flow Index indicator",
+    "documentation": "Money Flow Index indicator.\n\nta.mfi(high, low, close, volume, length)\nCombines price and volume for momentum.\nReturns MFI value (0-100).",
+    "snippet": "ta.mfi(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.min": {
+    "label": "ta.min",
+    "kind": "function",
+    "detail": "ta.min(...)",
+    "brief": "Minimum value over a period (alias for ta",
+    "documentation": "Minimum value over a period (alias for ta.lowest).",
+    "snippet": "ta.min(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.mode": {
+    "label": "ta.mode",
+    "kind": "function",
+    "detail": "ta.mode(...)",
+    "brief": "Mode (most frequent value) over a period",
+    "documentation": "Mode (most frequent value) over a period.",
+    "snippet": "ta.mode(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.mom": {
+    "label": "ta.mom",
+    "kind": "function",
+    "detail": "ta.mom(...)",
+    "brief": "Momentum",
+    "documentation": "Momentum.",
+    "snippet": "ta.mom(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.momentum_divergence": {
+    "label": "ta.momentum_divergence",
+    "kind": "function",
+    "detail": "ta.momentum_divergence(...)",
+    "brief": "Momentum Divergence - Multi-timeframe momentum divergence",
+    "documentation": "Momentum Divergence - Multi-timeframe momentum divergence.\n\nta.momentum_divergence(price, momentum_fast, momentum_slow)\nReturns: dict with divergence_type, strength, bars_since",
+    "snippet": "ta.momentum_divergence(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.momentum_filter": {
+    "label": "ta.momentum_filter",
+    "kind": "function",
+    "detail": "ta.momentum_filter(...)",
+    "brief": "Momentum Filter - Adaptive momentum filtering",
+    "documentation": "Momentum Filter - Adaptive momentum filtering.\n\nta.momentum_filter(momentum_raw, volume, period)\nReturns: Filtered momentum value",
+    "snippet": "ta.momentum_filter(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.multi_timeframe_signal": {
+    "label": "ta.multi_timeframe_signal",
+    "kind": "function",
+    "detail": "ta.multi_timeframe_signal(...)",
+    "brief": "Multi-Timeframe Signal - Alignment across timeframes",
+    "documentation": "Multi-Timeframe Signal - Alignment across timeframes.\n\nta.multi_timeframe_signal(signal_short, signal_mid, signal_long,\n                          weight_short, weight_mid, weight_long)\nReturns: dict with combined_signal, signal_agreement, alignment_quality",
+    "snippet": "ta.multi_timeframe_signal(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.nvi": {
+    "label": "ta.nvi",
+    "kind": "function",
+    "detail": "ta.nvi(...)",
+    "brief": "Negative Volume Index - cumulative index when volume decreases",
+    "documentation": "Negative Volume Index - cumulative index when volume decreases.\n\nta.nvi(close, volume, period)\nReturns the NVI series.",
+    "snippet": "ta.nvi(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.obv": {
+    "label": "ta.obv",
+    "kind": "function",
+    "detail": "ta.obv(...)",
+    "brief": "On-Balance Volume indicator",
+    "documentation": "On-Balance Volume indicator.\n\nta.obv(close, volume)\nAccumulates volume based on price direction.\nReturns OBV value.",
+    "snippet": "ta.obv(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.optimal_entry_zone": {
+    "label": "ta.optimal_entry_zone",
+    "kind": "function",
+    "detail": "ta.optimal_entry_zone(...)",
+    "brief": "Optimal Entry Zone",
+    "documentation": "Optimal Entry Zone.\n\nta.optimal_entry_zone(high, low, close, period)",
+    "snippet": "ta.optimal_entry_zone(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.order_flow_imbalance": {
+    "label": "ta.order_flow_imbalance",
+    "kind": "function",
+    "detail": "ta.order_flow_imbalance(...)",
+    "brief": "Order Flow Imbalance",
+    "documentation": "Order Flow Imbalance.",
+    "snippet": "ta.order_flow_imbalance(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.parkinson": {
+    "label": "ta.parkinson",
+    "kind": "function",
+    "detail": "ta.parkinson(...)",
+    "brief": "Parkinson Volatility",
+    "documentation": "Parkinson Volatility.\n\nta.parkinson(high, low)\nCalculates volatility from high-low range.",
+    "snippet": "ta.parkinson(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.percentrank": {
+    "label": "ta.percentrank",
+    "kind": "function",
+    "detail": "ta.percentrank(...)",
+    "brief": "Percentile rank of current value in period",
+    "documentation": "Percentile rank of current value in period.",
+    "snippet": "ta.percentrank(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.pivot_point_levels": {
+    "label": "ta.pivot_point_levels",
+    "kind": "function",
+    "detail": "ta.pivot_point_levels(...)",
+    "brief": "Calculate pivot point levels",
+    "documentation": "Calculate pivot point levels.\n\nta.pivot_point_levels(high, low, close, is_traditional)\nReturns a dictionary with pivot point levels.",
+    "snippet": "ta.pivot_point_levels(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.pivothigh": {
+    "label": "ta.pivothigh",
+    "kind": "function",
+    "detail": "ta.pivothigh(...)",
+    "brief": "Find the highest point (pivot high) in a window",
+    "documentation": "Find the highest point (pivot high) in a window.\n\nta.pivothigh(source, leftbars, rightbars)\nFinds a pivot high - a point where left_bars bars to the left are lower\nand right_bars bars to the right are lower.",
+    "snippet": "ta.pivothigh(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.pivotlow": {
+    "label": "ta.pivotlow",
+    "kind": "function",
+    "detail": "ta.pivotlow(...)",
+    "brief": "Find the lowest point (pivot low) in a window",
+    "documentation": "Find the lowest point (pivot low) in a window.\n\nta.pivotlow(source, leftbars, rightbars)\nFinds a pivot low - a point where left_bars bars to the left are higher\nand right_bars bars to the right are higher.",
+    "snippet": "ta.pivotlow(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.position_sizing": {
+    "label": "ta.position_sizing",
+    "kind": "function",
+    "detail": "ta.position_sizing(...)",
+    "brief": "Position Sizing",
+    "documentation": "Position Sizing.",
+    "snippet": "ta.position_sizing(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.position_sizing_score": {
+    "label": "ta.position_sizing_score",
+    "kind": "function",
+    "detail": "ta.position_sizing_score(...)",
+    "brief": "Position Sizing Score",
+    "documentation": "Position Sizing Score.\n\nta.position_sizing_score(account_risk, volatility, conviction, correlation)",
+    "snippet": "ta.position_sizing_score(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.probability_of_movement": {
+    "label": "ta.probability_of_movement",
+    "kind": "function",
+    "detail": "ta.probability_of_movement(...)",
+    "brief": "Probability of Movement",
+    "documentation": "Probability of Movement.",
+    "snippet": "ta.probability_of_movement(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.profit_lock_level": {
+    "label": "ta.profit_lock_level",
+    "kind": "function",
+    "detail": "ta.profit_lock_level(...)",
+    "brief": "Profit Lock Level - Dynamic trailing stop",
+    "documentation": "Profit Lock Level - Dynamic trailing stop.\n\nta.profit_lock_level(entry, current, trail_pct, direction)\nDirection: 1 for long, -1 for short.\nReturns: Stop price that trails behind price.",
+    "snippet": "ta.profit_lock_level(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.pullback_bounce_level": {
+    "label": "ta.pullback_bounce_level",
+    "kind": "function",
+    "detail": "ta.pullback_bounce_level(...)",
+    "brief": "Pullback/Bounce Level - Fibonacci support/resistance",
+    "documentation": "Pullback/Bounce Level - Fibonacci support/resistance.\n\nta.pullback_bounce_level(high_list, low_list, close_list, trend_direction,\n                         lookback)\nReturns: dict with primary_level, bounce_probability, support_strength",
+    "snippet": "ta.pullback_bounce_level(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.pvi": {
+    "label": "ta.pvi",
+    "kind": "function",
+    "detail": "ta.pvi(...)",
+    "brief": "Positive Volume Index - cumulative index when volume increases",
+    "documentation": "Positive Volume Index - cumulative index when volume increases.\n\nta.pvi(close, volume, period)\nReturns the PVI series.",
+    "snippet": "ta.pvi(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.r_squared": {
+    "label": "ta.r_squared",
+    "kind": "function",
+    "detail": "ta.r_squared(...)",
+    "brief": "R-Squared (Coefficient of Determination)",
+    "documentation": "R-Squared (Coefficient of Determination).\n\nta.r_squared(series1, series2, length)\nMeasures fit quality (0-1).",
+    "snippet": "ta.r_squared(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.range": {
+    "label": "ta.range",
+    "kind": "function",
+    "detail": "ta.range(...)",
+    "brief": "Range = highest - lowest over a period",
+    "documentation": "Range = highest - lowest over a period.",
+    "snippet": "ta.range(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.rci": {
+    "label": "ta.rci",
+    "kind": "function",
+    "detail": "ta.rci(...)",
+    "brief": "Rank Correlation Index (Spearman's correlation)",
+    "documentation": "Rank Correlation Index (Spearman's correlation).",
+    "snippet": "ta.rci(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.regime_adaptive_signal": {
+    "label": "ta.regime_adaptive_signal",
+    "kind": "function",
+    "detail": "ta.regime_adaptive_signal(...)",
+    "brief": "Regime Adaptive Signal",
+    "documentation": "Regime Adaptive Signal.\n\nta.regime_adaptive_signal(signal_strength, volatility_regime, trend_regime, period)",
+    "snippet": "ta.regime_adaptive_signal(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.rising": {
+    "label": "ta.rising",
+    "kind": "function",
+    "detail": "ta.rising(...)",
+    "brief": "Rising check",
+    "documentation": "Rising check.",
+    "snippet": "ta.rising(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.risk_reward_asymmetry": {
+    "label": "ta.risk_reward_asymmetry",
+    "kind": "function",
+    "detail": "ta.risk_reward_asymmetry(...)",
+    "brief": "Risk Reward Asymmetry",
+    "documentation": "Risk Reward Asymmetry.\n\nta.risk_reward_asymmetry(entry, stop, target, win_rate)",
+    "snippet": "ta.risk_reward_asymmetry(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.risk_reward_ratio": {
+    "label": "ta.risk_reward_ratio",
+    "kind": "function",
+    "detail": "ta.risk_reward_ratio(...)",
+    "brief": "Risk/Reward Ratio",
+    "documentation": "Risk/Reward Ratio.",
+    "snippet": "ta.risk_reward_ratio(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.rma": {
+    "label": "ta.rma",
+    "kind": "function",
+    "detail": "ta.rma(...)",
+    "brief": "Rolling Moving Average",
+    "documentation": "Rolling Moving Average.",
+    "snippet": "ta.rma(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.roc": {
+    "label": "ta.roc",
+    "kind": "function",
+    "detail": "ta.roc(...)",
+    "brief": "Rate of Change",
+    "documentation": "Rate of Change.",
+    "snippet": "ta.roc(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.rsi": {
+    "label": "ta.rsi",
+    "kind": "function",
+    "detail": "ta.rsi(...)",
+    "brief": "Relative Strength Index",
+    "documentation": "Relative Strength Index.",
+    "snippet": "ta.rsi(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.rsi_divergence": {
+    "label": "ta.rsi_divergence",
+    "kind": "function",
+    "detail": "ta.rsi_divergence(...)",
+    "brief": "RSI Divergence Detector",
+    "documentation": "RSI Divergence Detector.",
+    "snippet": "ta.rsi_divergence(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.rsi_oversold_overbought": {
+    "label": "ta.rsi_oversold_overbought",
+    "kind": "function",
+    "detail": "ta.rsi_oversold_overbought(...)",
+    "brief": "RSI Oversold/Overbought Levels - Custom RSI threshold detection",
+    "documentation": "RSI Oversold/Overbought Levels - Custom RSI threshold detection.\n\nta.rsi_oversold_overbought(rsi_series, oversold_level, overbought_level)\nReturns boolean flags for oversold/overbought conditions.",
+    "snippet": "ta.rsi_oversold_overbought(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.sar": {
+    "label": "ta.sar",
+    "kind": "function",
+    "detail": "ta.sar(...)",
+    "brief": "Parabolic SAR",
+    "documentation": "Parabolic SAR.",
+    "snippet": "ta.sar(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.signal_confluence": {
+    "label": "ta.signal_confluence",
+    "kind": "function",
+    "detail": "ta.signal_confluence(...)",
+    "brief": "Signal Confluence",
+    "documentation": "Signal Confluence.",
+    "snippet": "ta.signal_confluence(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.skewness": {
+    "label": "ta.skewness",
+    "kind": "function",
+    "detail": "ta.skewness(...)",
+    "brief": "Skewness",
+    "documentation": "Skewness.\n\nta.skewness(series, period)\nMeasures asymmetry in distribution.",
+    "snippet": "ta.skewness(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.sma": {
+    "label": "ta.sma",
+    "kind": "function",
+    "detail": "ta.sma(...)",
+    "brief": "Simple Moving Average",
+    "documentation": "Simple Moving Average.",
+    "snippet": "ta.sma(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.sma_weighted": {
+    "label": "ta.sma_weighted",
+    "kind": "function",
+    "detail": "ta.sma_weighted(...)",
+    "brief": "Weighted SMA with custom weighting scheme",
+    "documentation": "Weighted SMA with custom weighting scheme.",
+    "snippet": "ta.sma_weighted(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.smart_money_flow": {
+    "label": "ta.smart_money_flow",
+    "kind": "function",
+    "detail": "ta.smart_money_flow(...)",
+    "brief": "Smart Money Flow - Institutional money flow estimation",
+    "documentation": "Smart Money Flow - Institutional money flow estimation.\n\nta.smart_money_flow(price_change, volume, time_since_high, time_since_low)\nReturns: Flow intensity (-1.0 to 1.0)",
+    "snippet": "ta.smart_money_flow(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.spread_analysis": {
+    "label": "ta.spread_analysis",
+    "kind": "function",
+    "detail": "ta.spread_analysis(...)",
+    "brief": "Spread Analysis - Bid-ask spread tracking",
+    "documentation": "Spread Analysis - Bid-ask spread tracking.\n\nta.spread_analysis(bid, ask, period)",
+    "snippet": "ta.spread_analysis(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.stdev": {
+    "label": "ta.stdev",
+    "kind": "function",
+    "detail": "ta.stdev(...)",
+    "brief": "Standard Deviation",
+    "documentation": "Standard Deviation.",
+    "snippet": "ta.stdev(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.stoch": {
+    "label": "ta.stoch",
+    "kind": "function",
+    "detail": "ta.stoch(...)",
+    "brief": "Stochastic Oscillator",
+    "documentation": "Stochastic Oscillator.",
+    "snippet": "ta.stoch(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.stoch_smooth": {
+    "label": "ta.stoch_smooth",
+    "kind": "function",
+    "detail": "ta.stoch_smooth(...)",
+    "brief": "Smoothed Stochastic Oscillator",
+    "documentation": "Smoothed Stochastic Oscillator.",
+    "snippet": "ta.stoch_smooth(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.stochrsi": {
+    "label": "ta.stochrsi",
+    "kind": "function",
+    "detail": "ta.stochrsi(...)",
+    "brief": "Stochastic RSI",
+    "documentation": "Stochastic RSI.",
+    "snippet": "ta.stochrsi(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.strategy_score": {
+    "label": "ta.strategy_score",
+    "kind": "function",
+    "detail": "ta.strategy_score(...)",
+    "brief": "Strategy Score",
+    "documentation": "Strategy Score.",
+    "snippet": "ta.strategy_score(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.supertrend": {
+    "label": "ta.supertrend",
+    "kind": "function",
+    "detail": "ta.supertrend(...)",
+    "brief": "Supertrend indicator (returns final_lowerband, final_upperband, direction)",
+    "documentation": "Supertrend indicator (returns final_lowerband, final_upperband, direction).",
+    "snippet": "ta.supertrend(${1:param1}, ${2:param2}, ${3:param3})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.swma": {
+    "label": "ta.swma",
+    "kind": "function",
+    "detail": "ta.swma(...)",
+    "brief": "Symmetric Weighted Moving Average",
+    "documentation": "Symmetric Weighted Moving Average.",
+    "snippet": "ta.swma(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.tema": {
+    "label": "ta.tema",
+    "kind": "function",
+    "detail": "ta.tema(...)",
+    "brief": "Triple Exponential Moving Average - even less lag than DEMA",
+    "documentation": "Triple Exponential Moving Average - even less lag than DEMA.",
+    "snippet": "ta.tema(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.tr": {
+    "label": "ta.tr",
+    "kind": "function",
+    "detail": "ta.tr(...)",
+    "brief": "True Range",
+    "documentation": "True Range.",
+    "snippet": "ta.tr(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.trailing_exit_level": {
+    "label": "ta.trailing_exit_level",
+    "kind": "function",
+    "detail": "ta.trailing_exit_level(...)",
+    "brief": "Trailing Exit Level",
+    "documentation": "Trailing Exit Level.\n\nta.trailing_exit_level(entry, current, atr, multiplier, step)",
+    "snippet": "ta.trailing_exit_level(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.trend_confirmation_score": {
+    "label": "ta.trend_confirmation_score",
+    "kind": "function",
+    "detail": "ta.trend_confirmation_score(...)",
+    "brief": "Trend Confirmation Score - Multi-signal trend strength",
+    "documentation": "Trend Confirmation Score - Multi-signal trend strength.\n\nta.trend_confirmation_score(momentum, trend_alignment, strength, rsi,\n                             rsi_alignment, support_distance)\nReturns: float (0-100)",
+    "snippet": "ta.trend_confirmation_score(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.trend_strength": {
+    "label": "ta.trend_strength",
+    "kind": "function",
+    "detail": "ta.trend_strength(...)",
+    "brief": "Trend Strength",
+    "documentation": "Trend Strength.",
+    "snippet": "ta.trend_strength(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.tsi": {
+    "label": "ta.tsi",
+    "kind": "function",
+    "detail": "ta.tsi(...)",
+    "brief": "True Strength Index",
+    "documentation": "True Strength Index.",
+    "snippet": "ta.tsi(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.uo": {
+    "label": "ta.uo",
+    "kind": "function",
+    "detail": "ta.uo(...)",
+    "brief": "Ultimate Oscillator",
+    "documentation": "Ultimate Oscillator.",
+    "snippet": "ta.uo(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.valuewhen": {
+    "label": "ta.valuewhen",
+    "kind": "function",
+    "detail": "ta.valuewhen(...)",
+    "brief": "Get value when condition was true",
+    "documentation": "Get value when condition was true.",
+    "snippet": "ta.valuewhen(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.variance": {
+    "label": "ta.variance",
+    "kind": "function",
+    "detail": "ta.variance(...)",
+    "brief": "Variance over a period",
+    "documentation": "Variance over a period.",
+    "snippet": "ta.variance(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.voi": {
+    "label": "ta.voi",
+    "kind": "function",
+    "detail": "ta.voi(...)",
+    "brief": "Volume of Imbalance",
+    "documentation": "Volume of Imbalance.\n\nta.voi(buy_volume, sell_volume)\nMeasures imbalance in buy vs sell volume.",
+    "snippet": "ta.voi(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.volatility_regime": {
+    "label": "ta.volatility_regime",
+    "kind": "function",
+    "detail": "ta.volatility_regime(...)",
+    "brief": "Volatility Regime Classification",
+    "documentation": "Volatility Regime Classification.",
+    "snippet": "ta.volatility_regime(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.volatility_regime_score": {
+    "label": "ta.volatility_regime_score",
+    "kind": "function",
+    "detail": "ta.volatility_regime_score(...)",
+    "brief": "Volatility Regime Score - Regime classification",
+    "documentation": "Volatility Regime Score - Regime classification.\n\nta.volatility_regime_score(atr_list, volatility_list, vix_list, threshold)\nReturns: dict with regime, volatility_score, momentum",
+    "snippet": "ta.volatility_regime_score(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.volume_momentum": {
+    "label": "ta.volume_momentum",
+    "kind": "function",
+    "detail": "ta.volume_momentum(...)",
+    "brief": "Volume Momentum - Rate of change of volume",
+    "documentation": "Volume Momentum - Rate of change of volume.\n\nta.volume_momentum(volume, period)\nReturns: Momentum (-100 to 100)",
+    "snippet": "ta.volume_momentum(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.volume_profile_high": {
+    "label": "ta.volume_profile_high",
+    "kind": "function",
+    "detail": "ta.volume_profile_high(...)",
+    "brief": "Volume Profile High",
+    "documentation": "Volume Profile High.",
+    "snippet": "ta.volume_profile_high(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.volume_profile_low": {
+    "label": "ta.volume_profile_low",
+    "kind": "function",
+    "detail": "ta.volume_profile_low(...)",
+    "brief": "Volume Profile Low - Lowest volume price level",
+    "documentation": "Volume Profile Low - Lowest volume price level.\n\nta.volume_profile_low(close, volume, period, levels)\nReturns: Price level with lowest volume",
+    "snippet": "ta.volume_profile_low(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.volume_thrust": {
+    "label": "ta.volume_thrust",
+    "kind": "function",
+    "detail": "ta.volume_thrust(...)",
+    "brief": "Volume Thrust - Volume surge pattern detection",
+    "documentation": "Volume Thrust - Volume surge pattern detection.\n\nta.volume_thrust(close, volume, volume_sma, sensitivity)\nReturns: bool",
+    "snippet": "ta.volume_thrust(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.volume_weighted_momentum": {
+    "label": "ta.volume_weighted_momentum",
+    "kind": "function",
+    "detail": "ta.volume_weighted_momentum(...)",
+    "brief": "Volume Weighted Momentum",
+    "documentation": "Volume Weighted Momentum.\n\nta.volume_weighted_momentum(series, volume, length)\nReturns: Momentum value weighted by volume",
+    "snippet": "ta.volume_weighted_momentum(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.vpt": {
+    "label": "ta.vpt",
+    "kind": "function",
+    "detail": "ta.vpt(...)",
+    "brief": "Volume Price Trend",
+    "documentation": "Volume Price Trend.\n\nta.vpt(series)\nCombines volume and price direction.",
+    "snippet": "ta.vpt(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.vwap": {
+    "label": "ta.vwap",
+    "kind": "function",
+    "detail": "ta.vwap(...)",
+    "brief": "Volume Weighted Average Price",
+    "documentation": "Volume Weighted Average Price.",
+    "snippet": "ta.vwap(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.vwma": {
+    "label": "ta.vwma",
+    "kind": "function",
+    "detail": "ta.vwma(...)",
+    "brief": "Volume Weighted Moving Average",
+    "documentation": "Volume Weighted Moving Average.",
+    "snippet": "ta.vwma(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.wad": {
+    "label": "ta.wad",
+    "kind": "function",
+    "detail": "ta.wad(...)",
+    "brief": "Williams Accumulation/Distribution - volume accumulation index",
+    "documentation": "Williams Accumulation/Distribution - volume accumulation index.\n\nta.wad(high, low, close, volume)\nReturns the WAD series.",
+    "snippet": "ta.wad(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.wma": {
+    "label": "ta.wma",
+    "kind": "function",
+    "detail": "ta.wma(...)",
+    "brief": "Weighted Moving Average",
+    "documentation": "Weighted Moving Average.",
+    "snippet": "ta.wma(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.wpr": {
+    "label": "ta.wpr",
+    "kind": "function",
+    "detail": "ta.wpr(...)",
+    "brief": "Williams %R",
+    "documentation": "Williams %R.",
+    "snippet": "ta.wpr(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.wvad": {
+    "label": "ta.wvad",
+    "kind": "function",
+    "detail": "ta.wvad(...)",
+    "brief": "Williams Volume Accumulation/Distribution - normalized WAD",
+    "documentation": "Williams Volume Accumulation/Distribution - normalized WAD.\n\nta.wvad(high, low, close, volume, period)\nReturns the WVAD series.",
+    "snippet": "ta.wvad(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "ta.zigzag": {
+    "label": "ta.zigzag",
+    "kind": "function",
+    "detail": "ta.zigzag(...)",
+    "brief": "Zigzag pattern detector (returns high, low, direction)",
+    "documentation": "Zigzag pattern detector (returns high, low, direction).",
+    "snippet": "ta.zigzag(${1:param1}, ${2:param2})",
+    "category": "ta.technical_analysis"
+  },
+  "table.cell": {
+    "label": "table.cell",
+    "kind": "function",
+    "detail": "table.cell(...)",
+    "brief": "table",
+    "documentation": "table.cell(table, row, column) - Returns cell object",
+    "snippet": "table.cell(${1:param1})",
+    "category": "table"
+  },
+  "table.cell_get_text": {
+    "label": "table.cell_get_text",
+    "kind": "function",
+    "detail": "table.cell_get_text(...)",
+    "brief": "table",
+    "documentation": "table.cell_get_text(table, row, column)",
+    "snippet": "table.cell_get_text(${1:param1})",
+    "category": "table"
+  },
+  "table.cell_set_bgcolor": {
+    "label": "table.cell_set_bgcolor",
+    "kind": "function",
+    "detail": "table.cell_set_bgcolor(...)",
+    "brief": "table",
+    "documentation": "table.cell_set_bgcolor(table, row, column, color)",
+    "snippet": "table.cell_set_bgcolor(${1:param1})",
+    "category": "table"
+  },
+  "table.cell_set_border_color": {
+    "label": "table.cell_set_border_color",
+    "kind": "function",
+    "detail": "table.cell_set_border_color(...)",
+    "brief": "table",
+    "documentation": "table.cell_set_border_color(table, row, column, color)",
+    "snippet": "table.cell_set_border_color(${1:param1})",
+    "category": "table"
+  },
+  "table.cell_set_border_width": {
+    "label": "table.cell_set_border_width",
+    "kind": "function",
+    "detail": "table.cell_set_border_width(...)",
+    "brief": "table",
+    "documentation": "table.cell_set_border_width(table, row, column, width)",
+    "snippet": "table.cell_set_border_width(${1:param1})",
+    "category": "table"
+  },
+  "table.cell_set_text": {
+    "label": "table.cell_set_text",
+    "kind": "function",
+    "detail": "table.cell_set_text(...)",
+    "brief": "table",
+    "documentation": "table.cell_set_text(table, row, column, text)",
+    "snippet": "table.cell_set_text(${1:param1})",
+    "category": "table"
+  },
+  "table.cell_set_text_color": {
+    "label": "table.cell_set_text_color",
+    "kind": "function",
+    "detail": "table.cell_set_text_color(...)",
+    "brief": "table",
+    "documentation": "table.cell_set_text_color(table, row, column, color)",
+    "snippet": "table.cell_set_text_color(${1:param1})",
+    "category": "table"
+  },
+  "table.clear": {
+    "label": "table.clear",
+    "kind": "function",
+    "detail": "table.clear(...)",
+    "brief": "table",
+    "documentation": "table.clear(table, start_row, start_col, end_row, end_col)",
+    "snippet": "table.clear(${1:param1})",
+    "category": "table"
+  },
+  "table.delete": {
+    "label": "table.delete",
+    "kind": "function",
+    "detail": "table.delete(...)",
+    "brief": "table",
+    "documentation": "table.delete(table)",
+    "snippet": "table.delete(${1:param1})",
+    "category": "table"
+  },
+  "table.merge_cells": {
+    "label": "table.merge_cells",
+    "kind": "function",
+    "detail": "table.merge_cells(...)",
+    "brief": "table",
+    "documentation": "table.merge_cells(table, start_row, start_col, end_row, end_col)",
+    "snippet": "table.merge_cells(${1:param1})",
+    "category": "table"
+  },
+  "table.new": {
+    "label": "table.new",
+    "kind": "function",
+    "detail": "table.new(...)",
+    "brief": "table",
+    "documentation": "table.new(position, rows, columns, ...)",
+    "snippet": "table.new(${1:param1})",
+    "category": "table"
+  },
+  "ticker.heikinashi": {
+    "label": "ticker.heikinashi",
+    "kind": "function",
+    "detail": "ticker.heikinashi(...)",
+    "brief": "Create a Heikin-Ashi ticker from a symbol",
+    "documentation": "Create a Heikin-Ashi ticker from a symbol.\n\nApplies Heikin-Ashi candlestick transformation.\n\nArgs:\n    ticker_str: The base ticker symbol\n\nReturns:\n    TickerInfo with Heikin-Ashi transformation applied",
+    "snippet": "ticker.heikinashi(${1:param1})",
+    "category": "ticker"
+  },
+  "ticker.kagi": {
+    "label": "ticker.kagi",
+    "kind": "function",
+    "detail": "ticker.kagi(...)",
+    "brief": "Create a Kagi chart ticker from a symbol",
+    "documentation": "Create a Kagi chart ticker from a symbol.\n\nApplies Kagi charting transformation.\n\nArgs:\n    ticker_str: The base ticker symbol\n    short: The reversal amount for Kagi charts\n\nReturns:\n    TickerInfo with Kagi transformation applied",
+    "snippet": "ticker.kagi(${1:param1})",
+    "category": "ticker"
+  },
+  "ticker.linebreak": {
+    "label": "ticker.linebreak",
+    "kind": "function",
+    "detail": "ticker.linebreak(...)",
+    "brief": "Create a Line Break chart ticker from a symbol",
+    "documentation": "Create a Line Break chart ticker from a symbol.\n\nApplies Line Break charting transformation.\n\nArgs:\n    ticker_str: The base ticker symbol\n    reversal: Number of lines for reversal\n\nReturns:\n    TickerInfo with Line Break transformation applied",
+    "snippet": "ticker.linebreak(${1:param1})",
+    "category": "ticker"
+  },
+  "ticker.modify": {
+    "label": "ticker.modify",
+    "kind": "function",
+    "detail": "ticker.modify(...)",
+    "brief": "Modify an existing ticker object",
+    "documentation": "Modify an existing ticker object.\n\nCreates a copy of the ticker with modified parameters.\n\nArgs:\n    ticker: The original ticker object\n    symbol: New symbol (or None to keep original)\n    session: New session (or None to keep original)\n    adjust: New adjustment (or None to keep original)\n\nReturns:\n    New TickerInfo object with modified parameters",
+    "snippet": "ticker.modify(${1:param1})",
+    "category": "ticker"
+  },
+  "ticker.new": {
+    "label": "ticker.new",
+    "kind": "function",
+    "detail": "ticker.new(...)",
+    "brief": "Create a new ticker object",
+    "documentation": "Create a new ticker object.\n\nCreates a ticker symbol with optional session and adjustment parameters.\n\nArgs:\n    symbol: The ticker symbol (e.g., \"AAPL\", \"EURUSD\")\n    session: Trading session (\"regular\", \"extended\", etc.)\n    adjust: Adjustment type (\"splits\", \"dividends\", etc.)\n\nReturns:\n    TickerInfo object representing the configured ticker",
+    "snippet": "ticker.new(${1:param1})",
+    "category": "ticker"
+  },
+  "ticker.pointfigure": {
+    "label": "ticker.pointfigure",
+    "kind": "function",
+    "detail": "ticker.pointfigure(...)",
+    "brief": "Create a Point and Figure chart ticker from a symbol",
+    "documentation": "Create a Point and Figure chart ticker from a symbol.\n\nApplies Point and Figure charting transformation.\n\nArgs:\n    ticker_str: The base ticker symbol\n    boxsize: The box size for point and figure charting\n\nReturns:\n    TickerInfo with Point and Figure transformation applied",
+    "snippet": "ticker.pointfigure(${1:param1})",
+    "category": "ticker"
+  },
+  "ticker.renko": {
+    "label": "ticker.renko",
+    "kind": "function",
+    "detail": "ticker.renko(...)",
+    "brief": "Create a Renko chart ticker from a symbol",
+    "documentation": "Create a Renko chart ticker from a symbol.\n\nApplies Renko charting transformation.\n\nArgs:\n    ticker_str: The base ticker symbol\n    boxsize: The brick size for Renko charts\n\nReturns:\n    TickerInfo with Renko transformation applied",
+    "snippet": "ticker.renko(${1:param1})",
+    "category": "ticker"
+  },
+  "ticker.standard": {
+    "label": "ticker.standard",
+    "kind": "function",
+    "detail": "ticker.standard(...)",
+    "brief": "Create a standard OHLC ticker from a symbol",
+    "documentation": "Create a standard OHLC ticker from a symbol.\n\nEnsures standard candlestick format.\n\nArgs:\n    ticker_str: The base ticker symbol\n\nReturns:\n    TickerInfo with standard OHLC format",
+    "snippet": "ticker.standard(${1:param1})",
+    "category": "ticker"
+  },
+  "time": {
+    "label": "time",
+    "kind": "function",
+    "detail": "time(...)",
+    "brief": "Get current time in Unix timestamp (milliseconds)",
+    "documentation": "Get current time in Unix timestamp (milliseconds).",
+    "snippet": "time(${1:arg})",
+    "category": "builtin"
+  },
+  "time_close": {
+    "label": "time_close",
+    "kind": "function",
+    "detail": "time_close(...)",
+    "brief": "Get close time of current bar (same as time in most contexts)",
+    "documentation": "Get close time of current bar (same as time in most contexts).",
+    "snippet": "time_close(${1:arg})",
+    "category": "builtin"
+  },
+  "time_tradingday": {
+    "label": "time_tradingday",
+    "kind": "function",
+    "detail": "time_tradingday(...)",
+    "brief": "Get trading day timestamp (midnight UTC of current trading day)",
+    "documentation": "Get trading day timestamp (midnight UTC of current trading day).",
+    "snippet": "time_tradingday(${1:arg})",
+    "category": "builtin"
+  },
+  "timeframe.change": {
+    "label": "timeframe.change",
+    "kind": "function",
+    "detail": "timeframe.change(...)",
+    "brief": "Check if the timeframe has changed on the current bar",
+    "documentation": "Check if the timeframe has changed on the current bar.\n\nReturns true if the timeframe specified in the argument has changed\non the current bar.\n\nArgs:\n    _timeframe_str: Timeframe specification (e.g., \"5\", \"15\", \"D\", \"W\", \"M\")\n\nReturns:\n    Boolean indicating if timeframe has changed",
+    "snippet": "timeframe.change(${1:param1})",
+    "category": "timeframe"
+  },
+  "timeframe.from_seconds": {
+    "label": "timeframe.from_seconds",
+    "kind": "function",
+    "detail": "timeframe.from_seconds(...)",
+    "brief": "Convert seconds to timeframe string format",
+    "documentation": "Convert seconds to timeframe string format.\n\nConverts the number of seconds to the timeframe string format.\n\nArgs:\n    seconds: Number of seconds\n\nReturns:\n    Timeframe string (e.g., \"5\" for 5 minutes, \"H\" for 1 hour)",
+    "snippet": "timeframe.from_seconds(${1:param1})",
+    "category": "timeframe"
+  },
+  "timeframe.in_seconds": {
+    "label": "timeframe.in_seconds",
+    "kind": "function",
+    "detail": "timeframe.in_seconds(...)",
+    "brief": "Convert timeframe string to seconds",
+    "documentation": "Convert timeframe string to seconds.\n\nConverts the timeframe string to the number of seconds in that timeframe.\n\nArgs:\n    timeframe_str: Timeframe specification (e.g., \"5\", \"15\", \"H\", \"D\", \"W\", \"M\")\n\nReturns:\n    Number of seconds in the timeframe",
+    "snippet": "timeframe.in_seconds(${1:param1})",
+    "category": "timeframe"
+  },
+  "timestamp": {
+    "label": "timestamp",
+    "kind": "function",
+    "detail": "timestamp(...)",
+    "brief": "Create Unix timestamp from date/time components",
+    "documentation": "Create Unix timestamp from date/time components.",
+    "snippet": "timestamp(${1:arg})",
+    "category": "builtin"
+  },
+  "weekofyear": {
+    "label": "weekofyear",
+    "kind": "function",
+    "detail": "weekofyear(...)",
+    "brief": "Get week number of the year (1-53)",
+    "documentation": "Get week number of the year (1-53).",
+    "snippet": "weekofyear(${1:arg})",
+    "category": "builtin"
+  },
+  "year": {
+    "label": "year",
+    "kind": "function",
+    "detail": "year(...)",
+    "brief": "Extract year from timestamp",
+    "documentation": "Extract year from timestamp.",
+    "snippet": "year(${1:arg})",
+    "category": "builtin"
+  }
+}

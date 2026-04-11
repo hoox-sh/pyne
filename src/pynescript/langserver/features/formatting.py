@@ -1,0 +1,108 @@
+# Copyright (C) 2025 jango-blockchained. All Rights Reserved.
+#
+# This software is the proprietary information of jango-blockchained.
+# Use is subject to license terms.
+
+"""Formatting feature — textDocument/formatting handlers.
+
+Provides code formatting for Pine Script using the existing unparser.
+"""
+
+from __future__ import annotations
+
+from lsprotocol import types as lsp
+
+
+def handle_formatting(params: lsp.DocumentFormattingParams, source: str | None) -> list[lsp.TextEdit] | None:
+    """Handle textDocument/formatting request.
+
+    Formats the entire document using the AST unparser.
+
+    Args:
+        params: The formatting params with options.
+        source: The source text to format.
+
+    Returns:
+        List of TextEdits to apply formatting, or None on error.
+    """
+    if not source:
+        return []
+
+    try:
+        from pynescript.ast.helper import parse
+        from pynescript.ast.unparser import NodeUnparser
+
+        tree = parse(source, filename="<format>")
+
+        unparser = NodeUnparser()
+        formatted = unparser.visit(tree)
+
+        if formatted == source:
+            return []
+
+        lines = source.split("\n")
+        end_line = len(lines) - 1
+        end_col = len(lines[-1]) if lines else 0
+
+        return [
+            lsp.TextEdit(
+                range=lsp.Range(
+                    start=lsp.Position(line=0, character=0),
+                    end=lsp.Position(line=end_line, character=end_col),
+                ),
+                new_text=formatted,
+            )
+        ]
+
+    except Exception:
+        return []
+
+
+def handle_range_formatting(params: lsp.DocumentRangeFormattingParams, source: str | None) -> list[lsp.TextEdit] | None:
+    """Handle textDocument/rangeFormatting request.
+
+    Formats a selection range using the AST unparser.
+
+    Args:
+        params: The range formatting params with options.
+        source: The source text to format.
+
+    Returns:
+        List of TextEdits to apply formatting, or None on error.
+    """
+    if not source:
+        return []
+
+    try:
+        from pynescript.ast.helper import parse
+        from pynescript.ast.unparser import NodeUnparser
+
+        tree = parse(source, filename="<format>")
+
+        unparser = NodeUnparser()
+        formatted = unparser.visit(tree)
+
+        formatted_lines = formatted.split("\n")
+        source_lines = source.split("\n")
+
+        range_start = params.range.start
+        range_end = params.range.end
+
+        before_range = "\n".join(source_lines[: range_start.line])
+        in_range = "\n".join(source_lines[range_start.line : range_end.line + 1])
+        after_range = "\n".join(source_lines[range_end.line + 1 :])
+
+        formatted_in_range = "\n".join(formatted_lines[range_start.line : range_end.line + 1])
+
+        if formatted_in_range == in_range:
+            return []
+
+        return [
+            lsp.TextEdit(
+                range=params.range,
+                new_text=formatted_in_range,
+            )
+        ]
+
+    except Exception:
+        return []
