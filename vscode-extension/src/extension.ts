@@ -62,13 +62,10 @@ export function activate(context: ExtensionContext): void {
     clientOptions
   );
 
-  const disposable = client.start();
-  context.subscriptions.push(disposable);
+  client.start();
 
-  client.onReady().then(() => {
-    client!.onNotification('window/showMessage', (params: { type: number; message: string }) => {
-      window.showInformationMessage(params.message);
-    });
+  client.onNotification('window/showMessage', (params: { type: number; message: string }) => {
+    window.showInformationMessage(params.message);
   });
 
   context.subscriptions.push(

@@ -1,0 +1,187 @@
+#!/usr/bin/env python3
+"""GitHub Actions / Cloud Build compilation script.
+
+This script is optimized for CI environments with:
+- High parallelism
+- Caching of Nuitka build artifacts
+- Clean separation of build stages
+
+Usage (GitHub Actions):
+    - name: Build LSP binary
+      run: python scripts/build/ci_build.py --onefile
+
+Usage (Cloud Build):
+    steps:
+      - name: python
+        args: [python, scripts/build/ci_build.py, --onefile, --upload-gcs, $PROJECT_ID]
+"""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import multiprocessing
+import os
+import shutil
+import subprocess
+import sys
+import zipfile
+from pathlib import Path
+
+ROOT = Path(__file__).parent.parent.parent.resolve()
+DIST = ROOT / "dist"
+SRC_LSP = ROOT / "src" / "pynescript" / "langserver"
+PROVIDERS_DIR = SRC_LSP / "providers"
+BUILD_DIR = ROOT / "scripts" / "build"
+KEY_FILE = BUILD_DIR / ".metadata.key"
+BINARY_NAME = "pynescript-lsp"
+VSCODE_EXT = ROOT / "vscode-extension"
+
+
+def run(cmd, cwd=None, env=None, capture=False):
+    print(f"  $ {' '.join(str(c) for c in cmd)}")
+    kwargs = dict(cwd=cwd, env=env or os.environ)
+    if capture:
+        kwargs["capture_output"] = True
+        kwargs["text"] = True
+    result = subprocess.run(cmd, **kwargs)
+    if result.returncode != 0:
+        print(f"  FAILED: exit {result.returncode}")
+        if capture and result.stderr:
+            print(result.stderr)
+        sys.exit(1)
+    return result
+
+
+def stage_metadata():
+    """Generate and encrypt metadata."""
+    gen_script = ROOT / "scripts" / "generate_builtin_metadata.py"
+    if gen_script.exists():
+        run([sys.executable, str(gen_script)])
+
+    key_file = BUILD_DIR / ".metadata.key"
+    if not key_file.exists():
+        from cryptography.fernet import Fernet
+
+        key = Fernet.generate_key()
+        key_file.write_bytes(key)
+        os.chmod(key_file, 0o600)
+
+    enc_path = PROVIDERS_DIR / "builtin_metadata.json.enc"
+    plaintext = (PROVIDERS_DIR / "builtin_metadata.json").read_bytes()
+    from cryptography.fernet import Fernet
+
+    fernet = Fernet(key_file.read_bytes())
+    encrypted = fernet.encrypt(plaintext)
+    enc_path.write_bytes(encrypted)
+    sha = hashlib.sha256(plaintext).hexdigest()[:16]
+    (PROVIDERS_DIR / "builtin_metadata.json.sha256").write_text(sha + "\n")
+    print(f"  Metadata: {len(plaintext) // 1024}KB -> encrypted")
+
+
+def compile_onefile(jobs: int) -> Path:
+    """Build onefile binary."""
+    output_dir = DIST / "lsp"
+    jobs = jobs or max(1, multiprocessing.cpu_count() - 1)
+
+    cmd = [
+        sys.executable,
+        "-m",
+        "nuitka",
+        "--module",
+        str(SRC_LSP),
+        f"--output-dir={output_dir}",
+        "--python-flag=no_site,no_docstrings",
+        "--static-libpython=no",
+        "--include-data-dir=" + f"{PROVIDERS_DIR}=pynescript/langserver/providers",
+        "--lto=auto",
+        f"--product-name={BINARY_NAME}",
+        f"--jobs={jobs}",
+        "--remove-output",
+    ]
+
+    run(cmd)
+
+    dist_main = output_dir / "pynescript" / "langserver"
+    binary = next(dist_main.glob(f"{BINARY_NAME}*"), None)
+    if not binary:
+        raise FileNotFoundError(f"Binary not found in {dist_main}")
+
+    final_binary = DIST / BINARY_NAME
+    shutil.move(str(binary), str(final_binary))
+    print(f"  Binary: {final_binary} ({final_binary.stat().st_size / 1024 / 1024:.1f} MB)")
+    return final_binary
+
+
+def package_vsix(binary: Path) -> Path:
+    """Build VSIX bundle."""
+    vsix_file = DIST / "vsix" / f"pynescript-lsp.vsix"
+    vsix_file.parent.mkdir(exist_ok=True)
+
+    with zipfile.ZipFile(vsix_file, "w", zipfile.ZIP_DEFLATED) as zf:
+        for root, dirs, files in os.walk(VSCODE_EXT):
+            dirs[:] = [d for d in dirs if d not in (".git", ".vscode", "node_modules")]
+            for file in files:
+                if file.endswith((".ts", ".map")):
+                    continue
+                filepath = Path(root) / file
+                arcname = filepath.relative_to(VSCODE_EXT)
+                zf.write(filepath, arcname)
+
+        lsp_dir = vsix_file.parent / "lsp_bin"
+        lsp_dir.mkdir(exist_ok=True)
+        bin_copy = lsp_dir / binary.name
+        shutil.copy2(binary, bin_copy)
+        zf.write(bin_copy, f"pynescript-lsp/{binary.name}")
+
+    print(f"  VSIX: {vsix_file} ({vsix_file.stat().st_size / 1024 / 1024:.1f} MB)")
+    return vsix_file
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--jobs", type=int, default=None)
+    parser.add_argument("--skip-vsix", action="store_true")
+    parser.add_argument("--skip-metadata", action="store_true")
+    parser.add_argument("--dry-run", action="store_true")
+    args = parser.parse_args()
+
+    jobs = args.jobs or max(1, multiprocessing.cpu_count() - 1)
+
+    print("=" * 60)
+    print("CI Build: Pynescript LSP")
+    print(f"  Jobs: {jobs}")
+    print(f"  Root: {ROOT}")
+    print("=" * 60)
+
+    if args.dry_run:
+        print("[dry-run] Would run: metadata + compile + vsix")
+        return
+
+    DIST.mkdir(exist_ok=True)
+
+    print("\n[1/3] Metadata...")
+    if not args.skip_metadata:
+        stage_metadata()
+    else:
+        print("  Skipped")
+
+    print("\n[2/3] Compile...")
+    binary = compile_onefile(jobs)
+
+    print("\n[3/3] VSIX...")
+    if not args.skip_vsix:
+        package_vsix(binary)
+    else:
+        print("  Skipped")
+
+    print(f"\n{'=' * 60}")
+    print(f"Build complete!")
+    print(f"  Binary: {DIST / BINARY_NAME}")
+    print(f"  VSIX:   {DIST / 'vsix' / 'pynescript-lsp.vsix'}")
+    print(f"{'=' * 60}")
+
+
+if __name__ == "__main__":
+    main()

@@ -21,6 +21,7 @@ def get_metadata() -> dict[str, Any]:
     """Get the builtin metadata dictionary.
 
     Loads from JSON on first call, then caches in memory.
+    Supports encrypted metadata (for compiled binary) and plaintext (for development).
 
     Returns:
         Dictionary mapping builtin names to metadata.
@@ -28,9 +29,19 @@ def get_metadata() -> dict[str, Any]:
     global _metadata
 
     if _metadata is None:
-        metadata_path = Path(__file__).parent / "builtin_metadata.json"
-        if metadata_path.exists():
-            with open(metadata_path, "r", encoding="utf-8") as f:
+        providers_dir = Path(__file__).parent
+        plain_path = providers_dir / "builtin_metadata.json"
+        enc_path = providers_dir / "builtin_metadata.json.enc"
+
+        if enc_path.exists():
+            try:
+                from pynescript.langserver.providers.metadata_decrypt import get_metadata_cached
+
+                _metadata = get_metadata_cached()
+            except Exception:
+                _metadata = {}
+        elif plain_path.exists():
+            with open(plain_path, "r", encoding="utf-8") as f:
                 _metadata = json.load(f)
         else:
             _metadata = {}

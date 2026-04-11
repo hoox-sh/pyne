@@ -9,6 +9,7 @@ __pycache__/
 # Distribution / packaging
 .Python
 build/
+!scripts/
 develop-eggs/
 dist/
 downloads/
@@ -145,3 +146,11 @@ cython_debug/
 .ignore/
 .pypirc
 *.stats
+
+# Nuitka build
+*.onefile.exe
+
+# LSP build artifacts
+scripts/build/.metadata.key
+vscode-extension/out/
+vscode-extension/node_modules/
