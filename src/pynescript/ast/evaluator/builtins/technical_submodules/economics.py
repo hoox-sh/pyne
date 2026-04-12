@@ -7,8 +7,6 @@
 
 from __future__ import annotations
 
-import math
-import statistics
 from typing import Any
 
 from .core import TechnicalHelpers
@@ -96,7 +94,7 @@ class EconomicsIndicators(TechnicalHelpers):
 
         buckets = [0.0] * levels
 
-        for c, v in zip(subset_close, subset_vol):
+        for c, v in zip(subset_close, subset_vol, strict=False):
             if not isinstance(c, (int, float)) or not isinstance(v, (int, float)):
                 continue
 
@@ -143,7 +141,7 @@ class EconomicsIndicators(TechnicalHelpers):
 
         buckets = [0.0] * levels
 
-        for c, v in zip(subset_close, subset_vol):
+        for c, v in zip(subset_close, subset_vol, strict=False):
             if not isinstance(c, (int, float)) or not isinstance(v, (int, float)):
                 continue
 

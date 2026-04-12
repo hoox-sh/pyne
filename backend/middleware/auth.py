@@ -8,13 +8,16 @@
 from __future__ import annotations
 
 import hashlib
-import hmac
 import time
-from dataclasses import dataclass, field
+
+from dataclasses import dataclass
+from dataclasses import field
 from functools import wraps
 from typing import Any
 
-from flask import g, jsonify, request
+from flask import g
+from flask import jsonify
+from flask import request
 
 
 @dataclass
@@ -23,14 +26,14 @@ class APIKey:
     key_hash: str
     tier: str = "free"
     calls_used: int = 0
-    calls_limit: int = 0
+    calls_limit: int | float = 0
     created_at: float = field(default_factory=time.time)
     last_used: float = 0.0
 
     def is_active(self) -> bool:
         return True
 
-    def calls_remaining(self) -> int:
+    def calls_remaining(self) -> int | float:
         if self.calls_limit == 0:
             return float("inf")
         return max(0, self.calls_limit - self.calls_used)

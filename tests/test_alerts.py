@@ -13,23 +13,23 @@
 # limitations under the License.
 #
 # SPDX-License-Identifier: LGPL-3.0-or-later
+from __future__ import annotations
 
-import pytest
 from pynescript.ast.evaluator import NodeLiteralEvaluator
-from pynescript.ast.evaluator.builtins.alerts import AlertEvent
+
 
 class TestAlerts:
     def test_alert_function(self):
         """Test alert() function execution and event capture."""
         evaluator = NodeLiteralEvaluator()
-        
+
         # Test basic alert
         evaluator.evaluate_script('alert("Simple Alert")')
         alerts = evaluator.get_triggered_alerts()
         assert len(alerts) == 1
         assert alerts[0].message == "Simple Alert"
         assert alerts[0].freq == "freq_once_per_bar"
-        
+
         # Test alert with frequency
         evaluator.clear_alerts()
         evaluator.evaluate_script('alert("Complex Alert", "freq_all")')
@@ -41,7 +41,7 @@ class TestAlerts:
     def test_alertcondition_function(self):
         """Test alertcondition() registration."""
         evaluator = NodeLiteralEvaluator()
-        
+
         # Test basic alertcondition
         evaluator.evaluate_script('alertcondition(true, "Title", "Message")')
         # Access private member for testing since there's no public getter for conditions yet
@@ -50,10 +50,10 @@ class TestAlerts:
         assert conditions[0].condition is True
         assert conditions[0].title == "Title"
         assert conditions[0].message == "Message"
-        
+
         # Test alertcondition with defaults
         evaluator.clear_alerts()
-        evaluator.evaluate_script('alertcondition(false)')
+        evaluator.evaluate_script("alertcondition(false)")
         conditions = evaluator._alert_conditions
         assert len(conditions) == 1
         assert conditions[0].condition is False
@@ -64,7 +64,7 @@ class TestAlerts:
         """Test that alerts capture context like bar_index."""
         context = {"bar_index": 100, "time": 1600000000}
         evaluator = NodeLiteralEvaluator(context=context)
-        
+
         evaluator.evaluate_script('alert("Context Alert")')
         alerts = evaluator.get_triggered_alerts()
         assert len(alerts) == 1

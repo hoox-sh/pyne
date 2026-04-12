@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import operator
+
 from collections import deque
 from collections.abc import Callable
 from typing import Any
@@ -13,7 +14,7 @@ class PineSeries:
     but supports indexing [x] to access historical values.
     """
 
-    __hash__ = None  # Mutable type, not hashable
+    __hash__ = None  # type: ignore
 
     def __init__(self, initial_value: Any = None, history_length: int = 1000):
         self.history = deque([initial_value], maxlen=history_length)

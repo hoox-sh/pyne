@@ -11,8 +11,10 @@ Loads and serves builtin function metadata for LSP features.
 from __future__ import annotations
 
 import json
+
 from pathlib import Path
 from typing import Any
+
 
 _metadata: dict[str, Any] | None = None
 
@@ -41,7 +43,7 @@ def get_metadata() -> dict[str, Any]:
             except Exception:
                 _metadata = {}
         elif plain_path.exists():
-            with open(plain_path, "r", encoding="utf-8") as f:
+            with open(plain_path, encoding="utf-8") as f:
                 _metadata = json.load(f)
         else:
             _metadata = {}

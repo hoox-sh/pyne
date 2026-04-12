@@ -7,7 +7,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any
-from typing import Literal
 
 from .base import BuiltinDispatchMixin
 from .base import BuiltinHandler
@@ -51,18 +50,18 @@ class AlertsMixin(BuiltinDispatchMixin):
         """
         if not args or len(args) < 1:
             self._error("alert() requires at least a message argument")
-        
+
         message = str(args[0])
         freq = "freq_once_per_bar"  # Default
-        
+
         if len(args) > 1 and args[1] is not None:
             freq = str(args[1])
-            
+
         # Capture context if available (bar_index, time)
         # Assuming self.context has these if running in a loop
         bar_index = self.context.get("bar_index", None)
         time_val = self.context.get("time", None)
-        
+
         event = AlertEvent(
             message=message,
             freq=freq,
@@ -78,17 +77,17 @@ class AlertsMixin(BuiltinDispatchMixin):
         """
         if len(args) < 1:
             self._error("alertcondition() requires at least a condition argument")
-            
+
         condition = bool(args[0])
         title = "Alert"
         message = "Alert"
-        
+
         if len(args) > 1 and args[1] is not None:
             title = str(args[1])
-            
+
         if len(args) > 2 and args[2] is not None:
             message = str(args[2])
-            
+
         # We store the condition state for the current execution
         # In a real engine, this metadata is static, but the condition evaluation is dynamic.
         # Here we just record that an alertcondition was evaluated with a certain result.

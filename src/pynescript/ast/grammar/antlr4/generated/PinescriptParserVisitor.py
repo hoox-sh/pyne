@@ -164,28 +164,13 @@ class PinescriptParserVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by PinescriptParser#if_structure_elif.
-    def visitIf_structure_elif(self, ctx:PinescriptParser.If_structure_elifContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by PinescriptParser#if_structure_else.
-    def visitIf_structure_else(self, ctx:PinescriptParser.If_structure_elseContext):
-        return self.visitChildren(ctx)
-
-
     # Visit a parse tree produced by PinescriptParser#elif_structure.
     def visitElif_structure(self, ctx:PinescriptParser.Elif_structureContext):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by PinescriptParser#elif_structure_elif.
-    def visitElif_structure_elif(self, ctx:PinescriptParser.Elif_structure_elifContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by PinescriptParser#elif_structure_else.
-    def visitElif_structure_else(self, ctx:PinescriptParser.Elif_structure_elseContext):
+    # Visit a parse tree produced by PinescriptParser#if_tail.
+    def visitIf_tail(self, ctx:PinescriptParser.If_tailContext):
         return self.visitChildren(ctx)
 
 
@@ -299,18 +284,8 @@ class PinescriptParserVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by PinescriptParser#conditional_expression_rule.
-    def visitConditional_expression_rule(self, ctx:PinescriptParser.Conditional_expression_ruleContext):
-        return self.visitChildren(ctx)
-
-
     # Visit a parse tree produced by PinescriptParser#disjunction_expression.
     def visitDisjunction_expression(self, ctx:PinescriptParser.Disjunction_expressionContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by PinescriptParser#disjunction_expression_rule.
-    def visitDisjunction_expression_rule(self, ctx:PinescriptParser.Disjunction_expression_ruleContext):
         return self.visitChildren(ctx)
 
 
@@ -319,18 +294,8 @@ class PinescriptParserVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by PinescriptParser#conjunction_expression_rule.
-    def visitConjunction_expression_rule(self, ctx:PinescriptParser.Conjunction_expression_ruleContext):
-        return self.visitChildren(ctx)
-
-
     # Visit a parse tree produced by PinescriptParser#equality_expression.
     def visitEquality_expression(self, ctx:PinescriptParser.Equality_expressionContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by PinescriptParser#equality_expression_rule.
-    def visitEquality_expression_rule(self, ctx:PinescriptParser.Equality_expression_ruleContext):
         return self.visitChildren(ctx)
 
 
@@ -351,11 +316,6 @@ class PinescriptParserVisitor(ParseTreeVisitor):
 
     # Visit a parse tree produced by PinescriptParser#inequality_expression.
     def visitInequality_expression(self, ctx:PinescriptParser.Inequality_expressionContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by PinescriptParser#inequality_expression_rule.
-    def visitInequality_expression_rule(self, ctx:PinescriptParser.Inequality_expression_ruleContext):
         return self.visitChildren(ctx)
 
 

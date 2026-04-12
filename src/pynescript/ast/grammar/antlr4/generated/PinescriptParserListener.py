@@ -287,24 +287,6 @@ class PinescriptParserListener(ParseTreeListener):
         pass
 
 
-    # Enter a parse tree produced by PinescriptParser#if_structure_elif.
-    def enterIf_structure_elif(self, ctx:PinescriptParser.If_structure_elifContext):
-        pass
-
-    # Exit a parse tree produced by PinescriptParser#if_structure_elif.
-    def exitIf_structure_elif(self, ctx:PinescriptParser.If_structure_elifContext):
-        pass
-
-
-    # Enter a parse tree produced by PinescriptParser#if_structure_else.
-    def enterIf_structure_else(self, ctx:PinescriptParser.If_structure_elseContext):
-        pass
-
-    # Exit a parse tree produced by PinescriptParser#if_structure_else.
-    def exitIf_structure_else(self, ctx:PinescriptParser.If_structure_elseContext):
-        pass
-
-
     # Enter a parse tree produced by PinescriptParser#elif_structure.
     def enterElif_structure(self, ctx:PinescriptParser.Elif_structureContext):
         pass
@@ -314,21 +296,12 @@ class PinescriptParserListener(ParseTreeListener):
         pass
 
 
-    # Enter a parse tree produced by PinescriptParser#elif_structure_elif.
-    def enterElif_structure_elif(self, ctx:PinescriptParser.Elif_structure_elifContext):
+    # Enter a parse tree produced by PinescriptParser#if_tail.
+    def enterIf_tail(self, ctx:PinescriptParser.If_tailContext):
         pass
 
-    # Exit a parse tree produced by PinescriptParser#elif_structure_elif.
-    def exitElif_structure_elif(self, ctx:PinescriptParser.Elif_structure_elifContext):
-        pass
-
-
-    # Enter a parse tree produced by PinescriptParser#elif_structure_else.
-    def enterElif_structure_else(self, ctx:PinescriptParser.Elif_structure_elseContext):
-        pass
-
-    # Exit a parse tree produced by PinescriptParser#elif_structure_else.
-    def exitElif_structure_else(self, ctx:PinescriptParser.Elif_structure_elseContext):
+    # Exit a parse tree produced by PinescriptParser#if_tail.
+    def exitIf_tail(self, ctx:PinescriptParser.If_tailContext):
         pass
 
 
@@ -530,30 +503,12 @@ class PinescriptParserListener(ParseTreeListener):
         pass
 
 
-    # Enter a parse tree produced by PinescriptParser#conditional_expression_rule.
-    def enterConditional_expression_rule(self, ctx:PinescriptParser.Conditional_expression_ruleContext):
-        pass
-
-    # Exit a parse tree produced by PinescriptParser#conditional_expression_rule.
-    def exitConditional_expression_rule(self, ctx:PinescriptParser.Conditional_expression_ruleContext):
-        pass
-
-
     # Enter a parse tree produced by PinescriptParser#disjunction_expression.
     def enterDisjunction_expression(self, ctx:PinescriptParser.Disjunction_expressionContext):
         pass
 
     # Exit a parse tree produced by PinescriptParser#disjunction_expression.
     def exitDisjunction_expression(self, ctx:PinescriptParser.Disjunction_expressionContext):
-        pass
-
-
-    # Enter a parse tree produced by PinescriptParser#disjunction_expression_rule.
-    def enterDisjunction_expression_rule(self, ctx:PinescriptParser.Disjunction_expression_ruleContext):
-        pass
-
-    # Exit a parse tree produced by PinescriptParser#disjunction_expression_rule.
-    def exitDisjunction_expression_rule(self, ctx:PinescriptParser.Disjunction_expression_ruleContext):
         pass
 
 
@@ -566,30 +521,12 @@ class PinescriptParserListener(ParseTreeListener):
         pass
 
 
-    # Enter a parse tree produced by PinescriptParser#conjunction_expression_rule.
-    def enterConjunction_expression_rule(self, ctx:PinescriptParser.Conjunction_expression_ruleContext):
-        pass
-
-    # Exit a parse tree produced by PinescriptParser#conjunction_expression_rule.
-    def exitConjunction_expression_rule(self, ctx:PinescriptParser.Conjunction_expression_ruleContext):
-        pass
-
-
     # Enter a parse tree produced by PinescriptParser#equality_expression.
     def enterEquality_expression(self, ctx:PinescriptParser.Equality_expressionContext):
         pass
 
     # Exit a parse tree produced by PinescriptParser#equality_expression.
     def exitEquality_expression(self, ctx:PinescriptParser.Equality_expressionContext):
-        pass
-
-
-    # Enter a parse tree produced by PinescriptParser#equality_expression_rule.
-    def enterEquality_expression_rule(self, ctx:PinescriptParser.Equality_expression_ruleContext):
-        pass
-
-    # Exit a parse tree produced by PinescriptParser#equality_expression_rule.
-    def exitEquality_expression_rule(self, ctx:PinescriptParser.Equality_expression_ruleContext):
         pass
 
 
@@ -626,15 +563,6 @@ class PinescriptParserListener(ParseTreeListener):
 
     # Exit a parse tree produced by PinescriptParser#inequality_expression.
     def exitInequality_expression(self, ctx:PinescriptParser.Inequality_expressionContext):
-        pass
-
-
-    # Enter a parse tree produced by PinescriptParser#inequality_expression_rule.
-    def enterInequality_expression_rule(self, ctx:PinescriptParser.Inequality_expression_ruleContext):
-        pass
-
-    # Exit a parse tree produced by PinescriptParser#inequality_expression_rule.
-    def exitInequality_expression_rule(self, ctx:PinescriptParser.Inequality_expression_ruleContext):
         pass
 
 

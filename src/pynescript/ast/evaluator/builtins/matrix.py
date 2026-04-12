@@ -51,14 +51,14 @@ class Matrix(Generic[T]):
         """Get element at row, col."""
         if not (0 <= row < self.rows_count and 0 <= col < self.cols_count):
             msg = f"Index out of bounds: [{row}][{col}]"
-            raise ValueError(msg)
+            raise IndexError(msg)
         return self.data[row][col]
 
     def set(self, row: int, col: int, value: Any) -> None:
         """Set element at row, col."""
         if not (0 <= row < self.rows_count and 0 <= col < self.cols_count):
             msg = f"Index out of bounds: [{row}][{col}]"
-            raise ValueError(msg)
+            raise IndexError(msg)
         self.data[row][col] = value
 
     def rows(self) -> int:

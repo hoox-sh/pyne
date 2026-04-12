@@ -72,23 +72,23 @@ def main():
     print("\n--- Technical Analysis: Moving Averages ---")
     prices = [100, 102, 101, 103, 105, 104, 106, 108, 107, 110]
     print(f"Price series: {prices}")
-    print(f"ta.sma(prices, 5) =", literal_eval(f"ta.sma({prices}, 5)"))
-    print(f"ta.ema(prices, 5) =", literal_eval(f"ta.ema({prices}, 5)"))
-    print(f"ta.wma(prices, 5) =", literal_eval(f"ta.wma({prices}, 5)"))
+    print("ta.sma(prices, 5) =", literal_eval(f"ta.sma({prices}, 5)"))
+    print("ta.ema(prices, 5) =", literal_eval(f"ta.ema({prices}, 5)"))
+    print("ta.wma(prices, 5) =", literal_eval(f"ta.wma({prices}, 5)"))
 
     # Technical Analysis - Indicators
     print("\n--- Technical Analysis: Indicators ---")
-    print(f"ta.rsi(prices, 9) =", literal_eval(f"ta.rsi({prices}, 9)"))
-    print(f"ta.stdev(prices, 5) =", literal_eval(f"ta.stdev({prices}, 5)"))
+    print("ta.rsi(prices, 9) =", literal_eval(f"ta.rsi({prices}, 9)"))
+    print("ta.stdev(prices, 5) =", literal_eval(f"ta.stdev({prices}, 5)"))
     bb = literal_eval(f"ta.bb({prices}, 5, 2)")
     print(f"ta.bb(prices, 5, 2) = [middle={bb[0]:.2f}, upper={bb[1]:.2f}, lower={bb[2]:.2f}]")
 
     # Technical Analysis - Range and Change
     print("\n--- Technical Analysis: Range & Change ---")
-    print(f"ta.highest(prices, 5) =", literal_eval(f"ta.highest({prices}, 5)"))
-    print(f"ta.lowest(prices, 5) =", literal_eval(f"ta.lowest({prices}, 5)"))
-    print(f"ta.range(prices, 5) =", literal_eval(f"ta.range({prices}, 5)"))
-    print(f"ta.change(prices, 1) =", literal_eval(f"ta.change({prices}, 1)"))
+    print("ta.highest(prices, 5) =", literal_eval(f"ta.highest({prices}, 5)"))
+    print("ta.lowest(prices, 5) =", literal_eval(f"ta.lowest({prices}, 5)"))
+    print("ta.range(prices, 5) =", literal_eval(f"ta.range({prices}, 5)"))
+    print("ta.change(prices, 1) =", literal_eval(f"ta.change({prices}, 1)"))
 
     # New TA Functions
     print("\n--- New Technical Analysis: MACD & ATR ---")

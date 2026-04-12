@@ -8,8 +8,8 @@
 from __future__ import annotations
 
 import random
-import time
-from dataclasses import dataclass, field
+
+from dataclasses import dataclass
 from typing import Any
 
 from pynescript.ast.helper import parse
@@ -159,40 +159,39 @@ def run_backtest(
                 entry_price = slip
                 position = -size
                 entry_time = i
-        else:
-            if (
-                exit_signal[i]
-                or i == n - 1
-                or (position > 0 and entry_signal_short[i])
-                or (position < 0 and entry_signal_long[i])
-            ):
-                slip = close[i] * (1 - slippage if position > 0 else 1 + slippage)
-                exit_price = slip
-                pnl = (exit_price - entry_price) * abs(position) - commission * 2
-                pnl_pct = (
-                    (exit_price - entry_price) / entry_price * 100
-                    if position > 0
-                    else (entry_price - exit_price) / entry_price * 100
-                )
+        elif (
+            exit_signal[i]
+            or i == n - 1
+            or (position > 0 and entry_signal_short[i])
+            or (position < 0 and entry_signal_long[i])
+        ):
+            slip = close[i] * (1 - slippage if position > 0 else 1 + slippage)
+            exit_price = slip
+            pnl = (exit_price - entry_price) * abs(position) - commission * 2
+            pnl_pct = (
+                (exit_price - entry_price) / entry_price * 100
+                if position > 0
+                else (entry_price - exit_price) / entry_price * 100
+            )
 
-                direction = "long" if position > 0 else "short"
-                trades.append(
-                    Trade(
-                        entry_time=entry_time,
-                        entry_price=entry_price,
-                        exit_time=i,
-                        exit_price=exit_price,
-                        direction=direction,
-                        pnl=pnl,
-                        pnl_pct=pnl_pct,
-                        size=abs(position),
-                    )
+            direction = "long" if position > 0 else "short"
+            trades.append(
+                Trade(
+                    entry_time=entry_time,
+                    entry_price=entry_price,
+                    exit_time=i,
+                    exit_price=exit_price,
+                    direction=direction,
+                    pnl=pnl,
+                    pnl_pct=pnl_pct,
+                    size=abs(position),
                 )
+            )
 
-                equity += pnl
-                position = 0.0
-                entry_price = 0.0
-                entry_time = 0
+            equity += pnl
+            position = 0.0
+            entry_price = 0.0
+            entry_time = 0
 
         equity_curve.append(round(equity, 2))
 
@@ -235,8 +234,7 @@ def _compute_metrics(equity_curve: list[float], trades: list[Trade], plot_chart:
     max_dd = 0.0
     max_dd_pct = 0.0
     for e in equity_curve:
-        if e > peak:
-            peak = e
+        peak = max(peak, e)
         dd = peak - e
         if dd > max_dd:
             max_dd = dd
@@ -312,8 +310,8 @@ def generate_mock_ohlcv(n_bars: int = 252, base_price: float = 100.0) -> dict[st
         close_prices.append(round(close_prices[-1] * (1 + change), 2))
 
     opens = [close_prices[0]] + close_prices[:-1]
-    highs = [max(o, c) * random.uniform(1.0, 1.01) for o, c in zip(opens, close_prices)]
-    lows = [min(o, c) * random.uniform(0.99, 1.0) for o, c in zip(opens, close_prices)]
+    highs = [max(o, c) * random.uniform(1.0, 1.01) for o, c in zip(opens, close_prices, strict=False)]
+    lows = [min(o, c) * random.uniform(0.99, 1.0) for o, c in zip(opens, close_prices, strict=False)]
     volumes = [int(random.uniform(100000, 5000000)) for _ in range(n_bars)]
 
     return {

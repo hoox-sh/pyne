@@ -26,6 +26,8 @@ from abc import ABC
 from abc import abstractmethod
 from datetime import datetime
 from datetime import timedelta
+from typing import Any
+from datetime import timedelta
 
 
 class DataProvider(ABC):
@@ -37,7 +39,7 @@ class DataProvider(ABC):
         symbol: str,
         period: str = "1y",
         interval: str = "1d",
-    ) -> dict[str, list[float]]:
+    ) -> dict[str, Any]:
         """Fetch historical data.
 
         Args:
@@ -54,7 +56,7 @@ class DataProvider(ABC):
         ...
 
     @abstractmethod
-    def fetch_quote(self, symbol: str) -> dict[str, float]:
+    def fetch_quote(self, symbol: str) -> dict[str, Any]:
         """Fetch current quote.
 
         Args:
@@ -91,7 +93,7 @@ class MockDataProvider(DataProvider):
         symbol: str = "TEST",
         period: str = "1y",
         interval: str = "1d",
-    ) -> dict[str, list[float]]:
+    ) -> dict[str, Any]:
         """Generate mock OHLCV data.
 
         Args:
@@ -142,7 +144,7 @@ class MockDataProvider(DataProvider):
             "volume": volumes,
         }
 
-    def fetch_quote(self, symbol: str = "TEST") -> dict[str, float]:
+    def fetch_quote(self, symbol: str = "TEST") -> dict[str, Any]:
         """Generate mock quote.
 
         Args:
@@ -191,7 +193,7 @@ class YahooFinanceProvider(DataProvider):
 
     def __init__(self):
         """Initialize Yahoo Finance provider."""
-        self._yf = None
+        self._yf: Any | None = None
 
     def _get_yf(self):
         """Lazy import yfinance."""
@@ -210,7 +212,7 @@ class YahooFinanceProvider(DataProvider):
         symbol: str,
         period: str = "1y",
         interval: str = "1d",
-    ) -> dict[str, list[float]]:
+    ) -> dict[str, Any]:
         """Fetch data from Yahoo Finance.
 
         Args:
@@ -239,7 +241,7 @@ class YahooFinanceProvider(DataProvider):
             "volume": data["Volume"].tolist(),
         }
 
-    def fetch_quote(self, symbol: str) -> dict[str, float]:
+    def fetch_quote(self, symbol: str) -> dict[str, Any]:
         """Fetch current quote from Yahoo Finance.
 
         Args:
@@ -280,9 +282,9 @@ class AlphaVantageProvider(DataProvider):
             api_key: Alpha Vantage API key (default: "demo" has limited access)
         """
         self._api_key = api_key
-        self._client = None
+        self._client: dict[str, Any] | None = None
 
-    def _get_client(self):
+    def _get_client(self) -> dict[str, Any]:
         """Lazy import alpha-vantage."""
         if self._client is None:
             try:
@@ -300,7 +302,7 @@ class AlphaVantageProvider(DataProvider):
         symbol: str,
         period: str = "1y",
         interval: str = "1d",
-    ) -> dict[str, list[float]]:
+    ) -> dict[str, Any]:
         """Fetch data from Alpha Vantage.
 
         Args:
@@ -333,7 +335,7 @@ class AlphaVantageProvider(DataProvider):
             "volume": [int(data[d]["5. volume"]) for d in dates],
         }
 
-    def fetch_quote(self, symbol: str) -> dict[str, float]:
+    def fetch_quote(self, symbol: str) -> dict[str, Any]:
         """Fetch current quote from Alpha Vantage.
 
         Args:
@@ -388,7 +390,7 @@ class CCXTProvider(DataProvider):
         self._exchange_name = exchange
         self._api_key = api_key
         self._secret = secret
-        self._exchange = None
+        self._exchange: Any | None = None
 
     def _get_exchange(self):
         """Lazy import and initialize CCXT."""
@@ -431,7 +433,7 @@ class CCXTProvider(DataProvider):
         symbol: str,
         period: str = "1y",
         interval: str = "1d",
-    ) -> dict[str, list[float]]:
+    ) -> dict[str, Any]:
         """Fetch OHLCV data from CCXT exchange.
 
         Args:
@@ -473,7 +475,7 @@ class CCXTProvider(DataProvider):
             "volume": [c[5] for c in ohlcv],
         }
 
-    def fetch_quote(self, symbol: str) -> dict[str, float]:
+    def fetch_quote(self, symbol: str) -> dict[str, Any]:
         """Fetch current quote from CCXT exchange.
 
         Args:
@@ -519,7 +521,7 @@ def get_provider(name: str = "yahoo", **kwargs) -> DataProvider:
         >>> provider = get_provider("alphavantage", api_key="YOUR_KEY")
         >>> provider = get_provider("ccxt", exchange="binance")
     """
-    providers = {
+    providers: dict[str, type[DataProvider]] = {
         "mock": MockDataProvider,
         "yahoo": YahooFinanceProvider,
         "alphavantage": AlphaVantageProvider,

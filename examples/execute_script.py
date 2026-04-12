@@ -322,18 +322,17 @@ class ExampleScriptExecutor:
 
                 if result.qty is not None:
                     quantity = result.qty[0]
+                elif self.executor.declaration.default_qty_type == strategy.fixed:
+                    quantity = self.executor.declaration.default_qty_value
+                elif self.executor.declaration.default_qty_type == strategy.cash:
+                    cash = self.executor.declaration.default_qty_value
+                    quantity = cash // price
+                elif self.executor.declaration.default_qty_type == strategy.percent_of_equity:
+                    percent = self.executor.declaration.default_qty_value / 100
+                    cash = self.executor.cash * percent
+                    quantity = cash // price
                 else:
-                    if self.executor.declaration.default_qty_type == strategy.fixed:
-                        quantity = self.executor.declaration.default_qty_value
-                    elif self.executor.declaration.default_qty_type == strategy.cash:
-                        cash = self.executor.declaration.default_qty_value
-                        quantity = cash // price
-                    elif self.executor.declaration.default_qty_type == strategy.percent_of_equity:
-                        percent = self.executor.declaration.default_qty_value / 100
-                        cash = self.executor.cash * percent
-                        quantity = cash // price
-                    else:
-                        raise ValueError()
+                    raise ValueError()
 
                 cash_amount = price * quantity
 

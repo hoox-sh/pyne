@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import re
-from typing import Any
 
 
 def position_from_offset(text: str, offset: int) -> tuple[int, int]:

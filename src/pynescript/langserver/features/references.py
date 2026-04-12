@@ -14,8 +14,8 @@ from typing import Any
 
 from lsprotocol import types as lsp
 
-from pynescript.ast import node as ast
 from pynescript.ast import NodeVisitor
+from pynescript.ast import node as ast
 from pynescript.langserver.protocol.utils import get_word_at_position
 
 

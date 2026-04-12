@@ -10,16 +10,16 @@ Tracks open documents, caches parsed ASTs, and manages document state.
 
 from __future__ import annotations
 
-import asyncio
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from dataclasses import field
 from pathlib import Path
 from typing import Any
 
 from lsprotocol import types as lsp
-from pygls.workspace import Workspace as PyglsWorkspace
 
 from pynescript.ast import parse
-from pynescript.ast.linter import lint_script, LintWarning
+from pynescript.ast.linter import LintWarning
+from pynescript.ast.linter import lint_script
 
 
 @dataclass

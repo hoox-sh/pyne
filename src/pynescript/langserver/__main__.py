@@ -13,8 +13,6 @@ Usage:
 
 from __future__ import annotations
 
-import sys
-
 from pynescript.langserver.server import PynescriptLanguageServer
 
 

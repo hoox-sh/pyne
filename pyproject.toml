@@ -58,6 +58,11 @@ dependencies = [
   "pytest>=8.0.1",
   "pytest-cov>=4.1.0",
   "pytest-xdist>=3.5.0",
+  "flask>=3.0.0",
+  "lsprotocol>=2024.0.0",
+  "pygls>=2.0.0",
+  "pytest-lsp>=0.1.0",
+  "flask-cors>=4.0.0",
 ]
 [tool.hatch.envs.test.scripts]
 test = [
@@ -212,6 +217,7 @@ module = [
   "tests.*",
 ]
 check_untyped_defs = false
+ignore_errors = true
 
 [[tool.mypy.overrides]]
 module = [

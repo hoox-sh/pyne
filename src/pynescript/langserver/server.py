@@ -12,20 +12,21 @@ providing IDE features like diagnostics, completion, and hover.
 from __future__ import annotations
 
 import logging
-import sys
+
 from typing import Any
 
 from lsprotocol import types as lsp
 from pygls.lsp.server import LanguageServer
 
 from pynescript.langserver import config
-from pynescript.langserver.workspace import Workspace
 from pynescript.langserver.features import completion as completion_feature
-from pynescript.langserver.features import hover as hover_feature
 from pynescript.langserver.features import definitions as definitions_feature
+from pynescript.langserver.features import formatting as formatting_feature
+from pynescript.langserver.features import hover as hover_feature
 from pynescript.langserver.features import references as references_feature
 from pynescript.langserver.features import symbols as symbols_feature
-from pynescript.langserver.features import formatting as formatting_feature
+from pynescript.langserver.workspace import Workspace
+
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +74,7 @@ class PynescriptLanguageServer(LanguageServer):
             version = params.text_document.version
             changes = params.content_changes
 
-            doc = self.pine_workspace.update_document(uri, changes, version)
+            doc = self.pine_workspace.update_document(uri, list(changes), version)
 
             lsp_diags = self.pine_workspace._lint_warnings_to_diagnostics(doc)
             self.text_document_publish_diagnostics(lsp.PublishDiagnosticsParams(uri=uri, diagnostics=lsp_diags))
@@ -126,34 +127,35 @@ class PynescriptLanguageServer(LanguageServer):
         def shutdown(params: Any) -> None:
             """Handle shutdown request."""
             logger.info("Shutdown requested")
-            return None
 
         # Note: EXIT is handled by the base class via lsp_exit
 
         @self.feature(lsp.TEXT_DOCUMENT_DIAGNOSTIC)
         def text_document_diagnostic(
-            params: lsp.TextDocumentDiagnosticParams,
-        ) -> lsp.DiagnosticReport:
+            params: lsp.DocumentDiagnosticParams,
+        ) -> lsp.DocumentDiagnosticReport:
             """Handle pull diagnostics (LSP 3.16+)."""
             uri = params.text_document.uri
             doc = self.pine_workspace.get_document(uri)
 
             if not doc:
-                return lsp.DiagnosticReport(
+                return lsp.RelatedFullDocumentDiagnosticReport(
+                    kind=lsp.DocumentDiagnosticReportKind.Full,
                     result_id=None,
                     items=[],
                 )
 
             lsp_diags = self.pine_workspace._lint_warnings_to_diagnostics(doc)
 
-            return lsp.DiagnosticReport(
+            return lsp.RelatedFullDocumentDiagnosticReport(
+                kind=lsp.DocumentDiagnosticReportKind.Full,
                 result_id=f"{uri}-{doc.version}",
                 items=lsp_diags,
             )
 
         @self.feature(lsp.WORKSPACE_DIAGNOSTIC)
         def workspace_diagnostics(
-            params: lsp.WorkspaceDiagnosticsParams,
+            params: lsp.WorkspaceDiagnosticParams,
         ) -> lsp.WorkspaceDiagnosticReport:
             """Handle workspace diagnostics pull."""
             all_diags = self.pine_workspace.get_all_diagnostics()
@@ -164,7 +166,8 @@ class PynescriptLanguageServer(LanguageServer):
                     lsp.WorkspaceFullDocumentDiagnosticReport(
                         uri=doc_uri,
                         items=diags,
-                        kind=lsp.DiagnosticReportKind.Full,
+                        kind=lsp.DocumentDiagnosticReportKind.Full,
+                        version=None,
                     )
                 )
 

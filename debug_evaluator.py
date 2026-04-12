@@ -1,6 +1,9 @@
+from __future__ import annotations
+
 import sys
-import os
+
 from pynescript.ast.evaluator import NodeLiteralEvaluator
+
 
 print(f"Python executable: {sys.executable}")
 print(f"sys.path: {sys.path}")

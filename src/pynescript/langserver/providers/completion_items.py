@@ -12,13 +12,9 @@ from __future__ import annotations
 
 from lsprotocol import types as lsp
 
-from pynescript.langserver.providers.builtin_metadata import (
-    fuzzy_filter,
-    get_all_categories,
-    get_builtins_by_category,
-    get_metadata,
-    get_builtin,
-)
+from pynescript.langserver.providers.builtin_metadata import fuzzy_filter
+from pynescript.langserver.providers.builtin_metadata import get_all_categories
+from pynescript.langserver.providers.builtin_metadata import get_metadata
 
 
 def build_completion_list(prefix: str = "", include_categories: bool = True) -> lsp.CompletionList:

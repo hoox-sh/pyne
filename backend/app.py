@@ -11,15 +11,19 @@ Flask server for live chart previews, backtests, and API key management.
 from __future__ import annotations
 
 import time
-import uuid
-from typing import Any
 
-from flask import Flask, g, jsonify, request
+from flask import Flask
+from flask import g
+from flask import jsonify
+from flask import request
 from flask_cors import CORS
 
-from backend.api.preview import backtest_bp, preview_bp
-from backend.middleware.auth import get_key_store, require_api_key, track_usage
+from backend.api.preview import backtest_bp
+from backend.api.preview import preview_bp
+from backend.middleware.auth import get_key_store
+from backend.middleware.auth import require_api_key
 from backend.runtime import Runtime
+
 
 app = Flask(__name__)
 CORS(app)

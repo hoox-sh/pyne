@@ -6,7 +6,6 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-
 from typing import Any
 
 from pynescript.ast import node as ast

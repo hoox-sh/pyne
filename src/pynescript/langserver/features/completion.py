@@ -12,13 +12,12 @@ from __future__ import annotations
 
 from lsprotocol import types as lsp
 
-from pynescript.langserver.providers.completion_items import (
-    build_completion_list,
-    build_completion_item,
-    build_module_completion,
-)
+from pynescript.langserver.protocol.utils import get_trigger_char
+from pynescript.langserver.protocol.utils import get_word_at_position
 from pynescript.langserver.providers.builtin_metadata import get_builtin
-from pynescript.langserver.protocol.utils import get_trigger_char, get_word_at_position
+from pynescript.langserver.providers.completion_items import build_completion_item
+from pynescript.langserver.providers.completion_items import build_completion_list
+from pynescript.langserver.providers.completion_items import build_module_completion
 
 
 def handle_completion(params: lsp.CompletionParams, source: str | None) -> lsp.CompletionList:

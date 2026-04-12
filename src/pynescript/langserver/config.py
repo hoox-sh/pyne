@@ -61,21 +61,22 @@ def get_server_capabilities() -> lsp.ServerCapabilities:
     )
 
 
-def get_filter_options() -> lsp.ListeningOptions:
+from typing import Any
+
+
+def get_filter_options() -> Any:
     """Return file filters for the language server."""
-    return lsp.ListeningOptions(
-        languages=[
-            lsp.LanguageFilter(
-                language="pinescript",
-                pattern="*.pine",
-            ),
-            lsp.LanguageFilter(
-                language="pinescript",
-                pattern="*.pinev5",
-            ),
-            lsp.LanguageFilter(
-                language="pinescript",
-                pattern="*.pinev6",
-            ),
-        ],
-    )
+    return [
+        {
+            "language": "pinescript",
+            "pattern": "**/*.pine",
+        },
+        {
+            "language": "pinescript",
+            "pattern": "**/*.pinev5",
+        },
+        {
+            "language": "pinescript",
+            "pattern": "**/*.pinev6",
+        },
+    ]

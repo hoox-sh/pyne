@@ -16,11 +16,13 @@ Usage:
 from __future__ import annotations
 
 from pynescript.langserver.server import PynescriptLanguageServer
-from pynescript.langserver.workspace import Workspace, TextDocumentState
+from pynescript.langserver.workspace import TextDocumentState
+from pynescript.langserver.workspace import Workspace
+
 
 __version__ = "0.1.0"
 __all__ = [
     "PynescriptLanguageServer",
-    "Workspace",
     "TextDocumentState",
+    "Workspace",
 ]

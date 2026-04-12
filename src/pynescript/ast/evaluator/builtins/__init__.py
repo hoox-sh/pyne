@@ -29,6 +29,8 @@ Each category is implemented as a mixin class composed into BuiltinEvaluator.
 
 from __future__ import annotations
 
+from typing import Any, NoReturn
+
 from .alerts import AlertsMixin
 from .arrays import ArrayBuiltinsMixin
 from .base import BuiltinHandler
@@ -91,10 +93,11 @@ class BuiltinEvaluator(
         register_script_declaration_functions(dispatch)
         return dispatch
 
-    def _error(self, msg: str):
+    @staticmethod
+    def _error(message: str) -> NoReturn:
         """Raise a ValueError with the given message.
-        
+
         Required because BuiltinEvaluator is instantiated directly in tests
         and needs to handle errors without BaseEvaluator's implementation.
         """
-        raise ValueError(msg)
+        raise ValueError(message)

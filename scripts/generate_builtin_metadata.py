@@ -4,9 +4,11 @@
 This script introspects the BuiltinEvaluator and generates a structured
 JSON file with all builtin function metadata for LSP features.
 """
+from __future__ import annotations
 
 import json
 import re
+
 from pathlib import Path
 from typing import Any
 

@@ -57,7 +57,7 @@ class Precedence(IntEnum):
 
 
 class NodeUnparser(NodeVisitor):
-    # ruff: noqa: N802, ARG002
+    # ruff: noqa: N802
 
     def __init__(self):
         super().__init__()  # Initialize visitor cache

@@ -14,8 +14,8 @@ from typing import Any
 
 from lsprotocol import types as lsp
 
-from pynescript.ast import node as ast
 from pynescript.ast import NodeVisitor
+from pynescript.ast import node as ast
 from pynescript.langserver.protocol.utils import get_word_at_position
 
 
@@ -124,7 +124,8 @@ class DefinitionFinder(NodeVisitor):
             if isinstance(child_node, ast.Name) and child_node.id == self.target_name:
                 self._add_location(child_node.id, child_node.lineno)
 
-        self.visit(node.value)
+        if node.value is not None:
+            self.visit(node.value)
 
     def visit_Call(self, node: ast.Call) -> Any:
         """Handle function calls."""

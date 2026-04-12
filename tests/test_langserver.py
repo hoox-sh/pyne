@@ -7,10 +7,8 @@
 
 from __future__ import annotations
 
-import pytest
-
-from pynescript.langserver.workspace import Workspace, TextDocumentState
 from pynescript.langserver.features.diagnostics import lint_warnings_to_diagnostics
+from pynescript.langserver.workspace import Workspace
 
 
 class TestWorkspace:
@@ -86,9 +84,7 @@ class TestDiagnostics:
     def test_warning_severity(self) -> None:
         """Test warning severity mapping."""
         from pynescript.ast.linter import lint_script
-        from pynescript.langserver.features.diagnostics import (
-            lint_warnings_to_diagnostics,
-        )
+        from pynescript.langserver.features.diagnostics import lint_warnings_to_diagnostics
 
         source = "indicator('Test')\n"
         warnings = lint_script(source)

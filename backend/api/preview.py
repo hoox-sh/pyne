@@ -8,11 +8,18 @@
 from __future__ import annotations
 
 import time
-from flask import Blueprint, g, jsonify, request
 
-from backend.middleware.auth import require_api_key, track_usage
-from backend.services.backtest import generate_mock_ohlcv, run_quick_backtest
-from backend.services.chart_renderer import render_line_chart, render_ohlcv_chart
+from flask import Blueprint
+from flask import g
+from flask import jsonify
+from flask import request
+
+from backend.middleware.auth import track_usage
+from backend.services.backtest import generate_mock_ohlcv
+from backend.services.backtest import run_quick_backtest
+from backend.services.chart_renderer import render_line_chart
+from backend.services.chart_renderer import render_ohlcv_chart
+
 
 preview_bp = Blueprint("preview", __name__, url_prefix="/preview")
 backtest_bp = Blueprint("backtest", __name__, url_prefix="/backtest")
@@ -201,14 +208,14 @@ def _compute_indicator(expression: str, close: list) -> list[float | None]:
 
 
 def _sma(data: list, period: int) -> list[float | None]:
-    result = [None] * len(data)
+    result: list[float | None] = [None] * len(data)
     for i in range(period - 1, len(data)):
         result[i] = sum(data[i - period + 1 : i + 1]) / period
     return result
 
 
 def _ema(data: list, period: int) -> list[float | None]:
-    result = [None] * len(data)
+    result: list[float | None] = [None] * len(data)
     if len(data) < period:
         return result
     multiplier = 2 / (period + 1)
@@ -219,7 +226,7 @@ def _ema(data: list, period: int) -> list[float | None]:
 
 
 def _rsi(data: list, period: int) -> list[float | None]:
-    result = [None] * len(data)
+    result: list[float | None] = [None] * len(data)
     if len(data) < period + 1:
         return result
     gains = [max(data[i] - data[i - 1], 0) for i in range(1, len(data))]
@@ -241,15 +248,15 @@ def _rsi(data: list, period: int) -> list[float | None]:
 def _macd(data: list, fast: int = 12, slow: int = 26, signal: int = 9) -> list[float | None]:
     ema_fast = _ema(data, fast)
     ema_slow = _ema(data, slow)
-    macd_line = [None] * len(data)
+    macd_line: list[float | None] = [None] * len(data)
     for i in range(len(data)):
         if ema_fast[i] is not None and ema_slow[i] is not None:
-            macd_line[i] = ema_fast[i] - ema_slow[i]
-    signal_line = _ema([x if x is not None else 0 for x in macd_line], signal)
-    histogram = [None] * len(data)
+            macd_line[i] = ema_fast[i] - ema_slow[i]  # type: ignore
+    signal_line = _ema([x if x is not None else 0.0 for x in macd_line], signal)
+    histogram: list[float | None] = [None] * len(data)
     for i in range(len(data)):
         if macd_line[i] is not None and signal_line[i] is not None:
-            histogram[i] = macd_line[i] - signal_line[i]
+            histogram[i] = macd_line[i] - signal_line[i]  # type: ignore
     return histogram
 
 

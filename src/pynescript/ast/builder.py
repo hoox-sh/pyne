@@ -40,6 +40,7 @@ class PinescriptASTLocator:
     Calculates line numbers, column offsets, and end positions from parser tokens
     to preserve source location information in AST nodes for error reporting.
     """
+
     # ruff: noqa: N802
 
     def _getLocations(self, ctx: ParserRuleContext) -> dict[str, int]:
@@ -105,6 +106,7 @@ class PinescriptCommentParser:
     - //@param period 14 (named with parameter)
     - //# region ... //# endregion (code region markers)
     """
+
     # ruff: noqa: N802
 
     _ASSIGNMENT_ANNOTATION_PATTERN = re.compile(r"^(//)(\s*)(@)(\s*)(version)(\s*)(=)(\s*)(.+)$")
@@ -171,6 +173,14 @@ class PinescriptASTBuilder(
 ):
     # ruff: noqa: N802
 
+    def _set_store_ctx(self, node):
+        if hasattr(node, "ctx"):
+            node.ctx = ast.Store()
+        if isinstance(node, ast.Tuple):
+            for elt in node.elts:
+                self._set_store_ctx(elt)
+        return node
+
     def visitStart(self, ctx: PinescriptParser.StartContext):
         return self.visitChildren(ctx)
 
@@ -222,9 +232,10 @@ class PinescriptASTBuilder(
         return assign
 
     def visitCompound_reassignment(self, ctx: PinescriptParser.Compound_reassignmentContext):
-        target = ctx.assignment_target()
+        target = ctx.primary_expression()
         value = ctx.structure_expression()
         target = self.visit(target)
+        self._set_store_ctx(target)
         value = self.visit(value)
         re_assign = ast.ReAssign(
             target=target,
@@ -234,10 +245,11 @@ class PinescriptASTBuilder(
         return re_assign
 
     def visitCompound_augassignment(self, ctx: PinescriptParser.Compound_augassignmentContext):
-        target = ctx.assignment_target()
+        target = ctx.primary_expression()
         op = ctx.augassign_op()
         value = ctx.structure_expression()
         target = self.visit(target)
+        self._set_store_ctx(target)
         op = self.visit(op)
         value = self.visit(value)
         aug_assign = ast.AugAssign(
@@ -270,9 +282,10 @@ class PinescriptASTBuilder(
         return assign
 
     def visitSimple_reassignment(self, ctx: PinescriptParser.Simple_reassignmentContext):
-        target = ctx.assignment_target()
+        target = ctx.primary_expression()
         value = ctx.expression()
         target = self.visit(target)
+        self._set_store_ctx(target)
         value = self.visit(value)
         re_assign = ast.ReAssign(
             target=target,
@@ -282,10 +295,11 @@ class PinescriptASTBuilder(
         return re_assign
 
     def visitSimple_augassignment(self, ctx: PinescriptParser.Simple_augassignmentContext):
-        target = ctx.assignment_target()
+        target = ctx.primary_expression()
         op = ctx.augassign_op()
         value = ctx.expression()
         target = self.visit(target)
+        self._set_store_ctx(target)
         op = self.visit(op)
         value = self.visit(value)
         aug_assign = ast.AugAssign(
@@ -536,13 +550,16 @@ class PinescriptASTBuilder(
         self._setLocations(expr, ctx)
         return expr
 
-    def visitIf_structure_elif(self, ctx: PinescriptParser.If_structure_elifContext):
+    def visitIf_structure(self, ctx: PinescriptParser.If_structureContext):
         test = ctx.expression()
         body = ctx.local_block()
-        orelse = ctx.elif_structure()
         test = self.visit(test)
         body = self.visit(body)
-        orelse = self.visit(orelse)
+
+        orelse = []
+        if ctx.if_tail():
+            orelse = self.visit(ctx.if_tail())
+
         if_struct = ast.If(
             test=test,
             body=body,
@@ -551,54 +568,102 @@ class PinescriptASTBuilder(
         self._setLocations(if_struct, ctx)
         return if_struct
 
-    def visitIf_structure_else(self, ctx: PinescriptParser.If_structure_elseContext):
+    def visitElif_structure(self, ctx: PinescriptParser.Elif_structureContext):
         test = ctx.expression()
         body = ctx.local_block()
-        orelse = ctx.else_block()
         test = self.visit(test)
         body = self.visit(body)
-        orelse = (orelse and self.visit(orelse)) or []
-        if_struct = ast.If(
-            test=test,
-            body=body,
-            orelse=orelse,
-        )
-        self._setLocations(if_struct, ctx)
-        return if_struct
 
-    def visitElif_structure_elif(self, ctx: PinescriptParser.Elif_structure_elifContext):
-        test = ctx.expression()
-        body = ctx.local_block()
-        orelse = ctx.elif_structure()
-        test = self.visit(test)
-        body = self.visit(body)
-        orelse = self.visit(orelse)
+        orelse = []
+        if ctx.if_tail():
+            orelse = self.visit(ctx.if_tail())
+
         elif_struct = ast.If(
             test=test,
             body=body,
             orelse=orelse,
         )
         self._setLocations(elif_struct, ctx)
-        elif_struct = ast.Expr(elif_struct)  # type: ignore[assignment]
-        self._setLocations(elif_struct, ctx)
-        return [elif_struct]
+        elif_struct_expr = ast.Expr(elif_struct)  # Match how Elif was wrapped in Expr
+        self._setLocations(elif_struct_expr, ctx)
+        return [elif_struct_expr]
 
-    def visitElif_structure_else(self, ctx: PinescriptParser.Elif_structure_elseContext):
-        test = ctx.expression()
-        body = ctx.local_block()
-        orelse = ctx.else_block()
-        test = self.visit(test)
-        body = self.visit(body)
-        orelse = (orelse and self.visit(orelse)) or []
-        elif_struct = ast.If(
-            test=test,
-            body=body,
-            orelse=orelse,
-        )
-        self._setLocations(elif_struct, ctx)
-        elif_struct = ast.Expr(elif_struct)  # type: ignore[assignment]
-        self._setLocations(elif_struct, ctx)
-        return [elif_struct]
+    def visitIf_tail(self, ctx: PinescriptParser.If_tailContext):
+        if ctx.elif_structure():
+            return self.visit(ctx.elif_structure())
+        if ctx.else_block():
+            return self.visit(ctx.else_block())
+        return []
+
+    def visitConditional_expression(self, ctx: PinescriptParser.Conditional_expressionContext):
+        test = self.visit(ctx.disjunction_expression())
+        if ctx.QUESTION():
+            body = self.visit(ctx.expression(0))
+            orelse = self.visit(ctx.expression(1))
+            expr = ast.Conditional(
+                test=test,
+                body=body,
+                orelse=orelse,
+            )
+            self._setLocations(expr, ctx)
+            return expr
+        return test
+
+    def visitDisjunction_expression(self, ctx: PinescriptParser.Disjunction_expressionContext):
+        exprs = ctx.conjunction_expression()
+        if len(exprs) > 1:
+            exprs = [self.visit(expr) for expr in exprs]
+            expr = ast.BoolOp(
+                op=ast.Or(),
+                values=exprs,
+            )
+            self._setLocations(expr, ctx)
+            return expr
+        return self.visit(exprs[0])
+
+    def visitConjunction_expression(self, ctx: PinescriptParser.Conjunction_expressionContext):
+        exprs = ctx.equality_expression()
+        if len(exprs) > 1:
+            exprs = [self.visit(expr) for expr in exprs]
+            expr = ast.BoolOp(
+                op=ast.And(),
+                values=exprs,
+            )
+            self._setLocations(expr, ctx)
+            return expr
+        return self.visit(exprs[0])
+
+    def visitEquality_expression(self, ctx: PinescriptParser.Equality_expressionContext):
+        expr = ctx.inequality_expression()
+        expr = self.visit(expr)
+        pairs = ctx.equality_trailing_pair()
+        if pairs:
+            pairs = [self.visit(pair) for pair in pairs]
+            ops = [pair[0] for pair in pairs]
+            comparators = [pair[1] for pair in pairs]
+            expr = ast.Compare(
+                left=expr,
+                ops=ops,
+                comparators=comparators,
+            )
+            self._setLocations(expr, ctx)
+        return expr
+
+    def visitInequality_expression(self, ctx: PinescriptParser.Inequality_expressionContext):
+        expr = ctx.additive_expression()
+        expr = self.visit(expr)
+        pairs = ctx.inequality_trailing_pair()
+        if pairs:
+            pairs = [self.visit(pair) for pair in pairs]
+            ops = [pair[0] for pair in pairs]
+            comparators = [pair[1] for pair in pairs]
+            expr = ast.Compare(
+                left=expr,
+                ops=ops,
+                comparators=comparators,
+            )
+            self._setLocations(expr, ctx)
+        return expr
 
     def visitElse_block(self, ctx: PinescriptParser.Else_blockContext):
         return self.visit(ctx.local_block())
@@ -712,67 +777,6 @@ class PinescriptASTBuilder(
         )
         self._setLocations(stmt, ctx)
         return stmt
-
-    def visitConditional_expression_rule(self, ctx: PinescriptParser.Conditional_expression_ruleContext):
-        test = self.visit(ctx.disjunction_expression())
-        body, orelse = (self.visit(expr) for expr in ctx.expression())
-        expr = ast.Conditional(
-            test=test,
-            body=body,
-            orelse=orelse,
-        )
-        self._setLocations(expr, ctx)
-        return expr
-
-    def visitDisjunction_expression_rule(self, ctx: PinescriptParser.Disjunction_expression_ruleContext):
-        exprs = ctx.conjunction_expression()
-        exprs = [self.visit(expr) for expr in exprs]
-        expr = ast.BoolOp(
-            op=ast.Or(),
-            values=exprs,
-        )
-        self._setLocations(expr, ctx)
-        return expr
-
-    def visitConjunction_expression_rule(self, ctx: PinescriptParser.Conjunction_expression_ruleContext):
-        exprs = ctx.equality_expression()
-        exprs = [self.visit(expr) for expr in exprs]
-        expr = ast.BoolOp(
-            op=ast.And(),
-            values=exprs,
-        )
-        self._setLocations(expr, ctx)
-        return expr
-
-    def visitEquality_expression_rule(self, ctx: PinescriptParser.Equality_expression_ruleContext):
-        expr = ctx.inequality_expression()
-        expr = self.visit(expr)
-        pairs = ctx.equality_trailing_pair()
-        pairs = [self.visit(pair) for pair in pairs]
-        ops = [pair[0] for pair in pairs]
-        comparators = [pair[1] for pair in pairs]
-        expr = ast.Compare(
-            left=expr,
-            ops=ops,
-            comparators=comparators,
-        )
-        self._setLocations(expr, ctx)
-        return expr
-
-    def visitInequality_expression_rule(self, ctx: PinescriptParser.Inequality_expression_ruleContext):
-        expr = ctx.additive_expression()
-        expr = self.visit(expr)
-        pairs = ctx.inequality_trailing_pair()
-        pairs = [self.visit(pair) for pair in pairs]
-        ops = [pair[0] for pair in pairs]
-        comparators = [pair[1] for pair in pairs]
-        expr = ast.Compare(
-            left=expr,
-            ops=ops,
-            comparators=comparators,
-        )
-        self._setLocations(expr, ctx)
-        return expr
 
     def visitEqual_trailing_pair(self, ctx: PinescriptParser.Equal_trailing_pairContext):
         return (ast.Eq(), self.visit(ctx.inequality_expression()))

@@ -7,8 +7,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from pynescript.ast.linter import lint_script
 
 

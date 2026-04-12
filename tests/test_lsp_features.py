@@ -7,22 +7,20 @@
 
 from __future__ import annotations
 
-import pytest
-
 from lsprotocol import types as lsp
 
-from pynescript.langserver.providers.completion_items import (
-    build_completion_list,
-    build_completion_item,
-    build_module_completion,
-)
-from pynescript.langserver.providers.builtin_metadata import get_builtin, get_metadata
-from pynescript.langserver.features.completion import handle_completion, handle_completion_resolve
-from pynescript.langserver.features.hover import handle_hover
+from pynescript.langserver.features.completion import handle_completion
 from pynescript.langserver.features.definitions import handle_definition
+from pynescript.langserver.features.formatting import handle_formatting
+from pynescript.langserver.features.formatting import handle_range_formatting
+from pynescript.langserver.features.hover import handle_hover
 from pynescript.langserver.features.references import handle_references
 from pynescript.langserver.features.symbols import handle_document_symbols
-from pynescript.langserver.features.formatting import handle_formatting, handle_range_formatting
+from pynescript.langserver.providers.builtin_metadata import get_builtin
+from pynescript.langserver.providers.builtin_metadata import get_metadata
+from pynescript.langserver.providers.completion_items import build_completion_item
+from pynescript.langserver.providers.completion_items import build_completion_list
+from pynescript.langserver.providers.completion_items import build_module_completion
 
 
 class TestBuiltinMetadata:
@@ -44,10 +42,12 @@ class TestBuiltinMetadata:
     def test_category_inference(self) -> None:
         """Test that categories are inferred correctly."""
         info = get_builtin("ta.sma")
+        assert info is not None
         assert info["category"] == "ta.technical_analysis"
 
-        info = get_builtin("strategy.entry")
-        assert info["category"] == "strategy"
+        info2 = get_builtin("strategy.entry")
+        assert info2 is not None
+        assert info2["category"] == "strategy"
 
 
 class TestCompletionList:
@@ -70,6 +70,7 @@ class TestCompletionList:
     def test_completion_item_structure(self) -> None:
         """Test completion item has correct structure."""
         info = get_builtin("ta.sma")
+        assert info is not None
         item = build_completion_item(info)
 
         assert item.label == "ta.sma"

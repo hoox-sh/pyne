@@ -12,12 +12,13 @@ builtin_metadata.json is used directly.
 
 from __future__ import annotations
 
-import base64
 import hashlib
 import os
 import sys
+
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
+
 
 _PROVIDERS_DIR = Path(__file__).parent
 _METADATA_ENC = _PROVIDERS_DIR / "builtin_metadata.json.enc"
@@ -33,7 +34,7 @@ def _get_fernet_key() -> bytes:
         return _fernet_key
 
     if getattr(sys, "_MEIPASS", None):
-        _key_file = Path(sys._MEIPASS) / "pynescript" / "langserver" / "providers" / ".metadata.key"
+        _key_file = Path(getattr(sys, "_MEIPASS")) / "pynescript" / "langserver" / "providers" / ".metadata.key"
     else:
         _key_file = _PROVIDERS_DIR / ".metadata.key"
 
@@ -77,7 +78,7 @@ def load_encrypted_metadata() -> dict[str, Any]:
 
     import json
 
-    return json.loads(plaintext.decode("utf-8"))
+    return cast(dict[str, Any], json.loads(plaintext.decode("utf-8")))
 
 
 def get_metadata_cached() -> dict[str, Any]:
@@ -85,7 +86,7 @@ def get_metadata_cached() -> dict[str, Any]:
     if _METADATA_PLAIN.exists():
         import json
 
-        return json.loads(_METADATA_PLAIN.read_text(encoding="utf-8"))
+        return cast(dict[str, Any], json.loads(_METADATA_PLAIN.read_text(encoding="utf-8")))
 
     if _METADATA_ENC.exists():
         return load_encrypted_metadata()

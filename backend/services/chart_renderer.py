@@ -7,11 +7,13 @@
 
 from __future__ import annotations
 
+from typing import Any, cast
+
 import base64
 import io
-from typing import Any
 
 import matplotlib
+
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -122,8 +124,8 @@ def render_equity_curve(
     ax.set_facecolor("#252526")
 
     positive = y >= 0
-    ax.fill_between(x, 0, y, where=positive, color="#4CAF50", alpha=0.3, label="Profit")
-    ax.fill_between(x, 0, y, where=~positive, color="#F44336", alpha=0.3, label="Loss")
+    ax.fill_between(x, 0, y, where=cast(Any, positive), color="#4CAF50", alpha=0.3, label="Profit")
+    ax.fill_between(x, 0, y, where=cast(Any, ~positive), color="#F44336", alpha=0.3, label="Loss")
     ax.plot(x, y, color="#2196F3", linewidth=1.5)
 
     ax.set_title("Equity Curve", color="#CCCCCC", fontsize=11, pad=8)

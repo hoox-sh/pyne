@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import random
 
-from typing import Any
+from typing import Any, cast
 
 from pynescript.ast import parse
 from pynescript.ast import unparse
@@ -113,14 +113,14 @@ def create_sample_data(
         "high": highs,
         "low": lows,
         "close": close,
-        "volume": volumes,
+        "volume": [float(v) for v in volumes],
     }
 
 
 def evaluate_indicator(
     code: str,
     data: dict[str, list[float]],
-) -> dict[str, list[float]]:
+) -> dict[str, Any]:
     """Evaluate a Pine Script indicator with sample data.
 
     Args:
@@ -138,7 +138,7 @@ def evaluate_indicator(
         ... '''
         >>> result = evaluate_indicator(code, data)
     """
-    from pynescript.ast.evaluator import NodeEvaluator
+    from pynescript.ast.evaluator import NodeLiteralEvaluator
 
     context = {
         "close": data["close"],
@@ -147,7 +147,7 @@ def evaluate_indicator(
         "low": data["low"],
         "volume": data["volume"],
     }
-    evaluator = NodeEvaluator(context=context)
+    evaluator = NodeLiteralEvaluator(context=context)
 
     try:
         ast = parse(code)
@@ -155,7 +155,7 @@ def evaluate_indicator(
     except Exception as e:
         return {"error": str(e)}
 
-    return evaluator.context
+    return cast(dict[str, Any], evaluator.context)
 
 
 def display_indicator_table(

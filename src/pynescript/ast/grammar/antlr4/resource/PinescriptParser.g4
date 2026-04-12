@@ -47,8 +47,7 @@ compound_statement
 simple_statements: simple_statement (COMMA simple_statement)* COMMA? NEWLINE;
 
 simple_statement
-    : simple_assignment
-    | expression_statement
+    : expression_statement
     | import_statement
     | break_statement
     | continue_statement;
@@ -67,8 +66,8 @@ compound_variable_initialization
 compound_name_initialization:  variable_declaration EQUAL structure_expression;
 compound_tuple_initialization: tuple_declaration EQUAL structure_expression;
 
-compound_reassignment:  assignment_target COLONEQUAL structure_expression;
-compound_augassignment: assignment_target augassign_op structure_expression;
+compound_reassignment:  primary_expression COLONEQUAL structure_expression;
+compound_augassignment: primary_expression augassign_op structure_expression;
 
 // FUNCTION DECLARATION
 
@@ -108,15 +107,9 @@ structure_expression: structure;
 
 // IF STRUCTURE
 
-if_structure: if_structure_elif | if_structure_else;
-
-if_structure_elif: IF expression local_block elif_structure;
-if_structure_else: IF expression local_block else_block?;
-
-elif_structure: elif_structure_elif | elif_structure_else;
-
-elif_structure_elif: ELSE IF expression local_block elif_structure;
-elif_structure_else: ELSE IF expression local_block else_block?;
+if_structure: IF expression local_block if_tail?;
+elif_structure: ELSE IF expression local_block if_tail?;
+if_tail: elif_structure | else_block;
 
 else_block: ELSE local_block;
 
@@ -164,8 +157,8 @@ simple_variable_initialization
 simple_name_initialization:  variable_declaration EQUAL expression;
 simple_tuple_initialization: tuple_declaration EQUAL expression;
 
-simple_reassignment:  assignment_target COLONEQUAL expression;
-simple_augassignment: assignment_target augassign_op expression;
+simple_reassignment:  primary_expression COLONEQUAL expression;
+simple_augassignment: primary_expression augassign_op expression;
 
 // EXPRESSIONS
 
@@ -174,31 +167,24 @@ expression_statement: expression;
 
 // CONDITIONAL TERNARY EXPRESSION
 
-conditional_expression: conditional_expression_rule | disjunction_expression;
-conditional_expression_rule
-    : disjunction_expression QUESTION expression COLON expression;
+conditional_expression: disjunction_expression (QUESTION expression COLON expression)?;
 
 // LOGICAL EXPRESSIONS
 
-disjunction_expression: disjunction_expression_rule | conjunction_expression;
-disjunction_expression_rule
-    : conjunction_expression (OR conjunction_expression)+;
+disjunction_expression: conjunction_expression (OR conjunction_expression)*;
 
-conjunction_expression:      conjunction_expression_rule | equality_expression;
-conjunction_expression_rule: equality_expression (AND equality_expression)+;
+conjunction_expression: equality_expression (AND equality_expression)*;
 
 // COMPARISON EXPRESSIONS
 
-equality_expression:      equality_expression_rule | inequality_expression;
-equality_expression_rule: inequality_expression equality_trailing_pair+;
+equality_expression: inequality_expression equality_trailing_pair*;
 
 equality_trailing_pair: equal_trailing_pair | not_equal_trailing_pair;
 
 equal_trailing_pair:     EQEQUAL inequality_expression;
 not_equal_trailing_pair: NOTEQUAL inequality_expression;
 
-inequality_expression:      inequality_expression_rule | additive_expression;
-inequality_expression_rule: additive_expression inequality_trailing_pair+;
+inequality_expression: additive_expression inequality_trailing_pair*;
 
 inequality_trailing_pair
     : less_than_equal_trailing_pair
@@ -233,7 +219,7 @@ unary_op: NOT | PLUS | MINUS;
 
 primary_expression
     : primary_expression DOT name_load                                  # primary_expression_attribute
-    | primary_expression template_spec_suffix? LPAR argument_list? RPAR # primary_expression_call
+    | primary_expression LPAR argument_list? RPAR # primary_expression_call
     | primary_expression LSQB subscript_slice RSQB                      # primary_expression_subscript
     | atomic_expression                                                 # primary_expression_fallback;
 

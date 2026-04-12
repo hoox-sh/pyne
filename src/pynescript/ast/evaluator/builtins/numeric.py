@@ -178,7 +178,7 @@ class NumericBuiltinsMixin(BuiltinDispatchMixin):
     def _builtin_math_random(self, args: list[Any]) -> Any:
         if args:
             self._error("math.random takes no arguments")
-        return random.random()  # noqa: S311
+        return random.random()
 
     def _builtin_color_new(self, args: list[Any]) -> Any:
         self._require_len(args, UNARY, "color.new takes one argument")

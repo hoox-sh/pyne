@@ -8,11 +8,10 @@
 from __future__ import annotations
 
 import re
+
 from dataclasses import dataclass
-from typing import Any
 
 from pynescript.ast import parse
-from pynescript.ast import unparse
 
 
 @dataclass
@@ -176,7 +175,7 @@ def lint_file(filepath: str) -> list[LintWarning]:
     Returns:
         List of lint warnings found
     """
-    with open(filepath, "r", encoding="utf-8") as f:
+    with open(filepath, encoding="utf-8") as f:
         source = f.read()
 
     return lint_script(source, filepath)

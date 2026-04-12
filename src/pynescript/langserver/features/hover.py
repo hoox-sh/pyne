@@ -12,8 +12,8 @@ from __future__ import annotations
 
 from lsprotocol import types as lsp
 
-from pynescript.langserver.providers.builtin_metadata import get_builtin
 from pynescript.langserver.protocol.utils import get_word_at_position
+from pynescript.langserver.providers.builtin_metadata import get_builtin
 
 
 def handle_hover(params: lsp.HoverParams, source: str | None) -> lsp.Hover | None:

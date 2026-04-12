@@ -3,16 +3,16 @@
 from __future__ import annotations
 
 import base64
-import io
 
 import pytest
-from flask import Flask
+
 from flask.testing import FlaskClient
 
 from backend.app import app
-from backend.middleware.auth import get_key_store
-from backend.services.backtest import generate_mock_ohlcv, run_backtest
-from backend.services.chart_renderer import render_line_chart, render_equity_curve
+from backend.services.backtest import generate_mock_ohlcv
+from backend.services.backtest import run_backtest
+from backend.services.chart_renderer import render_equity_curve
+from backend.services.chart_renderer import render_line_chart
 
 
 @pytest.fixture

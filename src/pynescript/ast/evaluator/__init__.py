@@ -21,6 +21,8 @@ NodeEvaluator: Full evaluator with all features for complete script execution
 
 from __future__ import annotations
 
+from typing import Any
+
 from .base import BaseEvaluator
 from .builtins import BuiltinEvaluator
 from .expressions import ExpressionEvaluator
@@ -38,19 +40,20 @@ class NodeLiteralEvaluator(
     NameEvaluator,
 ):
     """Safe evaluator for literal expressions and built-in functions.
-    
+
     Combines all evaluator mixins for flexible AST node evaluation.
     """
-    
+
     def evaluate_script(self, source: str) -> Any:
         """Parse and evaluate a script string.
-        
+
         Args:
             source: Pine Script source code
-            
+
         Returns:
             The result of evaluating the script (value of last expression)
         """
         from pynescript.ast.helper import parse
+
         tree = parse(source, mode="exec")
         return self.visit(tree)

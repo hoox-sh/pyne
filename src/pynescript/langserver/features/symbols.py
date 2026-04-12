@@ -14,8 +14,8 @@ from typing import Any
 
 from lsprotocol import types as lsp
 
-from pynescript.ast import node as ast
 from pynescript.ast import NodeVisitor
+from pynescript.ast import node as ast
 
 
 def handle_document_symbols(params: lsp.DocumentSymbolParams, source: str | None, uri: str) -> list[lsp.DocumentSymbol]:
@@ -117,7 +117,10 @@ class DocumentSymbolCollector(NodeVisitor):
                     children=[],
                     detail="Field",
                 )
-                parent.children.append(field)
+                if parent.children is None:
+                    parent.children = [field]
+                else:
+                    parent.children = list(parent.children) + [field]
             elif isinstance(node.target, ast.Tuple):
                 for elt in node.target.elts:
                     if isinstance(elt, ast.Name):
@@ -129,7 +132,10 @@ class DocumentSymbolCollector(NodeVisitor):
                             children=[],
                             detail="Field",
                         )
-                        parent.children.append(field)
+                        if parent.children is None:
+                            parent.children = [field]
+                        else:
+                            parent.children = list(parent.children) + [field]
 
     def visit_Assign(self, node: ast.Assign) -> Any:
         """Handle variable assignments."""
@@ -163,7 +169,8 @@ class DocumentSymbolCollector(NodeVisitor):
                     else:
                         self.symbols.append(var_symbol)
 
-        self.visit(node.value)
+        if node.value is not None:
+            self.visit(node.value)
 
     def visit_Call(self, node: ast.Call) -> Any:
         """Handle function calls (don't add to outline)."""

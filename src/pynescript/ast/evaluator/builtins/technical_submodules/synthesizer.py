@@ -156,11 +156,10 @@ class SynthesizerIndicators(TechnicalHelpers):
                 strategy_recommendation = "aggressive_long"
             else:
                 strategy_recommendation = "conservative_long"
-        else:  # composite_signal <= -0.2
-            if risk_profile == "aggressive":
-                strategy_recommendation = "aggressive_short"
-            else:
-                strategy_recommendation = "conservative_short"
+        elif risk_profile == "aggressive":
+            strategy_recommendation = "aggressive_short"
+        else:
+            strategy_recommendation = "conservative_short"
 
         # --- Holding Period ---
         if market_regime == "volatile":

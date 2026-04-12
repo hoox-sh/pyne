@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import os
+
 from pathlib import Path
 
 
@@ -58,32 +59,32 @@ MD_COPYRIGHT = """# Copyright 2024-2025 Yunseong Hwang, jango_blockchained
 
 def get_copyright_header(filepath: str) -> str:
     """Get appropriate copyright header for file type."""
-    if filepath.endswith('.g4'):
+    if filepath.endswith(".g4"):
         return GRAMMAR_COPYRIGHT
-    elif filepath.endswith('.md'):
+    elif filepath.endswith(".md"):
         return MD_COPYRIGHT
-    elif filepath.endswith('.py'):
+    elif filepath.endswith(".py"):
         return PYTHON_COPYRIGHT
     return ""
 
 
 def has_copyright_header(content: str) -> bool:
     """Check if file already has a copyright header."""
-    return content.strip().startswith(('# Copyright', '// Copyright'))
+    return content.strip().startswith(("# Copyright", "// Copyright"))
 
 
 def remove_old_copyright(content: str) -> str:
     """Remove the old copyright header."""
-    lines = content.split('\n')
+    lines = content.split("\n")
     i = 0
 
     for i, line in enumerate(lines):
-        if line.startswith(('# Copyright', '// Copyright')):
+        if line.startswith(("# Copyright", "// Copyright")):
             break
-    
+
     # Find end of copyright block
     for j in range(i, len(lines)):
-        if 'SPDX-License-Identifier' in lines[j]:
+        if "SPDX-License-Identifier" in lines[j]:
             i = j + 1
             break
 
@@ -91,13 +92,13 @@ def remove_old_copyright(content: str) -> str:
     while i < len(lines) and not lines[i].strip():
         i += 1
 
-    return '\n'.join(lines[i:])
+    return "\n".join(lines[i:])
 
 
 def update_file(filepath: str) -> bool:
     """Update copyright in a single file."""
     try:
-        with open(filepath, 'r', encoding='utf-8') as f:
+        with open(filepath, encoding="utf-8") as f:
             content = f.read()
 
         if not content.strip():
@@ -110,9 +111,9 @@ def update_file(filepath: str) -> bool:
         if has_copyright_header(content):
             content = remove_old_copyright(content)
 
-        updated_content = new_header + '\n' + content
+        updated_content = new_header + "\n" + content
 
-        with open(filepath, 'w', encoding='utf-8') as f:
+        with open(filepath, "w", encoding="utf-8") as f:
             f.write(updated_content)
 
         return True
@@ -125,11 +126,11 @@ def find_files(directory: str, extensions: list[str]) -> list[str]:
     """Find all files with given extensions."""
     files = []
     for root, dirs, filenames in os.walk(directory):
-        dirs[:] = [d for d in dirs if d not in ('__pycache__', '.git', '_build', 'node_modules', 'venv', '.venv')]
+        dirs[:] = [d for d in dirs if d not in ("__pycache__", ".git", "_build", "node_modules", "venv", ".venv")]
         for filename in filenames:
             if any(filename.endswith(ext) for ext in extensions):
                 filepath = os.path.join(root, filename)
-                if 'generated' not in filepath:
+                if "generated" not in filepath:
                     files.append(filepath)
     return sorted(files)
 
@@ -137,11 +138,11 @@ def find_files(directory: str, extensions: list[str]) -> list[str]:
 def main():
     """Update copyright headers in all common files."""
     project_root = Path(__file__).parent.parent
-    py_files = find_files(str(project_root / 'src'), ['.py'])
-    test_files = find_files(str(project_root / 'tests'), ['.py'])
-    example_files = find_files(str(project_root / 'examples'), ['.py'])
-    g4_files = find_files(str(project_root / 'src'), ['.g4'])
-    md_files = find_files(str(project_root / 'docs'), ['.md'])
+    py_files = find_files(str(project_root / "src"), [".py"])
+    test_files = find_files(str(project_root / "tests"), [".py"])
+    example_files = find_files(str(project_root / "examples"), [".py"])
+    g4_files = find_files(str(project_root / "src"), [".g4"])
+    md_files = find_files(str(project_root / "docs"), [".md"])
 
     all_files = py_files + test_files + example_files + g4_files + md_files
 
@@ -163,5 +164,5 @@ def main():
     print(f"\nUpdated {updated} files, skipped {skipped}")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

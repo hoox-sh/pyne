@@ -14,4 +14,5 @@ from __future__ import annotations
 
 from pynescript.langserver.features import diagnostics
 
+
 __all__ = ["diagnostics"]

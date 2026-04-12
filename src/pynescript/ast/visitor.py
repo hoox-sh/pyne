@@ -14,8 +14,8 @@ with caching for performance optimization.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any
-from typing import Callable
 
 from pynescript.ast.helper import iter_fields
 from pynescript.ast.node import AST
