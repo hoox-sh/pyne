@@ -105,7 +105,7 @@ class ExpressionEvaluator:
             return _OPERATOR_MOD(left, right)
         else:
             msg = f"Unsupported binary operator: {type(node.op)}"
-            raise NotImplementedError(msg)
+            raise ValueError(msg)
 
     def visit_UnaryOp(self: EvaluatorProtocol, node: ast.UnaryOp):
         """Evaluate unary operations (not, negation, positive).
@@ -329,7 +329,7 @@ class ExpressionEvaluator:
             if case.pattern:  # type: ignore[attr-defined]
                 pattern_val = self.visit(case.pattern)  # type: ignore[attr-defined]
                 if subject_val is not None:
-                    match = (subject_val == pattern_val)
+                    match = subject_val == pattern_val
                 else:
                     match = bool(pattern_val)
             else:

@@ -147,9 +147,15 @@ class NameEvaluator:
             if abs(index) > len(value):
                 return None  # PineScript returns na for out of bounds
             return value[index]
+        elif hasattr(value, "__getitem__"):
+            try:
+                return value[slice_]
+            except Exception as e:
+                msg = f"Subscript error for {type(value).__name__} with index {slice_}: {e}"
+                raise ValueError(msg) from e
         else:
             # Subscripting not supported for non-list or non-integer index types
             value_type = type(value)
             slice_type = type(slice_)
             msg = f"Subscript not supported for {value_type} with {slice_type}"
-            raise NotImplementedError(msg)
+            raise ValueError(msg)
