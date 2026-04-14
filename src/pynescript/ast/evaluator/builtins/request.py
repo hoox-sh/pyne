@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import random
 
+from dataclasses import dataclass, field
 from typing import Any
 
 from .base import BuiltinDispatchMixin
@@ -15,6 +16,121 @@ from .base import BuiltinHandler
 
 # Define constants for magic numbers
 REQUEST_SECURITY_MIN_ARGS = 2
+
+
+@dataclass
+class VolumeRow:
+    """Volume row in a footprint object.
+
+    Represents a single price level in a footprint with its volume data.
+    Added in Pine Script v6 (January 2026).
+    """
+
+    up_price: float = 0.0
+    down_price: float = 0.0
+    buy_volume: float = 0.0
+    sell_volume: float = 0.0
+    delta: float = 0.0
+    is_imbalance: bool = False
+    is_poc: bool = False
+    is_vah: bool = False
+    is_val: bool = False
+
+
+@dataclass
+class Footprint:
+    """Footprint object representing volume profile data for a bar.
+
+    Contains volume data at each price level, including buy/sell volumes,
+    delta, Point of Control (POC), and Value Area (VA) boundaries.
+    Added in Pine Script v6 (January 2026).
+    """
+
+    num_ticks: int = 100
+    va_percentage: int = 70
+    buy_volume: float = 0.0
+    sell_volume: float = 0.0
+    delta: float = 0.0
+    total_volume: float = 0.0
+    vah_row: VolumeRow | None = None
+    val_row: VolumeRow | None = None
+    poc_row: VolumeRow | None = None
+    rows: list[VolumeRow] = field(default_factory=list)
+
+
+class FootprintBuiltinsMixin(BuiltinDispatchMixin):
+    """Footprint type methods for accessing volume profile data.
+
+    Added in Pine Script v6 (January 2026).
+    """
+
+    def _footprint_builtin_map(self) -> dict[str, BuiltinHandler]:
+        return {
+            "footprint.buy_volume": self._handle_footprint_buy_volume,
+            "footprint.sell_volume": self._handle_footprint_sell_volume,
+            "footprint.delta": self._handle_footprint_delta,
+            "footprint.vah": self._handle_footprint_vah,
+            "footprint.val": self._handle_footprint_val,
+            "footprint.poc": self._handle_footprint_poc,
+            "volume_row.up_price": self._handle_volume_row_up_price,
+            "volume_row.down_price": self._handle_volume_row_down_price,
+        }
+
+    def _handle_footprint_buy_volume(self, args: list[Any]) -> float:
+        """footprint.buy_volume(footprint) - Get total buy volume from footprint."""
+        fp = args[0] if len(args) > 0 else None
+        if isinstance(fp, Footprint):
+            return fp.buy_volume
+        return 0.0
+
+    def _handle_footprint_sell_volume(self, args: list[Any]) -> float:
+        """footprint.sell_volume(footprint) - Get total sell volume from footprint."""
+        fp = args[0] if len(args) > 0 else None
+        if isinstance(fp, Footprint):
+            return fp.sell_volume
+        return 0.0
+
+    def _handle_footprint_delta(self, args: list[Any]) -> float:
+        """footprint.delta(footprint) - Get volume delta from footprint."""
+        fp = args[0] if len(args) > 0 else None
+        if isinstance(fp, Footprint):
+            return fp.delta
+        return 0.0
+
+    def _handle_footprint_vah(self, args: list[Any]) -> VolumeRow | None:
+        """footprint.vah(footprint) - Get Value Area High row from footprint."""
+        fp = args[0] if len(args) > 0 else None
+        if isinstance(fp, Footprint):
+            return fp.vah_row
+        return None
+
+    def _handle_footprint_val(self, args: list[Any]) -> VolumeRow | None:
+        """footprint.val(footprint) - Get Value Area Low row from footprint."""
+        fp = args[0] if len(args) > 0 else None
+        if isinstance(fp, Footprint):
+            return fp.val_row
+        return None
+
+    def _handle_footprint_poc(self, args: list[Any]) -> VolumeRow | None:
+        """footprint.poc(footprint) - Get Point of Control row from footprint."""
+        fp = args[0] if len(args) > 0 else None
+        if isinstance(fp, Footprint):
+            return fp.poc_row
+        return None
+
+    def _handle_volume_row_up_price(self, args: list[Any]) -> float:
+        """volume_row.up_price(volume_row) - Get upper price of volume row."""
+        vr = args[0] if len(args) > 0 else None
+        if isinstance(vr, VolumeRow):
+            return vr.up_price
+        return 0.0
+
+    def _handle_volume_row_down_price(self, args: list[Any]) -> float:
+        """volume_row.down_price(volume_row) - Get lower price of volume row."""
+        vr = args[0] if len(args) > 0 else None
+        if isinstance(vr, VolumeRow):
+            return vr.down_price
+        return 0.0
 
 
 class RequestBuiltinsMixin(BuiltinDispatchMixin):
@@ -34,6 +150,7 @@ class RequestBuiltinsMixin(BuiltinDispatchMixin):
             "request.economic": self._handle_request_economic,
             "request.currency_rate": self._handle_request_currency_rate,
             "request.seed": self._handle_request_seed,
+            "request.footprint": self._handle_request_footprint,
         }
 
     def _get_expression_prices(self, expression: str, prices: list[float]) -> list[float]:
@@ -342,3 +459,62 @@ class RequestBuiltinsMixin(BuiltinDispatchMixin):
 
         # Seed Python's random module for reproducibility
         random.seed(seed_value)
+
+    def _handle_request_footprint(self, args: list[Any]) -> Footprint | None:
+        """
+        request.footprint(num_ticks, va_percentage)
+
+        Request volume footprint data for the current bar.
+        Added in Pine Script v6 (January 2026).
+
+        Parameters:
+            num_ticks: Number of ticks per footprint row (int)
+            va_percentage: Value Area percentage (int, default 70)
+
+        Returns:
+            Footprint object containing volume profile data, or None if no data available.
+        This is a mock implementation that generates sample footprint data.
+        """
+        num_ticks = args[0] if len(args) > 0 else 100
+        va_percentage = args[1] if len(args) > 1 else 70
+
+        rows: list[VolumeRow] = []
+        base_price = 100.0
+        tick_size = 0.01
+
+        for i in range(num_ticks):
+            price_level = base_price + (i * tick_size)
+            row = VolumeRow(
+                up_price=price_level + tick_size,
+                down_price=price_level,
+                buy_volume=1000.0 + (random.random() * 500),
+                sell_volume=900.0 + (random.random() * 500),
+                delta=100.0 + (random.random() * 200 - 100),
+                is_imbalance=random.random() < 0.1,
+                is_poc=(i == num_ticks // 2),
+                is_vah=(i == int(num_ticks * 0.7)),
+                is_val=(i == int(num_ticks * 0.3)),
+            )
+            rows.append(row)
+
+        poc_idx = num_ticks // 2
+        vah_idx = int(num_ticks * 0.7)
+        val_idx = int(num_ticks * 0.3)
+
+        total_buy = sum(r.buy_volume for r in rows)
+        total_sell = sum(r.sell_volume for r in rows)
+
+        footprint = Footprint(
+            num_ticks=num_ticks,
+            va_percentage=va_percentage,
+            buy_volume=total_buy,
+            sell_volume=total_sell,
+            delta=total_buy - total_sell,
+            total_volume=total_buy + total_sell,
+            vah_row=rows[vah_idx] if vah_idx < len(rows) else None,
+            val_row=rows[val_idx] if val_idx < len(rows) else None,
+            poc_row=rows[poc_idx] if poc_idx < len(rows) else None,
+            rows=rows,
+        )
+
+        return footprint

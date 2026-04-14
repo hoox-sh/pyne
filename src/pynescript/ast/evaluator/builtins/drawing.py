@@ -461,10 +461,27 @@ class DrawingBuiltinsMixin(BuiltinDispatchMixin):
         return box
 
     def _handle_box_set_xloc(self, args: list[Any]) -> Box:
-        """box.set_xloc(box, xloc)"""
+        """box.set_xloc(box, left, right, xloc)
+
+        Set the left and right coordinates of the box borders.
+        Added March 2025: Full parameter support for left, right, and xloc.
+
+        Parameters:
+            box: The box object to modify
+            left: Left coordinate (bar index or timestamp based on xloc)
+            right: Right coordinate (bar index or timestamp based on xloc)
+            xloc: Coordinate type ("bar_index" or "time")
+
+        Returns the modified box.
+        """
         box = args[0] if len(args) > 0 else None
         if isinstance(box, Box):
-            box.xloc = args[1] if len(args) > 1 else box.xloc
+            if len(args) > 1:
+                box.left = args[1]
+            if len(args) > 2:
+                box.right = args[2]
+            if len(args) > 3:
+                box.xloc = args[3]
         return box
 
     def _handle_box_set_closed(self, args: list[Any]) -> Box:

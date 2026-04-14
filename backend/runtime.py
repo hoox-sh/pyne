@@ -6,9 +6,133 @@ from .evaluator import CustomEvaluator
 from .series import PineSeries
 
 
+class Syminfo:
+    """Symbol information namespace for Pine Script builtins.
+
+    Contains information about the current symbol like ticker, currency, etc.
+    Added in Pine Script v5, with isin and current_contract added in 2025.
+    """
+
+    # Basic symbol info (existing)
+    tickerid: str = "AAPL"
+    currency: str = "USD"
+    type: str = "stock"
+    session: str = "regular"
+    tick_size: float = 0.01
+    pointvalue: float = 1.0
+    mintick: float = 0.01
+    description: str = "Apple Inc."
+    strategy_type: str = "long"
+    prefix: str = "NASDAQ"
+    name: str = "AAPL"
+
+    # November 2025: ISIN (International Securities Identification Number)
+    isin: str = ""  # 12-character ISIN code, empty string if not available
+
+    # July 2025: Current contract for continuous futures
+    current_contract: str | None = None  # Ticker ID of underlying contract for continuous futures
+
+    # November 2024: Minimum contract size
+    mincontract: int = 1
+
+
+class Chartinfo:
+    """Chart information namespace for Pine Script builtins."""
+
+    type: str = "candle"
+    aggtype: str = "Standard"
+    time: int = 0
+    status: str = "regular"
+
+
+class Timeframe:
+    """Timeframe information namespace for Pine Script builtins."""
+
+    period: str = "D"  # e.g., "1D", "1H", "5"
+    multiplier: int = 1
+    isintraday: bool = False
+    is_daily: bool = False
+    is_weekly: bool = False
+    is_monthly: bool = False
+    is_seconds: bool = False
+    current: str = "D"
+
+    # November 2024: Main period from chart's main context
+    main_period: str = "D"
+
+
+class Barstate:
+    """Bar state information namespace for Pine Script builtins."""
+
+    islast: bool = False
+    islastconfirmedhistory: bool = False
+    isrealtime: bool = False
+    iscomposite: bool = False
+
+
+class Chart:
+    """Chart namespace for Pine Script builtins."""
+
+    fg_color: str = "#000000"
+    bg_color: str = "#FFFFFF"
+    resolution: str = "D"
+
+    # Chart display mode
+    is_heikin_ashi: bool = False
+    is_kagi: bool = False
+    is_line_break: bool = False
+    is_point_figure: bool = False
+    is_renko: bool = False
+    is_range: bool = False
+
+
 class Runtime:
-    def __init__(self):
-        pass
+    def __init__(self, symbol: str = "AAPL"):
+        """
+        Initialize the runtime with optional symbol configuration.
+
+        Args:
+            symbol: The symbol to use for the runtime (default: "AAPL")
+        """
+        self.symbol = symbol
+        self._syminfo = Syminfo()
+        self._syminfo.tickerid = symbol
+        self._syminfo.name = symbol
+        self._syminfo.prefix = self._extract_prefix(symbol)
+
+        # February 2025: bid/ask variables (only available on 1T timeframe)
+        self._bid: float | None = None
+        self._ask: float | None = None
+
+        # November 2024: main ticker reference
+        self._main_tickerid: str = symbol
+
+    def _extract_prefix(self, symbol: str) -> str:
+        """Extract prefix from symbol (e.g., 'NASDAQ' from 'NASDAQ:AAPL')."""
+        if ":" in symbol:
+            return symbol.split(":")[0]
+        return ""
+
+    def configure_footprint(self, footprint_data: dict) -> None:
+        """Configure syminfo based on footprint data.
+
+        Args:
+            footprint_data: Dictionary containing footprint configuration
+        """
+        if "isin" in footprint_data:
+            self._syminfo.isin = footprint_data["isin"]
+        if "current_contract" in footprint_data:
+            self._syminfo.current_contract = footprint_data["current_contract"]
+
+    def update_bid_ask(self, bid: float | None, ask: float | None) -> None:
+        """Update bid/ask prices (February 2025 feature).
+
+        Args:
+            bid: Bid price (highest buy order)
+            ask: Ask price (lowest sell order)
+        """
+        self._bid = bid
+        self._ask = ask
 
     def run(self, source_code: str, ohlcv_data: list[dict]):
         """
@@ -39,6 +163,11 @@ class Runtime:
             "high": high_series,
             "low": low_series,
             "close": close_series,
+            # Symbol info namespace (November 2025: syminfo.isin, July 2025: syminfo.current_contract)
+            "syminfo": self._syminfo,
+            "timeframe": Timeframe(),
+            "barstate": Barstate(),
+            "chart": Chart(),
         }
 
         evaluator = CustomEvaluator(context=context)
@@ -51,6 +180,12 @@ class Runtime:
             high_series.update(bar.get("high"))
             low_series.update(bar.get("low"))
             close_series.update(bar.get("close"))
+
+            # Update bid/ask if available (February 2025)
+            if "bid" in bar:
+                self._bid = bar["bid"]
+            if "ask" in bar:
+                self._ask = bar["ask"]
 
             # Reset plot capture for this bar
             evaluator.reset_plots()

@@ -33,9 +33,30 @@ class UtilityFunctionsMixin(BuiltinDispatchMixin):
         }
 
     def _builtin_time(self, args: list[Any]) -> int:
-        """Get current time in Unix timestamp (milliseconds)."""
-        if args:
-            self._error("time() takes no arguments")
+        """Get timestamp for bar start time.
+
+        time(timezone, session, expression, lookback, gaps, lookahead,
+             ignore_invalid_timezone, timeframe, bars_back, timeframe_bars_back)
+
+        Added October 2025: timeframe_bars_back parameter for calculating timestamps
+        relative to a specific timeframe's bars.
+
+        Parameters:
+            timezone: Timezone string (e.g., "UTC", "America/New_York")
+            session: Session filter (e.g., "regular", "extended")
+            expression: Expression to evaluate
+            lookback: Number of bars back to look
+            gaps: Gap handling ("na", "barmerge.gaps")
+            lookahead: Lookahead mode ("na", "barmerge.lookahead")
+            ignore_invalid_timezone: Ignore invalid timezone errors
+            timeframe: Timeframe for calculation
+            bars_back: Bar offset on main timeframe
+            timeframe_bars_back: Bar offset on specified timeframe (October 2025 feature)
+
+        Returns Unix timestamp in milliseconds.
+        """
+        # Mock implementation - returns current time
+        # In real implementation, would handle all parameters
         return int(datetime.now(timezone.utc).timestamp() * 1000)
 
     def _builtin_year(self, args: list[Any]) -> int:
@@ -111,9 +132,30 @@ class UtilityFunctionsMixin(BuiltinDispatchMixin):
         return dt.second
 
     def _builtin_time_close(self, args: list[Any]) -> int:
-        """Get close time of current bar (same as time in most contexts)."""
-        if args:
-            self._error("time_close() takes no arguments")
+        """Get close time of current bar.
+
+        time_close(timezone, session, lookback, gaps, lookahead,
+                   ignore_invalid_timezone, timeframe, bars_back, timeframe_bars_back)
+
+        Added October 2025: timeframe_bars_back parameter for calculating timestamps
+        relative to a specific timeframe's bars.
+        Added May 2025: Improved behavior on tick charts and price-based charts
+        (Renko, Kagi, line break, point & figure, range).
+
+        Parameters:
+            timezone: Timezone string (e.g., "UTC", "America/New_York")
+            session: Session filter
+            lookback: Number of bars back to look
+            gaps: Gap handling
+            lookahead: Lookahead mode
+            ignore_invalid_timezone: Ignore invalid timezone errors
+            timeframe: Timeframe for calculation
+            bars_back: Bar offset on main timeframe
+            timeframe_bars_back: Bar offset on specified timeframe (October 2025 feature)
+
+        Returns Unix timestamp in milliseconds.
+        """
+        # Mock implementation - returns close time of current bar
         return int(datetime.now(timezone.utc).timestamp() * 1000)
 
     def _builtin_time_tradingday(self, args: list[Any]) -> int:

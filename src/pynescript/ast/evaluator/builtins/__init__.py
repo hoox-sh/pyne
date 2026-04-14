@@ -43,7 +43,10 @@ from .map_evaluator import MapBuiltinsMixin
 from .matrix_evaluator import MatrixBuiltinsMixin
 from .numeric import NumericBuiltinsMixin
 from .plotting import PlottingFunctionsMixin
+from .request import FootprintBuiltinsMixin
 from .request import RequestBuiltinsMixin
+from .request import VolumeRow
+from .request import Footprint
 from .strategy import StrategyBuiltinsMixin
 from .strings import StringBuiltinsMixin
 from .technical import TechnicalAnalysisMixin
@@ -62,6 +65,7 @@ class BuiltinEvaluator(
     UtilityFunctionsMixin,
     InputBuiltinsMixin,
     RequestBuiltinsMixin,
+    FootprintBuiltinsMixin,
     DrawingBuiltinsMixin,
     StrategyBuiltinsMixin,
     MatrixBuiltinsMixin,
@@ -80,6 +84,7 @@ class BuiltinEvaluator(
         dispatch.update(self._utility_builtin_map())
         dispatch.update(self._input_builtin_map())
         dispatch.update(self._request_builtin_map())
+        dispatch.update(self._footprint_builtin_map())
         dispatch.update(self._drawing_builtin_map())
         dispatch.update(self._strategy_builtin_map())
         dispatch.update(self._matrix_builtin_map())

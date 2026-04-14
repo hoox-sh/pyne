@@ -11,6 +11,31 @@ from .base import BuiltinDispatchMixin
 from .base import BuiltinHandler
 
 
+class PlotStyle:
+    """Plot style constants for Pine Script.
+
+    September 2025: Added linestyle parameter to plot().
+    """
+
+    # Line styles (September 2025 feature)
+    LINESTYLE_SOLID = "linestyle_solid"
+    LINESTYLE_DASHED = "linestyle_dashed"
+    LINESTYLE_DOTTED = "linestyle_dotted"
+
+    # Plot styles
+    STYLE_LINE = "plot_style_line"
+    STYLE_LINE_BRK = "plot_style_line_brk"
+    STYLE_STEPDOWN = "plot_style_stePDown"
+    STYLE_STEPLEFT = "plot_style_stepleft"
+    STYLE_STEPRIGHT = "plot_style_stepright"
+    STYLE_HISTOGRAM = "plot_style_histogram"
+    STYLE_CROSS = "plot_style_cross"
+    STYLE_STAIR = "plot_style_stair"
+    STYLE_CIRCLES = "plot_style_circles"
+    STYLE_PLOLINE = "plot_style_colL"
+    STYLE_BARS = "plot_style_stair"
+
+
 class PlottingFunctionsMixin(BuiltinDispatchMixin):
     """Plotting function stubs for Pine Script compatibility."""
 
@@ -26,10 +51,44 @@ class PlottingFunctionsMixin(BuiltinDispatchMixin):
             "bgcolor": self._builtin_bgcolor,
             "barcolor": self._builtin_barcolor,
             "hline": self._builtin_hline,
+            # September 2025: Plot linestyle constants
+            "plot.linestyle_solid": self._builtin_plot_linestyle_solid,
+            "plot.linestyle_dashed": self._builtin_plot_linestyle_dashed,
+            "plot.linestyle_dotted": self._builtin_plot_linestyle_dotted,
         }
 
-    def _builtin_plot(self, _args: list[Any]) -> None:
-        """Stub: plot(series, title, color, linewidth, style, trackprice)."""
+    def _builtin_plot(self, args: list[Any]) -> None:
+        """Plot a series on the chart.
+
+        plot(series, title, color, opacity, style, linewidth, trackprice,
+             crossing_disabled, display, force_overlay, format, format_num, text, text_wrap,
+             text_color, text_size, text_align, text_halign, text_valign, linestyle)
+
+        Added September 2025: linestyle parameter for dashed/dotted lines.
+        Added November 2024: text_formatting parameter.
+
+        Parameters:
+            series: Value to plot
+            title: Plot title
+            color: Plot color
+            opacity: Opacity (0-100)
+            style: Plot style (line, histogram, etc.)
+            linewidth: Line width (1-4)
+            trackprice: Track price level
+            crossing_disabled: Disable crossing markers
+            display: Display settings
+            force_overlay: Plot in main chart pane
+            format: Number format
+            format_num: Format precision
+            text: Display text
+            text_wrap: Text wrap setting
+            text_color: Text color
+            text_size: Text size
+            text_align: Text alignment
+            text_halign: Horizontal alignment
+            text_valign: Vertical alignment
+            linestyle: Line style (September 2025: plot.linestyle_solid, dashed, dotted)
+        """
         # In Pine Script, plot() returns None and has side effects on the chart
         # This is a stub that accepts the arguments but does nothing
         return None
@@ -74,3 +133,16 @@ class PlottingFunctionsMixin(BuiltinDispatchMixin):
     def _builtin_hline(self, _args: list[Any]) -> None:
         """Stub: hline(price, title, color, linestyle, linewidth)."""
         return None
+
+    # September 2025: Plot linestyle constants
+    def _builtin_plot_linestyle_solid(self, _args: list[Any]) -> str:
+        """plot.linestyle_solid - Solid line style constant."""
+        return PlotStyle.LINESTYLE_SOLID
+
+    def _builtin_plot_linestyle_dashed(self, _args: list[Any]) -> str:
+        """plot.linestyle_dashed - Dashed line style constant."""
+        return PlotStyle.LINESTYLE_DASHED
+
+    def _builtin_plot_linestyle_dotted(self, _args: list[Any]) -> str:
+        """plot.linestyle_dotted - Dotted line style constant."""
+        return PlotStyle.LINESTYLE_DOTTED

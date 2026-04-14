@@ -715,7 +715,7 @@
     "kind": "function",
     "detail": "box.set_xloc(...)",
     "brief": "box",
-    "documentation": "box.set_xloc(box, xloc)",
+    "documentation": "box.set_xloc(box, left, right, xloc)\n\nSet the left and right coordinates of the box borders.\nAdded March 2025: Full parameter support for left, right, and xloc.\n\nParameters:\n    box: The box object to modify\n    left: Left coordinate (bar index or timestamp based on xloc)\n    right: Right coordinate (bar index or timestamp based on xloc)\n    xloc: Coordinate type (\"bar_index\" or \"time\")\n\nReturns the modified box.",
     "snippet": "box.set_xloc(${1:param1})",
     "category": "box"
   },
@@ -881,6 +881,60 @@
     "snippet": "float(${1:arg})",
     "category": "builtin"
   },
+  "footprint.buy_volume": {
+    "label": "footprint.buy_volume",
+    "kind": "function",
+    "detail": "footprint.buy_volume(...)",
+    "brief": "footprint",
+    "documentation": "footprint.buy_volume(footprint) - Get total buy volume from footprint.",
+    "snippet": "footprint.buy_volume(${1:param1})",
+    "category": "footprint"
+  },
+  "footprint.delta": {
+    "label": "footprint.delta",
+    "kind": "function",
+    "detail": "footprint.delta(...)",
+    "brief": "footprint",
+    "documentation": "footprint.delta(footprint) - Get volume delta from footprint.",
+    "snippet": "footprint.delta(${1:param1})",
+    "category": "footprint"
+  },
+  "footprint.poc": {
+    "label": "footprint.poc",
+    "kind": "function",
+    "detail": "footprint.poc(...)",
+    "brief": "footprint",
+    "documentation": "footprint.poc(footprint) - Get Point of Control row from footprint.",
+    "snippet": "footprint.poc(${1:param1})",
+    "category": "footprint"
+  },
+  "footprint.sell_volume": {
+    "label": "footprint.sell_volume",
+    "kind": "function",
+    "detail": "footprint.sell_volume(...)",
+    "brief": "footprint",
+    "documentation": "footprint.sell_volume(footprint) - Get total sell volume from footprint.",
+    "snippet": "footprint.sell_volume(${1:param1})",
+    "category": "footprint"
+  },
+  "footprint.vah": {
+    "label": "footprint.vah",
+    "kind": "function",
+    "detail": "footprint.vah(...)",
+    "brief": "footprint",
+    "documentation": "footprint.vah(footprint) - Get Value Area High row from footprint.",
+    "snippet": "footprint.vah(${1:param1})",
+    "category": "footprint"
+  },
+  "footprint.val": {
+    "label": "footprint.val",
+    "kind": "function",
+    "detail": "footprint.val(...)",
+    "brief": "footprint",
+    "documentation": "footprint.val(footprint) - Get Value Area Low row from footprint.",
+    "snippet": "footprint.val(${1:param1})",
+    "category": "footprint"
+  },
   "hline": {
     "label": "hline",
     "kind": "function",
@@ -912,8 +966,8 @@
     "label": "input",
     "kind": "function",
     "detail": "input(...)",
-    "brief": "input(defval, title, tooltip, inline, group, confirm)\n\nGeneric input function that returns parame...",
-    "documentation": "input(defval, title, tooltip, inline, group, confirm)\n\nGeneric input function that returns parameter metadata.\nDefault type is inferred from defval.\n\nReturns dict with parameter metadata.",
+    "brief": "input(defval, title, tooltip, inline, group, confirm, active)\n\nGeneric input function that return...",
+    "documentation": "input(defval, title, tooltip, inline, group, confirm, active)\n\nGeneric input function that returns parameter metadata.\nDefault type is inferred from defval.\n\nAdded July 2025: active parameter for conditional input enabling.\n\nReturns dict with parameter metadata.",
     "snippet": "input(${1:arg})",
     "category": "builtin"
   },
@@ -922,7 +976,7 @@
     "kind": "function",
     "detail": "input.bool(...)",
     "brief": "input",
-    "documentation": "input.bool(defval, title, tooltip, inline, group, confirm)\n\nCreate a boolean input parameter.\n\nParameters:\n    defval: Default value (bool)\n    title: Parameter title (str)\n    tooltip: Tooltip text (str)\n    inline: Inline group name (str or None)\n    group: Parameter group name (str or None)\n    confirm: Require user confirmation (bool)\n\nReturns dict with parameter metadata.",
+    "documentation": "input.bool(defval, title, tooltip, inline, group, confirm, active)\n\nCreate a boolean input parameter.\n\nAdded July 2025: active parameter for conditional input enabling.\n\nParameters:\n    defval: Default value (bool)\n    title: Parameter title (str)\n    tooltip: Tooltip text (str)\n    inline: Inline group name (str or None)\n    group: Parameter group name (str or None)\n    confirm: Require user confirmation (bool)\n    active: Whether input is editable (bool, default true)\n\nReturns dict with parameter metadata.",
     "snippet": "input.bool(${1:param1})",
     "category": "input"
   },
@@ -931,7 +985,7 @@
     "kind": "function",
     "detail": "input.color(...)",
     "brief": "input",
-    "documentation": "input.color(defval, title, tooltip, inline, group, confirm)\n\nCreate a color input parameter.\nColor inputs select RGBA color values.\n\nParameters:\n    defval: Default color (str, e.g., \"#FF0000\" or color constant)\n    title: Parameter title (str)\n    tooltip: Tooltip text (str)\n    inline: Inline group name (str or None)\n    group: Parameter group name (str or None)\n    confirm: Require user confirmation (bool)\n\nReturns dict with parameter metadata.",
+    "documentation": "input.color(defval, title, tooltip, inline, group, confirm, active)\n\nCreate a color input parameter.\nColor inputs select RGBA color values.\n\nAdded July 2025: active parameter for conditional input enabling.\n\nParameters:\n    defval: Default color (str, e.g., \"#FF0000\" or color constant)\n    title: Parameter title (str)\n    tooltip: Tooltip text (str)\n    inline: Inline group name (str or None)\n    group: Parameter group name (str or None)\n    confirm: Require user confirmation (bool)\n    active: Whether input is editable (bool, default true)\n\nReturns dict with parameter metadata.",
     "snippet": "input.color(${1:param1})",
     "category": "input"
   },
@@ -940,7 +994,7 @@
     "kind": "function",
     "detail": "input.enum(...)",
     "brief": "input",
-    "documentation": "input.enum(defval, title, options, tooltip, inline, group, confirm)\n\nCreate an enumeration input parameter.\nEnum inputs provide a dropdown list of predefined options.\n\nParameters:\n    defval: Default option (str)\n    title: Parameter title (str)\n    options: Possible values (list or tuple of str)\n    tooltip: Tooltip text (str)\n    inline: Inline group name (str or None)\n    group: Parameter group name (str or None)\n    confirm: Require user confirmation (bool)\n\nReturns dict with parameter metadata.",
+    "documentation": "input.enum(defval, title, options, tooltip, inline, group, confirm, active)\n\nCreate an enumeration input parameter.\nEnum inputs provide a dropdown list of predefined options.\n\nAdded July 2025: active parameter for conditional input enabling.\n\nParameters:\n    defval: Default option (str)\n    title: Parameter title (str)\n    options: Possible values (list or tuple of str)\n    tooltip: Tooltip text (str)\n    inline: Inline group name (str or None)\n    group: Parameter group name (str or None)\n    confirm: Require user confirmation (bool)\n    active: Whether input is editable (bool, default true)\n\nReturns dict with parameter metadata.",
     "snippet": "input.enum(${1:param1})",
     "category": "input"
   },
@@ -949,7 +1003,7 @@
     "kind": "function",
     "detail": "input.float(...)",
     "brief": "input",
-    "documentation": "input.float(defval, title, minval, maxval, step, tooltip, inline, group, confirm)\n\nCreate a float input parameter.\n\nParameters:\n    defval: Default value (float)\n    title: Parameter title (str)\n    minval: Minimum allowed value (float or None)\n    maxval: Maximum allowed value (float or None)\n    step: Step size for increment (float or None)\n    tooltip: Tooltip text (str)\n    inline: Inline group name (str or None)\n    group: Parameter group name (str or None)\n    confirm: Require user confirmation (bool)\n\nReturns dict with parameter metadata.",
+    "documentation": "input.float(defval, title, minval, maxval, step, tooltip, inline, group, confirm, active)\n\nCreate a float input parameter.\n\nAdded July 2025: active parameter for conditional input enabling.\n\nParameters:\n    defval: Default value (float)\n    title: Parameter title (str)\n    minval: Minimum allowed value (float or None)\n    maxval: Maximum allowed value (float or None)\n    step: Step size for increment (float or None)\n    tooltip: Tooltip text (str)\n    inline: Inline group name (str or None)\n    group: Parameter group name (str or None)\n    confirm: Require user confirmation (bool)\n    active: Whether input is editable (bool, default true)\n\nReturns dict with parameter metadata.",
     "snippet": "input.float(${1:param1})",
     "category": "input"
   },
@@ -958,7 +1012,7 @@
     "kind": "function",
     "detail": "input.int(...)",
     "brief": "input",
-    "documentation": "input.int(defval, title, minval, maxval, step, tooltip, inline,\n          group, confirm)\n\nCreate an integer input parameter.\n\nParameters:\n    defval: Default value (int)\n    title: Parameter title (str)\n    minval: Minimum allowed value (int or None)\n    maxval: Maximum allowed value (int or None)\n    step: Step size for increment (int or None)\n    tooltip: Tooltip text (str)\n    inline: Inline group name (str or None)\n    group: Parameter group name (str or None)\n    confirm: Require user confirmation (bool)\n\nReturns dict with parameter metadata.",
+    "documentation": "input.int(defval, title, minval, maxval, step, tooltip, inline,\n          group, confirm, active)\n\nCreate an integer input parameter.\n\nAdded July 2025: active parameter for conditional input enabling.\n\nParameters:\n    defval: Default value (int)\n    title: Parameter title (str)\n    minval: Minimum allowed value (int or None)\n    maxval: Maximum allowed value (int or None)\n    step: Step size for increment (int or None)\n    tooltip: Tooltip text (str)\n    inline: Inline group name (str or None)\n    group: Parameter group name (str or None)\n    confirm: Require user confirmation (bool)\n    active: Whether input is editable (bool, default true)\n\nReturns dict with parameter metadata.",
     "snippet": "input.int(${1:param1})",
     "category": "input"
   },
@@ -967,7 +1021,7 @@
     "kind": "function",
     "detail": "input.price(...)",
     "brief": "input",
-    "documentation": "input.price(defval, title, minval, maxval, step, tooltip, inline, group, confirm)\n\nCreate a price input parameter.\nPrice inputs are essentially float inputs optimized for price values.\n\nParameters:\n    defval: Default price value (float)\n    title: Parameter title (str)\n    minval: Minimum allowed price (float or None)\n    maxval: Maximum allowed price (float or None)\n    step: Step size for increment (float or None)\n    tooltip: Tooltip text (str)\n    inline: Inline group name (str or None)\n    group: Parameter group name (str or None)\n    confirm: Require user confirmation (bool)\n\nReturns dict with parameter metadata.",
+    "documentation": "input.price(defval, title, minval, maxval, step, tooltip, inline, group, confirm, active)\n\nCreate a price input parameter.\nPrice inputs are essentially float inputs optimized for price values.\n\nAdded July 2025: active parameter for conditional input enabling.\n\nParameters:\n    defval: Default price value (float)\n    title: Parameter title (str)\n    minval: Minimum allowed price (float or None)\n    maxval: Maximum allowed price (float or None)\n    step: Step size for increment (float or None)\n    tooltip: Tooltip text (str)\n    inline: Inline group name (str or None)\n    group: Parameter group name (str or None)\n    confirm: Require user confirmation (bool)\n    active: Whether input is editable (bool, default true)\n\nReturns dict with parameter metadata.",
     "snippet": "input.price(${1:param1})",
     "category": "input"
   },
@@ -976,7 +1030,7 @@
     "kind": "function",
     "detail": "input.session(...)",
     "brief": "input",
-    "documentation": "input.session(defval, title, tooltip, inline, group, confirm)\n\nCreate a session input parameter.\nSession inputs define trading session times (e.g., \"0930-1600\").\n\nParameters:\n    defval: Default session string (str)\n    title: Parameter title (str)\n    tooltip: Tooltip text (str)\n    inline: Inline group name (str or None)\n    group: Parameter group name (str or None)\n    confirm: Require user confirmation (bool)\n\nReturns dict with parameter metadata.",
+    "documentation": "input.session(defval, title, tooltip, inline, group, confirm, active)\n\nCreate a session input parameter.\nSession inputs define trading session times (e.g., \"0930-1600\").\n\nAdded July 2025: active parameter for conditional input enabling.\n\nParameters:\n    defval: Default session string (str)\n    title: Parameter title (str)\n    tooltip: Tooltip text (str)\n    inline: Inline group name (str or None)\n    group: Parameter group name (str or None)\n    confirm: Require user confirmation (bool)\n    active: Whether input is editable (bool, default true)\n\nReturns dict with parameter metadata.",
     "snippet": "input.session(${1:param1})",
     "category": "input"
   },
@@ -985,7 +1039,7 @@
     "kind": "function",
     "detail": "input.source(...)",
     "brief": "input",
-    "documentation": "input.source(defval, title, tooltip, inline, group, confirm)\n\nCreate a source input parameter.\nSource inputs select OHLCV data sources (close, open, high, low, hl2, hlc3, ohlc4, etc.).\n\nParameters:\n    defval: Default source (str, e.g., \"close\")\n    title: Parameter title (str)\n    tooltip: Tooltip text (str)\n    inline: Inline group name (str or None)\n    group: Parameter group name (str or None)\n    confirm: Require user confirmation (bool)\n\nReturns dict with parameter metadata.",
+    "documentation": "input.source(defval, title, tooltip, inline, group, confirm, active)\n\nCreate a source input parameter.\nSource inputs select OHLCV data sources (close, open, high, low, hl2, hlc3, ohlc4, etc.).\n\nAdded July 2025: active parameter for conditional input enabling.\n\nParameters:\n    defval: Default source (str, e.g., \"close\")\n    title: Parameter title (str)\n    tooltip: Tooltip text (str)\n    inline: Inline group name (str or None)\n    group: Parameter group name (str or None)\n    confirm: Require user confirmation (bool)\n    active: Whether input is editable (bool, default true)\n\nReturns dict with parameter metadata.",
     "snippet": "input.source(${1:param1})",
     "category": "input"
   },
@@ -994,7 +1048,7 @@
     "kind": "function",
     "detail": "input.string(...)",
     "brief": "input",
-    "documentation": "input.string(defval, title, tooltip, inline, group, confirm)\n\nCreate a string input parameter.\n\nParameters:\n    defval: Default value (str)\n    title: Parameter title (str)\n    tooltip: Tooltip text (str)\n    inline: Inline group name (str or None)\n    group: Parameter group name (str or None)\n    confirm: Require user confirmation (bool)\n\nReturns dict with parameter metadata.",
+    "documentation": "input.string(defval, title, tooltip, inline, group, confirm, active)\n\nCreate a string input parameter.\n\nAdded July 2025: active parameter for conditional input enabling.\n\nParameters:\n    defval: Default value (str)\n    title: Parameter title (str)\n    tooltip: Tooltip text (str)\n    inline: Inline group name (str or None)\n    group: Parameter group name (str or None)\n    confirm: Require user confirmation (bool)\n    active: Whether input is editable (bool, default true)\n\nReturns dict with parameter metadata.",
     "snippet": "input.string(${1:param1})",
     "category": "input"
   },
@@ -1003,7 +1057,7 @@
     "kind": "function",
     "detail": "input.symbol(...)",
     "brief": "input",
-    "documentation": "input.symbol(defval, title, tooltip, inline, group, confirm)\n\nCreate a symbol/ticker input parameter.\nSymbol inputs are specialized string inputs for security symbols.\n\nParameters:\n    defval: Default symbol (str)\n    title: Parameter title (str)\n    tooltip: Tooltip text (str)\n    inline: Inline group name (str or None)\n    group: Parameter group name (str or None)\n    confirm: Require user confirmation (bool)\n\nReturns dict with parameter metadata.",
+    "documentation": "input.symbol(defval, title, tooltip, inline, group, confirm, active)\n\nCreate a symbol/ticker input parameter.\nSymbol inputs are specialized string inputs for security symbols.\n\nAdded July 2025: active parameter for conditional input enabling.\n\nParameters:\n    defval: Default symbol (str)\n    title: Parameter title (str)\n    tooltip: Tooltip text (str)\n    inline: Inline group name (str or None)\n    group: Parameter group name (str or None)\n    confirm: Require user confirmation (bool)\n    active: Whether input is editable (bool, default true)\n\nReturns dict with parameter metadata.",
     "snippet": "input.symbol(${1:param1})",
     "category": "input"
   },
@@ -1012,7 +1066,7 @@
     "kind": "function",
     "detail": "input.time(...)",
     "brief": "input",
-    "documentation": "input.time(defval, title, tooltip, inline, group, confirm)\n\nCreate a time input parameter.\nTime inputs select a specific date and time as Unix timestamp.\n\nParameters:\n    defval: Default time (int, Unix timestamp)\n    title: Parameter title (str)\n    tooltip: Tooltip text (str)\n    inline: Inline group name (str or None)\n    group: Parameter group name (str or None)\n    confirm: Require user confirmation (bool)\n\nReturns dict with parameter metadata.",
+    "documentation": "input.time(defval, title, tooltip, inline, group, confirm, active)\n\nCreate a time input parameter.\nTime inputs select a specific date and time as Unix timestamp.\n\nAdded July 2025: active parameter for conditional input enabling.\n\nParameters:\n    defval: Default time (int, Unix timestamp)\n    title: Parameter title (str)\n    tooltip: Tooltip text (str)\n    inline: Inline group name (str or None)\n    group: Parameter group name (str or None)\n    confirm: Require user confirmation (bool)\n    active: Whether input is editable (bool, default true)\n\nReturns dict with parameter metadata.",
     "snippet": "input.time(${1:param1})",
     "category": "input"
   },
@@ -1021,7 +1075,7 @@
     "kind": "function",
     "detail": "input.timeframe(...)",
     "brief": "input",
-    "documentation": "input.timeframe(defval, title, tooltip, inline, group, confirm)\n\nCreate a timeframe input parameter.\nTimeframe inputs select chart timeframes (e.g., \"1\", \"5\", \"1H\", \"D\").\n\nParameters:\n    defval: Default timeframe (str)\n    title: Parameter title (str)\n    tooltip: Tooltip text (str)\n    inline: Inline group name (str or None)\n    group: Parameter group name (str or None)\n    confirm: Require user confirmation (bool)\n\nReturns dict with parameter metadata.",
+    "documentation": "input.timeframe(defval, title, tooltip, inline, group, confirm, active)\n\nCreate a timeframe input parameter.\nTimeframe inputs select chart timeframes (e.g., \"1\", \"5\", \"1H\", \"D\").\n\nAdded July 2025: active parameter for conditional input enabling.\n\nParameters:\n    defval: Default timeframe (str)\n    title: Parameter title (str)\n    tooltip: Tooltip text (str)\n    inline: Inline group name (str or None)\n    group: Parameter group name (str or None)\n    confirm: Require user confirmation (bool)\n    active: Whether input is editable (bool, default true)\n\nReturns dict with parameter metadata.",
     "snippet": "input.timeframe(${1:param1})",
     "category": "input"
   },
@@ -2109,10 +2163,37 @@
     "label": "plot",
     "kind": "function",
     "detail": "plot(...)",
-    "brief": "Stub: plot(series, title, color, linewidth, style, trackprice)",
-    "documentation": "Stub: plot(series, title, color, linewidth, style, trackprice).",
+    "brief": "Plot a series on the chart",
+    "documentation": "Plot a series on the chart.\n\nplot(series, title, color, opacity, style, linewidth, trackprice,\n     crossing_disabled, display, force_overlay, format, format_num, text, text_wrap,\n     text_color, text_size, text_align, text_halign, text_valign, linestyle)\n\nAdded September 2025: linestyle parameter for dashed/dotted lines.\nAdded November 2024: text_formatting parameter.\n\nParameters:\n    series: Value to plot\n    title: Plot title\n    color: Plot color\n    opacity: Opacity (0-100)\n    style: Plot style (line, histogram, etc.)\n    linewidth: Line width (1-4)\n    trackprice: Track price level\n    crossing_disabled: Disable crossing markers\n    display: Display settings\n    force_overlay: Plot in main chart pane\n    format: Number format\n    format_num: Format precision\n    text: Display text\n    text_wrap: Text wrap setting\n    text_color: Text color\n    text_size: Text size\n    text_align: Text alignment\n    text_halign: Horizontal alignment\n    text_valign: Vertical alignment\n    linestyle: Line style (September 2025: plot.linestyle_solid, dashed, dotted)",
     "snippet": "plot(${1:arg})",
     "category": "builtin"
+  },
+  "plot.linestyle_dashed": {
+    "label": "plot.linestyle_dashed",
+    "kind": "function",
+    "detail": "plot.linestyle_dashed(...)",
+    "brief": "plot",
+    "documentation": "plot.linestyle_dashed - Dashed line style constant.",
+    "snippet": "plot.linestyle_dashed(${1:param1})",
+    "category": "plot"
+  },
+  "plot.linestyle_dotted": {
+    "label": "plot.linestyle_dotted",
+    "kind": "function",
+    "detail": "plot.linestyle_dotted(...)",
+    "brief": "plot",
+    "documentation": "plot.linestyle_dotted - Dotted line style constant.",
+    "snippet": "plot.linestyle_dotted(${1:param1})",
+    "category": "plot"
+  },
+  "plot.linestyle_solid": {
+    "label": "plot.linestyle_solid",
+    "kind": "function",
+    "detail": "plot.linestyle_solid(...)",
+    "brief": "plot",
+    "documentation": "plot.linestyle_solid - Solid line style constant.",
+    "snippet": "plot.linestyle_solid(${1:param1})",
+    "category": "plot"
   },
   "plotarrow": {
     "label": "plotarrow",
@@ -2220,6 +2301,15 @@
     "brief": "request",
     "documentation": "request.financial(symbol, financial_id, period)\n\nRequest financial statement data (from SEC filings).\n\nParameters:\n    symbol: Symbol/ticker string (str)\n    financial_id: Financial metric identifier (str)\n    period: Reporting period (str, e.g., \"FQ\", \"FY\")\n\nReturns financial metric value as float.\nThis is a mock implementation.",
     "snippet": "request.financial(${1:param1})",
+    "category": "request"
+  },
+  "request.footprint": {
+    "label": "request.footprint",
+    "kind": "function",
+    "detail": "request.footprint(...)",
+    "brief": "request",
+    "documentation": "request.footprint(num_ticks, va_percentage)\n\nRequest volume footprint data for the current bar.\nAdded in Pine Script v6 (January 2026).\n\nParameters:\n    num_ticks: Number of ticks per footprint row (int)\n    va_percentage: Value Area percentage (int, default 70)\n\nReturns:\n    Footprint object containing volume profile data, or None if no data available.\nThis is a mock implementation that generates sample footprint data.",
+    "snippet": "request.footprint(${1:param1})",
     "category": "request"
   },
   "request.quandl": {
@@ -4260,8 +4350,8 @@
     "label": "time",
     "kind": "function",
     "detail": "time(...)",
-    "brief": "Get current time in Unix timestamp (milliseconds)",
-    "documentation": "Get current time in Unix timestamp (milliseconds).",
+    "brief": "Get timestamp for bar start time",
+    "documentation": "Get timestamp for bar start time.\n\ntime(timezone, session, expression, lookback, gaps, lookahead,\n     ignore_invalid_timezone, timeframe, bars_back, timeframe_bars_back)\n\nAdded October 2025: timeframe_bars_back parameter for calculating timestamps\nrelative to a specific timeframe's bars.\n\nParameters:\n    timezone: Timezone string (e.g., \"UTC\", \"America/New_York\")\n    session: Session filter (e.g., \"regular\", \"extended\")\n    expression: Expression to evaluate\n    lookback: Number of bars back to look\n    gaps: Gap handling (\"na\", \"barmerge.gaps\")\n    lookahead: Lookahead mode (\"na\", \"barmerge.lookahead\")\n    ignore_invalid_timezone: Ignore invalid timezone errors\n    timeframe: Timeframe for calculation\n    bars_back: Bar offset on main timeframe\n    timeframe_bars_back: Bar offset on specified timeframe (October 2025 feature)\n\nReturns Unix timestamp in milliseconds.",
     "snippet": "time(${1:arg})",
     "category": "builtin"
   },
@@ -4269,8 +4359,8 @@
     "label": "time_close",
     "kind": "function",
     "detail": "time_close(...)",
-    "brief": "Get close time of current bar (same as time in most contexts)",
-    "documentation": "Get close time of current bar (same as time in most contexts).",
+    "brief": "Get close time of current bar",
+    "documentation": "Get close time of current bar.\n\ntime_close(timezone, session, lookback, gaps, lookahead,\n           ignore_invalid_timezone, timeframe, bars_back, timeframe_bars_back)\n\nAdded October 2025: timeframe_bars_back parameter for calculating timestamps\nrelative to a specific timeframe's bars.\nAdded May 2025: Improved behavior on tick charts and price-based charts\n(Renko, Kagi, line break, point & figure, range).\n\nParameters:\n    timezone: Timezone string (e.g., \"UTC\", \"America/New_York\")\n    session: Session filter\n    lookback: Number of bars back to look\n    gaps: Gap handling\n    lookahead: Lookahead mode\n    ignore_invalid_timezone: Ignore invalid timezone errors\n    timeframe: Timeframe for calculation\n    bars_back: Bar offset on main timeframe\n    timeframe_bars_back: Bar offset on specified timeframe (October 2025 feature)\n\nReturns Unix timestamp in milliseconds.",
     "snippet": "time_close(${1:arg})",
     "category": "builtin"
   },
@@ -4318,6 +4408,24 @@
     "documentation": "Create Unix timestamp from date/time components.",
     "snippet": "timestamp(${1:arg})",
     "category": "builtin"
+  },
+  "volume_row.down_price": {
+    "label": "volume_row.down_price",
+    "kind": "function",
+    "detail": "volume_row.down_price(...)",
+    "brief": "volume_row",
+    "documentation": "volume_row.down_price(volume_row) - Get lower price of volume row.",
+    "snippet": "volume_row.down_price(${1:param1})",
+    "category": "volume_row"
+  },
+  "volume_row.up_price": {
+    "label": "volume_row.up_price",
+    "kind": "function",
+    "detail": "volume_row.up_price(...)",
+    "brief": "volume_row",
+    "documentation": "volume_row.up_price(volume_row) - Get upper price of volume row.",
+    "snippet": "volume_row.up_price(${1:param1})",
+    "category": "volume_row"
   },
   "weekofyear": {
     "label": "weekofyear",

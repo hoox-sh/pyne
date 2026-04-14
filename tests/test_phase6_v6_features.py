@@ -451,3 +451,116 @@ plot(bid_value)
         unparsed = unparse(ast)
         reparsed = parse(unparsed)
         assert repr(ast) == repr(reparsed)
+
+
+class TestFootprintRequests:
+    """Test footprint data access (January 2026)"""
+
+    def test_request_footprint_basic(self):
+        """request.footprint basic usage"""
+        code = """
+indicator("Footprint Demo")
+fp = request.footprint(100, 70)
+plot(close)
+        """
+        ast = parse(code)
+        unparsed = unparse(ast)
+        reparsed = parse(unparsed)
+        assert repr(ast) == repr(reparsed)
+
+    def test_footprint_methods(self):
+        """footprint.*() method calls"""
+        code = """
+indicator("Footprint Methods")
+fp = request.footprint(100, 70)
+buyVol = fp.buy_volume()
+sellVol = fp.sell_volume()
+delta = fp.delta()
+plot(buyVol)
+        """
+        ast = parse(code)
+        unparsed = unparse(ast)
+        reparsed = parse(unparsed)
+        assert repr(ast) == repr(reparsed)
+
+    def test_footprint_row_methods(self):
+        """volume_row.*() method calls"""
+        code = """
+indicator("Volume Row Methods")
+fp = request.footprint(100, 70)
+pocRow = fp.poc()
+if not na(pocRow)
+    upPrice = pocRow.up_price()
+    downPrice = pocRow.down_price()
+plot(upPrice)
+        """
+        ast = parse(code)
+        unparsed = unparse(ast)
+        reparsed = parse(unparsed)
+        assert repr(ast) == repr(reparsed)
+
+
+class TestPlotLinestyle:
+    """Test plot linestyle parameter (September 2025)"""
+
+    def test_plot_linestyle_solid(self):
+        """plot with linestyle=plot.linestyle_solid"""
+        code = """
+indicator("Solid Line")
+plot(close, linestyle=plot.linestyle_solid)
+        """
+        ast = parse(code)
+        unparsed = unparse(ast)
+        reparsed = parse(unparsed)
+        assert repr(ast) == repr(reparsed)
+
+    def test_plot_linestyle_dashed(self):
+        """plot with linestyle=plot.linestyle_dashed"""
+        code = """
+indicator("Dashed Line")
+plot(close, linestyle=plot.linestyle_dashed)
+        """
+        ast = parse(code)
+        unparsed = unparse(ast)
+        reparsed = parse(unparsed)
+        assert repr(ast) == repr(reparsed)
+
+    def test_plot_linestyle_dotted(self):
+        """plot with linestyle=plot.linestyle_dotted"""
+        code = """
+indicator("Dotted Line")
+plot(close, linestyle=plot.linestyle_dotted)
+        """
+        ast = parse(code)
+        unparsed = unparse(ast)
+        reparsed = parse(unparsed)
+        assert repr(ast) == repr(reparsed)
+
+
+class TestInputActiveParameter:
+    """Test input active parameter (July 2025)"""
+
+    def test_input_with_active_true(self):
+        """input with active=true"""
+        code = """
+indicator("Active Input Demo")
+enableSmoothing = input.bool(false, "Enable", group="Settings")
+smoothLength = input.int(9, "Length", group="Settings", active=enableSmoothing)
+plot(close)
+        """
+        ast = parse(code)
+        unparsed = unparse(ast)
+        reparsed = parse(unparsed)
+        assert repr(ast) == repr(reparsed)
+
+    def test_input_with_active_false(self):
+        """input with active=false"""
+        code = """
+indicator("Inactive Input Demo")
+fixedValue = input.int(14, "Fixed Length", active=false)
+plot(close)
+        """
+        ast = parse(code)
+        unparsed = unparse(ast)
+        reparsed = parse(unparsed)
+        assert repr(ast) == repr(reparsed)

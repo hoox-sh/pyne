@@ -33,10 +33,12 @@ class InputBuiltinsMixin(BuiltinDispatchMixin):
 
     def _handle_input(self, args: list[Any]) -> dict[str, Any]:
         """
-        input(defval, title, tooltip, inline, group, confirm)
+        input(defval, title, tooltip, inline, group, confirm, active)
 
         Generic input function that returns parameter metadata.
         Default type is inferred from defval.
+
+        Added July 2025: active parameter for conditional input enabling.
 
         Returns dict with parameter metadata.
         """
@@ -46,6 +48,7 @@ class InputBuiltinsMixin(BuiltinDispatchMixin):
         inline = args[3] if len(args) > 3 else None
         group = args[4] if len(args) > 4 else None
         confirm = args[5] if len(args) > 5 else False
+        active = args[6] if len(args) > 6 else True  # July 2025: active parameter
 
         # Infer type from default value
         inferred_type = "float"
@@ -64,13 +67,16 @@ class InputBuiltinsMixin(BuiltinDispatchMixin):
             "inline": inline,
             "group": group,
             "confirm": confirm,
+            "active": active,  # July 2025 feature
         }
 
     def _handle_input_bool(self, args: list[Any]) -> dict[str, Any]:
         """
-        input.bool(defval, title, tooltip, inline, group, confirm)
+        input.bool(defval, title, tooltip, inline, group, confirm, active)
 
         Create a boolean input parameter.
+
+        Added July 2025: active parameter for conditional input enabling.
 
         Parameters:
             defval: Default value (bool)
@@ -79,6 +85,7 @@ class InputBuiltinsMixin(BuiltinDispatchMixin):
             inline: Inline group name (str or None)
             group: Parameter group name (str or None)
             confirm: Require user confirmation (bool)
+            active: Whether input is editable (bool, default true)
 
         Returns dict with parameter metadata.
         """
@@ -88,6 +95,7 @@ class InputBuiltinsMixin(BuiltinDispatchMixin):
         inline = args[3] if len(args) > 3 else None
         group = args[4] if len(args) > 4 else None
         confirm = args[5] if len(args) > 5 else False
+        active = args[6] if len(args) > 6 else True  # July 2025
 
         return {
             "type": "bool",
@@ -97,14 +105,17 @@ class InputBuiltinsMixin(BuiltinDispatchMixin):
             "inline": inline,
             "group": group,
             "confirm": confirm,
+            "active": active,
         }
 
     def _handle_input_int(self, args: list[Any]) -> dict[str, Any]:
         """
         input.int(defval, title, minval, maxval, step, tooltip, inline,
-                  group, confirm)
+                  group, confirm, active)
 
         Create an integer input parameter.
+
+        Added July 2025: active parameter for conditional input enabling.
 
         Parameters:
             defval: Default value (int)
@@ -116,6 +127,7 @@ class InputBuiltinsMixin(BuiltinDispatchMixin):
             inline: Inline group name (str or None)
             group: Parameter group name (str or None)
             confirm: Require user confirmation (bool)
+            active: Whether input is editable (bool, default true)
 
         Returns dict with parameter metadata.
         """
@@ -128,6 +140,7 @@ class InputBuiltinsMixin(BuiltinDispatchMixin):
         inline = args[6] if len(args) > 6 else None
         group = args[7] if len(args) > 7 else None
         confirm = args[8] if len(args) > 8 else False
+        active = args[9] if len(args) > 9 else True  # July 2025
 
         return {
             "type": "int",
@@ -140,13 +153,16 @@ class InputBuiltinsMixin(BuiltinDispatchMixin):
             "inline": inline,
             "group": group,
             "confirm": confirm,
+            "active": active,
         }
 
     def _handle_input_float(self, args: list[Any]) -> dict[str, Any]:
         """
-        input.float(defval, title, minval, maxval, step, tooltip, inline, group, confirm)
+        input.float(defval, title, minval, maxval, step, tooltip, inline, group, confirm, active)
 
         Create a float input parameter.
+
+        Added July 2025: active parameter for conditional input enabling.
 
         Parameters:
             defval: Default value (float)
@@ -158,6 +174,7 @@ class InputBuiltinsMixin(BuiltinDispatchMixin):
             inline: Inline group name (str or None)
             group: Parameter group name (str or None)
             confirm: Require user confirmation (bool)
+            active: Whether input is editable (bool, default true)
 
         Returns dict with parameter metadata.
         """
@@ -170,6 +187,7 @@ class InputBuiltinsMixin(BuiltinDispatchMixin):
         inline = args[6] if len(args) > 6 else None
         group = args[7] if len(args) > 7 else None
         confirm = args[8] if len(args) > 8 else False
+        active = args[9] if len(args) > 9 else True  # July 2025
 
         return {
             "type": "float",
@@ -182,14 +200,17 @@ class InputBuiltinsMixin(BuiltinDispatchMixin):
             "inline": inline,
             "group": group,
             "confirm": confirm,
+            "active": active,
         }
 
     def _handle_input_price(self, args: list[Any]) -> dict[str, Any]:
         """
-        input.price(defval, title, minval, maxval, step, tooltip, inline, group, confirm)
+        input.price(defval, title, minval, maxval, step, tooltip, inline, group, confirm, active)
 
         Create a price input parameter.
         Price inputs are essentially float inputs optimized for price values.
+
+        Added July 2025: active parameter for conditional input enabling.
 
         Parameters:
             defval: Default price value (float)
@@ -201,6 +222,7 @@ class InputBuiltinsMixin(BuiltinDispatchMixin):
             inline: Inline group name (str or None)
             group: Parameter group name (str or None)
             confirm: Require user confirmation (bool)
+            active: Whether input is editable (bool, default true)
 
         Returns dict with parameter metadata.
         """
@@ -213,6 +235,7 @@ class InputBuiltinsMixin(BuiltinDispatchMixin):
         inline = args[6] if len(args) > 6 else None
         group = args[7] if len(args) > 7 else None
         confirm = args[8] if len(args) > 8 else False
+        active = args[9] if len(args) > 9 else True  # July 2025
 
         return {
             "type": "price",
@@ -225,13 +248,16 @@ class InputBuiltinsMixin(BuiltinDispatchMixin):
             "inline": inline,
             "group": group,
             "confirm": confirm,
+            "active": active,
         }
 
     def _handle_input_string(self, args: list[Any]) -> dict[str, Any]:
         """
-        input.string(defval, title, tooltip, inline, group, confirm)
+        input.string(defval, title, tooltip, inline, group, confirm, active)
 
         Create a string input parameter.
+
+        Added July 2025: active parameter for conditional input enabling.
 
         Parameters:
             defval: Default value (str)
@@ -240,6 +266,7 @@ class InputBuiltinsMixin(BuiltinDispatchMixin):
             inline: Inline group name (str or None)
             group: Parameter group name (str or None)
             confirm: Require user confirmation (bool)
+            active: Whether input is editable (bool, default true)
 
         Returns dict with parameter metadata.
         """
@@ -249,6 +276,7 @@ class InputBuiltinsMixin(BuiltinDispatchMixin):
         inline = args[3] if len(args) > 3 else None
         group = args[4] if len(args) > 4 else None
         confirm = args[5] if len(args) > 5 else False
+        active = args[6] if len(args) > 6 else True  # July 2025
 
         return {
             "type": "string",
@@ -258,14 +286,17 @@ class InputBuiltinsMixin(BuiltinDispatchMixin):
             "inline": inline,
             "group": group,
             "confirm": confirm,
+            "active": active,
         }
 
     def _handle_input_symbol(self, args: list[Any]) -> dict[str, Any]:
         """
-        input.symbol(defval, title, tooltip, inline, group, confirm)
+        input.symbol(defval, title, tooltip, inline, group, confirm, active)
 
         Create a symbol/ticker input parameter.
         Symbol inputs are specialized string inputs for security symbols.
+
+        Added July 2025: active parameter for conditional input enabling.
 
         Parameters:
             defval: Default symbol (str)
@@ -274,6 +305,7 @@ class InputBuiltinsMixin(BuiltinDispatchMixin):
             inline: Inline group name (str or None)
             group: Parameter group name (str or None)
             confirm: Require user confirmation (bool)
+            active: Whether input is editable (bool, default true)
 
         Returns dict with parameter metadata.
         """
@@ -283,6 +315,7 @@ class InputBuiltinsMixin(BuiltinDispatchMixin):
         inline = args[3] if len(args) > 3 else None
         group = args[4] if len(args) > 4 else None
         confirm = args[5] if len(args) > 5 else False
+        active = args[6] if len(args) > 6 else True  # July 2025
 
         return {
             "type": "symbol",
@@ -292,14 +325,17 @@ class InputBuiltinsMixin(BuiltinDispatchMixin):
             "inline": inline,
             "group": group,
             "confirm": confirm,
+            "active": active,
         }
 
     def _handle_input_session(self, args: list[Any]) -> dict[str, Any]:
         """
-        input.session(defval, title, tooltip, inline, group, confirm)
+        input.session(defval, title, tooltip, inline, group, confirm, active)
 
         Create a session input parameter.
         Session inputs define trading session times (e.g., "0930-1600").
+
+        Added July 2025: active parameter for conditional input enabling.
 
         Parameters:
             defval: Default session string (str)
@@ -308,6 +344,7 @@ class InputBuiltinsMixin(BuiltinDispatchMixin):
             inline: Inline group name (str or None)
             group: Parameter group name (str or None)
             confirm: Require user confirmation (bool)
+            active: Whether input is editable (bool, default true)
 
         Returns dict with parameter metadata.
         """
@@ -317,6 +354,7 @@ class InputBuiltinsMixin(BuiltinDispatchMixin):
         inline = args[3] if len(args) > 3 else None
         group = args[4] if len(args) > 4 else None
         confirm = args[5] if len(args) > 5 else False
+        active = args[6] if len(args) > 6 else True  # July 2025
 
         return {
             "type": "session",
@@ -326,14 +364,17 @@ class InputBuiltinsMixin(BuiltinDispatchMixin):
             "inline": inline,
             "group": group,
             "confirm": confirm,
+            "active": active,
         }
 
     def _handle_input_source(self, args: list[Any]) -> dict[str, Any]:
         """
-        input.source(defval, title, tooltip, inline, group, confirm)
+        input.source(defval, title, tooltip, inline, group, confirm, active)
 
         Create a source input parameter.
         Source inputs select OHLCV data sources (close, open, high, low, hl2, hlc3, ohlc4, etc.).
+
+        Added July 2025: active parameter for conditional input enabling.
 
         Parameters:
             defval: Default source (str, e.g., "close")
@@ -342,6 +383,7 @@ class InputBuiltinsMixin(BuiltinDispatchMixin):
             inline: Inline group name (str or None)
             group: Parameter group name (str or None)
             confirm: Require user confirmation (bool)
+            active: Whether input is editable (bool, default true)
 
         Returns dict with parameter metadata.
         """
@@ -351,6 +393,7 @@ class InputBuiltinsMixin(BuiltinDispatchMixin):
         inline = args[3] if len(args) > 3 else None
         group = args[4] if len(args) > 4 else None
         confirm = args[5] if len(args) > 5 else False
+        active = args[6] if len(args) > 6 else True  # July 2025
 
         return {
             "type": "source",
@@ -360,14 +403,17 @@ class InputBuiltinsMixin(BuiltinDispatchMixin):
             "inline": inline,
             "group": group,
             "confirm": confirm,
+            "active": active,
         }
 
     def _handle_input_time(self, args: list[Any]) -> dict[str, Any]:
         """
-        input.time(defval, title, tooltip, inline, group, confirm)
+        input.time(defval, title, tooltip, inline, group, confirm, active)
 
         Create a time input parameter.
         Time inputs select a specific date and time as Unix timestamp.
+
+        Added July 2025: active parameter for conditional input enabling.
 
         Parameters:
             defval: Default time (int, Unix timestamp)
@@ -376,6 +422,7 @@ class InputBuiltinsMixin(BuiltinDispatchMixin):
             inline: Inline group name (str or None)
             group: Parameter group name (str or None)
             confirm: Require user confirmation (bool)
+            active: Whether input is editable (bool, default true)
 
         Returns dict with parameter metadata.
         """
@@ -385,6 +432,7 @@ class InputBuiltinsMixin(BuiltinDispatchMixin):
         inline = args[3] if len(args) > 3 else None
         group = args[4] if len(args) > 4 else None
         confirm = args[5] if len(args) > 5 else False
+        active = args[6] if len(args) > 6 else True  # July 2025
 
         return {
             "type": "time",
@@ -394,14 +442,17 @@ class InputBuiltinsMixin(BuiltinDispatchMixin):
             "inline": inline,
             "group": group,
             "confirm": confirm,
+            "active": active,
         }
 
     def _handle_input_timeframe(self, args: list[Any]) -> dict[str, Any]:
         """
-        input.timeframe(defval, title, tooltip, inline, group, confirm)
+        input.timeframe(defval, title, tooltip, inline, group, confirm, active)
 
         Create a timeframe input parameter.
         Timeframe inputs select chart timeframes (e.g., "1", "5", "1H", "D").
+
+        Added July 2025: active parameter for conditional input enabling.
 
         Parameters:
             defval: Default timeframe (str)
@@ -410,6 +461,7 @@ class InputBuiltinsMixin(BuiltinDispatchMixin):
             inline: Inline group name (str or None)
             group: Parameter group name (str or None)
             confirm: Require user confirmation (bool)
+            active: Whether input is editable (bool, default true)
 
         Returns dict with parameter metadata.
         """
@@ -419,6 +471,7 @@ class InputBuiltinsMixin(BuiltinDispatchMixin):
         inline = args[3] if len(args) > 3 else None
         group = args[4] if len(args) > 4 else None
         confirm = args[5] if len(args) > 5 else False
+        active = args[6] if len(args) > 6 else True  # July 2025
 
         return {
             "type": "timeframe",
@@ -428,14 +481,17 @@ class InputBuiltinsMixin(BuiltinDispatchMixin):
             "inline": inline,
             "group": group,
             "confirm": confirm,
+            "active": active,
         }
 
     def _handle_input_color(self, args: list[Any]) -> dict[str, Any]:
         """
-        input.color(defval, title, tooltip, inline, group, confirm)
+        input.color(defval, title, tooltip, inline, group, confirm, active)
 
         Create a color input parameter.
         Color inputs select RGBA color values.
+
+        Added July 2025: active parameter for conditional input enabling.
 
         Parameters:
             defval: Default color (str, e.g., "#FF0000" or color constant)
@@ -444,6 +500,7 @@ class InputBuiltinsMixin(BuiltinDispatchMixin):
             inline: Inline group name (str or None)
             group: Parameter group name (str or None)
             confirm: Require user confirmation (bool)
+            active: Whether input is editable (bool, default true)
 
         Returns dict with parameter metadata.
         """
@@ -453,6 +510,7 @@ class InputBuiltinsMixin(BuiltinDispatchMixin):
         inline = args[3] if len(args) > 3 else None
         group = args[4] if len(args) > 4 else None
         confirm = args[5] if len(args) > 5 else False
+        active = args[6] if len(args) > 6 else True  # July 2025
 
         return {
             "type": "color",
@@ -462,14 +520,17 @@ class InputBuiltinsMixin(BuiltinDispatchMixin):
             "inline": inline,
             "group": group,
             "confirm": confirm,
+            "active": active,
         }
 
     def _handle_input_enum(self, args: list[Any]) -> dict[str, Any]:
         """
-        input.enum(defval, title, options, tooltip, inline, group, confirm)
+        input.enum(defval, title, options, tooltip, inline, group, confirm, active)
 
         Create an enumeration input parameter.
         Enum inputs provide a dropdown list of predefined options.
+
+        Added July 2025: active parameter for conditional input enabling.
 
         Parameters:
             defval: Default option (str)
@@ -479,6 +540,7 @@ class InputBuiltinsMixin(BuiltinDispatchMixin):
             inline: Inline group name (str or None)
             group: Parameter group name (str or None)
             confirm: Require user confirmation (bool)
+            active: Whether input is editable (bool, default true)
 
         Returns dict with parameter metadata.
         """
@@ -489,6 +551,7 @@ class InputBuiltinsMixin(BuiltinDispatchMixin):
         inline = args[4] if len(args) > 4 else None
         group = args[5] if len(args) > 5 else None
         confirm = args[6] if len(args) > 6 else False
+        active = args[7] if len(args) > 7 else True  # July 2025
 
         return {
             "type": "enum",
@@ -499,4 +562,5 @@ class InputBuiltinsMixin(BuiltinDispatchMixin):
             "inline": inline,
             "group": group,
             "confirm": confirm,
+            "active": active,
         }
