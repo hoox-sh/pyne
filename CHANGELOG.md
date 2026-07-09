@@ -8,4 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- Initial project structure and documentation.
+- Strategy events system: StrategyEvent dataclass, full emission from strategy.* builtins, parity test corpus.
+- pine-worker/ as colocated extra tool: TypeScript evaluator port + Python to TS converter script (convert-python-to-ts.py).
+- var / varip declaration modes and ReAssign support.
+- Consolidation of main with recent plan branch work (2026-07-09).
+
+### Changed
+- Updated documentation (ROADMAP, missing_features, implementation status, LSP plan) to reflect current state.
+- Backend test collection fixes post-integration.
