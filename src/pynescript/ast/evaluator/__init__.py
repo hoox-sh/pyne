@@ -44,6 +44,13 @@ class NodeLiteralEvaluator(
     Combines all evaluator mixins for flexible AST node evaluation.
     """
 
+    def __init__(self, context=None):
+        super().__init__(context)
+        # Support for strategy events (from plan branch integration)
+        if not hasattr(self, "_strategy_state"):
+            from pynescript.ast.evaluator.builtins.strategy import StrategyState
+            self._strategy_state = StrategyState()
+
     def evaluate_script(self, source: str) -> Any:
         """Parse and evaluate a script string.
 

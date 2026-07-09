@@ -39,3 +39,14 @@ class CustomEvaluator(NodeLiteralEvaluator):
 
     def reset_plots(self):
         self.plot_outputs = []
+
+    def reset_var_declarations(self):
+        """No-op / placeholder for var/varip support (integrated from plan branch)."""
+        if not hasattr(self, "_var_initialized"):
+            self._var_initialized = set()
+
+    def reset_events(self):
+        """Reset per-bar events (from strategy events integration)."""
+        # Events are typically drained from strategy state in the integrated flow
+        if hasattr(self, "_strategy_state"):
+            self._strategy_state._events = []  # type: ignore[attr-defined]

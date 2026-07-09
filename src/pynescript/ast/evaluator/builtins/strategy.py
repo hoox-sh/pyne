@@ -139,6 +139,8 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
     # ENTRY/EXIT FUNCTIONS
 
     def _handle_strategy_entry(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> None:
+        if not hasattr(self, "_strategy_state"):
+            self._strategy_state = StrategyState()
         """
         strategy.entry(id, direction, qty, limit, stop, comment, alert, ...)
 

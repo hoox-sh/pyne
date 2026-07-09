@@ -21,7 +21,7 @@ class BuiltinDispatchMixin:
     def _build_builtin_map(self) -> dict[str, BuiltinHandler]:
         return {}
 
-    def _call_builtin(self, name: str, args: list[Any]) -> Any:
+    def _call_builtin(self, name: str, args: list[Any], kwargs: dict[str, Any] | None = None) -> Any:
         dispatch = self._builtin_dispatch
         if dispatch is None:
             dispatch = self._build_builtin_map()
@@ -34,6 +34,8 @@ class BuiltinDispatchMixin:
                 f"Use 'ta.<name>' for technical analysis, 'math.<name>' for math functions."
             )
             raise ValueError(msg)
+        if kwargs:
+            return handler(args, kwargs)
         return handler(args)
 
     @staticmethod
