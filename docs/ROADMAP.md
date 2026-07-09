@@ -1,7 +1,7 @@
 # Pynescript Future Roadmap
 
-**Last Updated:** April 10, 2026  
-**Status:** Core Features 100% Complete + Enhanced
+**Last Updated:** 2026-07-09 (consolidation on main)  
+**Status:** Core + Strategy Events + pine-worker extra tool integrated. Many historical "remaining" items now implemented.
 
 ---
 
@@ -10,15 +10,18 @@
 | Component | Status |
 |-----------|--------|
 | Parser (ANTLR4) | 100% ✅ |
-| Evaluator | 100% ✅ |
+| Evaluator | 100% ✅ (incl. full var/varip, ReAssign) |
 | Built-in Functions | 224+ ✅ |
 | Technical Analysis | 178+ ✅ |
 | Collections (array/matrix/map) | 100% ✅ |
-| Drawing/Strategy/Input/Request | 100% ✅ |
+| Strategy Events | ✅ (StrategyEvent, parity, long/short constants, full emission) |
+| pine-worker (TS port + converter) | ✅ (extra tool colocated in repo) |
+| Drawing/Strategy/Input/Request | 100% (plotting stubs intentional) |
 | Linter | ✅ |
 | Jupyter Integration | ✅ |
-| Data Providers (Yahoo, AlphaVantage, CCXT) | ✅ |
-| Tests | 1021 passing ✅ |
+| Data Providers (Yahoo, AlphaVantage, CCXT) | ✅ (mocks + providers) |
+| LSP (core) | Advanced (diagnostics, completion, hover, formatting, symbols, defs, refs) |
+| Tests | 1000+ (core 381+ in recent run; parity + strategy events green) |
 
 ---
 
@@ -49,6 +52,11 @@
    - CLI: `pynescript data SYMBOL --provider`
 
 ---
+
+## Recent Additions (July 2026 consolidation)
+- Full `strategy.*` event capture with `StrategyEvent` dataclass, parity test corpus, `var`/`varip` support.
+- `pine-worker/` — TypeScript evaluator port + `scripts/convert-python-to-ts.py` converter, treated as extra tool of the main repo.
+- See `.opencode/plans/2026-07-09-main-consolidation-remaining-work.md` for the full consolidation plan.
 
 ## Roadmap: Remaining Work
 
