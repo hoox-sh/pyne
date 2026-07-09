@@ -1,156 +1,133 @@
-# Byte-compiled / optimized / DLL files
-__pycache__/
-*.py[cod]
+
 *$py.class
-
-# C extensions
-*.so
-
-# Distribution / packaging
-.Python
-build/
-!scripts/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-share/python-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
-
-# PyInstaller
-#  Usually these files are written by a python script from a template
+#  and can be added to the global gitignore or merged into this file.  For a more nuclear
+.antlr/
+# ANTLR4
 #  before PyInstaller builds the exe, so as to inject date/other infos into it.
-*.manifest
-*.spec
-
-# Installer logs
-pip-log.txt
-pip-delete-this-directory.txt
-
-# Unit test / coverage reports
-htmlcov/
-.tox/
-.nox/
+#  be found at https://github.com/github/gitignore/blob/main/Global/JetBrains.gitignore
+build/
+# Byte-compiled / optimized / DLL files
+.cache
+celerybeat.pid
+celerybeat-schedule
+# Celery stuff
+# C extensions
+*.cover
+cover/
 .coverage
 .coverage.*
-.cache
-nosetests.xml
-coverage.xml
-coverage.lcov
-*.cover
-*.py,cover
-.hypothesis/
-.pytest_cache/
-cover/
 coverage/
-
-# Translations
-*.mo
-*.pot
-
-# Django stuff:
-*.log
-local_settings.py
+coverage.lcov
+coverage.xml
+cython_debug/
+# Cython debug symbols
 db.sqlite3
 db.sqlite3-journal
-
-# Flask stuff:
-instance/
-.webassets-cache
-
-# Scrapy stuff:
-.scrapy
-
-# Sphinx documentation
-docs/_build/
-docs/apidoc/
-
-# PyBuilder
-.pybuilder/
-target/
-
-# Jupyter Notebook
-.ipynb_checkpoints
-
-# IPython
-profile_default/
-ipython_config.py
-
-# PEP 582; used by e.g. github.com/David-OConnor/pyflow and github.com/pdm-project/pdm
-__pypackages__/
-
-# Celery stuff
-celerybeat-schedule
-celerybeat.pid
-
-# SageMath parsed files
-*.sage.py
-
-# Environments
-.env
-.venv
-env/
-venv/
-ENV/
-env.bak/
-venv.bak/
-
-# Spyder project settings
-.spyderproject
-.spyproject
-
-# Rope project settings
-.ropeproject
-
-# mkdocs documentation
-/site
-
-# mypy
-.mypy_cache/
+develop-eggs/
+dist/
+# Distribution / packaging
+# Django stuff:
 .dmypy.json
 dmypy.json
-
-# ruff
-.ruff_cache/
-
-# Pyre type checker
-.pyre/
-
-# pytype static type analyzer
-.pytype/
-
-# Cython debug symbols
-cython_debug/
-
-# PyCharm
-#  JetBrains specific template is maintained in a separate JetBrains.gitignore that can
-#  be found at https://github.com/github/gitignore/blob/main/Global/JetBrains.gitignore
-#  and can be added to the global gitignore or merged into this file.  For a more nuclear
-#  option (not recommended) you can uncomment the following to ignore the entire idea folder.
+docs/apidoc/
+docs/_build/
+downloads/
+*.egg
+*.egg-info/
+.eggs/
+eggs/
+.env
+env/
+ENV/
+env.bak/
+# Environments
+# Flask stuff:
+htmlcov/
+.hypothesis/
 #.idea/
-
-# ANTLR4
-.antlr/
-
-# Others
 .ignore/
-.pypirc
-*.stats
-
+.installed.cfg
+# Installer logs
+instance/
+.ipynb_checkpoints
+# IPython
+ipython_config.py
+#  JetBrains specific template is maintained in a separate JetBrains.gitignore that can
+# Jupyter Notebook
+lib/
+lib64/
+local_settings.py
+*.log
+# LSP build artifacts
+*.manifest
+MANIFEST
+# mkdocs documentation
+*.mo
+# mypy
+.mypy_cache/
+nosetests.xml
+.nox/
 # Nuitka build
 *.onefile.exe
-
-# LSP build artifacts
+#  option (not recommended) you can uncomment the following to ignore the entire idea folder.
+# Others
+parts/
+# PEP 582; used by e.g. github.com/David-OConnor/pyflow and github.com/pdm-project/pdm
+pine-worker/bun.lockb
+pine-worker/dist/
+# pine-worker (extra tool)
+pine-worker/*.log
+pine-worker/node_modules/
+pine-worker/.wrangler/
+pip-delete-this-directory.txt
+pip-log.txt
+*.pot
+profile_default/
+.pybuilder/
+# PyBuilder
+__pycache__/
+# PyCharm
+*.py[cod]
+*.py,cover
+# PyInstaller
+__pypackages__/
+.pypirc
+.pyre/
+# Pyre type checker
+.pytest_cache/
+.Python
+.pytype/
+# pytype static type analyzer
+.ropeproject
+# Rope project settings
+# ruff
+.ruff_cache/
+# SageMath parsed files
+*.sage.py
+.scrapy
+# Scrapy stuff:
+!scripts/
 scripts/build/.metadata.key
-vscode-extension/out/
+sdist/
+share/python-wheels/
+/site
+*.so
+*.spec
+# Sphinx documentation
+.spyderproject
+# Spyder project settings
+.spyproject
+*.stats
+target/
+.tox/
+# Translations
+# Unit test / coverage reports
+#  Usually these files are written by a python script from a template
+var/
+.venv
+venv/
+venv.bak/
 vscode-extension/node_modules/
+vscode-extension/out/
+.webassets-cache
+wheels/
