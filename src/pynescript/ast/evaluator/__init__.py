@@ -51,6 +51,14 @@ class NodeLiteralEvaluator(
             from pynescript.ast.evaluator.builtins.strategy import StrategyState
             self._strategy_state = StrategyState()
 
+        if not hasattr(self, "_var_declarations"):
+            self._var_declarations = set()
+
+    def reset_events(self):
+        """Reset events for per-bar testing (strategy events integration)."""
+        if hasattr(self, "_strategy_state"):
+            self._strategy_state._events = []  # type: ignore[attr-defined]
+
     def evaluate_script(self, source: str) -> Any:
         """Parse and evaluate a script string.
 

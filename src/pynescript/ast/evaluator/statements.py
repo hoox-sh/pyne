@@ -21,11 +21,13 @@ from pynescript.ast.type_system import UserDefinedType
 
 class BreakLoop(Exception):
     """Signal to break out of a loop."""
+
     pass
 
 
 class ContinueLoop(Exception):
     """Signal to continue to the next iteration of a loop."""
+
     pass
 
 
@@ -59,23 +61,66 @@ class StatementEvaluator:
 
         Assigns a value to a variable in the current context.
 
+        ``var`` / ``varip`` declarations (``node.mode == Var/VarIp``) are
+        only executed on the first bar (``bar_index == 0``). On subsequent
+        bars the declaration is skipped so the variable retains its value
+        across bars — the canonical Pine Script ``var`` semantics.
+
         Args:
-            node: The Assign node with target and value
+            node: The Assign node with target, value, and optional mode
 
         Raises:
             ValueError: If assignment target is not a simple name
         """
-        # Only proceed if there's a value to assign (not None)
-        if node.value:
-            # Evaluate the right-hand side expression
-            value = self.visit(node.value)  # type: ignore[attr-defined]
-            # Handle simple name assignment (e.g., x = 5)
+        # -- Handle var / varip: only assign on first bar ------------------
+        first_bar = self.context.get("bar_index", 0) == 0  # type: ignore[attr-defined]
+        is_var = node.mode is not None and isinstance(node.mode, (ast.Var, ast.VarIp))
+
+        if is_var:
             if isinstance(node.target, ast.Name):
-                # Store the value in context under the variable name
+                name: str = node.target.id  # type: ignore[attr-defined]
+                if first_bar:
+                    # First bar — assign initial value and record name
+                    if node.value:
+                        value = self.visit(node.value)  # type: ignore[attr-defined]
+                        self.context[name] = value  # type: ignore[attr-defined]
+                    self._var_declarations.add(name)  # type: ignore[attr-defined]
+                else:
+                    # Subsequent bars — skip (variable keeps its value)
+                    pass
+                return
+            msg = f"Unsupported var/varip target: {type(node.target)}"
+            self._error(msg)  # type: ignore[attr-defined]
+            return
+
+        # -- Regular assignment (no var/varip) -----------------------------
+        if node.value:
+            value = self.visit(node.value)  # type: ignore[attr-defined]
+            if isinstance(node.target, ast.Name):
                 self.context[node.target.id] = value  # type: ignore[attr-defined]
             else:
                 msg = f"Unsupported assignment target: {type(node.target)}"
                 self._error(msg)  # type: ignore[attr-defined]
+
+    def visit_ReAssign(self, node: ast.ReAssign):
+        """Handle reassignment (``x := x + 1``).
+
+        Evaluates the right-hand side and stores the result in the target
+        variable. This is the Pine Script ``:=`` operator, distinct from
+        ``AugAssign`` (``x += 1``).
+
+        Args:
+            node: The ReAssign node with target and value
+
+        Raises:
+            ValueError: If reassignment target is not a simple name
+        """
+        value = self.visit(node.value)  # type: ignore[attr-defined]
+        if isinstance(node.target, ast.Name):
+            self.context[node.target.id] = value  # type: ignore[attr-defined]
+        else:
+            msg = f"Unsupported reassignment target: {type(node.target)}"
+            self._error(msg)  # type: ignore[attr-defined]
 
     def visit_AugAssign(self, node: ast.AugAssign):
         """Handle augmented assignment (e.g., obj.field := value).

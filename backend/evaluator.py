@@ -18,6 +18,8 @@ class CustomEvaluator(NodeLiteralEvaluator):
     def __init__(self, context=None):
         super().__init__(context)
         self.plot_outputs = []
+        if not hasattr(self, "_var_declarations"):
+            self._var_declarations = set()
 
     def _builtin_plot(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> None:
         """
@@ -41,9 +43,8 @@ class CustomEvaluator(NodeLiteralEvaluator):
         self.plot_outputs = []
 
     def reset_var_declarations(self):
-        """No-op / placeholder for var/varip support (integrated from plan branch)."""
-        if not hasattr(self, "_var_initialized"):
-            self._var_initialized = set()
+        """Reset var declarations set for per-run (from plan branch var support)."""
+        self._var_declarations = set()
 
     def reset_events(self):
         """Reset per-bar events (from strategy events integration)."""
