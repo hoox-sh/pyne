@@ -16,17 +16,19 @@
 
 # Missing Features - Pine Script v6 Implementation
 
-**Current Status:** 100% Complete - All Core Features Implemented ✅  
-**Last Updated:** November 5, 2025
+**Current Status:** Core features complete + major July 2026 additions (strategy events, var/varip, pine-worker extra tool). See consolidation plan.  
+**Last Updated:** 2026-07-09
 
 ---
 
 ## 🎉 Project Completion Status
 
-PyneScript has reached **100% feature completion** with the implementation of all Pine Script v5/v6 core features:
+PyneScript core is mature, with significant July 2026 enhancements:
 
-- ✅ **149+ Built-in Functions** - All major technical analysis, utility, drawing, and strategy functions
-- ✅ **997 Regression Tests** - Comprehensive test suite with 100% pass rate
+- ✅ **Strategy Events** - Full StrategyEvent capture, parity corpus (13+ tests), strategy.long/short constants, var/varip + ReAssign support.
+- ✅ **pine-worker** - TypeScript port of evaluator + Python→TS converter script as extra tool (colocated in repo).
+- ✅ **200+ Built-in Functions** (including advanced strategy)
+- ✅ **1000+ Tests** (core + parity + strategy events green)
 - ✅ **Complete Parser** - Full support for Pine Script v5-v6 grammar
 - ✅ **Full AST Support** - Complete abstract syntax tree representation
 - ✅ **Expression Evaluator** - Evaluate deterministic expressions and functions
@@ -256,12 +258,20 @@ PyneScript has reached **100% feature completion** with the implementation of al
 - **[Implementation Status](docs/pinescript_implementation_status.md)** - Detailed feature matrix
 - **[Progress Report](docs/PROGRESS_REPORT.md)** - Historical development notes
 - **[Phase 8 Complete](docs/PHASE_8_TIER8_COMPLETE.md)** - Final phase details
+- **[Consolidation Plan (2026-07-09)](.opencode/plans/2026-07-09-main-consolidation-remaining-work.md)** - Current remaining work and integration
 
 ---
 
-**Conclusion:** PyneScript has successfully implemented all core Pine Script features to 100% completion. The project provides a robust, well-tested foundation for Pine Script parsing, analysis, transformation, and evaluation. Future work focuses on optional enhancements rather than core feature gaps.
+## July 2026 Additions (Main Consolidation)
+
+- Full strategy event system: `StrategyEvent` dataclass, event emission from all strategy.* calls, bar_index/time threading, parity fixtures for testing against TS port.
+- `pine-worker/` directory: TypeScript re-implementation of key evaluator parts + `scripts/convert-python-to-ts.py` for porting aid. Treated as extra tool of the main repo.
+- var / varip declaration modes and ReAssign handling.
+- Updated test coverage with dedicated `test_strategy_events.py` and `test_parity.py`.
+
+**Conclusion:** PyneScript has successfully implemented all core Pine Script features. The project provides a robust, well-tested foundation. July 2026 work added first-class strategy events and a colocated TS port. Future work focuses on enhancements (perf, LSP polish, converters, real data) per the consolidation plan.
 
 ---
 
-_Last updated: November 5, 2025_  
-_Version: 1.0 (Final Release)_
+_Last updated: 2026-07-09_  
+_Version: 1.1_
