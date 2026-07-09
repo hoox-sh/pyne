@@ -196,3 +196,19 @@ def track_usage(f):
         return result
 
     return decorated
+
+
+def require_admin_token(f):
+    """Decorator to require admin privileges (placeholder for consolidation).
+
+    In production this would check a special admin key or role.
+    For now it allows the call (tests + dev).
+    """
+
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        # TODO: implement real admin check using key store or env
+        g.is_admin = True
+        return f(*args, **kwargs)
+
+    return decorated
