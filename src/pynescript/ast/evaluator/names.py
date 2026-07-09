@@ -101,6 +101,11 @@ class NameEvaluator:
 
         # Fallback: return qualified name string for later resolution
         # (e.g., for module-level attributes not yet resolved)
+        # Special case for zero-arg registered builtins like strategy.long / strategy.short
+        # (see plan subtask 1.1.2 / 1.3)
+        if self._is_registered_builtin(qualified_name):
+            return self._call_builtin(qualified_name, [])
+
         return qualified_name
 
     def visit_Subscript(self: EvaluatorProtocol, node: ast.Subscript) -> Any:
