@@ -257,7 +257,7 @@ PyneScript core is mature, with significant July 2026 enhancements:
 
 - **[Implementation Status](docs/pinescript_implementation_status.md)** - Detailed feature matrix
 - **[Progress Report](docs/PROGRESS_REPORT.md)** - Historical development notes
-- **[Phase 8 Complete](docs/PHASE_8_TIER8_COMPLETE.md)** - Final phase details
+- Phase 8 (advanced indicators) completed as part of core implementation. See consolidation plan for details.
 - **[Consolidation Plan (2026-07-09)](.opencode/plans/2026-07-09-main-consolidation-remaining-work.md)** - Current remaining work and integration
 
 ---

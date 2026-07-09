@@ -232,7 +232,7 @@ NOTES FOR DEVELOPER
 3. Keep all original function signatures identical
 4. Preserve docstrings and comments
 5. Test incrementally - validate each module extraction
-6. Update PHASE_8_* documentation files as needed
+6. (Historical phase docs removed in 2026-07 cleanup; update main docs/ROADMAP and consolidation plan instead)
 7. Consider creating a registry/factory pattern for indicator access
 
 ESTIMATED TIMELINE

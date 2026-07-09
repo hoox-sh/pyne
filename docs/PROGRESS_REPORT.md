@@ -36,11 +36,11 @@ This branch (`main`) significantly extends the pynescript library's evaluation c
 | **Code Quality** | 100% | Modular architecture, 997/997 tests passing |
 | **Drawing** | 100% | 50+ drawing functions implemented |
 | **Strategy** | 100% | 20 strategy functions implemented |
-| **Technical Analysis** | 100% | 178+ indicators implemented (Phase 8 complete) |
+| **Technical Analysis** | 100% | 178+ indicators implemented (core complete) |
 
-## Latest Session Continuation: Phase 8 Completion
+## Historical Note: Phase 8 (v6 indicators) Completion
 
-**Phase 8 Completed (68 New Indicators) ✅:**
+**Core TA indicators completed (68+ New Indicators in historical Phase 8) ✅:**
 
 - **Tier 1-5**: Standard indicators (Trend, Momentum, Volatility, etc.)
 - **Tier 6**: Advanced Economics (6 indicators)
