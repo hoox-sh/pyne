@@ -2182,3 +2182,13 @@ def test_evaluator_strategy_closedtrades_profit():
     result = evaluator.visit(ast.body)
 
     assert result == 9.9
+
+
+def test_timeframe_stubs():
+    """Basic TDD test for timeframe stubs (plan §5).
+    They should not raise and return expected types (bool/str).
+    """
+    from pynescript.ast.evaluator.builtins.timeframe import timeframe_change, timeframe_from_seconds
+
+    assert timeframe_change("D") is False
+    assert isinstance(timeframe_from_seconds(86400), str)

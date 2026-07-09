@@ -46,7 +46,8 @@ def timeframe_change(_timeframe_str: str) -> bool:
     Returns:
         Boolean indicating if timeframe has changed
     """
-    # Stub implementation - would need actual timeframe tracking
+    # Stub: in a real implementation this would compare current bar's timeframe state.
+    # For now returns False (no change detected) to avoid breaking scripts.
     return False
 
 
