@@ -23,6 +23,7 @@ from pynescript.langserver.features import completion as completion_feature
 from pynescript.langserver.features import definitions as definitions_feature
 from pynescript.langserver.features import formatting as formatting_feature
 from pynescript.langserver.features import hover as hover_feature
+from pynescript.langserver.features import inlay_hints as inlay_hints_feature
 from pynescript.langserver.features import references as references_feature
 from pynescript.langserver.features import symbols as symbols_feature
 from pynescript.langserver.workspace import Workspace
@@ -265,6 +266,15 @@ class PynescriptLanguageServer(LanguageServer):
             uri = params.text_document.uri
             source = self.pine_workspace.get_source(uri)
             return formatting_feature.handle_range_formatting(params, source)
+
+        @self.feature(lsp.TEXT_DOCUMENT_INLAY_HINT)
+        def text_inlay_hints(
+            params: lsp.InlayHintParams,
+        ) -> list[lsp.InlayHint] | None:
+            """Handle textDocument/inlayHint request."""
+            uri = params.text_document.uri
+            source = self.pine_workspace.get_source(uri)
+            return inlay_hints_feature.handle_inlay_hints(params, source)
 
 
 def _collect_workspace_symbols(doc: Any, uri: str) -> list[lsp.SymbolInformation]:

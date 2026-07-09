@@ -47,6 +47,9 @@ def get_server_capabilities() -> lsp.ServerCapabilities:
         ),
         document_formatting_provider=True,
         document_range_formatting_provider=True,
+        inlay_hint_provider=lsp.InlayHintOptions(
+            resolve_provider=False,
+        ),
         signature_help_provider=lsp.SignatureHelpOptions(
             trigger_characters=["(", ","],
             retrigger_characters=[","],
