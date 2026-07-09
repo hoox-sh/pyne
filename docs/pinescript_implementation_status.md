@@ -157,6 +157,12 @@ This document tracks the implementation status of PineScript v6 features in pyne
 - ✅ strategy.equity
 - ✅ strategy.margin_liquidation_price
 - ✅ strategy.account_currency
+
+**July 2026 enhancements:**
+- ✅ Full event emission: strategy.entry/exit/close/cancel etc now produce StrategyEvent with id, direction, qty, limit/stop, bar context.
+- ✅ strategy.long / strategy.short as proper builtin constants (resolve to "long"/"short").
+- ✅ var / varip modes and := ReAssign support.
+- ✅ Parity test corpus for cross-impl validation (with pine-worker TS).
 - ✅ strategy.convert_to_account
 - ✅ strategy.convert_to_symbol
 - ✅ strategy.max_contracts_held_all
