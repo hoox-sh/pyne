@@ -1,0 +1,32 @@
+{
+  "id": "pine-v6-features-25",
+  "seq": "25",
+  "title": "C4: LSP metadata + completion items for new features A13-A25, B14-B15",
+  "status": "pending",
+  "depends_on": ["23", "24"],
+  "parallel": false,
+  "suggested_agent": "coder-agent",
+  "context_files": [
+    ".opencode/context/core/standards/code-quality.md",
+    ".opencode/context/core/standards/testing.md"
+  ],
+  "reference_files": [
+    "src/pynescript/langserver/providers/builtin_metadata.json",
+    "src/pynescript/langserver/providers/completion_items.py"
+  ],
+  "acceptance_criteria": [
+    "All new builtins from A13-A25 have metadata entries in builtin_metadata.json",
+    "footprint and volume_row types have completion items",
+    "All new constants (plot.linestyle_*, text.format_*, etc.) have metadata entries",
+    "All new parameters have metadata entries",
+    "LSP tests pass (make test-lsp)",
+    "Existing tests still pass"
+  ],
+  "deliverables": [
+    "src/pynescript/langserver/providers/builtin_metadata.json",
+    "src/pynescript/langserver/providers/completion_items.py"
+  ],
+  "started_at": null,
+  "completed_at": null,
+  "completion_summary": null
+}

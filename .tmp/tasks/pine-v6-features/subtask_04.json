@@ -1,0 +1,33 @@
+{
+  "id": "pine-v6-features-04",
+  "seq": "04",
+  "title": "A6-A8: Drawing function updates (box.set_xloc, behind_chart, force_overlay)",
+  "status": "pending",
+  "depends_on": [],
+  "parallel": true,
+  "suggested_agent": "coder-agent",
+  "context_files": [
+    ".opencode/context/core/standards/code-quality.md",
+    ".opencode/context/core/standards/testing.md"
+  ],
+  "reference_files": [
+    "src/pynescript/ast/evaluator/builtins/drawing.py",
+    "src/pynescript/ast/evaluator/builtins/declarations.py",
+    "src/pynescript/langserver/providers/builtin_metadata.json"
+  ],
+  "acceptance_criteria": [
+    "box.set_xloc() function implemented",
+    "indicator()/strategy() accept behind_chart parameter",
+    "box.new(), label.new(), line.new(), polyline.new(), table.new() accept force_overlay parameter",
+    "All new params/functions have metadata entries",
+    "Existing tests still pass"
+  ],
+  "deliverables": [
+    "src/pynescript/ast/evaluator/builtins/drawing.py",
+    "src/pynescript/ast/evaluator/builtins/declarations.py",
+    "src/pynescript/langserver/providers/builtin_metadata.json"
+  ],
+  "started_at": null,
+  "completed_at": null,
+  "completion_summary": null
+}

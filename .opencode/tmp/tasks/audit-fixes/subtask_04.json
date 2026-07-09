@@ -1,0 +1,38 @@
+{
+  "id": "audit-fixes-04",
+  "seq": "04",
+  "title": "[HIGH S5] Replace per-worker in-memory API key store with shared backend",
+  "status": "completed",
+  "depends_on": [],
+  "parallel": true,
+  "suggested_agent": "coder-agent",
+  "context_files": [
+    ".opencode/audits/2026-07-05-full-audit.md",
+    ".opencode/context/project-intelligence/concepts/backend-api.md"
+  ],
+  "reference_files": [
+    "backend/middleware/auth.py",
+    "backend/requirements.txt",
+    "Dockerfile.api"
+  ],
+  "acceptance_criteria": [
+    "APIKeyStore can be backed by SQLite (default) with optional Redis backend",
+    "Same key created in one gunicorn worker is visible from another worker (verified by a 2-worker smoke test)",
+    "Keys persist across gunicorn restarts",
+    "Old in-memory store still works as a fallback if no DB URL is configured (with a warning log)",
+    "Public API of APIKeyStore (create_key, validate_key, revoke_key, get_by_id) unchanged",
+    "Thread-safety: SQLite uses check_same_thread=False + connection-per-request or WAL mode",
+    "Dependencies added: aiosqlite (or sqlite3 stdlib) and optional redis"
+  ],
+  "deliverables": [
+    "backend/middleware/auth.py (refactored to use pluggable backend)",
+    "backend/middleware/key_store_sqlite.py (new, SQLite implementation)",
+    "backend/middleware/key_store_redis.py (new, optional Redis implementation)",
+    "backend/requirements.txt (new deps)",
+    "tests/test_backend.py (add 2-worker smoke test or document manual verification)"
+  ],
+  "agent_id": null,
+  "started_at": "2026-07-05T15:00:00Z",
+  "completed_at": "2026-07-05T13:24:23.378Z",
+  "completion_summary": "Pluggable backend: memory (default), SQLite (WAL+lock, stdlib), Redis (lazy import). 15 new tests. 1114 total pass."
+}

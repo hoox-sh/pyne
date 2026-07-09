@@ -1,0 +1,34 @@
+{
+  "id": "pine-v6-features-05",
+  "seq": "05",
+  "title": "A9: sort_field parameter on array.sort, array.sort_indices, matrix.sort",
+  "status": "pending",
+  "depends_on": [],
+  "parallel": true,
+  "suggested_agent": "coder-agent",
+  "context_files": [
+    ".opencode/context/core/standards/code-quality.md",
+    ".opencode/context/core/standards/testing.md"
+  ],
+  "reference_files": [
+    "src/pynescript/ast/evaluator/builtins/arrays.py",
+    "src/pynescript/ast/evaluator/builtins/matrix.py",
+    "src/pynescript/langserver/providers/builtin_metadata.json"
+  ],
+  "acceptance_criteria": [
+    "array.sort() accepts optional sort_field parameter (int index or string name)",
+    "array.sort_indices() accepts optional sort_field parameter",
+    "matrix.sort() accepts optional sort_field parameter",
+    "UDT collections sorted by specified field",
+    "Metadata entries updated",
+    "Existing tests still pass"
+  ],
+  "deliverables": [
+    "src/pynescript/ast/evaluator/builtins/arrays.py",
+    "src/pynescript/ast/evaluator/builtins/matrix.py",
+    "src/pynescript/langserver/providers/builtin_metadata.json"
+  ],
+  "started_at": null,
+  "completed_at": null,
+  "completion_summary": null
+}

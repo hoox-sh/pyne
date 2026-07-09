@@ -1,0 +1,50 @@
+{
+  "id": "audit-fixes",
+  "name": "Audit Fixes (2026-07-05 full audit)",
+  "status": "active",
+  "objective": "Address all findings from the 2026-07-05 full audit of pynescript (code quality, security, dependencies, architecture). 38 findings total: 1 critical, 6 high, 9 medium, 8 low + 14 process/minor items. See .opencode/audits/2026-07-05-full-audit.md for the full report.",
+  "context_files": [
+    ".opencode/audits/2026-07-05-full-audit.md",
+    "AGENTS.md",
+    "pyproject.toml",
+    "Dockerfile.api",
+    "cloudbuild.yaml",
+    ".opencode/context/project-intelligence/concepts/backend-api.md",
+    ".opencode/context/project-intelligence/concepts/langserver.md",
+    ".opencode/context/project-intelligence/errors/build-issues.md"
+  ],
+  "reference_files": [
+    "backend/app.py",
+    "backend/middleware/auth.py",
+    "backend/services/backtest.py",
+    "backend/services/chart_renderer.py",
+    "backend/api/preview.py",
+    "src/pynescript/langserver/server.py",
+    "src/pynescript/langserver/workspace.py",
+    "src/pynescript/langserver/config.py",
+    "src/pynescript/langserver/providers/metadata_decrypt.py",
+    "src/pynescript/ast/evaluator/builtins/technical.py",
+    "src/pynescript/ast/evaluator/builtins/technical_submodules/advanced.py",
+    "src/pynescript/ast/evaluator/builtins/technical_submodules/synthesizer.py",
+    "src/pynescript/ast/evaluator/builtins/__init__.py",
+    "src/pynescript/ast/__init__.py",
+    "src/pynescript/util/data.py",
+    "src/pynescript/ext/jupyter.py",
+    "src/pynescript/ext/pygments/lexers.py",
+    "src/pynescript/langserver/features/inlay_hints.py",
+    ".github/workflows/ci.yml"
+  ],
+  "exit_criteria": [
+    "All 6 high-severity items (S1-S6 + A1) resolved or explicitly waived with documented reason",
+    "S1 (MAX_CONTENT_LENGTH) and S2 (api_key query fallback) deployed and verified",
+    "No new ruff or mypy errors introduced (existing baseline of 464/9 must not grow)",
+    "All deps in pyproject.toml have minimum version constraints",
+    "All phantom-dependency imports moved to declared optional-dependency groups",
+    "CI runs ruff + mypy over backend/",
+    "Re-audit confirms no regressions"
+  ],
+  "subtask_count": 12,
+  "completed_count": 9,
+  "created_at": "2026-07-05T15:00:00Z",
+  "completed_at": null
+}

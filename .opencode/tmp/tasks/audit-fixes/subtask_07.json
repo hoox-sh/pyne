@@ -1,0 +1,43 @@
+{
+  "id": "audit-fixes-07",
+  "seq": "07",
+  "title": "[MEDIUM] Code-quality quick wins batch (Q2, Q3, Q4, A2, S11, S17)",
+  "status": "completed",
+  "depends_on": [],
+  "parallel": true,
+  "suggested_agent": "coder-agent",
+  "context_files": [
+    ".opencode/audits/2026-07-05-full-audit.md"
+  ],
+  "reference_files": [
+    "src/pynescript/util/data.py",
+    "src/pynescript/langserver/config.py",
+    "src/pynescript/ast/evaluator/builtins/__init__.py",
+    "backend/services/backtest.py",
+    "backend/app.py"
+  ],
+  "acceptance_criteria": [
+    "data.py:30 duplicate 'from datetime import timedelta' removed (Q2)",
+    "config.py:65 'from typing import Any' moved to top of file with other imports (Q3)",
+    "evaluator/builtins/__init__.py lines 32, 48, 49: unused imports (Any, VolumeRow, Footprint) removed (Q4)",
+    "backtest.py:115-119 dead 'tree = parse(...); _ = tree' call removed (A2)",
+    "app.py:207 'host=0.0.0.0' replaced with os.environ.get('HOST', '127.0.0.1') (S11)",
+    "S311 # noqa comments added with reason for 8 random.* usages in mock paths (S17)",
+    "Total ruff error count decreases by at least 8 after this batch"
+  ],
+  "deliverables": [
+    "src/pynescript/util/data.py",
+    "src/pynescript/langserver/config.py",
+    "src/pynescript/ast/evaluator/builtins/__init__.py",
+    "backend/services/backtest.py",
+    "backend/app.py",
+    "src/pynescript/ast/evaluator/builtins/numeric.py",
+    "src/pynescript/ast/evaluator/builtins/request.py",
+    "src/pynescript/ext/jupyter.py",
+    "src/pynescript/util/data.py (S311 sites)"
+  ],
+  "agent_id": null,
+  "started_at": null,
+  "completed_at": "2026-07-05T13:57:04.342Z",
+  "completion_summary": "Q2 dup-timedelta, Q3 typing.Any, Q4 unused imports, A2 dead parse, S11 HOST env, S311 per-file-ignores. 76 tests pass."
+}

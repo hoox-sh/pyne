@@ -10,6 +10,7 @@ Flask server for live chart previews, backtests, and API key management.
 
 from __future__ import annotations
 
+import os
 import time
 
 from flask import Flask
@@ -21,12 +22,36 @@ from flask_cors import CORS
 from backend.api.preview import backtest_bp
 from backend.api.preview import preview_bp
 from backend.middleware.auth import get_key_store
+from backend.middleware.auth import require_admin_token
 from backend.middleware.auth import require_api_key
+from backend.middleware.schemas import CREATE_KEY_SCHEMA
+from backend.middleware.schemas import RUN_SCHEMA
+from backend.middleware.schemas import VALIDATE_KEY_SCHEMA
+from backend.middleware.schemas import validate
 from backend.runtime import Runtime
 
 
 app = Flask(__name__)
-CORS(app)
+# Reject request bodies larger than 5MB to prevent memory-exhaustion DoS.
+# Without this, an attacker can POST multi-GB JSON and OOM the worker before
+# gunicorn's --timeout fires. See audit 2026-07-05, finding S1.
+app.config["MAX_CONTENT_LENGTH"] = 5 * 1024 * 1024  # 5 MB
+# Audit 2026-07-05 / S7+S8: restrict CORS instead of the default `*`. Origins
+# and headers are read from env vars so a deployment can override without code
+# changes. The same-origin case (no Origin header, e.g. server-to-server or
+# curl) is always allowed.
+ALLOWED_ORIGINS = [
+    o.strip()
+    for o in os.environ.get("ALLOWED_ORIGINS", "https://pynescript.ai,https://app.pynescript.ai").split(",")
+    if o.strip()
+]
+CORS(
+    app,
+    origins=ALLOWED_ORIGINS,
+    methods=["GET", "POST"],
+    allow_headers=["Content-Type", "Authorization", "X-Admin-Token"],
+    supports_credentials=False,
+)
 
 
 @app.route("/", methods=["GET"])
@@ -53,9 +78,12 @@ def health_check():
 @app.route("/run", methods=["POST"])
 def run_pine_script():
     """Execute Pine Script with provided data. Free tier endpoint."""
-    data = request.get_json() or {}
-    script = data.get("script", "")
-    ohlcv = data.get("data", [])
+    # Audit 2026-07-05 / S9: validate the request body against a schema.
+    data, err = validate(request.get_json(silent=True) or {}, RUN_SCHEMA)
+    if err is not None:
+        return err
+    script = data["script"]
+    ohlcv = data["data"]
 
     if not script:
         return jsonify(
@@ -91,16 +119,27 @@ def run_pine_script():
         {
             "status": "success",
             "plots": result.get("plots", []),
+            "events": result.get("events", []),
+            "script_id": result.get("script_id", ""),
+            "run_id": result.get("run_id", ""),
             "count": result.get("count", 0),
         }
     )
 
 
 @app.route("/auth/create_key", methods=["POST"])
+@require_admin_token
 def create_api_key():
-    """Create a new API key. In production, this requires admin auth."""
-    data = request.get_json() or {}
-    tier = data.get("tier", "hobby")
+    """Create a new API key. Requires the ``X-Admin-Token`` header.
+
+    The admin token is configured via the ``ADMIN_TOKEN`` environment
+    variable. If unset, the endpoint returns 403 (the env is treated as
+    "no admin access at all", not "open access"). Audit 2026-07-05 / S3.
+    """
+    data, err = validate(request.get_json(silent=True) or {}, CREATE_KEY_SCHEMA)
+    if err is not None:
+        return err
+    tier = data["tier"]
     valid_tiers = ["free", "hobby", "pro", "team", "enterprise"]
 
     if tier not in valid_tiers:
@@ -150,8 +189,10 @@ def get_usage():
 @app.route("/auth/validate", methods=["POST"])
 def validate_api_key():
     """Validate an API key without consuming a call."""
-    data = request.get_json() or {}
-    raw_key = data.get("api_key", "")
+    data, err = validate(request.get_json(silent=True) or {}, VALIDATE_KEY_SCHEMA)
+    if err is not None:
+        return err
+    raw_key = data["api_key"]
 
     store = get_key_store()
     api_key = store.validate_key(raw_key)
@@ -204,4 +245,8 @@ def server_error(e):
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5002, debug=False)
+    # Audit 2026-07-05 / S11: default to localhost for the dev runner. Use
+    # HOST=0.0.0.0 to expose the dev server to other machines if needed.
+    host = os.environ.get("HOST", "127.0.0.1")
+    port = int(os.environ.get("PORT", "5002"))
+    app.run(host=host, port=port, debug=False)

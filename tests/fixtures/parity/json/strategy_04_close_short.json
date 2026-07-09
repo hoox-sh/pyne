@@ -1,0 +1,1902 @@
+[
+  {
+    "kind": "entry",
+    "id": "S",
+    "direction": "short",
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 0,
+    "bar_time": 1000000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "close",
+    "id": "S",
+    "direction": null,
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 0,
+    "bar_time": 1000000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "entry",
+    "id": "S",
+    "direction": "short",
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 1,
+    "bar_time": 87400000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "close",
+    "id": "S",
+    "direction": null,
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 1,
+    "bar_time": 87400000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "entry",
+    "id": "S",
+    "direction": "short",
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 2,
+    "bar_time": 173800000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "close",
+    "id": "S",
+    "direction": null,
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 2,
+    "bar_time": 173800000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "entry",
+    "id": "S",
+    "direction": "short",
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 3,
+    "bar_time": 260200000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "close",
+    "id": "S",
+    "direction": null,
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 3,
+    "bar_time": 260200000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "entry",
+    "id": "S",
+    "direction": "short",
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 4,
+    "bar_time": 346600000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "close",
+    "id": "S",
+    "direction": null,
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 4,
+    "bar_time": 346600000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "entry",
+    "id": "S",
+    "direction": "short",
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 5,
+    "bar_time": 433000000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "close",
+    "id": "S",
+    "direction": null,
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 5,
+    "bar_time": 433000000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "entry",
+    "id": "S",
+    "direction": "short",
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 6,
+    "bar_time": 519400000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "close",
+    "id": "S",
+    "direction": null,
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 6,
+    "bar_time": 519400000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "entry",
+    "id": "S",
+    "direction": "short",
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 7,
+    "bar_time": 605800000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "close",
+    "id": "S",
+    "direction": null,
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 7,
+    "bar_time": 605800000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "entry",
+    "id": "S",
+    "direction": "short",
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 8,
+    "bar_time": 692200000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "close",
+    "id": "S",
+    "direction": null,
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 8,
+    "bar_time": 692200000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "entry",
+    "id": "S",
+    "direction": "short",
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 9,
+    "bar_time": 778600000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "close",
+    "id": "S",
+    "direction": null,
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 9,
+    "bar_time": 778600000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "entry",
+    "id": "S",
+    "direction": "short",
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 10,
+    "bar_time": 865000000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "close",
+    "id": "S",
+    "direction": null,
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 10,
+    "bar_time": 865000000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "entry",
+    "id": "S",
+    "direction": "short",
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 11,
+    "bar_time": 951400000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "close",
+    "id": "S",
+    "direction": null,
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 11,
+    "bar_time": 951400000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "entry",
+    "id": "S",
+    "direction": "short",
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 12,
+    "bar_time": 1037800000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "close",
+    "id": "S",
+    "direction": null,
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 12,
+    "bar_time": 1037800000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "entry",
+    "id": "S",
+    "direction": "short",
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 13,
+    "bar_time": 1124200000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "close",
+    "id": "S",
+    "direction": null,
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 13,
+    "bar_time": 1124200000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "entry",
+    "id": "S",
+    "direction": "short",
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 14,
+    "bar_time": 1210600000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "close",
+    "id": "S",
+    "direction": null,
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 14,
+    "bar_time": 1210600000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "entry",
+    "id": "S",
+    "direction": "short",
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 15,
+    "bar_time": 1297000000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "close",
+    "id": "S",
+    "direction": null,
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 15,
+    "bar_time": 1297000000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "entry",
+    "id": "S",
+    "direction": "short",
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 16,
+    "bar_time": 1383400000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "close",
+    "id": "S",
+    "direction": null,
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 16,
+    "bar_time": 1383400000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "entry",
+    "id": "S",
+    "direction": "short",
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 17,
+    "bar_time": 1469800000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "close",
+    "id": "S",
+    "direction": null,
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 17,
+    "bar_time": 1469800000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "entry",
+    "id": "S",
+    "direction": "short",
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 18,
+    "bar_time": 1556200000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "close",
+    "id": "S",
+    "direction": null,
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 18,
+    "bar_time": 1556200000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "entry",
+    "id": "S",
+    "direction": "short",
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 19,
+    "bar_time": 1642600000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "close",
+    "id": "S",
+    "direction": null,
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 19,
+    "bar_time": 1642600000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "entry",
+    "id": "S",
+    "direction": "short",
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 20,
+    "bar_time": 1729000000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "close",
+    "id": "S",
+    "direction": null,
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 20,
+    "bar_time": 1729000000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "entry",
+    "id": "S",
+    "direction": "short",
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 21,
+    "bar_time": 1815400000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "close",
+    "id": "S",
+    "direction": null,
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 21,
+    "bar_time": 1815400000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "entry",
+    "id": "S",
+    "direction": "short",
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 22,
+    "bar_time": 1901800000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "close",
+    "id": "S",
+    "direction": null,
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 22,
+    "bar_time": 1901800000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "entry",
+    "id": "S",
+    "direction": "short",
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 23,
+    "bar_time": 1988200000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "close",
+    "id": "S",
+    "direction": null,
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 23,
+    "bar_time": 1988200000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "entry",
+    "id": "S",
+    "direction": "short",
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 24,
+    "bar_time": 2074600000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "close",
+    "id": "S",
+    "direction": null,
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 24,
+    "bar_time": 2074600000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "entry",
+    "id": "S",
+    "direction": "short",
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 25,
+    "bar_time": 2161000000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "close",
+    "id": "S",
+    "direction": null,
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 25,
+    "bar_time": 2161000000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "entry",
+    "id": "S",
+    "direction": "short",
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 26,
+    "bar_time": 2247400000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "close",
+    "id": "S",
+    "direction": null,
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 26,
+    "bar_time": 2247400000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "entry",
+    "id": "S",
+    "direction": "short",
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 27,
+    "bar_time": 2333800000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "close",
+    "id": "S",
+    "direction": null,
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 27,
+    "bar_time": 2333800000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "entry",
+    "id": "S",
+    "direction": "short",
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 28,
+    "bar_time": 2420200000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "close",
+    "id": "S",
+    "direction": null,
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 28,
+    "bar_time": 2420200000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "entry",
+    "id": "S",
+    "direction": "short",
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 29,
+    "bar_time": 2506600000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "close",
+    "id": "S",
+    "direction": null,
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 29,
+    "bar_time": 2506600000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "entry",
+    "id": "S",
+    "direction": "short",
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 30,
+    "bar_time": 2593000000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "close",
+    "id": "S",
+    "direction": null,
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 30,
+    "bar_time": 2593000000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "entry",
+    "id": "S",
+    "direction": "short",
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 31,
+    "bar_time": 2679400000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "close",
+    "id": "S",
+    "direction": null,
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 31,
+    "bar_time": 2679400000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "entry",
+    "id": "S",
+    "direction": "short",
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 32,
+    "bar_time": 2765800000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "close",
+    "id": "S",
+    "direction": null,
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 32,
+    "bar_time": 2765800000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "entry",
+    "id": "S",
+    "direction": "short",
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 33,
+    "bar_time": 2852200000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "close",
+    "id": "S",
+    "direction": null,
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 33,
+    "bar_time": 2852200000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "entry",
+    "id": "S",
+    "direction": "short",
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 34,
+    "bar_time": 2938600000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "close",
+    "id": "S",
+    "direction": null,
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 34,
+    "bar_time": 2938600000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "entry",
+    "id": "S",
+    "direction": "short",
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 35,
+    "bar_time": 3025000000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "close",
+    "id": "S",
+    "direction": null,
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 35,
+    "bar_time": 3025000000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "entry",
+    "id": "S",
+    "direction": "short",
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 36,
+    "bar_time": 3111400000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "close",
+    "id": "S",
+    "direction": null,
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 36,
+    "bar_time": 3111400000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "entry",
+    "id": "S",
+    "direction": "short",
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 37,
+    "bar_time": 3197800000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "close",
+    "id": "S",
+    "direction": null,
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 37,
+    "bar_time": 3197800000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "entry",
+    "id": "S",
+    "direction": "short",
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 38,
+    "bar_time": 3284200000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "close",
+    "id": "S",
+    "direction": null,
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 38,
+    "bar_time": 3284200000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "entry",
+    "id": "S",
+    "direction": "short",
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 39,
+    "bar_time": 3370600000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "close",
+    "id": "S",
+    "direction": null,
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 39,
+    "bar_time": 3370600000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "entry",
+    "id": "S",
+    "direction": "short",
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 40,
+    "bar_time": 3457000000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "close",
+    "id": "S",
+    "direction": null,
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 40,
+    "bar_time": 3457000000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "entry",
+    "id": "S",
+    "direction": "short",
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 41,
+    "bar_time": 3543400000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "close",
+    "id": "S",
+    "direction": null,
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 41,
+    "bar_time": 3543400000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "entry",
+    "id": "S",
+    "direction": "short",
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 42,
+    "bar_time": 3629800000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "close",
+    "id": "S",
+    "direction": null,
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 42,
+    "bar_time": 3629800000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "entry",
+    "id": "S",
+    "direction": "short",
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 43,
+    "bar_time": 3716200000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "close",
+    "id": "S",
+    "direction": null,
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 43,
+    "bar_time": 3716200000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "entry",
+    "id": "S",
+    "direction": "short",
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 44,
+    "bar_time": 3802600000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "close",
+    "id": "S",
+    "direction": null,
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 44,
+    "bar_time": 3802600000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "entry",
+    "id": "S",
+    "direction": "short",
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 45,
+    "bar_time": 3889000000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "close",
+    "id": "S",
+    "direction": null,
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 45,
+    "bar_time": 3889000000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "entry",
+    "id": "S",
+    "direction": "short",
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 46,
+    "bar_time": 3975400000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "close",
+    "id": "S",
+    "direction": null,
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 46,
+    "bar_time": 3975400000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "entry",
+    "id": "S",
+    "direction": "short",
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 47,
+    "bar_time": 4061800000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "close",
+    "id": "S",
+    "direction": null,
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 47,
+    "bar_time": 4061800000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "entry",
+    "id": "S",
+    "direction": "short",
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 48,
+    "bar_time": 4148200000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "close",
+    "id": "S",
+    "direction": null,
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 48,
+    "bar_time": 4148200000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "entry",
+    "id": "S",
+    "direction": "short",
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 49,
+    "bar_time": 4234600000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "kind": "close",
+    "id": "S",
+    "direction": null,
+    "qty": 5,
+    "order_type": null,
+    "limit": null,
+    "stop": null,
+    "oca_name": null,
+    "comment": null,
+    "bar_index": 49,
+    "bar_time": 4234600000,
+    "ohlc": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  }
+]

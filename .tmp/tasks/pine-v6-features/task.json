@@ -1,0 +1,41 @@
+{
+  "id": "pine-v6-features",
+  "name": "Pine Script v6 Feature Implementation",
+  "status": "active",
+  "objective": "Implement all missing Pine Script v6 features (2024-April 2026 releases) into pynescript",
+  "context_files": [
+    ".opencode/context/core/standards/code-quality.md",
+    ".opencode/context/core/standards/testing.md",
+    ".opencode/context/core/architecture.md",
+    ".opencode/context/core/conventions.md",
+    "docs/superpowers/specs/2026-05-11-pine-script-v6-features-design.md"
+  ],
+  "reference_files": [
+    "src/pynescript/ast/evaluator/names.py",
+    "src/pynescript/ast/evaluator/builtins/arrays.py",
+    "src/pynescript/ast/evaluator/builtins/drawing.py",
+    "src/pynescript/ast/evaluator/builtins/strategy.py",
+    "src/pynescript/ast/evaluator/builtins/declarations.py",
+    "src/pynescript/ast/evaluator/builtins/timeframe.py",
+    "src/pynescript/ast/evaluator/builtins/ticker.py",
+    "src/pynescript/ast/evaluator/builtins/color.py",
+    "src/pynescript/ast/evaluator/expressions.py",
+    "src/pynescript/ast/evaluator/statements.py",
+    "src/pynescript/ast/evaluator/literals.py",
+    "src/pynescript/ast/unparser.py",
+    "src/pynescript/langserver/providers/builtin_metadata.json",
+    "tests/test_evaluator.py"
+  ],
+  "exit_criteria": [
+    "All Phase A builtin additions pass tests",
+    "All Phase B behavior changes pass tests",
+    "Phase C metadata is complete and LSP tests pass",
+    "Existing .pine fixtures still pass",
+    "make lint passes",
+    "make test passes"
+  ],
+  "subtask_count": 25,
+  "completed_count": 0,
+  "created_at": "2026-05-11T00:00:00Z",
+  "completed_at": null
+}

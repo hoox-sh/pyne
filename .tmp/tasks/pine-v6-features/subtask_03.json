@@ -1,0 +1,30 @@
+{
+  "id": "pine-v6-features-03",
+  "seq": "03",
+  "title": "A5: time/time_close timeframe_bars_back parameter",
+  "status": "pending",
+  "depends_on": [],
+  "parallel": true,
+  "suggested_agent": "coder-agent",
+  "context_files": [
+    ".opencode/context/core/standards/code-quality.md",
+    ".opencode/context/core/standards/testing.md"
+  ],
+  "reference_files": [
+    "src/pynescript/ast/evaluator/builtins/timeframe.py",
+    "src/pynescript/langserver/providers/builtin_metadata.json"
+  ],
+  "acceptance_criteria": [
+    "time() accepts timeframe_bars_back parameter",
+    "time_close() accepts timeframe_bars_back parameter",
+    "Metadata entries updated for both functions",
+    "Existing tests still pass"
+  ],
+  "deliverables": [
+    "src/pynescript/ast/evaluator/builtins/timeframe.py",
+    "src/pynescript/langserver/providers/builtin_metadata.json"
+  ],
+  "started_at": null,
+  "completed_at": null,
+  "completion_summary": null
+}

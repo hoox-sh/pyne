@@ -1,0 +1,29 @@
+{
+  "id": "pine-v6-features-09",
+  "seq": "09",
+  "title": "B2: Dynamic for-loop boundaries",
+  "status": "pending",
+  "depends_on": ["08"],
+  "parallel": false,
+  "suggested_agent": "coder-agent",
+  "context_files": [
+    ".opencode/context/core/standards/code-quality.md",
+    ".opencode/context/core/standards/testing.md"
+  ],
+  "reference_files": [
+    "src/pynescript/ast/evaluator/statements.py"
+  ],
+  "acceptance_criteria": [
+    "For loop re-evaluates to_num before each iteration",
+    "Modifying the end boundary variable inside the loop affects iteration count",
+    "Existing for-loop tests still pass",
+    "New test for dynamic boundary passes"
+  ],
+  "deliverables": [
+    "src/pynescript/ast/evaluator/statements.py",
+    "tests/test_evaluator.py"
+  ],
+  "started_at": null,
+  "completed_at": null,
+  "completion_summary": null
+}

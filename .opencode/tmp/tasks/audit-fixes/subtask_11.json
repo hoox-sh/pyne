@@ -1,0 +1,32 @@
+{
+  "id": "audit-fixes-11",
+  "seq": "11",
+  "title": "[MEDIUM] Architecture/quality medium batch (A3, Q5, S13, S14)",
+  "status": "pending",
+  "depends_on": ["04"],
+  "parallel": false,
+  "suggested_agent": "coder-agent",
+  "context_files": [
+    ".opencode/audits/2026-07-05-full-audit.md"
+  ],
+  "reference_files": [
+    "src/pynescript/ast/__init__.py",
+    "backend/middleware/auth.py",
+    "backend/app.py"
+  ],
+  "acceptance_criteria": [
+    "ast/__init__.py: star imports replaced with explicit __all__ list (A3) — no semantic change for any consumer",
+    "auth.py: _get_reset_time rewritten to use datetime.replace + relativedelta (S13) or documented with a clear comment explaining the (32*86400) trick",
+    "app.py 404/500 handlers stop echoing request.path (S14)",
+    "No new ruff/mypy errors"
+  ],
+  "deliverables": [
+    "src/pynescript/ast/__init__.py",
+    "backend/middleware/auth.py",
+    "backend/app.py"
+  ],
+  "agent_id": null,
+  "started_at": null,
+  "completed_at": null,
+  "completion_summary": null
+}

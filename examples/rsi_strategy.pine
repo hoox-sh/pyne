@@ -1,0 +1,19 @@
+//@version=5
+//@description "Simple RSI mean-reversion strategy"
+strategy("RSI Strategy", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=10)
+
+length   = input.int(14,   "RSI Length",          minval=2,  maxval=100)
+oversold = input.float(30, "Oversold threshold", minval=1,  maxval=50)
+overbought = input.float(70, "Overbought threshold", minval=50, maxval=99)
+
+rsi = ta.rsi(close, length)
+
+if (rsi < oversold)
+    strategy.entry("Long", strategy.long)
+
+if (rsi > overbought)
+    strategy.close("Long")
+
+plot(rsi, "RSI")
+hline(oversold,   "Oversold",   color=color.green)
+hline(overbought, "Overbought", color=color.red)

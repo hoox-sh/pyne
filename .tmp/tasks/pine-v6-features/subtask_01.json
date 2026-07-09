@@ -1,0 +1,35 @@
+{
+  "id": "pine-v6-features-01",
+  "seq": "01",
+  "title": "A1: Negative array indices",
+  "status": "pending",
+  "depends_on": [],
+  "parallel": true,
+  "suggested_agent": "coder-agent",
+  "context_files": [
+    ".opencode/context/core/standards/code-quality.md",
+    ".opencode/context/core/standards/testing.md"
+  ],
+  "reference_files": [
+    "src/pynescript/ast/evaluator/names.py",
+    "src/pynescript/ast/evaluator/builtins/arrays.py",
+    "tests/test_evaluator.py"
+  ],
+  "acceptance_criteria": [
+    "array.get(arr, -1) returns last element",
+    "array.get(arr, -2) returns second-to-last element",
+    "array.set(arr, -1, val) sets last element",
+    "array.insert(arr, -1, val) inserts before last element",
+    "array.remove(arr, -1) removes last element",
+    "Out-of-bounds negative indices return na (None)",
+    "Existing tests still pass"
+  ],
+  "deliverables": [
+    "src/pynescript/ast/evaluator/names.py",
+    "src/pynescript/ast/evaluator/builtins/arrays.py",
+    "tests/test_evaluator.py"
+  ],
+  "started_at": null,
+  "completed_at": null,
+  "completion_summary": null
+}

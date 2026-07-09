@@ -1,0 +1,36 @@
+{
+  "id": "pine-v6-features-16",
+  "seq": "16",
+  "title": "A14+A15+A19: plot() linestyle + input.*() active + force_overlay on plot functions",
+  "status": "pending",
+  "depends_on": [],
+  "parallel": true,
+  "suggested_agent": "coder-agent",
+  "context_files": [
+    ".opencode/context/core/standards/code-quality.md",
+    ".opencode/context/core/standards/testing.md"
+  ],
+  "reference_files": [
+    "src/pynescript/ast/evaluator/builtins/plot.py",
+    "src/pynescript/ast/evaluator/builtins/declarations.py",
+    "src/pynescript/langserver/providers/builtin_metadata.json"
+  ],
+  "acceptance_criteria": [
+    "plot() accepts linestyle parameter (plot.linestyle_solid/dashed/dotted)",
+    "plot.linestyle_solid, plot.linestyle_dashed, plot.linestyle_dotted constants defined",
+    "All input.*() functions accept active parameter (bool)",
+    "active=false grays out input, prevents user changes",
+    "plot(), plotchar(), plotcandle(), plotbar(), plotarrow(), plotshape(), bgcolor() accept force_overlay parameter",
+    "Metadata entries updated for all new params/constants",
+    "Existing tests still pass"
+  ],
+  "deliverables": [
+    "src/pynescript/ast/evaluator/builtins/plot.py",
+    "src/pynescript/ast/evaluator/builtins/declarations.py",
+    "src/pynescript/langserver/providers/builtin_metadata.json",
+    "tests/test_evaluator.py"
+  ],
+  "started_at": null,
+  "completed_at": null,
+  "completion_summary": null
+}

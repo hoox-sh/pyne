@@ -1,0 +1,34 @@
+{
+  "id": "pine-v6-features-11",
+  "seq": "11",
+  "title": "B6-B9: Strategy and declaration v6 behavior changes",
+  "status": "pending",
+  "depends_on": ["10"],
+  "parallel": false,
+  "suggested_agent": "coder-agent",
+  "context_files": [
+    ".opencode/context/core/standards/code-quality.md",
+    ".opencode/context/core/standards/testing.md"
+  ],
+  "reference_files": [
+    "src/pynescript/ast/evaluator/builtins/strategy.py",
+    "src/pynescript/ast/evaluator/builtins/declarations.py",
+    "src/pynescript/ast/evaluator/builtins/drawing.py"
+  ],
+  "acceptance_criteria": [
+    "when parameter removed from all strategy order functions",
+    "transp parameter removed from all drawing functions",
+    "Default margin_long/margin_short changed to 100",
+    "dynamic_requests defaults to true in indicator/strategy/library",
+    "Existing tests still pass"
+  ],
+  "deliverables": [
+    "src/pynescript/ast/evaluator/builtins/strategy.py",
+    "src/pynescript/ast/evaluator/builtins/declarations.py",
+    "src/pynescript/ast/evaluator/builtins/drawing.py",
+    "tests/test_evaluator.py"
+  ],
+  "started_at": null,
+  "completed_at": null,
+  "completion_summary": null
+}

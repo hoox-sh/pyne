@@ -189,17 +189,18 @@ class ExpressionEvaluator:
         return _OPERATOR_GE
 
     def visit_Call(self: EvaluatorProtocol, node: ast.Call):
+        # Early-dispatch for qualified-attribute builtins (subtask 1.1.2):
+        # when ``node.func`` is an ``Attribute`` whose qualified name is a
+        # registered builtin, dispatch by qualified name and return the
+        # result. This must happen BEFORE visiting ``node.func`` because
+        # bare-reference zero-arg builtins like ``strategy.long`` are
+        # eagerly evaluated by ``visit_Attribute`` to the value ``"long"``
+        # — losing the qualified name needed to dispatch the call form.
+        if self._is_qualified_attribute_builtin_call(node):
+            return self._dispatch_qualified_attribute_builtin(node)
+
         func = self.visit(node.func)
-        args = []
-
-        kwargs = {}
-
-        for arg in node.args:
-            if arg.name:  # type: ignore[attr-defined]
-                kwargs[arg.name] = self.visit(arg.value)  # type: ignore[attr-defined]
-
-            else:
-                args.append(self.visit(arg.value))  # type: ignore[attr-defined]
+        args, kwargs = self._collect_call_args(node)
 
         # Handle method call on UDT objects
         if isinstance(func, tuple) and len(func) == _METHOD_CALL_TUPLE_LENGTH and func[0] == "_method_call":
@@ -215,10 +216,68 @@ class ExpressionEvaluator:
 
         # Handle built-in functions
         if isinstance(func, str):
-            return self._call_builtin(func, args)
+            return self._call_builtin(func, args, kwargs=kwargs)
         else:
             # For now, assume func is callable
             return func(*args, **kwargs)
+
+    def _is_qualified_attribute_builtin_call(
+        self: EvaluatorProtocol,
+        node: ast.Call,
+    ) -> bool:
+        """True if ``node.func`` is an ``Attribute`` whose qualified name
+        is a registered builtin. See subtask 1.1.2.
+        """
+        if not isinstance(node.func, ast.Attribute):
+            return False
+        return self._is_registered_builtin(f"{self.visit(node.func.value)}.{node.func.attr}")
+
+    def _dispatch_qualified_attribute_builtin(
+        self: EvaluatorProtocol,
+        node: ast.Call,
+    ) -> Any:
+        """Dispatch a call whose function is a qualified-attribute builtin
+        (e.g. ``strategy.entry(...)``). Caller must have already checked
+        ``_is_qualified_attribute_builtin_call``. See subtask 1.1.2 and
+        1.2.
+        """
+        node_func = node.func
+        if not isinstance(node_func, ast.Attribute):
+            # Caller violated the precondition; fail loudly so the bug is
+            # obvious in development rather than silently miscompiling.
+            raise TypeError("_dispatch_qualified_attribute_builtin requires node.func to be ast.Attribute")
+        qualified_name = f"{self.visit(node_func.value)}.{node_func.attr}"
+        args, kwargs = self._collect_call_args(node)
+        return self._call_builtin(qualified_name, args, kwargs=kwargs)
+
+    def _collect_call_args(
+        self: EvaluatorProtocol,
+        node: ast.Call,
+    ) -> tuple[list[Any], dict[str, Any]]:
+        """Walk ``node.args`` and return ``(args, kwargs)`` with each
+        value evaluated. Used by both the early-dispatch path and the
+        main call path. See subtask 1.1.2.
+        """
+        args: list[Any] = []
+        kwargs: dict[str, Any] = {}
+        for arg in node.args:
+            if arg.name:  # type: ignore[attr-defined]
+                kwargs[arg.name] = self.visit(arg.value)  # type: ignore[attr-defined]
+            else:
+                args.append(self.visit(arg.value))  # type: ignore[attr-defined]
+        return args, kwargs
+
+    def _is_registered_builtin(self: EvaluatorProtocol, name: str) -> bool:
+        """True if ``name`` is in the builtin dispatch map.
+
+        Used by ``visit_Call`` to recognize qualified attribute references
+        to builtins (e.g. ``strategy.long``) BEFORE ``visit_Attribute``
+        eagerly evaluates them. See subtask 1.1.2.
+        """
+        if getattr(self, "_builtin_dispatch", None) is None and hasattr(self, "_build_builtin_map"):
+            self._builtin_dispatch = self._build_builtin_map()
+        dispatch = getattr(self, "_builtin_dispatch", None)
+        return dispatch is not None and name in dispatch
 
     def _handle_udt_new(
         self: EvaluatorProtocol,

@@ -1,4 +1,12 @@
+# Copyright (C) 2025 jango-blockchained. All Rights Reserved.
+#
+# This software is the proprietary information of jango-blockchained.
+# Use is subject to license terms.
+
 from __future__ import annotations
+
+import hashlib
+import uuid
 
 from pynescript.ast.helper import parse
 
@@ -87,14 +95,16 @@ class Chart:
 
 
 class Runtime:
-    def __init__(self, symbol: str = "AAPL"):
+    def __init__(self, symbol: str = "AAPL", run_id: str | None = None):
         """
         Initialize the runtime with optional symbol configuration.
 
         Args:
             symbol: The symbol to use for the runtime (default: "AAPL")
+            run_id: Optional unique run identifier. Generated if not provided.
         """
         self.symbol = symbol
+        self._run_id = run_id or uuid.uuid4().hex[:16]
         self._syminfo = Syminfo()
         self._syminfo.tickerid = symbol
         self._syminfo.name = symbol
@@ -110,7 +120,7 @@ class Runtime:
     def _extract_prefix(self, symbol: str) -> str:
         """Extract prefix from symbol (e.g., 'NASDAQ' from 'NASDAQ:AAPL')."""
         if ":" in symbol:
-            return symbol.split(":")[0]
+            return symbol.split(":", maxsplit=1)[0]
         return ""
 
     def configure_footprint(self, footprint_data: dict) -> None:
@@ -168,18 +178,30 @@ class Runtime:
             "timeframe": Timeframe(),
             "barstate": Barstate(),
             "chart": Chart(),
+            # Per-bar counters updated in the loop below
+            "bar_index": 0,
+            "time": 0,
         }
 
         evaluator = CustomEvaluator(context=context)
+        evaluator.reset_var_declarations()
 
         results = []
+        all_events: list[dict] = []
 
-        for bar in ohlcv_data:
+        # Generate stable script_id from source hash
+        script_id = hashlib.sha256(source_code.encode("utf-8")).hexdigest()[:16]
+
+        for bar_index, bar in enumerate(ohlcv_data):
             # Update series state
             open_series.update(bar.get("open"))
             high_series.update(bar.get("high"))
             low_series.update(bar.get("low"))
             close_series.update(bar.get("close"))
+
+            # Update per-bar counters
+            context["bar_index"] = bar_index
+            context["time"] = bar.get("time", 0)
 
             # Update bid/ask if available (February 2025)
             if "bid" in bar:
@@ -187,8 +209,9 @@ class Runtime:
             if "ask" in bar:
                 self._ask = bar["ask"]
 
-            # Reset plot capture for this bar
+            # Reset plot capture and event buffer for this bar
             evaluator.reset_plots()
+            evaluator.reset_events()
 
             # Execute script
             try:
@@ -197,6 +220,14 @@ class Runtime:
                 # In a real engine we might handle runtime errors more gracefully
                 # e.g. propagate 'na' or halt
                 return {"error": f"Runtime Error at bar {bar.get('time')}: {e!s}"}
+
+            # Collect events from this bar (convert to dicts for serialization)
+            bar_events = evaluator._strategy_state.drain_events()
+            for ev in bar_events:
+                ev_dict = ev.to_dict()
+                ev_dict["script_id"] = script_id
+                ev_dict["run_id"] = self._run_id
+                all_events.append(ev_dict)
 
             # Collect outputs from this bar
             # For simplicity, we assume one plot() call for now and return that value.
@@ -215,4 +246,10 @@ class Runtime:
         if results and "plot_0" in results[0]:
             final_series = [r.get("plot_0") for r in results]
 
-        return {"plots": final_series, "count": len(results)}
+        return {
+            "plots": final_series,
+            "events": all_events,
+            "count": len(results),
+            "script_id": script_id,
+            "run_id": self._run_id,
+        }

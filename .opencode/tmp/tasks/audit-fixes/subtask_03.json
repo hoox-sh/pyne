@@ -1,0 +1,32 @@
+{
+  "id": "audit-fixes-03",
+  "seq": "03",
+  "title": "[HIGH S3+S4] Gate /auth/create_key and remove --allow-unauthenticated",
+  "status": "completed",
+  "depends_on": [],
+  "parallel": true,
+  "suggested_agent": "coder-agent",
+  "context_files": [
+    ".opencode/audits/2026-07-05-full-audit.md"
+  ],
+  "reference_files": [
+    "backend/app.py",
+    "cloudbuild.yaml"
+  ],
+  "acceptance_criteria": [
+    "/auth/create_key requires X-Admin-Token header matching ADMIN_TOKEN env var (or 403 if missing/mismatched)",
+    "cloudbuild.yaml replaces --allow-unauthenticated with --no-allow-unauthenticated and adds --set-env-vars=ADMIN_TOKEN=$$ADMIN_TOKEN (with substitution in _ADMIN_TOKEN)",
+    "Local dev: ADMIN_TOKEN can be empty (env-gated) so existing dev workflow still works",
+    "Unauthenticated request to /auth/create_key returns 403, not 200",
+    "Existing /auth/usage and /auth/validate endpoints unchanged"
+  ],
+  "deliverables": [
+    "backend/app.py (auth gate added)",
+    "cloudbuild.yaml (auth flag changed)",
+    "backend/middleware/auth.py (admin token validator helper)"
+  ],
+  "agent_id": null,
+  "started_at": "2026-07-05T15:00:00Z",
+  "completed_at": "2026-07-05T13:29:40.986Z",
+  "completion_summary": "Gated /auth/create_key with X-Admin-Token + hmac.compare_digest. cloudbuild: --no-allow-unauthenticated + ADMIN_TOKEN. 5 new tests. 1119 pass."
+}

@@ -1,0 +1,7 @@
+// Parity fixture: var counter using strategy.entry
+// Counts bars and emits entry on each with id=C<bar_index>
+// Expected: N events with kind=entry, id=f"C{bar_index}", qty=1
+//@version=5
+var int count = 0
+count := count + 1
+strategy.entry("C" + str.tostring(count), strategy.long, qty=1)

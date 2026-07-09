@@ -1,3 +1,8 @@
+# Copyright (C) 2025 jango-blockchained. All Rights Reserved.
+#
+# This software is the proprietary information of jango-blockchained.
+# Use is subject to license terms.
+
 from __future__ import annotations
 
 from typing import Any
@@ -14,7 +19,7 @@ class CustomEvaluator(NodeLiteralEvaluator):
         super().__init__(context)
         self.plot_outputs = []
 
-    def _builtin_plot(self, args: list[Any]) -> None:
+    def _builtin_plot(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> None:
         """
         Capture the value being plotted.
         Arguments expected: series, title, color, linewidth, style, trackprice, etc.

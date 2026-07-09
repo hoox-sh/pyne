@@ -1,0 +1,35 @@
+{
+  "id": "audit-fixes-10",
+  "seq": "10",
+  "title": "[MEDIUM] Backend security hardening (S7, S8, S9, S10, S12)",
+  "status": "pending",
+  "depends_on": ["01"],
+  "parallel": false,
+  "suggested_agent": "coder-agent",
+  "context_files": [
+    ".opencode/audits/2026-07-05-full-audit.md"
+  ],
+  "reference_files": [
+    "backend/app.py",
+    "backend/api/preview.py",
+    "backend/runtime.py"
+  ],
+  "acceptance_criteria": [
+    "CORS restricted: app.py:29 becomes CORS(app, origins=[...], methods=['GET','POST'], allow_headers=['Content-Type','Authorization']) (S7+S8)",
+    "Every request.get_json() call validated via a small pydantic/marshmallow schema or manual type-check; unexpected fields return 400 (S9)",
+    "runtime.py: Pine Script execution wrapped in a per-request timeout (signal.alarm or worker-pool), with a documented threat model in docstring (S10)",
+    "MAX_CONTENT_LENGTH validated; size of headers documented (S12)",
+    "All existing backend tests still pass"
+  ],
+  "deliverables": [
+    "backend/app.py (CORS + schema validation)",
+    "backend/api/preview.py (schema validation)",
+    "backend/runtime.py (timeout wrapper)",
+    "backend/middleware/schemas.py (new, pydantic/marshmallow models)",
+    "tests/test_backend.py (new tests for 400/413/timeout)"
+  ],
+  "agent_id": null,
+  "started_at": null,
+  "completed_at": null,
+  "completion_summary": null
+}

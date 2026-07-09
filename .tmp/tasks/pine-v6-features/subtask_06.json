@@ -1,0 +1,28 @@
+{
+  "id": "pine-v6-features-06",
+  "seq": "06",
+  "title": "A10: export const for libraries",
+  "status": "pending",
+  "depends_on": [],
+  "parallel": true,
+  "suggested_agent": "coder-agent",
+  "context_files": [
+    ".opencode/context/core/standards/code-quality.md",
+    ".opencode/context/core/standards/testing.md"
+  ],
+  "reference_files": [
+    "src/pynescript/ast/evaluator/builtins/declarations.py",
+    "src/pynescript/ast/grammar/antlr4/resource/"
+  ],
+  "acceptance_criteria": [
+    "export const float/int/bool/string/color variables supported in library declarations",
+    "Const keyword recognized in export context",
+    "Existing tests still pass"
+  ],
+  "deliverables": [
+    "src/pynescript/ast/evaluator/builtins/declarations.py"
+  ],
+  "started_at": null,
+  "completed_at": null,
+  "completion_summary": null
+}

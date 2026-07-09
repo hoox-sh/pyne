@@ -29,7 +29,7 @@ Each category is implemented as a mixin class composed into BuiltinEvaluator.
 
 from __future__ import annotations
 
-from typing import Any, NoReturn
+from typing import NoReturn
 
 from .alerts import AlertsMixin
 from .arrays import ArrayBuiltinsMixin
@@ -45,9 +45,8 @@ from .numeric import NumericBuiltinsMixin
 from .plotting import PlottingFunctionsMixin
 from .request import FootprintBuiltinsMixin
 from .request import RequestBuiltinsMixin
-from .request import VolumeRow
-from .request import Footprint
 from .strategy import StrategyBuiltinsMixin
+from .strategy_constants import StrategyConstantsMixin
 from .strings import StringBuiltinsMixin
 from .technical import TechnicalAnalysisMixin
 from .ticker import register_ticker_functions
@@ -68,6 +67,7 @@ class BuiltinEvaluator(
     FootprintBuiltinsMixin,
     DrawingBuiltinsMixin,
     StrategyBuiltinsMixin,
+    StrategyConstantsMixin,
     MatrixBuiltinsMixin,
     MapBuiltinsMixin,
 ):
@@ -87,6 +87,7 @@ class BuiltinEvaluator(
         dispatch.update(self._footprint_builtin_map())
         dispatch.update(self._drawing_builtin_map())
         dispatch.update(self._strategy_builtin_map())
+        dispatch.update(self._strategy_constants_builtin_map())
         dispatch.update(self._matrix_builtin_map())
         dispatch.update(self._map_builtin_map())
         # Register Phase 5 functions
