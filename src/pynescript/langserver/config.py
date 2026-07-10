@@ -50,6 +50,20 @@ def get_server_capabilities() -> lsp.ServerCapabilities:
         inlay_hint_provider=lsp.InlayHintOptions(
             resolve_provider=False,
         ),
+        semantic_tokens_provider=lsp.SemanticTokensOptions(
+            legend=lsp.SemanticTokensLegend(
+                token_types=[
+                    "namespace", "type", "class", "enum", "interface",
+                    "struct", "typeParameter", "parameter", "variable",
+                    "property", "enumMember", "event", "function",
+                    "method", "macro", "keyword", "modifier", "comment",
+                    "string", "number", "regexp", "operator",
+                ],
+                token_modifiers=["declaration", "definition", "readonly", "static", "deprecated", "abstract", "async", "modification", "documentation", "defaultLibrary"],
+            ),
+            range=False,
+            full=True,
+        ),
         signature_help_provider=lsp.SignatureHelpOptions(
             trigger_characters=["(", ","],
             retrigger_characters=[","],

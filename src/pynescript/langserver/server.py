@@ -26,6 +26,8 @@ from pynescript.langserver.features import hover as hover_feature
 from pynescript.langserver.features import inlay_hints as inlay_hints_feature
 from pynescript.langserver.features import references as references_feature
 from pynescript.langserver.features import symbols as symbols_feature
+# semantic tokens stub for now
+from pynescript.langserver.features import semantic_tokens as semantic_tokens_feature
 from pynescript.langserver.workspace import Workspace
 
 
@@ -275,6 +277,15 @@ class PynescriptLanguageServer(LanguageServer):
             uri = params.text_document.uri
             source = self.pine_workspace.get_source(uri)
             return inlay_hints_feature.handle_inlay_hints(params, source)
+
+        @self.feature(lsp.TEXT_DOCUMENT_SEMANTIC_TOKENS_FULL)
+        def text_semantic_tokens(
+            params: lsp.SemanticTokensParams,
+        ) -> lsp.SemanticTokens | None:
+            """Handle textDocument/semanticTokens/full request."""
+            uri = params.text_document.uri
+            source = self.pine_workspace.get_source(uri)
+            return semantic_tokens_feature.handle_semantic_tokens(params, source)
 
 
 def _collect_workspace_symbols(doc: Any, uri: str) -> list[lsp.SymbolInformation]:
