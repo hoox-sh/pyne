@@ -15,7 +15,7 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later
 
 """
-Phase 8 Tier 6: Market Microstructure & Advanced Economics
+TA Indicators - Tier 6: Market Microstructure & Advanced Economics
 
 Tests for 20 new advanced trading indicators:
 - Market microstructure analysis (order flow, volume profile, spreads)

@@ -14,7 +14,7 @@
 #
 # SPDX-License-Identifier: LGPL-3.0-or-later
 
-"""Phase 8 Tier 3: Additional TA Indicators - Specialized Indicators.
+"""TA Indicators - Tier 3: Specialized Indicators.
 
 Tests for newly implemented technical analysis indicators:
 - ta.engulfing: Pattern detection (candlestick patterns)

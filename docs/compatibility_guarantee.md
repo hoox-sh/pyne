@@ -329,7 +329,7 @@ pytest tests/
 # Run specific compatibility tests
 pytest tests/test_parse_and_unparse.py -v
 pytest tests/test_evaluator.py -v
-pytest tests/test_phase8_tier*.py -v
+pytest tests/test_ta_indicators_*.py -v
 
 # Download and test real-world scripts
 pynescript download-builtin-scripts --script-dir ./test_scripts

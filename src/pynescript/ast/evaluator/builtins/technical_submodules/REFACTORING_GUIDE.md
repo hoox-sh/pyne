@@ -139,7 +139,7 @@ hatch run lint:style
 hatch run lint:typing
 
 # Run tests
-pytest tests/test_phase8_tier*.py -v
+pytest tests/test_ta_indicators_*.py -v
 
 # Update composition
 # (Create TechnicalAnalysisMixin composition layer)

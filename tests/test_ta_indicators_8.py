@@ -15,7 +15,7 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later
 
 """
-Phase 8 Tier 8: Final Capstone Indicator - Intelligent Strategy Synthesizer
+TA Indicators - Tier 8: Final Capstone Indicator - Intelligent Strategy Synthesizer
 
 Comprehensive test suite for ta.intelligent_strategy_synthesizer - the final indicator
 synthesizing all 146 previous indicators into adaptive, context-aware trading signals.

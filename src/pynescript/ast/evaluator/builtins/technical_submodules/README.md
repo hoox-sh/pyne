@@ -132,8 +132,8 @@ pytest tests/ -v
 
 ### Run Module-Specific Tests
 ```bash
-pytest tests/test_phase8_tier1.py::TestMovingAverages -v
-pytest tests/test_phase8_tier2.py::TestOscillators -v
+pytest tests/test_ta_indicators_1.py::TestMovingAverages -v
+pytest tests/test_ta_indicators_2.py::TestOscillators -v
 ```
 
 ### Run Coverage Report

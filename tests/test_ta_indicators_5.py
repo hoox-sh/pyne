@@ -15,7 +15,7 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later
 
 """
-Phase 8 Tier 5: Advanced Integration & Real-World Indicators
+TA Indicators - Tier 5: Advanced Integration & Real-World Indicators
 
 Tests for 15 new real-world trading indicators:
 - Market condition analysis

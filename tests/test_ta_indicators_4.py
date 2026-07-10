@@ -15,7 +15,7 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later
 
 """
-Phase 8 Tier 4: Enhancement Variants - Comprehensive Tests
+TA Indicators - Tier 4: Enhancement Variants - Comprehensive Tests
 Tests for weighted SMA, EMA cross signals, RSI thresholds,
 normalized ATR, and volume-weighted momentum.
 """

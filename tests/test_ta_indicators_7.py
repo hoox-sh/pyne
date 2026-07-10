@@ -15,7 +15,7 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later
 
 """
-Phase 8 Tier 7: Advanced Trading Strategies & Market Timing
+TA Indicators - Tier 7: Advanced Trading Strategies & Market Timing
 
 Tests for 16 advanced strategy and market timing indicators:
 - Multi-indicator strategies (trend confirmation, market structure, volatility regime, correlation)

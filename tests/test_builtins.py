@@ -14,10 +14,7 @@
 #
 # SPDX-License-Identifier: LGPL-3.0-or-later
 
-"""Integration tests for Phase 5: Built-in Functions
-
-Tests the complete flow of ticker, logging, chart.point, and polyline functions.
-"""
+"""Integration tests for additional built-in functions (ticker, logging, drawing primitives, etc.)."""
 
 from __future__ import annotations
 

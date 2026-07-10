@@ -14,7 +14,7 @@
 #
 # SPDX-License-Identifier: LGPL-3.0-or-later
 
-"""Phase 8 Tier 2: Medium-priority Technical Analysis Indicators."""
+"""TA Indicators - Tier 2: Medium-priority Technical Analysis Indicators."""
 
 from __future__ import annotations
 

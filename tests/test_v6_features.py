@@ -15,13 +15,13 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later
 
 """
-Comprehensive tests for Phase 6: Pine Script v6 Enhancements
+Comprehensive tests for Pine Script v6 Enhancements
 
 Tests cover the following v6 features:
-- Dynamic request.* calls with series string arguments (November 2024)
+- Dynamic request.* calls with series string arguments
 - Scope limit removal (already native in Python)
-- Dynamic for loop boundaries (March 2025)
-- bid/ask variables on 1T timeframe (February 2025)
+- Dynamic for loop boundaries
+- bid/ask variables on 1T timeframe
 """
 
 from __future__ import annotations

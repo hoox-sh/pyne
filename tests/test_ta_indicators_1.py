@@ -14,7 +14,7 @@
 #
 # SPDX-License-Identifier: LGPL-3.0-or-later
 
-"""Phase 8 Tier 1: Additional TA Indicators - High Priority Functions.
+"""TA Indicators - Tier 1: Additional High Priority Functions.
 
 Tests for newly implemented technical analysis indicators:
 - ta.kama: Kaufman's Adaptive Moving Average

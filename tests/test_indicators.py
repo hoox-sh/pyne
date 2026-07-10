@@ -14,9 +14,9 @@
 #
 # SPDX-License-Identifier: LGPL-3.0-or-later
 
-"""Phase 7: Test suite for missing technical indicators.
+"""Test suite for additional technical indicators.
 
-Tests cover 6 new indicators:
+Tests cover several indicators:
 - ta.iii: Intraday Intensity Index
 - ta.nvi: Negative Volume Index
 - ta.pvi: Positive Volume Index
