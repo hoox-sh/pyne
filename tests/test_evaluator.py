@@ -2209,3 +2209,14 @@ plotshape(close > open, title="shape", style=shape.triangleup)
     # Should not raise
     evaluator.visit(ast)
     assert True
+
+
+def test_pine_version_converter_stub():
+    """Basic test for v5<->v6 converter stub (plan §6)."""
+    from scripts.convert_pine_version import convert_v5_to_v6, convert_v6_to_v5
+    v5 = 'study("My Study")\nplot(close)'
+    v6 = convert_v5_to_v6(v5)
+    assert "indicator" in v6
+    back = convert_v6_to_v5(v6)
+    assert "study" in back
+
