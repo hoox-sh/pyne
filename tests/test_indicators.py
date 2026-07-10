@@ -722,7 +722,7 @@ plot(wvad_rsi, title="WVAD RSI", color=color.red)
         script = parse(code)
         assert script is not None
 
-    def test_phase7_with_strategy_context(self):
+    def test_with_strategy_context(self):
         """Test Phase 7 indicators in strategy context."""
         code = """
 //@version=6
@@ -756,7 +756,7 @@ if iii < 0.0
         script = parse(code)
         assert script is not None
 
-    def test_phase7_type_compatibility(self):
+    def test_type_compatibility(self):
         """Test that Phase 7 indicators are type-compatible."""
         code = """
 //@version=6
