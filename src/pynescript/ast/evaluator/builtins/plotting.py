@@ -57,7 +57,7 @@ class PlottingFunctionsMixin(BuiltinDispatchMixin):
             "plot.linestyle_dotted": self._builtin_plot_linestyle_dotted,
         }
 
-    def _builtin_plot(self, args: list[Any]) -> None:
+    def _builtin_plot(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> None:
         """Plot a series on the chart.
 
         plot(series, title, color, opacity, style, linewidth, trackprice,
@@ -93,56 +93,56 @@ class PlottingFunctionsMixin(BuiltinDispatchMixin):
         # This is a stub that accepts the arguments but does nothing
         return None
 
-    def _builtin_plotarrow(self, _args: list[Any]) -> None:
+    def _builtin_plotarrow(self, _args: list[Any], kwargs: dict[str, Any] | None = None) -> None:
         """Stub: plotarrow(series, title, colorup, colordown, offset,
         minHeight, maxHeight)."""
         return None
 
-    def _builtin_plotbar(self, _args: list[Any]) -> None:
+    def _builtin_plotbar(self, _args: list[Any], kwargs: dict[str, Any] | None = None) -> None:
         """Stub: plotbar(open, high, low, close, title, color,
         editable, show_last)."""
         return None
 
-    def _builtin_plotcandle(self, _args: list[Any]) -> None:
+    def _builtin_plotcandle(self, _args: list[Any], kwargs: dict[str, Any] | None = None) -> None:
         """Stub: plotcandle(open, high, low, close, title, color,
         editable, show_last, wickcolor, bordercolor)."""
         return None
 
-    def _builtin_plotchar(self, _args: list[Any]) -> None:
+    def _builtin_plotchar(self, _args: list[Any], kwargs: dict[str, Any] | None = None) -> None:
         """Stub: plotchar(series, title, char, location, color, offset,
         size, editable, show_last)."""
         return None
 
-    def _builtin_plotshape(self, _args: list[Any]) -> None:
+    def _builtin_plotshape(self, _args: list[Any], kwargs: dict[str, Any] | None = None) -> None:
         """Stub: plotshape(series, title, style, location, color,
         offset, text, editable, show_last)."""
         return None
 
-    def _builtin_fill(self, _args: list[Any]) -> None:
+    def _builtin_fill(self, _args: list[Any], kwargs: dict[str, Any] | None = None) -> None:
         """Stub: fill(plot1, plot2, color, title, editable, show_last)."""
         return None
 
-    def _builtin_bgcolor(self, _args: list[Any]) -> None:
+    def _builtin_bgcolor(self, _args: list[Any], kwargs: dict[str, Any] | None = None) -> None:
         """Stub: bgcolor(color, title, editable, show_last)."""
         return None
 
-    def _builtin_barcolor(self, _args: list[Any]) -> None:
+    def _builtin_barcolor(self, _args: list[Any], kwargs: dict[str, Any] | None = None) -> None:
         """Stub: barcolor(color, offset, editable, show_last)."""
         return None
 
-    def _builtin_hline(self, _args: list[Any]) -> None:
+    def _builtin_hline(self, _args: list[Any], kwargs: dict[str, Any] | None = None) -> None:
         """Stub: hline(price, title, color, linestyle, linewidth)."""
         return None
 
     # September 2025: Plot linestyle constants
-    def _builtin_plot_linestyle_solid(self, _args: list[Any]) -> str:
+    def _builtin_plot_linestyle_solid(self, _args: list[Any], kwargs: dict[str, Any] | None = None) -> str:
         """plot.linestyle_solid - Solid line style constant."""
         return PlotStyle.LINESTYLE_SOLID
 
-    def _builtin_plot_linestyle_dashed(self, _args: list[Any]) -> str:
+    def _builtin_plot_linestyle_dashed(self, _args: list[Any], kwargs: dict[str, Any] | None = None) -> str:
         """plot.linestyle_dashed - Dashed line style constant."""
         return PlotStyle.LINESTYLE_DASHED
 
-    def _builtin_plot_linestyle_dotted(self, _args: list[Any]) -> str:
+    def _builtin_plot_linestyle_dotted(self, _args: list[Any], kwargs: dict[str, Any] | None = None) -> str:
         """plot.linestyle_dotted - Dotted line style constant."""
         return PlotStyle.LINESTYLE_DOTTED

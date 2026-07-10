@@ -2192,3 +2192,20 @@ def test_timeframe_stubs():
 
     assert timeframe_change("D") is False
     assert isinstance(timeframe_from_seconds(86400), str)
+
+
+def test_plotting_stubs_do_not_error():
+    """TDD test for plotting stubs (plan §4).
+    Using plot* functions in a script should not raise; they are no-ops
+    for non-UI evaluators but must accept the call for compatibility.
+    """
+    source = '''//@version=6
+indicator("PlotTest")
+plot(close, title="close", color=color.blue)
+plotshape(close > open, title="shape", style=shape.triangleup)
+'''
+    ast = helper.parse(source, mode="exec")
+    evaluator = NodeLiteralEvaluator()
+    # Should not raise
+    evaluator.visit(ast)
+    assert True
