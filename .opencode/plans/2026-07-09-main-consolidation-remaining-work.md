@@ -265,6 +265,8 @@ For this plan, choose the converter as it is "extra tool" style like pine-worker
 
 ## 7. Final Verification, Cleanup, and Release Prep
 
+**Deeper cleanup (2026-07-10 continuation):** Removed all historical `docs/PHASE_8_*.md` files and renamed all `test_*phase*.py` / `test_collections_phase4.py` files (and cleaned references/docstrings) to eliminate legacy "Phase X" naming from the filesystem. Only `moon_phases.pine` data file remains (unrelated).
+
 - [ ] **Step 7.1:** Full `make test lint` + `make pine-worker` (if possible).
 
 - [ ] **Step 7.2:** Clean untracked that shouldn't be committed (or add .gitignore rules).
