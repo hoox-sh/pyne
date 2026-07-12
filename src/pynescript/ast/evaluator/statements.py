@@ -89,25 +89,31 @@ class StatementEvaluator:
         # -- Handle var / varip: only assign on first bar ------------------
         first_bar = self.context.get("bar_index", 0) == 0  # type: ignore[attr-defined]
         is_var = node.mode is not None and isinstance(node.mode, (ast.Var, ast.VarIp))
+        is_const = node.mode is not None and isinstance(node.mode, ast.Const)  # v6 const decl
 
         if is_var:
             if isinstance(node.target, ast.Name):
                 name: str = node.target.id  # type: ignore[attr-defined]
                 if first_bar:
-                    # First bar — assign initial value and record name
                     if node.value:
                         value = self.visit(node.value)  # type: ignore[attr-defined]
                         self.context[name] = value  # type: ignore[attr-defined]
                     self._var_declarations.add(name)  # type: ignore[attr-defined]
                 else:
-                    # Subsequent bars — skip (variable keeps its value)
                     pass
                 return
             msg = f"Unsupported var/varip target: {type(node.target)}"
             self._error(msg)  # type: ignore[attr-defined]
             return
 
-        # -- Regular assignment (no var/varip) -----------------------------
+        if is_const:
+            # v6: const always initializes (no re-init like var)
+            if node.value and isinstance(node.target, ast.Name):
+                value = self.visit(node.value)  # type: ignore[attr-defined]
+                self.context[node.target.id] = value  # type: ignore[attr-defined]
+            return
+
+        # -- Regular assignment -----------------------------
         if node.value:
             value = self.visit(node.value)  # type: ignore[attr-defined]
             if isinstance(node.target, ast.Name):
@@ -293,9 +299,14 @@ class StatementEvaluator:
         return self.visit(node.value)  # type: ignore[attr-defined]
 
     def visit_While(self, node: ast.While):
-        """Execute a while loop."""
+        """Execute a while loop. v6 strict bool."""
         last_result = None
-        while self.visit(node.test):  # type: ignore[attr-defined]
+        while True:
+            test_val = self.visit(node.test)  # type: ignore[attr-defined]
+            if test_val is None:
+                test_val = False
+            if not bool(test_val):
+                break
             result, should_break = self._execute_loop_body(node.body)
             if result is not None:
                 last_result = result
@@ -417,17 +428,16 @@ class StatementEvaluator:
         return result
 
     def visit_If(self, node: ast.If):
-        """Evaluate an if-else structure."""
-        # Evaluate condition
-        if self.visit(node.test):  # type: ignore[attr-defined]
-            # Execute body (block)
+        """Evaluate an if-else structure. v6: strict bool, na -> false."""
+        test_val = self.visit(node.test)  # type: ignore[attr-defined]
+        if test_val is None:
+            test_val = False
+        if bool(test_val):
             return self._execute_block(node.body)
         elif node.orelse:
-            # Execute else/elif
             if isinstance(node.orelse, list):
                 return self._execute_block(node.orelse)
             else:
-                # Single node (nested If for elif)
                 return self.visit(node.orelse)  # type: ignore[attr-defined]
         return None
 

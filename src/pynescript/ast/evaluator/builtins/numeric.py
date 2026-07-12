@@ -1,7 +1,21 @@
-# Copyright (C) 2025 jango-blockchained. All Rights Reserved.
+# Copyright (C) 2025 jango-blockchained
 #
-# This software is the proprietary information of jango-blockchained.
-# Use is subject to license terms.
+# This file is part of pynescript.
+#
+# pynescript is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Lesser General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# pynescript is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public License
+# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+#
+# SPDX-License-Identifier: LGPL-3.0-or-later
 
 from __future__ import annotations
 
@@ -198,13 +212,15 @@ class NumericBuiltinsMixin(BuiltinDispatchMixin):
         return default if value is None else value
 
     def _builtin_bool(self, args: list[Any]) -> bool:
-        """Convert value to boolean."""
+        """Convert value to boolean. v6: strict, never na; explicit cast required."""
         self._require_len(args, UNARY, "bool() takes one argument")
         value = args[0]
+        if value is None:  # na
+            return False  # or error; v6 bool never na
         if isinstance(value, bool):
             return value
         if isinstance(value, (int, float)):
-            return bool(value)
+            return bool(value)  # explicit via bool()
         if isinstance(value, str):
             return bool(value.lower() in {"true", "yes", "1"})
         return bool(value)
