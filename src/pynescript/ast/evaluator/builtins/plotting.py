@@ -35,7 +35,10 @@ class Plot:
     color: Any = None
     style: str = ""
     linewidth: int = 1
-    # other props...
+    text: str = ""
+    text_size: int | str = "auto"  # v6 int support
+    text_formatting: str = ""
+    force_overlay: bool = False
     deleted: bool = False
 
 
@@ -136,13 +139,18 @@ class PlottingFunctionsMixin(BuiltinDispatchMixin):
         series = args[0] if len(args) > 0 else None
         title = args[1] if len(args) > 1 else ""
         color = args[2] if len(args) > 2 else None
-        # style etc from kwargs or args
         style = (kwargs or {}).get("style") or (args[4] if len(args) > 4 else "")
         linewidth = (kwargs or {}).get("linewidth") or (args[5] if len(args) > 5 else 1)
+        text = (kwargs or {}).get("text") or (args[12] if len(args) > 12 else "")
+        text_size = (kwargs or {}).get("text_size") or (args[15] if len(args) > 15 else "auto")
+        text_formatting = (kwargs or {}).get("text_formatting") or ""
+        force_overlay = (kwargs or {}).get("force_overlay", False)
 
         p = Plot(
             series=series, title=str(title), color=color,
-            style=str(style), linewidth=int(linewidth) if linewidth else 1
+            style=str(style), linewidth=int(linewidth) if linewidth else 1,
+            text=str(text), text_size=text_size, text_formatting=str(text_formatting),
+            force_overlay=bool(force_overlay)
         )
         PlotRegistry.add(p)
         return None  # plots return void in Pine
