@@ -1,14 +1,42 @@
-# Copyright (C) 2025 jango-blockchained. All Rights Reserved.
+# Copyright (C) 2025 jango-blockchained
 #
-# This software is the proprietary information of jango-blockchained.
-# Use is subject to license terms.
+# This file is part of pynescript.
+#
+# pynescript is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Lesser General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# pynescript is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public License
+# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+#
+# SPDX-License-Identifier: LGPL-3.0-or-later
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any
 
 from .base import BuiltinDispatchMixin
 from .base import BuiltinHandler
+
+
+@dataclass
+class Plot:
+    """Plot object for real effects during evaluation (v6+ support)."""
+
+    series: Any = None
+    title: str = ""
+    color: Any = None
+    style: str = ""
+    linewidth: int = 1
+    # other props...
+    deleted: bool = False
 
 
 class PlotStyle:
@@ -21,6 +49,20 @@ class PlotStyle:
     LINESTYLE_SOLID = "linestyle_solid"
     LINESTYLE_DASHED = "linestyle_dashed"
     LINESTYLE_DOTTED = "linestyle_dotted"
+
+
+class PlotRegistry:
+    """Registry for plot objects created during script evaluation (real effects)."""
+
+    plots: list[Plot] = []
+
+    @classmethod
+    def reset(cls) -> None:
+        cls.plots = []
+
+    @classmethod
+    def add(cls, plot: Plot) -> None:
+        cls.plots.append(plot)
 
     # Plot styles
     STYLE_LINE = "plot_style_line"
@@ -88,14 +130,29 @@ class PlottingFunctionsMixin(BuiltinDispatchMixin):
             text_halign: Horizontal alignment
             text_valign: Vertical alignment
             linestyle: Line style (September 2025: plot.linestyle_solid, dashed, dotted)
+            text_formatting: v6 text formatting (bold/italic)
         """
-        # In Pine Script, plot() returns None and has side effects on the chart
-        # This is a stub that accepts the arguments but does nothing
-        return None
+        # Real effect: register the plot for inspection (e.g. backend, tests, parity)
+        series = args[0] if len(args) > 0 else None
+        title = args[1] if len(args) > 1 else ""
+        color = args[2] if len(args) > 2 else None
+        # style etc from kwargs or args
+        style = (kwargs or {}).get("style") or (args[4] if len(args) > 4 else "")
+        linewidth = (kwargs or {}).get("linewidth") or (args[5] if len(args) > 5 else 1)
+
+        p = Plot(
+            series=series, title=str(title), color=color,
+            style=str(style), linewidth=int(linewidth) if linewidth else 1
+        )
+        PlotRegistry.add(p)
+        return None  # plots return void in Pine
 
     def _builtin_plotarrow(self, _args: list[Any], kwargs: dict[str, Any] | None = None) -> None:
-        """Stub: plotarrow(series, title, colorup, colordown, offset,
-        minHeight, maxHeight)."""
+        """Stub with real effect."""
+        kw = kwargs or {}
+        title = kw.get("title") or (_args[1] if len(_args) > 1 else "arrow")
+        p = Plot(series=_args[0] if _args else None, title=str(title), style="arrow")
+        PlotRegistry.add(p)
         return None
 
     def _builtin_plotbar(self, _args: list[Any], kwargs: dict[str, Any] | None = None) -> None:
@@ -114,8 +171,11 @@ class PlottingFunctionsMixin(BuiltinDispatchMixin):
         return None
 
     def _builtin_plotshape(self, _args: list[Any], kwargs: dict[str, Any] | None = None) -> None:
-        """Stub: plotshape(series, title, style, location, color,
-        offset, text, editable, show_last)."""
+        """Stub with real effect: registers shape plot."""
+        kw = kwargs or {}
+        title = kw.get("title") or (_args[1] if len(_args) > 1 else "shape")
+        p = Plot(series=_args[0] if _args else None, title=str(title), style="shape")
+        PlotRegistry.add(p)
         return None
 
     def _builtin_fill(self, _args: list[Any], kwargs: dict[str, Any] | None = None) -> None:

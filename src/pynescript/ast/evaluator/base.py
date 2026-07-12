@@ -1,7 +1,21 @@
-# Copyright (C) 2025 jango-blockchained. All Rights Reserved.
+# Copyright (C) 2025 jango-blockchained
 #
-# This software is the proprietary information of jango-blockchained.
-# Use is subject to license terms.
+# This file is part of pynescript.
+#
+# pynescript is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Lesser General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# pynescript is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public License
+# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+#
+# SPDX-License-Identifier: LGPL-3.0-or-later
 
 from __future__ import annotations
 
@@ -23,6 +37,23 @@ _MATH_CONSTANTS = {
     # v6 feature (February 2025): bid and ask variables on 1T timeframe
     "bid": 100.01,  # Mock bid price for 1T timeframe
     "ask": 100.02,  # Mock ask price for 1T timeframe
+    # Additional v6 syminfo / timeframe constants (simple defaults)
+    "syminfo.isin": "",
+    "syminfo.current_contract": None,
+    "syminfo.main_tickerid": "UNKNOWN",
+    "timeframe.main_period": "D",
+    # v6 text formatting constants
+    "text.formatting.none": "",
+    "text.formatting.bold": "bold",
+    "text.formatting.italic": "italic",
+    "text.formatting.bold_italic": "bold italic",
+    # v6 text size constants (can be used as int or str; int for points in v6)
+    "size.auto": "auto",
+    "size.tiny": 8,
+    "size.small": 10,
+    "size.normal": 12,
+    "size.large": 16,
+    "size.huge": 20,
 }
 
 

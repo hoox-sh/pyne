@@ -1,7 +1,21 @@
-# Copyright (C) 2025 jango-blockchained. All Rights Reserved.
+# Copyright (C) 2025 jango-blockchained
 #
-# This software is the proprietary information of jango-blockchained.
-# Use is subject to license terms.
+# This file is part of pynescript.
+#
+# pynescript is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Lesser General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# pynescript is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public License
+# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+#
+# SPDX-License-Identifier: LGPL-3.0-or-later
 
 """Ticker functions for PineScript v6 evaluator."""
 
@@ -32,6 +46,7 @@ class TickerInfo:
         self.linebreak_applied = False
         self.pointfigure_applied = False
         self.renko_applied = False
+        self.style = None  # v6 e.g. "PercentageLTP"
 
     def __repr__(self) -> str:
         """Return string representation of ticker."""
@@ -108,20 +123,23 @@ def ticker_heikinashi(ticker_str: str) -> TickerInfo:
     return ticker
 
 
-def ticker_kagi(ticker_str: str, short: float = 3.0) -> TickerInfo:
+def ticker_kagi(ticker_str: str, short: float = 3.0, style: str = None) -> TickerInfo:
     """Create a Kagi chart ticker from a symbol.
 
-    Applies Kagi charting transformation.
+    Applies Kagi charting transformation. v6 style support.
 
     Args:
         ticker_str: The base ticker symbol
         short: The reversal amount for Kagi charts
+        style: e.g. "PercentageLTP"
 
     Returns:
         TickerInfo with Kagi transformation applied
     """
     ticker = TickerInfo(f"KAGI({ticker_str},{short})")
     ticker.kagi_applied = True
+    if style:
+        ticker.style = style
     return ticker
 
 
@@ -142,37 +160,43 @@ def ticker_linebreak(ticker_str: str, reversal: int = 3) -> TickerInfo:
     return ticker
 
 
-def ticker_pointfigure(ticker_str: str, boxsize: float = 1.0) -> TickerInfo:
+def ticker_pointfigure(ticker_str: str, boxsize: float = 1.0, style: str = None) -> TickerInfo:
     """Create a Point and Figure chart ticker from a symbol.
 
-    Applies Point and Figure charting transformation.
+    Applies Point and Figure charting transformation. v6: style e.g. "PercentageLTP"
 
     Args:
         ticker_str: The base ticker symbol
         boxsize: The box size for point and figure charting
+        style: optional style
 
     Returns:
         TickerInfo with Point and Figure transformation applied
     """
     ticker = TickerInfo(f"PF({ticker_str},{boxsize})")
     ticker.pointfigure_applied = True
+    if style:
+        ticker.style = style
     return ticker
 
 
-def ticker_renko(ticker_str: str, boxsize: float = 1.0) -> TickerInfo:
+def ticker_renko(ticker_str: str, boxsize: float = 1.0, style: str = None) -> TickerInfo:
     """Create a Renko chart ticker from a symbol.
 
-    Applies Renko charting transformation.
+    Applies Renko charting transformation. v6: supports style="PercentageLTP" etc.
 
     Args:
         ticker_str: The base ticker symbol
         boxsize: The brick size for Renko charts
+        style: Chart style e.g. "PercentageLTP" (v6)
 
     Returns:
         TickerInfo with Renko transformation applied
     """
     ticker = TickerInfo(f"RENKO({ticker_str},{boxsize})")
     ticker.renko_applied = True
+    if style:
+        ticker.style = style
     return ticker
 
 

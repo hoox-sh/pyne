@@ -76,6 +76,22 @@ Hatch equivalents: `hatch run test:test`, `hatch run lint:style`,
 | Add a CLI subcommand | `src/pynescript/__main__.py` (Click group) |
 | Change the grammar | `src/pynescript/ast/grammar/antlr4/resource/*.g4`, then `hatch run lint:gen-parser` |
 | Add a backend endpoint | `backend/api/preview.py` (Flask blueprints) |
+
+## Pine v6 Grammar & Regeneration Notes (2026-07)
+
+When adding v6 features that touch literals or syntax (multiline strings `"""..."""` / `'''...'''`, etc.):
+
+- The resource `PinescriptLexer.g4` may require **non-obvious quoting** for triple-quoted fragments. Direct `"'''"` or `'"""'` literals inside fragment rules can trigger ANTLR "quote came as a complete surprise" errors even if single/double work. Use factored starters:
+  ```g4
+  fragment TRIPLE_SQ_START: '\'' '\'' '\'';
+  fragment TRIPLE_SINGLE_QUOTED_STRING: TRIPLE_SQ_START ... TRIPLE_SQ_START;
+  ```
+- `generate.py` (and `hatch run lint:gen-parser`) hardcodes `$(python -c 'sys.executable')/antlr4`. The `antlr4-cli` pip package often lands in `~/.local/bin`. Use a temp dir + full path or `PATH` shim + manual copy of `*Base.py`.
+- Full regeneration can produce parser context classes whose accessor methods (e.g. `template_spec_suffix()`) differ from what `builder.py` expects. **Safe pattern observed**: edit only resource + selectively copy the fresh `PinescriptLexer.py` (and update the copied `LexerBase.py`). Leave the committed `PinescriptParser.py` (and its visitors) untouched unless you are prepared to also patch the builder.
+- Always test with direct `from pynescript.ast.helper import parse, unparse` on a minimal v6 snippet containing the new syntax **before** running the huge parametrized corpus.
+- After success, update `docs/missing_features.md` and the grammar-changes guide.
+
+See `.opencode/context/project-intelligence/guides/grammar-changes.md` (case study) and `docs/missing_features.md`.
 | Work on the TS port (pine-worker) | `pine-worker/` (extra tool; see its README + the strategy-events plan) |
 
 ## Testing

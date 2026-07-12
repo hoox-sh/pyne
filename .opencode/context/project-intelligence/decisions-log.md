@@ -1,4 +1,4 @@
-<!-- Context: project-intelligence/decisions | Priority: medium | Version: 1.0 | Updated: 2026-06-03 -->
+<!-- Context: project-intelligence/decisions | Priority: medium | Version: 1.1 | Updated: 2026-07-12 -->
 
 # Decisions Log
 
@@ -61,3 +61,27 @@ Architecture decisions for pynescript.
 - Flask API: `backend/app.py`
 - Nuitka build: `scripts/build/compile.py`
 - Technical submodules: `src/pynescript/ast/evaluator/builtins/technical_submodules/`
+
+## Practical Experience: Pine v6 Multiline Strings + ANTLR (2026-07)
+
+**Date**: 2026-07-12 | **Status**: Experience captured (not a formal ADR)
+
+**Context**: Implementing support for v6 multiline triple-quoted strings (`"""..."""`) and reviewing other April 2026 features (`sort_field` on matrices).
+
+**What we learned**:
+- Resource grammar edits are mandatory; generated/ must be treated as build artifact.
+- ANTLR4's own grammar for lexer fragments is sensitive to how you quote multi-character literals containing `'` or `"`. Factored start fragments (`TRIPLE_SQ_START`) were required.
+- The custom `LexerBase` (indent machine + string post-processing) was already prepared for the feature (`_handle_STRING_token` checks for triple prefixes).
+- Full regeneration is risky because `builder.py` makes direct calls on generated context objects. Selective refresh of only the lexer side worked.
+- Direct use of `pynescript.ast.helper.parse` + `unparse` on tiny examples gives much faster feedback than the full 500-case corpus.
+- Documentation (`missing_features.md`) had drifted from the actual code state (footprint was already substantially implemented as mocks + method dispatch).
+
+**Recommended workflow for future syntax features**:
+1. Edit `resource/*.g4` + `resource/*Base.py` only.
+2. Reproduce the exact token stream with a minimal script.
+3. Use temp dir for `antlr4` invocation.
+4. Copy only what is safe (lexer + base).
+5. Immediately add a test in `tests/test_parse_and_unparse.py` or `test_v6_features.py`.
+6. Record the gotchas here and in the grammar guide.
+
+This experience was turned into concrete additions in `AGENTS.md`, `DESIGN.md`, and `guides/grammar-changes.md`.

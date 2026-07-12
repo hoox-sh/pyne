@@ -1,7 +1,21 @@
-# Copyright (C) 2025 jango-blockchained. All Rights Reserved.
+# Copyright (C) 2025 jango-blockchained
 #
-# This software is the proprietary information of jango-blockchained.
-# Use is subject to license terms.
+# This file is part of pynescript.
+#
+# pynescript is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Lesser General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# pynescript is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public License
+# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+#
+# SPDX-License-Identifier: LGPL-3.0-or-later
 
 from __future__ import annotations
 
@@ -32,6 +46,9 @@ class DrawingRegistry:
         cls.labels = []
         cls.tables = []
         cls.polylines = []
+        # Also reset plot real effects
+        from .plotting import PlotRegistry
+        PlotRegistry.reset()
 
 
 @dataclass
@@ -47,6 +64,7 @@ class Line:
     width: int = 1
     style: str = "solid"  # "solid", "dashed", "dotted"
     extend: str = "none"  # "none", "left", "right", "both"
+    force_overlay: bool = False  # v6
     deleted: bool = False
 
 
@@ -65,6 +83,7 @@ class Box:
     border_width: int = 1
     border_style: str = "solid"
     extend: str = "none"
+    force_overlay: bool = False  # v6
     deleted: bool = False
 
 
@@ -82,12 +101,14 @@ class Label:
     text_font_family: str = "default"
     text_halign: str = "center"
     text_valign: str = "center"
-    text_size: str = "auto"
+    text_size: int | str = "auto"  # v6: supports int (points) or size.* consts
+    text_formatting: str = ""  # v6: "", "bold", "italic", or combination like "bold italic"
     tooltip: str = ""
     style: str = "label_center"
     border_color: str = "rgba(0,0,0,0)"
     border_width: int = 0
     border_style: str = "solid"
+    force_overlay: bool = False  # v6
     deleted: bool = False
 
 
@@ -103,6 +124,7 @@ class Table:
     border_color: str = "#000000"
     border_width: int = 1
     bgcolor: str = "rgba(255,255,255,255)"
+    force_overlay: bool = False  # v6
     cells: dict[tuple[int, int], TableCell] = field(default_factory=dict)
     deleted: bool = False
 
@@ -141,6 +163,7 @@ class Polyline:
     color: str = "#000000"
     width: int = 1
     style: str = "solid"
+    force_overlay: bool = False  # v6
     deleted: bool = False
 
 
@@ -198,6 +221,7 @@ class DrawingBuiltinsMixin(BuiltinDispatchMixin):
             "label.set_text_halign": self._handle_label_set_text_halign,
             "label.set_text_valign": self._handle_label_set_text_valign,
             "label.set_text_size": self._handle_label_set_text_size,
+            "label.set_text_formatting": self._handle_label_set_text_formatting,
             "label.set_tooltip": self._handle_label_set_tooltip,
             "label.set_color": self._handle_label_set_color,
             "label.set_border_color": self._handle_label_set_border_color,
@@ -245,8 +269,9 @@ class DrawingBuiltinsMixin(BuiltinDispatchMixin):
         width = args[6] if len(args) > 6 else 1
         style = args[7] if len(args) > 7 else "solid"
         extend = args[8] if len(args) > 8 else "none"
+        force_overlay = args[9] if len(args) > 9 else False
 
-        line = Line(x1, y1, x2, y2, xloc, color, width, style, extend)
+        line = Line(x1, y1, x2, y2, xloc, color, width, style, extend, force_overlay=force_overlay)
         DrawingRegistry.lines.append(line)
         return line
 
@@ -365,8 +390,13 @@ class DrawingBuiltinsMixin(BuiltinDispatchMixin):
         border_width = args[8] if len(args) > 8 else 1
         border_style = args[9] if len(args) > 9 else "solid"
         extend = args[10] if len(args) > 10 else "none"
+        force_overlay = args[11] if len(args) > 11 else False
 
-        box = Box(left, top, right, bottom, xloc, closed, bgcolor, border_color, border_width, border_style, extend)
+        box = Box(
+            left, top, right, bottom, xloc, closed, bgcolor,
+            border_color, border_width, border_style, extend,
+            force_overlay=force_overlay
+        )
         DrawingRegistry.boxes.append(box)
         return box
 
@@ -526,8 +556,10 @@ class DrawingBuiltinsMixin(BuiltinDispatchMixin):
         text_halign = args[8] if len(args) > 8 else "center"
         text_valign = args[9] if len(args) > 9 else "center"
         text_size = args[10] if len(args) > 10 else "auto"
-        tooltip = args[11] if len(args) > 11 else ""
-        style = args[12] if len(args) > 12 else "label_center"
+        text_formatting = args[11] if len(args) > 11 else ""
+        tooltip = args[12] if len(args) > 12 else ""
+        style = args[13] if len(args) > 13 else "label_center"
+        force_overlay = args[14] if len(args) > 14 else False
 
         label = Label(
             x,
@@ -541,8 +573,10 @@ class DrawingBuiltinsMixin(BuiltinDispatchMixin):
             text_halign,
             text_valign,
             text_size,
+            text_formatting,
             tooltip,
             style,
+            force_overlay=force_overlay,
         )
         DrawingRegistry.labels.append(label)
         return label
@@ -569,8 +603,10 @@ class DrawingBuiltinsMixin(BuiltinDispatchMixin):
                 label.text_halign,
                 label.text_valign,
                 label.text_size,
+                label.text_formatting,
                 label.tooltip,
                 label.style,
+                force_overlay=label.force_overlay,
             )
             DrawingRegistry.labels.append(new_label)
             return new_label
@@ -634,10 +670,18 @@ class DrawingBuiltinsMixin(BuiltinDispatchMixin):
         return label
 
     def _handle_label_set_text_size(self, args: list[Any]) -> Label:
-        """label.set_text_size(label, size)"""
+        """label.set_text_size(label, size)  # v6 int (points) or const supported"""
         label = args[0] if len(args) > 0 else None
         if isinstance(label, Label):
-            label.text_size = args[1] if len(args) > 1 else label.text_size
+            new_size = args[1] if len(args) > 1 else label.text_size
+            label.text_size = new_size
+        return label
+
+    def _handle_label_set_text_formatting(self, args: list[Any]) -> Label:
+        """label.set_text_formatting(label, formatting)  # v6"""
+        label = args[0] if len(args) > 0 else None
+        if isinstance(label, Label):
+            label.text_formatting = args[1] if len(args) > 1 else label.text_formatting
         return label
 
     def _handle_label_set_tooltip(self, args: list[Any]) -> Label:
@@ -723,8 +767,13 @@ class DrawingBuiltinsMixin(BuiltinDispatchMixin):
         border_color = args[5] if len(args) > 5 else "#000000"
         border_width = args[6] if len(args) > 6 else 1
         bgcolor = args[7] if len(args) > 7 else "rgba(255,255,255,255)"
+        force_overlay = args[8] if len(args) > 8 else False
 
-        table = Table(position, rows, columns, frame_color, frame_width, border_color, border_width, bgcolor)
+        table = Table(
+            position, rows, columns, frame_color, frame_width,
+            border_color, border_width, bgcolor,
+            force_overlay=force_overlay
+        )
         DrawingRegistry.tables.append(table)
         return table
 
@@ -880,6 +929,7 @@ class DrawingBuiltinsMixin(BuiltinDispatchMixin):
         color = args[3] if len(args) > 3 else "#000000"
         width = args[4] if len(args) > 4 else 1
         style = args[5] if len(args) > 5 else "solid"
+        force_overlay = args[6] if len(args) > 6 else False
 
         polyline = Polyline(
             points=list(points) if isinstance(points, list) else [],
@@ -888,6 +938,7 @@ class DrawingBuiltinsMixin(BuiltinDispatchMixin):
             color=str(color),
             width=int(width),
             style=str(style),
+            force_overlay=bool(force_overlay),
         )
         DrawingRegistry.polylines.append(polyline)
         return polyline

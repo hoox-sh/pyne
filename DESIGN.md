@@ -177,6 +177,49 @@ Diagnostics follow the same pattern but push
 `textDocument/publishDiagnostics` to the client; formatting hands off to
 `unparse()` over a `DocumentFormattingParams` range.
 
+---
+
+## 5. Pine Script v6 Support & Practical Lessons (2026)
+
+Pine Script v6 (launched late 2024, with monthly updates through 2026) introduced:
+
+- Dynamic `request.*()` (series strings in any scope) — core support landed earlier.
+- Strict boolean semantics, integer division → float, removal of `when`/`transp`.
+- **April 2026**: Multiline strings (`"""..."""`, `'''...'''` — literal newlines + indentation) and `sort_field` (int index or string name) on `array.sort` / `matrix.sort` for UDT collections.
+- Footprint data (`request.footprint`, `footprint.*`, `volume_row.*`).
+
+### Grammar Challenges Encountered
+
+The ANTLR lexer grammar lives in `resource/`. Adding triple-quoted strings exposed:
+
+- Quote parsing fragility in the g4 meta-lexer when mixing `"` and `'` for literal delimiters inside fragments.
+- Stale generated artifacts (committed so users need no Java). The committed lexer did not contain the `TRIPLE_*` rules even when the resource file had been edited.
+- Interaction with the hand-written `PinescriptLexerBase.py` (indent tracking + `_handle_STRING_token` that must preserve multiline content literally for v6 while still doing legacy line-wrapping stripping for ordinary strings).
+- Builder fragility: regenerated `PinescriptParser*.py` sometimes omit or rename context accessors that `ast/builder.py` calls directly.
+
+**Practical process used (July 2026)**:
+1. Fix `resource/PinescriptLexer.g4` (safe `TRIPLE_SQ_START` fragment using repeated `'\''`).
+2. Run ANTLR in a clean `/tmp` dir (avoids path mirroring when g4 lives under `src/`).
+3. Copy only the resulting `PinescriptLexer.py` (and refreshed `LexerBase.py`) into `generated/`. Do **not** overwrite the parser files.
+4. Verify with tiny `parse()` + `unparse()` round-trips containing real v6 syntax.
+5. Update docs + this file.
+
+The `Matrix` and array UDT sort logic was added in the evaluator layer (mirroring `ObjectInstance.get_field` / `.fields`) without grammar changes.
+
+### Current State (as of 2026-07)
+
+- Multiline strings: fully working (parse, unparse preserves content + indentation, round-trips).
+- UDT `sort_field` on matrices: implemented (basic + UDT key extraction).
+- Footprint: has mock data generator + method dispatch (already present before this round of work).
+- Many other v6 items (dynamic requests, strict bools, new builtins) were already implemented; documentation lagged the code.
+
+Future agents: when touching grammar for new literals or keywords, expect to spend time on quoting experiments + selective artifact refresh + heavy use of the `parse` helper for quick feedback. The corpus (`tests/data/builtin_scripts/`) is the ultimate regression gate.
+
+See also:
+- `docs/missing_features.md`
+- `.opencode/context/project-intelligence/guides/grammar-changes.md`
+- `AGENTS.md` (Pine v6 grammar notes)
+
 ### 4.4 Pro API Request
 
 ```

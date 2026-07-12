@@ -1,7 +1,21 @@
-# Copyright (C) 2025 jango-blockchained. All Rights Reserved.
+# Copyright (C) 2025 jango-blockchained
 #
-# This software is the proprietary information of jango-blockchained.
-# Use is subject to license terms.
+# This file is part of pynescript.
+#
+# pynescript is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Lesser General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# pynescript is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public License
+# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+#
+# SPDX-License-Identifier: LGPL-3.0-or-later
 
 from __future__ import annotations
 
@@ -139,8 +153,6 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
     # ENTRY/EXIT FUNCTIONS
 
     def _handle_strategy_entry(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> None:
-        if not hasattr(self, "_strategy_state"):
-            self._strategy_state = StrategyState()
         """
         strategy.entry(id, direction, qty, limit, stop, comment, alert, ...)
 
@@ -161,6 +173,8 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
         direction=\"long\", qty=10)``). See subtask 1.3 of the
         pine-worker-strategy-events plan.
         """
+        if not hasattr(self, "_strategy_state"):
+            self._strategy_state = StrategyState()
         kw = kwargs or {}
         direction = kw.get("direction", args[1] if len(args) > 1 else "long")
         qty = kw.get("qty", args[2] if len(args) > 2 else 1.0)
@@ -217,7 +231,33 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
         """
         kw = kwargs or {}
         qty = kw.get("qty", args[2] if len(args) > 2 else self._strategy_state.position_size)
-        exit_price = kw.get("limit", args[3] if len(args) > 3 else 101.0)
+
+        # v6: evaluate both (limit/profit) and (stop/loss) pairs; choose the one market price would activate first
+        limit_p = kw.get("limit") or kw.get("profit")
+        stop_p = kw.get("stop") or kw.get("loss")
+        current_p = self.context.get("close", self._strategy_state.entry_price or 100.0)
+        is_long = self._strategy_state.position_direction == "long"
+
+        if limit_p is not None and stop_p is not None:
+            # Choose the trigger that would hit first based on current price direction
+            if is_long:
+                # Closing long: stop (lower) or limit (higher)
+                if current_p <= stop_p:
+                    exit_price = stop_p
+                elif current_p >= limit_p:
+                    exit_price = limit_p
+                else:
+                    exit_price = min(limit_p, stop_p) if limit_p < stop_p else limit_p
+            else:
+                # Closing short: stop (higher) or limit (lower)
+                if current_p >= stop_p:
+                    exit_price = stop_p
+                elif current_p <= limit_p:
+                    exit_price = limit_p
+                else:
+                    exit_price = max(limit_p, stop_p) if limit_p > stop_p else limit_p
+        else:
+            exit_price = limit_p or stop_p or 101.0
 
         if self._strategy_state.position_direction != "flat":
             self._close_position(exit_price, qty, 0)
@@ -229,8 +269,8 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
                 direction=None,
                 qty=qty,
                 order_type=None,
-                limit=exit_price,
-                stop=None,
+                limit=limit_p,
+                stop=stop_p,
                 oca_name=None,
                 comment=kw.get("comment", None),
                 bar_index=self.context.get("bar_index", 0),

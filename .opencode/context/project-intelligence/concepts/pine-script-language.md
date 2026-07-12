@@ -1,4 +1,4 @@
-<!-- Context: project-intelligence/concepts/pine-script-language | Priority: high | Version: 1.0 | Updated: 2026-07-05 -->
+<!-- Context: project-intelligence/concepts/pine-script-language | Priority: high | Version: 1.1 | Updated: 2026-07-12 (v6 section added) -->
 
 # Pine Script (the source language)
 
@@ -11,7 +11,14 @@ linter rule *means*. Authoritative sources: the ANTLR grammar and ASDL
 ## What It Is
 
 TradingView's indicator/strategy DSL. v5 is the current target; v6 in the
-corpus. **Not Python** — syntax, types, and semantics differ.
+corpus (and increasingly the default for new scripts). **Not Python** — syntax, types, and semantics differ.
+
+### v6 Additions (as of 2026-07)
+- Multiline strings (`"""..."""` / `'''...'''`) with literal newlines and indentation.
+- `sort_field` (int or string) on `array.sort`, `array.sort_indices`, `matrix.sort` for UDT collections.
+- `request.footprint()` + `footprint` / `volume_row` types (with many methods).
+- Default dynamic requests, stricter booleans, removal of several legacy parameters.
+- Many of these are now supported in pynescript (see `docs/missing_features.md` for current matrix).
 
 ## File Shape
 

@@ -1,7 +1,21 @@
-# Copyright (C) 2025 jango-blockchained. All Rights Reserved.
+# Copyright (C) 2025 jango-blockchained
 #
-# This software is the proprietary information of jango-blockchained.
-# Use is subject to license terms.
+# This file is part of pynescript.
+#
+# pynescript is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Lesser General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# pynescript is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public License
+# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+#
+# SPDX-License-Identifier: LGPL-3.0-or-later
 
 """Script declaration functions for PineScript v6 evaluator."""
 
@@ -18,15 +32,23 @@ class ScriptDeclaration:
     script_type: str  # "indicator", "strategy", or "library"
     title: str = ""
     description: str = ""
+    # v6 additions
+    behind_chart: bool = False
+    force_overlay: bool = False
+    dynamic_requests: bool = True  # v6 default true
+    max_bars_back: int | None = None
+    max_lines_count: int | None = None
+    max_labels_count: int | None = None
+    max_boxes_count: int | None = None
 
 
-def indicator(title: str = "", description: str = "", **_kwargs: Any) -> ScriptDeclaration:
+def indicator(title: str = "", description: str = "", **kwargs: Any) -> ScriptDeclaration:
     """Declare an indicator script.
 
     Args:
         title: Full title of the indicator
         description: Description of the indicator
-        **_kwargs: Additional parameters accepted by PineScript
+        **kwargs: Additional parameters accepted by PineScript (v6: behind_chart, force_overlay, etc.)
 
     Returns:
         ScriptDeclaration object with script metadata
@@ -35,16 +57,23 @@ def indicator(title: str = "", description: str = "", **_kwargs: Any) -> ScriptD
         script_type="indicator",
         title=str(title),
         description=str(description),
+        behind_chart=bool(kwargs.get("behind_chart", False)),
+        force_overlay=bool(kwargs.get("force_overlay", False)),
+        dynamic_requests=kwargs.get("dynamic_requests", True),
+        max_bars_back=kwargs.get("max_bars_back"),
+        max_lines_count=kwargs.get("max_lines_count"),
+        max_labels_count=kwargs.get("max_labels_count"),
+        max_boxes_count=kwargs.get("max_boxes_count"),
     )
 
 
-def strategy(title: str = "", description: str = "", **_kwargs: Any) -> ScriptDeclaration:
+def strategy(title: str = "", description: str = "", **kwargs: Any) -> ScriptDeclaration:
     """Declare a strategy script.
 
     Args:
         title: Full title of the strategy
         description: Description of the strategy
-        **_kwargs: Additional strategy parameters (pyramiding, default_qty_type, etc.)
+        **kwargs: Additional strategy parameters (pyramiding, default_qty_type, etc.; v6: behind_chart, force_overlay)
 
     Returns:
         ScriptDeclaration object with script metadata
@@ -53,16 +82,23 @@ def strategy(title: str = "", description: str = "", **_kwargs: Any) -> ScriptDe
         script_type="strategy",
         title=str(title),
         description=str(description),
+        behind_chart=bool(kwargs.get("behind_chart", False)),
+        force_overlay=bool(kwargs.get("force_overlay", False)),
+        dynamic_requests=kwargs.get("dynamic_requests", True),
+        max_bars_back=kwargs.get("max_bars_back"),
+        max_lines_count=kwargs.get("max_lines_count"),
+        max_labels_count=kwargs.get("max_labels_count"),
+        max_boxes_count=kwargs.get("max_boxes_count"),
     )
 
 
-def library(title: str = "", description: str = "", **_kwargs: Any) -> ScriptDeclaration:
+def library(title: str = "", description: str = "", **kwargs: Any) -> ScriptDeclaration:
     """Declare a library script.
 
     Args:
         title: Full title of the library
         description: Description of the library
-        **_kwargs: Additional parameters accepted by PineScript
+        **kwargs: Additional parameters accepted by PineScript (v6: behind_chart etc.)
 
     Returns:
         ScriptDeclaration object with script metadata
@@ -71,6 +107,13 @@ def library(title: str = "", description: str = "", **_kwargs: Any) -> ScriptDec
         script_type="library",
         title=str(title),
         description=str(description),
+        behind_chart=bool(kwargs.get("behind_chart", False)),
+        force_overlay=bool(kwargs.get("force_overlay", False)),
+        dynamic_requests=kwargs.get("dynamic_requests", True),
+        max_bars_back=kwargs.get("max_bars_back"),
+        max_lines_count=kwargs.get("max_lines_count"),
+        max_labels_count=kwargs.get("max_labels_count"),
+        max_boxes_count=kwargs.get("max_boxes_count"),
     )
 
 

@@ -1,7 +1,21 @@
-# Copyright (C) 2025 jango-blockchained. All Rights Reserved.
+# Copyright (C) 2025 jango-blockchained
 #
-# This software is the proprietary information of jango-blockchained.
-# Use is subject to license terms.
+# This file is part of pynescript.
+#
+# pynescript is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Lesser General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# pynescript is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public License
+# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+#
+# SPDX-License-Identifier: LGPL-3.0-or-later
 
 from __future__ import annotations
 
@@ -251,8 +265,11 @@ class StatementEvaluator:
         enum_members = {}
         for stmt in node.body:
             member_name = None
+            value = None
             if isinstance(stmt, ast.Assign) and isinstance(stmt.target, ast.Name):
                 member_name = stmt.target.id
+                if stmt.value:
+                    value = self.visit(stmt.value)  # type: ignore[attr-defined]
             elif isinstance(stmt, ast.Expr) and isinstance(stmt.value, ast.Name):
                 member_name = stmt.value.id
             else:
@@ -260,11 +277,16 @@ class StatementEvaluator:
                 self._error(msg)  # type: ignore[attr-defined]
 
             if member_name:
-                # The value is symbolic, representing member access
-                enum_members[member_name] = f"{enum_name}.{member_name}"
+                if value is not None:
+                    enum_members[member_name] = value
+                else:
+                    # Symbolic member for simple enums; access via Enum.member returns this
+                    enum_members[member_name] = f"{enum_name}.{member_name}"
 
-        # Store the enum definition in the context
+        # Store the enum definition (dict of members) in the context
         self.context[enum_name] = enum_members  # type: ignore[attr-defined]
+        # Also register for qualified access if needed
+        self.context[f"{enum_name}"] = enum_members  # type: ignore[attr-defined]
 
     def visit_Expr(self, node: ast.Expr):
         """Evaluate an expression statement."""
@@ -290,17 +312,16 @@ class StatementEvaluator:
             raise RuntimeError(msg)
 
         start = self.visit(node.start)  # type: ignore[attr-defined]
-        end = self.visit(node.end)  # type: ignore[attr-defined]
         step = self.visit(node.step) if node.step else 1  # type: ignore[attr-defined]
 
+        # v6: re-evaluate the end bound on every iteration (dynamic for loop boundaries)
         # Pine Script for loops are inclusive of end
-        # Handle step direction
-        def condition(i):
-            return i <= end if step > 0 else i >= end
-
         current = start
         last_result = None
-        while condition(current):
+        while True:
+            end = self.visit(node.end)  # type: ignore[attr-defined]  # dynamic re-eval
+            if not (current <= end if step > 0 else current >= end):
+                break
             self.context[target_name] = current  # type: ignore[attr-defined]
             result, should_break = self._execute_loop_body(node.body)
             if result is not None:

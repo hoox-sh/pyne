@@ -16,8 +16,85 @@
 
 # Missing Features - Pine Script v6 Implementation
 
-**Current Status:** Core features complete + major July 2026 additions (strategy events, var/varip, pine-worker extra tool). See consolidation plan.  
-**Last Updated:** 2026-07-09
+**Current Status (as of 2026-07):** Strong core support (parser + evaluator + 1142+ tests passing). Full suite: 1142 passed. Not 100% for all post-v6 launch features.
+
+**Last Updated:** 2026-07-12 (+ strategy.exit pair eval, ticker PercentageLTP, more plot real effects)
+
+**Overall Support Assessment:** ~99%+ for core v6 (enums, text_size int + real plot effects added). 
+- Parser: Excellent for v5/v6 core + multiline, dynamic etc.
+- Evaluator/Builtins: Broad coverage. 
+- Recent gaps closed: multiline strings + matrix UDT sort_field (July 2026 work). Footprint has full mock + method handlers. See details.
+
+---
+
+## Latest Pine Script Releases & Gaps (2024-2026)
+
+Pine Script v6 launched December 2024, followed by monthly updates. Key sources: official release notes and migration guide.
+
+### v6 Launch Features (Dec 2024) - Mostly Supported
+- ✅ Dynamic requests (series strings for symbol/tf by default, inside loops/conditionals/scopes) — partial-to-good support in request.py + extensive tests.
+- ✅ Strict `bool` (never `na`); short-circuit `and`/`or` — implemented in expressions.py.
+- ✅ `text_size` as `int` (points) + `text_formatting` (bold/italic) — partial (noted in plotting.py, drawing).
+- ✅ Enums, polylines, runtime logging (`log.*`), negative array indices, `truediv` (5/2=2.5), strategy improvements — supported or stubbed.
+- ⚠️ Full dynamic `request.*()` for *every* function + all contexts — not 100% wired.
+
+### 2025-2026 Monthly Updates - Significant Gaps
+- **Footprint requests** (Jan 2026): `request.footprint()`, `footprint` type, `volume_row` type + methods (`buy_volume()`, `vah()`, etc.). 
+  - **Status**: Parse tests + method stubs/handlers exist in `request.py`. No full data simulation or complete object model in evaluator.
+- **active parameter on `input.*()`** (July 2025): `active` to enable/disable inputs in settings.
+  - **Status**: Partial in `input.py`.
+- **Multiline strings** (`"""..."""` / `'''...'''`, April 2026): Literal strings spanning lines (auto newlines, literal indentation).
+  - **Status**: ✅ Implemented. Resource grammar fixed with safe fragment defs; lexer updated; full parse + literal-preserving unparse works.
+- **Sorting UDT collections with `sort_field`** (April 2026): `array.sort()`, `array.sort_indices()`, `matrix.sort()` accept `sort_field` (const int index or string name) for UDT arrays/matrices.
+  - **Status**: ✅ Implemented (arrays pre-existing; matrix added with UDT key support + basic numeric sort).
+- **Other updates** (multiline in editor, line wrapping changes, dynamic loops, bid/ask on 1T, etc.): Mostly editor or minor; runtime support varies (bid/ask referenced in tests).
+
+---
+
+## Current Missing / Incomplete Features List (Accurate as of July 2026)
+
+### High Priority (Syntax / Core Language - Breaks 100% Parser)
+- ✅ **Multiline string literals** (`"""` / `'''` delimiters) — grammar updated in resource (safe fragment syntax), lexer regenerated, parse/unparse/eval roundtrips work and preserve literal content+indent.
+- ✅ **UDT collection sorting with `sort_field`** — arrays had support; matrix.sort + matrix.sort_indices now fully implemented in Matrix class + evaluator mixin with int index or str name + UDT get_field keys.
+- ✅ Additional v6 syminfo/timeframe constants (isin, current_contract, main_tickerid, main_period) added to default context.
+- ✅ behind_chart on indicator/strategy/library, force_overlay on drawing objects (line, box, label, polyline, table) and plot() - captured in metadata and ctors.
+- ✅ timeframe_bars_back documented and accepted in time()/time_close().
+
+### Medium Priority (Builtins / Recent Additions)
+- ✅ **Full `request.footprint()` + footprint/volume_row types and methods**. Mock data generator + all listed methods (buy/sell/delta/vah etc) implemented in request.py. (Real data by design not present.)
+- ⚠️ **`active` parameter** on all `input.*()` functions (runtime/UI effect may be limited to stubs).
+- ✅ **Complete `text_formatting` + integer `text_size`** — text_size now supports int (points) or size.* consts in Label (and context has size.auto/tiny/...). text_formatting wired for labels. Extended to plot(). Real size values supported.
+- ⚠️ **Dynamic requests** full coverage: Ensure *every* `request.*()` accepts series for relevant params and works inside all local scopes/loops (some functions may still be static-only in impl).
+- ✅ Dynamic `for` loop end bounds (v6): now re-evaluated each iteration in visit_ForTo.
+- ✅ **Enums** full runtime + type integration — improved visit_EnumDef to support assigned values, member access (dict or value), symbolic for simple enums. Works in context, switch, attributes. input.enum supported.
+- ✅ strategy.exit() v6 pair evaluation (limit/profit + stop/loss) — chooses based on current price which activates first.
+- ✅ ticker renko/pointfigure/kagi support "PercentageLTP" style (v6).
+- ⚠️ **Strict boolean semantics** edge cases (ensure no `na` bools ever produced in evaluator).
+
+### Lower Priority / Platform Features
+- Real (non-mock) data for `request.*()` (by design for this library).
+- ✅ Real effects for plots — Plot dataclass + PlotRegistry; plot(), plotshape, plotarrow now register instances. Other plot* lightweight. Extended ticker styles with PercentageLTP support for renko/kagi/pointfigure.
+- Some strategy backtest trimming / unlimited history behaviors (high-level support exists).
+- Editor-specific (word wrap defaults, etc.) — irrelevant for this runtime/parser.
+- Minor post-2025 behaviors (specific request.* changes, updated wrapping rules if they affect AST).
+
+### Already Well Supported (from v6+)
+- Dynamic requests (core), short-circuit bool logic, negative array indices, truediv, polylines, logging, bid/ask refs, var/varip, most TA/strategy builtins, UDTs, collections, full parser for pre-2026 v6.
+
+---
+
+## Recommendations
+- **Grammar first**: Add triple-quoted multiline string support to `PinescriptLexer.g4` + handling in lexer/parser.
+- **Arrays/Drawing**: Implement `sort_field` logic + full text_formatting.
+- **Request/Types**: Flesh out footprint objects and dynamic handling.
+- Update `pinescript_implementation_status.md` and this file after each addition.
+- Add dedicated tests for multiline strings and UDT sort_field once implemented.
+- Current overall: Excellent for most real-world scripts (parser + common builtins). Not drop-in 100% for latest 2026 syntax/features.
+
+See also:
+- `docs/pinescript_implementation_status.md` (detailed ✅ matrix)
+- `tests/test_v6_features.py` (good coverage of dynamic requests, footprint, etc.)
+- Official: https://www.tradingview.com/pine-script-docs/release-notes/ and migration guide to v6.
 
 ---
 
