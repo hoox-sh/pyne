@@ -48,8 +48,8 @@
    - `MockDataProvider` - For testing
    - `YahooFinanceProvider` - Via yfinance
    - `AlphaVantageProvider` - Free API
-   - `CCXTProvider` - 100+ crypto exchanges
-   - CLI: `pynescript data SYMBOL --provider`
+   - `CCXTProvider` - 100+ crypto exchanges (historical)
+   - Realtime datafeed: `pynescript/util/datafeed.py` using CCXT Pro (watch_ohlcv, trades, etc.) — integrated into evaluator (request.* via context), DataFeedBroker for exec/pos, Mock/Composite, backend/runtime support, tests (2026-07)
 
 ---
 

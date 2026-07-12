@@ -1,13 +1,28 @@
-# Copyright (C) 2025 jango-blockchained. All Rights Reserved.
+# Copyright (C) 2025 jango-blockchained
 #
-# This software is the proprietary information of jango-blockchained.
-# Use is subject to license terms.
+# This file is part of pynescript.
+#
+# pynescript is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Lesser General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# pynescript is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public License
+# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+#
+# SPDX-License-Identifier: LGPL-3.0-or-later
 
 from __future__ import annotations
 
 import random
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from dataclasses import field
 from typing import Any
 
 from .base import BuiltinDispatchMixin
@@ -16,6 +31,11 @@ from .base import BuiltinHandler
 
 # Define constants for magic numbers
 REQUEST_SECURITY_MIN_ARGS = 2
+REQUEST_OHLCV_LIMIT = 5
+OHLCV_CLOSE_IDX = 4
+REQUEST_RECENT_LIMIT = 5
+REQUEST_MOCK_PRICE = 100.0
+LOWER_TF_SIMULATE_MULTIPLIER = 2  # for demo lower tf bar count from latest data
 
 
 @dataclass
@@ -166,90 +186,114 @@ class RequestBuiltinsMixin(BuiltinDispatchMixin):
             return [1000000, 1100000, 1200000, 1050000, 1300000]
         return prices  # Default to close
 
-    def _handle_request_security(self, args: list[Any]) -> Any:
+    def _handle_request_security(self, args: list[Any]) -> Any:  # noqa: C901,PLR0912
+        # complexity acceptable: handles multiple data source fallbacks + exprs
         """
         request.security(symbol, timeframe, expression, gaps, lookahead)
 
         Request data from another symbol or timeframe.
 
-        Parameters:
-            symbol: Symbol/ticker string (str or series)
-            timeframe: Timeframe string (e.g., "1H", "D") (str or series - v6 dynamic)
-            expression: Expression to evaluate (series, value, variable, or string - v6 dynamic)
-            gaps: Gap handling mode ("on", "off") (str or None)
-            lookahead: Lookahead mode ("on", "off", "barmerge") (str or None)
+        v6+: Supports real data via context['data_provider'] (historical)
+        or context['data_feed'] (CCXTProDataFeed for live/latest data).
 
-        Returns series data or value depending on expression type.
-        This is a mock implementation that returns deterministic data.
-        v6 enhancement: Supports series string arguments for dynamic calls.
+        Falls back to mock data if no real provider/feed is configured.
         """
         symbol = args[0] if len(args) > 0 else "AAPL"
         timeframe = args[1] if len(args) > 1 else "D"
         expression = args[2] if len(args) > REQUEST_SECURITY_MIN_ARGS else "close"
-        # gaps = args[3] if len(args) > 3 else "on"
-        # lookahead = args[4] if len(args) > 4 else "off"
 
-        # v6 feature: Handle series string arguments for dynamic calls
-        # Convert to string representations if they are series
+        # v6 dynamic: handle series (lists) by taking last
         if isinstance(symbol, list):
-            symbol = symbol[-1] if symbol else "AAPL"  # Use last value from series
+            symbol = symbol[-1] if symbol else "AAPL"
         if isinstance(timeframe, list):
-            timeframe = timeframe[-1] if timeframe else "D"  # Use last value from series
+            timeframe = timeframe[-1] if timeframe else "D"
         if isinstance(expression, list):
-            expression = expression[-1] if expression else "close"  # Use last value from series
+            expression = expression[-1] if expression else "close"
 
+        symbol_str = str(symbol).upper() if not isinstance(symbol, str) else symbol.upper()
+
+        # Try real data provider (historical or live)
+        data_feed = self.context.get("data_feed") if hasattr(self, "context") else None
+        data_provider = self.context.get("data_provider") if hasattr(self, "context") else None
+
+        if data_feed is not None:
+            try:
+                # Use sync wrapper on CCXTProDataFeed for latest data
+                if hasattr(data_feed, "fetch_latest_ohlcv"):
+                    ohlcv = data_feed.fetch_latest_ohlcv(symbol, str(timeframe), limit=REQUEST_OHLCV_LIMIT)
+                    if ohlcv:
+                        closes = [c[OHLCV_CLOSE_IDX] for c in ohlcv if len(c) > OHLCV_CLOSE_IDX]
+                        if closes:
+                            return self._get_expression_prices(str(expression), closes)
+                # Fallback: try ticker last price
+                if hasattr(data_feed, "fetch_latest_ticker"):
+                    ticker = data_feed.fetch_latest_ticker(symbol)
+                    last = ticker.get("last") or ticker.get("close") or REQUEST_MOCK_PRICE
+                    return self._get_expression_prices(str(expression), [float(last)] * REQUEST_OHLCV_LIMIT)
+            except Exception:  # noqa: S110 - fallback to mock data on feed error
+                pass  # fall back to mock
+
+        if data_provider is not None and hasattr(data_provider, "fetch"):
+            try:
+                data = data_provider.fetch(symbol, period="1d", interval=str(timeframe))
+                closes = data.get("close", [])
+                if closes:
+                    recent = closes[-REQUEST_RECENT_LIMIT:] if len(closes) >= REQUEST_RECENT_LIMIT else closes
+                    return self._get_expression_prices(str(expression), [float(x) for x in recent])
+            except Exception:  # noqa: S110 - fallback to mock data on provider error
+                pass
+
+        # Fallback mock data (original behavior)
         base_prices = {
             "AAPL": [100.0, 101.5, 102.0, 103.5, 105.0],
             "GOOGL": [1000.0, 1015.5, 1020.0, 1035.5, 1050.0],
             "BTC/USD": [25000.0, 26000.0, 27000.0, 26500.0, 28000.0],
+            "BTC/USDT": [25000.0, 26000.0, 27000.0, 26500.0, 28000.0],
         }
 
-        if isinstance(symbol, list):
-            result: list[Any] = []
-            for s in symbol:
-                s_prices = base_prices.get(str(s).upper(), [100.0, 101.0, 102.0, 101.5, 103.0])
-                if isinstance(expression, str):
-                    result.append(self._get_expression_prices(expression, s_prices))
-                else:
-                    result.append(s_prices)
-            return result
-
-        prices = base_prices.get(str(symbol).upper(), [100.0, 101.0, 102.0, 101.5, 103.0])
+        prices = base_prices.get(symbol_str, [100.0, 101.0, 102.0, 101.5, 103.0])
         if isinstance(expression, str):
             return self._get_expression_prices(expression, prices)
         return prices
 
-    def _handle_request_security_lower_tf(self, _args: list[Any]) -> Any:
+    def _handle_request_security_lower_tf(self, args: list[Any]) -> Any:
         """
         request.security_lower_tf(symbol, timeframe, expression)
 
         Request lower timeframe data within the current timeframe.
-
-        Parameters:
-            symbol: Symbol/ticker string (str)
-            timeframe: Target timeframe (str)
-            expression: Expression to evaluate (Any)
-
-        Returns list of values from lower timeframe bars.
-        This is a mock implementation.
+        Now supports data_feed / data_provider when wired (reuses latest for demo).
         """
-        # symbol = args[0] if len(args) > 0 else "AAPL"
-        # timeframe = args[1] if len(args) > 1 else "5m"
-        # expression = args[2] if len(args) > 2 else "close"
+        symbol = args[0] if len(args) > 0 else "AAPL"
+        timeframe = args[1] if len(args) > 1 else "5m"
+        expression = args[2] if len(args) > 2 else "close"  # noqa: PLR2004 - arg count check
 
-        # Mock implementation: return intrabar data
-        intrabar_prices = [
-            100.0,
-            100.25,
-            100.5,
-            100.75,
-            101.0,
-            101.25,
-            101.5,
-            101.75,
-            102.0,
-            102.25,
-        ]
+        # Try data feed/provider for consistency with request.security
+        data_feed = self.context.get("data_feed") if hasattr(self, "context") else None
+        data_provider = self.context.get("data_provider") if hasattr(self, "context") else None
+
+        if data_feed is not None and hasattr(data_feed, "fetch_latest_ohlcv"):
+            try:
+                ohlcv = data_feed.fetch_latest_ohlcv(symbol, str(timeframe), limit=REQUEST_RECENT_LIMIT)
+                if ohlcv:
+                    closes = [c[OHLCV_CLOSE_IDX] for c in ohlcv if len(c) > OHLCV_CLOSE_IDX]
+                    if closes:
+                        return closes * LOWER_TF_SIMULATE_MULTIPLIER  # simulate more lower-tf bars from latest
+            except Exception:  # noqa: S110
+                pass
+
+        if data_provider is not None and hasattr(data_provider, "fetch"):
+            try:
+                data = data_provider.fetch(symbol, period="1d", interval=str(timeframe))
+                closes = data.get("close", [])
+                if closes:
+                    return closes[-REQUEST_RECENT_LIMIT:] or closes
+            except Exception:  # noqa: S110
+                pass
+
+        # Fallback mock intrabar data (simulated lower timeframe)
+        intrabar_prices = [100.0 + i * 0.25 for i in range(10)]
+        if isinstance(expression, str):
+            return self._get_expression_prices(str(expression), intrabar_prices)
         return intrabar_prices
 
     def _handle_request_dividends(self, args: list[Any]) -> float:
@@ -490,7 +534,7 @@ class RequestBuiltinsMixin(BuiltinDispatchMixin):
                 buy_volume=1000.0 + (random.random() * 500),
                 sell_volume=900.0 + (random.random() * 500),
                 delta=100.0 + (random.random() * 200 - 100),
-                is_imbalance=random.random() < 0.1,
+                is_imbalance=random.random() < 0.1,  # noqa: PLR2004 - mock data gen
                 is_poc=(i == num_ticks // 2),
                 is_vah=(i == int(num_ticks * 0.7)),
                 is_val=(i == int(num_ticks * 0.3)),

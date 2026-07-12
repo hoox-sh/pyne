@@ -1,7 +1,21 @@
-# Copyright (C) 2025 jango-blockchained. All Rights Reserved.
+# Copyright (C) 2025 jango-blockchained
 #
-# This software is the proprietary information of jango-blockchained.
-# Use is subject to license terms.
+# This file is part of pynescript.
+#
+# pynescript is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Lesser General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# pynescript is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public License
+# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+#
+# SPDX-License-Identifier: LGPL-3.0-or-later
 
 """
 Pine Script v6 Type System Implementation
@@ -33,6 +47,7 @@ class BuiltinTypeKind(Enum):
     STRING = "string"
     COLOR = "color"
     NA = "na"
+    ENUM = "enum"  # Pine v6 enum type integration
 
 
 class Type:
@@ -236,6 +251,7 @@ class TypeRegistry:
             "string": BuiltinType(BuiltinTypeKind.STRING),
             "color": BuiltinType(BuiltinTypeKind.COLOR),
             "na": BuiltinType(BuiltinTypeKind.NA),
+            "enum": BuiltinType(BuiltinTypeKind.ENUM),
         }
 
     def register_type(self, udt: UserDefinedType) -> None:

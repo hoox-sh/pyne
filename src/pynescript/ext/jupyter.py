@@ -1,7 +1,21 @@
-# Copyright (C) 2025 jango-blockchained. All Rights Reserved.
+# Copyright (C) 2025 jango-blockchained
 #
-# This software is the proprietary information of jango-blockchained.
-# Use is subject to license terms.
+# This file is part of pynescript.
+#
+# pynescript is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Lesser General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# pynescript is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public License
+# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+#
+# SPDX-License-Identifier: LGPL-3.0-or-later
 
 """Jupyter Integration for PyneScript.
 
@@ -19,7 +33,8 @@ from __future__ import annotations
 
 import random
 
-from typing import Any, cast
+from typing import Any
+from typing import cast
 
 from pynescript.ast import parse
 from pynescript.ast import unparse
@@ -33,7 +48,7 @@ def load_ipython_extension(ipython: Any) -> None:
         ipython: IPython instance
     """
     try:
-        from IPython.core.magic import register_cell_magic
+        from IPython.core.magic import register_cell_magic  # noqa: PLC0415 - optional dep lazy
     except ImportError:
         msg = "IPython is required for Jupyter integration"
         raise ImportError(msg)  # noqa: B904
@@ -120,12 +135,16 @@ def create_sample_data(
 def evaluate_indicator(
     code: str,
     data: dict[str, list[float]],
+    data_feed: Any = None,
+    data_provider: Any = None,
 ) -> dict[str, Any]:
     """Evaluate a Pine Script indicator with sample data.
 
     Args:
         code: Pine Script indicator code
         data: OHLCV data dictionary
+        data_feed: Optional realtime data feed for request.*
+        data_provider: Optional historical provider
 
     Returns:
         Dictionary of indicator results
@@ -138,7 +157,7 @@ def evaluate_indicator(
         ... '''
         >>> result = evaluate_indicator(code, data)
     """
-    from pynescript.ast.evaluator import NodeLiteralEvaluator
+    from pynescript.ast.evaluator import NodeLiteralEvaluator  # noqa: PLC0415 - avoid potential circular at top
 
     context = {
         "close": data["close"],
@@ -147,7 +166,7 @@ def evaluate_indicator(
         "low": data["low"],
         "volume": data["volume"],
     }
-    evaluator = NodeLiteralEvaluator(context=context)
+    evaluator = NodeLiteralEvaluator(context=context, data_feed=data_feed, data_provider=data_provider)
 
     try:
         ast = parse(code)
@@ -174,7 +193,8 @@ def display_indicator_table(
         IPython display object
     """
     try:
-        import pandas as pd
+        import pandas as pd  # noqa: PLC0415 - optional dep, lazy import inside func
+
 
         df = pd.DataFrame(data)
         if columns:

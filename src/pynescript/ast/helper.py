@@ -1,7 +1,21 @@
-# Copyright (C) 2025 jango-blockchained. All Rights Reserved.
+# Copyright (C) 2025 jango-blockchained
 #
-# This software is the proprietary information of jango-blockchained.
-# Use is subject to license terms.
+# This file is part of pynescript.
+#
+# pynescript is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Lesser General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# pynescript is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public License
+# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+#
+# SPDX-License-Identifier: LGPL-3.0-or-later
 
 from __future__ import annotations
 
@@ -331,7 +345,12 @@ def parse(
     return _parse_inputstream(source, filename, mode)
 
 
-def literal_eval(node_or_string: AST | str, context: dict[str, Any] | None = None):
+def literal_eval(
+    node_or_string: AST | str,
+    context: dict[str, Any] | None = None,
+    data_feed: Any = None,
+    data_provider: Any = None,
+) -> Any:
     """Safely evaluate an AST node or string containing only literal values.
 
     Evaluates constant expressions (numbers, strings, booleans, tuples) and some built-in functions.
@@ -340,6 +359,8 @@ def literal_eval(node_or_string: AST | str, context: dict[str, Any] | None = Non
     Args:
         node_or_string: An AST node or string to evaluate
         context: Optional context dict for variable/function lookups
+        data_feed: Optional realtime DataFeed (for request.* live data integration)
+        data_provider: Optional historical DataProvider
 
     Returns:
         The evaluated Python value (int, str, bool, list, etc.)
@@ -364,7 +385,8 @@ def literal_eval(node_or_string: AST | str, context: dict[str, Any] | None = Non
     from pynescript.ast.evaluator import NodeLiteralEvaluator
 
     # Create evaluator with optional context and visit the node
-    evaluator = NodeLiteralEvaluator(context)
+    # Support data_feed / data_provider for request.* integration in literal contexts too
+    evaluator = NodeLiteralEvaluator(context, data_feed=data_feed, data_provider=data_provider)
     return evaluator.visit(node_or_string)
 
 

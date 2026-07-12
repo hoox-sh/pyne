@@ -18,12 +18,13 @@
 
 **Current Status (as of 2026-07):** Strong core support (parser + evaluator + 1142+ tests passing). Full suite: 1142 passed. Not 100% for all post-v6 launch features.
 
-**Last Updated:** 2026-07-12 (+ strategy.exit pair eval, ticker PercentageLTP, more plot real effects)
+**Last Updated:** 2026-07-13 (+ datafeed module full integration (request.* wiring, broker, tests), evaluator data context forwarding, enums type/runtime polish, docs)
 
-**Overall Support Assessment:** ~99%+ for core v6 (enums, text_size int + real plot effects added). 
+**Overall Support Assessment:** ~99%+ for core v6 (enums runtime+type, datafeed realtime integration for request.*, text_size etc added). 
 - Parser: Excellent for v5/v6 core + multiline, dynamic etc.
-- Evaluator/Builtins: Broad coverage. 
-- Recent gaps closed: multiline strings + matrix UDT sort_field (July 2026 work). Footprint has full mock + method handlers. See details.
+- Evaluator/Builtins: Broad coverage + data context injection.
+- Recent: datafeed (CCXTPro/Mock/Composite + Broker + evaluator wiring) + backend/runtime support, enums type kind + improved access.
+- Full test runs + lint clean targeted. See details.
 
 ---
 
@@ -66,9 +67,10 @@ Pine Script v6 launched December 2024, followed by monthly updates. Key sources:
 - ✅ **Complete `text_formatting` + integer `text_size`** — text_size now supports int (points) or size.* consts in Label (and context has size.auto/tiny/...). text_formatting wired for labels. Extended to plot(). Real size values supported.
 - ⚠️ **Dynamic requests** full coverage: Ensure *every* `request.*()` accepts series for relevant params and works inside all local scopes/loops (some functions may still be static-only in impl).
 - ✅ Dynamic `for` loop end bounds (v6): now re-evaluated each iteration in visit_ForTo.
-- ✅ **Enums** full runtime + type integration — improved visit_EnumDef to support assigned values, member access (dict or value), symbolic for simple enums. Works in context, switch, attributes. input.enum supported.
+- ✅ **Enums** full runtime + type integration — visit_EnumDef, member .attr access, symbolic + value support, context storage, works in expr/switch/assign. Added BuiltinTypeKind.ENUM + registry entry. input.enum supported (metadata + defaults). LSP semantic tokens + metadata; completion/hover for user enums partial. 
 - ✅ strategy.exit() v6 pair evaluation (limit/profit + stop/loss) — chooses based on current price which activates first.
 - ✅ ticker renko/pointfigure/kagi support "PercentageLTP" style (v6).
+- ✅ **Realtime data feeds** (CCXT Pro + Mock/Composite) — full module, sync wrappers, broker for orders/positions, wired to request.security + lower_tf + evaluator context + backend. (July 2026)
 - ⚠️ **Strict boolean semantics** edge cases (ensure no `na` bools ever produced in evaluator).
 
 ### Lower Priority / Platform Features

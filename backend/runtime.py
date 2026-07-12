@@ -1,7 +1,21 @@
-# Copyright (C) 2025 jango-blockchained. All Rights Reserved.
+# Copyright (C) 2025 jango-blockchained
 #
-# This software is the proprietary information of jango-blockchained.
-# Use is subject to license terms.
+# This file is part of pynescript.
+#
+# pynescript is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Lesser General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# pynescript is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public License
+# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+#
+# SPDX-License-Identifier: LGPL-3.0-or-later
 
 from __future__ import annotations
 
@@ -144,13 +158,15 @@ class Runtime:
         self._bid = bid
         self._ask = ask
 
-    def run(self, source_code: str, ohlcv_data: list[dict]):
+    def run(self, source_code: str, ohlcv_data: list[dict], data_feed=None, data_provider=None):
         """
         Execute the script over the provided OHLCV data.
 
         Args:
             source_code: Pine Script source to run.
             ohlcv_data: List of dicts with 'open', 'high', 'low', 'close', 'time'.
+            data_feed: Optional realtime DataFeed for request.* live data.
+            data_provider: Optional historical provider for request.* .
 
         Returns:
             dict with 'series': list of plotted values for each bar.
@@ -183,7 +199,7 @@ class Runtime:
             "time": 0,
         }
 
-        evaluator = CustomEvaluator(context=context)
+        evaluator = CustomEvaluator(context=context, data_feed=data_feed, data_provider=data_provider)
         evaluator.reset_var_declarations()
 
         results = []
