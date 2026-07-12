@@ -54,6 +54,17 @@ _MATH_CONSTANTS = {
     "size.normal": 12,
     "size.large": 16,
     "size.huge": 20,
+    # v6 updated color constants (from design spec)
+    "color.red": "#F23645",
+    "color.green": "#22AB94",
+    "color.blue": "#2962FF",
+    "color.yellow": "#FDD835",
+    "color.orange": "#FF6D00",
+    "color.purple": "#7B1FA2",
+    "color.teal": "#089981",
+    "color.white": "#FFFFFF",
+    "color.black": "#000000",
+    "color.gray": "#787B86",
 }
 
 
