@@ -7,6 +7,7 @@ name = "pynescript"
 dynamic = ["version"]
 description = "Parse, inspect, and regenerate TradingView® Pine Script™ from Python"
 readme = "README.md"
+license = { text = "LGPL-3.0-or-later" }
 requires-python = ">=3.10"
 keywords = ["python", "tradingview", "pinescript"]
 authors = [
@@ -38,6 +39,12 @@ dev-lsp = [
   "pygls>=2.0.0",
   "lsprotocol>=2024.0.0",
   "pytest-lsp>=0.1.0",
+]
+data = [
+  "ccxt>=4.0.0",
+]
+datafeed = [
+  "ccxt>=4.0.0",
 ]
 
 [project.urls]
@@ -167,11 +174,19 @@ lines-after-imports = 2
 required-imports = ["from __future__ import annotations"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**/*" = ["ARG001", "C901", "F841", "PLR0912", "PLR2004", "S101", "T201", "TID252"]
+"tests/**/*" = ["ARG001", "C901", "F841", "PLR0912", "PLR2004", "S101", "T201", "TID252", "PLC0415"]
 "src/pynescript/__main__.py" = ["ARG001", "EM101", "PLR0913", "B904", "PLC0415"]
 "src/pynescript/util/data.py" = ["DTZ005", "B904", "PLC0415"]
 "src/pynescript/ast/helper.py" = ["C901", "PLC0415", "PLR1704"]
 "src/pynescript/ast/type_system.py" = ["FBT001", "FBT002"]
+# Magic numbers intentional for Pine drawing style constants, array indices etc.
+"src/pynescript/ast/evaluator/builtins/drawing.py" = ["PLR2004"]
+"src/pynescript/ast/evaluator/builtins/arrays.py" = ["PLR2004"]
+"src/pynescript/ast/evaluator/builtins/technical.py" = ["PLR2004"]
+"src/pynescript/ast/evaluator/builtins/strategy.py" = ["PLR2004"]
+"src/pynescript/ast/evaluator/builtins/alerts.py" = ["PLR2004"]
+"src/pynescript/ast/evaluator/builtins/input.py" = ["PLR2004"]
+"src/pynescript/ast/evaluator/builtins/numeric.py" = ["PLR2004"]
 
 [tool.coverage.run]
 source_pkgs = ["pynescript", "tests"]
