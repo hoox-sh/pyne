@@ -186,7 +186,21 @@ class RequestBuiltinsMixin(BuiltinDispatchMixin):
             return [1000000, 1100000, 1200000, 1050000, 1300000]
         return prices  # Default to close
 
-    def _handle_request_security(self, args: list[Any]) -> Any:  # noqa: C901,PLR0912
+    def _resolve_symbol(self, arg: Any, default: str = "AAPL") -> str:
+        """Resolve symbol which may be dynamic (list/series from loop/conditional)."""
+        if isinstance(arg, list):
+            arg = arg[-1] if arg else default
+        if arg is None:
+            return default
+        return str(arg).upper()
+
+    def _get_request_data(self):
+        """Get (data_feed, data_provider) for live/historical fallback."""
+        ctx = getattr(self, "context", {}) or {}
+        return ctx.get("data_feed"), ctx.get("data_provider")
+
+    def _handle_request_security(self, args: list[Any]) -> Any:  # noqa: C901
+        # complexity acceptable: handles multiple data source fallbacks + exprs
         # complexity acceptable: handles multiple data source fallbacks + exprs
         """
         request.security(symbol, timeframe, expression, gaps, lookahead)
@@ -198,23 +212,19 @@ class RequestBuiltinsMixin(BuiltinDispatchMixin):
 
         Falls back to mock data if no real provider/feed is configured.
         """
-        symbol = args[0] if len(args) > 0 else "AAPL"
+        symbol = self._resolve_symbol(args[0] if len(args) > 0 else "AAPL")
         timeframe = args[1] if len(args) > 1 else "D"
         expression = args[2] if len(args) > REQUEST_SECURITY_MIN_ARGS else "close"
 
-        # v6 dynamic: handle series (lists) by taking last
-        if isinstance(symbol, list):
-            symbol = symbol[-1] if symbol else "AAPL"
         if isinstance(timeframe, list):
             timeframe = timeframe[-1] if timeframe else "D"
         if isinstance(expression, list):
             expression = expression[-1] if expression else "close"
 
-        symbol_str = str(symbol).upper() if not isinstance(symbol, str) else symbol.upper()
+        symbol_str = symbol
 
         # Try real data provider (historical or live)
-        data_feed = self.context.get("data_feed") if hasattr(self, "context") else None
-        data_provider = self.context.get("data_provider") if hasattr(self, "context") else None
+        data_feed, data_provider = self._get_request_data()
 
         if data_feed is not None:
             try:
@@ -268,8 +278,7 @@ class RequestBuiltinsMixin(BuiltinDispatchMixin):
         expression = args[2] if len(args) > 2 else "close"  # noqa: PLR2004 - arg count check
 
         # Try data feed/provider for consistency with request.security
-        data_feed = self.context.get("data_feed") if hasattr(self, "context") else None
-        data_provider = self.context.get("data_provider") if hasattr(self, "context") else None
+        data_feed, data_provider = self._get_request_data()
 
         if data_feed is not None and hasattr(data_feed, "fetch_latest_ohlcv"):
             try:
@@ -309,16 +318,21 @@ class RequestBuiltinsMixin(BuiltinDispatchMixin):
         Returns dividend amount as float.
         This is a mock implementation.
         """
-        symbol = args[0] if len(args) > 0 else "AAPL"
+        symbol = self._resolve_symbol(args[0] if len(args) > 0 else "AAPL")
         # currency = args[1] if len(args) > 1 else "USD"
 
-        # Mock: return dividend amounts for known symbols
-        dividends = {
-            "AAPL": 0.24,
-            "MSFT": 0.62,
-            "JNJ": 1.13,
-        }
-        return dividends.get(str(symbol).upper(), 0.0)
+        data_feed, _ = self._get_request_data()
+        # If data_feed available, could derive 'yield' from price, but keep simple mock scaled
+        base_div = {"AAPL": 0.24, "MSFT": 0.62, "JNJ": 1.13}
+        val = base_div.get(symbol, 0.0)
+        if data_feed and hasattr(data_feed, "fetch_latest_ticker"):
+            try:
+                t = data_feed.fetch_latest_ticker(symbol)
+                last = t.get("last") or t.get("close") or 100.0
+                val = round(val * (last / 100.0), 2)  # naive dynamic scale
+            except Exception:  # noqa: S110
+                pass
+        return val
 
     def _handle_request_earnings(self, args: list[Any]) -> float:
         """
@@ -333,16 +347,20 @@ class RequestBuiltinsMixin(BuiltinDispatchMixin):
         Returns earnings per share as float.
         This is a mock implementation.
         """
-        symbol = args[0] if len(args) > 0 else "AAPL"
+        symbol = self._resolve_symbol(args[0] if len(args) > 0 else "AAPL")
         # currency = args[1] if len(args) > 1 else "USD"
 
-        # Mock: return EPS for known symbols
-        eps = {
-            "AAPL": 5.61,
-            "MSFT": 9.27,
-            "JNJ": 9.13,
-        }
-        return eps.get(str(symbol).upper(), 0.0)
+        data_feed, _ = self._get_request_data()
+        base_eps = {"AAPL": 5.61, "MSFT": 9.27, "JNJ": 9.13}
+        val = base_eps.get(symbol, 0.0)
+        if data_feed and hasattr(data_feed, "fetch_latest_ticker"):
+            try:
+                t = data_feed.fetch_latest_ticker(symbol)
+                last = t.get("last") or t.get("close") or 100.0
+                val = round(val * (last / 150.0), 2)
+            except Exception:  # noqa: S110
+                pass
+        return val
 
     def _handle_request_splits(self, args: list[Any]) -> float:
         """
@@ -357,16 +375,13 @@ class RequestBuiltinsMixin(BuiltinDispatchMixin):
         Returns split ratio as float.
         This is a mock implementation.
         """
-        symbol = args[0] if len(args) > 0 else "AAPL"
+        symbol = self._resolve_symbol(args[0] if len(args) > 0 else "AAPL")
         # currency = args[1] if len(args) > 1 else "USD"
 
-        # Mock: return split ratios (1.0 = no split)
-        splits = {
-            "AAPL": 4.0,  # 4-for-1 split
-            "TSLA": 3.0,  # 3-for-1 split
-            "MSFT": 1.0,  # no recent split
-        }
-        return splits.get(str(symbol).upper(), 1.0)
+        base_splits = {"AAPL": 4.0, "TSLA": 3.0, "MSFT": 1.0}
+        val = base_splits.get(symbol, 1.0)
+        # (no additional price scaling for splits)
+        return val
 
     def _handle_request_financial(self, args: list[Any]) -> float:
         """
@@ -382,18 +397,18 @@ class RequestBuiltinsMixin(BuiltinDispatchMixin):
         Returns financial metric value as float.
         This is a mock implementation.
         """
-        symbol = args[0] if len(args) > 0 else "AAPL"
+        symbol = self._resolve_symbol(args[0] if len(args) > 0 else "AAPL")
         financial_id = args[1] if len(args) > 1 else "REVENUE"
         # period = args[2] if len(args) > 2 else "FY"
 
-        # Mock: return financial metrics
+        # Mock: return financial metrics (symbol dynamic)
         financials = {
             ("AAPL", "REVENUE"): 383285000000,
             ("AAPL", "NET_INCOME"): 96995000000,
             ("MSFT", "REVENUE"): 198716000000,
             ("MSFT", "NET_INCOME"): 72794000000,
         }
-        key = (str(symbol).upper(), str(financial_id).upper())
+        key = (symbol, str(financial_id).upper())
         return float(financials.get(key, 0.0))
 
     def _handle_request_quandl(self, args: list[Any]) -> Any:
@@ -409,7 +424,7 @@ class RequestBuiltinsMixin(BuiltinDispatchMixin):
         Returns series data from Quandl dataset.
         This is a mock implementation.
         """
-        quandl_code = args[0] if len(args) > 0 else "EIA/PET_RWTC_D"
+        quandl_code = self._resolve_symbol(args[0] if len(args) > 0 else "EIA/PET_RWTC_D", default="EIA/PET_RWTC_D")
         # column = args[1] if len(args) > 1 else "Value"
 
         # Mock: return time series data for common Quandl datasets
@@ -436,7 +451,7 @@ class RequestBuiltinsMixin(BuiltinDispatchMixin):
         Returns economic data as series or value.
         This is a mock implementation.
         """
-        country = args[0] if len(args) > 0 else "US"
+        country = self._resolve_symbol(args[0] if len(args) > 0 else "US", default="US")
         indicator_code = args[1] if len(args) > 1 else "UNRATE"
 
         # Mock: return economic indicators
@@ -471,8 +486,8 @@ class RequestBuiltinsMixin(BuiltinDispatchMixin):
         Returns exchange rate as float.
         This is a mock implementation.
         """
-        from_currency = args[0] if len(args) > 0 else "USD"
-        to_currency = args[1] if len(args) > 1 else "EUR"
+        from_currency = self._resolve_symbol(args[0] if len(args) > 0 else "USD", default="USD")
+        to_currency = self._resolve_symbol(args[1] if len(args) > 1 else "EUR", default="EUR")
 
         # Mock: return exchange rates
         rates = {
@@ -511,28 +526,33 @@ class RequestBuiltinsMixin(BuiltinDispatchMixin):
         Request volume footprint data for the current bar.
         Added in Pine Script v6 (January 2026).
 
-        Parameters:
-            num_ticks: Number of ticks per footprint row (int)
-            va_percentage: Value Area percentage (int, default 70)
-
-        Returns:
-            Footprint object containing volume profile data, or None if no data available.
-        This is a mock implementation that generates sample footprint data.
+        Now supports symbol (dynamic) and data_feed for volume scaling.
         """
         num_ticks = args[0] if len(args) > 0 else 100
         va_percentage = args[1] if len(args) > 1 else 70
+        # symbol optional for dynamic
+        _ = self._resolve_symbol(args[2] if len(args) > 2 else "ES", default="ES")  # noqa: PLR2004 - optional arg
+        data_feed, _ = self._get_request_data()
 
         rows: list[VolumeRow] = []
         base_price = 100.0
         tick_size = 0.01
+        vol_scale = 1.0
+        if data_feed and hasattr(data_feed, "fetch_latest_ticker"):
+            try:
+                t = data_feed.fetch_latest_ticker("ES")  # or symbol
+                last = t.get("last") or t.get("close") or 4000.0
+                vol_scale = max(0.1, last / 4000.0)
+            except Exception:  # noqa: S110
+                pass
 
         for i in range(num_ticks):
             price_level = base_price + (i * tick_size)
             row = VolumeRow(
                 up_price=price_level + tick_size,
                 down_price=price_level,
-                buy_volume=1000.0 + (random.random() * 500),
-                sell_volume=900.0 + (random.random() * 500),
+                buy_volume=(1000.0 + (random.random() * 500)) * vol_scale,
+                sell_volume=(900.0 + (random.random() * 500)) * vol_scale,
                 delta=100.0 + (random.random() * 200 - 100),
                 is_imbalance=random.random() < 0.1,  # noqa: PLR2004 - mock data gen
                 is_poc=(i == num_ticks // 2),
