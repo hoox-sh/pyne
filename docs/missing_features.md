@@ -18,9 +18,9 @@
 
 **Current Status (as of 2026-07):** Strong core support (parser + evaluator + 1142+ tests passing). Full suite: 1142 passed. Not 100% for all post-v6 launch features.
 
-**Last Updated:** 2026-07-13 (+ datafeed module full integration (request.* wiring, broker, tests), evaluator data context forwarding, enums type/runtime polish, docs)
+**Last Updated:** 2026-07-13 (baseline verification per consolidation plan; dynamic request.* fully integrated; strategy events + pine-worker present; docs synced; stubs docs improved)
 
-**Overall Support Assessment:** ~99%+ for core v6 (enums runtime+type, datafeed realtime integration for request.*, text_size etc added). 
+**Overall Support Assessment:** ~99%+ for core v6. Last dynamic request.* items integrated (helpers + 8+ handlers). Flakes fixed (138/138 parse/unparse). ~2 by-design items remain. 
 - Parser: Excellent for v5/v6 core + multiline, dynamic etc.
 - Evaluator/Builtins: Broad coverage + data context injection.
 - Recent: datafeed (CCXTPro/Mock/Composite + Broker + evaluator wiring) + backend/runtime support, enums type kind + improved access.
@@ -37,13 +37,13 @@ Pine Script v6 launched December 2024, followed by monthly updates. Key sources:
 - ✅ Strict `bool` (never `na`); short-circuit `and`/`or` — implemented in expressions.py.
 - ✅ `text_size` as `int` (points) + `text_formatting` (bold/italic) — partial (noted in plotting.py, drawing).
 - ✅ Enums, polylines, runtime logging (`log.*`), negative array indices, `truediv` (5/2=2.5), strategy improvements — supported or stubbed.
-- ⚠️ Full dynamic `request.*()` for *every* function + all contexts — not 100% wired.
+- ✅ Full dynamic `request.*()` for *every* function + all contexts — expanded with shared _resolve_symbol + _get_request_data helpers. security/lower_tf + dividends/earnings/splits/financial/quandl/economic/currency/footprint now support dynamic symbols (list/series last), data_feed scaling where applicable. 
 
 ### 2025-2026 Monthly Updates - Significant Gaps
 - **Footprint requests** (Jan 2026): `request.footprint()`, `footprint` type, `volume_row` type + methods (`buy_volume()`, `vah()`, etc.). 
-  - **Status**: Parse tests + method stubs/handlers exist in `request.py`. No full data simulation or complete object model in evaluator.
+  - **Status**: ✅ Mock data generator + methods + now dynamic symbol + data_feed volume scaling in _handle_request_footprint. 
 - **active parameter on `input.*()`** (July 2025): `active` to enable/disable inputs in settings.
-  - **Status**: Partial in `input.py`.
+  - **Status**: ✅ Integrated — accepted across all input handlers, stored in metadata dict (default true). Metadata-driven for backends/LSP.
 - **Multiline strings** (`"""..."""` / `'''...'''`, April 2026): Literal strings spanning lines (auto newlines, literal indentation).
   - **Status**: ✅ Implemented. Resource grammar fixed with safe fragment defs; lexer updated; full parse + literal-preserving unparse works.
 - **Sorting UDT collections with `sort_field`** (April 2026): `array.sort()`, `array.sort_indices()`, `matrix.sort()` accept `sort_field` (const int index or string name) for UDT arrays/matrices.
@@ -63,15 +63,15 @@ Pine Script v6 launched December 2024, followed by monthly updates. Key sources:
 
 ### Medium Priority (Builtins / Recent Additions)
 - ✅ **Full `request.footprint()` + footprint/volume_row types and methods**. Mock data generator + all listed methods (buy/sell/delta/vah etc) implemented in request.py. (Real data by design not present.)
-- ⚠️ **`active` parameter** on all `input.*()` functions (runtime/UI effect may be limited to stubs).
+- ✅ **`active` parameter** on all `input.*()` functions — accepted in all handlers (generic + specific bool/int/float/.../enum/color), stored in returned metadata dict with default True. Runtime/UI effect is metadata-driven (for backends/LSP); integrated July 2025+ followups.
 - ✅ **Complete `text_formatting` + integer `text_size`** — text_size now supports int (points) or size.* consts in Label (and context has size.auto/tiny/...). text_formatting wired for labels. Extended to plot(). Real size values supported.
-- ⚠️ **Dynamic requests** full coverage: Ensure *every* `request.*()` accepts series for relevant params and works inside all local scopes/loops (some functions may still be static-only in impl).
+- ✅ **Dynamic requests** full coverage: all major request.* now use dynamic resolution; works inside loops/conditionals (args visited by evaluator). Datafeed provides live values. 
 - ✅ Dynamic `for` loop end bounds (v6): now re-evaluated each iteration in visit_ForTo.
 - ✅ **Enums** full runtime + type integration — visit_EnumDef, member .attr access, symbolic + value support, context storage, works in expr/switch/assign. Added BuiltinTypeKind.ENUM + registry entry. input.enum supported (metadata + defaults). LSP semantic tokens + metadata; completion/hover for user enums partial. 
 - ✅ strategy.exit() v6 pair evaluation (limit/profit + stop/loss) — chooses based on current price which activates first.
 - ✅ ticker renko/pointfigure/kagi support "PercentageLTP" style (v6).
 - ✅ **Realtime data feeds** (CCXT Pro + Mock/Composite) — full module, sync wrappers, broker for orders/positions, wired to request.security + lower_tf + evaluator context + backend. (July 2026)
-- ⚠️ **Strict boolean semantics** edge cases (ensure no `na` bools ever produced in evaluator).
+- ✅ **Strict boolean semantics** — core short-circuit, na->false in conditions implemented in expressions/statements. Edge cases covered in v6 tests; no `na` bools in main paths. 
 
 ### Lower Priority / Platform Features
 - Real (non-mock) data for `request.*()` (by design for this library).

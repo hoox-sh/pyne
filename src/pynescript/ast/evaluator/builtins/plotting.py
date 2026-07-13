@@ -82,7 +82,13 @@ class PlotRegistry:
 
 
 class PlottingFunctionsMixin(BuiltinDispatchMixin):
-    """Plotting function stubs for Pine Script compatibility."""
+    """Plotting function stubs for Pine Script compatibility.
+
+    These are intentionally lightweight/no-op for non-UI evaluation contexts
+    (the evaluator focuses on computation and events). Real effects are
+    captured via Plot dataclass + PlotRegistry for v6+ consistency.
+    See consolidation plan for stub handling.
+    """
 
     def _plotting_builtin_map(self) -> dict[str, BuiltinHandler]:
         return {

@@ -1,6 +1,6 @@
 # Pynescript Future Roadmap
 
-**Last Updated:** 2026-07-09 (consolidation on main)  
+**Last Updated:** 2026-07-13 (consolidation + v6 dynamic requests + datafeed complete) 
 **Status:** Core + Strategy Events + pine-worker extra tool integrated. Many historical "remaining" items now implemented.
 
 ---
@@ -98,6 +98,11 @@
 ---
 
 ### Phase D: New Features (Long-term)
+
+#### D1. v5 ↔ v6 Converter (started per consolidation)
+- Basic script skeleton for converting between versions.
+- See scripts/ for related convert tools.
+- (Small step as one concrete roadmap item from plan §6)
 
 #### D1. Code Transformation
 - Automatic script refactoring

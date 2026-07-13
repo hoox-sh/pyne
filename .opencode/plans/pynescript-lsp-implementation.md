@@ -1,6 +1,6 @@
 # Pine Script Language Server — Implementation Plan
 
-**Last Updated:** 2026-07-09 (main consolidation)  
+**Last Updated:** 2026-07-13 (consolidation baseline + integration; core LSP complete, remaining semantic/inlay per plan) 
 **Author:** jango-blockchained  
 **Status:** Core LSP features implemented on main (diagnostics, completion, hover, formatting, symbols, definitions, references, workspace). pine-worker extra tool + strategy events integrated. Many early-phase checkboxes below are now historical. See 2026-07-09 consolidation plan for remaining real work (semanticTokens, advanced inlay, polish, publishing). 
 
