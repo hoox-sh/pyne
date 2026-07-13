@@ -16,29 +16,29 @@
 
 # PyneScript Compatibility Guarantee
 
-**Version:** 1.0  
-**Last Updated:** 20 November 2025  
+**Version:** 1.1  
+**Last Updated:** 2026-07-12  
 **Pine Script Target:** v5/v6  
-**Test Coverage:** 997 automated tests
+**Test Coverage:** 1142 automated tests (full suite)
 
 ---
 
 ## 🎯 Executive Summary
  
-PyneScript provides **100% syntax compatibility** and **95%+ semantic compatibility** with TradingView® Pine Script v5/v6. All core language features, 181+ built-in functions, and technical indicators are fully implemented with comprehensive test coverage.
+PyneScript provides strong syntax compatibility (full parser coverage for v5/v6 grammar on real scripts) and good semantic compatibility with TradingView® Pine Script v5/v6. The parser, AST, and many builtins (including technical indicators and basic strategy support) are implemented and covered by tests. Some advanced platform features (e.g., full plotting, broker integration) remain out of scope or stubbed.
 
 ### Compatibility Metrics
 
 | Category | Compatibility | Test Coverage | Status |
 |----------|--------------|---------------|--------|
-| **Parser & Syntax** | 100% | 997 tests | ✅ Production Ready |
-| **AST Round-Trip** | 100% | 150+ scripts | ✅ Verified |
-| **Built-in Functions** | 100% | 181 functions | ✅ Complete |
-| **Technical Indicators** | 100% | 85+ indicators | ✅ Validated |
-| **Type System** | 100% | Full coverage | ✅ Complete |
-| **Collections** | 100% | Arrays/Matrix/Map | ✅ Complete |
-| **Numerical Precision** | 99.999% | < 0.0001% error | ✅ Validated |
-| **Real-World Scripts** | 98%+ | 150+ scripts | ✅ Tested |
+| **Parser & Syntax** | High (full grammar on 138+ real scripts) | 1142 tests | ✅ Solid |
+| **AST Round-Trip** | High (structural match on real scripts) | 138+ scripts | ✅ Verified |
+| **Built-in Functions** | Broad coverage | 200+ functions | ✅ Good |
+| **Technical Indicators** | Broad (core + advanced) | Many | ✅ Validated in tests |
+| **Strategy** | Functional (entry/exit/closedtrades etc.) | Covered | ✅ Improved |
+| **Type System** | Strong | - | ✅ |
+| **Collections** | Full | - | ✅ |
+| **Real-World Scripts** | High parse success | 138+ scripts | ✅ Tested |
 
 ---
 

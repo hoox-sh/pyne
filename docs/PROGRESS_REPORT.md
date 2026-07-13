@@ -18,25 +18,24 @@
 
 ## Summary
 
-This branch (`main`) significantly extends the pynescript library's evaluation capabilities, moving from basic parsing to functional expression evaluation. The evaluator now supports **181 built-in functions** including comprehensive technical analysis, utility functions, time handling, and string/array manipulation.
+This project provides a capable Pine Script v5/v6 toolchain: parser, AST, evaluator, linter, LSP. The parser is mature; the evaluator covers a broad set of builtins, indicators, and strategy primitives, with ongoing improvements for fidelity.
 
 ## Key Achievements
 
-### 🎯 Overall Progress: 100% Complete
+### 🎯 Overall Progress: Strong parser + solid evaluator coverage (tests: 1142 passed)
 
 ### Components Status
 
 | Component | Completion | Progress |
 |-----------|------------|----------|
-| **Parser** | 100% | Grammar covers all PineScript v6 syntax |
-| **Evaluator** | 100% | Full expression evaluation, v6 features, dynamic scope |
-| **Built-in Functions** | 100% | 224+ functions implemented (math, string, array, TA, plotting, utility, time) |
-| **Collections** | 100% | Arrays, Matrices, Maps fully implemented |
-| **Types** | 100% | Full type system including UDTs |
-| **Code Quality** | 100% | Modular architecture, 997/997 tests passing |
-| **Drawing** | 100% | 50+ drawing functions implemented |
-| **Strategy** | 100% | 20 strategy functions implemented |
-| **Technical Analysis** | 100% | 178+ indicators implemented (core complete) |
+| **Parser** | High | Full grammar coverage, excellent roundtrips on real scripts |
+| **Evaluator** | Good | Expressions, 200+ builtins, indicators, strategy basics |
+| **Built-in Functions** | Broad | Math, strings, arrays, TA, strategy, drawing (stubs for plots) |
+| **Collections** | Full | Arrays, Matrices, Maps |
+| **Types** | Good | Including UDTs, series semantics |
+| **Code Quality** | Good | Modular, 1142 tests passing |
+| **Strategy** | Functional | Entry/exit, trades, risk, events support |
+| **Technical Analysis** | Broad | Many indicators implemented and tested |
 
 ## Historical Note: Phase 8 (v6 indicators) Completion
 
