@@ -9,6 +9,7 @@ from typing import Any
 
 from pynescript.ast import node as ast
 from pynescript.ast.evaluator.builtins.matrix import Matrix
+from pynescript.ast.evaluator.libraries import LibraryModule
 from pynescript.ast.evaluator.types import EvaluatorProtocol
 from pynescript.ast.type_system import ObjectInstance
 
@@ -66,6 +67,12 @@ class NameEvaluator:
 
         # Evaluate the base value (left side of dot operator)
         value = self.visit(node.value)
+
+        # Imported library module: alias.member (export const / export f)
+        if isinstance(value, LibraryModule):
+            if node.attr in value.exports:
+                return value.exports[node.attr]
+            self._error(f"Library '{value.title}' has no exported member '{node.attr}'")
 
         # Handle UDT object field/method access
         if isinstance(value, ObjectInstance):

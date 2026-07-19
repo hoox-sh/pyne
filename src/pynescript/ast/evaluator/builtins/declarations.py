@@ -117,12 +117,23 @@ def library(title: str = "", description: str = "", **kwargs: Any) -> ScriptDecl
     )
 
 
+def _as_builtin_handler(fn: Any) -> Any:
+    """Adapt a normal Python function to the BuiltinHandler ``(args, kwargs?)`` shape."""
+
+    def handler(args: list[Any], kwargs: dict[str, Any] | None = None) -> Any:
+        return fn(*(args or []), **(kwargs or {}))
+
+    handler.__name__ = getattr(fn, "__name__", "handler")
+    handler.__doc__ = fn.__doc__
+    return handler
+
+
 def register_script_declaration_functions(namespace: dict) -> None:
     """Register script declaration functions in the given namespace.
 
     Args:
         namespace: Dictionary to register functions in (typically evaluator's builtins)
     """
-    namespace["indicator"] = indicator
-    namespace["strategy"] = strategy
-    namespace["library"] = library
+    namespace["indicator"] = _as_builtin_handler(indicator)
+    namespace["strategy"] = _as_builtin_handler(strategy)
+    namespace["library"] = _as_builtin_handler(library)

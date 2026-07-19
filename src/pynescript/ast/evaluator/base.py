@@ -24,6 +24,8 @@ import math
 from typing import Any
 
 from pynescript.ast import node as ast
+from pynescript.ast.evaluator.libraries import LibraryModule
+from pynescript.ast.evaluator.libraries import LibraryRegistry
 from pynescript.ast.type_system import TypeRegistry
 from pynescript.ast.visitor import NodeVisitor
 
@@ -80,12 +82,19 @@ class BaseEvaluator(NodeVisitor):
     Subclasses should override visit_* methods to handle specific AST node types.
     """
 
-    def __init__(self, context: dict[str, Any] | None = None):
-        """Initialize the evaluator with an optional context.
+    def __init__(
+        self,
+        context: dict[str, Any] | None = None,
+        data_feed: Any | None = None,
+        data_provider: Any | None = None,
+    ):
+        """Initialize the evaluator with an optional context and data sources.
 
         Args:
             context: Optional dictionary of pre-defined variables, functions, and classes
                     (merged with built-in math constants)
+            data_feed: Optional realtime/historical feed for request.* (v6 dynamic requests)
+            data_provider: Optional historical data provider for request.*
         """
         # Initialize visitor cache for tracking visited nodes
         super().__init__()
@@ -93,8 +102,17 @@ class BaseEvaluator(NodeVisitor):
         self.context = context or {}
         # Merge pre-computed math constants into context for optimization
         self.context.update(_MATH_CONSTANTS)
+        # Wire optional data sources used by request.* builtins
+        if data_feed is not None:
+            self.context["data_feed"] = data_feed
+        if data_provider is not None:
+            self.context["data_provider"] = data_provider
         # Initialize type registry for user-defined types
         self.type_registry = TypeRegistry()
+        # In-process library export/import registry (v6 export const, etc.)
+        self._library_registry = LibraryRegistry()
+        self._active_library: LibraryModule | None = None
+        self._pending_library_exports: dict[str, Any] = {}
 
     def generic_visit(self, node: ast.AST):
         """Handle unexpected node types not covered by visit_* methods.

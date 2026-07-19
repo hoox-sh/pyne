@@ -235,6 +235,8 @@ class NodeUnparser(NodeVisitor):
             for annotation in node.annotations:
                 self.fill(annotation)
             self.fill()
+        if getattr(node, "export", None):
+            self.write("export ")
         if node.mode:
             self.traverse(node.mode)
             self.write(" ")
@@ -465,11 +467,23 @@ class NodeUnparser(NodeVisitor):
             else:
                 self.write("false")
         elif isinstance(node.value, str):
-            # Always emit as single-line string (with \\n escapes if needed).
-            # This ensures roundtrip parse(unparse(parse)) succeeds for all corpus
-            # scripts (including those with embedded newlines) without requiring
-            # triple-quote lexer rules. The resulting string *value* is preserved.
-            if '"' in node.value and "'" not in node.value:
+            # Prefer Pine v6 triple-quoted form when the value contains newlines so
+            # unparse preserves readable multiline literals. Fall back to escaped
+            # single-line form otherwise (and always when the value itself contains
+            # both quote styles that would break triple delimiters).
+            if "\n" in node.value or "\r" in node.value:
+                if '"""' not in node.value:
+                    self.write('"""')
+                    self.write(node.value)
+                    self.write('"""')
+                elif "'''" not in node.value:
+                    self.write("'''")
+                    self.write(node.value)
+                    self.write("'''")
+                else:
+                    # Both triple delimiters appear in content — escape as JSON.
+                    self.write(json.dumps(node.value, ensure_ascii=False))
+            elif '"' in node.value and "'" not in node.value:
                 self.write(repr(node.value))
             else:
                 self.write(json.dumps(node.value, ensure_ascii=False))

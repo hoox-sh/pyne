@@ -23,6 +23,9 @@ from collections.abc import Sequence
 from typing import Any
 
 from pynescript.ast import node as ast
+from pynescript.ast.evaluator.builtins.declarations import ScriptDeclaration
+from pynescript.ast.evaluator.libraries import LibraryModule
+from pynescript.ast.helper import parse as parse_pine
 from pynescript.ast.type_system import BuiltinType
 from pynescript.ast.type_system import BuiltinTypeKind
 from pynescript.ast.type_system import Field
@@ -62,13 +65,42 @@ class StatementEvaluator:
     def visit_Script(self, node: ast.Script):
         """Execute all statements in a script.
 
+        Tracks ``library(...)`` declarations and registers exported members
+        (``export const``, ``export f() => ...``) into the library registry.
+
         Args:
             node: The Script node containing the body of statements
         """
-        # Execute each statement in order
+        # Fresh library-export buffer for this script evaluation
+        self._pending_library_exports = {}  # type: ignore[attr-defined]
+        self._active_library = None  # type: ignore[attr-defined]
+        last: Any = None
         for stmt in node.body:
-            # Delegate to visit method for the statement type
-            self.visit(stmt)  # type: ignore[attr-defined]
+            last = self.visit(stmt)  # type: ignore[attr-defined]
+            # Detect library("Title") declaration from Expr(Call(...))
+            if isinstance(last, ScriptDeclaration) and last.script_type == "library":
+                self._active_library = LibraryModule(title=str(last.title))  # type: ignore[attr-defined]
+        self._finalize_library_registration()
+        return last
+
+    def _finalize_library_registration(self) -> None:
+        """If this script was a library, register collected exports."""
+        active: LibraryModule | None = getattr(self, "_active_library", None)
+        if active is None:
+            return
+        pending: dict[str, Any] = getattr(self, "_pending_library_exports", {})
+        active.exports.update(pending)
+        self._library_registry.register(active)  # type: ignore[attr-defined]
+        self._active_library = None  # type: ignore[attr-defined]
+        self._pending_library_exports = {}  # type: ignore[attr-defined]
+
+    def _register_export(self, name: str, value: Any) -> None:
+        """Record an exported member while evaluating a library script."""
+        pending: dict[str, Any] = getattr(self, "_pending_library_exports", None)  # type: ignore[attr-defined]
+        if pending is None:
+            self._pending_library_exports = {}  # type: ignore[attr-defined]
+            pending = self._pending_library_exports  # type: ignore[attr-defined]
+        pending[name] = value
 
     def visit_Assign(self, node: ast.Assign):
         """Evaluate an assignment statement.
@@ -113,11 +145,14 @@ class StatementEvaluator:
                 self.context[node.target.id] = value  # type: ignore[attr-defined]
             return
 
-        # -- Regular assignment -----------------------------
+        # -- Regular assignment (also covers `const T name = expr` type-qualifier form)
         if node.value:
             value = self.visit(node.value)  # type: ignore[attr-defined]
             if isinstance(node.target, ast.Name):
                 self.context[node.target.id] = value  # type: ignore[attr-defined]
+                # June 2025: export const / export typed vars from libraries
+                if getattr(node, "export", None):
+                    self._register_export(node.target.id, value)
             else:
                 msg = f"Unsupported assignment target: {type(node.target)}"
                 self._error(msg)  # type: ignore[attr-defined]
@@ -413,6 +448,53 @@ class StatementEvaluator:
                 self.context = old_context  # type: ignore[attr-defined]
 
         self.context[func_name] = user_function  # type: ignore[attr-defined]
+        if getattr(node, "export", None):
+            self._register_export(func_name, user_function)
+
+    def visit_Import(self, node: ast.Import):
+        """Resolve ``import namespace/name/version [as alias]`` against the library registry.
+
+        Libraries are resolved by exact path when registered with namespace+version,
+        or by library title (``name``) after a prior ``evaluate_script(library(...))``.
+        Explicit sources registered via ``register_library_source`` are loaded lazily.
+        """
+        namespace = node.namespace
+        name = node.name
+        version = int(node.version) if node.version is not None else None
+        alias = node.alias or name
+
+        registry = self._library_registry  # type: ignore[attr-defined]
+        mod = registry.lookup(namespace=namespace, name=name, version=version)
+
+        if mod is None and namespace is not None and version is not None:
+            source = registry.get_source(namespace, name, version)
+            if source is not None:
+                # Load library source into the same evaluator (exports accumulate)
+                self.visit(parse_pine(source, mode="exec"))  # type: ignore[attr-defined]
+                mod = registry.lookup(namespace=namespace, name=name, version=version)
+                if mod is None:
+                    # Title-only registration from library("name")
+                    mod = registry.lookup(name=name)
+                    if mod is not None:
+                        mod.namespace = namespace
+                        mod.version = version
+                        registry.register(mod)
+
+        if mod is None:
+            path = f"{namespace}/{name}/{version}"
+            msg = f"Unknown library import: {path}"
+            self._error(msg)  # type: ignore[attr-defined]
+            return
+
+        # Bind path identity if not already
+        if mod.namespace is None and namespace is not None:
+            mod.namespace = namespace
+        if mod.version is None and version is not None:
+            mod.version = version
+            registry.register(mod)
+
+        self.context[alias] = mod  # type: ignore[attr-defined]
+        return mod
 
     def _execute_block(self, stmts: Sequence[ast.AST]):
         """Execute a block of statements and return the value of the last expression."""

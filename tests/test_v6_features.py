@@ -500,6 +500,109 @@ plot(upPrice)
         assert repr(ast) == repr(reparsed)
 
 
+def _string_constants_containing(tree, needle: str) -> list[str]:
+    from pynescript.ast import walk
+    from pynescript.ast.grammar.asdl.generated.PinescriptASTNode import Constant
+
+    return [
+        n.value
+        for n in walk(tree)
+        if isinstance(n, Constant) and isinstance(n.value, str) and needle in n.value
+    ]
+
+
+class TestMultilineStrings:
+    """Test multiline strings (April 2026 v6)"""
+
+    def test_multiline_double_quote(self):
+        """Basic multiline with \"\"\" — preserves newlines and indentation."""
+        code = '''
+indicator("Multiline Test")
+s = """line one
+  indented line two
+line three"""
+log.info(s)
+'''
+        tree = parse(code)
+        values = _string_constants_containing(tree, "line one")
+        assert values, "expected multiline string constant in AST"
+        assert values[0] == "line one\n  indented line two\nline three"
+
+        unparsed = unparse(tree)
+        assert '"""' in unparsed
+        reparsed = parse(unparsed)
+        values2 = _string_constants_containing(reparsed, "line one")
+        assert values2[0] == values[0]
+
+    def test_multiline_single_quote(self):
+        code = """
+indicator("Multiline Single")
+s = '''multi
+line'''
+"""
+        tree = parse(code)
+        values = _string_constants_containing(tree, "multi")
+        assert values
+        assert values[0] == "multi\nline"
+        unparsed = unparse(tree)
+        reparsed = parse(unparsed)
+        assert repr(tree) == repr(reparsed)
+
+    def test_multiline_one_line_triple(self):
+        """Triple quotes on a single physical line still parse as a string."""
+        code = '''
+indicator("One line triple")
+s = """hello world"""
+'''
+        values = _string_constants_containing(parse(code), "hello world")
+        assert values
+
+
+class TestExportConst:
+    """Test library export const variables (June 2025)"""
+
+    def test_export_const_float(self):
+        code = """
+//@version=6
+library("MyConstants")
+export const float SILVER_RATIO = 1.0 + math.sqrt(2)
+"""
+        from pynescript.ast import walk
+        from pynescript.ast.grammar.asdl.generated.PinescriptASTNode import Assign
+
+        tree = parse(code)
+        assigns = [n for n in walk(tree) if isinstance(n, Assign) and getattr(n, "export", None)]
+        assert len(assigns) == 1
+        assert assigns[0].target.id == "SILVER_RATIO"
+        assert assigns[0].export == 1
+
+        unparsed = unparse(tree)
+        assert "export const float SILVER_RATIO" in unparsed
+        reparsed = parse(unparsed)
+        assigns2 = [n for n in walk(reparsed) if isinstance(n, Assign) and getattr(n, "export", None)]
+        assert len(assigns2) == 1
+        assert assigns2[0].target.id == "SILVER_RATIO"
+
+    def test_export_const_int_string_bool(self):
+        code = """
+//@version=6
+library("Consts")
+export const int MAX_LEN = 100
+export const string NAME = "demo"
+export const bool FLAG = true
+"""
+        from pynescript.ast import walk
+        from pynescript.ast.grammar.asdl.generated.PinescriptASTNode import Assign
+
+        tree = parse(code)
+        exported = [n for n in walk(tree) if isinstance(n, Assign) and getattr(n, "export", None)]
+        names = {n.target.id for n in exported}
+        assert names == {"MAX_LEN", "NAME", "FLAG"}
+        unparsed = unparse(tree)
+        reparsed = parse(unparsed)
+        assert repr(tree) == repr(reparsed)
+
+
 class TestPlotLinestyle:
     """Test plot linestyle parameter (September 2025)"""
 

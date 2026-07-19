@@ -18,9 +18,9 @@
 
 **Current Status (as of 2026-07):** Strong core support (parser + evaluator + 1142+ tests passing). Full suite: 1142 passed. Not 100% for all post-v6 launch features.
 
-**Last Updated:** 2026-07-13 (baseline verification per consolidation plan; dynamic request.* fully integrated; strategy events + pine-worker present; docs synced; stubs docs improved)
+**Last Updated:** 2026-07-20 (multiline triple-quoted strings fully wired; library `export const` parse/AST/unparse; tests no longer placeholders)
 
-**Overall Support Assessment:** ~99%+ for core v6. Last dynamic request.* items integrated (helpers + 8+ handlers). Flakes fixed (138/138 parse/unparse). ~2 by-design items remain. 
+**Overall Support Assessment:** ~99%+ for core v6. Multiline strings + `export const` integrated (grammar/lexer + builder/unparser). Remaining gaps are mostly by-design (mock request data, platform/editor-only). 
 - Parser: Excellent for v5/v6 core + multiline, dynamic etc.
 - Evaluator/Builtins: Broad coverage + data context injection.
 - Recent: datafeed (CCXTPro/Mock/Composite + Broker + evaluator wiring) + backend/runtime support, enums type kind + improved access.
@@ -45,7 +45,9 @@ Pine Script v6 launched December 2024, followed by monthly updates. Key sources:
 - **active parameter on `input.*()`** (July 2025): `active` to enable/disable inputs in settings.
   - **Status**: ✅ Integrated — accepted across all input handlers, stored in metadata dict (default true). Metadata-driven for backends/LSP.
 - **Multiline strings** (`"""..."""` / `'''...'''`, April 2026): Literal strings spanning lines (auto newlines, literal indentation).
-  - **Status**: ✅ Implemented. Resource grammar fixed with safe fragment defs; lexer updated; full parse + literal-preserving unparse works.
+  - **Status**: ✅ Fully wired (2026-07-20). Generated lexer includes `TRIPLE_*` rules; LexerBase skips wrap-indent stripping for triple quotes; unparser prefers `"""..."""` when value has newlines.
+- **Library `export const`** (June 2025): Export const int/float/bool/color/string from libraries.
+  - **Status**: ✅ Implemented (2026-07-20). Parser `EXPORT?` on name initialization; Assign.export in ASDL; builder + unparser.
 - **Sorting UDT collections with `sort_field`** (April 2026): `array.sort()`, `array.sort_indices()`, `matrix.sort()` accept `sort_field` (const int index or string name) for UDT arrays/matrices.
   - **Status**: ✅ Implemented (arrays pre-existing; matrix added with UDT key support + basic numeric sort).
 - **Other updates** (multiline in editor, line wrapping changes, dynamic loops, bid/ask on 1T, etc.): Mostly editor or minor; runtime support varies (bid/ask referenced in tests).
@@ -55,7 +57,8 @@ Pine Script v6 launched December 2024, followed by monthly updates. Key sources:
 ## Current Missing / Incomplete Features List (Accurate as of July 2026)
 
 ### High Priority (Syntax / Core Language - Breaks 100% Parser)
-- ✅ **Multiline string literals** (`"""` / `'''` delimiters) — grammar updated in resource (safe fragment syntax), lexer regenerated, parse/unparse/eval roundtrips work and preserve literal content+indent.
+- ✅ **Multiline string literals** (`"""` / `'''` delimiters) — resource lexer rules + committed generated lexer; LexerBase preserves triple-quoted newlines/indent (does not strip wrap-indent); unparser emits triple quotes for multiline values; real tests assert content + roundtrip.
+- ✅ **Library `export const`** (June 2025) — parse/AST/unparse + **runtime**: library scripts register exports; `import user/Lib/1 as x` resolves via in-process registry / `register_library_source`; `x.MEMBER` attribute access; exported functions callable.
 - ✅ **UDT collection sorting with `sort_field`** — arrays had support; matrix.sort + matrix.sort_indices now fully implemented in Matrix class + evaluator mixin with int index or str name + UDT get_field keys.
 - ✅ Additional v6 syminfo/timeframe constants (isin, current_contract, main_tickerid, main_period) added to default context.
 - ✅ behind_chart on indicator/strategy/library, force_overlay on drawing objects (line, box, label, polyline, table) and plot() - captured in metadata and ctors.

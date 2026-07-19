@@ -108,6 +108,10 @@ ERROR_TOKEN: .;
 
 // FRAGMENTS
 
+// v6 multiline triple-quoted strings (explicit rules so lexer matches """...""" as STRING)
+TRIPLE_DQ_STRING : '"""' ( ~'"' | '"' ~'"' | '""' ~'"' )* '"""' -> type(STRING) ;
+TRIPLE_SQ_STRING : '\'\'\'' ( ~'\'' | '\'' ~'\'' | '\'\'' ~'\'' )* '\'\'\'' -> type(STRING) ;
+
 fragment STRING_LITERAL: SINGLE_QUOTED_STRING | DOUBLE_QUOTED_STRING;
 
 fragment SINGLE_QUOTED_STRING: '\'' STRING_ITEM_FOR_SINGLE_QUOTE* '\'';

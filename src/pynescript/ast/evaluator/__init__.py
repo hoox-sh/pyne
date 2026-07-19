@@ -38,6 +38,7 @@ from __future__ import annotations
 from typing import Any
 
 from pynescript.ast.evaluator.builtins.strategy import StrategyState
+from pynescript.ast.evaluator.libraries import LibraryModule
 from pynescript.ast.helper import parse
 
 from .base import BaseEvaluator
@@ -93,3 +94,17 @@ class NodeLiteralEvaluator(
         """
         tree = parse(source, mode="exec")
         return self.visit(tree)
+
+    def register_library_source(self, namespace: str, name: str, version: int, source: str) -> None:
+        """Register Pine source for ``import namespace/name/version`` resolution."""
+        self._library_registry.register_source(namespace, name, version, source)
+
+    def lookup_library(
+        self,
+        *,
+        namespace: str | None = None,
+        name: str,
+        version: int | None = None,
+    ) -> LibraryModule | None:
+        """Look up a previously evaluated or registered library."""
+        return self._library_registry.lookup(namespace=namespace, name=name, version=version)

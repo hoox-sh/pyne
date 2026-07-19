@@ -32,10 +32,9 @@ from .base import BuiltinHandler
 class StrategyState:
     """Per-run strategy execution state.
 
-    Each evaluator instance owns its own StrategyState. Class-level
-    defaults remain for backward compatibility with test code that
-    references ``StrategyState.position_direction`` directly, but
-    handlers read/write through the instance held on the evaluator.
+    Each evaluator instance owns its own ``StrategyState`` (isolated multi-run
+    and strategy-events capture). Tests and callers must read/write through
+    ``evaluator._strategy_state``, not class-level attributes.
     """
 
     def __init__(self) -> None:
@@ -59,21 +58,21 @@ class StrategyState:
         self._events.clear()
         return events
 
-    @classmethod
-    def reset(cls) -> None:
-        """Reset class-level defaults (legacy, prefer instance creation)."""
-        cls.position_direction = "flat"  # type: ignore[misc]
-        cls.entry_price = 0.0  # type: ignore[misc]
-        cls.entry_bar = 0  # type: ignore[misc]
-        cls.entry_time = 0  # type: ignore[misc]
-        cls.position_size = 0.0  # type: ignore[misc]
-        cls.commission = 0.0  # type: ignore[misc]
-        cls.closed_trades = []  # type: ignore[misc]
-        cls.open_trades = []  # type: ignore[misc]
-        cls.pending_orders = {}  # type: ignore[misc]
-        cls.max_intraday_loss = float("inf")  # type: ignore[misc]
-        cls.max_drawdown = float("inf")  # type: ignore[misc]
-        cls.risk_free_capital = 100000.0  # type: ignore[misc]
+    def reset(self) -> None:
+        """Reset this instance to flat/empty defaults (for reuse in tests)."""
+        self.position_direction = "flat"
+        self.entry_price = 0.0
+        self.entry_bar = 0
+        self.entry_time = 0
+        self.position_size = 0.0
+        self.commission = 0.0
+        self.closed_trades = []
+        self.open_trades = []
+        self.pending_orders = {}
+        self.max_intraday_loss = float("inf")
+        self.max_drawdown = float("inf")
+        self.risk_free_capital = 100000.0
+        self._events = []
 
 
 @dataclass

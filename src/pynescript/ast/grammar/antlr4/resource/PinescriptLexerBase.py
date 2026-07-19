@@ -244,7 +244,15 @@ class PinescriptLexerBase(Lexer):
                     )
 
     def _handle_STRING_token(self):
-        replacedText: str = self._currentToken.text
+        # Pine v6 triple-quoted multiline strings keep *all* newlines and
+        # indentation literally. Only single/double-quoted strings that are
+        # line-wrapped across physical source lines strip wrap-indent.
+        text = self._currentToken.text
+        if text.startswith('"""') or text.startswith("'''"):
+            self._addPendingToken(self._currentToken)
+            return
+
+        replacedText: str = text
         replacedText = re.sub(r"(\r?\n)+", r"\1", replacedText)
         replacedText = re.sub(r"(\r?\n)(\s)+", "", replacedText)
         if len(self._currentToken.text) == len(replacedText):

@@ -47,7 +47,8 @@ compound_statement
 simple_statements: simple_statement (COMMA simple_statement)* COMMA? NEWLINE;
 
 simple_statement
-    : expression_statement
+    : simple_assignment
+    | expression_statement
     | import_statement
     | break_statement
     | continue_statement;
@@ -63,7 +64,8 @@ compound_variable_initialization
     : compound_name_initialization
     | compound_tuple_initialization;
 
-compound_name_initialization:  variable_declaration EQUAL structure_expression;
+// EXPORT? supports library `export const T name = expr` (June 2025)
+compound_name_initialization:  EXPORT? variable_declaration EQUAL structure_expression;
 compound_tuple_initialization: tuple_declaration EQUAL structure_expression;
 
 compound_reassignment:  primary_expression COLONEQUAL structure_expression;
@@ -154,7 +156,8 @@ simple_variable_initialization
     : simple_name_initialization
     | simple_tuple_initialization;
 
-simple_name_initialization:  variable_declaration EQUAL expression;
+// EXPORT? supports library `export const T name = expr` (June 2025)
+simple_name_initialization:  EXPORT? variable_declaration EQUAL expression;
 simple_tuple_initialization: tuple_declaration EQUAL expression;
 
 simple_reassignment:  primary_expression COLONEQUAL expression;
@@ -219,7 +222,8 @@ unary_op: NOT | PLUS | MINUS;
 
 primary_expression
     : primary_expression DOT name_load                                  # primary_expression_attribute
-    | primary_expression LPAR argument_list? RPAR # primary_expression_call
+    // template_spec_suffix before LPAR enables array.new<float>(...) form
+    | primary_expression template_spec_suffix? LPAR argument_list? RPAR # primary_expression_call
     | primary_expression LSQB subscript_slice RSQB                      # primary_expression_subscript
     | atomic_expression                                                 # primary_expression_fallback;
 

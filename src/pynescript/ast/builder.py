@@ -1,7 +1,21 @@
-# Copyright (C) 2025 jango-blockchained. All Rights Reserved.
+# Copyright (C) 2025 jango-blockchained
 #
-# This software is the proprietary information of jango-blockchained.
-# Use is subject to license terms.
+# This file is part of pynescript.
+#
+# pynescript is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Lesser General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# pynescript is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public License
+# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+#
+# SPDX-License-Identifier: LGPL-3.0-or-later
 
 """PineScript ANTLR Parse Tree to AST Builder.
 
@@ -216,6 +230,9 @@ class PinescriptASTBuilder(
         assign = self.visit(assign)
         value = self.visit(value)
         assign.value = value
+        # Library export of const variables (Pine June 2025)
+        if ctx.EXPORT():
+            assign.export = 1
         self._setLocations(assign, ctx)
         return assign
 
@@ -266,6 +283,9 @@ class PinescriptASTBuilder(
         assign = self.visit(assign)
         value = self.visit(value)
         assign.value = value
+        # Library export of const variables (Pine June 2025)
+        if ctx.EXPORT():
+            assign.export = 1
         self._setLocations(assign, ctx)
         return assign
 
@@ -974,7 +994,15 @@ class PinescriptASTBuilder(
 
     def visitLiteral_string(self, ctx: PinescriptParser.Literal_stringContext):
         text = ctx.getText()
-        string = literal_eval(text)
+        # Support v6 multiline strings (triple quotes) - Python literal_eval handles them
+        # but we normalize here for consistency.
+        if (text.startswith('"""') and text.endswith('"""')) or (text.startswith("'''") and text.endswith("'''")):
+            # Strip the triple quotes, keep content as-is (newlines and indents preserved)
+            inner = text[3:-3]
+            # Handle escaped quotes inside if any, but literal for now
+            string = inner  # literal content
+        else:
+            string = literal_eval(text)
         return string
 
     def visitLiteral_bool(self, ctx: PinescriptParser.Literal_boolContext):

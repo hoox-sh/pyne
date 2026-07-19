@@ -94,8 +94,9 @@ class Assign(stmt):
     value: expr | None = _dataclasses.field(default=None)
     type: expr | None = _dataclasses.field(default=None)
     mode: decl_mode | None = _dataclasses.field(default=None)
+    export: int | None = _dataclasses.field(default=None)
     annotations: _builtins.list[string] = _dataclasses.field(default_factory=_builtins.list)
-    _fields: _typing.ClassVar[_builtins.list[_builtins.str]] = ["target", "value", "type", "mode", "annotations"]
+    _fields: _typing.ClassVar[_builtins.list[_builtins.str]] = ["target", "value", "type", "mode", "export", "annotations"]
     __hash__ = _builtins.object.__hash__
 
 
