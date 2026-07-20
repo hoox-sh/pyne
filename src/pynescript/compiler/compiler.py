@@ -94,8 +94,11 @@ class CompilerVisitor(NodeVisitor):
 
         if node.id in ["open", "high", "low", "close", "volume"]:
             return f"{node.id}_arr[__bar_idx]"
-        if node.id in ["ta", "math", "str", "array", "matrix", "syminfo", "timeframe", "color", "plot"]:
+        if node.id in ("bar_index",):
+            return "__bar_idx"
+        if node.id in ["ta", "math", "str", "array", "matrix", "syminfo", "timeframe", "color", "plot", "strategy", "input"]:
             return node.id
+        # Undeclared names: treat as series arrays (declared via Assign)
         return f"{node.id}_arr[__bar_idx]"
 
     def visit_BinOp(self, node: ast.BinOp):
@@ -152,38 +155,85 @@ class CompilerVisitor(NodeVisitor):
         else:
             func_name = "unknown_func"
 
-        args = []
+        args: list[str] = []
+        kwargs: dict[str, str] = {}
         for arg in node.args:
+            # Pine Arg nodes: optional .name for keyword, .value for expr
             if hasattr(arg, "value"):
-                args.append(self.visit(arg.value))
+                expr = self.visit(arg.value)
+                if getattr(arg, "name", None):
+                    kwargs[str(arg.name)] = expr
+                else:
+                    args.append(expr)
             else:
                 args.append(self.visit(arg))
 
+        # Declarations — no-ops in compiled bar loop
+        if func_name in ("indicator", "strategy", "library"):
+            return ""
+
+        # input.* / input() → use default value (first arg) as compile-time const
+        if func_name == "input" or func_name.startswith("input_"):
+            if args:
+                return args[0]
+            if "defval" in kwargs:
+                return kwargs["defval"]
+            return "0.0"
+
         if func_name == "plot":
             title = f"Plot {len(self.plots)}"
-            if len(args) > 1 and args[1]:
-                # Remove quotes from the string if present
+            if "title" in kwargs:
+                title = kwargs["title"].strip("\"'")
+            elif len(args) > 1 and args[1]:
                 title = args[1].strip("\"'")
-            self.plots.append({"expr": args[0], "title": title})
+            series_expr = args[0] if args else "np.nan"
+            self.plots.append({"expr": series_expr, "title": title})
             idx = len(self.plots) - 1
-            return f"plot_{idx}[__bar_idx] = {args[0]}"
+            return f"plot_{idx}[__bar_idx] = {series_expr}"
+
+        if func_name in ("hline", "bgcolor", "barcolor", "plotshape", "plotchar", "plotarrow", "plotbar", "plotcandle", "fill"):
+            # Visual no-ops in numeric compile path (plots captured via plot())
+            return ""
 
         if func_name in ["log_info", "log_warning", "log_error"]:
-            msg_args = ", ".join(args)
-            return f"with numba.objmode():\n    numba_{func_name}({msg_args})"
+            # Skip logging inside njit (no objmode required for MVP)
+            return ""
+
+        def _arr_arg(expr: str) -> str:
+            return expr.replace("[__bar_idx]", "")
 
         if func_name == "ta_sma":
-            arr_arg = args[0].replace("[__bar_idx]", "")
-            period = args[1]
-            return f"numba_sma({arr_arg}, {period}, __bar_idx)"
+            period = kwargs.get("length", args[1] if len(args) > 1 else "14")
+            return f"numba_sma({_arr_arg(args[0])}, {period}, __bar_idx)"
 
         if func_name == "ta_ema":
-            arr_arg = args[0].replace("[__bar_idx]", "")
-            period = args[1]
-            return f"numba_ema({arr_arg}, {period}, __bar_idx)"
+            period = kwargs.get("length", args[1] if len(args) > 1 else "14")
+            return f"numba_ema({_arr_arg(args[0])}, {period}, __bar_idx)"
 
-        if func_name == "indicator":
-            return ""
+        if func_name == "ta_rsi":
+            period = kwargs.get("length", args[1] if len(args) > 1 else "14")
+            return f"numba_rsi({_arr_arg(args[0])}, {period}, __bar_idx)"
+
+        if func_name == "ta_highest":
+            period = kwargs.get("length", args[1] if len(args) > 1 else "14")
+            return f"numba_highest({_arr_arg(args[0])}, {period}, __bar_idx)"
+
+        if func_name == "ta_lowest":
+            period = kwargs.get("length", args[1] if len(args) > 1 else "14")
+            return f"numba_lowest({_arr_arg(args[0])}, {period}, __bar_idx)"
+
+        if func_name in ("nz", "math_abs", "abs"):
+            if func_name == "nz":
+                repl = args[1] if len(args) > 1 else "0.0"
+                return f"numba_nz({args[0]}, {repl})"
+            return f"numba_abs({args[0]})"
+
+        if func_name in ("math_max", "math_min", "max", "min"):
+            op = "numba_max" if "max" in func_name else "numba_min"
+            return f"{op}({args[0]}, {args[1]})"
+
+        if func_name in ("math_sqrt",):
+            return f"np.sqrt({args[0]})"
 
         return f"{func_name}({', '.join(args)})"
 

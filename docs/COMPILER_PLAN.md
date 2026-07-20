@@ -1,9 +1,15 @@
 # Pine Script to Numba Compiler Plan
 
-## Overview
-Currently, Pynescript executes scripts using an **AST-walking interpreter** in pure Python. Because Pine Script heavily loops over time series data (bars), executing this via Python's AST visitor introduces massive overhead. 
+**Status (2026-07-20): MVP landed.**  
+API: `pynescript.compiler.compile_script` / `run_script` / `transpile`.  
+Runtime: `Runtime.run(..., mode="compile")`.  
+Supported subset: assignments, math ops, history `[]`, `if`, loops, `ta.sma/ema/rsi/highest/lowest`, `plot`, `input.*` defaults, `var`.  
+Tests: `tests/test_compiler_numba.py`.
 
-To achieve TradingView-like execution speeds (for both real-time streams and massive historical backtests), we will introduce a **Source-to-Source Compilation Step** that compiles Pine Script down to JIT-optimized Machine Code via **Numba** (`@numba.njit`).
+## Overview
+Historically Pynescript executed scripts using an **AST-walking interpreter** in pure Python. Because Pine Script heavily loops over time series data (bars), that path has high overhead.
+
+We introduce a **Source-to-Source Compilation Step** that compiles Pine Script down to JIT-optimized machine code via **Numba** (`@numba.njit`).
 
 ## Architecture
 

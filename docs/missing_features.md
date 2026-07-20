@@ -87,6 +87,7 @@ Pine Script v6 launched December 2024, followed by monthly updates. Key sources:
 - ✅ `strategy.risk.max_position_size(percent)` caps entry qty by equity %.
 - ✅ Plotting real effects (2026-07-20): all `plot*`/`hline`/`bgcolor`/`barcolor`/`fill` register on `PlotRegistry`; `plot()` returns Plot id for `fill`.
 - ✅ request.* data_feed depth: shared `_ohlcv_closes`/`_ticker_last`; MockDataFeed sync `fetch_latest_*`; currency_rate prefers feed pair; seed stored in context.
+- ✅ **Numba compile path (MVP, 2026-07-20)**: `pynescript.compiler.compile_script` / `Runtime.run(mode="compile")` — Pine → `@numba.njit` bar loop for ta.sma/ema/rsi, plots, history, inputs. See `docs/COMPILER_PLAN.md`.
 - Editor-specific (word wrap defaults, etc.) — irrelevant for this runtime/parser.
 - Minor post-2025 behaviors (specific request.* changes, updated wrapping rules if they affect AST).
 

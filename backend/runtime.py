@@ -158,7 +158,14 @@ class Runtime:
         self._bid = bid
         self._ask = ask
 
-    def run(self, source_code: str, ohlcv_data: list[dict], data_feed=None, data_provider=None):
+    def run(
+        self,
+        source_code: str,
+        ohlcv_data: list[dict],
+        data_feed=None,
+        data_provider=None,
+        mode: str = "interpret",
+    ):
         """
         Execute the script over the provided OHLCV data.
 
@@ -167,10 +174,15 @@ class Runtime:
             ohlcv_data: List of dicts with 'open', 'high', 'low', 'close', 'time'.
             data_feed: Optional realtime DataFeed for request.* live data.
             data_provider: Optional historical provider for request.* .
+            mode: ``"interpret"`` (default AST walker) or ``"compile"`` (Numba
+                bar-loop for a supported subset: ta.sma/ema/rsi, plots, math).
 
         Returns:
             dict with 'series': list of plotted values for each bar.
         """
+        if mode == "compile":
+            return self._run_compiled(source_code, ohlcv_data)
+
         # Parse once
         try:
             tree = parse(source_code, mode="exec")
@@ -268,4 +280,53 @@ class Runtime:
             "count": len(results),
             "script_id": script_id,
             "run_id": self._run_id,
+            "mode": "interpret",
+        }
+
+    def _run_compiled(self, source_code: str, ohlcv_data: list[dict]) -> dict:
+        """Execute via Numba-compiled bar loop (supported subset of Pine)."""
+        try:
+            from pynescript.compiler.engine import compile_script
+            from pynescript.compiler.engine import has_numba
+        except ImportError as e:
+            return {"error": f"Compile mode unavailable: {e!s}"}
+
+        if not has_numba():
+            return {"error": "Compile mode requires numba (pip install numba)"}
+
+        if not ohlcv_data:
+            return {"plots": [], "events": [], "count": 0, "mode": "compile", "series": {}}
+
+        try:
+            compiled = compile_script(source_code)
+        except Exception as e:
+            return {"error": f"Compile Error: {e!s}"}
+
+        opens = [float(b.get("open", 0.0)) for b in ohlcv_data]
+        highs = [float(b.get("high", 0.0)) for b in ohlcv_data]
+        lows = [float(b.get("low", 0.0)) for b in ohlcv_data]
+        closes = [float(b.get("close", 0.0)) for b in ohlcv_data]
+        volumes = [float(b.get("volume", 1.0)) for b in ohlcv_data]
+
+        try:
+            series_map = compiled.run(opens, highs, lows, closes, volumes)
+        except Exception as e:
+            return {"error": f"Compiled Runtime Error: {e!s}"}
+
+        # Primary plot series (first plot) as list for frontend compatibility
+        final_series: list = []
+        if series_map:
+            first = next(iter(series_map.values()))
+            final_series = [None if (isinstance(x, float) and x != x) else float(x) for x in first]
+
+        script_id = hashlib.sha256(source_code.encode("utf-8")).hexdigest()[:16]
+        return {
+            "plots": final_series,
+            "series": {k: v.tolist() for k, v in series_map.items()},
+            "events": [],
+            "count": len(ohlcv_data),
+            "script_id": script_id,
+            "run_id": self._run_id,
+            "mode": "compile",
+            "generated_code": compiled.generated_code,
         }

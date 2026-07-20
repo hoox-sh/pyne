@@ -3,6 +3,22 @@
 # This software is the proprietary information of jango-blockchained.
 # Use is subject to license terms.
 
-from .compiler import CompilerVisitor
+"""Pine Script → Numba compile pipeline."""
 
-__all__ = ["CompilerVisitor"]
+from __future__ import annotations
+
+from .compiler import CompilerVisitor
+from .engine import CompiledScript
+from .engine import compile_script
+from .engine import has_numba
+from .engine import run_script
+from .engine import transpile
+
+__all__ = [
+    "CompiledScript",
+    "CompilerVisitor",
+    "compile_script",
+    "has_numba",
+    "run_script",
+    "transpile",
+]
