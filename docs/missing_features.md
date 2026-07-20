@@ -82,6 +82,9 @@ Pine Script v6 launched December 2024, followed by monthly updates. Key sources:
 - Some strategy backtest trimming / unlimited history behaviors (high-level support exists).
 - ✅ Strategy runtime depth (2026-07-20): open trades list, signed `strategy.position_size`, `opentrades`/`closedtrades` counts, `netprofit`/`openprofit`/`equity`/`grossprofit`/`grossloss`/`wintrades`/`losstrades`, mark-to-market vs `close`, partial closes; golden multi-bar tests in `tests/test_strategy_runtime.py`.
 - ✅ Strategy extended series (2026-07-20): `avg_trade`/`avg_winning_trade`/`avg_losing_trade` + percent forms, `*_percent` for net/open/gross, `cash`, `account_currency`, `position_entry_name`, `opentrades.capital_held`, `closedtrades.first_index`, `eventrades`, `max_drawdown`/`max_runup` (+ percent), `max_contracts_held_*`, `margin_liquidation_price` (na).
+- ✅ Drawing `*.all` collections (2026-07-20): `line/box/label/table/polyline.all` return non-deleted DrawingRegistry objects; `linefill.all` empty until modeled.
+- ✅ `last_bar_index` / `last_bar_time` resolve as series (context override or bar_index/time fallback).
+- ✅ `strategy.risk.max_position_size(percent)` caps entry qty by equity %.
 - Editor-specific (word wrap defaults, etc.) — irrelevant for this runtime/parser.
 - Minor post-2025 behaviors (specific request.* changes, updated wrapping rules if they affect AST).
 

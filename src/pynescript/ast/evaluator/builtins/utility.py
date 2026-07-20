@@ -30,7 +30,34 @@ class UtilityFunctionsMixin(BuiltinDispatchMixin):
             "time_tradingday": self._builtin_time_tradingday,
             "weekofyear": self._builtin_weekofyear,
             "timestamp": self._builtin_timestamp,
+            "last_bar_index": self._builtin_last_bar_index,
+            "last_bar_time": self._builtin_last_bar_time,
         }
+
+    def _coerce_ctx_number(self, key: str, default: float = 0.0) -> float:
+        ctx = getattr(self, "context", {}) or {}
+        value = ctx.get(key, default)
+        current = getattr(value, "current", None)
+        if current is not None and not isinstance(value, (int, float, str)):
+            value = current
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return float(default)
+
+    def _builtin_last_bar_index(self, _args: list[Any], kwargs: dict[str, Any] | None = None) -> int:
+        """Index of the last bar in the dataset (falls back to bar_index)."""
+        ctx = getattr(self, "context", {}) or {}
+        if "last_bar_index" in ctx:
+            return int(self._coerce_ctx_number("last_bar_index", 0))
+        return int(self._coerce_ctx_number("bar_index", 0))
+
+    def _builtin_last_bar_time(self, _args: list[Any], kwargs: dict[str, Any] | None = None) -> int:
+        """Time of the last bar in the dataset (falls back to time)."""
+        ctx = getattr(self, "context", {}) or {}
+        if "last_bar_time" in ctx:
+            return int(self._coerce_ctx_number("last_bar_time", 0))
+        return int(self._coerce_ctx_number("time", 0))
 
     def _builtin_time(self, args: list[Any]) -> int:
         """Get timestamp for bar start time.

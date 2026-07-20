@@ -103,6 +103,8 @@ class StrategyState:
         self.max_contracts_held_all: float = 0.0
         self.max_contracts_held_long: float = 0.0
         self.max_contracts_held_short: float = 0.0
+        # Risk: max position size as % of equity (None = unlimited)
+        self.max_position_size_percent: float | None = None
         # Equity curve tracking for max drawdown / runup
         self._equity_peak: float = 100_000.0
         self._equity_trough: float = 100_000.0
@@ -364,6 +366,14 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
         fill_price = float(limit_price) if limit_price is not None else self._mark_price()
         bar_index = self._bar_index()
         bar_time = self._bar_time()
+
+        # Apply risk max position size (% of equity at fill price)
+        pct = self._strategy_state.max_position_size_percent
+        if pct is not None and pct > 0 and fill_price > 0:
+            equity = self._strategy_state.equity(fill_price)
+            max_qty = (equity * (pct / 100.0)) / fill_price
+            if qty > max_qty:
+                qty = float(max_qty)
 
         # Close existing position if opposite direction
         if (direction == "long" and self._strategy_state.position_direction == "short") or (
@@ -884,13 +894,13 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
         strategy.risk.max_position_size(percent)
 
         Set maximum position size as percentage of account equity.
-
-        Parameters:
-            percent: Maximum position size in % (float)
-
-        Returns None.
+        Subsequent entries cap qty so (qty * price) <= equity * percent/100.
         """
-        # Mock implementation - would limit position size
+        kw = kwargs or {}
+        percent = kw.get("percent", args[0] if len(args) > 0 else None)
+        if percent is None:
+            return
+        self._strategy_state.max_position_size_percent = float(percent)
 
     def _handle_strategy_risk_max_intraday_filled_orders(
         self, args: list[Any], kwargs: dict[str, Any] | None = None

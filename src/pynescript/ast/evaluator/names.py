@@ -16,6 +16,16 @@ from pynescript.ast.type_system import ObjectInstance
 
 _MATRIX_INDEX_DIMENSIONS = 2
 
+# Zero-arg series resolved as bare names (not callables that take arguments).
+_BARE_SERIES_BUILTINS = frozenset(
+    {
+        "last_bar_index",
+        "last_bar_time",
+        "bid",
+        "ask",
+    }
+)
+
 
 def ast_qualified_name(expr: ast.AST) -> str | None:
     """Build ``a.b.c`` from Attribute/Name AST nodes without evaluating values.
@@ -59,6 +69,9 @@ class NameEvaluator:
         # Check if the name is defined in the current context (variables, functions, classes, etc.)
         if node.id in self.context:
             return self.context[node.id]
+        # Bare-name series builtins only (not functions like strategy/indicator that take args)
+        if node.id in _BARE_SERIES_BUILTINS and self._is_registered_builtin(node.id):
+            return self._call_builtin(node.id, [])
         # Return the name as a string if not in context - allows for lazy evaluation
         return node.id
 

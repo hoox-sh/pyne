@@ -254,7 +254,37 @@ class DrawingBuiltinsMixin(BuiltinDispatchMixin):
             # Polyline functions
             "polyline.new": self._handle_polyline_new,
             "polyline.delete": self._handle_polyline_delete,
+            # Collection accessors (array of non-deleted objects)
+            "line.all": self._handle_line_all,
+            "box.all": self._handle_box_all,
+            "label.all": self._handle_label_all,
+            "table.all": self._handle_table_all,
+            "polyline.all": self._handle_polyline_all,
+            "linefill.all": self._handle_linefill_all,
         }
+
+    @staticmethod
+    def _active(items: list[Any]) -> list[Any]:
+        return [obj for obj in items if not getattr(obj, "deleted", False)]
+
+    def _handle_line_all(self, _args: list[Any], kwargs: dict[str, Any] | None = None) -> list[Any]:
+        return self._active(DrawingRegistry.lines)
+
+    def _handle_box_all(self, _args: list[Any], kwargs: dict[str, Any] | None = None) -> list[Any]:
+        return self._active(DrawingRegistry.boxes)
+
+    def _handle_label_all(self, _args: list[Any], kwargs: dict[str, Any] | None = None) -> list[Any]:
+        return self._active(DrawingRegistry.labels)
+
+    def _handle_table_all(self, _args: list[Any], kwargs: dict[str, Any] | None = None) -> list[Any]:
+        return self._active(DrawingRegistry.tables)
+
+    def _handle_polyline_all(self, _args: list[Any], kwargs: dict[str, Any] | None = None) -> list[Any]:
+        return self._active(DrawingRegistry.polylines)
+
+    def _handle_linefill_all(self, _args: list[Any], kwargs: dict[str, Any] | None = None) -> list[Any]:
+        # linefill drawing type not fully modeled; always empty array
+        return []
 
     # LINE HANDLERS
 
