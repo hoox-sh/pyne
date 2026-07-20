@@ -98,6 +98,7 @@ Pine Script v6 launched December 2024, followed by monthly updates. Key sources:
 - Current overall: Excellent for most real-world scripts (parser + common builtins). Not drop-in 100% for latest 2026 syntax/features.
 
 See also:
+- `docs/pine_v6_full_surface_inventory.md` — **full schema + every inventory name** (dispatch, series, language, graphs)
 - `docs/pinescript_implementation_status.md` (detailed ✅ matrix)
 - `tests/test_v6_features.py` (good coverage of dynamic requests, footprint, etc.)
 - Official: https://www.tradingview.com/pine-script-docs/release-notes/ and migration guide to v6.
