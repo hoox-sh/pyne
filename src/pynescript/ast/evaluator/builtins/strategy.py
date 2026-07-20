@@ -91,13 +91,25 @@ class StrategyState:
         self.entry_time: int = 0
         self.position_size: float = 0.0
         self.commission: float = 0.0
+        self.position_entry_name: str = ""
         self.closed_trades: list[Trade] = []
         self.open_trades: list[OpenTrade] = []
         self.pending_orders: dict[str, Order] = {}
         self.max_intraday_loss: float = float("inf")
-        self.max_drawdown: float = float("inf")
         self.initial_capital: float = 100_000.0
         self.risk_free_capital: float = 100_000.0
+        self.account_currency: str = "USD"
+        self.closedtrades_first_index: int = 0
+        self.max_contracts_held_all: float = 0.0
+        self.max_contracts_held_long: float = 0.0
+        self.max_contracts_held_short: float = 0.0
+        # Equity curve tracking for max drawdown / runup
+        self._equity_peak: float = 100_000.0
+        self._equity_trough: float = 100_000.0
+        self._max_drawdown: float = 0.0
+        self._max_runup: float = 0.0
+        self._max_drawdown_percent: float = 0.0
+        self._max_runup_percent: float = 0.0
         self._events: list[StrategyEvent] = []
 
     def drain_events(self) -> list[StrategyEvent]:
@@ -108,20 +120,7 @@ class StrategyState:
 
     def reset(self) -> None:
         """Reset this instance to flat/empty defaults (for reuse in tests)."""
-        self.position_direction = "flat"
-        self.entry_price = 0.0
-        self.entry_bar = 0
-        self.entry_time = 0
-        self.position_size = 0.0
-        self.commission = 0.0
-        self.closed_trades = []
-        self.open_trades = []
-        self.pending_orders = {}
-        self.max_intraday_loss = float("inf")
-        self.max_drawdown = float("inf")
-        self.initial_capital = 100_000.0
-        self.risk_free_capital = 100_000.0
-        self._events = []
+        self.__init__()
 
     def signed_position_size(self) -> float:
         """Pine ``strategy.position_size``: +qty long, -qty short, 0 flat."""
@@ -144,7 +143,28 @@ class StrategyState:
         return float(total)
 
     def equity(self, mark_price: float) -> float:
-        return float(self.initial_capital + self.netprofit() + self.openprofit(mark_price))
+        eq = float(self.initial_capital + self.netprofit() + self.openprofit(mark_price))
+        self._track_equity_curve(eq)
+        return eq
+
+    def _track_equity_curve(self, equity: float) -> None:
+        """Update peak/trough and max drawdown / runup from an equity sample."""
+        if equity > self._equity_peak:
+            self._equity_peak = equity
+        if equity < self._equity_trough:
+            self._equity_trough = equity
+        # Drawdown: drop from peak
+        dd = self._equity_peak - equity
+        if dd > self._max_drawdown:
+            self._max_drawdown = dd
+            if self._equity_peak > 0:
+                self._max_drawdown_percent = 100.0 * dd / self._equity_peak
+        # Runup: rise from trough
+        ru = equity - self._equity_trough
+        if ru > self._max_runup:
+            self._max_runup = ru
+            if self._equity_trough > 0:
+                self._max_runup_percent = 100.0 * ru / self._equity_trough
 
     def grossprofit(self) -> float:
         return float(sum(t.profit for t in self.closed_trades if t.profit > 0))
@@ -158,6 +178,43 @@ class StrategyState:
 
     def losstrades(self) -> int:
         return sum(1 for t in self.closed_trades if t.profit < 0)
+
+    def eventrades(self) -> int:
+        return sum(1 for t in self.closed_trades if t.profit == 0)
+
+    def _pct_of_initial(self, amount: float) -> float:
+        if self.initial_capital == 0:
+            return 0.0
+        return 100.0 * float(amount) / float(self.initial_capital)
+
+    def avg_trade(self) -> float:
+        n = len(self.closed_trades)
+        return self.netprofit() / n if n else 0.0
+
+    def avg_winning_trade(self) -> float:
+        n = self.wintrades()
+        return self.grossprofit() / n if n else 0.0
+
+    def avg_losing_trade(self) -> float:
+        n = self.losstrades()
+        return self.grossloss() / n if n else 0.0
+
+    def capital_held(self) -> float:
+        return float(sum(abs(t.entry_price * t.size) for t in self.open_trades))
+
+    def cash(self, mark_price: float) -> float:
+        """Approximate free cash: equity minus capital locked in open positions."""
+        return float(self.equity(mark_price) - self.capital_held())
+
+    def note_position_size(self) -> None:
+        """Update max contracts held after a fill."""
+        size = float(self.position_size)
+        if size > self.max_contracts_held_all:
+            self.max_contracts_held_all = size
+        if self.position_direction == "long" and size > self.max_contracts_held_long:
+            self.max_contracts_held_long = size
+        if self.position_direction == "short" and size > self.max_contracts_held_short:
+            self.max_contracts_held_short = size
 
 
 class StrategyBuiltinsMixin(BuiltinDispatchMixin):
@@ -180,16 +237,40 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
             # Series / stats variables (zero-arg builtins)
             "strategy.position_size": self._handle_strategy_position_size,
             "strategy.position_avg_price": self._handle_strategy_position_avg_price,
+            "strategy.position_entry_name": self._handle_strategy_position_entry_name,
             "strategy.opentrades": self._handle_strategy_opentrades_count,
             "strategy.closedtrades": self._handle_strategy_closedtrades_count,
+            "strategy.closedtrades.first_index": self._handle_strategy_closedtrades_first_index,
             "strategy.netprofit": self._handle_strategy_netprofit,
+            "strategy.netprofit_percent": self._handle_strategy_netprofit_percent,
             "strategy.openprofit": self._handle_strategy_openprofit,
+            "strategy.openprofit_percent": self._handle_strategy_openprofit_percent,
             "strategy.equity": self._handle_strategy_equity,
             "strategy.initial_capital": self._handle_strategy_initial_capital,
+            "strategy.cash": self._handle_strategy_cash,
+            "strategy.account_currency": self._handle_strategy_account_currency,
             "strategy.grossprofit": self._handle_strategy_grossprofit,
+            "strategy.grossprofit_percent": self._handle_strategy_grossprofit_percent,
             "strategy.grossloss": self._handle_strategy_grossloss,
+            "strategy.grossloss_percent": self._handle_strategy_grossloss_percent,
             "strategy.wintrades": self._handle_strategy_wintrades,
             "strategy.losstrades": self._handle_strategy_losstrades,
+            "strategy.eventrades": self._handle_strategy_eventrades,
+            "strategy.avg_trade": self._handle_strategy_avg_trade,
+            "strategy.avg_trade_percent": self._handle_strategy_avg_trade_percent,
+            "strategy.avg_winning_trade": self._handle_strategy_avg_winning_trade,
+            "strategy.avg_winning_trade_percent": self._handle_strategy_avg_winning_trade_percent,
+            "strategy.avg_losing_trade": self._handle_strategy_avg_losing_trade,
+            "strategy.avg_losing_trade_percent": self._handle_strategy_avg_losing_trade_percent,
+            "strategy.max_drawdown": self._handle_strategy_max_drawdown,
+            "strategy.max_drawdown_percent": self._handle_strategy_max_drawdown_percent,
+            "strategy.max_runup": self._handle_strategy_max_runup,
+            "strategy.max_runup_percent": self._handle_strategy_max_runup_percent,
+            "strategy.max_contracts_held_all": self._handle_strategy_max_contracts_held_all,
+            "strategy.max_contracts_held_long": self._handle_strategy_max_contracts_held_long,
+            "strategy.max_contracts_held_short": self._handle_strategy_max_contracts_held_short,
+            "strategy.opentrades.capital_held": self._handle_strategy_opentrades_capital_held,
+            "strategy.margin_liquidation_price": self._handle_strategy_margin_liquidation_price,
             # Risk management
             "strategy.risk.max_position_size": (self._handle_strategy_risk_max_position_size),
             "strategy.risk.max_intraday_loss": (self._handle_strategy_risk_max_intraday_loss),
@@ -297,6 +378,7 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
         self._strategy_state.entry_time = bar_time
         self._strategy_state.position_size = qty
         self._strategy_state.commission = 0.0
+        self._strategy_state.position_entry_name = entry_id
         self._strategy_state.open_trades = [
             OpenTrade(
                 entry_id=entry_id,
@@ -308,6 +390,8 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
                 commission=0.0,
             )
         ]
+        self._strategy_state.note_position_size()
+        self._strategy_state.equity(fill_price)  # sample equity curve
 
         self._record_strategy_event(
             StrategyEvent(
@@ -665,6 +749,7 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
             self._strategy_state.position_direction = "flat"
             self._strategy_state.position_size = 0.0
             self._strategy_state.entry_price = 0.0
+            self._strategy_state.position_entry_name = ""
         else:
             # Weighted average entry of remaining opens
             total = sum(t.size for t in new_open)
@@ -672,6 +757,8 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
             self._strategy_state.position_direction = new_open[0].direction
             self._strategy_state.entry_bar = new_open[0].entry_bar
             self._strategy_state.entry_time = new_open[0].entry_time
+            self._strategy_state.position_entry_name = new_open[0].entry_id
+        self._strategy_state.equity(exit_price)  # sample equity curve after close
 
     # SERIES / STATS VARIABLES
 
@@ -683,17 +770,29 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
             return float("nan")
         return float(self._strategy_state.entry_price)
 
+    def _handle_strategy_position_entry_name(self, _args: list[Any], kwargs: dict[str, Any] | None = None) -> str:
+        return str(self._strategy_state.position_entry_name or "")
+
     def _handle_strategy_opentrades_count(self, _args: list[Any], kwargs: dict[str, Any] | None = None) -> int:
         return len(self._strategy_state.open_trades)
 
     def _handle_strategy_closedtrades_count(self, _args: list[Any], kwargs: dict[str, Any] | None = None) -> int:
         return len(self._strategy_state.closed_trades)
 
+    def _handle_strategy_closedtrades_first_index(self, _args: list[Any], kwargs: dict[str, Any] | None = None) -> int:
+        return int(self._strategy_state.closedtrades_first_index)
+
     def _handle_strategy_netprofit(self, _args: list[Any], kwargs: dict[str, Any] | None = None) -> float:
         return self._strategy_state.netprofit()
 
+    def _handle_strategy_netprofit_percent(self, _args: list[Any], kwargs: dict[str, Any] | None = None) -> float:
+        return self._strategy_state._pct_of_initial(self._strategy_state.netprofit())
+
     def _handle_strategy_openprofit(self, _args: list[Any], kwargs: dict[str, Any] | None = None) -> float:
         return self._strategy_state.openprofit(self._mark_price())
+
+    def _handle_strategy_openprofit_percent(self, _args: list[Any], kwargs: dict[str, Any] | None = None) -> float:
+        return self._strategy_state._pct_of_initial(self._strategy_state.openprofit(self._mark_price()))
 
     def _handle_strategy_equity(self, _args: list[Any], kwargs: dict[str, Any] | None = None) -> float:
         return self._strategy_state.equity(self._mark_price())
@@ -701,17 +800,82 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
     def _handle_strategy_initial_capital(self, _args: list[Any], kwargs: dict[str, Any] | None = None) -> float:
         return float(self._strategy_state.initial_capital)
 
+    def _handle_strategy_cash(self, _args: list[Any], kwargs: dict[str, Any] | None = None) -> float:
+        return self._strategy_state.cash(self._mark_price())
+
+    def _handle_strategy_account_currency(self, _args: list[Any], kwargs: dict[str, Any] | None = None) -> str:
+        return str(self._strategy_state.account_currency)
+
     def _handle_strategy_grossprofit(self, _args: list[Any], kwargs: dict[str, Any] | None = None) -> float:
         return self._strategy_state.grossprofit()
 
+    def _handle_strategy_grossprofit_percent(self, _args: list[Any], kwargs: dict[str, Any] | None = None) -> float:
+        return self._strategy_state._pct_of_initial(self._strategy_state.grossprofit())
+
     def _handle_strategy_grossloss(self, _args: list[Any], kwargs: dict[str, Any] | None = None) -> float:
         return self._strategy_state.grossloss()
+
+    def _handle_strategy_grossloss_percent(self, _args: list[Any], kwargs: dict[str, Any] | None = None) -> float:
+        return self._strategy_state._pct_of_initial(self._strategy_state.grossloss())
 
     def _handle_strategy_wintrades(self, _args: list[Any], kwargs: dict[str, Any] | None = None) -> int:
         return int(self._strategy_state.wintrades())
 
     def _handle_strategy_losstrades(self, _args: list[Any], kwargs: dict[str, Any] | None = None) -> int:
         return int(self._strategy_state.losstrades())
+
+    def _handle_strategy_eventrades(self, _args: list[Any], kwargs: dict[str, Any] | None = None) -> int:
+        return int(self._strategy_state.eventrades())
+
+    def _handle_strategy_avg_trade(self, _args: list[Any], kwargs: dict[str, Any] | None = None) -> float:
+        return self._strategy_state.avg_trade()
+
+    def _handle_strategy_avg_trade_percent(self, _args: list[Any], kwargs: dict[str, Any] | None = None) -> float:
+        return self._strategy_state._pct_of_initial(self._strategy_state.avg_trade())
+
+    def _handle_strategy_avg_winning_trade(self, _args: list[Any], kwargs: dict[str, Any] | None = None) -> float:
+        return self._strategy_state.avg_winning_trade()
+
+    def _handle_strategy_avg_winning_trade_percent(self, _args: list[Any], kwargs: dict[str, Any] | None = None) -> float:
+        return self._strategy_state._pct_of_initial(self._strategy_state.avg_winning_trade())
+
+    def _handle_strategy_avg_losing_trade(self, _args: list[Any], kwargs: dict[str, Any] | None = None) -> float:
+        return self._strategy_state.avg_losing_trade()
+
+    def _handle_strategy_avg_losing_trade_percent(self, _args: list[Any], kwargs: dict[str, Any] | None = None) -> float:
+        return self._strategy_state._pct_of_initial(self._strategy_state.avg_losing_trade())
+
+    def _handle_strategy_max_drawdown(self, _args: list[Any], kwargs: dict[str, Any] | None = None) -> float:
+        self._strategy_state.equity(self._mark_price())
+        return float(self._strategy_state._max_drawdown)
+
+    def _handle_strategy_max_drawdown_percent(self, _args: list[Any], kwargs: dict[str, Any] | None = None) -> float:
+        self._strategy_state.equity(self._mark_price())
+        return float(self._strategy_state._max_drawdown_percent)
+
+    def _handle_strategy_max_runup(self, _args: list[Any], kwargs: dict[str, Any] | None = None) -> float:
+        self._strategy_state.equity(self._mark_price())
+        return float(self._strategy_state._max_runup)
+
+    def _handle_strategy_max_runup_percent(self, _args: list[Any], kwargs: dict[str, Any] | None = None) -> float:
+        self._strategy_state.equity(self._mark_price())
+        return float(self._strategy_state._max_runup_percent)
+
+    def _handle_strategy_max_contracts_held_all(self, _args: list[Any], kwargs: dict[str, Any] | None = None) -> float:
+        return float(self._strategy_state.max_contracts_held_all)
+
+    def _handle_strategy_max_contracts_held_long(self, _args: list[Any], kwargs: dict[str, Any] | None = None) -> float:
+        return float(self._strategy_state.max_contracts_held_long)
+
+    def _handle_strategy_max_contracts_held_short(self, _args: list[Any], kwargs: dict[str, Any] | None = None) -> float:
+        return float(self._strategy_state.max_contracts_held_short)
+
+    def _handle_strategy_opentrades_capital_held(self, _args: list[Any], kwargs: dict[str, Any] | None = None) -> float:
+        return self._strategy_state.capital_held()
+
+    def _handle_strategy_margin_liquidation_price(self, _args: list[Any], kwargs: dict[str, Any] | None = None) -> None:
+        # Not modeled without margin sim; Pine returns na when unknown.
+        return None
 
     # RISK MANAGEMENT
 

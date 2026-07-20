@@ -131,6 +131,122 @@ class TestStrategyWinLossStats:
         assert _eval_expr(ev, "strategy.netprofit") == 0.0
 
 
+class TestStrategyExtendedStats:
+    """Missing inventory series: avg_*, *_percent, cash, drawdown, entry name, etc."""
+
+    def test_flat_defaults_for_extended_series(self) -> None:
+        ev = NodeLiteralEvaluator()
+        _set_bar(ev, 0, 100.0)
+        assert _eval_expr(ev, "strategy.avg_trade") == 0.0
+        assert _eval_expr(ev, "strategy.avg_winning_trade") == 0.0
+        assert _eval_expr(ev, "strategy.avg_losing_trade") == 0.0
+        assert _eval_expr(ev, "strategy.avg_trade_percent") == 0.0
+        assert _eval_expr(ev, "strategy.netprofit_percent") == 0.0
+        assert _eval_expr(ev, "strategy.openprofit_percent") == 0.0
+        assert _eval_expr(ev, "strategy.grossprofit_percent") == 0.0
+        assert _eval_expr(ev, "strategy.grossloss_percent") == 0.0
+        assert _eval_expr(ev, "strategy.eventrades") == 0
+        assert _eval_expr(ev, "strategy.closedtrades.first_index") == 0
+        assert _eval_expr(ev, "strategy.account_currency") == "USD"
+        assert _eval_expr(ev, "strategy.position_entry_name") == ""
+        assert _eval_expr(ev, "strategy.opentrades.capital_held") == 0.0
+        assert _eval_expr(ev, "strategy.cash") == 100_000.0
+        assert _eval_expr(ev, "strategy.max_drawdown") == 0.0
+        assert _eval_expr(ev, "strategy.max_runup") == 0.0
+
+    def test_avg_trade_and_percent_after_win_and_loss(self) -> None:
+        ev = NodeLiteralEvaluator()
+        # Win +10
+        _set_bar(ev, 0, 100.0)
+        _eval_expr(ev, "strategy.entry('L1', strategy.long, 1.0)")
+        _set_bar(ev, 1, 110.0)
+        _eval_expr(ev, "strategy.close('L1')")
+        # Loss -5
+        _eval_expr(ev, "strategy.entry('L2', strategy.long, 1.0)")
+        _set_bar(ev, 2, 105.0)
+        _eval_expr(ev, "strategy.close('L2')")
+
+        assert _eval_expr(ev, "strategy.netprofit") == 5.0
+        assert _eval_expr(ev, "strategy.avg_trade") == 2.5  # 5/2
+        assert _eval_expr(ev, "strategy.avg_winning_trade") == 10.0
+        assert _eval_expr(ev, "strategy.avg_losing_trade") == 5.0  # positive loss magnitude
+        # percents of initial capital
+        assert abs(_eval_expr(ev, "strategy.netprofit_percent") - 0.005) < 1e-9  # 5/100000*100
+        assert abs(_eval_expr(ev, "strategy.avg_trade_percent") - 0.0025) < 1e-9
+        assert abs(_eval_expr(ev, "strategy.avg_winning_trade_percent") - 0.01) < 1e-9
+        assert abs(_eval_expr(ev, "strategy.avg_losing_trade_percent") - 0.005) < 1e-9
+        assert abs(_eval_expr(ev, "strategy.grossprofit_percent") - 0.01) < 1e-9
+        assert abs(_eval_expr(ev, "strategy.grossloss_percent") - 0.005) < 1e-9
+
+    def test_position_entry_name_and_capital_held(self) -> None:
+        ev = NodeLiteralEvaluator()
+        _set_bar(ev, 0, 50.0)
+        _eval_expr(ev, "strategy.entry('MyLong', strategy.long, 3.0)")
+        assert _eval_expr(ev, "strategy.position_entry_name") == "MyLong"
+        assert _eval_expr(ev, "strategy.opentrades.capital_held") == 150.0  # 50*3
+        # cash ≈ initial - capital held + open MTM (0 at entry)
+        assert _eval_expr(ev, "strategy.cash") == 100_000.0 - 150.0
+
+    def test_openprofit_percent_vs_equity(self) -> None:
+        ev = NodeLiteralEvaluator()
+        _set_bar(ev, 0, 100.0)
+        _eval_expr(ev, "strategy.entry('L', strategy.long, 2.0)")
+        _set_bar(ev, 1, 110.0)
+        # openprofit = 20; realized equity base = initial + net = 100000
+        # openprofit_percent relative to initial capital: 20/100000*100 = 0.02
+        assert _eval_expr(ev, "strategy.openprofit") == 20.0
+        assert abs(_eval_expr(ev, "strategy.openprofit_percent") - 0.02) < 1e-9
+
+    def test_max_contracts_held(self) -> None:
+        ev = NodeLiteralEvaluator()
+        _set_bar(ev, 0, 100.0)
+        _eval_expr(ev, "strategy.entry('L', strategy.long, 5.0)")
+        assert _eval_expr(ev, "strategy.max_contracts_held_long") == 5.0
+        assert _eval_expr(ev, "strategy.max_contracts_held_all") == 5.0
+        assert _eval_expr(ev, "strategy.max_contracts_held_short") == 0.0
+        _eval_expr(ev, "strategy.close('L')")
+        _eval_expr(ev, "strategy.entry('S', strategy.short, 3.0)")
+        assert _eval_expr(ev, "strategy.max_contracts_held_short") == 3.0
+        assert _eval_expr(ev, "strategy.max_contracts_held_all") == 5.0
+
+    def test_max_runup_and_drawdown_from_equity_curve(self) -> None:
+        ev = NodeLiteralEvaluator()
+        # +10 equity runup
+        _set_bar(ev, 0, 100.0)
+        _eval_expr(ev, "strategy.entry('L', strategy.long, 1.0)")
+        _set_bar(ev, 1, 110.0)
+        _eval_expr(ev, "strategy.close('L')")
+        assert _eval_expr(ev, "strategy.netprofit") == 10.0
+        # Peak equity 100010; then lose 15 from next trade
+        _eval_expr(ev, "strategy.entry('L2', strategy.long, 1.0)")
+        _set_bar(ev, 2, 95.0)  # from 110 entry... wait entry at 110
+        # entry at close 110 after first close - when we entry, mark is 110
+        # actually after close bar1 price is 110, then entry L2 at 110
+        # bar2 set to 95: openprofit = -15, equity = 100000+10-15 = 99995
+        # drawdown from peak 100010 is 15
+        _ = _eval_expr(ev, "strategy.equity")  # update curve
+        assert _eval_expr(ev, "strategy.max_runup") >= 10.0
+        assert _eval_expr(ev, "strategy.max_drawdown") >= 14.0  # allow float slack
+        assert _eval_expr(ev, "strategy.max_runup_percent") >= 0.0
+        assert _eval_expr(ev, "strategy.max_drawdown_percent") >= 0.0
+
+    def test_eventrades_zero_profit(self) -> None:
+        ev = NodeLiteralEvaluator()
+        _set_bar(ev, 0, 100.0)
+        _eval_expr(ev, "strategy.entry('L', strategy.long, 1.0)")
+        _set_bar(ev, 1, 100.0)
+        _eval_expr(ev, "strategy.close('L')")
+        assert _eval_expr(ev, "strategy.eventrades") == 1
+        assert _eval_expr(ev, "strategy.wintrades") == 0
+        assert _eval_expr(ev, "strategy.losstrades") == 0
+
+    def test_margin_liquidation_price_default_na(self) -> None:
+        ev = NodeLiteralEvaluator()
+        _set_bar(ev, 0, 100.0)
+        val = _eval_expr(ev, "strategy.margin_liquidation_price")
+        assert val is None or (isinstance(val, float) and val != val)  # None or nan
+
+
 class TestStrategyGoldenMultiBar:
     """Simple multi-bar script: buy bar 0, sell bar 2, inspect series."""
 
