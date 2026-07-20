@@ -6,6 +6,8 @@
 
 ## Schema
 
+This inventory adopts a fixed tabular schema so that status claims remain comparable across namespaces and over time. Each row is a single language surface element—builtin function, series variable, constant, or syntactic construct—annotated with discovery source and implementation judgment.
+
 | Column | Meaning |
 |--------|---------|
 | **Name** | Fully qualified Pine identifier or construct |
@@ -18,6 +20,8 @@
 
 ### Status definitions
 
+Status values are intentionally coarse. They distinguish fully usable paths from stubs, known absences, and items that this library deliberately leaves to the TradingView platform or to editor-only tooling.
+
 | Status | Definition |
 |--------|------------|
 | ✅ implemented | Handler or parser path exists and is exercised / usable |
@@ -27,6 +31,8 @@
 | ⬜ N/A | Editor/UI-only or outside this runtime |
 
 ## Summary counts
+
+The following aggregates summarize the inventory at generation time. Dispatch counts reflect the live evaluator builtin map; inventory rows additionally include series catalogs and language constructs that are not all registered as callables.
 
 | Metric | Count |
 |--------|------:|
@@ -45,6 +51,8 @@
 | ❌ missing | 24 |
 
 ### By namespace (inventory rows)
+
+Namespaces follow Pine’s dotted qualification (`ta.sma`, `strategy.entry`) with a small number of synthetic groups (`plotting`, `series`, `declaration`) used where bare globals would otherwise scatter related items.
 
 | Namespace | Count |
 |-----------|------:|
@@ -84,6 +92,8 @@
 | `linefill` | 1 |
 
 ## Architecture graph
+
+The diagrams below situate the inventory against the runtime architecture: parse → AST → evaluator mixins and registries, plus a coarse status pie. They are illustrative rather than exhaustive.
 
 ```mermaid
 flowchart TB
@@ -148,6 +158,8 @@ graph LR
 
 ## Language & syntax surface
 
+Beyond named builtins, Pine v6 compatibility depends on grammar and semantic rules—declarations, control flow, type formers, and migration-sensitive operators. This section records those constructs independently of the dispatch map.
+
 | Name | Kind | Status | Notes |
 |------|------|--------|-------|
 | `//@version` | directive | ✅ implemented | Parser accepts version comments |
@@ -186,21 +198,25 @@ graph LR
 
 ## Known gaps & platform limits
 
+Some absences are intentional product boundaries rather than incomplete ports: this library is an offline parser–evaluator toolchain, not a full TradingView host. Others remain genuine surface gaps or simplified simulations.
+
 | Item | Status | Notes |
 |------|--------|-------|
 | request.* real market data | ⚙️ by design | Mock/synthetic + data_feed hooks |
 | strategy.* full broker sim | 🔄 partial | Open/close/equity depth improved; not full TV tester |
-| strategy percent stats | ❌ missing | Many *_percent series not as builtins yet |
-| strategy.avg_* series | ❌ missing | Listed in docs status; not all wired as series vars |
+| strategy percent / avg series | ✅ improved | Wired as zero-arg series builtins (2026-07); inventory snapshot may lag |
 | Pine Profiler | ⬜ n/a | Editor-only |
 | Live TradingView libraries network | ❌ missing | In-process registry only |
 | chart rendering | ⬜ n/a | Out of scope |
+| Compile mode strategy orders | ❌ missing | Numba/object compile covers indicators; strategy remains interpret-first |
 
 ## Full function & identifier inventory
 
-Grouped by namespace. **Status** uses heuristics (docstring `stub`/`mock` → partial).
+The tables that follow enumerate identifiers by namespace. **Status** for dispatch rows uses a lightweight heuristic (docstrings mentioning `stub` or `mock` are marked partial). Series catalog rows without a registered handler may still be supplied via evaluation context in some hosts; where neither exists, the row is marked missing.
 
 ### `ta` (154)
+
+Technical-analysis builtins dominate the dispatch surface. Coverage is broad; residual partials, if any, usually reflect simplified series math rather than absent symbols.
 
 | Name | Kind | Status | Metadata | Source | Notes |
 |------|------|--------|----------|--------|-------|
@@ -361,6 +377,8 @@ Grouped by namespace. **Status** uses heuristics (docstring `stub`/`mock` → pa
 
 ### `strategy` (66)
 
+Strategy order handlers, risk helpers, and series statistics (position, equity, trade averages). Several series were promoted from missing to dispatch-backed zero-arg builtins after the 2026-07 runtime work; regenerate this file for exact counts.
+
 | Name | Kind | Status | Metadata | Source | Notes |
 |------|------|--------|----------|--------|-------|
 | `strategy.account_currency` | series/var | ❌ missing | no | series_catalog | not in dispatch; may be context-injected elsewhere |
@@ -431,6 +449,8 @@ Grouped by namespace. **Status** uses heuristics (docstring `stub`/`mock` → pa
 | `strategy.wintrades` | series/var | ✅ implemented | no | dispatch |  |
 
 ### `array` (56)
+
+Array construction, mutation, search, and statistics. Python lists are the runtime representation; negative indices and UDT `sort_field` follow Pine v6 rules where implemented.
 
 | Name | Kind | Status | Metadata | Source | Notes |
 |------|------|--------|----------|--------|-------|
@@ -854,6 +874,8 @@ Grouped by namespace. **Status** uses heuristics (docstring `stub`/`mock` → pa
 
 ### `map` (11)
 
+Key–value maps used in both interpreter and compile object mode (`map.new` / `put` / `get` and related operations).
+
 | Name | Kind | Status | Metadata | Source | Notes |
 |------|------|--------|----------|--------|-------|
 | `map.clear` | function | ✅ implemented | yes | dispatch |  |
@@ -870,6 +892,8 @@ Grouped by namespace. **Status** uses heuristics (docstring `stub`/`mock` → pa
 
 ### `request` (11)
 
+Cross-symbol and fundamental data requests. Live values depend on an injected `data_feed` or `data_provider`; without either, handlers return deterministic mock series.
+
 | Name | Kind | Status | Metadata | Source | Notes |
 |------|------|--------|----------|--------|-------|
 | `request.currency_rate` | function | 🔄 partial | yes | dispatch | stub/mock/limited semantics |
@@ -885,6 +909,8 @@ Grouped by namespace. **Status** uses heuristics (docstring `stub`/`mock` → pa
 | `request.splits` | function | 🔄 partial | yes | dispatch | stub/mock/limited semantics |
 
 ### `plotting` (10)
+
+Chart output functions. Evaluator registration via `PlotRegistry` captures real side effects for backends and tests even without a UI.
 
 | Name | Kind | Status | Metadata | Source | Notes |
 |------|------|--------|----------|--------|-------|
@@ -1038,6 +1064,8 @@ Grouped by namespace. **Status** uses heuristics (docstring `stub`/`mock` → pa
 | `linefill.all` | series/var | 🔄 partial | no | series_catalog | stub/mock/limited semantics |
 
 ## Appendix A — Flat master table (all inventory rows)
+
+A denormalized listing of every inventory row, suitable for sorting and diffing across regenerations. Prefer the namespaced tables above for reading; use this appendix for bulk comparison.
 
 | Name | Namespace | Kind | Status | Metadata | Source |
 |------|-----------|------|--------|----------|--------|
@@ -1710,6 +1738,8 @@ Grouped by namespace. **Status** uses heuristics (docstring `stub`/`mock` → pa
 | `volume_row.up_price` | `volume_row` | function | ✅ implemented | yes | dispatch |
 
 ## Appendix B — Dispatch-only list (callable handlers)
+
+Alphabetical dump of names present in the evaluator’s builtin dispatch map at generation time. This list excludes pure series-catalog and language-only rows.
 
 ```
 abs
