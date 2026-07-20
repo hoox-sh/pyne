@@ -277,6 +277,10 @@ class StatementEvaluator:
         # Also store it in the context for backward compatibility
         self.context[type_name] = udt
 
+        # Library export: type is accessible as alias.TypeName after import
+        if getattr(node, "export", None):
+            self._register_export(type_name, udt)
+
     def _convert_type_spec_to_type(self, type_spec):
         """Convert a type specification AST node to a Type object"""
         # For now, handle simple cases
@@ -328,6 +332,10 @@ class StatementEvaluator:
         self.context[enum_name] = enum_members  # type: ignore[attr-defined]
         # Also register for qualified access if needed
         self.context[f"{enum_name}"] = enum_members  # type: ignore[attr-defined]
+
+        # Library export: enum dict accessible as alias.EnumName after import
+        if getattr(node, "export", None):
+            self._register_export(enum_name, enum_members)
 
     def visit_Expr(self, node: ast.Expr):
         """Evaluate an expression statement."""

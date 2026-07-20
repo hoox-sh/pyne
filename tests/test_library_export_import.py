@@ -143,3 +143,57 @@ y = mh.double(21)
         evaluator.evaluate_script(lib_src)
         evaluator.evaluate_script(consumer)
         assert evaluator.context["y"] == 42
+
+
+class TestLibraryExportTypeAndEnum:
+    def test_export_type_available_via_import_and_new(self) -> None:
+        lib_src = """//@version=6
+library("Point")
+export type point
+    float x
+    float y
+export newPoint(float x, float y) =>
+    point.new(x, y)
+"""
+        consumer = """//@version=6
+indicator("x")
+import user/Point/1 as pt
+p = pt.point.new(3.0, 4.0)
+q = pt.newPoint(1.0, 2.0)
+"""
+        evaluator = NodeLiteralEvaluator()
+        evaluator.evaluate_script(lib_src)
+        mod = evaluator.lookup_library(name="Point")
+        assert mod is not None
+        assert "point" in mod.exports
+
+        evaluator.evaluate_script(consumer)
+        p = evaluator.context["p"]
+        q = evaluator.context["q"]
+        assert p.get_field("x") == 3.0
+        assert p.get_field("y") == 4.0
+        assert q.get_field("x") == 1.0
+        assert q.get_field("y") == 2.0
+
+    def test_export_enum_members_via_import(self) -> None:
+        lib_src = """//@version=6
+library("Sides")
+export enum Side
+    long
+    short
+"""
+        consumer = """//@version=6
+indicator("x")
+import user/Sides/1 as sd
+a = sd.Side.long
+b = sd.Side.short
+"""
+        evaluator = NodeLiteralEvaluator()
+        evaluator.evaluate_script(lib_src)
+        mod = evaluator.lookup_library(name="Sides")
+        assert mod is not None
+        assert "Side" in mod.exports
+
+        evaluator.evaluate_script(consumer)
+        assert evaluator.context["a"] == "Side.long"
+        assert evaluator.context["b"] == "Side.short"

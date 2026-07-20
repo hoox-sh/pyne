@@ -227,10 +227,17 @@ class ExpressionEvaluator:
     ) -> bool:
         """True if ``node.func`` is an ``Attribute`` whose qualified name
         is a registered builtin. See subtask 1.1.2.
+
+        Uses AST-only path building so intermediate zero-arg series like
+        ``strategy.opentrades`` are not evaluated while resolving
+        ``strategy.opentrades.entry_price(...)``.
         """
         if not isinstance(node.func, ast.Attribute):
             return False
-        return self._is_registered_builtin(f"{self.visit(node.func.value)}.{node.func.attr}")
+        from pynescript.ast.evaluator.names import ast_qualified_name
+
+        qual = ast_qualified_name(node.func)
+        return bool(qual and self._is_registered_builtin(qual))
 
     def _dispatch_qualified_attribute_builtin(
         self: EvaluatorProtocol,
@@ -246,7 +253,11 @@ class ExpressionEvaluator:
             # Caller violated the precondition; fail loudly so the bug is
             # obvious in development rather than silently miscompiling.
             raise TypeError("_dispatch_qualified_attribute_builtin requires node.func to be ast.Attribute")
-        qualified_name = f"{self.visit(node_func.value)}.{node_func.attr}"
+        from pynescript.ast.evaluator.names import ast_qualified_name
+
+        qualified_name = ast_qualified_name(node_func)
+        if not qualified_name:
+            raise TypeError("could not resolve qualified builtin name from AST")
         args, kwargs = self._collect_call_args(node)
         return self._call_builtin(qualified_name, args, kwargs=kwargs)
 

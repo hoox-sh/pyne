@@ -28,6 +28,49 @@ from .base import BuiltinDispatchMixin
 from .base import BuiltinHandler
 
 
+@dataclass
+class Order:
+    """Pending order."""
+
+    order_id: str
+    order_type: str  # "market", "limit", "stop", "stop-limit"
+    direction: str  # "buy", "sell"
+    quantity: float
+    limit_price: float | None = None
+    stop_price: float | None = None
+    comment: str = ""
+
+
+@dataclass
+class OpenTrade:
+    """Open (unrealized) trade record."""
+
+    entry_id: str
+    entry_bar: int
+    entry_time: int
+    entry_price: float
+    direction: str  # "long" or "short"
+    size: float
+    commission: float = 0.0
+
+
+@dataclass
+class Trade:
+    """Closed trade record."""
+
+    entry_bar: int
+    entry_time: int
+    entry_price: float
+    exit_bar: int
+    exit_time: int
+    exit_price: float
+    direction: str  # "long" or "short"
+    size: float
+    profit: float
+    commission: float
+    entry_id: str = ""
+
+
 # Strategy state management
 class StrategyState:
     """Per-run strategy execution state.
@@ -35,6 +78,10 @@ class StrategyState:
     Each evaluator instance owns its own ``StrategyState`` (isolated multi-run
     and strategy-events capture). Tests and callers must read/write through
     ``evaluator._strategy_state``, not class-level attributes.
+
+    ``position_size`` is stored as a non-negative quantity; direction is in
+    ``position_direction``. The Pine series ``strategy.position_size`` is signed
+    (+long / -short) and computed by the builtin accessor.
     """
 
     def __init__(self) -> None:
@@ -45,11 +92,12 @@ class StrategyState:
         self.position_size: float = 0.0
         self.commission: float = 0.0
         self.closed_trades: list[Trade] = []
-        self.open_trades: list[Trade] = []
+        self.open_trades: list[OpenTrade] = []
         self.pending_orders: dict[str, Order] = {}
         self.max_intraday_loss: float = float("inf")
         self.max_drawdown: float = float("inf")
-        self.risk_free_capital: float = 100000.0
+        self.initial_capital: float = 100_000.0
+        self.risk_free_capital: float = 100_000.0
         self._events: list[StrategyEvent] = []
 
     def drain_events(self) -> list[StrategyEvent]:
@@ -71,37 +119,45 @@ class StrategyState:
         self.pending_orders = {}
         self.max_intraday_loss = float("inf")
         self.max_drawdown = float("inf")
-        self.risk_free_capital = 100000.0
+        self.initial_capital = 100_000.0
+        self.risk_free_capital = 100_000.0
         self._events = []
 
+    def signed_position_size(self) -> float:
+        """Pine ``strategy.position_size``: +qty long, -qty short, 0 flat."""
+        if self.position_direction == "long":
+            return float(self.position_size)
+        if self.position_direction == "short":
+            return -float(self.position_size)
+        return 0.0
 
-@dataclass
-class Order:
-    """Pending order."""
+    def netprofit(self) -> float:
+        return float(sum(t.profit for t in self.closed_trades))
 
-    order_id: str
-    order_type: str  # "market", "limit", "stop", "stop-limit"
-    direction: str  # "buy", "sell"
-    quantity: float
-    limit_price: float | None = None
-    stop_price: float | None = None
-    comment: str = ""
+    def openprofit(self, mark_price: float) -> float:
+        total = 0.0
+        for t in self.open_trades:
+            if t.direction == "long":
+                total += (mark_price - t.entry_price) * t.size - t.commission
+            else:
+                total += (t.entry_price - mark_price) * t.size - t.commission
+        return float(total)
 
+    def equity(self, mark_price: float) -> float:
+        return float(self.initial_capital + self.netprofit() + self.openprofit(mark_price))
 
-@dataclass
-class Trade:
-    """Closed trade record."""
+    def grossprofit(self) -> float:
+        return float(sum(t.profit for t in self.closed_trades if t.profit > 0))
 
-    entry_bar: int
-    entry_time: int
-    entry_price: float
-    exit_bar: int
-    exit_time: int
-    exit_price: float
-    direction: str  # "long" or "short"
-    size: float
-    profit: float
-    commission: float
+    def grossloss(self) -> float:
+        # Pine reports gross loss as a positive number
+        return float(sum(-t.profit for t in self.closed_trades if t.profit < 0))
+
+    def wintrades(self) -> int:
+        return sum(1 for t in self.closed_trades if t.profit > 0)
+
+    def losstrades(self) -> int:
+        return sum(1 for t in self.closed_trades if t.profit < 0)
 
 
 class StrategyBuiltinsMixin(BuiltinDispatchMixin):
@@ -121,6 +177,19 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
             "strategy.cancel": self._handle_strategy_cancel,
             "strategy.cancel_all": self._handle_strategy_cancel_all,
             "strategy.order": self._handle_strategy_order,
+            # Series / stats variables (zero-arg builtins)
+            "strategy.position_size": self._handle_strategy_position_size,
+            "strategy.position_avg_price": self._handle_strategy_position_avg_price,
+            "strategy.opentrades": self._handle_strategy_opentrades_count,
+            "strategy.closedtrades": self._handle_strategy_closedtrades_count,
+            "strategy.netprofit": self._handle_strategy_netprofit,
+            "strategy.openprofit": self._handle_strategy_openprofit,
+            "strategy.equity": self._handle_strategy_equity,
+            "strategy.initial_capital": self._handle_strategy_initial_capital,
+            "strategy.grossprofit": self._handle_strategy_grossprofit,
+            "strategy.grossloss": self._handle_strategy_grossloss,
+            "strategy.wintrades": self._handle_strategy_wintrades,
+            "strategy.losstrades": self._handle_strategy_losstrades,
             # Risk management
             "strategy.risk.max_position_size": (self._handle_strategy_risk_max_position_size),
             "strategy.risk.max_intraday_loss": (self._handle_strategy_risk_max_intraday_loss),
@@ -149,6 +218,37 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
             "strategy.opentrades.commission": (self._handle_opentrades_commission),
         }
 
+    @staticmethod
+    def _coerce_number(value: Any, default: float = 0.0) -> float:
+        """Extract a numeric scalar from context values (including PineSeries)."""
+        if value is None:
+            return float(default)
+        # backend.series.PineSeries exposes .current
+        current = getattr(value, "current", None)
+        if current is not None and not isinstance(value, (int, float, str)):
+            value = current
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return float(default)
+
+    def _mark_price(self) -> float:
+        """Current mark price for MTM / market fills (prefer close)."""
+        ctx = getattr(self, "context", {}) or {}
+        price = ctx.get("close", None)
+        if price is None:
+            price = self._strategy_state.entry_price or 100.0
+            return float(price)
+        return self._coerce_number(price, default=100.0)
+
+    def _bar_index(self) -> int:
+        ctx = getattr(self, "context", {}) or {}
+        return int(self._coerce_number(ctx.get("bar_index", 0), default=0))
+
+    def _bar_time(self) -> int:
+        ctx = getattr(self, "context", {}) or {}
+        return int(self._coerce_number(ctx.get("time", 0), default=0))
+
     # ENTRY/EXIT FUNCTIONS
 
     def _handle_strategy_entry(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> None:
@@ -175,28 +275,44 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
         if not hasattr(self, "_strategy_state"):
             self._strategy_state = StrategyState()
         kw = kwargs or {}
+        entry_id = str(kw.get("id", args[0] if args else "entry"))
         direction = kw.get("direction", args[1] if len(args) > 1 else "long")
-        qty = kw.get("qty", args[2] if len(args) > 2 else 1.0)
+        qty = float(kw.get("qty", args[2] if len(args) > 2 else 1.0))
         limit_price = kw.get("limit", args[3] if len(args) > 3 else None)
+
+        fill_price = float(limit_price) if limit_price is not None else self._mark_price()
+        bar_index = self._bar_index()
+        bar_time = self._bar_time()
 
         # Close existing position if opposite direction
         if (direction == "long" and self._strategy_state.position_direction == "short") or (
             direction == "short" and self._strategy_state.position_direction == "long"
         ):
-            self._close_position(100.0, 0, 0)  # Exit at market
+            self._close_position(self._mark_price(), self._strategy_state.position_size, bar_time)
 
-        # Open new position
+        # Open new position (absolute size + direction)
         self._strategy_state.position_direction = direction
-        self._strategy_state.entry_price = limit_price if limit_price else 100.0
-        self._strategy_state.entry_bar = 0
-        self._strategy_state.entry_time = 0
+        self._strategy_state.entry_price = fill_price
+        self._strategy_state.entry_bar = bar_index
+        self._strategy_state.entry_time = bar_time
         self._strategy_state.position_size = qty
         self._strategy_state.commission = 0.0
+        self._strategy_state.open_trades = [
+            OpenTrade(
+                entry_id=entry_id,
+                entry_bar=bar_index,
+                entry_time=bar_time,
+                entry_price=fill_price,
+                direction=direction,
+                size=qty,
+                commission=0.0,
+            )
+        ]
 
         self._record_strategy_event(
             StrategyEvent(
                 kind="entry",
-                id=kw.get("id", args[0] if args else None),
+                id=entry_id,
                 direction=direction,
                 qty=qty,
                 order_type=None,
@@ -204,8 +320,8 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
                 stop=None,
                 oca_name=None,
                 comment=kw.get("comment", None),
-                bar_index=self.context.get("bar_index", 0),
-                bar_time=self.context.get("time", 0),
+                bar_index=bar_index,
+                bar_time=bar_time,
                 ohlc=(0.0, 0.0, 0.0, 0.0),
                 script_id="",
                 run_id="",
@@ -229,12 +345,12 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
         Returns None. Closes position or partial position.
         """
         kw = kwargs or {}
-        qty = kw.get("qty", args[2] if len(args) > 2 else self._strategy_state.position_size)
+        qty = float(kw.get("qty", args[2] if len(args) > 2 else self._strategy_state.position_size))
 
         # v6: evaluate both (limit/profit) and (stop/loss) pairs; choose the one market price would activate first
         limit_p = kw.get("limit") or kw.get("profit")
         stop_p = kw.get("stop") or kw.get("loss")
-        current_p = self.context.get("close", self._strategy_state.entry_price or 100.0)
+        current_p = self._mark_price()
         is_long = self._strategy_state.position_direction == "long"
 
         if limit_p is not None and stop_p is not None:
@@ -256,10 +372,10 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
                 else:
                     exit_price = max(limit_p, stop_p) if limit_p > stop_p else limit_p
         else:
-            exit_price = limit_p or stop_p or 101.0
+            exit_price = float(limit_p or stop_p or current_p)
 
         if self._strategy_state.position_direction != "flat":
-            self._close_position(exit_price, qty, 0)
+            self._close_position(exit_price, qty, self._bar_time())
 
         self._record_strategy_event(
             StrategyEvent(
@@ -294,10 +410,10 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
         Returns None.
         """
         kw = kwargs or {}
-        qty = kw.get("qty", args[1] if len(args) > 1 else self._strategy_state.position_size)
+        qty = float(kw.get("qty", args[1] if len(args) > 1 else self._strategy_state.position_size))
 
         if self._strategy_state.position_direction != "flat":
-            self._close_position(101.0, qty, 0)
+            self._close_position(self._mark_price(), qty, self._bar_time())
 
         self._record_strategy_event(
             StrategyEvent(
@@ -310,8 +426,8 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
                 stop=None,
                 oca_name=None,
                 comment=kw.get("comment", None),
-                bar_index=self.context.get("bar_index", 0),
-                bar_time=self.context.get("time", 0),
+                bar_index=self._bar_index(),
+                bar_time=self._bar_time(),
                 ohlc=(0.0, 0.0, 0.0, 0.0),
                 script_id="",
                 run_id="",
@@ -331,7 +447,7 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
         """
         kw = kwargs or {}
         if self._strategy_state.position_direction != "flat":
-            self._close_position(101.0, self._strategy_state.position_size, 0)
+            self._close_position(self._mark_price(), self._strategy_state.position_size, self._bar_time())
 
         self._record_strategy_event(
             StrategyEvent(
@@ -344,8 +460,8 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
                 stop=None,
                 oca_name=None,
                 comment=kw.get("comment", None),
-                bar_index=self.context.get("bar_index", 0),
-                bar_time=self.context.get("time", 0),
+                bar_index=self._bar_index(),
+                bar_time=self._bar_time(),
                 ohlc=(0.0, 0.0, 0.0, 0.0),
                 script_id="",
                 run_id="",
@@ -478,36 +594,124 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
         )
 
     def _close_position(self, exit_price: float, qty: float, exit_time: int) -> None:
-        """Helper to close a position and record it."""
-        if self._strategy_state.position_direction == "flat":
+        """Helper to close (or partially close) the open position and record trades."""
+        if self._strategy_state.position_direction == "flat" or qty <= 0:
             return
 
-        # Calculate profit
-        if self._strategy_state.position_direction == "long":
-            profit = (exit_price - self._strategy_state.entry_price) * qty - self._strategy_state.commission
-        else:  # short
-            profit = (self._strategy_state.entry_price - exit_price) * qty - self._strategy_state.commission
+        # Tests / callers may seed position_* without open_trades; synthesize one.
+        if not self._strategy_state.open_trades and self._strategy_state.position_size > 0:
+            self._strategy_state.open_trades = [
+                OpenTrade(
+                    entry_id="",
+                    entry_bar=self._strategy_state.entry_bar,
+                    entry_time=self._strategy_state.entry_time,
+                    entry_price=self._strategy_state.entry_price,
+                    direction=self._strategy_state.position_direction,
+                    size=float(self._strategy_state.position_size),
+                    commission=float(self._strategy_state.commission),
+                )
+            ]
 
-        # Record trade
-        trade = Trade(
-            self._strategy_state.entry_bar,
-            self._strategy_state.entry_time,
-            self._strategy_state.entry_price,
-            0,
-            exit_time,
-            exit_price,
-            self._strategy_state.position_direction,
-            qty,
-            profit,
-            self._strategy_state.commission,
-        )
-        self._strategy_state.closed_trades.append(trade)
+        remaining = float(qty)
+        exit_bar = self._bar_index()
+        exit_price = float(exit_price)
+        exit_time = int(exit_time)
 
-        # Update position
-        self._strategy_state.position_size -= qty
-        if self._strategy_state.position_size <= 0:
+        new_open: list[OpenTrade] = []
+        for ot in self._strategy_state.open_trades:
+            if remaining <= 0:
+                new_open.append(ot)
+                continue
+            close_qty = min(ot.size, remaining)
+            if ot.direction == "long":
+                profit = (exit_price - ot.entry_price) * close_qty - ot.commission * (close_qty / ot.size)
+            else:
+                profit = (ot.entry_price - exit_price) * close_qty - ot.commission * (close_qty / ot.size)
+
+            commission = ot.commission * (close_qty / ot.size) if ot.size else 0.0
+            self._strategy_state.closed_trades.append(
+                Trade(
+                    entry_bar=ot.entry_bar,
+                    entry_time=ot.entry_time,
+                    entry_price=ot.entry_price,
+                    exit_bar=exit_bar,
+                    exit_time=exit_time,
+                    exit_price=exit_price,
+                    direction=ot.direction,
+                    size=close_qty,
+                    profit=profit,
+                    commission=commission,
+                    entry_id=ot.entry_id,
+                )
+            )
+            leftover = ot.size - close_qty
+            if leftover > 1e-12:
+                new_open.append(
+                    OpenTrade(
+                        entry_id=ot.entry_id,
+                        entry_bar=ot.entry_bar,
+                        entry_time=ot.entry_time,
+                        entry_price=ot.entry_price,
+                        direction=ot.direction,
+                        size=leftover,
+                        commission=ot.commission - commission,
+                    )
+                )
+            remaining -= close_qty
+
+        self._strategy_state.open_trades = new_open
+        self._strategy_state.position_size = float(sum(t.size for t in new_open))
+        if self._strategy_state.position_size <= 1e-12:
             self._strategy_state.position_direction = "flat"
             self._strategy_state.position_size = 0.0
+            self._strategy_state.entry_price = 0.0
+        else:
+            # Weighted average entry of remaining opens
+            total = sum(t.size for t in new_open)
+            self._strategy_state.entry_price = sum(t.entry_price * t.size for t in new_open) / total
+            self._strategy_state.position_direction = new_open[0].direction
+            self._strategy_state.entry_bar = new_open[0].entry_bar
+            self._strategy_state.entry_time = new_open[0].entry_time
+
+    # SERIES / STATS VARIABLES
+
+    def _handle_strategy_position_size(self, _args: list[Any], kwargs: dict[str, Any] | None = None) -> float:
+        return self._strategy_state.signed_position_size()
+
+    def _handle_strategy_position_avg_price(self, _args: list[Any], kwargs: dict[str, Any] | None = None) -> float:
+        if self._strategy_state.position_direction == "flat":
+            return float("nan")
+        return float(self._strategy_state.entry_price)
+
+    def _handle_strategy_opentrades_count(self, _args: list[Any], kwargs: dict[str, Any] | None = None) -> int:
+        return len(self._strategy_state.open_trades)
+
+    def _handle_strategy_closedtrades_count(self, _args: list[Any], kwargs: dict[str, Any] | None = None) -> int:
+        return len(self._strategy_state.closed_trades)
+
+    def _handle_strategy_netprofit(self, _args: list[Any], kwargs: dict[str, Any] | None = None) -> float:
+        return self._strategy_state.netprofit()
+
+    def _handle_strategy_openprofit(self, _args: list[Any], kwargs: dict[str, Any] | None = None) -> float:
+        return self._strategy_state.openprofit(self._mark_price())
+
+    def _handle_strategy_equity(self, _args: list[Any], kwargs: dict[str, Any] | None = None) -> float:
+        return self._strategy_state.equity(self._mark_price())
+
+    def _handle_strategy_initial_capital(self, _args: list[Any], kwargs: dict[str, Any] | None = None) -> float:
+        return float(self._strategy_state.initial_capital)
+
+    def _handle_strategy_grossprofit(self, _args: list[Any], kwargs: dict[str, Any] | None = None) -> float:
+        return self._strategy_state.grossprofit()
+
+    def _handle_strategy_grossloss(self, _args: list[Any], kwargs: dict[str, Any] | None = None) -> float:
+        return self._strategy_state.grossloss()
+
+    def _handle_strategy_wintrades(self, _args: list[Any], kwargs: dict[str, Any] | None = None) -> int:
+        return int(self._strategy_state.wintrades())
+
+    def _handle_strategy_losstrades(self, _args: list[Any], kwargs: dict[str, Any] | None = None) -> int:
+        return int(self._strategy_state.losstrades())
 
     # RISK MANAGEMENT
 
@@ -703,10 +907,14 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
         return 0.0
 
     def _handle_opentrades_profit(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> float:
-        """strategy.opentrades.profit(trade_index)"""
+        """strategy.opentrades.profit(trade_index) — mark-to-market vs close."""
         trade_index = args[0] if len(args) > 0 else 0
         if 0 <= trade_index < len(self._strategy_state.open_trades):
-            return self._strategy_state.open_trades[trade_index].profit
+            ot = self._strategy_state.open_trades[trade_index]
+            mark = self._mark_price()
+            if ot.direction == "long":
+                return (mark - ot.entry_price) * ot.size - ot.commission
+            return (ot.entry_price - mark) * ot.size - ot.commission
         return 0.0
 
     def _handle_opentrades_commission(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> float:

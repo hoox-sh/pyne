@@ -58,7 +58,7 @@ Pine Script v6 launched December 2024, followed by monthly updates. Key sources:
 
 ### High Priority (Syntax / Core Language - Breaks 100% Parser)
 - ✅ **Multiline string literals** (`"""` / `'''` delimiters) — resource lexer rules + committed generated lexer; LexerBase preserves triple-quoted newlines/indent (does not strip wrap-indent); unparser emits triple quotes for multiline values; real tests assert content + roundtrip.
-- ✅ **Library `export const`** (June 2025) — parse/AST/unparse + **runtime**: library scripts register exports; `import user/Lib/1 as x` resolves via in-process registry / `register_library_source`; `x.MEMBER` attribute access; exported functions callable.
+- ✅ **Library `export const`** (June 2025) — parse/AST/unparse + **runtime**: library scripts register exports; `import user/Lib/1 as x` resolves via in-process registry / `register_library_source`; `x.MEMBER` attribute access; exported functions callable; **exported types** (`export type` + `.new`) and **enums** (`export enum` + members) via import alias.
 - ✅ **UDT collection sorting with `sort_field`** — arrays had support; matrix.sort + matrix.sort_indices now fully implemented in Matrix class + evaluator mixin with int index or str name + UDT get_field keys.
 - ✅ Additional v6 syminfo/timeframe constants (isin, current_contract, main_tickerid, main_period) added to default context.
 - ✅ behind_chart on indicator/strategy/library, force_overlay on drawing objects (line, box, label, polyline, table) and plot() - captured in metadata and ctors.
@@ -80,6 +80,7 @@ Pine Script v6 launched December 2024, followed by monthly updates. Key sources:
 - Real (non-mock) data for `request.*()` (by design for this library).
 - ✅ Real effects for plots — Plot dataclass + PlotRegistry; plot(), plotshape, plotarrow now register instances. Other plot* lightweight. Extended ticker styles with PercentageLTP support for renko/kagi/pointfigure.
 - Some strategy backtest trimming / unlimited history behaviors (high-level support exists).
+- ✅ Strategy runtime depth (2026-07-20): open trades list, signed `strategy.position_size`, `opentrades`/`closedtrades` counts, `netprofit`/`openprofit`/`equity`/`grossprofit`/`grossloss`/`wintrades`/`losstrades`, mark-to-market vs `close`, partial closes; golden multi-bar tests in `tests/test_strategy_runtime.py`.
 - Editor-specific (word wrap defaults, etc.) — irrelevant for this runtime/parser.
 - Minor post-2025 behaviors (specific request.* changes, updated wrapping rules if they affect AST).
 

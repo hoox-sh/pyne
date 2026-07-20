@@ -17,6 +17,24 @@ from pynescript.ast.type_system import ObjectInstance
 _MATRIX_INDEX_DIMENSIONS = 2
 
 
+def ast_qualified_name(expr: ast.AST) -> str | None:
+    """Build ``a.b.c`` from Attribute/Name AST nodes without evaluating values.
+
+    Critical for strategy/request builtins: intermediate names like
+    ``strategy.opentrades`` are zero-arg series variables; evaluating them
+    while resolving ``strategy.opentrades.entry_price(...)`` would yield an
+    int and break the longer qualified path.
+    """
+    if isinstance(expr, ast.Name):
+        return expr.id
+    if isinstance(expr, ast.Attribute):
+        base = ast_qualified_name(expr.value)
+        if base is None:
+            return None
+        return f"{base}.{expr.attr}"
+    return None
+
+
 class NameEvaluator:
     """Evaluates name-related AST nodes: identifiers, attributes, subscripts.
 
@@ -59,13 +77,20 @@ class NameEvaluator:
         Returns:
             The attribute value, a bound method marker, or a qualified name string
         """
-        # Build qualified name for direct context lookup (e.g., "module.func")
-        qualified_name = f"{self.visit(node.value)}.{node.attr}"
-        # Fast path: check if qualified name is directly in context
-        if qualified_name in self.context:
+        # AST-based qualified path (does not evaluate intermediates)
+        qualified_name = ast_qualified_name(node)
+
+        # Fast path: exact context key (e.g. "strategy.position_size")
+        if qualified_name and qualified_name in self.context:
             return self.context[qualified_name]
 
-        # Evaluate the base value (left side of dot operator)
+        # Zero-arg builtins / series vars (strategy.long, strategy.position_size, …)
+        # Prefer this BEFORE evaluating intermediates so nested paths like
+        # strategy.opentrades.entry_price stay intact for call dispatch.
+        if qualified_name and self._is_registered_builtin(qualified_name):
+            return self._call_builtin(qualified_name, [])
+
+        # Evaluate the base value (left side of dot operator) for objects
         value = self.visit(node.value)
 
         # Imported library module: alias.member (export const / export f)
@@ -107,13 +132,7 @@ class NameEvaluator:
                 self._error(f"Enum member '{member_name}' not found in enum '{value}'.")
 
         # Fallback: return qualified name string for later resolution
-        # (e.g., for module-level attributes not yet resolved)
-        # Special case for zero-arg registered builtins like strategy.long / strategy.short
-        # (see plan subtask 1.1.2 / 1.3)
-        if self._is_registered_builtin(qualified_name):
-            return self._call_builtin(qualified_name, [])
-
-        return qualified_name
+        return qualified_name if qualified_name is not None else f"{value}.{node.attr}"
 
     def visit_Subscript(self: EvaluatorProtocol, node: ast.Subscript) -> Any:
         """Evaluate a subscript/index access node (e.g., series[index], array[0]).
