@@ -1,10 +1,17 @@
 # Pine Script to Numba Compiler Plan
 
-**Status (2026-07-20): MVP landed.**  
+**Status (2026-07-20): MVP + object mode landed.**  
 API: `pynescript.compiler.compile_script` / `run_script` / `transpile`.  
-Runtime: `Runtime.run(..., mode="compile")`.  
-Supported subset: assignments, math ops, history `[]`, `if`, loops, `ta.sma/ema/rsi/highest/lowest`, `plot`, `input.*` defaults, `var`.  
-Tests: `tests/test_compiler_numba.py`.
+Runtime: `Runtime.run(..., mode="compile")` (returns `series`, `drawings`, `object_mode`).  
+
+**Numeric mode** (`@numba.njit`): assignments, math, history `[]`, `if`/loops, `ta.sma/ema/rsi/highest/lowest`, `plot`, `input.*` defaults, `var`.  
+
+**Object mode** (auto when UDT/map/drawing used — pure Python numpy bar loop):  
+- UDT `type` + `.new` + field read/write (dict instances per bar)  
+- `map.new` / `put` / `get` / `size` / `contains` / `remove` / `clear` / `keys` / `values` / `copy`  
+- Full drawing capture: `hline`, `bgcolor`, `barcolor`, `label.new`, `line.new`, `box.new`, `table.new`, `polyline.new`, `plotshape`/`plotchar`/`plotarrow`, `fill` → `__drawings` event list  
+
+Tests: `tests/test_compiler_numba.py`, `tests/test_compiler_objects.py`.
 
 ## Overview
 Historically Pynescript executed scripts using an **AST-walking interpreter** in pure Python. Because Pine Script heavily loops over time series data (bars), that path has high overhead.

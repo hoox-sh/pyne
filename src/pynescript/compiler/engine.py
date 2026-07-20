@@ -66,6 +66,7 @@ class CompiledScript:
     generated_code: str
     execute: Callable[..., Any]
     plot_titles: list[str] = field(default_factory=list)
+    object_mode: bool = False
 
     def run(
         self,
@@ -74,8 +75,8 @@ class CompiledScript:
         low: np.ndarray | list[float],
         close: np.ndarray | list[float],
         volume: np.ndarray | list[float] | None = None,
-    ) -> dict[str, np.ndarray]:
-        """Execute over full series; returns plot title → float64 array."""
+    ) -> dict[str, Any]:
+        """Execute over full series; returns plots (+ optional ``__drawings``)."""
         o = np.asarray(open_, dtype=np.float64)
         h = np.asarray(high, dtype=np.float64)
         l = np.asarray(low, dtype=np.float64)
@@ -92,34 +93,49 @@ class CompiledScript:
         return _normalize_result(raw)
 
 
-def _normalize_result(raw: Any) -> dict[str, np.ndarray]:
-    """Convert numba typed dict / mapping / None into plain {str: ndarray}."""
+def _normalize_result(raw: Any) -> dict[str, Any]:
+    """Convert numba typed dict / mapping / None into plain dict.
+
+    Plot series become ``float64`` arrays. ``__drawings`` (object-mode) is
+    passed through as a Python list of event dicts.
+    """
     if raw is None:
         return {}
-    # numba.typed.Dict or Python dict
-    out: dict[str, np.ndarray] = {}
     try:
         items = raw.items()
     except Exception:
-        # single array
         return {"plot": np.asarray(raw, dtype=np.float64)}
+    out: dict[str, Any] = {}
     for k, v in items:
         key = str(k)
-        out[key] = np.asarray(v, dtype=np.float64)
+        if key == "__drawings":
+            out[key] = list(v) if v is not None else []
+            continue
+        try:
+            out[key] = np.asarray(v, dtype=np.float64)
+        except (TypeError, ValueError):
+            out[key] = v
     return out
 
 
 def compile_script(source: str) -> CompiledScript:
-    """Transpile Pine source and load the Numba-compiled entry point."""
-    if not _HAS_NUMBA:
-        msg = "numba is required for compile mode (pip install numba)"
-        raise RuntimeError(msg)
+    """Transpile Pine source and load the compiled entry point.
 
-    code = transpile(source)
-    # Extract plot titles from visitor by re-running visitor (cheap vs parse)
+    Uses Numba when the script is pure-numeric; object-mode (UDT/map/drawing)
+    uses a pure-Python numpy bar loop (still much faster than AST walking).
+    """
     tree = parse(source, mode="exec")
     visitor = CompilerVisitor()
-    _ = visitor.visit(tree)
+    code = visitor.visit(tree)
+    if not isinstance(code, str) or not code.strip():
+        msg = "CompilerVisitor produced empty code"
+        raise RuntimeError(msg)
+
+    object_mode = bool(visitor.object_mode)
+    if not object_mode and not _HAS_NUMBA:
+        msg = "numba is required for numeric compile mode (pip install numba)"
+        raise RuntimeError(msg)
+
     titles = [p.get("title", f"Plot {i}") for i, p in enumerate(visitor.plots)]
 
     namespace: dict[str, Any] = {"__name__": "pynescript_compiled"}
@@ -129,15 +145,20 @@ def compile_script(source: str) -> CompiledScript:
         msg = "generated code missing execute_script_compiled()"
         raise RuntimeError(msg)
 
-    # Trigger JIT compile with tiny dummy data (optional warm-up)
-    dummy = np.arange(5, dtype=np.float64)
+    # Warm-up (JIT or first-run)
+    dummy = np.arange(16, dtype=np.float64)
     try:
         fn(dummy, dummy, dummy, dummy, dummy)
     except Exception:
-        # Some scripts need longer series; ignore warm-up failures
         pass
 
-    return CompiledScript(source=source, generated_code=code, execute=fn, plot_titles=titles)
+    return CompiledScript(
+        source=source,
+        generated_code=code,
+        execute=fn,
+        plot_titles=titles,
+        object_mode=object_mode,
+    )
 
 
 def run_script(

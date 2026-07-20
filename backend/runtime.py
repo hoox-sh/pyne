@@ -313,20 +313,25 @@ class Runtime:
         except Exception as e:
             return {"error": f"Compiled Runtime Error: {e!s}"}
 
-        # Primary plot series (first plot) as list for frontend compatibility
+        drawings = series_map.pop("__drawings", []) if isinstance(series_map, dict) else []
+
+        # Primary plot series (first numeric plot) as list for frontend compatibility
         final_series: list = []
-        if series_map:
-            first = next(iter(series_map.values()))
+        numeric = {k: v for k, v in series_map.items() if hasattr(v, "tolist")}
+        if numeric:
+            first = next(iter(numeric.values()))
             final_series = [None if (isinstance(x, float) and x != x) else float(x) for x in first]
 
         script_id = hashlib.sha256(source_code.encode("utf-8")).hexdigest()[:16]
         return {
             "plots": final_series,
-            "series": {k: v.tolist() for k, v in series_map.items()},
+            "series": {k: (v.tolist() if hasattr(v, "tolist") else v) for k, v in series_map.items()},
+            "drawings": drawings,
             "events": [],
             "count": len(ohlcv_data),
             "script_id": script_id,
             "run_id": self._run_id,
             "mode": "compile",
+            "object_mode": compiled.object_mode,
             "generated_code": compiled.generated_code,
         }
