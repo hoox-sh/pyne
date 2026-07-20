@@ -423,6 +423,36 @@ class MockDataFeed(DataFeed):
     async def __aexit__(self, exc_type, exc, tb) -> None:
         await self.close()
 
+    # Sync helpers used by request.* evaluator paths (no network)
+    def fetch_latest_ticker(self, symbol: str | None = None) -> dict[str, Any]:
+        sym = symbol or self.symbol
+        return {
+            "symbol": sym,
+            "last": float(self.price),
+            "close": float(self.price),
+            "bid": float(self.price) - 1,
+            "ask": float(self.price) + 1,
+            "high": float(self.price) * 1.01,
+            "low": float(self.price) * 0.99,
+        }
+
+    def fetch_latest_ohlcv(
+        self, symbol: str | None = None, timeframe: str = "1m", limit: int = 5
+    ) -> list[list[Any]]:
+        _ = symbol or self.symbol
+        _ = timeframe
+        ts = 1_700_000_000_000
+        out: list[list[Any]] = []
+        px = float(self.price)
+        for i in range(max(1, int(limit))):
+            o = px * (1 + 0.0001 * i)
+            h = o * 1.001
+            lo = o * 0.999
+            c = o
+            v = 100.0 + i
+            out.append([ts + i * 60_000, o, h, lo, c, v])
+        return out
+
 
 # Composite / unified feed example
 class CompositeDataFeed(DataFeed):

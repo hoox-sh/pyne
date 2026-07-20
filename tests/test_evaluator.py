@@ -1283,19 +1283,25 @@ def test_evaluator_ta_swma(expression):
 
 
 @pytest.mark.parametrize(
-    ("expression", "expected"),
+    ("expression", "kind"),
     [
-        ("plot([1, 2, 3, 4, 5])", None),
-        ("plotbar([1, 2, 3], [2, 3, 4], [0, 1, 2], [1, 2, 3])", None),
-        ("hline(100)", None),
-        ("bgcolor('red')", None),
+        ("plot([1, 2, 3, 4, 5])", "plot"),
+        ("plotbar([1, 2, 3], [2, 3, 4], [0, 1, 2], [1, 2, 3])", "plotbar"),
+        ("hline(100)", "hline"),
+        ("bgcolor('red')", "bgcolor"),
     ],
 )
-def test_evaluator_plotting_functions(expression, expected):
+def test_evaluator_plotting_functions(expression, kind):
+    from pynescript.ast.evaluator.builtins.plotting import Plot
+    from pynescript.ast.evaluator.builtins.plotting import PlotRegistry
+
+    PlotRegistry.reset()
     ast = helper.parse(expression, mode="eval")
     evaluator = NodeLiteralEvaluator()
     result = evaluator.visit(ast.body)
-    assert result == expected
+    assert isinstance(result, Plot)
+    assert result.kind == kind
+    assert len(PlotRegistry.plots) >= 1
 
 
 # INPUT FUNCTIONS TESTS
