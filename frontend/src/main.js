@@ -12,6 +12,8 @@ import { initPineEditor, getScript, setScript, focusEditor } from '../pine-edito
 import { initChart, setOhlcv, appendBar, setMarkers, clearOverlays, addOverlayLine,
          setEquityPane, setEquityCurve, setTimeRange } from './chart.js';
 import { openSettings } from './ui/settings.js';
+import { openManager, initManager } from './ui/manager.js';
+import { attachSymbolAutocomplete } from './ui/symbol-autocomplete.js';
 
 let bars = [];            // current OHLCV array
 let liveStop = null;      // cleanup for current live stream
@@ -372,6 +374,34 @@ function wireSettings() {
     });
 }
 
+function repopulateDropdowns() {
+    const eng = document.getElementById('engine-select');
+    const src = document.getElementById('source-select');
+    const stm = document.getElementById('stream-select');
+    const state = getState();
+    function fill(sel, items, current) {
+        if (!sel) return;
+        const prev = sel.value;
+        sel.innerHTML = '';
+        for (const it of items) {
+            const opt = document.createElement('option');
+            opt.value = it.id; opt.textContent = it.name;
+            if (it.id === current || (!current && it.id === prev)) opt.selected = true;
+            sel.appendChild(opt);
+        }
+    }
+    fill(eng, registry.listEngines(), state.get('engine'));
+    fill(src, registry.listSources(), state.get('source'));
+    fill(stm, registry.listStreams(), state.get('stream'));
+}
+
+function wireManager() {
+    const btn = document.getElementById('manager-btn');
+    if (!btn) return;
+    btn.addEventListener('click', () => openManager());
+    window.addEventListener('plugin-loaded', () => repopulateDropdowns());
+}
+
 function wireTimePresets() {
     for (const btn of document.querySelectorAll('.time-preset')) {
         btn.addEventListener('click', () => {
@@ -428,6 +458,10 @@ async function bootstrap() {
     wireDemos();
     wireSettings();
     wireTimePresets();
+    wireManager();
+    initManager();  // restore theme + auto-load user plugins
+    // Symbol autocomplete (best-effort, no UI changes if it fails)
+    try { await attachSymbolAutocomplete(document.getElementById('symbol-input')); } catch (_) { /* ignore */ }
 
     // Global Ctrl/Cmd+Enter
     document.addEventListener('keydown', (e) => {

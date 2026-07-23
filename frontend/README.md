@@ -105,7 +105,7 @@ For an **offline-first** demo: set `Source = Mock Walk`, `Stream = Mock Poll`,
 ```
 frontend/
   index.html                  PWA shell
-  style.css                   TV-dark theme
+  style.css                   TV-dark + light themes
   manifest.webmanifest        PWA manifest (installable)
   sw.js                       Service Worker (offline cache)
   assets/
@@ -114,24 +114,30 @@ frontend/
     icon-maskable-512.png
   pine-editor.js              CodeMirror 6 + Pine StreamLanguage
   storage.js                  localStorage helpers (legacy)
-  script.js                   legacy single-file entry (kept for back-compat)
   src/
     main.js                   bootstrap, wires UI + registry
     state.js                  central persisted state
     registry.js               plugin registry + loadPluginFromUrl
     registry-bootstrap.js     registers built-in plugins
-    chart.js                  lightweight-charts wrapper (main + equity)
-    pine-editor.js            re-export (none; we use ../pine-editor.js)
+    chart.js                  lightweight-charts wrapper (main / volume / indicator / equity)
     ui/
       topbar.js               engine/source/stream/endpoint/symbol/...
-      results.js              4-tab results panel
+      results.js              5-tab results panel (Trades, Strategy, Plots, Metrics, Raw)
       status.js               status bar
+      settings.js             generic configSchema-driven settings dialog
+      manager.js              plugin manager + script library + theme
+      symbol-autocomplete.js  Binance symbol autocomplete
     sources/
       index.js                binance-rest, mock-walk, csv-upload
     streams/
       index.js                binance-ws, mock-poll, none
     engines/
       index.js                server, pyodide (Python in browser)
+    plugins/                  example plugins (load via Manager)
+      example-coingecko-source.js
+      example-tiny-pine-engine.js
+      example-cf-do-stream.js
+      README.md               contract + how-to
   worker/                     Cloudflare Pages + Worker (see worker/README.md)
 ```
 
