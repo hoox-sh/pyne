@@ -107,10 +107,24 @@ def _patch_evaluator():
     TechnicalHelpers._expect_series = _expect_series
     ArrayBuiltinsMixin._patched_for_browser = True
 
-    # --- Fix _call_builtin: merge kwargs into args for handlers that don't accept kwargs ---
+    # --- Fix _call_builtin: only pass kwargs to handlers that accept them ---
     from pynescript.ast.evaluator.builtins.base import BuiltinDispatchMixin
 
-    _orig_call_builtin = BuiltinDispatchMixin._call_builtin
+    def _handler_accepts_kwargs(handler) -> bool:
+        """Check if a bound handler accepts keyword arguments.
+
+        Handlers with ``kwargs`` in their parameter list (with a default
+        value, e.g. ``kwargs=None``) or ``**kwargs`` can receive kwargs
+        from PineScript named arguments.  Handlers that only take
+        ``(self, args)`` should not receive kwargs.
+        """
+        import inspect
+
+        sig = inspect.signature(handler)
+        for p in sig.parameters.values():
+            if p.name == "kwargs" or p.kind == inspect.Parameter.VAR_KEYWORD:
+                return True
+        return False
 
     def _patched_call_builtin(self, name, args, kwargs=None):
         dispatch = self._builtin_dispatch
@@ -125,41 +139,8 @@ def _patch_evaluator():
                 f"Use 'ta.<name>' for technical analysis, 'math.<name>' for math functions."
             )
             raise ValueError(msg)
-        if kwargs:
-            import inspect
-
-            try:
-                sig = inspect.signature(handler)
-                params = list(sig.parameters.values())
-                # Check if handler accepts **kwargs or a second positional param
-                has_var_keyword = any(p.kind == inspect.Parameter.VAR_KEYWORD for p in params)
-                has_var_positional = any(p.kind == inspect.Parameter.VAR_POSITIONAL for p in params)
-                # Count positional params (excluding 'self')
-                pos_params = [
-                    p
-                    for p in params
-                    if p.kind in (inspect.Parameter.POSITIONAL_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD)
-                ]
-                # self is bound, so we have len(pos_params) - 1 positional slots after self
-                usable_slots = len(pos_params) - 1  # -1 for self
-                if has_var_keyword or has_var_positional:
-                    return handler(args, kwargs)
-                # Merge named kwargs into positional args
-                merged = list(args)
-                kwarg_names = {k for k in kwargs}
-                for p in pos_params[1:]:  # skip self
-                    if p.name in kwarg_names and len(merged) <= usable_slots:
-                        idx = pos_params.index(p) - 1
-                        if idx >= len(merged):
-                            merged.extend([None] * (idx - len(merged)))
-                        merged[idx] = kwargs.pop(p.name)
-                        if not kwargs:
-                            break
-                if kwargs:
-                    return handler(merged, kwargs)
-                return handler(merged)
-            except (ValueError, TypeError):
-                return handler(args, kwargs)
+        if kwargs and _handler_accepts_kwargs(handler):
+            return handler(args, kwargs)
         return handler(args)
 
     BuiltinDispatchMixin._call_builtin = _patched_call_builtin
