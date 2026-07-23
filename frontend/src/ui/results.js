@@ -6,6 +6,7 @@ const refs = {};
 
 export function initResults() {
     refs.trades = el('tab-trades');
+    refs.strategy = el('tab-strategy');
     refs.plots = el('tab-plots');
     refs.metrics = el('tab-metrics');
     refs.raw = el('tab-raw');
@@ -23,6 +24,121 @@ function activateTab(name) {
     for (const panel of document.querySelectorAll('.tab-panel')) {
         panel.classList.toggle('tab-panel-active', panel.id === `tab-${name}`);
     }
+}
+
+function buildStrategyReport(events) {
+    // Walk the events stream and pair entries with subsequent closes.
+    // Returns { trades: [...], stats: {...} }.
+    const sorted = (events || []).slice().sort((a, b) => (a.time || 0) - (b.time || 0));
+    const open = new Map(); // id -> { entry price, entry time, dir }
+    const trades = [];
+    for (const ev of sorted) {
+        const t = ev.time;
+        const p = ev.price;
+        if (t === undefined || p === undefined) continue;
+        const kind = (ev.type || ev.event || '').toLowerCase();
+        const id = ev.id || '_default';
+        if (kind.includes('entry')) {
+            const dir = (ev.dir || kind).toString().toLowerCase();
+            open.set(id, { entry: p, time: t, dir });
+        } else if (kind.includes('close') || kind.includes('exit')) {
+            const o = open.get(id);
+            if (o) {
+                const pnl = (p - o.entry) * (o.dir.includes('short') ? -1 : 1);
+                const pnlPct = pnl / o.entry;
+                trades.push({ id, dir: o.dir, entryTime: o.time, entry: o.entry, exitTime: t, exit: p, pnl, pnlPct });
+                open.delete(id);
+            }
+        }
+    }
+
+    const wins = trades.filter((t) => t.pnl > 0);
+    const losses = trades.filter((t) => t.pnl <= 0);
+    const totalPnl = trades.reduce((s, t) => s + t.pnl, 0);
+    const grossProfit = wins.reduce((s, t) => s + t.pnl, 0);
+    const grossLoss = Math.abs(losses.reduce((s, t) => s + t.pnl, 0));
+    const winRate = trades.length ? (wins.length / trades.length) * 100 : 0;
+    const profitFactor = grossLoss > 0 ? grossProfit / grossLoss : grossProfit > 0 ? Infinity : 0;
+    const avgTrade = trades.length ? totalPnl / trades.length : 0;
+    const avgWin = wins.length ? grossProfit / wins.length : 0;
+    const avgLoss = losses.length ? -grossLoss / losses.length : 0;
+
+    // Max drawdown on the equity curve.
+    let equity = 0, peak = 0, maxDD = 0;
+    for (const t of trades) {
+        equity += t.pnl;
+        if (equity > peak) peak = equity;
+        const dd = (peak - equity) / Math.max(1, Math.abs(peak) + 1);
+        if (dd > maxDD) maxDD = dd;
+    }
+    return {
+        trades,
+        stats: { totalPnl, winRate, profitFactor, avgTrade, avgWin, avgLoss, maxDD, wins: wins.length, losses: losses.length, trades: trades.length },
+    };
+}
+
+function formatPct(n) {
+    if (!Number.isFinite(n)) return '—';
+    return (n * 100).toFixed(2) + '%';
+}
+
+function formatMoney(n) {
+    if (!Number.isFinite(n)) return '—';
+    return (n >= 0 ? '+' : '') + n.toFixed(2);
+}
+
+function renderStrategy(payload) {
+    if (!refs.strategy) return;
+    if (payload.error) {
+        refs.strategy.innerHTML = `<div class="empty">Error: ${escapeHtml(payload.error)}</div>`;
+        return;
+    }
+    const events = payload.events || [];
+    if (!events.length) {
+        refs.strategy.innerHTML = '<div class="empty">No events. This is the Strategy Tester — it analyses strategy.entry/close events.</div>';
+        return;
+    }
+    const { trades, stats } = buildStrategyReport(events);
+    if (!trades.length) {
+        refs.strategy.innerHTML = `<div class="empty">${events.length} events but no closed trades yet (positions still open or only entries).</div>`;
+        return;
+    }
+
+    const summary = `
+        <div class="metric-grid metric-grid-wide">
+            <div class="metric metric-big"><span class="metric-label">Net P&amp;L</span><span class="metric-value ${stats.totalPnl >= 0 ? 'pos' : 'neg'}">${formatMoney(stats.totalPnl)}</span></div>
+            <div class="metric metric-big"><span class="metric-label">Win Rate</span><span class="metric-value">${stats.winRate.toFixed(1)}%</span></div>
+            <div class="metric metric-big"><span class="metric-label"># Trades</span><span class="metric-value">${stats.trades}</span></div>
+            <div class="metric metric-big"><span class="metric-label">Profit Factor</span><span class="metric-value">${Number.isFinite(stats.profitFactor) ? stats.profitFactor.toFixed(2) : '∞'}</span></div>
+            <div class="metric metric-big"><span class="metric-label">Avg Trade</span><span class="metric-value ${stats.avgTrade >= 0 ? 'pos' : 'neg'}">${formatMoney(stats.avgTrade)}</span></div>
+            <div class="metric metric-big"><span class="metric-label">Max Drawdown</span><span class="metric-value neg">${(stats.maxDD * 100).toFixed(2)}%</span></div>
+        </div>`;
+
+    const rows = trades.map((t) => {
+        const t1 = new Date(t.entryTime * 1000).toISOString().slice(0, 10);
+        const t2 = new Date(t.exitTime * 1000).toISOString().slice(0, 10);
+        return `<tr>
+            <td>${escapeHtml(t.id)}</td>
+            <td>${escapeHtml(t.dir)}</td>
+            <td>${t1}</td>
+            <td>${t.entry.toFixed(2)}</td>
+            <td>${t2}</td>
+            <td>${t.exit.toFixed(2)}</td>
+            <td class="${t.pnl >= 0 ? 'pos' : 'neg'}">${formatMoney(t.pnl)}</td>
+            <td class="${t.pnlPct >= 0 ? 'pos' : 'neg'}">${formatPct(t.pnlPct)}</td>
+        </tr>`;
+    }).join('');
+
+    refs.strategy.innerHTML = `${summary}
+        <div class="strategy-table-wrap">
+        <table class="strategy-table">
+            <thead><tr>
+                <th>ID</th><th>Dir</th><th>Entry date</th><th>Entry</th>
+                <th>Exit date</th><th>Exit</th><th>P&amp;L</th><th>%</th>
+            </tr></thead>
+            <tbody>${rows}</tbody>
+        </table>
+        </div>`;
 }
 
 function escapeHtml(s) {
@@ -43,6 +159,7 @@ export function renderResults(payload) {
 
     if (!payload) {
         refs.trades.innerHTML = '<div class="empty">Run a script to see events.</div>';
+        if (refs.strategy) refs.strategy.innerHTML = '<div class="empty">Run a strategy to see the tester.</div>';
         refs.plots.innerHTML = '<div class="empty">Run a script to see plots.</div>';
         refs.metrics.innerHTML = '<div class="empty">Run a script to see metrics.</div>';
         refs.rawJson.textContent = '';
@@ -118,6 +235,9 @@ export function renderResults(payload) {
     // Raw JSON
     try { refs.rawJson.textContent = JSON.stringify(payload, null, 2); }
     catch (_) { refs.rawJson.textContent = String(payload); }
+
+    // Strategy tester
+    renderStrategy(payload);
 }
 
 function deriveMetrics(payload) {

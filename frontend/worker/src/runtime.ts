@@ -1,16 +1,20 @@
 // /api/run — accept Pine script + OHLCV bars, return plots + events.
 //
-// Two execution modes:
+// Three execution modes, in order of preference:
 //
-// 1. EXTERNAL_BACKEND set → proxy the request to the configured external
-//    backend (the local Flask server, another Worker, etc.). This works
+// 1. PYODIDE_IN_WORKER=enabled → run the script in-Worker via Pyodide (see
+//    pyodide_runtime.ts).  Requires the pynescript wheel to be in R2 or
+//    reachable over the network.
+//
+// 2. EXTERNAL_BACKEND set → proxy the request to the configured external
+//    backend (the local Flask server, another Worker, etc.).  This works
 //    today without any Python runtime on the Worker.
 //
-// 2. EXTERNAL_BACKEND unset → run the script in-Worker via Pyodide
-//    (requires the pynescript wheel to be loaded into R2 or vendored).
-//    Until that is implemented, we return 503 with a clear hint.
+// 3. Neither set → 503 with a clear hint pointing at the env vars and
+//    worker/RUNTIME.md.
 
 import type { Env } from './index';
+import { tryRunInWorker } from './pyodide_runtime';
 
 interface RunRequest {
     script: string;
@@ -37,8 +41,8 @@ async function proxyToExternal(req: Request, env: Env, origin: string): Promise<
                 status: 'error',
                 code: 'NO_BACKEND',
                 message:
-                    'No EXTERNAL_BACKEND configured and in-Worker Python runtime is not yet wired. ' +
-                    'Set EXTERNAL_BACKEND to your Flask URL, or deploy pynescript wheel into R2 (see worker/RUNTIME.md).',
+                    'No EXTERNAL_BACKEND configured and PYODIDE_IN_WORKER is disabled. ' +
+                    'Set EXTERNAL_BACKEND=<flask-url> OR PYODIDE_IN_WORKER=enabled (and ship the pynescript wheel in R2).',
             }),
             { status: 503, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': origin } },
         );
@@ -69,7 +73,7 @@ export async function handleRun(req: Request, env: Env, origin: string): Promise
         });
     }
 
-    // Optional: increment usage meter (KV). Silently skip if KV not bound.
+    // Increment usage meter (KV). Silently skip if KV not bound.
     const auth = req.headers.get('Authorization') ?? '';
     if (auth.startsWith('Bearer ') && (env as unknown as { USAGE?: KVNamespace }).USAGE) {
         const key = auth.slice(7).trim();
@@ -78,5 +82,17 @@ export async function handleRun(req: Request, env: Env, origin: string): Promise
         await usage.put(`usage:${key}`, String(current + 1), { expirationTtl: 60 * 60 * 24 * 30 });
     }
 
+    // 1) In-Worker Python via Pyodide (preferred when enabled).
+    if (env.PYODIDE_IN_WORKER === 'enabled') {
+        const pyResult = await tryRunInWorker(v.value.script, v.value.data, env);
+        if (pyResult) {
+            return new Response(JSON.stringify(pyResult), {
+                status: 200, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': origin },
+            });
+        }
+        // Fall through to external if Pyodide failed to boot.
+    }
+
+    // 2) External backend.
     return proxyToExternal(req, env, origin);
 }

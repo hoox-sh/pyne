@@ -15,12 +15,13 @@ export interface Env {
     // USAGE?: KVNamespace;
     // DB?: D1Database;
     // BUNDLES?: R2Bucket;
-    // SESSIONS?: DurableObjectNamespace;
+    SESSIONS?: DurableObjectNamespace;
 
     // Vars
     EXTERNAL_BACKEND?: string;
     ALLOWED_ORIGIN?: string;
     ADMIN_TOKEN?: string;
+    PYODIDE_IN_WORKER?: string;
 }
 
 const CORS_HEADERS = (origin: string): Record<string, string> => ({
@@ -54,6 +55,20 @@ export default {
         if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS_HEADERS(origin) });
 
         const url = new URL(req.url);
+
+        // WebSocket session relay: /api/stream → DO
+        if (url.pathname === '/api/stream') {
+            if (!env.SESSIONS) {
+                return jsonResponse(
+                    { status: 'error', code: 'NO_DO', message: 'SESSIONS Durable Object not bound. Run `wrangler deploy` after provisioning.' },
+                    { status: 503 }, origin,
+                );
+            }
+            const id = env.SESSIONS.idFromName(url.searchParams.get('session') ?? 'default');
+            const stub = env.SESSIONS.get(id);
+            const wsReq = new Request(`${url.origin}/ws?${url.searchParams.toString()}`, req);
+            return stub.fetch(wsReq);
+        }
 
         try {
             switch (url.pathname) {

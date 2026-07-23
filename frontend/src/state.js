@@ -14,6 +14,8 @@ const DEFAULT_STATE = Object.freeze({
     apiKey: '',
     script: '',
     plugins: [],                // [{id, kind, name, source:'inline'|'url'}]
+    pluginsConfig: {},          // { '<pluginId>': { ...user-set fields from configSchema } }
+    timeRange: 'ALL',
 });
 
 function deepFreeze(o) { return Object.freeze(o); }

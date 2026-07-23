@@ -529,6 +529,265 @@ body {
 }
 
 /* ---------- Responsive ---------- */
+/* ---------- Settings dialog ---------- */
+.settings-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.55);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    backdrop-filter: blur(2px);
+}
+
+.settings-modal {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    width: min(540px, calc(100vw - 32px));
+    max-height: calc(100vh - 64px);
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+}
+
+.settings-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+}
+
+.settings-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+}
+
+.settings-body {
+    padding: 14px;
+    overflow: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-height: 60px;
+}
+
+.settings-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.settings-field-check {
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+}
+
+.settings-field-check input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--accent);
+}
+
+.settings-label {
+    font-size: 12px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.settings-input {
+    background: var(--bg-elev);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 6px 8px;
+    font-size: 13px;
+    font-family: inherit;
+    outline: none;
+}
+
+.settings-input:focus {
+    border-color: var(--accent);
+}
+
+.settings-help {
+    font-size: 11px;
+    color: var(--text-faint);
+    line-height: 1.4;
+}
+
+.settings-footer {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    border-top: 1px solid var(--border);
+    background: var(--bg-base);
+    border-bottom-left-radius: 6px;
+    border-bottom-right-radius: 6px;
+}
+
+/* ---------- Time scale preset bar ---------- */
+.time-presets {
+    display: flex;
+    gap: 2px;
+    padding: 4px 10px;
+    background: var(--bg-panel);
+    border-top: 1px solid var(--border);
+    flex: 0 0 auto;
+}
+
+.time-preset {
+    background: transparent;
+    color: var(--text-dim);
+    border: none;
+    padding: 2px 8px;
+    font-size: 11px;
+    font-family: inherit;
+    cursor: pointer;
+    border-radius: 3px;
+}
+
+.time-preset:hover {
+    color: var(--text);
+    background: var(--bg-hover);
+}
+
+.time-preset.is-active {
+    color: var(--text);
+    background: var(--bg-elev);
+}
+
+/* ---------- Multi-pane chart layout ---------- */
+.chart-panes-host {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    position: relative;
+}
+
+.chart-pane-block {
+    flex: 1 1 auto;
+    min-height: 60px;
+    position: relative;
+    border-bottom: 1px solid var(--border-soft);
+}
+
+.chart-pane-block:last-child {
+    border-bottom: none;
+}
+
+.chart-pane-block.is-subpane {
+    flex: 0 0 180px;
+}
+
+.pane-label {
+    position: absolute;
+    top: 4px;
+    left: 8px;
+    font-size: 10px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    z-index: 1;
+    pointer-events: none;
+    background: rgba(19, 23, 34, 0.7);
+    padding: 1px 6px;
+    border-radius: 3px;
+}
+
+.pane-resize {
+    height: 4px;
+    background: transparent;
+    cursor: ns-resize;
+}
+
+.pane-resize:hover {
+    background: var(--accent);
+}
+
+/* ---------- Volume histogram ---------- */
+.volume-host {
+    flex: 0 0 100px;
+    min-height: 60px;
+    position: relative;
+    border-top: 1px solid var(--border-soft);
+}
+
+/* ---------- Strategy tester ---------- */
+.metric-grid-wide {
+    grid-template-columns: repeat(3, 1fr);
+    margin-bottom: 8px;
+}
+
+.metric.metric-big {
+    padding: 6px 0;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+}
+
+.metric.metric-big .metric-label {
+    font-size: 10px;
+}
+
+.metric.metric-big .metric-value {
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.metric-value.pos { color: var(--green); }
+.metric-value.neg { color: var(--red); }
+
+.strategy-table-wrap {
+    overflow: auto;
+    border: 1px solid var(--border-soft);
+    border-radius: 3px;
+}
+
+.strategy-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.strategy-table th, .strategy-table td {
+    padding: 4px 8px;
+    text-align: right;
+    border-bottom: 1px solid var(--border-soft);
+    white-space: nowrap;
+}
+
+.strategy-table th:nth-child(1),
+.strategy-table th:nth-child(2),
+.strategy-table td:nth-child(1),
+.strategy-table td:nth-child(2) {
+    text-align: left;
+}
+
+.strategy-table th {
+    background: var(--bg-elev);
+    color: var(--text-dim);
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-size: 10px;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+}
+
+.strategy-table tbody tr:hover {
+    background: rgba(41, 98, 255, 0.05);
+}
+
 @media (max-width: 1280px) {
     .topbar-demos {
         display: none;

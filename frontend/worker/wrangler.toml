@@ -49,3 +49,4 @@ enabled = true
 EXTERNAL_BACKEND = ""
 ALLOWED_ORIGIN = "https://pynescript.ai"
 ADMIN_TOKEN = ""
+PYODIDE_IN_WORKER = "disabled"

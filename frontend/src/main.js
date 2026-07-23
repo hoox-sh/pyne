@@ -10,7 +10,8 @@ import { setStatus } from './ui/status.js';
 import { initResults, renderResults } from './ui/results.js';
 import { initPineEditor, getScript, setScript, focusEditor } from '../pine-editor.js';
 import { initChart, setOhlcv, appendBar, setMarkers, clearOverlays, addOverlayLine,
-         setEquityPane, setEquityCurve } from './chart.js';
+         setEquityPane, setEquityCurve, setTimeRange } from './chart.js';
+import { openSettings } from './ui/settings.js';
 
 let bars = [];            // current OHLCV array
 let liveStop = null;      // cleanup for current live stream
@@ -187,6 +188,18 @@ async function runScript() {
     setEquityPane(false);
     try {
         const result = await engine.run({ script, bars, config: {} });
+        // Heuristic: detect `overlay=false` in the script so the chart can
+        // route plots to the indicator sub-pane when needed.  A real
+        // implementation would have the runtime return this in `meta`.
+        if (!result.meta) result.meta = {};
+        if (result.meta.overlay === undefined) {
+            const m = /\b(strategy|indicator)\s*\(\s*["'][^"']*["']\s*,\s*[^)]*overlay\s*=\s*(true|false)/.exec(script);
+            result.meta.overlay = m ? m[2] === 'true' : true;
+        }
+        if (result.meta.script_name === undefined) {
+            const m = /\b(strategy|indicator)\s*\(\s*["']([^"']+)["']/.exec(script);
+            result.meta.script_name = m ? m[2] : 'plot';
+        }
         state.assign({ lastResult: result });
         applyResults(result);
         const ms = result.meta?.ms;
@@ -204,8 +217,15 @@ function applyResults(payload) {
     renderResults(payload);
     if (payload.status === 'error') return;
 
-    // Overlay plots → main chart
     const ohlcvTimes = bars.map((b) => b.time);
+    const isOverlay = payload.meta?.overlay !== false;  // default true
+    const pane = isOverlay ? 'main' : 'indicator';
+
+    // Update pane label
+    const lbl = document.getElementById('pane-label-indicator');
+    if (lbl) lbl.textContent = payload.meta?.script_name || 'Indicator';
+
+    // Primary plots
     const plots = payload.plots || [];
     if (plots.length) {
         const data = [];
@@ -214,9 +234,9 @@ function applyResults(payload) {
             if (v === null || v === undefined || typeof v !== 'number' || Number.isNaN(v)) continue;
             data.push({ time: ohlcvTimes[i], value: v });
         }
-        if (data.length) addOverlayLine('plot', data);
+        if (data.length) addOverlayLine(payload.meta?.script_name || 'plot', data, { pane });
     }
-    // Series → multiple overlays
+    // Multiple series → multiple overlays
     const series = payload.series || {};
     for (const k of Object.keys(series)) {
         if (k.startsWith('__')) continue;
@@ -228,10 +248,10 @@ function applyResults(payload) {
             if (v === null || v === undefined || typeof v !== 'number' || Number.isNaN(v)) continue;
             data.push({ time: ohlcvTimes[i], value: v });
         }
-        if (data.length) addOverlayLine(k, data);
+        if (data.length) addOverlayLine(k, data, { pane });
     }
 
-    // Markers
+    // Markers (only on main pane)
     const events = payload.events || [];
     const markers = events.map((ev) => {
         const kind = (ev.type || ev.event || '').toLowerCase();
@@ -246,7 +266,7 @@ function applyResults(payload) {
     markers.sort((a, b) => a.time - b.time);
     setMarkers(markers);
 
-    // Equity curve (synthetic — no PnL in the current backend response)
+    // Equity curve
     if (events.length) {
         const eq = buildEquity(events);
         if (eq.length) {
@@ -313,6 +333,61 @@ function wireDemos() {
     }
 }
 
+function wireSettings() {
+    const btn = document.getElementById('settings-btn');
+    if (!btn) return;
+    btn.addEventListener('click', () => {
+        const state = getState();
+        const choice = prompt(
+            'Configure which plugin?\n' +
+            registry.listEngines().map((p, i) => `${i + 1}. ${p.name} (engine)`).join('\n') +
+            '\n' +
+            registry.listSources().map((p, i) => `${i + 1 + registry.listEngines().length}. ${p.name} (source)`).join('\n') +
+            '\n' +
+            registry.listStreams().map((p, i) => `${i + 1 + registry.listEngines().length + registry.listSources().length}. ${p.name} (stream)`).join('\n') +
+            '\n\nEnter number:',
+        );
+        if (!choice) return;
+        const n = parseInt(choice, 10);
+        const engines = registry.listEngines();
+        const sources = registry.listSources();
+        const streams = registry.listStreams();
+        const total = engines.length + sources.length + streams.length;
+        if (Number.isNaN(n) || n < 1 || n > total) return;
+        let plugin;
+        if (n <= engines.length) plugin = engines[n - 1];
+        else if (n <= engines.length + sources.length) plugin = sources[n - engines.length - 1];
+        else plugin = streams[n - engines.length - sources.length - 1];
+        openSettings({
+            title: `${plugin.name} (${plugin.kind})`,
+            schema: plugin.configSchema,
+            current: state.get('pluginsConfig')?.[plugin.id] || {},
+            onSave: (next) => {
+                const cfg = { ...(state.get('pluginsConfig') || {}) };
+                cfg[plugin.id] = next;
+                state.assign({ pluginsConfig: cfg });
+                setStatus(`Saved ${plugin.name} settings.`, 'success', `${Object.keys(next).length} fields`);
+            },
+        });
+    });
+}
+
+function wireTimePresets() {
+    for (const btn of document.querySelectorAll('.time-preset')) {
+        btn.addEventListener('click', () => {
+            const range = btn.dataset.range;
+            setTimeRange(range);
+            for (const b of document.querySelectorAll('.time-preset')) b.classList.toggle('is-active', b === btn);
+            getState().assign({ timeRange: range });
+        });
+    }
+    // Restore last selected range
+    const last = getState().get('timeRange') || 'ALL';
+    for (const b of document.querySelectorAll('.time-preset')) {
+        if (b.dataset.range === last) b.classList.add('is-active');
+    }
+}
+
 async function bootstrap() {
     // Service worker (production only — skip on file:// or dev ports without HTTPS)
     if ('serviceWorker' in navigator && location.protocol !== 'file:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
@@ -325,9 +400,10 @@ async function bootstrap() {
 
     // Chart
     initChart({
-        chartEl: document.getElementById('chart'),
+        mainEl: document.getElementById('chart'),
+        volumeEl: document.getElementById('volume-chart'),
+        indicatorEl: document.getElementById('indicator-chart'),
         equityEl: document.getElementById('equity-chart'),
-        equityPaneEl: document.getElementById('equity-pane'),
     });
 
     // Editor
@@ -350,6 +426,8 @@ async function bootstrap() {
         onReset: resetAll,
     });
     wireDemos();
+    wireSettings();
+    wireTimePresets();
 
     // Global Ctrl/Cmd+Enter
     document.addEventListener('keydown', (e) => {

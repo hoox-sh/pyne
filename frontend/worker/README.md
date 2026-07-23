@@ -51,14 +51,21 @@ Paste the returned IDs into `wrangler.toml`.
 | `/api/keys?action=create` | POST | `X-Admin-Token` required               |
 | `/api/keys?action=validate` | GET | `Authorization: Bearer …` or `?key=` |
 | `/api/usage`        | GET    | Per-key usage counter (KV)             |
+| `/api/stream`       | WS     | `?session=…&symbol=…&interval=…` (DO)  |
 
-WebSocket: open `wss://<worker>/ws?symbol=BTCUSDT&interval=1m` (via DO
-routing — see TODO in `src/index.ts`).
+WebSocket: open `wss://<worker>/api/stream?session=…&symbol=BTCUSDT&interval=1m`
+and the Worker routes to a Durable Object instance that fans a single
+upstream Binance kline stream to N clients.
 
 ## Deploy
 
 ```bash
 # 1) Bindings (one time)
+wrangler kv namespace create API_KEYS
+wrangler kv namespace create USAGE
+# (optional) wrangler d1 create pynescript
+# (optional) wrangler r2 bucket create indicator-bundles
+
 # 2) Deploy the Worker
 cd frontend/worker
 wrangler deploy
@@ -78,15 +85,17 @@ After deployment, the PWA's `Endpoint` field should be set to the
 - Live stream DO: no cache, always forwards.
 - `/api/keys` and `/api/usage`: no cache.
 
-## TODO
+## Implementation status
 
-- **In-Worker Python via Pyodide** — load the pynescript wheel into R2 (or
-  vendor it), boot it in the Worker, expose a `Runtime` proxy. See
-  `RUNTIME.md` for the plan.
-- **WebSocket DO routing** — the `fetch` handler in `src/index.ts` needs to
-  route `/ws` to `env.SESSIONS` (`getByName` based on session id).
-- **Caching** — add a small in-Worker LRU keyed on `sha256(script + data)`.
-- **D1 schema** — table for `runs(script_id, run_id, started_at, ms, status)`
-  and `scripts(id, name, source, created_at)`.
+- [x] `/api/run` proxy to EXTERNAL_BACKEND
+- [x] `/api/keys` admin endpoint
+- [x] `/api/usage` (KV-backed)
+- [x] `SessionDO` Durable Object for live streams
+- [x] `/api/stream` → DO routing in `src/index.ts`
+- [x] In-Worker Python scaffold (`src/pyodide_runtime.ts`, gated by
+      `PYODIDE_IN_WORKER=enabled`)
+- [ ] Pyodide wheel upload pipeline (see `RUNTIME.md`)
+- [ ] Caching layer
+- [ ] D1 schema + migrations
 
 See `RUNTIME.md` for the in-Worker Python plan.

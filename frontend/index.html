@@ -78,6 +78,7 @@
         </div>
 
         <div class="topbar-section topbar-mode">
+            <button id="settings-btn" class="btn btn-ghost btn-sm" title="Plugin settings">⚙ Settings</button>
             <span id="mode-badge" class="mode-badge mode-local" title="Backend mode">Local</span>
             <button id="mode-toggle" class="btn btn-ghost btn-sm" title="Toggle local/cloud">⇄</button>
             <input id="api-key-input" class="topbar-input api-key" type="password" placeholder="API key" autocomplete="off" />
@@ -86,9 +87,34 @@
 
     <main class="layout">
         <section class="chart-pane">
-            <div id="chart" class="chart-host"></div>
+            <div id="chart-panes" class="chart-panes-host">
+                <div class="chart-pane-block" data-pane="main">
+                    <span class="pane-label" id="pane-label-main">Price</span>
+                    <div id="chart" class="chart-host"></div>
+                </div>
+                <div class="chart-pane-block is-subpane" data-pane="volume" id="volume-pane">
+                    <span class="pane-label">Volume</span>
+                    <div id="volume-chart" class="volume-host"></div>
+                </div>
+                <div class="chart-pane-block is-subpane" data-pane="indicator" id="indicator-pane" hidden>
+                    <span class="pane-label" id="pane-label-indicator">Indicator</span>
+                    <div id="indicator-chart" class="chart-host"></div>
+                </div>
+            </div>
+
+            <div class="time-presets" role="tablist" aria-label="Time scale presets">
+                <button class="time-preset" data-range="1D">1D</button>
+                <button class="time-preset" data-range="5D">5D</button>
+                <button class="time-preset" data-range="1M">1M</button>
+                <button class="time-preset" data-range="3M">3M</button>
+                <button class="time-preset" data-range="6M">6M</button>
+                <button class="time-preset" data-range="YTD">YTD</button>
+                <button class="time-preset" data-range="1Y">1Y</button>
+                <button class="time-preset" data-range="ALL">All</button>
+            </div>
+
             <div id="equity-pane" class="equity-pane" hidden>
-                <div class="equity-header">Equity Curve</div>
+                <div class="equity-header">Strategy Tester — Equity Curve</div>
                 <div id="equity-chart" class="equity-host"></div>
             </div>
         </section>
@@ -107,6 +133,7 @@
             <div class="results">
                 <div class="results-tabs" role="tablist">
                     <button class="tab tab-active" data-tab="trades" role="tab">Trades &amp; Events</button>
+                    <button class="tab" data-tab="strategy" role="tab">Strategy Tester</button>
                     <button class="tab" data-tab="plots" role="tab">Plots</button>
                     <button class="tab" data-tab="metrics" role="tab">Metrics</button>
                     <button class="tab" data-tab="raw" role="tab">Raw JSON</button>
@@ -114,6 +141,9 @@
                 <div class="results-body">
                     <div id="tab-trades" class="tab-panel tab-panel-active">
                         <div class="empty">Run a script to see events.</div>
+                    </div>
+                    <div id="tab-strategy" class="tab-panel">
+                        <div class="empty">Run a strategy to see the tester.</div>
                     </div>
                     <div id="tab-plots" class="tab-panel">
                         <div class="empty">Run a script to see plots.</div>
