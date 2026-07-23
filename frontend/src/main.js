@@ -9,6 +9,7 @@ import { initTopbar, setLiveIndicator } from './ui/topbar.js';
 import { setStatus } from './ui/status.js';
 import { initResults, renderResults } from './ui/results.js';
 import { initPineEditor, getScript, setScript, focusEditor } from '../pine-editor.js';
+import { TabbedEditor } from './ui/tabbed-editor.js';
 import { initChart, setOhlcv, appendBar, setMarkers, clearOverlays, addOverlayLine,
          setEquityPane, setEquityCurve, setTimeRange } from './chart.js';
 import { openSettings } from './ui/settings.js';
@@ -17,6 +18,7 @@ import { attachSymbolAutocomplete } from './ui/symbol-autocomplete.js';
 
 let bars = [];            // current OHLCV array
 let liveStop = null;      // cleanup for current live stream
+let editor;               // TabbedEditor instance, set during bootstrap()
 
 const DEMOS = {
     'rsi-overlay': `//@version=5
@@ -181,7 +183,7 @@ async function runScript() {
     const engine = registry.getEngine(state.get('engine'));
     if (!engine) { setStatus(`Unknown engine: ${state.get('engine')}`, 'error'); return; }
     if (!bars.length) { setStatus('No market data loaded. Click Load first.', 'error'); return; }
-    const script = getScript();
+    const script = editor ? editor.getScript() : getScript();
     if (!script.trim()) { setStatus('Editor is empty — nothing to run.', 'error'); return; }
 
     setStatus(`Running on ${engine.name}…`, 'busy', `bars=${bars.length}`);
@@ -426,7 +428,6 @@ async function bootstrap() {
 
     initState();
     const storedScript = getState().get('script');
-    setScript(storedScript || DEMOS['rsi-overlay']);
 
     // Chart
     initChart({
@@ -436,13 +437,15 @@ async function bootstrap() {
         equityEl: document.getElementById('equity-chart'),
     });
 
-    // Editor
-    initPineEditor({
+    // Editor — multi-tab CodeMirror 6.  Tabs are persisted in localStorage
+    // so reloading the page restores every open script.
+    editor = new TabbedEditor({
         parent: document.getElementById('pine-editor'),
-        initialDoc: '',
         onRun: () => runScript(),
-        onDocChange: () => getState().assign({ script: getScript() }),
+        onDocChange: (src) => getState().assign({ script: src }),
+        initialScript: storedScript || DEMOS['rsi-overlay'],
     });
+    await editor.init();
 
     // UI panels
     initResults();

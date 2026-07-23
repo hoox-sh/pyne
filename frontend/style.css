@@ -956,6 +956,117 @@ html[data-theme="light"] .pine-editor-host textarea {
     font-style: italic;
 }
 
+/* ---------- Tabbed editor ---------- */
+.tabbed-editor {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+}
+
+.editor-tabbar {
+    display: flex;
+    align-items: stretch;
+    background: var(--bg-base);
+    border-bottom: 1px solid var(--border);
+    flex: 0 0 auto;
+    overflow-x: auto;
+    overflow-y: hidden;
+}
+
+.editor-tab {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    background: transparent;
+    color: var(--text-dim);
+    cursor: pointer;
+    border: none;
+    border-right: 1px solid var(--border-soft);
+    font-size: 11px;
+    font-family: inherit;
+    white-space: nowrap;
+    user-select: none;
+    transition: background-color 0.1s;
+}
+
+.editor-tab:hover {
+    background: var(--bg-hover);
+    color: var(--text);
+}
+
+.editor-tab.is-active {
+    background: var(--bg-panel);
+    color: var(--text);
+    border-bottom: 2px solid var(--accent);
+    margin-bottom: -1px;
+}
+
+.editor-tab.is-dirty .tab-dot {
+    background: var(--yellow);
+    box-shadow: 0 0 4px var(--yellow);
+}
+
+.tab-dot {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: transparent;
+}
+
+.tab-name {
+    max-width: 140px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.tab-close {
+    background: transparent;
+    color: var(--text-faint);
+    border: none;
+    font-size: 14px;
+    line-height: 1;
+    padding: 0 2px;
+    margin-left: 4px;
+    cursor: pointer;
+    border-radius: 2px;
+}
+
+.tab-close:hover {
+    color: var(--red);
+    background: var(--bg-hover);
+}
+
+.tab-add {
+    background: transparent;
+    color: var(--text-dim);
+    border: none;
+    padding: 0 10px;
+    cursor: pointer;
+    font-size: 16px;
+    font-family: inherit;
+    line-height: 1;
+}
+
+.tab-add:hover {
+    color: var(--text);
+    background: var(--bg-hover);
+}
+
+.tabbed-host {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+    position: relative;
+}
+
+.tabbed-host .cm-editor,
+.tabbed-host .cm-scroller {
+    height: 100%;
+}
+
 @media (max-width: 1280px) {
     .topbar-demos {
         display: none;
