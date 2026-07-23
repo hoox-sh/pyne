@@ -11,6 +11,17 @@ function intervalToMs(iv) {
     return n * mult;
 }
 
+function resolveConfig(schema, config) {
+    const out = {};
+    for (const [k, def] of Object.entries(schema || {})) {
+        out[k] = def && Object.prototype.hasOwnProperty.call(def, 'default') ? def.default : undefined;
+    }
+    for (const [k, v] of Object.entries(config || {})) {
+        if (v !== undefined) out[k] = v;
+    }
+    return out;
+}
+
 export const binanceWs = {
     id: 'binance-ws',
     name: 'Binance WebSocket',
@@ -20,7 +31,7 @@ export const binanceWs = {
         wsBase: { type: 'string', default: 'wss://stream.binance.com:9443', label: 'WS base URL' },
     },
     start({ symbol, interval, onBar, onError, onStatus, config }) {
-        const cfg = { ...this.configSchema, ...(config || {}) };
+        const cfg = resolveConfig(this.configSchema, config);
         const url = `${cfg.wsBase}/ws/${symbol.toLowerCase()}@kline_${interval}`;
         let ws;
         try { ws = new WebSocket(url); }
@@ -61,7 +72,7 @@ export const mockPoll = {
         volatility: { type: 'number', default: 0.005, min: 0, max: 0.5, label: 'Volatility' },
     },
     start({ interval, onBar, onError, onStatus, config, lastBar }) {
-        const cfg = { ...this.configSchema, ...(config || {}) };
+        const cfg = resolveConfig(this.configSchema, config);
         const step = Math.floor(intervalToMs(interval) / 1000);
         let cur = lastBar ? { ...lastBar } : null;
         if (cur) {

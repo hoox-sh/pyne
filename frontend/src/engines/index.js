@@ -13,6 +13,17 @@
 
 import { getState } from '../state.js';
 
+function resolveConfig(schema, config) {
+    const out = {};
+    for (const [k, def] of Object.entries(schema || {})) {
+        out[k] = def && Object.prototype.hasOwnProperty.call(def, 'default') ? def.default : undefined;
+    }
+    for (const [k, v] of Object.entries(config || {})) {
+        if (v !== undefined) out[k] = v;
+    }
+    return out;
+}
+
 export const serverEngine = {
     id: 'server',
     name: 'Server-Side',
@@ -24,17 +35,17 @@ export const serverEngine = {
     },
     async isReady() {
         const state = getState();
-        const endpoint = (this.configSchema.endpoint.default === this.configSchema.endpoint.default && state.get('endpoint')) || this.configSchema.endpoint.default;
+        const cfg = resolveConfig(this.configSchema, { endpoint: state?.get?.('endpoint') });
         try {
-            const res = await fetch(`${endpoint}/`, { method: 'GET' });
+            const res = await fetch(`${cfg.endpoint}/`, { method: 'GET' });
             return res.ok;
         } catch (_) { return false; }
     },
     async run({ script, bars, config }) {
         const state = getState();
-        const cfg = { ...this.configSchema, ...(config || {}), endpoint: state.get('endpoint') };
+        const cfg = resolveConfig(this.configSchema, { ...(config || {}), endpoint: state?.get?.('endpoint') ?? this.configSchema.endpoint.default });
         const headers = { 'Content-Type': 'application/json' };
-        if (state.get('mode') === 'cloud' && state.get('apiKey')) {
+        if (state?.get?.('mode') === 'cloud' && state?.get?.('apiKey')) {
             headers['Authorization'] = `Bearer ${state.get('apiKey')}`;
         }
         const t0 = performance.now();

@@ -9,6 +9,19 @@ function intervalToMs(iv) {
     return n * mult;
 }
 
+function resolveConfig(schema, config) {
+    // Merge schema defaults with user-supplied values.  Anything in
+    // `config` wins; missing fields fall back to the schema's `default`.
+    const out = {};
+    for (const [k, def] of Object.entries(schema || {})) {
+        out[k] = def && Object.prototype.hasOwnProperty.call(def, 'default') ? def.default : undefined;
+    }
+    for (const [k, v] of Object.entries(config || {})) {
+        if (v !== undefined) out[k] = v;
+    }
+    return out;
+}
+
 function synthesizeWalk(n, interval, start) {
     const step = Math.floor(intervalToMs(interval) / 1000);
     const out = [];
@@ -37,8 +50,8 @@ export const binanceRest = {
         limit: { type: 'number', default: 500, min: 50, max: 1000, label: 'Bars' },
         fallback: { type: 'boolean', default: true, label: 'Synthesize on failure' },
     },
-    async fetchHistorical({ symbol, interval, limit, config }) {
-        const cfg = { ...this.configSchema, ...(config || {}) };
+    async fetchHistorical({ symbol, interval, config }) {
+        const cfg = resolveConfig(this.configSchema, config);
         const url = `${cfg.baseUrl}/api/v3/klines?symbol=${encodeURIComponent(symbol)}&interval=${encodeURIComponent(interval)}&limit=${cfg.limit}`;
         try {
             const res = await fetch(url, { cache: 'no-store' });
@@ -72,7 +85,7 @@ export const mockWalk = {
         limit: { type: 'number', default: 500, min: 50, max: 5000, label: 'Bars' },
     },
     async fetchHistorical({ interval, config }) {
-        const cfg = { ...this.configSchema, ...(config || {}) };
+        const cfg = resolveConfig(this.configSchema, config);
         if (cfg.seed) {
             // Mulberry32 — small deterministic PRNG
             let s = cfg.seed >>> 0;

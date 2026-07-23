@@ -2,23 +2,25 @@
 #
 # Makefile for Pynescript development
 
-.PHONY: help install test lint fmt build run clean docker-build docker-run run-frontend worker-install worker-dev worker-deploy worker-typecheck pages-deploy
+.PHONY: help install test lint fmt build run clean docker-build docker-run run-frontend worker-install worker-dev worker-deploy worker-typecheck pages-deploy test-frontend typecheck
 
 help:
-	@echo "Pynescript Development Commands"
+	@echo "Pynescript Development Commands (Bun-first)"
 	@echo ""
-	@echo "  install          Install dependencies"
-	@echo "  install-lsp      Install LSP dependencies"
-	@echo "  test             Run all tests"
+	@echo "  install          Install Python deps"
+	@echo "  install-bun      Install root + worker Bun deps"
+	@echo "  test             Run all tests (Python + Bun)"
+	@echo "  test-frontend    Run Bun tests for the PWA"
 	@echo "  test-lsp         Run LSP tests only"
 	@echo "  test-backend     Run backend tests only"
 	@echo "  lint             Run linting"
+	@echo "  typecheck        Typecheck all TS (root + worker)"
 	@echo "  build            Build LSP binary (requires nuitka)"
 	@echo "  build-vscode     Package VS Code extension"
 	@echo "  run              Run the API server"
 	@echo "  run-lsp          Run the LSP server"
-	@echo "  run-frontend     Serve the SuperChart Lite PWA (HTTP, port 8081)"
-	@echo "  worker-install   Install Cloudflare Worker npm deps"
+	@echo "  run-frontend     Serve the SuperChart Lite PWA (Bun, port 8081)"
+	@echo "  worker-install   Install Cloudflare Worker Bun deps"
 	@echo "  worker-dev       Run wrangler dev for the Worker (port 8787)"
 	@echo "  worker-typecheck Typecheck the Worker (tsc --noEmit)"
 	@echo "  worker-deploy    Deploy the Worker to Cloudflare"
@@ -30,11 +32,18 @@ help:
 install:
 	pip install -e ".[lsp]"
 
+install-bun:
+	bun install
+	cd frontend/worker && bun install
+
 install-lsp:
 	pip install -e ".[lsp]"
 
-test:
+test: test-frontend
 	python -m pytest tests/ -v --tb=short
+
+test-frontend:
+	bun test frontend/tests/
 
 test-lsp:
 	python -m pytest tests/test_langserver.py tests/test_lsp_features.py -v
@@ -47,6 +56,10 @@ lint:
 
 fmt:
 	ruff format src/ tests/ backend/
+
+typecheck:
+	bunx tsc -p tsconfig.json
+	cd frontend/worker && bunx tsc --noEmit
 
 build:
 	python scripts/build/compile.py --jobs=4
@@ -64,24 +77,24 @@ run-lsp:
 	python -m pynescript.langserver
 
 run-frontend:
-	@echo "Serving SuperChart Lite on http://localhost:8081"
+	@echo "Serving SuperChart Lite on http://127.0.0.1:8081"
 	@echo "(requires the backend on :5002 for /run — start with 'make run' in another terminal)"
-	python -m http.server 8081 --directory frontend
+	bun run frontend/server.ts
 
 worker-install:
-	cd frontend/worker && npm install
+	cd frontend/worker && bun install
 
 worker-dev:
-	cd frontend/worker && npm run dev
+	cd frontend/worker && bun run dev
 
 worker-typecheck:
-	cd frontend/worker && npm run typecheck
+	cd frontend/worker && bun run typecheck
 
 worker-deploy:
-	cd frontend/worker && npm run deploy
+	cd frontend/worker && bun run deploy
 
 pages-deploy:
-	cd frontend && npx --yes wrangler pages deploy . --project-name=pynescript-superchart
+	cd frontend && bunx --yes wrangler pages deploy . --project-name=pynescript-superchart
 
 docker-build:
 	docker build -f Dockerfile.api -t pynescript-api .

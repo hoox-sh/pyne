@@ -117,3 +117,50 @@ jobs:
           name: pynescript-vsix
           path: vscode-extension/*.vsix
           retention-days: 7
+
+  pwa:
+    name: PWA (Bun + TypeScript)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3"
+
+      - name: Install root deps
+        run: bun install --frozen-lockfile
+
+      - name: Install worker deps
+        working-directory: frontend/worker
+        run: bun install --frozen-lockfile
+
+      - name: Typecheck root
+        run: bunx tsc -p tsconfig.json
+
+      - name: Typecheck worker
+        working-directory: frontend/worker
+        run: bunx tsc --noEmit
+
+      - name: Run PWA tests
+        run: bun test frontend/tests/
+
+  cf-worker:
+    name: Cloudflare Worker (typecheck)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3"
+
+      - name: Install worker deps
+        working-directory: frontend/worker
+        run: bun install --frozen-lockfile
+
+      - name: Typecheck
+        working-directory: frontend/worker
+        run: bunx tsc --noEmit

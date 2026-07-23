@@ -135,3 +135,7 @@ vscode-extension/node_modules/
 vscode-extension/out/
 .webassets-cache
 wheels/
+
+# Bun
+node_modules/
+bun.lockb
