@@ -13,6 +13,9 @@ import { TabbedEditor } from './ui/tabbed-editor.js';
 import { initChart, setOhlcv, appendBar, setMarkers, clearOverlays, addOverlayLine,
          setEquityPane, setEquityCurve, setTimeRange } from './chart.js';
 import { openSettings } from './ui/settings.js';
+import { pyodideEngine } from './engines/index.js';
+import { initWatchlist } from './ui/watchlist.js';
+import { applyHashState, watchHashState } from './state-hash.js';
 import { openManager, initManager } from './ui/manager.js';
 import { attachSymbolAutocomplete } from './ui/symbol-autocomplete.js';
 
@@ -77,6 +80,38 @@ if (ta.crossunder(fastMA, slowMA))
 
 plot(fastMA, "Fast", color=color.orange)
 plot(slowMA, "Slow", color=color.blue)
+`,
+    'macd': `//@version=5
+// MACD indicator with signal line
+indicator("MACD", overlay=false)
+
+fastLen   = input.int(12, "Fast Length")
+slowLen   = input.int(26, "Slow Length")
+signalLen = input.int(9,  "Signal Length")
+
+[macdLine, signalLine, histLine] = ta.macd(close, fastLen, slowLen, signalLen)
+
+plot(macdLine,   "MACD",   color=color.blue)
+plot(signalLine, "Signal", color=color.orange)
+plot(histLine,   "Histogram", color=histLine >= 0 ? color.green : color.red, style=plot.style_columns)
+`,
+    'bollinger': `//@version=5
+// Bollinger Bands
+indicator("Bollinger Bands", overlay=true)
+
+length = input.int(20, "Length")
+mult   = input.float(2.0, "StdDev", step=0.1)
+
+basis = ta.sma(close, length)
+dev   = mult * ta.stdev(close, length)
+
+upper = basis + dev
+lower = basis - dev
+
+plot(basis, "Basis", color=color.orange)
+plot(upper, "Upper", color=color.blue)
+plot(lower, "Lower", color=color.blue)
+fill(plot(upper), plot(lower), color=color.new(color.blue, 90))
 `,
     'client-side-demo': `//@version=5
 // Tiny client-side demo — works with the Pyodide engine + sma/rsi builtins
@@ -463,8 +498,48 @@ async function bootstrap() {
     wireTimePresets();
     wireManager();
     initManager();  // restore theme + auto-load user plugins
+
+    // Wire Pyodide engine progress indicator
+    const progressEl = document.getElementById('engine-progress');
+    if (progressEl) {
+        pyodideEngine.setProgressCallback((msg) => {
+            if (msg) {
+                progressEl.textContent = msg;
+                progressEl.hidden = false;
+            } else {
+                progressEl.hidden = true;
+                progressEl.textContent = '';
+            }
+        });
+    }
+
+    // Offline indicator
+    const offlineBadge = document.getElementById('offline-badge');
+    function updateOnlineStatus() {
+        if (offlineBadge) offlineBadge.hidden = navigator.onLine;
+    }
+    window.addEventListener('online', updateOnlineStatus);
+    window.addEventListener('offline', updateOnlineStatus);
+    updateOnlineStatus();
+
     // Symbol autocomplete (best-effort, no UI changes if it fails)
     try { await attachSymbolAutocomplete(document.getElementById('symbol-input')); } catch (_) { /* ignore */ }
+
+    // Watchlist sidebar
+    initWatchlist();
+    window.addEventListener('watchlist-select', () => loadHistorical());
+
+    // URL hash state sync (reads hash → state on load, pushes state → hash on change)
+    const hadHash = applyHashState();
+    watchHashState();
+    if (hadHash) {
+        // Sync UI controls with restored state
+        const s = getState();
+        const symEl = document.getElementById('symbol-input');
+        const intEl = document.getElementById('interval-select');
+        if (symEl) symEl.value = s.get('symbol') || 'BTCUSDT';
+        if (intEl) intEl.value = s.get('interval') || '1d';
+    }
 
     // Global Ctrl/Cmd+Enter
     document.addEventListener('keydown', (e) => {

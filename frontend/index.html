@@ -60,9 +60,11 @@
 
         <div class="topbar-section topbar-demos">
             <span class="topbar-label">Demos:</span>
-            <button class="btn btn-ghost" data-demo="rsi-overlay">RSI (overlay=true)</button>
-            <button class="btn btn-ghost" data-demo="rsi-subpane">RSI (overlay=false)</button>
+            <button class="btn btn-ghost" data-demo="rsi-overlay">RSI Overlay</button>
+            <button class="btn btn-ghost" data-demo="rsi-subpane">RSI SubPane</button>
             <button class="btn btn-ghost" data-demo="sma-crossover">SMA Cross</button>
+            <button class="btn btn-ghost" data-demo="macd">MACD</button>
+            <button class="btn btn-ghost" data-demo="bollinger">Bollinger</button>
             <button class="btn btn-ghost" data-demo="client-side-demo">Client-Side</button>
         </div>
 
@@ -71,6 +73,7 @@
         <div class="topbar-section topbar-engine">
             <label class="topbar-label" for="engine-select">Engine</label>
             <select id="engine-select" class="topbar-select" title="Calculation engine"></select>
+            <span id="engine-progress" class="engine-progress" hidden></span>
             <label class="topbar-label" for="stream-select">Stream</label>
             <select id="stream-select" class="topbar-select" title="Live datastream"></select>
             <label class="topbar-label" for="endpoint-input">Endpoint</label>
@@ -87,6 +90,17 @@
     </header>
 
     <main class="layout">
+        <aside class="sidebar" id="watchlist-sidebar">
+            <div class="sidebar-header">
+                <span class="sidebar-title">Watchlist</span>
+                <button id="sidebar-toggle" class="btn btn-ghost btn-sm" title="Toggle watchlist">☰</button>
+            </div>
+            <div class="sidebar-body" id="watchlist-body"></div>
+            <div class="sidebar-footer">
+                <input id="watchlist-add" class="watchlist-add-input" type="text" placeholder="Add symbol…" autocomplete="off" />
+            </div>
+        </aside>
+
         <section class="chart-pane">
             <div id="chart-panes" class="chart-panes-host">
                 <div class="chart-pane-block" data-pane="main">
@@ -162,6 +176,7 @@
 
     <div id="status-bar" class="status-bar">
         <span id="status-text">Ready.</span>
+        <span id="offline-badge" class="offline-badge" hidden>⚡ Offline</span>
         <span class="status-spacer"></span>
         <span id="status-meta" class="status-meta"></span>
     </div>

@@ -12,7 +12,7 @@
  * misled about offline capability.
  */
 
-const VERSION = 'v1';
+const VERSION = 'v2';
 const SHELL_CACHE = `superchart-shell-${VERSION}`;
 const RUNTIME_CACHE = `superchart-runtime-${VERSION}`;
 const SHELL_ASSETS = [
