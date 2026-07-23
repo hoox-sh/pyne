@@ -20,6 +20,8 @@ Microbenchmarks on multi-thousand-bar series show large speedups for numeric scr
 
 ## Architecture
 
+Compilation is organized as four cooperating layers: an AST visitor that emits Python, a Numba-oriented builtin library for numeric kernels, flat array storage for series history, and a thin engine/runtime façade that packages results for the backend. The subsections below describe each layer in turn.
+
 ### 1. `CompilerVisitor` (AST to executable Python)
 
 The module `src/pynescript/compiler/compiler.py` defines `CompilerVisitor`, an AST walker that does not evaluate the tree. Instead, it transpiles statements into a Python source string that indexes OHLCV and user series by an explicit bar index (`__bar_idx`). The visitor tracks plot titles, allocates series storage, and sets `object_mode` when non-numeric constructs appear.
@@ -84,12 +86,14 @@ The module `src/pynescript/compiler/engine.py` provides the stable entry points:
 
 ## Benefits
 
-**Speed.** Replacing per-node visitor dispatch with a tight bar loop—and, where possible, Numba JIT—reduces constant factors that dominate multi-thousand-bar evaluations. After warm-up, numeric scripts can process millions of bars per second on typical workstation hardware for simple indicator workloads.
+The compile path is motivated by three practical properties of the pynescript stack: throughput on long histories, debuggability of generated code, and packaging simplicity relative to a native rewrite.
+
+**Speed.** Replacing per-node visitor dispatch with a tight bar loop—and, where possible, Numba JIT—reduces constant factors that dominate multi-thousand-bar evaluations. After warm-up, numeric scripts can process millions of bars per second on typical workstation hardware for simple indicator workloads. Object mode forgoes peak JIT throughput but still avoids AST visitation costs on every expression.
 
 **Safety and debugging.** Lowering to readable Python before JIT or object-mode execution preserves inspectability: failures can be diagnosed against the generated source rather than opaque native IR alone. The dual-mode design also isolates constructs that Numba cannot represent cleanly (UDTs, maps, drawings) without abandoning compilation entirely.
 
-**Compatibility.** The approach reuses the existing ANTLR parser and ASDL AST and depends only on optional Numba/numpy in the environment. No separate C/Rust toolchain is required for the MVP, which keeps packaging aligned with the rest of the Python codebase.
+**Compatibility.** The approach reuses the existing ANTLR parser and ASDL AST and depends only on optional Numba/numpy in the environment. No separate C/Rust toolchain is required for the MVP, which keeps packaging aligned with the rest of the Python codebase and with the backend’s `mode="compile"` switch.
 
 ## Remaining Work
 
-Further work includes expanding the Numba builtin surface, strategy execution under compile mode, richer drawing semantics (deletes, full style parity with the interpreter’s registries), nested UDTs and methods, and optional caching of generated modules to disk so that repeated runs avoid re-`exec` and re-JIT of identical scripts.
+Further work includes expanding the Numba builtin surface (additional `ta.*` and math helpers so fewer scripts fall out of numeric mode), strategy execution under compile mode (orders and `StrategyState` side effects today remain interpret-first), richer drawing semantics (deletes, full style parity with the interpreter’s registries), nested UDTs and methods, and optional caching of generated modules to disk so that repeated runs avoid re-`exec` and re-JIT of identical scripts. Parity tests that run the same fixture under both `mode="interpret"` and `mode="compile"` should continue to grow with each new lowered construct.

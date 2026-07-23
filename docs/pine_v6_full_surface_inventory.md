@@ -20,7 +20,7 @@ This inventory adopts a fixed tabular schema so that status claims remain compar
 
 ### Status definitions
 
-Status values are intentionally coarse. They distinguish fully usable paths from stubs, known absences, and items that this library deliberately leaves to the TradingView platform or to editor-only tooling.
+Status values are intentionally coarse. They distinguish fully usable paths from stubs, known absences, and items that this library deliberately leaves to the TradingView platform or to editor-only tooling. A single row is never split across statuses: when a symbol accepts calls but only partially implements Pine semantics, it is recorded as partial even if a happy-path script appears to work.
 
 | Status | Definition |
 |--------|------------|
@@ -43,6 +43,8 @@ The following aggregates summarize the inventory at generation time. Dispatch co
 | Known gap rows | 7 |
 
 ### By status (inventory rows)
+
+Status aggregates are computed over inventory rows, not dispatch keys alone. Implemented counts therefore include series variables supplied via evaluation context as well as fully registered callables; partial and missing rows concentrate in strategy statistics, platform-bound requests, and lightweight drawing styling.
 
 | Status | Count |
 |--------|------:|
@@ -93,7 +95,7 @@ Namespaces follow Pine’s dotted qualification (`ta.sma`, `strategy.entry`) wit
 
 ## Architecture graph
 
-The diagrams below situate the inventory against the runtime architecture: parse → AST → evaluator mixins and registries, plus a coarse status pie. They are illustrative rather than exhaustive.
+The diagrams below situate the inventory against the runtime architecture: parse → AST → evaluator mixins and registries, plus a coarse status pie. They are illustrative rather than exhaustive—intended to orient readers before the tabular detail, not to specify every edge in the implementation graph.
 
 ```mermaid
 flowchart TB
@@ -212,11 +214,11 @@ Some absences are intentional product boundaries rather than incomplete ports: t
 
 ## Full function & identifier inventory
 
-The tables that follow enumerate identifiers by namespace. **Status** for dispatch rows uses a lightweight heuristic (docstrings mentioning `stub` or `mock` are marked partial). Series catalog rows without a registered handler may still be supplied via evaluation context in some hosts; where neither exists, the row is marked missing.
+The tables that follow enumerate identifiers by namespace. **Status** for dispatch rows uses a lightweight heuristic (docstrings mentioning `stub` or `mock` are marked partial). Series catalog rows without a registered handler may still be supplied via evaluation context in some hosts; where neither exists, the row is marked missing. Namespace prefaces summarize intent and fidelity; the rows remain the authoritative per-symbol record.
 
 ### `ta` (154)
 
-Technical-analysis builtins dominate the dispatch surface. Coverage is broad; residual partials, if any, usually reflect simplified series math rather than absent symbols.
+Technical-analysis builtins dominate the dispatch surface—moving averages, oscillators, volatility measures, pivots, and a long tail of composite helpers. Coverage is broad; residual partials, if any, usually reflect simplified series math or research-oriented indicators rather than absent symbols. The numeric compile path reimplements a subset (`sma`, `ema`, `rsi`, range extremes) under Numba; remaining `ta.*` calls stay on the interpreter or object-mode path until mirrored in `numba_builtins`.
 
 | Name | Kind | Status | Metadata | Source | Notes |
 |------|------|--------|----------|--------|-------|
@@ -377,7 +379,7 @@ Technical-analysis builtins dominate the dispatch surface. Coverage is broad; re
 
 ### `strategy` (66)
 
-Strategy order handlers, risk helpers, and series statistics (position, equity, trade averages). Several series were promoted from missing to dispatch-backed zero-arg builtins after the 2026-07 runtime work; regenerate this file for exact counts.
+Strategy order handlers, risk helpers, and performance series (position, equity, trade averages, win/loss counts). Entry, exit, and cancel paths maintain a `StrategyState` with open/closed trades and emit structured events for backends. Several average and percent series were promoted to dispatch-backed zero-arg builtins in the 2026-07 runtime work; catalog rows still marked missing may simply lag this snapshot—regenerate the inventory for exact post-change counts. Full broker-grade simulation (margin calls, partial fills across sessions) remains partial by design.
 
 | Name | Kind | Status | Metadata | Source | Notes |
 |------|------|--------|----------|--------|-------|
@@ -450,7 +452,7 @@ Strategy order handlers, risk helpers, and series statistics (position, equity, 
 
 ### `array` (56)
 
-Array construction, mutation, search, and statistics. Python lists are the runtime representation; negative indices and UDT `sort_field` follow Pine v6 rules where implemented.
+Array construction, mutation, search, and statistics. Python lists are the runtime representation; negative indices and UDT `sort_field` follow Pine v6 rules where implemented. Statistical helpers (`avg`, `stdev`, covariance, and related functions) operate element-wise over the collection without requiring a separate series type.
 
 | Name | Kind | Status | Metadata | Source | Notes |
 |------|------|--------|----------|--------|-------|
@@ -513,6 +515,8 @@ Array construction, mutation, search, and statistics. Python lists are the runti
 
 ### `syminfo` (44)
 
+Symbol metadata exposed as series and constants (`syminfo.ticker`, mintick, currency, and related identifiers). Values are typically injected from the host context rather than computed bar-by-bar; absent fields remain catalogued so consumers can see which symbols the runtime may still leave unset.
+
 | Name | Kind | Status | Metadata | Source | Notes |
 |------|------|--------|----------|--------|-------|
 | `syminfo.basecurrency` | series/var | ✅ implemented | no | series_catalog |  |
@@ -562,6 +566,8 @@ Array construction, mutation, search, and statistics. Python lists are the runti
 
 ### `matrix` (37)
 
+Two-dimensional collections with arithmetic, row/column operations, and sorting. The evaluator implements a dedicated `Matrix` type; Pine v6 `sort_field` support for UDT elements follows the same rules as arrays where keys are int indices or field names.
+
 | Name | Kind | Status | Metadata | Source | Notes |
 |------|------|--------|----------|--------|-------|
 | `matrix.add_col` | function | ✅ implemented | yes | dispatch |  |
@@ -604,6 +610,8 @@ Array construction, mutation, search, and statistics. Python lists are the runti
 
 ### `label` (25)
 
+Chart labels and the `label.all` collection. Constructors and mutators are registered on the drawing surface; style arguments such as integer `text_size` and `text_formatting` are accepted for parity with recent Pine releases, while visual rendering remains out of scope.
+
 | Name | Kind | Status | Metadata | Source | Notes |
 |------|------|--------|----------|--------|-------|
 | `label.all` | series/var | 🔄 partial | no | series_catalog | stub/mock/limited semantics |
@@ -633,6 +641,8 @@ Array construction, mutation, search, and statistics. Python lists are the runti
 | `label.set_yloc` | function | ✅ implemented | yes | dispatch |  |
 
 ### `math` (25)
+
+Scalar and series-friendly mathematical primitives (`math.abs`, `math.log`, rounding, trigonometry, and related helpers). These form the numeric core shared by indicators and are mirrored, where needed, by Numba equivalents on the compile path.
 
 | Name | Kind | Status | Metadata | Source | Notes |
 |------|------|--------|----------|--------|-------|
@@ -664,6 +674,8 @@ Array construction, mutation, search, and statistics. Python lists are the runti
 
 ### `color` (24)
 
+Color construction and channel accessors (`color.new`, `color.r`/`g`/`b`/`t`, named constants). Transparency is expressed via `color.new` rather than the removed `transp=` drawing argument; handlers return structured color values consumable by plots and drawings.
+
 | Name | Kind | Status | Metadata | Source | Notes |
 |------|------|--------|----------|--------|-------|
 | `color.aqua` | constant | ✅ implemented | no | constants |  |
@@ -693,6 +705,8 @@ Array construction, mutation, search, and statistics. Python lists are the runti
 
 ### `box` (19)
 
+Rectangular drawing objects and the `box.all` collection. Creation, coordinate updates, and deletion are dispatch-backed; force-overlay and style kwargs are captured in object metadata for hosts that render them.
+
 | Name | Kind | Status | Metadata | Source | Notes |
 |------|------|--------|----------|--------|-------|
 | `box.all` | series/var | 🔄 partial | no | series_catalog | stub/mock/limited semantics |
@@ -716,6 +730,8 @@ Array construction, mutation, search, and statistics. Python lists are the runti
 | `box.set_xloc` | function | ✅ implemented | yes | dispatch |  |
 
 ### `str` (19)
+
+String construction, formatting, and inspection. Coverage includes length, substring, replace, and format helpers; interpolation beyond `str.format`-style patterns remains partial relative to full editor-side template sugar.
 
 | Name | Kind | Status | Metadata | Source | Notes |
 |------|------|--------|----------|--------|-------|
@@ -741,6 +757,8 @@ Array construction, mutation, search, and statistics. Python lists are the runti
 
 ### `line` (17)
 
+Line drawings and `line.all`. As with other drawing namespaces, the runtime records structured objects rather than painting pixels; extend, style, and delete operations update those objects for backends and tests.
+
 | Name | Kind | Status | Metadata | Source | Notes |
 |------|------|--------|----------|--------|-------|
 | `line.all` | series/var | 🔄 partial | no | series_catalog | stub/mock/limited semantics |
@@ -763,6 +781,8 @@ Array construction, mutation, search, and statistics. Python lists are the runti
 
 ### `chart` (16)
 
+Chart-level identifiers and helpers (for example `chart.point` and related accessors). These bridge script logic and host chart geometry; several entries are constants or lightweight constructors rather than bar series.
+
 | Name | Kind | Status | Metadata | Source | Notes |
 |------|------|--------|----------|--------|-------|
 | `chart.bg_color` | series/var | ✅ implemented | no | series_catalog |  |
@@ -784,6 +804,8 @@ Array construction, mutation, search, and statistics. Python lists are the runti
 
 ### `series` (15)
 
+Core price, volume, and bar-index series (`open`, `high`, `low`, `close`, `volume`, `time`, and related globals). They are supplied by the evaluation context and, on the compile path, mapped onto contiguous numpy arrays for the bar loop.
+
 | Name | Kind | Status | Metadata | Source | Notes |
 |------|------|--------|----------|--------|-------|
 | `ask` | series/var | ✅ implemented | no | series_catalog |  |
@@ -804,6 +826,8 @@ Array construction, mutation, search, and statistics. Python lists are the runti
 
 ### `timeframe` (14)
 
+Timeframe inspection and conversion (`timeframe.period`, multipliers, and related helpers). Used heavily by multi-timeframe scripts and by `request.*` resolution when symbols or periods are dynamic series strings.
+
 | Name | Kind | Status | Metadata | Source | Notes |
 |------|------|--------|----------|--------|-------|
 | `timeframe.change` | function | 🔄 partial | yes | dispatch | stub/mock/limited semantics |
@@ -823,6 +847,8 @@ Array construction, mutation, search, and statistics. Python lists are the runti
 
 ### `input` (12)
 
+User inputs declared at script load (`input.int`, `input.float`, `input.bool`, and typed variants including `input.enum` and `input.color`). Handlers return defaults and store metadata—including the `active` flag—for settings UIs and LSP consumers.
+
 | Name | Kind | Status | Metadata | Source | Notes |
 |------|------|--------|----------|--------|-------|
 | `input.bool` | function | ✅ implemented | yes | dispatch |  |
@@ -839,6 +865,8 @@ Array construction, mutation, search, and statistics. Python lists are the runti
 | `input.timeframe` | function | ✅ implemented | yes | dispatch |  |
 
 ### `table` (12)
+
+On-chart tables for tabular annotation. Cell and style updates are registered through the drawing/table surface; layout is metadata-driven rather than rendered in-process.
 
 | Name | Kind | Status | Metadata | Source | Notes |
 |------|------|--------|----------|--------|-------|
@@ -857,6 +885,8 @@ Array construction, mutation, search, and statistics. Python lists are the runti
 
 ### `time` (12)
 
+Calendar and clock helpers (`year`, `month`, `dayofweek`, `timestamp`, trading-day boundaries). Values derive from bar timestamps in the evaluation context and support session-aware scripts without a live exchange clock.
+
 | Name | Kind | Status | Metadata | Source | Notes |
 |------|------|--------|----------|--------|-------|
 | `dayofmonth` | function | ✅ implemented | yes | dispatch |  |
@@ -874,7 +904,7 @@ Array construction, mutation, search, and statistics. Python lists are the runti
 
 ### `map` (11)
 
-Key–value maps used in both interpreter and compile object mode (`map.new` / `put` / `get` and related operations).
+Key–value maps for associative state within a script. The interpreter uses ordinary Python dictionaries; compile object mode lowers the same operations (`map.new`, `put`, `get`, `contains`, `keys`, `values`, and related mutators) into dictionary operations inside the generated bar loop so maps remain available outside Numba’s typed container model.
 
 | Name | Kind | Status | Metadata | Source | Notes |
 |------|------|--------|----------|--------|-------|
@@ -892,7 +922,7 @@ Key–value maps used in both interpreter and compile object mode (`map.new` / `
 
 ### `request` (11)
 
-Cross-symbol and fundamental data requests. Live values depend on an injected `data_feed` or `data_provider`; without either, handlers return deterministic mock series.
+Cross-symbol, multi-timeframe, and fundamental data requests. Dynamic symbol and timeframe arguments are resolved per call; live values depend on an injected `data_feed` or `data_provider`. Without either, handlers return deterministic mock series so scripts remain evaluable offline. Real broker/market feeds are intentionally out of scope for this library.
 
 | Name | Kind | Status | Metadata | Source | Notes |
 |------|------|--------|----------|--------|-------|
@@ -910,7 +940,7 @@ Cross-symbol and fundamental data requests. Live values depend on an injected `d
 
 ### `plotting` (10)
 
-Chart output functions. Evaluator registration via `PlotRegistry` captures real side effects for backends and tests even without a UI.
+Chart output functions (`plot`, `plotshape`, `hline`, `bgcolor`, and related helpers). The evaluator’s `PlotRegistry` records real side-effect objects for backends and tests even without a UI; several styling paths remain partial relative to full TradingView visual fidelity. Compile object mode captures the same calls as structured drawing events.
 
 | Name | Kind | Status | Metadata | Source | Notes |
 |------|------|--------|----------|--------|-------|
@@ -927,6 +957,8 @@ Chart output functions. Evaluator registration via `PlotRegistry` captures real 
 
 ### `session` (9)
 
+Session flags and identifiers (`session.ismarket`, pre/post market, first/last bar of session). Values are context series; correctness depends on the host supplying session boundaries consistent with the symbol’s trading calendar.
+
 | Name | Kind | Status | Metadata | Source | Notes |
 |------|------|--------|----------|--------|-------|
 | `session.extended` | series/var | ✅ implemented | no | series_catalog |  |
@@ -940,6 +972,8 @@ Chart output functions. Evaluator registration via `PlotRegistry` captures real 
 | `session.regular` | series/var | ✅ implemented | no | series_catalog |  |
 
 ### `utility` (9)
+
+Cross-cutting helpers: type casts (`int`, `float`, `bool`, `string`), missing-value utilities (`na`, `nz`, `fixnan`), and alert APIs. These appear frequently in real scripts and are treated as first-class builtins on both interpretive and numeric compile paths where types allow.
 
 | Name | Kind | Status | Metadata | Source | Notes |
 |------|------|--------|----------|--------|-------|
@@ -955,6 +989,8 @@ Chart output functions. Evaluator registration via `PlotRegistry` captures real 
 
 ### `ticker` (8)
 
+Synthetic and modified ticker constructors (`ticker.new`, Heikin Ashi, Renko, Kagi, point-and-figure, and related variants). They produce ticker identifiers consumable by `request.security` rather than transforming OHLCV in place.
+
 | Name | Kind | Status | Metadata | Source | Notes |
 |------|------|--------|----------|--------|-------|
 | `ticker.heikinashi` | function | ✅ implemented | yes | dispatch |  |
@@ -968,6 +1004,8 @@ Chart output functions. Evaluator registration via `PlotRegistry` captures real 
 
 ### `barstate` (7)
 
+Bar lifecycle flags (`barstate.isfirst`, `islast`, `isrealtime`, confirmation, and related predicates). Hosts inject these per bar; strategies and realtime-sensitive scripts branch on them to separate historical fill semantics from live updates.
+
 | Name | Kind | Status | Metadata | Source | Notes |
 |------|------|--------|----------|--------|-------|
 | `barstate.isconfirmed` | series/var | ✅ implemented | no | series_catalog |  |
@@ -979,6 +1017,8 @@ Chart output functions. Evaluator registration via `PlotRegistry` captures real 
 | `barstate.isrealtime` | series/var | ✅ implemented | no | series_catalog |  |
 
 ### `earnings` (7)
+
+Earnings-related series fields used with `request.earnings` results (actuals, estimates, and future-period placeholders). Without a fundamentals provider they remain catalogued context series or mock-backed values rather than live corporate data.
 
 | Name | Kind | Status | Metadata | Source | Notes |
 |------|------|--------|----------|--------|-------|
@@ -992,6 +1032,8 @@ Chart output functions. Evaluator registration via `PlotRegistry` captures real 
 
 ### `footprint` (6)
 
+Methods on footprint objects returned by `request.footprint` (volume, delta, POC, value-area bounds). Implementation uses structured mock footprints with optional volume scaling from a data feed; exchange-native order-flow feeds are not required.
+
 | Name | Kind | Status | Metadata | Source | Notes |
 |------|------|--------|----------|--------|-------|
 | `footprint.buy_volume` | function | ✅ implemented | yes | dispatch |  |
@@ -1003,6 +1045,8 @@ Chart output functions. Evaluator registration via `PlotRegistry` captures real 
 
 ### `dividends` (5)
 
+Dividend series fields associated with `request.dividends` (gross/net amounts and future date placeholders). As with other fundamental namespaces, offline evaluation relies on mock or injected context rather than a market data subscription.
+
 | Name | Kind | Status | Metadata | Source | Notes |
 |------|------|--------|----------|--------|-------|
 | `dividends.future_amount` | series/var | ✅ implemented | no | series_catalog |  |
@@ -1013,6 +1057,8 @@ Chart output functions. Evaluator registration via `PlotRegistry` captures real 
 
 ### `declaration` (3)
 
+Top-level script declarations (`indicator`, `strategy`, `library`). They establish script kind, title, and options metadata and, for libraries, participate in export registration for in-process `import` resolution.
+
 | Name | Kind | Status | Metadata | Source | Notes |
 |------|------|--------|----------|--------|-------|
 | `indicator` | function | ✅ implemented | yes | dispatch | Declaration metadata |
@@ -1020,6 +1066,8 @@ Chart output functions. Evaluator registration via `PlotRegistry` captures real 
 | `strategy` | function | ✅ implemented | yes | dispatch |  |
 
 ### `log` (3)
+
+Runtime logging (`log.info`, `log.warning`, `log.error`). Messages are captured for host diagnostics; severity levels mirror Pine’s logging API without requiring the TradingView editor console.
 
 | Name | Kind | Status | Metadata | Source | Notes |
 |------|------|--------|----------|--------|-------|
@@ -1029,6 +1077,8 @@ Chart output functions. Evaluator registration via `PlotRegistry` captures real 
 
 ### `plot` (3)
 
+Plot linestyle constants (`plot.linestyle_solid`, dashed, dotted) used as arguments to `plot` and related output functions. They are dispatch-visible constants rather than series producers.
+
 | Name | Kind | Status | Metadata | Source | Notes |
 |------|------|--------|----------|--------|-------|
 | `plot.linestyle_dashed` | constant | ✅ implemented | yes | dispatch |  |
@@ -1036,6 +1086,8 @@ Chart output functions. Evaluator registration via `PlotRegistry` captures real 
 | `plot.linestyle_solid` | constant | ✅ implemented | yes | dispatch |  |
 
 ### `polyline` (3)
+
+Multi-segment polylines (`polyline.new`, `delete`, and the `polyline.all` collection). Creation is dispatch-backed; the collection series may still be partial relative to full host-managed lifetime semantics.
 
 | Name | Kind | Status | Metadata | Source | Notes |
 |------|------|--------|----------|--------|-------|
@@ -1045,6 +1097,8 @@ Chart output functions. Evaluator registration via `PlotRegistry` captures real 
 
 ### `global` (2)
 
+Bare global callables that double as namespaces in Pine surface usage—most notably `color(...)` and `input(...)` entry points alongside their dotted specializations.
+
 | Name | Kind | Status | Metadata | Source | Notes |
 |------|------|--------|----------|--------|-------|
 | `color` | function | ✅ implemented | yes | dispatch |  |
@@ -1052,12 +1106,16 @@ Chart output functions. Evaluator registration via `PlotRegistry` captures real 
 
 ### `volume_row` (2)
 
+Accessors on footprint volume-row objects (`up_price`, `down_price`). Used together with `request.footprint` mock or feed-backed structures when scripts inspect price levels within a volume profile row.
+
 | Name | Kind | Status | Metadata | Source | Notes |
 |------|------|--------|----------|--------|-------|
 | `volume_row.down_price` | function | ✅ implemented | yes | dispatch |  |
 | `volume_row.up_price` | function | ✅ implemented | yes | dispatch |  |
 
 ### `linefill` (1)
+
+Fill regions between lines. The inventory currently catalogues `linefill.all`; fuller constructor and style parity with TradingView’s linefill API remains limited compared to `line`/`box`/`label`.
 
 | Name | Kind | Status | Metadata | Source | Notes |
 |------|------|--------|----------|--------|-------|
