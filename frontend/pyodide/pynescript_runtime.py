@@ -141,9 +141,46 @@ def _patch_evaluator():
             raise ValueError(msg)
         if kwargs and _handler_accepts_kwargs(handler):
             return handler(args, kwargs)
-        return handler(args)
+        # Standalone functions like color_new(color, transp) expect
+        # unpacked args.  Others (e.g. _capture_plot) have their first
+        # positional param named ``args`` and expect a single list.
+        import types as _types
+        import inspect as _inspect
+
+        if not isinstance(handler, _types.MethodType):
+            _params = list(_inspect.signature(handler).parameters.values())
+            if _params and _params[0].name != "args":
+                return handler(*args, **(kwargs or {}))
+        result = handler(args)
+        # Input handlers (input.int, input.float, etc.) return metadata
+        # dicts like {"default": 20, "type": "int", ...}.  PineScript
+        # expects them to evaluate to the scalar default value so that
+        # expressions like ``dev = mult * ta.stdev(close, length)`` work.
+        if isinstance(result, dict) and "default" in result and "type" in result:
+            return result["default"]
+        return result
 
     BuiltinDispatchMixin._call_builtin = _patched_call_builtin
+
+    # --- Patch arithmetics: propagate None (PineScript na) ---
+    from pynescript.ast.evaluator import expressions as expr_module
+
+    def _none_safe(op_func):
+        def safe(a, b):
+            if a is None or b is None:
+                return None
+            return op_func(a, b)
+
+        return safe
+
+    for _name in ("_OPERATOR_ADD", "_OPERATOR_SUB", "_OPERATOR_MUL", "_OPERATOR_DIV", "_OPERATOR_MOD"):
+        if hasattr(expr_module, _name):
+            setattr(expr_module, _name, _none_safe(getattr(expr_module, _name)))
+
+    # Also patch comparison operators for None (PineScript na comparisons)
+    for _name in ("_OPERATOR_LT", "_OPERATOR_LE", "_OPERATOR_GT", "_OPERATOR_GE", "_OPERATOR_EQ", "_OPERATOR_NE"):
+        if hasattr(expr_module, _name):
+            setattr(expr_module, _name, _none_safe(getattr(expr_module, _name)))
 
 
 class CustomEvaluator:
