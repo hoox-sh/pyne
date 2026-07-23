@@ -68,7 +68,9 @@ def _patch_evaluator():
         if isinstance(value, list):
             return value
         if hasattr(value, "history") and hasattr(value, "current"):
-            return list(value.history)
+            # PineSeries stores newest-first (appendleft). TA functions need
+            # oldest-first chronological order.
+            return list(reversed(value.history))
         if hasattr(value, "__iter__") and hasattr(value, "__len__"):
             return list(value)
         self._error(f"{message}. Got: {type(value).__name__}")

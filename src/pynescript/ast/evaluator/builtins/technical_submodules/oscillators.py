@@ -378,7 +378,13 @@ class OscillatorIndicators(TechnicalHelpers):
         gains: list[float] = []
         losses: list[float] = []
         for idx in range(1, len(series)):
-            change = series[idx] - series[idx - 1]
+            prev = series[idx - 1]
+            curr = series[idx]
+            if prev is None or curr is None:
+                gains.append(0)
+                losses.append(0)
+                continue
+            change = curr - prev
             if change > 0:
                 gains.append(change)
                 losses.append(0)
