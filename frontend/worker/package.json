@@ -1,0 +1,23 @@
+{
+    "name": "pynescript-superchart-worker",
+    "version": "1.0.0",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "dev": "wrangler dev",
+        "deploy": "wrangler deploy",
+        "deploy:pages": "wrangler pages deploy ../ --project-name=pynescript-superchart",
+        "tail": "wrangler tail",
+        "typecheck": "tsc --noEmit",
+        "test": "vitest run"
+    },
+    "devDependencies": {
+        "@cloudflare/workers-types": "^4.20241112.0",
+        "typescript": "^5.6.0",
+        "vitest": "^2.1.0",
+        "wrangler": "^3.80.0"
+    },
+    "dependencies": {
+        "zod": "^3.23.0"
+    }
+}

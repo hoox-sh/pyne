@@ -10,6 +10,7 @@ _Pine Script™ and TradingView® are trademarks of TradingView, Inc. This proje
 - [Overview](#overview)
 - [Language Server (LSP)](#language-server-lsp)
 - [Pro API](#pro-api)
+- [SuperChart Lite PWA](#superchart-lite-pwa)
 - [Features](#features)
 - [Installation](#installation)
 - [Quickstart](#quickstart)
@@ -103,6 +104,26 @@ Cloud API for live chart previews and strategy backtesting:
 | `POST /preview/chart` | Generate chart thumbnail | Pro |
 | `POST /preview/indicator` | Indicator chart (SMA, EMA, RSI, MACD) | Pro |
 | `POST /backtest/quick` | Quick backtest with equity curve | Pro |
+
+## SuperChart Lite PWA
+
+A modular TradingView-style UI lives in [`frontend/`](frontend/README.md).
+It is a **fully installable PWA** with swappable data **Sources**,
+**Datastreams**, and **Calculation Engines** (server-side Flask, in-browser
+Pyodide, or Cloudflare Worker). The Cloudflare Worker in
+[`frontend/worker/`](frontend/worker/README.md) provides the production
+backend (Pages + Workers + Durable Objects + KV + D1 + R2).
+
+```bash
+make run              # Flask API on :5002
+make run-frontend     # Serve the PWA on :8081
+make worker-dev       # CF Worker on :8787
+make pages-deploy     # Push the PWA to Cloudflare Pages
+make worker-deploy    # Push the API to Cloudflare Workers
+```
+
+See [`frontend/README.md`](frontend/README.md) for the full plugin contract
+and the PWA architecture diagram.
 
 ### Pricing
 

@@ -1,0 +1,51 @@
+name = "pynescript-superchart"
+compatibility_date = "2024-11-01"
+compatibility_flags = ["nodejs_compat"]
+main = "src/index.ts"
+
+# Static PWA assets are hosted by Cloudflare Pages — this Worker is the
+# JSON API and the WebSocket relay. Pages serves the frontend/ directory
+# via the Pages build pipeline; this wrangler.toml only deploys the Worker.
+
+[observability]
+enabled = true
+
+# KV namespaces — created via `wrangler kv namespace create <NAME>` then
+# the returned id is pasted here.  The placeholders below are intentionally
+# invalid; deploy will fail until you set them.  For local dev, `wrangler
+# dev` provisions local versions automatically.
+# [[kv_namespaces]]
+# binding = "API_KEYS"
+# id = "REPLACE_WITH_KV_ID"
+
+# [[kv_namespaces]]
+# binding = "USAGE"
+# id = "REPLACE_WITH_KV_ID"
+
+# D1 database — created via `wrangler d1 create pynescript`.
+# [[d1_databases]]
+# binding = "DB"
+# database_name = "pynescript"
+# database_id = "REPLACE_WITH_D1_ID"
+
+# R2 bucket — created via `wrangler r2 bucket create indicator-bundles`.
+# [[r2_buckets]]
+# binding = "BUNDLES"
+# bucket_name = "indicator-bundles"
+
+# Durable Objects — the WebSocket session relay.
+# [[durable_objects.bindings]]
+# name = "SESSIONS"
+# class_name = "SessionDO"
+
+# [[migrations]]
+# tag = "v1"
+# new_sqlite_classes = ["SessionDO"]
+
+[vars]
+# Default external backend if the Worker doesn't run the Python itself.
+# When unset, /api/run returns 503 with a hint to set EXTERNAL_BACKEND or
+# install the full Python wheel inside the Worker (see worker/RUNTIME.md).
+EXTERNAL_BACKEND = ""
+ALLOWED_ORIGIN = "https://pynescript.ai"
+ADMIN_TOKEN = ""

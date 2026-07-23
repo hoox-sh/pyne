@@ -3,21 +3,139 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TradingView Clone</title>
+    <title>SuperChart Lite — pynescript</title>
+    <link rel="manifest" href="manifest.webmanifest">
+    <meta name="theme-color" content="#131722">
+    <link rel="icon" type="image/png" sizes="192x192" href="assets/icon-192.png">
+    <link rel="apple-touch-icon" href="assets/icon-192.png">
     <link rel="stylesheet" href="style.css">
+    <script type="importmap">
+    {
+        "imports": {
+            "@codemirror/view": "https://esm.sh/@codemirror/view@6.26.3",
+            "@codemirror/state": "https://esm.sh/@codemirror/state@6.4.1",
+            "@codemirror/commands": "https://esm.sh/@codemirror/commands@6.5.0",
+            "@codemirror/language": "https://esm.sh/@codemirror/language@6.10.2",
+            "@codemirror/search": "https://esm.sh/@codemirror/search@6.5.6",
+            "@codemirror/autocomplete": "https://esm.sh/@codemirror/autocomplete@6.16.0",
+            "@lezer/highlight": "https://esm.sh/@lezer/highlight@1.2.0",
+            "crelt": "https://esm.sh/crelt@1.0.6",
+            "style-mod": "https://esm.sh/style-mod@4.1.2"
+        }
+    }
+    </script>
 </head>
 <body>
-    <div class="chart-container">
-        <div id="chart"></div>
+    <header class="topbar">
+        <div class="brand">SuperChart Lite <span class="brand-sub">pynescript</span></div>
+
+        <div class="topbar-section">
+            <label class="topbar-label" for="source-select">Source</label>
+            <select id="source-select" class="topbar-select" title="Historical data source"></select>
+            <label class="topbar-label" for="symbol-input">Symbol</label>
+            <input id="symbol-input" class="topbar-input" type="text" value="BTCUSDT" autocomplete="off" />
+        </div>
+
+        <div class="topbar-section">
+            <label class="topbar-label" for="interval-select">Interval</label>
+            <select id="interval-select" class="topbar-select">
+                <option value="1m">1m</option>
+                <option value="5m">5m</option>
+                <option value="15m">15m</option>
+                <option value="1h">1h</option>
+                <option value="4h">4h</option>
+                <option value="1d" selected>1d</option>
+                <option value="1w">1w</option>
+            </select>
+        </div>
+
+        <div class="topbar-section">
+            <button id="load-btn" class="btn">Load</button>
+            <button id="upload-btn" class="btn btn-ghost">Upload…</button>
+            <input id="upload-input" type="file" accept=".csv,.json,application/json,text/csv" hidden />
+            <button id="live-btn" class="btn btn-ghost" title="Stream live candles">
+                <span class="live-dot"></span><span class="live-label">▶ Live</span>
+            </button>
+        </div>
+
+        <div class="topbar-section topbar-demos">
+            <span class="topbar-label">Demos:</span>
+            <button class="btn btn-ghost" data-demo="rsi-overlay">RSI (overlay=true)</button>
+            <button class="btn btn-ghost" data-demo="rsi-subpane">RSI (overlay=false)</button>
+            <button class="btn btn-ghost" data-demo="sma-crossover">SMA Cross</button>
+            <button class="btn btn-ghost" data-demo="client-side-demo">Client-Side</button>
+        </div>
+
+        <div class="topbar-spacer"></div>
+
+        <div class="topbar-section topbar-engine">
+            <label class="topbar-label" for="engine-select">Engine</label>
+            <select id="engine-select" class="topbar-select" title="Calculation engine"></select>
+            <label class="topbar-label" for="stream-select">Stream</label>
+            <select id="stream-select" class="topbar-select" title="Live datastream"></select>
+            <label class="topbar-label" for="endpoint-input">Endpoint</label>
+            <input id="endpoint-input" class="topbar-input endpoint" type="text" placeholder="https://…" autocomplete="off" />
+        </div>
+
+        <div class="topbar-section topbar-mode">
+            <span id="mode-badge" class="mode-badge mode-local" title="Backend mode">Local</span>
+            <button id="mode-toggle" class="btn btn-ghost btn-sm" title="Toggle local/cloud">⇄</button>
+            <input id="api-key-input" class="topbar-input api-key" type="password" placeholder="API key" autocomplete="off" />
+        </div>
+    </header>
+
+    <main class="layout">
+        <section class="chart-pane">
+            <div id="chart" class="chart-host"></div>
+            <div id="equity-pane" class="equity-pane" hidden>
+                <div class="equity-header">Equity Curve</div>
+                <div id="equity-chart" class="equity-host"></div>
+            </div>
+        </section>
+
+        <aside class="editor-pane">
+            <div class="editor-header">
+                <div class="editor-title">Pine Editor</div>
+                <div class="editor-actions">
+                    <button id="run-button" class="btn btn-primary" title="Run (Ctrl/Cmd+Enter)">▶ Run</button>
+                    <button id="save-button" class="btn btn-ghost btn-sm" title="Save to localStorage">💾 Save</button>
+                    <button id="reset-button" class="btn btn-ghost btn-sm" title="Reset stored state">Reset</button>
+                </div>
+            </div>
+            <div id="pine-editor" class="pine-editor-host"></div>
+
+            <div class="results">
+                <div class="results-tabs" role="tablist">
+                    <button class="tab tab-active" data-tab="trades" role="tab">Trades &amp; Events</button>
+                    <button class="tab" data-tab="plots" role="tab">Plots</button>
+                    <button class="tab" data-tab="metrics" role="tab">Metrics</button>
+                    <button class="tab" data-tab="raw" role="tab">Raw JSON</button>
+                </div>
+                <div class="results-body">
+                    <div id="tab-trades" class="tab-panel tab-panel-active">
+                        <div class="empty">Run a script to see events.</div>
+                    </div>
+                    <div id="tab-plots" class="tab-panel">
+                        <div class="empty">Run a script to see plots.</div>
+                    </div>
+                    <div id="tab-metrics" class="tab-panel">
+                        <div class="empty">Run a script to see metrics.</div>
+                    </div>
+                    <div id="tab-raw" class="tab-panel">
+                        <pre id="raw-json" class="raw-json"></pre>
+                    </div>
+                </div>
+            </div>
+        </aside>
+    </main>
+
+    <div id="status-bar" class="status-bar">
+        <span id="status-text">Ready.</span>
+        <span class="status-spacer"></span>
+        <span id="status-meta" class="status-meta"></span>
     </div>
-    <div class="controls">
-        <textarea id="pine-script-input" placeholder="Enter Pine Script..."></textarea>
-        <button id="run-button">Run</button>
-    </div>
-    <div id="output-container">
-        <pre id="output"></pre>
-    </div>
-    <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
-    <script src="script.js"></script>
+
+    <script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+    <script type="module" src="src/main.js"></script>
 </body>
 </html>

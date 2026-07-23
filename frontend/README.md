@@ -1,73 +1,177 @@
-# frontend/ — pynescript SuperChart Lite (prototype)
+# frontend/ — SuperChart Lite (PWA)
 
-Lightweight browser clone of a TradingView-style chart + integrated Pine Script editor.
+A modular TradingView-style chart + Pine Script editor. **Installable PWA**,
+**fully pluggable**, runs against a local Flask backend, a Cloudflare Worker,
+or **fully offline** with the in-browser Pyodide engine.
 
-**Current status (MVP slice)**
+## Architecture
 
-- Candlestick chart powered by TradingView `lightweight-charts`
-- Split layout: chart | **CodeMirror 6** Pine editor (syntax highlight + line numbers)
-- Load data: Binance public (with fallback), CSV/JSON upload
-- "Load RSI Strategy" demo buttons (`overlay=true` / `overlay=false`)
-- Run via backend `POST /run` (full pynescript evaluator + strategy events)
-- Visualization: plot() on main or sub-pane (`overlay=`) + strategy trade markers on price
-- Tabs: Trades & Events, Plots, Metrics, Raw JSON
-- Keyboard: Ctrl/Cmd + Enter runs the script
-- Fully static ES modules — serve with `make run-frontend` (HTTP required for CM6 CDN)
-- **CDNs**: lightweight-charts (jsDelivr/unpkg) + CodeMirror 6 packages (esm.sh). Offline/file:// falls back where possible.
-- **localStorage**: auto-saves script + symbol/TF + mode + API key; 💾 Save / Reset saved
-- **Equity pane**: strategy capital curve under the chart after Run
-- **Local / Cloud stub**: toggle badge → API key bar → `Authorization: Bearer` + `/auth/validate` + usage
-
-## Local dev (recommended)
-
-```bash
-# Terminal 1
-make run          # backend API on :5002 (needs no extra deps for basic use)
-
-# Terminal 2
-make run-frontend # or: python -m http.server 8081 --directory frontend
-# then open http://localhost:8081
+```
+┌─────────────────────────── Browser (PWA) ─────────────────────────────┐
+│  Service Worker · manifest.webmanifest · offline cache               │
+│  UI: lightweight-charts + CodeMirror 6 + tabs                         │
+│                                                                       │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌────────────────────┐    │
+│  │ Sources  │  │ Streams  │  │ Engines  │  │ Storage (localStorage│   │
+│  │ (history)│  │ (live)   │  │ (calc)   │  │  + IDB for offline)  │   │
+│  └────┬─────┘  └────┬─────┘  └────┬─────┘  └────────────────────┘    │
+│       │             │              │                                    │
+│       ▼             ▼              ▼                                    │
+│  registry-driven, all plugins share the same contract                 │
+└───────────────────────────────────────────────────────────────────────┘
+            │                                            │
+            ▼ (only if engine=server OR stream=remote)   ▼
+┌─────────────────────────── Backend (pluggable) ───────────────────────┐
+│  Local Flask `make run`      OR      Cloudflare Pages + Worker        │
+│  (dev only)                            • Pages: static PWA             │
+│                                        • Worker: /api/run, /api/stream│
+│                                        • Durable Object: live session  │
+│                                        • KV: API keys, usage meter     │
+│                                        • D1: persistent runs/scripts   │
+│                                        • R2: indicator bundle cache    │
+│                                        • WebSocket Hibernation (DO)    │
+└───────────────────────────────────────────────────────────────────────┘
 ```
 
-Direct file open will still let you use the Pine editor, Run button (demo mode), data upload, and Live stream (datafeed simulation).
+## Plugin contract
 
-## Live data & datafeed integration
-- "▶ Live" button starts a real-time candle stream (Binance WS) that behaves like `CCXTProDataFeed.watch_ohlcv`.
-- Falls back to in-memory MockDataFeed simulation (from `src/pynescript/util/datafeed.py`).
-- Historical data goes through backend `/data/historical` which uses `pynescript.util.data.get_provider` (ccxt supported when installed).
-- The Python `datafeed` module powers server-side realtime for the evaluator (`request.*`, strategy runs).
+Every plugin is an object with `{ id, name, kind, description, configSchema, ... }`.
 
-## Editor
+```ts
+// kind: 'source'  — historical OHLCV
+interface Source {
+  fetchHistorical({ symbol, interval, config }): Promise<Bar[]>
+}
 
-- `pine-editor.js` — CodeMirror 6 host + Pine `StreamLanguage` (keywords/types/`ta.*`/`strategy.*`)
-- TV-dark theme; Tab indent; search/history/fold via CM defaults
-- If esm.sh is blocked, falls back to a plain textarea
+// kind: 'stream'  — live tick / bar push
+interface Stream {
+  start({ symbol, interval, onBar, onError, onStatus, config }): () => void  // returns stop
+}
 
-## Persistence (`storage.js`)
+// kind: 'engine'  — calculate Pine
+interface Engine {
+  isReady(): Promise<boolean>
+  run({ script, bars, config }): Promise<RunResult>
+}
 
-Browser `localStorage` key `pynescript.superchart.v1`:
+type RunResult = {
+  status: 'success' | 'error',
+  plots: (number|null)[],
+  series?: Record<string, (number|null)[]>,
+  events: any[],
+  meta?: { mode?, script_id?, run_id?, ms? },
+  error?: string,
+}
+```
 
-| Field | Purpose |
-|-------|---------|
-| `script` | Pine source |
-| `symbol` / `interval` | Last market selection |
-| `mode` | `local` \| `cloud` |
-| `apiKey` | Stored **only in this browser** (dev convenience) |
+## Built-in plugins
 
-## Local vs Cloud
+| Kind   | id            | Source                           |
+|--------|---------------|----------------------------------|
+| Source | `binance-rest`| `https://api.binance.com/...`    |
+| Source | `mock-walk`   | pure-synthetic random walk       |
+| Source | `csv-upload`  | user-uploaded file               |
+| Stream | `binance-ws`  | `wss://stream.binance.com/...`   |
+| Stream | `mock-poll`   | synthetic poll (offline)         |
+| Stream | `none`        | paused                           |
+| Engine | `server`      | `POST {endpoint}/run`            |
+| Engine | `pyodide`     | in-browser Python (Pyodide)      |
 
-| Mode | Behavior |
-|------|----------|
-| **Local** | Free `POST /run`, no key |
-| **Cloud** | Requires API key; sends `Authorization: Bearer …`; validates via `/auth/validate`; shows `/auth/usage` when available |
+Add a new plugin: drop a file in `frontend/src/plugins/<id>.js` that
+default-exports the plugin object, then import + register it in
+`src/registry-bootstrap.js`. Or load at runtime from the DevTools console:
 
-Create a key (dev): `POST /auth/create_key` with admin token configured.
+```js
+import { loadPluginFromUrl } from './src/registry.js';
+await loadPluginFromUrl('https://example.com/my-plugin.js');
+```
 
-## Future (per plan)
+## Local dev
 
-- Richer Pine language (full grammar / completions from builtin_metadata)
-- Real modular pay-as-you-go metering on `/run`
-- Persistent "cloud runner" sessions (CF Durable Objects)
-- Self data streams / WebSocket feeds
-- Full CF Pages + Workers deployment using pine-worker
-- Optional Vite packaging for offline vendor bundles
+```bash
+# Terminal 1 — backend
+make run              # Flask on :5002 (uses the existing pynescript runtime)
+
+# Terminal 2 — PWA
+make run-frontend     # python -m http.server 8081 --directory frontend
+# open http://localhost:8081
+```
+
+For an **offline-first** demo: set `Source = Mock Walk`, `Stream = Mock Poll`,
+`Engine = Client-Side (Pyodide)`. Disable network in DevTools — Run still works.
+
+## File map
+
+```
+frontend/
+  index.html                  PWA shell
+  style.css                   TV-dark theme
+  manifest.webmanifest        PWA manifest (installable)
+  sw.js                       Service Worker (offline cache)
+  assets/
+    icon-192.png
+    icon-512.png
+    icon-maskable-512.png
+  pine-editor.js              CodeMirror 6 + Pine StreamLanguage
+  storage.js                  localStorage helpers (legacy)
+  script.js                   legacy single-file entry (kept for back-compat)
+  src/
+    main.js                   bootstrap, wires UI + registry
+    state.js                  central persisted state
+    registry.js               plugin registry + loadPluginFromUrl
+    registry-bootstrap.js     registers built-in plugins
+    chart.js                  lightweight-charts wrapper (main + equity)
+    pine-editor.js            re-export (none; we use ../pine-editor.js)
+    ui/
+      topbar.js               engine/source/stream/endpoint/symbol/...
+      results.js              4-tab results panel
+      status.js               status bar
+    sources/
+      index.js                binance-rest, mock-walk, csv-upload
+    streams/
+      index.js                binance-ws, mock-poll, none
+    engines/
+      index.js                server, pyodide (Python in browser)
+  worker/                     Cloudflare Pages + Worker (see worker/README.md)
+```
+
+## Backend targets
+
+- **Local Flask**: existing `make run` on `:5002`. PWA talks to it directly
+  (CORS handled by the backend). Default endpoint is `http://localhost:5002`.
+- **Cloudflare Worker**: deploy `worker/` with `make deploy-cf`. The Worker
+  exposes `/api/run`, `/api/stream`, `/api/keys`, etc. and proxies to the
+  pynescript Python runtime via Pyodide on the Worker side. See
+  `worker/README.md`.
+
+## PWA
+
+- Manifest at `manifest.webmanifest` (theme `#2962ff`, icons 192/512).
+- Service Worker at `sw.js` registered on first load. Cache-first for the
+  app shell, network-first for `/api/*`, fallback to a 503 JSON for offline
+  API calls (the `pyodide` engine keeps the app fully usable offline).
+- Install prompt: in Chrome/Edge, look for the install icon in the URL bar.
+
+## Persistence (localStorage)
+
+`pynescript.superchart.v1` holds:
+
+| Field          | Purpose                              |
+|----------------|--------------------------------------|
+| `script`       | Last Pine source                     |
+| `symbol`/`interval` | Last market selection            |
+| `engine`       | `server` or `pyodide`                |
+| `source`       | `binance-rest`/`mock-walk`/`csv-upload` |
+| `stream`       | `binance-ws`/`mock-poll`/`none`      |
+| `endpoint`     | Backend URL                          |
+| `mode`         | `local` or `cloud`                   |
+| `apiKey`       | stored **only in this browser**      |
+| `pluginsConfig`| per-plugin configuration             |
+
+## Verification
+
+- `make run-frontend` then open `http://localhost:8081`.
+- App loads, chart shows BTC/USDT, top bar exposes Engine / Source / Stream
+  pickers. DevTools → Application → Manifest + Service Workers confirms PWA.
+- Engine = `pyodide` + Source = `mock-walk`: go offline (DevTools → Network
+  → Offline). Click Run. Pine still executes.

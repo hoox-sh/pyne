@@ -79,6 +79,10 @@ pine-worker/dist/
 pine-worker/*.log
 pine-worker/node_modules/
 pine-worker/.wrangler/
+# frontend PWA + Cloudflare Worker
+frontend/worker/node_modules/
+frontend/worker/.wrangler/
+frontend/worker/dist/
 pip-delete-this-directory.txt
 pip-log.txt
 *.pot

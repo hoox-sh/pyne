@@ -2,7 +2,7 @@
 #
 # Makefile for Pynescript development
 
-.PHONY: help install test lint fmt build run clean docker-build docker-run
+.PHONY: help install test lint fmt build run clean docker-build docker-run run-frontend worker-install worker-dev worker-deploy worker-typecheck pages-deploy
 
 help:
 	@echo "Pynescript Development Commands"
@@ -17,6 +17,12 @@ help:
 	@echo "  build-vscode     Package VS Code extension"
 	@echo "  run              Run the API server"
 	@echo "  run-lsp          Run the LSP server"
+	@echo "  run-frontend     Serve the SuperChart Lite PWA (HTTP, port 8081)"
+	@echo "  worker-install   Install Cloudflare Worker npm deps"
+	@echo "  worker-dev       Run wrangler dev for the Worker (port 8787)"
+	@echo "  worker-typecheck Typecheck the Worker (tsc --noEmit)"
+	@echo "  worker-deploy    Deploy the Worker to Cloudflare"
+	@echo "  pages-deploy     Deploy the PWA to Cloudflare Pages"
 	@echo "  docker-build      Build API Docker image"
 	@echo "  docker-run        Run API in Docker"
 	@echo "  clean            Clean build artifacts"
@@ -56,6 +62,26 @@ run:
 
 run-lsp:
 	python -m pynescript.langserver
+
+run-frontend:
+	@echo "Serving SuperChart Lite on http://localhost:8081"
+	@echo "(requires the backend on :5002 for /run — start with 'make run' in another terminal)"
+	python -m http.server 8081 --directory frontend
+
+worker-install:
+	cd frontend/worker && npm install
+
+worker-dev:
+	cd frontend/worker && npm run dev
+
+worker-typecheck:
+	cd frontend/worker && npm run typecheck
+
+worker-deploy:
+	cd frontend/worker && npm run deploy
+
+pages-deploy:
+	cd frontend && npx --yes wrangler pages deploy . --project-name=pynescript-superchart
 
 docker-build:
 	docker build -f Dockerfile.api -t pynescript-api .

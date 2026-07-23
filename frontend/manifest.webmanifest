@@ -1,0 +1,27 @@
+{
+    "name": "SuperChart Lite — pynescript",
+    "short_name": "SuperChart",
+    "description": "Modular TradingView-style chart + Pine Script editor. Runs locally, on Cloudflare, or fully offline.",
+    "start_url": "./",
+    "scope": "./",
+    "id": "/pynescript-superchart",
+    "display": "standalone",
+    "orientation": "any",
+    "background_color": "#131722",
+    "theme_color": "#2962ff",
+    "categories": ["finance", "productivity", "developer"],
+    "icons": [
+        { "src": "assets/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+        { "src": "assets/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+        { "src": "assets/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    ],
+    "shortcuts": [
+        {
+            "name": "New Run",
+            "short_name": "Run",
+            "url": "./?action=run",
+            "description": "Run the current Pine Script"
+        }
+    ],
+    "prefer_related_applications": false
+}
