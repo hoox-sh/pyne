@@ -370,6 +370,7 @@ body {
     min-width: 0;
     min-height: 0;
     background-color: var(--bg-base);
+    position: relative;
 }
 
 .chart-host {
@@ -1288,4 +1289,48 @@ html[data-theme="light"] .pine-editor-host textarea {
 .chart-loading.hidden {
     opacity: 0;
     pointer-events: none;
+}
+
+/* ---------- Data window (crosshair tooltip) ---------- */
+.data-window {
+    display: none;
+    position: absolute;
+    z-index: 50;
+    pointer-events: none;
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 6px 10px;
+    font-size: 11px;
+    line-height: 1.6;
+    white-space: nowrap;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+    min-width: 130px;
+}
+.dw-table {
+    border-collapse: collapse;
+    width: 100%;
+}
+.dw-table td {
+    padding: 0 4px;
+}
+.dw-label {
+    color: var(--text-dim);
+    text-align: left;
+}
+.dw-value {
+    color: var(--text);
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+.dw-time {
+    color: var(--text-faint);
+    font-size: 10px;
+}
+.dw-hl {
+    color: var(--text-secondary);
+}
+.dw-close {
+    color: var(--text);
+    font-weight: 600;
 }

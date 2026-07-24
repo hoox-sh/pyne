@@ -24,6 +24,124 @@ const panes = {
     equity: { chart: null, area: null },
 };
 
+// --- Data window (crosshair tooltip) ---
+// Maps series API objects → { name, color, pane } for the data window.
+const _seriesLabels = new Map();
+
+function registerSeriesLabel(series, name, color, pane) {
+    _seriesLabels.set(series, { name, color, pane });
+}
+
+function formatTime(t) {
+    if (typeof t === 'number') {
+        const d = new Date(t * 1000);
+        // Use UTC to avoid timezone confusion with exchange data
+        return d.toISOString().replace('T', ' ').slice(0, 19);
+    }
+    return String(t ?? '');
+}
+
+function fmt(v) {
+    if (v === null || v === undefined || typeof v !== 'number') return '—';
+    if (Number.isNaN(v)) return '—';
+    return v.toFixed(2);
+}
+
+function fmtVolume(v) {
+    if (v == null || v === 0 || Number.isNaN(v)) return '—';
+    if (v >= 1_000_000) return (v / 1_000_000).toFixed(1) + 'M';
+    if (v >= 1_000) return (v / 1_000).toFixed(1) + 'K';
+    return v.toFixed(0);
+}
+
+function createDataWindow() {
+    let el = document.getElementById('data-window');
+    if (el) return el;
+    el = document.createElement('div');
+    el.id = 'data-window';
+    el.className = 'data-window';
+    document.querySelector('.chart-pane')?.appendChild(el);
+    return el;
+}
+
+function updateDataWindow(param) {
+    const el = document.getElementById('data-window');
+    if (!el) return;
+
+    // Hide when crosshair leaves visible area
+    if (!param.time || !param.point) {
+        el.style.display = 'none';
+        return;
+    }
+    el.style.display = '';
+
+    // Build rows
+    const rows = [];
+
+    // Time
+    rows.push(`<tr><td class="dw-label">Time</td><td class="dw-value dw-time">${formatTime(param.time)}</td></tr>`);
+
+    // OHLCV from the candle series
+    if (panes.main.candle) {
+        const cd = param.seriesData?.get(panes.main.candle);
+        if (cd && typeof cd === 'object' && 'open' in cd) {
+            const d = cd;
+            rows.push(`<tr><td class="dw-label">O</td><td class="dw-value">${fmt(d.open)}</td></tr>`);
+            rows.push(`<tr><td class="dw-label">H</td><td class="dw-value dw-hl">${fmt(d.high)}</td></tr>`);
+            rows.push(`<tr><td class="dw-label">L</td><td class="dw-value dw-hl">${fmt(d.low)}</td></tr>`);
+            rows.push(`<tr><td class="dw-label">C</td><td class="dw-value dw-close">${fmt(d.close)}</td></tr>`);
+        }
+    }
+
+    // Volume
+    if (panes.volume.hist) {
+        const vd = param.seriesData?.get(panes.volume.hist);
+        if (vd && typeof vd === 'object' && 'value' in vd) {
+            rows.push(`<tr><td class="dw-label">Vol</td><td class="dw-value">${fmtVolume(vd.value)}</td></tr>`);
+        }
+    }
+
+    // Overlay series (main + indicator panes)
+    for (const [series, label] of _seriesLabels) {
+        const sd = param.seriesData?.get(series);
+        if (!sd || typeof sd !== 'object') continue;
+        const val = 'value' in sd ? sd.value : 'close' in sd ? sd.close : null;
+        if (val === null || val === undefined || typeof val !== 'number' || Number.isNaN(val)) continue;
+        const colorDot = `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${label.color};margin-right:4px;vertical-align:middle;"></span>`;
+        rows.push(`<tr><td class="dw-label">${colorDot}${label.name}</td><td class="dw-value">${fmt(val)}</td></tr>`);
+    }
+
+    el.innerHTML = `<table class="dw-table">${rows.join('')}</table>`;
+
+    // Position near the crosshair
+    const chartRect = document.querySelector('.chart-pane')?.getBoundingClientRect();
+    if (!chartRect) return;
+    // Place to the right of the crosshair; if near right edge, go left
+    const x = param.point.x + 18;
+    const spaceRight = chartRect.width - x;
+    const dwW = 190;
+    const finalX = (spaceRight < dwW && param.point.x - dwW - 10 > 0)
+        ? param.point.x - dwW - 10
+        : param.point.x + 16;
+    // Vertically centre near the cursor
+    const y = param.point.y + 10;
+    el.style.left = `${finalX}px`;
+    el.style.top = `${y}px`;
+}
+
+function wireDataWindow() {
+    const el = createDataWindow();
+    if (!el) return;
+    // Subscribe to main chart crosshair
+    if (panes.main.chart) {
+        panes.main.chart.subscribeCrosshairMove(updateDataWindow);
+    }
+    // Also subscribe indicator chart so plots there also show data
+    if (panes.indicator.chart) {
+        panes.indicator.chart.subscribeCrosshairMove(updateDataWindow);
+    }
+}
+
 function commonOptions() {
     return {
         layout: { background: { type: 'solid', color: TV.bg }, textColor: TV.text },
@@ -45,6 +163,7 @@ export function initChart({ mainEl, volumeEl, indicatorEl, equityEl }) {
         upColor: TV.up, downColor: TV.down, borderDownColor: TV.down, borderUpColor: TV.up,
         wickDownColor: TV.down, wickUpColor: TV.up,
     });
+    registerSeriesLabel(panes.main.candle, 'Price', TV.up, 'main');
 
     // Volume sub-pane
     panes.volume.chart = LightweightCharts.createChart(volumeEl, {
@@ -90,6 +209,13 @@ export function initChart({ mainEl, volumeEl, indicatorEl, equityEl }) {
     sync(panes.main.chart, panes.volume.chart);
     sync(panes.main.chart, panes.indicator.chart);
     // Equity chart intentionally NOT synced — it has far fewer points
+
+    // Hide loading skeleton
+    const loadingEl = document.getElementById('chart-loading');
+    if (loadingEl) loadingEl.classList.add('hidden');
+
+    // Data window (crosshair tooltip)
+    wireDataWindow();
 }
 
 function fitAll() {
@@ -153,6 +279,12 @@ export function clearOverlays() {
         }
         pane.overlays = [];
     }
+    // Clear series labels (candle + volume are re-added on next load)
+    for (const [series] of _seriesLabels) {
+        if (series !== panes.main.candle && series !== panes.volume.hist) {
+            _seriesLabels.delete(series);
+        }
+    }
     setIndicatorVisible(false);
 }
 
@@ -165,6 +297,7 @@ export function addOverlayLine(name, points, opts = {}) {
     });
     series.setData(points);
     target.overlays.push(series);
+    registerSeriesLabel(series, name, color, opts.pane || 'main');
     return series;
 }
 

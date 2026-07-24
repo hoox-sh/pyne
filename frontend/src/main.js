@@ -365,7 +365,12 @@ function wireDemos() {
     for (const btn of document.querySelectorAll('[data-demo]')) {
         btn.addEventListener('click', () => {
             const key = btn.dataset.demo;
-            if (DEMOS[key]) { setScript(DEMOS[key]); focusEditor(); }
+            if (DEMOS[key]) {
+                setScript(DEMOS[key]);
+                focusEditor();
+                // Auto-run the script after a brief delay so CM6 can render
+                setTimeout(runScript, 150);
+            }
         });
     }
 }

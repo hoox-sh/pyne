@@ -118,20 +118,15 @@ export function initWatchlist() {
         });
     }
 
-    // Sidebar toggle
+    // Sidebar toggle — always starts visible, collapse is transient
     const toggleBtn = el('sidebar-toggle');
     if (toggleBtn) {
         toggleBtn.addEventListener('click', () => {
-            const layout = document.querySelector('.layout');
-            layout.classList.toggle('sidebar-collapsed');
-            try { localStorage.setItem('sidebar_collapsed', layout.classList.contains('sidebar-collapsed') ? '1' : '0'); } catch (_) {}
+            document.querySelector('.layout').classList.toggle('sidebar-collapsed');
         });
-        // Restore state
-        try {
-            if (localStorage.getItem('sidebar_collapsed') === '1') {
-                document.querySelector('.layout').classList.add('sidebar-collapsed');
-            }
-        } catch (_) {}
+        // Never start collapsed — watchlist should always be visible on load.
+        document.querySelector('.layout')?.classList.remove('sidebar-collapsed');
+        localStorage.removeItem('sidebar_collapsed');
     }
 
     // Sync: when symbol changes externally, re-render
