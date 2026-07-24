@@ -375,7 +375,7 @@ body {
 
 .chart-host {
     flex: 1 1 auto;
-    min-height: 200px;
+    min-height: 0;
     position: relative;
 }
 
@@ -864,10 +864,13 @@ body {
 }
 
 .chart-pane-block {
+    display: flex;
+    flex-direction: column;
     flex: 1 1 auto;
-    min-height: 60px;
+    min-height: 0;
     position: relative;
     border-bottom: 1px solid var(--border-soft);
+    overflow: hidden;
 }
 
 .chart-pane-block:last-child {
@@ -875,7 +878,7 @@ body {
 }
 
 .chart-pane-block.is-subpane {
-    flex: 0 0 180px;
+    flex: 0 0 120px;
 }
 
 .pane-label {
@@ -905,10 +908,9 @@ body {
 
 /* ---------- Volume histogram ---------- */
 .volume-host {
-    flex: 0 0 100px;
-    min-height: 60px;
+    flex: 1 1 auto;
+    min-height: 0;
     position: relative;
-    border-top: 1px solid var(--border-soft);
 }
 
 /* ---------- Strategy tester ---------- */
