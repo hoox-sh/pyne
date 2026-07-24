@@ -549,6 +549,63 @@ async function bootstrap() {
         if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); runScript(); }
     });
 
+    // Editor slide-in toggle
+    const editorToggle = document.getElementById('editor-toggle');
+    const editorSlide = document.getElementById('editor-slide');
+    let editorOpen = false;
+
+    function toggleEditor(open) {
+        editorOpen = open !== undefined ? open : !editorOpen;
+        editorSlide.classList.toggle('open', editorOpen);
+        if (editorOpen) {
+            // Reset to 460px when re-opening (in case it was resized)
+            editorSlide.style.width = '';
+        }
+        // Trigger chart resize after transition completes
+        setTimeout(() => window.dispatchEvent(new Event('resize')), 300);
+    }
+
+    if (editorToggle && editorSlide) {
+        editorToggle.addEventListener('click', () => toggleEditor());
+        // Editor toggle shortcut: Ctrl+\
+        document.addEventListener('keydown', (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === '\\') { e.preventDefault(); toggleEditor(); }
+        });
+    }
+
+    // Editor resize drag handle
+    const resizeHandle = document.getElementById('editor-resize');
+    if (resizeHandle && editorSlide) {
+        let isDragging = false;
+        let startX = 0;
+        let startW = 0;
+
+        resizeHandle.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            startX = e.clientX;
+            startW = editorSlide.offsetWidth;
+            resizeHandle.classList.add('is-dragging');
+            document.body.style.cursor = 'col-resize';
+            document.body.style.userSelect = 'none';
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+            const newW = Math.max(280, Math.min(startW + (startX - e.clientX), window.innerWidth * 0.8));
+            editorSlide.style.width = `${newW}px`;
+            window.dispatchEvent(new Event('resize'));
+        });
+
+        document.addEventListener('mouseup', () => {
+            if (isDragging) {
+                isDragging = false;
+                resizeHandle.classList.remove('is-dragging');
+                document.body.style.cursor = '';
+                document.body.style.userSelect = '';
+            }
+        });
+    }
+
     // Initial load
     await loadHistorical();
     setStatus('Ready.', 'success', `${registry.listSources().length} src · ${registry.listEngines().length} eng · ${registry.listStreams().length} stream`);

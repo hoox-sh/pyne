@@ -223,13 +223,13 @@ body {
 .layout {
     flex: 1 1 auto;
     display: grid;
-    grid-template-columns: 220px 1fr 460px;
+    grid-template-columns: 220px 1fr;
     min-height: 0;
     overflow: hidden;
 }
 
 .layout.sidebar-collapsed {
-    grid-template-columns: 0px 1fr 460px;
+    grid-template-columns: 0px 1fr;
 }
 
 /* ---------- Sidebar / Watchlist ---------- */
@@ -364,13 +364,20 @@ body {
 }
 
 /* ---------- Chart pane ---------- */
-.chart-pane {
+ .chart-pane {
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
     min-width: 0;
     min-height: 0;
     background-color: var(--bg-base);
     position: relative;
+}
+ .chart-content {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
 }
 
 .chart-host {
@@ -406,13 +413,43 @@ body {
 }
 
 /* ---------- Editor pane ---------- */
-.editor-pane {
+.editor-slide {
+    width: 0;
+    min-width: 0;
+    overflow: hidden;
     display: flex;
     flex-direction: column;
-    background-color: var(--bg-panel);
-    border-left: 1px solid var(--border);
+    background: var(--bg-panel);
+    border-right: 1px solid var(--border);
+    transition: width 0.25s ease, min-width 0.25s ease;
+    flex-shrink: 0;
+}
+.editor-slide.open {
+    width: 460px;
+    min-width: 280px;
+    max-width: 80vw;
+}
+.editor-slide-inner {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
     min-height: 0;
-    min-width: 0;
+    overflow: hidden;
+}
+.editor-resize-handle {
+    position: absolute;
+    right: -4px;
+    top: 0;
+    bottom: 0;
+    width: 8px;
+    cursor: col-resize;
+    z-index: 5;
+    background: transparent;
+}
+.editor-resize-handle:hover,
+.editor-resize-handle.is-dragging {
+    background: var(--accent);
+    opacity: 0.3;
 }
 
 .editor-header {
@@ -438,7 +475,7 @@ body {
 
 .pine-editor-host {
     flex: 1 1 auto;
-    min-height: 200px;
+    min-height: 60px;
     overflow: hidden;
     position: relative;
 }
@@ -1271,7 +1308,7 @@ html[data-theme="light"] .pine-editor-host textarea {
 
 @media (max-width: 1024px) {
     .layout {
-        grid-template-columns: 0px 1fr 380px;
+        grid-template-columns: 0px 1fr;
     }
     .sidebar {
         width: 0;
@@ -1285,15 +1322,14 @@ html[data-theme="light"] .pine-editor-host textarea {
 @media (max-width: 768px) {
     .layout {
         grid-template-columns: 0px 1fr;
-        grid-template-rows: 50vh 1fr;
     }
     .sidebar {
         width: 0;
         border-right: none;
     }
-    .editor-pane {
-        border-left: none;
-        border-top: 1px solid var(--border);
+    .editor-slide.open {
+        width: 85vw;
+        min-width: 200px;
     }
     .topbar {
         flex-wrap: wrap;
@@ -1302,7 +1338,8 @@ html[data-theme="light"] .pine-editor-host textarea {
 
 /* ---------- Print ---------- */
 @media print {
-    .topbar, .sidebar, .editor-pane, .statusbar { display: none; }
+    .topbar, .sidebar, .editor-slide, .statusbar { display: none; }
+    .chart-content { display: flex; }
     .chart-pane { position: static !important; height: auto !important; }
     body { overflow: visible; background: #fff; }
 }
