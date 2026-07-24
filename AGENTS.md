@@ -131,3 +131,45 @@ annotations` is mandatory (also via ruff isort `required-imports`).
 - `.opencode/plans/pynescript-lsp-implementation.md` — 1000+ line LSP design doc (read for big-picture LSP work).
 - `docs/` — Sphinx docs source (`hatch run docs:build`).
 - `CONTRIBUTING.md` — official hatch-based dev workflow.
+
+---
+
+## Sister Repos
+
+All repos below are part of the **HOOX** project — a modular, production-ready algorithmic trading framework for Cloudflare Workers. When working on any HOOX repo, be aware of the others.
+
+| Repo | Path | Purpose |
+|---|---|---|
+| `hoox-setup` | `/home/jango/Git/hoox-setup` | Monorepo: all Cloudflare Workers (gateway, execution, D1, analytics, etc.), Docker, CI/CD |
+| `hoox-landing-page` | `/home/jango/Git/hoox-landing-page` | Marketing landing site (Next.js 16, GSAP + Framer Motion + Lenis) |
+| `pynescript` | `/home/jango/Git/pynescript` | Pine Script parser/evaluator (Python, ANTLR4, Flask Pro API, VS Code extension) |
+| `pyne-worker` | `/home/jango/Git/pyne-worker` | Python Cloudflare Worker — Pine Script evaluation on the edge (depends on `pynescript`) |
+| `pine-worker` | `/home/jango/Git/pine-worker` | TypeScript Cloudflare Worker — Pine Script evaluator + trade event emitter (depends on `@jango-blockchained/hoox-shared` from `hoox-setup`) |
+
+**Key dependency links:**
+- `pyne-worker` → `pynescript` (editable install, same `pynescript` package)
+- `pine-worker` → `@jango-blockchained/hoox-shared` (workspace dep from `hoox-setup`)
+
+```
+hoox-setup (workers)
+    ├── trade-worker ←──────────┐
+    ├── hoox (gateway) ────────┐│
+    ├── d1-worker ─────────────┐││
+    ├── agent-worker ──────────┐││
+    ├── telegram-worker ───────┐││
+    ├── web3-wallet-worker ────┐││
+    ├── email-worker ──────────┐││
+    ├── analytics-worker ──────┐││
+    ├── report-worker ─────────┐││
+    └── dashboard (Next.js) ────┘││
+                                  ││
+                     pynescript ──┘│
+                      (Pine Script  │
+                       parser/      │
+                       evaluator)   │
+                            │       │
+                            ▼       ▼
+                       pyne-worker  pine-worker
+                       (Python CF   (TypeScript CF
+                        Worker)      Worker)
+```
