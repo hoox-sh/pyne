@@ -4,6 +4,59 @@ function el(id) { return document.getElementById(id); }
 
 const refs = {};
 
+function flashCopied(btn) {
+    btn.classList.add('copied');
+    const orig = btn.innerHTML;
+    btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+    setTimeout(() => {
+        btn.innerHTML = orig;
+        btn.classList.remove('copied');
+    }, 1200);
+}
+
+function getPanelTextContent(panelId) {
+    const panel = document.getElementById(panelId);
+    if (!panel) return '';
+    // Get text content, but skip the copy button text
+    const clone = panel.cloneNode(true);
+    const btn = clone.querySelector('.btn-copy-panel');
+    if (btn) btn.remove();
+    return (clone.textContent || '').trim();
+}
+
+async function copyPanel(name) {
+    const panelIds = {
+        trades: 'tab-trades',
+        strategy: 'tab-strategy',
+        plots: 'tab-plots',
+        metrics: 'tab-metrics',
+        raw: 'tab-raw',
+    };
+    const panelId = panelIds[name];
+    if (!panelId) return;
+
+    // For raw JSON, prefer the pre content
+    let text;
+    if (name === 'raw') {
+        const pre = document.getElementById('raw-json');
+        text = pre?.textContent || '';
+    } else if (name === 'trades') {
+        text = getPanelTextContent(panelId);
+        // Format as structured text
+        const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+        text = lines.join('\n');
+    } else {
+        text = getPanelTextContent(panelId);
+    }
+
+    if (!text) return;
+    try {
+        await navigator.clipboard.writeText(text);
+        const btn = document.querySelector(`.btn-copy-panel[data-copy="${name}"]`);
+        if (btn) flashCopied(btn);
+    } catch { /* no-op */ }
+}
+
 export function initResults() {
     refs.trades = el('tab-trades');
     refs.strategy = el('tab-strategy');
@@ -13,6 +66,11 @@ export function initResults() {
     refs.rawJson = el('raw-json');
     for (const tab of document.querySelectorAll('.tab')) {
         tab.addEventListener('click', () => activateTab(tab.dataset.tab));
+    }
+    // Wire copy buttons
+    for (const btn of document.querySelectorAll('.btn-copy-panel')) {
+        const name = btn.dataset.copy;
+        if (name) btn.addEventListener('click', () => copyPanel(name));
     }
     return refs;
 }

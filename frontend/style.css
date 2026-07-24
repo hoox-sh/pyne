@@ -658,6 +658,36 @@ body {
     color: var(--yellow);
 }
 
+/* ---------- Copy buttons ---------- */
+.btn-copy {
+    background: none;
+    border: none;
+    color: var(--text-faint);
+    cursor: pointer;
+    font-size: 12px;
+    padding: 1px 4px;
+    line-height: 1;
+    border-radius: 3px;
+    transition: color 0.15s, background 0.15s;
+    flex-shrink: 0;
+}
+.btn-copy:hover {
+    color: var(--text);
+    background: var(--bg-hover);
+}
+.btn-copy.copied {
+    color: var(--green);
+}
+.btn-copy-panel {
+    position: absolute;
+    top: 4px;
+    right: 6px;
+    z-index: 2;
+}
+.tab-panel {
+    position: relative;
+}
+
 .offline-badge {
     display: inline-flex;
     align-items: center;

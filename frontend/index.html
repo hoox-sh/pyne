@@ -156,18 +156,33 @@
                 </div>
                 <div class="results-body">
                     <div id="tab-trades" class="tab-panel tab-panel-active">
+                        <button class="btn-copy btn-copy-panel" data-copy="trades" title="Copy trades">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                        </button>
                         <div class="empty">Run a script to see events.</div>
                     </div>
                     <div id="tab-strategy" class="tab-panel">
+                        <button class="btn-copy btn-copy-panel" data-copy="strategy" title="Copy strategy report">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                        </button>
                         <div class="empty">Run a strategy to see the tester.</div>
                     </div>
                     <div id="tab-plots" class="tab-panel">
+                        <button class="btn-copy btn-copy-panel" data-copy="plots" title="Copy plots">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                        </button>
                         <div class="empty">Run a script to see plots.</div>
                     </div>
                     <div id="tab-metrics" class="tab-panel">
+                        <button class="btn-copy btn-copy-panel" data-copy="metrics" title="Copy metrics">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                        </button>
                         <div class="empty">Run a script to see metrics.</div>
                     </div>
                     <div id="tab-raw" class="tab-panel">
+                        <button class="btn-copy btn-copy-panel" data-copy="raw" title="Copy raw JSON">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                        </button>
                         <pre id="raw-json" class="raw-json"></pre>
                     </div>
                 </div>
@@ -179,6 +194,9 @@
         <span id="status-text">Ready.</span>
         <span id="offline-badge" class="offline-badge" hidden>⚡ Offline</span>
         <span class="status-spacer"></span>
+        <button id="status-copy" class="btn-copy" title="Copy status">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        </button>
         <span id="status-meta" class="status-meta"></span>
     </div>
 
