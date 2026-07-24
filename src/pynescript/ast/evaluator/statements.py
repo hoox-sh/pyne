@@ -153,6 +153,20 @@ class StatementEvaluator:
                 # June 2025: export const / export typed vars from libraries
                 if getattr(node, "export", None):
                     self._register_export(node.target.id, value)
+            elif isinstance(node.target, ast.Tuple):
+                # Tuple unpacking: [a, b, c] = expression
+                elts = node.target.elts
+                if not isinstance(value, (list, tuple)):
+                    msg = f"Cannot unpack {type(value).__name__} value"
+                    self._error(msg)  # type: ignore[attr-defined]
+                    return
+                for target_node, val in zip(elts, value, strict=False):
+                    if isinstance(target_node, ast.Name):
+                        self.context[target_node.id] = val
+                    else:
+                        msg = f"Unsupported unpack target: {type(target_node)}"
+                        self._error(msg)  # type: ignore[attr-defined]
+                        return
             else:
                 msg = f"Unsupported assignment target: {type(node.target)}"
                 self._error(msg)  # type: ignore[attr-defined]
