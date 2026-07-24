@@ -54,9 +54,13 @@ app.config["MAX_CONTENT_LENGTH"] = 5 * 1024 * 1024  # 5 MB
 # and headers are read from env vars so a deployment can override without code
 # changes. The same-origin case (no Origin header, e.g. server-to-server or
 # curl) is always allowed.
+# flask-cors supports regex origins; use a pattern that covers any localhost port.
+LOCALHOST_RE = r"^https?://(?:localhost|127\.0\.0\.1)(?::\d+)?$"
 ALLOWED_ORIGINS = [
     o.strip()
-    for o in os.environ.get("ALLOWED_ORIGINS", "https://pynescript.ai,https://app.pynescript.ai").split(",")
+    for o in os.environ.get("ALLOWED_ORIGINS", "https://pynescript.ai,https://app.pynescript.ai," + LOCALHOST_RE).split(
+        ","
+    )
     if o.strip()
 ]
 CORS(
