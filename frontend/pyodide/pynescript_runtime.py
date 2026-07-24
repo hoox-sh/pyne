@@ -69,8 +69,13 @@ def _patch_evaluator():
             return value
         if hasattr(value, "history") and hasattr(value, "current"):
             # PineSeries stores newest-first (appendleft). TA functions need
-            # oldest-first chronological order.
-            return list(reversed(value.history))
+            # oldest-first chronological order.  Also strip the initial None
+            # placeholder so statistics.* functions don't choke.
+            raw = list(reversed(value.history))
+            # Remove leading Nones (the initial PineSeries placeholder)
+            while raw and raw[0] is None:
+                raw.pop(0)
+            return raw
         if hasattr(value, "__iter__") and hasattr(value, "__len__"):
             return list(value)
         self._error(f"{message}. Got: {type(value).__name__}")
@@ -169,6 +174,12 @@ def _patch_evaluator():
         def safe(a, b):
             if a is None or b is None:
                 return None
+            # PineScript element-wise: if one operand is a list and the other
+            # is a scalar, broadcast the scalar across the list.
+            if isinstance(a, list) and not isinstance(b, (list, tuple)):
+                return [op_func(x, b) if x is not None else None for x in a]
+            if isinstance(b, list) and not isinstance(a, (list, tuple)):
+                return [op_func(a, x) if x is not None else None for x in b]
             return op_func(a, b)
 
         return safe
@@ -181,6 +192,18 @@ def _patch_evaluator():
     for _name in ("_OPERATOR_LT", "_OPERATOR_LE", "_OPERATOR_GT", "_OPERATOR_GE", "_OPERATOR_EQ", "_OPERATOR_NE"):
         if hasattr(expr_module, _name):
             setattr(expr_module, _name, _none_safe(getattr(expr_module, _name)))
+
+    # --- Fix AdvancedIndicators._builtin_ta_stdev: properly extract series ---
+    from pynescript.ast.evaluator.builtins.technical_submodules.advanced import AdvancedIndicators
+
+    if not getattr(AdvancedIndicators, "_stdev_fixed", False):
+
+        def _patched_builtin_ta_stdev(self, args):
+            series, period = self._expect_series(args, length=2)
+            return self._stdev(series, period)
+
+        AdvancedIndicators._builtin_ta_stdev = _patched_builtin_ta_stdev
+        AdvancedIndicators._stdev_fixed = True
 
 
 class CustomEvaluator:
