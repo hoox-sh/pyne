@@ -1277,14 +1277,16 @@ html[data-theme="light"] .pine-editor-host textarea {
 
 /* ---------- Chart loading skeleton ---------- */
 .chart-loading {
+    position: absolute;
+    inset: 0;
     display: flex;
     align-items: center;
     justify-content: center;
-    height: 100%;
     color: var(--text-dim);
     font-size: 14px;
     background: var(--bg-base);
     transition: opacity 0.3s;
+    z-index: 5;
 }
 .chart-loading.hidden {
     opacity: 0;
