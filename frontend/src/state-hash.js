@@ -6,6 +6,7 @@ import { getState } from './state.js';
 
 const HASH_KEYS = ['symbol', 'interval', 'engine', 'source', 'stream', 'timeRange'];
 const MAX_HASH_LEN = 2000; // browsers truncate very long URLs
+const MEANINGFUL_FIELDS = new Set(['symbol', 'interval', 'engine', 'source', 'stream', 'timeRange', 'script', 'mode']);
 
 let _updating = false;
 
@@ -57,8 +58,13 @@ export function applyHashState() {
 
 /** Push current state to the URL hash (debounced). */
 let _pushTimer = null;
-export function pushHashState() {
+export function pushHashState(e) {
     if (_updating) return;
+    // Only push if a meaningful field changed (skip trivial flushes)
+    if (e?.detail) {
+        const changed = Object.keys(e.detail);
+        if (!changed.some((k) => MEANINGFUL_FIELDS.has(k))) return;
+    }
     if (_pushTimer) clearTimeout(_pushTimer);
     _pushTimer = setTimeout(() => {
         const hash = buildHash();
@@ -74,6 +80,7 @@ export function watchHashState() {
     getState().addEventListener('change', pushHashState);
     // Also update on popstate (browser back/forward)
     window.addEventListener('popstate', () => {
+        if (_updating) return;
         _updating = true;
         const hashState = parseHash();
         if (Object.keys(hashState).length > 0) {

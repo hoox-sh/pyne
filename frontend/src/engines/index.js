@@ -37,7 +37,10 @@ export const serverEngine = {
         const state = getState();
         const cfg = resolveConfig(this.configSchema, { endpoint: state?.get?.('endpoint') });
         try {
-            const res = await fetch(`${cfg.endpoint}/`, { method: 'GET' });
+            const res = await fetch(`${cfg.endpoint}/`, {
+                method: 'GET',
+                signal: AbortSignal.timeout(30_000),
+            });
             return res.ok;
         } catch (_) { return false; }
     },
@@ -53,6 +56,7 @@ export const serverEngine = {
         try {
             const res = await fetch(`${cfg.endpoint}/run?mode=${encodeURIComponent(cfg.mode)}`, {
                 method: 'POST', headers, body: JSON.stringify({ script, data: bars }),
+                signal: AbortSignal.timeout(30_000),
             });
             const payload = await res.json().catch(() => ({ status: 'error', message: 'invalid JSON' }));
             if (!res.ok || payload.status === 'error') {
@@ -92,6 +96,12 @@ export const pyodideEngine = {
         if (this._loadPromise) return this._loadPromise;
         const self = this;
         const cfg = resolveConfig(this.configSchema, {});
+        // Overall timeout: 90s should be plenty for CDN + wheel + runtime
+        const TIMEOUT_MS = 90_000;
+        const timer = setTimeout(() => {
+            self._loadPromise = null;
+            self._emitProgress('');
+        }, TIMEOUT_MS);
         this._loadPromise = (async () => {
             try {
                 const origin = location.origin;
@@ -101,11 +111,13 @@ export const pyodideEngine = {
                     try {
                         await import(/* @vite-ignore */ `${cfg.indexUrl}pyodide.js`);
                     } catch (e) {
+                        clearTimeout(timer);
                         throw new Error(`Failed to load Pyodide from CDN: ${e.message}. Check your internet connection.`);
                     }
                 }
                 self._emitProgress('Initialising Pyodide…');
-                const py = await window.loadPyodide({ indexURL: cfg.indexUrl });
+                const timeoutPy = AbortSignal.timeout(TIMEOUT_MS - 10_000);
+                const py = await window.loadPyodide({ indexURL: cfg.indexUrl, signal: timeoutPy });
 
                 self._emitProgress('Installing micropip…');
                 await py.loadPackage('micropip');
@@ -130,11 +142,13 @@ export const pyodideEngine = {
                 await py.runPythonAsync(runtimePy);
 
                 self._emitProgress('');
+                clearTimeout(timer);
                 self._pyodide = py;
                 return py;
             } catch (err) {
                 self._loadPromise = null;
                 self._emitProgress('');
+                clearTimeout(timer);
                 throw err;
             }
         })();

@@ -155,9 +155,7 @@ async function handleUploadFile(file) {
         const arr = Array.isArray(parsed) ? parsed : parsed.bars || parsed.data || [];
         if (!arr.length) throw new Error('no rows');
         // Stash on state so csv-upload source can use it.
-        const cfg = getState().get('pluginsConfig') || {};
-        cfg['csv-upload'] = { ...(cfg['csv-upload'] || {}), bars: arr };
-        getState().assign({ pluginsConfig: cfg, source: 'csv-upload' });
+        getState().assign({ uploadedBars: arr, source: 'csv-upload' });
         // Update the source dropdown UI
         const sel = document.getElementById('source-select');
         if (sel) sel.value = 'csv-upload';

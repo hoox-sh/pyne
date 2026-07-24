@@ -18,14 +18,16 @@ const DEFAULT_STATE = Object.freeze({
     timeRange: 'ALL',
 });
 
-function deepFreeze(o) { return Object.freeze(o); }
+let _savedData = null; // in-memory cache to avoid reading localStorage on every assign
 
 function load() {
+    if (_savedData) return _savedData;
     try {
         const raw = localStorage.getItem(STORAGE_KEY);
         if (!raw) return null;
         const parsed = JSON.parse(raw);
-        return parsed && typeof parsed === 'object' ? parsed : null;
+        _savedData = parsed && typeof parsed === 'object' ? parsed : null;
+        return _savedData;
     } catch (_) {
         return null;
     }
@@ -33,7 +35,10 @@ function load() {
 
 function save(partial) {
     try {
-        const next = { ...(load() || {}), ...partial, savedAt: Date.now() };
+        const prev = _savedData || {};
+        const next = { ...prev, ...partial };
+        // Only stamp savedAt for explicit saves (not every keystroke or trivial state flush)
+        _savedData = next;
         localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
         return next;
     } catch (_) { /* quota */ }
@@ -49,6 +54,7 @@ class State extends EventTarget {
     get(key) { return key ? this._data[key] : this._data; }
 
     assign(partial) {
+        if (!partial || typeof partial !== 'object' || !Object.keys(partial).length) return;
         const next = { ...this._data, ...partial };
         this._data = Object.freeze(next);
         save(next);
@@ -56,6 +62,13 @@ class State extends EventTarget {
     }
 
     snapshot() { return { ...this._data }; }
+
+    /** Explicitly persist with savedAt timestamp (not triggered on every keystroke). */
+    persist() {
+        const stamped = { ...this._data, savedAt: Date.now() };
+        this._data = Object.freeze(stamped);
+        save(stamped);
+    }
 }
 
 let _state = null;

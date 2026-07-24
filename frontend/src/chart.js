@@ -89,15 +89,10 @@ export function initChart({ mainEl, volumeEl, indicatorEl, equityEl }) {
     };
     sync(panes.main.chart, panes.volume.chart);
     sync(panes.main.chart, panes.indicator.chart);
-    sync(panes.equity.chart, panes.main.chart); // don't actually want this; left in case of future need
+    // Equity chart intentionally NOT synced — it has far fewer points
 }
 
 function fitAll() {
-    for (const k of ['main', 'volume', 'indicator', 'equity']) {
-        const p = panes[k];
-        if (!p?.chart) continue;
-        const host = p.chart._host || null; // internal: not used. sizes via container ResizeObserver below.
-    }
     // Resize each chart to its container
     for (const [key, sel] of [
         ['main', '#chart'],
@@ -136,25 +131,25 @@ export function setOhlcv(bars) {
 export function appendBar(bar) {
     const t = typeof bar.time === 'number' ? bar.time : Math.floor(new Date(bar.time).getTime() / 1000);
     const point = { time: t, open: +bar.open, high: +bar.high, low: +bar.low, close: +bar.close };
-    try { panes.main.candle.update(point); } catch (_) { /* ignore */ }
+    try { panes.main.candle.update(point); } catch (err) { console.warn('[chart] appendBar/main:', err.message); }
     if (bar.volume !== undefined) {
         try { panes.volume.hist.update({
             time: t, value: +bar.volume,
             color: point.close >= point.open ? 'rgba(38, 166, 154, 0.5)' : 'rgba(239, 83, 80, 0.5)',
-        }); } catch (_) { /* ignore */ }
+        }); } catch (err) { console.warn('[chart] appendBar/vol:', err.message); }
     }
     return point;
 }
 
 export function setMarkers(markers) {
     if (!panes.main.candle) return;
-    try { panes.main.candle.setMarkers(markers); } catch (_) { /* ignore */ }
+    try { panes.main.candle.setMarkers(markers); } catch (err) { console.warn('[chart] setMarkers:', err.message); }
 }
 
 export function clearOverlays() {
     for (const pane of [panes.main, panes.indicator]) {
         for (const s of pane.overlays) {
-            try { pane.chart.removeSeries(s); } catch (_) { /* ignore */ }
+            try { pane.chart.removeSeries(s); } catch (err) { console.warn('[chart] clearOverlays:', err.message); }
         }
         pane.overlays = [];
     }
@@ -180,7 +175,7 @@ export function setEquityPane(visible) {
 
 export function setEquityCurve(points) {
     if (!panes.equity.area) return;
-    try { panes.equity.area.setData(points); panes.equity.chart.timeScale().fitContent(); } catch (_) { /* ignore */ }
+    try { panes.equity.area.setData(points); panes.equity.chart.timeScale().fitContent(); } catch (err) { console.warn('[chart] setEquityCurve:', err.message); }
 }
 
 function setIndicatorVisible(visible) {

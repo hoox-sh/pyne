@@ -6,9 +6,13 @@ import { registry, Registry } from '../src/registry.js';
 import { binanceRest, mockWalk, csvUpload } from '../src/sources/index.js';
 import { binanceWs, mockPoll, none } from '../src/streams/index.js';
 import { serverEngine, pyodideEngine } from '../src/engines/index.js';
+import { getState, initState } from '../src/state.js';
 
 beforeEach(() => {
     registry.clear();
+    // Reset state so csv-upload tests start clean
+    const state = initState();
+    state.assign({ uploadedBars: undefined });
 });
 
 describe('Registry', () => {
@@ -84,12 +88,14 @@ describe('Built-in plugins', () => {
     });
 
     it('csv-upload fails when no bars are stashed', async () => {
-        await expect(csvUpload.fetchHistorical({ symbol: 'X', interval: '1d', config: {} })).rejects.toThrow(/No uploaded file/);
+        await expect(csvUpload.fetchHistorical({ symbol: 'X', interval: '1d' })).rejects.toThrow(/No uploaded file/);
     });
 
     it('csv-upload returns stashed bars', async () => {
         const bars = [{ time: 1, open: 1, high: 1, low: 1, close: 1 }];
-        const out = await csvUpload.fetchHistorical({ symbol: 'X', interval: '1d', config: { bars } });
+        const state = getState();
+        state.assign({ uploadedBars: bars });
+        const out = await csvUpload.fetchHistorical({ symbol: 'X', interval: '1d' });
         expect(out).toBe(bars);
     });
 

@@ -54,7 +54,10 @@ export const binanceRest = {
         const cfg = resolveConfig(this.configSchema, config);
         const url = `${cfg.baseUrl}/api/v3/klines?symbol=${encodeURIComponent(symbol)}&interval=${encodeURIComponent(interval)}&limit=${cfg.limit}`;
         try {
-            const res = await fetch(url, { cache: 'no-store' });
+            const res = await fetch(url, {
+                cache: 'no-store',
+                signal: AbortSignal.timeout(15_000),
+            });
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const data = await res.json();
             if (!Array.isArray(data) || !data.length) throw new Error('empty kline response');
@@ -68,6 +71,7 @@ export const binanceRest = {
             }));
         } catch (err) {
             if (!cfg.fallback) throw err;
+            console.warn(`[binance-rest] Network error, falling back to synthetic data: ${err.message}`);
             return synthesizeWalk(cfg.limit || 200, interval, 100);
         }
     },
@@ -118,14 +122,16 @@ export const mockWalk = {
 
 // A source that holds the last user-uploaded file. The actual file is stored
 // in `state._uploadedBars` (set by the UI when the user picks a file).
+import { getState } from '../state.js';
 export const csvUpload = {
     id: 'csv-upload',
     name: 'CSV / JSON Upload',
     kind: 'source',
     description: 'Uses the last file the user uploaded (CSV with time,open,high,low,close[,volume] or JSON array).',
     configSchema: {},
-    async fetchHistorical({ config }) {
-        const bars = config && config.bars;
+    async fetchHistorical() {
+        const state = getState();
+        const bars = state?.get?.('uploadedBars');
         if (!Array.isArray(bars) || !bars.length) {
             throw new Error('No uploaded file. Use the Upload button to pick a CSV/JSON file first.');
         }

@@ -8,10 +8,13 @@
     --border: #363c4e;
     --border-soft: #2a2e39;
     --text: #d1d4dc;
+    --text-primary: #d1d4dc;
+    --text-secondary: #787b86;
     --text-dim: #787b86;
     --text-faint: #5d606b;
     --accent: #2962ff;
     --accent-hover: #2979ff;
+    --accent-bg: rgba(41,98,255,0.1);
     --green: #26a69a;
     --red: #ef5350;
     --yellow: #ffb300;
@@ -685,11 +688,6 @@ body {
     animation: pulse 1.2s ease-in-out infinite;
 }
 
-@keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.5; }
-}
-
 /* ---------- Responsive ---------- */
 /* ---------- Settings dialog ---------- */
 .settings-backdrop {
@@ -1057,8 +1055,11 @@ html[data-theme="light"] {
     --border: #d0d4dd;
     --border-soft: #e5e8ed;
     --text: #1a1d29;
+    --text-primary: #1a1d29;
+    --text-secondary: #5d606b;
     --text-dim: #5d606b;
     --text-faint: #8a8e9b;
+    --accent-bg: rgba(41,98,255,0.06);
 }
 
 html[data-theme="light"] .pane-label,
@@ -1264,4 +1265,27 @@ html[data-theme="light"] .pine-editor-host textarea {
     .topbar {
         flex-wrap: wrap;
     }
+}
+
+/* ---------- Print ---------- */
+@media print {
+    .topbar, .sidebar, .editor-pane, .statusbar { display: none; }
+    .chart-pane { position: static !important; height: auto !important; }
+    body { overflow: visible; background: #fff; }
+}
+
+/* ---------- Chart loading skeleton ---------- */
+.chart-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: var(--text-dim);
+    font-size: 14px;
+    background: var(--bg-base);
+    transition: opacity 0.3s;
+}
+.chart-loading.hidden {
+    opacity: 0;
+    pointer-events: none;
 }
