@@ -64,6 +64,13 @@ function createDataWindow() {
     return el;
 }
 
+// Convert a chart-relative point to viewport coordinates.
+function chartToViewport(chart, px, py) {
+    const rect = chart.chart?.container()?.getBoundingClientRect?.();
+    if (!rect) return { x: px, y: py };
+    return { x: rect.left + px, y: rect.top + py };
+}
+
 function updateDataWindow(param) {
     const el = document.getElementById('data-window');
     if (!el) return;
@@ -113,20 +120,25 @@ function updateDataWindow(param) {
 
     el.innerHTML = `<table class="dw-table">${rows.join('')}</table>`;
 
-    // Position near the crosshair
-    const chartRect = document.querySelector('.chart-pane')?.getBoundingClientRect();
-    if (!chartRect) return;
-    // Place to the right of the crosshair; if near right edge, go left
-    const x = param.point.x + 18;
-    const spaceRight = chartRect.width - x;
+    // Position near the crosshair using fixed positioning (viewport coordinates).
+    // The chart-relative point is converted to viewport coords via getBoundingClientRect.
+    const chartEl = document.getElementById('chart');
+    if (!chartEl) return;
+    const chartRect = chartEl.getBoundingClientRect();
+    const vpX = chartRect.left + param.point.x;
+    const vpY = chartRect.top + param.point.y;
+
     const dwW = 190;
-    const finalX = (spaceRight < dwW && param.point.x - dwW - 10 > 0)
-        ? param.point.x - dwW - 10
-        : param.point.x + 16;
-    // Vertically centre near the cursor
-    const y = param.point.y + 10;
+    const viewW = window.innerWidth;
+    // Prefer right side; if near right edge, go left
+    const finalX = (vpX + dwW + 20 > viewW && vpX - dwW - 20 > 0)
+        ? vpX - dwW - 12
+        : vpX + 16;
+    const finalY = Math.max(8, vpY - 10);
+
+    el.style.position = 'fixed';
     el.style.left = `${finalX}px`;
-    el.style.top = `${y}px`;
+    el.style.top = `${finalY}px`;
 }
 
 function wireDataWindow() {

@@ -1294,7 +1294,7 @@ html[data-theme="light"] .pine-editor-host textarea {
 /* ---------- Data window (crosshair tooltip) ---------- */
 .data-window {
     display: none;
-    position: absolute;
+    position: fixed;
     z-index: 50;
     pointer-events: none;
     background: var(--bg-panel);
