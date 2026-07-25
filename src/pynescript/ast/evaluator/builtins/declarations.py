@@ -40,6 +40,8 @@ class ScriptDeclaration:
     max_lines_count: int | None = None
     max_labels_count: int | None = None
     max_boxes_count: int | None = None
+    # Full kwargs for strategy broker settings (commission, slippage, …)
+    kwargs: dict[str, Any] | None = None
 
 
 def indicator(title: str = "", description: str = "", **kwargs: Any) -> ScriptDeclaration:
@@ -64,6 +66,7 @@ def indicator(title: str = "", description: str = "", **kwargs: Any) -> ScriptDe
         max_lines_count=kwargs.get("max_lines_count"),
         max_labels_count=kwargs.get("max_labels_count"),
         max_boxes_count=kwargs.get("max_boxes_count"),
+        kwargs=dict(kwargs),
     )
 
 
@@ -73,7 +76,7 @@ def strategy(title: str = "", description: str = "", **kwargs: Any) -> ScriptDec
     Args:
         title: Full title of the strategy
         description: Description of the strategy
-        **kwargs: Additional strategy parameters (pyramiding, default_qty_type, etc.; v6: behind_chart, force_overlay)
+        **kwargs: Additional strategy parameters (pyramiding, commission_*, slippage, etc.)
 
     Returns:
         ScriptDeclaration object with script metadata
@@ -89,6 +92,7 @@ def strategy(title: str = "", description: str = "", **kwargs: Any) -> ScriptDec
         max_lines_count=kwargs.get("max_lines_count"),
         max_labels_count=kwargs.get("max_labels_count"),
         max_boxes_count=kwargs.get("max_boxes_count"),
+        kwargs=dict(kwargs),
     )
 
 
@@ -114,6 +118,7 @@ def library(title: str = "", description: str = "", **kwargs: Any) -> ScriptDecl
         max_lines_count=kwargs.get("max_lines_count"),
         max_labels_count=kwargs.get("max_labels_count"),
         max_boxes_count=kwargs.get("max_boxes_count"),
+        kwargs=dict(kwargs),
     )
 
 
@@ -135,5 +140,6 @@ def register_script_declaration_functions(namespace: dict) -> None:
         namespace: Dictionary to register functions in (typically evaluator's builtins)
     """
     namespace["indicator"] = _as_builtin_handler(indicator)
+    # Strategy declaration may also configure broker settings on the evaluator
     namespace["strategy"] = _as_builtin_handler(strategy)
     namespace["library"] = _as_builtin_handler(library)

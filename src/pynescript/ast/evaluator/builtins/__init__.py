@@ -96,7 +96,24 @@ class BuiltinEvaluator(
         register_color_functions(dispatch)
         register_timeframe_functions(dispatch)
         register_script_declaration_functions(dispatch)
-        register_script_declaration_functions(dispatch)
+        # Wire strategy() declaration → broker settings on StrategyState
+        raw_strategy = dispatch.get("strategy")
+        if raw_strategy is not None and hasattr(self, "_apply_strategy_declaration"):
+
+            def _strategy_decl_handler(
+                args: list,
+                kwargs: dict | None = None,
+                _raw=raw_strategy,
+                _self=self,
+            ):
+                decl = _raw(args, kwargs)
+                try:
+                    _self._apply_strategy_declaration(decl)
+                except Exception:
+                    pass
+                return decl
+
+            dispatch["strategy"] = _strategy_decl_handler
         return dispatch
 
     @staticmethod

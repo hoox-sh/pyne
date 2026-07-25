@@ -42,6 +42,8 @@ class Order:
     filled_qty: float = 0.0
     # Cap fill size per bar when > 0 (partial fill model); 0 = fill remaining
     max_fill_per_bar: float = 0.0
+    oca_name: str | None = None
+    oca_type: str = "none"  # none | cancel | reduce
 
     @property
     def remaining_qty(self) -> float:
@@ -97,7 +99,7 @@ class StrategyState:
         self.entry_bar: int = 0
         self.entry_time: int = 0
         self.position_size: float = 0.0
-        self.commission: float = 0.0
+        self.commission: float = 0.0  # last trade commission cache
         self.position_entry_name: str = ""
         self.closed_trades: list[Trade] = []
         self.open_trades: list[OpenTrade] = []
@@ -106,6 +108,12 @@ class StrategyState:
         self.initial_capital: float = 100_000.0
         self.risk_free_capital: float = 100_000.0
         self.account_currency: str = "USD"
+        # Broker settings from strategy() declaration
+        self.commission_type: str = "percent"  # percent | cash_per_order | cash_per_contract
+        self.commission_value: float = 0.0
+        self.slippage_ticks: int = 0
+        self.pyramiding: int = 0  # 0 = one entry; >0 max additional entries
+        self.mintick: float = 0.01
         self.closedtrades_first_index: int = 0
         self.max_contracts_held_all: float = 0.0
         self.max_contracts_held_long: float = 0.0
@@ -389,6 +397,93 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
             return float(price)
         return self._coerce_number(price, default=100.0)
 
+    def _mintick(self) -> float:
+        ctx = getattr(self, "context", {}) or {}
+        sym = ctx.get("syminfo")
+        if sym is not None:
+            mt = getattr(sym, "mintick", None)
+            if mt is not None:
+                try:
+                    return float(mt)
+                except (TypeError, ValueError):
+                    pass
+            if isinstance(sym, dict) and "mintick" in sym:
+                try:
+                    return float(sym["mintick"])
+                except (TypeError, ValueError):
+                    pass
+        return float(self._strategy_state.mintick or 0.01)
+
+    def _apply_slippage(self, price: float, action: str) -> float:
+        """Shift fill price by strategy slippage (ticks × mintick)."""
+        ticks = int(self._strategy_state.slippage_ticks or 0)
+        if ticks <= 0:
+            return float(price)
+        slip = ticks * self._mintick()
+        if action in {"buy", "long"}:
+            return float(price) + slip
+        return float(price) - slip
+
+    def _calc_commission(self, qty: float, price: float) -> float:
+        """Commission for a fill of ``qty`` at ``price``."""
+        st = self._strategy_state
+        val = float(st.commission_value or 0.0)
+        if val == 0:
+            return 0.0
+        ctype = (st.commission_type or "percent").lower()
+        q = abs(float(qty))
+        p = abs(float(price))
+        if ctype in {"percent", "strategy.commission.percent"}:
+            return q * p * (val / 100.0)
+        if ctype in {"cash_per_order", "strategy.commission.cash_per_order"}:
+            return val
+        if ctype in {"cash_per_contract", "strategy.commission.cash_per_contract"}:
+            return val * q
+        return 0.0
+
+    def _apply_strategy_declaration(self, decl: Any) -> None:
+        """Apply strategy() kwargs stored on ScriptDeclaration / kwargs dict."""
+        if not hasattr(self, "_strategy_state"):
+            self._strategy_state = StrategyState()
+        st = self._strategy_state
+        # Support ScriptDeclaration with extra attrs or raw kwargs map
+        src = decl
+        kwargs = getattr(decl, "kwargs", None)
+        if isinstance(kwargs, dict):
+            src = kwargs
+        elif not isinstance(decl, dict):
+            # Pull known fields if present as attributes
+            mapping = {}
+            for key in (
+                "commission_type",
+                "commission_value",
+                "slippage",
+                "pyramiding",
+                "initial_capital",
+                "currency",
+                "default_qty_value",
+            ):
+                if hasattr(decl, key):
+                    mapping[key] = getattr(decl, key)
+            src = mapping
+        if not isinstance(src, dict):
+            return
+        if "initial_capital" in src and src["initial_capital"] is not None:
+            st.initial_capital = float(src["initial_capital"])
+            st.risk_free_capital = float(src["initial_capital"])
+            st._equity_peak = float(src["initial_capital"])
+            st._equity_trough = float(src["initial_capital"])
+        if "commission_type" in src and src["commission_type"] is not None:
+            st.commission_type = str(src["commission_type"])
+        if "commission_value" in src and src["commission_value"] is not None:
+            st.commission_value = float(src["commission_value"])
+        if "slippage" in src and src["slippage"] is not None:
+            st.slippage_ticks = int(src["slippage"])
+        if "pyramiding" in src and src["pyramiding"] is not None:
+            st.pyramiding = int(src["pyramiding"])
+        if "currency" in src and src["currency"] is not None:
+            st.account_currency = str(src["currency"])
+
     def _bar_index(self) -> int:
         ctx = getattr(self, "context", {}) or {}
         return int(self._coerce_number(ctx.get("bar_index", 0), default=0))
@@ -511,6 +606,10 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
             )
             return
 
+        fill_price = self._apply_slippage(fill_price, "buy" if direction == "long" else "sell")
+        commission = self._calc_commission(qty, fill_price)
+        self._strategy_state.commission = commission
+
         # Close existing position if opposite direction
         if (direction == "long" and self._strategy_state.position_direction == "short") or (
             direction == "short" and self._strategy_state.position_direction == "long"
@@ -523,7 +622,6 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
         self._strategy_state.entry_bar = bar_index
         self._strategy_state.entry_time = bar_time
         self._strategy_state.position_size = qty
-        self._strategy_state.commission = 0.0
         self._strategy_state.position_entry_name = entry_id
         self._strategy_state.open_trades = [
             OpenTrade(
@@ -533,7 +631,7 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
                 entry_price=fill_price,
                 direction=direction,
                 size=qty,
-                commission=0.0,
+                commission=commission,
             )
         ]
         self._strategy_state.note_position_size()
@@ -796,22 +894,17 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
 
     def _handle_strategy_order(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> None:
         """
-        strategy.order(id, action, qty, limit, stop, comment, alert, ...)
+        strategy.order(id, direction, qty, limit, stop, oca_name, oca_type, comment, ...)
 
-        Place a custom order (market, limit, stop, stop-limit).
-
-        Pending orders are filled by :meth:`process_pending_orders` each bar
-        against OHLC (limit/stop rules). Optional kwargs:
-        - ``max_fill_per_bar``: partial-fill cap for this order
+        Official positional order (TV reference). Pending orders fill via
+        :meth:`process_pending_orders`. Supports OCA groups and partial fills
+        (``max_fill_per_bar`` kwarg).
         """
         if not hasattr(self, "_strategy_state"):
             self._strategy_state = StrategyState()
         kw = kwargs or {}
         order_id = str(kw.get("id", args[0] if len(args) > 0 else "order_1"))
-        raw_action = kw.get("action", args[1] if len(args) > 1 else "buy")
-        # Also accept direction= from Pine (strategy.long / strategy.short)
-        if "direction" in kw and raw_action in (None, "buy", "sell"):
-            raw_action = kw.get("direction", raw_action)
+        raw_action = kw.get("direction", kw.get("action", args[1] if len(args) > 1 else "buy"))
         action = str(raw_action).lower()
         if action in {"strategy.long", "long", "1"}:
             action = "buy"
@@ -820,13 +913,33 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
         qty = self._coerce_number(kw.get("qty", args[2] if len(args) > 2 else 1.0), default=1.0)
         limit_price = self._coerce_optional_price(kw.get("limit", args[3] if len(args) > 3 else None))
         stop_price = self._coerce_optional_price(kw.get("stop", args[4] if len(args) > 4 else None))
-        comment = kw.get("comment", args[5] if len(args) > 5 else "")
+        # TV: oca_name, oca_type, comment — also tolerate comment before oca
+        oca_name = kw.get("oca_name", args[5] if len(args) > 5 else None)
+        oca_type_raw = kw.get("oca_type", args[6] if len(args) > 6 else "none")
+        comment = kw.get("comment", args[7] if len(args) > 7 else "")
+        # Heuristic: if args[5] looks like oca type constant, shift
+        if isinstance(oca_name, str) and oca_name.lower() in {"none", "cancel", "reduce"}:
+            oca_type_raw = oca_name
+            oca_name = kw.get("oca_name")
+            comment = kw.get("comment", args[6] if len(args) > 6 else comment)
+        # If args[5] is comment-like and args[6] is oca type (greedy script:
+        # comment="TPSL", oca.reduce, oca_name="TPSL" is NOT that order —
+        # greedy is: ..., "TPSL", oca.reduce, "TPSL" = oca_name, oca_type, comment)
+        oca_type = str(oca_type_raw or "none").lower()
+        if oca_type in {"strategy.oca.none", "oca.none"}:
+            oca_type = "none"
+        elif oca_type in {"strategy.oca.cancel", "oca.cancel"}:
+            oca_type = "cancel"
+        elif oca_type in {"strategy.oca.reduce", "oca.reduce"}:
+            oca_type = "reduce"
+        oca_name_str = None if oca_name is None else str(oca_name)
+        if oca_name_str is not None and oca_name_str.lower() in {"none", "cancel", "reduce"}:
+            oca_name_str = None
         max_fill = self._coerce_number(
             kw.get("max_fill_per_bar", self._strategy_state.default_max_fill_per_bar),
             default=0.0,
         )
 
-        # Determine order type
         if stop_price is not None and limit_price is not None:
             order_type = "stop-limit"
         elif stop_price is not None:
@@ -845,6 +958,8 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
             stop_price,
             str(comment) if comment is not None else "",
             max_fill_per_bar=max_fill,
+            oca_name=oca_name_str,
+            oca_type=oca_type,
         )
         self._strategy_state.pending_orders[order_id] = order
 
@@ -857,7 +972,7 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
                 order_type="market" if order_type == "market" else "limit" if order_type == "limit" else "stop",
                 limit=limit_price,
                 stop=stop_price,
-                oca_name=None,
+                oca_name=oca_name_str,
                 comment=str(comment) if comment is not None else "",
                 bar_index=self._bar_index(),
                 bar_time=self._bar_time(),
@@ -866,8 +981,6 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
                 run_id="",
             )
         )
-        # Fills happen in process_pending_orders (Runtime bar step). Market
-        # orders are not filled at placement so same-bar cancel still works.
 
     def process_pending_orders(
         self,
@@ -891,9 +1004,13 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
         c = self._coerce_number(close if close is not None else ctx.get("close"), default=o)
 
         fully_filled: list[str] = []
-        for order_id, order in list(self._strategy_state.pending_orders.items()):
+        # Snapshot ids — OCA may delete siblings mid-loop
+        for order_id in list(self._strategy_state.pending_orders.keys()):
+            order = self._strategy_state.pending_orders.get(order_id)
+            if order is None:
+                continue
             if order.remaining_qty <= 0:
-                del self._strategy_state.pending_orders[order_id]
+                self._strategy_state.pending_orders.pop(order_id, None)
                 fully_filled.append(order_id)
                 continue
             fill_price = self._order_fill_price(order, o, h, l, c)
@@ -959,32 +1076,42 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
         fill_qty = float(min(fill_qty, order.remaining_qty))
         if fill_qty <= 0:
             return
-        order.filled_qty += fill_qty
         action = order.direction
+        fill_price = self._apply_slippage(float(fill_price), action)
+        order.filled_qty += fill_qty
         bar_time = self._bar_time()
         bar_index = self._bar_index()
+        commission = self._calc_commission(fill_qty, fill_price)
+        self._strategy_state.commission = commission
 
         if action in {"buy", "long"}:
-            # If flat or long: add long; if short: cover then open long remainder
             if self._strategy_state.position_direction == "short":
                 cover = min(fill_qty, self._strategy_state.position_size)
                 self._close_position(fill_price, cover, bar_time)
                 leftover = fill_qty - cover
                 if leftover > 1e-12 and self._risk_allows_entry("long", fill_price):
-                    self._open_position_qty("long", leftover, fill_price, order.order_id, bar_index, bar_time)
+                    self._open_position_qty(
+                        "long", leftover, fill_price, order.order_id, bar_index, bar_time, commission
+                    )
             else:
                 if self._risk_allows_entry("long", fill_price):
-                    self._open_position_qty("long", fill_qty, fill_price, order.order_id, bar_index, bar_time)
+                    self._open_position_qty(
+                        "long", fill_qty, fill_price, order.order_id, bar_index, bar_time, commission
+                    )
         else:  # sell / short
             if self._strategy_state.position_direction == "long":
                 cover = min(fill_qty, self._strategy_state.position_size)
                 self._close_position(fill_price, cover, bar_time)
                 leftover = fill_qty - cover
                 if leftover > 1e-12 and self._risk_allows_entry("short", fill_price):
-                    self._open_position_qty("short", leftover, fill_price, order.order_id, bar_index, bar_time)
+                    self._open_position_qty(
+                        "short", leftover, fill_price, order.order_id, bar_index, bar_time, commission
+                    )
             else:
                 if self._risk_allows_entry("short", fill_price):
-                    self._open_position_qty("short", fill_qty, fill_price, order.order_id, bar_index, bar_time)
+                    self._open_position_qty(
+                        "short", fill_qty, fill_price, order.order_id, bar_index, bar_time, commission
+                    )
 
         self._record_strategy_event(
             StrategyEvent(
@@ -995,7 +1122,7 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
                 order_type="market",
                 limit=order.limit_price,
                 stop=order.stop_price,
-                oca_name=None,
+                oca_name=order.oca_name,
                 comment=f"fill:{order.comment}" if order.comment else "fill",
                 bar_index=bar_index,
                 bar_time=bar_time,
@@ -1004,8 +1131,62 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
                 run_id="",
             )
         )
+        # OCA: cancel or reduce siblings after this fill
+        self._apply_oca_after_fill(order, fill_qty)
         if order.remaining_qty <= 1e-12:
             self._strategy_state.pending_orders.pop(order.order_id, None)
+
+    def _apply_oca_after_fill(self, filled: Order, fill_qty: float) -> None:
+        """Cancel or reduce other orders in the same OCA group."""
+        if not filled.oca_name or filled.oca_type in {"none", ""}:
+            return
+        name = filled.oca_name
+        otype = (filled.oca_type or "none").lower()
+        for oid, other in list(self._strategy_state.pending_orders.items()):
+            if oid == filled.order_id or other.oca_name != name:
+                continue
+            if otype == "cancel":
+                del self._strategy_state.pending_orders[oid]
+                self._record_strategy_event(
+                    StrategyEvent(
+                        kind="cancel",
+                        id=oid,
+                        direction=None,
+                        qty=None,
+                        order_type=None,
+                        limit=None,
+                        stop=None,
+                        oca_name=name,
+                        comment="oca_cancel",
+                        bar_index=self._bar_index(),
+                        bar_time=self._bar_time(),
+                        ohlc=(0.0, 0.0, 0.0, 0.0),
+                        script_id="",
+                        run_id="",
+                    )
+                )
+            elif otype == "reduce":
+                other.quantity = max(0.0, float(other.quantity) - float(fill_qty))
+                if other.remaining_qty <= 1e-12:
+                    del self._strategy_state.pending_orders[oid]
+                    self._record_strategy_event(
+                        StrategyEvent(
+                            kind="cancel",
+                            id=oid,
+                            direction=None,
+                            qty=None,
+                            order_type=None,
+                            limit=None,
+                            stop=None,
+                            oca_name=name,
+                            comment="oca_reduce",
+                            bar_index=self._bar_index(),
+                            bar_time=self._bar_time(),
+                            ohlc=(0.0, 0.0, 0.0, 0.0),
+                            script_id="",
+                            run_id="",
+                        )
+                    )
 
     def _open_position_qty(
         self,
@@ -1015,11 +1196,17 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
         entry_id: str,
         bar_index: int,
         bar_time: int,
+        commission: float = 0.0,
     ) -> None:
         """Open or add to a position (absolute qty, same direction)."""
         st = self._strategy_state
+        # Pyramiding: 0 = replace/add only if flat; n = max open entries
         if st.position_direction == direction and st.position_size > 0:
-            # Average in
+            if st.pyramiding <= 0 and len(st.open_trades) >= 1:
+                # Default: allow add for order fills (averaging) but cap by pyramiding=0 as single entry size update
+                pass
+            elif st.pyramiding > 0 and len(st.open_trades) >= st.pyramiding + 1:
+                return
             total = st.position_size + qty
             st.entry_price = (st.entry_price * st.position_size + fill_price * qty) / total
             st.position_size = total
@@ -1031,7 +1218,7 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
                     entry_price=fill_price,
                     direction=direction,
                     size=qty,
-                    commission=0.0,
+                    commission=float(commission),
                 )
             )
         else:
@@ -1049,7 +1236,7 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
                     entry_price=fill_price,
                     direction=direction,
                     size=qty,
-                    commission=0.0,
+                    commission=float(commission),
                 )
             ]
         st.note_position_size()

@@ -118,6 +118,8 @@ Pine Script v6 launched December 2024, followed by monthly updates. Key sources:
 - ✅ Inventory summary regenerated from live dispatch (640 callables)
 - ✅ Broker: `process_pending_orders` fills limit/stop/stop-limit (and market next bar); partial fills via `max_fill_per_bar`; stop/limit `strategy.entry` pending; `na` prices coerced
 - ✅ `ta.kama`/`dema`/`tema` bar-mode scalars; `request.seed` seeds stdlib + numpy for reproducible mocks
+- ✅ OCA: `strategy.oca.none/cancel/reduce` + oca_name/type on orders; fill cancels/reduces siblings
+- ✅ Commission (`percent` / `cash_per_order` / `cash_per_contract`) + slippage ticks from `strategy()` kwargs; applied on fills
 
 ## Recommendations
 - **Grammar first**: Add triple-quoted multiline string support to `PinescriptLexer.g4` + handling in lexer/parser.
