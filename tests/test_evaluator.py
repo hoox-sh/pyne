@@ -1305,280 +1305,303 @@ def test_evaluator_plotting_functions(expression, kind):
 
 
 # INPUT FUNCTIONS TESTS
+# Pine semantics: input.* evaluates to the parameter value; metadata is
+# recorded on evaluator._input_declarations for UI/LSP hosts.
 
 
 @pytest.mark.parametrize(
-    ("expression", "expected_keys"),
+    ("expression", "expected_value"),
     [
-        ("input(100, 'Value')", {"type", "default", "title", "tooltip", "inline", "group", "confirm"}),
-        ("input(50.5, 'Price')", {"type", "default", "title"}),
-        ("input(true, 'Flag')", {"type", "default", "title"}),
+        ("input(100, 'Value')", 100),
+        ("input(50.5, 'Price')", 50.5),
+        ("input(true, 'Flag')", True),
     ],
 )
-def test_evaluator_input_generic(expression, expected_keys):
+def test_evaluator_input_generic(expression, expected_value):
     ast = helper.parse(expression, mode="eval")
     evaluator = NodeLiteralEvaluator()
     result = evaluator.visit(ast.body)
-    assert isinstance(result, dict)
-    assert expected_keys.issubset(result.keys())
+    assert result == expected_value
+    assert len(evaluator._input_declarations) == 1
+    meta = evaluator._input_declarations[0]
+    assert meta["default"] == expected_value
+    assert "type" in meta
+    assert "title" in meta
 
 
 def test_evaluator_input_int_type_inference():
-    """Test that input() infers int type from integer defval."""
+    """input() returns int defval and records type metadata."""
     ast = helper.parse("input(14)", mode="eval")
     evaluator = NodeLiteralEvaluator()
     result = evaluator.visit(ast.body)
-    assert result["type"] == "int"
-    assert result["default"] == 14
+    assert result == 14
+    assert evaluator._input_declarations[0]["type"] == "int"
+    assert evaluator._input_declarations[0]["default"] == 14
 
 
 def test_evaluator_input_bool_type_inference():
-    """Test that input() infers bool type from boolean defval."""
+    """input() returns bool defval and records type metadata."""
     ast = helper.parse("input(true)", mode="eval")
     evaluator = NodeLiteralEvaluator()
     result = evaluator.visit(ast.body)
-    assert result["type"] == "bool"
-    assert result["default"] is True
+    assert result is True
+    assert evaluator._input_declarations[0]["type"] == "bool"
+    assert evaluator._input_declarations[0]["default"] is True
 
 
 def test_evaluator_input_float_type_inference():
-    """Test that input() infers float type from float defval."""
+    """input() returns float defval and records type metadata."""
     ast = helper.parse("input(2.5)", mode="eval")
     evaluator = NodeLiteralEvaluator()
     result = evaluator.visit(ast.body)
-    assert result["type"] == "float"
-    assert result["default"] == 2.5
+    assert result == 2.5
+    assert evaluator._input_declarations[0]["type"] == "float"
+    assert evaluator._input_declarations[0]["default"] == 2.5
 
 
 def test_evaluator_input_string_type_inference():
-    """Test that input() infers string type from string defval."""
+    """input() returns string defval and records type metadata."""
     ast = helper.parse("input('text')", mode="eval")
     evaluator = NodeLiteralEvaluator()
     result = evaluator.visit(ast.body)
-    assert result["type"] == "string"
-    assert result["default"] == "text"
+    assert result == "text"
+    assert evaluator._input_declarations[0]["type"] == "string"
+    assert evaluator._input_declarations[0]["default"] == "text"
 
 
 @pytest.mark.parametrize(
-    ("expression", "expected_type", "expected_default"),
+    ("expression", "expected_value"),
     [
-        ("input.bool(true)", "bool", True),
-        ("input.bool(false)", "bool", False),
-        ("input.bool(true, 'Enable')", "bool", True),
+        ("input.bool(true)", True),
+        ("input.bool(false)", False),
+        ("input.bool(true, 'Enable')", True),
     ],
 )
-def test_evaluator_input_bool(expression, expected_type, expected_default):
+def test_evaluator_input_bool(expression, expected_value):
     ast = helper.parse(expression, mode="eval")
     evaluator = NodeLiteralEvaluator()
     result = evaluator.visit(ast.body)
-    assert result["type"] == expected_type
-    assert result["default"] == expected_default
+    assert result is expected_value
+    assert evaluator._input_declarations[0]["type"] == "bool"
+    assert evaluator._input_declarations[0]["default"] is expected_value
 
 
 @pytest.mark.parametrize(
-    ("expression", "expected_type", "expected_default"),
+    ("expression", "expected_value"),
     [
-        ("input.int(14)", "int", 14),
-        ("input.int(14, 'Length')", "int", 14),
-        ("input.int(14, 'Length', 1, 100)", "int", 14),
+        ("input.int(14)", 14),
+        ("input.int(14, 'Length')", 14),
+        ("input.int(14, 'Length', 1, 100)", 14),
     ],
 )
-def test_evaluator_input_int(expression, expected_type, expected_default):
+def test_evaluator_input_int(expression, expected_value):
     ast = helper.parse(expression, mode="eval")
     evaluator = NodeLiteralEvaluator()
     result = evaluator.visit(ast.body)
-    assert result["type"] == expected_type
-    assert result["default"] == expected_default
+    assert result == expected_value
+    assert evaluator._input_declarations[0]["type"] == "int"
+    assert evaluator._input_declarations[0]["default"] == expected_value
 
 
 def test_evaluator_input_int_with_constraints():
-    """Test input.int with min/max/step constraints."""
+    """input.int returns value; min/max/step live in metadata."""
     ast = helper.parse("input.int(50, 'Value', 10, 100, 5)", mode="eval")
     evaluator = NodeLiteralEvaluator()
     result = evaluator.visit(ast.body)
-    assert result["type"] == "int"
-    assert result["default"] == 50
-    assert result["min"] == 10
-    assert result["max"] == 100
-    assert result["step"] == 5
+    assert result == 50
+    meta = evaluator._input_declarations[0]
+    assert meta["type"] == "int"
+    assert meta["default"] == 50
+    assert meta["min"] == 10
+    assert meta["max"] == 100
+    assert meta["step"] == 5
 
 
 @pytest.mark.parametrize(
-    ("expression", "expected_type", "expected_default"),
+    ("expression", "expected_value"),
     [
-        ("input.float(2.5)", "float", 2.5),
-        ("input.float(2.5, 'Price')", "float", 2.5),
-        ("input.float(2.5, 'Price', 0.0, 10.0)", "float", 2.5),
+        ("input.float(2.5)", 2.5),
+        ("input.float(2.5, 'Price')", 2.5),
+        ("input.float(2.5, 'Price', 0.0, 10.0)", 2.5),
     ],
 )
-def test_evaluator_input_float(expression, expected_type, expected_default):
+def test_evaluator_input_float(expression, expected_value):
     ast = helper.parse(expression, mode="eval")
     evaluator = NodeLiteralEvaluator()
     result = evaluator.visit(ast.body)
-    assert result["type"] == expected_type
-    assert result["default"] == expected_default
+    assert result == expected_value
+    assert evaluator._input_declarations[0]["type"] == "float"
+    assert evaluator._input_declarations[0]["default"] == expected_value
 
 
 def test_evaluator_input_float_with_constraints():
-    """Test input.float with min/max/step constraints."""
+    """input.float returns value; min/max/step live in metadata."""
     ast = helper.parse("input.float(1.5, 'Factor', 0.5, 3.0, 0.1)", mode="eval")
     evaluator = NodeLiteralEvaluator()
     result = evaluator.visit(ast.body)
-    assert result["type"] == "float"
-    assert result["default"] == 1.5
-    assert result["min"] == 0.5
-    assert result["max"] == 3.0
-    assert result["step"] == 0.1
+    assert result == 1.5
+    meta = evaluator._input_declarations[0]
+    assert meta["type"] == "float"
+    assert meta["default"] == 1.5
+    assert meta["min"] == 0.5
+    assert meta["max"] == 3.0
+    assert meta["step"] == 0.1
 
 
 @pytest.mark.parametrize(
-    ("expression", "expected_type", "expected_default"),
+    ("expression", "expected_value"),
     [
-        ("input.price(100.0)", "price", 100.0),
-        ("input.price(100.0, 'Entry Price')", "price", 100.0),
+        ("input.price(100.0)", 100.0),
+        ("input.price(100.0, 'Entry Price')", 100.0),
     ],
 )
-def test_evaluator_input_price(expression, expected_type, expected_default):
+def test_evaluator_input_price(expression, expected_value):
     ast = helper.parse(expression, mode="eval")
     evaluator = NodeLiteralEvaluator()
     result = evaluator.visit(ast.body)
-    assert result["type"] == expected_type
-    assert result["default"] == expected_default
+    assert result == expected_value
+    assert evaluator._input_declarations[0]["type"] == "price"
+    assert evaluator._input_declarations[0]["default"] == expected_value
 
 
 @pytest.mark.parametrize(
-    ("expression", "expected_type", "expected_default"),
+    ("expression", "expected_value"),
     [
-        ("input.string('AAPL')", "string", "AAPL"),
-        ("input.string('default', 'Text')", "string", "default"),
+        ("input.string('AAPL')", "AAPL"),
+        ("input.string('default', 'Text')", "default"),
     ],
 )
-def test_evaluator_input_string(expression, expected_type, expected_default):
+def test_evaluator_input_string(expression, expected_value):
     ast = helper.parse(expression, mode="eval")
     evaluator = NodeLiteralEvaluator()
     result = evaluator.visit(ast.body)
-    assert result["type"] == expected_type
-    assert result["default"] == expected_default
+    assert result == expected_value
+    assert evaluator._input_declarations[0]["type"] == "string"
+    assert evaluator._input_declarations[0]["default"] == expected_value
 
 
 @pytest.mark.parametrize(
-    ("expression", "expected_type", "expected_default"),
+    ("expression", "expected_value"),
     [
-        ("input.symbol('AAPL')", "symbol", "AAPL"),
-        ("input.symbol('BTC/USD')", "symbol", "BTC/USD"),
+        ("input.symbol('AAPL')", "AAPL"),
+        ("input.symbol('BTC/USD')", "BTC/USD"),
     ],
 )
-def test_evaluator_input_symbol(expression, expected_type, expected_default):
+def test_evaluator_input_symbol(expression, expected_value):
     ast = helper.parse(expression, mode="eval")
     evaluator = NodeLiteralEvaluator()
     result = evaluator.visit(ast.body)
-    assert result["type"] == expected_type
-    assert result["default"] == expected_default
+    assert result == expected_value
+    assert evaluator._input_declarations[0]["type"] == "symbol"
+    assert evaluator._input_declarations[0]["default"] == expected_value
 
 
 @pytest.mark.parametrize(
-    ("expression", "expected_type"),
+    ("expression", "expected_value"),
     [
-        ("input.session('0930-1600')", "session"),
-        ("input.session('0900-1700', 'Trading Hours')", "session"),
+        ("input.session('0930-1600')", "0930-1600"),
+        ("input.session('0900-1700', 'Trading Hours')", "0900-1700"),
     ],
 )
-def test_evaluator_input_session(expression, expected_type):
+def test_evaluator_input_session(expression, expected_value):
     ast = helper.parse(expression, mode="eval")
     evaluator = NodeLiteralEvaluator()
     result = evaluator.visit(ast.body)
-    assert result["type"] == expected_type
+    assert result == expected_value
+    assert evaluator._input_declarations[0]["type"] == "session"
 
 
 @pytest.mark.parametrize(
-    ("expression", "expected_type", "expected_default"),
+    ("expression", "expected_value"),
     [
-        ("input.source('close')", "source", "close"),
-        ("input.source('hl2')", "source", "hl2"),
+        ("input.source('close')", "close"),
+        ("input.source('hl2')", "hl2"),
     ],
 )
-def test_evaluator_input_source(expression, expected_type, expected_default):
+def test_evaluator_input_source(expression, expected_value):
     ast = helper.parse(expression, mode="eval")
     evaluator = NodeLiteralEvaluator()
     result = evaluator.visit(ast.body)
-    assert result["type"] == expected_type
-    assert result["default"] == expected_default
+    assert result == expected_value
+    assert evaluator._input_declarations[0]["type"] == "source"
+    assert evaluator._input_declarations[0]["default"] == expected_value
 
 
 @pytest.mark.parametrize(
-    ("expression", "expected_type"),
+    ("expression", "expected_value"),
     [
-        ("input.time(0)", "time"),
-        ("input.time(1630698000, 'Start Time')", "time"),
+        ("input.time(0)", 0),
+        ("input.time(1630698000, 'Start Time')", 1630698000),
     ],
 )
-def test_evaluator_input_time(expression, expected_type):
+def test_evaluator_input_time(expression, expected_value):
     ast = helper.parse(expression, mode="eval")
     evaluator = NodeLiteralEvaluator()
     result = evaluator.visit(ast.body)
-    assert result["type"] == expected_type
+    assert result == expected_value
+    assert evaluator._input_declarations[0]["type"] == "time"
 
 
 @pytest.mark.parametrize(
-    ("expression", "expected_type", "expected_default"),
+    ("expression", "expected_value"),
     [
-        ("input.timeframe('D')", "timeframe", "D"),
-        ("input.timeframe('1H')", "timeframe", "1H"),
+        ("input.timeframe('D')", "D"),
+        ("input.timeframe('1H')", "1H"),
     ],
 )
-def test_evaluator_input_timeframe(expression, expected_type, expected_default):
+def test_evaluator_input_timeframe(expression, expected_value):
     ast = helper.parse(expression, mode="eval")
     evaluator = NodeLiteralEvaluator()
     result = evaluator.visit(ast.body)
-    assert result["type"] == expected_type
-    assert result["default"] == expected_default
+    assert result == expected_value
+    assert evaluator._input_declarations[0]["type"] == "timeframe"
+    assert evaluator._input_declarations[0]["default"] == expected_value
 
 
 @pytest.mark.parametrize(
-    ("expression", "expected_type"),
+    ("expression", "expected_value"),
     [
-        ("input.color('#FF0000')", "color"),
-        ("input.color('red')", "color"),
+        ("input.color('#FF0000')", "#FF0000"),
+        ("input.color('red')", "red"),
     ],
 )
-def test_evaluator_input_color(expression, expected_type):
+def test_evaluator_input_color(expression, expected_value):
     ast = helper.parse(expression, mode="eval")
     evaluator = NodeLiteralEvaluator()
     result = evaluator.visit(ast.body)
-    assert result["type"] == expected_type
+    assert result == expected_value
+    assert evaluator._input_declarations[0]["type"] == "color"
 
 
-@pytest.mark.parametrize(
-    ("expression", "expected_type"),
-    [
-        ("input.enum('A', 'Choice', ['A', 'B', 'C'])", "enum"),
-    ],
-)
-def test_evaluator_input_enum(expression, expected_type):
-    ast = helper.parse(expression, mode="eval")
+def test_evaluator_input_enum():
+    ast = helper.parse("input.enum('A', 'Choice', ['A', 'B', 'C'])", mode="eval")
     evaluator = NodeLiteralEvaluator()
     result = evaluator.visit(ast.body)
-    assert result["type"] == expected_type
-    assert result["options"] == ["A", "B", "C"]
+    assert result == "A"
+    meta = evaluator._input_declarations[0]
+    assert meta["type"] == "enum"
+    assert meta["options"] == ["A", "B", "C"]
 
 
 def test_evaluator_input_with_all_parameters():
-    """Test input functions with all optional parameters."""
+    """input.int returns value; full optional metadata is recorded."""
     ast = helper.parse(
         "input.int(50, 'Value', 10, 100, 5, 'Set the threshold', 'group1', 'settings', true)", mode="eval"
     )
     evaluator = NodeLiteralEvaluator()
     result = evaluator.visit(ast.body)
-    assert result["type"] == "int"
-    assert result["default"] == 50
-    assert result["title"] == "Value"
-    assert result["min"] == 10
-    assert result["max"] == 100
-    assert result["step"] == 5
-    assert result["tooltip"] == "Set the threshold"
-    assert result["inline"] == "group1"
-    assert result["group"] == "settings"
-    assert result["confirm"] is True
+    assert result == 50
+    meta = evaluator._input_declarations[0]
+    assert meta["type"] == "int"
+    assert meta["default"] == 50
+    assert meta["title"] == "Value"
+    assert meta["min"] == 10
+    assert meta["max"] == 100
+    assert meta["step"] == 5
+    assert meta["tooltip"] == "Set the threshold"
+    assert meta["inline"] == "group1"
+    assert meta["group"] == "settings"
+    assert meta["confirm"] is True
 
 
 # REQUEST FUNCTIONS TESTS

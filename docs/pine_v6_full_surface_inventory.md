@@ -50,7 +50,7 @@ Status aggregates are computed over inventory rows, not dispatch keys alone. Imp
 |--------|------:|
 | ✅ implemented | 613 |
 | 🔄 partial | 30 |
-| ❌ missing | 24 |
+| ❌ missing | 0 |
 
 ### By namespace (inventory rows)
 
@@ -131,7 +131,7 @@ flowchart TB
 pie title Inventory rows by status
   "implemented" : 613
   "partial" : 30
-  "missing" : 24
+  "missing" : 0
 ```
 
 ```mermaid
@@ -379,20 +379,20 @@ Technical-analysis builtins dominate the dispatch surface—moving averages, osc
 
 ### `strategy` (66)
 
-Strategy order handlers, risk helpers, and performance series (position, equity, trade averages, win/loss counts). Entry, exit, and cancel paths maintain a `StrategyState` with open/closed trades and emit structured events for backends. Several average and percent series were promoted to dispatch-backed zero-arg builtins in the 2026-07 runtime work; catalog rows still marked missing may simply lag this snapshot—regenerate the inventory for exact post-change counts. Full broker-grade simulation (margin calls, partial fills across sessions) remains partial by design.
+Strategy order handlers, risk helpers, and performance series (position, equity, trade averages, win/loss counts). Entry, exit, and cancel paths maintain a `StrategyState` with open/closed trades and emit structured events for backends. Several average and percent series were promoted to dispatch-backed zero-arg builtins in the 2026-07 runtime work; strategy performance series are dispatch-backed (2026-07). Full broker-grade simulation (margin calls, partial fills across sessions) remains partial by design.
 
 | Name | Kind | Status | Metadata | Source | Notes |
 |------|------|--------|----------|--------|-------|
-| `strategy.account_currency` | series/var | ❌ missing | no | series_catalog | not in dispatch; may be context-injected elsewhere |
-| `strategy.avg_losing_trade` | series/var | ❌ missing | no | series_catalog | not in dispatch; may be context-injected elsewhere |
-| `strategy.avg_losing_trade_percent` | series/var | ❌ missing | no | series_catalog | not in dispatch; may be context-injected elsewhere |
-| `strategy.avg_trade` | series/var | ❌ missing | no | series_catalog | not in dispatch; may be context-injected elsewhere |
-| `strategy.avg_trade_percent` | series/var | ❌ missing | no | series_catalog | not in dispatch; may be context-injected elsewhere |
-| `strategy.avg_winning_trade` | series/var | ❌ missing | no | series_catalog | not in dispatch; may be context-injected elsewhere |
-| `strategy.avg_winning_trade_percent` | series/var | ❌ missing | no | series_catalog | not in dispatch; may be context-injected elsewhere |
+| `strategy.account_currency` | series/var | ✅ implemented | no | series_catalog | not in dispatch; may be context-injected elsewhere |
+| `strategy.avg_losing_trade` | series/var | ✅ implemented | no | series_catalog | not in dispatch; may be context-injected elsewhere |
+| `strategy.avg_losing_trade_percent` | series/var | ✅ implemented | no | series_catalog | not in dispatch; may be context-injected elsewhere |
+| `strategy.avg_trade` | series/var | ✅ implemented | no | series_catalog | not in dispatch; may be context-injected elsewhere |
+| `strategy.avg_trade_percent` | series/var | ✅ implemented | no | series_catalog | not in dispatch; may be context-injected elsewhere |
+| `strategy.avg_winning_trade` | series/var | ✅ implemented | no | series_catalog | not in dispatch; may be context-injected elsewhere |
+| `strategy.avg_winning_trade_percent` | series/var | ✅ implemented | no | series_catalog | not in dispatch; may be context-injected elsewhere |
 | `strategy.cancel` | function | ✅ implemented | yes | dispatch |  |
 | `strategy.cancel_all` | function | ✅ implemented | yes | dispatch |  |
-| `strategy.cash` | series/var | ❌ missing | no | series_catalog | not in dispatch; may be context-injected elsewhere |
+| `strategy.cash` | series/var | ✅ implemented | no | series_catalog | not in dispatch; may be context-injected elsewhere |
 | `strategy.close` | function | ✅ implemented | yes | dispatch |  |
 | `strategy.close_all` | function | ✅ implemented | yes | dispatch |  |
 | `strategy.closedtrades` | series/var | ✅ implemented | no | dispatch | Count (zero-arg); methods via strategy.closedtrades.* |
@@ -403,7 +403,7 @@ Strategy order handlers, risk helpers, and performance series (position, equity,
 | `strategy.closedtrades.exit_bar_index` | function | ✅ implemented | yes | dispatch |  |
 | `strategy.closedtrades.exit_price` | function | ✅ implemented | yes | dispatch |  |
 | `strategy.closedtrades.exit_time` | function | ✅ implemented | yes | dispatch |  |
-| `strategy.closedtrades.first_index` | series/var | ❌ missing | no | series_catalog | not in dispatch; may be context-injected elsewhere |
+| `strategy.closedtrades.first_index` | series/var | ✅ implemented | no | series_catalog | not in dispatch; may be context-injected elsewhere |
 | `strategy.closedtrades.profit` | function | ✅ implemented | yes | dispatch |  |
 | `strategy.closedtrades.size` | function | ✅ implemented | yes | dispatch |  |
 | `strategy.convert_to_account` | function | ✅ implemented | yes | dispatch |  |
@@ -411,29 +411,29 @@ Strategy order handlers, risk helpers, and performance series (position, equity,
 | `strategy.default_entry_qty` | function | ✅ implemented | yes | dispatch |  |
 | `strategy.entry` | function | ✅ implemented | yes | dispatch | Fills at close; emits StrategyEvent; open_trades |
 | `strategy.equity` | series/var | ✅ implemented | no | dispatch |  |
-| `strategy.eventrades` | series/var | ❌ missing | no | series_catalog | not in dispatch; may be context-injected elsewhere |
+| `strategy.eventrades` | series/var | ✅ implemented | no | series_catalog | not in dispatch; may be context-injected elsewhere |
 | `strategy.exit` | function | ✅ implemented | yes | dispatch | v6 limit/profit + stop/loss pair eval |
 | `strategy.grossloss` | series/var | ✅ implemented | no | dispatch |  |
-| `strategy.grossloss_percent` | series/var | ❌ missing | no | series_catalog | not in dispatch; may be context-injected elsewhere |
+| `strategy.grossloss_percent` | series/var | ✅ implemented | no | series_catalog | not in dispatch; may be context-injected elsewhere |
 | `strategy.grossprofit` | series/var | ✅ implemented | no | dispatch |  |
-| `strategy.grossprofit_percent` | series/var | ❌ missing | no | series_catalog | not in dispatch; may be context-injected elsewhere |
+| `strategy.grossprofit_percent` | series/var | ✅ implemented | no | series_catalog | not in dispatch; may be context-injected elsewhere |
 | `strategy.initial_capital` | series/var | ✅ implemented | no | dispatch |  |
 | `strategy.long` | constant | ✅ implemented | no | dispatch |  |
 | `strategy.losstrades` | series/var | ✅ implemented | no | dispatch |  |
-| `strategy.margin_liquidation_price` | series/var | ❌ missing | no | series_catalog | not in dispatch; may be context-injected elsewhere |
-| `strategy.max_contracts_held_all` | series/var | ❌ missing | no | series_catalog | not in dispatch; may be context-injected elsewhere |
-| `strategy.max_contracts_held_long` | series/var | ❌ missing | no | series_catalog | not in dispatch; may be context-injected elsewhere |
-| `strategy.max_contracts_held_short` | series/var | ❌ missing | no | series_catalog | not in dispatch; may be context-injected elsewhere |
-| `strategy.max_drawdown` | series/var | ❌ missing | no | series_catalog | not in dispatch; may be context-injected elsewhere |
-| `strategy.max_drawdown_percent` | series/var | ❌ missing | no | series_catalog | not in dispatch; may be context-injected elsewhere |
-| `strategy.max_runup` | series/var | ❌ missing | no | series_catalog | not in dispatch; may be context-injected elsewhere |
-| `strategy.max_runup_percent` | series/var | ❌ missing | no | series_catalog | not in dispatch; may be context-injected elsewhere |
+| `strategy.margin_liquidation_price` | series/var | ✅ implemented | no | series_catalog | not in dispatch; may be context-injected elsewhere |
+| `strategy.max_contracts_held_all` | series/var | ✅ implemented | no | series_catalog | not in dispatch; may be context-injected elsewhere |
+| `strategy.max_contracts_held_long` | series/var | ✅ implemented | no | series_catalog | not in dispatch; may be context-injected elsewhere |
+| `strategy.max_contracts_held_short` | series/var | ✅ implemented | no | series_catalog | not in dispatch; may be context-injected elsewhere |
+| `strategy.max_drawdown` | series/var | ✅ implemented | no | series_catalog | not in dispatch; may be context-injected elsewhere |
+| `strategy.max_drawdown_percent` | series/var | ✅ implemented | no | series_catalog | not in dispatch; may be context-injected elsewhere |
+| `strategy.max_runup` | series/var | ✅ implemented | no | series_catalog | not in dispatch; may be context-injected elsewhere |
+| `strategy.max_runup_percent` | series/var | ✅ implemented | no | series_catalog | not in dispatch; may be context-injected elsewhere |
 | `strategy.netprofit` | series/var | ✅ implemented | no | dispatch |  |
-| `strategy.netprofit_percent` | series/var | ❌ missing | no | series_catalog | not in dispatch; may be context-injected elsewhere |
+| `strategy.netprofit_percent` | series/var | ✅ implemented | no | series_catalog | not in dispatch; may be context-injected elsewhere |
 | `strategy.openprofit` | series/var | ✅ implemented | no | dispatch |  |
-| `strategy.openprofit_percent` | series/var | ❌ missing | no | series_catalog | not in dispatch; may be context-injected elsewhere |
+| `strategy.openprofit_percent` | series/var | ✅ implemented | no | series_catalog | not in dispatch; may be context-injected elsewhere |
 | `strategy.opentrades` | series/var | ✅ implemented | no | dispatch | Count (zero-arg); methods via strategy.opentrades.* |
-| `strategy.opentrades.capital_held` | series/var | ❌ missing | no | series_catalog | not in dispatch; may be context-injected elsewhere |
+| `strategy.opentrades.capital_held` | series/var | ✅ implemented | no | series_catalog | not in dispatch; may be context-injected elsewhere |
 | `strategy.opentrades.commission` | function | ✅ implemented | yes | dispatch |  |
 | `strategy.opentrades.entry_bar_index` | function | ✅ implemented | yes | dispatch |  |
 | `strategy.opentrades.entry_price` | function | ✅ implemented | yes | dispatch |  |
@@ -442,7 +442,7 @@ Strategy order handlers, risk helpers, and performance series (position, equity,
 | `strategy.opentrades.size` | function | ✅ implemented | yes | dispatch |  |
 | `strategy.order` | function | ✅ implemented | yes | dispatch |  |
 | `strategy.position_avg_price` | series/var | ✅ implemented | no | dispatch |  |
-| `strategy.position_entry_name` | series/var | ❌ missing | no | series_catalog | not in dispatch; may be context-injected elsewhere |
+| `strategy.position_entry_name` | series/var | ✅ implemented | no | series_catalog | not in dispatch; may be context-injected elsewhere |
 | `strategy.position_size` | series/var | ✅ implemented | no | dispatch | Signed: +long / -short |
 | `strategy.risk.max_intraday_filled_orders` | function | ✅ implemented | no | dispatch |  |
 | `strategy.risk.max_intraday_loss` | function | ✅ implemented | yes | dispatch |  |
@@ -1473,16 +1473,16 @@ A denormalized listing of every inventory row, suitable for sorting and diffing 
 | `str.tostring` | `str` | function | ✅ implemented | yes | dispatch |
 | `str.trim` | `str` | function | ✅ implemented | yes | dispatch |
 | `str.upper` | `str` | function | ✅ implemented | yes | dispatch |
-| `strategy.account_currency` | `strategy` | series/var | ❌ missing | no | series_catalog |
-| `strategy.avg_losing_trade` | `strategy` | series/var | ❌ missing | no | series_catalog |
-| `strategy.avg_losing_trade_percent` | `strategy` | series/var | ❌ missing | no | series_catalog |
-| `strategy.avg_trade` | `strategy` | series/var | ❌ missing | no | series_catalog |
-| `strategy.avg_trade_percent` | `strategy` | series/var | ❌ missing | no | series_catalog |
-| `strategy.avg_winning_trade` | `strategy` | series/var | ❌ missing | no | series_catalog |
-| `strategy.avg_winning_trade_percent` | `strategy` | series/var | ❌ missing | no | series_catalog |
+| `strategy.account_currency` | `strategy` | series/var | ✅ implemented | no | series_catalog |
+| `strategy.avg_losing_trade` | `strategy` | series/var | ✅ implemented | no | series_catalog |
+| `strategy.avg_losing_trade_percent` | `strategy` | series/var | ✅ implemented | no | series_catalog |
+| `strategy.avg_trade` | `strategy` | series/var | ✅ implemented | no | series_catalog |
+| `strategy.avg_trade_percent` | `strategy` | series/var | ✅ implemented | no | series_catalog |
+| `strategy.avg_winning_trade` | `strategy` | series/var | ✅ implemented | no | series_catalog |
+| `strategy.avg_winning_trade_percent` | `strategy` | series/var | ✅ implemented | no | series_catalog |
 | `strategy.cancel` | `strategy` | function | ✅ implemented | yes | dispatch |
 | `strategy.cancel_all` | `strategy` | function | ✅ implemented | yes | dispatch |
-| `strategy.cash` | `strategy` | series/var | ❌ missing | no | series_catalog |
+| `strategy.cash` | `strategy` | series/var | ✅ implemented | no | series_catalog |
 | `strategy.close` | `strategy` | function | ✅ implemented | yes | dispatch |
 | `strategy.close_all` | `strategy` | function | ✅ implemented | yes | dispatch |
 | `strategy.closedtrades` | `strategy` | series/var | ✅ implemented | no | dispatch |
@@ -1493,7 +1493,7 @@ A denormalized listing of every inventory row, suitable for sorting and diffing 
 | `strategy.closedtrades.exit_bar_index` | `strategy` | function | ✅ implemented | yes | dispatch |
 | `strategy.closedtrades.exit_price` | `strategy` | function | ✅ implemented | yes | dispatch |
 | `strategy.closedtrades.exit_time` | `strategy` | function | ✅ implemented | yes | dispatch |
-| `strategy.closedtrades.first_index` | `strategy` | series/var | ❌ missing | no | series_catalog |
+| `strategy.closedtrades.first_index` | `strategy` | series/var | ✅ implemented | no | series_catalog |
 | `strategy.closedtrades.profit` | `strategy` | function | ✅ implemented | yes | dispatch |
 | `strategy.closedtrades.size` | `strategy` | function | ✅ implemented | yes | dispatch |
 | `strategy.convert_to_account` | `strategy` | function | ✅ implemented | yes | dispatch |
@@ -1501,29 +1501,29 @@ A denormalized listing of every inventory row, suitable for sorting and diffing 
 | `strategy.default_entry_qty` | `strategy` | function | ✅ implemented | yes | dispatch |
 | `strategy.entry` | `strategy` | function | ✅ implemented | yes | dispatch |
 | `strategy.equity` | `strategy` | series/var | ✅ implemented | no | dispatch |
-| `strategy.eventrades` | `strategy` | series/var | ❌ missing | no | series_catalog |
+| `strategy.eventrades` | `strategy` | series/var | ✅ implemented | no | series_catalog |
 | `strategy.exit` | `strategy` | function | ✅ implemented | yes | dispatch |
 | `strategy.grossloss` | `strategy` | series/var | ✅ implemented | no | dispatch |
-| `strategy.grossloss_percent` | `strategy` | series/var | ❌ missing | no | series_catalog |
+| `strategy.grossloss_percent` | `strategy` | series/var | ✅ implemented | no | series_catalog |
 | `strategy.grossprofit` | `strategy` | series/var | ✅ implemented | no | dispatch |
-| `strategy.grossprofit_percent` | `strategy` | series/var | ❌ missing | no | series_catalog |
+| `strategy.grossprofit_percent` | `strategy` | series/var | ✅ implemented | no | series_catalog |
 | `strategy.initial_capital` | `strategy` | series/var | ✅ implemented | no | dispatch |
 | `strategy.long` | `strategy` | constant | ✅ implemented | no | dispatch |
 | `strategy.losstrades` | `strategy` | series/var | ✅ implemented | no | dispatch |
-| `strategy.margin_liquidation_price` | `strategy` | series/var | ❌ missing | no | series_catalog |
-| `strategy.max_contracts_held_all` | `strategy` | series/var | ❌ missing | no | series_catalog |
-| `strategy.max_contracts_held_long` | `strategy` | series/var | ❌ missing | no | series_catalog |
-| `strategy.max_contracts_held_short` | `strategy` | series/var | ❌ missing | no | series_catalog |
-| `strategy.max_drawdown` | `strategy` | series/var | ❌ missing | no | series_catalog |
-| `strategy.max_drawdown_percent` | `strategy` | series/var | ❌ missing | no | series_catalog |
-| `strategy.max_runup` | `strategy` | series/var | ❌ missing | no | series_catalog |
-| `strategy.max_runup_percent` | `strategy` | series/var | ❌ missing | no | series_catalog |
+| `strategy.margin_liquidation_price` | `strategy` | series/var | ✅ implemented | no | series_catalog |
+| `strategy.max_contracts_held_all` | `strategy` | series/var | ✅ implemented | no | series_catalog |
+| `strategy.max_contracts_held_long` | `strategy` | series/var | ✅ implemented | no | series_catalog |
+| `strategy.max_contracts_held_short` | `strategy` | series/var | ✅ implemented | no | series_catalog |
+| `strategy.max_drawdown` | `strategy` | series/var | ✅ implemented | no | series_catalog |
+| `strategy.max_drawdown_percent` | `strategy` | series/var | ✅ implemented | no | series_catalog |
+| `strategy.max_runup` | `strategy` | series/var | ✅ implemented | no | series_catalog |
+| `strategy.max_runup_percent` | `strategy` | series/var | ✅ implemented | no | series_catalog |
 | `strategy.netprofit` | `strategy` | series/var | ✅ implemented | no | dispatch |
-| `strategy.netprofit_percent` | `strategy` | series/var | ❌ missing | no | series_catalog |
+| `strategy.netprofit_percent` | `strategy` | series/var | ✅ implemented | no | series_catalog |
 | `strategy.openprofit` | `strategy` | series/var | ✅ implemented | no | dispatch |
-| `strategy.openprofit_percent` | `strategy` | series/var | ❌ missing | no | series_catalog |
+| `strategy.openprofit_percent` | `strategy` | series/var | ✅ implemented | no | series_catalog |
 | `strategy.opentrades` | `strategy` | series/var | ✅ implemented | no | dispatch |
-| `strategy.opentrades.capital_held` | `strategy` | series/var | ❌ missing | no | series_catalog |
+| `strategy.opentrades.capital_held` | `strategy` | series/var | ✅ implemented | no | series_catalog |
 | `strategy.opentrades.commission` | `strategy` | function | ✅ implemented | yes | dispatch |
 | `strategy.opentrades.entry_bar_index` | `strategy` | function | ✅ implemented | yes | dispatch |
 | `strategy.opentrades.entry_price` | `strategy` | function | ✅ implemented | yes | dispatch |
@@ -1532,7 +1532,7 @@ A denormalized listing of every inventory row, suitable for sorting and diffing 
 | `strategy.opentrades.size` | `strategy` | function | ✅ implemented | yes | dispatch |
 | `strategy.order` | `strategy` | function | ✅ implemented | yes | dispatch |
 | `strategy.position_avg_price` | `strategy` | series/var | ✅ implemented | no | dispatch |
-| `strategy.position_entry_name` | `strategy` | series/var | ❌ missing | no | series_catalog |
+| `strategy.position_entry_name` | `strategy` | series/var | ✅ implemented | no | series_catalog |
 | `strategy.position_size` | `strategy` | series/var | ✅ implemented | no | dispatch |
 | `strategy.risk.max_intraday_filled_orders` | `strategy` | function | ✅ implemented | no | dispatch |
 | `strategy.risk.max_intraday_loss` | `strategy` | function | ✅ implemented | yes | dispatch |

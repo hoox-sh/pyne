@@ -124,13 +124,9 @@ _BUILTIN_SCRIPTS_DIR = Path(__file__).resolve().parent.parent / "tests" / "data"
 # Scripts that are known to fail at Runtime.run due to pre-existing
 # evaluator limitations (not regressions from Plan 1). See
 # docs/strategy-surface-gaps.md for details.
-_CORPUS_KNOWN_GAPS: dict[str, str] = {
-    "rsi_strategy": "ta.rsi requires series history — pre-existing evaluator gap",
-    "macd_strategy": "ta.ema requires series history — pre-existing evaluator gap",
-    "greedy_strategy": (
-        "strategy.position_size, strategy.position_avg_price, syminfo.mintick not yet implemented (Plan 2+)"
-    ),
-}
+# Previously known gaps closed 2026-07-25 (series arithmetic + input values +
+# strategy metrics). Keep this dict only for scripts that still fail Runtime.run.
+_CORPUS_KNOWN_GAPS: dict[str, str] = {}
 
 
 @pytest.mark.parametrize(
@@ -157,27 +153,22 @@ def test_corpus_strategy_script_parses(script_name: str) -> None:
 
 @pytest.mark.parametrize(
     "script_name",
-    sorted(_CORPUS_KNOWN_GAPS),
+    [
+        "rsi_strategy",
+        "macd_strategy",
+        "greedy_strategy",
+    ],
 )
-def test_corpus_strategy_script_runtime_known_gap(script_name: str) -> None:
-    """Document known Runtime.run gaps for existing strategy scripts.
+def test_corpus_strategy_script_runtime_succeeds(script_name: str) -> None:
+    """Corpus strategy scripts complete Runtime.run without error.
 
-    These scripts cannot run to completion due to pre-existing evaluator
-    gaps (not related to Plan 1). The test exists to track when the gap is
-    closed: when it starts passing, remove the entry from ``_CORPUS_KNOWN_GAPS``.
+    Closed 2026-07-25: series arithmetic (list−list), input.* values, strategy
+    metrics. Failures here are regressions on OG Pine strategy surface.
     """
     source = (_BUILTIN_SCRIPTS_DIR / f"{script_name}.pine").read_text(encoding="utf-8")
     result: dict = Runtime().run(source, OHLCV)
-
-    reason = _CORPUS_KNOWN_GAPS.get(script_name, "unknown pre-existing gap")
-    assert "error" in result, (
-        f"{script_name} unexpectedly succeeded! "
-        f"If the pre-existing gap was fixed, remove {script_name} "
-        f"from _CORPUS_KNOWN_GAPS in test_parity.py.\n"
-        f"Events: {json.dumps(result.get('events', []), indent=2)}"
-    )
-    # Expected to fail — document the gap
-    pytest.skip(f"Known gap: {reason} ({result['error'][:80]})")
+    assert "error" not in result, f"{script_name} failed: {result.get('error')}"
+    assert result.get("count", 0) > 0
 
 
 # ---------------------------------------------------------------------------

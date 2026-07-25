@@ -343,3 +343,417 @@ class Matrix(Generic[T]):
     def __repr__(self) -> str:
         """String representation."""
         return f"matrix({self.rows_count}x{self.cols_count})"
+
+
+    # ========== OFFICIAL TV v6 SURFACE ==========
+
+    def row(self, index: int) -> list[Any]:
+        """Return a copy of the row (alias of copy_row)."""
+        return self.copy_row(index)
+
+    def col(self, index: int) -> list[Any]:
+        """Return a copy of the column (alias of copy_col)."""
+        return self.copy_col(index)
+
+    def submatrix(
+        self,
+        from_row: int = 0,
+        to_row: int | None = None,
+        from_col: int = 0,
+        to_col: int | None = None,
+    ) -> Matrix[T]:
+        """Extract a submatrix [from_row:to_row, from_col:to_col] (exclusive end)."""
+        to_row = self.rows_count if to_row is None else to_row
+        to_col = self.cols_count if to_col is None else to_col
+        if not (0 <= from_row <= to_row <= self.rows_count):
+            msg = f"Invalid row range {from_row}:{to_row}"
+            raise IndexError(msg)
+        if not (0 <= from_col <= to_col <= self.cols_count):
+            msg = f"Invalid col range {from_col}:{to_col}"
+            raise IndexError(msg)
+        result: Matrix[T] = Matrix(to_row - from_row, to_col - from_col)
+        for i, r in enumerate(range(from_row, to_row)):
+            for j, c in enumerate(range(from_col, to_col)):
+                result.set(i, j, self.get(r, c))
+        return result
+
+    def swap_rows(self, row1: int, row2: int) -> None:
+        """Swap two rows in place."""
+        if not (0 <= row1 < self.rows_count and 0 <= row2 < self.rows_count):
+            msg = f"Row index out of range: {row1}, {row2}"
+            raise IndexError(msg)
+        self.data[row1], self.data[row2] = self.data[row2], self.data[row1]
+
+    def swap_columns(self, col1: int, col2: int) -> None:
+        """Swap two columns in place."""
+        if not (0 <= col1 < self.cols_count and 0 <= col2 < self.cols_count):
+            msg = f"Column index out of range: {col1}, {col2}"
+            raise IndexError(msg)
+        for row in self.data:
+            row[col1], row[col2] = row[col2], row[col1]
+
+    def reverse(self) -> None:
+        """Reverse element order (TV matrix.reverse): reverse rows then each row."""
+        self.reverse_rows()
+        self.reverse_cols()
+
+    def _flat(self) -> list[Any]:
+        return [elem for row in self.data for elem in row]
+
+    def median(self) -> float | None:
+        """Median of all numeric elements."""
+        vals = [v for v in self._flat() if isinstance(v, (int, float))]
+        if not vals:
+            return None
+        s = sorted(vals)
+        n = len(s)
+        mid = n // 2
+        if n % 2:
+            return float(s[mid])
+        return (float(s[mid - 1]) + float(s[mid])) / 2.0
+
+    def stdev(self) -> float | None:
+        """Sample standard deviation of all numeric elements."""
+        import statistics
+
+        vals = [float(v) for v in self._flat() if isinstance(v, (int, float))]
+        if len(vals) < 2:
+            return None
+        return float(statistics.stdev(vals))
+
+    def variance(self) -> float | None:
+        """Sample variance of all numeric elements."""
+        import statistics
+
+        vals = [float(v) for v in self._flat() if isinstance(v, (int, float))]
+        if len(vals) < 2:
+            return None
+        return float(statistics.variance(vals))
+
+    def sort(self, column: int = 0, order: str = "ascending") -> None:
+        """Sort rows by values in ``column`` (TV matrix.sort)."""
+        if self.rows_count == 0:
+            return
+        if not (0 <= column < self.cols_count):
+            msg = f"Column index {column} out of range"
+            raise IndexError(msg)
+        reverse = order in ("descending", "desc") or order == 1
+
+        def key_fn(row: list[Any]) -> Any:
+            v = row[column]
+            if v is None:
+                return float("inf") if not reverse else float("-inf")
+            return v
+
+        self.data.sort(key=key_fn, reverse=reverse)
+
+    def sort_indices(self, column: int = 0, order: str = "ascending") -> list[int]:
+        """Return row indices that would sort the matrix by ``column``."""
+        if self.rows_count == 0:
+            return []
+        if not (0 <= column < self.cols_count):
+            msg = f"Column index {column} out of range"
+            raise IndexError(msg)
+        reverse = order in ("descending", "desc") or order == 1
+        indices = list(range(self.rows_count))
+
+        def key_fn(i: int) -> Any:
+            v = self.data[i][column]
+            if v is None:
+                return float("inf") if not reverse else float("-inf")
+            return v
+
+        indices.sort(key=key_fn, reverse=reverse)
+        return indices
+
+    def _as_float_grid(self) -> list[list[float]]:
+        grid: list[list[float]] = []
+        for row in self.data:
+            grid.append([float(v) if isinstance(v, (int, float)) else 0.0 for v in row])
+        return grid
+
+    def _from_float_grid(self, grid: list[list[float]]) -> Matrix[T]:
+        rows = len(grid)
+        cols = len(grid[0]) if rows else 0
+        result: Matrix[T] = Matrix(rows, cols)
+        for i in range(rows):
+            for j in range(cols):
+                result.set(i, j, grid[i][j])
+        return result
+
+    def mult(self, other: Matrix[T] | list[Any] | float | int) -> Matrix[T] | list[Any]:
+        """Matrix multiplication / scalar multiply / matrix×vector."""
+        if isinstance(other, (int, float)):
+            result = self.copy()
+            for i in range(self.rows_count):
+                for j in range(self.cols_count):
+                    v = self.get(i, j)
+                    result.set(i, j, (v * other) if isinstance(v, (int, float)) else v)
+            return result
+        if isinstance(other, list):
+            if len(other) != self.cols_count:
+                msg = "Vector length must match matrix columns"
+                raise ValueError(msg)
+            out: list[Any] = []
+            for i in range(self.rows_count):
+                s = 0.0
+                for j in range(self.cols_count):
+                    s += float(self.get(i, j) or 0) * float(other[j] or 0)
+                out.append(s)
+            return out
+        if not isinstance(other, Matrix):
+            msg = "matrix.mult expects matrix, array, or scalar"
+            raise TypeError(msg)
+        if self.cols_count != other.rows_count:
+            msg = "Incompatible dimensions for matrix multiply"
+            raise ValueError(msg)
+        result: Matrix[T] = Matrix(self.rows_count, other.cols_count, 0.0)
+        for i in range(self.rows_count):
+            for j in range(other.cols_count):
+                s = 0.0
+                for k in range(self.cols_count):
+                    s += float(self.get(i, k) or 0) * float(other.get(k, j) or 0)
+                result.set(i, j, s)
+        return result
+
+    def diff(self, other: Matrix[T]) -> Matrix[T]:
+        """Element-wise subtraction (self - other)."""
+        if self.rows_count != other.rows_count or self.cols_count != other.cols_count:
+            msg = "Matrices must have same dimensions for diff"
+            raise ValueError(msg)
+        result = self.copy()
+        for i in range(self.rows_count):
+            for j in range(self.cols_count):
+                a = self.get(i, j)
+                b = other.get(i, j)
+                if isinstance(a, (int, float)) and isinstance(b, (int, float)):
+                    result.set(i, j, a - b)
+                else:
+                    result.set(i, j, None)
+        return result
+
+    def sum_matrices(self, other: Matrix[T]) -> Matrix[T]:
+        """Element-wise addition (self + other)."""
+        if self.rows_count != other.rows_count or self.cols_count != other.cols_count:
+            msg = "Matrices must have same dimensions for sum"
+            raise ValueError(msg)
+        result = self.copy()
+        for i in range(self.rows_count):
+            for j in range(self.cols_count):
+                a = self.get(i, j)
+                b = other.get(i, j)
+                if isinstance(a, (int, float)) and isinstance(b, (int, float)):
+                    result.set(i, j, a + b)
+                else:
+                    result.set(i, j, None)
+        return result
+
+    def det(self) -> float:
+        """Determinant of a square matrix."""
+        import numpy as np
+
+        if self.rows_count != self.cols_count:
+            msg = "matrix.det requires a square matrix"
+            raise ValueError(msg)
+        if self.rows_count == 0:
+            return 1.0
+        arr = np.array(self._as_float_grid(), dtype=float)
+        return float(np.linalg.det(arr))
+
+    def inv(self) -> Matrix[T]:
+        """Inverse of a square matrix."""
+        import numpy as np
+
+        if self.rows_count != self.cols_count:
+            msg = "matrix.inv requires a square matrix"
+            raise ValueError(msg)
+        arr = np.array(self._as_float_grid(), dtype=float)
+        inv = np.linalg.inv(arr)
+        return self._from_float_grid(inv.tolist())
+
+    def pinv(self) -> Matrix[T]:
+        """Moore–Penrose pseudoinverse."""
+        import numpy as np
+
+        arr = np.array(self._as_float_grid(), dtype=float)
+        pin = np.linalg.pinv(arr)
+        return self._from_float_grid(pin.tolist())
+
+    def eigenvalues(self) -> list[float]:
+        """Eigenvalues of a square matrix as a list."""
+        import numpy as np
+
+        if self.rows_count != self.cols_count:
+            msg = "matrix.eigenvalues requires a square matrix"
+            raise ValueError(msg)
+        arr = np.array(self._as_float_grid(), dtype=float)
+        vals = np.linalg.eigvals(arr)
+        return [float(v.real) for v in vals]
+
+    def eigenvectors(self) -> Matrix[T]:
+        """Eigenvectors as columns of a matrix."""
+        import numpy as np
+
+        if self.rows_count != self.cols_count:
+            msg = "matrix.eigenvectors requires a square matrix"
+            raise ValueError(msg)
+        arr = np.array(self._as_float_grid(), dtype=float)
+        _vals, vecs = np.linalg.eig(arr)
+        # Real parts only for Pine float matrices
+        real = np.real(vecs)
+        return self._from_float_grid(real.tolist())
+
+    def kron(self, other: Matrix[T]) -> Matrix[T]:
+        """Kronecker product."""
+        import numpy as np
+
+        a = np.array(self._as_float_grid(), dtype=float)
+        b = np.array(other._as_float_grid(), dtype=float)
+        k = np.kron(a, b)
+        return self._from_float_grid(k.tolist())
+
+    def pow(self, n: int) -> Matrix[T]:
+        """Matrix power (square matrix raised to non-negative integer)."""
+        import numpy as np
+
+        if self.rows_count != self.cols_count:
+            msg = "matrix.pow requires a square matrix"
+            raise ValueError(msg)
+        if n < 0:
+            msg = "matrix.pow exponent must be non-negative"
+            raise ValueError(msg)
+        arr = np.array(self._as_float_grid(), dtype=float)
+        result = np.linalg.matrix_power(arr, int(n))
+        return self._from_float_grid(result.tolist())
+
+    def trace(self) -> float:
+        """Sum of diagonal elements."""
+        n = min(self.rows_count, self.cols_count)
+        total = 0.0
+        for i in range(n):
+            v = self.get(i, i)
+            if isinstance(v, (int, float)):
+                total += float(v)
+        return total
+
+    def rank(self) -> int:
+        """Matrix rank."""
+        import numpy as np
+
+        if self.rows_count == 0 or self.cols_count == 0:
+            return 0
+        arr = np.array(self._as_float_grid(), dtype=float)
+        return int(np.linalg.matrix_rank(arr))
+
+    def is_square(self) -> bool:
+        return self.rows_count == self.cols_count
+
+    def is_zero(self) -> bool:
+        for row in self.data:
+            for v in row:
+                if isinstance(v, (int, float)):
+                    if v != 0:
+                        return False
+                elif v is not None:
+                    return False
+        return True
+
+    def is_identity(self) -> bool:
+        if not self.is_square():
+            return False
+        for i in range(self.rows_count):
+            for j in range(self.cols_count):
+                expected = 1.0 if i == j else 0.0
+                v = self.get(i, j)
+                if not isinstance(v, (int, float)) or float(v) != expected:
+                    return False
+        return True
+
+    def is_diagonal(self) -> bool:
+        if not self.is_square():
+            return False
+        for i in range(self.rows_count):
+            for j in range(self.cols_count):
+                if i != j:
+                    v = self.get(i, j)
+                    if isinstance(v, (int, float)) and v != 0:
+                        return False
+                    if v is not None and not isinstance(v, (int, float)):
+                        return False
+        return True
+
+    def is_antidiagonal(self) -> bool:
+        if not self.is_square():
+            return False
+        n = self.rows_count
+        for i in range(n):
+            for j in range(n):
+                if i + j != n - 1:
+                    v = self.get(i, j)
+                    if isinstance(v, (int, float)) and v != 0:
+                        return False
+        return True
+
+    def is_symmetric(self) -> bool:
+        if not self.is_square():
+            return False
+        for i in range(self.rows_count):
+            for j in range(i + 1, self.cols_count):
+                a, b = self.get(i, j), self.get(j, i)
+                if a != b:
+                    return False
+        return True
+
+    def is_antisymmetric(self) -> bool:
+        if not self.is_square():
+            return False
+        for i in range(self.rows_count):
+            for j in range(self.cols_count):
+                a, b = self.get(i, j), self.get(j, i)
+                if i == j:
+                    if isinstance(a, (int, float)) and a != 0:
+                        return False
+                else:
+                    if isinstance(a, (int, float)) and isinstance(b, (int, float)):
+                        if a != -b:
+                            return False
+                    elif a != b:  # non-numeric mismatch
+                        return False
+        return True
+
+    def is_triangular(self) -> bool:
+        """True if upper- or lower-triangular."""
+        if not self.is_square():
+            return False
+        upper = True
+        lower = True
+        n = self.rows_count
+        for i in range(n):
+            for j in range(n):
+                v = self.get(i, j)
+                nonzero = isinstance(v, (int, float)) and v != 0
+                if i > j and nonzero:
+                    upper = False
+                if i < j and nonzero:
+                    lower = False
+        return upper or lower
+
+    def is_binary(self) -> bool:
+        for row in self.data:
+            for v in row:
+                if not isinstance(v, (int, float)) or v not in (0, 1, 0.0, 1.0):
+                    return False
+        return True
+
+    def is_stochastic(self) -> bool:
+        """Row-stochastic: each row non-negative and sums to 1."""
+        for i in range(self.rows_count):
+            total = 0.0
+            for j in range(self.cols_count):
+                v = self.get(i, j)
+                if not isinstance(v, (int, float)) or v < 0:
+                    return False
+                total += float(v)
+            if abs(total - 1.0) > 1e-9:
+                return False
+        return True

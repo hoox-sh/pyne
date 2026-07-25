@@ -454,6 +454,55 @@ class BasicIndicators(TechnicalHelpers):
         series, period = self._expect_series(args, length=2)
         return self._percentrank(series, period)
 
+    def _builtin_ta_percentile_linear_interpolation(self, args: list[Any]) -> float | None:
+        """ta.percentile_linear_interpolation(source, length, percentage)."""
+        if len(args) < 3:
+            self._error("ta.percentile_linear_interpolation requires series, length, percentage")
+        series = self._as_series(args[0]) if hasattr(self, "_as_series") else (
+            args[0] if isinstance(args[0], list) else [args[0]]
+        )
+        period = self._expect_int(args[1], "length must be int")
+        percentage = args[2]
+        if not isinstance(percentage, (int, float)):
+            self._error("percentage must be number")
+        if len(series) < period or period <= 0:
+            return None
+        window = [v for v in series[-period:] if v is not None]
+        if not window:
+            return None
+        sorted_w = sorted(window)
+        n = len(sorted_w)
+        if n == 1:
+            return float(sorted_w[0])
+        rank = (float(percentage) / 100.0) * (n - 1)
+        lo = int(rank)
+        hi = min(lo + 1, n - 1)
+        frac = rank - lo
+        return float(sorted_w[lo]) * (1 - frac) + float(sorted_w[hi]) * frac
+
+    def _builtin_ta_percentile_nearest_rank(self, args: list[Any]) -> float | None:
+        """ta.percentile_nearest_rank(source, length, percentage)."""
+        if len(args) < 3:
+            self._error("ta.percentile_nearest_rank requires series, length, percentage")
+        series = self._as_series(args[0]) if hasattr(self, "_as_series") else (
+            args[0] if isinstance(args[0], list) else [args[0]]
+        )
+        period = self._expect_int(args[1], "length must be int")
+        percentage = args[2]
+        if not isinstance(percentage, (int, float)):
+            self._error("percentage must be number")
+        if len(series) < period or period <= 0:
+            return None
+        window = [v for v in series[-period:] if v is not None]
+        if not window:
+            return None
+        sorted_w = sorted(window)
+        n = len(sorted_w)
+        # Nearest rank: ceil(p/100 * n), 1-indexed, clamped
+        rank = max(1, int((float(percentage) / 100.0) * n + 0.999999))
+        rank = min(rank, n)
+        return float(sorted_w[rank - 1])
+
     def _builtin_ta_variance(self, args: list[Any]) -> float | None:
         """Variance over a period."""
         series, period = self._expect_series(args, length=2)

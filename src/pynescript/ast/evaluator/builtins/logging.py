@@ -98,12 +98,21 @@ def get_logger() -> Logger:
     return _logger
 
 
+def runtime_error(message: str) -> None:
+    """Halt script execution with an error message (Pine ``runtime.error``)."""
+    _logger.error(message)
+    raise RuntimeError(str(message))
+
+
 def register_logging_functions(namespace: dict) -> None:
     """Register all logging functions in the given namespace.
 
     Args:
         namespace: Dictionary to register functions in (typically evaluator's builtins)
     """
-    namespace["log.error"] = log_error
-    namespace["log.info"] = log_info
-    namespace["log.warning"] = log_warning
+    from .declarations import _as_builtin_handler
+
+    namespace["log.error"] = _as_builtin_handler(log_error)
+    namespace["log.info"] = _as_builtin_handler(log_info)
+    namespace["log.warning"] = _as_builtin_handler(log_warning)
+    namespace["runtime.error"] = _as_builtin_handler(runtime_error)

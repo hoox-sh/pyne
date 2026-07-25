@@ -97,6 +97,14 @@ Pine Script v6 launched December 2024, followed by monthly updates. Key sources:
 
 ---
 
+
+### Matrix surface (2026-07-25)
+- ✅ Official TV matrix linear algebra: `det`, `inv`, `pinv`, `eigenvalues`, `eigenvectors`, `kron`, `pow`, `trace`, `rank`, `mult`, `diff`
+- ✅ Official names: `matrix.avg/min/max/mode/sum/median/stdev/variance`, `row`/`col`/`submatrix`/`sort`/`sort_indices`/`reverse`/`swap_*`
+- ✅ Predicate suite: `is_square/zero/identity/diagonal/antidiagonal/symmetric/antisymmetric/triangular/binary/stochastic`
+- ✅ `runtime.error`, `input.text_area`, `ta.percentile_linear_interpolation`, `ta.percentile_nearest_rank`
+- ✅ `input.*` now returns values (Pine semantics) with metadata side-channel `_input_declarations`
+
 ## Recommendations
 - **Grammar first**: Add triple-quoted multiline string support to `PinescriptLexer.g4` + handling in lexer/parser.
 - **Arrays/Drawing**: Implement `sort_field` logic + full text_formatting.

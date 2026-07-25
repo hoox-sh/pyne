@@ -69,6 +69,44 @@ class MatrixBuiltinsMixin(BuiltinDispatchMixin):
             "matrix.reshape": self._builtin_matrix_reshape,
             "matrix.concat": self._builtin_matrix_concat,
             "matrix.copy": self._builtin_matrix_copy,
+            # Official TV v6 names (aliases + linear algebra)
+            "matrix.row": self._builtin_matrix_row,
+            "matrix.col": self._builtin_matrix_col,
+            "matrix.submatrix": self._builtin_matrix_submatrix,
+            "matrix.swap_rows": self._builtin_matrix_swap_rows,
+            "matrix.swap_columns": self._builtin_matrix_swap_columns,
+            "matrix.reverse": self._builtin_matrix_reverse,
+            "matrix.sort": self._builtin_matrix_sort,
+            "matrix.sort_indices": self._builtin_matrix_sort_indices,
+            "matrix.avg": self._builtin_matrix_avg_all,
+            "matrix.min": self._builtin_matrix_min_all,
+            "matrix.max": self._builtin_matrix_max_all,
+            "matrix.mode": self._builtin_matrix_mode_all,
+            "matrix.median": self._builtin_matrix_median,
+            "matrix.stdev": self._builtin_matrix_stdev,
+            "matrix.variance": self._builtin_matrix_variance,
+            "matrix.sum": self._builtin_matrix_sum,
+            "matrix.diff": self._builtin_matrix_diff,
+            "matrix.mult": self._builtin_matrix_mult,
+            "matrix.det": self._builtin_matrix_det,
+            "matrix.inv": self._builtin_matrix_inv,
+            "matrix.pinv": self._builtin_matrix_pinv,
+            "matrix.eigenvalues": self._builtin_matrix_eigenvalues,
+            "matrix.eigenvectors": self._builtin_matrix_eigenvectors,
+            "matrix.kron": self._builtin_matrix_kron,
+            "matrix.pow": self._builtin_matrix_pow,
+            "matrix.trace": self._builtin_matrix_trace,
+            "matrix.rank": self._builtin_matrix_rank,
+            "matrix.is_square": self._builtin_matrix_is_square,
+            "matrix.is_zero": self._builtin_matrix_is_zero,
+            "matrix.is_identity": self._builtin_matrix_is_identity,
+            "matrix.is_diagonal": self._builtin_matrix_is_diagonal,
+            "matrix.is_antidiagonal": self._builtin_matrix_is_antidiagonal,
+            "matrix.is_symmetric": self._builtin_matrix_is_symmetric,
+            "matrix.is_antisymmetric": self._builtin_matrix_is_antisymmetric,
+            "matrix.is_triangular": self._builtin_matrix_is_triangular,
+            "matrix.is_binary": self._builtin_matrix_is_binary,
+            "matrix.is_stochastic": self._builtin_matrix_is_stochastic,
         }
 
     # ========== HELPER METHODS ==========
@@ -467,3 +505,265 @@ class MatrixBuiltinsMixin(BuiltinDispatchMixin):
             self._error("matrix.copy requires one matrix argument")
         matrix = self._expect_matrix(args[0], "matrix.copy: arg must be matrix")
         return matrix.copy()
+
+    # ========== OFFICIAL TV v6 SURFACE ==========
+
+    def _builtin_matrix_row(self, args: list[Any]) -> list[Any]:
+        if len(args) != BINARY:
+            self._error("matrix.row requires matrix and index")
+        matrix = self._expect_matrix(args[0], "matrix.row: first arg must be matrix")
+        index = self._expect_int(args[UNARY], "matrix.row: index must be int")
+        try:
+            return matrix.row(index)
+        except IndexError as e:
+            self._error(f"matrix.row: {e}")
+
+    def _builtin_matrix_col(self, args: list[Any]) -> list[Any]:
+        if len(args) != BINARY:
+            self._error("matrix.col requires matrix and index")
+        matrix = self._expect_matrix(args[0], "matrix.col: first arg must be matrix")
+        index = self._expect_int(args[UNARY], "matrix.col: index must be int")
+        try:
+            return matrix.col(index)
+        except IndexError as e:
+            self._error(f"matrix.col: {e}")
+
+    def _builtin_matrix_submatrix(self, args: list[Any]) -> Matrix[Any]:
+        if len(args) < UNARY:
+            self._error("matrix.submatrix requires a matrix")
+        matrix = self._expect_matrix(args[0], "matrix.submatrix: first arg must be matrix")
+        from_row = self._expect_int(args[1], "from_row") if len(args) > 1 and args[1] is not None else 0
+        to_row = self._expect_int(args[2], "to_row") if len(args) > 2 and args[2] is not None else None
+        from_col = self._expect_int(args[3], "from_col") if len(args) > 3 and args[3] is not None else 0
+        to_col = self._expect_int(args[4], "to_col") if len(args) > 4 and args[4] is not None else None
+        try:
+            return matrix.submatrix(from_row, to_row, from_col, to_col)
+        except (IndexError, ValueError) as e:
+            self._error(f"matrix.submatrix: {e}")
+
+    def _builtin_matrix_swap_rows(self, args: list[Any]) -> None:
+        if len(args) != TERNARY:
+            self._error("matrix.swap_rows requires matrix, row1, row2")
+        matrix = self._expect_matrix(args[0], "matrix.swap_rows: first arg must be matrix")
+        r1 = self._expect_int(args[UNARY], "matrix.swap_rows: row1 must be int")
+        r2 = self._expect_int(args[BINARY], "matrix.swap_rows: row2 must be int")
+        try:
+            matrix.swap_rows(r1, r2)
+        except IndexError as e:
+            self._error(f"matrix.swap_rows: {e}")
+
+    def _builtin_matrix_swap_columns(self, args: list[Any]) -> None:
+        if len(args) != TERNARY:
+            self._error("matrix.swap_columns requires matrix, col1, col2")
+        matrix = self._expect_matrix(args[0], "matrix.swap_columns: first arg must be matrix")
+        c1 = self._expect_int(args[UNARY], "matrix.swap_columns: col1 must be int")
+        c2 = self._expect_int(args[BINARY], "matrix.swap_columns: col2 must be int")
+        try:
+            matrix.swap_columns(c1, c2)
+        except IndexError as e:
+            self._error(f"matrix.swap_columns: {e}")
+
+    def _builtin_matrix_reverse(self, args: list[Any]) -> None:
+        if len(args) != UNARY:
+            self._error("matrix.reverse requires one matrix argument")
+        matrix = self._expect_matrix(args[0], "matrix.reverse: arg must be matrix")
+        matrix.reverse()
+
+    def _builtin_matrix_sort(self, args: list[Any]) -> None:
+        if len(args) < UNARY:
+            self._error("matrix.sort requires a matrix")
+        matrix = self._expect_matrix(args[0], "matrix.sort: first arg must be matrix")
+        column = self._expect_int(args[1], "column") if len(args) > 1 and args[1] is not None else 0
+        order = args[2] if len(args) > 2 else "ascending"
+        # Optional sort_field (UDT) ignored for scalar matrices; column used.
+        try:
+            matrix.sort(column, order)
+        except (IndexError, TypeError) as e:
+            self._error(f"matrix.sort: {e}")
+
+    def _builtin_matrix_sort_indices(self, args: list[Any]) -> list[int]:
+        if len(args) < UNARY:
+            self._error("matrix.sort_indices requires a matrix")
+        matrix = self._expect_matrix(args[0], "matrix.sort_indices: first arg must be matrix")
+        column = self._expect_int(args[1], "column") if len(args) > 1 and args[1] is not None else 0
+        order = args[2] if len(args) > 2 else "ascending"
+        try:
+            return matrix.sort_indices(column, order)
+        except (IndexError, TypeError) as e:
+            self._error(f"matrix.sort_indices: {e}")
+
+    def _builtin_matrix_median(self, args: list[Any]) -> float | None:
+        if len(args) != UNARY:
+            self._error("matrix.median requires one matrix argument")
+        matrix = self._expect_matrix(args[0], "matrix.median: arg must be matrix")
+        return matrix.median()
+
+    def _builtin_matrix_stdev(self, args: list[Any]) -> float | None:
+        if len(args) != UNARY:
+            self._error("matrix.stdev requires one matrix argument")
+        matrix = self._expect_matrix(args[0], "matrix.stdev: arg must be matrix")
+        return matrix.stdev()
+
+    def _builtin_matrix_variance(self, args: list[Any]) -> float | None:
+        if len(args) != UNARY:
+            self._error("matrix.variance requires one matrix argument")
+        matrix = self._expect_matrix(args[0], "matrix.variance: arg must be matrix")
+        return matrix.variance()
+
+    def _builtin_matrix_sum(self, args: list[Any]) -> Any:
+        """matrix.sum(id) → sum_all; matrix.sum(id1, id2) → element-wise add."""
+        if len(args) == UNARY:
+            matrix = self._expect_matrix(args[0], "matrix.sum: arg must be matrix")
+            return matrix.sum_all()
+        if len(args) == BINARY:
+            m1 = self._expect_matrix(args[0], "matrix.sum: first arg must be matrix")
+            m2 = self._expect_matrix(args[UNARY], "matrix.sum: second arg must be matrix")
+            try:
+                return m1.sum_matrices(m2)
+            except ValueError as e:
+                self._error(f"matrix.sum: {e}")
+        self._error("matrix.sum requires one or two matrix arguments")
+
+    def _builtin_matrix_diff(self, args: list[Any]) -> Matrix[Any]:
+        if len(args) != BINARY:
+            self._error("matrix.diff requires two matrices")
+        m1 = self._expect_matrix(args[0], "matrix.diff: first arg must be matrix")
+        m2 = self._expect_matrix(args[UNARY], "matrix.diff: second arg must be matrix")
+        try:
+            return m1.diff(m2)
+        except ValueError as e:
+            self._error(f"matrix.diff: {e}")
+
+    def _builtin_matrix_mult(self, args: list[Any]) -> Any:
+        if len(args) != BINARY:
+            self._error("matrix.mult requires two arguments")
+        m1 = self._expect_matrix(args[0], "matrix.mult: first arg must be matrix")
+        other = args[UNARY]
+        try:
+            return m1.mult(other)
+        except (ValueError, TypeError) as e:
+            self._error(f"matrix.mult: {e}")
+
+    def _builtin_matrix_det(self, args: list[Any]) -> float:
+        if len(args) != UNARY:
+            self._error("matrix.det requires one matrix argument")
+        matrix = self._expect_matrix(args[0], "matrix.det: arg must be matrix")
+        try:
+            return matrix.det()
+        except ValueError as e:
+            self._error(f"matrix.det: {e}")
+
+    def _builtin_matrix_inv(self, args: list[Any]) -> Matrix[Any]:
+        if len(args) != UNARY:
+            self._error("matrix.inv requires one matrix argument")
+        matrix = self._expect_matrix(args[0], "matrix.inv: arg must be matrix")
+        try:
+            return matrix.inv()
+        except Exception as e:
+            self._error(f"matrix.inv: {e}")
+
+    def _builtin_matrix_pinv(self, args: list[Any]) -> Matrix[Any]:
+        if len(args) != UNARY:
+            self._error("matrix.pinv requires one matrix argument")
+        matrix = self._expect_matrix(args[0], "matrix.pinv: arg must be matrix")
+        try:
+            return matrix.pinv()
+        except Exception as e:
+            self._error(f"matrix.pinv: {e}")
+
+    def _builtin_matrix_eigenvalues(self, args: list[Any]) -> list[float]:
+        if len(args) != UNARY:
+            self._error("matrix.eigenvalues requires one matrix argument")
+        matrix = self._expect_matrix(args[0], "matrix.eigenvalues: arg must be matrix")
+        try:
+            return matrix.eigenvalues()
+        except ValueError as e:
+            self._error(f"matrix.eigenvalues: {e}")
+
+    def _builtin_matrix_eigenvectors(self, args: list[Any]) -> Matrix[Any]:
+        if len(args) != UNARY:
+            self._error("matrix.eigenvectors requires one matrix argument")
+        matrix = self._expect_matrix(args[0], "matrix.eigenvectors: arg must be matrix")
+        try:
+            return matrix.eigenvectors()
+        except ValueError as e:
+            self._error(f"matrix.eigenvectors: {e}")
+
+    def _builtin_matrix_kron(self, args: list[Any]) -> Matrix[Any]:
+        if len(args) != BINARY:
+            self._error("matrix.kron requires two matrices")
+        m1 = self._expect_matrix(args[0], "matrix.kron: first arg must be matrix")
+        m2 = self._expect_matrix(args[UNARY], "matrix.kron: second arg must be matrix")
+        return m1.kron(m2)
+
+    def _builtin_matrix_pow(self, args: list[Any]) -> Matrix[Any]:
+        if len(args) != BINARY:
+            self._error("matrix.pow requires matrix and exponent")
+        matrix = self._expect_matrix(args[0], "matrix.pow: first arg must be matrix")
+        n = self._expect_int(args[UNARY], "matrix.pow: exponent must be int")
+        try:
+            return matrix.pow(n)
+        except ValueError as e:
+            self._error(f"matrix.pow: {e}")
+
+    def _builtin_matrix_trace(self, args: list[Any]) -> float:
+        if len(args) != UNARY:
+            self._error("matrix.trace requires one matrix argument")
+        matrix = self._expect_matrix(args[0], "matrix.trace: arg must be matrix")
+        return matrix.trace()
+
+    def _builtin_matrix_rank(self, args: list[Any]) -> int:
+        if len(args) != UNARY:
+            self._error("matrix.rank requires one matrix argument")
+        matrix = self._expect_matrix(args[0], "matrix.rank: arg must be matrix")
+        return matrix.rank()
+
+    def _builtin_matrix_is_square(self, args: list[Any]) -> bool:
+        if len(args) != UNARY:
+            self._error("matrix.is_square requires one matrix argument")
+        return self._expect_matrix(args[0], "matrix.is_square").is_square()
+
+    def _builtin_matrix_is_zero(self, args: list[Any]) -> bool:
+        if len(args) != UNARY:
+            self._error("matrix.is_zero requires one matrix argument")
+        return self._expect_matrix(args[0], "matrix.is_zero").is_zero()
+
+    def _builtin_matrix_is_identity(self, args: list[Any]) -> bool:
+        if len(args) != UNARY:
+            self._error("matrix.is_identity requires one matrix argument")
+        return self._expect_matrix(args[0], "matrix.is_identity").is_identity()
+
+    def _builtin_matrix_is_diagonal(self, args: list[Any]) -> bool:
+        if len(args) != UNARY:
+            self._error("matrix.is_diagonal requires one matrix argument")
+        return self._expect_matrix(args[0], "matrix.is_diagonal").is_diagonal()
+
+    def _builtin_matrix_is_antidiagonal(self, args: list[Any]) -> bool:
+        if len(args) != UNARY:
+            self._error("matrix.is_antidiagonal requires one matrix argument")
+        return self._expect_matrix(args[0], "matrix.is_antidiagonal").is_antidiagonal()
+
+    def _builtin_matrix_is_symmetric(self, args: list[Any]) -> bool:
+        if len(args) != UNARY:
+            self._error("matrix.is_symmetric requires one matrix argument")
+        return self._expect_matrix(args[0], "matrix.is_symmetric").is_symmetric()
+
+    def _builtin_matrix_is_antisymmetric(self, args: list[Any]) -> bool:
+        if len(args) != UNARY:
+            self._error("matrix.is_antisymmetric requires one matrix argument")
+        return self._expect_matrix(args[0], "matrix.is_antisymmetric").is_antisymmetric()
+
+    def _builtin_matrix_is_triangular(self, args: list[Any]) -> bool:
+        if len(args) != UNARY:
+            self._error("matrix.is_triangular requires one matrix argument")
+        return self._expect_matrix(args[0], "matrix.is_triangular").is_triangular()
+
+    def _builtin_matrix_is_binary(self, args: list[Any]) -> bool:
+        if len(args) != UNARY:
+            self._error("matrix.is_binary requires one matrix argument")
+        return self._expect_matrix(args[0], "matrix.is_binary").is_binary()
+
+    def _builtin_matrix_is_stochastic(self, args: list[Any]) -> bool:
+        if len(args) != UNARY:
+            self._error("matrix.is_stochastic requires one matrix argument")
+        return self._expect_matrix(args[0], "matrix.is_stochastic").is_stochastic()

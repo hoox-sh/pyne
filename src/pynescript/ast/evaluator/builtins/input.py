@@ -3,12 +3,32 @@
 # This software is the proprietary information of jango-blockchained.
 # Use is subject to license terms.
 
+"""Pine Script ``input.*`` builtins.
+
+Pine Script semantics: every ``input.*`` call evaluates to the (default or
+user-overridden) parameter value at runtime. Metadata (title, minval, group,
+``active``, …) is retained on the evaluator as a side channel for UI/LSP
+backends via ``_input_declarations``.
+"""
+
 from __future__ import annotations
 
 from typing import Any
 
 from .base import BuiltinDispatchMixin
 from .base import BuiltinHandler
+
+
+def _infer_type(defval: Any) -> str:
+    if isinstance(defval, bool):
+        return "bool"
+    if isinstance(defval, int):
+        return "int"
+    if isinstance(defval, float):
+        return "float"
+    if isinstance(defval, str):
+        return "string"
+    return "float"
 
 
 class InputBuiltinsMixin(BuiltinDispatchMixin):
@@ -29,68 +49,116 @@ class InputBuiltinsMixin(BuiltinDispatchMixin):
             "input.timeframe": self._handle_input_timeframe,
             "input.color": self._handle_input_color,
             "input.enum": self._handle_input_enum,
+            "input.text_area": self._handle_input_text_area,
         }
 
-    def _handle_input(self, args: list[Any]) -> Any:
-        """
-        input(defval, title, tooltip, inline, group, confirm, active)
+    def _record_input(self, meta: dict[str, Any]) -> None:
+        """Append input metadata for hosts (UI, LSP, settings panels)."""
+        decls = getattr(self, "_input_declarations", None)
+        if decls is None:
+            decls = []
+            try:
+                self._input_declarations = decls  # type: ignore[attr-defined]
+            except Exception:
+                return
+        decls.append(meta)
 
-        Generic input — returns the default value directly.
-        """
-        defval = args[0] if len(args) > 0 else None
+    def _resolve_override(self, title: str | None, defval: Any) -> Any:
+        """Apply host-provided input overrides keyed by title when present."""
+        overrides = getattr(self, "_input_overrides", None)
+        if not overrides or not title:
+            return defval
+        if title in overrides:
+            return overrides[title]
         return defval
+
+    def _handle_input(self, args: list[Any]) -> Any:
+        """input(defval, title, tooltip, inline, group, confirm, active) → value."""
+        defval = args[0] if len(args) > 0 else None
+        title = args[1] if len(args) > 1 else ""
+        tooltip = args[2] if len(args) > 2 else ""
+        inline = args[3] if len(args) > 3 else None
+        group = args[4] if len(args) > 4 else None
+        confirm = args[5] if len(args) > 5 else False
+        active = args[6] if len(args) > 6 else True
+        value = self._resolve_override(title or None, defval)
+        self._record_input(
+            {
+                "type": _infer_type(defval),
+                "default": defval,
+                "value": value,
+                "title": title,
+                "tooltip": tooltip,
+                "inline": inline,
+                "group": group,
+                "confirm": confirm,
+                "active": active,
+            }
+        )
+        return value
 
     def _handle_input_bool(self, args: list[Any]) -> bool:
-        """
-        input.bool(defval, title, ...) → returns the boolean value directly.
-        """
+        """input.bool(defval, title, ...) → bool value."""
         defval = args[0] if len(args) > 0 else False
-        return bool(defval)
+        title = args[1] if len(args) > 1 else ""
+        tooltip = args[2] if len(args) > 2 else ""
+        inline = args[3] if len(args) > 3 else None
+        group = args[4] if len(args) > 4 else None
+        confirm = args[5] if len(args) > 5 else False
+        active = args[6] if len(args) > 6 else True
+        value = bool(self._resolve_override(title or None, defval))
+        self._record_input(
+            {
+                "type": "bool",
+                "default": defval,
+                "value": value,
+                "title": title,
+                "tooltip": tooltip,
+                "inline": inline,
+                "group": group,
+                "confirm": confirm,
+                "active": active,
+            }
+        )
+        return value
 
     def _handle_input_int(self, args: list[Any]) -> int:
-        """
-        input.int(defval, title, minval, maxval, step, tooltip, inline,
-                  group, confirm, active)
-
-        Returns the default integer value.
-        """
+        """input.int(defval, title, minval, maxval, step, ...) → int value."""
         defval = args[0] if len(args) > 0 else 0
-        if isinstance(defval, float) and defval == int(defval):
-            return int(defval)
-        return defval
+        title = args[1] if len(args) > 1 else ""
+        minval = args[2] if len(args) > 2 else None
+        maxval = args[3] if len(args) > 3 else None
+        step = args[4] if len(args) > 4 else 1
+        tooltip = args[5] if len(args) > 5 else ""
+        inline = args[6] if len(args) > 6 else None
+        group = args[7] if len(args) > 7 else None
+        confirm = args[8] if len(args) > 8 else False
+        active = args[9] if len(args) > 9 else True
+        raw = self._resolve_override(title or None, defval)
+        if isinstance(raw, float) and raw == int(raw):
+            value = int(raw)
+        else:
+            value = raw
+        self._record_input(
+            {
+                "type": "int",
+                "default": defval,
+                "value": value,
+                "title": title,
+                "min": minval,
+                "max": maxval,
+                "step": step,
+                "tooltip": tooltip,
+                "inline": inline,
+                "group": group,
+                "confirm": confirm,
+                "active": active,
+            }
+        )
+        return value
 
     def _handle_input_float(self, args: list[Any]) -> float:
-        """
-        input.float(defval, title, minval, maxval, step, tooltip, inline, group, confirm, active)
-
-        Returns the default float value.
-        """
-        defval = args[0] if len(args) > 0 else 0.0
-        return float(defval)
-
-    def _handle_input_price(self, args: list[Any]) -> dict[str, Any]:
-        """
-        input.price(defval, title, minval, maxval, step, tooltip, inline, group, confirm, active)
-
-        Create a price input parameter.
-        Price inputs are essentially float inputs optimized for price values.
-
-        Added July 2025: active parameter for conditional input enabling.
-
-        Parameters:
-            defval: Default price value (float)
-            title: Parameter title (str)
-            minval: Minimum allowed price (float or None)
-            maxval: Maximum allowed price (float or None)
-            step: Step size for increment (float or None)
-            tooltip: Tooltip text (str)
-            inline: Inline group name (str or None)
-            group: Parameter group name (str or None)
-            confirm: Require user confirmation (bool)
-            active: Whether input is editable (bool, default true)
-
-        Returns dict with parameter metadata.
-        """
+        """input.float(defval, title, minval, maxval, step, ...) → float value."""
         defval = args[0] if len(args) > 0 else 0.0
         title = args[1] if len(args) > 1 else ""
         minval = args[2] if len(args) > 2 else None
@@ -100,315 +168,238 @@ class InputBuiltinsMixin(BuiltinDispatchMixin):
         inline = args[6] if len(args) > 6 else None
         group = args[7] if len(args) > 7 else None
         confirm = args[8] if len(args) > 8 else False
-        active = args[9] if len(args) > 9 else True  # July 2025
+        active = args[9] if len(args) > 9 else True
+        value = float(self._resolve_override(title or None, defval))
+        self._record_input(
+            {
+                "type": "float",
+                "default": defval,
+                "value": value,
+                "title": title,
+                "min": minval,
+                "max": maxval,
+                "step": step,
+                "tooltip": tooltip,
+                "inline": inline,
+                "group": group,
+                "confirm": confirm,
+                "active": active,
+            }
+        )
+        return value
 
-        return {
-            "type": "price",
-            "default": defval,
-            "title": title,
-            "min": minval,
-            "max": maxval,
-            "step": step,
-            "tooltip": tooltip,
-            "inline": inline,
-            "group": group,
-            "confirm": confirm,
-            "active": active,
-        }
+    def _handle_input_price(self, args: list[Any]) -> float:
+        """input.price(...) → float value (price-optimized float input)."""
+        defval = args[0] if len(args) > 0 else 0.0
+        title = args[1] if len(args) > 1 else ""
+        minval = args[2] if len(args) > 2 else None
+        maxval = args[3] if len(args) > 3 else None
+        step = args[4] if len(args) > 4 else None
+        tooltip = args[5] if len(args) > 5 else ""
+        inline = args[6] if len(args) > 6 else None
+        group = args[7] if len(args) > 7 else None
+        confirm = args[8] if len(args) > 8 else False
+        active = args[9] if len(args) > 9 else True
+        value = float(self._resolve_override(title or None, defval))
+        self._record_input(
+            {
+                "type": "price",
+                "default": defval,
+                "value": value,
+                "title": title,
+                "min": minval,
+                "max": maxval,
+                "step": step,
+                "tooltip": tooltip,
+                "inline": inline,
+                "group": group,
+                "confirm": confirm,
+                "active": active,
+            }
+        )
+        return value
 
-    def _handle_input_string(self, args: list[Any]) -> dict[str, Any]:
-        """
-        input.string(defval, title, tooltip, inline, group, confirm, active)
-
-        Create a string input parameter.
-
-        Added July 2025: active parameter for conditional input enabling.
-
-        Parameters:
-            defval: Default value (str)
-            title: Parameter title (str)
-            tooltip: Tooltip text (str)
-            inline: Inline group name (str or None)
-            group: Parameter group name (str or None)
-            confirm: Require user confirmation (bool)
-            active: Whether input is editable (bool, default true)
-
-        Returns dict with parameter metadata.
-        """
+    def _handle_input_string(self, args: list[Any]) -> str:
+        """input.string(...) → str value."""
         defval = args[0] if len(args) > 0 else ""
         title = args[1] if len(args) > 1 else ""
         tooltip = args[2] if len(args) > 2 else ""
         inline = args[3] if len(args) > 3 else None
         group = args[4] if len(args) > 4 else None
         confirm = args[5] if len(args) > 5 else False
-        active = args[6] if len(args) > 6 else True  # July 2025
+        active = args[6] if len(args) > 6 else True
+        value = str(self._resolve_override(title or None, defval))
+        self._record_input(
+            {
+                "type": "string",
+                "default": defval,
+                "value": value,
+                "title": title,
+                "tooltip": tooltip,
+                "inline": inline,
+                "group": group,
+                "confirm": confirm,
+                "active": active,
+            }
+        )
+        return value
 
-        return {
-            "type": "string",
-            "default": defval,
-            "title": title,
-            "tooltip": tooltip,
-            "inline": inline,
-            "group": group,
-            "confirm": confirm,
-            "active": active,
-        }
-
-    def _handle_input_symbol(self, args: list[Any]) -> dict[str, Any]:
-        """
-        input.symbol(defval, title, tooltip, inline, group, confirm, active)
-
-        Create a symbol/ticker input parameter.
-        Symbol inputs are specialized string inputs for security symbols.
-
-        Added July 2025: active parameter for conditional input enabling.
-
-        Parameters:
-            defval: Default symbol (str)
-            title: Parameter title (str)
-            tooltip: Tooltip text (str)
-            inline: Inline group name (str or None)
-            group: Parameter group name (str or None)
-            confirm: Require user confirmation (bool)
-            active: Whether input is editable (bool, default true)
-
-        Returns dict with parameter metadata.
-        """
+    def _handle_input_symbol(self, args: list[Any]) -> str:
+        """input.symbol(...) → str symbol."""
         defval = args[0] if len(args) > 0 else ""
         title = args[1] if len(args) > 1 else ""
         tooltip = args[2] if len(args) > 2 else ""
         inline = args[3] if len(args) > 3 else None
         group = args[4] if len(args) > 4 else None
         confirm = args[5] if len(args) > 5 else False
-        active = args[6] if len(args) > 6 else True  # July 2025
+        active = args[6] if len(args) > 6 else True
+        value = str(self._resolve_override(title or None, defval))
+        self._record_input(
+            {
+                "type": "symbol",
+                "default": defval,
+                "value": value,
+                "title": title,
+                "tooltip": tooltip,
+                "inline": inline,
+                "group": group,
+                "confirm": confirm,
+                "active": active,
+            }
+        )
+        return value
 
-        return {
-            "type": "symbol",
-            "default": defval,
-            "title": title,
-            "tooltip": tooltip,
-            "inline": inline,
-            "group": group,
-            "confirm": confirm,
-            "active": active,
-        }
-
-    def _handle_input_session(self, args: list[Any]) -> dict[str, Any]:
-        """
-        input.session(defval, title, tooltip, inline, group, confirm, active)
-
-        Create a session input parameter.
-        Session inputs define trading session times (e.g., "0930-1600").
-
-        Added July 2025: active parameter for conditional input enabling.
-
-        Parameters:
-            defval: Default session string (str)
-            title: Parameter title (str)
-            tooltip: Tooltip text (str)
-            inline: Inline group name (str or None)
-            group: Parameter group name (str or None)
-            confirm: Require user confirmation (bool)
-            active: Whether input is editable (bool, default true)
-
-        Returns dict with parameter metadata.
-        """
+    def _handle_input_session(self, args: list[Any]) -> str:
+        """input.session(...) → session string."""
         defval = args[0] if len(args) > 0 else ""
         title = args[1] if len(args) > 1 else ""
         tooltip = args[2] if len(args) > 2 else ""
         inline = args[3] if len(args) > 3 else None
         group = args[4] if len(args) > 4 else None
         confirm = args[5] if len(args) > 5 else False
-        active = args[6] if len(args) > 6 else True  # July 2025
+        active = args[6] if len(args) > 6 else True
+        value = str(self._resolve_override(title or None, defval))
+        self._record_input(
+            {
+                "type": "session",
+                "default": defval,
+                "value": value,
+                "title": title,
+                "tooltip": tooltip,
+                "inline": inline,
+                "group": group,
+                "confirm": confirm,
+                "active": active,
+            }
+        )
+        return value
 
-        return {
-            "type": "session",
-            "default": defval,
-            "title": title,
-            "tooltip": tooltip,
-            "inline": inline,
-            "group": group,
-            "confirm": confirm,
-            "active": active,
-        }
-
-    def _handle_input_source(self, args: list[Any]) -> dict[str, Any]:
-        """
-        input.source(defval, title, tooltip, inline, group, confirm, active)
-
-        Create a source input parameter.
-        Source inputs select OHLCV data sources (close, open, high, low, hl2, hlc3, ohlc4, etc.).
-
-        Added July 2025: active parameter for conditional input enabling.
-
-        Parameters:
-            defval: Default source (str, e.g., "close")
-            title: Parameter title (str)
-            tooltip: Tooltip text (str)
-            inline: Inline group name (str or None)
-            group: Parameter group name (str or None)
-            confirm: Require user confirmation (bool)
-            active: Whether input is editable (bool, default true)
-
-        Returns dict with parameter metadata.
-        """
+    def _handle_input_source(self, args: list[Any]) -> Any:
+        """input.source(...) → series source (string name or series value)."""
         defval = args[0] if len(args) > 0 else "close"
         title = args[1] if len(args) > 1 else ""
         tooltip = args[2] if len(args) > 2 else ""
         inline = args[3] if len(args) > 3 else None
         group = args[4] if len(args) > 4 else None
         confirm = args[5] if len(args) > 5 else False
-        active = args[6] if len(args) > 6 else True  # July 2025
+        active = args[6] if len(args) > 6 else True
+        value = self._resolve_override(title or None, defval)
+        self._record_input(
+            {
+                "type": "source",
+                "default": defval,
+                "value": value,
+                "title": title,
+                "tooltip": tooltip,
+                "inline": inline,
+                "group": group,
+                "confirm": confirm,
+                "active": active,
+            }
+        )
+        return value
 
-        return {
-            "type": "source",
-            "default": defval,
-            "title": title,
-            "tooltip": tooltip,
-            "inline": inline,
-            "group": group,
-            "confirm": confirm,
-            "active": active,
-        }
-
-    def _handle_input_time(self, args: list[Any]) -> dict[str, Any]:
-        """
-        input.time(defval, title, tooltip, inline, group, confirm, active)
-
-        Create a time input parameter.
-        Time inputs select a specific date and time as Unix timestamp.
-
-        Added July 2025: active parameter for conditional input enabling.
-
-        Parameters:
-            defval: Default time (int, Unix timestamp)
-            title: Parameter title (str)
-            tooltip: Tooltip text (str)
-            inline: Inline group name (str or None)
-            group: Parameter group name (str or None)
-            confirm: Require user confirmation (bool)
-            active: Whether input is editable (bool, default true)
-
-        Returns dict with parameter metadata.
-        """
+    def _handle_input_time(self, args: list[Any]) -> int:
+        """input.time(...) → Unix timestamp int."""
         defval = args[0] if len(args) > 0 else 0
         title = args[1] if len(args) > 1 else ""
         tooltip = args[2] if len(args) > 2 else ""
         inline = args[3] if len(args) > 3 else None
         group = args[4] if len(args) > 4 else None
         confirm = args[5] if len(args) > 5 else False
-        active = args[6] if len(args) > 6 else True  # July 2025
+        active = args[6] if len(args) > 6 else True
+        raw = self._resolve_override(title or None, defval)
+        if isinstance(raw, float) and raw == int(raw):
+            value = int(raw)
+        else:
+            value = raw
+        self._record_input(
+            {
+                "type": "time",
+                "default": defval,
+                "value": value,
+                "title": title,
+                "tooltip": tooltip,
+                "inline": inline,
+                "group": group,
+                "confirm": confirm,
+                "active": active,
+            }
+        )
+        return value
 
-        return {
-            "type": "time",
-            "default": defval,
-            "title": title,
-            "tooltip": tooltip,
-            "inline": inline,
-            "group": group,
-            "confirm": confirm,
-            "active": active,
-        }
-
-    def _handle_input_timeframe(self, args: list[Any]) -> dict[str, Any]:
-        """
-        input.timeframe(defval, title, tooltip, inline, group, confirm, active)
-
-        Create a timeframe input parameter.
-        Timeframe inputs select chart timeframes (e.g., "1", "5", "1H", "D").
-
-        Added July 2025: active parameter for conditional input enabling.
-
-        Parameters:
-            defval: Default timeframe (str)
-            title: Parameter title (str)
-            tooltip: Tooltip text (str)
-            inline: Inline group name (str or None)
-            group: Parameter group name (str or None)
-            confirm: Require user confirmation (bool)
-            active: Whether input is editable (bool, default true)
-
-        Returns dict with parameter metadata.
-        """
+    def _handle_input_timeframe(self, args: list[Any]) -> str:
+        """input.timeframe(...) → timeframe string."""
         defval = args[0] if len(args) > 0 else ""
         title = args[1] if len(args) > 1 else ""
         tooltip = args[2] if len(args) > 2 else ""
         inline = args[3] if len(args) > 3 else None
         group = args[4] if len(args) > 4 else None
         confirm = args[5] if len(args) > 5 else False
-        active = args[6] if len(args) > 6 else True  # July 2025
+        active = args[6] if len(args) > 6 else True
+        value = str(self._resolve_override(title or None, defval))
+        self._record_input(
+            {
+                "type": "timeframe",
+                "default": defval,
+                "value": value,
+                "title": title,
+                "tooltip": tooltip,
+                "inline": inline,
+                "group": group,
+                "confirm": confirm,
+                "active": active,
+            }
+        )
+        return value
 
-        return {
-            "type": "timeframe",
-            "default": defval,
-            "title": title,
-            "tooltip": tooltip,
-            "inline": inline,
-            "group": group,
-            "confirm": confirm,
-            "active": active,
-        }
-
-    def _handle_input_color(self, args: list[Any]) -> dict[str, Any]:
-        """
-        input.color(defval, title, tooltip, inline, group, confirm, active)
-
-        Create a color input parameter.
-        Color inputs select RGBA color values.
-
-        Added July 2025: active parameter for conditional input enabling.
-
-        Parameters:
-            defval: Default color (str, e.g., "#FF0000" or color constant)
-            title: Parameter title (str)
-            tooltip: Tooltip text (str)
-            inline: Inline group name (str or None)
-            group: Parameter group name (str or None)
-            confirm: Require user confirmation (bool)
-            active: Whether input is editable (bool, default true)
-
-        Returns dict with parameter metadata.
-        """
+    def _handle_input_color(self, args: list[Any]) -> Any:
+        """input.color(...) → color value."""
         defval = args[0] if len(args) > 0 else "#000000"
         title = args[1] if len(args) > 1 else ""
         tooltip = args[2] if len(args) > 2 else ""
         inline = args[3] if len(args) > 3 else None
         group = args[4] if len(args) > 4 else None
         confirm = args[5] if len(args) > 5 else False
-        active = args[6] if len(args) > 6 else True  # July 2025
+        active = args[6] if len(args) > 6 else True
+        value = self._resolve_override(title or None, defval)
+        self._record_input(
+            {
+                "type": "color",
+                "default": defval,
+                "value": value,
+                "title": title,
+                "tooltip": tooltip,
+                "inline": inline,
+                "group": group,
+                "confirm": confirm,
+                "active": active,
+            }
+        )
+        return value
 
-        return {
-            "type": "color",
-            "default": defval,
-            "title": title,
-            "tooltip": tooltip,
-            "inline": inline,
-            "group": group,
-            "confirm": confirm,
-            "active": active,
-        }
-
-    def _handle_input_enum(self, args: list[Any]) -> dict[str, Any]:
-        """
-        input.enum(defval, title, options, tooltip, inline, group, confirm, active)
-
-        Create an enumeration input parameter.
-        Enum inputs provide a dropdown list of predefined options.
-
-        Added July 2025: active parameter for conditional input enabling.
-
-        Parameters:
-            defval: Default option (str)
-            title: Parameter title (str)
-            options: Possible values (list or tuple of str)
-            tooltip: Tooltip text (str)
-            inline: Inline group name (str or None)
-            group: Parameter group name (str or None)
-            confirm: Require user confirmation (bool)
-            active: Whether input is editable (bool, default true)
-
-        Returns dict with parameter metadata.
-        """
+    def _handle_input_enum(self, args: list[Any]) -> Any:
+        """input.enum(defval, title, options, ...) → selected enum value."""
         defval = args[0] if len(args) > 0 else ""
         title = args[1] if len(args) > 1 else ""
         options = args[2] if len(args) > 2 else []
@@ -416,24 +407,52 @@ class InputBuiltinsMixin(BuiltinDispatchMixin):
         inline = args[4] if len(args) > 4 else None
         group = args[5] if len(args) > 5 else None
         confirm = args[6] if len(args) > 6 else False
-        active = args[7] if len(args) > 7 else True  # July 2025
+        active = args[7] if len(args) > 7 else True
+        value = self._resolve_override(title or None, defval)
+        opt_list = list(options) if not isinstance(options, list) else options
+        self._record_input(
+            {
+                "type": "enum",
+                "default": defval,
+                "value": value,
+                "title": title,
+                "options": opt_list,
+                "tooltip": tooltip,
+                "inline": inline,
+                "group": group,
+                "confirm": confirm,
+                "active": active,
+            }
+        )
+        return value
 
-        return {
-            "type": "enum",
-            "default": defval,
-            "title": title,
-            "options": list(options) if not isinstance(options, list) else options,
-            "tooltip": tooltip,
-            "inline": inline,
-            "group": group,
-            "confirm": confirm,
-            "active": active,
-        }
+    def _handle_input_text_area(self, args: list[Any]) -> str:
+        """input.text_area(defval, title, ...) → multiline string value."""
+        defval = args[0] if len(args) > 0 else ""
+        title = args[1] if len(args) > 1 else ""
+        tooltip = args[2] if len(args) > 2 else ""
+        inline = args[3] if len(args) > 3 else None
+        group = args[4] if len(args) > 4 else None
+        confirm = args[5] if len(args) > 5 else False
+        active = args[6] if len(args) > 6 else True
+        value = str(self._resolve_override(title or None, defval))
+        self._record_input(
+            {
+                "type": "text_area",
+                "default": defval,
+                "value": value,
+                "title": title,
+                "tooltip": tooltip,
+                "inline": inline,
+                "group": group,
+                "confirm": confirm,
+                "active": active,
+            }
+        )
+        return value
 
 
-# KWARG_ORDER for input.* handlers so that _merge_kwargs_into_args can correctly
-# map kwargs like input(title="X", defval=10) to positional args even when the
-# handler has a generic (self, args) signature.
+# KWARG_ORDER so _merge_kwargs_into_args maps keyword args to positionals.
 InputBuiltinsMixin._handle_input._KWARG_ORDER = [
     "defval",
     "title",
@@ -555,6 +574,15 @@ InputBuiltinsMixin._handle_input_enum._KWARG_ORDER = [
     "defval",
     "title",
     "options",
+    "tooltip",
+    "inline",
+    "group",
+    "confirm",
+    "active",
+]
+InputBuiltinsMixin._handle_input_text_area._KWARG_ORDER = [
+    "defval",
+    "title",
     "tooltip",
     "inline",
     "group",

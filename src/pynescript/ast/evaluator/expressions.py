@@ -17,21 +17,75 @@ from pynescript.ast.type_system import UserDefinedType
 
 # Optimize: Pre-cache operator references at module level
 # These imports reduce attribute lookup overhead for frequent operations
+def _as_scalar_operand(value):
+    """Coerce PineSeries-like objects to their current scalar for arithmetic."""
+    if value is None:
+        return None
+    current = getattr(value, "current", None)
+    if current is not None and not isinstance(value, (list, tuple, str, bytes)):
+        # PineSeries / wrapper with a live current value
+        if not hasattr(value, "history") or getattr(value, "current", None) is not None:
+            # Prefer current when present; fall through for plain containers
+            if type(value).__name__ in {"PineSeries", "_SeriesResult"} or (
+                hasattr(value, "history") and hasattr(value, "current")
+            ):
+                return value.current
+    return value
+
+
+def _elementwise_binary(op, a, b):
+    """Apply *op* with Pine NA (None) and series (list) semantics.
+
+    - ``None`` operands propagate NA.
+    - Two lists → element-wise (zip from the end when lengths differ).
+    - List + scalar → broadcast.
+    - Scalars → normal op.
+    """
+    a = _as_scalar_operand(a)
+    b = _as_scalar_operand(b)
+
+    if isinstance(a, list) and isinstance(b, list):
+        if len(a) == len(b):
+            return [None if x is None or y is None else op(x, y) for x, y in zip(a, b)]
+        # Align on the trailing edge (most recent bars)
+        n = min(len(a), len(b))
+        a_tail, b_tail = a[-n:], b[-n:]
+        body = [None if x is None or y is None else op(x, y) for x, y in zip(a_tail, b_tail)]
+        if len(a) > len(b):
+            return [None] * (len(a) - n) + body
+        return [None] * (len(b) - n) + body
+
+    if isinstance(a, list) and not isinstance(b, list):
+        if b is None:
+            return [None] * len(a)
+        return [None if x is None else op(x, b) for x in a]
+
+    if isinstance(b, list) and not isinstance(a, list):
+        if a is None:
+            return [None] * len(b)
+        return [None if y is None else op(a, y) for y in b]
+
+    if a is None or b is None:
+        return None
+    return op(a, b)
+
+
 def _na_safe_binary(op):
-    """Return None-safe binary operator: returns None if either operand is None."""
+    """Return None/series-safe binary operator."""
 
     def wrapper(a, b):
-        if a is None or b is None:
-            return None
-        return op(a, b)
+        return _elementwise_binary(op, a, b)
 
     return wrapper
 
 
 def _na_safe_unary(op):
-    """Return None-safe unary operator: returns None if operand is None."""
+    """Return None-safe unary operator; maps over series lists."""
 
     def wrapper(a):
+        a = _as_scalar_operand(a)
+        if isinstance(a, list):
+            return [None if x is None else op(x) for x in a]
         if a is None:
             return None
         return op(a)

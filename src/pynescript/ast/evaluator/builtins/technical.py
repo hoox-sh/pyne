@@ -89,6 +89,8 @@ class TechnicalAnalysisMixin(
             "ta.median": self._builtin_ta_median,
             "ta.mode": self._builtin_ta_mode,
             "ta.percentrank": self._builtin_ta_percentrank,
+            "ta.percentile_linear_interpolation": self._builtin_ta_percentile_linear_interpolation,
+            "ta.percentile_nearest_rank": self._builtin_ta_percentile_nearest_rank,
             "ta.variance": self._builtin_ta_variance,
             "ta.barssince": self._builtin_ta_barssince,
             "ta.pivothigh": self._builtin_ta_pivothigh,
