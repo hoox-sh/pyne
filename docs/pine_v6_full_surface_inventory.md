@@ -194,7 +194,7 @@ Some absences are intentional product boundaries rather than incomplete ports: t
 | Pine Profiler | ⬜ n/a | Editor-only |
 | Live TradingView libraries network | ❌ missing | In-process registry only |
 | chart rendering | ⬜ n/a | Out of scope |
-| Compile mode strategy orders | ❌ missing | Numba/object compile covers indicators; strategy remains interpret-first |
+| Compile mode strategy orders | ✅ implemented | Object-mode `CompileStrategyBroker`; events via Runtime `mode="compile"` |
 
 ## Full function & identifier inventory
 

@@ -120,6 +120,7 @@ Pine Script v6 launched December 2024, followed by monthly updates. Key sources:
 - ✅ `ta.kama`/`dema`/`tema` bar-mode scalars; `request.seed` seeds stdlib + numpy for reproducible mocks
 - ✅ OCA: `strategy.oca.none/cancel/reduce` + oca_name/type on orders; fill cancels/reduces siblings
 - ✅ Commission (`percent` / `cash_per_order` / `cash_per_contract`) + slippage ticks from `strategy()` kwargs; applied on fills
+- ✅ **Compile-mode strategy** (object mode): `CompileStrategyBroker` emits entry/close/order/cancel events; `Runtime.run(..., mode="compile")` returns `events`; position_size/equity/netprofit available
 
 ## Recommendations
 - **Grammar first**: Add triple-quoted multiline string support to `PinescriptLexer.g4` + handling in lexer/parser.

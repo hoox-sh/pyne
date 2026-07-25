@@ -327,6 +327,11 @@ class Runtime:
             return {"error": f"Compiled Runtime Error: {e!s}"}
 
         drawings = series_map.pop("__drawings", []) if isinstance(series_map, dict) else []
+        events = series_map.pop("__events", []) if isinstance(series_map, dict) else []
+        # Drop internal compile metrics from series map (keep plots)
+        for meta_key in ("__position_size", "__netprofit", "__equity"):
+            if isinstance(series_map, dict):
+                series_map.pop(meta_key, None)
 
         # Primary plot series (first numeric plot) as list for frontend compatibility
         final_series: list = []
@@ -336,11 +341,18 @@ class Runtime:
             final_series = [None if (isinstance(x, float) and x != x) else float(x) for x in first]
 
         script_id = hashlib.sha256(source_code.encode("utf-8")).hexdigest()[:16]
+        # Stamp script/run ids on strategy events
+        if isinstance(events, list):
+            for ev in events:
+                if isinstance(ev, dict):
+                    ev.setdefault("script_id", script_id)
+                    ev.setdefault("run_id", self._run_id)
+
         return {
             "plots": final_series,
             "series": {k: (v.tolist() if hasattr(v, "tolist") else v) for k, v in series_map.items()},
             "drawings": drawings,
-            "events": [],
+            "events": events if isinstance(events, list) else [],
             "count": len(ohlcv_data),
             "script_id": script_id,
             "run_id": self._run_id,

@@ -78,6 +78,8 @@ class CompilerVisitor(NodeVisitor):
         self.local_vars: set[str] = set()
         # Object-mode state
         self.object_mode = False
+        self.uses_strategy = False
+        self.strategy_kwargs: dict[str, str] = {}
         self.udt_types: dict[str, list[str]] = {}  # type name -> field names
         self.udt_vars: set[str] = set()  # series names holding UDT instances
         self.map_vars: set[str] = set()  # var map names (single object, not series)
@@ -130,12 +132,15 @@ class CompilerVisitor(NodeVisitor):
         return "\n".join(lines)
 
     def _emit_object_mode(self, body_lines: list[str]) -> str:
-        """Python bar loop with UDT dicts, maps, and drawing event list."""
+        """Python bar loop with UDT dicts, maps, drawing, and strategy events."""
         lines = [
             "import numpy as np",
             "from pynescript.compiler.numba_builtins import *",
             "",
         ]
+        if self.uses_strategy:
+            lines.append("from pynescript.compiler.strategy_broker import CompileStrategyBroker")
+            lines.append("")
         for func in self.functions:
             # strip @numba.njit for object-mode user functions
             cleaned = "\n".join(l for l in func.splitlines() if not l.startswith("@numba"))
@@ -154,6 +159,16 @@ class CompilerVisitor(NodeVisitor):
                 "    __drawings = []",
             ]
         )
+        if self.uses_strategy:
+            # Broker ctor kwargs from strategy() declaration when present
+            sk = self.strategy_kwargs
+            ctor_args = []
+            for key in ("initial_capital", "commission_value", "commission_type", "slippage", "mintick"):
+                if key in sk:
+                    py_key = "slippage_ticks" if key == "slippage" else key
+                    ctor_args.append(f"{py_key}={sk[key]}")
+            ctor = ", ".join(ctor_args)
+            lines.append(f"    __strategy = CompileStrategyBroker({ctor})")
         for arr in sorted(self.arrays):
             # object series use object dtype
             if arr[:-4] in self.udt_vars:  # name_arr -> name
@@ -166,19 +181,27 @@ class CompilerVisitor(NodeVisitor):
             lines.append(f"    plot_{idx} = np.full(n_bars, np.nan)")
 
         lines.append("    for __bar_idx in range(n_bars):")
-        if not body_lines:
+        if self.uses_strategy:
+            lines.append(
+                "        __strategy.set_bar(__bar_idx, 0, float(close_arr[__bar_idx]))"
+            )
+        if not body_lines and not self.uses_strategy:
             lines.append("        pass")
         for line in body_lines:
             line = line.replace("\n", "\n        ")
             lines.append(f"        {line}")
+        if not body_lines and self.uses_strategy:
+            lines.append("        pass")
 
         dict_items = [f"'{p['title']}': plot_{i}" for i, p in enumerate(self.plots)]
-        lines.append(
-            "    return {"
-            + ", ".join(dict_items)
-            + (", " if dict_items else "")
-            + "'__drawings': __drawings}"
-        )
+        extras = ["'__drawings': __drawings"]
+        if self.uses_strategy:
+            extras.append("'__events': __strategy.to_events()")
+            extras.append("'__position_size': __strategy.position_size")
+            extras.append("'__netprofit': __strategy.netprofit")
+            extras.append("'__equity': __strategy.equity")
+        ret_parts = dict_items + extras
+        lines.append("    return {" + ", ".join(ret_parts) + "}")
         return "\n".join(lines)
 
     # ---------------------------------------------------------------- statements
@@ -299,6 +322,26 @@ class CompilerVisitor(NodeVisitor):
         if isinstance(node.value, ast.Name) and node.value.id in self.udt_types:
             # Point.new handled in Call
             return f"{node.value.id}_{node.attr}"
+        # strategy.* series/constants
+        if isinstance(node.value, ast.Name) and node.value.id == "strategy":
+            return self._emit_strategy_attr(node.attr)
+        # strategy.oca.reduce / strategy.commission.percent
+        if (
+            isinstance(node.value, ast.Attribute)
+            and isinstance(node.value.value, ast.Name)
+            and node.value.value.id == "strategy"
+        ):
+            parent = node.value.attr
+            if parent == "oca" and node.attr in ("none", "cancel", "reduce"):
+                return repr(node.attr)
+            if parent == "commission" and node.attr in (
+                "percent",
+                "cash_per_order",
+                "cash_per_contract",
+            ):
+                return repr(node.attr)
+            if parent == "direction" and node.attr in ("long", "short", "all"):
+                return repr(node.attr)
 
         val = self.visit(node.value)
         # UDT field read: p.x → p['x'] in object mode
@@ -314,6 +357,32 @@ class CompilerVisitor(NodeVisitor):
         if val.endswith("[__bar_idx]"):
             val = val[:-11]
         return f"{val}_{node.attr}"
+
+    def _emit_strategy_attr(self, attr: str) -> str:
+        """Map strategy.long/position_size/… for compile path."""
+        if attr in ("long", "short"):
+            return repr(attr)
+        # Nested constants strategy.oca.reduce etc. come as strategy_oca via Call
+        series_map = {
+            "position_size": "__strategy.position_size",
+            "position_avg_price": "__strategy.position_avg_price",
+            "position_entry_name": "__strategy.position_entry_name",
+            "netprofit": "__strategy.netprofit",
+            "equity": "__strategy.equity",
+            "closedtrades": "__strategy.closed_trades",
+            "opentrades": "0 if __strategy.position_size == 0 else 1",
+            "initial_capital": "__strategy.initial_capital",
+        }
+        if attr in series_map:
+            self.object_mode = True
+            self.uses_strategy = True
+            return series_map[attr]
+        # oca / commission nested attrs: strategy.oca → leave for outer attr
+        if attr in ("oca", "commission", "direction", "risk"):
+            return f"strategy_{attr}"
+        self.object_mode = True
+        self.uses_strategy = True
+        return f"__strategy.{attr}"
 
     def _color_const(self, name: str) -> str:
         colors = {
@@ -381,13 +450,25 @@ class CompilerVisitor(NodeVisitor):
             else:
                 args.append(self.visit(arg))
 
-        if func_name in ("indicator", "strategy", "library"):
+        if func_name in ("indicator", "library"):
+            return ""
+        if func_name == "strategy":
+            # Capture declaration kwargs for CompileStrategyBroker
+            self.uses_strategy = True
+            self.object_mode = True
+            for k, v in kwargs.items():
+                self.strategy_kwargs[k] = v
+            # also positional title is fine to ignore
             return ""
 
         if func_name == "input" or func_name.startswith("input_"):
             if args:
                 return args[0]
             return kwargs.get("defval", "0.0")
+
+        # strategy.entry / close / order / cancel …
+        if func_name.startswith("strategy_"):
+            return self._emit_strategy_call(func_name, args, kwargs)
 
         if func_name == "plot":
             title = f"Plot {len(self.plots)}"
@@ -451,6 +532,60 @@ class CompilerVisitor(NodeVisitor):
             return args[0] if args else "np.nan"
 
         return f"{func_name}({', '.join(args)})"
+
+    def _emit_strategy_call(self, func_name: str, args: list[str], kwargs: dict[str, str]) -> str:
+        """Emit CompileStrategyBroker method call; force object mode."""
+        self.object_mode = True
+        self.uses_strategy = True
+        method = func_name[len("strategy_") :]  # entry, close, order, …
+        # Nested: strategy_oca_reduce is not a call on broker
+        if method.startswith("oca_") or method.startswith("commission_"):
+            # Constants used as bare names rarely appear as calls
+            const = method.split("_")[-1]
+            return repr(const)
+        if method.startswith("risk_"):
+            return ""  # risk.* declaration no-op in compile path for now
+        if method in {"long", "short"}:
+            return repr(method)
+
+        # Map method names
+        broker_method = {
+            "entry": "entry",
+            "close": "close",
+            "close_all": "close_all",
+            "order": "order",
+            "cancel": "cancel",
+            "cancel_all": "cancel_all",
+            "exit": "close",  # simplify exit → close
+        }.get(method, None)
+        if broker_method is None:
+            return ""
+
+        # Build kwargs for broker: inject mark price
+        parts: list[str] = []
+        # positional → named where possible
+        names_by_method = {
+            "entry": ("id", "direction", "qty", "limit", "stop", "comment"),
+            "close": ("id", "qty", "comment"),
+            "close_all": ("comment",),
+            "order": ("id", "direction", "qty", "limit", "stop", "oca_name", "oca_type", "comment"),
+            "cancel": ("id",),
+            "cancel_all": (),
+        }
+        param_names = names_by_method.get(broker_method, ())
+        for i, a in enumerate(args):
+            if i < len(param_names):
+                parts.append(f"{param_names[i]}={a}")
+            else:
+                parts.append(a)
+        for k, v in kwargs.items():
+            # map Pine names
+            key = k
+            if key == "from_entry":
+                key = "id"
+            parts.append(f"{key}={v}")
+        parts.append("price=float(close_arr[__bar_idx])")
+        return f"__strategy.{broker_method}({', '.join(parts)})"
 
     def _emit_udt_new(self, type_name: str, node: ast.Call) -> str:
         self.object_mode = True
