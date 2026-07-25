@@ -33,6 +33,8 @@ class CustomEvaluator(NodeLiteralEvaluator):
     def __init__(self, context=None, data_feed=None, data_provider=None):
         super().__init__(context, data_feed=data_feed, data_provider=data_provider)
         self.plot_outputs = []
+        # Bar-by-bar mode: TA helpers return current scalar instead of full series
+        self._pine_bar_mode = True
         if not hasattr(self, "_var_declarations"):
             self._var_declarations = set()
 

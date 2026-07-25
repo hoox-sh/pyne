@@ -28,12 +28,12 @@ class BasicIndicators(TechnicalHelpers):
     def _builtin_ta_sma(self, args: list[Any]) -> list[float | None]:
         """Simple Moving Average."""
         series, period = self._expect_series(args, length=BINARY)
-        return self._sma(series, period)
+        return self._finalize_series(self._sma(series, period))
 
     def _builtin_ta_ema(self, args: list[Any]) -> list[float | None]:
         """Exponential Moving Average."""
         series, period = self._expect_series(args, length=BINARY)
-        return self._ema(series, period)
+        return self._finalize_series(self._ema(series, period))
 
     def _builtin_ta_wma(self, args: list[Any]) -> float | None:
         """Weighted Moving Average."""
@@ -43,12 +43,12 @@ class BasicIndicators(TechnicalHelpers):
     def _builtin_ta_rma(self, args: list[Any]) -> list[float]:
         """Rolling Moving Average."""
         series, period = self._expect_series(args, length=BINARY)
-        return self._rma(series, period)
+        return self._finalize_series(self._rma(series, period))
 
     def _builtin_ta_vwma(self, args: list[Any]) -> list[float | None]:
         """Volume Weighted Moving Average."""
         series, period = self._expect_series(args, length=BINARY)
-        return self._vwma(series, period)
+        return self._finalize_series(self._vwma(series, period))
 
     def _builtin_ta_hma(self, args: list[Any]) -> float | None:
         """Hull Moving Average."""
@@ -136,7 +136,7 @@ class BasicIndicators(TechnicalHelpers):
         highs = self._expect_list(args[0], msg)
         lows = self._expect_list(args[1], msg)
         closes = self._expect_list(args[2], msg)
-        return self._tr(highs, lows, closes)
+        return self._finalize_series(self._tr(highs, lows, closes))
 
     def _builtin_ta_sar(self, args: list[Any]) -> list[float]:
         """Parabolic SAR."""
@@ -174,7 +174,7 @@ class BasicIndicators(TechnicalHelpers):
         lows = self._expect_list(args[1], msg)
         closes = self._expect_list(args[2], msg)
         length = self._expect_int(args[3], msg)
-        return self._atr(highs, lows, closes, length)
+        return self._finalize_series(self._atr(highs, lows, closes, length))
 
     def _builtin_ta_kc(self, args: list[Any]) -> tuple[float, float, float]:
         """Keltner Channels (returns middle, upper, lower)."""

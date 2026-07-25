@@ -105,9 +105,14 @@ class StrategyState:
         self.max_contracts_held_short: float = 0.0
         # Risk: max position size as % of equity (None = unlimited)
         self.max_position_size_percent: float | None = None
-        self.max_drawdown_risk: float | None = None  # strategy.risk.max_drawdown limit
+        self.max_drawdown_risk: float | None = None  # absolute equity drawdown cap
+        self.max_drawdown_risk_percent: float | None = None  # optional % of peak
         self.max_cons_loss_days: int | None = None
         self.allow_entry_in: str = "all"  # all | long | short
+        self.entries_blocked: bool = False  # risk halt (drawdown / cons loss days)
+        self.consecutive_loss_days: int = 0
+        self._last_trade_day: int | None = None  # exit_time // day_ms bucket
+        self._day_pnl: float = 0.0
         # Equity curve tracking for max drawdown / runup
         self._equity_peak: float = 100_000.0
         self._equity_trough: float = 100_000.0
@@ -122,6 +127,32 @@ class StrategyState:
         events = list(self._events)
         self._events.clear()
         return events
+
+    def note_closed_trade_day(self, exit_time: int, profit: float) -> None:
+        """Track consecutive calendar-day losses for risk.max_cons_loss_days.
+
+        Day bucket = floor(exit_time / 86_400_000) when time looks like ms,
+        else floor(exit_time / 86_400) for seconds, else bar-time as-is.
+        """
+        t = int(exit_time)
+        if t > 10_000_000_000:  # ms epoch
+            day = t // 86_400_000
+        elif t > 10_000_000:  # seconds epoch
+            day = t // 86_400
+        else:
+            day = t
+        if self._last_trade_day is None or day != self._last_trade_day:
+            # Finalize previous day
+            if self._last_trade_day is not None:
+                if self._day_pnl < 0:
+                    self.consecutive_loss_days += 1
+                elif self._day_pnl > 0:
+                    self.consecutive_loss_days = 0
+            self._last_trade_day = day
+            self._day_pnl = 0.0
+        self._day_pnl += float(profit)
+        if self.max_cons_loss_days is not None and self.consecutive_loss_days >= int(self.max_cons_loss_days):
+            self.entries_blocked = True
 
     def reset(self) -> None:
         """Reset this instance to flat/empty defaults (for reuse in tests)."""
@@ -365,13 +396,41 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
             self._strategy_state = StrategyState()
         kw = kwargs or {}
         entry_id = str(kw.get("id", args[0] if args else "entry"))
-        direction = kw.get("direction", args[1] if len(args) > 1 else "long")
+        direction = str(kw.get("direction", args[1] if len(args) > 1 else "long")).lower()
+        # Normalize strategy.long / strategy.short constants
+        if direction in {"strategy.long", "1", "long"}:
+            direction = "long"
+        elif direction in {"strategy.short", "-1", "short"}:
+            direction = "short"
         qty = float(kw.get("qty", args[2] if len(args) > 2 else 1.0))
         limit_price = kw.get("limit", args[3] if len(args) > 3 else None)
 
         fill_price = float(limit_price) if limit_price is not None else self._mark_price()
         bar_index = self._bar_index()
         bar_time = self._bar_time()
+
+        # --- Risk gates (allow_entry_in / entries_blocked / drawdown) ---
+        if not self._risk_allows_entry(direction, fill_price):
+            # Stay within StrategyEventKind union; hosts filter on comment.
+            self._record_strategy_event(
+                StrategyEvent(
+                    kind="order",
+                    id=entry_id,
+                    direction=direction,
+                    qty=0.0,
+                    order_type="market",
+                    limit=limit_price,
+                    stop=None,
+                    oca_name=None,
+                    comment="risk_blocked",
+                    bar_index=bar_index,
+                    bar_time=bar_time,
+                    ohlc=(0.0, 0.0, 0.0, 0.0),
+                    script_id="",
+                    run_id="",
+                )
+            )
+            return
 
         # Apply risk max position size (% of equity at fill price)
         pct = self._strategy_state.max_position_size_percent
@@ -380,6 +439,8 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
             max_qty = (equity * (pct / 100.0)) / fill_price
             if qty > max_qty:
                 qty = float(max_qty)
+        if qty <= 0:
+            return
 
         # Close existing position if opposite direction
         if (direction == "long" and self._strategy_state.position_direction == "short") or (
@@ -427,6 +488,33 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
                 run_id="",
             )
         )
+
+    def _risk_allows_entry(self, direction: str, mark_price: float) -> bool:
+        """Apply strategy.risk.* gates before opening an entry."""
+        st = self._strategy_state
+        allow = (st.allow_entry_in or "all").lower()
+        if allow in {"long", "strategy.long"} and direction != "long":
+            return False
+        if allow in {"short", "strategy.short"} and direction != "short":
+            return False
+        if st.entries_blocked:
+            return False
+        # Update equity curve and check drawdown cap
+        equity = st.equity(mark_price)
+        if st.max_drawdown_risk is not None and st._max_drawdown >= float(st.max_drawdown_risk):
+            st.entries_blocked = True
+            return False
+        if st.max_drawdown_risk_percent is not None and st._max_drawdown_percent >= float(
+            st.max_drawdown_risk_percent
+        ):
+            st.entries_blocked = True
+            return False
+        # Consecutive loss-day halt
+        if st.max_cons_loss_days is not None and st.consecutive_loss_days >= int(st.max_cons_loss_days):
+            st.entries_blocked = True
+            return False
+        _ = equity
+        return True
 
     def _handle_strategy_exit(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> None:
         """
@@ -744,6 +832,7 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
                     entry_id=ot.entry_id,
                 )
             )
+            self._strategy_state.note_closed_trade_day(exit_time, profit)
             leftover = ot.size - close_qty
             if leftover > 1e-12:
                 new_open.append(
@@ -937,12 +1026,20 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
         self._strategy_state.max_intraday_loss = percent
 
     def _handle_strategy_risk_max_drawdown(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> None:
-        """strategy.risk.max_drawdown(value) — cap overall drawdown risk."""
+        """strategy.risk.max_drawdown(value, type) — cap overall drawdown risk.
+
+        When ``type`` is percent (or value looks like a small percentage flag
+        via kwargs), store as percent-of-peak; otherwise absolute currency.
+        """
         kw = kwargs or {}
         value = kw.get("value", args[0] if len(args) > 0 else None)
         if value is None:
             return
-        self._strategy_state.max_drawdown_risk = float(value)
+        risk_type = str(kw.get("type", args[1] if len(args) > 1 else "absolute")).lower()
+        if risk_type in {"percent", "percentage", "strategy.percent_of_equity", "%"}:
+            self._strategy_state.max_drawdown_risk_percent = float(value)
+        else:
+            self._strategy_state.max_drawdown_risk = float(value)
 
     def _handle_strategy_risk_max_cons_loss_days(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> None:
         """strategy.risk.max_cons_loss_days(days) — stop after N consecutive loss days."""

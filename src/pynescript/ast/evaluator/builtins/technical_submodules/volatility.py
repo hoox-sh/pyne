@@ -36,7 +36,7 @@ class VolatilityIndicators(TechnicalHelpers):
         lows = self._expect_list(args[1], msg)
         closes = self._expect_list(args[2], msg)
         length = self._expect_int(args[3], msg)
-        return self._atr(highs, lows, closes, length)
+        return self._finalize_series(self._atr(highs, lows, closes, length))
 
     def _builtin_ta_tr(self, args: list[Any]) -> list[float]:
         """True Range."""
@@ -46,7 +46,7 @@ class VolatilityIndicators(TechnicalHelpers):
         highs = self._expect_list(args[0], msg)
         lows = self._expect_list(args[1], msg)
         closes = self._expect_list(args[2], msg)
-        return self._tr(highs, lows, closes)
+        return self._finalize_series(self._tr(highs, lows, closes))
 
     def _builtin_ta_bb(
         self,

@@ -23,12 +23,12 @@ class MovingAverageIndicators(TechnicalHelpers):
     def _builtin_ta_sma(self, args: list[Any]) -> list[float | None]:
         """Simple Moving Average."""
         series, period = self._expect_series(args, length=BINARY)
-        return self._sma(series, period)
+        return self._finalize_series(self._sma(series, period))
 
     def _builtin_ta_ema(self, args: list[Any]) -> list[float | None]:
         """Exponential Moving Average."""
         series, period = self._expect_series(args, length=BINARY)
-        return self._ema(series, period)
+        return self._finalize_series(self._ema(series, period))
 
     def _builtin_ta_wma(self, args: list[Any]) -> float | None:
         """Weighted Moving Average."""
@@ -38,7 +38,7 @@ class MovingAverageIndicators(TechnicalHelpers):
     def _builtin_ta_rma(self, args: list[Any]) -> list[float]:
         """Recursive Moving Average (Wilder's smoothing)."""
         series, period = self._expect_series(args, length=BINARY)
-        return self._rma(series, period)
+        return self._finalize_series(self._rma(series, period))
 
     def _builtin_ta_hma(self, args: list[Any]) -> float | None:
         """Hull Moving Average - reduces lag."""
@@ -48,7 +48,7 @@ class MovingAverageIndicators(TechnicalHelpers):
     def _builtin_ta_vwma(self, args: list[Any]) -> list[float | None]:
         """Volume Weighted Moving Average."""
         series, period = self._expect_series(args, length=BINARY)
-        return self._vwma(series, period)
+        return self._finalize_series(self._vwma(series, period))
 
     def _builtin_ta_kama(self, args: list[Any]) -> list[float | None]:
         """Kaufman's Adaptive Moving Average."""

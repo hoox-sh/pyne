@@ -38,6 +38,24 @@ class TechnicalHelpers:
 
     _SERIES_MAX = 256
 
+    def _bar_mode(self) -> bool:
+        """True when evaluating bar-by-bar (Runtime / CustomEvaluator).
+
+        Unit tests pass explicit list histories and expect full-series
+        returns; bar mode returns the current (last) scalar so Pine
+        expressions like ``ta.ema(close,12) - ta.ema(close,26)`` stay
+        numeric per bar without relying only on plot unwrap.
+        """
+        return bool(getattr(self, "_pine_bar_mode", False))
+
+    def _finalize_series(self, values: list[Any]) -> Any:
+        """Return full series list, or current scalar in bar mode."""
+        if not self._bar_mode():
+            return values
+        if not values:
+            return None
+        return values[-1]
+
     def _as_series(self, value: Any) -> list[Any]:
         """Convert a Pine-series-like object to a list.
 

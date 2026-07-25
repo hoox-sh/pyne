@@ -1,6 +1,6 @@
 # Pine Script v6 — Full Surface Inventory (pynescript)
 
-**Generated:** 2026-07-20  
+**Generated:** 2026-07-25  
 **Scope:** Every registered evaluator builtin, major series/variables, language constructs, and known gaps.  
 **Sources:** live `NodeLiteralEvaluator` dispatch map, `builtin_metadata.json`, base context constants, design docs.
 
@@ -32,66 +32,50 @@ Status values are intentionally coarse. They distinguish fully usable paths from
 
 ## Summary counts
 
-The following aggregates summarize the inventory at generation time. Dispatch counts reflect the live evaluator builtin map; inventory rows additionally include series catalogs and language constructs that are not all registered as callables.
+Regenerated from live `NodeLiteralEvaluator._build_builtin_map()` on 2026-07-25.
 
 | Metric | Count |
 |--------|------:|
-| Dispatch builtins (callable) | 510 |
-| LSP metadata entries | 494 |
-| Inventory rows (unique names) | 667 |
-| Language/syntax rows | 33 |
-| Known gap rows | 7 |
+| Dispatch builtins (callable) | 640 |
+| Dispatch partial-heuristic (docstring stub/mock) | 8 |
+| Namespaces (top-level prefixes) | 60 |
 
-### By status (inventory rows)
-
-Status aggregates are computed over inventory rows, not dispatch keys alone. Implemented counts therefore include series variables supplied via evaluation context as well as fully registered callables; partial and missing rows concentrate in strategy statistics, platform-bound requests, and lightweight drawing styling.
-
-| Status | Count |
-|--------|------:|
-| ✅ implemented | 613 |
-| 🔄 partial | 30 |
-| ❌ missing | 0 |
-
-### By namespace (inventory rows)
-
-Namespaces follow Pine’s dotted qualification (`ta.sma`, `strategy.entry`) with a small number of synthetic groups (`plotting`, `series`, `declaration`) used where bare globals would otherwise scatter related items.
+### By namespace (dispatch keys)
 
 | Namespace | Count |
 |-----------|------:|
-| `ta` | 154 |
-| `strategy` | 66 |
+| `ta` | 159 |
+| `matrix` | 74 |
+| `strategy` | 70 |
 | `array` | 56 |
-| `syminfo` | 44 |
-| `matrix` | 37 |
-| `label` | 25 |
-| `math` | 25 |
-| `color` | 24 |
-| `box` | 19 |
+| `box` | 31 |
+| `label` | 28 |
+| `table` | 26 |
+| `math` | 24 |
+| `line` | 22 |
 | `str` | 19 |
-| `line` | 17 |
-| `chart` | 16 |
-| `series` | 15 |
-| `timeframe` | 14 |
-| `input` | 12 |
-| `table` | 12 |
-| `time` | 12 |
+| `input` | 14 |
 | `map` | 11 |
 | `request` | 11 |
-| `plotting` | 10 |
-| `session` | 9 |
-| `utility` | 9 |
-| `ticker` | 8 |
-| `barstate` | 7 |
-| `earnings` | 7 |
-| `footprint` | 6 |
-| `dividends` | 5 |
-| `declaration` | 3 |
+| `footprint` | 9 |
+| `ticker` | 9 |
+| `color` | 8 |
+| `volume_row` | 8 |
+| `linefill` | 6 |
+| `chart` | 5 |
+| `plot` | 4 |
 | `log` | 3 |
-| `plot` | 3 |
 | `polyline` | 3 |
-| `global` | 2 |
-| `volume_row` | 2 |
-| `linefill` | 1 |
+| `timeframe` | 3 |
+| `abs` | 1 |
+| `alert` | 1 |
+
+### Official TV v6 reference coverage
+
+Against the public Pine v6 function reference list (434 symbols): **0 missing** in dispatch (verified 2026-07-25).
+
+Strategy performance series, matrix linear algebra, linefill, table/box/label setters, and risk builtins are registered.
+
 
 ## Architecture graph
 

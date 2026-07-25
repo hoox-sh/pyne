@@ -113,6 +113,9 @@ Pine Script v6 launched December 2024, followed by monthly updates. Key sources:
 - ✅ `max_bars_back`, `ticker.inherit`
 - ✅ Footprint/volume_row accessors (`rows`, `total_volume`, `get_row_by_price`, imbalances)
 - ✅ Runtime plot values are **bar scalars** (not nested full-series lists)
+- ✅ Bar-mode TA (`_pine_bar_mode`): `ta.sma/ema/rma/vwma/atr/tr` return current scalar in Runtime, full series in unit/list mode
+- ✅ `strategy.risk.allow_entry_in` / `max_drawdown` / `max_cons_loss_days` **enforced** at `strategy.entry` (blocked entries emit `order` + `risk_blocked`)
+- ✅ Inventory summary regenerated from live dispatch (640 callables)
 
 ## Recommendations
 - **Grammar first**: Add triple-quoted multiline string support to `PinescriptLexer.g4` + handling in lexer/parser.
