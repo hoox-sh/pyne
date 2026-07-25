@@ -116,6 +116,8 @@ Pine Script v6 launched December 2024, followed by monthly updates. Key sources:
 - ✅ Bar-mode TA (`_pine_bar_mode`): `ta.sma/ema/rma/vwma/atr/tr` return current scalar in Runtime, full series in unit/list mode
 - ✅ `strategy.risk.allow_entry_in` / `max_drawdown` / `max_cons_loss_days` **enforced** at `strategy.entry` (blocked entries emit `order` + `risk_blocked`)
 - ✅ Inventory summary regenerated from live dispatch (640 callables)
+- ✅ Broker: `process_pending_orders` fills limit/stop/stop-limit (and market next bar); partial fills via `max_fill_per_bar`; stop/limit `strategy.entry` pending; `na` prices coerced
+- ✅ `ta.kama`/`dema`/`tema` bar-mode scalars; `request.seed` seeds stdlib + numpy for reproducible mocks
 
 ## Recommendations
 - **Grammar first**: Add triple-quoted multiline string support to `PinescriptLexer.g4` + handling in lexer/parser.

@@ -372,14 +372,30 @@ class TestStrategyHandlersReadKwargs:
         assert evaluator._strategy_state.position_size == 10.0
 
     def test_strategy_entry_kwargs_record_stop_and_limit(self) -> None:
-        """``strategy.entry(..., stop=99.0, limit=101.0)`` should set
-        the entry price to the limit (when truthy)."""
+        """``strategy.entry(..., stop=99.0, limit=101.0)`` is a pending
+        stop-limit entry (filled by process_pending_orders on OHLC)."""
         ast = helper.parse(
             'strategy.entry(id="L", direction="long", qty=1, stop=99.0, limit=101.0)',
             mode="eval",
         )
         evaluator = NodeLiteralEvaluator()
         evaluator.visit(ast.body)
+        assert "L" in evaluator._strategy_state.pending_orders
+        order = evaluator._strategy_state.pending_orders["L"]
+        assert order.stop_price == 99.0
+        assert order.limit_price == 101.0
+        assert evaluator._strategy_state.position_direction == "flat"
+        # Fill when stop+limit conditions met (high>=stop and low<=limit for buy stop-limit)
+        evaluator.context = {
+            "open": 100.0,
+            "high": 102.0,
+            "low": 98.0,
+            "close": 100.5,
+            "bar_index": 1,
+            "time": 1,
+        }
+        evaluator.process_pending_orders(open_=100.0, high=102.0, low=98.0, close=100.5)
+        assert evaluator._strategy_state.position_direction == "long"
         assert evaluator._strategy_state.entry_price == 101.0
 
     def test_strategy_entry_kwargs_reverse_long_to_short(self) -> None:

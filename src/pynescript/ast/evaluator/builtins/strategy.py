@@ -30,7 +30,7 @@ from .base import BuiltinHandler
 
 @dataclass
 class Order:
-    """Pending order."""
+    """Pending order (may fill over multiple bars / partially)."""
 
     order_id: str
     order_type: str  # "market", "limit", "stop", "stop-limit"
@@ -39,6 +39,13 @@ class Order:
     limit_price: float | None = None
     stop_price: float | None = None
     comment: str = ""
+    filled_qty: float = 0.0
+    # Cap fill size per bar when > 0 (partial fill model); 0 = fill remaining
+    max_fill_per_bar: float = 0.0
+
+    @property
+    def remaining_qty(self) -> float:
+        return max(0.0, float(self.quantity) - float(self.filled_qty))
 
 
 @dataclass
@@ -113,6 +120,8 @@ class StrategyState:
         self.consecutive_loss_days: int = 0
         self._last_trade_day: int | None = None  # exit_time // day_ms bucket
         self._day_pnl: float = 0.0
+        # Default partial-fill cap per bar for pending orders (0 = full remaining)
+        self.default_max_fill_per_bar: float = 0.0
         # Equity curve tracking for max drawdown / runup
         self._equity_peak: float = 100_000.0
         self._equity_trough: float = 100_000.0
@@ -347,10 +356,29 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
         current = getattr(value, "current", None)
         if current is not None and not isinstance(value, (int, float, str)):
             value = current
+        if isinstance(value, str) and value.lower() in {"", "na", "nan", "none"}:
+            return float(default)
         try:
             return float(value)
         except (TypeError, ValueError):
             return float(default)
+
+    @classmethod
+    def _coerce_optional_price(cls, value: Any) -> float | None:
+        """Parse optional limit/stop; Pine ``na`` / None → None."""
+        if value is None:
+            return None
+        if isinstance(value, str) and value.lower() in {"", "na", "nan", "none"}:
+            return None
+        current = getattr(value, "current", None)
+        if current is not None and not isinstance(value, (int, float, str)):
+            value = current
+            if value is None:
+                return None
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return None
 
     def _mark_price(self) -> float:
         """Current mark price for MTM / market fills (prefer close)."""
@@ -402,8 +430,10 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
             direction = "long"
         elif direction in {"strategy.short", "-1", "short"}:
             direction = "short"
-        qty = float(kw.get("qty", args[2] if len(args) > 2 else 1.0))
-        limit_price = kw.get("limit", args[3] if len(args) > 3 else None)
+        qty = self._coerce_number(kw.get("qty", args[2] if len(args) > 2 else 1.0), default=1.0)
+        # Positional limit is rare; prefer kwargs. stop= for stop-entry is common.
+        limit_price = self._coerce_optional_price(kw.get("limit", args[3] if len(args) > 3 else None))
+        stop_price = self._coerce_optional_price(kw.get("stop", args[4] if len(args) > 4 else None))
 
         fill_price = float(limit_price) if limit_price is not None else self._mark_price()
         bar_index = self._bar_index()
@@ -420,7 +450,7 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
                     qty=0.0,
                     order_type="market",
                     limit=limit_price,
-                    stop=None,
+                    stop=stop_price,
                     oca_name=None,
                     comment="risk_blocked",
                     bar_index=bar_index,
@@ -440,6 +470,45 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
             if qty > max_qty:
                 qty = float(max_qty)
         if qty <= 0:
+            return
+
+        # Stop/limit entries become pending orders (filled by process_pending_orders)
+        if limit_price is not None or stop_price is not None:
+            action = "buy" if direction == "long" else "sell"
+            if stop_price is not None and limit_price is not None:
+                order_type = "stop-limit"
+            elif stop_price is not None:
+                order_type = "stop"
+            else:
+                order_type = "limit"
+            order = Order(
+                entry_id,
+                order_type,
+                action,
+                qty,
+                limit_price,
+                stop_price,
+                str(kw.get("comment", "") or ""),
+            )
+            self._strategy_state.pending_orders[entry_id] = order
+            self._record_strategy_event(
+                StrategyEvent(
+                    kind="order",
+                    id=entry_id,
+                    direction=direction,
+                    qty=qty,
+                    order_type="limit" if order_type == "limit" else "stop",
+                    limit=limit_price,
+                    stop=stop_price,
+                    oca_name=None,
+                    comment=kw.get("comment", None),
+                    bar_index=bar_index,
+                    bar_time=bar_time,
+                    ohlc=(0.0, 0.0, 0.0, 0.0),
+                    script_id="",
+                    run_id="",
+                )
+            )
             return
 
         # Close existing position if opposite direction
@@ -478,7 +547,7 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
                 qty=qty,
                 order_type=None,
                 limit=limit_price,
-                stop=None,
+                stop=stop_price,
                 oca_name=None,
                 comment=kw.get("comment", None),
                 bar_index=bar_index,
@@ -731,50 +800,273 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
 
         Place a custom order (market, limit, stop, stop-limit).
 
-        Parameters:
-            id: Order identifier (str)
-            action: "buy" or "sell" (str)
-            qty: Quantity (float)
-            limit: Limit price for limit/stop-limit (float or None)
-            stop: Stop price for stop/stop-limit (float or None)
-            comment: Order comment (str)
-
-        Returns None.
+        Pending orders are filled by :meth:`process_pending_orders` each bar
+        against OHLC (limit/stop rules). Optional kwargs:
+        - ``max_fill_per_bar``: partial-fill cap for this order
         """
+        if not hasattr(self, "_strategy_state"):
+            self._strategy_state = StrategyState()
         kw = kwargs or {}
-        order_id = kw.get("id", args[0] if len(args) > 0 else "order_1")
-        action = kw.get("action", args[1] if len(args) > 1 else "buy")
-        qty = kw.get("qty", args[2] if len(args) > 2 else 1.0)
-        limit_price = kw.get("limit", args[3] if len(args) > 3 else None)
-        stop_price = kw.get("stop", args[4] if len(args) > 4 else None)
+        order_id = str(kw.get("id", args[0] if len(args) > 0 else "order_1"))
+        raw_action = kw.get("action", args[1] if len(args) > 1 else "buy")
+        # Also accept direction= from Pine (strategy.long / strategy.short)
+        if "direction" in kw and raw_action in (None, "buy", "sell"):
+            raw_action = kw.get("direction", raw_action)
+        action = str(raw_action).lower()
+        if action in {"strategy.long", "long", "1"}:
+            action = "buy"
+        elif action in {"strategy.short", "short", "-1"}:
+            action = "sell"
+        qty = self._coerce_number(kw.get("qty", args[2] if len(args) > 2 else 1.0), default=1.0)
+        limit_price = self._coerce_optional_price(kw.get("limit", args[3] if len(args) > 3 else None))
+        stop_price = self._coerce_optional_price(kw.get("stop", args[4] if len(args) > 4 else None))
         comment = kw.get("comment", args[5] if len(args) > 5 else "")
+        max_fill = self._coerce_number(
+            kw.get("max_fill_per_bar", self._strategy_state.default_max_fill_per_bar),
+            default=0.0,
+        )
 
         # Determine order type
-        if stop_price and limit_price:
+        if stop_price is not None and limit_price is not None:
             order_type = "stop-limit"
-        elif stop_price:
+        elif stop_price is not None:
             order_type = "stop"
-        elif limit_price:
+        elif limit_price is not None:
             order_type = "limit"
         else:
             order_type = "market"
 
-        order = Order(order_id, order_type, action, qty, limit_price, stop_price, comment)
+        order = Order(
+            order_id,
+            order_type,
+            action,
+            qty,
+            limit_price,
+            stop_price,
+            str(comment) if comment is not None else "",
+            max_fill_per_bar=max_fill,
+        )
         self._strategy_state.pending_orders[order_id] = order
 
         self._record_strategy_event(
             StrategyEvent(
                 kind="order",
                 id=order_id,
-                direction=action,
+                direction="long" if action in {"buy", "long"} else "short",
                 qty=qty,
-                order_type=order_type,
+                order_type="market" if order_type == "market" else "limit" if order_type == "limit" else "stop",
                 limit=limit_price,
                 stop=stop_price,
                 oca_name=None,
-                comment=comment,
-                bar_index=self.context.get("bar_index", 0),
-                bar_time=self.context.get("time", 0),
+                comment=str(comment) if comment is not None else "",
+                bar_index=self._bar_index(),
+                bar_time=self._bar_time(),
+                ohlc=(0.0, 0.0, 0.0, 0.0),
+                script_id="",
+                run_id="",
+            )
+        )
+        # Fills happen in process_pending_orders (Runtime bar step). Market
+        # orders are not filled at placement so same-bar cancel still works.
+
+    def process_pending_orders(
+        self,
+        *,
+        open_: float | None = None,
+        high: float | None = None,
+        low: float | None = None,
+        close: float | None = None,
+    ) -> list[str]:
+        """Evaluate pending limit/stop orders against the current bar OHLC.
+
+        Returns list of order ids that fully filled this call.
+        Called by Runtime each bar (before script visit) when bar mode.
+        """
+        if not hasattr(self, "_strategy_state"):
+            return []
+        ctx = getattr(self, "context", {}) or {}
+        o = self._coerce_number(open_ if open_ is not None else ctx.get("open"), default=self._mark_price())
+        h = self._coerce_number(high if high is not None else ctx.get("high"), default=o)
+        l = self._coerce_number(low if low is not None else ctx.get("low"), default=o)
+        c = self._coerce_number(close if close is not None else ctx.get("close"), default=o)
+
+        fully_filled: list[str] = []
+        for order_id, order in list(self._strategy_state.pending_orders.items()):
+            if order.remaining_qty <= 0:
+                del self._strategy_state.pending_orders[order_id]
+                fully_filled.append(order_id)
+                continue
+            fill_price = self._order_fill_price(order, o, h, l, c)
+            if fill_price is None:
+                continue
+            fill_qty = order.remaining_qty
+            if order.max_fill_per_bar and order.max_fill_per_bar > 0:
+                fill_qty = min(fill_qty, float(order.max_fill_per_bar))
+            if fill_qty <= 0:
+                continue
+            self._fill_order(order, fill_price, fill_qty)
+            if order.remaining_qty <= 1e-12:
+                fully_filled.append(order_id)
+        return fully_filled
+
+    def _order_fill_price(
+        self,
+        order: Order,
+        open_: float,
+        high: float,
+        low: float,
+        close: float,
+    ) -> float | None:
+        """Return fill price if order triggers this bar, else None."""
+        ot = order.order_type
+        action = order.direction  # buy/sell
+        if ot == "market":
+            return close
+        if ot == "limit":
+            lim = order.limit_price
+            if lim is None:
+                return None
+            if action in {"buy", "long"} and low <= lim:
+                # Buy limit: fill at limit (or better open if gapped)
+                return min(lim, open_) if open_ < lim else lim
+            if action in {"sell", "short"} and high >= lim:
+                return max(lim, open_) if open_ > lim else lim
+            return None
+        if ot == "stop":
+            stop = order.stop_price
+            if stop is None:
+                return None
+            if action in {"buy", "long"} and high >= stop:
+                return max(stop, open_) if open_ > stop else stop
+            if action in {"sell", "short"} and low <= stop:
+                return min(stop, open_) if open_ < stop else stop
+            return None
+        if ot == "stop-limit":
+            stop = order.stop_price
+            lim = order.limit_price
+            if stop is None or lim is None:
+                return None
+            # Activate when stop touched, fill only if limit still available
+            if action in {"buy", "long"} and high >= stop and low <= lim:
+                return lim
+            if action in {"sell", "short"} and low <= stop and high >= lim:
+                return lim
+            return None
+        return None
+
+    def _fill_order(self, order: Order, fill_price: float, fill_qty: float) -> None:
+        """Apply a fill to an order (entry/close) and shrink remaining qty."""
+        fill_qty = float(min(fill_qty, order.remaining_qty))
+        if fill_qty <= 0:
+            return
+        order.filled_qty += fill_qty
+        action = order.direction
+        bar_time = self._bar_time()
+        bar_index = self._bar_index()
+
+        if action in {"buy", "long"}:
+            # If flat or long: add long; if short: cover then open long remainder
+            if self._strategy_state.position_direction == "short":
+                cover = min(fill_qty, self._strategy_state.position_size)
+                self._close_position(fill_price, cover, bar_time)
+                leftover = fill_qty - cover
+                if leftover > 1e-12 and self._risk_allows_entry("long", fill_price):
+                    self._open_position_qty("long", leftover, fill_price, order.order_id, bar_index, bar_time)
+            else:
+                if self._risk_allows_entry("long", fill_price):
+                    self._open_position_qty("long", fill_qty, fill_price, order.order_id, bar_index, bar_time)
+        else:  # sell / short
+            if self._strategy_state.position_direction == "long":
+                cover = min(fill_qty, self._strategy_state.position_size)
+                self._close_position(fill_price, cover, bar_time)
+                leftover = fill_qty - cover
+                if leftover > 1e-12 and self._risk_allows_entry("short", fill_price):
+                    self._open_position_qty("short", leftover, fill_price, order.order_id, bar_index, bar_time)
+            else:
+                if self._risk_allows_entry("short", fill_price):
+                    self._open_position_qty("short", fill_qty, fill_price, order.order_id, bar_index, bar_time)
+
+        self._record_strategy_event(
+            StrategyEvent(
+                kind="order",
+                id=order.order_id,
+                direction="long" if action in {"buy", "long"} else "short",
+                qty=fill_qty,
+                order_type="market",
+                limit=order.limit_price,
+                stop=order.stop_price,
+                oca_name=None,
+                comment=f"fill:{order.comment}" if order.comment else "fill",
+                bar_index=bar_index,
+                bar_time=bar_time,
+                ohlc=(0.0, 0.0, 0.0, 0.0),
+                script_id="",
+                run_id="",
+            )
+        )
+        if order.remaining_qty <= 1e-12:
+            self._strategy_state.pending_orders.pop(order.order_id, None)
+
+    def _open_position_qty(
+        self,
+        direction: str,
+        qty: float,
+        fill_price: float,
+        entry_id: str,
+        bar_index: int,
+        bar_time: int,
+    ) -> None:
+        """Open or add to a position (absolute qty, same direction)."""
+        st = self._strategy_state
+        if st.position_direction == direction and st.position_size > 0:
+            # Average in
+            total = st.position_size + qty
+            st.entry_price = (st.entry_price * st.position_size + fill_price * qty) / total
+            st.position_size = total
+            st.open_trades.append(
+                OpenTrade(
+                    entry_id=entry_id,
+                    entry_bar=bar_index,
+                    entry_time=bar_time,
+                    entry_price=fill_price,
+                    direction=direction,
+                    size=qty,
+                    commission=0.0,
+                )
+            )
+        else:
+            st.position_direction = direction
+            st.entry_price = fill_price
+            st.entry_bar = bar_index
+            st.entry_time = bar_time
+            st.position_size = qty
+            st.position_entry_name = entry_id
+            st.open_trades = [
+                OpenTrade(
+                    entry_id=entry_id,
+                    entry_bar=bar_index,
+                    entry_time=bar_time,
+                    entry_price=fill_price,
+                    direction=direction,
+                    size=qty,
+                    commission=0.0,
+                )
+            ]
+        st.note_position_size()
+        st.equity(fill_price)
+        self._record_strategy_event(
+            StrategyEvent(
+                kind="entry",
+                id=entry_id,
+                direction=direction,
+                qty=qty,
+                order_type=None,
+                limit=None,
+                stop=None,
+                oca_name=None,
+                comment="order_fill",
+                bar_index=bar_index,
+                bar_time=bar_time,
                 ohlc=(0.0, 0.0, 0.0, 0.0),
                 script_id="",
                 run_id="",

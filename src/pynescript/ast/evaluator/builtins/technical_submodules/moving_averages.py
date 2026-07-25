@@ -56,15 +56,15 @@ class MovingAverageIndicators(TechnicalHelpers):
             msg = "ta.kama() requires 4 arguments: series, length, fast_period, slow_period"
             self._error(msg)
 
-        series = args[0] if isinstance(args[0], list) else [args[0]]
+        series = self._as_series(args[0])
         length = self._expect_int(args[1], "ta.kama length must be integer")
         fast = self._expect_int(args[2], "ta.kama fast_period must be integer")
         slow = self._expect_int(args[3], "ta.kama slow_period must be integer")
 
         if length < 1:
-            return [None] * len(series)
+            return self._finalize_series([None] * len(series))
 
-        kama_values = [None] * length
+        kama_values: list[float | None] = [None] * length
         kama = series[length - 1] if length <= len(series) else 0.0
 
         for i in range(length, len(series)):
@@ -83,7 +83,7 @@ class MovingAverageIndicators(TechnicalHelpers):
             kama = kama + sc * (series[i] - kama)
             kama_values.append(kama)
 
-        return kama_values
+        return self._finalize_series(kama_values)
 
     def _builtin_ta_dema(self, args: list[Any]) -> list[float | None]:
         """Double Exponential Moving Average - reduces lag."""
@@ -91,7 +91,7 @@ class MovingAverageIndicators(TechnicalHelpers):
             msg = "ta.dema() requires 2 arguments: series, length"
             self._error(msg)
 
-        series = args[0] if isinstance(args[0], list) else [args[0]]
+        series = self._as_series(args[0])
         length = self._expect_int(args[1], "ta.dema length must be integer")
 
         ema1 = self._ema(series, length)
@@ -104,7 +104,7 @@ class MovingAverageIndicators(TechnicalHelpers):
             else:
                 dema_values.append(2 * ema1[i] - ema2[i])
 
-        return dema_values
+        return self._finalize_series(dema_values)
 
     def _builtin_ta_tema(self, args: list[Any]) -> list[float | None]:
         """Triple Exponential Moving Average - even less lag than DEMA."""
@@ -112,7 +112,7 @@ class MovingAverageIndicators(TechnicalHelpers):
             msg = "ta.tema() requires 2 arguments: series, length"
             self._error(msg)
 
-        series = args[0] if isinstance(args[0], list) else [args[0]]
+        series = self._as_series(args[0])
         length = self._expect_int(args[1], "ta.tema length must be integer")
 
         ema1 = self._ema(series, length)
@@ -126,7 +126,7 @@ class MovingAverageIndicators(TechnicalHelpers):
             else:
                 tema_values.append(3 * ema1[i] - 3 * ema2[i] + ema3[i])
 
-        return tema_values
+        return self._finalize_series(tema_values)
 
     def _builtin_ta_swma(self, args: list[Any]) -> float:
         """Symmetric Weighted Moving Average."""

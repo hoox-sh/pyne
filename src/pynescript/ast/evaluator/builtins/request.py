@@ -594,14 +594,28 @@ class RequestBuiltinsMixin(BuiltinDispatchMixin):
         """
         request.seed(seed_value)
 
-        Seed the random number generator for reproducible random data.
-        Also stores the seed on evaluator context for downstream consumers.
+        Seed the random number generator for reproducible mock request data.
+        Stores the seed on evaluator context and optional numpy RNG.
         """
         seed_value = args[0] if len(args) > 0 else 0
-        random.seed(seed_value)
+        try:
+            seed_int = int(seed_value)
+        except (TypeError, ValueError):
+            seed_int = hash(str(seed_value)) & 0xFFFFFFFF
+        random.seed(seed_int)
+        try:
+            import numpy as np
+
+            np.random.seed(seed_int % (2**32 - 1))
+        except Exception:
+            pass
         ctx = getattr(self, "context", None)
         if isinstance(ctx, dict):
-            ctx["request.seed"] = seed_value
+            ctx["request.seed"] = seed_int
+        try:
+            self._request_seed = seed_int  # type: ignore[attr-defined]
+        except Exception:
+            pass
 
     def _handle_request_footprint(self, args: list[Any]) -> Footprint | None:
         """

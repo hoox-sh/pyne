@@ -241,6 +241,19 @@ class Runtime:
             evaluator.reset_plots()
             evaluator.reset_events()
 
+            # Fill pending strategy.order limit/stop against this bar's OHLC
+            # before script re-evaluation (broker sim step).
+            try:
+                if hasattr(evaluator, "process_pending_orders"):
+                    evaluator.process_pending_orders(
+                        open_=bar.get("open"),
+                        high=bar.get("high"),
+                        low=bar.get("low"),
+                        close=bar.get("close"),
+                    )
+            except Exception as e:
+                return {"error": f"Order fill error at bar {bar.get('time')}: {e!s}"}
+
             # Execute script
             try:
                 evaluator.visit(tree)
