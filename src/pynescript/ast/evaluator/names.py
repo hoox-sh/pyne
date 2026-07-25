@@ -144,7 +144,11 @@ class NameEvaluator:
                 # Enum member not found - raise error with context
                 self._error(f"Enum member '{member_name}' not found in enum '{value}'.")
 
-        # Fallback: return qualified name string for later resolution
+        # Fallback: try getattr for plain Python objects (Syminfo, Timeframe, etc.)
+        if hasattr(value, node.attr):
+            return getattr(value, node.attr)
+
+        # Last resort: return qualified name string for later resolution
         return qualified_name if qualified_name is not None else f"{value}.{node.attr}"
 
     def visit_Subscript(self: EvaluatorProtocol, node: ast.Subscript) -> Any:
@@ -197,9 +201,16 @@ class NameEvaluator:
             except Exception as e:
                 msg = f"Subscript error for {type(value).__name__} with index {slice_}: {e}"
                 raise ValueError(msg) from e
-        else:
-            # Subscripting not supported for non-list or non-integer index types
-            value_type = type(value)
-            slice_type = type(slice_)
-            msg = f"Subscript not supported for {value_type} with {slice_type}"
+        # When subscripting a non-collection type (scalar), match PineScript
+        # semantics: series[0] = current (the scalar itself), series[offset>0]
+        # with no history returns None (PineScript 'na').
+        if isinstance(slice_, int) and slice_ >= 0:
+            return None if slice_ > 0 else value
+        # Negative indexing not supported in PineScript
+        if isinstance(slice_, int) and slice_ < 0:
+            msg = "Negative indices not supported in PineScript"
             raise ValueError(msg)
+        value_type = type(value)
+        slice_type = type(slice_)
+        msg = f"Subscript not supported for {value_type} with {slice_type}"
+        raise ValueError(msg)

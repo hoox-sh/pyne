@@ -31,177 +31,42 @@ class InputBuiltinsMixin(BuiltinDispatchMixin):
             "input.enum": self._handle_input_enum,
         }
 
-    def _handle_input(self, args: list[Any]) -> dict[str, Any]:
+    def _handle_input(self, args: list[Any]) -> Any:
         """
         input(defval, title, tooltip, inline, group, confirm, active)
 
-        Generic input function that returns parameter metadata.
-        Default type is inferred from defval.
-
-        Added July 2025: active parameter for conditional input enabling.
-
-        Returns dict with parameter metadata.
+        Generic input — returns the default value directly.
         """
         defval = args[0] if len(args) > 0 else None
-        title = args[1] if len(args) > 1 else ""
-        tooltip = args[2] if len(args) > 2 else ""
-        inline = args[3] if len(args) > 3 else None
-        group = args[4] if len(args) > 4 else None
-        confirm = args[5] if len(args) > 5 else False
-        active = args[6] if len(args) > 6 else True  # July 2025: active parameter
+        return defval
 
-        # Infer type from default value
-        inferred_type = "float"
-        if isinstance(defval, bool):
-            inferred_type = "bool"
-        elif isinstance(defval, int):
-            inferred_type = "int"
-        elif isinstance(defval, str):
-            inferred_type = "string"
-
-        return {
-            "type": inferred_type,
-            "default": defval,
-            "title": title,
-            "tooltip": tooltip,
-            "inline": inline,
-            "group": group,
-            "confirm": confirm,
-            "active": active,  # July 2025 feature
-        }
-
-    def _handle_input_bool(self, args: list[Any]) -> dict[str, Any]:
+    def _handle_input_bool(self, args: list[Any]) -> bool:
         """
-        input.bool(defval, title, tooltip, inline, group, confirm, active)
-
-        Create a boolean input parameter.
-
-        Added July 2025: active parameter for conditional input enabling.
-
-        Parameters:
-            defval: Default value (bool)
-            title: Parameter title (str)
-            tooltip: Tooltip text (str)
-            inline: Inline group name (str or None)
-            group: Parameter group name (str or None)
-            confirm: Require user confirmation (bool)
-            active: Whether input is editable (bool, default true)
-
-        Returns dict with parameter metadata.
+        input.bool(defval, title, ...) → returns the boolean value directly.
         """
         defval = args[0] if len(args) > 0 else False
-        title = args[1] if len(args) > 1 else ""
-        tooltip = args[2] if len(args) > 2 else ""
-        inline = args[3] if len(args) > 3 else None
-        group = args[4] if len(args) > 4 else None
-        confirm = args[5] if len(args) > 5 else False
-        active = args[6] if len(args) > 6 else True  # July 2025
+        return bool(defval)
 
-        return {
-            "type": "bool",
-            "default": defval,
-            "title": title,
-            "tooltip": tooltip,
-            "inline": inline,
-            "group": group,
-            "confirm": confirm,
-            "active": active,
-        }
-
-    def _handle_input_int(self, args: list[Any]) -> dict[str, Any]:
+    def _handle_input_int(self, args: list[Any]) -> int:
         """
         input.int(defval, title, minval, maxval, step, tooltip, inline,
                   group, confirm, active)
 
-        Create an integer input parameter.
-
-        Added July 2025: active parameter for conditional input enabling.
-
-        Parameters:
-            defval: Default value (int)
-            title: Parameter title (str)
-            minval: Minimum allowed value (int or None)
-            maxval: Maximum allowed value (int or None)
-            step: Step size for increment (int or None)
-            tooltip: Tooltip text (str)
-            inline: Inline group name (str or None)
-            group: Parameter group name (str or None)
-            confirm: Require user confirmation (bool)
-            active: Whether input is editable (bool, default true)
-
-        Returns dict with parameter metadata.
+        Returns the default integer value.
         """
         defval = args[0] if len(args) > 0 else 0
-        title = args[1] if len(args) > 1 else ""
-        minval = args[2] if len(args) > 2 else None
-        maxval = args[3] if len(args) > 3 else None
-        step = args[4] if len(args) > 4 else 1
-        tooltip = args[5] if len(args) > 5 else ""
-        inline = args[6] if len(args) > 6 else None
-        group = args[7] if len(args) > 7 else None
-        confirm = args[8] if len(args) > 8 else False
-        active = args[9] if len(args) > 9 else True  # July 2025
+        if isinstance(defval, float) and defval == int(defval):
+            return int(defval)
+        return defval
 
-        return {
-            "type": "int",
-            "default": defval,
-            "title": title,
-            "min": minval,
-            "max": maxval,
-            "step": step,
-            "tooltip": tooltip,
-            "inline": inline,
-            "group": group,
-            "confirm": confirm,
-            "active": active,
-        }
-
-    def _handle_input_float(self, args: list[Any]) -> dict[str, Any]:
+    def _handle_input_float(self, args: list[Any]) -> float:
         """
         input.float(defval, title, minval, maxval, step, tooltip, inline, group, confirm, active)
 
-        Create a float input parameter.
-
-        Added July 2025: active parameter for conditional input enabling.
-
-        Parameters:
-            defval: Default value (float)
-            title: Parameter title (str)
-            minval: Minimum allowed value (float or None)
-            maxval: Maximum allowed value (float or None)
-            step: Step size for increment (float or None)
-            tooltip: Tooltip text (str)
-            inline: Inline group name (str or None)
-            group: Parameter group name (str or None)
-            confirm: Require user confirmation (bool)
-            active: Whether input is editable (bool, default true)
-
-        Returns dict with parameter metadata.
+        Returns the default float value.
         """
         defval = args[0] if len(args) > 0 else 0.0
-        title = args[1] if len(args) > 1 else ""
-        minval = args[2] if len(args) > 2 else None
-        maxval = args[3] if len(args) > 3 else None
-        step = args[4] if len(args) > 4 else None
-        tooltip = args[5] if len(args) > 5 else ""
-        inline = args[6] if len(args) > 6 else None
-        group = args[7] if len(args) > 7 else None
-        confirm = args[8] if len(args) > 8 else False
-        active = args[9] if len(args) > 9 else True  # July 2025
-
-        return {
-            "type": "float",
-            "default": defval,
-            "title": title,
-            "min": minval,
-            "max": maxval,
-            "step": step,
-            "tooltip": tooltip,
-            "inline": inline,
-            "group": group,
-            "confirm": confirm,
-            "active": active,
-        }
+        return float(defval)
 
     def _handle_input_price(self, args: list[Any]) -> dict[str, Any]:
         """
@@ -564,3 +429,135 @@ class InputBuiltinsMixin(BuiltinDispatchMixin):
             "confirm": confirm,
             "active": active,
         }
+
+
+# KWARG_ORDER for input.* handlers so that _merge_kwargs_into_args can correctly
+# map kwargs like input(title="X", defval=10) to positional args even when the
+# handler has a generic (self, args) signature.
+InputBuiltinsMixin._handle_input._KWARG_ORDER = [
+    "defval",
+    "title",
+    "tooltip",
+    "inline",
+    "group",
+    "confirm",
+    "active",
+]
+InputBuiltinsMixin._handle_input_bool._KWARG_ORDER = [
+    "defval",
+    "title",
+    "tooltip",
+    "inline",
+    "group",
+    "confirm",
+    "active",
+]
+InputBuiltinsMixin._handle_input_int._KWARG_ORDER = [
+    "defval",
+    "title",
+    "minval",
+    "maxval",
+    "step",
+    "tooltip",
+    "inline",
+    "group",
+    "confirm",
+    "active",
+]
+InputBuiltinsMixin._handle_input_float._KWARG_ORDER = [
+    "defval",
+    "title",
+    "minval",
+    "maxval",
+    "step",
+    "tooltip",
+    "inline",
+    "group",
+    "confirm",
+    "active",
+]
+InputBuiltinsMixin._handle_input_price._KWARG_ORDER = [
+    "defval",
+    "title",
+    "minval",
+    "maxval",
+    "step",
+    "tooltip",
+    "inline",
+    "group",
+    "confirm",
+    "active",
+]
+InputBuiltinsMixin._handle_input_string._KWARG_ORDER = [
+    "defval",
+    "title",
+    "tooltip",
+    "inline",
+    "group",
+    "confirm",
+    "active",
+]
+InputBuiltinsMixin._handle_input_symbol._KWARG_ORDER = [
+    "defval",
+    "title",
+    "tooltip",
+    "inline",
+    "group",
+    "confirm",
+    "active",
+]
+InputBuiltinsMixin._handle_input_session._KWARG_ORDER = [
+    "defval",
+    "title",
+    "tooltip",
+    "inline",
+    "group",
+    "confirm",
+    "active",
+]
+InputBuiltinsMixin._handle_input_source._KWARG_ORDER = [
+    "defval",
+    "title",
+    "tooltip",
+    "inline",
+    "group",
+    "confirm",
+    "active",
+]
+InputBuiltinsMixin._handle_input_time._KWARG_ORDER = [
+    "defval",
+    "title",
+    "tooltip",
+    "inline",
+    "group",
+    "confirm",
+    "active",
+]
+InputBuiltinsMixin._handle_input_timeframe._KWARG_ORDER = [
+    "defval",
+    "title",
+    "tooltip",
+    "inline",
+    "group",
+    "confirm",
+    "active",
+]
+InputBuiltinsMixin._handle_input_color._KWARG_ORDER = [
+    "defval",
+    "title",
+    "tooltip",
+    "inline",
+    "group",
+    "confirm",
+    "active",
+]
+InputBuiltinsMixin._handle_input_enum._KWARG_ORDER = [
+    "defval",
+    "title",
+    "options",
+    "tooltip",
+    "inline",
+    "group",
+    "confirm",
+    "active",
+]

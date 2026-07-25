@@ -109,9 +109,14 @@ class BasicIndicators(TechnicalHelpers):
         return self._lowestbars(series, period)
 
     def _builtin_ta_change(self, args: list[Any]) -> float | None:
-        """Change over period."""
-        series, period = self._expect_series(args, length=BINARY)
-        return self._change(series, period)
+        """Change over period (1 or 2 args; period defaults to 1)."""
+        if len(args) < 1 or len(args) > 2:
+            self._error("ta.change() requires 1 or 2 arguments: source, (period)")
+        source = self._as_series(args[0])
+        period = self._expect_int(args[1], "Second argument must be an integer") if len(args) > 1 else 1
+        if isinstance(period, float) and period == int(period):
+            period = int(period)
+        return self._change(source, period)
 
     def _builtin_ta_mom(self, args: list[Any]) -> float:
         """Momentum."""

@@ -51,6 +51,11 @@ class StringBuiltinsMixin(BuiltinDispatchMixin):
         return value
 
     def _expect_int(self, value: Any, message: str) -> int:
+        if isinstance(value, float):
+            if value == int(value):
+                value = int(value)
+            else:
+                self._error(message)
         if not isinstance(value, int):
             self._error(message)
         return value

@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import time
 
 from dataclasses import dataclass
@@ -74,11 +75,57 @@ _TIER_LIMITS = {
 
 
 class APIKeyStore:
-    """In-memory API key store. In production, replace with PostgreSQL."""
+    """JSON-file-backed API key store."""
+
+    _STORE_PATH = os.environ.get("API_KEY_STORE", "/root/pynescript/data/api_keys.json")
 
     def __init__(self):
         self._keys: dict[str, APIKey] = {}
         self._key_by_id: dict[str, str] = {}
+        self._load()
+
+    def _load(self) -> None:
+        import json
+
+        path = self._STORE_PATH
+        if not os.path.exists(path):
+            return
+        try:
+            with open(path) as f:
+                data = json.load(f)
+            for raw_key, info in data.items():
+                api_key = APIKey(
+                    key_id=info["key_id"],
+                    key_hash=info["key_hash"],
+                    tier=info.get("tier", "free"),
+                    calls_used=info.get("calls_used", 0),
+                    calls_limit=info.get("calls_limit", 0),
+                    created_at=info.get("created_at", 0.0),
+                    last_used=info.get("last_used", 0.0),
+                )
+                self._keys[raw_key] = api_key
+                self._key_by_id[api_key.key_id] = raw_key
+        except Exception:
+            pass
+
+    def _save(self) -> None:
+        import json
+
+        path = self._STORE_PATH
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        data = {}
+        for raw_key, api_key in self._keys.items():
+            data[raw_key] = {
+                "key_id": api_key.key_id,
+                "key_hash": api_key.key_hash,
+                "tier": api_key.tier,
+                "calls_used": api_key.calls_used,
+                "calls_limit": api_key.calls_limit,
+                "created_at": api_key.created_at,
+                "last_used": api_key.last_used,
+            }
+        with open(path, "w") as f:
+            json.dump(data, f, indent=2)
 
     def create_key(self, tier: str = "hobby") -> tuple[str, str]:
         import secrets
@@ -95,6 +142,7 @@ class APIKeyStore:
         )
         self._keys[raw_key] = api_key
         self._key_by_id[key_id] = raw_key
+        self._save()
         return raw_key, key_id
 
     def get_key(self, raw_key: str) -> APIKey | None:
@@ -119,6 +167,7 @@ class APIKeyStore:
             key_id = self._keys[raw_key].key_id
             del self._keys[raw_key]
             del self._key_by_id[key_id]
+            self._save()
             return True
         return False
 

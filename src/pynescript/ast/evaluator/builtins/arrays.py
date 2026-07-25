@@ -85,6 +85,8 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
 
     def _expect_list(self, value: Any, message: str) -> list[Any]:
         if not isinstance(value, list):
+            if hasattr(value, "history"):
+                return list(value.history)
             self._error(message)
         return value
 
@@ -150,8 +152,26 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
         return sequence[start:end]
 
     def _expect_int(self, value: Any, message: str) -> int:
+        value = self._as_scalar(value)
+        if isinstance(value, float):
+            if value == int(value):
+                value = int(value)
+            else:
+                self._error(message)
         if not isinstance(value, int):
             self._error(message)
+        return value
+
+    def _as_scalar(self, value: Any) -> Any:
+        """Extract scalar from PineSeries/_SeriesResult/list."""
+        if hasattr(value, "current"):
+            v = value.current
+            if v is not None:
+                return v
+        if isinstance(value, list) and len(value) > 0:
+            v = value[-1]
+            if v is not None:
+                return v
         return value
 
     def _builtin_array_abs(self, args: list[Any]) -> list[Any]:

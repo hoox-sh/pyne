@@ -211,7 +211,30 @@ class StatementEvaluator:
                 obj.set_field(node.target.attr, value)
                 return
 
-        # For other cases, fall back to regular assignment handling
+        # Handle simple variable augmented assignment (x += 1, x -= 1, etc.)
+        if isinstance(node.target, ast.Name):
+            var_name = node.target.id
+            if var_name in self.context:  # type: ignore[attr-defined]
+                current = self.context[var_name]  # type: ignore[attr-defined]
+                rhs = self.visit(node.value)  # type: ignore[attr-defined]
+                from pynescript.ast.evaluator.expressions import (
+                    _OPERATOR_ADD,
+                    _OPERATOR_SUB,
+                    _OPERATOR_MUL,
+                    _OPERATOR_DIV,
+                )
+
+                _AUGOP_MAP: dict = {
+                    ast.Add: _OPERATOR_ADD,
+                    ast.Sub: _OPERATOR_SUB,
+                    ast.Mult: _OPERATOR_MUL,
+                    ast.Div: _OPERATOR_DIV,
+                }
+                op_fn = _AUGOP_MAP.get(type(node.op))
+                if op_fn:
+                    self.context[var_name] = op_fn(current, rhs)  # type: ignore[attr-defined]
+                    return
+
         msg = f"Unsupported augmented assignment: {type(node.target)}"
         self._error(msg)  # type: ignore[attr-defined]
 

@@ -219,9 +219,7 @@ class TechnicalAnalysisMixin(BuiltinDispatchMixin):
             "ta.trend_confirmation_score": self._builtin_ta_trend_confirmation_score,
             "ta.volatility_regime_score": self._builtin_ta_volatility_regime_score,
             # Tier 8 capstone
-            "ta.intelligent_strategy_synthesizer": (
-                self._builtin_ta_intelligent_strategy_synthesizer
-            ),
+            "ta.intelligent_strategy_synthesizer": (self._builtin_ta_intelligent_strategy_synthesizer),
         }
 
     # ========================================================================
@@ -263,6 +261,11 @@ class TechnicalAnalysisMixin(BuiltinDispatchMixin):
 
     def _expect_int(self, value: Any, message: str) -> int:
         """Validate integer argument."""
+        if isinstance(value, float):
+            if value == int(value):
+                value = int(value)
+            else:
+                self._error(message)
         if not isinstance(value, int):
             self._error(message)
         return value

@@ -17,20 +17,42 @@ from pynescript.ast.type_system import UserDefinedType
 
 # Optimize: Pre-cache operator references at module level
 # These imports reduce attribute lookup overhead for frequent operations
-_OPERATOR_EQ = operator.eq
-_OPERATOR_NE = operator.ne
-_OPERATOR_LT = operator.lt
-_OPERATOR_LE = operator.le
-_OPERATOR_GT = operator.gt
-_OPERATOR_GE = operator.ge
-_OPERATOR_ADD = operator.add
-_OPERATOR_SUB = operator.sub
-_OPERATOR_MUL = operator.mul
-_OPERATOR_DIV = operator.truediv
-_OPERATOR_MOD = operator.mod
-_OPERATOR_NOT = operator.not_
-_OPERATOR_POS = operator.pos
-_OPERATOR_NEG = operator.neg
+def _na_safe_binary(op):
+    """Return None-safe binary operator: returns None if either operand is None."""
+
+    def wrapper(a, b):
+        if a is None or b is None:
+            return None
+        return op(a, b)
+
+    return wrapper
+
+
+def _na_safe_unary(op):
+    """Return None-safe unary operator: returns None if operand is None."""
+
+    def wrapper(a):
+        if a is None:
+            return None
+        return op(a)
+
+    return wrapper
+
+
+_OPERATOR_EQ = _na_safe_binary(operator.eq)
+_OPERATOR_NE = _na_safe_binary(operator.ne)
+_OPERATOR_LT = _na_safe_binary(operator.lt)
+_OPERATOR_LE = _na_safe_binary(operator.le)
+_OPERATOR_GT = _na_safe_binary(operator.gt)
+_OPERATOR_GE = _na_safe_binary(operator.ge)
+_OPERATOR_ADD = _na_safe_binary(operator.add)
+_OPERATOR_SUB = _na_safe_binary(operator.sub)
+_OPERATOR_MUL = _na_safe_binary(operator.mul)
+_OPERATOR_DIV = _na_safe_binary(operator.truediv)
+_OPERATOR_MOD = _na_safe_binary(operator.mod)
+_OPERATOR_NOT = _na_safe_unary(operator.not_)
+_OPERATOR_POS = _na_safe_unary(operator.pos)
+_OPERATOR_NEG = _na_safe_unary(operator.neg)
 
 _METHOD_CALL_TUPLE_LENGTH = 3
 

@@ -36,6 +36,35 @@ class TechnicalHelpers:
         msg = "Must be implemented by host class"
         raise NotImplementedError(msg)
 
+    _SERIES_MAX = 256
+
+    def _as_series(self, value: Any) -> list[Any]:
+        """Convert a Pine-series-like object to a list.
+
+        Accepts:
+        - ``list`` — returned as-is.
+        - Any object with a ``history`` attribute (e.g. ``PineSeries``) —
+          its history is converted to a reversed list (chronological order),
+          truncated to the most recent ``_SERIES_MAX`` elements to avoid
+          O(n²) recomputation of full history at every bar.
+        - Falls back to ``self.current_series`` lookup by name when the
+          value is a string matching a known key.
+        - Otherwise wraps the value in a single-element list.
+        """
+        if isinstance(value, list):
+            return value
+        # Duck-type PineSeries: has a deque/iterable history
+        if hasattr(value, "history"):
+            raw = list(reversed(value.history))
+            if len(raw) > self._SERIES_MAX:
+                raw = raw[-self._SERIES_MAX :]
+            return raw
+        # Named series reference — look up from the pre-loaded dict
+        if isinstance(value, str) and value in self.current_series:
+            return self.current_series[value]
+        # Unknown — wrap as single-element
+        return [value]
+
     def _expect_series(
         self,
         args: list[Any],
@@ -44,7 +73,7 @@ class TechnicalHelpers:
         """Validate and extract series and period arguments."""
         if len(args) != length:
             self._error(f"ta.* function requires {length} argument(s), got {len(args)}. Expected: (series, period)")
-        series = self._expect_list(args[0], "First argument must be a list (series)")
+        series = self._as_series(args[0])
         period = self._expect_int(
             args[1],
             "Second argument must be an integer (period)",
@@ -59,18 +88,17 @@ class TechnicalHelpers:
         if len(args) != BINARY:
             self._error("Function takes two series arguments")
         return (
-            self._expect_list(args[0], "Function takes two series arguments"),
-            self._expect_list(args[1], "Function takes two series arguments"),
+            self._as_series(args[0]),
+            self._as_series(args[1]),
         )
 
-    def _expect_list(self, value: Any, message: str) -> list[Any]:
-        """Validate that value is a list."""
-        if not isinstance(value, list):
-            self._error(f"{message}. Got: {type(value).__name__}")
-        return value
-
     def _expect_int(self, value: Any, message: str) -> int:
-        """Validate that value is an integer."""
+        """Validate that value is an integer (accepts float whole numbers too)."""
+        if isinstance(value, float):
+            if value == int(value):
+                value = int(value)
+            else:
+                self._error(f"{message}. Got: float {value}")
         if not isinstance(value, int):
             self._error(f"{message}. Got: {type(value).__name__}")
         return value

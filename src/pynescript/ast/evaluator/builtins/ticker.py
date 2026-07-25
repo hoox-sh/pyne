@@ -83,7 +83,7 @@ def ticker_new(
 
 
 def ticker_modify(
-    ticker: TickerInfo,
+    ticker: str | TickerInfo,
     symbol: str | None = None,
     session: str | None = None,
     adjust: str | None = None,
@@ -93,7 +93,7 @@ def ticker_modify(
     Creates a copy of the ticker with modified parameters.
 
     Args:
-        ticker: The original ticker object
+        ticker: The original ticker object (or raw symbol string)
         symbol: New symbol (or None to keep original)
         session: New session (or None to keep original)
         adjust: New adjustment (or None to keep original)
@@ -101,6 +101,8 @@ def ticker_modify(
     Returns:
         New TickerInfo object with modified parameters
     """
+    if isinstance(ticker, str):
+        ticker = TickerInfo(ticker)
     new_symbol = symbol if symbol is not None else ticker.symbol
     new_session = session if session is not None else ticker.session
     new_adjust = adjust if adjust is not None else ticker.adjust
@@ -220,11 +222,13 @@ def register_ticker_functions(namespace: dict) -> None:
     Args:
         namespace: Dictionary to register functions in (typically evaluator's builtins)
     """
-    namespace["ticker.new"] = ticker_new
-    namespace["ticker.modify"] = ticker_modify
-    namespace["ticker.heikinashi"] = ticker_heikinashi
-    namespace["ticker.kagi"] = ticker_kagi
-    namespace["ticker.linebreak"] = ticker_linebreak
-    namespace["ticker.pointfigure"] = ticker_pointfigure
-    namespace["ticker.renko"] = ticker_renko
-    namespace["ticker.standard"] = ticker_standard
+    from .declarations import _as_builtin_handler
+
+    namespace["ticker.new"] = _as_builtin_handler(ticker_new)
+    namespace["ticker.modify"] = _as_builtin_handler(ticker_modify)
+    namespace["ticker.heikinashi"] = _as_builtin_handler(ticker_heikinashi)
+    namespace["ticker.kagi"] = _as_builtin_handler(ticker_kagi)
+    namespace["ticker.linebreak"] = _as_builtin_handler(ticker_linebreak)
+    namespace["ticker.pointfigure"] = _as_builtin_handler(ticker_pointfigure)
+    namespace["ticker.renko"] = _as_builtin_handler(ticker_renko)
+    namespace["ticker.standard"] = _as_builtin_handler(ticker_standard)

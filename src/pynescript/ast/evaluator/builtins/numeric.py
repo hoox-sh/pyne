@@ -73,6 +73,14 @@ class NumericBuiltinsMixin(BuiltinDispatchMixin):
             "math.round_to_mintick": self._builtin_math_round_to_mintick,
         }
 
+    def _as_scalar(self, value: Any) -> Any:
+        """Extract the scalar value from PineSeries, _SeriesResult-like, or list."""
+        if hasattr(value, "current"):
+            return value.current
+        if isinstance(value, list) and len(value) > 0:
+            return value[-1]
+        return value
+
     def _require_len(
         self,
         args: list[Any],
@@ -198,17 +206,24 @@ class NumericBuiltinsMixin(BuiltinDispatchMixin):
         self._require_len(args, UNARY, "color.new takes one argument")
         return f"color({args[0]})"
 
-    def _builtin_na(self, args: list[Any]) -> None:
-        """Return None (not available/NA value in PineScript)."""
-        if args:
-            self._error("na() takes no arguments")
+    def _builtin_na(self, args: list[Any]) -> Any:
+        """Return None (na) or check if a value is na.
+
+        - ``na`` → None (the na sentinel value, zero args)
+        - ``na(x)`` → True if x is None, else False
+        """
+        if not args:
+            return None
+        if len(args) == 1:
+            return args[0] is None
+        self._error("na() takes 0 or 1 arguments")
 
     def _builtin_nz(self, args: list[Any]) -> Any:
-        """Replace None with default value."""
-        if not args or len(args) < 2:
+        """Replace None with default value (0 if not specified)."""
+        if not args:
             self._error("nz() takes value and default arguments")
         value = args[0]
-        default = args[1]
+        default = args[1] if len(args) > 1 else 0
         return default if value is None else value
 
     def _builtin_bool(self, args: list[Any]) -> bool:
@@ -228,7 +243,7 @@ class NumericBuiltinsMixin(BuiltinDispatchMixin):
     def _builtin_int(self, args: list[Any]) -> int:
         """Convert value to integer."""
         self._require_len(args, UNARY, "int() takes one argument")
-        value = args[0]
+        value = self._as_scalar(args[0])
         if isinstance(value, int):
             return value
         if isinstance(value, float):
@@ -243,7 +258,7 @@ class NumericBuiltinsMixin(BuiltinDispatchMixin):
     def _builtin_float(self, args: list[Any]) -> float:
         """Convert value to float."""
         self._require_len(args, UNARY, "float() takes one argument")
-        value = args[0]
+        value = self._as_scalar(args[0])
         if isinstance(value, float):
             return value
         if isinstance(value, int):
