@@ -105,6 +105,15 @@ Pine Script v6 launched December 2024, followed by monthly updates. Key sources:
 - ✅ `runtime.error`, `input.text_area`, `ta.percentile_linear_interpolation`, `ta.percentile_nearest_rank`
 - ✅ `input.*` now returns values (Pine semantics) with metadata side-channel `_input_declarations`
 
+### Full reference surface (2026-07-25 cont.)
+- ✅ **0 missing** vs official TV v6 function reference list (434 symbols checked against live dispatch)
+- ✅ TA: `ta.alma`, `ta.bbw`, `ta.cmo`, `ta.correlation`
+- ✅ Drawing: full `linefill.*`, `line.get_price`/`set_xy*`/`set_*_point`, box text setters, label `set_point`/`set_size`/`set_textalign`, table cell/frame setters
+- ✅ `strategy.risk.max_drawdown` / `max_cons_loss_days` / `allow_entry_in`
+- ✅ `max_bars_back`, `ticker.inherit`
+- ✅ Footprint/volume_row accessors (`rows`, `total_volume`, `get_row_by_price`, imbalances)
+- ✅ Runtime plot values are **bar scalars** (not nested full-series lists)
+
 ## Recommendations
 - **Grammar first**: Add triple-quoted multiline string support to `PinescriptLexer.g4` + handling in lexer/parser.
 - **Arrays/Drawing**: Implement `sort_field` logic + full text_formatting.

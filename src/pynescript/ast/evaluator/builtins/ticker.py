@@ -202,6 +202,22 @@ def ticker_renko(ticker_str: str, boxsize: float = 1.0, style: str = None) -> Ti
     return ticker
 
 
+def ticker_inherit(ticker_str: str | TickerInfo | None = None) -> TickerInfo:
+    """Inherit chart properties for a ticker (session/adjust from main chart).
+
+    Pine: ``ticker.inherit(symbol)`` returns a ticker that inherits the chart's
+    session and adjustment settings.
+    """
+    if isinstance(ticker_str, TickerInfo):
+        return TickerInfo(
+            symbol=ticker_str.symbol,
+            session=ticker_str.session,
+            adjust=ticker_str.adjust,
+        )
+    symbol = str(ticker_str) if ticker_str is not None else ""
+    return TickerInfo(symbol=symbol)
+
+
 def ticker_standard(ticker_str: str) -> TickerInfo:
     """Create a standard OHLC ticker from a symbol.
 
@@ -232,3 +248,4 @@ def register_ticker_functions(namespace: dict) -> None:
     namespace["ticker.pointfigure"] = _as_builtin_handler(ticker_pointfigure)
     namespace["ticker.renko"] = _as_builtin_handler(ticker_renko)
     namespace["ticker.standard"] = _as_builtin_handler(ticker_standard)
+    namespace["ticker.inherit"] = _as_builtin_handler(ticker_inherit)

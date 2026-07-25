@@ -56,12 +56,118 @@ class VolatilityIndicators(TechnicalHelpers):
         msg = "ta.bb expects series, length, and multiplier"
         if len(args) != TERNARY:
             self._error(msg)
-        series = self._expect_list(args[0], msg)
+        series = self._as_series(args[0]) if hasattr(self, "_as_series") else self._expect_list(args[0], msg)
         length = self._expect_int(args[1], msg)
         multiplier = args[2]
         if not isinstance(multiplier, int | float):
             self._error("ta.bb expects numeric multiplier")
         return self._bollinger_bands(series, length, multiplier)
+
+    def _builtin_ta_bbw(self, args: list[Any]) -> float | None:
+        """Bollinger Band Width: (upper - lower) / middle.
+
+        ta.bbw(source, length, mult)
+        """
+        msg = "ta.bbw expects series, length, and multiplier"
+        if len(args) != TERNARY:
+            self._error(msg)
+        middle, upper, lower = self._builtin_ta_bb(args)
+        if middle is None or upper is None or lower is None:
+            return None
+        if middle == 0:
+            return None
+        return (upper - lower) / middle
+
+    def _builtin_ta_alma(self, args: list[Any]) -> float | None:
+        """Arnaud Legoux Moving Average.
+
+        ta.alma(series, length, offset=0.85, sigma=6)
+        """
+        if len(args) < BINARY:
+            self._error("ta.alma requires series and length")
+        series = self._as_series(args[0]) if hasattr(self, "_as_series") else self._expect_list(args[0], "series")
+        length = self._expect_int(args[1], "length")
+        offset = float(args[2]) if len(args) > 2 and isinstance(args[2], (int, float)) else 0.85
+        sigma = float(args[3]) if len(args) > 3 and isinstance(args[3], (int, float)) else 6.0
+        if length <= 0 or len(series) < length:
+            return None
+        window = series[-length:]
+        if any(v is None for v in window):
+            valid = [v for v in window if v is not None]
+            if len(valid) < length:
+                return None
+        # ALMA weights
+        m = offset * (length - 1)
+        s = length / sigma
+        weights = []
+        for i in range(length):
+            w = math.exp(-((i - m) ** 2) / (2 * s * s))
+            weights.append(w)
+        wsum = sum(weights)
+        if wsum == 0:
+            return None
+        total = 0.0
+        for i, v in enumerate(window):
+            if v is None:
+                return None
+            total += float(v) * weights[i]
+        return total / wsum
+
+    def _builtin_ta_cmo(self, args: list[Any]) -> float | None:
+        """Chande Momentum Oscillator.
+
+        ta.cmo(source, length)
+        """
+        series, length = self._expect_series(args, length=BINARY)
+        if length <= 0 or len(series) < length + 1:
+            return None
+        window = series[-(length + 1) :]
+        up = 0.0
+        down = 0.0
+        for i in range(1, len(window)):
+            a, b = window[i - 1], window[i]
+            if a is None or b is None:
+                continue
+            diff = float(b) - float(a)
+            if diff > 0:
+                up += diff
+            else:
+                down += -diff
+        denom = up + down
+        if denom == 0:
+            return 0.0
+        return 100.0 * (up - down) / denom
+
+    def _builtin_ta_correlation(self, args: list[Any]) -> float | None:
+        """Pearson correlation of two series over length.
+
+        ta.correlation(source1, source2, length)
+        """
+        if len(args) != TERNARY:
+            self._error("ta.correlation requires source1, source2, length")
+        s1 = self._as_series(args[0]) if hasattr(self, "_as_series") else self._expect_list(args[0], "source1")
+        s2 = self._as_series(args[1]) if hasattr(self, "_as_series") else self._expect_list(args[1], "source2")
+        length = self._expect_int(args[2], "length")
+        if length < 2:
+            return None
+        n = min(len(s1), len(s2), length)
+        if n < 2 or len(s1) < length or len(s2) < length:
+            return None
+        a = s1[-length:]
+        b = s2[-length:]
+        pairs = [(float(x), float(y)) for x, y in zip(a, b) if x is not None and y is not None]
+        if len(pairs) < 2:
+            return None
+        xs = [p[0] for p in pairs]
+        ys = [p[1] for p in pairs]
+        mx = sum(xs) / len(xs)
+        my = sum(ys) / len(ys)
+        num = sum((x - mx) * (y - my) for x, y in zip(xs, ys))
+        denx = sum((x - mx) ** 2 for x in xs) ** 0.5
+        deny = sum((y - my) ** 2 for y in ys) ** 0.5
+        if denx == 0 or deny == 0:
+            return None
+        return num / (denx * deny)
 
     def _builtin_ta_kc(self, args: list[Any]) -> tuple[float, float, float]:
         """Keltner Channels."""

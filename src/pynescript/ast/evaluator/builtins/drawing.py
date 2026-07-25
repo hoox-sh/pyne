@@ -37,6 +37,7 @@ class DrawingRegistry:
     labels: ClassVar[list[Label]] = []
     tables: ClassVar[list[Table]] = []
     polylines: ClassVar[list[Polyline]] = []
+    linefills: ClassVar[list[LineFill]] = []
 
     @classmethod
     def reset(cls) -> None:
@@ -46,6 +47,7 @@ class DrawingRegistry:
         cls.labels = []
         cls.tables = []
         cls.polylines = []
+        cls.linefills = []
         # Also reset plot real effects
         from .plotting import PlotRegistry
         PlotRegistry.reset()
@@ -83,6 +85,14 @@ class Box:
     border_width: int = 1
     border_style: str = "solid"
     extend: str = "none"
+    text: str = ""
+    text_color: str = "#000000"
+    text_font_family: str = "default"
+    text_halign: str = "center"
+    text_valign: str = "center"
+    text_size: int | str = "auto"
+    text_formatting: str = ""
+    text_wrap: str = "none"
     force_overlay: bool = False  # v6
     deleted: bool = False
 
@@ -103,6 +113,7 @@ class Label:
     text_valign: str = "center"
     text_size: int | str = "auto"  # v6: supports int (points) or size.* consts
     text_formatting: str = ""  # v6: "", "bold", "italic", or combination like "bold italic"
+    size: int | str = "auto"  # alias of text_size for label.set_size
     tooltip: str = ""
     style: str = "label_center"
     border_color: str = "rgba(0,0,0,0)"
@@ -138,6 +149,24 @@ class TableCell:
     bgcolor: str = "rgba(255,255,255,255)"
     border_color: str = "#000000"
     border_width: int = 1
+    width: int | float | None = None
+    height: int | float | None = None
+    text_halign: str = "left"
+    text_valign: str = "top"
+    text_size: int | str = "auto"
+    text_font_family: str = "default"
+    text_formatting: str = ""
+    tooltip: str = ""
+
+
+@dataclass
+class LineFill:
+    """Fill between two lines."""
+
+    line1: Line | None = None
+    line2: Line | None = None
+    color: str = "rgba(0,0,0,0)"
+    deleted: bool = False
 
 
 @dataclass
@@ -189,6 +218,11 @@ class DrawingBuiltinsMixin(BuiltinDispatchMixin):
             "line.get_y1": self._handle_line_get_y1,
             "line.get_x2": self._handle_line_get_x2,
             "line.get_y2": self._handle_line_get_y2,
+            "line.get_price": self._handle_line_get_price,
+            "line.set_xy1": self._handle_line_set_xy1,
+            "line.set_xy2": self._handle_line_set_xy2,
+            "line.set_first_point": self._handle_line_set_first_point,
+            "line.set_second_point": self._handle_line_set_second_point,
             # Box functions
             "box.new": self._handle_box_new,
             "box.delete": self._handle_box_delete,
@@ -204,6 +238,18 @@ class DrawingBuiltinsMixin(BuiltinDispatchMixin):
             "box.set_extend": self._handle_box_set_extend,
             "box.set_xloc": self._handle_box_set_xloc,
             "box.set_closed": self._handle_box_set_closed,
+            "box.set_lefttop": self._handle_box_set_lefttop,
+            "box.set_rightbottom": self._handle_box_set_rightbottom,
+            "box.set_top_left_point": self._handle_box_set_top_left_point,
+            "box.set_bottom_right_point": self._handle_box_set_bottom_right_point,
+            "box.set_text": self._handle_box_set_text,
+            "box.set_text_color": self._handle_box_set_text_color,
+            "box.set_text_font_family": self._handle_box_set_text_font_family,
+            "box.set_text_halign": self._handle_box_set_text_halign,
+            "box.set_text_valign": self._handle_box_set_text_valign,
+            "box.set_text_size": self._handle_box_set_text_size,
+            "box.set_text_formatting": self._handle_box_set_text_formatting,
+            "box.set_text_wrap": self._handle_box_set_text_wrap,
             "box.get_left": self._handle_box_get_left,
             "box.get_right": self._handle_box_get_right,
             "box.get_top": self._handle_box_get_top,
@@ -217,10 +263,12 @@ class DrawingBuiltinsMixin(BuiltinDispatchMixin):
             "label.set_y": self._handle_label_set_y,
             "label.set_text": self._handle_label_set_text,
             "label.set_textcolor": self._handle_label_set_textcolor,
+            "label.set_textalign": self._handle_label_set_textalign,
             "label.set_text_font_family": self._handle_label_set_text_font_family,
             "label.set_text_halign": self._handle_label_set_text_halign,
             "label.set_text_valign": self._handle_label_set_text_valign,
             "label.set_text_size": self._handle_label_set_text_size,
+            "label.set_size": self._handle_label_set_size,
             "label.set_text_formatting": self._handle_label_set_text_formatting,
             "label.set_tooltip": self._handle_label_set_tooltip,
             "label.set_color": self._handle_label_set_color,
@@ -230,6 +278,7 @@ class DrawingBuiltinsMixin(BuiltinDispatchMixin):
             "label.set_style": self._handle_label_set_style,
             "label.set_xloc": self._handle_label_set_xloc,
             "label.set_yloc": self._handle_label_set_yloc,
+            "label.set_point": self._handle_label_set_point,
             "label.get_x": self._handle_label_get_x,
             "label.get_y": self._handle_label_get_y,
             "label.get_text": self._handle_label_get_text,
@@ -242,9 +291,29 @@ class DrawingBuiltinsMixin(BuiltinDispatchMixin):
             "table.cell_set_bgcolor": self._handle_table_cell_set_bgcolor,
             "table.cell_set_border_color": self._handle_table_cell_set_border_color,
             "table.cell_set_border_width": self._handle_table_cell_set_border_width,
+            "table.cell_set_width": self._handle_table_cell_set_width,
+            "table.cell_set_height": self._handle_table_cell_set_height,
+            "table.cell_set_text_halign": self._handle_table_cell_set_text_halign,
+            "table.cell_set_text_valign": self._handle_table_cell_set_text_valign,
+            "table.cell_set_text_size": self._handle_table_cell_set_text_size,
+            "table.cell_set_text_font_family": self._handle_table_cell_set_text_font_family,
+            "table.cell_set_text_formatting": self._handle_table_cell_set_text_formatting,
+            "table.cell_set_tooltip": self._handle_table_cell_set_tooltip,
             "table.cell_get_text": self._handle_table_cell_get_text,
             "table.clear": self._handle_table_clear,
             "table.merge_cells": self._handle_table_merge_cells,
+            "table.set_position": self._handle_table_set_position,
+            "table.set_bgcolor": self._handle_table_set_bgcolor,
+            "table.set_border_color": self._handle_table_set_border_color,
+            "table.set_border_width": self._handle_table_set_border_width,
+            "table.set_frame_color": self._handle_table_set_frame_color,
+            "table.set_frame_width": self._handle_table_set_frame_width,
+            # Linefill
+            "linefill.new": self._handle_linefill_new,
+            "linefill.delete": self._handle_linefill_delete,
+            "linefill.set_color": self._handle_linefill_set_color,
+            "linefill.get_line1": self._handle_linefill_get_line1,
+            "linefill.get_line2": self._handle_linefill_get_line2,
             # Chart point functions
             "chart.point.new": self._handle_chart_point_new,
             "chart.point.from_index": self._handle_chart_point_from_index,
@@ -283,8 +352,7 @@ class DrawingBuiltinsMixin(BuiltinDispatchMixin):
         return self._active(DrawingRegistry.polylines)
 
     def _handle_linefill_all(self, _args: list[Any], kwargs: dict[str, Any] | None = None) -> list[Any]:
-        # linefill drawing type not fully modeled; always empty array
-        return []
+        return self._active(DrawingRegistry.linefills)
 
     # LINE HANDLERS
 
@@ -978,3 +1046,232 @@ class DrawingBuiltinsMixin(BuiltinDispatchMixin):
         polyline = args[0] if len(args) > 0 else None
         if isinstance(polyline, Polyline):
             polyline.deleted = True
+
+
+    # ========== MISSING TV SURFACE HANDLERS ==========
+
+    def _handle_line_get_price(self, args: list[Any]) -> float | None:
+        """line.get_price(id, x) — interpolate Y at X between endpoints."""
+        line = args[0] if args else None
+        x = args[1] if len(args) > 1 else None
+        if not isinstance(line, Line) or x is None:
+            return None
+        x1, x2 = float(line.x1), float(line.x2)
+        if x1 == x2:
+            return float(line.y1)
+        t = (float(x) - x1) / (x2 - x1)
+        return float(line.y1) + t * (float(line.y2) - float(line.y1))
+
+    def _handle_line_set_xy1(self, args: list[Any]) -> None:
+        line = args[0] if args else None
+        if isinstance(line, Line) and len(args) >= 3:
+            line.x1, line.y1 = args[1], args[2]
+
+    def _handle_line_set_xy2(self, args: list[Any]) -> None:
+        line = args[0] if args else None
+        if isinstance(line, Line) and len(args) >= 3:
+            line.x2, line.y2 = args[1], args[2]
+
+    def _handle_line_set_first_point(self, args: list[Any]) -> None:
+        """line.set_first_point(id, point) where point is ChartPoint."""
+        line = args[0] if args else None
+        point = args[1] if len(args) > 1 else None
+        if isinstance(line, Line) and isinstance(point, ChartPoint):
+            line.x1 = point.index if point.index is not None else (point.time or 0)
+            line.y1 = point.price
+
+    def _handle_line_set_second_point(self, args: list[Any]) -> None:
+        line = args[0] if args else None
+        point = args[1] if len(args) > 1 else None
+        if isinstance(line, Line) and isinstance(point, ChartPoint):
+            line.x2 = point.index if point.index is not None else (point.time or 0)
+            line.y2 = point.price
+
+    def _handle_box_set_lefttop(self, args: list[Any]) -> None:
+        box = args[0] if args else None
+        if isinstance(box, Box) and len(args) >= 3:
+            box.left, box.top = args[1], args[2]
+
+    def _handle_box_set_rightbottom(self, args: list[Any]) -> None:
+        box = args[0] if args else None
+        if isinstance(box, Box) and len(args) >= 3:
+            box.right, box.bottom = args[1], args[2]
+
+    def _handle_box_set_top_left_point(self, args: list[Any]) -> None:
+        box = args[0] if args else None
+        point = args[1] if len(args) > 1 else None
+        if isinstance(box, Box) and isinstance(point, ChartPoint):
+            box.left = point.index if point.index is not None else (point.time or 0)
+            box.top = point.price
+
+    def _handle_box_set_bottom_right_point(self, args: list[Any]) -> None:
+        box = args[0] if args else None
+        point = args[1] if len(args) > 1 else None
+        if isinstance(box, Box) and isinstance(point, ChartPoint):
+            box.right = point.index if point.index is not None else (point.time or 0)
+            box.bottom = point.price
+
+    def _handle_box_set_text(self, args: list[Any]) -> None:
+        box = args[0] if args else None
+        if isinstance(box, Box) and len(args) > 1:
+            box.text = str(args[1])
+
+    def _handle_box_set_text_color(self, args: list[Any]) -> None:
+        box = args[0] if args else None
+        if isinstance(box, Box) and len(args) > 1:
+            box.text_color = args[1]
+
+    def _handle_box_set_text_font_family(self, args: list[Any]) -> None:
+        box = args[0] if args else None
+        if isinstance(box, Box) and len(args) > 1:
+            box.text_font_family = str(args[1])
+
+    def _handle_box_set_text_halign(self, args: list[Any]) -> None:
+        box = args[0] if args else None
+        if isinstance(box, Box) and len(args) > 1:
+            box.text_halign = str(args[1])
+
+    def _handle_box_set_text_valign(self, args: list[Any]) -> None:
+        box = args[0] if args else None
+        if isinstance(box, Box) and len(args) > 1:
+            box.text_valign = str(args[1])
+
+    def _handle_box_set_text_size(self, args: list[Any]) -> None:
+        box = args[0] if args else None
+        if isinstance(box, Box) and len(args) > 1:
+            box.text_size = args[1]
+
+    def _handle_box_set_text_formatting(self, args: list[Any]) -> None:
+        box = args[0] if args else None
+        if isinstance(box, Box) and len(args) > 1:
+            box.text_formatting = str(args[1])
+
+    def _handle_box_set_text_wrap(self, args: list[Any]) -> None:
+        box = args[0] if args else None
+        if isinstance(box, Box) and len(args) > 1:
+            box.text_wrap = str(args[1])
+
+    def _handle_label_set_textalign(self, args: list[Any]) -> None:
+        """label.set_textalign — alias of set_text_halign."""
+        label = args[0] if args else None
+        if isinstance(label, Label) and len(args) > 1:
+            label.text_halign = str(args[1])
+
+    def _handle_label_set_size(self, args: list[Any]) -> None:
+        label = args[0] if args else None
+        if isinstance(label, Label) and len(args) > 1:
+            label.size = args[1]
+            label.text_size = args[1]
+
+    def _handle_label_set_point(self, args: list[Any]) -> None:
+        label = args[0] if args else None
+        point = args[1] if len(args) > 1 else None
+        if isinstance(label, Label) and isinstance(point, ChartPoint):
+            label.x = point.index if point.index is not None else (point.time or 0)
+            label.y = point.price
+
+    def _table_cell_at(self, table: Table, col: int, row: int) -> TableCell:
+        key = (int(col), int(row))
+        if key not in table.cells:
+            table.cells[key] = TableCell()
+        return table.cells[key]
+
+    def _handle_table_cell_set_width(self, args: list[Any]) -> None:
+        table, col, row, val = (args + [None] * 4)[:4]
+        if isinstance(table, Table):
+            self._table_cell_at(table, col, row).width = val
+
+    def _handle_table_cell_set_height(self, args: list[Any]) -> None:
+        table, col, row, val = (args + [None] * 4)[:4]
+        if isinstance(table, Table):
+            self._table_cell_at(table, col, row).height = val
+
+    def _handle_table_cell_set_text_halign(self, args: list[Any]) -> None:
+        table, col, row, val = (args + [None] * 4)[:4]
+        if isinstance(table, Table):
+            self._table_cell_at(table, col, row).text_halign = str(val)
+
+    def _handle_table_cell_set_text_valign(self, args: list[Any]) -> None:
+        table, col, row, val = (args + [None] * 4)[:4]
+        if isinstance(table, Table):
+            self._table_cell_at(table, col, row).text_valign = str(val)
+
+    def _handle_table_cell_set_text_size(self, args: list[Any]) -> None:
+        table, col, row, val = (args + [None] * 4)[:4]
+        if isinstance(table, Table):
+            self._table_cell_at(table, col, row).text_size = val
+
+    def _handle_table_cell_set_text_font_family(self, args: list[Any]) -> None:
+        table, col, row, val = (args + [None] * 4)[:4]
+        if isinstance(table, Table):
+            self._table_cell_at(table, col, row).text_font_family = str(val)
+
+    def _handle_table_cell_set_text_formatting(self, args: list[Any]) -> None:
+        table, col, row, val = (args + [None] * 4)[:4]
+        if isinstance(table, Table):
+            self._table_cell_at(table, col, row).text_formatting = str(val)
+
+    def _handle_table_cell_set_tooltip(self, args: list[Any]) -> None:
+        table, col, row, val = (args + [None] * 4)[:4]
+        if isinstance(table, Table):
+            self._table_cell_at(table, col, row).tooltip = str(val)
+
+    def _handle_table_set_position(self, args: list[Any]) -> None:
+        table = args[0] if args else None
+        if isinstance(table, Table) and len(args) > 1:
+            table.position = str(args[1])
+
+    def _handle_table_set_bgcolor(self, args: list[Any]) -> None:
+        table = args[0] if args else None
+        if isinstance(table, Table) and len(args) > 1:
+            table.bgcolor = args[1]
+
+    def _handle_table_set_border_color(self, args: list[Any]) -> None:
+        table = args[0] if args else None
+        if isinstance(table, Table) and len(args) > 1:
+            table.border_color = args[1]
+
+    def _handle_table_set_border_width(self, args: list[Any]) -> None:
+        table = args[0] if args else None
+        if isinstance(table, Table) and len(args) > 1:
+            table.border_width = int(args[1])
+
+    def _handle_table_set_frame_color(self, args: list[Any]) -> None:
+        table = args[0] if args else None
+        if isinstance(table, Table) and len(args) > 1:
+            table.frame_color = args[1]
+
+    def _handle_table_set_frame_width(self, args: list[Any]) -> None:
+        table = args[0] if args else None
+        if isinstance(table, Table) and len(args) > 1:
+            table.frame_width = int(args[1])
+
+    def _handle_linefill_new(self, args: list[Any]) -> LineFill:
+        line1 = args[0] if len(args) > 0 else None
+        line2 = args[1] if len(args) > 1 else None
+        color = args[2] if len(args) > 2 else "rgba(0,0,0,0)"
+        fill = LineFill(
+            line1=line1 if isinstance(line1, Line) else None,
+            line2=line2 if isinstance(line2, Line) else None,
+            color=str(color),
+        )
+        DrawingRegistry.linefills.append(fill)
+        return fill
+
+    def _handle_linefill_delete(self, args: list[Any]) -> None:
+        fill = args[0] if args else None
+        if isinstance(fill, LineFill):
+            fill.deleted = True
+
+    def _handle_linefill_set_color(self, args: list[Any]) -> None:
+        fill = args[0] if args else None
+        if isinstance(fill, LineFill) and len(args) > 1:
+            fill.color = str(args[1])
+
+    def _handle_linefill_get_line1(self, args: list[Any]) -> Line | None:
+        fill = args[0] if args else None
+        return fill.line1 if isinstance(fill, LineFill) else None
+
+    def _handle_linefill_get_line2(self, args: list[Any]) -> Line | None:
+        fill = args[0] if args else None
+        return fill.line2 if isinstance(fill, LineFill) else None

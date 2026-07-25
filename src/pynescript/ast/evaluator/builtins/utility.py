@@ -32,7 +32,26 @@ class UtilityFunctionsMixin(BuiltinDispatchMixin):
             "timestamp": self._builtin_timestamp,
             "last_bar_index": self._builtin_last_bar_index,
             "last_bar_time": self._builtin_last_bar_time,
+            "max_bars_back": self._builtin_max_bars_back,
         }
+
+    def _builtin_max_bars_back(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> None:
+        """max_bars_back(var, num) — declare history buffer depth for a series.
+
+        Runtime effect: recorded on evaluator for hosts; evaluation itself is
+        unbounded within available OHLCV history.
+        """
+        kw = kwargs or {}
+        var = args[0] if len(args) > 0 else kw.get("var")
+        num = args[1] if len(args) > 1 else kw.get("num", 0)
+        decls = getattr(self, "_max_bars_back_decls", None)
+        if decls is None:
+            decls = []
+            try:
+                self._max_bars_back_decls = decls  # type: ignore[attr-defined]
+            except Exception:
+                return
+        decls.append({"var": var, "num": num})
 
     def _coerce_ctx_number(self, key: str, default: float = 0.0) -> float:
         ctx = getattr(self, "context", {}) or {}

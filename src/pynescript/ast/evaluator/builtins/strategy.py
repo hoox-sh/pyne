@@ -105,6 +105,9 @@ class StrategyState:
         self.max_contracts_held_short: float = 0.0
         # Risk: max position size as % of equity (None = unlimited)
         self.max_position_size_percent: float | None = None
+        self.max_drawdown_risk: float | None = None  # strategy.risk.max_drawdown limit
+        self.max_cons_loss_days: int | None = None
+        self.allow_entry_in: str = "all"  # all | long | short
         # Equity curve tracking for max drawdown / runup
         self._equity_peak: float = 100_000.0
         self._equity_trough: float = 100_000.0
@@ -277,6 +280,9 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
             "strategy.risk.max_position_size": (self._handle_strategy_risk_max_position_size),
             "strategy.risk.max_intraday_loss": (self._handle_strategy_risk_max_intraday_loss),
             "strategy.risk.max_intraday_filled_orders": (self._handle_strategy_risk_max_intraday_filled_orders),
+            "strategy.risk.max_drawdown": self._handle_strategy_risk_max_drawdown,
+            "strategy.risk.max_cons_loss_days": self._handle_strategy_risk_max_cons_loss_days,
+            "strategy.risk.allow_entry_in": self._handle_strategy_risk_allow_entry_in,
             # Unit conversion
             "strategy.convert_to_account": (self._handle_strategy_convert_to_account),
             "strategy.convert_to_symbol": (self._handle_strategy_convert_to_symbol),
@@ -929,6 +935,28 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
         """
         percent = args[0] if len(args) > 0 else 100.0
         self._strategy_state.max_intraday_loss = percent
+
+    def _handle_strategy_risk_max_drawdown(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> None:
+        """strategy.risk.max_drawdown(value) — cap overall drawdown risk."""
+        kw = kwargs or {}
+        value = kw.get("value", args[0] if len(args) > 0 else None)
+        if value is None:
+            return
+        self._strategy_state.max_drawdown_risk = float(value)
+
+    def _handle_strategy_risk_max_cons_loss_days(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> None:
+        """strategy.risk.max_cons_loss_days(days) — stop after N consecutive loss days."""
+        kw = kwargs or {}
+        days = kw.get("days", args[0] if len(args) > 0 else None)
+        if days is None:
+            return
+        self._strategy_state.max_cons_loss_days = int(days)
+
+    def _handle_strategy_risk_allow_entry_in(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> None:
+        """strategy.risk.allow_entry_in(value) — 'all' | 'long' | 'short'."""
+        kw = kwargs or {}
+        value = kw.get("value", args[0] if len(args) > 0 else "all")
+        self._strategy_state.allow_entry_in = str(value)
 
     # UNIT CONVERSION
 

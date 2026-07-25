@@ -92,8 +92,17 @@ class FootprintBuiltinsMixin(BuiltinDispatchMixin):
             "footprint.vah": self._handle_footprint_vah,
             "footprint.val": self._handle_footprint_val,
             "footprint.poc": self._handle_footprint_poc,
+            "footprint.total_volume": self._handle_footprint_total_volume,
+            "footprint.rows": self._handle_footprint_rows,
+            "footprint.get_row_by_price": self._handle_footprint_get_row_by_price,
             "volume_row.up_price": self._handle_volume_row_up_price,
             "volume_row.down_price": self._handle_volume_row_down_price,
+            "volume_row.buy_volume": self._handle_volume_row_buy_volume,
+            "volume_row.sell_volume": self._handle_volume_row_sell_volume,
+            "volume_row.delta": self._handle_volume_row_delta,
+            "volume_row.total_volume": self._handle_volume_row_total_volume,
+            "volume_row.has_buy_imbalance": self._handle_volume_row_has_buy_imbalance,
+            "volume_row.has_sell_imbalance": self._handle_volume_row_has_sell_imbalance,
         }
 
     def _handle_footprint_buy_volume(self, args: list[Any]) -> float:
@@ -151,6 +160,61 @@ class FootprintBuiltinsMixin(BuiltinDispatchMixin):
         if isinstance(vr, VolumeRow):
             return vr.down_price
         return 0.0
+
+    def _handle_footprint_total_volume(self, args: list[Any]) -> float:
+        fp = args[0] if args else None
+        if isinstance(fp, Footprint):
+            return fp.total_volume
+        return 0.0
+
+    def _handle_footprint_rows(self, args: list[Any]) -> list[VolumeRow]:
+        fp = args[0] if args else None
+        if isinstance(fp, Footprint):
+            return list(fp.rows)
+        return []
+
+    def _handle_footprint_get_row_by_price(self, args: list[Any]) -> VolumeRow | None:
+        fp = args[0] if args else None
+        price = args[1] if len(args) > 1 else None
+        if not isinstance(fp, Footprint) or price is None:
+            return None
+        p = float(price)
+        for row in fp.rows:
+            lo = min(row.down_price, row.up_price)
+            hi = max(row.down_price, row.up_price)
+            if lo <= p <= hi:
+                return row
+        return None
+
+    def _handle_volume_row_buy_volume(self, args: list[Any]) -> float:
+        vr = args[0] if args else None
+        return float(vr.buy_volume) if isinstance(vr, VolumeRow) else 0.0
+
+    def _handle_volume_row_sell_volume(self, args: list[Any]) -> float:
+        vr = args[0] if args else None
+        return float(vr.sell_volume) if isinstance(vr, VolumeRow) else 0.0
+
+    def _handle_volume_row_delta(self, args: list[Any]) -> float:
+        vr = args[0] if args else None
+        return float(vr.delta) if isinstance(vr, VolumeRow) else 0.0
+
+    def _handle_volume_row_total_volume(self, args: list[Any]) -> float:
+        vr = args[0] if args else None
+        if isinstance(vr, VolumeRow):
+            return float(vr.buy_volume) + float(vr.sell_volume)
+        return 0.0
+
+    def _handle_volume_row_has_buy_imbalance(self, args: list[Any]) -> bool:
+        vr = args[0] if args else None
+        if isinstance(vr, VolumeRow):
+            return bool(vr.is_imbalance and vr.buy_volume > vr.sell_volume)
+        return False
+
+    def _handle_volume_row_has_sell_imbalance(self, args: list[Any]) -> bool:
+        vr = args[0] if args else None
+        if isinstance(vr, VolumeRow):
+            return bool(vr.is_imbalance and vr.sell_volume > vr.buy_volume)
+        return False
 
 
 class RequestBuiltinsMixin(BuiltinDispatchMixin):

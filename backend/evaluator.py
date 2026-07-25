@@ -48,11 +48,22 @@ class CustomEvaluator(NodeLiteralEvaluator):
         value = args[0]
 
         # Unwrap PineSeries if necessary
-        if hasattr(value, "current"):
-            value = value.current
+        if hasattr(value, "current") and not isinstance(value, (list, tuple, str, bytes)):
+            current = getattr(value, "current", None)
+            if current is not None or hasattr(value, "history"):
+                value = current
+
+        # Bar-by-bar runtime: TA helpers often return full series lists;
+        # plot the current (last) bar value to match Pine semantics.
+        if isinstance(value, list):
+            value = value[-1] if value else None
 
         self.plot_outputs.append({"type": "plot", "value": value})
-        return None
+        # Still register on PlotRegistry for parity/backends that inspect it
+        try:
+            return super()._builtin_plot(args, kwargs)
+        except Exception:
+            return None
 
     def reset_plots(self):
         self.plot_outputs = []
