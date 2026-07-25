@@ -183,6 +183,20 @@ class Runtime:
         if mode == "compile":
             return self._run_compiled(source_code, ohlcv_data)
 
+        # Wire request.* sources: chart bars as historical provider when unset
+        try:
+            from pynescript.util.data import resolve_request_sources
+
+            data_feed, data_provider = resolve_request_sources(
+                data_feed=data_feed,
+                data_provider=data_provider,
+                chart_bars=ohlcv_data,
+                symbol=getattr(self, "symbol", "CHART") or "CHART",
+            )
+        except Exception:
+            # Non-fatal: request.* falls back to built-in mocks
+            pass
+
         # Parse once
         try:
             tree = parse(source_code, mode="exec")

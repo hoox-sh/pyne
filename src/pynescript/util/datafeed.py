@@ -494,6 +494,27 @@ class CompositeDataFeed(DataFeed):
         if self.fallback and hasattr(self.fallback, "close"):
             await self.fallback.close()  # type: ignore[attr-defined]
 
+    # Sync helpers for request.* evaluator (prefer primary, then fallback)
+    def fetch_latest_ticker(self, symbol: str) -> dict[str, Any]:
+        for src in (self.primary, self.fallback):
+            if src is not None and hasattr(src, "fetch_latest_ticker"):
+                try:
+                    return src.fetch_latest_ticker(symbol)  # type: ignore[attr-defined]
+                except Exception:  # noqa: S110
+                    continue
+        return {}
+
+    def fetch_latest_ohlcv(
+        self, symbol: str, timeframe: str = "1m", limit: int = 5
+    ) -> list[list[Any]]:
+        for src in (self.primary, self.fallback):
+            if src is not None and hasattr(src, "fetch_latest_ohlcv"):
+                try:
+                    return src.fetch_latest_ohlcv(symbol, timeframe, limit)  # type: ignore[attr-defined]
+                except Exception:  # noqa: S110
+                    continue
+        return []
+
 
 # --- Order execution / position tracking on top of datafeed (point 3) ---
 

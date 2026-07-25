@@ -45,6 +45,11 @@ def _expect_dict(value: Any) -> dict | None:
 RUN_SCHEMA: dict[str, tuple[type, bool, Any]] = {
     "script": (str, True, ""),
     "data": (list, True, []),
+    # Optional request.* data source wiring
+    "symbol": (str, False, "CHART"),
+    "data_source": (str, False, ""),  # ""|mock|ccxt|ccxtpro|yahoo|alphavantage
+    "data_options": (dict, False, {}),  # exchange, api_key, seed, start_price, …
+    "mode": (str, False, "interpret"),  # interpret|compile
 }
 
 

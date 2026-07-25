@@ -102,6 +102,12 @@ def run_pine_script():
         return err
     script = data["script"]
     ohlcv = data["data"]
+    symbol = data.get("symbol") or "CHART"
+    data_source = data.get("data_source") or None
+    data_options = data.get("data_options") or {}
+    mode = data.get("mode") or "interpret"
+    if isinstance(data_source, str) and not data_source.strip():
+        data_source = None
 
     if not script:
         return jsonify(
@@ -121,8 +127,35 @@ def run_pine_script():
             }
         ), 400
 
-    runtime = Runtime()
-    result = runtime.run(script, ohlcv, data_feed=None, data_provider=None)
+    # Resolve optional data_feed / data_provider for request.*
+    data_feed = None
+    data_provider = None
+    try:
+        from pynescript.util.data import resolve_request_sources
+
+        data_feed, data_provider = resolve_request_sources(
+            chart_bars=ohlcv,
+            symbol=str(symbol),
+            data_source=data_source,
+            source_options=data_options if isinstance(data_options, dict) else {},
+        )
+    except Exception as e:  # noqa: BLE001 — surface config errors cleanly
+        return jsonify(
+            {
+                "status": "error",
+                "code": "DATA_SOURCE_ERROR",
+                "message": f"Failed to configure data source: {e}",
+            }
+        ), 400
+
+    runtime = Runtime(symbol=str(symbol))
+    result = runtime.run(
+        script,
+        ohlcv,
+        data_feed=data_feed,
+        data_provider=data_provider,
+        mode=str(mode),
+    )
 
     if "error" in result:
         return jsonify(
@@ -141,6 +174,8 @@ def run_pine_script():
             "script_id": result.get("script_id", ""),
             "run_id": result.get("run_id", ""),
             "count": result.get("count", 0),
+            "mode": result.get("mode", mode),
+            "data_source": data_source or "chart",
         }
     )
 

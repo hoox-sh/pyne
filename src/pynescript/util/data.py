@@ -27,7 +27,6 @@ from abc import abstractmethod
 from datetime import datetime
 from datetime import timedelta
 from typing import Any
-from datetime import timedelta
 
 
 class DataProvider(ABC):
@@ -72,6 +71,54 @@ class DataProviderError(Exception):
     """Error raised by data providers."""
 
     pass
+
+
+class ChartOHLCVProvider(DataProvider):
+    """Historical provider backed by in-memory chart bars (Runtime OHLCV).
+
+    Used so ``request.security`` on the chart symbol returns the same series
+    the script is evaluating, without network I/O.
+    """
+
+    def __init__(self, bars: list[dict[str, Any]], symbol: str = "CHART"):
+        self._bars = list(bars or [])
+        self._symbol = str(symbol).upper()
+
+    def fetch(
+        self,
+        symbol: str = "CHART",
+        period: str = "1y",
+        interval: str = "1d",
+    ) -> dict[str, Any]:
+        _ = period, interval
+        bars = self._bars
+        if not bars:
+            return {"open": [], "high": [], "low": [], "close": [], "volume": [], "time": []}
+        return {
+            "open": [float(b.get("open", 0.0)) for b in bars],
+            "high": [float(b.get("high", 0.0)) for b in bars],
+            "low": [float(b.get("low", 0.0)) for b in bars],
+            "close": [float(b.get("close", 0.0)) for b in bars],
+            "volume": [float(b.get("volume", 0.0)) for b in bars],
+            "time": [b.get("time", 0) for b in bars],
+            "symbol": self._symbol,
+        }
+
+    def fetch_quote(self, symbol: str) -> dict[str, Any]:
+        if not self._bars:
+            return {"last": 0.0, "close": 0.0, "symbol": self._symbol}
+        last = self._bars[-1]
+        c = float(last.get("close", 0.0))
+        return {
+            "symbol": self._symbol,
+            "last": c,
+            "close": c,
+            "open": float(last.get("open", c)),
+            "high": float(last.get("high", c)),
+            "low": float(last.get("low", c)),
+            "volume": float(last.get("volume", 0.0)),
+            "timestamp": last.get("time", 0),
+        }
 
 
 class MockDataProvider(DataProvider):
@@ -526,6 +573,7 @@ def get_provider(name: str = "yahoo", **kwargs) -> DataProvider:
         "yahoo": YahooFinanceProvider,
         "alphavantage": AlphaVantageProvider,
         "ccxt": CCXTProvider,
+        "chart": ChartOHLCVProvider,  # needs bars= kwargs
     }
 
     if name not in providers:
@@ -539,16 +587,76 @@ def get_provider(name: str = "yahoo", **kwargs) -> DataProvider:
         provider_kwargs["exchange"] = kwargs.get("exchange", "binance")
         provider_kwargs["api_key"] = kwargs.get("api_key", "")
         provider_kwargs["secret"] = kwargs.get("secret", "")
+    elif name == "chart":
+        provider_kwargs["bars"] = kwargs.get("bars", [])
+        provider_kwargs["symbol"] = kwargs.get("symbol", "CHART")
 
     return providers[name](**provider_kwargs)
+
+
+def resolve_request_sources(
+    *,
+    data_feed: Any = None,
+    data_provider: Any = None,
+    chart_bars: list[dict[str, Any]] | None = None,
+    symbol: str = "CHART",
+    data_source: str | None = None,
+    source_options: dict[str, Any] | None = None,
+) -> tuple[Any, Any]:
+    """Resolve (data_feed, data_provider) for Runtime / request.* wiring.
+
+    Priority:
+    1. Explicit ``data_feed`` / ``data_provider`` arguments
+    2. ``data_source`` factory: mock | ccxt | ccxtpro | yahoo | alphavantage
+    3. Chart bars as historical provider (always attached when bars given and
+       no other provider was set)
+
+    Returns:
+        ``(data_feed, data_provider)`` possibly None.
+    """
+    opts = dict(source_options or {})
+    feed = data_feed
+    provider = data_provider
+
+    if data_source:
+        src = str(data_source).lower()
+        if src in {"mock", "ccxtpro", "ccxt", "pro"} and feed is None:
+            from pynescript.util.datafeed import get_datafeed
+
+            if src == "mock":
+                feed = get_datafeed("mock", **opts)
+            else:
+                feed = get_datafeed(
+                    "ccxtpro",
+                    exchange=opts.get("exchange", "binance"),
+                    api_key=opts.get("api_key", ""),
+                    secret=opts.get("secret", ""),
+                    password=opts.get("password", ""),
+                    sandbox=bool(opts.get("sandbox", False)),
+                )
+        elif src in {"yahoo", "alphavantage", "ccxt"} and provider is None:
+            # historical-only providers
+            if src == "ccxt":
+                provider = get_provider("ccxt", **opts)
+            else:
+                provider = get_provider(src, **opts)
+        elif src == "mock" and provider is None and feed is None:
+            provider = get_provider("mock", seed=opts.get("seed"))
+
+    if provider is None and chart_bars:
+        provider = ChartOHLCVProvider(chart_bars, symbol=symbol)
+
+    return feed, provider
 
 
 __all__ = [
     "AlphaVantageProvider",
     "CCXTProvider",
+    "ChartOHLCVProvider",
     "DataProvider",
     "DataProviderError",
     "MockDataProvider",
     "YahooFinanceProvider",
     "get_provider",
+    "resolve_request_sources",
 ]
