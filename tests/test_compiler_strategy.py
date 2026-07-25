@@ -101,8 +101,51 @@ strategy.cancel("O1")
         out = compiled.run(o, h, l, c, v)
         kinds = [e["kind"] for e in out["__events"]]
         assert "order" in kinds
-        assert "entry" in kinds  # order acts as market entry in compile broker
         assert "cancel" in kinds
+        # Cancelled before next-bar fill — no entry
+        assert "entry" not in kinds
+
+    def test_limit_order_fills_next_bar(self) -> None:
+        """Pending limit buy fills when next bar's low touches limit."""
+        src = """//@version=6
+strategy("lim")
+if bar_index == 0
+    strategy.order("L1", strategy.long, qty=2, limit=100.0)
+plot(strategy.position_size, title="ps")
+"""
+        compiled = compile_script(src)
+        # bar0: open=101, high=102, low=100.5, close=101 — place order
+        # bar1: low=99.5 touches limit 100 → fill
+        n = 4
+        close = np.array([101.0, 100.0, 100.0, 100.0])
+        open_ = np.array([101.0, 100.5, 100.0, 100.0])
+        high = np.array([102.0, 101.0, 101.0, 101.0])
+        low = np.array([100.5, 99.5, 99.0, 99.0])
+        vol = np.ones(n)
+        out = compiled.run(open_, high, low, close, vol)
+        events = out["__events"]
+        fills = [e for e in events if e.get("comment") == "fill" or (e.get("kind") == "entry")]
+        assert any(e.get("kind") == "entry" for e in events)
+        # position after fill
+        assert out["__position_size"] == 2.0 or out["ps"][-1] == 2.0
+
+    def test_stop_entry_pending(self) -> None:
+        src = """//@version=6
+strategy("st")
+if bar_index == 0
+    strategy.entry("Gap", strategy.long, stop=105.0)
+"""
+        compiled = compile_script(src)
+        # bar0 place stop at 105
+        # bar1 high=106 → stop fill
+        close = np.array([100.0, 105.5, 105.5])
+        open_ = np.array([100.0, 104.0, 105.0])
+        high = np.array([101.0, 106.0, 106.0])
+        low = np.array([99.0, 103.0, 104.0])
+        out = compiled.run(open_, high, low, close, np.ones(3))
+        entries = [e for e in out["__events"] if e.get("kind") == "entry"]
+        assert len(entries) >= 1
+        assert out["__position_size"] == 1.0
 
 
 @pytest.mark.skipif(not has_numba(), reason="numba not required for object-mode strategy")

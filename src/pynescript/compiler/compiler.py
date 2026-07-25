@@ -182,8 +182,22 @@ class CompilerVisitor(NodeVisitor):
 
         lines.append("    for __bar_idx in range(n_bars):")
         if self.uses_strategy:
+            # Update OHLC then fill pending orders before script body
+            # (same order as interpreter Runtime: process → evaluate).
             lines.append(
-                "        __strategy.set_bar(__bar_idx, 0, float(close_arr[__bar_idx]))"
+                "        __strategy.set_bar("
+                "__bar_idx, 0, float(close_arr[__bar_idx]), "
+                "open_=float(open_arr[__bar_idx]), "
+                "high=float(high_arr[__bar_idx]), "
+                "low=float(low_arr[__bar_idx]), "
+                "close=float(close_arr[__bar_idx]))"
+            )
+            lines.append(
+                "        __strategy.process_pending_orders("
+                "open_=float(open_arr[__bar_idx]), "
+                "high=float(high_arr[__bar_idx]), "
+                "low=float(low_arr[__bar_idx]), "
+                "close=float(close_arr[__bar_idx]))"
             )
         if not body_lines and not self.uses_strategy:
             lines.append("        pass")
