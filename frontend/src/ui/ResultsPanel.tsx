@@ -11,9 +11,11 @@ import {
   formatNum,
   formatPct,
   tradesToCsv,
+  type ClosedTrade,
   type StrategyEvent,
 } from '../results/strategy';
 import { normalizeStrategyEvents } from '../results/events';
+import { getManager } from '../chart/ChartHost';
 import { Icons } from './icons';
 
 type TabId = 'events' | 'strategy' | 'plots' | 'metrics' | 'raw';
@@ -65,6 +67,11 @@ export const ResultsPanel: Component = () => {
       includeOrders: true,
     });
   });
+
+  function jumpToTrade(trade: ClosedTrade, which: 'entry' | 'exit' = 'entry') {
+    const t = which === 'exit' ? trade.exitTime : trade.entryTime;
+    getManager()?.scrollToTime(t);
+  }
 
   const plotSummary = createMemo(() => {
     const r = result();
@@ -328,14 +335,32 @@ export const ResultsPanel: Component = () => {
                   <tbody>
                     <For each={report()!.trades}>
                       {(t) => (
-                        <tr class="border-t border-border-soft">
+                        <tr
+                          class="border-t border-border-soft cursor-pointer hover:bg-bg-hover/80 transition-colors"
+                          title="Jump to entry on chart"
+                          onClick={() => jumpToTrade(t, 'entry')}
+                        >
                           <td class="px-2 py-0.5">{t.id}</td>
                           <td class="px-2 py-0.5">{t.dir}</td>
-                          <td class="px-2 py-0.5">
+                          <td
+                            class="px-2 py-0.5 text-accent hover:underline"
+                            title="Jump to entry"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              jumpToTrade(t, 'entry');
+                            }}
+                          >
                             {new Date(t.entryTime * 1000).toISOString().slice(0, 10)} @{' '}
                             {t.entry.toFixed(2)}
                           </td>
-                          <td class="px-2 py-0.5">
+                          <td
+                            class="px-2 py-0.5 hover:underline"
+                            title="Jump to exit"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              jumpToTrade(t, 'exit');
+                            }}
+                          >
                             {new Date(t.exitTime * 1000).toISOString().slice(0, 10)} @{' '}
                             {t.exit.toFixed(2)}
                           </td>

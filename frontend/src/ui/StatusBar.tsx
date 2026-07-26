@@ -1,6 +1,8 @@
-import { Component } from 'solid-js';
+import { Component, Show, createMemo } from 'solid-js';
 import { store, setStore, persist } from '../store';
 import { Icons } from './icons';
+import type { RunResult } from '../indicators/runner';
+import { buildStrategyReport, formatMoney } from '../results/strategy';
 
 const STATUS_COLORS: Record<string, string> = {
   ready: 'text-accent-2',
@@ -14,6 +16,14 @@ const STATUS_COLORS: Record<string, string> = {
 export const StatusBar: Component = () => {
   const color = () => STATUS_COLORS[store.status] || 'text-text-dim';
 
+  const strategySummary = createMemo(() => {
+    const r = store.lastRun as RunResult | null;
+    if (!r?.events?.length) return null;
+    const rep = buildStrategyReport(r.events as never[], store.bars);
+    if (!rep.stats.trades) return null;
+    return rep.stats;
+  });
+
   return (
     <div class="flex items-center gap-2 px-2.5 py-0.5 bg-bg-panel border-t-2 border-border text-[11px] text-text-dim min-h-[22px] flex-shrink-0">
       <span class={`flex items-center gap-1.5 min-w-0 ${color()}`}>
@@ -24,6 +34,19 @@ export const StatusBar: Component = () => {
         <span class="truncate">{store.statusMessage}</span>
       </span>
       <span class="flex-1" />
+
+      <Show when={strategySummary()}>
+        {(stats) => (
+          <span
+            class={`text-[10px] font-mono tracking-tight tabular-nums ${
+              stats().totalPnl >= 0 ? 'text-accent-2' : 'text-red'
+            }`}
+            title="Closed trades from last run"
+          >
+            {stats().trades} trades · {formatMoney(stats().totalPnl)}
+          </span>
+        )}
+      </Show>
 
       <button
         type="button"

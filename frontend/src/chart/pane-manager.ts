@@ -282,6 +282,42 @@ export class PaneManager {
   }
 
   /**
+   * Center all panes on a bar time (unix seconds). Used when clicking a trade row.
+   */
+  scrollToTime(time: number, halfWindow = 40) {
+    if (!Number.isFinite(time)) return;
+    const t = time as UTCTimestamp;
+    for (const pane of this.getAllPanes()) {
+      if (!pane.visible) continue;
+      try {
+        const ts = pane.chart.timeScale();
+        const coord = ts.timeToCoordinate(t);
+        if (coord == null) {
+          // Time outside current data — try a tight visible range
+          ts.setVisibleRange({
+            from: (time - 86400 * 14) as UTCTimestamp,
+            to: (time + 86400 * 14) as UTCTimestamp,
+          });
+          continue;
+        }
+        const logical = ts.coordinateToLogical(coord);
+        if (logical == null) continue;
+        this.suppressSync = true;
+        try {
+          ts.setVisibleLogicalRange({
+            from: logical - halfWindow,
+            to: logical + halfWindow,
+          });
+        } finally {
+          this.suppressSync = false;
+        }
+      } catch {
+        /* ignore per-pane failures */
+      }
+    }
+  }
+
+  /**
    * Show / hide equity pane and set area series data.
    * Creates the pane on first use (height 100px).
    */
