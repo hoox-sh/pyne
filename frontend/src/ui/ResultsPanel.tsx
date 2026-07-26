@@ -13,6 +13,7 @@ import {
   tradesToCsv,
   type StrategyEvent,
 } from '../results/strategy';
+import { normalizeStrategyEvents } from '../results/events';
 import { Icons } from './icons';
 
 type TabId = 'events' | 'strategy' | 'plots' | 'metrics' | 'raw';
@@ -53,7 +54,16 @@ export const ResultsPanel: Component = () => {
   const report = createMemo(() => {
     const r = result();
     if (!r) return null;
-    return buildStrategyReport((r.events || []) as StrategyEvent[]);
+    return buildStrategyReport((r.events || []) as StrategyEvent[], store.bars);
+  });
+
+  const normalizedEvents = createMemo(() => {
+    const r = result();
+    if (!r) return [] as StrategyEvent[];
+    return normalizeStrategyEvents((r.events || []) as StrategyEvent[], {
+      bars: store.bars,
+      includeOrders: true,
+    });
   });
 
   const plotSummary = createMemo(() => {
@@ -233,25 +243,29 @@ export const ResultsPanel: Component = () => {
 
           <Show when={result() && tab() === 'events'}>
             <Show
-              when={(result()?.events?.length ?? 0) > 0}
+              when={normalizedEvents().length > 0}
               fallback={
                 <div class="text-text-faint p-2">No strategy events in this run.</div>
               }
             >
               <ul class="flex flex-col gap-0.5 font-mono">
-                <For each={(result()?.events || []) as StrategyEvent[]}>
+                <For each={normalizedEvents()}>
                   {(ev) => {
-                    const kind = String(ev.type || ev.event || '?');
+                    const kind = String(ev.type || ev.event || ev.kind || '?');
                     const t = ev.time
                       ? new Date(ev.time * 1000).toISOString().slice(0, 16).replace('T', ' ')
                       : '—';
+                    const dir = ev.dir || ev.direction || '';
                     return (
                       <li class="flex gap-2 py-0.5 border-b border-border-soft/60 items-baseline">
                         <span class="text-text-faint w-[118px] flex-shrink-0">{t}</span>
                         <span class="text-accent w-16 flex-shrink-0 truncate">{kind}</span>
+                        <span class="text-text-dim w-12 truncate">{String(dir)}</span>
                         <span class="text-text-dim w-16 truncate">{String(ev.id || '')}</span>
                         <span class="text-text flex-1 truncate">
-                          {ev.price !== undefined ? Number(ev.price).toFixed(2) : '—'}
+                          {ev.price !== undefined && ev.price !== null
+                            ? Number(ev.price).toFixed(2)
+                            : '—'}
                         </span>
                       </li>
                     );

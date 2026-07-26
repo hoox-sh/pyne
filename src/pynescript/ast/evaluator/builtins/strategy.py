@@ -274,8 +274,26 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
     """Strategy execution functions for entry, exit, and trade management."""
 
     def _record_strategy_event(self, event: StrategyEvent) -> None:
-        """Append a captured event to the current run's event buffer."""
+        """Append a captured event to the current run's event buffer.
+
+        If ``ohlc`` was left as zeros (legacy call sites), fill from the
+        current bar so AXIS markers / equity can resolve a fill price without
+        a host-side bar join.
+        """
+        from dataclasses import replace
+
+        if event.ohlc == (0.0, 0.0, 0.0, 0.0):
+            event = replace(event, ohlc=self._bar_ohlc())
         self._strategy_state._events.append(event)
+
+    def _bar_ohlc(self) -> tuple[float, float, float, float]:
+        """OHLC of the bar currently being evaluated (for StrategyEvent.ohlc)."""
+        ctx = getattr(self, "context", {}) or {}
+        o = self._coerce_number(ctx.get("open"), default=0.0)
+        h = self._coerce_number(ctx.get("high"), default=0.0)
+        lo = self._coerce_number(ctx.get("low"), default=0.0)
+        c = self._coerce_number(ctx.get("close"), default=self._mark_price())
+        return (float(o), float(h), float(lo), float(c))
 
     def _strategy_builtin_map(self) -> dict[str, BuiltinHandler]:
         return {

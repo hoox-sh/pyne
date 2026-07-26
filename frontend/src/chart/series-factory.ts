@@ -5,6 +5,7 @@ import {
   CandlestickSeries,
   HistogramSeries,
   LineSeries,
+  AreaSeries,
   type IChartApi,
   type ISeriesApi,
   type LineWidth,
@@ -146,4 +147,29 @@ export function createLineSeries(chart: IChartApi, name: string, color: string, 
   return paneIndex !== undefined
     ? chart.addSeries(LineSeries, opts, paneIndex)
     : chart.addSeries(LineSeries, opts);
+}
+
+/** Equity curve — Hell Flieder fill on void canvas */
+export function createAreaSeries(
+  chart: IChartApi,
+  name: string,
+  color = TV.flieder,
+  paneIndex?: number,
+): ISeriesApi<'Area'> {
+  const opts = {
+    lineColor: color,
+    topColor: 'rgba(196, 176, 240, 0.28)',
+    bottomColor: 'rgba(196, 176, 240, 0.02)',
+    lineWidth: 2 as LineWidth,
+    priceLineVisible: false,
+    lastValueVisible: true,
+    title: name,
+    crosshairMarkerVisible: true,
+    crosshairMarkerRadius: 3,
+    crosshairMarkerBorderColor: TV.bg,
+    crosshairMarkerBackgroundColor: color,
+  };
+  return paneIndex !== undefined
+    ? chart.addSeries(AreaSeries, opts, paneIndex)
+    : chart.addSeries(AreaSeries, opts);
 }

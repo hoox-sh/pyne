@@ -17,6 +17,9 @@ export function setDataToChart(bars: Bar[]) {
   const pricePane = manager.getPane('price');
   const volPane = manager.getPane('volume');
 
+  // New OHLCV invalidates previous run overlays on price (caller re-runs if needed)
+  manager.clearTradeMarkers();
+
   if (pricePane && !pricePane.series['candle']) {
     pricePane.series['candle'] = createCandleSeries(pricePane.chart);
   }

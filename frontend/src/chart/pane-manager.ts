@@ -1,7 +1,21 @@
-import type { IChartApi, ISeriesApi, UTCTimestamp } from 'lightweight-charts';
-import { createBaseChart, createCandleSeries, createVolumeSeries, createLineSeries, PLOT_PALETTE } from './series-factory';
+import {
+  createSeriesMarkers,
+  type IChartApi,
+  type ISeriesApi,
+  type ISeriesMarkersPluginApi,
+  type SeriesMarker,
+  type UTCTimestamp,
+} from 'lightweight-charts';
+import {
+  createBaseChart,
+  createLineSeries,
+  createAreaSeries,
+  PLOT_PALETTE,
+  TV,
+} from './series-factory';
 import type { Bar } from '../store/types';
 import { resizePane } from '../store';
+import type { TradeMarker } from '../results/events';
 
 export interface ManagedPane {
   id: string;
@@ -17,6 +31,8 @@ export class PaneManager {
   private panes: Map<string, ManagedPane> = new Map();
   private container: HTMLElement;
   private suppressSync = false;
+  /** LWC v5 markers plugin attached to the price candle series */
+  private candleMarkers: ISeriesMarkersPluginApi<UTCTimestamp> | null = null;
 
   constructor(container: HTMLElement) {
     this.container = container;
@@ -59,13 +75,15 @@ export class PaneManager {
 
     const chart = createBaseChart(div, {
       timeScale:
-        type === 'volume' || type === 'indicator'
+        type === 'volume' || type === 'indicator' || type === 'equity'
           ? { visible: false, borderColor: '#3a3d4a', borderVisible: false }
           : undefined,
       rightPriceScale:
         type === 'volume'
           ? { borderColor: '#3a3d4a', scaleMargins: { top: 0.15, bottom: 0.02 }, minimumWidth: 54 }
-          : undefined,
+          : type === 'equity'
+            ? { borderColor: TV.border, scaleMargins: { top: 0.1, bottom: 0.05 }, minimumWidth: 54 }
+            : undefined,
     });
 
     const ro = new ResizeObserver(() => {
@@ -216,16 +234,91 @@ export class PaneManager {
   }
 
   syncTimeScales() {
-    const panes = this.getAllPanes().filter((p) => p.type !== 'equity' && p.visible);
+    // Include equity so trade curve tracks price/volume range
+    const panes = this.getAllPanes().filter((p) => p.visible);
     if (panes.length < 2) return;
     const src = panes[0].chart;
     for (let i = 1; i < panes.length; i++) {
+      const target = panes[i].chart;
       src.timeScale().subscribeVisibleLogicalRangeChange((range) => {
         if (this.suppressSync || !range) return;
         this.suppressSync = true;
-        try { panes[i].chart.timeScale().setVisibleLogicalRange(range); } finally { this.suppressSync = false; }
+        try {
+          target.timeScale().setVisibleLogicalRange(range);
+        } finally {
+          this.suppressSync = false;
+        }
       });
     }
+  }
+
+  /**
+   * Attach or update entry/exit markers on the price candle series (LWC v5).
+   */
+  setTradeMarkers(markers: TradeMarker[]) {
+    const pricePane = this.panes.get('price');
+    const candle = pricePane?.series['candle'];
+    if (!candle) return;
+
+    const seriesMarkers: SeriesMarker<UTCTimestamp>[] = markers.map((m) => ({
+      time: m.time as UTCTimestamp,
+      position: m.position,
+      color: m.color,
+      shape: m.shape,
+      text: m.text,
+    }));
+
+    if (!this.candleMarkers) {
+      this.candleMarkers = createSeriesMarkers(candle, seriesMarkers);
+    } else {
+      this.candleMarkers.setMarkers(seriesMarkers);
+    }
+  }
+
+  clearTradeMarkers() {
+    if (this.candleMarkers) {
+      this.candleMarkers.setMarkers([]);
+    }
+  }
+
+  /**
+   * Show / hide equity pane and set area series data.
+   * Creates the pane on first use (height 100px).
+   */
+  setEquityCurve(points: { time: number; value: number }[]) {
+    if (!points.length) {
+      this.hideEquityPane();
+      return;
+    }
+
+    let pane = this.panes.get('equity');
+    if (!pane) {
+      pane = this.createPane('equity', 'equity', 'Equity', 100);
+      pane.series['equity'] = createAreaSeries(pane.chart, 'Equity', TV.flieder);
+      this.syncTimeScales();
+    } else {
+      this.setVisible('equity', true);
+      if (!pane.series['equity']) {
+        pane.series['equity'] = createAreaSeries(pane.chart, 'Equity', TV.flieder);
+      }
+    }
+
+    pane.series['equity'].setData(
+      points.map((p) => ({ time: p.time as UTCTimestamp, value: p.value })),
+    );
+  }
+
+  hideEquityPane() {
+    const pane = this.panes.get('equity');
+    if (!pane) return;
+    if (pane.series['equity']) {
+      try {
+        pane.series['equity'].setData([]);
+      } catch {
+        /* ignore */
+      }
+    }
+    this.setVisible('equity', false);
   }
 
   syncCrosshair(onMove: (data: { time: any; point: { x: number; y: number } | null; seriesData: Map<ISeriesApi<any>, any> }) => void) {
@@ -304,6 +397,7 @@ export class PaneManager {
   }
 
   dispose() {
+    this.candleMarkers = null;
     for (const pane of this.getAllPanes()) {
       this.destroyPane(pane.id);
     }

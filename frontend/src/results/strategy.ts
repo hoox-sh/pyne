@@ -1,15 +1,27 @@
 /**
  * Strategy tester — pair entry/exit events into closed trades + summary stats.
  * Ported from legacy ui/results.js for AXIS Solid panel.
+ *
+ * Accepts both Pro API parity events (`kind`/`bar_time`/`direction`/`ohlc`)
+ * and legacy UI fields (`type`/`time`/`dir`/`price`). Pass bars for price fill
+ * when ohlc is empty.
  */
+
+import type { Bar } from '../store/types';
+import { normalizeStrategyEvents } from './events';
 
 export interface StrategyEvent {
   time?: number;
   price?: number;
   type?: string;
   event?: string;
+  kind?: string;
   id?: string;
   dir?: string;
+  direction?: string;
+  bar_time?: number;
+  bar_index?: number;
+  ohlc?: number[];
   symbol?: string;
   [key: string]: unknown;
 }
@@ -38,11 +50,15 @@ export interface StrategyStats {
   trades: number;
 }
 
-export function buildStrategyReport(events: StrategyEvent[]): {
+export function buildStrategyReport(
+  events: StrategyEvent[] | Record<string, unknown>[],
+  bars?: Bar[],
+): {
   trades: ClosedTrade[];
   stats: StrategyStats;
 } {
-  const sorted = (events || []).slice().sort((a, b) => (a.time || 0) - (b.time || 0));
+  const normalized = normalizeStrategyEvents(events, { bars, includeOrders: true });
+  const sorted = normalized.slice().sort((a, b) => (a.time || 0) - (b.time || 0));
   const open = new Map<string, { entry: number; time: number; dir: string }>();
   const trades: ClosedTrade[] = [];
 
@@ -50,10 +66,10 @@ export function buildStrategyReport(events: StrategyEvent[]): {
     const t = ev.time;
     const p = ev.price;
     if (t === undefined || p === undefined) continue;
-    const kind = String(ev.type || ev.event || '').toLowerCase();
+    const kind = String(ev.type || ev.event || ev.kind || '').toLowerCase();
     const id = String(ev.id || '_default');
     if (kind.includes('entry')) {
-      const dir = String(ev.dir || kind).toLowerCase();
+      const dir = String(ev.dir || ev.direction || kind).toLowerCase();
       open.set(id, { entry: Number(p), time: Number(t), dir });
     } else if (kind.includes('close') || kind.includes('exit')) {
       const o = open.get(id);

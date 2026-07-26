@@ -1,6 +1,8 @@
 import { store, setStore, addIndicator, addPane, setStatus, setLastRun, appendLog } from '../store';
 import { getManager } from '../chart/ChartHost';
 import { PLOT_PALETTE } from '../chart/series-factory';
+import { normalizeStrategyEvents, eventsToMarkers, buildEquityCurve } from '../results/events';
+import { buildStrategyReport } from '../results/strategy';
 
 export interface RunResult {
   status: 'success' | 'error';
@@ -114,6 +116,7 @@ export async function runAndApply(
   }
 
   manager.removeOverlays(paneId);
+  manager.clearTradeMarkers();
 
   const ohlcvTimes = store.bars.map((b) => b.time);
 
@@ -138,6 +141,34 @@ export async function runAndApply(
       )
       .filter(Boolean) as { time: number; value: number }[];
     if (data.length) manager.addOverlayLine(paneId, k, data);
+  }
+
+  // Strategy: markers on price pane + equity curve
+  const events = result.events || [];
+  if (events.length) {
+    const normalized = normalizeStrategyEvents(events, {
+      bars: store.bars,
+      includeOrders: false,
+    });
+    const markers = eventsToMarkers(normalized);
+    manager.setTradeMarkers(markers);
+
+    const report = buildStrategyReport(events, store.bars);
+    if (report.trades.length) {
+      const equity = buildEquityCurve(report.trades, 10_000);
+      manager.setEquityCurve(equity);
+      if (!silent) {
+        appendLog(
+          'ok',
+          `Strategy: ${report.stats.trades} trades · net ${report.stats.totalPnl >= 0 ? '+' : ''}${report.stats.totalPnl.toFixed(2)}`,
+          'strategy',
+        );
+      }
+    } else {
+      manager.hideEquityPane();
+    }
+  } else {
+    manager.hideEquityPane();
   }
 
   if (indicatorId === undefined) {
