@@ -425,7 +425,7 @@ export const ScriptLibraryPanel: Component<ScriptLibraryPanelProps> = (props) =>
           when={items().length > 0}
           fallback={<div class="text-text-faint p-2">No saved scripts yet.</div>}
         >
-          <ul class="flex flex-col gap-1 max-h-[240px] overflow-auto">
+          <ul class="flex flex-col gap-1 max-h-[min(480px,50vh)] overflow-auto">
             <For each={items()}>
               {(item) => (
                 <li class="flex items-center gap-2 border-2 border-border bg-bg-elev px-2 py-1.5">

@@ -4,7 +4,7 @@
  */
 
 import { describe, expect, it } from 'bun:test';
-import { capabilityKeys, engineOptionLabel } from '../src/ui/plugin-badges';
+import { capabilityKeys, engineOptionLabel } from '../src/ui/plugin-badges-utils';
 import type { PluginBase } from '../src/plugins/types';
 
 describe('capabilityKeys', () => {
