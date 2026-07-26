@@ -148,6 +148,77 @@ declare global {
   }
 }
 
+/** Self-hosted Pyodide (public/pyodide/v0.26.2 — ~14MB, no CDN required). */
+export const LOCAL_PYODIDE_VERSION = '0.26.2';
+export const LOCAL_PYODIDE_INDEX = `/pyodide/v${LOCAL_PYODIDE_VERSION}/`;
+
+/** Absolute indexURL with trailing slash (relative paths resolve against location.origin). */
+export function resolvePyodideIndexUrl(configured?: string): string {
+  const raw = (configured || LOCAL_PYODIDE_INDEX).trim() || LOCAL_PYODIDE_INDEX;
+  if (/^https?:\/\//i.test(raw)) {
+    return raw.endsWith('/') ? raw : `${raw}/`;
+  }
+  const origin = typeof location !== 'undefined' ? location.origin : '';
+  const path = raw.startsWith('/') ? raw : `/${raw}`;
+  const withSlash = path.endsWith('/') ? path : `${path}/`;
+  return `${origin}${withSlash}`;
+}
+
+function pyodidePluginConfig(): Record<string, unknown> {
+  const configs = store.pluginsConfig || {};
+  return (configs['engine:pyodide'] || configs.pyodide || {}) as Record<string, unknown>;
+}
+
+/** Prefetch core Pyodide assets into HTTP cache (wasm + stdlib are the heavy bits). */
+export function prefetchPyodideAssets(indexUrl?: string): void {
+  if (typeof document === 'undefined') return;
+  const base = resolvePyodideIndexUrl(indexUrl);
+  const files = [
+    'pyodide.js',
+    'pyodide.asm.js',
+    'pyodide.asm.wasm',
+    'python_stdlib.zip',
+    'pyodide-lock.json',
+    'micropip-0.6.0-py3-none-any.whl',
+    'packaging-23.2-py3-none-any.whl',
+  ];
+  for (const f of files) {
+    const href = `${base}${f}`;
+    if (document.querySelector(`link[data-axis-pyodide="${f}"]`)) continue;
+    const link = document.createElement('link');
+    link.rel = f.endsWith('.js') ? 'modulepreload' : 'prefetch';
+    link.href = href;
+    link.as = f.endsWith('.wasm') ? 'fetch' : f.endsWith('.js') ? 'script' : 'fetch';
+    link.crossOrigin = 'anonymous';
+    link.dataset.axisPyodide = f;
+    document.head.appendChild(link);
+  }
+  // Also warm vendor wheels + runtime (same-origin)
+  if (typeof location !== 'undefined') {
+    const origin = location.origin;
+    for (const path of [
+      '/vendor/pynescript-0.2.0-py3-none-any.whl',
+      '/vendor/antlr4_python3_runtime-4.13.2-py3-none-any.whl',
+      '/pyodide/pynescript_runtime.py',
+    ]) {
+      void fetch(`${origin}${path}`, { method: 'GET', credentials: 'same-origin' }).catch(() => {});
+    }
+  }
+}
+
+/**
+ * Preload full Pyodide + pynescript runtime in the background.
+ * Safe to call multiple times; shares the same ensure promise.
+ */
+export function preloadPyodide(): Promise<unknown> {
+  prefetchPyodideAssets();
+  return pyodideEngine._ensure().catch((err: unknown) => {
+    // Soft-fail: preload must not break the app if assets are missing
+    console.warn('[axis] pyodide preload failed', err);
+    return null;
+  });
+}
+
 export const pyodideEngine: EnginePlugin & {
   _pyodide: PyodideLike | null;
   _loadPromise: Promise<PyodideLike> | null;
@@ -158,13 +229,13 @@ export const pyodideEngine: EnginePlugin & {
   kind: 'engine',
   builtIn: true,
   description:
-    'Loads the Python pynescript runtime into the browser via Pyodide and runs the script locally. Works offline after first load.',
-  capabilities: { offline: true, needsNetwork: true },
+    'Runs Pine in the browser via self-hosted Pyodide (~14MB from this origin). Preloads on idle; no CDN required after deploy.',
+  capabilities: { offline: true, needsNetwork: false },
   configSchema: {
     indexUrl: {
       type: 'string',
-      default: 'https://cdn.jsdelivr.net/pyodide/v0.26.2/full/',
-      label: 'Pyodide index URL',
+      default: LOCAL_PYODIDE_INDEX,
+      label: 'Pyodide index URL (default: self-hosted /pyodide/v0.26.2/)',
     },
   },
   _pyodide: null,
@@ -181,10 +252,12 @@ export const pyodideEngine: EnginePlugin & {
     if (this._pyodide) return this._pyodide;
     if (this._loadPromise) return this._loadPromise;
     const self = this;
-    const cfg = resolveConfig(this.configSchema, {});
-    const indexUrl = String(cfg.indexUrl || 'https://cdn.jsdelivr.net/pyodide/v0.26.2/full/');
+    const cfg = resolveConfig(this.configSchema, pyodidePluginConfig());
+    const indexUrl = resolvePyodideIndexUrl(String(cfg.indexUrl || LOCAL_PYODIDE_INDEX));
     this._loadPromise = (async () => {
       const origin = typeof location !== 'undefined' ? location.origin : '';
+      prefetchPyodideAssets(indexUrl);
+
       if (typeof window !== 'undefined' && typeof window.loadPyodide !== 'function') {
         await import(/* @vite-ignore */ `${indexUrl}pyodide.js`);
       }
@@ -192,10 +265,11 @@ export const pyodideEngine: EnginePlugin & {
         throw new Error('loadPyodide not available');
       }
       const py = await window.loadPyodide({ indexURL: indexUrl });
+      // micropip + packaging served from same self-hosted index
       await py.loadPackage('micropip');
       const micropip = py.pyimport('micropip');
 
-      // Local wheels under /vendor (served from public/ → dist). Validate before micropip
+      // Local wheels under /vendor (public/ → dist). Validate before micropip
       // so SPA HTML fallbacks surface as clear errors instead of BadZipFile.
       const wheelUrl = `${origin}/vendor/pynescript-0.2.0-py3-none-any.whl`;
       const antlrUrl = `${origin}/vendor/antlr4_python3_runtime-4.13.2-py3-none-any.whl`;

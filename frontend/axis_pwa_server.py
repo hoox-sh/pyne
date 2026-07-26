@@ -41,6 +41,7 @@ class Handler(SimpleHTTPRequestHandler):
                     ".py",
                     ".wasm",
                     ".data",
+                    ".zip",
                 )
             )
         )

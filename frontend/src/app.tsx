@@ -30,6 +30,7 @@ import {
   readSharedDoc,
 } from './editor/editor-bridge';
 import { loadSymbolData } from './data/load-symbol';
+import { prefetchPyodideAssets, preloadPyodide } from './engines/catalog';
 
 export const App: Component = () => {
   const [settingsOpen, setSettingsOpen] = createSignal(false);
@@ -51,6 +52,24 @@ export const App: Component = () => {
     // Auto-load default symbol so the chart is not an empty void on first paint
     if (!store.bars.length && store.source !== 'csv-upload') {
       void loadSymbolData(store.symbol, store.interval, store.source);
+    }
+    // Pyodide: warm same-origin assets immediately; full init on idle (or ASAP if selected)
+    prefetchPyodideAssets();
+    const warmPyodide = () => {
+      void preloadPyodide().then((py) => {
+        if (py) appendLog('ok', 'Pyodide runtime ready (self-hosted)', 'pyodide');
+      });
+    };
+    if (store.engine === 'pyodide' || store.activePlugins?.engine === 'pyodide') {
+      warmPyodide();
+    } else if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+      (
+        window as Window & {
+          requestIdleCallback: (cb: () => void, opts?: { timeout: number }) => number;
+        }
+      ).requestIdleCallback(warmPyodide, { timeout: 5000 });
+    } else {
+      setTimeout(warmPyodide, 2000);
     }
     bridgePublish({ type: 'hello', role: 'main' });
 

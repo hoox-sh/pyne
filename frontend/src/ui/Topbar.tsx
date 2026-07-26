@@ -16,7 +16,7 @@ import { loadSymbolData } from '../data/load-symbol';
 import { parseOhlcvFile } from '../data/parse-bars';
 import { openEditorWindow, writeSharedDoc } from '../editor/editor-bridge';
 import { listSources } from '../sources/catalog';
-import { listEngines } from '../engines/catalog';
+import { listEngines, preloadPyodide } from '../engines/catalog';
 import { setUploadedBars, getUploadedFileName } from '../sources/upload-store';
 import { engineOptionLabel } from './plugin-badges';
 import { Icons } from './icons';
@@ -119,8 +119,11 @@ export const Topbar: Component<{
   const sourceNeedsSymbol = () => store.source !== 'csv-upload' && store.source !== 'mock-walk';
 
   return (
-    <header class="flex items-center gap-2.5 px-2.5 py-1 bg-bg-panel border-b-2 border-border flex-shrink-0 min-h-[36px] flex-wrap">
-      <div class="font-semibold text-sm text-text tracking-tight mr-1">
+    <header
+      class="flex items-center gap-2.5 px-2.5 py-1 bg-bg-panel border-b-2 border-border flex-shrink-0 min-h-[36px] flex-wrap"
+      data-testid="axis-topbar"
+    >
+      <div class="font-semibold text-sm text-text tracking-tight mr-1" data-testid="axis-brand">
         AXIS
         <span class="text-text-faint font-normal text-[11px] ml-1.5">chart</span>
       </div>
@@ -137,6 +140,7 @@ export const Topbar: Component<{
       <label class="text-[10px] text-text-dim uppercase tracking-wider">Source</label>
       <select
         class="sc-input min-w-[120px]"
+        data-testid="axis-select-source"
         value={store.source}
         onChange={(e) => onSourceChange(e.currentTarget.value)}
         title={sources().find((s) => s.id === store.source)?.description || 'Historical data source'}
@@ -214,6 +218,7 @@ export const Topbar: Component<{
         class={`sc-btn inline-flex items-center gap-1 ${loading() ? 'opacity-50' : ''}`}
         onClick={loadHistorical}
         disabled={loading()}
+        data-testid="axis-btn-load"
         title={
           store.source === 'csv-upload'
             ? 'Reload last uploaded file'
@@ -227,8 +232,14 @@ export const Topbar: Component<{
       <label class="text-[10px] text-text-dim uppercase tracking-wider">Engine</label>
       <select
         class="sc-input min-w-[120px] max-w-[180px]"
+        data-testid="axis-select-engine"
         value={store.engine}
-        onChange={(e) => setActivePlugin('engine', e.currentTarget.value)}
+        onChange={(e) => {
+          const id = e.currentTarget.value;
+          setActivePlugin('engine', id);
+          // Kick self-hosted Pyodide load as soon as the user selects it
+          if (id === 'pyodide') void preloadPyodide();
+        }}
         title={engines().find((en) => en.id === store.engine)?.description || 'Calculation engine'}
       >
         <For each={engines()}>
@@ -273,6 +284,7 @@ export const Topbar: Component<{
       <button
         class="sc-btn sc-btn-primary inline-flex items-center gap-1"
         onClick={onRun}
+        data-testid="axis-btn-run"
         title="Run (or use detached editor)"
       >
         <Icons.play size={13} />
@@ -337,6 +349,8 @@ export const Topbar: Component<{
         class="sc-btn sc-btn-ghost px-2"
         onClick={() => props.onOpenPlugins?.()}
         title="Plugins"
+        data-testid="axis-btn-plugins"
+        aria-label="Open plugin manager"
       >
         <Icons.folder size={14} />
       </button>
@@ -345,6 +359,8 @@ export const Topbar: Component<{
         class="sc-btn sc-btn-ghost px-2"
         onClick={props.onOpenSettings}
         title="Settings"
+        data-testid="axis-btn-settings"
+        aria-label="Open settings"
       >
         <Icons.settings size={14} />
       </button>

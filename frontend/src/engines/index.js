@@ -79,9 +79,9 @@ export const pyodideEngine = {
     id: 'pyodide',
     name: 'Client-Side (Pyodide)',
     kind: 'engine',
-    description: 'Loads the Python pynescript runtime into the browser via Pyodide and runs the script locally. Works offline. First load takes a few seconds.',
+    description: 'Self-hosted Pyodide (~14MB from this origin). Preloads on idle; no CDN required after deploy.',
     configSchema: {
-        indexUrl: { type: 'string', default: 'https://cdn.jsdelivr.net/pyodide/v0.26.2/full/', label: 'Pyodide index URL' },
+        indexUrl: { type: 'string', default: '/pyodide/v0.26.2/', label: 'Pyodide index URL (self-hosted)' },
     },
     _pyodide: null,
     _loadPromise: null,
