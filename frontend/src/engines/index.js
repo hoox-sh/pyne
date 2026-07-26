@@ -124,21 +124,42 @@ export const pyodideEngine = {
 
                 self._emitProgress('Installing pynescript…');
                 const micropip = py.pyimport('micropip');
+                const wheelUrl = `${origin}/vendor/pynescript-0.2.0-py3-none-any.whl`;
+                const antlrUrl = `${origin}/vendor/antlr4_python3_runtime-4.13.2-py3-none-any.whl`;
+                // Guard against SPA HTML fallback → micropip BadZipFile
+                const wheelRes = await fetch(wheelUrl);
+                if (!wheelRes.ok) {
+                    throw new Error(`pynescript wheel missing: HTTP ${wheelRes.status} at ${wheelUrl}`);
+                }
+                const wheelCt = (wheelRes.headers.get('content-type') || '').toLowerCase();
+                if (wheelCt.includes('text/html')) {
+                    throw new Error(
+                        `pynescript wheel returned HTML (SPA fallback) at ${wheelUrl} — deploy public/vendor into dist/`,
+                    );
+                }
                 try {
-                    await micropip.install(`${origin}/vendor/pynescript-0.2.0-py3-none-any.whl`, false);
+                    await micropip.install(wheelUrl, false);
                 } catch (e) {
                     throw new Error(`Failed to load pynescript wheel from ${origin}: ${e.message}`);
                 }
                 try {
-                    await micropip.install('antlr4-python3-runtime>=4.13.1');
+                    const antlrRes = await fetch(antlrUrl);
+                    if (antlrRes.ok && !(antlrRes.headers.get('content-type') || '').includes('text/html')) {
+                        await micropip.install(antlrUrl, false);
+                    } else {
+                        await micropip.install('antlr4-python3-runtime>=4.13.1');
+                    }
                 } catch (e) {
-                    throw new Error(`Failed to install antlr4 from PyPI: ${e.message}. Check your internet connection.`);
+                    throw new Error(`Failed to install antlr4: ${e.message}. Check /vendor or internet.`);
                 }
 
                 self._emitProgress('Loading Pine runtime…');
                 const runtimeResp = await fetch(`${origin}/pyodide/pynescript_runtime.py`);
                 if (!runtimeResp.ok) throw new Error(`Failed to load pynescript_runtime.py: HTTP ${runtimeResp.status}`);
                 const runtimePy = await runtimeResp.text();
+                if (runtimePy.trimStart().startsWith('<!')) {
+                    throw new Error(`pynescript_runtime.py returned HTML — deploy public/pyodide into dist/`);
+                }
                 await py.runPythonAsync(runtimePy);
 
                 self._emitProgress('');

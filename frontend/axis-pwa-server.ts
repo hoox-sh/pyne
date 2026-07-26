@@ -15,6 +15,9 @@ const MIME: Record<string, string> = {
   ".ico": "image/x-icon",
   ".woff2": "font/woff2",
   ".map": "application/json",
+  ".whl": "application/zip",
+  ".py": "text/x-python; charset=utf-8",
+  ".wasm": "application/wasm",
 };
 
 function contentType(path: string) {
@@ -35,7 +38,9 @@ const server = Bun.serve({
     const isStatic =
       pathname.startsWith("/assets/") ||
       pathname.startsWith("/plugins/") ||
-      /\.(js|css|png|webmanifest|json|map|svg|ico|woff2)$/i.test(pathname);
+      pathname.startsWith("/vendor/") ||
+      pathname.startsWith("/pyodide/") ||
+      /\.(js|css|png|webmanifest|json|map|svg|ico|woff2|whl|py|wasm|data)$/i.test(pathname);
     if (!(await file.exists())) {
       if (isStatic) {
         return new Response("Not found", { status: 404 });

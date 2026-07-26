@@ -21,6 +21,28 @@ function resolveConfig(
   return out;
 }
 
+/** Ensure a URL is a real zip/wheel, not SPA HTML fallback (micropip BadZipFile). */
+async function assertZipAsset(url: string, label: string): Promise<void> {
+  const res = await fetch(url, { method: 'GET', signal: AbortSignal.timeout(30_000) });
+  if (!res.ok) {
+    throw new Error(`${label} missing: HTTP ${res.status} at ${url}`);
+  }
+  const ct = (res.headers.get('content-type') || '').toLowerCase();
+  if (ct.includes('text/html')) {
+    throw new Error(
+      `${label} returned HTML (SPA fallback) at ${url} — deploy public/vendor and public/pyodide into dist/`,
+    );
+  }
+  const buf = new Uint8Array(await res.arrayBuffer());
+  // ZIP local file header magic: PK\x03\x04
+  if (buf.length < 4 || buf[0] !== 0x50 || buf[1] !== 0x4b) {
+    const head = new TextDecoder().decode(buf.slice(0, 32));
+    throw new Error(
+      `${label} is not a zip/wheel at ${url} (got ${buf.length} bytes, starts with ${JSON.stringify(head)})`,
+    );
+  }
+}
+
 export const serverEngine: EnginePlugin = {
   id: 'server',
   name: 'Server-Side',
@@ -172,17 +194,41 @@ export const pyodideEngine: EnginePlugin & {
       const py = await window.loadPyodide({ indexURL: indexUrl });
       await py.loadPackage('micropip');
       const micropip = py.pyimport('micropip');
-      await micropip.install(`${origin}/vendor/pynescript-0.2.0-py3-none-any.whl`, false);
+
+      // Local wheels under /vendor (served from public/ → dist). Validate before micropip
+      // so SPA HTML fallbacks surface as clear errors instead of BadZipFile.
+      const wheelUrl = `${origin}/vendor/pynescript-0.2.0-py3-none-any.whl`;
+      const antlrUrl = `${origin}/vendor/antlr4_python3_runtime-4.13.2-py3-none-any.whl`;
+      await assertZipAsset(wheelUrl, 'pynescript wheel');
       try {
-        await micropip.install('antlr4-python3-runtime>=4.13.1');
+        await micropip.install(wheelUrl, false);
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        throw new Error(`Failed to install pynescript wheel from ${wheelUrl}: ${msg}`);
+      }
+      try {
+        await assertZipAsset(antlrUrl, 'antlr4 wheel');
+        await micropip.install(antlrUrl, false);
       } catch {
-        /* may already be present */
+        try {
+          await micropip.install('antlr4-python3-runtime>=4.13.1');
+        } catch {
+          /* may already be present via wheel deps */
+        }
       }
-      const runtimeResp = await fetch(`${origin}/pyodide/pynescript_runtime.py`);
+
+      const runtimeUrl = `${origin}/pyodide/pynescript_runtime.py`;
+      const runtimeResp = await fetch(runtimeUrl);
       if (!runtimeResp.ok) {
-        throw new Error(`Failed to load pynescript_runtime.py: HTTP ${runtimeResp.status}`);
+        throw new Error(`Failed to load pynescript_runtime.py: HTTP ${runtimeResp.status} (${runtimeUrl})`);
       }
+      const runtimeCt = runtimeResp.headers.get('content-type') || '';
       const runtimePy = await runtimeResp.text();
+      if (runtimeCt.includes('text/html') || runtimePy.trimStart().startsWith('<!')) {
+        throw new Error(
+          `pynescript_runtime.py returned HTML instead of Python — is ${runtimeUrl} deployed under dist/pyodide/?`,
+        );
+      }
       await py.runPythonAsync(runtimePy);
       self._pyodide = py;
       return py;
