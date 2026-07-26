@@ -128,13 +128,19 @@ export function eventsToMarkers(events: StrategyEvent[]): TradeMarker[] {
   const openDir = new Map<string, string>();
   const markers: TradeMarker[] = [];
 
-  const sorted = events.slice().sort((a, b) => (a.time || 0) - (b.time || 0));
+  const timeOf = (ev: StrategyEvent) => {
+    if (typeof ev.time === 'number' && Number.isFinite(ev.time)) return ev.time;
+    if (typeof ev.bar_time === 'number' && Number.isFinite(ev.bar_time)) return ev.bar_time;
+    return undefined;
+  };
+
+  const sorted = events.slice().sort((a, b) => (timeOf(a) || 0) - (timeOf(b) || 0));
   for (const ev of sorted) {
-    const t = ev.time;
+    const t = timeOf(ev);
     if (t === undefined || !Number.isFinite(t)) continue;
-    const kind = String(ev.type || ev.event || '').toLowerCase();
+    const kind = String(ev.type || ev.event || ev.kind || '').toLowerCase();
     const id = String(ev.id || '');
-    const dir = String(ev.dir || '').toLowerCase();
+    const dir = String(ev.dir || ev.direction || '').toLowerCase();
 
     if (kind.includes('entry')) {
       const isShort = dir.includes('short');
