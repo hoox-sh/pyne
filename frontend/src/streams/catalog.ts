@@ -1,22 +1,14 @@
 /**
  * Live stream plugins for AXIS.
+ * Definitions live here; registration + lookup go through the unified registry.
  */
 
 import type { Bar } from '../store/types';
+import type { StreamPlugin as UnifiedStreamPlugin } from '../plugins/types';
+import { registry } from '../plugins/registry';
 
-export interface StreamPlugin {
-  id: string;
-  name: string;
-  description: string;
-  start(opts: {
-    symbol: string;
-    interval: string;
-    onBar: (bar: Bar) => void;
-    onStatus: (status: { state: string; detail?: string }) => void;
-    onError: (err: Error) => void;
-    lastBar?: Bar | null;
-  }): () => void;
-}
+/** @deprecated Prefer importing StreamPlugin from plugins/types */
+export type StreamPlugin = UnifiedStreamPlugin;
 
 const INTERVAL_MAP: Record<string, string> = {
   '1m': '1m',
@@ -39,7 +31,11 @@ function intervalToSec(iv: string): number {
 export const binanceStream: StreamPlugin = {
   id: 'binance-ws',
   name: 'Binance WebSocket',
+  kind: 'stream',
+  builtIn: true,
   description: 'Real-time klines via wss://stream.binance.com',
+  capabilities: { needsNetwork: true },
+  configSchema: {},
   start({ symbol, interval, onBar, onStatus, onError }) {
     const wsInterval = INTERVAL_MAP[interval] || interval;
     const url = `wss://stream.binance.com:9443/ws/${symbol.toLowerCase()}@kline_${wsInterval}`;
@@ -87,7 +83,11 @@ export const binanceStream: StreamPlugin = {
 export const mockPollStream: StreamPlugin = {
   id: 'mock-poll',
   name: 'Mock Poll',
+  kind: 'stream',
+  builtIn: true,
   description: 'Synthetic live bars (offline). Good with Mock Walk source.',
+  capabilities: { offline: true },
+  configSchema: {},
   start({ interval, onBar, onStatus, lastBar }) {
     const step = intervalToSec(interval);
     let cur: Bar = lastBar
@@ -148,7 +148,11 @@ export const mockPollStream: StreamPlugin = {
 export const okxStream: StreamPlugin = {
   id: 'okx-ws',
   name: 'OKX WebSocket',
+  kind: 'stream',
+  builtIn: true,
   description: 'OKX public candle channel (wss://ws.okx.com:8443/ws/v5/business).',
+  capabilities: { needsNetwork: true },
+  configSchema: {},
   start({ symbol, interval, onBar, onStatus, onError }) {
     const instId = (() => {
       const s = symbol.toUpperCase().replace(/[-_/]/g, '');
@@ -216,7 +220,11 @@ export const okxStream: StreamPlugin = {
 export const bybitStream: StreamPlugin = {
   id: 'bybit-ws',
   name: 'Bybit WebSocket',
+  kind: 'stream',
+  builtIn: true,
   description: 'Bybit public kline stream (wss://stream.bybit.com/v5/public/spot).',
+  capabilities: { needsNetwork: true },
+  configSchema: {},
   start({ symbol, interval, onBar, onStatus, onError }) {
     const ivMap: Record<string, string> = {
       '1m': '1',
@@ -274,7 +282,11 @@ export const bybitStream: StreamPlugin = {
 export const coinbaseStream: StreamPlugin = {
   id: 'coinbase-ws',
   name: 'Coinbase WebSocket',
+  kind: 'stream',
+  builtIn: true,
   description: 'Coinbase Exchange ticker (wss://ws-feed.exchange.coinbase.com) aggregated into live bars.',
+  capabilities: { needsNetwork: true },
+  configSchema: {},
   start({ symbol, interval, onBar, onStatus, onError, lastBar }) {
     const product = (() => {
       const s = symbol.toUpperCase().replace(/[-_/]/g, '');
@@ -349,7 +361,11 @@ export const coinbaseStream: StreamPlugin = {
 export const krakenStream: StreamPlugin = {
   id: 'kraken-ws',
   name: 'Kraken WebSocket',
+  kind: 'stream',
+  builtIn: true,
   description: 'Kraken public OHLC (wss://ws.kraken.com/).',
+  capabilities: { needsNetwork: true },
+  configSchema: {},
   start({ symbol, interval, onBar, onStatus, onError }) {
     const pair = (() => {
       const s = symbol.toUpperCase().replace(/[-_/]/g, '');
@@ -433,21 +449,48 @@ export const BUILTIN_STREAMS: StreamPlugin[] = [
   krakenStream,
   mockPollStream,
 ];
-const dynamicStreams: StreamPlugin[] = [];
+
+let registered = false;
+
+export function ensureStreamsRegistered(): void {
+  if (registered) return;
+  registered = true;
+  for (const s of BUILTIN_STREAMS) {
+    if (!registry.getStream(s.id)) {
+      registry.registerStream(s);
+    }
+  }
+}
 
 export function getStream(id: string): StreamPlugin | undefined {
-  return BUILTIN_STREAMS.find((s) => s.id === id) || dynamicStreams.find((s) => s.id === id);
+  ensureStreamsRegistered();
+  return registry.getStream(id);
 }
 
 export function listStreams(): StreamPlugin[] {
-  return [...BUILTIN_STREAMS, ...dynamicStreams];
+  ensureStreamsRegistered();
+  return registry.listStreams();
 }
 
 export function registerDynamicStream(stream: StreamPlugin): void {
+  ensureStreamsRegistered();
   if (!stream?.id || typeof stream.start !== 'function') throw new Error('Invalid stream plugin');
-  const i = dynamicStreams.findIndex((s) => s.id === stream.id);
-  if (i >= 0) dynamicStreams[i] = stream;
-  else dynamicStreams.push(stream);
+  const withKind: StreamPlugin = {
+    ...stream,
+    kind: 'stream',
+    builtIn: stream.builtIn ?? false,
+  };
+  registry.registerStream(withKind);
+}
+
+export function unregisterDynamicStream(id: string): boolean {
+  ensureStreamsRegistered();
+  return registry.unregisterStream(id);
+}
+
+export function listDynamicStreamIds(): string[] {
+  ensureStreamsRegistered();
+  return registry.listStreams().filter((s) => !s.builtIn).map((s) => s.id);
 }
 
 /** Pick a sensible stream for the current historical source. */
@@ -458,4 +501,9 @@ export function defaultStreamForSource(sourceId: string): string {
   if (sourceId === 'coinbase-rest') return 'coinbase-ws';
   if (sourceId === 'kraken-rest') return 'kraken-ws';
   return 'binance-ws';
+}
+
+/** @internal test helper */
+export function _resetStreamRegistrationFlag() {
+  registered = false;
 }

@@ -55,6 +55,15 @@ export interface EditorLayoutState {
 /** Built-in historical source ids (D1) */
 export type SourceId = 'binance-rest' | 'mock-walk' | 'csv-upload' | string;
 
+/** Active plugin selection (source/stream/engine/storage) */
+export interface ActivePlugins {
+  source: string;
+  stream: string;
+  engine: string;
+  /** PR2: local | git | cloud */
+  storage: string;
+}
+
 import type { Drawing, DrawingToolId } from '../chart/drawing-types';
 export type { Drawing, DrawingToolId };
 
@@ -63,10 +72,14 @@ export interface AppState {
   symbol: string;
   interval: string;
   exchange: string;
-  /** Historical data source plugin id */
+  /** Historical data source plugin id (mirrors activePlugins.source) */
   source: SourceId;
   engine: string;
   endpoint: string;
+  /** Canonical active plugin ids */
+  activePlugins: ActivePlugins;
+  /** Per-plugin config keyed by `${kind}:${id}` or bare id */
+  pluginsConfig: Record<string, Record<string, unknown>>;
 
   scripts: Indicator[];
   panes: Pane[];

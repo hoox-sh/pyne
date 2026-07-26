@@ -23,6 +23,7 @@ enabled = true
 # id = "REPLACE_WITH_KV_ID"
 
 # D1 database — created via `wrangler d1 create pynescript`.
+# Then: wrangler d1 execute pynescript --file=schemas/scripts.sql
 # [[d1_databases]]
 # binding = "DB"
 # database_name = "pynescript"
@@ -50,3 +51,5 @@ EXTERNAL_BACKEND = ""
 ALLOWED_ORIGIN = "https://pynescript.ai"
 ADMIN_TOKEN = ""
 PYODIDE_IN_WORKER = "disabled"
+# Local demos without KV: set to "1" to accept any Bearer key for /api/scripts
+ALLOW_OPEN_KEYS = "1"

@@ -27,10 +27,13 @@ function uid(): string {
   return `dw_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
 }
 
+type DragMode = 'move' | 'p1' | 'p2' | 'price';
+
 type DragState = {
   id: string;
   start: Point;
   origin: Drawing;
+  mode: DragMode;
 };
 
 export class DrawingLayer {
@@ -262,15 +265,22 @@ export class DrawingLayer {
 
   private handlePointerDown(e: PointerEvent) {
     if (this.tool !== 'cursor') return;
-    const hit = this.hitTest(e);
+    const start = this.clientToPoint(e);
+    if (!start) return;
+    const handle = this.hitTestHandle(e);
+    const hit = handle?.id ?? this.hitTest(e);
     if (!hit) return;
     const origin = this.drawings.find((d) => d.id === hit);
-    const start = this.clientToPoint(e);
-    if (!origin || !start) return;
+    if (!origin) return;
     e.preventDefault();
     e.stopPropagation();
     this.selectedId = hit;
-    this.drag = { id: hit, start, origin: structuredClone(origin) as Drawing };
+    this.drag = {
+      id: hit,
+      start,
+      origin: structuredClone(origin) as Drawing,
+      mode: handle?.mode ?? 'move',
+    };
     this.didDrag = false;
     this.svg.style.pointerEvents = 'auto';
     this.svg.setPointerCapture?.(e.pointerId);
@@ -371,10 +381,15 @@ export class DrawingLayer {
       const dTime = pt.time - this.drag.start.time;
       const dPrice = pt.price - this.drag.start.price;
       if (Math.abs(dTime) > 0 || Math.abs(dPrice) > 1e-12) this.didDrag = true;
-      const moved = shiftDrawing(this.drag.origin, dTime, dPrice);
+      let next: Drawing;
+      if (this.drag.mode === 'move') {
+        next = shiftDrawing(this.drag.origin, dTime, dPrice);
+      } else {
+        next = resizeDrawing(this.drag.origin, this.drag.mode, pt);
+      }
       const idx = this.drawings.findIndex((d) => d.id === this.drag!.id);
       if (idx >= 0) {
-        this.drawings[idx] = moved;
+        this.drawings[idx] = next;
         this.redraw();
       }
       return;
@@ -403,6 +418,30 @@ export class DrawingLayer {
           color: DRAWING_COLORS.muted,
         };
     this.paintDrawing(this.gDraft, d, true);
+  }
+
+  private hitTestHandle(e: MouseEvent): { id: string; mode: DragMode } | null {
+    if (!this.selectedId) return null;
+    const d = this.drawings.find((x) => x.id === this.selectedId);
+    if (!d) return null;
+    const rect = this.svg.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const tol = 10;
+    if (d.kind === 'hline') {
+      // No endpoint handles beyond body move
+      return null;
+    }
+    if (d.kind === 'text') {
+      const c = this.toXY(d.p1);
+      if (c && Math.hypot(x - c.x, y - c.y) <= tol) return { id: d.id, mode: 'p1' };
+      return null;
+    }
+    const a = this.toXY(d.p1);
+    const b = this.toXY(d.p2);
+    if (a && Math.hypot(x - a.x, y - a.y) <= tol) return { id: d.id, mode: 'p1' };
+    if (b && Math.hypot(x - b.x, y - b.y) <= tol) return { id: d.id, mode: 'p2' };
+    return null;
   }
 
   private hitTest(e: MouseEvent): string | null {
@@ -462,21 +501,34 @@ export class DrawingLayer {
 
   private paintScriptDrawing(g: SVGGElement, d: ScriptDrawing) {
     const pe = 'none'; // script drawings are view-only
+    if (d.type === 'polyline' && d.points?.length) {
+      const coords = d.points
+        .map((p) => this.toXY({ time: p.time, price: p.price }))
+        .filter(Boolean) as { x: number; y: number }[];
+      if (coords.length < 2) return;
+      let dPath = `M ${coords[0]!.x} ${coords[0]!.y}`;
+      for (let i = 1; i < coords.length; i++) dPath += ` L ${coords[i]!.x} ${coords[i]!.y}`;
+      if (d.closed) dPath += ' Z';
+      el(g, 'path', {
+        d: dPath,
+        fill: d.closed ? d.bgcolor || 'rgba(147,159,255,0.06)' : 'none',
+        stroke: d.color,
+        'stroke-width': String(d.width || 1.5),
+        'stroke-linejoin': 'round',
+        'pointer-events': pe,
+        ...(d.style === 'dashed' ? { 'stroke-dasharray': '4 3' } : {}),
+      });
+      return;
+    }
     if (d.type === 'line' && d.t2 != null && d.p2 != null) {
       const a = this.toXY({ time: d.t1, price: d.p1 });
       const b = this.toXY({ time: d.t2, price: d.p2 });
       if (!a || !b) return;
-      let x2 = b.x;
-      let y2 = b.y;
       const ext = (d.extend || 'none').toLowerCase();
-      if (ext === 'right' || ext === 'both') {
-        const dx = b.x - a.x || 1;
-        const dy = b.y - a.y;
-        const scale = 3000 / Math.abs(dx);
-        x2 = b.x + dx * scale;
-        y2 = b.y + dy * scale;
-      }
-      line(g, a.x, a.y, x2, y2, d.color, d.width || 1.5, d.style === 'dashed' ? '4 3' : undefined, pe);
+      const { x1, y1, x2, y2 } = extendSegment(a.x, a.y, b.x, b.y, ext, this.host.clientWidth, this.host.clientHeight);
+      const dash =
+        d.style === 'dashed' ? '4 3' : d.style === 'dotted' ? '1 3' : undefined;
+      line(g, x1, y1, x2, y2, d.color, d.width || 1.5, dash, pe);
       return;
     }
     if (d.type === 'box' && d.t2 != null && d.p2 != null) {
@@ -533,6 +585,10 @@ export class DrawingLayer {
       const w = this.host.clientWidth;
       line(g, 0, y, w, y, stroke, sw, dash, 'stroke');
       label(g, 6, y - 4, d.price.toFixed(2), stroke);
+      if (selected) {
+        // Mid handle for visual feedback
+        circle(g, w / 2, y, 5, stroke, true);
+      }
       return;
     }
 
@@ -541,7 +597,7 @@ export class DrawingLayer {
       if (!c) return;
       label(g, c.x + 4, c.y - 4, d.text || '', stroke, 12);
       // anchor dot
-      circle(g, c.x, c.y, selected ? 4 : 3, stroke);
+      circle(g, c.x, c.y, selected ? 5 : 3, stroke, selected);
       return;
     }
 
@@ -551,8 +607,8 @@ export class DrawingLayer {
 
     if (d.kind === 'trend' || d.kind === 'measure') {
       line(g, a.x, a.y, b.x, b.y, stroke, sw, dash);
-      circle(g, a.x, a.y, 3, stroke);
-      circle(g, b.x, b.y, 3, stroke);
+      circle(g, a.x, a.y, selected ? 5 : 3, stroke, selected);
+      circle(g, b.x, b.y, selected ? 5 : 3, stroke, selected);
       if (d.kind === 'measure') {
         const bars = Math.abs(
           barIndexApprox(this.chart, d.p1.time) - barIndexApprox(this.chart, d.p2.time),
@@ -591,8 +647,8 @@ export class DrawingLayer {
         extY = Math.max(-h, Math.min(2 * h, extY));
       }
       line(g, a.x, a.y, extX, extY, stroke, sw, dash);
-      circle(g, a.x, a.y, 3, stroke);
-      circle(g, b.x, b.y, 3, stroke);
+      circle(g, a.x, a.y, selected ? 5 : 3, stroke, selected);
+      circle(g, b.x, b.y, selected ? 5 : 3, stroke, selected);
       return;
     }
 
@@ -612,6 +668,10 @@ export class DrawingLayer {
         'pointer-events': 'all',
         ...(dash ? { 'stroke-dasharray': dash } : {}),
       });
+      if (selected) {
+        circle(g, a.x, a.y, 5, stroke, true);
+        circle(g, b.x, b.y, 5, stroke, true);
+      }
       return;
     }
 
@@ -688,16 +748,68 @@ function line(
   });
 }
 
-function circle(g: SVGElement, cx: number, cy: number, r: number, stroke: string) {
+function circle(
+  g: SVGElement,
+  cx: number,
+  cy: number,
+  r: number,
+  stroke: string,
+  handle = false,
+) {
   el(g, 'circle', {
     cx: String(cx),
     cy: String(cy),
     r: String(r),
-    fill: stroke,
-    stroke: '#0a0b10',
-    'stroke-width': '1',
+    fill: handle ? '#0a0b10' : stroke,
+    stroke: handle ? stroke : '#0a0b10',
+    'stroke-width': handle ? '2' : '1',
     'pointer-events': 'auto',
+    ...(handle ? { cursor: 'nwse-resize' } : {}),
   });
+}
+
+function extendSegment(
+  ax: number,
+  ay: number,
+  bx: number,
+  by: number,
+  extend: string,
+  w: number,
+  h: number,
+): { x1: number; y1: number; x2: number; y2: number } {
+  const dx = bx - ax;
+  const dy = by - ay;
+  const len = Math.hypot(dx, dy) || 1;
+  const scale = Math.max(w, h) * 4 / len;
+  let x1 = ax;
+  let y1 = ay;
+  let x2 = bx;
+  let y2 = by;
+  if (extend === 'right' || extend === 'both') {
+    x2 = bx + dx * scale;
+    y2 = by + dy * scale;
+  }
+  if (extend === 'left' || extend === 'both') {
+    x1 = ax - dx * scale;
+    y1 = ay - dy * scale;
+  }
+  return { x1, y1, x2, y2 };
+}
+
+function resizeDrawing(origin: Drawing, mode: DragMode, pt: Point): Drawing {
+  if (origin.kind === 'hline') {
+    return { ...origin, price: pt.price };
+  }
+  if (origin.kind === 'text') {
+    return { ...origin, p1: { ...pt } };
+  }
+  if (mode === 'p1') {
+    return { ...origin, p1: { ...pt } };
+  }
+  if (mode === 'p2') {
+    return { ...origin, p2: { ...pt } };
+  }
+  return origin;
 }
 
 function label(

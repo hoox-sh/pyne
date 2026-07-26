@@ -38,6 +38,13 @@ const DEFAULTS: AppState = {
   source: 'binance-rest',
   engine: 'server',
   endpoint: 'http://162.254.38.194:5002',
+  activePlugins: {
+    source: 'binance-rest',
+    stream: 'binance-ws',
+    engine: 'server',
+    storage: 'local',
+  },
+  pluginsConfig: {},
   scripts: [],
   panes: [
     { id: 'price', type: 'price', height: 0, order: 0, visible: true, label: 'Price' },
@@ -104,6 +111,10 @@ function loadPersisted(): Partial<AppState> {
     const raw = loadRawState();
     if (raw) {
       const parsed = JSON.parse(raw);
+      const source = parsed.source || DEFAULTS.source;
+      const engine = parsed.engine || DEFAULTS.engine;
+      const streamId =
+        parsed.live?.streamId || parsed.activePlugins?.stream || DEFAULTS.live.streamId;
       return {
         ...DEFAULTS,
         ...parsed,
@@ -119,6 +130,15 @@ function loadPersisted(): Partial<AppState> {
         indicatorPanel: { ...DEFAULTS.indicatorPanel, ...parsed.indicatorPanel },
         resultsPanel: { ...DEFAULTS.resultsPanel, ...parsed.resultsPanel },
         logsPanel: { ...DEFAULTS.logsPanel, ...parsed.logsPanel, open: false },
+        activePlugins: {
+          ...DEFAULTS.activePlugins,
+          ...parsed.activePlugins,
+          source: parsed.activePlugins?.source || source,
+          engine: parsed.activePlugins?.engine || engine,
+          stream: parsed.activePlugins?.stream || streamId,
+          storage: parsed.activePlugins?.storage || DEFAULTS.activePlugins.storage,
+        },
+        pluginsConfig: parsed.pluginsConfig || DEFAULTS.pluginsConfig,
         // Do not hydrate lastRun / logs from storage
         lastRun: null,
         logs: [],
@@ -128,6 +148,18 @@ function loadPersisted(): Partial<AppState> {
     }
   } catch {}
   return {};
+}
+
+/** Keep flat source/engine/stream fields aligned with activePlugins */
+export function setActivePlugin(
+  kind: 'source' | 'stream' | 'engine' | 'storage',
+  id: string,
+) {
+  setStore('activePlugins', kind, id);
+  if (kind === 'source') setStore('source', id);
+  if (kind === 'engine') setStore('engine', id);
+  if (kind === 'stream') setStore('live', 'streamId', id);
+  persist();
 }
 
 export const [store, setStore] = createStore<AppState>({
@@ -333,7 +365,11 @@ export function removeWatchlistSymbol(symbol: string) {
 }
 
 export function saveEditorDoc(doc: string) {
-  try { localStorage.setItem(EDITOR_DOC_KEY, doc); } catch {}
+  try {
+    localStorage.setItem(EDITOR_DOC_KEY, doc);
+  } catch {
+    /* ignore */
+  }
 }
 
 export function loadEditorDoc(): string {

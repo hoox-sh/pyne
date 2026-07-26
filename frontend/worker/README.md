@@ -65,6 +65,13 @@ Paste the returned IDs into `wrangler.toml`.
 | `/api/keys?action=validate` | GET | `Authorization: Bearer …` or `?key=` |
 | `/api/usage`        | GET    | Per-key usage counter (KV)             |
 | `/api/stream`       | WS     | `?session=…&symbol=…&interval=…` (DO)  |
+| `/api/scripts`      | GET/POST | List / create scripts (Bearer key)   |
+| `/api/scripts/:id`  | GET/PUT/DELETE | Read / upsert / delete          |
+| `/api/scripts/_draft` | GET/PUT | Per-user draft buffer              |
+
+**Script library auth:** `Authorization: Bearer <api_key>` (same Pro keys as `/api/keys`).
+Scripts are partitioned by a hash of the key. Without D1, an in-memory store is used
+(local `wrangler dev`). Apply D1 schema: `wrangler d1 execute pynescript --file=schemas/scripts.sql`.
 
 WebSocket: open `wss://<worker>/api/stream?session=…&symbol=BTCUSDT&interval=1m`
 and the Worker routes to a Durable Object instance that fans a single
@@ -114,6 +121,7 @@ After deployment, the PWA's `Endpoint` field should be set to the
       `PYODIDE_IN_WORKER=enabled`)
 - [ ] Pyodide wheel upload pipeline (see `RUNTIME.md`)
 - [ ] Caching layer
-- [ ] D1 schema + migrations
+- [x] D1 schema (`schemas/scripts.sql`) + `/api/scripts` (memory fallback without D1)
+- [x] Script library auth via Pro API keys
 
 See `RUNTIME.md` for the in-Worker Python plan.

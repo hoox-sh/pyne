@@ -10,7 +10,11 @@ import { ResultsPanel } from './ui/ResultsPanel';
 import { SystemLogs } from './ui/SystemLogs';
 import { PluginManager } from './ui/PluginManager';
 import { runAndApply } from './indicators/runner';
+import { registerBuiltins } from './plugins/bootstrap';
 import { restoreInstalledPlugins } from './plugins/loader';
+
+// Ensure built-in source/stream/engine plugins are registered before first paint.
+registerBuiltins();
 import {
   store,
   setStore,
@@ -173,6 +177,15 @@ export const App: Component = () => {
         open={pluginsOpen()}
         onClose={() => setPluginsOpen(false)}
         onChanged={() => setCatalogTick((n) => n + 1)}
+        getDoc={() => editorRef.getDoc()}
+        setDoc={(doc, name) => {
+          const ref = editorRef as {
+            setDoc?: (d: string) => void;
+            loadLibraryDoc?: (d: string, n?: string) => void;
+          };
+          if (ref.loadLibraryDoc) ref.loadLibraryDoc(doc, name);
+          else ref.setDoc?.(doc);
+        }}
       />
     </div>
   );

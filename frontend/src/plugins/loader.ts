@@ -1,13 +1,14 @@
 /**
- * Dynamic plugin loader for AXIS (D6).
- * Loads ES modules from URL; registers source/stream plugins; persists URL list.
+ * Dynamic plugin loader for AXIS.
+ * Loads ES modules from URL; registers source/stream/engine plugins; persists URL list.
  */
 
 import { registerDynamicSource, unregisterDynamicSource, listDynamicSourceIds } from '../sources/catalog';
-import { registerDynamicStream } from '../streams/catalog';
+import { registerDynamicStream, unregisterDynamicStream } from '../streams/catalog';
+import { registerDynamicEngine, unregisterDynamicEngine } from '../engines/catalog';
+import { ensureBuiltins } from './bootstrap';
 import { appendLog } from '../store';
-import type { SourcePlugin } from '../sources/catalog';
-import type { StreamPlugin } from '../streams/catalog';
+import type { EnginePlugin, SourcePlugin, StreamPlugin } from './types';
 
 export const PLUGINS_KEY = 'pynescript.axis.plugins.v1';
 const LEGACY_PLUGINS_KEY = 'pynescript.superchart.plugins.v1';
@@ -53,6 +54,7 @@ function asPlugin(mod: unknown): Record<string, unknown> | null {
 }
 
 export async function loadPluginFromUrl(url: string): Promise<InstalledPlugin> {
+  ensureBuiltins();
   const href = url.trim();
   if (!href) throw new Error('URL required');
 
@@ -76,29 +78,48 @@ export async function loadPluginFromUrl(url: string): Promise<InstalledPlugin> {
     if (typeof p.start !== 'function') throw new Error('Stream plugin needs start()');
     registerDynamicStream(p as unknown as StreamPlugin);
   } else if (kind === 'engine') {
-    // Engines not fully wired in Solid path yet — still record install
-    appendLog('warn', `Engine plugin "${name}" installed (UI wiring limited)`, 'plugins');
+    if (typeof p.run !== 'function') throw new Error('Engine plugin needs run()');
+    registerDynamicEngine(p as unknown as EnginePlugin);
+  } else if (kind === 'storage') {
+    throw new Error('Custom storage plugins via URL are not supported yet (use built-in local/cloud)');
   } else {
     throw new Error(`Unknown plugin kind: ${kind}`);
   }
 
   const entry: InstalledPlugin = { url: href, id, name, kind, description };
-  const list = readInstalled().filter((x) => x.url !== href && x.id !== id);
+  const list = readInstalled().filter((x) => x.url !== href && !(x.kind === kind && x.id === id));
   list.push(entry);
   writeInstalled(list);
   appendLog('ok', `Loaded plugin ${name} (${kind})`, 'plugins');
   return entry;
 }
 
-export function removePlugin(id: string) {
-  const list = readInstalled().filter((x) => x.id !== id);
-  writeInstalled(list);
-  unregisterDynamicSource(id);
+export function removePlugin(id: string, kind?: string) {
+  const list = readInstalled();
+  const entry = kind
+    ? list.find((x) => x.id === id && x.kind === kind)
+    : list.find((x) => x.id === id);
+  const resolvedKind = kind || entry?.kind;
+
+  if (resolvedKind === 'source') unregisterDynamicSource(id);
+  else if (resolvedKind === 'stream') unregisterDynamicStream(id);
+  else if (resolvedKind === 'engine') unregisterDynamicEngine(id);
+  else {
+    // Kind unknown — try all
+    unregisterDynamicSource(id);
+    unregisterDynamicStream(id);
+    unregisterDynamicEngine(id);
+  }
+
+  writeInstalled(
+    list.filter((x) => !(x.id === id && (!kind || x.kind === kind))),
+  );
   appendLog('info', `Removed plugin ${id}`, 'plugins');
 }
 
 /** Re-import all saved plugin URLs (call on app boot). */
 export async function restoreInstalledPlugins(): Promise<void> {
+  ensureBuiltins();
   const list = readInstalled();
   for (const item of list) {
     try {
@@ -109,6 +130,10 @@ export async function restoreInstalledPlugins(): Promise<void> {
     }
   }
   if (list.length) {
-    appendLog('info', `Restored ${listDynamicSourceIds().length} dynamic source(s)`, 'plugins');
+    appendLog(
+      'info',
+      `Restored ${list.length} installed plugin URL(s) (${listDynamicSourceIds().length} dynamic sources)`,
+      'plugins',
+    );
   }
 }

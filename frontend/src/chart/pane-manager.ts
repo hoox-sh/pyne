@@ -32,7 +32,7 @@ export class PaneManager {
   private container: HTMLElement;
   private suppressSync = false;
   /** LWC v5 markers plugin attached to the price candle series */
-  private candleMarkers: ISeriesMarkersPluginApi<UTCTimestamp> | null = null;
+  private candleMarkers: ISeriesMarkersPluginApi<any> | null = null;
 
   constructor(container: HTMLElement) {
     this.container = container;

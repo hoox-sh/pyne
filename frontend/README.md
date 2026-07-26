@@ -38,34 +38,26 @@ icons, ISC). Wrapper: `src/ui/icons.tsx`.
 
 ## Plugin contract
 
+Solid path uses a **unified TypeScript registry** (`src/plugins/registry.ts`).
 Every plugin is an object with `{ id, name, kind, description, configSchema, ... }`.
 
 ```ts
 // kind: 'source'  — historical OHLCV
-interface Source {
-  fetchHistorical({ symbol, interval, config }): Promise<Bar[]>
-}
-
 // kind: 'stream'  — live tick / bar push
-interface Stream {
-  start({ symbol, interval, onBar, onError, onStatus, config }): () => void  // returns stop
-}
-
 // kind: 'engine'  — calculate Pine
-interface Engine {
-  isReady(): Promise<boolean>
-  run({ script, bars, config }): Promise<RunResult>
-}
+// kind: 'storage' — user script library (local | git | cloud)
+// kind: 'component' — UI slots (phase 2)
 
-type RunResult = {
-  status: 'success' | 'error',
-  plots: (number|null)[],
-  series?: Record<string, (number|null)[]>,
-  events: any[],
-  meta?: { mode?, script_id?, run_id?, ms? },
-  error?: string,
-}
+// See src/plugins/types.ts for full contracts.
+// Active selection: store.activePlugins { source, stream, engine, storage }
+// Built-ins register via ensureBuiltins() / registerBuiltins().
+// Dynamic plugins: loadPluginFromUrl() in src/plugins/loader.ts
+// Script library: Manager → Script Library tab
+//   storage-local  → IndexedDB (default, offline)
+//   storage-cloud  → Worker /api/scripts + Pro API keys
 ```
+
+Legacy vanilla shell still uses `src/registry.js` (see LEGACY.md).
 
 ## Built-in plugins
 

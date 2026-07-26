@@ -44,7 +44,12 @@ Use **Manager → Export installed** to back up the list, and
 ## Writing your own
 
 A plugin is a JS object with `{ id, name, kind, description, configSchema, ... }`.
-`kind` is one of `source`, `stream`, `engine`.
+`kind` is one of `source`, `stream`, `engine` (and later `storage`).
+
+The Solid product path registers plugins through `src/plugins/registry.ts`
+(see `src/plugins/types.ts`). Built-ins live in `sources/catalog.ts`,
+`streams/catalog.ts`, `engines/catalog.ts`, and `storage/catalog.ts`
+(`storage-local` is the default script library backend).
 
 ```js
 // example-my-source.js

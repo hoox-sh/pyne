@@ -110,6 +110,12 @@ class DrawingRegistry:
                 return f"#{c & 0xFFFFFF:06X}"
             return str(c)
 
+        def _extend(e: Any) -> str:
+            s = str(e or "none").lower().replace("extend.", "").strip()
+            if s in {"none", "left", "right", "both"}:
+                return s
+            return "none"
+
         for ln in cls.lines:
             if getattr(ln, "deleted", False):
                 continue
@@ -133,7 +139,7 @@ class DrawingRegistry:
                     "color": _color(ln.color),
                     "width": int(_num(ln.width) or 1),
                     "style": str(ln.style or "solid"),
-                    "extend": str(ln.extend or "none"),
+                    "extend": _extend(ln.extend),
                 }
             )
 
@@ -182,6 +188,70 @@ class DrawingRegistry:
                     "color": _color(lb.color),
                     "textcolor": _color(lb.textcolor),
                     "style": str(lb.style or "label_center"),
+                }
+            )
+
+        for pl in cls.polylines:
+            if getattr(pl, "deleted", False):
+                continue
+            xloc = str(getattr(pl, "xloc", "bar_index") or "bar_index")
+            pts_out: list[dict[str, float | int]] = []
+            for pt in getattr(pl, "points", None) or []:
+                # ChartPoint: time / index / price
+                price = _num(getattr(pt, "price", None))
+                if price is None:
+                    continue
+                if getattr(pt, "time", None) is not None:
+                    t = _num(pt.time)
+                elif getattr(pt, "index", None) is not None:
+                    t = _x_to_time(pt.index, xloc)
+                else:
+                    t = None
+                if t is None:
+                    continue
+                pts_out.append({"time": t, "price": price})
+            if len(pts_out) < 2:
+                continue
+            out.append(
+                {
+                    "type": "polyline",
+                    "points": pts_out,
+                    "closed": bool(getattr(pl, "closed", False)),
+                    "color": _color(pl.color),
+                    "width": int(_num(pl.width) or 1),
+                    "style": str(pl.style or "solid"),
+                    "t1": pts_out[0]["time"],
+                    "p1": pts_out[0]["price"],
+                    "t2": pts_out[-1]["time"],
+                    "p2": pts_out[-1]["price"],
+                }
+            )
+
+        # Tables are UI overlays (not price-scale geometry) — emit metadata only
+        for tb in cls.tables:
+            if getattr(tb, "deleted", False):
+                continue
+            cells: list[dict[str, Any]] = []
+            for (row, col), cell in (getattr(tb, "cells", None) or {}).items():
+                cells.append(
+                    {
+                        "row": row,
+                        "col": col,
+                        "text": str(getattr(cell, "text", "") or ""),
+                        "text_color": _color(getattr(cell, "text_color", "#eceef4")),
+                        "bgcolor": _color(getattr(cell, "bgcolor", "transparent")),
+                    }
+                )
+            out.append(
+                {
+                    "type": "table",
+                    "position": str(getattr(tb, "position", "top_left")),
+                    "rows": int(getattr(tb, "rows", 0) or 0),
+                    "columns": int(getattr(tb, "columns", 0) or 0),
+                    "cells": cells,
+                    "t1": 0,
+                    "p1": 0,
+                    "color": _color(getattr(tb, "frame_color", "#939fff")),
                 }
             )
 
@@ -1226,7 +1296,11 @@ class DrawingBuiltinsMixin(BuiltinDispatchMixin):
     # CHART POINT HANDLERS
 
     def _chart_point_price(self, price: Any) -> float | None:
-        """Coerce price for ChartPoint; ``na`` → None (caller may return na)."""
+        """Coerce price for ChartPoint; unwrap PineSeries; ``na`` → None."""
+        if price is None:
+            return None
+        if hasattr(price, "current"):
+            price = getattr(price, "current", None)
         if price is None:
             return None
         try:
@@ -1234,18 +1308,22 @@ class DrawingBuiltinsMixin(BuiltinDispatchMixin):
         except (TypeError, ValueError):
             return None
 
-    def _handle_chart_point_new(self, args: list[Any]) -> ChartPoint | None:
+    def _handle_chart_point_new(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> ChartPoint | None:
         """chart.point.new(time, price) - Create a point from time and price"""
-        time = args[0] if len(args) > 0 else None
-        price = self._chart_point_price(args[1] if len(args) > 1 else 0.0)
+        kw = kwargs or {}
+        time = kw.get("time", args[0] if len(args) > 0 else None)
+        price = self._chart_point_price(kw.get("price", args[1] if len(args) > 1 else 0.0))
         if price is None:
             return None
         return ChartPoint(time=time, price=price)
 
-    def _handle_chart_point_from_index(self, args: list[Any]) -> ChartPoint | None:
+    def _handle_chart_point_from_index(
+        self, args: list[Any], kwargs: dict[str, Any] | None = None
+    ) -> ChartPoint | None:
         """chart.point.from_index(index, price) - Create a point from bar index and price"""
-        index = args[0] if len(args) > 0 else 0
-        price = self._chart_point_price(args[1] if len(args) > 1 else 0.0)
+        kw = kwargs or {}
+        index = kw.get("index", args[0] if len(args) > 0 else 0)
+        price = self._chart_point_price(kw.get("price", args[1] if len(args) > 1 else 0.0))
         if price is None or index is None:
             return None
         try:
@@ -1253,10 +1331,13 @@ class DrawingBuiltinsMixin(BuiltinDispatchMixin):
         except (TypeError, ValueError):
             return None
 
-    def _handle_chart_point_from_time(self, args: list[Any]) -> ChartPoint | None:
+    def _handle_chart_point_from_time(
+        self, args: list[Any], kwargs: dict[str, Any] | None = None
+    ) -> ChartPoint | None:
         """chart.point.from_time(time, price) - Create a point from timestamp and price"""
-        time = args[0] if len(args) > 0 else None
-        price = self._chart_point_price(args[1] if len(args) > 1 else 0.0)
+        kw = kwargs or {}
+        time = kw.get("time", args[0] if len(args) > 0 else None)
+        price = self._chart_point_price(kw.get("price", args[1] if len(args) > 1 else 0.0))
         if price is None:
             return None
         return ChartPoint(time=time, price=price)
@@ -1289,23 +1370,29 @@ class DrawingBuiltinsMixin(BuiltinDispatchMixin):
 
     # POLYLINE HANDLERS
 
-    def _handle_polyline_new(self, args: list[Any]) -> Polyline:
-        """polyline.new(points, closed, xloc, color, width, style)"""
-        points = args[0] if len(args) > 0 else []
-        closed = args[1] if len(args) > 1 else False
-        xloc = args[2] if len(args) > 2 else "bar_index"
-        color = args[3] if len(args) > 3 else "#000000"
-        width = args[4] if len(args) > 4 else 1
-        style = args[5] if len(args) > 5 else "solid"
-        force_overlay = args[6] if len(args) > 6 else False
+    def _handle_polyline_new(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> Polyline:
+        """polyline.new(points, closed=..., xloc=..., color=..., width=..., style=...)."""
+        kw = kwargs or {}
+        points = kw.get("points", args[0] if len(args) > 0 else [])
+        closed = kw.get("closed", args[1] if len(args) > 1 else False)
+        xloc = kw.get("xloc", args[2] if len(args) > 2 else "bar_index")
+        color = kw.get("color", args[3] if len(args) > 3 else "#000000")
+        width = kw.get("width", args[4] if len(args) > 4 else 1)
+        style = kw.get("style", args[5] if len(args) > 5 else "solid")
+        force_overlay = kw.get("force_overlay", args[6] if len(args) > 6 else False)
+        # Normalize xloc enums like xloc.bar_index
+        xloc_s = str(xloc or "bar_index").replace("xloc.", "")
+        pts = list(points) if isinstance(points, list) else []
+        # Drop None entries from failed chart.point factories
+        pts = [p for p in pts if p is not None]
 
         polyline = Polyline(
-            points=list(points) if isinstance(points, list) else [],
+            points=pts,
             closed=bool(closed),
-            xloc=str(xloc),
+            xloc=xloc_s,
             color=str(color),
-            width=int(width),
-            style=str(style),
+            width=int(width) if width is not None else 1,
+            style=str(style or "solid"),
             force_overlay=bool(force_overlay),
         )
         DrawingRegistry.polylines.append(polyline)

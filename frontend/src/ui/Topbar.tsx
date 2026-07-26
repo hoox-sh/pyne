@@ -1,11 +1,21 @@
 import { Component, For, Show, createMemo, createSignal } from 'solid-js';
-import { store, setStore, setStatus, toggleTheme, persist, setEditorOpen, setEditorMode } from '../store';
+import {
+  store,
+  setStore,
+  setStatus,
+  toggleTheme,
+  persist,
+  setEditorOpen,
+  setEditorMode,
+  setActivePlugin,
+} from '../store';
 import { runAndApply } from '../indicators/runner';
 import { startLive, stopLive, listStreams, defaultStreamForSource } from '../streams/multiplex';
 import { loadSymbolData } from '../data/load-symbol';
 import { parseOhlcvFile } from '../data/parse-bars';
 import { openEditorWindow, writeSharedDoc } from '../editor/editor-bridge';
 import { listSources } from '../sources/catalog';
+import { listEngines } from '../engines/catalog';
 import { setUploadedBars, getUploadedFileName } from '../sources/upload-store';
 import { Icons } from './icons';
 
@@ -29,6 +39,10 @@ export const Topbar: Component<{
     void props.catalogTick;
     return listStreams();
   });
+  const engines = createMemo(() => {
+    void props.catalogTick;
+    return listEngines();
+  });
   const [loading, setLoading] = createSignal(false);
   const [uploadLabel, setUploadLabel] = createSignal(getUploadedFileName() || '');
   let fileInput: HTMLInputElement | undefined;
@@ -44,11 +58,10 @@ export const Topbar: Component<{
   };
 
   const onSourceChange = (id: string) => {
-    setStore('source', id);
+    setActivePlugin('source', id);
     // Align default live stream with source (mock → mock-poll)
     const streamId = defaultStreamForSource(id);
-    setStore('live', 'streamId', streamId);
-    persist();
+    setActivePlugin('stream', streamId);
     // CSV needs a file first — nudge the picker
     if (id === 'csv-upload' && !getUploadedFileName()) {
       fileInput?.click();
@@ -209,14 +222,23 @@ export const Topbar: Component<{
         {loading() ? 'Loading…' : 'Load'}
       </button>
 
+      <label class="text-[10px] text-text-dim uppercase tracking-wider">Engine</label>
+      <select
+        class="sc-input min-w-[110px]"
+        value={store.engine}
+        onChange={(e) => setActivePlugin('engine', e.currentTarget.value)}
+        title={engines().find((en) => en.id === store.engine)?.description || 'Calculation engine'}
+      >
+        <For each={engines()}>{(en) => <option value={en.id}>{en.name}</option>}</For>
+      </select>
+
       <label class="text-[10px] text-text-dim uppercase tracking-wider">Stream</label>
       <select
         class="sc-input min-w-[110px]"
         value={store.live.streamId}
         disabled={store.live.active}
         onChange={(e) => {
-          setStore('live', 'streamId', e.currentTarget.value);
-          persist();
+          setActivePlugin('stream', e.currentTarget.value);
         }}
         title="Live data stream (disabled while Live is on)"
       >

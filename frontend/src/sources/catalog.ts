@@ -1,28 +1,16 @@
 /**
  * Built-in historical data sources for AXIS.
- * Used by Solid load path; legacy registry can keep its own JS copies.
+ * Definitions live here; registration + lookup go through the unified registry.
  */
 
 import type { Bar } from '../store/types';
+import type { ConfigSchema, SourcePlugin as UnifiedSourcePlugin } from '../plugins/types';
+import { registry } from '../plugins/registry';
 import { getUploadedBars } from './upload-store';
 
-export type SourceConfigSchema = Record<
-  string,
-  { type: string; default?: unknown; label?: string; min?: number; max?: number }
->;
-
-export interface SourcePlugin {
-  id: string;
-  name: string;
-  kind: 'source';
-  description: string;
-  configSchema: SourceConfigSchema;
-  fetchHistorical: (args: {
-    symbol: string;
-    interval: string;
-    config?: Record<string, unknown>;
-  }) => Promise<Bar[]>;
-}
+export type SourceConfigSchema = ConfigSchema;
+/** @deprecated Prefer importing SourcePlugin from plugins/types */
+export type SourcePlugin = UnifiedSourcePlugin;
 
 function intervalToMs(iv: string): number {
   const m = /^(\d+)([mhdw])$/.exec(iv || '');
@@ -38,7 +26,7 @@ function intervalToMs(iv: string): number {
 }
 
 function resolveConfig(
-  schema: SourceConfigSchema,
+  schema: SourceConfigSchema | undefined,
   config?: Record<string, unknown>,
 ): Record<string, unknown> {
   const out: Record<string, unknown> = {};
@@ -80,8 +68,10 @@ export const binanceRest: SourcePlugin = {
   id: 'binance-rest',
   name: 'Binance REST',
   kind: 'source',
+  builtIn: true,
   description:
     'Public Binance kline API (api.binance.com). Falls back to a synthetic walk if the network is unavailable.',
+  capabilities: { needsNetwork: true },
   configSchema: {
     baseUrl: { type: 'string', default: 'https://api.binance.com', label: 'API base URL' },
     limit: { type: 'number', default: 500, min: 50, max: 1000, label: 'Bars' },
@@ -121,7 +111,9 @@ export const mockWalk: SourcePlugin = {
   id: 'mock-walk',
   name: 'Mock Walk',
   kind: 'source',
+  builtIn: true,
   description: 'Pure-synthetic random walk. Always available; deterministic seed optional.',
+  capabilities: { offline: true },
   configSchema: {
     seed: { type: 'number', default: 0, label: 'Seed (0 = random)' },
     startPrice: { type: 'number', default: 100, label: 'Start price' },
@@ -172,8 +164,10 @@ export const csvUpload: SourcePlugin = {
   id: 'csv-upload',
   name: 'CSV / JSON Upload',
   kind: 'source',
+  builtIn: true,
   description:
     'Uses the last file the user uploaded (CSV with time,open,high,low,close[,volume] or JSON array).',
+  capabilities: { offline: true },
   configSchema: {},
   async fetchHistorical() {
     const bars = getUploadedBars();
@@ -223,7 +217,9 @@ export const okxRest: SourcePlugin = {
   id: 'okx-rest',
   name: 'OKX REST',
   kind: 'source',
+  builtIn: true,
   description: 'Public OKX candlesticks (www.okx.com). Symbol like BTCUSDT → BTC-USDT.',
+  capabilities: { needsNetwork: true },
   configSchema: {
     limit: { type: 'number', default: 300, min: 50, max: 300, label: 'Bars' },
   },
@@ -258,7 +254,9 @@ export const bybitRest: SourcePlugin = {
   id: 'bybit-rest',
   name: 'Bybit REST',
   kind: 'source',
+  builtIn: true,
   description: 'Public Bybit v5 spot klines (api.bybit.com).',
+  capabilities: { needsNetwork: true },
   configSchema: {
     limit: { type: 'number', default: 500, min: 50, max: 1000, label: 'Bars' },
   },
@@ -294,7 +292,9 @@ export const coinbaseRest: SourcePlugin = {
   id: 'coinbase-rest',
   name: 'Coinbase REST',
   kind: 'source',
+  builtIn: true,
   description: 'Coinbase Exchange public candles. Symbol BTCUSDT → BTC-USD.',
+  capabilities: { needsNetwork: true },
   configSchema: {
     granularity: { type: 'number', default: 0, label: 'Override granularity (sec, 0=auto)' },
   },
@@ -343,37 +343,51 @@ export const BUILTIN_SOURCES: SourcePlugin[] = [
   csvUpload,
 ];
 
-const byId = new Map(BUILTIN_SOURCES.map((s) => [s.id, s]));
-const dynamicSources: SourcePlugin[] = [];
+let registered = false;
+
+export function ensureSourcesRegistered(): void {
+  if (registered) return;
+  registered = true;
+  for (const s of BUILTIN_SOURCES) {
+    if (!registry.getSource(s.id)) {
+      registry.registerSource(s);
+    }
+  }
+}
 
 export function getSource(id: string): SourcePlugin | undefined {
-  return byId.get(id) || dynamicSources.find((s) => s.id === id);
+  ensureSourcesRegistered();
+  return registry.getSource(id);
 }
 
 export function listSources(): SourcePlugin[] {
-  return [...BUILTIN_SOURCES, ...dynamicSources];
+  ensureSourcesRegistered();
+  return registry.listSources();
 }
 
 /** Register a runtime plugin source (D6). */
 export function registerDynamicSource(source: SourcePlugin): void {
+  ensureSourcesRegistered();
   if (!source?.id || source.kind !== 'source') {
     throw new Error('Invalid source plugin');
   }
   if (typeof source.fetchHistorical !== 'function') {
     throw new Error('Source must implement fetchHistorical');
   }
-  const idx = dynamicSources.findIndex((s) => s.id === source.id);
-  if (idx >= 0) dynamicSources[idx] = source;
-  else dynamicSources.push(source);
-  byId.set(source.id, source);
+  registry.registerSource({ ...source, builtIn: source.builtIn ?? false });
 }
 
 export function unregisterDynamicSource(id: string): void {
-  const i = dynamicSources.findIndex((s) => s.id === id);
-  if (i >= 0) dynamicSources.splice(i, 1);
-  if (!BUILTIN_SOURCES.some((s) => s.id === id)) byId.delete(id);
+  ensureSourcesRegistered();
+  registry.unregisterSource(id);
 }
 
 export function listDynamicSourceIds(): string[] {
-  return dynamicSources.map((s) => s.id);
+  ensureSourcesRegistered();
+  return registry.listSources().filter((s) => !s.builtIn).map((s) => s.id);
+}
+
+/** @internal test helper */
+export function _resetSourceRegistrationFlag() {
+  registered = false;
 }
