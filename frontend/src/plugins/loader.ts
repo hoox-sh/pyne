@@ -53,9 +53,19 @@ function asPlugin(mod: unknown): Record<string, unknown> | null {
   return p;
 }
 
+/** Map legacy Vite-dev paths to production static paths under public/plugins/. */
+export function normalizePluginUrl(url: string): string {
+  let href = url.trim();
+  if (!href) return href;
+  // /src/plugins/foo.js → /plugins/foo.js (dev-only path never ships in dist)
+  href = href.replace(/(^|\/)src\/plugins\//, '$1plugins/');
+  // Drop accidental example- prefix double paths
+  return href;
+}
+
 export async function loadPluginFromUrl(url: string): Promise<InstalledPlugin> {
   ensureBuiltins();
-  const href = url.trim();
+  const href = normalizePluginUrl(url);
   if (!href) throw new Error('URL required');
 
   const mod = await import(/* @vite-ignore */ href);

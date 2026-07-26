@@ -148,7 +148,7 @@ frontend/
     engines/
       index.js                server, pyodide (Python in browser)
     plugins/                  example plugins (load via Manager)
-      example-coingecko-source.js
+      example-coingecko-source.js   # also copied to public/plugins/ for prod
       example-tiny-pine-engine.js
       example-cf-do-stream.js
       README.md               contract + how-to

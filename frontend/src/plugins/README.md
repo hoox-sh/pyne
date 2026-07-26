@@ -15,7 +15,8 @@ The simplest way to try an example:
 4. Paste the URL of an example file, e.g.
 
    ```
-   http://localhost:8081/src/plugins/example-coingecko-source.js
+   http://localhost:8081/plugins/example-coingecko-source.js
+   (files live under `public/plugins/` so production `dist/` serves them)
    ```
 
 5. Click **Load**. The new plugin appears in the Source dropdown.

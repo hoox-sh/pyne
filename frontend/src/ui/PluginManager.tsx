@@ -29,10 +29,11 @@ interface Props {
   initialTab?: TabId;
 }
 
+// Served from public/plugins/ in production (dist/plugins/); /src/ only works under Vite dev.
 const EXAMPLES = [
-  { label: 'CoinGecko source', url: '/src/plugins/example-coingecko-source.js', kind: 'source' },
-  { label: 'Tiny Pine engine', url: '/src/plugins/example-tiny-pine-engine.js', kind: 'engine' },
-  { label: 'CF DO stream', url: '/src/plugins/example-cf-do-stream.js', kind: 'stream' },
+  { label: 'CoinGecko source', url: '/plugins/example-coingecko-source.js', kind: 'source' },
+  { label: 'Tiny Pine engine', url: '/plugins/example-tiny-pine-engine.js', kind: 'engine' },
+  { label: 'CF DO stream', url: '/plugins/example-cf-do-stream.js', kind: 'stream' },
 ];
 
 type TabId = 'catalog' | 'install' | 'library';
@@ -277,7 +278,7 @@ export const PluginManager: Component<Props> = (props) => {
                 <div class="flex gap-1.5">
                   <input
                     class="sc-input flex-1 min-w-0 font-mono text-[12px]"
-                    placeholder="https://…/my-plugin.js or /src/plugins/…"
+                    placeholder="https://…/my-plugin.js or /plugins/example-….js"
                     value={url()}
                     onInput={(e) => setUrl(e.currentTarget.value)}
                     onKeyDown={(e) => e.key === 'Enter' && load()}

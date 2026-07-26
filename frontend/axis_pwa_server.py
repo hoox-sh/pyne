@@ -19,9 +19,18 @@ class Handler(SimpleHTTPRequestHandler):
         super().end_headers()
 
     def do_GET(self):
-        # SPA fallback
+        # SPA fallback — but never rewrite real static assets (plugins, assets, manifest)
         path = self.translate_path(self.path)
-        if not os.path.exists(path) or (os.path.isdir(path) and not os.path.exists(os.path.join(path, "index.html"))):
+        req = self.path.split("?", 1)[0]
+        is_static = (
+            req.startswith("/assets/")
+            or req.startswith("/plugins/")
+            or req.endswith((".js", ".css", ".png", ".webmanifest", ".json", ".map", ".svg", ".ico"))
+        )
+        if not is_static and (
+            not os.path.exists(path)
+            or (os.path.isdir(path) and not os.path.exists(os.path.join(path, "index.html")))
+        ):
             self.path = "/index.html"
         return super().do_GET()
 

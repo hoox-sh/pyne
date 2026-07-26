@@ -29,10 +29,17 @@ const server = Bun.serve({
     const url = new URL(req.url);
     let pathname = decodeURIComponent(url.pathname);
     if (pathname === "/") pathname = "/index.html";
-    // SPA fallback for client routes
+    // SPA fallback for client routes — not for static assets/plugins
     let filePath = join(ROOT, pathname);
     let file = Bun.file(filePath);
+    const isStatic =
+      pathname.startsWith("/assets/") ||
+      pathname.startsWith("/plugins/") ||
+      /\.(js|css|png|webmanifest|json|map|svg|ico|woff2)$/i.test(pathname);
     if (!(await file.exists())) {
+      if (isStatic) {
+        return new Response("Not found", { status: 404 });
+      }
       filePath = join(ROOT, "index.html");
       file = Bun.file(filePath);
     }
