@@ -3,15 +3,13 @@ import { getManager } from '../chart/ChartHost';
 import { PLOT_PALETTE } from '../chart/series-factory';
 import { normalizeStrategyEvents, eventsToMarkers, buildEquityCurve } from '../results/events';
 import { buildStrategyReport } from '../results/strategy';
+import { getActiveDrawingLayer } from '../chart/drawing-layer';
+import { getActiveEngine, getActiveEngineConfig } from '../plugins/active';
+import type { RunResult as EngineRunResult } from '../plugins/types';
 
-export interface RunResult {
-  status: 'success' | 'error';
-  plots: (number | null)[];
+export type RunResult = EngineRunResult & {
   series: Record<string, (number | null)[]>;
-  events: any[];
-  error?: string;
-  meta?: { overlay?: boolean; script_name?: string; ms?: number };
-}
+};
 
 export interface RunOptions {
   /** Quiet status bar / fewer log lines (live re-runs) */
@@ -22,48 +20,42 @@ export interface RunOptions {
 
 export async function runScript(script: string, opts: RunOptions = {}): Promise<RunResult> {
   const silent = !!opts.silent;
-  const endpoint = store.endpoint.replace(/\/$/, '');
   if (!silent) setStatus('running', 'Executing Pine Script…');
   const t0 = performance.now();
   try {
-    const res = await fetch(`${endpoint}/run?mode=interpret`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ script, data: store.bars }),
-      // Large libraries (Console) + multi-bar runs need headroom; gunicorn is 180s.
-      // Scale with bar count so 500 bars of a heavy script do not false-timeout.
-      signal: AbortSignal.timeout(
-        silent
-          ? 45_000
-          : Math.min(180_000, Math.max(60_000, 30_000 + (store.bars?.length || 0) * 80)),
-      ),
+    const engine = getActiveEngine();
+    const config = getActiveEngineConfig();
+    const timeoutMs = silent
+      ? 45_000
+      : Math.min(180_000, Math.max(60_000, 30_000 + (store.bars?.length || 0) * 80));
+    const result = await engine.run({
+      script,
+      bars: store.bars,
+      config,
+      signal: AbortSignal.timeout(timeoutMs),
     });
-    const payload = await res.json().catch(() => ({ status: 'error', message: 'invalid JSON' }));
-    if (!res.ok || payload.status === 'error') {
-      const msg = payload.message || `HTTP ${res.status}`;
+    const ms = result.meta?.ms ?? performance.now() - t0;
+    if (result.status === 'error') {
+      const msg = result.error || 'Engine error';
       if (!silent) setStatus('error', msg);
       else appendLog('error', `Live re-run failed: ${msg}`, 'live');
       return {
-        status: 'error',
-        plots: [],
-        series: {},
-        events: [],
-        error: msg,
-        meta: { ms: performance.now() - t0 },
+        ...result,
+        series: result.series || {},
+        events: result.events || [],
+        meta: { ...result.meta, ms },
       };
     }
-    const ms = performance.now() - t0;
     if (!silent) setStatus('ready', `Completed in ${ms.toFixed(0)}ms`);
     return {
-      status: 'success',
-      plots: payload.plots || [],
-      series: payload.series || {},
-      events: payload.events || [],
+      ...result,
+      series: result.series || {},
+      events: result.events || [],
       meta: {
-        ...(payload.meta || {}),
+        ...result.meta,
         ms,
-        overlay: payload.meta?.overlay ?? true,
-        script_name: payload.meta?.script_name || 'plot',
+        overlay: result.meta?.overlay ?? true,
+        script_name: result.meta?.script_name || 'plot',
       },
     };
   } catch (err: unknown) {
@@ -117,6 +109,8 @@ export async function runAndApply(
 
   manager.removeOverlays(paneId);
   manager.clearTradeMarkers();
+  // Clear previous Pine drawings; re-apply after plots if present
+  getActiveDrawingLayer()?.clearScriptDrawings();
 
   const ohlcvTimes = store.bars.map((b) => b.time);
 
@@ -169,6 +163,15 @@ export async function runAndApply(
     }
   } else {
     manager.hideEquityPane();
+  }
+
+  // Pine line.new / label.new / box.new from interpret runtime
+  const drawings = (result as RunResult & { drawings?: unknown[] }).drawings;
+  if (drawings?.length) {
+    getActiveDrawingLayer()?.setScriptDrawings(drawings);
+    if (!silent) {
+      appendLog('ok', `Pine drawings: ${drawings.length} object(s)`, 'drawings');
+    }
   }
 
   if (indicatorId === undefined) {

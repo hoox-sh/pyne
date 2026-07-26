@@ -12,6 +12,7 @@ import {
   type DrawingToolId,
   type Point,
 } from './drawing-types';
+import { normalizeScriptDrawings, type ScriptDrawing } from './pine-drawings';
 
 export type DrawingChangeHandler = (drawings: Drawing[]) => void;
 
@@ -26,17 +27,27 @@ function uid(): string {
   return `dw_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
 }
 
+type DragState = {
+  id: string;
+  start: Point;
+  origin: Drawing;
+};
+
 export class DrawingLayer {
   private host: HTMLElement;
   private chart: IChartApi;
   private series: ISeriesApi<'Candlestick'>;
   private svg: SVGSVGElement;
+  private gScript: SVGGElement;
   private gDraw: SVGGElement;
   private gDraft: SVGGElement;
   private tool: DrawingToolId = 'cursor';
   private drawings: Drawing[] = [];
+  private scriptDrawings: ScriptDrawing[] = [];
   private selectedId: string | null = null;
   private draft: { tool: DrawingToolId; p1?: Point; p2?: Point } | null = null;
+  private drag: DragState | null = null;
+  private didDrag = false;
   private onChange: DrawingChangeHandler | null = null;
   private unsubs: Array<() => void> = [];
   private ro: ResizeObserver | null = null;
@@ -63,12 +74,16 @@ export class DrawingLayer {
       width: '100%',
       height: '100%',
       zIndex: '4',
+      // none: empty areas pass pan/zoom to LWC; shapes set pointer-events
       pointerEvents: 'none',
       overflow: 'hidden',
     } as CSSStyleDeclaration);
 
+    this.gScript = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    this.gScript.setAttribute('class', 'axis-pine-drawings');
     this.gDraw = document.createElementNS('http://www.w3.org/2000/svg', 'g');
     this.gDraft = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    this.svg.appendChild(this.gScript);
     this.svg.appendChild(this.gDraw);
     this.svg.appendChild(this.gDraft);
     host.appendChild(this.svg);
@@ -85,7 +100,9 @@ export class DrawingLayer {
   setTool(tool: DrawingToolId) {
     this.tool = tool;
     this.draft = null;
+    this.drag = null;
     this.gDraft.innerHTML = '';
+    // Drawing tools capture full surface; cursor only hits painted shapes
     this.svg.style.pointerEvents = tool === 'cursor' ? 'none' : 'auto';
     this.svg.style.cursor = tool === 'cursor' ? 'default' : 'crosshair';
     this.redraw();
@@ -100,6 +117,17 @@ export class DrawingLayer {
     this.redraw();
   }
 
+  /** Pine line/label/box from last /run (not user-editable). */
+  setScriptDrawings(raw: unknown[] | undefined | null) {
+    this.scriptDrawings = normalizeScriptDrawings(raw);
+    this.redraw();
+  }
+
+  clearScriptDrawings() {
+    this.scriptDrawings = [];
+    this.redraw();
+  }
+
   getDrawings(): Drawing[] {
     return this.drawings.slice();
   }
@@ -108,6 +136,7 @@ export class DrawingLayer {
     this.drawings = [];
     this.selectedId = null;
     this.draft = null;
+    this.drag = null;
     this.emit();
     this.redraw();
   }
@@ -135,6 +164,8 @@ export class DrawingLayer {
   private bindEvents() {
     const onClick = (e: MouseEvent) => this.handleClick(e);
     const onMove = (e: MouseEvent) => this.handleMove(e);
+    const onDown = (e: PointerEvent) => this.handlePointerDown(e);
+    const onUp = (e: PointerEvent) => this.handlePointerUp(e);
     const onKey = (e: KeyboardEvent) => this.handleKey(e);
     const onCtx = (e: Event) => {
       if (this.tool !== 'cursor') {
@@ -145,11 +176,17 @@ export class DrawingLayer {
     };
 
     this.svg.addEventListener('click', onClick);
+    this.svg.addEventListener('pointerdown', onDown);
     this.svg.addEventListener('pointermove', onMove);
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
     this.svg.addEventListener('contextmenu', onCtx);
     window.addEventListener('keydown', onKey);
     this.unsubs.push(() => this.svg.removeEventListener('click', onClick));
+    this.unsubs.push(() => this.svg.removeEventListener('pointerdown', onDown));
     this.unsubs.push(() => this.svg.removeEventListener('pointermove', onMove));
+    this.unsubs.push(() => window.removeEventListener('pointermove', onMove));
+    this.unsubs.push(() => window.removeEventListener('pointerup', onUp));
     this.unsubs.push(() => this.svg.removeEventListener('contextmenu', onCtx));
     this.unsubs.push(() => window.removeEventListener('keydown', onKey));
 
@@ -223,9 +260,45 @@ export class DrawingLayer {
     }
   }
 
+  private handlePointerDown(e: PointerEvent) {
+    if (this.tool !== 'cursor') return;
+    const hit = this.hitTest(e);
+    if (!hit) return;
+    const origin = this.drawings.find((d) => d.id === hit);
+    const start = this.clientToPoint(e);
+    if (!origin || !start) return;
+    e.preventDefault();
+    e.stopPropagation();
+    this.selectedId = hit;
+    this.drag = { id: hit, start, origin: structuredClone(origin) as Drawing };
+    this.didDrag = false;
+    this.svg.style.pointerEvents = 'auto';
+    this.svg.setPointerCapture?.(e.pointerId);
+    this.redraw();
+  }
+
+  private handlePointerUp(e: PointerEvent) {
+    if (!this.drag) return;
+    try {
+      this.svg.releasePointerCapture?.(e.pointerId);
+    } catch {
+      /* ignore */
+    }
+    if (this.didDrag) this.emit();
+    this.drag = null;
+    this.svg.style.pointerEvents = this.tool === 'cursor' ? 'none' : 'auto';
+    this.redraw();
+  }
+
   private handleClick(e: MouseEvent) {
+    if (this.didDrag) {
+      this.didDrag = false;
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
     if (this.tool === 'cursor') {
-      // Hit-test select
+      // Hit-test select (shapes have pointer-events; empty area doesn't fire)
       const hit = this.hitTest(e);
       this.selectedId = hit;
       this.redraw();
@@ -292,6 +365,20 @@ export class DrawingLayer {
   }
 
   private handleMove(e: MouseEvent) {
+    if (this.drag) {
+      const pt = this.clientToPoint(e);
+      if (!pt) return;
+      const dTime = pt.time - this.drag.start.time;
+      const dPrice = pt.price - this.drag.start.price;
+      if (Math.abs(dTime) > 0 || Math.abs(dPrice) > 1e-12) this.didDrag = true;
+      const moved = shiftDrawing(this.drag.origin, dTime, dPrice);
+      const idx = this.drawings.findIndex((d) => d.id === this.drag!.id);
+      if (idx >= 0) {
+        this.drawings[idx] = moved;
+        this.redraw();
+      }
+      return;
+    }
     if (!this.draft?.p1) return;
     const pt = this.clientToPoint(e);
     if (!pt) return;
@@ -363,9 +450,75 @@ export class DrawingLayer {
 
   private redraw() {
     this.syncSize();
+    this.gScript.innerHTML = '';
     this.gDraw.innerHTML = '';
+    for (const sd of this.scriptDrawings) {
+      this.paintScriptDrawing(this.gScript, sd);
+    }
     for (const d of this.drawings) {
       this.paintDrawing(this.gDraw, d, d.id === this.selectedId);
+    }
+  }
+
+  private paintScriptDrawing(g: SVGGElement, d: ScriptDrawing) {
+    const pe = 'none'; // script drawings are view-only
+    if (d.type === 'line' && d.t2 != null && d.p2 != null) {
+      const a = this.toXY({ time: d.t1, price: d.p1 });
+      const b = this.toXY({ time: d.t2, price: d.p2 });
+      if (!a || !b) return;
+      let x2 = b.x;
+      let y2 = b.y;
+      const ext = (d.extend || 'none').toLowerCase();
+      if (ext === 'right' || ext === 'both') {
+        const dx = b.x - a.x || 1;
+        const dy = b.y - a.y;
+        const scale = 3000 / Math.abs(dx);
+        x2 = b.x + dx * scale;
+        y2 = b.y + dy * scale;
+      }
+      line(g, a.x, a.y, x2, y2, d.color, d.width || 1.5, d.style === 'dashed' ? '4 3' : undefined, pe);
+      return;
+    }
+    if (d.type === 'box' && d.t2 != null && d.p2 != null) {
+      const a = this.toXY({ time: d.t1, price: d.p1 });
+      const b = this.toXY({ time: d.t2, price: d.p2 });
+      if (!a || !b) return;
+      const x = Math.min(a.x, b.x);
+      const y = Math.min(a.y, b.y);
+      el(g, 'rect', {
+        x: String(x),
+        y: String(y),
+        width: String(Math.abs(b.x - a.x)),
+        height: String(Math.abs(b.y - a.y)),
+        fill: d.bgcolor || 'rgba(147,159,255,0.08)',
+        stroke: d.color,
+        'stroke-width': String(d.width || 1),
+        'pointer-events': pe,
+      });
+      if (d.text) label(g, x + 4, y + 12, d.text, d.color, 10);
+      return;
+    }
+    if (d.type === 'label') {
+      const c = this.toXY({ time: d.t1, price: d.p1 });
+      if (!c) return;
+      // Bubble
+      const text = d.text || '';
+      const pad = 4;
+      const tw = Math.max(24, text.length * 6.5 + pad * 2);
+      const th = 16;
+      el(g, 'rect', {
+        x: String(c.x - tw / 2),
+        y: String(c.y - th - 6),
+        width: String(tw),
+        height: String(th),
+        rx: '2',
+        fill: d.color || '#939fff',
+        stroke: '#0a0b10',
+        'stroke-width': '1',
+        'pointer-events': pe,
+      });
+      label(g, c.x, c.y - 10, text, d.textcolor || '#0a0b10', 10, 'middle');
+      circle(g, c.x, c.y, 2.5, d.color || '#939fff');
     }
   }
 
@@ -378,7 +531,7 @@ export class DrawingLayer {
       const y = this.series.priceToCoordinate(d.price);
       if (y == null) return;
       const w = this.host.clientWidth;
-      line(g, 0, y, w, y, stroke, sw, dash);
+      line(g, 0, y, w, y, stroke, sw, dash, 'stroke');
       label(g, 6, y - 4, d.price.toFixed(2), stroke);
       return;
     }
@@ -448,7 +601,7 @@ export class DrawingLayer {
       const y = Math.min(a.y, b.y);
       const rw = Math.abs(b.x - a.x);
       const rh = Math.abs(b.y - a.y);
-      const r = el(g, 'rect', {
+      el(g, 'rect', {
         x: String(x),
         y: String(y),
         width: String(rw),
@@ -456,9 +609,9 @@ export class DrawingLayer {
         fill: 'rgba(147, 159, 255, 0.08)',
         stroke,
         'stroke-width': String(sw),
+        'pointer-events': 'all',
         ...(dash ? { 'stroke-dasharray': dash } : {}),
       });
-      void r;
       return;
     }
 
@@ -508,7 +661,20 @@ function line(
   stroke: string,
   sw: number,
   dash?: string,
+  pointerEvents = 'stroke',
 ) {
+  el(g, 'line', {
+    x1: String(x1),
+    y1: String(y1),
+    x2: String(x2),
+    y2: String(y2),
+    stroke,
+    'stroke-width': String(Math.max(sw, 8)), // wider hit area
+    'stroke-opacity': '0.01',
+    'pointer-events': pointerEvents,
+    'stroke-linecap': 'round',
+  });
+  // visible stroke on top
   el(g, 'line', {
     x1: String(x1),
     y1: String(y1),
@@ -517,6 +683,7 @@ function line(
     stroke,
     'stroke-width': String(sw),
     'stroke-linecap': 'round',
+    'pointer-events': 'none',
     ...(dash ? { 'stroke-dasharray': dash } : {}),
   });
 }
@@ -529,6 +696,7 @@ function circle(g: SVGElement, cx: number, cy: number, r: number, stroke: string
     fill: stroke,
     stroke: '#0a0b10',
     'stroke-width': '1',
+    'pointer-events': 'auto',
   });
 }
 
@@ -548,8 +716,26 @@ function label(
     'font-size': String(size),
     'font-family': 'ui-monospace, SFMono-Regular, Menlo, monospace',
     'text-anchor': anchor,
+    'pointer-events': 'none',
   });
   t.textContent = text;
+}
+
+function shiftDrawing(d: Drawing, dTime: number, dPrice: number): Drawing {
+  if (d.kind === 'hline') {
+    return { ...d, price: d.price + dPrice };
+  }
+  if (d.kind === 'text') {
+    return {
+      ...d,
+      p1: { time: d.p1.time + dTime, price: d.p1.price + dPrice },
+    };
+  }
+  return {
+    ...d,
+    p1: { time: d.p1.time + dTime, price: d.p1.price + dPrice },
+    p2: { time: d.p2.time + dTime, price: d.p2.price + dPrice },
+  };
 }
 
 function distToSegment(

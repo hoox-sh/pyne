@@ -1,0 +1,266 @@
+/**
+ * Built-in calculation engines for AXIS (Solid path).
+ * Uses the Solid store for endpoint / config — not legacy state.js.
+ */
+
+import type { EnginePlugin, RunResult } from '../plugins/types';
+import { store } from '../store';
+import { registry } from '../plugins/registry';
+
+function resolveConfig(
+  schema: EnginePlugin['configSchema'],
+  config?: Record<string, unknown>,
+): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [k, def] of Object.entries(schema || {})) {
+    out[k] = def && 'default' in def ? def.default : undefined;
+  }
+  for (const [k, v] of Object.entries(config || {})) {
+    if (v !== undefined) out[k] = v;
+  }
+  return out;
+}
+
+export const serverEngine: EnginePlugin = {
+  id: 'server',
+  name: 'Server-Side',
+  kind: 'engine',
+  builtIn: true,
+  description:
+    'Sends the script + bars to the configured backend (Flask or Cloudflare Worker) and renders its response.',
+  capabilities: { needsNetwork: true },
+  configSchema: {
+    endpoint: { type: 'string', default: 'http://localhost:5002', label: 'Backend URL' },
+    mode: {
+      type: 'select',
+      options: ['interpret', 'compile'],
+      default: 'interpret',
+      label: 'Execution mode',
+    },
+  },
+  async isReady() {
+    const endpoint = (store.endpoint || this.configSchema!.endpoint.default as string).replace(/\/$/, '');
+    try {
+      const res = await fetch(`${endpoint}/`, {
+        method: 'GET',
+        signal: AbortSignal.timeout(8_000),
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  },
+  async run({ script, bars, config, signal }) {
+    const endpoint = (
+      (config?.endpoint as string) ||
+      store.endpoint ||
+      (this.configSchema!.endpoint.default as string)
+    ).replace(/\/$/, '');
+    const cfg = resolveConfig(this.configSchema, { ...(config || {}), endpoint });
+    const mode = String(cfg.mode || 'interpret');
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    const t0 = performance.now();
+    const timeoutMs = Math.min(
+      180_000,
+      Math.max(60_000, 30_000 + (bars?.length || 0) * 80),
+    );
+    try {
+      const res = await fetch(`${endpoint}/run?mode=${encodeURIComponent(mode)}`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ script, data: bars }),
+        signal: signal ?? AbortSignal.timeout(timeoutMs),
+      });
+      const payload = await res.json().catch(() => ({ status: 'error', message: 'invalid JSON' }));
+      if (!res.ok || payload.status === 'error') {
+        return {
+          status: 'error',
+          plots: [],
+          events: [],
+          series: {},
+          error: payload.message || `HTTP ${res.status}`,
+          meta: { ms: performance.now() - t0 },
+        } satisfies RunResult;
+      }
+      return {
+        status: 'success',
+        plots: payload.plots || [],
+        series: payload.series || {},
+        events: payload.events || [],
+        drawings: payload.drawings || [],
+        meta: {
+          ...(payload.meta || {}),
+          ms: performance.now() - t0,
+          mode: payload.mode,
+          script_id: payload.script_id,
+          run_id: payload.run_id,
+          overlay: payload.meta?.overlay ?? true,
+          script_name: payload.meta?.script_name || 'plot',
+        },
+      } satisfies RunResult;
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return {
+        status: 'error',
+        plots: [],
+        events: [],
+        series: {},
+        error: msg,
+        meta: { ms: performance.now() - t0 },
+      } satisfies RunResult;
+    }
+  },
+};
+
+type PyodideLike = {
+  loadPackage: (name: string) => Promise<void>;
+  pyimport: (name: string) => { install: (url: string, keep?: boolean) => Promise<void> };
+  runPythonAsync: (code: string) => Promise<void>;
+  runPython: (code: string) => string;
+};
+
+declare global {
+  interface Window {
+    loadPyodide?: (opts: { indexURL: string }) => Promise<PyodideLike>;
+  }
+}
+
+export const pyodideEngine: EnginePlugin & {
+  _pyodide: PyodideLike | null;
+  _loadPromise: Promise<PyodideLike> | null;
+  _ensure: () => Promise<PyodideLike>;
+} = {
+  id: 'pyodide',
+  name: 'Client-Side (Pyodide)',
+  kind: 'engine',
+  builtIn: true,
+  description:
+    'Loads the Python pynescript runtime into the browser via Pyodide and runs the script locally. Works offline after first load.',
+  capabilities: { offline: true, needsNetwork: true },
+  configSchema: {
+    indexUrl: {
+      type: 'string',
+      default: 'https://cdn.jsdelivr.net/pyodide/v0.26.2/full/',
+      label: 'Pyodide index URL',
+    },
+  },
+  _pyodide: null,
+  _loadPromise: null,
+  async isReady() {
+    try {
+      await this._ensure();
+      return true;
+    } catch {
+      return false;
+    }
+  },
+  async _ensure() {
+    if (this._pyodide) return this._pyodide;
+    if (this._loadPromise) return this._loadPromise;
+    const self = this;
+    const cfg = resolveConfig(this.configSchema, {});
+    const indexUrl = String(cfg.indexUrl || 'https://cdn.jsdelivr.net/pyodide/v0.26.2/full/');
+    this._loadPromise = (async () => {
+      const origin = typeof location !== 'undefined' ? location.origin : '';
+      if (typeof window !== 'undefined' && typeof window.loadPyodide !== 'function') {
+        await import(/* @vite-ignore */ `${indexUrl}pyodide.js`);
+      }
+      if (typeof window === 'undefined' || typeof window.loadPyodide !== 'function') {
+        throw new Error('loadPyodide not available');
+      }
+      const py = await window.loadPyodide({ indexURL: indexUrl });
+      await py.loadPackage('micropip');
+      const micropip = py.pyimport('micropip');
+      await micropip.install(`${origin}/vendor/pynescript-0.2.0-py3-none-any.whl`, false);
+      try {
+        await micropip.install('antlr4-python3-runtime>=4.13.1');
+      } catch {
+        /* may already be present */
+      }
+      const runtimeResp = await fetch(`${origin}/pyodide/pynescript_runtime.py`);
+      if (!runtimeResp.ok) {
+        throw new Error(`Failed to load pynescript_runtime.py: HTTP ${runtimeResp.status}`);
+      }
+      const runtimePy = await runtimeResp.text();
+      await py.runPythonAsync(runtimePy);
+      self._pyodide = py;
+      return py;
+    })().catch((err) => {
+      self._loadPromise = null;
+      throw err;
+    });
+    return this._loadPromise;
+  },
+  async run({ script, bars }) {
+    const t0 = performance.now();
+    try {
+      const py = await this._ensure();
+      const resultJson = py.runPython(
+        `run_script(${JSON.stringify(script)}, ${JSON.stringify(bars)})`,
+      );
+      const result = JSON.parse(resultJson) as RunResult;
+      return {
+        ...result,
+        series: result.series || {},
+        events: result.events || [],
+        meta: { ...(result.meta || {}), ms: performance.now() - t0 },
+      };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return {
+        status: 'error',
+        plots: [],
+        series: {},
+        events: [],
+        error: msg,
+        meta: { ms: performance.now() - t0 },
+      };
+    }
+  },
+};
+
+export const BUILTIN_ENGINES: EnginePlugin[] = [serverEngine, pyodideEngine];
+
+let registered = false;
+
+export function ensureEnginesRegistered(): void {
+  if (registered) return;
+  registered = true;
+  for (const e of BUILTIN_ENGINES) {
+    if (!registry.getEngine(e.id)) {
+      registry.registerEngine(e);
+    }
+  }
+}
+
+export function getEngine(id: string): EnginePlugin | undefined {
+  ensureEnginesRegistered();
+  return registry.getEngine(id);
+}
+
+export function listEngines(): EnginePlugin[] {
+  ensureEnginesRegistered();
+  return registry.listEngines();
+}
+
+export function registerDynamicEngine(engine: EnginePlugin): void {
+  ensureEnginesRegistered();
+  if (!engine?.id || engine.kind !== 'engine') throw new Error('Invalid engine plugin');
+  if (typeof engine.run !== 'function') throw new Error('Engine must implement run()');
+  registry.registerEngine({ ...engine, builtIn: engine.builtIn ?? false });
+}
+
+export function unregisterDynamicEngine(id: string): boolean {
+  ensureEnginesRegistered();
+  return registry.unregisterEngine(id);
+}
+
+export function listDynamicEngineIds(): string[] {
+  ensureEnginesRegistered();
+  return registry.listEngines().filter((e) => !e.builtIn).map((e) => e.id);
+}
+
+/** @internal test helper */
+export function _resetEngineRegistrationFlag() {
+  registered = false;
+}

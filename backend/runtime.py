@@ -264,6 +264,15 @@ class Runtime:
         evaluator = CustomEvaluator(context=context, data_feed=data_feed, data_provider=data_provider)
         evaluator.reset_var_declarations()
 
+        # Fresh drawing registries so leftover labels/lines from prior runs
+        # (or tests) do not leak into this response.
+        try:
+            from pynescript.ast.evaluator.builtins.drawing import DrawingRegistry
+
+            DrawingRegistry.reset()
+        except Exception:
+            pass
+
         results = []
         all_events: list[dict] = []
 
@@ -367,9 +376,20 @@ class Runtime:
         if results and "plot_0" in results[0]:
             final_series = [r.get("plot_0") for r in results]
 
+        # Serialize Pine drawing objects (line/label/box) for AXIS overlay
+        drawings: list[dict] = []
+        try:
+            from pynescript.ast.evaluator.builtins.drawing import DrawingRegistry
+
+            bar_times = [int(b.get("time", 0) or 0) for b in ohlcv_data]
+            drawings = DrawingRegistry.export_for_api(bar_times)
+        except Exception:
+            drawings = []
+
         return {
             "plots": final_series,
             "events": all_events,
+            "drawings": drawings,
             "count": len(results),
             "script_id": script_id,
             "run_id": self._run_id,

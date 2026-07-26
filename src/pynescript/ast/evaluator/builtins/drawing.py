@@ -41,7 +41,7 @@ class DrawingRegistry:
 
     @classmethod
     def reset(cls) -> None:
-        """Reset all registries for testing."""
+        """Reset all registries for testing / start of a run."""
         cls.lines = []
         cls.boxes = []
         cls.labels = []
@@ -51,6 +51,141 @@ class DrawingRegistry:
         # Also reset plot real effects
         from .plotting import PlotRegistry
         PlotRegistry.reset()
+
+    @classmethod
+    def export_for_api(cls, bar_times: list[int] | None = None) -> list[dict[str, Any]]:
+        """Serialize active drawing objects for the Pro API / AXIS chart.
+
+        ``bar_times`` maps ``xloc=bar_index`` coordinates to unix seconds.
+        """
+        out: list[dict[str, Any]] = []
+        times = bar_times or []
+
+        def _num(v: Any) -> float | int | None:
+            if v is None:
+                return None
+            if hasattr(v, "current"):
+                v = getattr(v, "current", None)
+            if v is None:
+                return None
+            if isinstance(v, bool):
+                return int(v)
+            if isinstance(v, (int, float)):
+                if isinstance(v, float) and v != v:  # NaN
+                    return None
+                return v
+            try:
+                return float(v)
+            except (TypeError, ValueError):
+                return None
+
+        def _x_to_time(x: Any, xloc: str) -> int | float | None:
+            xv = _num(x)
+            if xv is None:
+                return None
+            loc = (xloc or "bar_index").lower()
+            if "time" in loc:
+                return xv
+            # bar_index → wall time
+            idx = int(xv)
+            if 0 <= idx < len(times):
+                return times[idx]
+            # already looks like unix seconds / ms
+            if xv > 1_000_000_000:
+                return xv
+            return None
+
+        def _color(c: Any) -> str:
+            if c is None:
+                return "#939fff"
+            if isinstance(c, str) and c:
+                return c
+            if isinstance(c, int):
+                # 0xAARRGGBB or 0xRRGGBB
+                if c > 0xFFFFFF:
+                    r = (c >> 16) & 0xFF
+                    g = (c >> 8) & 0xFF
+                    b = c & 0xFF
+                    return f"#{r:02X}{g:02X}{b:02X}"
+                return f"#{c & 0xFFFFFF:06X}"
+            return str(c)
+
+        for ln in cls.lines:
+            if getattr(ln, "deleted", False):
+                continue
+            xloc = str(getattr(ln, "xloc", "bar_index") or "bar_index")
+            # Guard mis-merged kwargs (color hex landed in xloc)
+            if xloc.startswith("#") or xloc.startswith("rgb"):
+                xloc = "bar_index"
+            t1 = _x_to_time(ln.x1, xloc)
+            t2 = _x_to_time(ln.x2, xloc)
+            y1 = _num(ln.y1)
+            y2 = _num(ln.y2)
+            if t1 is None or t2 is None or y1 is None or y2 is None:
+                continue
+            out.append(
+                {
+                    "type": "line",
+                    "t1": t1,
+                    "p1": y1,
+                    "t2": t2,
+                    "p2": y2,
+                    "color": _color(ln.color),
+                    "width": int(_num(ln.width) or 1),
+                    "style": str(ln.style or "solid"),
+                    "extend": str(ln.extend or "none"),
+                }
+            )
+
+        for bx in cls.boxes:
+            if getattr(bx, "deleted", False):
+                continue
+            xloc = str(getattr(bx, "xloc", "bar_index") or "bar_index")
+            if xloc.startswith("#") or xloc.startswith("rgb"):
+                xloc = "bar_index"
+            t1 = _x_to_time(bx.left, xloc)
+            t2 = _x_to_time(bx.right, xloc)
+            top = _num(bx.top)
+            bottom = _num(bx.bottom)
+            if t1 is None or t2 is None or top is None or bottom is None:
+                continue
+            out.append(
+                {
+                    "type": "box",
+                    "t1": t1,
+                    "p1": top,
+                    "t2": t2,
+                    "p2": bottom,
+                    "color": _color(bx.border_color),
+                    "bgcolor": _color(bx.bgcolor) if bx.bgcolor else "rgba(0,0,0,0)",
+                    "width": int(_num(bx.border_width) or 1),
+                    "text": str(bx.text or ""),
+                }
+            )
+
+        for lb in cls.labels:
+            if getattr(lb, "deleted", False):
+                continue
+            xloc = str(getattr(lb, "xloc", "bar_index") or "bar_index")
+            if xloc.startswith("#") or xloc.startswith("rgb"):
+                xloc = "bar_index"
+            t = _x_to_time(lb.x, xloc)
+            y = _num(lb.y)
+            if t is None or y is None:
+                continue
+            out.append(
+                {
+                    "type": "label",
+                    "t1": t,
+                    "p1": y,
+                    "text": str(lb.text or ""),
+                    "color": _color(lb.color),
+                    "textcolor": _color(lb.textcolor),
+                    "style": str(lb.style or "label_center"),
+                }
+            )
+
+        return out
 
 
 @dataclass
@@ -365,20 +500,26 @@ class DrawingBuiltinsMixin(BuiltinDispatchMixin):
 
     # LINE HANDLERS
 
-    def _handle_line_new(self, args: list[Any]) -> Line:
-        """line.new(x1, y1, x2, y2, xloc, closed, color, width, style, extend)"""
-        x1 = args[0] if len(args) > 0 else 0
-        y1 = args[1] if len(args) > 1 else 0.0
-        x2 = args[2] if len(args) > 2 else 0
-        y2 = args[3] if len(args) > 3 else 0.0
-        xloc = args[4] if len(args) > 4 else "bar_index"
-        color = args[5] if len(args) > 5 else "#000000"
-        width = args[6] if len(args) > 6 else 1
-        style = args[7] if len(args) > 7 else "solid"
-        extend = args[8] if len(args) > 8 else "none"
-        force_overlay = args[9] if len(args) > 9 else False
+    def _handle_line_new(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> Line:
+        """line.new(x1, y1, x2, y2, xloc=..., color=..., width=..., style=..., extend=...)."""
+        kw = kwargs or {}
+        x1 = kw.get("x1", args[0] if len(args) > 0 else 0)
+        y1 = kw.get("y1", args[1] if len(args) > 1 else 0.0)
+        x2 = kw.get("x2", args[2] if len(args) > 2 else 0)
+        y2 = kw.get("y2", args[3] if len(args) > 3 else 0.0)
+        xloc = kw.get("xloc", args[4] if len(args) > 4 else "bar_index")
+        # Pine often passes color as first keyword after positionals
+        color = kw.get("color", args[5] if len(args) > 5 else "#000000")
+        width = kw.get("width", args[6] if len(args) > 6 else 1)
+        style = kw.get("style", args[7] if len(args) > 7 else "solid")
+        extend = kw.get("extend", args[8] if len(args) > 8 else "none")
+        force_overlay = kw.get("force_overlay", args[9] if len(args) > 9 else False)
+        # Defensive: color hex accidentally in xloc from old merge path
+        if isinstance(xloc, str) and (xloc.startswith("#") or xloc.startswith("rgb")):
+            color = xloc
+            xloc = "bar_index"
 
-        line = Line(x1, y1, x2, y2, xloc, color, width, style, extend, force_overlay=force_overlay)
+        line = Line(x1, y1, x2, y2, str(xloc), color, width, style, extend, force_overlay=bool(force_overlay))
         DrawingRegistry.lines.append(line)
         return line
 
@@ -484,25 +625,42 @@ class DrawingBuiltinsMixin(BuiltinDispatchMixin):
 
     # BOX HANDLERS
 
-    def _handle_box_new(self, args: list[Any]) -> Box:
-        """box.new(left, top, right, bottom, xloc, closed, bgcolor, ...)"""
-        left = args[0] if len(args) > 0 else 0
-        top = args[1] if len(args) > 1 else 0.0
-        right = args[2] if len(args) > 2 else 0
-        bottom = args[3] if len(args) > 3 else 0.0
-        xloc = args[4] if len(args) > 4 else "bar_index"
-        closed = args[5] if len(args) > 5 else True
-        bgcolor = args[6] if len(args) > 6 else "rgba(0,0,0,0)"
-        border_color = args[7] if len(args) > 7 else "#000000"
-        border_width = args[8] if len(args) > 8 else 1
-        border_style = args[9] if len(args) > 9 else "solid"
-        extend = args[10] if len(args) > 10 else "none"
-        force_overlay = args[11] if len(args) > 11 else False
+    def _handle_box_new(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> Box:
+        """box.new(left, top, right, bottom, xloc=..., bgcolor=..., border_color=..., ...)."""
+        kw = kwargs or {}
+        left = kw.get("left", args[0] if len(args) > 0 else 0)
+        top = kw.get("top", args[1] if len(args) > 1 else 0.0)
+        right = kw.get("right", args[2] if len(args) > 2 else 0)
+        bottom = kw.get("bottom", args[3] if len(args) > 3 else 0.0)
+        xloc = kw.get("xloc", args[4] if len(args) > 4 else "bar_index")
+        closed = kw.get("closed", args[5] if len(args) > 5 else True)
+        bgcolor = kw.get("bgcolor", args[6] if len(args) > 6 else "rgba(0,0,0,0)")
+        border_color = kw.get(
+            "border_color",
+            args[7] if len(args) > 7 else "#000000",
+        )
+        border_width = kw.get("border_width", args[8] if len(args) > 8 else 1)
+        border_style = kw.get("border_style", args[9] if len(args) > 9 else "solid")
+        extend = kw.get("extend", args[10] if len(args) > 10 else "none")
+        force_overlay = kw.get("force_overlay", args[11] if len(args) > 11 else False)
+        text = kw.get("text", "")
+        text_color = kw.get("text_color", "#000000")
 
         box = Box(
-            left, top, right, bottom, xloc, closed, bgcolor,
-            border_color, border_width, border_style, extend,
-            force_overlay=force_overlay
+            left,
+            top,
+            right,
+            bottom,
+            str(xloc),
+            bool(closed),
+            bgcolor,
+            border_color,
+            border_width,
+            border_style,
+            extend,
+            text=str(text) if text is not None else "",
+            text_color=str(text_color) if text_color is not None else "#000000",
+            force_overlay=bool(force_overlay),
         )
         DrawingRegistry.boxes.append(box)
         return box
