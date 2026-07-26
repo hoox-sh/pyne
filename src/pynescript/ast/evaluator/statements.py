@@ -39,6 +39,346 @@ from pynescript.ast.type_system import UserDefinedType
 _CONTEXT_MISSING: Any = object()
 
 
+def _type_spec_tag(spec: Any) -> str | None:
+    """Coarse type tag from a type AST node (Name / Qualify / Specialize / Attribute)."""
+    if spec is None:
+        return None
+    # matrix<float> / array<label> / map<string, float>
+    if isinstance(spec, ast.Specialize):
+        base = spec.value
+        base_tag: str | None = None
+        if isinstance(base, ast.Name):
+            base_tag = base.id
+        elif isinstance(base, ast.Attribute):
+            base_tag = base.attr
+        if not base_tag:
+            return None
+        # First type argument only (array/matrix element, map key ignored)
+        elem = spec.args
+        elem_tag: str | None = None
+        if isinstance(elem, ast.Name):
+            elem_tag = elem.id
+        elif isinstance(elem, ast.Attribute):
+            elem_tag = elem.attr
+        elif isinstance(elem, ast.Specialize):
+            elem_tag = _type_spec_tag(elem)
+        if elem_tag:
+            return f"{base_tag}.{elem_tag}"
+        return base_tag
+    # series label / series string / series color
+    if isinstance(spec, ast.Qualify):
+        return _type_spec_tag(spec.value)
+    if isinstance(spec, ast.Name):
+        return spec.id
+    if isinstance(spec, ast.Attribute):
+        # chart.point → point (receiver matching uses point / ChartPoint)
+        return spec.attr
+    return None
+
+
+def _first_param_type_tag(node: ast.FunctionDef) -> str | None:
+    """Extract a coarse type tag from a method's first parameter for overload dispatch.
+
+    Examples: ``matrix.float``, ``array.label``, ``label``, ``theme``, ``string``.
+    """
+    tags = _param_type_tags(node)
+    return tags[0] if tags else None
+
+
+def _param_type_tags(node: ast.FunctionDef) -> list[str | None]:
+    """Type tags for every method parameter (receiver first)."""
+    tags: list[str | None] = []
+    for param in node.args:
+        if not isinstance(param, ast.Param):
+            continue
+        tags.append(_type_spec_tag(param.type) if param.type is not None else None)
+    return tags
+
+
+def _unwrap_series_receiver(receiver: Any) -> Any:
+    """If *receiver* is a PineSeries-like wrapper, return its current scalar."""
+    if receiver is None:
+        return None
+    # Avoid treating lists/strings as series
+    if isinstance(receiver, (list, tuple, str, bytes, dict, bool, int, float)):
+        return receiver
+    if type(receiver).__name__ in {"PineSeries", "_SeriesResult"} or (
+        hasattr(receiver, "history") and hasattr(receiver, "current")
+    ):
+        return getattr(receiver, "current", receiver)
+    return receiver
+
+
+def _normalize_na(value: Any) -> Any:
+    """Map unresolved bare-name ``\"na\"`` (and similar) to the na sentinel None.
+
+    Before bare ``na`` was wired to the builtin, ``visit_Name`` returned the
+    string ``\"na\"``. That broke optional UDT args (``init(theme = na)``) and
+    multi-dispatch (theme tag rejected the string → generic ``str()`` fallback
+    destroyed ObjectInstance / Label receivers — Console ``testLabel.delete``).
+    """
+    if value is None:
+        return None
+    if isinstance(value, str) and value.lower() in {"na", "nan", "none"}:
+        return None
+    return value
+
+
+# Types that must never win multi-dispatch for ``na`` receivers (matrix tostring
+# uses this.columns(); drawing types don't make sense for na either).
+_NA_EXCLUDED_TAGS = frozenset(
+    {
+        "matrix",
+        "array",
+        "map",
+        "label",
+        "line",
+        "linefill",
+        "box",
+        "polyline",
+        "point",
+        "footprint",
+        "volume_row",
+    }
+)
+
+
+def _receiver_matches_type_tag(tag: str | None, receiver: Any) -> bool:
+    """True if *receiver* is compatible with a method first-param type tag."""
+    if tag is None:
+        return False
+    tag_l = tag.lower()
+    receiver = _normalize_na(receiver)
+    # na: only match isset-style / primitive overloads — never matrix/array tostring
+    if receiver is None:
+        base = tag_l.split(".", 1)[0]
+        return base not in _NA_EXCLUDED_TAGS
+
+    # Built-in drawing / collection types
+    try:
+        from pynescript.ast.evaluator.builtins.drawing import Box
+        from pynescript.ast.evaluator.builtins.drawing import ChartPoint
+        from pynescript.ast.evaluator.builtins.drawing import Label
+        from pynescript.ast.evaluator.builtins.drawing import Line
+        from pynescript.ast.evaluator.builtins.drawing import LineFill
+        from pynescript.ast.evaluator.builtins.drawing import Polyline
+        from pynescript.ast.evaluator.builtins.drawing import Table
+        from pynescript.ast.evaluator.builtins.matrix import Matrix
+    except Exception:  # pragma: no cover
+        Box = Label = Line = LineFill = Polyline = Table = ChartPoint = Matrix = ()  # type: ignore
+
+    # matrix / matrix.float / matrix.string
+    if tag_l == "matrix" or tag_l.startswith("matrix."):
+        return isinstance(receiver, Matrix)
+    # array / array.string / array<label>
+    if tag_l == "array" or tag_l.startswith("array."):
+        if not isinstance(receiver, list):
+            return False
+        if not tag_l.startswith("array."):
+            return True
+        if not receiver:
+            return True  # empty array matches any array.*
+        elem_tag = tag.split(".", 1)[1]
+        return _receiver_matches_type_tag(elem_tag, receiver[0])
+    # map / map.string (key type ignored)
+    if tag_l == "map" or tag_l.startswith("map."):
+        return isinstance(receiver, dict)
+    if tag_l == "table" and isinstance(receiver, Table):
+        return True
+    if tag_l == "label" and isinstance(receiver, Label):
+        return True
+    if tag_l == "line" and isinstance(receiver, Line):
+        return True
+    if tag_l == "linefill" and isinstance(receiver, LineFill):
+        return True
+    if tag_l == "box" and isinstance(receiver, Box):
+        return True
+    if tag_l == "polyline" and isinstance(receiver, Polyline):
+        return True
+    if tag_l in {"chart.point", "point"} and isinstance(receiver, ChartPoint):
+        return True
+    if tag_l == "string" and isinstance(receiver, str):
+        return True
+    if tag_l == "int" and isinstance(receiver, int) and not isinstance(receiver, bool):
+        return True
+    if tag_l == "float" and isinstance(receiver, (int, float)) and not isinstance(receiver, bool):
+        return True
+    if tag_l == "bool" and isinstance(receiver, bool):
+        return True
+    if tag_l == "color":
+        # Only hex / color.* / rgba strings — not every str (else string loses to color)
+        if isinstance(receiver, str):
+            s = receiver.strip()
+            return s.startswith("#") or s.startswith("color.") or s.startswith("rgb")
+        if isinstance(receiver, int) and not isinstance(receiver, bool):
+            return True
+        return False
+    if isinstance(receiver, ObjectInstance) and receiver.udt.name == tag:
+        return True
+    return False
+
+
+def _match_score(tag: str | None, receiver: Any) -> int:
+    """Higher is better. Used to prefer string over weak color, float over int, etc."""
+    if not _receiver_matches_type_tag(tag, receiver):
+        return -1
+    if tag is None:
+        return 0
+    tag_l = tag.lower()
+    # Exact structural matches (prefer specialized array.string over bare array)
+    if tag_l.startswith("matrix."):
+        return 110
+    if tag_l == "matrix":
+        return 100
+    if tag_l.startswith("array."):
+        return 110
+    if tag_l == "array":
+        return 100
+    if tag_l.startswith("map.") or tag_l == "map":
+        return 100
+    if tag_l in {"label", "line", "box", "table", "polyline", "linefill", "point"}:
+        return 100
+    if tag_l == "string" and isinstance(receiver, str):
+        return 90
+    if tag_l == "bool" and isinstance(receiver, bool):
+        return 90
+    if tag_l == "int" and isinstance(receiver, int) and not isinstance(receiver, bool):
+        return 80
+    if tag_l == "float" and isinstance(receiver, float):
+        return 85
+    if tag_l == "float" and isinstance(receiver, int) and not isinstance(receiver, bool):
+        return 50  # int can widen to float
+    if tag_l == "color":
+        return 70
+    if isinstance(receiver, ObjectInstance) and receiver.udt.name == tag:
+        return 100
+    if receiver is None:
+        return 20
+    return 10
+
+
+def _score_overload_for_args(fn: Any, args: tuple | list) -> int:
+    """Sum of per-arg match scores; -1 if any concrete arg fails to match.
+
+    Prefers overloads whose typed-parameter count matches the number of
+    provided args so ``log(terminal, string)`` wins over
+    ``log(terminal, string, label)`` when only two args are passed.
+    """
+    tags = getattr(fn, "__pine_param_types__", None)
+    if not tags:
+        tags = [getattr(fn, "__pine_first_type__", None)]
+    # Drop trailing None tags (untyped params)
+    while tags and tags[-1] is None:
+        tags = tags[:-1]
+    if len(tags) < len(args):
+        # Extra args with no parameter types — reject
+        return -1
+    total = 0
+    for j, arg in enumerate(args):
+        tag = tags[j] if j < len(tags) else None
+        if tag is None:
+            if j == 0:
+                return -1
+            continue
+        s = _match_score(tag, arg)
+        if s < 0:
+            un = _unwrap_series_receiver(arg)
+            if un is not arg:
+                s = _match_score(tag, un)
+            if s < 0:
+                return -1
+        total += s
+    # Exact arity wins over overloads with unused optional trailing params
+    if len(tags) == len(args):
+        total += 30
+    else:
+        # optional trailing params: small penalty so 2-arg call prefers 2-param sig
+        total -= 5 * (len(tags) - len(args))
+    return total
+
+
+def _pick_method_overload(overloads: list, receiver: Any, rest_args: tuple | list = ()) -> Any:
+    """Choose the best method overload for call args (highest score, then last)."""
+    # Coerce bare-name ``\"na\"`` so optional UDT params (theme = na) match.
+    receiver = _normalize_na(receiver)
+    rest_norm = [_normalize_na(a) for a in rest_args]
+    call_args: list[Any] = [receiver, *rest_norm]
+
+    scored: list[tuple[int, int, Any]] = []
+    for i, fn in enumerate(overloads):
+        score = _score_overload_for_args(fn, call_args)
+        if score >= 0:
+            scored.append((score, i, fn))
+
+    if scored:
+        scored.sort(key=lambda t: (t[0], t[1]))
+        chosen = scored[-1][2]
+        # If first arg is series and overload wants float/int, unwrap on call
+        first_tag = (getattr(chosen, "__pine_param_types__", None) or [None])[0]
+        unwrapped = _unwrap_series_receiver(receiver)
+        if (
+            unwrapped is not receiver
+            and first_tag in {"float", "int", "bool", "string", "color"}
+            and _match_score(first_tag, unwrapped) >= 0
+        ):
+
+            def _unwrap_and_call(*a, __fn=chosen, __scalar=unwrapped, **kwargs):
+                if a:
+                    return __fn(__scalar, *a[1:], **kwargs)
+                return __fn(__scalar, **kwargs)
+
+            _unwrap_and_call.__pine_method__ = True  # type: ignore[attr-defined]
+            _unwrap_and_call.__pine_first_type__ = first_tag  # type: ignore[attr-defined]
+            return _unwrap_and_call
+
+        return chosen
+
+    # No matching overload — never fall back to an arbitrary last method
+    # (Console's last ``tostring`` is matrix and uses ``this.columns()``).
+    if receiver is None:
+
+        def _na_passthrough(*a, **kwargs):
+            # isset(na, replacement) → replacement; tostring(na) → na
+            return a[1] if len(a) > 1 else None
+
+        _na_passthrough.__pine_method__ = True  # type: ignore[attr-defined]
+        return _na_passthrough
+
+    unwrapped = _unwrap_series_receiver(receiver)
+
+    def _generic_tostring(*a, __recv=unwrapped if unwrapped is not receiver else receiver, **kwargs):
+        r = a[0] if a else __recv
+        r = _unwrap_series_receiver(r)
+        r = _normalize_na(r)
+        if r is None:
+            return None
+        if isinstance(r, bool):
+            return "true" if r else "false"
+        # Never stringify structured Pine values — that broke Console chaining
+        # (``label.new(...).log_inline(console)`` → str → ``testLabel.delete``).
+        if isinstance(r, ObjectInstance):
+            return r
+        if isinstance(r, (list, dict, tuple)):
+            return r
+        try:
+            from pynescript.ast.evaluator.builtins.drawing import Box
+            from pynescript.ast.evaluator.builtins.drawing import Label
+            from pynescript.ast.evaluator.builtins.drawing import Line
+            from pynescript.ast.evaluator.builtins.drawing import LineFill
+            from pynescript.ast.evaluator.builtins.drawing import Polyline
+            from pynescript.ast.evaluator.builtins.drawing import Table
+            from pynescript.ast.evaluator.builtins.matrix import Matrix
+
+            if isinstance(r, (Label, Line, Box, Table, Polyline, LineFill, Matrix)):
+                return r
+        except Exception:  # pragma: no cover
+            pass
+        return str(r)
+
+    _generic_tostring.__pine_method__ = True  # type: ignore[attr-defined]
+    return _generic_tostring
+
+
 class BreakLoop(Exception):
     """Signal to break out of a loop."""
 
@@ -303,6 +643,8 @@ class StatementEvaluator:
 
     def visit_TypeDef(self, node: ast.TypeDef):
         """Process a type definition and register it in the TypeRegistry"""
+        if getattr(self, "_pine_defs_locked", False):
+            return
         type_name = node.name
         udt = UserDefinedType(type_name)
         udt.is_exported = bool(node.export)
@@ -406,6 +748,8 @@ class StatementEvaluator:
         return BuiltinType(BuiltinTypeKind.STRING)
 
     def visit_EnumDef(self, node: ast.EnumDef):
+        if getattr(self, "_pine_defs_locked", False):
+            return
         enum_name = node.name
         enum_members = {}
         for stmt in node.body:
@@ -596,7 +940,15 @@ class StatementEvaluator:
         Pine ``method m(Type this, ...) => ...`` (outside a type body) is
         registered on the UDT so ``instance.m()`` resolves. The same
         callable is also stored under ``m`` for free-function form.
+
+        Bar-loop hosts re-visit the full script AST each bar. After the first
+        bar, ``_pine_defs_locked`` skips re-binding so multi-dispatch tables
+        do not grow unboundedly (Console ``tostring`` × N bars → timeout).
         """
+        # Already bound on a prior bar — keep existing callables.
+        if getattr(self, "_pine_defs_locked", False):
+            return
+
         if node.method:
             self._register_standalone_method(node)
 
@@ -658,6 +1010,47 @@ class StatementEvaluator:
         # on every object (``zigZag.update()`` → infinite recursion).
         if node.method:
             user_function.__pine_method__ = True  # type: ignore[attr-defined]
+            param_tags = _param_type_tags(node)
+            user_function.__pine_first_type__ = param_tags[0] if param_tags else None  # type: ignore[attr-defined]
+            user_function.__pine_param_types__ = param_tags  # type: ignore[attr-defined]
+            # Multi-dispatch overloads (Console: dozens of ``tostring`` / ``log`` / ``isset``).
+            # Last definition used to overwrite the previous → wrong body ran
+            # (e.g. c.log("hi") picking log(terminal, label) → recursive this.log).
+            existing = self.context.get(func_name)  # type: ignore[attr-defined]
+            overloads: list = []
+            if callable(existing) and getattr(existing, "__pine_overloads__", None):
+                overloads = list(existing.__pine_overloads__)  # type: ignore[attr-defined]
+            elif callable(existing) and getattr(existing, "__pine_method__", False):
+                overloads = [existing]
+            # Dedup by param-type signature so a second full-script pass (bar loop
+            # without defs lock) replaces rather than appends. Unbounded growth
+            # made multi-dispatch O(bars²) and hit the 30s frontend timeout.
+            replaced = False
+            for i, prev in enumerate(overloads):
+                if getattr(prev, "__pine_param_types__", None) == param_tags:
+                    overloads[i] = user_function
+                    replaced = True
+                    break
+            if not replaced:
+                overloads.append(user_function)
+
+            def multi_dispatch(*args, __overloads=overloads, **kwargs):
+                # Coerce bare-name \"na\" → None before dispatch and body bind
+                # (Console: ``.init(_THEME ? customTheme : na)``).
+                args = tuple(_normalize_na(a) for a in args)
+                if not args:
+                    return __overloads[-1](*args, **kwargs)
+                chosen = _pick_method_overload(__overloads, args[0], args[1:])
+                return chosen(*args, **kwargs)
+
+            multi_dispatch.__pine_method__ = True  # type: ignore[attr-defined]
+            multi_dispatch.__pine_overloads__ = overloads  # type: ignore[attr-defined]
+            multi_dispatch.__pine_first_type__ = None  # type: ignore[attr-defined]
+            multi_dispatch.__pine_param_types__ = None  # type: ignore[attr-defined]
+            self.context[func_name] = multi_dispatch  # type: ignore[attr-defined]
+            if getattr(node, "export", None):
+                self._register_export(func_name, multi_dispatch)
+            return
 
         self.context[func_name] = user_function  # type: ignore[attr-defined]
         if getattr(node, "export", None):
@@ -714,6 +1107,30 @@ class StatementEvaluator:
             udt._method_defs = {}  # type: ignore[attr-defined]
         udt._method_defs[node.name] = node  # type: ignore[attr-defined]
 
+    def _load_library_source(self, source: str) -> None:
+        """Evaluate a library script's definitions only (no showcase body).
+
+        Keeps ``library()``, ``export type``/``export method``/``export const``,
+        and non-export helpers (``method isset`` etc.) while skipping free
+        statements like Console's interactive demo (``testLabel.delete()`` …).
+        """
+        tree = parse_pine(source, mode="exec")
+        for stmt in getattr(tree, "body", []) or []:
+            kind = type(stmt).__name__
+            if kind in {"FunctionDef", "TypeDef", "EnumDef", "Import"}:
+                self.visit(stmt)  # type: ignore[attr-defined]
+                continue
+            if kind == "Assign":
+                # const / exported vars used by methods
+                self.visit(stmt)  # type: ignore[attr-defined]
+                continue
+            if kind == "Expr":
+                val = getattr(stmt, "value", None)
+                if isinstance(val, ast.Call):
+                    func = val.func
+                    if isinstance(func, ast.Name) and func.id in {"library", "indicator", "strategy"}:
+                        self.visit(stmt)  # type: ignore[attr-defined]
+
     def visit_Import(self, node: ast.Import):
         """Resolve ``import namespace/name/version [as alias]`` against the library registry.
 
@@ -721,6 +1138,8 @@ class StatementEvaluator:
         or by library title (``name``) after a prior ``evaluate_script(library(...))``.
         Explicit sources registered via ``register_library_source`` are loaded lazily.
         """
+        if getattr(self, "_pine_defs_locked", False):
+            return
         namespace = node.namespace
         name = node.name
         version = int(node.version) if node.version is not None else None
@@ -732,8 +1151,9 @@ class StatementEvaluator:
         if mod is None and namespace is not None and version is not None:
             source = registry.get_source(namespace, name, version)
             if source is not None:
-                # Load library source into the same evaluator (exports accumulate)
-                self.visit(parse_pine(source, mode="exec"))  # type: ignore[attr-defined]
+                # Load library definitions only (skip chart demo / example bodies).
+                # TradingView does not re-run library showcase scripts on import.
+                self._load_library_source(source)  # type: ignore[attr-defined]
                 mod = registry.lookup(namespace=namespace, name=name, version=version)
                 if mod is None:
                     # Title-only registration from library("name")

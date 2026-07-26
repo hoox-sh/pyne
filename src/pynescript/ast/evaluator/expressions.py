@@ -14,6 +14,9 @@ from pynescript.ast.evaluator.types import EvaluatorProtocol
 from pynescript.ast.type_system import ObjectInstance
 from pynescript.ast.type_system import UserDefinedType
 
+# Sentinel: attribute-call recovery did not apply
+_ATTR_CALL_MISS = object()
+
 
 # Optimize: Pre-cache operator references at module level
 # These imports reduce attribute lookup overhead for frequent operations
@@ -332,12 +335,33 @@ class ExpressionEvaluator:
         # Handle .new() method for UDT instantiation
         if isinstance(node.func, ast.Attribute):
             if node.func.attr == "new":
-                type_obj = self.visit(node.func.value)
+                type_obj = self._resolve_udt_constructor(node.func.value)
                 if isinstance(type_obj, UserDefinedType):
                     return self._handle_udt_new(type_obj, args, kwargs)
 
+        # Zero-arg call on a UDT/series field: ``this.columns()`` where ``columns``
+        # is an int field (Console uses both ``this.columns`` and ``this.columns()``
+        # / matrix ``this.columns()``). Prefer the field value over "not callable".
+        if (
+            isinstance(node.func, ast.Attribute)
+            and not args
+            and not kwargs
+            and not isinstance(func, (str, tuple))
+            and not callable(func)
+        ):
+            return func
+
         # Handle built-in functions
         if isinstance(func, str):
+            # Failed attribute resolution often yields AST paths like
+            # ``this.columns`` / ``this.rows``. Recover instance field/method
+            # before treating the string as a global builtin name.
+            if isinstance(node.func, ast.Attribute) and (
+                "." in func or not self._is_registered_builtin(func)
+            ):
+                recovered = self._recover_instance_attr_call(node.func, args, kwargs)
+                if recovered is not _ATTR_CALL_MISS:
+                    return recovered
             return self._call_builtin(func, args, kwargs=kwargs)
         else:
             # Soft-fail non-callables (stubs, na) — return None
@@ -416,6 +440,133 @@ class ExpressionEvaluator:
             self._builtin_dispatch = self._build_builtin_map()
         dispatch = getattr(self, "_builtin_dispatch", None)
         return dispatch is not None and name in dispatch
+
+    def _recover_instance_attr_call(
+        self: EvaluatorProtocol,
+        attr_node: Any,
+        args: list[Any],
+        kwargs: dict[str, Any],
+    ) -> Any:
+        """Re-resolve ``receiver.attr(...)`` after failed attribute evaluation.
+
+        Common when ``this`` was temporarily shadowed mid-call, or when a UDT
+        field is written as a zero-arg call (``this.columns()``). Also covers
+        matrix/array instance methods when the first Attribute pass returned a
+        bare qualified-name string.
+        """
+        from pynescript.ast import node as ast_mod
+        from pynescript.ast.evaluator.builtins.drawing import Box
+        from pynescript.ast.evaluator.builtins.drawing import Label
+        from pynescript.ast.evaluator.builtins.drawing import Line
+        from pynescript.ast.evaluator.builtins.drawing import LineFill
+        from pynescript.ast.evaluator.builtins.drawing import Polyline
+        from pynescript.ast.evaluator.builtins.drawing import Table
+        from pynescript.ast.evaluator.builtins.matrix import Matrix
+
+        # Fresh receiver lookup (prefer live context for Name bases)
+        if isinstance(attr_node.value, ast_mod.Name):
+            rid = attr_node.value.id
+            receiver = self.context.get(rid, rid)  # type: ignore[attr-defined]
+        else:
+            receiver = self.visit(attr_node.value)
+        name = attr_node.attr
+
+        # Matrix instance methods: m.columns() / m.rows() / m.get(...)
+        if isinstance(receiver, Matrix):
+            qual = f"matrix.{name}"
+            if self._is_registered_builtin(qual):
+                return self._call_builtin(qual, [receiver, *args], kwargs=kwargs)
+
+        # Array instance methods
+        if isinstance(receiver, list):
+            qual = f"array.{name}"
+            if self._is_registered_builtin(qual):
+                return self._call_builtin(qual, [receiver, *args], kwargs=kwargs)
+
+        # Drawing namespaces
+        for cls, ns in (
+            (Label, "label"),
+            (Line, "line"),
+            (Box, "box"),
+            (Table, "table"),
+            (Polyline, "polyline"),
+            (LineFill, "linefill"),
+        ):
+            if isinstance(receiver, cls):
+                qual = f"{ns}.{name}"
+                if self._is_registered_builtin(qual):
+                    return self._call_builtin(qual, [receiver, *args], kwargs=kwargs)
+                break
+
+        # UDT methods / fields
+        if isinstance(receiver, ObjectInstance):
+            if receiver.udt.get_method(name):
+                return self._invoke_method(receiver, name, args, kwargs)
+            if name in receiver.udt.fields:
+                val = receiver.get_field(name)
+                if not args and not kwargs:
+                    return val
+                if callable(val):
+                    try:
+                        return val(*args, **(kwargs or {}))
+                    except TypeError:
+                        return None
+
+        # Extension methods (including na receiver)
+        ext = self.context.get(name) if hasattr(self, "context") else None  # type: ignore[attr-defined]
+        if callable(ext) and getattr(ext, "__pine_method__", False):
+            try:
+                return ext(receiver, *args, **kwargs)
+            except TypeError:
+                try:
+                    return ext(receiver, *args)
+                except TypeError:
+                    return None
+
+        return _ATTR_CALL_MISS
+
+    def _resolve_udt_constructor(self: EvaluatorProtocol, type_expr: Any) -> UserDefinedType | None:
+        """Resolve the UDT for ``TypeName.new(...)`` / ``alias.TypeName.new(...)``.
+
+        Prefer the live value when it is already a ``UserDefinedType``. If the
+        type name was shadowed by a method or function of the same name
+        (Console library: ``export type insights`` + ``method insights(terminal)``),
+        fall back to ``type_registry`` so constructors keep working.
+        """
+        from pynescript.ast import node as ast_mod
+        from pynescript.ast.evaluator.libraries import LibraryModule
+
+        # Direct UDT in context
+        val = self.visit(type_expr)
+        if isinstance(val, UserDefinedType):
+            return val
+
+        registry = getattr(self, "type_registry", None)
+
+        # alias.TypeName where Type is on a LibraryModule export
+        if isinstance(type_expr, ast_mod.Attribute):
+            base = self.visit(type_expr.value)
+            if isinstance(base, LibraryModule):
+                exported = base.exports.get(type_expr.attr)
+                if isinstance(exported, UserDefinedType):
+                    return exported
+            if registry is not None:
+                found = registry.get_type(type_expr.attr)
+                if isinstance(found, UserDefinedType):
+                    return found
+
+        # Bare name shadowed by method/function — use type registry
+        name: str | None = None
+        if isinstance(type_expr, ast_mod.Name):
+            name = type_expr.id
+        elif isinstance(val, str):
+            name = val
+
+        if name and registry is not None:
+            found = registry.get_type(name)
+            if isinstance(found, UserDefinedType):
+                return found
+        return None
 
     def _handle_udt_new(
         self: EvaluatorProtocol,

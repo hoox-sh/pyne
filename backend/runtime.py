@@ -337,6 +337,11 @@ class Runtime:
                 # e.g. propagate 'na' or halt
                 return {"error": f"Runtime Error at bar {bar.get('time')}: {e!s}"}
 
+            # After the first bar, lock function/type/import registration.
+            # Re-visiting Console-scale method tables every bar used to append
+            # multi-dispatch overloads (O(bars²)) and time out the PWA (30s).
+            evaluator._pine_defs_locked = True  # type: ignore[attr-defined]
+
             # Collect events from this bar (convert to dicts for serialization)
             bar_events = evaluator._strategy_state.drain_events()
             for ev in bar_events:

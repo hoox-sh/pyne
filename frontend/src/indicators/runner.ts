@@ -28,7 +28,13 @@ export async function runScript(script: string, opts: RunOptions = {}): Promise<
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ script, data: store.bars }),
-      signal: AbortSignal.timeout(silent ? 20_000 : 30_000),
+      // Large libraries (Console) + multi-bar runs need headroom; gunicorn is 180s.
+      // Scale with bar count so 500 bars of a heavy script do not false-timeout.
+      signal: AbortSignal.timeout(
+        silent
+          ? 45_000
+          : Math.min(180_000, Math.max(60_000, 30_000 + (store.bars?.length || 0) * 80)),
+      ),
     });
     const payload = await res.json().catch(() => ({ status: 'error', message: 'invalid JSON' }));
     if (!res.ok || payload.status === 'error') {

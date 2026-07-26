@@ -35,8 +35,11 @@ _DRAWING_METHOD_NS: dict[type, str] = {
 # Zero-arg series resolved as bare names (not callables that take arguments).
 # Time components (year/month/…) are dual-use: bare series *and* year(time).
 # Bare form is handled here; call form is early-dispatched in visit_Call.
+# ``na`` is dual-use too: bare value (None) and ``na(x)`` predicate — call form
+# is early-dispatched in visit_Call so bare resolution here only covers ``= na``.
 _BARE_SERIES_BUILTINS = frozenset(
     {
+        "na",
         "last_bar_index",
         "last_bar_time",
         "bid",
@@ -144,6 +147,12 @@ class NameEvaluator:
         if isinstance(value, ObjectInstance):
             # UDT methods are looked up first (method has priority over field)
             if value.udt.get_method(node.attr):
+                # Prefer multi-dispatch free function when overloads exist
+                # (Console: many ``log(terminal, T)`` / ``tostring`` variants).
+                # UDT._method_defs only keeps the last method of a given name.
+                ext = self.context.get(node.attr) if hasattr(self, "context") else None
+                if callable(ext) and getattr(ext, "__pine_overloads__", None):
+                    return ("_ext_method", value, node.attr)
                 # Return a bound method marker - tuple of (marker, instance, method_name)
                 # This will be interpreted by call evaluation to bind the instance
                 return ("_method_call", value, node.attr)
@@ -202,21 +211,28 @@ class NameEvaluator:
             if self._is_registered_builtin(matrix_qual):  # type: ignore[attr-defined]
                 return ("_ns_method", value, matrix_qual)
 
-        # Standalone ``method foo(table t, ...)`` stored as free function ``foo``:
-        # ``display.addCell(...)`` → bind receiver as first arg.
+        # Standalone ``method foo(Type this, ...)`` stored as free function ``foo``:
+        # ``x.foo(...)`` → bind receiver as first arg.
         # Only match callables tagged as Pine methods — never ordinary functions
         # that happen to share a name (``update()`` vs ``zigZag.update()``).
-        if not isinstance(value, (str, int, float, bool, type(None), dict)):
-            ext = self.context.get(node.attr) if hasattr(self, "context") else None
-            if (
-                callable(ext)
-                and not isinstance(ext, type)
-                and getattr(ext, "__pine_method__", False)
-            ):
+        #
+        # Receiver may be ``na`` (None) or a primitive (string/color). Libraries
+        # like Console use ``x.isset(fallback)`` while ``x`` is still na
+        # (``this.__theme.isset(theme.new())``). Skipping None previously
+        # surfaced as ``Unknown built-in function: '__theme.isset'``.
+        ext = self.context.get(node.attr) if hasattr(self, "context") else None
+        if (
+            callable(ext)
+            and not isinstance(ext, type)
+            and getattr(ext, "__pine_method__", False)
+        ):
+            # ObjectInstance already handled via UDT methods / fields above.
+            if not isinstance(value, ObjectInstance):
                 return ("_ext_method", value, node.attr)
 
         # Fallback: try getattr for plain Python objects (Syminfo, Timeframe, etc.)
-        if hasattr(value, node.attr):
+        # None has no attributes worth reflecting.
+        if value is not None and hasattr(value, node.attr):
             return getattr(value, node.attr)
 
         # Last resort: return qualified name string for later resolution

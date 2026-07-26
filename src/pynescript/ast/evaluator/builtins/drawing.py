@@ -650,23 +650,82 @@ class DrawingBuiltinsMixin(BuiltinDispatchMixin):
 
     # LABEL HANDLERS
 
-    def _handle_label_new(self, args: list[Any]) -> Label:
-        """label.new(x, y, text, xloc, yloc, color, textcolor, ...)"""
-        x = args[0] if len(args) > 0 else 0
-        y = args[1] if len(args) > 1 else 0.0
-        text = args[2] if len(args) > 2 else ""
-        xloc = args[3] if len(args) > 3 else "bar_index"
-        yloc = args[4] if len(args) > 4 else "price"
-        color = args[5] if len(args) > 5 else "#000000"
-        textcolor = args[6] if len(args) > 6 else "#000000"
-        text_font_family = args[7] if len(args) > 7 else "default"
-        text_halign = args[8] if len(args) > 8 else "center"
-        text_valign = args[9] if len(args) > 9 else "center"
-        text_size = args[10] if len(args) > 10 else "auto"
-        text_formatting = args[11] if len(args) > 11 else ""
-        tooltip = args[12] if len(args) > 12 else ""
-        style = args[13] if len(args) > 13 else "label_center"
-        force_overlay = args[14] if len(args) > 14 else False
+    def _handle_label_new(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> Label:
+        """label.new(x, y, text, ...) or label.new(point, text, ...).
+
+        Pine v5+ accepts ``label.new(point = chart.point.now(), ...)`` where
+        *point* supplies both coordinates. Without expanding ChartPoint here,
+        ``label.x`` stored the object and ``get_x()`` returned it — Console's
+        ``chart.point.tostring()`` (label.new → get_x → x.tostring) then
+        recursed forever.
+        """
+        kwargs = kwargs or {}
+
+        def _coord_from_point(point: ChartPoint) -> tuple[int | float, float]:
+            x_val: int | float
+            if point.index is not None:
+                x_val = point.index
+            elif point.time is not None:
+                x_val = point.time
+            else:
+                x_val = 0
+            return x_val, float(point.price)
+
+        point = kwargs.get("point")
+        if point is None and args and isinstance(args[0], ChartPoint):
+            # Positional point form: label.new(point, text, xloc, yloc, color, style, ...)
+            point = args[0]
+            x, y = _coord_from_point(point)
+            text = kwargs.get("text", args[1] if len(args) > 1 else "")
+            xloc = kwargs.get("xloc", args[2] if len(args) > 2 else "bar_index")
+            yloc = kwargs.get("yloc", args[3] if len(args) > 3 else "price")
+            color = kwargs.get("color", args[4] if len(args) > 4 else "#000000")
+            # style comes before textcolor in the point overload
+            style = kwargs.get("style", args[5] if len(args) > 5 else "label_center")
+            textcolor = kwargs.get("textcolor", args[6] if len(args) > 6 else "#000000")
+            text_size = kwargs.get("size", kwargs.get("text_size", args[7] if len(args) > 7 else "auto"))
+            text_halign = kwargs.get("textalign", kwargs.get("text_halign", args[8] if len(args) > 8 else "center"))
+            tooltip = kwargs.get("tooltip", args[9] if len(args) > 9 else "")
+            force_overlay = kwargs.get("force_overlay", args[10] if len(args) > 10 else False)
+            text_font_family = kwargs.get("text_font_family", args[11] if len(args) > 11 else "default")
+            text_valign = kwargs.get("text_valign", "center")
+            text_formatting = kwargs.get("text_formatting", "")
+        elif isinstance(point, ChartPoint):
+            # Keyword point form: label.new(point=..., text=..., ...)
+            x, y = _coord_from_point(point)
+            text = kwargs.get("text", args[0] if len(args) > 0 else "")
+            xloc = kwargs.get("xloc", "bar_index")
+            yloc = kwargs.get("yloc", "price")
+            color = kwargs.get("color", "#000000")
+            textcolor = kwargs.get("textcolor", "#000000")
+            text_font_family = kwargs.get("text_font_family", "default")
+            text_halign = kwargs.get("textalign", kwargs.get("text_halign", "center"))
+            text_valign = kwargs.get("text_valign", "center")
+            text_size = kwargs.get("size", kwargs.get("text_size", "auto"))
+            text_formatting = kwargs.get("text_formatting", "")
+            tooltip = kwargs.get("tooltip", "")
+            style = kwargs.get("style", "label_center")
+            force_overlay = kwargs.get("force_overlay", False)
+        else:
+            # Classic label.new(x, y, text, xloc, yloc, color, textcolor, ...)
+            x = kwargs.get("x", args[0] if len(args) > 0 else 0)
+            y = kwargs.get("y", args[1] if len(args) > 1 else 0.0)
+            text = kwargs.get("text", args[2] if len(args) > 2 else "")
+            xloc = kwargs.get("xloc", args[3] if len(args) > 3 else "bar_index")
+            yloc = kwargs.get("yloc", args[4] if len(args) > 4 else "price")
+            color = kwargs.get("color", args[5] if len(args) > 5 else "#000000")
+            textcolor = kwargs.get("textcolor", args[6] if len(args) > 6 else "#000000")
+            text_font_family = kwargs.get("text_font_family", args[7] if len(args) > 7 else "default")
+            text_halign = kwargs.get("text_halign", args[8] if len(args) > 8 else "center")
+            text_valign = kwargs.get("text_valign", args[9] if len(args) > 9 else "center")
+            text_size = kwargs.get("text_size", kwargs.get("size", args[10] if len(args) > 10 else "auto"))
+            text_formatting = kwargs.get("text_formatting", args[11] if len(args) > 11 else "")
+            tooltip = kwargs.get("tooltip", args[12] if len(args) > 12 else "")
+            style = kwargs.get("style", args[13] if len(args) > 13 else "label_center")
+            force_overlay = kwargs.get("force_overlay", args[14] if len(args) > 14 else False)
+            # Defensive: x accidentally a ChartPoint (legacy merge path)
+            if isinstance(x, ChartPoint):
+                x, y = _coord_from_point(x)
 
         label = Label(
             x,
@@ -850,12 +909,25 @@ class DrawingBuiltinsMixin(BuiltinDispatchMixin):
     def _handle_label_get_x(self, args: list[Any]) -> int | float:
         """label.get_x(label)"""
         label = args[0] if len(args) > 0 else None
-        return label.x if isinstance(label, Label) else 0
+        if not isinstance(label, Label):
+            return 0
+        x = label.x
+        # Unwrap if x was stored as ChartPoint (legacy label.new(point=...))
+        if isinstance(x, ChartPoint):
+            if x.index is not None:
+                return x.index
+            return x.time if x.time is not None else 0
+        return x
 
     def _handle_label_get_y(self, args: list[Any]) -> float:
         """label.get_y(label)"""
         label = args[0] if len(args) > 0 else None
-        return label.y if isinstance(label, Label) else 0.0
+        if not isinstance(label, Label):
+            return 0.0
+        y = label.y
+        if isinstance(y, ChartPoint):
+            return float(y.price)
+        return y
 
     def _handle_label_get_text(self, args: list[Any]) -> str:
         """label.get_text(label)"""
@@ -1036,8 +1108,19 @@ class DrawingBuiltinsMixin(BuiltinDispatchMixin):
         price = self._chart_point_price(args[0] if len(args) > 0 else 0.0)
         if price is None:
             return None
-        # Returns a point at current bar (index not specified, time not specified)
-        return ChartPoint(price=price)
+        # Prefer live bar context so label.new(point=...) / get_x get a real index
+        ctx = getattr(self, "context", None) or {}
+        bar_index = ctx.get("bar_index")
+        bar_time = ctx.get("time")
+        try:
+            index = int(bar_index) if bar_index is not None else None
+        except (TypeError, ValueError):
+            index = None
+        try:
+            tval = int(bar_time) if bar_time is not None else None
+        except (TypeError, ValueError):
+            tval = None
+        return ChartPoint(time=tval, index=index, price=price)
 
     def _handle_chart_point_copy(self, args: list[Any]) -> ChartPoint:
         """chart.point.copy(point) - Create a copy of a chart point"""

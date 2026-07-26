@@ -126,8 +126,17 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
             "array.get takes array and index",
         )
         index = args[1]
-        if not isinstance(index, int):
+        # Pine: array.get(id, na) → na (Console show loops with optional indices)
+        if index is None:
+            return None
+        if isinstance(index, float):
+            if index != index:  # NaN
+                return None
+            index = int(index)
+        if isinstance(index, bool) or not isinstance(index, int):
             self._error("array.get takes array and index")
+        if index < 0 or index >= len(sequence):
+            return None
         return sequence[index]
 
     def _builtin_array_push(self, args: list[Any]) -> list[Any]:

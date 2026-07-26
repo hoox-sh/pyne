@@ -282,13 +282,66 @@ class StringBuiltinsMixin(BuiltinDispatchMixin):
         return str(value)
 
     def _builtin_str_format(self, args: list[Any]) -> str:
+        """Pine ``str.format(fmt, ...)`` — Java MessageFormat-ish placeholders.
+
+        Supports ``{0}``, ``{1,number}``, ``{0,number,#.####}``. Falls back to
+        a best-effort string when the placeholder is unknown (Console.show uses
+        ``{0,number,#####}`` for bar indices).
+        """
         if len(args) < BINARY:
             self._error("str.format takes format string and args")
         value = self._expect_string(
             args[0],
             "str.format takes format string and args",
         )
-        return value.format(*args[1:])
+        fmt_args = list(args[1:])
+
+        def _replace(match: re.Match[str]) -> str:
+            body = match.group(1)
+            parts = [p.strip() for p in body.split(",")]
+            try:
+                idx = int(parts[0])
+            except (TypeError, ValueError):
+                return match.group(0)
+            if idx < 0 or idx >= len(fmt_args):
+                return ""
+            arg = fmt_args[idx]
+            if arg is None:
+                return "NaN"
+            kind = parts[1].lower() if len(parts) > 1 else ""
+            pattern = parts[2] if len(parts) > 2 else ""
+            if kind in {"", "string"}:
+                return str(arg)
+            if kind == "number":
+                try:
+                    num = float(arg)
+                except (TypeError, ValueError):
+                    return str(arg)
+                if pattern:
+                    # Map # / 0 patterns roughly to decimal places
+                    if "." in pattern:
+                        decimals = len(pattern.split(".", 1)[1])
+                        return f"{num:.{decimals}f}"
+                    try:
+                        return str(int(num))
+                    except (TypeError, ValueError):
+                        return f"{num:g}"
+                return f"{num:g}"
+            if kind == "integer":
+                try:
+                    return str(int(float(arg)))
+                except (TypeError, ValueError):
+                    return str(arg)
+            return str(arg)
+
+        try:
+            return re.sub(r"\{([^{}]+)\}", _replace, value)
+        except Exception:
+            # Never abort a library demo on format quirks
+            try:
+                return value.format(*fmt_args)
+            except Exception:
+                return value + "".join(str(a) for a in fmt_args)
 
     def _builtin_str_match(self, args: list[Any]) -> bool:
         if len(args) != BINARY:
@@ -322,8 +375,17 @@ class StringBuiltinsMixin(BuiltinDispatchMixin):
                 "str.format_time takes timestamp, format, and optional timezone",
             )
         timestamp = args[0]
+        # Accept int/float; coerce seconds → ms when value looks like Unix seconds
+        if isinstance(timestamp, float):
+            timestamp = int(timestamp)
         if not isinstance(timestamp, int):
+            # Unresolved bare name / na
+            if timestamp is None or isinstance(timestamp, str):
+                return "NaN"
             self._error("str.format_time expects timestamp in milliseconds")
+        if 0 < timestamp < 10_000_000_000:
+            # Likely seconds (e.g. chart bars with s-epoch) — Pine uses ms
+            timestamp = timestamp * 1000
         format_str = self._expect_string(
             args[1],
             "str.format_time expects format string",
@@ -354,17 +416,32 @@ class StringBuiltinsMixin(BuiltinDispatchMixin):
         tz = datetime.timezone.utc
         if timezone_str:
             try:
-                if "GMT" in timezone_str:
-                    offset_str = timezone_str.replace("GMT", "").strip()
+                z = timezone_str.strip()
+                # Unresolved bare name from context (``syminfo.timezone`` not seeded)
+                if z in {"syminfo.timezone", "UTC", "utc", "Etc/UTC", "GMT"}:
+                    tz = datetime.timezone.utc
+                elif "GMT" in z.upper() or z.startswith(("UTC+", "UTC-", "utc+", "utc-")):
+                    offset_str = (
+                        z.upper()
+                        .replace("GMT", "")
+                        .replace("UTC", "")
+                        .strip()
+                    )
                     if offset_str:
+                        # Accept "+2", "-5", "2"
                         offset = int(offset_str)
-                        tz = datetime.timezone(
-                            datetime.timedelta(hours=offset),
-                        )
+                        tz = datetime.timezone(datetime.timedelta(hours=offset))
                 else:
-                    self._error(f"Unsupported timezone format: {timezone_str}")
+                    # IANA names when zoneinfo is available (Python 3.9+)
+                    try:
+                        from zoneinfo import ZoneInfo
+
+                        tz = ZoneInfo(z)
+                    except Exception:
+                        # Soft-fail to UTC rather than aborting Console.show()
+                        tz = datetime.timezone.utc
             except (TypeError, ValueError):
-                self._error(f"Invalid timezone format: {timezone_str}")
+                tz = datetime.timezone.utc
 
         dt = datetime.datetime.fromtimestamp(timestamp / 1000, tz=tz)
         replacements = {
