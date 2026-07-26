@@ -43,7 +43,25 @@ _MATH_CONSTANTS = {
     "syminfo.isin": "",
     "syminfo.current_contract": None,
     "syminfo.main_tickerid": "UNKNOWN",
+    # Chart timeframe defaults (daily). Hosts override via Timeframe object
+    # and/or flat keys; flat keys win when a local var shadows ``timeframe``.
+    "timeframe.period": "D",
     "timeframe.main_period": "D",
+    "timeframe.multiplier": 1,
+    "timeframe.isintraday": False,
+    "timeframe.isdaily": True,
+    "timeframe.isweekly": False,
+    "timeframe.ismonthly": False,
+    "timeframe.isseconds": False,
+    "timeframe.isinseconds": False,
+    "timeframe.isminutes": False,
+    "timeframe.ishours": False,
+    "timeframe.isdwm": True,
+    # format.* constants used by str.tostring / indicator(format=...)
+    "format.mintick": "mintick",
+    "format.percent": "percent",
+    "format.volume": "volume",
+    "format.price": "price",
     # v6 text formatting constants
     "text.formatting.none": "",
     "text.formatting.bold": "bold",
@@ -100,8 +118,11 @@ class BaseEvaluator(NodeVisitor):
         super().__init__()
         # Set up context: use provided or create empty dict
         self.context = context or {}
-        # Merge pre-computed math constants into context for optimization
-        self.context.update(_MATH_CONSTANTS)
+        # Merge pre-computed math/constants into context for optimization.
+        # Do not overwrite host-provided keys (e.g. timeframe.isintraday from
+        # Runtime bar-spacing inference, or custom bid/ask).
+        for _key, _val in _MATH_CONSTANTS.items():
+            self.context.setdefault(_key, _val)
         # Wire optional data sources used by request.* builtins
         if data_feed is not None:
             self.context["data_feed"] = data_feed

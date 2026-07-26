@@ -1,6 +1,7 @@
 import type { IChartApi, ISeriesApi, UTCTimestamp } from 'lightweight-charts';
 import { createBaseChart, createCandleSeries, createVolumeSeries, createLineSeries, PLOT_PALETTE } from './series-factory';
 import type { Bar } from '../store/types';
+import { resizePane } from '../store';
 
 export interface ManagedPane {
   id: string;
@@ -30,22 +31,41 @@ export class PaneManager {
   }
 
   createPane(id: string, type: string, label: string, height?: number): ManagedPane {
+    // Horizontal resize handle above this pane (except first)
+    if (this.panes.size > 0) {
+      this.attachPaneResizeHandle(id);
+    }
+
     const div = document.createElement('div');
     div.id = `pane-${id}`;
     div.className = 'relative';
-    if (height) div.style.height = `${height}px`;
-    else div.style.flex = '1 1 auto';
-    div.style.minHeight = '0';
+    div.dataset.paneId = id;
+    if (height) {
+      div.style.height = `${height}px`;
+      div.style.flex = '0 0 auto';
+    } else {
+      div.style.flex = '1 1 auto';
+    }
+    div.style.minHeight = type === 'volume' ? '72px' : '48px';
+    div.style.background = '#0a0b10';
 
     const labelEl = document.createElement('span');
-    labelEl.className = 'absolute top-1 left-2 text-[10px] text-text-dim uppercase tracking-wider z-10 pointer-events-none bg-bg-base/70 px-1.5 py-0.5 rounded';
+    labelEl.className =
+      'absolute top-1 left-2 text-[10px] text-text-dim uppercase tracking-wider z-10 pointer-events-none bg-bg-base/90 px-1.5 py-0.5 border border-border-soft';
     labelEl.textContent = label;
     div.appendChild(labelEl);
 
     this.container.appendChild(div);
 
     const chart = createBaseChart(div, {
-      timeScale: type === 'volume' ? { visible: false, borderColor: '#485c7b' } : undefined,
+      timeScale:
+        type === 'volume' || type === 'indicator'
+          ? { visible: false, borderColor: '#3a3d4a', borderVisible: false }
+          : undefined,
+      rightPriceScale:
+        type === 'volume'
+          ? { borderColor: '#3a3d4a', scaleMargins: { top: 0.15, bottom: 0.02 }, minimumWidth: 54 }
+          : undefined,
     });
 
     const ro = new ResizeObserver(() => {
@@ -72,7 +92,97 @@ export class PaneManager {
     pane.chart.remove();
     const el = document.getElementById(`pane-${id}`);
     el?.remove();
+    document.getElementById(`pane-handle-${id}`)?.remove();
     this.panes.delete(id);
+  }
+
+  /**
+   * Drag handle above `belowId` — resizes the pane above by changing pixel heights.
+   */
+  private attachPaneResizeHandle(belowId: string) {
+    const handle = document.createElement('div');
+    handle.id = `pane-handle-${belowId}`;
+    handle.className = 'sc-pane-resize-handle';
+    handle.title = 'Drag to resize panes';
+    handle.setAttribute('role', 'separator');
+    handle.setAttribute('aria-orientation', 'horizontal');
+
+    let dragging = false;
+    let startY = 0;
+    let aboveStart = 0;
+    let belowStart = 0;
+    let aboveEl: HTMLElement | null = null;
+    let belowEl: HTMLElement | null = null;
+
+    handle.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      belowEl = document.getElementById(`pane-${belowId}`);
+      // Previous sibling pane element (skip handles)
+      let prev = handle.previousElementSibling as HTMLElement | null;
+      while (prev && !prev.id?.startsWith('pane-')) {
+        prev = prev.previousElementSibling as HTMLElement | null;
+      }
+      aboveEl = prev;
+      if (!aboveEl || !belowEl) return;
+      dragging = true;
+      startY = e.clientY;
+      aboveStart = aboveEl.getBoundingClientRect().height;
+      belowStart = belowEl.getBoundingClientRect().height;
+      handle.setPointerCapture(e.pointerId);
+      document.body.style.cursor = 'row-resize';
+      document.body.style.userSelect = 'none';
+    });
+
+    handle.addEventListener('pointermove', (e) => {
+      if (!dragging || !aboveEl || !belowEl) return;
+      const dy = e.clientY - startY;
+      const minAbove = 48;
+      const minBelow = belowEl.dataset.paneId === 'volume' ? 72 : 48;
+      let newAbove = aboveStart + dy;
+      let newBelow = belowStart - dy;
+      if (newAbove < minAbove) {
+        newBelow -= minAbove - newAbove;
+        newAbove = minAbove;
+      }
+      if (newBelow < minBelow) {
+        newAbove -= minBelow - newBelow;
+        newBelow = minBelow;
+      }
+      if (newAbove < minAbove || newBelow < minBelow) return;
+
+      aboveEl.style.flex = '0 0 auto';
+      belowEl.style.flex = '0 0 auto';
+      aboveEl.style.height = `${newAbove}px`;
+      belowEl.style.height = `${newBelow}px`;
+
+      const aboveId = aboveEl.id.replace(/^pane-/, '');
+      this.resize(aboveId, newAbove);
+      this.resize(belowId, newBelow);
+    });
+
+    const endDrag = (e: PointerEvent) => {
+      if (!dragging) return;
+      dragging = false;
+      try {
+        handle.releasePointerCapture(e.pointerId);
+      } catch {
+        /* ignore */
+      }
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      // Persist heights into store
+      if (aboveEl && belowEl) {
+        const aboveId = aboveEl.id.replace(/^pane-/, '');
+        const ah = aboveEl.getBoundingClientRect().height;
+        const bh = belowEl.getBoundingClientRect().height;
+        resizePane(aboveId, Math.round(ah));
+        resizePane(belowId, Math.round(bh));
+      }
+    };
+    handle.addEventListener('pointerup', endDrag);
+    handle.addEventListener('pointercancel', endDrag);
+
+    this.container.appendChild(handle);
   }
 
   setVisible(id: string, visible: boolean) {
@@ -146,14 +256,28 @@ export class PaneManager {
     const pricePane = this.panes.get('price');
     if (pricePane?.series['candle']) {
       pricePane.series['candle'].update({
-        time: bar.time, open: bar.open, high: bar.high, low: bar.low, close: bar.close,
+        time: bar.time as UTCTimestamp,
+        open: bar.open,
+        high: bar.high,
+        low: bar.low,
+        close: bar.close,
       });
+      // Tint last-price line to bar direction
+      try {
+        const up = bar.close >= bar.open;
+        pricePane.series['candle'].applyOptions({
+          priceLineColor: up ? 'rgba(94, 207, 138, 0.55)' : 'rgba(232, 93, 76, 0.55)',
+        });
+      } catch {
+        /* ignore */
+      }
     }
     const volPane = this.panes.get('volume');
     if (volPane?.series['volume']) {
       volPane.series['volume'].update({
-        time: bar.time, value: bar.volume ?? 0,
-        color: bar.close >= bar.open ? 'rgba(38, 166, 154, 0.5)' : 'rgba(239, 83, 80, 0.5)',
+        time: bar.time as UTCTimestamp,
+        value: bar.volume ?? 0,
+        color: bar.close >= bar.open ? 'rgba(94, 207, 138, 0.45)' : 'rgba(232, 93, 76, 0.45)',
       });
     }
   }

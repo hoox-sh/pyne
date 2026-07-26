@@ -83,6 +83,7 @@ def health_check():
             "endpoints": {
                 "GET /": "This health check",
                 "POST /run": "Run Pine Script (free)",
+                "POST /run/batch": "Run multiple Pine scripts on shared OHLCV (free)",
                 "POST /preview/chart": "Chart thumbnail (Pro)",
                 "POST /preview/indicator": "Indicator preview (Pro)",
                 "POST /backtest/quick": "Quick backtest (Pro)",
@@ -175,6 +176,164 @@ def run_pine_script():
             "run_id": result.get("run_id", ""),
             "count": result.get("count", 0),
             "mode": result.get("mode", mode),
+            "data_source": data_source or "chart",
+        }
+    )
+
+
+@app.route("/run/batch", methods=["POST"])
+def run_pine_script_batch():
+    """Run multiple Pine scripts on the same OHLCV bars (AXIS multi-indicator).
+
+    Body::
+        {
+          "scripts": [ {"id": "rsi", "script": "..."}, ... ],  # max 8
+          "data": [ {time, open, high, low, close, volume}, ... ],
+          "symbol"?, "mode"?, "data_source"?, "data_options"?
+        }
+
+    Returns one result object per script (success or per-script error); HTTP 200
+    unless the request envelope is invalid.
+    """
+    from backend.middleware.schemas import RUN_BATCH_MAX_SCRIPTS, RUN_BATCH_SCHEMA
+
+    data, err = validate(request.get_json(silent=True) or {}, RUN_BATCH_SCHEMA)
+    if err is not None:
+        return err
+
+    scripts = data["scripts"]
+    ohlcv = data["data"]
+    symbol = data.get("symbol") or "CHART"
+    data_source = data.get("data_source") or None
+    data_options = data.get("data_options") or {}
+    mode = data.get("mode") or "interpret"
+    if isinstance(data_source, str) and not data_source.strip():
+        data_source = None
+
+    if not isinstance(scripts, list) or not scripts:
+        return jsonify(
+            {
+                "status": "error",
+                "code": "NO_SCRIPTS",
+                "message": "Provide a non-empty 'scripts' array.",
+            }
+        ), 400
+    if len(scripts) > RUN_BATCH_MAX_SCRIPTS:
+        return jsonify(
+            {
+                "status": "error",
+                "code": "TOO_MANY_SCRIPTS",
+                "message": f"At most {RUN_BATCH_MAX_SCRIPTS} scripts per batch.",
+            }
+        ), 400
+    if not ohlcv:
+        return jsonify(
+            {
+                "status": "error",
+                "code": "NO_DATA",
+                "message": "No 'data' provided.",
+            }
+        ), 400
+
+    # Normalize script entries
+    jobs: list[tuple[str, str]] = []
+    for i, item in enumerate(scripts):
+        if isinstance(item, str):
+            jobs.append((f"script_{i}", item))
+            continue
+        if not isinstance(item, dict):
+            return jsonify(
+                {
+                    "status": "error",
+                    "code": "INVALID_SCRIPT",
+                    "message": f"scripts[{i}] must be a string or object with 'script'.",
+                }
+            ), 400
+        src = item.get("script")
+        if not isinstance(src, str) or not src.strip():
+            return jsonify(
+                {
+                    "status": "error",
+                    "code": "INVALID_SCRIPT",
+                    "message": f"scripts[{i}].script must be a non-empty string.",
+                }
+            ), 400
+        sid = item.get("id")
+        if not isinstance(sid, str) or not sid.strip():
+            sid = f"script_{i}"
+        jobs.append((sid, src))
+
+    data_feed = None
+    data_provider = None
+    try:
+        from pynescript.util.data import resolve_request_sources
+
+        data_feed, data_provider = resolve_request_sources(
+            chart_bars=ohlcv,
+            symbol=str(symbol),
+            data_source=data_source,
+            source_options=data_options if isinstance(data_options, dict) else {},
+        )
+    except Exception as e:  # noqa: BLE001
+        return jsonify(
+            {
+                "status": "error",
+                "code": "DATA_SOURCE_ERROR",
+                "message": f"Failed to configure data source: {e}",
+            }
+        ), 400
+
+    results = []
+    for sid, script in jobs:
+        runtime = Runtime(symbol=str(symbol))
+        try:
+            result = runtime.run(
+                script,
+                ohlcv,
+                data_feed=data_feed,
+                data_provider=data_provider,
+                mode=str(mode),
+            )
+        except Exception as e:  # noqa: BLE001 — per-script isolation
+            results.append(
+                {
+                    "id": sid,
+                    "status": "error",
+                    "code": "EXECUTION_ERROR",
+                    "message": str(e),
+                }
+            )
+            continue
+        if "error" in result:
+            results.append(
+                {
+                    "id": sid,
+                    "status": "error",
+                    "code": "EXECUTION_ERROR",
+                    "message": result["error"],
+                }
+            )
+            continue
+        results.append(
+            {
+                "id": sid,
+                "status": "success",
+                "plots": result.get("plots", []),
+                "events": result.get("events", []),
+                "script_id": result.get("script_id", ""),
+                "run_id": result.get("run_id", ""),
+                "count": result.get("count", 0),
+                "mode": result.get("mode", mode),
+            }
+        )
+
+    ok = sum(1 for r in results if r.get("status") == "success")
+    return jsonify(
+        {
+            "status": "success" if ok == len(results) else "partial",
+            "results": results,
+            "count": len(results),
+            "ok": ok,
             "data_source": data_source or "chart",
         }
     )

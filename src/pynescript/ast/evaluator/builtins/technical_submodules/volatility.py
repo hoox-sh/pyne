@@ -27,9 +27,19 @@ class VolatilityIndicators(TechnicalHelpers):
         series, period = self._expect_series(args, length=BINARY)
         return self._stdev(series, period)
 
-    def _builtin_ta_atr(self, args: list[Any]) -> list[float | None]:
-        """Average True Range."""
-        msg = "ta.atr expects high, low, close, and length"
+    def _builtin_ta_atr(self, args: list[Any]) -> Any:
+        """Average True Range.
+
+        TradingView: ``ta.atr(length)``. Also accepts legacy
+        ``ta.atr(high, low, close, length)`` for unit tests.
+        """
+        if len(args) == 1 and self._is_period_like(args[0]):
+            length = self._expect_int(args[0], "ta.atr length must be an integer")
+            highs = self._context_series("high")
+            lows = self._context_series("low")
+            closes = self._context_series("close")
+            return self._finalize_series(self._atr(highs, lows, closes, length))
+        msg = "ta.atr expects length, or high, low, close, and length"
         if len(args) != QUATERNARY:
             self._error(msg)
         highs = self._expect_list(args[0], msg)
@@ -38,8 +48,13 @@ class VolatilityIndicators(TechnicalHelpers):
         length = self._expect_int(args[3], msg)
         return self._finalize_series(self._atr(highs, lows, closes, length))
 
-    def _builtin_ta_tr(self, args: list[Any]) -> list[float]:
-        """True Range."""
+    def _builtin_ta_tr(self, args: list[Any]) -> Any:
+        """True Range — TV form ``ta.tr(handle_na?)`` or legacy 3-arg."""
+        if len(args) <= 1:
+            highs = self._context_series("high")
+            lows = self._context_series("low")
+            closes = self._context_series("close")
+            return self._finalize_series(self._tr(highs, lows, closes))
         msg = "ta.tr expects high, low, and close"
         if len(args) != TERNARY:
             self._error(msg)

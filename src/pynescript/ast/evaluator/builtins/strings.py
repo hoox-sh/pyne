@@ -38,6 +38,8 @@ class StringBuiltinsMixin(BuiltinDispatchMixin):
             "str.trim": self._builtin_str_trim,
             "str.tonumber": self._builtin_str_tonumber,
             "str.tostring": self._builtin_str_tostring,
+            # v4 bare alias
+            "tostring": self._builtin_str_tostring,
             "str.format": self._builtin_str_format,
             "str.match": self._builtin_str_match,
             "str.pos": self._builtin_str_pos,
@@ -51,11 +53,22 @@ class StringBuiltinsMixin(BuiltinDispatchMixin):
         return value
 
     def _expect_int(self, value: Any, message: str) -> int:
-        if isinstance(value, float):
-            if value == int(value):
-                value = int(value)
-            else:
+        """Coerce to int. Fractional floats are floored (TV period semantics)."""
+        import math
+
+        # Unwrap common wrappers
+        if isinstance(value, dict) and "default" in value:
+            value = value["default"]
+        if hasattr(value, "current") and not isinstance(value, (list, tuple, str, bytes)):
+            if type(value).__name__ == "_NaValue":
                 self._error(message)
+            value = value.current
+        if value is None:
+            self._error(message)
+        if isinstance(value, float):
+            value = int(math.floor(value))
+        if isinstance(value, bool):
+            value = int(value)
         if not isinstance(value, int):
             self._error(message)
         return value
@@ -228,19 +241,45 @@ class StringBuiltinsMixin(BuiltinDispatchMixin):
         )
         return value.strip()
 
-    def _builtin_str_tonumber(self, args: list[Any]) -> float:
+    def _builtin_str_tonumber(self, args: list[Any]) -> float | None:
+        """TV: ``str.tonumber(string)`` → float, or ``na`` when not parseable.
+
+        Placeholder defaults such as ``"YYYY-MM"`` must not raise — scripts
+        like seasonality push rounded tonumber results into arrays and rely
+        on na propagation.
+        """
         if len(args) != UNARY:
             self._error("str.tonumber takes a string argument")
         value = self._expect_string(
             args[0],
             "str.tonumber takes a string argument",
         )
-        return float(value)
+        value = value.strip()
+        if not value:
+            return None
+        try:
+            return float(value)
+        except ValueError:
+            return None
 
     def _builtin_str_tostring(self, args: list[Any]) -> str:
-        if len(args) != UNARY:
-            self._error("str.tostring takes one argument")
-        return str(args[0])
+        """TV: ``str.tostring(value)`` or ``str.tostring(value, format)``."""
+        if not args:
+            self._error("str.tostring takes one or two arguments")
+        value = args[0]
+        if value is None:
+            return "NaN"
+        if len(args) >= 2 and args[1] is not None:
+            fmt = str(args[1])
+            try:
+                if isinstance(value, (int, float)):
+                    # Pine format tokens are simplified: # / 0.00 etc.
+                    if "#" in fmt or "0" in fmt:
+                        return f"{float(value):g}"
+                    return format(value, fmt) if fmt else str(value)
+            except (ValueError, TypeError):
+                pass
+        return str(value)
 
     def _builtin_str_format(self, args: list[Any]) -> str:
         if len(args) < BINARY:

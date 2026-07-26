@@ -196,11 +196,34 @@ class MatrixBuiltinsMixin(BuiltinDispatchMixin):
     # ========== ROW OPERATIONS ==========
 
     def _builtin_matrix_add_row(self, args: list[Any]) -> None:
-        """matrix.add_row(matrix, row_data) -> void"""
-        if len(args) != BINARY:
-            self._error("matrix.add_row requires matrix and row data")
+        """matrix.add_row(id) | matrix.add_row(id, array) | matrix.add_row(id, row, array).
+
+        TV: omitting the array appends a row of ``na`` (None) values. Instance
+        form ``m.add_row()`` is common in scripts such as seasonality.
+        """
+        if not args:
+            self._error("matrix.add_row requires a matrix")
         matrix = self._expect_matrix(args[0], "matrix.add_row: first arg must be matrix")
-        row_data = self._expect_list(args[UNARY], "matrix.add_row: second arg must be array")
+        row_data: list[Any]
+        if len(args) == 1:
+            row_data = [None] * matrix.cols_count
+        elif len(args) == BINARY:
+            # Could be (matrix, array) or (matrix, row_index) — prefer array
+            if isinstance(args[UNARY], list):
+                row_data = args[UNARY]
+            else:
+                # row index only → insert empty row at index (approximate: append)
+                row_data = [None] * matrix.cols_count
+        elif len(args) >= 3:
+            # (matrix, row_index, array)
+            row_data = (
+                args[2]
+                if isinstance(args[2], list)
+                else self._expect_list(args[2], "matrix.add_row: array required")
+            )
+        else:
+            self._error("matrix.add_row requires matrix and optional row data")
+            return
         try:
             matrix.add_row(row_data)
         except ValueError as e:

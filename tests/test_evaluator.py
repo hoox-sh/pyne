@@ -628,8 +628,9 @@ def test_evaluator_array_push(expression, expected):
 @pytest.mark.parametrize(
     ("expression", "expected"),
     [
-        ("array.pop([1, 2, 3])", [1, 2]),
-        ("array.pop(array.pop([1]))", []),
+        # Pine: array.pop removes and returns the last element
+        ("array.pop([1, 2, 3])", 3),
+        ("array.pop([1])", 1),
     ],
 )
 def test_evaluator_array_pop(expression, expected):
@@ -866,7 +867,8 @@ def test_evaluator_array_range(expression, expected):
 @pytest.mark.parametrize(
     ("expression", "expected"),
     [
-        ("array.remove([1, 2, 3], 1)", [1, 3]),
+        # Pine: array.remove returns the removed element
+        ("array.remove([1, 2, 3], 1)", 2),
     ],
 )
 def test_evaluator_array_remove(expression, expected):
@@ -905,7 +907,8 @@ def test_evaluator_array_set(expression, expected):
 @pytest.mark.parametrize(
     ("expression", "expected"),
     [
-        ("array.shift([1, 2, 3])", [2, 3]),
+        # Pine: array.shift removes and returns the first element
+        ("array.shift([1, 2, 3])", 1),
     ],
 )
 def test_evaluator_array_shift(expression, expected):

@@ -5,14 +5,15 @@
 // stay independent — main/indicator panes share a logical "time axis"
 // through `setVisibleRange` syncing.
 
+// AXIS void palette (aligned with series-factory.ts)
 const TV = {
-    bg: '#131722',
-    grid: '#1e222d',
-    text: '#d1d4dc',
-    up: '#26a69a',
-    down: '#ef5350',
+    bg: '#0a0b10',
+    grid: 'rgba(140, 130, 180, 0.07)',
+    text: '#c8cad4',
+    up: '#5ecf8a',
+    down: '#e85d4c',
 };
-const PLOT_PALETTE = ['#2962ff', '#ff6d00', '#2e7d32', '#9c27b0', '#00bcd4', '#fdd835', '#e91e63', '#5d4037'];
+const PLOT_PALETTE = ['#c4b0f0', '#8ef5a8', '#e8a03a', '#6ec8d4', '#a78be6', '#5ecf8a', '#e85d4c', '#8b8e9c'];
 
 let ro = null;
 
@@ -198,8 +199,8 @@ export function initChart({ mainEl, volumeEl, indicatorEl, equityEl }) {
     // Equity pane
     panes.equity.chart = LightweightCharts.createChart(equityEl, commonOptions());
     panes.equity.area = panes.equity.chart.addAreaSeries({
-        lineColor: '#2962ff', topColor: 'rgba(41, 98, 255, 0.4)',
-        bottomColor: 'rgba(41, 98, 255, 0.0)', lineWidth: 2,
+        lineColor: '#c4b0f0', topColor: 'rgba(196, 176, 240, 0.35)',
+        bottomColor: 'rgba(196, 176, 240, 0.0)', lineWidth: 2,
     });
 
     // Resize observer

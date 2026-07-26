@@ -1,4 +1,9 @@
-// SuperChart Lite — main entry.
+// LEGACY — SuperChart Lite / pre-Solid main entry.
+//
+// The product UI is the Vite + Solid app: `src/index.tsx` → `src/app.tsx`.
+// This file powers the old static shell only (tests/server, offline archives).
+// Do not add features here; extend ChartHost / Topbar / store instead.
+//
 // Wires the registry, state, top bar, editor, chart, results, status, and
 // the Service Worker. Everything is plugin-driven.
 

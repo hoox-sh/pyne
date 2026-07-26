@@ -12,6 +12,28 @@ from __future__ import annotations
 HEX_COLOR_SHORT_LEN = 6
 HEX_COLOR_LONG_LEN = 8
 
+# Common Pine Script named colors (hex RGB)
+_NAMED_COLORS: dict[str, str] = {
+    "red": "#FF0000",
+    "green": "#008000",
+    "blue": "#0000FF",
+    "black": "#000000",
+    "white": "#FFFFFF",
+    "gray": "#808080",
+    "grey": "#808080",
+    "orange": "#FFA500",
+    "purple": "#800080",
+    "yellow": "#FFFF00",
+    "aqua": "#00FFFF",
+    "fuchsia": "#FF00FF",
+    "lime": "#00FF00",
+    "maroon": "#800000",
+    "navy": "#000080",
+    "olive": "#808000",
+    "silver": "#C0C0C0",
+    "teal": "#008080",
+}
+
 
 class Color:
     """Represents an RGBA color."""
@@ -72,21 +94,33 @@ class Color:
 
 
 def color_new(
-    color: int | str,
+    color: int | str | Color | None,
     transp: int | None = None,
-) -> Color:
+) -> Color | None:
     """Create a new color with optional transparency.
 
     Args:
-        color: Color value as integer or hex string
+        color: Color value as integer, hex string, Color, or ``na`` (None)
         transp: Transparency percentage (0-100, where 100 is fully transparent)
 
     Returns:
-        Color object
+        Color object, or None when *color* is na (``color(na)`` → na)
     """
-    if isinstance(color, str):
-        # Parse hex color string
-        color_str = color.lstrip("#")
+    # Pine: color(na) / color.new(na, ...) yields na (no color)
+    if color is None:
+        return None
+    if isinstance(color, Color):
+        r, g, b, a = color.r, color.g, color.b, color.a
+    elif isinstance(color, str):
+        # Named color reference like "color.fuchsia" or bare "fuchsia"
+        raw = color.strip()
+        if raw.startswith("color."):
+            raw = raw[6:]
+        named = _NAMED_COLORS.get(raw.lower())
+        if named:
+            color_str = named.lstrip("#")
+        else:
+            color_str = color.lstrip("#")
         if len(color_str) == HEX_COLOR_SHORT_LEN:
             r = int(color_str[0:2], 16)
             g = int(color_str[2:4], 16)
@@ -177,27 +211,52 @@ def color_t(c: Color) -> int:
     return max(0, min(100, transp_percent))
 
 
-def color_rgb(r: int, g: int, b: int, a: int = 255) -> Color:
-    """Create a color from RGB(A) components.
+def color_rgb(r: int, g: int, b: int, transp: int | float | None = None, a: int | None = None) -> Color:
+    """Create a color from RGB components.
+
+    Pine Script ``color.rgb(r, g, b, transp)`` uses transparency 0-100
+    (0 = opaque, 100 = fully transparent). The internal Color model stores
+    alpha 0-255.
 
     Args:
         r: Red component (0-255)
         g: Green component (0-255)
         b: Blue component (0-255)
-        a: Alpha component (0-255, default 255 for opaque)
+        transp: Optional Pine transparency 0-100 (preferred 4th arg)
+        a: Optional alpha 0-255 (legacy / internal)
 
     Returns:
         Color object
     """
-    return Color(r, g, b, a)
+    if a is not None:
+        alpha = int(a)
+    elif transp is not None:
+        t = max(0.0, min(100.0, float(transp)))
+        alpha = int(round(255 * (1.0 - t / 100.0)))
+    else:
+        alpha = 255
+    return Color(int(r), int(g), int(b), alpha)
+
+
+def _as_color(c: Color | str | int | None) -> Color:
+    """Coerce hex/named/int colors to Color."""
+    if isinstance(c, Color):
+        return c
+    if c is None:
+        return Color(0, 0, 0, 0)
+    if isinstance(c, str):
+        return color_new(c)
+    if isinstance(c, int):
+        return color_new(c)
+    return Color(0, 0, 0, 255)
 
 
 def color_from_gradient(
     value: float,
     min_val: float,
     max_val: float,
-    color1: Color,
-    color2: Color,
+    color1: Color | str | int,
+    color2: Color | str | int,
 ) -> Color:
     """Create a color gradient between two colors.
 
@@ -214,15 +273,25 @@ def color_from_gradient(
     Returns:
         Interpolated Color object
     """
-    if not isinstance(color1, Color) or not isinstance(color2, Color):
-        msg = "color1 and color2 must be Color objects"
-        raise TypeError(msg)
+    color1 = _as_color(color1)
+    color2 = _as_color(color2)
+
+    # TV: na value → na color (soft-fail to transparent / color1)
+    if value is None or min_val is None or max_val is None:
+        return color1
+
+    try:
+        value_f = float(value)
+        min_f = float(min_val)
+        max_f = float(max_val)
+    except (TypeError, ValueError):
+        return color1
 
     # Normalize value to 0-1 range
-    if max_val == min_val:
+    if max_f == min_f:
         ratio = 0.0
     else:
-        ratio = (value - min_val) / (max_val - min_val)
+        ratio = (value_f - min_f) / (max_f - min_f)
     ratio = max(0.0, min(1.0, ratio))
 
     # Interpolate each component
@@ -248,3 +317,5 @@ def register_color_functions(namespace: dict) -> None:
     namespace["color.rgb"] = color_rgb
     namespace["color.from_gradient"] = color_from_gradient
     namespace["color"] = color_new  # color() is an alias for color.new()
+    for name, hex_val in _NAMED_COLORS.items():
+        namespace[f"color.{name}"] = color_new(hex_val)

@@ -99,6 +99,9 @@ class TechnicalAnalysisMixin(
             "ta.barssince": self._builtin_ta_barssince,
             "ta.pivothigh": self._builtin_ta_pivothigh,
             "ta.pivotlow": self._builtin_ta_pivotlow,
+            # v4 bare names (pre-ta. namespace)
+            "pivothigh": self._builtin_ta_pivothigh,
+            "pivotlow": self._builtin_ta_pivotlow,
             "ta.pivot_point_levels": self._builtin_ta_pivot_point_levels,
             # Phase 7 enhancements: Missing indicators
             "ta.iii": self._builtin_ta_iii,

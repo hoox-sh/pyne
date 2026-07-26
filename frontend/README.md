@@ -1,8 +1,11 @@
-# frontend/ — SuperChart Lite (PWA)
+# frontend/ — AXIS (PWA)
 
-A modular TradingView-style chart + Pine Script editor. **Installable PWA**,
-**fully pluggable**, runs against a local Flask backend, a Cloudflare Worker,
-or **fully offline** with the in-browser Pyodide engine.
+**AXIS** (formerly SuperChart Lite) — open charting PWA for Pine Script™.
+**Installable PWA**, **fully pluggable**, runs against a local Flask backend,
+a Cloudflare Worker, or **fully offline** with the in-browser Pyodide engine.
+
+**Icons:** [Lucide](https://lucide.dev) via `lucide-solid` (tree-shakable stroke
+icons, ISC). Wrapper: `src/ui/icons.tsx`.
 
 ## Architecture
 
@@ -88,14 +91,28 @@ await loadPluginFromUrl('https://example.com/my-plugin.js');
 
 ## Local dev
 
+**Primary path is Vite + Solid** (this is what ships on the VPS demo):
+
+```bash
+cd frontend && bun install && bun run dev   # Vite on :3000 (proxies /run → :5002)
+# production: bun run build && python3 axis_pwa_server.py   # serves dist/ on :8081
+```
+
 ```bash
 # Terminal 1 — backend
 make run              # Flask on :5002 (uses the existing pynescript runtime)
 
-# Terminal 2 — PWA
-make run-frontend     # python -m http.server 8081 --directory frontend
-# open http://localhost:8081
+# Terminal 2 — PWA (Vite)
+cd frontend && bun run dev
 ```
+
+### Legacy static path (not recommended)
+
+`style.css`, `main.js`, `server.ts`, and root-level `index.html` without Vite
+are the pre-Solid SuperChart shell. They still use older TV-blue tokens in places
+and are kept only for smoke tests / offline static serving. Prefer `bun run dev`
+or `dist/` from `bun run build`. Do not treat the legacy shell as the product UI.
+See **`LEGACY.md`**.
 
 For an **offline-first** demo: set `Source = Mock Walk`, `Stream = Mock Poll`,
 `Engine = Client-Side (Pyodide)`. Disable network in DevTools — Run still works.
@@ -145,14 +162,51 @@ frontend/
 
 - **Local Flask**: existing `make run` on `:5002`. PWA talks to it directly
   (CORS handled by the backend). Default endpoint is `http://localhost:5002`.
+- **VPS demo**: PWA `http://162.254.38.194:8081` · Pro API
+  `http://162.254.38.194:5002` (systemd `axis-pwa` + `pynescript-api`).
+  Solid store default endpoint points at that API host.
 - **Cloudflare Worker**: deploy `worker/` with `make deploy-cf`. The Worker
   exposes `/api/run`, `/api/stream`, `/api/keys`, etc. and proxies to the
   pynescript Python runtime via Pyodide on the Worker side. See
   `worker/README.md`.
 
+## CORS (AXIS browser origin → Pro API)
+
+The Pro API (`backend/app.py`) uses `flask-cors` with origins from
+`ALLOWED_ORIGINS` (comma-separated). Defaults include
+`https://pynescript.ai`, `https://app.pynescript.ai`, and a localhost regex.
+
+For the public AXIS demo the VPS unit sets:
+
+```ini
+# /etc/systemd/system/pynescript-api.service
+Environment=ALLOWED_ORIGINS=*
+```
+
+That reflects any browser `Origin` (including `http://162.254.38.194:8081`).
+For production, prefer an explicit list, e.g.:
+
+```bash
+ALLOWED_ORIGINS=http://162.254.38.194:8081,https://your-pages-host.example,^https?://(localhost|127\.0\.0\.1)(:\d+)?$
+```
+
+Smoke:
+
+```bash
+curl -sS -D- -o /dev/null -X OPTIONS http://162.254.38.194:5002/run \
+  -H "Origin: http://162.254.38.194:8081" \
+  -H "Access-Control-Request-Method: POST"
+# expect Access-Control-Allow-Origin echoing the Origin
+
+curl -sS -X POST http://162.254.38.194:5002/run \
+  -H "Content-Type: application/json" \
+  -H "Origin: http://162.254.38.194:8081" \
+  -d '{"script":"//@version=5\nindicator(\"t\")\nplot(close)","data":[{"time":1,"open":1,"high":1,"low":1,"close":1,"volume":1}]}'
+```
+
 ## PWA
 
-- Manifest at `manifest.webmanifest` (theme `#2962ff`, icons 192/512).
+- Manifest at `manifest.webmanifest` (void theme `#0a0b10`, icons 192/512).
 - Service Worker at `sw.js` registered on first load. Cache-first for the
   app shell, network-first for `/api/*`, fallback to a 503 JSON for offline
   API calls (the `pyodide` engine keeps the app fully usable offline).
@@ -160,7 +214,7 @@ frontend/
 
 ## Persistence (localStorage)
 
-`pynescript.superchart.v1` holds:
+`pynescript.axis.v1` holds (migrates automatically from `pynescript.superchart.v*`):
 
 | Field          | Purpose                              |
 |----------------|--------------------------------------|

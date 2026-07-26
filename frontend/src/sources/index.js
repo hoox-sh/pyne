@@ -120,9 +120,23 @@ export const mockWalk = {
     },
 };
 
-// A source that holds the last user-uploaded file. The actual file is stored
-// in `state._uploadedBars` (set by the UI when the user picks a file).
+// A source that holds the last user-uploaded file.
+// Bars live in `upload-store` (shared with Solid AXIS UI).
+// Legacy state.uploadedBars is still accepted for older tests/UI.
 import { getState } from '../state.js';
+
+let _moduleBars = null;
+
+/** @param {import('../store/types').Bar[] | null} bars */
+export function setUploadedBars(bars) {
+    _moduleBars = bars && bars.length ? bars : null;
+    try {
+        // Keep legacy state in sync when present
+        const state = getState?.();
+        if (state?.assign) state.assign({ uploadedBars: _moduleBars || undefined });
+    } catch (_) { /* state may be uninitialised */ }
+}
+
 export const csvUpload = {
     id: 'csv-upload',
     name: 'CSV / JSON Upload',
@@ -130,8 +144,14 @@ export const csvUpload = {
     description: 'Uses the last file the user uploaded (CSV with time,open,high,low,close[,volume] or JSON array).',
     configSchema: {},
     async fetchHistorical() {
-        const state = getState();
-        const bars = state?.get?.('uploadedBars');
+        // Prefer shared module stash, then legacy state
+        let bars = _moduleBars;
+        if (!bars?.length) {
+            try {
+                const state = getState?.();
+                bars = state?.get?.('uploadedBars');
+            } catch (_) { /* ignore */ }
+        }
         if (!Array.isArray(bars) || !bars.length) {
             throw new Error('No uploaded file. Use the Upload button to pick a CSV/JSON file first.');
         }

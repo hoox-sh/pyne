@@ -13,6 +13,7 @@
         "@codemirror/theme-one-dark": "^6.1.2",
         "@codemirror/view": "^6.36.0",
         "lightweight-charts": "^5.2.0",
+        "lucide-solid": "^1.27.0",
         "solid-js": "^1.9.5",
       },
       "devDependencies": {
@@ -321,6 +322,8 @@
     "lightweight-charts": ["lightweight-charts@5.2.0", "", { "dependencies": { "fancy-canvas": "2.1.0" } }, "sha512-ey3Vas8UhV06ni+LT9TA1nEe4y8So4Mi6CL/oarNHFMyTktz/xy8e8+oh04Q//eO3t6etvFXgayz2fClyFQb5w=="],
 
     "lru-cache": ["lru-cache@5.1.1", "", { "dependencies": { "yallist": "^3.0.2" } }, "sha512-KpNARQA3Iwv+jTA0utUVVbrh+Jlrr1Fv0e56GGzAFOXN7dk/FviaDW8LHmK52DlcH4WP2n6gI8vN1aesBFgo9w=="],
+
+    "lucide-solid": ["lucide-solid@1.27.0", "", { "peerDependencies": { "solid-js": "^1.4.7" } }, "sha512-zbz//eLp8l3coLBkVj3kw/jOS2lP7UMsM7EYRvWhu1NF1buy1hvEUQ5maOLgWXNOCmhqfPP7Zmf1+KcdDwHoYg=="],
 
     "magic-string": ["magic-string@0.30.21", "", { "dependencies": { "@jridgewell/sourcemap-codec": "^1.5.5" } }, "sha512-vd2F4YUyEXKGcLHoq+TEyCjxueSeHnFxyyjNp80yg0XV4vUhnDer/lvvlqM/arB5bXQN5K2/3oinyCRyx8T2CQ=="],
 

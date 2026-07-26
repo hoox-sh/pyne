@@ -601,14 +601,27 @@ class CommonIndicators(TechnicalHelpers):
         return highest - lowest
 
     def _change(self, source: list[float], length: int = 1) -> float | None:
+        """Difference vs value `length` bars ago (na-safe)."""
         if len(source) <= length:
             return None
-        return source[-1] - source[-1 - length]
+        a, b = source[-1], source[-1 - length]
+        if a is None or b is None:
+            return None
+        try:
+            return float(a) - float(b)
+        except (TypeError, ValueError):
+            return None
 
     def _momentum(self, series: list[float], period: int) -> float | None:
         if len(series) <= period:
             return None
-        return series[-1] - series[-1 - period] if series[-1] is not None and series[-1 - period] is not None else None
+        a, b = series[-1], series[-1 - period]
+        if a is None or b is None:
+            return None
+        try:
+            return float(a) - float(b)
+        except (TypeError, ValueError):
+            return None
 
     def _cumsum(self, series: list[Any]) -> float:
         total = 0.0

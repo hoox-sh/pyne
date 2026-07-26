@@ -77,10 +77,11 @@ def timeframe_from_seconds(seconds: int) -> str:
     return f"{weeks}W"
 
 
-def timeframe_in_seconds(timeframe_str: str) -> int:
+def timeframe_in_seconds(timeframe_str: str | None = None) -> int:
     """Convert timeframe string to seconds.
 
     Converts the timeframe string to the number of seconds in that timeframe.
+    When called with no args (``timeframe.in_seconds()``), defaults to daily.
 
     Args:
         timeframe_str: Timeframe specification (e.g., "5", "15", "H", "D", "W", "M")
@@ -88,6 +89,8 @@ def timeframe_in_seconds(timeframe_str: str) -> int:
     Returns:
         Number of seconds in the timeframe
     """
+    if timeframe_str is None or timeframe_str == "":
+        timeframe_str = "D"
     timeframe_str = str(timeframe_str).strip().upper()
 
     # Check shortcuts first
@@ -118,6 +121,79 @@ def timeframe_in_seconds(timeframe_str: str) -> int:
         raise ValueError(msg) from e
 
 
+def _chart_period(evaluator: object | None = None) -> str:
+    """Resolve chart timeframe.period from host context / Timeframe object."""
+    ctx = getattr(evaluator, "context", None) or {}
+    flat = ctx.get("timeframe.period")
+    if isinstance(flat, str) and flat and not flat.startswith("timeframe."):
+        return flat
+    tf = ctx.get("timeframe")
+    if tf is not None:
+        period = getattr(tf, "period", None)
+        if isinstance(period, str) and period:
+            return period
+    main = ctx.get("timeframe.main_period")
+    if isinstance(main, str) and main:
+        return main
+    return "D"
+
+
+def _period_flags(period: str) -> dict[str, bool | int | str]:
+    """Derive Pine timeframe.* boolean flags from a period string."""
+    p = (period or "D").strip().upper()
+    # Normalize common aliases
+    if p in {"1D", "D", "DAY", "DAYS"}:
+        p_norm = "D"
+    elif p in {"1W", "W", "WEEK", "WEEKS"}:
+        p_norm = "W"
+    elif p in {"1M", "M", "MO", "MONTH", "MONTHS"}:
+        # "1M" is monthly on TV charts; bare "M" is also monthly in period form
+        # (minute charts use numeric "1"/"5"/"15" without M suffix in TV period).
+        p_norm = "M"
+    else:
+        p_norm = p
+
+    is_seconds = p_norm.endswith("S") and p_norm[:-1].isdigit()
+    is_minutes = p_norm.isdigit() or (p_norm.endswith("M") and p_norm[:-1].isdigit() and p_norm not in {"M", "1M"})
+    # TV period for minutes is "1","5","15","60"; hours "120","240" or "1H","4H"
+    is_hours = p_norm.endswith("H") or (p_norm.isdigit() and int(p_norm) >= 60 and int(p_norm) % 60 == 0 and int(p_norm) < 1440)
+    is_daily = p_norm in {"D", "1D"} or (p_norm.endswith("D") and p_norm[:-1].isdigit())
+    is_weekly = p_norm in {"W", "1W"} or (p_norm.endswith("W") and p_norm[:-1].isdigit())
+    is_monthly = p_norm in {"M", "1M", "MO"} or (p_norm.endswith("MO"))
+    # Numeric-only periods are minutes (intraday)
+    if p_norm.isdigit():
+        is_minutes = True
+        is_hours = int(p_norm) >= 60
+        is_daily = is_weekly = is_monthly = False
+
+    is_intraday = is_seconds or is_minutes or is_hours
+    is_dwm = is_daily or is_weekly or is_monthly
+
+    multiplier = 1
+    if p_norm.isdigit():
+        multiplier = int(p_norm)
+    else:
+        for suffix in ("MO", "S", "H", "D", "W", "M"):
+            if p_norm.endswith(suffix) and p_norm[: -len(suffix)].isdigit():
+                multiplier = int(p_norm[: -len(suffix)]) or 1
+                break
+
+    return {
+        "period": period if period else "D",
+        "multiplier": multiplier,
+        "isintraday": bool(is_intraday and not is_dwm),
+        "isdaily": bool(is_daily),
+        "isweekly": bool(is_weekly),
+        "ismonthly": bool(is_monthly),
+        "isseconds": bool(is_seconds),
+        "isinseconds": bool(is_seconds),
+        "isminutes": bool(is_minutes and not is_hours),
+        "ishours": bool(is_hours and not is_daily),
+        "isdwm": bool(is_dwm),
+        "main_period": period if period else "D",
+    }
+
+
 def register_timeframe_functions(namespace: dict) -> None:
     """Register all timeframe functions in the given namespace.
 
@@ -127,4 +203,11 @@ def register_timeframe_functions(namespace: dict) -> None:
     namespace["timeframe.change"] = timeframe_change
     namespace["timeframe.from_seconds"] = timeframe_from_seconds
     namespace["timeframe.in_seconds"] = timeframe_in_seconds
+
+    # Property defaults (non-callable constants, like color.red). Hosts should
+    # still inject flat context keys so local vars that shadow ``timeframe``
+    # resolve via names.py's exact-key fast path.
+    defaults = _period_flags("D")
+    for key, value in defaults.items():
+        namespace[f"timeframe.{key}"] = value
 

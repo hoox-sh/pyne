@@ -128,8 +128,14 @@ class MovingAverageIndicators(TechnicalHelpers):
 
         return self._finalize_series(tema_values)
 
-    def _builtin_ta_swma(self, args: list[Any]) -> float:
-        """Symmetric Weighted Moving Average."""
+    def _builtin_ta_swma(self, args: list[Any]) -> float | None:
+        """Symmetric Weighted Moving Average.
+
+        TV: ``ta.swma(source)`` — fixed 4-period symmetric weights.
+        Also accepts optional length for compatibility.
+        """
+        if len(args) == 1:
+            return self._swma(self._as_series(args[0]))
         series, length = self._expect_series(args, length=BINARY)
 
         if length < 1:

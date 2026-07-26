@@ -22,6 +22,9 @@ from __future__ import annotations
 import hashlib
 import uuid
 
+from datetime import datetime
+from datetime import timezone
+
 from pynescript.ast.helper import parse
 
 from .evaluator import CustomEvaluator
@@ -68,25 +71,43 @@ class Chartinfo:
 
 
 class Timeframe:
-    """Timeframe information namespace for Pine Script builtins."""
+    """Timeframe information namespace for Pine Script builtins.
+
+    Attribute names match TradingView Pine: ``isdaily`` / ``ismonthly`` /
+    ``isdwm`` (not ``is_daily``). Defaults assume a daily chart.
+    """
 
     period: str = "D"  # e.g., "1D", "1H", "5"
     multiplier: int = 1
     isintraday: bool = False
-    is_daily: bool = False
-    is_weekly: bool = False
-    is_monthly: bool = False
-    is_seconds: bool = False
+    isdaily: bool = True
+    isweekly: bool = False
+    ismonthly: bool = False
+    isseconds: bool = False
+    isinseconds: bool = False
+    isminutes: bool = False
+    ishours: bool = False
+    isdwm: bool = True
     current: str = "D"
 
     # November 2024: Main period from chart's main context
     main_period: str = "D"
 
+    # Back-compat aliases
+    is_daily: bool = True
+    is_weekly: bool = False
+    is_monthly: bool = False
+    is_seconds: bool = False
+
 
 class Barstate:
     """Bar state information namespace for Pine Script builtins."""
 
+    isfirst: bool = False
     islast: bool = False
+    isnew: bool = True
+    ishistory: bool = True
+    isconfirmed: bool = True
     islastconfirmedhistory: bool = False
     isrealtime: bool = False
     iscomposite: bool = False
@@ -209,7 +230,9 @@ class Runtime:
         low_series = PineSeries()
         close_series = PineSeries()
 
-        # Context initialization
+        # Context initialization (daily chart defaults)
+        tf = Timeframe()
+        barstate = Barstate()
         context = {
             "open": open_series,
             "high": high_series,
@@ -217,12 +240,25 @@ class Runtime:
             "close": close_series,
             # Symbol info namespace (November 2025: syminfo.isin, July 2025: syminfo.current_contract)
             "syminfo": self._syminfo,
-            "timeframe": Timeframe(),
-            "barstate": Barstate(),
+            "timeframe": tf,
+            "barstate": barstate,
             "chart": Chart(),
+            "timeframe.period": tf.period,
+            "timeframe.main_period": tf.main_period,
+            "timeframe.multiplier": tf.multiplier,
+            "timeframe.isintraday": tf.isintraday,
+            "timeframe.isdaily": tf.isdaily,
+            "timeframe.isweekly": tf.isweekly,
+            "timeframe.ismonthly": tf.ismonthly,
+            "timeframe.isseconds": tf.isseconds,
+            "timeframe.isinseconds": tf.isinseconds,
+            "timeframe.isdwm": tf.isdwm,
             # Per-bar counters updated in the loop below
             "bar_index": 0,
             "time": 0,
+            "time_close": 0,
+            "last_bar_index": max(0, len(ohlcv_data) - 1),
+            "last_bar_time": ohlcv_data[-1].get("time", 0) if ohlcv_data else 0,
         }
 
         evaluator = CustomEvaluator(context=context, data_feed=data_feed, data_provider=data_provider)
@@ -234,6 +270,7 @@ class Runtime:
         # Generate stable script_id from source hash
         script_id = hashlib.sha256(source_code.encode("utf-8")).hexdigest()[:16]
 
+        n_bars = len(ohlcv_data)
         for bar_index, bar in enumerate(ohlcv_data):
             # Update series state
             open_series.update(bar.get("open"))
@@ -241,16 +278,40 @@ class Runtime:
             low_series.update(bar.get("low"))
             close_series.update(bar.get("close"))
 
-            # Update per-bar counters
+            # Update per-bar counters and time components
+            bar_time = bar.get("time", 0) or 0
+            if bar_index + 1 < n_bars:
+                time_close = ohlcv_data[bar_index + 1].get("time", bar_time) or bar_time
+            else:
+                time_close = int(bar_time) + 86_400_000
             context["bar_index"] = bar_index
-            context["time"] = bar.get("time", 0)
+            context["time"] = bar_time
+            context["time_close"] = time_close
+            try:
+                dt = datetime.fromtimestamp(int(bar_time) / 1000, tz=timezone.utc)
+                context["year"] = dt.year
+                context["month"] = dt.month
+                context["dayofmonth"] = dt.day
+                context["hour"] = dt.hour
+                context["minute"] = dt.minute
+                context["second"] = dt.second
+                context["dayofweek"] = ((dt.weekday() + 1) % 7) + 1
+            except (ValueError, OSError, OverflowError):
+                pass
+
+            barstate.isfirst = bar_index == 0
+            barstate.islast = bar_index == n_bars - 1
+            barstate.isnew = True
+            barstate.ishistory = True
+            barstate.isconfirmed = True
+            barstate.islastconfirmedhistory = barstate.islast
+            barstate.isrealtime = False
 
             # Update bid/ask if available (February 2025)
             if "bid" in bar:
                 self._bid = bar["bid"]
             if "ask" in bar:
                 self._ask = bar["ask"]
-
             # Reset plot capture and event buffer for this bar
             evaluator.reset_plots()
             evaluator.reset_events()

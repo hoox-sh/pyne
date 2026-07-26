@@ -1,4 +1,4 @@
-// Bun static file server for the SuperChart Lite PWA.
+// Bun static file server for the AXIS charting PWA.
 // `bun run frontend/server.ts` — serves frontend/ on http://localhost:8081.
 //
 // Features:
@@ -116,11 +116,11 @@ const server = Bun.serve({
     },
 });
 
-console.log(`[superchart] serving ${ROOT}`);
-console.log(`[superchart] http://${server.hostname}:${server.port}`);
+console.log(`[axis] serving ${ROOT}`);
+console.log(`[axis] http://${server.hostname}:${server.port}`);
 
 process.on('SIGINT', () => {
-    console.log('\n[superchart] shutting down…');
+    console.log('\n[axis] shutting down…');
     server.stop();
     process.exit(0);
 });

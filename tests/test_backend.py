@@ -106,6 +106,43 @@ class TestRun:
         assert resp.status_code == 400
         assert resp.json["code"] == "NO_DATA"
 
+    def test_run_batch_success(self, client: FlaskClient):
+        bars = [
+            {"open": 100, "high": 105, "low": 98, "close": 102, "time": 1, "volume": 10},
+            {"open": 102, "high": 108, "low": 101, "close": 105, "time": 2, "volume": 12},
+        ]
+        resp = client.post(
+            "/run/batch",
+            json={
+                "data": bars,
+                "scripts": [
+                    {"id": "a", "script": "//@version=5\nindicator('a')\nplot(close)"},
+                    {"id": "b", "script": "//@version=5\nindicator('b')\nplot(open)"},
+                ],
+            },
+        )
+        assert resp.status_code == 200
+        body = resp.json
+        assert body["status"] in ("success", "partial")
+        assert body["count"] == 2
+        assert body["ok"] >= 1
+        ids = {r["id"] for r in body["results"]}
+        assert ids == {"a", "b"}
+        for r in body["results"]:
+            if r["status"] == "success":
+                assert len(r["plots"]) == 2
+
+    def test_run_batch_too_many(self, client: FlaskClient):
+        resp = client.post(
+            "/run/batch",
+            json={
+                "data": [{"open": 1, "high": 1, "low": 1, "close": 1, "time": 1}],
+                "scripts": [{"id": str(i), "script": "//@version=5\nplot(close)"} for i in range(9)],
+            },
+        )
+        assert resp.status_code == 400
+        assert resp.json["code"] == "TOO_MANY_SCRIPTS"
+
 
 class TestPreview:
     def test_chart_preview(self, client: FlaskClient, api_key: str):

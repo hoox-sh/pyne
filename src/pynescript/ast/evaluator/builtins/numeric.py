@@ -92,83 +92,136 @@ class NumericBuiltinsMixin(BuiltinDispatchMixin):
 
     def _builtin_abs(self, args: list[Any]) -> Any:
         self._require_len(args, UNARY, "abs takes exactly one argument")
-        return abs(args[0])
+        n = args[0]
+        if n is None:
+            return None
+        try:
+            return abs(n)
+        except TypeError:
+            return None
+
+    def _as_num(self, value: Any) -> float | None:
+        """Coerce a Pine value to float, treating na as None."""
+        if value is None:
+            return None
+        if hasattr(value, "current") and not isinstance(value, (list, tuple, str, bytes)):
+            value = value.current
+        if value is None:
+            return None
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return None
 
     def _builtin_math_max(self, args: list[Any]) -> Any:
-        return max(args)
+        nums = [self._as_num(a) for a in args]
+        nums = [n for n in nums if n is not None]
+        if not nums:
+            return None
+        return max(nums)
 
     def _builtin_math_min(self, args: list[Any]) -> Any:
-        return min(args)
+        nums = [self._as_num(a) for a in args]
+        nums = [n for n in nums if n is not None]
+        if not nums:
+            return None
+        return min(nums)
 
     def _builtin_math_abs(self, args: list[Any]) -> Any:
         self._require_len(args, UNARY, "math.abs takes exactly one argument")
-        return abs(args[0])
+        n = self._as_num(args[0])
+        return None if n is None else abs(n)
 
     def _builtin_math_sqrt(self, args: list[Any]) -> Any:
         self._require_len(args, UNARY, "math.sqrt takes exactly one argument")
-        return math.sqrt(args[0])
+        n = self._as_num(args[0])
+        return None if n is None or n < 0 else math.sqrt(n)
 
     def _builtin_math_round(self, args: list[Any]) -> Any:
         if len(args) == UNARY:
-            return round(args[0])
+            n = self._as_num(args[0])
+            return None if n is None else round(n)
         if len(args) == BINARY:
-            return round(args[0], args[1])
+            n = self._as_num(args[0])
+            d = self._as_num(args[1])
+            if n is None:
+                return None
+            return round(n, int(d) if d is not None else 0)
         self._error("math.round takes one or two arguments")
 
     def _builtin_math_floor(self, args: list[Any]) -> Any:
         self._require_len(args, UNARY, "math.floor takes exactly one argument")
-        return math.floor(args[0])
+        n = self._as_num(args[0])
+        return None if n is None else math.floor(n)
 
     def _builtin_math_ceil(self, args: list[Any]) -> Any:
         self._require_len(args, UNARY, "math.ceil takes exactly one argument")
-        return math.ceil(args[0])
+        n = self._as_num(args[0])
+        return None if n is None else math.ceil(n)
 
     def _builtin_math_pow(self, args: list[Any]) -> Any:
         self._require_len(args, BINARY, "math.pow takes exactly two arguments")
-        return math.pow(args[0], args[1])
+        a, b = self._as_num(args[0]), self._as_num(args[1])
+        if a is None or b is None:
+            return None
+        return math.pow(a, b)
 
     def _builtin_math_log(self, args: list[Any]) -> Any:
         if len(args) == UNARY:
-            return math.log(args[0])
+            n = self._as_num(args[0])
+            return None if n is None or n <= 0 else math.log(n)
         if len(args) == BINARY:
-            return math.log(args[0], args[1])
+            n, base = self._as_num(args[0]), self._as_num(args[1])
+            if n is None or base is None or n <= 0 or base <= 0:
+                return None
+            return math.log(n, base)
         self._error("math.log takes one or two arguments")
 
+    def _math_unary(self, args: list[Any], name: str, fn) -> Any:
+        """Apply unary *fn* with Pine NA semantics (None in → None out)."""
+        self._require_len(args, UNARY, f"{name} takes exactly one argument")
+        n = self._as_num(args[0])
+        if n is None:
+            return None
+        try:
+            return fn(n)
+        except (ValueError, OverflowError):
+            # Domain errors (e.g. acos(|x|>1), log10(x<=0)) → na
+            return None
+
     def _builtin_math_sin(self, args: list[Any]) -> Any:
-        self._require_len(args, UNARY, "math.sin takes exactly one argument")
-        return math.sin(args[0])
+        return self._math_unary(args, "math.sin", math.sin)
 
     def _builtin_math_cos(self, args: list[Any]) -> Any:
-        self._require_len(args, UNARY, "math.cos takes exactly one argument")
-        return math.cos(args[0])
+        return self._math_unary(args, "math.cos", math.cos)
 
     def _builtin_math_tan(self, args: list[Any]) -> Any:
-        self._require_len(args, UNARY, "math.tan takes exactly one argument")
-        return math.tan(args[0])
+        return self._math_unary(args, "math.tan", math.tan)
 
     def _builtin_math_acos(self, args: list[Any]) -> Any:
-        self._require_len(args, UNARY, "math.acos takes exactly one argument")
-        return math.acos(args[0])
+        return self._math_unary(args, "math.acos", math.acos)
 
     def _builtin_math_asin(self, args: list[Any]) -> Any:
-        self._require_len(args, UNARY, "math.asin takes exactly one argument")
-        return math.asin(args[0])
+        return self._math_unary(args, "math.asin", math.asin)
 
     def _builtin_math_atan(self, args: list[Any]) -> Any:
-        self._require_len(args, UNARY, "math.atan takes exactly one argument")
-        return math.atan(args[0])
+        return self._math_unary(args, "math.atan", math.atan)
 
     def _builtin_math_exp(self, args: list[Any]) -> Any:
-        self._require_len(args, UNARY, "math.exp takes exactly one argument")
-        return math.exp(args[0])
+        return self._math_unary(args, "math.exp", math.exp)
 
     def _builtin_math_log10(self, args: list[Any]) -> Any:
         self._require_len(args, UNARY, "math.log10 takes exactly one argument")
-        return math.log10(args[0])
+        n = self._as_num(args[0])
+        if n is None or n <= 0:
+            return None
+        return math.log10(n)
 
     def _builtin_math_sign(self, args: list[Any]) -> Any:
         self._require_len(args, UNARY, "math.sign takes exactly one argument")
-        value = args[0]
+        value = self._as_num(args[0])
+        if value is None:
+            return None
         if value > 0:
             return 1
         if value < 0:
@@ -176,26 +229,71 @@ class NumericBuiltinsMixin(BuiltinDispatchMixin):
         return 0
 
     def _builtin_math_sum(self, args: list[Any]) -> Any:
-        self._require_len(args, UNARY, "math.sum takes an array argument")
+        """Sum of array, or rolling sum ``math.sum(source, length)`` (TV)."""
+        if len(args) == BINARY:
+            # Rolling sum over last `length` values of a series
+            series = args[0]
+            if hasattr(series, "history"):
+                series = list(reversed(series.history))
+            elif not isinstance(series, list):
+                series = [series]
+            length = args[1]
+            if isinstance(length, float) and length == int(length):
+                length = int(length)
+            if not isinstance(length, int) or length <= 0:
+                self._error("math.sum length must be a positive integer")
+            window = [v for v in series[-length:] if v is not None]
+            try:
+                return sum(float(v) for v in window)
+            except (TypeError, ValueError):
+                return None
+        self._require_len(args, UNARY, "math.sum takes an array or (series, length)")
         series = args[0]
+        if hasattr(series, "history"):
+            series = list(reversed(series.history))
         if not isinstance(series, list):
             self._error("math.sum takes an array argument")
-        return sum(series)
+        try:
+            return sum(float(v) for v in series if v is not None)
+        except (TypeError, ValueError):
+            return None
 
     def _builtin_math_avg(self, args: list[Any]) -> Any:
-        self._require_len(args, UNARY, "math.avg takes a non-empty array")
-        series = args[0]
-        if not isinstance(series, list) or not series:
-            self._error("math.avg takes a non-empty array")
-        return statistics.mean(series)
+        """Average of array, or of multiple scalar/series args (TV ``math.avg(a,b,...)``)."""
+        if not args:
+            self._error("math.avg takes a non-empty array or multiple values")
+        # Single list argument
+        if len(args) == UNARY and isinstance(args[0], list):
+            series = [v for v in args[0] if v is not None]
+            if not series:
+                self._error("math.avg takes a non-empty array")
+            return statistics.mean(float(v) for v in series)
+        # Multiple values (scalars or series current)
+        values: list[float] = []
+        for a in args:
+            if a is None:
+                continue
+            if hasattr(a, "current"):
+                a = a.current
+            if a is None:
+                continue
+            if isinstance(a, list):
+                if a and a[-1] is not None:
+                    values.append(float(a[-1]))
+            else:
+                try:
+                    values.append(float(a))
+                except (TypeError, ValueError):
+                    continue
+        if not values:
+            return None
+        return statistics.mean(values)
 
     def _builtin_math_todegrees(self, args: list[Any]) -> Any:
-        self._require_len(args, UNARY, "math.todegrees takes one argument")
-        return math.degrees(args[0])
+        return self._math_unary(args, "math.todegrees", math.degrees)
 
     def _builtin_math_toradians(self, args: list[Any]) -> Any:
-        self._require_len(args, UNARY, "math.toradians takes one argument")
-        return math.radians(args[0])
+        return self._math_unary(args, "math.toradians", math.radians)
 
     def _builtin_math_random(self, args: list[Any]) -> Any:
         if args:
@@ -240,10 +338,14 @@ class NumericBuiltinsMixin(BuiltinDispatchMixin):
             return bool(value.lower() in {"true", "yes", "1"})
         return bool(value)
 
-    def _builtin_int(self, args: list[Any]) -> int:
-        """Convert value to integer."""
+    def _builtin_int(self, args: list[Any]) -> int | None:
+        """Convert value to integer. ``int(na)`` → na (None)."""
         self._require_len(args, UNARY, "int() takes one argument")
         value = self._as_scalar(args[0])
+        if value is None:
+            return None
+        if isinstance(value, bool):
+            return int(value)
         if isinstance(value, int):
             return value
         if isinstance(value, float):
@@ -253,14 +355,21 @@ class NumericBuiltinsMixin(BuiltinDispatchMixin):
                 return int(float(value))
             except ValueError:
                 self._error(f"Cannot convert '{value}' to int")
-        return int(value)
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return None
 
-    def _builtin_float(self, args: list[Any]) -> float:
-        """Convert value to float."""
+    def _builtin_float(self, args: list[Any]) -> float | None:
+        """Convert value to float. ``float(na)`` → na (None)."""
         self._require_len(args, UNARY, "float() takes one argument")
         value = self._as_scalar(args[0])
+        if value is None:
+            return None
         if isinstance(value, float):
             return value
+        if isinstance(value, bool):
+            return float(value)
         if isinstance(value, int):
             return float(value)
         if isinstance(value, str):
@@ -268,7 +377,10 @@ class NumericBuiltinsMixin(BuiltinDispatchMixin):
                 return float(value)
             except ValueError:
                 self._error(f"Cannot convert '{value}' to float")
-        return float(value)
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return None
 
     def _builtin_string(self, args: list[Any]) -> str:
         """Convert value to string."""
@@ -294,12 +406,12 @@ class NumericBuiltinsMixin(BuiltinDispatchMixin):
             return 0
         return value
 
-    def _builtin_math_round_to_mintick(self, args: list[Any]) -> float:
+    def _builtin_math_round_to_mintick(self, args: list[Any]) -> float | None:
         """Round value to the nearest tick (minimum price increment)."""
         self._require_len(args, UNARY, "math.round_to_mintick() takes one")
-        value = args[0]
-        if not isinstance(value, (int, float)):
-            self._error("math.round_to_mintick() requires a numeric value")
+        value = self._as_num(args[0])
+        if value is None:
+            return None
         # In real Pine, this rounds to the symbol's minimum tick size
         # For general use, we round to 8 decimal places (common default)
         return round(value, 8)

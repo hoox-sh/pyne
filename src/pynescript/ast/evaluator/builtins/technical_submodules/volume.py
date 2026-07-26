@@ -35,14 +35,30 @@ class VolumeIndicators(TechnicalHelpers):
         volumes = self._expect_list(args[1], msg)
         return self._obv(closes, volumes)
 
-    def _builtin_ta_mfi(self, args: list[Any]) -> float:
-        """Money Flow Index indicator.
+    def _builtin_ta_mfi(self, args: list[Any]) -> float | None:
+        """Money Flow Index.
 
-        ta.mfi(high, low, close, volume, length)
-        Combines price and volume for momentum.
-        Returns MFI value (0-100).
+        TV: ``ta.mfi(source, length)`` or legacy 5-arg HLC+volume+length.
+
+        Single-series form uses *source* as typical price and volume from the
+        bar context. Series lengths are aligned from the end (``_as_series``
+        may truncate to ``_SERIES_MAX`` while context volume is full history).
         """
-        msg = "ta.mfi expects high, low, close, volume, length"
+        if len(args) == BINARY:
+            series = self._as_series(args[0])
+            length = self._expect_int(args[1], "ta.mfi length must be int")
+            volumes = self._context_series("volume")
+            if not volumes:
+                volumes = [0.0] * len(series)
+            # Align source and volume to the common most-recent window
+            n = min(len(series), len(volumes))
+            if n == 0:
+                return None
+            series = series[-n:]
+            volumes = volumes[-n:]
+            # Source is already typical price (e.g. hlc3); reuse for H/L/C
+            return self._mfi(series, series, series, volumes, length)
+        msg = "ta.mfi expects source, length (or high, low, close, volume, length)"
         if len(args) != QUINARY:
             self._error(msg)
         highs = self._expect_list(args[0], msg)
@@ -52,22 +68,26 @@ class VolumeIndicators(TechnicalHelpers):
         length = self._expect_int(args[4], msg)
         return self._mfi(highs, lows, closes, volumes, length)
 
-    def _builtin_ta_accdist(self, args: list[Any]) -> list[float | None]:
-        """Accumulation/Distribution Index - volume-weighted indicator.
+    def _builtin_ta_accdist(self, args: list[Any]) -> Any:
+        """Accumulation/Distribution Index.
 
-        ta.accdist(high, low, close, volume)
-        Returns the A/D series.
+        TV: ``ta.accdist`` / ``ta.accdist()`` with no args uses H/L/C/V context.
         """
-        if len(args) < QUATERNARY:
-            msg = "ta.accdist() requires 4 arguments: high, low, close, volume"
-            self._error(msg)
+        if len(args) == 0:
+            high_series = self._context_series("high")
+            low_series = self._context_series("low")
+            close_series = self._context_series("close")
+            volume_series = self._context_series("volume")
+        elif len(args) >= QUATERNARY:
+            high_series = self._as_series(args[0])
+            low_series = self._as_series(args[1])
+            close_series = self._as_series(args[2])
+            volume_series = self._as_series(args[3])
+        else:
+            self._error("ta.accdist() requires 0 or 4 arguments: high, low, close, volume")
+            return None
 
-        high_series = args[0] if isinstance(args[0], list) else [args[0]]
-        low_series = args[1] if isinstance(args[1], list) else [args[1]]
-        close_series = args[2] if isinstance(args[2], list) else [args[2]]
-        volume_series = args[3] if isinstance(args[3], list) else [args[3]]
-
-        return self._accdist(high_series, low_series, close_series, volume_series)
+        return self._finalize_series(self._accdist(high_series, low_series, close_series, volume_series))
 
     def _builtin_ta_wad(self, args: list[Any]) -> list[float | None]:
         """Williams Accumulation/Distribution - volume accumulation index.
@@ -419,23 +439,53 @@ class VolumeIndicators(TechnicalHelpers):
         volumes: list[float],
         period: int,
     ) -> float:
-        """Calculate Money Flow Index."""
-        if len(closes) <= period + 2:
+        """Calculate Money Flow Index.
+
+        Aligns H/L/C/V to a common most-recent window (``min(len)`` from the
+        end) so mismatched truncated source vs full context volume never
+        trip ``zip(strict=True)``. None / non-numeric bars are skipped for
+        money-flow direction without raising.
+        """
+        n = min(len(highs), len(lows), len(closes), len(volumes))
+        if n <= period + 2 or period < 1:
             return 50.0
-        typical_prices = [
-            (high + low + close) / 3
-            for high, low, close in zip(highs, lows, closes, strict=True)
-        ]
-        money_flow = [tp * volume for tp, volume in zip(typical_prices, volumes, strict=True)]
+        highs = highs[-n:]
+        lows = lows[-n:]
+        closes = closes[-n:]
+        volumes = volumes[-n:]
+
+        typical_prices: list[float | None] = []
+        money_flow: list[float | None] = []
+        for high, low, close, volume in zip(highs, lows, closes, volumes, strict=False):
+            if (
+                not isinstance(high, (int, float))
+                or not isinstance(low, (int, float))
+                or not isinstance(close, (int, float))
+            ):
+                typical_prices.append(None)
+                money_flow.append(None)
+                continue
+            vol = float(volume) if isinstance(volume, (int, float)) else 0.0
+            tp = (float(high) + float(low) + float(close)) / 3.0
+            typical_prices.append(tp)
+            money_flow.append(tp * vol)
+
         positive_flow: list[float] = []
         negative_flow: list[float] = []
         for idx in range(1, len(typical_prices)):
-            if typical_prices[idx] > typical_prices[idx - 1]:
-                positive_flow.append(money_flow[idx])
-                negative_flow.append(0)
+            tp = typical_prices[idx]
+            prev = typical_prices[idx - 1]
+            mf = money_flow[idx]
+            if tp is None or prev is None or mf is None:
+                positive_flow.append(0.0)
+                negative_flow.append(0.0)
+                continue
+            if tp > prev:
+                positive_flow.append(mf)
+                negative_flow.append(0.0)
             else:
-                positive_flow.append(0)
-                negative_flow.append(money_flow[idx])
+                positive_flow.append(0.0)
+                negative_flow.append(mf)
         if len(positive_flow) < period:
             return 50.0
         recent_positive = positive_flow[-period:]

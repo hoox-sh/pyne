@@ -140,6 +140,8 @@ def register_script_declaration_functions(namespace: dict) -> None:
         namespace: Dictionary to register functions in (typically evaluator's builtins)
     """
     namespace["indicator"] = _as_builtin_handler(indicator)
+    # v4 alias — study() is the pre-v5 name for indicator()
+    namespace["study"] = _as_builtin_handler(indicator)
     # Strategy declaration may also configure broker settings on the evaluator
     namespace["strategy"] = _as_builtin_handler(strategy)
     namespace["library"] = _as_builtin_handler(library)

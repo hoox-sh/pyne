@@ -1,7 +1,12 @@
-// Central, persisted state for SuperChart Lite.
+// Central, persisted state for AXIS (formerly SuperChart Lite).
 // One source of truth — every UI module reads/writes through here.
+// Prefer Solid store (`src/store/`) for the Vite app; this module serves the legacy path.
 
-const STORAGE_KEY = 'pynescript.superchart.v1';
+const STORAGE_KEY = 'pynescript.axis.v1';
+const LEGACY_STORAGE_KEYS = [
+    'pynescript.superchart.v2',
+    'pynescript.superchart.v1',
+];
 
 const DEFAULT_STATE = Object.freeze({
     endpoint: 'http://localhost:5002',
@@ -20,10 +25,27 @@ const DEFAULT_STATE = Object.freeze({
 
 let _savedData = null; // in-memory cache to avoid reading localStorage on every assign
 
+function readKey(key) {
+    try {
+        return localStorage.getItem(key);
+    } catch (_) {
+        return null;
+    }
+}
+
 function load() {
     if (_savedData) return _savedData;
     try {
-        const raw = localStorage.getItem(STORAGE_KEY);
+        let raw = readKey(STORAGE_KEY);
+        if (!raw) {
+            for (const legacy of LEGACY_STORAGE_KEYS) {
+                raw = readKey(legacy);
+                if (raw) {
+                    try { localStorage.setItem(STORAGE_KEY, raw); } catch (_) { /* quota */ }
+                    break;
+                }
+            }
+        }
         if (!raw) return null;
         const parsed = JSON.parse(raw);
         _savedData = parsed && typeof parsed === 'object' ? parsed : null;
@@ -81,6 +103,12 @@ export function initState() {
 }
 export function resetState() {
     localStorage.removeItem(STORAGE_KEY);
+    for (const legacy of LEGACY_STORAGE_KEYS) {
+        try { localStorage.removeItem(legacy); } catch (_) { /* */ }
+    }
+    _savedData = null;
     _state = new State();
     return _state;
 }
+
+export { STORAGE_KEY };

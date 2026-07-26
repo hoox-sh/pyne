@@ -83,15 +83,55 @@ class TechnicalHelpers:
         # Unknown — wrap as single-element
         return [value]
 
+    def _context_series(self, name: str) -> list[Any]:
+        """Return a named OHLCV series from the bar runtime context.
+
+        Used when Pine calls omit the source series, e.g. ``ta.highest(20)``
+        (defaults to high) or ``ta.atr(14)`` (uses high/low/close).
+        """
+        series_map = getattr(self, "current_series", None) or {}
+        if name in series_map and series_map[name]:
+            return list(series_map[name])
+        # Fall back to empty — callers treat short series as na
+        return []
+
+    def _is_period_like(self, value: Any) -> bool:
+        """True if *value* looks like a length/period (int or whole float)."""
+        if isinstance(value, bool):
+            return False
+        if isinstance(value, int):
+            return True
+        if isinstance(value, float) and value == int(value):
+            return True
+        return False
+
     def _expect_series(
         self,
         args: list[Any],
         length: int,
+        *,
+        default_source: str | None = "close",
+        allow_period_only: bool = False,
     ) -> tuple[list[Any], int]:
-        """Validate and extract series and period arguments."""
+        """Validate and extract series and period arguments.
+
+        TradingView allows ``ta.sma(close, 14)`` and, for some functions,
+        ``ta.highest(14)`` (period-only, source defaults to high/low/close).
+
+        When ``allow_period_only`` is True and a single period-like arg is
+        passed, the series is taken from ``current_series[default_source]``.
+        """
+        if allow_period_only and len(args) == 1 and self._is_period_like(args[0]):
+            if not default_source:
+                self._error(f"ta.* function requires {length} argument(s), got 1. Expected: (series, period)")
+            series = self._context_series(default_source)
+            period = self._expect_int(args[0], "Period must be an integer")
+            return series, period
         if len(args) != length:
             self._error(f"ta.* function requires {length} argument(s), got {len(args)}. Expected: (series, period)")
         series = self._as_series(args[0])
+        # If caller passed a scalar as "series" (e.g. intermediate expression),
+        # wrap and continue — period must still resolve.
         period = self._expect_int(
             args[1],
             "Second argument must be an integer (period)",
@@ -111,12 +151,26 @@ class TechnicalHelpers:
         )
 
     def _expect_int(self, value: Any, message: str) -> int:
-        """Validate that value is an integer (accepts float whole numbers too)."""
+        """Validate that value is an integer (accepts floats via floor for periods)."""
+        # Unwrap series wrappers / input dict defaults / single-element lists / na
+        if isinstance(value, dict) and "default" in value:
+            value = value["default"]
+        if hasattr(value, "current") and not isinstance(value, (list, tuple, str, bytes)):
+            # PineSeries / _SeriesResult / _NaValue-like
+            cur = value.current
+            # _NaValue is callable and has no numeric current
+            if type(value).__name__ == "_NaValue":
+                self._error(f"{message}. Got: na")
+            value = cur
+        if isinstance(value, list) and len(value) == 1:
+            value = value[0]
+        if value is None:
+            self._error(f"{message}. Got: na")
         if isinstance(value, float):
-            if value == int(value):
-                value = int(value)
-            else:
-                self._error(f"{message}. Got: float {value}")
+            # TV floors fractional periods (e.g. length/2 → 4 for length=9)
+            value = int(math.floor(value))
+        if isinstance(value, bool):
+            value = int(value)
         if not isinstance(value, int):
             self._error(f"{message}. Got: {type(value).__name__}")
         return value
@@ -238,80 +292,139 @@ class TechnicalHelpers:
         return rma_values[: len(formatted)]
 
     def _wma(self, series: list[float], period: int) -> float | None:
-        """Weighted Moving Average."""
-        if len(series) < period:
+        """Weighted Moving Average (na-safe)."""
+        if period <= 0 or len(series) < period:
             return None
+        window = series[-period:]
+        if any(v is None for v in window):
+            valid = [(i + 1, v) for i, v in enumerate(window) if v is not None]
+            if not valid:
+                return None
+            # weight by position among full period (TV drops na bars from sum only)
+            total_w = sum(w for w, _ in valid)
+            return sum(w * float(v) for w, v in valid) / total_w
         weights = list(range(1, period + 1))
         total = sum(weights)
-        return sum(series[-idx] * (period - idx + 1) for idx in range(1, period + 1)) / total
+        return sum(float(series[-idx]) * (period - idx + 1) for idx in range(1, period + 1)) / total
 
     def _highest(self, series: list[float], period: int) -> float | None:
-        """Get highest value in period."""
-        if len(series) < period:
+        """Get highest value in period (na-safe)."""
+        if period <= 0 or len(series) < period:
             return None
-        return max(series[-period:])
+        window = [v for v in series[-period:] if v is not None]
+        return max(window) if window else None
 
     def _lowest(self, series: list[float], period: int) -> float | None:
-        """Get lowest value in period."""
-        if len(series) < period:
+        """Get lowest value in period (na-safe)."""
+        if period <= 0 or len(series) < period:
             return None
-        return min(series[-period:])
+        window = [v for v in series[-period:] if v is not None]
+        return min(window) if window else None
 
     def _stdev(self, series: list[float], period: int) -> float | None:
-        """Standard deviation over period."""
-        if len(series) < period:
+        """Standard deviation over period (na-safe)."""
+        if period <= 0 or len(series) < period:
             return None
-        return statistics.stdev(series[-period:])
+        window = [float(v) for v in series[-period:] if v is not None]
+        if len(window) < 2:
+            return None
+        return statistics.stdev(window)
 
     def _tr(
         self,
         highs: list[float],
         lows: list[float],
         closes: list[float],
-    ) -> list[float]:
-        """True Range calculation."""
-        result = [math.nan]
+    ) -> list[float | None]:
+        """True Range calculation (na-safe)."""
+        if not closes:
+            return []
+        result: list[float | None] = [None]
         for idx in range(1, len(closes)):
-            result.append(
-                max(
-                    highs[idx] - lows[idx],
-                    abs(highs[idx] - closes[idx - 1]),
-                    abs(lows[idx] - closes[idx - 1]),
+            h, l, c_prev = highs[idx] if idx < len(highs) else None, lows[idx] if idx < len(lows) else None, closes[idx - 1]
+            if h is None or l is None or c_prev is None:
+                result.append(None)
+                continue
+            try:
+                result.append(
+                    max(
+                        float(h) - float(l),
+                        abs(float(h) - float(c_prev)),
+                        abs(float(l) - float(c_prev)),
+                    )
                 )
-            )
+            except (TypeError, ValueError):
+                result.append(None)
         return result
 
+    @staticmethod
+    def _cmp_lt(a: Any, b: Any) -> bool | None:
+        if a is None or b is None:
+            return None
+        try:
+            return float(a) < float(b)
+        except (TypeError, ValueError):
+            return None
+
+    @staticmethod
+    def _cmp_gt(a: Any, b: Any) -> bool | None:
+        if a is None or b is None:
+            return None
+        try:
+            return float(a) > float(b)
+        except (TypeError, ValueError):
+            return None
+
     def _crossover(self, series1: list[float], series2: list[float]) -> bool:
-        """Check if series1 crosses above series2."""
+        """Check if series1 crosses above series2 (na-safe)."""
         if len(series1) < MIN_SERIES_LENGTH or len(series2) < MIN_SERIES_LENGTH:
             return False
-        return series1[-2] < series2[-2] and series1[-1] > series2[-1]
+        prev = self._cmp_lt(series1[-2], series2[-2])
+        curr = self._cmp_gt(series1[-1], series2[-1])
+        return bool(prev and curr)
 
     def _crossunder(self, series1: list[float], series2: list[float]) -> bool:
-        """Check if series1 crosses below series2."""
+        """Check if series1 crosses below series2 (na-safe)."""
         if len(series1) < MIN_SERIES_LENGTH or len(series2) < MIN_SERIES_LENGTH:
             return False
-        return series1[-2] > series2[-2] and series1[-1] < series2[-1]
+        prev = self._cmp_gt(series1[-2], series2[-2])
+        curr = self._cmp_lt(series1[-1], series2[-1])
+        return bool(prev and curr)
 
     def _cross(self, series1: list[float], series2: list[float]) -> bool:
         """Check if series1 crosses series2 (either direction)."""
         return bool(self._crossover(series1, series2) or self._crossunder(series1, series2))
 
     def _falling(self, series: list[float], period: int) -> bool:
-        """Check if series is falling for period."""
-        if len(series) < period:
+        """Check if series is falling for period (na-safe)."""
+        if len(series) < period or period < 1:
             return False
         for idx in range(1, period):
-            if series[-idx] <= series[-idx - 1]:
+            cmp = self._cmp_lt(series[-idx], series[-idx - 1])  # current < previous? falling means lower
+            # falling: series[-idx] < series[-idx-1] is wrong; falling means each is lower than previous
+            # i.e. series[-1] < series[-2] < ... 
+            a, b = series[-idx], series[-idx - 1]
+            if a is None or b is None:
+                return False
+            try:
+                if float(a) >= float(b):
+                    return False
+            except (TypeError, ValueError):
                 return False
         return True
 
     def _rising(self, series: list[float], period: int) -> bool:
-        """Check if series is rising for period."""
-        if len(series) < period:
+        """Check if series is rising for period (na-safe)."""
+        if len(series) < period or period < 1:
             return False
         for idx in range(1, period):
-            if series[-idx] >= series[-idx - 1]:
+            a, b = series[-idx], series[-idx - 1]
+            if a is None or b is None:
+                return False
+            try:
+                if float(a) <= float(b):
+                    return False
+            except (TypeError, ValueError):
                 return False
         return True
 
@@ -320,25 +433,55 @@ class TechnicalHelpers:
         if len(series) < period:
             return -1
         window = series[-period:]
-        value = max(window)
-        return -window[::-1].index(value)
+        valid = [(i, v) for i, v in enumerate(window) if v is not None]
+        if not valid:
+            return -1
+        max_i, _ = max(valid, key=lambda iv: iv[1])
+        return -(period - 1 - max_i)
 
     def _lowestbars(self, series: list[float], period: int) -> int:
         """Get offset to lowest value in period."""
         if len(series) < period:
             return -1
         window = series[-period:]
-        value = min(window)
-        return -window[::-1].index(value)
+        valid = [(i, v) for i, v in enumerate(window) if v is not None]
+        if not valid:
+            return -1
+        min_i, _ = min(valid, key=lambda iv: iv[1])
+        return -(period - 1 - min_i)
+
+    def _swma(self, series: list[Any]) -> float | None:
+        """Symmetrically Weighted Moving Average (4-period: 1/6, 2/6, 2/6, 1/6)."""
+        if len(series) < 4:
+            return None
+        w = series[-4:]
+        if any(v is None for v in w):
+            return None
+        try:
+            return (float(w[0]) + 2 * float(w[1]) + 2 * float(w[2]) + float(w[3])) / 6.0
+        except (TypeError, ValueError):
+            return None
 
     def _change(self, source: list[float], length: int = 1) -> float | None:
-        """Calculate change over length."""
+        """Calculate change over length (na-safe)."""
         if len(source) <= length:
             return None
-        return source[-1] - source[-1 - length]
+        a, b = source[-1], source[-1 - length]
+        if a is None or b is None:
+            return None
+        try:
+            return float(a) - float(b)
+        except (TypeError, ValueError):
+            return None
 
-    def _mom(self, series: list[float], period: int) -> float:
-        """Calculate momentum."""
+    def _mom(self, series: list[float], period: int) -> float | None:
+        """Calculate momentum (na-safe)."""
         if len(series) <= period:
-            return 0.0
-        return series[-1] - series[-period - 1]
+            return None
+        a, b = series[-1], series[-period - 1]
+        if a is None or b is None:
+            return None
+        try:
+            return float(a) - float(b)
+        except (TypeError, ValueError):
+            return None

@@ -67,7 +67,11 @@ def _elementwise_binary(op, a, b):
 
     if a is None or b is None:
         return None
-    return op(a, b)
+    # Soft-fail mismatched types (str vs int, etc.) → na
+    try:
+        return op(a, b)
+    except TypeError:
+        return None
 
 
 def _na_safe_binary(op):
@@ -102,7 +106,17 @@ _OPERATOR_GE = _na_safe_binary(operator.ge)
 _OPERATOR_ADD = _na_safe_binary(operator.add)
 _OPERATOR_SUB = _na_safe_binary(operator.sub)
 _OPERATOR_MUL = _na_safe_binary(operator.mul)
-_OPERATOR_DIV = _na_safe_binary(operator.truediv)
+def _safe_truediv(a, b):
+    """Division with Pine NA / zero-divisor semantics (returns na, not exception)."""
+    try:
+        if b == 0 or b == 0.0:
+            return None
+        return operator.truediv(a, b)
+    except (TypeError, ZeroDivisionError, OverflowError):
+        return None
+
+
+_OPERATOR_DIV = _na_safe_binary(_safe_truediv)
 _OPERATOR_MOD = _na_safe_binary(operator.mod)
 _OPERATOR_NOT = _na_safe_unary(operator.not_)
 _OPERATOR_POS = _na_safe_unary(operator.pos)
@@ -275,6 +289,14 @@ class ExpressionEvaluator:
         if self._is_qualified_attribute_builtin_call(node):
             return self._dispatch_qualified_attribute_builtin(node)
 
+        # Early-dispatch bare Name builtins (year/time/month/…) BEFORE
+        # visiting the name: hosts often inject scalar ``time``/``year`` into
+        # context for series use, which would otherwise make ``year(ts)``
+        # resolve to a non-callable int and soft-fail to na.
+        if isinstance(node.func, ast.Name) and self._is_registered_builtin(node.func.id):
+            args, kwargs = self._collect_call_args(node)
+            return self._call_builtin(node.func.id, args, kwargs=kwargs)
+
         func = self.visit(node.func)
         args, kwargs = self._collect_call_args(node)
 
@@ -282,6 +304,30 @@ class ExpressionEvaluator:
         if isinstance(func, tuple) and len(func) == _METHOD_CALL_TUPLE_LENGTH and func[0] == "_method_call":
             _, obj_instance, method_name = func
             return self._invoke_method(obj_instance, method_name, args, kwargs)
+
+        # Array instance methods: ``arr.push(x)`` → ``array.push(arr, x)``
+        if isinstance(func, tuple) and len(func) == 3 and func[0] == "_array_method":
+            _, receiver, method_name = func
+            return self._call_builtin(f"array.{method_name}", [receiver, *args], kwargs=kwargs)  # type: ignore[attr-defined]
+
+        # Drawing/namespace instance methods: ``la.get_text()`` → ``label.get_text(la)``
+        if isinstance(func, tuple) and len(func) == 3 and func[0] == "_ns_method":
+            _, receiver, qual_name = func
+            return self._call_builtin(qual_name, [receiver, *args], kwargs=kwargs)  # type: ignore[attr-defined]
+
+        # Extension methods: ``method addCell(table t, ...)`` + ``display.addCell(...)``
+        if isinstance(func, tuple) and len(func) == 3 and func[0] == "_ext_method":
+            _, receiver, method_name = func
+            ext = self.context.get(method_name)  # type: ignore[attr-defined]
+            if callable(ext):
+                try:
+                    return ext(receiver, *args, **kwargs)
+                except TypeError:
+                    try:
+                        return ext(receiver, *args)
+                    except TypeError:
+                        return None
+            return None
 
         # Handle .new() method for UDT instantiation
         if isinstance(node.func, ast.Attribute):
@@ -294,8 +340,13 @@ class ExpressionEvaluator:
         if isinstance(func, str):
             return self._call_builtin(func, args, kwargs=kwargs)
         else:
-            # For now, assume func is callable
-            return func(*args, **kwargs)
+            # Soft-fail non-callables (stubs, na) — return None
+            if not callable(func):
+                return None
+            try:
+                return func(*args, **kwargs)
+            except TypeError:
+                return None
 
     def _is_qualified_attribute_builtin_call(
         self: EvaluatorProtocol,
@@ -404,20 +455,38 @@ class ExpressionEvaluator:
 
         method_def = udt._method_defs[method_name]  # type: ignore
 
-        # Create a new scope for method execution
-        old_context = self.context.copy()  # type: ignore[attr-defined]
-        try:
-            # Bind THIS to the instance
-            self.context["this"] = obj_instance  # type: ignore[attr-defined]
+        # Bind params on the *live* context dict (do not replace it — hosts
+        # mutate bar_index/time in place each bar).
+        ctx = self.context  # type: ignore[attr-defined]
+        missing = object()
+        saved: dict[str, Any] = {}
 
-            # Bind regular parameters
-            param_names = [p.name for p in method_def.args if isinstance(p, ast.Param) and p.name != "this"]
-            for param_name, arg_val in zip(param_names, args, strict=False):
-                self.context[param_name] = arg_val  # type: ignore[attr-defined]
+        def _bind(name: str, value: Any) -> None:
+            if name not in saved:
+                saved[name] = ctx[name] if name in ctx else missing
+            ctx[name] = value
+
+        try:
+            # Bind the receiver to the first parameter name (usually ``this``)
+            # and always expose ``this`` for Pine convention.
+            params = [p for p in method_def.args if isinstance(p, ast.Param)]
+            if params:
+                _bind(params[0].name, obj_instance)
+            _bind("this", obj_instance)
+
+            # Bind remaining parameters (skip receiver)
+            extra_params = params[1:]
+            for param, arg_val in zip(extra_params, args, strict=False):
+                _bind(param.name, arg_val)
 
             # Bind keyword arguments
             for key, value in kwargs.items():
-                self.context[key] = value  # type: ignore[attr-defined]
+                _bind(key, value)
+
+            # Defaults for unbound params with defaults
+            for param in extra_params:
+                if param.name not in saved and param.default is not None:
+                    _bind(param.name, self.visit(param.default))  # type: ignore[attr-defined]
 
             # Execute method body - last expression is the return value
             result = None
@@ -430,8 +499,44 @@ class ExpressionEvaluator:
 
             return result
         finally:
-            # Restore the original context
-            self.context = old_context  # type: ignore[attr-defined]
+            for name, old in saved.items():
+                if old is missing:
+                    ctx.pop(name, None)
+                else:
+                    ctx[name] = old
+
+    def visit_Specialize(self: EvaluatorProtocol, node: ast.Specialize) -> Any:
+        """Evaluate a type-specialization expression (e.g. ``array.new<float>``).
+
+        Maps ``array.new<float>`` → registered builtin ``array.new_float`` so
+        the subsequent Call dispatches correctly. Uses AST-only base path so
+        zero-arg builtins like ``array.new`` are not eagerly evaluated to ``[]``.
+        """
+        from pynescript.ast import node as ast_mod
+        from pynescript.ast.evaluator.names import ast_qualified_name
+
+        # Prefer AST path for Attribute bases (array.new) — do not evaluate
+        if isinstance(node.value, ast_mod.Attribute):
+            base = ast_qualified_name(node.value)
+        else:
+            base = self.visit(node.value)
+
+        type_name: str | None = None
+        type_arg = node.args
+        if isinstance(type_arg, ast_mod.Name):
+            type_name = type_arg.id
+        elif type_arg is not None:
+            tval = self.visit(type_arg)
+            if isinstance(tval, str):
+                type_name = tval
+
+        if isinstance(base, str) and type_name:
+            specialized = f"{base}_{type_name}"
+            if self._is_registered_builtin(specialized):  # type: ignore[attr-defined]
+                return specialized
+            if self._is_registered_builtin(base):  # type: ignore[attr-defined]
+                return base
+        return base
 
     def visit_If(self: EvaluatorProtocol, node: ast.If) -> Any:
         """Evaluate an if-expression.

@@ -55,13 +55,39 @@ class BasicIndicators(TechnicalHelpers):
         series, period = self._expect_series(args, length=BINARY)
         return self._hma(series, period)
 
-    def _builtin_ta_vwap(self, args: list[Any]) -> float:
-        """Volume Weighted Average Price."""
-        msg = "ta.vwap expects price-volume values"
-        if len(args) != UNARY:
-            self._error(msg)
-        sequence = self._expect_list(args[0], msg)
-        return self._vwap(sequence)
+    def _builtin_ta_vwap(self, args: list[Any]) -> float | None:
+        """Volume Weighted Average Price.
+
+        TradingView: ``ta.vwap(source)`` or ``ta.vwap`` (defaults to hlc3).
+        Extra anchor/args beyond the source are ignored for now.
+        """
+        if len(args) == 0:
+            source = self._context_series("hlc3") or self._context_series("close")
+        else:
+            source = self._as_series(args[0])
+        volume = self._context_series("volume")
+        if not source:
+            return None
+        # Align volume length
+        if len(volume) < len(source):
+            volume = volume + [0.0] * (len(source) - len(volume))
+        # Cumulative VWAP over available history
+        cum_pv = 0.0
+        cum_v = 0.0
+        last = None
+        for i, price in enumerate(source):
+            if price is None:
+                continue
+            v = volume[i] if i < len(volume) and volume[i] is not None else 0.0
+            try:
+                v = float(v)
+                price = float(price)
+            except (TypeError, ValueError):
+                continue
+            cum_pv += price * v
+            cum_v += v
+            last = (cum_pv / cum_v) if cum_v else price
+        return last
 
     def _builtin_ta_crossover(self, args: list[Any]) -> bool:
         """Crossover check."""
@@ -89,23 +115,31 @@ class BasicIndicators(TechnicalHelpers):
         return self._rising(series, period)
 
     def _builtin_ta_highest(self, args: list[Any]) -> Any:
-        """Highest value."""
-        series, period = self._expect_series(args, length=BINARY)
+        """Highest value. ``ta.highest(source, length)`` or ``ta.highest(length)`` → high."""
+        series, period = self._expect_series(
+            args, length=BINARY, default_source="high", allow_period_only=True
+        )
         return self._highest(series, period)
 
     def _builtin_ta_lowest(self, args: list[Any]) -> Any:
-        """Lowest value."""
-        series, period = self._expect_series(args, length=BINARY)
+        """Lowest value. ``ta.lowest(source, length)`` or ``ta.lowest(length)`` → low."""
+        series, period = self._expect_series(
+            args, length=BINARY, default_source="low", allow_period_only=True
+        )
         return self._lowest(series, period)
 
     def _builtin_ta_highestbars(self, args: list[Any]) -> int:
         """Offset to highest value."""
-        series, period = self._expect_series(args, length=BINARY)
+        series, period = self._expect_series(
+            args, length=BINARY, default_source="high", allow_period_only=True
+        )
         return self._highestbars(series, period)
 
     def _builtin_ta_lowestbars(self, args: list[Any]) -> int:
         """Offset to lowest value."""
-        series, period = self._expect_series(args, length=BINARY)
+        series, period = self._expect_series(
+            args, length=BINARY, default_source="low", allow_period_only=True
+        )
         return self._lowestbars(series, period)
 
     def _builtin_ta_change(self, args: list[Any]) -> float | None:
@@ -128,9 +162,26 @@ class BasicIndicators(TechnicalHelpers):
         series, period = self._expect_series(args, length=BINARY)
         return self._stdev(series, period)
 
-    def _builtin_ta_tr(self, args: list[Any]) -> list[float]:
-        """True Range."""
-        msg = "ta.tr expects high, low, and close"
+    def _builtin_ta_swma(self, args: list[Any]) -> float | None:
+        """Symmetrically Weighted Moving Average. TV: ``ta.swma(source)``."""
+        if len(args) != UNARY:
+            self._error("ta.swma expects one source argument")
+        return self._swma(self._as_series(args[0]))
+
+    def _builtin_ta_tr(self, args: list[Any]) -> Any:
+        """True Range.
+
+        TradingView: ``ta.tr(handle_na)`` with 0–1 args (uses high/low/close
+        from context). Also accepts the legacy 3-arg form for unit tests.
+        """
+        if len(args) <= UNARY:
+            # Optional boolean handle_na is ignored for computation; na bars
+            # already yield None via _tr internals.
+            highs = self._context_series("high")
+            lows = self._context_series("low")
+            closes = self._context_series("close")
+            return self._finalize_series(self._tr(highs, lows, closes))
+        msg = "ta.tr expects high, low, and close (or 0–1 handle_na args)"
         if len(args) != TERNARY:
             self._error(msg)
         highs = self._expect_list(args[0], msg)
@@ -138,9 +189,16 @@ class BasicIndicators(TechnicalHelpers):
         closes = self._expect_list(args[2], msg)
         return self._finalize_series(self._tr(highs, lows, closes))
 
-    def _builtin_ta_sar(self, args: list[Any]) -> list[float]:
-        """Parabolic SAR."""
-        msg = "ta.sar expects high, low, start, increment, max"
+    def _builtin_ta_sar(self, args: list[Any]) -> Any:
+        """Parabolic SAR. TV: ``ta.sar(start, inc, max)`` using high/low context."""
+        if len(args) == TERNARY and all(isinstance(a, (int, float)) and not isinstance(a, bool) for a in args):
+            highs = self._context_series("high")
+            lows = self._context_series("low")
+            start = float(args[0])
+            increment = float(args[1])
+            maximum = float(args[2])
+            return self._finalize_series(self._sar(highs, lows, start, increment, maximum))
+        msg = "ta.sar expects start, increment, max (or high, low, start, increment, max)"
         if len(args) != QUINARY:
             self._error(msg)
         highs = self._expect_list(args[0], msg)
@@ -148,7 +206,7 @@ class BasicIndicators(TechnicalHelpers):
         start = self._expect_number(args[2], msg)
         increment = self._expect_number(args[3], msg)
         maximum = self._expect_number(args[4], msg)
-        return self._sar(highs, lows, start, increment, maximum)
+        return self._finalize_series(self._sar(highs, lows, start, increment, maximum))
 
     def _builtin_ta_bb(
         self,
@@ -165,9 +223,15 @@ class BasicIndicators(TechnicalHelpers):
             self._error("ta.bb expects numeric multiplier")
         return self._bollinger_bands(series, length, multiplier)
 
-    def _builtin_ta_atr(self, args: list[Any]) -> list[float | None]:
-        """Average True Range."""
-        msg = "ta.atr expects high, low, close, and length"
+    def _builtin_ta_atr(self, args: list[Any]) -> Any:
+        """Average True Range. TV: ``ta.atr(length)``; also legacy 4-arg form."""
+        if len(args) == 1 and self._is_period_like(args[0]):
+            length = self._expect_int(args[0], "ta.atr length must be an integer")
+            highs = self._context_series("high")
+            lows = self._context_series("low")
+            closes = self._context_series("close")
+            return self._finalize_series(self._atr(highs, lows, closes, length))
+        msg = "ta.atr expects length, or high, low, close, and length"
         if len(args) != QUATERNARY:
             self._error(msg)
         highs = self._expect_list(args[0], msg)
@@ -252,37 +316,61 @@ class BasicIndicators(TechnicalHelpers):
 
         return plus_di, minus_di
 
-    def _builtin_ta_supertrend(self, args: list[Any]) -> tuple[float, float, int]:
-        """Supertrend indicator (returns final_lowerband, final_upperband, direction)."""
-        if len(args) < TERNARY:
-            self._error("ta.supertrend takes high, low series and length, multiplier")
+    def _builtin_ta_supertrend(self, args: list[Any]) -> tuple[float, int]:
+        """Supertrend indicator.
 
-        highs = self._expect_list(args[0], "ta.supertrend takes high, low, length, multiplier")
-        lows = self._expect_list(args[1], "ta.supertrend takes high, low, length, multiplier")
-        length = self._expect_int(args[2], "ta.supertrend takes high, low, length, multiplier")
-        multiplier = args[3] if (len(args) > 3 and isinstance(args[3], (int, float))) else 1.0
+        TradingView: ``ta.supertrend(factor, atrPeriod)`` → ``[supertrend, direction]``.
+        Also accepts legacy ``(high, low, length, multiplier)``.
+        """
+        if len(args) == BINARY and all(isinstance(a, (int, float)) and not isinstance(a, bool) for a in args):
+            factor = float(args[0])
+            atr_period = self._expect_int(args[1], "ta.supertrend atrPeriod must be int")
+            highs = self._context_series("high")
+            lows = self._context_series("low")
+            closes = self._context_series("close")
+        elif len(args) >= TERNARY:
+            highs = self._as_series(args[0])
+            lows = self._as_series(args[1])
+            atr_period = self._expect_int(args[2], "ta.supertrend length must be int")
+            factor = float(args[3]) if len(args) > 3 and isinstance(args[3], (int, float)) else 3.0
+            closes = self._context_series("close") or highs
+        else:
+            self._error("ta.supertrend takes factor, atrPeriod (or high, low, length, multiplier)")
+            return 0.0, 1
 
-        if length < 1:
+        if atr_period < 1:
             self._error("ta.supertrend length must be positive")
 
-        # This is a simplified implementation as full Supertrend requires state
-        # For now we return basic bands based on ATR
-        atr_series = self._builtin_ta_atr([highs, lows, [0] * len(highs), length])
-        atr_val = atr_series[-1] if atr_series and isinstance(atr_series[-1], (int, float)) else 0.0
+        atr_val = self._builtin_ta_atr([highs, lows, closes if closes else highs, atr_period])
+        if isinstance(atr_val, list):
+            atr_val = atr_val[-1] if atr_val else 0.0
+        if atr_val is None or not isinstance(atr_val, (int, float)):
+            atr_val = 0.0
 
         current_high = highs[-1] if highs and isinstance(highs[-1], (int, float)) else 0.0
         current_low = lows[-1] if lows and isinstance(lows[-1], (int, float)) else 0.0
+        current_close = closes[-1] if closes and isinstance(closes[-1], (int, float)) else current_high
         mid = (current_high + current_low) / 2.0
 
-        final_lowerband = mid - (multiplier * atr_val)
-        final_upperband = mid + (multiplier * atr_val)
-
-        # Full Supertrend direction requires state; return 1 as a stable default.
-        return final_lowerband, final_upperband, 1
+        upper = mid + factor * float(atr_val)
+        lower = mid - factor * float(atr_val)
+        # Simplified direction: price above mid → uptrend (-1 in TV convention for up fill)
+        direction = -1 if current_close >= mid else 1
+        supertrend = lower if direction < 0 else upper
+        return float(supertrend), direction
 
     def _builtin_ta_linreg(self, args: list[Any]) -> float:
-        """Linear Regression value."""
-        series, length = self._expect_series(args, length=BINARY)
+        """Linear Regression value.
+
+        TV: ``ta.linreg(source, length, offset)`` — offset is optional (default 0).
+        """
+        if len(args) == TERNARY:
+            series = self._as_series(args[0])
+            length = self._expect_int(args[1], "ta.linreg length must be int")
+            # offset currently ignored for scalar last-value form
+            _offset = args[2]
+        else:
+            series, length = self._expect_series(args, length=BINARY)
 
         if length < 2:
             self._error("ta.linreg length must be at least 2")
@@ -313,7 +401,7 @@ class BasicIndicators(TechnicalHelpers):
         if len(args) != BINARY:
             self._error("ta.rci takes source series and length")
 
-        series = self._expect_list(args[0], "ta.rci takes source series and length")
+        series = self._as_series(args[0])
         length = self._expect_int(args[1], "ta.rci takes source series and length")
 
         if length < 2:
@@ -354,8 +442,15 @@ class BasicIndicators(TechnicalHelpers):
             return math.nan
         return -num_sum / den_sum
 
-    def _builtin_ta_swma(self, args: list[Any]) -> float:
-        """Symmetric Weighted Moving Average."""
+    def _builtin_ta_swma(self, args: list[Any]) -> float | None:
+        """Symmetric Weighted Moving Average (TV: one-arg source)."""
+        if len(args) >= 1:
+            return self._swma(self._as_series(args[0]))
+        self._error("ta.swma expects a source series")
+        return None
+
+    def _builtin_ta_swma_legacy_unused(self, args: list[Any]) -> float | None:
+        """Kept only to avoid accidental name clashes; not registered."""
         series, length = self._expect_series(args, length=BINARY)
 
         if length < 1:
@@ -426,13 +521,23 @@ class BasicIndicators(TechnicalHelpers):
         series, period = self._expect_series(args, length=2)
         return self._lowest(series, period)
 
-    def _builtin_ta_cum(self, args: list[Any]) -> float:
-        """Cumulative sum of values in series."""
+    def _builtin_ta_cum(self, args: list[Any]) -> float | None:
+        """Cumulative sum. TV: ``ta.cum(source)`` — accepts series-like objects."""
         msg = "ta.cum expects a series"
         if len(args) != UNARY:
             self._error(msg)
-        series = self._expect_list(args[0], msg)
-        return self._cumsum(series)
+        series = self._as_series(args[0])
+        if not series:
+            return None
+        total = 0.0
+        for v in series:
+            if v is None:
+                continue
+            try:
+                total += float(v)
+            except (TypeError, ValueError):
+                continue
+        return total
 
     def _builtin_ta_dev(self, args: list[Any]) -> float | None:
         """Deviation from mean (standard deviation)."""
@@ -530,17 +635,21 @@ class BasicIndicators(TechnicalHelpers):
     def _builtin_ta_pivothigh(self, args: list[Any]) -> float | None:
         """Find the highest point (pivot high) in a window.
 
-        ta.pivothigh(source, leftbars, rightbars)
-        Finds a pivot high - a point where left_bars bars to the left are lower
-        and right_bars bars to the right are lower.
+        TV: ``ta.pivothigh(leftbars, rightbars)`` (source=high) or
+        ``ta.pivothigh(source, leftbars, rightbars)``.
         """
-        if len(args) < 3:
-            msg = "ta.pivothigh() requires 3 arguments: source, leftbars, rightbars"
+        if len(args) == BINARY and self._is_period_like(args[0]) and self._is_period_like(args[1]):
+            source = self._context_series("high")
+            left_bars = self._expect_int(args[0], "leftbars must be integer")
+            right_bars = self._expect_int(args[1], "rightbars must be integer")
+        elif len(args) >= 3:
+            source = args[0]
+            left_bars = self._expect_int(args[1], "leftbars must be integer")
+            right_bars = self._expect_int(args[2], "rightbars must be integer")
+        else:
+            msg = "ta.pivothigh() requires 2 or 3 arguments: [source,] leftbars, rightbars"
             self._error(msg)
-
-        source = args[0]
-        left_bars = self._expect_int(args[1], "leftbars must be integer")
-        right_bars = self._expect_int(args[2], "rightbars must be integer")
+            return None
 
         # If source is a list (series), check if current value is a pivot high
         if isinstance(source, list):
@@ -571,17 +680,21 @@ class BasicIndicators(TechnicalHelpers):
     def _builtin_ta_pivotlow(self, args: list[Any]) -> float | None:
         """Find the lowest point (pivot low) in a window.
 
-        ta.pivotlow(source, leftbars, rightbars)
-        Finds a pivot low - a point where left_bars bars to the left are higher
-        and right_bars bars to the right are higher.
+        TV: ``ta.pivotlow(leftbars, rightbars)`` (source=low) or
+        ``ta.pivotlow(source, leftbars, rightbars)``.
         """
-        if len(args) < 3:
-            msg = "ta.pivotlow() requires 3 arguments: source, leftbars, rightbars"
+        if len(args) == BINARY and self._is_period_like(args[0]) and self._is_period_like(args[1]):
+            source = self._context_series("low")
+            left_bars = self._expect_int(args[0], "leftbars must be integer")
+            right_bars = self._expect_int(args[1], "rightbars must be integer")
+        elif len(args) >= 3:
+            source = args[0]
+            left_bars = self._expect_int(args[1], "leftbars must be integer")
+            right_bars = self._expect_int(args[2], "rightbars must be integer")
+        else:
+            msg = "ta.pivotlow() requires 2 or 3 arguments: [source,] leftbars, rightbars"
             self._error(msg)
-
-        source = args[0]
-        left_bars = self._expect_int(args[1], "leftbars must be integer")
-        right_bars = self._expect_int(args[2], "rightbars must be integer")
+            return None
 
         # If source is a list (series), check if current value is a pivot low
         if isinstance(source, list):

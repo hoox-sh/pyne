@@ -202,6 +202,11 @@ class DrawingBuiltinsMixin(BuiltinDispatchMixin):
     def _drawing_builtin_map(self) -> dict[str, BuiltinHandler]:
         return {
             # Line functions
+            # Bare type cast: line(na) / line(id) — identity cast used in TV scripts
+            "line": self._handle_type_cast,
+            "box": self._handle_type_cast,
+            "label": self._handle_type_cast,
+            "table": self._handle_type_cast,
             "line.new": self._handle_line_new,
             "line.delete": self._handle_line_delete,
             "line.copy": self._handle_line_copy,
@@ -353,6 +358,10 @@ class DrawingBuiltinsMixin(BuiltinDispatchMixin):
 
     def _handle_linefill_all(self, _args: list[Any], kwargs: dict[str, Any] | None = None) -> list[Any]:
         return self._active(DrawingRegistry.linefills)
+
+    def _handle_type_cast(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> Any:
+        """Identity cast for drawing types: ``line(na)``, ``label(x)``, etc."""
+        return args[0] if args else None
 
     # LINE HANDLERS
 
@@ -986,29 +995,49 @@ class DrawingBuiltinsMixin(BuiltinDispatchMixin):
 
     # CHART POINT HANDLERS
 
-    def _handle_chart_point_new(self, args: list[Any]) -> ChartPoint:
+    def _chart_point_price(self, price: Any) -> float | None:
+        """Coerce price for ChartPoint; ``na`` → None (caller may return na)."""
+        if price is None:
+            return None
+        try:
+            return float(price)
+        except (TypeError, ValueError):
+            return None
+
+    def _handle_chart_point_new(self, args: list[Any]) -> ChartPoint | None:
         """chart.point.new(time, price) - Create a point from time and price"""
         time = args[0] if len(args) > 0 else None
-        price = args[1] if len(args) > 1 else 0.0
-        return ChartPoint(time=time, price=float(price))
+        price = self._chart_point_price(args[1] if len(args) > 1 else 0.0)
+        if price is None:
+            return None
+        return ChartPoint(time=time, price=price)
 
-    def _handle_chart_point_from_index(self, args: list[Any]) -> ChartPoint:
+    def _handle_chart_point_from_index(self, args: list[Any]) -> ChartPoint | None:
         """chart.point.from_index(index, price) - Create a point from bar index and price"""
         index = args[0] if len(args) > 0 else 0
-        price = args[1] if len(args) > 1 else 0.0
-        return ChartPoint(index=int(index), price=float(price))
+        price = self._chart_point_price(args[1] if len(args) > 1 else 0.0)
+        if price is None or index is None:
+            return None
+        try:
+            return ChartPoint(index=int(index), price=price)
+        except (TypeError, ValueError):
+            return None
 
-    def _handle_chart_point_from_time(self, args: list[Any]) -> ChartPoint:
+    def _handle_chart_point_from_time(self, args: list[Any]) -> ChartPoint | None:
         """chart.point.from_time(time, price) - Create a point from timestamp and price"""
         time = args[0] if len(args) > 0 else None
-        price = args[1] if len(args) > 1 else 0.0
-        return ChartPoint(time=time, price=float(price))
+        price = self._chart_point_price(args[1] if len(args) > 1 else 0.0)
+        if price is None:
+            return None
+        return ChartPoint(time=time, price=price)
 
-    def _handle_chart_point_now(self, args: list[Any]) -> ChartPoint:
+    def _handle_chart_point_now(self, args: list[Any]) -> ChartPoint | None:
         """chart.point.now(price) - Create a point at current bar with given price"""
-        price = args[0] if len(args) > 0 else 0.0
+        price = self._chart_point_price(args[0] if len(args) > 0 else 0.0)
+        if price is None:
+            return None
         # Returns a point at current bar (index not specified, time not specified)
-        return ChartPoint(price=float(price))
+        return ChartPoint(price=price)
 
     def _handle_chart_point_copy(self, args: list[Any]) -> ChartPoint:
         """chart.point.copy(point) - Create a copy of a chart point"""

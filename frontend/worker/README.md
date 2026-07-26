@@ -1,4 +1,17 @@
-# frontend/worker/ — Cloudflare Worker for SuperChart Lite
+# frontend/worker/ — Cloudflare Worker for AXIS
+
+## Cloudflare project naming (keep stable)
+
+| Surface | Value | Notes |
+|---------|--------|--------|
+| **Wrangler / Pages project** | `pynescript-superchart` | **Do not rename** in CF dashboard or `wrangler.toml` without migrating bindings, custom domains, and CI secrets. The CF project id is stable infrastructure. |
+| **npm package** | `pynescript-superchart-worker` | Internal; can lag display brand. |
+| **Health JSON `service`** | `pynescript-axis-worker` | User-facing API identity (already AXIS). |
+| **Product / UI brand** | **AXIS** | Manifest, titles, landing. |
+
+Optional later: add a CF **alias** or custom domain `axis.*` pointing at the same project — still leave the project name as `pynescript-superchart` so deploys and KV/D1 ids stay put.
+
+---
 
 This Worker provides the **production backend** for the PWA. It can:
 
@@ -70,10 +83,15 @@ wrangler kv namespace create USAGE
 cd frontend/worker
 wrangler deploy
 
-# 3) Deploy the PWA as a Pages site
+# 3) Deploy the PWA as a Pages site (project name is intentional legacy id)
 cd ..
-wrangler pages deploy . --project-name=pynescript-superchart
+bun run build   # produce frontend/dist
+wrangler pages deploy dist --project-name=pynescript-superchart
 ```
+
+Prefer deploying **`dist/`** from the Vite Solid app, not the repo root
+(legacy `main.js` shell). Project name stays `pynescript-superchart` (see
+naming table above).
 
 After deployment, the PWA's `Endpoint` field should be set to the
 `*.workers.dev` URL or your custom domain.

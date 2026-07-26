@@ -5,8 +5,8 @@ import { defaultKeymap, indentWithTab } from '@codemirror/commands';
 import { searchKeymap, highlightSelectionMatches } from '@codemirror/search';
 import { autocompletion, completionKeymap } from '@codemirror/autocomplete';
 import { bracketMatching } from '@codemirror/language';
-import { oneDark } from '@codemirror/theme-one-dark';
 import { pineScript } from './pine-language';
+import { voidEditorExtensions } from './cm-void';
 
 interface Props {
   initialDoc?: string;
@@ -48,13 +48,9 @@ export const PineEditor: Component<Props> = (props) => {
         runKeymap,
         keymap.of([...defaultKeymap, indentWithTab, ...searchKeymap, ...completionKeymap]),
         pineScript,
-        oneDark,
+        ...voidEditorExtensions,
         EditorView.updateListener.of((update) => {
           if (update.docChanged) props.onDocChange?.(update.state.doc.toString());
-        }),
-        EditorView.theme({
-          '&': { height: '100%' },
-          '.cm-scroller': { overflow: 'auto' },
         }),
       ],
     });
@@ -68,5 +64,5 @@ export const PineEditor: Component<Props> = (props) => {
 
   onCleanup(() => view?.destroy());
 
-  return <div ref={containerRef!} class="h-full overflow-hidden" style={{ height: props.height || '100%' }} />;
+  return <div ref={containerRef!} class="h-full overflow-hidden bg-bg-panel" style={{ height: props.height || '100%' }} />;
 };

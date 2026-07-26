@@ -68,6 +68,7 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
             "array.stdev": self._builtin_array_stdev,
             "array.variance": self._builtin_array_variance,
             "array.sort_indices": self._builtin_array_sort_indices,
+            "array.new": self._builtin_array_new_empty,
             "array.new_bool": self._builtin_array_new_empty,
             "array.new_int": self._builtin_array_new_empty,
             "array.new_float": self._builtin_array_new_empty,
@@ -89,6 +90,19 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
                 return list(value.history)
             self._error(message)
         return value
+
+    def _numeric_values(self, sequence: list[Any]) -> list[float]:
+        """Filter out na/None and non-numeric entries (TV skips na in avg/stdev)."""
+        out: list[float] = []
+        for item in sequence:
+            if item is None:
+                continue
+            if isinstance(item, bool):
+                out.append(float(item))
+                continue
+            if isinstance(item, (int, float)):
+                out.append(float(item))
+        return out
 
     def _expect_index(self, index: Any, length: int, message: str) -> int:
         if not isinstance(index, int) or not 0 <= index < length:
@@ -123,16 +137,21 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
             args[0],
             "array.push takes array and value",
         )
-        return [*sequence, args[1]]
+        # Pine mutates in place (void); return sequence for chaining / tests
+        sequence.append(args[1])
+        return sequence
 
-    def _builtin_array_pop(self, args: list[Any]) -> list[Any]:
+    def _builtin_array_pop(self, args: list[Any]) -> Any:
         if len(args) != UNARY:
             self._error("array.pop takes one array argument")
         sequence = self._expect_list(
             args[0],
             "array.pop takes one array argument",
         )
-        return sequence[:-1]
+        if not sequence:
+            return None
+        # Pine: remove and return last element
+        return sequence.pop()
 
     def _builtin_array_slice(self, args: list[Any]) -> list[Any]:
         if len(args) != TERNARY:
@@ -152,12 +171,15 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
         return sequence[start:end]
 
     def _expect_int(self, value: Any, message: str) -> int:
+        import math
+
         value = self._as_scalar(value)
+        if value is None:
+            self._error(message)
         if isinstance(value, float):
-            if value == int(value):
-                value = int(value)
-            else:
-                self._error(message)
+            value = int(math.floor(value))
+        if isinstance(value, bool):
+            value = int(value)
         if not isinstance(value, int):
             self._error(message)
         return value
@@ -183,25 +205,28 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
         )
         return [abs(item) for item in sequence]
 
-    def _builtin_array_avg(self, args: list[Any]) -> float:
+    def _builtin_array_avg(self, args: list[Any]) -> float | None:
         if len(args) != UNARY:
-            self._error("array.avg takes a non-empty array")
+            self._error("array.avg takes an array argument")
         sequence = self._expect_list(
             args[0],
-            "array.avg takes a non-empty array",
+            "array.avg takes an array argument",
         )
-        if not sequence:
-            self._error("array.avg takes a non-empty array")
-        return statistics.mean(sequence)
+        # Empty / all-na → na (TradingView skips na values)
+        nums = self._numeric_values(sequence)
+        if not nums:
+            return None
+        return statistics.mean(nums)
 
     def _builtin_array_clear(self, args: list[Any]) -> list[Any]:
         if len(args) != UNARY:
             self._error("array.clear takes an array argument")
-        self._expect_list(
+        sequence = self._expect_list(
             args[0],
             "array.clear takes an array argument",
         )
-        return []
+        sequence.clear()
+        return sequence
 
     def _builtin_array_concat(self, args: list[Any]) -> list[Any]:
         if len(args) != BINARY:
@@ -263,7 +288,10 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
             args[0],
             "array.fill takes array and fill value",
         )
-        return [args[1]] * len(sequence)
+        fill_val = args[1]
+        for i in range(len(sequence)):
+            sequence[i] = fill_val
+        return sequence
 
     def _builtin_array_first(self, args: list[Any]) -> Any:
         if len(args) != UNARY:
@@ -313,7 +341,8 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
         )
         if index < 0:
             self._error("array.insert takes array, index, and value")
-        return [*sequence[:index], args[2], *sequence[index:]]
+        sequence.insert(index, args[2])
+        return sequence
 
     def _builtin_array_join(self, args: list[Any]) -> str:
         if len(args) != BINARY:
@@ -357,20 +386,22 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
             args[0],
             "array.max takes non-empty array",
         )
-        if not sequence:
-            self._error("array.max takes non-empty array")
-        return max(sequence)
+        nums = self._numeric_values(sequence)
+        if not nums:
+            return None
+        return max(nums)
 
     def _builtin_array_median(self, args: list[Any]) -> Any:
         if len(args) != UNARY:
-            self._error("array.median takes non-empty array")
+            self._error("array.median takes an array argument")
         sequence = self._expect_list(
             args[0],
-            "array.median takes non-empty array",
+            "array.median takes an array argument",
         )
-        if not sequence:
-            self._error("array.median takes non-empty array")
-        return statistics.median(sequence)
+        nums = self._numeric_values(sequence)
+        if not nums:
+            return None
+        return statistics.median(nums)
 
     def _builtin_array_min(self, args: list[Any]) -> Any:
         if len(args) != UNARY:
@@ -379,9 +410,10 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
             args[0],
             "array.min takes non-empty array",
         )
-        if not sequence:
-            self._error("array.min takes non-empty array")
-        return min(sequence)
+        nums = self._numeric_values(sequence)
+        if not nums:
+            return None
+        return min(nums)
 
     def _builtin_array_range(self, args: list[Any]) -> list[int]:
         if len(args) != BINARY:
@@ -396,7 +428,7 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
         )
         return list(range(start, end + 1))
 
-    def _builtin_array_remove(self, args: list[Any]) -> list[Any]:
+    def _builtin_array_remove(self, args: list[Any]) -> Any:
         if len(args) != BINARY:
             self._error("array.remove takes array and valid index")
         sequence = self._expect_list(
@@ -408,7 +440,8 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
             len(sequence),
             "array.remove takes array and valid index",
         )
-        return sequence[:index] + sequence[index + 1 :]
+        # Pine: remove and return the element at index
+        return sequence.pop(index)
 
     def _builtin_array_reverse(self, args: list[Any]) -> list[Any]:
         if len(args) != UNARY:
@@ -417,7 +450,8 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
             args[0],
             "array.reverse takes an array argument",
         )
-        return sequence[::-1]
+        sequence.reverse()
+        return sequence
 
     def _builtin_array_set(self, args: list[Any]) -> list[Any]:
         if len(args) != TERNARY:
@@ -431,9 +465,10 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
             len(sequence),
             "array.set takes array, index, and value",
         )
-        return [*sequence[:index], args[2], *sequence[index + 1 :]]
+        sequence[index] = args[2]
+        return sequence
 
-    def _builtin_array_shift(self, args: list[Any]) -> list[Any]:
+    def _builtin_array_shift(self, args: list[Any]) -> Any:
         if len(args) != UNARY:
             self._error("array.shift takes non-empty array")
         sequence = self._expect_list(
@@ -441,8 +476,9 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
             "array.shift takes non-empty array",
         )
         if not sequence:
-            self._error("array.shift takes non-empty array")
-        return sequence[1:]
+            return None
+        # Pine: remove and return first element
+        return sequence.pop(0)
 
     def _builtin_array_some(self, args: list[Any]) -> bool:
         if len(args) != BINARY:
@@ -457,13 +493,15 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
         return any(predicate(item) for item in sequence)
 
     def _builtin_array_sort(self, args: list[Any]) -> list[Any]:
-        if len(args) != UNARY:
+        if len(args) < UNARY:
             self._error("array.sort takes an array argument")
         sequence = self._expect_list(
             args[0],
             "array.sort takes an array argument",
         )
-        return sorted(sequence)
+        # Optional order arg ignored for ascending default; sort in place
+        sequence.sort()
+        return sequence
 
     def _builtin_array_sum(self, args: list[Any]) -> Any:
         if len(args) != UNARY:
@@ -472,7 +510,10 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
             args[0],
             "array.sum takes an array argument",
         )
-        return sum(sequence)
+        nums = self._numeric_values(sequence)
+        if not nums:
+            return None
+        return sum(nums)
 
     def _builtin_array_binary_search(self, args: list[Any]) -> int:
         if len(args) != BINARY:
@@ -485,19 +526,27 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
 
     def _builtin_array_mode(self, args: list[Any]) -> Any:
         if len(args) != UNARY:
-            self._error("array.mode takes non-empty array")
+            self._error("array.mode takes an array argument")
         sequence = self._expect_list(
             args[0],
-            "array.mode takes non-empty array",
+            "array.mode takes an array argument",
         )
         if not sequence:
-            self._error("array.mode takes non-empty array")
+            return None
         return statistics.mode(sequence)
 
     def _builtin_array_new_empty(self, args: list[Any]) -> list[Any]:
-        if args:
-            self._error("array.new_* takes no arguments")
-        return []
+        """Create a new array. Optional size / initial value: ``array.new<float>(size, initial)``."""
+        if not args:
+            return []
+        size = args[0]
+        if isinstance(size, float) and size == int(size):
+            size = int(size)
+        if not isinstance(size, int) or size < 0:
+            # Ignore non-size first args and return empty
+            return []
+        initial = args[1] if len(args) > 1 else None
+        return [initial] * size
 
     def _builtin_array_unshift(self, args: list[Any]) -> list[Any]:
         if len(args) != BINARY:
@@ -506,7 +555,8 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
             args[0],
             "array.unshift takes array and value",
         )
-        return [args[1], *sequence]
+        sequence.insert(0, args[1])
+        return sequence
 
     def _covariance(
         self,
@@ -669,33 +719,49 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
 
         return [(x - mean) / stdev for x in sequence]
 
-    def _builtin_array_stdev(self, args: list[Any]) -> float:
-        """Calculate standard deviation of array values."""
-        if len(args) != UNARY:
-            self._error("array.stdev takes an array argument")
+    def _builtin_array_stdev(self, args: list[Any]) -> float | None:
+        """array.stdev(id) | array.stdev(id, biased) → float.
+
+        TV ``biased``: true → population (n); false → sample (n-1). Default true.
+        """
+        if len(args) not in {UNARY, BINARY}:
+            self._error("array.stdev takes an array and optional biased flag")
         sequence = self._expect_list(
             args[0],
             "array.stdev takes an array argument",
         )
+        biased = True if len(args) < BINARY else bool(args[1])
 
-        if len(sequence) < MIN_ARRAY_SIZE:
-            self._error("array.stdev requires at least 2 values")
+        # Drop na values
+        nums = [float(x) for x in sequence if isinstance(x, (int, float)) and not isinstance(x, bool)]
+        if len(nums) < MIN_ARRAY_SIZE:
+            return None
 
-        return statistics.stdev(sequence)
+        if biased:
+            # population stdev
+            mean = statistics.mean(nums)
+            var = sum((x - mean) ** 2 for x in nums) / len(nums)
+            return var**0.5
+        return statistics.stdev(nums)
 
-    def _builtin_array_variance(self, args: list[Any]) -> float:
-        """Calculate variance of array values."""
-        if len(args) != UNARY:
-            self._error("array.variance takes an array argument")
+    def _builtin_array_variance(self, args: list[Any]) -> float | None:
+        """array.variance(id) | array.variance(id, biased) → float."""
+        if len(args) not in {UNARY, BINARY}:
+            self._error("array.variance takes an array and optional biased flag")
         sequence = self._expect_list(
             args[0],
             "array.variance takes an array argument",
         )
+        biased = True if len(args) < BINARY else bool(args[1])
 
-        if len(sequence) < MIN_ARRAY_SIZE:
-            self._error("array.variance requires at least 2 values")
+        nums = [float(x) for x in sequence if isinstance(x, (int, float)) and not isinstance(x, bool)]
+        if len(nums) < MIN_ARRAY_SIZE:
+            return None
 
-        return statistics.variance(sequence)
+        if biased:
+            mean = statistics.mean(nums)
+            return sum((x - mean) ** 2 for x in nums) / len(nums)
+        return statistics.variance(nums)
 
     def _builtin_array_sort_indices(self, args: list[Any]) -> list[int]:
         """Return indices that would sort the array."""

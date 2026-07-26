@@ -15,6 +15,29 @@ from typing import NoReturn
 BuiltinHandler = Callable[[list[Any]], Any]
 
 
+def _is_list_style_handler(handler: Callable) -> bool:
+    """True when the handler expects a single ``args`` list (mixin style).
+
+    Bound methods from BuiltinEvaluator mixins are ``(self, args)`` → after
+    bind the remaining parameter is named ``args``. Plain functions like
+    ``color_rgb(r, g, b, a=255)`` have multiple named params and need ``*args``.
+    """
+    try:
+        sig = inspect.signature(handler)
+    except (TypeError, ValueError):
+        return True
+    params = [
+        p
+        for p in sig.parameters.values()
+        if p.kind in (inspect.Parameter.POSITIONAL_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD)
+        and p.name != "self"
+    ]
+    if not params:
+        return False
+    # Mixin handlers always take a leading ``args`` / ``_args`` list; some also accept kwargs.
+    return params[0].name in {"args", "_args"}
+
+
 class BuiltinDispatchMixin:
     """Shared dispatch utilities for built-in evaluators."""
 
@@ -36,6 +59,10 @@ class BuiltinDispatchMixin:
                 f"Use 'ta.<name>' for technical analysis, 'math.<name>' for math functions."
             )
             raise ValueError(msg)
+        # Constant values registered in the map (e.g. color.red, strategy.long)
+        if not callable(handler):
+            return handler
+        kwargs = kwargs or {}
         if kwargs:
             # Some handlers accept (args, kwargs) directly
             # (e.g. _as_builtin_handler which wraps indicator/strategy).
@@ -44,10 +71,22 @@ class BuiltinDispatchMixin:
                 return handler(args, kwargs)
             except TypeError:
                 pass
-            # Fallback: merge kwargs into positional args
+            # Plain functions (color.rgb, etc.): unpack kwargs by signature
+            if not _is_list_style_handler(handler):
+                try:
+                    return handler(*args, **kwargs)
+                except TypeError:
+                    pass
+            # Fallback: merge kwargs into positional args for list-style handlers
             merged = _merge_kwargs_into_args(args, kwargs, handler)
-            return handler(merged)
-        return handler(args)
+            if _is_list_style_handler(handler):
+                return handler(merged)
+            return handler(*merged)
+        # List-style mixin handlers: ``def _builtin_x(self, args: list)``
+        # Plain callables (color.rgb, ticker.*): unpack positional args.
+        if _is_list_style_handler(handler):
+            return handler(args)
+        return handler(*args)
 
     @staticmethod
     def _error(message: str) -> NoReturn:
@@ -74,9 +113,17 @@ def _merge_kwargs_into_args(
     except (ValueError, TypeError):
         param_names = []
 
+    # List-style handlers ``(args)`` / ``(_args)`` are not real parameter
+    # names for Pine kwargs — fall through to _KWARG_ORDER.
+    if len(param_names) == 1 and param_names[0] in {"args", "_args"}:
+        param_names = []
+
     if not param_names:
-        # Check for a _KWARG_ORDER attribute on the handler
+        # Check for a _KWARG_ORDER attribute on the handler (bound methods
+        # store it on the underlying function via __func__).
         kwarg_order: list[str] | None = getattr(handler, "_KWARG_ORDER", None)
+        if kwarg_order is None:
+            kwarg_order = getattr(getattr(handler, "__func__", None), "_KWARG_ORDER", None)
         if kwarg_order:
             merged = list(args)
             for key, val in kwargs.items():

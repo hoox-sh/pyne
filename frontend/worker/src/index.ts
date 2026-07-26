@@ -1,4 +1,4 @@
-// Pynescript SuperChart — Cloudflare Worker.
+// AXIS (pynescript charting PWA) — Cloudflare Worker.
 // Serves the JSON API used by the PWA.  Designed to run alongside the PWA
 // hosted on Cloudflare Pages (or any static host); CORS is wide-open for
 // the configured origin and for the local-dev `http://localhost:8081`.
@@ -75,7 +75,7 @@ export default {
                 case '/':
                 case '/health':
                     return jsonResponse(
-                        { status: 'healthy', service: 'pynescript-superchart-worker', timestamp: Date.now() },
+                        { status: 'healthy', service: 'pynescript-axis-worker', timestamp: Date.now() },
                         { status: 200 },
                         origin,
                     );

@@ -35,6 +35,9 @@ from pynescript.ast.type_system import Type
 from pynescript.ast.type_system import TypeRegistry
 from pynescript.ast.type_system import UserDefinedType
 
+# Sentinel: param was not present in context before binding (pop on unbind).
+_CONTEXT_MISSING: Any = object()
+
 
 class BreakLoop(Exception):
     """Signal to break out of a loop."""
@@ -118,21 +121,22 @@ class StatementEvaluator:
         Raises:
             ValueError: If assignment target is not a simple name
         """
-        # -- Handle var / varip: only assign on first bar ------------------
-        first_bar = self.context.get("bar_index", 0) == 0  # type: ignore[attr-defined]
+        # -- Handle var / varip: initialize once (first time declaration runs) --
+        # Pine ``var`` is not strictly bar_index==0: a ``var`` inside
+        # ``if barstate.islast`` or a function body must init on first
+        # *execution* of that declaration, which may be a later bar.
         is_var = node.mode is not None and isinstance(node.mode, (ast.Var, ast.VarIp))
         is_const = node.mode is not None and isinstance(node.mode, ast.Const)  # v6 const decl
 
         if is_var:
             if isinstance(node.target, ast.Name):
                 name: str = node.target.id  # type: ignore[attr-defined]
-                if first_bar:
+                declared: set[str] = self._var_declarations  # type: ignore[attr-defined]
+                if name not in declared:
                     if node.value:
                         value = self.visit(node.value)  # type: ignore[attr-defined]
                         self.context[name] = value  # type: ignore[attr-defined]
-                    self._var_declarations.add(name)  # type: ignore[attr-defined]
-                else:
-                    pass
+                    declared.add(name)
                 return
             msg = f"Unsupported var/varip target: {type(node.target)}"
             self._error(msg)  # type: ignore[attr-defined]
@@ -156,11 +160,47 @@ class StatementEvaluator:
             elif isinstance(node.target, ast.Tuple):
                 # Tuple unpacking: [a, b, c] = expression
                 elts = node.target.elts
-                if not isinstance(value, (list, tuple)):
-                    msg = f"Cannot unpack {type(value).__name__} value"
-                    self._error(msg)  # type: ignore[attr-defined]
-                    return
-                for target_node, val in zip(elts, value, strict=False):
+                if isinstance(value, (list, tuple)):
+                    values = list(value)
+                elif hasattr(value, "history") and isinstance(getattr(value, "history", None), list):
+                    # _SeriesResult: if history looks like a multi-value tuple
+                    # (mixed / non-scalar elements), unpack history; else pad current.
+                    hist = list(getattr(value, "history", []) or [])
+                    # history is most-recent-first; multi-value returns store one
+                    # tuple as a single "current" — prefer current when it is a
+                    # sequence matching the unpack arity.
+                    current = getattr(value, "current", None)
+                    if isinstance(current, (list, tuple)) and len(current) == len(elts):
+                        values = list(current)
+                    elif len(hist) == len(elts) and not all(
+                        x is None or isinstance(x, (int, float, bool)) for x in hist
+                    ):
+                        # chronological order for unpack (history is reverse)
+                        values = list(reversed(hist))
+                    else:
+                        values = [current] * len(elts)
+                elif value is not None and hasattr(value, "__iter__") and not isinstance(
+                    value, (str, bytes, dict)
+                ):
+                    # Do NOT iterate Matrix/UDT objects as unpack sources — only
+                    # plain sequences. Matrices are iterable by row and would
+                    # corrupt `[arr, mat] = …` when the RHS is wrongly a matrix.
+                    from pynescript.ast.evaluator.builtins.matrix import Matrix
+
+                    if isinstance(value, Matrix):
+                        values = [None] * len(elts)
+                    else:
+                        try:
+                            values = list(value)
+                        except TypeError:
+                            values = [None] * len(elts)
+                else:
+                    # Soft-fail: assign None to each target (stub libs, na, etc.)
+                    values = [None] * len(elts)
+                # Pad / truncate to target count
+                if len(values) < len(elts):
+                    values = values + [None] * (len(elts) - len(values))
+                for target_node, val in zip(elts, values, strict=False):
                     if isinstance(target_node, ast.Name):
                         self.context[target_node.id] = val
                     else:
@@ -172,24 +212,47 @@ class StatementEvaluator:
                 self._error(msg)  # type: ignore[attr-defined]
 
     def visit_ReAssign(self, node: ast.ReAssign):
-        """Handle reassignment (``x := x + 1``).
+        """Handle reassignment (``x := x + 1`` / ``obj.field := value``).
 
         Evaluates the right-hand side and stores the result in the target
         variable. This is the Pine Script ``:=`` operator, distinct from
-        ``AugAssign`` (``x += 1``).
+        ``AugAssign`` (``x += 1``). Supports simple names and UDT/object
+        field mutation (``settings.devThreshold := …``).
 
         Args:
             node: The ReAssign node with target and value
 
         Raises:
-            ValueError: If reassignment target is not a simple name
+            ValueError: If reassignment target is unsupported
         """
         value = self.visit(node.value)  # type: ignore[attr-defined]
         if isinstance(node.target, ast.Name):
             self.context[node.target.id] = value  # type: ignore[attr-defined]
-        else:
-            msg = f"Unsupported reassignment target: {type(node.target)}"
-            self._error(msg)  # type: ignore[attr-defined]
+            return
+
+        # obj.field := value  (UDT instances and plain objects with setattr)
+        if isinstance(node.target, ast.Attribute):
+            obj = self.visit(node.target.value)  # type: ignore[attr-defined]
+            if obj is None:
+                return
+            if isinstance(obj, ObjectInstance):
+                obj.set_field(node.target.attr, value)
+                return
+            # Library/UDT-like objects that expose fields as attributes
+            if hasattr(obj, "set_field") and callable(obj.set_field):
+                obj.set_field(node.target.attr, value)
+                return
+            try:
+                setattr(obj, node.target.attr, value)
+                return
+            except Exception:
+                pass
+            if isinstance(obj, dict):
+                obj[node.target.attr] = value
+                return
+
+        msg = f"Unsupported reassignment target: {type(node.target)}"
+        self._error(msg)  # type: ignore[attr-defined]
 
     def visit_AugAssign(self, node: ast.AugAssign):
         """Handle augmented assignment (e.g., obj.field := value).
@@ -395,7 +458,11 @@ class StatementEvaluator:
         return last_result
 
     def visit_ForTo(self, node: ast.ForTo):
-        """Execute a for-to loop (numeric range)."""
+        """Execute a for-to loop (numeric range).
+
+        When ``by``/step is omitted, Pine uses ``+1`` if ``from <= to`` and
+        ``-1`` if ``from > to`` (so ``for i = size - 1 to 0`` iterates downward).
+        """
         target_name = node.target.id if isinstance(node.target, ast.Name) else None
         if not target_name:
             msg = "For loop target must be a name"
@@ -403,17 +470,51 @@ class StatementEvaluator:
             raise RuntimeError(msg)
 
         start = self.visit(node.start)  # type: ignore[attr-defined]
-        step = self.visit(node.step) if node.step else 1  # type: ignore[attr-defined]
+        if start is None:
+            return None
+        try:
+            start_f = float(start)
+        except (TypeError, ValueError):
+            return None
+
+        explicit_step = node.step is not None
+        if explicit_step:
+            step = self.visit(node.step)  # type: ignore[attr-defined]
+            if step is None:
+                return None
+            try:
+                step = float(step)
+            except (TypeError, ValueError):
+                return None
+            if step == 0:
+                return None
+        else:
+            step = None  # decide after first end eval
 
         # v6: re-evaluate the end bound on every iteration (dynamic for loop boundaries)
         # Pine Script for loops are inclusive of end
-        current = start
+        current = start_f
         last_result = None
-        while True:
+        # Safety cap against infinite loops from bad dynamic bounds
+        max_iters = 1_000_000
+        iters = 0
+        while iters < max_iters:
+            iters += 1
             end = self.visit(node.end)  # type: ignore[attr-defined]  # dynamic re-eval
-            if not (current <= end if step > 0 else current >= end):
+            if end is None:
                 break
-            self.context[target_name] = current  # type: ignore[attr-defined]
+            try:
+                end_f = float(end)
+            except (TypeError, ValueError):
+                break
+            if step is None:
+                step = 1.0 if start_f <= end_f else -1.0
+            if not (current <= end_f if step > 0 else current >= end_f):
+                break
+            # Prefer int counters when values are integral (array indices)
+            self.context[target_name] = (  # type: ignore[attr-defined]
+                int(current) if current == int(current) else current
+            )
             result, should_break = self._execute_loop_body(node.body)
             if result is not None:
                 last_result = result
@@ -423,24 +524,59 @@ class StatementEvaluator:
         return last_result
 
     def visit_ForIn(self, node: ast.ForIn):
-        """Execute a for-in loop (iteration over collection)."""
-        target_name = node.target.id if isinstance(node.target, ast.Name) else None
-        if not target_name:
-            msg = "For loop target must be a name"
-            self._error(msg)  # type: ignore[attr-defined]
-            raise RuntimeError(msg)
+        """Execute a for-in loop (iteration over collection).
 
+        Supports:
+        - ``for v in arr``
+        - ``for [i, v] in arr`` — Pine index+value pairs over arrays (enumerate)
+        - ``for [k, v] in pairs`` — unpack when each element is already a pair
+        """
+        target = node.target
         iterable = self.visit(node.iter)  # type: ignore[attr-defined]
 
         # Handle different iterable types (list, Matrix, Map?)
         # Pine Script 'for x in array' iterates values.
+        # Soft-fail non-iterables (stubs, na, security scalars) → empty loop.
+        if iterable is None:
+            return None
+        if isinstance(iterable, (str, bytes, dict)):
+            return None
         if not hasattr(iterable, "__iter__"):
-            msg = f"Object of type {type(iterable)} is not iterable"
-            self._error(msg)  # type: ignore[attr-defined]
+            return None
 
         last_result = None
-        for item in iterable:
-            self.context[target_name] = item  # type: ignore[attr-defined]
+        try:
+            # Pine: ``for [i, v] in array`` yields index+value pairs.
+            # Use enumerate when iterating a list with a 2-tuple target.
+            use_enumerate = (
+                isinstance(target, ast.Tuple)
+                and len(target.elts) == 2
+                and isinstance(iterable, list)
+            )
+            iterator = enumerate(iterable) if use_enumerate else iter(iterable)
+        except TypeError:
+            return None
+
+        for item in iterator:
+            # Bind loop target(s)
+            if isinstance(target, ast.Name):
+                self.context[target.id] = item  # type: ignore[attr-defined]
+            elif isinstance(target, ast.Tuple):
+                if isinstance(item, (list, tuple)):
+                    values = list(item)
+                else:
+                    values = [item]
+                elts = target.elts
+                if len(values) < len(elts):
+                    values = values + [None] * (len(elts) - len(values))
+                for tnode, val in zip(elts, values, strict=False):
+                    if isinstance(tnode, ast.Name):
+                        self.context[tnode.id] = val  # type: ignore[attr-defined]
+            else:
+                msg = "For loop target must be a name or tuple"
+                self._error(msg)  # type: ignore[attr-defined]
+                raise RuntimeError(msg)
+
             result, should_break = self._execute_loop_body(node.body)
             if result is not None:
                 last_result = result
@@ -455,31 +591,52 @@ class StatementEvaluator:
         raise ContinueLoop
 
     def visit_FunctionDef(self, node: ast.FunctionDef):
-        """Define a user-defined function."""
+        """Define a user-defined function or method.
+
+        Pine ``method m(Type this, ...) => ...`` (outside a type body) is
+        registered on the UDT so ``instance.m()`` resolves. The same
+        callable is also stored under ``m`` for free-function form.
+        """
         if node.method:
-            # Methods are handled in TypeDef, but if a method appears outside?
-            # Pine Script methods must be in types or are "methods" on types via 'method' keyword?
-            # If 'method' keyword is used for user-defined methods on built-in types or UDTs.
-            # For now, treat as regular function if not inside TypeDef?
-            # But builder.py sets method=1 for 'method' keyword.
-            pass
+            self._register_standalone_method(node)
 
         func_name = node.name
 
         # Create a closure
         def user_function(*args, **kwargs):
-            # Create new scope
-            old_context = self.context.copy()  # type: ignore[attr-defined]
+            """Call a user function without replacing ``self.context``.
+
+            Runtime hosts (pyne-worker) mutate the *same* context dict each bar
+            (``bar_index``, ``time``, …). Replacing ``self.context`` with
+            ``dict.copy()`` orphaned those updates so every function always
+            saw ``bar_index == 0``. Only parameter bindings are scoped; other
+            keys (including ``var`` locals) stay on the live context so they
+            persist across bars for the call site.
+            """
+            ctx = self.context  # type: ignore[attr-defined]
+            params = [arg for arg in node.args if isinstance(arg, ast.Param)]
+            saved: dict[str, Any] = {}
+            missing = _CONTEXT_MISSING
+
+            def _bind(name: str, value: Any) -> None:
+                if name not in saved:
+                    saved[name] = ctx[name] if name in ctx else missing
+                ctx[name] = value
+
             try:
                 # Bind positional arguments
-                param_names = [arg.name for arg in node.args if isinstance(arg, ast.Param)]
                 for i, value in enumerate(args):
-                    if i < len(param_names):
-                        self.context[param_names[i]] = value  # type: ignore[attr-defined]
+                    if i < len(params):
+                        _bind(params[i].name, value)
 
                 # Bind keyword arguments
                 for key, value in kwargs.items():
-                    self.context[key] = value  # type: ignore[attr-defined]
+                    _bind(key, value)
+
+                # Apply parameter defaults for unbound params
+                for param in params:
+                    if param.name not in saved and param.default is not None:
+                        _bind(param.name, self.visit(param.default))  # type: ignore[attr-defined]
 
                 # Execute body
                 result = None
@@ -490,11 +647,72 @@ class StatementEvaluator:
                         self.visit(stmt)  # type: ignore[attr-defined]
                 return result
             finally:
-                self.context = old_context  # type: ignore[attr-defined]
+                for name, old in saved.items():
+                    if old is missing:
+                        ctx.pop(name, None)
+                    else:
+                        ctx[name] = old
+
+        # Tag Pine ``method`` callables so instance dispatch does not treat
+        # ordinary functions (e.g. local ``update()``) as extension methods
+        # on every object (``zigZag.update()`` → infinite recursion).
+        if node.method:
+            user_function.__pine_method__ = True  # type: ignore[attr-defined]
 
         self.context[func_name] = user_function  # type: ignore[attr-defined]
         if getattr(node, "export", None):
             self._register_export(func_name, user_function)
+
+    def _register_standalone_method(self, node: ast.FunctionDef) -> None:
+        """Attach ``method name(Type this, ...)`` to the UDT named by the first param type."""
+        if not node.args:
+            return
+        first = node.args[0]
+        if not isinstance(first, ast.Param) or first.type is None:
+            return
+
+        type_name: str | None = None
+        type_spec = first.type
+        if isinstance(type_spec, ast.Name):
+            type_name = type_spec.id
+        elif isinstance(type_spec, ast.Attribute):
+            # Rare: namespace.Type — use trailing attr
+            type_name = type_spec.attr
+
+        if not type_name:
+            return
+
+        udt = self.type_registry.get_type(type_name)
+        if udt is None:
+            existing = self.context.get(type_name)  # type: ignore[attr-defined]
+            if isinstance(existing, UserDefinedType):
+                udt = existing
+        if not isinstance(udt, UserDefinedType):
+            return
+
+        parameters: list[tuple[str, Type]] = []
+        for param in node.args:
+            if not isinstance(param, ast.Param):
+                continue
+            if param is first:
+                continue
+            param_type: Type = (
+                self._convert_type_spec_to_type(param.type)
+                if param.type
+                else BuiltinType(BuiltinTypeKind.STRING)
+            )
+            parameters.append((param.name, param_type))
+
+        method_sig = MethodSignature(
+            name=node.name,
+            parameters=parameters,
+            return_type=None,
+            is_builtin=False,
+        )
+        udt.add_method(method_sig)
+        if not hasattr(udt, "_method_defs"):
+            udt._method_defs = {}  # type: ignore[attr-defined]
+        udt._method_defs[node.name] = node  # type: ignore[attr-defined]
 
     def visit_Import(self, node: ast.Import):
         """Resolve ``import namespace/name/version [as alias]`` against the library registry.
@@ -526,10 +744,51 @@ class StatementEvaluator:
                         registry.register(mod)
 
         if mod is None:
+            # Soft-stub unknown remote libraries (TradingView/*) so the rest of
+            # the script can still evaluate. Missing members return None.
             path = f"{namespace}/{name}/{version}"
-            msg = f"Unknown library import: {path}"
-            self._error(msg)  # type: ignore[attr-defined]
-            return
+            try:
+                # Chainable no-op stub so ``lib.Foo.new(...)`` / ``lib.bar()``
+                # do not raise. Missing libraries degrade to empty behaviour.
+                class _StubLib:
+                    def __getattr__(self, item: str) -> _StubLib:
+                        return self
+
+                    def __call__(self, *a, **k):  # noqa: ANN001
+                        return self
+
+                    def __bool__(self) -> bool:
+                        return False
+
+                    def __iter__(self):
+                        # Support multi-assign unpacking: [a,b,c] = stub.foo()
+                        return iter([None] * 8)
+
+                    def __getitem__(self, key):  # noqa: ANN001
+                        return None
+
+                    def __len__(self) -> int:
+                        return 0
+
+                    def __add__(self, other):  # noqa: ANN001
+                        return other
+
+                    def __radd__(self, other):  # noqa: ANN001
+                        return other
+
+                    def __sub__(self, other):  # noqa: ANN001
+                        return other
+
+                    def __rsub__(self, other):  # noqa: ANN001
+                        return other
+
+                stub = _StubLib()
+                self.context[alias] = stub  # type: ignore[attr-defined]
+                return stub
+            except Exception:
+                msg = f"Unknown library import: {path}"
+                self._error(msg)  # type: ignore[attr-defined]
+                return
 
         # Bind path identity if not already
         if mod.namespace is None and namespace is not None:

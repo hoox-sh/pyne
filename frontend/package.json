@@ -1,5 +1,5 @@
 {
-  "name": "superchart-lite",
+  "name": "axis-chart",
   "version": "2.0.0",
   "private": true,
   "type": "module",
@@ -9,15 +9,16 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "solid-js": "^1.9.5",
-    "lightweight-charts": "^5.2.0",
-    "@codemirror/view": "^6.36.0",
-    "@codemirror/state": "^6.5.0",
-    "@codemirror/commands": "^6.7.0",
-    "@codemirror/search": "^6.5.8",
     "@codemirror/autocomplete": "^6.18.0",
+    "@codemirror/commands": "^6.7.0",
     "@codemirror/language": "^6.10.8",
-    "@codemirror/theme-one-dark": "^6.1.2"
+    "@codemirror/search": "^6.5.8",
+    "@codemirror/state": "^6.5.0",
+    "@codemirror/theme-one-dark": "^6.1.2",
+    "@codemirror/view": "^6.36.0",
+    "lightweight-charts": "^5.2.0",
+    "lucide-solid": "^1.27.0",
+    "solid-js": "^1.9.5"
   },
   "devDependencies": {
     "@types/bun": "latest",

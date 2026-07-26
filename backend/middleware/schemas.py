@@ -52,6 +52,20 @@ RUN_SCHEMA: dict[str, tuple[type, bool, Any]] = {
     "mode": (str, False, "interpret"),  # interpret|compile
 }
 
+# Shared OHLCV + many scripts (AXIS multi-indicator). Nested script objects
+# are validated in the route (schema helper is flat only).
+RUN_BATCH_SCHEMA: dict[str, tuple[type, bool, Any]] = {
+    "scripts": (list, True, []),
+    "data": (list, True, []),
+    "symbol": (str, False, "CHART"),
+    "data_source": (str, False, ""),
+    "data_options": (dict, False, {}),
+    "mode": (str, False, "interpret"),
+}
+
+# Hard cap to keep free-tier /run/batch bounded.
+RUN_BATCH_MAX_SCRIPTS = 8
+
 
 # Schema for /preview/chart.
 PREVIEW_CHART_SCHEMA: dict[str, tuple[type, bool, Any]] = {

@@ -1,6 +1,7 @@
 /* SuperChart Lite — TradingView-style dark theme */
 
 :root {
+    --radius: 2px;
     --bg-base: #131722;
     --bg-panel: #1e222d;
     --bg-elev: #2a2e39;
@@ -91,7 +92,7 @@ body {
     background-color: var(--bg-elev);
     color: var(--text);
     border: 1px solid var(--border);
-    border-radius: 3px;
+    border-radius: 2px;
     padding: 4px 8px;
     font-size: 12px;
     outline: none;
@@ -141,7 +142,7 @@ body {
     background-color: var(--bg-elev);
     color: var(--text);
     border: 1px solid var(--border);
-    border-radius: 3px;
+    border-radius: 2px;
     padding: 4px 10px;
     font-size: 12px;
     cursor: pointer;
@@ -194,7 +195,7 @@ body {
 .mode-badge {
     display: inline-block;
     padding: 2px 8px;
-    border-radius: 3px;
+    border-radius: 2px;
     font-size: 11px;
     font-weight: 600;
     text-transform: uppercase;
@@ -307,7 +308,7 @@ body {
     font-size: 10px;
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
     padding: 1px 4px;
-    border-radius: 3px;
+    border-radius: 2px;
 }
 
 .watchlist-change.positive {
@@ -348,7 +349,7 @@ body {
     width: 100%;
     background: transparent;
     border: 1px solid var(--border);
-    border-radius: 4px;
+    border-radius: 2px;
     color: var(--text-primary);
     font-size: 11px;
     padding: 4px 6px;
@@ -704,7 +705,7 @@ body {
     font-size: 12px;
     padding: 1px 4px;
     line-height: 1;
-    border-radius: 3px;
+    border-radius: 2px;
     transition: color 0.15s, background 0.15s;
     flex-shrink: 0;
 }
@@ -731,7 +732,7 @@ body {
     gap: 4px;
     padding: 1px 6px;
     margin-left: 8px;
-    border-radius: 3px;
+    border-radius: 2px;
     font-size: 10px;
     font-weight: 600;
     background-color: rgba(255, 152, 0, 0.15);
@@ -772,7 +773,7 @@ body {
 .settings-modal {
     background: var(--bg-panel);
     border: 1px solid var(--border);
-    border-radius: 6px;
+    border-radius: 2px;
     width: min(540px, calc(100vw - 32px));
     max-height: calc(100vh - 64px);
     display: flex;
@@ -832,7 +833,7 @@ body {
     background: var(--bg-elev);
     color: var(--text);
     border: 1px solid var(--border);
-    border-radius: 3px;
+    border-radius: 2px;
     padding: 6px 8px;
     font-size: 13px;
     font-family: inherit;
@@ -878,7 +879,7 @@ body {
     font-size: 11px;
     font-family: inherit;
     cursor: pointer;
-    border-radius: 3px;
+    border-radius: 2px;
 }
 
 .time-preset:hover {
@@ -930,7 +931,7 @@ body {
     pointer-events: none;
     background: rgba(19, 23, 34, 0.7);
     padding: 1px 6px;
-    border-radius: 3px;
+    border-radius: 2px;
 }
 
 .pane-resize {
@@ -978,7 +979,7 @@ body {
 .strategy-table-wrap {
     overflow: auto;
     border: 1px solid var(--border-soft);
-    border-radius: 3px;
+    border-radius: 2px;
 }
 
 .strategy-table {
@@ -1063,7 +1064,7 @@ body {
     border-collapse: collapse;
     font-size: 12px;
     border: 1px solid var(--border-soft);
-    border-radius: 3px;
+    border-radius: 2px;
     overflow: hidden;
 }
 
@@ -1153,7 +1154,7 @@ html[data-theme="light"] .pine-editor-host textarea {
     z-index: 1100;
     background: var(--bg-panel);
     border: 1px solid var(--border);
-    border-radius: 3px;
+    border-radius: 2px;
     box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
     max-height: 280px;
     overflow: auto;
@@ -1370,7 +1371,7 @@ html[data-theme="light"] .pine-editor-host textarea {
     pointer-events: none;
     background: var(--bg-panel);
     border: 1px solid var(--border);
-    border-radius: 4px;
+    border-radius: 2px;
     padding: 6px 10px;
     font-size: 11px;
     line-height: 1.6;

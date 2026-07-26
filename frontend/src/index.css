@@ -1,52 +1,98 @@
 @import "tailwindcss";
 
+/* AXIS (formerly SuperChart) — Void + Grok style canvas
+   Primary accent: Hell Flieder (light lilac void)
+   Signals: lightgreen (live/positive), orange (warn/markers)
+   Borders: 2px · minimal radius 2px everywhere chrome
+*/
+
 @theme {
-  --color-bg-base: #131722;
-  --color-bg-panel: #1e222d;
-  --color-bg-elev: #2a2e39;
-  --color-bg-hover: #363a45;
-  --color-border: #363c4e;
-  --color-border-soft: #2a2e39;
-  --color-text: #d1d4dc;
-  --color-text-dim: #787b86;
-  --color-text-faint: #5d606b;
-  --color-accent: #2962ff;
-  --color-accent-hover: #2979ff;
-  --color-green: #26a69a;
-  --color-red: #ef5350;
-  --color-yellow: #ffb300;
-  --color-purple: #9c27b0;
+  /* Surfaces */
+  --color-void: #0a0b10;
+  --color-bg-base: #0a0b10;
+  --color-bg-panel: #111218;
+  --color-bg-elev: #171821;
+  --color-bg-hover: #22232e;
+
+  /* Edges */
+  --color-border: #3a3d4a;
+  --color-border-soft: #252730;
+  --color-border-focus: color-mix(in oklch, oklch(0.82 0.10 295) 65%, transparent);
+
+  /* Text */
+  --color-text: #eceef4;
+  --color-text-dim: #8b8e9c;
+  --color-text-faint: #5c5f6e;
+
+  /* Hell Flieder — primary brand accent */
+  --color-accent: #c4b0f0;
+  --color-accent-hover: #a78be6;
+
+  /* Lightgreen — live / positive */
+  --color-accent-2: #8ef5a8;
+  --color-green: #5ecf8a;
+
+  /* Orange — warn / markers */
+  --color-accent-3: #e8a03a;
+  --color-orange: #e8a03a;
+  --color-yellow: #e8a03a;
+
+  /* Loss / error */
+  --color-red: #e85d4c;
+
+  /* Legacy alias (prefer accent) */
+  --color-purple: #c4b0f0;
+
+  /* Geometry — minimal radius on all chrome */
+  --border-w: 2px;
+  --radius-sc: 2px;
+  --radius: 2px;
+  --radius-xs: 2px;
+  --radius-sm: 2px;
+  --radius-md: 2px;
+  --radius-lg: 2px;
+  --radius-xl: 2px;
+  --radius-2xl: 2px;
+  --radius-3xl: 2px;
 }
 
-html, body {
+html,
+body {
   margin: 0;
   padding: 0;
   height: 100%;
   overflow: hidden;
   background-color: var(--color-bg-base);
   color: var(--color-text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Ubuntu, sans-serif;
+  font-size: 13px;
+  line-height: 1.4;
 }
 
-/* Light theme overrides */
+/* Light theme — soft void lift (secondary priority) */
 [data-theme="light"] {
-  --color-bg-base: #ffffff;
-  --color-bg-panel: #f8f9fa;
-  --color-bg-elev: #e9ecef;
-  --color-bg-hover: #dee2e6;
-  --color-border: #dee2e6;
-  --color-border-soft: #e9ecef;
-  --color-text: #1a1a2e;
-  --color-text-dim: #6c757d;
-  --color-text-faint: #adb5bd;
-  --color-accent: #2962ff;
-  --color-accent-hover: #2979ff;
-  --color-green: #26a69a;
-  --color-red: #ef5350;
-  --color-yellow: #ffb300;
-  --color-purple: #9c27b0;
+  --color-void: #f4f3f8;
+  --color-bg-base: #f4f3f8;
+  --color-bg-panel: #ebeaf2;
+  --color-bg-elev: #e0dfe8;
+  --color-bg-hover: #d4d3de;
+  --color-border: #b8b6c4;
+  --color-border-soft: #cccdd6;
+  --color-text: #1a1b24;
+  --color-text-dim: #5c5f6e;
+  --color-text-faint: #8b8e9c;
+  --color-accent: #7b5fc4;
+  --color-accent-hover: #6a4fb0;
+  --color-accent-2: #2e9e58;
+  --color-green: #2e9e58;
+  --color-accent-3: #c47a18;
+  --color-orange: #c47a18;
+  --color-yellow: #c47a18;
+  --color-red: #c44538;
+  --color-purple: #7b5fc4;
 }
 
-/* Scrollbar styling */
+/* Scrollbars — void chrome */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -56,13 +102,160 @@ html, body {
 }
 ::-webkit-scrollbar-thumb {
   background: var(--color-border);
-  border-radius: 3px;
+  border-radius: var(--radius-sc);
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--color-text-dim);
+  background: color-mix(in srgb, var(--color-accent-2) 40%, var(--color-border));
 }
 
-/* Smooth transitions for theme switching */
-* {
-  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+/* Transitions only on interactive chrome — never global * (chart paint lag) */
+button,
+input,
+select,
+textarea,
+a {
+  transition:
+    background-color 0.12s ease,
+    color 0.12s ease,
+    border-color 0.12s ease;
+}
+
+/* Minimal radius default on form controls */
+button,
+input,
+select,
+textarea {
+  border-radius: var(--radius-sc);
+}
+
+/* Shared chrome helpers */
+.sc-input {
+  background-color: var(--color-bg-elev);
+  color: var(--color-text);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-sc);
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+  outline: none;
+}
+.sc-input:focus,
+.sc-input:focus-visible {
+  border-color: var(--color-accent);
+  /* Hell Flieder keyboard ring — visible on void chrome */
+  box-shadow: 0 0 0 2px color-mix(in oklch, oklch(0.82 0.10 295) 45%, transparent);
+  outline: none;
+}
+
+/* Hell Flieder keyboard focus for buttons */
+.sc-btn:focus-visible {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 2px color-mix(in oklch, oklch(0.82 0.10 295) 45%, transparent);
+  outline: none;
+}
+
+select.sc-input:focus-visible,
+button.sc-btn:focus-visible {
+  border-color: var(--color-accent);
+}
+
+.sc-btn {
+  background-color: var(--color-bg-elev);
+  color: var(--color-text);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-sc);
+  padding: 0.25rem 0.625rem;
+  font-size: 0.75rem;
+  cursor: pointer;
+  font-family: inherit;
+}
+.sc-btn:hover {
+  background-color: var(--color-bg-hover);
+}
+.sc-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.sc-btn-primary {
+  background-color: color-mix(in srgb, var(--color-accent) 22%, var(--color-bg-elev));
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+  font-weight: 600;
+}
+.sc-btn-primary:hover {
+  background-color: color-mix(in srgb, var(--color-accent-hover) 32%, var(--color-bg-elev));
+  border-color: var(--color-accent-hover);
+  color: var(--color-accent-hover);
+}
+
+.sc-btn-ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--color-text-dim);
+}
+.sc-btn-ghost:hover {
+  background-color: var(--color-bg-hover);
+  color: var(--color-text);
+  border-color: var(--color-border-soft);
+}
+
+/* Bordered panels / cards / dialogs — same minimal radius */
+.sc-chrome,
+.border-2 {
+  border-radius: var(--radius-sc);
+}
+
+/* Vertical resize handle between panels */
+.sc-resize-handle {
+  width: 6px;
+  margin-left: -3px;
+  margin-right: -3px;
+  cursor: col-resize;
+  z-index: 30;
+  flex-shrink: 0;
+  background: transparent;
+  touch-action: none;
+  border-radius: var(--radius-sc);
+}
+.sc-resize-handle:hover,
+.sc-resize-handle:active {
+  background: color-mix(in srgb, var(--color-accent) 45%, transparent);
+}
+/* Right-edge handle sits inside left panels — center the hit strip on the border */
+.sc-resize-handle.absolute {
+  width: 6px;
+}
+
+/* Horizontal pane resize between chart panes */
+.sc-pane-resize-handle {
+  height: 6px;
+  margin-top: -3px;
+  margin-bottom: -3px;
+  cursor: row-resize;
+  z-index: 25;
+  flex-shrink: 0;
+  background: transparent;
+  touch-action: none;
+  border-radius: var(--radius-sc);
+  position: relative;
+}
+.sc-pane-resize-handle::after {
+  content: '';
+  position: absolute;
+  left: 20%;
+  right: 20%;
+  top: 2px;
+  height: 2px;
+  background: var(--color-border);
+  border-radius: var(--radius-sc);
+  opacity: 0.7;
+}
+.sc-pane-resize-handle:hover,
+.sc-pane-resize-handle:active {
+  background: color-mix(in srgb, var(--color-accent) 35%, transparent);
+}
+.sc-pane-resize-handle:hover::after,
+.sc-pane-resize-handle:active::after {
+  background: var(--color-accent);
+  opacity: 1;
 }

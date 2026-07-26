@@ -36,7 +36,7 @@ describe('Static server', () => {
         const ct = r.headers.get('content-type');
         expect(ct).toContain('text/html');
         const text = await r.text();
-        expect(text).toContain('<title>SuperChart Lite');
+        expect(text).toContain('<title>AXIS');
     });
 
     it('serves manifest.webmanifest with the right MIME type', async () => {

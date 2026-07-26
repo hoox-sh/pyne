@@ -316,8 +316,20 @@ class RequestBuiltinsMixin(BuiltinDispatchMixin):
 
         if isinstance(timeframe, list):
             timeframe = timeframe[-1] if timeframe else "D"
-        if isinstance(expression, list):
-            expression = expression[-1] if expression else "close"
+
+        # The expression arg is usually already evaluated by the call site.
+        # - str: series name like "close" → fetch OHLCV and map
+        # - numeric series list: take current (last) value then treat as scalar
+        # - anything else (tuple/matrix/array/UDT result): return as-is so scripts
+        #   like seasonality's ``request.security(..., calculateMontlyChanges(...))``
+        #   keep their matrix/tuple structure instead of being stringified.
+        if isinstance(expression, list) and expression and all(
+            x is None or isinstance(x, (int, float)) for x in expression
+        ):
+            expression = expression[-1]
+
+        if not isinstance(expression, str):
+            return expression
 
         symbol_str = symbol
 
@@ -338,9 +350,7 @@ class RequestBuiltinsMixin(BuiltinDispatchMixin):
         }
 
         prices = base_prices.get(symbol_str, [100.0, 101.0, 102.0, 101.5, 103.0])
-        if isinstance(expression, str):
-            return self._get_expression_prices(expression, prices)
-        return prices
+        return self._get_expression_prices(expression, prices)
 
     def _handle_request_security_lower_tf(self, args: list[Any]) -> Any:
         """

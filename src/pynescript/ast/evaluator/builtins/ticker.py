@@ -21,6 +21,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 
 class TickerInfo:
     """Represents a ticker symbol with optional modifications."""
@@ -63,13 +65,16 @@ class TickerInfo:
 
 
 def ticker_new(
-    symbol: str,
+    symbol: str = "",
     session: str | None = None,
     adjust: str | None = None,
+    *extra: object,
+    **kwargs: object,
 ) -> TickerInfo:
     """Create a new ticker object.
 
     Creates a ticker symbol with optional session and adjustment parameters.
+    Extra positional/keyword args (TV has more overloads) are ignored.
 
     Args:
         symbol: The ticker symbol (e.g., "AAPL", "EURUSD")
@@ -79,7 +84,12 @@ def ticker_new(
     Returns:
         TickerInfo object representing the configured ticker
     """
-    return TickerInfo(symbol, session, adjust)
+    if kwargs:
+        session = kwargs.get("session", session)  # type: ignore[assignment]
+        adjust = kwargs.get("adjustment", kwargs.get("adjust", adjust))  # type: ignore[assignment]
+        if not symbol and "symbol" in kwargs:
+            symbol = str(kwargs["symbol"])
+    return TickerInfo(str(symbol) if symbol is not None else "", session, adjust)
 
 
 def ticker_modify(
@@ -202,20 +212,40 @@ def ticker_renko(ticker_str: str, boxsize: float = 1.0, style: str = None) -> Ti
     return ticker
 
 
-def ticker_inherit(ticker_str: str | TickerInfo | None = None) -> TickerInfo:
+def ticker_inherit(
+    ticker_str: str | TickerInfo | None = None,
+    symbol: str | TickerInfo | None = None,
+    *_extra: Any,
+) -> TickerInfo:
     """Inherit chart properties for a ticker (session/adjust from main chart).
 
-    Pine: ``ticker.inherit(symbol)`` returns a ticker that inherits the chart's
-    session and adjustment settings.
+    Pine forms:
+    - ``ticker.inherit(symbol)`` — inherit chart session/adjust for *symbol*
+    - ``ticker.inherit(from, symbol)`` — inherit from *from* ticker for *symbol*
+      (used by TradingView sample scripts such as Performance)
     """
+    # Two-arg form: first is source (often chart tickerid), second is target symbol
+    if symbol is not None:
+        if isinstance(symbol, TickerInfo):
+            target = symbol.symbol
+        else:
+            target = str(symbol) if symbol is not None else ""
+        if isinstance(ticker_str, TickerInfo):
+            return TickerInfo(
+                symbol=target or ticker_str.symbol,
+                session=ticker_str.session,
+                adjust=ticker_str.adjust,
+            )
+        return TickerInfo(symbol=target)
+
     if isinstance(ticker_str, TickerInfo):
         return TickerInfo(
             symbol=ticker_str.symbol,
             session=ticker_str.session,
             adjust=ticker_str.adjust,
         )
-    symbol = str(ticker_str) if ticker_str is not None else ""
-    return TickerInfo(symbol=symbol)
+    sym = str(ticker_str) if ticker_str is not None else ""
+    return TickerInfo(symbol=sym)
 
 
 def ticker_standard(ticker_str: str) -> TickerInfo:

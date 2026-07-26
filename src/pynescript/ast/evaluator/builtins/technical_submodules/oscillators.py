@@ -27,9 +27,20 @@ class OscillatorIndicators(TechnicalHelpers):
         series, period = self._expect_series(args, length=BINARY)
         return self._rsi(series, period)
 
-    def _builtin_ta_stoch(self, args: list[Any]) -> tuple[float, float]:
-        """Stochastic Oscillator."""
-        msg = "ta.stoch expects high, low, close, length, smooth"
+    def _builtin_ta_stoch(self, args: list[Any]) -> Any:
+        """Stochastic %K.
+
+        TradingView: ``ta.stoch(source, high, low, length)`` → float %K.
+        Legacy unit-test form: ``(high, low, close, length, smooth)``.
+        """
+        # TV form: source, high, low, length
+        if len(args) == QUATERNARY:
+            source = self._as_series(args[0])
+            highs = self._as_series(args[1])
+            lows = self._as_series(args[2])
+            length = self._expect_int(args[3], "ta.stoch length must be an integer")
+            return self._stoch_k(source, highs, lows, length)
+        msg = "ta.stoch expects source, high, low, length (or high, low, close, length, smooth)"
         if len(args) != QUINARY:
             self._error(msg)
         highs = self._expect_list(args[0], msg)
@@ -38,6 +49,32 @@ class OscillatorIndicators(TechnicalHelpers):
         length = self._expect_int(args[3], msg)
         smooth_k = self._expect_int(args[4], msg)
         return self._stoch(highs, lows, closes, length, smooth_k)
+
+    def _stoch_k(
+        self,
+        source: list[Any],
+        highs: list[Any],
+        lows: list[Any],
+        length: int,
+    ) -> float | None:
+        """Compute current Stochastic %K for the last bar."""
+        if length <= 0 or not source:
+            return None
+        n = len(source)
+        start = max(0, n - length)
+        window_h = [highs[i] for i in range(start, min(n, len(highs))) if highs[i] is not None]
+        window_l = [lows[i] for i in range(start, min(n, len(lows))) if lows[i] is not None]
+        c = source[-1]
+        if c is None or not window_h or not window_l:
+            return None
+        hh = max(window_h)
+        ll = min(window_l)
+        if hh == ll:
+            return 50.0
+        try:
+            return 100.0 * (float(c) - float(ll)) / (float(hh) - float(ll))
+        except (TypeError, ValueError):
+            return None
 
     def _builtin_ta_macd(self, args: list[Any]) -> tuple[float, float, float]:
         """MACD (Moving Average Convergence Divergence)."""
@@ -50,9 +87,17 @@ class OscillatorIndicators(TechnicalHelpers):
         signal = self._expect_int(args[3], msg)
         return self._macd(series, fast, slow, signal)
 
-    def _builtin_ta_cci(self, args: list[Any]) -> float:
-        """Commodity Channel Index."""
-        msg = "ta.cci expects high, low, close, and length"
+    def _builtin_ta_cci(self, args: list[Any]) -> float | None:
+        """Commodity Channel Index.
+
+        TradingView: ``ta.cci(source, length)``. Also accepts legacy
+        ``(high, low, close, length)``.
+        """
+        if len(args) == BINARY:
+            series, period = self._expect_series(args, length=BINARY)
+            # Approximate CCI from a single source series (typical price)
+            return self._cci(series, series, series, period)
+        msg = "ta.cci expects source, length (or high, low, close, length)"
         if len(args) != QUATERNARY:
             self._error(msg)
         highs = self._expect_list(args[0], msg)
@@ -66,9 +111,15 @@ class OscillatorIndicators(TechnicalHelpers):
         series, period = self._expect_series(args, length=BINARY)
         return self._roc(series, period)
 
-    def _builtin_ta_wpr(self, args: list[Any]) -> float:
-        """Williams %R."""
-        msg = "ta.wpr expects high, low, close, and length"
+    def _builtin_ta_wpr(self, args: list[Any]) -> float | None:
+        """Williams %R. TV: ``ta.wpr(length)`` or legacy 4-arg form."""
+        if len(args) == UNARY and self._is_period_like(args[0]):
+            length = self._expect_int(args[0], "ta.wpr length must be int")
+            highs = self._context_series("high")
+            lows = self._context_series("low")
+            closes = self._context_series("close")
+            return self._wpr(highs, lows, closes, length)
+        msg = "ta.wpr expects length (or high, low, close, length)"
         if len(args) != QUATERNARY:
             self._error(msg)
         highs = self._expect_list(args[0], msg)
@@ -88,12 +139,12 @@ class OscillatorIndicators(TechnicalHelpers):
         return self._tsi(series, long_period, short_period)
 
     def _builtin_ta_valuewhen(self, args: list[Any]) -> Any:
-        """Get value when condition was true."""
+        """Get value when condition was true. TV: ``ta.valuewhen(cond, source, occurrence=0)``."""
         msg = "ta.valuewhen expects condition, source, and optional occurrence"
         if len(args) not in {BINARY, TERNARY}:
             self._error(msg)
-        condition = self._expect_list(args[0], msg)
-        source = self._expect_list(args[1], msg)
+        condition = self._as_series(args[0])
+        source = self._as_series(args[1])
         occurrence = self._expect_int(args[2], msg) if len(args) == TERNARY else 0
         return self._valuewhen(condition, source, occurrence)
 
