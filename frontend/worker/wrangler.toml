@@ -23,11 +23,14 @@ enabled = true
 # id = "REPLACE_WITH_KV_ID"
 
 # D1 database — created via `wrangler d1 create pynescript`.
-# Then: wrangler d1 execute pynescript --file=schemas/scripts.sql
-# [[d1_databases]]
-# binding = "DB"
-# database_name = "pynescript"
-# database_id = "REPLACE_WITH_D1_ID"
+# Schema: from this directory run
+#   wrangler d1 execute pynescript --remote --file=schemas/scripts.sql
+#   wrangler d1 execute pynescript --local  --file=schemas/scripts.sql
+# Binding name MUST be "DB" (code uses env.DB) — not the database name.
+[[d1_databases]]
+binding = "DB"
+database_name = "pynescript"
+database_id = "ae203eba-a4c4-49ce-8b7c-edcea914d3d9"
 
 # R2 bucket — created via `wrangler r2 bucket create indicator-bundles`.
 # [[r2_buckets]]

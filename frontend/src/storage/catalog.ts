@@ -6,8 +6,13 @@ import type { StoragePlugin } from '../plugins/types';
 import { registry } from '../plugins/registry';
 import { localStoragePlugin } from './local';
 import { cloudStoragePlugin } from './cloud';
+import { gitStoragePlugin } from './git';
 
-export const BUILTIN_STORAGES: StoragePlugin[] = [localStoragePlugin, cloudStoragePlugin];
+export const BUILTIN_STORAGES: StoragePlugin[] = [
+  localStoragePlugin,
+  cloudStoragePlugin,
+  gitStoragePlugin,
+];
 
 let registered = false;
 

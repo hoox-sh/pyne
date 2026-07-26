@@ -55,6 +55,11 @@ Every plugin is an object with `{ id, name, kind, description, configSchema, ...
 // Script library: Manager → Script Library tab
 //   storage-local  → IndexedDB (default, offline)
 //   storage-cloud  → Worker /api/scripts + Pro API keys
+//   storage-git    → GitHub/GitLab Contents API (commit on Save)
+//
+// Manager tabs: Catalog (Use + capability badges) · Install (URL) · Script Library
+// Settings: engine list from registry, storage picker, endpoint when needed
+// Status bar: active engine id + storage backend
 ```
 
 Legacy vanilla shell still uses `src/registry.js` (see LEGACY.md).

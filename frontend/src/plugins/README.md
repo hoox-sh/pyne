@@ -49,7 +49,16 @@ A plugin is a JS object with `{ id, name, kind, description, configSchema, ... }
 The Solid product path registers plugins through `src/plugins/registry.ts`
 (see `src/plugins/types.ts`). Built-ins live in `sources/catalog.ts`,
 `streams/catalog.ts`, `engines/catalog.ts`, and `storage/catalog.ts`
-(`storage-local` is the default script library backend).
+(default script backend: `local`; also `cloud`, `git`).
+
+### Manager UX
+
+- **Catalog** — all kinds with capability badges; **Use** sets the active plugin.
+- **Install** — load ES module URL; auto-activates source/stream/engine.
+- **Script Library** — storage backends (local / cloud / git).
+
+Topbar engine/source/stream pickers read the same registry, so dynamic engines
+appear immediately after install.
 
 ```js
 // example-my-source.js

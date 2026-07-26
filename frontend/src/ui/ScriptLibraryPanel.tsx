@@ -16,6 +16,7 @@ import {
 import { listStorages } from '../storage/catalog';
 import { setActivePlugin, store, setStore, persist, appendLog, setStatus } from '../store';
 import { pluginKey } from '../plugins/types';
+import { DEFAULT_GIT_CONFIG, type GitConfig } from '../storage/git-config';
 import { Icons } from './icons';
 
 function cloudCfg(): { endpoint: string; apiKey: string } {
@@ -33,12 +34,20 @@ function saveCloudCfg(endpoint: string, apiKey: string) {
   persist();
 }
 
+function gitCfg(): GitConfig {
+  const pc = store.pluginsConfig || {};
+  const c = (pc[pluginKey('storage', 'git')] || pc['git'] || {}) as Partial<GitConfig>;
+  return { ...DEFAULT_GIT_CONFIG, ...c };
+}
+
+function saveGitCfg(cfg: GitConfig) {
+  setStore('pluginsConfig', pluginKey('storage', 'git'), { ...cfg });
+  persist();
+}
+
 export interface ScriptLibraryPanelProps {
-  /** Current editor buffer (for Save) */
   getDoc?: () => string;
-  /** Load script into editor */
   setDoc?: (doc: string, name?: string) => void;
-  /** Optional: called after load so host can mark tab clean */
   onLoaded?: (meta: ScriptMeta, content: string) => void;
 }
 
@@ -51,10 +60,23 @@ export const ScriptLibraryPanel: Component<ScriptLibraryPanelProps> = (props) =>
   const [statusLine, setStatusLine] = createSignal('');
   const [cloudEndpoint, setCloudEndpoint] = createSignal(cloudCfg().endpoint);
   const [cloudKey, setCloudKey] = createSignal(cloudCfg().apiKey);
+
+  const g0 = gitCfg();
+  const [gitProvider, setGitProvider] = createSignal<'github' | 'gitlab'>(g0.provider);
+  const [gitToken, setGitToken] = createSignal(g0.token);
+  const [gitOwner, setGitOwner] = createSignal(g0.owner);
+  const [gitRepo, setGitRepo] = createSignal(g0.repo);
+  const [gitProjectId, setGitProjectId] = createSignal(g0.projectId);
+  const [gitBranch, setGitBranch] = createSignal(g0.branch);
+  const [gitBasePath, setGitBasePath] = createSignal(g0.basePath);
+  const [gitApiBase, setGitApiBase] = createSignal(g0.apiBaseUrl);
+
   let fileInput: HTMLInputElement | undefined;
 
   const storages = () => listStorages();
-  const isCloud = () => (store.activePlugins?.storage || 'local') === 'cloud';
+  const backend = () => store.activePlugins?.storage || 'local';
+  const isCloud = () => backend() === 'cloud';
+  const isGit = () => backend() === 'git';
 
   const refresh = async () => {
     setBusy(true);
@@ -63,10 +85,14 @@ export const ScriptLibraryPanel: Component<ScriptLibraryPanelProps> = (props) =>
       const list = await listScripts();
       setItems(list);
       const st = await getStorageStatus();
-      const backend = store.activePlugins?.storage || 'local';
-      setStatusLine(
-        `${backend}${st.remote ? ` · ${st.remote}` : ''}${st.connected ? '' : ' · offline'} · ${list.length} script(s)`,
-      );
+      const parts = [
+        backend(),
+        st.remote,
+        st.branch ? `@${st.branch}` : '',
+        st.connected ? '' : 'offline',
+        `${list.length} script(s)`,
+      ].filter(Boolean);
+      setStatusLine(parts.join(' · '));
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -75,12 +101,22 @@ export const ScriptLibraryPanel: Component<ScriptLibraryPanelProps> = (props) =>
   };
 
   createEffect(() => {
-    // Refresh on mount and when storage backend changes
     void store.activePlugins?.storage;
     if (isCloud()) {
       const c = cloudCfg();
       setCloudEndpoint(c.endpoint);
       setCloudKey(c.apiKey);
+    }
+    if (isGit()) {
+      const g = gitCfg();
+      setGitProvider(g.provider);
+      setGitToken(g.token);
+      setGitOwner(g.owner);
+      setGitRepo(g.repo);
+      setGitProjectId(g.projectId);
+      setGitBranch(g.branch);
+      setGitBasePath(g.basePath);
+      setGitApiBase(g.apiBaseUrl);
     }
     void refresh();
   });
@@ -107,7 +143,10 @@ export const ScriptLibraryPanel: Component<ScriptLibraryPanelProps> = (props) =>
       });
       setName('');
       setDesc('');
-      setStatus('ready', `Saved "${n}"`);
+      setStatus(
+        'ready',
+        isGit() ? `Committed & saved "${n}" to git` : `Saved "${n}"`,
+      );
       await refresh();
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));
@@ -178,16 +217,30 @@ export const ScriptLibraryPanel: Component<ScriptLibraryPanelProps> = (props) =>
     }
   };
 
+  const persistGit = () => {
+    saveGitCfg({
+      provider: gitProvider(),
+      apiBaseUrl: gitApiBase().trim(),
+      token: gitToken(),
+      owner: gitOwner().trim(),
+      repo: gitRepo().trim(),
+      projectId: gitProjectId().trim(),
+      branch: gitBranch().trim() || 'main',
+      basePath: gitBasePath().trim() || 'pine-library',
+      autoPush: true,
+      commitMessageTemplate: DEFAULT_GIT_CONFIG.commitMessageTemplate,
+    });
+    void refresh();
+  };
+
   return (
     <div class="flex flex-col gap-3 text-[11px]">
       <div class="flex flex-col gap-1">
         <label class="text-[10px] text-text-dim uppercase tracking-wider">Storage backend</label>
         <select
           class="sc-input"
-          value={store.activePlugins?.storage || 'local'}
-          onChange={(e) => {
-            setActivePlugin('storage', e.currentTarget.value);
-          }}
+          value={backend()}
+          onChange={(e) => setActivePlugin('storage', e.currentTarget.value)}
           title="Where user Pine scripts are stored"
         >
           <For each={storages()}>
@@ -207,7 +260,7 @@ export const ScriptLibraryPanel: Component<ScriptLibraryPanelProps> = (props) =>
           <div class="text-[10px] text-text-dim uppercase tracking-wider">Cloud credentials</div>
           <input
             class="sc-input font-mono text-[11px]"
-            placeholder="Worker URL (http://127.0.0.1:8787)"
+            placeholder="Worker URL"
             value={cloudEndpoint()}
             onInput={(e) => setCloudEndpoint(e.currentTarget.value)}
             spellcheck={false}
@@ -230,9 +283,84 @@ export const ScriptLibraryPanel: Component<ScriptLibraryPanelProps> = (props) =>
           >
             Save cloud settings
           </button>
+        </div>
+      </Show>
+
+      <Show when={isGit()}>
+        <div class="border-2 border-border p-2 flex flex-col gap-1.5 bg-bg-elev">
+          <div class="text-[10px] text-text-dim uppercase tracking-wider">Git repository</div>
+          <select
+            class="sc-input"
+            value={gitProvider()}
+            onChange={(e) => setGitProvider(e.currentTarget.value as 'github' | 'gitlab')}
+          >
+            <option value="github">GitHub</option>
+            <option value="gitlab">GitLab</option>
+          </select>
+          <input
+            class="sc-input font-mono text-[11px]"
+            type="password"
+            placeholder={gitProvider() === 'github' ? 'PAT (ghp_… / fine-grained)' : 'PAT (glpat-…)'}
+            value={gitToken()}
+            onInput={(e) => setGitToken(e.currentTarget.value)}
+            autocomplete="off"
+            spellcheck={false}
+          />
+          <div class="grid grid-cols-2 gap-1.5">
+            <input
+              class="sc-input font-mono text-[11px]"
+              placeholder="owner / group"
+              value={gitOwner()}
+              onInput={(e) => setGitOwner(e.currentTarget.value)}
+              spellcheck={false}
+            />
+            <input
+              class="sc-input font-mono text-[11px]"
+              placeholder="repo"
+              value={gitRepo()}
+              onInput={(e) => setGitRepo(e.currentTarget.value)}
+              spellcheck={false}
+            />
+          </div>
+          <Show when={gitProvider() === 'gitlab'}>
+            <input
+              class="sc-input font-mono text-[11px]"
+              placeholder="project id (optional, e.g. group/repo)"
+              value={gitProjectId()}
+              onInput={(e) => setGitProjectId(e.currentTarget.value)}
+              spellcheck={false}
+            />
+          </Show>
+          <div class="grid grid-cols-2 gap-1.5">
+            <input
+              class="sc-input font-mono text-[11px]"
+              placeholder="branch"
+              value={gitBranch()}
+              onInput={(e) => setGitBranch(e.currentTarget.value)}
+              spellcheck={false}
+            />
+            <input
+              class="sc-input font-mono text-[11px]"
+              placeholder="base path"
+              value={gitBasePath()}
+              onInput={(e) => setGitBasePath(e.currentTarget.value)}
+              spellcheck={false}
+            />
+          </div>
+          <input
+            class="sc-input font-mono text-[11px]"
+            placeholder="API base (optional, self-hosted)"
+            value={gitApiBase()}
+            onInput={(e) => setGitApiBase(e.currentTarget.value)}
+            spellcheck={false}
+          />
+          <button class="sc-btn sc-btn-ghost text-[10px]" onClick={persistGit}>
+            Save git settings
+          </button>
           <p class="text-[9px] text-text-faint">
-            Create keys via Worker <code class="font-mono">/api/keys</code> (admin token). Local
-            wrangler sets <code class="font-mono">ALLOW_OPEN_KEYS=1</code> for any Bearer key.
+            Save commits to <code class="font-mono">{gitBasePath() || 'pine-library'}/library/*.pine</code>{' '}
+            + <code class="font-mono">index.json</code>. Drafts stay local (no commit spam).
+            GitHub: contents write · GitLab: write_repository.
           </p>
         </div>
       </Show>
@@ -257,12 +385,16 @@ export const ScriptLibraryPanel: Component<ScriptLibraryPanelProps> = (props) =>
           onClick={() => void onSave()}
         >
           <Icons.download size={13} />
-          Save to library
+          {isGit() ? 'Save & commit' : 'Save to library'}
         </button>
       </div>
 
       <div class="flex gap-1.5 flex-wrap">
-        <button class="sc-btn sc-btn-ghost text-[10px] inline-flex items-center gap-1" onClick={() => void refresh()} disabled={busy()}>
+        <button
+          class="sc-btn sc-btn-ghost text-[10px] inline-flex items-center gap-1"
+          onClick={() => void refresh()}
+          disabled={busy()}
+        >
           {busy() ? <Icons.loader size={12} class="animate-spin" /> : null}
           Refresh
         </button>
@@ -300,7 +432,7 @@ export const ScriptLibraryPanel: Component<ScriptLibraryPanelProps> = (props) =>
                   <div class="flex-1 min-w-0">
                     <div class="text-text font-medium truncate">{item.name}</div>
                     <div class="text-text-faint font-mono text-[9px] truncate">
-                      {item.description || item.id}
+                      {item.description || item.path || item.id}
                       {' · '}
                       {item.updatedAt ? new Date(item.updatedAt).toLocaleString() : ''}
                     </div>

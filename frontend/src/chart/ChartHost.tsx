@@ -3,6 +3,7 @@ import { PaneManager } from './pane-manager';
 import { createCandleSeries, createVolumeSeries, TV } from './series-factory';
 import { DrawingLayer } from './drawing-layer';
 import { DrawingToolbar } from './DrawingToolbar';
+import { PineTableHud } from './PineTableHud';
 import { store, setDrawings } from '../store';
 import type { Bar } from '../store/types';
 
@@ -150,6 +151,7 @@ export const ChartHost: Component = () => {
       />
       <Show when={store.bars.length > 0}>
         <DrawingToolbar />
+        <PineTableHud />
       </Show>
       <Show when={emptyHint()}>
         {(hint) => (

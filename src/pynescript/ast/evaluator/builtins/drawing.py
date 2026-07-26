@@ -242,13 +242,17 @@ class DrawingRegistry:
                         "bgcolor": _color(getattr(cell, "bgcolor", "transparent")),
                     }
                 )
+            pos = str(getattr(tb, "position", "top_right") or "top_right")
+            pos = pos.replace("position.", "")
             out.append(
                 {
                     "type": "table",
-                    "position": str(getattr(tb, "position", "top_left")),
+                    "position": pos,
                     "rows": int(getattr(tb, "rows", 0) or 0),
                     "columns": int(getattr(tb, "columns", 0) or 0),
                     "cells": cells,
+                    "frame_color": _color(getattr(tb, "frame_color", "#3a3d4a")),
+                    "bgcolor": _color(getattr(tb, "bgcolor", "rgba(17,18,24,0.92)")),
                     "t1": 0,
                     "p1": 0,
                     "color": _color(getattr(tb, "frame_color", "#939fff")),
@@ -1190,17 +1194,42 @@ class DrawingBuiltinsMixin(BuiltinDispatchMixin):
         if isinstance(table, Table):
             table.deleted = True
 
-    def _handle_table_cell(self, args: list[Any]) -> TableCell:
-        """table.cell(table, row, column) - Returns cell object"""
-        table = args[0] if len(args) > 0 else None
-        row = args[1] if len(args) > 1 else 0
-        column = args[2] if len(args) > 2 else 0
+    def _handle_table_cell(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> TableCell:
+        """table.cell(table_id, column, row, text, ...).
+
+        TradingView order is **column then row** (not row, column).
+        Optional text and style kwargs update the cell in place.
+        """
+        kw = kwargs or {}
+        table = kw.get("table_id", kw.get("table", args[0] if len(args) > 0 else None))
+        # TV: column, row — also accept swapped if named
+        column = kw.get("column", args[1] if len(args) > 1 else 0)
+        row = kw.get("row", args[2] if len(args) > 2 else 0)
+        text = kw.get("text", args[3] if len(args) > 3 else None)
+        text_color = kw.get("text_color", args[6] if len(args) > 6 else None)
+        bgcolor = kw.get("bgcolor", args[10] if len(args) > 10 else None)
+        tooltip = kw.get("tooltip", args[11] if len(args) > 11 else None)
+
+        try:
+            col_i = int(column)
+            row_i = int(row)
+        except (TypeError, ValueError):
+            col_i, row_i = 0, 0
 
         if isinstance(table, Table):
-            key = (row, column)
+            key = (row_i, col_i)
             if key not in table.cells:
                 table.cells[key] = TableCell()
-            return table.cells[key]
+            cell = table.cells[key]
+            if text is not None:
+                cell.text = str(text)
+            if text_color is not None:
+                cell.text_color = str(text_color)
+            if bgcolor is not None:
+                cell.bgcolor = str(bgcolor)
+            if tooltip is not None:
+                cell.tooltip = str(tooltip)
+            return cell
         return TableCell()
 
     def _handle_table_cell_set_text(self, args: list[Any]) -> None:
