@@ -90,14 +90,18 @@ class BasicIndicators(TechnicalHelpers):
         return last
 
     def _builtin_ta_crossover(self, args: list[Any]) -> bool:
-        """Crossover check."""
+        """Crossover check (works with full series or bar-mode scalars)."""
         series1, series2 = self._expect_two_series(args)
-        return self._crossover(series1, series2)
+        if len(series1) >= 2 and len(series2) >= 2:
+            return self._crossover(series1, series2)
+        return self._cross_stateful(series1, series2, under=False)
 
     def _builtin_ta_crossunder(self, args: list[Any]) -> bool:
-        """Crossunder check."""
+        """Crossunder check (works with full series or bar-mode scalars)."""
         series1, series2 = self._expect_two_series(args)
-        return self._crossunder(series1, series2)
+        if len(series1) >= 2 and len(series2) >= 2:
+            return self._crossunder(series1, series2)
+        return self._cross_stateful(series1, series2, under=True)
 
     def _builtin_ta_cross(self, args: list[Any]) -> bool:
         """Cross check."""

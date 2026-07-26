@@ -27,12 +27,16 @@ class CommonIndicators(TechnicalHelpers):
     def _builtin_ta_crossover(self, args: list[Any]) -> bool:
         """Check if series1 crosses over series2."""
         series1, series2 = self._expect_two_series(args)
-        return self._crossover(series1, series2)
+        if len(series1) >= 2 and len(series2) >= 2:
+            return self._crossover(series1, series2)
+        return self._cross_stateful(series1, series2, under=False)
 
     def _builtin_ta_crossunder(self, args: list[Any]) -> bool:
         """Check if series1 crosses under series2."""
         series1, series2 = self._expect_two_series(args)
-        return self._crossunder(series1, series2)
+        if len(series1) >= 2 and len(series2) >= 2:
+            return self._crossunder(series1, series2)
+        return self._cross_stateful(series1, series2, under=True)
 
     def _builtin_ta_cross(self, args: list[Any]) -> bool:
         """Check if series1 crosses series2."""

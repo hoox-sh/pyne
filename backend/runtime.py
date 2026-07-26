@@ -324,6 +324,8 @@ class Runtime:
             # Reset plot capture and event buffer for this bar
             evaluator.reset_plots()
             evaluator.reset_events()
+            # Bar-mode ta.crossover/crossunder call-index (stateful prev pair)
+            evaluator._cross_call_i = 0  # type: ignore[attr-defined]
 
             # Fill pending strategy.order limit/stop against this bar's OHLC
             # before script re-evaluation (broker sim step).
@@ -359,22 +361,74 @@ class Runtime:
                 ev_dict["run_id"] = self._run_id
                 all_events.append(ev_dict)
 
-            # Collect outputs from this bar
-            # For simplicity, we assume one plot() call for now and return that value.
-            # If there are multiple plots, we'd need a more structured response.
-            bar_result = {}
+            # Collect every plot() on this bar (value + title + color)
+            bar_result: dict[str, Any] = {"_plots": list(evaluator.plot_outputs)}
             for i, plot in enumerate(evaluator.plot_outputs):
-                bar_result[f"plot_{i}"] = plot["value"]
-
+                bar_result[f"plot_{i}"] = plot.get("value")
             results.append(bar_result)
 
-        # Post-process results into structure expected by frontend
-        # Front end expects: array of values for the overlay series.
-        # Let's simplify and just return the first plot series found.
+        # Build multi-series map for AXIS (all plot() calls, not just first)
+        series_map: dict[str, list[Any]] = {}
+        plot_meta: dict[str, dict[str, Any]] = {}
+        n_bars = len(results)
 
-        final_series = []
+        def _color_str(c: Any) -> str | None:
+            if c is None:
+                return None
+            if isinstance(c, str) and c:
+                return c
+            if isinstance(c, int):
+                return f"#{c & 0xFFFFFF:06X}"
+            return str(c)
+
+        # Discover max plot count / stable keys from first non-empty bar
+        max_plots = 0
+        for br in results:
+            max_plots = max(max_plots, len(br.get("_plots") or []))
+
+        for pi in range(max_plots):
+            # Prefer title from first bar that defines this plot index
+            title = f"plot_{pi}"
+            color = None
+            linewidth = 1
+            for br in results:
+                plots = br.get("_plots") or []
+                if pi < len(plots):
+                    t = plots[pi].get("title")
+                    if t:
+                        title = str(t)
+                    if plots[pi].get("color") is not None:
+                        color = _color_str(plots[pi].get("color"))
+                    if plots[pi].get("linewidth"):
+                        linewidth = int(plots[pi]["linewidth"] or 1)
+                    break
+            # Disambiguate duplicate titles
+            base = title
+            suffix = 2
+            while title in series_map:
+                title = f"{base}_{suffix}"
+                suffix += 1
+            values: list[Any] = []
+            for br in results:
+                plots = br.get("_plots") or []
+                if pi < len(plots):
+                    values.append(plots[pi].get("value"))
+                else:
+                    values.append(None)
+            series_map[title] = values
+            plot_meta[title] = {
+                "title": title,
+                "color": color,
+                "linewidth": linewidth,
+                "index": pi,
+            }
+
+        # Primary plots list = first plot series (backward compatible)
+        final_series: list[Any] = []
         if results and "plot_0" in results[0]:
             final_series = [r.get("plot_0") for r in results]
+        elif series_map:
+            final_series = next(iter(series_map.values()))
 
         # Serialize Pine drawing objects (line/label/box) for AXIS overlay
         drawings: list[dict] = []
@@ -388,6 +442,8 @@ class Runtime:
 
         return {
             "plots": final_series,
+            "series": series_map,
+            "plot_meta": plot_meta,
             "events": all_events,
             "drawings": drawings,
             "count": len(results),

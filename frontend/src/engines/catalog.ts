@@ -96,6 +96,7 @@ export const serverEngine: EnginePlugin = {
           run_id: payload.run_id,
           overlay: payload.meta?.overlay ?? true,
           script_name: payload.meta?.script_name || 'plot',
+          plot_meta: payload.plot_meta || {},
         },
       } satisfies RunResult;
     } catch (err: unknown) {

@@ -113,28 +113,39 @@ export async function runAndApply(
   getActiveDrawingLayer()?.clearScriptDrawings();
 
   const ohlcvTimes = store.bars.map((b) => b.time);
+  const plotMeta = (result.meta?.plot_meta || {}) as Record<
+    string,
+    { title?: string; color?: string | null; linewidth?: number; index?: number }
+  >;
+  const seriesEntries = Object.entries(result.series || {}).filter(
+    ([k]) => !k.startsWith('__') && !k.startsWith('_'),
+  );
 
-  if (result.plots.length) {
-    const data = result.plots
+  const toLineData = (arr: (number | null)[]) =>
+    arr
       .map((v, i) =>
         v != null && typeof v === 'number' && !isNaN(v) && ohlcvTimes[i]
-          ? { time: ohlcvTimes[i], value: v }
+          ? { time: ohlcvTimes[i] as number, value: v }
           : null,
       )
       .filter(Boolean) as { time: number; value: number }[];
-    if (data.length) manager.addOverlayLine(paneId, scriptName, data);
-  }
 
-  for (const [k, arr] of Object.entries(result.series)) {
-    if (k.startsWith('__')) continue;
-    const data = (arr as (number | null)[])
-      .map((v, i) =>
-        v != null && typeof v === 'number' && !isNaN(v) && ohlcvTimes[i]
-          ? { time: ohlcvTimes[i], value: v }
-          : null,
-      )
-      .filter(Boolean) as { time: number; value: number }[];
-    if (data.length) manager.addOverlayLine(paneId, k, data);
+  // Prefer multi-series from API; fall back to single plots[] list
+  if (seriesEntries.length > 0) {
+    let colorIdx = 0;
+    for (const [k, arr] of seriesEntries) {
+      const data = toLineData(arr as (number | null)[]);
+      if (!data.length) continue;
+      const meta = plotMeta[k];
+      const color =
+        (meta?.color && String(meta.color)) ||
+        PLOT_PALETTE[colorIdx % PLOT_PALETTE.length];
+      colorIdx += 1;
+      manager.addOverlayLine(paneId, k, data, color);
+    }
+  } else if (result.plots.length) {
+    const data = toLineData(result.plots as (number | null)[]);
+    if (data.length) manager.addOverlayLine(paneId, scriptName, data, PLOT_PALETTE[0]);
   }
 
   // Strategy: markers on price pane + equity curve
@@ -154,12 +165,15 @@ export async function runAndApply(
       if (!silent) {
         appendLog(
           'ok',
-          `Strategy: ${report.stats.trades} trades · net ${report.stats.totalPnl >= 0 ? '+' : ''}${report.stats.totalPnl.toFixed(2)}`,
+          `Strategy: ${report.stats.trades} trades · net ${report.stats.totalPnl >= 0 ? '+' : ''}${report.stats.totalPnl.toFixed(2)} · ${markers.length} markers`,
           'strategy',
         );
       }
     } else {
       manager.hideEquityPane();
+      if (!silent && markers.length) {
+        appendLog('ok', `Strategy events: ${events.length} · ${markers.length} markers`, 'strategy');
+      }
     }
   } else {
     manager.hideEquityPane();
@@ -176,10 +190,19 @@ export async function runAndApply(
 
   if (indicatorId === undefined) {
     const plots: Record<string, { color: string }> = {};
-    plots[scriptName] = { color: PLOT_PALETTE[0] };
-    for (const k of Object.keys(result.series)) {
-      if (k.startsWith('__')) continue;
-      plots[k] = { color: PLOT_PALETTE[Object.keys(plots).length % PLOT_PALETTE.length] };
+    let colorIdx = 0;
+    if (seriesEntries.length) {
+      for (const [k] of seriesEntries) {
+        const meta = plotMeta[k];
+        plots[k] = {
+          color:
+            (meta?.color && String(meta.color)) ||
+            PLOT_PALETTE[colorIdx % PLOT_PALETTE.length],
+        };
+        colorIdx += 1;
+      }
+    } else {
+      plots[scriptName] = { color: PLOT_PALETTE[0] };
     }
     addIndicator(scriptName, script, paneId, plots);
   }

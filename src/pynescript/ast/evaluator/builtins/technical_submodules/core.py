@@ -391,6 +391,53 @@ class TechnicalHelpers:
         curr = self._cmp_lt(series1[-1], series2[-1])
         return bool(prev and curr)
 
+    def _cross_stateful(
+        self,
+        series1: list[Any],
+        series2: list[Any],
+        *,
+        under: bool,
+    ) -> bool:
+        """Bar-mode crossover when args are scalars (history length 1).
+
+        Runtime sets ``_cross_call_i = 0`` each bar and keeps ``_cross_state``
+        across bars: map call-index → previous (s1, s2) pair.
+        """
+        a = series1[-1] if series1 else None
+        b = series2[-1] if series2 else None
+        try:
+            a_f = float(a) if a is not None else None
+            b_f = float(b) if b is not None else None
+        except (TypeError, ValueError):
+            a_f, b_f = None, None
+
+        i = int(getattr(self, "_cross_call_i", 0) or 0)
+        state: dict[int, tuple[Any, Any]] = getattr(self, "_cross_state", None) or {}
+        prev = state.get(i)
+        result = False
+        if (
+            prev is not None
+            and prev[0] is not None
+            and prev[1] is not None
+            and a_f is not None
+            and b_f is not None
+        ):
+            try:
+                pa, pb = float(prev[0]), float(prev[1])
+                if under:
+                    # was above or equal, now strictly below
+                    result = pa >= pb and a_f < b_f
+                else:
+                    # was below or equal, now strictly above
+                    result = pa <= pb and a_f > b_f
+            except (TypeError, ValueError):
+                result = False
+
+        state[i] = (a_f, b_f)
+        self._cross_state = state  # type: ignore[attr-defined]
+        self._cross_call_i = i + 1  # type: ignore[attr-defined]
+        return result
+
     def _cross(self, series1: list[float], series2: list[float]) -> bool:
         """Check if series1 crosses series2 (either direction)."""
         return bool(self._crossover(series1, series2) or self._crossunder(series1, series2))

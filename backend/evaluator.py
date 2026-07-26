@@ -39,15 +39,15 @@ class CustomEvaluator(NodeLiteralEvaluator):
             self._var_declarations = set()
 
     def _builtin_plot(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> None:
-        """
-        Capture the value being plotted.
-        Arguments expected: series, title, color, linewidth, style, trackprice, etc.
-        For now, we just grab the first argument (series/value).
-        """
-        if not args:
+        """Capture plot value + title/color for multi-series AXIS response."""
+        kwargs = kwargs or {}
+        if not args and "series" not in kwargs:
             return None
 
-        value = args[0]
+        value = kwargs.get("series", args[0] if args else None)
+        title = kwargs.get("title", args[1] if len(args) > 1 else "")
+        color = kwargs.get("color", args[2] if len(args) > 2 else None)
+        linewidth = kwargs.get("linewidth", args[5] if len(args) > 5 else 1)
 
         # Unwrap PineSeries if necessary
         if hasattr(value, "current") and not isinstance(value, (list, tuple, str, bytes)):
@@ -60,7 +60,15 @@ class CustomEvaluator(NodeLiteralEvaluator):
         if isinstance(value, list):
             value = value[-1] if value else None
 
-        self.plot_outputs.append({"type": "plot", "value": value})
+        self.plot_outputs.append(
+            {
+                "type": "plot",
+                "value": value,
+                "title": str(title or "") or None,
+                "color": color,
+                "linewidth": int(linewidth or 1),
+            }
+        )
         # Still register on PlotRegistry for parity/backends that inspect it
         try:
             return super()._builtin_plot(args, kwargs)
