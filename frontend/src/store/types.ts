@@ -55,6 +55,9 @@ export interface EditorLayoutState {
 /** Built-in historical source ids (D1) */
 export type SourceId = 'binance-rest' | 'mock-walk' | 'csv-upload' | string;
 
+import type { Drawing, DrawingToolId } from '../chart/drawing-types';
+export type { Drawing, DrawingToolId };
+
 export interface AppState {
   bars: Bar[];
   symbol: string;
@@ -91,4 +94,9 @@ export interface AppState {
   lastRun: unknown | null;
   /** In-memory system logs (not persisted) */
   logs: LogEntry[];
+
+  /** Active interactive drawing tool */
+  drawingTool: DrawingToolId;
+  /** User chart drawings (persisted) */
+  drawings: Drawing[];
 }

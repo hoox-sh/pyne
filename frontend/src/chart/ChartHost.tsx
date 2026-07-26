@@ -1,15 +1,39 @@
 import { Component, Show, createEffect, createMemo, onMount, onCleanup } from 'solid-js';
 import { PaneManager } from './pane-manager';
 import { createCandleSeries, createVolumeSeries, TV } from './series-factory';
-import { store } from '../store';
+import { DrawingLayer } from './drawing-layer';
+import { DrawingToolbar } from './DrawingToolbar';
+import { store, setDrawings } from '../store';
 import type { Bar } from '../store/types';
 
 /** Imperative chart mount only — never put Solid children inside this node. */
 let panesEl: HTMLDivElement | undefined;
 let manager: PaneManager | undefined;
+let drawingLayer: DrawingLayer | undefined;
 
 export function getManager(): PaneManager | undefined {
   return manager;
+}
+
+export function getDrawingLayer(): DrawingLayer | undefined {
+  return drawingLayer;
+}
+
+// re-export for callers that prefer ChartHost surface
+export { getActiveDrawingLayer } from './drawing-layer';
+
+function ensureDrawingLayer() {
+  if (!manager || drawingLayer) return;
+  const pricePane = manager.getPane('price');
+  const candle = pricePane?.series['candle'];
+  if (!pricePane || !candle) return;
+  const el = document.getElementById('pane-price');
+  if (!el) return;
+
+  drawingLayer = new DrawingLayer(el, pricePane.chart, candle as never);
+  drawingLayer.setDrawings(store.drawings);
+  drawingLayer.setTool(store.drawingTool);
+  drawingLayer.setOnChange((list) => setDrawings(list));
 }
 
 export function setDataToChart(bars: Bar[]) {
@@ -56,6 +80,10 @@ export function setDataToChart(bars: Bar[]) {
       })),
     );
   }
+
+  // Attach / refresh drawing layer once candles exist
+  ensureDrawingLayer();
+  drawingLayer?.setDrawings(store.drawings);
 }
 
 export const ChartHost: Component = () => {
@@ -91,7 +119,17 @@ export const ChartHost: Component = () => {
     if (manager && bars.length) setDataToChart(bars);
   });
 
+  // Keep tool in sync when store changes from toolbar
+  createEffect(() => {
+    const tool = store.drawingTool;
+    drawingLayer?.setTool(tool);
+  });
+
   onCleanup(() => {
+    if (drawingLayer) {
+      drawingLayer.destroy();
+      drawingLayer = undefined;
+    }
     if (manager) {
       manager.dispose();
       manager = undefined;
@@ -110,6 +148,9 @@ export const ChartHost: Component = () => {
         class="flex-1 flex flex-col min-h-0"
         data-axis-panes
       />
+      <Show when={store.bars.length > 0}>
+        <DrawingToolbar />
+      </Show>
       <Show when={emptyHint()}>
         {(hint) => (
           <div class="absolute inset-0 flex flex-col items-center justify-center gap-2 z-[5] pointer-events-none px-6">

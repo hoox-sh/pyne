@@ -1,5 +1,15 @@
 import { createStore } from 'solid-js/store';
-import type { AppState, Bar, Indicator, Pane, EditorMode, LogEntry, LogLevel } from './types';
+import type {
+  AppState,
+  Bar,
+  Indicator,
+  Pane,
+  EditorMode,
+  LogEntry,
+  LogLevel,
+  Drawing,
+  DrawingToolId,
+} from './types';
 
 // Stable ID generation — uses timestamp prefix + counter to survive reloads
 let idCounter = 0;
@@ -46,6 +56,8 @@ const DEFAULTS: AppState = {
   lastRunMs: null,
   lastRun: null,
   logs: [],
+  drawingTool: 'cursor',
+  drawings: [],
 };
 
 function readLocalStorage(key: string): string | null {
@@ -110,6 +122,8 @@ function loadPersisted(): Partial<AppState> {
         // Do not hydrate lastRun / logs from storage
         lastRun: null,
         logs: [],
+        drawingTool: 'cursor',
+        drawings: Array.isArray(parsed.drawings) ? parsed.drawings : [],
       };
     }
   } catch {}
@@ -324,4 +338,26 @@ export function saveEditorDoc(doc: string) {
 
 export function loadEditorDoc(): string {
   try { return localStorage.getItem(EDITOR_DOC_KEY) || ''; } catch { return ''; }
+}
+
+export function setDrawingTool(tool: DrawingToolId) {
+  setStore('drawingTool', tool);
+  // tool choice is session-ish; still persist so toolbar restores
+  persist();
+}
+
+export function setDrawings(drawings: Drawing[]) {
+  setStore('drawings', drawings);
+  persist();
+}
+
+export function clearDrawings() {
+  setStore('drawings', []);
+  persist();
+}
+
+/** Sync store from layer after delete-selected (layer owns selection). */
+export function deleteSelectedDrawing(current: Drawing[]) {
+  setStore('drawings', current);
+  persist();
 }
