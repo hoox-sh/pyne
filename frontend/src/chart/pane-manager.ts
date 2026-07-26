@@ -294,12 +294,12 @@ export class PaneManager {
     let pane = this.panes.get('equity');
     if (!pane) {
       pane = this.createPane('equity', 'equity', 'Equity', 100);
-      pane.series['equity'] = createAreaSeries(pane.chart, 'Equity', TV.flieder);
+      pane.series['equity'] = createAreaSeries(pane.chart, 'Equity', TV.indigo);
       this.syncTimeScales();
     } else {
       this.setVisible('equity', true);
       if (!pane.series['equity']) {
-        pane.series['equity'] = createAreaSeries(pane.chart, 'Equity', TV.flieder);
+        pane.series['equity'] = createAreaSeries(pane.chart, 'Equity', TV.indigo);
       }
     }
 

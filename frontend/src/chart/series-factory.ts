@@ -11,7 +11,7 @@ import {
   type LineWidth,
 } from 'lightweight-charts';
 
-/** Void canvas + Hell Flieder brand — matches index.css tokens */
+/** Void canvas + void indigo brand — matches landing pack + index.css tokens */
 export const TV = {
   bg: '#0a0b10',
   panel: '#111218',
@@ -22,19 +22,24 @@ export const TV = {
   up: '#5ecf8a',
   down: '#e85d4c',
   border: '#3a3d4a',
-  flieder: '#c4b0f0',
-  fliederSoft: 'rgba(196, 176, 240, 0.38)',
+  /** hoox void pack accent oklch(0.74 0.16 277) */
+  indigo: '#939fff',
+  indigoSoft: 'rgba(147, 159, 255, 0.38)',
+  /** @deprecated use indigo */
+  flieder: '#939fff',
+  /** @deprecated use indigoSoft */
+  fliederSoft: 'rgba(147, 159, 255, 0.38)',
   green: '#8ef5a8',
   orange: '#e8a03a',
 };
 
-/** Plot colors: Hell Flieder, lightgreen, orange, then muted fillers */
+/** Plot colors: void indigo, lightgreen, orange, then muted fillers */
 export const PLOT_PALETTE = [
-  '#c4b0f0',
+  '#939fff',
   '#8ef5a8',
   '#e8a03a',
   '#6ec8d4',
-  '#a78be6',
+  '#a7b4ff',
   '#5ecf8a',
   '#e85d4c',
   '#8b8e9c',
@@ -74,13 +79,13 @@ export function createBaseChart(container: HTMLElement, options?: Record<string,
     crosshair: {
       mode: CrosshairMode.Normal,
       vertLine: {
-        color: TV.fliederSoft,
+        color: TV.indigoSoft,
         width: 1 as LineWidth,
         style: 2,
         labelBackgroundColor: TV.elev,
       },
       horzLine: {
-        color: TV.fliederSoft,
+        color: TV.indigoSoft,
         width: 1 as LineWidth,
         style: 2,
         labelBackgroundColor: TV.elev,
@@ -101,7 +106,7 @@ export function createCandleSeries(chart: IChartApi, paneIndex?: number): ISerie
     wickUpColor: TV.up,
     lastValueVisible: true,
     priceLineVisible: true,
-    priceLineColor: TV.fliederSoft,
+    priceLineColor: TV.indigoSoft,
     priceLineWidth: 1 as LineWidth,
     priceLineStyle: 2,
   };
@@ -149,17 +154,17 @@ export function createLineSeries(chart: IChartApi, name: string, color: string, 
     : chart.addSeries(LineSeries, opts);
 }
 
-/** Equity curve — Hell Flieder fill on void canvas */
+/** Equity curve — void indigo fill on void canvas */
 export function createAreaSeries(
   chart: IChartApi,
   name: string,
-  color = TV.flieder,
+  color = TV.indigo,
   paneIndex?: number,
 ): ISeriesApi<'Area'> {
   const opts = {
     lineColor: color,
-    topColor: 'rgba(196, 176, 240, 0.28)',
-    bottomColor: 'rgba(196, 176, 240, 0.02)',
+    topColor: 'rgba(147, 159, 255, 0.28)',
+    bottomColor: 'rgba(147, 159, 255, 0.02)',
     lineWidth: 2 as LineWidth,
     priceLineVisible: false,
     lastValueVisible: true,

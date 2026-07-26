@@ -1,25 +1,26 @@
-/* SuperChart Lite — TradingView-style dark theme */
+/* AXIS legacy shell — void pack (indigo) aligned with Solid path / landing */
 
 :root {
     --radius: 2px;
-    --bg-base: #131722;
-    --bg-panel: #1e222d;
-    --bg-elev: #2a2e39;
-    --bg-hover: #363a45;
-    --border: #363c4e;
-    --border-soft: #2a2e39;
-    --text: #d1d4dc;
-    --text-primary: #d1d4dc;
-    --text-secondary: #787b86;
-    --text-dim: #787b86;
-    --text-faint: #5d606b;
-    --accent: #2962ff;
-    --accent-hover: #2979ff;
-    --accent-bg: rgba(41,98,255,0.1);
-    --green: #26a69a;
-    --red: #ef5350;
-    --yellow: #ffb300;
-    --purple: #9c27b0;
+    --bg-base: #0a0b10;
+    --bg-panel: #111218;
+    --bg-elev: #171821;
+    --bg-hover: #22232e;
+    --border: #3a3d4a;
+    --border-soft: #252730;
+    --text: #eceef4;
+    --text-primary: #eceef4;
+    --text-secondary: #8b8e9c;
+    --text-dim: #8b8e9c;
+    --text-faint: #5c5f6e;
+    /* void indigo oklch(0.74 0.16 277) */
+    --accent: #939fff;
+    --accent-hover: #828df3;
+    --accent-bg: rgba(147, 159, 255, 0.1);
+    --green: #5ecf8a;
+    --red: #e85d4c;
+    --yellow: #e8a03a;
+    --purple: #939fff;
 }
 
 * {

@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
-/* AXIS (formerly SuperChart) — Void + Grok style canvas
-   Primary accent: Hell Flieder (light lilac void)
+/* AXIS (formerly SuperChart) — Void pack (aligned with hoox-landing-page)
+   Primary accent: void indigo oklch(0.74 0.16 277)
    Signals: lightgreen (live/positive), orange (warn/markers)
    Borders: 2px · minimal radius 2px everywhere chrome
 */
@@ -17,16 +17,16 @@
   /* Edges */
   --color-border: #3a3d4a;
   --color-border-soft: #252730;
-  --color-border-focus: color-mix(in oklch, oklch(0.82 0.10 295) 65%, transparent);
+  --color-border-focus: color-mix(in oklch, oklch(0.74 0.16 277) 65%, transparent);
 
   /* Text */
   --color-text: #eceef4;
   --color-text-dim: #8b8e9c;
   --color-text-faint: #5c5f6e;
 
-  /* Hell Flieder — primary brand accent */
-  --color-accent: #c4b0f0;
-  --color-accent-hover: #a78be6;
+  /* Void indigo — primary brand accent (landing data-color-pack="void") */
+  --color-accent: oklch(0.74 0.16 277);
+  --color-accent-hover: oklch(0.68 0.15 277);
 
   /* Lightgreen — live / positive */
   --color-accent-2: #8ef5a8;
@@ -40,8 +40,8 @@
   /* Loss / error */
   --color-red: #e85d4c;
 
-  /* Legacy alias (prefer accent) */
-  --color-purple: #c4b0f0;
+  /* Legacy alias (prefer accent) — hex fallback for canvas/JS */
+  --color-purple: #939fff;
 
   /* Geometry — minimal radius on all chrome */
   --border-w: 2px;
@@ -81,15 +81,15 @@ body {
   --color-text: #1a1b24;
   --color-text-dim: #5c5f6e;
   --color-text-faint: #8b8e9c;
-  --color-accent: #7b5fc4;
-  --color-accent-hover: #6a4fb0;
+  --color-accent: oklch(0.55 0.16 277);
+  --color-accent-hover: oklch(0.48 0.14 277);
   --color-accent-2: #2e9e58;
   --color-green: #2e9e58;
   --color-accent-3: #c47a18;
   --color-orange: #c47a18;
   --color-yellow: #c47a18;
   --color-red: #c44538;
-  --color-purple: #7b5fc4;
+  --color-purple: #5a6ad4;
 }
 
 /* Scrollbars — void chrome */
@@ -141,15 +141,15 @@ textarea {
 .sc-input:focus,
 .sc-input:focus-visible {
   border-color: var(--color-accent);
-  /* Hell Flieder keyboard ring — visible on void chrome */
-  box-shadow: 0 0 0 2px color-mix(in oklch, oklch(0.82 0.10 295) 45%, transparent);
+  /* Void indigo keyboard ring — visible on void chrome */
+  box-shadow: 0 0 0 2px color-mix(in oklch, oklch(0.74 0.16 277) 45%, transparent);
   outline: none;
 }
 
-/* Hell Flieder keyboard focus for buttons */
+/* Void indigo keyboard focus for buttons */
 .sc-btn:focus-visible {
   border-color: var(--color-accent);
-  box-shadow: 0 0 0 2px color-mix(in oklch, oklch(0.82 0.10 295) 45%, transparent);
+  box-shadow: 0 0 0 2px color-mix(in oklch, oklch(0.74 0.16 277) 45%, transparent);
   outline: none;
 }
 

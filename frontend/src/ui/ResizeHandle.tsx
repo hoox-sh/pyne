@@ -12,7 +12,7 @@ interface Props {
 }
 
 /**
- * Vertical drag handle between panels. 2px interactive hit area with Hell Flieder hover.
+ * Vertical drag handle between panels. 2px interactive hit area with void indigo hover.
  */
 export const ResizeHandle: Component<Props> = (props) => {
   let dragging = false;

@@ -13,7 +13,7 @@ const TV = {
     up: '#5ecf8a',
     down: '#e85d4c',
 };
-const PLOT_PALETTE = ['#c4b0f0', '#8ef5a8', '#e8a03a', '#6ec8d4', '#a78be6', '#5ecf8a', '#e85d4c', '#8b8e9c'];
+const PLOT_PALETTE = ['#939fff', '#8ef5a8', '#e8a03a', '#6ec8d4', '#a7b4ff', '#5ecf8a', '#e85d4c', '#8b8e9c'];
 
 let ro = null;
 
@@ -199,8 +199,8 @@ export function initChart({ mainEl, volumeEl, indicatorEl, equityEl }) {
     // Equity pane
     panes.equity.chart = LightweightCharts.createChart(equityEl, commonOptions());
     panes.equity.area = panes.equity.chart.addAreaSeries({
-        lineColor: '#c4b0f0', topColor: 'rgba(196, 176, 240, 0.35)',
-        bottomColor: 'rgba(196, 176, 240, 0.0)', lineWidth: 2,
+        lineColor: '#939fff', topColor: 'rgba(147, 159, 255, 0.35)',
+        bottomColor: 'rgba(147, 159, 255, 0.0)', lineWidth: 2,
     });
 
     // Resize observer
