@@ -17,6 +17,7 @@ import { openEditorWindow, writeSharedDoc } from '../editor/editor-bridge';
 import { listSources } from '../sources/catalog';
 import { listEngines } from '../engines/catalog';
 import { setUploadedBars, getUploadedFileName } from '../sources/upload-store';
+import { engineOptionLabel } from './plugin-badges';
 import { Icons } from './icons';
 
 const INTERVALS = ['1m', '5m', '15m', '1h', '4h', '1d', '1w'];
@@ -224,12 +225,18 @@ export const Topbar: Component<{
 
       <label class="text-[10px] text-text-dim uppercase tracking-wider">Engine</label>
       <select
-        class="sc-input min-w-[110px]"
+        class="sc-input min-w-[120px] max-w-[180px]"
         value={store.engine}
         onChange={(e) => setActivePlugin('engine', e.currentTarget.value)}
         title={engines().find((en) => en.id === store.engine)?.description || 'Calculation engine'}
       >
-        <For each={engines()}>{(en) => <option value={en.id}>{en.name}</option>}</For>
+        <For each={engines()}>
+          {(en) => (
+            <option value={en.id} title={en.description}>
+              {engineOptionLabel(en)}
+            </option>
+          )}
+        </For>
       </select>
 
       <label class="text-[10px] text-text-dim uppercase tracking-wider">Stream</label>

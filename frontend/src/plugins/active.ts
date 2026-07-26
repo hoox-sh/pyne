@@ -73,8 +73,10 @@ export function getActiveStreamConfig(): Record<string, unknown> {
 
 export function getActiveEngineConfig(): Record<string, unknown> {
   const base = pluginConfig('engine', getActiveEngineId());
-  // Surface store.endpoint into server engine config by default
-  if (getActiveEngineId() === 'server' && store.endpoint) {
+  ensureBuiltins();
+  const engine = registry.getEngine(getActiveEngineId());
+  // Surface store.endpoint when engine has an endpoint config field (server, etc.)
+  if (store.endpoint && (engine?.configSchema?.endpoint || getActiveEngineId() === 'server')) {
     return { endpoint: store.endpoint, ...base };
   }
   return base;

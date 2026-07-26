@@ -1,7 +1,11 @@
-import { Component, createEffect, createSignal, Show } from 'solid-js';
-import { store, setStore, persist, setStatus } from '../store';
+import { Component, For, createEffect, createSignal, Show, createMemo } from 'solid-js';
+import { store, setStore, persist, setStatus, setActivePlugin } from '../store';
 import { Icons } from './icons';
 import { probeEndpoint } from '../indicators/runner';
+import { listEngines } from '../engines/catalog';
+import { listStorages } from '../storage/catalog';
+import { CapabilityBadges, engineOptionLabel } from './plugin-badges';
+import { getEngine } from '../engines/catalog';
 
 interface Props {
   open: boolean;
@@ -11,22 +15,38 @@ interface Props {
 export const SettingsDialog: Component<Props> = (props) => {
   const [endpoint, setEndpoint] = createSignal(store.endpoint);
   const [engine, setEngine] = createSignal(store.engine);
+  const [storage, setStorage] = createSignal(store.activePlugins?.storage || 'local');
   const [probing, setProbing] = createSignal(false);
   const [probeMsg, setProbeMsg] = createSignal('');
+
+  const engines = createMemo(() => listEngines());
+  const storages = createMemo(() => listStorages());
+
+  const selectedEngine = createMemo(() => getEngine(engine()) || engines()[0]);
+  /** Show endpoint field only for engines that take a backend URL (not pyodide). */
+  const needsEndpoint = createMemo(() => {
+    const e = selectedEngine();
+    return e?.id === 'server' || !!e?.configSchema?.endpoint;
+  });
 
   createEffect(() => {
     if (props.open) {
       setEndpoint(store.endpoint);
       setEngine(store.engine);
+      setStorage(store.activePlugins?.storage || 'local');
       setProbeMsg('');
     }
   });
 
   const save = () => {
     setStore('endpoint', endpoint().trim());
-    setStore('engine', engine());
+    setActivePlugin('engine', engine());
+    setActivePlugin('storage', storage());
     persist();
-    setStatus('ready', `Settings saved · engine=${engine()}`);
+    setStatus(
+      'ready',
+      `Settings saved · engine=${engine()} · storage=${storage()}`,
+    );
     props.onClose();
   };
 
@@ -78,50 +98,8 @@ export const SettingsDialog: Component<Props> = (props) => {
 
           <div class="p-3.5 flex flex-col gap-3.5 overflow-auto">
             <div class="flex flex-col gap-1">
-              <label class="text-[10px] text-text-dim uppercase tracking-wider" for="axis-endpoint">
-                Backend Endpoint
-              </label>
-              <div class="flex gap-1.5">
-                <input
-                  id="axis-endpoint"
-                  class="sc-input font-mono text-[12px] flex-1 min-w-0"
-                  value={endpoint()}
-                  onInput={(e) => setEndpoint(e.currentTarget.value)}
-                  placeholder="http://host:5002"
-                  spellcheck={false}
-                />
-                <button
-                  type="button"
-                  class="sc-btn inline-flex items-center gap-1 flex-shrink-0"
-                  disabled={probing()}
-                  onClick={testEndpoint}
-                  title="GET / health probe"
-                >
-                  {probing() ? (
-                    <Icons.loader size={13} class="animate-spin" />
-                  ) : (
-                    <Icons.activity size={13} />
-                  )}
-                  Test
-                </button>
-              </div>
-              <Show when={probeMsg()}>
-                <p
-                  class={`text-[10px] font-mono mt-0.5 ${
-                    probeMsg().startsWith('✓') ? 'text-accent-2' : 'text-red'
-                  }`}
-                >
-                  {probeMsg()}
-                </p>
-              </Show>
-              <p class="text-[10px] text-text-faint mt-0.5">
-                Pro API for server engine (e.g. VPS :5002). CORS must allow this origin.
-              </p>
-            </div>
-
-            <div class="flex flex-col gap-1">
               <label class="text-[10px] text-text-dim uppercase tracking-wider" for="axis-engine">
-                Engine
+                Calculation engine
               </label>
               <select
                 id="axis-engine"
@@ -129,25 +107,106 @@ export const SettingsDialog: Component<Props> = (props) => {
                 value={engine()}
                 onChange={(e) => setEngine(e.currentTarget.value)}
               >
-                <option value="server">Server — PYNE / Pro API</option>
-                <option value="pyodide">Client — Pyodide (offline)</option>
+                <For each={engines()}>
+                  {(en) => <option value={en.id}>{engineOptionLabel(en)}</option>}
+                </For>
+              </select>
+              <Show when={selectedEngine()}>
+                {(en) => (
+                  <div class="mt-0.5">
+                    <CapabilityBadges
+                      capabilities={en().capabilities}
+                      builtIn={en().builtIn}
+                    />
+                    <p class="text-[10px] text-text-faint mt-0.5">{en().description}</p>
+                  </div>
+                )}
+              </Show>
+            </div>
+
+            <Show when={needsEndpoint()}>
+              <div class="flex flex-col gap-1">
+                <label
+                  class="text-[10px] text-text-dim uppercase tracking-wider"
+                  for="axis-endpoint"
+                >
+                  Backend Endpoint
+                </label>
+                <div class="flex gap-1.5">
+                  <input
+                    id="axis-endpoint"
+                    class="sc-input font-mono text-[12px] flex-1 min-w-0"
+                    value={endpoint()}
+                    onInput={(e) => setEndpoint(e.currentTarget.value)}
+                    placeholder="http://host:5002 or Worker URL"
+                    spellcheck={false}
+                  />
+                  <button
+                    type="button"
+                    class="sc-btn inline-flex items-center gap-1 flex-shrink-0"
+                    disabled={probing()}
+                    onClick={testEndpoint}
+                    title="GET / health probe"
+                  >
+                    {probing() ? (
+                      <Icons.loader size={13} class="animate-spin" />
+                    ) : (
+                      <Icons.activity size={13} />
+                    )}
+                    Test
+                  </button>
+                </div>
+                <Show when={probeMsg()}>
+                  <p
+                    class={`text-[10px] font-mono mt-0.5 ${
+                      probeMsg().startsWith('✓') ? 'text-accent-2' : 'text-red'
+                    }`}
+                  >
+                    {probeMsg()}
+                  </p>
+                </Show>
+                <p class="text-[10px] text-text-faint mt-0.5">
+                  Used by the server engine and cloud script storage. CORS must allow this origin.
+                </p>
+              </div>
+            </Show>
+
+            <div class="flex flex-col gap-1">
+              <label class="text-[10px] text-text-dim uppercase tracking-wider" for="axis-storage">
+                Script storage
+              </label>
+              <select
+                id="axis-storage"
+                class="sc-input w-full"
+                value={storage()}
+                onChange={(e) => setStorage(e.currentTarget.value)}
+              >
+                <For each={storages()}>
+                  {(s) => (
+                    <option value={s.id}>
+                      {s.name}
+                      {s.builtIn ? '' : ' (plugin)'}
+                    </option>
+                  )}
+                </For>
               </select>
               <p class="text-[10px] text-text-faint mt-0.5">
-                {engine() === 'pyodide' ? (
-                  <span class="text-accent-2">Offline-ready</span>
-                ) : (
-                  <span class="text-accent-3">Requires reachable endpoint</span>
-                )}
+                Where saved Pine scripts live (local browser, cloud Worker, or git). Configure
+                credentials under Manager → Script Library.
               </p>
             </div>
           </div>
 
           <div class="flex items-center gap-2 px-3.5 py-2.5 border-t-2 border-border bg-bg-base">
-            <div class="flex-1 text-[10px] text-text-faint font-mono truncate">AXIS · void</div>
+            <div class="flex-1 text-[10px] text-text-faint font-mono truncate">AXIS · plugins</div>
             <button type="button" class="sc-btn" onClick={props.onClose}>
               Cancel
             </button>
-            <button type="button" class="sc-btn sc-btn-primary inline-flex items-center gap-1" onClick={save}>
+            <button
+              type="button"
+              class="sc-btn sc-btn-primary inline-flex items-center gap-1"
+              onClick={save}
+            >
               <Icons.check size={13} />
               Save
             </button>
