@@ -53,7 +53,7 @@ const DEFAULTS: AppState = {
   live: { active: false, needsRerun: false, lastBarTime: 0, streamId: 'binance-ws' },
   theme: 'dark',
   editor: { open: true, width: 460, mode: 'docked' },
-  watchlist: { open: true, width: 200, symbols: [...DEFAULT_WATCHLIST] },
+  watchlist: { open: true, width: 200, symbols: [...DEFAULT_WATCHLIST], refreshSec: 15 },
   indicatorPanel: { open: false, width: 224 },
   resultsPanel: { open: false, height: 220 },
   logsPanel: { open: false, height: 160 },
@@ -126,6 +126,10 @@ function loadPersisted(): Partial<AppState> {
           symbols: parsed.watchlist?.symbols?.length
             ? parsed.watchlist.symbols
             : DEFAULTS.watchlist.symbols,
+          refreshSec: Math.min(
+            120,
+            Math.max(5, Number(parsed.watchlist?.refreshSec) || DEFAULTS.watchlist.refreshSec),
+          ),
         },
         indicatorPanel: { ...DEFAULTS.indicatorPanel, ...parsed.indicatorPanel },
         resultsPanel: { ...DEFAULTS.resultsPanel, ...parsed.resultsPanel },
@@ -361,6 +365,13 @@ export function addWatchlistSymbol(symbol: string) {
 
 export function removeWatchlistSymbol(symbol: string) {
   setStore('watchlist', 'symbols', (s) => s.filter((x) => x !== symbol));
+  persist();
+}
+
+/** Watchlist live-quote poll interval (seconds), clamped 5–120. */
+export function setWatchlistRefreshSec(sec: number) {
+  const n = Math.min(120, Math.max(5, Math.round(Number(sec) || 15)));
+  setStore('watchlist', 'refreshSec', n);
   persist();
 }
 

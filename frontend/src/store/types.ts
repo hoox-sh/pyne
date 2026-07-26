@@ -44,6 +44,8 @@ export interface WatchlistState {
   open: boolean;
   width: number;
   symbols: string[];
+  /** Live quote poll interval in seconds (5–120) */
+  refreshSec: number;
 }
 
 export interface EditorLayoutState {

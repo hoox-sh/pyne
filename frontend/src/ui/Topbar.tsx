@@ -19,8 +19,9 @@ import { listEngines } from '../engines/catalog';
 import { setUploadedBars, getUploadedFileName } from '../sources/upload-store';
 import { engineOptionLabel } from './plugin-badges';
 import { Icons } from './icons';
+import { WATCHLIST_INTERVALS } from '../data/watchlist-tickers';
 
-const INTERVALS = ['1m', '5m', '15m', '1h', '4h', '1d', '1w'];
+const INTERVALS = [...WATCHLIST_INTERVALS];
 
 export const Topbar: Component<{
   onToggleEditor: () => void;

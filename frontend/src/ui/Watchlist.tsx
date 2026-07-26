@@ -1,4 +1,4 @@
-import { Component, For, createSignal, onMount, onCleanup, Show } from 'solid-js';
+import { Component, For, createSignal, createEffect, onCleanup, Show } from 'solid-js';
 import {
   store,
   setStore,
@@ -7,63 +7,77 @@ import {
   removeWatchlistSymbol,
   setWatchlistWidth,
   setWatchlistOpen,
+  setWatchlistRefreshSec,
 } from '../store';
 import { loadSymbolData } from '../data/load-symbol';
+import {
+  fetchWatchlistTickers,
+  WATCHLIST_INTERVALS,
+  WATCHLIST_REFRESH_OPTIONS,
+  type WatchTicker,
+} from '../data/watchlist-tickers';
 import { ResizeHandle } from './ResizeHandle';
 
-interface Ticker {
-  price: number;
-  change: number;
-}
-
 export const Watchlist: Component = () => {
-  const [prices, setPrices] = createSignal<Record<string, Ticker>>({});
+  const [prices, setPrices] = createSignal<Record<string, WatchTicker>>({});
   const [addValue, setAddValue] = createSignal('');
+  const [refreshing, setRefreshing] = createSignal(false);
   let timer: ReturnType<typeof setInterval> | undefined;
 
   const fetchPrices = async () => {
     const symbols = store.watchlist.symbols;
     if (!symbols.length) return;
+    setRefreshing(true);
     try {
-      const res = await fetch(
-        `https://api.binance.com/api/v3/ticker/24hr?symbols=${JSON.stringify(symbols)}`,
-      );
-      if (!res.ok) return;
-      const data = await res.json();
-      const next: Record<string, Ticker> = {};
-      for (const t of data) {
-        next[t.symbol] = {
-          price: parseFloat(t.lastPrice),
-          change: parseFloat(t.priceChangePercent),
-        };
-      }
+      const next = await fetchWatchlistTickers(symbols, store.source);
       setPrices(next);
-    } catch {
-      /* offline / rate limit */
+    } finally {
+      setRefreshing(false);
     }
   };
 
-  onMount(() => {
-    fetchPrices();
-    timer = setInterval(fetchPrices, 30_000);
-  });
+  // Re-poll when symbols, source, or refresh interval change
+  createEffect(() => {
+    const _syms = store.watchlist.symbols.join(',');
+    const _src = store.source;
+    const sec = store.watchlist.refreshSec || 15;
+    void _syms;
+    void _src;
 
-  onCleanup(() => {
     if (timer) clearInterval(timer);
+    void fetchPrices();
+    timer = setInterval(() => void fetchPrices(), Math.max(5, sec) * 1000);
+
+    onCleanup(() => {
+      if (timer) clearInterval(timer);
+    });
   });
 
   const select = async (sym: string) => {
-    setStore('symbol', sym);
+    setStore('symbol', sym.toUpperCase());
     persist();
-    await loadSymbolData(sym, store.interval);
+    await loadSymbolData(sym, store.interval, store.source);
+  };
+
+  const onInterval = async (iv: string) => {
+    if (iv === store.interval) return;
+    setStore('interval', iv);
+    persist();
+    // Reload chart for active symbol on the new interval
+    if (store.symbol) {
+      await loadSymbolData(store.symbol, iv, store.source);
+    }
   };
 
   const onAdd = () => {
-    const v = addValue().trim();
+    let v = addValue().trim().toUpperCase();
     if (!v) return;
+    if (!/USDT$|USD$|USDC$/i.test(v) && /^[A-Z0-9]{2,12}$/.test(v)) {
+      v = `${v}USDT`;
+    }
     addWatchlistSymbol(v);
     setAddValue('');
-    fetchPrices();
+    void fetchPrices();
   };
 
   const fmtPrice = (n?: number) =>
@@ -74,21 +88,79 @@ export const Watchlist: Component = () => {
           maximumFractionDigits: n < 1 ? 6 : 2,
         });
 
+  const sourceShort = () => {
+    const s = store.source || '';
+    if (s.includes('binance')) return 'BN';
+    if (s.includes('okx')) return 'OKX';
+    if (s.includes('bybit')) return 'BB';
+    if (s.includes('coinbase')) return 'CB';
+    if (s.includes('mock')) return 'MOCK';
+    if (s.includes('csv')) return 'CSV';
+    return s.slice(0, 6) || '—';
+  };
+
   return (
     <Show when={store.watchlist.open}>
       <aside
         class="flex flex-col flex-shrink-0 bg-bg-panel border-r-2 border-border min-h-0 overflow-hidden relative"
         style={{ width: `${store.watchlist.width}px` }}
       >
-        <div class="flex items-center justify-between px-2 py-1.5 border-b-2 border-border flex-shrink-0">
-          <span class="text-[10px] text-text-dim uppercase tracking-wider font-semibold">Watchlist</span>
-          <button
-            class="sc-btn sc-btn-ghost px-1.5 text-[11px] leading-none"
-            title="Collapse watchlist"
-            onClick={() => setWatchlistOpen(false)}
+        <div class="flex items-center justify-between gap-1 px-2 py-1.5 border-b-2 border-border flex-shrink-0">
+          <span class="text-[10px] text-text-dim uppercase tracking-wider font-semibold">
+            Watchlist
+          </span>
+          <div class="flex items-center gap-0.5">
+            <span
+              class="text-[9px] font-mono text-text-faint px-1"
+              title={`Quotes from ${store.source}`}
+            >
+              {sourceShort()}
+            </span>
+            <button
+              type="button"
+              class="sc-btn sc-btn-ghost px-1 text-[10px] leading-none"
+              title="Refresh quotes"
+              disabled={refreshing()}
+              onClick={() => void fetchPrices()}
+            >
+              {refreshing() ? '…' : '↻'}
+            </button>
+            <button
+              class="sc-btn sc-btn-ghost px-1.5 text-[11px] leading-none"
+              title="Collapse watchlist"
+              onClick={() => setWatchlistOpen(false)}
+            >
+              ‹
+            </button>
+          </div>
+        </div>
+
+        {/* Interval + quote refresh — compact controls */}
+        <div class="flex items-center gap-1 px-2 py-1 border-b border-border-soft flex-shrink-0">
+          <span class="text-[9px] text-text-faint uppercase tracking-wider shrink-0">TF</span>
+          <select
+            class="sc-input flex-1 text-[11px] py-0.5 min-w-0"
+            value={store.interval}
+            title="Chart interval · applies on symbol select"
+            onChange={(e) => void onInterval(e.currentTarget.value)}
           >
-            ‹
-          </button>
+            <For each={[...WATCHLIST_INTERVALS]}>
+              {(i) => <option value={i}>{i}</option>}
+            </For>
+          </select>
+          <span class="text-[9px] text-text-faint uppercase tracking-wider shrink-0" title="Quote poll">
+            ↻
+          </span>
+          <select
+            class="sc-input w-[52px] text-[11px] py-0.5 shrink-0"
+            value={String(store.watchlist.refreshSec || 15)}
+            title="Watchlist quote refresh interval"
+            onChange={(e) => setWatchlistRefreshSec(Number(e.currentTarget.value))}
+          >
+            <For each={[...WATCHLIST_REFRESH_OPTIONS]}>
+              {(o) => <option value={o.value}>{o.label}</option>}
+            </For>
+          </select>
         </div>
 
         <div class="flex-1 overflow-y-auto min-h-0">
@@ -104,11 +176,13 @@ export const Watchlist: Component = () => {
                       ? 'bg-accent/10 border-l-2 border-l-accent pl-[6px]'
                       : 'border-l-2 border-l-transparent hover:bg-bg-hover'
                   }`}
-                  onClick={() => select(sym)}
+                  onClick={() => void select(sym)}
                 >
                   <span class={`font-semibold truncate ${active() ? 'text-accent' : 'text-text'}`}>
-                    {sym.replace(/USDT$/, '')}
-                    <span class="text-text-faint font-normal text-[10px]">USDT</span>
+                    {sym.replace(/USDT$/i, '').replace(/USD$/i, '')}
+                    <span class="text-text-faint font-normal text-[10px]">
+                      {/USDT$/i.test(sym) ? 'USDT' : /USD$/i.test(sym) ? 'USD' : ''}
+                    </span>
                   </span>
                   <div class="flex items-center gap-1.5 flex-shrink-0">
                     <span class="font-mono text-[11px] text-text-dim">{fmtPrice(tick()?.price)}</span>
@@ -138,16 +212,20 @@ export const Watchlist: Component = () => {
           </For>
         </div>
 
-        <div class="border-t-2 border-border p-1.5 flex-shrink-0">
+        <div class="border-t-2 border-border p-1.5 flex-shrink-0 flex flex-col gap-1">
           <input
             class="sc-input w-full text-[11px]"
-            placeholder="Add symbol…"
+            placeholder="Add symbol… (BTC or BTCUSDT)"
             value={addValue()}
             onInput={(e) => setAddValue(e.currentTarget.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter') onAdd();
             }}
           />
+          <div class="text-[9px] text-text-faint font-mono truncate" title={store.source}>
+            {store.interval} · {store.source}
+            {store.watchlist.refreshSec ? ` · ${store.watchlist.refreshSec}s` : ''}
+          </div>
         </div>
 
         <ResizeHandle

@@ -6,6 +6,11 @@ import { listEngines } from '../engines/catalog';
 import { listStorages } from '../storage/catalog';
 import { CapabilityBadges, engineOptionLabel } from './plugin-badges';
 import { getEngine } from '../engines/catalog';
+import {
+  WATCHLIST_INTERVALS,
+  WATCHLIST_REFRESH_OPTIONS,
+} from '../data/watchlist-tickers';
+import { loadSymbolData } from '../data/load-symbol';
 
 interface Props {
   open: boolean;
@@ -16,6 +21,8 @@ export const SettingsDialog: Component<Props> = (props) => {
   const [endpoint, setEndpoint] = createSignal(store.endpoint);
   const [engine, setEngine] = createSignal(store.engine);
   const [storage, setStorage] = createSignal(store.activePlugins?.storage || 'local');
+  const [chartInterval, setChartInterval] = createSignal(store.interval);
+  const [refreshSec, setRefreshSec] = createSignal(store.watchlist.refreshSec || 15);
   const [probing, setProbing] = createSignal(false);
   const [probeMsg, setProbeMsg] = createSignal('');
 
@@ -34,19 +41,31 @@ export const SettingsDialog: Component<Props> = (props) => {
       setEndpoint(store.endpoint);
       setEngine(store.engine);
       setStorage(store.activePlugins?.storage || 'local');
+      setChartInterval(store.interval);
+      setRefreshSec(store.watchlist.refreshSec || 15);
       setProbeMsg('');
     }
   });
 
-  const save = () => {
+  const save = async () => {
+    const prevInterval = store.interval;
+    const nextInterval = chartInterval().trim() || prevInterval;
+    const nextRefresh = Math.min(120, Math.max(5, Math.round(Number(refreshSec()) || 15)));
+
     setStore('endpoint', endpoint().trim());
+    setStore('interval', nextInterval);
+    setStore('watchlist', 'refreshSec', nextRefresh);
     setActivePlugin('engine', engine());
     setActivePlugin('storage', storage());
     persist();
     setStatus(
       'ready',
-      `Settings saved · engine=${engine()} · storage=${storage()}`,
+      `Settings saved · ${nextInterval} · refresh ${nextRefresh}s · engine=${engine()}`,
     );
+    // Reload chart bars if default interval changed
+    if (nextInterval !== prevInterval && store.symbol) {
+      void loadSymbolData(store.symbol, nextInterval, store.source);
+    }
     props.onClose();
   };
 
@@ -194,6 +213,58 @@ export const SettingsDialog: Component<Props> = (props) => {
                 Where saved Pine scripts live (local browser, cloud Worker, or git). Configure
                 credentials under Manager → Script Library.
               </p>
+            </div>
+
+            <div class="border-t border-border-soft pt-3 flex flex-col gap-3">
+              <div class="text-[10px] text-text-dim uppercase tracking-wider font-semibold">
+                Chart &amp; watchlist
+              </div>
+
+              <div class="flex flex-col gap-1">
+                <label
+                  class="text-[10px] text-text-dim uppercase tracking-wider"
+                  for="axis-default-interval"
+                >
+                  Default interval
+                </label>
+                <select
+                  id="axis-default-interval"
+                  class="sc-input w-full"
+                  value={chartInterval()}
+                  onChange={(e) => setChartInterval(e.currentTarget.value)}
+                >
+                  <For each={[...WATCHLIST_INTERVALS]}>
+                    {(i) => <option value={i}>{i}</option>}
+                  </For>
+                </select>
+                <p class="text-[10px] text-text-faint mt-0.5">
+                  Used when loading symbols from the watchlist and top bar. Changing this reloads
+                  the active chart.
+                </p>
+              </div>
+
+              <div class="flex flex-col gap-1">
+                <label
+                  class="text-[10px] text-text-dim uppercase tracking-wider"
+                  for="axis-watchlist-refresh"
+                >
+                  Watchlist quote refresh
+                </label>
+                <select
+                  id="axis-watchlist-refresh"
+                  class="sc-input w-full"
+                  value={String(refreshSec())}
+                  onChange={(e) => setRefreshSec(Number(e.currentTarget.value))}
+                >
+                  <For each={[...WATCHLIST_REFRESH_OPTIONS]}>
+                    {(o) => <option value={o.value}>{o.label}</option>}
+                  </For>
+                </select>
+                <p class="text-[10px] text-text-faint mt-0.5">
+                  How often the watchlist polls live prices (source-aware: Binance / OKX / Bybit /
+                  Coinbase). Also adjustable from the watchlist panel.
+                </p>
+              </div>
             </div>
           </div>
 
