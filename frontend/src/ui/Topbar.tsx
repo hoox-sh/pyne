@@ -8,6 +8,7 @@ import {
   setEditorOpen,
   setEditorMode,
   setActivePlugin,
+  toggleIndicatorPanel,
 } from '../store';
 import { runAndApply } from '../indicators/runner';
 import { startLive, stopLive, listStreams, defaultStreamForSource } from '../streams/multiplex';
@@ -26,7 +27,6 @@ const INTERVALS = [...WATCHLIST_INTERVALS];
 export const Topbar: Component<{
   onToggleEditor: () => void;
   onToggleWatchlist: () => void;
-  onToggleIndicatorPanel: () => void;
   onOpenSettings: () => void;
   onOpenPlugins?: () => void;
   /** Bump when plugin catalog changes */
@@ -309,9 +309,13 @@ export const Topbar: Component<{
       </button>
 
       <button
-        class="sc-btn sc-btn-ghost px-2 inline-flex items-center gap-1"
-        onClick={props.onToggleIndicatorPanel}
-        title="Indicators"
+        type="button"
+        class={`sc-btn sc-btn-ghost px-2 inline-flex items-center gap-1 ${
+          store.indicatorPanel.open ? 'text-accent' : ''
+        }`}
+        onClick={() => toggleIndicatorPanel()}
+        title="Toggle indicator list"
+        aria-pressed={store.indicatorPanel.open}
       >
         <Icons.activity size={13} />
         Indicators

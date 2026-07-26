@@ -17,8 +17,6 @@ import { restoreInstalledPlugins } from './plugins/loader';
 registerBuiltins();
 import {
   store,
-  setStore,
-  persist,
   setEditorOpen,
   setEditorMode,
   setWatchlistOpen,
@@ -119,11 +117,6 @@ export const App: Component = () => {
           setEditorOpen(!store.editor.open);
         }}
         onToggleWatchlist={() => setWatchlistOpen(!store.watchlist.open)}
-        onToggleIndicatorPanel={() => {
-          const next = !store.indicatorPanel.open;
-          setStore('indicatorPanel', 'open', next);
-          persist();
-        }}
         onOpenSettings={() => setSettingsOpen(true)}
         onOpenPlugins={() => setPluginsOpen(true)}
         catalogTick={catalogTick()}
@@ -134,10 +127,9 @@ export const App: Component = () => {
         {/* Left: watchlist */}
         <Watchlist />
 
-        {/* Center: chart + indicators */}
+        {/* Center: chart */}
         <div class="flex-1 flex min-w-0 min-h-0 overflow-hidden bg-bg-base relative">
           <ChartHost />
-          <IndicatorPanel />
 
           {/* Popout placeholder when editor is external */}
           <Show when={store.editor.mode === 'popout'}>
@@ -158,6 +150,9 @@ export const App: Component = () => {
             </div>
           </Show>
         </div>
+
+        {/* Indicators list — sibling of chart/editor so it always gets full height */}
+        <IndicatorPanel />
 
         {/* Right: editor (docked) */}
         <EditorPane

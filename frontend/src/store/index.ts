@@ -356,6 +356,16 @@ export function setWatchlistOpen(open: boolean) {
   persist();
 }
 
+export function setIndicatorPanelOpen(open: boolean) {
+  setStore('indicatorPanel', 'open', open);
+  persist();
+}
+
+export function toggleIndicatorPanel() {
+  setStore('indicatorPanel', 'open', !store.indicatorPanel.open);
+  persist();
+}
+
 export function addWatchlistSymbol(symbol: string) {
   const sym = symbol.toUpperCase().trim();
   if (!sym || store.watchlist.symbols.includes(sym)) return;
