@@ -291,7 +291,7 @@ class VolatilityIndicators(TechnicalHelpers):
             msg = "DPO length must be >= 1"
             self._error(msg)
 
-        closes = self.current_series.get("close", [])
+        closes = (getattr(self, "current_series", None) or {}).get("close", [])
         if not closes or len(closes) < length:
             return None
 
@@ -317,7 +317,7 @@ class VolatilityIndicators(TechnicalHelpers):
         length = self._expect_int(args[0], "length must be integer")
         std_dev = float(args[1]) if isinstance(args[1], (int, float)) else 2.0
 
-        closes = self.current_series.get("close", [])
+        closes = (getattr(self, "current_series", None) or {}).get("close", [])
         if not closes or len(closes) < length:
             return None
 
@@ -442,7 +442,7 @@ class VolatilityIndicators(TechnicalHelpers):
         if atr_val is None or atr_val <= 0:
             return {"long_stop": None, "short_stop": None}
 
-        closes = self.current_series.get("close", [])
+        closes = (getattr(self, "current_series", None) or {}).get("close", [])
         if not closes:
             return {"long_stop": None, "short_stop": None}
 
@@ -461,7 +461,7 @@ class VolatilityIndicators(TechnicalHelpers):
         rsi_length = self._expect_int(args[0], "rsi_length must be integer")
         stoch_length = self._expect_int(args[1], "stoch_length must be integer")
 
-        closes = self.current_series.get("close", [])
+        closes = (getattr(self, "current_series", None) or {}).get("close", [])
         if not closes or len(closes) < rsi_length:
             return {"stochrsi": None, "signal": None}
 

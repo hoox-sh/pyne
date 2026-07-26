@@ -273,7 +273,7 @@ class OscillatorIndicators(TechnicalHelpers):
         rsi_length = self._expect_int(args[0], "rsi_length must be integer")
         stoch_length = self._expect_int(args[1], "stoch_length must be integer")
 
-        closes = self.current_series.get("close", [])
+        closes = (getattr(self, "current_series", None) or {}).get("close", [])
         if not closes or len(closes) < rsi_length:
             return {"stochrsi": None, "signal": None}
 
@@ -328,7 +328,7 @@ class OscillatorIndicators(TechnicalHelpers):
             msg = "DPO length must be >= 1"
             self._error(msg)
 
-        closes = self.current_series.get("close", [])
+        closes = (getattr(self, "current_series", None) or {}).get("close", [])
         if not closes or len(closes) < length:
             return None
 
@@ -356,7 +356,7 @@ class OscillatorIndicators(TechnicalHelpers):
         length3 = self._expect_int(args[2], "length3 must be integer")
         length4 = self._expect_int(args[3], "length4 must be integer")
 
-        closes = self.current_series.get("close", [])
+        closes = (getattr(self, "current_series", None) or {}).get("close", [])
         if not closes:
             return None
 
@@ -388,9 +388,9 @@ class OscillatorIndicators(TechnicalHelpers):
         length2 = self._expect_int(args[1], "length2 must be integer")
         length3 = self._expect_int(args[2], "length3 must be integer")
 
-        closes = self.current_series.get("close", [])
-        highs = self.current_series.get("high", [])
-        lows = self.current_series.get("low", [])
+        closes = (getattr(self, "current_series", None) or {}).get("close", [])
+        highs = (getattr(self, "current_series", None) or {}).get("high", [])
+        lows = (getattr(self, "current_series", None) or {}).get("low", [])
 
         if not closes or not highs or not lows or len(closes) < length3:
             return None

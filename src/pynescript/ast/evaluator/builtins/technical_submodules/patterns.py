@@ -107,8 +107,8 @@ class PatternIndicators(TechnicalHelpers):
             msg = "Fractal period must be >= 1"
             self._error(msg)
 
-        highs = self.current_series.get("high", [])
-        lows = self.current_series.get("low", [])
+        highs = (getattr(self, "current_series", None) or {}).get("high", [])
+        lows = (getattr(self, "current_series", None) or {}).get("low", [])
 
         if not highs or not lows or len(highs) < period * 2 + 1:
             return {"is_high_fractal": False, "is_low_fractal": False}
@@ -197,31 +197,52 @@ class PatternIndicators(TechnicalHelpers):
         """Calculate Parabolic SAR with trend information."""
         if not highs or not lows:
             return [], 0
-        sar_values = [lows[0]]
+        # Skip leading na (empty series / warm-up)
+        start_i = 0
+        n = min(len(highs), len(lows))
+        while start_i < n and (highs[start_i] is None or lows[start_i] is None):
+            start_i += 1
+        if start_i >= n:
+            return [None] * n, 0
+        sar_values: list[float | None] = [None] * start_i
+        try:
+            sar0 = float(lows[start_i])
+            ep = float(highs[start_i])
+        except (TypeError, ValueError):
+            return [None] * n, 0
+        sar_values.append(sar0)
         trend = 1
         af = start
-        ep = highs[0]
-        for idx in range(1, len(highs)):
+        for idx in range(start_i + 1, n):
             previous = sar_values[-1]
+            hi, lo = highs[idx], lows[idx]
+            if previous is None or hi is None or lo is None or ep is None:
+                sar_values.append(previous)
+                continue
+            try:
+                hi_f, lo_f = float(hi), float(lo)
+            except (TypeError, ValueError):
+                sar_values.append(previous)
+                continue
             if trend == 1:
                 sar = previous + af * (ep - previous)
-                if highs[idx] > ep:
-                    ep = highs[idx]
+                if hi_f > ep:
+                    ep = hi_f
                     af = min(af + increment, maximum)
-                if sar > lows[idx]:
+                if sar > lo_f:
                     trend = -1
                     sar = ep
-                    ep = lows[idx]
+                    ep = lo_f
                     af = start
             else:
                 sar = previous - af * (previous - ep)
-                if lows[idx] < ep:
-                    ep = lows[idx]
+                if lo_f < ep:
+                    ep = lo_f
                     af = min(af + increment, maximum)
-                if sar < highs[idx]:
+                if sar < hi_f:
                     trend = 1
                     sar = ep
-                    ep = highs[idx]
+                    ep = hi_f
                     af = start
             sar_values.append(sar)
         return sar_values, trend

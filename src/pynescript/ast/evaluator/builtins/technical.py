@@ -37,7 +37,7 @@ class TechnicalAnalysisMixin(
     """Technical analysis built-ins and supporting utilities."""
 
     def _technical_builtin_map(self) -> dict[str, BuiltinHandler]:
-        return {
+        m: dict[str, BuiltinHandler] = {
             "ta.sma": self._builtin_ta_sma,
             "ta.ema": self._builtin_ta_ema,
             "ta.rsi": self._builtin_ta_rsi,
@@ -99,9 +99,6 @@ class TechnicalAnalysisMixin(
             "ta.barssince": self._builtin_ta_barssince,
             "ta.pivothigh": self._builtin_ta_pivothigh,
             "ta.pivotlow": self._builtin_ta_pivotlow,
-            # v4 bare names (pre-ta. namespace)
-            "pivothigh": self._builtin_ta_pivothigh,
-            "pivotlow": self._builtin_ta_pivotlow,
             "ta.pivot_point_levels": self._builtin_ta_pivot_point_levels,
             # Phase 7 enhancements: Missing indicators
             "ta.iii": self._builtin_ta_iii,
@@ -210,3 +207,15 @@ class TechnicalAnalysisMixin(
             # Phase 8 Tier 8: Final Capstone Indicator
             "ta.intelligent_strategy_synthesizer": (self._builtin_ta_intelligent_strategy_synthesizer),
         }
+        # Pine v3/v4 used bare names (sma, ema, rsi, …) before the ta. namespace.
+        # Mirror every ta.* entry as a bare alias unless already registered.
+        # Skip names that are also built-in series (tr) or clash with math (max/min).
+        skip_bare = {"max", "min", "tr", "range"}
+        for key, handler in list(m.items()):
+            if not key.startswith("ta."):
+                continue
+            bare = key[3:]
+            if bare in skip_bare or bare in m:
+                continue
+            m[bare] = handler
+        return m

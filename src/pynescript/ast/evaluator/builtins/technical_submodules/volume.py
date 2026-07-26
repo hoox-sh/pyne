@@ -197,8 +197,8 @@ class VolumeIndicators(TechnicalHelpers):
             self._error(msg)
 
         series = args[0] if isinstance(args[0], list) else [args[0]]
-        closes = self.current_series.get("close", [])
-        volumes = self.current_series.get("volume", [])
+        closes = (getattr(self, "current_series", None) or {}).get("close", [])
+        volumes = (getattr(self, "current_series", None) or {}).get("volume", [])
 
         if not closes or not volumes or len(series) < BINARY:
             return None
@@ -222,9 +222,9 @@ class VolumeIndicators(TechnicalHelpers):
             msg = "EMV length must be >= 1"
             self._error(msg)
 
-        highs = self.current_series.get("high", [])
-        lows = self.current_series.get("low", [])
-        volumes = self.current_series.get("volume", [])
+        highs = (getattr(self, "current_series", None) or {}).get("high", [])
+        lows = (getattr(self, "current_series", None) or {}).get("low", [])
+        volumes = (getattr(self, "current_series", None) or {}).get("volume", [])
 
         if not highs or not lows or not volumes or len(highs) < length:
             return None

@@ -78,8 +78,9 @@ class TechnicalHelpers:
                 raw = raw[-self._SERIES_MAX :]
             return raw
         # Named series reference — look up from the pre-loaded dict
-        if isinstance(value, str) and value in self.current_series:
-            return self.current_series[value]
+        series_map = getattr(self, "current_series", None) or {}
+        if isinstance(value, str) and value in series_map:
+            return list(series_map[value])
         # Unknown — wrap as single-element
         return [value]
 

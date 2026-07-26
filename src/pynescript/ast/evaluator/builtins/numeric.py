@@ -37,8 +37,28 @@ class NumericBuiltinsMixin(BuiltinDispatchMixin):
     """Numeric, math, and misc built-in functions."""
 
     def _numeric_builtin_map(self) -> dict[str, BuiltinHandler]:
+        # Bare names (pow, max, …) are Pine v3/v4 global math; math.* is v5+.
         return {
             "abs": self._builtin_abs,
+            "pow": self._builtin_math_pow,
+            "max": self._builtin_math_max,
+            "min": self._builtin_math_min,
+            "sqrt": self._builtin_math_sqrt,
+            "round": self._builtin_math_round,
+            "floor": self._builtin_math_floor,
+            "ceil": self._builtin_math_ceil,
+            "log": self._builtin_math_log,
+            "log10": self._builtin_math_log10,
+            "exp": self._builtin_math_exp,
+            "sign": self._builtin_math_sign,
+            "sin": self._builtin_math_sin,
+            "cos": self._builtin_math_cos,
+            "tan": self._builtin_math_tan,
+            "acos": self._builtin_math_acos,
+            "asin": self._builtin_math_asin,
+            "atan": self._builtin_math_atan,
+            "sum": self._builtin_math_sum,
+            "avg": self._builtin_math_avg,
             "math.max": self._builtin_math_max,
             "math.min": self._builtin_math_min,
             "math.abs": self._builtin_math_abs,
@@ -65,6 +85,8 @@ class NumericBuiltinsMixin(BuiltinDispatchMixin):
             "color.new": self._builtin_color_new,
             "na": self._builtin_na,
             "nz": self._builtin_nz,
+            # Pine v4 ternary helper: iff(cond, then, else)
+            "iff": self._builtin_iff,
             "bool": self._builtin_bool,
             "int": self._builtin_int,
             "float": self._builtin_float,
@@ -323,6 +345,15 @@ class NumericBuiltinsMixin(BuiltinDispatchMixin):
         value = args[0]
         default = args[1] if len(args) > 1 else 0
         return default if value is None else value
+
+    def _builtin_iff(self, args: list[Any]) -> Any:
+        """Pine v4 ``iff(condition, if_true, if_false)`` — ternary expression."""
+        if len(args) < 3:
+            self._error("iff() takes condition, then, else")
+        cond, then_v, else_v = args[0], args[1], args[2]
+        if cond is None:
+            return None
+        return then_v if cond else else_v
 
     def _builtin_bool(self, args: list[Any]) -> bool:
         """Convert value to boolean. v6: strict, never na; explicit cast required."""

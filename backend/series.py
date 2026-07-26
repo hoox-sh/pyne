@@ -36,8 +36,11 @@ class PineSeries:
     __hash__ = None  # type: ignore
 
     def __init__(self, initial_value: Any = None, history_length: int = 1000):
-        self.history = deque([initial_value], maxlen=history_length)
+        # Start empty so TA history is not polluted by a leading None placeholder
+        self.history: deque = deque(maxlen=history_length)
         self.current = initial_value
+        if initial_value is not None:
+            self.history.appendleft(initial_value)
 
     def update(self, new_value: Any):
         """Push a new value for the current bar."""

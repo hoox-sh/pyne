@@ -229,6 +229,11 @@ class Runtime:
         high_series = PineSeries()
         low_series = PineSeries()
         close_series = PineSeries()
+        volume_series = PineSeries()
+        hl2_series = PineSeries()
+        hlc3_series = PineSeries()
+        ohlc4_series = PineSeries()
+        tr_series = PineSeries()  # true range (built-in series in Pine)
 
         # Context initialization (daily chart defaults)
         tf = Timeframe()
@@ -238,6 +243,11 @@ class Runtime:
             "high": high_series,
             "low": low_series,
             "close": close_series,
+            "volume": volume_series,
+            "hl2": hl2_series,
+            "hlc3": hlc3_series,
+            "ohlc4": ohlc4_series,
+            "tr": tr_series,
             # Symbol info namespace (November 2025: syminfo.isin, July 2025: syminfo.current_contract)
             "syminfo": self._syminfo,
             "timeframe": tf,
@@ -282,10 +292,38 @@ class Runtime:
         n_bars = len(ohlcv_data)
         for bar_index, bar in enumerate(ohlcv_data):
             # Update series state
-            open_series.update(bar.get("open"))
-            high_series.update(bar.get("high"))
-            low_series.update(bar.get("low"))
-            close_series.update(bar.get("close"))
+            o = bar.get("open")
+            h = bar.get("high")
+            l = bar.get("low")
+            c = bar.get("close")
+            v = bar.get("volume", 0.0)
+            open_series.update(o)
+            high_series.update(h)
+            low_series.update(l)
+            close_series.update(c)
+            volume_series.update(v)
+            try:
+                hl2_series.update((float(h) + float(l)) / 2.0)
+                hlc3_series.update((float(h) + float(l) + float(c)) / 3.0)
+                ohlc4_series.update((float(o) + float(h) + float(l) + float(c)) / 4.0)
+            except (TypeError, ValueError):
+                hl2_series.update(None)
+                hlc3_series.update(None)
+                ohlc4_series.update(None)
+            # True range: max(h-l, |h-prev_c|, |l-prev_c|)
+            try:
+                if bar_index == 0 or close_series[1] is None:
+                    tr_val = float(h) - float(l) if h is not None and l is not None else None
+                else:
+                    prev_c = float(close_series[1])
+                    tr_val = max(
+                        float(h) - float(l),
+                        abs(float(h) - prev_c),
+                        abs(float(l) - prev_c),
+                    )
+            except (TypeError, ValueError):
+                tr_val = None
+            tr_series.update(tr_val)
 
             # Update per-bar counters and time components
             bar_time = bar.get("time", 0) or 0
@@ -321,6 +359,25 @@ class Runtime:
                 self._bid = bar["bid"]
             if "ask" in bar:
                 self._ask = bar["ask"]
+            # Keep ta helpers' current_series in sync (high/low/close history)
+            def _hist(series_obj):
+                try:
+                    return list(reversed(series_obj.history))
+                except Exception:
+                    return []
+
+            evaluator.current_series = {
+                "open": _hist(open_series),
+                "high": _hist(high_series),
+                "low": _hist(low_series),
+                "close": _hist(close_series),
+                "volume": _hist(volume_series),
+                "hl2": _hist(hl2_series),
+                "hlc3": _hist(hlc3_series),
+                "ohlc4": _hist(ohlc4_series),
+                "tr": _hist(tr_series),
+            }
+
             # Reset plot capture and event buffer for this bar
             evaluator.reset_plots()
             evaluator.reset_events()
