@@ -28,9 +28,13 @@ export const DrawingToolbar: Component = () => {
     getActiveDrawingLayer()?.setTool(id);
   };
 
+  const iconPx = 20;
+  const btnClass =
+    'sc-btn sc-btn-ghost w-10 h-10 min-w-10 min-h-10 p-0 flex items-center justify-center';
+
   return (
     <div
-      class="absolute left-2 top-10 z-20 flex flex-col gap-0.5 p-0.5 bg-bg-panel/95 border-2 border-border shadow-lg"
+      class="absolute left-2 top-10 z-20 flex flex-col gap-1 p-1 bg-bg-panel/95 border-2 border-border shadow-lg"
       role="toolbar"
       aria-label="Drawing tools"
     >
@@ -40,7 +44,7 @@ export const DrawingToolbar: Component = () => {
           return (
             <button
               type="button"
-              class={`sc-btn sc-btn-ghost w-8 h-8 p-0 flex items-center justify-center ${
+              class={`${btnClass} ${
                 active() === t.id ? 'bg-accent/15 text-accent border-accent' : 'text-text-dim'
               }`}
               title={toolLabel(t.id)}
@@ -48,7 +52,7 @@ export const DrawingToolbar: Component = () => {
               aria-pressed={active() === t.id}
               onClick={() => select(t.id)}
             >
-              <I size={15} />
+              <I size={iconPx} strokeWidth={2.25} />
             </button>
           );
         }}
@@ -58,18 +62,18 @@ export const DrawingToolbar: Component = () => {
 
       <button
         type="button"
-        class="sc-btn sc-btn-ghost w-8 h-8 p-0 flex items-center justify-center text-text-dim"
+        class={`${btnClass} text-text-dim`}
         title="Delete selected (Del)"
         aria-label="Delete selected drawing"
         onClick={() => {
           getActiveDrawingLayer()?.deleteSelected();
         }}
       >
-        <Icons.trash size={14} />
+        <Icons.trash size={iconPx} strokeWidth={2.25} />
       </button>
       <button
         type="button"
-        class="sc-btn sc-btn-ghost w-8 h-8 p-0 flex items-center justify-center text-text-dim"
+        class={`${btnClass} text-text-dim`}
         title="Clear all drawings"
         aria-label="Clear all drawings"
         onClick={() => {
@@ -78,12 +82,12 @@ export const DrawingToolbar: Component = () => {
           clearDrawings();
         }}
       >
-        <Icons.eraser size={14} />
+        <Icons.eraser size={iconPx} strokeWidth={2.25} />
       </button>
 
       <Show when={store.drawings.length > 0}>
         <span
-          class="text-[9px] font-mono text-text-faint text-center py-0.5 tabular-nums"
+          class="text-[10px] font-mono text-text-faint text-center py-0.5 tabular-nums"
           title="Drawing count"
         >
           {store.drawings.length}
