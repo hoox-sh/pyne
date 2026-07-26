@@ -21,18 +21,20 @@ _ATTR_CALL_MISS = object()
 # Optimize: Pre-cache operator references at module level
 # These imports reduce attribute lookup overhead for frequent operations
 def _as_scalar_operand(value):
-    """Coerce PineSeries-like objects to their current scalar for arithmetic."""
+    """Coerce PineSeries-like objects to their current scalar for arithmetic.
+
+    Always unwrap series wrappers — including when ``current`` is ``None`` (na) —
+    so comparisons do not attempt ``None < None`` via object fallbacks.
+    """
     if value is None:
         return None
-    current = getattr(value, "current", None)
-    if current is not None and not isinstance(value, (list, tuple, str, bytes)):
-        # PineSeries / wrapper with a live current value
-        if not hasattr(value, "history") or getattr(value, "current", None) is not None:
-            # Prefer current when present; fall through for plain containers
-            if type(value).__name__ in {"PineSeries", "_SeriesResult"} or (
-                hasattr(value, "history") and hasattr(value, "current")
-            ):
-                return value.current
+    if isinstance(value, (list, tuple, str, bytes, dict, bool, int, float)):
+        return value
+    # PineSeries / _SeriesResult / similar wrappers
+    if type(value).__name__ in {"PineSeries", "_SeriesResult"} or (
+        hasattr(value, "history") and hasattr(value, "current")
+    ):
+        return value.current
     return value
 
 
@@ -255,7 +257,16 @@ class ExpressionEvaluator:
             op = self.visit(op_node)
             right = self.visit(comparator_node)
 
-            if not op(left, right):
+            result = op(left, right)
+            # Pine: comparison with na yields na (None). Treat as failed for
+            # chained bool context so `if a < b` is false when either side is na.
+            if result is None:
+                return False
+            if isinstance(result, list):
+                # Element-wise series compare — truthy only if any True (rare path)
+                if not any(result):
+                    return False
+            elif not result:
                 return False
 
             # The right operand becomes the left operand for the next comparison

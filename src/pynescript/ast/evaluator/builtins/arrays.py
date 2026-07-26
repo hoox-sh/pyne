@@ -501,6 +501,33 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
             self._error("array.some takes array and predicate")
         return any(predicate(item) for item in sequence)
 
+    def _is_descending_order(self, order_arg: Any) -> bool:
+        """Interpret Pine ``order.ascending`` / ``order.descending`` (or bool/str)."""
+        if order_arg is None:
+            return False
+        if isinstance(order_arg, bool):
+            return order_arg
+        if isinstance(order_arg, (int, float)) and not isinstance(order_arg, bool):
+            # TV: order.ascending = 1, order.descending = -1 (historically)
+            return float(order_arg) < 0
+        name = getattr(order_arg, "name", None) or getattr(order_arg, "id", None)
+        text = str(name if name is not None else order_arg).lower()
+        return "desc" in text
+
+    def _sort_with_na_last(self, sequence: list[Any], *, reverse: bool = False) -> list[Any]:
+        """Sort like TradingView: comparable values first, ``na`` always at the end.
+
+        Avoids ``TypeError: '<' not supported between instances of 'NoneType' and ...``.
+        """
+        non_na = [x for x in sequence if x is not None]
+        na_count = len(sequence) - len(non_na)
+        try:
+            non_na.sort(reverse=reverse)
+        except TypeError:
+            # Mixed non-numeric types — fall back to string key
+            non_na.sort(key=lambda x: (str(type(x)), str(x)), reverse=reverse)
+        return non_na + [None] * na_count
+
     def _builtin_array_sort(self, args: list[Any]) -> list[Any]:
         if len(args) < UNARY:
             self._error("array.sort takes an array argument")
@@ -508,8 +535,9 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
             args[0],
             "array.sort takes an array argument",
         )
-        # Optional order arg ignored for ascending default; sort in place
-        sequence.sort()
+        reverse = self._is_descending_order(args[1]) if len(args) > 1 else False
+        # In-place, TV semantics: na always last
+        sequence[:] = self._sort_with_na_last(sequence, reverse=reverse)
         return sequence
 
     def _builtin_array_sum(self, args: list[Any]) -> Any:
@@ -600,11 +628,19 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
         )
         value = args[1]
 
+        # Binary search assumes a sorted array without na (TV). Soft-fail na.
+        if value is None or any(x is None for x in sequence):
+            try:
+                return sequence.index(value)
+            except ValueError:
+                return -1
+
         # Find leftmost position where value could be inserted
         left, right = 0, len(sequence)
         while left < right:
             mid = (left + right) // 2
-            if sequence[mid] < value:
+            mid_v = sequence[mid]
+            if mid_v is not None and mid_v < value:
                 left = mid + 1
             else:
                 right = mid
@@ -624,11 +660,19 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
         )
         value = args[1]
 
+        if value is None or any(x is None for x in sequence):
+            try:
+                # last occurrence
+                return len(sequence) - 1 - sequence[::-1].index(value)
+            except ValueError:
+                return -1
+
         # Find rightmost position where value could be inserted
         left, right = 0, len(sequence)
         while left < right:
             mid = (left + right) // 2
-            if value < sequence[mid]:
+            mid_v = sequence[mid]
+            if mid_v is None or value < mid_v:
                 right = mid
             else:
                 left = mid + 1
@@ -653,7 +697,10 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
         if not sequence:
             self._error("array.percentile_linear_interpolation requires non-empty array")
 
-        sorted_seq = sorted(sequence)
+        # Skip na — sorting None raises TypeError
+        sorted_seq = self._sort_with_na_last([x for x in sequence if x is not None])
+        if not sorted_seq:
+            return None
         n = len(sorted_seq)
         h = (percentile / MAX_PERCENTILE) * (n - 1)
         h_floor = int(h)
@@ -682,7 +729,9 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
         if not sequence:
             self._error("array.percentile_nearest_rank requires non-empty array")
 
-        sorted_seq = sorted(sequence)
+        sorted_seq = self._sort_with_na_last([x for x in sequence if x is not None])
+        if not sorted_seq:
+            return None
         n = len(sorted_seq)
         rank = max(1, int((percentile / MAX_PERCENTILE) * n + 0.5))
         return sorted_seq[rank - 1]
@@ -699,11 +748,19 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
 
         if not sequence:
             self._error("array.percentrank requires non-empty array")
+        if value is None:
+            return None
 
-        # Count how many values are <= the given value
-        count = sum(1 for x in sequence if x <= value)
+        # Count how many non-na values are <= the given value
+        nums = [x for x in sequence if x is not None]
+        if not nums:
+            return None
+        try:
+            count = sum(1 for x in nums if x <= value)
+        except TypeError:
+            return None
         # Percent rank is (count - 1) / (n - 1) * 100
-        n = len(sequence)
+        n = len(nums)
         if n == 1:
             return 0.0
         return ((count - 1) / (n - 1)) * 100
@@ -773,18 +830,23 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
         return statistics.variance(nums)
 
     def _builtin_array_sort_indices(self, args: list[Any]) -> list[int]:
-        """Return indices that would sort the array."""
-        if len(args) != UNARY:
+        """Return indices that would sort the array (``na`` indices last)."""
+        if len(args) < UNARY:
             self._error("array.sort_indices takes an array argument")
         sequence = self._expect_list(
             args[0],
             "array.sort_indices takes an array argument",
         )
+        reverse = self._is_descending_order(args[1]) if len(args) > 1 else False
 
         if not sequence:
             return []
 
-        # Create list of (value, original_index) tuples, sort by value
-        indexed = [(val, idx) for idx, val in enumerate(sequence)]
-        sorted_indexed = sorted(indexed, key=lambda x: x[0])
-        return [idx for _, idx in sorted_indexed]
+        # Stable partition: comparable values first (sorted), na indices last
+        non_na = [(val, idx) for idx, val in enumerate(sequence) if val is not None]
+        na_idx = [idx for idx, val in enumerate(sequence) if val is None]
+        try:
+            non_na.sort(key=lambda x: x[0], reverse=reverse)
+        except TypeError:
+            non_na.sort(key=lambda x: (str(type(x[0])), str(x[0])), reverse=reverse)
+        return [idx for _, idx in non_na] + na_idx
