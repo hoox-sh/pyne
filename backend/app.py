@@ -171,7 +171,11 @@ def run_pine_script():
         {
             "status": "success",
             "plots": result.get("plots", []),
+            # Multi-plot series (named) + colors — AXIS chart needs these
+            "series": result.get("series", {}),
+            "plot_meta": result.get("plot_meta", {}),
             "events": result.get("events", []),
+            "drawings": result.get("drawings", []),
             "script_id": result.get("script_id", ""),
             "run_id": result.get("run_id", ""),
             "count": result.get("count", 0),
@@ -319,7 +323,10 @@ def run_pine_script_batch():
                 "id": sid,
                 "status": "success",
                 "plots": result.get("plots", []),
+                "series": result.get("series", {}),
+                "plot_meta": result.get("plot_meta", {}),
                 "events": result.get("events", []),
+                "drawings": result.get("drawings", []),
                 "script_id": result.get("script_id", ""),
                 "run_id": result.get("run_id", ""),
                 "count": result.get("count", 0),

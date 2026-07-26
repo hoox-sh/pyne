@@ -123,11 +123,12 @@ export async function runAndApply(
 
   const toLineData = (arr: (number | null)[]) =>
     arr
-      .map((v, i) =>
-        v != null && typeof v === 'number' && !isNaN(v) && ohlcvTimes[i]
-          ? { time: ohlcvTimes[i] as number, value: v }
-          : null,
-      )
+      .map((v, i) => {
+        const t = ohlcvTimes[i];
+        if (v == null || typeof v !== 'number' || isNaN(v)) return null;
+        if (t == null || !Number.isFinite(t)) return null;
+        return { time: t as number, value: v };
+      })
       .filter(Boolean) as { time: number; value: number }[];
 
   // Prefer multi-series from API; fall back to single plots[] list

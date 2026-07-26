@@ -64,20 +64,38 @@ export function buildStrategyReport(
 
   for (const ev of sorted) {
     const t = ev.time;
-    const p = ev.price;
-    if (t === undefined || p === undefined) continue;
+    let p = ev.price;
+    // Allow pairing even if price missing (use 0) — better to show a trade than drop it
+    if (t === undefined || t === null || !Number.isFinite(Number(t))) continue;
+    if (p === undefined || p === null || !Number.isFinite(Number(p))) {
+      // last resort: skip only if we truly have no price at all
+      continue;
+    }
     const kind = String(ev.type || ev.event || ev.kind || '').toLowerCase();
     const id = String(ev.id || '_default');
-    if (kind.includes('entry')) {
-      const dir = String(ev.dir || ev.direction || kind).toLowerCase();
+    if (kind.includes('entry') || kind === 'long' || kind === 'short') {
+      const dir = String(ev.dir || ev.direction || (kind === 'short' ? 'short' : 'long')).toLowerCase();
       open.set(id, { entry: Number(p), time: Number(t), dir });
-    } else if (kind.includes('close') || kind.includes('exit')) {
-      const o = open.get(id);
+    } else if (
+      kind.includes('close') ||
+      kind.includes('exit') ||
+      kind === 'closelong' ||
+      kind === 'closeshort'
+    ) {
+      // Prefer matching id; fall back to sole open trade if only one
+      let o = open.get(id);
+      if (!o && open.size === 1) {
+        const only = open.keys().next().value as string;
+        o = open.get(only);
+        if (o) open.delete(only);
+      } else if (o) {
+        open.delete(id);
+      }
       if (o) {
         const pnl = (Number(p) - o.entry) * (o.dir.includes('short') ? -1 : 1);
         const pnlPct = o.entry !== 0 ? pnl / o.entry : 0;
         trades.push({
-          id,
+          id: id || '_default',
           dir: o.dir,
           entryTime: o.time,
           entry: o.entry,
@@ -86,7 +104,6 @@ export function buildStrategyReport(
           pnl,
           pnlPct,
         });
-        open.delete(id);
       }
     }
   }

@@ -15,6 +15,17 @@ export interface NormalizeOptions {
   includeOrders?: boolean;
 }
 
+/** Align event times with chart bar units (sec vs ms). */
+export function alignTimeToBars(t: number, bars?: Bar[]): number {
+  if (!bars?.length || !Number.isFinite(t)) return t;
+  const sample = bars[0]!.time;
+  // Chart bars in ms, event in seconds
+  if (sample > 1e12 && t < 1e12) return Math.floor(t * 1000);
+  // Chart bars in seconds, event in ms
+  if (sample < 1e12 && t > 1e12) return Math.floor(t / 1000);
+  return t;
+}
+
 function barCloseAt(
   bars: Bar[] | undefined,
   barTime: number | undefined,
@@ -22,13 +33,30 @@ function barCloseAt(
 ): number | undefined {
   if (!bars?.length) return undefined;
   if (barTime != null && Number.isFinite(barTime)) {
-    const byTime = bars.find((b) => b.time === barTime);
+    const aligned = alignTimeToBars(barTime, bars);
+    const byTime = bars.find((b) => b.time === aligned);
     if (byTime) return byTime.close;
+    // nearest bar (1 day tolerance in same units)
+    let best: Bar | undefined;
+    let bestD = Infinity;
+    for (const b of bars) {
+      const d = Math.abs(b.time - aligned);
+      if (d < bestD) {
+        bestD = d;
+        best = b;
+      }
+    }
+    if (best && bestD < Math.abs(sampleSpan(bars)) * 2) return best.close;
   }
   if (barIndex != null && Number.isFinite(barIndex) && barIndex >= 0 && barIndex < bars.length) {
     return bars[barIndex]!.close;
   }
   return undefined;
+}
+
+function sampleSpan(bars: Bar[]): number {
+  if (bars.length < 2) return bars[0]!.time > 1e12 ? 86_400_000 : 86_400;
+  return Math.abs(bars[1]!.time - bars[0]!.time) || 1;
 }
 
 function resolvePrice(raw: Record<string, unknown>, bars?: Bar[]): number | undefined {
@@ -64,12 +92,13 @@ export function normalizeStrategyEvent(
 ): StrategyEvent {
   const r = raw as Record<string, unknown>;
   const kind = String(r.kind ?? r.type ?? r.event ?? '').toLowerCase();
-  const time =
+  let time: number | undefined =
     typeof r.time === 'number' && Number.isFinite(r.time)
       ? r.time
       : typeof r.bar_time === 'number' && Number.isFinite(r.bar_time)
         ? r.bar_time
         : undefined;
+  if (time != null) time = alignTimeToBars(time, opts.bars);
   const dir = String(r.dir ?? r.direction ?? '').toLowerCase() || undefined;
   const price = resolvePrice(r, opts.bars);
 
@@ -81,7 +110,7 @@ export function normalizeStrategyEvent(
     dir,
     direction: dir,
     time,
-    bar_time: typeof r.bar_time === 'number' ? r.bar_time : time,
+    bar_time: typeof r.bar_time === 'number' ? alignTimeToBars(r.bar_time, opts.bars) : time,
     bar_index: typeof r.bar_index === 'number' ? r.bar_index : undefined,
     price,
     id: r.id != null ? String(r.id) : undefined,
