@@ -1,5 +1,5 @@
 import { store, setStore, addIndicator, addPane, setStatus, setLastRun, appendLog } from '../store';
-import { getManager } from '../chart/ChartHost';
+import { getManager } from '../chart/manager-access';
 import { PLOT_PALETTE } from '../chart/series-factory';
 import { normalizeStrategyEvents, eventsToMarkers, buildEquityCurve } from '../results/events';
 import { buildStrategyReport } from '../results/strategy';

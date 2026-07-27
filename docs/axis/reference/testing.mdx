@@ -1,0 +1,133 @@
+---
+title: "Testing reference"
+description: "AXIS unit, worker, security, coverage gate, and Playwright e2e conventions with paths and commands."
+---
+
+# Testing reference
+
+## Abstract
+
+AXIS tests are **Bun-first** under `frontend/`, with Playwright for browser smoke and a scoped coverage ratchet. Canonical human guide: `frontend/TESTING.md`. This page is the reference map for agents and contributors.
+
+## Conceptual model
+
+```mermaid
+flowchart TB
+  U[Unit Bun] --> CORE[plugins storage store catalogs]
+  W[Worker Bun] --> API[auth keys scripts runtime]
+  S[Security] --> THREAT[URL schemes partitions If-Match]
+  E[Playwright] --> SMOKE[@smoke PR]
+  E --> FULL[nightly all]
+  C[Coverage gate] --> SCOPED[95% scoped lines]
+```
+
+## Commands
+
+```bash
+cd frontend
+
+bun run test                 # unit + worker tests
+bun run test:unit            # frontend/tests only
+bun run test:coverage        # lcov + text → coverage/
+bun run test:coverage:gate   # coverage + 95% scoped gate
+bun run test:security        # tests/security/
+bun run test:e2e:smoke       # Playwright @smoke
+bun run test:e2e:critical    # @smoke|@critical
+bun run test:e2e             # all
+bun run test:all             # gate + security
+```
+
+Root:
+
+```bash
+bun run test:frontend
+bun run test:frontend:coverage
+make test-frontend
+```
+
+## Layout
+
+```
+frontend/tests/
+  setup.ts
+  fixtures/
+  helpers/
+  *.test.ts
+  integration/
+  security/
+frontend/scripts/check-coverage.mjs
+frontend/e2e/
+  smoke.spec.ts
+frontend/playwright.config.ts
+frontend/worker/tests/
+  auth.test.ts
+  keys-*.test.ts
+  scripts*.test.ts
+  …
+```
+
+## Coverage policy
+
+| Item | Policy |
+| --- | --- |
+| Gate | **95%** lines on scoped core |
+| Ratchet history | 70 → 80 → 83 → 87 → 90 → **95** |
+| Include | plugins, storage (minus idb), store, results, sources, streams, data, chart pure helpers + series-factory/manager-access, worker auth/keys/runtime/scripts |
+| Exclude from gate | `drawing-layer.ts`, pane-manager (unit elsewhere), runner chart apply, pyodide boot, legacy JS, Solid UI `.tsx` |
+| Full report | `bun test --coverage` unscoped |
+
+## Conventions
+
+1. `import './setup'` first when tests touch store/plugins/storage.
+2. **No real network** — mock `fetch` / `WebSocket`.
+3. Table-driven tests for catalog built-ins.
+4. Plugin fixtures in `tests/fixtures/plugins/`.
+5. Prefer calling handlers with fake params over full browser for unit scope.
+
+## Playwright
+
+Config (`playwright.config.ts`):
+
+- `testDir: ./e2e`
+- Chromium project
+- `webServer`: `bun run build && bun run preview -- --host 127.0.0.1 --port 4173`
+- `baseURL`: `http://127.0.0.1:4173` (override `AXIS_E2E_BASE`)
+- Timeout 60s; CI retries 1
+
+Smoke mocks `/run` and Binance. Use `data-testid` attributes (`axis-btn-load`, `axis-manager`, …).
+
+## Security suite
+
+`bun run test:security` covers:
+
+- Plugin URL scheme rejection
+- Storage-via-URL rejection
+- Poisoned localStorage
+- Worker partition isolation
+- If-Match 409
+- Admin keys
+
+## Adding a unit test
+
+1. Create `frontend/tests/<area>.test.ts`.
+2. Import setup if needed.
+3. Use fixtures under `tests/fixtures/`.
+4. Run `bun run test:unit` and `bun run test:coverage:gate`.
+
+## CI linkage
+
+See [CI and testing](/axis/docs/devops/ci-and-testing) for workflow job names and nightly schedule.
+
+## Failure modes
+
+| Failure | Mitigation |
+| --- | --- |
+| Coverage drop | Add tests in scoped files or deliberately exclude only with policy change |
+| E2E flake | Mock network; single worker; stable testids |
+| IDB in unit | Local storage falls back to memory maps |
+
+## See also
+
+- [CI and testing](/axis/docs/devops/ci-and-testing)
+- [Plugin contracts](/axis/docs/plugins/contracts)
+- [Worker auth](/axis/docs/worker/auth)

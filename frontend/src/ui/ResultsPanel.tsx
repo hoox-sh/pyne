@@ -15,7 +15,7 @@ import {
   type StrategyEvent,
 } from '../results/strategy';
 import { normalizeStrategyEvents } from '../results/events';
-import { getManager } from '../chart/ChartHost';
+import { getManager } from '../chart/manager-access';
 import { Icons } from './icons';
 
 type TabId = 'events' | 'strategy' | 'plots' | 'metrics' | 'raw';
@@ -156,6 +156,9 @@ export const ResultsPanel: Component = () => {
       <div
         class="flex flex-col border-t-2 border-border bg-bg-panel flex-shrink-0"
         style={{ height: `${store.resultsPanel.height}px` }}
+        data-testid="axis-results"
+        role="region"
+        aria-label="Results"
       >
         {/* Header */}
         <div class="flex items-center gap-2 px-2.5 py-1 border-b-2 border-border min-h-[28px]">

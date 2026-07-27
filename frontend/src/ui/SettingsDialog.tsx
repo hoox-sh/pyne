@@ -101,6 +101,7 @@ export const SettingsDialog: Component<Props> = (props) => {
           role="dialog"
           aria-modal="true"
           aria-labelledby="axis-settings-title"
+          data-testid="axis-settings"
           tabIndex={-1}
           ref={(el) => queueMicrotask(() => el?.focus())}
         >

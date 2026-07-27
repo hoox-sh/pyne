@@ -152,6 +152,7 @@ export const PluginManager: Component<Props> = (props) => {
           role="dialog"
           aria-modal="true"
           aria-labelledby="axis-plugins-title"
+          data-testid="axis-manager"
         >
           <div class="h-0.5 w-full bg-accent flex-shrink-0" />
           <div class="flex items-center justify-between px-4 py-3 border-b-2 border-border">

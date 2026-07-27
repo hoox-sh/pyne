@@ -33,7 +33,7 @@ function validate(body: unknown): { ok: true; value: RunRequest } | { ok: false;
     return { ok: true, value: b as unknown as RunRequest };
 }
 
-async function proxyToExternal(req: Request, env: Env, origin: string): Promise<Response> {
+async function proxyToExternal(bodyText: string, env: Env, origin: string): Promise<Response> {
     const target = env.EXTERNAL_BACKEND?.replace(/\/$/, '');
     if (!target) {
         return new Response(
@@ -47,11 +47,10 @@ async function proxyToExternal(req: Request, env: Env, origin: string): Promise<
             { status: 503, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': origin } },
         );
     }
-    const body = await req.text();
     const upstream = await fetch(`${target}/run`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body,
+        body: bodyText,
     });
     const text = await upstream.text();
     return new Response(text, {
@@ -93,6 +92,6 @@ export async function handleRun(req: Request, env: Env, origin: string): Promise
         // Fall through to external if Pyodide failed to boot.
     }
 
-    // 2) External backend.
-    return proxyToExternal(req, env, origin);
+    // 2) External backend (reuse already-parsed body — Request body is a one-shot stream).
+    return proxyToExternal(JSON.stringify(body), env, origin);
 }

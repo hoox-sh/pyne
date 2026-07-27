@@ -151,3 +151,29 @@ describe('storage service', () => {
     expect(d?.content).toContain('plot(close)');
   });
 });
+
+describe('storage-local extras', () => {
+  it('getStatus reports connected local backend', async () => {
+    const st = await localStoragePlugin.getStatus?.();
+    expect(st?.connected).toBe(true);
+    expect(st?.remote === 'indexedDB' || st?.remote === 'localStorage').toBe(true);
+  });
+
+  it('survives corrupt library JSON in localStorage', async () => {
+    localStorage.setItem('pynescript.axis.library.v1', '{not-json');
+    // Should not throw — empty or recoverable list
+    const list = await localStoragePlugin.list();
+    expect(Array.isArray(list)).toBe(true);
+  });
+
+  it('auto-generates id when write omits id', async () => {
+    const meta = await localStoragePlugin.write({
+      name: 'No Id',
+      content: 'plot(1)',
+      updatedAt: Date.now(),
+    } as never);
+    expect(meta.id).toMatch(/^s_/);
+    const doc = await localStoragePlugin.read(meta.id);
+    expect(doc.name).toBe('No Id');
+  });
+});

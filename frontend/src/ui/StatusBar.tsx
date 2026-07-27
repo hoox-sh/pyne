@@ -43,8 +43,12 @@ export const StatusBar: Component = () => {
   });
 
   return (
-    <div class="flex items-center gap-2 px-2.5 py-0.5 bg-bg-panel border-t-2 border-border text-[11px] text-text-dim min-h-[22px] flex-shrink-0">
-      <span class={`flex items-center gap-1.5 min-w-0 ${color()}`}>
+    <div
+      class="flex items-center gap-2 px-2.5 py-0.5 bg-bg-panel border-t-2 border-border text-[11px] text-text-dim min-h-[22px] flex-shrink-0"
+      data-testid="axis-statusbar"
+      role="status"
+    >
+      <span class={`flex items-center gap-1.5 min-w-0 ${color()}`} data-testid="axis-status-message">
         {store.status === 'running' && <Icons.loader size={12} class="animate-spin text-accent" />}
         {store.status === 'error' && <Icons.alert size={12} class="text-red" />}
         {store.status === 'ready' && <Icons.activity size={12} class="text-accent-2" />}

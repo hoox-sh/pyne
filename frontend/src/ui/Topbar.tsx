@@ -328,6 +328,7 @@ export const Topbar: Component<{
         onClick={() => toggleIndicatorPanel()}
         title="Toggle indicator list"
         aria-pressed={store.indicatorPanel.open}
+        data-testid="axis-btn-indicators"
       >
         <Icons.activity size={13} />
         Indicators
@@ -336,6 +337,7 @@ export const Topbar: Component<{
       <button
         class={`sc-btn sc-btn-ghost px-2 inline-flex items-center gap-1 ${store.resultsPanel.open ? 'text-accent' : ''}`}
         title="Results & export"
+        data-testid="axis-btn-results"
         onClick={() => {
           setStore('resultsPanel', 'open', !store.resultsPanel.open);
           persist();

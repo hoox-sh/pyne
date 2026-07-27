@@ -104,6 +104,8 @@ export const Watchlist: Component = () => {
       <aside
         class="flex flex-col flex-shrink-0 bg-bg-panel border-r-2 border-border min-h-0 overflow-hidden relative"
         style={{ width: `${store.watchlist.width}px` }}
+        data-testid="axis-watchlist"
+        aria-label="Watchlist"
       >
         <div class="flex items-center justify-between gap-1 px-2 py-1.5 border-b-2 border-border flex-shrink-0">
           <span class="text-[10px] text-text-dim uppercase tracking-wider font-semibold">

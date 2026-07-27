@@ -1,5 +1,5 @@
 import { loadBars, setStatus, store } from '../store';
-import { getManager, setDataToChart } from '../chart/ChartHost';
+import { getManager, setDataToChart } from '../chart/manager-access';
 import { getSource } from '../sources/catalog';
 import { getUploadedFileName } from '../sources/upload-store';
 

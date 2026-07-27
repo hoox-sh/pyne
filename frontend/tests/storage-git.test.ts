@@ -190,4 +190,54 @@ describe('storage-git plugin', () => {
     await gitStoragePlugin.saveDraft?.({ content: 'x' }, CFG);
     expect(fetchCalled).toBe(false);
   });
+
+  it('loadDraft always returns null', async () => {
+    expect(await gitStoragePlugin.loadDraft?.(CFG)).toBeNull();
+  });
+
+  it('list filters by prefix', async () => {
+    globalThis.fetch = mock(async () =>
+      new Response(
+        JSON.stringify({
+          type: 'file',
+          content: b64(
+            JSON.stringify({
+              version: 1,
+              scripts: [
+                { id: 'a', name: 'Alpha', path: 'pine-library/library/a.pine', updatedAt: 1 },
+                { id: 'b', name: 'Beta', path: 'other/b.pine', updatedAt: 2 },
+              ],
+            }),
+          ),
+          sha: 'x',
+        }),
+        { status: 200 },
+      ),
+    ) as typeof fetch;
+
+    const list = await gitStoragePlugin.list({ config: CFG, prefix: 'Al' });
+    expect(list).toHaveLength(1);
+    expect(list[0].name).toBe('Alpha');
+  });
+
+  it('sync pull reports count or error', async () => {
+    globalThis.fetch = mock(async () =>
+      new Response(
+        JSON.stringify({
+          type: 'file',
+          content: b64(JSON.stringify({ version: 1, scripts: [{ id: 's1', name: 'RSI' }] })),
+          sha: 'x',
+        }),
+        { status: 200 },
+      ),
+    ) as typeof fetch;
+
+    const ok = await gitStoragePlugin.sync?.('pull', CFG);
+    expect(ok?.ok).toBe(true);
+    expect(ok?.message).toMatch(/1 script/);
+
+    globalThis.fetch = mock(async () => new Response('nope', { status: 500 })) as typeof fetch;
+    const bad = await gitStoragePlugin.sync?.('pull', CFG);
+    expect(bad?.ok).toBe(false);
+  });
 });

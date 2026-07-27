@@ -10,6 +10,7 @@ export const IndicatorPanel: Component = () => {
         class="flex flex-col flex-shrink-0 bg-bg-panel border-l-2 border-border min-h-0 overflow-hidden relative z-10"
         style={{ width: `${store.indicatorPanel.width}px` }}
         data-axis-indicator-panel
+        data-testid="axis-indicators"
         aria-label="Indicators"
       >
         <ResizeHandle

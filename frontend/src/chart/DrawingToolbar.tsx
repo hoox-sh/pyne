@@ -37,6 +37,7 @@ export const DrawingToolbar: Component = () => {
       class="absolute left-2 top-10 z-20 flex flex-col gap-1 p-1 bg-bg-panel/95 border-2 border-border shadow-lg"
       role="toolbar"
       aria-label="Drawing tools"
+      data-testid="axis-drawing-toolbar"
     >
       <For each={TOOLS}>
         {(t) => {

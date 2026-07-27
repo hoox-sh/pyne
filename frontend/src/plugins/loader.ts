@@ -63,10 +63,24 @@ export function normalizePluginUrl(url: string): string {
   return href;
 }
 
+/** Reject clearly dangerous URL schemes for dynamic import. */
+export function assertSafePluginUrl(href: string): void {
+  const lower = href.trim().toLowerCase();
+  if (!lower) throw new Error('URL required');
+  if (
+    lower.startsWith('javascript:') ||
+    lower.startsWith('vbscript:') ||
+    lower.startsWith('data:text/html')
+  ) {
+    throw new Error('Plugin URL scheme not allowed');
+  }
+}
+
 export async function loadPluginFromUrl(url: string): Promise<InstalledPlugin> {
   ensureBuiltins();
   const href = normalizePluginUrl(url);
   if (!href) throw new Error('URL required');
+  assertSafePluginUrl(href);
 
   const mod = await import(/* @vite-ignore */ href);
   const p = asPlugin(mod);

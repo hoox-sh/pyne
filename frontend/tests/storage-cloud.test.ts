@@ -136,4 +136,73 @@ describe('storage-cloud plugin', () => {
     });
     expect(st?.connected).toBe(true);
   });
+
+  it('list surfaces 401 unauthorized', async () => {
+    globalThis.fetch = mock(async () => new Response('nope', { status: 401 })) as typeof fetch;
+    await expect(
+      cloudStoragePlugin.list({
+        config: { endpoint: 'http://cloud.test', apiKey: 'pn_' + 'a'.repeat(48) },
+      }),
+    ).rejects.toThrow(/401|auth|key|unauthor/i);
+  });
+
+  it('write surfaces 409 conflict', async () => {
+    globalThis.fetch = mock(async () => new Response('conflict', { status: 409 })) as typeof fetch;
+    await expect(
+      cloudStoragePlugin.write(
+        {
+          id: 's2',
+          name: 'Saved',
+          content: 'plot(1)',
+          updatedAt: Date.now(),
+        },
+        { endpoint: 'http://cloud.test', apiKey: 'pn_' + 'a'.repeat(48) },
+      ),
+    ).rejects.toThrow(/409|conflict/i);
+  });
+
+  it('read and remove happy path', async () => {
+    globalThis.fetch = mock(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (init?.method === 'DELETE') {
+        return new Response(JSON.stringify({ status: 'success' }), { status: 200 });
+      }
+      if (url.includes('/api/scripts/s3')) {
+        return new Response(
+          JSON.stringify({
+            status: 'success',
+            script: {
+              id: 's3',
+              name: 'Doc',
+              content: 'plot(close)',
+              revision: 'r3',
+              createdAt: 1,
+              updatedAt: 2,
+            },
+          }),
+          { status: 200 },
+        );
+      }
+      return new Response('not found', { status: 404 });
+    }) as typeof fetch;
+
+    const doc = await cloudStoragePlugin.read('s3', {
+      endpoint: 'http://cloud.test',
+      apiKey: 'pn_' + 'a'.repeat(48),
+    });
+    expect(doc.content).toContain('plot');
+    await cloudStoragePlugin.remove('s3', {
+      endpoint: 'http://cloud.test',
+      apiKey: 'pn_' + 'a'.repeat(48),
+    });
+  });
+
+  it('getStatus reports disconnected on health fail', async () => {
+    globalThis.fetch = mock(async () => new Response('down', { status: 503 })) as typeof fetch;
+    const st = await cloudStoragePlugin.getStatus?.({
+      endpoint: 'http://cloud.test',
+      apiKey: 'pn_' + 'a'.repeat(48),
+    });
+    expect(st?.connected).toBe(false);
+  });
 });

@@ -7,7 +7,7 @@ import {
   setStatus,
   appendLog,
 } from '../store';
-import { getManager } from '../chart/ChartHost';
+import { getManager } from '../chart/manager-access';
 import { runAndApply } from '../indicators/runner';
 import {
   getStream,

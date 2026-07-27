@@ -1,7 +1,7 @@
 import { Component, For, createSignal, Show } from 'solid-js';
 import type { Indicator } from '../store/types';
 import { toggleIndicator, removeIndicator, setIndicatorColor } from '../store';
-import { getManager } from '../chart/ChartHost';
+import { getManager } from '../chart/manager-access';
 import { PLOT_PALETTE } from '../chart/series-factory';
 
 interface Props {

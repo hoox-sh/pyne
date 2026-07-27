@@ -7,15 +7,24 @@
   "scripts": {
     "dev:frontend": "bun run frontend/server.ts",
     "dev:worker": "cd frontend/worker && bun run dev",
-    "test:frontend": "bun test frontend/tests/",
+    "test:frontend": "cd frontend && bun run test",
+    "test:frontend:coverage": "cd frontend && bun run test:coverage:gate",
     "test:frontend:watch": "bun test --watch frontend/tests/",
     "typecheck:worker": "cd frontend/worker && bun run typecheck",
     "build:worker": "cd frontend/worker && bun run deploy",
     "deploy:pages": "cd frontend && bunx wrangler pages deploy . --project-name=pynescript-superchart",
-    "serve": "bun run frontend/server.ts"
+    "serve": "bun run frontend/server.ts",
+    "docs:exports": "node scripts/docs/generate-exports.mjs",
+    "docs:exports:all": "node scripts/docs/generate-exports.mjs --only=all",
+    "docs:exports:pdfs": "node scripts/docs/generate-exports.mjs --only=pdfs",
+    "docs:exports:agents": "node scripts/docs/generate-exports.mjs --only=agents",
+    "docs:exports:pyne": "node scripts/docs/generate-exports.mjs --only=pyne",
+    "docs:exports:axis": "node scripts/docs/generate-exports.mjs --only=axis"
   },
   "devDependencies": {
     "@types/bun": "^1.3.14",
+    "gray-matter": "^4.0.3",
+    "marked": "^18.0.7",
     "typescript": "6.0.3"
   }
 }

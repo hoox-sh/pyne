@@ -20,6 +20,20 @@ export interface ScriptDrawing {
   points?: Array<{ time: number; price: number }>;
 }
 
+function parsePolylinePoints(raw: unknown): Array<{ time: number; price: number }> {
+  if (!Array.isArray(raw)) return [];
+  const points: Array<{ time: number; price: number }> = [];
+  for (const p of raw) {
+    if (!p || typeof p !== 'object') continue;
+    const pr = p as Record<string, unknown>;
+    const t = num(pr.time ?? pr.t);
+    const price = num(pr.price ?? pr.p ?? pr.y);
+    if (t == null || price == null) continue;
+    points.push({ time: t, price });
+  }
+  return points;
+}
+
 /** Normalize mixed API shapes into ScriptDrawing[]. */
 export function normalizeScriptDrawings(raw: unknown[] | undefined | null): ScriptDrawing[] {
   if (!raw?.length) return [];
@@ -29,6 +43,28 @@ export function normalizeScriptDrawings(raw: unknown[] | undefined | null): Scri
     if (!item || typeof item !== 'object') continue;
     const r = item as Record<string, unknown>;
     const type = String(r.type || r.kind || '').toLowerCase();
+
+    // Polylines often only carry `points` — handle before t1/p1 gate.
+    if (type === 'polyline') {
+      const points = parsePolylinePoints(r.points);
+      if (points.length < 2) continue;
+      out.push({
+        id: `pine_poly_${i++}`,
+        type: 'polyline',
+        t1: points[0]!.time,
+        p1: points[0]!.price,
+        t2: points[points.length - 1]!.time,
+        p2: points[points.length - 1]!.price,
+        color: str(r.color, '#939fff'),
+        bgcolor: str(r.bgcolor, 'rgba(147,159,255,0.06)'),
+        width: num(r.width) ?? 1,
+        style: str(r.style, 'solid'),
+        closed: Boolean(r.closed),
+        points,
+      });
+      continue;
+    }
+
     const t1 = num(r.t1 ?? r.time ?? r.x1 ?? r.left ?? r.x);
     const p1 = num(r.p1 ?? r.price ?? r.y1 ?? r.top ?? r.y);
     if (t1 == null || p1 == null) continue;
@@ -78,34 +114,6 @@ export function normalizeScriptDrawings(raw: unknown[] | undefined | null): Scri
         color: str(r.color, '#939fff'),
         textcolor: str(r.textcolor, '#eceef4'),
         text: str(r.text, ''),
-      });
-      continue;
-    }
-    if (type === 'polyline') {
-      const ptsRaw = Array.isArray(r.points) ? r.points : [];
-      const points: Array<{ time: number; price: number }> = [];
-      for (const p of ptsRaw) {
-        if (!p || typeof p !== 'object') continue;
-        const pr = p as Record<string, unknown>;
-        const t = num(pr.time ?? pr.t);
-        const price = num(pr.price ?? pr.p ?? pr.y);
-        if (t == null || price == null) continue;
-        points.push({ time: t, price });
-      }
-      if (points.length < 2) continue;
-      out.push({
-        id: `pine_poly_${i++}`,
-        type: 'polyline',
-        t1: points[0]!.time,
-        p1: points[0]!.price,
-        t2: points[points.length - 1]!.time,
-        p2: points[points.length - 1]!.price,
-        color: str(r.color, '#939fff'),
-        bgcolor: str(r.bgcolor, 'rgba(147,159,255,0.06)'),
-        width: num(r.width) ?? 1,
-        style: str(r.style, 'solid'),
-        closed: Boolean(r.closed),
-        points,
       });
     }
   }

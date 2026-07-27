@@ -1,91 +1,26 @@
 import { Component, Show, createEffect, createMemo, onMount, onCleanup } from 'solid-js';
 import { PaneManager } from './pane-manager';
-import { createCandleSeries, createVolumeSeries, TV } from './series-factory';
-import { DrawingLayer } from './drawing-layer';
 import { DrawingToolbar } from './DrawingToolbar';
 import { PineTableHud } from './PineTableHud';
-import { store, setDrawings } from '../store';
-import type { Bar } from '../store/types';
+import { store } from '../store';
+import {
+  getManager,
+  setManager,
+  getDrawingLayer,
+  setDrawingLayer,
+  setDataToChart,
+  getActiveDrawingLayer,
+} from './manager-access';
+
+export {
+  getManager,
+  getDrawingLayer,
+  setDataToChart,
+  getActiveDrawingLayer,
+} from './manager-access';
 
 /** Imperative chart mount only — never put Solid children inside this node. */
 let panesEl: HTMLDivElement | undefined;
-let manager: PaneManager | undefined;
-let drawingLayer: DrawingLayer | undefined;
-
-export function getManager(): PaneManager | undefined {
-  return manager;
-}
-
-export function getDrawingLayer(): DrawingLayer | undefined {
-  return drawingLayer;
-}
-
-// re-export for callers that prefer ChartHost surface
-export { getActiveDrawingLayer } from './drawing-layer';
-
-function ensureDrawingLayer() {
-  if (!manager || drawingLayer) return;
-  const pricePane = manager.getPane('price');
-  const candle = pricePane?.series['candle'];
-  if (!pricePane || !candle) return;
-  const el = document.getElementById('pane-price');
-  if (!el) return;
-
-  drawingLayer = new DrawingLayer(el, pricePane.chart, candle as never);
-  drawingLayer.setDrawings(store.drawings);
-  drawingLayer.setTool(store.drawingTool);
-  drawingLayer.setOnChange((list) => setDrawings(list));
-}
-
-export function setDataToChart(bars: Bar[]) {
-  if (!manager) return;
-  const pricePane = manager.getPane('price');
-  const volPane = manager.getPane('volume');
-
-  // New OHLCV invalidates previous run overlays on price (caller re-runs if needed)
-  manager.clearTradeMarkers();
-
-  if (pricePane && !pricePane.series['candle']) {
-    pricePane.series['candle'] = createCandleSeries(pricePane.chart);
-  }
-  if (pricePane?.series['candle']) {
-    pricePane.series['candle'].setData(
-      bars.map((b) => ({
-        time: b.time as any,
-        open: b.open,
-        high: b.high,
-        low: b.low,
-        close: b.close,
-      })),
-    );
-    // Last-value label tint: green if last bar up, coral if down
-    const last = bars[bars.length - 1];
-    if (last) {
-      const up = last.close >= last.open;
-      pricePane.series['candle'].applyOptions({
-        priceLineColor: up ? TV.up : TV.down,
-      });
-    }
-    pricePane.chart.timeScale().fitContent();
-  }
-
-  if (volPane && !volPane.series['volume']) {
-    volPane.series['volume'] = createVolumeSeries(volPane.chart);
-  }
-  if (volPane?.series['volume']) {
-    volPane.series['volume'].setData(
-      bars.map((b) => ({
-        time: b.time as any,
-        value: b.volume ?? 0,
-        color: b.close >= b.open ? 'rgba(94, 207, 138, 0.45)' : 'rgba(232, 93, 76, 0.45)',
-      })),
-    );
-  }
-
-  // Attach / refresh drawing layer once candles exist
-  ensureDrawingLayer();
-  drawingLayer?.setDrawings(store.drawings);
-}
 
 export const ChartHost: Component = () => {
   const emptyHint = createMemo(() => {
@@ -101,7 +36,8 @@ export const ChartHost: Component = () => {
 
   onMount(() => {
     if (!panesEl) return;
-    manager = new PaneManager(panesEl);
+    const manager = new PaneManager(panesEl);
+    setManager(manager);
 
     for (const pane of store.panes) {
       manager.createPane(pane.id, pane.type, pane.label || pane.type, pane.height || undefined);
@@ -117,23 +53,25 @@ export const ChartHost: Component = () => {
   // Keep series in sync if bars change without going through loadSymbolData
   createEffect(() => {
     const bars = store.bars;
-    if (manager && bars.length) setDataToChart(bars);
+    if (getManager() && bars.length) setDataToChart(bars);
   });
 
   // Keep tool in sync when store changes from toolbar
   createEffect(() => {
     const tool = store.drawingTool;
-    drawingLayer?.setTool(tool);
+    getDrawingLayer()?.setTool(tool);
   });
 
   onCleanup(() => {
+    const drawingLayer = getDrawingLayer();
     if (drawingLayer) {
       drawingLayer.destroy();
-      drawingLayer = undefined;
+      setDrawingLayer(undefined);
     }
+    const manager = getManager();
     if (manager) {
       manager.dispose();
-      manager = undefined;
+      setManager(undefined);
     }
   });
 

@@ -15,6 +15,19 @@ describe('drawing tools helpers', () => {
   });
 
   it('toolLabel covers all tools', () => {
+    const tools = [
+      'cursor',
+      'hline',
+      'trend',
+      'ray',
+      'rect',
+      'fib',
+      'measure',
+      'text',
+    ] as const;
+    for (const t of tools) {
+      expect(toolLabel(t).length).toBeGreaterThan(0);
+    }
     expect(toolLabel('hline')).toMatch(/Horizontal/i);
     expect(toolLabel('fib')).toMatch(/Fib/i);
   });
