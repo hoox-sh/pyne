@@ -1,0 +1,10 @@
+export method premitive_marquee_left(series string this, series int _steps = 1) =>
+    str.substring(this, str.length(this) - _steps, str.length(this))
+     + str.substring(this, 0, _steps)
+export method premitive_marquee_right(series string this, series int _steps = 1) =>
+    str.substring(this, _steps - 1, str.length(this))
+     + str.substring(this, str.length(this) - _steps, str.length(this))
+
+export method premitive_marquee_left_right(series string this, series int _steps = 1) =>
+    str.substring(this, str.length(this) - _steps, str.length(this))
+     + str.substring(this, _steps - 1, str.length(this))

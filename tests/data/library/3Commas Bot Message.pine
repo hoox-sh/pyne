@@ -1,0 +1,25 @@
+
+
+
+var string __BOT_TYPE           = "Long & Short"
+// var bool __D2                   = input(defval=false, type=input.bool, title="―――――――――――――――――――――")
+
+
+
+
+//
+//-- 3COMMAS BOT MESSAGES
+//
+
+f_get_alert_msg(_bot,_signal,_id,_token) =>
+    _action = (_bot == "3C Simple Long Bot" and _signal == -1) or (_bot == "3C Simple Short Bot" and _signal == 1) ? "\"action\": \"close_at_market_price\"," : ""
+    
+    _botMsg = "{"
+     + "\"message_type\": \"bot\","
+     + "\"bot_id\": "+_id+","
+     + "\"email_token\": \""+_token+"\","
+     + _action
+     + "\"delay_seconds\": 0"
+     + "}"
+    _botMsg
+    

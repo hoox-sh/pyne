@@ -1,0 +1,220 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © cryptolinx 14
+
+//@version=5
+indicator("[CLX] Library Progressbar - Examples", overlay = true, max_labels_count = 500, max_lines_count = 500)
+
+
+//  ▪ PROGRESSBAR ────
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+// -- Requiered
+import cryptolinx/ProgressbarDEV/6 as scale
+
+// ──── Source Value {
+// 
+var __MANUEL = input.bool(false, 'Manuel Value', group = 'SOURCE') 
+var __LEN = input.int(14, 'Indicator Length', minval = 0, maxval = 1000, step = 1, group = 'SOURCE')
+var __SWITCH = input.bool(false, 'Auto Theme Switch')
+var __TICKS = input.int(5, 'Switch Theme Every N Ticks', minval = 0, maxval = 1000, step = 1, group = 'THEME')
+// --
+var float __RSI = na, __RSI := __MANUEL ? math.random(15, 85) : ta.rsi(close, __LEN)
+// }
+
+// ──── Theme {
+//
+var __tmpl1 = scale.theme.new(color_bg = #39392940, color_bg_text = #00000000, color_text = #42423c,
+ color_bar_unfilled = #393929a3, color_bar_filled = #f7525f, color_positive = #f7525f, color_negative = #f7525f)
+
+var __tmpl2 = scale.theme.new(#33244140, #00000000, #534e66, #CCCCCC40, #7d1aff)
+var __tmpl3 = scale.theme.new(color.new(color.blue, 90), #00000000, #FFFFFF80, color.white, #AAFF00)
+
+var __tmpl4 = scale.theme.new(#39392940, #00000000, #2D4151, color.silver, #fdbd57, true, #fb7202)
+
+var __tmpl5 = scale.theme.new(#00000000, #00000000, color.new(#ffffff, 60), color.new(#ffffff, 85), color.yellow, true, color.aqua, true)
+var __tmpl6 = scale.theme.new(color_bg = #00000000, color_bg_text = #00000000, color_text = #42423c,
+ color_bar_unfilled = #393929a3, color_bar_filled = #f7525f, color_positive = #f7525f, color_negative = #f7525f)
+var __tmpl7 = scale.theme.new(color.new(color.blue, 90), #00000000, #FFFFFF80, #ffffff80, #aaff00, true, #ac096e)
+// --
+var array <scale.theme> TEMPLATES = array.from(__tmpl1, __tmpl2, __tmpl3, __tmpl4, __tmpl5, __tmpl6)
+varip int updateNo = 0, updateNo += 1
+varip int templateNo = 0, templateNo += __SWITCH and updateNo % __TICKS == 0 ? 1 : 0
+//--
+getPos(int _pos = 1) => (templateNo + _pos - 1) % array.size(TEMPLATES)
+getTheme(int _pos = 1) => array.get(TEMPLATES, getPos(_pos))
+// }
+
+// ----------------------------------------------------------------------
+ux = scale.getInterface()
+// ──── UI Scale #1 [L] {
+//
+ux
+ .setup('scale1')
+ .build(__tmpl1, -100, 0, __RSI, 0, 100, 16, 2, 10, 1, 1, 6, _showMinMax = false, _pov = extend.left, _deploy = true)
+ .addMarker(_icon = 5, _row = 0, _colorBarFilled = true)
+ .addRange(_markerIcon = 12, _colorBarFilled = true, _markerColor = color.silver)
+ .addAvg(_markerIcon = 2, _markerRow = 0, _len = 250, _textRow = 1)
+ .addLoader(_loaderIcon = 0, _colorBarFilled = true)
+ .addBadge('RSI', _position = position.top_center, _size = size.small, _row = 4, _colorBarFilled = true)
+ .addDecoration(_decor = 0, _color = #39392980)
+ .addTimer().addTrend()
+// }
+
+// -   -   -   -   -   -   -   -   -   -   -   -   -   -   -   -   -   -
+
+// ──── UI Scale #2 [C] - Advanced Implementation as single deployment (Auto-Deploy = false) {
+//
+var __uiScale2 = scale.setup.new()
+scale.build(__uiScale2, __tmpl2, 0, 0, __RSI, 0, 100, 14, 2, 16, 1, 2, 10, _row = 1, _showMinMax = false, _pov = extend.both, _deploy = false)
+ .addMarker(_colorBarFilled = true)
+ .addAvg(_markerRow = 0, _textRow = 1)
+ .addTimer(_outputFormat = format.percent)
+ .addLoader(_loaderIcon = 2)
+ .addDecoration(_decor = 2, _colorBarFilled = true)
+ .addRange(_len = 14, _textIcon = 2, _markerIcon = 1, _textSize = size.small, _textRow = 1, _wpadding = 1)
+ .addTrend(_len = 1, _colorBarFilled = true)
+//
+// -- Do something else with `this` `__uiScale2` object. At this point all elements of `__uiScale2` only exists as `<draft_line>` and `<draft_label>` objects
+//    and needs to get rendered (deployed).
+//
+// -- Deploy the `__uiScale2` object as once. 
+// -- ONLY if, build(..., _deploy = false)
+//
+ .deploy(true, true)
+// }
+
+// -   -   -   -   -   -   -   -   -   -   -   -   -   -   -   -   -   -
+ 
+// ──── UI Scale #3 [R] Standard implementation as multi deployment (Auto-Deploy = true) {
+//
+var __uiScale3 = scale.setup.new()
+scale.build(__uiScale3, __tmpl3, 100, 0, __RSI, 0, 100, 13, 3, 2, 1, 0, 18, _showMinMax = false, _pov = extend.right, _deploy = true)
+ .addMarker(_icon = 5, _row = 0, _colorBarFilled = true)
+ .addRange(_markerIcon = 12, _showBg = false, _colorBarFilled = true, _bgColor = color.new(#a58282, 87), _markerColor = color.silver, _bgHeight = 10)
+ .addAvg(_markerIcon = 2, _markerRow = 0, _len = 250, _textRow = 1)
+ .addLoader(_loaderIcon = 1, _colorBarFilled = true)
+ .addBadge('RSI', _position = position.top_center, _size = size.small, _row = 4, _colorBarFilled = true)
+ .addDecoration(_decor = 1, _colorBarFilled = true)
+ .addRuler().addTimer(_outputFormat = format.percent).addTrend()
+// }
+
+// ----------------------------------------------------------------------
+
+// ──── UI Scale #4 [L] Standard implementation as multi deployment (Auto-Deploy = true) {
+//
+var __uiScale4 = scale.setup.new()
+scale.build(__uiScale4, __tmpl5, -100, -100, __RSI, 0, 100, 18, 3, 1, 0, 0, 0, _showMinMax = false, _pov = extend.left, _deploy = true)
+ .addMarker(_icon = 0, _row = 0, _colorBarFilled = true)
+ .addAvg(_markerIcon = 2, _markerRow = 0, _len = 250, _textRow = 1)
+ .addLoader(_colorBarFilled = true)
+ .addRuler().addTrend()
+// }
+
+// -   -   -   -   -   -   -   -   -   -   -   -   -   -   -   -   -   -
+
+// ──── UI Scale #5 [C] {
+//
+var __uiScale5 = scale.setup.new()
+scale.build(__uiScale5, __tmpl4, 0, -100, __RSI, 0, 100, 14, 3, 18, 1, 2, 10, _showMinMax = false, _row = 1, _pov = extend.both, _deploy=false)
+ .addDecoration(_decor = 2, _colorBarFilled = true, _size = size.large)
+ .addMarker(_icon = 5, _colorBarFilled = true)
+ .addRange(_markerRow = 0, _markerIcon = 7, _textIcon = 1, _markerLocation = location.abovebar)
+ .addAvg(_markerIcon = 6, _markerRow = 0, _len = 200, _textRow = 1)
+ .addTimer(_outputFormat = format.percent)
+ .addLoader(_colorBarFilled = true)
+ .deploy(true, true)
+// }
+
+// -   -   -   -   -   -   -   -   -   -   -   -   -   -   -   -   -   -
+
+// ──── UI Scale #6 [R] {
+//
+var __uiScale6 = scale.setup.new()
+scale.build(__uiScale6, getTheme(4), 100, -100, __RSI, -100, 100, 24, 1, 2, 1, 0, 0, _row = 0, _pointer = true, _pointerSize = 6.18, _pov = extend.right)
+ .addDecoration(_decor = 3, _colorBarFilled = true)
+// }
+
+// ----------------------------------------------------------------------
+
+// ──── UI Scale #7 [L] {
+//
+var __uiScale7 = scale.setup.new()
+scale.build(__uiScale7, getTheme((7)), -100, -200, __RSI, 0, 100, 6, 4, 2, 1, 1, 0, _showMinMax = false, _showSrc = false, _row = 0, _pov = extend.left, _style = line.style_dotted)
+ .addDecoration(_decor = 4, _colorBarFilled = true, _row = 0, _size = size.normal, _pingpong = true).addMarker(_location = location.abovebar)
+// }
+
+// -   -   -   -   -   -   -   -   -   -   -   -   -   -   -   -   -   -
+
+// ──── UI Scale #8 [R] {
+//
+var __uiScale8 = scale.setup.new()
+scale.build(__uiScale8, getTheme(8), 100, -200, __RSI, -100, 100, 10, 1, 12, 1, 0, 0, _row = 0, _showSrc = false, _showMinMax = false, _pointer = true, _pointerSize = 0.3, _pov = extend.right)
+// }
+
+// ──── UI Scale #9 [R] {
+//
+var __uiScale9 = scale.setup.new()
+scale.build(__uiScale9, __tmpl7, 130, -200, __RSI, 0, 100, 16, 1, 3, 0, 0, 0, _row = 0, _showMinMax = false, _showSrc = false, _pov = extend.right)
+// }
+
+
+//  ▪ LOGO & FOOTER ────
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+import cryptolinx/Motion/11 as motion
+
+// ———— Simple Animated Logo/Tag Idea {
+//
+renderLogo(string _logo, string _tag1 = '', string _tag2 = '', string _sizeLogo = size.large, string _sizeTag1 = size.small, string _sizeTag2 = size.tiny,
+  color _colorLogo = #ffffff,  color _colorTag1 = #CCCCCC,  color _colorTag2 = color.white, color _colorDecor = #7d1aff, int _x = bar_index, float _y = 200) =>
+    // >>
+    array.from(
+     // -- motion placholder
+     label.new(bar_index + _x, _y, text = '', size = _sizeTag1, color = #00000000, textcolor = _colorDecor, text_font_family = font.family_default, style = label.style_label_center, textalign = text.align_center),
+     // -- logo text
+     label.new(bar_index + _x, _y, text = _logo, size = _sizeLogo, color = #00000000, textcolor = _colorLogo, text_font_family = font.family_default, style = label.style_label_center, textalign = text.align_center),
+     // -- decoration
+     label.new(bar_index + _x, _y, text = '└', size = _sizeLogo, color = #00000000, textcolor = color.new(_colorDecor, 35), text_font_family = font.family_default, style = label.style_label_upper_right, textalign = text.align_left),
+     label.new(bar_index + _x, _y, text = '┘', size = _sizeLogo, color = #00000000, textcolor = color.new(_colorDecor, 35), text_font_family = font.family_default, style = label.style_label_upper_left, textalign = text.align_left),
+     label.new(bar_index + _x, _y, text = '┌', size = _sizeLogo, color = #00000000, textcolor = color.new(_colorDecor, 35), text_font_family = font.family_default, style = label.style_label_lower_right, textalign = text.align_left),
+     label.new(bar_index + _x, _y, text = '┐', size = _sizeLogo, color = #00000000, textcolor = color.new(_colorDecor, 35), text_font_family = font.family_default, style = label.style_label_lower_left, textalign = text.align_left),
+     // -- tag 1 + 2
+     label.new(bar_index + _x, _y, text = '\n\n\n' + _tag1, size = _sizeTag1, color = #00000000, textcolor = _colorTag1, text_font_family = font.family_default, style = label.style_label_up, textalign = text.align_left),
+     label.new(bar_index + _x, _y, text = _tag2 + '\n\n\n\n\n\n', size = _sizeTag2, color = #00000000, textcolor = _colorTag2, text_font_family = font.family_default, style = label.style_label_center, textalign = text.align_left))
+// }
+
+// ———— Update Logo {
+//
+update(array <label> _logo, string _tag, motion.keyframe _colorKf, int _x = bar_index, float _y = 300) =>
+    // --
+    if barstate.islast
+        for i = 0 to array.size(_logo) - 1
+            label.set_xy(array.get(_logo, i), bar_index + _x, _y)
+        // --
+        color colorTrans = motion.color_gradient(_colorKf, #7d1aff, #7d1aff, 100, 25, _cycle = true, _steps = 16)
+        for c = 2 to 5
+            label.set_textcolor(array.get(_logo, c), colorTrans)
+        label.set_text(array.get(_logo, 0), _tag)
+// }
+
+// ----------------------------------------------------------------------
+
+// ———— Motion ✨ {
+//
+// ⚠️ IMPORTANT: TO GET EVERYTHING WELL, YOU HAVE TO USE `varip` keyword on variable decleration.s
+//
+varip logoKf = motion.keyframe.new(2, 1)
+varip colorKf = motion.keyframe.new(1, 1)
+// --
+var array <label> LOGO = renderLogo('SCALE.', '- A Pine Script™ Library -' , 'v3.x' , size.huge, size.normal, size.small, _y = 150)
+string tag = motion.transition(logoKf, _fx = 'marquee', _seq = '▰▱▱▰▱▱▰▱▱', _subLen = 3, _ltr = true, _autoplay = true, _prefix = '\n\n\n\n')
+update(LOGO, tag, colorKf, 0, 150)
+// }
+
+// ———— Footer {
+//
+var label footer = label.new(bar_index, -200, color = #00000000, size = size.normal, textcolor = color.silver, text = '🔋 Batteries included\n\nopen 💙 source', style = label.style_label_center)
+label.set_xy(footer, bar_index, -200)
+// }
+
+// #EOF

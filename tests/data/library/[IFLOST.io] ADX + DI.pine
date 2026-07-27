@@ -1,0 +1,71 @@
+//@version=4
+//@author=jango_blockchained
+
+//////////////////////////////////////////////////////////////////////////
+// [IFLOST.io] ADX & DI v1.4
+//////////////////////////////////////////////////////////////////////////
+
+
+study("[IFLOST.io] ADX & DI v1.4","[IFLOST.io] ADX & DI v1.4",false)
+
+
+//////////////////////////////////////////////////////////////////////////
+// Inputs
+//////////////////////////////////////////////////////////////////////////
+
+
+int len = input(type=input.integer, title="Length", defval=14)
+float th = input(type=input.float, title="threshold", defval=20)
+
+
+//////////////////////////////////////////////////////////////////////////
+// Colors
+//////////////////////////////////////////////////////////////////////////
+
+
+// Buy, Upward
+clg = #4EF9FF
+cdg = #3CADB1
+cbg = #00BCD4 //Background
+
+// Sell, Downward
+clr = #FF0081
+cdr = #880E4F
+cbr = #AB47BC
+
+// Idle, Sideward
+cly = #FBC02D
+
+
+//////////////////////////////////////////////////////////////////////////
+// Calculation
+//////////////////////////////////////////////////////////////////////////
+
+
+TrueRange = max(max(high-low, abs(high-nz(close[1]))), abs(low-nz(close[1])))
+DirectionalMovementPlus = high-nz(high[1]) > nz(low[1])-low ? max(high-nz(high[1]), 0): 0
+DirectionalMovementMinus = nz(low[1])-low > high-nz(high[1]) ? max(nz(low[1])-low, 0): 0
+
+float SmoothedTrueRange = na
+float SmoothedDirectionalMovementPlus = na
+float SmoothedDirectionalMovementMinus = na
+
+SmoothedTrueRange := nz(SmoothedTrueRange[1]) - (nz(SmoothedTrueRange[1])/len) + TrueRange
+SmoothedDirectionalMovementPlus := nz(SmoothedDirectionalMovementPlus[1]) - (nz(SmoothedDirectionalMovementPlus[1])/len) + DirectionalMovementPlus
+SmoothedDirectionalMovementMinus := nz(SmoothedDirectionalMovementMinus[1]) - (nz(SmoothedDirectionalMovementMinus[1])/len) + DirectionalMovementMinus
+
+DIPlus = SmoothedDirectionalMovementPlus / SmoothedTrueRange * 100
+DIMinus = SmoothedDirectionalMovementMinus / SmoothedTrueRange * 100
+DX = abs(DIPlus-DIMinus) / (DIPlus+DIMinus) * 100
+ADX = sma(DX, len)
+
+
+//////////////////////////////////////////////////////////////////////////
+// Painting
+//////////////////////////////////////////////////////////////////////////
+
+
+plot(DIPlus, color=clg, title="DI+")
+plot(DIMinus, color=clr, title="DI-")
+plot(ADX, color=cly, title="ADX")
+hline(th,title="TH", color=cbr)

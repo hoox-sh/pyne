@@ -1,0 +1,313 @@
+//@version=4
+
+study(title = "🐮 🆚 🐻 [Alerts]", overlay = true)
+
+// Copyright by XaviZ v1.0 30/08/2019
+//
+// With this script you can go long and short at the same time and with independent settings.
+// In real trading, an exchange is needed that allows you to go in reverse positions at the same time or where you can have two independent sub-accounts: 
+// one for longs and another for shorts.
+// 
+// Thanks:
+//
+// BTC: 3LEUP3WjQctdbFjBavcmRGUVRBje8bptCd
+// ETH: 0x518AAD4746912ae506c82B747488306186c4d546
+
+// SETTINGS
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+RMI_len = input(34, title="RMI LENGTH", type=input.integer, minval = 1)
+mom = input(13, title="RMI MOMENTUM", type=input.integer, minval = 1)
+ADX_len = input(89, title="ADX LENGTH", type=input.integer, minval = 1)
+RSI_len = input(55, "RSI LENGTH", minval = 1)
+Act_sl = input(true, "ACTIVATE SL 💩 / DEACTIVATE RE-ENTRY 🤞")
+Long_Position = input(true, "ACTIVATE BULLS 🐮")
+RMI_os = input(31,title="RMI OVERSOLD", type=input.integer, minval = 0)
+th_l = input(14, title="ADX THRESHOLD", type=input.integer, minval = 0)
+RSI_obos_l = input(45,title="RSI CENTER LINE", type=input.integer, minval = 1)
+sl_l = input(7.5, "RE-ENTRY / STOP LOSS %", type = input.float, minval = 0, step = 0.5)
+tp_l = input(1.5, "LONG TAKE PROFIT %", type = input.float, minval = 0, step = 0.1)
+Short_Position = input(true, "ACTIVATE BEARS 🐻")
+RMI_ob = input(63,title="RMI OVERBOUGHT", type=input.integer, minval = 0)
+th_s = input(14, title="ADX THRESHOLD", type=input.integer, minval = 0)
+RSI_obos_s = input(54,title="RSI CENTER LINE", type=input.integer, minval = 1)
+sl_s = input(7.5, "RE-ENTRY / STOP LOSS %", type = input.float, minval = 0, step = 0.5)
+tp_s = input(1.1, "SHORT TAKE PROFIT %", type = input.float, minval = 0, step = 0.1)
+
+// RMI
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+RMI(len, m)=>
+    up = ema(max(close - close[m],0), len)
+    dn = ema(max(close[m] - close,0), len)
+    RMI = dn == 0 ? 0 : 100 - 100 / (1 + up / dn)
+    RMI
+
+// ADX MasaNakamura version
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+calcADX(len)=>
+    var float SmoothedTrueRange = 0.0
+    var float SmoothedDirectionalMovementPlus = 0.0
+    var float SmoothedDirectionalMovementMinus = 0.0
+    TrueRange = max(max(high-low, abs(high-nz(close[1]))), abs(low-nz(close[1])))
+    DirectionalMovementPlus = high-nz(high[1]) > nz(low[1])-low ? max(high-nz(high[1]), 0): 0
+    DirectionalMovementMinus = nz(low[1])-low > high-nz(high[1]) ? max(nz(low[1])-low, 0): 0
+    SmoothedTrueRange := nz(SmoothedTrueRange[1]) - (nz(SmoothedTrueRange[1])/len) + TrueRange
+    SmoothedDirectionalMovementPlus := nz(SmoothedDirectionalMovementPlus[1]) - (nz(SmoothedDirectionalMovementPlus[1])/len) + DirectionalMovementPlus
+    SmoothedDirectionalMovementMinus := nz(SmoothedDirectionalMovementMinus[1]) - (nz(SmoothedDirectionalMovementMinus[1])/len) + DirectionalMovementMinus
+    DIP = SmoothedDirectionalMovementPlus / SmoothedTrueRange * 100
+    DIM = SmoothedDirectionalMovementMinus / SmoothedTrueRange * 100
+    DX = abs(DIP-DIM) / (DIP+DIM)*100
+    adx = sma(DX, len)
+    [DIP,DIM,adx]
+ 
+[DIPlus,DIMinus,ADX] = calcADX(ADX_len)
+
+macol = DIPlus > DIMinus and ADX > th_s ? color.lime : DIPlus < DIMinus and ADX > th_l ? color.red : color.orange
+
+barcolor(color = macol, title = "ADX")
+
+// RSI 
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+RSI(len)=>
+    up_rsi = rma(max(change(close), 0), len)
+    down_rsi = rma(-min(change(close), 0), len)
+    rsi = down_rsi == 0 ? 100 : up_rsi == 0 ? 0 : 100 - (100 / (1 + up_rsi / down_rsi))
+    rsi
+
+// STRATEGY
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+var bool longCondition = na
+var bool shortCondition = na
+
+longCondition := crossover(RMI(RMI_len, mom), RMI_os) and (DIPlus < DIMinus and ADX > th_l) and (RSI(RSI_len) < RSI_obos_l) and Long_Position
+shortCondition := crossunder(RMI(RMI_len, mom), RMI_ob) and (DIPlus > DIMinus and ADX > th_s) and (RSI(RSI_len) > RSI_obos_s) and Short_Position
+
+// Get the price of the last opened long
+
+var float last_open_longCondition = na
+var float last_open_shortCondition = na
+
+last_open_longCondition := longCondition ? close : nz(last_open_longCondition[1])
+last_open_shortCondition := shortCondition ? close : nz(last_open_shortCondition[1])
+
+// Get the bar time of the last opened long
+
+var int last_longCondition = 0
+var int last_shortCondition = 0
+
+last_longCondition := longCondition ? time : nz(last_longCondition[1])
+last_shortCondition := shortCondition ? time : nz(last_shortCondition[1])
+
+in_longCondition = last_longCondition > last_shortCondition
+in_shortCondition = last_shortCondition > last_longCondition
+
+// STOP LOSS / RE-ENTRY
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+long_sl = crossunder(low, (1-(sl_l/100))*last_open_longCondition) and not longCondition
+short_sl = crossover(high, (1+(sl_s/100))*last_open_shortCondition) and not shortCondition
+
+// Get the time of the last sl
+
+var int last_long_sl = na
+var int last_short_sl = na
+
+last_long_sl := long_sl ? time : nz(last_long_sl[1])
+last_short_sl := short_sl ? time : nz(last_short_sl[1])
+
+// Sl counter
+
+var bool CondIni_long_sl = 0
+CondIni_long_sl := long_sl ? 1 : longCondition ? -1 : nz(CondIni_long_sl[1])
+
+var bool CondIni_short_sl = 0
+CondIni_short_sl := short_sl ? 1 : shortCondition ? -1 : nz(CondIni_short_sl[1])
+
+Final_Long_sl = long_sl and nz(CondIni_long_sl[1]) == -1
+Final_Short_sl = short_sl and nz(CondIni_short_sl[1]) == -1
+
+// Count your long & short conditions
+
+var int sectionLongs = 0
+sectionLongs := nz(sectionLongs[1])
+
+var int sectionShorts = 0
+sectionShorts := nz(sectionShorts[1])
+
+// Longs & shorts Counter
+
+if longCondition or (Final_Long_sl and not Act_sl)
+    sectionLongs := sectionLongs + 1
+    
+if shortCondition or (Final_Short_sl and not Act_sl)
+    sectionShorts := sectionShorts + 1
+
+// Average price of the position
+
+var float sum_long = 0.0
+var float sum_short = 0.0
+
+if longCondition
+    sum_long := nz(last_open_longCondition) + nz(sum_long[1])
+    
+if Final_Long_sl and not Act_sl
+    sum_long := ((1-(sl_l/100))*last_open_longCondition) + nz(sum_long[1])
+    
+if shortCondition
+    sum_short := nz(last_open_shortCondition) + nz(sum_short[1])
+    
+if Final_Short_sl and not Act_sl
+    sum_short := ((1+(sl_s/100))*last_open_shortCondition) + nz(sum_short[1])
+   
+var float Position_Price_Long = 0.0
+Position_Price_Long := nz(Position_Price_Long[1])
+var float Position_Price_Short = 0.0
+Position_Price_Short := nz(Position_Price_Short[1])
+
+Position_Price_Long := longCondition or (Final_Long_sl and not Act_sl) ? sum_long/(sectionLongs) : na
+Position_Price_Short := shortCondition or (Final_Short_sl and not Act_sl) ? sum_short/(sectionShorts) : na
+
+plot(Position_Price_Long, title = "Long Average Price", color = color.aqua, linewidth = 2, style = plot.style_cross, transp = 0)
+plot(Position_Price_Short, title = "Short Average Price", color = color.fuchsia, linewidth = 2, style = plot.style_cross, transp = 0)
+
+// Take profit
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+long_tp = crossover(high, (1+(tp_l/100))*fixnan(Position_Price_Long)) and not longCondition and not Final_Long_sl
+short_tp = crossunder(low, (1-(tp_s/100))*fixnan(Position_Price_Short)) and not shortCondition and not Final_Short_sl
+
+// Get the time of the last tp
+
+var int last_long_tp = na
+var int last_short_tp = na
+
+last_long_tp := long_tp ? time : nz(last_long_tp[1])
+last_short_tp := short_tp ? time : nz(last_short_tp[1])
+
+var bool CondIni_long_tp = 0
+CondIni_long_tp := Final_Long_sl and Act_sl ? 1 : longCondition ? -1 : nz(CondIni_long_tp[1])
+
+var bool CondIni_short_tp = 0
+CondIni_short_tp := Final_Short_sl and Act_sl ? 1 : shortCondition ? -1 : nz(CondIni_short_tp[1])
+
+Final_Long_tp = long_tp and last_longCondition > nz(last_long_tp[1]) and nz(CondIni_long_tp[1]) == -1
+Final_Short_tp = short_tp and last_shortCondition > nz(last_short_tp[1]) and nz(CondIni_short_tp[1]) == -1
+
+// Final Conditions
+
+if Final_Long_tp or (Final_Long_sl and Act_sl)
+    sum_long := 0.0
+    sectionLongs := 0
+    CondIni_long_sl == 1
+    
+if Final_Short_tp or (Final_Short_sl and Act_sl)
+    sum_short := 0.0
+    sectionShorts := 0
+    CondIni_short_sl == 1
+
+CondIni_long_sl := Final_Long_sl or Final_Long_tp ? 1 : longCondition ? -1 : nz(CondIni_long_sl[1])
+CondIni_short_sl := Final_Short_sl or Final_Short_tp? 1 : shortCondition ? -1 : nz(CondIni_short_sl[1])
+
+// Signals
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+// Long
+
+label.new(
+   x = longCondition[1] ? time : na, 
+   y = na, 
+   text = 'LONG '+tostring(sectionLongs)+"\n"+tostring(open), 
+   color = color.blue, 
+   textcolor = color.black,  
+   style = label.style_labelup, 
+   xloc = xloc.bar_time, 
+   yloc = yloc.belowbar,
+   size = size.tiny)
+
+// Short
+
+label.new(
+   x = shortCondition[1] ? time : na, 
+   y = na, 
+   text = tostring(open)+"\n"+'SHORT '+tostring(sectionShorts), 
+   color = color.red, 
+   textcolor = color.black,  
+   style = label.style_labeldown, 
+   xloc = xloc.bar_time, 
+   yloc = yloc.abovebar,
+   size = size.tiny)
+   
+// Tp
+
+label.new(
+   x = Final_Long_tp ? time : na, 
+   y = na, 
+   text = 'PROFIT '+tostring(tp_l)+'%', 
+   color = color.orange, 
+   textcolor = color.black,  
+   style = label.style_labeldown, 
+   xloc = xloc.bar_time, 
+   yloc = yloc.abovebar,
+   size = size.tiny) 
+
+ltp = iff(Final_Long_tp, (fixnan(Position_Price_Long)*(1+(tp_l/100))), na), plot(ltp, style=plot.style_cross, linewidth=3, color = color.white, editable = false)
+
+label.new(
+   x = Final_Short_tp ? time : na, 
+   y = na, 
+   text = 'PROFIT '+tostring(tp_s)+'%', 
+   color = color.yellow, 
+   textcolor = color.black,  
+   style = label.style_labelup, 
+   xloc = xloc.bar_time, 
+   yloc = yloc.belowbar,
+   size = size.tiny)
+   
+stp = iff(Final_Short_tp, (fixnan(Position_Price_Short)*(1-(tp_s/100))), na), plot(stp, style=plot.style_cross, linewidth=3, color = color.white, editable = false)
+
+// Sl
+
+label.new(
+   x = Final_Long_sl ? time : na, 
+   y = na, 
+   text = Act_sl ? ('LOSS '+tostring(sl_l)+'%'+"\n"+"STOP LOSS") : ('LOSS '+tostring(sl_l)+'%'+"\n"+"RE-ENTRY"), 
+   color = color.green, 
+   textcolor = color.black,  
+   style = label.style_labelup, 
+   xloc = xloc.bar_time, 
+   yloc = yloc.belowbar,
+   size = size.tiny)
+   
+lsl = iff(Final_Long_sl, (last_open_longCondition*(1-(sl_l/100))), na), plot(lsl, style=plot.style_cross, linewidth=3, color = color.white, editable = false)
+
+label.new(
+   x = Final_Short_sl ? time : na, 
+   y = na, 
+   text = Act_sl ? ('LOSS '+tostring(sl_s)+'%'+"\n"+"STOP LOSS") : ('LOSS '+tostring(sl_s)+'%'+"\n"+"RE-ENTRY"), 
+   color = color.maroon, 
+   textcolor = color.black,  
+   style = label.style_labeldown, 
+   xloc = xloc.bar_time, 
+   yloc = yloc.abovebar,
+   size = size.tiny) 
+   
+ssl = iff(Final_Short_sl, (last_open_shortCondition*(1+(sl_s/100))), na), plot(ssl, style=plot.style_cross, linewidth=3, color = color.white, editable = false)
+
+// Alerts
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+alertcondition(longCondition[1] or (Final_Long_sl and not Act_sl), title="Long Alert", 
+   message = "LONG")
+
+alertcondition(Final_Long_tp or (Final_Long_sl and Act_sl), title="TPL/SLL Alert", 
+   message = "TPL/SLL")
+
+alertcondition(shortCondition[1] or (Final_Short_sl and not Act_sl), title="Short Alert", 
+   message = "SHORT")
+
+alertcondition(Final_Short_tp or (Final_Short_sl and Act_sl), title="TPS/SLS Alert", 
+   message = "TPS/SLS")

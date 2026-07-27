@@ -1,0 +1,239 @@
+//@version=4
+study(title="[IFLOST.io] Dollar Cost Average+", shorttitle="[IFLOST.io]  DCA+", overlay=false, precision=2, max_bars_back=5000)
+
+// https://www.tradingview.com/script/lX5hpb08-Dollar-Cost-Average-Data-Window-Edition/
+// LucF functions
+// he's my sensei, please give him a follow
+// ——————————————— Colors
+MyGreenRaw = color.new(color.lime,0),             MyGreenMedium = color.new(#00b300,0),       MyGreenSemiDark = color.new(#009900,0),     MyGreenDark = color.new(#006600,0),         MyGreenDarkDark = color.new(#003300,0)
+MyRedRaw = color.new(color.red,0),                MyRedMedium = color.new(#cc0000,0),         MyRedSemiDark = color.new(#990000,0),       MyRedDark = color.new(#330000,0),           MyRedDarkDark = color.new(#330000,0)
+MyFuchsiaRaw = color.new(color.fuchsia,0),        MyFuchsiaMedium = color.new(#c000c0,0),     MyFuchsiaDark = color.new(#800080,0),       MyFuchsiaDarkDark = color.new(#400040,0)
+MyYellowRaw  = color.new(color.yellow,0),         MyYellowMedium  = color.new(#c0c000,0),     MyYellowDark  = color.new(#808000,0),       MyYellowDarkDark  = color.new(#404000,0)
+MyOrangeRaw = color.new(#ffa500,0),               MyOrangeMedium = color.new(#cc8400,0),      MyOrangeDark = color.new(#996300,0)
+MyBlueRaw   = color.new(#4985E7,0),               MyBlueMedium   = color.new(#4985E7,0)
+MyGreenBackGround = color.new(#00FF00,93),        MyRedBackGround = color.new(#FF0000,90)
+
+// ———————————————————— Function used to round values.
+RoundToTick( _price) => round(_price/syminfo.mintick)*syminfo.mintick
+
+Round( _val, _decimals) => 
+    // Rounds _val to _decimals places.
+    _p = pow(10,_decimals)    
+    round(abs(_val)*_p)/_p*sign(_val)
+
+PNC(value) => value > 0 ? MyGreenRaw : MyRedRaw
+N_PNC(value) => value > 0 ? MyOrangeMedium : MyFuchsiaMedium
+PNC_compare(value1, value2) => value1 > value2 ? MyGreenRaw : MyRedRaw
+
+use_current_res = input(true, title="Use current resolution")
+res_input = input(defval="Weekly", title="Timeframe used to DCA", options=["Daily","Weekly","Monthly"])
+amount_invested = input(defval=100, title="Amound invested in your local currency")
+//starting_date = input("07/26/2018", type=input.string, title="Starting Date (MM/DD/YYYY)")
+starting_day = input(1, "From Day", minval=1, maxval=31)
+starting_month = input(1, "From Month", minval=1, maxval=12)
+starting_year =  input(2018, "From Year", minval=1900)
+end_day = input(28, "To Day", minval=1, maxval=31)
+end_month = input(7, "To Month", minval=1, maxval=12)
+end_year =  input(2019, "To Year", minval=1900)
+intra_period = input(defval="close", title="Select a candle level for the desired timeframe", options=["open","close"])
+
+// variables initialization
+//time_delta = (timenow - time)
+daily_interval = 1000 * 60 * 60 * 24 * timeframe.multiplier
+weekly_interval = 1000 * 60 * 60 * 24 * 7 * timeframe.multiplier
+biweekly_interval = 1000 * 60 * 60 * 24 * 7 * 2 * timeframe.multiplier
+monthly_interval = 1000 * 60 * 60 * 24 * 30 * timeframe.multiplier
+quarterly_interval = 1000 * 60 * 60 * 24 * 30 * 3 * timeframe.multiplier
+// OCLF MTF
+
+res = if use_current_res
+    timeframe.period
+else
+    res_input == "Daily" ? "D" : res_input == "Weekly" ? "W" : "M"
+
+open_MTF = security(syminfo.tickerid, res, open, lookahead=true)
+close_MTF = security(syminfo.tickerid, res, close, lookahead=true)//, barmerge.gaps_off, barmerge.lookahead_on)
+
+
+
+// find the number of candles to calculate
+starting_time = timestamp(starting_year, starting_month, starting_day, 00, 00)
+end_time = timestamp(end_year, end_month, end_day, 23, 59)
+
+// current timestamp
+time_delta = (timenow - time)
+time_final_delta = end_time - starting_time
+//time_final_delta = end_time - time
+
+// check the time range
+trade_date_allowed = (time >= starting_time and time <= end_time)
+
+TDA(plot) => trade_date_allowed ? plot : na
+
+nb_days = Round(time_final_delta / daily_interval, 0)
+nb_weeks = Round(time_final_delta / weekly_interval, 0)
+nb_months = Round(time_final_delta / monthly_interval, 0)
+
+nb_periods = (res == "D") ? nb_days : (res == "W") ? nb_weeks : nb_months
+
+OC = intra_period == "close" ? close_MTF : open_MTF
+
+total_invested = amount_invested * nb_periods
+spent = 0
+total = 0.0
+
+//fake_time_delta = (timenow - time)
+dca_interval = (res == "D") ? daily_interval * nb_days : (res == "W") ? weekly_interval * nb_weeks :
+ monthly_interval * nb_months
+
+GiveMeTheS(nb_periods) => nb_periods > 1 ? "s" : ""
+period_label = (res == "D") ? "day" : (res == "W") ? "week" : "month"
+
+//within = time_delta < dca_interval 
+
+fraction = amount_invested / OC
+// only count the data in the time range
+for i = 1 to nb_periods
+    if trade_date_allowed
+        if fraction[i]
+            spent := spent + amount_invested
+        total := total + nz(fraction[i], 0)
+
+// express the profit in local currency
+// BTC maximalists would remove the line just below because muh 1 BTC = 1 BTC :)
+dca_total_pf = total * OC
+
+
+// rolling version of the code above
+rolling_spent = 0, rolling_total = 0.0, dca_qty=0.0
+// rolling only works if TF security = TF chart
+check_rolling = timeframe.period == res
+rolling_spent := trade_date_allowed and check_rolling ? nz(rolling_spent[1]) + amount_invested : 0
+rolling_total := trade_date_allowed and check_rolling ? nz(rolling_total[1]) + fraction : 0.0
+rolling_total_pf = rolling_total * OC
+//dca_qty := trade_date_allowed and check_rolling ? nz(dca_qty[1]) + amount_invested/close :
+
+// use to display periods in rolling mode
+counter_period = 0, counter_mtf = 0
+// counter_period := trade_date_allowed ? nz(counter_period[1]) + 1 : 0
+
+// // is it a new week
+
+if trade_date_allowed
+    if timeframe.period != res
+        if res == "W" and (dayofweek == dayofweek.monday) //and (dayofweek != dayofweek[1])
+            counter_mtf := nz(counter_mtf[1]) + 1
+        else
+            // was lazy to calculate the exact end of the month
+            // will do it for the V2
+            // 28 because Februarys sometimes have 28 days 
+            if res == "M" and dayofmonth == 28
+                counter_mtf := nz(counter_mtf[1]) + 1
+            else // daily
+                counter_mtf := counter_mtf[1]
+    // daily chart on daily TF for instance
+    else
+        counter_mtf := nz(counter_mtf[1]) + 1
+else
+    counter_mtf := 0
+
+if trade_date_allowed
+    // if check_rolling
+    //     dca_qty := nz(dca_qty[1]) + amount_invested/close
+    // else
+    //     total
+    if timeframe.period != res
+        if res == "W" and (dayofweek == dayofweek.monday) //and (dayofweek != dayofweek[1])
+            dca_qty := nz(dca_qty[1]) + amount_invested/OC
+        else
+            if res == "M" and dayofmonth == 28
+                dca_qty := nz(dca_qty[1]) +  amount_invested/OC
+            else // daily
+                dca_qty := dca_qty[1]
+        // daily chart on daily TF for instance
+    else
+        dca_qty := nz(dca_qty[1]) + amount_invested/OC
+else
+    dca_qty := 0.0
+
+AssignVariableMTF(value) =>
+    
+    counter = 0.0
+
+    if trade_date_allowed
+        if timeframe.period != res
+            if res == "W" and (dayofweek == dayofweek.monday)
+                counter := nz(counter[1]) + value
+            else
+                if res == "M" and dayofmonth == 28
+                    counter := nz(counter[1]) + value
+                else // daily
+                    counter := counter[1]
+        else
+            counter := nz(counter[1]) + value
+    else
+        counter := 0.0
+
+    counter
+
+// chose between rolling and non rolling for spent
+final_spent = check_rolling ? rolling_spent : spent
+dca_perc_change = ((dca_total_pf - final_spent) / final_spent) * 100
+
+dca_profit = dca_total_pf - final_spent
+
+test = 0
+test := (dayofweek == dayofweek.monday) and trade_date_allowed ? nz(test[1]) + 1 : test[1]
+
+plot(TDA(nb_periods), title="[BOTH] - Number of periods", transp=100) // hide
+//plot(TDA(counter_period), title="[BOTH] - Current period", transp=100) // hide
+plot(counter_mtf, title="[BOTH] - Current period", transp=100) // hide
+
+plot(close, title="[DCA] Asset last price", linewidth=2, transp=100) // hide
+plot(amount_invested, title="[DCA] Amount invested per period", linewidth=2, color=MyGreenSemiDark)
+plot(TDA(final_spent), title="[DCA] Spent", linewidth=2, color=MyOrangeMedium)
+// if period = 7 months, 1 X bought per month = 7 X in total
+plot(TDA(Round(dca_qty,3)), title="[DCA] Qty of assets", linewidth = 2, color=MyBlueMedium)
+plot(TDA(dca_total_pf), title="[DCA] Total PF value", linewidth = 2, color=PNC_compare(dca_total_pf, final_spent))
+plot(TDA(dca_profit), title="[DCA] Profit/Loss (value)", linewidth=2,  color=PNC(dca_profit))
+plot(TDA(dca_perc_change), title="[DCA] PnL (%)", linewidth=2, color=PNC(dca_perc_change))
+
+//color_perc = (dca_perc_change <= 10) ? MyRedRaw : (dca_perc_change <= 25) ? MyOrangeRaw : (dca_perc_change <= 100) ? MyGreenRaw : na
+//plotchar(Round(dca_perc_change, 2), "DCA Portfolio (%)", color=color_perc)
+
+// Non-DCA calculation
+asset_variation = OC - OC[nb_periods]
+// non rolling version
+// non DCA qty is static and invested at the beginning of the date range
+initial_qty_asset = 0.0
+start_asset_price = 0.0
+
+// I know it's dirty but don't blame me, blame Pine language
+// that's the way I found to store the qty for the non DCA investing method
+// dirty but it works
+
+if time == starting_time 
+    initial_qty_asset := total_invested / OC
+    start_asset_price := OC
+else
+    initial_qty_asset := initial_qty_asset[1]
+    start_asset_price := start_asset_price[1]
+
+//qty_asset := time == starting_time ? total_invested / OC[nb_periods] : nz(qty_asset[1])
+
+start_PF = total_invested
+final_PF = initial_qty_asset * OC
+non_dca_profit = final_PF - start_PF
+non_dca_perc_change = ((OC - OC[nb_periods]) / OC[nb_periods]) * 100
+
+plot(TDA(start_asset_price), title="[NO DCA] Asset price at starting time", linewidth=2, transp=100) // hide
+plot(TDA(total_invested), title="[NO DCA] Spent", linewidth=2, transp=100, color=MyOrangeMedium) // hide
+plot(TDA(initial_qty_asset), title="[NO DCA] Qty of assets ", transp=100) // hide
+plot(TDA(final_PF), title="[NO DCA] Total PF value", linewidth = 2, color=PNC_compare(final_PF, total_invested))
+plot(TDA(non_dca_profit), title="[NO DCA] Profit/Loss (value)", linewidth=2, color=PNC(non_dca_profit))
+plot(TDA(non_dca_perc_change), title="[NO DCA] PnL (%)", linewidth=2, color=PNC(non_dca_perc_change))
+
+// used to debug
+//plot(counter_period , title="time delta", linewidth=5)
+//plot(starting_time, title="starting_time", linewidth=5)
+//plot(time_final_delta, title="time_final_delta", linewidth=5)

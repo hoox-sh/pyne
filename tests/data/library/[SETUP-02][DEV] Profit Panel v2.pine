@@ -1,0 +1,209 @@
+//   |{------------------------------------------------------------------||
+//   ||   START OF SETUP
+            
+//@version=4
+
+IndicatorName                   = "[SETUP-02-DEV][PA] Profit Panel v2"
+ShortIndicatorName              = "[S02-DEV][PA] Profit Panel v2"
+
+TradeId                         = "[IFLO]"
+
+Precision                       = 6
+Overlay                         = true
+
+
+//////////////////////////////////////////////////////////////////////////
+//-- [SETUP-02-DEV][PA] Profit Panel v2
+//////////////////////////////////////////////////////////////////////////
+
+
+study(
+ title = IndicatorName, 
+ shorttitle = ShortIndicatorName, 
+ overlay = Overlay,
+ precision = Precision
+ )
+
+
+//-- PANEL IDEAS
+// 
+// ◄─╢
+// 
+// ┌──────────────────────────┐
+// └──────────────────────────┘
+//   
+// ◄─┤▌  ↨ 5,00%  │
+// 
+//   ┌──────────────────────────
+// ◄─┤ ▌                        
+//   └──────────────────────────
+// 
+// ◄─╫─
+
+//  ||----------------------||
+//  || P    || X    || Y    ||
+//  ||------||------||------||
+//  || 1    || +10  || LP   ||
+//  || 2    || +25  || LP   ||
+//  || 3    || +25  || LP   ||
+//  || 4    || +25  || C    ||
+//  || 5    || +10  || C    ||
+//  || 6    || +25  || C    ||
+//  || 7    || +25  || CLP2 ||
+//  || 8    || +35  || CLP2 ||
+//  ||----------------------||
+
+
+//  ||  CHARACTER LIST:
+//  ||      ‖ ‗ ― — – ‒
+//  ||      ← ↑ → ↓ ↔ ↕ ↨ ─ 
+//  ||      │ ┌ ┐ └ ┘ ├ ┤ ┬ ┴ ┼ 
+//  ||      ═ ║ ╒ ╓ ╔ ╕ ╖ ╗ ╘ ╙ ╚ ╛ ╜ ╝ ╞ ╟ ╠ ╡ ╢ ╣ ╤ ╥ ╦ ╧ ╨ ╩ ╪ ╫ ╬ 
+//  ||
+//  ||      ▀ ▄ █ ▌ ▐ ░ ▒ ▓ ■ □ ▪ ▫ ▬ ▲ ► ▼ ◄ 
+//  ||      spaces: | | | | | | | | | | | |​|‌|‍|
+
+
+//////////////////////////////////////////////////////////////////////////
+//-- SETUP: INPUTS
+//////////////////////////////////////////////////////////////////////////
+
+
+
+// Entry Price
+__EXTERN                        = input(type=input.source, defval=close, title="Change data source to > External Signal:")
+
+__POSX                          = input(40, title="Panel X Position Offset")
+__POSY                          = input(0, title="Panel Y Position Offset")
+__OFFSET                        = input(0, title="Panel Y Position Offset")
+
+
+//////////////////////////////////////////////////////////////////////////
+//-- VARIABLES
+//////////////////////////////////////////////////////////////////////////
+
+
+var string direction            = "LONG"
+var float dir                   = na
+var float entryPrice            = 0
+
+
+
+//////////////////////////////////////////////////////////////////////////
+//-- COLORS
+//////////////////////////////////////////////////////////////////////////
+
+
+//-- __buy, Upward
+var color col_green_1           = #4EF9FF
+var color col_green_2           = #3CADB1
+var color col_green_3           = #26c6da  //* 
+var color col_green_4           = #afff00
+var color col_green_5           = #CFD80E
+var color col_green_6           = #90c818
+
+//-- __sell, Downward
+var color col_red_1             = #7b1fa2
+var color col_red_2             = #7e57c2
+var color col_red_3             = #512da8
+var color col_red_4             = #7300de
+var color col_red_5             = #4a148c  //*
+var color col_red_6             = #2d2456
+
+//-- Idle, Sideward
+var color col_yellow_1          = #ffa726
+var color col_yellow_2          = #f57c00
+
+
+//////////////////////////////////////////////////////////////////////////
+//-- FUNCTIONS
+//////////////////////////////////////////////////////////////////////////
+
+
+format_text(str) =>
+    str + "\n"
+    
+
+//////////////////////////////////////////////////////////////////////////
+//-- CALCULATION
+//////////////////////////////////////////////////////////////////////////
+    
+
+// Direction
+dir                            := __EXTERN == 0 ? dir[1] : __EXTERN
+entryPrice                     := dir[0] != dir[1] ? close : entryPrice[1]
+direction                      := dir == 1 ? "LONG" : dir == -1 ? "SHORT" : direction[1]
+
+BuyTrend                        = dir == 1
+SellTrend                       = dir == -1
+
+
+// show_panel
+lapos_x                         = time + round(change(time)*__POSX)
+lapos_y                         = entryPrice + __POSY
+
+calc_pnl() =>
+    
+    float pnl = 0.0, bool inLoss = false
+
+    if BuyTrend
+        if close > entryPrice
+            pnl := abs(((close - entryPrice)/close)*100)
+        else // Long in loss
+            pnl := abs(((entryPrice - close)/entryPrice)*100)
+            inLoss := true
+            
+    if SellTrend
+        if close < entryPrice
+            pnl := abs(((entryPrice - close)/entryPrice)*100)
+        else
+            pnl := abs(((close - entryPrice)/close)*100)
+            inLoss := true
+    [pnl, inLoss]
+
+[pnl, inLoss] = calc_pnl()
+
+
+var label PnL_Label = na
+label.delete(PnL_Label)
+
+my_text_1 =         format_text("\n___" + (dir == 1 ? "LONG" : "SHORT") + "___\n")
+my_text_2 =         format_text((inLoss == true ? "Loss:" : "Profit:") + tostring(pnl, "#.##") + "%\n")
+
+final_text = my_text_1 + my_text_2
+
+color_PnL = dir == 1 ? col_green_1 : dir == -1 ? col_red_1 : na
+text_color = inLoss ? col_red_2 : color.white
+
+PnL_Label := label.new(lapos_x, lapos_y, final_text, xloc=xloc.bar_time, yloc=yloc.price, color=col_red_6, style=label.style_none, textcolor=text_color, size=size.normal)
+
+
+
+
+l1 = line.new(x1=lapos_x +10, y1=lapos_y, x2=lapos_x +25, y2=lapos_y)
+
+
+
+var label Error_Label = na
+label.delete(Error_Label)
+// pos for errur panel
+
+lapos_err_x = time + round(change(time)*__POSX)
+lapos_err_y = close + round(change(close)*__POSY)
+
+var string Calc_errors = ""  
+
+if(__EXTERN == close)
+    Calc_errors := "Please change data source to: External Signal"    
+else
+    Calc_errors := ""    
+
+if (Calc_errors[0] != "")
+    
+    my_err_text_1 = format_text("╔══════════ " + "Error Panel" + " ═════=════╗")
+    my_err_text_2 = format_text(" +++ +++ +++ +++ ")
+    my_err_text_3 = format_text("  " + Calc_errors + "  ")
+    my_err_text_last = "\n" + "╚═══════════════════=═══=════╝"
+
+    final_err_text = my_err_text_1 + my_err_text_2 + my_err_text_3 + my_err_text_last
+    Error_Label := label.new(lapos_err_x, lapos_err_y, final_err_text, color=color.white, textcolor=col_red_1, style=label.style_labelup, yloc=yloc.price, xloc=xloc.bar_time)

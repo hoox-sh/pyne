@@ -1,0 +1,7 @@
+//@version=6
+indicator(title="Compare", shorttitle="Compare", overlay=false)
+sym = input.symbol("AAPL", "Symbol")
+res = timeframe.period
+source = input.source(close)
+offset = input.int(0)
+plot(request.security(sym, res, source), color=color.purple, linewidth=2, offset = offset)

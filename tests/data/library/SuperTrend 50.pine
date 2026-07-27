@@ -1,0 +1,52 @@
+//@version=4
+//@url=https://de.tradingview.com/script/22SinngS-super-trend-50/
+
+study("super trend 50",overlay=true)
+src = input(close)
+lenFast = input(1, title="Length of Fast ", type=input.integer, minval=1)
+lenSlow = input(5, title="Length of Slow ", type=input.integer, minval=1)
+lenC = input(50, title="Length of  Curve", type=input.integer, minval=1)
+
+co(sFast, sSlow, lFast, lSlow, lC)=>
+    fastC = sma(sFast, lFast)
+    slowC = sma(sSlow, lSlow)
+    cC = fastC + slowC
+    sma(cC, lC)
+
+closeC = co(close, close, lenFast, lenSlow, lenC)
+//              PLOTTING: 
+//lineColor = closeC > closeC[1] ? color.green : color.red
+
+c = closeC/2
+
+// INPUTS //
+st_mult   = input(1,   title = 'SuperTrend Multiplier', minval = 0, maxval = 100, step = 0.01)
+st_period = input(100, title = 'SuperTrend Period',     minval = 1)
+
+// CALCULATIONS //
+up_lev = c - (st_mult * atr(st_period))
+dn_lev = c + (st_mult * atr(st_period))
+
+up_trend   = 0.0
+up_trend   := close[1] > up_trend[1]   ? max(up_lev, up_trend[1])   : up_lev
+
+down_trend = 0.0
+down_trend := close[1] < down_trend[1] ? min(dn_lev, down_trend[1]) : dn_lev
+
+// Calculate trend var
+trend = 0
+trend := close > down_trend[1] ? 1: close < up_trend[1] ? -1 : nz(trend[1], 1)
+
+// Calculate SuperTrend Line
+st_line = trend ==1 ? up_trend : down_trend
+
+// Plotting
+plot(st_line[1], color = trend == 1 ? color.green : color.red , style = plot.style_cross, linewidth = 2, title = "SuperTrend")
+buy=crossover( close, st_line)
+sell=crossunder(close, st_line)
+plotshape(crossover( close, st_line), location = location.belowbar, color = color.green,size=size.tiny)
+plotshape(crossunder(close, st_line), location = location.abovebar, color = color.red,size=size.tiny)
+
+/////// Alerts /////
+alertcondition(buy,title="buy")
+alertcondition(sell,title="sell")

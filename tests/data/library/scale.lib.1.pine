@@ -1,0 +1,2498 @@
+// Licensed under Attribution-NonCommercial-ShareAlike 4.0 International (CC BY-NC-SA 4.0)
+// Check out the full license here: https://creativecommons.org/licenses/by-nc-sa/4.0/
+//
+// ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+// ┃  The "CC BY-NC-SA 4.0" license grants you the following:   ┃
+// ┃                                                            ┃
+// ┃  • Share: Copy and redistribute the material.              ┃
+// ┃  • Adapt: Remix, transform, and build upon it.             ┃
+// ┃                                                            ┃
+// ┃  Under these strict conditions:                            ┃
+// ┃  • Attribution: Credit the original creator.               ┃
+// ┃  • Non-Commercial: Strictly for non-commercial use.        ┃
+// ┃  • ShareAlike: Distribute modifications under same terms.  ┃
+// ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+//
+// Authored by: cryptolinx - jango_blockchained
+// Made with 💙 for the open source community.
+
+
+//  ▪ ──── TL;DR
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+// ──── Functions {
+//
+// [Primary Functions]                                    [Utility Functions]
+//
+// ▸ build()                                            ▸ _controller()                ▸ _onInit()
+// ▸ addLabel()           ▸ addRange()                  ▸ _await()                     ▸ _onDeploy()
+// ▸ addBackground()      ▸ addTrend()                  ▸ _syncRealtimeUpdates()       ▸ _onUpdate()
+// ▸ addMarker()          ▸ addTimer()                  ▸ _offset()                    ▸ _updateLookback()
+// ▸ addMark()            ▸ addLoader()                 ▸ _renderView()                ▸ _countDeployments()
+// ▸ addRuler()           ▸ addBadge()                  ▸ _updateView()                ▸ _setDeploymentStatus()
+// ▸ addAvg()             ▸ addDecoration()             ▸ _getIcon()                   ▸ _setPrecisionString()
+// ▸ deploy()
+//
+// [Validator ]
+// ▸ Validator.isValidLocation()                        ▸ Validator.isBelowLocation()
+// ▸ Validator.isValidPosition()                        ▸ Validator.isAbovePosition()
+// ▸ Validator.isValidTheme()                           ▸ Validator.isBelowPosition()
+// ▸ Validator.isValidSize()                            ▸ Validator.isCenterLocation()
+// ▸ Validator.isValidFormat()                          ▸ Validator.isCenterPosition()
+// ▸ Validator.isLeftPosition()
+// ▸ Validator.isRightPosition()
+// ▸ Validator.isAboveLocation()
+// }
+
+// ──── Types {
+//
+// ▸ setup                ▸ draft_line
+// ▸ model                ▸ draft_label
+// ▸ view
+// ▸ controller
+// ▸ theme
+// }
+
+
+//  ▪ ──── MISC
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+// ──── Glyphs {
+//
+// ◀ ▶ ▲ ▼ ◄ ► ◤ ◥ ◣ ◢ ◸ ◹ ◺ ◿ ◁ ▷ « » ‹ › < > ▿ ▵ ▾ ▴ ◂ ▸ ◃ ▹ ◭ ◮ ⩤ ⩥
+// 【 】〔 〕 〖 〗 ⟦ ⟧ ⟬ ⟭ ⟮ ⟯ ⟪ ⟫ ⟨ ⟩ ◖◗ ⪽ ⪾ ⫏ ⫐ ⊴ ⊵ ⋐ ⋑ ⋳ ⋻ ⸜ ⸂ ⸅ ⦘ ⦗ ⦦ ⦧ ⏠ ⏡
+// ▀ ▄ █ ▌ ▐ █ ░ ▒ ▓ ■ □ ▧ ▪ ▫ ▰ ▱ ▬ ▭ ▮ ▯ ░ ▒ ▓ + ± ⌀ ⌂ H ᮙ ᮓ ⎅ ⌕
+// ▪ ▫ ■ ◻ ■ □ ◪ ◩ ◧ ◨ ◲ ◱ ◳ ◰ ◫ ⊟ ▤ ▥
+// ○ ◉ ◕ ◔ ◑ ◐ ◒ ◓ ● ◉ ◎ ◴ ◵ ◶ ◷◞ ◟ ◝ ◜ ◠ ◡
+// ⬖ ⬘ ⬗ ⬙ ◇ ◆ ◈
+// │ ‖ ⌊ ⌉ ⌈ ┌ ┐ └ ┘ ├ ┤ ┬ ┴ ┼ ═ ‗ ║ ╒ ╓ ╔ ╕ ╖ ╗ ╘ ╙ ╚ ╛ ╜ ╝ ╞ ╧ ╡ ╟ ╠  ╢ ╣ ╤ ╥ ╦ ╧ ╨ ╩ ╪ ╫ ╬ ≓ ≑ ≒ ≏ ≎ ⥢ ⥤ ⥑ ⥏
+// ⁛ ⁘ ⋱ ⋯ ⋮ ⋰ ∷ ⁞ ⁝ ⇣ ⇡ ⫰ ⫯ ⇊ ⇈ ↑ ↓ ↕ ↨ ⊻ ⊼ ∧ ∨ ⋁ ⋀ ⋂ ⋃ ⩍ ⩌ ⩎ ⩏ ⋒ ⋓ ― — – ‒ ─ ⊢ ⊣ ⇥ ⇤ ⇁ ← → ⇹ ↔ ⇆ ⇌ ⇿ ⊶ ⊷ ⊸
+// ⌝ ⌜ ⌞ ⌟ ⌌ ⌍ ⌎ ⌏ ⎴ ⎶ ⎵ ⎺ ⎻ ⎼ ⎽ ┄ ┅ ┈ ┉ ┈ ╌ ╴ ─ ━ ╌ ╍╶╴ ╵ ╷ ╸ ╹ ╺ ╻ ╼ ╽ ╾ ╿ ┛ ┘
+// ⠵ ⡃ ⠠ ⡜ ⡫ ⡻ ⡺ ⡵ ⡲ ⡰ ⡟ ⡏ ⠉ ⠸ ☰ ☱ ☲ ☳ ☴ ☵ ☶ ☷ ▙ ▞ ▚ ▟ ▖ ▝ ▗ ▖ ▘
+// ฿ ₮ α β π μ Ξ λ ₭ ₲ ₦ ₩ € ¥ ₹ ₤ ₳
+// }
+
+// ──── Fullwidth Typography {
+//
+// Ａ Ｂ Ｃ Ｄ Ｅ Ｆ Ｇ Ｈ Ｉ Ｊ Ｋ Ｌ Ｍ Ｎ Ｏ Ｐ Ｑ Ｒ Ｓ Ｔ Ｕ Ｖ Ｗ Ｘ Ｙ Ｚ 
+// ａ ｂ ｃ ｄ ｅ ｆ ｇ ｈ ｉ ｊ ｋ ｌ ｍ ｎ ｏ ｐ ｑ ｒ ｓ ｔ ｕ ｖ ｗ ｘ ｙ ｚ
+// ０ １ ２ ３ ４ ５ ６ ７ ８ ９
+// }
+
+// ──── HEX Color Code {
+//
+// 100%— FF   95% — F2    90% — E6    85% — D9    80% — CC
+// 75% — BF   70% — B3    65% — A6    60% — 99    55% — 8C
+// 50% — 80   45% — 73    40% — 66    35% — 59    30% — 4D
+// 25% — 40   20% — 33    15% — 26    10% — 1A     5% — 0D
+//  0% — 00
+// }
+
+// ──── Custom Formatting {
+//
+//  Variable:           myVar
+//  Variable Alt:       myVar_
+//  Default Argument:   _myArgument
+//  Object Argument:    __myObject
+//  UDT:                __object
+//  UDT Array:          __objects
+//  Inputs:             __MY_INPUT
+//  Constant:           MY_VALUE
+// }
+
+
+//  ▪ ──── LIBRARY
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+// @version=6
+// @description A fully customizable and extendable UI Scale/Bar (🔋Batteries included)
+library('ScalesDEV', overlay = true)
+
+// ──── Dependencies {
+//
+import cryptolinx/ScaleValidator/1 as Validator
+// }
+
+// ──── Global Constan {
+//
+// @variable    An empty string.
+const string EMPTY   = ''
+// @variable    Whitespace
+const string WS      = ' '
+// @variable    A dividing string.
+const string DIV     = ' | '
+// @variable    Color Transparent
+const color  TRANSP  = #00000000
+// }
+
+
+//  ▪ ──── TYPES
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+// ──── UDT - Draft Line {
+//
+// @type    A data source for `line` objects that contains the same properties and serves as an additional property layer.
+//          This allows direct modification, addition, subtraction, and copying of any line object property before rendering.
+// @field   x1_offset           The x-coordinate offset of the line start point relative to bar_index
+// @field   x2_offset           The x-coordinate offset of the line end point relative to bar_index
+// @field   y1                  The y-coordinate of the line start point in script's visual space
+// @field   y2                  The y-coordinate of the line end point in script's visual space
+// @field   extend              Line extension mode: [extend.none, extend.left, extend.right, extend.both]
+// @field   color               Line color
+// @field   style               Line style: [line.style_solid, line.style_dashed, line.style_dotted]
+// @field   width               Line width in pixels
+export type draft_line
+    // -- Coordinates
+    int     x1_offset
+    int     x2_offset
+    float   y1
+    float   y2
+    // -- Styling
+    string  extend = extend.none
+    color   color  = color.gray
+    string  style  = line.style_solid
+    int     width  = 1
+// }
+
+// ──── UDT - Draft Label {
+//
+// @type    A data source for `label` objects that contains the same properties and serves as an additional property layer.
+//          This allows direct modification, addition, subtraction, and copying of any label object property before rendering.
+// @field   x_offset            The x-coordinate offset of the label position relative to bar_index
+// @field   y                   The y-coordinate of the label position in script's visual space
+// @field   txt                 The text content of the label
+// @field   color               The label background color
+// @field   style               The style of the label: [label.style_none, label.style_label_up, label.style_label_down, etc.]
+// @field   textcolor           The color of the label text
+// @field   size                The size of the label text: [size.auto, size.tiny, size.small, size.normal, size.large, size.huge]
+// @field   textalign           The text alignment: [text.align_left, text.align_center, text.align_right]
+// @field   tooltip             The tooltip text shown on hover
+// @field   text_font_family    The font family: [font.family_default, font.family_monospace]
+export type draft_label
+    // -- Coordinates
+    int     x_offset
+    float   y
+    // -- Content
+    string  txt
+    // -- Styling
+    color   color               = color.gray
+    string  style               = label.style_none
+    color   textcolor           = color.white
+    string  size                = size.normal
+    string  textalign           = text.align_left
+    string  tooltip
+    string  text_font_family    = font.family_default
+// }
+
+// ---------------------------------------------------------------------------------------------------------------------
+
+// ──── UDT - Element {
+//
+// @type    The element object stores all drawable label and line objects and their corresponding drafts.
+// @field   labels              An array containing all rendered label objects
+// @field   lines               An array containing all rendered line objects  
+// @field   __draft_labels      An array containing all label drafts to be rendered
+// @field   __draft_lines       An array containing all line drafts to be rendered
+// @field   hide                Controls visibility of all elements. Default: false
+// @field   id                  Unique identifier for the element
+export type element
+    // -- Rendered Objects
+    array<label>        labels
+    array<line>         lines
+    // -- Draft Objects
+    array<draft_label>  __draft_labels
+    array<draft_line>   __draft_lines
+    // -- Properties
+    bool                hide            = false
+    string              id
+// }
+
+// ---------------------------------------------------------------------------------------------------------------------
+
+
+// ──── UDT - Model {
+//
+// @type    Model object storing build() function data and configuration.
+// @field   num_bars            Number of bars displayed in visualization.
+// @field   bar_width           Width of individual bars [in bars].
+// @field   bar_height          Height of individual bars [in linewidth/pixels].
+// @field   spacing             Space between adjacent bars [in bars].
+// @field   wpadding            Horizontal padding around bars [in bars].
+// @field   hpadding            Vertical padding around bars [in linewidth/pixels].
+// @field   prefill             When true, fills bar between start/end percent instead of just end.
+// @field   text_size           Size setting for text elements.
+// @field   text_font_family    Font family setting for text elements.
+// @field   passthrough         Controls whether values pass through unmodified [fixed typo].
+// @field   dynamic             Controls dynamic scale updating.
+// @field   x_fixed             Locks x position in place.
+// @field   x                   X-axis coordinate position [in bars].
+// @field   x_offset            X-axis offset from bar_index [in bars].
+// @field   x_multi             Multiplier for x-axis positioning.
+// @field   y                   Y-axis coordinate position [in price].
+// @field   align_shift         Shift value for alignment [in bars].
+// @field   src                 Source value for scale calculation.
+// @field   length              Scale length [in bars].
+// @field   min                 Minimum scale value.
+// @field   max                 Maximum scale value.
+// @field   full_range          Range between min and max values.
+// @field   src_shift           Source value offset.
+// @field   active_bar_index    Index of last filled bar.
+// @field   full_length         Total length including padding [in bars].
+// @field   inner_length        Length excluding padding [in bars].
+export type model
+    // -- Display Properties
+    int         num_bars            = 8
+    int         bar_width           = 2
+    int         bar_height          = 5
+    int         spacing             = 0
+    int         wpadding            = 0
+    int         hpadding            = 0
+    bool        prefill             = false
+    string      text_size           = size.normal
+    string      text_font_family    = font.family_default
+    bool        passthrougt         = false
+    bool        dynamic             = false
+    bool        x_fixed             = false
+    // -- Position
+    int         x
+    int         x_offset            = 0
+    int         x_multi             = 1
+    float       y
+    int         align_shift
+    // -- Values
+    float       src
+    int         length              
+    float       min
+    float       max
+    // -- Calculated
+    float       full_range
+    float       src_shift           = 0.
+    // -- State
+    int         active_bar_index
+    int         full_length
+    int         inner_length
+// }
+
+// ──── UDT - View {
+//
+// @type    The view object represents a visual container for scale elements.
+// @field   __elements          Array of scale elements that make up this view.
+// @field   hide                Controls visibility of the entire view.
+export type view
+    array <element> __elements
+    bool            hide        = false
+// }
+
+// ──── UDT - Controller {
+//
+// @type    The controller object stores all runtime variables and manages the scale's deployment state.
+// @field   precision           The decimal precision for displayed values.
+// @field   deploy              Controls automatic deployment of the scale (true/false).
+// @field   update_no           Counter for updates/ticks within the current bar. Resets each new bar.
+// @field   exec                Execution flag for internal control flow.
+// @field   stack_updated       Counter for number of view updates processed.
+// @field   precision_string    Formatted string for precision display.
+// @field   element_id          Unique identifier for the scale element.
+export type controller
+    // -- Core Settings
+    int     precision
+	bool    deploy              = true
+    // -- State Tracking
+    int     update_no           = 0
+    // -- Control Flow
+    bool    exec                = false
+    // -- Runtime Stats
+    int     stack_updated       = 0
+    string  precision_string
+    // -- Identification
+    string  element_id          = 'scale'
+// }
+
+// ---------------------------------------------------------------------------------------------------------------------
+
+// ──── UDT - Theme {
+//
+// @type    theme                       The theme object defines the visual appearance of the scale through colors and styling options.
+// @field   color_bg                    Background color of the scale container.
+// @field   color_bg_text               Background color behind text elements.
+// @field   color_text                  Color used for text elements.
+// @field   color_bar_unfilled          Color of the scale bar's unfilled portion.
+// @field   color_bar_filled            Default color of the scale bar's filled portion.
+// @field   gradient                    Enables gradient fill effect for the scale bar.
+// @field   color_gradient              Primary color used for gradient effect.
+// @field   gradient_last               When true, applies full gradient across all filled bars. When false, cuts gradient at last filled bar.
+// @field   color_gradient_seq          Custom color array for creating complex gradients.
+// @field   custom_trend_color          When true, uses trend colors. When false, uses color_bar_filled.
+// @field   color_positive              Color used for positive trends.
+// @field   color_negative              Color used for negative trends.
+// @field   color_neutral               Color used for neutral/unchanged trends.
+// @field   color_bar_filled_tmp        Runtime storage for calculated fill colors.
+// @field   color_bar_filled_active     Color of the currently active (last) filled bar.
+export type theme
+    // -- Basic Colors
+    color           color_bg                = #CCCCCC80
+    color           color_bg_text           = #00000000
+    color           color_text              = color.gray
+    color           color_bar_unfilled      = color.silver
+    color           color_bar_filled        = color.lime
+    // -- Gradient Settings
+    bool            gradient                = false
+    color           color_gradient
+    bool            gradient_last           = false
+    array <color>   color_gradient_seq
+    // -- Trend Colors
+    bool            custom_trend_color      = true
+    color           color_positive          = color.green
+    color           color_negative          = color.red
+    color           color_neutral           = #CCCCCC80
+    // -- Runtime Colors
+    color           color_bar_filled_tmp
+    color           color_bar_filled_active
+// }
+
+// ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+// ──── Type Setup {
+//
+// @type    The main object that stores all component objects and configuration.
+// @field   xloc                The x-axis location type for plotting (bar_index, bar_time).
+// @field   __theme             Theme object containing visual styling configuration.
+// @field   __controller        Controller object handling user interactions and state management.
+// @field   __model             Model object managing data and business logic.
+// @field   __view              View object responsible for visual rendering.
+// @field   id                  Unique identifier for this setup instance.
+export type setup
+    // -- Location Settings
+    string          xloc            = xloc.bar_index
+    // -- Component Objects
+    theme           __theme
+    controller      __controller
+    model           __model
+    view            __view
+    // -- Instance Identifier
+    string          id
+// }
+
+// ---------------------------------------------------------------------------------------------------------------------
+
+// ──── Type Interface {
+//
+// @type    Interface type that manages multiple setup instances and their configurations.
+// @field   xloc                The x-axis location type for plotting (bar_index, bar_time).
+// @field   __setups            Array containing all setup instances managed by this interface.
+// @field   setup_id            Unique identifier for the currently active setup instance.
+export type interface
+    string       xloc      = xloc.bar_index
+    array<setup> __setups
+    string       setup_id
+// }
+
+
+//  ▪ ──── INTERNAL: HOOKED FUNCTIONS
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+// ──── Hooked Label Methods {
+//
+method _set_color(series label _label, series color _color) => _label.set_color(_color), _label
+method _set_text(series label _label, series string _text) => _label.set_text(_text), _label
+method _set_size(series label _label, series string _size) => _label.set_size(_size), _label
+method _set_style(series label _label, series string _style) => _label.set_style(_style), _label
+method _set_textalign(series label _label, series string _textalign) => _label.set_textalign(_textalign), _label
+method _set_textcolor(series label _label, series color _textcolor) => _label.set_textcolor(_textcolor), _label
+method _set_tooltip(series label _label, series string _tooltip) => _label.set_tooltip(_tooltip), _label
+method _set_x(series label _label, series int _x) => _label.set_x(_x), _label
+method _set_y(series label _label, series float _y) => _label.set_y(_y), _label
+method _set_xy(series label _label, series int _x, series float _y) => _label.set_xy(_x, _y), _label
+method _set_yloc(series label _label, series string _yloc) => _label.set_yloc(_yloc), _label
+method _set_text_font_family(label _label, string _font_family) => _label.set_text_font_family(_font_family), _label
+method _set_xloc(series label _label, setup this, series string _xloc) =>
+    // --
+    _label.set_xloc(_xloc == xloc.bar_index ? bar_index : timenow, _xloc), _label
+// }
+
+// ──── Hooked Line Methods {
+//
+method _set_color(series line _line, series color _color) => _line.set_color(_color), _line
+method _set_x1(series line _line, series int _x1) => _line.set_x1(_x1), _line
+method _set_x2(series line _line, series int _x2) => _line.set_x2(_x2), _line
+method _set_y1(series line _line, series float _y1) => _line.set_y1(_y1), _line
+method _set_y2(series line _line, series float _y2) => _line.set_y2(_y2), _line
+method _set_xy1(series line _line, series int _x1, series float _y1) => _line.set_xy1(_x1, _y1), _line
+method _set_xy2(series line _line, series int _x2, series float _y2) => _line.set_xy2(_x2, _y2), _line
+method _set_style(series line _line, series string _style) => _line.set_style(_style), _line
+method _set_width(series line _line, series int _width) => _line.set_width(_width), _line
+method _set_extend(series line _line, series string _extend) => _line.set_extend(_extend), _line
+// }
+
+
+//  ▪ ──── INTERNAL: UTILITY FUNCTIONS
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+// ──── Is Set Methods {
+//
+method isset(color _elm, color _replacement) => na(_elm) or _elm == color(na) ? _replacement : _elm
+method isset(int _elm, int _replacement) => na(_elm) or _elm == int(na) ? _replacement : _elm
+method isset(float _elm, float _replacement) => na(_elm) or _elm == float(na) ? _replacement : _elm
+method isset(string _elm, string _replacement) => na(_elm) or _elm == string(na) ? _replacement : _elm
+method isset(model _obj, model _instance) => na(_obj) ? _instance : _obj
+method isset(view _obj, view _instance) => na(_obj) ? _instance : _obj
+method isset(element _obj, element _instance) => na(_obj) ? _instance : _obj
+method isset(controller _obj, controller _instance) => na(_obj) ? _instance : _obj
+method isset(theme _obj, theme _instance) => na(_obj) ? _instance : _obj
+method isset(setup _obj, setup _instance) => na(_obj) ? _instance : _obj
+// }
+
+// ---------------------------------------------------------------------------------------------------------------------
+
+// ──── Get Element By Id {
+//
+// @function    Get element by id.
+// @param       this            Current instance.
+// @param       _elementId      Id of the element.
+// @returns     `<element>`
+export method getElementById(setup this, series string _elementId = na) =>
+    // @variable Element id.
+    series string id = _elementId.isset(this.__controller.element_id)
+    // @variable Element object reference.
+    element       e  = na
+    // --
+    for element_ in this.__view.__elements
+        if element_.id == _elementId
+            e := element_
+            break
+    // >>
+    e
+// }
+
+// ---------------------------------------------------------------------------------------------------------------------
+
+// ──── Register Element Id {
+//
+// @function    Register id of the element.
+// @param       this            Current instance.
+// @param       _elementId     Id of the element.
+// @returns     `<setup>`
+method registerElementId(setup this, series string _elementId) =>
+    // --
+    this.__controller.element_id := _elementId
+    // >>
+    this
+// }
+
+// ──── Register Setup Id {
+//
+// @function    Register id of the element.
+// @param       intf            Current instance.
+// @param       _setupId        Id of the element.
+// @returns     `<interface>`
+method registerSetupId(interface this, series string _setupId) =>
+    // --
+    this.setup_id := _setupId
+    // >>
+    this
+// }
+
+// ---------------------------------------------------------------------------------------------------------------------
+
+// ──── Get Setup By Id {
+//
+// @function    Get and set `<setup>`
+// @param       this            Current instance.
+// @param       _setupId        Id of the element.
+// @returns     `<setup>`
+export method setup(interface this, series string _setupId) =>
+    // @variable Setup object reference.
+    setup s = na
+    for setup_ in this.__setups
+        if setup_.id == _setupId
+            s := setup_
+            break
+    // --
+    if na(s)
+        s := setup.new(this.xloc, id = _setupId)
+        this.__setups.push(s)
+    // --
+    this.registerSetupId(_setupId)
+    // >>
+    s
+// }
+
+// ---------------------------------------------------------------------------------------------------------------------
+
+// ──── Get Interface {
+//
+// @function    Get pre-initialized interface.
+// @returns     `<interface>`
+export getInterface() =>
+    // @variable New interface object.
+    var interface __intf = interface.new(__setups = array.new<setup>())
+    // >>
+    __intf
+// }
+
+// ---------------------------------------------------------------------------------------------------------------------
+
+// ──── Init Element {
+//
+// @function    Initialize an element.
+// @param       this            Current instance.
+// @param       _elementId      Element id.
+// @returns     `<setup>`
+export method initElement(setup this, series string _elementId = na) =>
+    // @variable Element object reference.
+    element e = this.getElementById(_elementId)
+    // --
+    if na(e)
+        e := element.new(
+         labels         = array.new<label>(),
+         lines          = array.new<line>(),
+         __draft_labels = array.new<draft_label>(),
+         __draft_lines  = array.new<draft_line>(),
+         id             = _elementId
+         )
+        this.__view.__elements.push(e)
+    // >>
+    this
+// }
+
+
+//  ▪ EVENT LISTENER
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+// ──── On Init {
+//
+// @function    _onInit     Returns `true`, if the script is in an initialization state.
+// @returns     bool
+_onInit() =>
+    // >>
+    barstate.isfirst
+// }
+
+// ──── On Deploy {
+//
+// @function    _onDeploy   Returns `true`, if the script is in a deployment state. `last_bar_index` subtracted by needed `lookback`.
+// @param       this        Current instance.
+// @returns     bool
+_onDeploy() =>
+    // >>
+    //barstate.islastconfirmedhistory
+    bar_index == last_bar_index - 1
+// }
+
+// ──── On Update {
+//
+// @function    Returns `true`, if script is in an updated state. From the first bar after deployment till the end.
+// @param       this        Current instance.
+// @returns     bool
+_onUpdate() =>
+    // >>
+    barstate.islast or barstate.isrealtime
+// }
+
+
+//  ▪ HELPER FUNCTIONS
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+// ──── Set Start Position {
+//
+// @function    Set the start position on the x-axis.
+// @param       this            Current instance.
+// @returns     `<setup>`
+method handlePosition(setup this) =>
+    // @variable Model object reference.
+    model m = this.__model
+    // --
+    if not m.x_fixed or (m.x_fixed and na(m.x))
+        // -- TODO - JUST IN DEV
+        switch this.xloc
+            xloc.bar_index =>
+               m.x := bar_index
+             , m.x_multi := 1
+            xloc.bar_time =>
+               m.x := time
+             , m.x_multi := time_close - time
+    // >>
+    this
+// }
+
+// ──── Set Precision String {
+//
+// @function    Sets `precision_string` field of the `controller` object to a string with a certain number of decimal places.
+// @param       this                    Current instance.
+// @returns     `<setup>`
+method setPrecisionString(setup this) =>
+    // @variable Controller object reference.
+    controller c = this.__controller
+    // --
+    c.precision_string := c.precision_string.isset(
+     str.format('{0}{1}', '0.00', str.repeat('#', c.precision - 2 > 0 ? c.precision - 2 : 0))
+     )
+    // >>
+    this
+// }
+
+// ---------------------------------------------------------------------------------------------------------------------
+
+// ──── Synchronize Realtime Updates {
+//
+// @function    Generates a global 'tick' which syncs all tick-based transitions.
+// @param       this            Current instance.
+// @returns     `<setup>`
+method syncRealtimeUpdates(setup this) =>
+    // @variable Update number.
+    varip series int updateNo = 0
+    updateNo := barstate.isnew ? 1 : updateNo + 1
+    this.__controller.update_no := updateNo
+    // >>
+    this
+// }
+
+// ---------------------------------------------------------------------------------------------------------------------
+
+// ──── Controller {
+//
+// @function    It takes the main `<setup>` object as an input.
+// @param       this            Current instance.
+// @param       _elementId      Id of the element. If not given, the last id is used.
+// @returns     `<controller>`
+method controller(
+ setup          this,
+ series string  _elementId  = na
+ ) =>
+    // --
+    this
+     .initElement(_elementId)
+     .handlePosition()
+     .syncRealtimeUpdates()
+    // --
+    this.__controller.exec := switch
+        _onInit() => 
+           this.setPrecisionString()
+         , false
+        _onDeploy() or _onUpdate() => 
+          true
+        => false
+    // >>
+    this.__controller
+// }
+
+// ---------------------------------------------------------------------------------------------------------------------
+
+// ──── Render View From Draft {
+//
+// @function    Renders the objects from the drafts, once per deployment. Iterates through the drafts and creates a new
+//              label/line for each entry in the array.
+// @param       this            Current instance.
+// @param       _elementId      Id of the element.
+// @returns     bool
+method renderView(setup this, series string _elementId) =>
+    // @variable Is rendered. Tracks whether the view has been rendered from drafts.
+    varip series bool isRendered = false
+    // --
+    if not isRendered
+        // @variable Model object reference.
+        model   m = this.__model
+        // @variable Element object reference.
+        element e = this.getElementById(_elementId)
+        // Render labels
+        while e.labels.size() < e.__draft_labels.size()
+            // @variable New label.
+            series label newLabel = label.new(
+             x = na, y = na, text = na, color = na, textcolor = na
+             )
+            e.labels.push(newLabel)
+        e.__draft_labels.clear()
+        // Render lines
+        while e.lines.size() < e.__draft_lines.size()
+            // @variable New line.
+            series line newLine = line.new(
+             x1 = na, y1 = na, x2 = na, y2 = na, color = na
+             )
+            e.lines.push(newLine)
+        e.__draft_lines.clear()
+        isRendered := true
+    // >>
+    this
+
+// ──── Update View {
+//
+// @function    Updates the rendered objects.
+// @param       this            Current `<setup>` instance.
+// @param       _elementId       Id of the element.
+// @returns     `<setup>`
+method updateView(setup this, series string _elementId) =>
+    // @variable Model object reference.
+    model      m = this.__model
+    // @variable Controller object reference.
+    controller c = this.__controller
+    // @variable Element object reference.
+    element    e = this.getElementById(_elementId)
+    // @variable Hide.
+    bool hide = this.__view.hide or e.hide
+    // --
+    for [idx, l] in e.__draft_labels
+        if idx < e.labels.size()
+            // @variable X.
+            series int   x = hide ? na : m.x + ((m.x_offset + l.x_offset + m.align_shift) * m.x_multi)
+            // @variable Y.
+            series float y = hide ? na : l.y
+            e.labels.get(idx)
+             ._set_xy(x, y)
+             ._set_text(l.txt)
+             ._set_color(l.color)
+             ._set_textcolor(l.textcolor)
+             ._set_size(l.size)
+             ._set_style(l.style)
+    // --
+    e.__draft_labels.clear()
+    // --
+    for [idx, li] in e.__draft_lines
+        if idx < e.lines.size()
+            // @variable X1.
+            series int   x1 = hide ? na : m.x + ((m.x_offset + li.x1_offset + m.align_shift) * m.x_multi)
+            // @variable Y1.
+            series float y1 = hide ? na : li.y1
+            // @variable X2.
+            series int   x2 = hide ? na : m.x + ((m.x_offset + li.x2_offset + m.align_shift) * m.x_multi)
+            // @variable Y2.
+            series float y2 = hide ? na : li.y2
+            e.lines.get(idx)
+             ._set_xy1(x1, y1)
+             ._set_xy2(x2, y2)
+             ._set_color(li.color)
+             ._set_style(li.style)
+             ._set_width(li.width)
+    // --
+    e.__draft_lines.clear()
+    c.stack_updated += 1
+    // >>
+    this
+
+
+// ──── Deploy View {
+//
+// @function Handles the render- and update-process.
+// @param this Current instance.
+// @param _selfDeploy Whether to deploy the view.
+// @param _force Whether to force the deploy.
+// @returns `<setup>`
+export method deploy(
+ setup          this,
+ series string  _elementId,
+ series bool    _selfDeploy  = true,
+ series bool    _force       = false
+ ) =>
+    // --
+    if _selfDeploy and (this.__controller.deploy or _force)
+        switch
+            _onDeploy() => this.renderView(_elementId)
+            _onUpdate() => this.updateView(_elementId)
+    // >
+    this
+// }
+
+
+//  ▪ LIBRARY SPECIFIC HELPER FUNCTIONS
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+// ──── Get Icon {
+//
+// @function    Get a position-specific icon as a string.
+// @param   this            Current instance.
+// @param   _position       The position to get the icon for.
+// @param   _idx            The index of the icon to get.
+// @param   _customString   A custom `<string>` to use instead of the icon set.
+// @param   _left           Whether to use the left icon.
+// @param   _hDelimiter     Horizontal format string DIV.
+// @param   _vDelimiter     The vertical DIV to use.
+// @returns string
+method _getIcon(
+ series array <string> this,
+ series string         _position,
+ series int            _idx            = 0,
+ series string         _customString   = na,
+ series bool           _left           = false,
+ series string         _hDelimiter     = ':',
+ series string         _vDelimiter     = '-'
+ ) =>
+    //@variable An array holding the Horizontal icons based on input arguments.
+    series array <string> h = str.split(
+       _customString.isset(this.get(_idx % this.size()))
+     , _hDelimiter
+     )
+    // @variable An array holding the Vertical icons based on input arguments.
+    series array <string> v = str.split(
+       h.get(h.size() == 1 ? 0 : Validator.isAboveLocation(_position) ? 0 : 1)
+     , _vDelimiter
+     )
+    // >>
+    v.get(v.size() == 1 ? 0 : Validator.isLeftPosition(_position) or _left ? 0 : 1)
+// }
+
+// ---------------------------------------------------------------------------------------------------------------------
+
+// ──── Get Offset X {
+//
+// @function  Get the offset for a given target value.
+// @param   this          Current instance.
+// @param   _target       The target value to get the offset for.
+// @param   _inputFormat  The input format to use.
+// @param   _floor        If true, the calculation gets rounded by floor. If false, it gets rounded by `math.ceil()`.
+// @returns int
+method _offset(
+ setup  this,
+ series float   _target,
+ series string  _inputFormat = format.inherit,
+ series bool    _floor       = false
+ ) =>
+    // @variable Model object reference.
+    model m = this.__model
+    // @variable Offset calculation.
+    series float offset = _inputFormat == format.inherit ?
+       ((_target + m.src_shift) - (m.min + m.src_shift)) / m.full_range * 100 / (100 / m.inner_length)
+     : (_target + m.src_shift) / (100 / m.inner_length)
+    // >>
+    int(_floor ? math.floor(offset) : math.ceil(offset))
+// }
+
+// ---------------------------------------------------------------------------------------------------------------------
+
+// ──── Get Percent From Range {
+//
+// @function    Get the percentage of a given value from the range.
+// @param       this            Current instance.
+// @param       _src            The source value to get the percentage for.
+// @returns     float
+method _calcPercentInRange(setup this, series float _src = na) =>
+    // @variable Model object reference.
+    model m = this.__model
+    // >>
+    (_src.isset(m.src) - m.min) / m.full_range * 100
+// }
+
+
+//  ▪ EXPORT: PRIMARY FUNCTIONS
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+// ──── Add Label {
+//
+// @function    Adds a label draft to the element's draft stack for later rendering.
+//              The label can be positioned, styled, and customized with various visual properties.
+// @param       this            Current setup instance.
+// @param       _position       Position of the label (e.g. position.top_left, position.middle_center).
+// @param       _xOffset        X-axis offset relative to bar_index. [in bars]
+// @param       _wpadding       Horizontal padding from the left side of the parent element. [in bars]
+// @param       _textColor      Color of the label text (defaults to theme.color_text if not specified)
+// @param       _bgcolor        Background color of the label (defaults to transparent if not specified)
+// @param       _textSize       Size of the text (e.g. size.tiny, size.normal, size.large)
+// @param       _textAlign      Text alignment within the label (e.g. text.align_left, text.align_center).
+// @param       _text           Text content to display in the label.
+// @param       _textFontFamily Font family for the text (e.g. font.family_default, font.family_monospace).
+// @param       _tooltip        Tooltip text shown on hover.
+// @param       _style          Label style (e.g. label.style_none, label.style_label_up).
+// @param       _background     If true, adds the label to beginning of stack (background), if false adds to end (foreground).
+// @param       _row            Vertical position offset. [in rows]
+// @param       _deploy         If true, immediately deploys the label after adding to stack.
+// @param       _elementId      Unique identifier for the element this label belongs to.
+// @returns     `<setup>`
+export method addLabel(
+ setup  this,
+ series string  _position,
+ series int     _xOffset        = 0,
+ series int     _wpadding       = 0,
+ series color   _textColor      = na,
+ series color   _bgcolor        = na,
+ series string  _textSize       = na,
+ series string  _textAlign      = na,
+ series string  _text           = na,
+ series string  _textFontFamily = na,
+ series string  _tooltip        = na,
+ series string  _style          = na,
+ series bool    _background     = false,
+ series int     _row            = 1,
+ series bool    _deploy         = true,
+ series string  _elementId      = 'label'
+ ) =>
+    // --
+    if this.controller(_elementId).exec
+        // @variable Model object reference.
+        model   m = this.__model
+        // @variable Element object reference.
+        element e = this.getElementById(_elementId)
+        // @variable Rows before.
+        series string rowsBefore = str.repeat('\n', _row)
+        // @variable Rows after.
+        series string rowsAfter  = str.repeat('\n', _row) + WS
+        // @variable Padding width.
+        series int    wpadding   = _wpadding.isset(0)
+        // @variable X offset.
+        series int    xOffset    = _xOffset.isset(0)
+        [x_, style_, text_, textAlign_] = switch _position
+            position.top_left       => [xOffset + m.wpadding - wpadding,                    label.style_label_down, _text + rowsAfter, text.align_center]
+            position.top_center     => [xOffset + math.ceil((m.full_length / 2)),           label.style_label_down, _text + rowsAfter, text.align_center]
+            location.top            => [xOffset + m.wpadding - wpadding,                    label.style_label_down, _text + rowsAfter, text.align_center]
+            position.top_right      => [xOffset + m.full_length - m.wpadding + wpadding,    label.style_label_down, _text + rowsAfter, text.align_center]
+            // --
+            position.middle_left    => [xOffset + m.wpadding - wpadding,                    label.style_label_right,  _text, text.align_right]
+            position.middle_center  => [xOffset + math.ceil((m.full_length / 2)),           label.style_label_center, _text, text.align_center]
+            location.absolute       => [xOffset + m.wpadding - wpadding,                    label.style_label_center, _text, text.align_center]
+            position.middle_right   => [xOffset + m.full_length - m.wpadding + wpadding,    label.style_label_left,   _text, text.align_left]
+            // --
+            position.bottom_left    => [xOffset + m.wpadding - wpadding,                    label.style_label_up, rowsBefore + _text, text.align_center]
+            position.bottom_center  => [xOffset + math.ceil((m.full_length / 2)),           label.style_label_up, rowsBefore + _text, text.align_center]
+            location.bottom         => [xOffset + m.wpadding - wpadding,                    label.style_label_up, rowsBefore + _text, text.align_center]
+            position.bottom_right   => [xOffset + m.full_length - m.wpadding + wpadding,    label.style_label_up, rowsBefore + _text, text.align_center]
+            // --
+            =>                         [xOffset + math.ceil((m.full_length / 2)),           label.style_label_up, rowsBefore + _text, text.align_center]
+        // @variable Draft label object.
+        draft_label dLabel = draft_label.new(
+         x_offset           = x_,
+         y                  = m.y,
+         style              = _style.isset(style_),
+         txt                = text_,
+         color              = _bgcolor.isset(TRANSP),
+         textcolor          = _textColor.isset(this.__theme.color_text),
+         size               = _textSize.isset(m.text_size),
+         textalign          = _textAlign.isset(textAlign_),
+         tooltip            = _tooltip,
+         text_font_family   = _textFontFamily.isset(m.text_font_family))
+        // --
+        if _background
+            e.__draft_labels.unshift(dLabel)
+        else
+            e.__draft_labels.push(dLabel)
+    // >>
+    this.deploy(_elementId, _deploy)
+// }
+
+// ---------------------------------------------------------------------------------------------------------------------
+
+// ──── Add Additional Background {
+//
+// @function    Adds a background to the stack.
+// @param       this            Current instance.
+// @param       _from           Value from.
+// @param       _to             Value to
+// @param       _inputFormat    Set the input format. If you select `format.inherit`, the format of the stack will be used.
+//                              If you select `format.percent`, the value will be interpreted as percentage.
+// @param       _height         Height padding of the background.
+// @param       _hpadding       Height padding of the background.
+// @param       _color          Color of the background.
+// @param       _foreground     Set the background to the foreground.
+// @param       _deploy         Deploy the stack after addition.
+// @param       _elementId      The `<element>` Identifier.
+// @returns     this
+export method addBackground(
+ setup  this,
+ series float   _from,
+ series float   _to,
+ series string  _inputFormat    = format.inherit,
+ series int     _height         = na,
+ series int     _hpadding       = na,
+ series color   _color          = na,
+ series bool    _foreground     = false,
+ series bool    _deploy         = true,
+ series string  _elementId      = 'background'
+ ) =>
+    // --
+    if this.controller(_elementId).exec
+        // @variable Model object reference.
+        model   m = this.__model
+        // @variable Theme object reference.
+        theme   t = this.__theme
+        // @variable Element object reference.
+        element e = this.getElementById(_elementId)
+        // @variable Offset from.
+        int offsetFrom = this._offset(_from, _inputFormat, true)
+        // @variable Offset to.
+        int offsetTo   = this._offset(_to, _inputFormat)
+        // @variable Draft line object.
+        draft_line __line = draft_line.new(
+         x1_offset  = offsetFrom,
+         y1         = m.y,
+         x2_offset  = offsetTo,
+         y2         = m.y,
+         color      = _color.isset(t.color_bg),
+         width      = _height.isset(m.bar_height + m.hpadding) + _hpadding)
+        // --
+        if _foreground
+            e.__draft_lines.push(__line)
+        else
+            e.__draft_lines.unshift(__line)
+    // >>
+    this.deploy(_elementId, _deploy)
+// }
+
+// ---------------------------------------------------------------------------------------------------------------------
+
+// ──── Build {
+//
+// @function    Primary main function that constructs a scale with customizable visual properties and behavior.
+//              This is the core function that must be called before adding any additional elements.
+// @param       this            Current setup instance.
+// @param       __theme         Theme object containing all colors and styling options.
+// @param       _xOffset        X-axis offset relative to bar_index. [in bars]
+// @param       _y              Y-coordinate position in price scale.
+// @param       _src            Source value for scale calculation.
+// @param       _length         Lookback period for calculations.
+// @param       _minValue       Minimum value of the scale range.
+// @param       _maxValue       Maximum value of the scale range.
+// @param       _numBars        Number of bars in the scale. [default: 10]
+// @param       _barWidth       Width of individual bars. [in bars, default: 2]
+// @param       _barHeight      Height of bars. [in linewidth/pixels, default: 5]
+// @param       _spacing        Space between bars. [in bars, default: 0]
+// @param       _wpadding       Horizontal padding. [in bars, default: 0]
+// @param       _hpadding       Vertical padding. [in linewidth/pixels, default: 0]
+// @param       _pointOfView    Alignment of scale. [extend.both (center), extend.left, extend.right]
+// @param       _lineStyle      Style of lines [line.style_solid, line.style_dashed, line.style_dotted].
+// @param       _textLeft       Text to display on left side.
+// @param       _textRight      Text to display on right side.
+// @param       _textTop        Text to display on top.
+// @param       _textBottom     Text to display on bottom.
+// @param       _tooltip        Tooltip text shown on hover.
+// @param       _customMinFormat Custom format for minimum value display.
+// @param       _customMaxFormat Custom format for maximum value display.
+// @param       _textSize       Size of text elements.
+// @param       _textFontFamily Font family for text elements.
+// @param       _textOutputFormat Format for text output [format.inherit, format.percent].
+// @param       _srcPosition    Position for source value display.
+// @param       _textPadding    Padding for text elements [in bars].
+// @param       _precision      Decimal precision for number display.
+// @param       _row            Vertical offset for text [in rows].
+// @param       _showMinMax     Show minimum and maximum values.
+// @param       _showSrc        Show source value.
+// @param       _dynamic        Dynamically calculate min/max from source.
+// @param       _passthrougt    Deprecated parameter.
+// @param       _sync           Synchronize range calculations.
+// @param       _pointer        Show pointer indicator.
+// @param       _pointerSize    Size of pointer indicator.
+// @param       _prefill        Fill bars from start percentage.
+// @param       _fixed          Lock x-position.
+// @param       _deploy         Deploy scale immediately after building.
+// @param       _elementId      Unique identifier for this scale element.
+// @returns     `<setup>`
+export method build(
+ setup          this,
+ theme          __theme,
+ series int     _xOffset,
+ series float   _y,
+ series float   _src,
+ series int     _length,
+ series float   _minValue,
+ series float   _maxValue,
+ series int     _numBars            = 10,
+ series int     _barWidth           = 2,
+ series int     _barHeight          = 5,
+ series int     _spacing            = 0,
+ series int     _wpadding           = 0,
+ series int     _hpadding           = 0,
+ series string  _pointOfView        = extend.right,
+ series string  _lineStyle          = line.style_solid,
+ series string  _textLeft           = na,
+ series string  _textRight          = na,
+ series string  _textTop            = na,
+ series string  _textBottom         = na,
+ series string  _tooltip            = na,
+ series string  _customMinFormat    = na,
+ series string  _customMaxFormat    = na,
+ series string  _textSize           = size.normal,
+ series string  _textFontFamily     = font.family_default,
+ series string  _textOutputFormat   = format.inherit,
+ series string  _srcPosition        = position.bottom_center,
+ series int     _textPadding        = 0,
+ series int     _precision          = 2,
+ series int     _row                = 0,
+ series bool    _showMinMax         = true,
+ series bool    _showSrc            = true,
+ series bool    _dynamic            = false,
+ series bool    _passthrougt        = false,
+ series bool    _sync               = true,
+ series bool    _pointer            = false,
+ series float   _pointerSize        = 3,
+ series bool    _prefill            = true,
+ series bool    _fixed              = false,
+ series bool    _deploy             = true,
+ series string  _elementId          = 'scale'
+ ) =>
+    // -- init
+    this.__model       := this.__model.isset(model.new(
+     num_bars           = _numBars,
+     bar_width          = _barWidth,
+     bar_height         = _barHeight,
+     spacing            = _spacing,
+     wpadding           = _wpadding,
+     hpadding           = _hpadding,
+     prefill            = _prefill,
+     text_size          = _textSize,
+     text_font_family   = _textFontFamily,
+     passthrougt        = _passthrougt,
+     dynamic            = _dynamic,
+     x_fixed            = _fixed
+     ))
+    this.__view        := this.__view.isset(view.new(array.new<element>()))
+    this.__controller  := this.__controller.isset(controller.new(_precision, _deploy))
+    this.__theme       := __theme.isset(theme.new())
+    // @variable Model object reference.
+    model       m       = this.__model
+    // @variable View object reference.
+    view        v       = this.__view
+    // @variable Controller object reference.
+    controller  c       = this.__controller
+    // @variable Theme object reference.
+    theme       t       = this.__theme
+    // -- updates
+    m.src              := _src
+    m.x_offset         := _xOffset,
+    m.y                := _y
+    m.min              := math.min(_minValue, _maxValue)
+    m.max              := math.max(_minValue, _maxValue)
+    // @variable Highest value.
+    series float highest = ta.highest(m.src, _length)
+    // @variable Lowest value.
+    series float lowest  = ta.lowest (m.src, _length)
+    //--
+    if this.controller(_elementId).exec
+     and Validator.isValidFormat(_textOutputFormat) and Validator.isValidPOV(_pointOfView)
+        // @variable Rows before.
+        series string before = str.repeat('\n', _row)
+        // @variable Rows after.
+        series string after  = str.repeat('\n', _row) + WS
+        // @variable Element object reference.
+        element e = this.getElementById(_elementId)
+        // -- dynamic
+        switch
+            m.passthrougt
+             => m.max := _maxValue, m.min := _minValue
+            m.dynamic and _sync and lowest < 0 and highest > 0
+             => m.max := math.max(lowest, highest), m.min := -m.max
+            m.dynamic
+             => m.max := highest, m.min := lowest
+        // --
+        m.full_range := math.abs(m.max - m.min)
+        m.src_shift  := math.abs(math.min(m.min, m.max) < 0 ? math.min(m.min, m.max) : 0)
+        // @variable Gradient sequence size.
+        series int   gradientSeqSize  = not na(t.color_gradient_seq) ? t.color_gradient_seq.size() : 0
+        // @variable Percentage.
+        series float pct              = 100 / m.num_bars
+        // @variable Color percentage.
+        series float colorPct         = 100 / gradientSeqSize
+        // @variable Source percentage.
+        series float srcPct           = this._calcPercentInRange()
+        m.full_length                := (m.num_bars * m.bar_width) + ((m.num_bars - 1) * m.spacing) + (2 * m.wpadding)
+        m.inner_length               := m.full_length - (2 * _wpadding)
+        m.align_shift                := _pointOfView == extend.both ? int(math.ceil(-m.full_length / 2))
+         : _pointOfView == extend.left ? -m.full_length
+         : 0
+        // -- draft background
+        e.__draft_lines.push(
+         draft_line.new(
+          y1         = m.y,
+          y2         = m.y,
+          x1_offset  = 0,
+          x2_offset  = m.full_length,
+          color      = t.color_bg,
+          width      = m.bar_height + m.hpadding
+          )
+         )
+        // -- draft lines
+        for x = 0 to (m.num_bars - 1) by 1
+            // @variable Start percentage.
+            series float startPct      = pct * x,
+            // @variable End percentage.
+            series float endPct        = startPct + pct,
+            // @variable Active bar.
+            series bool  activeBar     = srcPct >= startPct and srcPct <= endPct,
+            // @variable Color index.
+            series int   colorIndex    = math.ceil(pct * (x + 1) / colorPct) - 1,
+            // @variable Gradient percentage.
+            series int   gradientPct   = 100 / (m.num_bars - 1)
+            // -- coloring
+            t.color_bar_filled_tmp    := t.gradient and gradientSeqSize == 0 ?
+               color.from_gradient(x * gradientPct, 0, (t.gradient_last ? srcPct : 100), t.color_bar_filled, t.color_gradient)
+             : t.gradient and gradientSeqSize >= 1 ? t.color_gradient_seq.get(colorIndex)
+             : t.color_bar_filled
+            t.color_bar_filled_active := t.gradient and activeBar ?
+               t.color_bar_filled_tmp
+             : t.color_bar_filled_active.isset(t.color_bar_filled)
+            // --
+            e.__draft_lines.push(
+             draft_line.new(
+              x1_offset  = (x * m.bar_width) + (x * m.spacing) + m.wpadding,
+              y1         = m.y,
+              x2_offset  = ((x + 1) * m.bar_width) + (x * m.spacing) + m.wpadding,
+              y2         = m.y,
+              style      = _lineStyle,
+              color      = _pointer and activeBar ? t.color_bar_filled_tmp
+                             : _pointer and srcPct > endPct ? t.color_bar_unfilled
+                             : srcPct >= (_prefill ? startPct : endPct) ? t.color_bar_filled_tmp
+                             : t.color_bar_unfilled,
+              width      = math.floor(_pointer and activeBar ? m.bar_height * _pointerSize : m.bar_height)
+              )
+             )
+        // @variable Output.
+        series float  output     = _textOutputFormat == format.percent ? srcPct : m.src
+        // @variable Text left.
+        series string textLeft   = _showMinMax ?
+           str.format(_customMinFormat.isset('{1} {0,number,' + c.precision_string + '}'),
+           m.min, na(_textLeft) ? EMPTY : _textLeft + DIV)
+         : _textLeft
+        // @variable Text right.
+        series string textRight  = _showMinMax ?
+           str.format(_customMaxFormat.isset('{0,number,' + c.precision_string + '} {1}'),
+           m.max, na(_textRight) ? EMPTY : DIV + _textRight)
+         : _textRight
+        // @variable Text top.
+        series string textTop    = str.format('{1}{0}',
+           _showSrc and Validator.isAbovePosition(_srcPosition) ?
+           str.tostring(output, c.precision_string)
+         : EMPTY
+         , _textTop
+         )
+        // @variable Text bottom.
+        series string textBottom = str.format('{0}{1}',
+           _showSrc and Validator.isBelowPosition(_srcPosition) ?
+           str.tostring(output, c.precision_string)
+         : EMPTY
+         , _textBottom
+         )
+        // @variable Text position.
+        const array <string> T_POS = array.from(
+         position.middle_left,
+         position.middle_right,
+         position.top_center,
+         position.bottom_center
+         )
+        for [idx_, content_] in array.from(textLeft, textRight, textTop, textBottom)
+            if not na(content_)
+                this.addLabel(
+                 _position          = T_POS.get(idx_),
+                 _xOffset           = 0,
+                 _wpadding          = _textPadding,
+                 _textColor         = t.color_text,
+                 _bgcolor           = t.color_bg_text,
+                 _textSize          = _textSize,
+                 _text              = content_,
+                 _textFontFamily    = _textFontFamily,
+                 _tooltip           = _tooltip,
+                 _row               = _row,
+                 _elementId         = _elementId,
+                 _deploy            = false
+                 )
+    // >>
+    this.deploy(_elementId, _deploy)
+// }
+
+// ---------------------------------------------------------------------------------------------------------------------
+
+// ──── Add Marker {
+//
+// @function    Adds a marker to the scale at a specific position with customizable appearance.
+//              Markers can be used to highlight specific values or points on the scale.
+// @param       this                Current setup instance.
+// @param       _icon               Icon index to use. [0-12]:
+//                                  0:'▼:▲', 1:'▽:△', 2:'▾:▴', 3:'▿:▵', 4:'⇣:⇡', 5:'↧:↥', 
+//                                  6:'⇟:⇞', 7:'↓:↑', 8:'|', 9:'⁞', 10:'⁝', 11:'⋎:⋏', 12:'⋁:⋀'
+// @param       _xOffset            X-axis offset relative to bar_index. [in bars]
+// @param       _row                Vertical position offset. [in rows]
+// @param       _src                Custom source value (uses scale's source if not specified).
+// @param       _srcPct             Custom percentage value (0-100).
+// @param       _color              Marker color (defaults to theme.color_text).
+// @param       _bgcolor            Background color of marker.
+// @param       _location           Position of marker [location.abovebar, location.belowbar, location.absolute].
+// @param       _size               Size of marker text.
+// @param       _markerIconString   Custom marker icon string (overrides _icon).
+// @param       _textFontFamily     Font family for marker text.
+// @param       _tooltip            Custom tooltip text.
+// @param       _tooltipFormat      Custom format for tooltip.
+// @param       _anchorToScale      If true, anchors marker to active bar position.
+// @param       _colorBarFilled     If true, uses active bar's fill color.
+// @param       _opticalCorrection  Adjusts marker position for better visual alignment.
+// @param       _deploy             If true, immediately deploys the marker.
+// @param       _elementId          Unique identifier for this marker element.
+// @returns     `<setup>`
+export method addMarker(
+ setup          this,
+ series int     _icon               = 0,
+ series int     _xOffset            = 0,
+ series int     _row                = 0,
+ series float   _src                = na,
+ series float   _srcPct             = na,
+ series color   _color              = na,
+ series color   _bgcolor            = na,
+ series string  _location           = location.bottom,
+ series string  _size               = na,
+ series string  _markerIconString   = na,
+ series string  _textFontFamily     = na,
+ series string  _tooltip            = na,
+ series string  _tooltipFormat      = na,
+ series bool    _anchorToScale      = false,
+ series bool    _colorBarFilled     = false,
+ series bool    _opticalCorrection  = true,
+ series bool    _deploy             = true,
+ series string  _elementId          = 'marker'
+ ) =>
+    // @variable Model object reference.
+    model      m = this.__model
+    // @variable Controller object reference.
+    controller c = this.__controller
+    // --
+    if this.controller(_elementId).exec
+     and Validator.isValidLocation(_location)
+        // @variable Marker icon set.
+        const array <string> M_ICON_SET = array.from('▼:▲', '▽:△', '▾:▴', '▿:▵', '⇣:⇡', '↧:↥', '⇟:⇞', '↓:↑', '|', '⁞', '⁝', '⋎:⋏', '⋁:⋀') // 13
+        // @variable Optical correction.
+        series bool opticalCorrection   = (na(_xOffset) and _anchorToScale and not _opticalCorrection) ? true : _opticalCorrection
+        // @variable Offset marker X.
+        series int offsetMarkerX        = this._offset(_srcPct.isset(_src.isset(m.src)), not na(_srcPct) ? format.percent : format.inherit) + _xOffset
+        // @variable Offset active bar X.
+        series int offsetActiveBarX     = ((m.active_bar_index + (m.prefill ? 1 : 0)) * m.bar_width)
+         + ((m.active_bar_index - 1 + (m.prefill ? 1 : 0)) * m.spacing)
+        // --
+        if opticalCorrection and not _anchorToScale
+            offsetMarkerX := offsetMarkerX - offsetActiveBarX > m.bar_width + m.spacing ? offsetMarkerX - 1 : offsetMarkerX
+        // --
+        offsetMarkerX := _anchorToScale ? offsetActiveBarX : offsetMarkerX
+        // @variable Tooltip.
+        series string tooltip = _tooltip.isset(
+         str.format(_tooltipFormat.isset('{0,number,' + c.precision_string + '} [{1,number,' + c.precision_string + '} %]')
+          , m.src
+          , this._calcPercentInRange()
+          )
+         )
+        // --
+        this.addLabel(
+         _position          = _location,
+         _xOffset           = offsetMarkerX,
+         _textColor         = _color.isset(_colorBarFilled ?
+                               this.__theme.color_bar_filled_active
+                             : this.__theme.color_text
+                             ),
+         _bgcolor           = _bgcolor,
+         _textSize          = _size,
+         _text              = M_ICON_SET._getIcon(
+                             _position = _location,
+                             _idx = _icon,
+                             _customString = _markerIconString
+                             ),
+         _textFontFamily    = _textFontFamily,
+         _tooltip           = tooltip,
+         _row               = _row,
+         _elementId         = _elementId,
+         _deploy            = false
+         )
+    // >>
+    this.deploy(_elementId, _deploy)
+// }
+
+// ---------------------------------------------------------------------------------------------------------------------
+
+// ──── Add Mark {
+//
+// @function    Adds a centered marker to the scale with customizable appearance.\
+//              This is a simplified version of addMarker specifically for center marking.
+// @param       this                Current setup instance.
+// @param       _xOffset            X-axis offset relative to bar_index. [in bars]
+// @param       _mark               Icon index to use [0-7]:\
+//                                  0:'|', 1:'¦', 2:'┼', 3:'≎', 4:'⁞', 5:'⁝', 6:'▼:▲', 7:'▽:△'
+// @param       _color              Marker color (defaults to theme.color_text).
+// @param       _size               Size of marker text.
+// @param       _customMarkString   Custom marker icon string (overrides _mark).
+// @param       _tooltip            Tooltip text shown on hover.
+// @param       _deploy             If true, immediately deploys the marker.
+// @param       _elementId          Unique identifier for this marker element.
+// @returns     `<setup>`
+export method addMark(
+ setup  this,
+ series int     _xOffset            = 0,
+ series int     _mark               = na,
+ series color   _color              = na,
+ series string  _size               = na,
+ series string  _customMarkString   = na,
+ series string  _tooltip            = na,
+ series bool    _deploy             = true,
+ series string  _elementId          = 'mark'
+ ) =>
+    // --
+    if this.controller(_elementId).exec
+        // @variable Array containing predefined marker icons.
+        const array <string> M_ICON_SET = array.from('|', '¦', '┼' , '≎', '⁞', '⁝', '▼:▲', '▽:△')
+        // --
+        this.addMarker(
+         _xOffset           = _xOffset,
+         _color             = _color,
+         _size              = _size,
+         _location          = location.absolute,
+         _tooltip           = _tooltip,
+         _markerIconString  = _customMarkString.isset(M_ICON_SET.get(_mark.isset(0))),
+         _row               = 0,
+         _elementId         = _elementId,
+         _deploy            = false
+         )
+    // >>
+    this.deploy(_elementId, _deploy)
+// }
+
+// ---------------------------------------------------------------------------------------------------------------------
+
+// ──── Add Ruler {
+//
+// @function    Add a ruler to the scale.
+//
+// #### Ruler Icons
+// > 1. ├ -┼- ┤, 1:'├ -┴- ┤', 2:'├ -┬- ┤', 3:'╞ -╧- ╡', 4:'╞ -╤- ╡', 5:'╟ -╨- ╢', 6:'╟ -╥- ╢',
+// 7:'⥢ -≎- ⥤', 8:'⥏ -≏- ⥑', 9:'|-|-|', 10:'|-¦-|', 11:'⁅ -¦- ⁆'
+// ___
+// @param       this        Current instance.
+// @param       _icon       Select icon-set index.
+// @param   _color          Set ruler color.
+// @param   _bgcolor        Set background color.
+// @param   _size           Set text size.
+// @param   _rulerString    Set custom ruler string.
+// @param   _vDelimiter     Set custom vertical DIV for `_rulerString` pair.
+// @param   _textFontFamily Set text font family.
+// @param   _row            Set row index.
+// @param   _deploy         Option: Auto-Deploy.
+// @returns setup
+export method addRuler(
+ setup  this,
+ int    _icon           = 0,
+ color  _color          = na,
+ color  _bgcolor        = na,
+ string _size           = na,
+ string _textFontFamily = na,
+ string _rulerString    = na,
+ bool   _showEndings    = true,
+ bool   _showCenter     = true,
+ string _vDelimiter     = '-',
+ int    _row            = 0,
+ bool   _deploy         = true,
+ series string _elementId      = 'ruler'
+ ) =>
+    // --
+    model      m = this.__model
+    controller c = this.__controller
+    // --
+    if this.controller(_elementId).exec
+        // --
+        const array <string> PS_POS = array.from(position.middle_left, position.middle_center, position.middle_right)
+        const array <string> R_ICON_SET = array.from('├ -┼- ┤', '├ -┴- ┤', '├ -┬- ┤', '╞ -╧- ╡', '╞ -╤- ╡', '╟ -╨- ╢',
+                                                     '╟ -╥- ╢', '⥢ -≎- ⥤', '⥏ -≏- ⥑', '|-|-|', '|-¦-|', '⁅ -¦- ⁆')
+        // --
+        for [idx, icon] in str.split(isset(_rulerString, R_ICON_SET.get(_icon % R_ICON_SET.size())), _vDelimiter)
+            series string position_ = PS_POS.get(idx)
+            series string icon_     = str.format(
+                                       _row == 0 ? '{0}' : _row > 0 ? '{0}{1}' : '{1}{0}', 
+                                       icon, 
+                                       str.repeat('\n', math.abs(_row)) + (_row > 0 ? ' ' : '')
+                                       )
+            // --
+            if (_showEndings and (idx == 0 or idx == 2))
+             or (_showCenter and idx == 1)
+                this.addLabel(
+                 _position       = PS_POS.get(idx),
+                 _xOffset        = 0,
+                 _wpadding       = 0,
+                 _textColor      = _color,
+                 _bgcolor        = _bgcolor,
+                 _textSize       = _size,
+                 _text           = icon_,
+                 _style          = label.style_label_center,
+                 _textFontFamily = _textFontFamily,
+                 _tooltip        = str.format(idx == 0 ? 'Min: {0,number,' + c.precision_string + '} [0%]'
+                  : idx == 1 ? 'Center: {1,number,' + c.precision_string + '} [50%]'
+                  : 'Max: {2,number,' + c.precision_string + '} [100%]', m.min, (m.max - m.min) / 2, m.max),
+                 _elementId      = _elementId,
+                 _deploy         = false
+                 )
+    // >>
+    this.deploy(_elementId, _deploy)
+// }
+
+// ---------------------------------------------------------------------------------------------------------------------
+
+// ──── Add Average {
+//
+// @function  addAvg      Add a customizable range marker to any progressbar.
+// @param   this Current instance.
+// @param   _length Length of the average.
+// @param   _textIcon           Text icon index.
+// ***
+// **TEXT ICON:** 0:'⌀', 1:'Ø', 2:'∅'
+// ***
+// @param   _markerIcon         Marker icon index.
+// ***
+// **MARKER ICON:**
+// 0:'|', 1:'⁞', 2:'⁝', 3:'▼:▲', 4:'▽:△', 5:'▾:▴', 6:'▿:▵', 7:'⇣:⇡', 8:'↧:↥', 9:'⇟:⇞', 10:'↓:↑', 11:'⋁:⋀', 12:'⋎:⋏'
+// ***
+// @param   _src                Custom source value.
+// @param   _textIconString     Custom text icon `<string>`.
+// @param   _markerIconString   Custom marker icon `<string>`.
+// @param   _textPosition       Text position.
+// @param   _markerLocation     Marker location.
+// @param   _textColor          Text color.
+// @param   _markerColor        Marker color.
+// @param   _textSize           Text size.
+// @param   _markerSize         Marker size.
+// @param   _bgcolor            Background color.
+// @param   _textFontFamily     Text font family.
+// @param   _textFormat         Custom string format.
+// @param   _tooltipFormat      Tooltip format.
+// @param   _showText           Option: Show/hide text.
+// @param   _showMarker         Option: Show/hide marker.
+// @param   _textRow            Text row.
+// @param   _hDelimiter         Horizontal DIV.
+// @param   _markerRow          Marker row.
+// @param   _deploy             Option: Auto-Deploy.
+// @returns setup
+// --
+export method addAvg(
+ setup  this,
+ series int     _length,
+ series int     _textIcon           = 0,
+ series int     _markerIcon         = 0,
+ series float   _src                = na,
+ series string  _textIconString     = na,
+ series string  _markerIconString   = na,
+ series string  _textPosition       = position.top_center,
+ series string  _markerLocation     = location.top,
+ series string  _textSize           = na,
+ series string  _markerSize         = na,
+ series string  _textFontFamily     = na,
+ series string  _textFormat         = na,
+ series string  _tooltipFormat      = na,
+ series string  _hDelimiter         = ':',
+ series color   _textColor          = na,
+ series color   _markerColor        = na,
+ series color   _bgcolor            = na,
+ series bool    _showText           = true,
+ series bool    _showMarker         = true,
+ series bool    _colorBarFilled     = true,
+ series int     _textRow            = 1,
+ series int     _markerRow          = 0,
+ series bool    _deploy             = true,
+ series string  _elementId          = 'avg'
+ ) =>
+    // --
+    model      m       = this.__model
+    controller c       = this.__controller
+    // --
+    series float avg   = ta.sma(_src.isset(m.src), _length.isset(m.length))
+    series float pAvg  = this._calcPercentInRange(avg)
+    // --
+    if this.controller(_elementId).exec
+     and Validator.isValidLocation(_markerLocation) and Validator.isValidPosition(_textPosition)
+        // --
+        const array <string> T_ICON_SET = array.from('⌀', 'Ø', '∅')
+        const array <string> M_ICON_SET = array.from(
+         '|', '⁞', '⁝', '▼:▲', '▽:△', '▾:▴', '▿:▵', '⇣:⇡', '↧:↥', '⇟:⇞', '↓:↑', '⋁:⋀', '⋎:⋏'
+         ) // 13
+        series string tooltip = str.format(
+         _tooltipFormat.isset(
+          'Average: {0,number,' + c.precision_string + '} [{1, number,' + c.precision_string + '}%]\nLength: {2}'
+          ),
+         avg, pAvg, _length
+         )
+        // --
+        if _showText
+            this.addLabel(
+             _position          = _textPosition,
+             _xOffset           = 0,
+             _wpadding          = 0,
+             _textColor         = _textColor,
+             _bgcolor           = _bgcolor,
+             _textSize          = _textSize,
+             _text              = str.format(_textFormat.isset('{0} {1,number,' + c.precision_string + '}'),
+              T_ICON_SET._getIcon(_textPosition, _textIcon % array.size(T_ICON_SET), _textIconString), avg),
+             _textFontFamily    = _textFontFamily,
+             _tooltip           = tooltip,
+             _row               = _textRow,
+             _deploy            = false,
+             _elementId         = _elementId
+             )
+        // --
+        if _showMarker
+            this.addMarker(
+             _src               = avg,
+             _markerIconString  = M_ICON_SET._getIcon(
+                                 _markerLocation,
+                                 _markerIcon, 
+                                 _markerIconString, 
+                                 false, 
+                                 _hDelimiter
+                                 ),
+             _location          = _markerLocation,
+             _color             = _markerColor,
+             _colorBarFilled    = _colorBarFilled,
+             _textFontFamily    = _textFontFamily,
+             _size              = _markerSize,
+             _bgcolor           = _bgcolor,
+             _anchorToScale     = false,
+             _tooltipFormat     = _tooltipFormat,
+             _row               = _markerRow,
+             _deploy            = false,
+             _elementId         = _elementId
+             )
+	// >>
+    this.deploy(_elementId, _deploy)
+// }
+
+// ---------------------------------------------------------------------------------------------------------------------
+
+// ──── Add Range {
+//
+// @function addRange Adds two marker icons and two text labels, if not disabled, to display the range with a given length.
+// @param this Current instance.
+// @param _textIcon Text icon index. [0-8] [0:'L -H ', 1:'⇊ -⇈ ', 2:'↓ -↑ ', 3:'⇣ -⇡ ', 4:'↧ -↥ ', 5:'▼:▲', 6:'▽:△', 7:'▾:▴', 8:'▿:▵']
+// @param _markerIcon Marker icon index. [0-18] [0:'|', 1:'⁞', 2:'⁝', 3:'⌊-⌋:⌈-⌉', 4:'⇣:⇡', 5:'◢ - ◣:◥ - ◤', 6:'⫯:⫰', 7:'⇃-⇂:↿-↾', 8:' ↼-⇀ : ↽-⇁ ', 9:' ⇤-⇥ ', 10:'⇥ - ⇤', 11:' ⊢-⊣ ',
+//                           12:'⊣ - ⊢', 13:'» - «', 14:'› - ‹', 15:'> - <', 16:'→ - ←', 17:'▾:▴', 18:'▿:▵']
+// @param _src Optional source data. If not provided, the main source will be used.
+// @param _textIconString Custom text icon string.
+// @param _markerIconString Custom marker icon string.
+// @param _length Length of range.
+// @param _textLocation Text position.
+// @param _markerLocation Marker position.
+// @param _anchorToScale Option: Anchor marker to scale.
+// @param _textColor Text color code.
+// @param _markerColor Marker color code.
+// @param _textSize Text size.
+// @param _markerSize Marker size.
+// @param _bgcolor Background color code.
+// @param _showText Option: Show/hide text elements.
+// @param _showMarker Option: Show/hide marker elements.
+// @param _showBgp Option: Show/hide background pattern.
+// @param _textFontFamily Text font family.
+// @param _tooltipFormat Tooltip format.
+// @param _textFormat Text format string.
+// @param _lowString Low format string.
+// @param _highString High format string.
+// @param _vDelimiter Vertical DIV.
+// @param _hDelimiter Horizontal DIV.
+// @param _textRow Text row.
+// @param _markerRow Marker row.
+// @param _deploy Option: Auto-Deploy.
+// @returns setup
+// --
+export method addRange(
+ setup  this,
+ series float   _src               = na,
+ series float   _srcLowest         = na,
+ series float   _srcHighest        = na,
+ series int     _length            = 30,
+ series int     _textIcon          = 0,
+ series int     _markerIcon        = 0,
+ series string  _textIconString    = na,
+ series string  _markerIconString  = na,
+ series string  _textLocation      = location.top,
+ series string  _markerLocation    = location.bottom,
+ series color   _textColor         = na,
+ series color   _markerColor       = na,
+ series bool    _colorBarFilled    = false,
+ series string  _textSize          = na,
+ series string  _textFontFamily    = na,
+ series string  _markerSize        = na,
+ series bool    _showText          = true,
+ series bool    _showMarker        = true,
+ series bool    _showBg            = false,
+ series int     _bgHeight          = 10,
+ series int     _bgPadding         = na,
+ series color   _bgColor           = na,
+ series string  _tooltipFormat     = na,
+ series string  _textFormat        = na,
+ series string  _lowString         = na,
+ series string  _highString        = na,
+ series int     _wpadding          = na,
+ series string  _vDelimiter        = '-',
+ series string  _hDelimiter        = ':',
+ series int     _textRow           = 1,
+ series int     _markerRow         = 0,
+ series bool    _deploy            = true,
+ series string  _elementId         = 'range'
+ ) =>
+    // --
+    model      m = this.__model
+    controller c = this.__controller
+    // --
+    series float rangeMin      = _srcLowest.isset(ta.lowest(_src.isset(m.src), _length.isset(m.length)))
+    series float rangeMax      = _srcHighest.isset(ta.highest(_src.isset(m.src), _length.isset(m.length)))
+    series float rangeMinPct   = this._calcPercentInRange(rangeMin)
+    series float rangeMaxPct   = this._calcPercentInRange(rangeMax)
+    // --
+    if this.controller(_elementId).exec
+     and Validator.isValidLocation(_textLocation) and Validator.isValidLocation(_markerLocation)
+        // --
+        const array <string> T_ICON_SET = array.from('L -H ', '⇊ -⇈ ', '↓ -↑ ', '⇣ -⇡ ', '↧ -↥ ', '▼:▲', '▽:△', '▾:▴', '▿:▵') // 9
+        const array <string> M_ICON_SET = array.from('|', '⁞', '⁝', '⌊-⌋:⌈-⌉', '⇣:⇡', '◢ - ◣:◥ - ◤', '⫯:⫰', '⇃-⇂:↿-↾')
+        // ' ↼-⇀ : ↽-⇁ ', ' ⇤-⇥ ','⇥ - ⇤',' ⊢-⊣ ', '⊣ - ⊢', '» - «', '› - ‹', '> - <', '→ - ←', '▾:▴', '▿:▵'
+        // --
+        for sw in array.from(false, true)
+            series string tooltip = str.format(isset(_tooltipFormat, '{0} Range Value: {1} [{2} %]\nLength: {3}'),
+             sw ? isset(_lowString, 'Lowest') : isset(_highString, 'Highest'),
+             sw ? rangeMin                    : rangeMax,
+             sw ? rangeMinPct                 : rangeMaxPct, _length)
+            // --
+            if _showText
+                // --
+                series string positionText = Validator.isAboveLocation(_textLocation) ?
+                   sw ? position.top_left    : position.top_right
+                 : sw ? position.bottom_left : position.bottom_right
+                // --
+                this.addLabel(
+                 _position       = positionText,
+                 _xOffset        = 0,
+                 _wpadding       = _wpadding,
+                 _textColor      = _textColor,
+                 _bgcolor        = TRANSP,
+                 _textSize       = _textSize,
+                 _text           = str.format(isset(_textFormat, '{0}{1,number,' + c.precision_string + '}'),
+                  T_ICON_SET._getIcon(positionText, _textIcon, _textIconString, sw, _hDelimiter, _vDelimiter),
+                  sw ? rangeMin : rangeMax
+                  ),
+                 _textFontFamily = _textFontFamily,
+                 _tooltip        = tooltip,
+                 _row            = _textRow,
+                 _deploy         = false,
+                 _elementId      = _elementId
+                 )
+            // --
+            if _showMarker
+                // --
+                this.addMarker(
+                 _src               = sw ? rangeMin : rangeMax,
+                 _markerIconString  = M_ICON_SET._getIcon(
+                                         _markerLocation,
+                                         _markerIcon,
+                                         _markerIconString,
+                                         sw,
+                                         _hDelimiter,
+                                         _vDelimiter
+                                         ),
+                 _location          = _markerLocation,
+                 _color             = _markerColor.isset(_colorBarFilled ? 
+                                           this.__theme.color_bar_filled_active
+                                         : this.__theme.color_bar_unfilled
+                                         ),
+                 _textFontFamily    = _textFontFamily,
+                 _size              = _markerSize,
+                 _bgcolor           = TRANSP,
+                 _tooltip           = tooltip,
+                 _tooltipFormat     = _tooltipFormat,
+                 _row               = _markerRow,
+                 _deploy            = false,
+                 _elementId         = _elementId
+                 )
+        // --
+        if _showBg
+            // --
+            this.addBackground(
+             _from        = rangeMinPct,
+             _to          = rangeMaxPct,
+             _color       = _bgColor,
+             _inputFormat = format.percent,
+             _height      = _bgHeight,
+             _hpadding    = _bgPadding,
+             _deploy      = false,
+             _elementId   = _elementId
+             )
+	// >>
+    this.deploy(_elementId, _deploy)
+// }
+
+// ---------------------------------------------------------------------------------------------------------------------
+
+// ──── Add Trend {
+//
+// @function addTrend Add Trend.
+// @param this Current instance.
+// @param _icon Icon index. [0-10] [0:'◀-|-▶', 1:'◁-|-▷', 2:'<-±->', 3:'‹-±-›', 4:'«-±-»', 5:'⟨-|-⟩', 6:'⟪-|-⟫', 7:'↓-=-↑', 8:'⇊-=-⇈', 9:'↧-±-↥', 10:'⇣-±-⇡']
+// @param _length Set lookback length.
+// @param _src Set source. Overrides global `src`.
+// @param _position Set position. If `_split` is true, it will be ignored.
+// @param _color Set color. Overrides `_colored` and `_colorBarFilled`.
+// @param _size Set size. Overrides global `text_size`.
+// @param _trendString Set custom trend string. Overrides `_icon`.
+// @param _bgcolor Set background color.
+// @param _textFontFamily Set text font family. Overrides global `text_font_family`.
+// @param _split Option: Splits the trend into left/right. It also disables the `_position` argument.
+// @param _live Option: Changes the calculation behavior from candle-based to tick-based (live) calculation.
+// @param _colored Option: If true, gets colored with `color_positive`/`color_negative`/`color_neutral` theme colors.
+// @param _colorBarFilled Option: If true, gets colored with `color_bar_filled_active` theme color. Overrides `_colored`.
+// @param _vDelimiter Set `_trendString` vertical DIV.
+// @param _row Set text inner row position.
+// @param _deploy Option: Auto-Deploy.
+// @returns setup
+// --
+export method addTrend(
+ setup  this,
+ series int    _icon            = 0,
+ series int    _length          = 1,
+ series float  _src             = na,
+ series string _position        = position.bottom_center,
+ series color  _color           = na,
+ series string _size            = na,
+ series string _trendString     = na,
+ series color  _bgcolor         = na,
+ series string _textFontFamily  = na,
+ series bool   _split           = true,
+ series bool   _live            = false,
+ series bool   _colored         = true,
+ series bool   _colorBarFilled  = false,
+ series string _vDelimiter      = '-',
+ series int    _row             = 0,
+ series bool   _deploy          = true,
+ series string _elementId       = 'trend'
+ ) =>
+    // --
+    model      m = this.__model
+    controller c = this.__controller
+    theme      t = this.__theme
+    // -- tick-based
+    [rising, falling, chg] = if _live
+        varip bool  rising  = false
+        varip bool  falling = false
+        varip float chg     = na
+        [rising, falling, chg]
+    // -- candle-based
+    else
+        var bool    rising  = false
+        var bool    falling = false
+        var float   chg     = na
+        [rising, falling, chg]
+    // --
+    rising  := ta.rising(_src.isset(m.src), _length.isset(m.length))
+    falling := ta.falling(_src.isset(m.src), _length.isset(m.length))
+    chg     := ta.change(_src.isset(m.src))
+    // --
+    if this.controller(_elementId).exec
+     and Validator.isValidPosition(_position)
+        // --
+        var array <string> T_ICON_SET = 
+         array.from('◀-|-▶', '◁-|-▷', '‹-±-›', '«-±-»', '<-±->', '⟨-|-⟩', '⟪-|-⟫', '↓-=-↑', '⇊-=-⇈', '↧-±-↥', '⇣-±-⇡')
+        var array <string> T_ICON = 
+         str.split(_trendString.isset(T_ICON_SET.get(_icon % T_ICON_SET.size())), _vDelimiter)
+        // --
+        for sw in array.from(false, true)
+            [text_, position_] = if _split
+                [sw and rising ? T_ICON.get(2) : not sw and falling ? T_ICON.get(0) : '',
+                 sw ? position.middle_right : position.middle_left]
+            else
+                [falling ? T_ICON.get(0) : rising ? T_ICON.get(2) : T_ICON.get(1), _position]
+            // --
+            this.addLabel(
+             _position          = position_,
+             _xOffset           = 0,
+             _wpadding          = 0,
+             _textColor         = _color.isset(_colorBarFilled ? t.color_bar_filled_active
+             : _colored ? rising ? t.color_positive
+             : falling ? t.color_negative
+             : t.color_neutral : t.color_text),
+             _bgcolor           = _bgcolor,
+             _textSize          = _size,
+             _text              = text_,
+             _textFontFamily    = _textFontFamily,
+             _tooltip           = str.format(
+                                     '{0}\nLength: {1}\nChange: {2}', 
+                                     rising ? 'RISING' : 'FALLING', 
+                                     _length, 
+                                     chg
+                                     ),
+             _row               = _row,
+             _deploy            = false,
+             _elementId         = _elementId
+             )
+            // --
+            if not _split
+                break
+    // >>
+    this.deploy(_elementId, _deploy)
+// }
+
+// ---------------------------------------------------------------------------------------------------------------------
+
+// ──── Add Timer {
+//
+// @function    Add a tick-based timer.
+// @param       this                    Current instance.
+// @param       _position               Set position.
+// @param       _color                  Set color.
+// @param       _size                   Set decoration size.
+// @param       _timerFormatString      Timer format string.
+// @param       _bgcolor                Set background color.
+// @param       _outputFormat           Set output format.
+// @param       _includeHours           Option: Include hours in output.
+// @param       _showIcon               Option: Show icon.
+// @param       _textFontFamily         Set font family.
+// @param       _row                    Row position.
+// @param       _deploy                 Option: Auto-Deploy.
+// @returns     setup
+export method addTimer(
+ setup  this,
+ series string _position            = position.bottom_left,
+ series color  _color               = na,
+ series string _size                = na,
+ series string _timerFormatString   = na,
+ series color  _bgcolor             = na,
+ series string _outputFormat        = format.inherit,
+ series bool   _includeHours        = false,
+ series bool   _showIcon            = true,
+ series string _textFontFamily      = font.family_monospace,
+ series int    _row                 = 1,
+ series bool   _deploy              = true,
+ series string _elementId           = 'timer'
+ ) =>
+    // --
+    if this.controller(_elementId).exec
+     and Validator.isValidPosition(_position) and Validator.isValidFormat(_outputFormat)
+        // --
+        int rest = math.abs(time_close - timenow) / 1000
+        int tHour = math.floor(rest / 3600), int tMinute = math.floor(rest / 60), int tSecond = rest % 60
+        // --
+        [format_, var1_, var2_, var3_] = switch _outputFormat
+            format.inherit => [_includeHours ? '-{0,number,00}:{1,number,00}:{2,number,00}' : '-{1,number,00}:{2,number,00}', tHour, tMinute, tSecond]
+            format.percent => ['{0,number,00}%', 100 - math.floor(rest * 100 / timeframe.in_seconds(timeframe.period)), int(na), int(na)]
+        // --
+        string timerString = (_showIcon ? '◷ ' : '') + str.format(_timerFormatString.isset(format_), var1_, var2_, var3_)
+        // --
+        this.addLabel(
+         _position          = _position,
+         _xOffset           = 0,
+         _wpadding          = 0,
+         _textColor         = _color,
+         _bgcolor           = _bgcolor,
+         _textSize          = _size,
+         _text              = timerString,
+         _textFontFamily    = _textFontFamily,
+         _row               = _row,
+         _deploy            = false,
+         _elementId         = _elementId
+         )
+    // >>
+    this.deploy(_elementId, _deploy)
+// }
+
+// ---------------------------------------------------------------------------------------------------------------------
+
+// ──── Add Loader {
+//
+// @function addLoader Add a tick-based loader animation.
+// @param this Current instance.'
+// @param _loaderIcon Loader icon. [0-6] [0:'◜-◝-◞-◟', 1:'◎-◉', 2:'⋮-⋰-⋯-⋱', 3:'≓-≒-≑', 4:'⨫-⨬', '▰▱▱-▱▱▰-▱▰▱','⊶⊷⊶⊷-⊷⊶⊷⊶']
+// @param _loaderIconString Override loader icon string.
+// @param _position Set position.
+// @param _color Set color.
+// @param _size Set size.
+// @param _bgcolor Set background color.
+// @param _textFontFamily Set text font family.
+// @param _vDelimiter Vertical string DIV.
+// @param _colorBarFilled Option: Change color to color_bar_filled_active
+// @param _showTicks Option: Show ticks.
+// @param _row Text row.
+// @param _deploy Option: Auto-Deploy.s
+// @returns setup
+// --
+export method addLoader(
+ setup         this,
+ series int    _loaderIcon         = 0,
+ series string _loaderIconString   = na,
+ series string _position           = position.bottom_right,
+ series color  _color              = na,
+ series string _size               = na,
+ series color  _bgcolor            = na,
+ series string _textFontFamily     = font.family_monospace,
+ series string _vDelimiter         = '-',
+ series bool   _showTicks          = false,
+ series bool   _colorBarFilled     = false,
+ series int    _row                = 1,
+ series bool   _reverse            = false,
+ series bool   _deploy             = true,
+ series string _elementId          = 'loader'
+ ) =>
+    // --
+    controller c = this.__controller
+    // --
+    if this.controller(_elementId).exec
+     and Validator.isValidPosition(_position)
+        // --
+        var array <string> L_ICON_SET = array.from('◜-◝-◞-◟', '◎-◉', '⋮-⋰-⋯-⋱', '≓-≒-≑', '⨫-⨬', '▰▱▱-▱▱▰-▱▰▱','⊶⊷⊶⊷-⊷⊶⊷⊶') // 7
+        var array <string> L_ICON_PRE = str.split(_loaderIconString.isset(L_ICON_SET.get(_loaderIcon % L_ICON_SET.size())), _vDelimiter)
+        // --
+        string loaderText = str.format(_showTicks ? '{1,number,000} {0}' : '{0}',
+         L_ICON_PRE.get(math.abs((_reverse ? L_ICON_PRE.size() : 0) - c.update_no % L_ICON_PRE.size())), c.update_no)
+        // --
+        this.addLabel(
+         _position          = _position,
+         _xOffset           = 0,
+         _wpadding          = 0,
+         _textColor         = _colorBarFilled ? this.__theme.color_bar_filled_active : _color,
+         _bgcolor           = _bgcolor,
+         _textSize          = _size,
+         _text              = loaderText,
+         _tooltip           = str.format('{0} ticks', c.update_no),
+         _textFontFamily    = _textFontFamily,
+         _style             = na,
+         _row               = _row,
+         _deploy            = false,
+         _elementId         = _elementId
+         )
+    // >>
+    this.deploy(_elementId, _deploy)
+// }
+
+// ---------------------------------------------------------------------------------------------------------------------
+
+// ──── Add Badge {
+//
+// @function addBadge Add a customizable string-based badge.
+// @param this Current instance.
+// @param _text Badge text.
+// @param _position Set position.
+// @param _color Set badge3 color.
+// @param _size Set size.
+// @param _bgcolor Set background color.
+// @param _textFontFamily Set text font family.
+// @param _colorBarFilled Option: Change color to color_bar_filled_active.
+// @param _tooltip Set tooltip content
+// @param _row Text row.
+// @param _deploy Option: Auto-Deploy.
+// @returns setup
+// --
+export method addBadge(
+ setup this,
+ series string  _text,
+ series string  _position           = position.top_left,
+ series color   _color              = na,
+ series string  _size               = na,
+ series color   _bgcolor            = na,
+ series string  _textFontFamily     = na,
+ series bool    _colorBarFilled     = false,
+ series string  _tooltip            = na,
+ series int     _row                = 2,
+ series bool    _deploy             = true,
+ series string  _elementId          = 'badge'
+ ) =>
+    // --
+    if this.controller(_elementId).exec
+     and Validator.isValidPosition(_position)
+        // -- bg
+        string bg = str.repeat('█', str.length(_text) + 2)
+        this.addLabel(
+         _position       = _position,
+         _xOffset        = 0,
+         _wpadding       = 0,
+         _textColor      = _colorBarFilled ? this.__theme.color_bar_filled_active : _bgcolor,
+         _bgcolor        = TRANSP,
+         _textSize       = _size,
+         _text           = bg,
+         _textFontFamily = _textFontFamily,
+         _row            = _row,
+         _deploy         = false,
+         _elementId      = _elementId
+         )
+        // -- text
+         .addLabel(
+         _position       = _position,
+         _xOffset        = 0,
+         _wpadding       = 0,
+         _textColor      = _color.isset(chart.bg_color),
+         _bgcolor        = TRANSP,
+         _textSize       = _size,
+         _text           = str.upper(' ' + _text + ' '),
+         _textFontFamily = _textFontFamily,
+         _tooltip        = _tooltip,
+         _row            = _row,
+         _deploy         = false,
+         _elementId      = _elementId
+         )
+    // >>
+    this.deploy(_elementId, _deploy)
+// }
+
+// ---------------------------------------------------------------------------------------------------------------------
+
+// ──── Add Decoration {
+//
+// @function addDecoration Add decorative elements.
+// @param this Current instance.
+// @param _wpadding Set padding width, left/right (Space between element and bar). [in bars]
+// @param _decor Select decoration-set index. [0-13] [0:'◤-◥:◣-◢', 1:'⌜-⌝:⌞-⌟', 2:'⌏-⌎:⌍-⌌', 3:'◜-◝:◟-◞', 4:'⊞-⊟', 5:'⊢-⊣', 6:'⫏-⫐', 7:'⪽-⪾', 8:'◖-◗', 9:'⟦-⟧', 10:'⟬-⟭', 11:'⟮-⟯', 12:'⟪-⟫', 13:'⟨-⟩']
+// @param _decorString Set a custom decoration string. If set, `_decor` gets ignored.
+// @param _color Set decoration color.
+// @param _bgcolor Set background color.
+// @param _size Set decoration size.
+// @param _textFontFamily Set font family.
+// @param _pingpong Option: Change possible output positions, from top-left, bottom-left, top-right, bottom-right to left, right.
+// @param _xcross Option: Change output order. Ex. from top-left to bottom-right.
+// @param _colorBarFilled c
+// @param _vDelimiter Set vertical DIV for custom `_decorString`.
+// @param _hDelimiter Set horizontal DIV for custom `_decorString`.
+// @param _row Set text inner row position.
+// @param _deploy Option: Auto-deploy.
+// @returns setup
+export method addDecoration(
+ setup  this,
+ series int     _wpadding       = 0,
+ series int     _decor          = 0,
+ series string  _decorString    = na,
+ series color   _color          = na,
+ series color   _bgcolor        = na,
+ series string  _size           = na,
+ series string  _textFontFamily = na,
+ series bool    _pingpong       = false,
+ series bool    _xcross         = false,
+ series bool    _colorBarFilled = false,
+ series string  _vDelimiter     = '-',
+ series string  _hDelimiter     = ':',
+ series int     _row            = 2,
+ series bool    _deploy         = true,
+ series string  _elementId      = 'decoration'
+ ) =>
+    // --
+    if this.controller(_elementId).exec
+        // --
+        const array <string> DECOR_POS  = array.from(position.middle_left, position.middle_right)
+        const array <string> D_ICON_SET = 
+         array.from('◤-◥:◣-◢', '⌜-⌝:⌞-⌟', '⌏-⌎:⌍-⌌', '◜-◝:◟-◞', '⊞-⊟', '⊢-⊣', '◖-◗', '⟦-⟧', '⟪-⟫', '⟨-⟩') // 14
+        // --
+        array <string> icons = str.split(_decorString.isset(D_ICON_SET.get(_decor % D_ICON_SET.size())), _hDelimiter)
+        for [idxH, pre] in icons
+            for [idxV, icon] in str.split(pre, _vDelimiter)
+                // --
+                series int  idx          = idxH % 2 == 1 ? idxV + 2 : idxV
+                series bool switchH      = idx % 4 >= 2
+                switchH                 := _xcross ? not switchH : switchH
+                series bool switchV      = idx % 2 == (_pingpong ? 0 : 1)
+                switchV                 := _xcross ? not switchV : switchV
+                // --
+                this.addLabel(
+                 _position       = DECOR_POS.get(switchV ? 1 : 0),
+                 _xOffset        = 0,
+                 _wpadding       = _wpadding,
+                 _textColor      = _color.isset(_colorBarFilled ? 
+                                       this.__theme.color_bar_filled_active
+                                     : this.__theme.color_bar_filled
+                                     ),
+                 _bgcolor        = _bgcolor,
+                 _textSize       = _size,
+                 _textFontFamily = _textFontFamily,
+                 _text           = str.format(
+                                     icons.size() <= 2 and _row == 0 ? '{0}' : switchH or _row < 0 ? '{1}{0}' : '{0}{1}',
+                                     icon, 
+                                     str.repeat('\n', _row) + (not switchH ? ' ' : '')
+                                     ),
+                 _row            = 0,
+                 _deploy         = false,
+                 _elementId      = _elementId
+                 )
+    // >>
+    this.deploy(_elementId, _deploy)
+// }
+
+// ---------------------------------------------------------------------------------------------------------------------
+
+// ──── Add Alert {
+//
+// ⚠️ IMPORTANT! YOU NEED TO SETUP A
+//
+// @function addAlert Add a tick-based timer.
+// @param this Current instance.
+// @param _target Target value.
+// @param _icon Icon index.
+// @param _src Source value.
+// @param _inputFormat Input format.
+// @param _type Alert type.
+// @param _freq Alert frequency.
+// @param _location Alert location.
+// @param _color Alert color.
+// @param _size Alert size.
+// @param _bgcolor Alert background color.
+// @param _textFontFamily Alert font family.
+// @param _customMarkerString Custom marker string.
+// @param _customAlertFormat Custom alert format.
+// @param _hDelimiter Horizontal DIV.
+// @param _row Row position.
+// @param _deploy Auto-deploy.
+// @returns setup
+export method addAlert(
+ series setup   this,
+ series float   _target,
+ series int     _icon               = 0,
+ series float   _src                = na,
+ series string  _inputFormat        = format.inherit,
+ series string  _type               = 'cross',
+ series string  _freq               = alert.freq_once_per_bar_close,
+ series string  _location           = location.abovebar,
+ series color   _color              = na,
+ series string  _size               = na,
+ series color   _bgcolor            = na,
+ series string  _textFontFamily     = font.family_monospace,
+ series string  _customMarkerString = na,
+ series string  _customAlertMessage = na,
+ series string  _hDelimiter         = ':',
+ series int     _row                = 1,
+ series bool    _deploy             = true,
+ series string  _elementId          = 'alert'
+ ) =>
+    // --
+    cm = _customMarkerString
+    model      m = this.__model
+    controller c = this.__controller
+    // --
+    float src       = _inputFormat == format.inherit ? _src.isset(m.src) : this._calcPercentInRange(_src.isset(m.src))
+    bool crossover  = ta.crossover(_target, src)
+    bool crossunder = ta.crossunder(_target, src)
+    bool cross      = crossover or crossunder
+    // --
+    if this.controller(_elementId).exec
+     and Validator.isValidLocation(_location)
+        // --
+        series bool cond = switch _type
+            'crossover'  => crossover
+            'crossunder' => crossunder
+            => cross
+        // --
+        series string alertString = isset(_customAlertMessage,
+         str.format('Alert: Target @ {0} {1}', str.tostring(_target, c.precision_string), str.upper(_type)))
+        // --
+        if cond and barstate.islast
+            // --
+            switch _freq
+                // --
+                alert.freq_all          => alert(alertString, alert.freq_all)
+                alert.freq_once_per_bar => alert(alertString, alert.freq_once_per_bar)
+                => alert(alertString, alert.freq_once_per_bar_close)
+        // --
+        const array <string> A_ICON_SET = array.from('⋂:⋃', '⩍:⩌')
+        // --
+        this.addLabel(
+         _position          = position.middle_left,
+         _xOffset           = this._offset(_target, _inputFormat),
+         _wpadding          = 0,
+         _textColor         = _color.isset(this.__theme.color_text),
+         _bgcolor           = _bgcolor.isset(TRANSP),
+         _textSize          = _size.isset(m.text_size),
+         _text              = str.format(Validator.isAboveLocation(_location) ? '{0}{1}' : '{1}{0}',
+                                 A_ICON_SET._getIcon(_location, _icon, cm, false, _hDelimiter),
+                                 str.repeat('\n', _row) + (Validator.isAboveLocation(_location) ? ' ' : '')
+                                 ),
+         _textFontFamily    = _textFontFamily.isset(m.text_font_family),
+         _style             = label.style_label_center,
+         _tooltip           = alertString,
+         _row               = _row,
+         _deploy            = false,
+         _elementId         = _elementId
+         )
+    // >>
+    this.deploy(_elementId, _deploy)
+// }
+
+// ---------------------------------------------------------------------------------------------------------------------
+
+// ──── Method Show {
+//
+// @function    Show all.
+// @param       this        Current instance.
+// @param       _cond       Condition.
+// @returns     this
+export method show(setup this, series bool _cond = true) =>
+    // --
+    this.__view.hide := not _cond
+    // >>
+    this
+// }
+
+// ──── Method Hide {
+//
+// @function    Hide all.
+// @param       this            Current instance.
+// @param       _cond           Condition.
+// @returns     this
+export method hide(setup this, series bool _cond = true) =>
+    // --
+    this.__view.hide := _cond
+    // >>
+    this
+// }
+
+//  ▪ EXAMPLE
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+// ──── Source Value {
+//
+var __IND           = input.string('RSI', 'Indicator', options=['RSI','MOM','EXT'], group = 'INDICATOR')
+float __INPUT       = input.source(close, 'Source')
+var __LEN           = input.int(14, 'Indicator Length', minval = 0, maxval = 1000, step = 1, group = 'INDICATOR')
+var __SWITCH_TMPL   = input.bool(false, 'Auto Theme Switch', group = 'THEME')
+var __SWITCH_TICKS  = input.int(5, 'Switch after N ticks', minval = 0, maxval = 100, step = 1, group = 'THEME')
+// --
+[src_, dynamic_] = switch __IND
+    'RSI'       => [ta.rsi(__INPUT, __LEN), false]
+    'MOM'       => [ta.mom(__INPUT, __LEN), true]
+    'RANDOM'    => [math.random(15, 85),    false]
+    =>             [__INPUT,                true]
+// }
+
+// ---------------------------------------------------------------------------------------------------------------------
+
+// Important: If you intend to use this example code outside of the library, you must add an additional prefix which you
+//            setup at the import to any function or type declaration.
+
+// ──── Themes {
+//
+var  __tmpl_01 = theme.new(
+ color_bg           = TRANSP,
+ color_bg_text      = TRANSP,
+ color_text         = #42423c,
+ color_bar_unfilled = #393929a3,
+ color_bar_filled   = #f7525f,
+ color_positive     = #f7525f,
+ color_negative     = #f7525f)
+// --
+var __tmpl_02 = theme.new(#161424, TRANSP, color.new(#ffffff, 77), color.new(#ffffff, 60), color.yellow, true, color.aqua, true, custom_trend_color = false)
+var __tmpl_03 = theme.new(#39392940, TRANSP, #2D4151, #CCCCCC40, #faca7c, true, #f2a603, true, custom_trend_color = false)
+var __tmpl_04 = theme.new(color.new(#041828, 0), TRANSP, color.rgb(78, 102, 116), #cccccc78, #AAFF00, custom_trend_color = false)
+var __tmpl_05 = theme.new(#33244140, TRANSP, #352d51, #CCCCCC40, #7d1aff, custom_trend_color = false)
+// --
+var array <theme> TEMPLATES = array.from(__tmpl_01, __tmpl_02, __tmpl_03, __tmpl_04, __tmpl_05)
+varip int updateNo = 0, updateNo += 1
+varip int templateNo = 0, templateNo += updateNo % __SWITCH_TICKS == 0 ? 1 : 0
+theme __tmplSwitch =  __SWITCH_TMPL ? array.get(TEMPLATES, templateNo % array.size(TEMPLATES)) : __tmpl_02
+// }
+
+// -   -   -   -   -   -   -   -   -   -   -   -   -   -   -   -   -
+
+// ──── Scale #1 - Standard Implementation as Multi-Deployment (Auto-Deploy = true) {
+//
+//
+interface ux = getInterface()
+// // --
+ux
+ .setup('custom_name')
+ .build(
+  __theme            = __tmplSwitch,
+  _xOffset           = 0,
+  _y                 = 100,
+  _src               = src_,
+  _length            = __LEN,
+  _minValue          = 0,
+  _maxValue          = 100,
+  _numBars           = 11,
+  _barWidth          = 2,
+  _barHeight         = 2,
+  _spacing           = 1,
+  _wpadding          = 0,
+  _hpadding          = 10,
+  _dynamic           = dynamic_,
+  _showMinMax        = true,
+  _deploy            = true,
+  _row               = 1,
+  _pointOfView       = extend.both
+  )
+ // --
+ .addMarker(
+  _icon              = 5,
+  _row               = 0,
+  _colorBarFilled    = true
+  )
+ // --
+ .addRange(
+  _markerIcon        = 12,
+  _textIcon          = 1,
+  _showBg            = true,
+  _colorBarFilled    = true,
+  _bgColor           = color.new(#a58282, 87),
+  _markerColor       = color.silver,
+  _bgHeight          = 30
+  )
+ // --
+ .addAvg(
+  _markerIcon        = 2,
+  _markerRow         = 0,
+  _length            = 250,
+  _textRow           = 1
+  )
+ // --
+ .addLoader(
+  _loaderIcon        = 0,
+  _colorBarFilled    = true,
+  _showTicks         = true
+  )
+ // --
+ .addBadge(
+  'RSI',
+  _position          = position.top_center,
+  _size              = size.small,
+  _row               = 4,
+  _colorBarFilled    = true
+  )
+ // --
+ .addDecoration(
+  _decor             = 1,
+  _colorBarFilled    = true
+  )
+ // --
+ .addRuler()
+ // --
+ .addTimer()
+ .addTrend()
+// }
+
+// -   -   -   -   -   -   -   -   -   -   -   -   -   -   -   -   -
+
+// ──── Scale #2 - Advanced Implementation as Single-Deployment (Auto-Deploy = false) {
+//
+// Note: It is crucial to initialize <setup> with var.
+//
+// ux.setup('scale2')
+//  .build(__tmplSwitch, 0, close + 1000, src_, 0, 100, 14, 2, 16, 1, 2, 10, _dynamic = dynamic_, _length = __LEN, _row = 1,
+//   _showMinMax = false, _pointOfView = extend.both, _prefill = true, _deploy = true)
+//  .addMarker(_colorBarFilled = true)
+//  .addAvg(_markerRow = 0, _textRow = 1)
+//  .addTimer(_outputFormat = format.percent)
+//  .addLoader(_loaderIcon = 2)
+//  .addDecoration(_decor = 2, _colorBarFilled = true)
+//  .addRange(_length = 14, _textIcon = 2, _markerIcon = 1, _textSize = size.small, _textRow = 1, _wpadding = 1)
+//  .addTrend(_length = 1, _colorBarFilled = true)
+//  .addBadge('BADGES', _row = 4, _size = size.small, _colorBarFilled = true)
+//  .show(input(true))
+
+// Note: At this point, all the elements of __uiScale2 exist only as <draft_line> and <draft_label> objects
+// and need to be rendered (deployed).
+// --
+// Deploy the __uiScale2 object once, ONLY if build(..., _deploy = false) is specified.
+
+// .deploy(true, true)
+// }
+
+// -   -   -   -   -   -   -   -   -   -   -   -   -   -   -   -   -   -
+
+// ──── Scale #3 - Standard implementation as Multi-Deployment (Auto-Deploy = true) {
+//
+// Note: It is crucial to initialize <setup> with var.
+//
+
+// var SCALE3 = setup.new()
+// SCALE3.build(__tmplSwitch, -100,  0,  src_,  0,  100,  15,  2,  1,  0,  1,  8,  _dynamic = dynamic_,  _length = __LEN,
+//   _srcPosition = position.top_center, _prefill = true, _row = 1, _pointOfView = extend.left)
+//  .addMarker()
+//  .addRange()
+//  .addDecoration()
+//  .addAlert(70, _freq = alert.freq_once_per_bar)
+//  .addLoader()
+// }
+
+// -   -   -   -   -   -   -   -   -   -   -   -   -   -   -   -   -   -
+
+// ──── Tagline {
+var tagline = label.new(
+ x          = bar_index, 
+ y          = -100, 
+ color      = TRANSP, 
+ size       = size.normal, 
+ textcolor  = color.silver,
+ text       = '🔋 batteries included',
+ style      = label.style_none
+ )
+// if barstate.islast
+tagline._set_xy(bar_index, -100)
+// }
+
+// #EOF

@@ -1,0 +1,261 @@
+// ——— 🔹 Method - Log #4/4 - Direct Logging { 
+//
+// Basic direct logging
+//
+// @function    Log data directly without requiring a terminal object
+// @param       this            The data to log
+// @param       _lvl            The log level (1=info, 2=warning, 3=error)
+// @returns     data            The input data for chaining
+export method log_direct(data this, series int _lvl = 1) =>
+    terminal.new(display = 'logs').init().pushData(this).opt_lvl(_lvl).show()
+
+// Basic data types direct
+//
+// @function    Log a string directly without terminal object
+// @param       this            The string to log
+// @param       _lvl            The log level (1=info, 2=warning, 3=error)
+// @returns     string          The input string for chaining
+export method log_direct(series string this, series int _lvl = 1) =>
+    log_direct(data.new(this), _lvl)
+    this
+
+// @function    Log an integer directly without terminal object
+// @param       this            The integer to log
+// @param       _lvl            The log level (1=info, 2=warning, 3=error)
+// @returns     int             The input integer for chaining
+export method log_direct(series int this, series int _lvl = 1) =>
+    log_direct(this.tostring(), _lvl)
+    this
+
+// @function    Log a float directly without terminal object with optional rounding
+// @param       this            The float to log
+// @param       _lvl            The log level (1=info, 2=warning, 3=error)
+// @param       _round          Optional decimal places for rounding
+// @returns     float           The input float for chaining
+export method log_direct(series float this, series int _lvl = 1, simple int _round = na) =>
+    log_direct(this.round(_round).tostring(), _lvl)
+    this
+
+// @function    Log a boolean directly without terminal object
+// @param       this            The boolean to log
+// @param       _lvl            The log level (1=info, 2=warning, 3=error)
+// @returns     bool            The input boolean for chaining
+export method log_direct(series bool this, series int _lvl = 1) =>
+    log_direct(this.tostring(), _lvl)
+    this
+
+// @function    Log a color directly without terminal object
+// @param       this            The color to log
+// @param       _lvl            The log level (1=info, 2=warning, 3=error)
+// @returns     color           The input color for chaining
+export method log_direct(series color this, series int _lvl = 1) =>
+    log_direct(this.tostring(), _lvl)
+    this
+
+// Chart objects direct
+//
+// @function    Log a label directly without terminal object
+// @param       this            The label to log
+// @param       _lvl            The log level (1=info, 2=warning, 3=error)
+// @returns     label           The input label for chaining
+export method log_direct(series label this, series int _lvl = 1) =>
+    log_direct(this.tostring(), _lvl)
+    this
+
+// @function    Log a line directly without terminal object
+// @param       this            The line to log
+// @param       _lvl            The log level (1=info, 2=warning, 3=error)
+// @returns     line            The input line for chaining
+export method log_direct(series line this, series int _lvl = 1) =>
+    log_direct(this.tostring(), _lvl)
+    this
+
+// @function    Log a linefill directly without terminal object
+// @param       this            The linefill to log
+// @param       _lvl            The log level (1=info, 2=warning, 3=error)
+// @returns     linefill        The input linefill for chaining
+export method log_direct(series linefill this, series int _lvl = 1) =>
+    log_direct(this.tostring(), _lvl)
+    this
+
+// @function    Log a box directly without terminal object
+// @param       this            The box to log
+// @param       _lvl            The log level (1=info, 2=warning, 3=error)
+// @returns     box             The input box for chaining
+export method log_direct(series box this, series int _lvl = 1) =>
+    log_direct(this.tostring(), _lvl)
+    this
+
+// @function    Log a chart point directly without terminal object
+// @param       this            The chart point to log
+// @param       _lvl            The log level (1=info, 2=warning, 3=error)
+// @returns     chart.point     The input chart point for chaining
+export method log_direct(series chart.point this, series int _lvl = 1) =>
+    log_direct(this.tostring(), _lvl)
+    this
+
+// Arrays direct
+//
+// @function    Log a string array directly without terminal object
+// @param       this            The string array to log
+// @param       _lvl            The log level (1=info, 2=warning, 3=error)
+// @returns     array<string>   The input array for chaining
+export method log_direct(array<string> this, series int _lvl = 1) =>
+    log_direct(this.tostring(), _lvl)
+    this
+
+// @function    Log a float array directly without terminal object
+// @param       this            The float array to log
+// @param       _lvl            The log level (1=info, 2=warning, 3=error)
+// @returns     array<float>    The input array for chaining
+export method log_direct(array<float> this, series int _lvl = 1) =>
+    log_direct(this.tostring(), _lvl)
+    this
+
+// @function    Log an integer array directly without terminal object
+// @param       this            The integer array to log
+// @param       _lvl            The log level (1=info, 2=warning, 3=error)
+// @returns     array<int>      The input array for chaining
+export method log_direct(array<int> this, series int _lvl = 1) =>
+    log_direct(this.tostring(), _lvl)
+    this
+
+// @function    Log a boolean array directly without terminal object
+// @param       this            The boolean array to log
+// @param       _lvl            The log level (1=info, 2=warning, 3=error)
+// @returns     array<bool>     The input array for chaining
+export method log_direct(array<bool> this, series int _lvl = 1) =>
+    log_direct(this.tostring(), _lvl)
+    this
+
+// @function    Log a label array directly without terminal object
+// @param       this            The label array to log
+// @param       _lvl            The log level (1=info, 2=warning, 3=error)
+// @returns     array<label>    The input array for chaining
+export method log_direct(array<label> this, series int _lvl = 1) =>
+    log_direct(this.tostring(), _lvl)
+    this
+
+// @function    Log a line array directly without terminal object
+// @param       this            The line array to log
+// @param       _lvl            The log level (1=info, 2=warning, 3=error)
+// @returns     array<line>     The input array for chaining
+export method log_direct(array<line> this, series int _lvl = 1) =>
+    log_direct(this.tostring(), _lvl)
+    this
+
+// @function    Log a linefill array directly without terminal object
+// @param       this            The linefill array to log
+// @param       _lvl            The log level (1=info, 2=warning, 3=error)
+// @returns     array<linefill> The input array for chaining
+export method log_direct(array<linefill> this, series int _lvl = 1) =>
+    log_direct(this.tostring(), _lvl)
+    this
+
+// @function    Log a box array directly without terminal object
+// @param       this            The box array to log
+// @param       _lvl            The log level (1=info, 2=warning, 3=error)
+// @returns     array<box>      The input array for chaining
+export method log_direct(array<box> this, series int _lvl = 1) =>
+    log_direct(this.tostring(), _lvl)
+    this
+
+// @function    Log a color array directly without terminal object
+// @param       this            The color array to log
+// @param       _lvl            The log level (1=info, 2=warning, 3=error)
+// @returns     array<color>    The input array for chaining
+export method log_direct(array<color> this, series int _lvl = 1) =>
+    log_direct(this.tostring(), _lvl)
+    this
+
+// @function    Log a chart point array directly without terminal object
+// @param       this            The chart point array to log
+// @param       _lvl            The log level (1=info, 2=warning, 3=error)
+// @returns     array<chart.point> The input array for chaining
+export method log_direct(array<chart.point> this, series int _lvl = 1) =>
+    log_direct(this.tostring(), _lvl)
+    this
+
+// Matrices direct
+//
+// @function    Log a string matrix directly without terminal object
+// @param       this            The string matrix to log
+// @param       _lvl            The log level (1=info, 2=warning, 3=error)
+// @returns     matrix<string>  The input matrix for chaining
+export method log_direct(matrix<string> this, series int _lvl = 1) =>
+    log_direct(this.tostring(), _lvl)
+    this
+
+// @function    Log a float matrix directly without terminal object
+// @param       this            The float matrix to log
+// @param       _lvl            The log level (1=info, 2=warning, 3=error)
+// @returns     matrix<float>   The input matrix for chaining
+export method log_direct(matrix<float> this, series int _lvl = 1) =>
+    log_direct(this.tostring(), _lvl)
+    this
+
+// @function    Log an integer matrix directly without terminal object
+// @param       this            The integer matrix to log
+// @param       _lvl            The log level (1=info, 2=warning, 3=error)
+// @returns     matrix<int>     The input matrix for chaining
+export method log_direct(matrix<int> this, series int _lvl = 1) =>
+    log_direct(this.tostring(), _lvl)
+    this
+
+// @function    Log a boolean matrix directly without terminal object
+// @param       this            The boolean matrix to log
+// @param       _lvl            The log level (1=info, 2=warning, 3=error)
+// @returns     matrix<bool>    The input matrix for chaining
+export method log_direct(matrix<bool> this, series int _lvl = 1) =>
+    log_direct(this.tostring(), _lvl)
+    this
+
+// @function    Log a label matrix directly without terminal object
+// @param       this            The label matrix to log
+// @param       _lvl            The log level (1=info, 2=warning, 3=error)
+// @returns     matrix<label>   The input matrix for chaining
+export method log_direct(matrix<label> this, series int _lvl = 1) =>
+    log_direct(this.tostring(), _lvl)
+    this
+
+// @function    Log a line matrix directly without terminal object
+// @param       this            The line matrix to log
+// @param       _lvl            The log level (1=info, 2=warning, 3=error)
+// @returns     matrix<line>    The input matrix for chaining
+export method log_direct(matrix<line> this, series int _lvl = 1) =>
+    log_direct(this.tostring(), _lvl)
+    this
+
+// @function    Log a linefill matrix directly without terminal object
+// @param       this            The linefill matrix to log
+// @param       _lvl            The log level (1=info, 2=warning, 3=error)
+// @returns     matrix<linefill> The input matrix for chaining
+export method log_direct(matrix<linefill> this, series int _lvl = 1) =>
+    log_direct(this.tostring(), _lvl)
+    this
+
+// @function    Log a box matrix directly without terminal object
+// @param       this            The box matrix to log
+// @param       _lvl            The log level (1=info, 2=warning, 3=error)
+// @returns     matrix<box>     The input matrix for chaining
+export method log_direct(matrix<box> this, series int _lvl = 1) =>
+    log_direct(this.tostring(), _lvl)
+    this
+
+// @function    Log a color matrix directly without terminal object
+// @param       this            The color matrix to log
+// @param       _lvl            The log level (1=info, 2=warning, 3=error)
+// @returns     matrix<color>   The input matrix for chaining
+export method log_direct(matrix<color> this, series int _lvl = 1) =>
+    log_direct(this.tostring(), _lvl)
+    this
+
+// @function    Log a chart point matrix directly without terminal object
+// @param       this            The chart point matrix to log
+// @param       _lvl            The log level (1=info, 2=warning, 3=error)
+// @returns     matrix<chart.point> The input matrix for chaining
+export method log_direct(matrix<chart.point> this, series int _lvl = 1) =>
+    log_direct(this.tostring(), _lvl)
+    this
+
+// }

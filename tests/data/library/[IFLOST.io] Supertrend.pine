@@ -1,0 +1,87 @@
+//@version=4
+
+// Original Author > @Rajandran R
+// Edit and updated to Pine Script version 4 > @jango_blockfolio
+
+
+//////////////////////////////////////////////////////////////////////////
+// [IFLOST.io] Supertrend v1.9
+//////////////////////////////////////////////////////////////////////////
+
+
+study(title="[IFLOST.io] Supertrend v1.9", shorttitle="[IFLOST.io] Supertrend v1.9", overlay=true)
+
+
+//////////////////////////////////////////////////////////////////////////
+// Inputs
+//////////////////////////////////////////////////////////////////////////
+
+
+float factor = input(1.5, type = input.float)
+int pd = input(5, minval = 1, maxval = 100, type = input.integer)
+
+
+//////////////////////////////////////////////////////////////////////////
+// Colors
+//////////////////////////////////////////////////////////////////////////
+
+
+// Buy, Upward
+clg = #4EF9FF
+cdg = #3CADB1
+cbg = #00BCD4 //Background
+
+// Sell, Downward
+clr = #FF0081
+cdr = #880E4F
+cbr = #AB47BC
+
+// Idle, Sideward
+cly = #FBC02D
+
+
+//////////////////////////////////////////////////////////////////////////
+// Calculation
+//////////////////////////////////////////////////////////////////////////
+
+
+float up = hl2 - (factor * atr(pd))
+dn = hl2 + (factor * atr(pd))
+float trendup = 0.0
+trendup := close[1] > trendup[1] ? max(up, trendup[1]) : up
+float trenddown = 0.0
+trenddown := close[1] < trenddown[1] ? min(dn, trenddown[1]) : dn
+float trend = 0.0
+trend := close > trenddown[1] ? 1 : close < trendup[1] ? -1 : nz(trend[1], 1)
+float tsl = trend == 1 ? trendup : trenddown
+
+
+//////////////////////////////////////////////////////////////////////////
+// Painting
+//////////////////////////////////////////////////////////////////////////
+
+
+color linecolor = trend == 1 ? cdg : cdr
+
+barcolor(trend == 1 ? cdg : clr)
+
+plot(tsl, color = linecolor, style = plot.style_line, linewidth = 2, title = "supertrend")
+plotshape(cross(close, tsl) and close > tsl, "up arrow", shape.triangleup, location.belowbar, cdg, 0, 0)
+plotshape(cross(tsl, close) and close < tsl, "down arrow", shape.triangledown, location.abovebar, clr, 0, 0)
+//plotarrow(trend == 1 and trend[1] == -1 ? trend : na, title = "up entry arrow", colorup = clg, maxheight = 60, minheight = 50, transp = 50)
+//plotarrow(trend == -1 and trend[1] == 1 ? trend : na, title = "down entry arrow", colordown = clr, maxheight = 60, minheight = 50, transp = 50)
+
+
+//////////////////////////////////////////////////////////////////////////
+// Alerts & Signals
+//////////////////////////////////////////////////////////////////////////
+
+
+alertcondition(cross(close, tsl) and close > tsl, title = 'supertrend long', message = 'supertrend: long ')
+alertcondition(cross(tsl, close) and close < tsl, title = 'supertrend short', message = 'supertrend: short ')
+
+slong = trend == 1 and trend[1] == -1
+alertcondition(slong, title = 'long', message = 'supertrend alert long')
+
+sshort = trend == -1 and trend[1] == 1
+alertcondition(sshort, title = 'short', message = 'supertrend alert short')

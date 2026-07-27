@@ -1,0 +1,21 @@
+//@version=4
+study("Pivot Points High Low", shorttitle="Pivots HL", overlay=true, max_labels_count=500)
+
+gr="LENGTH LEFT / RIGHT"
+leftLenH = input(title="Pivot High", type=input.integer, defval=10, minval=1, inline="Pivot High",group=gr)
+rightLenH = input(title="/", type=input.integer, defval=10, minval=1, inline="Pivot High",group=gr)
+colorH = input(title="", defval=#E3EFFD, inline="Pivot High",group=gr)
+
+leftLenL = input(title="Pivot Low", type=input.integer, defval=10, minval=1, inline="Pivot Low", group=gr)
+rightLenL = input(title="/", type=input.integer, defval=10, minval=1, inline="Pivot Low",group=gr)
+colorL = input(title="", defval=#E3EFFD, inline="Pivot Low",group=gr)
+
+ph = pivothigh(leftLenH, rightLenH)
+pl = pivotlow(leftLenL, rightLenL)
+
+drawLabel(_offset, _pivot, _style, _yloc, _color) =>
+    if not na(_pivot)
+        label.new(bar_index[_offset], _pivot, tostring(_pivot, format.mintick), style=_style, yloc=_yloc, color=_color, textcolor=#131722)
+
+drawLabel(rightLenH, ph, label.style_label_down, yloc.abovebar, colorH)
+drawLabel(rightLenL, pl, label.style_label_up, yloc.belowbar, colorL)

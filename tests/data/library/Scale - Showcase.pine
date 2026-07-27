@@ -1,0 +1,402 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © cryptolinx
+
+//@version=6
+indicator("Scale - Showcase", overlay=true, explicit_plot_zorder = true)
+
+import cryptolinx/Scale/1 as scale
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Themes
+// ─────────────────────────────────────────────────────────────────────────────
+
+// 1. Logo (Top Center)
+var scale.theme th_logo = scale.theme.new(
+     color_bg           = color.new(color.black, 100),
+     color_text         = color.white,
+     color_bar_unfilled = color.new(color.gray, 60),
+     color_bar_filled   = color.blue
+ )
+
+// 2. Red Gradient (Middle Left)
+var scale.theme th_red = scale.theme.new(
+     color_bg           = color.new(color.black, 100),
+     color_text         = color.gray,
+     color_bg_text      = color.new(color.black, 100),
+     color_bar_unfilled = color.new(color.gray, 80),
+     gradient           = true,
+     color_gradient_seq = array.from(#ff0000, #ff1a1a, #ff4c4c)
+ )
+
+// 3. Purple Gradient (Middle Center)
+var scale.theme th_purple = scale.theme.new(
+     color_bg           = color.new(color.black, 100),
+     color_text         = color.gray,
+     color_bar_unfilled = color.new(color.gray, 80),
+     gradient           = true,
+     color_gradient_seq = array.from(#6a0dad, #7a22cc, #8a2be2, #9b30ff, #ac41ff)
+ )
+
+// 4. Green Dashed (Middle Right)
+var scale.theme th_green = scale.theme.new(
+     color_bg           = color.new(color.black, 100),
+     color_text         = color.white,
+     color_bar_unfilled = color.new(color.gray, 80),
+     color_bar_filled   = #00ff00
+ )
+
+// 5. Minimal Slider (Bottom Left)
+var scale.theme th_slider = scale.theme.new(
+     color_bg           = color.new(color.black, 100),
+     color_text         = color.gray,
+     color_bar_unfilled = color.new(color.gray, 60),
+     color_bar_filled   = color.new(#00aaff, 30)
+ )
+
+// 6. Orange Blocks (Bottom Center)
+var scale.theme th_orange = scale.theme.new(
+     color_bg           = color.new(color.black, 100),
+     color_text         = color.gray,
+     color_bar_unfilled = color.new(color.gray, 60),
+     color_bar_filled   = #ff9900
+ )
+
+// 7. MIN/MAX Dotted (Bottom Right)
+var scale.theme th_dotted = scale.theme.new(
+     color_bg           = color.new(color.black, 100),
+     color_text         = color.gray,
+     color_bar_unfilled = color.new(color.gray, 40),
+     color_bar_filled   = #ff8800
+ )
+
+// 8. Footer (Bottom)
+var scale.theme th_footer = scale.theme.new(
+     color_bg           = color.new(color.black, 100),
+     color_text         = color.gray,
+     color_bar_unfilled = color.new(color.gray, 50),
+     color_bar_filled   = color.new(color.gray, 50)
+ )
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Sources (Mock Data for Showcase)
+// ─────────────────────────────────────────────────────────────────────────────
+
+float src_rsi    = ta.rsi(close, 14)
+float src_offset = math.avg(ta.highest(high, 20), ta.lowest(low, 20)) % 100
+float src_stoch  = ta.sma(ta.stoch(close, high, low, 14), 3)
+float src_vol    = (volume / ta.sma(volume, 20)) * 100
+[macdLine, signalLine, _hist] = ta.macd(close, 12, 26, 9)
+float bbRange   = ta.highest(high, 20) - ta.lowest(low, 20)
+float src_atr   = ta.atr(14)
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  1. Logo (Top Center)
+// ─────────────────────────────────────────────────────────────────────────────
+
+var scale.setup sc_logo = scale.setup.new()
+sc_logo.build(th_logo,
+     _xOffset       = 0,
+     _y             = 140,
+     _src           = 100,
+     _length        = 10,
+     _minValue      = 0,
+     _maxValue      = 100,
+     _numBars       = 3,
+     _barWidth      = 1,
+     _barHeight     = 1,
+     _spacing       = 1,
+     _pointOfView   = extend.both,
+     _textTop       = "v3.x\n\nSCALE.",
+     _textBottom    = "- A Pine Script™ Library -",
+     _textFontFamily= font.family_monospace,
+     _textSize      = size.normal,
+     _srcPosition   = location.absolute, // Hide src
+     _showMinMax    = false,
+     _showSrc       = false,
+     _elementId     = "sc_logo")
+
+if barstate.islast
+    sc_logo
+     .addLabel(_position = position.top_left,   _text = "⌜", _textColor = #4a4a4a, _textSize = size.large, _row = 3)
+     .addLabel(_position = position.top_right,  _text = "⌝", _textColor = #4a4a4a, _textSize = size.large, _row = 3)
+     .addLabel(_position = position.bottom_left,  _text = "⌞", _textColor = #4a4a4a, _textSize = size.large, _row = 1)
+     .addLabel(_position = position.bottom_right, _text = "⌟", _textColor = #4a4a4a, _textSize = size.large, _row = 1)
+     .addMark(_xOffset = 1,  _mark = 3, _color = color.blue)
+     .addMark(_xOffset = -1, _mark = 3, _color = color.blue)
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  2. RSI Red (Middle Left)
+// ─────────────────────────────────────────────────────────────────────────────
+
+var scale.setup sc_red = scale.setup.new()
+sc_red.build(th_red,
+     _xOffset       = -65,
+     _y             = 0,
+     _src           = src_rsi, // RSI Data
+     _length        = 14,
+     _minValue      = 0,
+     _maxValue      = 100,
+     _numBars       = 10,
+     _barWidth      = 2,
+     _barHeight     = 5,
+     _spacing       = 1,
+     _pointOfView   = extend.both,
+     _textLeft      = "L",
+     _textRight     = "H",
+     _textTop       = "∅ {0}",
+     _srcPosition   = position.bottom_center,
+     _precision     = 2,
+     _showMinMax    = true,
+     _showSrc       = true,
+     _pointer       = true,
+     _pointerSize   = 3,
+     _elementId     = "sc_red")
+
+if barstate.islast
+    sc_red
+     .addBadge(_text = "RSI", _position = position.top_center, _bgcolor = #ff0000, _color = color.white, _row = 3)
+     .addLabel(_position = position.bottom_left,  _text = "💧 23:49", _textColor = color.gray)
+     .addMarker(_srcPct = 0,   _icon = 0, _color = color.red, _location = location.absolute)
+     .addMarker(_srcPct = 100, _icon = 0, _color = color.red, _location = location.absolute, _markerIconString = "▶")
+     .addMarker(_srcPct = 0,   _icon = 0, _color = color.red, _location = location.absolute, _markerIconString = "◀")
+     .addRange(_markerIcon = 12, _colorBarFilled = true, _markerColor = color.silver)
+     .addAvg(_markerIcon = 2, _markerRow = 0, _length = 250, _textRow = 1)
+     .addLoader(_loaderIcon = 0, _colorBarFilled = true)
+     .addDecoration(_decor = 0, _color = #39392980)
+     .addTimer()
+     .addTrend()
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  3. Purple Gradient (Middle Center)
+// ─────────────────────────────────────────────────────────────────────────────
+
+var scale.setup sc_purp = scale.setup.new()
+sc_purp.build(th_purple,
+     _xOffset       = 0,
+     _y             = 0,
+     _src           = macdLine, 
+     _length        = 14,
+     _minValue      = 0,
+     _maxValue      = 0,
+     _dynamic       = true,
+     _sync          = true,
+     _numBars       = 11,
+     _barWidth      = 2,
+     _barHeight     = 6,
+     _spacing       = 1,
+     _pointOfView   = extend.both,
+     _textLeft      = "↓",
+     _textRight     = "↓",
+     _textTop       = "∅ {0}",
+     _srcPosition   = position.bottom_center,
+     _precision     = 2,
+     _pointer       = true,
+     _pointerSize   = 1.5,
+     _elementId     = "sc_purp")
+
+if barstate.islast
+    sc_purp
+     .addLabel(_position = position.bottom_left, _text = "↻ 21%", _textColor = color.gray)
+     .addMarker(_srcPct = 0,   _icon = 0, _color = #9b30ff, _location = location.absolute, _markerIconString = "◀")
+     .addMarker(_srcPct = 100, _icon = 0, _color = #9b30ff, _location = location.absolute, _markerIconString = "▶")
+     .addMarker(_srcPct = 100, _icon = 0, _color = color.gray, _location = location.bottom, _markerIconString = "⋮")
+     .addMarker(_srcPct = 0,   _icon = 0, _color = color.gray, _location = location.bottom, _markerIconString = "⋮")
+     .addAvg(_markerRow = 0, _textRow = 1, _length = 14)
+     .addTimer(_outputFormat = format.percent)
+     .addLoader(_loaderIcon = 2)
+     .addDecoration(_decor = 2, _colorBarFilled = true)
+     .addRange(_length = 14, _textIcon = 2, _markerIcon = 1, _textSize = size.small, _textRow = 1, _wpadding = 1)
+     .addTrend(_length = 1, _colorBarFilled = true)
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  4. Green Dashed (Middle Right)
+// ─────────────────────────────────────────────────────────────────────────────
+
+var scale.setup sc_grn = scale.setup.new()
+sc_grn.build(th_green,
+     _xOffset       = 65,
+     _y             = 0,
+     _src           = src_stoch,
+     _length        = 14,
+     _minValue      = 0,
+     _maxValue      = 100,
+     _numBars       = 20,
+     _barWidth      = 2,
+     _barHeight     = 0,
+     _lineStyle     = line.style_dashed,
+     _spacing       = 0,
+     _pointOfView   = extend.both,
+     _textLeft      = "L",
+     _textRight     = "H",
+     _textTop       = "∅ {0}",
+     _srcPosition   = position.bottom_center,
+     _precision     = 2,
+     _elementId     = "sc_grn")
+
+if barstate.islast
+    sc_grn
+     .addBadge(_text = "RSI", _position = position.top_center, _bgcolor = #00ff00, _color = color.black, _row = 3)
+     .addLabel(_position = position.bottom_left, _text = "↻ 21%", _textColor = color.gray)
+     .addMarker(_srcPct = 50, _icon = 0, _color = #00ff00, _location = location.absolute, _markerIconString = "▼")
+     .addMarker(_srcPct = 0, _icon = 0, _color = #00ff00, _location = location.absolute, _markerIconString = "◀")
+     .addMarker(_srcPct = 100, _icon = 0, _color = #00ff00, _location = location.absolute, _markerIconString = "▶")
+     .addLabel(_position = position.bottom_center, _text = "↓", _textColor = #00ff00, _row = 2)
+     .addLabel(_position = position.bottom_right, _text = "◆", _textColor = #00ff00, _row = 2)
+     .addRange(_markerIcon = 12, _showBg = false, _colorBarFilled = true, _bgColor = color.new(#a58282, 87), _markerColor = color.silver, _bgHeight = 10)
+     .addAvg(_markerIcon = 2, _markerRow = 0, _length = 250, _textRow = 1)
+     .addLoader(_loaderIcon = 1, _colorBarFilled = true)
+     .addDecoration(_decor = 1, _colorBarFilled = true)
+     .addRuler()
+     .addTimer(_outputFormat = format.percent)
+     .addTrend()
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  5. Minimal Slider (Bottom Left)
+// ─────────────────────────────────────────────────────────────────────────────
+
+var scale.setup sc_slide = scale.setup.new()
+sc_slide.build(th_slider,
+     _xOffset       = -65,
+     _y             = -100,
+     _src           = src_vol,
+     _length        = 20,
+     _minValue      = 0,
+     _maxValue      = 300,
+     _numBars       = 10,
+     _barWidth      = 3,
+     _barHeight     = 1,
+     _spacing       = 0,
+     _lineStyle     = line.style_solid,
+     _pointOfView   = extend.both,
+     _textTop       = "∅ {0}",
+     _srcPosition   = position.bottom_center,
+     _showMinMax    = false,
+     _pointer       = true,
+     _elementId     = "sc_slide")
+
+if barstate.islast
+    sc_slide
+     .addMarker(_srcPct = 0, _icon = 0, _color = color.yellow, _location = location.absolute, _markerIconString = "◀")
+     .addMarker(_srcPct = 100, _icon = 0, _color = color.green, _location = location.absolute, _markerIconString = "▶")
+     .addMarker(_srcPct = 50, _icon = 0, _color = #00aaff, _location = location.absolute, _markerIconString = "▲")
+     .addMarker(_srcPct = 80, _icon = 0, _color = #00aaff, _location = location.bottom, _markerIconString = "◿")
+     .addMarker(_srcPct = 20, _icon = 0, _color = #00aaff, _location = location.bottom, _markerIconString = "◺")
+     .addAvg(_markerIcon = 2, _markerRow = 0, _length = 250, _textRow = 1)
+     .addLoader(_colorBarFilled = true)
+     .addRuler()
+     .addTrend()
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  6. Orange Blocks (Bottom Center)
+// ─────────────────────────────────────────────────────────────────────────────
+
+var scale.setup sc_org = scale.setup.new()
+sc_org.build(th_orange,
+     _xOffset       = 0,
+     _y             = -100,
+     _src           = src_atr,
+     _length        = 14,
+     _minValue      = 0,
+     _maxValue      = 0,
+     _dynamic       = true,
+     _numBars       = 10,
+     _barWidth      = 3,
+     _barHeight     = 6,
+     _spacing       = 1,
+     _pointOfView   = extend.both,
+     _textLeft      = "↓",
+     _textRight     = "↓",
+     _textTop       = "∅ {0}",
+     _srcPosition   = position.bottom_center,
+     _pointer       = true,
+     _pointerSize   = 1.5,
+     _elementId     = "sc_org")
+
+if barstate.islast
+    sc_org
+     .addLabel(_position = position.bottom_left, _text = "↻ 21%", _textColor = color.gray)
+     .addMarker(_srcPct = 0, _icon = 0, _color = #ff9900, _location = location.absolute, _markerIconString = "◀")
+     .addMarker(_srcPct = 100, _icon = 0, _color = color.gray, _location = location.absolute, _markerIconString = "▶")
+     .addMarker(_srcPct = 50, _icon = 0, _color = color.gray, _location = location.top, _markerIconString = "▼")
+     .addMarker(_srcPct = 50, _icon = 0, _color = #ff9900, _location = location.bottom, _markerIconString = "▲")
+     .addLabel(_position = position.bottom_left, _text = "⌞", _textColor = #ff9900, _row = 2)
+     .addLabel(_position = position.bottom_right, _text = "⌟", _textColor = #ff9900, _row = 2)
+     .addDecoration(_decor = 2, _colorBarFilled = true, _size = size.large)
+     .addRange(_markerRow = 0, _markerIcon = 7, _textIcon = 1, _markerLocation = location.abovebar)
+     .addAvg(_markerIcon = 6, _markerRow = 0, _length = 200, _textRow = 1)
+     .addTimer(_outputFormat = format.percent)
+     .addLoader(_colorBarFilled = true)
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  7. MIN/MAX Dotted (Bottom Right)
+// ─────────────────────────────────────────────────────────────────────────────
+
+var scale.setup sc_dot = scale.setup.new()
+sc_dot.build(th_dotted,
+     _xOffset       = 65,
+     _y             = -100,
+     _src           = bbRange,
+     _length        = 20,
+     _minValue      = 0,
+     _maxValue      = 0,
+     _dynamic       = true,
+     _sync          = false,
+     _numBars       = 20,
+     _barWidth      = 1,
+     _barHeight     = 1,
+     _spacing       = 1,
+     _lineStyle     = line.style_dotted,
+     _pointOfView   = extend.both,
+     _textLeft      = "MIN.",
+     _textRight     = "MAX.",
+     _srcPosition   = position.bottom_center,
+     _showSrc       = true,
+     _pointer       = false,
+     _elementId     = "sc_dot")
+
+if barstate.islast
+    sc_dot
+     .addMarker(_srcPct = 50, _icon = 0, _color = #ff8800, _location = location.absolute, _markerIconString = "|")
+     .addDecoration(_decor = 4, _colorBarFilled = true, _row = 0, _size = size.normal, _pingpong = true)
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  8. Footer Elements (Y = -200)
+// ─────────────────────────────────────────────────────────────────────────────
+
+var scale.setup sc_foot_c = scale.setup.new()
+sc_foot_c.build(th_footer,
+     _xOffset       = 0,
+     _y             = -200,
+     _src           = 0,
+     _length        = 1,
+     _minValue      = 0,
+     _maxValue      = 0,
+     _numBars       = 1,
+     _barWidth      = 0,
+     _barHeight     = 0,
+     _spacing       = 0,
+     _pointOfView   = extend.both,
+     _showMinMax    = false,
+     _showSrc       = false,
+     _textTop       = "🔋 Batteries included",
+     _textBottom    = "open 💙 source",
+     _elementId     = "sc_foot_c")
+
+if barstate.islast
+    // Add tiny red lines decoration
+    line.new(bar_index - 42, -200, bar_index - 38, -200, color = #ff4c4c, width=1)
+    line.new(bar_index - 45, -200, bar_index - 44, -200, color = color.red, width=1)
+    
+    // Add micro bars on the right
+    for i = 0 to 4
+        box.new(bar_index + 35 + (i*2), -200 + 2, bar_index + 35 + (i*2) + 1, -200 - 2, border_color=na, bgcolor=color.new(color.gray, 60))
+    for i = 5 to 7
+        box.new(bar_index + 35 + (i*2), -200 + 2, bar_index + 35 + (i*2) + 1, -200 - 2, border_color=na, bgcolor=color.new(#9b30ff, 20))
+    
+    line.new(bar_index + 55, -200, bar_index + 65, -200, color = #00ff00, width=1)

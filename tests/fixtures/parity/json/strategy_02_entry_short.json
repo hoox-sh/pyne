@@ -3,7 +3,7 @@
     "kind": "entry",
     "id": "S",
     "direction": "short",
-    "qty": 5,
+    "qty": 5.0,
     "order_type": null,
     "limit": null,
     "stop": null,
@@ -12,17 +12,17 @@
     "bar_index": 0,
     "bar_time": 1000000,
     "ohlc": [
-      0.0,
-      0.0,
-      0.0,
-      0.0
+      99.71,
+      99.82,
+      98.84,
+      99.54
     ]
   },
   {
     "kind": "entry",
     "id": "S",
     "direction": "short",
-    "qty": 5,
+    "qty": 5.0,
     "order_type": null,
     "limit": null,
     "stop": null,
@@ -31,17 +31,17 @@
     "bar_index": 1,
     "bar_time": 87400000,
     "ohlc": [
-      0.0,
-      0.0,
-      0.0,
-      0.0
+      99.28,
+      99.61,
+      98.32,
+      98.59
     ]
   },
   {
     "kind": "entry",
     "id": "S",
     "direction": "short",
-    "qty": 5,
+    "qty": 5.0,
     "order_type": null,
     "limit": null,
     "stop": null,
@@ -50,17 +50,17 @@
     "bar_index": 2,
     "bar_time": 173800000,
     "ohlc": [
-      0.0,
-      0.0,
-      0.0,
-      0.0
+      98.16,
+      100.09,
+      97.0,
+      99.86
     ]
   },
   {
     "kind": "entry",
     "id": "S",
     "direction": "short",
-    "qty": 5,
+    "qty": 5.0,
     "order_type": null,
     "limit": null,
     "stop": null,
@@ -69,17 +69,17 @@
     "bar_index": 3,
     "bar_time": 260200000,
     "ohlc": [
-      0.0,
-      0.0,
-      0.0,
-      0.0
+      101.17,
+      104.33,
+      100.16,
+      103.59
     ]
   },
   {
     "kind": "entry",
     "id": "S",
     "direction": "short",
-    "qty": 5,
+    "qty": 5.0,
     "order_type": null,
     "limit": null,
     "stop": null,
@@ -88,17 +88,17 @@
     "bar_index": 4,
     "bar_time": 346600000,
     "ohlc": [
-      0.0,
-      0.0,
-      0.0,
-      0.0
+      104.08,
+      108.39,
+      103.97,
+      108.35
     ]
   },
   {
     "kind": "entry",
     "id": "S",
     "direction": "short",
-    "qty": 5,
+    "qty": 5.0,
     "order_type": null,
     "limit": null,
     "stop": null,
@@ -107,17 +107,17 @@
     "bar_index": 5,
     "bar_time": 433000000,
     "ohlc": [
-      0.0,
-      0.0,
-      0.0,
-      0.0
+      109.41,
+      111.78,
+      108.92,
+      111.47
     ]
   },
   {
     "kind": "entry",
     "id": "S",
     "direction": "short",
-    "qty": 5,
+    "qty": 5.0,
     "order_type": null,
     "limit": null,
     "stop": null,
@@ -126,17 +126,17 @@
     "bar_index": 6,
     "bar_time": 519400000,
     "ohlc": [
-      0.0,
-      0.0,
-      0.0,
-      0.0
+      113.22,
+      117.32,
+      112.97,
+      116.94
     ]
   },
   {
     "kind": "entry",
     "id": "S",
     "direction": "short",
-    "qty": 5,
+    "qty": 5.0,
     "order_type": null,
     "limit": null,
     "stop": null,
@@ -145,17 +145,17 @@
     "bar_index": 7,
     "bar_time": 605800000,
     "ohlc": [
-      0.0,
-      0.0,
-      0.0,
-      0.0
+      118.5,
+      122.24,
+      116.99,
+      121.67
     ]
   },
   {
     "kind": "entry",
     "id": "S",
     "direction": "short",
-    "qty": 5,
+    "qty": 5.0,
     "order_type": null,
     "limit": null,
     "stop": null,
@@ -164,17 +164,17 @@
     "bar_index": 8,
     "bar_time": 692200000,
     "ohlc": [
-      0.0,
-      0.0,
-      0.0,
-      0.0
+      116.43,
+      121.2,
+      115.55,
+      120.28
     ]
   },
   {
     "kind": "entry",
     "id": "S",
     "direction": "short",
-    "qty": 5,
+    "qty": 5.0,
     "order_type": null,
     "limit": null,
     "stop": null,
@@ -183,17 +183,17 @@
     "bar_index": 9,
     "bar_time": 778600000,
     "ohlc": [
-      0.0,
-      0.0,
-      0.0,
-      0.0
+      121.61,
+      125.74,
+      120.61,
+      124.89
     ]
   },
   {
     "kind": "entry",
     "id": "S",
     "direction": "short",
-    "qty": 5,
+    "qty": 5.0,
     "order_type": null,
     "limit": null,
     "stop": null,
@@ -202,17 +202,17 @@
     "bar_index": 10,
     "bar_time": 865000000,
     "ohlc": [
-      0.0,
-      0.0,
-      0.0,
-      0.0
+      124.72,
+      128.92,
+      123.9,
+      128.81
     ]
   },
   {
     "kind": "entry",
     "id": "S",
     "direction": "short",
-    "qty": 5,
+    "qty": 5.0,
     "order_type": null,
     "limit": null,
     "stop": null,
@@ -221,17 +221,17 @@
     "bar_index": 11,
     "bar_time": 951400000,
     "ohlc": [
-      0.0,
-      0.0,
-      0.0,
-      0.0
+      130.09,
+      135.23,
+      129.61,
+      134.58
     ]
   },
   {
     "kind": "entry",
     "id": "S",
     "direction": "short",
-    "qty": 5,
+    "qty": 5.0,
     "order_type": null,
     "limit": null,
     "stop": null,
@@ -240,17 +240,17 @@
     "bar_index": 12,
     "bar_time": 1037800000,
     "ohlc": [
-      0.0,
-      0.0,
-      0.0,
-      0.0
+      133.33,
+      136.84,
+      132.83,
+      136.37
     ]
   },
   {
     "kind": "entry",
     "id": "S",
     "direction": "short",
-    "qty": 5,
+    "qty": 5.0,
     "order_type": null,
     "limit": null,
     "stop": null,
@@ -259,17 +259,17 @@
     "bar_index": 13,
     "bar_time": 1124200000,
     "ohlc": [
-      0.0,
-      0.0,
-      0.0,
-      0.0
+      135.87,
+      142.28,
+      134.77,
+      141.46
     ]
   },
   {
     "kind": "entry",
     "id": "S",
     "direction": "short",
-    "qty": 5,
+    "qty": 5.0,
     "order_type": null,
     "limit": null,
     "stop": null,
@@ -278,17 +278,17 @@
     "bar_index": 14,
     "bar_time": 1210600000,
     "ohlc": [
-      0.0,
-      0.0,
-      0.0,
-      0.0
+      143.0,
+      147.58,
+      142.16,
+      147.07
     ]
   },
   {
     "kind": "entry",
     "id": "S",
     "direction": "short",
-    "qty": 5,
+    "qty": 5.0,
     "order_type": null,
     "limit": null,
     "stop": null,
@@ -297,17 +297,17 @@
     "bar_index": 15,
     "bar_time": 1297000000,
     "ohlc": [
-      0.0,
-      0.0,
-      0.0,
-      0.0
+      149.92,
+      153.2,
+      149.39,
+      151.78
     ]
   },
   {
     "kind": "entry",
     "id": "S",
     "direction": "short",
-    "qty": 5,
+    "qty": 5.0,
     "order_type": null,
     "limit": null,
     "stop": null,
@@ -316,17 +316,17 @@
     "bar_index": 16,
     "bar_time": 1383400000,
     "ohlc": [
-      0.0,
-      0.0,
-      0.0,
-      0.0
+      153.69,
+      153.72,
+      153.19,
+      153.44
     ]
   },
   {
     "kind": "entry",
     "id": "S",
     "direction": "short",
-    "qty": 5,
+    "qty": 5.0,
     "order_type": null,
     "limit": null,
     "stop": null,
@@ -335,17 +335,17 @@
     "bar_index": 17,
     "bar_time": 1469800000,
     "ohlc": [
-      0.0,
-      0.0,
-      0.0,
-      0.0
+      152.81,
+      154.52,
+      150.49,
+      153.94
     ]
   },
   {
     "kind": "entry",
     "id": "S",
     "direction": "short",
-    "qty": 5,
+    "qty": 5.0,
     "order_type": null,
     "limit": null,
     "stop": null,
@@ -354,17 +354,17 @@
     "bar_index": 18,
     "bar_time": 1556200000,
     "ohlc": [
-      0.0,
-      0.0,
-      0.0,
-      0.0
+      155.18,
+      155.74,
+      153.34,
+      154.17
     ]
   },
   {
     "kind": "entry",
     "id": "S",
     "direction": "short",
-    "qty": 5,
+    "qty": 5.0,
     "order_type": null,
     "limit": null,
     "stop": null,
@@ -373,17 +373,17 @@
     "bar_index": 19,
     "bar_time": 1642600000,
     "ohlc": [
-      0.0,
-      0.0,
-      0.0,
-      0.0
+      156.07,
+      156.14,
+      153.56,
+      154.31
     ]
   },
   {
     "kind": "entry",
     "id": "S",
     "direction": "short",
-    "qty": 5,
+    "qty": 5.0,
     "order_type": null,
     "limit": null,
     "stop": null,
@@ -392,17 +392,17 @@
     "bar_index": 20,
     "bar_time": 1729000000,
     "ohlc": [
-      0.0,
-      0.0,
-      0.0,
-      0.0
+      152.86,
+      154.7,
+      149.53,
+      150.61
     ]
   },
   {
     "kind": "entry",
     "id": "S",
     "direction": "short",
-    "qty": 5,
+    "qty": 5.0,
     "order_type": null,
     "limit": null,
     "stop": null,
@@ -411,17 +411,17 @@
     "bar_index": 21,
     "bar_time": 1815400000,
     "ohlc": [
-      0.0,
-      0.0,
-      0.0,
-      0.0
+      149.47,
+      150.66,
+      147.22,
+      147.24
     ]
   },
   {
     "kind": "entry",
     "id": "S",
     "direction": "short",
-    "qty": 5,
+    "qty": 5.0,
     "order_type": null,
     "limit": null,
     "stop": null,
@@ -430,17 +430,17 @@
     "bar_index": 22,
     "bar_time": 1901800000,
     "ohlc": [
-      0.0,
-      0.0,
-      0.0,
-      0.0
+      147.76,
+      148.84,
+      143.79,
+      144.68
     ]
   },
   {
     "kind": "entry",
     "id": "S",
     "direction": "short",
-    "qty": 5,
+    "qty": 5.0,
     "order_type": null,
     "limit": null,
     "stop": null,
@@ -449,17 +449,17 @@
     "bar_index": 23,
     "bar_time": 1988200000,
     "ohlc": [
-      0.0,
-      0.0,
-      0.0,
-      0.0
+      145.23,
+      146.13,
+      140.08,
+      140.46
     ]
   },
   {
     "kind": "entry",
     "id": "S",
     "direction": "short",
-    "qty": 5,
+    "qty": 5.0,
     "order_type": null,
     "limit": null,
     "stop": null,
@@ -468,17 +468,17 @@
     "bar_index": 24,
     "bar_time": 2074600000,
     "ohlc": [
-      0.0,
-      0.0,
-      0.0,
-      0.0
+      142.91,
+      144.86,
+      138.38,
+      138.74
     ]
   },
   {
     "kind": "entry",
     "id": "S",
     "direction": "short",
-    "qty": 5,
+    "qty": 5.0,
     "order_type": null,
     "limit": null,
     "stop": null,
@@ -487,17 +487,17 @@
     "bar_index": 25,
     "bar_time": 2161000000,
     "ohlc": [
-      0.0,
-      0.0,
-      0.0,
-      0.0
+      141.93,
+      142.45,
+      136.53,
+      137.66
     ]
   },
   {
     "kind": "entry",
     "id": "S",
     "direction": "short",
-    "qty": 5,
+    "qty": 5.0,
     "order_type": null,
     "limit": null,
     "stop": null,
@@ -506,17 +506,17 @@
     "bar_index": 26,
     "bar_time": 2247400000,
     "ohlc": [
-      0.0,
-      0.0,
-      0.0,
-      0.0
+      137.36,
+      138.18,
+      133.6,
+      134.29
     ]
   },
   {
     "kind": "entry",
     "id": "S",
     "direction": "short",
-    "qty": 5,
+    "qty": 5.0,
     "order_type": null,
     "limit": null,
     "stop": null,
@@ -525,17 +525,17 @@
     "bar_index": 27,
     "bar_time": 2333800000,
     "ohlc": [
-      0.0,
-      0.0,
-      0.0,
-      0.0
+      129.54,
+      130.1,
+      125.24,
+      125.79
     ]
   },
   {
     "kind": "entry",
     "id": "S",
     "direction": "short",
-    "qty": 5,
+    "qty": 5.0,
     "order_type": null,
     "limit": null,
     "stop": null,
@@ -544,17 +544,17 @@
     "bar_index": 28,
     "bar_time": 2420200000,
     "ohlc": [
-      0.0,
-      0.0,
-      0.0,
-      0.0
+      124.54,
+      126.26,
+      119.2,
+      120.26
     ]
   },
   {
     "kind": "entry",
     "id": "S",
     "direction": "short",
-    "qty": 5,
+    "qty": 5.0,
     "order_type": null,
     "limit": null,
     "stop": null,
@@ -563,17 +563,17 @@
     "bar_index": 29,
     "bar_time": 2506600000,
     "ohlc": [
-      0.0,
-      0.0,
-      0.0,
-      0.0
+      119.4,
+      119.85,
+      116.44,
+      116.8
     ]
   },
   {
     "kind": "entry",
     "id": "S",
     "direction": "short",
-    "qty": 5,
+    "qty": 5.0,
     "order_type": null,
     "limit": null,
     "stop": null,
@@ -582,17 +582,17 @@
     "bar_index": 30,
     "bar_time": 2593000000,
     "ohlc": [
-      0.0,
-      0.0,
-      0.0,
-      0.0
+      117.0,
+      117.22,
+      111.03,
+      112.24
     ]
   },
   {
     "kind": "entry",
     "id": "S",
     "direction": "short",
-    "qty": 5,
+    "qty": 5.0,
     "order_type": null,
     "limit": null,
     "stop": null,
@@ -601,17 +601,17 @@
     "bar_index": 31,
     "bar_time": 2679400000,
     "ohlc": [
-      0.0,
-      0.0,
-      0.0,
-      0.0
+      114.01,
+      116.29,
+      110.77,
+      111.05
     ]
   },
   {
     "kind": "entry",
     "id": "S",
     "direction": "short",
-    "qty": 5,
+    "qty": 5.0,
     "order_type": null,
     "limit": null,
     "stop": null,
@@ -620,17 +620,17 @@
     "bar_index": 32,
     "bar_time": 2765800000,
     "ohlc": [
-      0.0,
-      0.0,
-      0.0,
-      0.0
+      113.78,
+      113.9,
+      109.85,
+      110.17
     ]
   },
   {
     "kind": "entry",
     "id": "S",
     "direction": "short",
-    "qty": 5,
+    "qty": 5.0,
     "order_type": null,
     "limit": null,
     "stop": null,
@@ -639,17 +639,17 @@
     "bar_index": 33,
     "bar_time": 2852200000,
     "ohlc": [
-      0.0,
-      0.0,
-      0.0,
-      0.0
+      113.66,
+      114.65,
+      109.81,
+      110.4
     ]
   },
   {
     "kind": "entry",
     "id": "S",
     "direction": "short",
-    "qty": 5,
+    "qty": 5.0,
     "order_type": null,
     "limit": null,
     "stop": null,
@@ -658,17 +658,17 @@
     "bar_index": 34,
     "bar_time": 2938600000,
     "ohlc": [
-      0.0,
-      0.0,
-      0.0,
-      0.0
+      113.47,
+      113.52,
+      112.86,
+      113.38
     ]
   },
   {
     "kind": "entry",
     "id": "S",
     "direction": "short",
-    "qty": 5,
+    "qty": 5.0,
     "order_type": null,
     "limit": null,
     "stop": null,
@@ -677,17 +677,17 @@
     "bar_index": 35,
     "bar_time": 3025000000,
     "ohlc": [
-      0.0,
-      0.0,
-      0.0,
-      0.0
+      110.88,
+      111.27,
+      108.86,
+      111.08
     ]
   },
   {
     "kind": "entry",
     "id": "S",
     "direction": "short",
-    "qty": 5,
+    "qty": 5.0,
     "order_type": null,
     "limit": null,
     "stop": null,
@@ -696,17 +696,17 @@
     "bar_index": 36,
     "bar_time": 3111400000,
     "ohlc": [
-      0.0,
-      0.0,
-      0.0,
-      0.0
+      109.86,
+      112.55,
+      109.46,
+      110.98
     ]
   },
   {
     "kind": "entry",
     "id": "S",
     "direction": "short",
-    "qty": 5,
+    "qty": 5.0,
     "order_type": null,
     "limit": null,
     "stop": null,
@@ -715,17 +715,17 @@
     "bar_index": 37,
     "bar_time": 3197800000,
     "ohlc": [
-      0.0,
-      0.0,
-      0.0,
-      0.0
+      111.5,
+      115.36,
+      111.46,
+      113.91
     ]
   },
   {
     "kind": "entry",
     "id": "S",
     "direction": "short",
-    "qty": 5,
+    "qty": 5.0,
     "order_type": null,
     "limit": null,
     "stop": null,
@@ -734,17 +734,17 @@
     "bar_index": 38,
     "bar_time": 3284200000,
     "ohlc": [
-      0.0,
-      0.0,
-      0.0,
-      0.0
+      111.68,
+      114.97,
+      111.19,
+      114.45
     ]
   },
   {
     "kind": "entry",
     "id": "S",
     "direction": "short",
-    "qty": 5,
+    "qty": 5.0,
     "order_type": null,
     "limit": null,
     "stop": null,
@@ -753,17 +753,17 @@
     "bar_index": 39,
     "bar_time": 3370600000,
     "ohlc": [
-      0.0,
-      0.0,
-      0.0,
-      0.0
+      113.05,
+      117.23,
+      112.35,
+      117.14
     ]
   },
   {
     "kind": "entry",
     "id": "S",
     "direction": "short",
-    "qty": 5,
+    "qty": 5.0,
     "order_type": null,
     "limit": null,
     "stop": null,
@@ -772,17 +772,17 @@
     "bar_index": 40,
     "bar_time": 3457000000,
     "ohlc": [
-      0.0,
-      0.0,
-      0.0,
-      0.0
+      119.69,
+      124.11,
+      117.54,
+      123.82
     ]
   },
   {
     "kind": "entry",
     "id": "S",
     "direction": "short",
-    "qty": 5,
+    "qty": 5.0,
     "order_type": null,
     "limit": null,
     "stop": null,
@@ -791,17 +791,17 @@
     "bar_index": 41,
     "bar_time": 3543400000,
     "ohlc": [
-      0.0,
-      0.0,
-      0.0,
-      0.0
+      124.31,
+      128.09,
+      122.83,
+      127.98
     ]
   },
   {
     "kind": "entry",
     "id": "S",
     "direction": "short",
-    "qty": 5,
+    "qty": 5.0,
     "order_type": null,
     "limit": null,
     "stop": null,
@@ -810,17 +810,17 @@
     "bar_index": 42,
     "bar_time": 3629800000,
     "ohlc": [
-      0.0,
-      0.0,
-      0.0,
-      0.0
+      128.22,
+      134.22,
+      127.71,
+      133.02
     ]
   },
   {
     "kind": "entry",
     "id": "S",
     "direction": "short",
-    "qty": 5,
+    "qty": 5.0,
     "order_type": null,
     "limit": null,
     "stop": null,
@@ -829,17 +829,17 @@
     "bar_index": 43,
     "bar_time": 3716200000,
     "ohlc": [
-      0.0,
-      0.0,
-      0.0,
-      0.0
+      129.57,
+      134.56,
+      128.96,
+      134.33
     ]
   },
   {
     "kind": "entry",
     "id": "S",
     "direction": "short",
-    "qty": 5,
+    "qty": 5.0,
     "order_type": null,
     "limit": null,
     "stop": null,
@@ -848,17 +848,17 @@
     "bar_index": 44,
     "bar_time": 3802600000,
     "ohlc": [
-      0.0,
-      0.0,
-      0.0,
-      0.0
+      136.07,
+      142.16,
+      135.55,
+      141.17
     ]
   },
   {
     "kind": "entry",
     "id": "S",
     "direction": "short",
-    "qty": 5,
+    "qty": 5.0,
     "order_type": null,
     "limit": null,
     "stop": null,
@@ -867,17 +867,17 @@
     "bar_index": 45,
     "bar_time": 3889000000,
     "ohlc": [
-      0.0,
-      0.0,
-      0.0,
-      0.0
+      140.78,
+      144.13,
+      140.73,
+      143.68
     ]
   },
   {
     "kind": "entry",
     "id": "S",
     "direction": "short",
-    "qty": 5,
+    "qty": 5.0,
     "order_type": null,
     "limit": null,
     "stop": null,
@@ -886,17 +886,17 @@
     "bar_index": 46,
     "bar_time": 3975400000,
     "ohlc": [
-      0.0,
-      0.0,
-      0.0,
-      0.0
+      142.19,
+      147.34,
+      141.61,
+      146.85
     ]
   },
   {
     "kind": "entry",
     "id": "S",
     "direction": "short",
-    "qty": 5,
+    "qty": 5.0,
     "order_type": null,
     "limit": null,
     "stop": null,
@@ -905,17 +905,17 @@
     "bar_index": 47,
     "bar_time": 4061800000,
     "ohlc": [
-      0.0,
-      0.0,
-      0.0,
-      0.0
+      147.65,
+      153.13,
+      147.27,
+      152.42
     ]
   },
   {
     "kind": "entry",
     "id": "S",
     "direction": "short",
-    "qty": 5,
+    "qty": 5.0,
     "order_type": null,
     "limit": null,
     "stop": null,
@@ -924,17 +924,17 @@
     "bar_index": 48,
     "bar_time": 4148200000,
     "ohlc": [
-      0.0,
-      0.0,
-      0.0,
-      0.0
+      152.43,
+      159.81,
+      151.73,
+      157.95
     ]
   },
   {
     "kind": "entry",
     "id": "S",
     "direction": "short",
-    "qty": 5,
+    "qty": 5.0,
     "order_type": null,
     "limit": null,
     "stop": null,
@@ -943,10 +943,10 @@
     "bar_index": 49,
     "bar_time": 4234600000,
     "ohlc": [
-      0.0,
-      0.0,
-      0.0,
-      0.0
+      157.34,
+      161.78,
+      157.33,
+      159.88
     ]
   }
 ]

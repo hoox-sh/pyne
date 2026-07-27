@@ -1,0 +1,201 @@
+// Licensed under Attribution-NonCommercial-ShareAlike 4.0 International (CC BY-NC-SA 4.0)
+// Check out the full license here: https://creativecommons.org/licenses/by-nc-sa/4.0/
+//
+// ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+// ┃  The "CC BY-NC-SA 4.0" license grants you the following:        ┃
+// ┃                                                                 ┃
+// ┃  • Share: Copy and redistribute the material.                   ┃
+// ┃  • Adapt: Remix, transform, and build upon it.                  ┃
+// ┃                                                                 ┃
+// ┃  Under these strict conditions:                                 ┃
+// ┃  • Attribution: Credit the original creator.                    ┃
+// ┃  • Non-Commercial: Strictly for non-commercial use.             ┃
+// ┃  • ShareAlike: Distribute modifications under same terms.       ┃
+// ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+//
+// Authored by: cryptolinx - jango_blockchained
+// Made with 💙 for the open source community.
+
+
+//  ▪ ──── TL;DR
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+// ──── Methods {
+//
+// ▸ isValidLocation()          ▸ isBelowLocation()
+// ▸ isValidPosition()          ▸ isAbovePosition()
+// ▸ isValidTheme()             ▸ isBelowPosition()
+// ▸ isValidSize()              ▸ isCenterLocation()
+// ▸ isValidFormat()            ▸ isCenterPosition()
+//                              ▸ isLeftPosition()
+//                              ▸ isRightPosition()
+//                              ▸ isAboveLocation()
+// }
+
+
+//  ▪ ──── LIBRARY
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+// @version=6
+// @description Validate arguments for the Scale library.
+library("ScaleValidator")
+
+
+// ──── Constants {
+//
+// @variable    Error message for invalid format
+const string ERROR_MSG = 'Invalid {1} Argument: {0}\n\nPossible {1} Arguments:\n{2}'
+// }
+
+
+//  ▪ ──── METHODS: SIMPLE BOOLEAN CHECKS
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+// ──── Is Location Above {
+//
+// @function    Takes a `<string>` representing a location. Returns `true`, if `_location` is above current location.
+// @param       _location       Location to check.
+// @returns     bool
+export method isLocationAbove(series string _location) =>
+    // --
+    array.includes(array.from(location.top, location.abovebar), _location)
+// }
+
+// ──── Is Position Above {
+//
+// @function    Takes a `<string>` representing a position. Returns `true`, if `_position` is above current position.
+// @param       _position       Position to check.
+// @returns     bool
+export method isPositionAbove(series string _position) =>
+    // --
+    array.includes(array.from(position.top_left, position.top_center, position.top_right), _position)
+// }
+
+// ──── Is Position Center {
+//
+// @function    Takes a `<string>` representing a position and returns `true`, if `_position` is center position.
+// @param       _position       Position to check.
+// @returns     bool
+export method isPositionCenter(series string _position) =>
+    // --
+    array.includes(array.from(position.middle_left, position.middle_center, position.middle_right), _position)
+// }
+
+// ──── Is Location Below {
+//
+// @function    Takes a `<string>` representing a location. Returns `true`, if `_location` is below current location.
+// @param       _location       Location to check.
+// @returns     bool
+export method isLocationBelow(series string _location) =>
+    // --
+    array.includes(array.from(location.bottom, location.belowbar), _location)
+// }
+
+// ──── Is Position Below {
+//
+// @function    Takes a `<string>` representing a position. Returns `true`, if `_position` is below current position.
+// @param       _position       Position to check.
+// @returns     bool
+export method isPositionBelow(series string _position) =>
+    // --
+    array.includes(array.from(position.bottom_left, position.bottom_center, position.bottom_right), _position)
+// }
+
+// ──── Is Position Left {
+//
+// @function    Takes a `<string>` representing a position. Returns `true`, if `_position` is to the left of the current position.
+// @param       _position       Position to check.
+// @returns     bool
+export method isPositionLeft(series string _position) =>
+    // --
+    array.includes(array.from(position.top_left, position.middle_left, position.bottom_left), _position)
+// }
+
+// ──── Is Position Right {
+//
+// @function    Takes a `<string>` representing a position. Returns `true`, if `_position` is to the right of the current position.
+// @param       _position       Position to check.
+// @returns     bool
+export method isPositionRight(series string _position) =>
+    // --
+    array.includes(array.from(position.bottom_right, position.top_right, position.middle_right), _position)
+// }
+
+
+//  ▪ ──── METHODS: VALIDATION
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+// ──── Is Valid Location {
+//
+// @function    Takes a `<string>` representing a location. Returns `true`, if `_location` is valid. If `_location` is not valid, it will throw a `runtime error`.
+// @param       _location       Location to check.
+// @returns     bool
+export method isValidLocation(series string _location) =>
+    // --
+    array <string> arr = array.from(
+     location.top,
+     location.bottom,
+     location.abovebar,
+     location.belowbar,
+     location.absolute
+     )
+    switch
+        arr.includes(_location) => true
+        => runtime.error(str.format(ERROR_MSG, _location, 'Location', arr))
+         , false
+// }
+
+// ──── Is Valid Position {
+//
+// @function    Takes a `<string>` representing a position. Returns `true`, if `_position` is valid. If `_position` is not valid, it will throw a `runtime error`.
+// @param       _position       Position to check.
+// @returns     bool
+export method isValidPosition(series string _position) =>
+    // --
+    array <string> arr = array.from(
+     position.top_left,
+     position.top_center,
+     position.top_right,
+     position.middle_left, 
+     position.middle_center,
+     position.middle_right,
+     position.bottom_left,
+     position.bottom_center,
+     position.bottom_right
+     )
+    switch
+        arr.includes(_position) => true
+        => runtime.error(str.format(ERROR_MSG, _position, 'Position', arr))
+         , false
+// }
+
+// ──── Is Valid Format {
+//
+// @function    Takes a `<string>` representing a format. Returns `true`, if `_format` is valid. If `_format` is not valid, it will throw a `runtime error`.
+// @param       _format         Format to validate.
+// @returns     bool
+export method isValidFormat(series string _format) =>
+    // --
+    array <string> arr = array.from(format.inherit, format.percent)
+    switch
+        arr.includes(_format) => true
+        => runtime.error(str.format(ERROR_MSG, _format, 'Format', arr))
+         , false
+// }
+
+// ──── Is Valid Point Of View {
+//
+// @function    Takes a `<string>` representing a point of view. Returns `true`, if `_pointOfView` is valid. If `_pointOfView` is not valid, it will throw a `runtime error`.
+// @param       _pointOfView    Point of view to validate.
+// @returns     bool
+export method isValidPOV(series string _pointOfView) =>
+    // --
+    array <string> arr = array.from(extend.both, extend.left, extend.right)
+    switch
+        arr.includes(_pointOfView) => true
+        => runtime.error(str.format(ERROR_MSG, _pointOfView, 'Point Of View (extend)', arr))
+         , false
+// }
+
+
+// #EOF

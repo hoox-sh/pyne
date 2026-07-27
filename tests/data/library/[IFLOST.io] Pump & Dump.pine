@@ -1,0 +1,85 @@
+//@version=4
+//@jango_blockchained
+
+
+//////////////////////////////////////////////////////////////////////////
+// [IFLOST.io] Pump & Dump v1.4
+//////////////////////////////////////////////////////////////////////////
+
+
+study(title = "[IFLOST.io] Pump & Dump v1.4", shorttitle = "[IFLOST.io] P&D v1.4", overlay = true)
+
+
+//////////////////////////////////////////////////////////////////////////
+//-- INPUTS
+//////////////////////////////////////////////////////////////////////////
+
+
+bool i_pd_showpump              = input(true, title = "Show pumps", type=input.bool)
+bool i_pd_showdump              = input(true, title = "Show dumps", type=input.bool)
+float i_pd_mult                 = input(3.0, title = "Sensivity", type=input.float)
+
+
+//////////////////////////////////////////////////////////////////////////
+//-- COLORS
+//////////////////////////////////////////////////////////////////////////
+
+
+//--__buy, Upward
+color col_green_1               = color.new(#4EF9FF,0) //*
+color col_green_1_90            = color.new(#4EF9FF,90)
+color col_green_2               = color.new(#3CADB1,0)
+color col_green_3               = color.new(#26c6da,0)  
+color col_green_4               = color.new(#afff00,0)
+color col_green_5               = color.new(#CFD80E,0)
+color col_green_6               = color.new(#90c818,0)
+
+//-- __sell, Downward
+color col_red_1                 = color.new(#7b1fa2,0) //*
+color col_red_1_90              = color.new(#7b1fa2,90) //*
+color col_red_2                 = color.new(#7e57c2,0)
+color col_red_3                 = color.new(#512da8,0)
+color col_red_4                 = color.new(#7300de,0)
+color col_red_5                 = color.new(#4a148c,0)
+color col_red_6                 = color.new(#2d2456,0)
+
+//-- Idle, Sideward
+color col_yellow_1              = color.new(#ffa726,0)
+color col_yellow_2              = color.new(#f57c00,0)
+
+color col_light_1               = color.new(#FFFFFF,0)
+color col_light_1_50            = color.new(#FFFFFF,50)
+
+color col_dark_1                = color.new(#000000,0)
+color col_dark_1_50             = color.new(#000000,50)
+
+
+//////////////////////////////////////////////////////////////////////////
+//-- CALCULATION
+//////////////////////////////////////////////////////////////////////////
+
+
+float i_pd_body                 = abs(close - open)
+float i_pd_smabody              = sma(i_pd_body, 100)
+bool i_pd_pump                  = i_pd_body > (i_pd_smabody * i_pd_mult) and close > open
+bool i_pd_dump                  = i_pd_body > (i_pd_smabody * i_pd_mult) and close < open
+
+
+//////////////////////////////////////////////////////////////////////////
+//-- PAINTING
+//////////////////////////////////////////////////////////////////////////
+
+
+color i_pd_color                = i_pd_pump and i_pd_showpump ? col_green_3 : i_pd_dump and i_pd_showdump ? col_red_5 : na
+bgcolor(i_pd_color, transp = 50)
+
+
+//////////////////////////////////////////////////////////////////////////
+//-- ALERTS
+//////////////////////////////////////////////////////////////////////////
+
+
+alertcondition((i_pd_pump and i_pd_showpump), title="Buy at Pump", message = "Buy at Pump - ONCE PER BAR")
+alertcondition((i_pd_pump and i_pd_showpump), title="Sell after Pump", message = "Sell after Pump - ONCE PER BAR CLOSE")
+alertcondition((i_pd_dump and i_pd_showdump), title="Sell at Dump", message = "Sell at Dump - ONCE PER BAR")
+alertcondition((i_pd_dump and i_pd_showdump), title="Buy after Dump", message = "Buy after Dump - ONCE PER BAR CLOSE")

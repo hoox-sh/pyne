@@ -1,0 +1,80 @@
+//@version=2
+
+// Original Script > @TheLark
+// Edits > @jango_blockchained
+
+//////////////////////////////////////////////////////////////////////////
+// [IFLOST.io] Amplified RSI v1.19
+//////////////////////////////////////////////////////////////////////////
+
+
+study(title = "[IFLOST.io] Amplified RSI v1.19", shorttitle="[IFLOST.io] AMP RSI v1.19", overlay=false)
+
+
+//////////////////////////////////////////////////////////////////////////
+// Sources
+//////////////////////////////////////////////////////////////////////////
+
+
+h = high
+l = low
+c = close
+
+
+//////////////////////////////////////////////////////////////////////////
+// Inputs
+//////////////////////////////////////////////////////////////////////////
+
+
+amp = input(0.25, title="Amplifier") //0.75
+ob = input(0.98,title="Overbought") //0.8
+os = input(0.02,title="Oversold") //0.2
+smooth = input(1,minval=1,title="Smoothing (1 = off)") //1
+coloring = input(true,type=bool,title="3 colors?") //true
+
+
+//////////////////////////////////////////////////////////////////////////
+// Colors
+//////////////////////////////////////////////////////////////////////////
+
+
+// Buy, Upward
+clg = #4EF9FF
+cdg = #3CADB1
+cbg = #00BCD4 //Background
+
+// Sell, Downward
+clr = #FF0081
+cdr = #880E4F
+cbr = #AB47BC
+
+// Idle, Sideward
+cly = #FBC02D
+
+
+//////////////////////////////////////////////////////////////////////////
+// Calculation
+//////////////////////////////////////////////////////////////////////////
+
+
+p = c
+L0 = ((1 - amp)*p)+(amp*nz(L0[1]))
+L1 = (-amp*L0)+nz(L0[1])+(amp*nz(L1[1]))
+L2 = (-amp*L1)+nz(L1[1])+(amp*nz(L2[1]))
+L3 = (-amp*L2)+nz(L2[1])+(amp*nz(L3[1]))
+cu = (L0>L1?L0-L1:0)+(L1>L2?L1-L2:0)+(L2>L3?L2-L3:0)
+cd = (L0<L1?L1-L0:0)+(L1<L2?L2-L1:0)+(L2<L3?L3-L2:0)
+
+
+//////////////////////////////////////////////////////////////////////////
+// Plots
+//////////////////////////////////////////////////////////////////////////
+
+
+lrsi=ema((cu+cd==0?-1:cu+cd)==-1?0:(cu/(cu+cd==0?-1:cu+cd)), smooth)
+hline(ob, color=clr)
+hline(os, color=clg)
+col1 =  lrsi > lrsi[1] and lrsi > os ? clg : lrsi < lrsi[1] and lrsi < ob ? clr : lrsi == lrsi ? cly : cly
+col2 =  lrsi > lrsi[1] and lrsi > os ? clg : lrsi < lrsi[1] and lrsi < ob ? clr : lrsi < os ? clr : lrsi > ob ? clg : lrsi == lrsi ? cly : cly
+col = coloring ? col1 : col2
+plot(lrsi, color=col, linewidth=2,style=line, transp=0)

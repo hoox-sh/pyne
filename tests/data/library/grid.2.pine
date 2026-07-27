@@ -1,0 +1,2138 @@
+//@version=6
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+//    ___ _   __  __    ___ ___    _   __  __ _____      _____  ___ _  __
+//   / __| |  \ \/ /   | __| _ \  /_\ |  \/  | __\ \    / / _ \| _ \ |/ /
+//  | (__| |__ >  <    | _||   / / _ \| |\/| | _| \ \/\/ / (_) |   / ' < 
+//   \___|____/_/\_\   |_| |_|_\/_/ \_\_|  |_|___| \_/\_/ \___/|_|_\_|\_\  
+//
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+//  ▪ STRATEGY / INDICATOR / VISUALIZOR ────
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+// ──── Script Parameter {
+const string LongName = '[CLX] MA-STER - Edgeless Grid Plugin'
+const string ShortName = '[ST] #MA-GRID'
+// Strategy Parameter
+const int InitialCapital = 500
+const int Pyramiding = 20
+// Future Market
+const int Leverage = 25
+const int RequiredMargin = 50
+const string DefaultQtyType = strategy.percent_of_equity
+const float DefaultQtyValue = 100 * Leverage
+const float MaintenanceMarginPct = RequiredMargin / Leverage //| 50 / 25 = 2
+// Script Calculation
+const int MaxBarsBack = 5000 // Increased from 1000 to prevent reference errors
+const bool CalcOnorderFills = false
+const bool CalcOnTick = false
+const bool ProcessOrdersOnClose = false
+const string CloseEntriesRule = 'FIFO'
+const int Slippage = 2
+const int Precision = 2
+// Commission
+const float CommissionValue = .075
+const string CommissionType = strategy.commission.percent
+const float CommissionValueMaker = .025
+const float CommissionValueTaker = .075
+// Currency / Format
+const string Currency = currency.USD
+const string Format = format.price
+const bool LinkToSeries = true
+const bool Overlay = true
+// Object Limiter
+const int MaxLabelsCount = 500
+const int MaxLinesCount = 500
+const int MaxBoxesCount = 250
+const bool ExplicitPlotZOrder = false
+// Latest
+const float RiskFreeRate = 2.
+// Precision
+// const int      
+// PREMIUM ACCOUNTS ONLY
+const bool UseBarMagnifier = true
+// }
+
+// ──── Init Strategy {
+strategy(title = LongName, shorttitle = ShortName, overlay = Overlay, precision = Precision, format = Format, pyramiding = Pyramiding, default_qty_type = DefaultQtyType, default_qty_value = DefaultQtyValue, commission_type = CommissionType, commission_value = CommissionValue, slippage = Slippage, currency = Currency, initial_capital = InitialCapital, max_bars_back = MaxBarsBack, calc_on_every_tick = CalcOnTick, process_orders_on_close = ProcessOrdersOnClose, linktoseries = LinkToSeries, max_labels_count = MaxLabelsCount, max_lines_count = MaxLinesCount, max_boxes_count = MaxBoxesCount, margin_long = MaintenanceMarginPct, margin_short = MaintenanceMarginPct, explicit_plot_zorder = ExplicitPlotZOrder, risk_free_rate = RiskFreeRate, use_bar_magnifier = UseBarMagnifier, close_entries_rule = CloseEntriesRule)
+// }
+
+
+//  ▪ LIBRARIES ────
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+// ──── Library Hoox {
+import cryptolinx/String/1 as strx
+import cryptolinx/Hoox/10 as hoox
+import cryptolinx/ObjectStack/7 as objx
+// import cryptolinx/Progressbar/1     as progress
+import cryptolinx/Orderbook/2 as orx
+import cryptolinx/Console/8 as c
+// --
+c.terminal console = c.terminal.new().init()
+// }
+
+
+//  ▪ LISTS ────
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+// ──── Character-List {
+//   ‖ ‗ ― — – ‒
+//   ← ↑ → ↓ ↔ ↕ ↨ ─
+//   │ ┌ ┐ └ ┘ ├ ┤ ┬ ┴ ┼
+//   ═ ║ ╒ ╓ ╔ ╕ ╖ ╗ ╘ ╙ ╚ ╛ ╜ ╝ ╞ ╟ ╠ ╡ ╢ ╣ ╤ ╥ ╦ ╧ ╨ ╩ ╪ ╫ ╬
+// --
+//   ▀ ▄ █ ▌ ▐ ░ ▒ ▓ ■ □ ▪ ▫ ▬ ▲ ► ▼ ◄
+//   spaces: | | | | | | | | | | | |​|‌|‍|
+// }
+
+// ──── Number List {
+//   1, 3, 5, 10, 15, 30, 45, 60, 120, 240, 480, 720, 1440                  // Time Minutes Series
+//   1, 2, 3, 4, 6, 8, 12, 24, 36, 48, 72, 96, 120, 144, 168, 192, 240      // Time Hour Series
+//   1, 5, 7, 14 , 21, 28 , 30, 31, 365                                     // Time Day Series
+//   1, 7, 24, 30.4375, 60                                                  // TradingView Timeframe Divider
+//   5, 7, 9, 13, 14, 21, 24, 26, 30, 36, 50, 55, 80, 100, 200              // MA Standard Series
+//   66, 265                                                                // Diverse
+//   1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233, 377, 610, 987          // Fibonacci Series
+//   0.000, 0.236, 0.382, 0.500, 0.618, 0.764, 1.000, 1.618, 2.618          // Fibonacci Steps
+//   1.618                                                                  // Fibonacci Golden Ratio
+//   2.71828182850                                                          // Ehler's > Math_e
+//   3.14159265359                                                          // Phi
+// }
+
+
+//  ▪ BRACKETS [_ _] ────
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+// ──── Brackets {
+const string _BR_ = '\n'
+const string _RPL_ = '++++++'
+const string _W_ = ' '
+const string _WW_ = '  '
+const string _HR_ = '─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─'
+const string _HR_S_ = '─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─'
+const string _SP_ = '                                    '
+const string _LINE_M_ = '————————————————————————————'
+const string _DASHED_ = '-------------'
+// }
+
+
+//  ▪ STRINGS ────
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+// ──── Home-Assitant {
+// SECURITY NOTE: Secrets moved to input parameters - configure in strategy settings
+const string ON = 'ON'
+const string OFF = 'OFF'
+const string DM_LIGHT = 'light'
+const string DM_SWITCH = 'switch'
+const string LIGHT_01 = '0xec1bbdfffe9ac02a:Schreibtisch'
+const string LIGHT_02 = '0x00158d0004f86f69:Sternlampe'
+const string LIGHT_03 = '0x00158d0004f813a4:Stehlampe'
+const string LIGHT_04 = '0x680ae2fffee9d385:Leselampe'
+const string GTC = 'Good till cancelled (GTC)'
+const string IOC = 'Immediate or Cancel (IOC)'
+const string FOK = 'Fill or Kill (FOK)'
+// }
+
+// ──── Strings {
+const string MANUEL = 'MANUEL'
+const string SRC = 'SRC'
+const string STANDARD = 'STANDARD'
+const string HR = '---------------'
+const string OPEN = 'OPEN'
+const string HIGH = 'HIGH'
+const string LOW = 'LOW'
+const string CLOSE = 'CLOSE'
+const string OHLC4 = 'OHCL4'
+const string HL2 = 'HL2'
+const string HLC3 = 'HLC3'
+const string SINGLE = 'SINGLE'
+const string DOUBLE = 'DOUBLE'
+const string TRIPLE = 'TRIPLE'
+const string LEFT = 'LEFT'
+const string RIGHT = 'RIGHT'
+const string LOCKED = 'LOCKED'
+const string SOLID = 'SOLID'
+const string CIRCLE = 'CIRCLE'
+const string ABOVE = 'ABOVE'
+const string BELOW = 'BELOW'
+const string REVERSED = 'REVERSED'
+const string OPENLONG = 'OPEN_LONG'
+const string OPENSHORT = 'OPEN_SHORT'
+const string CLOSELONG = 'CLOSE_LONG'
+const string CLOSESHORT = 'CLOSE_SHORT'
+const string INFO = 'INFORMATION'
+const string MODIFIER = 'MODIFIER'
+const string RESET = 'RESET'
+const string ALERT = 'ALERT'
+const string PERCENT_HTF = 'Percent HTF'
+const string BO = 'BAR_OPEN'
+const string BC = 'BAR_CLOSE'
+const string MINTICK = 'MINTICK'
+const string POINTVALUE = 'POINTVALUE'
+const string KELLY = 'KELLY'
+const string DOT = '●'
+const string DIAMOND = '◆'
+const string TRIANGLE_RIGHT = '►'
+const string PROFIT = 'PROFIT'
+const string EXIT_SOFT = 'EXIT'
+const string ARROW_BR = '◢'
+const string EXIT_HARD = 'HARD EXIT'
+const string TRIANGLE_UP = '▲'
+const string TRIANGLE_DOWN = '▼'
+const string BUY = 'Buy'
+const string INVERT = 'INVERT'
+const string SELL = 'Sell'
+const string MARKET = 'Market'
+const string ARROW_TL = '◤'
+const string ARROW_TR = '◥'
+const string ARROW_BL = '◣'
+
+// --
+const string SWING = 'SWING'
+const string LONG = 'LONG'
+const string SHORT = 'SHORT'
+const string FULL_STACK = 'FULL_STACK'
+const string FLAT = 'FLAT'
+const string SUM = 'SUM'
+const string POSITION = 'POSITION'
+const string LVL_BY_LVL = 'Level by Level'
+const string JOURNAL = 'JOURNAL'
+const string BAR = 'BAR INDEX'
+const string LONG_STACK = 'LONG_STACK'
+const string SHORT_STACK = 'SHORT_STACK'
+const string PUMP = 'PUMP'
+const string DUMP = 'DUMP'
+const string TV = 'TRADING VIEW'
+const string CUSTOM = 'CUSTOM'
+const string STRICT = 'STRICT'
+const string CROSS = 'CROSS'
+const string HEDGE = 'HEDGE'
+const string ISOLATED = 'ISOLATED'
+const string FUTURES = 'Futures'
+const string SPOT = 'Spot'
+const string MARGIN = 'Margin'
+const string LEVERAGED = 'ETF'
+const string ORDER_EXPAND = 'ORDER_EXPAND'
+const string ENTRY_CLOSE_EXPAND = 'ENTRY_CLOSE_EXPAND'
+const string COMPLEX_ENTRY_ORDER_CLOSE = 'COMPLEX_ENTRY_ORDER_CLOSE'
+const string ALWAYS = 'ALWAYS'
+const string FROM_NUMBER = 'FROM NUMBER'
+const string FROM_MEDIAN = 'FROM MEDIAN'
+const string CLASSIC = 'CLASSIC'
+const string PROFIT_SHORT = 'PROFIT_SHORT'
+const string INITIAL = 'INITIAL'
+const string EQUITY = 'EQUITY'
+const string ATS = 'ATS'
+const string REACT = 'REACT'
+const string KUJI = 'KUJI'
+const string CVI = 'CVI'
+const string CCBB = 'CCBB'
+const string PROFIT_LONG = 'PROFIT_LONG'
+const string VIDYA = 'VIDYA'
+const string VIDYA_LONG = 'VIDYA_LONG'
+const string PER_TRADE = 'Per Trade'
+const string PER_BAR = 'Per Bar'
+const string EVERY_5M = 'Every 5min'
+const string EVERY_15M = 'Every 15min'
+const string PERCENT = 'PERCENT'
+const string EVERY_30M = 'Every 30min'
+const string INJECT_LONG = 'INJECT LONG'
+const string INJECT_SHORT = 'INJECT SHORT'
+const string AUTO = 'AUTO'
+// --
+const string O_HTF1 = 'FIXED'
+const string O_HTF2 = 'MULTIPLE'
+const string STATIC = 'STATIC TP'
+const string TRAILING = 'TRAILING'
+const string DYNAMIC = 'DYNAMIC'
+const string MULTIPLEX = 'MULTIPLEX'
+const string STATIC_TRAILING = 'STATIC MIN. PROFIT + TRAILING STOP'
+const string DEV = 'DEVELOPMENT'
+const string PROD = 'PRODUCTION'
+const string BUYBACK = 'BUY-BACK'
+const string SELLBACK = 'SELL-BACK'
+const string TBOX = 'BOX'
+const string TLINE = 'LINE'
+const string TLABEL = 'LABEL'
+const string ICON_DASH = '■'
+const string ATR = 'ATR'
+// --
+const string DL_HV = 'High Volatility'
+const string DL_RS = 'RSI 30/70'
+const string DL_RSL50 = 'RSI Long > 50'
+const string DL_RSS50 = 'RSI Short < 50'
+const string DL_LV = 'Low Volatility'
+const string DL_VOLB = 'Volume Break [Thr%]'
+const string DL_INTRA = 'Intraday Change (Close > Change % Last Close)'
+const string DL_INTRA_SM = 'Intraday Change (Close < Change % Last Close)'
+const string SR_TV = 'Use traditional TradingView Sources'
+const string SR_HLCC4 = 'HLCC4 - [(high + low + (2 * close)) / 4]'
+const string SR_CHL2O = 'CHL2O -  [close + high + low - (2 * open)]'
+const string SR_HL = 'HL - [close > open ? high : low]'
+const string SR_VY = 'VIDYA - constiable Index Dynamic Average with Step as Length'
+const string SR_EX = 'External Source'
+const string SR_REACT = 'REACT'
+const string RSI = 'RSI'
+const string EXTERN = 'EXTERN'
+const string LABEL = 'LABEL'
+const string LINE = 'LINE'
+const string BKT_START = '01 Jan 2021 08:00:00 GMT+1'
+const string BKT_FINISH = '27 Dec 2021 00:00:00 GMT+1'
+const string prefix = '{'
+const string suffix = '}'
+const string UP = 'UP'
+const string DOWN = 'DOWN'
+const string WICK = 'WICK'
+const string RMA = 'RMA'
+const string SMA = 'SMA'
+const string EMA = 'EMA'
+const string WMA = 'WMA'
+const string ICON_SL = '🚫'
+const string ICON_GRP = '🔵'
+const string ICON_M = 'Ⓜ'
+const string ICON_L = '🔒'
+const string ICON_LQ = '⛔'
+const string ICON_AT = '⚠'
+const string ICON_JR = '📑'
+const string ICON_USDT = '₮'
+const string ICON_P = '🟢'
+const string ICON_N = '🔴'
+const string COL1 = 'COLLUM_01'
+const string COL2 = 'COLLUM_02'
+const string _SEP1_ = '-+-+-+-+-+-'
+const string _V_ = '|'
+const string _H_ = '—'
+const string ICON_USD = '$'
+const string NONE = ICON_SL + 'NONE'
+const string EMPTY = ''
+const string WALLET = 'WALLET'
+// }}
+
+// ──── Input Tooltips {
+const string TT01 = 'Select the underlaying data source. The second input is only needed for external data source.'
+const string TT02 = '(UTC+0)'
+const string TT03 = '(0)=disabled'
+// }
+
+// ──── Init Escapeables {
+const array<string> ESCAPEABLES = array.from(_HR_, _HR_S_)
+const array<string> ICONS = array.from(ICON_SL, ICON_M, ICON_L, ICON_LQ, ICON_AT)
+// }
+
+// --- {
+const string NEW_LINE = "ISOPRATOR()"
+// }
+
+
+// ————  Asset Arrays {
+const array<string> ANI_ASSETS_01 = array.from('◜', '◝', '◞', '◟')
+const array<string> ANI_ASSETS_02 = array.from('◜◞', '◟◝')
+const array<string> ANI_ASSETS_03 = array.from('⋯', '⋱', '⋮', '⋰')
+const array<string> DESC_ASSETS_01 = array.from('INITIALISATION', 'DETECTING')
+// }
+
+
+//  ▪ COLORS ────
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+// ──── Colors {
+const color CL_GR_1 = #4EF9FFFF
+const color CL_GR_2 = #3CADB1FF
+const color CL_GR_3 = #26C6DAFF
+const color CL_GR_4 = #AFFF00FF
+const color CL_GR_5 = #CFD80EFF
+const color CL_GR_6 = #90C818FF
+const color CL_RD_1 = #7B1FA2FF
+const color CL_RD_2 = #7E57C2FF
+const color CL_RD_3 = #512DA8FF
+const color CL_RD_4 = #7300DEFF
+const color CL_RD_5 = #8400ffFF
+const color CL_RD_6 = #2D2456FF
+const color CL_RD_7 = #FF0081FF
+const color CL_RD_8 = #52037DFF
+const color CL_OR_1 = #FF9800FF
+const color CL_YL_1 = #FFEB3BFF
+// }
+
+// ──── CLX Colors {
+const color CL_XX_1 = #161325FF
+const color CL_XX_2 = #342C7CFF
+const color CL_XX_3 = #53478CFF
+const color CL_XX_4 = #A992DFFF
+const color CL_XX_5 = #8b21b6FF
+const color CL_XX_6 = #26C6DAFF
+const color CL_XX_7 = #AFFF00FF
+const color CL_XX_8 = #1C1C37FF
+// }
+
+
+//  ▪ TYPES ────
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+
+//  ▪ STANDARD INPUTS ────
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+// ──── Source {
+simple string __SRC_INPUT = input.string(SR_REACT, options = [OPEN, CLOSE, SR_VY, SR_REACT, SR_EX], title = 'Grid ', group = ICON_GRP + ' SOURCE & Timeframe')
+simple string __TF = input.timeframe('', title = 'Timeframe', group = ICON_GRP + ' SOURCE & Timeframe')
+simple string __TF_BASELINE = input.timeframe('', title = 'Timeframe Baseline', group = ICON_GRP + ' SOURCE & Timeframe')
+series float __SRC_EXT = input.source(close, title = 'Data Source', group = ICON_GRP + ' SOURCE & Timeframe', tooltip = TT01)
+// }
+
+// ──── Grid {
+simple float __GRID_SCALE = input.float(1, title = 'Scale', group = ICON_GRP + ' GRID', step = .1, minval = .2)
+simple string __GRID_RESCALE = input.string(PERCENT, options = [MINTICK, PERCENT, PERCENT_HTF, ATR], title = 'Rescale', group = ICON_GRP + ' GRID')
+simple int __GRID_OFFSET = input.int(0, title = 'Grid Offset', group = ICON_GRP + ' GRID', step = 1, minval = 0)
+// }
+
+// ──── React {
+simple int __GRID_REACT_LEN = input.int(50, title = 'MA Length', group = ICON_GRP + ' REACT')
+// --
+simple int __GRID_REACT_CMO = input.int(9, title = 'CMO Length', group = ICON_GRP + ' REACT')
+simple int __GRID_REACT_DYN = input.int(150, minval = 1, title = 'Reaction', group = ICON_GRP + ' REACT')
+simple float __GRID_REACT_PWR = input.float(2, title = 'Power', minval = 0, maxval = 100, group = ICON_GRP + ' REACT')
+// }
+
+// ──── Basics {
+simple bool __TR_NOT_OPEN_LONG = input.bool(false, title = 'Not Open Long', group = ICON_GRP + ' TRADING')
+simple bool __TR_NOT_OPEN_SHORT = input.bool(false, title = 'Not Open Short', group = ICON_GRP + ' TRADING')
+simple string __TR_MARKET = input.string(FUTURES, title = 'Market', options = [FUTURES, SPOT, MARGIN, LEVERAGED], group = ICON_GRP + ' TRADING')
+simple string __TR_DIR = input.string(FULL_STACK, title = 'Direction', options = [LONG, SHORT, SWING, LONG_STACK, SHORT_STACK, FULL_STACK], group = ICON_GRP + ' TRADING')
+simple string __TR_TRANS = input.string(STRICT, title = 'Transition', options = [STRICT, CROSS, HEDGE], group = ICON_GRP + ' TRADING')
+simple string __TR_CL_BASE = input.string(INITIAL, title = 'Calculation Base', options = [INITIAL, EQUITY, WALLET], group = ICON_GRP + ' TRADING')
+simple string __TR_RISK_MGM = input.string(CLASSIC, title = 'Risk Management', options = [CLASSIC, CUSTOM], group = ICON_GRP + ' TRADING')
+simple float __TR_MIN_POS_SIZE_USDT = input.float(11., 'Min. Position Size $', minval = 1., step = 5., group = ICON_GRP + ' TRADING')
+simple int __TR_LEV = input.int(Leverage, title = 'Leverage', step = 1, minval = 1, maxval = 125, group = ICON_GRP + ' TRADING', tooltip = 'CAUTION: Higher leverage = higher risk. Recommended: 10-25x')
+simple int __TR_RISK = input.int(2, title = 'Risk (%)', step = 1, minval = 1, maxval = 10, group = ICON_GRP + ' TRADING', tooltip = 'Percentage of capital risked per trade. Recommended: 1-3%')
+simple bool __TR_KELLY_R = input.bool(false, title = 'Adjust Kelly Ratio', group = ICON_GRP + ' TRADING')
+simple int __TR_MARGIN_PCT = input.int(50, title = 'Max. Margin Ratio (%)', minval = 5, maxval = 100, step = 1, group = ICON_GRP + ' TRADING')
+simple int __TR_MAX_DRAWDOWN = input.int(70, title = 'Max. Drowdown (%)', minval = 5, maxval = 100, step = 1, group = ICON_GRP + ' TRADING')
+simple int __TR_SL_PCT = input.int(60, title = 'Max. Stop-Loss (%)', minval = 5, maxval = 100, step = 1, group = ICON_GRP + ' TRADING > STOP-LOSS')
+simple float __TR_REDUCE_PCT = input.float(35., minval = 5, step = 5, maxval = 100, title = 'Reduce Position Size (%)', group = ICON_GRP + ' TRADING > STOP-LOSS')
+simple int __TR_MAX_ORX_EXIT_SOFT = input.int(9, title = 'Exit Position Soft (#)', step = 1, minval = 1, maxval = 100, group = ICON_GRP + ' TRADING > EXIT') - 1
+simple int __TR_MAX_ORX_EXIT_HARD = input.int(12, title = 'Exit Position Hard (#)', step = 1, minval = 1, maxval = 100, group = ICON_GRP + ' TRADING > EXIT') - 1
+simple float __TR_MAX_ORX_EXIT_THS = input.float(1.5, title = 'Exit Hard Avg. Thereshold (%)', step = 1, minval = 1, maxval = 100, group = ICON_GRP + ' TRADING > EXIT') / 100
+// }
+
+// ──── Position Calculation { 
+simple bool __MTG_ON = input.bool(true, title = 'Pos: Use Martingale Multiplicator', group = ICON_GRP + ' POSITION CALCULATION > Martingale')
+simple string __MTG_MODE = input.string(POSITION, title = 'Pos: Martingale Mode', options = [POSITION, SUM], group = ICON_GRP + ' POSITION CALCULATION > Martingale')
+simple bool __MTG_RESET_ON_OPPOSITE = input.bool(true, title = 'Pos: Reset On Opposite Trade', group = ICON_GRP + ' POSITION CALCULATION > Martingale', inline = 'MTG-RESET')
+simple bool __MTG_RESET_ON_TRAIL = input.bool(true, title = 'Pos: Reset On Trailing Hit', group = ICON_GRP + ' POSITION CALCULATION > Martingale', inline = 'MTG_RESET')
+simple float __MTG_BEFORE_START = input.float(0.55, title = 'Pos: Martingale Step Before Start', step = .05, minval = .05, group = ICON_GRP + ' POSITION CALCULATION > Martingale')
+simple int __MTG_START_FROM = input.int(3, title = 'Pos: Martingale Start From N Trade (#)', step = 1, minval = 1, group = ICON_GRP + ' POSITION CALCULATION > Martingale') - 1
+simple float __MTG_START = input.float(1., title = 'Pos: Martingale Step Start', step = .05, minval = .05, group = ICON_GRP + ' POSITION CALCULATION > Martingale')
+simple float __MTG_STEP = input.float(1.3, title = 'Pos: Martingale Step', step = .05, minval = .05, maxval = 2.0, group = ICON_GRP + ' POSITION CALCULATION > Martingale', tooltip = 'Keep below 1.5 for safety')
+simple float __MTG_MAX = input.float(8, title = 'Pos: Martingale Max.', step = .5, minval = .05, maxval = 10, group = ICON_GRP + ' POSITION CALCULATION > Martingale', tooltip = 'Recommended: 5-8x maximum. Higher values = higher risk!')
+simple bool __CALC_NO_NEGATIVE = input.bool(false, title = 'Use No Negative Trades', group = ICON_GRP + ' POSITION CALCULATION > Options', inline = 'A')
+simple bool __FRC_NO_NEGATIVE = input.bool(false, title = '--force', group = ICON_GRP + ' POSITION CALCULATION > Options', inline = 'A')
+simple bool __CALC_NO_LOSING = input.bool(false, title = 'Use No Losing Trades', group = ICON_GRP + ' POSITION CALCULATION > Options', inline = 'B')
+simple bool __FRC_NO_LOSING = input.bool(false, title = '--force', group = ICON_GRP + ' POSITION CALCULATION > Options', inline = 'B')
+simple bool __CALC_COMPARE = input.bool(true, title = 'Use Only Best Trades', group = ICON_GRP + ' POSITION CALCULATION > Options', inline = 'COL3')
+simple float __TR_MIN_DIST = input.float(0.6, title = 'Min. Distance', group = ICON_GRP + ' POSITION CALCULATION > Options', step = .1, minval = .1)
+simple int __TR_POS_DEC = input.int(3, title = 'Position Size Decimal', step = 1, minval = 0, maxval = 8, group = ICON_GRP + ' POSITION CALCULATION > Options')
+simple string __USDT = input.string('₮', title = 'Symbol USD/T', options = [ICON_USDT, ICON_USD], group = ICON_GRP + ' POSITION CALCULATION > Options')
+// }
+
+// ──── Static-/Trailing-/Static-Trailing Take-Profit {
+simple bool __TR_STC_TP1_ON = input.bool(true, title = 'Use Static-Trailing Take Profit', group = ICON_GRP + ' TAKE PROFIT')
+simple string __TR_STC_TP1_STRING = input.string('0.5|1.2|2.5|3.5', title = 'Take Profit (%)[A|R|R]', group = ICON_GRP + ' TAKE PROFIT')
+simple string __TR_STC_TP1_QTY_STRING = input.string('25|30|50|100', title = 'Take Profit Qty. (%)[A|R|R]', group = ICON_GRP + ' TAKE PROFIT')
+simple string __TR_STC_TP1_EXT_STRING = input.string('1|1|1|1', title = 'Activate Extended Trailing (0/1)[+ARR]', group = ICON_GRP + ' TAKE PROFIT')
+simple string __TR_STC_TP1_EXTEND = input.string(ATS, options = [NONE, ATS, REACT, VIDYA, VIDYA_LONG], title = 'Extend Static Take Profit with', group = ICON_GRP + ' TAKE PROFIT')
+simple int __TR_STC_TP1_START_FROM = input.int(1, title = 'Start TP from N Trades (#)', step = 1, minval = 1, group = ICON_GRP + ' TAKE PROFIT') - 1
+simple int __TR_STC_TP1_RESET_FROM = input.int(350, title = 'Reset TP Level after N Bars (#)', step = 1, minval = 10, group = ICON_GRP + ' TAKE PROFIT') - 1
+// }
+
+// ──── Adaptive Trailing Take Profit (ATS) {
+simple int __ATS_LEN = input.int(25, title = 'ATS Length', minval = 3, maxval = 500, step = 1, group = ICON_GRP + ' TAKE PROFIT > Adaptive Trailing Stop Options')
+simple float __ATS_FCT = input.float(2, title = 'ATS Factor', minval = 1, maxval = 10, step = .1, group = ICON_GRP + ' TAKE PROFIT > Adaptive Trailing Stop Options')
+simple bool __ATS_ADAPTIV = input.bool(true, title = 'Adaptiv Trailing', group = ICON_GRP + ' TAKE PROFIT > Adaptive Trailing Stop Options')
+simple bool __ATS_SMOOTH = input.bool(true, title = 'Smoothing', group = ICON_GRP + ' TAKE PROFIT > Adaptive Trailing Stop Options')
+// }
+
+// ──── Trailing Stop {
+simple bool __TR_TRL_ST1_ON = input.bool(false, title = 'Use Trailing Stop', group = ICON_GRP + ' TRAILING STOP')
+simple string __TR_TRL_ST1_STRING = input.string('1|1.8', title = 'Trailing (%)[A|R|R]', group = ICON_GRP + ' TRAILING STOP')
+simple string __TR_TRL_ST1_QTY_STRING = input.string('40|60', title = 'Trailing Qty. (%)[A|R|R]', group = ICON_GRP + ' TRAILING STOP')
+simple string __TR_TRL_ST1_SRC = input.string(SR_HL, options = [CLOSE, OHLC4, SR_HL], title = 'Trailing Source', group = ICON_GRP + ' TRAILING STOP')
+simple int __TR_TRL_ST1_START_FROM = input.int(1, title = 'Start TRL from N Trades (#)', step = 1, minval = 1, group = ICON_GRP + ' TRAILING STOP') - 1
+simple bool __TR_TRL_ST1_ONLY_PROFIT = input.bool(false, title = 'Only Trail Profits', group = ICON_GRP + ' TRAILING STOP')
+// }
+
+// ──── Sub Take Profit {
+simple bool __TR_RLZ_LW1_ON = input.bool(true, title = 'Realize Low Profits', group = ICON_GRP + ' SUBTAKE PROFIT > Low Profits')
+simple float __TR_RLZ_LW1_START = input.float(1.9, title = 'Low: Trailing Start (%)', step = .1, group = ICON_GRP + ' SUBTAKE PROFIT > Low Profits')
+simple float __TR_RLZ_LW1_MIN = input.float(.8, title = 'Low: Trailing Execute (%)', step = .1, group = ICON_GRP + ' SUBTAKE PROFIT > Low Profits')
+simple int __TR_RLZ_LW1_START_FROM = input.int(3, title = 'Start RLZ Low from N Trades (#)', step = 1, minval = 1, group = ICON_GRP + ' SUBTAKE PROFIT > Low Profits') - 1
+simple bool __TR_RLZ_LW1_JST = input.bool(false, title = 'Justify to TP', group = ICON_GRP + ' SUBTAKE PROFIT > Low Profits', inline = 'A')
+simple bool __TR_RLZ_LW1_EXIT = input.bool(true, title = 'Full Exit', group = ICON_GRP + ' SUBTAKE PROFIT > Low Profits', inline = 'A')
+// }
+
+// ──── Higher/Lower Profits {
+simple int __CH_LOOKBACK = input.int(500, title = 'HL Lookback', minval = 10, maxval = 500, step = 1, group = ICON_GRP + ' H/L PROFIT')
+simple bool __CH_HIGHER_ON = input.bool(false, title = 'HL Realize Long Profits', group = ICON_GRP + ' H/L PROFIT')
+simple float __CH_HIGHER_TRL = input.float(0, title = 'Low: Trailing Start (%)', step = .1, group = ICON_GRP + ' H/L PROFIT')
+simple int __CH_HIGHER_START_FROM = input.int(1, title = 'Start Long from N Trades (#)', step = 1, minval = 1, group = ICON_GRP + ' H/L PROFIT') - 1
+simple bool __CH_LOWER_ON = input.bool(false, title = 'HL Realize Short Profits', group = ICON_GRP + ' H/L PROFIT')
+simple float __CH_LOWER_TRL = input.float(0, title = 'Lower: Trailing Start (%)', step = .1, group = ICON_GRP + ' H/L PROFIT')
+simple int __CH_LOWER_START_FROM = input.int(1, title = 'Start Long from N Trades (#)', step = 1, minval = 1, group = ICON_GRP + ' H/L PROFIT') - 1
+simple int __CH_LOCK = input.int(250, 'HL Locking Period', group = ICON_GRP + ' H/L PROFIT')
+simple bool __CH_NOT_OPEN_LONG = input.bool(false, title = 'HL Not Open Long', group = ICON_GRP + ' H/L PROFIT')
+simple bool __CH_NOT_OPEN_SHORT = input.bool(false, title = 'HL Not Open Short', group = ICON_GRP + ' H/L PROFIT')
+simple int __CH_OS = input.int(75, title = 'HL RSI Oversold', step = 1, group = ICON_GRP + ' H/L PROFIT')
+simple int __CH_OB = input.int(25, title = 'HL RSI Overbougth', step = 1, group = ICON_GRP + ' H/L PROFIT')
+// }
+
+// ──── Stop-Loss {
+simple bool __TR_STC_SL1_ON = input.bool(false, title = 'Use Static-Trailing Stop-Loss', group = ICON_GRP + ' STATIC -LOSS')
+simple string __TR_STC_SL1_STRING = input.string('5|8|10', title = 'Stop-Loss (%)[+]', group = ICON_GRP + ' STATIC STOP-LOSS')
+simple string __TR_STC_SL1_QTY_STRING = input.string('50|30|20', title = 'Stop-Loss Qty. (%)[+]', group = ICON_GRP + ' STATIC STOP-LOSS')
+simple int __TR_STC_SL1_START_FROM = input.int(1, title = 'Start SL from N Trades (#)', step = 1, minval = 1, group = ICON_GRP + ' STATIC STOP-LOSS') - 1
+// }
+
+// ──── Injection {
+simple bool __INJECTION_LONG_ON = input.bool(false, title = 'Injection Long', group = ICON_GRP + ' INJECTION')
+simple bool __INJECTION_SHORT_ON = input.bool(false, title = 'Injection Short', group = ICON_GRP + ' INJECTION')
+simple int __INJECTION_LOCK = input.int(100, title = 'Locking Period after Signal', group = ICON_GRP + ' INJECTION')
+// }
+
+// ──── Trend {
+simple int __SMA_LEN = input.int(150, title = 'MA Length', group = ICON_GRP + ' TREND > SHORT-TERM')
+simple bool __CALC_CF_ON = input.bool(false, title = 'Use Short-Term Trend Multiplicator', group = ICON_GRP + ' TREND > SHORT-TERM')
+simple float __CALC_CF_UP = input.float(1, title = 'Uptrend Factor', step = .1, maxval = 1.5, group = ICON_GRP + ' TREND > SHORT-TERM')
+simple float __CALC_CF_DW = input.float(.5, title = 'Downtrend Factor', step = .1, maxval = 1.5, group = ICON_GRP + ' TREND > SHORT-TERM')
+//--
+simple string __HTF_RES = input.timeframe('D', title = 'HTF Timeframe', group = ICON_GRP + ' TREND > LONG-TERM')
+// }
+
+// ──── Baseline {
+simple float __VDY_DEV_FCT = input.int(8, title = 'Baseline Max. Deviation (%)', group = ICON_GRP + ' BASELINE') / 100
+simple int __VDY_BANDS_AMOUNT = input.int(4, title = 'Vidya Bands Amount', group = ICON_GRP + ' BASELINE', minval = 1)
+simple int __VDY_LEN_LONG = input.int(250, title = 'Baseline Length', group = ICON_GRP + ' BASELINE')
+simple int __VDY_CMO_LONG = input.int(50, title = 'Baseline Momentum', group = ICON_GRP + ' BASELINE')
+simple bool __VDY_FIBO_ON = input.bool(true, title = 'Apply Fibonacci Retracement Size', group = ICON_GRP + ' BASELINE')
+simple int __VDY_FIBO_SHORT_DIS = input.int(1, title = 'Disable Short Trades by Retracement', minval = 0, step = 1, group = ICON_GRP + ' BASELINE')
+simple int __VDY_FIBO_LONG_DIS = -input.int(1, title = 'Disable Long Trades by Retracement', minval = 0, step = 1, group = ICON_GRP + ' BASELINE')
+
+simple bool __VDY_LOCK_LONG = input.bool(false, title = 'Lock Long Trades when Price over Baseline', group = ICON_GRP + ' BASELINE')
+simple bool __VDY_LOCK_SHORT = input.bool(true, title = 'Lock Short Trades when Price under Baseline', group = ICON_GRP + ' BASELINE')
+simple bool __VDY_LOCK_LONG2 = input.bool(false, title = 'Lock Long Trades when Grid over Baseline', group = ICON_GRP + ' BASELINE')
+simple bool __VDY_LOCK_SHORT2 = input.bool(true, title = 'Lock Short Trades when Grid under Baseline', group = ICON_GRP + ' BASELINE')
+simple bool __VDY_REV_LONG_TO_SHORT = input.bool(false, title = 'Reverse Locked Longs as Short', group = ICON_GRP + ' BASELINE')
+simple bool __VDY_REV_SHORT_TO_LONG = input.bool(true, title = 'Reverse Locked Shorts as Long', group = ICON_GRP + ' BASELINE')
+simple float __VDY_REVERSE_CTX_FCT = input.float(2., title = 'Reverse Contract Factor', step = .1, group = ICON_GRP + ' BASELINE')
+// --
+simple bool __VDY_RELOAD_LONG = input.bool(false, title = 'Reload Long (Buy-Back#1) in Bull Market', group = ICON_GRP + ' BASELINE')
+simple bool __VDY_RELOAD_SHORT = input.bool(false, title = 'Reload Short (Sell-Back#1) in Bear Market', group = ICON_GRP + ' BASELINE')
+simple bool __VDY_RELOAD_LONG2 = input.bool(false, title = 'Reload Long (Buy-Back#2) on Long-Trend', group = ICON_GRP + ' BASELINE')
+simple bool __VDY_RELOAD_SHORT2 = input.bool(false, title = 'Reload Short (Sell-Back#2) in Short-Trend', group = ICON_GRP + ' BASELINE')
+simple float __VDY_RELOAD_ZONE_FCT = input.float(1.5, title = 'Reload Zone (%)', group = ICON_GRP + ' BASELINE') / 100
+simple float __VDY_RELOAD_CTX_FCT = input.float(2., title = 'Reload Contract Factor', step = .1, group = ICON_GRP + ' BASELINE')
+simple int __TR_BB_SINCE_LAST = input.int(15, title = 'Reload Lock Since Last Trade', group = ICON_GRP + ' BASELINE', minval = 1, maxval = 5000, step = 1)
+simple int __TR_BB_SINCE_LAST_X = input.int(5, title = 'Reload Lock Since Last Cross', minval = 1, maxval = 5000, step = 1, group = ICON_GRP + ' BASELINE')
+// }
+
+// ──── Backtest Period {
+simple string __BACKTEST_ENGINE = input.string(CUSTOM, options = [TV, CUSTOM], title = 'Engine', confirm = true, group = ICON_GRP + ' BACKTEST PERIOD')
+simple bool __BACKTEST_RANGE = input.bool(false, title = 'Use', group = ICON_GRP + ' BACKTEST PERIOD')
+simple int __STARTF = input.time(timestamp(BKT_START), title = 'Start', group = ICON_GRP + ' BACKTEST PERIOD')
+simple int __FINISHT = input.time(timestamp(BKT_FINISH), title = 'Finish', group = ICON_GRP + ' BACKTEST PERIOD')
+// }
+
+// ──── INTERFACE {
+simple int __INTF_OFFSET_X = input.int(40, title = 'UI Offset X', minval = 0, group = ICON_GRP + ' INTERFACE')
+simple int __INTF_OFFSET_X_INNER = input.int(12, title = 'UI Offset X Inner', minval = 0, group = ICON_GRP + ' INTERFACE')
+simple float __INTF_OFFSET_Y = input.float(0.8, title = 'UI Height', minval = 0, step = .1, group = ICON_GRP + ' INTERFACE')
+// }
+
+// ──── Prints {
+simple bool __SRC_PRINT = input.bool(true, title = 'Source', group = ICON_GRP + ' PRINTING', inline = COL1)
+simple bool __TR_TP_PRINT1 = input.bool(true, title = 'Take Profit', group = ICON_GRP + ' PRINTING', inline = COL1)
+simple bool __TR_PRINT_AVG = input.bool(true, title = 'Avg. Pos. Price', group = ICON_GRP + ' PRINTING', inline = COL1)
+simple bool __CSS_TRG_CHART_ON = input.bool(true, title = 'Trigger on Bar', group = ICON_GRP + ' PRINTING', inline = COL1)
+simple bool __PRINT_BG = input.bool(true, title = 'Directions [BG]', group = ICON_GRP + ' PRINTING', inline = COL1)
+simple bool __PF_PRINT = input.bool(true, title = 'Flip', group = ICON_GRP + ' PRINTING', inline = COL1)
+simple bool __ATS_PRINT_ON = input.bool(true, title = 'Adp. Trailing Stop', group = ICON_GRP + ' PRINTING', inline = COL1)
+simple bool __CSS_TREND_ON = input.bool(true, title = 'Trend', group = ICON_GRP + ' PRINTING', inline = COL1)
+// --
+simple bool __PRINT_JOURNAL = input.bool(true, title = 'JOURNAL', group = ICON_GRP + ' PRINTING', inline = COL2)
+simple bool __RANGE_PRINT = input.bool(false, title = 'Range', group = ICON_GRP + ' PRINTING', inline = COL2)
+simple bool __VDY_PRINT = input.bool(true, title = 'Baseline', group = ICON_GRP + ' PRINTING', inline = COL2)
+simple bool __VDY_BANDS_PRINT = input.bool(false, title = 'Baseline Bands', group = ICON_GRP + ' PRINTING', inline = COL2)
+simple bool __CSS_PBAR_LABEL = input.bool(true, title = 'PBar Label', group = ICON_GRP + ' PRINTING', inline = COL2)
+// --
+simple bool __SHOW_DAILY = input.bool(true, title = 'Daily Divider', group = ICON_GRP + ' PRINTING', tooltip = TT02)
+// }
+
+// ──── Hoox {
+simple string __HOOX_SECRET = input.string('', title = 'Private Secret (Enter your secret)', confirm = true, group = ICON_GRP + ' HOOX', tooltip = 'Enter your private Hoox secret key. Never share this publicly!')
+simple bool __HOOX_TEST = input.bool(true, title = 'Exchange: Test Mode', confirm = true, group = ICON_GRP + ' HOOX')
+// }
+
+// ──── Hoox > Telegram {
+simple string __TELEGRAM_CHAT_ID = input.string('', title = 'Telegram Chat ID (Enter your chat ID)', confirm = true, group = ICON_GRP + ' HOOX > Telegram', tooltip = 'Enter your Telegram chat ID for notifications')
+simple bool __TELEGRAM_SEND_PNL = input.bool(true, title = 'Send Info: PnL', group = ICON_GRP + ' HOOX > Telegram')
+simple bool __TELEGRAM_SEND_STAT = input.bool(false, title = 'Send Info: Statistic', group = ICON_GRP + ' HOOX > Telegram')
+simple bool __TELEGRAM_SEND_JRX = input.bool(false, title = 'Send Info: Journal', group = ICON_GRP + ' HOOX > Telegram')
+simple string __TELEGRAM_INTV_INFO = input.string(PER_BAR, title = 'Info: Send Intervall', options = [PER_TRADE, PER_BAR, EVERY_5M, EVERY_15M, EVERY_30M], group = ICON_GRP + ' HOOX > Telegram')
+simple bool __TELEGRAM_SEND_SL = input.bool(false, title = 'Send Alert: Stop-Loss', group = ICON_GRP + ' HOOX > Telegram')
+simple bool __TELEGRAM_SEND_MARGIN = input.bool(false, title = 'Send Alert: Margin', group = ICON_GRP + ' HOOX > Telegram')
+simple string __TELEGRAM_INTV_ALERT = input.string(PER_TRADE, title = 'Alert: Send Intervall', options = [PER_TRADE, PER_BAR, EVERY_5M, EVERY_15M, EVERY_30M], group = ICON_GRP + ' HOOX > Telegram')
+// }
+
+// ──── Setup {
+simple string __ENV = DEV //input.string(DEV, options=[NONE, DEV, PROD], title='Pre-Configuration', group=ICON_GRP + ' ENV')
+simple int __LOOP_COUNT = 0 //input.int(0, 'Loop Iterations Per Bar', step=100, group=ICON_GRP + ' ENV')
+int __CSS_SHOW_LAST = 25000 //input.int(0, title='Show Last Plot', minval=-1, group=ICON_GRP + ' ENV')
+// }
+
+if __VDY_BANDS_AMOUNT < math.max(__VDY_FIBO_LONG_DIS, __VDY_FIBO_SHORT_DIS) - 1
+    runtime.error('Enable more Retracement Level')
+
+// Safety check for Martingale settings
+if __MTG_ON and __MTG_MAX > 10
+    runtime.error('WARNING: Martingale max multiplier > 10x is extremely risky! Consider reducing to safer levels.')
+
+if __TR_LEV > 50
+    runtime.error('WARNING: Leverage > 50x is extremely risky! Consider using lower leverage.')
+
+
+//  ▪ BENCHMARK ────
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+// ──── Init/Start Benchmark {
+type benchmark
+	int time_begin = time
+	float year_pct
+	float factor
+	float running_days
+
+method run(series benchmark this) =>
+    this.year_pct := (time_close - this.time_begin) / (1000 * 60 * 60 * 24 * 365)
+    this.factor := this.year_pct != 0 ? 1 / this.year_pct : 1
+    this.running_days := math.round((timenow - this.time_begin) / 1000 / (60 * 60 * 24), 1)
+    this.running_days
+
+var benchmark bench = benchmark.new()
+bench.run()
+// }
+
+
+//  ▪ STANDARD VARIABLE ────
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+// ──── Init {
+var series bool __GRID_LONG = false
+var series bool __GRID_SHORT = false
+var series bool __GRID_FLAT = false
+var series float __CONDITION = na
+var series float __SIGNAL = na //, var series float __GRID_MTG = __GRID_MTG_START
+var series float __GRID = na
+var series float __MTG = __MTG_BEFORE_START
+// --
+var series float __ORX_AVG_PRICE = na
+var series float __ORX_OPEN_PROFIT = 0
+series string __TOAST = na
+series float labelDistFct = .5
+var series float __NETTO_PNL = 0
+// --
+var series float __TOTAL_SUM = 0
+var series float __TOTAL_PNL = 0
+var series float __TOTAL_CTX = 0
+var series float __TOTAL_COM = 0
+var series float __ORX_SUM = 0
+var series float __ORX_PNL = 0
+var series float __ORX_CTX = 0
+var series float __ORX_COM = 0
+series float __POS_SUM = 0
+series float __POS_PNL = 0
+series float __POS_CTX = 0
+series float __POS_COM = 0
+series bool __PROFIT = false
+// --
+var series int __INTF_OFFSET_Y_DIV = 10
+string __DESC_STRING = ''
+var series float __LAST_ENTRY = na
+series bool __INJECTION = false
+series bool __LOCKED = false
+series bool __PREVENT = false
+// --
+var series array<float> SERIES_FIBO = array.from(.000, .236, .382, .500, .618, .764, 1., 1.618, 2.618)
+var series int __MTP_TP1_LVL = 0
+var series int __MTP_SL1_LVL = 0
+var series int __MTP_ST1_LVL = 0
+series bool __COND_FULL_CLOSE = false
+// --
+var series int __DUR2 = 2
+var series int __CYC2 = -1
+var series int __TR_STC_TP1_QTY = 100
+var series int __STRAT_START = time
+// --
+var series bool __TRL_TGR = false
+var series bool __TRL_HIT = false
+series float __TR_STC_TP1 = na
+series float __TR_STC_SL1 = na
+series float __TR_TRL_ST1 = na
+// }
+
+// ──── Indicator {
+series float __MOM = ta.mom(close, input(9, 'Momentum Length'))
+series float __RSI = ta.rsi(close, input(14, 'RSI Length'))
+series float __HIGHEST = ta.highest(close, __CH_LOOKBACK)
+series float __LOWEST = ta.lowest(close, __CH_LOOKBACK)
+// }
+
+
+method pct(series float _srcFloat, series float _divisor = close, series bool _normalized = false) =>
+    _srcFloat / _divisor * (_normalized ? 1 : 100)
+method pct(series int _srcInt, series float _divisor = close, series bool _normalized = false) =>
+    float(_srcInt).pct(_divisor, _normalized)
+
+
+//  ▪ STACK: LABELS & LINES ────
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+// ──── Object Stack Helper Functions {
+//
+[xLABEL, fLABEL, xLINE, fLINE, _, _, _, _, _] = objx.init()
+//--
+objx.delete(fLABEL)
+objx.delete(fLINE)
+// }
+
+// ──── Alert Messages {
+//
+[ALERTS_HOOX, ALERTS_TELEGRAM] = hoox.init()
+// }
+
+
+//  ▪ TIMEFRAME ────
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+// ──── Timeframe Helper Functions {
+var series int week_start_day = dayofweek.monday
+var series int new_day_start_time = 0
+f_tf(string _symbol, string _res, float _src, bool _repaint = false) =>
+    request.security(_symbol, _res, _src[_repaint ? 0 : barstate.isrealtime ? 1 : 0])[_repaint ? 0 : barstate.isrealtime ? 0 : 1]
+f_tf_isNewDay() => //hour == new_day_start_time and minute == 0 and second == 0 ? true : false
+    timeframe.change('1D')
+f_tf_isNewWeek() =>
+    dayofweek == week_start_day ? true : false
+f_tf_backtestWindow() =>
+    bool _return = __BACKTEST_RANGE ? time >= __STARTF and time <= __FINISHT ? true : false : true
+    _return
+f_tf_equal(simple string _tf) =>
+    _tf == timeframe.period or _tf == EMPTY
+f_tf_interval(string _int, bool _trade) =>
+    _int == PER_TRADE ? _trade : _int == PER_BAR ? true : _int == EVERY_5M ? minute % 5 == 0 and minute != minute[1] : _int == EVERY_15M ? minute % 15 == 0 and minute != minute[1] : _int == EVERY_30M ? minute % 30 == 0 and minute != minute[1] : false
+    // }
+
+
+//  ▪ ORDERBOOK ─────
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+// ──── Condition {
+series bool __ORX_LONG = orx.isLongPos()
+series bool __ORX_SHORT = orx.isShortPos()
+series bool __ORX_EXEC = strategy.position_size != strategy.position_size[1]
+series bool __ORX_OPEN = orx.isOpen()
+series bool __ORX_CLOSE = not __ORX_OPEN
+series bool __ORX_OPENED = orx.isOpen() and not orx.isOpen()[1]
+series bool __ORX_CLOSED = not __ORX_OPEN and __ORX_OPEN[1]
+// }
+
+// ── Price {
+f_order_openProfit(series float _avgPrice) =>
+    float((__ORX_LONG ? close - _avgPrice : _avgPrice - close) * strategy.position_size)
+f_order_avgPrice(simple string _engine, series float _sum, series float _contracts) =>
+    float(_engine == CUSTOM ? math.abs(_sum / _contracts) : strategy.position_avg_price)
+    // }
+
+
+//  ▪ GRID FUNCTIONS ─────
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+// ── Fixed Grid Wrapper
+//
+// REMINDER: >= <=
+f_grid_fixed(series float _src, simple float _len, series float _rescale) =>
+    float s = _rescale * _len
+    var series float g = math.floor(nz(_src, math.floor(close / s) * s) / s) * s
+    g := _src > g + s ? g + s : _src < g - s ? g - s : g
+    g
+    // }
+
+// ── Chande Momentum Oscilator {
+//
+f_cmo(series float _src, series int _len) =>
+    float mom = ta.change(_src)
+    float upSum = math.sum(math.max(mom, 0), _len)
+    float downSum = math.sum(-math.min(mom, 0), _len)
+    (upSum - downSum) / (upSum + downSum)
+    // }
+
+// ── React MA {
+//
+f_ma_react(series float _src, series int _len, series float _dyn, series float _power, series int _cmoLen) =>
+    var series float v = _src
+    series float cmo = math.abs(f_cmo(_src, _cmoLen))
+    series float alpha = 2 / (_len + 1)
+    v := _src * alpha * cmo + nz(v[1], _src) * (1 - alpha * cmo)
+    series float sumX = 0.
+    series float sumY = 0.
+    series float width = _power / 100 * _dyn
+    for i = 0 to _len - 1 by 1
+        series float w = (1 - math.pow(i / width, 2)) * math.exp(-(i * i / (2 * math.pow(width, 2))))
+        sumY := sumY + w
+        sumX := sumX + v[i] * w
+        sumX
+    sumX / sumY
+    // }
+
+// ── Variable Index Dynamic Average [Ehler, Chande] {
+//
+f_ma_vidya(series float _src, series int _len, series int _cmoLen) =>
+    series float cmo = math.abs(f_cmo(_src, _cmoLen))
+    series float alpha = 2 / (_len + 1)
+    var series float vidya = _src
+    vidya := _src * alpha * cmo + nz(vidya[1], _src) * (1 - alpha * cmo)
+    float(vidya)
+f_ma_vidya(series float _src, series int _len) =>
+    _cmo = ta.cmo(_src, _len) / 100
+    var _factor = 2 / (_len + 1)
+    var series float _vidya = _src
+    _vidya := _src * _factor * math.abs(_cmo) + nz(_vidya[1], _src) * (1 - _factor * math.abs(_cmo))
+    _vidya := _vidya == 0. ? _src : _vidya
+    float(_vidya)
+    // } 
+
+// ── Fibonacci Retracement ──────────────────────────────────────────────────────────────────────────────────────────────────
+
+// ── Function Grid Position {
+//
+f_grid_getPos(series float _src, series float _anker, simple float _devFct, simple int _slices) =>
+    series float min = _anker - _anker * _devFct
+    series float max = _anker + _anker * _devFct
+    series int slices = _slices * 2
+    series float fullrange = max - min
+    series float range_1 = fullrange / slices
+    series float height = math.abs(_src - min)
+    series int raw = math.ceil(height / range_1)
+    raw <= _slices ? raw - (_slices + 1) : raw - _slices
+    // }
+
+// ── Function Grid Retracement {
+//
+f_grid_getFiboRetracement(series int _pos) =>
+    series int currentPos = math.abs(_pos) <= array.size(SERIES_FIBO) - 1 ? math.abs(_pos) : array.size(SERIES_FIBO) - 1
+    float(array.get(SERIES_FIBO, currentPos))
+    // }
+
+// ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+// ──── Helper Functions {
+//
+f_barssince(_cond, _count) =>
+    bar_index - ta.valuewhen(_cond, bar_index, _count)
+f_dist(_src1, _src2) =>
+    series float _dist = math.max(_src1, _src2) - math.min(_src1, _src2)
+    series float _perc = _dist / math.max(_src1, _src2) * 100
+    [_dist, _perc]
+f_amountToAvgDist(_long, _avgPrice, _distFct) =>
+    series float distPrice = not _long ? close * (1 - _distFct) : _long ? close * (1 + _distFct) : 0.
+    series float diffToClose = math.abs(close - distPrice)
+    series float diffToAvg = math.abs(_avgPrice - distPrice)
+    float(math.abs(strategy.position_size) * (diffToAvg / diffToClose))
+f_param_high_volatility(simple int _len1, simple int _len2) =>
+    ta.atr(_len1) > ta.atr(_len2)
+    // }
+
+
+//  ▪ GRID INITIALISATION ────
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+// ──── Source {
+//
+series float __SRC = __SRC_INPUT == SR_VY ? f_ma_vidya(__SRC_EXT, __GRID_REACT_LEN, __GRID_REACT_CMO) : __SRC_INPUT == SR_REACT ? f_ma_react(__SRC_EXT, __GRID_REACT_LEN, __GRID_REACT_DYN, __GRID_REACT_PWR, __GRID_REACT_CMO) : __SRC_EXT
+// --
+__SRC := f_tf_equal(__TF) ? __SRC : f_tf(syminfo.tickerid, __TF, __SRC)
+// --
+series float __SRC_VIDYA = f_ma_vidya(close, __GRID_REACT_LEN, __GRID_REACT_CMO)
+series float __SRC_VIDYA_WEIGHTED = f_ma_vidya(__SRC_EXT, __VDY_LEN_LONG, __VDY_CMO_LONG)
+__SRC_VIDYA_WEIGHTED := f_tf_equal(__TF_BASELINE) ? __SRC_VIDYA_WEIGHTED : f_tf(syminfo.tickerid, __TF_BASELINE, __SRC_VIDYA_WEIGHTED)
+// --
+series bool __ALERT = if __TR_STC_TP1_EXTEND == REACT
+    series bool __REACT_ALERT = ta.cross(__SRC_EXT, __SRC)
+    __REACT_ALERT == false ? __ORX_LONG and __SRC_EXT > __SRC ? true : __ORX_SHORT and __SRC_EXT < __SRC ? true : false : true
+else if __TR_STC_TP1_EXTEND == VIDYA or __TR_STC_TP1_EXTEND == VIDYA_LONG
+    ta.cross(__SRC, __TR_STC_TP1_EXTEND == VIDYA ? __SRC_VIDYA : __SRC_VIDYA_WEIGHTED)
+    // }
+
+// ──── Fibonacci Retracement {
+//
+series int __POS = f_grid_getPos(close, __SRC_VIDYA_WEIGHTED, __VDY_DEV_FCT, __VDY_BANDS_AMOUNT)
+series float __RETRACEMENT = f_grid_getFiboRetracement(math.abs(__POS))
+series float __HTF_CLOSE = f_tf(syminfo.tickerid, __HTF_RES, close)
+// }
+
+
+//  ▪ GRID ────
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+// ──── Calculation {
+//
+series float __GRID_RESCALE_VALUE = switch __GRID_RESCALE
+    MINTICK => syminfo.mintick
+    PERCENT => close / 100
+    PERCENT_HTF => __HTF_CLOSE / 100
+    ATR => ta.atr(100)
+__GRID := f_grid_fixed(__SRC, __GRID_SCALE, __GRID_RESCALE_VALUE)
+series float __GRID_SIZE = __GRID_SCALE * __GRID_RESCALE_VALUE
+series float __GRID_SIZE_PCT = __GRID_SIZE / close * 100
+// }
+
+// ──── Condition {
+//
+series int __SINCE_LONG = f_barssince(__GRID_LONG, 0)
+series int __SINCE_SHORT = f_barssince(__GRID_SHORT, 0)
+series int __SINCE_TRL = f_barssince(__TRL_HIT, 0)
+series int __SINCE_ZERO = f_barssince(strategy.position_size == 0, 0)
+series int __SINCE_LAST = math.min(__SINCE_LONG, __SINCE_SHORT, __SINCE_TRL)
+series int __SINCE_START = strategy.position_size != 0 ? __SINCE_ZERO : 0
+// --
+__SIGNAL := __GRID > __GRID[1] ? -1 : __GRID < __GRID[1] ? 1 : 0
+__CONDITION := __GRID > __GRID[1] ? -1 : __GRID < __GRID[1] ? 1 : __CONDITION
+__GRID_LONG := __SIGNAL == 1
+__GRID_SHORT := __SIGNAL == -1
+__GRID_FLAT := __SIGNAL == 0
+// }
+
+// ──── Counter {
+//
+var series int __GRID_CTR_LONG = 1
+var series int __GRID_CTR_SHORT = 1
+var series int __GRID_CTR = 1
+// --
+__GRID_CTR_LONG := __GRID_LONG[1] ? __GRID_CTR_LONG + 1 : __GRID_SHORT[1] or strategy.position_size == 0 ? 1 : __GRID_CTR_LONG
+__GRID_CTR_SHORT := __GRID_SHORT[1] ? __GRID_CTR_SHORT + 1 : __GRID_LONG[1] or strategy.position_size == 0 ? 1 : __GRID_CTR_SHORT
+__GRID_CTR := __GRID_LONG[1] or __GRID_SHORT[1] ? __GRID_CTR + 1 : strategy.position_size == 0 ? 1 : __GRID_CTR
+// }
+
+
+//  ▪ TREND
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+// ──── Long-Term Trend {
+//
+series bool __TREND_UP = __SRC > __SRC_VIDYA_WEIGHTED
+series bool __TREND_DOWN = __SRC <= __SRC_VIDYA_WEIGHTED
+series float __TREND = __TREND_UP ? 1 : __TREND_DOWN ? -1 : 0
+series float __TREND_DIFF = math.abs(__SRC_VIDYA_WEIGHTED - __SRC)
+series bool __TREND_RISING = ta.rising(__SRC_VIDYA_WEIGHTED, 7)
+series bool __TREND_FALLING = ta.falling(__SRC_VIDYA_WEIGHTED, 7)
+series bool __TREND_FLAT = not __TREND_RISING and not __TREND_FALLING
+// }
+
+
+//  ▪ ORDER MANAGEMENT ────
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+// ──── Asset Management {
+//
+series float __CAPITAL = __TR_CL_BASE == EQUITY ? strategy.equity : __TR_CL_BASE == INITIAL ? strategy.initial_capital : strategy.initial_capital + strategy.netprofit
+series float __MAX_MARGIN = __CAPITAL * (__TR_LEV - 1)
+series float __MAX_CAPITAL = __CAPITAL + __MAX_MARGIN
+// --
+series float __QTY_FULL_ABS = math.abs(strategy.position_size)
+// --
+series float __MARGIN_USED_PCT = 0.
+var series float __MAX_ORX = Pyramiding
+if __QTY_FULL_ABS * close > strategy.equity
+    series float sumOverEquity = __QTY_FULL_ABS * close - strategy.equity
+    __MARGIN_USED_PCT := sumOverEquity / __MAX_MARGIN * 100
+    __MARGIN_USED_PCT
+var series float __MAX_MARGIN_USED_PCT = 0
+__MAX_MARGIN_USED_PCT := math.max(__MARGIN_USED_PCT, __MAX_MARGIN_USED_PCT)
+// --
+series float __MARKET_VALUE = __ORX_AVG_PRICE * syminfo.pointvalue * __QTY_FULL_ABS
+series float __MARGIN_MAINTENANCE = __MARKET_VALUE * MaintenanceMarginPct / 100
+series float __MARGIN_RATIO_PCT = __MARGIN_MAINTENANCE / (strategy.equity - __MARGIN_MAINTENANCE) * 100
+// --
+series float __MAX_CTX = __MAX_CAPITAL / close
+series float __MAX_CTX_USED_PCT = math.abs(strategy.max_contracts_held_all) / __MAX_CTX * 100
+series float __CTX_USED_PCT = __QTY_FULL_ABS / __MAX_CTX * 100
+var series int __MAX_ORX_USED = 0
+__MAX_ORX_USED := math.max(strategy.opentrades, __MAX_ORX_USED)
+// --
+__ORX_OPEN_PROFIT := f_order_openProfit(__ORX_AVG_PRICE)
+// --
+var series float __HIGHEST_OPENPROFIT = 0
+__HIGHEST_OPENPROFIT := math.max(nz(__ORX_OPEN_PROFIT, 0), __HIGHEST_OPENPROFIT)
+var series float __HIGHEST_OPENLOSS = 0
+__HIGHEST_OPENLOSS := math.min(nz(__ORX_OPEN_PROFIT, 0), __HIGHEST_OPENLOSS)
+// -- Singleton Tulip Contracts Start Instance
+series float __CTX_START = switch __TR_RISK_MGM
+    CUSTOM => __CAPITAL / close * (__TR_RISK / 100) * __TR_LEV
+    CLASSIC => __CAPITAL * (__TR_RISK / 100) * (100 / __TR_SL_PCT) / close
+    // --
+series float __CTX_LONG = __CTX_START
+series float __CTX_SHORT = __CTX_START
+// }
+
+// ──── Equity Stop-Loss/Liquidation Warning { 
+//
+series float __WALLET = __TR_CL_BASE == EQUITY ? strategy.equity : __TR_CL_BASE == INITIAL ? strategy.initial_capital : strategy.initial_capital + strategy.netprofit
+series float __WALLET_SP = __WALLET - __MARGIN_MAINTENANCE
+series float __SL_SUM = __WALLET_SP * (__TR_SL_PCT / 100)
+//--
+series float __LQ_PRICE = __ORX_LONG ? __ORX_AVG_PRICE - __WALLET_SP / strategy.position_size : __ORX_SHORT ? __ORX_AVG_PRICE + __WALLET_SP / __QTY_FULL_ABS : 0.
+[__LQ_DIFF, __LQ_DIFF_PCT] = f_dist(close, __LQ_PRICE)
+//--
+series float __SL_PRICE = __ORX_LONG ? __ORX_AVG_PRICE - __SL_SUM / strategy.position_size : __ORX_SHORT ? __ORX_AVG_PRICE + __SL_SUM / __QTY_FULL_ABS : 0.
+//--
+__LQ_PRICE := __LQ_PRICE < 0 ? float(na) : __LQ_PRICE
+__SL_PRICE := __SL_PRICE < 0 ? float(na) : __SL_PRICE
+//--
+series float __SL_USED_PCT = __ORX_OPEN_PROFIT < 0 ? math.round(math.abs(__ORX_OPEN_PROFIT) / __SL_SUM * 100, 2) : 0.
+var series float __MAX_SL_USED_PCT = 0.
+__MAX_SL_USED_PCT := math.max(__SL_USED_PCT, __MAX_SL_USED_PCT)
+series int __SL_WARN_LVL = math.ceil(__SL_USED_PCT / 20)
+series int __MARGIN_WARN_LVL = math.ceil(__MARGIN_USED_PCT / 10)
+// }
+
+
+//  ▪ ATS TRAILING ────
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+//| @before [STATIC/TRAILING TAKE PROFIT]
+
+// ──── Adaptive Trailing Stop {
+//
+calculateATS(series float _src, series int _len, simple float _factor, series bool _adaptive, series bool _smooth) =>
+    // --
+    series float atsX = 0.
+    series float atsY = 0.
+    series float atsOs = 0.
+    series float atsUp = 0.
+    series float atsDown = 0.
+    // --
+    series float atsCalc = _adaptive ? math.pow(math.abs(ta.change(_src, _len)) / math.sum(math.abs(ta.change(_src)), _len), _factor) : 1 / _len
+    atsX := math.max(_src, nz(atsX[1], _src)) - math.abs(_src - nz(atsX[1], _src)) * atsCalc
+    atsY := math.min(_src, nz(atsY[1], _src)) + math.abs(_src - nz(atsY[1], _src)) * atsCalc
+    atsUp := atsX > atsX[1] ? atsX : atsX < atsX[1] and atsY < atsY[1] ? atsX : atsUp
+    atsDown := atsY < atsY[1] ? atsY : atsY > atsY[1] and atsX > atsX[1] ? atsY : atsDown
+    // --
+    series bool crossX = ta.cross(_smooth ? atsX : atsUp, _src)
+    series bool crossY = ta.cross(_smooth ? atsY : atsDown, _src)
+    atsOs := crossX ? 1 : crossY ? 0. : atsOs[1]
+    series float atsTs = atsOs * (_smooth ? atsY : atsDown) + (1 - atsOs) * (_smooth ? atsX : atsUp)
+    series bool alertLong = ta.crossover(_src, atsTs)
+    series bool alertShort = ta.crossunder(_src, atsTs)
+    series bool alert = alertLong or alertShort
+    // >>
+    [alert, alertLong, alertShort, atsTs]
+    // --
+[__ATS_ALERT, __ATS_ALERT_LONG, __ATS_ALERT_SHORT, __ATS_TS] = calculateATS(close, __ATS_LEN, __ATS_FCT, __ATS_ADAPTIV, __ATS_SMOOTH)
+// }
+
+
+//  ▪ STATIC/TRAILING TAKE PROFIT ────
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+// ──── Multi-Level Inputs {
+//
+series bool __ON_RESET_TRAIL = __SINCE_TRL >= __TR_STC_TP1_RESET_FROM and __TR_STC_TP1_RESET_FROM > 0
+__MTP_TP1_LVL := __ON_RESET_TRAIL ? 0 : __MTP_TP1_LVL
+// --
+// Validate input strings are not empty before parsing
+if str.length(__TR_STC_TP1_STRING) == 0 or str.length(__TR_STC_TP1_QTY_STRING) == 0
+    runtime.error('Take Profit settings cannot be empty!')
+    // --
+var series array<string> TP1 = str.split(__TR_STC_TP1_STRING, '|')
+var series array<string> TP1_QTY = str.split(__TR_STC_TP1_QTY_STRING, '|')
+var series array<string> TP1_EXT = str.split(__TR_STC_TP1_EXT_STRING, '|')
+__TR_STC_TP1 := array.size(TP1) > 0 and __MTP_TP1_LVL < array.size(TP1) ? str.tonumber(array.get(TP1, __MTP_TP1_LVL)) : nz(__TR_STC_TP1, 2)
+__TR_STC_TP1_QTY := array.size(TP1_QTY) <= 1 or __MTP_TP1_LVL + 1 == array.size(TP1_QTY) ? 100 : int(str.tonumber(array.get(TP1_QTY, math.min(__MTP_TP1_LVL, array.size(TP1_QTY) - 1))))
+series bool __TR_STC_TP1_EXT = array.size(TP1_EXT) > 0 and __MTP_TP1_LVL < array.size(TP1_EXT) ? int(str.tonumber(array.get(TP1_EXT, __MTP_TP1_LVL))) == 1 ? true : false : true
+// --
+var series array<string> SL1 = str.split(__TR_STC_SL1_STRING, '|')
+var series array<string> SL1_QTY = str.split(__TR_STC_SL1_QTY_STRING, '|')
+__TR_STC_SL1 := array.size(SL1) > 0 and __MTP_SL1_LVL < array.size(SL1) ? str.tonumber(array.get(SL1, __MTP_SL1_LVL)) : nz(__TR_STC_SL1, 2)
+series float __TR_STC_SL1_QTY = array.size(SL1_QTY) <= 1 or __MTP_SL1_LVL + 1 == array.size(SL1_QTY) ? 100 : int(str.tonumber(array.get(SL1_QTY, math.min(__MTP_SL1_LVL, array.size(SL1_QTY) - 1))))
+// --
+var series array<string> TRL1 = str.split(__TR_TRL_ST1_STRING, '|')
+var series array<string> TRL1_QTY = str.split(__TR_TRL_ST1_QTY_STRING, '|')
+__TR_TRL_ST1 := array.size(TRL1) > 0 and __MTP_ST1_LVL < array.size(TRL1) ? str.tonumber(array.get(TRL1, __MTP_ST1_LVL)) : nz(__TR_TRL_ST1, 2)
+series float __TR_TRL_ST1_QTY = array.size(TRL1_QTY) <= 1 or __MTP_ST1_LVL + 1 == array.size(TRL1_QTY) ? 100 : int(str.tonumber(array.get(TRL1_QTY, math.min(__MTP_ST1_LVL, array.size(TRL1_QTY) - 1))))
+// }
+
+// ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+// ──── Static Trailing Take Minimum-Low Profits {
+//
+var series bool __TR_RLZ_LW1_START_TGD = false
+series bool __TR_RLZ_LW1_MIN_HIT = false
+// --
+series float __TR_RLZ_LW1_ADD = __TR_RLZ_LW1_ON and __TR_RLZ_LW1_JST ? __MTP_TP1_LVL == 1 ? str.tonumber(array.get(TP1, 1)) : __MTP_TP1_LVL > 1 ? str.tonumber(array.get(TP1, __MTP_TP1_LVL)) - str.tonumber(array.get(TP1, __MTP_TP1_LVL - 1)) : 0 : 0
+series float __TR_RLZ_LW1_START_WR = __TR_RLZ_LW1_START + __TR_RLZ_LW1_ADD
+series float __TR_RLZ_LW1_MIN_WR = __TR_RLZ_LW1_MIN + __TR_RLZ_LW1_ADD
+// --
+series float __TR_RLZ_LW1_START_VALUE = __ORX_LONG ? __ORX_AVG_PRICE * (1 + __TR_RLZ_LW1_START_WR / 100) : __ORX_AVG_PRICE * (1 - __TR_RLZ_LW1_START_WR / 100)
+series float __TR_RLZ_LW1_MIN_VALUE = __ORX_LONG ? __ORX_AVG_PRICE * (1 + __TR_RLZ_LW1_MIN_WR / 100) : __ORX_AVG_PRICE * (1 - __TR_RLZ_LW1_MIN_WR / 100)
+// --
+__TR_RLZ_LW1_START_TGD := __TR_RLZ_LW1_ON and __TR_RLZ_LW1_START_TGD == false and math.max(__GRID_CTR_LONG, __GRID_CTR_SHORT) >= __TR_RLZ_LW1_START_FROM ? __ORX_LONG and close > __TR_RLZ_LW1_START_VALUE ? true : __ORX_SHORT and close < __TR_RLZ_LW1_START_VALUE ? true : false : __TR_RLZ_LW1_START_TGD
+// --
+__TR_RLZ_LW1_START_TGD := __MTP_TP1_LVL != __MTP_TP1_LVL[1] ? false : __TR_RLZ_LW1_START_TGD
+__TR_RLZ_LW1_MIN_HIT := __TR_RLZ_LW1_ON and __TR_RLZ_LW1_START_TGD and math.max(__GRID_CTR_LONG, __GRID_CTR_SHORT) >= __TR_RLZ_LW1_START_FROM ? __ORX_LONG and close < __TR_RLZ_LW1_MIN_VALUE ? true : __ORX_SHORT and close > __TR_RLZ_LW1_MIN_VALUE ? true : false : false
+if __TR_RLZ_LW1_MIN_HIT
+    __DESC_STRING := 'RL'
+    __DESC_STRING
+    // }
+
+// ──── Static-Trailing Take Profit {
+//
+series float __STC_TP1 = na
+series bool __STC_TP1_HIT = false
+series bool __STC_TP1_TGR = false
+// --
+if __TR_STC_TP1_ON and orx.isOpen()
+    __STC_TP1 := __ORX_LONG ? __ORX_AVG_PRICE * (1 + __TR_STC_TP1 / 100) : __ORX_AVG_PRICE * (1 - __TR_STC_TP1 / 100)
+    __STC_TP1_TGR := __ORX_LONG ? close > __STC_TP1 : __ORX_SHORT ? close < __STC_TP1 : false
+    if __STC_TP1_TGR
+        __STC_TP1_HIT := (__ORX_LONG or __ORX_SHORT) and __GRID_CTR >= __TR_STC_TP1_START_FROM ? __TR_STC_TP1_EXTEND == ATS and __TR_STC_TP1_EXT ? (__ORX_LONG and __ATS_ALERT_SHORT or __ORX_SHORT and __ATS_ALERT_LONG) and __STC_TP1_TGR : __TR_STC_TP1_EXTEND == REACT or __TR_STC_TP1_EXTEND == VIDYA or __TR_STC_TP1_EXTEND == VIDYA_LONG and __TR_STC_TP1_EXT ? __ALERT and __STC_TP1_TGR : __STC_TP1_TGR : false
+        __STC_TP1_HIT
+    if __STC_TP1_HIT
+        __DESC_STRING := 'TP'
+        __DESC_STRING
+        // }
+
+// ──── Static-Trailing Stop-Loss {
+//
+series float __STC_SL1 = na
+series bool __STC_SL1_HIT = false
+series bool __STC_SL1_TGR = false
+// --
+if __TR_STC_SL1_ON and orx.isOpen()
+    __STC_SL1 := __ORX_LONG ? __ORX_AVG_PRICE * (1 - __TR_STC_SL1 / 100) : __ORX_AVG_PRICE * (1 + __TR_STC_SL1 / 100)
+    __STC_SL1_TGR := __ORX_LONG ? close < __STC_SL1 : __ORX_SHORT ? close > __STC_SL1 : false
+    if __STC_SL1_TGR
+        __STC_SL1_HIT := (__ORX_LONG or __ORX_SHORT) and __GRID_CTR >= __TR_STC_SL1_START_FROM ? __TR_STC_TP1_EXTEND == REACT or __TR_STC_TP1_EXTEND == VIDYA or __TR_STC_TP1_EXTEND == VIDYA_LONG ? __ALERT and __STC_SL1_TGR : __STC_SL1_TGR : false
+        __STC_SL1_HIT
+    if __STC_SL1_HIT
+        __DESC_STRING := 'SL'
+        __DESC_STRING
+        // }
+
+// ──── Trailing Stop {
+//
+var series array<float> TRL_SRC = array.new_float(0, 0.)
+series float __TRL_ST1 = na
+series bool __TRL_ST1_HIT = false
+// --
+if __TR_TRL_ST1_ON and orx.isOpen()
+    array.push(TRL_SRC, __TR_TRL_ST1_SRC == SR_HL and __ORX_LONG ? high : __TR_TRL_ST1_SRC == SR_HL and __ORX_SHORT ? low : __TR_TRL_ST1_SRC == OHLC4 ? ohlc4 : close)
+    if __TR_TRL_ST1_ONLY_PROFIT and (__ORX_LONG and close < __ORX_AVG_PRICE or __ORX_SHORT and close > __ORX_AVG_PRICE)
+        array.clear(TRL_SRC)
+    __TRL_ST1 := __ORX_LONG and close > __ORX_AVG_PRICE ? array.max(TRL_SRC) * (1 - __TR_TRL_ST1 / 100) : __ORX_SHORT and close < __ORX_AVG_PRICE ? array.min(TRL_SRC) * (1 + __TR_TRL_ST1 / 100) : float(na)
+    __TRL_ST1_HIT := (__ORX_LONG or __ORX_SHORT) and __GRID_CTR >= __TR_STC_TP1_START_FROM ? __ORX_LONG and close < __TRL_ST1 ? true : __ORX_SHORT and close > __TRL_ST1 ? true : false : false
+    if __TRL_ST1_HIT
+        __DESC_STRING := 'ST'
+        __DESC_STRING
+        // }
+
+// ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+// {
+__TRL_TGR := __TR_STC_TP1_ON and __STC_TP1_TGR or __TR_STC_SL1_ON and __STC_SL1_TGR
+__TRL_HIT := __TR_STC_TP1_ON and __STC_TP1_HIT and not __STC_TP1_HIT[1] or __TR_TRL_ST1_ON and __TRL_ST1_HIT and not __TRL_ST1_HIT[1] or __TR_STC_SL1_ON and __STC_SL1_HIT and not __STC_SL1_HIT[1]
+// }
+
+
+//  ▪ CONDITION - ADJUSTMENT  ────
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+// **
+// -- LEGEND
+// *  (G)   Grid = Need Grid Long or SHort
+// *  (I)   Injection = Extra action
+// *  (P)   Prevent = Disables Post-Calculation
+// *  (FC)  Full Close
+// *  (RS)  Resize Contracts
+// *  (S)   State Change
+// *  (Z)   Position Size Zero
+
+
+// ── Trend Multiplikator
+if __CALC_CF_ON
+    __CTX_LONG := __TREND_DOWN ? __CTX_LONG * __CALC_CF_UP : __CTX_LONG * __CALC_CF_DW
+    __CTX_SHORT := __TREND_UP ? __CTX_SHORT * __CALC_CF_UP : __CTX_SHORT * __CALC_CF_DW
+    __CTX_SHORT
+
+
+// ── Kelly Ratio (RS) {
+//
+if __TR_KELLY_R
+    __CTX_LONG := __CTX_LONG * orx.kellyRatio()
+    __CTX_SHORT := __CTX_SHORT * orx.kellyRatio()
+    __CTX_SHORT
+    // }
+
+// ── Exit Soft (G)(P)(I) {
+//
+if __TR_MAX_ORX_EXIT_SOFT > 0 and math.max(__GRID_CTR_LONG, __GRID_CTR_SHORT) >= __TR_MAX_ORX_EXIT_SOFT and __ORX_SHORT and __GRID_LONG
+    __GRID_LONG := true
+    __INJECTION := true
+    __PREVENT := true
+    __CTX_LONG := __QTY_FULL_ABS * .66
+    __DESC_STRING := 'EX'
+    __DESC_STRING
+if __TR_MAX_ORX_EXIT_SOFT > 0 and math.max(__GRID_CTR_LONG, __GRID_CTR_SHORT) >= __TR_MAX_ORX_EXIT_SOFT and __ORX_LONG and __GRID_SHORT
+    __GRID_SHORT := true
+    __INJECTION := true
+    __PREVENT := true
+    __CTX_SHORT := __QTY_FULL_ABS * .66
+    __DESC_STRING := 'EX'
+    __DESC_STRING
+    // }
+
+// ── Exit Hard (P)(FC) {
+//
+if __TR_MAX_ORX_EXIT_HARD > 0 and math.max(__GRID_CTR_LONG, __GRID_CTR_SHORT) >= __TR_MAX_ORX_EXIT_HARD and __ORX_SHORT and close <= __ORX_AVG_PRICE - __ORX_AVG_PRICE * __TR_MAX_ORX_EXIT_THS and not __GRID_LONG and __TREND_UP
+    __GRID_LONG := true
+    __GRID_SHORT := false
+    __COND_FULL_CLOSE := true
+    __CTX_LONG := __QTY_FULL_ABS
+    __PREVENT := true
+    __DESC_STRING := 'EX!'
+    __DESC_STRING
+if __TR_MAX_ORX_EXIT_HARD > 0 and math.max(__GRID_CTR_LONG, __GRID_CTR_SHORT) >= __TR_MAX_ORX_EXIT_HARD and __ORX_LONG and close >= __ORX_AVG_PRICE + __ORX_AVG_PRICE * __TR_MAX_ORX_EXIT_THS and not __GRID_SHORT and __TREND_DOWN
+    __GRID_SHORT := true
+    __GRID_LONG := false
+    __COND_FULL_CLOSE := true
+    __CTX_SHORT := __QTY_FULL_ABS
+    __PREVENT := true
+    __DESC_STRING := 'EX!'
+    __DESC_STRING
+    // }
+
+// ── Reverse (S)(RS)(I)(P) {
+//
+if __VDY_LOCK_LONG and __GRID_LONG and __GRID >= __SRC_VIDYA_WEIGHTED and __VDY_REV_LONG_TO_SHORT and strategy.position_size == 0
+    __CTX_SHORT := __CTX_SHORT * __VDY_REVERSE_CTX_FCT
+    __CTX_LONG := 0
+    __GRID_SHORT := true
+    __GRID_LONG := false
+    __INJECTION := true
+    __PREVENT := true
+    __DESC_STRING := REVERSED
+    __DESC_STRING
+    // --
+if __VDY_LOCK_SHORT and __GRID_SHORT and __GRID <= __SRC_VIDYA_WEIGHTED and __VDY_REV_SHORT_TO_LONG and strategy.position_size == 0
+    __CTX_LONG := __CTX_LONG * __VDY_REVERSE_CTX_FCT
+    __CTX_SHORT := 0
+    __GRID_LONG := true
+    __GRID_SHORT := false
+    __PREVENT := true
+    __INJECTION := true
+    __DESC_STRING := REVERSED
+    __DESC_STRING
+    // }
+
+// ── Buy-Back / Sell-Back #1 (S)(RS)(I)(P) { *
+//
+if __VDY_RELOAD_LONG and __TREND_UP and __TREND_RISING and strategy.position_size == 0 and __SINCE_LAST >= 5 and close > __SRC_VIDYA_WEIGHTED and close <= __SRC_VIDYA_WEIGHTED * (1 + __VDY_RELOAD_ZONE_FCT / 100) and not __GRID_SHORT
+    __GRID_LONG := true
+    __GRID_SHORT := false
+    __INJECTION := true
+    __DESC_STRING := 'BB'
+    __CTX_LONG := __CTX_LONG * __VDY_RELOAD_CTX_FCT
+    __PREVENT := true
+    __PREVENT
+if __VDY_RELOAD_SHORT and __TREND_DOWN and __TREND_FALLING and strategy.position_size == 0 and __SINCE_LAST >= 5 and close < __SRC_VIDYA_WEIGHTED and close >= __SRC_VIDYA_WEIGHTED * (1 - __VDY_RELOAD_ZONE_FCT / 100) and not __GRID_LONG
+    __GRID_SHORT := true
+    __GRID_LONG := false
+    __INJECTION := true
+    __DESC_STRING := 'SB'
+    __CTX_SHORT := __CTX_SHORT * __VDY_RELOAD_CTX_FCT
+    __PREVENT := true
+    __PREVENT
+    // }
+
+// ── Buy-Back / Sell-Back #2 (S)(RS)(I)(P) { *
+//
+if __VDY_RELOAD_LONG2 and __TREND_DOWN and __TREND_RISING and strategy.position_size == 0 and __SINCE_LAST >= __TR_BB_SINCE_LAST and f_barssince(ta.crossover(close, __SRC_VIDYA), 0) >= __TR_BB_SINCE_LAST_X and not __GRID_SHORT and not __PREVENT
+    __GRID_LONG := true
+    __GRID_SHORT := false
+    __INJECTION := true
+    __DESC_STRING := 'BB2'
+    __CTX_LONG := __CTX_LONG * __VDY_RELOAD_CTX_FCT
+    __PREVENT := true
+    __PREVENT
+if __VDY_RELOAD_SHORT2 and __TREND_UP and __TREND_FALLING and strategy.position_size == 0 and __SINCE_LAST >= __TR_BB_SINCE_LAST and f_barssince(ta.crossunder(close, __SRC_VIDYA), 0) >= __TR_BB_SINCE_LAST_X and not __GRID_LONG and not __PREVENT
+    __GRID_SHORT := true
+    __GRID_LONG := false
+    __INJECTION := true
+    __DESC_STRING := 'SB2'
+    __CTX_SHORT := __CTX_SHORT * __VDY_RELOAD_CTX_FCT
+    __PREVENT := true
+    __PREVENT
+    // }
+
+// ── Channel (S)(I) {
+//
+var series bool __CH_UPPER_TRG = false
+var series bool __CH_LOWER_TRG = false
+__CH_LOWER_TRG := __CH_LOWER_ON ? __CH_NOT_OPEN_LONG and strategy.position_size == 0 or __CH_UPPER_TRG ? false : __CH_LOWER_TRG == false and close < __LOWEST[1] * ((100 + __CH_LOWER_TRL) / 100) and (__SINCE_LAST >= __CH_LOCK or __SINCE_LAST < __CH_LOCK and __CH_UPPER_TRG) and __RSI <= __CH_OB ? true : false : false
+__CH_UPPER_TRG := __CH_HIGHER_ON ? __CH_NOT_OPEN_SHORT and strategy.position_size == 0 or __CH_LOWER_TRG ? false : __CH_UPPER_TRG == false and close > __HIGHEST[1] * ((100 - __CH_HIGHER_TRL) / 100) and (__SINCE_LAST >= __CH_LOCK or __SINCE_LAST < __CH_LOCK and __CH_LOWER_TRG) and __RSI >= __CH_OS ? true : false : false
+if __CH_UPPER_TRG
+    __GRID_SHORT := true
+    __DESC_STRING := 'UCH'
+    __DESC_STRING
+if __CH_LOWER_TRG
+    __GRID_LONG := true
+    __DESC_STRING := 'LCH'
+    __DESC_STRING
+    // }
+
+
+// ── Fibonacci-Retracement Level (RS) {
+//
+if __VDY_FIBO_ON
+    __CTX_LONG := __CTX_LONG * (1 + __RETRACEMENT)
+    __CTX_SHORT := __CTX_SHORT * (1 + __RETRACEMENT)
+    __CTX_SHORT
+    // }
+
+// ──── Martingale Exponent (G)(RS) {
+//
+if __GRID_LONG or __GRID_SHORT
+    __MTG := __MTG_RESET_ON_OPPOSITE and (__ORX_LONG and __GRID_SHORT or __ORX_SHORT and __GRID_LONG) or __MTG_RESET_ON_TRAIL and __TRL_HIT ? __MTG_START : math.max(__GRID_CTR_SHORT, __GRID_CTR_LONG) >= __MTG_START_FROM ? math.max(__GRID_CTR_SHORT, __GRID_CTR_LONG) == __MTG_START_FROM ? __MTG_START * __MTG_STEP : __MTG_MODE == POSITION ? nz(__MTG, __MTG_START) * __MTG_STEP : nz(__MTG, __MTG_START) + nz(__MTG, __MTG_START) * __MTG_STEP : __MTG_BEFORE_START
+    __MTG
+__MTG := math.min(__MTG, __MTG_MAX) // Ensure MTG never exceeds maximum
+// --
+if __MTG_ON
+    __CTX_LONG := __CTX_LONG * __MTG
+    __CTX_SHORT := __CTX_SHORT * __MTG
+    __CTX_SHORT
+    // }
+
+
+// ----------------------------------------------------------------------------------------------------------------------------------------
+//  ▪ CONTRACTS - FORCEABLE POST-CALCULATION  ────
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+// ── Baseline Locking (L) {
+//
+if __VDY_LOCK_LONG and __GRID_LONG and close >= __SRC_VIDYA_WEIGHTED and not __INJECTION and not __TRL_HIT and not __ORX_SHORT
+    __GRID_LONG := false
+    __CTX_LONG := 0.
+    __DESC_STRING := 'PR'
+    __LOCKED := true
+    __LOCKED
+if __VDY_LOCK_SHORT and __GRID_SHORT and close <= __SRC_VIDYA_WEIGHTED and not __INJECTION and not __TRL_HIT and not __ORX_LONG
+    __GRID_SHORT := false
+    __CTX_SHORT := 0.
+    __DESC_STRING := 'PR'
+    __LOCKED := true
+    __LOCKED
+    // --
+if __VDY_LOCK_LONG2 and __GRID_LONG and __GRID >= __SRC_VIDYA_WEIGHTED and not __INJECTION and not __TRL_HIT and not __ORX_SHORT
+    __GRID_LONG := false
+    __CTX_LONG := 0.
+    __DESC_STRING := 'GR'
+    __LOCKED := true
+    __LOCKED
+if __VDY_LOCK_SHORT2 and __GRID_SHORT and __GRID <= __SRC_VIDYA_WEIGHTED and not __INJECTION and not __TRL_HIT and not __ORX_LONG
+    __GRID_SHORT := false
+    __CTX_SHORT := 0.
+    __DESC_STRING := 'GR'
+    __LOCKED := true
+    __LOCKED
+    // }
+
+// ── No Negativ Trades (L) * {
+//
+if __CALC_NO_NEGATIVE and (not __TRL_HIT and not __PREVENT or (__TRL_HIT or __PREVENT) and __FRC_NO_NEGATIVE)
+    if __GRID_LONG and __ORX_LONG and close >= __ORX_AVG_PRICE
+        __CTX_LONG := 0.
+        __GRID_LONG := false
+        __LOCKED := true
+        __DESC_STRING := 'NN'
+        __DESC_STRING
+    if __GRID_SHORT and __ORX_SHORT and close <= __ORX_AVG_PRICE
+        __CTX_SHORT := 0.
+        __GRID_SHORT := false
+        __LOCKED := true
+        __DESC_STRING := 'NN'
+        __DESC_STRING
+        // }
+
+// ── No Losing Trades (L) * {
+//
+if __CALC_NO_LOSING and (not __TRL_HIT and not __PREVENT or (__TRL_HIT or __PREVENT) and __FRC_NO_LOSING)
+    if __GRID_LONG and __ORX_SHORT and close >= __ORX_AVG_PRICE
+        __CTX_LONG := 0.
+        __GRID_LONG := false
+        __DESC_STRING := 'NL'
+        __DESC_STRING
+    if __GRID_SHORT and __ORX_LONG and close <= __ORX_AVG_PRICE
+        __CTX_SHORT := 0
+        __GRID_SHORT := false
+        __DESC_STRING := 'NL'
+        __DESC_STRING
+        // }
+
+// ──── Filter {
+//
+if not __TRL_HIT and not __PREVENT
+    // -- Filter #3: Only Best Trades *
+    if __CALC_COMPARE and __LAST_ENTRY != 0 and __GRID_LONG and __ORX_LONG and close >= __LAST_ENTRY * (1 - __TR_MIN_DIST / 100)
+        __CTX_LONG := 0
+        __GRID_LONG := false
+        __DESC_STRING := 'OB'
+        __DESC_STRING
+    if __CALC_COMPARE and __LAST_ENTRY != 0 and __GRID_SHORT and __ORX_SHORT and close <= __LAST_ENTRY * (1 + __TR_MIN_DIST / 100)
+        __CTX_SHORT := 0
+        __GRID_SHORT := false
+        __DESC_STRING := 'OB'
+        __DESC_STRING
+
+    // -- Filter #4: Disabled Retracement Level (Z)
+    if __GRID_LONG and __VDY_FIBO_LONG_DIS != 0 and __POS >= __VDY_FIBO_LONG_DIS and strategy.position_size == 0 and __POS < 0
+        __CTX_LONG := 0.
+        __GRID_LONG := false
+        __LOCKED := true
+        __DESC_STRING := 'RT'
+        __DESC_STRING
+    if __GRID_SHORT and __VDY_FIBO_SHORT_DIS != 0 and __POS <= __VDY_FIBO_SHORT_DIS and strategy.position_size == 0 and __POS > 0
+        __CTX_SHORT := 0.
+        __GRID_SHORT := false
+        __LOCKED := true
+        __DESC_STRING := 'RT'
+        __DESC_STRING
+
+    // -- Filter #5: Not Open Long/Short (Z)
+    if strategy.position_size == 0 and __GRID_LONG and __TR_NOT_OPEN_LONG
+        __GRID_LONG := false
+        __LOCKED := true
+        __DESC_STRING := 'X'
+        __DESC_STRING
+    if strategy.position_size == 0 and __GRID_SHORT and __TR_NOT_OPEN_SHORT
+        __GRID_SHORT := false
+        __LOCKED := true
+        __DESC_STRING := 'X'
+        __DESC_STRING
+        // }
+
+
+//  ▪  ────
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+// ── {
+//
+series bool __MBB_ERROR = __ORX_OPEN and __SINCE_START > 4990
+var series int __ORX_MAX_LENGTH = na
+__ORX_MAX_LENGTH := math.max(__ORX_MAX_LENGTH, __SINCE_START)
+// --
+__GRID_LONG := __GRID_LONG and __CTX_LONG == 0 ? false : __GRID_LONG
+__GRID_SHORT := __GRID_SHORT and __CTX_SHORT == 0 ? false : __GRID_SHORT
+// --
+series float __QTY_TRL = __TR_STC_TP1_QTY * __QTY_FULL_ABS / 100
+series float __QTY_RED = __TR_REDUCE_PCT * __QTY_FULL_ABS / 100
+// -- Trailing
+__CTX_LONG := __TRL_HIT ? __QTY_TRL : __CTX_LONG
+__CTX_SHORT := __TRL_HIT ? __QTY_TRL : __CTX_SHORT
+// -- Stop-Loss Reduce
+__CTX_LONG := __TR_REDUCE_PCT > 0 and __SL_USED_PCT >= __TR_SL_PCT ? __QTY_RED : __CTX_LONG
+__CTX_SHORT := __TR_REDUCE_PCT > 0 and __SL_USED_PCT >= __TR_SL_PCT ? __QTY_RED : __CTX_SHORT
+// -- 
+__CTX_LONG := __COND_FULL_CLOSE ? __QTY_FULL_ABS : __CTX_LONG
+__CTX_SHORT := __COND_FULL_CLOSE ? __QTY_FULL_ABS : __CTX_SHORT
+// --
+__COND_FULL_CLOSE := __MBB_ERROR ? true : __COND_FULL_CLOSE
+__DESC_STRING := __MBB_ERROR ? '>MBB' : __DESC_STRING
+// }
+
+// ──── Min. Position Size ex. Closing Orders (RS) {
+//
+series float __MIN_POS_SIZE = __TR_MIN_POS_SIZE_USDT / math.max(close, 0.01) // Prevent division by zero
+__CTX_LONG := __CTX_LONG < __MIN_POS_SIZE and __CTX_LONG != 0. and not __ORX_SHORT ? __MIN_POS_SIZE : __CTX_LONG
+__CTX_SHORT := __CTX_SHORT < __MIN_POS_SIZE and __CTX_SHORT != 0. and not __ORX_LONG ? __MIN_POS_SIZE : __CTX_SHORT
+// }
+
+// ──── Decimal Units {
+//
+__CTX_LONG := math.round(__CTX_LONG, __TR_POS_DEC)
+__CTX_SHORT := math.round(__CTX_SHORT, __TR_POS_DEC)
+// Validate contract sizes are positive
+__CTX_LONG := __CTX_LONG < 0 ? 0 : __CTX_LONG
+__CTX_SHORT := __CTX_SHORT < 0 ? 0 : __CTX_SHORT
+// }
+
+// ──── Transition {
+//
+__CTX_LONG := __TR_TRANS == STRICT and math.abs(__CTX_LONG) > __QTY_FULL_ABS and __ORX_OPEN ? __QTY_FULL_ABS : __CTX_LONG
+__CTX_SHORT := __TR_TRANS == STRICT and math.abs(__CTX_SHORT) > __QTY_FULL_ABS and __ORX_OPEN ? __QTY_FULL_ABS : __CTX_SHORT
+// }
+
+// {
+series float __CTX_LONG_ABS = math.abs(__CTX_LONG)
+series float __CTX_SHORT_ABS = math.abs(__CTX_SHORT)
+// }
+
+
+//  ▪ CONDITION  ────
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+// ──── Short-Hand Condition {
+//
+series bool __COND_PART_CLOSE_SL = __TR_REDUCE_PCT > 0 ? __SL_USED_PCT >= __TR_SL_PCT ? true : false : false
+series bool __COND_CLOSE = f_tf_backtestWindow() and __TRL_HIT
+series bool __COND_STACK_LONG_CLOSE = f_tf_backtestWindow() and __TR_DIR == LONG_STACK
+series bool __COND_STACK_SHORT_CLOSE = f_tf_backtestWindow() and __TR_DIR == SHORT_STACK
+// --
+series bool __COND_STACK_LONG = __GRID_LONG and f_tf_backtestWindow() and __TR_DIR == LONG_STACK and not __LOCKED and not __COND_STACK_LONG_CLOSE
+series bool __COND_STACK_SHORT = __GRID_SHORT and f_tf_backtestWindow() and __TR_DIR == SHORT_STACK and not __LOCKED and not __COND_STACK_SHORT_CLOSE
+series bool __COND_FULL_STACK_LONG = __GRID_LONG and f_tf_backtestWindow() and __TR_DIR == FULL_STACK and not __LOCKED // and not __COND_FULL_CLOSE
+series bool __COND_FULL_STACK_SHORT = __GRID_SHORT and f_tf_backtestWindow() and __TR_DIR == FULL_STACK and not __LOCKED // and not __COND_FULL_CLOSE
+series bool __COND_ORDER_ALL = __COND_STACK_LONG or __COND_FULL_STACK_LONG or __COND_FULL_STACK_SHORT or __COND_STACK_SHORT or __COND_STACK_LONG_CLOSE or __COND_STACK_SHORT_CLOSE
+// --
+// __COND_FULL_CLOSE := __COND_STACK_LONG_CLOSE or __COND_STACK_SHORT_CLOSE ? true : __COND_FULL_CLOSE
+__COND_FULL_CLOSE := __TR_TRANS == STRICT and (__COND_FULL_STACK_LONG and __ORX_SHORT and __CTX_LONG >= __QTY_FULL_ABS or __COND_FULL_STACK_SHORT and __ORX_LONG and __CTX_SHORT >= __QTY_FULL_ABS) ? true : __COND_FULL_CLOSE
+__COND_FULL_CLOSE := __TR_RLZ_LW1_ON and __TR_RLZ_LW1_MIN_HIT and __TR_RLZ_LW1_EXIT or __TR_STC_TP1_ON and __STC_TP1_HIT and __MTP_TP1_LVL == array.size(TP1) - 1 or __TR_TRL_ST1_ON and __TRL_ST1_HIT and __MTP_ST1_LVL == array.size(TRL1) - 1 or __TR_STC_SL1_ON and __STC_SL1_HIT and __MTP_SL1_LVL == array.size(SL1) - 1 ? true : __COND_FULL_CLOSE
+bool __ORDER_EXEC = __COND_ORDER_ALL or __COND_FULL_CLOSE or __INJECTION or __TRL_HIT
+// --
+__LAST_ENTRY := __GRID_LONG and __ORX_LONG or __GRID_SHORT and __ORX_SHORT ? close : __ORX_OPENED ? close[1] : __LAST_ENTRY
+// }
+
+
+//  ▪ POSITION AVERAGE PRICE ────
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+
+// ──── Position Calculation / Position Average Price {
+//
+// This section calculates the average entry price and tracks position PnL
+// It uses custom calculations when __BACKTEST_ENGINE == CUSTOM, otherwise uses built-in strategy values
+// IMPORTANT: This parallel tracking must stay synchronized with actual strategy positions
+//
+__ORX_AVG_PRICE := f_order_avgPrice(__BACKTEST_ENGINE, __ORX_SUM, __ORX_CTX)
+__ORX_OPEN_PROFIT := f_order_openProfit(__ORX_AVG_PRICE)
+
+if strategy.position_size == 0
+    __ORX_SUM := 0.
+    __ORX_CTX := 0.
+    __ORX_PNL := 0.
+    __ORX_COM := 0.
+    __ORX_COM
+
+if strategy.position_size < 0 or strategy.position_size == 0 and (__COND_FULL_STACK_SHORT or __COND_STACK_SHORT)
+    __POS_CTX := __COND_FULL_CLOSE ? __QTY_FULL_ABS : __COND_FULL_STACK_LONG or __COND_STACK_LONG ? __CTX_LONG : __CTX_SHORT
+    __POS_SUM := __POS_CTX * close
+    __POS_COM := __POS_SUM * (CommissionValue / 100)
+    if __COND_FULL_STACK_LONG or __COND_STACK_LONG or __COND_FULL_CLOSE or __COND_PART_CLOSE_SL
+        __POS_PNL := __POS_CTX * __ORX_AVG_PRICE - __POS_SUM
+        __PROFIT := true
+        __ORX_PNL := __ORX_PNL + __POS_PNL
+        __ORX_CTX := __ORX_CTX - __POS_CTX
+        __ORX_SUM := __ORX_SUM - __POS_CTX * __ORX_AVG_PRICE
+        __ORX_COM := __ORX_COM + __POS_COM
+        __TOTAL_COM := __TOTAL_COM + __POS_COM
+        __TOTAL_PNL := __TOTAL_PNL + __POS_PNL
+        __TOTAL_PNL
+    // -- EXTEND
+    else if __COND_FULL_STACK_SHORT or __COND_STACK_SHORT
+        __ORX_CTX := __ORX_CTX + __POS_CTX
+        __ORX_SUM := __ORX_SUM + __POS_SUM
+        __ORX_COM := __ORX_COM + __POS_COM
+        __TOTAL_COM := __TOTAL_COM + __POS_COM
+        __TOTAL_COM
+        // -- IN LONG ORDER
+else if strategy.position_size > 0 or strategy.position_size == 0 and (__COND_FULL_STACK_LONG or __COND_STACK_LONG)
+    __POS_CTX := __COND_FULL_CLOSE ? __QTY_FULL_ABS : __COND_FULL_STACK_SHORT or __COND_STACK_SHORT ? __CTX_SHORT : __CTX_LONG
+    __POS_SUM := __POS_CTX * close
+    __POS_COM := __POS_SUM * (CommissionValue / 100)
+    if __COND_FULL_STACK_SHORT or __COND_STACK_SHORT or __COND_FULL_CLOSE or __COND_PART_CLOSE_SL
+        __POS_PNL := __POS_CTX * __ORX_AVG_PRICE - __POS_SUM
+        __PROFIT := true
+        __ORX_PNL := __ORX_PNL + __POS_PNL
+        __ORX_CTX := __ORX_CTX - __POS_CTX
+        __ORX_SUM := __ORX_SUM - __POS_CTX * __ORX_AVG_PRICE
+        __ORX_COM := __ORX_COM + __POS_COM
+        __TOTAL_COM := __TOTAL_COM + __POS_COM
+        __TOTAL_PNL := __TOTAL_PNL + __POS_PNL
+        __TOTAL_PNL
+    // -- EXTEND
+    else if __COND_FULL_STACK_LONG or __COND_STACK_LONG
+        __ORX_CTX := __ORX_CTX + __POS_CTX
+        __ORX_SUM := __ORX_SUM + __POS_SUM
+        __ORX_COM := __ORX_COM + __POS_COM
+        __TOTAL_COM := __TOTAL_COM + __POS_COM
+        __TOTAL_COM
+        // --
+__ORX_AVG_PRICE := f_order_avgPrice(__BACKTEST_ENGINE, __ORX_SUM, __ORX_CTX)
+__ORX_OPEN_PROFIT := f_order_openProfit(__ORX_AVG_PRICE)
+__NETTO_PNL := __TOTAL_PNL - __TOTAL_COM
+float __TOTAL_COM_FROM_PROFIT_PCT = __TOTAL_PNL == 0 or math.abs(__TOTAL_PNL) < 0.01 ? 0 : math.abs(__TOTAL_COM / __TOTAL_PNL) * 100
+// }
+
+//  ▪ TOOLTIP  ────
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+// ──── Stats Tooltip {
+//
+// if (barstate.isrealtime or barstate.islast or __ENV == DEV) //and (__GRID_LONG or __GRID_SHORT)
+series string __INTF_TT = 'STATS:'
+ + _BR_ + 'Open/Used Pos. Size' + _W_ + str.tostring(strategy.position_size) + _W_ + syminfo.basecurrency + _W_ + '[' + str.tostring(math.round(__CTX_USED_PCT, 2), '0.00') + '%]'
+ + _BR_ + 'Market Value ₮' + _W_ + str.tostring(__MARKET_VALUE, '0.00 ₮')
+ + _BR_ + 'Max.Used/Max Pos. Size' + _W_ + str.tostring(math.abs(strategy.max_contracts_held_all), '0.00') + ' (' + str.tostring(math.round(__MAX_CTX_USED_PCT, 2), '0.00') + ' % of ' + str.tostring(math.ceil(__MAX_CTX))
+ + _BR_ + 'Pos. Avg. Price ₮' + _W_ + str.tostring(math.round(__ORX_AVG_PRICE, 4), '0.00## ₮')
+ + _BR_ + 'Maintenance Margin Start %' + _W_ + str.tostring(MaintenanceMarginPct / 100, '0.00 %')
+ + _BR_ + 'Maintenance Margin ₮' + _W_ + str.tostring(__MARGIN_MAINTENANCE, '0.00 ₮')
+ + _BR_ + 'Margin Used %' + _W_ + str.tostring(__MARGIN_USED_PCT / 100, '0.00 %')
+ + _BR_ + 'Margin Ratio' + _W_ + str.tostring(__MARGIN_RATIO_PCT / 100, '0.00 %')
+ + _BR_ + 'Pos. Contracts' + _W_ + str.tostring(__POS_CTX)
+ + _BR_ + 'Pos. Sum' + _W_ + str.tostring(__POS_SUM, '0.00 ₮')
+ + _BR_ + 'Pos. Commission' + _W_ + str.tostring(__ORX_COM, '0.00 ₮')
+ + _BR_ + 'Pos. Netto PnL' + _W_ + str.tostring(__ORX_PNL, '0.00 ₮')
+ + _BR_ + _HR_
+ + _BR_ + 'Commission' + _W_ + str.tostring(__TOTAL_COM, '0.00 ₮')
+ + _BR_ + 'Commission % From Profit' + _W_ + str.tostring(__TOTAL_COM_FROM_PROFIT_PCT, '0.00 %')
+ + _BR_ + 'Brutto PnL' + _W_ + str.tostring(__TOTAL_PNL, '0.00 ₮')
+ + _BR_ + 'Netto PnL' + _W_ + str.tostring(__NETTO_PNL, '0.00 ₮')
+ + _BR_ + 'TP Lvl.' + _W_ + str.tostring(TP1)
+ + _BR_ + 'TP Qty.' + _W_ + str.tostring(TP1_QTY)
+ + _BR_ + 'TP Ext.' + _W_ + str.tostring(TP1_EXT)
+ + _BR_ + 'Cond. Close All' + _W_ + (__COND_FULL_CLOSE ? 'YES' : 'NO')
+ + _BR_ + 'TP Lvl.' + _W_ + str.tostring(__MTP_TP1_LVL)
+// }
+
+// ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+// ──── Draw Line {
+//
+f_draw_line(_x, _y, _x2, _y2, _col, _width) =>
+    objx.push(fLINE, line.new(_x, _y, _x2, _y2, xloc.bar_index, extend.none, _col, line.style_dashed, _width))
+f_draw_line2(_x, _y, _col, _width, _offsetLabels) =>
+    objx.push(fLINE, line.new(_x, _y, bar_index + _offsetLabels, _y, xloc.bar_time, extend.none, _col, line.style_dashed, _width))
+f_draw_line3(_y, _offsetX, _color, _offsetY, _offsetYDiv, _gridSize) =>
+    series int _x1 = bar_index + _offsetX
+    series float _y0 = _gridSize * .75
+    series float _y1 = _y + _y0
+    series float _y2 = _y - _y0
+    objx.push(fLINE, line.new(_x1, _y1, _x1, _y2, xloc.bar_time, extend.none, _color, line.style_solid, 2))
+f_draw_vline(_arrLine, _barTime, _color, _lineStyle, _lineWidth) =>
+    objx.push(_arrLine, line.new(_barTime, high, _barTime, low, xloc.bar_time, extend = extend.both, color = _color, style = _lineStyle, width = _lineWidth))
+    // }
+
+// ──── Draw Pointer {
+//
+f_draw_pointer(_arrLine, _arrLabel, _anker, _offset, _type, _loc, _pcol, _spreadSize, _text1, _text2, _textAdjustment) =>
+    series float location = _loc == ABOVE ? -1 : 1
+    series bool above = _loc == ABOVE
+    series bool below = _loc == BELOW
+    color pColor = _pcol
+    series float spread = (_type == CLOSE ? 1.33 * _spreadSize : _spreadSize) * location
+    series float spreadStart = _anker
+    objx.push(_arrLine, line.new(x1 = bar_index + _offset - 1, y1 = spreadStart - spread * 3, x2 = bar_index + _offset - 1, y2 = spreadStart - spread * 4, xloc = xloc.bar_index, extend = extend.none, color = pColor, style = line.style_solid, width = 2))
+    objx.push(_arrLine, line.new(x1 = bar_index + _offset + 0, y1 = spreadStart - spread * 0.75, x2 = bar_index + _offset + 0, y2 = spreadStart - spread * 3.25, xloc = xloc.bar_index, extend = extend.none, color = color.new(color.silver, 20), style = line.style_dotted, width = 1))
+    objx.push(_arrLine, line.new(x1 = bar_index + _offset + 0, y1 = spreadStart - spread * 3.75, x2 = bar_index + _offset + 0, y2 = spreadStart - spread * 5, xloc = xloc.bar_index, extend = extend.none, color = color.new(color.silver, 20), style = line.style_dotted, width = 1))
+    objx.push(_arrLabel, label.new(x = bar_index + _offset + 0, y = spreadStart - spread * 3.5, xloc = xloc.bar_index, textcolor = pColor, style = label.style_label_center, color = #FFFFFF00, size = size.small, text = DOT, textalign = text.align_center))
+    series int descId = array.size(_arrLabel)
+    objx.push(_arrLabel, label.new(x = bar_index + _offset - 1, y = spreadStart - spread * 3.5, xloc = xloc.bar_index, textcolor = color.silver, style = label.style_label_right, color = #FFFFFF00, size = size.small, text = _text2, textalign = text.align_right))
+    objx.push(_arrLabel, label.new(x = bar_index + _offset + 0, y = spreadStart - spread * 5.25, xloc = xloc.bar_index, textcolor = pColor, style = label.style_label_center, color = #FFFFFF00, size = size.small, text = DIAMOND, textalign = text.align_center))
+    objx.push(_arrLabel, label.new(x = bar_index + _offset + 0, y = spreadStart - spread * 5.25, xloc = xloc.bar_index, textcolor = pColor, style = _textAdjustment, color = #FFFFFF00, size = size.small, text = _text1, textalign = text.align_center))
+    [descId]
+    // }
+
+// ──── Draw Info Panel {
+//
+f_draw_info_panel(_arrLine, _arrLabel, _offsetX, _offsetXInner, _offsetY, _offsetYDiv, _tooltip, _grid, _gridSize, _gridSizePct, _loc, _col, _labelText01, _labelText02, _labelText03) =>
+    series int OFFSET = _offsetX < 0 ? 0 : _offsetX
+    series int OFFSET_INNER = _offsetXInner + _offsetX < 0 ? 0 : _offsetXInner + _offsetX
+    series float switch_1 = _loc == ABOVE ? -1 : 1
+    series float spread = _gridSize * _offsetY * switch_1
+    series float spreadStart = _grid
+    series float spreadMax = _loc == BELOW ? spreadStart - spread * 7.5 : spreadStart + spread * 7.5
+    series float spreadExtra = 0.
+    objx.push(_arrLabel, label.new(x = bar_index + OFFSET + 2, y = spreadStart, xloc = xloc.bar_index, textcolor = _col, style = label.style_label_center, color = #FFFFFF00, size = size.small, text = '◄', textalign = text.align_center))
+    objx.push(_arrLine, line.new(x1 = bar_index + OFFSET + 3, y1 = spreadStart, x2 = bar_index + OFFSET + 5, y2 = spreadStart, xloc = xloc.bar_index, extend = extend.none, color = color.new(color.silver, 20), style = line.style_dotted, width = 1))
+    objx.push(_arrLine, line.new(x1 = bar_index + OFFSET + 5, y1 = spreadStart, x2 = bar_index + OFFSET + 5, y2 = spreadStart - spread * 1.25 + spreadExtra, xloc = xloc.bar_index, extend = extend.none, color = color.new(color.silver, 20), style = line.style_dotted, width = 1))
+    objx.push(_arrLine, line.new(x1 = bar_index + OFFSET + 5, y1 = spreadStart - spread * 1.25 + spreadExtra, x2 = bar_index + OFFSET_INNER + 0, y2 = spreadStart - spread * 2.75 + spreadExtra, xloc = xloc.bar_index, extend = extend.none, color = color.new(color.silver, 20), style = line.style_dotted, width = 1))
+    objx.push(_arrLine, line.new(x1 = bar_index + OFFSET_INNER + 0, y1 = spreadStart - spread * 2.75 + spreadExtra, x2 = bar_index + OFFSET_INNER + 0, y2 = spreadStart - spread * 4.75 + spreadExtra, xloc = xloc.bar_index, extend = extend.none, color = color.new(color.silver, 20), style = line.style_dotted, width = 1))
+    objx.push(_arrLine, line.new(x1 = bar_index + OFFSET_INNER + 2, y1 = spreadStart - spread * 3.75 + spreadExtra, x2 = bar_index + OFFSET_INNER + 2, y2 = spreadStart - spread * 6.25 + spreadExtra, xloc = xloc.bar_index, extend = extend.none, color = _col, style = line.style_solid, width = 2))
+    objx.push(_arrLine, line.new(x1 = bar_index + OFFSET_INNER + 0, y1 = spreadStart - spread * 5.25 + spreadExtra, x2 = bar_index + OFFSET_INNER + 0, y2 = spreadStart - spread * 7.25 + spreadExtra, xloc = xloc.bar_index, extend = extend.none, color = color.new(color.silver, 20), style = line.style_dotted, width = 1))
+    objx.push(_arrLabel, label.new(bar_index + OFFSET_INNER + 0, spreadStart - spread * 5 + spreadExtra, xloc = xloc.bar_index, textcolor = _col, style = label.style_label_center, color = #FFFFFF00, size = size.small, text = DOT, textalign = text.align_center))
+    objx.push(_arrLabel, label.new(bar_index + OFFSET_INNER + 2, spreadStart - spread * 5 + spreadExtra, xloc = xloc.bar_index, textcolor = color.white, style = label.style_label_left, color = #FFFFFF00, textalign = text.align_left, size = size.small, text = _labelText01))
+    objx.push(_arrLabel, label.new(bar_index + OFFSET_INNER + 2, spreadStart - spread * 6 + spreadExtra, xloc = xloc.bar_index, textcolor = _col, style = label.style_label_left, color = #FFFFFF00, textalign = text.align_left, size = size.large, text = _labelText03))
+    objx.push(_arrLabel, label.new(bar_index + OFFSET_INNER + 0, spreadStart - spread * 7.5 + spreadExtra, xloc = xloc.bar_index, textcolor = _col, style = label.style_label_center, color = #FFFFFF00, size = size.small, text = DIAMOND, textalign = text.align_center))
+    objx.push(_arrLabel, label.new(bar_index + OFFSET_INNER + 0, spreadStart - spread * 7.5 + spreadExtra, xloc = xloc.bar_index, textcolor = _col, style = label.style_label_left, color = #FFFFFF00, size = size.normal, text = _labelText02, textalign = text.align_left, tooltip = _tooltip))
+    series float yPos = spreadStart - spread * 6.1 + spreadExtra
+    series float xPos = OFFSET_INNER + 2
+    [xPos, yPos]
+    // }
+
+// ──── Draw Order Bar {
+//
+f_draw_order(_arrLine, _arrLabel, _offsetX, _src, _avg, _arrTp, _arrStop, _minSl) =>
+    [sl1, sl2] = f_dist(_avg, __ORX_LONG ? _avg * (1 - array.max(_arrStop) / 100) : _avg * (1 + array.max(_arrStop) / 100))
+    sl2 := sl2 < _minSl ? sl2 : _minSl
+    series float sl = __ORX_LONG ? _avg * (1 - array.max(_arrStop) / 100) : _avg * (1 + array.max(_arrStop) / 100)
+    series float tp = __ORX_LONG ? _avg * (1 + array.max(_arrTp) / 100) : _avg * (1 - array.max(_arrTp) / 100)
+    series float avg = _avg
+    // -- Skaleton
+    objx.push(_arrLine, line.new(x1 = bar_index + _offsetX, y1 = _avg, x2 = bar_index + _offsetX, y2 = tp, xloc = xloc.bar_index, extend = extend.none, color = color.new(color.silver, 55), style = line.style_dotted, width = 1))
+    objx.push(_arrLine, line.new(x1 = bar_index + _offsetX, y1 = _avg, x2 = bar_index + _offsetX, y2 = sl, xloc = xloc.bar_index, extend = extend.none, color = color.new(color.silver, 55), style = line.style_dotted, width = 1))
+    // -- Skaleton
+    objx.push(_arrLine, line.new(x1 = bar_index + _offsetX, y1 = sl, x2 = bar_index + _offsetX + 1, y2 = sl, xloc = xloc.bar_index, extend = extend.none, color = color.new(color.silver, 55), style = line.style_dotted, width = 1))
+    objx.push(_arrLine, line.new(x1 = bar_index + _offsetX, y1 = tp, x2 = bar_index + _offsetX + 1, y2 = tp, xloc = xloc.bar_index, extend = extend.none, color = color.new(color.silver, 55), style = line.style_dotted, width = 1))
+    // -- Profit Filled 
+    // objx.push(_arrLine, line.new(x1=bar_index + _offsetX, y1=avg, x2=bar_index + _offsetX, y2=close, xloc=xloc.bar_index, extend=extend.none, color=__ORX_LONG and close > avg or __ORX_SHORT and close < avg ? color.new(CL_GR_4, 75) : color.new(CL_RD_5, 75), style=line.style_solid, width=7))
+    objx.push(_arrLine, line.new(x1 = bar_index + _offsetX, y1 = avg, x2 = bar_index + _offsetX, y2 = close, xloc = xloc.bar_index, extend = extend.none, color = __ORX_LONG and close > avg or __ORX_SHORT and close < avg ? color.new(CL_GR_4, 0) : color.new(CL_RD_5, 0), style = line.style_solid, width = 2))
+    // -- Take Profit
+    if array.size(_arrTp) > 0
+        for i = 0 to array.size(_arrTp) - 1 by 1
+            series float raw_ = array.get(_arrTp, i)
+            series float tp_ = __ORX_LONG ? avg * (1 + raw_ / 100) : avg * (1 - raw_ / 100)
+            objx.push(_arrLine, line.new(x1 = bar_index + _offsetX, y1 = tp_, x2 = bar_index + _offsetX + 3, y2 = tp_, xloc = xloc.bar_index, extend = extend.none, color = color.new(color.silver, 55), style = line.style_dotted, width = 1))
+            objx.push(_arrLabel, label.new(x = bar_index + _offsetX, y = tp_, xloc = xloc.bar_index, style = label.style_label_center, textalign = text.align_center, text = i == array.size(_arrTp) - 1 ? __ORX_LONG ? '╔' : '╚' : '╠', size = size.small, textcolor = color.new(color.silver, 0), color = color.new(color(na), 90)))
+            objx.push(_arrLabel, label.new(bar_index + _offsetX + 2, tp_, xloc = xloc.bar_index, textcolor = __MTP_TP1_LVL > i ? color.silver : CL_GR_4, style = label.style_label_left, color = #FFFFFF00, size = size.small, text = 'TP ' + str.tostring(i + 1) + ' | ' + str.tostring(tp_, '0.00 ₮'), textalign = text.align_left))
+    // -- Stop-Loss
+    if array.size(_arrStop) > 0
+        for i = 0 to array.size(_arrStop) - 1 by 1
+            series float raw_ = array.get(_arrStop, i)
+            series float sl_ = __ORX_LONG ? avg * (1 - raw_ / 100) : avg * (1 + raw_ / 100)
+            objx.push(_arrLine, line.new(x1 = bar_index + _offsetX, y1 = sl_, x2 = bar_index + _offsetX + 3, y2 = sl_, xloc = xloc.bar_index, extend = extend.none, color = color.new(color.silver, 55), style = line.style_dotted, width = 1))
+            objx.push(_arrLabel, label.new(x = bar_index + _offsetX, y = sl_, xloc = xloc.bar_index, style = label.style_label_center, textalign = text.align_center, text = i == array.size(_arrStop) - 1 ? __ORX_SHORT ? '╔' : '╚' : '╠', size = size.small, textcolor = color.new(color.silver, 0), color = color.new(color(na), 90)))
+            objx.push(_arrLabel, label.new(bar_index + _offsetX + 2, sl_, xloc = xloc.bar_index, textcolor = __MTP_SL1_LVL > i ? color.silver : CL_RD_5, style = label.style_label_left, color = #FFFFFF00, size = size.small, text = 'SL ' + str.tostring(i + 1) + ' | ' + str.tostring(sl_, '0.00 ₮'), textalign = text.align_left))
+    // -- Position Average Price
+    objx.push(_arrLabel, label.new(x = bar_index + _offsetX + 1, y = avg, xloc = xloc.bar_index, style = label.style_label_right, textalign = text.align_center, text = '', size = size.normal, textcolor = color.new(color.silver, 0), color = color.new(color(na), 90)))
+    // objx.push(_arrLabel, label.new(x=bar_index + _offsetX, y=avg, xloc=xloc.bar_index, style=label.style_label_center, textalign=text.align_center, text='╫', size=size.normal, textcolor=color.new(color.silver, 0), color=color.new(color(na), 90)))
+    objx.push(_arrLabel, label.new(x = bar_index + _offsetX + 2, y = avg, xloc = xloc.bar_index, textcolor = color.silver, style = label.style_label_left, color = #FFFFFF00, size = size.small, text = 'AVG ' + str.tostring(avg, '0.00 ₮'), textalign = text.align_left))
+    // -- Close
+    objx.push(_arrLabel, label.new(x = bar_index + _offsetX - 2, y = close, xloc = xloc.bar_index, style = label.style_label_right, textalign = text.align_center, text = '▶', size = size.small, textcolor = color.new(color.silver, 0), color = color.new(color(na), 90)))
+    objx.push(_arrLabel, label.new(x = bar_index + _offsetX - 3, y = close, xloc = xloc.bar_index, textcolor = __ORX_LONG and close > avg or __ORX_SHORT and close < avg ? color.new(CL_GR_4, 0) : color.new(CL_RD_5, 0), style = label.style_label_left, color = #FFFFFF00, size = size.small, text = str.tostring(close, '0.00 ₮') + _BR_, textalign = text.align_right))
+    // }}
+
+orderFrame(series int _padding = 2, series color _border_color = color.gray, series color _bgcolor = na) =>
+    var series box positionBox = na
+    var series array<float> positionHL = array.new<float>()
+    // --
+    if strategy.position_size[1] == 0 and strategy.position_size != 0
+        positionBox := box.new(na, na, na, na, bgcolor = _bgcolor, border_color = _border_color, border_width = 1, border_style = line.style_dotted)
+        positionBox.set_left(bar_index - _padding)
+    if strategy.position_size != 0
+        positionHL.push(high)
+        positionHL.push(low)
+        positionBox.set_right(bar_index + _padding)
+        positionBox.set_top(positionHL.max())
+        positionBox.set_bottom(positionHL.min())
+    if strategy.position_size == 0
+        positionBox := na
+        positionHL.clear()
+
+orderFrame(_border_color = na, _bgcolor = color.new(__ORX_LONG ? CL_GR_4 : CL_RD_5, 95))
+
+
+//  ▪ PAINTING ────
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+// ──── Show Last {
+//
+bool __SHOW_LAST = __CSS_SHOW_LAST > 0 ? last_bar_index - bar_index <= __CSS_SHOW_LAST : true
+// }
+
+// ──── Source {
+//
+fill(plot(__SRC_PRINT and __SHOW_LAST ? __SRC_VIDYA : float(na), title = 'VIDYA', color = __SRC >= close ? color.new(CL_GR_4, 60) : color.new(CL_RD_5, 60), linewidth = 2, style = plot.style_line, join = false, editable = true, show_last = __CSS_SHOW_LAST), plot(__SRC_PRINT and __SHOW_LAST ? __SRC : float(na), title = 'REACT MA', color = __SRC >= close ? color.new(CL_GR_4, 60) : color.new(CL_RD_5, 60), linewidth = 2, style = plot.style_line, join = false, editable = true, show_last = __CSS_SHOW_LAST), color = __SRC >= close ? color.new(CL_GR_4, 80) : color.new(CL_RD_5, 80))
+plot(__SRC_PRINT and __SHOW_LAST ? __SRC : float(na), title = 'REACT MA', color = __SRC >= close ? color.new(CL_GR_4, 60) : color.new(CL_RD_5, 60), linewidth = 3, style = plot.style_line, join = false, editable = true, show_last = __CSS_SHOW_LAST)
+
+// }
+
+// ──── Vidya {
+//
+var series int __VDY_COUNTER = 0
+__VDY_COUNTER := __VDY_COUNTER >= __VDY_BANDS_AMOUNT ? 1 : __VDY_COUNTER + 1
+var series float __VDY_BANDS_SLICE = 1 / __VDY_BANDS_AMOUNT
+// --
+series bool dynRange = input(false, 'Dynamic Range')
+series float diffVidya = math.max(math.abs(__HIGHEST - __SRC_VIDYA_WEIGHTED), math.abs(__LOWEST - __SRC_VIDYA_WEIGHTED))
+series float smaVidya = ta.sma(ta.cum(diffVidya) / ta.cum(__SRC_VIDYA_WEIGHTED), 100)
+series float __VDY_FCT = dynRange ? smaVidya : __VDY_DEV_FCT
+series float __VDY_DEV = __SRC_VIDYA_WEIGHTED * __VDY_FCT
+series float __VDY_ALPHA = 95 //(70 + 25) / __VDY_BANDS_AMOUNT * __VDY_COUNTER
+// --
+plot(__VDY_BANDS_PRINT ? __SRC_VIDYA_WEIGHTED + __VDY_DEV * __VDY_BANDS_SLICE * __VDY_COUNTER : float(na), title = 'VIDYA Upper Multi', color = color.new(#CCCCCC40, __VDY_ALPHA), linewidth = 1, style = plot.style_cross, join = false, editable = true, show_last = __CSS_SHOW_LAST)
+plot(__VDY_PRINT ? __SRC_VIDYA_WEIGHTED : float(na), title = 'VIDYA Long-term', color = color.new(color.aqua, f_param_high_volatility(10, 50) ? 0 : 50), linewidth = 2, style = plot.style_line, join = false, editable = true, show_last = __CSS_SHOW_LAST)
+plot(__VDY_BANDS_PRINT ? __SRC_VIDYA_WEIGHTED - __VDY_DEV * __VDY_BANDS_SLICE * __VDY_COUNTER : float(na), title = 'VIDYA Lower Multi', color = color.new(#CCCCCC40, __VDY_ALPHA), linewidth = 1, style = plot.style_cross, join = false, editable = true, show_last = __CSS_SHOW_LAST)
+// --
+plotshape(__GRID_LONG and close <= __SRC_VIDYA_WEIGHTED * (1 - __VDY_DEV_FCT) or __GRID_SHORT and close >= __SRC_VIDYA_WEIGHTED * (1 + __VDY_DEV_FCT) ? close : float(na), title = 'VDY++', color = color.new(color.yellow, 0), size = size.tiny, editable = true, show_last = __CSS_SHOW_LAST, location = location.absolute, style = shape.cross)
+// }
+
+// ──── Grid {
+//
+series color gridLineColor = switch 
+    __LOCKED => color.red
+    __TRL_HIT => color.orange
+    __COND_FULL_CLOSE => color.fuchsia
+    __INJECTION => color.blue
+    __GRID[0] < __GRID[1] => CL_GR_4
+    __GRID[0] == __GRID[1] => color.blue
+    __GRID[0] > __GRID[1] => CL_RD_5
+    // --
+plot(__SRC_PRINT ? __GRID : na, title = 'GRID', color = gridLineColor, linewidth = 2, join = true, style = plot.style_circles, editable = true, show_last = __CSS_SHOW_LAST)
+if (__GRID_LONG or __GRID_SHORT) and not __INJECTION and not __COND_FULL_CLOSE and __SHOW_LAST
+    string ctrTooltip = 'Dynamic Data' + _BR_ + (__MTG_ON ? 'MTG (Pos. Size)' + _W_ + str.tostring(__MTG, '0.00') + _BR_ : '') //+ (__GRID_MTG_ON ? 'MTG-GP (Grid Poles):' + _W_ + str.tostring(__GRID_MTG, '0.00') + _BR_ : '') //+ (__MA_DYN_LEN_ON ? 'Dynamic Length:' + _W_ + str.tostring(__MA_DYN_LEN_INT) + _BR_ : '')
+    if __TR_STC_TP1_ON or __TR_TRL_ST1_ON or math.max(__GRID_CTR_LONG, __GRID_CTR_SHORT) > __TR_STC_TP1_START_FROM or __TR_STC_TP1_START_FROM == 1
+        objx.push(xLABEL, label.new(time, y = __GRID, color = color.navy, text = '[' + str.tostring(__GRID_LONG ? __GRID_CTR_LONG : __GRID_CTR_SHORT) + '|' + str.tostring(__GRID_CTR) + ']', textcolor = color.new(color.silver, 0), textalign = text.align_center, style = __GRID_LONG ? label.style_label_lower_left : label.style_label_upper_left, xloc = xloc.bar_time, yloc = yloc.price, size = size.small, tooltip = ctrTooltip))
+        // --
+bgcolor(__PRINT_BG and __ORX_LONG and __SL_USED_PCT < 25 ? color.new(color.blue, 95) : color(na), editable = true)
+// }
+
+// ──── Post Trading Analyse {
+//
+// -- Singleton Tulip PTA Config Instance
+series color gridColor = switch 
+    __GRID_LONG[1] => CL_GR_4
+    __GRID_SHORT[1] => CL_RD_4
+    => color(na)
+    // --
+    // --
+[ptaPrint, ptaColor, ptaTxt, ptaStyle, ptaSize] = switch 
+    not __INJECTION[1] and not __COND_FULL_CLOSE[1] and not __LOCKED[1] and (__GRID_LONG[1] or __GRID_SHORT[1]) => [__GRID[1], gridColor, __DESC_STRING[1], label.style_circle, size.small]
+    // --
+    __INJECTION[1] and not __COND_FULL_CLOSE[1] and (__GRID_LONG[1] or __GRID_SHORT[1]) and not __LOCKED[1] => [__GRID[1], color.blue, __DESC_STRING[1], label.style_circle, size.small]
+    // --
+    (__COND_CLOSE[1] or __TRL_HIT[1]) and not __LOCKED[1] => [__GRID[1], color.orange, __DESC_STRING[1], label.style_circle, size.small]
+    // --
+    __COND_FULL_CLOSE[1] and not __LOCKED[1] => [__GRID[1], color.fuchsia, __DESC_STRING[1], label.style_diamond, size.small]
+    // --
+    __LOCKED[1] => [__GRID[1], color.red, __DESC_STRING[1], label.style_circle, size.small] //and (__GRID_LONG[1] or __GRID_SHORT[1]) => [__GRID[1], color.red, __DESC_STRING[1], label.style_circle,  size.small]
+
+    // -- default
+    => [float(na), #00000000, EMPTY, label.style_none, size.auto]
+    // --
+plotshape(__LOCKED[1] ? ptaPrint : na, title = 'GRID LOCK', color = color.new(color.red, 50), size = size.tiny, editable = true, style = shape.xcross, offset = -1, location = location.absolute, show_last = __CSS_SHOW_LAST)
+if (__ORDER_EXEC[1] or not __ORDER_EXEC[1] and __LOCKED[1]) and __SHOW_LAST
+    objx.push(xLABEL, label.new(bar_index, ptaPrint, color = color.new(ptaColor, 65), textcolor = color.new(color.white, 10), text = ptaTxt, style = ptaStyle, xloc = xloc.bar_index, yloc = yloc.price, size = ptaSize, tooltip = __INTF_TT))
+plotshape(ptaPrint, title = 'GRID PTA 1', color = color.new(ptaColor, 65), size = size.small, editable = true, style = shape.circle, offset = -1, location = location.absolute, show_last = __CSS_SHOW_LAST)
+plot(not __LOCKED[1] ? ptaPrint : na, title = 'GRID PA', color = color.new(CL_GR_4, 0), linewidth = 3, editable = true, join = false, style = plot.style_circles, offset = -1, show_last = __CSS_SHOW_LAST)
+// --
+// }
+
+// ──── Static-/Trailing-/Static-Trailing Take Profit {
+// -- TP
+plot(__TR_STC_TP1_ON and not __STC_TP1_TGR and __TR_TP_PRINT1 and not __STC_TP1_HIT ? __STC_TP1 : float(na), title = 'Static/Trailing Take Profit', color = color.new(color.aqua, 60), style = plot.style_linebr, linewidth = 2, editable = true, show_last = __CSS_SHOW_LAST)
+plot(__TR_STC_TP1_ON and __STC_TP1_TGR and __TR_TP_PRINT1 and not __STC_TP1_HIT ? __STC_TP1 : float(na), title = 'Static/Trailing Take Profit', color = color.new(color.aqua, 25), style = plot.style_circles, linewidth = 2, editable = true, show_last = __CSS_SHOW_LAST)
+// -- Stop Loss
+plot(__TR_STC_SL1_ON and __TR_TP_PRINT1 and not __STC_SL1_HIT ? __STC_SL1 : float(na), title = 'Static/Trailing Stop-Loss', color = __STC_SL1_TGR ? color.new(CL_RD_5, 10) : color.new(CL_RD_5, 85), style = plot.style_cross, linewidth = 2, editable = true, show_last = __CSS_SHOW_LAST)
+// -- RL
+plot(__TR_RLZ_LW1_ON ? __TR_RLZ_LW1_START_VALUE : float(na), title = 'TRAILING START LOW-PROFIT', color = __TR_RLZ_LW1_START_TGD ? color.new(color.orange, 50) : color.new(color.orange, 75), style = plot.style_circles, linewidth = 1, editable = true, show_last = __CSS_SHOW_LAST)
+plot(__TR_RLZ_LW1_ON ? __TR_RLZ_LW1_MIN_VALUE : float(na), title = 'TRAILING HIT MIN LOW-PROFIT', color = __TR_RLZ_LW1_START_TGD ? color.new(color.red, 50) : color.new(color.red, 75), style = plot.style_cross, linewidth = 1, editable = true, show_last = __CSS_SHOW_LAST)
+// -- Static Trailing
+plot(__TR_TRL_ST1_ON and __TR_TP_PRINT1 and (__ORX_LONG and __GRID_CTR_LONG >= __TR_TRL_ST1_START_FROM or __ORX_SHORT and __GRID_CTR_SHORT >= __TR_TRL_ST1_START_FROM) ? __TRL_ST1 : float(na), title = 'TRAILING STOP #1', color = not na(__TRL_ST1) ? __ORX_LONG ? color.new(color.aqua, 0) : color.new(color.red, 0) : color(na), style = plot.style_linebr, linewidth = 1, editable = true, show_last = __CSS_SHOW_LAST)
+// -- Adaptive Trailing Stop
+plot(__TR_STC_TP1_ON and __TR_STC_TP1_EXTEND == ATS and __TRL_TGR and not __TRL_HIT and (__ORX_LONG and __ATS_TS < close and __GRID_CTR >= __TR_STC_TP1_START_FROM or __ORX_SHORT and __ATS_TS > close and __GRID_CTR >= __TR_STC_TP1_START_FROM) and __ATS_PRINT_ON ? __ATS_TS : float(na), 'ATS Trailing Stop Highlight', color = color.new(color(na), 65), editable = true, style = plot.style_linebr, linewidth = 4, show_last = __CSS_SHOW_LAST)
+plot(__TR_STC_TP1_ON and __TR_STC_TP1_EXTEND == ATS and __TRL_TGR and not __TRL_HIT and (__ORX_LONG and __ATS_TS < close and __GRID_CTR >= __TR_STC_TP1_START_FROM or __ORX_SHORT and __ATS_TS > close and __GRID_CTR >= __TR_STC_TP1_START_FROM) and __ATS_PRINT_ON ? __ATS_TS : float(na), 'ATS Trailing Stop Highlight', color = color.new(#FFAB01, 5), editable = true, style = plot.style_linebr, linewidth = 2, show_last = __CSS_SHOW_LAST)
+// }
+
+// ──── Position Average Price {
+//
+plot(__TR_PRINT_AVG and __ORX_OPEN ? __ORX_AVG_PRICE : float(na), title = 'POS AVG PRICE', color = color.new(color(na), 50), show_last = __CSS_SHOW_LAST, style = plot.style_linebr, linewidth = 3, editable = true)
+// fill(
+plot(__TR_PRINT_AVG and __ORX_OPEN ? __ORX_AVG_PRICE : float(na), title = 'POS AVG PRICE', color = __ORX_LONG ? color.new(CL_GR_4, 0) : color.new(CL_RD_5, 0), show_last = __CSS_SHOW_LAST, style = plot.style_linebr, linewidth = 1, editable = true)
+//  plot(close, 'Close', #00000000),
+//  color = (__ORX_LONG and close > __ORX_AVG_PRICE) or (__ORX_SHORT and close < __ORX_AVG_PRICE) ? color.new(CL_GR_6, 90) : color.new(CL_RD_5, 90)
+//  )
+series bool lqPriceCond = math.abs(close - strategy.margin_liquidation_price) / close * 100 <= 3 and strategy.margin_liquidation_price == strategy.margin_liquidation_price[1]
+plot(lqPriceCond ? strategy.margin_liquidation_price : na, color = color.new(color.red, 0), show_last = __CSS_SHOW_LAST, style = plot.style_linebr, linewidth = 2, editable = true)
+// }
+
+// ──── Stop-Loss - Reduce {
+//
+[__SL_DST1, __SL_DST2] = f_dist(__ORX_SHORT ? __ORX_AVG_PRICE : __SL_PRICE, __ORX_SHORT ? __SL_PRICE : __ORX_AVG_PRICE)
+plot(__SL_DST2 < 5 and __SL_DST2 > 0 ? __SL_PRICE : float(na), title = 'SL PRICE', color = color.new(color.red, 0), show_last = __CSS_SHOW_LAST, style = plot.style_linebr, linewidth = 2, editable = true)
+// }
+
+// ──── Stop-Loss Warnings {
+//
+bgcolor(__SL_USED_PCT > 25 ? color.new(color.navy, 98 - __SL_USED_PCT) : color(na), editable = true)
+// }
+
+// ──── Average Distance Info {
+//
+if __ORX_AVG_PRICE != __ORX_AVG_PRICE[1] and __SHOW_LAST
+    [avgDist1, avgDist2] = f_dist(close, __ORX_AVG_PRICE)
+    distTooltip = str.format('Avg. Distance:\n{0,number,0.00} {3}  |  {1,number,percent}\nOpen: {2,number} {3}', avgDist1, avgDist2, __ORX_OPEN_PROFIT, __USDT)
+    objx.push(xLABEL, label.new(time, y = __ORX_AVG_PRICE, color = #00000000, text = '⇵', textcolor = __ORX_LONG ? CL_GR_4 : CL_RD_5, textalign = text.align_right, style = __ORX_AVG_PRICE < __ORX_AVG_PRICE[1] ? label.style_label_right : label.style_label_right, xloc = xloc.bar_time, yloc = yloc.price, size = size.normal, tooltip = distTooltip))
+    // }
+
+// ──── Daily Close Divider { 
+//
+plot(__HTF_CLOSE == __HTF_CLOSE[1] ? __HTF_CLOSE : float(na), title = 'Last Day Close', color = f_tf_isNewWeek() ? color.new(color.yellow, 92) : color.new(color.blue, 92), style = plot.style_linebr, linewidth = 6, editable = true, show_last = __CSS_SHOW_LAST)
+if f_tf_isNewDay() and __SHOW_LAST
+    objx.push(xLABEL, label.new(time, close[1], style = label.style_label_right, color = color(na), text = str.tostring(close[1], '0.00 ₮') + ' ►', textcolor = f_tf_isNewWeek() ? color.yellow : color.blue, textalign = text.align_center, xloc = xloc.bar_time, size = size.tiny))
+    // }
+
+// ──── Daily Vertical Divider { 
+//
+if __SHOW_DAILY and timeframe.isintraday and f_tf_isNewDay() and __SHOW_LAST
+    f_draw_vline(xLINE, time, f_tf_isNewWeek() ? color.new(color.yellow, 50) : color.new(color.blue, 0), line.style_dashed, 1)
+    // }
+
+// ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+// ──── Vertzical Progressbar - Draw Level {
+if (barstate.isrealtime or barstate.islast or __ENV == DEV) and (__ORX_LONG or __ORX_SHORT) and __SHOW_LAST
+    array<float> STOPS = array.new_float()
+    STOPS := __TR_RLZ_LW1_ON ? array.concat(STOPS, array.from(__TR_RLZ_LW1_MIN_WR)) : __TR_STC_SL1_ON ? array.concat(STOPS, strx.array_strToNum(SL1)) : __TR_TRL_ST1_ON ? array.concat(STOPS, strx.array_strToNum(TRL1)) : STOPS
+    f_draw_order(fLINE, fLABEL, 10, close, __ORX_AVG_PRICE, strx.array_strToNum(TP1), STOPS, 2)
+    // }
+
+// ──── Statistics {
+if (barstate.isrealtime or barstate.islast or __ENV == DEV) and __SHOW_LAST
+    // --
+    series string labelText01 = str.format('Grid Size: {1} [{2} %]{0}Open Profit: {3}{0}Net Profit: {4}', _BR_, str.tostring(__GRID_SIZE, '0.00'), str.tostring(__GRID_SIZE_PCT, '0.00'), str.tostring(__ORX_OPEN_PROFIT, '0.00 ₮'), str.tostring(__NETTO_PNL, '0.00 ₮'))
+    series string labelText02 = 'ANNUAL PROFIT:' + _W_ + str.tostring(math.abs(__NETTO_PNL) / strategy.initial_capital * 100 * bench.factor, '0.00') + ' % p.a.'
+    series string labelText03 = str.tostring(math.abs(__NETTO_PNL) / strategy.initial_capital, (strategy.netprofit > 0 ? '+' : '-') + ' 0.00 %') + _W_ + '[' + str.tostring(bench.year_pct, '0.00') + ' years]'
+    series string labelText05 = syminfo.tickerid
+    series string labelText06 = __TR_MARKET + ' MARKET'
+    series string labelText07 = 'LEVERAGE: ' + str.tostring(__TR_LEV) + _W_ + '|' + _W_ + 'Grid Size: ' + str.tostring(__GRID_SIZE_PCT, '0.00') + ' %'
+    series string labelText04 = labelText07 + _BR_ + 'Highest Open Loss:' + _W_ + str.tostring(__HIGHEST_OPENLOSS, '0.00 ₮') + _W_ + '|' + _W_ + 'Highest Open Profit:' + _W_ + str.tostring(__HIGHEST_OPENPROFIT, '0.00 ₮') + _BR_ + 'Since Long:' + _W_ + str.tostring(__SINCE_LONG) + ' Bars' + _W_ + '|' + _W_ + 'Since Short:' + _W_ + str.tostring(__SINCE_SHORT) + ' Bars' + _W_ + '|' + _W_ + 'Genesis Rescale Size:' + _W_ + str.tostring(__GRID_RESCALE_VALUE, '0.00')
+    [__PANEL_GRID_X, __PANEL_GRID_Y] = f_draw_info_panel(fLINE, fLABEL, __INTF_OFFSET_X, __INTF_OFFSET_X_INNER, __INTF_OFFSET_Y, __INTF_OFFSET_Y_DIV, __INTF_TT, __GRID, __GRID_SIZE, __GRID_SIZE_PCT, close < __GRID ? BELOW : ABOVE, color.blue, labelText01, labelText02, labelText03)
+    [__PANEL_MARKET_X, __PANEL_MARKET_Y] = f_draw_info_panel(fLINE, fLABEL, __INTF_OFFSET_X, __INTF_OFFSET_X_INNER, __INTF_OFFSET_Y, __INTF_OFFSET_Y_DIV, __INTF_TT, close < __GRID ? __GRID - __GRID_SIZE : __GRID + __GRID_SIZE, __GRID_SIZE, __GRID_SIZE_PCT, close < __GRID ? ABOVE : BELOW, __SRC >= close ? CL_XX_7 : CL_RD_5, labelText04, labelText05, labelText06)
+    // --
+    [__POINTER_ID] = f_draw_pointer(fLINE, fLABEL, __GRID > __SRC ? __SRC - __GRID_SIZE : __SRC + __GRID_SIZE, __INTF_OFFSET_X + 5, INFO, __SRC > __GRID ? ABOVE : BELOW, __SRC >= close ? CL_XX_7 : CL_RD_5, __GRID_SIZE, 'LIVE', '', __SRC > __GRID ? label.style_label_down : label.style_label_up)
+    // label.set_text(array.get(fLABEL, __POINTER_ID), f_ip_animatorTxt(ANI_ASSETS_03, str.format('T: {0,number,#}', f_ip_updateNo()), 2, -1))
+    // --
+    objx.push(fLABEL, label.new(x = bar_index + __INTF_OFFSET_X + 15, y = (__GRID + __SRC) / 2, color = #FFFFFF00, text = 'UNREALIZED' + _BR_ + (__ORX_OPEN_PROFIT > 0 ? '+ ' : '') + str.tostring(__ORX_OPEN_PROFIT, '0.00 ₮') + _BR_, textcolor = __ORX_OPEN_PROFIT > 0 ? CL_GR_4 : CL_RD_5, textalign = text.align_left, style = label.style_label_left, xloc = xloc.bar_index, yloc = yloc.price, size = size.normal))
+    objx.push(fLABEL, label.new(x = bar_index + __INTF_OFFSET_X + 30, y = (__GRID + __SRC) / 2, color = #FFFFFF00, text = 'COM.' + _BR_ + '- ' + str.tostring(__ORX_COM, '0.00 ₮') + _BR_, textcolor = CL_RD_5, textalign = text.align_left, style = label.style_label_left, xloc = xloc.bar_index, yloc = yloc.price, size = size.normal))
+    objx.push(fLABEL, label.new(x = bar_index + __INTF_OFFSET_X + 42, y = (__GRID + __SRC) / 2, color = #FFFFFF00, text = 'REALIZED' + _BR_ + (__ORX_OPEN_PROFIT > 0 ? '+ ' : '') + str.tostring(__ORX_PNL - __ORX_COM, '0.00 ₮') + _BR_, textcolor = __ORX_PNL - __ORX_COM > 0 ? CL_GR_4 : CL_RD_5, textalign = text.align_left, style = label.style_label_left, xloc = xloc.bar_index, yloc = yloc.price, size = size.normal))
+    objx.push(fLINE, line.new(bar_index + __INTF_OFFSET_X + 15, (__GRID + __SRC) / 2, bar_index + __INTF_OFFSET_X + 56, (__GRID + __SRC) / 2, color = color.new(#512da8, 90), extend = extend.none, style = line.style_solid, width = 12))
+    // --
+    // progress.bar(_arrLine=fLINE, _arrLabel=fLABEL, _theme = PBAR_THEME_05, _offsetX = -50, _y = __PANEL_MARKET_Y + __GRID_SIZE,  _value = __MAX_SL_USED_PCT, _min = 0, _max = 100,  _slices = 9, _sliceWidth = 2, _sliceHeight = 12, _collapse = 1, _paddingWidth = 1, _paddingHeight = 4, _textTop = 'Max. SL Used %',  _textBottom = str.tostring(__MAX_SL_USED_PCT / 100,'0.00 %'),_textSize = size.small)
+    // progress.bar(_arrLine=fLINE, _arrLabel=fLABEL, _theme = PBAR_THEME_05, _offsetX = -50, _y = __PANEL_MARKET_Y + (__GRID_SIZE * 3),  _value = __MAX_CTX_USED_PCT, _min = 0, _max = 100,  _slices = 9, _sliceWidth = 2, _sliceHeight = 12, _collapse = 1, _paddingWidth = 1, _paddingHeight = 4, _textTop = 'Max. Contracts Used %', _textSize = size.small,  _textBottom = str.tostring(__MAX_CTX_USED_PCT / 100,'0.00 %'))
+    // progress.bar(_arrLine=fLINE, _arrLabel=fLABEL, _theme = PBAR_THEME_05, _offsetX = -50, _y = __PANEL_MARKET_Y + (__GRID_SIZE * 6),  _value = __MAX_MARGIN_USED_PCT, _min = 0, _max = 100,  _slices = 9, _sliceWidth = 2, _sliceHeight = 12, _collapse = 1, _paddingWidth = 1, _paddingHeight = 4, _textTop = 'Max. Margin Used %', _textSize = size.small,  _textBottom = str.tostring(__MAX_MARGIN_USED_PCT / 100,'0.00 %'))
+    // }
+
+// ──── Tables {
+var series table T_ENV = table.new(position.top_right, 3, 1, border_color = #00000000, border_width = 2)
+var series table T_STOP = table.new(position.middle_right, 3, 5, border_color = #00000000, border_width = 2)
+// var series table T_JRX  = table.new(position.bottom_left, 3, __JRX_MSG_DISPLAY + 2, border_color=#00000000, border_width=2)
+var series table T_STC = table.new(position.bottom_center, 6, 2, border_color = #00000000, border_width = 2)
+// --
+series color __T_BG_COL = color.new(strategy.netprofit > 0 ? CL_GR_1 : color.navy, 95)
+series color __T_TEXT_COL = color.new(strategy.netprofit > 0 ? CL_GR_4 : CL_RD_5, 0)
+// --
+
+if barstate.islast 
+    __T_TEXT_COL := color.new(strategy.netprofit > 0 ? CL_GR_4 : CL_RD_5, 0)
+
+if barstate.isfirst
+    // --
+    table.cell(T_ENV, column = 0, row = 0, text = ICON_AT, width = 2, height = 3, text_color = color.white, text_size = size.small, bgcolor = __T_BG_COL, text_halign = text.align_center)
+    table.cell(T_ENV, column = 1, row = 0, text = 'ENV', width = 2, height = 3, text_color = color.white, text_size = size.small, bgcolor = color.new(color(na), 85), text_halign = text.align_center)
+    table.cell(T_ENV, column = 2, row = 0, text = __ENV, width = 5, height = 3, text_color = color.white, text_size = size.small, bgcolor = color.new(color(na), 85), text_halign = text.align_center)
+    // --
+    table.cell(T_STOP, column = 0, row = 0, text = 'MR', width = 2, height = 3, text_color = color.white, text_size = size.small, bgcolor = color.new(color(na), 85), text_halign = text.align_center)
+    table.cell(T_STOP, column = 0, row = 1, text = 'SL', width = 2, height = 3, text_color = color.white, text_size = size.small, bgcolor = color.new(color(na), 85), text_halign = text.align_center)
+    table.cell(T_STOP, column = 0, row = 2, text = 'LQ', width = 2, height = 3, text_color = color.white, text_size = size.small, bgcolor = color.new(color(na), 85), text_halign = text.align_center)
+    // --
+    table.cell(T_STOP, column = 1, row = 0, text = str.tostring(nz(__MARGIN_USED_PCT / 100, 0), '0.0 %') + ' / ' + str.tostring(__MARGIN_MAINTENANCE, '0.0 ₮'), width = 5, height = 3, text_color = color.white, text_size = size.small, bgcolor = color.new(color(na), 85), text_halign = text.align_right)
+    table.cell(T_STOP, column = 1, row = 1, text = str.tostring(nz(__SL_PRICE, 0), '0.00 ₮'), width = 5, height = 3, text_color = color.white, text_size = size.small, bgcolor = color.new(color(na), 85), text_halign = text.align_right)
+    table.cell(T_STOP, column = 1, row = 2, text = str.tostring(nz(__LQ_PRICE, 0), '0.00 ₮'), width = 5, height = 3, text_color = color.white, text_size = size.small, bgcolor = color.new(color(na), 85), text_halign = text.align_right)
+    // --
+    table.cell(T_STC, column = 0, row = 0, text = 'Capital', width = 5, height = 3, text_color = color.white, text_size = size.small, bgcolor = color.new(color(na), 85), text_halign = text.align_center)
+    table.cell(T_STC, column = 1, row = 0, text = 'Equity', width = 7, height = 3, text_color = color.white, text_size = size.small, bgcolor = color.new(color(na), 85), text_halign = text.align_center)
+    table.cell(T_STC, column = 2, row = 0, text = 'Net Profit', width = 7, height = 3, text_color = color.white, text_size = size.small, bgcolor = color.new(color(na), 85), text_halign = text.align_center)
+    table.cell(T_STC, column = 3, row = 0, text = 'Max SL %', width = 6, height = 3, text_color = color.white, text_size = size.small, bgcolor = color.new(color(na), 85), text_halign = text.align_center)
+    table.cell(T_STC, column = 4, row = 0, text = 'Commission', width = 6, height = 3, text_color = color.white, text_size = size.small, bgcolor = color.new(color(na), 85), text_halign = text.align_center)
+    table.cell(T_STC, column = 5, row = 0, text = 'Avg Price', width = 7, height = 3, text_color = color.white, text_size = size.small, bgcolor = color.new(color(na), 85), text_halign = text.align_center)
+    // --
+    table.cell(T_STC, column = 0, row = 1, text = '', width = 5, height = 3, text_color = color.white, text_size = size.small, bgcolor = color.new(color(na), 85), text_halign = text.align_center)
+    table.cell(T_STC, column = 1, row = 1, text = '', width = 7, height = 3, text_color = color.white, text_size = size.small, bgcolor = color.new(color(na), 85), text_halign = text.align_center)
+    table.cell(T_STC, column = 2, row = 1, text = '', width = 7, height = 3, text_color = __T_TEXT_COL, text_size = size.small, bgcolor = __T_BG_COL, text_halign = text.align_center)
+    table.cell(T_STC, column = 3, row = 1, text = '', width = 6, height = 3, text_color = color.white, text_size = size.small, bgcolor = color.new(color(na), 85), text_halign = text.align_center)
+    table.cell(T_STC, column = 4, row = 1, text = '', width = 6, height = 3, text_color = color.white, text_size = size.small, bgcolor = color.new(color(na), 85), text_halign = text.align_center)
+    table.cell(T_STC, column = 5, row = 1, text = '', width = 7, height = 3, text_color = color.white, text_size = size.small, bgcolor = color.new(color(na), 85), text_halign = text.align_center)
+    // --
+if barstate.islast and __SHOW_LAST
+    // --
+    table.cell_set_text(T_STOP, column = 1, row = 0, text = str.tostring(nz(__MARGIN_USED_PCT / 100, 0), '0.0 %') + ' / ' + str.tostring(__MARGIN_MAINTENANCE, '0.0 ₮'))
+    table.cell_set_text(T_STOP, column = 1, row = 1, text = str.tostring(nz(__SL_PRICE, 0), '0.00 ₮'))
+    table.cell_set_text(T_STOP, column = 1, row = 2, text = str.tostring(nz(__LQ_PRICE, 0), '0.00 ₮'))
+    // --
+    table.cell_set_text(T_STC, column = 0, row = 1, text = str.tostring(strategy.initial_capital, '0.00 ₮'))
+    table.cell_set_text(T_STC, column = 1, row = 1, text = str.tostring(strategy.equity, '0.00 ₮'))
+    table.cell_set_text(T_STC, column = 2, row = 1, text = str.tostring(math.abs(strategy.netprofit) / strategy.initial_capital, (strategy.netprofit > 0 ? '+' : '-') + ' 0.00 %') + '\n' + str.tostring(bench.running_days) + ' Days')
+    table.cell_set_text_color(T_STC, column = 2, row = 1, text_color = __T_TEXT_COL)
+    table.cell_set_text(T_STC, column = 3, row = 1, text = str.tostring(__MAX_SL_USED_PCT, '0.00') + ' %')
+    table.cell_set_text(T_STC, column = 4, row = 1, text = str.tostring(__TOTAL_COM, '0.00 ₮'))
+    table.cell_set_text(T_STC, column = 5, row = 1, text = str.tostring(__ORX_AVG_PRICE, '0.00 ₮'))
+    // }
+
+
+//  ▪ PNL (REALIZED)  ────
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+// ──── Profits {
+//
+if __PROFIT
+    [pnl1, pnl2] = f_dist(close, __ORX_AVG_PRICE)
+    if __COND_FULL_CLOSE
+        string pnlTxt1 = syminfo.ticker + (__ORX_LONG ? ' - LONG' : ' - SHORT') + ' PNL' + _BR_ + str.tostring(math.round(__POS_PNL, 2), '0.00') + ' x ' + str.tostring(close, '0.00## ₮') + ' | ' + str.tostring(__ORX_AVG_PRICE, '0.00## ₮') + ' AVG' + _BR_ + 'BRUTTO PNL: ' + str.tostring(__POS_PNL, '0.00## ₮') + _W_ + '|' + _W_ + str.tostring(pnl2, '0.00') + ' %' + _BR_ + 'COM: ' + str.tostring(__POS_COM, '0.00#### ₮') + _W_ + '|' + _W_ + str.tostring(__POS_COM / __POS_PNL, '0.00 %')
+        __TOAST := (pnl2 >= 0 ? 'PROFIT: ' : 'LOSS: ') + str.tostring(math.abs(pnl2), '0.00') + ' %'
+        objx.push(xLABEL, label.new(bar_index, __GRID >= close ? __GRID + __GRID_SIZE * labelDistFct : __GRID - __GRID_SIZE * labelDistFct, color = pnl2 >= 0 ? color.orange : color.red, style = __GRID >= close ? label.style_label_down : label.style_label_up, xloc = xloc.bar_index, textcolor = #000000FF, textalign = text.align_right, text = __TOAST, size = size.tiny, tooltip = pnlTxt1))
+        // --
+        hoox.addAlert(ALERTS_TELEGRAM, hoox.createTelegramMsg(_text = pnlTxt1, _secret = __HOOX_SECRET, _chatId = __TELEGRAM_CHAT_ID, _escapeables = array.from('')), __TELEGRAM_SEND_PNL)
+    else
+        float posContracts = math.abs(__ORX_LONG ? __CTX_SHORT : __CTX_LONG)
+        string pnlTxt1 = syminfo.ticker + (__ORX_LONG ? ' - LONG' : ' - SHORT') + ' PNL' + _BR_ + str.tostring(posContracts, '0.00') + ' x ' + str.tostring(close, '0.00## ₮') + ' | ' + str.tostring(__ORX_AVG_PRICE, '0.00## ₮') + ' AVG' + _BR_ + 'BRUTTO PNL: ' + str.tostring(__POS_PNL, '0.00## ₮') + _W_ + '|' + _W_ + str.tostring(pnl2, '0.00') + ' %' + _BR_ + 'COM: ' + str.tostring(__POS_COM, '0.00## ₮') + _W_ + '|' + _W_ + str.tostring(__POS_COM / __POS_PNL, '0.00 %')
+        __TOAST := (pnl2 >= 0 ? 'PROFIT: ' : 'LOSS: ') + str.tostring(math.abs(pnl2), '0.00') + ' %'
+        objx.push(xLABEL, label.new(bar_index - 2, __ORX_LONG ? __GRID + __GRID_SIZE * .5 : __GRID - __GRID_SIZE * .5, color = pnl2 >= 0 ? CL_GR_4 : CL_RD_5, style = __ORX_LONG ? label.style_label_lower_right : label.style_label_upper_right, xloc = xloc.bar_index, textcolor = pnl2 >= 0 ? #000000FF : #FFFFFFFF, textalign = text.align_right, text = __TOAST, size = size.tiny, tooltip = pnlTxt1))
+        // --
+        hoox.addAlert(ALERTS_TELEGRAM, hoox.createTelegramMsg(_text = pnlTxt1, _secret = __HOOX_SECRET, _chatId = __TELEGRAM_CHAT_ID, _escapeables = array.from('')), __TELEGRAM_SEND_PNL)
+        // --
+if (__GRID_LONG or __GRID_SHORT) and __SL_USED_PCT >= __TR_SL_PCT / 3
+    hoox.addAlert(ALERTS_TELEGRAM, str.format('SL: {0,number,percent}', __SL_USED_PCT / 100), __TELEGRAM_SEND_SL)
+    // --
+if (__GRID_LONG or __GRID_SHORT) and __MARGIN_USED_PCT >= __TR_MARGIN_PCT / 4
+    string marginWarnString = hoox.createTelegramMsg(__HOOX_SECRET, __TELEGRAM_CHAT_ID, 'MARGIN RATIO WARNING ' + str.tostring(__MARGIN_USED_PCT, '0.00') + ' used from ' + str.tostring(__TR_MARGIN_PCT) + ' %', ESCAPEABLES)
+    hoox.addAlert(ALERTS_TELEGRAM, marginWarnString, __TELEGRAM_SEND_MARGIN and __MARGIN_USED_PCT >= 25)
+    // }
+
+// ──── Send Alerts & Notifications {
+//
+if barstate.islast
+    hoox.addAlert(ALERTS_TELEGRAM, hoox.createTelegramMsg(__HOOX_SECRET, __TELEGRAM_CHAT_ID, __INTF_TT, ESCAPEABLES), __TELEGRAM_SEND_STAT)
+    // --
+if barstate.islast and f_tf_interval(__TELEGRAM_INTV_INFO, __ORDER_EXEC)
+    hoox.exec(ALERTS_TELEGRAM)
+if barstate.islast and f_tf_interval(__TELEGRAM_INTV_ALERT, __ORDER_EXEC)
+    hoox.exec(ALERTS_HOOX)
+    // }
+
+//  ▪ STRATEGY EXECUTION  ────
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+// ──── Strategy Execution {
+//
+if barstate.isconfirmed and f_tf_backtestWindow()
+    // --
+    // [__HA_PAYLOAD_KEY, __HA_PAYLOAD] = hoox.createHomeAssistantPayload(_haToken = __HA_TOKEN, _haEntityId = array.get(str.split(__HA_ENTITY_ID, ':'), 0), _haEntityDomain = __HA_ENTITY_DOMAIN, _haLightFlash = __HA_LIGHT_FLASH)
+    string openLongMsg = hoox.createOrderMsg(_secret = __HOOX_SECRET, _base = 'USDT', _quota = syminfo.ticker, _order_qty = __CTX_LONG, _action = BUY, _order_market = __TR_MARKET, _order_type = MARKET, _leverage = Leverage, _order_test = __HOOX_TEST)
+    string closeLongMsg = hoox.createOrderMsg(_secret = __HOOX_SECRET, _base = 'USDT', _quota = syminfo.ticker, _order_qty = __CTX_SHORT, _action = CLOSE, _order_market = __TR_MARKET, _order_type = MARKET, _leverage = Leverage, _order_test = __HOOX_TEST)
+    string openShortMsg = hoox.createOrderMsg(_secret = __HOOX_SECRET, _base = 'USDT', _quota = syminfo.ticker, _order_qty = __CTX_SHORT, _action = SELL, _order_market = __TR_MARKET, _order_type = MARKET, _leverage = Leverage, _order_test = __HOOX_TEST)
+    string closeShortMsg = hoox.createOrderMsg(_secret = __HOOX_SECRET, _base = 'USDT', _quota = syminfo.ticker, _order_qty = __CTX_LONG, _action = CLOSE, _order_market = __TR_MARKET, _order_type = MARKET, _leverage = Leverage, _order_test = __HOOX_TEST)
+    // --
+    if __TR_DIR == LONG_STACK or __TR_DIR == SHORT_STACK
+        switch 
+            __COND_STACK_LONG => strategy.entry(id = '.', direction = strategy.long, qty = __CTX_LONG_ABS, alert_message = openLongMsg)
+            __COND_STACK_SHORT => strategy.entry(id = '.', direction = strategy.short, qty = __CTX_SHORT_ABS, alert_message = openShortMsg)
+            // --
+            __COND_STACK_LONG_CLOSE => strategy.close(id = '.', qty = __QTY_FULL_ABS, alert_message = closeLongMsg)
+            __COND_STACK_SHORT_CLOSE => strategy.close(id = '.', qty = __QTY_FULL_ABS, alert_message = closeShortMsg)
+
+    else if __TR_DIR == FULL_STACK
+        switch 
+            strategy.position_size == 0 and __COND_FULL_STACK_LONG => strategy.entry(id = '.', direction = strategy.long, qty = __CTX_LONG_ABS, alert_message = openLongMsg)
+            strategy.position_size == 0 and __COND_FULL_STACK_SHORT => strategy.entry(id = '.', direction = strategy.short, qty = __CTX_SHORT_ABS, alert_message = openShortMsg)
+            // --
+
+            strategy.position_size < 0 and __COND_FULL_STACK_SHORT => strategy.entry(id = '.', direction = strategy.short, qty = __CTX_SHORT_ABS, alert_message = openShortMsg)
+            strategy.position_size < 0 and __CTX_LONG_ABS < __QTY_FULL_ABS and __COND_FULL_STACK_LONG => strategy.close(id = '.', qty = __CTX_LONG_ABS, alert_message = openLongMsg)
+            strategy.position_size < 0 and __CTX_LONG_ABS >= __QTY_FULL_ABS and __COND_FULL_STACK_LONG => strategy.close(id = '.', qty = __QTY_FULL_ABS, alert_message = closeShortMsg)
+
+            // --
+            strategy.position_size > 0 and __COND_FULL_STACK_LONG => strategy.entry(id = '.', direction = strategy.long, qty = __CTX_LONG_ABS, alert_message = openLongMsg)
+            strategy.position_size > 0 and __CTX_SHORT_ABS < __QTY_FULL_ABS and __COND_FULL_STACK_SHORT => strategy.close(id = '.', qty = __CTX_SHORT_ABS, alert_message = openShortMsg)
+            strategy.position_size > 0 and __CTX_SHORT_ABS >= __QTY_FULL_ABS and __COND_FULL_STACK_SHORT => strategy.close(id = '.', qty = __QTY_FULL_ABS, alert_message = closeLongMsg)
+
+            // --
+            __COND_CLOSE and not __COND_FULL_CLOSE and __ORX_OPEN => strategy.close(id = '.', qty = __ORX_LONG ? __CTX_SHORT : __CTX_LONG, alert_message = __ORX_LONG ? openShortMsg : openLongMsg)
+
+            __COND_PART_CLOSE_SL and __ORX_OPEN and not __COND_FULL_CLOSE => strategy.close(id = '.', qty = math.abs(__ORX_LONG ? __CTX_LONG : __CTX_SHORT), alert_message = __TR_REDUCE_PCT == 100 ? __ORX_LONG ? closeLongMsg : closeShortMsg : __ORX_LONG ? openShortMsg : openLongMsg)
+
+            // --
+            __COND_FULL_CLOSE => strategy.close_all(alert_message = __ORX_LONG ? closeLongMsg : closeShortMsg)
+
+// }
+
+//  ▪ RESET ────
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+// ──── Trailing {
+//
+if __TRL_ST1_HIT
+    array.clear(TRL_SRC)
+if strategy.position_size == 0 or not f_tf_backtestWindow()
+    __TR_RLZ_LW1_START_TGD := false
+    __TR_RLZ_LW1_START_TGD
+    // }
+
+// ──── Reset Multiplier {
+//
+if __TRL_HIT
+    __MTP_TP1_LVL := __MTP_TP1_LVL == array.size(TP1) - 1 ? 0 : __MTP_TP1_LVL + 1
+    __MTP_ST1_LVL := __MTP_ST1_LVL == array.size(TRL1) - 1 ? 0 : __MTP_ST1_LVL + 1
+    __MTP_ST1_LVL
+if __STC_SL1_HIT
+    __MTP_SL1_LVL := __MTP_SL1_LVL == array.size(SL1) - 1 ? 0 : __MTP_SL1_LVL + 1
+    __MTP_SL1_LVL
+if strategy.position_size == 0
+    __MTP_TP1_LVL := 0
+    __MTP_SL1_LVL := 0
+    __MTP_ST1_LVL := 0
+    __MTG := __MTG_START
+    __MTG
+    // }
+
+// ──── Position Martingale / Last-Entry {
+//
+if __COND_FULL_CLOSE or strategy.position_size == 0 or not f_tf_backtestWindow() //or __TRL_HIT // or __COND_CLOSE
+    __LAST_ENTRY := 0
+    __LAST_ENTRY
+    // }
+
+// ──── Housekeeping {
+//
+objx.cleanOldest(xLABEL, fLABEL, MaxLabelsCount, 80)
+objx.cleanOldest(xLINE, fLINE, MaxLinesCount)
+// }
+
+
+//  ▪ DEBUGGING ────
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+//| @eof
+
+// ──── Debug {
+//
+plotchar(__POS, '__POS', char = '', color = #ffffff00)
+plotchar(__RETRACEMENT, '__RETRACEMENT', char = '', color = #ffffff00)
+plotchar(__CTX_START, '__CTX_START', char = '', color = #ffffff00)
+plotchar(__CTX_LONG, '__CTX_LONG', char = '', color = #ffffff00)
+plotchar(__CTX_SHORT, '__CTX_SHORT', char = '', color = #ffffff00)
+// }
+
+// ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── } #EOF
+
+method toFloat(series bool this) =>
+    float(this ? 1 : 0)
+method cum(series bool this) =>
+    ta.cum(this.toFloat())
+
+method debug(c.terminal this) =>
+    this.log('LONG', __GRID_LONG.cum()).log('SHORT', __GRID_SHORT.cum()).log('LOCKED', __LOCKED.cum()).log('PREVENT', __PREVENT.cum()).log('BB', (__DESC_STRING == 'BB').cum()).log('BB2', (__DESC_STRING == 'BB2').cum()).log('SB', (__DESC_STRING == 'SB').cum()).log('SB2', (__DESC_STRING == 'SB2').cum()).log('REALIZED', (__DESC_STRING == 'RL').cum()).log('MBB ERROR', (__DESC_STRING == 'MBB_ERROR').cum()).log('Grid Ctr Long', __GRID_CTR_LONG).log('Grid Ctr Short', __GRID_CTR_SHORT)
+    this
+
+console.debug().show()
+

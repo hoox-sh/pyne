@@ -1,0 +1,51 @@
+//@version=4
+//main script written by ROBINHOODLAB
+//@url=https://de.tradingview.com/script/X3bo4jyJ-RSI-ICHIMOKU-CLOUD/
+
+study("RSI ICHIMOKU CLOUD")
+len = input(21, "RSI Length", minval=1)
+rsi = rsi(close, len)
+t(x) => security( syminfo.tickerid, timeframe.period, rsi(x, len))
+
+o = t(open)
+h = t(high)
+l = t(low)
+c = t(close)
+upper=input(70)
+lower=input(30)
+plot(upper, color=color.orange)
+plot(lower, color=color.green)
+plotcandle(o, h, l, c, color=o < c ? color.green : color.red)
+
+conversionPeriods = input(9, minval=1, title="Conversion Line Periods"),
+basePeriods = input(26, minval=1, title="Base Line Periods")
+laggingSpan2Periods = input(52, minval=1, title="Lagging Span 2 Periods"),
+displacement = input(26, minval=1, title="Displacement")
+//
+donchian(len) => avg(lowest(l,len), highest(h,len))
+
+conversionLine = donchian(conversionPeriods)
+baseLine = donchian(basePeriods)
+leadLine1 = avg(conversionLine, baseLine)
+leadLine2 = donchian(laggingSpan2Periods)
+
+plot(conversionLine, color=#0496ff, title="Conversion Line")
+plot(baseLine, color=#991515, title="Base Line")
+//plot(c, offset = -displacement, color=#459915, title="Lagging Span")
+//
+p1 = plot(leadLine1, offset = displacement, color=color.green,
+ title="Lead 1")
+p2 = plot(leadLine2, offset = displacement, color=color.red, 
+ title="Lead 2")
+fill(p1, p2, color = leadLine1 > leadLine2 ? color.green : color.red)
+//
+
+ 
+down = crossunder(rsi, baseLine) 
+up = crossover(rsi, baseLine) 
+plot(up  ?lower :na, style=plot.style_cross, color=color.blue, linewidth=3, transp=0)
+plot(down ?upper :na, style=plot.style_circles, color=color.red, linewidth=3, transp=0)
+
+/////// Alerts /////
+alertcondition(down,title="down")
+alertcondition(up,title="up")

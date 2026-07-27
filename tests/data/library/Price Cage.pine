@@ -1,0 +1,138 @@
+//@version=4
+//@author    Ricardo Santos
+//@editor    jango-blockchained
+
+
+study("Price Cage v1", "Price Cage v1", overlay=true)
+
+
+//////////////////////////////////////////////////////////////////////////
+//-- INPUTS
+//////////////////////////////////////////////////////////////////////////
+
+
+var int __LENGTH             = input(50, type=input.integer, min=1, max=500, step=25, title="Length")
+
+
+///////////////////////////////////////////////////////////////////////////
+//-- VARIABLES
+///////////////////////////////////////////////////////////////////////////
+
+
+var float __OPEN             = open
+var float __MAXDEV           = 0.0
+var float __MAXSLOPE         = 0.0
+
+
+//////////////////////////////////////////////////////////////////////////
+//-- COLORS
+//////////////////////////////////////////////////////////////////////////
+
+
+//--__buy, Upward
+var color col_green_1        = #4EF9FF
+var color col_green_2        = #3CADB1
+var color col_green_3        = #26c6da  //*
+var color col_green_4        = #afff00
+var color col_green_5        = #CFD80E
+var color col_green_6        = #90c818
+
+//-- __sell, Downward
+var color col_red_1          = #7b1fa2
+var color col_red_2          = #7e57c2
+var color col_red_3          = #512da8
+var color col_red_4          = #7300de
+var color col_red_5          = #4a148c  //*
+
+//-- Idle, Sideward
+var color col_yellow_1       = #ffa726
+var color col_yellow_2       = #f57c00
+
+
+//////////////////////////////////////////////////////////////////////////
+//-- FUNCTIONS
+//////////////////////////////////////////////////////////////////////////
+
+
+f_line(_multiplier, _color, _width, _style) =>
+    line upper = line.new(x1=bar_index-1, y1=sp + __MAXDEV * _multiplier, x2=bar_index, y2=avg + maxdev * _multiplier, xloc=xloc.bar_index, 
+         extend=extend.both, color=_color, style=_style, width=_width)
+
+
+//////////////////////////////////////////////////////////////////////////
+//-- CALCULATION & PRINTING
+//////////////////////////////////////////////////////////////////////////
+
+
+float avg                    = cum(close) / (1 + bar_index)
+float slope                  = (avg - __OPEN) / (1 + bar_index)
+float sp                     = avg-slope
+float dev                    = abs(close - avg)
+
+if dev > __MAXDEV
+    __MAXDEV := dev
+
+//-- Center
+f_line(0.0, col_red_2, 2, line.style_solid)
+
+//-- Extremes
+color ext_col = color.new(col_red_2, 70)
+f_line(+1.0, ext_col, 2, line.style_solid)
+f_line(-1.0, ext_col, 2, line.style_solid)
+
+//-- Quarters
+color q_col = color.new(col_red_2, 70)
+f_line(+0.50, q_col, 1, line.style_solid)
+f_line(-0.50, q_col, 1, line.style_solid)
+
+//-- Octavs
+color oct_col = color.new(col_red_2, 70)
+f_line(+0.75, oct_col, 1, line.style_dashed)
+f_line(+0.25, oct_col, 1, line.style_dashed)
+f_line(-0.25, oct_col, 1, line.style_dashed)
+f_line(-0.75, oct_col, 1, line.style_dashed)
+
+//------------------------------------------------------------------------------
+
+float diagonal_avg           = sma(close, __LENGTH)
+float dslope                 = change(diagonal_avg)
+
+//------------------------------------------------------------------------------
+
+if dslope > __MAXSLOPE
+    __MAXSLOPE := dslope
+    
+//------------------------------------------------------------------------------
+
+f_dline(_multiplier, _color, _width, _style)=>
+    line upper = line.new(x1=bar_index-1, y1=sp + __MAXDEV * _multiplier, x2=bar_index, y2=avg + (__MAXDEV * _multiplier) + __MAXSLOPE, xloc=xloc.bar_index, 
+         extend=extend.both, color=_color, style=_style, width=_width)
+
+f_aline(_multiplier, _color, _width, _style)=>
+    line upper = line.new(x1=bar_index-1, y1=sp + __MAXDEV * _multiplier, x2=bar_index, y2=avg + (__MAXDEV * _multiplier) - __MAXSLOPE, xloc=xloc.bar_index, 
+         extend=extend.both, color=_color, style=_style, width=_width)
+
+//------------------------------------------------------------------------------
+
+color diag_col = color.new(col_red_2, 80)
+f_dline(+1.00, diag_col, 1, line.style_dotted)
+f_dline(+0.75, diag_col, 1, line.style_dotted)
+f_dline(+0.50, diag_col, 1, line.style_dotted)
+f_dline(+0.25, diag_col, 1, line.style_dotted)
+f_dline(+0.00, diag_col, 1, line.style_dotted)
+f_dline(-0.25, diag_col, 1, line.style_dotted)
+f_dline(-0.50, diag_col, 1, line.style_dotted)
+f_dline(-0.75, diag_col, 1, line.style_dotted)
+f_dline(-1.00, diag_col, 1, line.style_dotted)
+color anti_col = color.new(col_red_2, 80)
+f_aline(+1.00, anti_col, 1, line.style_dotted)
+f_aline(+0.75, anti_col, 1, line.style_dotted)
+f_aline(+0.50, anti_col, 1, line.style_dotted)
+f_aline(+0.25, anti_col, 1, line.style_dotted)
+f_aline(+0.00, anti_col, 1, line.style_dotted)
+f_aline(-0.25, anti_col, 1, line.style_dotted)
+f_aline(-0.50, anti_col, 1, line.style_dotted)
+f_aline(-0.75, anti_col, 1, line.style_dotted)
+f_aline(-1.00, anti_col, 1, line.style_dotted)
+
+//----------------------------------------------------------------------------}|

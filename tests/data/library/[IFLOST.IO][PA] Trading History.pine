@@ -1,0 +1,88 @@
+//   |{------------------------------------------------------------------||
+//   ||   Start of Script
+
+
+//      ____________    ____  ___________________ 
+//     /  _/ ____/ /   / __ \/ ___/_  __/  _/ __ \
+//     / // /_  / /   / / / /\__ \ / /  / // / / /
+//   _/ // __/ / /___/ /_/ /___/ // / _/ // /_/ /  
+//  /___/_/   /_____/\____//____//_(_)___/\____/  
+// 
+//  EVERYTHING IS POSSIBLE, BY THE POWER OF DATA.
+
+
+//@version=4
+//@authors                      = Jan Goischke & Dennis Hilpmann
+
+
+//////////////////////////////////////////////////////////////////////////
+// [IFLOST.io] Risk Reward Panel
+//////////////////////////////////////////////////////////////////////////
+
+
+study(
+ title="[SETUP-02][PA] Trading History",
+ shorttitle="[SETUP-02][PA] Trading History",
+ overlay=true,
+ precision=6
+ )
+
+
+//////////////////////////////////////////////////////////////////////////
+//-- INPUTS
+//////////////////////////////////////////////////////////////////////////
+
+
+// Entry Price
+float __EXTERN                  = input(type=input.source, defval=close, title="Change data source to > External Signal:")
+
+// PnL Panel positions on the chart
+int __POSX                      = input(80, title="Panel X Position Offset")
+int __POSY                      = input(-50, title="Panel Y Position Offset")
+// int __OFFSET                    = input(0, title="Panel Y Position Offset")
+bool __INCL_COMMISSION          = input(true, title="Include Commission (Exchange Fee)?")
+float __INCL_COMMISSION_PERCENT = input(0.075, title="One-Way Commission %")
+
+
+//////////////////////////////////////////////////////////////////////////
+//-- VARIABLES
+//////////////////////////////////////////////////////////////////////////
+
+
+var string __DIRECTION          = "LONG"
+var float __DIR                 = na
+var float __LAST_PRICE          = 0.0
+
+var bool __TREND_BUY            = false
+var bool __TREND_SELL           = false
+
+
+//////////////////////////////////////////////////////////////////////////
+//-- COLORS
+//////////////////////////////////////////////////////////////////////////
+
+
+//-- __buy, Upward
+color col_green_1           = #4EF9FF
+color col_green_2           = #3CADB1
+color col_green_3           = #26c6da  //* 
+color col_green_4           = #afff00
+color col_green_5           = #CFD80E
+color col_green_6           = #90c818
+
+//-- __sell, Downward
+color col_red_1             = #7b1fa2
+color col_red_2             = #7e57c2
+color col_red_3             = #512da8
+color col_red_4             = #7300de
+color col_red_5             = #4a148c  //*
+color col_red_6             = #2d2456
+
+//-- Idle, Sideward
+color col_yellow_1          = #ffa726
+color col_yellow_2          = #f57c00
+
+
+//////////////////////////////////////////////////////////////////////////
+//-- FUNCTIONS
+//////////////////////////////////////////////////////////////////////////

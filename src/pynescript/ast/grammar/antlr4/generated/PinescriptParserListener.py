@@ -1,4 +1,4 @@
-# Generated from src/pynescript/ast/grammar/antlr4/resource/PinescriptParser.g4 by ANTLR 4.13.2
+# Generated from PinescriptParser.g4 by ANTLR 4.13.2
 from antlr4 import *
 if "." in __name__:
     from .PinescriptParser import PinescriptParser
@@ -77,6 +77,15 @@ class PinescriptParserListener(ParseTreeListener):
 
     # Exit a parse tree produced by PinescriptParser#simple_statements.
     def exitSimple_statements(self, ctx:PinescriptParser.Simple_statementsContext):
+        pass
+
+
+    # Enter a parse tree produced by PinescriptParser#trailing_structure_statements.
+    def enterTrailing_structure_statements(self, ctx:PinescriptParser.Trailing_structure_statementsContext):
+        pass
+
+    # Exit a parse tree produced by PinescriptParser#trailing_structure_statements.
+    def exitTrailing_structure_statements(self, ctx:PinescriptParser.Trailing_structure_statementsContext):
         pass
 
 

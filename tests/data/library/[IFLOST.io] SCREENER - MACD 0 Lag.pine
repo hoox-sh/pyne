@@ -1,0 +1,247 @@
+//@version=4
+// Original Script by @Daveatt
+// Update and Edits by @jango_blockchained
+
+study("[IFLOST.io] SCREENER - MACD ZERO LAG", "[IFLOST.io] Screener", overlay=false, precision=4)
+
+
+//////////////////////////////////////////////////////////////////////////
+// Inputs
+//////////////////////////////////////////////////////////////////////////
+
+
+// MACD ZL
+fastLength = input(12, title="Fast Length", minval=1)
+slowLength=input(26, title="Slow Length", minval=1)
+signalLength=input(9, title="Signal Length", minval=1)
+
+label_screener = input(title="SELECT THE 6 TIMEFRAMES USED FOR THE SCREENER", defval=true, type=input.bool)
+
+res1 = input(type=input.resolution, defval="1", title="1st resolution")
+res2 = input(type=input.resolution, defval="15", title="2nd resolution")
+res3 = input(type=input.resolution, defval="30", title="3rd resolution")
+res4 = input(type=input.resolution, defval="60", title="4th resolution")
+res5 = input(type=input.resolution, defval="240", title="5th resolution")
+//res6 = input(type=input.resolution, "H4", title="6h resolution")
+
+// Symbols
+
+SYM1 = "BTCUSD"
+SYM2 = "ETHUSD"
+SYM3 = "LTCUSD"
+SYM4 = "XRPUSD"
+
+// SYM1 = input(type=input.string, title="Symbol #1", defval="BTCUSD")
+// SYM2 = input(type=input.string, title="Symbol #2", defval="ETHUSD")
+// SYM3 = input(type=input.string, title="Symbol #3", defval="XRPUSD")
+// SYM4 = input(type=input.string, title="Symbol #4", defval="EOSUSD")
+
+//i_symbol4 = input(type=input.symbol, defval="USDT.D", title="SYMBOL 4")
+
+
+//////////////////////////////////////////////////////////////////////////
+// Colors
+//////////////////////////////////////////////////////////////////////////
+
+
+// Buy, Upward
+clg = #4EF9FF
+cdg = #3CADB1
+cbg = #00BCD4 //Background
+
+// Sell, Downward
+clr = #7b1fa2
+cdr = #512da8	
+cbr = #7e57c2
+
+// Idle, Sideward
+cly = #ffa726
+
+// res1
+SYMBOL1_1 = security(SYM1, res1, close,  barmerge.lookahead_on)
+SYMBOL1_2 = security(SYM2, res1, close,  barmerge.lookahead_on)
+SYMBOL1_3 = security(SYM3, res1, close,  barmerge.lookahead_on)
+SYMBOL1_4 = security(SYM4, res1, close,  barmerge.lookahead_on)
+// res2
+SYMBOL2_1 = security(SYM1, res2, close,  barmerge.lookahead_on)
+SYMBOL2_2 = security(SYM2, res2, close,  barmerge.lookahead_on)
+SYMBOL2_3 = security(SYM3, res2, close,  barmerge.lookahead_on)
+SYMBOL2_4 = security(SYM4, res2, close,  barmerge.lookahead_on)
+// res3
+SYMBOL3_1 = security(SYM1, res3, close,  barmerge.lookahead_on)
+SYMBOL3_2 = security(SYM2, res3, close,  barmerge.lookahead_on)
+SYMBOL3_3 = security(SYM3, res3, close,  barmerge.lookahead_on)
+SYMBOL3_4 = security(SYM4, res3, close,  barmerge.lookahead_on)
+// res4
+SYMBOL4_1 = security(SYM1, res4, close,  barmerge.lookahead_on)
+SYMBOL4_2 = security(SYM2, res4, close,  barmerge.lookahead_on)
+SYMBOL4_3 = security(SYM3, res4, close,  barmerge.lookahead_on)
+SYMBOL4_4 = security(SYM4, res4, close,  barmerge.lookahead_on)
+// res5
+SYMBOL5_1 = security(SYM1, res5, close,  barmerge.lookahead_on)
+SYMBOL5_2 = security(SYM2, res5, close,  barmerge.lookahead_on)
+SYMBOL5_3 = security(SYM3, res5, close,  barmerge.lookahead_on)
+SYMBOL5_4 = security(SYM4, res5, close,  barmerge.lookahead_on)
+
+
+
+// MACD ZL
+
+MACD_ZL(source)=>
+
+    ema1= ema(source, fastLength)
+    ema2 = ema(ema1,fastLength)
+    differenceFast = ema1 - ema2
+    zerolagEMA = ema1 + differenceFast
+    demaFast = (2 * ema1) - ema2
+
+    // SLOW LINE
+    emas1= ema(source , slowLength)
+    emas2 = ema(emas1 , slowLength)
+    differenceSlow = emas1 - emas2
+    zerolagslowMA = emas1 + differenceSlow
+    demaSlow = (2 * emas1) - emas2
+
+    //MACD LINE
+    ZeroLagMACD = demaFast - demaSlow
+
+    //SIGNAL LINE
+    emasig1 = ema(ZeroLagMACD, signalLength)
+    emasig2 = ema(emasig1, signalLength)
+    signalZL = (2 * emasig1) - emasig2
+
+    histZL = ZeroLagMACD -signalZL
+
+    histZL
+
+// res1
+outHistZL1_1 = security(SYM1, res1, MACD_ZL(SYMBOL1_1),  barmerge.lookahead_on)
+outHistZL1_2 = security(SYM2, res1, MACD_ZL(SYMBOL1_2),  barmerge.lookahead_on)
+outHistZL1_3 = security(SYM3, res1, MACD_ZL(SYMBOL1_3),  barmerge.lookahead_on)
+outHistZL1_4 = security(SYM4, res1, MACD_ZL(SYMBOL1_4),  barmerge.lookahead_on)
+// res2
+outHistZL2_1 = security(SYM1, res2, MACD_ZL(SYMBOL2_1),  barmerge.lookahead_on)
+outHistZL2_2 = security(SYM2, res2, MACD_ZL(SYMBOL2_2),  barmerge.lookahead_on)
+outHistZL2_3 = security(SYM3, res2, MACD_ZL(SYMBOL2_3),  barmerge.lookahead_on)
+outHistZL2_4 = security(SYM4, res2, MACD_ZL(SYMBOL2_4),  barmerge.lookahead_on)
+// res3
+outHistZL3_1 = security(SYM1, res3, MACD_ZL(SYMBOL3_1),  barmerge.lookahead_on)
+outHistZL3_2 = security(SYM2, res3, MACD_ZL(SYMBOL3_2),  barmerge.lookahead_on)
+outHistZL3_3 = security(SYM3, res3, MACD_ZL(SYMBOL3_3),  barmerge.lookahead_on)
+outHistZL3_4 = security(SYM4, res3, MACD_ZL(SYMBOL3_4),  barmerge.lookahead_on)
+// res4
+outHistZL4_1 = security(SYM1, res4, MACD_ZL(SYMBOL4_1),  barmerge.lookahead_on)
+outHistZL4_2 = security(SYM2, res4, MACD_ZL(SYMBOL4_2),  barmerge.lookahead_on)
+outHistZL4_3 = security(SYM3, res4, MACD_ZL(SYMBOL4_3),  barmerge.lookahead_on)
+outHistZL4_4 = security(SYM4, res4, MACD_ZL(SYMBOL4_4),  barmerge.lookahead_on)
+// res5
+outHistZL5_1 = security(SYM1, res5, MACD_ZL(SYMBOL5_1),  barmerge.lookahead_on)
+outHistZL5_2 = security(SYM2, res5, MACD_ZL(SYMBOL5_2),  barmerge.lookahead_on)
+outHistZL5_3 = security(SYM3, res5, MACD_ZL(SYMBOL5_3),  barmerge.lookahead_on)
+outHistZL5_4 = security(SYM4, res5, MACD_ZL(SYMBOL5_4),  barmerge.lookahead_on)
+
+//  ||---}---------------------------------------------------------------------||
+
+//  ||  character list:
+//  ||      ‖ ‗ ― — – ‒
+//  ||      ← ↑ → ↓ ↔ ↕ ↨ ─ 
+//  ||      │ ┌ ┐ └ ┘ ├ ┤ ┬ ┴ ┼ 
+//  ||      ═ ║ ╒ ╓ ╔ ╕ ╖ ╗ ╘ ╙ ╚ ╛ ╜ ╝ ╞ ╟ ╠ ╡ ╢ ╣ ╤ ╥ ╦ ╧ ╨ ╩ ╪ ╫ ╬ 
+//  ||
+//  ||      ▀ ▄ █ ▌ ▐ ░ ▒ ▓ ■ □ ▪ ▫ ▬ ▲ ► ▼ ◄ 
+//  ||      spaces: | | | | | | | | | | | |​|‌|‍|
+
+lapos_x = timenow + round(change(time)*30)
+lapos_y = highest(3)// + (0.15 * highest(20))
+
+
+down_arrows_text = "▼" + " " + "▼" + " " + "▼" + " " + "▼" + " " + "▼" + " " + "▼" + " " + "▼" + " "
+
+my_signal(outHistZL)=>
+    (outHistZL > 0) ? "BUY" : "SELL"
+
+my_color(outHistZL)=>
+    (outHistZL > 0) ? clg : clr
+
+my_res_to_str(res)=>
+    iff(res=="60", "H1", iff(res=="120", "H2", iff(res=="240","H4", iff(res=="480","H8", res))))
+
+format_text(str) =>
+    str + "\n"
+
+print_spaces(nb) =>
+    var str = ""
+    for i = 0 to nb
+        str := str + " "
+    str
+
+// header
+
+
+// first line
+my_text_final = "╚══════════════════════╝"
+
+f_draw_label(x,y,_text,_textcolor, _size)=>
+    var label Label = na
+    label.delete(Label)
+    Label := label.new(x, y, _text, color=color.new(color.white, 20), textcolor=_textcolor, style=label.style_none, yloc=yloc.price, xloc=xloc.bar_index, size=_size)
+
+title_text = format_text("╔═══════════════════════ " + "MY CRYPTO SCREENER" + " ═══════════════════════╗\n\n")
+f_draw_label(bar_index[40], lapos_y, title_text, color.white, size.normal) 
+
+
+index_first_line = 57
+index_second_line = 52
+index_third_line = 46
+index_fourth_line = 40
+index_fifth_line = 34
+index_sixth_line = 28
+
+i_first_col = 0.05
+i_second_col = 0.10
+i_third_col = 0.15
+i_fourth_col = 0.20
+i_fifth_col = 0.25
+
+i_header = 35
+
+//////////////////// Header lines /////////////////////////////////////
+
+t_header_spacing = "                     "
+t_header_more_spacing = "                      "
+t_header_text = my_res_to_str(res1) + t_header_spacing + my_res_to_str(res2) + t_header_more_spacing +  my_res_to_str(res3) + t_header_more_spacing  + my_res_to_str(res4) + t_header_more_spacing + my_res_to_str(res5)
+f_header_text = format_text(t_header_text)
+f_draw_label(bar_index[40], lapos_y - (0.02 * lapos_y), f_header_text, color.white, size.normal) 
+
+/////////////////// Second line  /////////////////////////////////////
+f_draw_label(bar_index[index_first_line], lapos_y - (i_first_col * lapos_y), SYM1, color.white, size.normal) // First Column
+f_draw_label(bar_index[index_second_line], lapos_y - (i_first_col * lapos_y), my_signal(outHistZL1_1), my_color(outHistZL1_1), size.normal) // Second Column
+f_draw_label(bar_index[index_third_line], lapos_y - (i_first_col * lapos_y), my_signal(outHistZL2_1), my_color(outHistZL2_1), size.normal) // Third Column
+f_draw_label(bar_index[index_fourth_line], lapos_y - (i_first_col * lapos_y), my_signal(outHistZL3_1), my_color(outHistZL3_1), size.normal) // Fourth Column
+f_draw_label(bar_index[index_fifth_line], lapos_y - (i_first_col * lapos_y), my_signal(outHistZL4_1), my_color(outHistZL4_1), size.normal) // Fifth Column
+f_draw_label(bar_index[index_sixth_line], lapos_y - (i_first_col * lapos_y), my_signal(outHistZL5_1), my_color(outHistZL5_1), size.normal) // Sxith Column
+//f_draw_label(bar_index[index_fifth_line], lapos_y - (i_first_col * lapos_y), "●", my_signal(SYMBOL1_SYMBOL4), size.normal) // Fifth Column
+
+// /////////////////// Third Line  /////////////////////////////////////
+f_draw_label(bar_index[index_first_line], lapos_y - (i_second_col * lapos_y), SYM2, color.white, size.normal) // First Column
+f_draw_label(bar_index[index_second_line], lapos_y - (i_second_col * lapos_y), my_signal(outHistZL1_2), my_color(outHistZL1_2), size.normal) // Second Column
+f_draw_label(bar_index[index_third_line], lapos_y - (i_second_col * lapos_y), my_signal(outHistZL2_2), my_color(outHistZL2_2), size.normal) // Third Column
+f_draw_label(bar_index[index_fourth_line], lapos_y - (i_second_col * lapos_y), my_signal(outHistZL3_2), my_color(outHistZL3_2), size.normal) // Fourth Column
+f_draw_label(bar_index[index_fifth_line], lapos_y - (i_second_col * lapos_y), my_signal(outHistZL4_2), my_color(outHistZL4_2), size.normal) // Fifth Column
+f_draw_label(bar_index[index_sixth_line], lapos_y - (i_second_col * lapos_y), my_signal(outHistZL5_2), my_color(outHistZL5_2), size.normal) // Sxith Column
+
+// /////////////////// Fourth Line  /////////////////////////////////////
+f_draw_label(bar_index[index_first_line], lapos_y - (i_third_col * lapos_y), SYM3, color.white, size.normal) // First Column
+f_draw_label(bar_index[index_second_line], lapos_y - (i_third_col * lapos_y), my_signal(outHistZL1_3), my_color(outHistZL1_3), size.normal) // Second Column
+f_draw_label(bar_index[index_third_line], lapos_y - (i_third_col * lapos_y), my_signal(outHistZL2_3), my_color(outHistZL2_3), size.normal) // Third Column
+f_draw_label(bar_index[index_fourth_line], lapos_y - (i_third_col * lapos_y), my_signal(outHistZL3_3), my_color(outHistZL3_3), size.normal) // Fourth Column
+f_draw_label(bar_index[index_fifth_line], lapos_y - (i_third_col * lapos_y), my_signal(outHistZL4_3), my_color(outHistZL4_3), size.normal) // Fifth Column
+f_draw_label(bar_index[index_sixth_line], lapos_y - (i_third_col * lapos_y), my_signal(outHistZL5_3), my_color(outHistZL5_3), size.normal) // Sxith Column
+
+// /////////////////// FIFTH Line  /////////////////////////////////////
+f_draw_label(bar_index[index_first_line], lapos_y - (i_fourth_col * lapos_y), SYM4, color.white, size.normal) // First Column
+f_draw_label(bar_index[index_second_line], lapos_y - (i_fourth_col * lapos_y), my_signal(outHistZL1_4), my_color(outHistZL1_4), size.normal) // Second Column
+f_draw_label(bar_index[index_third_line], lapos_y - (i_fourth_col * lapos_y), my_signal(outHistZL2_4), my_color(outHistZL2_4), size.normal) // Third Column
+f_draw_label(bar_index[index_fourth_line], lapos_y - (i_fourth_col * lapos_y), my_signal(outHistZL3_4), my_color(outHistZL3_4), size.normal) // Fourth Column
+f_draw_label(bar_index[index_fifth_line], lapos_y - (i_fourth_col * lapos_y), my_signal(outHistZL4_4), my_color(outHistZL4_4), size.normal) // Fifth Column
+f_draw_label(bar_index[index_sixth_line], lapos_y - (i_fourth_col * lapos_y), my_signal(outHistZL5_4), my_color(outHistZL5_4), size.normal) // Sxith Column

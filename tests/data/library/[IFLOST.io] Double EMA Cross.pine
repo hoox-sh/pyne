@@ -1,0 +1,74 @@
+//@version=4
+// Author > @jango_blockchained
+
+
+//////////////////////////////////////////////////////////////////////////
+// [IFLOST.io] Double EMA Cross v1.12
+//////////////////////////////////////////////////////////////////////////
+
+
+study("[IFLOST.io] Double EMA Cross v1.12","[IFLOST.io] Double EMA Cross v1.12", overlay=true)
+
+
+//////////////////////////////////////////////////////////////////////////
+// Inputs
+//////////////////////////////////////////////////////////////////////////
+
+
+// Recommanded 11-55 / 7-39 / 5-28
+ema1_value = input (type=input.integer, title="EMA Short", defval=10,minval=1, maxval=200)
+ema2_value = input (type=input.integer, title="EMA Long", defval=55,minval=1, maxval=200)
+sema1 = input (type=input.bool, title="Show EMA Short", defval=true)
+sema2 = input (type=input.bool, title="Show EMA Long", defval=true)
+ss = input (type=input.bool, title="Show Signals", defval=false)
+
+
+//////////////////////////////////////////////////////////////////////////
+// Colors
+//////////////////////////////////////////////////////////////////////////
+
+
+// Buy, Upward
+clg = #4EF9FF
+cdg = #3CADB1
+cbg = #00BCD4 //Background
+
+// Sell, Downward
+clr = #FF0081
+cdr = #880E4F
+cbr = #AB47BC
+
+// Idle, Sideward
+cly = #FBC02D
+
+
+//////////////////////////////////////////////////////////////////////////
+// Calculation
+//////////////////////////////////////////////////////////////////////////
+
+ema1 = ema(close,ema1_value)
+ema2 = ema(close,ema2_value)
+
+emacrossover = crossover(ema1, ema2) 
+emacrossunder = crossunder(ema1, ema2) 
+signal = emacrossover ? 1 : emacrossunder ? -1 : na
+
+
+//////////////////////////////////////////////////////////////////////////
+// Painting
+//////////////////////////////////////////////////////////////////////////
+
+
+plot(sema1 ? ema1 : na, title = 'EMA Short', color=cbr, transp=0, linewidth=1)
+plot(sema2 ? ema2 : na, title = 'EMA Long', color=cly, transp=0, linewidth=1)
+bgcolor(ss and signal == 1 ? clg : ss and signal == -1 ? clr : na, transp=70)
+
+
+//////////////////////////////////////////////////////////////////////////
+// Alerts & Signals
+//////////////////////////////////////////////////////////////////////////
+
+plot(signal, title="Trade Manager Signal - EMA Crossover/under", linewidth=0, transp=100)
+
+alertcondition(ss and signal == 1, title="EMA Crossover Buy Alert", message = "BUY")
+alertcondition(ss and signal == -1, title="EMA Crossunder Sell Alert", message = "SELL")

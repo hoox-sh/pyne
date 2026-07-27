@@ -1,0 +1,18 @@
+//@version=6
+indicator(title="Volume", shorttitle="Vol", format=format.volume, timeframe="", timeframe_gaps=true)
+showMA = input(true)
+barColorsOnPrevClose = input(title="Color bars based on previous close", defval=false)
+
+isEqPrevBar() => (open == open[1]) and (high == high[1]) and (low == low[1]) and (close == close[1])
+isEmptyBar  = (open == close) and (open == low) and (open == high)
+
+palette = barColorsOnPrevClose or isEmptyBar ? close[1] > close ? color.red : color.green : open > close ? color.red : color.green
+
+var prevPalette = palette
+if isEqPrevBar() and isEmptyBar
+    palette := prevPalette
+else
+    prevPalette := palette
+
+plot(volume, color = color.new(palette,65), style=plot.style_columns, title="Volume")
+plot(showMA ? ta.sma(volume,20) : na, style=plot.style_area, color=color.new(color.blue,65), title="Volume MA")

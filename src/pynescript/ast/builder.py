@@ -219,10 +219,25 @@ class PinescriptASTBuilder(
     def visitStatement(self, ctx: PinescriptParser.StatementContext):
         comp = ctx.compound_statement()
         simp = ctx.simple_statements()
+        trail = ctx.trailing_structure_statements()
         if comp:
             return [self.visit(comp)]
         if simp:
             return self.visit(simp)
+        if trail:
+            return self.visit(trail)
+
+    def visitTrailing_structure_statements(
+        self, ctx: PinescriptParser.Trailing_structure_statementsContext
+    ):
+        """Comma-separated simple statements ending with a structure (for/if/while/switch)."""
+        stmts = [self.visit(s) for s in ctx.simple_statement()]
+        structure = self.visit(ctx.structure())
+        # Match visitStructure_statement: structures live as Expr wrappers.
+        structure_stmt = ast.Expr(structure)
+        self._setLocations(structure_stmt, ctx.structure())
+        stmts.append(structure_stmt)
+        return stmts
 
     def visitCompound_name_initialization(self, ctx: PinescriptParser.Compound_name_initializationContext):
         assign = ctx.variable_declaration()
@@ -687,6 +702,13 @@ class PinescriptASTBuilder(
 
     def visitElse_block(self, ctx: PinescriptParser.Else_blockContext):
         return self.visit(ctx.local_block())
+
+    def visitFor_iterator(self, ctx: PinescriptParser.For_iteratorContext):
+        """Loop variable; optional type annotation is accepted but not stored on ForTo/ForIn."""
+        if ctx.tuple_declaration():
+            return self.visit(ctx.tuple_declaration())
+        # Typed form: type_specification name_store — only the name is the target.
+        return self.visit(ctx.name_store())
 
     def visitFor_structure_to(self, ctx: PinescriptParser.For_structure_toContext):
         target = ctx.for_iterator()

@@ -1,0 +1,147 @@
+// © Dreadblitz - https://www.tradingview.com/script/FL699wG0-Death-To-The-Bear/
+//@version=4
+study(title="DEATH TO THE BEAR", shorttitle = "DTTB", overlay=true)
+//
+TA=input(title = "══════════ Type Of Attack ══════════", defval = true, type = input.bool)
+A1=input(true, "💣 BOMB")
+A2=input(false, "🔪 KNIFE")
+A3=input(false, "🧨 DYNAMITE")
+A4=input(false, "🗡 DAGGER")
+A5=input(false, "🔫 GUN")
+A6=input(false, "🧪 CHEMICAL")
+min_level=input(defval=0, title="🔹 Minimum Level = ", minval=-100)
+
+EX= input(title = "═════════ Extra ══════════", defval = true, type = input.bool)
+
+on_symb= input(title = "Activate weapon symbols", defval = true, type = input.bool)
+mod_symb= input(defval= "EMOJI", title="🔹 Type of symbol = ", options=["EMOJI", "TEXT"])
+//
+length = 8
+mult = 2.0
+maj_qual = 6
+maj_len = 30
+min_qual = 5
+min_len = 5
+maj = true
+min = true
+buy_1 = 0.0
+buy_2 = 0.0
+buy_3 = 0.0
+buy_4 = 0.0
+buy_5 = 0.0
+buy_6 = 0.0
+// 
+upper_s = sum(volume * (change(hlc3) <= 0 ? 0 : hlc3), 14)
+lower_s = sum(volume * (change(hlc3) >= 0 ? 0 : hlc3), 14)
+xmf = rsi(upper_s, lower_s)
+basis = sma(ohlc4, 25)
+dev = mult * stdev(ohlc4, 25)
+upper = basis + dev
+lower = basis - dev
+OB1 = (upper + lower) / 2.0
+OB2 = upper - lower
+BollOsc = (ohlc4 - OB1) / OB2 * 100
+xrsi = rsi(ohlc4, 14)
+calc_stoch(src, length, smoothFastD) =>
+    ll = lowest(low, length)
+    hh = highest(high, length)
+    k = 100 * (src - ll) / (hh - ll)
+    sma(k, smoothFastD)
+stoc = calc_stoch(ohlc4, 21, 3)
+trend = (xrsi + xmf + BollOsc + stoc / 3) / 2
+//
+x = bar_index
+y = trend
+x_ = ema(x, length)
+y_ = ema(y, length)
+mx = stdev(x, length)
+my = stdev(y, length)
+c = correlation(x, y, length)
+slope = c * (my / mx)
+inter = y_ - slope * x_
+reg_trend = x * slope + inter
+//
+lele(qual, len) =>
+    bindex = 0.0
+    sindex = 0.0
+    bindex := nz(bindex[1], 0)
+    sindex := nz(sindex[1], 0)
+    ret = 0
+    if close > close[4]
+        bindex := bindex + 1
+        bindex
+    if close < close[4]
+        sindex := sindex + 1
+        sindex
+    if bindex > qual and close < open and high >= highest(high, len)
+        bindex := 0
+        ret := -1
+        ret
+    if sindex > qual and close > open and low <= lowest(low, len)
+        sindex := 0
+        ret := 1
+        ret
+    return = ret
+    return
+
+major = lele(maj_qual, maj_len)
+minor = lele(min_qual, min_len)
+//
+a = 1
+cc = 10
+xATR  = atr(cc)
+nLoss = a * xATR
+src = close
+xATRTrailingStop = 0.0
+xATRTrailingStop := iff(src > nz(xATRTrailingStop[1], 0) and src[1] > nz(xATRTrailingStop[1], 0), max(nz(xATRTrailingStop[1]), src - nLoss),
+   iff(src < nz(xATRTrailingStop[1], 0) and src[1] < nz(xATRTrailingStop[1], 0), min(nz(xATRTrailingStop[1]), src + nLoss), 
+   iff(src > nz(xATRTrailingStop[1], 0), src - nLoss, src + nLoss)))
+pos = 0   
+pos :=	iff(src[1] < nz(xATRTrailingStop[1], 0) and src > nz(xATRTrailingStop[1], 0), 1,
+   iff(src[1] > nz(xATRTrailingStop[1], 0) and src < nz(xATRTrailingStop[1], 0), -1, nz(pos[1], 0))) 
+xcolor = pos == -1 ? color.red: pos == 1 ? color.green : color.blue 
+ema   = ema(src,1)
+above = crossover(ema, xATRTrailingStop)
+below = crossover(xATRTrailingStop, ema)
+buy_a  = src > xATRTrailingStop and above 
+//
+if (minor == 1 and min == true and reg_trend <= min_level and A1) or (major == 1 and maj == true and reg_trend <= min_level and A1) or  (major == 1 and maj == true and minor == 1 and min == true and reg_trend <= min_level and A1)
+    buy_1 := 1
+if  reg_trend[0] > reg_trend[1] and reg_trend[1] > reg_trend[2] and reg_trend <= min_level and A3
+    buy_2 := 1
+if  crossover(trend, min_level)  and A2
+    buy_3 := 1
+if  crossunder(reg_trend, trend) and reg_trend <= min_level and trend <= min_level  and A6
+    buy_4 := 1
+if  reg_trend[0] < min_level and reg_trend[1] < min_level and reg_trend[2] < min_level and reg_trend <= min_level and reg_trend[0] > reg_trend[1] and trend <= min_level and A4
+    buy_5 := 1   
+if  (reg_trend[0] <= min_level or reg_trend[1] <= min_level or reg_trend[2] <= min_level or trend[0] <= min_level or trend[1] <= min_level or trend[2] <= min_level) and buy_a and A5
+    buy_6 := 1  
+//
+plotshape(buy_1 == 1 and on_symb and mod_symb == "EMOJI", text='💣', style=shape.arrowup, location=location.belowbar, color=#32CD32, textcolor=color.black, offset=0, transp=0)
+plotshape(buy_2 == 1 and on_symb and mod_symb == "EMOJI", text='🧨', style=shape.arrowup, location=location.belowbar, color=#32CD32, textcolor=color.black, offset=0, transp=0)
+plotshape(buy_3 == 1 and on_symb and mod_symb == "EMOJI", text='🔪 ', style=shape.arrowup, location=location.belowbar, color=#32CD32, textcolor=color.black, offset=0, transp=0)
+plotshape(buy_4 == 1 and on_symb and mod_symb == "EMOJI", text='🧪  ', style=shape.arrowup, location=location.belowbar, color=#32CD32, textcolor=color.black, offset=0, transp=0)
+plotshape(buy_5 == 1 and on_symb and mod_symb == "EMOJI", text='🗡  ', style=shape.arrowup, location=location.belowbar, color=#32CD32, textcolor=color.black, offset=0, transp=0)
+plotshape(buy_6 == 1 and on_symb and mod_symb == "EMOJI", text='🔫  ', style=shape.arrowup, location=location.belowbar, color=#32CD32, textcolor=color.black, offset=0, transp=0)
+
+plotshape(buy_1 == 1 and on_symb and mod_symb == "TEXT", text='BOMB', style=shape.arrowup, location=location.belowbar, color=#32CD32, textcolor=color.black, offset=0, transp=0, size =size.tiny)
+plotshape(buy_2 == 1 and on_symb and mod_symb == "TEXT", text='DYNAMITE', style=shape.arrowup, location=location.belowbar, color=#32CD32, textcolor=color.black, offset=0, transp=0, size =size.tiny)
+plotshape(buy_3 == 1 and on_symb and mod_symb == "TEXT", text='KNIFE', style=shape.arrowup, location=location.belowbar, color=#32CD32, textcolor=color.black, offset=0, transp=0, size =size.tiny)
+plotshape(buy_4 == 1 and on_symb and mod_symb == "TEXT", text='CHEMICAL', style=shape.arrowup, location=location.belowbar, color=#32CD32, textcolor=color.black, offset=0, transp=0, size =size.tiny)
+plotshape(buy_5 == 1 and on_symb and mod_symb == "TEXT", text='DAGGER', style=shape.arrowup, location=location.belowbar, color=#32CD32, textcolor=color.black, offset=0, transp=0, size =size.tiny)
+plotshape(buy_6 == 1 and on_symb and mod_symb == "TEXT", text='GUN', style=shape.arrowup, location=location.belowbar, color=#32CD32, textcolor=color.black, offset=0, transp=0, size =size.tiny)
+
+
+//
+// ▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒ //
+// ALERTAS
+// ------------------------------------------------------------------------------------------------------------------
+
+alertcondition(buy_1 == 1,title="BOMB",message="BOMB")
+alertcondition(buy_2 == 1,title="DYNAMITE",message="DYNAMITE")
+alertcondition(buy_3 == 1,title="KNIFE",message="KNIFE")
+alertcondition(buy_4 == 1,title="CHEMICAL",message="CHEMICAL")
+alertcondition(buy_5 == 1,title="DAGGER",message="DAGGER")
+alertcondition(buy_6 == 1,title="GUN",message="GUN")
+alertcondition(buy_1 == 1 or buy_2 == 1 or buy_3 == 1 or buy_4 == 1 or buy_5 == 1 or buy_6 == 1,title="ANY WEAPON",message="ANY WEAPON")

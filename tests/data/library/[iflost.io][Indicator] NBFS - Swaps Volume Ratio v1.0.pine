@@ -1,0 +1,129 @@
+//////////////////////////////////////////////////////////////////////////
+//
+//@version=4
+//
+//////////////////////////////////////////////////////////////////////////
+//
+//@author       unknown
+//@editor=      jango_blockchained
+//@licence=     This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+//@script=      Neuronal Backpropagation Feedforard Setup - Swaps Volume Ratio v1.0
+//@package=     iflostio
+//@setup=       NBFS-01
+//@url=         iflost.io
+
+
+study(title="[iflost.io] NBFS - Swaps Volume Ratio v1.0",shorttitle="[iflost.io] NBFS - Swaps", overlay=false)
+
+
+//////////////////////////////////////////////////////////////////////////
+// -- Inputs
+//////////////////////////////////////////////////////////////////////////
+
+
+sumlen = input(50, title="① ⒈ ⑴ Summierungslänge")
+smoothing = input(false, title="↳ Smoothing aktivieren?")
+coloring = input(false, title="↳ Kerzen einfärben?")
+sumdata = input(true, title="② Swaps als einzelne Datenpunkte anzeigen?")
+
+
+//////////////////////////////////////////////////////////////////////////
+// -- Colors
+//////////////////////////////////////////////////////////////////////////
+
+
+// --Buy, Upward
+col_green_1     = #4EF9FF
+col_green_2     = #3CADB1
+col_green_3     = #26c6da //*
+col_green_4     = #afff00
+col_green_5     = #CFD80E
+col_green_6     = #90c818
+
+// -- Sell, Downward
+col_red_1       = #7b1fa2
+col_red_2       = #7e57c2
+col_red_3       = #512da8
+col_red_4       = #7300de
+col_red_5       = #4a148c //*
+
+// -- Idle, Sideward
+col_yellow_1    = #ffa726
+col_yellow_2    = #f57c00
+
+
+//////////////////////////////////////////////////////////////////////////
+// -- Variables
+//////////////////////////////////////////////////////////////////////////
+
+
+float countDn = 0.0
+float countUp = 0.0
+
+
+//////////////////////////////////////////////////////////////////////////
+// -- Functions
+//////////////////////////////////////////////////////////////////////////
+
+
+smooth(x) =>
+    smma = 0.0
+    sma_1 = sma(x, 3)
+    smma := na(smma[1]) ? sma_1 : (smma[1] * (3 - 1) + x) / 3
+    smma
+
+
+//////////////////////////////////////////////////////////////////////////
+// -- Data Sourcing
+//////////////////////////////////////////////////////////////////////////
+
+
+spot1 =         security("BITFINEX:BTCUSD", timeframe.period, volume)
+spot2 =         security("BITSTAMP:BTCUSD", timeframe.period, volume)
+spotPrice1 =    security("BITFINEX:BTCUSD", timeframe.period, ohlc4)
+spotPrice2 =    security("BITSTAMP:BTCUSD", timeframe.period, ohlc4)
+
+
+//////////////////////////////////////////////////////////////////////////
+// -- Calculation
+//////////////////////////////////////////////////////////////////////////
+
+
+spotM1 = spot1 * spotPrice1
+spotM2 = spot2 * spotPrice2
+spotV = (spotM1 + spotM2) / 2
+
+ratio = volume / spotV
+avg = ema(ratio, sumlen)
+
+for i = 0 to sumlen - 1 by 1
+    if close[i] > open[i]
+        countUp := countUp + ratio[i]
+        countUp
+    else
+        if close[i] < open[i]
+            countDn := countDn + ratio[i]
+            countDn
+        else
+            na
+
+
+//////////////////////////////////////////////////////////////////////////
+// -- Painting
+//////////////////////////////////////////////////////////////////////////
+
+
+// -- Summed data
+plot(sumdata ? ratio : na, color=close > open ? col_green_3 : col_yellow_2, style=plot.style_circles, linewidth=2, transp=0)
+
+// -- Single data
+plot(not smoothing and not sumdata ? countUp : na, color=col_green_3, style=plot.style_circles, linewidth=2, transp=0)
+plot(not smoothing and not sumdata ? countDn : na, color=col_yellow_2, style=plot.style_circles, linewidth=2, transp=0)
+smoothing1 = smooth(countUp)
+plot(smoothing and not sumdata ? smoothing1 : na, color=col_green_3, style=plot.style_circles, linewidth=2, transp=0)
+smoothing2 = smooth(countDn)
+plot(smoothing and not sumdata ? smoothing2 : na, color=col_yellow_2, style=plot.style_circles, linewidth=2, transp=0)
+
+// -- Barcolor
+barcolor(countUp > countDn and not smoothing and coloring and not sumdata ? col_green_3 : countDn > countUp and not smoothing and coloring and not sumdata ? col_yellow_2 : na)
+barcolor(smoothing1 > smoothing2 and smoothing and coloring and not sumdata ? col_green_3 : smoothing1 > smoothing2 and smoothing and coloring and not sumdata ? col_yellow_2 : na)

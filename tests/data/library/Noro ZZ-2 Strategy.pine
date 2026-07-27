@@ -1,0 +1,94 @@
+//@version=4
+//Noro
+//2019
+
+strategy(title="Noro's ZZ-2 Strategy", shorttitle="ZZ-2 str", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=100, pyramiding=0)
+
+//Settings
+needlong = input(true, defval=true, title="Long")
+needshort = input(true, defval=true, title="Short")
+capital = input(100, defval=100, minval=1, maxval=10000, title="Capital, %")
+length = input(4, title="ZigZag length")
+Extreme = input(4, title="ZigZag extreme")
+src = input(close, title="Source")
+corr = input(0.0, title="Correction, %")
+revers = input(false, defval=false, title="revers")
+showzz = input(false, defval=false, title="Show ZigZag")
+showll = input(true, defval=true, title="Show Levels")
+showos = input(true, defval=true, title="Show Levels one side")
+showcl = input(false, defval=false, title="Show Levels continuous line")
+showbg = input(false, defval=false, title="Show Background")
+showar = input(false, defval=false, title="Show Arrows")
+showea = input(false, defval=false, title="Show Entry Arrows")
+fromyear = input(1900, defval=1900, minval=1900, maxval=2100, title="From Year")
+toyear = input(2100, defval=2100, minval=1900, maxval=2100, title="To Year")
+frommonth = input(01, defval=01, minval=01, maxval=12, title="From Month")
+tomonth = input(12, defval=12, minval=01, maxval=12, title="To Month")
+fromday = input(01, defval=01, minval=01, maxval=31, title="From day")
+today = input(31, defval=31, minval=01, maxval=31, title="To day")
+
+//ZigZag
+f_zz(_length, _detection) =>
+    _hls = ema(ema(ema(src, _length), round(_length * 0.66)), round(_length * 0.33))
+    _isRising = _hls >= _hls[1]
+    lowest_1 = lowest(_detection)
+    highest_1 = highest(_detection)
+    _zigzag = _isRising and not _isRising[1] ? lowest_1 : 
+       not _isRising and _isRising[1] ? highest_1 : na
+    _zigzag
+zigzag = f_zz(length, Extreme)
+zzcol = showzz ? color.black : na
+plot(zigzag, color=zzcol, linewidth=2)
+
+//Levels
+dot = 0.0
+dot := zigzag > 0 ? zigzag : dot[1]
+uplevel = 0.0
+uplevel := dot > dot[1] ? zigzag + zigzag / 100 * corr : uplevel[1]
+dnlevel = 0.0
+dnlevel := dot < dot[1] ? zigzag - zigzag / 100 * corr : dnlevel[1]
+
+//Background
+size = strategy.position_size
+trend = 0
+trend := size > 0 ? 1 : 
+   size < 0 ? -1 : high >= uplevel ? 1 : low <= dnlevel ? -1 : trend[1]
+col = showbg == false ? na : trend == 1 ? color.lime : trend == -1 ? color.red : na
+bgcolor(col)
+
+//Lines
+upcol = color(na)
+upcol := showll == false ? na : uplevel != uplevel[1] and showcl == false ? na : 
+   showos and trend[1] == 1 ? na : color.lime
+plot(uplevel, color=upcol, linewidth=2)
+dncol = color(na)
+dncol := showll == false ? na : dnlevel != dnlevel[1] and showcl == false ? na : 
+   showos and trend[1] == -1 ? na : color.red
+plot(dnlevel, color=dncol, linewidth=2)
+
+//Arrows
+longsignal = false
+shortsignal = false
+longsignal := size > size[1]
+shortsignal := size < size[1]
+plotarrow(longsignal and showar and needlong ? 1 : na, colorup=color.blue, colordown=color.blue, transp=0)
+plotarrow(shortsignal and showar and needshort ? -1 : na, colorup=color.blue, colordown=color.blue, transp=0)
+
+//Entry arrows
+bar = close > open ? 1 : close < open ? -1 : 0
+uparr = sma(bar, 3) == -1 and trend == 1 and close < uplevel and showea
+dnarr = sma(bar, 3) == 1 and trend == -1 and close > dnlevel and showea
+plotarrow(uparr ? 1 : na, colorup=color.black, colordown=color.black, transp=0)
+plotarrow(dnarr ? -1 : na, colorup=color.black, colordown=color.black, transp=0)
+
+//Trading
+lot = 0.0
+lot := size != size[1] ? strategy.equity / close * capital / 100 : lot[1]
+if uplevel > 0 and dnlevel > 0 and revers == false
+    strategy.entry("Long", strategy.long, needlong == false ? 0 : lot, stop=uplevel, when=time > timestamp(fromyear, frommonth, fromday, 00, 00) and time < timestamp(toyear, tomonth, today, 23, 59))
+    strategy.entry("Short", strategy.short, needshort == false ? 0 : lot, stop=dnlevel, when=time > timestamp(fromyear, frommonth, fromday, 00, 00) and time < timestamp(toyear, tomonth, today, 23, 59))
+if uplevel > 0 and dnlevel > 0 and revers == true
+    strategy.entry("Long", strategy.long, needlong == false ? 0 : lot, limit=dnlevel, when=time > timestamp(fromyear, frommonth, fromday, 00, 00) and time < timestamp(toyear, tomonth, today, 23, 59))
+    strategy.entry("Short", strategy.short, needshort == false ? 0 : lot, limit=uplevel, when=time > timestamp(fromyear, frommonth, fromday, 00, 00) and time < timestamp(toyear, tomonth, today, 23, 59))
+if time > timestamp(toyear, tomonth, today, 23, 59)
+    strategy.close_all()

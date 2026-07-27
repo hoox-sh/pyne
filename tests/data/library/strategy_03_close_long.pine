@@ -1,0 +1,5 @@
+// Parity fixture: entry long then close
+// Expected per bar: entry event, then close event (bar 1 onward has both)
+//@version=5
+strategy.entry("L", strategy.long, qty=10)
+strategy.close("L", qty=10)

@@ -1,0 +1,83 @@
+method uniqueId(simple int _start = 0, simple int _length = 8, simple int _seed = na) =>
+    // --
+    array<int> arr = array.new<int>(_length)
+    for i = 0 to _length - 1
+        arr.set(i, i + _start)
+    // --
+    for i = 0 to _length - 1 by 1
+        series int randomIndex = math.floor(math.random(i, _length, _seed))
+        series int temp        = arr.get(i)
+        arr.set(i, arr.get(randomIndex))
+        arr.set(randomIndex, temp)
+    // --
+    series int digits = 0
+    for i = 0 to _length - 1 by 1
+        digits := digits * 10 + arr.get(i)
+    // >>
+    digits
+
+varip series int updateNo = 1
+updateNo := barstate.isnew ? 1 : updateNo + 1
+
+
+
+
+
+//@version=5
+indicator("HSL Gradient", overlay=true)
+
+// Helper: RGB to HSL Conversion
+color_to_hsl(series color this) =>
+    r := color.r(this) / 255
+    g := color.g(this) / 255
+    b := color.b(this) / 255
+    max := math.max(r, g, b)
+    min := math.min(r, g, b)
+    delta = max - min
+    l = (max + min) / 2
+    s = delta == 0 ? 0 : delta / (1 - math.abs(2 * l - 1))
+    h = delta == 0 ? 0 :
+        max == r ? 60 * ((g - b) / delta % 6) :
+        max == g ? 60 * ((b - r) / delta + 2) :
+                   60 * ((r - g) / delta + 4)
+    [h < 0 ? h + 360 : h, s, l]
+
+// Helper: HSL to RGB Conversion
+hsl_to_color(series int h, series int s, series int l) =>
+    c = (1 - math.abs(2 * l - 1)) * s
+    x = c * (1 - math.abs((h / 60) % 2 - 1))
+    m = l - c / 2
+    r = c * ((0 <= h and h < 60) or (300 <= h and h < 360)) +
+        x * (60 <= h and h < 120 or 240 <= h and h < 300) + m
+    g = c * (60 <= h and h < 180) +
+        x * ((0 <= h and h < 60) or (180 <= h and h < 240)) + m
+    b = c * (120 <= h and h < 240) +
+        x * ((60 <= h and h < 120) or (240 <= h and h < 300)) + m
+    color.rgb(math.round(r * 255), math.round(g * 255), math.round(b * 255))
+
+// Curved Interpolation for HSL
+curved_gradient(start_color, end_color, t) =>
+    // Convert colors to HSL
+    [h1, s1, l1] = color_to_hsl(start_color)
+    [h2, s2, l2] = color_to_hsl(end_color)
+    
+    // Curved interpolation (ease-in-out for smoothness)
+    easing = t * t * (3 - 2 * t)
+    h = h1 + (h2 - h1) * easing
+    s = s1 + (s2 - s1) * easing
+    l = l1 + (l2 - l1) * easing
+    
+    // Convert back to RGB
+    hsl_to_color(h, s, l)
+
+
+// Example usage
+color1 = color.rgb(255, 0, 0)  // Red
+color2 = color.rgb(0, 255, 0)  // Green
+t = math.frac(timenow / 1000)  // Dynamic transition
+dynamic_color = curved_gradient(color1, color2, t)
+
+plot(close, color=dynamic_color, linewidth=3)
+
+
+

@@ -1,0 +1,5 @@
+// Parity fixture: place order then cancel it
+// Expected per bar: order event, then cancel event
+//@version=5
+strategy.order("O1", strategy.long, qty=5)
+strategy.cancel("O1")

@@ -1,0 +1,69 @@
+//@version=4
+study("KST STEP TREND", shorttitle="KST STEP TREND", overlay=false, precision=3)
+src=close
+reverse = false
+
+
+f_ema(_src, _length)=>
+    _length_adjusted = _length < 1 ? 1 : _length
+    _multiplier = 2 / (_length_adjusted + 1)
+    _return  = 0.00
+    _return := na(_return[1]) ? _src : ((_src - _return[1]) * _multiplier) + _return[1]
+
+// Definition :  Function Rate of Change (ROC)
+
+// [(CurrentClose - Close n periods ago) / (Close n periods ago)] X 100
+
+f_roc(_src , _length) =>
+
+    _output  = 0.00
+    _length_adjusted = _length < 0 ? 0 : _length
+    
+    _output := ((_src[0]  - _src[_length_adjusted]) / _src[_length_adjusted]) * 100  
+    
+    
+
+// Definition : Variables
+
+_roc6  = f_ema(f_roc(close, 6/4), 10/4)
+_roc10 = f_ema(f_roc(close, 10/4), 10/4)
+_roc15 = f_ema(f_roc(close, 15/4), 9/4)
+_roc20 = f_ema(f_roc(close, 20/4), 15/4)
+
+
+Kst = _roc6 + (2 * _roc10) + (3 * _roc15) + (4 * _roc20)
+
+
+// Plot data
+
+
+hline(0, color=color.purple, linestyle=plot.style_line )
+
+
+
+
+length = input(20),fast = input(3),slow = input(9)
+//
+src1 = Kst
+er = abs(change(src1,length))/sum(abs(change(src1)),length)
+dev = er*stdev(src1*2,fast) + (1-er)*stdev(src1*2,slow)
+a = 0.
+a := bar_index < 9 ? src1 : src1 > a[1] + dev ? src1 : src1 < a[1] - dev ? src1 : a[1]
+//
+var color c = na, c := fixnan(a > a[1] ? color.lime : a < a[1] ? color.red : na)
+plot(a,color=c,transp=0,linewidth = 3)
+//
+changed(x) => x!=x[1]
+long = changed(c) and c==color.lime
+short = changed(c) and c==color.red
+//
+plotshape(long, title='UP', style=shape.xcross, color=color.green, location=location.bottom, textcolor=color.black, text="UP", transp = 0, size = size.tiny)
+plotshape(short , title='down', style=shape.cross, color=color.red, location=location.top, textcolor=color.black, text="Down", transp = 0, size = size.tiny)
+//
+Bgcolor=input(true,title="Bgcolor")
+colors=a >= 0 ? color.lime : color.red
+bgcolor(Bgcolor ? colors :na)
+
+/////// Alerts /////
+alertcondition(long,title="long")
+alertcondition(short,title="short")

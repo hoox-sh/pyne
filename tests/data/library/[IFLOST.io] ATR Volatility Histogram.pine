@@ -1,0 +1,69 @@
+//@version=3
+
+//Market volatility indicator: Average True Range + SMA(ATR) + colored Histogram(ATR-SMA) + colored SMA(Histogram)
+
+// Original Script > @drinchi
+// Edits > @jango_blockchained
+
+//////////////////////////////////////////////////////////////////////////
+// [IFLOST.io] ATR Volatility Histogram v1
+//////////////////////////////////////////////////////////////////////////
+
+
+study(title="[IFLOST.io] ATR Volatility Histogram v1.9", shorttitle="[IFLOST.io] ATR Hist v1.9", overlay=false)
+
+
+//////////////////////////////////////////////////////////////////////////
+// Inputs
+//////////////////////////////////////////////////////////////////////////
+
+
+length_atr = input(14, minval=1, title="Length ATR")
+length_ma = input(25, minval=1, title="Length MA")
+length_ma_diff = input(1, minval=1, title="Length MA (Hist)")
+src_on = input(title="ATR & MA Line On/Off", type=bool, defval=false)
+
+
+//////////////////////////////////////////////////////////////////////////
+// Colors
+//////////////////////////////////////////////////////////////////////////
+
+
+// Buy, Upward
+clg = #4EF9FF
+cdg = #3CADB1
+cbg = #00BCD4 //Background
+
+// Sell, Downward
+clr = #FF0081
+cdr = #880E4F
+cbr = #AB47BC
+
+// Idle, Sideward
+cly = #FBC02D
+
+
+//////////////////////////////////////////////////////////////////////////
+// Calculation
+//////////////////////////////////////////////////////////////////////////
+
+
+atr = rma (tr(true), length_atr)
+ma = sma (atr, length_ma)
+
+diff = atr - ma
+diff_color = diff >0 ? clg : clr 
+
+diff_ma = sma (diff, length_ma_diff)
+diff_ma_color = diff_ma > diff_ma[1] ? clg : clr
+
+
+//////////////////////////////////////////////////////////////////////////
+// Painting
+//////////////////////////////////////////////////////////////////////////
+
+
+plot (src_on ? atr:na, color = cly, title = "ATR")
+plot (src_on ? ma:na, color = clr, title = "MA")
+plot (diff,color=diff_color,style=histogram, title = "Hist(ATR-MA)")
+plot (diff_ma, color=diff_ma_color, linewidth=2, title = "MA(Hist)", transp=0)

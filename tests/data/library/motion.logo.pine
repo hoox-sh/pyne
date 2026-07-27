@@ -1,0 +1,208 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © cryptolinx - jango_blockchained - open 💙 source
+
+//@version=5
+indicator("[CLX] Motion. - Logo", overlay = true)
+
+import cryptolinx/MotionDEV/32 as motion
+
+// ———— Override/Extending Built-In Normalize Function {
+//
+method isset(string    _src, string _rep) => na(_src) or _src == string(na) ? _rep : _src
+method isset(float     _src, float  _rep) => na(_src) ? _rep : _src
+method isset(int       _src, int    _rep) => na(_src) ? _rep : _src
+// }
+
+// ———— Function Render Logo/Tag {
+//
+// @function   Creates a simple animated logo or tag.
+// @param      _tagline     Optional string to use as the tagline. Default is '- A Pine Script™ Showcase -'.
+// @param      _sizeLogo    Optional size parameter for the logo. Default is size.huge.
+// @param      _sizeTag     Optional size parameter for the tagline. Default is size.normal.
+// @param      _colorLogo   Optional color parameter for the logo. Default is #ff5252.
+// @param      _colorTag    Optional color parameter for the tagline. Default is #ffffff96.
+// @param      _colorDecor  Optional color parameter for decoration. Default is #ff525234.
+// @param      _x           Optional integer specifying the X position. Default is bar_index.
+// @param      _y           Optional float specifying the Y position. Default is 2100.
+// @returns    `array <label>`
+renderLogo(
+ string _sizeLogo   = size.huge, 
+ string _sizeTag    = size.normal, 
+ color  _colorLogo  = #ff5252, 
+ color  _colorTag   = #ffffff96, 
+ color  _colorDecor = #ff525234, 
+ string _tagline    = '- A Pine Script™ Showcase -',
+ int    _x          = bar_index, 
+ float  _y          = close
+ ) =>
+    // >>
+    array.from(
+     label.new(
+      x                 = _x,
+      y                 = _y,
+      text              = '',
+      color             = #00000000,
+      size              = _sizeLogo,
+      style             = label.style_label_center,
+      textcolor         = _colorLogo,
+      textalign         = text.align_center,
+      text_font_family  = font.family_default
+     ),
+     label.new(
+      x                 = _x,
+      y                 = _y,
+      text              = '└',
+      color             = #00000000,
+      size              = _sizeLogo,
+      style             = label.style_label_upper_right,
+      textcolor         = _colorDecor,
+      textalign         = text.align_left,
+      text_font_family  = font.family_default
+      ),
+     label.new(
+      x                 = _x,
+      y                 = _y,
+      text              = '┘',
+      color             = #00000000,
+      size              = _sizeLogo,
+      style             = label.style_label_upper_left,
+      textcolor         = _colorDecor,
+      textalign         = text.align_left,
+      text_font_family  = font.family_default
+      ),
+     label.new(
+      x                 = _x,
+      y                 = _y,
+      text              = '┌',
+      color             = #00000000,
+      size              = _sizeLogo,
+      style             = label.style_label_lower_right,
+      textcolor         = _colorDecor,
+      textalign         = text.align_left,
+      text_font_family  = font.family_default
+      ),
+     label.new(
+      x                 = _x,
+      y                 = _y,
+      text              = '┐',
+      color             = #00000000,
+      size              = _sizeLogo,
+      style             = label.style_label_lower_left,
+      textcolor         = _colorDecor,
+      textalign         = text.align_left,
+      text_font_family  = font.family_default
+      ),
+     label.new(
+      x                 = _x,
+      y                 = _y,
+      text              = ' ',
+      size              = _sizeLogo,
+      color             = #00000000,
+      textcolor         = color.new(_colorLogo, 75),
+      text_font_family  = font.family_default,
+      style             = label.style_label_down,
+      textalign         = text.align_left
+      ),
+     label.new(
+      x                 = _x,
+      y                 = _y,
+      text              = '\n\n\n\n\n' + _tagline,
+      color             = #00000000,
+      size              = size.small,
+      style             = label.style_label_up,
+      textcolor         = _colorTag,
+      textalign         = text.align_left,
+      text_font_family  = font.family_monospace
+      )
+     )
+// }
+
+// ———— Method for Updating Logo {
+//
+// @function    Updates the logo's properties.
+// @param       _logo           Array of label objects constituting the logo.
+// @param       _textLogo       Optional new text for the logo. Default is 'na'.
+// @param       _textTagline    Optional new text for the tagline. Default is 'na'.
+// @param       _x              Optional new X position. Default is bar_index.
+// @param       _y              Optional new Y position. Default is 'na'.
+// @returns     `void`          The function doesn't return any value.
+method update(
+ array <label>  _logo, 
+ string         _textLogo       = na,
+ string         _textTagline    = na,
+ float          _y              = na,
+ int            _x              = bar_index,
+ color          _colorDecor     = na
+ ) =>
+    // --
+    if barstate.islast
+        for i = 0 to _logo.size() - 1
+            label l = _logo.get(i)
+            l.set_xy(
+             _x.isset(l.get_x()), 
+             _y.isset(l.get_y())
+             )
+        // --
+        if not na(_colorDecor)
+            for i = 1 to 4
+                label l = _logo.get(i)
+                l.set_textcolor(color.new(_colorDecor, 85))
+        // --
+        label l0 = _logo.get(0)
+        label l3 = _logo.get(3)
+        label l6 = _logo.get(6)
+        l0.set_text(
+         _textLogo.isset(l0.get_text())
+         )
+        l0.set_textcolor(_colorDecor)
+        l6.set_text(
+         _textTagline.isset(l6.get_text())
+         )
+    // >>
+    // void
+// }
+
+// ———— Motion. ✨ {
+//
+const string MONO_STRING = '⠵⠠⡜⡫⡃⡺⡵⡲⡰⡏'
+const string TAGLINE = '~ A Pine Script™ {0} ~'
+const string LOGO_STRING = 'M ◞TION.M◟ TION.M◜ TION.M ◝TION.'
+const array <string> LOGO_ARRAY = array.from('M ◞TION.','M◟ TION.','M◜ TION.','M ◝TION.')
+// --
+var motion.keyframe logoKf    = motion.keyframe.new(intv = 1, steps = 8)
+var motion.keyframe colorKf   = motion.keyframe.new()
+var motion.keyframe taglineKf1 = motion.keyframe.new(intv = 4, steps = 1)
+var motion.keyframe taglineKf2 = motion.keyframe.new(intv = 1, steps = 1)
+// --
+string logoFX = logoKf.transition(
+ _fx     = 'marquee',
+ _seq    = LOGO_STRING,
+ __opt   = motion.option.new(
+  sub_length = 8
+  )
+ )
+// --
+string taglineFX1 = taglineKf1.iteration(
+ _seqArr    = array.from('Showcase','Library'),
+ __opt      = motion.option.new( 
+  prefix    = '\n\n\n\n' + '- A Pine Script™ ',
+  suffix    = ' -',
+  refill    = true,
+  max_loops = 100
+  )
+ )
+// --
+string taglineFX2 = taglineKf2.transition(_seq = taglineFX1, _fx = 'slide_in_right', __opt = motion.option.new(max_loops = 1))
+// --
+color multicolor = colorKf.gradient(
+ _steps     = 8,
+ _colors    = array.from(color.orange, color.fuchsia, color.aqua, color.yellow, color.navy),
+ _gap       = false
+ )
+string logoFX2 = LOGO_ARRAY.motion(_join = false)
+// --
+var array <label> LOGO = renderLogo(size.huge, size.normal)
+LOGO.update(logoFX2, taglineFX2, close * 1.03, _colorDecor = multicolor ) 
+// }
+
+// # EOF

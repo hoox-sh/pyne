@@ -1,0 +1,193 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © cryptolinx - jango_blockchained - open 💙 source
+
+//@version=6
+indicator("[CLX] Motion. - Logo", overlay = true)
+
+import cryptolinx/Motion/12 as motion
+
+const int Y_OFFSET = 10
+
+// ———— Override/Extending Built-In Normalize Function {
+//
+method isset(string    _src, string _rep) => na(_src) or _src == string(na) ? _rep : _src
+method isset(float     _src, float  _rep) => na(_src) ? _rep : _src
+method isset(int       _src, int    _rep) => na(_src) ? _rep : _src
+// }
+
+// ———— Method Render Logo/Tag {
+//
+method render(
+ map <string, label>   this,
+ string                logoSize        = size.huge,
+ string                tag1Size        = size.normal,
+ string                tag2Size        = size.small,
+ color                 logoColor       = #ff5252,
+ color                 tag1Color       = #ffffff96,
+ color                 tag2Color       = color.gray,
+ color                 decorColor      = #ff525234,
+ string                logoText        = 'M ◞TION.',
+ string                taglineText     = '- A Pine Script™ Showcase -',
+ int                   xOffset         = 0,
+ float                 yOffset         = 0
+ ) =>
+    if barstate.isfirst
+    // --
+        this.put(
+         "logo",
+         label.new(
+          x                 = bar_index + xOffset,
+          y                 = Y_OFFSET + yOffset,
+          text              = logoText,
+          size              = logoSize,
+          color             = #00000000,
+          textcolor         = logoColor,
+          text_font_family  = font.family_default,
+          style             = label.style_label_center,
+          textalign         = text.align_center
+          )
+         )
+        // --
+        this.put(
+         "tagline",
+         label.new(
+          x                 = bar_index + xOffset,
+          y                 = Y_OFFSET + yOffset,
+          text              = '\n\n\n\n\n' + taglineText,
+          size              = tag1Size,
+          color             = #00000000,
+          textcolor         = tag1Color,
+          text_font_family  = font.family_monospace,
+          style             = label.style_label_up,
+          textalign         = text.align_left
+          )
+         )
+        // --
+        this.put(
+         "decorUpperRight",
+         label.new(
+          x                 = bar_index + xOffset,
+          y                 = Y_OFFSET + yOffset,
+          text              = '└',
+          size              = logoSize,
+          color             = #00000000,
+          textcolor         = decorColor,
+          text_font_family  = font.family_default,
+          style             = label.style_label_upper_right,
+          textalign         = text.align_left
+          )
+         )
+        // --
+        this.put(
+         "decorUpperLeft",
+         label.new(
+          x                 = bar_index + xOffset,
+          y                 = Y_OFFSET + yOffset,
+          text              = '┘',
+          size              = logoSize,
+          color             = #00000000,
+          textcolor         = decorColor,
+          text_font_family  = font.family_default,
+          style             = label.style_label_upper_left,
+          textalign         = text.align_left
+          )
+         )
+        // --
+        this.put(
+         "decorLowerRight",
+         label.new(
+          x                 = bar_index + xOffset,
+          y                 = Y_OFFSET + yOffset,
+          text              = '┌',
+          size              = logoSize,
+          color             = #00000000,
+          textcolor         = decorColor,
+          text_font_family  = font.family_default,
+          style             = label.style_label_lower_right,
+          textalign         = text.align_left
+          )
+         )
+        // --
+        this.put(
+         "decorLowerLeft",
+         label.new(
+          x                 = bar_index + xOffset,
+          y                 = Y_OFFSET + yOffset,
+          text              = '┐',
+          size              = logoSize,
+          color             = #00000000,
+          textcolor         = decorColor,
+          text_font_family  = font.family_default,
+          style             = label.style_label_lower_left,
+          textalign         = text.align_left
+          )
+         )
+    // >>
+    this
+// }
+
+// ———— Method Update Logo {
+//
+method update(
+ map <string, label>   this,
+ string                newLogoText     = na,
+ string                newTaglineText  = na,
+ color                 newDecorColor   = na
+ ) =>
+    // --
+    if barstate.islast or barstate.isrealtime
+        for key in this.keys()
+            this.get(key).set_xy(bar_index, Y_OFFSET)
+        // --
+        if not na(newDecorColor)
+            for key in array.from("decorUpperRight", "decorUpperLeft", "decorLowerRight", "decorLowerLeft")
+                this.get(key).set_textcolor(newDecorColor)
+            this.get("logo").set_textcolor(newDecorColor)
+            this.get("tagline").set_textcolor(color.new(newDecorColor, 30))
+        // --
+        this.get("logo").set_text(newLogoText.isset(this.get("logo").get_text()))
+        this.get("tagline").set_text(newTaglineText.isset(this.get("tagline").get_text()))
+    // >>
+    this
+// }
+
+// ———— Motion. ✨ {
+//
+const array <string> LOGO_ARRAY = array.from('M ◞TION.','M◟ TION.','M◜ TION.','M ◝TION.')
+// --
+var motion.keyframe colorKf    = motion.keyframe.new()
+var motion.keyframe taglineKf1 = motion.keyframe.new(intv = 4, steps = 1)
+var motion.keyframe taglineKf2 = motion.keyframe.new(intv = 1, steps = 1)
+// --
+string taglineFX1 = taglineKf1.iteration(
+ _seqArr    = array.from('Showcase','Library'),
+ __opt      = motion.option.new(
+  prefix    = 'A Pine Script™ ',
+  refill    = true
+  )
+ )
+// --
+string taglineFX2 = taglineKf2.transition(
+ _seq = taglineFX1,
+ _fx = 'slide_in_right',
+ __opt = motion.option.new(
+  max_loops = 1,
+  prefix    = '\n\n\n\n' + '- ',
+  suffix    = ' -'
+  )
+ )
+// --
+color multicolor = colorKf.gradient(
+ _steps     = 8,
+ _colors    = array.from(color.orange, color.fuchsia, color.aqua, color.yellow, color.navy),
+ _gap       = false
+ )
+string logoFX = LOGO_ARRAY.motion(_join = false)
+// --
+var map <string, label> LOGO = map.new<string, label>()
+LOGO
+ .render()
+ .update(logoFX, taglineFX2, multicolor)
+// }
+
+// # EOF

@@ -1,0 +1,5 @@
+// Parity fixture: script with no strategy.* calls
+// Expected: empty events list
+//@version=5
+x = close
+y = x * 2

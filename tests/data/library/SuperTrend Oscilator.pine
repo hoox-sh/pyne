@@ -1,0 +1,68 @@
+//@version=4
+//@url=https://de.tradingview.com/script/pvMym4aR-Super-trend-Oscilator/
+
+study("Super trend Oscilator",overlay=false)
+
+// INPUTS //
+st_mult   = input(3,   title = 'SuperTrend Multiplier', minval = 0, maxval = 100, step = 0.01)
+st_period = input(7, title = 'SuperTrend Period',     minval = 1)
+
+// CALCULATIONS //
+up_lev = hl2 - (st_mult * atr(st_period))
+dn_lev = hl2 + (st_mult * atr(st_period))
+
+up_trend   = 0.0
+up_trend   := close[1] > up_trend[1]   ? max(up_lev, up_trend[1])   : up_lev
+
+down_trend = 0.0
+down_trend := close[1] < down_trend[1] ? min(dn_lev, down_trend[1]) : dn_lev
+
+// Calculate trend var
+trend = 0
+trend := close > down_trend[1] ? 1: close < up_trend[1] ? -1 : nz(trend[1], 1)
+
+// Calculate SuperTrend Line
+st_line = trend ==1 ? up_trend : down_trend
+x=close-st_line
+//plot(x/close)
+plot(0)
+//
+s=x
+lenFast = input(8, title="Length of Fast EMA ", type=input.integer, minval=1)
+lenSlow = input(26, title="Length of Slow EMA ", type=input.integer, minval=1)
+lenSig = input(9, title="Length of Signal Line", type=input.integer, minval=1)
+//colorBars = input(false, title="Color Bars")
+
+
+o(fastLen, slowLen)=>
+    trend = s
+    fast = ema(trend, fastLen)
+    slow = ema(trend, slowLen)
+    (fast - slow)
+
+_O = o(lenFast, lenSlow)
+signal = ema(_O, lenSig)
+
+
+//  Plotting: 
+barColor = _O >= 0 and _O > signal ? color.teal : _O > 0 and _O < signal ? color.lime : _O < 0 and _O < signal ? color.red : color.orange
+plot(_O, color=barColor, style=plot.style_histogram, linewidth=3)
+//plot(signal, color=color.aqua, linewidth=3)
+//barcolor(barColor)
+bgcolor(barColor == color.teal or barColor == color.lime ? color.green : color.red)
+zero=input(0)
+down = crossunder(x, 0) 
+up = crossover(x, 0) 
+plot(up  ?zero :na, style=plot.style_cross, color=color.blue, linewidth=5, transp=0)
+plot(down ?zero :na, style=plot.style_cross, color=color.red, linewidth=5, transp=0)
+//
+down1 = crossunder(_O, 0) 
+up1 = crossover(_O, 0) 
+plot(up1  ?zero :na, style=plot.style_circles, color=color.blue, linewidth=5, transp=0)
+plot(down1 ?zero :na, style=plot.style_circles, color=color.red, linewidth=5, transp=0)
+
+/////// Alerts /////
+alertcondition(down,title="down")
+alertcondition(up,title="up")
+alertcondition(down1,title="down1")
+alertcondition(up1,title="up1")

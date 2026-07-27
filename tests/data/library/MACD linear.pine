@@ -1,0 +1,160 @@
+//@version=4
+//most made by @Daveatt i just add my stupid stuff:)
+//@url=https://de.tradingview.com/script/AUZbMsdD-macd-linear/
+
+study("macd linear", shorttitle="macl", overlay=false)
+
+// Indicators
+useCurrentRes = input(true, title="Use Current Chart Resolution?")
+resCustom = input(title="Use Different Timeframe? Uncheck Box Above", type=input.resolution, defval="240")
+res = useCurrentRes ? timeframe.period : resCustom
+
+macd_or_zl = input(title="MACD or MACD ZERO LAG", type=input.string, options=["MACD", "MACD ZERO LAG"], defval="MACD")
+presets = input(title="Presets", type=input.string, options=["12 26 9", "20 50 50", "50 100 150", "40 60 80"], defval="12 26 9")
+
+
+FastLength(presets) =>
+    if presets == "12 26 9"
+        12
+    else
+        if presets == "20 50 50"
+            20
+        else
+            if presets == "50 100 150"
+                50
+            else
+                40
+
+SlowLength(presets) =>
+    if presets == "12 26 9"
+        26
+    else
+        if presets == "20 50 50"
+            50
+        else
+            if presets == "50 100 150"
+                100
+            else
+                60
+
+SignalLength(presets) =>
+    if presets == "12 26 9"
+        9
+    else
+        if presets == "20 50 50"
+            50
+        else
+            if presets == "50 100 150"
+                150
+            else
+                80
+
+
+// presets selection
+
+fastLength = FastLength(presets)
+slowLength = SlowLength(presets) 
+signalLength = SignalLength(presets)
+
+
+// Calculations
+
+/////////////////////////////////////// MACD //////////////////
+fastMA = ema(close, fastLength)
+slowMA = ema(close, slowLength)
+
+macd = fastMA - slowMA
+signal = sma(macd, signalLength)
+hist = macd - signal
+
+// security
+outMacD = security(syminfo.tickerid, res, macd)
+outSignal = security(syminfo.tickerid, res, signal)
+outHist = security(syminfo.tickerid, res, hist)
+
+/////////////////////////////// MACD ZERO LAG //////////////////////////////////
+
+//ZL
+
+ema1= ema(close, fastLength)
+ema2 = ema(ema1,fastLength)
+differenceFast = ema1 - ema2
+zerolagEMA = ema1 + differenceFast
+demaFast = (2 * ema1) - ema2
+
+// SLOW LINE
+emas1= ema(close , slowLength)
+emas2 = ema(emas1 , slowLength)
+differenceSlow = emas1 - emas2
+zerolagslowMA = emas1 + differenceSlow
+demaSlow = (2 * emas1) - emas2
+
+//MACD LINE
+ZeroLagMACD = demaFast - demaSlow
+
+//SIGNAL LINE
+emasig1 = ema(ZeroLagMACD, signalLength)
+emasig2 = ema(emasig1, signalLength)
+signalZL = (2 * emasig1) - emasig2
+
+histZL = ZeroLagMACD - signalZL
+
+outMacDZL = security(syminfo.tickerid, res, ZeroLagMACD)
+outSignalZL = security(syminfo.tickerid, res, signalZL)
+outHistZL = security(syminfo.tickerid, res, histZL)
+
+macd_IsAbove = (macd_or_zl == "MACD ZERO LAG") ? outHistZL > 0 : outMacD >= outSignal
+macd_IsBelow = (macd_or_zl == "MACD ZERO LAG") ? outHistZL < 0 : outMacD < outSignal
+
+// Plot it baby !!!
+
+macd_color = macd_IsAbove ? color.lime : color.red 
+signal_color = macd_IsAbove ? color.green : color.orange
+
+// MACD
+histA_IsUp = outHist > outHist[1] and outHist > 0
+histA_IsDown = outHist < outHist[1] and outHist > 0
+histB_IsDown = outHist < outHist[1] and outHist <= 0
+histB_IsUp = outHist > outHist[1] and outHist <= 0
+
+plot_color = histA_IsUp ? color.aqua : histA_IsDown ? color.blue : histB_IsDown ? color.red : histB_IsUp ? color.maroon : color.yellow
+
+plot((macd_or_zl == "MACD") ? outMacD : na, title="MACD", color=macd_color, linewidth=4)
+plot((macd_or_zl == "MACD") ? outSignal : na, title="Signal Line", color=signal_color, linewidth=2)
+plot((macd_or_zl == "MACD") ? outHist : na, title="Histogram", color=plot_color, style=plot.style_histogram, linewidth=4)
+
+// MACD ZL
+histA_ZL_IsUp = outHistZL > outHistZL[1] and outHistZL > 0
+histA_ZL_IsDown = outHistZL < outHistZL[1] and outHistZL > 0
+histB_ZL_IsDown = outHistZL < outHistZL[1] and outHistZL <= 0
+histB_ZL_IsUp = outHistZL > outHistZL[1] and outHistZL <= 0
+
+plot_ZL_color = histA_ZL_IsUp ? color.aqua : histA_ZL_IsDown ? color.blue : histB_ZL_IsDown ? color.red : histB_ZL_IsUp ? color.maroon : color.yellow
+
+plot((macd_or_zl == "MACD ZERO LAG") ? outMacDZL : na, title="MACD ZL", color=macd_color, linewidth=4)
+plot((macd_or_zl == "MACD ZERO LAG") ? outSignalZL : na, title="Signal ZL Line", color=signal_color, linewidth=2)
+plot((macd_or_zl == "MACD ZERO LAG") ? outHistZL : na, title="Histogram ZL", color=plot_ZL_color, style=plot.style_histogram, linewidth=4)
+//
+period     = input(     100, "Period"       , input.integer, minval=3)
+deviations = input(    2.0, "Deviation(s)" , input.float  , minval=0.1, step=0.1)
+periodMinusOne = period-1
+Ex = 0.0, Ey = 0.0, Ex2 = 0.0, Exy = 0.0, for i=0 to periodMinusOne
+    closeI = nz(signal[i]), Ex := Ex + i, Ey := Ey + closeI, Ex2 := Ex2 + (i * i), Exy := Exy + (closeI * i)
+ExEx = Ex * Ex, slope = Ex2==ExEx ? 0.0 : (period * Exy - Ex * Ey) / (period * Ex2 - ExEx)
+linearRegression = (Ey - slope * Ex) / period
+intercept = linearRegression + bar_index * slope
+deviation = 0.0, for i=0 to periodMinusOne
+    deviation := deviation + pow(nz(signal[i]) - (intercept - slope * (bar_index[i])), 2.0)
+deviation := deviations * sqrt(deviation / periodMinusOne)
+startingPointY = linearRegression + slope / periodMinusOne
+lineColor = startingPointY > startingPointY[1] ? color.blue : color.red
+a=plot(startingPointY-deviation, title=" Curve low", color=lineColor, linewidth=3, transp=0)
+c1 = plot(startingPointY, title=" Curve", color=lineColor, linewidth=3, transp=0)
+b=plot(startingPointY+deviation, title=" Curve high", color=lineColor, linewidth=3, transp=0)
+//
+z=startingPointY-deviation
+up=crossover(macd,z)
+p=startingPointY+deviation
+down=crossunder(macd,p)
+plotshape(up, title='UP', style=shape.xcross, color=color.green, location=location.bottom, textcolor=color.black, text="buy", transp = 0, size = size.tiny)
+plotshape(down , title='down', style=shape.cross, color=color.red, location=location.top, textcolor=color.black, text="sell", transp = 0, size = size.tiny)

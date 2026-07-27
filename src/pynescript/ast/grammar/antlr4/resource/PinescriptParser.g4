@@ -30,7 +30,7 @@ start_comments: comments? EOF;
 // STATEMENTS
 
 statements: statement+;
-statement:  compound_statement | simple_statements;
+statement:  compound_statement | simple_statements | trailing_structure_statements;
 
 // COMPOUND_STATEMENTS
 
@@ -45,6 +45,12 @@ compound_statement
 // SIMPLE STATEMENTS
 
 simple_statements: simple_statement (COMMA simple_statement)* COMMA? NEWLINE;
+
+// Pine multi-statement lines may end with a structure, e.g.:
+//   Ex = 0.0, Ey = 0.0, for i=0 to n
+//       ...
+trailing_structure_statements
+    : simple_statement (COMMA simple_statement)* COMMA structure;
 
 simple_statement
     : simple_assignment
@@ -123,7 +129,13 @@ for_structure_to
     : FOR for_iterator EQUAL expression TO expression (BY expression)? local_block;
 for_structure_in: FOR for_iterator IN expression local_block;
 
-for_iterator: name_store | tuple_declaration;
+// Typed iterators are valid Pine (e.g. `for int i = 0 to n` / `for float x in arr`).
+// Prefer the typed alternative first so `int` is not consumed as the loop variable.
+for_iterator
+    : type_specification name_store
+    | name_store
+    | tuple_declaration
+    ;
 
 // WHILE STRUCTURE
 

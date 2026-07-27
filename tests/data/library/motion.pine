@@ -1,0 +1,3970 @@
+// Licensed under Attribution-NonCommercial-ShareAlike 4.0 International (CC BY-NC-SA 4.0)
+// Check out the full license here: https://creativecommons.org/licenses/by-nc-sa/4.0/
+//
+// ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+// ┃  The "CC BY-NC-SA 4.0" license grants you the following:   ┃
+// ┃                                                            ┃
+// ┃  • Share: Copy and redistribute the material.              ┃
+// ┃  • Adapt: Remix, transform, and build upon it.             ┃
+// ┃                                                            ┃
+// ┃  Under these strict conditions:                            ┃
+// ┃  • Attribution: Credit the original creator.               ┃
+// ┃  • Non-Commercial: Strictly for non-commercial use.        ┃
+// ┃  • ShareAlike: Distribute modifications under same terms.  ┃
+// ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+//
+// Authored by: cryptolinx - jango_blockchained
+// Made with 💙 for the open source community.
+
+
+// ▪ TL;DR ────
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+// ———— 🅿 Primitive Method {
+//
+//      # A lightweight, frameworkless implementation for basic string manipulation
+//      # and motion effects. Provides core functionality without the overhead of
+//      # the full framework, ideal for simple animation needs. 
+//
+//      # Series FX
+//      |
+//      | I: simple <string>, series <string>, array<string>
+//      | O: <string>
+//      |
+//      ▸ 🅿 motion()        +4 ⇌
+//      ▸ 🅿 run()           +1 ⇌
+//      ▸ 🅿 easing()        +1 ⇌
+// }
+
+// ---------------------------------------------------------------------------------------------------------------------
+
+// ———— 🔺 Framework - Library Methods {
+//
+//      # Internal library methods that provide core functionality for the framework.
+//      # These methods handle essential operations like initialization, event
+//      # handling, and state management. They serve as the foundation for higher-
+//      # level framework features.
+//
+//      # Core Methods                          # Event Methods                         # State Methods  
+//      |                                       |                                       |
+//      | <keyframe>, <transition>              | <keyframe>, <transition>              | <keyframe>, <transition>
+//      | <option>, <timer>                     |                                       | <option>, <timer>
+//      |                                       |                                       |
+//      ▸ 🔺 isset()                            ▸ 🔺 onInit()                           ▸ 🔺 oscillate()
+//      ▸ 🔺 queue()                            ▸ 🔺 onProcess()                        ▸ 🔺 update()
+//      ▸ 🔺 synchronize()                      ▸ 🔺 onTransition()                     ▸ 🔺 controller()
+//      ▸ 🔺 load()                             ▸ 🔺 onDefaultIteration()               ▸ 🔺 populate()
+//      ▸ 🔺 getInstances()                     ▸ 🔺 onConfirm()                        ▸ 🔺 observe()
+//      ▸ 🔺 setStringLength()                  ▸ 🔺 onFinish()                         ▸ 🔺 confirm()
+//      ▸ 🔺 setSubLength()                     ▸ 🔺 onReset()                          ▸ 🔺 finish()
+//      ▸ 🔺 setFxLength()                      ▸ 🔺 onStart()                          ▸ 🔺 reset()
+//      ▸ 🔺 setMaxLength()                     ▸ 🔺 onStop()                           ▸ 🔺 start()
+//      ▸ 🔺 setOffset()                                                                ▸ 🔺 stop()
+//
+//      ▾ ...                                   ▾ ...                                   ▾ ...
+// }
+
+
+
+// ---------------------------------------------------------------------------------------------------------------------
+
+
+// ———— 🔷 Framework - Primary Methods {
+//
+//      # Core framework methods that provide fundamental motion and transition
+//      # capabilities. These methods offer direct access to the framework's main
+//      # features and can be used to build complex animations and effects.
+//      # Organized into Series FX, Content FX, Style FX, and Position FX categories
+//      # for different animation needs.
+//
+//
+//      # Content FX                            # Style FX                              # Position FX
+//      |                                       |                                       |
+//      | series <string>, array<string>       | series <color>, array<color>         | ~
+//      | series <label>, series <line>         | series <label>, series <line>         | series <label>, series <line>
+//      |                                       |                                       |
+//      ▸ 🔹 transition()                       ▸ 🔹 gradient()                         ▸ 🔹 movement()
+//      ▸ 🔹 iteration()
+//
+//      ▾ ...                                   ▾ ...                                   ▾ ...
+// }
+
+// ———— 🔶 Framework - Secondary Methods (simplified and user-orientated) {
+//
+//      # User-friendly wrapper methods that simplify access to common animation
+//      # patterns. These methods provide easy-to-use interfaces for standard
+//      # effects like marquee, slides, and fades, while abstracting away the
+//      # complexity of the underlying framework. Includes controller methods
+//      # for managing animation state.
+//
+//      ▾ ...                                   ▾ ...                                   ▾ ...
+//      |                                       |                                       |
+//      ▸ 🔸 iterate()      +3 ⇌                ▸ 🔸 fade()         +4 ⇌               ▸ 🔸 move()      +4 ⇌
+//      ▸ 🔸 fx()           +3 ⇌                ▸ 🔸 fade_in()       +4 ⇌
+//      |                                       ▸ 🔸 fade_out()      +4 ⇌
+//      ├ ▸ marquee
+//      ├ ▸ spot
+//      ├ ▸ blink                    
+//      ├ ▸ slideInLeft
+//      ├ ▸ slideOutLeft
+//      ├ ▸ slideOutRight
+//      ├ ▸ slideInRight
+//      ├ ▸ blendInLeft
+//      ├ ▸ blendOutLeft
+//      ├ ▸ blendInRight
+//      ├ ▸ blendOutRight
+//      ├ ▸ hide
+//      └ ▸ show
+//
+//
+//      # Controller Methods
+//
+//      | <keyframe>
+//      | ~
+//      |
+//      ▸ 🔸 start()
+//      ▸ 🔸 stop()
+//      ▸ 🔸 reset()
+// }
+
+// ———— Framework Object Types {
+//
+//      ▸ <keyframe>
+//      ├ ▸ <transition>
+//      | └ ▸ <option>
+//      └ ▸ <timer>
+// }
+
+
+//  ▪ ──── MISC
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+// ──── Glyphs {
+//
+// ◀ ▶ ▲ ▼ ◄ ► ◤ ◥ ◣ ◢ ◸ ◹ ◺ ◿ ◁ ▷ « » ‹ › < > ▿ ▵ ▾ ▴ ◂ ▸ ◃ ▹ ◭ ◮ ⩤ ⩥
+// 【 】〔 〕 〖 〗 ⟦ ⟧ ⟬ ⟭ ⟮ ⟯ ⟪ ⟫ ⟨ ⟩ ◖◗ ⪽ ⪾ ⫏ ⫐ ⊴ ⊵ ⋐ ⋑ ⋳ ⋻ ⸜ ⸂ ⸅ ⦘ ⦗ ⦦ ⦧ ⏠ ⏡
+// ▀ ▄ █ ▌ ▐ █ ░ ▒ ▓ ■ □ ▧ ▪ ▫ ▰ ▱ ▬ ▭ ▮ ▯ ░ ▒ ▓ + ± ⌀ ⌂ H ᮙ ᮓ ⎅ ⌕
+// ▪ ▫ ■ ◻ ■ □ ◪ ◩ ◧ ◨ ◲ ◱ ◳ ◰ ◫ ⊟ ▤ ▥
+// ○ ◉ ◕ ◔ ◑ ◐ ◒ ◓ ● ◉ ◎ ◴ ◵ ◶ ◷◞ ◟ ◝ ◜ ◠ ◡
+// ⬖ ⬘ ⬗ ⬙ ◇ ◆ ◈
+// │ ‖ ⌊ ⌉ ⌈ ┌ ┐ └ ┘ ├ ┤ ┬ ┴ ┼ ═ ‗ ║ ╒ ╓ ╔ ╕ ╖ ╗ ╘ ╙ ╚ ╛ ╜ ╝ ╞ ╧ ╡ ╟ ╠  ╢ ╣ ╤ ╥ ╦ ╧ ╨ ╩ ╪ ╫ ╬ ≓ ≑ ≒ ≏ ≎ ⥢ ⥤ ⥑ ⥏
+// ⁛ ⁘ ⋱ ⋯ ⋮ ⋰ ∷ ⁞ ⁝ ⇣ ⇡ ⫰ ⫯ ⇊ ⇈ ↑ ↓ ↕ ↨ ⊻ ⊼ ∧ ∨ ⋁ ⋀ ⋂ ⋃ ⩍ ⩌ ⩎ ⩏ ⋒ ⋓ ― — – ‒ ─ ⊢ ⊣ ⇥ ⇤ ⇁ ← → ⇹ ↔ ⇆ ⇌ ⇿ ⊶ ⊷ ⊸
+// ⌝ ⌜ ⌞ ⌟ ⌌ ⌍ ⌎ ⌏ ⎴ ⎶ ⎵ ⎺ ⎻ ⎼ ⎽ ┄ ┅ ┈ ┉ ┈ ╌ ╴ ─ ━ ╌ ╍╶╴ ╵ ╷ ╸ ╹ ╺ ╻ ╼ ╽ ╾ ╿ ┛ ┘
+// ⠵ ⡃ ⠠ ⡜ ⡫ ⡻ ⡺ ⡵ ⡲ ⡰ ⡟ ⡏ ⠉ ⠸ ☰ ☱ ☲ ☳ ☴ ☵ ☶ ☷ ▙ ▞ ▚ ▟ ▖ ▝ ▗ ▖ ▘
+// ฿ ₮ α β π μ Ξ λ ₭ ₲ ₦ ₩ € ¥ ₹ ₤ ₳
+// }
+
+// ──── Fullwidth Typography {
+//
+// Ａ Ｂ Ｃ Ｄ Ｅ Ｆ Ｇ Ｈ Ｉ Ｊ Ｋ Ｌ Ｍ Ｎ Ｏ Ｐ Ｑ Ｒ Ｓ Ｔ Ｕ Ｖ Ｗ Ｘ Ｙ Ｚ 
+// ａ ｂ ｃ ｄ ｅ ｆ ｇ ｈ ｉ ｊ ｋ ｌ ｍ ｎ ｏ ｐ ｑ ｒ ｓ ｔ ｕ ｖ ｗ ｘ ｙ ｚ
+// ０ １ ２ ３ ４ ５ ６ ７ ８ ９
+// }
+
+// ──── HEX Color Code {
+//
+// 100%— FF   95% — F2    90% — E6    85% — D9    80% — CC
+// 75% — BF   70% — B3    65% — A6    60% — 99    55% — 8C
+// 50% — 80   45% — 73    40% — 66    35% — 59    30% — 4D
+// 25% — 40   20% — 33    15% — 26    10% — 1A     5% — 0D
+//  0% — 00
+// }
+
+// ──── Custom Formatting {
+//
+//  Variable:           myVar
+//  Variable Alt:       myVar_
+//  Default Argument:   _myArgument
+//  Object Argument:    __myObject
+//  UDT:                __object
+//  UDT Array:          __objects       
+//  Inputs:             __MY_INPUT
+//  Constant:           MY_VALUE
+// }
+
+
+// ▪ LIBRARY ────
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+// ———— Motion Library {
+//
+// @version=6
+// @description     This library is designed to generate transition effects for strings, colors or positions, with \
+//                  updates occurring on a per-tick basis. It emphasizes user-friendliness and customization options. \
+//                  Additionally, it has been fine-tuned for optimal performance and minimal memory usage.
+library("Motion", overlay = true)
+// }
+
+
+export enum FX
+    marquee
+    spot
+    blink
+    slide_in_left
+    slide_in_right
+    slide_out_left
+    slide_out_right
+    blend_in_left
+    blend_in_right
+    blend_out_left
+    blend_out_right
+    hide
+    show
+    transition
+    fx
+    iteration
+    iterate
+    movement
+    move
+    gradient
+    fade
+    fade_in
+    fade_out
+
+export enum Easing
+    linear
+    ease
+    ease_in
+    ease_out
+    progressive
+    exponential
+    fibonacci
+
+export enum Frequency
+    on_tick
+    on_time
+    on_index
+    on_input
+
+export enum StartOn
+    now
+    on_open
+    on_close
+
+export enum Calculation
+    relative
+    absolute
+
+
+//  ▪ EXPORT: 🅿 PRIMITIVE METHOD (FRAMEWORKLESS) ────
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+// ———— 🅿 Primitive Method - Motion {
+//
+// @function    A primitive method that provides the most efficient implementation for basic string manipulation \
+//              and motion effects. Manipulates strings by rearranging elements based on specified parameters.
+// ___
+// [![method primitive](https://img.shields.io/badge/method-primitive-CCCCCC?style=flat-square)]()
+// [![version simple string](https://img.shields.io/badge/version-simple_string-CCCCCC?style=flat-square)]()
+// ___
+// #### 📦 Import
+// > ```pinescript
+// > import cryptolinx/motion/$$VERSION as m
+// > ```
+// ___
+// #### 🎯 Usage
+// > ```pinescript
+// > // Basic string rotation
+// > string myText = "Hello"
+// > label.new(bar_index, high, myText.motion())  // "elloH" -> "lloHe"
+// >
+// > // With custom delimiter and separator
+// > string myText = "A>B>C>D"
+// > label.new(bar_index, high, myText.motion(">", " "))  // "B C D A"
+// > ```
+// ___
+// @param       this                The input string to manipulate.
+// @param       _delimiter          Delimiter used to split the string.
+// @param       _separator          Separator used to join elements.
+// @param       _join               If true, joins elements; else returns last.
+// @param       _reverse            If true, reverses element order.
+// @returns     `<string>` The manipulated string series.
+export method motion(
+ simple string  this,
+ series string  _delimiter  = '',
+ series string  _separator  = '',
+ series bool    _join       = true,
+ series bool    _reverse    = false
+ ) =>
+    //@variable The animation string splitted into an array.
+    varip array<string> seq = na
+    // --
+    switch
+        na(seq) => seq := str.split(this, _delimiter)
+        _reverse => seq.unshift(seq.pop())
+        => seq.push(seq.shift())
+    // >>
+    _join ? seq.join(_separator) : seq.last()
+// --
+// @function    Method that provides the shortest possible implementation for commonly used string effects like \
+//              iteration and marquee. \
+//              This method manipulates a `series <string>` by rearranging its elements based on specified parameters.
+//
+// [![method primitive](https://img.shields.io/badge/method-primitive-CCCCCC?style=flat-square)]()
+// [![version series string](https://img.shields.io/badge/version-series_string-CCCCCC?style=flat-square)]()
+// ___
+// #### Library Import
+// > First, you need to import the motion library into your script. You should replace `$$VERSION_NUMBER` with \
+// > the latest version number of the library and `$$ALIAS` with your chosen prefix. \
+// > In this example, we use `m` as the prefix.
+// > ```
+// > import cryptolinx/motion/$$VERSION_NUMBER as $$ALIAS
+// > ```
+// ___
+// @param       this                The input string series.
+// @param       _delimiter          The delimiter used to split the string series (default is an empty string).
+// @param       _separator          The separator used to join the string series (default is an empty string).
+// @param       _join               A boolean indicating whether to join the split elements or return the last element (default is true).
+// @param       _reverse            A boolean indicating whether to reverse the order of elements (default is false).
+// @returns     `<string>` The manipulated string series.
+export method motion(
+ series string  this, 
+ series string  _delimiter  = '',
+ series string  _separator  = '',
+ series bool    _join       = true,
+ series bool    _reverse    = false
+ ) =>
+    // @variable     
+    varip series string  og  = na
+    varip array<string>  seq = na
+    // --
+    switch
+        not (og == this) =>
+           og  := this
+         , seq := str.split(this, _delimiter)
+        _reverse => 
+           seq.unshift(seq.pop())
+        => 
+           seq.push(seq.shift())
+    // >>
+    _join ? seq.join(_separator) : seq.last()
+
+// --
+// @function    Method that provides the shortest possible implementation for commonly used string effects like \
+//              iteration and marquee. \
+//              This method manipulates a `series <string>` by rearranging its elements based on specified parameters.
+//
+// [![method primitive](https://img.shields.io/badge/method-primitive-CCCCCC?style=flat-square)]()
+// [![version array string](https://img.shields.io/badge/version-array_string-CCCCCC?style=flat-square)]()
+// ___
+// #### Library Import
+// > First, you need to import the motion library into your script. You should replace `$$VERSION_NUMBER` with \
+// > the latest version number of the library and `$$ALIAS` with your chosen prefix. \
+// > In this example, we use `m` as the prefix.
+// > ```
+// > import cryptolinx/motion/$$VERSION_NUMBER as $$ALIAS
+// > ```
+// ___
+// @param       this                The input string series.
+// @param       _separator          The separator used to join the string series (default is an empty string).
+// @param       _join               A boolean indicating whether to join the split elements or return the last element (default is true).
+// @param       _reverse            A boolean indicating whether to reverse the order of elements (default is false).
+// @returns     `<string>` The manipulated string series.
+export method motion(
+ array<string> this,
+ series string  _separator = '',
+ series bool    _join       = true,
+ series bool    _reverse    = false
+ ) =>
+    // @variable Used to check the
+    varip series string  og  = na
+    varip array<string>  seq = na
+    // --
+    switch
+        not (og == this.join()) =>
+           og  := this.join()
+         , seq := this
+        _reverse =>
+           seq.unshift(seq.pop())
+        =>
+           seq.push(seq.shift())
+    // >>
+    _join ? seq.join(_separator) : seq.last()
+// --
+// @function    Method that provides the shortest possible implementation for commonly used string effects like \
+//              iteration and marquee. \
+//              This method manipulates an `array<float>` by rearranging its elements based on specified parameters.
+//
+// [![method primitive](https://img.shields.io/badge/method-primitive-CCCCCC?style=flat-square)]()
+// [![version array float](https://img.shields.io/badge/version-array_float-CCCCCC?style=flat-square)]()
+// ___
+// #### Library Import
+// > First, you need to import the motion library into your script. You should replace `$$VERSION_NUMBER` with \
+// > the latest version number of the library and `$$ALIAS` with your chosen prefix. \
+// > In this example, we use `m` as the prefix.
+// > ```
+// > import cryptolinx/motion/$$VERSION_NUMBER as $$ALIAS
+// > ```
+// ___
+// @param       this                The input array of floats.
+// @param       _reverse            A boolean indicating whether to reverse the order of elements (default is false).
+// @returns     `<string>` The manipulated string series.
+export method motion(
+ array<float>   this,
+ series bool    _reverse    = false
+ ) =>
+    // @variable An array of strings.
+    varip array<float> seq = na
+    switch 
+        na(seq) => 
+         seq := this
+        _reverse => 
+         seq.unshift(seq.pop())
+        => 
+         seq.push(seq.shift())
+    // >>
+    seq.last()
+// --
+// @function    Method that provides the shortest possible implementation for commonly used string effects like \
+//              iteration and marquee. \
+//              This method manipulates an `array<int>` by rearranging its elements based on specified parameters.
+//
+// [![method primitive](https://img.shields.io/badge/method-primitive-CCCCCC?style=flat-square)]()
+// [![version array int](https://img.shields.io/badge/version-array_int-CCCCCC?style=flat-square)]()
+// ___
+// #### Library Import
+// > First, you need to import the motion library into your script. You should replace `$$VERSION_NUMBER` with \
+// > the latest version number of the library and `$$ALIAS` with your chosen prefix. \
+// > In this example, we use `m` as the prefix.
+// > ```
+// > import cryptolinx/motion/$$VERSION_NUMBER as $$ALIAS
+// > ```
+// ___
+// @param       this                The input array of integers.
+// @param       _reverse            A boolean indicating whether to reverse the order of elements (default is false).
+// @returns     `<string>` The manipulated string series.
+export method motion(
+ array<int>  this,
+ series bool _reverse = false
+ ) =>
+    // @variable An array of strings.
+    varip array<int> seq = na
+    switch 
+        na(seq) => 
+         seq := this
+        _reverse => 
+         seq.unshift(seq.pop())
+        => 
+         seq.push(seq.shift())
+    // >>
+    seq.last()
+// }
+
+// ---------------------------------------------------------------------------------------------------------------------
+
+// ———— 🅿 Primitive Method - Run {
+//
+// @function    Generates an **oscillating** series of values in a given range. \
+//              Supports interval, steps, offset, bounce, reverse, reset, and max value inclusion.
+// ___
+// [![method primitive](https://img.shields.io/badge/method-primitive-CCCCCC?style=flat-square)]()
+// [![version float](https://img.shields.io/badge/version-float-CCCCCC?style=flat-square)]()
+// ___
+// #### 📦 Import
+// > ```pinescript
+// > import cryptolinx/motion/$$VERSION as m
+// > ```
+// ___
+// #### 🎯 Usage
+// > ```pinescript
+// > series = m.run(5, _bounce = true, _includeMax = true)
+// > plot(series, title = "Oscillating Series", color = color.blue)
+// > ```
+// ___
+// #### 📊 Parameter Combinations
+// | _includeMax | _bounce | _reverse | Output Example |
+// |-------------|---------|----------|----------------|
+// | false | false | false | 0, 1, 2, 3, 4, 0... |
+// | true | false | false | 0, 1, 2, 3, 4, 5... |
+// | false | true | false | 0, 1, 2, 3, 4, 3... |
+// | false | false | true | 4, 3, 2, 1, 0, 4... |
+// ___
+// @param       this                The length of the series.
+// @param       _start              Starting value (default: 0).
+// @param       _intv               Interval between values (default: 1).
+// @param       _steps              Steps in the series (default: 1).
+// @param       _type               Easing type.
+// @param       _offset             Offset value (default: 0).
+// @param       _bounce             Enable bounce effect.
+// @param       _reverse            Enable reverse direction.
+// @param       _reset              Enable reset behavior.
+// @param       _includeMax         Include maximum value.
+// @returns     `<float>` The resulting series.
+export method run(
+ series float   this,
+ series float   _start      = 0,
+ series int     _intv       = 1,
+ series float   _steps      = 1,
+ series float   _offset     = 0,
+ series bool    _bounce     = false,
+ series bool    _reverse    = false,
+ series bool    _reset      = false,
+ series bool    _includeMax = false
+ ) =>
+    // @variable    An authark running update number (per call).
+    varip series int updateNo = -1
+    updateNo := _reset and barstate.isnew ? 0 : updateNo + 1
+    // @variable The serial number for the current frame.
+    series float serial = (updateNo + _offset) / _intv * _steps
+    // @variable The maximal value of the oscillation.
+    series float max = _start + this - (_includeMax ? 0 : 1)
+    // @variable A modulo operator to calc the oscillation.
+    series float modulo = this + (_includeMax ? 1 : 0)
+    // @variable The progress of the current frame.
+    series float progress = (serial % (max * 2)) + _start
+    // @variable The pointer value, considering the bounce effect.
+    series float pointer = switch
+        not _bounce => (serial % modulo) + _start
+        progress <= max => progress
+        => (max * 2) - progress
+    // >>
+    _reverse ? max - pointer : pointer
+// --
+// @function    This function does **not** generate any effect, instead it generates an **oscillating** series of \
+//              values in a given range to build an effect. \
+//              This series can oscillate between a start and end value, with options to control the interval, steps, \
+//              offset, bounce effect, reverse direction, reset behavior, inclusion of the maximum value, \
+//              an easing type and an ip (update number) flag.
+// ___
+// [![method primitive](https://img.shields.io/badge/method-primitive-CCCCCC?style=flat-square)]()
+// [![version int](https://img.shields.io/badge/version-int-CCCCCC?style=flat-square)]()
+// ___
+// #### Library Import
+// First, you need to import the motion library into your script. You should replace `$$VERSION_NUMBER` with \
+// the latest version number of the library and `$$ALIAS` with your chosen prefix. \
+// In this example, we use `m` as the prefix.
+// > ```
+// > import cryptolinx/motion/$$VERSION_NUMBER as $$ALIAS
+// > ```
+// ___
+// #### Example Usage
+// > ``` 
+// > // Initialize series with length 5 and custom parameters
+// > series = m.run(5, _bounce = true, _includeMax = true)
+// > 
+// > // Plot the resulting values
+// > plot(series, title = "Oscillating Series", color = color.blue)
+// > ```
+// ___
+// #### Parameter Combinations
+// | _includeMax | _bounce | _reverse | Output Example              |
+// |-------------|---------|----------|-----------------------------|
+// | false       | false   | false    | 0, 1, 2, 3, 4, 0, 1, 2...   |
+// | true        | false   | false    | 0, 1, 2, 3, 4, 5, 0, 1...   |
+// | false       | true    | false    | 0, 1, 2, 3, 4, 3, 2, 1...   |
+// | false       | false   | true     | 4, 3, 2, 1, 0, 4, 3, 2...   |
+// | true        | true    | false    | 0, 1, 2, 3, 4, (5), 4...    |
+// | true        | false   | true     | (5), 4, 3, 2, 1, 0, (5)...  |
+// | true        | true    | true     | (5), 4, 3, 2, 1, 0, 1...    |
+// ___
+// @param       this                The length of the series.
+// @param       _start              The starting value of the series (default is 0).
+// @param       _intv               The interval between values (default is 1).
+// @param       _steps              The number of steps in the series (default is 1).
+// @param       _offset             The offset value for the series (default is 0).
+// @param       _bounce             Enable/disable the bounce effect (default is `false`).
+// @param       _reverse            Enable/disable reverse direction (default is `false`).
+// @param       _reset              Enable/disable reset behavior (default is `false`).
+// @param       _includeMax         Include/exclude the maximum value (default is `false`).
+// @returns     `<int>` The resulting series.
+export method run(
+ series int     this, 
+ series int     _start      = 0,
+ series int     _intv       = 1,
+ series int     _steps      = 1,
+ series int     _offset     = 0,
+ series bool    _bounce     = false,
+ series bool    _reverse    = false,
+ series bool    _reset      = false,
+ series bool    _includeMax = false
+ ) =>
+    // >>
+    int(run(float(this), float(_start), _intv, _steps, _offset, _bounce, _reverse, _reset, _includeMax))
+// }
+
+// ---------------------------------------------------------------------------------------------------------------------
+
+// ———— 🅿 Primitive Method - Easing {
+//
+// @function    Applies easing to transition a value based on specified easing curves and parameters.
+// ___
+// [![method primitive](https://img.shields.io/badge/method-primitive-CCCCCC?style=flat-square)]()
+// [![version float](https://img.shields.io/badge/version-float-CCCCCC?style=flat-square)]()
+// ___
+// #### Library Import
+// First, you need to import the motion library into your script. You should replace `$$VERSION_NUMBER` with \
+// the latest version number of the library and `$$ALIAS` with your chosen prefix. \
+// In this example, we use `m` as the prefix.
+// > ```
+// > import cryptolinx/motion/$$VERSION_NUMBER as $$ALIAS
+// > ```
+// ___
+// #### Easing in Numbers
+//
+// | x  | linear | ease  | ease_in | ease_out  | progressive | exponential | fibonacci |
+// |----|--------|-------|---------|-----------|-------------|-------------|-----------|
+// | 0  | 0.000  | 0.000 | 0.000   | 0.000     | 0.000       | 0.010       | 0.000     |
+// | 1  | 1.000  | 0.280 | 0.100   | 1.900     | 0.010       | 0.020       | 0.641     |
+// | 2  | 2.000  | 1.040 | 0.400   | 3.600     | 0.080       | 0.039       | 1.635     |
+// | 3  | 3.000  | 2.160 | 0.900   | 5.100     | 0.270       | 0.078       | 2.896     |
+// | 4  | 4.000  | 3.520 | 1.600   | 6.400     | 0.640       | 0.156       | 4.281     |
+// | 5  | 5.000  | 5.000 | 2.500   | 7.500     | 1.250       | 0.313       | 5.680     |
+// | 6  | 6.000  | 6.480 | 3.600   | 8.400     | 2.160       | 0.625       | 7.000     |
+// | 7  | 7.000  | 7.840 | 4.900   | 9.100     | 3.430       | 1.250       | 8.137     |
+// | 8  | 8.000  | 8.960 | 6.400   | 9.600     | 5.120       | 2.500       | 9.031     |
+// | 9  | 9.000  | 9.720 | 8.100   | 9.900     | 7.290       | 5.000       | 9.660     |
+// | 10 | 10.000 | 10.000| 10.000  | 10.000    | 10.000      | 10.000      | 10.000    |
+// ___
+//
+// This table shows different easing functions and their output values \
+// for inputs from 0 to 10. Each column represents a different easing 
+// function type:
+// 
+// - linear: Direct linear interpolation
+// - ease: Standard easing curve
+// - ease_in: Slow start, fast end
+// - ease_out: Fast start, slow end  
+// - progressive: Accelerating progression
+// - exponential: Exponential growth
+// - fibonacci: Based on fibonacci sequence ratios
+//
+// ___
+// @param       _valueFloat         The primary value or `<keyframe>` object that represents the current position.
+// @param       _max                The maximal value that defines the range of the easing.
+// @param       _curve              Defines the curve of the transition. 
+// @returns     `<float>` Returns the eased value, scaled by _max and wrapped within the range.
+export method easing(series float this, series float _max, Easing _easing = Easing.linear) =>
+    // @variable    Normalized value within the range.
+    series float normalized = this / _max
+    // @variable    Normalized and eased value.
+    series float eased      = switch _easing
+        Easing.linear        => normalized
+        Easing.ease          => normalized * normalized * (3 - (2 * normalized))
+        Easing.ease_in       => normalized * normalized
+        Easing.ease_out      => normalized * (2 - normalized)
+        Easing.progressive   => normalized * normalized * normalized
+        Easing.exponential   => math.pow(2, 10 * (normalized - 1))
+        Easing.fibonacci     => (math.pow(math.phi, normalized) - math.pow(-math.phi, -normalized)) / (2 * math.phi - 1)
+        => normalized   // linear by default
+    // >>
+    (eased * _max) % (_max + 1)
+// --
+// @function    Applies easing to transition a value based on specified easing curves and parameters.
+// ___
+// [![method primitive](https://img.shields.io/badge/method-primitive-CCCCCC?style=flat-square)]()
+// [![version float](https://img.shields.io/badge/version-float-CCCCCC?style=flat-square)]()
+// ___
+// #### Library Import
+// First, you need to import the motion library into your script. You should replace `$$VERSION_NUMBER` with \
+// the latest version number of the library and `$$ALIAS` with your chosen prefix. \
+// In this example, we use `m` as the prefix.
+// > ```
+// > import cryptolinx/motion/$$VERSION_NUMBER as $$ALIAS
+// > ```
+// ___
+// #### Easing in Numbers
+//
+// | x  | linear | ease  | ease_in | ease_out  | progressive | exponential | fibonacci |
+// |----|--------|-------|---------|-----------|-------------|-------------|-----------|
+// | 0  | 0.000  | 0.000 | 0.000   | 0.000     | 0.000       | 0.010       | 0.000     |
+// | 1  | 1.000  | 0.280 | 0.100   | 1.900     | 0.010       | 0.020       | 0.641     |
+// | 2  | 2.000  | 1.040 | 0.400   | 3.600     | 0.080       | 0.039       | 1.635     |
+// | 3  | 3.000  | 2.160 | 0.900   | 5.100     | 0.270       | 0.078       | 2.896     |
+// | 4  | 4.000  | 3.520 | 1.600   | 6.400     | 0.640       | 0.156       | 4.281     |
+// | 5  | 5.000  | 5.000 | 2.500   | 7.500     | 1.250       | 0.313       | 5.680     |
+// | 6  | 6.000  | 6.480 | 3.600   | 8.400     | 2.160       | 0.625       | 7.000     |
+// | 7  | 7.000  | 7.840 | 4.900   | 9.100     | 3.430       | 1.250       | 8.137     |
+// | 8  | 8.000  | 8.960 | 6.400   | 9.600     | 5.120       | 2.500       | 9.031     |
+// | 9  | 9.000  | 9.720 | 8.100   | 9.900     | 7.290       | 5.000       | 9.660     |
+// | 10 | 10.000 | 10.000| 10.000  | 10.000    | 10.000      | 10.000      | 10.000    |
+// ___
+//
+// This table shows different easing functions and their output values \
+// for inputs from 0 to 10. Each column represents a different easing 
+// function type:
+// 
+// - linear: Direct linear interpolation
+// - ease: Standard easing curve
+// - ease_in: Slow start, fast end
+// - ease_out: Fast start, slow end  
+// - progressive: Accelerating progression
+// - exponential: Exponential growth
+// - fibonacci: Based on fibonacci sequence ratios
+//
+// ___
+// @param       this                The primary value or `<keyframe>` object that represents the current position.
+// @param       _max                The maximal value that defines the range of the easing.
+// @param       _curve              Defines the curve of the transition. It can be.
+// @returns     `<int>` Returns the eased value, scaled by _max and wrapped within the range.
+export method easing(series int this, series int _max, Easing _easing = Easing.linear) =>
+    // >>
+    int(float(this).easing(_max, _easing))
+// }
+
+
+// ▪ FRAMEWORK GLOBALS ────
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+// ———— Const {
+//
+// @variable Empty
+const string EMPTY            = ''
+// @variable White Space
+const string WS               = ' '
+// @variable Secured White Space
+const string SWS              = ' '
+// @variable New Line
+const string BR               = '\n'
+// @variable Underscore
+const string US               = '_'
+// @variable Vertical Divider
+const string VD               = '|'
+// @variable Mu
+const string MU               = 'µ'
+// @variable Delta
+const string DELTA            = 'Δ'
+// --
+// @variable Step delimiter string.
+const string DELIMITER_STEP   = '>'
+// @variable XY Path delimiter string.
+const string DELIMITER_XY     = ':'
+// --
+// @variable Maximal negative x-axis offset.
+const int    BOUND_XH         = -4999
+// @variable Maximal positive x-axis offset.
+const int    BOUND_XF         = 499
+// }
+
+
+//  ▪ EXPORT: FRAMEWORK OBJECT TYPES ────
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+// ———— Type Option {
+//
+// @type    The option object
+// @field   max_loops           Sets the maximum number of loops the transition can make. Zero (0) is infinite looping.
+// @field   ws                  Sets the number of trailing white spaces.
+// @field   sub_start           Specifies the starting position of a subsequence within the main sequence for focused transition effect.
+// @field   sub_length          Sets the length of the subsequence to be used in the transition effect.
+// @field   fx_length           Specifies an extra length for some effects.
+// @field   reverse             If `true`,the  animation proceeds opposide direction.
+// @field   bounce              If `true`, the transition revers thedirection on the last frame.
+// @field   refill              Decides whether the transition effect should refill the sequence after it reaches the end.
+// @field   reset               A Boolean determining if the keyframe should reset with every new bar. If `true`, the keyframe resets with each new bar.
+// @field   easing              Sets an easing type.
+// @field   prefix              A string that will be added to the beginning of the sequence during the transition for additional context.
+// @field   suffix              A string that will be added to the end of the sequence during the transition for additional context.
+export type option
+    // --
+    int         max_loops  = 0
+    int         ws         = 0
+    int         sub_start  = 0
+    int         sub_length = 0
+    int         fx_length  = 1
+    // --
+    bool        reverse    = false
+    bool        bounce     = false
+    bool        refill     = true
+    bool        reset      = false
+    // --
+    Easing      easing     = Easing.linear
+    string      prefix
+    string      suffix
+// }
+
+// ---------------------------------------------------------------------------------------------------------------------
+
+// ———— Type Transition {
+//
+// @type    A transition object.
+// @field   fx                  Specifies the type of transition effect to apply. Default is 'marquee'.
+// @field   __input             Stores a untouched copy of the user input `<option>` object.
+// @field   __opt               Stores the `<option>` object.
+// @field   action              Stores the current action being performed by the transition.
+// @field   dir                 Stores the current direction of the transition.
+// @field   side                Stores the side of the transition effect.
+// @field   path                Stores the path for the Movement FX.
+// @field   offset_x            The x offset.
+// @field   offset_y            The y offset.
+// @field   iteration_length    Sets the sequence length.
+// @field   str_length          Sets the sequence length with the addition of white spaces.
+// @field   max_length          Sets the maximum length that the sequence can be.
+// @field   init                The init state of the transition.
+// @field   started             The start state of the transition.
+export type transition
+    // --
+    FX              fx                  = FX.marquee
+    // --
+    option          __input
+    option          __opt
+    // --
+    string          action
+    string          dir
+    string          side
+    // --
+    array<string>   path
+    int             offset_x            = 0
+    float           offset_y            = 0
+    int             offset_x2           = 0
+    float           offset_y2           = 0
+    // --
+    int             iteration_length    = 0
+    int             str_length          = 0
+    int             max_length          = 0
+    bool            init                = false
+    bool            started             = false
+// }
+
+// ---------------------------------------------------------------------------------------------------------------------
+
+// ———— Type Timer {
+//
+// @type    A timer object.
+// @field   frequency       The timer type: `on_time`, `on_tick`, `on_index` or `on_input`.
+// @field   mu              The timer unit (finess). Applicable to `on_time` only.
+// @field   start_on        The timer start param: `now`, `on_open`, or `on_close`.
+// @field   start           Starting point based on `calculation` field.
+// @field   started         State if the `<timer>` has started.
+// @field   offset          The cumulative update offset between each transition on a multi-transition stack.
+// @field   calculation     `relative`: from first execution, `absolute`: from zero.
+export type timer
+    // --
+    Frequency   frequency       = Frequency.on_tick
+    float       mu              = 1000
+    StartOn     start_on        = StartOn.now
+    int         start
+    bool        started         = false
+    int         offset          = 0
+    Calculation calculation     = Calculation.relative
+// }
+
+
+// ---------------------------------------------------------------------------------------------------------------------
+
+// ———— Type Keyframe {
+//
+// @type    A keyframe object.
+// @field   intv                The interval (Δt). Represents the time period between each update in frames. [0;∞[
+// @field   steps               The number of updates that occur per execution bounce.
+// @field   __timer             A timer object controlling the start and duration of the `<keyframe>`.
+// @field   __transition        The current transition being executed in the `<keyframe>`.
+// @field   __queue             An array storing all stacked transitions waiting for execution.
+// @field   idx                 The current transition index.
+// @field   update_no           The current update frame number. It increments with each frame and resets after an execution bounce is completed.
+// @field   frame_no            The serial number calculated by dividing the update_no by the interval (intv).
+// @field   loop_no             The loop number calculated by dividing the frame_no by the iteration_length. Provides the count of completed bounces.
+// @field   pointer             The current position in the transition.
+// @field   offset              Offset value which shifts the position of `<keyframe>`s in the timeline.
+// @field   exec                Controlling start/stop of the motion effect. When `true`, the motion effect is running.
+// @field   init                If `true`, the object is in its initial state.
+// @field   temp                A temporary string storage. Gets used for various manipulations.
+// @field   extern              Can be used to hook up an external update_no.
+export type keyframe
+    // --
+    int                 intv            = 1
+    int                 steps           = 1
+    // --
+    timer               __timer
+    transition          __transition
+    array<transition>   __queue
+    // --
+    int                 idx             = 0
+    int                 update_no       = 0
+    int                 frame_no        = 0
+    int                 loop_no         = 0
+    int                 pointer         = 0
+    int                 offset          = 0
+    // --
+    bool                exec            = true
+    bool                init            = false
+    bool                confirmed       = false
+    bool                finished        = false
+    bool                multi           = false
+    // --
+    string              temp
+    int                 extern          = 0
+// }
+
+
+//  ▪ INTERNAL: 🔺 LIBRARY HELPER METHODS ────
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+// ———— 🔺 Library Method - Is Set {
+//
+// @function    Replace `na` with a default value.
+// @param       _src                    Source value.
+// @param       _replacement            Replacement value.
+// @returns     `<string>`, `<transition>`, `<timer>`, `<keyframe>`, `array<string>`, `array<transition>`
+method isset(series int         _src, series int                _replacement) => na(_src) ? _replacement : _src
+method isset(series float       _src, series float              _replacement) => na(_src) ? _replacement : _src
+method isset(series timer       _src, series timer              _replacement) => na(_src) ? _replacement : _src
+method isset(option             _src, series option             _replacement) => na(_src) ? _replacement : _src
+method isset(keyframe           _src, keyframe                  _replacement) => na(_src) ? _replacement : _src
+method isset(transition         _src, series transition         _replacement) => na(_src) ? _replacement : _src
+method isset(array<string>      _src, series array<string>      _replacement) => na(_src) ? _replacement : _src
+method isset(array<transition>  _src, series array<transition>  _replacement) => na(_src) ? _replacement : _src
+method isset(series string      _src, series string             _replacement) =>
+    na(_src) or _src == string(na) ? _replacement : _src
+// }
+
+
+//  ▪ EXPORT: CONTROL METHODS ────
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+// ———— 🔹 Method - Start Execution {
+//
+// @function    Starts the script execution. Execution is `true` by default, so you do not need to start effect on \
+//              a standard setup.
+//
+// #### Example
+// > ```
+// > var kf = m.keyframe.new()
+// > kf.start()
+// > ```
+// ___
+// @param       this                The primary `<keyframe>` object.
+// @returns     `<keyframe>`
+export method start(keyframe this) =>
+    // --
+    this.exec := true
+    // >>
+    this
+// }
+
+// ———— 🔹 Method - Stop Execution {
+//
+// @function    Stops the script execution.
+//
+// #### Example
+// > ```
+// > var kf = m.keyframe.new()
+// > kf.stop()
+// > ```
+// ___
+// @param       this                The primary `<keyframe>` object.
+// @returns     `<keyframe>` Returns the `<keyframe>` object with execution stopped.
+export method stop(keyframe this) =>
+    // Stops any ongoing operations
+    this.__transition.action    := 'show'
+    this.__timer.started        := false
+    this.exec                   := false
+    this.pointer                := 0
+    // >>
+    this
+// }
+
+// ———— 🔹 Method - Reset {
+//
+// @function    Resets the transition.
+// 
+// #### Example
+// > ```
+// > var kf = m.keyframe.new()
+// > kf.reset()
+// > ```
+// ___
+// #### Limitation
+// TODO
+// ___
+// @param       this                The primary `<keyframe>` object.
+// @returns     Returns the `<keyframe>` object with execution stopped.
+export method reset(keyframe this) =>
+    // --
+    this.__timer.start   := na
+    this.__timer.started := false
+    // >>
+    this
+// }
+
+//  ▪ INTERNAL: 🔺 LIBRARY METHODS ────
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+// >>>> EVENT LISTENER >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+// ———— 🔺 Library Method - On Init {
+//
+// @function    Event handler that triggers during the initialization event.
+// @param       this                The primary `<keyframe>` object.
+// @returns     `<bool>` Returns `true` if initialization hasn't occurred, otherwise false.
+_onInit(keyframe this) =>
+    // >>
+    not this.init
+// --
+// @function    Event handler that triggers during the initialization event.
+// @param       this                The `<transition>` object.
+// @returns     `<bool>` Returns `true` if initialization hasn't occurred, otherwise false.
+_onInit(transition this) =>
+    // >>
+    not this.init
+// }
+
+// ———— 🔺 Library Method - On Process {
+//
+// @function    Event handler that triggers if the execution is eligebil.
+// @param       this                The primary `<keyframe>` object.
+// @returns     `<bool>` Returns `true` if an update process is executed, otherwise false.
+_onProcess(keyframe this) =>
+    // >>
+    barstate.islast or barstate.isrealtime
+// }
+
+// ———— 🔺 Library Method - On Transtion {
+//
+// @function    Checks, if the fx uses a default iteration.
+// @param       this                The primary `<keyframe>` object.
+// @returns     `<keyframe>`
+_onTransition(keyframe this) =>
+    // >>
+    not na(this.__transition)
+// }
+
+// ———— 🔺 Library Method - On Multi Transition {
+//
+// @function    Determines if the current `<keyframe>` includes multiple transitions.
+// @param       this                The primary `<keyframe>` object.
+// @returns     `<bool>` Returns `true` if there are multiple transitions, otherwise false.
+_onMultiTransition(keyframe this) =>
+    // @variable Multi-Transition state. IP resistens for the case of a multiple calls within a single update by varip.
+    if not this.multi
+        varip series bool multi = false
+        multi := not multi and this.__queue.size() > 1 ? true : multi
+        this.multi := multi
+    // >>
+    this.multi
+// }
+
+// ———— 🔺 Library Method - On Timer Start {
+//
+// @function    triggered at the start of a new bar.
+// @param       this                The primary `<keyframe>` object.
+// @returns     `<bool>`
+_onTimerStart(keyframe this) =>
+    // --
+    if this.exec and not this.__timer.started
+        // >>
+        this.__timer.started := switch this.__timer.start_on
+            StartOn.on_open  => barstate.isnew        // start timer on bar open
+            StartOn.on_close => barstate.isconfirmed  // start timer on bar close
+            => true // start timer now
+    else
+        // >>
+        false
+// }
+
+// ———— 🔺 Library Method - On Default Iteration {
+//
+// @function    Checks, if the fx uses a default iteration.
+// @param       this                The primary `<keyframe>` object.
+// @returns     `<keyframe>`
+_onDefaultIteration(transition this) =>
+    // @variable Array holding all fx names which use a standard iteration without an extra frame for (show/hide).
+    const array<FX> defaultEffect = array.from(FX.blink, FX.gradient, FX.iteration, FX.marquee, FX.movement, FX.spot)
+    // >>
+    defaultEffect.includes(this.fx)
+// }
+
+
+// >>>> FREQUENCY >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+// ———— 🔺 Library Method - Bound To Chart {
+//
+// @function    Determines and sets the next `update_no` based on an interval per bar.
+// @param       this                The primary `<keyframe>` object.
+// @returns     `<keyframe>`
+method boundToChart(series int this, series bool _isOffset = true) =>
+    // --
+    series int src = _isOffset ? this : this - bar_index
+    src := src > BOUND_XF ? BOUND_XF : src < BOUND_XH ? BOUND_XH : src
+    // >>
+    _isOffset ? src : src + bar_index
+// }
+
+// >>>> FREQUENCY >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+// ———— 🔺 Library Method - Get Index {
+//
+// @function    Determines and sets the next `update_no` based on an interval per bar.
+// @param       this                The primary `<keyframe>` object.
+// @returns     `<keyframe>`
+method setFreqByIndex(keyframe this) =>
+    // --
+    this.update_no := bar_index - this.__timer.start + 1
+    // >>
+    this
+// }
+
+// ———— 🔺 Library Method - Get Time {
+//
+// @function    Determines and sets the next `update_no` based on a time interval updated on tick.
+// @param       this                The primary `<keyframe>` object.
+// @returns     `<keyframe>`
+method setFreqByTime(keyframe this) =>
+    // --
+    this.update_no := math.ceil((timenow / this.__timer.mu) - this.__timer.start)
+    // >>
+    this
+// }
+
+// ———— 🔺 Library Method - Get Tick {
+//
+// @function    Determines and sets the next `update_no` based on a tick interval.
+// @param       this                The primary `<keyframe>` object.
+// @returns     `<keyframe>`
+method setFreqByTick(keyframe this) =>
+    // @variable The current update number.
+    varip series int updateNo = this.__timer.start
+    updateNo        += 1
+    this.update_no  := updateNo - this.__timer.start
+    // >>
+    this
+// }
+
+// ———— 🔺 Library Method - Get Input {
+//
+// @function    Determines and sets the next `update_no` based on an external source.
+// @param       this                The primary `<keyframe>` object.
+// @returns     `<keyframe>`
+method setFreqByInput(keyframe this) =>
+    // --
+    this.update_no := this.extern
+    // >>
+    this
+// }
+
+
+// >>>> TIMER >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+// ———— 🔺 Library Method - Start Timer {
+//
+// @function    Initializes the timer object, if `exec` is `true` and the timer start value is not set.
+// @param       this                The primary `<keyframe>` object.
+// @returns     `<keyframe>`
+method startTimer(keyframe this) =>
+    // --
+    if this.exec and na(this.__timer.start)
+        // @variable Timer start time. IP resistens for the case of a multiple calls within a single update by varip.
+        varip series int timerStart = int(math.floor(timenow / this.__timer.mu))
+        this.__timer.start := if this.__timer.calculation == Calculation.relative
+            switch this.__timer.frequency
+                Frequency.on_time => timerStart
+                Frequency.on_tick => timerStart
+                => bar_index
+        else
+            0  // In case of `absolute` calculation
+    // >>
+    this
+// }
+
+
+// >>>> SET >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+// ———— 🔺 Library Method - Set Properties {
+//
+// @function    Set `<transition>` properties.
+// @param       this                The `<transition>` object.
+// @returns     `<transition>`
+method setProperties(transition this) =>
+    // @variable Splitted `fx` name of the current `<transition>`.
+    series array<string> transProp = str.split(str.tostring(this.fx), US)
+    // --
+    this.action := transProp.get(0)
+    this.dir    := transProp.size() >= 2 ? transProp.get(1) : this.dir
+    this.side   := transProp.size() == 3 ? transProp.get(2) : this.side
+    // >>
+    this
+// }
+
+// ———— 🔺 Library Method - Set Max. Loops {
+//
+// @function    Set `<option>` `max_loops`.
+// @param       this                The `<transition>` object.
+// @param       _maxLoops           Amount to set.
+// @returns     `<transition>`
+method setMaxLoops(transition this, series int _maxLoops) =>
+    // --
+    this.__opt.max_loops := _maxLoops
+    // >>
+    this
+// }
+
+// ———— 🔺 Library Method - Set String Length {
+//
+// @function    Set `<transition>` `str_length`.
+// @param       this                The `<transition>` object.
+// @param       _strLen             Length to set.
+// @returns     `<transition>`
+method setStringLength(transition this, series int _strLen) =>
+    // --
+    this.str_length := _strLen
+    // >>
+    this
+// }
+
+// ———— 🔺 Library Method - Set Iteration Length {
+//
+// @function    Set `<option>` `iteration_length`.
+// @param       this                The `<transition>` object.
+// @param       _len                Length to set.
+// @returns     `<transition>`
+method setIterationLength(transition this, series int _len) =>
+    // --
+    this.iteration_length := switch this.action
+        'blink' => 2
+        'hide'  => 1
+        'show'  => 1
+        => _len
+    // >>
+    this
+// }
+
+// ———— 🔺 Library Method - Set Subsequence Length {
+//
+// @function    Set `<option>` `sub_length`.
+// @param       this                The `<transition>` object.
+// @returns     `<transition>`
+method setSubLength(transition this) =>
+    // --
+    this.__opt.sub_length := this.__input.sub_length == 0 ? this.str_length : this.__input.sub_length
+    // >>
+    this
+// }
+
+// ———— 🔺 Library Method - Set Direction {
+//
+// @function    Set `<option>` `reverse`.
+// @param       this                The primary `<keyframe>` object.
+// @returns     `<transition>`
+method setDirection(transition this) =>
+    // --
+    if not this.__opt.bounce
+        this.__opt.reverse := switch
+            _onDefaultIteration(this) => this.__opt.reverse
+            this.action == 'slide' and ((this.dir == 'in'  and this.side == 'left')
+             or (this.dir == 'out' and this.side == 'right')) => true
+            this.action == 'blend' and ((this.dir == 'out' and this.side == 'left')
+             or (this.dir == 'in'  and this.side == 'right')) => true
+            => false
+    // >>
+    this
+// }
+
+
+// >>>> GET >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+// ———— 🔺 Library Method - Get Loop Length {
+//
+// @function    Calcuates the single loop length from the given `<transition>`. Incl. applied `<option>`.
+// @param       this                The `<transition>` object.
+// @returns     `<int>`
+export method getLoopLength(transition this) =>
+    // >>
+    this.iteration_length + (this.__opt.bounce ? this.iteration_length - 2 : 0)
+// }
+
+// ———— 🔺 Library Method - Get Total Length {
+//
+// @function    Calculates the total length of all queued `<transition>` objects. Incl. applied `<option>`.
+// @param       this                The `<keyframe>` object.
+// @returns     `<int>`
+export method getTotalLength(keyframe this) =>
+    // @variable The total sum of all `<transition>` within the queue, on a multi-transition.
+    series int total = 0
+    for t in this.__queue
+        if _onMultiTransition(this) and t.__opt.max_loops == 0
+            t.setMaxLoops(1)
+        total += t.getLoopLength() * t.__opt.max_loops
+    // >>
+    total
+// }
+
+
+// >>>> QUEUE >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+// ———— 🔺 Library Method - Add To Queue {
+//
+// @function    Add a `<transition>` to the `<keyframe>` queue.
+// @param       this                The `<transition>` object.
+// @param       __kf                The `<keyframe>` object.
+// @returns     `<transition>`
+method addToQueue(transition this, keyframe __kf) =>
+    // --
+    __kf.__queue.push(this)
+    // >>
+    this
+// }
+
+// ———— 🔺 Library Method - Initialize Transition {
+//
+// @function    Initializes and configures the properties of the `<transition>` object.
+// @param       this                The `<transition>` object.
+// @param       _len                First iteration length to set.
+// @returns     `<transition>`
+method init(transition this, series int _len) =>
+    // --
+    if _onInit(this)
+        this
+         .setProperties()
+         .setIterationLength(_len)
+         .setDirection()
+        // --
+        this.init := true
+    // >>
+    this
+// }
+
+
+// >>>> CONTROLLER >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+// ———— 🔺 Library Method - Populate {
+//
+// @function    Populates the new `update_no` to update `frame_no` and `loop_no`.
+// @param       this                The primary `<keyframe>` object.
+// @returns     `<keyframe>`
+method populate(keyframe this) =>
+    // --
+    this.frame_no := math.floor(this.update_no / this.intv) - this.__timer.offset
+    this.loop_no  := math.floor((this.frame_no - 1) / this.__transition.getLoopLength())
+    // >>
+    this
+// }
+
+// ———— 🔺 Library Method - Observe {
+//
+// @function    Observes and manipulates the execution state.
+// @param       this                The primary `<keyframe>` object.
+// @returns     `<keyframe>`
+method observe(keyframe this) =>
+    // @variable    Reference to the current `<option>` object.
+    option o = this.__transition.__opt
+    if barstate.isnew and o.reset
+        this.reset()
+    // @variable    The total `<transition>` length.
+    series int total = this.getTotalLength()
+    if total > 0 and math.floor((this.update_no - 1) / this.intv) >= total
+        this.finished := true
+        this.stop()
+    // >>
+    this
+// }
+
+// ———— 🔺 Library Method - Confirm {
+//
+// @function    Confirmation, if all necessary states are ready.
+// @param       this                The primary `<keyframe>` object.
+// @returns     `<keyframe>`
+method confirm(keyframe this) =>
+    // --
+    this.__transition.started := if _onTransition(this)
+        // --
+        this.exec
+         and this.init
+         and this.__transition.init
+         and this.__timer.started
+    else
+        false
+    // --
+    this.confirmed := not this.confirmed and barstate.isconfirmed
+    // >>
+    this
+// }
+
+
+// >>>> BODY >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+// ———— 🔺 Library Method Get Instances {
+//
+// @function    Retrieves the instances of the `<keyframe>` object.
+// @param       this                The primary `<keyframe>` object.
+// @returns     `<keyframe>`
+method getInstances(keyframe this, timer __timer) =>
+    // --
+    if _onInit(this)
+        // init
+        this.__queue  := this.__queue.isset(array.new<transition>())
+        this.__timer  := this.__timer.isset(__timer)
+        // --
+        this.init     := true
+    // >>
+    this
+// }
+
+// ———— 🔺 Library Method Queue Transition {
+//
+// @function    Inserts a valid transition into the transition stack.
+// @param       this                The primary `<keyframe>` object.
+// @param       __newTransition     The transition object to be added.
+// @returns     `<keyframe>`
+method queue(
+ keyframe   this,
+ transition __t,
+ option     __input,
+ series int _len
+ ) =>
+    // referenced
+    __t.__input := __input
+    // unreferenced
+    __t.__opt   := __input.copy()
+    // @variable    An array of all `<transition>` `fx` names.
+    series array<FX> queue = array.new<FX>()
+    for t__ in this.__queue
+        queue.push(t__.fx)
+    // --
+    if not queue.includes(__t.fx)
+        __t.init(_len).addToQueue(this)
+    // >>
+    this
+// }
+
+// ———— 🔺 Library Method - Synchronize {
+//
+// @function    Syncs the timer with the corresponding value based on its frequency.
+// @param       this                The primary `<keyframe>` object.
+// @returns     `<keyframe>`
+method synchronize(keyframe this) =>
+    // --
+    if _onTimerStart(this)
+        this.startTimer()
+    // --
+    if this.__timer.started
+        switch this.__timer.frequency
+            Frequency.on_index => this.setFreqByIndex()
+            Frequency.on_time  => this.setFreqByTime()
+            Frequency.on_input => this.setFreqByInput()
+            => this.setFreqByTick()
+    // >>
+    this
+// }
+
+// ———— 🔺 Library Method - Load {
+//
+// @function    Loads the next `<transition>` object from the queue if necessary.
+// @param       this                The primary `<keyframe>` object.
+// @returns     `<keyframe>`
+method load(keyframe this) =>
+    // @variable    The current calculated `index`.
+    series int idx    = 0
+    // @variable    The current calculated `offset`.
+    series int offset = 0
+    // @variable    Value to caluclate `index` and `offset` from.
+    series int rest   = this.update_no - 1
+    // --
+    for [i, t] in this.__queue
+        // @variable    The full length of the selected `<transition>`.
+        series int fullLength = t.getLoopLength() * t.__opt.max_loops
+        rest -= fullLength
+        if rest >= 0
+            idx    := i + 1
+            offset += fullLength
+        else
+            break
+    // --
+    this.idx            := idx % this.__queue.size()
+    this.__timer.offset := offset
+    this.__transition   := this.__queue.get(this.idx)
+    // >>
+    this
+// }
+
+// ———— 🔺 Library Method - Controller {
+//
+// @function    Manages the execution of each call.
+// @param       this            The primary `<keyframe>` object.
+// @returns     Returns a `<bool>` value indicating the execution status.
+method controller(keyframe this) =>
+    // --
+    if _onProcess(this)
+        this
+         .populate()
+         .observe()
+         .confirm()
+    // >>
+    this
+// }
+
+// ———— 🔺 Library Method - Oscillate {
+//
+// @function    Generates an oscillating series of values in a given range.
+// @param       this            The primary `<keyframe>` object.
+// @returns     `<keyframe>`
+method oscillate(keyframe this) =>
+    // @variable    Reference to the current `<transition>` object.
+    transition t = this.__transition
+    // --
+    if this.exec and _onProcess(this) and _onTransition(this)
+        // @variable    Reference to the current `<option>` object.
+        option     o        = t.__opt
+        // @variable    The maximal value of the oscillation.
+        series int max      = t.iteration_length - (_onDefaultIteration(t) ? 1 : 0)
+        // @variable    A modulo operator to calculate the oscillation.
+        series int modulo   = t.iteration_length + (_onDefaultIteration(t) ? 0 : 1)
+        // @variable    Serial number of the current frame.
+        series int serial   = ((this.frame_no - 1) * this.steps) + this.offset
+        serial := serial < 0 ? 0 : serial
+        // @variable    The progress of the current frame.
+        series int progress = serial % (max * 2)
+        // --
+        if not o.bounce
+            this.pointer := serial % modulo
+        else
+            this.pointer := progress <= max ? progress : (max * 2) - progress
+        this.pointer := (o.reverse ? max - this.pointer : this.pointer).easing(max, o.easing)
+    // >>
+    this
+// }
+
+// ———— 🔺 Library Method - Update {
+//
+// @function    Updates the current `<transition>` object, in case of a sequence update, to align with the new lengths.
+// @param       this                The primary `<keyframe>` object.
+// @param       _strLen             The length of the string to be set within the `<transition>`.
+// @returns     `<keyframe>`
+method update(keyframe this, series int _strLen) =>
+    // --
+    this.__transition
+     .setStringLength(_strLen)
+     .setSubLength()
+    // >>
+    this
+// }
+
+
+//  ▪ 🔷 PRIMARY METHODS - UTILITY  ────
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+// ———— 🔹 Method - String Transition Effect {
+//
+// @function    Generates a text effect. \
+//              While it might be more convenient to store the generated output in an additional field, \
+//              directly returning it to the  standard output is more efficient. \
+//              Consequently, the effect output sequence will always be invoked directly from the function arguments. \
+//              This architecture makes it also possible to change the input sequence per update.
+//
+// [![method primary](https://img.shields.io/badge/method-primary-1B97F3?style=flat-square)]()
+// [![version keyframe](https://img.shields.io/badge/version-keyframe-CCCCCC?style=flat-square)]()
+// ___
+// #### Library Import
+// > First, you need to import the motion library into your script. You should replace `$$VERSION_NUMBER` with \
+// > the latest version number of the library and `$$ALIAS` with your chosen prefix. \
+// > In this example, we use `m` as the prefix.
+// > ```
+// > import cryptolinx/motion/$$VERSION_NUMBER as $$ALIAS
+// > ```
+// ___
+// #### Keyframe Definition (required)
+// > Define a `<keyframe>` for each of your effects. The `<keyframe>` object represents the primary object:
+// > ```
+// > // without arguments (using defaults)
+// > var kf = m.keyframe.new()
+// > // with arguments (as described in the keyframe type)
+// > var kf = m.keyframe.new(intv = 3, steps = 2, ...)
+// > ```
+// ___
+// #### Example 1 - Using Marquee Effect
+// > ```
+// > var kf = m.keyframe.new()
+// > string mySequence =  kf.transition(_seq = 'Hello World!', _fx='marquee')
+// > ```
+// ___
+// #### Example 2 - Specifying Maximum Loops and Substring Length
+// > ```
+// > var kf = m.keyframe.new()
+// > string mySequence = kf.transition(_seq = 'Hello World!', _fx='marquee', __opt = option.new(max_loops = 5, sub_length = 6))
+// > ```
+// ___
+// #### Example 3 - Using Slide In Left Effect
+// > ```
+// > var kf = m.keyframe.new()
+// > string mySequence = kf.transition(_seq = 'Hello World!', _fx='slide_in_left')
+// > ```
+// ___
+// #### Example 4 - Using Marquee Effect with a step size of 3 and a subsequence length of 3.
+// > ```
+// > var kf = m.keyframe.new(steps = 3)
+// > var string myString = 'AAABBBCCCDDDEEEFFFGGG'
+// > string mySequence = kf.transition(_seq = myString, _fx='marquee', __opt = option.new(sub_length = 3))
+// > // AAA, BBB, CCC, DDD, ...
+// > ```
+// ___
+// #### Example 5 - Specifying Prefix and Suffix.
+// > ```
+// > var kf = m.keyframe.new()
+// > string mySequence = kf.transition(_seq = 'Hello World!', _fx='marquee', __opt = option.new(prefix = '<', suffix = '>'))
+// > ```
+// ___
+// #### Effects
+// - **marquee** This action creates a scrolling effect for the text. It takes the input sequence and generates a \
+//               scrolling text effect, by continuously moving the text from right to left. The text appears to slide \
+//               horizontally, as if it were a marquee.
+// - **spot**    This action highlights a specific part of the text. It creates a spotlight effect on a portion \
+//               of the text sequence.
+// - **slide**   This action creates a sliding effect. The text appears to slide in from either the left or the right \
+//               side (depending on the specified side in the option object), and then slide out from the opposite side. \
+//               If the refill option is set, the sliding text will be filled with whitespace.
+// - **blend**   This action creates a blending effect. It blends the text into the background from either the left \
+//               or the right side (depending on the specified side in the option object), and then blends it out \
+//               from the opposite side. If the refill option is set, the blending text will be filled with whitespace.
+// - **blink**   This action makes the text blink or flash. It alternates between showing the text and hiding it, \
+//               creating a blinking effect.
+// - **hide**    This action hides the text. If the refill option is set, the hidden text will be replaced with whitespace.
+// - **show**    This action simply shows the input text sequence as is. This is the default action if no other action \
+//               is specified.
+// ___
+// @param       this                Represents the primary `<keyframe>` object.
+// @param       _seq                The transition sequence.
+// @param       _fx                 The fx name. Defaults `marquee`.
+// @param       __opt               Optional `<option>` object to customize the transition.
+// @param       __timer             Optional `<timer>` object to customize the timing. 
+// @returns     `<string>`
+export method transition(
+ keyframe       this,
+ series string  _seq,
+ FX             _fx     = FX.marquee,
+ option         __opt   = na,
+ timer          __timer = na
+ ) =>
+    if not _onProcess(this)
+        _seq
+    else
+        // @variable    A `<transition>` object per rollback.
+        transition  __t     = transition.new(_fx)
+        // @variable    Input: Custom `<option>`. If not set, the object defaults get loaded.
+        option      __o     = __opt.isset(option.new())
+        // @variable    Input: Custom `<timer>`. If not set, the object defaults get loaded.
+        timer       __ti    = __timer.isset(timer.new())
+        // @variable    Holding the string length of the sequence.
+        series int  strLen  = str.length(_seq) + __o.ws
+        // --
+        this
+         .getInstances(__ti)
+         .queue(__t, __o, strLen)
+         .synchronize()
+         .load()
+         .controller()
+         .oscillate()
+         .update(strLen)
+        // @variable    Reference to the current `<transition>` object.
+        transition t = this.__transition
+        // @variable    Reference to the current `<option>` object.
+        option     o = t.__opt
+        // >>
+        o.prefix + str.substring(
+           // [marquee]
+         ( t.action == 'marquee' ?
+           // --
+           str.substring(_seq + str.repeat(SWS, o.ws)
+           , this.pointer
+           , t.str_length)
+           + str.substring(_seq + str.repeat(SWS, o.ws)
+           , 0
+           , this.pointer)
+           // [spot]
+         : t.action == 'spot' ?
+           // --
+           (o.refill ? str.repeat(SWS, this.pointer) : EMPTY)
+           + str.substring(_seq + str.repeat(SWS, o.ws), this.pointer, this.pointer + o.fx_length)
+           + (o.refill ? str.repeat(SWS, t.str_length - this.pointer - 1) : EMPTY)
+           // [slide]
+         : t.action == 'slide' ?
+           // --
+           (o.refill ? str.repeat(SWS, t.side == 'right' ?  t.str_length - this.pointer : 0) : EMPTY)
+           + str.substring(_seq + str.repeat(SWS, o.ws)
+           , t.side == 'left' ? this.pointer : 0
+           , t.side == 'left' ? t.str_length : this.pointer)
+           + (o.refill ? str.repeat(SWS, t.side == 'left' ? this.pointer : 0) : EMPTY)
+           // [blend]
+         : t.action == 'blend' ?
+           // --
+           (o.refill ? str.repeat(SWS, t.side == 'right' ? this.pointer : 0) : EMPTY)
+           + str.substring(_seq + str.repeat(SWS, o.ws)
+           , t.side == 'left' ? 0 : this.pointer
+           , t.side == 'left' ? this.pointer : t.str_length)
+           + (o.refill ? str.repeat(SWS, t.side == 'left' ? t.str_length - this.pointer : 0) : EMPTY)
+           // [blink]
+         : t.action == 'blink' ?
+           // --
+           str.substring(_seq + str.repeat(SWS, o.ws) + str.repeat(SWS, t.str_length)
+           , this.pointer % (2 * this.steps) == 0 ? 0 : t.str_length
+           , this.pointer % (2 * this.steps) == 0 ? t.str_length : t.str_length * (2 * this.steps))
+           // [hide]
+         : t.action == 'hide' ?
+           // --
+           o.refill ? str.repeat(SWS, t.str_length) + str.repeat(SWS, o.ws) : EMPTY
+           // [show][default]
+         : _seq + str.repeat(SWS, o.ws)
+         // --
+         ), o.sub_start, o.sub_length) + o.suffix
+// }
+
+// ---------------------------------------------------------------------------------------------------------------------
+
+// ———— 🔹 Method - String Iteration Effect {
+//
+// @function    Generates an iteration effect.
+//
+// [![method primary](https://img.shields.io/badge/method-primary-1B97F3?style=flat-square)]()
+// [![version keyframe](https://img.shields.io/badge/version-keyframe-CCCCCC?style=flat-square)]()
+// ___
+// #### Library Import
+// > First, you need to import the motion library into your script. You should replace `$$VERSION_NUMBER` with
+// > the latest version number of the library and `$$ALIAS` with your chosen prefix.
+// > In this example, we use `m` as the prefix.
+// > ```
+// > import cryptolinx/motion/$$VERSION_NUMBER as $$ALIAS
+// > ```
+// ___
+// #### Keyframe Definition (required)
+// > Define a `<keyframe>` for each of your effects. The `<keyframe>` object represents the primary object:
+// > ```
+// > // without arguments (using defaults)
+// > var kf = m.keyframe.new()
+// > // with arguments (as described in the keyframe type)
+// > var kf = m.keyframe.new(intv = 3, steps = 2, ...)
+// > ```
+// ___
+// #### Example 1 - Simple Iteration Effect
+// > ```
+// > var kf = m.keyframe.new()
+// > // Using an array<string>
+// > var string myString = array.from('3','2','1','Go!')
+// > string mySequence =  m.iteration(kf, _seqArr = sequenceArray)  // as function, with the KF as arg
+// > string mySequence =  kf.iteration(_seqArr = sequenceArray)          // as method, directly on the KF
+// > // Using a <string>
+// > var string sequence = '321!'  // without a custom _delimiter, the length of return is always the same.
+// > string mySequence = m.iteration(kf, _seq = sequence)  // as function, with the KF as arg
+// > string mySequence = kf.iteration(_seq = sequence)          // as method, directly on the KF
+// > // Using a <string> and a custom `_delimiter`
+// > var string sequence = '3>2>1>Go!'
+// > string mySequence = m.iteration(kf, _seq = sequence, _ws = 2)  // as function
+// > string mySequence = kf.iteration(_seq = sequence, _ws = 2)          // as method
+// > ```
+// ___
+// #### Example 2 - Specifying Maximum Loops and Substring Length
+// > ```
+// > // ...
+// > string mySequence = kf.iteration(_seq = 'Hello World!', __opt = option.new(ws = 2, max_loops = 5, sub_length = 6))
+// > ```
+// ___
+// #### Example 3 - Using Iteration Effect with AutoPlay Off
+// > ```
+// > // ...
+// > string mySequence = kf.iteration(_seqArr = sequenceArray, _autoplay = `false`)
+// > ```
+// ___
+// #### Example 4 - Using Iteration Effect with Timer Frequency 'on_time'
+// > ```
+// > // ...
+// > string mySequence = kf.iteration(_seqArr = sequenceArray, __timer = timer.new(frequency = 'on_time'))
+// > ```
+// ___
+// #### Example 5 - Specifying Prefix and Suffix
+// > ```
+// > // ...
+// > var option opt = option.new(_prefix = '<', _suffix = '>')
+// > string mySequence = kf.iteration(_seqArr = sequenceArray, __opt = opt)
+// > ```
+// > ___
+// @param       this                    This primary `<keyframe>` object.
+// @param       _seqArr                 An `array<string>` to be used as the `<transition>` content. \
+//                                      If set, the `_seq` argument will be untouched.
+// @param       _seq                    A `<string>` sequence which gets splitted by the given `_delimmiter` to be used as the `<transition>` content.
+// @param       __opt                   Optional `<option>` object to customize the transition.
+// @param       __timer                 Optional `<timer>` object to customize the timing. 
+// @param       _delimiter              One or more characters that separates the sequence string.
+// @returns     `<string>`
+export method iteration(
+ keyframe               this, 
+ series string          _seq        = na, 
+ series array<string>   _seqArr     = na,
+ option                 __opt       = na,
+ timer                  __timer     = na,
+ series string          _delimiter  = na
+ ) =>
+    // @variable The `<string>` array to iterate throught
+    series array<string> seqArr = _seqArr.isset(str.split(_seq, _delimiter.isset(EMPTY)))
+    // --
+    if not _onProcess(this)
+        seqArr.last()
+    else
+        // @variable The iteration/transition length.
+        series int itrLen = seqArr.size()
+        // @variable A `<transition>` object per rollback.
+        transition __t    = transition.new(FX.iteration)
+        // @variable Input: Custom `<option>`. If not set, the obJect defaults get loaded.
+        option     __o    = __opt.isset(option.new())
+        // @variable Input: Custom `<timer>`. If not set, the object defaults get loaded.
+        timer      __ti   = __timer.isset(timer.new())
+        // --
+        this
+         .getInstances(__ti)
+         .queue(__t, __o, itrLen)
+         .synchronize()
+         .load()
+         .controller()
+         .oscillate()
+         .update(str.length(seqArr.get(this.pointer)))
+        // @variable    Reference to the current `<transition>` object.
+        transition t  = this.__transition
+        // @variable    Reference to the current `<option>` object.
+        option     o  = t.__opt
+        // @variable    The highest single `<string>` length of the `seqArr`.
+        series int maxLength = 0
+        for seq in seqArr
+            maxLength := math.max(maxLength, str.length(seq))
+        t.max_length := maxLength
+        // >>
+        o.prefix + str.substring(seqArr.get(this.pointer), o.sub_start, o.sub_start + o.sub_length)
+         + str.repeat(SWS, o.refill ? t.max_length - t.str_length : 0) + str.repeat(SWS, o.ws) + o.suffix
+// }
+
+
+// ---------------------------------------------------------------------------------------------------------------------
+
+// ———— 🔹 Method - Color Gradient Effect {
+//
+// @function    This function generates a color gradient effect.
+//
+// [![method primary](https://img.shields.io/badge/method-primary-1B97F3?style=flat-square)]()
+// [![version keyframe](https://img.shields.io/badge/version-keyframe-CCCCCC?style=flat-square)]()
+// ___
+// #### Library Import
+// > First, you need to import the motion library into your script. You should replace `$$VERSION_NUMBER` with
+// > the latest version number of the library and `$$ALIAS` with your chosen prefix.
+// > In this example, we use `m` as the prefix.
+// > ```
+// > import cryptolinx/motion/$$VERSION_NUMBER as $$ALIAS
+// > ```
+// ___
+// #### Keyframe Definition (required)
+// > Define a `<keyframe>` for each of your effects. The `<keyframe>` object represents the primary object:
+// > ```
+// > // without arguments (using defaults)
+// > var kf = m.keyframe.new()
+// > // with arguments (as described in the keyframe type)
+// > var kf = m.keyframe.new(intv = 3, steps = 2, ...)
+// > ```
+// ___
+// #### Output
+// > - Returns a calculated gradient color between `_colorFrom` and `_colorTo`.
+// > - Returns a calculated gradient color between each color from the `array<color> _colors`.
+// > - Returns a `<color>` by index from the `array<color> _colors`.
+// ___
+// #### Corresponding Secondary Methods (simplified)
+// > ```
+// > fade()
+// > fade_in()
+// > fade_out()
+// > ```
+// ___
+// @param       this                    The primary `<keyframe>` object.
+// @param       _colorFrom              The starting color for the gradient.
+// @param       _colorTo                The ending color for the gradient.
+// @param       _transpFrom             Starting color transparency level. Default is 0.
+// @param       _transpTo               Ending color transparency level. Default is 0.
+// @param       _steps                  The amount of color steps between each given color.
+// @param       _gap                    Option to enable add an extra gradient between the last and first array color.
+// @param       _colors                 Optional `array<color>`. If used, `_colorFrom` and `_colorTo` are disabled.
+// @param       __opt                   Optional `<option>` object to customize the transition.
+// @param       __timer                 Optional `<timer>` object to customize the timing. 
+// @returns     `<color>`
+export method gradient(
+ keyframe this,
+ series color   _colorFrom      = na,
+ series color   _colorTo        = na,
+ series int     _transpFrom     = 0,
+ series int     _transpTo       = 0,
+ series int     _steps          = 8,
+ series bool    _gap            = false, 
+ array<color>   _colors         = na,
+ option         __opt           = na,
+ timer          __timer         = na
+ ) =>
+    if not _onProcess(this)
+        // >>
+        #00000000
+    else
+        // @variable A `<transition>` object per rollback.
+        transition  __t    = transition.new(FX.gradient)
+        // @variable Input: Custom `<option>`. If not set, the object defaults get loaded.
+        option      __o    = __opt.isset(option.new())
+        // @variable Input: Custom `<timer>`. If not set, the object defaults get loaded.
+        timer       __ti   = __timer.isset(timer.new())
+        // @variable `True`, if a custom `array<color>` named `_colors` is given.
+        series bool custom = not na(_colors)
+        // @variable The iteration/transition length.
+        series int  length = custom ? _steps == 0 ?
+           _colors.size()
+         : ((_colors.size() - 1) * (_steps - 1)) + (not _gap ? _steps - 2 : 0) + 1
+         : _steps < 2 ? 2 : _steps
+        // --
+        this
+         .getInstances(__ti)
+         .queue(__t, __o, length)
+         .synchronize()
+         .load()
+         .controller()
+         .oscillate()
+         .update(length)
+        // --
+        if custom and _steps == 0
+            // >> 
+            _colors.get(this.pointer)
+        else
+            // @variable    An overrideable `_colorFrom` copy.
+            series color colorFrom = _colorFrom
+            // @variable    An overrideable `_colorTo` copy.
+            series color colorTo   = _colorTo
+            // @variable    The inner index if a custom `array<color> _colors` with `_steps` > 0 is given.
+            series int   innerIdx  = _gap and this.pointer == this.__transition.iteration_length - 1 ?
+               _steps - 1
+             : this.pointer % (_steps - 1)
+            // --
+            if custom
+                series int idx = math.floor(this.pointer / (_steps - 1))
+                colorFrom := _colors.get(_gap and idx == _colors.size() - 1 ? idx - 1 : idx)
+                colorTo   := _colors.get(not _gap and idx == _colors.size() - 1 ? 0 : idx + 1)
+            // >>
+            color.from_gradient(
+             value        = innerIdx,
+             bottom_value = 0,
+             top_value    = _steps - 1,
+             bottom_color = color.new(color = colorFrom, transp = _transpFrom),
+             top_color    = color.new(color = colorTo,   transp = _transpTo)
+             )
+// }
+
+
+// ---------------------------------------------------------------------------------------------------------------------
+
+// ———— 🔹 Method - Movement Effect {
+//
+// @function    Generates a Movement FX.
+// 
+// [![method primary](https://img.shields.io/badge/method-primary-1B97F3?style=flat-square)]()
+// [![version keyframe](https://img.shields.io/badge/version-keyframe-CCCCCC?style=flat-square)]()
+// ___
+// #### Library Import
+// > First, you need to import the motion library into your script. You should replace `$$VERSION_NUMBER` with
+// > the latest version number of the library and `$$ALIAS` with your chosen prefix.
+// > In this example, we use `m` as the prefix.
+// > ```
+// > import cryptolinx/motion/$$VERSION_NUMBER as $$ALIAS
+// > ```
+// ___
+// #### Keyframe Definition (required)
+// > Define a `<keyframe>` for each of your effects. The `<keyframe>` object represents the primary object:
+// > ```
+// > // without arguments (using defaults)
+// > var kf = m.keyframe.new()
+// > // with arguments (as described in the keyframe type)w
+// > var kf = m.keyframe.new(intv = 3, steps = 2, ...)
+// > ```
+// ___
+// #### Example
+// The path could be created using the following syntax:
+// > ```
+// > '[offset_x|0][delimiter_path|:][offset_y|0](optional[delimiter_step|>])'
+// > '5:0>0:-5>-5:0>0:5'
+// > ```
+// ___
+// @param       this                    Main `<keyframe>` object.
+// @param       _path                   Path for the movement effect.
+// @param       _yHeight                Set the Y-axis height for the movement effect.
+// @param       __opt                   Optional `<option>` object to customize the transition.
+// @param       __timer                 Optional `<timer>` object to customize the timing. 
+// @returns     `tuple` Returns a tulpe with X and Y offset values for the effect.
+export method movement(
+ keyframe       this,
+ series string  _path,
+ series float   _yHeight,
+ series bool    _reset      = true,
+ option         __opt       = na,
+ timer          __timer     = na
+ ) =>
+    // @variable The seperated x:y coordinates of the movement.
+    array<string> path   = str.split(_path, DELIMITER_STEP)
+    // --
+    if not _onProcess(this)
+        array<string> offsetLast = str.split(path.last(), DELIMITER_XY)
+        [this, str.tonumber(offsetLast.get(0)), str.tonumber(offsetLast.get(1))]
+    else
+        // @variable A `<transition>` object per rollback.
+        transition    __t    = transition.new(FX.movement)
+        // @variable Input: Custom `<option>`. If not set, the object defaults get loaded.
+        option        __o    = __opt.isset(option.new())
+        // @variable Input: Custom `<timer>`. If not set, the object defaults get loaded.
+        timer         __ti   = __timer.isset(timer.new())
+        // @variable The length of movement.
+        series int    length = path.size()
+        // --
+        this
+         .getInstances(__ti)
+         .queue(__t, __o, length)
+         .synchronize()
+         .load()
+         .controller()
+         .oscillate()
+         .update(length)
+        // @variable Reference to the current `<transition>` object.
+        transition t = this.__transition
+        // @variable IP resistant x-offset.
+        varip series int   offsetX = 0
+        // @variable IP resitant y-offset.
+        varip series float offsetY = 0
+        // @variable The splitted x (0) and y (1) coordinates.
+        array<string> offset = str.split(path.get(this.pointer % t.iteration_length), DELIMITER_XY)
+        offsetX += int(str.tonumber(offset.get(0)))
+        offsetX := offsetX.boundToChart()
+        offsetY += str.tonumber(offset.get(1)) * _yHeight
+        // --
+        if _reset and this.pointer == 0
+            offsetX := int(str.tonumber(offset.get(0)))
+            offsetY := str.tonumber(offset.get(1))
+        t.offset_x := offsetX
+        t.offset_y := offsetY
+        // >>
+        [this, t.offset_x, t.offset_y]
+// }
+
+
+//  ▪ EXPORT: 🔶 SECONDARY (SIMPLIFIED) METHODS ────
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+// ———— 🔸 Method - FX (Unified) {
+//
+// @function    Generates a marquee text scrolling effect on a `<string>`.
+// ___
+// [![method secondary](https://img.shields.io/badge/method-secondary-ED7C17?style=flat-square)]()
+// [![version string](https://img.shields.io/badge/version-string-CCCCCC?style=flat-square)]()
+// ___
+// #### Library Import
+// > First, you need to import the motion library into your script. You should replace `$$VERSION_NUMBER` with
+// > the latest version number of the library and `$$ALIAS` with your chosen prefix.
+// > In this example, we use `m` as the prefix.
+// > ```
+// > import cryptolinx/motion/$$VERSION_NUMBER as $$ALIAS
+// > ```
+// ___
+// #### Single Transition > String Version
+// > ```
+// > // Examples using a string
+// > string myString   = 'Hello World!'
+// > // Invoking as a function
+// > string mySequence = m.marquee(myString, __opt = _, __opt = _, __timer = _) 
+// > // Invoking as a method on a string
+// > string mySequence = myString.fx('marquee')
+// > // Invoking as a method on a string literal
+// > string mySequence = 'Hello World!'.fx('marquee', __opt = _, __opt = _, __timer = _)
+// > ```
+// ___
+// #### Multi Transition
+// > ```
+// > // Examples using a string
+// > string myString    = 'Hello World!'
+// > // Define a keyframe to be used for both fade and marquee transitions
+// > m.keyframe kf = m.keyframe.new()
+// > // Applying multi-transition: fading and then marquee effect on the label using the defined keyframe.
+// > myString.fade(__kf = kf, __opt = _, __timer = _).marquee(__kf = kf, __opt = _, __timer = _)
+// > ```
+// > _or_
+// > ```
+// > // Define a keyframe to be used for both fade and marquee transitions
+// > m.keyframe kf = m.keyframe.new()
+// > string mySequence = 'Hello World!'.fade(__kf = kf, __opt = _, __timer = _).marquee(__kf = kf, __opt = _, __timer = _)
+// > ```
+// ___
+// @param       this                The text sequence to apply the effect to.
+// @param       __kf                The main `<keyframe>` object.
+// @param       __opt               Optional custom `<option>` object.
+// @param       __timer             Optional custom `<timer>` object.
+// @returns     A `<string>` with the marquee effect applied.
+export method fx(
+ series string  this,
+ FX             _fx     = FX.marquee,
+ keyframe       __kf    = na,
+ option         __opt   = na,
+ timer          __timer = na
+ ) =>
+    // --
+    var keyframe kf = __kf.isset(keyframe.new())
+    // >>
+    kf.transition(
+     _seq    = this,
+     _fx     = _fx,
+     __opt   = __opt.isset(option.new()),
+     __timer = __timer.isset(timer.new())
+     )
+// --
+// @function    Generates a marquee text scrolling effect and applies it onto a label.
+// ___
+// [![method secondary](https://img.shields.io/badge/method-secondary-ED7C17?style=flat-square)]()
+// [![version label](https://img.shields.io/badge/version-label-CCCCCC?style=flat-square)]()
+// ___
+// #### Library Import
+// > First, you need to import the motion library into your script. You should replace `$$VERSION_NUMBER` with
+// > the latest version number of the library and `$$ALIAS` with your chosen prefix.
+// > In this example, we use `m` as the prefix.
+// > ```
+// > import cryptolinx/motion/$$VERSION_NUMBER as $$ALIAS
+// > ```
+// ___
+// #### Single Transition > Label Version
+// > ```
+// > // Examples using a string
+// > label myLabel = label.new(x = bar_index, y = close, color = color.blue, textcolor = color.white, text = 'Hello World!')
+// > // Invoking as a function
+// > m.marquee(myLabel, __opt = _, __timer = _) 
+// > // Invoking as a method on a string
+// > myLabel.marquee(__opt = _, __timer = _)
+// > ```
+// ___
+// #### Multi Transition
+// > ```
+// > // Examples using a string
+// > label myLabel = label.new(x = bar_index, y = close, color = color.blue, textcolor = color.white, text = 'Hello World!')
+// > // Define a keyframe to be used for both fade and marquee transitions
+// > m.keyframe kf = m.keyframe.new()
+// > // Applying multi-transition: fading and then marquee effect on the label using the defined keyframe.
+// > myLabel.fade(__kf = kf, __opt = _, __timer = _).marquee(__kf = kf, __opt = _, __timer = _)
+// > ```
+// > _or_
+// > ```
+// > // Define a keyframe to be used for both fade and marquee transitions
+// > m.keyframe kf = m.keyframe.new()
+// > string mySequence = 'Hello World!'.fade(__kf = kf, __opt = _, __timer = _).marquee(__kf = kf, __opt = _, __timer = _)
+// > ```
+// ___
+// @param       _label              The label including the text sequence to apply the effect to.
+// @param       __kf                The main `<keyframe>` object.
+// @param       __opt               Optional custom `<option>` object.
+// @param       __timer             Optional custom `<timer>` object.
+// @returns     A `<label>` with the marquee effect applied.
+export method fx(
+ series label   this,
+ FX             _fx         = FX.marquee,
+ keyframe       __kf        = na,
+ option         __opt       = na,
+ timer          __timer     = na
+ ) =>
+    // --
+    var keyframe kf = __kf.isset(keyframe.new())
+    // --
+    kf.temp := kf.temp.isset(this.get_text())
+    this.set_text(
+     kf.transition(
+      _seq      = kf.temp,
+      _fx       = _fx,
+      __opt     = __opt.isset(option.new()),
+      __timer   = __timer.isset(timer.new())
+      )
+     )
+    // >>
+    this
+// --
+// @function    Generates a marquee text scrolling effect.
+//
+// [![method secondary](https://img.shields.io/badge/method-secondary-ED7C17?style=flat-square)]()
+// [![version keyframe](https://img.shields.io/badge/version-keyframe-CCCCCC?style=flat-square)]()
+// ___
+// #### Library Import
+// > First, you need to import the motion library into your script. You should replace `$$VERSION_NUMBER` with
+// > the latest version number of the library and `$$ALIAS` with your chosen prefix.
+// > In this example, we use `m` as the prefix.
+// > ```
+// > import cryptolinx/motion/$$VERSION_NUMBER as $$ALIAS
+// > ```
+// ___
+// #### Single Transition > Keyframe Version
+// > ```
+// > // Examples using a string
+// > string myString   = 'Hello World!'
+// > // Define a keyframe to be used for both fade and marquee transitions
+// > m.keyframe kf = m.keyframe.new()
+// > // Invoking as a function
+// > string mySequence = m.marquee(kf, myString, __opt = _, __timer = _) 
+// > // Invoking as a method on a string
+// > string mySequence = kf.marquee(myString, __opt = _, __timer = _)
+// > ```
+// ___
+// #### Multi Transition
+// > ```
+// > // Examples using a string
+// > string myString    = 'Hello World!'
+// > // Define a keyframe to be used for both fade and marquee transitions
+// > m.keyframe kf = m.keyframe.new()
+// > // Applying multi-transition: fading and then marquee effect on the label using the defined keyframe.
+// > myString.fade(__kf = kf, __opt = _, __timer = _).marquee(__kf = kf, __opt = _, __timer = _)
+// > ```
+// ___
+// @param       this                The main `<keyframe>` object.
+// @param       _seq                The text sequence to apply the effect to.
+// @param       _fx                 The effect to use. `marquee`,`blink`,`spot`, `slideInLeft`, `slideInRight`, `slideOutLeft`, `slideOutRight`,`blendInLeft`, `blendInRight`, `blendOutLeft`, `blendOutRight`,`show`,`hide` 
+// @param       __opt               Optional custom `<option>` object.
+// @param       __timer             Optional custom `<timer>` object.
+// @returns     A `<string>` with the marquee effect applied.
+export method fx(
+ keyframe       this, 
+ series string  _seq,
+ FX             _fx         = FX.marquee,
+ option         __opt       = na,
+ timer          __timer     = na
+ ) =>
+    // >>
+    this.transition(
+     _seq    = _seq,
+     _fx     = _fx,
+     __opt   = __opt.isset(option.new()),
+     __timer = __timer.isset(timer.new())
+     )
+// }
+
+// ---------------------------------------------------------------------------------------------------------------------
+
+// ———— 🔸 Method - String Iterate Effect {
+//
+// @function    Generates a iterate text scrolling effect and applies it onto a `<string>`.
+//
+// [![method secondary](https://img.shields.io/badge/method-secondary-ED7C17?style=flat-square)]()
+// [![version string](https://img.shields.io/badge/version-string-CCCCCC?style=flat-square)]()
+// ___
+// #### Library Import
+// > First, you need to import the motion library into your script. You should replace `$$VERSION_NUMBER` with
+// > the latest version number of the library and `$$ALIAS` with your chosen prefix.
+// > In this example, we use `m` as the prefix.
+// > ```
+// > import cryptolinx/motion/$$VERSION_NUMBER as $$ALIAS
+// > ```
+// ___
+// #### Single Transition > String Version
+// > ```
+// > // Examples using a string
+// > string myString   = 'Hello World!'
+// > // Define a keyframe to be used for both fade and iterate transitions
+// > m.keyframe kf = m.keyframe.new()
+// > // Invoking as a function
+// > string mySequence = m.iterate(kf, myString, __opt = _, __timer = _)
+// > // Invoking as a method on a string
+// > string mySequence = kf.iterate(myString, __opt = _, __timer = _)
+// > ```
+// ___
+// #### Multi Transition
+// > ```
+// > // Examples using a string
+// > string myString    = 'Hello World!'
+// > // Define a keyframe to be used for both fade and iterate transitions
+// > m.keyframe kf = m.keyframe.new()
+// > // Applying multi-transition: fading and then iterate effect on the label using the defined keyframe.
+// > myString.fade(__kf = kf, __opt = _, __timer = _).iterate(__kf = kf, __opt = _, __timer = _)
+// > ```
+// @param       _this               The sequence to apply the effect on.
+// @param       __kf                The primary `<keyframe>` object.
+// @param       __opt               An optional `<option>` object.
+// @param       __timer             An optional `<timer>` object.
+// @returns     A `<string>` or a `<label>` with the iteration effect applied.
+export method iterate(
+ series string  this,
+ keyframe       __kf        = na, 
+ option         __opt       = na, 
+ timer          __timer     = na
+ ) =>
+    // --
+    var keyframe kf = __kf.isset(keyframe.new())
+    // >>
+    kf.iteration(
+     _seq    = this,
+     __opt   = __opt.isset(option.new()),
+     __timer = __timer.isset(timer.new())
+     )
+// --
+    // @function    Generates a iterate text scrolling effect and applies it onto a `<string>`.
+    //
+    // [![method secondary](https://img.shields.io/badge/method-secondary-ED7C17?style=flat-square)]()
+    // [![version array string](https://img.shields.io/badge/version-array_string-CCCCCC?style=flat-square)]()
+    // ___
+    // #### Library Import
+    // > First, you need to import the motion library into your script. You should replace `$$VERSION_NUMBER` with
+    // > the latest version number of the library and `$$ALIAS` with your chosen prefix.
+    // > In this example, we use `m` as the prefix.
+    // > ```
+    // > import cryptolinx/motion/$$VERSION_NUMBER as $$ALIAS
+    // > ```
+    // ___
+    // #### Single Transition > String Version
+    // > ```
+    // > // Examples using a string
+    // > string myString   = 'Hello World!'
+    // > // Define a keyframe to be used for both fade and iterate transitions
+    // > m.keyframe kf = m.keyframe.new()
+    // > // Invoking as a function
+    // > string mySequence = m.iterate(kf, myString)
+    // > // Invoking as a method on a string
+    // > string mySequence = kf.iterate(myString)
+    // > ```
+    // ___
+    // #### Multi Transition
+    // > ```
+    // > // Examples using a string
+    // > string myString    = 'Hello World!'
+    // > // Define a keyframe to be used for both fade and iterate transitions
+    // > m.keyframe kf = m.keyframe.new()
+    // > // Applying multi-transition: fading and then iterate effect on the label using the defined keyframe.
+    // > myString.fade(__kf = kf, __opt = _, __timer = _).iterate(__kf = kf, __opt = _, __timer = _)
+    // > ```
+    // @param       this                A `array<string>` including the sequences.
+    // @param       _kf                 Optional `<keyframe>` object.
+    // @param       __opt               Optional `<option>` object.
+    // @param       __timer             Optional `<timer>` object.
+    // @returns     A `<string>` withh the iteration effect applied.
+export method iterate(
+ array<string>  this,
+ keyframe       __kf        = na, 
+ option         __opt       = na, 
+ timer          __timer     = na
+ ) =>
+    // --
+    var keyframe kf = __kf.isset(keyframe.new())
+    // >>
+    kf.iteration(
+     _seqArr = this,
+     __opt   = __opt.isset(option.new()),
+     __timer = __timer.isset(timer.new())
+     )
+// --
+    // @function    Generates a iterate text scrolling effect and applies it onto a `<label>`.
+    // ___
+    // [![method secondary](https://img.shields.io/badge/method-secondary-ED7C17?style=flat-square)]()
+    // [![version label](https://img.shields.io/badge/version-label-CCCCCC?style=flat-square)]()
+    // ___
+    // #### Library Import
+    // > First, you need to import the motion library into your script. You should replace `$$VERSION_NUMBER` with
+    // > the latest version number of the library and `$$ALIAS` with your chosen prefix.
+    // > In this example, we use `m` as the prefix.
+    // > ```
+    // > import cryptolinx/motion/$$VERSION_NUMBER as $$ALIAS
+    // > ```
+    // ___
+    // #### Single Transition > Label Version    
+    // > ```
+    // > // Examples using a string
+    // > label myLabel = label.new(x = bar_index, y = close, color = color.blue, textcolor = color.white, text = 'Hello World!')
+    // > // Invoking as a function
+    // > m.iterate(myLabel, __opt = _, __timer = _) 
+    // > // Invoking as a method on a string
+    // > myLabel.iterate(__opt = _, __timer = _)
+    // > ```
+    // ___
+    // #### Multi Transition
+    // > ```
+    // > // Examples using a string
+    // > label myLabel = label.new(x = bar_index, y = close, color = color.blue, textcolor = color.white, text = 'Hello World!')
+    // > // Define a keyframe to be used for both fade and iterate transitions
+    // > m.keyframe kf = m.keyframe.new()
+    // > // Applying multi-transition: fading and then iterate effect on the label using the defined keyframe.
+    // > myLabel.fade(__kf = kf, __opt = _, __timer = _).iterate(__kf = kf, __opt = _, __timer = _)
+    // > ```
+    // > _or_
+    // > ```
+    // > // Define a keyframe to be used for both fade and iterate transitions
+    // > m.keyframe kf = m.keyframe.new()
+    // > string mySequence = 'Hello World!'.fade(__kf = kf, __opt = _, __timer = _).iterate(__kf = kf, __opt = _, __timer = _)
+    // > ```
+    // @param       this                The `<label>` holding the `<string>` to apply the effect to.
+    // @param       __kf                The primary `<keyframe>` object.
+    // @param       __opt               An optional `<option>` object.
+    // @param       __timer             An optional `<timer>` object.
+    // @returns     A `<label>` with the iterate effect applied.
+export method iterate(
+ series label   this,
+ keyframe       __kf        = na,
+ option         __opt       = na,
+ timer          __timer     = na
+ ) =>
+    // --
+    var keyframe kf = __kf.isset(keyframe.new())
+    kf.temp := kf.temp.isset(this.get_text())
+    // >>
+    this.set_text(
+     kf.iteration(
+      _seq    = kf.temp,
+      __opt   = __opt.isset(option.new()),
+      __timer = __timer.isset(timer.new())
+      )
+     )
+// --
+    // @function    Generates a iterate text scrolling effect and applies it onto a `<keyframe>`.
+    // ___
+    // [![method secondary](https://img.shields.io/badge/method-secondary-ED7C17?style=flat-square)]()
+    // [![version keyframe](https://img.shields.io/badge/version-keyframe-CCCCCC?style=flat-square)]()
+    // ___
+    // #### Library Import
+    // > First, you need to import the motion library into your script. You should replace `$$VERSION_NUMBER` with
+    // > the latest version number of the library and `$$ALIAS` with your chosen prefix.
+    // > In this example, we use `m` as the prefix.
+    // > ```
+    // > import cryptolinx/motion/$$VERSION_NUMBER as $$ALIAS
+    // > ```
+    // ___
+    // #### Single Transition > Keyframe Version
+    // > ```
+    // > // Examples using a string
+    // > string myString   = 'Hello World!'
+    // > // Define a keyframe to be used for both fade and iterate transitions
+    // > m.keyframe kf = m.keyframe.new()
+    // > // Invoking as a function
+    // > string mySequence = m.iterate(kf, myString, __opt = _, __timer = _) 
+    // > // Invoking as a method on a string
+    // > string mySequence = kf.iterate(myString, __opt = _, __timer = _)
+    // > ```
+    // ___
+    // #### Multi Transition
+    // > ```
+    // > // Examples using a string
+    // > string myString    = 'Hello World!'
+    // > // Define a keyframe to be used for both fade and iterate transitions
+    // > m.keyframe kf = m.keyframe.new()
+    // > // Applying multi-transition: fading and then iterate effect on the label using the defined keyframe.
+    // > myString.fade(__kf = kf, __opt = _, __timer = _).iterate(__kf = kf, __opt = _, __timer = _)
+    // > ```
+    // @param       this                Primary `<keyframe>` object.
+    // @param       _seqArr             A `array<string>` including the sequences.
+    // @param       _seq                Optional, a `<string>` including the sequence.
+    // @param       __opt               An optional `<option>` object.
+    // @param       __timer             An optional `<timer>` object.
+    // @returns     A `<string>` with the iteration effect applied.
+export method iterate(
+ keyframe               this,
+ series array<string>   _seqArr     = na,
+ series string          _seq        = na, 
+ option                 __opt       = na, 
+ timer                  __timer     = na
+ ) =>
+    // >>
+    this.iteration(
+     _seq    = _seq,
+     _seqArr = _seqArr,
+     __opt   = __opt.isset(option.new()),
+     __timer = __timer.isset(timer.new())
+     )
+// }
+
+
+// ---------------------------------------------------------------------------------------------------------------------
+
+// ———— 🔸 Method - Color Fade In Effect {
+//
+// @function    Generates a color fade in effect.
+// ___
+// [![method secondary](https://img.shields.io/badge/method-secondary-ED7C17?style=flat-square)]()
+// [![version color](https://img.shields.io/badge/version-color-CCCCCC?style=flat-square)]()
+// ___
+// #### Library Import
+// > First, you need to import the motion library into your script. You should replace `$$VERSION_NUMBER` with
+// > the latest version number of the library and `$$ALIAS` with your chosen prefix.
+// > In this example, we use `m` as the prefix.
+// > ```
+// > import cryptolinx/motion/$$VERSION_NUMBER as $$ALIAS
+// > ```
+// ___
+// #### Single Transition > String Version
+// > ```
+// > // Examples using a string
+// > string myString   = 'Hello World!'
+// > // Define a keyframe to be used for both fade and iterate transitions
+// > m.keyframe kf = m.keyframe.new()
+// > // Invoking as a function
+// > string mySequence = m.iterate(kf, myString, __opt = _, __timer = _)
+// > // Invoking as a method on a string
+// > string mySequence = kf.iterate(myString, __opt = _, __timer = _)
+// > ```
+// ___
+// #### Multi Transition
+// > ```
+// > // Examples using a string
+// > string myString    = 'Hello World!'
+// > // Define a keyframe to be used for both fade and iterate transitions
+// > m.keyframe kf = m.keyframe.new()
+// > // Applying multi-transition: fading and then iterate effect on the label using the defined keyframe.
+// > myString.fade(__kf = kf, __opt = _, __timer = _).iterate(__kf = kf, __opt = _, __timer = _)
+// > ```
+// @param       this                Final color after the fade effect.
+// @param       _colorFrom          Initial color before the fade effect.
+// @param       _steps              Optional parameter defining the number of steps to complete the fade effect. Default is 5 steps.
+// @param       _transpFrom         Optional parameter defining the initial transparency level before the fade effect. Default is 100.
+// @param       _transpTo           Optional parameter defining the final transparency level after the fade effect. Default is 0.
+// @param       __kf                The primary `<keyframe>` object.
+// @param       __opt               An optional `<option>` object.
+// @param       __timer             An optional `<timer>` object.
+// @returns     The applied `<color>`.
+export method fade_in(
+ series color   this, 
+ series color   _colorFrom  = #00000000,
+ series int     _steps      = 8,
+ series int     _transpFrom = 100,
+ series int     _transpTo   = 0,
+ keyframe       __kf        = na,
+ option         __opt       = na,
+ timer          __timer     = na
+ ) =>
+    // --
+    var keyframe kf = __kf.isset(keyframe.new())
+    // >>
+    kf.gradient(
+     _colorTo    = this,
+     _colorFrom  = _colorFrom,
+     _steps      = _steps,
+     _transpFrom = _transpFrom,
+     _transpTo   = _transpTo,
+     __opt       = __opt.isset(option.new()),
+     __timer     = __timer.isset(timer.new())
+     )
+// --
+// @function    Generates a color fade in effect.
+// ___
+// [![method secondary](https://img.shields.io/badge/method-secondary-ED7C17?style=flat-square)]()
+// [![version label](https://img.shields.io/badge/version-label-CCCCCC?style=flat-square)]()
+// ___
+// #### Library Import
+// > First, you need to import the motion library into your script. You should replace `$$VERSION_NUMBER` with
+// > the latest version number of the library and `$$ALIAS` with your chosen prefix.
+// > In this example, we use `m` as the prefix.
+// > ```
+// > import cryptolinx/motion/$$VERSION_NUMBER as $$ALIAS
+// > ```
+// ___
+// #### Single Transition > String Version
+// > ```
+// > // Examples using a string
+// > string myString   = 'Hello World!'
+// > // Define a keyframe to be used for both fade and iterate transitions
+// > m.keyframe kf = m.keyframe.new()
+// > // Invoking as a function
+// > string mySequence = m.iterate(kf, myString, __opt = _, __timer = _)
+// > // Invoking as a method on a string
+// > string mySequence = kf.iterate(myString, __opt = _, __timer = _)
+// > ```
+// ___
+// #### Multi Transition
+// > ```
+// > // Examples using a string
+// > string myString    = 'Hello World!'
+// > // Define a keyframe to be used for both fade and iterate transitions
+// > m.keyframe kf = m.keyframe.new()
+// > // Applying multi-transition: fading and then iterate effect on the label using the defined keyframe.
+// > myString.fade(__kf = kf, __opt = _, __timer = _).iterate(__kf = kf, __opt = _, __timer = _)
+// > ```
+// @param       this                Main `<keyframe>` object.
+// @param       _colorTo            Final color after the fade effect.
+// @param       _colorFrom          Initial color before the fade effect.
+// @param       _bg                 If true, the effect get applied to the background color instead of the text color.
+// @param       _steps              Optional parameter defining the number of steps to complete the fade effect. Default is 5 steps.
+// @param       _transpFrom         Optional parameter defining the initial transparency level before the fade effect. Default is 100.
+// @param       _transpTo           Optional parameter defining the final transparency level after the fade effect. Default is 0.
+// @param       __kf                The primary `<keyframe>` object.
+// @param       __opt               An optional `<option>` object.
+// @param       __timer             An optional `<timer>` object.
+// @returns     The applied `<color>`.
+export method fade_in(
+ series label   this,
+ series color   _colorTo,
+ series color   _colorFrom  = #00000000,
+ series bool    _bg         = false,
+ series int     _steps      = 8,
+ series int     _transpFrom = 100,
+ series int     _transpTo   = 0,
+ keyframe       __kf        = na,
+ option         __opt       = na,
+ timer          __timer     = na
+ ) =>
+    // --
+    var keyframe kf = __kf.isset(keyframe.new())
+    // --
+    color gradientColor = kf.gradient(
+     _colorFrom  = _colorFrom,
+     _colorTo    = _colorTo,
+     _steps      = _steps,
+     _transpFrom = _transpFrom,
+     _transpTo   = _transpTo,
+     __opt       = __opt.isset(option.new()),
+     __timer     = __timer.isset(timer.new())
+     )
+    // --
+    switch _bg
+        true => this.set_color(gradientColor)
+        => this.set_textcolor(gradientColor)
+    // >>
+    this
+// --
+// @function    Generates a color fade in effect.
+// ___
+// [![method secondary](https://img.shields.io/badge/method-secondary-ED7C17?style=flat-square)]()
+// [![version keyframe](https://img.shields.io/badge/version-keyframe-CCCCCC?style=flat-square)]()
+// ___
+// **Library Import**
+// > First, you need to import the motion library into your script. You should replace `$$VERSION_NUMBER` with
+// > the latest version number of the library and `$$ALIAS` with your chosen prefix.
+// > In this example, we use `m` as the prefix.
+// > ```
+// > import cryptolinx/motion/$$VERSION_NUMBER as $$ALIAS
+// > ```
+// ___
+// #### Single Transition > String Version
+// > ```
+// > // Examples using a string
+// > string myString   = 'Hello World!'
+// > // Define a keyframe to be used for both fade and iterate transitions
+// > m.keyframe kf = m.keyframe.new()
+// > // Invoking as a function
+// > string mySequence = m.iterate(kf, myString, __opt = _, __timer = _)
+// > // Invoking as a method on a string
+// > string mySequence = kf.iterate(myString, __opt = _, __timer = _)
+// > ```
+// ___
+// #### Multi Transition
+// > ```
+// > // Examples using a string
+// > string myString    = 'Hello World!'
+// > // Define a keyframe to be used for both fade and iterate transitions
+// > m.keyframe kf = m.keyframe.new()
+// > // Applying multi-transition: fading and then iterate effect on the label using the defined keyframe.
+// > myString.fade(__kf = kf, __opt = _, __timer = _).iterate(__kf = kf, __opt = _, __timer = _)
+// > ```
+// ___
+// @param       this                Main `<keyframe>` object.
+// @param       _colorTo            Final color after the fade effect.
+// @param       _colorFrom          Initial color before the fade effect.
+// @param       _steps              Optional parameter defining the number of steps to complete the fade effect. Default is 5 steps.
+// @param       _transpFrom         Optional parameter defining the initial transparency level before the fade effect. Default is 100.
+// @param       _transpTo           Optional parameter defining the final transparency level after the fade effect. Default is 0.
+// @param       __opt               An optional `<option>` object.
+// @param       __timer             An optional `<timer>` object.
+// @returns     The applied `<color>`.
+export method fade_in(
+ keyframe       this,
+ series color   _colorTo,
+ series color   _colorFrom  = #00000000,
+ series int     _steps      = 8,
+ series int     _transpFrom = 100,
+ series int     _transpTo   = 0,
+ option         __opt       = na,
+ timer          __timer     = na
+ ) =>
+    // >>
+    this.gradient(
+     _colorFrom  = _colorFrom,
+     _colorTo    = _colorTo,
+     _steps      = _steps,
+     _transpFrom = _transpFrom,
+     _transpTo   = _transpTo,
+     __opt       = __opt.isset(option.new()),
+     __timer     = __timer.isset(timer.new())
+     )
+// }
+
+
+// ---------------------------------------------------------------------------------------------------------------------
+
+// ———— 🔸 Method - Color Fade Out Effect {
+//
+// @function  Applies a fade out effect to a given color sequence.
+// ___
+// [![method secondary](https://img.shields.io/badge/method-secondary-ED7C17?style=flat-square)]()
+// [![version color](https://img.shields.io/badge/version-color-CCCCCC?style=flat-square)]()
+// ___
+// #### Library Import
+// > First, you need to import the motion library into your script. You should replace `$$VERSION_NUMBER` with
+// > the latest version number of the library and `$$ALIAS` with your chosen prefix.
+// > In this example, we use `m` as the prefix.
+// > ```
+// > import cryptolinx/motion/$$VERSION_NUMBER as $$ALIAS // >
+// > ```
+// ___
+// #### Single Transition > Color Version
+// > ```
+// > // Examples using a color 
+// > series color myColor = color.red 
+// > // Define a keyframe to be used for the fade transition 
+// > m.keyframe kf = m.keyframe.new() 
+// > // Invoking as a function 
+// > series color mySequence = m.fade_out(kf, myColor, __opt = _, __timer = _) 
+// > // Invoking as a method on a color 
+// > series color mySequence = kf.fade_out(myColor, __opt = _, __timer = _) 
+// > ```
+// ___
+// #### Multi Transition
+// > ```
+// > // Examples using a color 
+// > series color myColor = color.red 
+// > // Define a keyframe to be used for the fade transition 
+// > m.keyframe kf = m.keyframe.new() 
+// > // Applying multi-transition: fading effect on the color using the defined keyframe. 
+// > myColor.fade_out(__kf = kf, __opt = _, __timer = _).fade_in(__kf = kf, __opt = _, __timer = _)
+// ```
+// ___
+// @param       this                Main `<keyframe>` object.
+// @param       _colorFrom          Initial color before the fade effect.
+// @param       _colorTo            Final color after the fade effect.
+// @param       _steps              Optional parameter defining the number of steps to complete the fade effect. Default is 5 steps.
+// @param       _transpFrom         Optional parameter defining the initial transparency level before the fade effect. Default is 100 (completely opaque).
+// @param       _transpTo           Optional parameter defining the final transparency level after the fade effect. Default is 0 (completely transparent).
+// @param       __kf                The primary `<keyframe>` object.
+// @param       __opt               An optional `<option>` object.
+// @param       __timer             An optional `<timer>` object.
+// @returns     The applied `<color>`.
+export method fade_out(
+ series color   this,
+ series color   _colorTo    = #00000000,
+ series int     _steps      = 8,
+ series int     _transpFrom = 0,
+ series int     _transpTo   = 100,
+ keyframe       __kf        = na,
+ option         __opt       = na,
+ timer          __timer     = na
+ ) =>
+    // --
+    var keyframe kf = __kf.isset(keyframe.new())
+    // >>
+    kf.gradient(
+     _colorFrom  = this,
+     _colorTo    = _colorTo,
+     _steps      = _steps,
+     _transpFrom = _transpFrom,
+     _transpTo   = _transpTo,
+     __opt       = __opt.isset(option.new()),
+     __timer     = __timer.isset(timer.new())
+     )
+// --
+// @function    Applies a color fade out effect onto a `<label>`.
+// ___
+// [![method secondary](https://img.shields.io/badge/method-secondary-ED7C17?style=flat-square)]()
+// [![version label](https://img.shields.io/badge/version-label-CCCCCC?style=flat-square)]()
+// ___
+// #### Library Import
+// > First, you need to import the motion library into your script. You should replace `$$VERSION_NUMBER` with
+// > the latest version number of the library and `$$ALIAS` with your chosen prefix.
+// > In this example, we use `m` as the prefix.
+// > ```
+// > import cryptolinx/motion/$$VERSION_NUMBER as $$ALIAS // >
+// > ```
+// ___
+// #### Single Transition > Color Version
+// > ```
+// > // Examples using a color 
+// > series color myColor = color.red 
+// > // Define a keyframe to be used for the fade transition 
+// > m.keyframe kf = m.keyframe.new() 
+// > // Invoking as a function 
+// > series color mySequence = m.fade_out(kf, myColor, __opt = _, __timer = _) 
+// > // Invoking as a method on a color 
+// > series color mySequence = kf.fade_out(myColor, __opt = _, __timer = _) 
+// > ```
+// ___
+// #### Multi Transition
+// > ```
+// > // Examples using a color 
+// > series color myColor = color.red 
+// > // Define a keyframe to be used for the fade transition 
+// > m.keyframe kf = m.keyframe.new() 
+// > // Applying multi-transition: fading effect on the color using the defined keyframe. 
+// > myColor.fade_out(__kf = kf, __opt = _, __timer = _).fade_in(__kf = kf, __opt = _, __timer = _)
+// ```
+// ___
+// @param       this            Main `<keyframe>` object.
+// @param       _colorFrom      Initial color before the fade effect.
+// @param       _bg             If true, the effect get applied to the background color instead of the text color.
+// @param       _colorTo        Final color after the fade effect.
+// @param       _steps          Optional parameter defining the number of steps to complete the fade effect. Default is 5 steps.
+// @param       _transpFrom     Optional parameter defining the initial transparency level before the fade effect. Default is 100 (completely opaque).
+// @param       _transpTo       Optional parameter defining the final transparency level after the fade effect. Default is 0 (completely transparent).
+// @param       __kf            The primary `<keyframe>` object.
+// @param       __opt           An optional `<option>` object.
+// @param       __timer         An optional `<timer>` object.
+// @returns     The applied `<color>`.
+export method fade_out(
+ series label   this,
+ series color   _colorFrom,
+ series bool    _bg = false,
+ series color   _colorTo        = #00000000,
+ series int     _steps          = 8,
+ series int     _transpFrom     = 0, 
+ series int     _transpTo       = 100,
+ keyframe       __kf            = na,
+ option         __opt           = na,
+ timer          __timer         = na
+ ) =>
+    // --
+    var keyframe kf = __kf.isset(keyframe.new())
+    // --
+    color gradientColor = kf.gradient(
+     _colorFrom  = _colorFrom,
+     _colorTo    = _colorTo,
+     _steps      = _steps,
+     _transpFrom = _transpFrom,
+     _transpTo   = _transpTo,
+     __opt       = __opt.isset(option.new(max_loops = 1)),
+     __timer     = __timer.isset(timer.new())
+     )
+    // --
+    switch _bg
+        true => this.set_color(gradientColor)
+        => this.set_textcolor(gradientColor)
+    // >>
+    this
+// --
+// @function  Applies a color fade out effect.
+// ___
+// [![method secondary](https://img.shields.io/badge/method-secondary-ED7C17?style=flat-square)]()
+// [![version keyframe](https://img.shields.io/badge/version-keyframe-CCCCCC?style=flat-square)]()
+// ___
+// #### Library Import
+// > First, you need to import the motion library into your script. You should replace `$$VERSION_NUMBER` with
+// > the latest version number of the library and `$$ALIAS` with your chosen prefix.
+// > In this example, we use `m` as the prefix.
+// > ```
+// > import cryptolinx/motion/$$VERSION_NUMBER as $$ALIAS
+// > ```
+// ___
+// #### Single Transition > Color Version
+// > ```
+// > // Examples using a color 
+// > series color myColor = color.red 
+// > // Define a keyframe to be used for the fade transition 
+// > m.keyframe kf = m.keyframe.new()
+// >
+// > // Invoking as a function 
+// > series color mySequence = m.fade_out(kf, myColor, __opt = _, __timer = _) 
+// > // Invoking as a method on a color 
+// > series color mySequence = kf.fade_out(myColor, __opt = _, __timer = _) 
+// > ```
+// ___
+// #### Multi Transition
+// > ```
+// > // Examples using a color 
+// > series color myColor = color.red 
+// > // Define a keyframe to be used for the fade transition 
+// > m.keyframe kf = m.keyframe.new() 
+// > // Applying multi-transition: fading effect on the color using the defined keyframe. 
+// > myColor.fade_out(__kf = kf, __opt = _, __timer = _).fade_in(__kf = kf, __opt = _, __timer = _)
+// ```
+// ___
+// @param       this            Main `<keyframe>` object.
+// @param       _colorFrom      Initial color before the fade effect.
+// @param       _colorTo        Final color after the fade effect.
+// @param       _steps          Optional parameter defining the number of steps to complete the fade effect. Default is 5 steps.
+// @param       _transpFrom     Optional parameter defining the initial transparency level before the fade effect. Default is 0 (completely transparent).
+// @param       _transpTo       Optional parameter defining the final transparency level after the fade effect. Default is 100 (completely opaque).
+// @param       __opt           An optional `<option>` object.
+// @param       __timer         An optional `<timer>` object.
+// @returns     `<color>`.
+export method fade_out(
+ keyframe this,
+ series color   _colorFrom,
+ series color   _colorTo        = #00000000,
+ series int     _steps          = 8,
+ series int     _transpFrom     = 0,
+ series int     _transpTo       = 100,
+ option         __opt           = na,
+ timer          __timer         = na
+ ) =>
+    // >>
+    this.gradient(
+     _colorFrom  = _colorFrom,
+     _colorTo    = _colorTo,
+     _steps      = _steps,
+     _transpFrom = _transpFrom,
+     _transpTo   = _transpTo,
+     __opt       = __opt.isset(option.new()),
+     __timer     = __timer.isset(timer.new())
+     )
+// }
+
+
+// ---------------------------------------------------------------------------------------------------------------------
+
+// ———— 🔸 Method - Color Fade Effect {
+//
+// @function    Generates a color fade effect.
+// ___
+// [![method secondary](https://img.shields.io/badge/method-secondary-ED7C17?style=flat-square)]()
+// [![version color](https://img.shields.io/badge/version-color-CCCCCC?style=flat-square)]()
+// ___
+// #### Library Import
+// > First, you need to import the motion library into your script. You should replace `$$VERSION_NUMBER` with
+// > the latest version number of the library and `$$ALIAS` with your chosen prefix.
+// > In this example, we use `m` as the prefix.
+// > ```
+// > import cryptolinx/motion/$$VERSION_NUMBER as $$ALIAS
+// > ```
+// ___
+// > Define a `<keyframe>` for each of your effects. The `<keyframe>` object represents the primary object:
+// > ```
+// > // without arguments (using defaults)
+// > var kf = m.keyframe.new()
+// > // with arguments (as described in the keyframe type)
+// > var kf = m.keyframe.new(intv = 3, steps = 2, ...)
+// > ```
+// > ```
+// > color myColor = m.fade(kf, _colorFrom = color.blue, ...) // as function
+// > color myColor = kf.fade(_colorFrom = color.blue, ...)        // as method
+// > color myColor = color.blue.fade(color.red, kf, ...)         // as method
+// > ```
+// ___
+// @param       this            Initial color before the fade effect.
+// @param       _colorTo        Final color after the fade effect.
+// @param       _steps          Optional parameter defining the number of steps to complete the fade effect. Default is 8 steps.
+// @param       _transpFrom     Optional parameter defining the initial transparency level before the fade effect. Default is 0 (completely opaque).
+// @param       _transpTo       Optional parameter defining the final transparency level after the fade effect. Default is 0 (completely opaque).
+// @param       __kf            The primary `<keyframe>` object.
+// @param       __opt           An optional `<option>` object.
+// @param       __timer         An optional `<timer>` object.
+// @returns     `<color>`.
+export method fade(
+ series color   this,
+ series color   _colorTo,
+ series int     _steps      = 8,
+ series int     _transpFrom = 0,
+ series int     _transpTo   = 0,
+ keyframe       __kf        = na,
+ option         __opt       = na,
+ timer          __timer     = na
+ ) =>
+    // --
+    var keyframe kf = __kf.isset(keyframe.new())
+    // >>
+    kf.gradient(
+     _colorFrom     = this,
+     _colorTo       = _colorTo,
+     _steps         = _steps,
+     _transpFrom    = _transpFrom,
+     _transpTo      = _transpTo,
+     __opt          = __opt.isset(option.new()),
+     __timer        = __timer.isset(timer.new())
+     )
+// --
+// @function    Generates a color fade effect.
+// ___
+// [![method secondary](https://img.shields.io/badge/method-secondary-ED7C17?style=flat-square)]()
+// [![version array color](https://img.shields.io/badge/version-array_color-CCCCCC?style=flat-square)]()
+// ___
+// #### Library Import
+// > First, you need to import the motion library into your script. You should replace `$$VERSION_NUMBER` with
+// > the latest version number of the library and `$$ALIAS` with your chosen prefix.
+// > In this example, we use `m` as the prefix.
+// > ```
+// > import cryptolinx/motion/$$VERSION_NUMBER as $$ALIAS
+// > ```
+// ___
+// > Define a `<keyframe>` for each of your effects. The `<keyframe>` object represents the primary object:
+// > ```
+// > // without arguments (using defaults)
+// > var kf = m.keyframe.new()
+// > // with arguments (as described in the keyframe type)
+// > var kf = m.keyframe.new(intv = 3, steps = 2, ...)
+// > ```
+// > ```
+// > color myColor = m.fade(kf, _colorFrom = color.blue, ...) // as function
+// > color myColor = kf.fade(_colorFrom = color.blue, ...)        // as method
+// > color myColor = color.blue.fade(color.red, kf, ...)         // as method
+// > ```
+// ___
+// @param       this            An array including the colors.
+// @param       _steps          Optional parameter defining the number of steps to complete the fade effect. Default is 8 steps.
+// @param       _transpFrom     Optional parameter defining the initial transparency level before the fade effect. Default is 0 (completely opaque).
+// @param       _transpTo       Optional parameter defining the final transparency level after the fade effect. Default is 0 (completely opaque).
+// @param       __kf            The primary `<keyframe>` object.
+// @param       __opt           An optional `<option>` object.
+// @param       __timer         An optional `<timer>` object.
+// @returns     `<color>`.
+export method fade(
+ series array<color>    this,
+ series int             _steps      = 8,
+ series int             _transpFrom = 0,
+ series int             _transpTo   = 0,
+ keyframe               __kf        = na,
+ option                 __opt       = na,
+ timer                  __timer     = na
+ ) =>
+    // --
+    var keyframe kf = __kf.isset(keyframe.new())
+    // >>
+    kf.gradient(
+     _colors        = this,
+     _steps         = _steps,
+     _transpFrom    = _transpFrom,
+     _transpTo      = _transpTo,
+     __opt          = __opt.isset(option.new()),
+     __timer        = __timer.isset(timer.new())
+     )
+// --
+// @function    Generates a color fade effect.
+// ___
+// [![method secondary](https://img.shields.io/badge/method-secondary-ED7C17?style=flat-square)]()
+// [![version label](https://img.shields.io/badge/version-label-CCCCCC?style=flat-square)]()
+// ___
+// #### Library Import
+// > First, you need to import the motion library into your script. You should replace `$$VERSION_NUMBER` with
+// > the latest version number of the library and `$$ALIAS` with your chosen prefix.
+// > In this example, we use `m` as the prefix.
+// > ```
+// > import cryptolinx/motion/$$VERSION_NUMBER as $$ALIAS
+// > ```
+// ___
+// > Define a `<keyframe>` for each of your effects. The `<keyframe>` object represents the primary object:
+// > ```
+// > // without arguments (using defaults)
+// > var kf = m.keyframe.new()
+// > // with arguments (as described in the keyframe type)
+// > var kf = m.keyframe.new(intv = 3, steps = 2, ...)
+// > ```
+// > ```
+// > color myColor = m.fade(kf, _colorFrom = color.blue, ...) // as function
+// > color myColor = kf.fade(_colorFrom = color.blue, ...)        // as method
+// > color myColor = color.blue.fade(color.red, kf, ...)         // as method
+// > ```
+// ___
+// @param       this                Initial color before the fade effect.
+// @param       _colorTo            Final color after the fade effect.
+// @param       _steps              Optional parameter defining the number of steps to complete the fade effect. Default is 8 steps.
+// @param       _transpFrom         Optional parameter defining the initial transparency level before the fade effect. Default is 0 (completely opaque).
+// @param       _transpTo           Optional parameter defining the final transparency level after the fade effect. Default is 0 (completely opaque).
+// @param       __opt               An optional `<option>` object.
+// @param       __timer             An optional `<timer>` object.
+// @returns     `<color>`.
+export method fade(
+ series label   this,
+ series color   _colorFrom,
+ series color   _colorTo,
+ series bool    _bg         = false,
+ series int     _steps      = 8,
+ series int     _transpFrom = 0,
+ series int     _transpTo   = 0,
+ keyframe       __kf        = na,
+ option         __opt       = na,
+ timer          __timer     = na
+ ) =>
+    // --
+    var keyframe kf = __kf.isset(keyframe.new())
+    // --
+    color gradientColor = kf.gradient(
+     _colorFrom  = _colorFrom,
+     _colorTo    = _colorTo,
+     _steps      = _steps,
+     _transpFrom = _transpFrom,
+     _transpTo   = _transpTo,
+     __opt       = __opt.isset(option.new(bounce = true)),
+     __timer     = __timer.isset(timer.new())
+     )
+    // --
+    switch _bg
+        true => this.set_color(gradientColor)
+        => this.set_textcolor(gradientColor)
+    // >>
+    this
+// --
+// @function    Generates a color fade effect.
+// ___
+// [![method secondary](https://img.shields.io/badge/method-secondary-ED7C17?style=flat-square)]()
+// [![version keyframe](https://img.shields.io/badge/version-keyframe-CCCCCC?style=flat-square)]()
+// ___
+// #### Library Import
+// > First, you need to import the motion library into your script. You should replace `$$VERSION_NUMBER` with
+// > the latest version number of the library and `$$ALIAS` with your chosen prefix.
+// > In this example, we use `m` as the prefix.
+// > ```
+// > import cryptolinx/motion/$$VERSION_NUMBER as $$ALIAS
+// > ```
+// ___
+// > Define a `<keyframe>` for each of your effects. The `<keyframe>` object represents the primary object:
+// > ```
+// > // without arguments (using defaults)
+// > var kf = m.keyframe.new()
+// > // with arguments (as described in the keyframe type)
+// > var kf = m.keyframe.new(intv = 3, steps = 2, ...)
+// > ```
+// > ```
+// > color myColor = m.fade(kf, _colorFrom = color.blue, ...) // as function
+// > color myColor = kf.fade(_colorFrom = color.blue, ...)        // as method
+// > color myColor = color.blue.fade(color.red, kf, ...)         // as method
+// > ```
+// ___
+// @param       this                Main `<keyframe>` object.
+// @param       _colorFrom          Initial color before the fade effect.
+// @param       _colorTo            Final color after the fade effect.
+// @param       _steps              Optional parameter defining the number of steps to complete the fade effect. Default is 5 steps.
+// @param       _transpFrom         Optional parameter defining the initial transparency level before the fade effect. Default is 0 (completely opaque).
+// @param       _transpTo           Optional parameter defining the final transparency level after the fade effect. Default is 0 (completely transparent).
+// @param       _colors             An optional `array<color>`. If set, _colorFrom and _colorTo will be disabled.
+// @param       __opt               An optional `<option>` object.
+// @param       __timer             An optional `<timer>` object.
+// @returns     `<color>`.
+export method fade(
+ keyframe               this,
+ series color           _colorFrom,
+ series color           _colorTo,
+ series int             _steps      = 8,
+ series int             _transpFrom = 0,
+ series int             _transpTo   = 0,
+ series array<color>    _colors     = na,
+ option                 __opt       = na,
+ timer                  __timer     = na
+ ) =>
+    // >>
+    this.gradient(
+     _colorFrom     = _colorFrom,
+     _colorTo       = _colorTo,
+     _steps         = _steps,
+     _transpFrom    = _transpFrom,
+     _transpTo      = _transpTo,
+     _colors        = _colors,
+     __opt          = __opt.isset(option.new()),
+     __timer        = __timer.isset(timer.new())
+     )
+// }
+
+
+// ---------------------------------------------------------------------------------------------------------------------
+
+// ———— 🔸 Method - Move Effect {
+//
+// @function    Moves a given label along a specified path.
+// ___
+// [![method secondary](https://img.shields.io/badge/method-secondary-ED7C17?style=flat-square)]()
+// [![version label](https://img.shields.io/badge/version-label-CCCCCC?style=flat-square)]()
+// ___
+// #### Library Import
+// > First, you need to import the motion library into your script. You should replace `$$VERSION_NUMBER` with
+// > the latest version number of the library and `$$ALIAS` with your chosen prefix.
+// > In this example, we use `m` as the prefix.
+// > ```
+// > import cryptolinx/motion/$$VERSION_NUMBER as $$ALIAS
+// > ```
+// ___
+// **Note:** This is an early version! Still under development!
+// ___
+// #### Example
+// The path could be created using the following syntax:
+// > ```
+// > '[offset_x|0][delimiter_path|:][offset_y|0](optional[delimiter_step|>])'
+// > '5:0>0:-5>-5:0>0:5'
+// > ```
+// ___
+// @param       this            The `<label>` to move.
+// @param       _path           The path along which the `<label>` should be moved. Set up by using the delimiters.
+// @param       _yHeight        The height for Y-axis movement.
+// @param       _reset          An optional parameter to reset the position of the `<label>`. Default is true.
+// @param       __kf            An optional `<keyframe>` object.
+// @param       __opt           An optional `<option>` object.
+// @param       __timer         An optional `<timer>` object.
+// @returns     `<label>`
+export method move(
+ series label   this,
+ series string  _path,
+ series float   _yHeight,
+ series bool    _reset      = true,
+ keyframe       __kf        = na,
+ option         __opt       = na,
+ timer          __timer     = na
+ ) =>
+    // --
+    var keyframe kf = __kf.isset(keyframe.new())
+    // >>
+    kf.movement(
+     _path    = _path,
+     _yHeight = _yHeight,
+     _reset   = _reset,
+     __opt    = __opt.isset(option.new()),
+     __timer  = __timer.isset(timer.new())
+     )
+    // --
+    this.set_xy(
+     this.get_x() + kf.__transition.offset_x, 
+     this.get_y() + kf.__transition.offset_y
+     )
+    // >>
+    this
+// --
+// @function    Moves a given label along a specified path.
+// ___
+// [![method secondary](https://img.shields.io/badge/method-secondary-ED7C17?style=flat-square)]()
+// [![version keyframe](https://img.shields.io/badge/version-keyframe-CCCCCC?style=flat-square)]()
+// ___
+// #### Library Import
+// > First, you need to import the motion library into your script. You should replace `$$VERSION_NUMBER` with
+// > the latest version number of the library and `$$ALIAS` with your chosen prefix.
+// > In this example, we use `m` as the prefix.
+// > ```
+// > import cryptolinx/motion/$$VERSION_NUMBER as $$ALIAS
+// > ```
+// ___
+// **Note:** This is an early version! Still under development!
+// ___
+// #### Example
+// The path could be created using the following syntax:
+// > ```
+// > '[offset_x|0][delimiter_path|:][offset_y|0](optional[delimiter_step|>])'
+// > '5:0>0:-5>-5:0>0:5'
+// > ```
+// ___
+// @param       this            The main `<keyframe>` object.
+// @param       _label          The label to move.
+// @param       _path           The path along which the label should be moved. Can be set up by using the delimiters.
+// @param       _yHeight        The height for Y-axis movement.
+// @param       _reset          An optional parameter to reset the position of the `<label>`. Default is true.    
+// @param       __opt           An optional `<option>` object.
+// @param       __timer         An optional `<timer>` object.
+// @returns     `<keyframe>`
+export method move(
+ keyframe       this,
+ series label   _label,
+ series string  _path,
+ series float   _yHeight,
+ series bool    _reset      = true,
+ option         __opt       = na,
+ timer          __timer     = na
+ ) =>
+    // --
+    this.movement(
+     _path    = _path,
+     _yHeight = _yHeight,
+     _reset   = _reset,
+     __opt    = __opt.isset(option.new()),
+     __timer  = __timer.isset(timer.new())
+     )
+    // --
+    _label.set_xy(
+     _label.get_x() + this.__transition.offset_x,
+     _label.get_y() + this.__transition.offset_y
+     )
+    // >>
+    this
+// --
+// @function    Moves a given label along a specified path.
+// ___
+// [![method secondary](https://img.shields.io/badge/method-secondary-ED7C17?style=flat-square)]()
+// [![version line](https://img.shields.io/badge/version-line-CCCCCC?style=flat-square)]()
+// ___
+// #### Library Import
+// > First, you need to import the motion library into your script. You should replace `$$VERSION_NUMBER` with
+// > the latest version number of the library and `$$ALIAS` with your chosen prefix.
+// > In this example, we use `m` as the prefix.
+// > ```
+// > import cryptolinx/motion/$$VERSION_NUMBER as $$ALIAS
+// > ```
+// ___
+// **Note:** This is an early version! Still under development!
+// ___
+// #### Example
+// The path could be created using the following syntax:
+// > ```
+// > '[offset_x|0][delimiter_path|:][offset_y|0](optional[delimiter_step|>])'
+// > '5:0>0:-5>-5:0>0:5'
+// > ```
+// ___
+// @param       this            The `<line>` to move.
+// @param       _path           The path along which the `<line>` should be moved. Can be set up by using the step and path delimiter.
+// @param       _yHeight        The height for Y-axis movement.
+// @param       _reset          An optional parameter to reset the position of the `<line>` to its original position. Default is true.
+// @param       __kf            An optional `<keyframe>` object.
+// @param       __opt           An optional `<option>` object.
+// @param       __timer         An optional `<timer>` object.
+// @returns     `<line>`
+export method move(
+ series line    this,
+ series string  _path,
+ series float   _yHeight,
+ series bool    _reset      = true,
+ keyframe       __kf        = na,
+ option         __opt       = na,
+ timer          __timer     = na
+ ) =>
+    // --
+    var keyframe kf = __kf.isset(keyframe.new())
+    // >>
+    kf.movement(
+     _path    = _path,
+     _yHeight = _yHeight,
+     _reset   = _reset,
+     __opt    = __opt.isset(option.new()),
+     __timer  = __timer.isset(timer.new())
+     )
+    // --
+    this.set_xy1(
+     this.get_x1() + kf.__transition.offset_x,
+     this.get_y1() + kf.__transition.offset_y
+     )
+    this.set_xy2(
+     this.get_x2() + kf.__transition.offset_x,
+     this.get_y2() + kf.__transition.offset_y
+     )
+    // >>
+    this
+// --
+// @function    Moves a given label along a specified path.
+// ___
+// [![method secondary](https://img.shields.io/badge/method-secondary-ED7C17?style=flat-square)]()
+// [![version keyframe](https://img.shields.io/badge/version-keyframe-CCCCCC?style=flat-square)]()
+// ___
+// #### Library Import
+// > First, you need to import the motion library into your script. You should replace `$$VERSION_NUMBER` with
+// > the latest version number of the library and `$$ALIAS` with your chosen prefix.
+// > In this example, we use `m` as the prefix.
+// > ```
+// > import cryptolinx/motion/$$VERSION_NUMBER as $$ALIAS
+// > ```
+// ___
+// **Note:** This is an early version! Still under development!
+// ___
+// #### Example
+// The path could be created using the following syntax:
+// > ```
+// > '[offset_x|0][delimiter_path|:][offset_y|0](optional[delimiter_step|>])'
+// > '5:0>0:-5>-5:0>0:5'
+// > ```
+// ___
+// @param       this            The main `<keyframe>` object.
+// @param       _line           The `<line>` to move.
+// @param       _path           The path along which the `<line>` should be moved. Can be set up by using the step and path delimiter.
+// @param       _yHeight        The height for Y-axis movement.
+// @param       _reset          An optional parameter to reset the position of the `<line>` to its original position. Default is true.
+// @param       __opt           An optional `<option>` object.
+// @param       __timer         An optional `<timer>` object.
+// @returns     `<line>`
+export method move(
+ keyframe       this,
+ series line    _line,
+ series string  _path,
+ series float   _yHeight,
+ series bool    _reset      = true,
+ option         __opt       = na,
+ timer          __timer     = na
+ ) =>
+    // --
+    this.movement(
+     _path    = _path,
+     _yHeight = _yHeight,
+     _reset   = _reset,
+     __opt    = __opt.isset(option.new()),
+     __timer  = __timer.isset(timer.new())
+     )
+    // --
+    _line.set_xy1(
+     _line.get_x1() + this.__transition.offset_x,
+     _line.get_y1() + this.__transition.offset_y
+     )
+    _line.set_xy2(
+     _line.get_x2() + this.__transition.offset_x,
+     _line.get_y2() + this.__transition.offset_y
+     )
+    // >>
+    this
+// }
+
+
+//  ▪ EXAMPLES ────
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+/// ———— User Input {
+//
+// IMPORTANT: Example Type. NOT REQUIRED.
+//
+// @type       The user input object.
+// @field      fx                  The selected transition effect.
+// @field      play                A boolean indicating whether the effect should be played.
+// @field      frequency           The frequency at which the effect should be executed.
+// @field      intv                The interval at which the effect should be executed.
+// @field      mu                  The multiplier for the interval.
+// @field      step                The number of steps per execution.
+// @field      fx_length           The length of the effect.
+// @field      extern              An optional external update number.
+// @field      max_loops           The maximum number of loops for the effect.
+// @field      sub_start           The start index for the subsequence.
+// @field      sub_length          The length of the subsequence.
+// @field      reverse             A boolean indicating whether the effect should be reversed.
+// @field      bounce              A boolean indicating whether the effect should bounce.
+// @field      reset               A boolean indicating whether the effect should reset on every bar.
+// @field      prefix              The prefix for the effect.
+// @field      txt                 The text for the effect.
+// @field      font_family         The font family for the effect.
+// @field      format              The text format.
+// @field      ws                  The trailing white space for the effect.
+// @field      suffix              The suffix for the effect.
+// @field      color_steps         The number of steps for the color effect.
+// @field      color_bounce        A boolean indicating whether the color effect should bounce.
+// @field      color_from          The initial color for the color effect.
+// @field      color_to            The final color for the color effect.
+// @field      multi_transition    A boolean indicating whether the effect should be a multi-transition.
+// @field      start_on            The start condition for the effect.
+// @field      calculation         The calculation mode for the effect.
+type user_input
+    // --
+    string      fx
+    Easing      easing
+    bool        play
+    Frequency   frequency
+    int         intv
+    int         mu
+    int         step
+    int         fx_length
+    int         extern
+    int         max_loops
+    int         sub_start
+    int         sub_length
+    bool        reverse
+    bool        bounce
+    bool        reset
+    bool        refill
+    string      prefix
+    string      txt
+    string      font_family
+    int         ws
+    string      suffix
+    int         color_steps
+    bool        color_bounce
+    color       color_0
+    color       color_1
+    color       color_2
+    color       color_3
+    color       color_4
+    color       color_5
+    bool        multi_transition
+    StartOn     start_on
+    Calculation calculation
+    bool        console
+    bool        console_ip
+// --
+// @variable    The user input object.
+var user_input __input = user_input.new(
+ fx                 = input.string('spot', title = 'Transition FX', options = ['marquee', 'spot', 'blink', 'blend_in_right', 'blend_out_right', 'blend_in_left', 'blend_out_left', 'slide_in_left', 'slide_in_right', 'slide_out_left', 'slide_out_right', 'hide', 'show'], tooltip = 'Select the transition effect to apply:\nmarquee: Scrolling text effect\nspot: Spotlight effect\nblink: Blinking effect\nblend_in/out: Fade in/out from sides\nslide_in/out: Slide in/out from sides\nhide/show: Simple visibility toggle', group = 'ACTION'),
+ easing             = input.enum(Easing.linear, title='Easing', tooltip = 'Select the easing function for smooth transitions:\nlinear: Constant speed\nease: Smooth acceleration and deceleration\nease_in: Slow start, fast end\nease_out: Fast start, slow end\nprogressive: Accelerating progression\nexponential: Exponential growth\nfibonacci: Based on fibonacci sequence', group = 'ACTION'),
+ play               = input.bool(true, title = 'Play', tooltip = 'Toggle animation playback. When disabled, the animation will pause in its current state.', group = 'ACTION'),
+ frequency          = input.enum(Frequency.on_tick, title = 'Frequency', tooltip = 'Set how often the animation updates:\non_tick: Update every tick (smoothest)\non_time: Update based on real time\non_index: Update based on bar index\non_input: Update based on external input', group = 'TIMING'),
+ intv               = input.int(1, title = 'Interval (' + DELTA + 't)', step = 1, minval = 1, maxval = 100, tooltip = 'Set frames between updates [1-100]. Higher values = slower animation.\nΔt represents the time delta between updates.', group = 'TIMING'),
+ start_on           = input.enum(StartOn.now, title = 'Effect Start', tooltip = 'Choose when the animation begins:\nnow: Start immediately\non_open: Start at bar open\non_close: Start at bar close', group = 'TIMING'),
+ mu                 = input.int(1000, title = '▸ On Time > Fineness (' + MU + ')', step = 50, minval = 50, maxval = 2000, tooltip = 'Fine-tune animation speed when using "on_time" frequency.\nLower values = faster updates (higher frequency)\nHigher values = slower updates (lower frequency)\nDefault: 1000', group = 'TIMING'),
+ extern             = input.int(0, title = '▸ On Input > External Update No', tooltip = 'External update counter for custom animation control.\nOnly used when frequency is set to "on_input".\nIncrement this value to trigger the next animation frame.', group = 'TIMING'),
+ step               = input.int(1, title = 'Steps Per Execution', step = 1, minval = 1, maxval = 20, tooltip = 'Number of positions to move per update [1-20].\nHigher values = faster movement but less smooth.\nDefault: 1 (smoothest movement)', group = 'PREFERENCES'),
+ fx_length          = input.int(1, title = 'FX Length', step = 1, minval = 1, maxval = 20, tooltip = 'Length of the effect (e.g., spotlight width) [1-20].\nAffects how much of the text is affected at once.\nDefault: 1', group = 'PREFERENCES'),
+ max_loops          = input.int(0, title = 'Max. Loops', step = 1, minval = 0, maxval = 100, tooltip = 'Maximum number of animation cycles [0-100]:\n0 = Infinite loops (for single transition)\n1 = Default for multi-transition\nHigher values = More repetitions', group = 'PREFERENCES'),
+ sub_start          = input.int(0, title = 'Subsequence Start', step = 1, minval = 0, maxval = 20, tooltip = 'Starting position in text for the effect [0-20].\nExample: In "ABCDEFGHI"\n0 starts at A\n3 starts at D\nDefault: 0 (start)', group = 'PREFERENCES'),
+ sub_length         = input.int(0, title = 'Subsequence Length', step = 1, minval = 0, maxval = 20, tooltip = 'Length of text segment to animate [0-20].\n0 = Full text length\n5 = Only animate 5 characters\nUseful for partial text effects', group = 'PREFERENCES'),
+ refill             = input.bool(true, title = 'Placeholder / Refill', tooltip = 'When enabled, empty spaces are filled with whitespace.\nUseful for maintaining consistent text width during animations.\nDefault: true', group = 'PREFERENCES'),
+ reverse            = input.bool(false, title = 'Reverse', tooltip = 'Reverse the animation direction.\nOnly affects directionally neutral effects:\nmarquee, spot, blink\nDefault: false', group = 'PREFERENCES'),
+ bounce             = input.bool(false, title = 'Bounce', tooltip = 'Make the animation reverse at endpoints.\nExample: 1->2->3->2->1 instead of 1->2->3->1\nCreates a ping-pong effect.\nDefault: false', group = 'PREFERENCES'),
+ reset              = input.bool(false, title = 'Reset On Every Bar', tooltip = 'Restart animation on each new bar.\nUseful for syncing with bar updates.\nWarning: May cause choppy animation.\nDefault: false', group = 'PREFERENCES'),
+ prefix             = input.string('', title = 'Prefix', tooltip = 'Text to add before the animated text.\nExample: "$" for price values', group = 'CONTENT'),
+ txt                = input.string('ABCDEFGHIJKLMNOPQRSTUVWXYZ', title = 'Text', tooltip = 'The main text to animate.\nCan be any string of characters.', group = 'CONTENT'),
+ font_family        = input.string(font.family_monospace, title = 'Font Family', options = [font.family_default, font.family_monospace], tooltip = 'Choose text font style:\ndefault: Variable-width font\nmonospace: Fixed-width font (better for animations)', group = 'CONTENT'),
+ ws                 = input.int(0, title = 'Trailing White Space', step = 1, minval = 0, maxval = 10, tooltip = 'Number of spaces to add after text [0-10].\nUseful for creating gaps between repeated text.\nDefault: 0', group = 'CONTENT'),
+ suffix             = input.string('', title = 'Suffix', tooltip = 'Text to add after the animated text.\nExample: "%" for percentages', group = 'CONTENT'),
+ color_steps        = input.int(8, title = 'Gradient Steps', step = 1, minval = 1, maxval = 20, tooltip = 'Number of color transitions in gradient [1-20].\nFor bounced effects:\nTotal length = (Steps * 2) - 2\nFor specific length (L): Steps = (L / 2) + 1', group = 'COLOR'),
+ color_bounce       = input.bool(true, title = 'Color Bounce', tooltip = 'Make color gradient reverse at endpoints.\nCreates smooth color transitions back and forth.\nDefault: true', group = 'COLOR'),
+ color_0            = input.color(color.yellow, title = 'Color #1', tooltip = 'Color #1 for gradient effect.\nUsed as the initial color in transitions.', group = 'COLOR'),
+ color_1            = input.color(color.orange, title = 'Color #2', tooltip = 'Color #2 for gradient effect.\nUsed as the target color in transitions.', group = 'COLOR'),
+ color_2            = input.color(color.fuchsia, title = 'Color #3', tooltip = 'Color #3 for gradient effect.\nUsed as the initial color in transitions.', group = 'COLOR'),
+ color_3            = input.color(color.navy, title = 'Color #4', tooltip = 'Color #4 for gradient effect.\nUsed as the target color in transitions.', group = 'COLOR'),
+ color_4            = input.color(color.aqua, title = 'Color #5', tooltip = 'Color #5 for gradient effect.\nUsed as the initial color in transitions.', group = 'COLOR'),
+ color_5            = input.color(color.lime, title = 'Color #5', tooltip = 'Color #5 for gradient effect.\nUsed as the initial color in transitions.', group = 'COLOR'),
+ multi_transition   = input.bool(false, title = 'Multi-Transition Example', tooltip = 'Demo of multiple transitions.\nAdds a blinking effect (3 loops)\nbefore the main selected effect.\nUseful for complex animations.', group = 'MULTI TRANSITION'),
+ calculation        = input.enum(Calculation.relative, 'Calculation', group = 'MULTI TRANSITION'),
+ console            = input.bool(false, title = 'Show Console - Insights', tooltip = 'Show Transition Insights', group = 'INSIGHTS'),
+ console_ip         = input.bool(false, title = 'Multi-Transition Example', tooltip = 'Show Color Insights', group = 'INSIGHTS')
+ )
+// }
+
+var map<string, string> effectMap = map.new<string, string>()
+effectMap.put('marquee','fx')
+effectMap.put('spot','fx')
+effectMap.put('blink','fx')
+effectMap.put('hide','fx')
+effectMap.put('show','fx')
+effectMap.put('slide_in_right','fx')
+effectMap.put('slide_in_left','fx')
+effectMap.put('slide_out_right','fx')
+effectMap.put('slide_out_left','fx')
+effectMap.put('blend_out_right','fx')
+effectMap.put('blend_out_left','fx')
+effectMap.put('blend_in_left','fx')
+effectMap.put('blend_in_right','fx')
+// --
+effectMap.put('iterate', na)
+effectMap.put('fade', na)
+effectMap.put('fade_in', na)
+effectMap.put('fade_out', na)
+effectMap.put('move', na)
+// ---------------------------------------------------------------------------------------------------------------------
+
+// ———— Function Render Logo/Tag {
+//
+// @function   Creates a simple animated logo or tag.
+// @param      _tagline     Optional string to use as the tagline. Default is '- A Pine Script™ Showcase -'.
+// @param      _sizeLogo    Optional size parameter for the logo. Default is size.huge.
+// @param      _sizeTag     Optional size parameter for the tagline. Default is size.normal.
+// @param      _colorLogo   Optional color parameter for the logo. Default is #ff5252.
+// @param      _colorTag    Optional color parameter for the tagline. Default is #ffffff96.
+// @param      _colorDecor  Optional color parameter for decoration. Default is #ff525234.
+// @param      _x           Optional integer specifying the X position. Default is bar_index.
+// @param      _y           Optional float specifying the Y position. Default is 2100.
+// @returns    `array<label>`
+method render(
+ array<label>  this,
+ series string _sizeLogo   = size.huge, 
+ series string _sizeTag    = size.normal, 
+ series color  _colorLogo  = #ff5252, 
+ series color  _colorTag   = #ffffff96, 
+ series color  _colorDecor = #ff525234, 
+ series string _tagline    = '- A Pine Script™ Showcase -',
+ series int    _x          = bar_index, 
+ series float  _y          = close
+ ) =>
+    if this.size() == 0
+        // >>
+        this.push(
+         label.new(
+          x                 = _x,
+          y                 = _y,
+          text              = '',
+          color             = #00000000,
+          size              = _sizeLogo,
+          style             = label.style_label_center,
+          textcolor         = _colorLogo,
+          textalign         = text.align_center,
+          text_font_family  = font.family_default
+          ))
+        this.push(
+         label.new(
+          x                 = _x,
+          y                 = _y,
+          text              = '└',
+          color             = #00000000,
+          size              = _sizeLogo,
+          style             = label.style_label_upper_right,
+          textcolor         = _colorDecor,
+          textalign         = text.align_left,
+          text_font_family  = font.family_default
+          ))
+        this.push(
+         label.new(
+          x                 = _x,
+          y                 = _y,
+          text              = '┘',
+          color             = #00000000,
+          size              = _sizeLogo,
+          style             = label.style_label_upper_left,
+          textcolor         = _colorDecor,
+          textalign         = text.align_left,
+          text_font_family  = font.family_default
+          ))
+        this.push(
+         label.new(
+          x                 = _x,
+          y                 = _y,
+          text              = '┌',
+          color             = #00000000,
+          size              = _sizeLogo,
+          style             = label.style_label_lower_right,
+          textcolor         = _colorDecor,
+          textalign         = text.align_left,
+          text_font_family  = font.family_default
+          ))
+        this.push(
+         label.new(
+          x                 = _x,
+          y                 = _y,
+          text              = '┐',
+          color             = #00000000,
+          size              = _sizeLogo,
+          style             = label.style_label_lower_left,
+          textcolor         = _colorDecor,
+          textalign         = text.align_left,
+          text_font_family  = font.family_default
+          ))
+        this.push(
+         label.new(
+          x                 = _x,
+          y                 = _y,
+          text              = ' ',
+          size              = _sizeLogo,
+          color             = #00000000,
+          textcolor         = color.new(_colorLogo, 75),
+          text_font_family  = font.family_default,
+          style             = label.style_label_down,
+          textalign         = text.align_left
+          ))
+        this.push(
+         label.new(
+          x                 = _x,
+          y                 = _y,
+          text              = '\n\n\n\n\n' + _tagline,
+          color             = #00000000,
+          size              = size.small,
+          style             = label.style_label_up,
+          textcolor         = _colorTag,
+          textalign         = text.align_left,
+          text_font_family  = font.family_monospace
+         ))
+    // >>
+    this
+// }
+
+// ———— Method for Updating Logo {
+//
+// @function    Updates the logo's properties.
+// @param       _logo           Array of label objects constituting the logo.
+// @param       _textLogo       Optional new text for the logo. Default is 'na'.
+// @param       _textTagline    Optional new text for the tagline. Default is 'na'.
+// @param       _x              Optional new X position. Default is bar_index.
+// @param       _y              Optional new Y position. Default is 'na'.
+// @returns     `void`          The function doesn't return any value.
+method update(
+ array<label>   this, 
+ string         _textLogo       = na,
+ string         _textTagline    = na,
+ float          _y              = na,
+ int            _x              = bar_index,
+ color          _colorDecor     = na
+ ) =>
+    // --
+    if (barstate.islast or barstate.isrealtime) and this.size() > 0
+        for i = 0 to this.size() - 1
+            label l = this.get(i)
+            l.set_xy(
+             _x.isset(l.get_x()), 
+             _y.isset(l.get_y())
+             )
+        // --
+        if not na(_colorDecor)
+            for i = 1 to 4
+                label l = this.get(i)
+                l.set_textcolor(color.new(_colorDecor, 85))
+        // --
+        label l0 = this.get(0)
+        label l6 = this.get(6)
+        l0.set_text(
+         _textLogo.isset(l0.get_text())
+         )
+        l0.set_textcolor(_colorDecor)
+        l6.set_text(
+         _textTagline.isset(l6.get_text())
+         )
+    // >>
+    this
+// }
+
+// ———— Motion. ✨ {
+//
+const string TAGLINE = '~ A Pine Script™ {0} ~'
+const array<string> LOGO_TEXT = array.from('M ◞TION.','M◟ TION.','M◜ TION.','M ◝TION.')
+// --
+var keyframe taglineKf1  = keyframe.new(intv = 4, steps = 1)
+var keyframe taglineKf2  = keyframe.new(intv = 1, steps = 1)
+// --
+series string taglineFX1 = taglineKf1.iteration(
+ _seqArr = array.from('Showcase','Library'),
+ __opt   = option.new( 
+  prefix = 'A Pine Script™ ',
+  refill = true
+  )
+ )
+// --
+series string taglineFX2 = taglineKf2.transition(
+ _seq = taglineFX1,
+ _fx = 'slide_in_right',
+ __opt = option.new(
+  max_loops = 1,
+  prefix    = '\n\n\n\n' + '- ',
+  suffix    = ' -'
+  )
+ )
+// --
+series color colorFX = array.from(
+ __input.color_0,
+ __input.color_1,
+ __input.color_2,
+ __input.color_3,
+ __input.color_4,
+ __input.color_5
+ )
+ .fade(_steps = __input.color_steps)
+// --
+series string logoFX = LOGO_TEXT.motion(_join = false)
+// --
+var array<label> LOGO = array.new<label>()
+LOGO
+ .render()
+ .update(logoFX, taglineFX2, 10, _colorDecor = colorFX)
+// }
+
+
+// ---------------------------------------------------------------------------------------------------------------------
+
+// ———— Label {
+//
+// @variable    An example `<label>` object.
+var series label select = label.new(
+ x                  = bar_index,
+ y                  = 750,
+ text               = 'Select FX',
+ textcolor          = color.white,
+ color              = #ffffff0b,
+ size               = size.normal, 
+ text_formatting    = text.format_italic,
+ style              = label.style_label_down
+ )
+// @variable    An example `<label>` object.
+var series label fx = label.new(
+ x                  = bar_index,
+ y                  = 700,
+ text               = __input.fx,
+ textcolor          = colorFX,
+ color              = #ffffff0b,
+ size               = 12,
+ style              = label.style_label_center,
+ textalign          = text.align_center,
+ text_font_family   = font.family_default,
+ text_formatting    = text.format_bold
+ )
+// @variable    An example `<label>` object.
+var series label example = label.new(
+ x                  = bar_index,
+ y                  = 600,
+ text               = __input.txt,
+ textcolor          = chart.fg_color,
+ color              = #2c2b2b,
+ size               = 24,
+ style              = label.style_label_center,
+ textalign          = text.align_center,
+ text_font_family   = __input.font_family
+ )
+// @variable    An example `<label>` object.
+var series label info = label.new(
+ x                  = bar_index,
+ y                  = 400,
+ text               = 'ℹ️\n \nAdd the script to your chart to experience its features!\nA symbol with a high price update frequency is recommanded!',
+ textcolor          = #ffffffA0,
+ color              = #ffffff00,
+ size               = size.small,
+ style              = label.style_label_center,
+ text_font_family   = font.family_monospace
+ )
+// @variable    An example `<label>` object.
+var label openSource = label.new(
+ x                  = bar_index,
+ y                  = 300,
+ text               = '🔋 Batteries Included',
+ textcolor          = color.new(color.silver, 30),
+ color              = #ffffff00,
+ size               = size.small,
+ style              = label.style_label_center
+ )
+// }
+
+
+// ---------------------------------------------------------------------------------------------------------------------
+
+// ———— Keyframes {
+//
+// @variable    The Color FX `<keyframe>` object.
+var keyframe colorKf = keyframe.new(
+ intv   = __input.intv,
+ steps  = __input.step,
+ exec   = __input.play,
+ extern = __input.extern
+ )
+// @variable    The Transition FX `<keyframe>` object.
+var keyframe transitionKf = keyframe.new(
+ intv   = __input.intv,
+ steps  = __input.step,
+ exec   = __input.play,
+ extern = __input.extern
+ )
+// }
+
+
+// ---------------------------------------------------------------------------------------------------------------------
+
+// ———— Option {
+// 
+// @variable    The global `<option>` object.
+var option __opt = option.new(
+ ws             = __input.ws,
+ max_loops      = __input.max_loops,
+ reverse        = __input.reverse,
+ bounce         = __input.bounce,
+ refill         = __input.refill,
+ reset          = __input.reset,
+ sub_length     = __input.sub_length,
+ sub_start      = __input.sub_start,
+ fx_length      = __input.fx_length,
+ prefix         = __input.prefix,
+ suffix         = __input.suffix,
+ easing         = __input.easing
+ )
+// @variable    A modified copy of the global `<option>` object.
+var option __opt2 = __opt.copy()
+__opt2.max_loops := 3
+// @variable    A modified copy of the global `<option>` object.
+var option __opt4 = __opt.copy()
+__opt4.bounce := __input.color_bounce
+// }
+
+
+// ---------------------------------------------------------------------------------------------------------------------
+
+// ———— Timer {
+//
+// @variable    The global `<timer>` object.
+var timer __timer = timer.new(
+ frequency      = __input.frequency,
+ start_on       = __input.start_on,
+ mu             = __input.mu,
+ calculation    = __input.calculation
+ )
+// }
+
+
+// ---------------------------------------------------------------------------------------------------------------------
+
+// ———— FX {
+//
+series string myTransition = __input.txt
+if effectMap.get(__input.fx) == 'fx'
+    if __input.multi_transition
+        // --
+        transitionKf.transition(
+         _seq       = __input.txt,
+         _fx        = 'blink',
+         __opt      = __opt2,
+         __timer    = __timer
+         )
+    // @variable    Output of the executed effect.
+    myTransition := transitionKf.transition(
+     _seq       = __input.txt,
+     _fx        = __input.fx,
+     __opt      = __opt,
+     __timer    = __timer
+     )
+else if effectMap.get(__input.fx) == 'iterate'
+    array<string> iterationArray = array.from('PLAN','EVERY','STEP','YOU','TAKE')
+
+if not (effectMap.get(__input.fx) == 'fx')
+    myTransition := __input.txt
+// }
+
+// ---------------------------------------------------------------------------------------------------------------------
+
+//———— Updates {
+//
+if barstate.islast or barstate.isrealtime
+    // @variable    X-axis anchor for example `<label>`.
+    series int x = bar_index
+    // --
+    select.set_xy(x, 7)
+    fx.set_xy(x, 6.2)
+    fx.set_text(__input.fx)
+    fx.set_textcolor(colorFX)
+    example.set_xy(x, 5)
+    example.set_text(myTransition)
+    info.set_xy(x, 1)
+    info.fade(
+     _colorFrom     = color.silver,
+     _colorTo       = color.silver,
+     _steps         = str.length(__input.txt) + __input.ws,
+     _transpFrom    = 80,   
+     _transpTo      = 0,
+     __opt          = option.new(bounce = true)
+     )
+    openSource.set_xy(x, 0)
+// }
+
+//  ▪ DEBUGGING ────
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+// ———— Console )Chart {
+//
+// The debugging feature can only be used by creating your own copy of this script and uncomment the lines below:
+// ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾
+
+// --
+import cryptolinx/Console/9 as c
+// --
+// Leveraging console methods
+method stats(c.terminal this, keyframe __keyframe) =>
+    if barstate.islast
+        transition t = __keyframe.__transition
+        option     o = t.__opt
+        // --
+        this
+         .log('Fx', t.fx).opt_lvl(1)
+         .log('Action', t.action).opt_lvl(2)
+         .log('Keyframe Init', __keyframe.init)
+         .log('Keyframe Execution', __keyframe.exec)
+         .log('Transition Init', t.init)
+         .log('Transition Started', t.started)
+         .log('Timer Started', __keyframe.__timer.started)
+         .log('Timer Start', __keyframe.__timer.start)
+         .hr()
+         .log('Timer Update Offset', __keyframe.__timer.offset)
+         .log('Transition Index', __keyframe.idx)
+         .log('Total Length', __keyframe.getTotalLength())
+         .log('Update No', __keyframe.update_no)
+         .log('Serial No', __keyframe.frame_no)
+         .log('Loop No', __keyframe.loop_no)
+         .log('Pointer/Length',
+          (__keyframe.pointer + 1).tostring() + '/' + (t.iteration_length + 1 - (_onDefaultIteration(t) ? 1 : 0)).tostring()
+         )
+         .log('reverse', o.reverse)
+         .log('Bounce', o.bounce)
+         .log('Default Iteration', _onDefaultIteration(t))
+         .hr()
+         .log('String Length', t.str_length)
+         .log('Iteration Length', t.iteration_length)
+         .log('Max. Length', t.max_length)
+         .log('Max. Loops', o.max_loops)
+         .hr()
+         .log('Subsequence Start', o.sub_start)
+         .log('Subsequence Length', o.sub_length)
+         .hr()
+         .log('Multi-Transition', _onMultiTransition(__keyframe))
+          .opt_lvl(_onMultiTransition(__keyframe) ? 2 : 3)
+         .log('Stack Size', __keyframe.__queue.size())
+    // >>
+    this
+// --
+if (barstate.islast or barstate.isrealtime) and __input.console_ip
+    // --
+    consoleIp = c.terminal.new(
+     rows           = 20,
+     columns        = 1,
+     height         = 40,
+     width          = 25,
+     display        = 'chart',
+     log_position   = position.middle_left,
+     ip             = true
+     )
+     .init()
+    // --
+    consoleIp
+     .log('ENDLESS COLOR LOOPS! NO GAP!')
+      .opt_sticky()
+     .log(colorFX)
+     .show()
+// --
+if (barstate.islast or barstate.isrealtime) and __input.console
+    console = c.terminal.new(
+     rows       = 30,
+     columns    = 1,
+     height     = 60,
+     width      = 25,
+     display    = 'chart',
+     indent     = true
+     )
+     .init()
+    // --
+    console
+     .stats(transitionKf) // <-- change keyframe for insight
+     .show()
+// }
+
+// ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴
+// }
+
+
+// } #EOF

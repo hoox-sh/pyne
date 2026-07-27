@@ -1,0 +1,119 @@
+//@version=4
+
+
+study("[IFLOST.io] Trendlines","[IFLOST.io] Trendlines", overlay=true)
+
+
+//////////////////////////////////////////////////////////////////////////
+// Inputs
+//////////////////////////////////////////////////////////////////////////
+
+
+srch = input(high, "Highs Source")
+srcl = input(low, "Lows Source")
+mn = input(21, "Short Range", minval=1)
+F = input(5, "Long Range Factor", minval=2)
+mx = mn * F
+nr = input(2, "Noise Reduction", minval=0)
+sm = nr + 1
+sr = input(true, "Show Resistance (Red)")
+ss = input(true, "Show Support (Green)")
+sa = input(true, "Show Average (Yellow)")
+sn = input(true, "Show Inner Lines (Pink & Blue)")
+Xl = input(true, "Extend Left")
+Xr = input(true, "Extend Right")
+
+
+//////////////////////////////////////////////////////////////////////////
+// Colors
+//////////////////////////////////////////////////////////////////////////
+
+
+// Buy, Upward
+clg = #4EF9FF
+cdg = #3CADB1
+cbg = #00BCD4 //Background
+
+// Sell, Downward
+clr = #FF0081
+cdr = #880E4F
+cbr = #AB47BC
+
+// Idle, Sideward
+cly = #FBC02D
+
+
+//////////////////////////////////////////////////////////////////////////
+// Calculation
+//////////////////////////////////////////////////////////////////////////
+
+
+XT = Xl and Xr ? extend.both : Xl ? extend.left : Xr ? extend.right : extend.none
+
+SRCH = ema(srch, sm)
+SRCL = ema(srcl, sm)
+
+gap = 2
+
+hhh = 0.0
+lll = high * 1000
+
+h2 = hhh
+th2 = 0
+l2 = lll
+tl2 = 0
+for i = 0 to mn - gap
+    h2 := max(h2, SRCH[i])
+    if h2 == SRCH[i]
+        th2 := i
+    l2 := min(l2, SRCL[i])
+    if l2 == SRCL[i]
+        tl2 := i
+
+h1 = hhh
+th1 = 0
+l1 = lll
+tl1 = 0
+for i = mn + gap to mx
+    h1 := max(h1, SRCH[i])
+    if h1 == SRCH[i]
+        th1 := i
+    l1 := min(l1, SRCL[i])
+    if l1 == SRCL[i]
+        tl1 := i
+
+a1 = avg(h1, l1)
+ta1 = round(avg(th1, tl1))
+a2 = avg(h2, l2)
+ta2 = round(avg(th2, tl2))
+
+PLT(P1, P2, T1, T2) =>
+    ((P2 - P1) / (T1 - T2)) * (T2) + P2
+
+PLTh = PLT(h1, h2, th1, th2)
+PLTl = PLT(l1, l2, tl1, tl2)
+PLTa = PLT(a1, a2, ta1, ta2)
+    
+plot(PLTh, "Resistance (Historical Line)", color=clr, transp=50, style=plot.style_line)
+plot(PLTl, "Support (Historical Line)", color=clg, transp=50, style=plot.style_line)
+plot(PLTa, "Average (Historical Line)", color=cly, transp=75, style=plot.style_line)
+
+bgcolor(close > PLTh ? color.new(clr, 95) : color.new(clr, 100), title="Close over Resistance")
+bgcolor(close < PLTl ? color.new(clg, 95) : color.new(clg, 100), title="Close under Support")
+
+L(T1, H1, T2, H2, CLR, W, X) =>
+    line.new(bar_index - T1, H1, bar_index - T2, H2, color=CLR, width=W, extend=X ? XT : extend.none)
+
+if barstate.islast
+    if sr
+        L1 = L(th1, h1, th2, h2, clr, 2, true), line.delete(L1[1])
+    if ss
+        L2 = L(tl1, l1, tl2, l2, clg, 2, true), line.delete(L2[1])
+    if sa
+        L3 = L(ta1, a1, ta2, a2, cly, 2, true), line.delete(L3[1])
+    if sn
+        L4 = L(th1, h1, tl1, l1, cdr, 1, false), line.delete(L4[1])
+        L5 = L(th2, h2, tl2, l2, cdr, 1, false), line.delete(L5[1])
+        L6 = L(th1, h1, tl2, l2, cbr, 1, false), line.delete(L6[1])
+        L7 = L(th2, h2, tl1, l1, cbr, 1, false), line.delete(L7[1])
+    

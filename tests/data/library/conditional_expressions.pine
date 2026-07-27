@@ -1,0 +1,8 @@
+//@version=6
+indicator(title="Conditional Expressions")
+// Plot will be green/red on DWM charts and yellow/blue on intraday
+c = timeframe.isdwm ? close >= open ? #26A69A : #FF5252 : close >= open ? #FDD835 : #2962FF
+plot(ohlc4, color=c)
+// Another example of conditional expr:
+c2 = timeframe.isintraday ? #FF5252 : timeframe.isdaily ? #26A69A : timeframe.isweekly ? #2962FF : #787B86
+plot(hl2, color=c2)

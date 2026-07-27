@@ -1,0 +1,21 @@
+//@version=6
+indicator('Open Interest', 'OI', format = format.volume)
+
+var bool isCrypto = syminfo.type == 'crypto'
+var string timeframe = not isCrypto and timeframe.isintraday ? '1D' : timeframe.period
+
+[oiOpen, oiHigh, oiLow, oiClose, oiColorCond] = request.security(str.format('{0}_OI', ticker.standard(syminfo.tickerid)), timeframe, [open, high, low, close, close > close[1]], ignore_invalid_symbol = true)
+
+if barstate.islastconfirmedhistory and na(oiClose)
+    runtime.error(str.format('No Open Interest data found for the `{0}` symbol.', syminfo.prefix + ':' + syminfo.ticker))
+
+color openInterestColor = oiColorCond ? color.teal : color.red
+plot(isCrypto ? na : oiClose, 'Futures Open Interest', openInterestColor, style = plot.style_stepline, linewidth = 4)
+
+if not isCrypto
+    oiOpen := na
+    oiHigh := na
+    oiLow := na
+    oiClose := na
+
+plotcandle(oiOpen, oiHigh, oiLow, oiClose, 'Crypto Open Interest', color = openInterestColor, wickcolor = openInterestColor, bordercolor = openInterestColor)

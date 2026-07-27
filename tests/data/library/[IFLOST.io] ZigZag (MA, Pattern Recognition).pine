@@ -1,0 +1,158 @@
+//@version=3
+
+//////////////////////////////////////////////////////////////////////////
+// [IFLOST.io] ZigZag (MA, Pattern Recognition) v2.2
+//////////////////////////////////////////////////////////////////////////
+
+
+study(title="[IFLOST.io] ZigZag (MA, Pattern Recognition) v2.2", shorttitle="[IFLOST.io] ZigZag v2.2", overlay=true)
+
+
+//////////////////////////////////////////////////////////////////////////
+// Inputs
+//////////////////////////////////////////////////////////////////////////
+
+
+
+length = input(4)
+ExtremeDetection = input(4)
+useAltTF = input(true)
+AlternativeTF = input('15')
+showChannel = input(true)
+
+
+//////////////////////////////////////////////////////////////////////////
+// Colors
+//////////////////////////////////////////////////////////////////////////
+
+
+// Buy, Upward
+clg = #4EF9FF
+cdg = #3CADB1
+cbg = #00BCD4 //Background
+
+// Sell, Downward
+clr = #FF0081
+cdr = #880E4F
+cbr = #AB47BC
+
+// Idle, Sideward
+cly = #FBC02D
+
+
+//////////////////////////////////////////////////////////////////////////
+// Calculation & Painting
+//////////////////////////////////////////////////////////////////////////
+
+
+f_zz(_length, _detection)=>
+    _hls = ema(ema(ema(hl2, _length), round(_length*0.66)), round(_length*0.33))
+    _isRising = _hls >= _hls[1]
+    _zigzag = _isRising and not _isRising[1] ? lowest(_detection) :  not _isRising and _isRising[1] ? highest(_detection) : na
+
+zigzag = useAltTF ? (change(time(AlternativeTF)) != 0 ? security(tickerid, AlternativeTF, f_zz(length, ExtremeDetection)) : na) : f_zz(length, ExtremeDetection)
+tops = valuewhen(zigzag, zigzag, 0) >= valuewhen(zigzag, highest(ExtremeDetection), 0) and zigzag ? valuewhen(zigzag, zigzag, 0) : na
+bottoms = valuewhen(zigzag, zigzag, 0) <= valuewhen(zigzag, lowest(ExtremeDetection), 0) and zigzag ? valuewhen(zigzag, zigzag, 0) : na
+
+plot(not showChannel ? na : tops, color=gray)
+plot(not showChannel ? na : bottoms, color=gray)
+plot(zigzag, color=black, linewidth=2)
+//  ||---   Pattern Recognition:
+
+
+//istop() => zigzag == filteredtopf
+//isbot() => zigzag == filteredbotf
+
+x = valuewhen(zigzag, zigzag, 4) 
+a = valuewhen(zigzag, zigzag, 3) 
+b = valuewhen(zigzag, zigzag, 2) 
+c = valuewhen(zigzag, zigzag, 1) 
+d = valuewhen(zigzag, zigzag, 0)
+
+xab = (abs(b-a)/abs(x-a))
+xad = (abs(a-d)/abs(x-a))
+abc = (abs(b-c)/abs(a-b))
+bcd = (abs(c-d)/abs(b-c))
+
+//  ||-->   Functions:
+isBat(_mode)=>
+    _xab = xab >= 0.382 and xab <= 0.5
+    _abc = abc >= 0.382 and abc <= 0.886
+    _bcd = bcd >= 1.618 and bcd <= 2.618
+    _xad = xad <= 0.886
+    _xab and _abc and _bcd and _xad and (_mode == 1 ? d < c : d > c)
+
+isAltBat(_mode)=>
+    _xab = xab <= 0.382
+    _abc = abc >= 0.382 and abc <= 0.886
+    _bcd = bcd >= 2.0 and bcd <= 3.618
+    _xad = xad <= 1.13
+    _xab and _abc and _bcd and _xad and (_mode == 1 ? d < c : d > c)
+
+isButterfly(_mode)=>
+    _xab = xab <= 0.786
+    _abc = abc >= 0.382 and abc <= 0.886
+    _bcd = bcd >= 1.618 and bcd <= 2.618
+    _xad = xad >= 1.27 and xad <= 1.618
+    _xab and _abc and _bcd and _xad and (_mode == 1 ? d < c : d > c)
+
+isABCD(_mode)=>
+    _abc = abc >= 0.382 and abc <= 0.886
+    _bcd = bcd >= 1.13 and bcd <= 2.618
+    _abc and _bcd and (_mode == 1 ? d < c : d > c)
+
+isGartley(_mode)=>
+    _xab = xab >= 0.5 and xab <= 0.618 // 0.618
+    _abc = abc >= 0.382 and abc <= 0.886
+    _bcd = bcd >= 1.13 and bcd <= 2.618
+    _xad = xad >= 0.75 and xad <= 0.875 // 0.786
+    _xab and _abc and _bcd and _xad and (_mode == 1 ? d < c : d > c)
+
+isCrab(_mode)=>
+    _xab = xab >= 0.75 and xab <= 0.875 // 0.886
+    _abc = abc >= 0.382 and abc <= 0.886
+    _bcd = bcd >= 2.0 and bcd <= 3.618
+    _xad = xad >= 1.5 and xad <= 1.625 // 1.618
+    _xab and _abc and _bcd and _xad and (_mode == 1 ? d < c : d > c)
+
+isShark(_mode)=>
+    _xab = xab >= 0.5 and xab <= 0.875 // 0.886
+    _abc = abc >= 1.13 and abc <= 1.618
+    _bcd = bcd >= 1.27 and bcd <= 2.24
+    _xad = xad >= 0.88 and xad <= 1.13
+    _xab and _abc and _bcd and _xad and (_mode == 1 ? d < c : d > c)
+
+is5o(_mode)=>
+    _xab = xab >= 1.13 and xab <= 1.618
+    _abc = abc >= 1.618 and abc <= 2.24
+    _bcd = bcd >= 0.5 and bcd <= 0.625 // 0.5
+    _xad = xad >= 0.0 and xad <= 0.236 // negative?
+    _xab and _abc and _bcd and _xad and (_mode == 1 ? d < c : d > c)
+
+isWolf(_mode)=>
+    _xab = xab >= 1.27 and xab <= 1.618
+    _abc = abc >= 0 and abc <= 5
+    _bcd = bcd >= 1.27 and bcd <= 1.618
+    _xad = xad >= 0.0 and xad <= 5
+    _xab and _abc and _bcd and _xad and (_mode == 1 ? d < c : d > c)
+
+plotshape(isABCD(-1) and not isABCD(-1)[1], text="\nAB=CD", style=shape.labeldown, color=cdr, textcolor=white, location=location.top, transp=0, offset=-2)
+plotshape(isBat(-1) and not isBat(-1)[1], text="Bat", style=shape.labeldown, color=cdr, textcolor=white, location=location.top, transp=0, offset=-2)
+plotshape(isAltBat(-1) and not isAltBat(-1)[1], text="Alt Bat", style=shape.labeldown, color=cdr, textcolor=white, location=location.top, transp=0)
+plotshape(isButterfly(-1) and not isButterfly(-1)[1], text="Butterfly", style=shape.labeldown, color=cdr, textcolor=white, location=location.top, transp=0)
+plotshape(isGartley(-1) and not isGartley(-1)[1], text="Gartley", style=shape.labeldown, color=cdr, textcolor=white, location=location.top, transp=0)
+plotshape(isCrab(-1) and not isCrab(-1)[1], text="Crab", style=shape.labeldown, color=cdr, textcolor=white, location=location.top, transp=0)
+plotshape(isShark(-1) and not isShark(-1)[1], text="Shark", style=shape.labeldown, color=cdr, textcolor=white, location=location.top, transp=0)
+plotshape(is5o(-1) and not is5o(-1)[1], text="5-O", style=shape.labeldown, color=cdr, textcolor=white, location=location.top, transp=0)
+plotshape(isWolf(-1) and not isWolf(-1)[1], text="Wolf Wave", style=shape.labeldown, color=cdr, textcolor=white, location=location.top, transp=0)
+
+plotshape(isABCD(1) and not isABCD(1)[1], text="AB=CD\n", style=shape.labelup, color=cdg, textcolor=white, location=location.bottom, transp=0)
+plotshape(isBat(1) and not isBat(1)[1], text="Bat", style=shape.labelup, color=cdg, textcolor=white, location=location.bottom, transp=0)
+plotshape(isAltBat(1) and not isAltBat(1)[1], text="Alt Bat", style=shape.labelup, color=cdg, textcolor=white, location=location.bottom, transp=0)
+plotshape(isButterfly(1) and not isButterfly(1)[1], text="Butterfly", style=shape.labelup, color=cdg, textcolor=white, location=location.bottom, transp=0)
+plotshape(isGartley(1) and not isGartley(1)[1], text="Gartley", style=shape.labelup, color=cdg, textcolor=white, location=location.bottom, transp=0)
+plotshape(isCrab(1) and not isCrab(1)[1], text="Crab", style=shape.labelup, color=cdg, textcolor=white, location=location.bottom, transp=0)
+plotshape(isShark(1) and not isShark(1)[1], text="Shark", style=shape.labelup, color=cdg, textcolor=white, location=location.bottom, transp=0)
+plotshape(is5o(1) and not is5o(1)[1], text="5-O", style=shape.labelup, color=cdg, textcolor=white, location=location.bottom, transp=0)
+plotshape(isWolf(1) and not isWolf(1)[1], text="Wolf Wave", style=shape.labelup, color=cdg, textcolor=white, location=location.bottom, transp=0)
+

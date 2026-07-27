@@ -1,0 +1,64 @@
+//@version=4
+
+// Original Script > @RS
+// Edits > @jango_blockchained
+
+//////////////////////////////////////////////////////////////////////////
+// [IFLOST.io] Support & Resistence v1.20
+//////////////////////////////////////////////////////////////////////////
+
+
+study("[IFLOST.io] Support & Resistence v1.20", shorttitle="[IFLOST.io] S/R v1.20", overlay=true)
+
+
+//////////////////////////////////////////////////////////////////////////
+// Inputs
+//////////////////////////////////////////////////////////////////////////
+
+
+window1 = input(title='Lookback Intervall 1:', type=input.integer, defval=14)
+window2 = input(title='Lookback Intervall 2:', type=input.integer, defval=30)
+
+
+//////////////////////////////////////////////////////////////////////////
+// Colors
+//////////////////////////////////////////////////////////////////////////
+
+
+// Buy, Upward
+clg = #4EF9FF
+cdg = #3CADB1
+cbg = #00BCD4  //Background
+
+// Sell, Downward
+clr = #FF0081
+cdr = #880E4F
+cbr = #AB47BC
+
+// Idle, Sideward
+cly = #FBC02D
+
+
+//////////////////////////////////////////////////////////////////////////
+// Calculation
+//////////////////////////////////////////////////////////////////////////
+
+
+top1 = valuewhen(high >= highest(high, window1), high, 0)
+bot1 = valuewhen(low <= lowest(low, window1), low, 0)
+top2 = valuewhen(high >= highest(high, window2), high, 0)
+bot2 = valuewhen(low <= lowest(low, window2), low, 0)
+
+
+//////////////////////////////////////////////////////////////////////////
+// Painting
+//////////////////////////////////////////////////////////////////////////
+
+
+t1 = plot(top1, color=top1 != top1[1] ? na : cdr, transp=0, style=plot.style_cross, linewidth=1)
+b1 = plot(bot1, color=bot1 != bot1[1] ? na : cdg, transp=0, style=plot.style_cross, linewidth=1)
+t2 = plot(top2, color=top2 != top2[1] ? na : clr, transp=0, style=plot.style_cross, linewidth=1)
+b2 = plot(bot2, color=bot2 != bot2[1] ? na : clg, transp=0, style=plot.style_cross, linewidth=1)
+
+fill(t1, t2, color=cbr, transp=90)
+fill(b1, b2, color=cbg, transp=90)

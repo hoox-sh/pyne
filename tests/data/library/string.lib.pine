@@ -1,0 +1,37 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © cryptolinx
+
+//@version=5
+
+// @description TODO: add library description here
+library("String")
+
+// ── String to Decimal
+export strDec(float _src) => _src < 1 ? '0.00######' : '0.00#'
+// }
+
+// ── Replace String
+export replace(string _str, string _find, string _replacer) => str.replace_all(_str, _find, _replacer)
+// }
+
+// ── String Array to Float Array
+//| @author: jango_blockchained
+export arrayToNum(string [] _arr) =>
+    float [] NUM = array.new_float()
+    if array.size(_arr) > 0
+        for i = 0 to array.size(_arr) - 1 by 1
+            array.push(NUM, str.tonumber(array.get(_arr, i)))
+    NUM
+// }
+
+// ── Remove Escapeables from String
+//| @author: jango_blockchained
+export removeEscapeables(series string [] _esc, series string _str) =>
+    string escapedString = _str
+    for i = 0 to array.size(_esc) - 1 by 1
+        escapedString := str.replace_all(escapedString, array.get(_esc, i), '')
+    escapedString
+// }
+
+
+exportf_decimals(_val) => int notDecimal = array.lastindexof(str.split(str.tostring(_val), ''), '.'), int(notDecimal < 0 ? 0 : str.length(str.tostring(_val)) - notDecimal - 1)

@@ -1,0 +1,104 @@
+//@version=4
+
+// author=@Daveatt/David Attias
+// https://www.tradingview.com/script/UsOsxont-Trade-Manager-Open-Source-Version/
+
+
+//////////////////////////////////////////////////////////////////////////
+// [IFLOST.io] Trade Manager v1.13
+//////////////////////////////////////////////////////////////////////////
+
+
+study(title="[SETUP-02][PA-03] Position Info Panel", shorttitle="[SETUP-02][PA-03] Position Info Panel", overlay=true, precision=6)
+
+
+//////////////////////////////////////////////////////////////////////////
+// Inputs
+//////////////////////////////////////////////////////////////////////////
+
+
+ext_source_ = input(close, type=input.source, title="Data source")
+showlabels = input(title="Show Labels", type=input.bool, defval=true)
+var string Symbol = "$"
+
+
+//////////////////////////////////////////////////////////////////////////
+//-- COLORS
+//////////////////////////////////////////////////////////////////////////
+
+
+//--__buy, Upward
+var color col_green_1           = #4EF9FF
+var color col_green_2           = #3CADB1
+var color col_green_3           = #26c6da  //*
+var color col_green_4           = #afff00
+var color col_green_5           = #CFD80E
+var color col_green_6           = #90c818
+
+//-- __sell, Downward
+var color col_red_1             = #7b1fa2
+var color col_red_2             = #7e57c2
+var color col_red_3             = #512da8
+var color col_red_4             = #7300de
+var color col_red_5             = #4a148c  //*
+
+//-- Idle, Sideward
+var color col_yellow_1          = #ffa726
+var color col_yellow_2          = #f57c00
+
+
+////////////////////////////////////////////////////////////////////////// 
+// Calculation
+//////////////////////////////////////////////////////////////////////////
+
+
+// variables initialisation
+ext_source = nz(ext_source_)
+
+// 1 is bull signal
+bull = (ext_source == 1)
+// -1 is bear signal
+bear = (ext_source == -1)
+
+// store symbol value when signal is hit
+buy_value = valuewhen(bull, close, 0)
+sell_value = valuewhen(bear, close, 0)
+
+// store the candles
+sinceNUP = barssince(bull)
+sinceNDN = barssince(bear)
+
+// Draw signal labels
+ShowBuyEntry = (showlabels) and (buy_value)
+ShowSellEntry = (showlabels) and (sell_value)
+
+// store the indicator trend
+BuyTrend = sinceNDN > sinceNUP
+SellTrend = sinceNDN < sinceNUP
+
+// store if there is a change of trend
+BuyToSell = BuyTrend and SellTrend[1]
+SellToBuy = SellTrend and BuyTrend[1]
+ChangeTrend = BuyToSell or SellToBuy
+
+
+var label BuyPriceLabel = na
+var label SellPriceLabel = na
+var label BuyPriceLabelBg = na
+var label SellPriceLabelBg = na
+
+if(bull)
+    label.delete(BuyPriceLabelBg)
+    label.delete(BuyPriceLabel)
+    posBUYlabel = low * 0.95
+    BuyPriceLabelBg := label.new(bar_index, posBUYlabel * 1.0005, '', color=col_green_1, textcolor=col_green_1, style=label.style_labelup, yloc=yloc.price, xloc=xloc.bar_index) 
+    BuyPriceLabel := label.new(bar_index, posBUYlabel, 'Last LONG:\n' + tostring(buy_value) + Symbol, color=color.new(#2d2456,0), textcolor=color.white, style=label.style_labelup, yloc=yloc.price, xloc=xloc.bar_index) 
+
+if(bear)
+    label.delete(SellPriceLabelBg)
+    label.delete(SellPriceLabel)
+    posSELLlabel = high * 1.05
+    SellPriceLabelBg := label.new(bar_index, posSELLlabel * 0.9995, '', color=col_red_1, textcolor=col_red_1, style=label.style_labeldown, yloc=yloc.price, xloc=xloc.bar_index)
+    SellPriceLabel := label.new(bar_index, posSELLlabel, 'Last SHORT:\n' + tostring(sell_value) + Symbol, color=color.new(#2d2456,0), textcolor=color.white, style=label.style_labeldown, yloc=yloc.price, xloc=xloc.bar_index)
+
+    

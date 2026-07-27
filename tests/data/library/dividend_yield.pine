@@ -1,0 +1,25 @@
+//@version=6
+indicator(title="Dividend Yield", shorttitle="Dividend Yield, %", format=format.percent, precision=2, overlay=false, dynamic_requests=false)
+close_unadj = request.security(ticker.new(syminfo.prefix, syminfo.ticker, syminfo.session, adjustment.none), timeframe.period, close, lookahead=barmerge.lookahead_on)
+close_adj = request.security(ticker.new(syminfo.prefix, syminfo.ticker, syminfo.session, adjustment.splits), timeframe.period, close, lookahead=barmerge.lookahead_on)
+coeff = close_unadj / close_adj
+dwm_period = timeframe.isdwm ? timeframe.period : "D"
+// Subtract slightly less then one month to accomodate possible overlaps in request.dividends
+year_ago_time_low = timestamp(year - 1, month, dayofmonth + 27, hour, minute)
+year_ago_time_high = timestamp(year - 1, month, dayofmonth - 27, hour, minute)
+year_sum(src) =>
+	i = 13
+	for j = 1 to 12
+		if nz(time[j]) < year_ago_time_low
+			i := j
+			break
+	csum = ta.cum(src / coeff)
+	csum - nz(csum[i])
+div_ticker = ticker.new("ESD_FACTSET", syminfo.prefix + ";" + syminfo.ticker + ";DIVIDENDS")
+div_ttm = request.security(div_ticker, dwm_period, year_sum(close), barmerge.gaps_on, lookahead=barmerge.lookahead_on)
+div_ttm_fill = request.security(div_ticker, dwm_period, year_sum(close), barmerge.gaps_on, lookahead=barmerge.lookahead_on)
+// Add gaps for cases when there is no dividends in last year. +1 month to avoid few-day gaps.
+float last_div_ttm_time = na
+last_div_ttm_time := na(div_ttm) ? last_div_ttm_time[1] : time
+div_ttm_fill_with_gaps = last_div_ttm_time < year_ago_time_high ? na : div_ttm_fill
+plot(div_ttm_fill_with_gaps / close * 100, style=plot.style_linebr, linewidth=2, color=color.rgb(33, 150, 243, 60))

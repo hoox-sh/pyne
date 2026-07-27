@@ -1,0 +1,43 @@
+//@version=2
+study(title="be_mill", shorttitle="be_mill", overlay=true)
+
+myLineToggle = input(defval=true, type=bool, title="Line1")
+myLineToggle2 = input(defval=false, type=bool, title="Line2")
+
+myRSI=rsi(close, 14)
+myThresholdDn = input(defval=25, type=float, title="Lower Threshold1")
+myThresholdDn2 = input(defval=10, type=float, title="Lower Threshold2")
+myThresholdUp = input(defval=75, type=float, title="Higher Threshold")
+s100sma = sma(close, 7)
+s200sma = sma(close, 25)
+plot(myLineToggle2 ? s100sma : na, color = green, linewidth = 1)
+plot(myLineToggle2 ? s200sma : na, color = blue, linewidth = 1)
+
+//plot(s200sma-s100sma, color=green, style=area, transp=80)
+//plot(cross(s100sma, s200sma) ? btc : na, color = black , style = circles, linewidth = 10)
+//plot(cross(s100sma, s200sma) ? btc : na, color = (s200sma - s100sma > 0 ? white : lime) , style = circles, linewidth = 10)
+
+buy1 = (falling(s100sma,100) and (myRSI < 25) and myPosition[1]==1)
+buy2 = ( (myRSI < 5) )
+buy3 = (falling(s100sma,300) and cross(myRSI, 15) and (myRSI < 15))
+buy =  ( buy1 or buy2 or buy3 )
+sell = (rising(s100sma,100) and (myRSI > 70))
+
+plotshape( buy1 ? close : na , style=shape.labelup, location=location.absolute, text= "1buy" , transp=0, textcolor = white, color=green, editable=false)
+plotshape( buy2  ? close : na , style=shape.labelup, location=location.absolute, text= "2buy" , transp=0, textcolor = white, color=green, editable=false)
+plotshape( buy3  ? close : na , style=shape.labelup, location=location.absolute, text= "3buy" , transp=0, textcolor = white, color=green, editable=false)
+plotshape( sell and myPosition[1]==0 ? high : na , style=shape.labeldown, location=location.absolute , text= "Sell" , transp=0, textcolor = white, color=red, editable=false)
+
+//strategy.entry("long", strategy.long, when = buy)
+//strategy.exit("XS", from_entry = "short", when = sell and myPosition[1]==0)
+alertcondition(buy, "Buy!!", "bbbb")
+alertcondition(sell and myPosition[1]==0, "Sell!!", "ssss")
+
+
+
+
+myPosition = buy==1 ? 0 : sell==1 or myPosition[1]==1 ? 1 : 0
+trendColor = buy ? color(red,100) : sell ? green : na
+
+
+plot(myLineToggle ? buy and myPosition[1]==1 ? close - 0.004: sell and myPosition[1]==0 ? close + 0.004 : na : na, color=trendColor, style=line, linewidth=4, editable=false)

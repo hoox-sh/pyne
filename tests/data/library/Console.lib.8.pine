@@ -1,0 +1,1373 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © cryptolinx - jango_blockchained - open 💙 source
+
+//@version=5
+
+// ——— Console {
+//
+// @description This script has evolved from its origins as a classic console script adaptation. \
+// With the introduction of hybrid logs and direct logging to the app's native window, it now offers \
+// enhanced flexibility and control over your logging experience. \
+library('Console', overlay = true)
+// }
+
+//  ▪ ——— CONST
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+// ——— Brackets {
+//
+// @variable An empty string.
+var string EMPTY = ''
+// @variable A string with a single white space.
+var string WS = ' '
+// @variable A block to use in color preview.
+var string BL = '▮'
+// @variable Line Break
+var string BR = '\n'
+// }
+
+
+//  ▪ ——— EXPORT: USER-DEFINED TYPES
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+// ——— Type Theme {
+//
+// |  HEX Color Transparency Codes                     |
+// |-------------|------------|------------|-----------|
+// |  100% - FF  |  75% - BF  |  50% - 80  | 25% - 40  |
+// |   95% - F2  |  70% - B3  |  45% - 73  | 20% - 33  |
+// |   90% - E6  |  65% - A6  |  40% - 66  | 15% - 26  |
+// |   85% - D9  |  60% - 99  |  35% - 59  | 10% - 1A  |
+// |   80% - CC  |  55% - 8C  |  30% - 4D  |  5% - 0D  |
+// |      -      |     -      |     -      |  0% - 00  |
+// --
+// @type    Can be used to define a theme for the console.
+// @field   color_text      The text color.
+// @field   color_bg_table  The background color.
+// @field   color_bg_cell   The background color.
+// @field   color_frame     The background color.
+// @field   color_border    The border color.
+// @field   color_info      The info message color.
+// @field   color_warning   The warning message color.
+// @field   color_error     The error message color.
+// @field   color_success   The success message color.
+// @field   opacity_bg_cell The background opacity.
+// @field   frame_width     Border width of the outer frame.
+// @field   border_width    Width of the inner border. Can be sawed as line spacing.
+export type theme
+    // --
+    color color_text        = chart.fg_color
+    color color_bg_table    = #00000000
+    color color_bg_cell     = #0000001A
+    color color_frame       = #CCCCCC0D
+    color color_border      = #00000000
+    // --
+    color color_info        = #2962FFFF
+    color color_warning     = #FFEB3BFF
+    color color_error       = #FF5252FF
+    color color_success     = #4CAF55FF
+    //--
+    int   opacity_bg_cell   = 90
+    // --
+    int   frame_width       = 1
+    int   border_width      = 0
+// }
+
+// ——— Type Data {
+//
+// @type    Used to store the log information.
+// @field   message                 The log message.
+// @field   level                   The log type. Default `na`.
+// @field   idx                     Corresponding `bar_index`.
+// @field   timestamp               Corresponding timestamp.
+// @field   opt_text_font_family    Text font family.
+// @field   opt_text_size           Text size.
+// @field   opt_text_color          Text color.
+// @field   opt_bg_color            Background color.
+export type data
+    // --
+    string  message
+    int     level                   // 0 = na, 1 = info, 2 = warning, 3 = error, 4 = success
+    // -- 
+    int     idx                     = bar_index
+    int     timestamp               = timenow
+    // --
+    string  opt_text_font_family
+    string  opt_text_size
+    color   opt_text_color
+    color   opt_bg_color
+// }
+
+// ——— Type Terminal {
+//
+// @type    The `<terminal>` type.
+// @field   log_position        The terminal position.
+// @field   columns             The number of columns.
+// @field   rows                Number of rows.
+// @field   width               Panel width to use.
+// @field   height              Panel height to use.
+// @field   max_logs            Maximum amount of saved logs.
+// @field   __theme             Color theme of the terminal.
+// @field   __table             Table to view as a console.
+// @field   __logs              Logs of the terminal
+// @field   text_font_family    Text font family.
+// @field   halign              Horizontal alignment of the text.
+// @field   valign              Vertical alignment of the text.
+// @field   size                Text size.
+// @field   prefix              Optional prefix string, which will be shown at the start of each new line.
+// @field   hide_on_empty       Optional parameter to hide the console view on empty logs.
+// @field   show_no             Optional parameter to show a line number at the beginning of each line.
+export type terminal
+    // --
+    string          log_position            = position.bottom_right
+    // --
+    int             columns                 = 1
+    int             rows                    = 10
+    // --
+    int             width                   = 25 // should be dividable by columns or gets ceiled to the next lower value.
+    int             height                  = 30 // should be dividable by rows or gets ceiled to the next lower value.
+    // --
+    string          size                    = size.small
+    // --
+    int             max_logs                = 100
+    // --
+    string          display                 = 'all'  // all, chart, logs
+    // --
+    theme           __theme
+    table           __table
+    // --
+    array  <data>   __logs
+    // --
+    string          text_font_family        = font.family_monospace
+    string          halign                  = text.align_left
+    string          valign                  = text.align_center
+    string          prefix                  = ''
+    // --
+    bool            hide_on_empty           = true
+    bool            show_no                 = false
+    // --
+    bool            first_call              = false
+// }
+
+
+//  ▪ INTERNAL: HELPER FUNCTIONS
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+// ——— Built-In Overrides {
+//
+// @function    Replaces NaN values with zeros (or given value) in a series.
+// @param       _src            Source to check.
+// @param       _replacement    The alternative value if `_src` is NaN.
+// @returns     The value of `_src` if it is not `na`. If the value of `_src` is `na`, returns `zero`, or the `replacement`
+//              argument when one is used.
+method nz(array <data>   _src, array <data> _replacement) => na(_src) ? _replacement : _src
+method nz(string         _src, string       _replacement) => na(_src) ? _replacement : _src
+method nz(theme          _src, theme        _replacement) => na(_src) ? _replacement : _src
+method nz(table          _src, table        _replacement) => na(_src) ? _replacement : _src
+method nz(color          _src, color        _replacement) => na(_src) ? _replacement : _src
+// }
+
+// ---------------------------------------------------------------------------------------------------------------------
+
+// ——— Method Append String {
+//
+// @function    Append a string, if the source is not `na` and not `empty`.
+// @param       _src    Source to check.
+// @param       _str    String to append.
+// @returns     `<string>`
+method append(string _src, string _str) => not na(_src) and not (_src == EMPTY) ? _src + _str : _src
+// }
+
+// ---------------------------------------------------------------------------------------------------------------------
+
+// ——— Housekeeping {
+//
+// @function    Clean up the logs.
+// @param       this    The `<terminal>` object.
+// @returns     `<terminal>`
+method housekeeping(terminal this) =>
+    while this.__logs.size() > this.max_logs
+        this.__logs.shift()
+    this
+// }
+
+// ---------------------------------------------------------------------------------------------------------------------
+
+// ——— Push Data to Log {
+//
+// @function    Push a `<data>` object to the logs.
+// @param       this    The `<terminal>` object.
+// @param       _data   A `<data>` object.
+// @returns     `<terminal>`
+method push(terminal this, data _data) =>
+    // --
+    this.housekeeping().__logs.push(_data)
+    // >>
+    this
+// --
+method push(data _data, terminal this) => this.push(_data)
+// }
+
+// ——— Format Text {
+//
+// @function    Create a readable text format.
+// @param       this    The `<terminal>` object.
+// @returns     `<terminal>`
+method formatText(string this) =>
+    // --
+    string find1 = '['
+    string find2 = ']'
+    string repl1 = '\n    ▪ '
+    str.replace_all(str.replace_all(this, find1, repl1), find2, EMPTY)
+// }
+
+// ——— Create Table {
+//
+// @function    Create the log table.
+// @param       this    The `<terminal>` object.
+// @returns     `<terminal>`
+method createTable(terminal this) =>
+    // --
+    this.__table := this.__table.nz(table.new(
+     position       = this.log_position,
+     columns        = this.columns,
+     rows           = this.rows,
+     bgcolor        = this.__theme.color_bg_table,
+     frame_color    = this.__theme.color_frame,
+     border_color   = this.__theme.color_border,
+     frame_width    = this.__theme.frame_width,
+     border_width   = this.__theme.border_width
+     ))
+    // --
+    this.height := math.ceil(this.height / this.rows)    * this.rows
+    this.width  := math.ceil(this.width  / this.columns) * this.columns
+    // --
+    for c = 0 to this.columns - 1
+        for r = 0 to this.rows - 1
+            table.cell(
+             table_id           = this.__table,
+             column             = c,
+             row                = r,
+             text_font_family   = this.text_font_family,
+             text_valign        = this.valign,
+             text_halign        = this.halign,
+             text_size          = this.size,
+             height             = int(this.height / this.rows),
+             width              = int(this.width / this.columns),
+             bgcolor            = this.__theme.color_bg_cell,
+             text_color         = this.__theme.color_text
+             )
+    this.__table.cell_set_text(0, 0, 'Info: Use console.show() to show up your logs.') // Friendly Reminder
+    // >>
+    this
+// }
+
+// ——— Default Array {
+//
+// @function    Function creates the default array to use in the `.tostring()` method.
+// @param       _size   The size of the corresponding data.
+// @returns     Returns a `array <string>`
+defaultArray(int _size) => 
+    // >>
+    array.new<string>(1, str.format('Size: {0}', _size))
+// }
+
+// ——— Default Array {
+//
+// @function    Function creates the default array to use in the `.tostring()` method.
+// @param       _size   The size of the corresponding data.
+// @returns     Returns a `array <string>`
+defaultArrayMatrix(int _columns, int _rows) => 
+    // >>
+    array.new<string>(1, str.format('Size: {0}x{1} ({2})', _columns, _rows, _columns * _rows))
+// }
+
+
+//  ▪ EXPORT: POST-HELPER FUNCTIONS
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+// ——— Method Option Text Size {
+//
+// @function    Temporary change the text font family of the last log
+// ___
+// **Example**
+// > ```
+// > myConsole.log('foo').opt_textFontFamily(size.small)
+// > ```
+// ___
+// @param       this        The `<terminal>` object.
+// @param       _fontFamily The temporary text font family.
+// @returns     `<terminal>`
+export method opt_textFontFamily(terminal this, string _fontFamily) =>
+    // --
+    data last                   = this.__logs.last()
+    last.opt_text_font_family  := _fontFamily
+    // >>
+    this
+// }
+
+// ——— Method Option Text Size {
+//
+// @function    Temporary change the text size of the last log
+// ___
+// **Example**
+// > ```
+// > myConsole.log('foo').opt_textSize(size.small)
+// > ```
+// ___
+// @param       this    The `<terminal>` object.
+// @param       _size   The temporary text size.
+// @returns     `<terminal>`
+export method opt_textSize(terminal this, string _size) =>
+    // --
+    data last           = this.__logs.last()
+    last.opt_text_size := _size
+    // >>
+    this
+// }
+
+// ——— Method Option Text Color {
+//
+// @function    Temporary change the text color of the last log.
+// ___
+// **Example**
+// > ```
+// > myConsole.log('foo').opt_textColor(color.red)
+// > ```
+// ___
+// @param       this    The `<terminal>` object.
+// @param       _color  The temporary text color.
+// @returns     `<terminal>`
+export method opt_textColor(terminal this, color _color) =>
+    // --
+    data last            = this.__logs.last()
+    last.opt_text_color := _color
+    // >>
+    this
+// }
+
+// ——— Method Optional Table Background Color {
+//
+// @function    Temporary changes the background color of the last log.
+// ___
+// **Example**
+// > ```
+// > myConsole.log('foo').opt_bgColor(color.red)
+// > ```
+// @param       this    The `<terminal>` object.
+// @param       _color  The temporary background color.
+// @returns     `<terminal>`
+export method opt_bgColor(terminal this, color _color) =>
+    // --
+    data last           = this.__logs.last()
+    last.opt_bg_color  := _color
+    // >>
+    this
+// }
+
+// ——— Method Optional Level {
+//
+// @function    Temporary changes the level of the last log.
+// ___
+// **Example**
+// > ```
+// > myConsole.log('foo').opt_lvl(1)
+// > ```
+// @param       this    The `<terminal>` object.
+// @param       _lvl    The temporary message level.
+// @returns     `<terminal>`
+export method opt_lvl(terminal this, int _lvl) =>
+    // --
+    data last   = this.__logs.last()
+    last.level := _lvl
+    // >>
+    this
+// }
+
+// ---------------------------------------------------------------------------------------------------------------------
+
+// ——— Clear {
+//
+// @function    Clears the `<terminal>` log.
+// ___
+// **Example**
+// > ```
+// > myConsole.clear()
+// > ```
+// @param       this The `<terminal>` object.
+// @returns     `<terminal>`
+export method clear(terminal this) =>
+    // --
+    this.__logs.clear()
+    // >>
+    this
+// }
+
+// ——— Reverse {
+//
+// @function    Reverse the `<terminal>` log.
+// ___
+// **Example**
+// > ```
+// > myConsole.reverse()
+// > ```
+// @param       this The `<terminal>` object.
+// @returns     `<terminal>`
+export method reverse(terminal this) =>
+    // --
+    this.__logs.reverse()
+    // >> 
+    this
+// }
+
+// ---------------------------------------------------------------------------------------------------------------------
+
+// ——— Log Position {
+//
+// @function    Sets the terminal position.
+// ___
+// **Example**
+// > ```
+// > myConsole.setPosition(position.bottom_right)
+// > ```
+// @param       this        The `<terminal>` object.
+// @param       _position   Set one of the `build-in` position arguments.
+// @returns     `<terminal>`
+export method setPosition(terminal this, string _position) => this.log_position := _position, this
+// }
+
+// ——— Method Set Table Background Color {
+//
+// @function    Sets the default background color of the table cell.
+// ___
+// **Example**
+// > ```
+// > myConsole.setTextSize(size.small)
+// > ```
+// @param       this    The `<terminal>` object.
+// @param       _size   Text Size.
+// @returns     `<terminal>`
+export method setTextSize(terminal this, string _size) => this.size := _size, this
+// }
+
+// ——— Method Set Table Background Color {
+//
+// @function    Sets the default background color of the table cell.
+// ___
+// **Example**
+// > ```
+// > myConsole.setBgColor(color.red)
+// > myConsole.setBgColor(color.red, 50)
+// > ```
+// @param       this    The terminal object.
+// @param       _color  The background color.
+// @param       _transp The transparency of the color.
+// @returns     `<terminal>`
+export method setTextColor(terminal this, color _color, int _transp = 85) =>
+    // --
+    this.__theme.color_text := color.new(_color, _transp), this
+// }
+
+// ——— Method Set Table Background Color {
+//
+// @function    Sets the default background color of the table cell.
+// ___
+// **Example**
+// > ```
+// > myConsole.setBgColor(color.red)
+// > myConsole.setBgColor(color.red, 50)
+// > ```
+// @param       this        The terminal object.
+// @param       _color      The background color.
+// @param       _transp     The transparency of the color.
+// @returns     `<terminal>`
+export method setBgColor(terminal this, color _color, int _transp = 85) =>
+    // --
+    this.__theme.color_bg_table := color.new(_color, _transp), this
+// }
+
+// ——— Method Prefix {
+//
+// @function    Sets the prefix of the terminal.
+// ___
+// **Example**
+// > ```
+// > myConsole.setPrefix('>')   // > ...
+// > ```
+// @param       this        The terminal object.
+// @param       _prefix     The prefix of the terminal.
+// @returns     `<terminal>`
+export method setPrefix(terminal this, string _prefix) => this.prefix := _prefix, this
+// }
+
+// ——— Method Show No {
+//
+// @function    Sets the show no of the terminal
+// ___
+// **Example**
+// > ```
+// > myConsole.showNo(true)   // 01 ...
+// > ```
+// @param       this        The terminal object.
+// @param       _show_no    If true, the terminal will show the log number.
+// @returns     `<terminal>`
+export method setShowNo(terminal this, bool _show_no = false) =>this.show_no := _show_no, this
+// }
+
+// ---------------------------------------------------------------------------------------------------------------------
+
+// ——— Method Empty Line {
+//
+// @function    Added a new line (nl) to the console.
+// ___
+// **Example**
+// > ```
+// > myConsole.empty()
+// > //
+// > myConsole.empty().log('foo').empty()
+// > //
+// > // foo
+// > //
+// > ```
+// @param       this    The terminal object.
+// @returns     `<terminal>`
+export method empty(terminal this) => this.__logs.push(data.new(EMPTY)), this
+// }
+
+// ——— Method Horizontal Divider {
+//
+// @function    Add an empty line to the terminal.
+// ___
+// **Example**
+// > ```
+// > // Standard
+// > myConsole.hr()               // --------------------
+// >
+// > // Chained
+// > myConsole
+// >  .hr('foo')                  // foo ----------------
+// >  .log('bar')                 // bar
+// >  .hr()                       // --------------------
+// >
+// > // Custom
+// > myConsole
+// >  .hr('my section', ':', 20)  // my section :::::::::
+// >  .hr('my section', '=', 32)  // my section =====================
+// > ```
+// @param       this        The terminal object.
+// @param       _show_no    If `true`, the terminal will show the log number.
+// @returns     `<terminal>`
+export method hr(terminal this, string _prefix = '', string _str = '-', int _length = 20) =>
+    // --
+    string prefix = _prefix.append(WS)
+    this.__logs.push(data.new(prefix + array.new<string>(_length - str.length(prefix), _str).join()))
+    // >>
+    this
+// }
+
+
+//  ▪ ——— EXPORT: UTILITY METHOD - TO STRING
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+// ——— Method To String {
+//
+// @function    Stringify your data.
+// ___
+// **Types** \
+// \
+// [![string int float bool color valid](https://img.shields.io/badge/string_int_float_bool_color-valid-4CAF55?style=flat)](https://www.tradingview.com/pine-script-docs/en/v5/language/Type_system.html)
+// [![label line box linefill chart.point valid](https://img.shields.io/badge/label_line_box_linefill_chart.point-valid-4CAF55?style=flat)](https://www.tradingview.com/pine-script-docs/en/v5/language/Type_system.html)
+// [![array matrix valid](https://img.shields.io/badge/array_matrix-valid-4CAF55?style=flat)](https://www.tradingview.com/pine-script-docs/en/v5/language/Type_system.html)
+//
+// [![table invalid](https://img.shields.io/badge/table_plot-invalid-FF5252?style=flat)](https://www.tradingview.com/pine-script-docs/en/v5/language/Type_system.html)
+// ___
+// **Example**
+// > ```
+// > int testInt = 100
+// > testInt.toString()
+// >
+// > int testFloat = 3.145912
+// > testFloat.toString()
+// > (1 + 2).tostring()
+// >
+// > int testBool = true
+// > testBool.toString()
+// >
+// > label testLabel = label.new(...)
+// > testLabel.tostring()
+// >
+// > line testLine = line.new(...)
+// > testLine.tostring()
+// >
+// > line testLinefill = linefill.new(...)
+// > testLinefill.tostring()
+// >
+// > line testBox = box.new(...)
+// > testBox.tostring()
+// >
+// > color blue = color.blue
+// > testColor.tostring()
+// > // or simply
+// > color.blue.tostring()
+// > (#FF9900).tostring()
+// >
+// > // Array & Matrix Type Support
+// > array <float> price = array.from(...)
+// > arr.tostring()
+// > matrix <chart.point> mtx = matrix.new<chart.point>()
+// > mtx.tostring()
+// > ```
+// @param       _data   The data to parse.
+// @returns     `<string>`
+export method tostring(array <string> _data) => str.tostring(_data)
+export method tostring(array <int> _data)    => str.tostring(_data)
+export method tostring(array <float> _data)  => str.tostring(_data)
+export method tostring(array <bool> _data)   => str.tostring(_data)
+// --
+export method tostring(int _data)    => str.tostring(_data)
+export method tostring(float _data)  => str.tostring(_data)
+export method tostring(bool _data)   => _data ? 'true' : 'false'
+// --
+export method tostring(label _data) =>
+    array.from(
+     'label',
+     'text:' + WS + _data.get_text(),
+     'x:'    + WS + _data.get_x().tostring(),
+     'y:'    + WS + _data.get_y().tostring()
+     ).tostring()
+// --
+
+export method tostring(line _data) => 
+    array.from(
+     'line',
+     'x1:' + WS + _data.get_x1().tostring(),
+     'x2:' + WS + _data.get_x2().tostring(),
+     'y1:' + WS + _data.get_y1().tostring(),
+     'y2:' + WS + _data.get_y2().tostring()
+     ).tostring()
+// --
+export method tostring(linefill _data) => 
+    array.from(
+     'linefill',
+     'line1: '  + _data.get_line1().tostring(),
+     'line2: '  + _data.get_line2().tostring()
+     ).tostring()
+// --
+export method tostring(box _data) => 
+    array.from(
+     'box',
+     'top:'     + WS + _data.get_top().tostring(),
+     'bottom:'  + WS + _data.get_bottom().tostring(),
+     'left:'    + WS + _data.get_left().tostring(),
+     'right:'   + WS + _data.get_right().tostring()
+     ).tostring()
+// --
+export method tostring(color _data)  =>
+    BL + array.from(
+     'color',
+     'r:' + WS + color.r(_data).tostring(),
+     'g:' + WS + color.g(_data).tostring(),
+     'b:' + WS + color.b(_data).tostring()
+     ).tostring()
+// --
+export method tostring(chart.point _data)  =>
+    // Pseudo label to get the data from the chart.point.
+    label l = label.new(point = _data)
+    int   x = l.get_x()
+    float y = l.get_y()
+    label.delete(l)
+    // --
+    array.from(
+     'chart.point',
+     'x:' + WS + x.tostring(),
+     'y:' + WS + y.tostring()
+     ).tostring()
+// --
+export method tostring(array <label> _data) =>
+    // @variable An array, holding the stringified data.
+    array <string> tmp = defaultArray(_data.size())
+    for l in _data
+        tmp.push(l.tostring())
+    tmp.tostring()
+// --
+export method tostring(array <line> _data) =>
+    // @variable An array, holding the stringified data.
+    array <string> tmp = defaultArray(_data.size())
+    for l in _data
+        tmp.push(l.tostring())
+    tmp.tostring()
+// --
+export method tostring(array <linefill> _data) =>
+    // @variable An array, holding the stringified data.
+    array <string> tmp = defaultArray(_data.size())
+    for lf in _data
+        tmp.push(lf.tostring())
+    tmp.tostring()
+// --
+export method tostring(array <color> _data) =>
+    // @variable An array, holding the stringified data.
+    array <string> tmp = defaultArray(_data.size())
+    for c in _data
+        tmp.push(c.tostring())
+    tmp.tostring()
+// --
+export method tostring(array <box> _data) =>
+    // @variable An array, holding the stringified data.
+    array <string> tmp = defaultArray(_data.size())
+    for b in _data
+        tmp.push(b.tostring())
+    tmp.tostring()
+// --
+export method tostring(array <chart.point> _data) =>
+    // @variable An array, holding the stringified data.
+    array <string> tmp = defaultArray(_data.size())
+    for cp in _data
+        tmp.push(cp.tostring())
+    tmp.tostring()
+// --
+export method tostring(matrix <string> _data) =>
+    // @variable An array, holding the stringified row data.
+    array <string> tmp = defaultArrayMatrix(_data.columns(), _data.rows())
+    for r = 0 to _data.rows() - 1
+        // @variable An array, holding the stringified column data.
+        tmpCol = array.new<string>()
+        for c = 0 to _data.columns() - 1
+            tmpCol.push(_data.get(r, c))
+        tmp.push(tmpCol.tostring())
+    tmp.tostring()
+// --
+export method tostring(matrix <int> _data) =>
+    // @variable An array, holding the stringified row data.
+    array <string> tmp = defaultArrayMatrix(_data.columns(), _data.rows())
+    for r = 0 to _data.rows() - 1
+        // @variable An array, holding the stringified column data.
+        tmpCol = array.new<string>()
+        for c = 0 to _data.columns() - 1
+            tmpCol.push(_data.get(r, c).tostring())
+        tmp.push(tmpCol.tostring()) 
+    tmp.tostring()
+// --
+export method tostring(matrix <float> _data) =>
+    // @variable An array, holding the stringified row data.
+    array <string> tmp = defaultArrayMatrix(_data.columns(), _data.rows())
+    for r = 0 to _data.rows() - 1
+        // @variable An array, holding the stringified column data.
+        tmpCol = array.new<string>()
+        for c = 0 to _data.columns() - 1
+            tmpCol.push(_data.get(r, c).tostring())
+        tmp.push(tmpCol.tostring())
+    tmp.tostring()
+// --
+// --
+export method tostring(matrix <bool> _data) =>
+    // @variable An array, holding the stringified row data.
+    array <string> tmp = defaultArrayMatrix(_data.columns(), _data.rows())
+    for r = 0 to _data.rows() - 1
+        // @variable An array, holding the stringified column data.
+        tmpCol = array.new<string>()
+        for c = 0 to _data.columns() - 1
+            tmpCol.push(_data.get(r, c) ? 'true' : 'false')
+        tmp.push(tmpCol.tostring())
+    tmp.tostring()
+// --
+export method tostring(matrix <label> _data) =>
+    // @variable An array, holding the stringified row data.
+    array <string> tmp = defaultArrayMatrix(_data.columns(), _data.rows())
+    for r = 0 to _data.rows() - 1
+        // @variable An array, holding the stringified column data.
+        tmpCol = array.new<string>()
+        for c = 0 to _data.columns() - 1
+            tmpCol.push(_data.get(r, c).tostring())
+        tmp.push(tmpCol.tostring())
+    tmp.tostring()
+// --
+export method tostring(matrix <line> _data) =>
+    // @variable An array, holding the stringified row data.
+    array <string> tmp = defaultArrayMatrix(_data.columns(), _data.rows())
+    for r = 0 to _data.rows() - 1
+        // @variable An array, holding the stringified column data.
+        tmpCol = array.new<string>()
+        for c = 0 to _data.columns() - 1
+            tmpCol.push(_data.get(r, c).tostring())
+        tmp.push(tmpCol.tostring())
+    tmp.tostring()
+// --
+export method tostring(matrix <linefill> _data) =>
+    // @variable An array, holding the stringified row data.
+    array <string> tmp = defaultArrayMatrix(_data.columns(), _data.rows())
+    for r = 0 to _data.rows() - 1
+        // @variable An array, holding the stringified column data.
+        tmpCol = array.new<string>()
+        for c = 0 to _data.columns() - 1
+            tmpCol.push(_data.get(r, c).tostring())
+        tmp.push(tmpCol.tostring())
+    tmp.tostring()
+// --
+export method tostring(matrix <box> _data) =>
+    // @variable An array, holding the stringified row data.
+    array <string> tmp = defaultArrayMatrix(_data.columns(), _data.rows())
+    for r = 0 to _data.rows() - 1
+        // @variable An array, holding the stringified column data.
+        tmpCol = array.new<string>()
+        for c = 0 to _data.columns() - 1
+            tmpCol.push(_data.get(r, c).tostring())
+        tmp.push(tmpCol.tostring())
+    tmp.tostring()
+// --
+export method tostring(matrix <color> _data) =>
+    // @variable An array, holding the stringified row data.
+    array <string> tmp = defaultArrayMatrix(_data.columns(), _data.rows())
+    for r = 0 to _data.rows() - 1
+        // @variable An array, holding the stringified column data.
+        tmpCol = array.new<string>()
+        for c = 0 to _data.columns() - 1
+            tmpCol.push(_data.get(r, c).tostring())
+        tmp.push(tmpCol.tostring())
+    tmp.tostring()
+// --
+export method tostring(matrix <chart.point> _data) =>
+    // @variable An array, holding the stringified row data.
+    array <string> tmp = defaultArrayMatrix(_data.columns(), _data.rows())
+    for r = 0 to _data.rows() - 1
+        // @variable An array, holding the stringified column data.
+        tmpCol = array.new<string>()
+        for c = 0 to _data.columns() - 1
+            tmpCol.push(_data.get(r, c).tostring())
+        tmp.push(tmpCol.tostring())
+    tmp.tostring()
+// }
+
+
+//  ▪ ——— EXPORT: PRIMARY FUNCTIONS
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+// ——— Init {
+//
+// @function    Init the `<terminal>` object.
+// ___
+// **Example**
+// > ```
+// > var myConsole = Console.terminal.new().init()
+// > // or
+// > var myConsole = Console.terminal.new()
+// > myConsole.init()
+// > ```
+// @param       this    The `<terminal>` object.
+// @param       _theme  Optional theme.
+// @returns     `<terminal>`
+export method init(terminal this, theme _theme = na) =>
+    // --
+    this.__theme := this.__theme.nz(_theme.nz(theme.new()))
+    this.__logs  := this.__logs.nz(array.new<data>())
+    if this.display == 'all' or this.display == 'chart'
+        this.createTable()
+    // >>
+    this
+// }
+
+// ---------------------------------------------------------------------------------------------------------------------
+
+// ——— Show {
+//
+// @function    Shows the terminal.
+// ___
+// **Example 1**
+// > ```
+// > // Place it at the end of your script or even after the last console call.
+// > console.show(...)
+// > ```
+// ___
+// **Example 2**
+// > ```
+// > show   = input.bool(true, 'Show Logs')
+// > offset = input.int(0, 'Log No. Offset')
+// > console.show(show, offset)
+// > ```
+// @param       this        The `<terminal>` object.
+// @param       _visible    Show/Hide.
+// @param       _offset     A (+/-) offset to move througth the logs. 
+// @returns     `<terminal>`
+export method show(terminal this, bool _visible = true, int _offset = 0) =>
+    // --
+    // @variable lines Maximum amount of lines to show.
+    int lines = this.columns * this.rows
+    // @variable Current `index` inside the logs array.
+    int start   = this.__logs.size() < lines ? _offset : this.__logs.size() - lines + _offset
+    start      := start < 0 ? 0 : start
+    int ctr     = start
+    // --
+    if this.display == 'all' or this.display == 'chart'
+        if na(this.__table)
+            this.createTable()
+        // @variable True, if the option `hide_on_empty` is `true` and no logs are registered. False otherwise.
+        bool hide = this.hide_on_empty ? this.__logs.size() == 0 : false
+        if barstate.islast and _visible and not hide
+            for c = 0 to this.columns - 1
+                for r = 0 to this.rows - 1
+                    this.__table.cell_set_text(c, r, str.format(
+                     '{0}{1}{2}',
+                     this.show_no ? str.tostring(ctr,'00')  + WS : EMPTY,
+                     this.prefix != EMPTY ? this.prefix + WS : EMPTY,
+                     this.__logs.get(ctr).message))
+                    // --
+                    // @variable The log level of the message.
+                    int level = this.__logs.get(ctr).level
+                    [textColor_, bgColor_] = switch level
+                        1 => [this.__theme.color_info,    this.__theme.color_info   ]
+                        2 => [this.__theme.color_warning, this.__theme.color_warning]
+                        3 => [this.__theme.color_error,   this.__theme.color_error  ]
+                        4 => [this.__theme.color_success, this.__theme.color_success]
+                        // --
+                        => [this.__theme.color_text, this.__theme.color_bg_cell]
+                    // --
+                    // @variable Optional text color. If not set, the associated level/default color is used.
+                    color textColor = this.__logs.get(ctr).opt_text_color.nz(textColor_)
+                    // @variable Optional background color. If not set, the associated level/default color is used.
+                    color bgColor   = this.__logs.get(ctr).opt_bg_color.nz(bgColor_)
+                    // @variable Optional text size. If not set, the default text size is used.
+                    string textSize = this.__logs.get(ctr).opt_text_size.nz(this.size)
+                    // @variable Optional text font family. If not set, the default text font family is used.
+                    string textFont = this.__logs.get(ctr).opt_text_font_family.nz(this.text_font_family)
+                    this.__table.cell_set_text_font_family(c, r, textFont)
+                    this.__table.cell_set_text_size(c, r, textSize)
+                    this.__table.cell_set_text_color(c, r, textColor)
+                    this.__table.cell_set_bgcolor(c, r, color.new(bgColor, this.__theme.opacity_bg_cell))
+                    // --
+                    // @variable Additional information string, including the `bar_index` and `timestamp`, to show up in the tooltip of each log.
+                    string info = str.format('bar_index = #{0,number,#####}', this.__logs.get(ctr).idx)
+                     + WS + str.format_time(this.__logs.get(ctr).timestamp, 'yyyy-MM-dd HH:mm:ss', syminfo.timezone)
+                    this.__table.cell_set_tooltip(c, r, info + BR + this.__logs.get(ctr).message.formatText())
+                    // --
+                    ctr += 1
+                    if ctr > this.__logs.size() - 1
+                        break
+                if ctr > this.__logs.size() - 1
+                    break
+        else
+            this.__table.delete()
+	// --
+    if this.display == 'all' or this.display == 'logs'
+        for i = start to this.__logs.size() - 1
+			string msg = this.__logs.get(i).message.formatText()
+            switch this.__logs.get(i).level
+                2 => log.warning(msg)
+                3 => log.error(msg)
+                => log.info(msg)
+	// >>
+    this
+// }
+
+// ---------------------------------------------------------------------------------------------------------------------
+
+// ——— Method Unified Log Functions { 
+//
+// @function    Log data to the terminal.
+// ___
+// **Types** \
+// \
+// [![string int float bool color valid](https://img.shields.io/badge/string_int_float_bool_color-valid-4CAF55?style=flat)](https://www.tradingview.com/pine-script-docs/en/v5/language/Type_system.html)
+// [![label line box linefill chart.point valid](https://img.shields.io/badge/label_line_box_linefill_chart.point-valid-4CAF55?style=flat)](https://www.tradingview.com/pine-script-docs/en/v5/language/Type_system.html)
+// [![array matrix valid](https://img.shields.io/badge/array_matrix-valid-4CAF55?style=flat)](https://www.tradingview.com/pine-script-docs/en/v5/language/Type_system.html)
+//
+// [![table invalid](https://img.shields.io/badge/table_plot-invalid-FF5252?style=flat)](https://www.tradingview.com/pine-script-docs/en/v5/language/Type_system.html)
+// ___
+// **Log Level** \
+// \
+// [![lvl 0 na](https://img.shields.io/badge/lvl_0-na-grey?style=flat)]()
+// [![lvl 1 info](https://img.shields.io/badge/lvl_1-info-2962ff?style=flat)]()
+// [![lvl 2 warning](https://img.shields.io/badge/lvl_2-warning-FFEB3B?style=flat)]()
+// [![lvl 3 error](https://img.shields.io/badge/lvl_3-error-FF5252?style=flat)]()
+// [![lvl 4 success](https://img.shields.io/badge/lvl_4-success-4CAF55?style=flat)]()
+// ___
+// **Example**
+//
+// At first, import the library. Mostly at the beginning of the script:
+// > ```
+// > import cryptolinx/console/<VERSION>        // Namespace: 'Console'
+// >
+// > import cryptolinx/console/<VERSION> as c   // Namespace: 'c'
+// > ```
+//
+// Secondly
+// > ```
+// > // Logging a string with default log level (0)
+// > console
+// >  .log("Hello")
+// >  .log("World!")
+// >  .hr()
+// >
+// > // Logging a float
+// > console.log(3.14159)
+// >
+// > // Logging an integer with log-level info (1)
+// > console.log(42).opt_lvl(1)
+// >
+// > // Logging a boolean with the prefix
+// > console.log('My Value is', true)
+// >
+// > // Logging a calculation ✨inline while assigning it to a new variable.
+// > calculatedPrice = (close * 1.01).log(console)
+// >
+// > // Logging a color with the prefix
+// > console.log('My Color', testColor)
+// >
+// > // Logging an array of integers ✨inline
+// > myArray.log(console)  // logs the data and returns it
+// >
+// > // Logging a line ✨inline
+// > myLine = line.new().log(console) // logs the line and returns it. Variable declaration
+// >
+// > // Logging a string with a custom prefix and delimiter
+// > console.log("CustomPrefix", "Hello, World!", "->")
+// > ```
+// ___
+// **Native Log Level** \
+// \
+// [![lvl 1 info](https://img.shields.io/badge/lvl_1-info-2962ff?style=flat)]()
+// [![lvl 2 warning](https://img.shields.io/badge/lvl_2-warning-FFEB3B?style=flat)]()
+// [![lvl 3 error](https://img.shields.io/badge/lvl_3-error-FF5252?style=flat)]()
+// ___
+// **Direct Version Example**
+// > ```
+// > import cryptolinx/console/<VERSION>        // Namespace: 'Console'
+// > Console.log(data)
+// >
+// > import cryptolinx/console/<VERSION> as c   // Namespace: 'c'
+// > int myInt = 5
+// > color myColor = color.blue
+// > c.log(myInt)                              // Log Level: info (default)
+// > myInt.log()
+// > c.log(myColor, 2)                         // Log Level: warning
+// > myColor.log()
+// > c.log(myBool, 3)                          // Log Level: error
+// > myBool.log()
+// > myLine.log()
+// > myArray.log()
+// > myMatrix.log()
+// > // ... as short as simple ✨
+// > ```
+// ___
+// **Direct Version** 
+//
+// * _This function is called directly onto the import namespace._
+// * _This function is limited to native logs only._
+//
+// It is not recommended for standard behavior and is typically used for logging from inside a library function or any other scope that cannot modify globals. \
+// The advantage of this version is the automatic conversion of all supported native types to strings, allowing them to be displayed in the app's native log window.
+// @param   _data   Any of the supported data types.
+// @returns `<Console.terminal>` A temporary terminal object to pass the data to the native logs.
+// @param       this            The terminal object.
+// @param       _data           The data to log
+// @param       _prefix         Appending prefix string.
+// @param       _delimiter      Delimiter between prefix and data.
+// @returns     `<terminal>`
+export method log(terminal this, data                   _data) => this.push(_data)
+export method log(terminal this, string                 _data) => this.push(data.new(_data))
+export method log(terminal this, float                  _data) => this.log(_data.tostring())
+export method log(terminal this, int                    _data) => this.log(_data.tostring())
+export method log(terminal this, bool                   _data) => this.log(_data.tostring())
+export method log(terminal this, label                  _data) => this.log(_data.tostring())
+export method log(terminal this, line                   _data) => this.log(_data.tostring())
+export method log(terminal this, linefill               _data) => this.log(_data.tostring())
+export method log(terminal this, box                    _data) => this.log(_data.tostring())
+export method log(terminal this, chart.point            _data) => this.log(_data.tostring())
+export method log(terminal this, color                  _data) =>
+    this.log(data.new(_data.tostring(), opt_text_color = _data, opt_bg_color = _data))
+// --
+export method log(terminal this, array <string>         _data) => this.log(_data.tostring())
+export method log(terminal this, array <float>          _data) => this.log(_data.tostring())
+export method log(terminal this, array <int>            _data) => this.log(_data.tostring())
+export method log(terminal this, array <bool>           _data) => this.log(_data.tostring())
+export method log(terminal this, array <label>          _data) => this.log(_data.tostring())
+export method log(terminal this, array <line>           _data) => this.log(_data.tostring())
+export method log(terminal this, array <linefill>       _data) => this.log(_data.tostring())
+export method log(terminal this, array <box>            _data) => this.log(_data.tostring())
+export method log(terminal this, array <color>          _data) => this.log(_data.tostring())
+export method log(terminal this, array <chart.point>    _data) => this.log(_data.tostring())
+// --
+export method log(terminal this, matrix <string>        _data) => this.log(_data.tostring())
+export method log(terminal this, matrix <float>         _data) => this.log(_data.tostring())
+export method log(terminal this, matrix <int>           _data) => this.log(_data.tostring())
+export method log(terminal this, matrix <bool>          _data) => this.log(_data.tostring())
+export method log(terminal this, matrix <label>         _data) => this.log(_data.tostring())
+export method log(terminal this, matrix <line>          _data) => this.log(_data.tostring())
+export method log(terminal this, matrix <linefill>      _data) => this.log(_data.tostring())
+export method log(terminal this, matrix <box>           _data) => this.log(_data.tostring())
+export method log(terminal this, matrix <color>         _data) => this.log(_data.tostring())
+export method log(terminal this, matrix <chart.point>   _data) => this.log(_data.tostring())
+
+// Log data with a custom `prefix` and `delimiter` to the terminal.
+export method log(terminal this, string _prefix, data                   _data, string _delimiter = ':') =>
+    _data.message := _prefix.append(_delimiter).append(WS) + _data.message
+    this.push(_data)
+export method log(terminal this, string _prefix, string                 _data, string _delimiter = ':') =>
+    this.push(data.new(_prefix.append(_delimiter).append(WS) + _data))
+export method log(terminal this, string _prefix, float                  _data, string _delimiter = ':') =>
+    this.log(_prefix, _data.tostring(), _delimiter)
+export method log(terminal this, string _prefix, int                    _data, string _delimiter = ':') =>
+    this.log(_prefix, _data.tostring(), _delimiter)
+export method log(terminal this, string _prefix, bool                   _data, string _delimiter = ':') =>
+    this.log(_prefix, _data.tostring(), _delimiter)
+export method log(terminal this, string _prefix, label                  _data, string _delimiter = ':') =>
+    this.log(_prefix, _data.tostring(), _delimiter)
+export method log(terminal this, string _prefix, line                   _data, string _delimiter = ':') =>
+    this.log(_prefix, _data.tostring(), _delimiter)
+export method log(terminal this, string _prefix, linefill               _data, string _delimiter = ':') =>
+    this.log(_prefix, _data.tostring(), _delimiter)
+export method log(terminal this, string _prefix, box                    _data, string _delimiter = ':') =>
+    this.log(_prefix, _data.tostring(), _delimiter)
+export method log(terminal this, string _prefix, color                  _data, string _delimiter = ':') =>
+    this.log(_prefix, data.new(_data.tostring(), opt_text_color = _data, opt_bg_color = _data), _delimiter)
+export method log(terminal this, string _prefix, chart.point            _data, string _delimiter = ':') =>
+    this.log(_prefix, _data.tostring(), _delimiter)
+// --
+export method log(terminal this, string _prefix, array <string>         _data, string _delimiter = ':') =>
+    this.log(_prefix, _data.tostring(), _delimiter)
+export method log(terminal this, string _prefix, array <float>          _data, string _delimiter = ':') =>
+    this.log(_prefix, _data.tostring(), _delimiter)
+export method log(terminal this, string _prefix, array <int>            _data, string _delimiter = ':') =>
+    this.log(_prefix, _data.tostring(), _delimiter)
+export method log(terminal this, string _prefix, array <bool>           _data, string _delimiter = ':') =>
+    this.log(_prefix, _data.tostring(), _delimiter)
+export method log(terminal this, string _prefix, array <label>          _data, string _delimiter = ':') =>
+    this.log(_prefix, _data.tostring(), _delimiter)
+export method log(terminal this, string _prefix, array <line>           _data, string _delimiter = ':') =>
+    this.log(_prefix, _data.tostring(), _delimiter)
+export method log(terminal this, string _prefix, array <linefill>       _data, string _delimiter = ':') =>
+    this.log(_prefix, _data.tostring(), _delimiter)
+export method log(terminal this, string _prefix, array <box>            _data, string _delimiter = ':') =>
+    this.log(_prefix, _data.tostring(), _delimiter)
+export method log(terminal this, string _prefix, array <color>          _data, string _delimiter = ':') =>
+    this.log(_prefix, _data.tostring(), _delimiter)
+export method log(terminal this, string _prefix, array <chart.point>    _data, string _delimiter = ':') =>
+    this.log(_prefix, _data.tostring(), _delimiter)
+// --
+export method log(terminal this, string _prefix, matrix <string>        _data, string _delimiter = ':') =>
+    this.log(_prefix, _data.tostring(), _delimiter)
+export method log(terminal this, string _prefix, matrix <float>         _data, string _delimiter = ':') =>
+    this.log(_prefix, _data.tostring(), _delimiter)
+export method log(terminal this, string _prefix, matrix <int>           _data, string _delimiter = ':') =>
+    this.log(_prefix, _data.tostring(), _delimiter)
+export method log(terminal this, string _prefix, matrix <bool>          _data, string _delimiter = ':') =>
+    this.log(_prefix, _data.tostring(), _delimiter)
+export method log(terminal this, string _prefix, matrix <label>         _data, string _delimiter = ':') =>
+    this.log(_prefix, _data.tostring(), _delimiter)
+export method log(terminal this, string _prefix, matrix <line>          _data, string _delimiter = ':') =>
+    this.log(_prefix, _data.tostring(), _delimiter)
+export method log(terminal this, string _prefix, matrix <linefill>      _data, string _delimiter = ':') =>
+    this.log(_prefix, _data.tostring(), _delimiter)
+export method log(terminal this, string _prefix, matrix <box>           _data, string _delimiter = ':') =>
+    this.log(_prefix, _data.tostring(), _delimiter)
+export method log(terminal this, string _prefix, matrix <color>         _data, string _delimiter = ':') =>
+    this.log(_prefix, _data.tostring(), _delimiter)
+export method log(terminal this, string _prefix, matrix <chart.point>   _data, string _delimiter = ':') =>
+    this.log(_prefix, _data.tostring(), _delimiter)
+
+// Log data `inline` ✨ to the terminal and returns the logged data instead of the terminal object. 
+export method log(string                _data, terminal this, string _prefix,      string _delimiter = ':') =>
+    this.log(_prefix, _data, _delimiter), _data
+export method log(float                 _data, terminal this, string _prefix = '', string _delimiter = ':') =>
+    this.log(_prefix, _data.tostring(), _delimiter), _data
+export method log(int                   _data, terminal this, string _prefix = '', string _delimiter = ':') =>
+    this.log(_prefix, _data.tostring(), _delimiter), _data
+export method log(bool                  _data, terminal this, string _prefix = '', string _delimiter = ':') =>
+    this.log(_prefix, _data.tostring(), _delimiter), _data
+export method log(label                 _data, terminal this, string _prefix = '', string _delimiter = ':') =>
+    this.log(_prefix, _data.tostring(), _delimiter), _data
+export method log(line                  _data, terminal this, string _prefix = '', string _delimiter = ':') =>
+    this.log(_prefix, _data.tostring(), _delimiter), _data
+export method log(linefill              _data, terminal this, string _prefix = '', string _delimiter = ':') =>
+    this.log(_prefix, _data.tostring(), _delimiter), _data
+export method log(box                   _data, terminal this, string _prefix = '', string _delimiter = ':') =>
+    this.log(_prefix, _data.tostring(), _delimiter), _data
+export method log(color                 _data, terminal this, string _prefix = '', string _delimiter = ':') =>
+    this.log(_prefix, data.new(_data.tostring(), opt_text_color = _data, opt_bg_color = _data), _delimiter)
+export method log(chart.point           _data, terminal this, string _prefix = '', string _delimiter = ':') =>
+    this.log(_prefix, _data.tostring(), _delimiter), _data
+// --
+export method log(array <string>        _data, terminal this, string _prefix = '', string _delimiter = ':') =>
+    this.log(_prefix, _data.tostring(), _delimiter), _data
+export method log(array <float>         _data, terminal this, string _prefix = '', string _delimiter = ':') =>
+    this.log(_prefix, _data.tostring(), _delimiter), _data
+export method log(array <int>           _data, terminal this, string _prefix = '', string _delimiter = ':') =>
+    this.log(_prefix, _data.tostring(), _delimiter), _data
+export method log(array <bool>          _data, terminal this, string _prefix = '', string _delimiter = ':') =>
+    this.log(_prefix, _data.tostring(), _delimiter), _data
+export method log(array <label>         _data, terminal this, string _prefix = '', string _delimiter = ':') =>
+    this.log(_prefix, _data.tostring(), _delimiter), _data
+export method log(array <line>          _data, terminal this, string _prefix = '', string _delimiter = ':') =>
+    this.log(_prefix, _data.tostring(), _delimiter), _data
+export method log(array <linefill>      _data, terminal this, string _prefix = '', string _delimiter = ':') =>
+    this.log(_prefix, _data.tostring(), _delimiter), _data
+export method log(array <box>           _data, terminal this, string _prefix = '', string _delimiter = ':') =>
+    this.log(_prefix, _data.tostring(), _delimiter), _data
+export method log(array <color>         _data, terminal this, string _prefix = '', string _delimiter = ':') =>
+    this.log(_prefix, _data.tostring(), _delimiter), _data
+export method log(array <chart.point>   _data, terminal this, string _prefix = '', string _delimiter = ':') =>
+    this.log(_prefix, _data.tostring(), _delimiter), _data
+// --
+export method log(matrix <string>       _data, terminal this, string _prefix = '', string _delimiter = ':') =>
+    this.log(_prefix, _data.tostring(), _delimiter), _data
+export method log(matrix <float>        _data, terminal this, string _prefix = '', string _delimiter = ':') =>
+    this.log(_prefix, _data.tostring(), _delimiter), _data
+export method log(matrix <int>          _data, terminal this, string _prefix = '', string _delimiter = ':') =>
+    this.log(_prefix, _data.tostring(), _delimiter), _data
+export method log(matrix <bool>         _data, terminal this, string _prefix = '', string _delimiter = ':') =>
+    this.log(_prefix, _data.tostring(), _delimiter), _data
+export method log(matrix <label>        _data, terminal this, string _prefix = '', string _delimiter = ':') =>
+    this.log(_prefix, _data.tostring(), _delimiter), _data
+export method log(matrix <line>         _data, terminal this, string _prefix = '', string _delimiter = ':') =>
+    this.log(_prefix, _data.tostring(), _delimiter), _data
+export method log(matrix <linefill>     _data, terminal this, string _prefix = '', string _delimiter = ':') =>
+    this.log(_prefix, _data.tostring(), _delimiter), _data
+export method log(matrix <box>          _data, terminal this, string _prefix = '', string _delimiter = ':') =>
+    this.log(_prefix, _data.tostring(), _delimiter), _data
+export method log(matrix <color>        _data, terminal this, string _prefix = '', string _delimiter = ':') =>
+    this.log(_prefix, _data.tostring(), _delimiter), _data
+export method log(matrix <chart.point>  _data, terminal this, string _prefix = '', string _delimiter = ':') =>
+    this.log(_prefix, _data.tostring(), _delimiter), _data
+// --
+// Direct Version
+//
+// - This function is called directly onto the dataimport namespace.
+// - This function is limited to native logs only.
+//
+// The advantage of this version is the automatic conversion of all supported native types to strings,
+// allowing them to be displayed in the app's native log window.
+export method log(data                   _data, series int _lvl = 1) =>
+    terminal.new(display = 'logs').init().push(_data).opt_lvl(_lvl).show()
+// --
+export method log(string                 _data, series int _lvl = 1) => log(data.new(_data),  _lvl), _data
+export method log(float                  _data, series int _lvl = 1) => log(_data.tostring(), _lvl), _data
+export method log(int                    _data, series int _lvl = 1) => log(_data.tostring(), _lvl), _data
+export method log(bool                   _data, series int _lvl = 1) => log(_data.tostring(), _lvl), _data
+export method log(label                  _data, series int _lvl = 1) => log(_data.tostring(), _lvl), _data
+export method log(line                   _data, series int _lvl = 1) => log(_data.tostring(), _lvl), _data
+export method log(linefill               _data, series int _lvl = 1) => log(_data.tostring(), _lvl), _data
+export method log(box                    _data, series int _lvl = 1) => log(_data.tostring(), _lvl), _data
+export method log(chart.point            _data, series int _lvl = 1) => log(_data.tostring(), _lvl), _data
+export method log(color                  _data, series int _lvl = 1) =>
+    log(data.new(_data.tostring(), opt_text_color = _data, opt_bg_color = _data), _lvl), _data
+// --
+export method log(array <string>         _data, series int _lvl = 1) => log(_data.tostring(), _lvl), _data
+export method log(array <float>          _data, series int _lvl = 1) => log(_data.tostring(), _lvl), _data
+export method log(array <int>            _data, series int _lvl = 1) => log(_data.tostring(), _lvl), _data
+export method log(array <bool>           _data, series int _lvl = 1) => log(_data.tostring(), _lvl), _data
+export method log(array <label>          _data, series int _lvl = 1) => log(_data.tostring(), _lvl), _data
+export method log(array <line>           _data, series int _lvl = 1) => log(_data.tostring(), _lvl), _data
+export method log(array <linefill>       _data, series int _lvl = 1) => log(_data.tostring(), _lvl), _data
+export method log(array <box>            _data, series int _lvl = 1) => log(_data.tostring(), _lvl), _data
+export method log(array <color>          _data, series int _lvl = 1) => log(_data.tostring(), _lvl), _data
+export method log(array <chart.point>    _data, series int _lvl = 1) => log(_data.tostring(), _lvl), _data
+// --
+export method log(matrix <string>        _data, series int _lvl = 1) => log(_data.tostring(), _lvl), _data
+export method log(matrix <float>         _data, series int _lvl = 1) => log(_data.tostring(), _lvl), _data
+export method log(matrix <int>           _data, series int _lvl = 1) => log(_data.tostring(), _lvl), _data
+export method log(matrix <bool>          _data, series int _lvl = 1) => log(_data.tostring(), _lvl), _data
+export method log(matrix <label>         _data, series int _lvl = 1) => log(_data.tostring(), _lvl), _data
+export method log(matrix <line>          _data, series int _lvl = 1) => log(_data.tostring(), _lvl), _data
+export method log(matrix <linefill>      _data, series int _lvl = 1) => log(_data.tostring(), _lvl), _data
+export method log(matrix <box>           _data, series int _lvl = 1) => log(_data.tostring(), _lvl), _data
+export method log(matrix <color>         _data, series int _lvl = 1) => log(_data.tostring(), _lvl), _data
+export method log(matrix <chart.point>   _data, series int _lvl = 1) => log(_data.tostring(), _lvl), _data
+// }
+
+
+//  ▪ ——— EXAMPLES
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+// ——— Inputs {
+//
+// @variable Example user input to control the output visibility.
+var bool _SHOW  = input.bool(true, 'Show Logs')
+// @variable Example user input to move through the logs. (+/-)
+var int _OFFSET = input.int(0, 'Log No. Offset', tooltip = 'A (+/-) offset to move through the logs')
+// @variable Example user input to switch between a standard and an example theme.
+var bool _THEME = input.bool(false, 'Switch Theme')
+// }
+
+// ——— Setup {
+//
+// @note Do not forget to import this library first by using `import Cryptolinx/Console/<VERSION> as <NAMESPACE>`.
+// Do not forget to use a custom alias or even the library name to access the library functions. 
+// Eg. `console = <NAMESPACE>.terminal.new()`
+// --
+
+// @variable A custom `<terminal>` theme.
+theme th = theme.new(
+ color_text     = #c1a4f7,
+ color_bg_table = #04000a80
+ )
+
+// @variable A new, initialized `<terminal>` object, recreated on every bar.
+console = terminal.new(prefix = '>', height = 48, rows = 16, size = size.small, display = 'chart').init(_THEME ? th : na)
+
+// @variable A new, initialized `<terminal>` object, created once on the first bar.
+// var console_full = terminal.new(log_position=position.bottom_left, prefix = '> ', show_no = true).init()
+// }
+
+// ———  Inline ✨ {
+//
+// @variable An example array.
+array <float> testArray = array.new<float>(3, .0).log(console)
+// @variable A example label.
+label testLabel = label.new(bar_index + 25, close, 'Test Label', style = label.style_label_center).log(console)
+
+
+// On Built-In Variables
+// --
+color.aqua.log(console)
+label.all.log(console, 'Label All')
+
+// It is also possible to use `().` for literals ✨.
+// --
+// @variable An example integer.
+int a = 100
+// @variable The sum of an example calculation
+int testCalc = (5 * 100).log(console) + a.log(console,'+','') // SUM: 600
+
+// @note If you use inline logging on variables that get initialized by the `var` keyword,
+// your data will only get logged once on the first bar.
+// }
+
+// ——— Basic {
+//
+console
+ .hr('TOTAL', '=')
+ .log('SUM', testCalc)
+ .hr('Array', ':')
+ .log('My Array', testArray).opt_lvl(1)
+ .hr()
+ .log(testLabel).opt_lvl(4)
+ .hr('Chart.Point')
+ .log('Now', chart.point.now()).opt_textColor(color.aqua)
+ .empty()
+ .log(#FF46A4)
+// --
+testLabel.delete()
+// }
+
+// ——— Finally
+//
+console.show(_SHOW, _OFFSET) // The _show argument is true by default. Simply turn it on or off.
+// } 
+
+
+// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+// ——— Direct Version Example {
+//
+test_function(int a) =>
+    a.log()
+// --
+test_function(1000)
+test_function(2000)
+// --
+chart.point.now().log(2)
+bar_index.log()
+close.log(3)
+color.blue.log()
+// }
+
+
+// #EOF

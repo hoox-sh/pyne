@@ -1,0 +1,88 @@
+//@version=4
+//script taken from https://www.tradingview.com/v/OkACQQgL/
+//@url=https://de.tradingview.com/script/oZXsT2p6-Lucid-SAR-Oscillator/
+
+study("Lucid SAR Oscillator",overlay=false)
+
+AF_initial = input(0.02)
+AF_increment = input(0.02)
+AF_maximum = input(0.2)
+
+
+// start with uptrend
+uptrend = true
+newtrend = false
+EP = high
+SAR = low
+AF = AF_initial
+
+if not na(uptrend[1]) and not na(newtrend[1])
+    if uptrend[1]
+        EP := max(high, EP[1])
+    else
+        EP := min(low, EP[1])
+    if newtrend[1]
+        AF := AF_initial
+    else
+        if EP != EP[1]
+            AF := min(AF_maximum, AF[1] + AF_increment)
+        else
+            AF := AF[1]
+    SAR := SAR[1] + AF * (EP - SAR[1])
+    if uptrend[1]
+        if newtrend
+            SAR := max(high, EP[1])
+            EP := min(low, low[1])
+        else
+            SAR := min(SAR, low[1])
+            if not na(low[2])
+                SAR := min(SAR, low[2])
+            if SAR > low
+                uptrend := false
+                newtrend := true
+                SAR := max(high, EP[1])
+                EP := min(low, low[1])
+            else
+                uptrend := true
+                newtrend := false
+    else
+        if newtrend
+            SAR := min(low, EP[1])
+            EP := max(high, high[1])
+        else
+            SAR := max(SAR, high[1])
+            if not na(high[2])
+                SAR := max(SAR, high[2])
+            if SAR < high
+                uptrend := true
+                newtrend := true
+                SAR := min(low, EP[1])
+                EP := max(high, high[1])
+            else
+                uptrend := false
+                newtrend := false
+            
+x=close-SAR
+//plot(x/close)
+plot(0)
+//
+len=input(10)
+signal = ema(x,len)
+//  Plotting: 
+barColor =x >= 0 and x > signal ? color.teal : x > 0 and x < signal ? color.lime : x < 0 and x < signal ? color.red : color.orange
+//plot(signal, color=color.aqua, linewidth=3)
+plot(x, color=barColor, style=plot.style_histogram, linewidth=3)
+
+
+//plot(signal, color=color.aqua, linewidth=3)
+//barcolor(barColor)
+bgcolor(barColor == color.teal or barColor == color.lime ? color.green : color.red)
+zero=input(0)
+down = crossunder(x, 0) 
+up = crossover(x, 0) 
+plot(up  ?zero :na, style=plot.style_cross, color=color.blue, linewidth=5, transp=0)
+plot(down ?zero :na, style=plot.style_cross, color=color.red, linewidth=5, transp=0)
+//
+/////// Alerts /////
+alertcondition(down,title="down")
+alertcondition(up,title="up")

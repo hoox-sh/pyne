@@ -1,0 +1,64 @@
+//@version=4
+study(title="VWAP Periodic", shorttitle="VWAP", overlay=true)
+anchor = input(defval = "Session", title="VWAP Periodic", type=input.string, options=["Session", "Week", "Month", "Year"])
+MILLIS_IN_DAY = 86400000
+dwmBarTime = timeframe.isdwm ? time : time("D")
+// If it`s a short day, then there could be no daily bar. Take a previous one.
+if na(dwmBarTime)
+	dwmBarTime := nz(dwmBarTime[1])
+var periodStart = time - time // zero
+// in pine week starts on Sunday and it`s value 1. Value of Monday is 2
+// we need a week to start on Monday and its value should be 0
+makeMondayZero(dayOfWeek) => (dayOfWeek + 5) % 7
+isMidnight(t) =>
+	hour(t) == 0 and minute(t) == 0
+isSameDay(t1, t2) =>
+	dayofmonth(t1) == dayofmonth(t2) and
+	 month(t1) == month(t2) and
+	 year(t1) == year(t2)
+isOvernight() =>
+	not (isMidnight(dwmBarTime) or security(syminfo.tickerid, "D", isSameDay(time, time_close), lookahead=true))
+tradingDayStart(t) =>
+	y = year(t)
+	m = month(t)
+	d = dayofmonth(t)
+	timestamp(y, m, d, 0, 0)
+numDaysBetween(time1, time2) =>
+	y1 = year(time1)
+	m1 = month(time1)
+	d1 = dayofmonth(time1)
+	y2 = year(time2)
+	m2 = month(time2)
+	d2 = dayofmonth(time2)
+	diff = abs(timestamp("GMT", y1, m1, d1, 0, 0) - timestamp("GMT", y2, m2, d2, 0, 0))
+	diff / MILLIS_IN_DAY
+// a symbol with overnight session starts at previos day
+// to get the trading day we should get the next day after the session`s start
+tradingDay = isOvernight() ? tradingDayStart(dwmBarTime + MILLIS_IN_DAY) : tradingDayStart(dwmBarTime)
+isNewPeriod() =>
+	isNew = false
+	if tradingDay != nz(tradingDay[1])
+		if anchor == "Session"
+			isNew := na(tradingDay[1]) or tradingDay > tradingDay[1]
+		if anchor == "Week"
+			DAYS_IN_WEEK = 7
+			isNew := makeMondayZero(dayofweek(periodStart)) + numDaysBetween(periodStart, tradingDay) >= DAYS_IN_WEEK
+		if anchor =="Month"
+			isNew := month(periodStart) != month(tradingDay) or year(periodStart) != year(tradingDay)
+		if anchor == "Year"
+			isNew := year(periodStart) != year(tradingDay)
+	isNew
+src = input(title = "Source", type = input.source, defval = hlc3)
+sumSrc = float(na)
+sumVol = float(na)
+sumSrc := nz(sumSrc[1], 0)
+sumVol := nz(sumVol[1], 0)
+if isNewPeriod()
+	periodStart := tradingDay
+	sumSrc := 0.0
+	sumVol := 0.0
+if not na(src) and not na(volume)
+	sumSrc := sumSrc + src * volume
+	sumVol := sumVol + volume
+vwapValue = sumSrc / sumVol
+plot(vwapValue, title="VWAP", color=#3A6CA8)

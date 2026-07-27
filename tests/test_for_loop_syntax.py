@@ -1,0 +1,93 @@
+# Copyright (C) 2025 jango-blockchained
+#
+# SPDX-License-Identifier: LGPL-3.0-or-later
+
+"""Parse/unparse coverage for typed for-iterators and comma-chained for structures.
+
+These patterns appear in real library scripts (e.g. ``for int i = 0 to n`` and
+``Ex = 0.0, Ey = 0.0, for i=0 to n``).
+"""
+
+from __future__ import annotations
+
+from pynescript.ast import node as ast
+from pynescript.ast.helper import parse
+from pynescript.ast.helper import unparse
+from pynescript.ast.helper import walk
+
+
+def _roundtrip(source: str) -> ast.Script:
+    tree = parse(source)
+    again = parse(unparse(tree))
+    assert repr(tree) == repr(again)
+    return tree
+
+
+def test_typed_for_to_iterator():
+    tree = _roundtrip(
+        """//@version=5
+indicator("typed for")
+sum = 0.0
+for int i = 0 to 10
+    sum := sum + i
+plot(sum)
+"""
+    )
+    # Find ForTo target is Name "i"
+    forto = next(n for n in walk(tree) if isinstance(n, ast.ForTo))
+    assert isinstance(forto.target, ast.Name)
+    assert forto.target.id == "i"
+
+
+def test_typed_for_in_iterator():
+    tree = _roundtrip(
+        """//@version=5
+indicator("typed for-in")
+arr = array.from(1, 2, 3)
+total = 0
+for int v in arr
+    total := total + v
+plot(total)
+"""
+    )
+    forin = next(n for n in walk(tree) if isinstance(n, ast.ForIn))
+    assert isinstance(forin.target, ast.Name)
+    assert forin.target.id == "v"
+
+
+def test_series_typed_for_iterator():
+    _roundtrip(
+        """//@version=5
+indicator("series typed for")
+for series int i = 0 to 3
+    x = i
+plot(x)
+"""
+    )
+
+
+def test_comma_chained_for_structure():
+    """Old-style multi-statement lines may end with a for structure."""
+    tree = _roundtrip(
+        """//@version=4
+study("comma for")
+Ex = 0.0, Ey = 0.0, for i=0 to 5
+    Ex := Ex + i
+plot(Ex)
+"""
+    )
+    assert any(isinstance(n, ast.ForTo) for n in walk(tree))
+
+
+def test_orderbook_style_typed_for():
+    """Snippet from tests/data/library/orderbook.lib.pine."""
+    _roundtrip(
+        """//@version=5
+library("Orderbook")
+export avgGrossProfit() =>
+    float subresult = 0.
+    for int i = 0 to strategy.closedtrades - 1
+        subresult += strategy.closedtrades.profit(i)
+    strategy.closedtrades > 0 ? subresult / strategy.closedtrades : na
+"""
+    )

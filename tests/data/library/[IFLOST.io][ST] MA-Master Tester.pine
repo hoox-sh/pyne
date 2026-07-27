@@ -1,0 +1,83 @@
+//@version=4
+//@author=jango_blockchained
+
+strategy(
+ title="[IFLOST.IO] Multi-MA Strategy", 
+ overlay=true, 
+ calc_on_order_fills=true, 
+ initial_capital=100000, 
+ default_qty_type=strategy.percent_of_equity, 
+ currency="USD", 
+ default_qty_value=100
+ )
+
+
+//////////////////////////////////////////////////////////////////////////
+//-- INPUTS
+//////////////////////////////////////////////////////////////////////////
+
+
+__SRC = close 
+__LENGHT = input(66, "LOOKBACK") 
+
+
+//////////////////////////////////////////////////////////////////////////
+//-- SETUP: COLORS
+//////////////////////////////////////////////////////////////////////////
+
+
+//--__buy, Upward
+var color col_green_1           = #4EF9FF
+var color col_green_2           = #3CADB1
+var color col_green_3           = #26c6da  //*
+var color col_green_4           = #afff00
+var color col_green_5           = #CFD80E
+var color col_green_6           = #90c818
+
+//-- __sell, Downward
+var color col_red_1             = #7b1fa2
+var color col_red_2             = #7e57c2
+var color col_red_3             = #512da8
+var color col_red_4             = #7300de
+var color col_red_5             = #4a148c  //*
+
+//-- Idle, Sideward
+var color col_yellow_1          = #ffa726
+var color col_yellow_2          = #f57c00
+
+
+//////////////////////////////////////////////////////////////////////////
+//-- CALCULATION
+//////////////////////////////////////////////////////////////////////////
+
+
+ma = vwma(__SRC, __LENGHT)
+plot(ma, title="VWMA", color=col_green_4)
+
+ma1 = rma(__SRC, __LENGHT)
+plot(ma1, title="RMA", color=col_red_1)
+
+
+ma2 = sma(__SRC, __LENGHT)
+plot(ma2, title="SMA", color=col_red_3)
+
+
+ma3 = wma(__SRC, __LENGHT)
+plot(ma3, title="WMA", color=col_yellow_2)
+
+
+ma4 = ema(__SRC, __LENGHT)
+plot(ma4, title="EMA", color=col_yellow_1)
+
+
+long = ma > ma[1] and ma1 > ma1[1] and ma2 > ma2[1] and ma3 > ma3[1] and ma4 > ma4[1]
+short = ma < ma[1] and ma1 < ma1[1] and ma2 < ma2[1] and ma3 < ma3[1] and ma4 < ma4[1]
+
+
+//////////////////////////////////////////////////////////////////////////
+//-- STRATEGY OR EXECUTION
+//////////////////////////////////////////////////////////////////////////
+
+
+strategy.entry("Long", strategy.long, when=long)
+strategy.entry("Short", strategy.short, when=short)

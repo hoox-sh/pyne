@@ -1,0 +1,39 @@
+//@version=4
+study("RSI STEP TREND", shorttitle="RSI STEP TREND", overlay=false, precision=3)
+//this is script based on lazy bear special rsi and alex trend step 
+//https://www.tradingview.com/script/HxtiD091-Efficient-Trend-Step-Spotting-Trends-Efficiently/
+periods = input( 2, title="Smooth", minval=1, maxval=100 ) 
+smooth =  input( 14, title="RSI Period Length", minval=1, maxval=100 ) 
+price = input(close, title="Source")
+fn(src, length) => 
+    MA_s= 0.0
+    MA_s:=(src + nz(MA_s[1] * (length-1)))/length
+    MA_s
+r1 = ema( price, periods ) 
+r2 = iff( price > r1, price - r1, 0 ) 
+r3 = iff( price < r1, r1 - price, 0 ) 
+r4 = fn( r2, smooth ) 
+r5 = fn( r3, smooth ) 
+rr = iff( r5 == 0, 100, 100 - ( 100 / ( 1 + ( r4 / r5 ) ) ) ) 
+
+length = input(50),fast = input(12),slow = input(26)
+//
+src = rr
+er = abs(change(src,length))/sum(abs(change(src)),length)
+dev = er*stdev(src*2,fast) + (1-er)*stdev(src*2,slow)
+a = 0.
+a := bar_index < 9 ? src : src > a[1] + dev ? src : src < a[1] - dev ? src : a[1]
+//
+var color c = na, c := fixnan(a > a[1] ? color.lime : a < a[1] ? color.red : na)
+plot(a,color=c,transp=0,linewidth = 3)
+//
+changed(x) => x!=x[1]
+long = changed(c) and c==color.lime
+short = changed(c) and c==color.red
+//
+plotshape(long, title='UP', style=shape.xcross, color=color.green, location=location.bottom, textcolor=color.black, text="UP", transp = 0, size = size.tiny)
+plotshape(short , title='down', style=shape.cross, color=color.red, location=location.top, textcolor=color.black, text="Down", transp = 0, size = size.tiny)
+
+/////// Alerts /////
+alertcondition(long,title="long")
+alertcondition(short,title="short")
