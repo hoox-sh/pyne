@@ -190,7 +190,10 @@ class PinescriptLexerBase(Lexer):
         return self._pendingTokens.pop(0)
 
     def _handle_NEWLINE_token(self):
-        if self._numOpens > 0 or self._lastPendingTokenType in self._operators:
+        # Use last *default-channel* token so trailing spaces after operators
+        # (e.g. `x = cond ? <spaces>\n  cont`) still line-join. Hidden WS must
+        # not clear the operator-continuation state.
+        if self._numOpens > 0 or self._lastPendingTokenTypeFromDefaultChannel in self._operators:
             self._hideAndAddPendingToken(self._currentToken)
         else:
             nl_token: CommonToken = self._currentToken

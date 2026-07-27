@@ -103,7 +103,20 @@ NEWLINE: OS_INDEPENDENT_NL;
 // WHITE SPACES, COMMENTS, MISCS
 
 WS:          [ \t\f]+      -> channel(HIDDEN);
-COMMENT:     '//' ~[\r\n]* -> channel(COMMENT_CHANNEL);
+// TradingView uses // comments; also accept # line comments (markdown/python scrapes)
+// and ignore markdown fence backticks. Emit as COMMENT so LexerBase newline
+// joining treats them like //.
+// IMPORTANT: HASH_COMMENT must NOT match #RRGGBB colors — only when '#' is
+// followed by whitespace or a non-hex character.
+COMMENT: '//' ~[\r\n]* -> channel(COMMENT_CHANNEL);
+HASH_COMMENT: '#' ( [ \t\f] ~[\r\n]* | ~[0-9a-fA-F\r\n] ~[\r\n]* )
+    -> type(COMMENT), channel(COMMENT_CHANNEL);
+BACKTICKS: '`'+ -> type(COMMENT), channel(COMMENT_CHANNEL);
+// Common paste noise (unicode arrows / bullets / curly quotes) — ignore
+UNICODE_NOISE
+    : [\u2190-\u2193\u21d0-\u21d3\u2022\u00b7\u2013\u2014\u2018\u2019\u201c\u201d]
+    -> channel(HIDDEN)
+    ;
 ERROR_TOKEN: .;
 
 // FRAGMENTS
@@ -160,5 +173,6 @@ fragment IMAG_NUMBER: (FLOAT_NUMBER | DIGIT_PART) ('j' | 'J');
 
 fragment OS_INDEPENDENT_NL: '\r'? '\n';
 
-fragment ID_START:    [a-zA-Z_];
-fragment ID_CONTINUE: [a-zA-Z_0-9];
+// Allow Unicode letters in identifiers (common in non-English scripts/titles used as names)
+fragment ID_START:    [\p{L}_];
+fragment ID_CONTINUE: [\p{L}\p{Nd}_];
