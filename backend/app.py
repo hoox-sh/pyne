@@ -278,15 +278,16 @@ if sock is not None:
                 )
                 continue
 
-            # Map WS envelope → REST body shape
-            payload = {
-                "script": msg.get("script"),
-                "data": msg.get("data"),
-                "symbol": msg.get("symbol"),
-                "mode": msg.get("mode"),
-                "data_source": msg.get("data_source"),
-                "data_options": msg.get("data_options"),
-            }
+            # Map WS envelope → REST body shape (omit null optionals —
+            # schema rejects null for typed optional fields like symbol)
+            payload: dict[str, Any] = {}
+            if "script" in msg:
+                payload["script"] = msg.get("script")
+            if "data" in msg:
+                payload["data"] = msg.get("data")
+            for opt in ("symbol", "mode", "data_source", "data_options"):
+                if opt in msg and msg.get(opt) is not None:
+                    payload[opt] = msg[opt]
             body, _status = execute_run_payload(payload)
             if body.get("status") == "error":
                 ws.send(

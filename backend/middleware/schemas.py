@@ -175,6 +175,11 @@ def validate(body: Any, schema: dict[str, tuple[type, bool, Any]]) -> tuple[dict
             out[field_name] = default
             continue
         value = body[field_name]
+        # Optional fields: null/empty treated as "use default" (common for WS
+        # clients that send "symbol": null when unset).
+        if value is None and not required:
+            out[field_name] = default
+            continue
         coerced, err = _coerce(value, py_type)
         if err is not None:
             return None, (

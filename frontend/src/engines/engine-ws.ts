@@ -188,16 +188,18 @@ class EngineWsClient {
           }, timeoutMs);
           this.pending.set(id, { resolve, reject, timer });
           try {
-            this.ws.send(
-              JSON.stringify({
-                type: 'run',
-                id,
-                script: req.script,
-                data: req.data,
-                mode: req.mode || 'interpret',
-                symbol: req.symbol,
-              }),
-            );
+            const frame: Record<string, unknown> = {
+              type: 'run',
+              id,
+              script: req.script,
+              data: req.data,
+              mode: req.mode || 'interpret',
+            };
+            // Only send symbol when it's a real string (null fails API schema)
+            if (typeof req.symbol === 'string' && req.symbol.length) {
+              frame.symbol = req.symbol;
+            }
+            this.ws.send(JSON.stringify(frame));
           } catch (e) {
             clearTimeout(timer);
             this.pending.delete(id);

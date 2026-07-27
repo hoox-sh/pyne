@@ -110,7 +110,13 @@ export const serverEngine: EnginePlugin = {
         const client = getEngineWsClient(endpoint);
         if (!client.isDead) {
           const wsResult = await client.run(
-            { script, data: bars as unknown[], mode },
+            {
+              script,
+              data: bars as unknown[],
+              mode,
+              // Always a string — API schema rejects null/omitted-as-null
+              symbol: typeof store.symbol === 'string' && store.symbol ? store.symbol : 'CHART',
+            },
             timeoutMs,
           );
           const ms = performance.now() - t0;
