@@ -1,0 +1,113 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/纳达拉亚-沃森带状图多重确认动态止损策略-Nadaraya-Watson-Envelope-Multi-Confirmation-Dynamic-Stop-Loss-Strategy.md
+// content_hash: 6d739926efc1928d
+// collected: 2026-07-27
+strategy("Nadaraya-Watson Envelope with Multi-Confirmation and Dynamic Stop-Loss", overlay=true)
+
+// Input parameters
+h = input.float(7.2, "Bandwidth", minval=0)
+mult = input.float(2.1, minval=0)
+src = input(close, "Source")
+
+// ADX and DI Input Parameters
+adxLength = input.int(14, "ADX Length")
+adxThreshold = input.float(25, "ADX Threshold")
+adxSmoothing = input.int(14, "ADX Smoothing")
+
+// Calculate ADX and DI
+[dmiPlus, dmiMinus, adx] = ta.dmi(adxLength, adxSmoothing)
+strongTrendUp = dmiPlus > dmiMinus and adx > adxThreshold
+strongTrendDown = dmiMinus > dmiPlus and adx > adxThreshold
+
+// Nadaraya-Watson Envelope Calculation
+gauss(x, h) =>
+    math.exp(-(math.pow(x, 2) / (h * h * 2)))
+
+coefs = array.new_float(0)
+den = 0.0
+
+for i = 0 to 100
+    w = gauss(i, h)
+    array.push(coefs, w)
+
+den := array.sum(coefs)
+
+out = 0.0
+for i = 0 to 100
+    out += src[i] * array.get(coefs, i)
+out /= den
+mae = ta.sma(math.abs(src - out), 100) * mult
+
+upper = ta.sma(out + mae, 10)
+lower = ta.sma(out - mae, 10)
+
+// Confirmations
+breakoutUp = ta.crossover(src, upper)
+breakoutDown = ta.crossunder(src, lower)
+
+// Original RSI period and thresholds
+rsiPeriod = input.int(14, "RSI Period")
+rsi = ta.rsi(src, rsiPeriod)
+momentumUp = rsi > 70 and adx > adxThreshold
+momentumDown = rsi < 30 and adx > adxThreshold
+
+// // Plot ADX-based Trend Confirmation Lines
+// if (strongTrendUp)
+//     line.new(bar_index, low, bar_index + 1, low, color=color.new(color.blue, 50), width=2, style=line.style_dashed)
+
+// if (strongTrendDown)
+//     line.new(bar_index, high, bar_index + 1, high, color=color.new(color.red, 50), width=2, style=line.style_dashed)
+
+// Plot Breakout Confirmation Dots
+plotshape(series=breakoutUp, style=shape.circle, location=location.abovebar, color=color.blue, size=size.tiny, title="Breakout Up")
+plotshape(series=breakoutDown, style=shape.circle, location=location.belowbar, color=color.orange, size=size.tiny, title="Breakout Down")
+
+// Plot Momentum Confirmation Arrows
+plotshape(series=momentumUp, style=shape.triangleup, location=location.belowbar, color=color.green, size=size.tiny, title="Momentum Up")
+plotshape(series=momentumDown, style=shape.triangledown, location=location.abovebar, color=color.red, size=size.tiny, title="Momentum Down")
+
+// Strategy Entry and Exit
+var float stopLossLevel = na
+var float highestPrice = na
+
+potentialBuy = strongTrendUp and breakoutUp
+potentialSell = strongTrendDown and breakoutDown
+momentumConfirmUp = potentialBuy and momentumUp
+momentumConfirmDown = potentialSell and momentumDown
+
+if (momentumConfirmUp)
+    strategy.entry("Buy", strategy.long)
+    stopLossLevel := close * 0.90
+    highestPrice := close
+
+if (momentumConfirmDown)
+    strategy.entry("Sell", strategy.short)
+    stopLossLevel := close * 1.10
+    highestPrice := close
+
+if (strategy.position_size > 0)
+    highestPrice := math.max(highestPrice, close)
+    stopLossLevel := math.max(highestPrice * 0.85, close * 0.90)
+
+if (strategy.position_size < 0)
+    highestPrice := math.min(highestPrice, close)
+    stopLossLevel := math.min(highestPrice * 1.15, close * 1.10)
+
+// Close position if stop loss is hit
+if (strategy.position_size > 0 and close < stopLossLevel)
+    strategy.close("Buy")
+
+if (strategy.position_size < 0 and close > stopLossLevel)
+    strategy.close("Sell")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/452361
+
+> Last Modified
+
+2024-05-24 17:58:47

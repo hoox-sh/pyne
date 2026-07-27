@@ -1,0 +1,17 @@
+//@version=6
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/language/execution-model.md::execution-model.md#block6
+// content_hash: 5a47779489eefb72
+// collected: 2026-07-27
+indicator("Executions on historical bars demo")
+
+//@variable The average of the latest 20 `close` values.
+float sma = ta.sma(close, 20)
+
+//@variable Is `color.green` if the `sma` value is above the value on the previous bar; `color.red` otherwise.
+color plotColor = sma > sma[1] ? color.green : color.red
+
+//@variable Tracks the current execution number, where 0 represents the first execution.
+varip int executionNum = -1
+// Add 1 to the `executionNum` value.

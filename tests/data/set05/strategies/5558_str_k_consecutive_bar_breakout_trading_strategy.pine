@@ -1,0 +1,35 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/K线连续向上突破策略Consecutive-Bar-Breakout-Trading-Strategy.md
+// content_hash: c3f5037f71f0c820
+// collected: 2026-07-27
+// strategy("BarUpDn Strategy", overlay=true, initial_capital = 10000, default_qty_value = 10000, default_qty_type = strategy.cash)
+
+BarsUp = input(1)
+BarsDown = input(1)
+
+// Strategy Backesting
+startDate  = input(timestamp("2021-01-01T00:00:00"), type = input.time)
+finishDate = input(timestamp("2021-12-31T00:00:00"), type = input.time)
+
+time_cond  = true
+
+// Messages for buy and sell
+message_buy  = input("{{strategy.order.alert_message}}", title="Buy message")
+message_sell = input("{{strategy.order.alert_message}}", title="Sell message")
+
+if (close > open and open > close[BarsUp]) and time_cond
+	strategy.entry("BarUp", strategy.long, stop = high + syminfo.mintick, alert_message = message_buy)
+if (close < open and open < close[BarsDown]) and time_cond
+	strategy.entry("BarDn", strategy.short, stop = low + syminfo.mintick, alert_message = message_sell)
+//plot(strategy.equity, title="equity", color=color.red, linewidth=2, style=plot.style_areabr)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/426550
+
+> Last Modified
+
+2023-09-13 10:53:06

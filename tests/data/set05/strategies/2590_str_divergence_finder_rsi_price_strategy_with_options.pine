@@ -1,0 +1,196 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/RSI价格背离量化策略指标动态监测与自适应优化系统-Dynamic-RSI-Price-Divergence-Detection-and-Adaptive-Trading-Strategy-System.md
+// content_hash: 37954391b032f087
+// collected: 2026-07-27
+
+//last : 30m 70 68 22 25 0 0 4.7 11.5
+
+//init
+capital=1000
+percent=100
+fees=0//in percent for each entry and exit
+
+//Inputs
+start = input(timestamp("1 Feb 2002"), "Start Time", group = "Date")
+end = input(timestamp("1 Feb 2052"), "End Time", group = "Date")
+
+//Strategy
+strategy("Divergence Finder (RSI/Price) Strategy with Options", overlay = true, initial_capital=capital, default_qty_value=percent, default_qty_type=strategy.percent_of_equity, commission_type=strategy.commission.percent, calc_on_order_fills=false,process_orders_on_close=true , commission_value=fees, currency=currency.EUR, calc_on_every_tick=true, use_bar_magnifier=false)
+//indicator("Divergence Finder (RSI/Price) with Options", overlay=true, max_boxes_count=200, max_bars_back=500,max_labels_count=500)
+
+
+srcUp=input.source(close, "Source for Price Buy Div", group="sources")
+srcDn=input.source(close, "Source for Price Sell Div", group="sources")
+srcRsi=input.source(close, "Source for RSI Div", group="sources")
+
+
+HighRSILimit=input.int(70, "Min RSI for Sell divergence (p1:pre last)", group="signals", inline="1", step=1)
+HighRSILimit2=input.int(68, "Min RSI for Sell divergence (p2):last", group="signals", inline="1", step=1)
+LowRSILimit=input.int(22, "Min RSI for Buy divergence (p1:pre last)", group="signals", inline="2", step=1)
+LowRSILimit2=input.int(25, "Min RSI for Buy divergence (p2:last)", group="signals", inline="2", step=1)
+
+
+minMarginP=input.float(0, "Min margin between price for displaying divergence (%)", group="signals", step=0.01)
+minMarginR=input.float(0, "Min margin between RSI for displaying divergence (%)", group="signals", step=1)
+
+nb=input.int(2, "Sensivity: Determine how many candle will be used to determine last top or bot (too high cause lag, too low cause repaint)", group="Sensivity", inline="3", step=1)
+
+
+stopPer= input.float(4.7, title='Stop %', group = "Per", inline="3", step=0.01)
+tpPer = input.float(11.5, title='TP %', group = "Per", inline="4", step=0.01)
+
+//nb=2
+leftBars = nb
+rightBars=nb
+
+
+labels=input.bool(true, "Display Divergence labels", group="Display")
+draw=input.bool(true, "Display tops/bottoms")
+
+
+
+dnFractal = (close[nb-2] < close[nb]) and (close[nb-1] < close[nb]) and (close[nb+1] < close[nb]) and (close[nb+2] < close[nb])
+upFractal = (close[nb-2] > close[nb]) and (close[nb-1] > close[nb]) and (close[nb+1] > close[nb]) and (close[nb+2] > close[nb])
+ph=dnFractal
+pl=upFractal
+
+plot(dnFractal and draw ? close[nb] : na, style=plot.style_line,offset=-2, color=color.lime, title="tops")
+plot(upFractal and draw ? close[nb] : na,  style=plot.style_line, offset=-2, color=color.red, title="botts")
+
+plotchar(dnFractal ? high[nb] : na, char='⮝',location=location.absolute,offset=-2, color=color.rgb(236, 255, 63), title="Down Fractal")
+plotchar(upFractal ? low[nb] : na, char='⮟', location=location.absolute, offset=-2, color=color.rgb(67, 227, 255), title="Up Fractal")
+
+
+float myRSI=ta.rsi(srcRsi, 14)
+
+bool divUp=false
+bool divDn=false
+
+//compare lasts bots
+p2=ta.valuewhen( ph,srcDn[nb], 0 ) //last price
+p1=ta.valuewhen( ph,srcDn[nb], 1 ) //pre last price
+
+r2=ta.valuewhen( ph,myRSI[nb], 0 )  //last rsi
+r1=ta.valuewhen( ph,myRSI[nb], 1 )  //pre last rsi
+
+
+if ph
+    if p1 < p2// - (p2 * minMarginP)/100
+        if r1 > HighRSILimit and r2 > HighRSILimit2
+            if r1 > r2 + (r2 * minMarginR)/100
+                divDn:=true
+
+plot(divDn ? close:na, style=plot.style_cross, linewidth=3, color= color.red, offset=-rightBars, title="Sell Div")
+if labels and divDn and strategy.position_size >= 0
+    label.new(bar_index-nb,high, "Sell Divergence "+str.tostring(p1)+"   "+str.tostring(math.round(r1, 2))+"  "+str.tostring(p2)+"   "+str.tostring(math.round(r2, 2)),xloc=xloc.bar_index,yloc=yloc.abovebar, color = color.red, style = label.style_label_down)
+else if divDn and strategy.position_size >= 0
+    label.new(bar_index-nb,high, "Sell Divergence",xloc=xloc.bar_index,yloc=yloc.abovebar, color = color.red, style = label.style_label_down)
+
+
+
+p2:=ta.valuewhen( pl,srcUp[nb], 0 )
+p1:=ta.valuewhen( pl,srcUp[nb], 1 )
+
+r2:=ta.valuewhen( pl,myRSI[nb], 0 )
+r1:=ta.valuewhen( pl,myRSI[nb], 1 )
+
+
+if pl
+    if p1 > p2 + (p2 * minMarginP)/100
+        if r1 < LowRSILimit and r2 < LowRSILimit2
+            if r1 < r2 - (r2 * minMarginR)/100
+                divUp:=true
+               
+plot(divUp ? close:na, style=plot.style_cross, linewidth=3, color= color.green, offset=-rightBars, title="Buy Div")
+if labels and divUp and strategy.position_size <= 0
+    label.new(bar_index-nb,high, "Buy Divergence "+str.tostring(p1)+"   "+str.tostring(math.round(r1, 2))+"  "+str.tostring(p2)+"   "+str.tostring(math.round(r2, 2)),xloc=xloc.bar_index,yloc=yloc.belowbar, color = color.green, style = label.style_label_up)
+else if divUp and strategy.position_size <= 0
+    label.new(bar_index-nb,high, "Buy Divergence",xloc=xloc.bar_index,yloc=yloc.belowbar, color = color.green, style = label.style_label_up)
+
+
+//strat LONG
+longEntry = divUp//  and strategy.position_size == 0
+longExit = divDn//  and strategy.position_size == 0
+
+//strat SHORT
+shortEntry = divDn
+shortExit = divUp
+
+LongActive=input(true, title='Activate Long', group = "Directions", inline="2")
+ShortActive=input(true, title='Activate Short', group = "Directions", inline="2")
+//StopActive=input(false, title='Activate Stop', group = "Directions", inline="2")
+
+
+//tpActive =  input(false, title='Activate Take Profit', group = "TP", inline="4")
+//RR=input(0.5, title='Risk Reward Multiplier', group = "TP")
+//QuantityTP = input(100.0, title='Trade Ammount %', group = "TP")
+
+
+//calc stop
+//longStop = strategy.position_avg_price * (1 - stopPer)
+//shortStop = strategy.position_avg_price * (1 + stopPer)
+
+longStop = strategy.position_avg_price - (strategy.position_avg_price * stopPer/100)
+shortStop = strategy.position_avg_price + (strategy.position_avg_price * stopPer/100)
+
+longTP = strategy.position_avg_price + (strategy.position_avg_price * tpPer/100)
+shortTP = strategy.position_avg_price - (strategy.position_avg_price * tpPer/100)
+
+//Calc TP
+//longTP = ((strategy.position_avg_price-longStop)*RR+strategy.position_avg_price)
+//shortTP = (strategy.position_avg_price-((shortStop-strategy.position_avg_price)*RR))
+
+
+//display stops
+plot(strategy.position_size > 0 ? longStop : na, style=plot.style_linebr, color=color.red, linewidth=1, title="Long Fixed SL")
+plot(strategy.position_size < 0 ? shortStop : na, style=plot.style_linebr, color=color.purple, linewidth=1, title="Short Fixed SL")
+
+
+//display TP
+plot(strategy.position_size > 0 ? longTP : na, style=plot.style_linebr, color=color.green, linewidth=1, title="Long Fixed TP")
+plot(strategy.position_size < 0 ? shortTP : na, style=plot.style_linebr, color=color.green, linewidth=1, title="Short Fixed TP")
+
+//do
+if true
+    //check money available
+    if strategy.equity > 0
+        //if tpActive //Need to put TP before Other exit
+        strategy.exit("Close Long", from_entry="Long", limit=longTP,stop=longStop, comment="Close Long with : "+ str.tostring(math.round(strategy.equity)) +" $ ", qty_percent=100)
+        strategy.exit("Close Short", from_entry="Short", limit=shortTP,stop=shortStop, comment="Close Short with : "+ str.tostring(math.round(strategy.equity)) +" $ ", qty_percent=100)
+        //Set Stops
+        //if StopActive
+        //    strategy.exit("Stop Long", from_entry="Long", stop=longStop, comment="Stop Long with : "+ str.tostring(math.round(strategy.equity)) +" $ ")
+        //    strategy.exit("Stop Short", from_entry="Short", stop=shortStop, comment="Stop Short with : "+ str.tostring(math.round(strategy.equity)) +" $ ")
+        if longEntry
+            if ShortActive
+                strategy.close("Short",comment="Close Short with : "+ str.tostring(math.round(strategy.equity)) +" $ ")
+                alert("Close Short")
+            if LongActive
+                strategy.entry("Long", strategy.long, comment="Open Long with : "+ str.tostring(math.round(strategy.equity)) +" $ ")
+                alert("Open Long")
+        if longExit
+            if LongActive
+                strategy.close("Long",comment="Close Long with : "+ str.tostring(math.round(strategy.equity)) +" $ ")
+                alert("Close Long")
+            if ShortActive
+                strategy.entry("Short", strategy.short, comment="Open Short with : "+ str.tostring(math.round(strategy.equity)) +" $ ")
+                alert("Open Short")
+
+
+//alertcondition(longEntry and LongActive, title="Buy Divergence Open", message="Buy Divergence Long Opened!")
+//alertcondition(longExit and ShortActive, title="Sell Divergence Open", message="Buy Divergence Short Opened!")
+
+//alertcondition(longExit and LongActive, title="Buy Divergence Closed", message="Buy Divergence Long Closed!")
+//alertcondition(longEntry and ShortActive, title="Sell Divergence Closed", message="Buy Divergence Short Closed!")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/477971
+
+> Last Modified
+
+2025-01-10 16:20:25

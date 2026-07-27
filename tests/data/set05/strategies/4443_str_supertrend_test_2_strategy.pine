@@ -1,0 +1,105 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/追踪型超级趋势策略Tracking-Supertrend-Strategy.md
+// content_hash: 600ca184f88f6cff
+// collected: 2026-07-27
+strategy("Supertrend TEST 2 Strategy", overlay = true, format=format.price, precision=2)
+
+Periods = input(title="ATR Period", type=input.integer, defval=4)
+src = input(hl2, title="Source")
+Multiplier = input(title="ATR Multiplier", type=input.float, step=0.1, defval=4.7)
+changeATR= input(title="Change ATR Calculation Method ?", type=input.bool, defval=true)
+showsignals = input(title="Show Buy/Sell Signals ?", type=input.bool, defval=true)
+highlighting = input(title="Highlighter On/Off ?", type=input.bool, defval=true)
+tp=close
+sl=close
+
+atr2 = sma(tr, Periods)
+atr= changeATR ? atr(Periods) : atr2
+up=src-(Multiplier*atr)
+up1 = nz(up[1],up)
+up := close[1] > up1 ? max(up,up1) : up
+dn=src+(Multiplier*atr)
+dn1 = nz(dn[1], dn)
+dn := close[1] < dn1 ? min(dn, dn1) : dn
+trend = 1
+trend := nz(trend[1], trend)
+trend := trend == -1 and close > dn1 ? 1 : trend == 1 and close < up1 ? -1 : trend
+upPlot = plot(trend == 1 ? up : na, title="Up Trend", style=plot.style_linebr, linewidth=2, color=color.green)
+buySignal = trend == 1 and trend[1] == -1
+plotshape(buySignal ? up : na, title="UpTrend Begins", location=location.absolute, style=shape.circle, size=size.tiny, color=color.green )
+plotshape(buySignal and showsignals ? up : na, title="Лонг", text="Лонг", location=location.absolute, style=shape.labelup, size=size.tiny, color=color.green, textcolor=color.white )
+dnPlot = plot(trend == 1 ? na : dn, title="Down Trend", style=plot.style_linebr, linewidth=2, color=color.red)
+sellSignal = trend == -1 and trend[1] == 1
+plotshape(sellSignal ? dn : na, title="DownTrend Begins", location=location.absolute, style=shape.circle, size=size.tiny, color=color.red )
+plotshape(sellSignal and showsignals ? dn : na, title="Шорт", text="Шорт", location=location.absolute, style=shape.labeldown, size=size.tiny, color=color.red, textcolor=color.white )
+mPlot = plot(ohlc4, title="", style=plot.style_circles, linewidth=0)
+longFillColor = highlighting ? (trend == 1 ? color.green : color.white) : color.white
+shortFillColor = highlighting ? (trend == -1 ? color.red : color.white) : color.white
+
+sPeriods=input(title="ATR Period", type=input.integer, defval=8)
+sMultiplier=input(title="dop ATR Multiplier", type=input.float, step=0.1, defval=1.5)
+satr2 = sma(tr, sPeriods)
+satr= changeATR ? atr(sPeriods) : satr2
+ssup=ohlc4-(sMultiplier*satr)
+ssup1 = nz(ssup[1],ssup)
+ssup := close[1] > ssup1 ? max(ssup,ssup1) : ssup
+sdn=ohlc4+(sMultiplier*satr)
+sdn1 = nz(sdn[1], sdn)
+sdn := close[1] < sdn1 ? min(sdn, sdn1) : sdn
+strend = 1
+strend := nz(strend[1], strend)
+strend := strend == -1 and close > sdn1 ? 1 : strend == 1 and close < ssup1 ? -1 : strend
+sbuySignal = strend == 1 and strend[1] == -1
+ssellSignal = strend == -1 and strend[1] == 1
+
+fPeriods=input(title="ATR Period", type=input.integer, defval=10)
+fMultiplier=input(title="filter ATR Multiplier", type=input.float, step=0.1, defval=5)
+fatr2 = sma(tr, fPeriods)
+fatr= changeATR ? atr(fPeriods) : fatr2
+fup=ohlc4-(fMultiplier*fatr)
+fup1 = nz(fup[1],fup)
+fup := close[1] > fup1 ? max(fup,fup1) : fup
+fdn=ohlc4+(fMultiplier*fatr)
+fdn1 = nz(fdn[1], fdn)
+fdn := close[1] < fdn1 ? min(fdn, fdn1) : fdn
+ftrend = 1
+ftrend := nz(ftrend[1], ftrend)
+ftrend := ftrend == -1 and close > fdn1 ? 1 : ftrend == 1 and close < fup1 ? -1 : ftrend
+fbuySignal = ftrend == 1 and ftrend[1] == -1
+fsellSignal = ftrend == -1 and ftrend[1] == 1
+tcolor=color.new(color.gray,50)
+fdnPlot = plot(ftrend == 1 ? na : fdn, title="Down Trend", style=plot.style_linebr, linewidth=2, color=tcolor)
+fupPlot = plot(ftrend == 1 ? fup : na, title="Up Trend", style=plot.style_linebr, linewidth=2, color=tcolor)
+
+
+
+if (strategy.position_size > 0)
+	tp:=tp[1]
+	sl:=up
+	strategy.exit("Long_TP/SL","Long",limit=tp, stop=sl)
+	
+if (strategy.position_size < 0)
+	tp:=tp[1]
+	sl:=dn
+	strategy.exit("Short_TP/SL","Short",limit=tp, stop=sl)
+
+
+
+if ((buySignal and  ftrend==1) or (sbuySignal and trend==1 and  ftrend==1)) 
+	tp:=close+(close-up)*0.382
+    strategy.entry("Long", strategy.long,  limit=tp, comment=tostring(round(tp)))
+if ((sellSignal and ftrend==-1) or (ssellSignal and trend==-1 and  ftrend==-1)) 
+	tp:=close-(dn-close)*0.382
+    strategy.entry("Short", strategy.short, limit=tp, comment=tostring(round(tp)))
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/436648
+
+> Last Modified
+
+2023-12-26 15:58:55

@@ -1,0 +1,138 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于锚定滚动CVDVWAP的信号策略Anchored-Rolling-CVDVWAP-Signal-Strategy.md
+// content_hash: 357541c39b78c4fe
+// collected: 2026-07-27
+strategy('Anchored Rolling CVDVWAP Signal Strategy', overlay=true)
+
+// User-defined settings
+vwapAnchorPeriod = input.int(20, title="Rolling VWAP Anchor Period", group="Settings")
+stdDevMult = input.float(2.0, title="Standard Deviation Multiplier for Envelope", group="Settings")
+analysis_period = input.int(7, minval=1, maxval=100, title="Analysis Period", group="Settings")
+useVwapFilter = input.bool(true, title="Use Anchored VWAP Filter", group="Filters")
+useCvdFilter = input.bool(true, title="Use CVD Filter", group="Filters")
+cvdLength = input.int(20, title="CVD Length", group="Filters")
+tpPercent = input.float(200.0, title="Take Profit % of SL Distance", group="Trade Settings")
+slPeriods = input.int(200, title="Stop Loss Lookback Period", group="Trade Settings")
+toggleSignals = input.bool(false, title="Toggle Signals", group="Settings")
+
+// Finding the anchor bar
+highestVol = ta.highest(volume, vwapAnchorPeriod)
+var int anchorBar = na
+if volume == highestVol
+    anchorBar := bar_index
+
+// Initializing variables for anchored VWAP and envelope calculation
+var float avwapNumerator = na
+var float avwapDenominator = na
+var float anchoredVwap = na
+var float sum = 0.0
+var int count = 0
+var float sumDev = 0.0
+
+// Calculating Anchored VWAP and envelope
+if not na(anchorBar)
+    if bar_index == anchorBar
+        avwapNumerator := high * volume + low * volume + close * volume
+        avwapDenominator := volume * 3
+        sum := 0.0
+        count := 0
+        sumDev := 0.0
+    else if bar_index > anchorBar
+        avwapNumerator := avwapNumerator[1] + high * volume + low * volume + close * volume
+        avwapDenominator := avwapDenominator[1] + volume * 3
+        sum := sum[1] + close
+        count := count[1] + 1
+        sumDev := sumDev[1] + math.pow(close - (sum / count), 2)
+    anchoredVwap := avwapNumerator / avwapDenominator
+
+// Standard deviation envelope calculation
+float mean = sum / math.max(count, 1)
+float stDev = math.sqrt(sumDev / math.max(count, 1))
+float upperBand = anchoredVwap + stdDevMult * stDev
+float lowerBand = anchoredVwap - stdDevMult * stDev
+
+// CVD calculation and filter application
+cvd = ta.cum(volume - ta.sma(volume, cvdLength))
+bool cvdCondition = useCvdFilter ? (cvd[1] < cvd and cvd > cvd[1]) : true
+
+// Dip and Rip pattern detection
+roc = ta.roc(close, analysis_period)
+dip_move_value = input.float(-8, title="Down (%)", step=0.50, minval=-100, maxval=-0.01, group="Settings")
+rip_move_value = input.float(8, title="Up (%)", step=0.50, minval=0.01, maxval=100.00, group="Settings")
+dip = roc <= dip_move_value and cvdCondition and (not useVwapFilter or close < anchoredVwap)
+rip = roc >= rip_move_value and cvdCondition and (not useVwapFilter or close > anchoredVwap)
+
+// State variables for signals and TP/SL execution
+var bool inTrade = false // If we are currently in a trade
+var bool takeLong = false // If the last signal was a buy
+var bool takeShort = false // If the last signal was a sell
+var float tradeEntryPrice = na // The trade entry price
+var float tradeSL = na // The current trade's Stop Loss level
+var float tradeTP = na // The current trade's Take Profit level
+
+// Setting SL and TP levels for the trade
+tradeSL := dip ? ta.highest(high, slPeriods) : (rip ? ta.lowest(low, slPeriods) : tradeSL)
+tradeTP := dip ? tradeEntryPrice - (tradeSL - tradeEntryPrice) * tpPercent / 100 : (rip ? tradeEntryPrice + (tradeEntryPrice - tradeSL) * tpPercent / 100 : tradeTP)
+
+// Trade entry logic
+if (dip or rip) and not inTrade
+    tradeEntryPrice := close
+    inTrade := true
+    takeLong := rip
+    takeShort := dip
+
+// Trade exit logic at TP or SL
+if inTrade and ((takeLong and (low < tradeSL or high > tradeTP)) or (takeShort and (high > tradeSL or low < tradeTP)))
+    inTrade := false // Exit the trade
+
+// Display logic for signals based on the toggle
+bool showLongSignal = rip and (not toggleSignals or not takeLong)
+bool showShortSignal = dip and (not toggleSignals or not takeShort)
+
+// Reset signals if toggle is active and trade is exited
+if toggleSignals and not inTrade
+    takeLong := true
+    takeShort := true
+
+// Strategy entry and exit logic
+if showLongSignal
+    strategy.entry("Long", strategy.long)
+
+if showShortSignal
+    strategy.close("Long")
+
+if showShortSignal
+    strategy.entry("Short", strategy.short)
+
+if showLongSignal
+    strategy.close("Short")
+
+// Plotting of entry signals, anchored VWAP, and envelope
+plot(upperBand, title="Upper Envelope", color=color.green)
+plot(lowerBand, title="Lower Envelope", color=color.red)
+plot(anchoredVwap, title="Anchored VWAP", color=color.blue)
+
+// Coloring and shapes for Dip and Rip
+barcolor(dip ? color.rgb(255, 0, 0) : na, title="Down Bar Color")
+bgcolor(dip ? color.rgb(255, 0, 0, 80) : na, title="Down Background Color")
+plotshape(dip, title="Dip - Down", location=location.top, color=color.rgb(255, 82, 82, 45), style=shape.square, size=size.tiny)
+barcolor(rip ? color.rgb(0, 255, 0) : na, title="Up Bar Color")
+bgcolor(rip ? color.rgb(0, 255, 0, 80) : na, title="Up Background Color")
+plotshape(rip, title="Rip - Up", location=location.top, color=color.rgb(76, 175, 79, 55), style=shape.square, size=size.tiny)
+
+// Strategy exit conditions for TP and SL
+strategy.exit("Take Profit Long", from_entry = "Long", limit = tradeTP)
+strategy.exit("Stop Loss Long", from_entry = "Long", stop = tradeSL)
+strategy.exit("Take Profit Short", from_entry = "Short", limit = tradeTP)
+strategy.exit("Stop Loss Short", from_entry = "Short", stop = tradeSL)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/437011
+
+> Last Modified
+
+2023-12-29 14:56:03

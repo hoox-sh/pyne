@@ -1,0 +1,71 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于价格与SMA交叉的量化交易策略Quantitative-Trading-Strategy-Based-on-Price-Crossover-with-SMA.md
+// content_hash: 5f7d6851a7ec7863
+// collected: 2026-07-27
+strategy("Price Cross Above/Below SMA Strategy", shorttitle="Tressy Strat", overlay=true)
+
+// Define start and end year inputs
+start_year = input.int(2022, title="Start Year")
+end_year = input.int(2022, title="End Year")
+
+// Define start and end month inputs
+start_month = input.int(1, title="Start Month", minval=1, maxval=12)
+end_month = input.int(12, title="End Month", minval=1, maxval=12)
+
+// Define SMA length inputs
+sma_length = input.int(21, title="SMA Length")
+sma_length_50 = input.int(50, title="50 SMA Length")
+sma_length_200 = input.int(200, title="200 SMA Length")
+
+// Filter data within the specified date range
+filter_condition = true
+filtered_close = request.security(syminfo.tickerid, "D", close[0], lookahead=barmerge.lookahead_on)
+
+// Define SMAs using the input lengths
+sma = ta.sma(filtered_close, sma_length)
+sma_50 = ta.sma(filtered_close, sma_length_50)
+sma_200 = ta.sma(filtered_close, sma_length_200)
+
+// Initialize position
+var bool in_position = false
+
+// Condition for a price cross above SMA within the date range
+cross_above = filter_condition and ta.crossover(filtered_close, sma)
+
+// Condition for a price cross below SMA within the date range
+cross_below = filter_condition and ta.crossunder(filtered_close, sma)
+
+// Buy condition
+if cross_above
+    in_position := true
+
+// Sell condition
+if cross_below
+    in_position := false
+
+// Strategy entry and exit
+if cross_above
+    strategy.entry("Buy", strategy.long)
+if cross_below
+    strategy.close("Buy")
+
+// Plot the SMAs on the chart
+plot(sma, color=color.blue, title="21 SMA")
+plot(sma_50, color=color.red, title="50 SMA")
+plot(sma_200, color=color.orange, title="200 SMA")
+
+// Plot the Buy and Sell signals with "tiny" size
+plotshape(cross_above, style=shape.triangleup, location=location.belowbar, color=color.green, size=size.tiny, title="Buy Signal")
+plotshape(cross_below, style=shape.triangledown, location=location.abovebar, color=color.red, size=size.tiny, title="Sell Signal")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/442558
+
+> Last Modified
+
+2024-02-22 17:34:09

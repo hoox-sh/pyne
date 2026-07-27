@@ -1,0 +1,56 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/超趋势追踪止盈策略Supertrend-Take-Profit-Strategy.md
+// content_hash: d47008328fbe724f
+// collected: 2026-07-27
+strategy( "Supertrend with TP", overlay=true )
+
+// Supertrend Settings
+atrPeriod = input(10, "ATR Length")
+factor = input.float(3.0, "Factor", step = 0.01)
+
+// TP's
+tp1Open = input.bool(true, "TP1")
+tp1 = input.float(2.0, "TP Level (%)", step = 0.1) / 100
+tp1Amount = input.int(25, "Amount (%)", step = 1)
+tp2Open = input.bool(true, "TP2")
+tp2 = input.float(5.0, "TP Level (%)", step = 0.1) / 100
+tp2Amount = input.int(50, "Amount (%)", step = 1)
+tp3Open = input.bool(true, "TP3")
+tp3 = input.float(10.0, "TP Level (%)", step = 0.1) / 100
+tp3Amount = input.int(25, "Amount (%)", step = 1)
+
+[_, direction] = ta.supertrend(factor, atrPeriod)
+
+entryPrice = 0.0
+entryPrice := entryPrice[1]
+
+if ta.change(direction) < 0
+    strategy.entry("Long", strategy.long)
+    entryPrice := close
+
+if ta.change(direction) > 0
+    strategy.entry("Short", strategy.short)
+    entryPrice := close
+
+if (tp1Open)
+    strategy.exit ("TP1", from_entry="Long", limit=entryPrice * (1 + tp1), qty_percent=tp1Amount)
+    strategy.exit ("TP1", from_entry="Short", limit=entryPrice * (1 - tp1), qty_percent=tp1Amount)
+
+if (tp2Open)
+    strategy.exit ("TP2", from_entry="Long", limit=entryPrice * (1 + tp2), qty_percent=tp2Amount)
+    strategy.exit ("TP2", from_entry="Short", limit=entryPrice * (1 - tp2), qty_percent=tp2Amount)
+    
+if (tp3Open)    
+    strategy.exit ("TP3", from_entry="Long", limit=entryPrice * (1 + tp3), qty_percent=tp3Amount)
+    strategy.exit ("TP3", from_entry="Short", limit=entryPrice * (1 - tp3), qty_percent=tp3Amount)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/438016
+
+> Last Modified
+
+2024-01-08 11:08:39

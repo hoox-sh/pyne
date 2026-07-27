@@ -1,0 +1,47 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/顺势而为的移动平均线交叉策略Going-with-the-Trend-Moving-Average-Crossover-Strategy.md
+// content_hash: 3ad54d9216320568
+// collected: 2026-07-27
+strategy("MA cross strategy", shorttitle="macs", overlay=true)
+
+
+// Create indicator's
+shortSMA = ta.sma(close, 10)
+longSMA = ta.sma(close, 30)
+rsi = ta.rsi(close, 14)
+atr = ta.atr(14)
+
+
+// Crossover conditions
+longCondition = ta.crossover(shortSMA, longSMA)
+shortCondition = ta.crossunder(shortSMA, longSMA)
+
+
+// trade conditions
+if (longCondition)
+    stopLoss = low - atr * 2
+    takeProfit = high + atr * 2
+    strategy.entry("long", strategy.long, when = rsi > 50)
+    strategy.exit("exit", "long", stop=stopLoss, limit=takeProfit)
+
+if (shortCondition)
+    stopLoss = high + atr * 2
+    takeProfit = low - atr * 2
+    strategy.entry("short", strategy.short, when = rsi < 50)
+    strategy.exit("exit", "short", stop=stopLoss, limit=takeProfit)
+
+
+// Plot SMA to chart
+plot(shortSMA, color=color.red, title="Short SMA")
+plot(longSMA, color=color.green, title="Long SMA")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/430053
+
+> Last Modified
+
+2023-10-24 16:14:10

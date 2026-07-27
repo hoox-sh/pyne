@@ -1,0 +1,9 @@
+//@version=6
+// set05 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block147
+// content_hash: dfacda78709936f4
+// collected: 2026-07-27
+indicator("math.min", overlay=true)
+plot(math.min(close, open))
+plot(math.min(close, math.min(open, 42)))

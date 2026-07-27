@@ -1,0 +1,15 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block212
+// content_hash: afb414472955dab7
+// collected: 2026-07-27
+indicator("str.replace")
+var source = "FTX:BTCUSD / FTX:BTCEUR"
+
+// Replace first occurrence of "FTX" with "BINANCE" replacement string
+var newSource = str.replace(source, "FTX", "BINANCE", 0)
+
+if barstate.islastconfirmedhistory
+    // Display "BINANCE:BTCUSD / FTX:BTCEUR"
+    label.new(bar_index, high, text = newSource)

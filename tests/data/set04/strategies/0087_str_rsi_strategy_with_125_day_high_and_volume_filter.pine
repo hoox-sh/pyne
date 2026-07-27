@@ -1,0 +1,57 @@
+//@version=6
+// set04 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/相对强弱指数与125日高点突破及成交量过滤策略-RSI-with-125-Day-High-Breakout-and-Volume-Filter-Strategy.md
+// content_hash: 120eb095da57a1a8
+// collected: 2026-07-27
+strategy("RSI Strategy with 125-Day High and Volume Filter", overlay=true)
+
+// Input variables
+length = input(14, title="RSI Length")
+overSold = input(30, title="Oversold Level")
+overBought = input(70, title="Overbought Level")
+price = close
+
+// RSI Calculation
+vrsi = ta.rsi(price, length)
+
+// Conditions for RSI crossover
+co = ta.crossover(vrsi, overSold)
+cu = ta.crossunder(vrsi, overBought)
+
+// 125-day high calculation
+high_125 = ta.highest(high, 125)
+
+// Crossing conditions for 125-day high
+cross_above_high_125 = ta.crossover(price, high_125)
+cross_below_high_125 = ta.crossunder(price, high_125)
+
+// Volume condition: Check if current volume is at least 2 times the previous volume
+volume_increased = volume > 2 * volume[1]
+
+// Entry logic for RSI and 125-day high with volume filter
+if (not na(vrsi))
+    if (co and volume_increased)
+        strategy.entry("RsiLE", strategy.long, comment="RsiLE")
+    if (cu and volume_increased)
+        strategy.entry("RsiSE", strategy.short, comment="RsiSE")
+
+// Entry logic for 125-day high crossing with volume filter
+if (cross_above_high_125 and volume_increased)
+    strategy.entry("BuyHigh125", strategy.long, comment="BuyHigh125")
+
+if (cross_below_high_125 and volume_increased)
+    strategy.entry("SellHigh125", strategy.short, comment="SellHigh125")
+
+// Plot the 125-day high for visualization
+plot(high_125, title="125-Day High", color=color.orange, linewidth=2, style=plot.style_line)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/483056
+
+> Last Modified
+
+2025-02-21 11:15:54

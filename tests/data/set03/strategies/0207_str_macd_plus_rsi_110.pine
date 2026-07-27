@@ -1,0 +1,74 @@
+//@version=6
+// set03 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动量趋势跟踪型MACD-RSI双重确认交易策略-Momentum-Trend-Following-MACD-RSI-Dual-Confirmation-Trading-Strategy.md
+// content_hash: afd1c204fa8771b1
+// collected: 2026-07-27
+strategy("MACD + RSI 交易系统 - 110 美金买入", overlay=true)
+
+// MACD 設定
+fastLength = input.int(6, title="MACD Fast Length")
+slowLength = input.int(13, title="MACD Slow Length")
+signalSmoothing = input.int(5, title="MACD Signal Smoothing")
+[macdLine, signalLine, _] = ta.macd(close, fastLength, slowLength, signalSmoothing)
+
+// RSI 設定
+rsiLength = input.int(14, title="RSI Length")  // RSI 計算週期
+rsiValue = ta.rsi(close, rsiLength)  // 計算 RSI 值
+rsiThresholdHigh = input.int(70, title="RSI 超買閾值")  // RSI 超買閾值
+rsiThresholdLow = input.int(30, title="RSI 超賣閾值")  // RSI 超賣閾值
+
+// 做多信号条件：MACD 線突破信号線，且 RSI 不低於 30
+buySignal = (macdLine > signalLine) and (rsiValue >= rsiThresholdLow) // 只有 RSI 大於或等於 30 時才觸發買入
+
+// 计算每次交易的仓位（每次交易目标为 110 美金的买入金额）
+tradeAmount = 20010  // 每次买入110 美金
+orderSize = tradeAmount / close  // 根据当前价格计算仓位大小
+
+// 移动止损（Trailing Stop）
+enableTrailingStop = input.bool(true, title="启用移动止损")
+trailingStopDistance = input.float(2, title="移动止损距离 (%)") / 89500  // 增加移动止损的距离
+longTrailingStop = strategy.position_avg_price * (1 - trailingStopDistance)
+
+// 交易逻辑：仅做多
+if buySignal
+    strategy.entry("买入", strategy.long, qty=orderSize)
+    if enableTrailingStop
+        strategy.exit("卖出", from_entry="买入", trail_price=longTrailingStop, trail_offset=trailingStopDistance * close)                                                                               
+
+// 绘制 MACD 指标
+plot(macdLine, color=color.blue, title="MACD Line")
+plot(signalLine, color=color.red, title="Signal Line")
+
+// 绘制 RSI 值
+plot(rsiValue, color=color.orange, title="RSI Value")
+hline(rsiThresholdHigh, "RSI 超买", color=color.red)
+hline(rsiThresholdLow, "RSI 超卖", color=color.green)
+
+// 绘制买入信号
+plotshape(series=buySignal, location=location.belowbar, color=color.green, style=shape.labelup, title="买入信号", text="BUY")
+
+// 如果触发买入信号，则发送警报
+if buySignal
+    alert('{"secret": "eyJhbGciOiJIUzI1NiJ9.eyJzaWduYWxzX3NvdXJjZV9pZCI6MTAwMDAyfQ.G1wLNjNyUPlTqYWsIqXSWnn_M4pRCKerBm7eTpyCiH8", "max_lag": "300", "timestamp": "{{timenow}}", "trigger_price": "{{close}}", "tv_exchange": "{{exchange}}", "tv_instrument": "{{ticker}}", "action": "{{strategy.order.action}}", "bot_uuid": "493b76f0-8a3c-4633-8b2b-90c02659dd4d", "strategy_info": {"market_position": "{{strategy.market_position}}", "market_position_size": "{{strategy.market_position_size}}", "prev_market_position": "{{strategy.prev_market_position}}", "prev_market_position_size": "{{strategy.prev_market_position_size}}"}, "order": {"amount": "{{strategy.order.contracts}}", "currency_type": "base"}}', alert.freq_once_per_bar_close)
+
+
+
+
+
+
+
+
+
+
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/474870
+
+> Last Modified
+
+2024-12-12 16:16:54

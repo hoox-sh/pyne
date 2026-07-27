@@ -1,0 +1,54 @@
+//@version=3
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/均线震荡突破HODL策略Moving-Average-Oscillation-HODL-Strategy.md
+// content_hash: bea87503b16a89b9
+// collected: 2026-07-27
+strategy("HODLBot", default_qty_type=strategy.percent_of_equity, default_qty_value=100, calc_on_every_tick=true, overlay=true)
+    
+//// Time limits 
+testStartYear = input(2017, "Backtest Start Year")
+testStartMonth = input(01, "Backtest Start Month")
+testStartDay = input(01, "Backtest Start Day")
+testPeriodStart = timestamp(testStartYear,testStartMonth,testStartDay,0,0)
+
+testStopYear = input(2029, "Backtest Stop Year")
+testStopMonth = input(1, "Backtest Stop Month")
+testStopDay = input(1, "Backtest Stop Day")
+testPeriodStop = timestamp(testStopYear,testStopMonth,testStopDay,0,0)
+
+testPeriod() => true
+
+maPeriod = input(200, "MA Period")
+smoothing = input(defval="EMA", options=["EMA", "SMA"])
+
+ma(smoothing, src, length) => 
+    if smoothing == "EMA"
+        ema(src, length)
+    else
+        if smoothing == "SMA"
+            sma(src, length)
+        
+//// Main ////
+
+movingAverage = ma(smoothing, close, maPeriod)
+
+plot(movingAverage, color=orange, style = line, linewidth = 4)
+ 
+// very simple, price over MA? Buy and HODL 
+if (testPeriod() and close > movingAverage)
+    strategy.entry("HODL", strategy.long)
+
+// Price under, close long
+if (testPeriod() and close < movingAverage)
+    strategy.close("HODL")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/426497
+
+> Last Modified
+
+2023-09-12 16:02:24

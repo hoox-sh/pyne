@@ -1,0 +1,57 @@
+//@version=2
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双均线交叉黄金交叉量化策略Dual-Moving-Average-Golden-Cross-Quantitative-Strategy.md
+// content_hash: 6fc130f73ecae25c
+// collected: 2026-07-27
+strategy("ZendicatoR", overlay=true, calc_on_order_fills= true, calc_on_every_tick=true, default_qty_type=strategy.percent_of_equity, default_qty_value=15, pyramiding=0)
+dt = input(defval=0.0010, title="Decision Threshold", type=float, step=0.0001)
+keh=input(title="Double HullMA Cross",defval=7, minval=1)
+che1=input(title="MA 1",defval=34,minval=1)
+che2=input(title="MA 2",defval=144,minval=1)
+che3=input(title="MA 3",defval=377,minval=1)
+amnt=input(title="TP ($)",defval=4200,minval=1)
+wma1=wma(close,che1)
+wma2=wma(close,che2)
+wma3=wma(close,che3)
+sma1=sma(close,11)
+tms=10000000000000
+A=request.security(syminfo.tickerid, 'D', close)*tms
+B=request.security(syminfo.tickerid, 'D', close[1])*tms
+C=A>B?green:red
+D=wma2>wma3?green:red
+plot(wma1,style=line,color=C,linewidth=4)
+p1=plot(wma2,style=line,color=D)
+p2=plot(wma3,style=line,color=D)
+fill(p1, p2, color=D, transp=75)
+n2ma=2*wma(close,round(keh/2))
+nma=wma(close,keh)
+diff=n2ma-nma,sqn=round(sqrt(keh))
+n2ma1=2*wma(close[2],round(keh/2))
+nma1=wma(close[2],keh)
+diff1=n2ma1-nma1,sqn1=round(sqrt(keh))
+n1=wma(diff,sqn)*tms
+n2=wma(diff1,sqn)*tms
+Q=n1>n2?blue:yellow
+plot(sma1,style=line,color=Q,linewidth=4)
+closelong = A*tms<B*tms and n2*tms>n1*tms and strategy.openprofit>amnt
+if (closelong)
+    strategy.close("Long")
+closeshort = A*tms>B*tms and n1*tms>n2*tms and strategy.openprofit>amnt
+if (closeshort)
+    strategy.close("Short") 
+longCondition = A*tms>B*tms and n1*tms>n2*tms
+if (longCondition)
+    strategy.entry("Long",strategy.long)
+shortCondition = A*tms<B*tms and n1*tms<n2*tms
+if (shortCondition)
+    strategy.entry("Short",strategy.short)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/436646
+
+> Last Modified
+
+2023-12-26 15:52:13

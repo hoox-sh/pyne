@@ -1,0 +1,95 @@
+// set02 corpus entry
+// source_repo: jbondata-pinescript-indicator-suite
+// source_path: jbondata-pinescript-indicator-suite/scripts/liquidity-swings.pine
+// content_hash: e54d00ce76ad4cb3
+// collected: 2026-07-27
+// This Pine Script code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// jbondata
+//@version=6
+indicator("Liquidity Swings by @jbondata", overlay = true, max_lines_count = 500)
+// Inputs
+int leftBars = input.int(2, "Fractal left bars", minval = 1, maxval = 10, group = "Fractal", tooltip = "Bars each side of center for fractal detection (5-bar fractal = 2).")
+int maxSwings = input.int(7, "Max swings to show", minval = 5, maxval = 10, group = "Liquidity", tooltip = "Only the last N fractal highs and N fractal lows are drawn.")
+int shortLen = input.int(5, "Short line length (bars)", minval = 1, maxval = 50, group = "Style", tooltip = "Length of the line when level is not yet broken.")
+color colorLine = input.color(color.black, "Line color", group = "Style")
+// Fractal detection (same as Fractals indicator)
+float highestInRange = ta.highest(high, leftBars * 2 + 1)
+float lowestInRange = ta.lowest(low, leftBars * 2 + 1)
+bool isFractalHigh = (high[leftBars] == highestInRange) and (high[leftBars] > high[leftBars - 1]) and (high[leftBars] > high[leftBars + 1])
+bool isFractalLow = (low[leftBars] == lowestInRange) and (low[leftBars] < low[leftBars - 1]) and (low[leftBars] < low[leftBars + 1])
+// Store last N swing highs and lows (line id, fractal bar_index, price, bar where broken by close)
+var array linesHigh = array.new_line()
+var array barsHigh = array.new_int()
+var array pricesHigh = array.new_float()
+var array breakBarHigh = array.new_int()
+var array linesLow = array.new_line()
+var array barsLow = array.new_int()
+var array pricesLow = array.new_float()
+var array breakBarLow = array.new_int()
+int fractalBar = bar_index - leftBars
+float swingHighPrice = high[leftBars]
+float swingLowPrice = low[leftBars]
+// Push new fractal high
+if isFractalHigh and barstate.isconfirmed
+    line ln = line.new(fractalBar, swingHighPrice, fractalBar + shortLen, swingHighPrice, xloc.bar_index, color = colorLine, width = 1, style = line.style_solid)
+    array.push(linesHigh, ln)
+    array.push(barsHigh, fractalBar)
+    array.push(pricesHigh, swingHighPrice)
+    array.push(breakBarHigh, int(na))
+    if array.size(linesHigh) > maxSwings
+        line.delete(array.shift(linesHigh))
+        array.shift(barsHigh)
+        array.shift(pricesHigh)
+        array.shift(breakBarHigh)
+// Push new fractal low
+if isFractalLow and barstate.isconfirmed
+    line ln = line.new(fractalBar, swingLowPrice, fractalBar + shortLen, swingLowPrice, xloc.bar_index, color = colorLine, width = 1, style = line.style_solid)
+    array.push(linesLow, ln)
+    array.push(barsLow, fractalBar)
+    array.push(pricesLow, swingLowPrice)
+    array.push(breakBarLow, int(na))
+    if array.size(linesLow) > maxSwings
+        line.delete(array.shift(linesLow))
+        array.shift(barsLow)
+        array.shift(pricesLow)
+        array.shift(breakBarLow)
+// Update each swing line every bar
+// Broken = close (not wick) beyond level; when broken, line stops at break bar and goes dashed.
+// High: broken = a bar closed at or above the level; line ends at that bar, dashed
+for i = 0 to maxSwings - 1
+    int barI = i < array.size(barsHigh) ? array.get(barsHigh, i) : bar_index
+    int lookbackHigh = math.max(1, bar_index - barI)
+    float highestCloseSince = ta.highest(close, lookbackHigh)
+    if i < array.size(linesHigh)
+        line ln = array.get(linesHigh, i)
+        float priceI = array.get(pricesHigh, i)
+        bool broken = bar_index > barI and highestCloseSince >= priceI
+        int endBar = barI + shortLen
+        if broken
+            int storedBreak = array.get(breakBarHigh, i)
+            if na(storedBreak)
+                array.set(breakBarHigh, i, bar_index)
+                storedBreak := bar_index
+            endBar := storedBreak
+        line.set_xy2(ln, endBar, priceI)
+        line.set_style(ln, broken ? line.style_dashed : line.style_solid)
+        line.set_color(ln, colorLine)
+// Low: broken = a bar closed at or below the level; line ends at that bar, dashed
+for i = 0 to maxSwings - 1
+    int barI = i < array.size(barsLow) ? array.get(barsLow, i) : bar_index
+    int lookbackLow = math.max(1, bar_index - barI)
+    float lowestCloseSince = ta.lowest(close, lookbackLow)
+    if i < array.size(linesLow)
+        line ln = array.get(linesLow, i)
+        float priceI = array.get(pricesLow, i)
+        bool broken = bar_index > barI and lowestCloseSince <= priceI
+        int endBar = barI + shortLen
+        if broken
+            int storedBreak = array.get(breakBarLow, i)
+            if na(storedBreak)
+                array.set(breakBarLow, i, bar_index)
+                storedBreak := bar_index
+            endBar := storedBreak
+        line.set_xy2(ln, endBar, priceI)
+        line.set_style(ln, broken ? line.style_dashed : line.style_solid)
+        line.set_color(ln, colorLine)

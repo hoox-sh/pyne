@@ -1,0 +1,73 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于均线回归突破跟踪趋势策略Average-Line-Breakthrough-Strategy.md
+// content_hash: 543b706d07f8aedb
+// collected: 2026-07-27
+strategy("Standard Deviation Bands with Buy/Sell Signals", overlay=true)
+
+// Input for the number of standard deviations
+deviationMultiplier = input.float(2.0, title="Standard Deviation Multiplier")
+
+// Input for the length of the moving average
+maLength = input.int(50, title="Moving Average Length")
+
+// Input for the stop loss percentage
+stopLossPercentage = input.float(12, title="Stop Loss Percentage")
+
+// Calculate the moving average
+sma = ta.sma(close, maLength)
+
+// Calculate the standard deviation of the price
+priceDeviation = ta.stdev(close, maLength)
+
+// Calculate the upper and lower bands
+upperBand = sma + (priceDeviation * deviationMultiplier)
+lowerBand = sma - (priceDeviation * deviationMultiplier)
+
+// Plot the bands
+plot(upperBand, color=color.green, title="Upper Band")
+plot(lowerBand, color=color.red, title="Lower Band")
+
+// Plot the moving average
+plot(sma, color=color.blue, title="SMA", linewidth=2)
+
+// Buy Signal
+buyCondition = ta.crossover(close, lowerBand)
+sellCondition = ta.crossunder(close, upperBand)
+
+// Calculate stop loss level
+stopLossLevelBuy = close * (1 - stopLossPercentage / 100)
+stopLossLevelSell = close * (1 + stopLossPercentage / 100)
+
+// Create Buy and Sell Alerts
+alertcondition(buyCondition, title="Buy Signal", message="Buy Signal - Price Crossed Below Lower Band")
+alertcondition(sellCondition, title="Sell Signal", message="Sell Signal - Price Crossed Above Upper Band")
+
+// Plot Buy and Sell Arrows on the chart
+plotshape(buyCondition, style=shape.triangleup, location=location.belowbar, color=color.green, title="Buy Signal Arrow")
+plotshape(sellCondition, style=shape.triangledown, location=location.abovebar, color=color.red, title="Sell Signal Arrow")
+
+// Exit Long and Short Positions
+var float stopLossBuy = na
+var float stopLossSell = na
+
+if ta.crossover(close, sma)
+    stopLossBuy := stopLossLevelBuy
+if ta.crossunder(close, sma)
+    stopLossSell := stopLossLevelSell
+
+strategy.entry("Buy", strategy.long, when = buyCondition)
+strategy.exit("Stop Loss/Take Profit Buy", from_entry = "Buy", stop = stopLossBuy)
+strategy.entry("Sell", strategy.short, when = sellCondition)
+strategy.exit("Stop Loss/Take Profit Sell", from_entry = "Sell", stop = stopLossSell)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/442648
+
+> Last Modified
+
+2024-02-23 14:46:37

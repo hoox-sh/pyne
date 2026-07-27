@@ -1,0 +1,87 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于趋势置信度的趋势跟踪策略Trend-Following-Strategy-Based-on-Trend-Confidence.md
+// content_hash: f27ee99d9d98f915
+// collected: 2026-07-27
+strategy("Trend Following based on Trend Confidence", overlay=false )
+
+// Inputs
+
+source      = input(close)
+
+since       = input(timestamp('2000-01-01'), title='Start trading interval')
+till        = input(timestamp('2030-01-01'), title='End trading interval')
+
+length      = input(30, title='Length')
+
+longs_on    = input.bool(true, title='Longs')
+shorts_on   = input.bool(true, title='Shorts')
+
+// Parameters for best performance 2018 - 2022
+// long_entry  = input.float(0.26, step=0.01, title='Long entry threshold')
+// long_exit   = input.float(-0.10, step=0.01, title='Long exit threshold')
+// short_entry = input.float(-0.24, step=0.01, title='Short entry threshold')
+// short_exit  = input.float(-0.04, step=0.01, title='Short exit threshold')
+
+long_entry  = input.float(0.25, step=0.01, title='Long entry threshold')
+long_exit   = input.float(-0.10, step=0.01, title='Long exit threshold')
+short_entry = input.float(-0.25, step=0.01, title='Short entry threshold')
+short_exit  = input.float(-0.05, step=0.01, title='Short exit threshold')
+
+stop_loss   = input.float(10, step=1, title='Stop loss (percentage)') / 100
+
+// Trend Confidence
+
+linreg = ta.linreg(source, length, 0)
+linreg_p = ta.linreg(source, length, 0+1)
+
+x = bar_index
+slope = linreg - linreg_p
+intercept = linreg - x*slope
+deviationSum = 0.0
+for i = 0 to length-1
+    deviationSum := deviationSum + math.pow(source[i]-(slope*(x-i)+intercept), 2)
+deviation = math.sqrt(deviationSum/(length))
+
+slope_perc = slope / source[0]
+deviation_perc = deviation / source[0]
+trend_confidence = slope_perc / deviation_perc
+
+// Strategy
+
+in_interval = true
+
+sl_long = strategy.position_avg_price * (1 - stop_loss)
+sl_short = strategy.position_avg_price * (1 + stop_loss)
+
+if in_interval and longs_on and ta.crossover(trend_confidence, long_entry)
+    strategy.entry("TC Long Entry", strategy.long)
+    strategy.exit("TC Long Exit", stop=sl_long)
+if in_interval and longs_on and ta.crossunder(trend_confidence, long_exit)
+    strategy.close("TC Long Entry")
+
+if in_interval and shorts_on and ta.crossunder(trend_confidence, short_entry)
+    strategy.entry("TC Short Entry", strategy.short)
+    strategy.exit("TC Short Exit", stop=sl_short)
+if in_interval and shorts_on and ta.crossover(trend_confidence, short_exit)
+    strategy.close("TC Short Entry")
+
+// Plots 
+
+plot(trend_confidence, "Trend Confidence", color.rgb(255, 255, 255))
+
+plot(long_entry, "", color.rgb(0, 255, 0), linewidth=1)
+plot(long_exit, "", color.rgb(255, 0, 0), linewidth=1)
+plot(short_entry, "", color=bar_index % 10 == 0 ? color.rgb(0, 255, 0) : #00000000, linewidth=1)
+plot(short_exit, "", color=bar_index % 10 == 0 ? color.rgb(255, 0, 0) : #00000000, linewidth=1)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/432898
+
+> Last Modified
+
+2023-11-22 15:50:07

@@ -1,0 +1,85 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/K线连续数目牛熊判断策略-K-Consecutive-Candles-Bull-Bear-Strategy.md
+// content_hash: 8990cfd6b19fde13
+// collected: 2026-07-27
+strategy("K Consecutive Candles 數來寶V2", max_bars_back=300, overlay=true)
+
+// 定義用戶輸入
+k = input.int(3, title="Number of Consecutive Candles for Long", minval=1)
+k2 = input.int(3, title="Number of Consecutive Candles for Short", minval=1)
+stopLossTicks = input.int(500, title="Stop Loss (Ticks)")
+takeProfitTicks = input.int(500, title="Take Profit (Ticks)")
+iTGT = input.int(200,"iTGT")  // 移動停利點
+iPcnt = input.int(50,"iPcnt")  // 移動停利%
+
+var float TrailValue = 0
+var float TrailExit = 0
+var float  vMP = 0
+
+BarsSinceEntry = ta.barssince(strategy.position_size == 0)
+
+vMP := strategy.position_size
+
+// 创建一个包含键值对的字典
+addArrayData(type, value) =>
+    alert_array = array.new_string()
+    array.push(alert_array, '"timenow": ' + str.tostring(timenow))
+    array.push(alert_array, '"seqNum": ' + str.tostring(value))
+    array.push(alert_array, '"type": "' + type + '"')
+    alertstring = '{' + array.join(alert_array,', ') + '}'
+
+
+// 定義條件變量
+var int countLong = 0  // 記錄連續多頭條件成立的次數
+var int countShort = 0 // 記錄連續空頭條件成立的次數
+
+// 計算連續大於或小於前一根的收盤價格的次數
+if close > close[1]
+    countLong += 1
+    countShort := 0 // 重置空頭計數
+else if close < close[1]
+    countShort += 1
+    countLong := 0 // 重置多頭計數
+else
+    countLong := 0
+    countShort := 0
+
+// 開設多頭倉位條件
+if countLong >= k
+    strategy.entry("Long Entry", strategy.long)
+    strategy.exit("Exit Long", "Long Entry", loss=stopLossTicks, profit=takeProfitTicks)
+    
+
+if vMP>0
+    TrailValue := ta.highest(high,BarsSinceEntry)
+    TrailExit := TrailValue - iPcnt*0.01*(TrailValue - strategy.position_avg_price)
+    if TrailValue > strategy.position_avg_price + iTGT * syminfo.minmove/syminfo.pricescale and close < TrailExit
+        
+        strategy.close("Long Entry", comment = "Trl_LX"+ str.tostring(close[0]))
+// 開設空頭倉位條件
+if countShort >= k2
+    strategy.entry("Short Entry", strategy.short)
+    strategy.exit("Exit Short", "Short Entry", loss=stopLossTicks, profit=takeProfitTicks)
+
+if vMP<0    
+    TrailValue := ta.lowest(low,BarsSinceEntry)
+    TrailExit := TrailValue - iPcnt*0.01*(TrailValue - strategy.position_avg_price)
+    if TrailValue < strategy.position_avg_price - iTGT * syminfo.minmove/syminfo.pricescale and close > TrailExit
+        
+        strategy.close("short60", comment = "Trl_SX"+ str.tostring(close[0]))
+
+
+
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/451715
+
+> Last Modified
+
+2024-05-17 13:54:06

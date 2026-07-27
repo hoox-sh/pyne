@@ -1,0 +1,51 @@
+//@version=6
+// set04 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/相对强弱指标RSI超买超卖量化交易策略-Relative-Strength-Index-RSI-Overbought-Oversold-Quantitative-Trading-Strategy.md
+// content_hash: e4884e9ae9647a97
+// collected: 2026-07-27
+strategy("RSI Overbought/Oversold Strategy", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=5)
+
+// ? RSI Settings
+rsiLength = 14
+rsiSource = close
+rsi = ta.rsi(rsiSource, rsiLength)
+
+// ? Entry Conditions
+longEntry = ta.crossover(rsi, 30)   // Buy when RSI crosses above 30
+shortEntry = ta.crossunder(rsi, 70) // Sell when RSI crosses below 70
+
+// ? Exit Conditions
+longExit = ta.crossover(rsi, 70)  // Close long when RSI hits 70
+shortExit = ta.crossunder(rsi, 30) // Close short when RSI hits 30
+
+// ✅ Execute Trades
+if (longEntry)
+    strategy.entry("BUY", strategy.long)
+if (longExit)
+    strategy.close("BUY")
+
+if (shortEntry)
+    strategy.entry("SELL", strategy.short)
+if (shortExit)
+    strategy.close("SELL")
+
+// ? Visuals for Better Clarity
+plot(rsi, title="RSI", color=color.blue, linewidth=2)
+hline(70, "Overbought", color=color.red)
+hline(30, "Oversold", color=color.green)
+
+// ? Alerts for Entry/Exit
+alertcondition(longEntry, title="BUY Signal", message="RSI crossed above 30 - Buy!")
+alertcondition(longExit, title="SELL Exit", message="RSI reached 70 - Close Buy!")
+alertcondition(shortEntry, title="SELL Signal", message="RSI crossed below 70 - Sell!")
+alertcondition(shortExit, title="BUY Exit", message="RSI reached 30 - Close Sell!")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/488143
+
+> Last Modified
+
+2025-03-25 14:22:06

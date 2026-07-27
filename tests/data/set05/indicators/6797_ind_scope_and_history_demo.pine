@@ -1,0 +1,17 @@
+//@version=6
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/language/maps.md::maps.md#block36
+// content_hash: 93626ca47ff3fe5a
+// collected: 2026-07-27
+indicator("Scope and history demo", overlay = true)
+
+//@variable The source value for EMA calculation.
+float source = input.source(close, "Source")
+
+//@variable A map containing global key-value pairs.
+globalData = map.new<int, float>()
+
+//@function Calculates a set of EMAs and updates the key-value pairs in `globalData`.
+update() =>
+    //@variable The previous map instance assigned to `globalData`.

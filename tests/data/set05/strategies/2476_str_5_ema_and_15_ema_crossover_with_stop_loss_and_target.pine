@@ -1,0 +1,56 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/指数移动平均线交叉策略与止损止盈优化系统-EMA-Crossover-Strategy-with-Stop-Loss-and-Take-Profit-Optimization-System.md
+// content_hash: b26c3c5fe1020922
+// collected: 2026-07-27
+strategy("5 EMA and 15 EMA Crossover with Stop Loss and Target", overlay=true)
+
+// Define EMAs
+ema5 = ta.ema(close, 5)
+ema15 = ta.ema(close, 15)
+
+// Plot EMAs on the chart
+plot(ema5, title="5 EMA", color=color.blue)
+plot(ema15, title="15 EMA", color=color.red)
+
+// Crossover conditions
+longCondition = ta.crossover(ema5, ema15)
+shortCondition = ta.crossunder(ema5, ema15)
+
+// Stop-loss and take-profit percentage
+stopLossPercent = 1.5  // Stop-loss at 1.5%
+takeProfitPercent = 3.0  // Take-profit at 3%
+
+// Calculate stop-loss and take-profit levels for long and short positions
+longStopLoss = strategy.position_avg_price * (1 - stopLossPercent / 100)
+longTakeProfit = strategy.position_avg_price * (1 + takeProfitPercent / 100)
+
+shortStopLoss = strategy.position_avg_price * (1 + stopLossPercent / 100)
+shortTakeProfit = strategy.position_avg_price * (1 - takeProfitPercent / 100)
+
+// Enter long position with stop-loss and take-profit
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+    strategy.exit("Take Profit/Stop Loss", "Long", stop=longStopLoss, limit=longTakeProfit)
+
+// Enter short position with stop-loss and take-profit
+if (shortCondition)
+    strategy.entry("Short", strategy.short)
+    strategy.exit("Take Profit/Stop Loss", "Short", stop=shortStopLoss, limit=shortTakeProfit)
+
+// Plot stop-loss and take-profit levels
+plot(longStopLoss, title="Long Stop Loss", color=color.red, linewidth=1, style=plot.style_linebr)
+plot(longTakeProfit, title="Long Take Profit", color=color.green, linewidth=1, style=plot.style_linebr)
+plot(shortStopLoss, title="Short Stop Loss", color=color.red, linewidth=1, style=plot.style_linebr)
+plot(shortTakeProfit, title="Short Take Profit", color=color.green, linewidth=1, style=plot.style_linebr)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/473147
+
+> Last Modified
+
+2024-11-27 16:15:25

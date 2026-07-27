@@ -1,0 +1,20 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block164
+// content_hash: e3a1d5f9befe31ec
+// collected: 2026-07-27
+indicator("`matrix.max()` Example")
+
+// Create a 2x2 matrix.
+var m = matrix.new<int>(2, 2, na)
+// Fill the matrix with values.
+matrix.set(m, 0, 0, 1)
+matrix.set(m, 0, 1, 2)
+matrix.set(m, 1, 0, 3)
+matrix.set(m, 1, 1, 4)
+
+// Get the maximum value in the matrix.
+var x = matrix.max(m)
+
+plot(x, 'Matrix maximum value')

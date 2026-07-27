@@ -1,0 +1,70 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多重指标协同交易系统-基于趋势动量复合信号策略-Multi-Indicator-Synergy-Trading-System-Trend-Momentum-Composite-Signal-Strategy.md
+// content_hash: 6006630101615272
+// collected: 2026-07-27
+strategy("Optimal Multi-Indicator Strategy", overlay=true, initial_capital=10000, default_qty_type=strategy.percent_of_equity, default_qty_value=10, commission_type=strategy.commission.percent, commission_value=0.1)
+
+// ===== Input Parameters =====
+// Moving Averages
+fastMA = ta.sma(close, 50)
+slowMA = ta.sma(close, 200)
+plot(fastMA, "Fast MA", color=color.green)
+plot(slowMA, "Slow MA", color=color.red)
+
+// RSI
+rsiLength = input(14, "RSI Length")
+rsiOverbought = input(70, "RSI Overbought")
+rsiOversold = input(30, "RSI Oversold")
+rsi = ta.rsi(close, rsiLength)
+
+// MACD
+[macdLine, signalLine, _] = ta.macd(close, 12, 26, 9)
+
+// Risk Management
+stopLossPerc = input(2.0, "Stop Loss (%)") / 100
+takeProfitPerc = input(4.0, "Take Profit (%)") / 100
+trailingStopPerc = input(1.0, "Trailing Stop (%)") / 100
+
+// ===== Strategy Logic =====
+// Trend Condition: Golden Cross (Fast MA > Slow MA)
+bullishTrend = ta.crossover(fastMA, slowMA)
+bearishTrend = ta.crossunder(fastMA, slowMA)
+
+// Momentum Condition: RSI and MACD
+bullishMomentum = rsi < rsiOverbought and ta.crossover(macdLine, signalLine)
+bearishMomentum = rsi > rsiOversold and ta.crossunder(macdLine, signalLine)
+
+// Entry Signals
+longCondition = bullishTrend and bullishMomentum
+shortCondition = bearishTrend and bearishMomentum
+
+// Exit Signals
+trailingStop = strategy.position_avg_price * (1 - trailingStopPerc)
+exitLong = ta.crossunder(close, trailingStop) or (close >= strategy.position_avg_price * (1 + takeProfitPerc))
+exitShort = ta.crossover(close, trailingStop) or (close <= strategy.position_avg_price * (1 - takeProfitPerc))
+
+// ===== Execute Orders =====
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+    strategy.exit("Exit Long", "Long", stop=strategy.position_avg_price * (1 - stopLossPerc), limit=strategy.position_avg_price * (1 + takeProfitPerc), trail_price=trailingStop, trail_offset=trailingStopPerc * close)
+
+if (shortCondition)
+    strategy.entry("Short", strategy.short)
+    strategy.exit("Exit Short", "Short", stop=strategy.position_avg_price * (1 + stopLossPerc), limit=strategy.position_avg_price * (1 - takeProfitPerc), trail_price=trailingStop, trail_offset=trailingStopPerc * close)
+
+// ===== Plotting =====
+plotshape(series=longCondition, title="Buy Signal", location=location.belowbar, color=color.green, style=shape.labelup, text="BUY")
+plotshape(series=shortCondition, title="Sell Signal", location=location.abovebar, color=color.red, style=shape.labeldown, text="SELL")
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/482876
+
+> Last Modified
+
+2025-02-20 16:10:54

@@ -1,0 +1,68 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于趋势确认的多重指标动态止损策略-Trend-Confirmation-Multi-Indicator-Dynamic-Stop-Loss-Strategy.md
+// content_hash: 525b5fe3fcecfdf6
+// collected: 2026-07-27
+strategy("Invest SMA|MACD|ADX Long Weekly Strategy (BtTL)", overlay=true)
+
+// SMA Inputs
+smaLength = input.int(30, title="SMA Länge")
+// MACD Inputs
+macdFastLength = input.int(9, title="MACD schnelle Periode")
+macdSlowLength = input.int(18, title="MACD langsame Perside")
+macdSignalLength = input.int(9, title="MACD Signal Smoothing")
+//ADX Inputs
+adxlen = input(14, title="ADX Smoothing")
+dilen = input(14, title="DI Länge")
+
+// SMA-Berechnung
+smaValue = ta.sma(close, smaLength)
+isAboveSMA = close > smaValue
+isBelowSMA = close < smaValue
+
+// MACD-Berechnung
+[macdLine, signalLine, _] = ta.macd(close, macdFastLength, macdSlowLength, macdSignalLength)
+isMACDBuy = macdLine > signalLine and macdLine > 0
+
+// Swing-Low Berechnung (5-Kerzen)
+isSwingLow = low[2] > low[1] and low[3] > low[1] and low[1] < low and low[1] < low[4]
+var float lastSwingLow = na
+var float secondLastSwingLow = na
+
+// Wenn ein neuer Swing-Low gefunden wird
+if (isSwingLow[1])
+    secondLastSwingLow := lastSwingLow
+    lastSwingLow := low[1]
+
+//ADX ermitteln
+[pDI,mDI,ADX] = ta.dmi(dilen, adxlen)
+IsInTrend = ADX > 25
+
+// Einstiegskondition mit MACD und SMA
+longCondition = isAboveSMA and isMACDBuy and IsInTrend
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+
+// Ausstiegskondition am vorletzten Swing-Low
+if (isBelowSMA and na(secondLastSwingLow) == false)
+    strategy.exit("Exit", from_entry="Long", stop=secondLastSwingLow)
+
+// Reset bei Position schließen
+if(strategy.position_size <= 0)
+    secondLastSwingLow := na
+    lastSwingLow := na
+
+// Plots
+plot(smaValue, title="SMA 30", color=#063eda, linewidth=2)
+plot(na(lastSwingLow) ? na : lastSwingLow, title="Last Swing Low", color=#ffb13b, linewidth=1, style=plot.style_circles)
+plot(na(secondLastSwingLow) ? na : secondLastSwingLow, title="Second Last Swing Low", color=color.red, linewidth=1, style=plot.style_circles)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/482793
+
+> Last Modified
+
+2025-02-20 11:19:58

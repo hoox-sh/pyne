@@ -1,0 +1,46 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/布林带与移动平均线结合的相对强弱指标交易策略Bollinger-Bands-and-Moving-Average-Combined-with-Relative-Strength-Index-Trading-Strategy.md
+// content_hash: 62f7469face1d933
+// collected: 2026-07-27
+strategy("Custom Strategy", overlay=true)
+
+// Input parameters
+length = input(20, title="Bollinger Bands Length")
+src = input(close, title="Source")
+mult = input(2.0, title="Bollinger Bands Multiplier")
+
+// Bollinger Bands
+basis = ta.sma(src, length)
+upper_band = basis + mult * ta.stdev(src, length)
+lower_band = basis - mult * ta.stdev(src, length)
+
+// 3 EMA
+ema3 = ta.ema(close, 3)
+
+// RSI
+rsi_length = input(14, title="RSI Length")
+rsi_source = close
+rsi_value = ta.rsi(rsi_source, rsi_length)
+
+// Strategy logic
+strategy.entry("Buy", strategy.long, when=ta.crossover(close, lower_band) and ta.crossover(close, ema3) and rsi_value < 30)
+strategy.entry("Sell", strategy.short, when=ta.crossover(close, upper_band) and ta.crossunder(close, ema3) and rsi_value > 70)
+
+// Plotting
+plot(upper_band, color=color.blue)
+plot(lower_band, color=color.blue)
+plot(ema3, color=color.green, title="3 EMA")
+hline(70, "Overbought", color=color.red)
+hline(30, "Oversold", color=color.green)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/444338
+
+> Last Modified
+
+2024-03-11 11:02:44

@@ -1,0 +1,55 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/自适应范围波动率趋势跟踪交易策略-Adaptive-Range-Volatility-Trend-Following-Trading-Strategy.md
+// content_hash: 7f94236768bea801
+// collected: 2026-07-27
+strategy("ASCTrend", shorttitle="ASCTrend", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=100)
+
+eternalfg = input(false, title="eternal 確定")
+eternal = eternalfg ? 1 : 0
+ASClength = input.int(title="ASC Length", minval=4, defval=10)
+RISK = input.int(title="RISK", minval=0, defval=3)
+
+// Custom sum function
+customSum(source, length) =>
+    sum = 0.0
+    for i = 0 to length - 1
+        sum := sum + source[i]
+    sum
+
+x1 = 67 + RISK
+x2 = 33 - RISK
+Range = ta.highest(ASClength) - ta.lowest(ASClength)
+AvgRange = ta.sma(Range, ASClength)
+CountFg = math.abs(open - close) >= AvgRange * 2.0 ? 1 : 0
+TrueCount = customSum(CountFg, ASClength)
+CountFg2 = math.abs(close[3] - close) >= AvgRange * 4.6 ? 1 : 0
+TrueCount2 = customSum(CountFg2, ASClength - 3)
+wpr3RR = ta.wpr(3 + RISK + RISK)
+wpr3 = ta.wpr(3)
+wpr4 = ta.wpr(4)
+WprAbs = 100 + (TrueCount2 > 0 ? wpr4 : TrueCount > 0 ? wpr3 : wpr3RR)
+ASC_Trend = 0
+ASC_Trend := WprAbs[eternal] < x2[eternal] ? -1 : WprAbs[eternal] > x1[eternal] ? 1 : ASC_Trend[1]
+
+if (ta.crossover(ASC_Trend, 0))
+    strategy.entry("Long", strategy.long)
+
+if (ta.crossunder(ASC_Trend, 0))
+    strategy.entry("Short", strategy.short)
+
+plotshape(ta.crossover(ASC_Trend, 0), location=location.belowbar, color=color.green, style=shape.triangleup, size=size.small, text="B", textcolor=color.white)
+plotshape(ta.crossunder(ASC_Trend, 0), location=location.abovebar, color=color.red, style=shape.triangledown, size=size.small, text="S", textcolor=color.white)
+
+alertcondition(ta.crossover(ASC_Trend, 0), title="ASC_Trend UP", message="ASC_Trend UP")
+alertcondition(ta.crossunder(ASC_Trend, 0), title="ASC_Trend Down", message="ASC_Trend Down")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/473271
+
+> Last Modified
+
+2024-11-28 17:24:30

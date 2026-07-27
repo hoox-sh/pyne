@@ -1,0 +1,8 @@
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/.claude/skills/pine-developer/SKILL.md::SKILL.md#block24
+// content_hash: d0fc8f8d22e26fde
+// collected: 2026-07-27
+// built with PineScript Agents by TradersPost
+//@version=6
+indicator(title="", shorttitle="", overlay=true)

@@ -1,0 +1,103 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/三重移动平均线趋势跟踪策略Triple-Moving-Average-Trend-Following-Strategy.md
+// content_hash: 18a9294ab03525ae
+// collected: 2026-07-27
+
+// 1. Define strategy settings
+strategy(title="Triple Moving Average", overlay=true,
+     pyramiding=0, initial_capital=1000,
+     commission_type=strategy.commission.cash_per_order,
+     commission_value=4, slippage=2)
+     
+fastMALen = input(title="Fast MA Length", type=input.integer, defval=8)
+medMALen  = input(title="Medium MA Length", type=input.integer, defval=21)
+slowMALen = input(title="Slow MA Length", type=input.integer, defval=55)
+
+//endMonth = input(title="End Month Backtest", type=input.integer, defval=11)
+//endYear  = input(title="End Year Backtest", type=input.integer, defval=2019)
+
+// === INPUT BACKTEST RANGE ===
+FromMonth = input(defval = 12, title = "From Month", minval = 1, maxval = 12)
+FromDay   = input(defval = 1, title = "From Day", minval = 1, maxval = 31)
+FromYear  = input(defval = 2016, title = "From Year", minval = 2017)
+ToMonth   = input(defval = 1, title = "To Month", minval = 1, maxval = 12)
+ToDay     = input(defval = 1, title = "To Day", minval = 1, maxval = 31)
+ToYear    = input(defval = 9999, title = "To Year", minval = 2017)
+
+// === FUNCTION EXAMPLE ===
+start     = timestamp(FromYear, FromMonth, FromDay, 00, 00)  // backtest start window
+finish    = timestamp(ToYear, ToMonth, ToDay, 23, 59)        // backtest finish window
+window()  => true
+
+usePosSize = input(title="Use Position Sizing?", type=input.bool, defval=true)
+riskPerc   = input(title="Risk %", type=input.float, defval=0.5, step=0.25)
+
+// 2. Calculate strategy values
+fastMA = sma(close, fastMALen)
+medMA  = sma(close, medMALen)
+slowMA = sma(close, slowMALen)
+
+//Position Sizing
+riskEquity  = (riskPerc / 100) * strategy.equity
+atrCurrency = (atr(20) * syminfo.pointvalue)
+posSize     = usePosSize ? floor(riskEquity / atrCurrency) : 1
+
+//Backtest Window
+//tradeWindow = (time <= timestamp(endYear, endMonth, 1, 0, 0))
+
+// 3. Determine long trading conditions
+enterLong = crossover(fastMA, medMA) and
+     (fastMA > slowMA) and (medMA > slowMA) and
+     window() 
+
+exitLong = crossunder(fastMA, medMA)
+
+// 4. Code short trading conditions
+enterShort = crossunder(fastMA, medMA) and
+     (fastMA < slowMA) and (medMA < slowMA) and
+     window() 
+
+exitShort = crossover(fastMA, medMA)
+
+// 5. Output strategy data
+plot(series=fastMA, color=color.green, title="Fast MA")
+plot(series=medMA, color=color.purple, title="Medium MA")
+plot(series=slowMA, color=color.red, title="Slow MA",
+     linewidth=2)
+     
+bgColour =
+     enterLong and (strategy.position_size < 1) ? color.green :
+     enterShort and (strategy.position_size > -1) ? color.red :
+     exitLong and (strategy.position_size > 0) ? color.lime :
+     exitShort and (strategy.position_size < 0) ? color.orange :
+     na
+
+bgcolor(color=bgColour, transp=85)
+
+// 6. Submit entry orders
+if (enterLong)
+    strategy.entry(id="EL", long=true, qty=1)
+
+if (enterShort)
+    strategy.entry(id="ES", long=false, qty=1)
+
+// 7. Submit exit orders
+strategy.close_all(when=exitLong and
+     (strategy.position_size > 0))
+strategy.close_all(when=exitShort and
+     (strategy.position_size < 0))
+
+strategy.close_all(when=not window())
+
+//END
+```
+
+> Detail
+
+https://www.fmz.com/strategy/440690
+
+> Last Modified
+
+2024-02-01 11:02:17

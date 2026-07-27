@@ -1,0 +1,26 @@
+//@version=4
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/Basic SMA 200 Strategy.pine
+// content_hash: ab99e6acf6f9e6f2
+// collected: 2026-07-27
+strategy("simple MA 200 cross", overlay=true)
+//Inputs
+MA_Len = input(title="Moving Average Length", type=input.integer, defval=200)
+//Moving Average
+MA = sma(close, MA_Len)
+//Entry 
+longCondition = crossover(close, MA)
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+    
+//Exit
+exitCondition = crossunder(close, MA)
+if (exitCondition)
+    strategy.close("Long")
+    
+//Plot
+plot(MA, title="Moving Average")
+plotshape(longCondition, style=shape.arrowup, color=color.green, location=location.belowbar, size=size.normal, title="Entry", text="Entry")
+plotshape(exitCondition, style=shape.arrowdown, color=color.red, location=location.abovebar, size=size.normal, title="Exit", text="Exit")
+Expand (26 lines)

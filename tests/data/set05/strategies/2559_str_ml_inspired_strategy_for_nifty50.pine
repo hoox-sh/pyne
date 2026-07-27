@@ -1,0 +1,55 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/机器学习启发的双均线RSI交易策略-Machine-Learning-Inspired-Dual-Moving-Average-RSI-Trading-Strategy.md
+// content_hash: 0da44062a1bafc87
+// collected: 2026-07-27
+strategy("ML Inspired Strategy for Nifty50", overlay=true)
+
+// Define the input parameters for the strategy
+length_fast = input.int(10, minval=1, title="Fast MA Length")
+length_slow = input.int(50, minval=1, title="Slow MA Length")
+rsi_length = input.int(14, minval=1, title="RSI Length")
+rsi_overbought = input.int(70, minval=1, title="RSI Overbought Level")
+rsi_oversold = input.int(30, minval=1, title="RSI Oversold Level")
+
+// Calculate the moving averages
+ma_fast = ta.sma(close, length_fast)
+ma_slow = ta.sma(close, length_slow)
+
+// Calculate the RSI
+rsi = ta.rsi(close, rsi_length)
+
+// Define the conditions for long and short entries
+long_condition = ta.crossover(ma_fast, ma_slow) and rsi < rsi_overbought
+short_condition = ta.crossunder(ma_fast, ma_slow) and rsi > rsi_oversold
+
+// Plot the moving averages
+plot(ma_fast, title="Fast MA", color=color.blue)
+plot(ma_slow, title="Slow MA", color=color.red)
+
+// Add strategy logic for entering and exiting trades
+if (long_condition)
+    strategy.entry("Long", strategy.long)
+if (short_condition)
+    strategy.entry("Short", strategy.short)
+
+// Plot buy/sell signals on the chart
+plotshape(series=long_condition, title="Buy Signal", location=location.belowbar, color=color.green, style=shape.labelup, text="BUY")
+plotshape(series=short_condition, title="Sell Signal", location=location.abovebar, color=color.red, style=shape.labeldown, text="SELL")
+
+// Add exit conditions
+if (rsi > rsi_overbought)
+    strategy.close("Long")
+if (rsi < rsi_oversold)
+    strategy.close("Short")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/454741
+
+> Last Modified
+
+2024-06-21 15:27:18

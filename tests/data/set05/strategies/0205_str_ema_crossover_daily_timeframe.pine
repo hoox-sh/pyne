@@ -1,0 +1,76 @@
+//@version=5
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/EMA crossover (daily TF).pine
+// content_hash: d0456e53715f0d3d
+// collected: 2026-07-27
+//This strategy can be used for daily entry for positional trading
+strategy('EMA crossover (daily timeframe)', shorttitle='EMA crossver (daily timeframe)', overlay=true, default_qty_value=50, default_qty_type=strategy.percent_of_equity, initial_capital=1000000)
+emalen1 = input.int(title='Smaller EMA length', defval=50, minval=30, maxval=50, step=5)
+emalen2 = input.int(title='Longer EMA length', defval=100, minval=70, maxval=200, step=10)
+ema1 = ta.ema(close, emalen1)
+emasmooth1 = ta.ema(ema1, emalen1)
+ema2 = ta.ema(close, emalen2)
+emasmooth2 = ta.ema(ema2, emalen2)
+volMA = ta.sma(volume, 20)
+rsi = ta.rsi(close, 14)
+atr = ta.atr(14)
+bodyper = close > open ? (close - open) / (high - low) : (open - close) / (high - low)
+closebull = close > emasmooth1 and close > emasmooth2 and close > open and bodyper > 0.6
+closebear = close < emasmooth1 and close < emasmooth2 and close < open and bodyper > 0.6
+volcheck = volume > volMA
+dailytimeframe = timeframe.isdaily
+BuyCond = dailytimeframe and closebull and volcheck and rsi > 50 and emasmooth1 > emasmooth2 and volume > volume[1] and close > open
+SellCond = dailytimeframe and closebear and volcheck and rsi < 50 and emasmooth1 > emasmooth2 and volume > volume[1] and close < open
+//Buy and Sell Signals
+Buysignal = BuyCond and strategy.position_size == 0 and barstate.isconfirmed
+Sellsignal = SellCond and strategy.position_size == 0 and barstate.isconfirmed
+//settingup stoploss
+sllong = math.max(math.min(low, low[1]), emasmooth2)
+slshort = math.min(math.max(low, low[1]), emasmooth2)
+//Save SLs and Target prices
+var StopPrice = 0.0
+var TargetPrice = 0.0
+var EntryPrice = 0.0
+//Detect Valid long setup and trigger alerts
+if Buysignal
+    StopPrice := sllong
+    EntryPrice := ohlc4
+    TargetPrice := EntryPrice + 10 * (ohlc4 - StopPrice)
+    TargetPrice
+if Sellsignal
+    StopPrice := slshort
+    EntryPrice := ohlc4
+    TargetPrice := EntryPrice - 10 * (StopPrice - ohlc4)
+    TargetPrice
+//Trailing Stoplosses
+if strategy.position_size > 0 and volume > volMA and close > open and close > 1.10 * EntryPrice
+    StopPrice := StopPrice * 1.05
+    EntryPrice := 1.05 * EntryPrice
+    EntryPrice
+if strategy.position_size < 0 and volume > volMA and close < open and close < 0.90 * EntryPrice
+    StopPrice := 0.95 * StopPrice
+    EntryPrice := 0.95 * EntryPrice
+    EntryPrice
+//enter trades whenever there is signal
+strategy.entry(id='Buy', direction=strategy.long, when=Buysignal, alert_message='Buy signal given')
+strategy.entry(id='Sell', direction=strategy.short, when=Sellsignal, alert_message='Sell signal given')
+//Exit entries
+if close < StopPrice
+    strategy.exit(id='Exit', from_entry='Buy', limit=TargetPrice, stop=StopPrice, when=strategy.position_size > 0, alert_message='Long closed')
+if close > StopPrice
+    strategy.exit(id='Exit', from_entry='Sell', limit=TargetPrice, stop=StopPrice, when=strategy.position_size < 0, alert_message='Short closed')
+//Draw trade data
+stoplong = plot(strategy.position_size > 0 or Buysignal ? StopPrice : na, title='TSL long', color=color.new(color.black, 0), style=plot.style_linebr, linewidth=1)
+stopshort = plot(strategy.position_size < 0 or Sellsignal ? StopPrice : na, title='TSL short', color=color.new(color.black, 0), style=plot.style_linebr, linewidth=1)
+//plot(strategy.position_size!=0?EntryPrice:na, title="EntryPrice", color=color.black, style=plot.style_linebr, linewidth=1)
+candlenearest = plot(strategy.position_size < 0 ? high : strategy.position_size > 0 ? low : na, title='Candle nearest point', color=color.new(color.green, 80), style=plot.style_linebr, linewidth=1)
+fill(stoplong, candlenearest, color=color.new(color.green, 80))
+fill(stopshort, candlenearest, color=color.new(color.red, 80))
+//Draw Price action arrow
+plotshape(Buysignal ? 1 : na, style=shape.labelup, location=location.belowbar, color=color.new(color.green, 0), title='Long setup', size=size.small)
+plotshape(Sellsignal ? 1 : na, style=shape.labeldown, location=location.abovebar, color=color.new(color.red, 0), title='Long setup', size=size.small)
+//Plot emasmooth and vwap
+plot(emasmooth1, title='Smaller EMA', color=color.new(color.green, 0), linewidth=2)
+plot(emasmooth2, title='Longer EMA', color=color.new(color.red, 0), linewidth=2)
+Expand (98 lines)

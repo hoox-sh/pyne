@@ -1,0 +1,87 @@
+//@version=3
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双海龟突破策略Double-Turtle-Breakthrough-Strategy.md
+// content_hash: 5cb4a2cfb0cd0967
+// collected: 2026-07-27
+strategy(title = "Turtle soup plus one", shorttitle = "Turtle soup plus one", overlay=true)
+
+bigPeriod = input(20)
+smallPeriod = input(4)
+takeProfitBars = input(0)
+trailingStop = input(5, title = "Trailing stop percentages")
+if (strategy.position_size == 0)
+    strategy.cancel("Long")
+    strategy.cancel("Short")
+    strategy.cancel("Stop")
+
+
+
+stopLossPrice = 0.1
+stopLossPrice := nz(stopLossPrice[1])
+takeProfitStarted = false
+takeProfitStarted := nz(takeProfitStarted[1])
+
+prevHigh = highest(high, bigPeriod - smallPeriod)[smallPeriod]
+smallPeriodHigh = highest(high, smallPeriod - 1)[1]
+if (high > prevHigh and prevHigh > smallPeriodHigh and close > prevHigh and strategy.position_size == 0)
+    strategy.order("Short", strategy.short, stop = prevHigh)
+
+if strategy.position_size < 0 and strategy.position_size[1] == 0
+    stopLossPrice := high[1]
+    strategy.order("Stop", strategy.long, qty = -strategy.position_size, stop = stopLossPrice)
+    takeProfitStarted := false
+
+if (strategy.position_size < 0 and sum(strategy.position_size, takeProfitBars) == strategy.position_size * takeProfitBars and close < strategy.position_avg_price and not takeProfitStarted)
+    takeProfitStarted := true
+    strategy.cancel("Stop")
+    strategy.order("ExitHalf", strategy.long, qty = ceil(-strategy.position_size / 2), stop = close)
+    if (strategy.position_size != -1)
+        strategy.exit("ExitFull", "Short", qty = -strategy.position_size - ceil(-strategy.position_size / 2), loss = stopLossPrice, trail_price  = close, trail_offset = -(close - strategy.position_avg_price) * trailingStop / 100 / syminfo.mintick)
+        
+
+prevLow = lowest(low, bigPeriod - smallPeriod)[smallPeriod]
+smallPeriodLow = lowest(low, smallPeriod - 1)[1]
+if (low < prevLow and prevLow < smallPeriodLow and close < prevLow and strategy.position_size == 0)
+    strategy.order("Long", strategy.long, stop = prevLow)
+
+if strategy.position_size > 0 and strategy.position_size[1] == 0
+    stopLossPrice := low[1]
+    strategy.order("Stop", strategy.short, qty = strategy.position_size, stop = stopLossPrice)
+    takeProfitStarted := false
+
+if (strategy.position_size > 0 and sum(strategy.position_size, takeProfitBars) == strategy.position_size * takeProfitBars and close > strategy.position_avg_price and not takeProfitStarted)
+    takeProfitStarted := true
+    strategy.cancel("Stop")
+    strategy.order("ExitHalf", strategy.short, qty = ceil(strategy.position_size / 2), stop = close)
+    if (strategy.position_size != 1)
+        strategy.exit("ExitFull", "Long", qty = strategy.position_size - ceil(strategy.position_size / 2),loss = stopLossPrice, trail_price  = close, trail_offset = (close - strategy.position_avg_price) * trailingStop / 100 / syminfo.mintick)
+
+// === Backtesting Dates ===
+testPeriodSwitch = input(false, "Custom Backtesting Dates")
+testStartYear = input(2018, "Backtest Start Year")
+testStartMonth = input(3, "Backtest Start Month")
+testStartDay = input(6, "Backtest Start Day")
+testStartHour = input(08, "Backtest Start Hour")
+testPeriodStart = timestamp(testStartYear,testStartMonth,testStartDay,testStartHour,0)
+testStopYear = input(2038, "Backtest Stop Year")
+testStopMonth = input(12, "Backtest Stop Month")
+testStopDay = input(14, "Backtest Stop Day")
+testStopHour = input(14, "Backtest Stop Hour")
+testPeriodStop = timestamp(testStopYear,testStopMonth,testStopDay,testStopHour,0)
+testPeriod() =>
+    time >= testPeriodStart and time <= testPeriodStop ? true : false
+isPeriod = testPeriodSwitch == true ? testPeriod() : true
+// === /END
+if not isPeriod
+    strategy.cancel_all()
+    strategy.close_all()
+```
+
+> Detail
+
+https://www.fmz.com/strategy/433577
+
+> Last Modified
+
+2023-11-28 16:25:41

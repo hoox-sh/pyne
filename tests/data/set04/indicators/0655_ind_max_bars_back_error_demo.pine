@@ -1,0 +1,23 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/language/execution-model.md::execution-model.md#block19
+// content_hash: 97fa132208f4e66a
+// collected: 2026-07-27
+indicator("Max bars back error demo", overlay = true)
+
+// @variable The historical offset for retrieving past values from the `close` series.
+//           If the bar is historical, the offset is 100. Otherwise, the offset is 150.
+int offset = barstate.ishistory ? 100 : 150
+
+// @variable The value of `close` from `offset` bars back.
+//           This code causes a *runtime error* on a realtime bar. During all code executions on historical bars,
+//           the script requires only the latest 100 past values of `close`, so the system sets the buffer size to
+//           include only the past 100 values. The offset of 150 is thus *out of bounds*.
+float pastClose = close[offset]
+
+// Plot the `pastClose` series.
+plot(pastClose, "Past `close`", chart.fg_color, 3)
+
+// Highlight the background of all realtime bars in orange.
+bgcolor(barstate.isrealtime ? color.new(color.orange, 70) : na, title = "Realtime highlight")

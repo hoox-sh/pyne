@@ -1,0 +1,162 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/最佳ATR停损倍数策略Best-ATR-Stop-Multiple-Strategy.md
+// content_hash: 477953a00a95028f
+// collected: 2026-07-27
+//@author=Daveatt
+//This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+
+SystemName = "BEST ATR Stop Multiple Strategy"
+TradeId = "BEST"
+
+InitCapital = 100000
+InitPosition = 100
+InitCommission = 0.075
+InitPyramidMax = 1
+CalcOnorderFills = true
+CalcOnTick = true
+DefaultQtyType = strategy.fixed
+DefaultQtyValue = strategy.fixed
+Precision = 2
+Overlay=true
+
+
+strategy(title=SystemName, shorttitle=SystemName, overlay=Overlay )
+
+fastSMAperiod = input(defval=15, title='Fast SMA', type=input.integer, minval=2, step=1)
+slowSMAperiod = input(defval=45, title='Slow SMA', type=input.integer, minval=2, step=1)
+
+src = close
+// Calculate moving averages
+fastSMA = sma(src, fastSMAperiod)
+slowSMA = sma(src, slowSMAperiod)
+
+// Calculate trading conditions
+enterLong  = crossover(fastSMA, slowSMA)
+enterShort = crossunder(fastSMA, slowSMA)
+
+// trend states
+since_buy  = barssince(enterLong)
+since_sell = barssince(enterShort)
+buy_trend  = since_sell > since_buy
+sell_trend = since_sell < since_buy 
+
+is_signal = enterLong or enterShort
+
+// get the entry price
+entry_price = valuewhen(enterLong or enterShort, src, 0)
+
+// Plot moving averages
+plot(series=fastSMA, color=color.teal)
+plot(series=slowSMA, color=color.orange)
+
+// Plot the entries
+plotshape(enterLong, style=shape.circle, location=location.belowbar, color=color.green, size=size.small)
+plotshape(enterShort, style=shape.circle, location=location.abovebar, color=color.red, size=size.small)
+
+
+
+///////////////////////////////
+//======[ Trailing STOP ]======//
+///////////////////////////////
+
+// use SL?
+useSL = input(true, "Use stop Loss")
+// ATR multiple Stop
+stop_atr_length         = input(14,title="ATR Length", minval=1, type=input.integer)
+stop_atr_mult           = input(2,title="ATR Multiple", minval=0.05, step=0.1, type=input.float)
+
+// Global STOP
+
+stop_price = 0.0, stop_price := nz(stop_price[1])
+
+// STOP ATR
+var stop_atr      = 0.0
+var entry_stop_atr   = 0.0
+
+stop_atr          := nz(atr(stop_atr_length))
+
+if enterLong or enterShort
+    entry_stop_atr := stop_atr * stop_atr_mult
+
+// display the ATR value multiple
+plotshape(enterLong, title='ATR Long Stop value', style=shape.labelup, 
+ location=location.bottom, color=color.green, transp=0, text='', textcolor=color.navy, editable=true, size=size.small, show_last=1, size=size.small)
+
+// var label atr_long_label = na
+// var label atr_short_label = na
+lapos_y_entry_up = lowest(30)
+lapos_y_entry_dn = highest(30)
+
+// text_label = "ATR value: " + tostring(stop_atr, '#.#') + "\n\nATR Multiple value: " + tostring(entry_stop_atr, '#.#')
+
+// if enterLong
+
+//     label.delete(atr_long_label)
+
+//     atr_long_label := label.new(bar_index, lapos_y_entry_up, text=text_label, 
+//      xloc=xloc.bar_index, yloc=yloc.price, color=color.green, style=label.style_labelup, textcolor=color.white, 
+//      size=size.normal)    
+
+// if enterShort
+
+//     label.delete(atr_short_label)
+
+//     atr_short_label := label.new(bar_index, lapos_y_entry_dn, text=text_label, 
+//      xloc=xloc.bar_index, yloc=yloc.price, color=color.red, style=label.style_labeldown, textcolor=color.black, 
+//      size=size.normal)    
+
+// Determine trail stop loss prices
+longStopPrice = 0.0, shortStopPrice = 0.0
+
+longStopPrice := if useSL and buy_trend
+    stopValue = entry_price - entry_stop_atr
+else
+    0
+
+shortStopPrice := if useSL and sell_trend
+    stopValue = entry_price + entry_stop_atr
+else
+    999999
+
+//////////////////////////////////////////////////////////////////////////////////////////
+//*** STOP LOSS HIT CONDITIONS TO BE USED IN ALERTS  ***//
+//////////////////////////////////////////////////////////////////////////////////////////
+
+cond_long_stop_loss_hit  = useSL and buy_trend and crossunder(low, longStopPrice[1]) 
+
+cond_short_stop_loss_hit = useSL and sell_trend and crossover(high, shortStopPrice[1]) 
+
+
+// Plot stop loss values for confirmation
+plot(series=useSL and buy_trend and low >= longStopPrice 
+ ? longStopPrice : na,
+ color=color.fuchsia, style=plot.style_cross,
+ linewidth=2, title="Long Trail Stop")
+
+plot(series=useSL and sell_trend and high <= shortStopPrice 
+ ? shortStopPrice : na,
+ color=color.fuchsia, style=plot.style_cross,
+ linewidth=2, title="Short Trail Stop")
+
+close_long  = cond_long_stop_loss_hit
+close_short = cond_short_stop_loss_hit
+
+// Submit entry orders
+strategy.entry(TradeId + " L", long=true, when=enterLong)
+strategy.close(TradeId + " L", when=close_long)
+
+//if (enterShort)
+strategy.entry(TradeId + " S", long=false, when=enterShort)
+strategy.close(TradeId + " S", when=close_short)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/442369
+
+> Last Modified
+
+2024-02-21 14:24:22

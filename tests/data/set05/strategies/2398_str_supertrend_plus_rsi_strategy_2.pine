@@ -1,0 +1,58 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动态趋势RSI交叉动量增强策略-Dynamic-Trend-RSI-Crossover-Momentum-Enhancement-Strategy.md
+// content_hash: 5336fe9edd7be889
+// collected: 2026-07-27
+strategy("Supertrend + RSI Strategy", overlay=true)
+
+// Input Parameters
+atrLength = input.int(10, title="ATR Length", minval=1)
+factor = input.float(3.0, title="Supertrend Factor", step=0.1)
+rsiLength = input.int(14, title="RSI Length", minval=1)
+rsiOverbought = input.int(70, title="RSI Overbought Level")
+rsiOversold = input.int(30, title="RSI Oversold Level")
+
+// Supertrend Calculation
+atr = ta.atr(atrLength)
+upperBand = ta.sma(close, atrLength) + (factor * atr)
+lowerBand = ta.sma(close, atrLength) - (factor * atr)
+supertrend = 0.0
+supertrend := close > nz(supertrend[1], close) ? lowerBand : upperBand
+supertrendSignal = close > supertrend ? "Buy" : "Sell"
+
+// RSI Calculation
+rsi = ta.rsi(close, rsiLength)
+
+// Trading Logic
+longCondition = (supertrendSignal == "Buy") and (rsi > rsiOversold)
+shortCondition = (supertrendSignal == "Sell") and (rsi < rsiOverbought)
+
+// Entry and Exit Conditions
+if longCondition
+    strategy.entry("Long", strategy.long)
+
+if shortCondition
+    strategy.entry("Short", strategy.short)
+
+// Plot Supertrend
+plot(supertrend, title="Supertrend", color=color.new(color.blue, 0), linewidth=2, style=plot.style_line)
+
+// Plot RSI Levels
+hline(rsiOverbought, "Overbought", color=color.red)
+hline(rsiOversold, "Oversold", color=color.green)
+plot(rsi, title="RSI", color=color.orange, style=plot.style_stepline)
+
+// Alerts
+alertcondition(longCondition, title="Buy Alert", message="Supertrend + RSI Buy Signal")
+alertcondition(shortCondition, title="Sell Alert", message="Supertrend + RSI Sell Signal")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/483027
+
+> Last Modified
+
+2025-02-21 10:00:53

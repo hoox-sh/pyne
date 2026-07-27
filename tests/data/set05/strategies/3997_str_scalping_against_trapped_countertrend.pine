@@ -1,0 +1,33 @@
+//@version=4
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/scalping against trapped countertrend.pine
+// content_hash: 6eb8e460ec593613
+// collected: 2026-07-27
+strategy("scalping against trapped countertrend", overlay=false , precision=5 )
+x_src = input( hl2 , title="Source" )
+x_len_a = input( 5 , title="short term trend" , minval=1 )
+x_len_b = input( 60 , title="long term trend" , minval=1 )
+x_k_b = input( 13 , title="smooth long term trend" , minval=1 )
+x_changk = input( 15 , title="clear short term pullback appears recently" , minval=1 )
+x_rsi_ct = input( 35.0 , title="threshold of short term pullback clear" , minval=0.0 , maxval=100.0 )
+x_rsi_ft = input( 50.0 , title="threshold of short term pullback end" , minval=0.0 , maxval=100.0 )
+x_exit_if_reason_over = input(false)
+y_stoch = stoch( x_src , high , low , x_len_b )
+y_k = sma( y_stoch , x_k_b )
+y_rsi = rsi( x_src , x_len_a )
+y_upper = min( y_k-50 , y_rsi-x_rsi_ft , x_changk>1?x_rsi_ct-lowest(y_rsi,x_changk):50 )
+if ( y_upper>0 )
+    strategy.entry("LE", strategy.long)
+else if ( x_exit_if_reason_over and strategy.position_size>0 )
+    strategy.close("LE", comment="x" )
+y_lower = max( y_k-50 , y_rsi-x_rsi_ft , x_changk>1?100-x_rsi_ct-highest(y_rsi,x_changk):-50 )
+if ( y_lower<0 )
+    strategy.entry("SE", strategy.short)
+else if ( x_exit_if_reason_over and strategy.position_size<0 )
+    strategy.close("SE", comment="x" )
+plot( y_stoch , color=#ff3333 )
+plot( y_k , color=#6666ff )
+plot( y_rsi , color=#cccc00 )
+hline(50)
+Expand (31 lines)

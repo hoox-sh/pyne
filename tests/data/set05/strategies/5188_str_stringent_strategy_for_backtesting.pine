@@ -1,0 +1,58 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/月度抛物线突破策略Monthly-Parabolic-Breakout-Strategy.md
+// content_hash: 99c7e1b28806ea58
+// collected: 2026-07-27
+strategy("Stringent Strategy for Backtesting", overlay=true)
+
+// Initialize RSI variables
+rsiPeriod = 14
+
+// Manually calculate RSI
+delta = close - close[1]
+gain = iff(delta > 0, delta, 0)
+loss = iff(delta < 0, -delta, 0)
+
+avgGain = sma(gain, rsiPeriod)
+avgLoss = sma(loss, rsiPeriod)
+
+rs = avgGain / avgLoss
+rsiValue = 100 - (100 / (1 + rs))
+
+// Manually calculate MACD1 and MACD2
+emaShort1 = ema(close, 4)
+emaLong1 = ema(close, 9)
+macd1 = emaShort1 - emaLong1
+
+emaShort2 = ema(close, 12)
+emaLong2 = ema(close, 26)
+macd2 = emaShort2 - emaLong2
+
+// Find the highest values in the last 3 years (36 months)
+highestRsi = highest(rsiValue, 36)
+highestMacd1 = highest(macd1, 36)
+highestMacd2 = highest(macd2, 36)
+
+// Define buy signal conditions
+buyCondition = (rsiValue >= highestRsi) and (macd1 >= highestMacd1 or macd2 >= highestMacd2)
+
+// Plot the buy signal on the chart
+plotshape(series=buyCondition, title="Buy Signal", location=location.belowbar, color=color.green, style=shape.labelup, text="Buy")
+
+// Backtesting: Entry and Exit
+if (buyCondition)
+    strategy.entry("Buy", strategy.long)
+
+// Exit condition (Example: Exit after 30 bars)
+strategy.exit("Sell", "Buy", bar_index[30])
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/433916
+
+> Last Modified
+
+2023-12-01 14:28:46

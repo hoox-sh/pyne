@@ -1,0 +1,38 @@
+//@version=2
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/RSI长线交易策略RSI-Long-Term-Trading-Strategy.md
+// content_hash: 8b611efafd697eab
+// collected: 2026-07-27
+// use with eurusd h1 , gbpusd h1
+strategy("RSI Long Term", overlay=true, default_qty_type = strategy.percent_of_equity, default_qty_value = 10)
+RSI = (rsi(sum(close , 20) + sum(open ,20) , 20 ))
+Sum_OF_3_Both = sum((close - open)*100000 , 3) 
+Up_Move = ((close[0] - open[0])*100000) < 35
+
+
+
+Down_Move = ((close[6] - open[6])*100000) + ((close[5] - open[5])*100000) + ((close[4] - open[4])*100000) < -400
+
+
+maxIdLossPcnt = input(10, "Max Intraday Loss(%)", type=float)
+
+// strategy.risk.max_intraday_loss(maxIdLossPcnt, strategy.percent_of_equity)
+//total =  (num > 70 )
+
+if (Sum_OF_3_Both > 350 and Up_Move )
+    strategy.entry("Bar Up Buy", strategy.long)
+
+if (Sum_OF_3_Both < -200  and Down_Move and RSI > 30.1  )
+    strategy.entry("Bar Down Sell ", strategy.short)
+
+//plot(strategy.equity, title="equity", color=red, linewidth=2, style=areabr)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/427512
+
+> Last Modified
+
+2023-09-21 20:54:08

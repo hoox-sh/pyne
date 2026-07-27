@@ -1,0 +1,50 @@
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/日内开仓反转策略-Daily-Open-Reversal-Strategy.md
+// content_hash: 1565ac9313278035
+// collected: 2026-07-27
+strategy("Daily Open Strategy", overlay=true, default_qty_type = strategy.percent_of_equity, default_qty_value = 100, initial_capital = 10000)
+
+PrevRange = input(0.0100, type=input.float, title="Previous Candle Range")
+TP = input(200, title="Take Profit in pips")
+SL = input(1000, title="Stop Loss in pips")
+
+startDate = input(title="Start Date", type=input.integer,
+     defval=1, minval=1, maxval=31)
+startMonth = input(title="Start Month", type=input.integer,
+     defval=1, minval=1, maxval=12)
+startYear = input(title="Start Year", type=input.integer,
+     defval=2015, minval=1800, maxval=2100)
+
+endDate = input(title="End Date", type=input.integer,
+     defval=31, minval=1, maxval=31)
+endMonth = input(title="End Month", type=input.integer,
+     defval=12, minval=1, maxval=12)
+endYear = input(title="End Year", type=input.integer,
+     defval=2020, minval=1800, maxval=2100)
+
+
+isLong = strategy.position_size > 0
+isShort = strategy.position_size < 0
+
+longTrigger = (open-close) > PrevRange and close<open 
+shortTrigger = (close-open) > PrevRange and close>open
+
+inDateRange = true
+
+
+strategy.entry(id = "Long", long = true, when = (longTrigger and not isShort and inDateRange))
+strategy.exit("Exit Long", "Long", loss=SL, profit=TP) 
+
+strategy.entry(id = "Short", long = false, when = (shortTrigger and not isLong and inDateRange))
+strategy.exit("Exit Short", "Short", loss=SL, profit=TP)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/440076
+
+> Last Modified
+
+2024-01-26 14:35:22

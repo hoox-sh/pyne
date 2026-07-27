@@ -1,0 +1,306 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/海肯阿希趋势追踪策略多层级止损机制的多时间周期趋势识别系统-Heiken-Ashi-Trend-Following-Strategy-Multi-Timeframe-Trend-Identification-System-with-Multi-Layer-Stop-Loss-Mechanism.md
+// content_hash: 9db8d00a94415591
+// collected: 2026-07-27
+strategy("Heiken Ashi Supertrend ADX - Strategy", overlay=true, initial_capital=1000, commission_type=strategy.commission.percent, commission_value=0, calc_on_every_tick=true, process_orders_on_close=false, default_qty_type=strategy.percent_of_equity, default_qty_value=3)
+
+
+// Supertrend Settings
+useSupertrend = input.bool(true, "Use Supertrend for Entries", group="Supertrend Settings")
+atrPeriod = input.int(10, "ATR Period", minval=1, group="Supertrend Settings")
+factor = input.float(3.0, "Supertrend Factor", minval=0.5, step=0.1, group="Supertrend Settings")
+
+// ADX Filter Settings
+useAdxFilter = input.bool(false, "Use ADX Filter", group="ADX Filter")
+adxPeriod = input.int(14, "ADX Period", minval=1, group="ADX Filter")
+adxThreshold = input.float(25, "ADX Threshold", minval=0, group="ADX Filter")
+
+// Stop Loss Options
+useSwingStop = input.bool(false, "Use Swing Point Stop", group="Stop Loss Options")
+swingLookback = input.int(3, "Swing Lookback Periods", minval=1, maxval=20, group="Stop Loss Options")
+
+useSafetyNetStop = input.bool(true, "Use Insurance Stop", group="Stop Loss Options")
+safetyNetPercent = input.float(5.0, "Insurance Stop Loss Percent", minval=0.1, step=0.1, group="Stop Loss Options")
+
+// Trailing Stop Loss Settings
+useTrailingStop = input.bool(true, "Use ATR Trailing Stop", group="Stop Loss Options")
+trailAtrMultiplier = input.float(2.0, "Trailing Stop ATR Multiplier", minval=0.1, step=0.1, group="Stop Loss Options")
+
+// Get HA data for signals
+ha_security = ticker.heikinashi(syminfo.tickerid)
+[o, h, l, c] = request.security(ha_security, timeframe.period, [open, high, low, close])
+
+// Get real price data
+real_open = open
+real_high = high
+real_low = low
+real_close = close
+
+// Calculate Supertrend using built-in function with real price data
+[supertrend, direction] = ta.supertrend(factor, atrPeriod)
+supertrend := barstate.isfirst ? na : supertrend
+
+// Determine if we're in an uptrend or downtrend based on Supertrend
+isUptrend = direction < 0   // In TradingView, negative direction means uptrend
+isDowntrend = direction > 0 // In TradingView, positive direction means downtrend
+
+// Calculate ATR for visualization
+atrValue = ta.atr(atrPeriod)
+
+// Calculate ADX and Trade Logic
+[diplus, diminus, adx] = ta.dmi(adxPeriod, adxPeriod)
+int trade = 0
+if trade == 0 and diplus > diminus
+    trade := 1
+else if trade == 0 and diminus > diplus
+    trade := -1
+else if trade == 1 and diminus > diplus
+    trade := -1
+else if trade == -1 and diplus > diminus
+    trade := 1
+else
+    trade := trade[1]
+
+// Combine with ADX Threshold
+isAdxBullish = diplus > diminus and adx > adxThreshold
+isAdxBearish = diminus > diplus and adx > adxThreshold
+
+// Debug ADX Values (only if needed for development)
+// plot(adx, "ADX", color=color.orange, linewidth=1)
+// plot(diplus, "DI+", color=color.green, linewidth=1)
+// plot(diminus, "DI-", color=color.red, linewidth=1)
+// hline(adxThreshold, "ADX Threshold", color=color.gray, linestyle=hline.style_dashed)
+
+// Check for wicks on the current candle
+threshold = syminfo.mintick * 0.1
+noBottomWick = math.abs(math.min(o, c) - l) <= threshold
+noTopWick = math.abs(h - math.max(o, c)) <= threshold
+
+// Identify candle color and signal conditions
+isGreenCandle = c > o
+isRedCandle = c < o
+
+// KEY INTEGRATION: Color the real bars based on HA trend
+bullishColor = color.green   // Green for long/bullish
+bearishColor = color.purple  // Purple for short/bearish
+barcolor(isGreenCandle ? bullishColor : bearishColor)
+
+// Signal conditions for both entry and exit
+longCondition = (isGreenCandle and noBottomWick and barstate.isconfirmed) and (not useSupertrend or isUptrend) and (not useAdxFilter or isAdxBullish)
+
+shortCondition = (isRedCandle and noTopWick and barstate.isconfirmed) and (not useSupertrend or isDowntrend) and (not useAdxFilter or isAdxBearish)
+
+exitLongCondition = isRedCandle and noTopWick and barstate.isconfirmed
+exitShortCondition = isGreenCandle and noBottomWick and barstate.isconfirmed
+
+// Calculate swing points based on real candles (not HA)
+swingLow = ta.lowest(real_low, swingLookback)
+swingHigh = ta.highest(real_high, swingLookback)
+
+// Position tracking
+var int position = 0  // 0 = no position, 1 = long, -1 = short
+var float entryPrice = na
+var float trailStopLevel = na  // For ATR trailing stop
+var float swingStopLevel = na  // For swing point stop
+var float safetyNetStopLevel = na  // For safety net stop
+var float highestSinceEntry = na  // For tracking highest price since entry (for long positions)
+var float lowestSinceEntry = na   // For tracking lowest price since entry (for short positions)
+
+// Alert variables
+var bool longAlert = false
+var bool shortAlert = false
+var bool exitLongAlert = false
+var bool exitShortAlert = false
+
+// Reset alerts each bar
+longAlert := false
+shortAlert := false
+exitLongAlert := false
+exitShortAlert := false
+
+// Handle entries and exits
+if longCondition and (position <= 0)
+    if position < 0
+        exitShortAlert := true
+        strategy.close("Short", comment="Exit Short")
+        position := 0
+    longAlert := true
+    strategy.entry("Long", strategy.long, comment="Enter Long")
+    position := 1
+    entryPrice := real_close
+    highestSinceEntry := real_close
+    lowestSinceEntry := na
+    // Initialize trailing stops
+    if useTrailingStop
+        trailStopLevel := real_close - (atrValue * trailAtrMultiplier)
+    // Initialize swing point stop
+    if useSwingStop
+        swingStopLevel := swingLow
+    // Initialize safety net stop
+    if useSafetyNetStop
+        safetyNetStopLevel := real_close * (1 - safetyNetPercent / 100)
+        
+if shortCondition and (position >= 0)
+    if position > 0
+        exitLongAlert := true
+        strategy.close("Long", comment="Exit Long")
+        position := 0
+    shortAlert := true
+    strategy.entry("Short", strategy.short, comment="Enter Short")
+    position := -1
+    entryPrice := real_close
+    highestSinceEntry := na
+    lowestSinceEntry := real_close
+    // Initialize trailing stops
+    if useTrailingStop
+        trailStopLevel := real_close + (atrValue * trailAtrMultiplier)
+    // Initialize swing point stop
+    if useSwingStop
+        swingStopLevel := swingHigh
+    // Initialize safety net stop
+    if useSafetyNetStop
+        safetyNetStopLevel := real_close * (1 + safetyNetPercent / 100)
+
+if position > 0 and exitLongCondition
+    exitLongAlert := true
+    strategy.close("Long", comment="Exit Long Signal")
+    position := 0
+    trailStopLevel := na
+    swingStopLevel := na
+    safetyNetStopLevel := na
+    highestSinceEntry := na
+
+if position < 0 and exitShortCondition
+    exitShortAlert := true
+    strategy.close("Short", comment="Exit Short Signal")
+    position := 0
+    trailStopLevel := na
+    swingStopLevel := na
+    safetyNetStopLevel := na
+    lowestSinceEntry := na
+
+// Check for swing point stop hit
+if useSwingStop and position != 0 and not na(swingStopLevel)
+    // For long positions, check if price drops below the swing low
+    if position > 0 and real_low <= swingStopLevel
+        strategy.close("Long", comment="Swing Point Stop Hit")
+        position := 0
+        trailStopLevel := na
+        swingStopLevel := na
+        safetyNetStopLevel := na
+        highestSinceEntry := na
+        
+    // For short positions, check if price rises above the swing high
+    else if position < 0 and real_high >= swingStopLevel
+        strategy.close("Short", comment="Swing Point Stop Hit")
+        position := 0
+        trailStopLevel := na
+        swingStopLevel := na
+        safetyNetStopLevel := na
+        lowestSinceEntry := na
+
+// Check for safety net stop loss hit
+if useSafetyNetStop and position != 0 and not na(safetyNetStopLevel)
+    // For long positions, check if price drops below the safety net level
+    if position > 0 and real_low <= safetyNetStopLevel
+        strategy.close("Long", comment="Safety Net Stop Hit")
+        position := 0
+        trailStopLevel := na
+        swingStopLevel := na
+        safetyNetStopLevel := na
+        highestSinceEntry := na
+        
+    // For short positions, check if price rises above the safety net level
+    else if position < 0 and real_high >= safetyNetStopLevel
+        strategy.close("Short", comment="Safety Net Stop Hit")
+        position := 0
+        trailStopLevel := na
+        swingStopLevel := na
+        safetyNetStopLevel := na
+        lowestSinceEntry := na
+
+// Track highest/lowest prices for trailing stop calculation
+if position > 0 and not na(highestSinceEntry)
+    highestSinceEntry := math.max(highestSinceEntry, real_high)
+    
+if position < 0 and not na(lowestSinceEntry)
+    lowestSinceEntry := math.min(lowestSinceEntry, real_low)
+
+// Update and check trailing stop (ATR-based)
+if useTrailingStop and position != 0 and not na(trailStopLevel)
+    // Update trailing stop level for long positions
+    if position > 0
+        // Calculate new potential trailing stop level
+        trailStopNew = real_close - (atrValue * trailAtrMultiplier)
+        // Only move the stop up, never down
+        if trailStopNew > trailStopLevel
+            trailStopLevel := trailStopNew
+        // Check if price hit stop
+        if real_low <= trailStopLevel
+            strategy.close("Long", comment="ATR Trailing Stop Hit")
+            position := 0
+            trailStopLevel := na
+            swingStopLevel := na
+            safetyNetStopLevel := na
+            highestSinceEntry := na
+            
+    // Update trailing stop level for short positions
+    else if position < 0
+        // Calculate new potential trailing stop level
+        trailStopNew = real_close + (atrValue * trailAtrMultiplier)
+        // Only move the stop down, never up
+        if trailStopNew < trailStopLevel
+            trailStopLevel := trailStopNew
+        // Check if price hit stop
+        if real_high >= trailStopLevel
+            strategy.close("Short", comment="ATR Trailing Stop Hit")
+            position := 0
+            trailStopLevel := na
+            swingStopLevel := na
+            safetyNetStopLevel := na
+            lowestSinceEntry := na
+
+// Plot stop loss levels
+plot(useTrailingStop and position != 0 ? trailStopLevel : na, "ATR Trailing Stop", color=color.yellow, style=plot.style_linebr, linewidth=1)
+plot(useSwingStop and position != 0 ? swingStopLevel : na, "Swing Point Stop", color=color.red, style=plot.style_circles, linewidth=2)
+plot(useSafetyNetStop and position != 0 ? safetyNetStopLevel : na, "Insurance Stop", color=color.yellow, style=plot.style_circles, linewidth=1)
+
+// Visual signals for chart (just entry/exit markers, no ADX labels)
+plotshape(longAlert, title="Long Entry", location=location.abovebar, color=bullishColor, style=shape.triangleup, size=size.small)
+plotshape(shortAlert, title="Short Entry", location=location.belowbar, color=bearishColor, style=shape.triangledown, size=size.small)
+plotshape(exitLongAlert, title="Long Exit Signal", location=location.abovebar, color=bullishColor, style=shape.xcross, size=size.small)
+plotshape(exitShortAlert, title="Short Exit Signal", location=location.belowbar, color=bearishColor, style=shape.xcross, size=size.small)
+
+// Supertrend visualization
+bodyMiddlePlot = plot((real_open + real_close) / 2, "Body Middle", display=display.none)
+upTrend = plot(useSupertrend and isUptrend ? supertrend : na, "Up Trend", color=bullishColor, style=plot.style_linebr, linewidth=1)
+downTrend = plot(useSupertrend and isDowntrend ? supertrend : na, "Down Trend", color=bearishColor, style=plot.style_linebr, linewidth=1)
+fill(upTrend, bodyMiddlePlot, color=useSupertrend ? color.new(bullishColor, 85) : na, title="Uptrend Background")
+fill(downTrend, bodyMiddlePlot, color=useSupertrend ? color.new(bearishColor, 85) : na, title="Downtrend Background")
+
+// Position background
+bgcolor(position == 1 ? color.new(bullishColor, 85) : position == -1 ? color.new(bearishColor, 85) : na, title="Position Background")
+
+// Position label
+var label positionLabel = na
+label.delete(positionLabel)
+if barstate.islast
+    positionText = position == 1 ? "LONG" : position == -1 ? "SHORT" : "FLAT"
+    entryInfo = not na(entryPrice) ? "\nEntry: " + str.tostring(entryPrice, "#.00000") : ""
+    atrStopInfo = useTrailingStop and not na(trailStopLevel) ? "\nATR Stop: " + str.tostring(trailStopLevel, "#.00000") + " (" + str.tostring(trailAtrMultiplier, "#.0") + "x ATR)" : ""
+    swingStopInfo = useSwingStop and not na(swingStopLevel) ? "\nSwing Stop: " + str.tostring(swingStopLevel, "#.00000") + " (" + str.tostring(swingLookback) + " bars)" : ""
+    safetyNetInfo = useSafetyNetStop and not na(safetyNetStopLevel) ? "\nInsurance Stop: " + str.tostring(safetyNetStopLevel, "#.00000") + " (" + str.tostring(safetyNetPercent, "#.0") + "%)" : ""
+    supertrendInfo = useSupertrend ? "\nSupertrend: " + (isUptrend ? "UPTREND" : "DOWNTREND") : ""
+    positionColor = position == 1 ? bullishColor : position == -1 ? bearishColor : color.gray
+    positionLabel := label.new(bar_index, high, positionText + entryInfo + atrStopInfo + swingStopInfo + safetyNetInfo + supertrendInfo, color=positionColor, style=label.style_label_down, textcolor=color.white)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/490519
+
+> Last Modified
+
+2025-04-14 11:31:37

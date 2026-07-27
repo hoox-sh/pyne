@@ -1,0 +1,268 @@
+//@version=4
+// set05 corpus entry
+// source_repo: thanhnguyennguyen-tradingview-pine-scripts
+// source_path: thanhnguyennguyen-tradingview-pine-scripts/scripts/myindicators.pine
+// content_hash: e3390edac32aeee5
+// collected: 2026-07-27
+
+
+
+// this includes Bollinger band, MA20 into 1 indicator
+
+// this creates an alert when price is out of bollinger band
+
+
+
+// overlay = true: indicator will overlay the candle chart, like MA, BB
+
+// otherwise, it won't, like MACD
+
+study(title="BB + MA + RSI", overlay=true)
+
+
+
+
+
+// bollinger band
+
+source = input(close, title="Source", type=input.source)
+
+BB_length = input(50, minval=1, title="BB Length")
+
+BB_sdev = input(2.0, minval=0.001, maxval=50, title="StdDev")
+
+OutBBThreshold = input(80, minval=1, title="Out BB Threshold")
+
+
+
+
+
+
+
+// drawing BB
+
+dev = BB_sdev * stdev(source, BB_length)
+
+upper = sma(source, BB_length) + dev
+
+lower = sma(source, BB_length) - dev
+
+plot(upper, title="BB Upper", color=#2B8A84, linewidth=2)
+
+plot(lower, title="BB Lower", color=#2B8A84, linewidth=2)
+
+plot(sma(source, BB_length), title="BB Basic (MA50)", color=color.fuchsia, linewidth=3)
+
+
+
+
+
+// MA
+
+ema_lengthSlow = input(200, minval=1, title="EMA Slow Length")
+
+ema_lengthMid = input(89, minval=1, title="EMA Mid Length")
+
+ema_lengthFast = input(21, minval=1, title="EMA Fast Length")
+
+
+
+// drawing EMA
+
+plot(ema(source, ema_lengthSlow), title="EMA Slow Length", color=color.aqua, linewidth=2)
+
+plot(ema(source, ema_lengthMid), title="EMA Mid Length", color=color.orange, linewidth=1)
+
+plot(ema(source, ema_lengthFast), title="EMA Fast Length", color=color.red, linewidth=1)
+
+
+
+// crossover upper line
+
+// c1 = crossover(source, upper)
+
+
+
+// cross under lower line
+
+// c2 = crossunder(source, lower)
+
+alertcondition((source > upper + OutBBThreshold) or (source < lower - OutBBThreshold), title='Price is out of BB', message='{{ticker}}: {{close}} Price is out of BB.')
+
+
+
+alertcondition(cross(sma(source, 50), sma(source, 200)), title='MA200 cross MA50', message='{{ticker}}: MA50 cross MA 200')
+
+
+
+
+
+// attach RSI signal
+
+rsiPeriod = input(14)
+
+overSold = input(20)
+
+overBought = input(80)
+
+rsival = rsi(source, rsiPeriod)
+
+pulldown = rsival < overSold
+
+pullup = rsival > overBought
+
+crossup() =>
+
+    crossover(rsival, overSold)
+
+crossdown() =>
+
+    crossunder(rsival, overBought)
+
+plotshape(pulldown, "oversold", style=shape.triangleup, location=location.belowbar, color=color.lime, size=size.tiny)
+
+plotshape(pullup, "overbought", style=shape.triangledown, location=location.abovebar, color=color.orange, size=size.tiny)
+
+plotshape(crossup(), "crossup overSold", style=shape.arrowup, location=location.belowbar, size=size.normal, color=color.lime)
+
+plotshape(crossdown(), "crossunder overBought", style=shape.arrowdown, location=location.abovebar, size=size.normal, color=color.orange)
+
+
+
+// l = label.new(bar_index, na, tostring(close),
+
+//   color=close >= open ? color.green : color.red,
+
+//   textcolor=color.white,
+
+//   style=close >= open ? label.style_labeldown : label.style_labelup,
+
+//   yloc=close >= open ? yloc.abovebar : yloc.belowbar)
+
+//
+
+// label.delete(l[1])
+
+
+
+highest = highest(high, 200)
+
+lowest = lowest(low, 200)
+
+l = label.new(bar_index , 100, "RSI :  "+ tostring(int(rsival)) +"\nHighest: " + tostring(highest)  +"\nLowest : "+tostring(lowest) ,
+
+      textcolor=color.white,
+
+      color=color.blue,
+
+      style=close >= ema(source, 9) ? label.style_labeldown : label.style_labelup,
+
+      yloc=close >= ema(source, 9) ? yloc.abovebar : yloc.belowbar)
+
+
+
+label.delete(l[1])
+
+
+
+
+
+// Pump alert
+
+alertcondition(close*100/open >= 103, title='Pump alert', message='{{ticker}}: Pump')
+
+// dump alert
+
+alertcondition(close*100/open <= 97, title='Dump alert', message='{{ticker}}: Dump')
+
+
+
+// Parabolic SAR
+
+
+psar(start, inc, maximum) =>
+    minTick = 0  //1e-7
+
+    out = float(na)
+    pos = int(na)
+    maxMin = float(na)
+    acc = float(na)
+    prev = float(na)
+    outSet = false
+
+    if bar_index >= 1
+        prev := out[1]
+        outSet := false
+        if bar_index == 1
+            if close > close[1]
+                pos := 1
+                maxMin := max(high, high[1])
+                prev := min(low, low[1])
+                prev
+            else
+                pos := -1
+                maxMin := min(low, low[1])
+                prev := max(high, high[1])
+                prev
+
+            acc := start
+            acc
+        else
+            pos := pos[1]
+            acc := acc[1]
+            maxMin := maxMin[1]
+            maxMin
+
+        if pos == 1
+            if high > maxMin
+                maxMin := high
+                acc := min(acc + inc, maximum)
+                acc
+
+            if low <= prev
+                pos := -1
+                out := maxMin
+                maxMin := low
+                acc := start
+                outSet := true
+                outSet
+        else
+            if low < maxMin
+                maxMin := low
+                acc := min(acc + inc, maximum)
+                acc
+
+            if high >= prev
+                pos := 1
+                out := maxMin
+                maxMin := high
+                acc := start
+                outSet := true
+                outSet
+
+        if not outSet
+            out := prev + acc * (maxMin - prev)
+
+            if pos == 1
+                if out >= low
+                    out := low - minTick
+                    out
+
+            if pos == -1
+                if out <= high
+                    out := high + minTick
+                    out
+
+    out
+
+
+start = input(0.02)
+increment = input(0.02)
+maximum = input(0.2)
+p = psar(start, increment, maximum)
+
+plot(p, style=plot.style_cross, color=color.yellow)
+
+
+
+

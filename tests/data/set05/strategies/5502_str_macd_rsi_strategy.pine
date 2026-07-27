@@ -1,0 +1,42 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/三重指标碰撞策略Triple-Indicator-Collision-Strategy.md
+// content_hash: 9f4c8cde277a685c
+// collected: 2026-07-27
+strategy("MACD_RSI strategy", overlay=false)
+
+_ema_len = input(20, title="EMA length")
+_macd_fast = input(12, title="MACD Fast")
+_macd_slow = input(26, title="MACD Slow")
+_macd_signal_len = input(20, title="MACD Signal length")
+_rsi_len = input(14, title="RSI length")
+_rsi_signal_len = input(20, title="RSI signal length")
+
+_ema = ema(close, _ema_len)
+
+_macd = ema(close, _macd_fast) - ema(close, _macd_slow)
+_macd_signal = ema(_macd, _macd_signal_len)
+
+_rsi = rsi(close, _rsi_len)
+_rsi_signal = ema(_rsi, _rsi_signal_len)
+
+plot(_rsi, color=color.orange)
+plot(_rsi_signal, color=color.purple)
+
+longCondition = close > _ema and _macd > _macd_signal and _rsi > _rsi_signal
+if (longCondition)
+    strategy.entry("Buy", strategy.long)
+
+shortCondition = close < _ema and _macd < _macd_signal and _rsi < _rsi_signal
+if (shortCondition)
+    strategy.entry("Sell", strategy.short)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/440312
+
+> Last Modified
+
+2024-01-29 11:24:11

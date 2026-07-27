@@ -1,0 +1,14 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block253
+// content_hash: e08806d1239568c2
+// collected: 2026-07-27
+strategy("risk.max_drawdown Demo 1")
+strategy.risk.max_drawdown(50, strategy.percent_of_equity) // set maximum drawdown to 50% of maximum equity
+plot(strategy.position_size)
+
+//@version=6
+strategy("risk.max_drawdown Demo 2", currency = "EUR")
+strategy.risk.max_drawdown(2000, strategy.cash) // set maximum drawdown to 2000 EUR from maximum equity
+plot(strategy.position_size)

@@ -1,0 +1,105 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于市场结构的支撑阻力区域蜡烛图突破策略-Market-Structure-Based-Support-Resistance-Zone-Candlestick-Breakout-Strategy.md
+// content_hash: 201b475b251e5553
+// collected: 2026-07-27
+strategy("Support/Resistance Strategy with Candlestick Confirmation, Market Structure, and 1:3 R:R", overlay=true)
+
+// Input parameters
+supportResistancePeriod = input.int(20, title="Support/Resistance Period", minval=1)
+stopLossPips = input.int(50, title="Stop Loss (in pips)", minval=1)
+takeProfitRatio = input.float(3.0, title="Risk-to-Reward Ratio", minval=1.0)
+structurePeriod = input.int(20, title="Market Structure Period", minval=1)  // Period to determine market structure
+
+// Function to calculate support level (lowest low in the period)
+getSupportLevel() =>
+    ta.lowest(low, supportResistancePeriod)
+
+// Function to calculate resistance level (highest high in the period)
+getResistanceLevel() =>
+    ta.highest(high, supportResistancePeriod)
+
+// Get the support and resistance levels
+supportLevel = getSupportLevel()
+resistanceLevel = getResistanceLevel()
+
+// Function to detect market structure
+isBullishTrend() =>
+    high[structurePeriod] > high[structurePeriod+1] and low[structurePeriod] > low[structurePeriod+1]
+
+isBearishTrend() =>
+    high[structurePeriod] < high[structurePeriod+1] and low[structurePeriod] < low[structurePeriod+1]
+
+isRanging() =>
+    not isBullishTrend() and not isBearishTrend()
+
+// Candlestick Pattern Detection Functions
+isBullishEngulfing() =>
+    close[1] < open[1] and close > open and close > open[1] and open < close[1]
+
+isBearishEngulfing() =>
+    close[1] > open[1] and close < open and close < open[1] and open > close[1]
+
+isDoji() =>
+    math.abs(close - open) <= (high - low) * 0.1
+
+isHammer() =>
+    body = math.abs(close - open)
+    upperShadow = high - math.max(close, open)
+    lowerShadow = math.min(close, open) - low
+    body <= (high - low) * 0.3 and lowerShadow > body * 2 and upperShadow <= body * 0.5
+
+isShootingStar() =>
+    body = math.abs(close - open)
+    upperShadow = high - math.max(close, open)
+    lowerShadow = math.min(close, open) - low
+    body <= (high - low) * 0.3 and upperShadow > body * 2 and lowerShadow <= body * 0.5
+
+// Conditions for Buy and Sell based on candle close
+buyCondition = (isBullishEngulfing() or isHammer()) and close > supportLevel
+sellCondition = (isBearishEngulfing() or isShootingStar()) and close < resistanceLevel
+
+// Define buy/sell conditions based on market structure
+bullishMarket = isBullishTrend() and buyCondition
+bearishMarket = isBearishTrend() and sellCondition
+rangingMarket = isRanging() and (buyCondition or sellCondition)
+
+// Calculate the Stop Loss and Take Profit Levels
+longStopLoss = supportLevel - (stopLossPips * syminfo.mintick)
+shortStopLoss = resistanceLevel + (stopLossPips * syminfo.mintick)
+
+// Calculate R:R based Take Profit Levels
+longTakeProfit = close + (math.abs(close - longStopLoss) * takeProfitRatio)
+shortTakeProfit = close - (math.abs(close - shortStopLoss) * takeProfitRatio)
+
+// Plotting Support and Resistance Lines
+plot(supportLevel, color=color.green, linewidth=2, title="Support Level", style=plot.style_line)
+plot(resistanceLevel, color=color.red, linewidth=2, title="Resistance Level", style=plot.style_line)
+
+// Strategy: Buy on Support, Sell on Resistance with candlestick confirmation and market structure
+if (bullishMarket)
+    strategy.entry("Buy", strategy.long, stop=longStopLoss, limit=longTakeProfit)
+
+if (bearishMarket)
+    strategy.entry("Sell", strategy.short, stop=shortStopLoss, limit=shortTakeProfit)
+
+if (rangingMarket)
+    if (buyCondition)
+        strategy.entry("Buy (Ranging)", strategy.long, stop=longStopLoss, limit=longTakeProfit)
+    if (sellCondition)
+        strategy.entry("Sell (Ranging)", strategy.short, stop=shortStopLoss, limit=shortTakeProfit)
+
+// Optional: Highlighting the zones for support and resistance
+bgcolor(close > resistanceLevel ? color.new(color.red, 90) : na, title="Resistance Zone")
+bgcolor(close < supportLevel ? color.new(color.green, 90) : na, title="Support Zone")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/482781
+
+> Last Modified
+
+2025-02-20 15:01:11

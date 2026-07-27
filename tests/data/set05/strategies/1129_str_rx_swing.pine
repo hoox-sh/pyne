@@ -1,0 +1,153 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/RSI-MA-交叉摆动交易策略与追踪止损系统-RSI-MA-Crossover-Swing-Trading-Strategy-with-Trailing-Stop-System.md
+// content_hash: 36b7e4151ce8c2c7
+// collected: 2026-07-27
+strategy("? RX Swing ", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=1)
+
+
+// === INPUTS ===
+rsiLength     = input.int(14, title="RSI Length")
+maLength      = input.int(14, title="RSI MA Length")
+maType        = input.string("SMA", options=["SMA", "EMA"], title="MA Type for RSI")
+sl_pct        = input.float(1.5, title="Stop Loss %", minval=0.0)
+tp_pct        = input.float(2.5, title="Take Profit %", minval=0.0)
+capitalPerTrade = input.float(15000, title="Capital Per Trade (INR)", minval=1)
+lotSize       = input.int(50, title="Lot Size (Nifty Options Lot)", minval=1)
+trail_points  = input.float(10, title="Trailing SL Points", minval=0.1)
+
+// === CALCULATIONS ===
+rsi    = ta.rsi(close, rsiLength)
+rsiMA  = maType == "SMA" ? ta.sma(rsi, maLength) : ta.ema(rsi, maLength)
+
+longSignal  = ta.crossover(rsi, rsiMA)
+shortSignal = ta.crossunder(rsi, rsiMA)
+
+// === TRADING WINDOW ===
+canTrade = true
+exitTime = false
+
+// === STATE VARIABLES ===
+var float entryPrice = na
+var bool inTrade = false
+var string tradeDir = ""
+var int lossCount = 0
+var float trailHigh = na
+var float trailLow = na
+
+// === EXIT TRIGGER ===
+exitNow = false
+exitReason = ""
+
+// === POSITION SIZE BASED ON CAPITAL ===
+positionSize = (capitalPerTrade / close) * lotSize
+
+// === ENTRY LOGIC (AFTER CLOSE OF CANDLE) ===
+if (canTrade and lossCount < 2)
+    if (longSignal and not inTrade and barstate.isconfirmed)  // Ensure the signal happens after candle close
+        strategy.entry("Buy Call", strategy.long, qty=positionSize)
+        entryPrice := close
+        trailHigh := close
+        inTrade := true
+        tradeDir := "CALL"
+
+    else if (shortSignal and not inTrade and barstate.isconfirmed)  // Ensure the signal happens after candle close
+        strategy.entry("Buy Put", strategy.short, qty=positionSize)
+        entryPrice := close
+        trailLow := close
+        inTrade := true
+        tradeDir := "PUT"
+
+// === TRAILING STOP-LOSS LOGIC ===
+if (inTrade)
+    if (tradeDir == "CALL")
+        trailHigh := math.max(trailHigh, close)
+        if (close <= trailHigh - trail_points)
+            strategy.close("Buy Call", comment="CALL Trailing SL Hit")
+            exitNow := true
+            exitReason := "Trail SL"
+            inTrade := false
+            lossCount := lossCount + 1
+
+    if (tradeDir == "PUT")
+        trailLow := math.min(trailLow, close)
+        if (close >= trailLow + trail_points)
+            strategy.close("Buy Put", comment="PUT Trailing SL Hit")
+            exitNow := true
+            exitReason := "Trail SL"
+            inTrade := false
+            lossCount := lossCount + 1
+
+// === REVERSAL EXIT LOGIC ===
+if (inTrade)
+    if (tradeDir == "CALL" and shortSignal)
+        strategy.close("Buy Call", comment="CALL Exit on Reversal")
+        exitNow := true
+        exitReason := "Reversal"
+        inTrade := false
+        if (strategy.position_size < 0)
+            lossCount := lossCount + 1
+
+    if (tradeDir == "PUT" and longSignal)
+        strategy.close("Buy Put", comment="PUT Exit on Reversal")
+        exitNow := true
+        exitReason := "Reversal"
+        inTrade := false
+        if (strategy.position_size > 0)
+            lossCount := lossCount + 1
+
+// === TP/SL EXIT LOGIC ===
+if (inTrade)
+    tpLevel = entryPrice * (1 + tp_pct / 100)
+    slLevel = entryPrice * (1 - sl_pct / 100)
+
+    if (strategy.position_size > 0)
+        if (close >= tpLevel)
+            strategy.close("Buy Call", comment="CALL TP Hit")
+            exitNow := true
+            exitReason := "TP"
+            inTrade := false
+        else if (close <= slLevel)
+            strategy.close("Buy Call", comment="CALL SL Hit")
+            exitNow := true
+            exitReason := "SL"
+            inTrade := false
+            lossCount := lossCount + 1
+
+    if (strategy.position_size < 0)
+        tpLevel = entryPrice * (1 - tp_pct / 100)
+        slLevel = entryPrice * (1 + sl_pct / 100)
+
+        if (close <= tpLevel)
+            strategy.close("Buy Put", comment="PUT TP Hit")
+            exitNow := true
+            exitReason := "TP"
+            inTrade := false
+        else if (close >= slLevel)
+            strategy.close("Buy Put", comment="PUT SL Hit")
+            exitNow := true
+            exitReason := "SL"
+            inTrade := false
+            lossCount := lossCount + 1
+
+// === RESET LOSS COUNT ON NEW DAY ===
+if (hour == 9 and minute == 15)
+    lossCount := 0
+
+// === MARKUPS ===
+plotshape(longSignal and canTrade and lossCount < 2 and barstate.isconfirmed, title="? CALL Entry", location=location.belowbar, style=shape.triangleup, color=color.green, size=size.small, text="CALL")
+plotshape(shortSignal and canTrade and lossCount < 2 and barstate.isconfirmed, title="? PUT Entry", location=location.abovebar, style=shape.triangledown, color=color.red, size=size.small, text="PUT")
+plotshape(exitNow and exitReason == "TP", location=location.belowbar, style=shape.xcross, color=color.green, size=size.tiny, title="✅ TP Exit", text="TP")
+plotshape(exitNow and exitReason == "SL", location=location.abovebar, style=shape.xcross, color=color.red, size=size.tiny, title="❌ SL Exit", text="SL")
+plotshape(exitNow and exitReason == "Reversal", location=location.abovebar, style=shape.circle, color=color.fuchsia, size=size.tiny, title="? Reversal Exit", text="REV")
+plotshape(exitNow and exitReason == "Trail SL", location=location.abovebar, style=shape.square, color=color.yellow, size=size.tiny, title="? Trailing SL Exit", text="Trail")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/491890
+
+> Last Modified
+
+2025-04-24 16:51:14

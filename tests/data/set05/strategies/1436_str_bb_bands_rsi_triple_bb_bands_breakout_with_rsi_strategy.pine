@@ -1,0 +1,82 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/三重BB-bands闭合突破与RSI指标的组合交易策略Triple-BB-Bands-Breakout-with-RSI-Strategy.md
+// content_hash: 149be11713833439
+// collected: 2026-07-27
+strategy(title='RSI + BB  over 3 bar+--- vortex0.71.3  ', shorttitle='NoWaytruongphuthinh', format=format.price, precision=4,overlay = true)
+
+length = input(20, title="Length")
+mult = input(2.0, title="Multiplier")
+source = close
+
+basis = ta.sma(source, length)
+dev = mult * ta.stdev(source, length)
+
+upperBand = basis + dev
+lowerBand = basis - dev
+
+isClosedBar = ta.change(time("15"))
+
+var bool closeAboveUpperBand = false
+var bool closeBelowLowerBand = false
+
+
+// Vortex Indicator Settings
+period_ = input.int(14, title='Period', minval=2)
+
+VMP = math.sum(math.abs(high - low[1]), period_)
+VMM = math.sum(math.abs(low - high[1]), period_)
+STR = math.sum(ta.atr(1), period_)
+VIP = VMP / STR
+VIM = VMM / STR
+
+//
+lengthrsi = input(14, title="RSI Length")
+overboughtLevel = input(70, title="Overbought Level")
+oversoldLevel = input(30, title="Oversold Level")
+
+sourcersi = close
+rsiValue = ta.rsi(sourcersi, lengthrsi)
+
+shouldShort = rsiValue > overboughtLevel
+shouldLong = rsiValue < oversoldLevel
+
+
+
+
+if bool(isClosedBar[1]) and bool(isClosedBar[2]) and bool(isClosedBar[3])
+
+    if close[1] > upperBand[1] and close[2] > upperBand[2] and close[3] > upperBand[3] and VIP > 1.25 and VIM < 0.7 and rsiValue > overboughtLevel
+        strategy.entry("Short", strategy.short)
+        closeAboveUpperBand := false  // Reset the condition when entering a new Short position
+    if close[1] < lowerBand[1] and close[2] < lowerBand[2] and close[3] < lowerBand[3] and VIP < 0.7 and VIM > 1.25 and rsiValue < oversoldLevel
+        strategy.entry("Long", strategy.long)
+        closeBelowLowerBand := false  // Reset the condition when entering a new Long position
+
+
+
+if strategy.position_size > 0  // Check if there is an open Long position
+    closeAboveUpperBand := close > upperBand  // Update the condition based on close price
+    if closeAboveUpperBand
+        strategy.close("Long",disable_alert=true)  // Close the Long position if close price is above upper band
+
+if strategy.position_size < 0  // Check if there is an open Short position
+    closeBelowLowerBand := close < lowerBand  // Update the condition based on close price
+    if closeBelowLowerBand
+        strategy.close("Short",disable_alert=true)  // Close the Short position if close price is below lower band
+
+// Plots
+plot(basis, color=color.orange, title="Basis")
+p1 = plot(upperBand, color=color.blue, title="Upper Band")
+p2 = plot(lowerBand, color=color.blue, title="Lower Band")
+fill(p1, p2, title = "Background", color=color.rgb(33, 150, 243, 95))
+```
+
+> Detail
+
+https://www.fmz.com/strategy/443138
+
+> Last Modified
+
+2024-02-29 14:57:49

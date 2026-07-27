@@ -1,0 +1,39 @@
+//@version=4
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/Heiken Ashi MTF Strategy- Indicator.pine
+// content_hash: f873984ffcf6017f
+// collected: 2026-07-27
+strategy("Heiken Ashi MTF Strategy")
+ha_t = heikinashi(syminfo.tickerid)
+res = input('D', title="TM 1")
+ha_open = security(ha_t, res, open)
+ha_close = security(ha_t, res, close)
+ha_dif = ha_open-ha_close
+ha_diff=iff(ha_dif > 0, 1, iff(ha_dif<0, 2, 3))
+res2 = input('W', title="TM 2")
+ha_open2 = security(ha_t, res2, open)
+ha_close2 = security(ha_t, res2, close)
+ha_dif2 = ha_open2-ha_close2
+ha_diff2=iff(ha_dif2 > 0, 1, iff(ha_dif2<0, 2, 3))
+res3 = input('M', title="TM 3")
+ha_open3 = security(ha_t, res3, open)
+ha_close3 = security(ha_t, res3, close)
+ha_dif3 = ha_open3-ha_close3
+ha_diff3=iff(ha_dif3 > 0, 1, iff(ha_dif3<0, 2, 3))
+plot(15, title="TF1", color=iff(ha_diff==1, color.red, iff(ha_diff==2, color.green, color.white)), style=plot.style_circles, linewidth=5, join=true)
+plot(14, title="TF2", color=iff(ha_diff2==1, color.red, iff(ha_diff2==2, color.green, color.white)), style=plot.style_circles, linewidth=5, join=true)
+plot(13, title="TF3", color=iff(ha_diff3==1, color.red, iff(ha_diff3==2, color.green, color.white)), style=plot.style_circles, linewidth=5, join=true)
+short = ha_diff ==1 and ha_diff2==1 and ha_diff3 ==1
+long = ha_diff ==2 and ha_diff2==2 and ha_diff3 ==2
+exitlong = ha_diff ==1 or ha_diff2==1 or ha_diff3 ==1
+exitshort = ha_diff ==2 or ha_diff2==2 or ha_diff3 ==2
+longA = input(true)
+shortA = input(false)
+if(longA)
+    strategy.entry("long",1,when=long)
+    strategy.close("long",when=exitlong)
+if(shortA)
+    strategy.entry("short",0,when=short)
+    strategy.close("short",when=exitshort)
+Expand (42 lines)

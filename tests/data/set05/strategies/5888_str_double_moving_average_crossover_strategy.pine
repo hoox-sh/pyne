@@ -1,0 +1,67 @@
+//@version=3
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双均线突破策略Double-Moving-Average-Crossover-Strategy.md
+// content_hash: c590d052fca645db
+// collected: 2026-07-27
+strategy(title = "Silent Trader Strategy", shorttitle = "Silent Trader", overlay = true, pyramiding = 0, default_qty_type = strategy.cash, default_qty_value = 1000, commission_value = 0.0675, initial_capital = 1000, currency = currency.USD, calc_on_order_fills = true, calc_on_every_tick = true)
+
+maFastSource   = input(defval = ohlc4, title = "Fast MA Source")
+maFastLength   = input(defval = 15, title = "Fast MA Period", minval = 1)
+maSlowSource   = input(defval = ohlc4, title = "Slow MA Source")
+maSlowLength   = input(defval = 21, title = "Slow MA Period", minval = 1)
+
+tradeInvert     = input(defval = false, title = "Invert Trade Direction?")
+inpTakeProfit   = input(defval = 100, title = "Take Profit percentage(0.1%)", minval = 0)
+inpStopLoss     = input(defval = 100, title = "Stop Loss", minval = 0)
+inpTrailStop    = input(defval = 0, title = "Trailing Stop Loss", minval = 0)
+inpTrailOffset  = input(defval = 0, title = "Trailing Stop Loss Offset", minval = 0)
+
+useTakeProfit   = inpTakeProfit  >= 1 ? inpTakeProfit  : na
+useStopLoss     = inpStopLoss    >= 1 ? inpStopLoss    : na
+useTrailStop    = inpTrailStop   >= 1 ? inpTrailStop   : na
+useTrailOffset  = inpTrailOffset >= 1 ? inpTrailOffset : na
+
+useTimeLimit    = input(defval = true, title = "Use Start Time Limiter?")
+startYear       = input(defval = 2018, title = "Start From Year",  minval = 0, step = 1)
+startMonth      = input(defval = 05, title = "Start From Month",  minval = 0,step = 1)
+startDay        = input(defval = 01, title = "Start From Day",  minval = 0,step = 1)
+startHour       = input(defval = 00, title = "Start From Hour",  minval = 0,step = 1)
+startMinute     = input(defval = 00, title = "Start From Minute",  minval = 0,step = 1)
+
+startTimeOk() =>
+    inputTime = timestamp(syminfo.timezone, startYear, startMonth, startDay, startHour, startMinute)
+    timeOk = time > inputTime ? true : false
+    r = (useTimeLimit and timeOk) or not useTimeLimit
+
+maFast = ema(maFastSource, maFastLength)
+maSlow = sma(maSlowSource, maSlowLength)
+
+fast = plot(maFast, title = "Fast MA", color = #26A69A, linewidth = 1, style = line, transp = 50)
+slow = plot(maSlow, title = "Slow MA", color = #EF5350, linewidth = 1, style = line, transp = 50)
+
+aboveBelow = maFast >= maSlow ? true : false
+tradeDirection = tradeInvert ? aboveBelow ? false : true : aboveBelow ? true : false
+
+if( startTimeOk() )
+    enterLong = not tradeDirection[1] and tradeDirection
+    exitLong = tradeDirection[1] and not tradeDirection
+    strategy.entry( id = "Long", long = true, when = enterLong )
+    //strategy.close( id = "Long", when = exitLong )
+    
+    enterShort = tradeDirection[1] and not tradeDirection
+    exitShort = not tradeDirection[1] and tradeDirection
+    strategy.entry( id = "Short", long = false, when = enterShort )
+    //strategy.close( id = "Short", when = exitShort )
+    
+    strategy.exit("Exit Long", from_entry = "Long",  profit = close * useTakeProfit / 1000 / syminfo.mintick, loss = close * useStopLoss / 1000 / syminfo.mintick, trail_points = close * useTrailStop / 1000 / syminfo.mintick, trail_offset = close * useTrailOffset / 1000 / syminfo.mintick)
+    strategy.exit("Exit Short", from_entry = "Short", profit = close * useTakeProfit / 1000 / syminfo.mintick, loss = close * useStopLoss / 1000 / syminfo.mintick, trail_points = close * useTrailStop / 1000 / syminfo.mintick, trail_offset = close * useTrailOffset / 1000 / syminfo.mintick)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/434991
+
+> Last Modified
+
+2023-12-11 15:21:58

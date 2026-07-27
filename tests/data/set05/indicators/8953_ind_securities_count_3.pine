@@ -1,0 +1,19 @@
+//@version=2
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/v3/appendix/pine-compilation-errors.md::pine-compilation-errors.md#block1
+// content_hash: 9fa08e459430c461
+// collected: 2026-07-27
+study("Securities count")
+a = security(tickerid, '42', close) // (1) first unique security call
+b = security(tickerid, '42', close) // same call as above, will not produce new security call after optimizations
+
+plot(a)
+plot(a + 2)
+plot(b)
+
+sym(p) => security(tickerid, p, close) // no security call on this line
+plot(sym('D')) // (2) one indirect call to security
+plot(sym('W')) // (3) another one indirect call to security
+
+security(tickerid, period, open) // result of this line is never used, and will be optimized-out

@@ -1,0 +1,94 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于多维度动态云图的Ichimoku高级多周期交易策略-Advanced-Multi-Timeframe-Ichimoku-Cloud-Trading-Strategy-with-Dynamic-Multidimensional-Analysis.md
+// content_hash: ab5d6644d07228a6
+// collected: 2026-07-27
+strategy("Ichimoku",overlay = true)
+//indicator("Flexible Ichimoku Cloud for Long-Term Trading", overlay=true, shorttitle="Ichimoku")
+
+// Inputs for the Ichimoku Cloud
+tenkan_period = input.int(9, title="Tenkan-sen Period")
+kijun_period = input.int(26, title="Kijun-sen Period")
+senkou_b_period = input.int(52, title="Senkou Span B Period")
+displacement = input.int(26, title="Displacement")
+
+// Inputs for Risk Management
+stop_loss_percentage = input.float(5.0, title="Stop-Loss Percentage", minval=0.1, step=0.1) / 100 // Default to 5% for long-term
+take_profit_percentage = input.float(10.0, title="Take-Profit Percentage", minval=0.1, step=0.1) / 100 // Default to 10% for long-term
+
+// Colors and Styling
+tenkan_color = input.color(color.blue, title="Tenkan-sen Color")
+kijun_color = input.color(color.red, title="Kijun-sen Color")
+senkou_a_color = input.color(color.green, title="Senkou Span A Color")
+senkou_b_color = input.color(color.maroon, title="Senkou Span B Color")
+chikou_color = input.color(color.purple, title="Chikou Span Color")
+cloud_bull_color = input.color(color.green, title="Bullish Cloud Color", inline="cloud")
+cloud_bear_color = input.color(color.red, title="Bearish Cloud Color", inline="cloud")
+cloud_transparency = input.int(90, title="Cloud Transparency", minval=0, maxval=100)
+
+// Calculating the Ichimoku components
+tenkan_sen = (ta.highest(high, tenkan_period) + ta.lowest(low, tenkan_period)) / 2
+kijun_sen = (ta.highest(high, kijun_period) + ta.lowest(low, kijun_period)) / 2
+senkou_span_a = ta.sma(tenkan_sen + kijun_sen, 1) / 2
+senkou_span_b = (ta.highest(high, senkou_b_period) + ta.lowest(low, senkou_b_period)) / 2
+chikou_span = close[displacement]
+
+// Plotting the Ichimoku components
+//plot(tenkan_sen, color=tenkan_color, title="Tenkan-sen", linewidth=2)
+//plot(kijun_sen, color=kijun_color, title="Kijun-sen", linewidth=2)
+//plot(senkou_span_a, color=senkou_a_color, title="Senkou Span A", offset=displacement, linewidth=1)
+//plot(senkou_span_b, color=senkou_b_color, title="Senkou Span B", offset=displacement, linewidth=1)
+//plot(chikou_span, color=chikou_color, title="Chikou Span", offset=-displacement, linewidth=1)
+
+// Plotting the Kumo (Cloud)
+p1 = plot(senkou_span_a, offset=displacement, color=senkou_a_color)
+p2 = plot(senkou_span_b, offset=displacement, color=senkou_b_color)
+fill(p1, p2, color=senkou_span_a > senkou_span_b ? color.new(cloud_bull_color, cloud_transparency) : color.new(cloud_bear_color, cloud_transparency), title="Kumo")
+
+// Long and Short Conditions
+longCondition = ta.crossover(tenkan_sen, kijun_sen) and close > senkou_span_a and close > senkou_span_b
+shortCondition = ta.crossunder(tenkan_sen, kijun_sen) and close < senkou_span_a and close < senkou_span_b
+
+// Plotting Buy and Sell Signals
+plotshape(series=longCondition, location=location.belowbar, color=color.green, style=shape.labelup, text="BUY", title="Buy Signal", size=size.small)
+plotshape(series=shortCondition, location=location.abovebar, color=color.red, style=shape.labeldown, text="SELL", title="Sell Signal", size=size.small)
+
+var float entry_price = na
+var float stop_loss = na
+var float take_profit = na
+
+if (longCondition)
+    entry_price := close
+    stop_loss := close * (1 - stop_loss_percentage)
+    take_profit := close * (1 + take_profit_percentage)
+
+if (shortCondition)
+    entry_price := close
+    stop_loss := close * (1 + stop_loss_percentage)
+    take_profit := close * (1 - take_profit_percentage)
+
+// Plotting Stop-Loss and Take-Profit Levels
+//plot(entry_price, color=color.yellow, title="Entry Price", linewidth=1, offset=-displacement)
+//plot(stop_loss, color=color.red, title="Stop-Loss Level", linewidth=1, offset=-displacement)
+//plot(take_profit, color=color.green, title="Take-Profit Level", linewidth=1, offset=-displacement)
+
+// Plotting Stop-Loss and Take-Profit Labels
+//label.new(bar_index, stop_loss, text="SL", color=color.red, style=label.style_label_down, textcolor=color.white, size=size.small)
+//label.new(bar_index, take_profit, text="Take-Profit", color=color.green, style=label.style_label_up, textcolor=color.white, size=size.small)
+
+// Alerts for Buy and Sell Signals
+alertcondition(longCondition, title="Buy Alert", message="Ichimoku Buy Signal")
+alertcondition(shortCondition, title="Sell Alert", message="Ichimoku Sell Signal")
+
+strategy.entry("Long",strategy.long, when=longCondition)
+strategy.close("Long",when=shortCondition)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/458277
+
+> Last Modified
+
+2024-07-31 14:54:29

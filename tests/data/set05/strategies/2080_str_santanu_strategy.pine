@@ -1,0 +1,64 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于均线和超越的跟踪止损策略Moving-Average-and-Super-Trend-Tracking-Stop-Loss-Strategy.md
+// content_hash: b9bf1f6ccf78e1b6
+// collected: 2026-07-27
+strategy("Santanu Strategy", overlay=true)
+
+atrPeriod = input(3, "ATR Length")
+factor = input.float(1, "Factor", step = 0.01)
+
+[supertrend, direction] = ta.supertrend(factor, atrPeriod)
+
+bodyMiddle = plot((open + close) / 2, display=display.none)
+upTrend = plot(direction < 0 ? supertrend : na, "Up Trend", color = color.green, style=plot.style_linebr)
+downTrend = plot(direction < 0? na : supertrend, "Down Trend", color = color.red, style=plot.style_linebr)
+
+fill(bodyMiddle, upTrend, color.new(color.green, 90), fillgaps=false)
+fill(bodyMiddle, downTrend, color.new(color.red, 90), fillgaps=false)
+
+len = input.int(14, minval=1, title="Length")
+src = input(close, title="Source")
+offset = input.int(title="Offset", defval=0, minval=-500, maxval=500)
+out = ta.ema(src, len)
+
+len44 = input.int(44, minval=1, title="Length")
+out44 = ta.ema(src, len44)
+
+isRising = ta.rising(out, 1)
+isFalling = ta.falling(out, 1)
+
+plotColor = color.black
+if isRising
+    plotColor := color.green
+else if isFalling
+    plotColor := color.red
+    
+
+plot(out, color=plotColor, title="MA", offset=offset)
+plot(out44, color=color.blue, title="MA", offset=offset)
+
+if direction < 0
+    if close >= out
+        //if low >= out44
+        if isRising
+            strategy.entry("Buy Now", strategy.long)
+
+if direction > 0
+    if close <= out
+        //if high <= out44
+        if isFalling
+            strategy.entry("Sell Now", strategy.short)
+
+
+//plot(strategy.equity, title="equity", color=color.red, linewidth=2, style=plot.style_areabr)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/439048
+
+> Last Modified
+
+2024-01-17 11:46:01

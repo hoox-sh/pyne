@@ -1,0 +1,18 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block341
+// content_hash: b7171c2e9ccb8cc1
+// collected: 2026-07-27
+indicator("My script")
+
+myVar = 10
+
+if close > open
+    // Modifies the existing global scope `myVar` variable by changing its value from 10 to 20.
+    myVar := 20
+    // Creates a new `myVar` variable local to the `if` condition and unreachable from the global scope.
+    // Does not affect the `myVar` declared in global scope.
+    myVar = 30
+
+plot(myVar)

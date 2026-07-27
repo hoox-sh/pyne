@@ -1,0 +1,56 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于RSI动量指标的自适应交易策略-Adaptive-Trading-Strategy-Based-on-RSI-Momentum-Indicator.md
+// content_hash: f727b133763d853a
+// collected: 2026-07-27
+strategy("MultiSymbol Smart Money EA without Lot Sizes or Pairs", overlay=true)
+
+// Strategy Parameters for RSI
+RSI_Period = input.int(14, title="RSI Period", minval=1)
+RSI_Overbought = input.float(70, title="RSI Overbought")
+RSI_Oversold = input.float(30, title="RSI Oversold")
+
+// Fixed values for Stop Loss and Take Profit in percentage
+FIXED_SL = input.float(0.2, title="Stop Loss in %", minval=0.0) / 100
+FIXED_TP = input.float(0.6, title="Take Profit in %", minval=0.0) / 100
+
+// RSI Calculation
+rsi = ta.rsi(close, RSI_Period)
+
+// Buy and Sell Conditions based on RSI
+longCondition = rsi <= RSI_Oversold
+shortCondition = rsi >= RSI_Overbought
+
+// Entry Price
+longPrice = close
+shortPrice = close
+
+// Execute the trades
+if (longCondition)
+    strategy.entry("Buy", strategy.long)
+
+if (shortCondition)
+    strategy.entry("Sell", strategy.short)
+
+// Set Stop Loss and Take Profit based on entry price and percentage
+if (strategy.position_size > 0)  // If there is a long position
+    longStopLoss = longPrice * (1 - FIXED_SL)
+    longTakeProfit = longPrice * (1 + FIXED_TP)
+    strategy.exit("Exit Buy", from_entry="Buy", stop=longStopLoss, limit=longTakeProfit)
+
+if (strategy.position_size < 0)  // If there is a short position
+    shortStopLoss = shortPrice * (1 + FIXED_SL)
+    shortTakeProfit = shortPrice * (1 - FIXED_TP)
+    strategy.exit("Exit Sell", from_entry="Sell", stop=shortStopLoss, limit=shortTakeProfit)
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/483518
+
+> Last Modified
+
+2025-02-27 16:47:25

@@ -1,0 +1,72 @@
+//@version=5
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/Ichimoku Cloud with MACD and Trailing Stop Loss (by Coinrule).pine
+// content_hash: 259bef9998e0e678
+// collected: 2026-07-27
+strategy('Ichimoku Cloud with MACD and Trailing Stop Loss',
+         overlay=true,
+         initial_capital=1000,
+         process_orders_on_close=true,
+         default_qty_type=strategy.percent_of_equity,
+         default_qty_value=30,
+         commission_type=strategy.commission.percent,
+         commission_value=0.1)
+showDate = input(defval=true, title='Show Date Range')
+timePeriod = time >= timestamp(syminfo.timezone, 2022, 6, 1, 0, 0)
+// Inputs
+ts_bars = input.int(9, minval=1, title='Tenkan-Sen Bars')
+ks_bars = input.int(26, minval=1, title='Kijun-Sen Bars')
+ssb_bars = input.int(52, minval=1, title='Senkou-Span B Bars')
+cs_offset = input.int(26, minval=1, title='Chikou-Span Offset')
+ss_offset = input.int(26, minval=1, title='Senkou-Span Offset')
+long_entry = input(true, title='Long Entry')
+short_entry = input(true, title='Short Entry')
+middle(len) => math.avg(ta.lowest(len), ta.highest(len))
+// Ichimoku Components
+tenkan = middle(ts_bars)
+kijun = middle(ks_bars)
+senkouA = math.avg(tenkan, kijun)
+senkouB = middle(ssb_bars)
+// Plot Ichimoku Kinko Hyo
+plot(tenkan, color=color.new(#0496ff, 0), title='Tenkan-Sen')
+plot(kijun, color=color.new(#991515, 0), title='Kijun-Sen')
+plot(close, offset=-cs_offset + 1, color=color.new(#459915, 0), title='Chikou-Span')
+sa = plot(senkouA, offset=ss_offset - 1, color=color.new(color.green, 0), title='Senkou-Span A')
+sb = plot(senkouB, offset=ss_offset - 1, color=color.new(color.red, 0), title='Senkou-Span B')
+fill(sa, sb, color=senkouA > senkouB ? color.green : color.red, title='Cloud color', transp=90)
+ss_high = math.max(senkouA[ss_offset - 1], senkouB[ss_offset - 1])
+ss_low = math.min(senkouA[ss_offset - 1], senkouB[ss_offset - 1])
+// MACD
+[macd, macd_signal, macd_histogram] = ta.macd(close, 12, 26, 9)
+// Entry/Exit Signals
+tk_cross_bull = tenkan > kijun
+tk_cross_bear = tenkan < kijun
+cs_cross_bull = ta.mom(close, cs_offset - 1) > 0
+cs_cross_bear = ta.mom(close, cs_offset - 1) < 0
+price_above_kumo = close > ss_high
+price_below_kumo = close < ss_low
+bullish = tk_cross_bull and cs_cross_bull and price_above_kumo and ta.crossover(macd, macd_signal)
+bearish = tk_cross_bear and cs_cross_bear and price_below_kumo and ta.crossunder(macd, macd_signal)
+// Configure trail stop level with input options
+longTrailPerc = input.float(title='Trail Long Loss (%)', minval=0.0, step=0.1, defval=3) * 0.01
+shortTrailPerc = input.float(title='Trail Short Loss (%)', minval=0.0, step=0.1, defval=3) * 0.01
+// Determine trail stop loss prices
+longStopPrice = 0.0
+shortStopPrice = 0.0
+longStopPrice := if strategy.position_size > 0
+    stopValue = close * (1 - longTrailPerc)
+    math.max(stopValue, longStopPrice[1])
+else
+    0
+shortStopPrice := if strategy.position_size < 0
+    stopValue = close * (1 + shortTrailPerc)
+    math.min(stopValue, shortStopPrice[1])
+else
+    999999
+strategy.entry('Long', strategy.long, when=bullish and long_entry and timePeriod)
+strategy.exit('Exit', stop = longStopPrice, limit = shortStopPrice)
+//strategy.close('Long', when=bearish and not short_entry)
+//strategy.entry('Short', strategy.short, when=bearish and short_entry and timePeriod)
+//strategy.close('Short', when=bullish and not long_entry)
+Expand (87 lines)

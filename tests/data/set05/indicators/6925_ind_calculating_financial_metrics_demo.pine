@@ -1,0 +1,13 @@
+//@version=6
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/concepts/other-timeframes-and-data.md::other-timeframes-and-data.md#block63
+// content_hash: f0ba4ed76b141d62
+// collected: 2026-07-27
+indicator("Calculating financial metrics demo", overlay = true, max_labels_count = 500)
+
+//@function Calculates the market capitalization (market cap) for the chart's symbol.
+marketCap() =>
+    //@variable The most recent number of outstanding shares reported for the symbol.
+    float totalSharesOutstanding = request.financial(syminfo.tickerid, "TOTAL_SHARES_OUTSTANDING", "FQ")
+    // Return the market cap value.

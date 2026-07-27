@@ -1,0 +1,11 @@
+//@version=6
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/visuals/text-and-shapes.md::text-and-shapes.md#block6
+// content_hash: 13ab703b8dabdb64
+// collected: 2026-07-27
+indicator("Lift text", "", true)
+plotshape(true, "", shape.arrowup,   location.abovebar, color.green,  text = "A")
+plotshape(true, "", shape.arrowup,   location.abovebar, color.lime,   text = "B\n")
+plotshape(true, "", shape.arrowdown, location.belowbar, color.red,    text = "C")
+plotshape(true, "", shape.arrowdown, location.belowbar, color.maroon, text = "​\nD")

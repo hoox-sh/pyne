@@ -1,0 +1,60 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/TURTLE-ATR布林带突破策略-TURTLE-ATR-Bollinger-Bands-Breakout-Strategy.md
+// content_hash: e98245c78ba24ab2
+// collected: 2026-07-27
+strategy("Estrategia de las tortugas_ES", overlay=true, pyramiding=3)
+
+// Parámetros 
+atrLength = input.int(20, "Longitud del ATR")
+atrFactor = input.float(2, "Factor del ATR")
+entryBreakout = input.int(20, "Breakout de entrada")
+exitBreakout = input.int(10, "Breakout de salida")
+longOnly = input.bool(false, "Solo largos")
+shortOnly = input.bool(false, "Solo cortos")
+
+
+// Cálculo del ATR
+atr = ta.atr(atrLength)
+
+// Cálculo de los niveles de breakout
+longEntry = ta.highest(high, exitBreakout)[1]
+longExit = ta.lowest(low, exitBreakout)[1]
+shortEntry = ta.lowest(low, exitBreakout)[1]
+shortExit = ta.highest(high, exitBreakout)[1]
+
+// Cálculo del tamaño de la posición
+nContracts = math.floor((strategy.equity * 0.01) / (atrFactor * atr))
+
+// Filtra las fechas según el rango deseado
+// in_range = time >= timestamp(year(start_date), month(start_date), dayofmonth(start_date)) 
+
+// Condiciones de entrada y salida
+longCondition = not longOnly and close > longEntry and time >= timestamp("2023-03-15")
+if longCondition
+    strategy.entry("Long", strategy.long, qty = nContracts)
+
+shortCondition = not shortOnly and close < shortEntry and time >=  timestamp("2023-03-15")
+if shortCondition
+    strategy.entry("Short", strategy.short, qty = nContracts)
+    
+strategy.exit("Exit Long", "Long", stop = longExit)
+strategy.exit("Exit Short", "Short", stop = shortExit)
+
+// Visualización de los niveles de breakout
+plot(longEntry, "Entrada larga", color.green, style = plot.style_line)
+plot(longExit, "Salida larga", color.red, style = plot.style_line)
+plot(shortEntry, "Entrada corta", color.green, style = plot.style_line)
+plot(shortExit, "Salida corta", color.red, style = plot.style_line)
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/453228
+
+> Last Modified
+
+2024-06-03 10:48:09

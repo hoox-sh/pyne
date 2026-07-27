@@ -1,0 +1,41 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/Heikin-Ashi-Trend.md
+// content_hash: a4f8eea39befd7af
+// collected: 2026-07-27
+indicator("Heikin-Ashi Trend Alert", overlay=true)
+
+// EMA
+ema_input                   = input.int(title="EMA", defval=77, minval=1)
+ema_smoothing               = input.int(title="EMA Smoothing", defval=21, minval=1)
+ema_open                    = ta.ema(open, ema_input)
+ema_close                   = ta.ema(close, ema_input)
+
+// Developer
+shouldShowDebugInfo         = input(title="Show debug info", group="DEVELOPER", defval=false, tooltip="Check this box to see the values of the main variables on the chart, below bars. This is for debugging purposes only.")
+
+// Heikin-Ashi
+heikinashi                  = ticker.heikinashi(syminfo.tickerid)
+heikinashi_open             = request.security(heikinashi, timeframe.period, ema_open)
+heikinashi_close            = request.security(heikinashi, timeframe.period, ema_close)
+heikinashi_open_smooth      = ta.ema(heikinashi_open, ema_smoothing)
+heikinashi_close_smooth     = ta.ema(heikinashi_close, ema_smoothing)
+
+// Trend
+var trend                   = false
+var last_trend              = trend
+trend                       := heikinashi_close_smooth >= heikinashi_open_smooth
+if trend
+    strategy.entry("Enter Long", strategy.long)
+else
+    strategy.entry("Enter Short", strategy.short)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/362000
+
+> Last Modified
+
+2022-05-09 14:33:57

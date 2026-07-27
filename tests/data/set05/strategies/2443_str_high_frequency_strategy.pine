@@ -1,0 +1,57 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于布林带和-StochRSI-指标的高频交易策略High-Frequency-Trading-Strategy-Based-on-Bollinger-Bands-and-StochRSI-Indicators.md
+// content_hash: 4c785cd265ee3735
+// collected: 2026-07-27
+strategy("High Frequency Strategy", overlay=true)
+
+// Define your Bollinger Bands parameters
+bollinger_length = input.int(20, title="Bollinger Bands Length")
+bollinger_dev = input.float(2, title="Bollinger Bands Deviation")
+
+// Calculate Bollinger Bands
+sma = ta.sma(close, bollinger_length)
+dev = bollinger_dev * ta.stdev(close, bollinger_length)
+
+upper_band = sma + dev
+lower_band = sma - dev
+
+// Define your StochRSI parameters
+stoch_length = input.int(14, title="StochRSI Length")
+k_period = input.int(3, title="K Period")
+d_period = input.int(3, title="D Period")
+
+// Calculate StochRSI
+rsi = ta.rsi(close, stoch_length)
+k = ta.sma(ta.stoch(rsi, rsi, rsi, k_period), k_period)
+d = ta.sma(k, d_period)
+
+// Define a buy condition (Long Only)
+buy_condition = close < lower_band
+
+// Place orders based on the buy condition
+if (buy_condition)
+    strategy.entry("Buy", strategy.long)
+
+// Optional: Plot buy signals on the chart
+plotshape(buy_condition, color=color.green, style=shape.triangleup, location=location.belowbar, size=size.small)
+
+// Plot Bollinger Bands on the chart
+plot(upper_band, title="Upper Bollinger Band", color=color.blue)
+plot(lower_band, title="Lower Bollinger Band", color=color.orange)
+plot(k, title="StochRSI K", color=color.green)
+plot(d, title="StochRSI D", color=color.red)
+
+
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/435698
+
+> Last Modified
+
+2023-12-18 10:16:49

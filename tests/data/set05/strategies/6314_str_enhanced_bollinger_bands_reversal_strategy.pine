@@ -1,0 +1,70 @@
+//@version=2
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/增强波动带反转策略Enhanced-Bollinger-Bands-Reversal-Strategy.md
+// content_hash: 78c26e7982fa83e6
+// collected: 2026-07-27
+strategy(title = "Noro's Advanced Bollinger Bands Strategy v1.0", shorttitle = "ABB str 1.0", overlay = true, default_qty_type = strategy.percent_of_equity, default_qty_value = 100, pyramiding = 5)
+
+//Settings
+needlong = input(true, defval = true, title = "Long")
+needshort = input(false, defval = false, title = "Short")
+capital = input(100, defval = 100, minval = 1, maxval = 10000, title = "Capital, %")
+p = input(20, "bars")
+d = input(25, "percent")
+showlines = input(true, defval = true, title = "Show Lines?")
+fromyear = input(1900, defval = 1900, minval = 1900, maxval = 2100, title = "From Year")
+toyear = input(2100, defval = 2100, minval = 1900, maxval = 2100, title = "To Year")
+frommonth = input(01, defval = 01, minval = 01, maxval = 12, title = "From Month")
+tomonth = input(12, defval = 12, minval = 01, maxval = 12, title = "To Month")
+fromday = input(01, defval = 01, minval = 01, maxval = 31, title = "From day")
+today = input(31, defval = 31, minval = 01, maxval = 31, title = "To day")
+
+mult = input(2.0, minval=0.001, maxval=50)
+basis = sma(close, p)
+dev = mult * stdev(close, p)
+source = close
+upperBB = basis + dev
+lowerBB = basis - dev
+b1 = plot(basis, color=gray, linewidth=1)
+p1 = plot(upperBB, color=aqua,  linewidth=1)
+p2 = plot(lowerBB, color=aqua, linewidth=1)
+
+//SMAs
+sma = sma(close, p)
+upex2 = sma * ((100 + d) / 100)
+dnex2 = sma * ((100 - d) / 100)
+
+upex3 = (upex2 + upperBB) / 2
+dnex3 = (dnex2 + lowerBB) / 2
+
+upex = max(upperBB, upex3)
+dnex = min(lowerBB, dnex3)
+//exit = (high > sma and low < sma)
+exit = close > open
+
+
+//Lines
+col = showlines ? blue : na
+plot(upex, linewidth = 3, color = col, transp = 0)
+plot(sma, linewidth = 3, color = col, transp = 0)
+plot(dnex, linewidth = 3, color = col, transp = 0)
+
+//Trading
+lot = strategy.position_size != strategy.position_size[1] ? strategy.equity / close * capital / 100 : lot[1]
+
+if (not na(close[p]))
+    strategy.entry("Long", strategy.long, needlong == false ? 0 : lot, limit = dnex)
+    strategy.entry("Short", strategy.short, needshort == false ? 0 : lot, limit = upex)
+
+if exit
+    strategy.close_all()
+```
+
+> Detail
+
+https://www.fmz.com/strategy/427456
+
+> Last Modified
+
+2023-09-21 11:45:37

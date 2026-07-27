@@ -1,0 +1,11 @@
+// set05 corpus entry
+// source_repo: aceri-tradingview_pinescript
+// source_path: aceri-tradingview_pinescript/MA Huobi 30M.txt
+// content_hash: fbb979e2421b6cde
+// collected: 2026-07-27
+study(title="MA Cross", overlay=true)
+short = sma(close, 40)
+long = sma(close, 143)
+plot(short, color = green)
+plot(long, color = red)
+plot(cross(short, long) ? short : na, style = cross, linewidth = 4)

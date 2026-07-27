@@ -1,0 +1,65 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于均线价格形态和量能的反转策略-A-Trend-Reversal-Strategy-Based-on-Moving-Averages-Price-Patterns-and-Volume.md
+// content_hash: 25f311c6cf7c9672
+// collected: 2026-07-27
+strategy("Profit Table Strategy", overlay=true)
+
+// Input parameters
+fastLength = input(10, title="Fast MA Length")
+slowLength = input(20, title="Slow MA Length")
+takeProfitPercent = input(1, title="Take Profit (%)") / 100
+stopLossPercent = input(1, title="Stop Loss (%)") / 100
+trailingStopPercent = input(1, title="Trailing Stop (%)") / 100
+
+// Price action conditions
+bullishEngulfing = close > open and close > open[1] and open < close[1] and open[1] > close[1]
+bearishEngulfing = close < open and close < open[1] and open > close[1] and open[1] < close[1]
+
+// Support and resistance levels
+supportLevel = input(100, title="Support Level")
+resistanceLevel = input(200, title="Resistance Level")
+
+// Volume conditions
+volumeCondition = volume > ta.sma(volume, 20)
+
+// Calculate moving averages
+fastMA = ta.sma(close, fastLength)
+slowMA = ta.sma(close, slowLength)
+
+// Buy condition
+buyCondition = (fastMA > slowMA) and (close > resistanceLevel) and bullishEngulfing and volumeCondition
+
+// Sell condition
+sellCondition = (fastMA < slowMA) and (close < supportLevel) and bearishEngulfing and volumeCondition
+
+// Strategy logic
+strategy.entry("Buy", strategy.long, when=buyCondition)
+strategy.close("Buy", when=sellCondition)
+
+// Calculate take profit, stop loss, and trailing stop levels
+takeProfitLevel = strategy.position_avg_price * (1 + takeProfitPercent)
+stopLossLevel = strategy.position_avg_price * (1 - stopLossPercent)
+trailingStopLevel = strategy.position_avg_price * (1 - trailingStopPercent)
+
+// Plotting levels on the chart
+plot(supportLevel, color=color.blue, style=plot.style_line, linewidth=2, title="Support Level")
+plot(resistanceLevel, color=color.purple, style=plot.style_line, linewidth=2, title="Resistance Level")
+plot(takeProfitLevel, color=color.green, style=plot.style_line, linewidth=2, title="Take Profit Level")
+plot(stopLossLevel, color=color.red, style=plot.style_line, linewidth=2, title="Stop Loss Level")
+plot(trailingStopLevel, color=color.orange, style=plot.style_line, linewidth=2, title="Trailing Stop Level")
+
+// Plotting buy and sell signals on the chart
+plotshape(series=buyCondition, title="Buy Signal", color=color.green, style=shape.labelup, location=location.belowbar)
+plotshape(series=sellCondition, title="Sell Signal", color=color.red, style=shape.labeldown, location=location.abovebar)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/439107
+
+> Last Modified
+
+2024-01-17 17:48:40

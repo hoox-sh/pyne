@@ -1,0 +1,11 @@
+//@version=2
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/v3/essential/strategies.md::strategies.md#block11
+// content_hash: 1ea35da9e393ccd5
+// collected: 2026-07-27
+strategy("Priced Entry demo")
+c = year > 2014 ? nz(c[1]) + 1 : 0
+if c == 1
+    strategy.entry("LE1", strategy.long, 2, stop = high + 35 * syminfo.mintick, oca_type = strategy.oca.cancel, oca_name = "LE")
+    strategy.entry("LE2", strategy.long, 2, stop = high + 2 * syminfo.mintick, oca_type = strategy.oca.cancel, oca_name = "LE")

@@ -1,0 +1,20 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/errors/CE10101.md::CE10101.md#block2
+// content_hash: 8224c2d8f7e1777d
+// collected: 2026-07-27
+indicator("My script", overlay = true)
+
+pivotLength = input.int(10, "Pivot length")
+
+// The `ta.pivothigh()` function returns the value of the pivot, or `na` on bars where no high pivot is found.
+pivot = ta.pivothigh(pivotLength, pivotLength)
+
+// Some expect to pass `pivot` as the condition and have the condition only execute when `pivot` is not `na`. In Pine, this does not work.
+if pivot
+    label.new(bar_index[pivotLength], pivot, "Pivot High")
+
+// Using the `na()` function to check if `pivot` is `na` and then negating this check with `not` is the intended approach.
+if not na(pivot)
+    label.new(bar_index[pivotLength], pivot, "Pivot High")          Next   CW10003              On this pageThe condition of the “X” statement must evaluate to a “bool” value.Using a numerical value instead of a “bool”Trying to implicitly check whether the variable is na

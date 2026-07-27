@@ -1,0 +1,65 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/金叉死叉均线交易策略Golden-Cross-Death-Cross-Moving-Average-Trading-Strategy.md
+// content_hash: 856a5d89b1f487db
+// collected: 2026-07-27
+strategy("XAU M15", overlay=true)
+
+// Define input parameters
+long_length = input.int(64, title="Long MA Length")
+short_length = input.int(1, title="Short MA Length")
+trend_length = input.int(200, title="Trend MA Length")
+
+// Calculate moving averages
+long_ma = ta.sma(close, long_length)
+short_ma = ta.sma(close, short_length)
+trend_ma = ta.sma(close, trend_length)
+
+// Plot moving averages on chart
+plot(long_ma, color=color.blue, title="Long MA")
+plot(short_ma, color=color.red, title="Short MA")
+plot(trend_ma, color=color.green, title="Trend MA")
+
+// Entry conditions
+enterLong = ta.crossover(long_ma, short_ma) and long_ma > trend_ma and short_ma > trend_ma
+enterShort = ta.crossunder(long_ma, short_ma) and long_ma < trend_ma and short_ma < trend_ma
+
+if (enterLong)
+    strategy.entry("Long", strategy.long)
+
+if (enterShort)
+    strategy.entry("Short", strategy.short)
+
+// Exit conditions
+exitLong = ta.crossunder(long_ma, short_ma)
+exitShort = ta.crossover(long_ma, short_ma)
+
+if (exitLong)
+    strategy.close("Long")
+
+if (exitShort)
+    strategy.close("Short")
+
+// Set stop loss and take profit levels
+long_stop_loss_percentage = input(1, title="Long Stop Loss (%)") / 100
+long_take_profit_percentage = input(3, title="Long Take Profit (%)") / 100
+
+short_stop_loss_percentage = input(1, title="Short Stop Loss (%)") / 100
+short_take_profit_percentage = input(3, title="Short Take Profit (%)") / 100
+
+strategy.exit("Take Profit/Stop Loss", "Long", stop=close * (1 - long_stop_loss_percentage), limit=close * (1 + long_take_profit_percentage))
+strategy.exit("Take Profit/Stop Loss", "Short", stop=close * (1 + short_stop_loss_percentage), limit=close * (1 - short_take_profit_percentage))
+
+plotshape(series=enterLong, title="Buy Entry", location=location.belowbar, color=color.green, style=shape.triangleup, size=size.tiny)
+plotshape(series=enterShort, title="Sell Entry", location=location.abovebar, color=color.red, style=shape.triangledown, size=size.tiny)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/430569
+
+> Last Modified
+
+2023-10-30 14:42:09

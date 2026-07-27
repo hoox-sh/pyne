@@ -1,0 +1,48 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/振荡平衡策略Oscillation-Balance-Strategy.md
+// content_hash: 3e3850af11136ab6
+// collected: 2026-07-27
+strategy(title="Balance of Power", format=format.price, precision=2)
+
+BoP = (close - open) / (high - low)
+p1 = plot(ema(BoP,18),color=color.purple)
+p2 = plot(ema(BoP,12),color=color.blue)
+p3 = plot(ema(BoP,9),color=color.green)
+p4 = plot(ema(BoP,6),color=color.yellow)
+p5 = plot(ema(BoP,3),color=color.orange)
+p6 = plot(BoP, color=color.red)
+
+
+sumEMA = (avg(BoP,ema(BoP,3),ema(BoP,6),ema(BoP,9),ema(BoP,12),ema(BoP,18)))
+plot(sumEMA,color=color.gray)
+
+fill(p1,p2,color.purple)
+fill(p2,p3,color.blue)
+fill(p3,p4,color.green)
+fill(p4,p5,color.yellow)
+fill(p5,p6,color.orange)
+
+
+
+
+projected = sumEMA + (sumEMA - sumEMA[2])
+p7 = plot(projected, linewidth=2, color=color.white)
+fill(p6,p7,color.red)
+
+//strategy.exit("exitx","Exit",when=cross(projected,0))
+
+strategy.entry("Long",true,1,when=crossover(projected,0))
+strategy.entry("Short",false,0,when=crossunder(projected,0))
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/429780
+
+> Last Modified
+
+2023-10-20 17:03:08

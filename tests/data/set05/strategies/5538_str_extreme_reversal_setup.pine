@@ -1,0 +1,38 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/反转极端设置策略Extreme-Reversal-Setup-Strategy.md
+// content_hash: 93f874b643745257
+// collected: 2026-07-27
+strategy("Extreme Reversal Setup", overlay=true)
+
+bodySize = input(defval=0.75)
+barsBack = input(title="Lookback Period", type=input.integer, defval=20, minval=0)
+bodyMultiplier = input(title="Bar ATR Multiplier", type=input.float, defval=2.0, minval=0)
+
+myBodySize = abs(close - open)
+averageBody = rma(myBodySize, barsBack)
+myCandleSize = abs(high - low)
+averageCandle = rma(myCandleSize, barsBack)
+
+signal_long = open[1]-close[1] >= bodySize*(high[1]-low[1]) and 
+   high[1]-low[1] > averageCandle*bodyMultiplier and 
+   open[1]-close[1] > averageBody and close > open
+signal_short = close[1]-open[1] >= bodySize*(high[1]-low[1]) and 
+   high[1]-low[1] > averageCandle*bodyMultiplier and 
+   close[1]-open[1] > averageBody and open > close
+
+plotshape(signal_long, "LONG", shape.triangleup, location.belowbar, size=size.normal)
+plotshape(signal_short, "SHORT", shape.triangledown, location.belowbar, size=size.normal)
+
+strategy.entry("LONG", strategy.long, when=signal_long)
+strategy.entry("SHORT", strategy.short, when=signal_short)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/442365
+
+> Last Modified
+
+2024-02-21 14:08:09

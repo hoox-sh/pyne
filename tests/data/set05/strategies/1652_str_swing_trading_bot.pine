@@ -1,0 +1,75 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动态ATR波段突破交易策略与多层次风险管理-Dynamic-ATR-Swing-Breakout-Strategy-with-Multi-Tiered-Risk-Management.md
+// content_hash: 632bc73cda318cd5
+// collected: 2026-07-27
+strategy("Swing Trading Bot", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=10)
+
+// Define Moving Averages
+ma50 = ta.sma(close, 50)
+ma10 = ta.sma(close, 10)
+
+// Entry Condition: Price above 50-day MA and breakout above recent high
+highestHigh = ta.highest(high, 20)
+entryCondition = close > ma50 and high > highestHigh[1]
+
+// Define Risk Unit (R)
+riskPercentage = 0.3 // Define risk percentage per trade
+atrValue = ta.atr(14)
+stopLoss = close - 1 * atrValue // Initial stop loss at -1R
+
+// Initial take profit levels
+firstProfitTarget = close + 2 * atrValue
+secondProfitTarget = close + 4 * atrValue
+
+// Variables for tracking position
+var float entryPrice = na
+var float stopLevel = na
+var float firstSellPrice = na
+var float secondSellPrice = na
+var int positionSize = 0
+
+// Entry logic
+if entryCondition
+    strategy.entry("SwingEntry", strategy.long)
+    entryPrice := close
+    stopLevel := stopLoss
+    firstSellPrice := firstProfitTarget
+    secondSellPrice := secondProfitTarget
+    positionSize := 100
+
+// Stop Loss Logic (Adjustable after first exit)
+stopLossCondition = close < stopLevel
+if stopLossCondition
+    strategy.close("SwingEntry", comment="Stop Loss Hit")
+
+// First partial sell (25-30% at 2-2.5R profit)
+firstSellCondition = close >= firstSellPrice
+if firstSellCondition and positionSize > 0
+    strategy.close("SwingEntry", qty_percent=25, comment="Partial Exit at 2R")
+    stopLevel := math.max(entryPrice, ta.lowest(low, 4)) // Adjust stop to breakeven or lowest of last 4 candles
+    positionSize -= 25
+
+// Second partial sell (25% if price moves far above MA10)
+distanceFromMA10 = close - ma10
+secondSellCondition = distanceFromMA10 > 2 * atrValue
+if secondSellCondition and positionSize > 0
+    strategy.close("SwingEntry", qty_percent=25, comment="Partial Exit - Overextended")
+    positionSize -= 25
+
+// Final exit (when price closes below 10-day MA)
+finalExitCondition = close < ma10
+if finalExitCondition and positionSize > 0
+    strategy.close("SwingEntry", comment="Final Exit - MA10 Cross")
+    positionSize = 0
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/488287
+
+> Last Modified
+
+2025-03-26 16:07:19

@@ -1,0 +1,73 @@
+//@version=3
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/突破回调开仓策略Breakthrough-Callback-Long-Strategy.md
+// content_hash: b63f58ce927a1900
+// collected: 2026-07-27
+//  Created by Leon Ross
+//study(title="OutsideDownOpenLower", shorttitle="ODOL", overlay=true)
+strategy(title = "Outside", shorttitle = "OB", overlay = true )
+  
+
+//Window of time
+//start     = timestamp(2018, 01, 01, 00, 00)  // backtest start window
+//finish    = timestamp(2018, 12, 31, 23, 59)        // backtest finish window
+//window()  => time >= start and time <= finish ? true : false // create function "within window of time"  
+
+//Conditions
+outsideBar = low < low[1] and high > high[1] and close < open
+allConditions = outsideBar
+  
+//Stop and Take Profit as percentages
+//inpTakeProfit   = input(2, title='Take Profit %', type=float)/100
+//takeProfitValue = strategy.position_avg_price * (1 + inpTakeProfit)
+//useTakeProfit   = inpTakeProfit  > 0 ?  takeProfitValue : na
+//inpStopLoss     = input(1, title='Stop Loss %', type=float)/100
+//stopLossValue = strategy.position_avg_price * (1 - inpStopLoss)
+//useStopLoss     = inpStopLoss    > 0 ?  stopLossValue   : na
+//entry = strategy.position_avg_price
+
+
+
+//Stop as last bars low and profit as percentage
+entry = strategy.position_avg_price
+inpTakeProfit   = input(2.0, title='Take Profit %', type=float)/100
+takeProfitValue = strategy.position_avg_price * (1 + inpTakeProfit)
+useTakeProfit   = inpTakeProfit  > 0 ?  takeProfitValue : na
+inpStopLoss     = valuewhen(allConditions, low, 0)
+stopLossValue = inpStopLoss
+useStopLoss     = inpStopLoss    > 0 ?  stopLossValue   : na
+    
+
+
+
+//Plots
+bgcolor(allConditions ==1 ? aqua : na, transp=70)
+plot(entry, color=blue, style=linebr, linewidth=2)
+plot(useStopLoss, color=red, style=linebr, linewidth=2)
+plot(useTakeProfit, color=green, style=linebr, linewidth=2)
+
+
+//Entires
+strategy.entry(id = "Long", long = true, when = allConditions) // use function or simple condition to decide when to get in
+
+//Exits
+//if (barssince(allConditions) == 2)
+    //strategy.close("Long")
+//else
+strategy.exit("Exit Long", from_entry = "Long", stop = useStopLoss)
+
+
+
+
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/442519
+
+> Last Modified
+
+2024-02-22 15:41:53

@@ -1,0 +1,62 @@
+//@version=6
+// set04 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多重指标趋势确认动态止盈止损交易策略-Multi-Indicator-Trend-Confirmation-Dynamic-Risk-Management-Trading-Strategy.md
+// content_hash: 1a220e3a8d25f3e7
+// collected: 2026-07-27
+strategy("Super Trend with EMA, RSI & Signals", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=10)
+
+// Super Trend Indicator
+atrLength = input.int(10, title="ATR Length")
+factor = input.float(3.0, title="Super Trend Multiplier")
+[st, direction] = ta.supertrend(factor, atrLength)
+
+// 200 EMA for Trend Confirmation
+emaLength = input.int(200, title="EMA Length")
+ema200 = ta.ema(close, emaLength)
+
+// RSI for Momentum Confirmation
+rsiLength = input.int(14, title="RSI Length")
+rsi = ta.rsi(close, rsiLength)
+useRSIFilter = input.bool(true, title="Use RSI Filter?")
+rsiThreshold = 50
+
+// Buy & Sell Conditions
+buyCondition = ta.crossover(close, st) and close > ema200 and (not useRSIFilter or rsi > rsiThreshold)
+sellCondition = ta.crossunder(close, st) and close < ema200 and (not useRSIFilter or rsi < rsiThreshold)
+
+// Stop Loss & Take Profit (Based on ATR)
+atrMultiplier = input.float(1.5, title="ATR Stop Loss Multiplier")
+atrValue = ta.atr(atrLength)
+stopLossBuy = close - (atrMultiplier * atrValue)
+stopLossSell = close + (atrMultiplier * atrValue)
+takeProfitMultiplier = input.float(2.0, title="Take Profit Multiplier")
+takeProfitBuy = close + (takeProfitMultiplier * (close - stopLossBuy))
+takeProfitSell = close - (takeProfitMultiplier * (stopLossSell - close))
+
+// Execute Trades
+if buyCondition
+    strategy.entry("Buy", strategy.long)
+    strategy.exit("Take Profit Buy", from_entry="Buy", limit=takeProfitBuy, stop=stopLossBuy)
+
+if sellCondition
+    strategy.entry("Sell", strategy.short)
+    strategy.exit("Take Profit Sell", from_entry="Sell", limit=takeProfitSell, stop=stopLossSell)
+
+// Plot Indicators
+plot(ema200, title="200 EMA", color=color.blue, linewidth=2)
+plot(st, title="Super Trend", color=(direction == 1 ? color.green : color.red), style=plot.style_stepline)
+
+// Plot Buy & Sell Signals as Arrows
+plotshape(series=buyCondition, location=location.belowbar, color=color.green, style=shape.labelup, title="Buy Signal", text="BUY")
+plotshape(series=sellCondition, location=location.abovebar, color=color.red, style=shape.labeldown, title="Sell Signal", text="SELL")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/484921
+
+> Last Modified
+
+2025-03-05 10:19:52

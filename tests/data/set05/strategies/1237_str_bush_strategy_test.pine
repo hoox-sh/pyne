@@ -1,0 +1,92 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/改进波浪跟踪策略Improved-Wave-Trend-Tracking-Strategy.md
+// content_hash: 956a4206de8767c3
+// collected: 2026-07-27
+strategy("Bush Strategy test", shorttitle="Nique Audi", overlay=false)
+
+// Paramètres
+n1 = input(10, title="Channel Length")
+n2 = input(21, title="Average Length")
+obLevel1 = input(60, title="Over Bought Level 1")
+obLevel2 = input(53, title="Over Bought Level 2")
+osLevel1 = input(-65, title="Over Sold Level 1")
+osLevel2 = input(-60, title="Over Sold Level 2")
+takeProfitPercentage = input(1, title="Take Profit (%)")
+stopLossPercentage = input(0.50, title="Stop Loss (%)")
+
+// Calculs
+ap = hlc3 
+esa = ta.ema(ap, n1)
+d = ta.ema(math.abs(ap - esa), n1)
+ci = (ap - esa) / (0.015 * d)
+tci = ta.ema(ci, n2)
+
+wt1 = tci
+wt2 = ta.sma(wt1, 4)
+
+// Tracé des lignes
+plot(0, color=color.gray)
+plot(obLevel1, color=color.red)
+plot(osLevel1, color=color.green)
+plot(obLevel2, color=color.red, style=plot.style_line)
+plot(osLevel2, color=color.green, style=plot.style_line)
+
+plot(wt1, color=color.green)
+plot(wt2, color=color.red, style=plot.style_line)
+
+// Tracé de la différence entre wt1 et wt2 en bleu
+hline(0, "Zero Line", color=color.gray)
+
+// Conditions d'entrée long et court
+longCondition = ta.crossover(wt1, obLevel2)
+shortCondition = ta.crossunder(wt1, osLevel2)
+
+// Tracé des signaux d'achat et de vente
+plotshape(series=longCondition, style=shape.triangleup, location=location.belowbar, color=color.green, size=size.small, title="Buy Signal")
+plotshape(series=shortCondition, style=shape.triangledown, location=location.abovebar, color=color.red, size=size.small, title="Sell Signal")
+
+// Conditions d'entrée et de sortie
+strategy.entry("Long", strategy.long, when=longCondition)
+strategy.entry("Short", strategy.short, when=shortCondition)
+
+// Niveaux de prise de profit pour les positions longues et courtes
+longTakeProfitLevel = strategy.position_avg_price * (1 + takeProfitPercentage / 100)
+shortTakeProfitLevel = strategy.position_avg_price * (1 - takeProfitPercentage / 100)
+
+// Vérification si les niveaux de prise de profit sont atteints
+longTakeProfitReached = strategy.position_size > 0 and high >= longTakeProfitLevel
+shortTakeProfitReached = strategy.position_size < 0 and low <= shortTakeProfitLevel
+
+// Tracé des formes de prise de profit
+plotshape(series=longTakeProfitReached, style=shape.xcross, location=location.belowbar, color=color.blue, size=size.small, title="Take Profit Long")
+plotshape(series=shortTakeProfitReached, style=shape.xcross, location=location.abovebar, color=color.blue, size=size.small, title="Take Profit Short")
+
+// Niveaux de stop loss pour les positions longues et courtes
+longStopLossLevel = strategy.position_avg_price * (1 - stopLossPercentage / 100)
+shortStopLossLevel = strategy.position_avg_price * (1 + stopLossPercentage / 100)
+
+// Vérification si les niveaux de stop loss sont atteints
+longStopLossReached = strategy.position_size > 0 and low <= longStopLossLevel
+shortStopLossReached = strategy.position_size < 0 and high >= shortStopLossLevel
+
+// Tracé des formes de stop loss
+plotshape(series=longStopLossReached, style=shape.xcross, location=location.belowbar, color=color.red, size=size.small, title="Stop Loss Long")
+plotshape(series=shortStopLossReached, style=shape.xcross, location=location.abovebar, color=color.red, size=size.small, title="Stop Loss Short")
+
+// Fermeture des positions en cas de prise de profit ou de stop loss
+strategy.close("Long", when=longTakeProfitReached or longStopLossReached)
+strategy.close("Short", when=shortTakeProfitReached or shortStopLossReached)
+
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/440548
+
+> Last Modified
+
+2024-01-31 15:35:41

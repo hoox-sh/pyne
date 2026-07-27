@@ -1,0 +1,128 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/均线交叉策略Moving-Average-Crossover-Strategy.md
+// content_hash: cfaf552eb0e9349e
+// collected: 2026-07-27
+strategy("Backtest Engine", "Backtest", overlay=true, commission_type=strategy.commission.percent, commission_value=0.07, initial_capital = 1000, default_qty_type = strategy.percent_of_equity, default_qty_value = 100, currency = currency.USD)
+
+
+// Start code here...
+fastMA = sma(close,50)
+slowMA = sma(close,200)
+
+plot(fastMA, "Fast MA",  color.blue)
+plot(slowMA, "Slow MA",  color.red)
+
+// Long Enrty/Exit
+longCondition = crossover(fastMA,slowMA)
+closeLong = crossover(slowMA,fastMA)
+
+// Short Enrty/Exit
+shortCondition = crossover(slowMA,fastMA)
+closeShort = crossover(fastMA,slowMA)
+
+
+// Bot web-link alert - {{strategy.order.comment}}
+botLONG = "ENTRY LONG ALERT"
+botCLOSELONG = "CLOSE LONG ALERT"
+botSHORT = "ENTRY SHORT ALERT"
+botCLOSESHORT = "CLOSE SHORT ALERT"
+
+//////////////////////////////////////////////////////////////////
+//////////////////////// BACKTEST ENGINE \\\\\\\\\\\\\\\\\\\\\\\\\
+/////////////////// [NO USER INPUT REQUIRED] /////////////////////
+//////////////////////////////////////////////////////////////////
+
+// Time period
+testStartYear = input(2020, "Backtest Start Year")
+testStartMonth = input(5, "Backtest Start Month")
+testStartDay = input(11, "Backtest Start Day")
+testPeriodStart = timestamp(testStartYear,testStartMonth,testStartDay,0,0)
+
+periodLength = input(3650, "Backtest Period (days)", minval=0,tooltip="Days until strategy ends") * 86400000 // convert days into UNIX time
+testPeriodStop = testPeriodStart + periodLength
+
+testPeriod() =>
+    time >= testPeriodStart and time <= testPeriodStop ? true : false
+
+// Convert Take profit and Stop loss to percentage
+longTP = input(title="Long Take Profit (%)", type=input.float, minval=0.0, step=0.1, defval=0) * 0.01 // Set levels with input options
+longSL = input(title="Long Stop Loss (%)", type=input.float, minval=0.0, step=0.1, defval=0) * 0.01 // Set levels with input options
+shortTP = input(title="Short Take Profit (%)", type=input.float, minval=0.0, step=0.1, defval=0) * 0.01 // Set levels with input options
+shortSL = input(title="Short Stop Loss (%)", type=input.float, minval=0.0, step=0.1, defval=0) * 0.01 // Set levels with input options
+
+// 0% TP/SL = OFF (a value of 0 turns off TP/SL feature)
+longProfitPerc = longTP == 0 ? 1000 : longTP
+longStopPerc = longSL == 0 ? 1 : longSL
+shortProfitPerc = shortTP == 0 ? 1 : shortTP
+shortStopPerc = shortSL == 0 ? 1000 : shortSL
+
+// Determine TP/SL price based on percentage given
+longProfitPrice  = strategy.position_avg_price * (1 + longProfitPerc)
+longStopPrice  = strategy.position_avg_price * (1 - longStopPerc)
+shortProfitPrice  = strategy.position_avg_price * (1 - shortProfitPerc)
+shortStopPrice  = strategy.position_avg_price * (1 + shortStopPerc)
+
+// Anti-overlap
+isEntry_Long = false
+isEntry_Long := nz(isEntry_Long[1], false)
+isExit_Long = false
+isExit_Long := nz(isExit_Long[1], false)
+isEntry_Short = false
+isEntry_Short := nz(isEntry_Short[1], false)
+isExit_Short = false
+isExit_Short := nz(isExit_Short[1], false)
+
+entryLong = not isEntry_Long and longCondition
+exitLong = not isExit_Long and closeLong
+entryShort = not isEntry_Short and  shortCondition
+exitShort = not isExit_Short and closeShort
+
+if (entryLong)
+    isEntry_Long := true
+    isExit_Long := false
+if (exitLong)
+    isEntry_Long := false
+    isExit_Long := true
+if (entryShort)
+    isEntry_Short := true
+    isExit_Short := false
+if (exitShort)
+    isEntry_Short := false
+    isExit_Short := true
+
+// Order Execution
+if testPeriod() 
+    if entryLong
+        strategy.entry(id="Long", long=true, when = entryLong, comment=botLONG) // {{strategy.order.comment}}
+    if entryShort
+        strategy.entry(id="Short", long=false, when = entryShort, comment=botSHORT) // {{strategy.order.comment}}
+
+
+// TP/SL Execution
+if (strategy.position_size > 0)
+    strategy.exit(id="Long SL/TP", from_entry="Long", limit=longProfitPrice, stop=longStopPrice)
+    strategy.close(id="Long", when=exitLong, comment=botCLOSELONG) // {{strategy.order.comment}}
+
+if (strategy.position_size < 0)
+    strategy.exit(id="Short TP/SL", from_entry="Short", limit=shortProfitPrice, stop=shortStopPrice)
+    strategy.close(id="Short", when=exitShort, comment=botCLOSESHORT) // {{strategy.order.comment}}
+    
+// Draw Entry, TP and SL Levels for Long Positions
+plot(strategy.position_size > 0 ? longTP == 0 ? na : longProfitPrice : na, style=plot.style_linebr, color=color.green, title="Long TP")
+plot(strategy.position_size > 0 ? strategy.position_avg_price : na, style=plot.style_linebr, color=color.blue, title="Long Entry")
+plot(strategy.position_size > 0 ? longSL == 0 ? na : longStopPrice : na, style=plot.style_linebr, color=color.red, title="Long SL")
+// Draw Entry, TP and SL Levels for Short Positions
+plot(strategy.position_size < 0 ? shortTP == 0 ? na : shortProfitPrice : na, style=plot.style_linebr, color=color.green, title="Short TP")
+plot(strategy.position_size < 0 ? strategy.position_avg_price : na, style=plot.style_linebr, color=color.blue, title="Short Entry")
+plot(strategy.position_size < 0 ? shortSL == 0 ? na : shortStopPrice : na, style=plot.style_linebr, color=color.red, title="Short SL")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/428856
+
+> Last Modified
+
+2023-10-10 10:44:25

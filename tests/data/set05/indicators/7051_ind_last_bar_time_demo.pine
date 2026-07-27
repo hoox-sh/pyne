@@ -1,0 +1,10 @@
+//@version=6
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/concepts/time.md::time.md#block19
+// content_hash: e143e48c209168fe
+// collected: 2026-07-27
+indicator("`last_bar_time` demo", overlay = true)
+
+if barstate.isfirst
+    //@variable A single-cell `table`, created only on the *first* bar, showing the *last* available bar's opening time.

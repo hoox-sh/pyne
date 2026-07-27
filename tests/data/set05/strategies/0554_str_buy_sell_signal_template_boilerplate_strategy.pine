@@ -1,0 +1,23 @@
+//@version=5
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/Buy-Sell Signal Template-Boilerplate Strategy [JacobMagleby].pine
+// content_hash: ba491f28521936e8
+// collected: 2026-07-27
+strategy(title = "Buy/Sell Signal Template/Boilerplate Strategy[ExoMaven]", shorttitle = "Buy/Sell Signal Template Strategy[V1]", overlay = true)
+source = input.source(title = "Source", defval = ohlc4, group = "Source Settings")
+buy_type = input.string(title = "Buy Type", defval = "Greater Than", options = ["Greater Than", "Less Than"], group = "Signal Settings")
+buy_value  = input.float(title = "Buy Value", defval = 50, group = "Signal Settings")
+sell_type = input.string(title = "Sell Type", defval = "Less Than", options = ["Less Than", "Greater Than"], group = "Signal Settings")
+sell_value = input.float(title = "Sell Value", defval = 50, group = "Signal Settings")
+buy_above_or_below = buy_type == "Greater Than" ? source > buy_value and source[1] < buy_value : source < buy_value and source[1] > buy_value
+sell_above_or_below = sell_type == "Less Than" ? source < sell_value and source[1] > sell_value : source > sell_value and source[1] < sell_value
+buy = buy_above_or_below and barstate.isconfirmed
+sell = sell_above_or_below and barstate.isconfirmed
+if buy
+    strategy.close_all()
+    strategy.entry(id = "Buy", direction = strategy.long)
+if sell
+    strategy.close_all()
+    strategy.entry(id = "Sell", direction = strategy.short)
+Expand (27 lines)

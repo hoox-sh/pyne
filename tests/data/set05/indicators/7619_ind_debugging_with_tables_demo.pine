@@ -1,0 +1,28 @@
+//@version=5
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/v5/writing/debugging.md::debugging.md#block37
+// content_hash: 713f499de8b04ac0
+// collected: 2026-07-27
+indicator("Debugging with tables demo", "History inspection", true)
+
+//@variable The number of bars back in the chart's history to inspect.
+int barsBack = input.int(10, "Bars back", 0, 4999)
+
+//@variable The percent rank of `volume` over 10 bars.
+float weight = ta.percentrank(volume, 10)
+//@variable The 10-bar EMA of `weight * close` values.
+float numerator = ta.ema(weight * close, 10)
+//@variable The 10-bar EMA of `weight` values.
+float denominator = ta.ema(weight, 10)
+//@variable The ratio of the `numerator` to the `denominator`.
+float filter = numerator / denominator
+
+// Plot the `filter`.
+plot(filter, "Custom filter")
+
+//@variable The color of the frame, border, and text in the `debugTable`.
+color tableColor = chart.fg_color
+
+//@variable A table that contains "string" representations of variable names and values on the latest chart bar.
+var table debugTable = table.new(

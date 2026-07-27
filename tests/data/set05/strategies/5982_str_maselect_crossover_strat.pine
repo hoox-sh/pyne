@@ -1,0 +1,55 @@
+//@version=3
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/均线多空平衡交易策略Corn-Moving-Average-Balance-Trading-Strategy.md
+// content_hash: 83e2642488057978
+// collected: 2026-07-27
+strategy("MASelect Crossover Strat", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=100)
+av1 = input(title="Active MA", defval="EMA", options=["EMA", "SMA", "WMA", "DEMA", "VWMA"])
+av2 = input(title="Base MA", defval="EMA", options=["EMA", "SMA", "WMA", "DEMA", "VWMA"])
+len1 = input(20, "Active Length")
+len2 = input(100, "Base Length")
+src = input(close, "Source")
+strat = input(defval="Long+Short", options=["Long+Short", "Long Only"])
+
+ema1 = ema(src, len1)
+ema2 = ema(src, len2)
+sma1 = sma(src, len1)
+sma2 = sma(src, len2)
+wma1 = wma(src, len1)
+wma2 = wma(src, len2)
+e1 = ema(src, len1)
+e2 = ema(e1, len1)
+dema1 = 2 * e1 - e2
+e3 = ema(src, len2)
+e4 = ema(e3, len2)
+dema2 = 2 * e3 - e4
+vwma1 = vwma(src, len1)
+vwma2 = vwma(src, len2)
+
+ma1 = av1 == "EMA"?ema1:av1=="SMA"?sma1:av1=="WMA"?wma1:av1=="DEMA"?dema1:av1=="VWMA"?vwma1:na
+ma2 = av2 == "EMA"?ema2:av2=="SMA"?sma2:av2=="WMA"?wma2:av2=="DEMA"?dema2:av2=="VWMA"?vwma2:na
+
+co = crossover(ma1, ma2)
+cu = crossunder(ma1, ma2)
+barcolor(co?lime:cu?yellow:na)
+col = ma1 >= ma2?lime:red
+bgcolor(co or cu?yellow:col)
+plotshape(co, style=shape.triangleup, location=location.belowbar)
+plotshape(cu, style=shape.triangledown)
+plot(ma1, color=col, linewidth=3), plot(ma2, style=circles, linewidth=1)
+
+strategy.entry("Buy", strategy.long, when=co)
+if strat=="Long+Short"
+    strategy.entry("Sell", strategy.short, when=cu)
+else
+    strategy.close("Buy", when=cu)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/431973
+
+> Last Modified
+
+2023-11-13 18:00:09

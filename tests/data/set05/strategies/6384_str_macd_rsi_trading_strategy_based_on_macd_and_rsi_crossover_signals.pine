@@ -1,0 +1,59 @@
+//@version=2
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于MACD和RSI指标的交叉信号策略Trading-Strategy-Based-on-MACD-and-RSI-Crossover-Signals.md
+// content_hash: f26dac6cc6a0158f
+// collected: 2026-07-27
+strategy(default_qty_type = strategy.percent_of_equity, default_qty_value = 25, pyramiding = 10, title="MACD crossover while RSI Oversold/Overbought", overlay=true, shorttitle="MACD Cross + RSI Oversold Overbought", initial_capital = 1000)
+
+//MACD Settings
+fastMA = input(title="Fast moving average",  defval = 12, minval = 7) //7 16
+slowMA = input(title="Slow moving average",  defval = 26, minval = 7) //24 26 
+signalLength = input(9,minval=1) //9 6
+
+//RSI settings
+RSIOverSold = input(34 ,minval=1) //26
+RSIOverBought = input(75 ,minval=1) //77
+src = close, len = input(14, minval=1, title="Length")
+up = rma(max(change(src), 0), len)
+down = rma(-min(change(src), 0), len)
+rsi = down == 0 ? 100 : up == 0 ? 0 : 100 - (100 / (1 + up / down))
+wasOversold = rsi[0] <= RSIOverSold or rsi[1] <= RSIOverSold or rsi[2] <= RSIOverSold or rsi[3] <= RSIOverSold or rsi[4] <= RSIOverSold or rsi[5] <= RSIOverSold
+wasOverbought = rsi[0] >= RSIOverBought or rsi[1] >= RSIOverBought or rsi[2] >= RSIOverBought or rsi[3] >= RSIOverBought or rsi[4] >= RSIOverBought or rsi[5] >= RSIOverBought
+
+
+[currMacd,_,_] = macd(close[0], fastMA, slowMA, signalLength)
+[prevMacd,_,_] = macd(close[1], fastMA, slowMA, signalLength)
+signal = ema(currMacd, signalLength)
+
+crossoverBear = cross(currMacd, signal) and currMacd < signal ? avg(currMacd, signal) : na
+crossoverBull = cross(currMacd, signal) and currMacd > signal ? avg(currMacd, signal) : na
+
+plotshape(crossoverBear and wasOverbought , title='MACD-BEAR', style=shape.triangledown, text='overbought', location=location.abovebar, color=orange, textcolor=orange, size=size.tiny) 
+plotshape(crossoverBull and wasOversold, title='MACD-BULL', style=shape.triangleup, text='oversold', location=location.belowbar, color=lime, textcolor=lime, size=size.tiny) 
+
+// Configure backtest start date with inputs
+startDate = input(title="Start Date",
+     defval=8, minval=1, maxval=31)
+startMonth = input(title="Start Month",
+     defval=3, minval=1, maxval=12)
+startYear = input(title="Start Year",
+     defval=2021, minval=1800, maxval=2100)
+
+afterStartDate = (time >= timestamp(syminfo.timezone,
+     startYear, startMonth, startDate, 0, 0))
+     
+if (afterStartDate==true)
+    posSize = abs(strategy.position_size)
+    strategy.order("long", strategy.long, when = crossoverBull and wasOversold) 
+    strategy.order("long", long=false, qty=posSize/3, when = crossoverBear and wasOverbought) 
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/435766
+
+> Last Modified
+
+2023-12-18 17:19:03

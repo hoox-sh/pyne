@@ -1,0 +1,96 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/自适应标准差突破交易策略基于动态波动率的多周期优化系统-Adaptive-Standard-Deviation-Breakout-Trading-Strategy-Multi-Period-Optimization-System-Based-on-Dynamic-Volatility.md
+// content_hash: 9f8114770bef5ac8
+// collected: 2026-07-27
+strategy("MikEy Scali 3 STD Dev Buy Strategy with TP and SL", overlay=true)
+
+// Input parameters for the strategy
+length = input.int(20, title="Standard Deviation Length", minval=1)
+src = input(close, title="Source")
+mult = input.float(3.0, title="Standard Deviation Multiplier", step=0.1)
+
+// Input for the take profit and stop loss percentages
+takeProfitPerc = input.float(1.0, title="Take Profit Percentage", step=0.1) / 100
+stopLossPerc = input.float(0.5, title="Stop Loss Percentage", step=0.1) / 100
+
+// Input parameters for the backtesting range
+testStartYear = input.int(2023, title="Backtest Start Year", minval=2000)
+testStartMonth = input.int(1, title="Backtest Start Month", minval=1, maxval=12)
+testStartDay = input.int(1, title="Backtest Start Day", minval=1, maxval=31)
+
+testEndYear = input.int(2024, title="Backtest End Year", minval=2000)
+testEndMonth = input.int(12, title="Backtest End Month", minval=1, maxval=12)
+testEndDay = input.int(31, title="Backtest End Day", minval=1, maxval=31)
+
+// Define the backtesting range
+testStartTime = timestamp(testStartYear, testStartMonth, testStartDay, 00, 00)
+testEndTime = timestamp(testEndYear, testEndMonth, testEndDay, 23, 59)
+
+// Determine if the current bar is within the backtesting range
+inBacktestRange = (time >= testStartTime) and (time <= testEndTime)
+
+// Calculate the moving average and standard deviation
+ma = ta.sma(src, length)
+std_dev = ta.stdev(src, length)
+
+// Calculate upper and lower bands
+upper_band = ma + (std_dev * mult)
+lower_band = ma - (std_dev * mult)
+
+// Buy condition within the backtesting range
+buyCondition = inBacktestRange and ta.crossover(src, lower_band)
+
+// Plot the buy signal on the chart
+plotshape(series=buyCondition, location=location.belowbar, color=color.green, style=shape.labelup, text="BUY")
+
+// Execute buy orders based on the condition within the backtesting range
+if (buyCondition)
+    strategy.entry("Buy", strategy.long)
+
+// Calculate the take profit and stop loss prices when a position is opened
+entryPrice = na(strategy.opentrades.entry_price(0)) ? src : strategy.opentrades.entry_price(0)
+takeProfitPrice = entryPrice * (1 + takeProfitPerc)
+stopLossPrice = entryPrice * (1 - stopLossPerc)
+
+// Take profit condition
+takeProfitCondition = strategy.position_size > 0 and close >= takeProfitPrice
+
+// Stop loss condition
+stopLossCondition = strategy.position_size > 0 and close <= stopLossPrice
+
+// Execute sell order when take profit condition is met within the backtesting range
+if (takeProfitCondition and inBacktestRange)
+    strategy.close("Buy", "Take Profit")
+
+// Execute sell order when stop loss condition is met within the backtesting range
+if (stopLossCondition and inBacktestRange)
+    strategy.close("Buy", "Stop Loss")
+
+// Plot the moving average and the bands
+plot(ma, color=color.blue, title="Moving Average")
+plot(upper_band, color=color.red, title="Upper Band (3 STD)")
+plot(lower_band, color=color.green, title="Lower Band (3 STD)")
+
+// Optional: Plot the source
+plot(src, color=color.gray, title="Source")
+
+// Add labels for clarity
+bgcolor(buyCondition ? color.new(color.green, 90) : na, offset=-1, title="Buy Signal Background")
+
+// Optional: Highlight the backtesting range on the chart
+bgcolor(inBacktestRange ? color.new(color.blue, 90) : na, title="Backtest Range Background")
+
+// Plot the take profit and stop loss levels if a position is open
+plot(strategy.position_size > 0 ? takeProfitPrice : na, color=color.orange, title="Take Profit Level")
+plot(strategy.position_size > 0 ? stopLossPrice : na, color=color.red, title="Stop Loss Level")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/458179
+
+> Last Modified
+
+2024-07-30 16:09:04

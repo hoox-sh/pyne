@@ -1,0 +1,52 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/VWAP标准差回归均值交易策略-VWAP-Standard-Deviation-Mean-Reversion-Trading-Strategy.md
+// content_hash: ad64cc686204e9ee
+// collected: 2026-07-27
+strategy("ETHUSD VWAP Fade Strategy", overlay=true)
+
+// Input for standard deviation multiplier
+std_multiplier = input.float(2.0, title="Standard Deviation Multiplier")
+
+// Calculate cumulative VWAP
+cumulative_pv = ta.cum(close * volume) // Cumulative price * volume
+cumulative_vol = ta.cum(volume)        // Cumulative volume
+vwap = cumulative_pv / cumulative_vol  // VWAP calculation
+
+// Calculate standard deviation of the closing price
+length = input.int(20, title="Standard Deviation Length")
+std_dev = ta.stdev(close, length)
+upper_band = vwap + std_multiplier * std_dev
+lower_band = vwap - std_multiplier * std_dev
+
+// Plot VWAP and its bands
+plot(vwap, color=color.blue, linewidth=2, title="VWAP")
+plot(upper_band, color=color.red, linewidth=1, title="Upper Band")
+plot(lower_band, color=color.green, linewidth=1, title="Lower Band")
+
+// Strategy conditions
+go_long = ta.crossunder(close, lower_band)
+go_short = ta.crossover(close, upper_band)
+
+// Execute trades
+if (go_long)
+    strategy.entry("Long", strategy.long)
+if (go_short)
+    strategy.entry("Short", strategy.short)
+
+// Exit strategy
+if (strategy.position_size > 0 and close > vwap)
+    strategy.close("Long")
+if (strategy.position_size < 0 and close < vwap)
+    strategy.close("Short")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/474675
+
+> Last Modified
+
+2024-12-11 15:06:33

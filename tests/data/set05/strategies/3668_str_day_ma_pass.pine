@@ -1,0 +1,185 @@
+//@version=4
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/[002] DAY_MA_Pass [TradeStand].pine
+// content_hash: ef009640c7075a2b
+// collected: 2026-07-27
+strategy("[002] DAY_MA_Pass [TradeStand]", overlay=true)
+strategy_code = "tradestand"
+//////////////////////////////////
+//
+//　インプット
+//
+//////////////////////////////////
+Section1 = input(title = "▒▒▒▒▒▒▒▒▒▒▒▒▒ トレードモード ▒▒▒▒▒▒▒▒▒▒▒▒▒", defval = true, type = input.bool)
+int_TradeMode = input("OFF", options = ["OFF","新規買い","新規売り","返済買い","返済売り"], title = "トレードモード")
+Section71 = input(title = "▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒ 表　示 ▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒", defval = true, type = input.bool)
+int_MA_monitor = input("OFF", options = ["OFF","ON"], title = "日足MA表示")
+Section3 = input(title = "▒▒▒▒▒▒▒▒▒▒▒▒▒▒ トレード条件 ▒▒▒▒▒▒▒▒▒▒▒▒▒", defval = true, type = input.bool)
+i_startTime = input(defval = timestamp("18 oct 2021 13:30 +0900"), title = "実行日時", type = input.time)
+i_byou = input(0, minval = 0, maxval = 59, title = "　　　　　秒数")
+int_EntryLimit_cMA_switch = input("OFF", options = ["OFF", "ON"], title = "日足MA基準トレード ═══════════════════════")
+int_EntryLimit_cMA_MA = input("5MA", options = ["5MA", "25MA" ,"75MA"], title = "　　　　　指定 日足移動平均線")
+int_EntryLimit_cMA_jg_switch = input("超えたら", options = ["超えたら", "割ったら"], title = "　　　　　条件")
+//////////////////////////////////
+//
+//　素材
+//
+//////////////////////////////////
+//移動平均線　//////////////////////////////////////////////////////////////////////////////////////////////////////
+//当日～3日前　４本値
+var float open_today = open
+var float high_today = open
+var float low_today = open
+var float open_yesterday = open
+var float high_yesterday = high
+var float low_yesterday = low
+var float open_2days_ago = open
+var float high_2days_ago = high
+var float low_2days_ago = low
+var float open_3days_ago = open
+var float high_3days_ago = high
+var float low_3days_ago = low
+var float close_yesterday = close
+var float close_2days_ago = close
+var float close_3days_ago = close
+var float close_4days_ago = close
+var float close_5days_ago = close
+var float close_6days_ago = close
+var float close_7days_ago = close
+var float close_8days_ago = close
+var float close_9days_ago = close
+var float close_10days_ago = close
+var float close_11days_ago = close
+var float close_12days_ago = close
+var float close_13days_ago = close
+var float close_14days_ago = close
+var float close_15days_ago = close
+var float close_16days_ago = close
+var float close_17days_ago = close
+var float close_18days_ago = close
+var float close_19days_ago = close
+var float close_20days_ago = close
+var float close_21days_ago = close
+var float close_22days_ago = close
+var float close_23days_ago = close
+var float close_24days_ago = close
+if(dayofweek[1] != dayofweek)
+    open_today := open
+    high_today := high
+    low_today := low
+    open_yesterday := open_today[1]
+    high_yesterday := high_today[1]
+    low_yesterday := low_today[1]
+    
+    open_2days_ago := open_yesterday[1]
+    high_2days_ago := high_yesterday[1]
+    low_2days_ago := low_yesterday[1]
+    
+    open_3days_ago := open_2days_ago[1]
+    high_3days_ago := high_2days_ago[1]
+    low_3days_ago := low_2days_ago[1]
+    
+    close_yesterday := close[1]
+    close_2days_ago := close_yesterday[1]
+    close_3days_ago := close_2days_ago[1]
+    close_4days_ago := close_3days_ago[1]
+    close_5days_ago := close_4days_ago[1]
+    close_6days_ago := close_5days_ago[1]
+    close_7days_ago := close_6days_ago[1]
+    close_8days_ago := close_7days_ago[1]
+    close_9days_ago := close_8days_ago[1]
+    close_10days_ago:=close_9days_ago[1]
+    close_11days_ago:=close_10days_ago[1]
+    close_12days_ago:=close_11days_ago[1]
+    close_13days_ago:=close_12days_ago[1]
+    close_14days_ago:=close_13days_ago[1]
+    close_15days_ago:=close_14days_ago[1]
+    close_16days_ago:=close_15days_ago[1]
+    close_17days_ago:=close_16days_ago[1]
+    close_18days_ago:=close_17days_ago[1]
+    close_19days_ago:=close_18days_ago[1]
+    close_20days_ago:=close_19days_ago[1]
+    close_21days_ago:=close_20days_ago[1]
+    close_22days_ago:=close_21days_ago[1]
+    close_23days_ago:=close_22days_ago[1]
+    close_24days_ago:=close_23days_ago[1]
+//日々カウント
+var int var_everyday_cnt = 1
+if(dayofweek[1] != dayofweek )
+    var_everyday_cnt := var_everyday_cnt +1
+//短期 中期 長期 基準 MA
+[ma_short_D,ma_short_prev_D,ma_short_prev2_D,ma_middle_D,ma_middle_prev_D,ma_middle_prev2_D,ma_long,ma_long_prev,ma_long_prev2] = security(syminfo.tickerid, "D", [sma(close, 5)[0],sma(close, 5)[1],sma(close, 5)[2],sma(close, 25)[0],sma(close, 25)[1],sma(close, 25)[2],sma(close, 75)[0],sma(close, 75)[1],sma(close, 75)[2]], barmerge.gaps_off, barmerge.lookahead_off)
+ma_short = var_everyday_cnt < 5 ? ma_short_D : (close + close_yesterday + close_2days_ago + close_3days_ago + close_4days_ago )/5
+ma_middle = var_everyday_cnt < 25 ? ma_middle_D : (close + close_yesterday + close_2days_ago + close_3days_ago + close_4days_ago + close_5days_ago + close_6days_ago + close_7days_ago + close_8days_ago + close_9days_ago + close_10days_ago + close_11days_ago + close_12days_ago + close_13days_ago + close_14days_ago + close_15days_ago + close_16days_ago + close_17days_ago + close_18days_ago + close_19days_ago + close_20days_ago + close_21days_ago + close_22days_ago + close_23days_ago + close_24days_ago)/25
+ma_short_monitor = int_MA_monitor == "ON" ? ma_short : close
+ma_middle_monitor = int_MA_monitor == "ON" ? ma_short : close
+ma_long_monitor = int_MA_monitor == "ON" ? ma_long : close
+plot(ma_short_monitor, color = int_MA_monitor == "ON" ? color.aqua : na, linewidth=2, title="日足5MA")
+plot(ma_middle_monitor, color = int_MA_monitor == "ON" ? color.yellow : na , linewidth=2, title="日足25MA")
+plot(ma_long_monitor, color = int_MA_monitor == "ON" ? color.lime : na , linewidth=2, title="日足75MA")
+//////////////////////////////////
+//
+//　ロジック
+//
+//////////////////////////////////
+// 実行時間　//////////////////////////////////////////////////////////////////////////////////////////////////////
+inDateRange = time >= i_startTime
+var int var_byou = 0
+if(dayofweek[1] != dayofweek)
+    var_byou := 0
+if(inDateRange[1] == false and inDateRange == true )
+    var_byou := time + i_byou*1000
+//inDateRange_2　＝　実行時間満たし
+inDateRange_2 = time >= var_byou and inDateRange
+// 日足MA基準トレード  ////////////////////////////////////////////////////////////////////////////
+ver_EntryLimit_cMA_line = int_EntryLimit_cMA_MA == "5MA" ? ma_short : int_EntryLimit_cMA_MA == "25MA" ? ma_middle : int_EntryLimit_cMA_MA == "75MA" ? ma_long : close
+Condition_EntryLimit_cMA_buysell = (int_EntryLimit_cMA_switch == "OFF") ? true :
+                                     (int_EntryLimit_cMA_jg_switch == "超えたら" and close > ver_EntryLimit_cMA_line)
+                                     or
+                                     (int_EntryLimit_cMA_jg_switch == "割ったら" and close < ver_EntryLimit_cMA_line)
+//////////////////////////////////
+//
+//　ロジック まとめ
+//
+//////////////////////////////////
+logic_pass = inDateRange_2
+             and Condition_EntryLimit_cMA_buysell
+//////////////////////////////////
+//
+//　処理まとめ
+//
+//////////////////////////////////
+var int var_position_count = 0
+var int var_position_count_entry_only = 0
+//ポジション取ったよ
+if(var_position_count == 0 and strategy.position_size[1] == 0 and strategy.position_size != 0)
+    var_position_count := var_position_count + 1
+//先に買っとく
+if (int_TradeMode == "返済売り" and var_position_count == 0 and time[1] != time)
+    strategy.entry(":新規買い", strategy.long, alert_message=strategy_code)
+    var_position_count := var_position_count + 1
+if (int_TradeMode == "返済買い" and var_position_count == 0 and time[1] != time)
+    strategy.entry(":新規売り", strategy.short, alert_message=strategy_code)
+    var_position_count := var_position_count + 1
+//エントリー　///////////////////////////////////
+if ((int_TradeMode == "新規買い")and inDateRange_2 and var_position_count == 0)
+    strategy.entry(":新規買い", strategy.long, qty = 10000000, alert_message=strategy_code)
+    var_position_count := var_position_count + 1
+    var_position_count_entry_only := var_position_count_entry_only + 1
+if ((int_TradeMode == "新規売り")and inDateRange_2 and var_position_count == 0)
+    strategy.entry(":新規売り", strategy.short, qty = 10000000, alert_message=strategy_code)
+    var_position_count := var_position_count + 1
+    var_position_count_entry_only := var_position_count_entry_only + 1
+//決済 //////////////////////////////////////////
+strategy.close(":新規買い",
+     comment = ':返済売り',
+     alert_message=strategy_code ,
+     when = inDateRange_2 and var_position_count_entry_only == 0
+     )
+strategy.close(":新規売り",
+     comment = ':返済買い',
+     alert_message=strategy_code ,
+     when = inDateRange_2 and var_position_count_entry_only == 0
+     )
+Expand (238 lines)

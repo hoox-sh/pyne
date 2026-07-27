@@ -1,0 +1,80 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/分阶梯式止盈滑点策略Stepped-Trailing-Stop-with-Partial-Profit-Taking-Strategy.md
+// content_hash: dd22ae735002b655
+// collected: 2026-07-27
+strategy("Stepped trailing strategy example", overlay=true)
+
+// random entry condition
+longCondition = crossover(sma(close, 14), sma(close, 28))
+if (longCondition)
+    strategy.entry("My Long Entry Id", strategy.long)
+
+// sl & tp in points
+sl = input(100)
+tp1 = input(100)
+tp2 = input(200)
+tp3 = input(300)
+
+curProfitInPts() =>
+    if strategy.position_size > 0
+        (high - strategy.position_avg_price) / syminfo.mintick
+    else if strategy.position_size < 0
+        (strategy.position_avg_price - low) / syminfo.mintick
+    else
+        0
+        
+calcStopLossPrice(OffsetPts) =>
+    if strategy.position_size > 0
+        strategy.position_avg_price - OffsetPts * syminfo.mintick
+    else if strategy.position_size < 0
+        strategy.position_avg_price + OffsetPts * syminfo.mintick
+    else
+        0
+        
+calcProfitTrgtPrice(OffsetPts) =>
+    calcStopLossPrice(-OffsetPts)
+
+getCurrentStage() =>
+    var stage = 0
+    if strategy.position_size == 0 
+        stage := 0
+    if stage == 0 and strategy.position_size != 0
+        stage := 1
+    else if stage == 1 and curProfitInPts() >= tp1
+        stage := 2
+    else if stage == 2 and curProfitInPts() >= tp2
+        stage := 3
+    stage
+
+stopLevel = -1.
+profitLevel = calcProfitTrgtPrice(tp3)
+
+// based on current stage set up exit
+// note: we use same exit ids ("x") consciously, for MODIFY the exit's parameters
+curStage = getCurrentStage()
+if curStage == 1
+    stopLevel := calcStopLossPrice(sl)
+    strategy.exit("x", loss = sl, profit = tp3, comment = "sl or tp3")
+else if curStage == 2
+    stopLevel := calcStopLossPrice(0)
+    strategy.exit("x", stop = stopLevel, profit = tp3, comment = "breakeven or tp3")
+else if curStage == 3
+    stopLevel := calcStopLossPrice(-tp1)
+    strategy.exit("x", stop = stopLevel, profit = tp3, comment = "tp1 or tp3")
+else
+    strategy.cancel("x")
+    
+// this is debug plots for visulalize TP & SL levels
+plot(stopLevel > 0 ? stopLevel : na, style = plot.style_linebr)
+plot(profitLevel > 0 ? profitLevel : na, style = plot.style_linebr)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/433572
+
+> Last Modified
+
+2023-11-28 16:05:24

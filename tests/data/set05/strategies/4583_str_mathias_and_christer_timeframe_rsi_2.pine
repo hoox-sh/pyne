@@ -1,0 +1,93 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/趋势追踪移动平均RSI策略Trend-Tracking-Moving-Average-RSI-Strategy.md
+// content_hash: 8ec7ef64b059cdef
+// collected: 2026-07-27
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © mattehalen
+
+// INPUT per TIMEFRAME
+// 5min     = Legnth = 9, Source = ohlc4,MaxLoss = 1000 TrendMA = 200, ShortMA = 4, LongMA = 10
+// 30min    = Legnth = 7, Source = ohlc4,MaxLoss = 1000 TrendMA = 200, ShortMA = 10, LongMA = 20
+
+strategy("Mathias & Christer Timeframe RSI", shorttitle="M&C_RSI",overlay=true, process_orders_on_close = true, default_qty_type =  strategy.percent_of_equity, default_qty_value = 100)
+len = input(9, title="Length", type=input.integer)
+src = input(ohlc4, title="Source", type=input.source)
+//show4h = input(true, title="show 4h", type=input.bool)
+maxLoss = input(3000)
+
+rsiCurrent = rsi(src, len)
+//rsi4h = security(syminfo.ticker, "240", rsi(src, len))
+rsi4h   = rsi(src, len)
+
+//--------------------------------------------------
+//MA
+trendMAInput = input(200, title="trendMA", type=input.integer)
+shortMAInput = input(30, title="shortMA", type=input.integer)
+longMAInput = input(50, title="longMA", type=input.integer)
+
+trendMA = ema(close,trendMAInput)
+shortMA = ema(close,shortMAInput)
+longMA  = ema(close,longMAInput)
+plot(trendMA, color=color.black, linewidth=5)
+plot(shortMA, color=color.red, linewidth=2)
+plot(longMA, color=color.green, linewidth=2)
+bgcolor(crossunder(shortMA,longMA) ? color.black : na, transp=10)
+
+//--------------------------------------------------
+//RSI
+BuySignalBarssince = barssince(rsi4h[1]<rsi4h[0] and rsi4h[1]<20)
+BuySignal       = (rsi4h[1]<rsi4h[0] and rsi4h[1]<20 and BuySignalBarssince[1]>10)
+BuySignalOut   = crossunder(longMA[1],shortMA[1])
+bgcolor(BuySignal ? color.green : na, transp=70)
+bgcolor(BuySignalOut ? color.green : na, transp=10)
+
+
+
+SellSignalBarssince = barssince(rsi4h[1]>rsi4h[0] and rsi4h[1]>80)
+SellSignal      = (rsi4h[1]>rsi4h[0] and rsi4h[1]>80 and SellSignalBarssince[1]>10)
+SellSignalOut   = crossunder(shortMA[1],longMA[1])
+bgcolor(SellSignal ? color.red : na, transp=70)
+bgcolor(SellSignalOut ? color.red : na, transp=10)
+
+
+if BuySignal
+    strategy.close("short", comment = "Exit short")
+    strategy.entry("long", true)
+    strategy.exit("Max Loss", "long", loss = maxLoss)
+
+if BuySignalOut
+    strategy.close("long", comment = "Exit Long")
+if SellSignal
+    // Enter trade and issue exit order on max loss.
+    strategy.close("long", comment = "Exit Long")
+    strategy.entry("short", false)
+    strategy.exit("Max Loss", "short", loss = maxLoss)
+if SellSignalOut
+    // Force trade exit.
+    strategy.close("short", comment = "Exit short")
+    
+//--------------------------------------------------
+//ATR
+MyAtr = atr(10)
+AtrFactor = 10
+mySLBuy  = close[BuySignalBarssince]
+mySLSell = close[SellSignalBarssince]
+
+plotchar(BuySignal, "BuySignal", "⬆", location.belowbar, color.lime,size =size.huge )
+plotchar(BuySignalOut, "BuySignalOut", "█", location.belowbar, color.lime,size =size.small)
+plotchar(SellSignal, "SellSignal", "⬇", location.abovebar ,color.red,size =size.huge)
+plotchar(SellSignalOut, "SellSignalOut", "█", location.abovebar, color.red,size =size.small)
+
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/433026
+
+> Last Modified
+
+2023-11-23 17:13:06

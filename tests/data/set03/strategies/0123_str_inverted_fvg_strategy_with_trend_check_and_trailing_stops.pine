@@ -1,0 +1,93 @@
+//@version=6
+// set03 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动态趋势确认的反转公平价值缺口量化交易策略-Dynamic-Trend-Confirmed-Inverted-Fair-Value-Gap-Quantitative-Trading-Strategy.md
+// content_hash: 53d9104169d6cabb
+// collected: 2026-07-27
+strategy("Inverted FVG Strategy with Trend Check and Trailing Stops", overlay=true)
+
+// Function to detect FVG
+fvgDetected(src, high, low) =>
+    var float prevHigh = na
+    var float prevLow = na
+    var float prevClose = na
+    var bool fvg = false
+    if (not na(src[1]))
+        prevHigh := high[1]
+        prevLow := low[1]
+        prevClose := src[1]
+        if (src > prevClose and low > prevHigh) or (src < prevClose and high < prevLow)
+            fvg := true
+    [fvg, prevHigh, prevLow]
+
+// Detect FVG on the chart
+[fvg, fvgHigh, fvgLow] = fvgDetected(close, high, low)
+
+// Detect IFVG - Inversion of FVG
+var bool ifvg = false
+var float ifvgHigh = na
+var float ifvgLow = na
+if (fvg)
+    if not na(fvgHigh) and not na(fvgLow)
+        if (close > fvgHigh and close[1] < fvgHigh) or (close < fvgLow and close[1] > fvgLow)
+            ifvg := true
+            ifvgHigh := close > fvgHigh ? high : na
+            ifvgLow := close < fvgLow ? low : na
+
+// Plot FVG and IFVG zones for visualization
+bgcolor(ifvg ? color.new(color.red, 80) : na)
+plot(ifvgHigh, title="IFVG High", color=color.red, linewidth=2, style=plot.style_cross)
+plot(ifvgLow, title="IFVG Low", color=color.red, linewidth=2, style=plot.style_cross)
+
+// Trend Check using Simple Moving Averages
+smaShort = ta.sma(close, 50)  // Short term SMA
+smaLong = ta.sma(close, 200)  // Long term SMA
+var bool uptrend = false
+var bool downtrend = false
+
+uptrend := smaShort > smaLong  // Up trend if short SMA is above long SMA
+downtrend := smaShort < smaLong  // Down trend if short SMA is below long SMA
+
+// Plot SMAs for visualization
+plot(smaShort, title="SMA Short", color=color.blue, linewidth=1)
+plot(smaLong, title="SMA Long", color=color.orange, linewidth=1)
+
+// Trading logic with trend confirmation
+longCondition = ifvg and close < ifvgLow and uptrend
+shortCondition = ifvg and close > ifvgHigh and downtrend
+
+// Risk Definition
+stopLoss = 100  // Example values in points
+risk = stopLoss
+
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+    strategy.exit("Initial Long Exit", "Long", stop=close - stopLoss, limit=close + (risk * 3))  // Changed to 3R
+
+if (shortCondition)
+    strategy.entry("Short", strategy.short)
+    strategy.exit("Initial Short Exit", "Short", stop=close + stopLoss, limit=close - (risk * 3))  // Changed to 3R
+
+// ATR for dynamic trailing stop
+atr = ta.atr(14)
+
+// Trailing Stop for Long Position if the trade has moved > 0.5R
+if (strategy.position_size > 0)
+    if (close - strategy.position_avg_price >= risk * 0.5)
+        trailingStopLong = math.max(strategy.position_avg_price + (risk * 0.5), close - (atr * 2))
+        strategy.exit("Trailing Stop Long", "Long", stop=trailingStopLong)
+
+// Trailing Stop for Short Position if the trade has moved > 0.5R
+if (strategy.position_size < 0)
+    if (strategy.position_avg_price - close >= risk * 0.5)
+        trailingStopShort = math.min(strategy.position_avg_price - (risk * 0.5), close + (atr * 2))
+        strategy.exit("Trailing Stop Short", "Short", stop=trailingStopShort)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/483081
+
+> Last Modified
+
+2025-02-21 11:55:42

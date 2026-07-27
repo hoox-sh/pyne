@@ -1,0 +1,70 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/高级自动交易策略多指标动量和支撑阻力趋势分析系统-Advanced-Automated-Trading-System-Multi-indicator-Momentum-and-Support-Resistance-Trend-Analysis.md
+// content_hash: 935b4468fd6377cf
+// collected: 2026-07-27
+strategy("Auto Trading Strategy", overlay=true)
+
+// Inputs for Customization
+maPeriod = input.int(20, "Moving Average Period", minval=1)
+supportLevel = input.float(21662.5, "Support Level")
+resistanceLevel = input.float(22450, "Resistance Level")
+volumeLookback = input.int(10, "Volume Lookback Period", minval=1)
+rangeLookback = input.int(10, "Range Lookback Period", minval=1)
+proximity = input.float(100, "Proximity to Support (points)", minval=0)
+stopLossPoints = input.float(100, "Stop Loss (points)", minval=0)
+takeProfitPoints = input.float(200, "Take Profit (points)", minval=0)
+
+// Calculate Indicators
+// 20-period Simple Moving Average
+ma = ta.sma(close, maPeriod)
+
+// Volume Spike Detection (50% above average)
+avgVolume = ta.sma(volume, volumeLookback)
+volumeSpike = volume > avgVolume * 1.5
+
+// Large Candle Range Detection (50% larger than average)
+candleRange = high - low
+avgRange = ta.sma(candleRange, rangeLookback)
+largeRange = candleRange > avgRange * 1.5
+
+// Candlestick Definitions
+bearishCandle = close < open
+bullishCandle = close > open
+
+// Trading Conditions
+// Short Entry: Price below MA, large bearish candle, volume spike
+shortCondition = close < ma and largeRange and volumeSpike and bearishCandle
+
+// Long Entry: Price near support, bullish candle, volume spike
+nearSupport = close <= supportLevel + proximity
+longCondition = nearSupport and bullishCandle and volumeSpike
+
+// Execute Trades
+if longCondition
+    strategy.entry("Long", strategy.long)
+if shortCondition
+    strategy.entry("Short", strategy.short)
+
+// Exit Trades with Stop-Loss and Take-Profit
+strategy.exit("Long Exit", "Long", stop=strategy.position_avg_price - stopLossPoints, limit=strategy.position_avg_price + takeProfitPoints)
+strategy.exit("Short Exit", "Short", stop=strategy.position_avg_price + stopLossPoints, limit=strategy.position_avg_price - takeProfitPoints)
+
+// Visualizations
+hline(supportLevel, "Support", color=color.green)
+hline(resistanceLevel, "Resistance", color=color.red)
+plot(ma, "Moving Average", color=color.blue)
+
+// Debug Entry Signals
+plotshape(longCondition, title="Long Entry", location=location.belowbar, color=color.green, style=shape.triangleup, size=size.small)
+plotshape(shortCondition, title="Short Entry", location=location.abovebar, color=color.red, style=shape.triangledown, size=size.small)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/483938
+
+> Last Modified
+
+2025-02-27 09:52:29

@@ -1,0 +1,45 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于布林带和交易量的双重确认量化交易策略Bollinger-Bands-Volume-Confirmation-Quantitative-Trading-Strategy.md
+// content_hash: 034d20cddb41bd70
+// collected: 2026-07-27
+strategy("Volume + Bollinger Bands Strategy", overlay = true, shorttitle="Vol BB Strategy")
+
+// Bollinger Bands Parameters
+length = input(20, title="BB Length")
+src = close
+mult = input(2.0, title="Multiplier")
+basis = ta.sma(src, length)
+upper = basis + mult * ta.stdev(src, length)
+lower = basis - mult * ta.stdev(src, length)
+
+// Volume Parameters
+volMultiplier = input(2.0, title="Volume Multiplier")
+avgVolume = ta.sma(volume, length)
+
+// Strategy Logic
+buyCondition = close > upper and volume > volMultiplier * avgVolume
+sellCondition = close < lower and volume > volMultiplier * avgVolume
+
+// Plotting
+plot(upper, color=color.red, title="Upper Band")
+plot(lower, color=color.green, title="Lower Band")
+plot(volume, color=color.blue, style=plot.style_columns, title="Volume", transp=85)
+plot(avgVolume * volMultiplier, color=color.orange, title="Avg Volume x Multiplier")
+
+// Strategy Execution
+strategy.entry("Buy", strategy.long, when=buyCondition)
+strategy.close("Buy", when=sellCondition)
+
+bgcolor(buyCondition ? color.new(color.green, 90) : sellCondition ? color.new(color.red, 90) : na)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/437386
+
+> Last Modified
+
+2024-01-02 11:04:35

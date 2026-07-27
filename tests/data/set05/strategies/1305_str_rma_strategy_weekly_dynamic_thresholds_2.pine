@@ -1,0 +1,88 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动态阈值三重运行移动平均趋势交易策略-Dynamic-Threshold-Triple-Running-Moving-Average-Trend-Trading-Strategy.md
+// content_hash: 4f2d994aee551990
+// collected: 2026-07-27
+strategy("RMA Strategy - Weekly Dynamic Thresholds", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=100)
+
+// === User Inputs ===
+fastLen = input.int(9, title="Fast RMA")
+midLen = input.int(21, title="Mid RMA")
+slowLen = input.int(50, title="Slow RMA")
+rsiLen = input.int(8, title="RSI Length")
+slPoints = input.float(10, title="Stop Loss (Points)")
+
+// === Weekly Threshold Inputs ===
+forexThreshold = input.float(0.12, title="Forex Weekly Avg RMA Distance (%)", step=0.01)
+goldThreshold = input.float(0.15, title="Gold Weekly Avg RMA Distance (%)", step=0.01)
+cryptoThreshold = input.float(0.25, title="Crypto Weekly Avg RMA Distance (%)", step=0.01)
+
+// === Select Current Market Type ===
+marketType = input.string("FOREX", title="Asset Class", options=["FOREX", "GOLD", "CRYPTO"])
+
+// === Use appropriate threshold based on selected market
+weeklyThreshold = marketType == "FOREX" ? forexThreshold :
+                  marketType == "GOLD" ? goldThreshold :
+                  cryptoThreshold  // Default to crypto if somehow not matched
+
+// === RMA Calculations ===
+fastRMA = ta.rma(close, fastLen)
+midRMA = ta.rma(close, midLen)
+slowRMA = ta.rma(close, slowLen)
+
+// === RSI Calculation ===
+rsi = ta.rsi(close, rsiLen)
+
+// === Trend Structure ===
+bullish = fastRMA > midRMA and midRMA > slowRMA
+bearish = fastRMA < midRMA and midRMA < slowRMA
+
+// === Candle Break Conditions ===
+longCandleBreak = close > high[1]
+shortCandleBreak = close < low[1]
+
+// === Distance and Trend Strength Check ===
+distance = math.abs(fastRMA - midRMA)
+distancePct = distance / midRMA * 100
+isTrending = distancePct >= weeklyThreshold
+
+// === Entry Conditions ===
+longSignal = bullish and ta.crossover(close, midRMA) and rsi > 50 and longCandleBreak
+shortSignal = bearish and ta.crossunder(close, midRMA) and rsi < 50 and shortCandleBreak
+
+// === TP and SL Setup ===
+takeProfitPriceLong = slowRMA
+stopLossPriceLong = close - slPoints * syminfo.mintick
+
+takeProfitPriceShort = slowRMA
+stopLossPriceShort = close + slPoints * syminfo.mintick
+
+// === Trade Execution ===
+if (longSignal)
+    strategy.entry("Long", strategy.long)
+    strategy.exit("TP/SL Long", from_entry="Long", limit=takeProfitPriceLong, stop=stopLossPriceLong)
+
+if (shortSignal)
+    strategy.entry("Short", strategy.short)
+    strategy.exit("TP/SL Short", from_entry="Short", limit=takeProfitPriceShort, stop=stopLossPriceShort)
+
+// === Highlight RMAs Based on Trending Strength ===
+fastColor = isTrending ? color.green : color.blue
+midColor = isTrending ? color.red : color.blue
+slowColor = color.orange
+
+// === Plot RMAs ===
+plot(fastRMA, color=fastColor, title="Fast RMA")
+plot(midRMA, color=midColor, title="Mid RMA")
+plot(slowRMA, color=slowColor, title="Slow RMA")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/491034
+
+> Last Modified
+
+2025-04-18 09:14:24

@@ -1,0 +1,51 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/慢速RSI超买超卖策略Slow-RSI-OB-OS-Strategy.md
+// content_hash: 9641edbdd4fdd094
+// collected: 2026-07-27
+
+strategy("SLOW RSI OB/OS Strategy", overlay=false)
+price = input(ohlc4, title="Price Source")
+len = input(500, minval=1, step=5,  title="RSI Length")
+smoother = input(250, minval=1, step=5, title="RSI SMA")
+up = rma(max(change(price), 0), len)
+down = rma(-min(change(price), 0), len)
+rsi = down == 0 ? 100 : up == 0 ? 0 : 100 - (100 / (1 + up / down))
+EmaRSI = ema(rsi,smoother)
+plot(EmaRSI, title="EmaRSI", style=line, linewidth=1, color=yellow)
+
+
+OB = input(52, step=0.1)
+OS = input(48, step=0.1)
+hline(OB, linewidth=1, color=red)
+hline(OS,linewidth=1, color=green)
+hline(50,linewidth=1, color=gray)
+
+
+long = change(EmaRSI) > 0 and EmaRSI <= 50 and crossover(EmaRSI, OS)
+short = change(EmaRSI) < 0 and EmaRSI >= 50 and crossunder(EmaRSI, OB)
+
+
+strategy.entry("Long", strategy.long, when=long) //_signal or long) //or closeshort_signal)
+strategy.entry("Short", strategy.short, when=short) //_signal or short) // or closelong_signal)
+
+// If you want to try to play with exits you can activate these!
+
+//closelong = crossunder(EmaRSI, 0) //or crossunder(EmaRSI, OS)
+//closeshort = crossover(EmaRSI, 0) //or crossover(EmaRSI, OB)
+
+//strategy.close("Long", when=closelong)
+//strategy.close("Short", when=closeshort)
+
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/436910
+
+> Last Modified
+
+2023-12-28 18:07:48

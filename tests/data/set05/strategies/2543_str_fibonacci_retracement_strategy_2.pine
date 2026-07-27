@@ -1,0 +1,55 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于斐波那契回撤的自适应趋势跟踪策略-Adaptive-Trend-Following-Strategy-Based-on-Fibonacci-Retracement.md
+// content_hash: 2f60ed5f79fac267
+// collected: 2026-07-27
+strategy("Fibonacci Retracement Strategy", overlay=true)
+
+// Input parameters
+fib_levels = input.bool(true, title="Show Fibonacci Levels")
+n = input.int(20, title="Number of Historical Candles")
+
+target_points = input.int(100, title="Target Points")
+stop_loss_points = input.int(50, title="Stop Loss Points")
+
+// Calculate Fibonacci levels
+high_price = ta.highest(close, 20)
+low_price = ta.lowest(close, 20)
+range_ = high_price - low_price
+fib618 = high_price - range_ * 0.618
+fib382 = high_price - range_ * 0.382
+
+// Strategy logic
+long_condition = ta.crossover(close, fib618)
+short_condition = ta.crossunder(close, fib382)
+
+// Plot Fibonacci levels
+plot(fib_levels ? fib618 : na , "61.8%", color=color.blue, trackprice=true)
+plot(fib_levels ? fib382 : na , "38.2%", color=color.red, trackprice=true)
+
+// Strategy entry and exit
+if long_condition
+    strategy.entry("Long", strategy.long)
+if short_condition
+    strategy.entry("Short", strategy.short)
+
+// Calculate target and stop loss levels
+long_target = strategy.position_avg_price + target_points
+long_stop_loss = strategy.position_avg_price - stop_loss_points
+short_target = strategy.position_avg_price - target_points
+short_stop_loss = strategy.position_avg_price + stop_loss_points
+
+// Strategy exit
+strategy.exit("Long Exit", "Long", limit=long_target, stop=long_stop_loss)
+strategy.exit("Short Exit", "Short", limit=short_target, stop=short_stop_loss)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/458266
+
+> Last Modified
+
+2024-07-31 14:14:04

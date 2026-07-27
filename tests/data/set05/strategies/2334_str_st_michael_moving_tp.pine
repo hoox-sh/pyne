@@ -1,0 +1,59 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/超越移动止损盈利策略Supertrend-Moving-Stop-Loss-Take-Profit-Strategy.md
+// content_hash: 95d7e42cdc808024
+// collected: 2026-07-27
+strategy("ST Michael Moving TP", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=15)
+
+// Stop loss and profit amount
+stop_loss = input(1500, title="Stop Loss Amount")
+profit = input (15000, title="Profit Amount")
+LongTrailProfit = input (0.91, title = "Long Trailing Profit Taking")
+ShortTrailProfit = input (1.01, title = "Short Trailing Profit Taking")
+
+atrPeriod = input(10, "ATR Length")
+factor = input.float(3.0, "Factor", step = 0.01)
+
+[_, direction] = ta.supertrend(factor, atrPeriod)
+
+long_condition = ta.change(direction) <0
+short_condition = ta.change(direction) >0
+
+
+stop_price_long = ta.valuewhen(long_condition, low[0]-stop_loss,0)
+profit_price_long = ta.valuewhen(long_condition, high[0]+profit,0)
+stop_price_short = ta.valuewhen(short_condition, high[0]+stop_loss,0)
+profit_price_short = ta.valuewhen(short_condition, low[0]-profit,0)
+
+atr=ta.atr(10)
+
+intrade_long = strategy.position_size > 0
+intrade_short = strategy.position_size < 0
+exitConditionLong = (close < (close[1]*LongTrailProfit)) 
+exitConditionShort = (close > (close[1]*ShortTrailProfit))
+
+if (long_condition)
+    strategy.entry("Long3", strategy.long)
+if (intrade_long and exitConditionLong)
+    strategy.close("Long3")
+
+if (short_condition)
+    strategy.entry("Short3", strategy.short)
+if (intrade_short and exitConditionShort)
+    strategy.close ("Short3")
+
+if (strategy.position_size>0)
+    strategy.exit("exit_long",from_entry="Long3",limit=profit_price_long,stop=stop_price_long)
+
+if (strategy.position_size<0)
+    strategy.exit("exit_short",from_entry="Short3",limit=profit_price_short,stop=stop_price_short)    
+```
+
+> Detail
+
+https://www.fmz.com/strategy/438054
+
+> Last Modified
+
+2024-01-08 16:24:03

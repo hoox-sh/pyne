@@ -1,0 +1,25 @@
+//@version=3
+// set05 corpus entry
+// source_repo: tradingview-custom-indicators
+// source_path: tradingview-custom-indicators/indicators/DeusNext.pine
+// content_hash: 5ed7ab36f1146646
+// collected: 2026-07-27
+study("DeusNext",overlay=true)
+fast = 35,slow = 55, signalSpeed = 32
+fastMA = sma(close,fast)
+slowMA = sma(close,slow)
+macd = fastMA-slowMA
+signal = sma(macd,signalSpeed)
+
+overUP = macd[0] <= signal[0]
+underUP = macd[1] > signal[1]
+
+overDOWN = macd[0] >= signal[0]
+underDOWN = macd[1] < signal[1]
+
+sigUP = overUP and underUP  
+
+sigDOWN = overDOWN and underDOWN 
+
+plotshape(sigUP,  location=location.abovebar, style = shape.triangledown, color=red, text="SELL")
+plotshape(sigDOWN, location=location.belowbar, style = shape.triangleup, color=green,  text="BUY")

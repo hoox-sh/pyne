@@ -1,0 +1,20 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block165
+// content_hash: e31b6c14e2a9d3f2
+// collected: 2026-07-27
+indicator("`matrix.median()` Example")
+
+// Create a 2x2 matrix.
+m = matrix.new<int>(2, 2, na)
+// Fill the matrix with values.
+matrix.set(m, 0, 0, 1)
+matrix.set(m, 0, 1, 2)
+matrix.set(m, 1, 0, 3)
+matrix.set(m, 1, 1, 4)
+
+// Get the median of the matrix.
+x = matrix.median(m)
+
+plot(x, 'Median of the matrix')

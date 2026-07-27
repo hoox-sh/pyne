@@ -1,0 +1,87 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多周期均线趋势动量跟踪交易策略-Multi-Timeframe-EMA-Trend-Momentum-Trading-Strategy.md
+// content_hash: 00e7260dd8471fb8
+// collected: 2026-07-27
+strategy("Swing Trading with EMA Alignment and Custom Momentum", overlay=true)
+
+// User inputs for customization
+atrLength = input.int(14, title="ATR Length", minval=1)
+atrMultiplierSL = input.float(1.5, title="Stop-Loss Multiplier (ATR)", minval=0.1)   // Stop-loss at 1.5x ATR
+atrMultiplierTP = input.float(3.0, title="Take-Profit Multiplier (ATR)", minval=0.1)   // Take-profit at 3x ATR
+pullbackRangePercent = input.float(1.0, title="Pullback Range (%)", minval=0.1) // 1% range for pullback around 20 EMA
+lengthKC = input.int(20, title="Length for Keltner Channels (Momentum Calculation)", minval=1)
+
+// EMA settings
+ema20 = ta.ema(close, 20)
+ema50 = ta.ema(close, 50)
+ema100 = ta.ema(close, 100)
+ema200 = ta.ema(close, 200)
+
+// ATR calculation
+atrValue = ta.atr(atrLength)
+
+// Custom Momentum Calculation based on Linear Regression for Daily Timeframe
+highestHighKC = ta.highest(high, lengthKC)
+lowestLowKC = ta.lowest(low, lengthKC)
+smaCloseKC = ta.sma(close, lengthKC)
+
+// Manually calculate the average of highest high and lowest low
+averageKC = (highestHighKC + lowestLowKC) / 2
+
+// Calculate daily momentum using linear regression
+dailyMomentum = ta.linreg(close - (averageKC + smaCloseKC) / 2, lengthKC, 0) // Custom daily momentum calculation
+
+// Fetch weekly data for momentum calculation using request.security()
+[weeklyHigh, weeklyLow, weeklyClose] = request.security(syminfo.tickerid, "W", [high, low, close])
+
+// Calculate weekly momentum using linear regression on weekly timeframe
+weeklyHighestHighKC = ta.highest(weeklyHigh, lengthKC)
+weeklyLowestLowKC = ta.lowest(weeklyLow, lengthKC)
+weeklySmaCloseKC = ta.sma(weeklyClose, lengthKC)
+weeklyAverageKC = (weeklyHighestHighKC + weeklyLowestLowKC) / 2
+
+weeklyMomentum = ta.linreg(weeklyClose - (weeklyAverageKC + weeklySmaCloseKC) / 2, lengthKC, 0) // Custom weekly momentum calculation
+
+// EMA alignment condition (20 EMA > 50 EMA > 100 EMA > 200 EMA)
+emaAligned = ema20 > ema50 and ema50 > ema100 and ema100 > ema200
+
+// Momentum increasing condition (daily and weekly momentum is positive and increasing)
+dailyMomentumIncreasing = dailyMomentum > 0 and dailyMomentum > dailyMomentum[1] //and dailyMomentum[1] > dailyMomentum[2]
+weeklyMomentumIncreasing = weeklyMomentum > 0 and weeklyMomentum > weeklyMomentum[1] //and weeklyMomentum[1] > weeklyMomentum[2]
+
+// Redefine Pullback condition: price within 1% range of the 20 EMA
+upperPullbackRange = ema20 * (1 + pullbackRangePercent / 100)
+lowerPullbackRange = ema20 * (1 - pullbackRangePercent / 100)
+pullbackToEma20 = (close <= upperPullbackRange) and (close >= lowerPullbackRange)
+
+// Entry condition: EMA alignment and momentum increasing on both daily and weekly timeframes
+longCondition = emaAligned and dailyMomentumIncreasing and weeklyMomentumIncreasing and pullbackToEma20
+
+// Initialize stop loss and take profit levels as float variables
+var float longStopLevel = na
+var float longTakeProfitLevel = na
+
+// Calculate stop loss and take profit levels based on ATR
+if (longCondition)
+    longStopLevel := close - (atrMultiplierSL * atrValue)  // Stop loss at 1.5x ATR below the entry price
+    longTakeProfitLevel := close + (atrMultiplierTP * atrValue) // Take profit at 3x ATR above the entry price
+
+// Strategy execution
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+
+// Exit conditions: Stop-loss at 1.5x ATR and take-profit at 3x ATR
+if (strategy.position_size > 0)
+    strategy.exit("Take Profit/Stop Loss", "Long", stop=longStopLevel, limit=longTakeProfitLevel)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/471719
+
+> Last Modified
+
+2024-11-12 16:35:41

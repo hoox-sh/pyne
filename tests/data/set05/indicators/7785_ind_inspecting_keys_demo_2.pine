@@ -1,0 +1,17 @@
+//@version=5
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/v5/language/maps.md::maps.md#block11
+// content_hash: 254847ed0b0a1955
+// collected: 2026-07-27
+indicator("Inspecting keys demo")
+
+//@variable A map containing `string` keys and `string` values.
+m = map.new<string, string>()
+
+// Put key-value pairs into the map.
+m.put("A", "B")
+m.put("C", "D")
+m.put("E", "F")
+
+//@variable An array of keys to check for in `m`.

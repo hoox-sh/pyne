@@ -1,0 +1,73 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/量化交易策略之双均线突破策略Quantitative-Trading-Strategy-Based-on-Double-Moving-Average-Crossover.md
+// content_hash: e71834bf05e23952
+// collected: 2026-07-27
+strategy('Pine Script Tutorial Example Strategy 1', overlay=true, initial_capital=100000, default_qty_value=100, default_qty_type=strategy.percent_of_equity)
+
+//OBV
+src = close
+obv = ta.cum(math.sign(ta.change(src)) * volume)
+ma(source, length, type) =>
+    switch type
+        "SMA" => ta.sma(source, length)
+        "EMA" => ta.ema(source, length)
+        "SMMA (RMA)" => ta.rma(source, length)
+        "WMA" => ta.wma(source, length)
+        "VWMA" => ta.vwma(source, length)
+typeMA = input.string(title = "Method", defval = "SMA", options=["SMA", "EMA", "SMMA (RMA)", "WMA", "VWMA"], group="Smoothing")
+smoothingLength = input.int(title = "Length", defval = 20, minval = 1, maxval = 100, group="Smoothing")
+Limit = input.float(title = "Limit", defval = 1, minval = 0.1, maxval = 10, group="Smoothing")
+smoothingLine_ma = ma(obv,smoothingLength, typeMA)
+obv_diff = (obv-smoothingLine_ma)*100/obv
+
+//PVT
+var cumVolp = 0.
+cumVolp += nz(volume)
+if barstate.islast and cumVolp == 0
+    runtime.error("No volume is provided by the data vendor.")
+srcp = close
+vt = ta.cum(ta.change(srcp)/srcp[1]*volume)
+smoothingLine_map = ma(vt,smoothingLength, typeMA)
+pvt_diff = (vt-smoothingLine_map)*100/vt
+
+// plot(obv_diff+close+100 ,title="OBV_DIFF", color = color.rgb(255, 118, 54))
+// plot(pvt_diff+close+80 ,title="PVT_DIFF", color = color.rgb(223, 61, 255))
+
+indicator = (pvt_diff+obv_diff)/2
+goLongCondition1 = ta.crossover(indicator,Limit)
+timePeriod = time >= timestamp(syminfo.timezone, 2023,1, 1, 0, 0)  // Backtesting Time
+notInTrade = strategy.position_size <= 0
+if goLongCondition1 and timePeriod and notInTrade
+    stopLoss = low * 0.99 // -2%
+    takeProfit = high * 1.05 // +5%
+    strategy.entry('long', strategy.long )
+    strategy.exit('exit', 'long', stop=stopLoss, limit=takeProfit)
+
+
+
+
+
+
+// fastEMA = ta.ema(close, 24)
+// slowEMA = ta.ema(close, 100)
+// goLongCondition1 = ta.crossover(fastEMA, slowEMA)
+// timePeriod = time >= timestamp(syminfo.timezone, 2018, 12, 15, 0, 0)
+// notInTrade = strategy.position_size <= 0
+// if goLongCondition1 and timePeriod and notInTrade
+//     stopLoss = low * 0.97
+//     takeProfit = high * 1.12
+//     strategy.entry('long', strategy.long)
+//     strategy.exit('exit', 'long', stop=stopLoss, limit=takeProfit)
+// plot(fastEMA, color=color.new(color.blue, 0))
+// plot(slowEMA, color=color.new(color.yellow, 0))
+```
+
+> Detail
+
+https://www.fmz.com/strategy/442370
+
+> Last Modified
+
+2024-02-21 14:28:28

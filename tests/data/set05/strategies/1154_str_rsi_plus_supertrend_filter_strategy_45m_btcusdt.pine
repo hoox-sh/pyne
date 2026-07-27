@@ -1,0 +1,96 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/RSI与SuperTrend过滤策略组合系统趋势确认下的动量反转交易框架-RSI-and-SuperTrend-Filter-Combination-System-Momentum-Reversal-Trading-Framework-with-Trend-Confirmation.md
+// content_hash: a42913548920c9f8
+// collected: 2026-07-27
+strategy("RSI + SuperTrend Filter Strategy (45m BTCUSDT)", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=100)
+
+// === Inputs
+rsiPeriod = input.int(14, "RSI Period")
+rsiOverbought = input.int(65, "RSI Overbought")
+rsiOversold = input.int(35, "RSI Oversold")
+tpPerc = input.float(1.5, "TP %") / 100
+slPerc = input.float(1.0, "SL %") / 100
+
+atrPeriod = input.int(10, "SuperTrend ATR Period")
+atrMult = input.float(3.0, "SuperTrend Multiplier")
+
+// === RSI & SuperTrend
+rsi = ta.rsi(close, rsiPeriod)
+atr = ta.atr(atrPeriod)
+hl2 = (high + low) / 2
+upperBand = hl2 + atrMult * atr
+lowerBand = hl2 - atrMult * atr
+
+var int superDir = 1
+superDir := close > lowerBand ? 1 : close < upperBand ? -1 : superDir[1]
+
+isBull = superDir == 1
+isBear = superDir == -1
+
+// === Signals
+longSignal = ta.crossover(rsi, rsiOversold) and isBull
+shortSignal = ta.crossunder(rsi, rsiOverbought) and isBear
+
+// === Entry/Exit
+strategy.entry("Long", strategy.long, when=longSignal)
+strategy.entry("Short", strategy.short, when=shortSignal)
+
+longTP = close * (1 + tpPerc)
+longSL = close * (1 - slPerc)
+shortTP = close * (1 - tpPerc)
+shortSL = close * (1 + slPerc)
+
+strategy.exit("Long Exit", from_entry="Long", limit=longTP, stop=longSL)
+strategy.exit("Short Exit", from_entry="Short", limit=shortTP, stop=shortSL)
+
+// === Visuals — Beautiful Chart Enhancements ===
+
+// SuperTrend Line
+plot(superDir == 1 ? lowerBand : na, title="Bull Trend", color=color.new(color.green, 10), linewidth=2, style=plot.style_line)
+plot(superDir == -1 ? upperBand : na, title="Bear Trend", color=color.new(color.red, 10), linewidth=2, style=plot.style_line)
+
+// Buy/Sell Tags
+plotshape(longSignal, title="BUY", location=location.belowbar, style=shape.labelup,
+     text="BUY", size=size.small, textcolor=color.black, color=color.new(color.lime, 0))
+
+plotshape(shortSignal, title="SELL", location=location.abovebar, style=shape.labeldown,
+     text="SELL", size=size.small, textcolor=color.white, color=color.new(color.red, 0))
+
+// Directional Arrows
+plotarrow(longSignal ? 1 : na, colorup=color.new(color.green, 0), offset=-1)
+plotarrow(shortSignal ? -1 : na, colordown=color.new(color.red, 0), offset=-1)
+
+// Background Highlight
+bgcolor(strategy.position_size > 0 ? color.new(color.green, 90) : na, title="Long BG")
+bgcolor(strategy.position_size < 0 ? color.new(color.red, 90) : na, title="Short BG")
+
+// TP & SL Lines
+plot(strategy.position_size > 0 ? longTP : na, color=color.new(color.green, 0), title="Long TP", linewidth=1, style=plot.style_linebr)
+plot(strategy.position_size > 0 ? longSL : na, color=color.new(color.red, 0), title="Long SL", linewidth=1, style=plot.style_linebr)
+plot(strategy.position_size < 0 ? shortTP : na, color=color.new(color.green, 0), title="Short TP", linewidth=1, style=plot.style_linebr)
+plot(strategy.position_size < 0 ? shortSL : na, color=color.new(color.red, 0), title="Short SL", linewidth=1, style=plot.style_linebr)
+
+// Entry Price Line
+plot(strategy.position_size != 0 ? strategy.position_avg_price : na, title="Entry Price", color=color.gray, style=plot.style_linebr, linewidth=1)
+
+// === Optional: Light trade zone shading
+longBg = longSignal ? color.new(color.green, 85) : na
+shortBg = shortSignal ? color.new(color.red, 85) : na
+bgcolor(longBg, title="Long Signal Highlight")
+bgcolor(shortBg, title="Short Signal Highlight")
+
+// === Alerts
+alertcondition(longSignal, title="BUY Signal", message="RSI+Trend BUY Signal on {{ticker}}")
+alertcondition(shortSignal, title="SELL Signal", message="RSI+Trend SELL Signal on {{ticker}}")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/491514
+
+> Last Modified
+
+2025-04-21 16:31:17

@@ -1,0 +1,81 @@
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/三重EMA追踪止损策略Triple-EMA-With-Trailing-Stop-Loss-Strategy.md
+// content_hash: 8c79bf93880f195c
+// collected: 2026-07-27
+strategy(title=SystemName, shorttitle=ShortSystemName, overlay=true, pyramiding=InitPyramidMax, 
+ default_qty_type=strategy.cash, default_qty_value=InitPosition, commission_type=strategy.commission.percent, 
+ commission_value=InitCommission, initial_capital=InitCapital, max_lines_count=500, 
+ max_labels_count=500, process_orders_on_close=false, calc_on_every_tick=false) 
+
+///////////////////////////////////////////////////////////// Inputs /////////////////////////////////////////////////////////////
+
+DateFilter = input(false, "═════ Data Filtering ═════") 
+InitYear = input(title="Year", type=input.integer, defval=2021, minval=2000, maxval=2021)
+InitMonth = input(title="Month (0=ALL)", type=input.integer, defval=0, minval=0, maxval=12)
+InitStopLoss = input(title="Stop Loss (ticks)", type=input.integer, defval=100, minval=0, maxval=1000) 
+TrailingStopLoss = input(title="Trailing S/L (ticks)", type=input.integer, defval=130, minval=0, maxval=1000) 
+InitBuffer = input(title="Buffer (ticks)", type=input.integer, defval=15, minval=0, maxval=1000) 
+InitEMA1 = input(title="EMA 1", type=input.integer, defval=5, minval=0, maxval=1000) 
+InitEMA2 = input(title="EMA 2", type=input.integer, defval=20, minval=0, maxval=1000) 
+InitEMA3 = input(title="EMA 3", type=input.integer, defval=50, minval=0, maxval=1000) 
+
+//////////////////////////////////////////////////////////// Variables ///////////////////////////////////////////////////////////
+
+var StopLoss = float(0.0)
+var StartPrice = float(0.0)
+//setup multipliers and catch JPY difference
+Multiplier = syminfo.currency == "JPY" ? 10 : 1000
+//get the daily exchange rate from yesterday
+//X_rate = security(AccountCurrency+syminfo.currency, "D", close[1]) 
+OrderQty = 1  
+Buffer = InitBuffer / (Multiplier * 100)
+
+/////////////////////////////////////////////////////// Triple EMA Strategy //////////////////////////////////////////////////////
+
+EMA1 = ema(close, InitEMA1)
+EMA2= ema(close, InitEMA2)
+EMA3 = ema(close, InitEMA3)
+
+//entry conditions
+longCondition = crossover(EMA1, EMA2) and close > EMA3 and EMA1 > EMA3 and EMA2 > EMA3 and close > (close[1] + Buffer) 
+shortCondition = crossunder(EMA1, EMA2) and close < EMA3 and EMA1 < EMA3 and EMA2 < EMA3 and close < (close[1] - Buffer) 
+
+/////////////////////////////////////////////////////// Trailing Stoploss ////////////////////////////////////////////////////////
+
+if (strategy.position_size > 0 and (close > (StartPrice + (TrailingStopLoss / (100 * Multiplier)))))  
+    StopLoss := max(StopLoss, close - (TrailingStopLoss / (100 * Multiplier))) 
+    strategy.exit("Long Stoploss", "Long") 
+    
+if (strategy.position_size < 0 and (close < (StartPrice - (InitStopLoss / (100 * Multiplier))))) 
+    StopLoss := min(StopLoss, close + (TrailingStopLoss / (100 * Multiplier)))
+    strategy.exit("Short Stoploss", "Short") 
+    
+///////////////////////////////////////////////////////// Setup entries /////////////////////////////////////////////////////////
+
+if (longCondition)
+    StartPrice := close
+    StopLoss := StartPrice - (InitStopLoss / (100 * Multiplier)) 
+    strategy.entry("Long", strategy.long, qty=OrderQty)
+    strategy.exit("Long Stoploss", "Long")
+
+if (shortCondition)
+    StartPrice := close
+    StopLoss := StartPrice + (InitStopLoss / (100 * Multiplier)) 
+    strategy.entry("Short", strategy.short, qty=OrderQty)
+    strategy.exit("Short Stoploss", "Short")
+    
+///////////////////////////////////////////////////////// Draw the EMAs /////////////////////////////////////////////////////////
+plot(EMA1, "EMA1", color=#00FF00)
+plot(EMA2, "EMA2", color=#FF0000)
+plot(EMA3, "EMA3", color=#4040FF)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/429478
+
+> Last Modified
+
+2023-10-17 15:05:41

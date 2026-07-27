@@ -1,0 +1,78 @@
+//@version=3
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于均线的布林带短线反转量化策略Bollinger-Band-Short-term-Reversion-Quantitative-Strategy-Based-on-Moving-Average.md
+// content_hash: 1a3aa915c3b71228
+// collected: 2026-07-27
+strategy("BCE Version of EMA, SMA Mean Reversion", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=100)
+ 
+// Inputs
+st_yr_inp = input(defval=2017, title='Backtest Start Year')
+st_mn_inp = input(defval=01, title='Backtest Start Month')
+st_dy_inp = input(defval=01, title='Backtest Start Day')
+en_yr_inp = input(defval=2025, title='Backtest End Year')
+en_mn_inp = input(defval=01, title='Backtest End Month')
+en_dy_inp = input(defval=01, title='Backtest End Day')
+sma_lookback = input(defval=100, title="Lookback Period For SMA")
+ema_lookback = input(defval=10, title="Lookback Period For EMA")
+long_diff_perc = input(defval=6, title="Percentage Deviation From SMA to go Long")/100
+short_diff_perc = input(defval=20, title="Percentage Deviation From SMA to go Short")/100
+ema_filter_bars = input(defval=4, title="The number of bars the EMA must rise/fall")
+lng_allwd = input(defval=true, title="Allow Longs?")
+srt_allwd = input(defval=true, title="Allow Shorts?")
+use_stop = input(defval=true, title="Use Stoploss?")
+stop_perc = input(defval=30, title="Stop Loss Percentage")/100
+ 
+// Dates
+start = timestamp(st_yr_inp, st_mn_inp, st_dy_inp,00,00)
+end = timestamp(en_yr_inp, en_mn_inp, en_dy_inp,00,00)
+can_trade = time >= start and time <= end
+// Indicators Setup
+sma = sma(close, sma_lookback)
+ema = ema(close, ema_lookback)
+ 
+// Strategy Calcuations
+close_stdev = stdev(close, sma_lookback)
+sd1_upper = close + (close_stdev * 1)
+sd1_lower = close - (close_stdev * 1)
+close_diff = (close - sma) / sma
+ 
+// Entries and Exits
+longCondition = close > sma and open > sma
+if (time >= start and time <= end)
+    if (longCondition)
+        strategy.entry("Long", strategy.long)
+    if use_stop
+        stop_price = close * (1 - stop_perc)
+        strategy.order("Long Stoploss", false, stop=stop_price)
+ 
+shortCondition = close < sma and open < sma
+if (shortCondition)
+//    strategy.entry("Short", strategy.short)
+//    if use_stop
+//        stop_price = close * (1 + stop_perc)
+//        strategy.order("Short Stoploss", true, stop=stop_price)
+//if (time >= start)    
+    strategy.close("Long", when=close < sma and open < sma)
+//strategy.cancel("Long Stoploss", when=sma < sma[1])
+//    strategy.close("Short", when=close > sma and open > sma)
+//strategy.cancel("Short Stoploss", when=close_diff<=0)
+ 
+// Plotting
+sma_col = sma > sma[1] ? green : red
+ema_fill = close_diff <= -long_diff_perc ? lime : close_diff >= short_diff_perc ? maroon : aqua
+p_sma = plot(sma, color=sma_col, linewidth=3)
+p_ema = plot(ema, color=black, linewidth=2)
+p_sd1 = plot(sd1_upper, color=black, linewidth=1, transp=85)
+p_sd2 = plot(sd1_lower, color=black, linewidth=1, transp=85)
+fill(p_sd1, p_sd2, title='STDEV Fill', color=silver, transp=80)
+fill(p_sma, p_ema, title='EMA > Mean Percentage', color=ema_fill, transp=80)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/435902
+
+> Last Modified
+
+2023-12-19 16:17:47

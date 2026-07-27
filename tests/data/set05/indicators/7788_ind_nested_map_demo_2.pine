@@ -1,0 +1,17 @@
+//@version=5
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/v5/language/maps.md::maps.md#block38
+// content_hash: 94a08a2a1f38764b
+// collected: 2026-07-27
+indicator("Nested map demo")
+
+//@variable The timeframe of the requested data.
+string tf = input.timeframe("D", "Timeframe")
+// Symbol inputs.
+string symbol1 = input.symbol("EURUSD", "Symbol 1")
+string symbol2 = input.symbol("GBPUSD", "Symbol 2")
+string symbol3 = input.symbol("EURGBP", "Symbol 3")
+
+//@type A wrapper type for maps with `string` keys and `float` values.
+type Wrapper

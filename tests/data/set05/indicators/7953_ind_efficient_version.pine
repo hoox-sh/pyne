@@ -1,0 +1,11 @@
+//@version=5
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/v5/language/variable-declarations.md::variable-declarations.md#block5
+// content_hash: d84d48f470c30ffd
+// collected: 2026-07-27
+indicator("Efficient version", "", true)
+var closeLine = line.new(bar_index - 1, close, bar_index, close, extend = extend.right, width = 3)
+if barstate.islast
+    line.set_xy1(closeLine, bar_index - 1, close)
+    line.set_xy2(closeLine, bar_index, close)

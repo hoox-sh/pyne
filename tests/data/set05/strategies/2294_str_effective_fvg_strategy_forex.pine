@@ -1,0 +1,59 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/高频价格失衡区域动量交易策略基于指数均线和ATR动态止盈止损-High-Frequency-Fair-Value-Gap-Momentum-Trading-Strategy-with-EMA-and-ATR-Based-Dynamic-Exit.md
+// content_hash: 814d575a5cdd4ddb
+// collected: 2026-07-27
+strategy("Effective FVG Strategy - Forex", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=10)
+
+// === Exponential Moving Averages for Faster Trend Detection ===
+ema50 = ta.ema(close, 50)
+ema200 = ta.ema(close, 200)
+bullishTrend = ema50 > ema200
+bearishTrend = ema50 < ema200
+
+// === Volume & Imbalance Filters ===
+highVolume = volume > ta.sma(volume, 20) * 1.5  // 1.5x higher than average volume
+strongImbalance = math.abs(close - open) > ta.sma(math.abs(close - open), 20)  // Large price movement
+
+// === Fair Value Gap (FVG) Detection ===
+fvgUp = low[2] > high[0]  // Bullish FVG
+fvgDown = high[2] < low[0]  // Bearish FVG
+
+// Effective FVGs with trend confirmation
+validBullFVG = fvgUp and highVolume and strongImbalance and bullishTrend
+validBearFVG = fvgDown and highVolume and strongImbalance and bearishTrend
+
+// === ATR-based Take Profit & Stop Loss (Optimized for Forex) ===
+atr = ta.atr(14)
+longTP = close + (2 * atr)  // TP = 2x ATR
+longSL = close - (1.2 * atr)  // SL = 1.2x ATR
+shortTP = close - (2 * atr)
+shortSL = close + (1.2 * atr)
+
+// === Execute Trades ===
+if validBullFVG
+    strategy.entry("Long", strategy.long)
+    strategy.exit("Long Exit", from_entry="Long", limit=longTP, stop=longSL)
+
+if validBearFVG
+    strategy.entry("Short", strategy.short)
+    strategy.exit("Short Exit", from_entry="Short", limit=shortTP, stop=shortSL)
+
+// === Plot Buy/Sell Signals ===
+plotshape(series=validBullFVG, location=location.belowbar, color=color.green, style=shape.labelup, text="BUY", title="BUY Signal")
+plotshape(series=validBearFVG, location=location.abovebar, color=color.red, style=shape.labeldown, text="SELL", title="SELL Signal")
+
+// Highlight Significant FVGs
+bgcolor(validBullFVG ? color.new(color.green, 85) : na)
+bgcolor(validBearFVG ? color.new(color.red, 85) : na)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/482850
+
+> Last Modified
+
+2025-02-20 15:18:11

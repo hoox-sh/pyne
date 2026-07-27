@@ -1,0 +1,10 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block58
+// content_hash: 8646a76ae409aa57
+// collected: 2026-07-27
+indicator("array.indexof example")
+a = array.new_float(5,high)
+index = array.indexof(a, high)
+plot(index)

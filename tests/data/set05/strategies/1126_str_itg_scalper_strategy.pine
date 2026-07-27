@@ -1,0 +1,97 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/三重均线趋势跟踪与动量融合量化交易策略-Triple-Moving-Average-Trend-Following-and-Momentum-Integration-Quantitative-Trading-Strategy.md
+// content_hash: bb77dcfe5a234e3f
+// collected: 2026-07-27
+strategy("ITG Scalper Strategy", shorttitle="lokesh_ITG_Scalper_Strategy", overlay=true)
+
+// General inputs
+len = input(14, title="TEMA period")
+FfastLength = input.int(13, title="Filter fast length")
+FslowLength = input.int(18, title="Filter slow length")
+FsignalLength = input.int(14, title="Filter signal length")
+sl_points = 7 // 5 points stop loss
+tp_points = 100 // 100 points target profit
+trail_points = 15 // Trailing stop loss every 10 points
+
+// Validate input
+if FfastLength < 1
+    FfastLength := 1
+if FslowLength < 1
+    FslowLength := 1
+if FsignalLength < 1
+    FsignalLength := 1
+
+// Get real close price
+realC = close
+
+// Triple EMA definition
+ema1 = ta.ema(realC, len)
+ema2 = ta.ema(ema1, len)
+ema3 = ta.ema(ema2, len)
+
+// Triple EMA trend calculation
+avg = 3 * (ema1 - ema2) + ema3
+
+// Filter formula
+Fsource = close
+FfastMA = ta.ema(Fsource, FfastLength)
+FslowMA = ta.ema(Fsource, FslowLength)
+Fmacd = FfastMA - FslowMA
+Fsignal = ta.sma(Fmacd, FsignalLength)
+
+// Plot EMAs for visual reference
+shortema = ta.ema(close, 9)
+longema = ta.ema(close, 15)
+yma = ta.ema(close, 5)
+plot(shortema, color=color.green)
+plot(longema, color=color.red)
+plot(yma, color=#e9f72c)
+
+// Entry conditions
+firstCrossover = ta.crossover(Fmacd, Fsignal) and avg > avg[1]
+secondCrossover = ta.crossover(shortema, longema)  // Assuming you meant to cross shortema with longema
+thirdCrossover = ta.crossover(close, yma)
+
+var bool entryConditionMet = false
+
+if (firstCrossover)
+    entryConditionMet := true
+
+longSignal = entryConditionMet and secondCrossover and thirdCrossover
+
+// Strategy execution
+if (longSignal)
+    strategy.entry("Long", strategy.long)
+    entryConditionMet := false  // Reset the entry condition after taking a trade
+
+// Calculate stop loss and take profit prices
+var float long_sl = na
+var float long_tp = na
+
+if strategy.position_size > 0  // Long position
+    long_sl := close - sl_points
+    long_tp := close + tp_points
+    
+    // Adjust stop loss with trailing logic
+    if (close - long_sl > trail_points)
+        long_sl := close - trail_points
+        
+    strategy.exit("Exit Long", "Long", stop=long_sl, limit=long_tp)
+
+// Plotting Buy signals
+plotshape(series=longSignal, style=shape.triangleup, location=location.belowbar, color=color.green, size=size.small, title="Buy Signal")
+
+// Alerts
+alertcondition(longSignal, title="Buy Signal", message="Buy Signal")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/473145
+
+> Last Modified
+
+2024-11-27 16:08:16

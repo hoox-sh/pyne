@@ -1,0 +1,71 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/HalfTrend多空趋势追踪止损限价买入策略-HalfTrend-Bullish-and-Bearish-Trend-Following-Stop-Limit-Buy-Strategy.md
+// content_hash: e04a0ba30fa42fab
+// collected: 2026-07-27
+strategy("HalfTrend Stop-Limit Buy", overlay=true)
+
+// HalfTrend indicator parameters
+length = 1
+amplitude = 2.0
+
+// HalfTrend calculation
+float ph = na
+float pl = na
+var float dir = na
+var float trend = na
+
+if na(trend)
+    trend := close
+    ph := high
+    pl := low
+    dir := na
+else
+    if high > ph
+        ph := high
+    if low < pl
+        pl := low
+    if close > trend and na(dir)
+        dir := 1
+        trend := close
+        ph := high
+        pl := low
+    if close < trend and na(dir)
+        dir := -1
+        trend := close
+        ph := high
+        pl := low
+    if dir == 1 and close < trend - amplitude
+        dir := -1
+        trend := close
+        ph := high
+        pl := low
+    if dir == -1 and close > trend + amplitude
+        dir := 1
+        trend := close
+        ph := high
+        pl := low
+
+// Buy signal based on HalfTrend
+buySignal = dir == 1 and ta.valuewhen(dir == -1, trend, 0)
+
+// Plot HalfTrend
+plot(dir == 1 ? trend : na, color=color.blue, linewidth=2, title="HalfTrend Bullish")
+plot(dir == -1 ? trend : na, color=color.red, linewidth=2, title="HalfTrend Bearish")
+
+// Place a stop-limit buy order
+if (buySignal)
+    stopPrice = ta.valuewhen(dir == -1, trend, 0)
+    strategy.entry("HalfTrend Buy", strategy.long, stop=stopPrice, comment="HalfTrend Buy")
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/451732
+
+> Last Modified
+
+2024-05-17 15:45:13

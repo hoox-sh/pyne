@@ -1,0 +1,58 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/捕捉底部策略Bottom-Catching-Strategy.md
+// content_hash: 7c63648cbff6cc1e
+// collected: 2026-07-27
+strategy("V3 - Catching the Bottom",
+         overlay=true)
+
+showDate = input(defval=true, title='Show Date Range')
+timePeriod = time >= timestamp(syminfo.timezone, 2022, 4, 1, 0, 0)
+notInTrade = strategy.position_size <= 0
+
+//==================================Buy Conditions============================================
+
+//RSI
+length = input(14)
+vrsi = ta.rsi(close, length)
+
+buyCondition1 = vrsi < 40
+
+//RSI decrease
+decrease = 3
+buyCondition2 = (vrsi < vrsi[1] - decrease)
+//sellCondition1 = request.security(syminfo.tickerid, "15", buyCondition2)
+
+//EMAs 
+fastEMA = ta.sma(close, 50)
+slowEMA = ta.sma(close, 100)
+buyCondition3 = ta.crossunder(fastEMA, slowEMA)
+//buyCondition2 = request.security(syminfo.tickerid, "15", buyCondition3)
+
+if(buyCondition1 and buyCondition2 and buyCondition3 and timePeriod)
+    strategy.entry(id='Long', direction = strategy.long)
+
+//==================================Sell Conditions============================================
+
+sellCondition1 = vrsi > 65
+
+EMA9 = ta.sma(close, 9)
+EMA50 = ta.sma(close, 50)
+sellCondition2 = ta.crossover(EMA9, EMA50)
+
+if(sellCondition1 and sellCondition2 and timePeriod)
+    strategy.close(id='Long')
+
+//Best on: ETH 5mins (7.59%), BNB 5mins (5.42%), MATIC 30mins (15.61%), XRP 45mins (10.14%) ---> EMA
+//Best on: MATIC 2h (16.09%), XRP 15m (5.25%), SOL 15m (4.28%), AVAX 5m (3.19%)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/432897
+
+> Last Modified
+
+2023-11-22 15:46:19

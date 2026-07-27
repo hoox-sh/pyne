@@ -1,0 +1,49 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双均线交叉结合赫尔移动平均线量化策略-Dual-Hull-Moving-Average-Crossover-Quantitative-Strategy.md
+// content_hash: a65b576ebc3561ed
+// collected: 2026-07-27
+strategy("Hull Moving Average Crossover", overlay=true)
+
+
+fastLength = input.int(9, "Fast HMA Length", minval=1)
+slowLength = input.int(16, "Slow HMA Length", minval=1)
+
+
+hma(src, length) =>
+    wma1 = ta.wma(src, length / 2)
+    wma2 = ta.wma(src, length)
+    ta.wma(2 * wma1 - wma2, math.floor(math.sqrt(length)))
+
+
+fastHMA = hma(close, fastLength)
+slowHMA = hma(close, slowLength)
+
+
+plot(fastHMA, color=color.blue, title="Fast HMA")
+plot(slowHMA, color=color.red, title="Slow HMA")
+
+
+longCondition = ta.crossover(fastHMA, slowHMA)
+shortCondition = ta.crossunder(fastHMA, slowHMA)
+
+
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+
+if (shortCondition)
+    strategy.entry("Short", strategy.short)
+
+
+plotshape(longCondition, style=shape.triangleup, location=location.belowbar, color=color.green, size=size.small)
+plotshape(shortCondition, style=shape.triangledown, location=location.abovebar, color=color.red, size=size.small)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/473404
+
+> Last Modified
+
+2024-11-29 16:53:05

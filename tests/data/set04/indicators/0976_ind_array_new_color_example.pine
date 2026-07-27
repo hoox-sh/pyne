@@ -1,0 +1,10 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block69
+// content_hash: 23e1c8cea35cfbd8
+// collected: 2026-07-27
+indicator("array.new_color example")
+length = 5
+a = array.new_color(length, color.red)
+plot(close, color = array.get(a, 0))

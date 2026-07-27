@@ -1,0 +1,41 @@
+//@version=2
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于跟踪止损和追踪买入的简单策略Simple-Trailing-Stop-Buy-Strategy-Based-on-Percentage.md
+// content_hash: c507a460a10bcd69
+// collected: 2026-07-27
+//Developed from ©Finnbo code
+strategy("Simple Trailing Buy & Stop Strategy", overlay=true)
+offset = input(defval=1.5, title="Stop Offset %", type=float, minval=0.1, maxval=100, step=0.1)
+buyoffset = input(defval=1.9, title="Trailing Buy Offset %", type=float, minval=0.1, maxval=100, step=0.1)
+
+sumbars = input(defval=6, title="Use last x bars for calculation",  minval=1)
+srcts = input(title="Source Trailing Stop calculation",  defval=close)
+srctb = input(title="Source Trailing Buy calculation",  defval=close)
+srctrigger = input(title="Source Stop Trigger",  defval=low)
+srctriggerbuy = input(title="Source Buy Trigger",  defval=high)
+tsl = rma(srcts, sumbars)*(1-(offset/100))// = (sum(srcts,sumbars)/sumbars)*(1-(offset/100))
+tbuy = rma(srctb, sumbars)*(1+(buyoffset/100))
+plot(tsl, color=(srctrigger<tsl)?red:green)
+plot(tbuy, color=(srctriggerbuy>tbuy)?red:green)
+//plotshape(crossunder(srctrigger,tsl), text="Long Stop", style=shape.circle, color=red)
+alertcondition(crossunder(srctrigger,tsl), "Long Stop alert", "SELL")
+//plotshape(crossover(srctriggerbuy,tbuy), text="Long", style=shape.circle, color=green)
+alertcondition(crossover(srctriggerbuy,tbuy), "Long alert", "BUY")
+
+longCondition =  crossover(srctriggerbuy,tbuy)
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+closeCondition = crossunder(srctrigger,tsl)
+if (closeCondition)
+    strategy.close("Long")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/439349
+
+> Last Modified
+
+2024-01-19 14:30:59

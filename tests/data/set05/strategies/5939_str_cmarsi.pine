@@ -1,0 +1,60 @@
+//@version=3
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/Composite-Entry-Signal-RSI-Trading-Strategy.md
+// content_hash: 53f59e79ee66883a
+// collected: 2026-07-27
+src = close, lenrsi = 3, lenupdown = 2, lenroc = 100, malengt = 2, low = 40, high = 70, a = 1, vlow = 20
+updown(s) => 
+    isEqual = s == s[1]
+    isGrowing = s > s[1]
+    ud = 0.0
+    ud := isEqual ? 0 : isGrowing ? (nz(ud[1]) <= 0 ? 1 : nz(ud[1])+1) : (nz(ud[1]) >= 0 ? -1 : nz(ud[1])-1)
+    ud
+rsi = rsi(src, lenrsi)
+updownrsi = rsi(updown(src), lenupdown)
+percentrank = percentrank(roc(src, 1), lenroc)
+crsi = avg(rsi, updownrsi, percentrank)
+MA = sma(crsi, malengt)
+
+band1 = 70
+band0 = 40
+band2 = 20
+
+ColorMA = MA>=band0 ? lime : red
+
+p1 = plot(MA, title="BuyNiggers", style=line, linewidth=4, color=ColorMA)
+
+p2 = plot(low, title="idk", style=line, linewidth=2, color=blue)
+p3 = plot(high, title="idk2", style=line, linewidth=2, color=orange)
+p4 = plot(vlow, title="idk3", style=line, linewidth=1, color=red)
+
+//@version=2
+strategy("CMARSI")
+
+
+if crossover(MA, band0)
+    strategy.entry("buy", strategy.long, when=strategy.position_size <= 0)
+    
+if crossunder(MA, band1)
+    strategy.exit("close", "buy")
+    
+
+
+
+plot(strategy.equity)
+
+    
+
+
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/426361
+
+> Last Modified
+
+2023-09-11 14:49:59

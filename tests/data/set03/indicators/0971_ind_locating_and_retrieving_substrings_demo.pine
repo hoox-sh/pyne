@@ -1,0 +1,28 @@
+//@version=6
+// set03 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/concepts/strings.md::strings.md#block31
+// content_hash: 3ec45abcb9a550b4
+// collected: 2026-07-27
+indicator("Locating and retrieving substrings demo", overlay = true)
+
+if barstate.islast
+    //@variable A single-cell table to show the `displayText`. 
+    var table display = table.new(position.bottom_right, 1, 1, frame_color = chart.fg_color, frame_width = 1)
+
+    //@variable The position of the `/` character in the exchange time zone's IANA identifier.
+    var int dividerPos = str.pos(syminfo.timezone, "/")
+    //@variable The `syminfo.timezone` substring from position 0 to `dividerPos`.
+    //          This substring epresents the "area" part of the time zone identifier.  
+    //          The character at `dividerPos` is not included. 
+    var string areaString = str.substring(syminfo.timezone, 0, dividerPos)
+
+    //@variable The `syminfo.timezone` substring from `dividerPos + 1` to the end of the string, without low lines.
+    //          This substring represents the "location" part of the time zone identifier. 
+    var string locationString = str.replace_all(str.substring(syminfo.timezone, dividerPos + 1), "_", " ")
+
+    //@variable A string representing the latest execution's date and time in the chart's time zone.
+    string formattedTime = str.format_time(timenow, "HH:mm:ss 'on' MMM d, yyyy")
+
+    //@variable A formatted string containing `syminfo.timezone`, `areaString`, `locationString`, and `formattedTime`.
+    string displayText = str.format(

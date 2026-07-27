@@ -1,0 +1,64 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/ATR均线突破策略-ATR-Average-Breakout-Strategy.md
+// content_hash: 6c30ba042d0b23b2
+// collected: 2026-07-27
+strategy("Consolidation Breakout Strategy", overlay=true)
+
+// Input Parameters
+length = input.int(20, "Length", minval=1)
+multiplier = input.float(2.0, "Multiplier", minval=0.1, maxval=10.0)
+risk_percentage = input.float(1.0, "Risk Percentage", minval=0.1, maxval=10.0)
+stop_loss_percentage = input.float(1.0, "Stop Loss Percentage", minval=0.1, maxval=10.0)
+take_profit_percentage = input.float(2.0, "Take Profit Percentage", minval=0.1, maxval=10.0)
+
+// ATR calculation
+atr_value = ta.atr(length)
+
+// Average price calculation
+average_price = ta.sma(close, length)
+
+// Upper and lower bounds for consolidation detection
+upper_bound = average_price + multiplier * atr_value
+lower_bound = average_price - multiplier * atr_value
+
+// Consolidation detection
+is_consolidating = (high < upper_bound) and (low > lower_bound)
+
+// Breakout detection
+is_breakout_up = high > upper_bound
+is_breakout_down = low < lower_bound
+
+// Entry conditions
+enter_long = is_breakout_up and not is_consolidating
+enter_short = is_breakout_down and not is_consolidating
+
+// Exit conditions
+exit_long = low < (average_price - atr_value * stop_loss_percentage) or high > (average_price + atr_value * take_profit_percentage)
+exit_short = high > (average_price + atr_value * stop_loss_percentage) or low < (average_price - atr_value * take_profit_percentage)
+
+// Risk calculation
+risk_per_trade = strategy.equity * (risk_percentage / 100)
+position_size = risk_per_trade / atr_value
+
+// Strategy
+if (enter_long)
+    strategy.entry("Long", strategy.long, qty=position_size)
+if (enter_short)
+    strategy.entry("Short", strategy.short, qty=position_size)
+
+if (exit_long)
+    strategy.close("Long")
+if (exit_short)
+    strategy.close("Short")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/451698
+
+> Last Modified
+
+2024-05-17 10:22:11

@@ -1,0 +1,61 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/自适应权重趋势跟踪策略VIDYA多指标组合系统-Adaptive-Weighted-Trend-Following-Strategy-VIDYA-Multi-Indicator-System.md
+// content_hash: 65dabd0574d9fdea
+// collected: 2026-07-27
+strategy("VIDYA Strategy", overlay=true, initial_capital=25000)
+
+// Inputs
+src = input(close, title="Source")
+pds = input.int(21, title="Length")
+fixCMO = input.bool(true, title="Fixed CMO Length (9)?")
+select = input.bool(true, title="Calculation Method: CMO/StDev?")
+alpha = 2 / (pds + 1)
+momm = ta.change(src)
+
+// Functions to calculate MOM
+f1(m) => m >= 0.0 ? m : 0.0
+f2(m) => m >= 0.0 ? 0.0 : -m
+
+m1 = f1(momm)
+m2 = f2(momm)
+sm1 = fixCMO ? math.sum(m1, 9) : math.sum(m1, pds)
+sm2 = fixCMO ? math.sum(m2, 9) : math.sum(m2, pds)
+
+percent(nom, div) => 100 * nom / div
+chandeMO = na(percent(sm1 - sm2, sm1 + sm2)) ? 0 : percent(sm1 - sm2, sm1 + sm2)
+
+// Select calculation method
+k = select ? math.abs(chandeMO) / 100 : ta.stdev(src, pds)
+
+// Calculate VIDYA
+var float VIDYA = na
+VIDYA := na(VIDYA[1]) ? src : alpha * k * src + (1 - alpha * k) * VIDYA[1]
+
+// Conditions for long and short
+col12 = VIDYA > VIDYA[1]
+col32 = VIDYA < VIDYA[1]
+
+// Plot VIDYA with dynamic colors
+color2 = col12 ? color.new(color.blue, 0) : col32 ? color.new(color.maroon, 0) : color.new(color.blue, 0)
+plot(VIDYA, "VAR", color=color2, linewidth=2)
+
+// Long and Short Strategy
+if (col12)
+    strategy.entry("Go Long", strategy.long)
+if (col32)
+    strategy.entry("Go Short", strategy.short)
+
+// Alert for VIDYA color change
+alertcondition(ta.cross(VIDYA, VIDYA[1]), title="Color ALARM!", message="VIDYA has changed color!")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/474037
+
+> Last Modified
+
+2024-12-05 15:07:47

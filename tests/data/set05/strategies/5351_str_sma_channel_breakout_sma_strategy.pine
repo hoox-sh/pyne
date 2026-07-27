@@ -1,0 +1,51 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双均线通道突破SMA策略Channel-Breakout-SMA-Strategy.md
+// content_hash: c8765d5836df12be
+// collected: 2026-07-27
+
+// strategy("ChBrkOutStrategySMA", overlay=true, initial_capital = 200000)
+length = input(title="Length", type=input.integer, minval=1, maxval=1000, defval=7)
+     
+fastSMA = sma(close,9)
+slowSMA = sma(close,21)
+
+upBound = highest(high, length)
+downBound = lowest(low, length)
+
+boundLongEntry = ((close >= upBound) or (high >= upBound)) and fastSMA>slowSMA and (close > open)
+boundShortEntry =((close <= downBound) or (low <= downBound)) and fastSMA<slowSMA and (close <open)
+
+u=plot(upBound, title = "Upper Bound",color=color.blue, linewidth=1)
+l=plot(downBound, title = "Lower Bound",color=color.red, linewidth=1)
+plot(fastSMA,title = "Fast SMA", color = color.red, linewidth =2)
+plot(slowSMA,title = "Slow SMA" ,color = color.green, linewidth =1)
+fill(u,l, transp=95)
+plot(avg(upBound,downBound), title = "Avg", color=color.gray,linewidth =1)
+
+     
+if (boundLongEntry )
+    strategy.entry("LE", long = true)
+    
+if (boundShortEntry)
+    strategy.entry("SE", long = false)
+    
+SmaLongExit = crossunder(fastSMA,slowSMA)
+SmaShortExit = crossover(fastSMA,slowSMA)
+
+    
+//Close TRades   
+if (strategy.position_size > 0)
+    strategy.close(id="LE",when= SmaLongExit)
+if (strategy.position_size < 0)
+    strategy.close(id="SE",when= SmaShortExit)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/429964
+
+> Last Modified
+
+2023-10-23 17:08:51

@@ -1,0 +1,28 @@
+//@version=6
+// set03 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/faq/strategies.md::strategies.md#block16
+// content_hash: baa93620cbbd5b4a
+// collected: 2026-07-27
+strategy("ATR trailing stop demo", overlay = true)
+
+// Set the lookback period in bars to identify the highest or lowest point for trailing stop calculations.
+int SWING_LOOKBACK = 5
+
+// @function                Calculates a dynamic trailing stop by adjusting the highest
+//                          (bearish) or lowest (bullish) swing points over a set `length`
+//                          of bars using the ATR, for a stop distance proportional to average bar size.
+// @param calcStop          (series bool) A condition that activates the trailing stop, e.g., being in a trade.
+// @param length            (simple int) The number of bars to look back to determine the highest or lowest point for
+//                          the trailing stop calculation.
+// @param isLong            (simple bool) Indicator of the trailing stop's orientation: true for long trades
+//                          (stop below price) and false for short trades (stop above price).
+// @param atrMultiplier     (simple float) The multiplier applied to the ATR, adjusting the stop's distance from the
+//                          identified extreme price point. Optional. Default is 1.0, or 100% of the ATR value.
+// @returns                 (float) The trailing stop price, or `na` if `calcStop` is false.
+atrTrailingStop(series bool calcStop, simple int length, simple bool isLong, simple float atrMultiplier = 1.0) =>
+    var float trailPrice = na
+    int   m   = isLong ? 1 : -1
+    float atr = ta.atr(14) * atrMultiplier
+    float swingPoint = switch
+        isLong => ta.lowest(length)  - atr

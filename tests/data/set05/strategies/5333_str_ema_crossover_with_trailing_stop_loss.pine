@@ -1,0 +1,51 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于EMA均线交叉的移动止损策略EMA-Crossover-Strategy-with-Trailing-Stop-Loss.md
+// content_hash: f292e8657c6e296e
+// collected: 2026-07-27
+strategy("EMA Crossover with Trailing Stop-Loss", overlay=true)
+
+fastEMA = ema(close, 9)
+slowEMA = ema(close, 21)
+
+// Entry conditions
+longCondition = crossover(fastEMA, slowEMA)
+shortCondition = crossunder(fastEMA, slowEMA)
+
+// Trailing stop-loss calculation
+var float trailingStop = na
+var float highestHigh = na
+
+if (longCondition)
+    highestHigh := na
+    trailingStop := na
+
+if (longCondition and high > highestHigh)
+    highestHigh := high
+
+if (strategy.position_size > 0)
+    trailingStop := highestHigh * (1 - 0.02)  // Adjust the trailing percentage as needed
+
+// Execute trades
+strategy.entry("Long", strategy.long, when=longCondition)
+strategy.entry("Short", strategy.short, when=shortCondition)
+
+// Apply trailing stop-loss to long positions
+strategy.exit("Long", from_entry="Long", loss=trailingStop)
+
+// Plot EMAs and Trailing Stop-Loss
+plot(fastEMA, color=color.green, title="Fast EMA")
+plot(slowEMA, color=color.red, title="Slow EMA")
+plot(trailingStop, color=color.orange, title="Trailing Stop-Loss", linewidth=2)
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/436009
+
+> Last Modified
+
+2023-12-20 17:39:30

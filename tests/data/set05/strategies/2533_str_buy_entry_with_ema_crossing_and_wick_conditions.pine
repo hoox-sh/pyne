@@ -1,0 +1,55 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/EMA交叉与蜡烛体穿透结合动态买入策略-Dynamic-Buy-Entry-Strategy-Combining-EMA-Crossing-and-Candle-Body-Penetration.md
+// content_hash: 18023395e3c38a33
+// collected: 2026-07-27
+strategy("Buy Entry with EMA Crossing and Wick Conditions", overlay=true)
+
+// Define the EMA length
+ema_length = input.int(14, title="EMA Length")
+
+// Calculate the 14 EMA
+ema_14 = ta.ema(close, ema_length)
+
+// Calculate the candle body and wicks
+body = close - open
+upper_wick = high - close
+lower_wick = open - low
+total_candle_length = high - low
+
+// Define the condition for the candle to be green (bullish)
+is_green_candle = close > open
+
+// Condition for crossing the 14 EMA (previous close was below, current close is above)
+crossing_ema = ta.crossover(close, ema_14)
+
+// Condition for at least 50% of the candle's body crossing the 14 EMA
+body_crossed_ema = (close - open) * 0.5 <= (close - ema_14) and close > ema_14
+
+// Condition for wick percent being less than or equal to 40% of the total candle length
+wick_percent = (upper_wick + lower_wick) / total_candle_length
+valid_wick_condition = wick_percent <= 0.4
+
+// Define the buy condition
+buy_condition = is_green_candle and crossing_ema and body_crossed_ema and valid_wick_condition
+
+// Plot the 14 EMA on the chart
+plot(ema_14, color=color.blue, linewidth=2, title="14 EMA")
+
+// Plot the buy signal as an arrow on the chart
+plotshape(buy_condition, color=color.green, style=shape.labelup, location=location.belowbar, text="BUY")
+
+// Optional: Add a strategy for backtesting
+if (buy_condition)
+    strategy.entry("Buy", strategy.long)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/475630
+
+> Last Modified
+
+2024-12-20 16:50:41

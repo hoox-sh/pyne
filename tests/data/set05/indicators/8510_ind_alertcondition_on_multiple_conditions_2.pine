@@ -1,0 +1,24 @@
+//@version=4
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/v4/essential/alerts.md::alerts.md#block6
+// content_hash: 3fc3656545347aa2
+// collected: 2026-07-27
+study("`alertcondition()` on multiple conditions")
+i_detectLongs  = input(true, "Detect Longs")
+i_detectShorts = input(true, "Detect Shorts")
+
+r = rsi(close, 20)
+// Detect crosses.
+xUp = crossover( r, 50)
+xDn = crossunder(r, 50)
+// Only generate entries when the trade's direction is allowed in inputs.
+enterLong  = i_detectLongs  and xUp
+enterShort = i_detectShorts and xDn
+
+plot(r)
+plotchar(enterLong,  "Go Long",  "▲", location.bottom, color.lime, size = size.tiny)
+plotchar(enterShort, "Go Short", "▼", location.top,    color.red,  size = size.tiny)
+hline(50)
+// Trigger the alert when one of the conditions is met.
+alertcondition(enterLong or enterShort, "Compound alert", "Entry")

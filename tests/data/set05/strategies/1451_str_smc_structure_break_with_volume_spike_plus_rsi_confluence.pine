@@ -1,0 +1,82 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/市场结构突破与成交量峰值RSI多重指标交叉策略-Market-Structure-Breakthrough-with-Volume-Spike-and-RSI-Confluence-Strategy.md
+// content_hash: 110ea2637d2e0316
+// collected: 2026-07-27
+strategy("SMC Structure Break with Volume Spike + RSI Confluence", overlay=true, initial_capital=100000, currency=currency.USD)
+
+// ===== INPUTS =====
+swing_len   = input.int(5, "Swing Lookback Length", minval=2)
+vol_len     = input.int(20, "Volume MA Length", minval=1)
+vol_mult    = input.float(2.0, "Volume Spike Multiplier", minval=1.0)
+holdBars    = input.int(3, "Bars to Hold Trade", minval=1)
+rsi_length  = input.int(14, "RSI Length", minval=1)
+
+// ===== CALCULATIONS =====
+// Calculate average volume and volume spike condition
+vol_avg   = ta.sma(volume, vol_len)
+vol_spike = volume > vol_avg * vol_mult
+
+// Calculate RSI value
+rsi_val = ta.rsi(close, rsi_length)
+
+// Detect swing highs and swing lows using pivot functions
+pivot_high = ta.pivothigh(high, swing_len, swing_len)
+pivot_low  = ta.pivotlow(low, swing_len, swing_len)
+
+// Use persistent variables to store the last confirmed swing high and swing low
+var float last_swing_high = na
+var float last_swing_low  = na
+
+if not na(pivot_high)
+    last_swing_high := pivot_high
+if not na(pivot_low)
+    last_swing_low := pivot_low
+
+// ===== ENTRY CONDITIONS =====
+// Long entry: structure break above last swing low, volume spike, and RSI below 50
+long_condition = not na(last_swing_low) and (close > last_swing_low) and (close[1] <= last_swing_low) and vol_spike and (rsi_val < 50)
+// Short entry: structure break below last swing high, volume spike, and RSI above 50
+short_condition = not na(last_swing_high) and (close < last_swing_high) and (close[1] >= last_swing_high) and vol_spike and (rsi_val > 50)
+
+// Persistent variable to store the bar index when a trade is entered
+var int entryBar = na
+
+// Reset entryBar when flat
+if strategy.position_size == 0
+    entryBar := na
+
+// Execute trades only when no position is held
+if strategy.position_size == 0
+    if long_condition
+        strategy.entry("Long", strategy.long)
+        entryBar := bar_index
+    if short_condition
+        strategy.entry("Short", strategy.short)
+        entryBar := bar_index
+
+// ===== EXIT LOGIC =====
+// Exit the trade after the specified number of bars (holdBars) since entry.
+if strategy.position_size != 0 and not na(entryBar)
+    if (bar_index - entryBar) >= holdBars
+        strategy.close_all("Hold Time Reached")
+        entryBar := na
+
+// ===== PLOTS =====
+plot(last_swing_high, color=color.red, title="Last Swing High")
+plot(last_swing_low, color=color.green, title="Last Swing Low")
+plot(vol_avg, title="Volume MA", color=color.purple)
+plot(rsi_val, title="RSI", color=color.blue)
+plotshape(long_condition, title="Long Signal", location=location.belowbar, color=color.green, style=shape.labelup, text="Long")
+plotshape(short_condition, title="Short Signal", location=location.abovebar, color=color.red, style=shape.labeldown, text="Short")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/489280
+
+> Last Modified
+
+2025-04-03 10:23:22

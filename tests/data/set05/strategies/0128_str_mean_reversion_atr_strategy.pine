@@ -1,0 +1,91 @@
+//@version=5
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/[KL] Mean Reversion (ATR) Strategy.pine
+// content_hash: d32c31c6b4f75ea2
+// collected: 2026-07-27
+strategy("Mean Reversion (ATR) Strategy [KL]", overlay=true, pyramiding=1)
+var string GROUP_TP = "Profit taking"
+var string GROUP_SL = "Stop loss"
+var string GROUP_ORDER = "Order size"
+var string GROUP_SIGNALS = "Signals"
+var string ENUM_LONG = "Long"
+backtest_timeframe_start = input.time(defval=timestamp("01 Apr 2000 13:30 +0000"), title="Backtest Start Time")
+within_timeframe         = time >= backtest_timeframe_start
+// Variables stored upon initial entry, 
+var initial_entry_p = float(0)  // initial entry price
+var risk_amt = float(0)  // initial entry price minus initial stop loss price
+var initial_order_size = 0
+// TSL: calculate the stop loss price. {
+ATR_X2_TSL = ta.atr(input.int(14, title="Length of ATR for trailing stop loss", group=GROUP_SL)) * input.float(2.0, title="ATR Multiplier for trailing stop loss", group=GROUP_SL)
+TSL_source = low
+var stop_loss_price = float(0)
+TSL_line_color = color.green
+TSL_transp = 100
+if strategy.position_size == 0 or not within_timeframe
+    TSL_line_color := color.black
+    stop_loss_price := TSL_source - ATR_X2_TSL
+else if strategy.position_size > 0
+    stop_loss_price := math.max(stop_loss_price, TSL_source - ATR_X2_TSL)
+    TSL_transp := 0
+plot(stop_loss_price, color=color.new(TSL_line_color, TSL_transp))
+// } end of "TSL" block
+// ATR diversion test
+_len_volat      = input(20, title="Main signal: Length of lookback (ATR mean reversion)", group=GROUP_SIGNALS)
+_ATR_volat      = ta.atr(_len_volat)
+_avg_atr        = ta.sma(_ATR_volat, _len_volat)
+_std_volat      = ta.stdev(_ATR_volat, _len_volat)
+var _signal_diverted_ATR = false
+MULTIPLE_ATR_STD = 1
+_signal_diverted_ATR := not _signal_diverted_ATR and _ATR_volat > (_avg_atr + _std_volat*MULTIPLE_ATR_STD) or _ATR_volat < (_avg_atr - _std_volat*MULTIPLE_ATR_STD)
+// lognormal returns for trend prediction
+_len_drift = input(20, title="Confirmation: Lenth to lookback for trend prediction", group=GROUP_SIGNALS)
+_prcntge_chng = math.log(close / close[1])
+_drift = ta.sma(_prcntge_chng, _len_drift) - math.pow(ta.stdev(_prcntge_chng, _len_drift), 2) * 0.5
+_signal_uptrend = _drift > _drift[1] and _drift > _drift[2] or _drift > 0
+entry_signal_all = _signal_diverted_ATR and _signal_uptrend  //main signal + confirmation 
+// Order size and profit taking
+pcnt_alloc = input.int(5, title="Allocation (%) of portfolio into this security", tooltip="No rebalancing", minval=0, maxval=100, group=GROUP_ORDER) / 100
+// Taking profits at user defined target levels relative to risked amount (i.e 1R, 2R, 3R)
+var bool  tp_mode = input(true, title="Take profit and different levels")
+var float FIRST_LVL_PROFIT = input.float(1, title="First level profit", tooltip="Relative to risk. Example: entry at $10 and inital stop loss at $9. Taking first level profit at 1R means taking profits at $11", group=GROUP_TP)
+var float SECOND_LVL_PROFIT = input.float(2, title="Second level profit", tooltip="Relative to risk. Example: entry at $10 and inital stop loss at $9. Taking second level profit at 2R means taking profits at $12", group=GROUP_TP)
+var float THIRD_LVL_PROFIT = input.float(3, title="Third level profit", tooltip="Relative to risk. Example: entry at $10 and inital stop loss at $9. Taking third level profit at 3R means taking profits at $13", group=GROUP_TP)
+if tp_mode
+    if close >= initial_entry_p + THIRD_LVL_PROFIT * risk_amt
+        strategy.close(ENUM_LONG, comment="TP", qty=math.floor(initial_order_size / 3))
+    else if close >= initial_entry_p + SECOND_LVL_PROFIT * risk_amt
+        strategy.close(ENUM_LONG, comment="TP", qty=math.floor(initial_order_size / 3))
+    else if close >= initial_entry_p + FIRST_LVL_PROFIT * risk_amt
+        strategy.close(ENUM_LONG, comment="TP")
+// MAIN {
+// Update the stop limit if strategy holds a position
+if strategy.position_size > 0
+    strategy.exit(ENUM_LONG, comment="SL", stop=stop_loss_price)
+// Entry
+if within_timeframe and entry_signal_all and strategy.position_size == 0
+    initial_entry_p := close
+    risk_amt := ATR_X2_TSL
+    initial_order_size := math.floor(pcnt_alloc * strategy.equity / close)
+    strategy.entry(ENUM_LONG, strategy.long, comment=strategy.position_size > 0 ? "adding" : "initial", qty=initial_order_size)
+// Alerts
+alert_per_bar(msg) =>
+    prefix = "[" + syminfo.root + "] "
+    suffix = "(P=" + str.tostring(close, "#.##") + "; atr=" + str.tostring(_ATR_volat, "#.##") + ")"
+    alert(str.tostring(prefix) + str.tostring(msg) + str.tostring(suffix), alert.freq_once_per_bar)
+if strategy.position_size > 0 and ta.change(strategy.position_size)
+    if strategy.position_size > strategy.position_size[1]
+        alert_per_bar("BUY")
+    else if strategy.position_size < strategy.position_size[1]
+        alert_per_bar("SELL")
+// Clean up
+changed_pos_size = ta.change(strategy.position_size)
+if changed_pos_size and strategy.position_size == 0
+    initial_order_size := 0
+    initial_entry_p := float(0)
+    risk_amt := float(0)
+    stop_loss_price := float(0)
+else if changed_pos_size
+    _signal_diverted_ATR := false
+// } end of MAIN block
+Expand (109 lines)

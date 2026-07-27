@@ -1,0 +1,63 @@
+//@version=6
+// set04 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/VWAP偏差与OBV-RSI复合均值回归交易策略-VWAP-Deviation-and-OBV-RSI-Combined-Mean-Reversion-Trading-Strategy.md
+// content_hash: ed9a9fed7befa869
+// collected: 2026-07-27
+strategy('[Hoss] Combined Strategy', overlay=true)
+
+// Indikator 1: [Hoss] VWAP Deviation
+indicator_vwap = input.bool(true, title="Show VWAP Deviation Indicator", group="Visibility")
+length = input.int(60, title="VWAP Length", group="VWAP Settings")
+src = input(close, title="Source", group="VWAP Settings")
+
+// Berechnungen für VWAP
+vwmean = ta.wma(src, length)
+dev = ta.stdev(src, length)
+basis = vwmean
+upper_dev2 = vwmean + dev * 2
+lower_dev2 = vwmean - dev * 2
+
+// Plotting VWAP Deviation
+plot(indicator_vwap ? basis : na, color=color.gray, title='Basis', linewidth=2)
+plot1 = plot(indicator_vwap ? upper_dev2 : na, color=color.red, title='Upper Dev 2', linewidth=2)
+plot2 = plot(indicator_vwap ? lower_dev2 : na, color=color.green, title='Lower Dev 2', linewidth=2)
+fill(plot1, plot2, color=color.new(color.green, 80), title='Deviation Band')
+
+// Indikator 2: [Hoss] OBV RSI
+indicator_obv_rsi = input.bool(true, title="Show OBV RSI Indicator", group="Visibility")
+len = input.int(14, title="RSI Length", group="OBV RSI Settings")
+obv = ta.cum(ta.change(src) > 0 ? volume : ta.change(src) < 0 ? -volume : 0)
+rsi = ta.rsi(obv, len)
+
+// Plotting OBV RSI
+plot(indicator_obv_rsi ? rsi : na, color=color.blue, title="OBV RSI", linewidth=2)
+hline(70, title="Overbought", color=color.red, linestyle=hline.style_dashed)
+hline(30, title="Oversold", color=color.green, linestyle=hline.style_dashed)
+
+// Strategie: Kauf- und Verkaufssignale
+long_condition = not na(rsi) and rsi <= 30 and close <= lower_dev2
+short_condition = not na(rsi) and rsi >= 70 and close >= upper_dev2
+
+if (long_condition)
+    strategy.entry("Long", strategy.long, stop=close * 0.994) // Stop-Loss bei 0.6%
+
+if (short_condition)
+    strategy.entry("Short", strategy.short, stop=close * 1.006) // Stop-Loss bei 0.6%
+
+// Flash Close beim Erreichen des VWAP
+if (strategy.position_size > 0 and close >= basis)
+    strategy.close("Long")
+
+if (strategy.position_size < 0 and close <= basis)
+    strategy.close("Short")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/482452
+
+> Last Modified
+
+2025-02-18 15:02:17

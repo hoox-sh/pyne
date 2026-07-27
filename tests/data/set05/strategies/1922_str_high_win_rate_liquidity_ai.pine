@@ -1,0 +1,67 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多时段流动性扫荡趋势确认量化交易策略-Multi-Timeframe-Liquidity-Sweep-Trend-Confirmation-Quantitative-Trading-Strategy.md
+// content_hash: b38d09a802128c18
+// collected: 2026-07-27
+strategy("High-Win-Rate Liquidity AI", overlay=true, shorttitle="Liquidity AI", default_qty_type=strategy.percent_of_equity, default_qty_value=100)
+
+// === SETTINGS ===
+high_tf = input.timeframe("240", "High Timeframe Bias") // ✅ Fixed timeframe issue
+sl_factor = input.float(1.5, "Stop Loss Multiplier", step=0.1)
+tp_factor = input.float(3.0, "Take Profit Multiplier", step=0.1)
+alerts_on = input(true, "Enable Alerts")
+
+// === HIGH TIMEFRAME BIAS ===
+high_tf_high = request.security(syminfo.tickerid, high_tf, high)
+high_tf_low = request.security(syminfo.tickerid, high_tf, low)
+high_tf_trend = high_tf_high > ta.highest(high_tf_low, 10) ? 1 : -1
+
+// === ENTRY CONDITIONS ===
+liq_sweep_high = high > ta.highest(high, 20)[1]
+liq_sweep_low = low < ta.lowest(low, 20)[1]
+
+buy_signal = liq_sweep_low and high_tf_trend == 1
+sell_signal = liq_sweep_high and high_tf_trend == -1
+
+// === STOP LOSS & TAKE PROFIT ===
+long_sl = low - (ta.atr(14) * sl_factor) // SL for Buy
+long_tp = low + (ta.atr(14) * tp_factor) // TP for Buy
+short_sl = high + (ta.atr(14) * sl_factor) // SL for Sell
+short_tp = high - (ta.atr(14) * tp_factor) // TP for Sell
+
+// === PLOT SIGNALS ===
+plotshape(buy_signal, style=shape.labelup, color=color.green, location=location.belowbar, size=size.large, text="BUY ?")
+plotshape(sell_signal, style=shape.labeldown, color=color.red, location=location.abovebar, size=size.large, text="SELL ?")
+
+// Plot SL & TP
+plot(buy_signal ? long_sl : na, style=plot.style_stepline, color=color.red, linewidth=2, title="Buy SL")
+plot(buy_signal ? long_tp : na, style=plot.style_stepline, color=color.green, linewidth=2, title="Buy TP")
+plot(sell_signal ? short_sl : na, style=plot.style_stepline, color=color.red, linewidth=2, title="Sell SL")
+plot(sell_signal ? short_tp : na, style=plot.style_stepline, color=color.green, linewidth=2, title="Sell TP")
+
+// === EXECUTE STRATEGY TRADES ===
+if buy_signal
+    strategy.entry("BUY", strategy.long)
+    strategy.exit("Take Profit", from_entry="BUY", limit=long_tp, stop=long_sl)
+
+if sell_signal
+    strategy.entry("SELL", strategy.short)
+    strategy.exit("Take Profit", from_entry="SELL", limit=short_tp, stop=short_sl)
+
+// === ALERTS ===
+if alerts_on and buy_signal
+    alert("BUY Signal on " + syminfo.ticker + " | TP: " + str.tostring(long_tp) + " | SL: " + str.tostring(long_sl))
+
+if alerts_on and sell_signal
+    alert("SELL Signal on " + syminfo.ticker + " | TP: " + str.tostring(short_tp) + " | SL: " + str.tostring(short_sl))
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/488279
+
+> Last Modified
+
+2025-03-26 15:18:48

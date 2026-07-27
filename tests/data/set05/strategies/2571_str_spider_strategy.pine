@@ -1,0 +1,195 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多层波动带交易策略-Multi-Layer-Volatility-Band-Trading-Strategy.md
+// content_hash: fc7259a5c54506c8
+// collected: 2026-07-27
+strategy("Spider Strategy", overlay=true)
+
+ma(source, length, type) =>
+    switch type
+        "SMA" => ta.sma(source, length)
+        "Bollinger Bands" => ta.sma(source, length)
+        "EMA" => ta.ema(source, length)
+        "SMMA (RMA)" => ta.rma(source, length)
+        "WMA" => ta.wma(source, length)
+        "VWMA" => ta.vwma(source, length)
+
+stdev = input.int(56, "STDEV", group="Stdev")
+mult = input.float(2.3, "Multiplier", group="Stdev")
+ma_len = input.int(230, "Basis Length", group="Stdev")
+ma_type = input.string("SMA", title="MA Type", options=["SMA", "Bollinger Bands", "EMA", "SMMA (RMA)", "WMA", "VWMA"], group="Stdev")
+auto_mult = input.bool(true, "Dynamic Mult.", group="Stdev")
+basis_exit = input.bool(false, "Basis Exit", group="Stdev")
+
+col_int = input.int(12, "Collective Value", group="Collective")
+col_input = input.bool(true, "Collective Input", group="Collective")
+
+
+fib1 = input.float(0.236, "Fibonacci Level 1", group = "Fibonacci")
+fib2 = input.float(0.382, "Fibonacci Level 2", group = "Fibonacci")
+fib3 = input.float(0.5, "Fibonacci Level 3", group = "Fibonacci")
+fib4 = input.float(0.618, "Fibonacci Level 4", group = "Fibonacci")
+
+atr_len = input.int(30, "ATR", group="ATR")
+atr_bias = input.float(0.72, "Bias", group="ATR")
+
+shares = input.int(1, "Shares Amount", group="Strategy")
+
+if(col_input == true)
+    stdev := col_int
+    ma_len := col_int
+    atr_len := col_int
+
+if(auto_mult == true)
+    mult := ma(ta.tr(true), atr_len, ma_type) * atr_bias
+
+
+basis = ma(close, ma_len, ma_type)
+lower = basis - stdev * mult
+upper = basis + stdev * mult
+
+lower2 = basis - stdev * mult * fib1
+upper2 = basis + stdev * mult * fib1
+
+lower3 = basis - stdev * mult * fib2
+upper3 = basis + stdev * mult * fib2
+
+lower4 = basis - stdev * mult * fib3
+upper4 = basis + stdev * mult * fib3
+
+lower5 = basis - stdev * mult * fib4
+upper5 = basis + stdev * mult * fib4
+
+
+var lowerAct = false
+var lower2Act = false
+var lower3Act = false
+var lower4Act = false
+var lower5Act = false
+
+var upperAct = false
+var upper2Act = false
+var upper3Act = false
+var upper4Act = false
+var upper5Act = false
+
+
+plot(upper, "limit short", color.red)
+plot(upper2, "limit 1 short", color.red)
+plot(upper3, "limit 2 short", color.red)
+plot(upper4, "limit 3 short", color.red)
+plot(upper5, "limit 4 short", color.red)
+plot(basis, "basis", color.white)
+plot(lower, "limit long", color.green)
+plot(lower2, "limit 1 long", color.green)
+plot(lower3, "limit 2 long", color.green)
+plot(lower4, "limit 3 long", color.green)
+plot(lower5, "limit 4 long", color.green)
+
+
+if(lowerAct == false)
+    if(close < lower)
+        strategy.entry("long", strategy.long, shares)
+        lowerAct := true
+else
+    if(low > basis)
+        lowerAct := false
+
+
+if(lower2Act == false)
+    if(close < lower2)
+        strategy.entry("long", strategy.long, shares)
+        lower2Act := true
+else
+    if(low > basis)
+        lower2Act := false
+
+
+if(lower3Act == false)
+    if(close < lower3)
+        strategy.entry("long", strategy.long, shares)
+        lower3Act := true
+else
+    if(low > basis)
+        lower3Act := false
+
+
+if(lower4Act == false)
+    if(close < lower4)
+        strategy.entry("long", strategy.long, shares)
+        lower4Act := true
+else
+    if(low > basis)
+        lower4Act := false
+
+
+if(lower5Act == false)
+    if(close < lower5)
+        strategy.entry("long", strategy.long, shares)
+        lower5Act := true
+else
+    if(low > basis)
+        lower5Act := false
+
+
+
+
+
+if(upperAct == false)
+    if(close > upper)
+        strategy.entry("short", strategy.short, shares)
+        upperAct := true
+else
+    if(high < basis)
+        upperAct := false
+
+
+if(upper2Act == false)
+    if(close > upper2)
+        strategy.entry("short", strategy.short, shares)
+        upper2Act := true
+else
+    if(high < basis)
+        upper2Act := false
+
+
+if(upper3Act == false)
+    if(close > upper3)
+        strategy.entry("short", strategy.short, shares)
+        upper3Act := true
+else
+    if(high < basis)
+        upper3Act := false
+
+
+if(upper4Act == false)
+    if(close > upper4)
+        strategy.entry("short", strategy.short, shares)
+        upper4Act := true
+else
+    if(high < basis)
+        upper4Act := false
+
+
+if(upper5Act == false)
+    if(close > upper5)
+        strategy.entry("short", strategy.short, shares)
+        upper5Act := true
+else
+    if(high < basis)
+        upper5Act := false
+
+
+if((ta.crossover(close, basis) and basis_exit == true))
+    strategy.close("short")
+    strategy.close("long")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/458264
+
+> Last Modified
+
+2024-07-31 14:08:36

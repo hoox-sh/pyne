@@ -1,0 +1,10 @@
+//@version=6
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/language/type-system.md::type-system.md#block4
+// content_hash: 8248ab6d9ed99c9d
+// collected: 2026-07-27
+indicator("Cannot assign values with stronger qualifiers demo")
+
+// This declaration causes an error. The value of `close` is of the type "series float", 
+// but `myVar` accepts only a "const float" value.

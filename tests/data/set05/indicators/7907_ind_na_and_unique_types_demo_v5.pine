@@ -1,0 +1,13 @@
+//@version=5
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/migration-guides/to-pine-version-6.md::to-pine-version-6.md#block6
+// content_hash: e0cc38457949c69d
+// collected: 2026-07-27
+indicator("`na` and unique types demo v5")
+
+//@variable User-selected "string" to determine type of plot used for `plot()` function's `style` argument.
+string inputStyle = input.string("Area", "Plot style", options = ["Area", "Columns", "Histogram", "Stepline-diamond"])
+
+// Initialize an `input plot_style` type variable based on user's selected `inputStyle`.
+selectedPlotStyle = switch inputStyle

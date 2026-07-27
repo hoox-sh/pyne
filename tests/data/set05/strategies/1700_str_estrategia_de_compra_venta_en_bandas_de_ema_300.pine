@@ -1,0 +1,73 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于EMA均线波动带的多周期趋势跟踪交易系统-Multi-Period-Trend-Following-Trading-System-Based-on-EMA-Volatility-Bands.md
+// content_hash: 607053c77ea79940
+// collected: 2026-07-27
+strategy("Estrategia de Compra/Venta en Bandas de EMA 300", overlay=true)
+
+// Definir el período de la EMA
+periodo = input.int(300, title="Período de la EMA")
+
+// Calcular la EMA de 300
+ema_300 = ta.ema(close, periodo)
+
+// Definir el número de desviaciones estándar
+num_desviaciones = input.float(2, title="Número de Desviaciones Estándar")
+
+// Calcular la desviación estándar de la EMA de 300
+desviacion = ta.stdev(close, periodo)
+
+// Calcular los límites superior e inferior de las bandas
+banda_superior = ema_300 + desviacion * num_desviaciones
+banda_inferior = ema_300 - desviacion * num_desviaciones
+
+// Definir el porcentaje para las señales de compra y venta
+porcentaje = input.float(0.98, title="Porcentaje de Salida de Banda")
+
+// Definir señales de compra y venta
+compra = ta.crossover(close, banda_inferior)
+venta = ta.crossunder(close, banda_superior)
+
+// Calcular el precio de salida para las señales de compra y venta
+precio_salida_compra = close * (1 + porcentaje / 100)
+precio_salida_venta = close * (1 - porcentaje / 100)
+
+// Plotear las bandas
+plot(banda_superior, color=color.blue, linewidth=2, title="Banda Superior")
+plot(banda_inferior, color=color.red, linewidth=2, title="Banda Inferior")
+
+// Plotear las señales de compra y venta
+plotshape(compra, style=shape.triangleup, location=location.belowbar, color=color.green, size=size.small, title="Compra")
+plotshape(venta, style=shape.triangledown, location=location.abovebar, color=color.red, size=size.small, title="Venta")
+
+// Simular operaciones
+if (compra)
+    strategy.entry("Compra", strategy.long)
+if (venta)
+    strategy.entry("Venta", strategy.short)
+
+// Definir reglas de salida
+if (strategy.position_size > 0)
+    strategy.exit("Exit Long", from_entry="Compra", limit=precio_salida_compra)
+if (strategy.position_size < 0)
+    strategy.exit("Exit Short", from_entry="Venta", limit=precio_salida_venta)
+
+// Crear alertas
+alertcondition(compra, title="Alerta de Compra", message="¡Señal de Compra Detectada!")
+alertcondition(venta, title="Alerta de Venta", message="¡Señal de Venta Detectada!")
+
+// Mostrar alertas en el gráfico
+if (compra)
+    label.new(bar_index, low, text="Compra", style=label.style_label_up, color=color.green, textcolor=color.white)
+if (venta)
+    label.new(bar_index, high, text="Venta", style=label.style_label_down, color=color.red, textcolor=color.white)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/473318
+
+> Last Modified
+
+2024-11-29 10:49:30

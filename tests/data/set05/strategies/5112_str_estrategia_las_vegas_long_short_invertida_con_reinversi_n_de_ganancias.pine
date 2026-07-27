@@ -1,0 +1,62 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/反向拉斯维加斯定量交易策略Inverse-Las-Vegas-Algorithmic-Trading-Strategy.md
+// content_hash: b5701b449bd83182
+// collected: 2026-07-27
+strategy("Estrategia Las Vegas Long/Short Invertida con Reinversión de Ganancias", shorttitle="Las Vegas LS-Invertida-Reinversion", overlay=true)
+
+// Parámetros
+length = input(14, title="Longitud de comparación")
+offset = input(1, title="Desplazamiento")
+
+// Capital inicial
+capital_inicial = input(100, title="Capital Inicial")
+
+// Variables para el seguimiento de las ganancias
+var float capital_actual = capital_inicial
+var float ganancias_acumuladas = 0.0
+
+// Calcular el precio actual y el precio anterior
+current_price = close
+previous_price = security(syminfo.tickerid, "D", close[1])
+
+// Lógica de la estrategia invertida
+long_condition = current_price > previous_price
+short_condition = current_price < previous_price
+
+// Calcular el tamaño de la posición en función de las ganancias acumuladas y reinvertir
+if (long_condition or short_condition)
+    position_size = capital_actual / current_price
+    ganancias = position_size * (previous_price - current_price)  // Invertir la dirección
+    capital_actual := capital_actual + ganancias
+    ganancias_acumuladas := ganancias_acumuladas + ganancias
+
+// Reinvertir las ganancias en la próxima orden
+position_size_reinvested = capital_actual / current_price
+
+// Sumar las ganancias de los trades al monto de operación
+if (long_condition or short_condition)
+    capital_actual := capital_actual + ganancias_acumuladas
+
+// Colocar una orden SHORT (venta) cuando se cumpla la condición Long invertida
+strategy.entry("Short", strategy.short, when=long_condition)
+// Colocar una orden LONG (compra) cuando se cumpla la condición Short invertida
+strategy.entry("Long", strategy.long, when=short_condition)
+
+// Etiquetas para mostrar las condiciones en el gráfico
+plotshape(series=long_condition, title="Condición LONG", location=location.belowbar, color=color.green, style=shape.triangleup, size=size.small)
+plotshape(series=short_condition, title="Condición SHORT", location=location.abovebar, color=color.red, style=shape.triangledown, size=size.small)
+
+// Mostrar el capital actual y las ganancias acumuladas en el gráfico
+plot(capital_actual, title="Capital Actual", color=color.blue, linewidth=2)
+plot(ganancias_acumuladas, title="Ganancias Acumuladas", color=color.green, linewidth=2)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/433117
+
+> Last Modified
+
+2023-11-24 15:19:03

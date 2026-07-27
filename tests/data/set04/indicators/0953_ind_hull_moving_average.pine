@@ -1,0 +1,11 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block270
+// content_hash: 8229666107ca0887
+// collected: 2026-07-27
+indicator("Hull Moving Average")
+src = input(defval=close, title="Source")
+length = input(defval=9, title="Length")
+hmaBuildIn = ta.hma(src, length)
+plot(hmaBuildIn, title="Hull MA", color=#674EA7)

@@ -1,0 +1,12 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block114
+// content_hash: 9239e550960f8fb8
+// collected: 2026-07-27
+indicator("input.price", overlay=true)
+price1 = input.price(title="Date", defval=42)
+plot(price1)
+
+price2 = input.price(54, title="Date")
+plot(price2)

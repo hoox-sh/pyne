@@ -1,0 +1,11 @@
+//@version=5
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/v5/faq/other-data-and-timeframes.md::other-data-and-timeframes.md#block4
+// content_hash: b35bcc2267f5a3f2
+// collected: 2026-07-27
+indicator("HTF close" , overlay = true)
+float dailyClose = request.security(syminfo.tickerid, "1D", close[1], lookahead = barmerge.lookahead_on)
+plot(dailyClose)
+if timeframe.in_seconds() >= timeframe.in_seconds("1D")
+    runtime.error("Chart timeframe must be less than 1D.")

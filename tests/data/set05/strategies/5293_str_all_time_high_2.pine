@@ -1,0 +1,52 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/追踪历史新高的量化交易策略-Trend-Following-Strategy-Based-on-Historical-High.md
+// content_hash: 8f786b9624379d52
+// collected: 2026-07-27
+strategy("All-time-high", "ATH", overlay=true, initial_capital=10000, default_qty_value=100, default_qty_type=strategy.percent_of_equity, pyramiding=1, commission_type=strategy.commission.cash_per_contract, commission_value=0.000)
+
+// input
+Athlw = input(title="All-time-high line widths", type=input.integer, defval=4, minval=0, maxval=4)
+Athlc = input(title="All-time-high line color", type=input.color, defval=color.new(color.fuchsia,50))
+years = input(title="Years back to search for an ATH", type=input.integer, defval=6,minval=0, maxval=100)
+
+var float   highestHigh = 0
+// var line    allTimeHigh = line.new(na, na, na, na, extend=extend.both, color=Athlc, width=Athlw)
+
+if high > highestHigh
+    highestHigh := high
+
+// if barstate.islast
+//     line.set_xy1(allTimeHigh, bar_index-1, highestHigh)
+//     line.set_xy2(allTimeHigh, bar_index,   highestHigh)
+
+plot(highestHigh)
+buyzone=highestHigh*0.9
+buyzone2=highestHigh*0.8
+buyzone3=highestHigh*0.7
+sellzone=highestHigh*0.99
+
+plot(buyzone, color=color.red)
+plot(buyzone2, color=color.white)
+plot(buyzone3, color=color.green)
+
+begin = timestamp(2011,1,1,0,0)
+end = timestamp(2022,4,19,0,0)
+
+longCondition = close<buyzone2
+if (longCondition)
+    strategy.entry("Buy", strategy.long)
+closeCondition = close>sellzone
+if (closeCondition)
+    strategy.close("Buy", strategy.long)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/439594
+
+> Last Modified
+
+2024-01-22 08:59:34

@@ -1,0 +1,57 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双均线趋势交叉量化交易策略研究与优化-Dual-Moving-Average-Trend-Crossover-Quantitative-Trading-Strategy-Analysis-and-Optimization.md
+// content_hash: 036fb0354a4e2137
+// collected: 2026-07-27
+strategy("Simple MA Crossover Strategy", overlay=true)
+
+// Input parameters
+shortMA = ta.sma(close, 9)
+longMA = ta.sma(close, 21)
+
+// Buy/Sell conditions
+buyCondition = ta.crossover(shortMA, longMA)
+sellCondition = ta.crossunder(shortMA, longMA)
+
+// Plot moving averages
+plot(shortMA, color=color.blue, title="Short MA")
+plot(longMA, color=color.red, title="Long MA")
+
+// Execute trades
+if (buyCondition)
+    strategy.entry("Buy", strategy.long)
+
+if (sellCondition)
+    strategy.close("Buy")
+
+// Track trades, wins, and losses
+var int totalTrades = 0
+var int totalWins = 0
+var int totalLosses = 0
+
+if (strategy.opentrades > 0)
+    totalTrades := totalTrades + 1
+
+if (strategy.opentrades == 0 and strategy.opentrades[1] > 0)
+    if (strategy.netprofit > 0)
+        totalWins := totalWins + 1
+    else
+        totalLosses := totalLosses + 1
+
+// Plot trade statistics
+var label tradeStats = na
+if (not na(tradeStats))
+    label.delete(tradeStats)
+
+tradeStats := label.new(bar_index, high, text="Trades: " + str.tostring(totalTrades) + "\nWins: " + str.tostring(totalWins) + "\nLosses: " + str.tostring(totalLosses), style=label.style_label_down, color=color.white, textcolor=color.black)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/482789
+
+> Last Modified
+
+2025-02-27 17:48:50

@@ -1,0 +1,12 @@
+//@version=5
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/v5/faq/data-structures.md::data-structures.md#block19
+// content_hash: 476070be142db714
+// collected: 2026-07-27
+indicator("Debugging objects", overlay = true)
+
+// Define the user-defined type.
+type openLine
+    float price
+    int   openTime

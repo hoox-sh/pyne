@@ -1,0 +1,38 @@
+//@version=5
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/v5/concepts/strategies.md::strategies.md#block26
+// content_hash: 5c297f2374ad4edf
+// collected: 2026-07-27
+strategy("Exit persist demo", overlay = true, margin_long = 100, margin_short = 100, pyramiding = 100)
+
+//@variable The time when order creation starts. 
+int entryStartTime = input.time(0, "Start time for entries", confirm = true)
+//@variable The time when the `strategy.exit()` call occurs.
+int exitCallTime = input.time(0, "Exit call time", confirm = true)
+//@variable The time when order creation stops.
+int entryEndTime = input.time(0, "End time for entries", confirm = true)
+
+// Raise a runtime error if incorrect timestamps are chosen.
+if exitCallTime <= entryStartTime or entryEndTime <= exitCallTime or entryEndTime <= entryStartTime
+    runtime.error("The input timestamps must follow this condition: entryStartTime < exitCallTime < entryEndTime.")
+
+// Create variables to track entry and exit conditions. 
+bool entriesStart = time == entryStartTime
+bool callExit     = time == exitCallTime
+bool entriesEnd   = time == entryEndTime
+bool callEntry    = time >= entryStartTime and time < entryEndTime
+
+// Place a long entry order when `callEntry` is `true`.
+if callEntry
+    strategy.entry("Entry", strategy.long)
+
+// Call `strategy.exit()` when `callExit` is `true`, which occurs only once.
+// This single call only places exit orders for all entries with the "Entry" ID created before or on the bar where 
+// `callExit` occurs. It DOES NOT affect any subsequent entries created after that bar.
+if callExit
+    strategy.exit("Exit", from_entry = "Entry", loss = 0)
+
+// Draw labels to signify when entries start, when the `strategy.exit()` call occurs, and when order placement stops.
+switch 
+    entriesStart => label.new(

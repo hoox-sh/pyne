@@ -1,0 +1,415 @@
+//@version=5
+// set05 corpus entry
+// source_repo: markov-hedge-fund-method
+// source_path: markov-hedge-fund-method/pine-script/markov-hedge-fund-method.pine
+// content_hash: 833443c367838b7e
+// collected: 2026-07-27
+// =============================================================================
+// Markov Regime — Bull / Bear / Sideways
+// =============================================================================
+// Live, on-chart visualisation of the Markov regime framework.
+// Labels every bar Bull/Bear/Sideways using a rolling log-return rule, then
+// builds the 3x3 transition matrix and stationary distribution from visible
+// chart history and prints both as corner tables.
+//
+// Author: Lewis Jackson · Framework: Roan (@RohOnChain)
+// Companion video: youtube.com/@lewisjackson
+// REPO: github.com/jackson-video-resources/markov-hedge-fund-method
+//
+// USAGE — load on BTCUSDT daily. Adjust thresholds to taste. Defaults are 20-bar
+// lookback, +/-5% thresholds. The diagonal of the transition matrix (persistence)
+// is the load-bearing reveal — visually elevated by brighter cell tint + white
+// text vs off-diagonal at 70% white.
+//
+// TEST CASES (manual — needs TradingView to validate):
+//   - BTCUSDT daily, full history: ribbon flips Bull/Bear/Sideways at obvious
+//     regime turns (2017-Q4 parabolic, 2018 bear, 2020-03 COVID, 2024+ bull).
+//   - Each row of the transition matrix sums to ~100% (allow +/-0.5% for float
+//     rounding from row-normalisation).
+//   - Stationary distribution converges by 50 iterations on real BTC data and
+//     sums to 1.0 (+/-0.001). Reduce stationary_power if performance lags.
+//
+// PALETTE (matches Roan storyboard — hsl(150,38%,64%) / hsl(354,48%,64%) /
+// hsl(220,14%,68%) — desaturated muted tints, never neon):
+//   Bull    : rgb(132,187,161) — soft green
+//   Bear    : rgb(197,127,134) — muted rose
+//   Sideways: rgb(164,171,183) — cool grey
+// =============================================================================
+
+indicator("Markov Regime - Bull / Bear / Sideways", overlay = true, max_labels_count = 500)
+
+// ────────────────────────────────────────────────────────────────────────────
+// Inputs
+// ────────────────────────────────────────────────────────────────────────────
+grp_logic    = "Regime logic"
+grp_display  = "Display"
+grp_position = "Table positions"
+
+lookback_window    = input.int(20,   title = "Lookback window (bars)",        minval = 5,   maxval = 250, group = grp_logic, tooltip = "Number of bars used for the rolling log-return calculation.")
+bull_threshold_pct = input.float(5.0, title = "Bull threshold (%)",            minval = 0.1, maxval = 50.0, step = 0.1, group = grp_logic, tooltip = "Rolling log-return above this (in %) labels the bar Bull.")
+bear_threshold_pct = input.float(5.0, title = "Bear threshold (%)",            minval = 0.1, maxval = 50.0, step = 0.1, group = grp_logic, tooltip = "Rolling log-return below the negative of this (in %) labels the bar Bear. Set independently from Bull for asymmetric thresholds.")
+stationary_power   = input.int(50,   title = "Stationary power (iterations)", minval = 10,  maxval = 200, group = grp_logic, tooltip = "How many times to multiply the matrix when computing the stationary distribution. 50 is essentially converged for any well-behaved 3x3 stochastic matrix.")
+
+show_regime_ribbon     = input.bool(true, title = "Show regime ribbon",            group = grp_display)
+show_regime_banner     = input.bool(true, title = "Show current-regime banner",    group = grp_display)
+show_matrix_table      = input.bool(true, title = "Show transition matrix",        group = grp_display)
+show_stationary_table  = input.bool(true, title = "Show stationary distribution",  group = grp_display)
+show_transition_labels = input.bool(true, title = "Label state transitions on chart", group = grp_display, tooltip = "Drops a label on every bar where the regime changes, e.g. BULL → BEAR.")
+table_text_size        = input.string("huge", title = "Table text size", options = ["small","normal","large","huge"], group = grp_display, tooltip = "Size of the transition-matrix and long-run-mix tables. 'huge' is about 3x the old default - good for screen grabs.")
+min_regime_hold        = input.int(4, title = "Min bars a regime must hold to be labelled", minval = 1, maxval = 50, group = grp_display, tooltip = "A new regime must persist this many confirmed bars before its transition gets a chart label. Kills the label spam in choppy zones - higher = fewer, cleaner markers.")
+
+banner_position_input     = input.string("top_left",     title = "Banner position",      options = ["top_left","top_center","top_right","middle_left","middle_center","middle_right","bottom_left","bottom_center","bottom_right"], group = grp_position)
+matrix_position_input     = input.string("top_right",    title = "Matrix position",      options = ["top_left","top_center","top_right","middle_left","middle_center","middle_right","bottom_left","bottom_center","bottom_right"], group = grp_position)
+stationary_position_input = input.string("bottom_right", title = "Stationary position",  options = ["top_left","top_center","top_right","middle_left","middle_center","middle_right","bottom_left","bottom_center","bottom_right"], group = grp_position)
+
+// ────────────────────────────────────────────────────────────────────────────
+// Position-string → position constant mapping
+//
+// Pine's `position.*` constants are `simple` (script-load time), so this map
+// runs once at compile, not per-bar. Series-string -> simple-position is the
+// most common v5 footgun for configurable tables.
+// ────────────────────────────────────────────────────────────────────────────
+position_from_string(s) =>
+    switch s
+        "top_left"      => position.top_left
+        "top_center"    => position.top_center
+        "top_right"     => position.top_right
+        "middle_left"   => position.middle_left
+        "middle_center" => position.middle_center
+        "middle_right"  => position.middle_right
+        "bottom_left"   => position.bottom_left
+        "bottom_center" => position.bottom_center
+        "bottom_right"  => position.bottom_right
+        => position.top_right
+
+banner_pos     = position_from_string(banner_position_input)
+matrix_pos     = position_from_string(matrix_position_input)
+stationary_pos = position_from_string(stationary_position_input)
+
+// Table text size — value cells use the chosen size, headers/labels one
+// notch down so the hierarchy holds at any scale.
+size_from_string(s) =>
+    switch s
+        "small"  => size.small
+        "normal" => size.normal
+        "large"  => size.large
+        "huge"   => size.huge
+        => size.large
+notch_down(s) =>
+    switch s
+        "huge"   => "large"
+        "large"  => "normal"
+        "normal" => "small"
+        => "small"
+val_size = size_from_string(table_text_size)
+hdr_size = size_from_string(notch_down(table_text_size))
+
+// ────────────────────────────────────────────────────────────────────────────
+// Palette
+//
+// Pine's `color.rgb(r, g, b, transp)` uses transp 0–100 where 100 = fully
+// transparent (OPPOSITE of CSS alpha). Worth a comment so it's not fought
+// over later. Hex equivalents from the storyboard:
+//   Bull #84BBA1 (hsl 150,38,64) · Bear #C57F86 (hsl 354,48,64) · Side #A4ABB7 (hsl 220,14,68)
+// ────────────────────────────────────────────────────────────────────────────
+// Ribbon tints — high transparency (alpha ~30%, transp=70) so price stays hero
+c_bull_ribbon = color.rgb(132, 187, 161, 70)
+c_bear_ribbon = color.rgb(197, 127, 134, 70)
+c_side_ribbon = color.rgb(164, 171, 183, 70)
+
+// Solid swatches — lower transparency (alpha ~70%, transp=30) for diagonal cells & banner
+c_bull_solid  = color.rgb(132, 187, 161, 30)
+c_bear_solid  = color.rgb(197, 127, 134, 30)
+c_side_solid  = color.rgb(164, 171, 183, 30)
+
+// Off-diagonal cell tint — even more washed (alpha ~15%, transp=85)
+c_bull_dim    = color.rgb(132, 187, 161, 85)
+c_bear_dim    = color.rgb(197, 127, 134, 85)
+c_side_dim    = color.rgb(164, 171, 183, 85)
+
+// Chrome
+c_bg          = color.new(color.black, 30)
+c_text_active = color.white
+c_text_dim    = color.new(color.white, 30)
+c_border      = color.new(color.white, 60)
+
+// "Matrix card" palette — approximates references/05-list-cards/
+// matrix-card-target.png within Pine's limits (no rounded corners / glow).
+c_card_bg     = color.new(#0B0F0D, 8)             // near-black panel
+c_card_frame  = color.new(#3FDE7E, 78)            // faint green edge
+c_accent      = #3FDE7E                            // bright signal green
+c_diag_bg     = color.new(#3FDE7E, 80)            // green-tinted diagonal cell
+c_diag_txt    = #6BF0A6                            // bright green number
+c_off_txt     = color.new(color.white, 55)        // dim off-diagonal number
+c_hdr_txt     = color.new(color.white, 35)        // muted column/row header
+c_foot_txt    = color.new(color.white, 60)        // muted footer
+
+regime_solid(r) => r == 1 ? c_bull_solid  : r == 2 ? c_bear_solid  : c_side_solid
+regime_ribbon(r) => r == 1 ? c_bull_ribbon : r == 2 ? c_bear_ribbon : c_side_ribbon
+regime_dim(r)    => r == 1 ? c_bull_dim    : r == 2 ? c_bear_dim    : c_side_dim
+regime_name(r)   => r == 1 ? "Bull"        : r == 2 ? "Bear"        : "Sideways"
+regime_abbr(r)   => r == 1 ? "BULL"        : r == 2 ? "BEAR"        : "SIDE"
+
+// Display order (Bull / Bear / Side) -> internal regime code (0=Side, 1=Bull,
+// 2=Bear). The transition matrix P is built in internal-index order from
+// counts[r*3 + c], but the matrix table is displayed in Bull/Bear/Side order
+// for readability. This remap is the bridge between the two — without it the
+// cells were correctly counted but displayed under the wrong row/col labels.
+// Credit: Yaniv Haver for spotting the mismatch.
+disp_to_internal(d) => d == 0 ? 1 : d == 1 ? 2 : 0
+
+// ────────────────────────────────────────────────────────────────────────────
+// Per-bar regime label
+//
+// log_ret = log(close / close[lookback]) — total log-return over the window.
+// regime: 0 = Sideways, 1 = Bull, 2 = Bear (integer encoding matches spec §3).
+// ────────────────────────────────────────────────────────────────────────────
+log_ret = math.log(close / close[lookback_window])
+regime  = na(log_ret) ? int(na) : log_ret > bull_threshold_pct / 100.0 ? 1 : log_ret < -bear_threshold_pct / 100.0 ? 2 : 0
+
+// ────────────────────────────────────────────────────────────────────────────
+// Regime ribbon — subtle background tint per bar
+//
+// Default: `bgcolor()` at ~90% transparency (alpha ~10) so the price action
+// remains the hero. This paints the FULL bar background — Pine's `bgcolor`
+// can't be confined to a bottom band on an overlay indicator without breaking
+// chart auto-scale. We compensate with very high transparency (transp 90 of
+// 100, where 100 = fully transparent).
+//
+// If you want a literal bottom-anchored ribbon, swap to a separate non-
+// overlay indicator or use `plotshape` per-bar at a fixed bottom Y — but
+// that fights the chart's price-axis. The high-transparency bgcolor is the
+// pragmatic Pine v5 idiom.
+//
+// Open-question default: 90% transparency (transp=90 in Pine's inverted
+// scale). Ribbon palette already lives at transp=70 in c_*_ribbon — we add
+// 20 more by wrapping in color.new() with transp=90 below.
+// ────────────────────────────────────────────────────────────────────────────
+ribbon_color_for_bar = regime == 1 ? color.rgb(132, 187, 161, 90) : regime == 2 ? color.rgb(197, 127, 134, 90) : color.rgb(164, 171, 183, 90)
+bgcolor(show_regime_ribbon ? ribbon_color_for_bar : na, title = "Regime ribbon")
+
+// ────────────────────────────────────────────────────────────────────────────
+// Transition counting — persistent state across bars via `var`
+//
+// `var` arrays declare ONCE and persist across bars. Without `var` the array
+// would reset every bar and you'd see all zeroes. Row-major 3x3 flattened:
+// idx = prev_regime * 3 + curr_regime. We only count on confirmed bars to
+// avoid double-counting the live bar.
+// ────────────────────────────────────────────────────────────────────────────
+var counts = array.new_int(9, 0)
+
+prev_regime = regime[1]
+if barstate.isconfirmed and not na(prev_regime) and not na(regime)
+    idx = prev_regime * 3 + regime
+    array.set(counts, idx, array.get(counts, idx) + 1)
+
+// ────────────────────────────────────────────────────────────────────────────
+// Transition labels — DEBOUNCED so only durable regime changes get a marker
+//
+// The raw regime flips constantly in choppy zones (a label per bar = an
+// unreadable wall). Instead: a new regime must hold for `min_regime_hold`
+// confirmed bars before we draw ONE label, placed back at the bar where the
+// flip actually happened, e.g. "BULL -> BEAR". `last_lbl_regime` dedupes so
+// each durable change is marked exactly once. The transition COUNTS / matrix
+// still use the raw regime above — this filter is labels-only.
+// ────────────────────────────────────────────────────────────────────────────
+var int last_lbl_regime = na
+
+held = not na(regime)
+for k = 0 to min_regime_hold - 1
+    held := held and not na(regime[k]) and regime[k] == regime
+
+if barstate.isconfirmed and not na(regime) and held and regime != last_lbl_regime
+    if show_transition_labels and not na(last_lbl_regime)
+        flip_off = min_regime_hold - 1
+        label.new(bar_index - flip_off, high[flip_off], regime_abbr(last_lbl_regime) + "  ->  " + regime_abbr(regime), yloc = yloc.abovebar, style = label.style_label_down, color = regime_solid(regime), textcolor = color.white, size = size.normal)
+    last_lbl_regime := regime
+
+// ────────────────────────────────────────────────────────────────────────────
+// Table objects — created ONCE with `var` (NOT every bar)
+//
+// Recreating the table every bar is the most common v5 table footgun — it
+// causes flicker and burns CPU. `var` ensures `table.new` runs once, then
+// `table.cell` updates contents on the last bar.
+// ────────────────────────────────────────────────────────────────────────────
+var table tbl_banner     = table.new(banner_pos,     1, 1, bgcolor = c_bg,    border_width = 0)
+var table tbl_matrix     = table.new(matrix_pos,     4, 6, bgcolor = c_card_bg, border_width = 2, border_color = c_card_bg, frame_color = c_card_frame, frame_width = 1)
+var table tbl_stationary = table.new(stationary_pos, 3, 4, bgcolor = c_card_bg, border_width = 2, border_color = c_card_bg, frame_color = c_card_frame, frame_width = 1)
+
+// ────────────────────────────────────────────────────────────────────────────
+// 3x3 matrix multiplication
+//
+// Pine v5 has no general matrix-multiply primitive that we can rely on across
+// all builds. The `matrix.*` namespace exists in newer builds — we keep the
+// unrolled multiply as the primary path because (a) it's portable across all
+// v5 environments, (b) the matrix is fixed at 3x3 so unrolling is cheap, and
+// (c) it runs only once per render (gated by barstate.islast).
+//
+// Modern matrix.* alternative — UNCOMMENT if your TradingView build supports
+// it and you'd prefer it (halves the code; identical numerics):
+//
+//   matrix<float> Pm = matrix.new<float>(3, 3, 0.0)
+//   for r = 0 to 2
+//       for c = 0 to 2
+//           matrix.set(Pm, r, c, array.get(P_flat, r*3 + c))
+//   matrix<float> Mm = matrix.copy(Pm)
+//   for _ = 1 to stationary_power - 1
+//       Mm := matrix.mult(Mm, Pm)
+//
+// Below — unrolled fallback that runs everywhere.
+// ────────────────────────────────────────────────────────────────────────────
+matmul_3x3(A, B) =>
+    a00 = array.get(A, 0)
+    a01 = array.get(A, 1)
+    a02 = array.get(A, 2)
+    a10 = array.get(A, 3)
+    a11 = array.get(A, 4)
+    a12 = array.get(A, 5)
+    a20 = array.get(A, 6)
+    a21 = array.get(A, 7)
+    a22 = array.get(A, 8)
+
+    b00 = array.get(B, 0)
+    b01 = array.get(B, 1)
+    b02 = array.get(B, 2)
+    b10 = array.get(B, 3)
+    b11 = array.get(B, 4)
+    b12 = array.get(B, 5)
+    b20 = array.get(B, 6)
+    b21 = array.get(B, 7)
+    b22 = array.get(B, 8)
+
+    C = array.new_float(9, 0.0)
+    array.set(C, 0, a00 * b00 + a01 * b10 + a02 * b20)
+    array.set(C, 1, a00 * b01 + a01 * b11 + a02 * b21)
+    array.set(C, 2, a00 * b02 + a01 * b12 + a02 * b22)
+    array.set(C, 3, a10 * b00 + a11 * b10 + a12 * b20)
+    array.set(C, 4, a10 * b01 + a11 * b11 + a12 * b21)
+    array.set(C, 5, a10 * b02 + a11 * b12 + a12 * b22)
+    array.set(C, 6, a20 * b00 + a21 * b10 + a22 * b20)
+    array.set(C, 7, a20 * b01 + a21 * b11 + a22 * b21)
+    array.set(C, 8, a20 * b02 + a21 * b12 + a22 * b22)
+    C
+
+// Helper — format a probability (0..1) as integer percent, e.g. 0.823 → "82%"
+fmt_pct(p) => str.tostring(math.round(p * 100)) + "%"
+
+// ────────────────────────────────────────────────────────────────────────────
+// Last-bar: build P from counts, iterate to stationary, populate tables
+//
+// All heavy work gated on barstate.islast so it runs ONCE per chart render.
+// ────────────────────────────────────────────────────────────────────────────
+if barstate.islast
+
+    // ── Build P: row-normalise counts ──────────────────────────────────────
+    // P is a 3x3 stochastic matrix (rows sum to 1.0). If a regime never
+    // appears in visible history (row_sum == 0), we fall back to uniform 1/3
+    // — keeps the matrix-multiply numerically safe (no NaN propagation).
+    P = array.new_float(9, 0.0)
+    for r = 0 to 2
+        row_sum = array.get(counts, r * 3) + array.get(counts, r * 3 + 1) + array.get(counts, r * 3 + 2)
+        for c = 0 to 2
+            cell = row_sum > 0 ? array.get(counts, r * 3 + c) / row_sum : 1.0 / 3.0
+            array.set(P, r * 3 + c, cell)
+
+    // ── Stationary: iterate M := M * P, (stationary_power - 1) times ──────
+    // After 50 iterations any well-behaved 3x3 stochastic matrix has
+    // converged — every row of M holds the same stationary 3-vector.
+    M = array.copy(P)
+    for _i = 1 to stationary_power - 1
+        M := matmul_3x3(M, P)
+
+    // Any row of converged M is the stationary distribution; take row 0.
+    stat_bull = array.get(M, 0)
+    stat_bear = array.get(M, 1)
+    stat_side = array.get(M, 2)
+
+    // ────────────────────────────────────────────────────────────────────────
+    // Regime banner — top-left, single cell
+    // ────────────────────────────────────────────────────────────────────────
+    if show_regime_banner
+        table.cell(tbl_banner, 0, 0, "Currently: " + regime_name(regime), text_color = c_text_active, bgcolor = regime_solid(regime), text_size = size.large, text_halign = text.align_center, text_valign = text.align_center)
+
+    // ────────────────────────────────────────────────────────────────────────
+    // Transition matrix table — 4 cols × 5 rows
+    //
+    //   [title spanning header]              row 0  (title spanning conceptually — Pine has no rowspan/colspan, so we use one header cell + blanks)
+    //   [blank]   [Bull] [Bear] [Side]       row 1  (column header — "tomorrow")
+    //   [Bull]    [82%]  [ 6%]  [12%]        row 2
+    //   [Bear]    [ 8%]  [74%]  [18%]        row 3
+    //   [Side]    [21%]  [17%]  [62%]        row 4
+    //
+    // Diagonal cells get a brighter regime-tinted background + white text;
+    // off-diagonal cells get a washed regime-tinted background + 70%-white
+    // text. Pine has no bold flag — we lean on size + brighter colour for
+    // visual hierarchy. The diagonal is the load-bearing reveal.
+    // ────────────────────────────────────────────────────────────────────────
+    if show_matrix_table
+        // Title row (spans visually — Pine has no colspan so we paint cell (0,0)
+        // with the title and leave (1..3, 0) empty with the same bg)
+        // Row 0 — card header: "MARKOV REGIME" left (green), "3x3" right (muted)
+        table.cell(tbl_matrix, 0, 0, "MARKOV REGIME", text_color = c_accent,  bgcolor = c_card_bg, text_size = hdr_size, text_halign = text.align_left)
+        table.cell(tbl_matrix, 1, 0, "",              bgcolor = c_card_bg)
+        table.cell(tbl_matrix, 2, 0, "",              bgcolor = c_card_bg)
+        table.cell(tbl_matrix, 3, 0, "3x3",           text_color = c_foot_txt, bgcolor = c_card_bg, text_size = hdr_size, text_halign = text.align_right)
+
+        // Row 1 — column header (tomorrow's state), muted
+        table.cell(tbl_matrix, 0, 1, "",     bgcolor = c_card_bg)
+        table.cell(tbl_matrix, 1, 1, "BULL", text_color = c_hdr_txt, bgcolor = c_card_bg, text_size = hdr_size, text_halign = text.align_center)
+        table.cell(tbl_matrix, 2, 1, "BEAR", text_color = c_hdr_txt, bgcolor = c_card_bg, text_size = hdr_size, text_halign = text.align_center)
+        table.cell(tbl_matrix, 3, 1, "SIDE", text_color = c_hdr_txt, bgcolor = c_card_bg, text_size = hdr_size, text_halign = text.align_center)
+
+        // Rows 2-4 — one per "today" regime
+        for r = 0 to 2
+            row_name = r == 0 ? "BULL" : r == 1 ? "BEAR" : "SIDE"
+            table.cell(tbl_matrix, 0, r + 2, row_name, text_color = c_hdr_txt, bgcolor = c_card_bg, text_size = hdr_size, text_halign = text.align_center)
+
+            for c = 0 to 2
+                // Remap display row/col -> internal regime index so each cell
+                // shows the probability that actually belongs under its label.
+                ir       = disp_to_internal(r)
+                ic       = disp_to_internal(c)
+                p        = array.get(P, ir * 3 + ic)
+                is_diag  = (r == c)
+                // diagonal = green-tinted card cell, bright green number, big;
+                // off-diagonal = flat card bg, dim number, small.
+                cell_bg  = is_diag ? c_diag_bg : c_card_bg
+                cell_txt = is_diag ? c_diag_txt : c_off_txt
+                cell_sz  = is_diag ? val_size  : hdr_size
+                table.cell(tbl_matrix, c + 1, r + 2, fmt_pct(p), text_color = cell_txt, bgcolor = cell_bg, text_size = cell_sz, text_halign = text.align_center, text_valign = text.align_center)
+
+        // Row 5 — footer: "next-state P" left (muted), "live" right (green)
+        table.cell(tbl_matrix, 0, 5, "next-state P", text_color = c_foot_txt, bgcolor = c_card_bg, text_size = hdr_size, text_halign = text.align_left)
+        table.cell(tbl_matrix, 1, 5, "",            bgcolor = c_card_bg)
+        table.cell(tbl_matrix, 2, 5, "",            bgcolor = c_card_bg)
+        table.cell(tbl_matrix, 3, 5, "live",        text_color = c_accent, bgcolor = c_card_bg, text_size = hdr_size, text_halign = text.align_right)
+
+    // ────────────────────────────────────────────────────────────────────────
+    // Stationary distribution table — 3 cols × 3 rows
+    //
+    //   [title spanning]                                row 0
+    //   [Bull] [Bear] [Side]                            row 1
+    //   [41%]  [28%]  [31%]                             row 2
+    // ────────────────────────────────────────────────────────────────────────
+    if show_stationary_table
+        // Header — "LONG-RUN MIX" (green), matched to the matrix card
+        table.cell(tbl_stationary, 0, 0, "LONG-RUN MIX", text_color = c_accent, bgcolor = c_card_bg, text_size = hdr_size, text_halign = text.align_left)
+        table.cell(tbl_stationary, 1, 0, "",            bgcolor = c_card_bg)
+        table.cell(tbl_stationary, 2, 0, "",            bgcolor = c_card_bg)
+
+        table.cell(tbl_stationary, 0, 1, "BULL", text_color = c_hdr_txt, bgcolor = c_card_bg, text_size = hdr_size, text_halign = text.align_center)
+        table.cell(tbl_stationary, 1, 1, "BEAR", text_color = c_hdr_txt, bgcolor = c_card_bg, text_size = hdr_size, text_halign = text.align_center)
+        table.cell(tbl_stationary, 2, 1, "SIDE", text_color = c_hdr_txt, bgcolor = c_card_bg, text_size = hdr_size, text_halign = text.align_center)
+
+        table.cell(tbl_stationary, 0, 2, fmt_pct(stat_bull), text_color = c_diag_txt, bgcolor = c_diag_bg, text_size = val_size, text_halign = text.align_center, text_valign = text.align_center)
+        table.cell(tbl_stationary, 1, 2, fmt_pct(stat_bear), text_color = c_diag_txt, bgcolor = c_diag_bg, text_size = val_size, text_halign = text.align_center, text_valign = text.align_center)
+        table.cell(tbl_stationary, 2, 2, fmt_pct(stat_side), text_color = c_diag_txt, bgcolor = c_diag_bg, text_size = val_size, text_halign = text.align_center, text_valign = text.align_center)
+
+        // Footer — matches the matrix card's "live" cue
+        table.cell(tbl_stationary, 0, 3, "steady state", text_color = c_foot_txt, bgcolor = c_card_bg, text_size = hdr_size, text_halign = text.align_left)
+        table.cell(tbl_stationary, 1, 3, "",            bgcolor = c_card_bg)
+        table.cell(tbl_stationary, 2, 3, "live",        text_color = c_accent, bgcolor = c_card_bg, text_size = hdr_size, text_halign = text.align_right)
+
+// ────────────────────────────────────────────────────────────────────────────
+// End of file
+// =============================================================================

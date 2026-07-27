@@ -1,0 +1,150 @@
+//@version=6
+// set02 corpus entry
+// source_repo: casoon-pine-scripts
+// source_path: casoon-pine-scripts/indicators/money_flow/cvd_bias/cvd_bias.pine
+// content_hash: 9d8cf7214e142bbf
+// collected: 2026-07-27
+// ============================================================================
+// CVD Bias [WavesUnchained]
+// Version: 1.1.2
+// Author: WavesUnchained
+// Build: 2026-06-30 00:00:00
+// ============================================================================
+// Estimates Cumulative Volume Delta over a rolling window: buying volume
+// (close near high × bar volume) minus selling volume (close near low × bar
+// volume), accumulated as a running total rather than an EMA. CVD reveals
+// whether buyers or sellers have been dominant and whether that dominance is
+// building or fading — a different layer from momentum oscillators.
+//
+// Features:
+//   ✓ Per-bar delta: (2 × close_location − 1) × volume
+//   ✓ Rolling CVD: sum over configurable window, normalized to −1..+1
+//   ✓ CVD rate of change: acceleration of accumulation/distribution
+//   ✓ Price/CVD divergence: price new N-bar extreme while CVD rate opposes
+//   ✓ Dashboard: CVD level, rate, divergence state
+//   ✓ Alerts: bull/bear divergence, CVD zero cross
+//
+// ============================================================================
+
+indicator("CVD Bias [WavesUnchained]", "CVD [WU]", overlay=false)
+
+// ─── Inputs ───────────────────────────────────────────────────────────────────
+
+grCVD      = "CVD Settings"
+cvdLen     = input.int(50,  "Accumulation Window",    minval=10, maxval=500,  group=grCVD,
+     tooltip="Bars over which volume delta is summed. Longer = smoother, slower to react.")
+normLen    = input.int(200, "Normalization Lookback",  minval=20, maxval=1000, group=grCVD,
+     tooltip="Lookback for finding recent CVD amplitude. Used to keep the oscillator on a −1..+1 scale.")
+rocLen     = input.int(5,   "Rate of Change Length",  minval=1,  maxval=30,   group=grCVD)
+
+grDiv      = "Divergence"
+enableDiv  = input.bool(true, "Detect Price/CVD Divergences", group=grDiv)
+pivLeft    = input.int(5, "Swing Left Bars", minval=1, group=grDiv)
+pivRight   = input.int(5, "Swing Right Bars", minval=1, group=grDiv,
+     tooltip="Lookback period for confirming a pivot high or low. Larger values reduce noise but increase signal delay.")
+
+grD        = "Display"
+showDash   = input.bool(true, "Show Dashboard", group=grD)
+
+// ─── Per-bar volume delta ─────────────────────────────────────────────────────
+// closeLoc = 0: closed at low (full bear bar), 1: closed at high (full bull bar)
+// delta = net buy/sell volume estimate per bar
+
+hl       = high - low
+closeLoc = hl > 0 ? (close - low) / hl : 0.5
+delta    = (2.0 * closeLoc - 1.0) * nz(volume)
+
+// ─── Rolling CVD + normalization ─────────────────────────────────────────────
+
+cvdRaw  = math.sum(delta, cvdLen)
+cvdAmp  = ta.highest(math.abs(cvdRaw), normLen)
+cvdNorm = cvdAmp > 0 ? cvdRaw / cvdAmp : 0.0
+
+// Rate of change: how fast is the balance shifting
+cvdRoc = cvdNorm - nz(cvdNorm[rocLen])
+
+// ─── Divergence: structural swing-pivot divergence ───────────────────────────
+ph = ta.pivothigh(high, pivLeft, pivRight)
+pl = ta.pivotlow(low,   pivLeft, pivRight)
+
+prevPh = ta.valuewhen(not na(ph), high[pivRight], 1)
+prevPl = ta.valuewhen(not na(pl), low[pivRight], 1)
+
+prevCvdAtPh = ta.valuewhen(not na(ph), cvdNorm[pivRight], 1)
+prevCvdAtPl = ta.valuewhen(not na(pl), cvdNorm[pivRight], 1)
+
+bearDivRaw = not na(ph) and not na(prevPh) and high[pivRight] > prevPh and cvdNorm[pivRight] < prevCvdAtPh
+bullDivRaw = not na(pl) and not na(prevPl) and low[pivRight] < prevPl and cvdNorm[pivRight] > prevCvdAtPl
+
+bearDiv = enableDiv and bearDivRaw
+bullDiv = enableDiv and bullDivRaw
+
+// ─── Colors ───────────────────────────────────────────────────────────────────
+
+bullC    = color.new(#00c853, 0)
+bearC    = color.new(#d50000, 0)
+neutC    = color.new(color.gray, 30)
+cvdColor = cvdNorm > 0.2 ? bullC : cvdNorm < -0.2 ? bearC : neutC
+rocColor = cvdRoc >= 0 ? color.new(#00c853, 40) : color.new(#d50000, 40)
+
+// ─── Plots ────────────────────────────────────────────────────────────────────
+
+hline(0,    "Zero",      color=color.new(color.gray, 50))
+hline(0.5,  "Bull Zone", color=color.new(#00c853, 70), linestyle=hline.style_dotted)
+hline(-0.5, "Bear Zone", color=color.new(#d50000, 70), linestyle=hline.style_dotted)
+
+plot(cvdNorm, "CVD Bias", color=cvdColor, linewidth=2)
+plot(cvdRoc,  "CVD Rate", color=rocColor, linewidth=1)
+
+plotshape(bearDiv, "Bear Div", shape.triangledown, location.top,    color=bearC, size=size.small, offset=-pivRight)
+plotshape(bullDiv, "Bull Div", shape.triangleup,   location.bottom, color=bullC, size=size.small, offset=-pivRight)
+
+// ─── Dashboard ────────────────────────────────────────────────────────────────
+
+color tc = color.new(color.gray, 20)
+color hd = color.new(color.gray, 90)
+
+var table t = table.new(position.top_right, 2, 5,
+     bgcolor=color.new(color.white, 5),
+     border_color=color.new(color.gray, 60), border_width=1,
+     frame_color=color.new(color.gray, 40), frame_width=1)
+
+if showDash and barstate.islast
+    table.cell(t, 0, 0, "CVD Bias",   text_color=tc, bgcolor=hd, text_size=size.small)
+    table.cell(t, 1, 0, "Value",      text_color=tc, bgcolor=hd, text_size=size.small)
+
+    string cvdState = "Neutral"
+    if cvdNorm > 0.5
+        cvdState := "Strong Bull"
+    else if cvdNorm > 0.2
+        cvdState := "Bull"
+    else if cvdNorm < -0.5
+        cvdState := "Strong Bear"
+    else if cvdNorm < -0.2
+        cvdState := "Bear"
+    cvdC = cvdNorm > 0.2 ? bullC : cvdNorm < -0.2 ? bearC : tc
+
+    table.cell(t, 0, 1, "State",      text_color=tc,   text_size=size.small)
+    table.cell(t, 1, 1, cvdState,     text_color=cvdC, text_size=size.small)
+    table.cell(t, 0, 2, "CVD",        text_color=tc,   text_size=size.small)
+    table.cell(t, 1, 2, str.tostring(cvdNorm, "#.##"), text_color=cvdC, text_size=size.small)
+
+    rocStr = cvdRoc >= 0 ? "Rising ↑" : "Falling ↓"
+    rocC2  = cvdRoc >= 0 ? bullC : bearC
+    table.cell(t, 0, 3, "Rate",       text_color=tc,    text_size=size.small)
+    table.cell(t, 1, 3, rocStr,       text_color=rocC2, text_size=size.small)
+
+    divState = bearDiv ? "Bear Div!" : bullDiv ? "Bull Div!" : "—"
+    divC     = bearDiv ? bearC : bullDiv ? bullC : tc
+    table.cell(t, 0, 4, "Divergence", text_color=tc,   text_size=size.small)
+    table.cell(t, 1, 4, divState,     text_color=divC, text_size=size.small)
+
+// ─── Alerts ───────────────────────────────────────────────────────────────────
+
+bool alertsOnBarClose = input.bool(true, "Alerts only on bar close (confirmed)", group="Alerts")
+bool alertOk = not alertsOnBarClose or barstate.isconfirmed
+
+alertcondition(alertOk and (bullDiv), "CVD Bull Divergence", "CVDB · BULL CVD DIV · {{ticker}} {{interval}}")
+alertcondition(alertOk and (bearDiv), "CVD Bear Divergence", "CVDB · BEAR CVD DIV · {{ticker}} {{interval}}")
+alertcondition(alertOk and (ta.crossover(cvdNorm, 0)),  "CVD Cross Up",   "CVDB · CROSS UP · {{ticker}} {{interval}}")
+alertcondition(alertOk and (ta.crossunder(cvdNorm, 0)), "CVD Cross Down", "CVDB · CROSS DOWN · {{ticker}} {{interval}}")

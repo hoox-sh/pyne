@@ -1,0 +1,61 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多因子顶部旋转反转策略与风险收益优化系统-Multi-Factor-Spinning-Top-Reversal-Strategy-with-Risk-Reward-Optimization.md
+// content_hash: c21ff14d2ad3486d
+// collected: 2026-07-27
+strategy("Strategy Spinning Top with SL & TP", overlay=true, initial_capital=10000, default_qty_type=strategy.percent_of_equity, default_qty_value=10)
+
+// Check candlestick color
+isGreen = close > open
+isRed = close < open
+
+// Check if the previous 3 candles are the same color
+threePrevGreen = isGreen[1] and isGreen[2] and isGreen[3]
+threePrevRed = isRed[1] and isRed[2] and isRed[3]
+
+// Check if the current candle is the opposite color of the previous 3 candles
+colorChangeBullish = threePrevRed and isGreen
+colorChangeBearish = threePrevGreen and isRed
+
+// Spinning Top conditions
+bodySize = math.abs(close - open)
+upperWick = high - math.max(close, open)
+lowerWick = math.min(close, open) - low
+
+// Spinning Top conditions
+isSmallBody = bodySize < ((high - low) * 0.3)
+isWicksBalanced = math.abs(upperWick - lowerWick) <= (high - low) * 0.2
+
+isSpinningTop = isSmallBody and isWicksBalanced
+
+// Combine all conditions
+finalCondition = (colorChangeBullish or colorChangeBearish) and isSpinningTop
+
+// Entry, SL, TP
+if finalCondition
+    if colorChangeBullish
+        entryPrice = close
+        slPrice = low - 4
+        tpPrice = entryPrice + (entryPrice - slPrice) * 1.5
+        strategy.entry("Long", strategy.long)
+        strategy.exit("Exit Long", "Long", stop=slPrice, limit=tpPrice)
+        label.new(bar_index + 1, high, "Long Entry\nEntry: " + str.tostring(entryPrice) + "\nSL: " + str.tostring(slPrice) + "\nTP: " + str.tostring(tpPrice), color=color.green)
+
+    else if colorChangeBearish
+        entryPrice = close
+        slPrice = high + 4
+        tpPrice = entryPrice - (slPrice - entryPrice) * 1.5
+        strategy.entry("Short", strategy.short)
+        strategy.exit("Exit Short", "Short", stop=slPrice, limit=tpPrice)
+        label.new(bar_index + 1, high, "Short Entry\nEntry: " + str.tostring(entryPrice) + "\nSL: " + str.tostring(slPrice) + "\nTP: " + str.tostring(tpPrice), color=color.red)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/488382
+
+> Last Modified
+
+2025-03-27 09:54:23

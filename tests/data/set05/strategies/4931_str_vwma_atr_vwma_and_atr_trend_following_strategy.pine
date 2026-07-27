@@ -1,0 +1,73 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于VWMA及ATR的趋势跟踪策略VWMA-and-ATR-Trend-Following-Strategy.md
+// content_hash: a625190dd1c75e79
+// collected: 2026-07-27
+//strategy("", overlay=true)
+strategy(title="VWMA_withATRstops_strategy V2", overlay=true, pyramiding=1,     default_qty_type=strategy.percent_of_equity,  default_qty_value=20, initial_capital=10000, currency=currency.USD)  //default_qty_value=10, default_qty_type=strategy.fixed,
+
+float xATRTrailingStop=na
+int pos=na
+
+vwmalength = input(33, title="VWMA Length", minval=1, maxval=365)
+//vwmalength2 = input(9, title="VWAM Short Term Length", minval=1, maxval=365)
+nATRPeriod = input(33, title="ATR length", minval=1, maxval=365)
+nATRMultip = input(3.5, title="ATR Multiplier")
+
+rsiofVwmaLength=input(14, title="RSI of VWMA Length")
+
+riskCapital = input(title="Risk % of capital", defval=10, minval=1)
+stopLoss=input(5,title="Stop Loss",minval=1)
+
+vwmaVal=vwma(close, vwmalength)
+//vwmaVal2=vwma(close, vwmalength2)
+//maVal=sma(close, vwmalength)
+
+plot(vwmaVal, color=color.orange, linewidth=2,  title="VWMA")
+//plot(vwmaVal2, color=color.blue, title="VWMA Short Term")
+//plot(maVal, color=color.blue, title="MA")
+
+//rsi of vwma Longterm
+rsiofVwmaVal=rsi(vwmaVal,rsiofVwmaLength)
+
+xATR = atr(nATRPeriod)
+nLoss = nATRMultip * xATR
+
+xATRTrailingStop:= iff(close > nz(xATRTrailingStop[1], 0) and close[1] > nz(xATRTrailingStop[1], 0), max(nz(xATRTrailingStop[1]), close - nLoss), iff(close < nz(xATRTrailingStop[1], 0) and close[1] < nz(xATRTrailingStop[1], 0), min(nz(xATRTrailingStop[1]), close + nLoss), iff(close > nz(xATRTrailingStop[1], 0), close - nLoss, close + nLoss)))
+
+pos:=	iff(close[1] < nz(xATRTrailingStop[1], 0) and close > nz(xATRTrailingStop[1], 0), 1, 	    iff(close[1] > nz(xATRTrailingStop[1], 0) and close < nz(xATRTrailingStop[1], 0), -1, nz(pos[1], 0))) 
+
+color1 = pos == -1 ? color.red: pos == 1 ? color.green : color.blue 
+
+//plot(xATRTrailingStop, color=color1, title="ATR Trailing Stop")
+
+//Entry--
+//Echeck how many units can be purchased based on risk manage ment and stop loss
+qty1 = (strategy.equity  * riskCapital / 100 ) /  (close*stopLoss/100)  
+
+//check if cash is sufficient  to buy qty1  , if capital not available use the available capital only
+qty1:= (qty1 * close >= strategy.equity ) ? (strategy.equity / close) : qty1
+
+
+//Long Entry
+//strategy.entry(id="VWMA LE", long=true, qty=qty1, when= close >vwmaVal and open>vwmaVal and close>open and close > xATRTrailingStop and xATRTrailingStop>  vwmaVal)
+
+strategy.entry(id="VWMA LE", long=true, qty=qty1, when= rsiofVwmaVal>=30 and  close>open and close>vwmaVal and pos == 1 )    ///pos == 1 means ATRStop line is green    
+//vwmaVal2>vwmaVal and
+
+plot(strategy.position_size>=1  ? xATRTrailingStop : na, color=color1, style=plot.style_linebr, title="ATR Trailing Stop")
+bgcolor(strategy.position_size>=1 ? color.blue : na )
+
+//Exit
+strategy.close(id="VWMA LE",  when= strategy.position_size>=1 and crossunder(close, xATRTrailingStop)  )
+//strategy.close(id="VWMA LE",  when= strategy.position_size>=1 and close<vwmaVal and open<vwmaVal and close<open )
+```
+
+> Detail
+
+https://www.fmz.com/strategy/431414
+
+> Last Modified
+
+2023-11-07 16:39:47

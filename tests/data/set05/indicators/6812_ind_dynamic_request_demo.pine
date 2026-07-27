@@ -1,0 +1,16 @@
+//@version=6
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/migration-guides/to-pine-version-6.md::to-pine-version-6.md#block1
+// content_hash: 28303dbdedb54dda
+// collected: 2026-07-27
+indicator("Dynamic `request` demo")
+//For v5: must add `dynamic_requests = true` to `indicator()` for this code to work.
+
+//@variable User-input toggle to display each symbol's `close` price on chart alongside average `close`.
+bool showSymbols = input.bool(false, "Plot symbol closes")
+
+//@variable Persistent array of "string" symbol ticker IDs to request for our custom index.
+var array<string> symbols = array.from("NASDAQ:MSFT", "NASDAQ:AAPL", "NASDAQ:GOOGL", "NASDAQ:NVDA")
+
+//@variable Array storing the `close` prices for the `symbols` on each bar.

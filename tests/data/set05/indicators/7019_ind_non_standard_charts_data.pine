@@ -1,0 +1,11 @@
+//@version=6
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/concepts/non-standard-charts-data.md::non-standard-charts-data.md#block7
+// content_hash: 7f881725e417ab7f
+// collected: 2026-07-27
+indicator("", "", true)
+pnfTicker = ticker.pointfigure(syminfo.tickerid, "hl", "ATR", 14, 3)
+[pnfO, pnfC] = request.security(pnfTicker, timeframe.period, [open, close], barmerge.gaps_on)
+plot(pnfO, "PnF Open", color.green, 4, plot.style_linebr)
+plot(pnfC, "PnF Close", color.red, 4, plot.style_linebr)         Previous       Libraries      Next   Other timeframes and data              On this pageIntroductionticker.heikinashi()ticker.renko()ticker.linebreak()ticker.kagi()ticker.pointfigure()

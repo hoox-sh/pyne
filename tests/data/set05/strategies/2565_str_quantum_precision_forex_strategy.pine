@@ -1,0 +1,55 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/量子精确多指标趋势交叉交易策略-Quantum-Precision-Multi-Indicator-Trend-Crossover-Trading-Strategy.md
+// content_hash: 2fd04d7b32438665
+// collected: 2026-07-27
+strategy("Quantum Precision Forex Strategy", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=10)
+
+// Input parameters
+atrLength = input(14, "ATR Length")
+atrMultiplier = input(2.0, "ATR Multiplier")
+riskRewardRatio = input(3, "Risk-Reward Ratio")
+confirmationLength = input(10, "Confirmation Period")
+
+// ATR Calculation
+aTR = ta.atr(atrLength)
+stopLoss = atrMultiplier * aTR
+takeProfit = stopLoss * riskRewardRatio
+
+// Custom Quantum Confirmation Indicator
+momentum = ta.mom(close, confirmationLength)
+volatility = ta.stdev(close, 20) > ta.sma(ta.stdev(close, 20), 50)
+trendStrength = ta.ema(close, 20) > ta.ema(close, 50)
+confirmationSignal = momentum > 0 and volatility and trendStrength
+
+// Entry Conditions
+longCondition = confirmationSignal and ta.crossover(ta.ema(close, 10), ta.ema(close, 30))
+shortCondition = not confirmationSignal and ta.crossunder(ta.ema(close, 10), ta.ema(close, 30))
+
+if (longCondition)
+    strategy.entry("Quantum Long", strategy.long)
+    strategy.exit("Quantum Exit Long", from_entry="Quantum Long", stop=close - stopLoss, limit=close + takeProfit)
+
+if (shortCondition)
+    strategy.entry("Quantum Short", strategy.short)
+    strategy.exit("Quantum Exit Short", from_entry="Quantum Short", stop=close + stopLoss, limit=close - takeProfit)
+
+// Neural Adaptive Trendlines
+trendlineShort = ta.linreg(close, 10, 0)
+trendlineLong = ta.linreg(close, 50, 0)
+plot(trendlineShort, title="Short-Term Trendline", color=color.blue, linewidth=2)
+plot(trendlineLong, title="Long-Term Trendline", color=color.red, linewidth=2)
+
+// AI-Inspired Market Sentiment Indicator
+marketSentiment = ta.correlation(ta.ema(close, 10), ta.ema(close, 50), 20)
+plot(marketSentiment, title="Market Sentiment", color=color.green)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/483115
+
+> Last Modified
+
+2025-02-21 14:13:12

@@ -1,0 +1,44 @@
+//@version=2
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双EMA配以RSI的趋势交易策略Dual-EMA-with-RSI-Trend-Following-Strategy.md
+// content_hash: 6674df8795b7df72
+// collected: 2026-07-27
+strategy("MACD + RSI", overlay=true)
+
+src = input(close,"Source")
+
+//MACD
+len1 = input(8, title="MACD Fast Length")
+len2 = input(24, title="MACD Slow Length")
+ema1 = ema(src,len1)
+ema2 = ema(src,len2)
+div = ema1-ema2
+long_macd = div>div[1]
+short_macd = div<div[1]
+
+//RSI
+len = input(7, minval=1, title="RSI Length")
+rsi_threshold = input(0.2,minval=0,maxval=0.5, title="RSI Threshold")
+rsi = rsi(src,len)
+long_rsi = rsi<30*(1+rsi_threshold)
+short_rsi = rsi>70*(1-rsi_threshold)
+
+
+//POSITIONING
+if (long_macd)
+    if(long_rsi)
+        strategy.entry("Long", strategy.long)
+
+if (short_macd)
+    if(short_rsi)
+        strategy.entry("Short", strategy.short)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/428103
+
+> Last Modified
+
+2023-09-28 16:17:53

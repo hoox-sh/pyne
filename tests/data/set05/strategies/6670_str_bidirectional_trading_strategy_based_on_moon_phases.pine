@@ -1,0 +1,137 @@
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于月相的双向交易策略Bidirectional-Trading-Strategy-Based-on-Moon-Phases.md
+// content_hash: 5814ec61265d8ff8
+// collected: 2026-07-27
+strategy(title="[astropark] Moon Phases [strategy]", overlay=true, pyramiding = 10, default_qty_type = strategy.percent_of_equity, default_qty_value = 100, initial_capital = 100000, currency = currency.USD, commission_value = 0.1)
+
+// INPUT    --- {
+
+newMoonColor = input(color.black, "New Moon Color")
+fullMoonColor = input(color.white, "Full Moon Color")
+
+fillBackground = input(true, "Fill Background?")
+newMoonBackgroundColor = input(#fffff0aa, "New Moon Background Color")
+fullMoonBackgroundColor = input(#aaaaaaaa, "Full Moon Background Color")
+
+//} --- INPUT
+
+// FUNCTION --- {
+
+normalize(_v) =>
+    x = _v
+    x := x - floor(x)
+    if x < 0
+        x := x + 1
+    x
+
+calcPhase(_year, _month, _day) =>
+
+    int y = na
+    int m = na
+    float k1 = na 
+    float k2 = na 
+    float k3 = na
+    float jd = na
+    float ip = na
+
+    y := _year - floor((12 - _month) / 10)       
+    m := _month + 9
+    if m >= 12 
+        m := m - 12
+    
+    k1 := floor(365.25 * (y + 4712))
+    k2 := floor(30.6 * m + 0.5)
+    k3 := floor(floor((y / 100) + 49) * 0.75) - 38
+    
+    jd := k1 + k2 + _day + 59
+    if jd > 2299160
+        jd := jd - k3
+    
+    ip := normalize((jd - 2451550.1) / 29.530588853)
+    age = ip * 29.53
+
+//} --- FUNCTION
+
+// INIT     --- {
+
+age = calcPhase(year, month, dayofmonth)
+moon = 
+     floor(age)[1] > floor(age) ? 1 : 
+     floor(age)[1] < 15 and floor(age) >= 15 ? -1 : na
+
+//} --- INIT
+
+// PLOT     --- {
+
+plotshape(
+     moon==1, 
+     "Full Moon", 
+     shape.circle, 
+     location.top, 
+     color.new(newMoonColor, 20), 
+     size=size.normal
+     )   
+
+plotshape(
+     moon==-1, 
+     "New Moon", 
+     shape.circle, 
+     location.bottom, 
+     color.new(fullMoonColor, 20), 
+     size=size.normal
+     )   
+
+var color col = na
+if moon == 1 and fillBackground
+    col := fullMoonBackgroundColor
+if moon == -1 and fillBackground
+    col := newMoonBackgroundColor
+bgcolor(col, title="Moon Phase", transp=10)
+
+//} --- PLOT
+
+
+// STRATEGY     --- {
+
+strategy = input("buy on new moon, sell on full moon", options=["buy on new moon, sell on full moon","sell on new moon, buy on full moon"])
+longCond = strategy == "buy on new moon, sell on full moon" ? moon == -1 : moon == 1
+shortCond = strategy == "buy on new moon, sell on full moon" ? moon == 1 : moon == -1
+
+weAreInLongTrade = false
+weAreInShortTrade = false
+weAreInLongTrade := (longCond or weAreInLongTrade[1]) and shortCond == false
+weAreInShortTrade := (shortCond or weAreInShortTrade[1]) and longCond == false
+buySignal = longCond and weAreInLongTrade[1] == false
+sellSignal = shortCond and weAreInShortTrade[1] == false
+
+showBuySellSignals = input(defval=true, title = "Show Buy/Sell Signals")
+longEnabled = input(true, title="Long enabled")
+shortEnabled = input(true, title="Short enabled")
+
+analysisStartYear = input(2017, "Backtesting From Year", minval=1980)
+analysisStartMonth = input(1, "And Month", minval=1, maxval=12)
+analysisStartDay = input(1, "And Day", minval=1, maxval=31)
+analysisStartHour = input(0, "And Hour", minval=0, maxval=23)
+analysisStartMinute = input(0, "And Minute", minval=0, maxval=59)
+analyzeFromTimestamp = timestamp(analysisStartYear, analysisStartMonth, analysisStartDay, analysisStartHour, analysisStartMinute)
+
+plotshape(showBuySellSignals and buySignal, title="Buy Label", text="Buy", location=location.belowbar, style=shape.labelup, size=size.tiny, color=color.green, textcolor=color.white, transp=0)
+plotshape(showBuySellSignals and sellSignal, title="Sell Label", text="Sell", location=location.abovebar, style=shape.labeldown, size=size.tiny, color=color.red, textcolor=color.white, transp=0)
+
+strategy.entry("long", strategy.long, when = time > analyzeFromTimestamp and buySignal and longEnabled)
+strategy.entry("short", strategy.short, when = time > analyzeFromTimestamp and sellSignal and shortEnabled)
+strategy.close("long", when = sellSignal)
+strategy.close("short", when = buySignal)
+
+//} --- STRATEGY
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/442402
+
+> Last Modified
+
+2024-02-21 16:15:25

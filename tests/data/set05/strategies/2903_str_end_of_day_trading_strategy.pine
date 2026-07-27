@@ -1,0 +1,46 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/收盘买开盘卖策略Closing-Position-Strategy.md
+// content_hash: 79f4b69b3e8a46bb
+// collected: 2026-07-27
+strategy("End of Day Trading Strategy", overlay=true)
+
+// Get the daily open, high, low, and close prices
+daily_open = request.security(syminfo.tickerid, "D", open)
+daily_close = request.security(syminfo.tickerid, "D", close)
+
+// Calculate the 200 period SMA on daily close
+sma200 = ta.sma(daily_close, 200)
+
+// Define the entry and exit conditions
+end_of_day = (hour == 20) and (minute == 0) // Assuming the end of the regular trading hours is 20:00
+start_of_day = (hour == 9) and (minute == 30) // Assuming the start of the trading session is 09:30
+
+long_condition = end_of_day and (daily_close > sma200)
+short_condition = end_of_day and (daily_close < sma200)
+
+// Execute the strategy logic
+if (long_condition)
+    strategy.entry("Long", strategy.long)
+if (short_condition)
+    strategy.entry("Short", strategy.short)
+
+// Exit conditions
+if (strategy.position_size > 0 and start_of_day) // If we are long, sell at the open of the session
+    strategy.close("Long")
+if (strategy.position_size < 0 and start_of_day) // If we are short, buy at the open of the session
+    strategy.close("Short")
+
+// Plot the SMA on the chart
+plot(sma200, "200 SMA", color=color.blue)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/431676
+
+> Last Modified
+
+2023-11-10 14:25:30

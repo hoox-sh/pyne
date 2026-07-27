@@ -1,0 +1,46 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双均线交叉动态优化量化交易策略-Dynamic-Dual-Moving-Average-Crossover-Quantitative-Trading-Strategy.md
+// content_hash: 12b696215fd2c2b0
+// collected: 2026-07-27
+strategy("Moving Average Crossover", overlay=true)
+
+// Define the length for short-term and long-term EMAs
+shortEmaLength = 9
+longEmaLength = 21
+
+// Calculate EMAs
+shortEma = ta.ema(close, shortEmaLength)
+longEma = ta.ema(close, longEmaLength)
+
+// Plot EMAs on the chart
+plot(shortEma, title="Short-term EMA", color=color.green, linewidth=2)
+plot(longEma, title="Long-term EMA", color=color.red, linewidth=2)
+
+// Strategy conditions for crossovers
+longCondition = ta.crossover(shortEma, longEma)
+shortCondition = ta.crossunder(shortEma, longEma)
+
+// Enter long when short EMA crosses above long EMA
+if (longCondition)
+    strategy.entry("Buy", strategy.long)
+
+// Exit long or enter short when short EMA crosses below long EMA
+if (shortCondition)
+    strategy.entry("Sell", strategy.short)
+
+// Optional: Add stop-loss and take-profit levels for risk management
+stopLossPercent = 2
+takeProfitPercent = 4
+
+strategy.exit("Sell TP/SL", "Buy", stop=low * (1 - stopLossPercent/100), limit=high * (1 + takeProfitPercent/100))
+```
+
+> Detail
+
+https://www.fmz.com/strategy/473268
+
+> Last Modified
+
+2024-11-28 17:15:28

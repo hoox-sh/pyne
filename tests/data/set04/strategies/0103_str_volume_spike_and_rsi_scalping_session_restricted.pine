@@ -1,0 +1,55 @@
+//@version=6
+// set04 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/成交量异常与相对强弱指数优化交易策略-Volume-Spike-and-RSI-Enhanced-Trading-Strategy.md
+// content_hash: 84b12256b62cacd7
+// collected: 2026-07-27
+strategy("Volume Spike & RSI Scalping (Session Restricted)", overlay=true)
+
+// Inputs
+rsi_length = input(14, title="RSI Length")
+overSold = input(30, title="RSI Oversold Level")
+overBought = input(70, title="RSI Overbought Level")
+volume_threshold = input(1.5, title="Volume Spike Multiplier (e.g., 1.5x avg volume)")
+risk_reward_ratio = input(2.0, title="Risk-Reward Ratio (1:X)")
+atr_length = input(14, title="ATR Length")
+
+
+
+// RSI Calculation
+vrsi = ta.rsi(close, rsi_length)
+
+// Volume Spike Detection
+avg_volume = ta.sma(volume, 20)
+volume_spike = volume > avg_volume * volume_threshold
+
+// Entry Signals Based on RSI and Volume
+long_condition = volume_spike and vrsi < overSold and close > open // Bullish price action
+short_condition = volume_spike and vrsi > overBought and close < open // Bearish price action
+
+// Execute Trades
+if (long_condition)
+    stop_loss = low - ta.atr(atr_length)
+    take_profit = close + (close - stop_loss) * risk_reward_ratio
+    strategy.entry("Buy", strategy.long, comment="Buy Signal")
+    strategy.exit("Take Profit/Stop Loss", "Buy", stop=stop_loss, limit=take_profit)
+
+if (short_condition)
+    stop_loss = high + ta.atr(atr_length)
+    take_profit = close - (stop_loss - close) * risk_reward_ratio
+    strategy.entry("Sell", strategy.short, comment="Sell Signal")
+    strategy.exit("Take Profit/Stop Loss", "Sell", stop=stop_loss, limit=take_profit)
+
+// Background Highlighting for Signals
+bgcolor(long_condition ? color.new(color.green, 85) : na, title="Long Signal Background")
+bgcolor(short_condition ? color.new(color.red, 85) : na, title="Short Signal Background")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/482875
+
+> Last Modified
+
+2025-02-20 16:08:21

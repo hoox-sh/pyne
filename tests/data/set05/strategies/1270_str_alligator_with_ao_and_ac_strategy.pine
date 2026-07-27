@@ -1,0 +1,89 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多指标交叉动量趋势跟踪策略结合止盈止损优化系统-Multi-Indicator-Crossover-Momentum-Trend-Following-Strategy-with-Optimized-Take-Profit-and-Stop-Loss-System.md
+// content_hash: 2f20276c79e4f0dc
+// collected: 2026-07-27
+strategy("Alligator with AO and AC Strategy", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=10)
+
+// ---------------------------- Индикатор Аллигатор ----------------------------
+
+// Параметры Аллигатора
+jawLength = input.int(13, title="Jaw Length")
+teethLength = input.int(8, title="Teeth Length")
+lipsLength = input.int(5, title="Lips Length")
+
+jawOffset = input.int(8, title="Jaw Offset")
+teethOffset = input.int(5, title="Teeth Offset")
+lipsOffset = input.int(3, title="Lips Offset")
+
+// Расчёт скользящих средних
+jawLine = ta.sma(close, jawLength)
+teethLine = ta.sma(close, teethLength)
+lipsLine = ta.sma(close, lipsLength)
+
+// Сдвиг линий
+jaw = jawLine[jawOffset]
+teeth = teethLine[teethOffset]
+lips = lipsLine[lipsOffset]
+
+// Отображение линий Аллигатора
+plot(jaw, color=color.blue, linewidth=2, title="Jaw (13,8)")
+plot(teeth, color=color.red, linewidth=2, title="Teeth (8,5)")
+plot(lips, color=color.green, linewidth=2, title="Lips (5,3)")
+
+// ---------------------------- Awesome Oscillator (AO) ----------------------------
+
+// Расчёт AO
+medianPrice = (high + low) / 2
+ao = ta.sma(medianPrice, 5) - ta.sma(medianPrice, 34)
+
+// Отображение AO
+hline(0, "Zero Line", color=color.gray)
+plot(ao, title="Awesome Oscillator", color=(ao >= 0 ? color.green : color.red), style=plot.style_histogram, linewidth=2)
+
+// ---------------------------- Accelerator Oscillator (AC) ----------------------------
+
+// Расчёт AC
+ac = ao - ta.sma(ao, 5)
+
+// Отображение AC
+plot(ac, title="Accelerator Oscillator", color=(ac >= 0 ? color.green : color.red), style=plot.style_histogram, linewidth=2)
+
+// ---------------------------- Логика сигналов и управление позицией ----------------------------
+
+// Условия для открытия длинной позиции
+longCondition = ta.crossover(lips, teeth) and ao > 0 and ac > 0
+if (longCondition)
+    // Определение уровней stop-loss и take-profit
+    stopLevel = ta.lowest(low, 5) // Минимум за последние 5 свечей
+    takeProfit = close + (close - stopLevel) * 2 // Соотношение риска к прибыли 1:2
+
+    // Открытие длинной позиции
+    strategy.entry("Long", strategy.long)
+    strategy.exit("Take Profit", "Long", limit=takeProfit, stop=stopLevel)
+
+// Условия для открытия короткой позиции
+shortCondition = ta.crossunder(lips, teeth) and ao < 0 and ac < 0
+if (shortCondition)
+    // Определение уровней stop-loss и take-profit
+    stopLevelShort = ta.highest(high, 5) // Максимум за последние 5 свечей
+    takeProfitShort = close - (stopLevelShort - close) * 2 // Соотношение риска к прибыли 1:2
+
+    // Открытие короткой позиции
+    strategy.entry("Short", strategy.short)
+    strategy.exit("Take Profit Short", "Short", limit=takeProfitShort, stop=stopLevelShort)
+
+// Отображение уровней на графике
+plotshape(series=longCondition, title="Buy Signal", location=location.belowbar, color=color.green, style=shape.labelup, text="BUY")
+plotshape(series=shortCondition, title="Sell Signal", location=location.abovebar, color=color.red, style=shape.labeldown, text="SELL")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/474050
+
+> Last Modified
+
+2024-12-05 16:21:07

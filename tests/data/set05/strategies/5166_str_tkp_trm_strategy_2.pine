@@ -1,0 +1,59 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/真实相对运动MA均线策略True-Relative-Movement-Moving-Average-Strategy.md
+// content_hash: 7ff35f25060e04b6
+// collected: 2026-07-27
+strategy("TKP-TRM Strategy", overlay=true)
+Note = input( 0, title = "TSI standard values are 25, 13, 13, and RSI is 14. Can change the default values to these for 'Slow TRM'")
+long = input(title="TSI-Long Length", type=input.integer, defval=25)
+short = input(title="TSI-Short Length", type=input.integer, defval=5)
+signal = input(title="TSI-Signal Length", type=input.integer, defval=14)
+price = close
+double_smooth(src, long, short) =>
+    fist_smooth = ema(src, long)
+    ema(fist_smooth, short)
+pc = change(price)
+double_smoothed_pc = double_smooth(pc, long, short)
+double_smoothed_abs_pc = double_smooth(abs(pc), long, short)
+tsi_value = 100 * (double_smoothed_pc / double_smoothed_abs_pc)
+TSI_Signal_Line = (ema(tsi_value, signal))
+
+
+/////////////////////////////RSI////////////////////////////////////////////////
+
+src = close, len = input(5, minval=1, title="RSILength")
+up = rma(max(change(src), 0), len)
+down = rma(-min(change(src), 0), len)
+rsi = down == 0 ? 100 : up == 0 ? 0 : 100 - (100 / (1 + up / down))
+rsiBuyfilterlevel = input(50, minval = 1, title = "RSI cross above Buy Level")
+rsiSellfilterlevel = input(50, minval = 1, title = "RSI cross below Sell Level")
+
+////////////////////////////Bar Coloring//////////////////////////////////////////////////////////
+
+TRM_Buy = ((tsi_value > TSI_Signal_Line) and (rsi > rsiBuyfilterlevel))
+TRM_Sell = ( (tsi_value < TSI_Signal_Line) and (rsi <rsiSellfilterlevel))
+TRM_Color = TRM_Buy? #3BB3E4 : TRM_Sell? #FF006E : #b2b5be
+barcolor(TRM_Color)
+
+
+///////////////////////////Strategy Paramters////////////////////////////////////////
+
+if (TRM_Buy)
+    strategy.entry("Long", strategy.long, comment="Long")
+
+if (TRM_Sell)
+    strategy.close("Long", comment="Sell")
+
+
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/440443
+
+> Last Modified
+
+2024-01-30 16:04:19

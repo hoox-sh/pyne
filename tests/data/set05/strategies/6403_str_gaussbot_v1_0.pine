@@ -1,0 +1,56 @@
+//@version=2
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/高斯波浪预测策略The-Gauss-Wave-Forecasting-Strategy.md
+// content_hash: e975b7a77b623edf
+// collected: 2026-07-27
+strategy("Gaussbot v1.0", overlay=true)
+
+p = input(20, minval=1, title="Length")
+price = input(open, title="Source")
+
+pi=3.1415926535
+
+
+w=2*pi/p
+beta = (1 - cos(w))/(pow(1.414,2.0/3) - 1)
+alfa = -beta + sqrt(beta*beta + 2*beta)
+ret=  pow(alfa,4)*price+4*(1-alfa)*nz(ret[1])-6*pow(1-alfa,2)*nz(ret[2])+4*pow(1-alfa,3)*nz(ret[3])-pow(1-alfa,4)*nz(ret[4])
+ret2 = pow(alfa,4)*ret+4*(1-alfa)*nz(ret2[1])-6*pow(1-alfa,2)*nz(ret2[2])+4*pow(1-alfa,3)*nz(ret2[3])-pow(1-alfa,4)*nz(ret2[4])
+ret3 = pow(alfa,4)*ret2+4*(1-alfa)*nz(ret3[1])-6*pow(1-alfa,2)*nz(ret3[2])+4*pow(1-alfa,3)*nz(ret3[3])-pow(1-alfa,4)*nz(ret3[4])
+ret4 = 3*ret-3*ret2+ret3
+
+
+diff2 = nz(ret[1]) - nz(ret[2]) - (nz(ret[2]) - nz(ret[3]) )  
+diff22 = nz(ret2[1]) - nz(ret2[2]) - (nz(ret2[2]) - nz(ret2[3]) ) 
+diff23 = nz(ret3[1]) - nz(ret3[2]) - (nz(ret3[2]) - nz(ret3[3]) )  
+diff24 = nz(ret4[1]) - nz(ret4[2]) - (nz(ret4[2]) - nz(ret4[3]) )  
+
+
+longCondition =    price[0] - ret4[1]  > 0
+shortCondition =  price[0] - ret4[1] < 0
+
+if(longCondition and shortCondition)
+    longCondition = longCondition[1]
+    shortCondition = shortCondition[1]
+if(longCondition==false and shortCondition==false)
+    longCondition = longCondition[1]
+    shortCondition = shortCondition[1]
+
+
+
+if (longCondition==true and shortCondition == false) 
+    strategy.entry("Gaussbot Long", strategy.long )
+if (longCondition==false and shortCondition == true)
+    strategy.entry("Gaussbot Short", strategy.short)
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/439625
+
+> Last Modified
+
+2024-01-22 12:37:40

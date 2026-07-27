@@ -1,0 +1,117 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/Ichimoku-Kumo交易策略Ichimoku-Kumo-Trading-Strategy.md
+// content_hash: 35e4e40762bc2ba8
+// collected: 2026-07-27
+strategy(
+     "Kumo Trade Concept", 
+     overlay=true,
+     initial_capital=10000,
+     currency=currency.USDT,
+     default_qty_type=strategy.percent_of_equity, 
+     default_qty_value=30,
+     commission_type=strategy.commission.percent,
+     commission_value=0.1,
+     margin_long=10, 
+     margin_short=10)
+
+
+// ICHIMOKU Lines 
+//  INPUTS
+tenkanSenPeriods = input.int(9, minval=1, title="Tenkan-sen")
+kijunSenPeriods = input.int(26, minval=1, title="Kijun-sen")
+senkouBPeriod = input.int(52, minval=1, title="Senkou span B")
+displacement = input.int(26, minval=1, title="Chikou span")
+
+donchian(len) => math.avg(ta.lowest(len), ta.highest(len))
+tenkanSen = donchian(tenkanSenPeriods)
+kijunSen = donchian(kijunSenPeriods)
+senkouA = math.avg(tenkanSen, kijunSen)
+senkouB = donchian(senkouBPeriod)
+
+// Other Indicators
+float   atrValue    = ta.atr(5)
+
+// Calculate Senkou Span A 25 bars back
+senkouA_current = math.avg(tenkanSen[25], kijunSen[25])
+// Calculate Senkou Span B 25 bars back
+senkouB_current = math.avg(ta.highest(senkouBPeriod)[25], ta.lowest(senkouBPeriod)[25])
+
+// Kumo top bottom 
+senkou_max = (senkouA_current >= senkouB_current) ? senkouA_current : senkouB_current
+senkou_min = (senkouB_current >= senkouA_current) ? senkouA_current : senkouB_current
+
+// Trade Setups
+long_setup = (kijunSen > senkou_max) and (close < senkou_min) 
+short_setup = (kijunSen < senkou_min ) and ( close > senkou_max ) 
+
+// Check long_setup for the last 10 bars
+long_setup_last_10 = false
+for i = 0 to 50
+    if long_setup[i]
+        long_setup_last_10 := true
+short_setup_last_10 = false
+for i = 0 to 50
+    if short_setup[i]
+        short_setup_last_10 := true
+
+
+closeSenkouCross = (close > senkou_max) and barstate.isconfirmed 
+closeKijunCross = (close > kijunSen ) 
+
+senkouCloseCross = close < senkou_min
+kijunCloseCross = close < kijunSen
+
+
+// Handle Trades
+// Enter Trade
+var float trailStopLong = na
+var float trailStopShort = na
+if ( closeSenkouCross and long_setup_last_10 and closeKijunCross ) 
+    strategy.entry(id="Buy", direction = strategy.long)
+    trailStopLong := na
+if senkouCloseCross and short_setup_last_10 and kijunCloseCross
+    strategy.entry(id="Sell", direction = strategy.short)
+    trailStopShort := na
+
+
+// Update trailing stop
+float temp_trailStop_long = ta.highest(high, 5) - (atrValue * 3)
+float temp_trailStop_short = ta.lowest(low, 5) + (atrValue * 3)
+if strategy.position_size > 0
+    if temp_trailStop_long > trailStopLong or na(trailStopLong)
+        trailStopLong := temp_trailStop_long
+if strategy.position_size < 0
+    if temp_trailStop_short < trailStopShort or na(trailStopShort)
+        trailStopShort := temp_trailStop_short
+
+// Handle strategy exit
+if close < trailStopLong and barstate.isconfirmed
+    strategy.close("Buy", comment="Stop Long")
+if close > trailStopShort and barstate.isconfirmed
+    strategy.close("Sell", comment="Stop Short")
+
+
+// PRINT ON CHART
+plot(kijunSen, color=color.rgb(214, 58, 30), title="Kijun-sen", linewidth=2)
+p1 = plot(senkouA, offset=displacement - 1, color=#A5D6A7, title="Senkou span A")
+p2 = plot(senkouB, offset=displacement - 1, color=#EF9A9A, title="Senkou Span B")
+fill(p1, p2, color=senkouA > senkouB ? color.rgb(67, 160, 71, 90) : color.rgb(244, 67, 54, 90))
+// PRINT SETUPS
+plotshape(long_setup , style=shape.circle, color=color.green, location=location.belowbar, size=size.small)
+plotshape(short_setup, style=shape.circle, color=color.red, location=location.abovebar, size=size.small)
+
+// Trail Stop
+plot(strategy.position_size[1] > 0 ? trailStopLong : na, style=plot.style_linebr, color=color.purple, title="Stop Loss")
+plot(strategy.position_size[1] < 0 ? trailStopShort : na, style=plot.style_linebr, color=color.purple, title="Stop Loss")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/452829
+
+> Last Modified
+
+2024-05-29 17:23:36

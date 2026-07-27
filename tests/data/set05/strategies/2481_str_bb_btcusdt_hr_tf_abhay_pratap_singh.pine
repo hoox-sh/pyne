@@ -1,0 +1,56 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/布林带精确交叉突破量化策略Bollinger-Bands-Precise-Crossover-Quantitative-Strategy.md
+// content_hash: 995e897d24e1747c
+// collected: 2026-07-27
+strategy("BB BTCUSDT !HR TF ~ Abhay Pratap Singh)", overlay=true)
+
+// Bollinger Bands settings
+multiplier = 1.2
+length = 20
+src = close
+basis = ta.sma(src, length)
+dev = ta.stdev(src, length)
+upper_band = basis + (multiplier * dev)
+lower_band = basis - (multiplier * dev)
+
+
+// Trigger candle conditions
+buy_trigger = (high < lower_band and low < lower_band)  // Both high and low are below the lower band
+sell_trigger = (high > upper_band and low > upper_band)  // Both high and low are above the upper band
+
+// Entry conditions for Buy and Sell
+buy_entry = buy_trigger[1] and close > high[1]  // Buy if the next candle closes above the trigger candle's high
+sell_entry = sell_trigger[1] and close < low[1]  // Sell if the next candle closes below the trigger candle's low
+
+// Draw horizontal lines for the trigger candle's high and low
+var line buy_trigger_line = na
+var line sell_trigger_line = na
+
+// if (buy_entry)
+//     buy_trigger_line := line.new(x1=bar_index[1], y1=low[1], x2=bar_index, y2=low[1], color=color.green, width=2, style=line.style_solid)
+
+// if (sell_entry)
+//     sell_trigger_line := line.new(x1=bar_index[1], y1=high[1], x2=bar_index, y2=high[1], color=color.red, width=2, style=line.style_solid)
+
+// Execute strategy entries
+if (buy_entry)
+    strategy.entry("Buy", strategy.long)
+
+if (sell_entry)
+    strategy.entry("Sell", strategy.short)
+
+// Optional plot for debugging or visualization
+plotshape(series=buy_entry, title="Buy Signal", location=location.belowbar, color=color.green, style=shape.labelup, text="BUY")
+plotshape(series=sell_entry, title="Sell Signal", location=location.abovebar, color=color.red, style=shape.labeldown, text="SELL")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/469615
+
+> Last Modified
+
+2024-10-14 11:38:31

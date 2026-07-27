@@ -1,0 +1,128 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/Tom-DeMark-Sequential-Heat-Map.md
+// content_hash: db0e1588e991301a
+// collected: 2026-07-27
+indicator(title='Tom DeMark Sequential Heat Map', shorttitle='TD heatmap', overlay=true, timeframe='')
+//A heat map for TD counts. If you find this useful or yank the code, please consider a donation :)
+
+// -------- Inputs --------
+paintBars = input(title='Paint Bars', defval=true)
+showLabels = input(title='Show labels', defval=true)
+
+buy_col = input(#32CD32,0,'Colors',inline='col')
+sell_col = input(#F44336,0,'',inline='col')
+text_col = input(#FFFFFF,0,'',inline='col')
+
+
+// -------- Bearish trend (blue) color selection --------
+getBuyColor(count) =>
+    if count == 1
+        color.new(#11e7f2,0)
+    else
+        if count == 2
+            color.new(#11d9f2,0)
+        else
+            if count == 3
+                color.new(#11cbf2,0)
+            else
+                if count == 4
+                    color.new(#11aff2,0)
+                else
+                    if count == 5
+                        color.new(#1193f2,0)
+                    else
+                        if count == 6
+                            color.new(#1176f2,0)
+                        else
+                            if count == 7
+                                color.new(#105df4,0)
+                            else
+                                if count == 8
+                                    color.new(#1051f5,0)
+                                else
+                                    if count == 9
+                                        color.new(#0f44f5,0)
+                                    else
+                                        if count == 10
+                                            color.new(#0c3de0,0)
+                                        else
+                                            if count == 11
+                                                color.new(#0935ca,0)
+                                            else
+                                                if count == 12
+                                                    color.new(#062eb4,0)
+                                                else
+                                                    if count == 13
+                                                        color.new(#02269e,0)
+
+// -------- Bullish trend (blue) color selection --------
+getSellColor(count) =>
+    if count == 1
+        color.new(#eef211,0)
+    else
+        if count == 2
+            color.new(#efdc11,0)
+        else
+            if count == 3
+                color.new(#f0c511,0)
+            else
+                if count == 4
+                    color.new(#f1af11,0)
+                else
+                    if count == 5
+                        color.new(#f29811,0)
+                    else
+                        if count == 6
+                            color.new(#f28811,0)
+                        else
+                            if count == 7
+                                color.new(#f27811,0)
+                            else
+                                if count == 8
+                                    color.new(#f26811,0)
+                                else
+                                    if count == 9
+                                        color.new(#f25811,0)
+                                    else
+                                        if count == 10
+                                            color.new(#ea420d,0)
+                                        else
+                                            if count == 11
+                                                color.new(#e12c09,0)
+                                            else
+                                                if count == 12
+                                                    color.new(#d81605,0)
+                                                else
+                                                    if count == 13
+                                                        color.new(#cf0000,0)
+
+// -------- Calculate bearish trend sequence --------
+buySetup = 0
+buySetup := close < close[4] ? buySetup[1] == 13 ? 1 : buySetup[1] + 1 : 0
+
+
+// -------- Calculate bullish trend sequence --------
+sellSetup = 0
+sellSetup := close > close[4] ? sellSetup[1] == 13 ? 1 : sellSetup[1] + 1 : 0
+
+
+// -------- Paint bars --------
+barColour = buySetup >= 1 ? getBuyColor(buySetup) : sellSetup >= 1 ? getSellColor(sellSetup) : na
+//barcolor(paintBars ? barColour : na, title='Bar colors (heatmap)')
+
+
+if buySetup == 13
+    strategy.entry("Enter Long", strategy.long)
+else if sellSetup == 13
+    strategy.entry("Enter Short", strategy.short)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/361847
+
+> Last Modified
+
+2022-05-08 17:29:16

@@ -1,0 +1,77 @@
+//@version=6
+// set03 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动态跟踪型波浪趋势策略-Dynamic-Wave-Trend-Tracking-Strategy.md
+// content_hash: 2f560b94112d51ba
+// collected: 2026-07-27
+strategy("WaveTrend with Trend Filter", shorttitle="WaveTrend Trend", overlay=false, initial_capital = 100000)
+
+// Inputs for the WaveTrend indicator
+inputLength = input.int(10, title="Channel Length", minval=1)
+avgLength = input.int(21, title="Average Length", minval=1)
+obLevel = input.float(45, title="Overbought Level")
+osLevel = input.float(-45, title="Oversold Level")
+showSignals = input.bool(true, title="Show Buy/Sell Signals")
+
+// Trend filter input
+maLength = input.int(500, title="Trend MA Length", minval=1)
+
+// Calculate WaveTrend values
+hlc_avg = (high + low + close) / 3  // Renamed from hlc3 to hlc_avg
+esa = ta.ema(hlc_avg, inputLength)
+d = ta.ema(math.abs(hlc_avg - esa), inputLength)
+k = (hlc_avg - esa) / (0.015 * d)
+ci = ta.ema(k, avgLength)
+tci = ta.ema(ci, avgLength)
+
+// Moving average for trend detection
+trendMA = ta.sma(close, maLength)
+
+// Determine trend
+bullishTrend = close > trendMA
+bearishTrend = close < trendMA
+
+// Generate signals with trend filter
+crossUp = ta.crossover(tci, osLevel)
+crossDown = ta.crossunder(tci, obLevel)
+
+// Plot WaveTrend
+plot(tci, title="WaveTrend Line", color=color.new(color.blue, 0), linewidth=2)
+hline(obLevel, "Overbought", color=color.red, linestyle=hline.style_dotted)
+hline(osLevel, "Oversold", color=color.green, linestyle=hline.style_dotted)
+hline(0, "Zero Line", color=color.gray, linestyle=hline.style_solid)
+
+// Plot moving average for trend visualization
+plot(trendMA, title="Trend MA", color=color.orange, linewidth=1)
+
+// Plot buy and sell signals
+plotshape(showSignals and crossUp, title="Buy Signal", location=location.belowbar, style=shape.labelup, color=color.new(color.green, 0), size=size.small)
+plotshape(showSignals and crossDown, title="Sell Signal", location=location.abovebar, style=shape.labeldown, color=color.new(color.red, 0), size=size.small)
+
+// Alerts
+alertcondition(crossUp, title="Buy Alert", message="WaveTrend Buy Signal (Trend Confirmed)")
+alertcondition(crossDown, title="Sell Alert", message="WaveTrend Sell Signal (Trend Confirmed)")
+alertcondition(bullishTrend, title="bull", message="WaveTrend Sell Signal (Trend Confirmed)")
+alertcondition(bearishTrend, title="bear", message="WaveTrend Sell Signal (Trend Confirmed)")
+
+// Strategy logic
+if crossUp and bullishTrend
+    strategy.entry("Long", strategy.long)
+
+if crossDown
+    strategy.close("Long")
+
+if crossDown and bearishTrend
+    strategy.entry("Short", strategy.short)
+
+if crossUp
+    strategy.close("Short")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/475624
+
+> Last Modified
+
+2024-12-20 16:17:27

@@ -1,0 +1,345 @@
+// set02 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/projects/super-negative-rr.pine
+// content_hash: f59c908272354b2c
+// collected: 2026-07-27
+// built with PineScript Agents by TradersPost
+//@version=6
+//@strategy_alert_message {{strategy.order.alert_message}}
+strategy("Super Negative R:R Wick Strategy",
+     shorttitle="Negative RR",
+     overlay=true,
+     initial_capital=5000,
+     default_qty_type=strategy.fixed,
+     default_qty_value=1,
+     margin_long=0,
+     margin_short=0,
+     calc_on_every_tick=true,
+     use_bar_magnifier=true,
+     commission_type=strategy.commission.cash_per_order,
+     commission_value=1,
+     slippage=2)
+
+// ============================================================================
+// INPUTS
+// ============================================================================
+
+// Risk Management Group
+riskAmount = input.float(1000, "Stop Loss Amount ($)",
+     minval=1,
+     step=100,
+     tooltip="Close position when loss reaches this dollar amount",
+     group="Risk Management")
+
+rewardAmount = input.float(300, "Take Profit Amount ($)",
+     minval=1,
+     step=50,
+     tooltip="Close position when profit reaches this dollar amount",
+     group="Risk Management")
+
+
+// Signal Settings Group
+atrLength = input.int(14, "ATR Length",
+     minval=1,
+     tooltip="Period for ATR calculation",
+     group="Signal Settings")
+
+wickRatioThreshold = input.float(2.0, "Wick Ratio Threshold",
+     minval=1.0,
+     step=0.1,
+     tooltip="How much bigger one wick must be than the other (2.0 = 2x larger)",
+     group="Signal Settings")
+
+minBodyAtr = input.float(0.1, "Min Body Size (ATR)",
+     minval=0.0,
+     step=0.05,
+     tooltip="Minimum candle body size as multiple of ATR. Filters out dojis. 0.1 = body must be at least 10% of ATR",
+     group="Signal Settings")
+
+// Visual Settings Group
+showSignals = input.bool(true, "Show Entry Signals",
+     tooltip="Display arrows at entry points",
+     group="Visual Settings")
+
+showAtr = input.bool(true, "Show ATR Line",
+     tooltip="Display ATR value on chart",
+     group="Visual Settings")
+
+
+showMetricsTable = input.bool(true, "Show Metrics Table",
+     tooltip="Display strategy metrics in top-right corner",
+     group="Visual Settings")
+
+// Color Settings Group
+bullColor = input.color(color.new(#26a69a, 0), "Bullish Color",
+     group="Colors",
+     tooltip="Color for long signals and bullish elements")
+
+bearColor = input.color(color.new(#ef5350, 0), "Bearish Color",
+     group="Colors",
+     tooltip="Color for short signals and bearish elements")
+
+atrColor = input.color(color.new(#2196F3, 0), "ATR Color",
+     group="Colors",
+     tooltip="Color for ATR line")
+
+// ============================================================================
+// CALCULATIONS
+// ============================================================================
+
+// ATR Calculation
+atr = ta.atr(atrLength)
+prevAtr = atr[1]
+
+// Previous candle data (cached for efficiency)
+prevHigh = high[1]
+prevLow = low[1]
+prevOpen = open[1]
+prevClose = close[1]
+
+// Wick and body calculations for previous candle
+prevMaxBody = math.max(prevOpen, prevClose)
+prevMinBody = math.min(prevOpen, prevClose)
+prevBodySize = prevMaxBody - prevMinBody
+prevUpperWick = prevHigh - prevMaxBody
+prevLowerWick = prevMinBody - prevLow
+prevTotalWick = prevUpperWick + prevLowerWick
+
+// Current R:R ratio (cached for display)
+currentRR = rewardAmount / riskAmount
+
+
+// ============================================================================
+// SIGNAL DETECTION
+// ============================================================================
+
+// Condition 1: Total wick size > ATR (using cached prevAtr)
+wickSizeCondition = prevTotalWick > prevAtr
+
+// Condition 2: One wick significantly larger than the other
+upperWickDominant = prevUpperWick > prevLowerWick * wickRatioThreshold
+lowerWickDominant = prevLowerWick > prevUpperWick * wickRatioThreshold
+
+// Condition 3: Not a doji - body must be at least minBodyAtr × ATR
+notDoji = prevBodySize >= prevAtr * minBodyAtr
+
+// Combined signal conditions (optimized with short-circuit evaluation)
+longSignal = wickSizeCondition and upperWickDominant and notDoji and strategy.position_size == 0
+shortSignal = wickSizeCondition and lowerWickDominant and notDoji and strategy.position_size == 0
+
+// ============================================================================
+// DOLLAR-BASED SL/TP CALCULATION
+// ============================================================================
+
+// Get the position size from strategy settings (default_qty_value)
+// We use this to calculate how many ticks = our dollar target
+qty = strategy.default_entry_qty(close)
+
+// Use TradingView's built-in tick value
+// syminfo.pointvalue = dollar value per 1 point move per contract
+// syminfo.mintick = minimum price movement (tick size)
+// tickValue = syminfo.pointvalue × syminfo.mintick = dollar value per tick per contract
+tickValue = syminfo.pointvalue * syminfo.mintick
+
+// Calculate ticks needed to reach dollar targets
+// Formula: ticks = dollarAmount / (tickValue × contracts)
+slTicks = qty > 0 and tickValue > 0 ? riskAmount / (tickValue * qty) : 0
+tpTicks = qty > 0 and tickValue > 0 ? rewardAmount / (tickValue * qty) : 0
+
+// Calculate price distances for display
+slPriceDistance = slTicks * syminfo.mintick
+tpPriceDistance = tpTicks * syminfo.mintick
+
+// Win rate needed to break even with this R:R
+breakEvenWinRate = 100 / (1 + currentRR)
+
+// ============================================================================
+// STRATEGY EXECUTION
+// ============================================================================
+
+// Entry conditions (at open of current bar after signal)
+// Uses default_qty_value from strategy settings, exits based on dollar P&L
+if longSignal
+    strategy.entry("Long", strategy.long, comment="Long Entry")
+
+    // Exit using tick-based profit/loss (calculated from dollar amounts)
+    strategy.exit("Long Exit", "Long",
+         profit=tpTicks,
+         loss=slTicks,
+         comment_profit="Take Profit",
+         comment_loss="Stop Loss")
+
+
+if shortSignal
+    strategy.entry("Short", strategy.short, comment="Short Entry")
+
+    // Exit using tick-based profit/loss (calculated from dollar amounts)
+    strategy.exit("Short Exit", "Short",
+         profit=tpTicks,
+         loss=slTicks,
+         comment_profit="Take Profit",
+         comment_loss="Stop Loss")
+
+
+// ============================================================================
+// PLOTS
+// ============================================================================
+
+// Entry signals on the signal candle (previous bar)
+plotshape(showSignals and longSignal,
+     "Long Signal",
+     shape.triangleup,
+     location.belowbar,
+     bullColor,
+     size=size.small,
+     offset=-1)
+
+plotshape(showSignals and shortSignal,
+     "Short Signal",
+     shape.triangledown,
+     location.abovebar,
+     bearColor,
+     size=size.small,
+     offset=-1)
+
+// ATR line with custom color
+plot(showAtr ? atr : na,
+     "ATR",
+     color=atrColor,
+     linewidth=2,
+     style=plot.style_line)
+
+// ============================================================================
+// STRATEGY METRICS DISPLAY
+// ============================================================================
+
+// Create table for strategy information (only if enabled)
+var table metricsTable = table.new(position.top_right, 2, 10,
+     bgcolor=color.new(color.black, 85),
+     frame_color=color.new(color.gray, 50),
+     frame_width=1)
+
+if barstate.islast and showMetricsTable
+    // Header
+    table.cell(metricsTable, 0, 0,
+         "Metric",
+         text_color=color.white,
+         bgcolor=color.new(color.gray, 70),
+         text_size=size.small)
+    table.cell(metricsTable, 1, 0,
+         "Value",
+         text_color=color.white,
+         bgcolor=color.new(color.gray, 70),
+         text_size=size.small)
+
+    // Risk/Reward Ratio
+    table.cell(metricsTable, 0, 1,
+         "R:R Ratio",
+         text_color=color.white,
+         text_size=size.small)
+    rrColor = currentRR < 1 ? color.new(color.red, 0) : color.new(color.green, 0)
+    table.cell(metricsTable, 1, 1,
+         str.format("{0,number,#.##}:1", currentRR),
+         text_color=rrColor,
+         text_size=size.small)
+
+    // Break-even Win Rate
+    table.cell(metricsTable, 0, 2,
+         "Break-even %",
+         text_color=color.white,
+         text_size=size.small)
+    table.cell(metricsTable, 1, 2,
+         str.format("{0,number,#.#}%", breakEvenWinRate),
+         text_color=color.new(color.orange, 0),
+         text_size=size.small)
+
+    // SL Amount
+    table.cell(metricsTable, 0, 3,
+         "SL Amount",
+         text_color=color.white,
+         text_size=size.small)
+    table.cell(metricsTable, 1, 3,
+         str.format("${0,number,#}", riskAmount),
+         text_color=color.new(color.red, 0),
+         text_size=size.small)
+
+    // TP Amount
+    table.cell(metricsTable, 0, 4,
+         "TP Amount",
+         text_color=color.white,
+         text_size=size.small)
+    table.cell(metricsTable, 1, 4,
+         str.format("${0,number,#}", rewardAmount),
+         text_color=color.new(color.green, 0),
+         text_size=size.small)
+
+    // Contracts
+    table.cell(metricsTable, 0, 5,
+         "Contracts",
+         text_color=color.white,
+         text_size=size.small)
+    table.cell(metricsTable, 1, 5,
+         str.format("{0,number,#.##}", qty),
+         text_color=color.white,
+         text_size=size.small)
+
+    // SL Ticks
+    table.cell(metricsTable, 0, 6,
+         "SL Ticks",
+         text_color=color.white,
+         text_size=size.small)
+    table.cell(metricsTable, 1, 6,
+         str.format("{0,number,#}", slTicks),
+         text_color=color.new(color.red, 0),
+         text_size=size.small)
+
+    // TP Ticks
+    table.cell(metricsTable, 0, 7,
+         "TP Ticks",
+         text_color=color.white,
+         text_size=size.small)
+    table.cell(metricsTable, 1, 7,
+         str.format("{0,number,#}", tpTicks),
+         text_color=color.new(color.green, 0),
+         text_size=size.small)
+
+    // SL Price Distance
+    table.cell(metricsTable, 0, 8,
+         "SL Distance",
+         text_color=color.white,
+         text_size=size.small)
+    table.cell(metricsTable, 1, 8,
+         str.format("{0,number,#.##} pts", slPriceDistance),
+         text_color=color.new(color.red, 0),
+         text_size=size.small)
+
+    // Tick Value (auto-detected)
+    table.cell(metricsTable, 0, 9,
+         "Tick Value",
+         text_color=color.white,
+         text_size=size.small)
+    table.cell(metricsTable, 1, 9,
+         str.format("${0,number,#.###}", tickValue),
+         text_color=color.new(color.gray, 0),
+         text_size=size.small)
+
+// ============================================================================
+// ALERTS
+// ============================================================================
+
+// Alert conditions with static messages (alertcondition requires const string)
+// Use strategy.entry alerts or alert() for dynamic messages
+alertcondition(longSignal,
+     "Long Entry Signal",
+     "🔔 LONG SIGNAL - Wick imbalance detected. Check chart for R:R details.")
+
+alertcondition(shortSignal,
+     "Short Entry Signal",
+     "🔔 SHORT SIGNAL - Wick imbalance detected. Check chart for R:R details.")
+
+// Dynamic alerts using alert() function for detailed messages
+if longSignal
+    alert(str.format("🔔 LONG SIGNAL - {0}\nPrice: ${1,number,#.##}\nR:R: {2,number,#.##}:1\nSL: ${3,number,#} ({4,number,#} ticks)\nTP: ${5,number,#} ({6,number,#} ticks)\nWick: {7,number,#.#}x ATR", syminfo.ticker, close, currentRR, riskAmount, slTicks, rewardAmount, tpTicks, prevTotalWick / prevAtr), alert.freq_once_per_bar)
+
+if shortSignal
+    alert(str.format("🔔 SHORT SIGNAL - {0}\nPrice: ${1,number,#.##}\nR:R: {2,number,#.##}:1\nSL: ${3,number,#} ({4,number,#} ticks)\nTP: ${5,number,#} ({6,number,#} ticks)\nWick: {7,number,#.#}x ATR", syminfo.ticker, close, currentRR, riskAmount, slTicks, rewardAmount, tpTicks, prevTotalWick / prevAtr), alert.freq_once_per_bar)

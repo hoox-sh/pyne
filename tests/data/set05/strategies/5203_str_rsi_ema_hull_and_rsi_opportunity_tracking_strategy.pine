@@ -1,0 +1,57 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于均线和RSI的机会跟踪策略EMA-Hull-and-RSI-Opportunity-Tracking-Strategy.md
+// content_hash: b09056d626f05e00
+// collected: 2026-07-27
+strategy(shorttitle="EHR", title="Simple EMA_Hull_RSI", overlay=false, 
+     calc_on_every_tick=false, pyramiding=0, default_qty_type=strategy.cash, 
+     default_qty_value=1000, currency=currency.USD, initial_capital=1000,
+     commission_type=strategy.commission.percent, commission_value=0.075)
+
+// EMA
+len = input(minval=1, title="EMA Length", defval=50)
+src = input(close, title="EMA Source")
+final_ema = ema(src, len)
+plot(final_ema, color=color.red, title="EMA")
+
+overbought = input(60, title="overbought value")
+oversold = input(45, title="oversold value")
+
+overbought_signal = rsi(close, 14) > overbought
+oversold_signal = rsi(close, 14) < oversold
+barcolor(overbought_signal ? color.black : na)
+barcolor(oversold_signal ? color.blue : na)
+// Hull MA
+n = input(title="Hull Length", defval=7)
+n2ma=2*wma(close,round(n/2))
+nma=wma(close,n)
+diff=n2ma-nma
+sqn=round(sqrt(n))
+
+n2ma1=2*wma(close[1],round(n/2))
+nma1=wma(close[1],n)
+diff1=n2ma1-nma1
+sqn1=round(sqrt(n))
+
+n1=wma(diff,sqn)
+n2=wma(diff1,sqn)
+c=n1>n2?color.green:color.red
+ma=plot(n1,color=c)
+
+// Strategy Logic
+longCondition =  overbought_signal and crossover(n1,final_ema) 
+shortCondition = oversold_signal and crossover(final_ema,n1) 
+
+strategy.entry("EHR_Long", strategy.long, when=longCondition)
+strategy.entry("EHR_Short", strategy.short, when=shortCondition)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/439243
+
+> Last Modified
+
+2024-01-18 15:46:35

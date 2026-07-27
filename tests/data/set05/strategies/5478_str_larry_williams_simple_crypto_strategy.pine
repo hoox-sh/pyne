@@ -1,0 +1,44 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于RSI的简单密码货币交易策略Simple-Cryptocurrency-Trading-Strategy-Based-on-RSI.md
+// content_hash: dcfbc8b01c867a52
+// collected: 2026-07-27
+strategy("Larry Williams Simple Crypto Strategy", overlay=true)
+
+// Параметры стратегии
+length = input(14, title="Length")
+overboughtLevel = input(70, title="Overbought Level")
+oversoldLevel = input(30, title="Oversold Level")
+
+// Вычисление RSI
+rsiValue = rsi(close, length)
+
+// Определение условий для входа в позицию
+enterLong = rsiValue < oversoldLevel
+enterShort = rsiValue > overboughtLevel
+
+// Открытие позиции
+if enterLong
+    strategy.entry("Buy", strategy.long)
+if enterShort
+    strategy.entry("Sell", strategy.short)
+
+// Закрытие позиции
+if enterLong and rsiValue > oversoldLevel
+    strategy.close("Buy")
+if enterShort and rsiValue < overboughtLevel
+    strategy.close("Sell")
+
+// Отрисовка уровней
+hline(overboughtLevel, "Overbought", color=color.red)
+hline(oversoldLevel, "Oversold", color=color.green)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/442561
+
+> Last Modified
+
+2024-02-22 17:44:13

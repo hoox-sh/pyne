@@ -1,0 +1,53 @@
+//@version=6
+// set04 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动态云层突破量化交易策略-Dynamic-Kumo-Breakout-Quantitative-Trading-Strategy.md
+// content_hash: 6db1c96753ece191
+// collected: 2026-07-27
+strategy("KumoBreakLong", overlay=true, fill_orders_on_standard_ohlc=true)
+
+//=== Parameters ===//
+lenTenkan = input.int(9, title="Tenkan-Sen (Conversion Line) Length")
+lenKijun  = input.int(26, title="Kijun-Sen (Base Line) Length")
+lenSenkou = input.int(52, title="Senkou Span B Length")
+
+//=== Ichimoku Calculation ===//
+// Tenkan-Sen (Conversion Line)
+tenkan = (ta.highest(high, lenTenkan) + ta.lowest(low, lenTenkan)) / 2
+// Kijun-Sen (Base Line)
+kijun  = (ta.highest(high, lenKijun) + ta.lowest(low, lenKijun)) / 2
+// Senkou Span A (Leading Span A)
+senkouA = (tenkan + kijun) / 2
+// Senkou Span B (Leading Span B)
+senkouB = (ta.highest(high, lenSenkou) + ta.lowest(low, lenSenkou)) / 2
+
+// Current "Kumo" Boundaries
+cloudTop    = math.max(senkouA, senkouB)  // Upper cloud boundary
+cloudBottom = math.min(senkouA, senkouB)  // Lower cloud boundary
+
+//=== Signals ===//
+// Long condition: Price crosses above the Kumo cloud
+longCondition = ta.crossover(close, cloudTop)
+
+// Exit condition: Price crosses below the lower cloud boundary
+exitCondition = ta.crossunder(close, cloudBottom)
+
+//=== Position Triggers ===//
+
+//longCondition = ta.crossover(ta.sma(close, 14), ta.sma(close, 28))
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+
+shortCondition = ta.crossunder(ta.sma(close, 14), ta.sma(close, 28))
+if (shortCondition)
+    strategy.entry("Short", strategy.short)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/488518
+
+> Last Modified
+
+2025-03-28 15:16:43

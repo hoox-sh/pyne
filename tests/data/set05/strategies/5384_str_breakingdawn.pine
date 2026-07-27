@@ -1,0 +1,48 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于趋势预测双均线策略Trend-Prediction-Dual-Moving-Average-Strategy.md
+// content_hash: 005520ae802fa989
+// collected: 2026-07-27
+strategy("BreakingDawn [JackTz]", overlay = true)
+
+// WaveTrend [LazyBear]
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+n1 = input(10, "Channel Length")
+n2 = input(21, "Average Length")
+ 
+WTfactor = input(4, title=" WTFactor")
+averageHlc3 = sum(hlc3, WTfactor) / WTfactor
+ap = averageHlc3 
+esa = ema(ap, n1)
+d = ema(abs(ap - esa), n1)
+ci = (ap - esa) / (0.015 * d)
+tci = ema(ci, n2)
+wt1 = tci
+wt2 = sma(wt1,4)
+wtAvg = wt1-wt2
+wtPeriodAvgVal = wtAvg * 45 + averageHlc3
+wtPeriodAvg2Val = wtAvg * 25 + averageHlc3
+
+buy = wtAvg[1] < wtAvg and wtAvg < close
+sell = wtAvg[1] > wtAvg
+
+fillColor = buy ? color.green : color.red
+control = plot(wtPeriodAvgVal, color = fillColor)
+signal = plot(wtPeriodAvg2Val, color = fillColor)
+fill(signal, control, color = fillColor)
+
+if year > 2016
+    strategy.entry("buy", strategy.long, when = buy)
+    strategy.close("buy",when = sell)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/440866
+
+> Last Modified
+
+2024-02-02 17:39:54

@@ -1,0 +1,13 @@
+//@version=6
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/language/arrays.md::arrays.md#block22
+// content_hash: 9c6477e3827058e3
+// collected: 2026-07-27
+indicator("Sorting numeric arrays demo")
+
+if barstate.isfirst
+    //@variable A formatting string.
+    string formatString = "\n{0}:\n{1}\n{2}\n{3}"
+
+    // Create two three-element arrays.

@@ -1,0 +1,12 @@
+//@version=5
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/v5/language/matrices.md::matrices.md#block2
+// content_hash: 6402c425b5333008
+// collected: 2026-07-27
+indicator("Reading and writing elements demo")
+
+//@variable A 2x2 square matrix of `float` values.
+var m = matrix.new<float>(2, 2, 0.0)
+
+switch

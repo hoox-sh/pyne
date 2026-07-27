@@ -1,0 +1,28 @@
+//@version=5
+// set05 corpus entry
+// source_repo: tradingview-indicators-pine
+// source_path: tradingview-indicators-pine/Pierre-StochRSI-K3-D3-RSI9-Stoch14-lightBackground.txt
+// content_hash: 018733c32254d263
+// collected: 2026-07-27
+// Pierre use RSI length 9 instead of the default 14
+// Note setting thresholds at 85 and 15 for more stringinet resetting criteria
+indicator(title="Stoch-RSI", shorttitle="Stoch-RSI", format=format.price, precision=2, timeframe="", timeframe_gaps=true)
+smoothK = input.int(3, "K", minval=1)
+smoothD = input.int(3, "D", minval=1)
+//lengthRSI = input.int(14, "RSI Length", minval=1)
+lengthRSI = input.int(9, "RSI Length", minval=1)
+lengthStoch = input.int(14, "Stochastic Length", minval=1)
+src = input(close, title="RSI Source")
+rsi1 = ta.rsi(src, lengthRSI)
+k = ta.sma(ta.stoch(rsi1, rsi1, rsi1, lengthStoch), smoothK)
+d = ta.sma(k, smoothD)
+//plot(k, "K", color=#696969)
+//plot(d, "D", color=#C0C0C0)
+plot(k, "", color=color.black)
+plot(d, "", color=color.silver)
+//h0 = hline(80, "Upper Band", color=color.gray)
+//h1 = hline(20, "Lower Band", color=color.gray)
+h0 = hline(90, "Upper Band", color=color.gray)
+h1 = hline(10, "Lower Band", color=color.gray)
+//h50 = hline(50, "Lower Band", color=color.gray)
+//fill(h0, h1, color=color.rgb(33, 150, 243, 90), title="Background")

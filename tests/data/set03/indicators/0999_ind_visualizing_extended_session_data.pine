@@ -1,0 +1,27 @@
+//@version=6
+// set03 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/concepts/sessions.md::sessions.md#block9
+// content_hash: fc591f1b3318fae3
+// collected: 2026-07-27
+indicator("Visualizing extended session data")
+
+//@variable The ticker ID for the extended session of the current chart symbol.
+string extendedTicker  = ticker.new(syminfo.prefix, syminfo.ticker, "extended")
+//@variable The ticker ID for the regular session of the current chart symbol.
+string regularTicker   = ticker.new(syminfo.prefix, syminfo.ticker, "regular")
+//@variable The ticker ID for the "us_regular" session of the current chart symbol.
+string usRegularTicker = ticker.new(syminfo.prefix, syminfo.ticker, "us_regular")
+
+//@variable The `close` price requested from the extended session of the chart's symbol.
+float extendedClose   = request.security(extendedTicker,  timeframe.period, close, barmerge.gaps_on)
+//@variable The `close` price requested from the regular session of the chart's symbol.
+float regularClose    = request.security(regularTicker,   timeframe.period, close, barmerge.gaps_on)
+//@variable The `close` price requested from the "us_regular" session of the chart's symbol.
+float usRegularClose  = request.security(usRegularTicker, timeframe.period, close, barmerge.gaps_on)
+
+// Plot the `usRegularClose` with a blue line.
+plot(usRegularClose, style = plot.style_linebr,  color = color.blue,  linewidth = 6, title = "US Regular Session Data")
+// Plot the `extendedClose` with a black line, and the `regularClose` with red circles.
+plot(extendedClose,  style = plot.style_linebr,  color = color.black, linewidth = 2, title = "Extended Session Data")
+plot(regularClose,   style = plot.style_circles, color = color.red,   linewidth = 4, title = "Regular Session Data")

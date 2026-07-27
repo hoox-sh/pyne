@@ -1,0 +1,12 @@
+// set05 corpus entry
+// source_repo: capissimo-Pinescript-Laboratory
+// source_path: capissimo-Pinescript-Laboratory/scripts/100-ML-Perceptron-based-Strategy-(v2).pine
+// content_hash: 569fd345744014b3
+// collected: 2026-07-27
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © capissimo
+
+//@version=4
+study('Machine Learning: Perceptron-based strategy (v.2)', '', true)
+
+deleted 07-04-2024

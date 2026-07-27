@@ -1,0 +1,59 @@
+//@version=2
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于均线交叉的趋势反转策略MA-and-EMA-Crossover-Trend-Reversal-Strategy.md
+// content_hash: 8f12203f81b8e77b
+// collected: 2026-07-27
+strategy(title = "MA + EMA Crossover Strategy ",shorttitle="eMA", overlay = true,default_qty_type = strategy.percent_of_equity, default_qty_value = 100,commission_type=strategy.commission.percent,commission_value=0.1,initial_capital=100000)
+
+
+emaLength =input(34)
+
+maLength = input(89)
+
+ema=ema(close,emaLength)
+ma=sma(close,maLength)
+
+plot(ema,linewidth=3,color=green)
+plot(ma,linewidth=3,color=red)
+longCond= crossover(ema,ma)
+shortCond=crossover(ma,ema)
+
+
+
+
+
+monthfrom =input(8)
+monthuntil =input(12)
+dayfrom=input(1)
+dayuntil=input(31)
+
+
+
+if (  longCond    and  month>=monthfrom and month <=monthuntil and dayofmonth>=dayfrom and dayofmonth < dayuntil) 
+    strategy.entry("LONG", strategy.long, stop=close, oca_name="TREND",  comment="LONG")
+    
+else
+    strategy.cancel(id="LONG")
+    
+
+
+
+if ( shortCond   and month>=monthfrom and month <=monthuntil and dayofmonth>=dayfrom and dayofmonth < dayuntil ) 
+
+    strategy.entry("SHORT", strategy.short,stop=close, oca_name="TREND",  comment="SHORT")
+else
+    strategy.cancel(id="SHORT")
+    
+
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/427393
+
+> Last Modified
+
+2023-09-20 16:54:46

@@ -1,0 +1,48 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双均线交叉趋势追踪型策略Dual-Moving-Average-Crossover-Strategy.md
+// content_hash: b9cc9e3708aa6736
+// collected: 2026-07-27
+strategy("SMA and ATR Strategy", overlay=true)
+
+// Step 1. Define strategy settings
+lengthSMA1 = input.int(50, title="50 SMA Length")
+lengthSMA2 = input.int(100, title="100 SMA Length")
+atrLength = input.int(14, title="ATR Length")
+atrMultiplier = input.int(4, title="ATR Multiplier")
+
+// Step 2. Calculate strategy values
+sma1 = ta.sma(close, lengthSMA1)
+sma2 = ta.sma(close, lengthSMA2)
+atr = ta.atr(atrLength)
+
+// Step 3. Output strategy data
+plot(sma1, color=color.blue, title="50 SMA")
+plot(sma2, color=color.red, title="100 SMA")
+
+// Step 4. Determine trading conditions
+longCondition = ta.crossover(sma1, sma2)
+shortCondition = ta.crossunder(sma1, sma2)
+
+longStopLoss = close - (atr * atrMultiplier)
+shortStopLoss = close + (atr * atrMultiplier)
+
+// Step 5. Execute trades based on conditions
+if (longCondition)
+    strategy.entry("Buy", strategy.long)
+    strategy.exit("Sell", "Buy", stop=longStopLoss)
+
+if (shortCondition)
+    strategy.entry("Sell", strategy.short)
+    strategy.exit("Buy", "Sell", stop=shortStopLoss)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/437640
+
+> Last Modified
+
+2024-01-04 15:03:14

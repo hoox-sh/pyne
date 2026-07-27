@@ -1,0 +1,51 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/超级趋势追踪策略SuperTrend-Trend-Following-Strategy.md
+// content_hash: 99dffacaf2696c42
+// collected: 2026-07-27
+strategy("QuantNomad - SuperTrend - TSLA - 1m", overlay = true, default_qty_type = strategy.percent_of_equity, default_qty_value = 100)
+
+// INPUTS //
+st_mult   = input(3,   title = 'SuperTrend Multiplier', minval = 0, maxval = 100, step = 0.01)
+st_period = input(120, title = 'SuperTrend Period',     minval = 1)
+
+// CALCULATIONS //
+up_lev = hl2 - (st_mult * atr(st_period))
+dn_lev = hl2 + (st_mult * atr(st_period))
+
+up_trend   = 0.0
+up_trend   := close[1] > up_trend[1]   ? max(up_lev, up_trend[1])   : up_lev
+
+down_trend = 0.0
+down_trend := close[1] < down_trend[1] ? min(dn_lev, down_trend[1]) : dn_lev
+
+// Calculate trend var
+trend = 0
+trend := close > down_trend[1] ? 1: close < up_trend[1] ? -1 : nz(trend[1], 1)
+
+// Calculate SuperTrend Line
+st_line = trend ==1 ? up_trend : down_trend
+
+// Plotting
+plot(st_line, color = trend == 1 ? color.green : color.red , style = plot.style_line, linewidth = 2, title = "SuperTrend")
+
+plotshape(crossover( close, st_line), location = location.belowbar, color = color.green)
+plotshape(crossunder(close, st_line), location = location.abovebar, color = color.red)
+
+// Strategy with "when"
+//strategy.entry("long",  true,  when = crossover( close, down_trend[1]))
+//strategy.entry("short", false, when = crossunder(close, up_trend[1]))
+
+// Strategy with stop orders
+strategy.entry("long",  true,  stop = down_trend[1])
+strategy.entry("short", false, stop = up_trend[1])
+```
+
+> Detail
+
+https://www.fmz.com/strategy/427732
+
+> Last Modified
+
+2023-09-24 13:19:47

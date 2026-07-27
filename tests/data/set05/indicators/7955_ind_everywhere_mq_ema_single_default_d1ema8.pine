@@ -1,0 +1,11 @@
+//@version=5
+// set05 corpus entry
+// source_repo: tradingview-indicators-pine
+// source_path: tradingview-indicators-pine/Everywhere-mq-ema-single-default-D1ema8.txt
+// content_hash: e2691ee12c3c138f
+// collected: 2026-07-27
+indicator(title="EMA", shorttitle="EverywhereD1ema8", overlay=true, timeframe="1D", timeframe_gaps=true)
+len = input.int(8, minval=1, title="Length")
+src = input(close, title="Source")
+out = ta.ema(src, len)
+plot(out, title="EMA", color=color.red, linewidth=2, offset=0)

@@ -1,0 +1,70 @@
+//@version=4
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/Chandelier + BB + EMAS.pine
+// content_hash: 112cfaa99e3798f2
+// collected: 2026-07-27
+strategy("CHI", overlay = true, close_entries_rule = "ANY")
+//Chandelier
+n = input(title= "highest high o lowest low period", defval= 22)
+f= input(title= "multiplicador", defval= 4)
+long = highest(high, n) - atr(n)*f
+short= lowest(low, n) + atr(n)*f
+plot(long, color= color.green, linewidth= 2, title= "Long Stop")
+plot(short, color= color.red, linewidth= 2, title= "Short Stop")
+//moving averages
+period= input(title= "moving averages period", defval= 50)
+period2= input(title= "moving averages period2", defval= 20)
+type= input(title= "moving averages type", options= ["sma", "ema"], defval= "ema")
+//moving average function
+mo(p, t) =>
+    if t == "sma"
+        sma(close[barstate.islast ? 1: 0], p)
+    else  if t== "ema"
+        ema(close[barstate.islast ? 1: 0], p)
+show= input(false, title= "Show EMAS")
+m= mo(period, type)
+m2= mo(period2, type)
+trend= m2 > m 
+plot(show?  m:na, title= "Slow MA", color = color.maroon, linewidth = 3)
+plot(show? m2: na, title= "Fast MA",linewidth= 3)
+//BOLLINGER BANDS ENTRIES
+bb1_period= input(title= "Bollinger bands 1 period", defval=40, minval=1)
+bb1_source=input(title="Bollinger band 1 source", defval=close)
+bb1_multi=input(title="Bollinger Bands 1 factor", defval=2, minval=1, step=0.1)
+show_bb1= input(title="Show Bollinger bands 1", defval=false)
+//BOLLINGER BANDS
+_bb(src, lenght, multi)=>
+    float moving_avg= sma(src[barstate.islast? 1: 0], lenght)
+    float deviation= stdev(src[barstate.islast? 1: 0], lenght)
+    float lowerband = moving_avg - deviation*multi
+    float upperband = moving_avg + deviation*multi
+    
+    [moving_avg, lowerband, upperband]
+    
+[bb1, lowerband1, upperband1]= _bb(bb1_source,  bb1_period, bb1_multi)
+//FIRST BAND    
+plot(show_bb1? bb1 : na, title="BB1 Moving average", linewidth= 3, color= color.fuchsia)
+plot(show_bb1? upperband1 : na, title="BB1 Upper Band", linewidth= 3, color= color.green)
+plot(show_bb1? lowerband1 : na, title="BB1 Lower Band", linewidth= 3, color= color.red)
+//BB's Width threshold 
+thresh= input(title= "widen %", defval= 9, minval = 0, step = 1, maxval= 100)
+widht= (upperband1 - lowerband1)/bb1
+roc= change(widht)/widht[1]*100
+cross=crossover(roc, thresh)
+// entry
+//long
+elong= input(true, title= "enable long")
+longcondition= m2 > m and cross and elong
+//short
+eshort= input(true, title= "enable short")
+shortcondition= m2 < m and cross and eshort
+plotshape(longcondition? true: false , location= location.belowbar, style= shape.labelup, size= size.small, color= color.green, text= "Buy", textcolor= color.white)
+plotshape(shortcondition? true: false , location= location.abovebar, style= shape.labeldown, size= size.small, color= color.red, text= "Sell", textcolor= color.white)
+out= crossunder(close, long)
+outt= crossover(close, short)
+strategy.entry("long", strategy.long, when = longcondition)
+strategy.close("long", when = out)
+strategy.entry("short", strategy.short, when = shortcondition)
+strategy.close("short", when = outt)
+Expand (85 lines)

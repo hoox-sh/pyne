@@ -1,0 +1,43 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/月末动量突破200日均线策略End-of-Month-Breakout-on-200-Day-Moving-Average-Strategy.md
+// content_hash: 14abbe8b831ecb48
+// collected: 2026-07-27
+strategy("200DMA last DOM - ajh", overlay =true,default_qty_type=strategy.percent_of_equity, default_qty_value=100)
+// Use 100% of  equity always
+
+dma200 = ta.sma(close, 200)
+plot(dma200, color=color.red, linewidth = 2)
+//e =dayofmonth(time)
+// backtesting date range
+from_day = input.int(defval=1, title="From Day", minval=1, maxval=31)
+from_month = input.int(defval=1, title="From Month", minval=1, maxval=12)
+from_year = input.int(defval=2018, title="From Year", minval=1900)
+
+to_day = input.int(defval=1, title="To Day", minval=1, maxval=31)
+to_month = input.int(defval=1, title="To Month", minval=1, maxval=12)
+to_year = input.int(defval=9999, title="To Year", minval=1900)
+
+time_cond = time > timestamp(from_year, from_month, from_day, 00, 00) and 
+   time < timestamp(to_year, to_month, to_day, 23, 59)
+
+
+
+xLong = dayofmonth(time) == 30 and (close > dma200) ? true : na
+xSell = dayofmonth(time) == 30 and (close < dma200) ? true : na
+plotchar(xLong, "long","L", color=color.green)    
+plotchar(xSell, "Sell","S", color=color.red)    
+if (xLong == true) and time_cond
+    strategy.entry("long", strategy.long)
+if (xSell == true) and time_cond
+    strategy.close("long")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/434710
+
+> Last Modified
+
+2023-12-08 16:02:08

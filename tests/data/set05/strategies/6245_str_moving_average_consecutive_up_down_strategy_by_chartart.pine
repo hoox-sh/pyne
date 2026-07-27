@@ -1,0 +1,83 @@
+//@version=2
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/移动平均线方向反转交易策略Moving-Average-Direction-Reversal-Trading-Strategy.md
+// content_hash: bf1a7a87ed65f1e0
+// collected: 2026-07-27
+strategy("Moving Average Consecutive Up/Down Strategy (by ChartArt)", overlay=true)
+
+// ChartArt's Moving Average Consecutive Up/Down Strategy
+//
+// Version 1.0
+// Idea by ChartArt on December 30, 2015.
+//
+// This strategy goes long (or short) if there are several
+// consecutive increasing (or decreasing) moving average
+// values in a row in the same direction.
+//
+// The bars can be colored using the raw moving average trend.
+// And the background can be colored using the consecutive
+// moving average trend setting. In addition a experimental
+// line of the moving average change can be drawn.
+//
+// The strategy is based upon the "Consecutive Up/Down Strategy"
+// created by Tradingview.
+
+
+// Input
+Switch1 = input(true, title="Enable Bar Color?")
+Switch2 = input(true, title="Enable Background Color?")
+Switch3 = input(false, title="Enable Moving Average Trend Line?")
+
+ConsecutiveBars = input(4,title="Consecutive Trend in Bars",minval=1)
+
+// MA Calculation
+MAlen = input(1,title="Moving Average Length: (1 = off)",minval=1)
+SelectMA = input(2, minval=1, maxval=4, title='Moving Average: (1 = SMA), (2 = EMA), (3 = WMA), (4 = Linear)')
+Price = input(close, title="Price Source")
+Current =
+ SelectMA == 1 ? sma(Price, MAlen) :
+ SelectMA == 2 ? ema(Price, MAlen) :
+ SelectMA == 3 ? wma(Price, MAlen) :
+ SelectMA == 4 ? linreg(Price, MAlen,0) :
+ na
+Last =
+ SelectMA == 1 ? sma(Price[1], MAlen) :
+ SelectMA == 2 ? ema(Price[1], MAlen) :
+ SelectMA == 3 ? wma(Price[1], MAlen) :
+ SelectMA == 4 ? linreg(Price[1], MAlen,0) :
+ na
+
+// Calculation
+MovingAverageTrend = if Current > Last
+    1
+else
+    0
+
+ConsecutiveBarsUp = MovingAverageTrend > 0.5 ? nz(ConsecutiveBarsUp[1]) + 1 : 0
+ConsecutiveBarsDown = MovingAverageTrend < 0.5 ? nz(ConsecutiveBarsDown[1]) + 1 : 0
+BarColor = MovingAverageTrend > 0.5 ? green : MovingAverageTrend < 0.5 ? red : blue
+BackgroundColor = ConsecutiveBarsUp >= ConsecutiveBars ? green : ConsecutiveBarsDown >= ConsecutiveBars ? red : gray
+MovingAverageLine = change(MovingAverageTrend) != 0 ? close : na
+
+// Strategy
+if (ConsecutiveBarsUp >= ConsecutiveBars)
+    strategy.entry("ConsUpLE", strategy.long, comment="Bullish")
+    
+if (ConsecutiveBarsDown >= ConsecutiveBars)
+    strategy.entry("ConsDnSE", strategy.short, comment="Bearish")
+
+// output
+barcolor(Switch1?BarColor:na)
+bgcolor(Switch2?BackgroundColor:na)
+plot(Switch3?MovingAverageLine:na, color=change(MovingAverageTrend)<0?green:red, linewidth=4)
+//plot(strategy.equity, title="equity", color=red, linewidth=2, style=areabr)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/428093
+
+> Last Modified
+
+2023-09-28 15:50:01

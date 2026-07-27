@@ -1,0 +1,14 @@
+//@version=5
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/UP TREND AND DOWN TREND.pine
+// content_hash: 425805e1ea650e11
+// collected: 2026-07-27
+strategy("UP TREND AND DOWN TREND", overlay=true, margin_long=100, margin_short=100)
+longCondition = ta.crossover(ta.sma(close, 20), ta.sma(close, 200))
+if (longCondition)
+    strategy.entry("UP TREND", strategy.long)
+shortCondition = ta.crossunder(ta.sma(close, 20), ta.sma(close, 200))
+if (shortCondition)
+    strategy.entry("DOWN TREND", strategy.short)
+Expand (14 lines)

@@ -1,0 +1,92 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/价格平均线交叉策略Cross-Moving-Average-Price-Strategy.md
+// content_hash: 18fd34463a9351db
+// collected: 2026-07-27
+strategy(title = "Noro's CrossMA", shorttitle = "CrossMA", overlay = true, default_qty_type = strategy.percent_of_equity, default_qty_value = 100.0, pyramiding = 0, commission_value = 0.1)
+
+needlong = input(true, "long")
+needshort = input(true, "short")
+lotsize = input(100, defval = 100, minval = 1, maxval = 10000, title = "Lot, %")
+type = input(defval = "SMA", options = ["SMA", "EMA", "VWMA", "DEMA", "TEMA", "KAMA", "PCMA"], title = "MA type")
+src = input(close, defval = close, title = "MA Source")
+len = input(30, defval = 30, minval = 1, title = "MA length")
+off = input(00, defval = 00, minval = 0, title = "MA offset")
+anti = input(true, defval = true, title = "Anti-saw filter")
+showma = input(true, defval = true, title = "Show MA")
+showbg = input(false, defval = false, title = "Show background")
+fromyear = input(1900, defval = 1900, minval = 1900, maxval = 2100, title = "From Year")
+toyear = input(2100, defval = 2100, minval = 1900, maxval = 2100, title = "To Year")
+frommonth = input(01, defval = 01, minval = 01, maxval = 12, title = "From Month")
+tomonth = input(12, defval = 12, minval = 01, maxval = 12, title = "To Month")
+fromday = input(01, defval = 01, minval = 01, maxval = 31, title = "From day")
+today = input(31, defval = 31, minval = 01, maxval = 31, title = "To day")
+
+//DEMA
+dema = 2 * ema(src, len) - ema(ema(close, len), len)
+
+//TEMA
+xPrice = close
+xEMA1 = ema(src, len)
+xEMA2 = ema(xEMA1, len)
+xEMA3 = ema(xEMA2, len)
+tema = 3 * xEMA1 - 3 * xEMA2 + xEMA3
+
+//KAMA
+xvnoise = abs(src - src[1])
+nfastend = 0.20
+nslowend = 0.05
+nsignal = abs(src - src[len])
+nnoise = sum(xvnoise, len)
+nefratio = iff(nnoise != 0, nsignal / nnoise, 0)
+nsmooth = pow(nefratio * (nfastend - nslowend) + nslowend, 2)
+kama = 0.0
+kama := nz(kama[1]) + nsmooth * (src - nz(kama[1]))
+
+//PriceChannel
+lasthigh = highest(src, len)
+lastlow = lowest(src, len)
+center = (lasthigh + lastlow) / 2
+
+sma_1 = sma(src, len)
+ema_1 = ema(src, len)
+vwma_1 = vwma(src, len)
+ma2 = type == "SMA" ? sma_1 : type == "EMA" ? ema_1 : type == "VWMA" ? vwma_1 : type == "DEMA" ? dema : type == "TEMA" ? tema : type == "KAMA" ? kama : type == "PCMA" ? center : 0
+ma = ma2[off]
+
+macol = showma ? color.blue : na
+plot(ma, color = macol, linewidth = 3, transp = 0)
+
+//Background
+trend = 0
+trend := anti == false and close > ma ? 1 : anti == false and close < ma ? -1 : low > ma ? 1 : high < ma ? -1 : trend[1]
+bgcol = showbg ? trend == 1 ? color.lime : trend == -1 ? color.red : na : na
+bgcolor(bgcol, transp = 70)
+
+//Trading
+size = strategy.position_size
+truetime = time > timestamp(fromyear, frommonth, fromday, 00, 00) and time < timestamp(toyear, tomonth, today, 23, 59)
+lot = 0.0
+lot := size != size[1] ? strategy.equity / close * lotsize / 100 : lot[1]
+if trend == 1 and trend[1] == -1
+    strategy.entry("Long", strategy.long, lot, when = needlong and truetime)
+if trend == -1 and trend[1] == 1
+    strategy.entry("Short", strategy.short, lot, when = needshort and truetime)
+if size > 0 and needshort == false and trend == -1
+    strategy.close_all()
+if size < 0 and needlong == false and trend == 1
+    strategy.close_all()
+if time > timestamp(toyear, tomonth, today, 23, 59)
+    strategy.close_all()
+    strategy.cancel("Long")
+    strategy.cancel("Short")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/433441
+
+> Last Modified
+
+2023-11-27 16:52:19

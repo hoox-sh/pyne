@@ -1,0 +1,49 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/RSI和SMA交叉策略RSI-and-SMA-Crossover-Strategy.md
+// content_hash: 79c3cfc73d839e0f
+// collected: 2026-07-27
+strategy('RSI and SMA',
+         overlay=true,
+         initial_capital=1000,
+         process_orders_on_close=true,
+         default_qty_type=strategy.percent_of_equity,
+         default_qty_value=30,
+         commission_type=strategy.commission.percent,
+         commission_value=0.1)
+
+showDate = input(defval=true, title='Show Date Range')
+timePeriod = time >= timestamp(syminfo.timezone, 2022, 1, 1, 0, 0)
+notInTrade = strategy.position_size <= 0
+
+//==================================Buy Conditions============================================
+//RSI
+length = input(14)
+rsi = ta.rsi(close, length)
+
+//SMA
+fastEMA = ta.sma(close, 100)
+slowEMA = ta.sma(close, 150)
+plot(fastEMA, color = color.green)
+plot(slowEMA, color = color.blue)
+
+
+bullish = ta.crossover(fastEMA, slowEMA) and rsi > 50
+bearish = ta.crossover(slowEMA, fastEMA) and rsi < 50
+
+strategy.entry("Long", strategy.long, when=bullish and timePeriod)
+strategy.close("Exit", when=bearish)
+
+strategy.entry("Short", strategy.short, when=bearish and timePeriod)
+strategy.close("Exit", when=bullish)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/437631
+
+> Last Modified
+
+2024-01-04 14:33:24

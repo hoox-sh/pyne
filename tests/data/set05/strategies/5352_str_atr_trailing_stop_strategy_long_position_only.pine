@@ -1,0 +1,50 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于ATR的跟踪止损策略仅做多ATR-Trailing-Stop-Strategy-Long-Only.md
+// content_hash: f538e6319344d2ac
+// collected: 2026-07-27
+strategy("ATR Trailing Stop Strategy (Long Position Only)", overlay=true)
+
+SC = input(close, "Source", input.source)
+
+// Fast Trail
+AP1 = input(5, "Fast ATR period", input.integer)
+AF1 = input(0.5, "Fast ATR multiplier", input.float)
+SL1 = AF1 * atr(AP1)
+Trail1 = 0.0
+Trail1 := iff(SC > nz(Trail1[1], 0) and SC[1] > nz(Trail1[1], 0), max(nz(Trail1[1], 0), SC - SL1), iff(SC < nz(Trail1[1], 0), SC + SL1, na))
+
+// Slow Trail
+AP2 = input(10, "Slow ATR period", input.integer)
+AF2 = input(3, "Slow ATR multiplier", input.float)
+SL2 = AF2 * atr(AP2)
+Trail2 = 0.0
+Trail2 := iff(SC > nz(Trail2[1], 0) and SC[1] > nz(Trail2[1], 0), max(nz(Trail2[1], 0), SC - SL2), iff(SC < nz(Trail2[1], 0), SC + SL2, na))
+
+Green = Trail1 > Trail2 and close > Trail2 and low > Trail2
+
+Buy = crossover(Trail1, Trail2)
+
+plotshape(Buy, style=shape.triangleup, location=location.belowbar, color=color.green, size=size.small)
+
+strategy.entry("Buy", strategy.long, when = Buy)
+
+var float trailingStopPrice = na
+if (Trail2 > trailingStopPrice)
+    trailingStopPrice := Trail2
+
+if (crossover(Trail1, Trail2))
+    trailingStopPrice := Trail2
+
+strategy.exit("Exit", from_entry = "Buy", stop=trailingStopPrice)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/430836
+
+> Last Modified
+
+2023-11-02 14:05:22

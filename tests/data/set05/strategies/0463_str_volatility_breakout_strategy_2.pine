@@ -1,0 +1,38 @@
+//@version=5
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/Volatility Breakout Strategy [Angel Algo].pine
+// content_hash: 120cd73942951ad1
+// collected: 2026-07-27
+strategy("Volatility Breakout Strategy [Angel Algo]", overlay = true)
+// Inputs
+length = input(title="Length", defval=20)
+// Calculate the average true range (ATR)
+atr = ta.atr(length)
+// Plot the ATR on the chart
+plot(atr, color=color.blue, linewidth=2, title="ATR")
+// Calculate the upper and lower breakouts
+upper_breakout = high + atr
+lower_breakout = low - atr
+// Plot the upper and lower breakouts on the chart
+ul = plot(upper_breakout[1], color = color.new(color.green, 100), linewidth=2, title="Upper Breakout Level")
+ll = plot(lower_breakout[1], color = color.new(color.red, 100), linewidth=2, title="Lower Breakout Level")
+// Create the signals
+long_entry = ta.crossover(close, upper_breakout[1]) and barstate.isconfirmed
+short_entry = ta.crossunder(close, lower_breakout[1]) and barstate.isconfirmed
+active_signal_color =ta.barssince(long_entry) < ta.barssince(short_entry) ? 
+   color.new(color.green,85) : color.new(color.red,85)
+// Plot the signals on the chart
+plotshape(long_entry and ta.barssince(long_entry[1]) > ta.barssince(short_entry[1]), location=location.belowbar, style=shape.triangleup, 
+   color=color.green, size=size.normal, text = "Bullish breakout", textcolor = color.green)
+plotshape(short_entry and ta.barssince(long_entry[1]) < ta.barssince(short_entry[1]), location=location.abovebar, style=shape.triangledown, 
+   color=color.red, size=size.normal,text = "Bearish breakout",  textcolor = color.red)
+// Fill the space between the upper and lower levels with the color that indicates the latest signal direction
+fill(ul,ll, color=active_signal_color)   
+long_condition = long_entry and strategy.position_size <= 0 and barstate.isconfirmed
+short_condition = short_entry and strategy.position_size >= 0 and barstate.isconfirmed
+if long_condition
+    strategy.entry("Volatility Breakout Long", strategy.long)
+if short_condition
+    strategy.entry("Volatility Breakout Short", strategy.short)
+Expand (48 lines)

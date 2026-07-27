@@ -1,0 +1,22 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block232
+// content_hash: dfda1aec1310f04f
+// collected: 2026-07-27
+strategy("`strategy.closedtrades.max_runup` Example")
+
+// Strategy calls to enter long trades every 15 bars and exit long trades every 20 bars.
+if bar_index % 15 == 0
+    strategy.entry("Long", strategy.long)
+if bar_index % 20 == 0
+    strategy.close("Long")
+
+// Get the biggest max trade runup value from all of the closed trades.
+maxTradeRunUp() =>
+    maxRunup = 0.0
+    for tradeNo = 0 to strategy.closedtrades - 1
+        maxRunup := math.max(maxRunup, strategy.closedtrades.max_runup(tradeNo))
+    result = maxRunup
+
+plot(maxTradeRunUp(), "Max trade runup")

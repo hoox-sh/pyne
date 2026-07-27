@@ -1,0 +1,133 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动量砖策略Momentum-Brick-Strategy.md
+// content_hash: 5f37c5c999492127
+// collected: 2026-07-27
+
+
+///Component Code Start
+testStartYear = input(2017, "Backtest Start Year")
+testStartMonth = input(01, "Backtest Start Month")
+testStartDay = input(1, "Backtest Start Day")
+testPeriodStart = timestamp(testStartYear, testStartMonth, testStartDay, 0, 0)
+
+testStopYear = input(2025, "Backtest Stop Year")
+testStopMonth = input(1, "Backtest Stop Month")
+testStopDay = input(1, "Backtest Stop Day")
+testPeriodStop = timestamp(testStopYear, testStopMonth, testStopDay, 0, 0)
+
+
+
+/// A switch to control background coloring of the test period
+testPeriodBackground = input(title="Color Background?", type=input.bool, defval=false)
+testPeriodBackgroundColor = testPeriodBackground and time >= testPeriodStart and time <= testPeriodStop ? 
+   #00FF00 : na
+bgcolor(testPeriodBackgroundColor, transp=97)
+
+testPeriod() => true
+/// Component Code Stop
+
+
+//Zack_the_Lego (original AUTHOR) made into strategy by mkonsap
+strategy("Flex Renko Emulator", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=100)
+margin = input(true, title="Margin?")
+Margin = margin ? margin : false
+res = input(type=input.resolution, defval="D", title="Resolution of ATR")
+xATR = atr(14)
+//TF = x78tf ? "78" : "39"
+BrickSize = security(syminfo.tickerid, res, xATR)
+
+//Brick1 =  close >  nz(Brick1[1]) + BrickSize ? nz(Brick1[1]) + BrickSize : close <
+                    //nz(Brick1[1]) - BrickSize ?
+                        //nz(Brick1[1]) - BrickSize
+                            //: nz(Brick1[1]))
+
+
+Brick1() =>
+    s1 = 0.0
+    s1 := close > nz(s1[1]) + BrickSize ? nz(s1[1]) + BrickSize : 
+       close < nz(s1[1]) - BrickSize ? nz(s1[1]) - BrickSize : nz(s1[1])
+    s1
+
+
+Brick2() =>
+    s2 = 0.0
+    Brick1_1 = Brick1()
+    s2 := Brick1() != Brick1()[1] ? Brick1_1[1] : nz(s2[1])
+    s2
+
+colorer = Brick1() > Brick2() ? color.green : color.red
+p1 = plot(Brick1(), color=colorer, linewidth=4, title="Renko")
+p2 = plot(Brick2(), color=colorer, linewidth=4, title="Renko")
+fill(p1, p2, color=color.purple, transp=50)
+
+
+
+
+mylong = crossover(Brick1(), Brick2())
+myshort = crossunder(Brick1(), Brick2())
+
+last_long = float(na)
+last_short = float(na)
+last_long := mylong ? time : nz(last_long[1])
+last_short := myshort ? time : nz(last_short[1])
+
+in_long = last_long > last_short ? 2 : 0
+in_short = last_short > last_long ? 2 : 0
+
+mylong2 = crossover(Brick1(), Brick2())
+myshort2 = crossunder(Brick1(), Brick2())
+
+last_long2 = float(na)
+last_short2 = float(na)
+last_long2 := mylong2 ? time : nz(last_long2[1])
+last_short2 := myshort2 ? time : nz(last_short2[1])
+
+in_long2 = last_long2 > last_short2 ? 0 : 0
+in_short2 = last_short2 > last_long2 ? 0 : 0
+
+
+condlongx = in_long + in_long2
+condlong = crossover(condlongx, 1.9)
+condlongclose = crossunder(condlongx, 1.9)
+
+condshortx = in_short + in_short2
+condshort = crossover(condshortx, 1.9)
+condshortclose = crossunder(condshortx, 1.9)
+
+
+// === STRATEGY - LONG POSITION EXECUTION WITH CLOSE ORDERS ===
+//enterLong() => crossover(condlongx, 1.9) and testPeriod() and strategy.position_size <= 0
+//exitLong()  => crossunder(condlongx, 1.9) and testPeriod() and strategy.position_size > 0
+//strategy.entry(id = "Long", long = true, when = enterLong())
+//strategy.close(id = "Long", when = exitLong())
+// === STRATEGY - SHORT POSITION EXECUTION WITH CLOSE ORDER===
+//enterShort() => crossover(condshortx, 1.9) and testPeriod() and strategy.position_size >= 0 and Margin
+//exitShort() => crossunder(condshortx, 1.9)  and testPeriod() and strategy.position_size < 0
+//strategy.entry(id = "Short", long = false, when = enterShort())
+//strategy.close(id = "Short", when = exitShort())   
+//END
+
+
+///STRATEGY ONLY LONG AND SHORT/////
+if crossover(condlongx, 1.9) and testPeriod() and strategy.position_size <= 0
+    strategy.entry("Long", strategy.long, comment="Long")
+
+if crossover(condshortx, 1.9) and testPeriod() and strategy.position_size >= 0
+    strategy.close("Long", when=not Margin)
+
+if crossover(condshortx, 1.9) and testPeriod() and strategy.position_size >= 0
+    strategy.entry("Short", strategy.short, comment="Short", when=Margin)
+
+/////// END ////
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/442126
+
+> Last Modified
+
+2024-02-19 15:32:17

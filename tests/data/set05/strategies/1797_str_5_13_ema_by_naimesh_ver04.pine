@@ -1,0 +1,70 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/EMA5与EMA13交叉策略-EMA5-and-EMA13-Crossover-Strategy.md
+// content_hash: 39b268bdca5e02f5
+// collected: 2026-07-27
+strategy('5-13 EMA by Naimesh ver04', overlay=true)
+
+qty = input(1, 'Buy quantity')
+
+testStartYear = input(2021, 'Backtest Start Year')
+testStartMonth = input(1, 'Backtest Start Month')
+testStartDay = input(1, 'Backtest Start Day')
+testStartHour = input(0, 'Backtest Start Hour')
+testStartMin = input(0, 'Backtest Start Minute')
+testPeriodStart = timestamp(testStartYear, testStartMonth, testStartDay, testStartHour, testStartMin)
+testStopYear = input(2099, 'Backtest Stop Year')
+testStopMonth = input(1, 'Backtest Stop Month')
+testStopDay = input(30, 'Backtest Stop Day')
+testPeriodStop = timestamp(testStopYear, testStopMonth, testStopDay, 0, 0)
+testPeriodBackground = input(title='Color Background?', defval=true)
+testPeriodBackgroundColor = testPeriodBackground and time >= testPeriodStart and time <= testPeriodStop ? #00FF00 : na
+testPeriod() => true
+
+
+ema1 = input(5, title='Select EMA 1')
+ema2 = input(13, title='Select EMA 2')
+//ema3 = input(50, title='Select EMA 3')
+//SL = input(70, title='Stoploss')
+//TR = input(250, title='Target')
+
+expo = ta.ema(close, ema1)
+ma = ta.ema(close, ema2)
+//EMA_50 = ta.ema(close, ema3)
+
+//avg_1 = avg (expo, ma)
+//s2 = ta.cross(expo, ma) ? avg_1 : na
+//plot(s2, style=plot.style_line, linewidth=3, color=color.red, transp=0)
+
+p1 = plot(expo, color=color.rgb(231, 15, 15), linewidth=2)
+p2 = plot(ma, color=#0db63a, linewidth=2)
+fill(p1, p2, color=color.new(color.white, 80))
+
+longCondition = ta.crossover(expo, ma)
+
+shortCondition = ta.crossunder(expo, ma)
+
+
+if testPeriod()
+    //strategy.entry('Long', strategy.long, when=longCondition)
+    strategy.entry('Short', strategy.short, when=expo<ma)
+
+//strategy.close("Long", expo<ma, comment= 'SL hit')
+strategy.close("Short", expo>ma, comment= 'SL hit')
+
+
+
+//plotshape(longCondition and close>EMA_50, title='Buy Signal', text='B', textcolor=color.new(#FFFFFF, 0), style=shape.labelup, size=size.normal, location=location.belowbar, color=color.new(#1B8112, 0))
+//plotshape(shortCondition and close<EMA_50, title='Sell Signal', text='S', textcolor=color.new(#FFFFFF, 0), style=shape.labeldown, size=size.normal, location=location.abovebar, color=color.new(#FF5733, 0))
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/451729
+
+> Last Modified
+
+2024-05-17 15:28:17

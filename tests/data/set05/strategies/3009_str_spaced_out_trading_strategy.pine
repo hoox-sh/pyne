@@ -1,0 +1,43 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于间隔交易策略Spaced-Out-Trading-Strategy.md
+// content_hash: ffd6d66834daeaea
+// collected: 2026-07-27
+strategy("Spaced Out Trading Strategy", overlay=true)
+
+// Define strategy parameters
+emaPeriod = input(30, title="EMA Period")  // Longer EMA period for more spaced-out trades
+stopLossPct = input(2.0, title="Stop Loss Percentage")  // Stop loss percentage
+takeProfitPct = input(3.0, title="Take Profit Percentage")  // Take profit percentage
+
+// Calculate EMA
+emaValue = ta.ema(close, emaPeriod)
+
+// Define entry and exit conditions
+enterLong = ta.crossover(close, emaValue)
+exitLong = ta.crossunder(close, emaValue)
+
+// Place orders
+contractsQty = 5  // Number of contracts to buy
+var float lastTradePrice = na  // Track the last trade price
+if enterLong and strategy.position_size == 0
+    strategy.entry("Buy Call", strategy.long, qty = contractsQty)
+    lastTradePrice := close
+else if exitLong and strategy.position_size > 0
+    strategy.close("Buy Call")
+    lastTradePrice := na
+
+// Calculate stop loss and take profit
+stopLossPrice = lastTradePrice * (1 - stopLossPct / 100)
+takeProfitPrice = lastTradePrice * (1 + takeProfitPct / 100)
+strategy.exit("Sell Call", "Buy Call", stop = stopLossPrice, limit = takeProfitPrice)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/442656
+
+> Last Modified
+
+2024-02-23 15:09:48

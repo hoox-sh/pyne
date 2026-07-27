@@ -1,0 +1,50 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/布林带RSI交易策略-Bollinger-Bands-RSI-Trading-Strategy.md
+// content_hash: e118d16a986f99ce
+// collected: 2026-07-27
+strategy("Bollinger Bands + RSI Strategy", overlay=true)
+
+// Bollinger Bands settings
+length = input.int(20, title="BB Length")
+src = close
+mult = input.float(2.0, title="BB Multiplier")
+
+basis = ta.sma(src, length)
+dev = mult * ta.stdev(src, length)
+upper = basis + dev
+lower = basis - dev
+
+// Plot Bollinger Bands
+plot(basis, color=color.blue, title="Basis")
+p1 = plot(upper, color=color.red, title="Upper Band")
+p2 = plot(lower, color=color.green, title="Lower Band")
+fill(p1, p2, color=color.gray, transp=90)
+
+// RSI settings
+rsiLength = input.int(14, title="RSI Length")
+rsiOverbought = input.int(70, title="RSI Overbought Level")
+rsiOversold = input.int(30, title="RSI Oversold Level")
+
+rsi = ta.rsi(close, rsiLength)
+
+// Buy and sell conditions
+buyCondition = (close < lower) and (rsi < rsiOversold)
+sellCondition = (close > upper) and (rsi > rsiOverbought)
+
+// Execute buy and sell orders
+if (buyCondition)
+    strategy.entry("Buy", strategy.long)
+
+if (sellCondition)
+    strategy.close("Buy")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/452355
+
+> Last Modified
+
+2024-05-24 17:24:06

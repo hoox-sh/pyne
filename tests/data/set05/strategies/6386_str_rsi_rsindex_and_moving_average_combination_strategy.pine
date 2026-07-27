@@ -1,0 +1,59 @@
+//@version=2
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/阻力与支撑带动的拉里金叉RSI策略RSIndex-and-Moving-Average-Combination-Strategy.md
+// content_hash: dcb4c0d884dd53c5
+// collected: 2026-07-27
+//Created by ChrisMoody
+//Based on Larry Connors RSI-2 Strategy - Lower RSI
+strategy(title="_CM_RSI_2_Strat_Low", shorttitle="_CM_RSI_2_Strategy_Lower", overlay=false)
+src = close, 
+
+//RSI CODE
+up = rma(max(change(src), 0), 2)                
+down = rma(-min(change(src), 0), 2)
+rsi = down == 0 ? 100 : up == 0 ? 0 : 100 - (100 / (1 + up / down))
+//Criteria for Moving Avg rules
+ma1 = sma(close,1)
+ma2 = sma(close,2)
+ma3 = sma(close,3)
+ma4 = sma(close,4)
+ma5 = sma(close,5)
+ma6 = sma(close,6)
+ma7 = sma(close,7)
+ma8 = sma(close,8)
+ma9 = sma(close,9)
+ma200= sma(close, 120)
+
+//Rule for RSI Color
+col = close > ma200 and close < ma5 and rsi < 10 ? lime : close < ma200 and close > ma5 and rsi > 90 ? red : silver
+
+plot(rsi, title="RSI", style=line, linewidth=4,color=col)
+plot(100, title="Upper Line 100",style=line, linewidth=3, color=aqua)
+plot(0, title="Lower Line 0",style=line, linewidth=3, color=aqua)
+
+band1 = plot(90, title="Upper Line 90",style=line, linewidth=3, color=aqua)
+band0 = plot(10, title="Lower Line 10",style=line, linewidth=3, color=aqua)
+fill(band1, band0, color=silver, transp=90)
+
+///////////// RSI + Bollinger Bands Strategy
+
+
+if (close > ma200 and rsi < 10 and rsi >1)
+    strategy.entry("RSI_2_L", strategy.long, comment="Bullish")
+if (close < ma200 and rsi > 90 and rsi <98)
+    strategy.entry("RSI_2_S", strategy.short, comment="Bearish")
+
+
+strategy.close("RSI_2_L", when = close > ma5 and ma1 < ma3)
+strategy.close("RSI_2_S", when = close < ma5 and ma1 > ma2)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/437685
+
+> Last Modified
+
+2024-01-04 17:46:07

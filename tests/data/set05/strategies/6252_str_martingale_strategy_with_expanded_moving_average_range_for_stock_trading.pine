@@ -1,0 +1,81 @@
+//@version=2
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/拓宽均线区间的马丁格尔止损炒股策略Martingale-Strategy-with-Expanded-Moving-Average-Range-for-Stock-Trading.md
+// content_hash: 42440496df94fcfb
+// collected: 2026-07-27
+// strategy(title='Super Simple Martingale Buying', shorttitle="Martingale v5",overlay=true, pyramiding = 10, initial_capital=1, calc_on_order_fills = true)
+
+
+// Revision:        1
+// Author:          @ToS_MavericK
+
+// === INPUT SMA ===
+EMA1  = input(55)
+EMA2  = input(89)
+
+Amount  = input(defval = 6, type = float, title = "Max open Orders", minval = 1, step = 1)
+Multiplier  = input(defval = 2  , type = float, title = "Multiplier", minval = 1, step = 0.1)
+BuyLvl  = input(defval = 1, type = float, title = "BuyLvl", minval = 0, step = 0.1)
+Profit  = input(3)
+DoubleUpLimit    = input(2)
+
+// === INPUT BACKTEST RANGE ===
+FromDay = input(defval = 1, title = "From Day", minval = 1, maxval = 31)
+FromMonth   = input(defval = 1, title = "From Month", minval = 1, maxval = 12)
+FromYear    = input(defval = 2019, title = "From Year", minval = 2012)
+ToDay   = input(defval = 1, title = "To Day", minval = 1, maxval = 31)
+ToMonth = input(defval = 1, title = "To Month", minval = 1, maxval = 12)
+ToYear  = input(defval = 2020, title = "To Year", minval = 2012)
+
+RSIFilter = input(false)
+minRSI  = input(defval = 35,  title = "RSI", minval = 1, step = 1)
+lengthRSI = input(14, minval=1)
+src = input(close, title="RSI Source")
+
+StochRSIFilter = input(false)
+lengthStoch = input(14, minval=1)
+smoothK = input(3, minval=1)
+smoothD = input(3, minval=1)
+
+rsi = rsi(src, lengthRSI)
+k = sma(stoch(rsi, rsi, rsi, lengthStoch), smoothK)
+d = sma(k, smoothD)
+
+// === FUNCTION EXAMPLE ===
+start     = timestamp(FromYear, FromMonth, FromDay, 00, 00)  // backtest start window
+finish    = timestamp(ToYear, ToMonth, ToDay, 23, 59)        // backtest finish window
+window()  => true // create function "within window of time"
+
+// === SERIES SETUP ===
+vEMA1 = ema(close, EMA1)
+vEMA2 = ema(close, EMA2)
+
+buy  =  (rsi < minRSI or RSIFilter == false) and ((crossover(k,d) and k < 20) or StochRSIFilter == false) and ((close < vEMA1 * (1 - BuyLvl/100) and vEMA1 < vEMA2) or (close < vEMA2 * (1 - BuyLvl/100) and vEMA2 < vEMA1))
+
+BuyPrice = strategy.position_avg_price * (1 - DoubleUpLimit/50)
+SellPrice = strategy.position_avg_price * (1 + Profit/(100*strategy.opentrades))
+
+// Exit first, due to the limit orders, which can be hit on the same bar
+strategy.exit("EMA1", limit = SellPrice, when = window() and strategy.opentrades > 0)
+strategy.close("EMA1",when = time > finish) // close positions at the end of the specified time period
+
+// Normal entry
+strategy.entry("EMA1", strategy.long,qty = strategy.equity/ (close * pow(2,Amount - 1)), when = window() and strategy.opentrades == 0 and buy)
+// Martingale
+strategy.entry("EMA1", strategy.long,qty = strategy.position_size, limit = strategy.position_avg_price * (1 - DoubleUpLimit/100), when = window() and strategy.opentrades == 1)
+strategy.entry("EMA1", strategy.long,qty = strategy.position_size, limit = BuyPrice, when = window() and strategy.opentrades > 1 and strategy.opentrades < Amount)
+
+plot(vEMA1, title = 'EMA1', color = orange, linewidth = 2, style = line)
+plot(vEMA2, title = 'EMA2', color = yellow, linewidth = 2, style = line)
+plot(BuyPrice[1], title = 'BuyPrice', color = red, linewidth = 2, style = line)
+plot(SellPrice[1], title = 'SellPrice', color = green, linewidth = 2, style = line)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/430900
+
+> Last Modified
+
+2023-11-02 17:16:08

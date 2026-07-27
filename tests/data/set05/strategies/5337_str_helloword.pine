@@ -1,0 +1,51 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/四小时Stochastic-EMA趋势策略4-Hour-Stochastic-EMA-Trend-Strategy.md
+// content_hash: e6ba98cd5d1e0264
+// collected: 2026-07-27
+strategy("HelloWord")
+//study(title="Stochastic", shorttitle="Stoch", format=format.price, precision=2, resolution="")
+period1 = 5
+period2 = 15
+period3 = 50
+
+ma1 = ema(close, period1)
+ma2 = ema(close, period2)
+ma3 = ema(close, period3)
+
+periodK=13
+periodD=15
+smoothK=5
+
+k = sma(stoch(close, high, low, periodK), smoothK)
+d = sma(k, periodD)
+
+
+buyCondition = crossover(k, d) and crossover(ma1, ma3) and crossover(ma2, ma3)
+sellCondition = crossunder(k, d) and crossunder(ma1, ma3) and crossunder(ma2, ma3)
+
+strategy.entry("long", strategy.long, alert_message="LongAlert", when=buyCondition)
+strategy.close("long", alert_message="CloseAlert", when=sellCondition)
+    
+
+
+
+
+//study("Stochastic EMA Trend", overlay=false)
+plot(close)
+plot(ma1, color=color.blue, linewidth=3, title="EMA period 5")
+plot(ma2, color=color.green,linewidth=3, title="EMA period 15")
+plot(ma3, color=color.yellow,linewidth=3, title="EMA period 50")
+plot(d, color=color.red,linewidth=3, title="d")
+plot(k, color=color.blue,linewidth=3, title="k")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/427933
+
+> Last Modified
+
+2023-09-26 20:57:59

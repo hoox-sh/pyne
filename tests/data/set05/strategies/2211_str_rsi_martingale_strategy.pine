@@ -1,0 +1,61 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/RSI量化交易策略-RSI-Quantitative-Trading-Strategy.md
+// content_hash: 0f23efb469c82088
+// collected: 2026-07-27
+strategy("RSI Martingale Strategy", overlay=true)
+
+// RSI settings
+rsi_length = input(14, title="RSI Length")
+overbought_level = input(70, title="Overbought Level")
+oversold_level = input(30, title="Oversold Level")
+
+// Martingale settings
+initial_quantity = input(1, title="Initial Quantity")
+martingale_multiplier = input(2, title="Martingale Multiplier")
+
+// Calculate RSI
+rsi = ta.rsi(close, rsi_length)
+
+// Entry conditions
+buy_condition = ta.crossover(rsi, oversold_level)
+sell_condition = ta.crossunder(rsi, overbought_level)
+
+// Take profit and stop loss
+take_profit_percent = 0
+stop_loss_percent = 0
+
+// Strategy logic
+strategy.entry("Buy", strategy.long, when = buy_condition)
+strategy.entry("Sell", strategy.short, when = sell_condition)
+
+// Calculate take profit and stop loss levels
+take_profit_level = close * (1 + take_profit_percent / 100)
+stop_loss_level = close * (1 - stop_loss_percent / 100)
+
+// Exit conditions
+strategy.exit("Exit Buy", "Buy", limit = take_profit_level, stop = stop_loss_level)
+strategy.exit("Exit Sell", "Sell", limit = take_profit_level, stop = stop_loss_level)
+
+// Martingale logic
+var float last_quantity = na
+if (buy_condition)
+    last_quantity := initial_quantity
+if (sell_condition)
+    last_quantity := initial_quantity
+
+if (strategy.position_size > 0)
+    strategy.entry("Buy Martingale", strategy.long, qty = last_quantity * martingale_multiplier)
+if (strategy.position_size < 0)
+    strategy.entry("Sell Martingale", strategy.short, qty = last_quantity * martingale_multiplier)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/451493
+
+> Last Modified
+
+2024-05-15 11:02:13

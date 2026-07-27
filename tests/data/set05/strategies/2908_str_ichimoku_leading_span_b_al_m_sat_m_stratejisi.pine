@@ -1,0 +1,46 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/Ichimoku-Leading-Span-B-突破策略-Ichimoku-Leading-Span-B-Breakout-Strategy.md
+// content_hash: b4009bc6125ec507
+// collected: 2026-07-27
+strategy("Ichimoku Leading Span B Alım/Satım Stratejisi", overlay=true)
+
+// Ichimoku göstergesi parametreleri
+conversionPeriods = input(9, title="Dönüşüm Periyodu")
+basePeriods = input(26, title="Taban Periyodu")
+laggingSpan2Periods = input(52, title="Gecikme Span 2 Periyodu")
+displacement = input(26, title="Kaydırma")
+
+// Ichimoku hesaplama
+tenkanSen = (ta.highest(high, conversionPeriods) + ta.lowest(low, conversionPeriods)) / 2
+kijunSen = (ta.highest(high, basePeriods) + ta.lowest(low, basePeriods)) / 2
+senkouSpanA = (tenkanSen + kijunSen) / 2
+senkouSpanB = (ta.highest(high, laggingSpan2Periods) + ta.lowest(low, laggingSpan2Periods)) / 2
+
+// Leading Span B'nin grafiğe çizilmesi
+plot(senkouSpanB, color=color.red, title="Leading Span B", offset=displacement)
+
+// Alım sinyali: Fiyat Leading Span B'yi yukarı keserse
+buy_signal = ta.crossover(close, senkouSpanB[displacement])
+if (buy_signal)
+    strategy.entry("Alım", strategy.long)
+
+// Satım sinyali: Fiyat Leading Span B'yi aşağı keserse
+sell_signal = ta.crossunder(close, senkouSpanB[displacement])
+if (sell_signal)
+    strategy.close("Alım")
+
+// Sinyalleri grafik üzerinde gösterme
+plotshape(series=buy_signal, title="Alım Sinyali", location=location.belowbar, color=color.green, style=shape.triangleup, size=size.small)
+plotshape(series=sell_signal, title="Satım Sinyali", location=location.abovebar, color=color.red, style=shape.triangledown, size=size.small)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/449817
+
+> Last Modified
+
+2024-04-29 14:45:40

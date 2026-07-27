@@ -1,0 +1,11 @@
+//@version=4
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/v4/essential/context-switching-the-security-function.md::context-switching-the-security-function.md#block8
+// content_hash: 3a3f05c23784a159
+// collected: 2026-07-27
+    study("Lookahead On/Off", overlay=true, precision=5)
+    l_on = security(syminfo.tickerid, "1", close, lookahead=barmerge.lookahead_on)
+    l_off = security(syminfo.tickerid, "1", close, lookahead=barmerge.lookahead_off)
+    plot(l_on, color=color.red)
+    plot(l_off, color=color.blue)

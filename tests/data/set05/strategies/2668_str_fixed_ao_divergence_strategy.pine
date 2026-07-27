@@ -1,0 +1,52 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双重随机滤波器敏锐离散分析策略Awesome-Oscillator-Double-Stochastic-Filtered-Divergence-Trading-Strategy.md
+// content_hash: 23ba856d827398db
+// collected: 2026-07-27
+strategy("Fixed AO Divergence Strategy", shorttitle="Fixed AO+Stoch", overlay=true)
+
+// Calculate Awesome Oscillator
+ao() => ta.sma(hl2, 5) - ta.sma(hl2, 34)
+aoVal = ao()
+
+// Stochastic Oscillator
+stochK = ta.stoch(close, high, low, 14)
+stochD = ta.sma(stochK, 3)
+
+// Simplify the divergence detection logic
+// For educational purposes, we will define a basic divergence detection mechanism
+// Real-world application would require more sophisticated logic
+
+// Detect bullish and bearish divergences based on AO and price action
+bullishDivergence = (close > close[1]) and (aoVal < aoVal[1])
+bearishDivergence = (close < close[1]) and (aoVal > aoVal[1])
+
+// Stochastic Overbought/Oversold conditions
+stochOverbought = (stochK > 80) and (stochD > 80)
+stochOversold = (stochK < 20) and (stochD < 20)
+
+// Filtered signals
+confirmedBullishSignal = bullishDivergence and stochOversold
+confirmedBearishSignal = bearishDivergence and stochOverbought
+
+// Plot signals
+plotshape(series=confirmedBullishSignal, style=shape.triangleup, location=location.belowbar, color=color.green, title="Bullish Divergence", text="BUY")
+plotshape(series=confirmedBearishSignal, style=shape.triangledown, location=location.abovebar, color=color.red, title="Bearish Divergence", text="SELL")
+
+// Strategy Entry
+if (confirmedBullishSignal)
+    strategy.entry("Long", strategy.long, comment="Long Entry")
+
+if (confirmedBearishSignal)
+    strategy.entry("Short", strategy.short, comment="Short Entry")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/442946
+
+> Last Modified
+
+2024-02-27 15:51:44

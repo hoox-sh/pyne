@@ -1,0 +1,5 @@
+//@version=6strategy("`session.islastbar` Example", overlay = true)longCondition = year >= 2022// Place a long order at the `close` of the trading session's last bar.// The position will enter on the `open` of next session's first bar.if session.islastbar and longCondition    strategy.entry("Long", strategy.long) // Close 'Long' position at the close of the last bar of the trading sessionif session.islastbar and barstate.isconfirmed    strategy.close("Long", immediately = true)// set05 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/reference/variables.md::variables.md#block7
+// content_hash: 8c681bd97caf4cf0
+// collected: 2026-07-27

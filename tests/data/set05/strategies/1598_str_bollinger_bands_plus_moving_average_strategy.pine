@@ -1,0 +1,76 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/高频波动突破趋势跟踪策略-High-Frequency-Volatility-Breakout-Trend-Following-Strategy.md
+// content_hash: 17a2de032d283c5b
+// collected: 2026-07-27
+strategy("Bollinger Bands + Moving Average Strategy", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=200)
+
+// === Vstupy ===
+// Moving Average
+maPeriod = input.int(20, title="MA Period", minval=1)
+maType = input.string("SMA", title="MA Type", options=["SMA", "EMA"])
+
+// Bollinger Bands
+bbPeriod = input.int(20, title="BB Period", minval=1)
+bbMultiplier = input.float(2.0, title="BB Multiplier", step=0.1)
+
+// === Výpočty Indikátorov ===
+// Moving Average
+ma = maType == "SMA" ? ta.sma(close, maPeriod) : ta.ema(close, maPeriod)
+
+// Bollinger Bands
+basis = ta.sma(close, bbPeriod)
+dev = bbMultiplier * ta.stdev(close, bbPeriod)
+upperBB = basis + dev
+lowerBB = basis - dev
+
+// === Podmienky Pre Vstupy ===
+// Nákupný signál: Cena prekonáva dolný Bollinger Band smerom nahor a cena je nad MA
+longCondition = ta.crossover(close, lowerBB) and close > ma
+
+// Predajný signál: Cena prekonáva horný Bollinger Band smerom nadol a cena je pod MA
+shortCondition = ta.crossunder(close, upperBB) and close < ma
+
+// === Vstupné Signály ===
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+
+if (shortCondition)
+    strategy.entry("Short", strategy.short)
+
+// === Výstupné Podmienky ===
+// Uzavretie Long pozície pri prekonaní MA smerom nadol alebo ceny pod MA
+exitLongCondition = ta.crossunder(close, ma) or close < ma
+if (exitLongCondition)
+    strategy.close("Long")
+
+// Uzavretie Short pozície pri prekonaní MA smerom nahor alebo ceny nad MA
+exitShortCondition = ta.crossover(close, ma) or close > ma
+if (exitShortCondition)
+    strategy.close("Short")
+
+// === Vykreslenie Indikátorov na Grafe ===
+// Vykreslenie Moving Average
+plot(ma, color=color.blue, title="Moving Average")
+
+// Vykreslenie Bollinger Bands
+upperPlot = plot(upperBB, color=color.red, title="Upper BB")
+lowerPlot = plot(lowerBB, color=color.green, title="Lower BB")
+fill(upperPlot, lowerPlot, color=color.rgb(173, 216, 230, 90), title="BB Fill")
+
+// Vizualizácia Signálov
+plotshape(series=longCondition, title="Long Entry", location=location.belowbar, color=color.green, style=shape.labelup, text="Long")
+plotshape(series=shortCondition, title="Short Entry", location=location.abovebar, color=color.red, style=shape.labeldown, text="Short")
+plotshape(series=exitLongCondition, title="Long Exit", location=location.abovebar, color=color.red, style=shape.labeldown, text="Exit Long")
+plotshape(series=exitShortCondition, title="Short Exit", location=location.belowbar, color=color.green, style=shape.labelup, text="Exit Short")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/481097
+
+> Last Modified
+
+2025-02-08 14:56:57

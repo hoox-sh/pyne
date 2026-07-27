@@ -1,0 +1,15 @@
+//@version=5
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/v5/error-messages.md::error-messages.md#block19
+// content_hash: ab9447243221f116
+// collected: 2026-07-27
+indicator("Monthly BOP array", "Memory limit demo")
+
+// Returns the calculated `bop`, and a copy of the `dataArray` on a month's first trading day only, or `na` otherwise.
+dataFunction() => 
+    //@variable Persistent array containing the "balance of power" (BOP) values for all higher timeframe bars.
+    var array<float> dataArray = array.new_float(0)
+
+    // When a new month starts, return monthly data array to calculate average BOP for completed month.
+    //@variable Array is `na` except on first trading day of each month, when it contains completed month's BOP values.

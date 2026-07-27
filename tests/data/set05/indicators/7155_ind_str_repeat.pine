@@ -1,0 +1,9 @@
+//@version=6
+// set05 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block211
+// content_hash: 014e622a9e784b34
+// collected: 2026-07-27
+indicator("str.repeat")
+repeat = str.repeat("?", 3, ",") // Returns "?,?,?"
+label.new(bar_index,close,repeat)

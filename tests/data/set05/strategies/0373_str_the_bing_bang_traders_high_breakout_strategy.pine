@@ -1,0 +1,52 @@
+//@version=5
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/TheBigBangTraders Breakout.pine
+// content_hash: 7433ca30422385d0
+// collected: 2026-07-27
+strategy("The Bing Bang Traders - High Breakout Strategy",
+         initial_capital=10000,
+         default_qty_value=10,
+         default_qty_type=strategy.percent_of_equity, 
+         commission_type=strategy.commission.percent,
+         commission_value=0.075, 
+         slippage = 1, 
+         backtest_fill_limits_assumption = 1)
+// ----------------------------------------------------------------------------- 
+// Input
+// ----------------------------------------------------------------------------- 
+momentum_filter_activated = input.bool(true, inline="momentum", title="")
+momentum_filter_treshold = input.float(1, inline="momentum", title="Treshold") // definisco l'input per il momentum filter
+trend_filter_activated = input.bool(true, inline="trend", title="")
+trend_filter_period = input.int(223, inline="trend", title="Period")
+// Momentum Filter 
+opend = request.security(syminfo.tickerid, "1D", open) // richiamo il valore della open del giorno (opend) per calcolare quando "paga" la coin 
+momentum_filter = momentum_filter_activated ? (close-opend)/opend*100 > momentum_filter_treshold : true // calcolo il filtro momentum valutando la variazione percentuale, in questo caso maggiore di 1 (cosa succede se vario questo parametro anche in negtivo e se lo rendo configurabile da input?) 
+// Trend Filter
+trend_filter = trend_filter_activated ? close > ta.ema(close, trend_filter_period): true
+// ------------- Input -----------------
+daily_plot   = input.bool(false, "Daily High Plot")
+weekly_plot  = input.bool(false, "Weekly High Plot")
+periods_ago  = input.int(0, "Max of periods")
+high_daily_input  = input.bool(true, "Use Daily High")
+high_weekly_input = input.bool(false, "Use Weekly High")
+// ------------- Security -----------------
+high_daily = request.security(syminfo.tickerid, 'D', high[periods_ago])
+plot(daily_plot ? high_daily : na, "Daily High", color.aqua, 2)
+high_weekly = request.security(syminfo.tickerid, 'W', high[periods_ago])
+plot(weekly_plot ? high_weekly : na, "Weekly High", color.purple, 2)
+// ------------- Condition -----------------
+cond_long = ta.crossover(close, high_daily_input? high_daily : high_weekly_input ? high_weekly : na) and momentum_filter and trend_filter
+cond_exit =  ((hour == 23 and minute == 00) and timeframe.period == "60") 
+if cond_long
+    strategy.entry("EL", strategy.long)
+if cond_exit
+    strategy.close("EL")
+   
+// ------------- Table -----------------
+   
+alert_message = "Attenzione: Utilizzare timeframe 1H per avere l'uscita corretta"
+if timeframe.period != '60' 
+    alert_table = table.new(position=position.bottom_left, columns=1, rows=1)
+    table.cell(alert_table, 0, 0, alert_message, text_color=color.red, text_size=size.tiny)
+Expand (66 lines)

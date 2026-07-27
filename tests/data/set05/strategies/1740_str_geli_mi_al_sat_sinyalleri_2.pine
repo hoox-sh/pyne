@@ -1,0 +1,72 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/十五分钟图表高级交易信号策略-Advanced-15-Minute-Chart-Trading-Signal-Strategy.md
+// content_hash: 4e037ea6df136abb
+// collected: 2026-07-27
+strategy("Gelişmiş Al-Sat Sinyalleri", overlay=true, process_orders_on_close=true)
+
+// 15 dakikalık grafik verileri
+fifteen_minute_close = request.security(syminfo.tickerid, "15", close)
+
+// Stop loss ve take profit seviyelerini hesaplamak için kullanılacak oranlar
+stop_loss_ratio = input.float(0.01, title="Stop Loss Oranı")
+take_profit_ratio = input.float(0.02, title="Take Profit Oranı")
+
+// Bollinger Bantları göstergesi
+length = input.int(20, title="BB Dönemi")
+mult = input.float(2.0, title="BB Çarpanı")
+basis = ta.sma(fifteen_minute_close, length)
+dev = mult * ta.stdev(fifteen_minute_close, length)
+upper = basis + dev
+lower = basis - dev
+
+// Moving Averages (Hareketli Ortalamalar)
+fast_ma = ta.sma(fifteen_minute_close, 10)
+slow_ma = ta.sma(fifteen_minute_close, 30)
+
+// MACD göstergesi
+macd_line = ta.ema(fifteen_minute_close, 12) - ta.ema(fifteen_minute_close, 26)
+macd_signal = ta.ema(macd_line, 9)
+macd_hist = macd_line - macd_signal
+
+// RSI göstergesi
+rsi = ta.rsi(fifteen_minute_close, 14)
+
+// Stochastic Oscillator (Stokastik Osilatör)
+kPeriod = input.int(14, title="Stochastic %K Periyodu")
+dPeriod = input.int(3, title="Stochastic %D Periyodu")
+smoothK = input.int(3, title="Stochastic %K Düzleştirme")
+k = ta.stoch(fifteen_minute_close, high, low, kPeriod)
+d = ta.sma(k, dPeriod)
+
+// Hacim ağırlıklı hareketli ortalamalar göstergesi (VWAP)
+vwap_length = input.int(20, title="VWAP Dönemi")
+vwap = ta.sma(volume * (high + low + fifteen_minute_close) / 3, vwap_length) / ta.sma(volume, vwap_length)
+
+// Al-Sat Sinyallerini hesaplayın
+long_signal = ta.crossover(fast_ma, slow_ma) and macd_line > macd_signal and rsi > 50 and fifteen_minute_close > vwap and k > d
+short_signal = ta.crossunder(fast_ma, slow_ma) and macd_line < macd_signal and rsi < 50 and fifteen_minute_close < vwap and k < d
+
+// Al ve Sat işaretlerini, yanlarında ok işaretleri olan üçgenlerle değiştirin
+plotshape(series=long_signal, style=shape.triangleup, location=location.belowbar, color=color.green, size=size.small)
+plotshape(series=short_signal, style=shape.triangledown, location=location.abovebar, color=color.red, size=size.small)
+
+// Uzun ve kısa pozisyonlar için girişler
+if (long_signal)
+    strategy.entry("long", strategy.long)
+    strategy.exit("exit_long", "long", stop=fifteen_minute_close * (1 - stop_loss_ratio), limit=fifteen_minute_close * (1 + take_profit_ratio))
+    
+if (short_signal)
+    strategy.entry("short", strategy.short)
+    strategy.exit("exit_short", "short", stop=fifteen_minute_close * (1 + stop_loss_ratio), limit=fifteen_minute_close * (1 - take_profit_ratio))
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/452693
+
+> Last Modified
+
+2024-05-28 11:03:37

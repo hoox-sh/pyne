@@ -1,0 +1,66 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/高级多指标趋势确认交易策略-Advanced-Multi-Indicator-Trend-Confirmation-Trading-Strategy.md
+// content_hash: ea61832da26d407c
+// collected: 2026-07-27
+strategy("Enhanced Volume + Trend Strategy", overlay=true)
+
+// Inputs
+emaLength = input.int(50, title="EMA Length")
+atrLength = input.int(14, title="ATR Length")
+atrMultiplierSL = input.float(2.0, title="ATR Multiplier for Stop Loss")
+atrMultiplierTP = input.float(3.0, title="ATR Multiplier for Take Profit")
+volLength = input.int(20, title="Volume Moving Average Length")
+volMultiplier = input.float(1.5, title="Volume Multiplier (Relative to Previous Volume)")
+
+// Trend Detection using EMA
+ema = ta.ema(close, emaLength)
+
+// ATR Calculation for Stop Loss/Take Profit
+atr = ta.atr(atrLength)
+
+// Volume Moving Average
+volMA = ta.sma(volume, volLength)
+
+// Additional Volume Condition (Current Volume > Previous Volume + Multiplier)
+volCondition = volume > volMA * volMultiplier and volume > volume[1]
+
+// Entry Conditions based on Trend (EMA) and Volume (Volume Moving Average)
+longCondition = close > ema and volCondition
+shortCondition = close < ema and volCondition
+
+// Stop Loss and Take Profit Levels
+longStopLoss = close - (atr * atrMultiplierSL)
+longTakeProfit = close + (atr * atrMultiplierTP)
+shortStopLoss = close + (atr * atrMultiplierSL)
+shortTakeProfit = close - (atr * atrMultiplierTP)
+
+// Strategy Execution
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+    strategy.exit("Take Profit/Stop Loss", "Long", stop=longStopLoss, limit=longTakeProfit)
+
+if (shortCondition)
+    strategy.entry("Short", strategy.short)
+    strategy.exit("Take Profit/Stop Loss", "Short", stop=shortStopLoss, limit=shortTakeProfit)
+
+// Plotting EMA
+plot(ema, color=color.yellow, title="EMA")
+
+// Plot Volume Moving Average
+plot(volMA, color=color.blue, title="Volume Moving Average")
+
+// Signal Visualizations
+plotshape(series=longCondition, color=color.green, style=shape.labelup, location=location.belowbar, title="Buy Signal")
+plotshape(series=shortCondition, color=color.red, style=shape.labeldown, location=location.abovebar, title="Sell Signal")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/478745
+
+> Last Modified
+
+2025-01-17 16:33:07

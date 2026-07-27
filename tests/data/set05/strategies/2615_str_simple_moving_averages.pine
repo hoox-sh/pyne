@@ -1,0 +1,54 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动量突破ATR波动率策略Momentum-Breakthrough-ATR-Volatility-Strategy.md
+// content_hash: bf5c4327e4c9b528
+// collected: 2026-07-27
+strategy("Simple Moving Averages", overlay=true)
+
+sma50 = ta.sma(close, 50)
+sma200 = ta.sma(close, 200)
+vwap = ta.vwap(close)
+rsi = ta.rsi(close, 14)
+[diPlus, diMinus, adx_val] = ta.dmi(14, 14)
+atr_val = ta.atr(14)
+
+plot(sma50, color=color.new(color.green, 0))
+plot(sma200, color=color.new(color.red, 0))
+plot(vwap)
+
+longCondition = ta.crossover(sma50, sma200) and vwap > close
+shortCondition = ta.crossunder(sma50, sma200) and vwap < close
+
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+    
+if (shortCondition)
+    strategy.entry("Short", strategy.short)
+
+barcolor = sma50 > sma200 ? (vwap < close ? (rsi < 70 ? color.green : color.blue) : color.yellow) : (sma50 < sma200 ? (vwap > close ? (rsi > 30 ? color.red : color.orange) : color.yellow) : na)
+barcolor(barcolor)
+bgcolor(adx_val > 25 and atr_val > 1.18 ? color.new(color.gray, 50) : color.new(color.black, 50), transp=90)
+
+// ADX and ATR Label Box
+// label.new(bar_index, high, "ADX: " + str.tostring(adx_val, "#.##") + "\nATR: " + str.tostring(atr_val, "#.##"), color=color.new(color.white, 0), textcolor=color.new(color.black, 0), style=label.style_labeldown, yloc=yloc.price, xloc=xloc.bar_index, size=size.small, textalign=text.align_left)
+
+// Exit conditions (optional)
+strategy.close("Long", when = ta.crossunder(sma50, sma200))
+strategy.close("Short", when = ta.crossover(sma50, sma200))
+
+// Take Profit and Stop Loss
+takeProfitPercentage = 5
+stopLossPercentage = 3
+
+strategy.exit("Take Profit / Stop Loss", "Long", profit = takeProfitPercentage, loss = stopLossPercentage)
+strategy.exit("Take Profit / Stop Loss", "Short", profit = takeProfitPercentage, loss = stopLossPercentage)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/438480
+
+> Last Modified
+
+2024-01-12 13:50:44

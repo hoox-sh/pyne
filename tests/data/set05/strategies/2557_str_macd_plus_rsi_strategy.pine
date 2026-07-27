@@ -1,0 +1,55 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/MACD-RSI-动态交叉量化交易系统-MACD-RSI-Dynamic-Crossover-Quantitative-Trading-System.md
+// content_hash: 25d02d73991e9c97
+// collected: 2026-07-27
+strategy("MACD + RSI Strategy", overlay=true)
+
+// MACD settings
+fastLength = input.int(12, title="MACD Fast Length")
+slowLength = input.int(26, title="MACD Slow Length")
+signalSmoothing = input.int(9, title="MACD Signal Smoothing")
+
+// RSI settings
+rsiLength = input.int(14, title="RSI Length")
+rsiOverbought = input.float(70, title="RSI Overbought Level")
+rsiOversold = input.float(30, title="RSI Oversold Level")
+
+// Calculate MACD
+[macdLine, signalLine, _] = ta.macd(close, fastLength, slowLength, signalSmoothing)
+
+// Calculate RSI
+rsi = ta.rsi(close, rsiLength)
+
+// Generate buy and sell signals
+buySignal = ta.crossover(macdLine, signalLine) and rsi < rsiOverbought
+sellSignal = ta.crossunder(macdLine, signalLine) and rsi > rsiOversold
+
+// Plot buy and sell signals on chart
+plotshape(series=buySignal, location=location.belowbar, color=color.green, style=shape.labelup, text="BUY")
+plotshape(series=sellSignal, location=location.abovebar, color=color.red, style=shape.labeldown, text="SELL")
+
+// Strategy entry and exit
+if buySignal
+    strategy.entry("Buy", strategy.long)
+if sellSignal
+    strategy.close("Buy")
+
+// Plot MACD and Signal Line
+plot(macdLine, color=color.blue, title="MACD Line")
+plot(signalLine, color=color.orange, title="Signal Line")
+
+// Plot RSI
+hline(rsiOverbought, "Overbought", color=color.red)
+hline(rsiOversold, "Oversold", color=color.green)
+plot(rsi, color=color.purple, title="RSI")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/473935
+
+> Last Modified
+
+2024-12-04 15:13:26

@@ -1,0 +1,13 @@
+//@version=6
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/language/type-system.md::type-system.md#block33
+// content_hash: a69f070ce01860b8
+// collected: 2026-07-27
+indicator("'series' reference demo")
+
+//@variable References a label created on the first bar using "const" arguments.
+//          Although the script creates only one label, using constant values, this variable's type is "series label" 
+//          because the assigned `label` reference is *unique*. No additional function calls can create the same label 
+//          instance or return the same reference.
+var label myLabel = label.new(0, 0, "A new 'series' label")

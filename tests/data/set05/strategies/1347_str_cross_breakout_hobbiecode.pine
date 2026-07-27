@@ -1,0 +1,86 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于移动平均线交叉突破策略Crossing-Moving-Average-Breakout-Strategy.md
+// content_hash: ea1ae5ce8dcdae1a
+// collected: 2026-07-27
+strategy("Cross Breakout - Hobbiecode", shorttitle="Cross - HOBBIE", overlay=true)
+
+// User-defined input for moving averages
+long_period = input(20, title="Long Period")
+medium_period =  input(10, title = "Medium Period")
+short_period = input(5, title="Short Period")
+type_ma = input.string("SMA", title = "MA type", options = ["SMA", "EMA"])
+candles_back = input(10, title = "Candles Back")
+bars_valid = input(3, title = "Bars to Exit")
+
+// Calculating moving averages
+long_ma = 0.0
+medium_ma = 0.0
+short_ma = 0.0
+
+if type_ma == "SMA"
+    long_ma := ta.sma(close, long_period)
+    medium_ma := ta.sma(close, medium_period)
+    short_ma := ta.sma(close, short_period)
+else
+    long_ma := ta.ema(close, long_period)
+    medium_ma := ta.ema(close, medium_period)
+    short_ma := ta.ema(close, short_period)
+
+// Plot moving averages
+plot(long_ma, title="Long Moving Average", color=color.red)
+plot(medium_ma, title = "Medium Moving Average", color = color.yellow)
+plot(short_ma, title="Short Moving Average", color=color.green)
+
+// Check last min/max
+last_min = ta.lowest(candles_back)
+last_max = ta.highest(candles_back)
+
+// Strategy logic for crossing of moving averages
+longCondition = short_ma > medium_ma and medium_ma > long_ma and high == last_max
+shortCondition = short_ma < medium_ma and medium_ma < long_ma and low == last_min
+
+longCondition_entry = longCondition and strategy.position_size == 0
+shortCondition_entry = shortCondition and strategy.position_size == 0
+
+// Check last min/max for operation
+last_min_op = ta.lowest(candles_back)[1]
+last_max_op = ta.highest(candles_back)[1]
+
+// Plot lines
+var line r1Line = na
+
+// Entry orders
+// if (longCondition)
+//     from_line = chart.point.now(high)
+//     to_line = chart.point.from_index(bar_index + candles_back, high)
+//     r1Line := line.new(from_line, to_line, color = color.green, width = 2)
+
+if longCondition_entry and ta.crossover(close,last_max_op)
+    strategy.entry("Long", strategy.long)
+    strategy.exit("Exit Long", from_entry="Long", stop=low)
+
+// if (shortCondition)
+//     from_line = chart.point.now(low)
+//     to_line = chart.point.from_index(bar_index + candles_back, low)
+//     r1Line := line.new(from_line, to_line, color = color.red, width = 2)
+
+if shortCondition_entry and ta.crossunder(close,last_min_op)
+    strategy.entry("Short", strategy.short)
+    strategy.exit("Exit Short", from_entry="Short", stop=high)
+
+if ta.barssince(longCondition_entry) >= bars_valid
+    strategy.close("Long")
+
+if ta.barssince(shortCondition_entry) >= bars_valid
+    strategy.close("Short")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/441182
+
+> Last Modified
+
+2024-02-06 15:02:33

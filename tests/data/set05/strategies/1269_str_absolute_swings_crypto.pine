@@ -1,0 +1,88 @@
+//@version=5
+// set05 corpus entry
+// source_repo: yankeexlr-tradingview
+// source_path: yankeexlr-tradingview/Absolute Swings (Crypto, 4H).txt
+// content_hash: 22f85b7437d041f5
+// collected: 2026-07-27
+strategy("Absolute Swings, Crypto", overlay=true)
+
+length = 22
+mult = 1.62
+
+// Bollinger Bands
+basis = ta.sma(close, length)
+dev = mult * ta.stdev(close, length)
+upperBand = basis + dev
+lowerBand = basis - dev
+
+// %B calculation
+pctB = (close - lowerBand) / (upperBand - lowerBand)
+
+// RSI
+rsiLength = 18
+rsiLowerThreshold = 28
+rsiUpperThreshold = 72
+rsi = ta.rsi(close, rsiLength)
+
+// Track previous %B value
+var float prevPctB = na
+
+// Track previous RSI value
+var float prevRsi = na
+
+// Track sequence occurrences
+var bool monkeyRocketSequence = false
+var bool cucumberFireSequence = false
+
+// Detect %B crossing below 0
+crossedBelowZero = not na(prevPctB) and prevPctB <= 0 and pctB > 0
+
+// Detect RSI crossing up the lower threshold
+crossedAboveRsiThreshold = not na(prevRsi) and prevRsi <= rsiLowerThreshold and rsi > rsiLowerThreshold
+
+// Detect %B crossing down the lower threshold
+crossedBelow142 = not na(prevPctB) and prevPctB >= 1.33 and pctB < 1.33
+
+// Detect RSI crossing down the upper threshold
+crossedBelow77 = not na(prevRsi) and prevRsi >= rsiUpperThreshold and rsi < rsiUpperThreshold
+
+// Detect the monkey + rocket sequence
+if (crossedBelowZero and crossedAboveRsiThreshold and not monkeyRocketSequence)
+    monkeyRocketSequence := true
+
+// Detect the fire + cucumber sequence
+if (crossedBelow142 and crossedBelow77 and not cucumberFireSequence)
+    cucumberFireSequence := true
+
+// Plotting the Monkey Emoji
+//plotshape(series=crossedBelowZero, style=shape.labelup, location=location.belowbar, color=color.red, text="🐒", transp=50, size=size.small)
+
+// Plotting the Rocket Emoji
+//plotshape(series=crossedAboveRsiThreshold, style=shape.labelup, location=location.belowbar, color=color.blue, text="🚀", transp=50, size=size.small)
+
+// Plotting the Fire Emoji
+//plotshape(series=crossedBelow142, style=shape.labeldown, location=location.abovebar, color=color.orange, text="🔥", transp=50, size=size.small)
+
+// Plotting the Cucumber Emoji
+//plotshape(series=crossedBelow77, style=shape.labeldown, location=location.abovebar, color=color.green, text="🥒", transp=50, size=size.small)
+
+// Plotting the Unicorn Emoji on the monkey + rocket sequence
+plotshape(series=monkeyRocketSequence, style=shape.labelup, location=location.belowbar, color=color.purple, text="🦄", transp=50, size=size.small)
+
+// Plotting the Moon Emoji on the fire + cucumber sequence
+plotshape(series=cucumberFireSequence, style=shape.labeldown, location=location.abovebar, color=color.gray, text="🌕", transp=50, size=size.small)
+
+// Reset the sequence booleans after printing emojis
+if (monkeyRocketSequence)
+    alert("303" + syminfo.ticker, alert.freq_once_per_bar)
+    monkeyRocketSequence := false
+
+if (cucumberFireSequence)
+    alert("404" + syminfo.ticker, alert.freq_once_per_bar)
+    cucumberFireSequence := false
+
+// Update previous %B value
+prevPctB := pctB
+
+// Update previous RSI value
+prevRsi := rsi

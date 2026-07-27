@@ -1,0 +1,64 @@
+//@version=3
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双移动均线交叉反转策略Dual-Moving-Average-Reversal-Strategy.md
+// content_hash: 90ea7aee48f2ec2e
+// collected: 2026-07-27
+strategy("Up Down", "Up Down", precision = 6, pyramiding = 1, default_qty_type = strategy.percent_of_equity, default_qty_value = 99, commission_type = strategy.commission.percent, commission_value = 0.0, initial_capital = 1000, overlay = true)
+
+buy = close > open and open > close[1]
+sell = close < open and open < close[1]
+
+longma = input(77,"Long MA Input")
+shortma = input(7,"Short MA Input")
+long = sma(close,longma)
+short = sma(close, shortma)
+mabuy = crossover(short,long) or buy and short > long
+masell = crossunder(short,long) or sell and short > long
+
+num_bars_buy = barssince(mabuy)
+num_bars_sell = barssince(masell)
+//plot(num_bars_buy, color = teal)
+//plot(num_bars_sell, color = orange)
+
+xbuy = crossover(num_bars_sell, num_bars_buy)
+xsell = crossunder(num_bars_sell, num_bars_buy)
+plotshape(xbuy,"Buy Up Arrow", shape.triangleup, location.belowbar, white, size = size.tiny)
+plotshape(xsell,"Sell Down Arrow", shape.triangledown, location.abovebar, white, size = size.tiny)
+plot(long,"Long MA", fuchsia, 2)
+
+// Component Code Start
+// Example usage:
+// if testPeriod()
+//   strategy.entry("LE", strategy.long)
+testStartYear = input(2017, "Backtest Start Year")
+testStartMonth = input(01, "Backtest Start Month")
+testStartDay = input(2, "Backtest Start Day")
+testPeriodStart = timestamp(testStartYear,testStartMonth,testStartDay,0,0)
+
+testStopYear = input(2019, "Backtest Stop Year")
+testStopMonth = input(7, "Backtest Stop Month")
+testStopDay = input(30, "Backtest Stop Day")
+testPeriodStop = timestamp(testStopYear,testStopMonth,testStopDay,0,0)
+
+// A switch to control background coloring of the test period
+testPeriodBackground = input(title="Color Background?", type=bool, defval=true)
+testPeriodBackgroundColor = testPeriodBackground and (time >= testPeriodStart) and (time <= testPeriodStop) ? #00FF00 : na
+bgcolor(testPeriodBackgroundColor, transp=97)
+
+testPeriod() => true
+// Component Code Stop
+
+if testPeriod()
+    strategy.entry("buy", true, when = xbuy, limit = close)
+    strategy.close("buy", when = xsell)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/432848
+
+> Last Modified
+
+2023-11-22 10:07:19

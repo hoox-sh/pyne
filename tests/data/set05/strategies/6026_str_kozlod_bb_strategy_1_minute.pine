@@ -1,0 +1,50 @@
+//@version=3
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/布林带通道突破交易策略Bollinger-Band-Channel-Breakout-Trading-Strategy.md
+// content_hash: 0e8bbbd3866827fd
+// collected: 2026-07-27
+strategy("Kozlod - BB Strategy - 1 minute", overlay=true, default_qty_type = strategy.percent_of_equity, default_qty_value = 100)
+
+// 
+// author: Kozlod
+// date: 2019-05-27
+// RSI - BTCUSDT - 1m
+// https://www.tradingview.com/u/Kozlod/
+// https://t.me/quantnomad
+//
+
+source = close
+length = input(45, minval=1)
+mult = input(2.5, minval=0.001, maxval=50)
+
+basis = sma(source, length)
+dev = mult * stdev(source, length)
+
+upper = basis + dev
+lower = basis - dev
+
+plot(upper)
+plot(lower)
+
+buyEntry  = crossover(source, lower)
+sellEntry = crossunder(source, upper)
+
+if (crossover(source, lower))
+    strategy.entry("BBandLE", strategy.long, stop=lower, oca_name="BollingerBands",  comment="BBandLE")
+else
+    strategy.cancel(id="BBandLE")
+
+if (crossunder(source, upper))
+    strategy.entry("BBandSE", strategy.short, stop=upper, oca_name="BollingerBands",  comment="BBandSE")
+else
+    strategy.cancel(id="BBandSE")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/426514
+
+> Last Modified
+
+2023-09-12 17:05:56

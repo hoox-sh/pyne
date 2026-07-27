@@ -1,0 +1,47 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/技术支撑阻力指示器精准交易策略-Technical-Support-and-Resistance-Indicator-Precision-Trading-Strategy.md
+// content_hash: 8dff90245f937760
+// collected: 2026-07-27
+strategy("Mars Signals: Precision Trading", overlay=true)
+
+// Calculate the highest highs and lowest lows for support and resistance points
+float highMax = ta.highest(high, 20)
+float lowMin = ta.lowest(low, 20)
+
+// Draw support and resistance lines
+plot(highMax, "Resistance", color=color.red)
+plot(lowMin, "Support", color=color.green)
+
+// Identify price action patterns for deciding on buying or selling
+bool buySignal = close > open and close > highMax[1]
+bool sellSignal = close < open and close < lowMin[1]
+
+// Plot buy and sell signals
+plotshape(series=buySignal, location=location.belowbar, color=color.green, style=shape.labelup, text="Buy")
+plotshape(series=sellSignal, location=location.abovebar, color=color.red, style=shape.labeldown, text="Sell")
+
+// Display Bollinger Bands for further analysis
+float basis = ta.sma(close, 20)
+float dev = ta.stdev(close, 20)
+float upperBB = basis + 2 * dev
+float lowerBB = basis - 2 * dev
+plot(upperBB, "Upper Bollinger Band", color=color.purple)
+plot(lowerBB, "Lower Bollinger Band", color=color.orange)
+
+// Use strategy function for entering and exiting trades
+if (buySignal)
+    strategy.entry("Buy", strategy.long)
+if (sellSignal)
+    strategy.entry("Sell", strategy.short)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/458031
+
+> Last Modified
+
+2024-07-29 13:39:14

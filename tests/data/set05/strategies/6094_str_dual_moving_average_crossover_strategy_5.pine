@@ -1,0 +1,38 @@
+//@version=3
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双均线移动平均差值交易策略Dual-Moving-Average-Crossover-Strategy.md
+// content_hash: 91fc825239b91b18
+// collected: 2026-07-27
+strategy(title="SMA Diff strat", shorttitle="SMAD STR", overlay=false, initial_capital=1, precision=8, default_qty_type=strategy.percent_of_equity, default_qty_value=100, commission_type=strategy.commission.percent, commission_value=0.1, calc_on_order_fills= false, calc_on_every_tick=false, pyramiding=0)
+len1 = input(50, minval=1, title="Length1"), len2 = input(100, minval=1, title="Length2"), smo = input(1, minval=1, title="Smoothing")
+src = input(ohlc4, title="Source")
+
+mid = src
+expr1 = sma(src, len1), expr2 = sma(src, len2)
+dif = (expr1 - expr2), out1 = (mid - expr1), out2 = (mid - expr2), out3 = sma(out1, smo)
+
+long = crossover(out3, dif) ? out3 : na, short = crossunder(out3, dif) ? out3 : na
+
+plot(out3, color=black, linewidth=2), hline(0)
+clr = out2 >= out1 ? lime : red, plot(dif, color=clr, linewidth=2)
+plot(long, title = 'Crossover', color = green, style = circles, linewidth=4), plot(short, title = 'Crossunder', color = red, style = circles, linewidth=4)
+
+strategy.entry("buy", strategy.long, when=crossover(out1, dif))
+strategy.close("buy", when=crossunder(out1, dif))
+
+//plot(out2, color=blue, linewidth=2)
+//A = plot(mid/10, color=red, linewidth=1, transp=100), B = plot(mid/20, color=red, linewidth=1, transp=100)
+//C = plot(-mid/10, color=green, linewidth=1, transp=100), D = plot(-mid/20, color=green, linewidth=1, transp=100)
+//fill(A, B, color=red), fill(C, D, color=green)
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/429464
+
+> Last Modified
+
+2023-10-17 13:54:05

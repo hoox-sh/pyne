@@ -1,0 +1,274 @@
+//@version=4
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/MACD, EMA, Know sure thing, Chopy Market - high adaptability.pine
+// content_hash: 213bd84ba0739a01
+// collected: 2026-07-27
+//MACD versatile Customizable strategy
+strategy(title="MACD versatile Customizable strategy", shorttitle="MACD versatile Customizable strategy", overlay = false, pyramiding = 0, max_bars_back=5000, calc_on_order_fills = false, commission_type =  strategy.commission.percent, commission_value = 0.01, slippage = 15, default_qty_type = strategy.percent_of_equity, default_qty_value = 100, initial_capital=5000, currency=currency.USD)
+// { Time Range
+FromMonth=input(defval=1,title="FromMonth", group="Time", minval=1,maxval=12)
+FromDay=input(defval=1,title="FromDay", group="Time", minval=1,maxval=31)
+FromYear=input(defval=2020,title="FromYear", group="Time", minval=2016)
+ToMonth=input(defval=1,title="ToMonth", group="Time", minval=1,maxval=12)
+ToDay=input(defval=1,title="ToDay", group="Time", minval=1,maxval=31)
+ToYear=input(defval=9999,title="ToYear", group="Time", minval=2017)
+start=timestamp(FromYear,FromMonth,FromDay,00,00)
+finish=timestamp(ToYear,ToMonth,ToDay,23,59)
+window()=>time>=start and time<=finish?true:false
+afterStartDate = time >= start and time<=finish?true:false
+zeroline = 0
+// } Time Range
+// { MACD
+fast_length = input(title="Fast Length", type=input.integer, defval=10, group="MACD Settings")
+slow_length = input(title="Slow Length", type=input.integer, defval=23, group="MACD Settings")
+src = input(title="Source", type=input.source, defval=close, group="MACD Settings")
+signal_length = input(title="Signal Smoothing", type=input.integer, minval = 1, maxval = 50, defval = 10, group="MACD Settings")
+sma_source = input(title="Oscillator MA Type", type=input.string, defval="EMA", options=["SMA", "EMA"], group="MACD Settings")
+sma_signal = input(title="Signal Line MA Type", type=input.string, defval="EMA", options=["SMA", "EMA"], group="MACD Settings")
+// Plot colors
+col_macd = input(#2962FF, "MACD Line  ", input.color, group="Color Settings", inline="MACD")
+col_signal = input(#FF6D00, "Signal Line  ", input.color, group="Color Settings", inline="Signal")
+col_grow_above = input(#26A69A, "Above   Grow", input.color, group="Histogram", inline="Above")
+col_fall_above = input(#B2DFDB, "Fall", input.color, group="Histogram", inline="Above")
+col_grow_below = input(#FFCDD2, "Below Grow", input.color, group="Histogram", inline="Below")
+col_fall_below = input(#FF5252, "Fall", input.color, group="Histogram", inline="Below")
+// Calculating
+fast_ma = sma_source == "SMA" ? sma(src, fast_length) : ema(src, fast_length)
+slow_ma = sma_source == "SMA" ? sma(src, slow_length) : ema(src, slow_length)
+macd = fast_ma - slow_ma
+signal = sma_signal == "SMA" ? sma(macd, signal_length) : ema(macd, signal_length)
+hist = macd - signal
+plot(hist, title="Histogram", style=plot.style_columns, color=color.new((hist>=0 ? (hist[1] < hist ? col_grow_above : col_fall_above) : (hist[1] < hist ? col_grow_below : col_fall_below) ),0))
+plot(macd, title="MACD", color=color.new(col_macd, 0))
+plot(signal, title="Signal", color=color.new(col_signal, 0))
+// } MACD
+// { KST
+roclen1 = input(10, minval=1, title = "ROC Length #1", group="Know sure thing")
+roclen2 = input(15, minval=1, title = "ROC Length #2", group="Know sure thing")
+roclen3 = input(20, minval=1, title = "ROC Length #3", group="Know sure thing")
+roclen4 = input(30, minval=1, title = "ROC Length #4", group="Know sure thing")
+smalen1 = input(11, minval=1, title = "SMA Length #1", group="Know sure thing")
+smalen2 = input(11, minval=1, title = "SMA Length #2", group="Know sure thing")
+smalen3 = input(12, minval=1, title = "SMA Length #3", group="Know sure thing")
+smalen4 = input(16, minval=1, title = "SMA Length #4", group="Know sure thing")
+siglen = input(8, minval=1, title = "Signal Line Length", group="Know sure thing")
+smaroc(roclen, smalen) => sma(roc(close, roclen), smalen)
+kst = smaroc(roclen1, smalen1) + 2 * smaroc(roclen2, smalen2) + 3 * smaroc(roclen3, smalen3) + 4 * smaroc(roclen4, smalen4)
+sig = sma(kst, siglen)
+// } KST
+// { Chopy Market
+line = input(30, minval=0, maxval=100, title="Line", group="Chopy Market by TradingRush")
+line_new = line/10
+col_green = #4caf50 
+col_green_slow = #81c784
+col_green_slower = #c8e6c9
+col_red = #4caf50
+col_red_slow= #a5d6a7
+col_red_slower= #c8e6c9
+col_chop= color.new(color.white, 100)
+histo = 10
+maColor = if(close[1] > close[2] and close[2] > close[3] and close[3] > close[4] and close[4] > close[5] and close[5] > close[6])
+    col_green
+else if(close[1] > close[2] and close[2] > close[3] and close[3] > close[4])
+    col_green_slow
+else if(close[2] > close[3] and close[3] > close[4] and close[4] > close[5] and close[5] > close[6])
+    col_green_slower
+else if(close[1] > close[2] and close[3] > close[4] and close[4] > close[5] and close[5] > close[6])
+    col_green_slower
+else if(close[1] > close[2] and close[2] > close[3] and close[4] > close[5] and close[5] > close[6])
+    col_green_slower
+else if(close[1] > close[2] and close[2] > close[3] and close[3] > close[4] and close[5] > close[6])
+    col_green_slower
+else if(close[1] > close[2] and close[2] > close[3] and close[3] > close[4] and close[4] > close[5])
+    col_green_slower
+else if(close[1] < close[2] and close[2] < close[3] and close[3] < close[4] and close[4] < close[5] and close[5] < close[6])
+    col_green
+else if(close[1] < close[2] and close[2] < close[3] and close[3] < close[4])
+    col_green_slow
+else if(close[2] < close[3] and close[3] < close[4] and close[4] < close[5] and close[5] < close[6])
+    col_green_slower
+else if(close[1] < close[2] and close[3] < close[4] and close[4] < close[5] and close[5] < close[6])
+    col_green_slower
+else if(close[1] < close[2] and close[2] < close[3] and close[4] < close[5] and close[5] < close[6])
+    col_green_slower
+else if(close[1] < close[2] and close[2] < close[3] and close[3] < close[4] and close[5] < close[6])
+    col_green_slower
+else if(close[1] < close[2] and close[2] < close[3] and close[3] < close[4] and close[4] < close[5])
+    col_green_slower
+else 
+    col_chop
+if (maColor == col_green)
+    histo := 10
+if (maColor == col_green_slow)
+    histo := 10
+if (maColor == col_green_slower)
+    histo := 10
+if (maColor == col_chop)
+    histo := 0
+main = histo[1]+histo[2]+histo[3]+histo[4]+histo[5]+histo[6]+histo[7]+histo[8]+histo[9]+histo[10]/10
+mainColor = if(main < main[1])
+    color.red
+else
+    color.purple
+//plot(hist*line_new, title="Choppy", style=plot.style_columns, color=maColor)
+//plot(line, title="Line", color=color.orange, linewidth=2)
+//plot(main, title="Average", color=mainColor, linewidth=2)
+// } Chopy Market by tradingrush
+// { EMA
+emasrc = close
+len1 = input(title="EMA1 Length", group="EMA Settings", type=input.integer, defval=200)
+col1 = color.yellow
+// Calculate EMA
+ema1 = ema(emasrc, len1)
+// } EMA
+// { Conditions
+exitcon = input(title="Exit Condition", defval="lowest/ highest Candle based stop loss", options=["ATR based Take Profit & Stop Loss", "lowest/ highest Candle based stop loss", "Fixed % Take Profit/ Stop Loss"], group="Exit Condition")
+bought = strategy.position_size[1] < strategy.position_size
+sold = strategy.position_size[1] > strategy.position_size
+barsbought = barssince(bought)
+barssold = barssince(sold)
+// { ATR Take Profit/ Stop Loss
+atrprofitfactorlong = input(title="ATR Profitfactor Long", group="Exit's ATR Take Profit/ Stop Loss", type=input.float, step=0.1, defval=10)
+atrstopfactorlong = input(title="ATR Stopfactor Long", group="Exit's ATR Take Profit/ Stop Loss", type=input.float, step=0.1, defval=5)
+atrprofitfactorshort = input(title="ATR Profitfactor Short", group="Exit's ATR Take Profit/ Stop Loss", type=input.float, step=0.1, defval=10)
+atrstopfactorshort = input(title="ATR Stopfactor Short", group="Exit's ATR Take Profit/ Stop Loss", type=input.float, step=0.1, defval=6)
+// ATR
+lengthATR = input(title="ATR Length", group="Exit's ATR Take Profit/ Stop Loss", defval=11, minval=1)
+atr = atr(lengthATR)
+// Profit / Stop Loss Level
+profit_level_atr_long = strategy.position_avg_price + (atr*atrprofitfactorlong)
+stop_level_atr_long = strategy.position_avg_price - (atr*atrstopfactorlong)
+stop_atr_long=stop_level_atr_long[barsbought]
+profit_atr_long=profit_level_atr_long[barsbought]
+profit_level_atr_short = strategy.position_avg_price - (atr*atrprofitfactorshort)
+stop_level_atr_short = strategy.position_avg_price + (atr*atrstopfactorshort)
+stop_atr_short=stop_level_atr_short[barssold]
+profit_atr_short=profit_level_atr_short[barssold]
+// } ATR Take Profit/ Stop Loss
+// { Lowest Low/ Highest High Exit Condition
+//Lowest Low LONG
+profitfactorlong = input(title="ProfitfactorLong", type=input.float, step=0.1, defval=1.5, group = "Exit's - Lowest Low/ Highest High")
+loLen = input(title="Lowest Low Lookback", type=input.integer,
+  defval=25, minval=2, group = "Exit's - Lowest Low/ Highest High")
+stop_level_long = lowest(low, loLen)[1]
+//Lowest Low SHORT
+profitfactorshort = input(title="ProfitfactorShort", type=input.float, step=0.1, defval=1.5, group = "Exit's - Lowest Low/ Highest High")
+highLen = input(title="highest high lookback", type=input.integer,
+  defval=25, minval=2, group = "Exit's - Lowest Low/ Highest High")
+stop_level_short = highest(high, highLen)[1]
+// } Lowest Low/ Highest High Exit Condition
+// { Percentage Take Profit/ Stop Loss
+longProfitPerc = input(title="Long Take Profit (%)",
+     type=input.float, minval=0.0, step=0.1, defval=5, group = "Exit's - % SL TP") * 0.01
+longperctp = strategy.position_avg_price * (1 + longProfitPerc)
+longLossPerc = input(title="Long Stop Loss (%)",
+     type=input.float, minval=0.0, step=0.1, defval=2, group = "Exit's - % SL TP") * 0.01
+longpercsl = strategy.position_avg_price * (1 - longLossPerc)
+shortProfitPerc = input(title="Short Take Profit (%)",
+     type=input.float, minval=0.0, step=0.1, defval=5, group = "Exit's - % SL TP") * 0.01
+shortperctp = strategy.position_avg_price * (1 - shortProfitPerc)
+shortLossPerc = input(title="Short Stop Loss (%)",
+     type=input.float, minval=0.0, step=0.1, defval=2, group = "Exit's - % SL TP") * 0.01
+shortpercsl = strategy.position_avg_price * (1 + shortLossPerc)
+// } Percentage Take Profit/ Stop Loss
+actiema = input(true, title="Activate EMA?", group="Indicator Combination")
+actikst = input(true, title="Activate Know sure thing?", group="Indicator Combination")
+acticm = input(true, title="Activate Chopy Market?", group="Indicator Combination")
+// } Conditions
+// { Long Entry
+enablelong = input(true, title="Enable long?", group="Entry Settings")
+//Long Signal
+macdcrossover = crossover(macd, signal)
+macdunderhis = macd < hist
+histocolgreen = hist > 0
+ema1conlong = close > ema1
+kstlong = kst > sig
+cmlong = line > main
+bar1 = macdcrossover
+bar2 = macdunderhis
+bar3 = histocolgreen
+//strategy buy long
+if (actiema == true) and (actikst == false) and (acticm == false) and (ema1conlong) and (bar1 and bar2 and bar3) and (afterStartDate) and (strategy.opentrades < 1) and (enablelong == true)
+    strategy.entry("long", strategy.long)
+else
+    if (actiema == true) and (actikst == true) and (acticm == false) and (ema1conlong) and (kstlong) and (bar1 and bar2 and bar3) and (afterStartDate) and (strategy.opentrades < 1) and (enablelong == true)
+        strategy.entry("long", strategy.long)
+    else
+        if (actiema == true) and (actikst == false) and (acticm == true) and (ema1conlong) and (acticm) and (bar1 and bar2 and bar3) and (afterStartDate) and (strategy.opentrades < 1) and (enablelong == true)
+            strategy.entry("long", strategy.long)
+        else
+            if (actiema == true) and (actikst == true) and (acticm == true) and (ema1conlong) and (acticm) and (kstlong) and (bar1 and bar2 and bar3) and (afterStartDate) and (strategy.opentrades < 1) and (enablelong == true)
+                strategy.entry("long", strategy.long)
+            else
+                if (actiema == false) and (actikst == true) and (acticm == true) and (kstlong) and (acticm) and (bar1 and bar2 and bar3) and (afterStartDate) and (strategy.opentrades < 1) and (enablelong == true)
+                    strategy.entry("long", strategy.long)
+                else
+                    if (actiema == false) and (actikst == true) and (acticm == false) and (kstlong) and (bar1 and bar2 and bar3) and (afterStartDate) and (strategy.opentrades < 1) and (enablelong == true)
+                        strategy.entry("long", strategy.long)
+                    else
+                        if (actiema == false) and (actikst == false) and (acticm == true) and (acticm) and (bar1 and bar2 and bar3) and (afterStartDate) and (strategy.opentrades < 1) and (enablelong == true)
+                            strategy.entry("long", strategy.long)
+                        else
+                            if (actiema == false) and (actikst == false) and (acticm == false) and (bar1 and bar2 and bar3) and (afterStartDate) and (strategy.opentrades < 1) and (enablelong == true)
+                                strategy.entry("long", strategy.long)
+// } Long Entry
+// { Short Entry
+enableshort = input(true, title="Enable short?", group="Entry Settings")
+macdcrossunder = crossunder(macd, signal)
+macdoverhis = macd > hist
+histocolred = hist < 0
+ema1conshort = close < ema1
+kstshort = kst < sig
+cmshort = line < main
+bar4 = macdcrossunder
+bar5 = macdoverhis
+bar6 = histocolred
+//strategy buy short
+if (actiema == true) and (actikst == false) and (acticm == false) and (ema1conshort) and (bar4 and bar5 and bar6) and (afterStartDate) and (strategy.opentrades < 1) and (enableshort == true)
+    strategy.entry("short", strategy.short)
+else
+    if (actiema == true) and (actikst == true) and (acticm == false)and (kstshort) and (ema1conshort) and (bar4 and bar5 and bar6) and (afterStartDate) and (strategy.opentrades < 1) and (enableshort == true)
+        strategy.entry("short", strategy.short)
+    else
+        if (actiema == true) and (actikst == false) and (acticm == true) and (cmshort) and (ema1conshort) and (bar4 and bar5 and bar6) and (afterStartDate) and (strategy.opentrades < 1) and (enableshort == true)
+            strategy.entry("short", strategy.short)
+        else
+            if (actiema == true) and (actikst == true) and (acticm == true) and (cmshort) and (kstshort) and (ema1conshort) and (bar4 and bar5 and bar6) and (afterStartDate) and (strategy.opentrades < 1) and (enableshort == true)
+                strategy.entry("short", strategy.short)
+            else
+                if (actiema == false) and (actikst == true) and (acticm == true) and (cmshort) and (kstshort) and (bar4 and bar5 and bar6) and (afterStartDate) and (strategy.opentrades < 1) and (enableshort == true)
+                    strategy.entry("short", strategy.short)
+                else
+                    if (actiema == false) and (actikst == true) and (acticm == false)and (kstshort) and (bar4 and bar5 and bar6) and (afterStartDate) and (strategy.opentrades < 1) and (enableshort == true)
+                        strategy.entry("short", strategy.short)
+                    else
+                        if (actiema == false) and (actikst == false) and (acticm == true) and (cmshort) and (bar4 and bar5 and bar6) and (afterStartDate) and (strategy.opentrades < 1) and (enableshort == true)
+                            strategy.entry("short", strategy.short)
+                        else
+                            if (actiema == false) and (actikst == false) and (acticm == false) and (bar4 and bar5 and bar6) and (afterStartDate) and (strategy.opentrades < 1) and (enableshort == true)
+                                strategy.entry("short", strategy.short)
+// } Short Entry
+// { Exit
+//LONG EXIT
+if (afterStartDate) and (exitcon == "ATR based Take Profit & Stop Loss") and (strategy.opentrades > 0) and (strategy.position_entry_name == "long")
+    strategy.exit("TP/ SL", "long", stop=stop_atr_long, limit=profit_atr_long)
+if (afterStartDate) and (exitcon == "lowest/ highest Candle based stop loss") and (strategy.opentrades > 0) and (strategy.position_entry_name == "long")
+    profit_level = strategy.position_avg_price + ((strategy.position_avg_price - stop_level_long[barsbought])*profitfactorlong)
+    strategy.exit(id="TP/ SL", stop=stop_level_long[barsbought], limit=profit_level)
+if (afterStartDate) and (exitcon == "Fixed % Take Profit/ Stop Loss") and (strategy.opentrades > 0) and (strategy.position_entry_name == "long")
+    strategy.exit("TP/ SL", "long", stop=longpercsl, limit=longperctp)
+//SHORT EXIT
+if (afterStartDate) and (exitcon == "ATR based Take Profit & Stop Loss") and (strategy.opentrades > 0) and strategy.position_entry_name == "short"
+    strategy.exit("TP/ SL", "short", stop=stop_atr_short, limit=profit_atr_short)
+if (afterStartDate) and (exitcon == "lowest/ highest Candle based stop loss") and (strategy.opentrades > 0) and (strategy.position_entry_name == "short")
+    profit_level = strategy.position_avg_price - ((stop_level_short[barssold] - strategy.position_avg_price)*profitfactorshort)
+    strategy.exit("TP/ SL", "short", stop=stop_level_short[barssold], limit=profit_level)
+if (afterStartDate) and (exitcon == "Fixed % Take Profit/ Stop Loss") and (strategy.opentrades > 0) and (strategy.position_entry_name == "short")
+    strategy.exit("TP/ SL", "short", stop=shortpercsl, limit=shortperctp)
+//plot(profit_atr_long, title="Take Profit Long", linewidth=1, style=plot.style_linebr, color=color.green)
+//plot(stop_atr_long, title="Stop Loss Long", linewidth=1, style=plot.style_linebr, color=color.red)
+//plot(profit_atr_short, title="Take Profit Short", linewidth=1, style=plot.style_linebr, color=color.green)
+//plot(stop_atr_short, title="Stop Loss Short", linewidth=1, style=plot.style_linebr, color=color.red)
+// } Exit
+Expand (379 lines)

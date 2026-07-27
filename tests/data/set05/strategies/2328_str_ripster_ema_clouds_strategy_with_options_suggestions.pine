@@ -1,0 +1,59 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多周期指数移动平均交叉策略与期权交易建议系统-Multi-Period-Exponential-Moving-Average-Crossover-Strategy-with-Options-Trading-Suggestion-System.md
+// content_hash: aaa71317ff7a4102
+// collected: 2026-07-27
+strategy("Ripster EMA Clouds Strategy with Options Suggestions", overlay=true)
+
+// Parameters
+shortEmaPeriod = input.int(9, title="Short EMA Period")
+mediumEmaPeriod = input.int(21, title="Medium EMA Period")
+longEmaPeriod = input.int(34, title="Long EMA Period")
+longerEmaPeriod = input.int(50, title="Longer EMA Period")
+
+// Calculate EMAs
+shortEma = ta.ema(close, shortEmaPeriod)
+mediumEma = ta.ema(close, mediumEmaPeriod)
+longEma = ta.ema(close, longEmaPeriod)
+longerEma = ta.ema(close, longerEmaPeriod)
+
+// Plot EMA Clouds
+plot(shortEma, color=color.new(color.blue, 0), title="Short EMA")
+plot(mediumEma, color=color.new(color.green, 0), title="Medium EMA")
+plot(longEma, color=color.new(color.orange, 0), title="Long EMA")
+plot(longerEma, color=color.new(color.red, 0), title="Longer EMA")
+
+// Generate Buy and Sell Signals
+buySignal = ta.crossover(shortEma, longerEma)
+sellSignal = ta.crossunder(shortEma, longerEma)
+
+// Plot Buy and Sell signals
+plotshape(series=buySignal, location=location.belowbar, color=color.green, style=shape.labelup, title="Buy Signal", text="BUY")
+plotshape(series=sellSignal, location=location.abovebar, color=color.red, style=shape.labeldown, title="Sell Signal", text="SELL")
+
+// Suggest Options Contracts
+var label optionLabel = na
+
+if (buySignal)
+    optionLabel := label.new(x=bar_index, y=low, text="Buy Call Option\nStrike: " + str.tostring(close) + "\nExpiration: 1 Month", style=label.style_label_down, color=color.green, textcolor=color.white)
+if (sellSignal)
+    optionLabel := label.new(x=bar_index, y=high, text="Buy Put Option\nStrike: " + str.tostring(close) + "\nExpiration: 1 Month", style=label.style_label_up, color=color.red, textcolor=color.white)
+
+// Strategy (Optional)
+// This part is for backtesting purposes
+strategy.entry("Buy", strategy.long, when=buySignal)
+strategy.close("Buy", when=sellSignal)
+
+strategy.entry("Sell", strategy.short, when=sellSignal)
+strategy.close("Sell", when=buySignal)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/454737
+
+> Last Modified
+
+2024-06-21 14:41:08

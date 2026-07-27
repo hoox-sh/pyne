@@ -1,0 +1,272 @@
+// set03 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/projects/trendline-plot-indicator.pine
+// content_hash: 78ca4944fb158b1a
+// collected: 2026-07-27
+// built with PineScript Agents by TradersPost
+//@version=6
+indicator("Trend Line Plot Indicator", shorttitle="TL Plot", overlay=true, max_lines_count=500)
+
+// ============================================================================
+// INPUTS
+// ============================================================================
+pivotLength = input.int(10, "Pivot Lookback Length",
+     minval=2,
+     maxval=50,
+     tooltip="Number of bars to left and right for pivot detection. Higher values find more significant pivots.",
+     group="Pivot Settings")
+
+maxTrendLines = input.int(2, "Number of Trend Lines",
+     minval=1,
+     maxval=5,
+     tooltip="Maximum number of trend lines to display for each direction (bullish/bearish).",
+     group="Trend Line Settings")
+
+minTouchPoints = input.int(2, "Minimum Touch Points",
+     minval=2,
+     maxval=5,
+     tooltip="Minimum number of pivot points required to validate a trend line.",
+     group="Trend Line Settings")
+
+extendBars = input.int(20, "Extend Lines (Bars)",
+     minval=5,
+     maxval=100,
+     tooltip="Number of bars to extend trend lines into the future.",
+     group="Trend Line Settings")
+
+bullishColor = input.color(color.new(color.green, 0), "Bullish Trend Color",
+     tooltip="Color for upward trend lines.",
+     group="Visual Settings")
+
+bearishColor = input.color(color.new(color.red, 0), "Bearish Trend Color",
+     tooltip="Color for downward trend lines.",
+     group="Visual Settings")
+
+lineWidth = input.int(2, "Line Width",
+     minval=1,
+     maxval=5,
+     tooltip="Thickness of trend lines.",
+     group="Visual Settings")
+
+showPivots = input.bool(true, "Show Pivot Points",
+     tooltip="Display markers at detected pivot highs and lows.",
+     group="Visual Settings")
+
+// ============================================================================
+// PIVOT DETECTION
+// ============================================================================
+
+// Detect pivot highs and lows
+pivotHigh = ta.pivothigh(high, pivotLength, pivotLength)
+pivotLow = ta.pivotlow(low, pivotLength, pivotLength)
+
+// Store pivot data
+var array<float> pivotHighPrices = array.new<float>()
+var array<int> pivotHighBars = array.new<int>()
+var array<float> pivotLowPrices = array.new<float>()
+var array<int> pivotLowBars = array.new<int>()
+
+// Maximum pivots to store
+maxPivotsStored = 50
+
+// Add new pivot highs
+if not na(pivotHigh)
+    array.unshift(pivotHighPrices, pivotHigh)
+    array.unshift(pivotHighBars, bar_index - pivotLength)
+    if array.size(pivotHighPrices) > maxPivotsStored
+        array.pop(pivotHighPrices)
+        array.pop(pivotHighBars)
+
+// Add new pivot lows
+if not na(pivotLow)
+    array.unshift(pivotLowPrices, pivotLow)
+    array.unshift(pivotLowBars, bar_index - pivotLength)
+    if array.size(pivotLowPrices) > maxPivotsStored
+        array.pop(pivotLowPrices)
+        array.pop(pivotLowBars)
+
+// ============================================================================
+// TREND LINE CALCULATION
+// ============================================================================
+
+// Calculate linear regression for two points
+calcTrendLineValue(startBar, startPrice, endBar, endPrice, currentBar) =>
+    if startBar == endBar
+        na
+    else
+        slope = (endPrice - startPrice) / (endBar - startBar)
+        intercept = startPrice - slope * startBar
+        slope * currentBar + intercept
+
+// Find best trend lines connecting pivots
+findBestTrendLines(pivotPrices, pivotBars, isResistance) =>
+    var array<float> line1Vals = array.new<float>()
+    var array<float> line2Vals = array.new<float>()
+    var array<float> line3Vals = array.new<float>()
+    var array<float> line4Vals = array.new<float>()
+    var array<float> line5Vals = array.new<float>()
+
+    array.clear(line1Vals)
+    array.clear(line2Vals)
+    array.clear(line3Vals)
+    array.clear(line4Vals)
+    array.clear(line5Vals)
+
+    numPivots = array.size(pivotPrices)
+
+    if numPivots >= minTouchPoints
+        // Find trend lines by connecting recent pivots
+        for lineNum = 0 to math.min(maxTrendLines - 1, 4)
+            if lineNum * 2 + 1 < numPivots
+                // Get two pivot points for this trend line
+                idx1 = lineNum * 2
+                idx2 = lineNum * 2 + 1
+
+                startBar = array.get(pivotBars, idx1)
+                startPrice = array.get(pivotPrices, idx1)
+                endBar = array.get(pivotBars, idx2)
+                endPrice = array.get(pivotPrices, idx2)
+
+                // Calculate trend line value for current bar and extension
+                for i = 0 to extendBars
+                    targetBar = bar_index + i
+                    val = calcTrendLineValue(startBar, startPrice, endBar, endPrice, targetBar)
+
+                    // Only show if line is reasonably valid
+                    validLine = not na(val) and val > 0
+                    finalVal = validLine ? val : na
+
+                    if lineNum == 0
+                        array.push(line1Vals, finalVal)
+                    else if lineNum == 1
+                        array.push(line2Vals, finalVal)
+                    else if lineNum == 2
+                        array.push(line3Vals, finalVal)
+                    else if lineNum == 3
+                        array.push(line4Vals, finalVal)
+                    else if lineNum == 4
+                        array.push(line5Vals, finalVal)
+
+    [line1Vals, line2Vals, line3Vals, line4Vals, line5Vals]
+
+// Calculate bearish trend lines (resistance)
+[bearLine1, bearLine2, bearLine3, bearLine4, bearLine5] = findBestTrendLines(pivotHighPrices, pivotHighBars, true)
+
+// Calculate bullish trend lines (support)
+[bullLine1, bullLine2, bullLine3, bullLine4, bullLine5] = findBestTrendLines(pivotLowPrices, pivotLowBars, false)
+
+// ============================================================================
+// PLOT TREND LINES
+// ============================================================================
+
+// Get values for current bar (offset 0)
+getBearishLine1 = array.size(bearLine1) > 0 ? array.get(bearLine1, 0) : na
+getBearishLine2 = array.size(bearLine2) > 0 ? array.get(bearLine2, 0) : na
+getBearishLine3 = array.size(bearLine3) > 0 ? array.get(bearLine3, 0) : na
+getBearishLine4 = array.size(bearLine4) > 0 ? array.get(bearLine4, 0) : na
+getBearishLine5 = array.size(bearLine5) > 0 ? array.get(bearLine5, 0) : na
+
+getBullishLine1 = array.size(bullLine1) > 0 ? array.get(bullLine1, 0) : na
+getBullishLine2 = array.size(bullLine2) > 0 ? array.get(bullLine2, 0) : na
+getBullishLine3 = array.size(bullLine3) > 0 ? array.get(bullLine3, 0) : na
+getBullishLine4 = array.size(bullLine4) > 0 ? array.get(bullLine4, 0) : na
+getBullishLine5 = array.size(bullLine5) > 0 ? array.get(bullLine5, 0) : na
+
+// Plot bearish trend lines (resistance)
+plot(maxTrendLines >= 1 ? getBearishLine1 : na,
+     title="Resistance 1",
+     color=bearishColor,
+     linewidth=lineWidth,
+     style=plot.style_line)
+
+plot(maxTrendLines >= 2 ? getBearishLine2 : na,
+     title="Resistance 2",
+     color=color.new(bearishColor, 30),
+     linewidth=lineWidth,
+     style=plot.style_line)
+
+plot(maxTrendLines >= 3 ? getBearishLine3 : na,
+     title="Resistance 3",
+     color=color.new(bearishColor, 50),
+     linewidth=lineWidth,
+     style=plot.style_line)
+
+plot(maxTrendLines >= 4 ? getBearishLine4 : na,
+     title="Resistance 4",
+     color=color.new(bearishColor, 70),
+     linewidth=lineWidth,
+     style=plot.style_line)
+
+plot(maxTrendLines >= 5 ? getBearishLine5 : na,
+     title="Resistance 5",
+     color=color.new(bearishColor, 85),
+     linewidth=lineWidth,
+     style=plot.style_line)
+
+// Plot bullish trend lines (support)
+plot(maxTrendLines >= 1 ? getBullishLine1 : na,
+     title="Support 1",
+     color=bullishColor,
+     linewidth=lineWidth,
+     style=plot.style_line)
+
+plot(maxTrendLines >= 2 ? getBullishLine2 : na,
+     title="Support 2",
+     color=color.new(bullishColor, 30),
+     linewidth=lineWidth,
+     style=plot.style_line)
+
+plot(maxTrendLines >= 3 ? getBullishLine3 : na,
+     title="Support 3",
+     color=color.new(bullishColor, 50),
+     linewidth=lineWidth,
+     style=plot.style_line)
+
+plot(maxTrendLines >= 4 ? getBullishLine4 : na,
+     title="Support 4",
+     color=color.new(bullishColor, 70),
+     linewidth=lineWidth,
+     style=plot.style_line)
+
+plot(maxTrendLines >= 5 ? getBullishLine5 : na,
+     title="Support 5",
+     color=color.new(bullishColor, 85),
+     linewidth=lineWidth,
+     style=plot.style_line)
+
+// ============================================================================
+// PIVOT POINT VISUALIZATION
+// ============================================================================
+
+// Plot pivot points
+plotshape(showPivots and not na(pivotHigh),
+     title="Pivot High",
+     style=shape.triangledown,
+     location=location.abovebar,
+     color=color.new(bearishColor, 0),
+     size=size.tiny,
+     offset=-pivotLength)
+
+plotshape(showPivots and not na(pivotLow),
+     title="Pivot Low",
+     style=shape.triangleup,
+     location=location.belowbar,
+     color=color.new(bullishColor, 0),
+     size=size.tiny,
+     offset=-pivotLength)
+
+// ============================================================================
+// ALERTS
+// ============================================================================
+
+// Price crossing trend lines
+bullishBreakout = ta.crossover(close, getBullishLine1)
+bearishBreakout = ta.crossunder(close, getBearishLine1)
+
+alertcondition(bullishBreakout,
+     title="Support Breakout",
+     message="Price broke above support trend line")
+
+alertcondition(bearishBreakout,
+     title="Resistance Breakout",
+     message="Price broke below resistance trend line")

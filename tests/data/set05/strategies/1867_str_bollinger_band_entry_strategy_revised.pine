@@ -1,0 +1,68 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动态波幅突破型布林带交易系统-Dynamic-Breakout-Bollinger-Bands-Trading-System.md
+// content_hash: 3e699d9e40102899
+// collected: 2026-07-27
+strategy("Bollinger Band Entry Strategy (Revised)", overlay=true)
+
+// Input parameters
+bbLength = input.int(20, title="Bollinger Band Length")
+bbStdDev = input.float(2.0, title="Bollinger Band Standard Deviation")
+stopLossPercent = input.float(1.0, title="Stop Loss (%)") / 100
+takeProfitPercent = input.float(2.0, title="Take Profit (%)") / 100
+
+// Calculate Bollinger Bands
+basis = ta.sma(close, bbLength)
+upperBand = basis + bbStdDev * ta.stdev(close, bbLength)
+lowerBand = basis - bbStdDev * ta.stdev(close, bbLength)
+
+// Plot Bollinger Bands
+plot(basis, color=color.orange, title="Basis")
+plot(upperBand, color=color.blue, title="Upper Band")
+plot(lowerBand, color=color.red, title="Lower Band")
+
+// Short Entry Condition
+redCandle = close < open // Red candle (price closed lower than it opened)
+closeBelowLowerBand = close < lowerBand // Closed below the lower Bollinger Band
+shortCondition = redCandle and closeBelowLowerBand
+
+// Long Entry Condition
+greenCandle = close > open // Green candle (price closed higher than it opened)
+closeAboveUpperBand = close > upperBand // Closed above the upper Bollinger Band
+longCondition = greenCandle and closeAboveUpperBand
+
+// Execute Trades
+if (shortCondition)
+    strategy.entry("Short", strategy.short, stop=open) // Enter short on the next candle's open
+
+if (longCondition)
+    strategy.entry("Long", strategy.long, stop=open) // Enter long on the next candle's open
+
+// Stop Loss and Take Profit
+if (strategy.position_size > 0) // Long position
+    strategy.exit("Take Profit/Stop Loss", "Long", stop=strategy.position_avg_price * (1 - stopLossPercent), limit=strategy.position_avg_price * (1 + takeProfitPercent))
+
+if (strategy.position_size < 0) // Short position
+    strategy.exit("Take Profit/Stop Loss", "Short", stop=strategy.position_avg_price * (1 + stopLossPercent), limit=strategy.position_avg_price * (1 - takeProfitPercent))
+
+
+
+
+  
+
+
+
+
+
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/488247
+
+> Last Modified
+
+2025-03-26 11:38:43

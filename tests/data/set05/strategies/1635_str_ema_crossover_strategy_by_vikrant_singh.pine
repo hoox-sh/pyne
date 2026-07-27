@@ -1,0 +1,75 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于EMA指标的跨周期交易策略EMA-Crossover-Quantitative-Trading-Strategy.md
+// content_hash: e00d763fddeffc20
+// collected: 2026-07-27
+strategy("EMA Crossover Strategy by Vikrant Singh", overlay=true)
+
+
+// Input for EMA Lengths
+var bool runningPOS = false
+var float stopLossLevel = na
+var float targetLevel = na
+shortLength = input(11, title="Short EMA Length")
+longLength = input(21, title="Long EMA Length")
+
+// Input for Stop-Loss and Target
+stopLossPct = input(1, title="Stop-Loss (%)")
+targetPct = input(3, title="Target (%)")
+longOnly = input(true, title="Long Only")
+intraDay = input(true, title="intraday?")
+
+
+// Calculate EMAs
+emaShort = ta.ema(close, shortLength)
+emaLong = ta.ema(close, longLength)
+
+// Calculate crossover conditions
+crossoverCondition = ta.crossover(emaShort, emaLong)
+crossunderCondition = ta.crossunder(emaShort, emaLong)
+
+// Entry condition (long position just before crossover)
+if crossoverCondition and not runningPOS and longOnly and (hour <= 15)
+    strategy.entry("Long", strategy.long)
+    runningPOS := true
+    stopLossLevel := close * (1 - stopLossPct / 100)
+    targetLevel := close * (1 + targetPct / 100)
+
+//Entry condition (short position just before crossover)
+if crossunderCondition and not runningPOS and not longOnly and (hour <= 15)
+    strategy.entry("Short", strategy.short)
+    runningPOS := true
+    stopLossLevel := close * (1 + stopLossPct / 100)
+    targetLevel := close * (1 - targetPct / 100)
+
+// Exit conditions (square off on reverse crossover)
+//Exit long
+if (crossunderCondition or (low < stopLossLevel) or (high > targetLevel) ) and longOnly and runningPOS
+    strategy.close("Long",comment = "Exit long")// ("Long", from_entry="Long",stop=stopLossLevel, limit=targetLevel)
+    runningPOS := false
+
+//Exit short
+if (crossoverCondition or (high > stopLossLevel) or (low < targetLevel) ) and not longOnly and runningPOS
+    strategy.close("Short", comment = "Exit Short")
+    runningPOS := false
+
+if intraDay and runningPOS
+    if (hour >= 15)
+        strategy.close_all(comment = "Intraday square off")
+        //strategy.close("Long",comment = "intraday square off")
+        runningPOS := false
+
+
+// Plot EMAs
+plot(emaShort, color=color.blue, title="Short EMA")
+plot(emaLong, color=color.red, title="Long EMA")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/440361
+
+> Last Modified
+
+2024-01-29 15:56:56

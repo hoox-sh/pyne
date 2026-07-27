@@ -1,0 +1,9 @@
+//@version=6
+// set05 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block197
+// content_hash: 093ec2e9b0cc437d
+// collected: 2026-07-27
+indicator("Close in British Pounds")
+rate = request.currency_rate(syminfo.currency, "GBP")
+plot(close * rate)

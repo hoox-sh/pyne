@@ -1,0 +1,61 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/最高最低价格止损策略Highest-High-Lowest-Low-Stop-Strategy.md
+// content_hash: 36c83a9105c7ce5b
+// collected: 2026-07-27
+strategy(title="Highest high/lowest low stop", overlay=true)
+
+// STEP 1:
+// Make inputs for length of highest high and lowest low
+hiLen = input.int(20, title="Highest High Lookback", minval=2)
+loLen = input.int(20, title="Lowest Low Lookback", minval=2)
+
+// STEP 2:
+// Calculate recent extreme high and low
+hiHighs = ta.highest(high, hiLen)[1]
+loLows  = ta.lowest(low, loLen)[1]
+
+// Plot stop values for visual confirmation
+plot(strategy.position_size > 0 ? loLows : na,
+     style=plot.style_circles, color=color.green, linewidth=3,
+     title="Lowest Low Stop")
+
+plot(strategy.position_size < 0 ? hiHighs : na,
+     style=plot.style_circles, color=color.red, linewidth=3,
+     title="Highest High Stop")
+
+// Trading conditions for this example strategy
+higherCloses = close > close[1] and
+     close[1] > close[2] and 
+     close[2] > close[3]
+
+lowerCloses = close < close[1] and
+     close[1] < close[2] and 
+     close[2] < close[3]
+
+isFlat = strategy.position_size == 0
+
+// Submit entry orders
+if isFlat and higherCloses
+    strategy.entry("EL", strategy.long)
+
+if isFlat and lowerCloses
+    strategy.entry("ES", strategy.short)
+
+// STEP 3:
+// Submit stops based on highest high and lowest low
+if strategy.position_size > 0
+    strategy.exit("XL HH", stop=loLows)
+
+if strategy.position_size < 0
+    strategy.exit("XS LL", stop=hiHighs)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/443993
+
+> Last Modified
+
+2024-03-08 14:32:30

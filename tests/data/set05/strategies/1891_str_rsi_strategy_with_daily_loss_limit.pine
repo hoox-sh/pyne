@@ -1,0 +1,68 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/相对强度指数止损策略Relative-Strength-Index-Stop-Loss-Strategy.md
+// content_hash: aa60776720d29272
+// collected: 2026-07-27
+strategy("RSI Strategy with Daily Loss Limit", overlay=true)
+
+// Define RSI conditions
+rsiValue = ta.rsi(close, 7)
+rsiLength = input(15, title="RSI Length")
+rsiOverbought = 75
+rsiOversold = 37
+
+// Define stop-loss percentage
+stopLossPercent = input(1, title="Stop Loss Percentage") / 100
+
+// Enter long (buy) when RSI is below 40 with stop-loss
+if (rsiValue < rsiOversold)
+    strategy.entry("Buy", strategy.long)
+
+// Exit long when RSI is above 80 or when stop-loss is hit
+if (rsiValue > rsiOverbought)
+    strategy.exit("Buy", from_entry="Buy", loss=close * stopLossPercent)
+
+// Enter short (sell) when RSI is above 80 with stop-loss
+if (rsiValue > rsiOverbought)
+    strategy.entry("Sell", strategy.short)
+
+// Exit short when RSI is below 40 or when stop-loss is hit
+if (rsiValue < rsiOversold)
+    strategy.exit("Sell", from_entry="Sell", loss=close * stopLossPercent)
+
+// Track account equity
+equityLimit = strategy.equity * 0.97  // Set the daily loss limit to 3%
+
+// Enter long (buy) when RSI is below 40
+if (rsiValue < rsiOversold)
+    strategy.entry("Buy", strategy.long)
+
+// Exit long when RSI is above 80 or when stop-loss is hit
+if (rsiValue > rsiOverbought)
+    strategy.exit("Buy", from_entry="Buy", loss=close * stopLossPercent)
+
+// Enter short (sell) when RSI is above 80
+if (rsiValue > rsiOverbought)
+    strategy.entry("Sell", strategy.short)
+
+// Exit short when RSI is below 40 or when stop-loss is hit
+if (rsiValue < rsiOversold)
+    strategy.exit("Sell", from_entry="Sell", loss=close * stopLossPercent)
+
+// Plot RSI on the chart
+plot(rsiValue, title="RSI", color=color.blue)
+
+// Stop trading for the day if the daily loss limit is reached
+if (strategy.equity < equityLimit)
+    strategy.close_all()
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/436597
+
+> Last Modified
+
+2023-12-26 10:22:44

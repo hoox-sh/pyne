@@ -1,0 +1,58 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/年末趋势跟踪动量交易策略60日均线突破-Year-end-Trend-Following-Momentum-Trading-Strategy60-day-MA-Breakout.md
+// content_hash: 350f59ce300436ae
+// collected: 2026-07-27
+strategy("Buy above 60-day MA, Sell at year-end", overlay=true, pyramiding=1)
+
+// Define inputs for start and end dates
+startDate = input(defval=timestamp("2010-01-01"), title="Start Date")
+endDate = input(defval=timestamp("2024-12-31"), title="End Date")
+
+// Define 60-day moving average
+length = input.int(defval=60, title="MA Length", minval=1)
+ma = ta.sma(close, length)
+slope = ta.sma(ma, 14) - ta.sma(ma, 14)[1]
+
+// Check if current bar is within the specified date range
+withinDateRange = true
+
+// Function to check if a day is a trading day (Monday to Friday)
+isTradingDay(day) => true
+
+// Check if current bar is the last trading day of the year
+// Check if current bar is the last trading day of the year
+isLastTradingDayOfYear = false
+yearNow = year(time)
+if (month == 12 and dayofmonth == 31)
+    isLastTradingDayOfYear := isTradingDay(time)
+else if (month == 12 and dayofmonth == 30)
+    isLastTradingDayOfYear := isTradingDay(time) and not isTradingDay(time + 86400000)
+else if (month == 12 and dayofmonth == 29)
+    isLastTradingDayOfYear := isTradingDay(time) and not isTradingDay(time + 86400000) and not isTradingDay(time + 86400000 * 2)
+
+// Plot moving average
+plot(ma, color=color.blue, linewidth=2)
+
+// Buy when closing price crosses above 60-day MA and up trend
+if (withinDateRange and ta.crossover(close, ma) and slope > 0)
+    strategy.entry("Buy", strategy.long)
+
+// Sell all positions at the last trading day of the year
+if (isLastTradingDayOfYear)
+    strategy.close_all(comment="Sell at year-end")
+
+// Plot buy and sell signals
+//plotshape(series=ta.crossover(close, ma), location=location.belowbar, color=color.green, style=shape.labelup, text="Buy")
+//plotshape(series=isLastTradingDayOfYear, location=location.abovebar, color=color.red, style=shape.labeldown, text="Sell")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/478705
+
+> Last Modified
+
+2025-01-17 14:55:20

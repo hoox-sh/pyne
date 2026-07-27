@@ -1,0 +1,57 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于布林带的高频交易策略Bollinger-Bands-Based-High-Frequency-Trading-Strategy.md
+// content_hash: cd2e67076cb64453
+// collected: 2026-07-27
+strategy("Estrategia Bollinger Bands", shorttitle="BB Strategy", overlay=true)
+
+// Parámetros de las Bandas de Bollinger
+length = input(20, title="Longitud")
+mult = input(2.0, title="Multiplicador")
+
+// Calcula las Bandas de Bollinger
+basis = ta.sma(close, length)
+upper_band = basis + mult * ta.stdev(close, length)
+lower_band = basis - mult * ta.stdev(close, length)
+
+// Condiciones para realizar operaciones
+price_touches_basis_up = ta.crossover(close, basis)
+price_touches_basis_down = ta.crossunder(close, basis)
+
+// Monto inicial de inversión
+monto_inicial = 10
+
+// Lógica de la estrategia
+if (price_touches_basis_up)
+    qty = strategy.equity + strategy.netprofit // Invertir el total del capital más las ganancias en cada operación
+    direction = close > basis ? strategy.long : strategy.short
+    strategy.entry("Operacion", direction, qty = 1)
+
+// Lógica para cerrar la operación con un movimiento del 0.5% (take profit)
+target_profit = 0.005 // Actualizado a 0.5%
+
+if (strategy.position_size != 0)
+    direction = strategy.position_size > 0 ? strategy.long : strategy.short
+    strategy.exit("Take Profit/Close", from_entry = "Operacion", profit = close * (1 + target_profit))
+
+// Dibuja las Bandas de Bollinger en el gráfico
+plot(upper_band, color=color.blue, title="Upper Band")
+plot(lower_band, color=color.red, title="Lower Band")
+plot(basis, color=color.green, title="Basis")
+
+// Muestra el monto inicial de inversión en la barra del título
+var label lbl = label.new(na, na, "")
+label.set_text(lbl, "Monto Inicial: $" + str.tostring(monto_inicial, "#.########"))
+label.set_xy(lbl, bar_index, low)
+label.set_color(lbl, color.new(color.blue, 0))
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/436136
+
+> Last Modified
+
+2023-12-21 15:37:07

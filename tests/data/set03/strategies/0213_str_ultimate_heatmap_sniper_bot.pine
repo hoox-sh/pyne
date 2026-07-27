@@ -1,0 +1,73 @@
+//@version=6
+// set03 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/高频量化多周期热图狙击策略-High-Frequency-Quantitative-Multi-Timeframe-Heatmap-Sniper-Strategy.md
+// content_hash: 0e4cb8d824d3c229
+// collected: 2026-07-27
+strategy("Ultimate Heatmap Sniper Bot", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=1)
+
+// Input Parameters
+sensitivity = input(50, title="Heatmap Sensitivity")
+weekMA = input(50, title="1-Week Moving Average Length")
+monthMA = input(200, title="1-Month Moving Average Length")
+lookback = input(50, title="Heatmap Lookback")
+tradeFrequency = input(6, title="Max Trades Per Day")
+
+// Calculate Heatmap Highs & Lows
+highs = ta.highest(high, lookback)
+lows = ta.lowest(low, lookback)
+heatmapLow = ta.sma(lows, sensitivity)
+heatmapHigh = ta.sma(highs, sensitivity)
+
+// Trend Confirmation using Higher Timeframes
+weekTrend = ta.sma(close, weekMA)
+monthTrend = ta.sma(close, monthMA)
+trendDirection = weekTrend > monthTrend ? 1 : -1
+
+// Reversal Signals
+bullishReversal = ta.crossover(close, weekTrend)
+bearishReversal = ta.crossunder(close, weekTrend)
+
+// Entry Conditions
+longEntry = ta.crossover(close, heatmapLow) and trendDirection == 1
+shortEntry = ta.crossunder(close, heatmapHigh) and trendDirection == -1
+
+// Execute Trades
+if (longEntry)
+    strategy.entry("Sniper Long", strategy.long)
+if (shortEntry)
+    strategy.entry("Sniper Short", strategy.short)
+
+// Visualization
+plot(heatmapLow, color=color.green, linewidth=2, title="Heatmap Low")
+plot(heatmapHigh, color=color.red, linewidth=2, title="Heatmap High")
+plot(weekTrend, color=color.blue, linewidth=1, title="1-Week Trend")
+plot(monthTrend, color=color.orange, linewidth=1, title="1-Month Trend")
+
+// Mark Trades on Chart
+plotshape(series=longEntry, location=location.belowbar, color=color.green, style=shape.labelup, title="BUY Signal", text="BUY")
+plotshape(series=shortEntry, location=location.abovebar, color=color.red, style=shape.labeldown, title="SELL Signal", text="SELL")
+
+// Warning Bubble Before Execution
+preLongWarning = ta.crossover(close, heatmapLow * 1.02) and trendDirection == 1
+preShortWarning = ta.crossunder(close, heatmapHigh * 0.98) and trendDirection == -1
+plotshape(series=preLongWarning, location=location.belowbar, color=color.new(color.blue, 90), style=shape.labelup, title="BUY WARNING", text="BUY WARNING")
+plotshape(series=preShortWarning, location=location.abovebar, color=color.orange, style=shape.labeldown, title="SELL WARNING", text="SELL WARNING")
+
+// Reversal Indicators with Diamonds
+plotshape(series=bullishReversal, location=location.belowbar, color=color.green, style=shape.diamond, title="Bullish Reversal", text="Bull Reversal")
+plotshape(series=bearishReversal, location=location.abovebar, color=color.red, style=shape.diamond, title="Bearish Reversal", text="Bear Reversal")
+
+// Sparkle Trail Projection
+projectedMove = (heatmapHigh + heatmapLow) / 2
+plotshape(series=projectedMove, location=location.belowbar, color=color.purple, style=shape.cross, title="Projected Move Cross")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/482886
+
+> Last Modified
+
+2025-02-20 16:35:47

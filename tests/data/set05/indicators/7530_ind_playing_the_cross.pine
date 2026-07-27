@@ -1,0 +1,45 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/Playing-the-cross.md
+// content_hash: eabf56e79f6ea888
+// collected: 2026-07-27
+indicator("Playing the cross", shorttitle="PtC", overlay=true)
+
+// Ichimoku code - Kijun-Sen
+basePeriods = input.int(26, minval=1, title="Kijun-Sen length")
+donchian(len) => math.avg(ta.lowest(len), ta.highest(len))
+
+KijunSen = donchian(basePeriods)
+plot(KijunSen, color=color.green, title="Kijun-Sen")
+
+
+// Moving Average Exponential code
+len = input.int(55, minval=1, title="EMA length")
+src = input(close, title="Source")
+
+MovingAverage = ta.ema(src, len)
+plot(MovingAverage, title="EMA", color=color.red)
+
+
+// Cross code
+Up = MovingAverage > KijunSen and MovingAverage[1] < KijunSen[1]
+Down = MovingAverage < KijunSen and MovingAverage[1] > KijunSen[1]
+
+bgcolor(Up ? color.new(color.green, 60) : na, title="Up Cross")
+bgcolor(Down ? color.new(color.red, 60) : na, title="Down Cross")
+
+if Down
+    strategy.entry("Enter Long", strategy.long)
+else if Up
+    strategy.entry("Enter Short", strategy.short)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/362427
+
+> Last Modified
+
+2022-05-11 15:07:20

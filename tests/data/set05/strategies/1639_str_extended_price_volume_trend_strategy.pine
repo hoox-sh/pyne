@@ -1,0 +1,75 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动量加速扩展价量趋势策略Extended-Price-Volume-Trend-Strategy.md
+// content_hash: 55b578577b4d5b9c
+// collected: 2026-07-27
+strategy(title="Extended Price Volume Trend", overlay=true )//@version=5
+var cumVol = 0.
+cumVol += nz(volume)
+if barstate.islast and cumVol == 0
+    runtime.error("No volume is provided by the data vendor.")
+src = close
+lenght = input(200,"Trend Lenght")   
+vt = ta.cum(ta.change(src)/src[1]*volume)
+upx = ta.highest(vt,lenght)
+downx = ta.lowest(vt,lenght)
+basex = (upx +downx)/2
+VTX = vt - basex
+VTY = ta.valuewhen(ta.cross(VTX,0),close,0)
+plot(VTY, color=color.black, title="Extended-PVT")
+
+/////////////////////// STRATEGY ////////////////
+/////////////////////// TAKE PROFIT SECTION ////////////////
+longConditionx = ta.crossover(close,VTY)
+ShortConditionx = ta.crossunder(close,VTY)
+tp1 = input.int(10, minval=1,title = "TP-1")
+tp2 = input.int(20, minval=1,title = "TP-2")
+tp3 = input.int(30, minval=1,title = "TP-3")
+
+ematp = ta.ema(close,2)
+TPTAKA1S = VTY*(1-tp1/100)
+plot(TPTAKA1S, "SELL-TP1", color=color.red,linewidth = 1)
+TPTAKA2S = VTY*(1-tp2/100)
+plot(TPTAKA2S, "SELL-TP2", color=color.red,linewidth = 1)
+TPTAKA3S = VTY*(1-tp3/100)
+plot(TPTAKA3S, "SELL-TP3", color=color.red,linewidth = 1)
+
+TPTAKA1B = VTY*(1+tp1/100)
+plot(TPTAKA1B, "BUY-TP1", color=color.red,linewidth = 1)
+TPTAKA2B = VTY*(1+tp2/100)
+plot(TPTAKA2B, "BUY-TP2", color=color.red,linewidth = 1)
+TPTAKA3B = VTY*(1+tp3/100)
+plot(TPTAKA3B, "BUY-TP3", color=color.red,linewidth = 1)
+
+BUYTP = ta.crossunder(close,VTY) or ta.crossunder(ematp,TPTAKA1B) or ta.crossunder(ematp,TPTAKA2B) or ta.crossunder(ematp,TPTAKA3B) 
+SELLTP = ta.crossover(close,VTY) or ta.crossover(ematp,TPTAKA1S) or ta.crossover(ematp,TPTAKA2S) or ta.crossover(ematp,TPTAKA3S)
+/////////////////////// STRATEGY ////////////////
+// Check for Long Entry
+longCondition = longConditionx==true
+if longCondition
+    strategy.entry('Long', strategy.long, comment = "ENTER-LONG")
+
+buyclose = ShortConditionx==true or BUYTP==true 
+// Exit condition 
+strategy.close('Long', when=buyclose or BUYTP==true, comment = "EXIT-LONG")
+
+// Check for Short Entry
+ShortCondition = ShortConditionx==true
+if ShortCondition
+    strategy.entry('Short', strategy.short, comment = "ENTER-SHORT")
+
+sellclose = longConditionx==true or SELLTP ==true
+// Exit condition 
+strategy.close('Short', when=sellclose or SELLTP==true, comment = "EXIT-SHORT")
+///// END OF STRATEGY ///////////
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/439272
+
+> Last Modified
+
+2024-01-18 16:32:28

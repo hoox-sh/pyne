@@ -1,0 +1,57 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多重指数移动平均线交叉策略-Multi-EMA-Crossover-Strategy-with-Trend-Confirmation.md
+// content_hash: b8c352a05bd800b0
+// collected: 2026-07-27
+strategy("Multi EMA Strategy with Alerts", overlay=true)
+
+// Define input parameters for EMA lengths
+ema8_length = input.int(8, title="8-Period EMA Length", minval=1)
+ema21_length = input.int(21, title="21-Period EMA Length", minval=1)
+ema50_length = input.int(50, title="50-Period EMA Length", minval=1)
+ema200_length = input.int(200, title="200-Period EMA Length", minval=1)
+
+// Calculate EMAs
+ema8 = ta.ema(close, ema8_length)
+ema21 = ta.ema(close, ema21_length)
+ema50 = ta.ema(close, ema50_length)
+ema200 = ta.ema(close, ema200_length)
+
+// Plot EMAs
+plot(ema8, color=color.blue, title="8-Period EMA")
+plot(ema21, color=color.orange, title="21-Period EMA")
+plot(ema50, color=color.red, title="50-Period EMA")
+plot(ema200, color=color.green, title="200-Period EMA")
+
+// Additional condition: All short-term EMAs must be above the 200-period EMA
+allAbove200 = (ema8 > ema200) and (ema21 > ema200) and (ema50 > ema200)
+
+// Generate buy and sell signals based on EMA crosses and additional condition when the bar is closed
+buyCondition = ta.crossover(ema8, ema21) and barstate.isconfirmed and allAbove200
+sellCondition = ta.crossunder(ema8, ema21) and barstate.isconfirmed
+
+// Plot buy and sell signals on the chart
+plotshape(series=buyCondition, location=location.belowbar, color=color.green, style=shape.labelup, title="Buy Signal", text="BUY")
+plotshape(series=sellCondition, location=location.abovebar, color=color.red, style=shape.labeldown, title="Sell Signal", text="SELL")
+
+// Create strategy entries and exits
+if (buyCondition)
+    strategy.entry("Buy", strategy.long)
+
+if (sellCondition)
+    strategy.close("Buy")
+
+// Create alert conditions
+alertcondition(buyCondition, title="Buy Alert", message="Buy Signal: 8 EMA crossed above 21 EMA with all EMAs above 200 EMA")
+alertcondition(sellCondition, title="Sell Alert", message="Sell Signal: 8 EMA crossed below 21 EMA")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/458233
+
+> Last Modified
+
+2024-07-31 11:08:14

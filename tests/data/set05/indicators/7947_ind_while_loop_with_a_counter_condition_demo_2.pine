@@ -1,0 +1,12 @@
+//@version=5
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/v5/language/loops.md::loops.md#block16
+// content_hash: 85eaf5f71df5ff9d
+// collected: 2026-07-27
+indicator("`while` loop with a counter condition demo")
+
+if barstate.islastconfirmedhistory
+    // A `for` loop that creates blue labels displaying each `i` value.
+    for i = 0 to 10
+        label.new(

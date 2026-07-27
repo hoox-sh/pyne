@@ -1,0 +1,58 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/支撑阻力策略结合动态风险管理系统-Support-and-Resistance-Strategy-with-Dynamic-Risk-Management-System.md
+// content_hash: 0b51d54e5abc58c9
+// collected: 2026-07-27
+strategy('Mon Robot de Trading', overlay=true)
+
+// Paramètres
+capital = 2000  // Capital initial de 2000 euros
+maxAmountPerTrade = 2000  // Montant maximum à utiliser par trade
+leverage = 20  // Effet de levier de 1:20
+spread = 0.5  // Spread moyen en pips
+riskPerTrade = 0.2  // 20% du capital initial par transaction
+atrLength = 14  // Longueur de l'ATR pour le trailing stop
+
+// Calcul des points de pivot
+pivotHigh = high[1] + low[1] + close[1] / 3
+pivotLow = high[1] + low[1] + close[1] / 3
+
+// Plot des points de pivot sur le graphique
+plot(pivotHigh, color=color.new(color.red, 0), linewidth=1, title='Resistance')
+plot(pivotLow, color=color.new(color.green, 0), linewidth=1, title='Support')
+
+// Calcul de l'ATR pour la gestion du risque et du trailing stop
+atrValue = ta.atr(atrLength)
+
+// Calcul de la taille de la position basée sur le pourcentage de risque du capital et le montant maximum par trade
+riskAmount = capital * riskPerTrade
+positionSize = math.min(maxAmountPerTrade * leverage / (atrValue * 2), riskAmount / (atrValue * 2))  // Taille de la position en lots limitée par le montant maximum par trade et le risque autorisé
+
+// Implémentation de la stratégie avec trailing stop et take-profit
+if low <= pivotLow
+    strategy.entry('Buy', strategy.long, qty=positionSize)
+
+    // Définition de l'exit pour les achats (longs)
+    stopLossPrice = close - (atrValue * 2 + spread / 10)
+    takeProfitPrice = close + atrValue * 3 - spread / 10
+    strategy.exit('Exit Buy', 'Buy', stop=stopLossPrice, limit=takeProfitPrice)
+
+if high >= pivotHigh
+    strategy.entry('Sell', strategy.short, qty=positionSize)
+
+    // Définition de l'exit pour les ventes (courts)
+    stopLossPrice = close + atrValue * 2 + spread / 10
+    takeProfitPrice = close - (atrValue * 3 - spread / 10)
+    strategy.exit('Exit Sell', 'Sell', stop=stopLossPrice, limit=takeProfitPrice)
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/458035
+
+> Last Modified
+
+2024-07-29 14:01:49

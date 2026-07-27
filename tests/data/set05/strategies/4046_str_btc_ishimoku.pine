@@ -1,0 +1,28 @@
+//@version=4
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/BTC_ISHIMOKU.pine
+// content_hash: 841bd63e89989688
+// collected: 2026-07-27
+strategy("BTC_ISHIMOKU", overlay=true, initial_capital=1000, commission_value=0.25, default_qty_type=strategy.percent_of_equity, default_qty_value=100)
+period_max = input(20, minval = 1)
+period_med = input(10, minval = 1)
+period_min = input(16, minval = 1)
+Lmax = highest(high, period_max)
+Smax = lowest(low, period_max)
+Lmed = highest(high, period_med)
+Smed = lowest(low, period_med)
+Lmin = highest(high, period_min)
+Smin = lowest(low, period_min)
+HL1 = (Lmax + Smax + Lmed + Smed)/4
+HL2 = (Lmed + Smed + Lmin + Smin)/4
+p1 = plot(HL1, color = color.red, linewidth = 2)
+p2 = plot(HL2, color = color.green, linewidth = 2)
+fill(p1, p2, color = HL1 < HL2 ? color.green : color.red, transp = 90)
+start = timestamp(input(2020, minval=1), 01, 01, 00, 00)
+finish = timestamp(input(2025, minval=1),01, 01, 00, 00)
+trig = time > start and time < finish ? true : false
+strategy.entry("Long", true, when = crossover(HL2, HL1) and trig)
+// strategy.entry("Short", false, when = crossunder(HL2, HL1) and trig)
+strategy.close("Long", when = crossunder(HL2, HL1) and trig)
+Expand (35 lines)

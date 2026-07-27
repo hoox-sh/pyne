@@ -1,0 +1,80 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/中高频动态区间中点突破限价交易策略-Midpoint-Crossing-Dynamic-Range-Limit-Order-Trading-Strategy.md
+// content_hash: 98f4853e96014188
+// collected: 2026-07-27
+strategy("Midpoint Crossing Strategy", overlay=true)
+
+// Input for lookback period
+lookback = input.int(30, title="Lookback Period", minval=1)
+
+// Input for NYSE trading hours
+startHour = 9
+startMinute = 30
+endHour = 15
+endMinute = 0
+
+// Variables to store high, low, and midpoint of the lookback period
+var float rangeHigh = na
+var float rangeLow = na
+var float rangeMid = na
+
+// Calculate high, low, and midpoint based on lookback period
+if (bar_index >= lookback)
+    rangeHigh := ta.highest(high, lookback)
+    rangeLow := ta.lowest(low, lookback)
+    rangeMid := (rangeHigh + rangeLow) / 2
+
+// Plot high, low, and midpoint for reference
+plot(rangeHigh, color=color.red, title="Range High")
+plot(rangeLow, color=color.green, title="Range Low")
+plot(rangeMid, color=color.blue, title="Range Mid")
+
+// Time condition for NYSE hours
+currentTime = timestamp("GMT-5", year, month, dayofmonth, hour, minute)
+startTime = timestamp("GMT-5", year, month, dayofmonth, startHour, startMinute)
+endTime = timestamp("GMT-5", year, month, dayofmonth, endHour, endMinute)
+
+// Check if the current time is within NYSE hours
+isNYSEHours = currentTime >= startTime and currentTime <= endTime
+
+// Entry conditions (only during NYSE hours)
+longCondition = ta.crossover(close, rangeMid) and isNYSEHours
+shortCondition = ta.crossunder(close, rangeMid) and isNYSEHours
+
+// Define stop loss and take profit levels based on the range
+longStopLoss = rangeLow
+longTakeProfit = rangeHigh
+shortStopLoss = rangeHigh
+shortTakeProfit = rangeLow
+
+// Place limit order at mid-price
+if (longCondition and not strategy.opentrades)
+    strategy.order("Long Limit", strategy.long, limit=rangeMid)
+    strategy.exit("Take Profit", "Long Limit", limit=longTakeProfit, stop=longStopLoss)
+
+if (shortCondition and not strategy.opentrades)
+    strategy.order("Short Limit", strategy.short, limit=rangeMid)
+    strategy.exit("Take Profit", "Short Limit", limit=shortTakeProfit, stop=shortStopLoss)
+
+// Close open positions at 4:00 PM to avoid overnight risk
+if (currentTime >= endTime)
+    strategy.close_all(comment="Close All at 4:00 PM")
+
+// Add a check for open positions
+if (strategy.opentrades > 0)
+    // Ensure no recalculation while a position is open
+    rangeHigh := na
+    rangeLow := na
+    rangeMid := na
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/488897
+
+> Last Modified
+
+2025-03-31 16:43:45

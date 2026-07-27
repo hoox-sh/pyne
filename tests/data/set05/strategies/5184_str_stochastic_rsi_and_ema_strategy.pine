@@ -1,0 +1,58 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双重指标的Stochastic-RSI和EMA交易策略Dual-Indicator-Stochastic-RSI-and-EMA-Trading-Strategy.md
+// content_hash: 6c400a4ca1246da0
+// collected: 2026-07-27
+strategy("Stochastic RSI and EMA Strategy", shorttitle="StochRSI & EMA", overlay=true)
+
+// Input for Stochastic RSI settings
+stoch_length = input(14, title="StochRSI Length")
+k_period = input(3, title="K Period")
+d_period = input(3, title="D Period")
+
+// Input for EMA periods
+ema1_period = input(55, title="EMA 55 Period")
+ema2_period = input(200, title="EMA 200 Period")
+
+// Calculate Stochastic RSI
+stoch_rsi_k = sma(stoch(close, close, close, stoch_length), k_period)
+stoch_rsi_d = sma(stoch_rsi_k, d_period)
+
+// Calculate EMAs
+ema1 = ema(close, ema1_period)
+ema2 = ema(close, ema2_period)
+
+// Plot EMAs on the chart
+plot(ema1, color=color.blue, title="EMA 55")
+plot(ema2, color=color.red, title="EMA 200")
+
+// Plot Stochastic RSI on a separate pane
+hline(20, "StochRSI Oversold", color=color.green)
+hline(80, "StochRSI Overbought", color=color.red)
+plot(stoch_rsi_k, color=color.purple, title="StochRSI K")
+plot(stoch_rsi_d, color=color.orange, title="StochRSI D")
+
+// Buy condition: StochRSI below 20 and EMA55 above EMA200
+buy_condition = stoch_rsi_k < 20 and ema1 > ema2
+
+// Sell condition: StochRSI above 80
+sell_condition = stoch_rsi_k > 80
+
+// Plot buy and sell signals on the chart
+plotshape(series=buy_condition, title="Buy Signal", location=location.belowbar, color=color.green, style=shape.triangleup, size=size.small)
+plotshape(series=sell_condition, title="Sell Signal", location=location.abovebar, color=color.red, style=shape.triangledown, size=size.small)
+
+// Strategy entry and exit
+strategy.entry("Buy", strategy.long, when=buy_condition)
+strategy.close("Buy", when=sell_condition)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/440979
+
+> Last Modified
+
+2024-02-04 15:00:58

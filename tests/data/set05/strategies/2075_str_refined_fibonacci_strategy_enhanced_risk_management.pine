@@ -1,0 +1,64 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/增强型斐波那契趋势跟踪与风险管理策略-Enhanced-Fibonacci-Trend-Following-and-Risk-Management-Strategy.md
+// content_hash: 8fe0deb3c7ce446c
+// collected: 2026-07-27
+strategy("Refined Fibonacci Strategy - Enhanced Risk Management", overlay=true)
+
+// Input parameters
+fibonacci_lookback = input.int(38, minval=2, title="Fibonacci Lookback Period")
+atr_multiplier = input.float(1.8, title="ATR Multiplier for Stop Loss and Take Profit")
+sma_length = input.int(181, title="SMA Length")
+
+// Calculating Fibonacci levels
+var float high_level = na
+var float low_level = na
+if (ta.change(ta.highest(high, fibonacci_lookback)))
+    high_level := ta.highest(high, fibonacci_lookback)
+if (ta.change(ta.lowest(low, fibonacci_lookback)))
+    low_level := ta.lowest(low, fibonacci_lookback)
+
+fib_level_0_65 = high_level - ((high_level - low_level) * 0.65)
+
+// Trend Filter using SMA
+sma = ta.sma(close, sma_length)
+in_uptrend = close > sma
+in_downtrend = close < sma
+
+// ATR for Risk Management
+atr = ta.atr(12)
+long_stop_loss = close - (atr * atr_multiplier)
+long_take_profit = close + (atr * atr_multiplier)
+short_stop_loss = close + (atr * atr_multiplier)
+short_take_profit = close - (atr * atr_multiplier)
+
+// Entry Conditions
+buy_signal = close > fib_level_0_65 and close[1] <= fib_level_0_65 and in_uptrend
+sell_signal = close < fib_level_0_65 and close[1] >= fib_level_0_65 and in_downtrend
+
+// Execute Trades
+if (buy_signal)
+    strategy.entry("Buy", strategy.long)
+if (sell_signal)
+    strategy.entry("Sell", strategy.short)
+
+// Exit Conditions
+if (strategy.position_size > 0)
+    strategy.exit("Exit Long", "Buy", stop=long_stop_loss, limit=long_take_profit)
+if (strategy.position_size < 0)
+    strategy.exit("Exit Short", "Sell", stop=short_stop_loss, limit=short_take_profit)
+
+// Plotting
+plot(fib_level_0_65, color=color.blue, title="Fibonacci 0.65 Level")
+plot(sma, color=color.orange, title="SMA")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/476243
+
+> Last Modified
+
+2024-12-27 14:10:14

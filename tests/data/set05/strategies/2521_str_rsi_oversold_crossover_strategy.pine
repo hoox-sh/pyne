@@ -1,0 +1,56 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/RSI超买超卖交叉结合布林带动态止盈止损策略-RSI-Overbought-Oversold-Crossover-with-Bollinger-Bands-Dynamic-Stop-Loss-Strategy.md
+// content_hash: 49ddd4ff13f708e7
+// collected: 2026-07-27
+strategy("RSI Oversold Crossover Strategy", overlay=true)
+
+// === INPUT PARAMETERS ===
+rsi_length = input(14, title="RSI Length")
+rsi_overbought = input(70, title="RSI Overbought Level")
+rsi_oversold = input(30, title="RSI Oversold Level")
+
+// === RSI CALCULATION ===
+rsi = ta.rsi(close, rsi_length)
+
+// === ENTRY CONDITIONS ===
+long_condition = ta.crossover(rsi, rsi_oversold)  // RSI crosses above 30
+short_condition = ta.crossunder(rsi, rsi_overbought)  // RSI crosses below 70
+
+// === STOP LOSS & TARGET CALCULATION ===
+longStop = ta.lowest(low, 10)  // Recent swing low for longs
+shortStop = ta.highest(high, 10)  // Recent swing high for shorts
+longTarget = close + (close - longStop) * 2  // 2:1 Risk-Reward
+shortTarget = close - (shortStop - close) * 2  // 2:1 Risk-Reward
+
+// === EXECUTE TRADES ===
+if long_condition
+    strategy.entry("Long", strategy.long)
+    strategy.exit("ExitLong", from_entry="Long", stop=longStop, limit=longTarget)
+
+if short_condition
+    strategy.entry("Short", strategy.short)
+    strategy.exit("ExitShort", from_entry="Short", stop=shortStop, limit=shortTarget)
+
+// === ALERTS ===
+alertcondition(long_condition, title="Long Signal", message="BUY: RSI Crossed Above 30 (Oversold)")
+alertcondition(short_condition, title="Short Signal", message="SELL: RSI Crossed Below 70 (Overbought)")
+
+// === PLOTTING INDICATORS & SIGNALS ===
+hline(rsi_overbought, "RSI Overbought", color=color.red)
+hline(rsi_oversold, "RSI Oversold", color=color.green)
+plot(rsi, title="RSI", color=color.blue, linewidth=2)
+
+plotshape(series=long_condition, location=location.belowbar, color=color.green, style=shape.labelup, title="BUY Signal", size=size.large)
+plotshape(series=short_condition, location=location.abovebar, color=color.red, style=shape.labeldown, title="SELL Signal", size=size.large)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/483096
+
+> Last Modified
+
+2025-02-21 13:29:30

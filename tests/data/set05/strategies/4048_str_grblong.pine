@@ -1,0 +1,28 @@
+//@version=4
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/GRB Long.pine
+// content_hash: 26b5b35fac184547
+// collected: 2026-07-27
+strategy("GRBLong", overlay=true)
+highInput = input(title = "High Days", type = input.integer, defval = 21, minval = 11)
+lowInput = input(title = "Low Days", type = input.integer, defval = 21, minval = 5)
+// Configure backtest start date with inputs
+startDate = input(title="Start Date", type=input.integer,
+     defval=1, minval=1, maxval=31)
+startMonth = input(title="Start Month", type=input.integer,
+     defval=1, minval=1, maxval=12)
+startYear = input(title="Start Year", type=input.integer,
+     defval=2019, minval=1800, maxval=2100)
+// See if this bar's time happened on/after start date
+afterStartDate = (time >= timestamp(syminfo.timezone,
+     startYear, startMonth, startDate, 0, 0))
+high21 = highest(high, highInput)
+low21 = lowest(low, lowInput)
+diff = high21 - low21
+longEntrySignal = low > low21 + (diff * 0.382) and close[1] > open[1] 
+strategy.entry("Long", strategy.long, when = longEntrySignal and afterStartDate)
+strategy.exit("Long Exit", "Long", stop = low21 + (diff * 0.236))
+plot(low21 + (diff * 0.382), color= color.green)
+plot(low21 + (diff * 0.236), color = color.red)
+Expand (34 lines)

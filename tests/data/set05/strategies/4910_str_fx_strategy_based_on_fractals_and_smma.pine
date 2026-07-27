@@ -1,0 +1,74 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于价格波浪理论和平移平均线策略FX-Strategy-Based-on-Fractal-Waves-and-SMMA.md
+// content_hash: c88e6d4c04cb5ce5
+// collected: 2026-07-27
+strategy("FX Strategy Based on Fractals and SMMA", overlay=true)
+
+// パラメータ
+SMMAPeriod1 = input(30, title="SMMA Period")
+StopLoss1 = input(7, title="Stop Loss %")
+TrailingStopCoef1 = input(2.7, title="Trailing Stop Coefficient")
+fractalPeriod = input(5, title="Fractal Period")
+
+// SMMAの計算関数
+smma(src, length) =>
+    var float smma = na
+    if na(smma[1])
+        smma := sma(src, length)
+    else
+        smma := (smma[1] * (length - 1) + src) / length
+    smma
+
+// フラクタルの近似
+highFractal = high[2] > high[1] and high[2] > high[3] and high[2] > high[4] and high[2] > high
+lowFractal = low[2] < low[1] and low[2] < low[3] and low[2] < low[4] and low[2] < low
+
+// エントリー条件
+longEntrySignal = lowFractal and close[1] < smma(close, SMMAPeriod1)
+shortEntrySignal = highFractal and close[1] > smma(close, SMMAPeriod1)
+
+// エントリー実行
+if (longEntrySignal)
+    strategy.entry("Long", strategy.long)
+
+if (shortEntrySignal)
+    strategy.entry("Short", strategy.short)
+
+// トレーリングストップの計算
+atrValue = atr(10)
+longStopPrice = close - atrValue * TrailingStopCoef1
+shortStopPrice = close + atrValue * TrailingStopCoef1
+
+// トレーリングストップの設定
+strategy.exit("Exit Long", "Long", stop=longStopPrice)
+strategy.exit("Exit Short", "Short", stop=shortStopPrice)
+
+// バックテスト期間の設定（MetaTraderのバックテストと同じ期間）
+startYear = 2007
+startMonth = 05
+startDay = 01
+endYear = 2022
+endMonth = 04
+endDay = 01
+
+startDate = timestamp(startYear, startMonth, startDay, 00, 00)
+endDate = timestamp(endYear, endMonth, endDay, 23, 59)
+
+// バックテスト期間内でのみトレードを実行
+if (time >= startDate and time <= endDate)
+    if (longEntrySignal)
+        strategy.entry("Long", strategy.long)
+    if (shortEntrySignal)
+        strategy.entry("Short", strategy.short)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/431956
+
+> Last Modified
+
+2023-11-13 16:39:41

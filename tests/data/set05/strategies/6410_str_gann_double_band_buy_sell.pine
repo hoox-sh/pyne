@@ -1,0 +1,55 @@
+//@version=2
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双Gann通道突破买卖策略Gann-Double-Channel-Breakout-Trading-Strategy.md
+// content_hash: cc9155835569927a
+// collected: 2026-07-27
+strategy("[VJ] Gann Double Band Buy Sell", overlay=true)
+tim=input('375')
+//skip buying near upper band and selling near lower band
+out1 = security(syminfo.tickerid, tim, open)
+out2 = security(syminfo.tickerid, tim, close)
+
+// gann 81, 1 & 81, 2 as channel
+length = input(81, minval=1)
+src = input(close, title="Source")
+
+Band1 = input(1.0, minval=0.001, maxval=10, step=0.1)
+basis = sma(src, length)
+dev = Band1 * stdev(src, length)
+upper = basis + dev
+lower = basis - dev
+
+Band2 = input(2.0, minval=0.001, maxval=10, step=0.1)
+dev2 = Band2 * stdev(src, length)
+upper2 = basis + dev2
+lower2 = basis - dev2
+
+plot(basis, color=black ,linewidth=3 )
+p1a = plot(upper, color=green,linewidth=2)
+p1b = plot(lower, color=green,linewidth=2)
+
+p2a = plot(upper2, color=blue, linewidth=3)
+p2b = plot(lower2, color=blue, linewidth=3)
+
+
+
+longCondition = crossover(security(syminfo.tickerid, tim, close),security(syminfo.tickerid, tim, open)) and close < upper
+if (longCondition)
+    strategy.entry("long", strategy.long)
+shortCondition = crossunder(security(syminfo.tickerid, tim, close),security(syminfo.tickerid, tim, open)) and close > lower
+if (shortCondition)
+    strategy.entry("short", strategy.short)
+
+
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/426478
+
+> Last Modified
+
+2023-09-12 14:34:16

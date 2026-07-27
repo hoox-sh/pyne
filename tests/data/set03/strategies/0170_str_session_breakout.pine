@@ -1,0 +1,80 @@
+// set03 corpus entry
+// source_repo: dexcextrade-TradingView-PineScripts
+// source_path: dexcextrade-TradingView-PineScripts/Jupiter Breakout
+// content_hash: 4817be3f357eda3f
+// collected: 2026-07-27
+
+
+//@version=6
+strategy("Session Breakout",
+     overlay           = true,
+     initial_capital   = 100000,
+     default_qty_type  = strategy.percent_of_equity,
+     default_qty_value = 10,
+     commission_type   = strategy.commission.percent,
+     commission_value  = 0.01)
+
+//──────────────────────────────
+// Inputs
+//──────────────────────────────
+orSession = input.session("0930-0950", "Opening range session")
+showRange = input.bool(true, "Show OR levels")
+fillRange = input.bool(true, "Fill range body")
+
+//──────────────────────────────
+// Session & day detection
+//──────────────────────────────
+inSession = not na(time(timeframe.period, orSession))
+isNewDay  = ta.change(time("D")) != 0
+
+//──────────────────────────────
+// Track Opening Range High / Low
+//──────────────────────────────
+var float orHigh = na
+var float orLow  = na
+
+// Reset OR levels at the start of a new day
+if isNewDay
+    orHigh := na
+    orLow  := na
+
+// Build opening range during the session
+if inSession
+    orHigh := na(orHigh) ? high : math.max(orHigh, high)
+    orLow  := na(orLow)  ? low  : math.min(orLow, low)
+
+//──────────────────────────────
+// Breakout logic (after OR session ends)
+//──────────────────────────────
+sessionFinished = not inSession and not na(orHigh) and not na(orLow)
+
+longBreak  = sessionFinished and ta.crossover(close, orHigh)
+shortBreak = sessionFinished and ta.crossunder(close, orLow)
+
+if longBreak
+    strategy.entry("OR Long", strategy.long)
+
+if shortBreak
+    strategy.entry("OR Short", strategy.short)
+
+//──────────────────────────────
+// Visuals
+//──────────────────────────────
+plotOrHigh = plot(
+     showRange ? orHigh : na,
+     title = "OR High",
+     color = color.new(color.green, 0),
+     style = plot.style_linebr)
+
+plotOrLow = plot(
+     showRange ? orLow : na,
+     title = "OR Low",
+     color = color.new(color.red, 0),
+     style = plot.style_linebr)
+
+// Global-scope fill (required in Pine)
+fillColor = showRange and fillRange ? color.new(color.yellow, 90) : na
+fill(plotOrHigh, plotOrLow, fillColor)
+
+// Highlight while OR is being built
+bgcolor(inSession ? color.new(color.yellow, 92) : na)

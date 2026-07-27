@@ -1,0 +1,135 @@
+//@version=6
+// set03 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/高级量化交易策略基于日内动量与风险管理的自动化执行系统-Advanced-Quantitative-Trading-Strategy-Automated-Execution-System-Based-on-Intraday-Momentum-and-Risk-Management.md
+// content_hash: 3a76903430fbdb69
+// collected: 2026-07-27
+strategy("Trading Strategy for XAUUSD (Gold) – Automated Execution Plan", overlay=true, initial_capital=10000, currency=currency.USD)
+
+//────────────────────────────
+// 1. RISK MANAGEMENT & POSITION SIZING
+//────────────────────────────
+// Configurable inputs for Stop Loss and Take Profit
+sl = input.float(title="Stop Loss ($)", defval=5, step=0.1)
+tp = input.float(title="Take Profit ($)", defval=15, step=0.1)
+
+// Volume: 0.01 lots per $100 of equity → lotSize = equity / 10000
+lotSize = strategy.equity / strategy.initial_capital
+
+//────────────────────────────
+// 2. TRADING HOURS (London Time)
+//────────────────────────────
+// Get the current bar's timestamp in London time.
+londonTime   = time(timeframe.period, "", "Europe/London")
+londonHour   = hour(londonTime)
+tradingAllowed = (londonHour != 0) and (londonHour < 19)
+
+//────────────────────────────
+// 3. DOJI CANDLE DEFINITION
+//────────────────────────────
+// A candle is considered a doji if the sum of its upper and lower shadows is greater than its body.
+upperShadow = high - math.max(open, close)
+lowerShadow = math.min(open, close) - low
+bodySize    = math.abs(close - open)
+isDoji      = (upperShadow + lowerShadow) > bodySize
+
+//────────────────────────────
+// 4. ENTRY CONDITIONS
+//────────────────────────────
+// Buy Signal:
+//   • Current candle’s high > previous candle’s high.
+//   • Current candle’s low is not below previous candle’s low.
+//   • Bullish candle (close > open) and not a doji.
+//   • Skip if previous candle already qualified.
+buyRaw    = (high > high[1]) and (low >= low[1]) and (close > open) and (not isDoji)
+buySignal = buyRaw and not (buyRaw[1] ? true : false)
+
+// Sell Signal:
+//   • Current candle’s low < previous candle’s low.
+//   • Current candle’s high is not above previous candle’s high.
+//   • Bearish candle (close < open) and not a doji.
+//   • Skip if previous candle already qualified.
+sellRaw    = (low < low[1]) and (high <= high[1]) and (close < open) and (not isDoji)
+sellSignal = sellRaw and not (sellRaw[1] ? true : false)
+
+//────────────────────────────
+// 5. DAILY TAKE PROFIT (TP) RULE
+//────────────────────────────
+// Create a day-string (year-month-day) using London time.
+// This flag will block new trades for the rest of the day if a TP is hit.
+var string lastDay = ""
+currentDay = str.tostring(year(londonTime)) + "-" + str.tostring(month(londonTime)) + "-" + str.tostring(dayofmonth(londonTime))
+var bool dailyTPHit = false
+if lastDay != currentDay
+    dailyTPHit := false
+    lastDay := currentDay
+
+//────────────────────────────
+// 6. TRACK TRADE ENTRY & EXIT FOR TP DETECTION
+//────────────────────────────
+// We record the TP target when a new trade is entered.
+// Then, when a trade closes, if the bar’s high (for long) or low (for short) reached the TP target,
+// we assume the TP was hit and block new trades for the day.
+var float currentTP = na
+var int currentTradeType = 0   // 1 for long, -1 for short
+
+// Detect a new trade entry (transition from no position to a position).
+tradeEntered = (strategy.position_size != 0 and strategy.position_size[1] == 0)
+if tradeEntered
+    if strategy.position_size > 0
+        currentTP := strategy.position_avg_price + tp
+        currentTradeType := 1
+    else if strategy.position_size < 0
+        currentTP := strategy.position_avg_price - tp
+        currentTradeType := -1
+
+// Detect trade closure (transition from position to flat).
+tradeClosed = (strategy.position_size == 0 and strategy.position_size[1] != 0)
+if tradeClosed and not na(currentTP)
+    // For a long trade, if the bar's high reached the TP target;
+    // for a short trade, if the bar's low reached the TP target,
+    // mark the daily TP flag.
+    if (currentTradeType == 1 and high >= currentTP) or (currentTradeType == -1 and low <= currentTP)
+        dailyTPHit := true
+    currentTP := na
+    currentTradeType := 0
+
+//────────────────────────────
+// 7. ORDER EXECUTION
+//────────────────────────────
+// Only open a new position if no position is open, trading is allowed, and daily TP rule is not active.
+if (strategy.position_size == 0) and tradingAllowed and (not dailyTPHit)
+    if buySignal
+        strategy.entry("Long", strategy.long, qty=lotSize)
+    if sellSignal
+        strategy.entry("Short", strategy.short, qty=lotSize)
+
+//────────────────────────────
+// 8. EXIT ORDERS (Risk Management)
+//────────────────────────────
+// For long positions: SL = entry price - Stop Loss, TP = entry price + Take Profit.
+// For short positions: SL = entry price + Stop Loss, TP = entry price - Take Profit.
+if strategy.position_size > 0
+    longSL = strategy.position_avg_price - sl
+    longTP = strategy.position_avg_price + tp
+    strategy.exit("Exit Long", from_entry="Long", stop=longSL, limit=longTP)
+if strategy.position_size < 0
+    shortSL = strategy.position_avg_price + sl
+    shortTP = strategy.position_avg_price - tp
+    strategy.exit("Exit Short", from_entry="Short", stop=shortSL, limit=shortTP)
+
+//────────────────────────────
+// 9. VISUALIZATION
+//────────────────────────────
+plotshape(buySignal and tradingAllowed and (not dailyTPHit) and (strategy.position_size == 0), title="Buy Signal", location=location.belowbar, color=color.green, style=shape.labelup, text="Buy")
+plotshape(sellSignal and tradingAllowed and (not dailyTPHit) and (strategy.position_size == 0), title="Sell Signal", location=location.abovebar, color=color.red, style=shape.labeldown, text="Sell")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/483119
+
+> Last Modified
+
+2025-02-27 16:57:06

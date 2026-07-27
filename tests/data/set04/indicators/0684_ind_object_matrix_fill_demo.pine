@@ -1,0 +1,22 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/language/matrices.md::matrices.md#block3
+// content_hash: eb4058aa2bab86ee
+// collected: 2026-07-27
+indicator("Object matrix fill demo")
+
+//@variable A 4x4 label matrix.
+var matrix<label> m = matrix.new<label>(4, 4)
+
+// Fill `m` with a new label object on the first bar.
+if bar_index == 0
+    m.fill(label.new(0, 0, textcolor = color.white, size = size.huge))
+
+//@variable The number of label objects on the chart.
+int numLabels = label.all.size()
+
+// Set the `x` of the label from the first row and column to `bar_index`.
+m.get(0, 0).set_x(bar_index)
+// Set the `text` of the label at the last row and column to the number of labels.
+m.get(3, 3).set_text(str.format("Total labels on the chart: {0}", numLabels))

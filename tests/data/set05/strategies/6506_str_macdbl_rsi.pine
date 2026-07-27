@@ -1,0 +1,46 @@
+//@version=2
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多MACD与RSI策略Multiple-MACD-and-RSI-Strategy.md
+// content_hash: 8333fdf6d147320c
+// collected: 2026-07-27
+strategy("MACDbl RSI", overlay=true)
+
+fastLength = input(10)
+slowlength = input(22)
+MACDLength = input(9)
+
+MACD = ema(close, fastLength) - ema(close, slowlength)
+aMACD = sma(MACD, MACDLength)
+delta = MACD - aMACD
+
+fastLength2 = input(21)
+slowlength2 = input(45)
+MACDLength2 = input(20)
+
+MACD2 = ema(open, fastLength2) - ema(open, slowlength2)
+aMACD2 = sma(MACD2, MACDLength2)
+delta2 = MACD2 - aMACD2
+
+Length = input(14, minval=1)
+Oversold = input(20, minval=1)
+Overbought = input(70, minval=1)
+xRSI = rsi(open, Length)
+
+
+if (delta > 0) and (year>2015) and (delta2 > 0) and (xRSI < Overbought)
+    strategy.entry("buy", strategy.long, comment="buy")
+
+if (delta < 0) and (year>2015) and (delta2 < 0) and (xRSI > Oversold)
+    strategy.entry("sell", strategy.short, comment="sell")
+
+//plot(strategy.equity, title="equity", color=red, linewidth=2, style=areabr)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/428693
+
+> Last Modified
+
+2023-10-08 14:03:47

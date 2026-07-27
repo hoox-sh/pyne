@@ -1,0 +1,8 @@
+//@version=4
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/v4/debugging.md::debugging.md#block2
+// content_hash: 4078b3e318a5f62e
+// collected: 2026-07-27
+study("Plot `bar_index`")
+plot(bar_index, "Bar Index")

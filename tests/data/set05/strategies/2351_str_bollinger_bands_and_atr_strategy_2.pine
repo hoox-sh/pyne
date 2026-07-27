@@ -1,0 +1,58 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/布林带ATR风险回报比交易策略-Bollinger-Bands-ATR-Risk-Reward-Trading-Strategy.md
+// content_hash: e3d8746e7a8e2db2
+// collected: 2026-07-27
+strategy("Bollinger Bands & ATR Strategy", overlay=true)
+
+// Kullanıcıdan girdi almak
+bollingerLength = input.int(20, title="Bollinger Bantları Periyodu")
+bollingerDev = input.float(2.0, title="Bollinger Bantları Standart Sapma")
+atrLength = input.int(14, title="ATR Periyodu")
+riskRewardRatio = input.float(2.0, title="Risk/Ödül Oranı", minval=1.0)
+
+// Bollinger Bantları hesapla
+basis = ta.sma(close, bollingerLength)
+dev = bollingerDev * ta.stdev(close, bollingerLength)
+upperBand = basis + dev
+lowerBand = basis - dev
+atrValue = ta.atr(atrLength)
+
+// Al/Sat koşulları
+longCondition = close < lowerBand
+shortCondition = close > upperBand
+
+// Risk/Ödül hesaplaması
+longStopLoss = close - 2 * atrValue
+shortStopLoss = close + 2 * atrValue
+longTakeProfit = close + (close - longStopLoss) * riskRewardRatio
+shortTakeProfit = close - (shortStopLoss - close) * riskRewardRatio
+
+// Pozisyonları açma ve kapama
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+    strategy.exit("Long TP", "Long", limit=longTakeProfit, stop=longStopLoss)
+
+if (shortCondition)
+    strategy.entry("Short", strategy.short)
+    strategy.exit("Short TP", "Short", limit=shortTakeProfit, stop=shortStopLoss)
+
+// Bollinger Bantları'nı grafikte çiz
+plot(upperBand, color=color.green, title="Üst Bollinger Bandı")
+plot(lowerBand, color=color.red, title="Alt Bollinger Bandı")
+plot(basis, color=color.blue, title="Bollinger Bandı Temel")
+
+// Sinyalleri göster
+plotshape(series=longCondition, location=location.belowbar, color=color.green, style=shape.labelup, title="Long Signal")
+plotshape(series=shortCondition, location=location.abovebar, color=color.red, style=shape.labeldown, title="Short Signal")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/484580
+
+> Last Modified
+
+2025-03-03 09:56:09

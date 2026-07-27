@@ -1,0 +1,73 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多重背离综合指标交易策略-Multi-Indicator-Divergence-Trading-System-with-Advanced-Risk-Management.md
+// content_hash: 182fd93907e5acbc
+// collected: 2026-07-27
+strategy("Multi-Divergence Strategy - Verbeterd", overlay=true, initial_capital=100000, default_qty_type=strategy.percent_of_equity, default_qty_value=10)
+
+// === INVOERPARAMETERS ===
+gebruikRSI   = input.bool(true, "Gebruik RSI Divergence")
+gebruikMACD  = input.bool(true, "Gebruik MACD Divergence")
+gebruikStoch = input.bool(true, "Gebruik Stochastic Divergence")
+
+// Risicomanagement
+stopLossPercent   = input.float(1.5, "Stop Loss (%)", step=0.1)
+takeProfitPercent = input.float(3.0, "Take Profit (%)", step=0.1)
+trailPoints  = input.float(10, "Trailing Stop (punten)", step=0.1)
+trailOffset  = input.float(5,  "Trailing Offset (punten)", step=0.1)
+
+// Trendfilter (MA)
+maLength = input.int(50, "Trendfilter MA Lengte")
+maTrend  = ta.sma(close, maLength)
+
+// === RSI CALCULATIES ===
+rsiWaarde  = ta.rsi(close, 14)
+rsiSMA     = ta.sma(rsiWaarde, 14)
+rsiBullish = ta.crossover(rsiWaarde, rsiSMA)
+rsiBearish = ta.crossunder(rsiWaarde, rsiSMA)
+
+// === MACD CALCULATIES ===
+[macdLijn, signalLijn, _] = ta.macd(close, 12, 26, 9)
+macdBullish  = ta.crossover(macdLijn, signalLijn)
+macdBearish  = ta.crossunder(macdLijn, signalLijn)
+
+// === STOCHASTIC CALCULATIES ===
+// Gebruik de juiste parameter volgorde: (high, low, close, length)
+stochWaarde    = ta.stoch(high, low, close, 14)
+stochSMA       = ta.sma(stochWaarde, 14)
+stochBullish   = ta.crossover(stochWaarde, stochSMA)
+stochBearish   = ta.crossunder(stochWaarde, stochSMA)
+
+// === BASISCONDITIES ===
+koopCond  = (not gebruikRSI or rsiBullish) and (not gebruikMACD or macdBullish) and (not gebruikStoch or stochBullish)
+verkoopCond = (not gebruikRSI or rsiBearish) and (not gebruikMACD or macdBearish) and (not gebruikStoch or stochBearish)
+
+// Extra trendfilter: alleen long als close boven MA ligt
+koopCondFiltered = koopCond and (close > maTrend)
+
+// === STRATEGIE EXECUTIE ===
+if (koopCondFiltered)
+    strategy.entry("Long", strategy.long)
+    
+// Bereken stop loss en take profit prijzen op basis van de gemiddelde instapprijs
+stopLossPrice   = strategy.position_avg_price * (1 - stopLossPercent / 100)
+takeProfitPrice = strategy.position_avg_price * (1 + takeProfitPercent / 100)
+
+// Pas exit orders toe met stop loss, take profit en trailing stop
+strategy.exit("Exit Long", "Long", stop=stopLossPrice, limit=takeProfitPrice, trail_points=trailPoints, trail_offset=trailOffset)
+
+// === PLOTTEN VAN SIGNALEN ===
+plot(maTrend, title="Trend MA", color=color.blue)
+plotshape(koopCondFiltered, title="Koop Signaal", text="Koop", style=shape.labelup, location=location.belowbar, color=color.green)
+plotshape(verkoopCond, title="Verkoop Signaal", text="Verkoop", style=shape.labeldown, location=location.abovebar, color=color.red)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/490042
+
+> Last Modified
+
+2025-04-11 09:22:09

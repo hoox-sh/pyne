@@ -1,0 +1,13 @@
+//@version=6
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/language/user-defined-functions.md::user-defined-functions.md#block55
+// content_hash: 6dbc4bc52089affa
+// collected: 2026-07-27
+indicator("Invalid recursive function demo")
+
+gcd(int x, int y) =>
+    // This expression causes an error. `gcd()` cannot call itself.
+    y == 0 ? x : gcd(y, x % y)
+
+plot(gcd(15, 20))

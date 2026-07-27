@@ -1,0 +1,10 @@
+//@version=5
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/v5/language/matrices.md::matrices.md#block24
+// content_hash: c9e8d3c6b64b39d2
+// collected: 2026-07-27
+indicator("Shallow copy demo")
+
+//@variable Initial value of the original matrix elements.
+var label newLabel = label.new(

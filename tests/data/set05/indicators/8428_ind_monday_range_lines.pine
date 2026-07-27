@@ -1,0 +1,69 @@
+// set05 corpus entry
+// source_repo: tradingview-indicators-pine
+// source_path: tradingview-indicators-pine/Koz-Levels--Spaceman--Monday/Mondays-Range-Lines.txt
+// content_hash: 4a687b9a49c986be
+// collected: 2026-07-27
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// "Monday Range (Lines)" by "u_20bf"
+
+//@version=4
+study("Monday Range (Lines)", overlay=true)
+
+var market_open_day_of_week = input(title="What day of the week does the market open?", type=input.string, options=["Sunday", "Monday"], defval="Sunday") // Some exchanges open sunday evening vs crypto std monday
+
+monday_open_time = security(syminfo.tickerid, "D", time("D"), lookahead = barmerge.lookahead_on)
+monday_high = security(syminfo.tickerid, "D", high, lookahead = barmerge.lookahead_on)
+monday_low = security(syminfo.tickerid, "D", low, lookahead = barmerge.lookahead_on)
+monday_midpoint = avg(monday_high, monday_low)
+line_colour = input(#007FFF, "Line colour", type = input.color)
+
+is_monday() => dayofweek(time("D")) == (market_open_day_of_week == "Sunday" ? dayofweek.sunday : dayofweek.monday) and close ? true : false
+
+var can_show_monday_range = not timeframe.isweekly and not timeframe.ismonthly and not timeframe.isseconds // dont show above daily or below minutes
+
+// Calculate the bars until the end of the week
+// timeframe.multiplier is either daily or minutes
+bars_until_end_of_week = if timeframe.isdaily
+    7
+else 
+    (1440 / timeframe.multiplier) * 7 // (mins in  day / multiplier) * days in a week
+
+line_end_right = monday_open_time + (time - time[1]) * bars_until_end_of_week // try and extend line until the end of the week
+
+if is_monday()
+    // Monday high
+    monday_high_text = "MH    "
+    var monday_high_line = line.new(x1 = monday_open_time, x2 = line_end_right, y1 = monday_high, y2 = monday_high, color = line_colour, width = 1, xloc = xloc.bar_time)
+    var monday_high_label = label.new(x = line_end_right, y = monday_open_time, text = monday_high_text, style = label.style_none, textcolor = line_colour, size = size.small, xloc = xloc.bar_time)
+
+    line.set_x1(monday_high_line, monday_open_time)
+    line.set_x2(monday_high_line, line_end_right)
+    line.set_y1(monday_high_line, monday_high)
+    line.set_y2(monday_high_line, monday_high)
+    label.set_x(monday_high_label, line_end_right)
+    label.set_y(monday_high_label, monday_high)
+
+    // Monday low
+    monday_low_text = "ML    "
+    var monday_low_line = line.new(x1 = monday_open_time, x2 = line_end_right, y1 = monday_low, y2 = monday_low, color = line_colour, width = 1, xloc = xloc.bar_time)
+    var monday_low_label = label.new(x = line_end_right, y = monday_open_time, text = monday_low_text, style = label.style_none, textcolor = line_colour, size = size.small, xloc = xloc.bar_time)
+
+    line.set_x1(monday_low_line, monday_open_time)
+    line.set_x2(monday_low_line, line_end_right)
+    line.set_y1(monday_low_line, monday_low)
+    line.set_y2(monday_low_line, monday_low)
+    label.set_x(monday_low_label, line_end_right)
+    label.set_y(monday_low_label, monday_low)
+
+    // Monday mid
+    monday_mid_text = "MID     "
+    var monday_mid_line = line.new(x1 = monday_open_time, x2 = line_end_right, y1 = monday_midpoint, y2 = monday_midpoint, color = line_colour, width = 1, xloc = xloc.bar_time)
+    var monday_mid_label = label.new(x = line_end_right, y = monday_open_time, text = monday_mid_text, style = label.style_none, textcolor = line_colour, size = size.small, xloc = xloc.bar_time)
+
+    line.set_x1(monday_mid_line, monday_open_time)
+    line.set_x2(monday_mid_line, line_end_right)
+    line.set_y1(monday_mid_line, monday_midpoint)
+    line.set_y2(monday_mid_line, monday_midpoint)
+    label.set_x(monday_mid_label, line_end_right)
+    label.set_y(monday_mid_label, monday_midpoint)
+    

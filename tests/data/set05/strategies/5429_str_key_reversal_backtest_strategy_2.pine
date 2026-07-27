@@ -1,0 +1,46 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/偏反指标回测策略Key-Reversal-Backtest-Strategy.md
+// content_hash: 16ace387e0ec9bc4
+// collected: 2026-07-27
+////////////////////////////////////////////////////////////
+//  Copyright by HPotter v1.0 20/01/2020
+//
+// A key reversal is a one-day trading pattern that may signal the reversal of a trend. 
+// Other frequently-used names for key reversal include "one-day reversal" and "reversal day."
+// How Does a Key Reversal Work?
+// Depending on which way the stock is trending, a key reversal day occurs when:
+// In an uptrend -- prices hit a new high and then close near the previous day's lows.
+// In a downtrend -- prices hit a new low, but close near the previous day's highs
+// WARNING:
+// - For purpose educate only
+// - This script to change bars colors.
+////////////////////////////////////////////////////////////
+strategy(title="Key Reversal Down Backtest", shorttitle="KRD Backtest", overlay = true)
+input_takeprofit = input(20, title="Take Profit pip", step=0.01)
+input_stoploss = input(10, title="Stop Loss pip", step=0.01)
+nLength = input(1, minval=1, title="Enter the number of bars over which to look for a new high in prices.")
+xHH = highest(high[1], nLength)
+C1 = iff(high > xHH and close < close[1], true, false)
+plotshape(C1, style=shape.triangledown, size = size.small, color=color.red)
+posprice = 0.0
+pos = 0
+barcolor(nz(pos[1], 0) == -1 ? color.red: nz(pos[1], 0) == 1 ? color.green : color.blue ) 
+posprice := iff(C1== true, close, nz(posprice[1], 0)) 
+pos := iff(posprice > 0, -1, 0)
+if (pos == 0) 
+    strategy.close_all()
+if (pos == -1)
+    strategy.entry("Short", strategy.short)
+posprice := iff(low <= posprice - input_takeprofit and posprice > 0, 0 ,  nz(posprice, 0))
+posprice := iff(high >= posprice + input_stoploss and posprice > 0, 0 ,  nz(posprice, 0))
+```
+
+> Detail
+
+https://www.fmz.com/strategy/439036
+
+> Last Modified
+
+2024-01-17 10:56:52

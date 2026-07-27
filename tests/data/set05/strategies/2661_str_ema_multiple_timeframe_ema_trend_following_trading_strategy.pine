@@ -1,0 +1,52 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多周期EMA顺势突破交易策略Multiple-Timeframe-EMA-Trend-Following-Trading-Strategy.md
+// content_hash: bf04d888ac2644ed
+// collected: 2026-07-27
+strategy(title="Scalping Strategy - EMA",
+         shorttitle="EMA Scalp",
+         overlay=true)
+
+// User input for start date
+startDateInput = input(title="Start Date", defval=timestamp("2024-02-01"))
+
+// Calculate EMAs
+ema_12 = ta.ema(close, 12)
+ema_15 = ta.ema(close, 15)
+ema_18 = ta.ema(close, 18)
+ema_21 = ta.ema(close, 21)
+ema_24 = ta.ema(close, 24)
+
+// Plot EMAs
+plot(ema_12, color=color.red, title="EMA 12")
+plot(ema_15, color=color.orange, title="EMA 15")
+plot(ema_18, color=color.yellow, title="EMA 18")
+plot(ema_21, color=color.green, title="EMA 21")
+plot(ema_24, color=color.blue, title="EMA 24")
+
+// Define a start date for the strategy based on user input
+isAfterStartDate = true
+
+// Visualize the isAfterStartDate condition
+bgcolor(isAfterStartDate ? color.new(color.green, 90) : na, title="After Start Date")
+
+// Entry conditions
+buy_condition = (ema_12 > ema_15) and (ema_15 > ema_18) and (ema_18 > ema_21) and (ema_21 > ema_24) and isAfterStartDate
+sell_condition = (ema_12 < ema_15) and (ema_15 < ema_18) and (ema_18 < ema_21) and (ema_21 < ema_24) and isAfterStartDate
+
+// Execute trades using conditional blocks
+if (buy_condition)
+    strategy.entry("Buy", strategy.long)
+    
+if (sell_condition)
+    strategy.entry("Sell", strategy.short)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/442864
+
+> Last Modified
+
+2024-02-26 16:55:48

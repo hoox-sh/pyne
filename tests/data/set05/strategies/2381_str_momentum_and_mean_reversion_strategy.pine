@@ -1,0 +1,58 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/组合式动量与均值回归高频量化策略-Combined-Momentum-and-Mean-Reversion-High-Frequency-Quantitative-Strategy.md
+// content_hash: d0db3b849d0c8cf6
+// collected: 2026-07-27
+strategy("Momentum and Mean Reversion Strategy", shorttitle = "MMV_V1", overlay=true)
+
+// --- Inputit ja parametrit ---
+use_momentum = input.bool(true, title="Käytä Momentum-strategiaa")
+use_mean_reversion = input.bool(true, title="Käytä Keskiarvoon Palautumista (BB)")
+
+// Momentum-parametrit
+short_ema_period = input.int(50, title="Lyhyt EMA")
+long_ema_period = input.int(400, title="Pitkä EMA")
+
+// Bollinger Band -parametrit
+bb_length = input.int(20, title="BB Pituus")
+bb_std = input.float(2.0, title="BB Standardipoikkeama")
+
+// --- Momentum-strategia: EMA-risteämä ---
+short_ema = ta.ema(close, short_ema_period)
+long_ema = ta.ema(close, long_ema_period)
+
+momentum_long_signal = ta.crossover(short_ema, long_ema)
+momentum_short_signal = ta.crossunder(short_ema, long_ema)
+
+// --- Keskiarvoon palautuminen: Bollinger Bands ---
+[bb_upper, bb_middle, bb_lower] = ta.bb(close, bb_length, bb_std)
+
+bb_long_signal = ta.crossover(close, bb_lower)  // Osto, kun hinta nousee alemman BB:n yli
+bb_short_signal = ta.crossunder(close, bb_upper)  // Myynti, kun hinta laskee ylemmän BB:n ali
+
+// --- Kaupankäyntilogiikka ---
+if (use_momentum and momentum_long_signal)
+    strategy.entry("Momentum Long", strategy.long)
+
+if (use_momentum and momentum_short_signal)
+    strategy.entry("Momentum Short", strategy.short)
+
+if (use_mean_reversion and bb_long_signal)
+    strategy.entry("BB Long", strategy.long)
+
+if (use_mean_reversion and bb_short_signal)
+    strategy.entry("BB Short", strategy.short)
+
+
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/477561
+
+> Last Modified
+
+2025-01-06 13:58:11

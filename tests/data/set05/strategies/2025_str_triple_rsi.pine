@@ -1,0 +1,65 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/三重相对强弱指数量化交易策略-Triple-Relative-Strength-Index-Quantitative-Trading-Strategy.md
+// content_hash: 0781a63c7aea17fb
+// collected: 2026-07-27
+//@author Honestcowboy
+//
+strategy("Triple RSI [Honestcowboy]" )
+
+  
+// $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$ >>
+// ---------> User Inputs <----------- >>
+// $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$ >>
+
+rsiLengthInput = input.int(5, minval=1, title="RSI Length", group="RSI Settings")
+rsiSourceInput = input.source(close, "Source", group="RSI Settings")
+
+// $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$ >>
+// ---------> VARIABLE CALCULATIONS <----------- >>
+// $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$ >>
+
+up = ta.rma(math.max(ta.change(rsiSourceInput), 0), rsiLengthInput)
+down = ta.rma(-math.min(ta.change(rsiSourceInput), 0), rsiLengthInput)
+rsi = down == 0 ? 100 : up == 0 ? 0 : 100 - (100 / (1 + up / down))
+
+// $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$ >>
+// ---------> CONDITIONALS <----------- >>
+// $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$ >>
+
+rule1   = rsi<35
+rule2   = rsi<rsi[1] and rsi[1]<rsi[2] and rsi[2]<rsi[3]
+rule3   = rsi[3]<60
+rule4   = close>ta.sma(close, 200)
+
+longCondition = rule1 and rule2 and rule3 and rule4
+closeCondition = rsi>50
+
+// $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$ >>
+// ---------> GRAPHICAL DISPLAY <----------- >>
+// $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$ >>
+
+hline(30, title="Long Condition Line")
+hline(50, title="Exit Condition Line")
+plot(rsi)
+plotshape(longCondition ? rsi-3 : na, title="Long Condition", style=shape.triangleup, color=color.lime, location=location.absolute)
+plotshape(closeCondition and rsi[1]<50? rsi+3 : na, title="Exit Condition", style=shape.triangledown, color=#e60000, location=location.absolute)
+
+// $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$ >>
+// ---------> AUTOMATION AND BACKTESTING <----------- >>
+// $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$ >>
+
+if longCondition and strategy.position_size==0
+    strategy.entry("LONG", strategy.long)
+if closeCondition
+    strategy.close("LONG")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/451487
+
+> Last Modified
+
+2024-05-15 10:23:08

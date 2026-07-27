@@ -1,0 +1,54 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于唐奇安通道和移动平均线的趋势突破交易策略-Trend-Breakout-Trading-Strategy-Based-on-Donchian-Channel-and-Moving-Average.md
+// content_hash: df93967c12523b4e
+// collected: 2026-07-27
+strategy("Donchian Channel Strategy with SMA 200 and Custom SL", overlay=true)
+
+// Parameters
+length = 20
+smaLength = 200  // Changed SMA to 200
+
+// Calculate Donchian Channel
+upper = ta.highest(high, length)
+lower = ta.lowest(low, length)
+mid = (upper + lower) / 2  // Mid Line
+
+// Calculate SMA 200
+sma200 = ta.sma(close, smaLength)
+
+// Plot Donchian Channel, SMA 200, and Mid Line
+plot(upper, color=color.green, linewidth=2, title="Upper Line")
+plot(lower, color=color.red, linewidth=2, title="Lower Line")
+plot(mid, color=color.orange, linewidth=1, title="Mid Line")
+plot(sma200, color=color.blue, linewidth=2, title="SMA 200")
+
+// Long and Short logic based on SMA 200
+longCondition = upper > ta.highest(upper[1], length) and close > sma200
+shortCondition = lower < ta.lowest(lower[1], length) and close < sma200
+
+// Calculate Stop Loss for Long and Short based on new conditions
+longSL = mid - 0.45 * (mid - lower)  // SL for Long when price crosses down mid line
+shortSL = mid + 0.45 * (upper - mid) // SL for Short when price crosses up mid line
+
+// Enter Long or Short position
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+
+if (shortCondition)
+    strategy.entry("Short", strategy.short)
+
+// Place Stop Loss
+strategy.exit("Exit Long", from_entry="Long", stop=longSL)
+strategy.exit("Exit Short", from_entry="Short", stop=shortSL)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/483061
+
+> Last Modified
+
+2025-02-27 17:07:14

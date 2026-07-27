@@ -1,0 +1,48 @@
+//@version=4
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/BNB Burn Buyer.pine
+// content_hash: c4949e43f07b8ec7
+// collected: 2026-07-27
+strategy("BNB Burn Buyer", overlay=true, pyramiding=1, initial_capital=10000, default_qty_type=strategy.percent_of_equity, default_qty_value=10, currency="USD")
+burn1 = timestamp(2017, 10, 18, 0, 0, 0)
+burn2 = timestamp(2018, 1, 15, 0, 0, 0)
+burn3 = timestamp(2018, 4, 15, 0, 0, 0)
+burn4 = timestamp(2018, 7, 17, 0, 0, 0)
+burn5 = timestamp(2018, 10, 17, 0, 0, 0)
+burn6 = timestamp(2019, 1, 16, 0, 0, 0)
+burn7 = timestamp(2019, 4, 16, 0, 0, 0)
+burn8 = timestamp(2019, 7, 12, 0, 0, 0)
+burn9 = timestamp(2019, 10, 17, 0, 0, 0)
+burn10 = timestamp(2020, 1, 18, 0, 0, 0)
+burn11 = timestamp(2020, 4, 18, 0, 0, 0)
+burn12 = timestamp(2020, 7, 18, 0, 0, 0)
+burn13 = timestamp(2020, 10, 17, 0, 0, 0)
+i_BuyBeforeBurn = input(14, "# of bars to buy before the burn day.", type=input.integer) * (time-time[1])
+burndates = array.new_int(0)
+f_push(_burnStamp) =>
+    array.push(burndates, _burnStamp-i_BuyBeforeBurn)
+f_push( burn1)
+f_push( burn2)
+f_push( burn3)
+f_push( burn4)
+f_push( burn5)
+f_push( burn6)
+f_push( burn7)
+f_push( burn8)
+f_push( burn9)
+f_push( burn10)
+f_push( burn11)
+f_push( burn12)
+f_push( burn13)
+i_TP            = input(15.0, title="Take Profit %", type=input.float)
+longTake        = strategy.position_avg_price * (1 + i_TP/100)
+i_TimeClose     = input(2, title="# weeks after Entry to Close Long")
+var int entryTime = na
+if array.includes(burndates, time) and strategy.position_size == 0
+    entryTime := time
+    strategy.entry("BNB Burn", strategy.long)
+timeToExit = (time-entryTime)/ 1000 / 60 / 60 / 24 / 7
+strategy.close("BNB Burn", when=timeToExit >= i_TimeClose, comment="Time Expired")
+strategy.close("BNB Burn", when=high>=longTake, comment="Take Profit")
+Expand (70 lines)

@@ -1,0 +1,136 @@
+//@version=3
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/ICH云带扭转策略ICHIMOKU-KUMO-TWIST-STRATEGY.md
+// content_hash: 70974c569ca93a09
+// collected: 2026-07-27
+strategy(title="Ichimoku Kumo Twist Strategy (Presets)", shorttitle="Kumo Twist Strategy", overlay=true)
+
+xlowest_(src, len) =>
+    x = src
+    for i = 1 to len - 1
+        v = src[i]
+        if (na(v))
+            break
+        x := min(x, v)
+    x
+
+xlowest(src, len) =>
+    na(src[len]) ? xlowest_(src, len) : lowest(src, len)
+
+xhighest_(src, len) =>
+    x = src
+    for i = 1 to len - 1
+        v = src[i]
+        if (na(v))
+            break
+        x := max(x, v)
+    x
+
+xhighest(src, len) =>
+    na(src[len]) ? xhighest_(src, len) : highest(src, len)
+
+dropn(src, n) =>
+    na(src[n]) ? na : src
+
+ichiConversionPeriods(presets) =>
+    if presets == "Crypto Doubled"
+        20
+    else
+        if presets == "Crypto Singled"
+            10
+        else
+            if presets == "Standard Doubled"
+                18
+            else
+                9
+
+ichiBasePeriods(presets) =>
+    if presets == "Crypto Doubled"
+        60
+    else
+        if presets == "Crypto Singled"
+            30
+        else
+            if presets == "Standard Doubled"
+                52
+            else
+                26
+
+ichiLaggingSpan2Periods(presets) =>
+    if presets == "Crypto Doubled"
+        120
+    else
+        if presets == "Crypto Singled"
+            60
+        else
+            if presets == "Standard Doubled"
+                104
+            else
+                52
+
+ichiDisplacement(presets) =>
+    if presets == "Crypto Doubled"
+        30
+    else
+        if presets == "Crypto Singled"
+            30
+        else
+            if presets == "Standard Doubled"
+                26
+            else
+                26
+
+scaling = input(title="Scaling", options=["Linear", "Log"], defval="Linear")
+presets = input(title="Presets",  options=["Crypto Doubled", "Crypto Singled", "Standard Doubled", "Standard Singled"], defval="Crypto Doubled")
+dropCandles = input(1, minval=0, title="Drop first N candles")
+showClouds = input(false, "Show Clouds")
+stoploss = input(true, title="Stop Loss")
+
+conversionPeriods = ichiConversionPeriods(presets)
+basePeriods = ichiBasePeriods(presets)
+laggingSpan2Periods = ichiLaggingSpan2Periods(presets)
+displacement = ichiDisplacement(presets)
+logScaling = scaling == "Log"
+
+lows = dropn(low, dropCandles)
+highs = dropn(high, dropCandles)
+
+lowsp = logScaling ? log(lows) : lows
+highsp = logScaling ? log(highs) : highs
+
+donchian(len) =>
+    avg(xlowest(lowsp, len), xhighest(highsp, len))
+
+conversionLine = donchian(conversionPeriods)
+baseLine = donchian(basePeriods)
+leadLine1 = avg(conversionLine, baseLine)
+leadLine2 = donchian(laggingSpan2Periods)
+
+golong = crossover(leadLine1, leadLine2)
+goshort = crossunder(leadLine1, leadLine2)
+
+strategy.entry("Buy", strategy.long, when=golong, stop=(stoploss ? high+syminfo.mintick : na))
+strategy.entry("Sell", strategy.short, when=goshort, stop=(stoploss ? low-syminfo.mintick : na))
+
+conversionLinep = logScaling ? exp(conversionLine) : conversionLine
+baseLinep = logScaling ? exp(baseLine) : baseLine
+leadLine1p = logScaling ? exp(leadLine1) : leadLine1
+leadLine2p = logScaling ? exp(leadLine2) : leadLine2
+
+plot(showClouds ? conversionLinep : na, color=#0496ff, title="Conversion Line")
+plot(showClouds ? baseLinep : na, color=#991515, title="Base Line")
+
+p1 = plot(showClouds ? leadLine1p : na, offset = displacement, color=green, title="Lead 1")
+p2 = plot(showClouds ? leadLine2p : na, offset = displacement, color=red, title="Lead 2")
+fill(p1, p2, color = showClouds ? (leadLine1p > leadLine2p ? green : red) : na)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/430375
+
+> Last Modified
+
+2023-10-27 16:36:59

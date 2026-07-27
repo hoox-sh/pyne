@@ -1,0 +1,59 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/移动平均交叉动态止盈止损策略-Dynamic-Stop-Loss-Moving-Average-Crossover-Strategy.md
+// content_hash: 6b70dd99ff783278
+// collected: 2026-07-27
+strategy("RAMZY CRYPTO-KING", overlay=true)
+
+// Input for moving averages
+shortMA = input(9, title="Short EMA Period")
+longMA = input(21, title="Long EMA Period")
+trailOffset = input(0, title="Trailing Drawdown Offset")
+
+// Calculate moving averages
+shortEMA = ta.ema(close, shortMA)
+longEMA = ta.ema(close, longMA)
+
+// Plot moving averages
+plot(shortEMA, color=color.blue, title="Short EMA")
+plot(longEMA, color=color.red, title="Long EMA")
+
+// Identify recent swing high and low
+swingHigh = ta.highest(high, 5)
+swingLow = ta.lowest(low, 5)
+
+// Buy condition: EMA crossover
+longCondition = ta.crossover(shortEMA, longEMA)
+if (longCondition)
+    strategy.close("Short")  // Close any existing short position
+    stopLoss = swingLow  // At swing low
+    takeProfit = close + (3 * (close - stopLoss))  // 1:3 RR
+    strategy.entry("Long", strategy.long)
+    strategy.exit("TP/SL", "Long", limit=takeProfit, stop=stopLoss, trail_offset=trailOffset)
+
+// Sell condition: EMA crossover
+shortCondition = ta.crossunder(shortEMA, longEMA)
+if (shortCondition)
+    strategy.close("Long")  // Close any existing long position
+    stopLoss = swingHigh  // At swing high
+    takeProfit = close - (3 * (stopLoss - close))  // 1:3 RR
+    strategy.entry("Short", strategy.short)
+    strategy.exit("TP/SL", "Short", limit=takeProfit, stop=stopLoss, trail_offset=trailOffset)
+
+// Debugging Labels
+if (longCondition)
+    label.new(bar_index, high, "Buy", style=label.style_label_down, color=color.green, textcolor=color.white)
+
+if (shortCondition)
+    label.new(bar_index, low, "Sell", style=label.style_label_up, color=color.red, textcolor=color.white)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/468305
+
+> Last Modified
+
+2024-09-26 14:47:09

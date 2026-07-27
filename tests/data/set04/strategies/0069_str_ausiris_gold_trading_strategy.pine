@@ -1,0 +1,58 @@
+//@version=6
+// set04 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双均线交叉结合RSI动量优化交易策略-Dual-Moving-Average-Crossover-with-RSI-Momentum-Enhancement-Strategy.md
+// content_hash: 488e1054ca5ad768
+// collected: 2026-07-27
+strategy("Ausiris Gold Trading Strategy", overlay=true)
+
+// Input parameters
+fastLength = input.int(9, title="Fast MA Length", minval=1)
+slowLength = input.int(21, title="Slow MA Length", minval=1)
+rsiLength = input.int(14, title="RSI Length", minval=1)
+rsiOverbought = input.int(70, title="RSI Overbought Level", minval=50, maxval=100)
+rsiOversold = input.int(30, title="RSI Oversold Level", minval=0, maxval=50)
+
+// Calculate moving averages
+fastMA = ta.ema(close, fastLength)
+slowMA = ta.ema(close, slowLength)
+
+// Calculate RSI
+rsiValue = ta.rsi(close, rsiLength)
+
+// Plot moving averages
+plot(fastMA, color=color.blue, title="Fast MA")
+plot(slowMA, color=color.red, title="Slow MA")
+
+// Generate signals
+longCondition = ta.crossover(fastMA, slowMA) and rsiValue < rsiOverbought
+shortCondition = ta.crossunder(fastMA, slowMA) and rsiValue > rsiOversold
+
+// Plot buy/sell signals
+plotshape(longCondition, title="Buy Signal", location=location.belowbar, color=color.green, style=shape.triangleup, size=size.small)
+plotshape(shortCondition, title="Sell Signal", location=location.abovebar, color=color.red, style=shape.triangledown, size=size.small)
+
+// Strategy entry/exit
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+if (shortCondition)
+    strategy.entry("Short", strategy.short)
+
+// Add alert conditions
+alertcondition(longCondition, title="Buy Alert", message="Gold Buy Signal!")
+alertcondition(shortCondition, title="Sell Alert", message="Gold Sell Signal!")
+
+// Display RSI values
+hline(rsiOverbought, "Overbought", color=color.red)
+hline(rsiOversold, "Oversold", color=color.green)
+plot(rsiValue, "RSI", color=color.purple, display=display.none)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/483116
+
+> Last Modified
+
+2025-02-27 16:57:55

@@ -1,0 +1,84 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/EMA与RSI交叉策略-EMA-RSI-Crossover-Strategy.md
+// content_hash: c50980f2bf0c8a11
+// collected: 2026-07-27
+strategy("EMA RSI Cross", overlay=true, margin_long=100, margin_short=100)
+
+// add RSI
+
+rsi_period = input.int(7,"RSI Period")
+rsi_val =  ta.rsi(close[1],rsi_period)
+plot(rsi_val, color=color.blue, linewidth=2, title="RSI")
+
+buyRsiFlag = rsi_val < 20
+sellRsiFlag = rsi_val > 80
+
+// add EMA
+ema = ta.ema(close, 50)
+plot(ema, color=color.red, linewidth=2, title="EMA")
+
+
+// check buy
+
+// buy when the price is below ema 
+buyFlag = ema > close ? true : false
+
+// sell when the price is above ema
+sellFlag = ema < close ? true : false
+
+
+bgcolor(buyFlag and buyRsiFlag ? color.green : na )
+bgcolor(sellFlag and sellRsiFlag ? color.red : na )
+
+
+
+
+// Check if current candle's body is bigger than previous candle's body and of opposite color
+is_body_bigger_long = math.abs(close - open) > math.abs(close[1] - open[1]) and close > open != close[1] > open[1]
+
+
+greenCandle = close > close[1]
+redCandle = close < close[1]
+// Mark the candle
+bgcolor(is_body_bigger_long and greenCandle and buyFlag  ? color.blue : na, transp=70)
+
+
+// ENTRY ---------------------
+
+// Input for ATR period
+atr_length = input(14, title="ATR Length")
+
+// Calculate ATR
+atr_value = ta.atr(atr_length)
+
+// Calculate stop loss and take profit levels
+candleBody = math.abs(close-open)
+slDist = atr_value + candleBody
+
+stop_loss_long = close - slDist
+take_profit_long = close + (1.2 * slDist) 
+
+
+stop_loss_short = high + slDist
+take_profit_short = high - (1.2 * slDist)
+
+// Entry and exit conditions
+if (buyFlag and buyRsiFlag  and strategy.opentrades >= 0 and greenCandle)
+    strategy.entry("Long", strategy.long)
+    strategy.exit("Take Profit/Stop Loss", "Long", stop=stop_loss_long, limit=take_profit_long)
+
+// Entry and exit conditions
+if (sellFlag and sellRsiFlag   and strategy.opentrades <= 0 and redCandle)
+    strategy.entry("Short", strategy.short)
+    strategy.exit("Take Profit/Stop Loss", "Short", stop=stop_loss_short, limit=take_profit_short)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/453238
+
+> Last Modified
+
+2024-06-03 11:08:30

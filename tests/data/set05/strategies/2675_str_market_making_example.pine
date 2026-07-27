@@ -1,0 +1,52 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动态价差市场做市策略-Dynamic-Spread-Market-Making-Strategy.md
+// content_hash: 193e412cf77fc947
+// collected: 2026-07-27
+strategy("Market Making Example", overlay=true)
+
+// Define parameters
+length = input.int(14, title="Moving Average Length")
+spread = input.float(0.1, title="Spread Percentage")
+inventory_limit = input.int(100, title="Inventory Limit")
+price_offset = input.float(0.01, title="Price Offset")
+
+// Calculate the moving average as a simple method for price prediction
+ma = ta.sma(close, length)
+
+// Define buy and sell prices based on the moving average and spread
+buy_price = ma * (1 - spread / 100) - price_offset
+sell_price = ma * (1 + spread / 100) + price_offset
+
+// Manage inventory (simplified for example purposes)
+var float inventory = 0
+
+// Execute buy order if below inventory limit
+if close <= buy_price and inventory < inventory_limit
+    strategy.entry("Buy", strategy.long, qty=1)
+    inventory := inventory + 1
+
+// Execute sell order if inventory is positive
+if close >= sell_price and inventory > 0
+    strategy.entry("Sell", strategy.short, qty=1)
+    inventory := inventory - 1
+
+// Plot buy and sell prices on the chart
+plot(buy_price, color=color.green, title="Buy Price")
+plot(sell_price, color=color.red, title="Sell Price")
+plot(ma, color=color.blue, title="Moving Average")
+
+// Display inventory on the chart
+bgcolor(inventory > 0 ? color.new(color.green, 90) : na)
+bgcolor(inventory < 0 ? color.new(color.red, 90) : na)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/455358
+
+> Last Modified
+
+2024-06-28 15:08:53

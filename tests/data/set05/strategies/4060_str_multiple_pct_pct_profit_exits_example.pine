@@ -1,0 +1,27 @@
+//@version=4
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/Multiple -- profit exits example.pine
+// content_hash: e58911e951b37c5e
+// collected: 2026-07-27
+strategy("Multiple %% profit exits example", overlay=false, default_qty_value = 100)
+longCondition = crossover(sma(close, 14), sma(close, 28))
+if (longCondition)
+    strategy.entry("My Long Entry Id", strategy.long)
+shortCondition = crossunder(sma(close, 14), sma(close, 28))
+if (shortCondition)
+    strategy.entry("My Short Entry Id", strategy.short)
+percentAsPoints(pcnt) =>
+    strategy.position_size != 0 ? round(pcnt / 100 * strategy.position_avg_price / syminfo.mintick) : float(na)
+lossPnt = percentAsPoints(2)
+strategy.exit("x1", qty_percent = 25, profit = percentAsPoints(1), loss = lossPnt)
+strategy.exit("x2", qty_percent = 25, profit = percentAsPoints(2), loss = lossPnt)
+strategy.exit("x3", qty_percent = 25, profit = percentAsPoints(3), loss = lossPnt)
+strategy.exit("x4", profit = percentAsPoints(4), loss = lossPnt)
+profitPercent(price) =>
+    posSign = strategy.position_size > 0 ? 1 : strategy.position_size < 0 ? -1 : 0
+    (price - strategy.position_avg_price) / strategy.position_avg_price * posSign * 100
+p1 = plot(profitPercent(high), style=plot.style_linebr, title = "open profit % upper bound")
+p2 = plot(profitPercent(low), style=plot.style_linebr, title = "open profit % lower bound")
+fill(p1, p2, color = color.red)
+Expand (31 lines)

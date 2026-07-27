@@ -1,0 +1,25 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/language/type-system.md::type-system.md#block38
+// content_hash: 3ce4091eed463331
+// collected: 2026-07-27
+indicator("Modifying globally referenced objects in functions demo")
+
+//@variable The number of conditions that occur before the counter value resets.
+int cycleSizeInput = input.int(10, "Cycle size", 1)
+
+//@type         A custom type for creating objects that store counter data.
+//@field value  The counter value, initialized to 0 by default. 
+type Counter
+    int value = 0
+
+//@variable A persistent global variable that holds the reference of a `Counter` object.
+var Counter myCounter = Counter.new()
+
+//@function Increments and cyclically resets the `value` field of the object referenced by `myCounter` based on a 
+//          pseudorandom condition.
+//          This function does *not* cause an error, because it does not modify the global variable. 
+updateCounter() =>
+    if math.random() < 0.5
+        // Increase the `value` *field* of the `Counter` object referenced by `myCounter` when the condition occurs.

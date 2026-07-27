@@ -1,0 +1,61 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/Williams-R-Smoothed.md
+// content_hash: 24614eeaf39da5e6
+// collected: 2026-07-27
+indicator(title='Williams %R - Smoothed', shorttitle='The Smooth Willy')
+
+// Williams %R
+length = input.int(defval=34, minval=1)
+upper = ta.highest(length)
+lower = ta.lowest(length)
+
+output = 100 * (close - upper) / (upper - lower)
+
+fast_period = input(defval=5, title='Smoothed %R Length')
+slow_period = input(defval=13, title='Slow EMA Length')
+
+fast_ema = ta.wma(output,fast_period)
+slow_ema = ta.ema(output,slow_period)
+
+// Plot
+//h1 = hline(-20, title='Upper Band')
+//h2 = hline(-80, title='Lower Band')
+//fill(h1, h2, title='Background', transp=90)
+
+plot(output, title='%R', color=color.new(color.white, 80), linewidth=1)
+plot(fast_ema, title='Smoothed %R', color=color.new(color.yellow, 0), linewidth=2)
+plot(slow_ema, title='Slow EMA', color=color.new(color.aqua, 0), linewidth=2)
+
+bullX = ta.crossover(fast_ema, slow_ema)
+bearX = ta.crossunder(fast_ema, slow_ema)
+bullreverse = fast_ema[2] > fast_ema[1] and fast_ema > fast_ema[1] and fast_ema < -30
+bearreverse = fast_ema[2] < fast_ema[1] and fast_ema < fast_ema[1] and fast_ema > -70
+
+plotX = input.bool(true, "Show EMA Crossovers")
+plotRev = input.bool(true, "Show trend reversals")
+
+//plotshape(plotX and bearX ,"Cross down", color=color.red, style=shape.triangledown, location = location.top, size =size.tiny, offset=-1) 
+//plotshape(plotX and bullX ,"Cross up", color=color.green, style=shape.triangleup, location = location.bottom, size =size.tiny, offset=-1)
+//plotshape(plotRev and bearreverse ,"Bear reversal", color=color.orange, style=shape.triangledown, location = location.top, size =size.tiny, offset=-1) 
+//plotshape(plotRev and bullreverse ,"Bull reversal", color=color.blue, style=shape.triangleup, location = location.bottom, size =size.tiny, offset=-1)
+
+//alertcondition(bearX,"Bearish Crossover", "Bearish cross on William %R")
+//alertcondition(bullX,"Bullish Crossover", "Bullish cross on William %R")
+//alertcondition(bearreverse,"Bearish Reversal", "Bearish Reversal on William %R")
+//alertcondition(bullreverse,"Billish Reversal", "Bullish Reversal on William %R")
+
+if plotRev and bullreverse
+    strategy.entry("Enter Long", strategy.long)
+else if plotRev and bearreverse
+    strategy.entry("Enter Short", strategy.short)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/361974
+
+> Last Modified
+
+2022-05-09 12:08:11

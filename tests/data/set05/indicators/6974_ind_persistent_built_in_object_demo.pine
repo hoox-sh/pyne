@@ -1,0 +1,12 @@
+//@version=6
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/language/variable-declarations.md::variable-declarations.md#block39
+// content_hash: 32c94b5e884daef6
+// collected: 2026-07-27
+indicator("Persistent built-in object demo")
+
+//@variable Stores a persistent reference to a `chart.point` object. The object's fields persist across ticks.
+varip chart.point testPoint = chart.point.now(0)
+
+// Increment the `price` field of the persistent chart point.

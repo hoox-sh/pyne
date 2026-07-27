@@ -1,0 +1,54 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于Stoch-RSI和MFI的量化交易策略Quantitative-Trading-Strategy-Based-on-Stoch-RSI-and-MFI.md
+// content_hash: 55aa5da01b3e1405
+// collected: 2026-07-27
+strategy("MFI and Stoch RSI Bot", overlay=true)
+
+// Stochastic RSI settings
+length = input(14, title="Stochastic RSI Length")
+smoothK = input(3, title="Stochastic RSI K")
+smoothD = input(3, title="Stochastic RSI D")
+
+// Stochastic RSI overbought and oversold levels
+stochRSIOverbought = input(70, title="Stochastic RSI Overbought Level")
+stochRSIOversold = input(20, title="Stochastic RSI Oversold Level")
+
+// Money Flow Index (MFI) settings
+mfiLength = input(14, title="MFI Length")
+mfiOverbought = input(70, title="MFI Overbought Level")
+mfiOversold = input(20, title="MFI Oversold Level")
+
+// Calculate RSI
+rsiValue = ta.rsi(close, 11)
+
+// Calculate Stochastic RSI
+rsiHigh = ta.highest(rsiValue, 11)
+rsiLow = ta.lowest(rsiValue, 7)
+k = ta.sma(100 * (rsiValue - rsiLow) / (rsiHigh - rsiLow), 3)
+d = ta.sma(k, 3)
+
+// Calculate MFI
+mfiValue = ta.mfi(volume, mfiLength)
+
+// Determine buy and sell signals
+buyCondition = ta.crossover(k, stochRSIOversold) or ta.crossover(mfiValue, mfiOversold)
+sellCondition = ta.crossunder(k, stochRSIOverbought) or ta.crossunder(mfiValue, mfiOverbought)
+
+// Plotting signals
+plotshape(buyCondition, location.belowbar, color=color.green, style=shape.triangleup, title="Buy Signal")
+plotshape(sellCondition, location.abovebar, color=color.red, style=shape.triangledown, title="Sell Signal")
+
+strategy.entry("Buy", strategy.long, when = buyCondition)
+strategy.entry("Sell", strategy.short, when = sellCondition)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/440298
+
+> Last Modified
+
+2024-01-29 10:11:14

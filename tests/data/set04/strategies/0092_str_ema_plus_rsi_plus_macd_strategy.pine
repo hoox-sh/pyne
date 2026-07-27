@@ -1,0 +1,56 @@
+//@version=6
+// set04 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多重动量指标趋势追踪量化交易策略-Multi-Momentum-Indicator-Trend-Tracking-Quantitative-Trading-Strategy.md
+// content_hash: 252d8e8f43e5efb8
+// collected: 2026-07-27
+strategy("EMA + RSI + MACD Strategy", overlay=true)
+
+// Input for EMA Lengths
+emaFastLength = input(9, title="Fast EMA Length")
+emaSlowLength = input(21, title="Slow EMA Length")
+
+// RSI Settings
+rsiLength = input(14, title="RSI Length")
+rsiOverbought = input(70, title="RSI Overbought Level")
+rsiOversold = input(30, title="RSI Oversold Level")
+
+// MACD Settings
+[macdLine, signalLine, _] = ta.macd(close, 12, 26, 9)
+
+// Calculate EMAs
+emaFast = ta.ema(close, emaFastLength)
+emaSlow = ta.ema(close, emaSlowLength)
+
+// Calculate RSI
+rsi = ta.rsi(close, rsiLength)
+
+// Plot EMAs
+plot(emaFast, title="Fast EMA", color=color.blue, linewidth=1)
+plot(emaSlow, title="Slow EMA", color=color.red, linewidth=1)
+
+// Buy and Sell Conditions
+bullishCrossover = ta.crossover(emaFast, emaSlow) and rsi > 50 and macdLine > signalLine
+bearishCrossover = ta.crossunder(emaFast, emaSlow) and rsi < 50 and macdLine < signalLine
+
+// Plot Buy and Sell Signals
+plotshape(series=bullishCrossover, title="BuySignal", location=location.belowbar, color=color.green, style=shape.triangleup, size=size.small, text="BUY")
+plotshape(series=bearishCrossover, title="SellSignal", location=location.abovebar, color=color.red, style=shape.triangledown, size=size.small, text="SELL")
+
+// Strategy Execution
+if bullishCrossover
+    strategy.entry("Buy", strategy.long)
+
+if bearishCrossover
+    strategy.close("Buy")
+    strategy.entry("Sell", strategy.short)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/489198
+
+> Last Modified
+
+2025-04-02 16:19:35

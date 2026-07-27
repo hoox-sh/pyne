@@ -1,0 +1,11 @@
+//@version=5
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/v5/concepts/strategies.md::strategies.md#block9
+// content_hash: cb51a3daeac9d97e
+// collected: 2026-07-27
+strategy("Stop order demo", overlay = true, margin_long = 100, margin_short = 100)
+
+//@function Displays text passed to `txt` when called and shows the `price` level on the chart.
+debugLabel(price, txt) =>
+    label.new(

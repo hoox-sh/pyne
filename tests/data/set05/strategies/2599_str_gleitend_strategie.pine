@@ -1,0 +1,54 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于均线交叉的趋势追踪策略Trend-Following-Strategy-Based-on-Moving-Average-Crossover.md
+// content_hash: a45c1d7bdb09470a
+// collected: 2026-07-27
+strategy("Gleitend Strategie", overlay=true)
+
+// Einstellungen für die gleitenden Durchschnitte
+short_MA_length = input(50, title="Kürzerer MA Länge")
+long_MA_length = input(200, title="Längerer MA Länge")
+
+// Berechnung der gleitenden Durchschnitte
+short_MA = ta.sma(close, short_MA_length)
+long_MA = ta.sma(close, long_MA_length)
+
+// Kaufsignal: Kürzerer MA über Längerer MA
+buy_signal = ta.crossover(short_MA, long_MA)
+
+// Verkaufssignal: Kürzerer MA unter Längerer MA
+sell_signal = ta.crossunder(short_MA, long_MA)
+
+// Stop Loss und Take Profit Ebenen
+stop_loss = strategy.position_avg_price * 0.985
+take_profit = strategy.position_avg_price * 1.02
+
+// Trading-Logik
+if (buy_signal)
+    strategy.entry("Buy", strategy.long)
+    
+if (sell_signal)
+    strategy.close("Buy")
+    
+strategy.exit("Take Profit/Stop Loss", "Buy", stop=stop_loss, limit=take_profit)
+
+// Bedingungen für Short-Positionen
+if (sell_signal)
+    strategy.entry("Sell", strategy.short)
+
+strategy.exit("Take Profit/Stop Loss", "Sell", stop=stop_loss, limit=take_profit)
+
+// Plot der gleitenden Durchschnitte
+plot(short_MA, color=color.blue, title="Kürzerer MA")
+plot(long_MA, color=color.red, title="Längerer MA")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/442657
+
+> Last Modified
+
+2024-02-23 15:14:31

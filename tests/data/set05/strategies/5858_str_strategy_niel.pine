@@ -1,0 +1,72 @@
+//@version=3
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多重指标组合交易策略Multi-indicator-Combination-Trading-Strategy.md
+// content_hash: 38b10b62733b2bf5
+// collected: 2026-07-27
+strategy("Strategy Niel", shorttitle="Strategy Niel", max_bars_back=2000, initial_capital=1000)
+
+//Input variables
+buywhenadxabove = input(25)
+buywhendiplusbelow = input(10)
+buywhenccibelow = input(0)
+buywhenawesomeoscillatorbelow = input(0)
+sellwhendiplusabove = input(25)
+
+//CCI script
+numberofbarsforcci = input(20)
+CCI = cci(close,numberofbarsforcci)
+
+//+DI and ADX
+adxlen = input(14, title="ADX Smoothing")
+dilen = input(14, title="DI Length")
+dirmov(len) =>
+	up = change(high)
+	down = -change(low)
+	truerange = rma(tr, len)
+	plus = fixnan(100 * rma(up > down and up > 0 ? up : 0, len) / truerange)
+	minus = fixnan(100 * rma(down > up and down > 0 ? down : 0, len) / truerange)
+	[plus, minus]
+
+adx(dilen, adxlen) => 
+	[plus, minus] = dirmov(dilen)
+	sum = plus + minus
+	adx = 100 * rma(abs(plus - minus) / (sum == 0 ? 1 : sum), adxlen)
+	[adx, plus, minus]
+
+[sig, up, down] = adx(dilen, adxlen)
+
+//plot(sig, color=red, title="ADX")
+//plot(up, color=blue, title="+DI")
+//plot(down, color=orange, title="-DI")
+
+
+//Awesome Oscillator
+nLengthSlow = input(34, minval=1, title="Length Slow")
+nLengthFast = input(5, minval=1, title="Length Fast")
+xSMA1_hl2 = sma(hl2, nLengthFast)
+xSMA2_hl2 = sma(hl2, nLengthSlow)
+xSMA1_SMA2 = xSMA1_hl2 - xSMA2_hl2
+cClr = xSMA1_SMA2 > xSMA1_SMA2[1] ? blue : red
+//plot(xSMA1_SMA2, style=histogram, linewidth=1, color=cClr)
+
+buy = sig > buywhenadxabove and up < buywhendiplusbelow  and CCI < buywhenccibelow and xSMA1_SMA2 < buywhenawesomeoscillatorbelow 
+
+ordersize=floor(strategy.equity/close) // Floor returns largest integer, strategy.equity gives total equity remaining - allows to dynamically calculate the order size as the account equity increases or decreases.
+strategy.entry("long",strategy.long,ordersize,when= buy) //strategy.entry let's you enter the market variables id ("long"), strategy.long (long position entry), size of the order and when the order should happen
+bought = strategy.position_size[0] > strategy.position_size[1]
+entry_price = valuewhen(bought, open, 0)
+sell = up > sellwhendiplusabove 
+strategy.close("long", when=sell ) //strategy.close let's you close your position with variables id ('long') and when this should happen
+
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/430245
+
+> Last Modified
+
+2023-10-26 15:22:28

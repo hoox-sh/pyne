@@ -1,0 +1,70 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于趋势动量的多指标均线交叉策略Trend-Momentum-Based-Multi-Indicator-Moving-Average-Crossover-Strategy.md
+// content_hash: dc409e4d4a473744
+// collected: 2026-07-27
+strategy("Enhanced Moving Average Crossover Strategy", overlay=true)
+
+// Define input parameters
+fastLength = input(20, title="Fast MA Length")
+slowLength = input(50, title="Slow MA Length")
+
+// Calculate moving averages
+fastMA = sma(close, fastLength)
+slowMA = sma(close, slowLength)
+
+// Generate buy and sell signals
+buySignal = crossover(close, slowMA)
+sellSignal = crossunder(close, slowMA)
+
+// RSI (Relative Strength Index)
+rsiLength = input(14, title="RSI Length")
+rsiOverbought = input(70, title="RSI Overbought Level")
+rsiOversold = input(30, title="RSI Oversold Level")
+rsi = rsi(close, rsiLength)
+
+// MACD (Moving Average Convergence Divergence)
+[macdLine, signalLine, _] = macd(close, 12, 26, 9)
+macdBuySignal = crossover(macdLine, signalLine)
+macdSellSignal = crossunder(macdLine, signalLine)
+
+// Plot moving averages
+plot(fastMA, color=color.blue, title="Fast MA")
+plot(slowMA, color=color.red, title="Slow MA")
+
+// Highlight buy and sell signals
+plotshape(buySignal, style=shape.labelup, color=color.green, text="Buy", title="Buy Signal")
+plotshape(sellSignal, style=shape.labeldown, color=color.red, text="Sell", title="Sell Signal")
+
+// Execute strategy based on signals
+strategy.entry("Long", strategy.long, when=buySignal)
+strategy.close("Long", when=sellSignal)
+
+// Add short signals
+shortSignal = crossunder(slowMA, close)
+plotshape(shortSignal, style=shape.triangleup, location=location.belowbar, color=color.orange, text="Short", title="Short Signal")
+strategy.entry("Short", strategy.short, when=shortSignal)
+strategy.close("Short", when=buySignal)
+
+// RSI-based conditions
+if (rsi > rsiOverbought)
+    strategy.entry("RSI Short", strategy.short)
+if (rsi < rsiOversold)
+    strategy.entry("RSI Long", strategy.long)
+
+// MACD-based conditions
+if (macdBuySignal)
+    strategy.entry("MACD Buy", strategy.long)
+if (macdSellSignal)
+    strategy.entry("MACD Sell", strategy.short)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/446232
+
+> Last Modified
+
+2024-03-26 17:17:46

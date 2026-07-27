@@ -1,0 +1,68 @@
+//@version=3
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于EMA均线和MACD指标的BTC交易策略EMA-and-MACD-Based-BTC-Trading-Strategy.md
+// content_hash: 4a6e962f3ba69352
+// collected: 2026-07-27
+strategy("EMA50Diff & MACD Strategy", overlay=false)
+EMA = input(18, step=1)
+MACDfast = input(12)
+MACDslow = input(26)
+EMADiffThreshold = input(8)
+MACDThreshold = input(80)
+TargetValidityThreshold = input(65, step=5)
+Target = input(120, step=5)
+StopLoss = input(650, step=5) 
+ema = ema(close, EMA)
+hl = plot(0, color=white, linewidth=1)
+diff = close - ema
+clr = color(blue, transp=100)
+if diff>0
+    clr := lime
+else 
+    if diff<0
+        clr := red
+
+fastMA = ema(close, MACDfast)
+slowMA = ema(close, MACDslow)
+macd = (fastMA - slowMA)*3
+signal = sma(macd, 9)
+plot(macd, color=aqua, linewidth=2)
+plot(signal, color=purple, linewidth=2)
+
+macdlong = macd<-MACDThreshold and signal<-MACDThreshold and crossover(macd, signal)
+macdshort = macd>MACDThreshold and signal>MACDThreshold and crossunder(macd, signal)
+position = 0.0
+position := nz(strategy.position_size, 0.0)
+long = (position < 0 and close < strategy.position_avg_price - TargetValidityThreshold and macdlong) or 
+     (position == 0.0 and diff < -EMADiffThreshold and diff > diff[1] and diff[1] < diff[2] and macdlong)
+
+short = (position > 0 and close > strategy.position_avg_price + TargetValidityThreshold and macdshort) or 
+      (position == 0.0 and diff > EMADiffThreshold and diff < diff[1] and diff[1] > diff[2] and macdshort)
+amount = (strategy.equity / close) //- ((strategy.equity / close / 10)%10)
+bgclr = color(blue, transp=100) //#0c0c0c
+if long
+    strategy.entry("long", strategy.long, amount)
+    bgclr := green
+if short
+    strategy.entry("short", strategy.short, amount)
+    bgclr := maroon
+bgcolor(bgclr, transp=20)
+strategy.close("long", when=close>strategy.position_avg_price + Target)
+strategy.close("short", when=close<strategy.position_avg_price - Target)
+strategy.exit("STOPLOSS", "long", stop=strategy.position_avg_price - StopLoss)
+strategy.exit("STOPLOSS", "short", stop=strategy.position_avg_price + StopLoss)
+//plotshape(long, style=shape.labelup, location=location.bottom, color=green)
+//plotshape(short, style=shape.labeldown, location=location.top, color=red)
+pl = plot(diff, style=histogram, color=clr)
+fill(hl, pl, color=clr)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/439963
+
+> Last Modified
+
+2024-01-25 12:54:16

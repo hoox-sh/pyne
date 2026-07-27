@@ -1,0 +1,13 @@
+//@version=6
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/language/type-system.md::type-system.md#block14
+// content_hash: 14d012bd5b1ce452
+// collected: 2026-07-27
+indicator("Enum types demo", overlay = true)
+
+//@enum       An enumeration of named values for moving average selection.
+//@field sma  Specifies a Simple Moving Average.
+//@field ema  Specifies an Exponential Moving Average.
+//@field wma  Specifies a Weighted Moving Average.
+//@field hma  Specifies a Hull Moving Average.

@@ -1,0 +1,58 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/支撑阻力趋势追踪策略Support-and-Resistance-Trend-Tracking-Strategy.md
+// content_hash: ad92be053030c7f2
+// collected: 2026-07-27
+strategy("Support Resistance Trend Strategy", overlay=true)
+
+// Input parameters
+supportLevel = input(100, title="Support Level")
+resistanceLevel = input(200, title="Resistance Level")
+riskRewardRatio = input(2, title="Risk-Reward Ratio")
+trailStopLoss = input(true, title="Use Trailing Stop Loss")
+
+// Calculate trend direction based on trend lines
+trendUp = close > request.security(syminfo.tickerid, "D", close[1])
+trendDown = close < request.security(syminfo.tickerid, "D", close[1])
+
+// Buy signal condition
+buySignal = close < supportLevel and trendUp
+
+// Sell signal condition
+sellSignal = close > resistanceLevel and trendDown
+
+// Entry point and exit conditions
+strategy.entry("Buy", strategy.long, when=buySignal)
+strategy.entry("Sell", strategy.short, when=sellSignal)
+
+// Calculate targets and stop-loss levels
+targetPrice = close + (close - supportLevel) * riskRewardRatio
+stopLossLevel = supportLevel
+
+// Plot support and resistance levels
+plot(supportLevel, color=color.green, linewidth=2, title="Support Level")
+plot(resistanceLevel, color=color.red, linewidth=2, title="Resistance Level")
+
+// Plot targets and stop-loss levels
+plot(targetPrice, color=color.blue, linewidth=2, title="Target Price")
+plot(stopLossLevel, color=color.orange, linewidth=2, title="Stop Loss Level")
+
+// Trailing stop-loss
+strategy.exit("Take Profit/Stop Loss", from_entry="Buy", loss=stopLossLevel, profit=targetPrice)
+strategy.exit("Take Profit/Stop Loss", from_entry="Sell", loss=targetPrice, profit=stopLossLevel)
+
+// Plot trail stop loss
+if (trailStopLoss)
+    strategy.exit("Trailing Stop Loss", from_entry="Buy", loss=stopLossLevel)
+    strategy.exit("Trailing Stop Loss", from_entry="Sell", loss=stopLossLevel)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/442940
+
+> Last Modified
+
+2024-02-27 15:11:04

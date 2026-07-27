@@ -1,0 +1,13 @@
+//@version=4
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/v4/annotations/filling-in-the-background-with-fill.md::filling-in-the-background-with-fill.md#block2
+// content_hash: 6a390238d8babd1a
+// collected: 2026-07-27
+study("Fill example 2")
+src = close, len = 10
+ma = sma(src, len)
+osc = 100 * (ma - src) / ma
+p = plot(osc)
+// NOTE: fill(p, hline(0)) wouldn't work, instead use this:
+fill(p, plot(0))

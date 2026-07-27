@@ -1,0 +1,71 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于多因子智能交易策略Multi-factor-Intelligent-Trading-Strategy.md
+// content_hash: f29f557106b570c2
+// collected: 2026-07-27
+//@version=5
+strategy("ProfitCraft Strategy", shorttitle="CS", overlay=true)
+
+// Input parameters
+length = input(14, title="RSI Length")
+overbought = input(70, title="Overbought")
+oversold = input(30, title="Oversold")
+bb_length = input(20, title="Bollinger Bands Length")
+bb_mult = input(2, title="Bollinger Bands Std Dev")
+vpvr_length = input(200, title="VPVR Length")
+fibonacci_retracement = input(true, title="Fibonacci Retracement")
+adx_length = input(14, title="ADX Length")
+vwap_length = input(20, title="VWAP Length")
+
+// Calculate RSI
+rsi = ta.rsi(close, length)
+
+// Calculate Bollinger Bands
+sma = ta.sma(close, bb_length)
+stddev = ta.stdev(close, bb_length)
+upper_band = sma + bb_mult * stddev
+lower_band = sma - bb_mult * stddev
+
+// Calculate VPVR
+vpvr_data = ta.sma(volume * (high - low), vpvr_length)
+
+// Calculate Fibonacci Retracement
+var high_fib = ta.highest(high, 30)
+var low_fib = ta.lowest(low, 30)
+
+// Calculate ADX (Manual calculation)
+trueRange = ta.highest(high, 1) - ta.lowest(low, 1)
+DMplus = ta.highest(high, 1) - high[1]
+DMminus = low[1] - ta.lowest(low, 1)
+TRn = ta.sma(trueRange, adx_length)
+DMplusn = ta.sma(DMplus, adx_length)
+DMminusn = ta.sma(DMminus, adx_length)
+DIplus = 100 * (DMplusn / TRn)
+DIminus = 100 * (DMminusn / TRn)
+DX = 100 * math.abs(DIplus - DIminus) / (DIplus + DIminus)
+ADX = ta.sma(DX, adx_length)
+
+// Calculate VWAP
+vwap = ta.sma(volume * close, vwap_length) / ta.sma(volume, vwap_length)
+
+// Custom condition for buy/sell signals (example condition)
+buy_condition = ta.crossover(rsi, oversold) and ta.crossover(close, sma)
+sell_condition = ta.crossunder(rsi, overbought) and ta.crossunder(close, sma)
+
+// Strategy entry and exit conditions
+strategy.entry("Buy", strategy.long, when = buy_condition)
+strategy.close("Buy", when = sell_condition)
+
+// Plot the signal line
+plot(buy_condition ? 1 : sell_condition ? -1 : 0, title="Signal Line", color=color.blue, style=plot.style_histogram)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/442224
+
+> Last Modified
+
+2024-02-20 14:03:36

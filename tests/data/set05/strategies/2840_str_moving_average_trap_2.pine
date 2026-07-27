@@ -1,0 +1,48 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于移动平均线跨度的反转交易策略Reversal-Trading-Strategy-Based-on-Moving-Average-Range.md
+// content_hash: 101081715ba1ba2e
+// collected: 2026-07-27
+
+strategy("Moving Average Trap", overlay=true)
+
+flenght = input.int(title="Fast MA Period", minval=1, maxval=2000, defval=3)
+llenght = input.int(title="Slower MA Period", minval=1, maxval=2000, defval=5)
+sslenght = input.int(title="Slowest MA Period", minval=1, maxval=2000, defval=8)
+tlenght = input.int(title="Trend Filter MA Period", minval=1, maxval=2000, defval=200)
+
+ssma = ta.sma(close, sslenght)
+fma = ta.sma(close, flenght)
+sma = ta.sma(close, llenght)
+tma = ta.sma(close, tlenght)
+
+plot(fma, color=color.red)
+plot(sma, color=color.white)
+plot(ssma, color=color.green)
+plot(tma, color=color.maroon, linewidth=2)
+
+short =  (fma > sma and sma > ssma) and close < tma
+long = (fma < sma and sma < ssma) and close > tma
+closeshort = fma < sma and sma < ssma
+closelong = fma > sma and sma > ssma
+
+if long
+	strategy.entry("long", strategy.long)
+if closelong
+	strategy.close("long")
+if short
+	strategy.entry("short", strategy.short)
+if closeshort
+	strategy.close("short")
+
+//plot(strategy.equity, title="equity", color=color.red, linewidth=2, style=plot.style_areabr)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/439973
+
+> Last Modified
+
+2024-01-25 14:16:28

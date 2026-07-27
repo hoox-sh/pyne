@@ -1,0 +1,60 @@
+//@version=2
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于波动带震荡器的反转跟踪策略CCTBBO-Reversal-Tracking-Strategy.md
+// content_hash: b1833ec21712a521
+// collected: 2026-07-27
+// This strategy is based on the CCT Bollinger Band Oscillator (CCTBO) 
+// developed by Steve Karnish of Cedar Creek Trading and coded by LazyBear.
+// Indicator is available here https://www.tradingview.com/v/iA4XGCJW/
+
+strategy("Strategy CCTBBO v2 | Fadior", shorttitle="Strategy CCTBBO v2", pyramiding=0, precision=2, calc_on_order_fills=false, initial_capital=1000, default_qty_type=strategy.percent_of_equity, currency="USD", default_qty_value=100, overlay=false)
+
+length_stddev=input(title="Stddev loopback period",defval=20)
+length_ema=input(title="EMA period", defval=2)
+margin=input(title="Margin", defval=0, type=float, step=0.1)
+price = input(title="Source", defval=high)
+digits= input(title="Number of digits",defval=2,step=1,minval=2,maxval=6)
+offset = input(title="Trailing offset (0.01 = 1%) :", defval=0.013, type=float, step=0.01)
+pips= input(title="Offset in ticks ?",defval=false,type=bool)
+
+src=request.security(syminfo.tickerid, "1440", price)
+
+cctbbo=100 * ( src + 2*stdev( src, length_stddev) - sma( src, length_stddev ) ) / ( 4 * stdev( src, length_stddev ) )
+
+ul=hline(150, color=gray, editable=true)
+ll=hline(-50, color=gray)
+hline(50, color=gray)
+fill(ul,ll, color=green, transp=90)
+plot(style=line, series=cctbbo, color=blue, linewidth=2)
+plot(ema(cctbbo, length_ema), color=red)
+
+d = digits == 2 ? 100 : digits == 3 ? 1000 : digits == 4 ? 10000 : digits == 5 ? 100000 : digits == 6 ? 1000000 : na
+
+TS = 1
+TO = pips ? offset : close*offset*d
+CQ = 100
+TSP = TS
+TOP = (TO > 0) ? TO : na
+
+longCondition = crossover(cctbbo, ema(cctbbo, length_ema)) and cctbbo - ema(cctbbo, length_ema) > margin
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+    strategy.exit("Close Long", "Long", qty_percent=CQ, trail_points=TSP, trail_offset=TOP)
+
+
+shortCondition = crossunder(cctbbo, ema(cctbbo, length_ema)) and cctbbo - ema(cctbbo, length_ema) < -margin
+if (shortCondition)
+    strategy.entry("Short", strategy.short)
+    strategy.exit("Close Short", "Short", qty_percent=CQ, trail_points=TSP, trail_offset=TOP)
+    
+    
+```
+
+> Detail
+
+https://www.fmz.com/strategy/432988
+
+> Last Modified
+
+2023-11-23 13:42:03

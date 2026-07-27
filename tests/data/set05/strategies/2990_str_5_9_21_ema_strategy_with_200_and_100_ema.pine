@@ -1,0 +1,43 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于不同周期的均线交叉策略Crossing-Moving-Average-Strategy.md
+// content_hash: 6bb4970dd2e148b9
+// collected: 2026-07-27
+strategy("5/9/21 EMA Strategy with 200 and 100 EMA", overlay=true)
+
+// Calculate EMAs
+ema5 = ta.ema(close, 5)
+ema9 = ta.ema(close, 9)
+ema21 = ta.ema(close, 21)
+ema100 = ta.ema(close, 100)
+ema200 = ta.ema(close, 200)
+
+// Plot EMAs
+plot(ema5, title="5 EMA", color=color.blue)
+plot(ema9, title="9 EMA", color=color.yellow)
+plot(ema21, title="21 EMA", color=color.red)
+plot(ema100, title="100 EMA", color=color.purple)
+plot(ema200, title="200 EMA", color=color.green)
+
+// Strategy conditions
+longCondition = ta.crossover(ema5, ema9) and ta.crossover(ema9, ema21)
+shortCondition = ta.crossunder(ema5, ema9) and ta.crossunder(ema9, ema21)
+
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+
+if (shortCondition)
+    strategy.entry("Short", strategy.short)
+
+// Set strategy properties if required (like stop loss, take profit, etc.)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/435863
+
+> Last Modified
+
+2023-12-19 13:34:30

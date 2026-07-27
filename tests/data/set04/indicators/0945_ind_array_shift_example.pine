@@ -1,0 +1,11 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block83
+// content_hash: 31a92d70c262a6b3
+// collected: 2026-07-27
+indicator("array.shift example")
+a = array.new_float(5,high)
+removedEl = array.shift(a)
+plot(array.size(a))
+plot(removedEl)

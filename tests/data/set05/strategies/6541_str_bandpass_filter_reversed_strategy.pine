@@ -1,0 +1,40 @@
+//@version = 2
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/一种基于带通滤波反转策略Bandpass-Filter-Reversed-Strategy.md
+// content_hash: 2e775fd3f999ff8c
+// collected: 2026-07-27
+////////////////////////////////////////////////////////////
+//  Copyright by HPotter v1.0 24/11/2016
+// The related article is copyrighted material from
+// Stocks & Commodities Mar 2010
+// You can use in the xPrice any series: Open, High, Low, Close, HL2, HLC3, OHLC4 and ect...
+// Please, use it only for learning or paper trading. Do not for real trading.
+////////////////////////////////////////////////////////////
+strategy(title="Bandpass Filter Reversed Strategy")
+Length = input(20, minval=1)
+Delta = input(0.5)
+TriggerLevel = input(0)
+xPrice = hl2
+hline(TriggerLevel, color=blue, linestyle=line)
+beta = cos(3.14 * (360 / Length) / 180)
+gamma = 1 / cos(3.14 * (720 * Delta / Length) / 180)
+alpha = gamma - sqrt(gamma * gamma - 1)
+BP = 0.5 * (1 - alpha) * (xPrice - xPrice[2]) + beta * (1 + alpha) * nz(BP[1]) - alpha * nz(BP[2])
+pos = iff(BP > TriggerLevel, -1,
+	   iff(BP <= TriggerLevel, 1, nz(pos[1], 0))) 
+if (pos == 1) 
+    strategy.entry("Long", strategy.long)
+if (pos == -1)
+    strategy.entry("Short", strategy.short)	    
+barcolor(pos == -1 ? red: pos == 1 ? green : blue )
+plot(BP, color=red, title="Bandpass Filter Strategy")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/439878
+
+> Last Modified
+
+2024-01-24 15:28:26

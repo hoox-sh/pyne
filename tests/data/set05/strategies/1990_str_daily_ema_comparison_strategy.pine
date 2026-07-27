@@ -1,0 +1,65 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动态筛选均线交叉策略的每日趋势判断分析-Dynamic-Filtering-EMA-Cross-Strategy-for-Daily-Trend-Analysis.md
+// content_hash: 550311de35b4adb2
+// collected: 2026-07-27
+strategy("Daily EMA Comparison Strategy", shorttitle="Daily EMA cros Comparison", overlay=true)
+
+//------------------------------------------------------------------------------
+// Inputs
+//------------------------------------------------------------------------------
+fastEmaLength = input.int(10, title="Fast EMA Length", minval=1)  // Fast EMA period
+slowEmaLength = input.int(50, title="Slow EMA Length", minval=1)  // Slow EMA period
+checkHour = input.int(9, title="Check Hour (24h format)", minval=0, maxval=23)  // Hour to check
+checkMinute = input.int(0, title="Check Minute", minval=0, maxval=59)  // Minute to check
+
+//------------------------------------------------------------------------------
+// EMA Calculation
+//------------------------------------------------------------------------------
+fastEMA = ta.ema(close, fastEmaLength)
+slowEMA = ta.ema(close, slowEmaLength)
+
+//------------------------------------------------------------------------------
+// Time Check
+//------------------------------------------------------------------------------
+// Get the current bar's time in the exchange's timezone
+currentTime = timestamp("GMT-0", year, month, dayofmonth, checkHour, checkMinute)
+// Check if the bar's time equals or passes the daily check time
+isCheckTime = (time >= currentTime and time < currentTime + 60 * 1000)  // 1-minute tolerance
+
+//------------------------------------------------------------------------------
+// Entry Conditions
+//------------------------------------------------------------------------------
+// Buy if Fast EMA is above Slow EMA at the specified time
+buyCondition = isCheckTime and fastEMA > slowEMA
+
+// Sell if Fast EMA is below Slow EMA at the specified time
+sellCondition = isCheckTime and fastEMA < slowEMA
+
+//------------------------------------------------------------------------------
+// Strategy Execution
+//------------------------------------------------------------------------------
+// Enter Long
+if buyCondition
+    strategy.entry("Long", strategy.long)
+
+// Enter Short
+if sellCondition
+    strategy.entry("Short", strategy.short)
+
+//------------------------------------------------------------------------------
+// Plot EMAs
+//------------------------------------------------------------------------------
+plot(fastEMA, color=color.blue, title="Fast EMA")
+plot(slowEMA, color=color.orange, title="Slow EMA")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/477524
+
+> Last Modified
+
+2025-01-06 11:16:35

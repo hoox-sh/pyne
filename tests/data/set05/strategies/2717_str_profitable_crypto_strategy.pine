@@ -1,0 +1,51 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/移动均线金叉策略Moving-Average-Crossover-Strategy.md
+// content_hash: 789da7233ae2626a
+// collected: 2026-07-27
+strategy("Profitable Crypto Strategy", shorttitle="Profit Strategy", overlay=true)
+
+// Define strategy parameters
+fastLength = input.int(9, title="Fast MA Length", minval=1)
+slowLength = input.int(21, title="Slow MA Length", minval=1)
+stopLossPercent = input.float(1.0, title="Stop Loss %", step=0.1)
+takeProfitPercent = input.float(1.0, title="Take Profit %", step=0.1)
+
+// Calculate moving averages
+fastMA = ta.sma(close, fastLength)
+slowMA = ta.sma(close, slowLength)
+
+// Entry condition: Buy when fast MA crosses above slow MA
+longCondition = ta.crossover(fastMA, slowMA)
+// Exit condition: Sell when fast MA crosses below slow MA
+shortCondition = ta.crossunder(fastMA, slowMA)
+
+// Plot moving averages on the chart
+plot(fastMA, color=color.blue, title="Fast MA")
+plot(slowMA, color=color.orange, title="Slow MA")
+
+// Strategy entry and exit logic
+var stopLossPrice = 0.0
+var takeProfitPrice = 0.0
+
+if (longCondition)
+    stopLossPrice := close * (1.0 - stopLossPercent / 100)
+    takeProfitPrice := close * (1.0 + takeProfitPercent / 100)
+    strategy.entry("Long", strategy.long)
+
+if (shortCondition)
+    strategy.close("Long")
+
+// Set stop loss and take profit for open positions
+strategy.exit("Stop Loss/Profit", stop=stopLossPrice, limit=takeProfitPrice)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/429499
+
+> Last Modified
+
+2023-10-17 16:46:57

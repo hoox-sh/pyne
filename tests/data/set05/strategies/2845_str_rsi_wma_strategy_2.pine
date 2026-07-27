@@ -1,0 +1,48 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/RSI和WMA交叉策略RSI-and-WMA-Crossover-Strategy.md
+// content_hash: 6ed443bd3821a09d
+// collected: 2026-07-27
+strategy("RSI WMA Strategy", overlay=true)
+
+// Input parameters
+rsiLength = input(14, title="RSI Length")
+wmaLength = input(45, title="WMA Length")
+
+// Calculate RSI and WMA
+rsiValue = ta.rsi(close, rsiLength)
+wmaValue = ta.wma(rsiValue, wmaLength)
+
+// Define overbought and oversold levels for RSI
+overboughtLevel = 70
+oversoldLevel = 30
+
+// Strategy logic
+longCondition = ta.crossover(rsiValue, wmaValue)
+shortCondition = ta.crossunder(rsiValue, wmaValue)
+
+// Execute trades
+if (longCondition)
+    strategy.entry("Long", strategy.long, comment="BUY")
+if (shortCondition)
+    strategy.entry("Short", strategy.short, comment="SELL")
+
+// Plotting for visualization
+plot(rsiValue, title="RSI", color=color.blue)
+plot(wmaValue, title="WMA", color=color.orange)
+hline(overboughtLevel, "Overbought Level", color=color.red)
+hline(oversoldLevel, "Oversold Level", color=color.green)
+
+// Plot buy and sell signals on the chart
+plotshape(series=longCondition, title="Buy Signal", color=color.green, style=shape.labelup, location=location.belowbar)
+plotshape(series=shortCondition, title="Sell Signal", color=color.red, style=shape.labeldown, location=location.abovebar)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/441068
+
+> Last Modified
+
+2024-02-05 12:16:46

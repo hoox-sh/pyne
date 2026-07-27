@@ -1,0 +1,7 @@
+//@version=6
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/faq/times-dates-and-sessions.md::times-dates-and-sessions.md#block10
+// content_hash: 83e14066bab8b9cc
+// collected: 2026-07-27
+indicator("Session high/low", overlay = true)

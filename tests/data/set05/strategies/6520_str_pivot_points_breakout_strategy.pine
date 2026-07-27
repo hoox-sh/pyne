@@ -1,0 +1,45 @@
+//@version=2
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/枢轴点突破策略Pivot-Points-Breakout-Strategy.md
+// content_hash: e01097286b30671f
+// collected: 2026-07-27
+////////////////////////////////////////////////////////////
+//  Copyright by HPotter v1.0 27/06/2018
+// The name ‘Floor-Trader Pivot,’ came from the fact that Pivot points can 
+// be calculated quickly, on the fly using price data from the previous day 
+// as an input. Although time-frames of less than a day can be used, Pivots are 
+// commonly plotted on the Daily Chart; using price data from the previous day’s 
+// trading activity. 
+//
+// You can change long to short in the Input Settings
+// WARNING:
+// - For purpose educate only
+// - This script to change bars colors.
+////////////////////////////////////////////////////////////
+strategy(title="Floor Pivot Points Backtest", shorttitle="FPP", overlay = true)
+xHigh  = request.security(syminfo.tickerid,"D", high[1])
+xLow   = request.security(syminfo.tickerid,"D", low[1])
+xClose = request.security(syminfo.tickerid,"D", close[1])
+reverse = input(false, title="Trade reverse")
+vPP = (xHigh+xLow+xClose) / 3
+vR1 = (vPP * 2) - xLow
+vS1 = (vPP * 2) - xHigh
+pos = iff(close > vR1, 1,
+       iff(close < vS1, -1, nz(pos[1], 0))) 
+possig = iff(reverse and pos == 1, -1,
+          iff(reverse and pos == -1, 1, pos))	   
+if (possig == 1) 
+    strategy.entry("Long", strategy.long)
+if (possig == -1)
+    strategy.entry("Short", strategy.short)	   	    
+barcolor(possig == -1 ? red: possig == 1 ? green : blue ) 
+```
+
+> Detail
+
+https://www.fmz.com/strategy/435151
+
+> Last Modified
+
+2023-12-12 16:47:17

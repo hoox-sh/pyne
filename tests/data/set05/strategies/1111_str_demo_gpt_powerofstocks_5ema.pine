@@ -1,0 +1,98 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于5日指数移动平均线的趋势追踪策略优化模型-5-Day-EMA-Based-Trend-Following-Strategy-Optimization-Model.md
+// content_hash: 4292764cc9e25fe9
+// collected: 2026-07-27
+strategy("Demo GPT - PowerOfStocks 5EMA", overlay=true)
+
+// Inputs
+enableSL = input.bool(false, title="Enable Extra SL")
+usl = input.int(defval=5, title="SL Distance in Points", minval=1, maxval=100)
+riskRewardRatio = input.int(defval=3, title="Risk to Reward Ratio", minval=3, maxval=25)
+showSell = input.bool(true, title="Show Sell Signals")
+showBuy = input.bool(true, title="Show Buy Signals")
+buySellExtraCond = input.bool(false, title="Buy/Sell with Extra Condition")
+startDate = input(timestamp("2018-01-01 00:00"), title="Start Date")
+endDate = input(timestamp("2069-12-31 23:59"), title="End Date")
+
+// EMA Calculation
+ema5 = ta.ema(close, 5)
+
+// Plot EMA
+plot(ema5, "EMA 5", color=color.new(#882626, 0), linewidth=2)
+
+// Variables for Buy
+var bool longTriggered = na
+var float longStopLoss = na
+var float longTarget = na
+
+// Variables for Sell (used for signal visualization but no actual short trades)
+var bool shortTriggered = na
+var float shortStopLoss = na
+var float shortTarget = na
+
+// Long Entry Logic
+if true
+    if (showBuy)
+        longCondition = high[1] < ema5[1] and high[1] < high and (not buySellExtraCond or close > close[1])
+        if (longCondition and not longTriggered)
+            entryPrice = high[1]
+            stopLoss = enableSL ? low[1] - usl * syminfo.mintick : low[1]
+            target = enableSL ? entryPrice + (entryPrice - stopLoss) * riskRewardRatio : high[1] + (high[1] - low[1]) * riskRewardRatio
+
+            // Execute Buy Order
+            strategy.entry("Buy", strategy.long, stop=entryPrice)
+
+            longTriggered := true
+            longStopLoss := stopLoss
+            longTarget := target
+
+            label.new(bar_index, entryPrice, text="Buy@ " + str.tostring(entryPrice), style=label.style_label_up, color=color.green, textcolor=color.white)
+
+// Short Signal Logic (Visual Only)
+if (true)
+    if (showSell)
+        shortCondition = low[1] > ema5[1] and low[1] > low and (not buySellExtraCond or close < close[1])
+        if (shortCondition and not shortTriggered)
+            entryPrice = low[1]
+            stopLoss = enableSL ? high[1] + usl * syminfo.mintick : high[1]
+            target = enableSL ? entryPrice - (stopLoss - entryPrice) * riskRewardRatio : low[1] - (high[1] - low[1]) * riskRewardRatio
+
+            // Visual Signals Only
+            label.new(bar_index, entryPrice, text="Sell@ " + str.tostring(entryPrice), style=label.style_label_down, color=color.red, textcolor=color.white)
+
+            shortTriggered := true
+            shortStopLoss := stopLoss
+            shortTarget := target
+
+// Exit Logic for Buy
+if longTriggered
+    // Stop-loss Hit
+    if low <= longStopLoss
+        strategy.close("Buy", comment="SL Hit")
+        longTriggered := false
+
+    // Target Hit
+    if high >= longTarget
+        strategy.close("Buy", comment="Target Hit")
+        longTriggered := false
+
+// Exit Logic for Short (Signals Only)
+if shortTriggered
+    // Stop-loss Hit
+    if high >= shortStopLoss
+        shortTriggered := false
+    // Target Hit
+    if low <= shortTarget
+        shortTriggered := false
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/477512
+
+> Last Modified
+
+2025-01-06 10:54:42

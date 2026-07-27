@@ -1,0 +1,47 @@
+//@version=3
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/Excitement - Crypto Surfer v1.pine
+// content_hash: 726fd878ff83dec5
+// collected: 2026-07-27
+strategy("Crypto Surfer (1H)", overlay=true)
+//moving average period
+fastPeriod = 20
+slowPeriod = 40
+basePeriod = 160
+//load ROC into arrays
+fastLine = ema(close, fastPeriod)
+slowLine = ema(close, slowPeriod)
+baseLine = sma(close, basePeriod)
+//units to buy
+amount = 10000
+units = amount / close
+//plot moving average
+plot(fastLine, color=red, linewidth=1)
+plot(slowLine, color=blue, linewidth=1)
+plot(baseLine, color=green, linewidth=1)
+// MA Slope Function
+angle(_source) =>
+    rad2degree=180/3.14159265359
+    ang=rad2degree*atan((_source[0] - _source[1])/atr(14)) 
+// Calculate MA Slope
+baseSlope=angle(baseLine)
+//long
+//long signal
+if (close > fastLine and fastLine > slowLine and close > baseLine and baseSlope > 2 and strategy.position_size == 0)
+    strategy.order("Long", strategy.long, units)
+//close long signal
+if (close < fastLine and fastLine < slowLine and strategy.position_size > 0)
+    strategy.order("Close Long", strategy.short, strategy.position_size)
+    
+//short
+//short signal
+//if (close < fastLine and fastLine < slowLine and strategy.position_size == 0)
+    //strategy.order("Short", strategy.short, units)
+    
+//close short signal
+//if (close > fastLine and fastLine > slowLine and strategy.position_size < 0)
+    //strategy.order("Close Short", strategy.long, strategy.position_size)
+//plot strategy equity
+//plot(strategy.netprofit, color=blue, linewidth=2, title="Net Profit")
+Expand (52 lines)

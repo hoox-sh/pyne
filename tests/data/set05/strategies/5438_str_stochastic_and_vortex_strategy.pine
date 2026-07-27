@@ -1,0 +1,46 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/随机漩涡策略Stochastic-Vortex-Strategy.md
+// content_hash: 957b298d6b094439
+// collected: 2026-07-27
+strategy("Stochastic and Vortex Strategy", overlay=true)
+
+// Stochastic Oscillator settings
+kPeriod = input(14, title="K Period")
+dPeriod = input(3, title="D Period")
+slowing = input(3, title="Slowing")
+k = sma(stoch(close, high, low, kPeriod), slowing)
+d = sma(k, dPeriod)
+
+// Vortex Indicator settings
+lengthVI = input(14, title="Vortex Length")
+tr = max(max(high - low, abs(high - close[1])), abs(low - close[1]))
+vmPlus = abs(high - low[1])
+vmMinus = abs(low - high[1])
+viPlus = sum(vmPlus, lengthVI) / sum(tr, lengthVI)
+viMinus = sum(vmMinus, lengthVI) / sum(tr, lengthVI)
+
+// Buy condition
+buyCondition = crossover(k, d) and viPlus > viMinus
+
+if (buyCondition)
+    strategy.entry("Buy", strategy.long)
+
+plotshape(series=buyCondition, title="Buy Signal", location=location.belowbar, color=color.green, style=shape.labelup, text="BUY")
+plot(k, title="%K", color=color.blue)
+plot(d, title="%D", color=color.orange)
+hline(80, "Overbought", color=color.red)
+hline(20, "Oversold", color=color.green)
+plot(viPlus, title="VI+", color=color.purple)
+plot(viMinus, title="VI-", color=color.red)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/436123
+
+> Last Modified
+
+2023-12-21 15:12:37

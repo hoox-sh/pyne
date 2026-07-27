@@ -1,0 +1,17 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/release_notes.md::release_notes.md#block3
+// content_hash: ce00074de2d29785
+// collected: 2026-07-27
+indicator("Line wrapping expressions with multiline strings demo")
+
+//@variable A string formed by concatenating three multiline strings.
+string concatenated = """String 1
+""" + """String 2
+""" + '''String 3
+'''
+
+// Log the resulting string's text in the Pine Logs pane on the first bar.
+if barstate.isfirst
+    log.info(concatenated)

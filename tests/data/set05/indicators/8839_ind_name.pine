@@ -1,0 +1,17 @@
+//@version=3
+// set05 corpus entry
+// source_repo: Jaqobs-pinescripts
+// source_path: Jaqobs-pinescripts/template.pine
+// content_hash: 8135842bae6fc69a
+// collected: 2026-07-27
+// @author Jaqobs
+// Moving averages based on VWMA and Bitmex's leverage liquidation multipliers
+
+study("name", overlay=true)
+
+//==Input==
+
+//==Formula==
+
+//==Plot==
+

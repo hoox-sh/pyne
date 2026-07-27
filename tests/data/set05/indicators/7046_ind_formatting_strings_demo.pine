@@ -1,0 +1,10 @@
+//@version=6
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/concepts/strings.md::strings.md#block9
+// content_hash: 851592b4af8a4338
+// collected: 2026-07-27
+indicator("Formatting strings demo", overlay = true)
+
+//@variable Counts script executions in a bar. Does not roll back because it is declared with `varip`. 
+varip int exCount = 0

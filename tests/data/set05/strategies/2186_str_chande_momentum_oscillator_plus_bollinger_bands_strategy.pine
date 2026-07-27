@@ -1,0 +1,61 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于动量振荡与布林带的高级量化策略系统-Advanced-Momentum-Oscillator-and-Bollinger-Bands-Quantitative-Strategy-System.md
+// content_hash: 6fb0238aa5dda39b
+// collected: 2026-07-27
+strategy("Chande Momentum Oscillator + Bollinger Bands Strategy", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=10)
+
+// Bollinger Bands Parameters
+bbLength = input.int(20, title="Bollinger Bands Length")
+bbStdDev = input.float(2.0, title="Bollinger Bands Std Dev")
+basis = ta.sma(close, bbLength)
+upper = basis + bbStdDev * ta.stdev(close, bbLength)
+lower = basis - bbStdDev * ta.stdev(close, bbLength)
+
+// Chande Momentum Oscillator Parameters
+cmoLength = input.int(14, title="CMO Length")
+cmoOverbought = input.float(50, title="CMO Overbought Level")
+cmoOversold = input.float(-50, title="CMO Oversold Level")
+cmo = ta.cmo(close, cmoLength)
+
+// Plot Bollinger Bands
+plot(basis, color=color.orange, title="Bollinger Basis")
+p1 = plot(upper, color=color.blue, title="Bollinger Upper")
+p2 = plot(lower, color=color.blue, title="Bollinger Lower")
+fill(p1, p2, color=color.blue, transp=90, title="Bollinger Fill")
+
+// Plot CMO
+hline(cmoOverbought, "Overbought", color=color.red)
+hline(cmoOversold, "Oversold", color=color.green)
+plot(cmo, color=color.purple, title="CMO")
+
+// Buy Condition: Price crosses below lower Bollinger Band and CMO is oversold
+longCondition = ta.crossunder(close, lower) and cmo < cmoOversold
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+
+// Sell Condition: Price crosses above upper Bollinger Band and CMO is overbought
+shortCondition = ta.crossover(close, upper) and cmo > cmoOverbought
+if (shortCondition)
+    strategy.entry("Short", strategy.short)
+
+// Exit Long: Price crosses above basis or CMO is overbought
+exitLong = ta.crossover(close, basis) or cmo > cmoOverbought
+if (exitLong)
+    strategy.close("Long")
+
+// Exit Short: Price crosses below basis or CMO is oversold
+exitShort = ta.crossunder(close, basis) or cmo < cmoOversold
+if (exitShort)
+    strategy.close("Short")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/482833
+
+> Last Modified
+
+2025-02-20 14:50:33

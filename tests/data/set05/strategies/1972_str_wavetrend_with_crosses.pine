@@ -1,0 +1,66 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于WaveTrend指标的趋势追踪策略WaveTrend-Cross-LazyBear-Strategy.md
+// content_hash: 2b8bdb85e0a00b2e
+// collected: 2026-07-27
+strategy("WaveTrend with Crosses [LazyBear]", shorttitle="WT_CROSS_LB", overlay=true)
+
+// Kullanıcı girişleri
+n1 = input(10, title="Channel Length")
+n2 = input(21, title="Average Length")
+obLevel1 = input(60, title="Over Bought Level 1")
+obLevel2 = input(53, title="Over Bought Level 2")
+osLevel1 = input(-60, title="Over Sold Level 1")
+osLevel2 = input(-53, title="Over Sold Level 2")
+
+// Temel hesaplamalar
+ap = hlc3
+esa = ta.ema(ap, n1)
+d = ta.ema(math.abs(ap - esa), n1)
+ci = (ap - esa) / (0.015 * d)
+tci = ta.ema(ci, n2)
+
+// WaveTrend göstergeleri
+wt1 = tci
+wt2 = ta.sma(wt1, 4)
+
+// Al ve Sat Sinyalleri
+buySignal = ta.crossover(wt1, wt2)
+sellSignal = ta.crossunder(wt1, wt2)
+
+// Alım ve Satım pozisyonları
+if (buySignal)
+    if (strategy.position_size <= 0) // Eğer şu anda açık bir satış pozisyonu varsa, onu kapat
+        strategy.close("Sell")
+    strategy.entry("Buy", strategy.long, comment="Buy Signal: Price crossed above WT2")
+
+if (sellSignal)
+    if (strategy.position_size >= 0) // Eğer şu anda açık bir alım pozisyonu varsa, onu kapat
+        strategy.close("Buy")
+    strategy.entry("Sell", strategy.short, comment="Sell Signal: Price crossed below WT2")
+
+// Renkler ve diğer görseller
+plot(0, color=color.new(color.gray, 0), title="Zero Level")
+plot(obLevel1, color=color.new(color.red, 0), title="Overbought Level 1")
+plot(osLevel1, color=color.new(color.green, 0), title="Oversold Level 1")
+plot(obLevel2, color=color.new(color.purple, 0), title="Overbought Level 2")
+plot(osLevel2, color=color.new(color.orange, 0), title="Oversold Level 2")
+
+plot(wt1, color=color.new(color.red, 0), title="WT1")
+plot(wt2, color=color.new(color.blue, 0), title="WT2")
+plot(wt1-wt2, color=color.new(color.purple, 80), style=plot.style_area, title="WT1-WT2 Area")
+
+// İşaretler
+plotshape(buySignal, location=location.absolute, color=color.new(color.yellow, 0), style=shape.circle, size=size.small, title="Buy Signal")
+plotshape(sellSignal, location=location.absolute, color=color.new(color.red, 0), style=shape.circle, size=size.small, title="Sell Signal")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/449714
+
+> Last Modified
+
+2024-04-28 13:56:27

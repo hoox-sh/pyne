@@ -1,0 +1,65 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于三重指标云形态的趋势跟踪策略Trend-Following-Strategy-Based-on-Triple-Indicator-Cloud-Pattern.md
+// content_hash: 3a0b40e81e087c95
+// collected: 2026-07-27
+strategy("HKST Cloud", overlay=true, default_qty_type= strategy.percent_of_equity, default_qty_value=100)
+
+
+
+////////////////nAMA
+Lengthkaufman = input(20) 
+xPrice = ohlc4
+xvnoise = math.abs(xPrice - xPrice[1])
+nfastend = 0.666
+nslowend = 0.0645
+nsignal = math.abs(xPrice - xPrice[Lengthkaufman])
+nnoise = math.sum(xvnoise, Lengthkaufman)
+nefratio = nnoise != 0? nsignal / nnoise : 0
+nsmooth = math.pow(nefratio * (nfastend - nslowend) + nslowend, 2) 
+nAMA =  float(0)
+nAMA := nz(nAMA[1]) + nsmooth * (xPrice - nz(nAMA[1]))
+
+//plot(nAMA,color=color.red)
+///short=input(true)
+
+
+
+///////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////
+
+////////hull moving average
+hull_len=input(20)
+hull= ta.hma(nAMA,hull_len)
+
+///////atr trail
+atr_factor=input(2)
+atr_period=input(5)
+[supertrend, direction] = ta.supertrend(atr_factor,atr_period)
+
+/////////cloud
+band1= math.max(supertrend,hull,nAMA)
+band2= math.min(supertrend,hull,nAMA)
+
+b1=plot(band1, "band1", color = color.rgb(76, 175, 79, 85), style=plot.style_linebr)
+b2=plot(band2, "band2", color = color.rgb(255, 82, 82, 78), style=plot.style_linebr)
+fill(b1,b2,color.rgb(12, 50, 186, 75))
+longCondition = ta.crossover(high,band1) //or ta.crossover(low,band2)
+if (longCondition)
+    strategy.entry("Up", strategy.long)
+
+shortCondition =  ta.crossunder(low,band2) or close<band2
+if (shortCondition) 
+    strategy.close("Up", shortCondition)
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/426619
+
+> Last Modified
+
+2023-09-13 17:38:55

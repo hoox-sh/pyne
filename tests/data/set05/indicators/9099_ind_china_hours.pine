@@ -1,0 +1,9 @@
+// set05 corpus entry
+// source_repo: aceri-tradingview_pinescript
+// source_path: aceri-tradingview_pinescript/china_hours.txt
+// content_hash: 8adde27eaf992760
+// collected: 2026-07-27
+study(title="china_hours", shorttitle="cny_hours", overlay=true)
+
+bgcolor(hour == 5 ? #00ff00 : #000000, transp=70)
+bgcolor(hour == 7 ? #0000ff : #000000, transp=70)

@@ -1,0 +1,52 @@
+//@version=2
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/一目均衡策略Ichimoku-Equilibrium-Strategy.md
+// content_hash: 8a50545d82a73de8
+// collected: 2026-07-27
+////////////////////////////////////////////////////////////
+//  Copyright by HPotter v1.0 26/09/2018
+//  Ichimoku Strategy
+//
+// You can change long to short in the Input Settings
+// WARNING:
+// - For purpose educate only
+// - This script to change bars colors.
+////////////////////////////////////////////////////////////
+middleDonchian(Length) =>
+    lower = lowest(Length)
+    upper = highest(Length)
+    avg(upper, lower)
+
+strategy(title="Ichimoku2c Backtest", shorttitle="Ichimoku2c", overlay = true)
+conversionPeriods = input(9, minval=1),
+basePeriods = input(26, minval=1)
+laggingSpan2Periods = input(52, minval=1),
+displacement = input(26, minval=1)
+reverse = input(false, title="Trade reverse")
+Tenkan = middleDonchian(conversionPeriods)
+Kijun =  middleDonchian(basePeriods)
+xChikou = close
+SenkouA = middleDonchian(laggingSpan2Periods)
+SenkouB = (Tenkan[basePeriods] + Kijun[basePeriods]) / 2
+A = plot(SenkouA[displacement], color=purple, title="SenkouA")
+B = plot(SenkouB, color=green, title="SenkouB")
+pos = iff(close < SenkouA[displacement], -1,
+       iff(close > SenkouB, 1, nz(pos[1], 0))) 
+possig = iff(reverse and pos == 1, -1,
+          iff(reverse and pos == -1, 1, pos))	   
+if (possig == 1) 
+    strategy.entry("Long", strategy.long)
+if (possig == -1)
+    strategy.entry("Short", strategy.short)	   	    
+barcolor(possig == -1 ? red: possig == 1 ? green : blue ) 
+fill(A, B, color=green)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/430570
+
+> Last Modified
+
+2023-10-30 14:45:40

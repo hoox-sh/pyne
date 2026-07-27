@@ -1,0 +1,11 @@
+//@version=4
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/v4/essential/strategies.md::strategies.md#block18
+// content_hash: 6095be234ac1bf88
+// collected: 2026-07-27
+strategy("allow_entry_in demo", overlay=true)
+if year > 2014
+    strategy.entry("LE", strategy.long, when=strategy.position_size <= 0)
+    strategy.entry("SE", strategy.short, when=strategy.position_size > 0)
+strategy.risk.allow_entry_in(strategy.direction.long)

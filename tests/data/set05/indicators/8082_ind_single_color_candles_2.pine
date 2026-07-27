@@ -1,0 +1,8 @@
+//@version=5
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/v5/concepts/bar-plotting.md::bar-plotting.md#block1
+// content_hash: 9cdc41da5ec28ac7
+// collected: 2026-07-27
+indicator("Single-color candles")
+plotcandle(open, high, low, close)

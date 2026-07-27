@@ -1,0 +1,54 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/SMA趋势跟踪策略-SMA-Trend-Following-Strategy-with-Trailing-Stop-Loss-and-Disciplined-Re-Entry.md
+// content_hash: fd682aeaa60556b5
+// collected: 2026-07-27
+strategy("MA Incline Strategy with Optional Trailing Stop-Loss", overlay=true, calc_on_every_tick=true)
+
+// Input parameters
+windowSize = input.int(20, title="Window Size")
+maLength = input.int(150, title="Moving Average Length")
+minSlope = input.float(0.1, title="Minimum Slope")
+useTrailingStop = input.bool(true, title="Use Trailing Stop-Loss")
+trailingStopPercentage = input.float(2.8, title="Trailing Stop Percentage (%)") / 100
+
+// Calculate the moving average
+ma = ta.sma(close, maLength)
+
+// Calculate the slope of the moving average over the window size
+previousMa = ta.sma(close[windowSize], maLength)
+slopeMa = (ma - previousMa) / windowSize
+
+// Check conditions
+isAboveMinSlope = slopeMa > minSlope
+isAboveMa = close > ma
+
+// Buy condition
+buyCondition = isAboveMinSlope and isAboveMa
+
+// Execute strategy
+if (buyCondition and strategy.opentrades == 0)
+    strategy.entry("Long", strategy.long)
+
+// Trailing stop-loss (optional)
+if (strategy.opentrades == 1 and useTrailingStop and isAboveMa)
+    // Calculate the trailing stop price
+    trailPrice = close * (1 - trailingStopPercentage)
+    // Use the built-in strategy.exit function with the trailing stop
+    strategy.exit("Trail Stop", "Long", stop=trailPrice)
+
+// Exit condition
+sellCondition = ta.crossover(ma, close)
+if (sellCondition and strategy.opentrades == 1)
+    strategy.close("Long")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/453268
+
+> Last Modified
+
+2024-06-03 16:25:32

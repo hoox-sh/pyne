@@ -1,0 +1,38 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/平均最高最低波动交易策略Average-Highest-High-and-Lowest-Low-Swinger-Strategy.md
+// content_hash: 4f8a8e90b6138aea
+// collected: 2026-07-27
+strategy(title = "Avg HH/LL Crypto Swinger", overlay = true )
+
+varLo = input(title="Fast Line", type=input.integer, defval=9, minval=1)
+varHi = input(title="Slow  Line", type=input.integer, defval=26, minval=1)
+
+a = lowest(varLo)
+b = highest(varLo)
+c = (a + b ) / 2
+
+d = lowest(varHi)
+e = highest(varHi)
+f = (d + e) / 2
+
+g = ((c + f) / 2)[varHi]
+h = ((highest(varHi * 2) + lowest(varHi * 2)) / 2)[varHi]
+
+
+
+long=close > c and close > f and close >g and close > h
+short=close < c and close < f and close<g and close < h
+
+strategy.entry("long",1,when=long)
+strategy.entry('short',0,when=short)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/434336
+
+> Last Modified
+
+2023-12-05 16:34:01

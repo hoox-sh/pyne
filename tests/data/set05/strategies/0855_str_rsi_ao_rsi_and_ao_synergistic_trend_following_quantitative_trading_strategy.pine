@@ -1,0 +1,136 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/RSI与AO协同趋势追踪型量化交易策略-RSI-and-AO-Synergistic-Trend-Following-Quantitative-Trading-Strategy.md
+// content_hash: 0d0700907ea9d5a7
+// collected: 2026-07-27
+strategy(title="? BUY Only - RSI Crossing 50 + AO Negative", shorttitle="? AO<0 RSI+50 Strategy", overlay=true)
+
+// -----------------------------
+// --- User Inputs ---
+// -----------------------------
+
+// RSI Settings
+rsiPeriod = input.int(title="RSI Period", defval=14, minval=1)
+
+// AO Settings
+aoShortPeriod = input.int(title="AO Short Period", defval=5, minval=1)
+aoLongPeriod = input.int(title="AO Long Period", defval=34, minval=1)
+
+// Strategy Settings
+takeProfitPerc = input.float(title="Take Profit (%)", defval=2.0, minval=0.0, step=0.1)
+stopLossPerc = input.float(title="Stop Loss (%)", defval=1.0, minval=0.0, step=0.1)
+
+// -----------------------------
+// --- Awesome Oscillator (AO) Calculation ---
+// -----------------------------
+
+// Calculate the Awesome Oscillator
+ao = ta.sma(hl2, aoShortPeriod) - ta.sma(hl2, aoLongPeriod)
+
+// Detect AO Crossing Zero
+aoCrossOverZero = ta.crossover(ao, 0)
+aoCrossUnderZero = ta.crossunder(ao, 0)
+
+// -----------------------------
+// --- Relative Strength Index (RSI) Calculation ---
+// -----------------------------
+
+// Calculate RSI
+rsiValue = ta.rsi(close, rsiPeriod)
+
+// Detect RSI Crossing 50
+rsiCrossOver50 = ta.crossover(rsiValue, 50)
+rsiCrossUnder50 = ta.crossunder(rsiValue, 50)
+
+// -----------------------------
+// --- Plotting Arrows and Labels ---
+// -----------------------------
+
+// Plot AO Cross Over Arrow (AO+)
+plotshape(series=aoCrossOverZero,
+          location=location.belowbar,
+          color=color.green,
+          style=shape.labelup,
+          title="AO Crosses Above Zero",
+          text="AO+",
+          textcolor=color.white,
+          size=size.small)
+
+// Plot AO Cross Under Arrow (AO-)
+plotshape(series=aoCrossUnderZero,
+          location=location.abovebar,
+          color=color.red,
+          style=shape.labeldown,
+          title="AO Crosses Below Zero",
+          text="AO-",
+          textcolor=color.white,
+          size=size.small)
+
+// Plot RSI Cross Over Arrow (RSI Up)
+plotshape(series=rsiCrossOver50,
+          location=location.belowbar,
+          color=color.blue,
+          style=shape.labelup,
+          title="RSI Crosses Above 50",
+          text="RSI Up",
+          textcolor=color.white,
+          size=size.small)
+
+// Plot RSI Cross Under Arrow (RSI Down)
+plotshape(series=rsiCrossUnder50,
+          location=location.abovebar,
+          color=color.orange,
+          style=shape.labeldown,
+          title="RSI Crosses Below 50",
+          text="RSI Down",
+          textcolor=color.white,
+          size=size.small)
+
+// -----------------------------
+// --- Buy Signal Condition ---
+// -----------------------------
+
+// Define Buy Signal: AO is negative and previous bar's RSI > 50
+buySignal = (ao < 0) and (rsiValue[1] > 50)
+
+// Plot Buy Signal
+plotshape(series=buySignal,
+          location=location.belowbar,
+          color=color.lime,
+          style=shape.triangleup,
+          title="Buy Signal",
+          text="BUY",
+          textcolor=color.black,
+          size=size.small)
+
+// -----------------------------
+// --- Strategy Execution ---
+// -----------------------------
+
+// Entry Condition
+if buySignal
+    strategy.entry("Long", strategy.long)
+
+// Exit Conditions
+// Calculate Stop Loss and Take Profit Prices
+if strategy.position_size > 0
+    // Entry price
+    entryPrice = strategy.position_avg_price
+
+    // Stop Loss and Take Profit Levels
+    stopLevel = entryPrice * (1 - stopLossPerc / 100)
+    takeProfitLevel = entryPrice * (1 + takeProfitPerc / 100)
+
+    // Submit Stop Loss and Take Profit Orders
+    strategy.exit("Exit Long", from_entry="Long", stop=stopLevel, limit=takeProfitLevel)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/471709
+
+> Last Modified
+
+2024-11-12 16:05:28

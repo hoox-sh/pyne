@@ -1,0 +1,52 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于EMA和SMA均线交叉的趋势反转策略Trend-Reversal-Strategy-Based-on-EMA-and-SMA-Crossover.md
+// content_hash: 13a6a39709129156
+// collected: 2026-07-27
+strategy("EMA-SMA Crossover Strategy", overlay=true)
+
+// Define the length of the moving averages
+emaLength = 20
+smaLength = 20
+
+// Calculate moving averages
+emaValue = ta.ema(close, emaLength)
+smaValue = ta.sma(close, smaLength)
+
+// Buy condition
+buyCondition = ta.crossover(emaValue, smaValue) and close > emaValue
+
+// Short sell condition
+sellCondition = ta.crossunder(emaValue, smaValue) and close < emaValue
+
+// Exit conditions for both Buy and Short sell
+exitBuyCondition = ta.crossunder(emaValue, smaValue)
+exitSellCondition = ta.crossover(emaValue, smaValue)
+
+// Strategy logic
+if (buyCondition)
+    strategy.entry("Buy", strategy.long)
+
+if (sellCondition)
+    strategy.entry("Sell", strategy.short)
+
+if (exitBuyCondition)
+    strategy.close("Buy")
+
+if (exitSellCondition)
+    strategy.close("Sell")
+
+// Plot the moving averages
+plot(emaValue, color=color.blue, title="20 EMA")
+plot(smaValue, color=color.red, title="20 SMA")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/437693
+
+> Last Modified
+
+2024-01-04 17:59:04

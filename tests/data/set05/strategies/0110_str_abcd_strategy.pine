@@ -1,0 +1,94 @@
+//@version=5
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/ABCD Strategy.pine
+// content_hash: 250304faf1373297
+// collected: 2026-07-27
+strategy("ABCD Strategy", shorttitle="ABCDS", overlay=true, commission_value=0.04)
+calcdev(fprice, lprice, fbars, lbars) =>
+    rise = lprice - fprice
+    run = lbars - fbars
+    avg = rise/run
+    ((bar_index - lbars) * avg) + lprice
+len = input(5)
+ph = ta.pivothigh(len, len)
+pl = ta.pivotlow(len, len)
+var bool ishigh = false
+ishigh := ishigh[1]
+var float currph = 0.0
+var int currphb = 0
+currph := nz(currph)
+currphb := nz(currphb)
+var float oldph = 0.0
+var int oldphb = 0
+oldph := nz(oldph)
+oldphb := nz(oldphb)
+var float currpl = 0.0
+var int currplb = 0
+currpl := nz(currpl)
+currplb := nz(currplb)
+var float oldpl = 0.0
+var int oldplb = 0
+oldpl := nz(oldpl)
+oldplb := nz(oldplb)
+if (not na(ph))
+    ishigh := true
+    oldph := currph
+    oldphb := currphb
+    currph := ph
+    currphb := bar_index[len]
+else
+    if (not na(pl))
+        ishigh := false
+        oldpl := currpl
+        oldplb := currplb
+        currpl := pl
+        currplb := bar_index[len]
+endHighPoint = calcdev(oldph, currph, oldphb, currphb)
+endLowPoint = calcdev(oldpl, currpl, oldplb, currplb)
+plotshape(ph, style=shape.triangledown, color=color.red, location=location.abovebar, offset=-len)
+plotshape(pl, style=shape.triangleup, color=color.green, location=location.belowbar, offset=-len)
+var line lnhigher = na
+var line lnlower = na
+lnhigher := line.new(oldphb, oldph, bar_index, endHighPoint)
+lnlower := line.new(oldplb, oldpl, bar_index, endLowPoint)
+line.delete(lnhigher[1])
+line.delete(lnlower[1])
+formlong = oldphb < oldplb and oldplb < currphb and currphb < currplb
+longratio1 = (currph - oldpl) / (oldph - oldpl)
+longratio2 = (currph - currpl) / (currph - oldpl)
+formshort = oldplb < oldphb and oldphb < currplb and currplb < currphb
+shortratio1 = (oldph - currpl) / (oldph - oldpl)
+shortratio2 = (currph - currpl) / (oldph - currpl)
+// prevent multiple entry for one pattern
+var int signalid = 0
+signalid := nz(signalid[1])
+longCond = formlong and 
+           longratio1 < 0.786 and 
+           longratio1 > 0.5 and 
+           longratio2 > 1 and 
+           longratio2 < 1.414 and 
+           close < oldph and 
+           close > currpl and 
+           signalid != oldplb
+if (longCond)
+    signalid := oldplb
+    longsl = currpl - ta.tr
+    longtp = ((close - longsl) * 1.5) + close
+    strategy.entry("Long", strategy.long)
+    strategy.exit("Exit Long", "Long", limit=math.min(longtp, oldph), stop=longsl)
+shortCond = formshort and 
+             shortratio1 < 0.786 and 
+             shortratio1 > 0.5 and 
+             shortratio2 > 1.1 and 
+             shortratio2 < 1.414 and 
+             close > oldpl and 
+             close < currph and 
+             signalid != oldphb
+if (shortCond)
+    signalid := oldphb
+    shortsl = currph + ta.tr
+    shorttp = close - ((shortsl - close) * 1.5)
+    strategy.entry("Short", strategy.short)
+    strategy.exit("Exit Short", "Short", limit=math.max(shorttp, oldpl), stop=shortsl)
+Expand (109 lines)

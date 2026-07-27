@@ -1,0 +1,69 @@
+//@version=6
+// set04 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/自适应趋势跟踪型动态趋势识别交易策略-Adaptive-Trend-Following-Dynamic-Trend-Recognition-Trading-Strategy.md
+// content_hash: 413a4cecdf0bf3fc
+// collected: 2026-07-27
+strategy("Supertrend + KAMA Long Strategy", overlay=true, commission_type=strategy.commission.percent, commission_value=0.1, slippage=3)
+
+// User-defined inputs for date range
+startDate   = input(timestamp("2018-01-01 00:00:00"), title="Start Date")
+endDate     = input(timestamp("2069-12-31 23:59:59"), title="End Date")
+inDateRange = true
+
+// Inputs for KAMA and Supertrend
+kamaLength  = input.int(21, title="KAMA Length", minval=1)
+atrPeriod   = input.int(10, title="Supertrend ATR Length", minval=1)
+factor      = input.float(3.0, title="Supertrend Factor", minval=0.01, step=0.01)
+
+//------------------------- Kaufman Moving Average Adaptive (KAMA) -------------------------
+xPrice   = close
+xvnoise  = math.abs(xPrice - xPrice[1])
+Length   = kamaLength
+nfastend = 0.666
+nslowend = 0.0645
+nsignal  = math.abs(xPrice - xPrice[Length])
+float nnoise = 0.0
+for i = 0 to Length - 1
+    nnoise := nnoise + xvnoise[i]
+nefratio = nnoise != 0.0 ? nsignal / nnoise : 0.0
+nsmooth  = math.pow(nefratio * (nfastend - nslowend) + nslowend, 2)
+var float nAMA = na
+nAMA := nz(nAMA[1]) + nsmooth * (xPrice - nz(nAMA[1]))
+plot(nAMA, color=color.blue, linewidth=2, title="Kaufman KAMA")
+
+//------------------------- Supertrend Calculation -------------------------
+[stValue, dirValue] = ta.supertrend(factor, atrPeriod)
+upTrend   = dirValue < 0
+downTrend = dirValue >= 0
+plot(dirValue < 0 ? stValue : na, "Up Trend", color=color.green, style=plot.style_linebr)
+plot(dirValue >= 0 ? stValue : na, "Down Trend", color=color.red, style=plot.style_linebr)
+
+//------------------------- Strategy Logic -------------------------
+// Entry condition: Supertrend is in uptrend AND price is above KAMA
+canLong = inDateRange and upTrend and close > nAMA
+
+// Exit condition (Take Profit): Supertrend switches to downtrend AND price is below KAMA
+stopLoss = inDateRange and downTrend and close < nAMA
+
+if canLong
+    strategy.entry("Long", strategy.long)
+    label.new(bar_index, low, "BUY", color=color.green, textcolor=color.white, style=label.style_label_down, size=size.normal)
+
+if stopLoss
+    strategy.close("Long", comment="Stop Loss")
+    label.new(bar_index, high, "STOP LOSS", color=color.red, textcolor=color.white, style=label.style_label_up, size=size.normal)
+
+//------------------------- Alerts -------------------------
+alertcondition(canLong, title="Long Entry", message="Supertrend + KAMA Long Signal")
+alertcondition(stopLoss, title="Stop Loss", message="Supertrend switched to Downtrend and Price below KAMA")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/476273
+
+> Last Modified
+
+2024-12-27 15:41:30

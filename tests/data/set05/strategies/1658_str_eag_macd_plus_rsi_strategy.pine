@@ -1,0 +1,74 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/使用RSI和MACD双重过滤的动态止损趋势跟踪策略-Dynamic-Stop-Loss-Trend-Following-Strategy-with-RSI-and-MACD-Dual-Filtering.md
+// content_hash: b5f95d788f66cbb2
+// collected: 2026-07-27
+strategy("EAG MACD + RSI Strategy",overlay=true, initial_capital = 300, default_qty_value = 10, default_qty_type = "percent_of_equity", commission_type=strategy.commission.percent, commission_value=0.1)
+
+
+// Input para el RSI
+rsi_length = input.int(14, title="RSI Length", minval=1)
+rsi_overbought = input.int(59, title="RSI Overbought Level", minval=1, maxval=100)
+rsi_oversold = input.int(40, title="RSI Oversold Level", minval=1, maxval=100)
+
+// Input para el MACD
+macd_length = input.int(12, title="MACD Length", minval=1)
+macd_overbought = input.int(26, title="MACD Overbought Level", minval=1, maxval=100)
+macd_signal = input.int(9, title="MACD Signal Level", minval=1, maxval=100)
+
+// Input para el porcentaje de pérdida (stop loss)
+stop_loss_percent = input.float(3.0, title="Porcentaje de Stop Loss (%)", minval=0.1, step=0.1)
+
+// Calcular RSI
+rsi_value = ta.rsi(close, rsi_length)
+
+// Calcular MACD
+[macdLine, signalLine, _] = ta.macd(close, macd_length, macd_overbought, macd_signal)
+macd_crossup = ta.crossover(macdLine, signalLine)   // Cruce al alza del MACD
+macd_crossdown = ta.crossunder(macdLine, signalLine) // Cruce a la baja del MACD
+
+// Condiciones de compra y venta
+buy_condition = macd_crossup and rsi_value <= rsi_oversold
+sell_condition = macd_crossdown and rsi_value >= rsi_overbought
+
+
+// Registrar precio de entrada
+var float entry_price = na
+if strategy.position_size == 0
+    entry_price := na
+
+// Mostrar señales de compra y venta en la gráfica principal
+plotshape(series=buy_condition, title="Señal de Compra", location=location.belowbar, color=color.green, style=shape.labelup, text="BUY") // Compra debajo de la vela
+plotshape(series=sell_condition, title="Señal de Venta", location=location.abovebar, color=color.red, style=shape.labeldown, text="SELL") // Venta encima de la vela
+
+// Órdenes de estrategia
+if buy_condition 
+    strategy.entry("Compra", strategy.long)
+    entry_price := close
+if sell_condition 
+    strategy.entry("Venta", strategy.short)
+    entry_price := close
+
+// Calcular el precio de stop loss
+long_stop_loss = entry_price * (1 - stop_loss_percent / 100)
+short_stop_loss = entry_price * (1 + stop_loss_percent / 100)
+
+// Cerrar posición si el precio va en contra el porcentaje definido por el usuario
+if strategy.position_size > 0 and close < long_stop_loss
+    strategy.close("Compra", comment="Stop Loss Compra")
+
+if strategy.position_size < 0 and close > short_stop_loss
+    strategy.close("Venta", comment="Stop Loss Venta")
+
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/482891
+
+> Last Modified
+
+2025-02-20 16:50:43

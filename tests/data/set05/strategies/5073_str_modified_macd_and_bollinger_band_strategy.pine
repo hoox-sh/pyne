@@ -1,0 +1,64 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双均线布林带MACD交易策略Dual-Moving-Average-Bollinger-Band-MACD-Trading-Strategy.md
+// content_hash: b009c6e1d98fccdd
+// collected: 2026-07-27
+strategy("Modified MACD and Bollinger Band Strategy", shorttitle="Mod_MACD_BB", overlay=true)
+
+var bool open_buy_position = na
+var bool open_sell_position = na
+
+// MACD settings
+fast_length = input(12, title="Fast Length")
+slow_length = input(26, title="Slow Length")
+signal_length = input(9, title="Signal Length")
+src = close
+[macdLine, signalLine, _] = macd(src, fast_length, slow_length, signal_length)
+
+// Bollinger Band settings
+bb_length = input(20, title="Bollinger Band Length")
+bb_mult = input(2, title="Bollinger Band Multiplier")
+basis = sma(src, bb_length)
+dev = bb_mult * stdev(src, bb_length)
+upper_band = basis + dev
+lower_band = basis - dev
+
+// Define profit target and stop loss
+profit_target = input(60, title="Profit Target (Points)")
+stop_loss = input(30, title="Stop Loss (Points")
+
+// Buy condition: MACD crosses up the signal line and close is above upper Bollinger Band
+buy_condition = crossover(macdLine, signalLine) and close > upper_band
+
+// Sell condition: MACD crosses below the signal line and close is below the lower Bollinger Band
+sell_condition = crossunder(macdLine, signalLine) and close < lower_band
+
+// Check for open positions
+if (buy_condition)
+    open_buy_position := true
+if (sell_condition)
+    open_sell_position := true
+
+// Strategy Orders
+strategy.entry("Buy", strategy.long, when = buy_condition and not open_sell_position)
+strategy.exit("Take Profit/Stop Loss", from_entry = "Buy", limit = close + profit_target, stop = close - stop_loss)
+
+strategy.entry("Sell", strategy.short, when = sell_condition and not open_buy_position)
+strategy.exit("Take Profit/Stop Loss", from_entry = "Sell", limit = close - profit_target, stop = close + stop_loss)
+
+// Reset open position status
+if (sell_condition)
+    open_buy_position := na
+if (buy_condition)
+    open_sell_position := na
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/437036
+
+> Last Modified
+
+2023-12-29 16:43:01

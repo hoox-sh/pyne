@@ -1,0 +1,62 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多重技术指标均线交叉趋势跟踪量化交易策略-Multi-Technical-Indicator-Moving-Average-Crossover-Trend-Following-Quantitative-Trading-Strategy.md
+// content_hash: e8b9437b4aadf84a
+// collected: 2026-07-27
+strategy("TradingBot Strategy", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=1)
+
+// Input parameters
+lotSize = input.float(0.1, title="Lot Size")
+maPeriod = input.int(14, title="MA Period")
+rsiPeriod = input.int(14, title="RSI Period")
+bbPeriod = input.int(20, title="Bollinger Bands Period")
+macdFast = input.int(12, title="MACD Fast EMA")
+macdSlow = input.int(26, title="MACD Slow EMA")
+macdSignal = input.int(9, title="MACD Signal SMA")
+stochK = input.int(14, title="Stochastic %K")
+stochD = input.int(3, title="Stochastic %D")
+
+// Indicators
+ma = ta.sma(close, maPeriod)
+rsi = ta.rsi(close, rsiPeriod)
+[bbUpper, bbMiddle, bbLower] = ta.bb(close, bbPeriod, 2)
+[macdLine, signalLine, _] = ta.macd(close, macdFast, macdSlow, macdSignal)
+k = ta.stoch(close, high, low, stochK)
+d = ta.sma(k, stochD)
+
+// Plot indicators
+plot(ma, color=color.blue, title="MA", linewidth=1)
+hline(70, "RSI Overbought", color=color.red)
+hline(30, "RSI Oversold", color=color.green)
+plot(rsi, color=color.purple, title="RSI", linewidth=1)
+plot(bbUpper, color=color.orange, title="Bollinger Bands Upper", linewidth=1)
+plot(bbMiddle, color=color.gray, title="Bollinger Bands Middle", linewidth=1)
+plot(bbLower, color=color.orange, title="Bollinger Bands Lower", linewidth=1)
+hline(0, "MACD Zero", color=color.gray)
+plot(macdLine, color=color.blue, title="MACD Line", linewidth=1)
+plot(signalLine, color=color.red, title="MACD Signal Line", linewidth=1)
+hline(80, "Stochastic Overbought", color=color.red)
+hline(20, "Stochastic Oversold", color=color.green)
+plot(k, color=color.blue, title="Stochastic %K", linewidth=1)
+plot(d, color=color.red, title="Stochastic %D", linewidth=1)
+
+// Trading logic
+longCondition = rsi < 30 and macdLine > signalLine and k < 20 and close > bbMiddle and close[1] < bbLower
+shortCondition = rsi > 70 and macdLine < signalLine and k > 80 and close < bbMiddle and close[1] > bbUpper
+
+if (longCondition)
+    strategy.entry("Buy", strategy.long, qty=lotSize)
+    label.new(bar_index, low, text="BUY", style=label.style_label_up, color=color.green, textcolor=color.white, size=size.small, yloc=yloc.belowbar)
+if (shortCondition)
+    strategy.entry("Sell", strategy.short, qty=lotSize)
+    label.new(bar_index, high, text="SELL", style=label.style_label_down, color=color.red, textcolor=color.white, size=size.small, yloc=yloc.abovebar)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/482897
+
+> Last Modified
+
+2025-02-20 16:56:38

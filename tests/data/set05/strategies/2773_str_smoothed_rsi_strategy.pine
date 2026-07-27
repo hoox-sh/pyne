@@ -1,0 +1,50 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于平滑RSI的股票交易策略Smoothed-RSI-Based-Stock-Trading-Strategy.md
+// content_hash: 074026ae8cbb3e99
+// collected: 2026-07-27
+strategy("Smoothed RSI Strategy", overlay=true)
+
+// Calculate the RSI
+length = 5
+rsiValue = ta.rsi(close, length)
+
+// Smooth the RSI using a moving average
+smoothedRsi = ta.sma(rsiValue, length)
+
+// Define overbought and oversold thresholds
+overbought = 80
+oversold = 40
+
+// Buy signal when RSI is in oversold zone
+buyCondition = ta.crossover(smoothedRsi, oversold)
+
+// Sell signal when RSI is in overbought zone
+sellCondition = ta.crossunder(smoothedRsi, overbought)
+
+// Plotting the smoothed RSI
+// Plotting the smoothed RSI in a separate pane
+plot(smoothedRsi, color=color.blue, title="Smoothed RSI", style=plot.style_line, linewidth=2)
+
+//plot(smoothedRsi, color=color.blue, title="Smoothed RSI")
+hline(overbought, "Overbought", color=color.red)
+hline(oversold, "Oversold", color=color.green)
+
+// Strategy logic for buying and selling
+if (buyCondition)
+    strategy.entry("Buy", strategy.long)
+if (sellCondition)
+    strategy.close("Buy")
+
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/440368
+
+> Last Modified
+
+2024-01-29 16:26:12

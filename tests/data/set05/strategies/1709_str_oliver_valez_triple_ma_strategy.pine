@@ -1,0 +1,73 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/三重均线动量趋势交易策略-Triple-Moving-Average-Momentum-Trend-Trading-Strategy.md
+// content_hash: 2a9e3423f4da974f
+// collected: 2026-07-27
+strategy("Oliver Valez Triple MA Strategy", overlay=true, margin_long=100, margin_short=100)
+
+// Inputs
+ma20_length = input.int(20, "20-period MA Length", minval=1)
+ma50_length = input.int(50, "50-period MA Length", minval=1)
+ma200_length = input.int(200, "200-period MA Length", minval=1)
+use_ema = input.bool(false, "Use EMA Instead of SMA")
+sl_percent = input.float(2.0, "Stop Loss %", minval=0.0)
+tp_percent = input.float(4.0, "Take Profit %", minval=0.0)
+
+// Calculate MAs
+ma20 = use_ema ? ta.ema(close, ma20_length) : ta.sma(close, ma20_length)
+ma50 = use_ema ? ta.ema(close, ma50_length) : ta.sma(close, ma50_length)
+ma200 = use_ema ? ta.ema(close, ma200_length) : ta.sma(close, ma200_length)
+
+// Plot MAs
+plot(ma20, "MA 20", color=color.new(color.blue, 0), linewidth=2)
+plot(ma50, "MA 50", color=color.new(color.orange, 0), linewidth=2)
+plot(ma200, "MA 200", color=color.new(color.red, 0), linewidth=2)
+
+// Trend Filter
+bullish_trend = close > ma200
+bearish_trend = close < ma200
+
+// Entry Conditions
+long_condition = ta.crossover(ma20, ma50) and bullish_trend
+short_condition = ta.crossunder(ma20, ma50) and bearish_trend
+
+// Exit Conditions
+exit_long = ta.crossunder(ma20, ma50)
+exit_short = ta.crossover(ma20, ma50)
+
+// Risk Management
+stop_loss = strategy.position_avg_price * (1 - sl_percent/100)
+take_profit = strategy.position_avg_price * (1 + tp_percent/100)
+
+// Execute Trades
+if (long_condition)
+    strategy.entry("Long", strategy.long)
+    strategy.exit("XL", "Long", stop=stop_loss, limit=take_profit)
+
+if (short_condition)
+    strategy.entry("Short", strategy.short)
+    strategy.exit("XS", "Short", stop=stop_loss, limit=take_profit)
+
+// Close trades on opposite signals
+if (exit_long)
+    strategy.close("Long")
+
+if (exit_short)
+    strategy.close("Short")
+
+// Plot Signals
+plotshape(long_condition, "Buy", shape.labelup, location.belowbar, color=color.green, text="BUY", textcolor=color.white)
+plotshape(short_condition, "Sell", shape.labeldown, location.abovebar, color=color.red, text="SELL", textcolor=color.white)
+
+// Background Color for Trend
+bgcolor(bullish_trend ? color.new(color.green, 90) : bearish_trend ? color.new(color.red, 90) : na)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/481350
+
+> Last Modified
+
+2025-02-10 14:37:15

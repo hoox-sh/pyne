@@ -1,0 +1,13 @@
+//@version=3
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/v3/appendix/howtos.md::howtos.md#block9
+// content_hash: eef6a9d590f0ca8d
+// collected: 2026-07-27
+study("My Script")
+
+biggest(series) =>
+    max = 0.0
+    max := nz(max[1], series)
+    if series > max
+        max := series

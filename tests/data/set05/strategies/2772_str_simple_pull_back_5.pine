@@ -1,0 +1,50 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/黄金交叉短期突破策略Short-term-Breakthrough-Strategy-Based-on-Golden-Crossover.md
+// content_hash: ecc7c669da8e14e7
+// collected: 2026-07-27
+strategy("simple pull back", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=100)
+
+// Input values
+malongperiod = input.int(200, "Long Term SMA Period", group="Parameters")
+mashortperiod = input.int(21, "Short Term SMA Period", group="Parameters")
+stoprate = 1  // Set the stop loss percentage to 1%
+profit = input.int(1, "Take Profit Percentage", group="Parameters") // Change the take profit percentage to 1%
+startday = input(title="Start Trade Day", defval=timestamp("01 Jan 2000 13:30 +0000"), group="Period")
+endday = input(title="End Trade Day", defval=timestamp("1 Jan 2099 19:30 +0000"), group="Period")
+
+// Plotting indicators
+malong = ta.sma(close, malongperiod)
+mashort = ta.ema(close, mashortperiod)
+
+plot(malong, color=color.aqua, linewidth=2)
+plot(mashort, color=color.yellow, linewidth=2)
+
+// Date range
+datefilter = true
+
+// Long entry condition
+if close > malong and close < mashort and strategy.position_size == 0 and datefilter and ta.rsi(close, 3) < 20
+    strategy.entry("Long", strategy.long)
+
+// Short entry condition
+if close < malong and close > mashort and strategy.position_size == 0 and datefilter and ta.rsi(close, 3) > 80
+    strategy.entry("Short", strategy.short)
+
+// Exit conditions with 1% stop loss and 1% take profit
+strategy.exit("Cut", "Long", stop=(1 - 0.01 * stoprate) * strategy.position_avg_price, limit=(1 + 0.01 * profit) * strategy.position_avg_price)
+
+if close > mashort and close < low[1] and strategy.position_size > 0
+    strategy.close("Long")
+if close < mashort and close > high[1] and strategy.position_size < 0
+    strategy.close("Short")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/442973
+
+> Last Modified
+
+2024-02-27 17:46:55

@@ -1,0 +1,39 @@
+//@version=5
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/Mean Reversion and Trendfollowing.pine
+// content_hash: 7f23c5d3bb219792
+// collected: 2026-07-27
+strategy("Mean Reversion and Trendfollowing", overlay=true, pyramiding=1, default_qty_value=100000, initial_capital=100000, default_qty_type=strategy.cash, process_orders_on_close=false, calc_on_every_tick=false)
+// Input for the starting date
+start_date = input.time(timestamp("1 Feb 2000 12:00"), title="Starting Date")
+enableMeanReversion = input.bool(true)
+enableTrendfollowing = input.bool(true)
+trendPositionFactor = input.float(1)
+meanReversionPositionFactor = input.float(0.5)
+// Convert the input string to a timestamp
+start_ts = timestamp(year(start_date), month(start_date), dayofmonth(start_date), 0, 0)
+// Check if the current bar's time is greater than or equal to the start timestamp
+start_condition = time >= start_ts
+var tradeOrigin = ""
+sma200 = ta.sma(close,200)
+rsi2 = ta.rsi(close,2)
+isMeanReversionMode = close < sma200 or not(enableTrendfollowing)
+isTrendfollowingMode = close > sma200 or not(enableMeanReversion)
+isRsiBuy = rsi2 < 20 and enableMeanReversion
+isRsiClose = rsi2 > 80 and enableMeanReversion
+isSmaBuy = close > sma200 and enableTrendfollowing
+isSmaClose = close < sma200 * 0.95 and enableTrendfollowing
+isBuy = (isMeanReversionMode and isRsiBuy) or (isTrendfollowingMode and isSmaBuy)
+positionSizeFactor = isSmaBuy ? trendPositionFactor : meanReversionPositionFactor
+// Only execute the strategy after the starting date
+if (start_condition)
+    if (isBuy and strategy.opentrades == 0)
+        tradeOrigin := isSmaBuy ? "SMA" : "RSI"
+        strategy.entry("My Long Entry Id", strategy.long, qty=(strategy.equity / close) * positionSizeFactor, comment=str.tostring(positionSizeFactor))
+    isClose = tradeOrigin == "SMA" ? isSmaClose : isRsiClose
+    if (isClose)
+        strategy.exit("Exit", limit = close)
+plot(sma200)
+plot(sma200 * 0.95, color=color.orange)
+Expand (48 lines)

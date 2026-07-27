@@ -1,0 +1,51 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/Bollinger-Bands-Accurate-Entry-And-Risk-Control-Strategy-Bollinger-Bands准确入场和风险控制策略.md
+// content_hash: e8bc01a1abbf00fa
+// collected: 2026-07-27
+strategy("Bollinger Bands Strategy", overlay=true)
+
+src = input(close)
+length = input.int(34, minval=1)
+mult = input.float(2.0, minval=0.001, maxval=50)
+
+basis = ta.sma(src, length)
+dev = ta.stdev(src, length)
+dev2 = mult * dev
+
+upper1 = basis + dev
+lower1 = basis - dev
+upper2 = basis + dev2
+lower2 = basis - dev2
+
+// Long Condition: Close above Upper Bollinger Band
+longCondition = close > upper1
+
+// Short Condition: Close below Lower Bollinger Band
+shortCondition = close < lower1
+
+// Strategy Entry and Exit
+strategy.entry("Long", strategy.long, when = longCondition)
+strategy.entry("Short", strategy.short, when = shortCondition)
+
+// Close Long Position when Short Condition is Met
+strategy.close("Long", when = shortCondition)
+
+// Close Short Position when Long Condition is Met
+strategy.close("Short", when = longCondition)
+
+// Plotting Bollinger Bands
+plot(basis, color=color.blue)
+plot(upper1, color=color.new(color.blue, 80))
+plot(lower1, color=color.new(color.orange, 80))
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/453232
+
+> Last Modified
+
+2024-06-03 10:53:56

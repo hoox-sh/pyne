@@ -1,0 +1,49 @@
+//@version=2
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于CCI零位的趋势追踪策略CCI-Zero-Crossing-Trend-Following-Strategy.md
+// content_hash: d455cbc3c7b9eaf7
+// collected: 2026-07-27
+strategy("CCI Level Zero Strategy (by Marcoweb) v1.0", shorttitle="CCI_L_Z_Strat_v1.0", overlay=true)
+
+///////////// CCI
+CCIlength = input(20, minval=1, title="CCI Period Length") 
+CCIoverSold = -100
+CCIoverBought = 100
+CCIzeroLine = 0
+CCI = cci(hlc3, CCIlength)
+price = hlc3
+vcci = cci(price, CCIlength)
+
+source = close
+buyEntry = crossover(source, CCIzeroLine)
+sellEntry = crossunder(source, CCIzeroLine)
+plot(CCI, color=black,title="CCI")
+p1 = plot(CCIoverSold, color=blue,title="-100")
+p2 = plot(CCIoverBought, color=red,title="100")
+p3 = plot(CCIzeroLine, color=orange,title="0")
+
+
+///////////// CCI 0Trend v1.0 Strategy 
+if (not na(vcci))
+
+    if (crossover(CCI, CCIzeroLine))
+        strategy.entry("CCI_L", strategy.long, stop=CCIoverSold,  comment="CCI_L")
+    else
+        strategy.cancel(id="CCI_L")
+        
+    if (crossunder(CCI, CCIzeroLine))
+        strategy.entry("CCI_S", strategy.short, stop=CCIoverBought,  comment="CCI_S")
+    else
+        strategy.cancel(id="CCI_S")
+
+//plot(strategy.equity, title="equity", color=red, linewidth=2, style=areabr)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/428098
+
+> Last Modified
+
+2023-09-28 16:00:36

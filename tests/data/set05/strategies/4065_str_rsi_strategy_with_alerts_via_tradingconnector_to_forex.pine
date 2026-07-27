@@ -1,0 +1,27 @@
+//@version=4
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/RSI Strategy with alerts via TradingConnector to Forex.pine
+// content_hash: 9b7df7d268e27dc8
+// collected: 2026-07-27
+strategy("RSI Strategy with alerts via TradingConnector to Forex", overlay=true, default_qty_value=100000)
+length = input( 14 )
+overSold = input( 30 )
+overBought = input( 70 )
+price = close
+vrsi = rsi(price, length)
+co = crossover(vrsi, overSold)
+cu = crossunder(vrsi, overBought)
+if (not na(vrsi))
+    if (co)
+        strategy.entry("RsiLE", strategy.long, comment="RsiLE")
+        alert(message='long', freq=alert.freq_once_per_bar_close)
+        
+    if (cu)
+        strategy.entry("RsiSE", strategy.short, comment="RsiSE")
+        alert(message='short', freq=alert.freq_once_per_bar_close)
+//plot(strategy.equity, title="equity", color=color.red, linewidth=2, style=plot.style_areabr)
+//Lines of code added to the original built-in script: 12 and 17 only.
+//They trigger alerts ready to be executed on real markets through TradingConnector
+//available for Forex, indices, crypto, stocks - anything your broker offers for trading via MetaTrader4/5
+Expand (22 lines)

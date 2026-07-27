@@ -1,0 +1,81 @@
+//@version=6
+// set03 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动态供需区间中线反转策略-Dynamic-Supply-Demand-Zone-Midline-Reversal-Strategy.md
+// content_hash: a646bfe4063cd4fa
+// collected: 2026-07-27
+strategy("Midline Rejection Entry with TP/SL at Supply/Demand", overlay=true)
+
+// User inputs for Swing Length and Length for Supply/Demand Zones
+length = input.int(50, title="Swing Length", minval=1)
+midlineLength = input.int(20, title="Midline Length for Trend", minval=1)  // Moving average length for trend
+
+// Identify swing highs (Supply Zone) and swing lows (Demand Zone)
+supplyZone = ta.highest(high, length) // Supply Zone (resistance)
+demandZone = ta.lowest(low, length) // Demand Zone (support)
+
+// Calculate the midpoint between supply and demand zones
+midpoint = (supplyZone + demandZone) / 2
+
+// Trend Detection: Use a simple moving average (SMA) for trend direction
+smaTrend = ta.sma(close, midlineLength)
+
+// Variables to store Supply/Demand Zones at the time of entry
+var float entrySupplyZone = na
+var float entryDemandZone = na
+var float entryMidpoint = na
+
+// Entry Conditions
+// 1. Price in an uptrend (close above SMA)
+longCondition = close > smaTrend and close < midpoint and close > open and open < close[1] and close[1] < open[1]
+
+// 1. Price in a downtrend (close below SMA)
+shortCondition = close < smaTrend and close > midpoint and close < open and open > close[1] and close[1] > open[1]
+
+// Close any open trades before opening a new one
+if (longCondition or shortCondition)
+    strategy.close_all()
+
+// Execute the entry logic
+if (longCondition)
+    entrySupplyZone := supplyZone  // Store Supply Zone for Take Profit
+    entryDemandZone := demandZone  // Store Demand Zone for Stop Loss
+    entryMidpoint := midpoint      // Store Midpoint
+    strategy.entry("Long", strategy.long)
+    label.new(bar_index, low, "Open Long", color=color.green, textcolor=color.white, style=label.style_label_up, size=size.small)
+
+if (shortCondition)
+    entrySupplyZone := supplyZone  // Store Supply Zone for Stop Loss
+    entryDemandZone := demandZone  // Store Demand Zone for Take Profit
+    entryMidpoint := midpoint      // Store Midpoint
+    strategy.entry("Short", strategy.short)
+    label.new(bar_index, high, "Open Short", color=color.red, textcolor=color.white, style=label.style_label_down, size=size.small)
+
+// Define Take Profit and Stop Loss Levels for Long/Short Trades
+if (strategy.opentrades > 0)
+    // For Long trades, use Supply Zone for Take Profit and Demand Zone for Stop Loss
+    if (strategy.position_size > 0)
+        strategy.exit("Take Profit", "Long", limit=entrySupplyZone)  // Take Profit at Supply Zone
+        strategy.exit("Stop Loss", "Long", stop=entryDemandZone)    // Stop Loss at Demand Zone
+
+
+    // For Short trades, use Demand Zone for Take Profit and Supply Zone for Stop Loss
+    if (strategy.position_size < 0)
+        strategy.exit("Take Profit", "Short", limit=entryDemandZone)  // Take Profit at Demand Zone
+        strategy.exit("Stop Loss", "Short", stop=entrySupplyZone)     // Stop Loss at Supply Zone
+
+
+// Re-Plot Supply, Midpoint, and Demand Zones after Trade Closure
+plot(supplyZone, title="Supply Zone", color=color.red, linewidth=2, style=plot.style_line)
+plot(demandZone, title="Demand Zone", color=color.green, linewidth=2, style=plot.style_line)
+plot(midpoint, title="Midpoint", color=color.blue, linewidth=1, style=plot.style_line)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/483514
+
+> Last Modified
+
+2025-02-24 16:00:34

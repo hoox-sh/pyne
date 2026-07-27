@@ -1,0 +1,45 @@
+//@version=3
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于均线和HA动量突破的趋势跟踪策略Mean-Reversion-Trend-Following-Strategy-Based-on-HA-Momentum-Breakout.md
+// content_hash: cd2e5b7fbb742e90
+// collected: 2026-07-27
+strategy("HA Trend Following", overlay=false, default_qty_type = strategy.percent_of_equity, default_qty_value = 2)
+
+
+//parameters input
+Trend_DIR_MA   = input(defval = 200, title = "MA for trend direction")
+HA_Candle_strength   = input(defval = 2, title = "HA candle strength")
+
+Rng = abs(open - close)
+
+// HA_Momentum - size of break out body
+HA_Momentum = sma(Rng, 1) / sma(Rng, 5)
+plot(HA_Momentum, color=green, linewidth=1, style=line)
+plot(HA_Candle_strength, color= blue)
+
+// open position
+longCondition = close > sma(close, 20) and (sma(close, 20) > sma(close, Trend_DIR_MA) )and HA_Momentum > HA_Candle_strength and close - open > 0
+if (longCondition)
+    strategy.entry(id = "Lng", long = true)
+
+ShortCondition = close < sma(close, 20) and (sma(close, 20) < sma(close, Trend_DIR_MA) ) and HA_Momentum > HA_Candle_strength and close - open < 0
+if (ShortCondition)
+    strategy.entry(id = "Shrt", long = false)
+
+
+// close position
+strategy.exit("ExL", from_entry = "Lng", loss = 500 , profit = 1500)
+strategy.exit("ExS", from_entry = "Shrt", loss = 500 , profit = 1500)
+
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/435017
+
+> Last Modified
+
+2023-12-11 16:56:47

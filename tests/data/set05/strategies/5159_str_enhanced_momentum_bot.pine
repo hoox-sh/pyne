@@ -1,0 +1,59 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于双均线交叉的交易策略A-Trading-Strategy-Based-on-Dual-Moving-Average-Crossover.md
+// content_hash: f5e63da3bb06e9e5
+// collected: 2026-07-27
+strategy("Enhanced Momentum Bot", shorttitle="EMB", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=100)
+
+// Define the Exponential Moving Averages (EMA)
+fastEMA = ema(close, 9)
+slowEMA = ema(close, 21)
+
+// Plot EMAs for trend visualization
+plot(fastEMA, color=color.green, title="Fast EMA", linewidth=2)
+plot(slowEMA, color=color.red, title="Slow EMA", linewidth=2)
+
+// Entry Conditions
+longCondition = crossover(fastEMA, slowEMA)
+shortCondition = crossunder(fastEMA, slowEMA)
+
+// Define conditions for holding or not entering
+// Pseudo-conditions to illustrate logic - Adjust according to strategy specifics
+holdLongCondition = fastEMA > slowEMA and close > fastEMA
+holdShortCondition = fastEMA < slowEMA and close < fastEMA
+dontEnterCondition = abs(fastEMA - slowEMA) < atr(14) // Using ATR as a measure of volatility
+
+// Signal plotting for clarity
+plotshape(series=longCondition, title="Long Entry", location=location.belowbar, color=color.green, style=shape.triangleup, text="LONG")
+plotshape(series=shortCondition, title="Short Entry", location=location.abovebar, color=color.red, style=shape.triangledown, text="SHORT")
+
+// Hold signals - less emphasized
+plotshape(series=holdLongCondition, title="Hold Long", location=location.belowbar, color=color.new(color.green, 80), style=shape.circle, text="HOLD L", size=size.tiny)
+plotshape(series=holdShortCondition, title="Hold Short", location=location.abovebar, color=color.new(color.red, 80), style=shape.circle, text="HOLD S", size=size.tiny)
+
+// Don't Enter - caution signal
+plotshape(series=dontEnterCondition, title="Don't Enter", location=location.absolute, color=color.blue, style=shape.xcross, text="WAIT")
+
+// Define Stop Loss and Take Profit as a percentage of the entry price
+stopLossPercent = 0.01 // 1%
+takeProfitPercent = 0.02 // 2%
+
+// Execute Trade on Conditions
+if (longCondition)
+    strategy.entry("Go Long", strategy.long)
+    strategy.exit("Close Long", "Go Long", loss=stopLossPercent * close, profit=takeProfitPercent * close)
+    
+if (shortCondition)
+    strategy.entry("Go Short", strategy.short)
+    strategy.exit("Close Short", "Go Short", loss=stopLossPercent * close, profit=takeProfitPercent * close)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/444961
+
+> Last Modified
+
+2024-03-15 15:01:25

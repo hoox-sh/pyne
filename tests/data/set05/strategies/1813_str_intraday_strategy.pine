@@ -1,0 +1,70 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动态趋势动量交易策略-Dynamic-Trend-Momentum-Trading-Strategy.md
+// content_hash: be24d7402d66d3a8
+// collected: 2026-07-27
+strategy("Intraday Strategy", overlay=true)
+
+// Input parameters
+emaLength = input.int(50, title="EMA Length")
+macdShort = input.int(12, title="MACD Short Period")
+macdLong = input.int(26, title="MACD Long Period")
+macdSignal = input.int(9, title="MACD Signal Period")
+rsiLength = input.int(14, title="RSI Length")
+rsiOverbought = input.int(70, title="RSI Overbought Level")
+rsiOversold = input.int(30, title="RSI Oversold Level")
+risk = input.float(1, title="Risk Percentage", minval=0.1, step=0.1)
+trailOffset = input.float(0.5, title="Trailing Stop Offset", minval=0.1, step=0.1)
+
+// Calculating indicators
+ema = ta.ema(close, emaLength)
+[macdLine, signalLine, _] = ta.macd(close, macdShort, macdLong, macdSignal)
+rsi = ta.rsi(close, rsiLength)
+vwap = ta.vwap(close)
+
+// Entry conditions
+longCondition = ta.crossover(macdLine, signalLine) and close > ema and rsi < rsiOverbought and close > vwap
+shortCondition = ta.crossunder(macdLine, signalLine) and close < ema and rsi > rsiOversold and close < vwap
+
+// Exit conditions
+longExitCondition = ta.crossunder(macdLine, signalLine) or close < ema
+shortExitCondition = ta.crossover(macdLine, signalLine) or close > ema
+
+// Position sizing based on risk percentage
+capital = strategy.equity
+positionSize = (capital * (risk / 100)) / close
+
+// Executing trades
+if (longCondition)
+    strategy.entry("Long", strategy.long, qty=1)
+if (shortCondition)
+    strategy.entry("Short", strategy.short, qty=1)
+
+if (longExitCondition)
+    strategy.close("Long")
+if (shortExitCondition)
+    strategy.close("Short")
+
+// Trailing stop loss
+if (strategy.position_size > 0)
+    strategy.exit("Trailing Stop Long", from_entry="Long", trail_price=close, trail_offset=trailOffset)
+if (strategy.position_size < 0)
+    strategy.exit("Trailing Stop Short", from_entry="Short", trail_price=close, trail_offset=trailOffset)
+
+// Plotting indicators
+plot(ema, title="EMA", color=color.blue)
+hline(rsiOverbought, "Overbought", color=color.red)
+hline(rsiOversold, "Oversold", color=color.green)
+plot(rsi, title="RSI", color=color.purple)
+plot(vwap, title="VWAP", color=color.orange)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/452276
+
+> Last Modified
+
+2024-05-23 17:57:22

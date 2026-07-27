@@ -1,0 +1,62 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/高级动态Fibonacci回撤趋势量化交易策略-Advanced-Dynamic-Fibonacci-Retracement-Trend-Quantitative-Trading-Strategy.md
+// content_hash: 091bf40b4c67c0e9
+// collected: 2026-07-27
+strategy("Fibonacci Retracement Strategy", overlay=true)
+
+// Inputs
+lookback_period = input.int(100, title="Lookback Period")
+level_1 = input.float(0.236, title="Fibonacci Level 1")
+level_2 = input.float(0.382, title="Fibonacci Level 2")
+level_3 = input.float(0.5, title="Fibonacci Level 3")
+level_4 = input.float(0.618, title="Fibonacci Level 4")
+level_5 = input.float(0.786, title="Fibonacci Level 5")
+
+// Calculate highest high and lowest low over the lookback period
+high_level = ta.highest(high, lookback_period)
+low_level = ta.lowest(low, lookback_period)
+
+// Calculate Fibonacci retracement levels
+fib_236 = low_level + (high_level - low_level) * level_1
+fib_382 = low_level + (high_level - low_level) * level_2
+fib_50 = low_level + (high_level - low_level) * level_3
+fib_618 = low_level + (high_level - low_level) * level_4
+fib_786 = low_level + (high_level - low_level) * level_5
+
+// Plot Fibonacci levels on the chart
+plot(fib_236, color=color.green, title="Fib 23.6%")
+plot(fib_382, color=color.blue, title="Fib 38.2%")
+plot(fib_50, color=color.orange, title="Fib 50%")
+plot(fib_618, color=color.red, title="Fib 61.8%")
+plot(fib_786, color=color.purple, title="Fib 78.6%")
+
+// Entry and Exit Conditions
+buy_signal = ta.crossover(close, fib_618)
+sell_signal = ta.crossunder(close, fib_382)
+
+// Strategy Orders
+if buy_signal
+    strategy.entry("Buy", strategy.long)
+
+// Exit based on stop-loss and take-profit conditions
+take_profit = high_level // Exit at the highest Fibonacci level (100%)
+stop_loss = low_level    // Exit at the lowest Fibonacci level (0%)
+
+strategy.exit("Sell", from_entry="Buy", limit=take_profit, stop=stop_loss)
+
+// Visualization of Signals
+plotshape(series=buy_signal, title="Buy Signal", location=location.belowbar, color=color.green, style=shape.labelup, text="BUY")
+plotshape(series=sell_signal, title="Sell Signal", location=location.abovebar, color=color.red, style=shape.labeldown, text="SELL")
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/474838
+
+> Last Modified
+
+2024-12-12 14:32:18

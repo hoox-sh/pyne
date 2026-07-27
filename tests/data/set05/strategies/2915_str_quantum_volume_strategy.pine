@@ -1,0 +1,46 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/量子量价策略Quantum-Volume-Strategy.md
+// content_hash: 51f644a8375a1fb6
+// collected: 2026-07-27
+strategy("Quantum Volume Strategy")
+
+// Quantum Volume indicator inputs
+qvPeriod = input(14, "Quantum Volume Period")
+qvThreshold = input(1.5, "Quantum Volume Threshold")
+
+// Calculate Quantum Volume
+qv = ta.sma(volume, qvPeriod) / ta.sma(volume, qvPeriod)[1]
+
+// Entry conditions
+enterLong = ta.crossover(qv, qvThreshold)
+enterShort = ta.crossunder(qv, qvThreshold)
+
+// Exit conditions
+exitLong = ta.crossunder(qv, qvThreshold)
+exitShort = ta.crossover(qv, qvThreshold)
+
+// Strategy orders
+if (enterLong)
+    strategy.entry("Long", strategy.long)
+if (enterShort)
+    strategy.entry("Short", strategy.short)
+
+if (exitLong)
+    strategy.close("Long")
+if (exitShort)
+    strategy.close("Short")
+
+// Plot Quantum Volume and threshold
+plot(qv, title = "Quantum Volume", color = color.blue)
+hline(qvThreshold, "Threshold", color = color.red)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/429775
+
+> Last Modified
+
+2023-10-20 16:28:44

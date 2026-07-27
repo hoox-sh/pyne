@@ -1,0 +1,57 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多重指数移动平均线趋势确认与RSI过滤入场策略-Multiple-EMA-Trend-Confirmation-with-RSI-Entry-Filter-Strategy.md
+// content_hash: f9c98da422c528b5
+// collected: 2026-07-27
+strategy("4 EMAs with Entry and Exit Strategy", overlay=true, initial_capital=1000000, default_qty_value=10, default_qty_type=strategy.percent_of_equity,commission_type=strategy.commission.percent, commission_value=0.75)
+
+// Calculate EMAs
+ema9 = ta.ema(close, 9)
+ema21 = ta.ema(close, 21)
+ema63 = ta.ema(close, 63)
+//ema126 = ta.ema(close, 126)  // New EMA for 126 periods
+ema200 = ta.ema(close, 200)
+
+// Calculate RSI
+rsiValue = ta.rsi(close, 14)
+
+// Determine trend conditions
+bullish = (ema9 > ema21) and (ema21 > ema63) and (ema63 > ema200)
+bearish = (ema9 < ema21) and (ema21 < ema63) and (ema63 < ema200)
+
+// Set background color based on trend
+bgcolor(bullish ? color.new(color.green, 90) : na, title="Bullish Background")
+bgcolor(bearish ? color.new(color.red, 90) : na, title="Bearish Background")
+
+// Plot EMAs for visualization
+plot(ema9, color=color.red, title="EMA 9")
+plot(ema21, color=color.green, title="EMA 21")
+plot(ema63, color=color.blue, title="EMA 63")
+//plot(ema126, color=color.orange, title="EMA 126")  // Plot for EMA 126
+plot(ema200, color=color.black, title="EMA 200")
+
+// Long Entry Conditions
+longEntry = bullish and (close > ema9) and (rsiValue <=60)
+
+// Exit Long Conditions
+exitLong = ta.crossunder(ema21, ema63) 
+           //(rsiValue > 80) or 
+           //(close > ema126 * 1.4)  // New condition: stock price is 40% above EMA 126
+
+// Strategy Logic
+if (longEntry)
+    strategy.entry("Long", strategy.long)
+
+if (exitLong)
+    strategy.close("Long")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/490914
+
+> Last Modified
+
+2025-04-17 14:33:40

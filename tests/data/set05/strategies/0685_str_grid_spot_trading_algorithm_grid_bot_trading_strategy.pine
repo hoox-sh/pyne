@@ -1,0 +1,556 @@
+//@version=5
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/GRID SPOT TRADING ALGORITHM - GRID BOT TRADING STRATEGY.pine
+// content_hash: 574898d640e586f1
+// collected: 2026-07-27
+strategy(
+     title = 'Grid Spot Trading Algorithm - The Quant Science™', 
+     overlay = true,
+     calc_on_every_tick = true,
+     initial_capital = initial_grid_amount, 
+     commission_type = strategy.commission.percent, 
+     commission_value = 0.10, 
+     pyramiding = 20,
+     default_qty_type = strategy.percent_of_equity,
+     close_entries_rule = 'ANY'
+     )
+/////////////////////////////// Design by The Quant Science ™  ////////////////////////////////////
+//----------------------------------------------------------------------------------------------------------
+//------------------------------------- Grid Spot Trading Algorithm ----------------------------------------
+//----------------------------------------------------------------------------------------------------------
+// HOW IT WORKS: 3Commas Grid Bot Strategy for spot asset, based on multiple dinamic trigger start condition.
+//----------------------------------------------------------------------------------------------------------
+// SET UP: Select the high price, select the low price, select the trigger entry condition. 
+// Extra feature: adjust date range.
+//----------------------------------------------------------------------------------------------------------
+// Upgrade 2.00 (2022.30.07) 
+// Upgrade 3.00 (2022.11.11)
+// Upgrade 4.00 (2022.20.01)
+/////////////////////////////// ALGORITHM BACKTEST SOURCE CODE ////////////////////////////////////
+startDate = input.int(title="Start date: ",
+     defval=1, minval=1, maxval=31, 
+          group = '############# BACKTESTING PERIOD #############')
+startMonth = input.int(title="Start month: ",
+     defval=1, minval=1, maxval=12, 
+          group = '############# BACKTESTING PERIOD #############')
+startYear = input.int(title="Start year: ",
+     defval=2022, minval=1800, maxval=2100, 
+          group = '############# BACKTESTING PERIOD #############')
+endDate = input.int(title="End date: ",
+     defval=31, minval=1, maxval=31, 
+          group = '############# BACKTESTING PERIOD #############')
+endMonth = input.int(title="End month: ",
+     defval=12, minval=1, maxval=12, 
+          group = '############# BACKTESTING PERIOD #############')
+endYear = input.int(title="End year: ",
+     defval=2022, minval=1800, maxval=2100, 
+          group = '############# BACKTESTING PERIOD #############')
+inDateRange = (time >= timestamp(syminfo.timezone, startYear,
+         startMonth, startDate, 0, 0)) and
+     (time < timestamp(syminfo.timezone, endYear, endMonth, endDate, 0, 0))
+// #########################################################################################################
+high_price = input.price(
+      defval = 0.00, 
+      title = 'High price: ',
+      group = " ################# HIGH PRICE GRID ################ ", 
+      confirm = true,
+      tooltip = "Top grid price."
+      )
+low_price = input.price(
+      defval = 0.00, 
+      title = 'Low price: ',
+      group = " ################# LOW PRICE GRID ################# ", 
+      confirm = true,
+      tooltip = "Bottom grid price."
+      )
+ten_grid = input.bool(
+     defval = false,
+     title = "Grid: 10",
+     group = " ############## GRID CONFIGURATION ############## ",
+     tooltip = "Create a 10 levels grid.",
+     confirm = true
+     )
+tewnty_grid = input.bool(
+     defval = false,
+     title = "Grid: 20",
+     group = " ############## GRID CONFIGURATION ############## ",
+     tooltip = "Create a 20 levels grid.",
+     confirm = true
+     )
+grid_destroyer = input.bool(
+     defval = false,
+     title = "Active grid destroyer",
+     group = " ############ STOP LOSS CONFIGURATION ############ ",
+     tooltip = "Destroy the grid when price crossunder the stop loss level.",
+     confirm = false
+     )
+stop_level = input.price(
+      defval = 0.00, 
+      title = 'Destroy level: ',
+      group = " ############ STOP LOSS CONFIGURATION ############ ", 
+      confirm = false,
+      tooltip = "Stop loss price level. Always set this value below the low price grid."
+      )
+// #########################################################################################################
+grid_range = high_price - low_price
+var float grid_1 = 0
+var float grid_2 = 0
+var float grid_3 = 0
+var float grid_4 = 0
+var float grid_5 = 0
+var float grid_6 = 0
+var float grid_7 = 0
+var float grid_8 = 0
+var float grid_9 = 0
+var float grid_10 = 0
+var float grid_11 = 0
+var float grid_12 = 0
+var float grid_13 = 0
+var float grid_14 = 0
+var float grid_15 = 0
+var float grid_16 = 0
+var float grid_17 = 0
+var float grid_18 = 0
+var float grid_19 = 0
+var float grid_20 = 0
+var float factor = 0 
+if ten_grid == true
+    factor := grid_range / 9
+    grid_1 := (high_price) 
+    grid_2 := (high_price - (factor * 1)) 
+    grid_3 := (high_price - (factor * 2)) 
+    grid_4 := (high_price - (factor * 3)) 
+    grid_5 := (high_price - (factor * 4)) 
+    grid_6 := (high_price - (factor * 5)) 
+    grid_7 := (high_price - (factor * 6)) 
+    grid_8 := (high_price - (factor * 7)) 
+    grid_9 := (high_price - (factor * 8))
+    grid_10 := (low_price)
+    
+if tewnty_grid == true
+    factor := grid_range / 19
+    grid_1 := (high_price) 
+    grid_2 := (high_price - (factor * 1)) 
+    grid_3 := (high_price - (factor * 2)) 
+    grid_4 := (high_price - (factor * 3)) 
+    grid_5 := (high_price - (factor * 4)) 
+    grid_6 := (high_price - (factor * 5)) 
+    grid_7 := (high_price - (factor * 6)) 
+    grid_8 := (high_price - (factor * 7)) 
+    grid_9 := (high_price - (factor * 8)) 
+    grid_10 := (high_price - (factor * 9)) 
+    grid_11 := (high_price - (factor * 10)) 
+    grid_12 := (high_price - (factor * 11)) 
+    grid_13 := (high_price - (factor * 12)) 
+    grid_14 := (high_price - (factor * 13)) 
+    grid_15 := (high_price - (factor * 14)) 
+    grid_16 := (high_price - (factor * 15)) 
+    grid_17 := (high_price - (factor * 16)) 
+    grid_18 := (high_price - (factor * 17)) 
+    grid_19 := (high_price - (factor * 18))
+    grid_20 := (low_price)
+// #########################################################################################################
+var tb = table.new(position.bottom_left, 1, 1, bgcolor = color.new(color.blue, 90))
+if barstate.isfirst
+    table.cell(tb, 0, 0, 
+      'Developed by The Quant Science™'
+      ,text_size = size.normal
+      ,text_color = color.new(color.blue, 20))
+// #########################################################################################################
+long_1 = ta.crossunder(low, grid_1) and inDateRange
+long_2 = ta.crossunder(low, grid_2) and inDateRange
+long_3 = ta.crossunder(low, grid_3) and inDateRange
+long_4 = ta.crossunder(low, grid_4) and inDateRange
+long_5 = ta.crossunder(low, grid_5) and inDateRange
+long_6 = ta.crossunder(low, grid_6) and inDateRange
+long_7 = ta.crossunder(low, grid_7) and inDateRange
+long_8 = ta.crossunder(low, grid_8) and inDateRange
+long_9 = ta.crossunder(low, grid_9) and inDateRange
+long_10 = ta.crossunder(low, grid_10) and inDateRange
+long_11 = ta.crossunder(low, grid_11) and inDateRange
+long_12 = ta.crossunder(low, grid_12) and inDateRange
+long_13 = ta.crossunder(low, grid_13) and inDateRange
+long_14 = ta.crossunder(low, grid_14) and inDateRange
+long_15 = ta.crossunder(low, grid_15) and inDateRange
+long_16 = ta.crossunder(low, grid_16) and inDateRange
+long_17 = ta.crossunder(low, grid_17) and inDateRange
+long_18 = ta.crossunder(low, grid_18) and inDateRange
+long_19 = ta.crossunder(low, grid_19) and inDateRange
+last_long = ta.crossunder(low, low_price) and inDateRange
+// #########################################################################################################
+// Change the default trigger start condition with your personal and custom start condition
+// Code the condition inside the local function below. 
+// Define a indicator condition or another specific condition .....
+// Example with RSI calculating on close bar, and last 14 previous bar data 
+rsi = ta.rsi(close, 14)
+// Create a local function for the trigger start condition 
+TriggerGrid() =>
+    trigger_rsi = ta.crossover(rsi, 75) and inDateRange // Define the specific condition 
+    trigger_rsi 
+trigger_entry = TriggerGrid() // Assign the condition to the "trigger_entry" variable
+// ANOTHER EASY EXAMPLE WITH OVERSOLD RSI CONDITION ....
+//TriggerGrid() =>
+    
+    //trigger_rsi = ta.crossunder(rsi, 35) // Crossunder the RSI 35 value...
+    
+    //trigger_rsi 
+//trigger_entry = TriggerGrid() // Assign the condition to the "trigger_entry" variable
+// #########################################################################################################
+var float lots = 0 
+if ten_grid == true and inDateRange
+    lots := (initial_grid_amount / close) / 10
+    if trigger_entry and strategy.opentrades == 0 
+        strategy.order(id = "O #1", direction = strategy.long, qty = lots, limit = grid_6)
+        strategy.order(id = "O #2", direction = strategy.long, qty = lots, limit = grid_7)
+        strategy.order(id = "O #3", direction = strategy.long, qty = lots, limit = grid_8)
+        strategy.order(id = "O #4", direction = strategy.long, qty = lots, limit = grid_9)
+        strategy.order(id = "O #5", direction = strategy.long, qty = lots, limit = grid_10)
+if close < grid_6 and ten_grid == true
+    strategy.cancel("O #1")
+if close < grid_7 and ten_grid == true
+    strategy.cancel("O #2")
+if close < grid_8 and ten_grid == true
+    strategy.cancel("O #3")
+if close < grid_9 and ten_grid == true
+    strategy.cancel("O #4")
+if close < grid_10 and ten_grid == true
+    strategy.cancel("O #5")
+if grid_5 and ten_grid == true
+    strategy.exit(
+           id = "C #1", 
+           from_entry = "O #1",
+           qty = 100, 
+           limit = grid_5
+           )
+if grid_4 and ten_grid == true
+    strategy.exit(
+           id = "C #2", 
+           from_entry = "O #2",
+           qty = 100, 
+           limit = grid_4
+           )
+if grid_3 and ten_grid == true
+    strategy.exit(
+           id = "C #3", 
+           from_entry = "O #3",
+           qty = 100, 
+           limit = grid_3
+           )
+if grid_2 and ten_grid == true
+    strategy.exit(
+           id = "C #4", 
+           from_entry = "O #4",
+           qty = 100, 
+           limit = grid_2
+           )
+if grid_1
+    strategy.exit(
+           id = "C #5", 
+           from_entry = "O #5",
+           qty = 100, 
+           limit = grid_1
+           )
+if ten_grid == true and grid_destroyer == true 
+    if ta.crossunder(low, stop_level)
+        strategy.close_all(" Grid Destroyed !!! ") 
+if tewnty_grid == true and inDateRange
+    lots := (initial_grid_amount / close) / 20
+    if trigger_entry and strategy.opentrades == 0 
+        strategy.order(id = "O #1", direction = strategy.long, qty = lots, limit = grid_11)
+        strategy.order(id = "O #2", direction = strategy.long, qty = lots, limit = grid_12)
+        strategy.order(id = "O #3", direction = strategy.long, qty = lots, limit = grid_13)
+        strategy.order(id = "O #4", direction = strategy.long, qty = lots, limit = grid_14)
+        strategy.order(id = "O #5", direction = strategy.long, qty = lots, limit = grid_15)
+        strategy.order(id = "O #6", direction = strategy.long, qty = lots, limit = grid_16)
+        strategy.order(id = "O #7", direction = strategy.long, qty = lots, limit = grid_17)
+        strategy.order(id = "O #8", direction = strategy.long, qty = lots, limit = grid_18)
+        strategy.order(id = "O #9", direction = strategy.long, qty = lots, limit = grid_19)
+        strategy.order(id = "O #10", direction = strategy.long, qty = lots, limit = grid_20)
+if close < grid_11 and tewnty_grid == true
+    strategy.cancel("O #1")
+if close < grid_12 and tewnty_grid == true
+    strategy.cancel("O #2")
+if close < grid_13 and tewnty_grid == true
+    strategy.cancel("O #3")
+if close < grid_14 and tewnty_grid == true
+    strategy.cancel("O #4")
+if close < grid_15 and tewnty_grid == true
+    strategy.cancel("O #5")
+if close < grid_16 and tewnty_grid == true
+    strategy.cancel("O #6")
+if close < grid_17 and tewnty_grid == true
+    strategy.cancel("O #7")
+if close < grid_18 and tewnty_grid == true
+    strategy.cancel("O #8")
+if close < grid_19 and tewnty_grid == true
+    strategy.cancel("O #9")
+if close < grid_20 and tewnty_grid == true
+    strategy.cancel("O #10")
+if grid_10 and tewnty_grid == true
+    strategy.exit(
+           id = "C #1", 
+           from_entry = "O #1",
+           qty = 100, 
+           limit = grid_10
+           )
+if grid_9 and tewnty_grid == true
+    strategy.exit(
+           id = "C #2", 
+           from_entry = "O #2",
+           qty = 100, 
+           limit = grid_9
+           )
+if grid_8 and tewnty_grid == true
+    strategy.exit(
+           id = "C #3", 
+           from_entry = "O #3",
+           qty = 100, 
+           limit = grid_8
+           )
+if grid_7 and tewnty_grid == true
+    strategy.exit(
+           id = "C #4", 
+           from_entry = "O #4",
+           qty = 100, 
+           limit = grid_7
+           )
+if grid_6 and tewnty_grid == true
+    strategy.exit(
+           id = "C #5", 
+           from_entry = "O #5",
+           qty = 100, 
+           limit = grid_6
+           )
+if grid_5 and tewnty_grid == true
+    strategy.exit(
+           id = "C #6", 
+           from_entry = "O #6",
+           qty = 100, 
+           limit = grid_5
+           )
+if grid_4 and tewnty_grid == true
+    strategy.exit(
+           id = "C #7", 
+           from_entry = "O #7",
+           qty = 100, 
+           limit = grid_4
+           )
+if grid_3 and tewnty_grid == true
+    strategy.exit(
+           id = "C #8", 
+           from_entry = "O #8",
+           qty = 100, 
+           limit = grid_3
+           )
+if grid_2 and tewnty_grid == true
+    strategy.exit(
+           id = "C #9", 
+           from_entry = "O #9",
+           qty = 100, 
+           limit = grid_2
+           )
+if grid_1 and tewnty_grid == true
+    strategy.exit(
+           id = "C #10", 
+           from_entry = "O #10",
+           qty = 100, 
+           limit = grid_1
+           )
+if tewnty_grid == true and grid_destroyer == true 
+    if ta.crossunder(low, stop_level)
+        strategy.close_all(" Grid Destroyed !!! ") 
+// #########################################################################################################
+var float new_ten_grid_1 = 0 
+var float new_ten_grid_2 = 0 
+var float new_ten_grid_3 = 0 
+var float new_ten_grid_4 = 0 
+var float new_ten_grid_5 = 0 
+var float new_ten_grid_6 = 0 
+var float new_ten_grid_7 = 0 
+var float new_ten_grid_8 = 0 
+var float new_ten_grid_9 = 0 
+var float new_ten_grid_10 = 0 
+var float grid_destroyed_ten = 0 
+if ten_grid == true
+    new_ten_grid_1 := grid_1
+    new_ten_grid_2 := grid_2
+    new_ten_grid_3 := grid_3
+    new_ten_grid_4 := grid_4
+    new_ten_grid_5 := grid_5
+    new_ten_grid_6 := grid_6
+    new_ten_grid_7 := grid_7
+    new_ten_grid_8 := grid_8
+    new_ten_grid_9 := grid_9
+    new_ten_grid_10 := grid_10
+    if grid_destroyer == true 
+        grid_destroyed_ten := stop_level
+else if ten_grid == false
+    new_ten_grid_1 := na
+    new_ten_grid_2 := na
+    new_ten_grid_3 := na
+    new_ten_grid_4 := na
+    new_ten_grid_5 := na
+    new_ten_grid_6 := na
+    new_ten_grid_7 := na
+    new_ten_grid_8 := na
+    new_ten_grid_9 := na
+    new_ten_grid_10 := na
+    if grid_destroyer == false 
+        grid_destroyed_ten := na
+fill(plot(new_ten_grid_1, color = color.new(color.green, 90)), 
+     plot(new_ten_grid_2, color = color.new(color.green, 90)), 
+         color = color.new(color.green, 90))
+fill(plot(new_ten_grid_2, color = color.new(color.green, 85)), 
+     plot(new_ten_grid_3, color = color.new(color.green, 85)), 
+         color = color.new(color.green, 85))
+fill(plot(new_ten_grid_3, color = color.new(color.green, 80)), 
+     plot(new_ten_grid_4, color = color.new(color.green, 80)), 
+         color = color.new(color.green, 80))
+fill(plot(new_ten_grid_4, color = color.new(color.green, 70)), 
+     plot(new_ten_grid_5, color = color.new(color.green, 70)), 
+         color = color.new(color.green, 70))
+fill(plot(new_ten_grid_5, color = color.new(color.green, 60)), 
+     plot(new_ten_grid_6, color = color.new(color.green, 60)), 
+         color = color.new(color.green, 60))
+fill(plot(new_ten_grid_6, color = color.new(color.red, 60)), 
+     plot(new_ten_grid_7, color = color.new(color.red, 60)), 
+         color = color.new(color.red, 60))
+fill(plot(new_ten_grid_7, color = color.new(color.red, 70)), 
+     plot(new_ten_grid_8, color = color.new(color.red, 70)), 
+         color = color.new(color.red, 70))
+fill(plot(new_ten_grid_8, color = color.new(color.red, 80)), 
+     plot(new_ten_grid_9, color = color.new(color.red, 80)), 
+         color = color.new(color.red, 80))
+fill(plot(new_ten_grid_9, color = color.new(color.red, 85)), 
+     plot(new_ten_grid_10, color = color.new(color.red, 85)), 
+         color = color.new(color.red, 85))
+plot(grid_destroyed_ten, color = color.new(color.red, 80), linewidth = 10)
+// #########################################################################################################
+var float new_twenty_grid_1 = 0 
+var float new_twenty_grid_2 = 0 
+var float new_twenty_grid_3 = 0 
+var float new_twenty_grid_4 = 0 
+var float new_twenty_grid_5 = 0 
+var float new_twenty_grid_6 = 0 
+var float new_twenty_grid_7 = 0 
+var float new_twenty_grid_8 = 0 
+var float new_twenty_grid_9 = 0 
+var float new_twenty_grid_10 = 0 
+var float new_twenty_grid_11 = 0 
+var float new_twenty_grid_12 = 0 
+var float new_twenty_grid_13 = 0 
+var float new_twenty_grid_14 = 0 
+var float new_twenty_grid_15 = 0 
+var float new_twenty_grid_16 = 0 
+var float new_twenty_grid_17 = 0 
+var float new_twenty_grid_18 = 0 
+var float new_twenty_grid_19 = 0 
+var float new_twenty_grid_20 = 0 
+var float grid_destroyed_twenty = 0
+if tewnty_grid == true
+    new_twenty_grid_1 := grid_1
+    new_twenty_grid_2 := grid_2
+    new_twenty_grid_3 := grid_3
+    new_twenty_grid_4 := grid_4
+    new_twenty_grid_5 := grid_5
+    new_twenty_grid_6 := grid_6
+    new_twenty_grid_7 := grid_7
+    new_twenty_grid_8 := grid_8
+    new_twenty_grid_9 := grid_9
+    new_twenty_grid_10 := grid_10
+    new_twenty_grid_11 := grid_11
+    new_twenty_grid_12 := grid_12
+    new_twenty_grid_13 := grid_13
+    new_twenty_grid_14 := grid_14
+    new_twenty_grid_15 := grid_15
+    new_twenty_grid_16 := grid_16
+    new_twenty_grid_17 := grid_17
+    new_twenty_grid_18 := grid_18
+    new_twenty_grid_19 := grid_19
+    new_twenty_grid_20 := grid_20
+    if grid_destroyer == true 
+        grid_destroyed_twenty := stop_level
+else if tewnty_grid == false
+    new_twenty_grid_1 := na
+    new_twenty_grid_2 := na
+    new_twenty_grid_3 := na
+    new_twenty_grid_4 := na
+    new_twenty_grid_5 := na
+    new_twenty_grid_6 := na
+    new_twenty_grid_7 := na
+    new_twenty_grid_8 := na
+    new_twenty_grid_9 := na
+    new_twenty_grid_10 := na
+    new_twenty_grid_11 := na
+    new_twenty_grid_12 := na
+    new_twenty_grid_13 := na
+    new_twenty_grid_14 := na
+    new_twenty_grid_15 := na
+    new_twenty_grid_16 := na
+    new_twenty_grid_17 := na
+    new_twenty_grid_18 := na
+    new_twenty_grid_19 := na
+    new_twenty_grid_20 := na
+    if grid_destroyer == false 
+        grid_destroyed_twenty := na
+fill(plot(new_twenty_grid_1, color = color.new(color.green, 90)), 
+     plot(new_twenty_grid_2, color = color.new(color.green, 90)), 
+         color = color.new(color.green, 90))
+fill(plot(new_twenty_grid_2, color = color.new(color.green, 85)), 
+     plot(new_twenty_grid_3, color = color.new(color.green, 85)), 
+         color = color.new(color.green, 85))
+fill(plot(new_twenty_grid_3, color = color.new(color.green, 80)), 
+     plot(new_twenty_grid_4, color = color.new(color.green, 80)), 
+         color = color.new(color.green, 80))
+fill(plot(new_twenty_grid_4, color = color.new(color.green, 70)), 
+     plot(new_twenty_grid_5, color = color.new(color.green, 70)), 
+         color = color.new(color.green, 70))
+fill(plot(new_twenty_grid_5, color = color.new(color.green, 60)), 
+     plot(new_twenty_grid_6, color = color.new(color.green, 60)), 
+         color = color.new(color.green, 60))
+fill(plot(new_twenty_grid_6, color = color.new(color.green, 60)), 
+     plot(new_twenty_grid_7, color = color.new(color.green, 60)), 
+         color = color.new(color.green, 60))
+fill(plot(new_twenty_grid_7, color = color.new(color.green, 70)), 
+     plot(new_twenty_grid_8, color = color.new(color.green, 70)), 
+         color = color.new(color.green, 70))
+fill(plot(new_twenty_grid_8, color = color.new(color.green, 80)), 
+     plot(new_twenty_grid_9, color = color.new(color.green, 80)), 
+         color = color.new(color.green, 80))
+fill(plot(new_twenty_grid_9, color = color.new(color.green, 85)), 
+     plot(new_twenty_grid_10, color = color.new(color.green, 85)), 
+         color = color.new(color.green, 85))
+fill(plot(new_twenty_grid_10, color = color.new(color.red, 90)), 
+     plot(new_twenty_grid_11, color = color.new(color.red, 90)), 
+         color = color.new(color.red, 90))
+fill(plot(new_twenty_grid_11, color = color.new(color.red, 85)), 
+     plot(new_twenty_grid_12, color = color.new(color.red, 85)), 
+         color = color.new(color.red, 85))
+fill(plot(new_twenty_grid_12, color = color.new(color.red, 80)), 
+     plot(new_twenty_grid_13, color = color.new(color.red, 80)), 
+         color = color.new(color.red, 80))
+fill(plot(new_twenty_grid_13, color = color.new(color.red, 70)), 
+     plot(new_twenty_grid_14, color = color.new(color.red, 70)), 
+         color = color.new(color.red, 70))
+fill(plot(new_twenty_grid_14, color = color.new(color.red, 60)), 
+     plot(new_twenty_grid_15, color = color.new(color.red, 60)), 
+         color = color.new(color.red, 60))
+fill(plot(new_twenty_grid_15, color = color.new(color.red, 60)), 
+     plot(new_twenty_grid_16, color = color.new(color.red, 60)), 
+         color = color.new(color.red, 60))
+fill(plot(new_twenty_grid_16, color = color.new(color.red, 70)), 
+     plot(new_twenty_grid_17, color = color.new(color.red, 70)), 
+         color = color.new(color.red, 70))
+fill(plot(new_twenty_grid_17, color = color.new(color.red, 80)), 
+     plot(new_twenty_grid_18, color = color.new(color.red, 80)), 
+         color = color.new(color.red, 80))
+fill(plot(new_twenty_grid_18, color = color.new(color.red, 85)), 
+     plot(new_twenty_grid_19, color = color.new(color.red, 85)), 
+         color = color.new(color.red, 85))
+fill(plot(new_twenty_grid_19, color = color.new(color.red, 85)), 
+     plot(new_twenty_grid_20, color = color.new(color.red, 85)), 
+         color = color.new(color.red, 85))
+plot(grid_destroyed_twenty, color = color.new(color.red, 80), linewidth = 10)
+// #########################################################################################################
+Expand (646 lines)

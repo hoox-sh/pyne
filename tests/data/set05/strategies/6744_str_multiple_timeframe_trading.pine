@@ -1,0 +1,28 @@
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/跨周期均线交易multiple-timeframe-trading.md
+// content_hash: 07a3db456c8569af
+// collected: 2026-07-27
+strategy("multiple timeframe trading")
+
+expr = ta.ema(close, 5)
+hVal = request.security(syminfo.tickerid, '60', expr)
+
+plot(expr, timeframe.period)
+plot(hVal, '1hour')
+
+// 5 hour vs 5 days
+if hVal > expr
+    strategy.entry("long", strategy.long)
+else
+    strategy.entry("short", strategy.short)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/361360
+
+> Last Modified
+
+2022-05-06 16:47:08

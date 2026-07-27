@@ -1,0 +1,22 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pine_script_execution_model.md::pine_script_execution_model.md#block8
+// content_hash: 13b6e80a70e0621d
+// collected: 2026-07-27
+strategy("Calculation after order fill on historical bars demo", calc_on_order_fills = true)
+// Place a market order to close short trades and enter a long trade when there is a short position or no position.
+// Otherwise, if a long position is open, place a market order to close the long trades and enter a short trade.
+if strategy.position_size <= 0
+    strategy.entry("Long", strategy.long)
+else
+    strategy.entry("Short", strategy.short)
+//@variable Tracks the current execution number, where 0 represents the first execution.
+varip int executionNum = -1
+// Add 1 to the `executionNum` value.
+executionNum += 1
+// Display the `executionNum` and `bar_index` series in a separate pane.
+plot(executionNum, "Execution number", color.purple, 5)
+plot(bar_index,    "Bar index",        color.aqua,   2)
+// Highlight the chart's background in translucent orange when `barstate.ishistory` is `true`.
+bgcolor(barstate.ishistory ? color.new(color.orange, 70) : na, title = "Historical highlight", force_overlay = true)

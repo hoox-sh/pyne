@@ -1,0 +1,104 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/渐变MACD量化策略Gradient-MACD-Quant-Strategy.md
+// content_hash: e826577f8fcc383a
+// collected: 2026-07-27
+strategy("MACD ASHI BARS .v1 ", overlay=false,default_qty_type = strategy.percent_of_equity, default_qty_value = 100,commission_type=strategy.commission.percent,commission_value=0.1,slippage=1)
+
+// Calculation HA Values 
+haopen  = 0.0
+haclose = (open + high + low + close) / 4
+haopen := na(haopen[1]) ? (open + close) / 2 : (haopen[1] + haclose[1]) / 2
+hahigh  = max(high, max(haopen, haclose))
+halow   = min(low,  min(haopen, haclose))
+
+// HA colors
+hacolor = haclose > haopen ? color.green : color.red
+src=haclose
+
+
+
+fastmacd = input(12,title='MACD Fast  Line Length')
+slowmacd = input(26,title='MACD Slow Line Length')
+signalmacd = input(9,title='Signal Line Length')
+
+macdslowline1 = sma(src,slowmacd)
+macdslowline2 = sma(macdslowline1,slowmacd)
+DEMAslow = ((2 * macdslowline1) - macdslowline2 )
+
+macdfastline1 = sma(src,fastmacd)
+macdfastline2 = sma(macdfastline1,fastmacd)
+DEMAfast = ((2 * macdfastline1) - macdfastline2)
+
+MACDLine = (DEMAfast - DEMAslow)
+
+SignalLine = sma(MACDLine, signalmacd)
+
+delta = MACDLine-SignalLine
+
+
+
+
+swap1 = delta>0?color.green:color.red
+
+
+
+plot(delta,color=swap1,style=plot.style_columns,title='Histo',histbase=0,transp=20)
+p1 = plot(MACDLine,color=color.blue,title='MACD Line')
+p2 = plot(SignalLine,color=color.red,title='Signal')
+fill(p1, p2, color=color.blue)
+hline(0)
+
+
+
+yearfrom = input(2020)
+yearuntil =input(2042)
+monthfrom =input(1)
+monthuntil =input(12)
+dayfrom=input(1)
+dayuntil=input(31)
+
+
+
+
+
+
+
+if ( crossover(delta,0)  and   year >= yearfrom and year <= yearuntil and month>=monthfrom and month <=monthuntil and dayofmonth>=dayfrom and dayofmonth < dayuntil) 
+    strategy.entry("MMAL", strategy.long, stop=close, oca_name="TREND",  comment="AL")
+    
+else
+    strategy.cancel(id="MMAL")
+
+
+if (  crossunder(delta,0) and  year >= yearfrom and year <= yearuntil and month>=monthfrom and month <=monthuntil and dayofmonth>=dayfrom and dayofmonth < dayuntil ) 
+
+    strategy.entry("MMSAT", strategy.short,stop=close, oca_name="TREND",  comment="SAT")
+else
+    strategy.cancel(id="MMSAT")
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/435901
+
+> Last Modified
+
+2023-12-19 16:14:50

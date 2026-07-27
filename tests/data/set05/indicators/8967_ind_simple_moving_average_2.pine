@@ -1,0 +1,10 @@
+//@version=2
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/migration-guides/to-pine-version-2.md
+// content_hash: a24e9362dd883cd6
+// collected: 2026-07-27
+study("Simple Moving Average", shorttitle="SMA")
+src = close
+length = input(10)
+plot(sma(src, length))         Previous       To Pine Script® version 3

@@ -1,0 +1,67 @@
+//@version=6
+// set03 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/faq/visuals.md::visuals.md#block8
+// content_hash: 66f7dfb0e3e01353
+// collected: 2026-07-27
+indicator("Using colors in Pine", explicit_plot_zorder = true)
+
+float tsi = ta.tsi(close, 13, 23) * 100, float tsl = ta.ema(tsi, 13)  // Calculate TSI and its EMA.
+
+// @function       Determines if a given background color corresponds to a light theme based on its brightness level.
+// @param bgColor  (color) The background color to check. Optional. Default value is the chart's background color.
+// @returns        (bool) True if the background color is "light" (has a brightness greater than 0.5), otherwise false.
+isLightTheme(color bgColor = chart.bg_color) =>
+    float r = color.r(bgColor)
+    float g = color.g(bgColor)
+    float b = color.b(bgColor)
+    float brightness = (r + g + b) / (3 * 255)
+    bool  isLight = brightness > 0.5
+
+var bool isLightTheme = isLightTheme()
+
+// Define color schemes based on whether the theme is light or dark.
+color tsiDnUpColor = isLightTheme ? #1E90FF : #BA33FF, color tsiDnDnColor = isLightTheme ? #FF6B6B : #8100FF
+color tsiUpUpColor = isLightTheme ? #00CED1 : #1FE0F3, color tslBullColor = isLightTheme ? #00CED1 : #1FE0F3
+color tslBearColor = isLightTheme ? #1E90FF : #0088A3, color tsiBullColor = isLightTheme ? #FFD700 : #33FF57
+color tsiBearColor = isLightTheme ? #FF6B6B : #00940D, color tsiUpDnColor = isLightTheme ? #FFD700 : #FF21D4
+color bullBgColor  = isLightTheme ? #FFD700 : #80FFFF, color bearBgColor  = isLightTheme ? #FF6B6B : #FF80FF
+color obFillColor  = isLightTheme ? #FFD700 : #33FF57, color osFillColor  = isLightTheme ? #FF6B6B : #33FF57
+
+// Find the direction of the TSI, signal line, and trend. Calculate the difference for histogram values.
+bool  tsiIsBull = tsi >= tsi[1], bool  tslIsBull = tsl >= tsl[1], bool  trendIsBull = tsi >= tsl
+float diff      = tsi  - tsl
+
+// Get line and fill colors based on trend and plot direction.
+color tsiColor  = tsiIsBull   ? tsiBullColor : tsiBearColor, color tslColor  = tslIsBull   ? tslBullColor : tslBearColor
+color fillColor = trendIsBull ? tsiIsBull ? tsiUpUpColor : tsiUpDnColor : tsiIsBull ? tsiDnUpColor: tsiDnDnColor
+
+// Create invisible horizontal lines at +30 and -30 and fill areas between them with a gradient.
+h1 = hline( 30, color = color(na)), h2 = hline(-30, color = color(na))
+fill(h2, h1, 30,   5, color.new(obFillColor, 80), color(na))
+fill(h2, h1, -5, -30, color(na), color.new(osFillColor, 80))
+
+// Define colors and transparency for the histogram bar based on trend direction and theme and plot the bar.
+color barBgColor  = isLightTheme ? trendIsBull ? bullBgColor : bearBgColor : chart.bg_color
+color barBdColor  = trendIsBull  ? bullBgColor : bearBgColor
+int   barBdTransp = isLightTheme ? 50 : 80
+int   barBgTransp = isLightTheme ? 90 : 0
+float barHi = math.max(0, 0 + diff)
+float barLo = math.min(0, 0 + diff)
+plotcandle(barLo, barLo, barHi, barHi,
+     color       = color.new(barBgColor, barBgTransp),
+     bordercolor = color.new(barBdColor, barBdTransp),
+     wickcolor   = color(na),
+     display     = display.pane)
+
+// Plot the TSI and its EMA
+p1 = plot(tsi, "TSI",    color.new(tsiColor, 30))
+p2 = plot(tsl, "Signal", color.new(tslColor, 30))
+p3 = plot(tsl >  30 ?  30 : na, display = display.none)
+p4 = plot(tsl < -30 ? -30 : na, display = display.none)
+
+// Fill between the signal line and overbought or oversold levels with a gradient. 
+fill(p2, p3,  80,  30, bearBgColor, color.new(bearBgColor, 90))
+fill(p2, p4, -30, -80, color.new(bullBgColor, 90), bullBgColor)
+// Fill the cloud between the TSI and signal line with a gradient.
+fill(p1, p2, tsi, tsl, fillColor, color.new(fillColor, 70))

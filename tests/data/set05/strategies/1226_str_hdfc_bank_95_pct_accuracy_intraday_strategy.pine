@@ -1,0 +1,93 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多时间框架趋势动量与VWAP反弹交叉量化策略-Multi-Timeframe-Trend-Momentum-and-VWAP-Rebound-Crossover-Quantitative-Strategy.md
+// content_hash: 564868aa6f5a2dcb
+// collected: 2026-07-27
+strategy("HDFC Bank 95% Accuracy Intraday Strategy", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=100)
+
+// --- Inputs ---
+emaShortPeriod = input(9, "Short EMA Period")
+emaLongPeriod = input(21, "Long EMA Period")
+rsiPeriod = input(14, "RSI Period")
+atrPeriod = input(14, "ATR Period")
+atrNormalRange = input.float(1.0, "ATR Normal Range %", minval=0.5, maxval=2.0, step=0.1)
+trailPercent = input.float(0.5, "Trailing Stop %", minval=0.1, maxval=1.0, step=0.1)
+tradeStartHour = input(10, "Trade Start Hour")
+tradeStartMin = input(0, "Trade Start Minute")
+tradeEndHour = input(14, "Trade End Hour")
+tradeEndMin = input(0, "Trade End Minute")
+
+// --- Time and Session Management ---
+inTradeWindow = (hour >= tradeStartHour and hour <= tradeEndHour) and (minute >= tradeStartMin and minute <= tradeEndMin) and (hour != tradeEndHour or minute < tradeEndMin)
+isNewDay = ta.change(time("D"))
+var int signalsToday = 0
+if isNewDay
+    signalsToday := 0
+
+// --- Multi-Timeframe Trend (1-Hour) ---
+emaShort1H = request.security(syminfo.tickerid, "60", ta.ema(close, emaShortPeriod))
+emaLong1H = request.security(syminfo.tickerid, "60", ta.ema(close, emaLongPeriod))
+bullTrend1H = emaShort1H > emaLong1H
+bearTrend1H = emaShort1H < emaLong1H
+
+// --- Indicators (15-Minute) ---
+emaShort = ta.ema(close, emaShortPeriod)
+emaLong = ta.ema(close, emaLongPeriod)
+vwap = ta.vwap(hlc3)
+rsi = ta.rsi(close, rsiPeriod)
+atr = ta.atr(atrPeriod)
+priceRange = atr / close * 100
+normalVolatility = priceRange <= atrNormalRange
+
+// --- Entry Conditions ---
+emaCrossoverUp = ta.crossover(emaShort, emaLong) and bullTrend1H
+emaCrossoverDown = ta.crossunder(emaShort, emaLong) and bearTrend1H
+vwapBounceUp = ta.crossover(close, vwap) and ta.lowest(low, 2) < vwap and bullTrend1H and rsi > 50
+vwapBounceDown = ta.crossunder(close, vwap) and ta.highest(high, 2) > vwap and bearTrend1H and rsi < 50
+
+longCondition = (emaCrossoverUp or vwapBounceUp) and normalVolatility and rsi > 50 and rsi < 70 and inTradeWindow
+shortCondition = (emaCrossoverDown or vwapBounceDown) and normalVolatility and rsi < 50 and rsi > 30 and inTradeWindow
+
+// --- Ensure One Signal Per Day ---
+if longCondition or shortCondition
+    signalsToday := signalsToday + 1
+if signalsToday == 0 and hour == 12 and minute == 0 and inTradeWindow
+    longCondition = close > vwap and bullTrend1H and rsi > 50 and normalVolatility
+    shortCondition = close < vwap and bearTrend1H and rsi < 50 and normalVolatility
+
+// --- Dynamic Stop-Loss and Trailing Take-Profit ---
+var float entryPrice = 0.0
+var float trailStop = 0.0
+if longCondition
+    entryPrice := close
+    trailStop := entryPrice - (entryPrice * trailPercent / 100)
+if shortCondition
+    entryPrice := close
+    trailStop := entryPrice + (entryPrice * trailPercent / 100)
+
+strategy.entry("Long", strategy.long, when=longCondition)
+strategy.entry("Short", strategy.short, when=shortCondition)
+
+if strategy.position_size > 0
+    trailStop := math.max(trailStop, entryPrice - (high - entryPrice) * trailPercent / 100)
+    strategy.exit("Trail Long", "Long", trail_points=(entryPrice - trailStop) / syminfo.mintick, trail_offset=(entryPrice - trailStop) / syminfo.mintick)
+if strategy.position_size < 0
+    trailStop := math.min(trailStop, entryPrice + (entryPrice - low) * trailPercent / 100)
+    strategy.exit("Trail Short", "Short", trail_points=(trailStop - entryPrice) / syminfo.mintick, trail_offset=(trailStop - entryPrice) / syminfo.mintick)
+
+// --- Plot Arrows and Indicators ---
+plotshape(longCondition, title="Buy Signal", location=location.belowbar, color=color.green, style=shape.triangleup, size=size.normal)
+plotshape(shortCondition, title="Sell Signal", location=location.abovebar, color=color.red, style=shape.triangledown, size=size.normal)
+plot(emaShort, color=color.blue, title="EMA Short")
+plot(emaLong, color=color.red, title="EMA Long")
+plot(vwap, color=color.yellow, title="VWAP")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/488146
+
+> Last Modified
+
+2025-03-25 14:25:47

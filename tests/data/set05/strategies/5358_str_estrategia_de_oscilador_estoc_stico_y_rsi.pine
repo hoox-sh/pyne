@@ -1,0 +1,50 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双重指标震荡策略-Dual-Indicator-Oscillation-Strategy.md
+// content_hash: a2deb60e83f185e9
+// collected: 2026-07-27
+strategy("Estrategia de Oscilador Estocástico y RSI", overlay=false)
+
+// Configuración del Oscilador Estocástico
+fastK = input(14, title="K", minval=1)
+slowK = input(3, title="D", minval=1)
+slowD = input(3, title="SD", minval=1)
+overSold = input(20, title="Oversold")
+overBought = input(80, title="Overbought")
+
+// Configuración del RSI
+rsiPeriod = input(14, title="RSI Period")
+
+// Cálculo del Oscilador Estocástico
+k = sma(stoch(close, high, low, fastK), slowK)
+d = sma(k, slowD)
+
+// Cálculo del RSI
+rsi = rsi(close, rsiPeriod)
+
+// Lógica de la estrategia
+if (rsi < overSold and k < overSold)
+    strategy.entry("Compra", strategy.long)
+if (rsi > overBought and k > overBought)
+    strategy.entry("Venta", strategy.short)
+
+// Establecer stop loss y take profit
+stopLoss = input(100, title="Stop Loss")
+takeProfit = input(100, title="Take Profit")
+strategy.exit("Stop Loss / Take Profit", "Compra", stop=close - stopLoss, limit=close + takeProfit)
+strategy.exit("Stop Loss / Take Profit", "Venta", stop=close + stopLoss, limit=close - takeProfit)
+
+// Trama de gráfico
+plot(k, color=color.blue, title="K")
+plot(d, color=color.red, title="D")
+plot(rsi, color=color.green, title="RSI")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/432797
+
+> Last Modified
+
+2023-11-21 15:50:37

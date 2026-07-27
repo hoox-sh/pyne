@@ -1,0 +1,104 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动态波浪趋势与斐波那契综合量化交易策略-Dynamic-WaveTrend-and-Fibonacci-Integrated-Quantitative-Trading-Strategy.md
+// content_hash: efc08182b131c328
+// collected: 2026-07-27
+strategy(title="Şinasi Özel Tarama", shorttitle="Şinasi Tarama", overlay=true)
+
+// LazyBear WaveTrend Göstergesi
+n1 = input(10, "Channel Length")
+n2 = input(21, "Average Length")
+obLevel1 = input(60, "Over Bought Level 1")
+obLevel2 = input(53, "Over Bought Level 2")
+osLevel1 = input(-60, "Over Sold Level 1")
+osLevel2 = input(-53, "Over Sold Level 2")
+
+ap = hlc3
+esa = ta.ema(ap, n1)
+d = ta.ema(math.abs(ap - esa), n1)
+ci = (ap - esa) / (0.015 * d)
+tci = ta.ema(ci, n2)
+
+wt1 = tci
+wt2 = ta.sma(wt1, 4)
+
+plot(0, color=color.gray)
+plot(obLevel1, color=color.red)
+plot(osLevel1, color=color.green)
+plot(obLevel2, color=color.red)
+plot(osLevel2, color=color.green)
+
+plot(wt1, color=color.green)
+plot(wt2, color=color.red)
+plot(wt1 - wt2, color=color.blue, style=plot.style_area, transp=80)
+plot(ta.crossover(wt1, wt2) ? wt2 : na, color=color.black, style=plot.style_circles, linewidth=3)
+plot(ta.crossover(wt1, wt2) ? wt2 : na, color=(wt2 - wt1 > 0 ? color.red : color.lime), style=plot.style_circles, linewidth=2)
+barcolor(ta.crossover(wt1, wt2) ? (wt2 - wt1 > 0 ? color.aqua : color.yellow) : na)
+
+// Fibonacci seviyelerini çizmek için yeni en yüksek ve en düşük fiyatları her yeni mumda güncelleme
+var float fibLow = na
+var float fibHigh = na
+
+// Fibonacci seviyelerini yeniden hesapla
+if (na(fibLow) or na(fibHigh))
+    fibLow := low
+    fibHigh := high
+else
+    fibLow := math.min(fibLow, low)
+    fibHigh := math.max(fibHigh, high)
+
+fib38 = fibLow + 0.382 * (fibHigh - fibLow)
+fib50 = fibLow + 0.5 * (fibHigh - fibLow)
+fib618 = fibLow + 0.618 * (fibHigh - fibLow)
+
+plot(fib38, color=color.orange, linewidth=1, title="Fibonacci 38.2%")
+plot(fib50, color=color.purple, linewidth=1, title="Fibonacci 50%")
+plot(fib618, color=color.blue, linewidth=1, title="Fibonacci 61.8%")
+
+// RSI hesaplama
+rsiPeriod = input(14, title="RSI Length")
+rsiValue = ta.rsi(close, rsiPeriod)
+plot(rsiValue, color=color.blue, title="RSI")
+
+// Buy ve Sell sinyalleri
+
+// Buy sinyali
+buyCondition = rsiValue < 30 and close < fib38 and close < fib50 and close < fib618 and ta.crossover(wt1, wt2)
+plotshape(buyCondition, title="Buy Signal", location=location.belowbar, color=color.green, style=shape.labelup, text="BUY")
+
+// Sell sinyali
+sellCondition = rsiValue > 70 and close > fib38 and close > fib50 and close > fib618 and ta.crossunder(wt1, wt2)
+plotshape(sellCondition, title="Sell Signal", location=location.abovebar, color=color.red, style=shape.labeldown, text="SELL")
+
+// Strateji giriş ve çıkış
+// Buy (Alım) işlemi
+if (buyCondition)
+    strategy.entry("Buy", strategy.long)
+
+// Sell (Satım) işlemi
+if (sellCondition)
+    strategy.entry("Sell", strategy.short)
+
+// TP (Take Profit) seviyesinin 3500 pip olarak ayarlanması
+// SL (Stop Loss) seviyesinin 7000 pip olarak ayarlanması
+
+pipValue = syminfo.mintick * 10 // Pip değeri
+
+// Buy TP (Alım TP) seviyesi
+buyTPCondition = buyCondition
+strategy.exit("Buy Exit", "Buy", limit=close + 300 * pipValue, stop=close - 700 * pipValue)
+
+// Sell TP (Satım TP) seviyesi
+sellTPCondition = sellCondition
+strategy.exit("Sell Exit", "Sell", limit=close - 3500 * pipValue, stop=close + 7000 * pipValue)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/478711
+
+> Last Modified
+
+2025-01-17 15:09:01

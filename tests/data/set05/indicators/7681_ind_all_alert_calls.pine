@@ -1,0 +1,22 @@
+//@version=5
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/v5/concepts/alerts.md::alerts.md#block1
+// content_hash: fda78c262d46e011
+// collected: 2026-07-27
+indicator("All `alert()` calls")
+r = ta.rsi(close, 20)
+
+// Detect crosses.
+xUp = ta.crossover( r, 50)
+xDn = ta.crossunder(r, 50)
+// Trigger an alert on crosses.
+if xUp
+    alert("Go long (RSI is " + str.tostring(r, "#.00)"))
+else if xDn
+    alert("Go short (RSI is " + str.tostring(r, "#.00)"))
+
+plotchar(xUp, "Go Long",  "▲", location.bottom, color.lime, size = size.tiny)
+plotchar(xDn, "Go Short", "▼", location.top,    color.red,  size = size.tiny)
+hline(50)
+plot(r)

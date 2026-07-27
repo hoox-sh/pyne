@@ -1,0 +1,55 @@
+//@version=3
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于日线枢轴的多空自动交易策略Automatic-Long-Short-Trading-Strategy-Based-on-Daily-Pivot-Points.md
+// content_hash: 78b9796796b6f0b9
+// collected: 2026-07-27
+strategy(title = "Noro's DEX Strategy", shorttitle = "DEX str", overlay = true, default_qty_type = strategy.percent_of_equity, default_qty_value = 100, pyramiding = 0)
+
+//Settings
+needlong = input(true, defval = true, title = "Long")
+needshort = input(false, defval = false, title = "Short")
+capital = input(100, defval = 100, minval = 1, maxval = 10000, title = "Lot")
+showlines = input(true, title = "Show lines")
+showbg = input(false, title = "Show background")
+showday = input(false, title = "Show new day")
+fromyear = input(1900, defval = 1900, minval = 1900, maxval = 2100, title = "From Year")
+toyear = input(2100, defval = 2100, minval = 1900, maxval = 2100, title = "To Year")
+frommonth = input(01, defval = 01, minval = 01, maxval = 12, title = "From Month")
+tomonth = input(12, defval = 12, minval = 01, maxval = 12, title = "To Month")
+fromday = input(01, defval = 01, minval = 01, maxval = 31, title = "From day")
+today = input(31, defval = 31, minval = 01, maxval = 31, title = "To day")
+
+//New day trand
+bar = close > open ? 1 : close < open ? -1 : 0
+newday = request.security(syminfo.tickerid, 'D', time)
+
+//Lines
+uplevel = request.security(syminfo.tickerid, 'D', high)
+dnlevel = request.security(syminfo.tickerid, 'D', low)
+upcolor = uplevel == uplevel[1] and showlines ? lime : na
+dncolor = dnlevel == dnlevel[1] and showlines? red : na
+plot(uplevel, offset = 1, linewidth = 2, color = upcolor)
+plot(dnlevel, offset = 1, linewidth = 2, color = dncolor)
+
+//Background
+size = strategy.position_size
+col = time == newday + 86400000 and showday ? blue : showbg and size > 0 ? lime : showbg and size < 0 ? red : na
+bgcolor(col)
+
+//Orders
+lot = 0.0
+lot := size != size[1] ? strategy.equity / close * capital / 100 : lot[1]
+truetime = true
+if uplevel > 0 and dnlevel > 0
+    strategy.entry("Long", strategy.long, needlong ? lot : 0, stop = uplevel, when = truetime)
+    strategy.entry("Close", strategy.short, needshort ? lot : 0, stop = dnlevel, when = truetime)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/439740
+
+> Last Modified
+
+2024-01-23 14:24:22

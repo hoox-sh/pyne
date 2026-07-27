@@ -1,0 +1,53 @@
+//@version=2
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/Trading-Strategy-Following-Dual-Timeframe-Trends.md
+// content_hash: 6147c99870126ba3
+// collected: 2026-07-27
+// strategy(title='[RS]Khizon (DWTI) Strategy V0', shorttitle='K', overlay=false, pyramiding=0, initial_capital=100000, currency=currency.USD)
+trade_size = 10000
+//  ||  Inputs:
+macd_src = input(title='MACD Source:',  defval=close)
+macd_fast = input(title='MACD Fast Length:',  defval=12)
+macd_slow = input(title='MACD Slow Length:',  defval=26)
+macd_signal_smooth = input(title='MACD Signal Smoothing:',  defval=9)
+srsi_src = input(title='SRSI Source:',  defval=close)
+srsi_rsi_length = input(title='SRSI RSI Length:',  defval=14)
+srsi_stoch_length = input(title='SRSI Stoch Length:',  defval=14)
+srsi_smooth = input(title='SRSI Smoothing:',  defval=14)
+srsi_signal_smooth = input(title='SRSI Signal Smoothing:',  defval=14)
+//  ||  MACD(close, 12, 26, 9):     ||---------------------------------------------||
+f_macd_trigger(_src, _fast, _slow, _signal_smooth)=>
+    _macd = ema(_src, _fast) - ema(_src, _slow)
+    _signal = sma(_macd, _signal_smooth)
+    _return_trigger = _macd >= _signal ? true : false
+//  ||  Stoch RSI(close, 14, 14, 3, 3)  ||-----------------------------------------||
+f_srsi_trigger(_src, _rsi_length, _stoch_length, _smooth, _signal_smooth)=>
+    _rsi = rsi(_src, _rsi_length)
+    _stoch = sma(stoch(_rsi, _rsi, _rsi, _stoch_length), _smooth)
+    _signal = sma(_stoch, _signal_smooth)
+    _return_trigger = _stoch >= _signal ? true : false
+//  ||-----------------------------------------------------------------------------||
+//  ||-----------------------------------------------------------------------------||
+//  ||  Check Directional Bias from daily timeframe:
+daily_trigger = security('USOIL', 'D', f_macd_trigger(macd_src, macd_fast, macd_slow, macd_signal_smooth) and f_srsi_trigger(srsi_src, srsi_rsi_length, srsi_stoch_length, srsi_smooth, srsi_signal_smooth))
+h4_trigger = security('USOIL', '240', f_macd_trigger(macd_src, macd_fast, macd_slow, macd_signal_smooth) and f_srsi_trigger(srsi_src, srsi_rsi_length, srsi_stoch_length, srsi_smooth, srsi_signal_smooth))
+
+plot(0, style=circles, color=daily_trigger?blue:na, linewidth=4, transp=65)
+plot(0, style=circles, color=h4_trigger?navy:na, linewidth=2, transp=0)
+
+sel_open = daily_trigger and h4_trigger
+buy_open = not daily_trigger and not h4_trigger
+
+strategy.entry('sel', long=false,  comment='sel', when=sel_open)
+strategy.entry('buy', long=true,  comment='buy', when=buy_open)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/426474
+
+> Last Modified
+
+2023-09-12 14:22:39

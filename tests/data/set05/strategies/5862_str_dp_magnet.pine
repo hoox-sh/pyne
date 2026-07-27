@@ -1,0 +1,70 @@
+//@version=3
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于关键价格点的追踪策略Round-Number-Tracking-Strategy.md
+// content_hash: 5ea0be091f701897
+// collected: 2026-07-27
+//Strategy based on the idea that stop loss and take profit are often placed at full price levels or round numbers, whcih acts as resistance and supports levels
+//Buy Rules:
+//Actual price (close) is above round number.
+//Round number level was not touched in previous ten bars (arbitrary value).
+//Place a buy and follow the order with a trail step because price can bounce at round number (support) or can go through it.
+//Sell Rules are the same of buy rules but inverted.
+//
+//Need improvement on conditions' logic and round numbers definitions
+
+
+strategy("dP magnet", overlay=true, pyramiding=0,default_qty_type=strategy.percent_of_equity,default_qty_value=100,currency=currency.USD)
+
+//Round Levels credit to RKchartest
+
+roundLevel50 = input(500, 'Round Level 1, pips')
+//roundLevel100 = input(1000, 'Round Level 2, pips')
+deviation = input(1000, 'Max distance, pips', minval=0) 
+
+rDelimeter = 1/syminfo.mintick
+
+intRoundLevel = close[1] * rDelimeter
+
+intRemainder = intRoundLevel % roundLevel50 
+toRound = (intRemainder >= roundLevel50/2) ? roundLevel50 : 0
+roundLevel = (intRoundLevel - intRemainder + toRound) / rDelimeter
+plot(roundLevel, title='Round Level 1', color=black, style=line, transp=0, linewidth=1, trackprice=false)
+
+//intRemainder2 = intRoundLevel % roundLevel100
+//toRound2 = (intRemainder2 >= roundLevel100/2) ? roundLevel100 : 0
+//roundLevel2 = (intRoundLevel - intRemainder2 + toRound2) / rDelimeter
+//plot((abs(roundLevel2 - close) * rDelimeter < deviation) ? roundLevel2 : na, title='Round Level 2', color=black, style=circles, transp=0, linewidth=1, trackprice=true)
+
+// end
+
+//Start of strategy
+
+distToFullNumber=(close-roundLevel) //can be positive or negative number
+
+distPips=input(100,'Distance in pips to full level',minval=10) //user defined: this distance defines when to open an order at market price
+
+
+TrailS=input(20,'Trail Step points',minval=10) //trail step that follows the order
+
+longCondition = iff(distToFullNumber>0 and abs(distToFullNumber)<=distPips and lowest(low,10)>roundLevel,true,false)
+
+if (longCondition)
+    strategy.entry("LongMagnet", strategy.long)
+    strategy.exit("ExitMagnet","LongMagnet",trail_points=TrailS)
+
+shortCondition = iff(distToFullNumber<0 and abs(distToFullNumber)<=distPips and highest(high,10)<roundLevel,true,false)
+
+if (shortCondition)
+    strategy.entry("ShortMagnet", strategy.short)
+    strategy.exit("Exit_Magnet","ShortMagnet",trail_points=TrailS)
+    
+```
+
+> Detail
+
+https://www.fmz.com/strategy/427477
+
+> Last Modified
+
+2023-09-21 15:24:53

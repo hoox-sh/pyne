@@ -1,0 +1,90 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动量指标交叉动态停损策略Momentum-Crossover-Strategy-with-Dynamic-Trailing-Stop-Loss.md
+// content_hash: 6d73de12e73fd1c5
+// collected: 2026-07-27
+strategy("Combined EMA and DMI Strategy with Enhanced Table", overlay=true)
+
+// Input parameters for EMA
+shortTermEMA = input.int(9, title="Short-Term EMA Period")
+longTermEMA = input.int(21, title="Long-Term EMA Period")
+riskPercentageEMA = input.float(1, title="Risk Percentage EMA", minval=0.1, maxval=5, step=0.1)
+
+// Calculate EMAs
+emaShort = ta.ema(close, shortTermEMA)
+emaLong = ta.ema(close, longTermEMA)
+
+// EMA Crossover Strategy
+longConditionEMA = emaShort > emaLong and emaShort[1] <= emaLong[1]
+shortConditionEMA = emaShort < emaLong and emaShort[1] >= emaLong[1]
+
+// Input parameters for DMI
+adxlen = input(17, title="ADX Smoothing")
+dilen = input(17, title="DI Length")
+
+// DMI Logic
+dirmov(len) =>
+    up = ta.change(high)
+    down = -ta.change(low)
+    truerange = ta.tr
+    plus = fixnan(100 * ta.rma(up > down and up > 0 ? up : 0, len) / truerange)
+    minus = fixnan(100 * ta.rma(down > up and down > 0 ? down : 0, len) / truerange)
+    [plus, minus]
+
+adx(dilen, adxlen) => 
+    [plus, minus] = dirmov(dilen)
+    sum = plus + minus
+    adxValue = 100 * ta.rma(math.abs(plus - minus) / (sum == 0 ? 1 : sum), adxlen)
+    [adxValue, plus, minus]
+
+[adxValue, up, down] = adx(dilen, adxlen)
+
+// DMI Conditions
+buyConditionDMI = up > down or (up and adxValue > down)
+sellConditionDMI = down > up or (down and adxValue > up)
+
+// Combined Conditions for Entry
+longEntryCondition = longConditionEMA and buyConditionDMI
+shortEntryCondition = shortConditionEMA and sellConditionDMI
+
+// Combined Conditions for Exit
+longExitCondition = shortConditionEMA
+shortExitCondition = longConditionEMA
+
+// Enter long trade based on combined conditions
+if (longEntryCondition)
+    strategy.entry("Long", strategy.long)
+
+// Enter short trade based on combined conditions
+if (shortEntryCondition)
+    strategy.entry("Short", strategy.short)
+
+// Exit trades
+if (longExitCondition)
+    strategy.close("Long")
+
+if (shortExitCondition)
+    strategy.close("Short")
+
+// Plot EMAs
+plot(emaShort, color=color.blue, title="Short-Term EMA")
+plot(emaLong, color=color.red, title="Long-Term EMA")
+
+// Create and fill the enhanced table
+var tbl = table.new(position.top_right, 4, 1)
+if (barstate.islast)
+    table.cell(tbl, 0, 0, "ADX: " + str.tostring(adxValue), bgcolor=color.new(color.red, 90), width=15, height=4)
+    table.cell(tbl, 1, 0, "+DI: " + str.tostring(up), bgcolor=color.new(color.blue, 90), width=15, height=4)
+    table.cell(tbl, 2, 0, "-DI: " + str.tostring(down), bgcolor=color.new(color.orange, 90), width=15, height=4)
+
+   
+```
+
+> Detail
+
+https://www.fmz.com/strategy/443121
+
+> Last Modified
+
+2024-02-29 13:55:16

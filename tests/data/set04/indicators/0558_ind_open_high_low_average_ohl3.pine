@@ -1,0 +1,26 @@
+// set04 corpus entry
+// source_repo: mihakralj-pinescript
+// source_path: mihakralj-pinescript/indicators/numerics/ohl3.pine
+// content_hash: acab58bf6f559f73
+// collected: 2026-07-27
+// The MIT License (MIT)
+// © mihakralj
+//@version=6
+indicator("Open-High-Low Average (OHL3)", "OHL3", overlay=true)
+
+//@function Calculates the average of open, high, and low prices
+//@param o Open price series
+//@param h High price series
+//@param l Low price series
+//@returns float The average value (open + high + low) * 0.333333
+//@optimized Uses multiplication instead of division for performance
+ohl3(series float o, series float h, series float l) =>
+    (o + h + l) * 0.333333
+
+// ---------- Main loop ----------
+
+// Calculation
+result = ohl3(open, high, low)
+
+// Plot
+plot(result, "OHL3", color=color.yellow, linewidth=2)

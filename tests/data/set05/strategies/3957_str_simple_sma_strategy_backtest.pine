@@ -1,0 +1,36 @@
+//@version=4
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/Simple SMA Strategy Backtest.pine
+// content_hash: f4fe5390a150b30d
+// collected: 2026-07-27
+strategy(title="Simple SMA Strategy Backtest", shorttitle="SMA Backtest", precision=6, overlay=true)
+Resolution = input(title="Resolution", type=input.resolution, defval="D")
+Source = input(title="Source", type=input.source, defval=close)
+xSeries = security(syminfo.tickerid, Resolution, Source)
+Length = input(title="Length", type=input.integer, defval=14, minval=2)
+TriggerPrice = input(title="Trigger Price", type=input.source, defval=close)
+BarColors = input(title="Painting bars", type=input.bool, defval=true)
+ShowLine = input(title="Show Line", type=input.bool, defval=true)
+UseAlerts = input(title="Use Alerts", type=input.bool, defval=false)
+reverse = input(title="Trade Reverse", type=input.bool, defval=false)
+pos = 0
+xSMA = sma(xSeries, Length)
+pos := iff(TriggerPrice > xSMA, 1,
+         iff(TriggerPrice < xSMA, -1, nz(pos[1], 0)))
+nRes = ShowLine ? xSMA : na
+alertcondition(UseAlerts == true and pos != pos[1] and pos == 1, title='Signal Buy', message='Strategy to change to BUY')
+alertcondition(UseAlerts == true and pos != pos[1] and pos == -1, title='Signal Sell', message='Strategy to change to SELL')
+alertcondition(UseAlerts == true and pos != pos[1] and pos == 0, title='FLAT', message='Strategy get out from position')
+possig = iff(reverse and pos == 1, -1,
+           iff(reverse and pos == -1, 1, pos))
+if (possig == 1)
+    strategy.entry("Long", strategy.long)
+if (possig == -1)
+    strategy.entry("Short", strategy.short)
+if (possig == 0)
+    strategy.close_all()
+nColor = BarColors ? possig == -1 ? color.red : possig == 1 ? color.green : color.blue : na 
+barcolor(nColor)
+plot(nRes, title='SMA', color=#00ffaa, linewidth=2, style=plot.style_line)
+Expand (37 lines)

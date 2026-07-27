@@ -1,0 +1,54 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双时间框架趋势追踪策略Dual-Timeframe-Trend-Following-Strategy.md
+// content_hash: 6948aa966a1efc38
+// collected: 2026-07-27
+strategy("TSLA Enhanced Trend Master 2024", overlay=true)
+
+// Daily timeframe indicators
+ema20_daily = ta.ema(close, 20)
+ema50_daily = ta.ema(close, 50)
+
+// 1-hour timeframe indicators
+ema20_hourly = request.security(syminfo.tickerid, "60", ta.ema(close, 20))
+ema50_hourly = request.security(syminfo.tickerid, "60", ta.ema(close, 50))
+
+// Check if the year is 2024
+is_2024 = year(time) == 2024
+
+// Counter for short trades
+var shortTradeCount = 0
+
+// Entry Conditions
+buySignal =  (ema20_daily > ema50_daily) and (ema20_hourly > ema50_hourly)
+sellSignal =  (ema20_daily < ema50_daily) and (ema20_hourly < ema50_hourly) and (shortTradeCount < 0.5 * ta.highest(close, 14))
+
+// Dynamic Stop Loss and Take Profit
+atr_value = ta.atr(14)
+stopLoss = atr_value * 1.5
+takeProfit = atr_value * 3
+
+// Calculate Position Size based on Volatility-Adjusted Risk
+riskPercent = 2
+positionSize = strategy.equity * riskPercent / close
+
+// Strategy
+if (buySignal)
+    strategy.entry("Buy", strategy.long, qty=positionSize)
+    strategy.exit("Take Profit/Stop Loss", "Buy", stop=close - stopLoss, limit=close + takeProfit)
+
+if (sellSignal)
+    strategy.entry("Sell", strategy.short, qty=positionSize)
+    strategy.exit("Take Profit/Stop Loss", "Sell", stop=close + stopLoss, limit=close - takeProfit)
+    shortTradeCount := shortTradeCount + 1
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/443092
+
+> Last Modified
+
+2024-02-29 10:58:49

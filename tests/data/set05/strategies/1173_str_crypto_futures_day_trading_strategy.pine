@@ -1,0 +1,95 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多指标动态交叉趋势跟踪量化策略分析-Multi-Indicator-Dynamic-Crossover-Trend-Following-Quantitative-Strategy-Analysis.md
+// content_hash: 7157065ad66a2d2b
+// collected: 2026-07-27
+strategy("Crypto Futures Day Trading Strategy", overlay=true)
+
+// --- Indicators ---
+// Moving Averages
+sma5 = ta.sma(close, 5)
+sma20 = ta.sma(close, 20)
+
+// Relative Strength Index (RSI)
+rsi14 = ta.rsi(close, 14)
+
+// Bollinger Bands
+basis = ta.sma(close, 20)
+dev = 2 * ta.stdev(close, 20)
+upperBB = basis + dev
+lowerBB = basis - dev
+
+// Average True Range (ATR)
+atr14 = ta.atr(14)
+
+// --- Entry Conditions ---
+// Long Entry: 5 SMA crosses above 20 SMA, RSI < 70, price below upper BB
+longCondition = ta.crossover(sma5, sma20) and rsi14 < 70 and close < upperBB
+
+// Short Entry: 5 SMA crosses below 20 SMA, RSI > 30, price above lower BB
+shortCondition = ta.crossunder(sma5, sma20) and rsi14 > 30 and close > lowerBB
+
+// --- Stop-Loss and Take-Profit Variables ---
+// Use 'var' to persist values across bars until updated
+var float longSL = na
+var float longTP = na
+var float shortSL = na
+var float shortTP = na
+
+// --- Entry Logic ---
+// Long Entry: Close any short position, enter long, set SL and TP
+if (longCondition)
+    strategy.close("Short")              // Close existing short position
+    strategy.entry("Long", strategy.long) // Enter long position
+    longSL := close - 2 * atr14          // Set stop-loss 2 ATR below entry
+    longTP := close + 4 * atr14          // Set take-profit 4 ATR above entry
+
+// Short Entry: Close any long position, enter short, set SL and TP
+if (shortCondition)
+    strategy.close("Long")                // Close existing long position
+    strategy.entry("Short", strategy.short) // Enter short position
+    shortSL := close + 2 * atr14          // Set stop-loss 2 ATR above entry
+    shortTP := close - 4 * atr14          // Set take-profit 4 ATR below entry
+
+// --- Exit Logic ---
+// Exit Long: Apply stop-loss and take-profit when in a long position
+if (strategy.position_size > 0)
+    strategy.exit("Exit Long", "Long", stop=longSL, limit=longTP)
+
+// Exit Short: Apply stop-loss and take-profit when in a short position
+if (strategy.position_size < 0)
+    strategy.exit("Exit Short", "Short", stop=shortSL, limit=shortTP)
+
+// --- Plotting ---
+// Plot Moving Averages
+plot(sma5, color=color.blue, title="SMA5", linewidth=2)
+plot(sma20, color=color.red, title="SMA20", linewidth=2)
+
+// Plot Bollinger Bands
+plot(upperBB, color=color.green, title="Upper BB", linewidth=1)
+plot(lowerBB, color=color.green, title="Lower BB", linewidth=1)
+
+// Plot Buy and Sell Signals
+plotshape(longCondition, title="Buy Signal", location=location.belowbar, color=color.green, style=shape.labelup, text="BUY")
+plotshape(shortCondition, title="Sell Signal", location=location.abovebar, color=color.red, style=shape.labeldown, text="SELL")
+
+// Plot Stop-Loss and Take-Profit Levels (only when in a position)
+plot(strategy.position_size > 0 ? longSL : na, color=color.red, style=plot.style_linebr, title="Long SL")
+plot(strategy.position_size > 0 ? longTP : na, color=color.green, style=plot.style_linebr, title="Long TP")
+plot(strategy.position_size < 0 ? shortSL : na, color=color.red, style=plot.style_linebr, title="Short SL")
+plot(strategy.position_size < 0 ? shortTP : na, color=color.green, style=plot.style_linebr, title="Short TP")
+
+// --- Optional Alerts ---
+// Uncomment these lines to enable alerts in TradingView
+// alertcondition(longCondition, title="Buy Alert", message="Buy Signal Detected")
+// alertcondition(shortCondition, title="Sell Alert", message="Sell Signal Detected")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/489032
+
+> Last Modified
+
+2025-04-01 13:30:24

@@ -1,0 +1,43 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/52周高低盒子交易策略52-Week-High-Low-Box-Trading-Strategy.md
+// content_hash: 9b12944e27a33464
+// collected: 2026-07-27
+strategy ("Darvas Box Strategy",overlay=true)
+
+boxp=input(5, "BOX LENGTH")
+
+D_High = security(syminfo.tickerid, 'D', high) 
+D_Low = security(syminfo.tickerid, 'D', low) 
+D_Close =  security(syminfo.tickerid, 'D', close) 
+D_Open =  security(syminfo.tickerid, 'D', open) 
+
+LL = lowest(D_Low,boxp)
+k1 = highest(D_High,boxp)
+k2 = highest(D_High,boxp-1)
+k3 = highest(D_High,boxp-2)
+
+NH   = valuewhen(D_High>k1[1],D_High,0)
+box1 = k3<k2
+TopBox = valuewhen(barssince(D_High>k1[1])==boxp-2 and box1, NH, 0)
+BottomBox = valuewhen(barssince(D_High>k1[1])==boxp-2 and box1, LL, 0)
+
+plot(TopBox, linewidth=2, color=#00FF00, title="TopBox")
+plot(BottomBox, linewidth=2, color=#FF0000, title="BottomBox")
+
+if crossover(D_Close,TopBox)
+    strategy.entry("Long", strategy.long, comment="Long")
+
+if crossunder(D_Close,BottomBox)
+    strategy.entry("Short", strategy.short, comment="Short")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/434979
+
+> Last Modified
+
+2023-12-11 14:43:30

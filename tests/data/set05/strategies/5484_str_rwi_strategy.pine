@@ -1,0 +1,44 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/RWI波动率反转策略RWI-Volatility-Contrarian-Strategy.md
+// content_hash: 71aa31b7ae279d0f
+// collected: 2026-07-27
+// Copyright (c) 2020-present, JMOZ (1337.ltd)
+strategy("RWI Strategy", overlay=false)
+
+
+length = input(title="Length", type=input.integer, defval=14, minval=1)
+threshold = input(title="Threshold", type=input.float, defval=1.0, step=0.1)
+
+
+rwi(length, threshold) =>
+    rwi_high = (high - nz(low[length])) / (atr(length) * sqrt(length))
+    rwi_low = (nz(high[length]) - low) / (atr(length) * sqrt(length))
+    is_rw = rwi_high < threshold and rwi_low < threshold
+    [is_rw, rwi_high, rwi_low]
+
+
+[is_rw, rwi_high, rwi_low] = rwi(length, threshold)
+
+
+long = not is_rw and rwi_high > rwi_low
+short = not is_rw and rwi_low > rwi_high
+
+
+strategy.entry("Long", strategy.long, when=long)
+strategy.entry("Short", strategy.short, when=short)
+
+
+plot(rwi_high, title="RWI High", linewidth=1, color=is_rw?color.gray:color.blue, transp=0)
+plot(rwi_low, title="RWI Low", linewidth=1, color=is_rw?color.gray:color.red, transp=0)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/440724
+
+> Last Modified
+
+2024-02-01 14:56:58

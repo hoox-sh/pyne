@@ -1,0 +1,40 @@
+//@version = 5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/Ks-Reversal-Indicator-I.md
+// content_hash: f2fcb26ee76acced
+// collected: 2026-07-27
+indicator("K's Reversal Indicator I", overlay = true)
+
+fast       = input(defval = 12, title = 'Fast')
+slow       = input(defval = 26, title = 'Slow')
+signal     = input(defval = 9,  title = 'Signal')
+length     = input(defval = 100, title = 'Bollinger Lookback')
+multiplier = input(defval = 2,  title = 'Multiplier')
+
+// MACD
+macd_line   = ta.ema(close, fast) - ta.ema(close, slow)
+signal_line = ta.ema(macd_line, signal)
+
+// Bollinger
+lower_boll = ta.sma(close, length) - (multiplier * ta.stdev(close, length))
+upper_boll = ta.sma(close, length) + (multiplier * ta.stdev(close, length))
+mid_line = ta.sma(close, length)
+
+// Signal
+buy_signal  = math.min(open[1], close[1]) <= lower_boll[1] and math.max(open[1], close[1]) <= mid_line and macd_line[1] > signal_line[1] and macd_line[2] < signal_line[2]
+sell_signal = math.max(open[1], close[1]) >= upper_boll[1] and math.min(open[1], close[1]) >= mid_line and macd_line[1] < signal_line[1] and macd_line[2] > signal_line[2]
+
+if buy_signal
+    strategy.entry("Enter Long", strategy.long)
+else if sell_signal
+    strategy.entry("Enter Short", strategy.short)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/361785
+
+> Last Modified
+
+2022-05-08 11:14:32

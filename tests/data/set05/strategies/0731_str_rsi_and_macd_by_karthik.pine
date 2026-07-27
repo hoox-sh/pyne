@@ -1,0 +1,126 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多重指标趋势交易系统结合动量分析策略-Multi-Indicator-Trend-Trading-System-with-Momentum-Analysis-Strategy.md
+// content_hash: fbf5cacef5e85633
+// collected: 2026-07-27
+strategy("RSI and MACD by Karthik", overlay=true)
+
+// Define periods for SMAs
+sma50Period = 50
+sma200Period = 200
+
+// Calculate SMAs
+sma50 = ta.sma(close, sma50Period)
+sma200 = ta.sma(close, sma200Period)
+
+// Plot SMAs on the main chart
+plot(sma50, color=color.blue, title="50 Period SMA", linewidth=2)
+plot(sma200, color=color.red, title="200 Period SMA", linewidth=2)
+
+// Define and calculate parameters for Stochastic RSI
+stochRSIPeriod = 14
+rsi = ta.rsi(close, stochRSIPeriod)
+stochRSIK = ta.stoch(rsi, rsi, stochRSIPeriod, 3)
+stochRSID = ta.sma(stochRSIK, 3)
+
+// Define and calculate parameters for MACD
+macdShort = 12
+macdLong = 26
+macdSignal = 9
+[macdLine, signalLine, macdHist] = ta.macd(close, macdShort, macdLong, macdSignal)
+
+// Plot Stochastic RSI in a separate pane
+hline(80, "Overbought", color=color.red, linewidth=1)
+hline(20, "Oversold", color=color.green, linewidth=1)
+plot(stochRSIK, color=color.blue, title="Stochastic RSI %K")
+plot(stochRSID, color=color.red, title="Stochastic RSI %D")
+
+// Plot MACD in a separate pane
+hline(0, "Zero Line", color=color.gray, linewidth=1)
+plot(macdHist, color=color.blue, title="MACD Histogram", style=plot.style_histogram)
+plot(macdLine, color=color.red, title="MACD Line")
+plot(signalLine, color=color.green, title="Signal Line")
+
+// Conditions for buy and sell signals
+isAbove200SMA = close > sma200
+isStochRSIKAbove = stochRSIK > stochRSID
+macdLineAbove = macdLine > signalLine
+buySignal = isAbove200SMA and isStochRSIKAbove and macdLineAbove
+
+isBelow200SMA = close < sma200
+isStochRSIKBelow = stochRSIK < stochRSID
+macdLineBelow = macdLine < signalLine
+sellSignal = isBelow200SMA and isStochRSIKBelow and macdLineBelow
+
+// Track the last signal with explicit type declaration
+var string lastSignal = na
+
+// Create series for plotting conditions
+var bool plotBuySignal = na
+var bool plotSellSignal = na
+var bool plotExitBuySignal = na
+var bool plotExitSellSignal = na
+
+// Update plotting conditions based on signal and last signal
+if buySignal and (lastSignal != "buy")
+    plotBuySignal := true
+    lastSignal := "buy"
+else
+    plotBuySignal := na
+
+if sellSignal and (lastSignal != "sell")
+    plotSellSignal := true
+    lastSignal := "sell"
+else
+    plotSellSignal := na
+
+// Update exit conditions based on SMA50
+if lastSignal == "buy" and close < sma50
+    plotExitBuySignal := true
+    lastSignal := na // Clear lastSignal after exit
+else
+    plotExitBuySignal := na
+
+if lastSignal == "sell" and close > sma50
+    plotExitSellSignal := true
+    lastSignal := na // Clear lastSignal after exit
+else
+    plotExitSellSignal := na
+
+// Plot buy and sell signals on the main chart
+plotshape(series=plotBuySignal, location=location.belowbar, color=color.green, style=shape.circle, size=size.small, title="Buy Signal")
+plotshape(series=plotSellSignal, location=location.abovebar, color=color.red, style=shape.circle, size=size.small, title="Sell Signal")
+
+// Plot exit signals for buy and sell
+plotshape(series=plotExitBuySignal, location=location.belowbar, color=color.yellow, style=shape.xcross, size=size.small, title="Exit Buy Signal")
+plotshape(series=plotExitSellSignal, location=location.abovebar, color=color.yellow, style=shape.xcross, size=size.small, title="Exit Sell Signal")
+
+
+// Strategy to Backtest
+
+long = buySignal
+short = sellSignal
+
+// Exit Conditions
+exitBuy = close < sma50
+exitSell = close > sma50
+
+
+if (buySignal)
+    strategy.entry("Long", strategy.long, 1.0)
+if (sellSignal)
+    strategy.entry("Short", strategy.short, 1.0)
+
+strategy.close("Long", when=exitBuy)
+strategy.close("Short", when=exitSell)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/474860
+
+> Last Modified
+
+2024-12-12 15:53:21

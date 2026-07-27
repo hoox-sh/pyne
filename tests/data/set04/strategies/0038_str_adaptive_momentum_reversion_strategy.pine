@@ -1,0 +1,63 @@
+//@version=6
+// set04 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/自适应动量均值回归交叉策略Adaptive-Momentum-Mean-Reversion-Crossover-Strategy.md
+// content_hash: 6bcafc1dd211533f
+// collected: 2026-07-27
+strategy("Adaptive Momentum Reversion Strategy ", overlay=false, initial_capital=50000, pyramiding=0, commission_type=strategy.commission.cash_per_contract, commission_value=0.05, slippage=1)
+
+// Input: ROC Period
+rocPeriod = input.int(2, title="ROC Period", minval=1)
+
+// Input: Bollinger Bands Settings (Lower Band)
+bbLowerLength = input.int(18, title="Lower Bollinger Band Length", minval=1)
+bbLowerStdDev = input.float(1.7, title="Lower Bollinger Band StdDev", minval=0.1, step=0.1)
+
+// Input: Bollinger Bands Settings (Upper Band)
+bbUpperLength = input.int(21, title="Upper Bollinger Band Length", minval=1)
+bbUpperStdDev = input.float(2.1, title="Upper Bollinger Band StdDev", minval=0.1, step=0.1)
+
+// ROC Calculation
+rocValue = (close - close[rocPeriod]) / close[rocPeriod] * 100
+
+// Bollinger Bands Calculation
+bbLowerBasis = ta.sma(rocValue, bbLowerLength)  // Basis for Lower Band
+bbLower = bbLowerBasis - bbLowerStdDev * ta.stdev(rocValue, bbLowerLength)  // Lower Band
+
+bbUpperBasis = ta.sma(rocValue, bbUpperLength)  // Basis for Upper Band
+bbUpper = bbUpperBasis + bbUpperStdDev * ta.stdev(rocValue, bbUpperLength)  // Upper Band
+
+// Plot ROC
+plot(rocValue, color=color.blue, linewidth=2, title="ROC Value")
+
+// Plot Bollinger Bands
+plot(bbLowerBasis, color=color.gray, linewidth=1, title="Lower BB Basis (SMA)")
+plot(bbLower, color=color.green, linewidth=1, title="Lower Bollinger Band")
+plot(bbUpperBasis, color=color.gray, linewidth=1, title="Upper BB Basis (SMA)")
+plot(bbUpper, color=color.red, linewidth=1, title="Upper Bollinger Band")
+
+// Add Zero Line for Reference
+hline(0, "Zero Line", color=color.gray, linestyle=hline.style_dotted)
+
+// Entry Condition: Long when ROC crosses above the lower Bollinger Band
+longCondition = ta.crossover(rocValue, bbLower)
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+
+// Exit Condition: Exit on Upper Bollinger Band Cross or ROC drops below Lower Band again
+exitCondition = ta.crossunder(rocValue, bbUpper)
+if (exitCondition)
+    strategy.close("Long")
+
+// Background Color for Extreme Conditions
+bgcolor(rocValue > bbUpper ? color.new(color.red, 80) : na, title="Overbought (ROC above Upper BB)")
+bgcolor(rocValue < bbLower ? color.new(color.green, 80) : na, title="Oversold (ROC below Lower BB)")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/477952
+
+> Last Modified
+
+2025-01-10 15:26:18

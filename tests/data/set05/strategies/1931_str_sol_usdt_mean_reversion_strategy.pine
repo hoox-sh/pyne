@@ -1,0 +1,67 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/均值回归型布林带RSI策略结合ATR动态止损优化系统-Mean-Reversion-Strategy-with-Bollinger-Bands-RSI-and-ATR-Based-Dynamic-Stop-Loss-System.md
+// content_hash: 046e33d9c5001e84
+// collected: 2026-07-27
+strategy("SOL/USDT Mean Reversion Strategy", overlay=true)
+
+// Input parameters
+length = input(20, "Bollinger Band Length")
+std_dev = input(2.0, "Standard Deviation")
+rsi_length = input(14, "RSI Length")
+rsi_oversold = input(30, "RSI Oversold")
+rsi_overbought = input(70, "RSI Overbought")
+
+// Calculate indicators
+[middle, upper, lower] = ta.bb(close, length, std_dev)
+rsi = ta.rsi(close, rsi_length)
+
+// Entry conditions
+long_entry = close < lower and rsi < rsi_oversold
+short_entry = close > upper and rsi > rsi_overbought
+
+// Exit conditions
+long_exit = close > middle or rsi > rsi_overbought
+short_exit = close < middle or rsi < rsi_oversold
+
+// Strategy execution
+if (long_entry)
+    strategy.entry("Long", strategy.long)
+
+if (short_entry)
+    strategy.entry("Short", strategy.short)
+
+if (long_exit)
+    strategy.close("Long")
+
+if (short_exit)
+    strategy.close("Short")
+
+// Stop loss and take profit
+atr = ta.atr(14)
+strategy.exit("Long SL/TP", "Long", stop=strategy.position_avg_price - 2*atr, limit=strategy.position_avg_price + 3*atr)
+strategy.exit("Short SL/TP", "Short", stop=strategy.position_avg_price + 2*atr, limit=strategy.position_avg_price - 3*atr)
+
+// Plot indicators
+plot(middle, color=color.yellow, title="BB Middle")
+plot(upper, color=color.red, title="BB Upper")
+plot(lower, color=color.green, title="BB Lower")
+
+// Plot entry and exit points
+plotshape(long_entry, title="Long Entry", location=location.belowbar, color=color.green, style=shape.triangleup, size=size.small)
+plotshape(short_entry, title="Short Entry", location=location.abovebar, color=color.red, style=shape.triangledown, size=size.small)
+plotshape(long_exit, title="Long Exit", location=location.abovebar, color=color.orange, style=shape.circle, size=size.small)
+plotshape(short_exit, title="Short Exit", location=location.belowbar, color=color.orange, style=shape.circle, size=size.small)
+
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/473125
+
+> Last Modified
+
+2024-11-27 14:28:17

@@ -1,0 +1,61 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/KDJ趋势跟踪与信号移动平均策略-KDJ-Trending-View-with-Signals-and-MA-Strategy.md
+// content_hash: 42e81bfee19684a1
+// collected: 2026-07-27
+strategy("KDJ Trending View with Signals and MA Strategy", overlay=true)
+
+// KDJ Settings
+kdjLength = input.int(9, title="KDJ Length")
+kdjSignal = input.int(3, title="KDJ Signal")
+kdjOverbought = input.int(80, title="KDJ Overbought Level")
+kdjOversold = input.int(20, title="KDJ Oversold Level")
+
+// Margin Settings
+longMargin = input.float(2.0, title="Long Margin", step=0.01)
+shortMargin = input.float(2.0, title="Short Margin", step=0.01)
+
+// MA Settings
+maLength = input.int(20, title="MA Length")
+maType = input.string("SMA", title="MA Type (SMA, EMA, etc.)")
+
+// Calculate KDJ
+kdj_highest = ta.highest(high, kdjLength)
+kdj_lowest = ta.lowest(low, kdjLength)
+kdjRSV = 100 * ((close - kdj_lowest) / (kdj_highest - kdj_lowest))
+kdjK = ta.sma(kdjRSV, kdjSignal)
+kdjD = ta.sma(kdjK, kdjSignal)
+kdjJ = 3 * kdjK - 2 * kdjD
+
+// Calculate Moving Average
+ma = ta.sma(close, maLength) // SMA kullanarak ortalama hesaplama
+
+// Determine MA Direction
+maCrossUp = ta.crossover(close, ma)
+maCrossDown = ta.crossunder(close, ma)
+
+// Plot MA with Direction Color Change
+maColor = maCrossUp ? color.green : maCrossDown ? color.red : color.gray
+plot(ma, color=maColor, title="Moving Average")
+
+// Plot Trading Signals
+plotshape(kdjJ >= kdjOverbought ? low : na, style=shape.triangleup, location=location.belowbar, color=color.red, size=size.small, title="Short Signal")
+plotshape(kdjJ <= kdjOversold ? high : na, style=shape.triangledown, location=location.abovebar, color=color.green, size=size.small, title="Long Signal")
+
+// Trading Strategy with Manual Margin and MA Strategy
+if (kdjJ >= kdjOverbought and maCrossDown)
+    strategy.entry("Short", strategy.short, qty=1, comment="Short Entry")
+if (kdjJ <= kdjOversold and maCrossUp)
+    strategy.entry("Long", strategy.long, qty=1, comment="Long Entry")
+    
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/451026
+
+> Last Modified
+
+2024-05-11 11:46:11

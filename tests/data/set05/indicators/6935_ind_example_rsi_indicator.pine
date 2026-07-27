@@ -1,0 +1,13 @@
+//@version=6
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/faq/strategies.md::strategies.md#block1
+// content_hash: 79bc1b1fc4f9e1da
+// collected: 2026-07-27
+indicator("Example RSI indicator")
+float rsi = ta.rsi(close, 14)
+plot(rsi, "RSI", rsi >= 50 ? color.lime : color.fuchsia)
+hline(50, "Middle line", linestyle = hline.style_solid)
+plotshape(ta.crossover(rsi,  50), "Cross up",   shape.arrowup,   location.bottom, color.lime)
+plotshape(ta.crossunder(rsi, 50), "Cross Down", shape.arrowdown, location.top,    color.fuchsia)
+barcolor(rsi >= 50 ? color.lime : color.fuchsia)

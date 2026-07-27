@@ -1,0 +1,68 @@
+//@version=6
+// set04 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/MACD结合阿尔布鲁克斯价格行为的趋势跟踪策略-MACD-Based-Al-Brooks-Price-Action-Trend-Following-Strategy.md
+// content_hash: 341c2af2d0f24fd0
+// collected: 2026-07-27
+strategy(title="Al Brooks Price Action with MACD Signals", shorttitle="Al Brooks PA + MACD", overlay=true)
+
+// Inputs
+length = input.int(52, title="Moving Average Length", minval=1)
+riskRewardRatio = input.float(2.0, title="Risk/Reward Ratio", minval=1.0)
+stopLossBuffer = input.float(0.01, title="Stop Loss Buffer (in %)", minval=0.001)
+candleType = input.string("Close", title="Candle Type", options=["Close", "Open"])
+
+// Indicators
+sma = ta.sma(close, length)
+[macdLine, signalLine, _] = ta.macd(close, 12, 26, 9)
+price = candleType == "Close" ? close : open
+
+// Trend Conditions
+uptrend = price > sma
+downtrend = price < sma
+
+// Buy/Sell Signals
+buySignal = price > sma and macdLine > 0 and macdLine > signalLine
+sellSignal = price < sma and macdLine < 0 and macdLine < signalLine
+
+// Trade Execution
+if (buySignal)
+    longStopLoss = close * (1 - stopLossBuffer)
+    longTakeProfit = close + (close - longStopLoss) * riskRewardRatio
+    strategy.entry("Buy", strategy.long)
+    strategy.exit("Take Profit", "Buy", limit=longTakeProfit, stop=longStopLoss)
+
+if (sellSignal)
+    shortStopLoss = close * (1 + stopLossBuffer)
+    shortTakeProfit = close - (shortStopLoss - close) * riskRewardRatio
+    strategy.entry("Sell", strategy.short)
+    strategy.exit("Take Profit", "Sell", limit=shortTakeProfit, stop=shortStopLoss)
+
+// Plot Signals
+plotarrow(buySignal[2] ? 1 : na, colorup=color.new(color.green, 50), title="Buy Signal Arrow", offset=-1)
+plotarrow(sellSignal[2] ? -1 : na, colordown=color.new(color.red, 50), title="Sell Signal Arrow", offset=-1)
+
+// Close Positions
+if (not buySignal and not sellSignal)
+    strategy.close("Sell")
+    strategy.close("Buy")
+
+// Support and Resistance
+support = ta.lowest(low, length)
+resistance = ta.highest(high, length)
+plot(support, title="Support", color=color.green, linewidth=1, style=plot.style_stepline)
+plot(resistance, title="Resistance", color=color.red, linewidth=1, style=plot.style_stepline)
+plot(sma, title="SMA", color=color.blue, linewidth=2)
+
+// Alerts
+alertcondition(buySignal[2], title="Buy Alert", message="Buy Signal Triggered")
+alertcondition(sellSignal[2], title="Sell Alert", message="Sell Signal Triggered")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/482678
+
+> Last Modified
+
+2025-02-19 17:36:15

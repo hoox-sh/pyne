@@ -1,0 +1,99 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于布林带移动平均线和MACD的组合交易策略Bollinger-Band-Moving-Average-and-MACD-Combined-Trading-Strategy.md
+// content_hash: 4338e3afb10042a8
+// collected: 2026-07-27
+strategy("Combined Strategy", overlay=true, shorttitle="Comb Strat", default_qty_type=strategy.percent_of_equity, default_qty_value=10)
+
+// Precio de beneficio y Stop Loss
+takeProfitTicks = 87636
+stopLossTicks = 53350
+
+// Bollinger Bands + EMA
+length_bb = input(150, title="BB Length")
+src_bb = input(close, title="BB Source")
+mult = input(2.0, title="BB StdDev")
+basis = ta.sma(src_bb, length_bb)
+dev = mult * ta.stdev(src_bb, length_bb)
+upper = basis + dev
+lower = basis - dev
+
+len_ema = input(34, title="EMA Length")
+src_ema = input(close, title="EMA Source")
+out_ema = ta.ema(src_ema, len_ema)
+
+typeMA = input("SMA", title="Method")
+smoothingLength = input(5, title="Length")
+
+var float smoothingLine = na
+if (typeMA == "SMA")
+    smoothingLine := ta.sma(out_ema, smoothingLength)
+else if (typeMA == "EMA")
+    smoothingLine := ta.ema(out_ema, smoothingLength)
+
+// MACD
+fast_length = input(title="Fast Length", defval=9)
+slow_length = input(title="Slow Length", defval=17)
+src_macd = input(title="Source", defval=close)
+signal_length = input.int(title="Signal Smoothing", minval=1, maxval=50, defval=9)
+sma_source = input.string(title="Oscillator MA Type", defval="EMA", options=["SMA", "EMA"])
+sma_signal = input.string(title="Signal Line MA Type", defval="EMA", options=["SMA", "EMA"])
+
+fast_ma = sma_source == "SMA" ? ta.sma(src_macd, fast_length) : ta.ema(src_macd, fast_length)
+slow_ma = sma_source == "SMA" ? ta.sma(src_macd, slow_length) : ta.ema(src_macd, slow_length)
+macd = fast_ma - slow_ma
+signal = sma_signal == "SMA" ? ta.sma(macd, signal_length) : ta.ema(macd, signal_length)
+hist = macd - signal
+
+// Condiciones de compra y venta
+longCondition = (out_ema > basis) and (macd > signal) and (signal > 0)
+shortCondition = (out_ema < basis) and (macd < signal) and (signal < 0)
+
+// Variables de estado
+var bool longExecuted = na
+var bool shortExecuted = na
+
+// Estrategia
+if (longCondition and not longExecuted)
+    strategy.entry("Long", strategy.long)
+    longExecuted := true
+    shortExecuted := na
+if (shortCondition and not shortExecuted)
+    strategy.entry("Short", strategy.short)
+    shortExecuted := true
+    longExecuted := na
+
+// Take Profit y Stop Loss para Compras y Ventas Cortas
+strategy.exit("Take Profit/Close Long", from_entry="Long", profit=takeProfitTicks, loss=stopLossTicks)
+strategy.exit("Take Profit/Close Short", from_entry="Short", profit=takeProfitTicks, loss=stopLossTicks)
+
+// Cierre de posiciones cuando la dirección cambia
+if ((out_ema < basis) and (macd < signal))
+    strategy.close("Long")
+    longExecuted := na
+if ((out_ema > basis) and (macd > signal))
+    strategy.close("Short")
+    shortExecuted := na
+
+// Plots
+plot(basis, "BB Basis", color=#FF6D00)
+plot(upper, "BB Upper", color=color.new(#2962FF, 0.5))
+plot(lower, "BB Lower", color=color.new(#2962FF, 0.5))
+
+plot(smoothingLine, title="Smoothing Line", color=#f37f20, linewidth=2)
+
+hline(0, "Zero Line", color=color.new(#787B86, 50))
+plot(hist, title="Histogram", style=plot.style_columns, color=(hist >= 0 ? (hist[1] < hist ? color.green : color.red) : (hist[1] < hist ? color.red : color.green)))
+plot(macd, title="MACD", color=color.blue)
+plot(signal, title="Signal", color=color.orange)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/440995
+
+> Last Modified
+
+2024-02-04 15:42:23

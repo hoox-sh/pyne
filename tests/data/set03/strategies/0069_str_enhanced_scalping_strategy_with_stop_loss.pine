@@ -1,0 +1,110 @@
+//@version=6
+// set03 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动态波动率跟踪均线趋势交易策略与智能止损系统-Dynamic-Volatility-Adjusted-EMA-Trend-Trading-Strategy-with-Smart-Stop-Loss-System.md
+// content_hash: 9dfc47e017c4fed2
+// collected: 2026-07-27
+strategy("Enhanced Scalping Strategy with Stop Loss", overlay=true)
+
+// Input parameters
+fastMA_length = input.int(9, title="Fast MA Length", minval=1)
+slowMA_length = input.int(21, title="Slow MA Length", minval=1)
+RSI_length = input.int(14, title="RSI Length", minval=1)
+RSI_overbought = input.int(70, title="RSI Overbought")
+RSI_oversold = input.int(30, title="RSI Oversold")
+ATR_multiplier = input.float(1.5, title="ATR Multiplier")
+ATR_length = input.int(14, title="ATR Length", minval=1)
+stopLossPercent = input.float(1.0, title="Stop Loss %", minval=0.1) / 100  // Convert percentage to decimal
+
+// Timeframe-specific adjustments
+is1m = timeframe.period == "1"
+is5m = timeframe.period == "5"
+
+// Adjust input parameters based on timeframe
+fastMA_length := is1m ? 9 : is5m ? 12 : fastMA_length
+slowMA_length := is1m ? 21 : is5m ? 26 : slowMA_length
+RSI_length := is1m ? 14 : is5m ? 14 : RSI_length
+
+// Moving Averages
+fastMA = ta.ema(close, fastMA_length)
+slowMA = ta.ema(close, slowMA_length)
+
+// RSI Calculation
+rsi = ta.rsi(close, RSI_length)
+
+// ATR Calculation for volatility filter
+atr = ta.atr(ATR_length)
+
+// Trade state variables
+var bool inLongTrade = false
+var bool inShortTrade = false
+var float entryPrice = na
+var float stopLossLevel = na
+
+// Long and Short Conditions with added filters
+longCondition = ta.crossover(fastMA, slowMA) and rsi < RSI_overbought and close > fastMA + ATR_multiplier * atr
+shortCondition = ta.crossunder(fastMA, slowMA) and rsi > RSI_oversold and close < fastMA - ATR_multiplier * atr
+
+// Ensure previous trades are closed before entering new ones
+if (longCondition)
+    strategy.close("Short")
+    strategy.entry("Long", strategy.long)
+    entryPrice := close
+    stopLossLevel := close * (1 - stopLossPercent)  // 1% below entry for long trades
+    inLongTrade := true
+    inShortTrade := false
+
+if (shortCondition)
+    strategy.close("Long")
+    strategy.entry("Short", strategy.short)
+    entryPrice := close
+    stopLossLevel := close * (1 + stopLossPercent)  // 1% above entry for short trades
+    inShortTrade := true
+    inLongTrade := false
+
+// Stop Loss Exits
+stopLossLongCondition = inLongTrade and close <= stopLossLevel
+stopLossShortCondition = inShortTrade and close >= stopLossLevel
+
+// Exit Conditions (Moving Average crossover or Stop Loss)
+exitLongCondition = inLongTrade and (ta.crossunder(fastMA, slowMA) or stopLossLongCondition)
+exitShortCondition = inShortTrade and (ta.crossover(fastMA, slowMA) or stopLossShortCondition)
+
+// Reset trade state on exit
+if (exitLongCondition)
+    strategy.close("Long")
+    inLongTrade := false
+    inShortTrade := false
+
+if (exitShortCondition)
+    strategy.close("Short")
+    inShortTrade := false
+    inLongTrade := false
+
+// Plot buy and sell signals
+plotshape(longCondition, title="Long Signal", location=location.belowbar, color=color.green, style=shape.labelup, text="LONG")
+plotshape(shortCondition, title="Short Signal", location=location.abovebar, color=color.red, style=shape.labeldown, text="SHORT")
+
+// Plot moving averages
+plot(fastMA, title="Fast MA", color=color.blue, linewidth=2)
+plot(slowMA, title="Slow MA", color=color.orange, linewidth=2)
+
+// Background color for overbought/oversold RSI
+bgcolor(rsi > RSI_overbought ? color.new(color.red, 90) : na, title="Overbought Background")
+bgcolor(rsi < RSI_oversold ? color.new(color.green, 90) : na, title="Oversold Background")
+
+// Alerts
+alertcondition(longCondition, title="Long Alert", message="Buy Signal")
+alertcondition(shortCondition, title="Short Alert", message="Sell Signal")
+alertcondition(exitLongCondition, title="Exit Long Alert", message="Exit Long Signal")
+alertcondition(exitShortCondition, title="Exit Short Alert", message="Exit Short Signal")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/483054
+
+> Last Modified
+
+2025-02-21 11:11:26

@@ -1,0 +1,58 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于KDJ和RSI的买卖点策略KDJ-RSI-Crossover-Buy-Sell-Signals-Strategy.md
+// content_hash: 2b06dc855f0cdd2a
+// collected: 2026-07-27
+strategy(title = "buy/sell KDJ RSI", overlay=true)
+
+//Define KDJ parameter
+kdj_length = input(9, title = "KDJ length")
+signal = input(3,title="signal")
+
+// Calculate KDJ values
+bcwsma(s,l,m) => 
+    _bcwsma = float(na)
+    _s = s
+    _l = l
+    _m = m
+    _bcwsma := (_m*_s+(_l-_m)*nz(_bcwsma[1]))/_l
+    _bcwsma
+
+c = close
+h = ta.highest(high, kdj_length)
+l = ta.lowest(low,kdj_length)
+RSV = 100*((c-l)/(h-l))
+kdj_k = bcwsma(RSV, signal, 1)
+kdj_d = bcwsma(kdj_k, signal, 1)
+kdj_j = 3 * kdj_k-2 * kdj_d
+
+//Define RSI parameter 
+rsi_length_1 = input(6)
+rsi_length_2 = input(12)
+rsi_length_3 = input(24)
+price = close 
+
+//Calculate RSI values
+rsi_1 = ta.rsi(price, rsi_length_1)
+rsi_2 = ta.rsi(price, rsi_length_2)
+rsi_3 = ta.rsi(price, rsi_length_3)
+
+// Trading conditions
+longCondition = ta.crossover(kdj_j,kdj_k) and rsi_1 > rsi_2 or ta.crossover(kdj_j,kdj_k) and ta.crossover(rsi_1,rsi_3) or ta.crossover(rsi_1,rsi_3) and rsi_1<40
+shortCondition = ta.crossunder(kdj_j,kdj_k) and rsi_1 < rsi_2 or ta.crossunder(kdj_j,kdj_k) and ta.crossunder(rsi_1,rsi_3) or ta.crossunder(rsi_1,rsi_3) and rsi_1>60
+// Enter long trade
+strategy.entry("Long", strategy.long, when=longCondition)
+
+// Enter short trade
+strategy.entry("Short", strategy.short, when=shortCondition)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/433394
+
+> Last Modified
+
+2023-11-27 10:57:16

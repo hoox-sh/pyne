@@ -1,0 +1,17 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block187
+// content_hash: 98b31cd4e8240768
+// collected: 2026-07-27
+indicator("max_bars_back")
+close_() => close
+depth() => 400
+d = depth()
+v = close_()
+max_bars_back(v, 500)
+out = if bar_index > 0
+    v[d]
+else
+    v
+plot(out)

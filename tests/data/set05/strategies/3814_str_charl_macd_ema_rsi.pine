@@ -1,0 +1,50 @@
+//@version=4
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/charl macd ema rsi.pine
+// content_hash: 36a5119b2c69b366
+// collected: 2026-07-27
+strategy("CHARL MACD EMA RSI")
+fast = 12, slow = 26
+fastMA = ema(close, fast)
+slowMA = ema(close, slow)
+macd = fastMA - slowMA
+signal = sma(macd, 9)
+ema = ema(close, input(200))
+rsi = rsi(close, input(14))
+//when delta > 0  and close above ema buy
+delta = macd - signal
+buy_entry= close>ema and delta > 0
+sell_entry = close<ema and delta<0 
+var bought = false
+var sold = false
+var reversal = false
+if (buy_entry and bought == false and rsi <= 70) 
+    strategy.entry("Buy",true , when=buy_entry)
+    bought := true
+    
+strategy.close("Buy",when= delta<0 or rsi > 70)
+if (delta<0 and bought==true)
+    bought := false
+//handle sells
+if (sell_entry and sold == false and rsi >= 30)
+    strategy.entry("Sell",false , when=sell_entry)
+    sold := true
+strategy.close("Sell",when= delta>0 or rsi < 30)
+if (delta>0 and sold==true)
+    sold := false
+    
+if (rsi > 70 or rsi < 30)
+    reversal := true
+    placing = rsi > 70 ? high :low
+    label.new(bar_index, placing, style=label.style_flag, color=color.blue, size=size.tiny)
+if (reversal == true)
+    if (rsi < 70 and sold == false and delta < 0)
+        strategy.entry("Sell",false , when= delta < 0)
+        sold := true
+        reversal := false
+    else if (rsi > 30 and bought == false and delta > 0)
+        strategy.entry("Buy",true , when= delta > 0)
+        bought := true
+        reversal := false
+Expand (58 lines)

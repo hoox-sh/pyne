@@ -1,0 +1,47 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/海龟突破EMA交叉策略Turtle-Breakout-EMA-Cross-Strategy.md
+// content_hash: eab3730e054d6fa1
+// collected: 2026-07-27
+strategy('XXXquang', overlay=true)
+
+// Sử dụng hàm input.int() và input.float() để tạo các trường nhập liệu với giới hạn giá trị
+length1 = input.int(10, title="Length EMA Short", minval=1)
+length2 = input.int(20, title="Length EMA Long", minval=1)
+lotSize = input.int(1, title="Lot Size", minval=1)
+
+takeProfitLevel = input.int(600, title="Take Profit Level", minval=1)
+stopLossLevel = input.int(200, title="Stop Loss Level", minval=1)
+
+ema1 = ta.ema(close, length1)
+ema2 = ta.ema(close, length2)
+
+var float lastCrossTime = na
+
+if ta.crossover(ema1, ema2)
+    if na(lastCrossTime)
+        strategy.close_all()
+    strategy.entry('Buy Order', strategy.long, qty=lotSize)
+    strategy.exit('Exit Buy', 'Buy Order', profit=takeProfitLevel / syminfo.pointvalue, loss=stopLossLevel / syminfo.pointvalue)
+    lastCrossTime := timenow
+
+if ta.crossunder(ema1, ema2)
+    if na(lastCrossTime)
+        strategy.close_all()
+    strategy.entry('Sell Order', strategy.short, qty=lotSize)
+    strategy.exit('Exit Sell', 'Sell Order', profit=takeProfitLevel / syminfo.pointvalue, loss=stopLossLevel / syminfo.pointvalue)
+    lastCrossTime := timenow
+
+plot(ema1, title='EMA Short', color=color.new(color.blue, 0), linewidth=2)
+plot(ema2, title='EMA Long', color=color.new(color.red, 0), linewidth=2)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/431400
+
+> Last Modified
+
+2023-11-07 15:40:08

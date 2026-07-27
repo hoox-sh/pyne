@@ -1,0 +1,31 @@
+// set04 corpus entry
+// source_repo: QuanTAlib
+// source_path: QuanTAlib/lib/numerics/slope/slope.pine
+// content_hash: 9d90a9c9910701a5
+// collected: 2026-07-27
+// Licensed under the Apache License, Version 2.0
+// © mihakralj
+//@version=6
+indicator("First Derivative / Velocity (SLOPE)", "SLOPE", overlay=false, precision=8)
+
+//@function Calculates the first finite difference (velocity): Slope = V[t] - V[t-1]
+//@param src Source series
+//@returns First difference of consecutive values. Returns 0.0 on first bar.
+//@optimized Uses direct history access for zero-allocation streaming.
+slope(series float src) =>
+    float prev = src[1]
+    if na(prev)
+        0.0
+    else
+        src - prev
+
+// ---------- Main loop ----------
+
+// Inputs
+i_source = input.source(close, "Source")
+
+// Calculation
+s = slope(i_source)
+
+// Plot
+plot(s, "Slope", color=color.yellow, linewidth=2)

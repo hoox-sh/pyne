@@ -1,0 +1,89 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于SAR动量反转跟踪策略SAR-Momentum-Reversal-Tracking-Strategy.md
+// content_hash: adebd0db15206dab
+// collected: 2026-07-27
+strategy("Positional Parabolic SAR Strategy", overlay=true)
+initial = input(0.02)
+step = input(0.02)
+cap = input(0.2)
+var bool isUptrend = na
+var float Extremum = na
+var float SARValue = na
+var float Accelerator = initial
+var float futureSAR = na
+
+if bar_index > 0
+    isNewTrendBar = false
+    SARValue := futureSAR
+    if bar_index == 1
+        float pastSAR = na
+        float pastExtremum = na
+        previousLow = low[1]
+        previousHigh = high[1]
+        currentClose = close
+        pastClose = close[1]
+        if currentClose > pastClose
+            isUptrend := true
+            Extremum := high
+            pastSAR := previousLow
+            pastExtremum := high
+        else
+            isUptrend := false
+            Extremum := low
+            pastSAR := previousHigh
+            pastExtremum := low
+        isNewTrendBar := true
+        SARValue := pastSAR + initial * (pastExtremum - pastSAR)
+    if isUptrend
+        if SARValue > low
+            isNewTrendBar := true
+            isUptrend := false
+            SARValue := math.max(Extremum, high)
+            Extremum := low
+            Accelerator := initial
+    else
+        if SARValue < high
+            isNewTrendBar := true
+            isUptrend := true
+            SARValue := math.min(Extremum, low)
+            Extremum := high
+            Accelerator := initial
+    if not isNewTrendBar
+        if isUptrend
+            if high > Extremum
+                Extremum := high
+                Accelerator := math.min(Accelerator + step, cap)
+        else
+            if low < Extremum
+                Extremum := low
+                Accelerator := math.min(Accelerator + step, cap)
+    if isUptrend
+        SARValue := math.min(SARValue, low[1])
+        if bar_index > 1
+            SARValue := math.min(SARValue, low[2])
+    else
+        SARValue := math.max(SARValue, high[1])
+        if bar_index > 1
+            SARValue := math.max(SARValue, high[2])
+    futureSAR := SARValue + Accelerator * (Extremum - SARValue)
+    if barstate.isconfirmed
+        if isUptrend
+            strategy.entry("ShortEntry", strategy.short, stop=futureSAR, comment="ShortEntry")
+            strategy.cancel("LongEntry")
+        else
+            strategy.entry("LongEntry", strategy.long, stop=futureSAR, comment="LongEntry")
+            strategy.cancel("ShortEntry")
+plot(SARValue, style=plot.style_cross, linewidth=3, color=color.white)
+plot(futureSAR, style=plot.style_cross, linewidth=3, color=color.red)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/441011
+
+> Last Modified
+
+2024-02-04 17:40:20

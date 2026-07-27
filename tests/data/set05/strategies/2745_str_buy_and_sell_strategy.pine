@@ -1,0 +1,50 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/三周期高低点动量交易策略-Three-Week-High-Low-Momentum-Trading-Strategy.md
+// content_hash: f5adac5b8fc12518
+// collected: 2026-07-27
+strategy("Buy and Sell Strategy", overlay=true)
+
+// Calculate the latest high, close, and volume
+latestHigh = ta.highest(high, 30) // 4 weeks = 30 trading days
+latestClose = close[1]
+
+
+// Calculate the high, close, 
+threeWeeksAgoClose = close[30] // 4 weeks = 30 trading days + 1 current day
+
+
+// Condition 1: Buy if latest high >= 4 weeks ago close
+condition1 = latestHigh >= threeWeeksAgoClose
+
+// Condition 2: Buy if latest close > 4 weeks ago close
+condition2 = latestClose > threeWeeksAgoClose
+
+
+
+// Generate buy and sell signals
+buySignal = condition1  
+sellSignal = condition2
+
+// Entry and exit logic using if statements
+if buySignal
+    strategy.entry("Buy", strategy.long)
+    
+if sellSignal
+    strategy.close("Buy")
+
+// Plotting buy and sell signals on the chart
+plotshape(buySignal, color=color.green, style=shape.labelup, location=location.belowbar, text="Buy")
+plotshape(sellSignal, color=color.red, style=shape.labeldown, location=location.abovebar, text="Sell")
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/458128
+
+> Last Modified
+
+2024-07-30 10:44:11

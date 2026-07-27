@@ -1,0 +1,49 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/相对强弱指数均值回归策略Relative-Strength-Index-Mean-Reversion-Strategy.md
+// content_hash: a13ebad8fd7181c2
+// collected: 2026-07-27
+strategy('Mean Reversion with Tight Stop Loss', overlay=true)
+
+// Define parameters
+rsiLength = 14
+rsiThresholdBuy = 30
+rsiThresholdSell = 70
+smaPeriod = 20
+stopLossPercentage = 0.5  // 0.5% stop loss
+profitTargetPercentage = 1  // 1% profit target
+
+// Calculate indicators
+rsi = ta.rsi(close, rsiLength)
+sma = ta.sma(close, smaPeriod)
+
+// Entry conditions
+buySignal = rsi < rsiThresholdBuy and close < sma
+sellSignal = rsi > rsiThresholdSell and close > sma
+
+// Exit conditions
+if strategy.position_size > 0
+    stopLoss = strategy.position_avg_price * (1 - stopLossPercentage / 100)
+    takeProfit = strategy.position_avg_price * (1 + profitTargetPercentage / 100)
+
+    if close <= stopLoss or close >= takeProfit
+        strategy.close('Exit', comment='Stop Loss / Take Profit')
+
+// Execute trades
+if buySignal
+    strategy.entry('Buy', strategy.long)
+
+if sellSignal
+    strategy.entry('Sell', strategy.short)
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/451395
+
+> Last Modified
+
+2024-05-14 16:01:29

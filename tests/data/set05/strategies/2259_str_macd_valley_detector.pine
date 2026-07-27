@@ -1,0 +1,60 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/MACD-Valley-Detector-策略-MACD-Valley-Detector-Strategy.md
+// content_hash: a81c0203e661feca
+// collected: 2026-07-27
+//@version=5
+strategy("MACD Valley Detector", overlay=true)
+fastLength = input(12)
+slowlength = input(26)
+MACDLength = input(9)
+MACD = ta.ema(close, fastLength) - ta.ema(close, slowlength)
+aMACD = ta.ema(MACD, MACDLength)
+delta = MACD - aMACD
+
+rsi = ta.rsi(close, 14)
+atr = ta.atr(14)
+
+qty=1
+
+takeProfitValue =7
+// stopLossValue = 1
+
+
+// close[0] < close[1] and close[1] > close[2]
+is_valley= delta[0] > delta[1] and delta[1]<delta[2]? 1:0
+
+// plot(is_valley , "valley?")
+
+if(is_valley==1 and MACD<=-0.4 and delta <0)
+	takeProfit = close +takeProfitValue
+	action = "buy"
+    // strategy.entry("long", strategy.long, qty=qty)
+    // // strategy.exit("exit", "long", stop=stopLoss, limit=takeProfit)
+    // strategy.exit("exit", "long", limit=takeProfit)
+    alert('{"TICKER":"'+syminfo.ticker+'","ACTION":"'+action+'","PRICE":"'+str.tostring(close)+'","TAKEPROFIT":"'+str.tostring(takeProfit)+'","QTY":"'+str.tostring(qty)+'"}')
+
+if (ta.crossover(delta, 0))
+	stopLoss = low -0.3
+    takeProfit = high +0.3
+	strategy.entry("MacdLE", strategy.long,qty=qty, comment="MacdLE")
+	strategy.exit("exit long", "MacdLE", limit=takeProfit)
+	// strategy.exit("exit long", "MacdLE", stop=stopLoss, limit=takeProfit)
+if (ta.crossunder(delta, 0))
+	stopLoss = high + 0.3
+    takeProfit = low - 0.3
+	strategy.entry("MacdSE", strategy.short,qty=qty, comment="MacdSE")
+	strategy.exit("exit long", "MacdLE", limit=takeProfit)
+
+	// strategy.exit("exit short", "MacdSE", stop=stopLoss, limit=takeProfit)
+//plot(strategy.equity, title="equity", color=color.red, linewidth=2, style=plot.style_areabr)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/448070
+
+> Last Modified
+
+2024-04-12 17:01:21

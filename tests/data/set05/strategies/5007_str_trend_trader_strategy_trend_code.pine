@@ -1,0 +1,69 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于趋势跟随策略Trend-Following-Strategy.md
+// content_hash: 0e0539df9ba99ed5
+// collected: 2026-07-27
+strategy("Trend Trader Strategy (Trend Code)", shorttitle="Trend Trader Strategy (Trend Code)", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=100)
+
+//Inputs
+TrendCode = input(5, title = "Trend Code")
+
+////////////////////////////////////////////////////////////////////////////////
+// BACKTESTING RANGE
+ 
+// From Date Inputs
+fromDay = input(defval = 1, title = "From Day", minval = 1, maxval = 31)
+fromMonth = input(defval = 1, title = "From Month", minval = 1, maxval = 12)
+fromYear = input(defval = 2019, title = "From Year", minval = 1970)
+ 
+// To Date Inputs
+toDay = input(defval = 1, title = "To Day", minval = 1, maxval = 31)
+toMonth = input(defval = 1, title = "To Month", minval = 1, maxval = 12)
+toYear = input(defval = 2020, title = "To Year", minval = 1970)
+ 
+// Calculate start/end date and time condition
+startDate = timestamp(fromYear, fromMonth, fromDay, 00, 00)
+finishDate = timestamp(toYear, toMonth, toDay, 00, 00)
+time_cond = true
+ 
+////////////////////////////////////////////////////////////////////////////////
+
+//Parabolic SAR
+psar = sar(0.02, 0.02, TrendCode * 0.005)
+
+
+//Plot PSAR
+plot(psar, title="PSAR", color = color.teal , trackprice=true)
+
+//Barcolor
+barcolor(close > psar ? color.green : color.red, title = "Bar Color")
+
+if (psar >= high and time_cond)
+    strategy.entry("long", strategy.long, stop=psar, comment="long")
+else
+    strategy.cancel("long")
+
+if (psar <= low and time_cond)
+    strategy.entry("short", strategy.short, stop=psar, comment="short")
+else
+    strategy.cancel("short")
+        
+if (not time_cond)
+    strategy.close_all()
+
+
+
+
+
+ 
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/431219
+
+> Last Modified
+
+2023-11-06 10:09:02

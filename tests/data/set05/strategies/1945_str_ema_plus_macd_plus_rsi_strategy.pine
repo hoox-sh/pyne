@@ -1,0 +1,66 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/Multi-EMA趋势追踪型RSI-MACD动量验证策略-Multi-EMA-Trend-Following-Strategy-with-RSI-MACD-Momentum-Validation.md
+// content_hash: bd583c728b599d0a
+// collected: 2026-07-27
+strategy("EMA + MACD + RSI Strategy", overlay=true)
+
+// Parametreler
+length5 = 5
+length14 = 14
+length34 = 34
+length55 = 55
+rsiLength = 14
+macdShort = 12
+macdLong = 26
+macdSignal = 9
+
+// EMA Hesaplamaları
+ema5 = ta.ema(close, length5)
+ema14 = ta.ema(close, length14)
+ema34 = ta.ema(close, length34)
+ema55 = ta.ema(close, length55)
+
+// RSI Hesaplaması
+rsi = ta.rsi(close, rsiLength)
+
+// MACD Hesaplaması
+[macdLine, signalLine, _] = ta.macd(close, macdShort, macdLong, macdSignal)
+macdZeroCross = ta.crossover(macdLine, 0) or ta.crossunder(macdLine, 0)
+
+// Alış ve Satış Koşulları
+longCondition = ema5 > ema14 and ema14 > ema34 and ema34 > ema55 and macdZeroCross and rsi > 50
+shortCondition = ema5 < ema14 and ema14 < ema34 and ema34 < ema55 and macdZeroCross and rsi < 50
+
+// Plotlar
+plot(ema5, color=color.blue, linewidth=1)
+plot(ema14, color=color.green, linewidth=1)
+plot(ema34, color=color.red, linewidth=1)
+plot(ema55, color=color.orange, linewidth=1)
+plot(rsi, title="RSI", color=color.purple, linewidth=1, style=plot.style_line)
+
+// Alış ve Satış Sinyalleri
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+
+if (shortCondition)
+    strategy.entry("Short", strategy.short)
+
+// Stop-loss ve Take-profit hesaplamaları
+stopLoss = ema34
+takeProfit = stopLoss * 3
+
+// Stop-loss ve Take-profit Stratejisi
+strategy.exit("Exit Long", from_entry="Long", stop=stopLoss, limit=takeProfit)
+strategy.exit("Exit Short", from_entry="Short", stop=stopLoss, limit=takeProfit)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/482458
+
+> Last Modified
+
+2025-02-18 15:13:25

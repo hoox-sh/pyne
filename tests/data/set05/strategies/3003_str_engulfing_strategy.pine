@@ -1,0 +1,43 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于K线蜡烛图的看涨吞没和看跌吞没策略Bullish-and-Bearish-Engulfing-Strategy-Based-on-Candlestick-Patterns.md
+// content_hash: dc1fe6145556013a
+// collected: 2026-07-27
+strategy("Engulfing Strategy", overlay=true)
+
+// Calculate bullish engulfing
+bullishEngulfing = close[1] < open[1] and close > open and open <= close[1] and close <= open[1]
+
+// Calculate bearish engulfing
+bearishEngulfing = close[1] > open[1] and close < open and open >= close[1] and close >= open[1]
+
+// Entry conditions
+if (bullishEngulfing)
+    strategy.entry("Buy", strategy.long)
+
+if (bearishEngulfing)
+    strategy.entry("Sell", strategy.short)
+
+// Exit conditions
+if (strategy.position_size > 0)
+    if (close > strategy.position_avg_price)
+        strategy.close("Buy")
+    else
+        strategy.close("Buy")
+
+if (strategy.position_size < 0)
+    if (close < strategy.position_avg_price)
+        strategy.close("Sell")
+    else
+        strategy.close("Sell")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/446440
+
+> Last Modified
+
+2024-03-28 16:40:21

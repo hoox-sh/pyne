@@ -1,0 +1,127 @@
+//@version=2
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于多周期SMA指标的趋势跟踪策略Trend-Following-Strategy-Based-on-Multi-Period-SMA.md
+// content_hash: 66c5b42eb1ceff37
+// collected: 2026-07-27
+strategy("Forex MA Racer - SMA Performance /w ZeroLag EMA Trigger", shorttitle = "FX MA Racer (5x SMA, 2x zlEMA)", overlay=false )
+
+// === INPUTS ===
+hr0             = input(defval = true, title = "=== SERIES INPUTS ===")
+smaSource       = input(defval = close, title = "SMA Source")
+sma1Length      = input(defval = 10, title = "SMA 1 Length")
+sma2Length      = input(defval = 20, title = "SMA 2 Length")
+sma3Length      = input(defval = 50, title = "SMA 3 Length")
+sma4Length      = input(defval = 100, title = "SMA 4 Length")
+sma5Length      = input(defval = 200, title = "SMA 5 Length")
+smaDirSpan      = input(defval = 4, title = "SMA Direction Span")
+zlmaSource      = input(defval = close, title = "ZeroLag EMA Source")
+zlmaFastLength  = input(defval = 9, title = "ZeroLag EMA Fast Length")
+zlmaSlowLength  = input(defval = 21, title = "ZeroLag EMA Slow Length")
+hr1             = input(defval = true, title = "=== PLOT TIME LIMITER ===")
+useTimeLimit    = input(defval = true, title = "Use Start Time Limiter?")
+// set up where we want to run from
+startYear       = input(defval = 2018, title = "Start From Year", minval = 0, step = 1)
+startMonth      = input(defval = 02, title = "Start From Month", minval = 0,step = 1)
+startDay        = input(defval = 01, title = "Start From Day", minval = 0,step = 1)
+startHour       = input(defval = 00, title = "Start From Hour", minval = 0,step = 1)
+startMinute     = input(defval = 00, title = "Start From Minute", minval = 0,step = 1)
+hr2             = input(defval = true, title = "=== TRAILING STOP ===")
+useStop     = input(defval = false, title = "Use Trailing Stop?")
+slPoints    = input(defval = 200, title = "Stop Loss Trail Points", minval = 1)
+slOffset    = input(defval = 400, title = "Stop Loss Trail Offset", minval = 1)
+// === /INPUTS ===
+
+// === SERIES SETUP ===
+// Fast ZeroLag EMA
+zema1=ema(zlmaSource, zlmaFastLength)
+zema2=ema(zema1, zlmaFastLength)
+d1=zema1-zema2
+zlemaFast=zema1+d1
+
+// Slow ZeroLag EMA
+zema3=ema(zlmaSource, zlmaSlowLength)
+zema4=ema(zema3, zlmaSlowLength)
+d2=zema3-zema4
+zlemaSlow=zema3+d2
+
+// Simple Moving Averages
+period10 = sma(close, sma1Length)
+period20 = sma(close, sma2Length)
+period50 = sma(close, sma3Length)
+period100 = sma(close, sma4Length)
+period200 = sma(close, sma5Length)
+// === /SERIES SETUP ===
+
+// === PLOT ===
+// colors of plotted MAs
+p1 = (close < period10) ? #FF0000 : #00FF00
+p2 = (close < period20) ? #FF0000 : #00FF00
+p3 = (close < period50) ? #FF0000 : #00FF00
+p4 = (close < period100) ? #FF0000 : #00FF00
+p5 = (close < period200) ? #FF0000 : #00FF00
+
+plot(period10, title='10 Period', color = p1, linewidth=1)
+plot(period20, title='20 Period', color = p2, linewidth=2)
+plot(period50, title='50 Period', color = p3, linewidth=4)
+plot(period100, title='100 Period', color = p4, linewidth=6)
+plot(period200, title='200 Period', color = p5, linewidth=10)
+// === /PLOT ===
+
+//BFR = BRFIB ? (maFast+maSlow)/2 : abs(maFast - maSlow)
+
+// === STRATEGY ===
+// calculate SMA directions
+direction10 = rising(period10, smaDirSpan) ? +1 : falling(period10, smaDirSpan) ? -1 : 0
+direction20 = rising(period20, smaDirSpan) ? +1 : falling(period20, smaDirSpan) ? -1 : 0
+direction50 = rising(period50, smaDirSpan) ? +1 : falling(period50, smaDirSpan) ? -1 : 0
+direction100 = rising(period100, smaDirSpan) ? +1 : falling(period100, smaDirSpan) ? -1 : 0
+direction200 = rising(period200, smaDirSpan) ? +1 : falling(period200, smaDirSpan) ? -1 : 0
+
+// conditions
+// SMA Direction Trigger
+dirUp = direction10 > 0 and direction20 > 0 and direction100 > 0 and direction200 > 0
+dirDn = direction10 < 0 and direction20 < 0 and direction100 < 0 and direction200 < 0
+
+longCond = (period10>period20) and (period20>period50) and (period50>period100) and  dirUp//and (close > period10) and (period50>period100) //and (period100>period200)
+shortCond = (period10<period20) and (period20<period50) and dirDn//and (period50<period100) and (period100>period200)
+
+longExit = crossunder(zlemaFast, zlemaSlow) or crossunder(period10, period20)
+shortExit = crossover(zlemaFast, zlemaSlow) or crossover(period10, period20)
+
+
+// entries and exits
+startTimeOk() =>
+    // get our input time together
+    inputTime   = timestamp(syminfo.timezone, startYear, startMonth, startDay, startHour, startMinute)
+    // check the current time is greater than the input time and assign true or false
+    timeOk      = time > inputTime ? true : false
+    // last line is the return value, we want the strategy to execute if..
+    // ..we are using the limiter, and the time is ok -OR- we are not using the limiter
+    r = (useTimeLimit and timeOk) or not useTimeLimit
+
+
+if( true )
+    // entries
+    strategy.entry("long", strategy.long, when = longCond)
+    strategy.entry("short", strategy.short, when = shortCond)
+
+        
+    // trailing stop
+    if (useStop)
+        strategy.exit("XL", from_entry = "long", trail_points = slPoints, trail_offset = slOffset)
+        strategy.exit("XS", from_entry = "short", trail_points = slPoints, trail_offset = slOffset)
+
+    // exits
+    strategy.close("long", when = longExit)
+    strategy.close("short", when = shortExit)
+// === /STRATEGY ===
+```
+
+> Detail
+
+https://www.fmz.com/strategy/440976
+
+> Last Modified
+
+2024-02-04 14:50:24

@@ -1,0 +1,9 @@
+//@version=6
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/language/matrices.md::matrices.md#block69
+// content_hash: e05d9dbf738bf665
+// collected: 2026-07-27
+indicator("Out of bounds demo")
+
+//@variable A 2x3 matrix with a max row index of 1 and max column index of 2.

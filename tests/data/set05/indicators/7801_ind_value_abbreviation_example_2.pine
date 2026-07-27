@@ -1,0 +1,17 @@
+//@version=5
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/v5/faq/functions.md::functions.md#block3
+// content_hash: 5c86efbdd101cccb
+// collected: 2026-07-27
+indicator("Value abbreviation example")
+
+// @function            Converts a numeric value into a readable string representation featuring the appropriate order
+//                          of magnitude abbreviation (K, M, B, T).
+// @param value         (float) The value to format.
+// @param precision         (string) The numerical precision of the result. ("" for none, ".00" for two digits, etc.)
+// @returns                 (string) The formatted value as a string with the appropriate abbreviation suffix.
+abbreviateValue(float value, string precision) =>
+    float digitsAmt = math.log10(math.abs(value))
+    string formatPrecision = "#" + precision
+    string result = switch

@@ -1,0 +1,50 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双均线价格通道交易策略Dual-Moving-Average-Price-Channel-Trading-Strategy.md
+// content_hash: 0babcb4be25b9003
+// collected: 2026-07-27
+strategy("G-Channel and EMA Strategy", shorttitle="GEMA", overlay=true)
+
+// G-Channel Indicator
+length = input(100)
+a = 0.0
+b = 0.0
+a := na(a[1]) ? close : max(close, a[1]) - (a[1] - b[1]) / length
+b := na(b[1]) ? close : min(close, b[1]) + (a[1] - b[1]) / length
+avg = avg(a, b)
+
+crossup = b[1] < close[1] and b > close
+crossdn = a[1] < close[1] and a > close
+bullish = barssince(crossdn) <= barssince(crossup)
+
+// EMA Indicator
+emaLength = input(20, title="EMA Length")
+emaValue = ema(close, emaLength)
+
+// Strategy Conditions
+buyCondition = bullish and close < emaValue
+sellCondition = not bullish and close > emaValue
+
+// Execute Strategy
+strategy.entry("Buy", strategy.long, when=buyCondition)
+strategy.entry("Sell", strategy.short, when=sellCondition)
+
+// Plotting
+plot(avg, color=color.new(bullish ? color.lime : color.red, 90), linewidth=1, title="G-Channel Average")
+plot(emaValue, color=color.rgb(0, 0, 255, 90), linewidth=1, title="EMA")
+
+// Mark Buy and Sell Signals
+plotshape(series=buyCondition, title="Buy Signal", color=color.green, style=shape.labelup, text="Buy", size=size.small)
+plotshape(series=sellCondition, title="Sell Signal", color=color.red, style=shape.labeldown, text="Sell", size=size.small)
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/439372
+
+> Last Modified
+
+2024-01-19 16:44:31

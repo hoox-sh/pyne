@@ -1,0 +1,55 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/MACD均线多头量化交易策略MACD-Moving-Average-Bullish-Quantitative-Trading-Strategy.md
+// content_hash: 3b400ecff427ebf9
+// collected: 2026-07-27
+strategy("MACD Long Strategy", overlay=true)
+
+// MACD设置
+macdLengthShort = input(12, title="MACD Short Length")
+macdLengthLong = input(26, title="MACD Long Length")
+macdLengthSignal = input(9, title="MACD Signal Length")
+
+// 20均线
+smaLength = input(20, title="20 SMA Length")
+
+// 计算MACD
+[macdLine, signalLine, _] = ta.macd(close, macdLengthShort, macdLengthLong, macdLengthSignal)
+
+// 计算20均线
+smaValue = ta.sma(close, smaLength)
+
+// 入场条件
+enterLong = ta.crossover(macdLine, signalLine) and macdLine > 0 and close > smaValue
+
+// 出场条件
+exitLong = close < smaValue
+
+// 记录入场价
+var float entryPrice = na
+if (enterLong)
+    entryPrice := close
+
+// 下单逻辑
+strategy.entry("Long", strategy.long, when=enterLong)
+strategy.close("Long", when=exitLong)
+
+// 画出MACD线和20均线
+plot(macdLine - signalLine, title="MACD Histogram", color=color.blue)
+plot(smaValue, title="20 SMA", color=color.green)
+
+// 画出买卖信号
+plotshape(enterLong, color=color.new(color.green, 0), style=shape.labelup, location=location.belowbar, size=size.small, text="Buy")
+plotshape(exitLong, color=color.new(color.red, 0), style=shape.labeldown, location=location.abovebar, size=size.small, text="Sell")
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/444016
+
+> Last Modified
+
+2024-03-08 15:47:44

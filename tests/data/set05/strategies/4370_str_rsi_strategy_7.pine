@@ -1,0 +1,112 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/RSI双向突破策略RSI-Reversal-Breakout-Strategy.md
+// content_hash: 47ae54902ae5d31e
+// collected: 2026-07-27
+
+strategy("RSI Strategy", overlay=true, initial_capital = 10000, default_qty_value = 10000, default_qty_type = strategy.cash)
+
+// Strategy Backtesting
+startDate  = input(timestamp("2021-10-01T00:00:00"), type = input.time, title='Backtesting Start Date')
+finishDate = input(timestamp("9999-12-31T00:00:00"), type = input.time, title='Backtesting End Date')
+
+time_cond  = true
+// Strategy
+
+Length = input(12, minval=1)
+src = input(close, title="Source")
+overbought = input(70, minval=1)
+oversold = input(30, minval=1)
+xRSI = rsi(src, Length)
+    
+rsinormal = input(true, title="Overbought Go Long & Oversold Go Short")
+rsiflipped = input(false, title="Overbought Go Short & Oversold Go Long")
+
+// EMA Filter
+noemafilter = input(true, title="No EMA Filter")
+useemafilter = input(false, title="Use EMA Filter")
+ema_length = input(defval=15, minval=1, title="EMA Length")
+emasrc = input(close, title="Source")
+ema = ema(emasrc, ema_length)
+plot(ema, "EMA", style=plot.style_linebr, color=#cad850, linewidth=2)
+
+//Time Restriction Settings
+startendtime = input("", title='Time Frame To Enter Trades')
+enableclose = input(false, title='Enable Close Trade At End Of Time Frame')
+timetobuy = (time(timeframe.period, startendtime))
+timetoclose = na(time(timeframe.period, startendtime))
+
+// Stop Loss & Take Profit % Based
+enablesl = input(false, title='Enable Stop Loss')
+enabletp = input(false, title='Enable Take Profit')
+stopTick = input(5.0, title='Stop Loss %', type=input.float, step=0.1) / 100
+takeTick = input(10.0, title='Take Profit %', type=input.float, step=0.1) / 100
+
+longStop = strategy.position_avg_price * (1 - stopTick)
+shortStop = strategy.position_avg_price * (1 + stopTick)
+shortTake = strategy.position_avg_price * (1 - takeTick)
+longTake = strategy.position_avg_price * (1 + takeTick)
+
+plot(strategy.position_size > 0 and enablesl ? longStop : na, style=plot.style_linebr, color=color.red, linewidth=1, title="Long Fixed SL")
+plot(strategy.position_size < 0 and enablesl ? shortStop : na, style=plot.style_linebr, color=color.red, linewidth=1, title="Short Fixed SL")
+plot(strategy.position_size > 0 and enabletp ? longTake : na, style=plot.style_linebr, color=color.green, linewidth=1, title="Long Take Profit")
+plot(strategy.position_size < 0 and enabletp ? shortTake : na, style=plot.style_linebr, color=color.green, linewidth=1, title="Short Take Profit")
+
+// Alert messages
+message_enterlong  = input("", title="Long Entry message")
+message_entershort = input("", title="Short Entry message")
+message_closelong = input("", title="Close Long message")
+message_closeshort = input("", title="Close Short message")
+
+// Strategy Execution
+if (xRSI > overbought and close > ema and time_cond and timetobuy and rsinormal and useemafilter)
+    strategy.entry("Long", strategy.long, alert_message = message_enterlong)
+    
+if (xRSI < oversold and close < ema and time_cond and timetobuy and rsinormal and useemafilter)
+    strategy.entry("Short", strategy.short, alert_message = message_entershort)
+    
+if (xRSI < oversold and close > ema and time_cond and timetobuy and rsiflipped and useemafilter)
+    strategy.entry("Long", strategy.long, alert_message = message_enterlong)
+    
+if (xRSI > overbought and close < ema and time_cond and timetobuy and rsiflipped and useemafilter)
+    strategy.entry("Short", strategy.short, alert_message = message_entershort)
+    
+if (xRSI > overbought and time_cond and timetobuy and rsinormal and noemafilter)
+    strategy.entry("Long", strategy.long, alert_message = message_enterlong)
+    
+if (xRSI < oversold and time_cond and timetobuy and rsinormal and noemafilter)
+    strategy.entry("Short", strategy.short, alert_message = message_entershort)
+    
+if (xRSI < oversold and time_cond and timetobuy and rsiflipped and noemafilter)
+    strategy.entry("Long", strategy.long, alert_message = message_enterlong)
+    
+if (xRSI > overbought and time_cond and timetobuy and rsiflipped and noemafilter)
+    strategy.entry("Short", strategy.short, alert_message = message_entershort)
+    
+if strategy.position_size > 0 and timetoclose and enableclose
+    strategy.close_all(alert_message = message_closelong)
+if strategy.position_size < 0 and timetoclose and enableclose
+    strategy.close_all(alert_message = message_closeshort)
+    
+if strategy.position_size > 0 and enablesl and time_cond
+    strategy.exit(id="Close Long", stop=longStop, limit=longTake, alert_message = message_closelong)
+if strategy.position_size < 0 and enablesl and time_cond
+    strategy.exit(id="Close Short", stop=shortStop, limit=shortTake, alert_message = message_closeshort)
+    
+if strategy.position_size > 0 and enabletp and time_cond
+    strategy.exit(id="Close Long", stop=longStop, limit=longTake, alert_message = message_closelong)
+if strategy.position_size < 0 and enabletp and time_cond
+    strategy.exit(id="Close Short", stop=shortStop, limit=shortTake, alert_message = message_closeshort)
+    
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/431498
+
+> Last Modified
+
+2023-11-08 12:11:03

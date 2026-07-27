@@ -1,0 +1,33 @@
+//@version=3
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/里向破坏策略Inside-Bar-Failure-Strategy.md
+// content_hash: ce8f21a976567637
+// collected: 2026-07-27
+strategy("Inside Bar Failure", overlay=true)
+
+forward = input(defval=3, title="Look Forward")
+
+longCondition = if (high[2] > high[1] and low[2] < low[1] and low < low[1] and high < high[1] and close > low[1])
+    x = true
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+
+shortCondition = if (high[2] > high[1] and low[2] < low[1] and high > high[1] and low > low[1] and close < high[1])
+    y = true
+if (shortCondition)
+    strategy.entry("Short", strategy.short)
+    
+if (longCondition[forward])
+    strategy.close("Long")
+if (shortCondition[forward])
+    strategy.close("Short")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/426807
+
+> Last Modified
+
+2023-09-14 16:43:52

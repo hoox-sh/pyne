@@ -1,0 +1,12 @@
+//@version=6
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/concepts/strings.md::strings.md#block32
+// content_hash: b5f6d8c133b44a7f
+// collected: 2026-07-27
+indicator("Locating multiple substrings demo", overlay = true)
+
+getPositions(string source, string substring) =>
+    //@variable The position of the first occurrence of the `substring`. 
+    int firstPos = str.pos(source, substring)
+    //@variable An array containing the starting position of each `substring` occurrence in the `source`.

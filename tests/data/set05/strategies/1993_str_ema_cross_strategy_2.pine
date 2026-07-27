@@ -1,0 +1,65 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双EMA指标智能交叉交易系统与动态止盈止损策略-Dual-EMA-Indicator-Smart-Crossing-Trading-System-with-Dynamic-Stop-Loss-and-Take-Profit-Strategy.md
+// content_hash: bf578fddd4734d97
+// collected: 2026-07-27
+strategy("EMA Cross Strategy", overlay=true, initial_capital=10000, default_qty_type=strategy.percent_of_equity, default_qty_value=100)
+
+// 添加策略参数设置
+var showLabels = input.bool(true, "显示标签")
+var stopLossPercent = input.float(5.0, "止损百分比", minval=0.1, maxval=20.0, step=0.1)
+var takeProfitPercent = input.float(10.0, "止盈百分比", minval=0.1, maxval=50.0, step=0.1)
+
+// 计算EMA
+ema9 = ta.ema(close, 9)
+ema21 = ta.ema(close, 21)
+
+// 绘制EMA线
+plot(ema9, "EMA9", color=color.blue, linewidth=2)
+plot(ema21, "EMA21", color=color.red, linewidth=2)
+
+// 检测交叉
+crossOver = ta.crossover(ema9, ema21)  
+crossUnder = ta.crossunder(ema9, ema21)
+
+// 格式化时间显示 (UTC+8)
+utc8Time = time + 8 * 60 * 60 * 1000
+timeStr = str.format("{0,date,MM-dd HH:mm}", utc8Time)
+
+// 计算止损止盈价格
+longStopLoss = strategy.position_avg_price * (1 - stopLossPercent / 100)
+longTakeProfit = strategy.position_avg_price * (1 + takeProfitPercent / 100)
+shortStopLoss = strategy.position_avg_price * (1 + stopLossPercent / 100)
+shortTakeProfit = strategy.position_avg_price * (1 - takeProfitPercent / 100)
+
+// 交易逻辑
+if crossOver
+    if strategy.position_size < 0  // 如果持有空仓
+        strategy.close("做空")     // 先平掉空仓
+    strategy.entry("做多", strategy.long)  // 开多仓
+    if showLabels
+        label.new(bar_index, high, text="做多入场\n" + timeStr, color=color.green, textcolor=color.white, style=label.style_label_down, yloc=yloc.abovebar)
+
+if crossUnder
+    if strategy.position_size > 0  // 如果持有多仓
+        strategy.close("做多")     // 先平掉多仓
+    strategy.entry("做空", strategy.short)  // 开空仓
+    if showLabels
+        label.new(bar_index, low, text="做空入场\n" + timeStr, color=color.red, textcolor=color.white, style=label.style_label_up, yloc=yloc.belowbar)
+
+// 设置止损止盈
+if strategy.position_size > 0  // 多仓止损止盈
+    strategy.exit("多仓止损止盈", "做多", stop=longStopLoss, limit=longTakeProfit)
+    
+if strategy.position_size < 0  // 空仓止损止盈
+    strategy.exit("空仓止损止盈", "做空", stop=shortStopLoss, limit=shortTakeProfit) 
+```
+
+> Detail
+
+https://www.fmz.com/strategy/473396
+
+> Last Modified
+
+2024-11-29 16:33:21

@@ -1,0 +1,70 @@
+//@version=3
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于不同周期移动平均线交叉策略Moving-Average-Crossover-Strategy.md
+// content_hash: 341f10bdbf1326c1
+// collected: 2026-07-27
+strategy("Ma stratégie", overlay=true)
+
+// Multi-timeframe and price input
+pricetype = input(close, title="Price Source For The Moving Averages")
+useCurrentRes = input(true, title="Use Current Timeframe As Resolution?")
+resCustom = input(title="Use Different Timeframe? Then Uncheck The Box Above",  defval="W")
+res = useCurrentRes ? timeframe.period : resCustom
+price = request.security(syminfo.tickerid, res, pricetype)
+
+// MA period input
+shortperiod = input(7, title="Short Period Moving Average")
+longperiod = input(20, title="Long Period Moving Average")
+
+
+
+short = ema(price, shortperiod) 
+long = ema(price, longperiod) 
+   
+// MA trend direction color
+shortcolor = short > short[1] ? lime : short < short[1] ? red : blue
+longcolor = long > long[1] ? lime : long < long[1] ? red : blue
+
+// MA output
+MA1 = plot(short, title="Short Period Moving Average", style=linebr, linewidth=2, color=shortcolor)
+MA2 = plot(long, title="Long Period Moving Average", style=linebr, linewidth=4, color=longcolor)
+fill(MA1, MA2, color=silver, transp=50)
+
+// MA trend bar color
+TrendingUp() => short > long 
+TrendingDown() => short < long 
+barcolor(TrendingUp() ? green : TrendingDown() ? red : blue)
+
+// MA cross alert
+MAcrossing = cross(short, long) ? short : na
+plot(MAcrossing, style = cross, linewidth = 4,color=black)
+
+// MA cross background color alert
+Uptrend() => TrendingUp() and TrendingDown()[1]
+Downtrend() => TrendingDown() and TrendingUp()[1]
+bgcolor(Uptrend() ? green : Downtrend() ? red : na,transp=50)
+
+// Buy and sell alert
+Buy = Uptrend() and close > close[1]
+Sell = Downtrend() and close < close[1]
+plotshape(Buy, color=black, style=shape.arrowup, text="Buy", location=location.bottom)
+plotshape(Sell, color=black, style=shape.arrowdown, text="Sell", location=location.top)
+
+
+
+if (Buy)
+    strategy.entry("My Long Entry Id", strategy.long)
+
+
+if (Sell)
+    strategy.entry("My Short Entry Id", strategy.short)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/434691
+
+> Last Modified
+
+2023-12-08 12:20:42

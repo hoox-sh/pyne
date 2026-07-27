@@ -1,0 +1,104 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/EMA双均线交叉动态止盈止损量化交易策略-Dynamic-Take-Profit-Stop-Loss-EMA-Crossover-Quantitative-Trading-Strategy.md
+// content_hash: 8165e1b3797ecc17
+// collected: 2026-07-27
+strategy("30 Pips Target & 15 Pips Stop-Loss with One Signal at a Time", overlay=true)
+
+// Define settings for target and stop-loss in pips
+target_in_pips = 30
+stoploss_in_pips = 10
+
+// Convert pips to price value based on market (for forex, 1 pip = 0.0001 for major pairs like GBP/JPY)
+pip_value = syminfo.mintick * 10  // For forex, 1 pip = 0.0001 or 0.01 for JPY pairs
+target_value = target_in_pips * pip_value
+stoploss_value = stoploss_in_pips * pip_value
+
+// Define EMAs (10-EMA and 26-EMA) for the crossover strategy
+ema10 = ta.ema(close, 10)
+ema26 = ta.ema(close, 26)
+
+// Buy signal: when 10 EMA crosses above 26 EMA
+longCondition = ta.crossover(ema10, ema26)
+// Sell signal: when 10 EMA crosses below 26 EMA
+shortCondition = ta.crossunder(ema10, ema26)
+
+// Define price levels with explicit type float
+var float long_entry_price = na
+var float long_take_profit = na
+var float long_stop_loss = na
+var float short_entry_price = na
+var float short_take_profit = na
+var float short_stop_loss = na
+
+// Variable to track if a trade is active
+var bool inTrade = false
+
+// Check if the trade hit stop loss or take profit
+if (inTrade)
+    if (not na(long_take_profit) and close >= long_take_profit)
+        inTrade := false  // Exit the trade after hitting target
+        long_entry_price := na
+        long_take_profit := na
+        long_stop_loss := na
+        strategy.close("Long")
+
+    if (not na(long_stop_loss) and close <= long_stop_loss)
+        inTrade := false  // Exit the trade after hitting stoploss
+        long_entry_price := na
+        long_take_profit := na
+        long_stop_loss := na
+        strategy.close("Long")
+
+    if (not na(short_take_profit) and close <= short_take_profit)
+        inTrade := false  // Exit the trade after hitting target
+        short_entry_price := na
+        short_take_profit := na
+        short_stop_loss := na
+        strategy.close("Short")
+
+    if (not na(short_stop_loss) and close >= short_stop_loss)
+        inTrade := false  // Exit the trade after hitting stoploss
+        short_entry_price := na
+        short_take_profit := na
+        short_stop_loss := na
+        strategy.close("Short")
+
+// Only generate new signals if not already in a trade
+if (not inTrade)
+    if (longCondition)
+        long_entry_price := close
+        long_take_profit := close + target_value
+        long_stop_loss := close - stoploss_value
+        strategy.entry("Long", strategy.long)  // Enter a long trade
+        strategy.exit("Take Profit/Stop Loss", "Long", limit=long_take_profit, stop=long_stop_loss)
+        inTrade := true  // Mark trade as active
+
+    if (shortCondition)
+        short_entry_price := close
+        short_take_profit := close - target_value
+        short_stop_loss := close + stoploss_value
+        strategy.entry("Short", strategy.short)  // Enter a short trade
+        strategy.exit("Take Profit/Stop Loss", "Short", limit=short_take_profit, stop=short_stop_loss)
+        inTrade := true  // Mark trade as active
+
+// Plot the levels on the chart only when in a trade
+plot(inTrade and not na(long_take_profit) ? long_take_profit : na, color=color.green, linewidth=2, style=plot.style_linebr, title="Take Profit (Long)")
+plot(inTrade and not na(long_stop_loss) ? long_stop_loss : na, color=color.red, linewidth=2, style=plot.style_linebr, title="Stop Loss (Long)")
+
+plot(inTrade and not na(short_take_profit) ? short_take_profit : na, color=color.green, linewidth=2, style=plot.style_linebr, title="Take Profit (Short)")
+plot(inTrade and not na(short_stop_loss) ? short_stop_loss : na, color=color.red, linewidth=2, style=plot.style_linebr, title="Stop Loss (Short)")
+
+plotshape(series=longCondition and not inTrade, title="Buy Signal", location=location.belowbar, color=color.green, style=shape.labelup, text="Buy")
+plotshape(series=shortCondition and not inTrade, title="Sell Signal", location=location.abovebar, color=color.red, style=shape.labeldown, text="Sell")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/472251
+
+> Last Modified
+
+2024-11-18 15:53:49

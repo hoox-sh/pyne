@@ -1,0 +1,14 @@
+//@version=6
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/language/variable-declarations.md::variable-declarations.md#block30
+// content_hash: 607f5029c685f939
+// collected: 2026-07-27
+indicator("Default declaration mode demo")
+
+// This declaration does not use `var` or `varip`.
+// Therefore, the script reinitializes the variable to 0 on every execution.
+int count = 0
+
+// Increment the `count` variable by one. Because the variable resets to 0, this operation consistently reassigns it
+// a value of 1.

@@ -1,0 +1,97 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/移动平均交叉趋势跟踪策略Zhukovs-Moving-Average-Crossover-Trend-Following-Strategy.md
+// content_hash: a7622be7e1621b53
+// collected: 2026-07-27
+strategy('ZhukovTrade', overlay=true, calc_on_every_tick=true, currency=currency.USD)
+
+// INPUT:
+
+// Options to enter fast and slow Exponential Moving Average (EMA) values
+emaFast = input.int(title='Fast EMA', defval=100, minval=1, maxval=9999)
+emaSlow = input.int(title='Slow EMA', defval=200, minval=1, maxval=9999)
+
+// Option to select trade directions
+tradeDirection = input.string(title='Trade Direction', options=['Long', 'Short', 'Both'], defval='Both')
+
+// Options that configure the backtest date range
+startDate = input(title='Start Date', defval=timestamp('01 Jan 2023 00:00'))
+endDate = input(title='End Date', defval=timestamp('31 Dec 2023 23:59'))
+
+
+// CALCULATIONS:
+
+// Use the built-in function to calculate two EMA lines
+fastEMA = ta.ema(close, emaFast)
+slowEMA = ta.ema(close, emaSlow)
+emapos = ta.ema(close,200)
+
+// PLOT:
+
+// Draw the EMA lines on the chart
+plot(series=fastEMA, color=color.new(color.orange, 0), linewidth=2)
+plot(series=slowEMA, color=color.new(color.blue, 0), linewidth=2)
+plot(series=emapos, color=color.new(color.red, 0), linewidth=2)
+
+
+// CONDITIONS:
+
+// Check if the close time of the current bar falls inside the date range
+inDateRange = true
+
+// Translate input into trading conditions
+longOK = tradeDirection == 'Long' or tradeDirection == 'Both'
+shortOK = tradeDirection == 'Short' or tradeDirection == 'Both'
+
+// Decide if we should go long or short using the built-in functions
+longCondition = ta.crossover(fastEMA, slowEMA) 
+shortCondition = ta.crossunder(fastEMA, slowEMA) 
+// ORDERS:
+// Set take profit and stop loss percentages
+take_profit_percent = input(0, title="Take Profit Percent")
+stop_loss_percent = input(0, title="Stop Loss Percent")
+// Submit entry (or reverse) orders
+
+
+atrPeriod = input(12, "ATR Length")
+factor = input.float(3.0, "Factor", step = 0.01)
+
+[supertrend, direction] = ta.supertrend(factor, atrPeriod)
+
+bodyMiddle = plot((open + close) / 2, display=display.none)
+upTrend = plot(direction < 0 ? supertrend : na, "Up Trend", color = color.green, style=plot.style_linebr)
+downTrend = plot(direction < 0? na : supertrend, "Down Trend", color = color.red, style=plot.style_linebr)
+
+fill(bodyMiddle, upTrend, color.new(color.green, 90), fillgaps=false)
+fill(bodyMiddle, downTrend, color.new(color.red, 90), fillgaps=false)
+
+if longCondition and inDateRange 
+    if longOK and direction<0
+
+        strategy.entry(id='long', direction=strategy.long, alert_message = "LONG")
+if shortCondition and inDateRange 
+    if shortOK and direction>0
+        strategy.entry(id='short', direction=strategy.short, alert_message = "SHORT")
+
+// Submit exit orders in the cases where we trade only long or only short
+
+if strategy.position_size > 0 and take_profit_percent
+    strategy.exit(id='tp long',from_entry ="long",profit = take_profit_percent)
+if strategy.position_size > 0 and stop_loss_percent
+    strategy.exit(id='sl long',from_entry="long",loss=stop_loss_percent)
+
+if strategy.position_size < 0 and stop_loss_percent
+    strategy.exit(id='sl short',from_entry="short",loss=stop_loss_percent)
+if strategy.position_size < 0 and take_profit_percent
+    strategy.exit(id='tp short',from_entry="short",profit = take_profit_percent)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/435102
+
+> Last Modified
+
+2023-12-12 12:24:11

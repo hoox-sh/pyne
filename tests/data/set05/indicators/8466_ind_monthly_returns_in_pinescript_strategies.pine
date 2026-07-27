@@ -1,0 +1,47 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/Monthly-Returns-in-PineScript-Strategies.md
+// content_hash: 81478d739723524c
+// collected: 2026-07-27
+//strategy("Monthly Returns in PineScript Strategies", overlay = true, default_qty_type = strategy.percent_of_equity, default_qty_value = 25, calc_on_every_tick = true, commission_type = strategy.commission.percent, commission_value = 0.1)
+
+// Inputs 
+leftBars  = input(2,"leftBars")
+rightBars = input(2,"rightBars")
+prec      = input(2, title = "Return Precision")
+
+// Pivot Points 
+swh = pivothigh(leftBars, rightBars)
+swl = pivotlow(leftBars, rightBars)
+
+hprice = 0.0
+hprice := not na(swh) ? swh : hprice[1]
+
+lprice = 0.0
+lprice := not na(swl) ? swl : lprice[1]
+
+le = false
+le := not na(swh) ? true : (le[1] and high > hprice ? false : le[1])
+
+se = false
+se := not na(swl) ? true : (se[1] and low < lprice ? false : se[1])
+
+if (le)
+	strategy.entry("PivRevLE", strategy.long, comment="PivRevLE")
+
+if (se)
+	strategy.entry("PivRevSE", strategy.short, comment="PivRevSE")
+
+plot(hprice, color = color.green, linewidth = 2)
+plot(lprice, color = color.red,   linewidth = 2)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/361565
+
+> Last Modified
+
+2022-05-08 10:43:41

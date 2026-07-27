@@ -1,0 +1,10 @@
+//@version=6
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/faq/visuals.md::visuals.md#block10
+// content_hash: 910af1d0f0b8509f
+// collected: 2026-07-27
+indicator("Vertical line demo", overlay = true, max_lines_count = 500)
+float atr = ta.atr(5)
+if bar_index % 10 == 0
+    line.new(bar_index, open, bar_index, open + atr, extend = extend.both, color = color.silver)

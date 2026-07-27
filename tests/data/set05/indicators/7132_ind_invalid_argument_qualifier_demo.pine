@@ -1,0 +1,9 @@
+//@version=6
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/language/variable-declarations.md::variable-declarations.md#block15
+// content_hash: bda758675a5abd41
+// collected: 2026-07-27
+indicator("Invalid argument qualifier demo", overlay = true)
+
+// The `simple` keyword explicitly sets the variable's qualifier to "simple".

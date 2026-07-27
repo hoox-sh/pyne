@@ -1,0 +1,44 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双均线交易策略Long-Short-Moving-Average-Crossover-Trading-Strategy.md
+// content_hash: 06429bfd55227b0c
+// collected: 2026-07-27
+strategy("MA Strategy", overlay=true)
+
+// Input parameters
+fastLength = input(9, title="Fast MA Length")
+slowLength = input(21, title="Slow MA Length")
+
+// Calculate moving averages
+fastMA = ta.sma(close, fastLength)
+slowMA = ta.sma(close, slowLength)
+
+// Plot moving averages
+plot(fastMA, color=color.blue, title="Fast MA")
+plot(slowMA, color=color.red, title="Slow MA")
+
+// Strategy conditions
+longCondition = ta.crossover(fastMA, slowMA)
+shortCondition = ta.crossunder(fastMA, slowMA)
+
+// Strategy orders
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+
+if (shortCondition)
+    strategy.entry("Short", strategy.short)
+
+// Plot entry signals
+plotshape(series=longCondition, title="Buy Signal", color=color.green, style=shape.triangleup, size=size.small)
+plotshape(series=shortCondition, title="Sell Signal", color=color.red, style=shape.triangledown, size=size.small)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/435246
+
+> Last Modified
+
+2023-12-13 15:23:32

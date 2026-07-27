@@ -1,0 +1,98 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多时间框架RSI-EMA动量交易策略与头寸缩放-Multi-Timeframe-RSI-EMA-Momentum-Trading-Strategy-with-Position-Scaling.md
+// content_hash: cc687a4e03e9b1f0
+// collected: 2026-07-27
+strategy("Custom RSI EMA Strategy", overlay=true, default_qty_type=strategy.fixed, default_qty_value=1)
+
+// Definování vstupních podmínek
+rsi_14 = ta.rsi(close, 14)
+rsi_2 = ta.rsi(close, 2)
+ema_50 = ta.ema(close, 50)
+ema_100 = ta.ema(close, 100)
+ema_200 = ta.ema(close, 200)
+
+// Pákový efekt
+leverage = 20
+
+// Podmínky pro long pozici
+longCondition = (rsi_14[1] < 31) and ta.crossover(rsi_2, 10) and (ema_50 < ema_100) and (ema_100 < ema_200)
+
+// Podmínky pro short pozici
+shortCondition = (rsi_14[1] > 69) and ta.crossunder(rsi_2, 90) and (ema_50 > ema_100) and (ema_100 > ema_200)
+
+// Definování průměrné ceny pozice
+var float long_avg_price = na
+var float short_avg_price = na
+
+// Sledujeme, zda se velikost pozice změnila
+var float last_position_size = na
+
+// Přerušení průměrné ceny pozice při změně pozice
+if (last_position_size != strategy.position_size)
+    long_avg_price := na
+    short_avg_price := na
+
+// Aktualizace průměrné ceny pozice
+if (strategy.position_size > 0)
+    long_avg_price := strategy.position_avg_price
+    short_avg_price := na
+else if (strategy.position_size < 0)
+    short_avg_price := strategy.position_avg_price
+    long_avg_price := na
+
+// Uložení aktuální velikosti pozice pro příští bar
+last_position_size := strategy.position_size
+
+// Podmínky pro take profit
+takeProfitLongCondition = (rsi_14 > 69) and (rsi_2 > 90) and (long_avg_price < close)
+takeProfitShortCondition = (rsi_14 < 31) and (rsi_2 < 10) and (short_avg_price > close)
+
+// Velikost pozice
+new_position_size = strategy.position_size == 0 ? na : math.abs(strategy.position_size) * 2
+
+// Úprava velikosti pozice s ohledem na pákový efekt
+position_value = strategy.equity * leverage
+trade_qty = position_value / close
+
+// Vstup do long pozice s dvojnásobkem aktuální pozice nebo standardní velikostí při první pozici
+if (longCondition)
+    strategy.entry("Long", strategy.long, qty=new_position_size == na ? trade_qty : new_position_size)
+
+// Vstup do short pozice s dvojnásobkem aktuální pozice nebo standardní velikostí při první pozici
+if (shortCondition)
+    strategy.entry("Short", strategy.short, qty=new_position_size == na ? trade_qty : new_position_size)
+
+// Výstup z long pozice při splnění podmínek pro take profit
+if (takeProfitLongCondition)
+    strategy.close("Long")
+
+// Výstup z short pozice při splnění podmínek pro take profit
+if (takeProfitShortCondition)
+    strategy.close("Short")
+
+// Zvýraznění části grafu, kde platí podmínky pro long
+highlightLongCondition = (ema_50 < ema_100) and (ema_100 < ema_200)
+bgcolor(highlightLongCondition ? color.new(color.green, 90) : na)
+
+// Zvýraznění části grafu, kde platí podmínky pro short
+highlightShortCondition = (ema_50 > ema_100) and (ema_100 > ema_200)
+bgcolor(highlightShortCondition ? color.new(color.red, 90) : na)
+
+// Přidání bodů pozic do grafu
+plotshape(series=longCondition, location=location.belowbar, color=color.green, style=shape.labelup, text="L")
+plotshape(series=shortCondition, location=location.abovebar, color=color.red, style=shape.labeldown, text="S")
+
+// Vykreslení průměrné ceny pozice pro long a short
+plot(long_avg_price, title="Long Avg Price", color=color.blue, linewidth=2)
+plot(short_avg_price, title="Short Avg Price", color=color.orange, linewidth=2)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/473361
+
+> Last Modified
+
+2024-11-29 15:23:44

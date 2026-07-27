@@ -1,0 +1,51 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/黄金抛物线突破策略Golden-Parabola-Breakout-Strategy.md
+// content_hash: 8145b9f225088fce
+// collected: 2026-07-27
+strategy("5MABAND + GBS Buy & Sell Strategy", overlay=true)
+
+// Command 1 - 5MABAND Calculation
+length = input(5, title="Number of Candles for Average")
+avgHigh = ta.sma(high, length)
+avgLow = ta.sma(low, length)
+
+// Plotting 5MABAND Bands
+plot(avgHigh, color=color.green, title="5MABAND High Line", linewidth=1)
+plot(avgLow, color=color.red, title="5MABAND Low Line", linewidth=1)
+
+// Command 2 - GBS concept Buy Entry
+gbsBuyCondition = close > open and high - close < close - open and open - low < close - open and close - open > close[1] - open[1] and close - open > close[2] - open[2] and close - open > close[3] - open[3] and close[1] < avgHigh and close[2] < avgHigh and close[3] < avgHigh and open[1] < avgHigh and open[2] < avgHigh and open[3] < avgHigh
+
+// Command 3 - GBS Concept Sell Entry
+gbsSellCondition = open - close > open[1] - close[1] and open - close > open[2] - close[2] and open - close > open[3] - close[3] and open[1] > avgLow and open[2] > avgLow and open[3] > avgLow and open - close > open - low and open - close > high - open
+
+// Command 6 - 5MABAND Exit Trigger
+exitTriggerCandle_5MABAND_Buy = low < avgLow
+exitTriggerCandle_5MABAND_Sell = high > avgHigh
+
+// Exit Signals for 5MABAND
+exitBuySignal_5MABAND = close < avgLow
+exitSellSignal_5MABAND = close > avgHigh
+
+// Execute Buy and Sell Orders
+strategy.entry("Buy", strategy.long, when = gbsBuyCondition)
+strategy.close("Buy", when = exitBuySignal_5MABAND)
+
+strategy.entry("Sell", strategy.short, when = gbsSellCondition)
+strategy.close("Sell", when = exitSellSignal_5MABAND)
+
+// Exit Buy and Sell Orders for 5MABAND
+strategy.close("Buy", when = exitTriggerCandle_5MABAND_Buy)
+strategy.close("Sell", when = exitTriggerCandle_5MABAND_Sell)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/441013
+
+> Last Modified
+
+2024-02-04 18:07:14

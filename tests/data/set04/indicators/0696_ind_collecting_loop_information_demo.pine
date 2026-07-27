@@ -1,0 +1,21 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/writing/debugging.md::debugging.md#block29
+// content_hash: b1e64f5064da87c6
+// collected: 2026-07-27
+indicator("Collecting loop information demo", "Average ROC")
+
+//@variable The number of past bars in the calculation.
+int lookbackInput = input.int(20, "Lookback", 1)
+
+//@variable The average ROC of `close` prices over each length from 1 to `lookbackInput` bars.
+float aroc = 0.0
+
+// Calculation loop.
+for length = 1 to lookbackInput
+    //@variable The `close` value `length` bars ago.
+    float pastClose = close[length]
+    //@variable The `close` rate of change over `length` bars.
+    float roc = (close - pastClose) / pastClose
+    // Add the `roc` to the `aroc` value.

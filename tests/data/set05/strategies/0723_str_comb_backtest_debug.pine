@@ -1,0 +1,126 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多指标组合趋势跟踪策略-Multi-Indicator-Composite-Trend-Following-Strategy.md
+// content_hash: 009998827043e331
+// collected: 2026-07-27
+strategy("Comb Backtest Debug", overlay=true)
+
+// Input Parameters
+lengthMA1 = input.int(9, title="Short-term MA Length")
+lengthMA2 = input.int(21, title="Long-term MA Length")
+lengthRSI = input.int(14, title="RSI Length")
+lengthBB = input.int(20, title="Bollinger Bands Length")
+multBB = input.float(2.0, title="Bollinger Bands Multiplier")
+lengthSupertrend = input.int(3, title="Supertrend Length")
+multSupertrend = input.float(3.0, title="Supertrend Multiplier")
+Periods = input.int(10, title="ATR Period")
+src = input.source(hl2, title="Source")
+Multiplier = input.float(3.0, title="ATR Multiplier", step=0.1)
+changeATR = input.bool(true, title="Change ATR Calculation Method?")
+highlighting = input.bool(true, title="Highlighter On/Off?")
+
+// Moving Averages
+ma1 = ta.ema(close, lengthMA1)
+ma2 = ta.ema(close, lengthMA2)
+
+// RSI
+rsi = ta.rsi(close, lengthRSI)
+
+// Bollinger Bands
+basis = ta.sma(close, lengthBB)
+dev = multBB * ta.stdev(close, lengthBB)
+upperBB = basis + dev
+lowerBB = basis - dev
+
+// ATR Calculation
+atr2 = ta.sma(ta.tr, Periods)
+atr = changeATR ? ta.atr(Periods) : atr2
+
+// Supertrend Calculation
+up = src - (Multiplier * atr)
+up1 = nz(up[1], up)
+up := close[1] > up1 ? math.max(up, up1) : up
+
+dn = src + (Multiplier * atr)
+dn1 = nz(dn[1], dn)
+dn := close[1] < dn1 ? math.min(dn, dn1) : dn
+
+trend = 1
+trend := nz(trend[1], trend)
+trend := trend == -1 and close > dn1 ? 1 : trend == 1 and close < up1 ? -1 : trend
+
+// VWAP
+vwap = ta.vwap(close)
+
+// Plotting Supertrend
+upPlot = plot(trend == 1 ? up : na, title="Up Trend", style=plot.style_line, linewidth=2, color=color.new(color.green, 70))
+dnPlot = plot(trend == 1 ? na : dn, title="Down Trend", style=plot.style_line, linewidth=2, color=color.new(color.red, 70))
+
+// Buy and Sell Signals for Supertrend
+buySignal = trend == 1 and trend[1] == -1
+sellSignal = trend == -1 and trend[1] == 1
+
+plotshape(buySignal ? up : na, title="UpTrend Begins", location=location.absolute, style=shape.circle, size=size.tiny, color=color.new(color.green, 70), text="BUY", transp=0)
+plotshape(sellSignal ? dn : na, title="DownTrend Begins", location=location.absolute, style=shape.circle, size=size.tiny, color=color.new(color.red, 70), text="SELL", transp=0)
+
+// Highlighting the Trend
+mPlot = plot(ohlc4, title="", style=plot.style_circles, linewidth=0)
+longFillColor = highlighting ? (trend == 1 ? color.new(color.green, 90) : color.white) : color.white
+shortFillColor = highlighting ? (trend == -1 ? color.new(color.red, 90) : color.white) : color.white
+fill(mPlot, upPlot, title="UpTrend Highlighter", color=longFillColor)
+fill(mPlot, dnPlot, title="DownTrend Highlighter", color=shortFillColor)
+
+// Plot Moving Averages
+plot(ma1, title="Short-term MA", color=color.new(color.blue, 70), linewidth=2)
+plot(ma2, title="Long-term MA", color=color.new(color.red, 70), linewidth=2)
+
+// Plot RSI
+hline(70, "Overbought", color=color.new(color.red, 70))
+hline(30, "Oversold", color=color.new(color.green, 70))
+plot(rsi, title="RSI", color=color.new(color.purple, 70), linewidth=2)
+
+// Plot Bollinger Bands
+plot(basis, title="BB Basis", color=color.new(color.orange, 70))
+p1 = plot(upperBB, title="BB Upper", color=color.new(color.gray, 70))
+p2 = plot(lowerBB, title="BB Lower", color=color.new(color.gray, 70))
+fill(p1, p2, color=color.new(color.silver, 90), transp=90)
+
+// Plot VWAP
+plot(vwap, title="VWAP", color=color.new(color.green, 70), linewidth=2)
+
+// Background Color Based on Supertrend
+bgcolor(trend == 1 ? color.new(color.green, 90) : color.new(color.red, 90), title="Background Color", transp=90)
+
+// Simplified Buy and Sell Conditions for Testing
+buyCondition = ta.crossover(ma1, ma2)
+sellCondition = ta.crossunder(ma1, ma2)
+
+// Debugging plots
+plotchar(buyCondition, char='B', location=location.belowbar, color=color.new(color.green, 70), size=size.small, title="Buy Condition")
+plotchar(sellCondition, char='S', location=location.abovebar, color=color.new(color.red, 70), size=size.small, title="Sell Condition")
+
+// Strategy orders for backtesting
+if (buyCondition)
+    strategy.entry("Buy", strategy.long)
+
+if (sellCondition)
+    strategy.entry("Sell", strategy.short)
+
+// Alerts for Combined Buy and Sell Conditions
+alertcondition(buyCondition, title="Combined Buy Alert", message="Combined Buy Signal")
+alertcondition(sellCondition, title="Combined Sell Alert", message="Combined Sell Signal")
+alertcondition(buySignal, title="SuperTrend Buy", message="SuperTrend Buy!")
+alertcondition(sellSignal, title="SuperTrend Sell", message="SuperTrend Sell!")
+changeCond = trend != trend[1]
+alertcondition(changeCond, title="SuperTrend Direction Change", message="SuperTrend has changed direction!")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/454766
+
+> Last Modified
+
+2024-06-21 18:12:28

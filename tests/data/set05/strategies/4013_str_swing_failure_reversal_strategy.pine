@@ -1,0 +1,32 @@
+//@version=4
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/Swing Failure Reversal Strategy.pine
+// content_hash: 6f76e64ab0a596f5
+// collected: 2026-07-27
+strategy(title="Reversal indicator", shorttitle="Technician's reversal indicator", overlay = true)
+lookbackLength = input(40, "Lookback period")
+multiplicator = 0.001
+if (timeframe.isminutes and timeframe.multiplier >= 5)
+    multiplicator := 0.003    
+if (timeframe.isminutes and timeframe.multiplier >= 15)
+    multiplicator := 0.007   
+if (timeframe.isminutes and timeframe.multiplier >= 60)
+    multiplicator := 0.01
+if (timeframe.isminutes and timeframe.multiplier >= 240)
+    multiplicator := 0.03
+belowMultiplicator = 1 - multiplicator
+aboveMultiplicator = 1 + multiplicator
+hh = highest(high[1], lookbackLength)
+ll = lowest(low[1], lookbackLength)
+isLocalHigh = high > (hh * aboveMultiplicator)
+isLocalLow = low < (ll * belowMultiplicator)
+isSfpUp = isLocalHigh and close < open and not isLocalHigh[1]
+isSfpDown = isLocalLow and close > open and not isLocalLow[1]
+plotchar(series = (isSfpUp), char="⌛", location=location.abovebar, size=size.tiny)
+plotchar(series = (isSfpDown), char="🌹", location=location.belowbar, size=size.tiny)
+strategy.entry("Long", strategy.long, comment = "ENTER-LONG", when = isSfpDown)
+strategy.entry("Short", strategy.short, comment = "ENTER-SHORT", when = isSfpUp)
+strategy.close("Long", comment = "EXIT-LONG", when = high >= ema(close, 75))
+strategy.close("Short", comment = "EXIT-SHORT", when = low <= ema(close , 75))
+Expand (38 lines)

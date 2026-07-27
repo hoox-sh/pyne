@@ -1,0 +1,12 @@
+//@version=6
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/faq/alerts.md::alerts.md#block7
+// content_hash: 4de23b38a367cecb
+// collected: 2026-07-27
+indicator("Delayed alert demo", overlay = true)
+
+import PineCoders/Time/4 as PCtime
+
+string TIME_TT  = "The delay's duration and units. This specifies the continuous duration for which the condition must be true before triggering the alert."
+string RESET_TT = "When checked, the duration will reset every time a new realtime bar begins."

@@ -1,0 +1,15 @@
+//@version=5
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/v5/faq.md::faq.md#block3
+// content_hash: 1b95bb05638e0f2d
+// collected: 2026-07-27
+strategy("BarUpDn Strategy", overlay = true, default_qty_type = strategy.percent_of_equity, default_qty_value = 10)
+maxIdLossPcntInput = input.float(1, "Max Intraday Loss(%)")
+strategy.risk.max_intraday_loss(maxIdLossPcntInput, strategy.percent_of_equity)
+needTrade() => close > open and open > close[1] ? 1 : close < open and open < close[1] ? -1 : 0
+trade = request.security(ticker.heikinashi(syminfo.tickerid), timeframe.period, needTrade())
+if trade == 1
+    strategy.entry("BarUp", strategy.long)
+if trade == -1
+    strategy.entry("BarDn", strategy.short)

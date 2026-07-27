@@ -1,0 +1,58 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动态支撑阻力SMA交叉黄金交易策略三重确认与风险管理优化框架-Dynamic-Support-Resistance-SMA-Crossover-Trading-Strategy-Triple-Confirmation-with-Risk-Management-Optimization-Framework.md
+// content_hash: 927636194e0e3d3d
+// collected: 2026-07-27
+strategy("Gold Scalping 3M 10-20 SMA", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=1)
+
+// Moving Averages
+sma10 = ta.sma(close, 10)
+sma20 = ta.sma(close, 20)
+
+// Support & Resistance Levels (Last 10 bars)
+recentLow = ta.lowest(low, 10)  // Dynamic support
+recentHigh = ta.highest(high, 10)  // Dynamic resistance
+
+// Buy Entry Conditions
+bullishCross = ta.crossover(sma10, sma20)  // 10 SMA crosses above 20 SMA
+breakoutUp = close > ta.highest(sma20, 3)  // Breaks recent 3-bar high
+retestUp = ta.lowest(low, 3) > sma20  // Retests above 20 SMA
+buyCondition = bullishCross and breakoutUp and retestUp
+
+// Sell Entry Conditions
+bearishCross = ta.crossunder(sma10, sma20)  // 10 SMA crosses below 20 SMA
+breakoutDown = close < ta.lowest(sma20, 3)  // Breaks recent 3-bar low
+retestDown = ta.highest(high, 3) < sma20  // Retests below 20 SMA
+sellCondition = bearishCross and breakoutDown and retestDown
+
+// Stop Loss & Take Profit (Dynamic)
+longSL = recentLow  // SL for Buy = Last 10-bar Low
+shortSL = recentHigh  // SL for Sell = Last 10-bar High
+
+riskSizeLong = close - longSL  // Risk for Buy
+riskSizeShort = shortSL - close  // Risk for Sell
+
+longTP = close + (riskSizeLong * 2)  // 1:2 RR TP for Buy
+shortTP = close - (riskSizeShort * 2)  // 1:2 RR TP for Sell
+
+// Plot Buy/Sell Signals
+plotshape(series=buyCondition, location=location.belowbar, color=color.green, style=shape.labelup, title="BUY")
+plotshape(series=sellCondition, location=location.abovebar, color=color.red, style=shape.labeldown, title="SELL")
+
+// Execute Trades
+strategy.entry("Long", strategy.long, when=buyCondition)
+strategy.exit("Exit Long", from_entry="Long", stop=longSL, limit=longTP)
+
+strategy.entry("Short", strategy.short, when=sellCondition)
+strategy.exit("Exit Short", from_entry="Short", stop=shortSL, limit=shortTP)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/489288
+
+> Last Modified
+
+2025-04-03 10:51:43

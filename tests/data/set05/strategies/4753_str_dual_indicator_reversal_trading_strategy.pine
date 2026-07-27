@@ -1,0 +1,82 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多指标反转交易策略Dual-Indicator-Reversal-Trading-Strategy.md
+// content_hash: 8fc0ee1df6d209ed
+// collected: 2026-07-27
+////////////////////////////////////////////////////////////
+//  Copyright by HPotter v1.0 11/07/2019
+// This is combo strategies for get a cumulative signal. 
+//
+// First strategy
+// This System was created from the Book "How I Tripled My Money In The 
+// Futures Market" by Ulf Jensen, Page 183. This is reverse type of strategies.
+// The strategy buys at market, if close price is higher than the previous close 
+// during 2 days and the meaning of 9-days Stochastic Slow Oscillator is lower than 50. 
+// The strategy sells at market, if close price is lower than the previous close price 
+// during 2 days and the meaning of 9-days Stochastic Fast Oscillator is higher than 50.
+//
+// Second strategy
+// The Commodity Channel Index (CCI) is best used with markets that display cyclical or 
+// seasonal characteristics, and is formulated to detect the beginning and ending of these 
+// cycles by incorporating a moving average together with a divisor that reflects both possible 
+// and actual trading ranges. The final index measures the deviation from normal, which indicates 
+// major changes in market trend.
+// To put it simply, the Commodity Channel Index (CCI) value shows how the instrument is trading 
+// relative to its mean (average) price. When the CCI value is high, it means that the prices are 
+// high compared to the average price; when the CCI value is down, it means that the prices are low 
+// compared to the average price. The CCI value usually does not fall outside the -300 to 300 range 
+// and, in fact, is usually in the -100 to 100 range.
+//
+// WARNING:
+// - For purpose educate only
+// - This script to change bars colors.
+////////////////////////////////////////////////////////////
+Reversal123(Length, KSmoothing, DLength, Level) =>
+    vFast = sma(stoch(close, high, low, Length), KSmoothing) 
+    vSlow = sma(vFast, DLength)
+    pos = 0.0
+    pos := iff(close[2] < close[1] and close > close[1] and vFast < vSlow and vFast > Level, 1,
+	         iff(close[2] > close[1] and close < close[1] and vFast > vSlow and vFast < Level, -1, nz(pos[1], 0))) 
+	pos
+
+CCI(FastMA, SlowMA) =>
+    pos = 0
+    xCCI = cci(close, 10)
+    xSMA = sma(xCCI,SlowMA)
+    xFMA = sma(xCCI,FastMA)
+    pos := iff(xSMA < xFMA , 1,
+	         iff(xSMA > xFMA, -1, nz(pos[1], 0))) 
+    pos
+
+strategy(title="Combo Strategy 123 Reversal & CCI", shorttitle="Combo", overlay = true)
+Length = input(14, minval=1)
+KSmoothing = input(1, minval=1)
+DLength = input(3, minval=1)
+Level = input(50, minval=1)
+//-------------------------
+FastMA = input(10, minval=1)
+SlowMA = input(20, minval=1)
+reverse = input(false, title="Trade reverse")
+posReversal123 = Reversal123(Length, KSmoothing, DLength, Level)
+posCCI = CCI(FastMA, SlowMA)
+pos = iff(posReversal123 == 1 and posCCI == 1 , 1,
+	   iff(posReversal123 == -1 and posCCI == -1, -1, 0)) 
+possig = iff(reverse and pos == 1, -1,
+          iff(reverse and pos == -1, 1, pos))	   
+if (possig == 1) 
+    strategy.entry("Long", strategy.long)
+if (possig == -1)
+    strategy.entry("Short", strategy.short)	 
+if (possig == 0) 
+    strategy.close_all()
+barcolor(possig == -1 ? #b50404: possig == 1 ? #079605 : #0536b3 )
+```
+
+> Detail
+
+https://www.fmz.com/strategy/427813
+
+> Last Modified
+
+2023-09-25 17:46:24

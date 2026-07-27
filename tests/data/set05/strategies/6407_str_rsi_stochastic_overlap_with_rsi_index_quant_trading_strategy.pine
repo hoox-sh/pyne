@@ -1,0 +1,56 @@
+//@version=2
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双均线叠加RSI指标的量化交易策略Stochastic-Overlap-with-RSI-Index-Quant-Trading-Strategy.md
+// content_hash: 0bb860c03df658ff
+// collected: 2026-07-27
+strategy(title="Easy to Use Stochastic + RSI Strategy", overlay=false)
+
+
+//// Only Enter Long Positions /////
+// strategy.risk.allow_entry_in(strategy.direction.long)
+
+
+///// Backtest Start Date /////
+startDate   = input(title="Start Date",   defval=1,    minval=1,    maxval=31)
+startMonth  = input(title="Start Month",  defval=1,    minval=1,    maxval=12)
+startYear   = input(title="Start Year",   defval=2014, minval=1800, maxval=2100)
+
+afterStartDate = true
+
+
+///// Create inputs /////
+// Stochastics //
+periodK = input(14, title="K", minval=1)
+periodD = input(3, title="D", minval=1)
+smoothK = input(3, title="Smooth", minval=1)
+
+k = sma(stoch(close, high, low, periodK), smoothK)
+d = sma(k, periodD)
+
+// RSI Values //
+rsivalue = rsi(close, 14)
+
+
+///// Plot Stochastic Values and Lines /////
+plot(k, title="%K", color=lime)
+plot(d, title="%D", color=red)
+h0 = hline(80)
+h1 = hline(20)
+fill(h0, h1, color=purple, transp=80)
+
+
+///// Submit orders /////
+if (afterStartDate and crossover(k, d) and k<20 and rsivalue<50)
+    strategy.entry(id="BUY", long=true)
+if (afterStartDate and crossunder(k, d) and k>80 and rsivalue>60)
+    strategy.entry(id="SELL", long=false)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/438482
+
+> Last Modified
+
+2024-01-12 13:57:36

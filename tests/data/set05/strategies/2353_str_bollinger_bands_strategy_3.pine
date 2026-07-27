@@ -1,0 +1,58 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/布林带动量交叉策略-Bollinger-Bands-Momentum-Crossover-Strategy.md
+// content_hash: 6bf7744757bb8844
+// collected: 2026-07-27
+strategy("Bollinger Bands Strategy", overlay=true)
+
+// Input parameters
+length = input.int(20, title="BB Length")
+src = input(close, title="Source")
+mult = input.float(2.0, title="BB Mult")
+
+// Calculate Bollinger Bands
+basis = ta.sma(src, length)
+dev = mult * ta.stdev(src, length)
+
+upper_band = basis + dev
+lower_band = basis - dev
+
+// Plotting Bollinger Bands
+plot(basis, title="Basis", color=color.blue)
+plot(upper_band, title="Upper Band", color=color.red)
+plot(lower_band, title="Lower Band", color=color.green)
+
+// Buy and Sell conditions
+buy_condition = close < lower_band
+sell_condition = close > upper_band
+
+// Strategy logic
+var in_long = false
+var in_short = false
+
+if buy_condition and not in_long
+    strategy.entry("Buy", strategy.long)
+    in_long := true
+
+if sell_condition and not in_short
+    strategy.entry("Sell", strategy.short)
+    in_short := true
+
+if in_long and sell_condition
+    strategy.close("Buy")
+    in_long := false
+
+if in_short and buy_condition
+    strategy.close("Sell")
+    in_short := false
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/454732
+
+> Last Modified
+
+2024-06-21 14:12:29

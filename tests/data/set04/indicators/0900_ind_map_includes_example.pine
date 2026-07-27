@@ -1,0 +1,13 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block136
+// content_hash: 856f6fa0eeeca478
+// collected: 2026-07-27
+indicator("map.includes example")
+a = map.new<string, float>()
+a.put("open", open)
+p = close
+if map.contains(a, "open")
+    p := a.get("open")
+plot(p)

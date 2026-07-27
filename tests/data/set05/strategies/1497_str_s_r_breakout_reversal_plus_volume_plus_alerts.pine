@@ -1,0 +1,80 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于枢轴点的成交量加权突破-反转策略-Pivot-Based-Volume-Weighted-Breakout-Reversal-Strategy.md
+// content_hash: 0d07bb3f9b4307b3
+// collected: 2026-07-27
+strategy("S/R Breakout/Reversal + Volume + Alerts", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=100)
+
+// === INPUTS ===
+pivotLen       = input.int(10, "Pivot Lookback for S/R")
+volSmaLength   = input.int(20, "Volume SMA Length")
+volMultiplier  = input.float(1.5, "Volume Multiplier")
+tpPerc         = input.float(3.0, "Take Profit %", step=0.1)
+slPerc         = 2.0  // Stop Loss fixed at 2%
+
+// === S/R ZONES ===
+pivotHigh = ta.pivothigh(high, pivotLen, pivotLen)
+pivotLow  = ta.pivotlow(low, pivotLen, pivotLen)
+
+var float resZone = na
+var float supZone = na
+if not na(pivotHigh)
+    resZone := pivotHigh
+if not na(pivotLow)
+    supZone := pivotLow
+
+plot(supZone, title="Support", color=color.green, linewidth=2, style=plot.style_linebr)
+plot(resZone, title="Resistance", color=color.red,   linewidth=2, style=plot.style_linebr)
+
+// === VOLUME FILTER ===
+volSma     = ta.sma(volume, volSmaLength)
+highVolume = volume > volSma * volMultiplier
+
+// === LONG LOGIC ===
+priceAboveRes     = close > resZone * 1.01
+nearSupport       = close >= supZone * 0.99 and close <= supZone * 1.01
+rejectSupport     = low <= supZone and close > supZone
+longBreakoutCond  = priceAboveRes and highVolume
+longReversalCond  = nearSupport and rejectSupport and highVolume
+longCondition     = longBreakoutCond or longReversalCond
+
+// === SHORT LOGIC ===
+priceBelowSup     = close < supZone * 0.99
+nearResistance    = close >= resZone * 0.99 and close <= resZone * 1.01
+rejectResistance  = high >= resZone and close < resZone
+shortBreakoutCond = priceBelowSup and highVolume
+shortReversalCond = nearResistance and rejectResistance and highVolume
+shortCondition    = shortBreakoutCond or shortReversalCond
+
+// === ENTRIES WITH LABELS ===
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+    label.new(bar_index, low * 0.995, "BUY", style=label.style_label_up, color=color.green, textcolor=color.white)
+
+if (shortCondition)
+    strategy.entry("Short", strategy.short)
+    label.new(bar_index, high * 1.005, "SELL", style=label.style_label_down, color=color.red, textcolor=color.white)
+
+// === TP/SL ===
+longTP  = close * (1 + tpPerc / 100)
+longSL  = close * (1 - slPerc / 100)
+shortTP = close * (1 - tpPerc / 100)
+shortSL = close * (1 + slPerc / 100)
+
+strategy.exit("Long TP/SL",  from_entry="Long",  limit=longTP,  stop=longSL)
+strategy.exit("Short TP/SL", from_entry="Short", limit=shortTP, stop=shortSL)
+
+// === ALERT CONDITIONS ===
+alertcondition(longCondition,  title="Buy Alert",  message="? BUY signal: S/R + Volume breakout/reversal")
+alertcondition(shortCondition, title="Sell Alert", message="? SELL signal: S/R + Volume breakout/reversal")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/491895
+
+> Last Modified
+
+2025-04-24 17:08:39

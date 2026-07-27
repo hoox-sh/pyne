@@ -1,0 +1,34 @@
+//@version=3
+// set05 corpus entry
+// source_repo: tradingview-custom-indicators
+// source_path: tradingview-custom-indicators/indicators/Equilibrium.pine
+// content_hash: b80a97f85f9d6327
+// collected: 2026-07-27
+study(title="Equilibrium", shorttitle="EQUI", overlay=true)
+
+// Getting inputs
+fast_length = 35
+slow_length = 55
+src = input(title="Source", type=source, defval=open)
+signal_length = 32
+
+// Calculating
+fast_ma = sma(src, fast_length) 
+slow_ma = sma(src, slow_length)
+macd = fast_ma - slow_ma
+
+signal = sma(macd, signal_length) 
+hist = macd - signal
+
+crossLines = macd[2] > signal[2] and macd[1]  <= signal[1]
+crossLines2 = macd[2] < signal[2] and macd[1]  >= signal[1]
+
+s = 0.0
+s := macd[1] > signal[1]  ? nz(s[1]) : open -atr(14)*3
+
+plot(s, color=red,  transp = 50)
+
+
+plotshape(crossLines, location=location.abovebar, style = shape.triangleup, color=red,  text="S")
+plotshape(crossLines2, location=location.belowbar, style = shape.triangleup, color=lime,  text="B")
+

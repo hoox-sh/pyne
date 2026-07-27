@@ -1,0 +1,63 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多指标趋势跟踪交易策略结合抛物线SAR和SuperTrend云层-Multi-Indicator-Trend-Following-Trading-Strategy-with-Parabolic-SAR-and-SuperTrend-Cloud.md
+// content_hash: 549f81ecf919bf4d
+// collected: 2026-07-27
+strategy("Parabolic SAR + SuperTrend + Volume Oscillator Strategy", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=10)
+
+// --- Parabolic SAR Parameters ---
+sar_start = 0.02
+sar_increment = 0.02
+sar_max = 0.2
+sar = ta.sar(sar_start, sar_increment, sar_max)
+plot(sar, color=color.red, style=plot.style_cross, title="Parabolic SAR")
+
+// --- SuperTrend Parameters ---
+st_length = 10
+st_multiplier = 3
+[st_upper, st_lower] = ta.supertrend(st_length, st_multiplier)
+st_color = close > st_upper ? color.green : color.red
+plot(st_upper, color=color.new(st_color, 0), title="SuperTrend Upper")
+plot(st_lower, color=color.new(st_color, 0), title="SuperTrend Lower")
+fill(plot(st_upper), plot(st_lower), color=color.new(st_color, 90), title="SuperTrend Cloud")
+
+// --- Volume Oscillator Parameters ---
+vo_short_length = 14
+vo_long_length = 28
+vo = ta.ema(volume, vo_short_length) - ta.ema(volume, vo_long_length)
+plot(vo, color=color.blue, title="Volume Oscillator")
+
+// --- Buy and Sell Conditions ---
+// Buy Condition:
+// - Price is above Parabolic SAR
+// - SuperTrend is bullish (price above SuperTrend lower line)
+// - Volume Oscillator is positive (indicating increasing volume)
+buyCondition = close > sar and close > st_lower and vo > 0
+
+// Sell Condition:
+// - Price is below Parabolic SAR
+// - SuperTrend is bearish (price below SuperTrend upper line)
+// - Volume Oscillator is negative (indicating decreasing volume)
+sellCondition = close < sar and close < st_upper and vo < 0
+
+// Plot Buy/Sell Signals
+plotshape(series=buyCondition, title="Buy Signal", location=location.belowbar, color=color.green, style=shape.labelup, text="BUY")
+plotshape(series=sellCondition, title="Sell Signal", location=location.abovebar, color=color.red, style=shape.labeldown, text="SELL")
+
+// --- Execute Trades ---
+if (buyCondition)
+    strategy.entry("Long", strategy.long)
+
+if (sellCondition)
+    strategy.close("Long")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/482874
+
+> Last Modified
+
+2025-02-21 15:02:58

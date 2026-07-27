@@ -1,0 +1,269 @@
+//@version=4
+// set05 corpus entry
+// source_repo: tradingview-indicators-pine
+// source_path: tradingview-indicators-pine/SF-Talin-VWAPS-70EMA-5-WMYema70-working.txt
+// content_hash: 58a507706137f115
+// collected: 2026-07-27
+// VWAP (Volume Weighted Average Price)
+// Original Indicator:	 Unknow
+// Actual Study Version: @gu5tavo71
+// v1.2.1, 2020.06.13
+// I am using part of this code published by @PineCoders and Public Library by @Tradingview
+//
+// MQ: Brute force (copy paste) create multiple plots at a time
+
+study	 (title = "VWAP EMA70", shorttitle = "VWAP EMA70", overlay = false)
+
+
+// ---------   VWAP Inputs
+i_src		          = input(defval = hlc3,	  title = "VWAP Source",		   type = input.source)
+//i_anchor	          = input(defval = "Month", title = "VWAP Periodic", type = input.string, options = ["Session", "Week", "Month", "Year"])
+
+i_millisDay	 = 86400000
+i_daysInWeek = 7
+
+color_vwap_week = color.lime
+color_vwap_month = color.red
+color_vwap_year = color.black
+
+// ---------   VWAP Initialise: Calculations and first plot (Year)
+i_anchor     = "Year"
+f_dwmBarTime = timeframe.isdwm ? time : time("D")
+if na(f_dwmBarTime)
+    f_dwmBarTime	:= nz(f_dwmBarTime[1])
+var _periodStart	 = time - time
+f_makeMondayZero(_dayOfWeek) => (_dayOfWeek + 5) % 7
+f_isMidnight(_t)	 =>
+    hour(_t) == 0 and minute(_t) == 0
+f_isSameDay(_t1, _t2) =>
+    dayofmonth(_t1) == dayofmonth(_t2) and
+  month(_t1) == month(_t2) and
+  year (_t1) == year (_t2)
+f_isOvernight()		 =>
+    not (f_isMidnight(f_dwmBarTime) or security(syminfo.tickerid,
+	 "D",
+	 f_isSameDay(time, time_close),
+	 lookahead = true))
+f_tradingDayStart(_t) =>
+    _y		 = year(_t)
+    _m		 = month(_t)
+    _d		 = dayofmonth(_t)
+    timestamp(_y, _m, _d, 0, 0)
+f_numDaysBetween(_time1, _time2) =>
+    _y1		 = year(_time1)
+    _m1		 = month(_time1)
+    _d1		 = dayofmonth(_time1)
+    
+    _y2		 = year(_time2)
+    _m2		 = month(_time2)
+    _d2		 = dayofmonth(_time2)
+    
+    _diff	 = abs(timestamp("GMT", _y1, _m1, _d1, 0, 0) -
+				   timestamp("GMT", _y2, _m2, _d2, 0, 0))
+    _diff / i_millisDay
+f_tradingDay = f_isOvernight() ?
+	 f_tradingDayStart(f_dwmBarTime + i_millisDay) :
+	 f_tradingDayStart(f_dwmBarTime)
+f_isNewPeriod() =>
+    _isNew = false
+    if f_tradingDay != nz(f_tradingDay[1])
+        if i_anchor == "Session"
+            _isNew  := na(f_tradingDay[1]) or
+					   f_tradingDay > f_tradingDay[1]
+            
+        if i_anchor == "Week"
+            _isNew  := f_makeMondayZero(dayofweek(_periodStart)) +
+					   f_numDaysBetween(_periodStart, f_tradingDay) >=
+					   i_daysInWeek
+            
+        if i_anchor == "Month"
+            _isNew  := month(_periodStart) != month(f_tradingDay) or
+					   year (_periodStart) != year (f_tradingDay)
+            
+        if i_anchor == "Year"
+            _isNew	 := year(_periodStart) != year(f_tradingDay)
+    _isNew
+f_sumSrc	 = float(na)
+f_sumVol	 = float(na)
+f_sumSrc    := nz(f_sumSrc[1], 0)
+f_sumVol    := nz(f_sumVol[1], 0)
+if f_isNewPeriod()
+    _periodStart := f_tradingDay
+    f_sumSrc := 0.0
+    f_sumVol := 0.0
+if not na(i_src) and not na(volume)
+    f_sumSrc := f_sumSrc + i_src * volume
+    f_sumVol := f_sumVol + volume
+f_vwap		 = f_sumSrc / f_sumVol
+//
+f_dir		 = (f_sumVol > i_src) and (i_src > f_vwap) ?  1 :
+			   (f_sumVol > i_src) and (i_src < f_vwap) ? -1 : 0
+f_range		 = f_vwap < high and
+			   f_vwap > low
+
+  
+////////////////////////////////////////////// VWAP second plot (Week)
+i_anchor := "Week"
+
+f_dwmBarTime2 = timeframe.isdwm ? time : time("D")
+if na(f_dwmBarTime2)
+    f_dwmBarTime2	:= nz(f_dwmBarTime2[1])
+var _periodStart2	 = time - time
+f_makeMondayZero2(_dayOfWeek) => (_dayOfWeek + 5) % 7
+f_isMidnight2(_t)	 =>
+    hour(_t) == 0 and minute(_t) == 0
+f_isSameDay2(_t1, _t2) =>
+    dayofmonth(_t1) == dayofmonth(_t2) and
+  month(_t1) == month(_t2) and
+  year (_t1) == year (_t2)
+f_isOvernight2()		 =>
+    not (f_isMidnight2(f_dwmBarTime2) or security(syminfo.tickerid,
+	 "D",
+	 f_isSameDay2(time, time_close),
+	 lookahead = true))
+f_tradingDayStart2(_t) =>
+    _y		 = year(_t)
+    _m		 = month(_t)
+    _d		 = dayofmonth(_t)
+    timestamp(_y, _m, _d, 0, 0)
+f_numDaysBetween2(_time1, _time2) =>
+    _y1		 = year(_time1)
+    _m1		 = month(_time1)
+    _d1		 = dayofmonth(_time1)
+    
+    _y2		 = year(_time2)
+    _m2		 = month(_time2)
+    _d2		 = dayofmonth(_time2)
+    
+    _diff	 = abs(timestamp("GMT", _y1, _m1, _d1, 0, 0) -
+				   timestamp("GMT", _y2, _m2, _d2, 0, 0))
+    _diff / i_millisDay
+f_tradingDay2 = f_isOvernight2() ?
+	 f_tradingDayStart2(f_dwmBarTime2 + i_millisDay) :
+	 f_tradingDayStart2(f_dwmBarTime2)
+f_isNewPeriod2() =>
+    _isNew = false
+    if f_tradingDay2 != nz(f_tradingDay2[1])
+        if i_anchor == "Session"
+            _isNew  := na(f_tradingDay2[1]) or
+					   f_tradingDay2 > f_tradingDay2[1]
+            
+        if i_anchor == "Week"
+            _isNew  := f_makeMondayZero2(dayofweek(_periodStart2)) +
+					   f_numDaysBetween2(_periodStart2, f_tradingDay2) >=
+					   i_daysInWeek
+            
+        if i_anchor == "Month"
+            _isNew  := month(_periodStart2) != month(f_tradingDay2) or
+					   year (_periodStart2) != year (f_tradingDay2)
+            
+        if i_anchor == "Year"
+            _isNew	 := year(_periodStart2) != year(f_tradingDay2)
+    _isNew
+
+f_sumSrc2	 = float(na)
+f_sumVol2	 = float(na)
+f_sumSrc2    := nz(f_sumSrc2[1], 0)
+f_sumVol2    := nz(f_sumVol2[1], 0)
+if f_isNewPeriod2()
+    _periodStart2 := f_tradingDay2
+    f_sumSrc2 := 0.0
+    f_sumVol2 := 0.0
+if not na(i_src) and not na(volume)
+    f_sumSrc2 := f_sumSrc2 + i_src * volume
+    f_sumVol2 := f_sumVol2 + volume
+f_vwap2		 = f_sumSrc2 / f_sumVol2
+
+f_dir2		 = (f_sumVol2 > i_src) and (i_src > f_vwap2) ?  1 :
+			   (f_sumVol2 > i_src) and (i_src < f_vwap2) ? -1 : 0
+f_range2	 = f_vwap2 < high and
+			   f_vwap2 > low
+
+
+////////////////////////////////////////////// VWAP third plot (Month)
+i_anchor := "Month"
+
+f_dwmBarTime3 = timeframe.isdwm ? time : time("D")
+if na(f_dwmBarTime3)
+    f_dwmBarTime3	:= nz(f_dwmBarTime3[1])
+var _periodStart3	 = time - time
+f_makeMondayZero3(_dayOfWeek) => (_dayOfWeek + 5) % 7
+f_isMidnight3(_t)	 =>
+    hour(_t) == 0 and minute(_t) == 0
+f_isSameDay3(_t1, _t2) =>
+    dayofmonth(_t1) == dayofmonth(_t2) and
+  month(_t1) == month(_t2) and
+  year (_t1) == year (_t2)
+f_isOvernight3()		 =>
+    not (f_isMidnight3(f_dwmBarTime3) or security(syminfo.tickerid,
+	 "D",
+	 f_isSameDay3(time, time_close),
+	 lookahead = true))
+f_tradingDayStart3(_t) =>
+    _y		 = year(_t)
+    _m		 = month(_t)
+    _d		 = dayofmonth(_t)
+    timestamp(_y, _m, _d, 0, 0)
+f_numDaysBetween3(_time1, _time2) =>
+    _y1		 = year(_time1)
+    _m1		 = month(_time1)
+    _d1		 = dayofmonth(_time1)
+    
+    _y2		 = year(_time2)
+    _m2		 = month(_time2)
+    _d2		 = dayofmonth(_time2)
+    
+    _diff	 = abs(timestamp("GMT", _y1, _m1, _d1, 0, 0) -
+				   timestamp("GMT", _y2, _m2, _d2, 0, 0))
+    _diff / i_millisDay
+f_tradingDay3 = f_isOvernight3() ?
+	 f_tradingDayStart3(f_dwmBarTime3 + i_millisDay) :
+	 f_tradingDayStart3(f_dwmBarTime3)
+f_isNewPeriod3() =>
+    _isNew = false
+    if f_tradingDay3 != nz(f_tradingDay3[1])
+        if i_anchor == "Session"
+            _isNew  := na(f_tradingDay3[1]) or
+					   f_tradingDay3 > f_tradingDay3[1]
+            
+        if i_anchor == "Week"
+            _isNew  := f_makeMondayZero3(dayofweek(_periodStart3)) +
+					   f_numDaysBetween3(_periodStart3, f_tradingDay3) >=
+					   i_daysInWeek
+            
+        if i_anchor == "Month"
+            _isNew  := month(_periodStart3) != month(f_tradingDay3) or
+					   year (_periodStart3) != year (f_tradingDay3)
+            
+        if i_anchor == "Year"
+            _isNew	 := year(_periodStart3) != year(f_tradingDay3)
+    _isNew
+
+f_sumSrc3	 = float(na)
+f_sumVol3	 = float(na)
+f_sumSrc3    := nz(f_sumSrc3[1], 0)
+f_sumVol3    := nz(f_sumVol3[1], 0)
+if f_isNewPeriod3()
+    _periodStart3 := f_tradingDay3
+    f_sumSrc3 := 0.0
+    f_sumVol3 := 0.0
+if not na(i_src) and not na(volume)
+    f_sumSrc3 := f_sumSrc3 + i_src * volume
+    f_sumVol3 := f_sumVol3 + volume
+f_vwap3		 = f_sumSrc3 / f_sumVol3
+
+f_dir3		 = (f_sumVol3 > i_src) and (i_src > f_vwap3) ?  1 :
+			   (f_sumVol3 > i_src) and (i_src < f_vwap3) ? -1 : 0
+f_range3	 = f_vwap3 < high and
+			   f_vwap3 > low
+
+
+////////////////////////////////////////////// VWAP Create Plots
+plot(f_vwap2, title="VWAP Weekly", linewidth=2, color=color_vwap_week)
+plot(f_vwap3, title="VWAP Monthly", linewidth=2, color=color_vwap_month)
+plot(f_vwap, title="VWAP Yearly", linewidth=2, color=color_vwap_year)
+
+
+////////////////////////////////////////////// EMA 70
+ema70 = ema(close, 70)
+plot(ema70, title="EMA 70", color=color.orange)

@@ -1,0 +1,11 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block14
+// content_hash: c0299114f57dd675
+// collected: 2026-07-27
+indicator("syminfo.prefix")
+
+// If current chart symbol is 'BATS:MSFT' then syminfo.prefix is 'BATS'.
+if barstate.islastconfirmedhistory
+    label.new(bar_index, high, text=syminfo.prefix)

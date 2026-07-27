@@ -1,0 +1,21 @@
+//@version=5
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/v5/faq/alerts.md::alerts.md#block5
+// content_hash: 24c6f228c2dbdc4f
+// collected: 2026-07-27
+indicator("Screener demo", overlay = true)
+
+// Declare inputs for the alert symbols and the timeframe to run the alerts on. The default is the current chart timeframe.
+string tfInput      = input.timeframe("", "Timeframe")
+string symbol1Input = input.symbol("BINANCE:ETHUSDT", "Symbol 1")
+string symbol2Input = input.symbol("BINANCE:BATUSDT", "Symbol 2")
+string symbol3Input = input.symbol("BINANCE:SOLUSDT", "Symbol 3")
+
+// @function    Generates alert messages for RSI crossing over or under 50, and crosses of price and the 50 EMA.
+// @returns     (string) Formatted alert messages with values for each crossover and crossunder event.
+checkForRsiConditions() =>
+    float  rsi = ta.rsi(close, 14)
+    float  ema = ta.ema(close, 50)
+    string alertMessage = ""
+    if ta.crossover(rsi, 50)

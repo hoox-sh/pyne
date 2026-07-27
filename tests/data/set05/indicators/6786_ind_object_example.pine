@@ -1,0 +1,17 @@
+//@version=6
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/faq/data-structures.md::data-structures.md#block3
+// content_hash: 65c14bc16e8d5fa6
+// collected: 2026-07-27
+indicator("Object example", overlay = true)
+
+// Create the pivot type with 3 fields: the x coordinate, the y coordinate, and a formatted time string.
+type pivot
+    int x
+    float y
+    string pivotTime
+// Check for new pivots. `ta.pivotHigh` returns the price of the pivot.
+float pivFound = ta.pivothigh(10, 10)
+// When a pivot is found, create a new pivot object and generate a label using the values from its fields.
+if not na(pivFound)

@@ -1,0 +1,71 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/随机震荡指标与均线交叉策略结合止损与随机震荡过滤器-Stochastic-Oscillator-and-Moving-Average-Crossover-Strategy-with-Stop-Loss-and-Stochastic-Filter.md
+// content_hash: 96a3ce2557fc2096
+// collected: 2026-07-27
+strategy("Estrategia Estocástico + MA con Stop Loss y Filtro Estocástico", overlay=true)
+
+// Parámetros del Estocástico
+length = input.int(14, title="Longitud Estocástico")
+smoothK = input.int(3, title="Suavizado K")
+smoothD = input.int(3, title="Suavizado D")
+oversold = input.int(20, title="Sobreventa")
+overbought = input.int(80, title="Sobrecompra")
+
+// Parámetros de la Media Móvil
+maLength = input.int(9, title="Longitud MA")
+maSource = input(close, title="Fuente MA")
+
+// Capital inicial
+capital = 5000
+
+// Tamaño de posición (10% del capital)
+positionSize = capital * 0.10
+
+// Stop Loss (2% del precio de entrada)
+stopLossPercent = input.int(2, title="Stop Loss (%)") / 100
+
+// Número de ruedas para el filtro estocástico
+filterPeriods = input.int(12, title="Ruedas de Filtro Estocástico")
+
+// Cálculo del Estocástico
+k = ta.sma(ta.stoch(close, high, low, length), smoothK)
+d = ta.sma(k, smoothD)
+
+// Cálculo de la Media Móvil
+ma = ta.sma(maSource, maLength)
+
+// Filtro estocástico
+stochasticFilter = ta.sma(k > 50 ? 1 : 0, filterPeriods)
+
+// Condiciones de entrada en largo y corto
+longCondition = (ta.crossunder(k, oversold) or ta.crossover(stochasticFilter, 1)) and ma > ma[1]
+shortCondition = (ta.crossover(k, overbought) or ta.crossover(stochasticFilter, 1)) and ma < ma[1]
+
+// Condiciones de salida
+exitLongCondition = ta.crossover(k, ma) and ma < ma[1]
+exitShortCondition = ta.crossunder(k, ma) and ma > ma[1]
+
+// Estrategia
+if (longCondition)
+    strategy.entry("Long", strategy.long, qty=positionSize)
+    strategy.exit("Exit Long", "Long", stop=close * (1 - stopLossPercent))
+if (shortCondition)
+    strategy.entry("Short", strategy.short, qty=positionSize)
+    strategy.exit("Exit Short", "Short", stop=close * (1 + stopLossPercent))
+
+// Cierre de posiciones
+if (exitLongCondition)
+    strategy.close("Long")
+if (exitShortCondition)
+    strategy.close("Short")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/449526
+
+> Last Modified
+
+2024-04-26 16:10:11

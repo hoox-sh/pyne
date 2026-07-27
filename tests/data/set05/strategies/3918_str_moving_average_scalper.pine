@@ -1,0 +1,40 @@
+//@version=4
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/Moving Average Scalper.pine
+// content_hash: e69d0bb12930c817
+// collected: 2026-07-27
+strategy(shorttitle='Moving Average Scalper (by Coinrule)',title='Moving Average Scalper', overlay=true, initial_capital = 1000, default_qty_type = strategy.percent_of_equity, default_qty_type = strategy.percent_of_equity, default_qty_value = 30, commission_type=strategy.commission.percent, commission_value=0.1)
+//Backtest dates
+fromMonth = input(defval = 1,    title = "From Month",      type = input.integer, minval = 1, maxval = 12)
+fromDay   = input(defval = 10,    title = "From Day",        type = input.integer, minval = 1, maxval = 31)
+fromYear  = input(defval = 2019, title = "From Year",       type = input.integer, minval = 1970)
+thruMonth = input(defval = 1,    title = "Thru Month",      type = input.integer, minval = 1, maxval = 12)
+thruDay   = input(defval = 1,    title = "Thru Day",        type = input.integer, minval = 1, maxval = 31)
+thruYear  = input(defval = 2112, title = "Thru Year",       type = input.integer, minval = 1970)
+showDate  = input(defval = true, title = "Show Date Range", type = input.bool)
+start     = timestamp(fromYear, fromMonth, fromDay, 00, 00)        // backtest start window
+finish    = timestamp(thruYear, thruMonth, thruDay, 23, 59)        // backtest finish window
+window()  => time >= start and time <= finish ? true : false       // create function "within window of time"
+//MA inputs and calculations
+movingaverage_signal = sma(close, input(9))
+movingaverage_fast = sma(close, input(50))
+movingaverage_slow = sma(close, input(200))
+movingaverage_mid= sma(close, input(100))
+//Entry 
+bullish = crossover(movingaverage_signal, movingaverage_fast)
+strategy.entry(id="long", long = true, when = bullish and movingaverage_fast < movingaverage_mid and movingaverage_mid < movingaverage_slow and window())
+//Exit
+bearish = crossover(movingaverage_signal, movingaverage_slow)
+Stop_loss= ((input (2))/100)
+Take_profit= ((input (8))/100)
+longStopPrice  = strategy.position_avg_price * (1 - Stop_loss)
+longTakeProfit = strategy.position_avg_price * (1 + Take_profit)
+strategy.close("long", when = bearish)
+// close < longStopPrice or close > longTakeProfit and window())
+//PLOT
+plot(movingaverage_signal, color=color.black, linewidth=2 )
+plot(movingaverage_fast, color=color.orange, linewidth=2)
+plot(movingaverage_slow, color=color.purple, linewidth=2)
+plot(movingaverage_mid, color=color.blue, linewidth=2)
+Expand (49 lines)

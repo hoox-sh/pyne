@@ -1,0 +1,58 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/高级复合均线与市场动量趋势捕捉策略-Advanced-Composite-Moving-Average-and-Market-Momentum-Trend-Capture-Strategy.md
+// content_hash: 96d4205734a6a9eb
+// collected: 2026-07-27
+strategy("Private Strategy TradingView", shorttitle="Private Strategy TradingView", overlay=true)
+
+keh = input(title="Double HullMA", type=input.integer, defval=12, minval=1)
+n2ma = 2 * wma(close, round(keh / 2))
+nma = wma(close, keh)
+diff = n2ma - nma
+sqn = round(sqrt(keh))
+n2ma1 = 2 * wma(close[1], round(keh / 2))
+nma1 = wma(close[1], keh)
+diff1 = n2ma1 - nma1
+sqn1 = round(sqrt(keh))
+n1 = wma(diff, sqn)
+n2 = wma(diff1, sqn)
+
+TenkanSenPeriods = input(9, minval=1, title="Tenkan Sen Periods")
+KijunSenPeriods = input(24, minval=1, title="Kijun Sen Periods")
+SenkouSpanBPeriods = input(51, minval=1, title="Senkou Span B Periods")
+displacement = input(24, minval=1, title="Displacement")
+donchian(len) => avg(lowest(low, len), highest(high, len))
+TenkanSen = donchian(TenkanSenPeriods)
+KijunSen = donchian(KijunSenPeriods)
+SenkouSpanA = avg(TenkanSen, KijunSen)
+SenkouSpanB = donchian(SenkouSpanBPeriods)
+SenkouSpanH = max(SenkouSpanA[displacement - 1], SenkouSpanB[displacement - 1])
+SenkouSpanL = min(SenkouSpanA[displacement - 1], SenkouSpanB[displacement - 1])
+ChikouSpan = close[displacement - 1]
+
+longCondition = n1 > n2 and close > n2 and close > ChikouSpan and close > SenkouSpanH and (TenkanSen >= KijunSen or close > KijunSen)
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+
+shortCondition = n1 < n2 and close < n2 and close < ChikouSpan and close < SenkouSpanL and (TenkanSen <= KijunSen or close < KijunSen)
+if (shortCondition)
+    strategy.entry("Short", strategy.short)
+
+closelong = n1 < n2 and (close < n2 or TenkanSen < KijunSen or close < TenkanSen or close < KijunSen or close < SenkouSpanH or close < ChikouSpan)
+if (closelong)
+    strategy.close("Long")
+
+closeshort = n1 > n2 and (close > n2 or TenkanSen > KijunSen or close > TenkanSen or close > KijunSen or close > SenkouSpanL or close > ChikouSpan)
+if (closeshort)
+    strategy.close("Short")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/458182
+
+> Last Modified
+
+2024-07-30 16:27:16

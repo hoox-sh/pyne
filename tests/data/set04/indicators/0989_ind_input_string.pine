@@ -1,0 +1,10 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block117
+// content_hash: 7e777e43423915b3
+// collected: 2026-07-27
+indicator("input.string", overlay=true)
+i_text = input.string("Hello!", "Message")
+l = label.new(bar_index, high, i_text)
+label.delete(l[1])

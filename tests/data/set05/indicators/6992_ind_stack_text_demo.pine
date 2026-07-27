@@ -1,0 +1,12 @@
+//@version=6
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/faq/strings-and-formatting.md::strings-and-formatting.md#block8
+// content_hash: ac8b7f4dffe2b8d2
+// collected: 2026-07-27
+indicator("Stack text demo", "", true)
+
+plotshape(true, "", shape.arrowup,   location.abovebar, color.green,  textcolor = color.green,  text = "A")
+plotshape(true, "", shape.arrowup,   location.abovebar, color.lime,   textcolor = color.lime,   text = "B\n")
+plotshape(true, "", shape.arrowdown, location.belowbar, color.red,    textcolor = color.red,    text = "C")
+plotshape(true, "", shape.arrowdown, location.belowbar, color.maroon, textcolor = color.maroon, text = "\nD")

@@ -1,0 +1,84 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于移动平均线金叉死叉的交易策略BTC-Trading-Strategy-Based-on-Moving-Average-Crossover.md
+// content_hash: c4ba97052d407404
+// collected: 2026-07-27
+strategy('JayJay BTC Signal', overlay=true, initial_capital=100, currency='USD', default_qty_value=100, default_qty_type=strategy.percent_of_equity, commission_value=0, calc_on_every_tick=true)
+
+securityNoRepaint(sym, tf, src) => request.security(sym, tf, src[barstate.isrealtime ? 1 : 0])[barstate.isrealtime ? 0 : 1]
+
+//200 50 Moving Average
+ma50Len = input.int(50, minval=1, title='MA50-Length')
+ma50Src = input(close, title='MA50-Source')
+ma50Show = input(true, title='Show SMA50 on chart')
+ma50Close = ta.sma(ma50Src, ma50Len)
+ma50CloseTimeframe = input.timeframe("240", "Ma50 Timeframe", group = "EMA Options")
+ma50Open = ta.sma(open, ma50Len)
+ma200Len = input.int(200, minval=1, title='MA200-Length')
+ma200Src = input(close, title='MA200-Source')
+ma200Show = input(true, title='Show SMA200 on chart')
+ma200CloseTimeframe = input.timeframe("D", "Ma200 Timeframe", group = "EMA Options")
+ma200Close = ta.sma(ma200Src, ma200Len)
+ma200Open = ta.sma(open, ma200Len)
+//plot(ma200Close, color=color.new(#0b6ce5, 0), title='MA200')
+//plot(ma50Close, color=color.new(#00d8ff, 0), title='MA50')
+
+sma50 = securityNoRepaint(syminfo.tickerid, ma50CloseTimeframe, ma50Close)
+plot(sma50 and ma50Show ? sma50 : na, color=color.new(#00d8ff, 0), title='SMA50')
+sma200 = securityNoRepaint(syminfo.tickerid, ma200CloseTimeframe, ma200Close)
+plot(sma200 and ma200Show ? sma200 : na, color=color.new(#00d8ff, 0), title='SMA200')
+
+// Short/Long EMA
+// Define the offset value
+EMAOffsetValue = input.int(2, title='EMA Offset', minval=0)
+emaplot = input(true, title='Show EMA on chart')
+len = input.int(20, minval=1, title='ema Length') + EMAOffsetValue
+emaCloseTimeframe = input.timeframe("240", "EMA 1 Timeframe", group = "EMA Options")
+emaOpen = ta.ema(open, len)
+emaClose = ta.ema(close, len)
+
+ema = securityNoRepaint(syminfo.tickerid, emaCloseTimeframe, emaClose)
+
+up = emaClose > ema[1]
+down = emaClose < ema[1]
+mycolor = up ? color.green : down ? color.red : color.blue
+
+plot(ema and emaplot ? ema : na, title='Signal EMA', color=mycolor, linewidth=3)
+//plot(emaClose and emaplot ? emaClose : na, title='Signal 20 EMA', color=color.yellow, linewidth=3)
+
+ma50GreaterThanMa200 = sma50 > sma200
+
+last3BarUp = ema > ema[1]
+
+startLong = up and ema > sma50 and ma50GreaterThanMa200 and (100 - (sma50 / ema * 100) > 1.0)
+
+startFrom = input(timestamp("20 Jan 2000 00:00"), "StartFrom")
+
+yearFilter = true
+
+alertLongPositionMessage = "{\"direction:\": \"long\", \"action\": \"{{strategy.order.action}}\", \"price\": \"{{strategy.order.price}}\", \"qty\": \"{{strategy.position_size}}\", \"symbol\": \"{{ticker}}\", \"date\": \"{{time}}\"}"
+
+if true and startLong and yearFilter
+    strategy.entry('Long', strategy.long, comment = "Long", alert_message = alertLongPositionMessage)
+
+longStopLossLevel = open * 0.05
+strategy.exit('StopLoss', from_entry='Long',comment = "StopLoss!", loss=longStopLossLevel, profit=close * 0.3, alert_message = alertLongPositionMessage)
+longPercentageChange = low / close[1] * 100 - 100
+is1PercentLower = longPercentageChange < -0.1
+closeLongPositionWhen = (down and is1PercentLower) or (emaClose < sma50)
+if closeLongPositionWhen
+    strategy.close('Long', comment = "Fuck It!", alert_message =  alertLongPositionMessage)
+
+bgcolor(startLong ? color.green : na, transp=90)
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/434546
+
+> Last Modified
+
+2023-12-07 14:56:50

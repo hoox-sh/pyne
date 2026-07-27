@@ -1,0 +1,62 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/3-Supertrend-Add-In-This-Single-Script.md
+// content_hash: 25e88a712d8b9044
+// collected: 2026-07-27
+indicator("Supertrend", overlay=true, timeframe="", timeframe_gaps=true)
+
+NEW1_atrPeriod = input(21, "ATR Length")
+NEW1_factor = input.float(1.0, "Factor", step = 0.01)
+
+[supertrend_1, direction_1] = ta.supertrend(NEW1_factor, NEW1_atrPeriod)
+
+bodyMiddle_1 = plot((open + close) / 2, display=display.none)
+
+upTrend_1 = plot(direction_1 < 0 ? supertrend_1 : na, "Up Trend", color = color.green, style=plot.style_linebr)
+downTrend_1 = plot(direction_1 < 0? na : supertrend_1, "Down Trend", color = color.red, style=plot.style_linebr)
+
+fill(bodyMiddle_1, upTrend_1, color.new(color.green, 90), fillgaps=false)
+fill(bodyMiddle_1, downTrend_1, color.new(color.red, 90), fillgaps=false)
+
+
+NEW2_atrPeriod = input(14, "ATR Length")
+NEW2_factor = input.float(2.0, "Factor", step = 0.01)
+
+[supertrend_2, direction_2] = ta.supertrend(NEW2_factor, NEW2_atrPeriod)
+
+bodyMiddle_2 = plot((open + close) / 2, display=display.none)
+upTrend_2 = plot(direction_2 < 0 ? supertrend_2 : na, "Up Trend", color = color.green, style=plot.style_linebr)
+downTrend_2 = plot(direction_2 < 0? na : supertrend_2, "Down Trend", color = color.red, style=plot.style_linebr)
+
+fill(bodyMiddle_2, upTrend_2, color.new(color.green, 90), fillgaps=false)
+fill(bodyMiddle_2, downTrend_2, color.new(color.red, 90), fillgaps=false)
+
+
+NEW3_atrPeriod = input(7, "ATR Length")
+NEW3_factor = input.float(3.0, "Factor", step = 0.01)
+
+[supertrend_3, direction_3] = ta.supertrend(NEW3_factor, NEW3_atrPeriod)
+
+bodyMiddle_3 = plot((open + close) / 2, display=display.none)
+upTrend_3 = plot(direction_3 < 0 ? supertrend_3 : na, "Up Trend", color = color.green, style=plot.style_linebr)
+downTrend_3 = plot(direction_3 < 0? na : supertrend_3, "Down Trend", color = color.red, style=plot.style_linebr)
+
+fill(bodyMiddle_3, upTrend_3, color.new(color.green, 90), fillgaps=false)
+fill(bodyMiddle_3, downTrend_3, color.new(color.red, 90), fillgaps=false)
+
+
+
+if direction_1<0 and direction_2 <0 and direction_3 <0
+    strategy.entry("Enter Long", strategy.long)
+else if direction_1>0 and direction_2 >0 and direction_3 >0
+    strategy.entry("Enter Short", strategy.short)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/362457
+
+> Last Modified
+
+2022-05-11 17:04:21

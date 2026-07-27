@@ -1,0 +1,52 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/EMA双均线固定风险止损止盈-EMA-Dual-Crossover-Fixed-Risk-Stop-Loss-Take-Profit.md
+// content_hash: a7aa63e1d03865fb
+// collected: 2026-07-27
+strategy("EMA Crossover Strategy with 1:3 RR, Volume Filter, and Custom Stop Loss/Take Profit (BTC)", overlay=true, currency="USD", initial_capital=100)
+
+// Define EMA lengths
+ema_length_fast = 65
+ema_length_slow = 240
+
+// Calculate EMAs
+ema_fast = ta.ema(close, ema_length_fast)
+ema_slow = ta.ema(close, ema_length_slow)
+
+// Define crossover conditions
+bullish_crossover = ta.crossover(ema_fast, ema_slow)
+bearish_crossover = ta.crossunder(ema_fast, ema_slow)
+
+// Plot EMAs
+plot(ema_fast, color=color.blue, title="Fast EMA")
+plot(ema_slow, color=color.red, title="Slow EMA")
+
+// Define volume filter
+volume_threshold = 1000 // Adjust as needed
+
+// Define risk amount per trade
+risk_per_trade = 0.5 // $10 USD
+
+// Calculate position size based on risk amount
+stop_loss_distance = 100
+take_profit_distance = 1500
+position_size = risk_per_trade / syminfo.mintick / stop_loss_distance
+
+// Execute trades based on crossovers and volume filter
+if (bullish_crossover and volume > volume_threshold)
+    strategy.entry("Buy", strategy.long, qty=position_size)
+    strategy.exit("Exit", "Buy", stop=close - stop_loss_distance, limit=close + take_profit_distance)
+if (bearish_crossover and volume > volume_threshold)
+    strategy.entry("Sell", strategy.short, qty=position_size)
+    strategy.exit("Exit", "Sell", stop=close + stop_loss_distance, limit=close - take_profit_distance)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/451392
+
+> Last Modified
+
+2024-05-14 15:48:48

@@ -1,0 +1,52 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/MACD交叉动量策略与动态止盈止损优化-MACD-Crossover-Momentum-Strategy-with-Dynamic-Take-Profit-and-Stop-Loss-Optimization.md
+// content_hash: cdf5bd01c3685e48
+// collected: 2026-07-27
+strategy("MACD Strategy", overlay=true)
+
+// Input parameters
+fast_length = input.int(12, title="Fast EMA Length")
+slow_length = input.int(26, title="Slow EMA Length")
+signal_length = input.int(9, title="Signal Line Length")
+
+target_points = input.int(100, title="Target Points")
+stop_loss_points = input.int(50, title="Stop Loss Points")
+
+// Calculate MACD
+[macd_line, signal_line, _] = ta.macd(close, fast_length, slow_length, signal_length)
+
+// Strategy logic
+long_condition = ta.crossover(macd_line, signal_line)
+short_condition = ta.crossunder(macd_line, signal_line)
+
+// Plot MACD
+plot(macd_line, color=color.blue, title="MACD Line")
+plot(signal_line, color=color.red, title="Signal Line")
+
+// Strategy entry and exit
+if long_condition
+    strategy.entry("Long", strategy.long)
+if short_condition
+    strategy.entry("Short", strategy.short)
+
+// Calculate target and stop loss levels
+long_target = strategy.position_avg_price + target_points
+long_stop_loss = strategy.position_avg_price - stop_loss_points
+short_target = strategy.position_avg_price - target_points
+short_stop_loss = strategy.position_avg_price + stop_loss_points
+
+// Strategy exit
+strategy.exit("Long Exit", "Long", limit=long_target, stop=long_stop_loss)
+strategy.exit("Short Exit", "Short", limit=short_target, stop=short_stop_loss)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/458027
+
+> Last Modified
+
+2024-07-29 13:35:02

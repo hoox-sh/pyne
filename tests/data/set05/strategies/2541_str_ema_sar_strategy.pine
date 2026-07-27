@@ -1,0 +1,55 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/EMA-SAR-中长期趋势跟踪策略-EMA-SAR-Medium-to-Long-Term-Trend-Following-Strategy.md
+// content_hash: 8bad2f1a4f273479
+// collected: 2026-07-27
+strategy("EMA SAR Strategy", overlay=true)
+
+// EMA Settings
+ema_20 = ta.ema(close, 20)
+ema_60 = ta.ema(close, 60)
+
+/// SAR Settings
+sar = ta.sar(0.02, 0.2, 0.2)
+sar_value = sar
+is_trend_up = sar[1] > sar[2] ? true : false  // Evaluating the trend direction
+
+/// Condition for Buy Signal
+buy_condition = ta.crossover(ema_20, ema_60) and (sar_value < ema_20) and (is_trend_up)
+
+// Condition for Sell Signal
+sell_condition = ta.crossunder(ema_20, ema_60) and (sar_value > ema_20) and (not is_trend_up)
+
+// Define Entry Time
+entry_time = time + 180000
+
+// Strategy Entry
+strategy.entry("Buy", strategy.long, when=buy_condition, comment="Buy Signal", stop=high[1])
+strategy.entry("Sell", strategy.short, when=sell_condition, comment="Sell Signal", stop=low[1], when=entry_time)
+
+// Plot EMAs
+plot(ema_20, color=#f3e221, linewidth=1, title="EMA 20")
+plot(ema_60, color=#8724f0, linewidth=1, title="EMA 60")
+
+// Plot SAR
+plotshape(sar_value, style=shape.triangleup, location=location.abovebar, color=color.green, size=size.small, title="SAR Up")
+plotshape(sar_value, style=shape.triangledown, location=location.belowbar, color=color.red, size=size.small, title="SAR Down")
+
+// Plot Buy and Sell Signals
+plotshape(series=buy_condition, title="Buy Signal", location=location.belowbar, color=color.green, style=shape.triangleup, size=size.small)
+plotshape(series=sell_condition, title="Sell Signal", location=location.abovebar, color=color.red, style=shape.triangledown, size=size.small)
+
+// Send Alerts
+alertcondition(condition=buy_condition, title="Buy Signal", message="Buy Signal - EMA SAR Strategy")
+alertcondition(condition=sell_condition, title="Sell Signal", message="Sell Signal - EMA SAR Strategy")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/451728
+
+> Last Modified
+
+2024-05-17 15:22:15

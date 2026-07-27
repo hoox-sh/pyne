@@ -1,0 +1,53 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/线性回归与双均线短线策略-Linear-Regression-and-Dual-Moving-Average-Short-Term-Strategy.md
+// content_hash: b0cd2be3fc98666a
+// collected: 2026-07-27
+strategy('LR&SSL_Short', overlay=true)
+startP = timestamp(input(2017, "Start Year"), input(12, "Month"), input(17, "Day"), 0, 0)
+end   = timestamp(9999,1,1,0,0)
+_testPeriod() => true
+
+len = input(title="Period", defval=89)
+smaHigh = linreg(high, len, 0)
+smaLow = linreg(low, len, -1)
+Hlv = 0.0
+Hlv := close > smaHigh ? 1 : close < smaLow ? -1 : Hlv[1]
+sslDown = Hlv < 0 ? smaHigh : smaLow
+sslUp = Hlv < 0 ? smaLow : smaHigh
+
+plot(sslDown, linewidth=2, color=color.red)
+plot(sslUp, linewidth=2, color=color.lime)
+
+
+
+length = input(200, title="DEMA") 
+d1 = ema(close, length)                                               
+d2 = 2 * d1 - ema(d1, length)                                         
+trendColour = d2 > d1 ? #AAFFAA : #FFAAAA 
+dema=sma(d2,length) 
+
+turnGreen = d2 > d1 and d2[1] <= d1[1]  
+turnRed   = d2 <= d1 and d2[1] > d1[1]  
+
+up =turnGreen 
+down=turnRed 
+  
+plotshape(down, title="down", style=shape.triangledown,location=location.abovebar, color=color.red, transp=0, size=size.small) 
+plotshape(up,  title="up", style=shape.triangleup,location=location.belowbar, color=color.green, transp=0, size=size.small) 
+plot(dema, color = trendColour,linewidth=3 ,transp = 0)
+bgcolor(close > dema ? color.green : color.red)
+
+strategy.entry("short", strategy.short, when= crossunder(sslUp, sslDown) and dema > close and _testPeriod())
+strategy.close("short", when = crossover(sslUp, sslDown) or crossover(close, dema))
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/440066
+
+> Last Modified
+
+2024-01-26 12:33:14

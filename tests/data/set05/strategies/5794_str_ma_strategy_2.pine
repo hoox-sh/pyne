@@ -1,0 +1,89 @@
+//@version=3
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多周期动态均线策略Multi-Period-Dynamic-Moving-Average-Strategy.md
+// content_hash: f18b403ea620b897
+// collected: 2026-07-27
+strategy("MA_strategy ", shorttitle="MA_strategy", overlay=true, initial_capital=100000)
+
+qty = input(100000000, "Buy quantity")
+
+testStartYear = input(2017, "Backtest Start Year")
+testStartMonth = input(1, "Backtest Start Month")
+testStartDay = input(1, "Backtest Start Day")
+testStartHour = input(0, "Backtest Start Hour")
+testStartMin = input(0, "Backtest Start Minute")
+
+testPeriodStart = timestamp(testStartYear,testStartMonth,testStartDay,testStartHour,testStartMin)
+
+testStopYear = input(2099, "Backtest Stop Year")
+testStopMonth = input(1, "Backtest Stop Month")
+testStopDay = input(30, "Backtest Stop Day")
+testPeriodStop = timestamp(testStopYear,testStopMonth,testStopDay,0,0)
+
+
+testPeriodBackground = input(title="Color Background?", type=bool, defval=true)
+testPeriodBackgroundColor = testPeriodBackground and (time >= testPeriodStart) and (time <= testPeriodStop) ? #00FF00 : na
+bgcolor(testPeriodBackgroundColor, transp=97)
+
+testPeriod() =>
+    time >= testPeriodStart and time <= testPeriodStop ? true : false
+
+
+ma1 = input( "SMA",title="Select MA", options=["SMA", "EMA","TEMA", "WMA","HMA"])
+
+
+len1 = input(7, minval=1, title="Period")
+
+s=sma(close,len1)
+
+e=ema(close,len1)
+
+
+xEMA1 = ema(close, len1)
+xEMA2 = ema(xEMA1, len1)
+xEMA3 = ema(xEMA2, len1)
+t = 3 * xEMA1 - 3 * xEMA2 + xEMA3
+
+
+f_hma(_src, _length)=>
+    _return = wma((2 * wma(_src, _length / 2)) - wma(_src, _length), round(sqrt(_length)))
+
+h = f_hma(close, len1)
+
+w = wma(close, len1)
+
+ma = ma1 == "SMA"?s:ma1=="EMA"?e:ma1=="WMA"?w:ma1=="HMA"?h:ma1=="TEMA"?t:na
+
+buy= close>ma
+sell= close<ma
+
+alertcondition(buy, title='buy', message='buy')
+alertcondition(sell, title='sell', message='sell')
+
+ordersize=floor(strategy.equity/close)
+
+if testPeriod()
+    strategy.entry("long",strategy.long,ordersize,when=buy)
+    strategy.close("long", when = sell )
+
+
+    
+  
+
+
+
+
+
+
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/430366
+
+> Last Modified
+
+2023-10-27 16:07:16

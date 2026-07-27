@@ -1,0 +1,77 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多区间-MA100-价格回撤智能网格交易策略-Multi-Zone-MA100-Price-Retracement-Smart-Grid-Trading-Strategy.md
+// content_hash: 025f6de023c9f2a4
+// collected: 2026-07-27
+// BTC SOL ETH BNB XMR RNDR AKT OM ONDO IO
+
+strategy("MA100 crash buy 3 Zone // 15 min", overlay=true, calc_on_every_tick=true)
+
+// Définition des MA
+maH1 = ta.sma(close, 100)
+maB2 = ta.sma(close, 100)
+maB3 = ta.sma(close, 100)
+maB4 = ta.sma(close, 100)
+
+// Définition du niveau d'achat et de vente
+sellLevel1 = maH1 * 1.03 //+3%
+buyLevel2 = maB2 * 0.92 //-8%
+buyLevel3 = maB2 * 0.85 //-15%
+buyLevel4 = maB2 * 0.80 //-20%
+
+
+
+// Nombre max de trades simultanés
+maxTrades2 = 2
+maxTrades3 = 3
+maxTrades4 = 4
+
+// Délais entre deux ordres (en bougies)
+tradeDelay = 50
+var float lastTradeTime = na
+var float lastSellTime = na
+tradeDelay2 = 50
+var float lastTradeTime2 = na
+tradeDelay3 = 50
+var float lastTradeTime3 = na
+tradeDelay4 = 50
+var float lastTradeTime4 = na
+
+// Condition d'achat et de vente
+buyCondition2 = low <= buyLevel2 and strategy.opentrades < maxTrades2 and (na(lastTradeTime2) or bar_index - lastTradeTime2 > tradeDelay2)
+buyCondition3 = low <= buyLevel3 and strategy.opentrades < maxTrades3 and (na(lastTradeTime3) or bar_index - lastTradeTime3 > tradeDelay3)
+buyCondition4 = low <= buyLevel4 and strategy.opentrades < maxTrades4 and (na(lastTradeTime4) or bar_index - lastTradeTime4 > tradeDelay4)
+sellCondition = strategy.position_size > 0 and high >= sellLevel1 and (na(lastSellTime) or bar_index - lastSellTime > tradeDelay)
+
+if buyCondition2
+    strategy.entry("Buy", strategy.long)
+    lastTradeTime2 := bar_index  // Enregistre le moment du trade
+
+if buyCondition3
+    strategy.entry("Buy", strategy.long)
+    lastTradeTime3 := bar_index  // Enregistre le moment du trade
+
+if buyCondition4
+    strategy.entry("Buy", strategy.long)
+    lastTradeTime4 := bar_index  // Enregistre le moment du trade
+
+if sellCondition
+    strategy.close("Buy")  // Ferme 50% de toutes les positions ouvertes // , qty_percent=30
+    lastSellTime := bar_index  // Enregistre le moment du trade
+
+
+// Affichage des niveaux
+plot(sellLevel1, color=#fa930d, title="Sell Level")
+plot(buyLevel2, color=#15bbfd, title="Buy Level")
+plot(buyLevel3, color=#1229aa, title="Buy Level")
+plot(buyLevel4, color=#9812aa, title="Buy Level")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/482598
+
+> Last Modified
+
+2025-02-19 11:12:51

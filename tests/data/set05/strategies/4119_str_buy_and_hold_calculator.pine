@@ -1,0 +1,21 @@
+//@version=4
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/Buy and hold calculator.pine
+// content_hash: a89f3480a7715c52
+// collected: 2026-07-27
+strategy(title="Buy and hold calculator", overlay=true, initial_capital = 1, default_qty_type=strategy.percent_of_equity, default_qty_value=100, commission_type=strategy.commission.percent  )
+fromDay = input(defval = 1, title = "From Day", minval = 1, maxval = 31)
+fromMonth = input(defval = 1, title = "From Month", minval = 1, maxval = 12)
+fromYear = input(defval = 2000, title = "From Year", minval = 1970)
+ //monday and session 
+// To Date Inputs
+toDay = input(defval = 31, title = "To Day", minval = 1, maxval = 31)
+toMonth = input(defval = 12, title = "To Month", minval = 1, maxval = 12)
+toYear = input(defval = 2020, title = "To Year", minval = 1970)
+startDate = timestamp(fromYear, fromMonth, fromDay, 00, 00)
+finishDate = timestamp(toYear, toMonth, toDay, 00, 00)
+time_cond = time >= startDate and time <= finishDate 
+strategy.entry("long",1,when=time_cond)
+strategy.close("long",when= not time_cond)
+Expand (23 lines)

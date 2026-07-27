@@ -1,0 +1,99 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/跨越移动平均线的莱瑞威廉姆斯策略Larry-Williams-Moving-Average-Crossover-Strategy.md
+// content_hash: 660b4b2fd71e407d
+// collected: 2026-07-27
+strategy('Larry', overlay=true , initial_capital=1000 )
+
+
+////////////////////////////////////////////////////////
+//                                                    //
+//                                                    //
+//                 Codigo Operacional                 //
+//                                                    //
+//                                                    //
+////////////////////////////////////////////////////////
+
+// Usage for Stocks , or Criptos with value bigger then 1, cuz of 0.01 ´pip.
+// Daily timeframe
+//Observation Point
+start     = timestamp(2020, 00, 00, 00, 00)         // backtest start window
+finish    = timestamp(2022, 01, 07, 23, 59)        // backtest finish window
+window()  => true // create function "within window of time"  
+
+if time < start 
+    strategy.close_all("Closing All")
+
+// Take infos from inputs. 
+inp_mmshort = input.int(defval = 9, title = "Media Curta"  )
+inp_mminter = input.int(defval = 21, title = "Media Curta"  )
+
+// Risk Manager, here define max and min 
+inp_max = input.int(defval = 15, title = "Percentual Ganho"  )
+inp_min = input.int(defval = 5, title = "Percental  Perda"  )
+
+// Converting the input to % 
+pmax = (inp_max / 100 )
+pmin =  (inp_min / 100)
+
+// Infos From Moving Average
+mm_short = ta.sma(close , inp_mmshort)
+mm_inter = ta.ema(close , inp_mminter)
+
+
+// Trend Logic
+//Long Condition 
+
+//Setup do Larry Willians Bem Simples , media virou para cima e rompeu a maxima de referencia, compra. 
+tendencia_alta = mm_short[2] > mm_short[1] and mm_short > mm_short[1] and close > high[1] and close > mm_short and mm_short > mm_inter
+tendencia_baixa = mm_short[2] < mm_short[1] and mm_short < mm_short[1] and close > low[1] and close < mm_short and mm_short < mm_inter
+
+// Creating the entry
+if tendencia_alta 
+    strategy.entry("Compra" , strategy.long , stop = low - 0.01  )
+    stop_inst = low - 0.01 
+if tendencia_baixa 
+    strategy.entry("Venda" , strategy.short , stop= high + 0.01  )
+    stop_inst = high + 0.01
+
+
+// TrailingStop Creation
+
+// Sell Position
+if strategy.position_size < 0 
+    gain_p = strategy.opentrades.entry_price(0) - (strategy.opentrades.entry_price(0) * pmax) 
+    stop_p = strategy.opentrades.entry_price(0) + (strategy.opentrades.entry_price(0) * pmin) 
+    // Managing the position
+    if close < gain_p 
+        strategy.close_all(comment = " 1 - Ganho : " + str.tostring( gain_p) + " Perda : " + str.tostring( stop_p)  )
+    if close > stop_p 
+        strategy.close_all(comment = " 2 - Ganho : " + str.tostring( gain_p) + " Perda : " + str.tostring( stop_p)  )
+    
+    if  high > mm_short[1]
+        strategy.close_all(comment = " 3 - Ganho : " + str.tostring( gain_p) + " Perda : " + str.tostring( stop_p)  )
+      
+
+// Buy Position    
+if strategy.position_size > 0
+    gain_p = strategy.opentrades.entry_price(0) + (strategy.opentrades.entry_price(0) * pmax) 
+    stop_p = strategy.opentrades.entry_price(0) - (strategy.opentrades.entry_price(0) * pmin) 
+    // Managing the position
+    if close > gain_p 
+        strategy.close_all(comment = " 1- Ganho : " + str.tostring( gain_p) + " Perda : " + str.tostring( stop_p)  )
+    if close < stop_p 
+        strategy.close_all(comment = " 2 -Ganho : " + str.tostring( gain_p) + " Perda : " + str.tostring( stop_p)  )
+    if low < mm_short[1]
+        strategy.close_all(comment = " 3 -Ganho : " + str.tostring( gain_p) + " Perda : " + str.tostring( stop_p)  )
+        
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/436639
+
+> Last Modified
+
+2023-12-26 15:03:16

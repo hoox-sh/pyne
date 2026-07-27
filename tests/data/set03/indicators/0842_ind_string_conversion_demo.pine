@@ -1,0 +1,51 @@
+//@version=6
+// set03 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/concepts/strings.md::strings.md#block7
+// content_hash: 64755ba6a0f6d85d
+// collected: 2026-07-27
+indicator("String conversion demo")
+
+//@variable A 2-row, 15-column table showing "string" representations of numbers, "bool" values, and collections. 
+var table displayTable = table.new(position.middle_center, 2, 15, frame_color = chart.fg_color, frame_width = 1)
+
+//@function Initializes a row to show two specified strings in the display table.
+makeRow(int row, string str0, string str1) =>
+    color bgColor   = row == 0 ? chart.fg_color : chart.bg_color
+    color textColor = row == 0 ? chart.bg_color : chart.fg_color
+    displayTable.cell(0, row, str0, text_color = textColor, text_halign = text.align_left, bgcolor = bgColor)
+    displayTable.cell(1, row, str1, text_color = textColor, text_halign = text.align_left, bgcolor = bgColor)
+
+// Initialize the header row for the `displayTable` on the first bar. 
+if barstate.isfirst
+    makeRow(0, "Variable", "'string' value")
+
+// Compute several "string" conversions and populate the `displayTable` with the results on the last bar. 
+if barstate.islast
+    //@variable Represents `ta.vwap` with the default numeric format (`#.########`).
+    string numberRepr1 = str.tostring(ta.vwap)
+    //@variable Represents `ta.vwap` rounded to the minimum tick without trailing zeros.
+    string numberRepr2 = str.tostring(ta.vwap, format.mintick)
+    //@variable Represents `ta.vwap` rounded to three fractional digits without trailing zeros.
+    string numberRepr3 = str.tostring(ta.vwap, "#.###")
+    //@variable Represents `ta.vwap` rounded to five fractional digits with trailing zeros.
+    string numberRepr4 = str.tostring(ta.vwap, "0.00000")
+    //@variable Represents the `ta.vwap` as an integer.
+    string numberRepr5 = str.tostring(ta.vwap, "#")
+    //@variable Represents `ta.vwap` as an integer with leading zeros.
+    string numberRepr6 = str.tostring(ta.vwap, "000000")
+    //@variable Represents `ta.vwap` with commas for each third whole digit from the decimal point.
+    //          Values less than 1000000 include leading zeros. The fractional part includes up to two digits.
+    string numberRepr7 = str.tostring(ta.vwap, "0000,000.##")
+    //@variable Represents `100 * ta.tr / close` rounded to two fractional digits with `%` at the end. 
+    string numberRepr8 = str.tostring(100 * ta.tr / close, format.percent)
+    //@variable Represents `ta.tr / close` as a percentage rounded to four fractional digits. 
+    //          With `%` at the end of the `format`, the function multiplies the represented number by 100. 
+    string numberRepr9 = str.tostring(ta.tr / close, "#.####%")
+    //@variable Represents `volume` with fixed precision and letter characters for large figures.
+    //          `K` means "thousand", `M` means "million", `B` means "billion", and `T` means "trillion".
+    string numberRepr10 = str.tostring(volume, format.volume)
+    //@variable Represents a "bool" value. Is `"true"` when `ta.tr` exceeds the bar's range, `"false"` otherwise. 
+    string boolRepr = str.tostring(ta.tr > high - low)
+ 
+    // Create an array and matrix of price values to convert into strings.

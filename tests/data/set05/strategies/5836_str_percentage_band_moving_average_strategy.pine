@@ -1,0 +1,77 @@
+//@version=3
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/移动平均百分比波段策略Percentage-Band-Moving-Average-Strategy.md
+// content_hash: 1adde9b6cd50b66d
+// collected: 2026-07-27
+
+strategy(title = "Percentage Band", overlay = true)
+
+
+//////////////// BAND  ////////////////////////////
+price=close
+bandlength = input(50)
+bbupmult =input(2,step=0.1,title="Multiplier for Percent upper Band")
+bblowmult = input(2,step=0.1,title="Multiplier for Percent Lower  Band")
+
+basis =  sma(close,bandlength)
+
+devup =  (bbupmult*price)/100
+devlow = (bblowmult*price)/100
+
+upper = basis + devup
+lower = basis - devlow
+plot(basis, color=red)
+p1 = plot(upper, color=blue)
+p2 = plot(lower, color=blue)
+fill(p1, p2)
+
+
+
+/////////////////////////BAND  //////////////////////////
+
+
+// Conditions
+
+
+
+longCond = na
+sellCond = na
+longCond :=  crossover(price,lower)
+sellCond :=  crossunder(price,upper)
+
+
+
+
+monthfrom =input(6)
+monthuntil =input(12)
+dayfrom=input(1)
+dayuntil=input(31)
+
+
+
+if (  longCond  ) 
+    strategy.entry("BUY", strategy.long, stop=close, oca_name="TREND",comment="BUY")
+    
+else
+    strategy.cancel(id="BUY")
+
+
+if ( sellCond   ) 
+
+    strategy.close("BUY")
+
+
+
+
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/435161
+
+> Last Modified
+
+2023-12-12 17:47:02

@@ -1,0 +1,44 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/自动支撑-阻力策略Auto-S-R-Breakout-Strategy.md
+// content_hash: 9ea453ecd85f55c2
+// collected: 2026-07-27
+strategy("Auto S/R Strategy", shorttitle="Auto S/R", overlay=true)
+
+// Ваши входные параметры
+leftBars = input.int(50, title="Left Bars")
+rightBars = input.int(25, title="Right Bars")
+quickRightBars = input.int(5, title="Quick Right Bars")
+src = input(close, title="Source")
+
+pivotHigh = ta.pivothigh(src, leftBars, rightBars)
+pivotLow = ta.pivotlow(src, leftBars, rightBars)
+
+quickPivotHigh = ta.pivothigh(src, leftBars, quickRightBars)
+quickPivotLow = ta.pivotlow(src, leftBars, quickRightBars)
+
+// Ваши уровни сопротивления и поддержки
+resistanceLevel1 = ta.valuewhen(quickPivotHigh, high[quickRightBars], 0)
+supportLevel1 = ta.valuewhen(quickPivotLow, low[quickRightBars], 0)
+
+// Пересечение ценой уровней
+longCondition = ta.crossover(close, supportLevel1)
+shortCondition = ta.crossunder(close, resistanceLevel1)
+
+strategy.entry("Long", strategy.long, when=longCondition)
+strategy.entry("Short", strategy.short, when=shortCondition)
+
+// Отображение линий сопротивления и поддержки на графике
+plot(resistanceLevel1, color=color.red, title="Resistance Level 1")
+plot(supportLevel1, color=color.green, title="Support Level 1")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/434470
+
+> Last Modified
+
+2023-12-06 16:51:30

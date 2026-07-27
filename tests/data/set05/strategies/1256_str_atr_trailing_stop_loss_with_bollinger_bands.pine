@@ -1,0 +1,90 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/自适应布林带ATR跟踪止损交易策略-Adaptive-Bollinger-Bands-ATR-Trailing-Stop-Trading-Strategy.md
+// content_hash: c4c3bbbf507cb401
+// collected: 2026-07-27
+strategy("ATR Trailing Stop Loss with Bollinger Bands", overlay=true)
+
+// Input parameters for Bollinger Bands
+bb_length = input.int(20, title="Bollinger Bands Length")
+bb_stddev = input.float(2.0, title="Bollinger Bands Std Dev")
+
+// Input parameters for ATR Trailing Stop Loss
+atr_length = input.int(14, title="ATR Length")
+atr_multiplier = input.float(3.0, title="ATR Multiplier")
+
+// Calculate Bollinger Bands
+basis = ta.sma(close, bb_length)
+upper_band = ta.sma(close, bb_length) + ta.stdev(close, bb_length) * bb_stddev
+lower_band = ta.sma(close, bb_length) - ta.stdev(close, bb_length) * bb_stddev
+
+// Calculate ATR
+atr = ta.atr(atr_length)
+
+// Trailing Stop Loss Calculation
+var float long_stop = na  // Explicitly define as float type
+var float short_stop = na // Explicitly define as float type
+
+if (strategy.position_size > 0)
+    long_stop := close - atr * atr_multiplier
+    long_stop := math.max(long_stop, nz(long_stop[1], long_stop))
+else
+    long_stop := na
+
+if (strategy.position_size < 0)
+    short_stop := close + atr * atr_multiplier
+    short_stop := math.min(short_stop, nz(short_stop[1], short_stop))
+else
+    short_stop := na
+
+// Entry and Exit Conditions
+long_condition = ta.crossover(close, lower_band)  // Enter long when price crosses above lower band
+short_condition = ta.crossunder(close, upper_band)  // Enter short when price crosses below upper band
+
+exit_long_condition = ta.crossunder(close, long_stop)  // Exit long when price crosses below trailing stop
+exit_short_condition = ta.crossover(close, short_stop)  // Exit short when price crosses above trailing stop
+
+// Execute Trades
+if (long_condition)
+    strategy.entry("Long", strategy.long)
+
+if (short_condition)
+    strategy.entry("Short", strategy.short)
+
+if (exit_long_condition)
+    strategy.close("Long")
+
+if (exit_short_condition)
+    strategy.close("Short")
+
+// Plot Bollinger Bands
+plot(basis, color=color.blue, title="Basis")
+plot(upper_band, color=color.red, title="Upper Band")
+plot(lower_band, color=color.green, title="Lower Band")
+
+// Plot Trailing Stop Loss
+plot(strategy.position_size > 0 ? long_stop : na, color=color.orange, title="Long Trailing Stop")
+plot(strategy.position_size < 0 ? short_stop : na, color=color.purple, title="Short Trailing Stop")
+
+// Labels for Entry and Exit
+if (long_condition)
+    label.new(bar_index, low, text="Entry Long", style=label.style_circle, color=color.green, textcolor=color.white, size=size.small)
+
+if (short_condition)
+    label.new(bar_index, high, text="Entry Short", style=label.style_circle, color=color.red, textcolor=color.white, size=size.small)
+
+if (exit_long_condition)
+    label.new(bar_index, low, text="Exit Long", style=label.style_circle, color=color.blue, textcolor=color.white, size=size.small)
+
+if (exit_short_condition)
+    label.new(bar_index, high, text="Exit Short", style=label.style_circle, color=color.orange, textcolor=color.white, size=size.small)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/482593
+
+> Last Modified
+
+2025-02-19 11:00:57

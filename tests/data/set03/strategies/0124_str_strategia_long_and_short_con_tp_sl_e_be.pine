@@ -1,0 +1,93 @@
+//@version=6
+// set03 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多时间尺度动量趋势追踪与风险管理量化交易策略-Multi-Timeframe-Momentum-Trend-Tracking-and-Risk-Management-Quantitative-Trading-Strategy.md
+// content_hash: e75711c6cd6f7d50
+// collected: 2026-07-27
+strategy("Strategia LONG & SHORT con TP, SL e BE", overlay=true, default_qty_type=strategy.fixed, default_qty_value=1)
+
+// === INPUT === //
+tp_points = input.int(60000, "Take Profit (punti)")
+sl_points = input.int(25000, "Stop Loss (punti)")
+breakeven_trigger = tp_points * 0.5
+
+// === MEDIE MOBILI === //
+ma5  = ta.sma(close, 5)
+ma10 = ta.sma(close, 10)
+ma50 = ta.sma(close, 50)
+ma100 = ta.sma(close, 100)
+
+// === SRI da timeframe 1 minuto === //
+sri_tf = "1"
+sri_length = 10
+sri_src = close
+sri = request.security(syminfo.tickerid, sri_tf, ta.stoch(sri_src, sri_src, sri_src, sri_length))
+
+// === CONDIZIONI LONG === //
+long_candle        = open > close[1]
+price_above_ma100  = close > ma100
+ma50_above_ma100   = ma50 > ma100
+ma5_above_ma10     = ma5 > ma10
+sri_below_75       = sri < 70
+
+long_condition = long_candle and price_above_ma100 and ma50_above_ma100 and ma5_above_ma10 and sri_below_75
+
+// === CONDIZIONI SHORT === //
+short_candle       = open < close[1]
+price_below_ma100  = close < ma100
+ma50_below_ma100   = ma50 < ma100
+ma5_below_ma10     = ma5 < ma10
+sri_above_25       = sri > 30
+
+short_condition = short_candle and price_below_ma100 and ma50_below_ma100 and ma5_below_ma10 and sri_above_25
+
+// === ENTRY LONG === //
+if (long_condition)
+    strategy.entry("Long", strategy.long)
+
+// === ENTRY SHORT === //
+if (short_condition)
+    strategy.entry("Short", strategy.short)
+
+// === GESTIONE USCITE === //
+var float long_entry_price  = na
+var float short_entry_price = na
+
+// LONG: TP/SL + break-even
+if (strategy.position_size > 0)
+    if (na(long_entry_price))
+        long_entry_price := strategy.position_avg_price
+
+    tp_price_long = long_entry_price + tp_points * syminfo.mintick
+    sl_price_long = long_entry_price - sl_points * syminfo.mintick
+    be_trigger_long = long_entry_price + breakeven_trigger * syminfo.mintick
+    sl_be = close >= be_trigger_long ? long_entry_price : sl_price_long
+
+    strategy.exit("Exit Long", from_entry="Long", limit=tp_price_long, stop=sl_be)
+
+// SHORT: TP/SL + break-even
+if (strategy.position_size < 0)
+    if (na(short_entry_price))
+        short_entry_price := strategy.position_avg_price
+
+    tp_price_short = short_entry_price - tp_points * syminfo.mintick
+    sl_price_short = short_entry_price + sl_points * syminfo.mintick
+    be_trigger_short = short_entry_price - breakeven_trigger * syminfo.mintick
+    sl_be_short = close <= be_trigger_short ? short_entry_price : sl_price_short
+
+    strategy.exit("Exit Short", from_entry="Short", limit=tp_price_short, stop=sl_be_short)
+
+// Reset quando flat
+if (strategy.position_size == 0)
+    long_entry_price := na
+    short_entry_price := na
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/490908
+
+> Last Modified
+
+2025-04-17 14:01:16

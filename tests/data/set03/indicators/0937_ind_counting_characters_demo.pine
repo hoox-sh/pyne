@@ -1,0 +1,30 @@
+//@version=6
+// set03 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/concepts/strings.md::strings.md#block25
+// content_hash: c8d8f7118488035c
+// collected: 2026-07-27
+indicator("Counting characters demo")
+
+if barstate.isfirst
+    //@variable A single-cell table to display text. 
+    var table display = table.new(position.middle_center, 1, 1, color.teal)
+
+    //@variable A literal string that uses one Em Space (U+2003) between each word. 
+    string testString1 = "This 'string' contains\n__ characters."
+
+    //@variable A literal string that uses two En Spaces (U+2002) between each word.
+    //          An En Space is half the width of an Em Space, so this string contains three extra characters 
+    //          to match the widths of each Em space in `testString1` and produce an identical output.
+    string testString2 = "This  'string'  contains\n__  characters."
+    
+    // Count the number of characters in `testString1` and `testString2`.
+    int length1 = str.length(testString1)
+    int length2 = str.length(testString2)
+    // Replace the "__" in `testString1` and `testString2` with string representations of `length1` and `length2`.
+    testString1 := str.replace(testString1, "__", str.tostring(length1))
+    testString2 := str.replace(testString2, "__", str.tostring(length2))
+    
+    // Concatenate both strings and two newline characters, then display the result in the table's cell.  
+    string displayString = testString1 + "\n\n" + testString2
+    display.cell(0, 0, displayString, text_color = color.white, text_size = 50, text_halign = text.align_left)

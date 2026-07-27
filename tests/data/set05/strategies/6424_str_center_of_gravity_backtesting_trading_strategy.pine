@@ -1,0 +1,53 @@
+//@version=2
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/重心回测交易策略Center-of-Gravity-Backtesting-Trading-Strategy.md
+// content_hash: f45fd3f1de4a32d7
+// collected: 2026-07-27
+////////////////////////////////////////////////////////////
+//  Copyright by HPotter v1.0 15/03/2018
+// The indicator is based on moving averages. On the basis of these, the 
+// "center" of the price is calculated, and price channels are also constructed, 
+// which act as corridors for the asset quotations.
+//
+// You can change long to short in the Input Settings
+// WARNING:
+//  - For purpose educate only
+//  - This script to change bars colors.
+////////////////////////////////////////////////////////////
+strategy(title="Center Of Gravity Backtest", shorttitle="CFO", overlay = true)
+Length = input(20, minval=1)
+m = input(5, minval=0)
+Percent = input(1, minval=0)
+SignalLine = input(1, minval=1, maxval = 2, title = "Trade from line (1 or 2)")
+reverse = input(false, title="Trade reverse")
+xLG = linreg(close, Length, m)
+xLG1r = xLG + ((close * Percent) / 100)
+xLG1s = xLG - ((close * Percent) / 100)
+xLG2r = xLG + ((close * Percent) / 100) * 2
+xLG2s = xLG - ((close * Percent) / 100) * 2
+xSignalR = iff(SignalLine == 1, xLG1r, xLG2r)
+xSignalS = iff(SignalLine == 1, xLG1s, xLG2s)
+pos = iff(close > xSignalR, 1,
+       iff(close < xSignalS, -1, nz(pos[1], 0))) 
+possig = iff(reverse and pos == 1, -1,
+          iff(reverse and pos == -1, 1, pos))	   
+if (possig == 1) 
+    strategy.entry("Long", strategy.long)
+if (possig == -1)
+    strategy.entry("Short", strategy.short)	   	    
+barcolor(possig == -1 ? red: possig == 1 ? green : blue ) 
+plot(xLG, color=blue, title="CFO")
+plot(xLG1r, color=green, title="LG1r")
+plot(xLG2r, color=green, title="LG2r")
+plot(xLG1s, color=red, title="LG1s")
+plot(xLG2s, color=red, title="LG2s")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/435152
+
+> Last Modified
+
+2023-12-12 16:56:51

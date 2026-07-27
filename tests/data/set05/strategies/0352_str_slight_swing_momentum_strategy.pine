@@ -1,0 +1,56 @@
+//@version=5
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/Slight Swing Momentum Strategy..pine
+// content_hash: 2b8e170fc6a8b9ae
+// collected: 2026-07-27
+strategy("Slight Swing Momentum Strategy.", overlay=true)
+// Position Status Definition
+var inPosition = false
+// Moving Average Definition
+ma60 = ta.sma(close, 60)
+// A1 Condition Definition
+A1 = high / close < 1.03 and open / low < 1.03 and high / close[1] > 1.06
+// A2 Condition Definition
+A2 = close / open > 1.05 or close / close[1] > 1.05
+// A3 Condition Definition
+highestVol = ta.highest(volume, 60)
+A3 = ta.crossover(volume, highestVol[1])
+// B1 Condition Definition
+ema5 = ta.ema(close, 5)
+B1 = close / ema5
+// XG Condition Definition
+A1andA2 = (A1 and A2) and (A1[1] and A2[1])
+XG = ta.crossover(B1, ta.sma(B1, 9))
+// Weekly Trend Factor Definition
+weeklyMa = ta.sma(close, 50)
+weeklySlope = (weeklyMa - weeklyMa[4]) / 4 > 0
+// Buy Signal using XG Condition
+buySignal = A1 and close > ma60 or A2 and A3 and XG and close > ma60 and weeklySlope 
+// Sell Signal Condition
+sellSignal = close < ta.ema(close, 10)
+// Buy and Sell Conditions
+buyCondition = buySignal and not inPosition
+sellCondition = sellSignal and inPosition
+// Execute Buy and Sell Operations
+if (buyCondition)
+    strategy.entry("Buy", strategy.long)
+    inPosition := true
+if (sellCondition)
+    strategy.close("Buy")
+    inPosition := false
+// Stop Loss and Take Profit Levels
+stopLoss = strategy.position_avg_price * 0.5
+takeProfit = strategy.position_avg_price * 1.30
+// Apply Stop Loss and Take Profit Levels
+if inPosition
+    strategy.exit("Long Stop Loss", "Buy", stop=stopLoss)
+    strategy.exit("Long Take Profit", "Buy", limit=takeProfit)
+// Plot Buy and Sell Signal Shapes
+plotshape(buyCondition, style=shape.arrowdown, location=location.belowbar, color=color.green, size=size.small)
+plotshape(sellCondition, style=shape.arrowup, location=location.abovebar, color=color.red, size=size.small)
+// EMA Variable Definition
+ema = ta.ema(close, 5)
+// Plot Indicator Line
+plot(ema, color=color.green, title="EMA")
+Expand (70 lines)

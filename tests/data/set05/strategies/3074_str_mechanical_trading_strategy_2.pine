@@ -1,0 +1,35 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/机械化交易策略Mechanical-Trading-Strategy.md
+// content_hash: 485aba928a7dcbf3
+// collected: 2026-07-27
+strategy("Mechanical Trading Strategy", overlay=true)
+
+// Define strategy parameters
+profitTarget = input(0.4, "Profit Target (%)") / 100
+stopLoss = input(0.2, "Stop Loss (%)") / 100
+
+// Define strategy variables
+entryPrice = close
+takeProfitLevel = entryPrice + (entryPrice * profitTarget)
+stopLossLevel =  entryPrice - (entryPrice * stopLoss)
+// Entry condition
+if (hour(time) == 16)
+    // Calculate position size based on available capital and risk tolerance
+    positionSize = strategy.equity * 0.02 // Example: 2% of equity
+
+    strategy.entry("Buy", strategy.long)
+    strategy.exit("Take Profit", "Buy", limit=takeProfitLevel,stop =stopLossLevel )
+
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/426779
+
+> Last Modified
+
+2023-09-14 15:19:05

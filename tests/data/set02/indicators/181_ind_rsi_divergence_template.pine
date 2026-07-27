@@ -1,0 +1,103 @@
+//@version=6
+// set02 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/templates/indicators/rsi-divergence.pine
+// content_hash: 295bf1087f593328
+// collected: 2026-07-27
+indicator("RSI Divergence Template", shorttitle="RSI Div", overlay=false)
+
+// ============================================================================
+// INPUTS
+// ============================================================================
+// RSI Settings
+rsiLength = input.int(14, "RSI Length", minval=1, group="RSI Settings", tooltip="Period for RSI calculation")
+rsiSource = input.source(close, "Source", group="RSI Settings")
+
+// Divergence Settings
+pivotLookback = input.int(5, "Pivot Lookback", minval=1, maxval=20, group="Divergence", tooltip="Bars to look back for pivot detection")
+divLookback = input.int(60, "Divergence Lookback", minval=10, maxval=200, group="Divergence", tooltip="Maximum bars between divergence pivots")
+
+// Levels
+oversoldLevel = input.int(30, "Oversold Level", minval=0, maxval=100, group="Levels")
+overboughtLevel = input.int(70, "Overbought Level", minval=0, maxval=100, group="Levels")
+
+// Visual
+showRegularDiv = input.bool(true, "Show Regular Divergence", group="Visual")
+showHiddenDiv = input.bool(true, "Show Hidden Divergence", group="Visual")
+bullColor = input.color(color.green, "Bullish Color", group="Visual")
+bearColor = input.color(color.red, "Bearish Color", group="Visual")
+
+// ============================================================================
+// CALCULATIONS
+// ============================================================================
+rsiValue = ta.rsi(rsiSource, rsiLength)
+
+// Pivot detection
+pivotHigh = ta.pivothigh(rsiValue, pivotLookback, pivotLookback)
+pivotLow = ta.pivotlow(rsiValue, pivotLookback, pivotLookback)
+priceHigh = ta.pivothigh(high, pivotLookback, pivotLookback)
+priceLow = ta.pivotlow(low, pivotLookback, pivotLookback)
+
+// Track previous pivots
+var float prevRsiHigh = na
+var float prevRsiLow = na
+var float prevPriceHigh = na
+var float prevPriceLow = na
+var int prevHighBar = na
+var int prevLowBar = na
+
+// Update pivot tracking
+if not na(pivotHigh)
+    prevRsiHigh := pivotHigh
+    prevPriceHigh := priceHigh
+    prevHighBar := bar_index - pivotLookback
+
+if not na(pivotLow)
+    prevRsiLow := pivotLow
+    prevPriceLow := priceLow
+    prevLowBar := bar_index - pivotLookback
+
+// Divergence detection
+barsBackHigh = bar_index - pivotLookback - nz(prevHighBar, bar_index)
+barsBackLow = bar_index - pivotLookback - nz(prevLowBar, bar_index)
+
+// Regular Bullish: Price lower low, RSI higher low
+regularBullish = not na(pivotLow) and not na(prevPriceLow) and barsBackLow <= divLookback and priceLow < prevPriceLow and pivotLow > prevRsiLow and showRegularDiv
+
+// Regular Bearish: Price higher high, RSI lower high
+regularBearish = not na(pivotHigh) and not na(prevPriceHigh) and barsBackHigh <= divLookback and priceHigh > prevPriceHigh and pivotHigh < prevRsiHigh and showRegularDiv
+
+// Hidden Bullish: Price higher low, RSI lower low
+hiddenBullish = not na(pivotLow) and not na(prevPriceLow) and barsBackLow <= divLookback and priceLow > prevPriceLow and pivotLow < prevRsiLow and showHiddenDiv
+
+// Hidden Bearish: Price lower high, RSI higher high
+hiddenBearish = not na(pivotHigh) and not na(prevPriceHigh) and barsBackHigh <= divLookback and priceHigh < prevPriceHigh and pivotHigh > prevRsiHigh and showHiddenDiv
+
+// ============================================================================
+// PLOTS
+// ============================================================================
+plot(rsiValue, "RSI", color=color.blue, linewidth=2)
+
+// Level lines
+hline(oversoldLevel, "Oversold", color=color.green, linestyle=hline.style_dashed)
+hline(overboughtLevel, "Overbought", color=color.red, linestyle=hline.style_dashed)
+hline(50, "Middle", color=color.gray, linestyle=hline.style_dotted)
+
+// Divergence markers
+plotshape(regularBullish, "Regular Bullish", shape.triangleup, location.bottom, bullColor, size=size.small)
+plotshape(regularBearish, "Regular Bearish", shape.triangledown, location.top, bearColor, size=size.small)
+plotshape(hiddenBullish, "Hidden Bullish", shape.circle, location.bottom, color.new(bullColor, 50), size=size.tiny)
+plotshape(hiddenBearish, "Hidden Bearish", shape.circle, location.top, color.new(bearColor, 50), size=size.tiny)
+
+// Background highlighting
+bgcolor(regularBullish ? color.new(bullColor, 85) : regularBearish ? color.new(bearColor, 85) : na)
+
+// ============================================================================
+// ALERTS
+// ============================================================================
+alertcondition(regularBullish, "Regular Bullish Divergence", "RSI showing regular bullish divergence")
+alertcondition(regularBearish, "Regular Bearish Divergence", "RSI showing regular bearish divergence")
+alertcondition(hiddenBullish, "Hidden Bullish Divergence", "RSI showing hidden bullish divergence")
+alertcondition(hiddenBearish, "Hidden Bearish Divergence", "RSI showing hidden bearish divergence")
+alertcondition(regularBullish or hiddenBullish, "Any Bullish Divergence", "RSI showing bullish divergence")
+alertcondition(regularBearish or hiddenBearish, "Any Bearish Divergence", "RSI showing bearish divergence")

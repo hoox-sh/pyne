@@ -1,0 +1,13 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block345
+// content_hash: ca337043447a6ffd
+// collected: 2026-07-27
+indicator("/=")
+// Equals to expr1 = expr1 / expr2.
+float a = 3.0
+b = 3
+a /= b
+// Result: a = 1.
+plot(a)

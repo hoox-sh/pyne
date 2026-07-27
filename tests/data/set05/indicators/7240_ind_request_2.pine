@@ -1,0 +1,5 @@
+//@version=6indicator("request.quandl")f = request.quandl("CFTC/SB_FO_ALL", barmerge.gaps_off, 0)plot(f)// set05 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/reference/functions/request.md::request.md#block2
+// content_hash: b85bd028e9167cd6
+// collected: 2026-07-27

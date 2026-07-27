@@ -1,0 +1,14 @@
+//@version=5
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/v5/language/type-system.md::type-system.md#block28
+// content_hash: 1a970ecb8fd3fe02
+// collected: 2026-07-27
+indicator("Explicit casting demo", overlay = true)
+
+//@variable The length of the SMA calculation. Qualified as "const float".
+float LENGTH = 10.0
+
+float sma = ta.sma(close, LENGTH) // Compilation error. The `length` parameter requires an "int" value.
+
+plot(sma)

@@ -1,0 +1,20 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block221
+// content_hash: 14aab0fc2fcbad01
+// collected: 2026-07-27
+strategy("strategy.closedtrades.entry_bar_index Example")
+// Enter long trades on three rising bars; exit on two falling bars.
+if ta.rising(close, 3)
+    strategy.entry("Long", strategy.long)
+if ta.falling(close, 2)
+    strategy.close("Long")
+// Function that calculates the average amount of bars in a trade.
+avgBarsPerTrade() =>
+    sumBarsPerTrade = 0
+    for tradeNo = 0 to strategy.closedtrades - 1
+        // Loop through all closed trades, starting with the oldest.
+        sumBarsPerTrade += strategy.closedtrades.exit_bar_index(tradeNo) - strategy.closedtrades.entry_bar_index(tradeNo) + 1
+    result = nz(sumBarsPerTrade / strategy.closedtrades)
+plot(avgBarsPerTrade())

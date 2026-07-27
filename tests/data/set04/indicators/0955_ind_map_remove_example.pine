@@ -1,0 +1,11 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block143
+// content_hash: 0d3a9990bef7b905
+// collected: 2026-07-27
+indicator("map.remove example")
+a = map.new<string, color>()
+a.put("firstColor", color.green)
+oldColorValue = map.remove(a, "firstColor")
+plot(close, color = oldColorValue)

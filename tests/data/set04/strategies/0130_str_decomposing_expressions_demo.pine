@@ -1,0 +1,23 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/writing/debugging.md::debugging.md#block21
+// content_hash: 958b3cb55b3d5ec0
+// collected: 2026-07-27
+strategy("Decomposing expressions demo")
+
+//@variable The length used for the first part of the oscillator.
+int length1Input = input.int(20)
+//@variable The length used for the second part of the oscillator.
+int length2Input = input.int(40)
+//@variable Oscillator smoothing length.
+int smoothingInput = input.int(10)
+
+//@variable The maximum of `length1Input` and `length2Input`.
+int maxLength = math.max(length1Input, length2Input)
+
+//@variable The smoothed median change in the differences between `close` and two EMAs over different lengths. 
+float osc = ta.ema(
+     math.avg(
+         ta.change(close - ta.ema(close, length1Input), length1Input), 
+         ta.change(close - ta.ema(close, length2Input), length2Input)

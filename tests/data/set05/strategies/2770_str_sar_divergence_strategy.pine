@@ -1,0 +1,50 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/抛物线SAR指标背离交易策略-Parabolic-SAR-Divergence-Trading-Strategy.md
+// content_hash: b0a2150a0d528bd4
+// collected: 2026-07-27
+strategy("SAR Divergence Strategy", overlay=true)
+
+// --- Inputs ---
+length = input.int(14, title="SAR Length", minval=1)
+accelerationFactor = input.float(0.02, title="Acceleration Factor", minval=0.01)
+maximumFactor = input.float(0.2, title="Maximum Factor", minval=0.01)
+
+// --- SAR Calculation ---
+sar = ta.sar(length, accelerationFactor, maximumFactor)
+
+// --- Divergence Detection ---
+lookback = 5
+
+// Bullish Divergence
+bullCond = close[lookback] < close[lookback + 1] and sar[lookback] > sar[lookback + 1]
+
+// Bearish Divergence
+bearCond = close[lookback] > close[lookback + 1] and sar[lookback] < sar[lookback + 1]
+
+// --- Strategy Logic ---
+if (bullCond)
+    strategy.entry("Long", strategy.long)
+
+if (bearCond)
+    strategy.entry("Short", strategy.short)
+
+// --- Plotting ---
+plot(sar, color=color.blue, linewidth=2, title="Parabolic SAR")
+
+plotshape(bullCond, style=shape.triangleup, color=color.green, size=size.small, title="Bullish Divergence")
+plotshape(bearCond, style=shape.triangledown, color=color.red, size=size.small, title="Bearish Divergence")
+
+// --- Alerts ---
+alertcondition(bullCond, title="Bullish SAR Divergence", message="Bullish Divergence detected")
+alertcondition(bearCond, title="Bearish SAR Divergence", message="Bearish Divergence detected")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/471696
+
+> Last Modified
+
+2024-11-12 15:12:33

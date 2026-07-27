@@ -1,0 +1,56 @@
+//@version=6
+// set04 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多重指数移动平均线黄金交叉趋势跟踪策略-Multi-Exponential-Moving-Average-Golden-Cross-Trend-Following-Strategy.md
+// content_hash: 4293d71e4d6cf36f
+// collected: 2026-07-27
+strategy("EMA2050150 Crossover Strategy#ganges", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=100, commission_value=0.1, slippage=3)
+
+
+
+// EMAs
+ema20 = ta.ema(close, 20)
+ema50 = ta.ema(close, 50)
+ema150 = ta.ema(close, 150)
+
+// Cross conditions
+longCondition = ta.crossover(ema20, ema50)
+flatCondition = ta.crossunder(ema20, ema50)
+deathCross = ta.crossunder(ema50, ema150)
+goldenCross = ta.crossover(ema50, ema150)
+
+// // Trade execution
+// if longCondition and time >= startDate and time <= endDate and strategy.position_size == 0
+//     strategy.entry("Long", strategy.long)
+
+// if flatCondition and time >= startDate and time <= endDate and strategy.position_size > 0
+//     strategy.close("Long")
+
+// Plot EMAs
+plot(ema20, title="EMA 20", color=color.blue)
+plot(ema50, title="EMA 50", color=color.orange)
+plot(ema150, title="EMA 150", color=color.red)
+
+// Plot cross signals
+plotshape(series=goldenCross, location=location.belowbar, color=color.green, style=shape.labelup, title="Golden Cross", size=size.small, text="Golden Cross")
+plotshape(series=deathCross, location=location.abovebar, color=color.red, style=shape.labeldown, title="Death Cross", size=size.small, text="Death Cross")
+
+// Plot buy and sell signals
+plotshape(series=longCondition, location=location.belowbar, color=color.blue, style=shape.triangleup, title="Buy Signal", size=size.small, text="Buy")
+plotshape(series=flatCondition, location=location.abovebar, color=color.orange, style=shape.triangledown, title="Sell Signal", size=size.small, text="Sell")
+
+// Trade execution
+if longCondition and strategy.position_size == 0
+    strategy.entry("Long", strategy.long)
+
+if flatCondition and strategy.position_size > 0
+    strategy.close("Long")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/482792
+
+> Last Modified
+
+2025-02-27 17:48:40

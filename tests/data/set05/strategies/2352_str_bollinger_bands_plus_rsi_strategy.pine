@@ -1,0 +1,58 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/Bollinger-Bands与RSI结合的动量反转量化交易策略-Momentum-Reversal-Quantitative-Trading-Strategy-Combining-Bollinger-Bands-and-RSI.md
+// content_hash: 670d5b7db3311067
+// collected: 2026-07-27
+strategy("Bollinger Bands + RSI Strategy", overlay=true)
+
+// Bollinger Bands parameters
+length = input.int(20, title="Bollinger Bands Length")
+src = input(close, title="Source")
+mult = input.float(2.0, title="Bollinger Bands Multiplier")
+
+basis = ta.sma(src, length)
+dev = mult * ta.stdev(src, length)
+upper_band = basis + dev
+lower_band = basis - dev
+
+// RSI parameters
+rsi_length = input.int(14, title="RSI Length")
+rsi = ta.rsi(src, rsi_length)
+
+// Plot Bollinger Bands
+plot(upper_band, color=color.red, linewidth=2, title="Upper Bollinger Band")
+plot(lower_band, color=color.green, linewidth=2, title="Lower Bollinger Band")
+plot(basis, color=color.blue, linewidth=1, title="Middle Band")
+
+// Buy Condition
+buy_condition = ta.crossover(close, lower_band) and rsi < 30
+if buy_condition
+    strategy.entry("Buy", strategy.long)
+
+// Sell Condition
+sell_condition = ta.crossunder(close, upper_band) and rsi > 70
+if sell_condition
+    strategy.entry("Sell", strategy.short)
+
+// Exit Conditions (optional: use the middle Bollinger Band for exits)
+exit_condition = ta.cross(close, basis)
+if exit_condition
+    strategy.close("Buy")
+    strategy.close("Sell")
+
+// Optional: Plot RSI for additional insight
+hline(70, "Overbought", color=color.red)
+hline(30, "Oversold", color=color.green)
+plot(rsi, color=color.purple, title="RSI", linewidth=1, offset=-5)
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/482887
+
+> Last Modified
+
+2025-02-20 16:38:15

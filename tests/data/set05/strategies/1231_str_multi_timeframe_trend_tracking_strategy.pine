@@ -1,0 +1,93 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多时间框架趋势追踪策略Multi-Timeframe-Trend-Tracking-Strategy.md
+// content_hash: 802212aa3333a699
+// collected: 2026-07-27
+strategy(title="SPX Strategy", shorttitle="SPXS", overlay=true)
+
+//SMA
+len1 = 10
+src1 = input(close, title="SMA Source #1")
+out1 = ta.sma(src1, len1)
+plot(out1, title="SMA #1", color=close >= out1 ? color.lime : color.red, linewidth=2)
+
+data_over = ta.crossover(close, out1)
+dataO = close >= out1
+data_under = ta.crossunder(close, out1)
+dataU = close < out1
+
+bgcolor(color=ta.crossover(close, out1) ? color.new(color.lime, 90) : na)
+bgcolor(color=ta.crossunder(close, out1) ? color.new(color.red, 90) : na)     
+
+//Norm MacD
+sma = 12
+lma = 21
+tsp = 10
+np = 50
+    
+sh = ta.ema(close,sma)  
+
+lon= ta.ema(close,lma) 
+
+ratio = math.min(sh,lon)/math.max(sh,lon)
+
+Mac = ratio - 1
+if(sh>lon)
+    Mac := 2-ratio - 1
+else
+    Mac := ratio - 1
+
+MacNorm = ((Mac-ta.lowest(Mac, np)) /(ta.highest(Mac, np)-ta.lowest(Mac, np)+.000001)*2)- 1
+
+MacNorm2 = MacNorm
+
+if(np<2)
+    MacNorm2 := Mac
+else
+    MacNorm2 := MacNorm
+    
+Trigger = ta.wma(MacNorm2, tsp)
+
+trigger_above = Trigger >= MacNorm
+trigger_under = Trigger < MacNorm
+plotshape(ta.crossover(Trigger, MacNorm2), style=shape.triangledown, color=color.red)
+plotshape(ta.crossunder(Trigger, MacNorm2), style=shape.triangledown, color=color.lime)
+
+//RSI / SMA RSI
+swr=input(true,title="RSI")
+src = close
+len = 14
+srs = 50
+up = ta.rma(math.max(ta.change(src), 0), len)
+down = ta.rma(-math.min(ta.change(src), 0), len)
+rsi = down == 0 ? 100 : up == 0 ? 0 : 100 - (100 / (1 + up / down))
+mr = ta.sma(rsi,srs)
+rsi_above = rsi >= mr
+rsi_under = rsi < mr
+
+//All
+buySignal = rsi_above and trigger_under and dataO
+shortSignal = rsi_under and trigger_above and dataU
+bgcolor(color=buySignal ? color.new(color.lime,97) : na)     
+bgcolor(color=shortSignal ? color.new(color.red, 97) : na)     
+     
+sellSignal = ta.cross(close, out1) or ta.cross(Trigger, MacNorm2) or ta.cross(rsi, mr)
+if (buySignal)
+    strategy.entry("LONG", strategy.long, 1)
+
+if (shortSignal)
+    strategy.entry("SHORT", strategy.short, 1)
+
+// Submit exit orders
+strategy.close("LONG", when=sellSignal)
+strategy.close("SHORT", when=sellSignal)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/432099
+
+> Last Modified
+
+2023-11-14 14:29:39

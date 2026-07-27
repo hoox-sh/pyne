@@ -1,0 +1,60 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于Z分数和超级趋势的动态交易策略多空切换系统-Z-Score-and-Supertrend-Based-Dynamic-Trading-Strategy-Long-Short-Switching-System.md
+// content_hash: 36c0b528cb6571f6
+// collected: 2026-07-27
+strategy("Z-Score Long and Short Strategy with Supertrend", overlay=true)
+
+// Inputs for Z-Score
+len = input.int(75, "Z-Score Lookback Length")
+z_long_threshold = 1.1  // Threshold for Z-Score to open long
+z_short_threshold = -1.1  // Threshold for Z-Score to open short
+
+// Z-Score Calculation
+z = (close - ta.sma(close, len)) / ta.stdev(close, len)
+
+// Calculate Driver RSI
+driver_rsi_length = input.int(14, "Driver RSI Length")  // Input for RSI Length
+driver_rsi = ta.rsi(close, driver_rsi_length)  // Calculate the RSI
+
+// Supertrend Parameters
+atrPeriod = input.int(11, "ATR Length", minval=1)
+factor = input.float(2.0, "Factor", minval=0.01, step=0.01)
+
+// Supertrend Calculation
+[supertrend, direction] = ta.supertrend(factor, atrPeriod)
+
+// Conditions for Long and Short based on Z-Score
+z_exceeds_long = z >= z_long_threshold and driver_rsi > 60
+z_exceeds_short = z <= z_short_threshold and driver_rsi < 40
+
+// Entry Conditions
+if (z_exceeds_long and direction < 0) // Enter Long if Z-Score exceeds threshold and Supertrend is down
+    strategy.entry("Long", strategy.long)
+    label.new(bar_index, low, text="Open Long", style=label.style_label_up, color=color.green, textcolor=color.white, size=size.small)
+    alert("Open Long", alert.freq_once_per_bar)  // Alert for Long entry
+
+if (z_exceeds_short and direction > 0) // Enter Short if Z-Score exceeds threshold and Supertrend is up
+    strategy.entry("Short", strategy.short)
+    label.new(bar_index, high, text="Open Short", style=label.style_label_down, color=color.red, textcolor=color.white, size=size.small)
+    alert("Open Short", alert.freq_once_per_bar)  // Alert for Short entry
+
+// Plot Supertrend
+upTrend = plot(direction < 0 ? supertrend : na, "Up Trend", color=color.green, style=plot.style_linebr)
+downTrend = plot(direction > 0 ? supertrend : na, "Down Trend", color=color.red, style=plot.style_linebr)
+fill(upTrend, downTrend, color=color.new(color.green, 90), fillgaps=false)
+
+// Alert conditions for Supertrend changes (optional)
+alertcondition(direction[1] > direction, title='Downtrend to Uptrend', message='The Supertrend value switched from Downtrend to Uptrend')
+alertcondition(direction[1] < direction, title='Uptrend to Downtrend', message='The Supertrend value switched from Uptrend to Downtrend')
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/473141
+
+> Last Modified
+
+2024-11-27 16:01:20

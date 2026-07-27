@@ -1,0 +1,51 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/RSI止损追踪交易策略-RSI-Stop-Loss-Tracking-Trading-Strategy.md
+// content_hash: b1f720f371aa97b4
+// collected: 2026-07-27
+strategy('RSI Trading Bot', overlay=true)
+
+// RSI threshold value and stop loss percentage
+rsiThreshold = 30
+stopLossPercentage = 1.5
+
+// Calculate RSI
+rsiLength = 14
+rsiValue = ta.rsi(close, rsiLength)
+
+// Initialize variables
+var bool positionOpen = false
+var float entryPrice = na
+var float stopLossPrice = na
+
+// Enter position when RSI crosses below threshold
+if ta.crossunder(rsiValue, rsiThreshold)
+    strategy.entry('Long', strategy.long)
+    positionOpen := true
+    entryPrice := close
+    stopLossPrice := entryPrice * (1 - stopLossPercentage / 100)
+    stopLossPrice
+
+// Exit position on stop loss
+if positionOpen and close < stopLossPrice
+    strategy.close('Long')
+    positionOpen := false
+    entryPrice := na
+    stopLossPrice := na
+    stopLossPrice
+
+// Plot entry and stop loss prices
+plot(entryPrice, title='Entry Price', color=color.new(color.green, 0), linewidth=2)
+plot(stopLossPrice, title='Stop Loss Price', color=color.new(color.red, 0), linewidth=2)
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/446458
+
+> Last Modified
+
+2024-03-28 17:56:58

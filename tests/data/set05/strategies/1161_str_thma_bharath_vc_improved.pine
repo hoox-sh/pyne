@@ -1,0 +1,96 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动态自适应Kaufman移动平均趋势跟踪策略Dynamic-Self-Adaptive-Kaufman-Moving-Average-Trend-Tracking-Strategy.md
+// content_hash: 340607be350dde9b
+// collected: 2026-07-27
+strategy("THMA - Bharath Vc Improved", overlay=true, process_orders_on_close=true)
+
+// Function to calculate pips with higher precision
+getPips(price) =>
+    difc = syminfo.mintick
+    hlpips = price / difc
+    math.round(hlpips / syminfo.mintick) * syminfo.mintick
+
+// Inputs
+buyMess = input.string("Buy Message","Buy Alert Message")
+sellMess = input.string("Sell Message","Sell Alert Message")
+buyExitMessage = input.string("Buy Exit","Buy Exit Alert Message" )
+sellExitMessage = input.string("Sell Exit","Sell Exit Alert Message" )
+
+tmf = input.timeframe("", "Timeframe")
+length = input(title='Length', defval=14)
+fastLength = input(title='Fast EMA Length', defval=2)
+slowLength = input(title='Slow EMA Length', defval=30)
+src = input(title='Source', defval=close)
+highlight = input(title='Highlight ?', defval=true)
+awaitBarConfirmation = input(title='Await Bar Confirmation ?', defval=true)
+
+// Function to calculate the TMA
+gettma() =>
+    mom = math.abs(ta.change(src, length))
+    volatility = math.sum(math.abs(ta.change(src)), length)
+    er = volatility != 0 ? mom / volatility : 0
+    fastAlpha = 2 / (fastLength + 1)
+    slowAlpha = 2 / (slowLength + 1)
+    alpha = math.pow(er * (fastAlpha - slowAlpha) + slowAlpha, 2)
+    kama = 0.0
+    kama := alpha * src + (1 - alpha) * nz(kama[1], src)
+    await = awaitBarConfirmation ? barstate.isconfirmed : true
+    maColor = highlight ? kama > kama[1] and await ? color.green : color.red : color.new(color.purple, 0)
+    thma = kama
+    hma_dif = (thma - thma[2])/2
+    colour = hma_dif > 0 ? color.green : color.red
+    isGreen = hma_dif > 0
+    [thma, isGreen, colour]
+
+// Dynamic pip size based on ATR to adapt better to smaller timeframes
+pips = ta.atr(14) * 0.1
+
+// Main execution logic
+var float psl = na
+var int lastSignal = 0
+var float lastPsl = na
+
+[thma, isGreen, colour] = request.security(syminfo.tickerid, tmf, gettma(), gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_off)
+
+plot(thma, title='KAMA', linewidth=2, color=colour)
+
+if ta.crossover(thma, psl) and strategy.position_size < 0
+    strategy.exit("Sell Exit", stop=thma, alert_message=sellExitMessage)
+
+if ta.crossunder(thma, psl) and strategy.position_size > 0
+    strategy.exit("Buy Exit", stop=thma, alert_message=buyExitMessage)
+
+if isGreen and strategy.position_size <= 0
+    if na(psl)
+        psl := close + getPips(pips)
+    strategy.entry("Buy", strategy.long, alert_message=buyMess)
+    lastSignal := 1
+
+if not isGreen and strategy.position_size >= 0
+    if na(psl)
+        psl := close - getPips(pips)
+    strategy.entry("Sell", strategy.short, alert_message=sellMess)
+    lastSignal := -1
+
+if (thma >= lastPsl or na(lastPsl)) and thma > psl
+    psl := psl + getPips(pips)
+    lastPsl := psl
+
+if (thma <= lastPsl or na(lastPsl)) and thma < psl
+    psl := psl - getPips(pips)
+    lastPsl := psl
+
+plot(psl, title="Position Stop Level", style=plot.style_stepline, color=color.blue)
+plot(lastPsl, title="Last Position Stop Level", style=plot.style_cross, color=color.red)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/442859
+
+> Last Modified
+
+2024-02-26 16:36:30

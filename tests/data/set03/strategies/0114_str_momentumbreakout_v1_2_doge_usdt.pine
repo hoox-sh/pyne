@@ -1,0 +1,95 @@
+//@version=6
+// set03 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多指标确认动态追踪突破量化交易策略-Multi-Indicator-Confirmation-Dynamic-Trailing-Breakout-Quantitative-Trading-Strategy.md
+// content_hash: 900ec2730fdb6e12
+// collected: 2026-07-27
+strategy("MomentumBreakout V1.2 - DOGE/USDT", overlay=true, margin_long=20, margin_short=20)
+
+// === Core Parameters ===
+emaFast = input.int(15, "Fast EMA Length", minval=10, maxval=50)
+emaSlow = input.int(40, "Slow EMA Length", minval=20, maxval=100)
+atrPeriod = input.int(14, "ATR Period", minval=1, maxval=50)
+riskPct = input.float(0.5, "Risk Per Trade (%)", minval=0.1, maxval=5.0, step=0.1)
+baseLeverage = input.float(5.0, "Base Leverage", minval=1.0, maxval=20.0, step=0.5)
+feeRate = input.float(0.1, "Fee Rate (%)", minval=0.0, maxval=1.0, step=0.01)
+maxHoldBars = input.int(72, "Max Hold Bars (12H)", minval=1, maxval=1000)
+rsiPeriod = input.int(14, "RSI Period", minval=5, maxval=50)
+macdFast = input.int(12, "MACD Fast Length", minval=5, maxval=50)
+macdSlow = input.int(26, "MACD Slow Length", minval=5, maxval=50)
+macdSignal = input.int(9, "MACD Signal Length", minval=1, maxval=50)
+
+// === Calculate Indicators ===
+// EMA (10m)
+emaFastValue = ta.ema(close, emaFast)
+emaSlowValue = ta.ema(close, emaSlow)
+
+// ATR
+atrValue = ta.atr(atrPeriod)
+
+// RSI (10m and 1H)
+rsiValue = ta.rsi(close, rsiPeriod)
+rsiValue_1h = request.security(syminfo.tickerid, "60", ta.rsi(close, rsiPeriod)[1], barmerge.gaps_off)
+
+// MACD (1H)
+[macdLine_1h, signalLine_1h, _] = request.security(syminfo.tickerid, "60", ta.macd(close, macdFast, macdSlow, macdSignal), barmerge.gaps_off)
+macdLine_1h := macdLine_1h[1]
+signalLine_1h := signalLine_1h[1]
+
+// Trend Confirmation
+trendUp_1h = emaFastValue > emaSlowValue and rsiValue_1h > 50 and macdLine_1h > signalLine_1h
+trendDown_1h = emaFastValue < emaSlowValue
+breakoutLong = ta.crossover(close, emaFastValue) and trendUp_1h and close > ta.sma(close, 20) and not na(emaFastValue)
+breakoutShort = ta.crossunder(close, emaSlowValue) and trendDown_1h and atrValue > ta.sma(atrValue, 14) and not na(emaSlowValue)
+noActivePosition = strategy.position_size == 0
+
+// === Dynamic Position Sizing ===
+equity = strategy.equity
+riskAmount = equity * (riskPct / 100)
+stopDistance = atrValue * 1.2  // Tightened to 1.2x ATR
+leverage = baseLeverage * math.min(1.0, 1.0 / (atrValue / close))
+positionSize = math.round((riskAmount / stopDistance) * leverage)
+
+// === Trailing Stop ===
+var float longStopPrice = 0.0
+var float shortStopPrice = 0.0
+var int entryBarIndex = 0
+
+if breakoutLong
+    longStopPrice := close - (atrValue * 1.2)
+    entryBarIndex := bar_index
+
+if breakoutShort
+    shortStopPrice := close + (atrValue * 1.2)
+    entryBarIndex := bar_index
+
+if strategy.position_size > 0
+    longStopPrice := math.max(longStopPrice, close - (atrValue * 0.5))
+if strategy.position_size < 0
+    shortStopPrice := math.min(shortStopPrice, close + (atrValue * 0.5))
+
+// === Time-based Exit ===
+barsSinceEntry = bar_index - entryBarIndex
+if strategy.position_size != 0 and barsSinceEntry >= maxHoldBars
+    strategy.close_all(comment="Time Exit")
+
+// === Strategy Execution ===
+if breakoutLong and noActivePosition
+    strategy.entry("Long", strategy.long, qty=positionSize)
+    strategy.exit("Long Exit", "Long", stop=longStopPrice, qty_percent=100, comment="Long Exit")
+
+if breakoutShort and noActivePosition
+    strategy.entry("Short", strategy.short, qty=positionSize)
+    strategy.exit("Short Exit", "Short", stop=shortStopPrice, qty_percent=100, comment="Short Exit")
+
+// === Fee Calculation ===
+feeCost = positionSize * close * (feeRate / 100) * 2
+```
+
+> Detail
+
+https://www.fmz.com/strategy/488020
+
+> Last Modified
+
+2025-03-24 14:20:27

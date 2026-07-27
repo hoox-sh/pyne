@@ -1,0 +1,75 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双均线交叉动态持仓策略-Dynamic-Position-Dual-Moving-Average-Crossover-Strategy.md
+// content_hash: 0393c415ae3d2a11
+// collected: 2026-07-27
+strategy(title="MA Cross Backtest", overlay=true, default_qty_type=strategy.cash, default_qty_value=10)
+
+// Parâmetros das Médias Móveis
+shortlen = input.int(9, "Short MA Length", minval=1)
+longlen = input.int(21, "Long MA Length", minval=1)
+
+// Cálculo das Médias Móveis
+short = ta.sma(close, shortlen)
+long = ta.sma(close, longlen)
+
+// Plotagem das Médias Móveis
+plot(short, color=color.orange, title="Short MA")
+plot(long, color=color.green, title="Long MA")
+
+// Sinal de Compra baseado no cruzamento das médias móveis
+buySignal = ta.crossover(short, long)
+
+// Sinal de Venda (Short) baseado no cruzamento das médias móveis
+sellSignal = ta.crossunder(short, long)
+
+// Plotagem dos Sinais de Compra e Venda
+plotshape(series=buySignal, location=location.belowbar, color=color.blue, style=shape.labelup, text="Buy", title="Buy Signal")
+plotshape(series=sellSignal, location=location.abovebar, color=color.red, style=shape.labeldown, text="Sell", title="Sell Signal")
+
+// Condições para alertas
+alertcondition(buySignal, title="Buy Signal", message="MA Cross Buy Signal")
+alertcondition(sellSignal, title="Sell Signal", message="MA Cross Sell Signal")
+
+// Lógica da Estratégia de Backtest
+if (buySignal)
+    // Se não há posição aberta ou se a posição atual é curta, feche a posição curta antes de abrir uma nova posição longa
+    if (strategy.position_size < 0)
+        strategy.close("Short", comment="Closing Short Position before Long Entry")
+    strategy.entry("Long", strategy.long)
+
+    // Alerta de compra
+    alert("MA Cross Buy Signal", alert.freq_once_per_bar_close)
+
+if (strategy.position_size > 0)
+    // Se o preço abrir abaixo da média longa
+    if (open < long)
+        strategy.close("Long", comment="Price Opened Below Long MA")
+        strategy.entry("Short", strategy.short, comment="Switched to Short")
+        // Alerta de venda
+        alert("Price Opened Below Long MA - Switched to Short", alert.freq_once_per_bar_close)
+    // Se a média móvel curta cruzar abaixo da média móvel longa
+    else if (sellSignal)
+        strategy.close("Long", comment="Short MA Crossed Below Long MA")
+        strategy.entry("Short", strategy.short, comment="Switched to Short")
+        // Alerta de venda
+        alert("Short MA Crossed Below Long MA - Switched to Short", alert.freq_once_per_bar_close)
+
+if (strategy.position_size < 0)
+    // Se o preço abrir acima da média longa
+    if (open > long)
+        strategy.close("Short", comment="Price Opened Above Long MA")
+        strategy.entry("Long", strategy.long, comment="Switched to Long")
+        // Alerta de compra
+        alert("Price Opened Above Long MA - Switched to Long", alert.freq_once_per_bar_close)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/458178
+
+> Last Modified
+
+2024-07-30 16:04:59

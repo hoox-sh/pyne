@@ -1,0 +1,12 @@
+//@version=6
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/concepts/bar-states.md::bar-states.md#block3
+// content_hash: 46fdd6a7a5f7ae9f
+// collected: 2026-07-27
+indicator("")
+updateNo() => 
+    varip int updateNo = na
+    if barstate.isnew
+        updateNo := 1
+    else

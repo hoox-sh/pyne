@@ -1,0 +1,36 @@
+//@version=2
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/开放价格交易策略Open-Price-Trading-Strategy.md
+// content_hash: 9bf64aaeb98a6b97
+// collected: 2026-07-27
+strategy("PerfectStrategy", overlay=true, default_qty_type = strategy.percent_of_equity, default_qty_value = 10)
+ 
+
+x = ((open[1])/(close[1]))
+x1 = ((open[2])/(close[2]))
+x2= ((open[3])/(close[3]))
+x3 = ((open[4])/(close[4]))
+x4 = ((open[5])/(close[5]))
+x5 = ((open[6])/(close[6]))
+x6 = ((open[7])/(close[7]))
+x7 = ((open[8])/(close[8]))
+x8 = ((open[9])/(close[9]))
+
+y = (x+x1+x2+x3+x4+x5+x6+x7+x8)/9
+if (y < 1 )
+    strategy.entry("Up", strategy.long)
+
+if (y > 1)
+    strategy.entry("Down", strategy.short)
+
+//plot(strategy.equity, title="equity", color=red, linewidth=2, style=areabr)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/427614
+
+> Last Modified
+
+2023-09-22 17:00:25

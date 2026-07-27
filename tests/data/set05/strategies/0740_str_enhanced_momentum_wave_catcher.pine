@@ -1,0 +1,127 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多时段动态动量波动捕捉策略-Multi-Timeframe-Dynamic-Momentum-Wave-Capture-Strategy.md
+// content_hash: 56e59a7b0c358ee4
+// collected: 2026-07-27
+strategy("Enhanced Momentum Wave Catcher", overlay=true,
+  default_qty_type=strategy.cash,
+  default_qty_value=10000,
+  initial_capital=10000,
+  currency="USD")
+
+// Inputs
+fastEmaLength = input.int(12, "12 EMA Length", minval=1)
+slowEmaHighLength = input.int(200, "200 High EMA Length", minval=1)
+slowEmaLowLength = input.int(200, "200 Low EMA Length", minval=1)
+oversoldLevel = input.int(-50, "Oversold Level")
+overboughtLevel = input.int(50, "Overbought Level")
+riskAmount = input.float(100.0, "Risk Amount ($)", minval=1.0)
+rrRatio = input.float(3.0, "Risk-Reward Ratio", minval=0.1)
+confirmationBars = input.int(1, "Confirmation Bars After Extreme", minval=0)
+
+// Calculate EMAs
+fastEma = ta.ema(close, fastEmaLength)
+slowEmaHigh = ta.ema(high, slowEmaHighLength)
+slowEmaLow = ta.ema(low, slowEmaLowLength)
+
+// Hourly close
+hourlyClose = request.security(syminfo.tickerid, "60", close)
+
+// Enhanced Momentum Wave Calculation
+f_wavetrend(src, chlen, avg, malen) =>
+    esa = ta.ema(src, chlen)
+    de = ta.ema(math.abs(src - esa), chlen)
+    ci = (src - esa) / (0.015 * de)
+    wt1 = ta.ema(ci, avg)
+    wt2 = ta.sma(wt1, malen)
+    wtCrossUp = ta.crossover(wt1, wt2)
+    wtCrossDown = ta.crossunder(wt1, wt2)
+    [wt1, wt2, wtCrossUp, wtCrossDown]
+
+[wt1, wt2, wtCrossUp, wtCrossDown] = f_wavetrend(hlc3, 9, 12, 3)
+
+// Track extremes with improved detection
+var int oversoldBars = 0
+var int overboughtBars = 0
+var float extremeLow = na
+var float extremeHigh = na
+
+// Enhanced extreme detection
+if wt2 <= oversoldLevel
+    oversoldBars := oversoldBars + 1
+    extremeLow := na(extremeLow) ? low : math.min(low, extremeLow)
+else
+    oversoldBars := 0
+    extremeLow := na
+
+if wt2 >= overboughtLevel
+    overboughtBars := overboughtBars + 1
+    extremeHigh := na(extremeHigh) ? high : math.max(high, extremeHigh)
+else
+    overboughtBars := 0
+    extremeHigh := na
+
+// Hourly Channel Status
+var bool hourlyAboveChannel = false
+var bool hourlyBelowChannel = false
+
+if barstate.isconfirmed
+    if hourlyClose > slowEmaHigh
+        hourlyAboveChannel := true
+        hourlyBelowChannel := false
+    else if hourlyClose < slowEmaLow
+        hourlyAboveChannel := false
+        hourlyBelowChannel := true
+
+// Entry Conditions with improved wave detection
+longCondition = hourlyAboveChannel and (oversoldBars > confirmationBars or wtCrossUp) and close > fastEma
+shortCondition = hourlyBelowChannel and (overboughtBars > confirmationBars or wtCrossDown) and close < fastEma
+
+// Dynamic Stops
+longStop = math.min(extremeLow, slowEmaLow * 0.998)
+shortStop = math.max(extremeHigh, slowEmaHigh * 1.002)
+
+// Position Sizing
+calculatePositionSize(entryPrice, stopPrice) =>
+    riskPerUnit = math.abs(entryPrice - stopPrice)
+    riskPerUnit > 0 ? riskAmount / riskPerUnit : na
+
+// Execute Trades
+if longCondition and not na(longStop)
+    strategy.entry("Long", strategy.long, qty=calculatePositionSize(close, longStop))
+    strategy.exit("Long Exit", "Long", stop=longStop, limit=close + (rrRatio * (close - longStop)))
+
+if shortCondition and not na(shortStop)
+    strategy.entry("Short", strategy.short, qty=calculatePositionSize(close, shortStop))
+    strategy.exit("Short Exit", "Short", stop=shortStop, limit=close - (rrRatio * (shortStop - close)))
+
+// Enhanced Visuals
+plot(fastEma, "12 EMA", color=color.orange, linewidth=2)
+plot(slowEmaHigh, "200 High EMA", color=color.red, linewidth=1)
+plot(slowEmaLow, "200 Low EMA", color=color.green, linewidth=1)
+
+// Wave visualization
+plot(wt2, "Momentum Wave", color=#7E57C2, linewidth=2)
+hline(oversoldLevel, "Oversold", color=color.red, linestyle=hline.style_dashed)
+hline(overboughtLevel, "Overbought", color=color.green, linestyle=hline.style_dashed)
+
+// Channel status
+bgcolor(hourlyAboveChannel ? color.new(color.green, 90) : 
+       hourlyBelowChannel ? color.new(color.red, 90) : 
+       color.new(color.gray, 90))
+
+// Entry markers
+plotshape(longCondition, "Long Entry", style=shape.triangleup, 
+         location=location.belowbar, color=color.green, size=size.small)
+plotshape(shortCondition, "Short Entry", style=shape.triangledown, 
+         location=location.abovebar, color=color.red, size=size.small)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/490787
+
+> Last Modified
+
+2025-04-16 14:53:29

@@ -1,0 +1,88 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于动态止损和目标获利的EMA多次成本加权平均成本策略EMA-Multi-DCA-Strategy-with-Trailing-Stop-Loss-and-Profit-Target.md
+// content_hash: b82c3866e2f8975d
+// collected: 2026-07-27
+strategy("EMA DCA Strategy with Trailing Stop and Profit Target", overlay=true )
+
+// Define the investment amount for when the condition is met
+investment_per_condition = 6
+
+// Define the EMAs
+ema5 = ema(close, 5)
+ema10 = ema(close, 10)
+ema20 = ema(close, 20)
+ema50 = ema(close, 50)
+ema100 = ema(close, 100)
+ema200 = ema(close, 200)
+
+// Define ATR sell threshold
+atr_sell_threshold = input(title="ATR Sell Threshold", type=input.integer, defval=10, minval=1)
+
+// Helper function to find if the price is within 1% of the EMA
+isWithin1Percent(price, ema) =>
+    ema_min = ema * 0.99
+    ema_max = ema * 1.01
+    price >= ema_min and price <= ema_max
+
+// Control the number of buys
+var int buy_count = 0
+buy_limit = input(title="Buy Limit", type=input.integer, defval=3000)
+
+// Calculate trailing stop and profit target levels
+trail_percent = input(title="Trailing Stop Percentage", type=input.integer, defval=1, minval=0, maxval=10)
+profit_target_percent = input(title="Profit Target Percentage", type=input.integer, defval=3, minval=1, maxval=10)
+
+// Determine if the conditions are met and execute the strategy
+checkConditionAndBuy(emaValue, emaName) =>
+    var int local_buy_count = 0 // Create a local mutable variable
+    if isWithin1Percent(close, emaValue) and local_buy_count < buy_limit
+        strategy.entry("Buy at " + emaName, strategy.long, qty=investment_per_condition / close, alert_message ="Buy condition met for " + emaName)
+        local_buy_count := local_buy_count + 1
+        // alert("Buy Condition", "Buy condition met for ", freq_once_per_bar_close)
+        
+    local_buy_count // Return the updated local_buy_count
+
+// Add ATR sell condition
+atr_condition = atr(20) > atr_sell_threshold
+if atr_condition
+    strategy.close_all()
+    buy_count := 0 // Reset the global buy_count when selling
+
+// Strategy execution
+buy_count := checkConditionAndBuy(ema5, "EMA5")
+buy_count := checkConditionAndBuy(ema10, "EMA10")
+buy_count := checkConditionAndBuy(ema20, "EMA20")
+buy_count := checkConditionAndBuy(ema50, "EMA50")
+buy_count := checkConditionAndBuy(ema100, "EMA100")
+buy_count := checkConditionAndBuy(ema200, "EMA200")
+
+// Calculate trailing stop level
+trail_offset = close * trail_percent / 100
+trail_level = close - trail_offset
+
+// Set profit target level
+profit_target_level = close * (1 + profit_target_percent / 100)
+
+// Exit strategy: Trailing Stop and Profit Target
+strategy.exit("TrailingStop", from_entry="Buy at EMA", trail_offset=trail_offset, trail_price=trail_level)
+strategy.exit("ProfitTarget", from_entry="Buy at EMA",  when=close >= profit_target_level)
+
+// Plot EMAs
+plot(ema5, title="EMA 5", color=color.red)
+plot(ema10, title="EMA 10", color=color.orange)
+plot(ema20, title="EMA 20", color=color.yellow)
+plot(ema50, title="EMA 50", color=color.green)
+plot(ema100, title="EMA 100", color=color.blue)
+plot(ema200, title="EMA 200", color=color.purple)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/439362
+
+> Last Modified
+
+2024-01-19 15:16:53

@@ -1,0 +1,84 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/三重指数移动平均与三重相对移动平均自适应通道交叉策略-Triple-EMA-and-Triple-RMA-Adaptive-Channel-Crossover-Strategy.md
+// content_hash: d6a8a2caef277152
+// collected: 2026-07-27
+strategy("EMA3 & RMA3 ATR Strategy", overlay=true, initial_capital=10000, currency=currency.USD)
+
+// —— 输入参数 ——
+ema_len = input.int(3, "EMA周期")
+ema_mult = input.float(1.5, "EMA通道ATR乘数", step=0.1)
+rma_len = input.int(3, "RMA周期")
+rma_mult = input.float(1.0, "RMA通道ATR乘数", step=0.1)
+atr_len = input.int(3, "ATR周期")
+
+// —— 核心计算 ——
+ema_val = ta.ema(close, ema_len)
+atr_val = ta.atr(atr_len)
+ema_upper = ema_val + atr_val * ema_mult
+ema_lower = ema_val - atr_val * ema_mult
+
+rma_val = ta.rma(close, rma_len)
+rma_upper = rma_val + atr_val * rma_mult
+rma_lower = rma_val - atr_val * rma_mult
+
+// —— 信号条件 ——
+ema_buy = barstate.isconfirmed and close > ema_upper
+ema_sell = barstate.isconfirmed and close < ema_lower
+rma_buy = barstate.isconfirmed and close > rma_upper
+rma_sell = barstate.isconfirmed and close < rma_lower
+
+// —— 仓位计算 ——
+risk_percent = 0.5 // 单次风险0.5%
+position_size(price, stop_price) => 
+    risk_amount = strategy.equity * risk_percent / 100
+    math.abs(price - stop_price) > 0 ? (risk_amount / math.abs(price - stop_price)) : na
+
+// —— 交易逻辑 ——
+var float prev_open = na
+if barstate.isconfirmed
+    prev_open := open[1]
+
+// 多单逻辑
+if (ema_buy or rma_buy) and strategy.position_size == 0
+    stop_price = open
+    qty = position_size(close, stop_price)
+    if not na(qty)
+        strategy.entry("Long", strategy.long, qty=qty)
+        strategy.exit("Long Stop", "Long", stop=stop_price)
+
+// 空单逻辑
+if (ema_sell or rma_sell) and strategy.position_size == 0
+    stop_price = open
+    qty = position_size(close, stop_price)
+    if not na(qty)
+        strategy.entry("Short", strategy.short, qty=qty)
+        strategy.exit("Short Stop", "Short", stop=stop_price)
+
+// 平仓逻辑
+if strategy.position_size > 0
+    if ta.crossover(low, prev_open)
+        strategy.close("Long")
+
+if strategy.position_size < 0
+    if ta.crossunder(high, prev_open)
+        strategy.close("Short")
+
+// —— 可视化 ——
+plot(ema_val, "EMA3", color.new(#00BFFF, 0), 2)
+plot(ema_upper, "EMA Upper", color.red, 1)
+plot(ema_lower, "EMA Lower", color.green, 1)
+plot(rma_val, "RMA3", color.new(#FFA500, 0), 2)
+plot(rma_upper, "RMA Upper", #FF1493, 1)
+plot(rma_lower, "RMA Lower", #32CD32, 1)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/489654
+
+> Last Modified
+
+2025-04-07 13:43:30

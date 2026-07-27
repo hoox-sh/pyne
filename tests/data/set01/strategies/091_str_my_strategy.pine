@@ -1,0 +1,54 @@
+// set01 corpus entry
+// source_repo: https://github.com/hirawatt/pineScripts
+// source_path: pineScripts/strategy/myStrategy.pine
+// content_hash: 898137ae980808b7
+// collected: 2026-07-27
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © yesgoods
+
+//@version=4
+
+// Strategy {
+strategy("My Strategy", overlay=true)
+
+// Variables {
+ema1 = ema(hlc3, 1)
+ema2 = ema(hlc3, 5)
+ema3 = ema(hlc3, 10)
+ema4 = ema(hlc3, 21)
+ema5 = ema(hlc3, 55)
+//}
+src = input(title="Source", type=input.source, defval=close)
+
+long = (ema1 > ema2) and (ema2 > ema3) and (ema3 > ema4) and (ema4 > ema5) or crossover(rsi(close, 14), 60.5)
+short = (ema1 < ema2) and (ema2 < ema3) and (ema3 < ema4) and (ema4 < ema5) or crossunder(rsi(close, 14), 40.5)
+
+longCondition = long and long[2] and not long[3]
+shortCondition = short and short[2] and not short[3]
+
+closeLong = (ema1 > ema2) or crossover(rsi(close, 14), 60.5) and not long[4]
+closeShort = (ema1 < ema2) or crossunder(rsi(close, 14), 40.5) and not short[4]
+
+start = timestamp(2001, 1, 1, 0, 0)
+end = timestamp(2022, 1, 1, 0, 0)
+
+
+if time >= start and time <= end
+    strategy.entry("Long", strategy.long, 25.0, when = longCondition)
+    strategy.entry("Short", strategy.short, 25.0, when =shortCondition)
+
+strategy.exit("exit", "", profit = 500, loss = 50)
+strategy.close("Long", when = closeShort)
+strategy.close("Short", when = closeLong)
+
+
+// Design {
+
+p_1 = plot(ema1, title="1", color=color.blue)
+p_2 = plot(ema2, title="2", color=color.green)
+p_3 = plot(ema3)
+p_4 = plot(ema4)
+p_5 = plot(ema5)
+fill(p_1, p_2, color= color.green)
+daily = timeframe.isdaily
+//}

@@ -1,0 +1,10 @@
+//@version=6
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/language/objects.md::objects.md#block7
+// content_hash: 1fcb0fe26a89f0ea
+// collected: 2026-07-27
+indicator("Shallow Copy")
+
+type InfoLabel
+    string info

@@ -1,0 +1,47 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于动量交易策略Momentum-and-Volume-Trading-Strategy.md
+// content_hash: b7c248396b5606e1
+// collected: 2026-07-27
+strategy('Momentum and Volume Bot', overlay=true)
+
+// Define strategy parameters
+profit_target_percent = input(0.8, title='Profit Target (%)')
+stop_loss_percent = input(0.5, title='Stop Loss (%)')
+volume_threshold = input(2, title='Volume Threshold')
+
+// Calculate momentum
+momentum = close - close[1]
+
+// Calculate average volume
+avg_volume = ta.sma(volume, 20)
+
+// Buy condition
+buy_condition = ta.crossover(momentum, 0) and volume > avg_volume * volume_threshold
+
+// Sell condition
+sell_condition = ta.crossunder(momentum, 0) and volume > avg_volume * volume_threshold
+
+// Strategy logic
+strategy.entry('Buy', strategy.long, when=buy_condition)
+strategy.entry('Sell', strategy.short, when=sell_condition)
+
+// Set profit target and stop loss
+strategy.exit('Take Profit/Stop Loss', from_entry='Buy', profit=close * profit_target_percent / 100, loss=close * stop_loss_percent / 100)
+strategy.exit('Take Profit/Stop Loss', from_entry='Sell', profit=close * profit_target_percent / 100, loss=close * stop_loss_percent / 100)
+
+// Plotting
+plotshape(series=buy_condition, title='Buy Signal', color=color.new(color.green, 0), style=shape.triangleup, size=size.small)
+plotshape(series=sell_condition, title='Sell Signal', color=color.new(color.red, 0), style=shape.triangledown, size=size.small)
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/435894
+
+> Last Modified
+
+2023-12-19 15:37:16

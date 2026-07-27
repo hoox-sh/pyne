@@ -1,0 +1,5 @@
+//@version=6indicator("%=")// Equals to expr1 = expr1 % expr2.a = 3b = 3a %= b// Result: a = 0.plot(a)// set05 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/reference/operators.md::operators.md#block7
+// content_hash: 09fa99bbb9dea5f4
+// collected: 2026-07-27

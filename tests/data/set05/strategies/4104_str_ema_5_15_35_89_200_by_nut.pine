@@ -1,0 +1,23 @@
+//@version=4
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/EMA 5,15,35,89,200 BY NUT.pine
+// content_hash: fdcbcbdb23a8f300
+// collected: 2026-07-27
+strategy("EMA 5,15,35,89,200 BY NUT",overlay =1)
+a = input(title="EMA_a length", type=input.integer, defval=5, minval=-3, maxval=200)
+b = input(title="EMA_b length", type=input.integer, defval=15, minval=-3, maxval=200)
+c = input(title="EMA_c length", type=input.integer, defval=35, minval=-3, maxval=200)
+d = input(title="EMA_d length", type=input.integer, defval=89, minval=-3, maxval=200)
+e = input(title="EMA_e length", type=input.integer, defval=200, minval=-3, maxval=200)
+maf5=ema(close,a)
+mas15=ema(close,b)
+mas35=ema(close,c)
+maa89=ema(close,d)
+mab200=ema(close,e)
+plot(maf5,color=color.white)
+plot(mas15,color=color.red)
+plot(mas35,color=color.green)
+plot(maa89,color=color.blue)
+plot(mab200,color=color.orange)
+Expand (20 lines)

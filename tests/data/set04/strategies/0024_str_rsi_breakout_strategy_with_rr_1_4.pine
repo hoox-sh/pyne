@@ -1,0 +1,66 @@
+//@version=6
+// set04 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动态RSI突破趋势跟踪交易策略结合风险收益比优化系统-Dynamic-RSI-Breakout-Trend-Following-Trading-Strategy-with-Risk-Reward-Ratio-Optimization-System.md
+// content_hash: 104adcac442ffc51
+// collected: 2026-07-27
+//@version=5
+strategy("RSI Breakout Strategy with RR 1:4", overlay=true)
+
+// Input parameters
+rsi_length = input(14, title="RSI Length")
+rsi_overbought = input(70, title="RSI Overbought Level")
+rsi_oversold = input(30, title="RSI Oversold Level")
+
+// Calculate RSI
+rsi_value = ta.rsi(close, rsi_length)
+
+// Identify previous RSI highs and lows
+var float rsi_prev_high = na
+var float rsi_prev_low = na
+
+// Update previous RSI high
+if (rsi_value > rsi_value[1] and rsi_value[1] < rsi_value[2])
+    rsi_prev_high := rsi_value[1]
+
+// Update previous RSI low
+if (rsi_value < rsi_value[1] and rsi_value[1] > rsi_value[2])
+    rsi_prev_low := rsi_value[1]
+
+// Conditions for entering a long position
+long_condition = rsi_value > rsi_prev_high and not na(rsi_prev_high)
+
+// Conditions for entering a short position
+short_condition = rsi_value < rsi_prev_low and not na(rsi_prev_low)
+
+// Calculate stop loss and take profit for long positions
+long_stop_loss = low[1]  // Previous candle's low
+long_take_profit = close + (4 * (close - long_stop_loss))  // RR 1:4
+
+// Enter long position if all conditions are met
+if (long_condition)
+    strategy.entry("Long", strategy.long)
+    strategy.exit("Take Profit/Stop Loss", from_entry="Long", stop=long_stop_loss, limit=long_take_profit)
+
+// Calculate stop loss and take profit for short positions
+short_stop_loss = high[1]  // Previous candle's high
+short_take_profit = close - (4 * (short_stop_loss - close))  // RR 1:4
+
+// Enter short position if all conditions are met
+if (short_condition)
+    strategy.entry("Short", strategy.short)
+    strategy.exit("Take Profit/Stop Loss", from_entry="Short", stop=short_stop_loss, limit=short_take_profit)
+
+// Plotting RSI for visualization
+hline(rsi_overbought, "Overbought", color=color.red)
+hline(rsi_oversold, "Oversold", color=color.green)
+plot(rsi_value, color=color.purple, title="RSI")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/482644
+
+> Last Modified
+
+2025-02-19 14:59:26

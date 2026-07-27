@@ -1,0 +1,92 @@
+//@version=6
+// set03 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多周期趋势跟踪与成交量分析的自适应风险策略-Multi-Period-Trend-Following-and-Volume-Analysis-Adaptive-Risk-Strategy.md
+// content_hash: 97f6bdd2c9c8a248
+// collected: 2026-07-27
+strategy("优化后策略框架", overlay=true)
+
+// 输入参数
+ema_length = input.int(20, title="EMA周期")
+adx_length = input.int(14, title="ADX周期")
+rsi_length = input.int(21, title="RSI周期")
+atr_length = input.int(14, title="ATR周期")
+volume_length = input.int(20, title="成交量均值周期")
+fibonacci_level = 1.618  // 斐波那契扩展位161.8%
+
+// 计算技术指标
+ema = ta.ema(close, ema_length)
+
+// 使用ta.dmi()来获取+DI, -DI 和 ADX
+[dm_plus, dm_minus, adx] = ta.dmi(adx_length, adx_length)
+
+// 计算RSI和ATR
+rsi = ta.rsi(close, rsi_length)
+atr = ta.atr(atr_length)
+vwap = ta.vwap(close)
+avg_volume = ta.sma(volume, volume_length)
+
+// 定义趋势
+bull_trend = close > ema and adx > 25
+bear_trend = close < ema and adx > 25
+range_market = adx < 25
+
+// VWAP分层定位
+upper_bound = vwap + 1.5 * atr
+lower_bound = vwap - 1.5 * atr
+
+// 计算4小时图的信号
+four_hour_ema = request.security(syminfo.tickerid, "240", ta.ema(close, ema_length))
+four_hour_vwap = request.security(syminfo.tickerid, "240", ta.vwap(close))
+four_hour_rsi = request.security(syminfo.tickerid, "240", ta.rsi(close, rsi_length))
+four_hour_volume = request.security(syminfo.tickerid, "240", ta.sma(volume, volume_length))
+
+// 多头入场条件
+long_condition = bull_trend and (close[1] < four_hour_ema or close[1] < four_hour_vwap) and rsi[1] < 45 and rsi[0] > 40 and volume < avg_volume * 0.7
+
+// 空头入场条件
+short_condition = bear_trend and (close[1] > four_hour_ema or close[1] > four_hour_vwap) and rsi[1] > 55 and rsi[0] < 60 and volume < avg_volume * 0.8
+
+// 计算止损和止盈
+long_stop = close - 1.5 * atr
+short_stop = close + 1.5 * atr
+long_target = vwap + atr  // 第一目标，VWAP+1×ATR
+short_target = vwap - atr // 第一目标，VWAP-1×ATR
+fibonacci_target = close + (fibonacci_level * (high - low))  // 斐波那契161.8%目标
+
+// 计算头寸规模（仓位控制）
+risk_per_trade = 0.01  // 单笔风险为账户净值的1%
+account_balance = strategy.equity
+position_size = (account_balance * risk_per_trade) / (1.5 * atr)
+
+// 绘制买卖信号
+plotshape(series=long_condition, title="多头入场", location=location.belowbar, color=color.green, style=shape.triangleup, text="BUY")
+plotshape(series=short_condition, title="空头入场", location=location.abovebar, color=color.red, style=shape.triangledown, text="SELL")
+
+// 执行策略
+if (long_condition)
+    strategy.entry("Long", strategy.long, qty=position_size)
+
+if (short_condition)
+    strategy.entry("Short", strategy.short, qty=position_size)
+
+strategy.exit("Take Profit/Stop Loss", "Long", stop=long_stop, limit=long_target)
+strategy.exit("Take Profit/Stop Loss", "Long", stop=long_stop, limit=fibonacci_target)
+
+strategy.exit("Take Profit/Stop Loss", "Short", stop=short_stop, limit=short_target)
+strategy.exit("Take Profit/Stop Loss", "Short", stop=short_stop, limit=fibonacci_target)
+
+// 绘制VWAP和超买超卖区
+plot(vwap, title="VWAP", color=color.blue)
+plot(upper_bound, title="超买区", color=color.red, linewidth=2, style=plot.style_line)
+plot(lower_bound, title="超卖区", color=color.green, linewidth=2, style=plot.style_line)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/482652
+
+> Last Modified
+
+2025-02-19 17:26:02

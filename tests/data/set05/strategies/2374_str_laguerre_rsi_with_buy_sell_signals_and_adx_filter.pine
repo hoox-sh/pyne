@@ -1,0 +1,58 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/Laguerre-RSI与ADX滤波交易信号策略-Laguerre-RSI-with-ADX-Filtered-Trading-Signals-Strategy.md
+// content_hash: 017fa8cd2f8e4fd8
+// collected: 2026-07-27
+strategy('Laguerre RSI with Buy/Sell Signals and ADX Filter', shorttitle='LaRSI_ADX Signals', overlay=false)
+
+// Kullanıcı girdileri
+src = input(title='Source', defval=close)
+alpha = input.float(title='Alpha', minval=0, maxval=1, step=0.1, defval=0.2)
+buyLevel = input(20, title='Buy Level')
+sellLevel = input(80, title='Sell Level')
+adxLength = input(14, title='ADX Length')
+adxSmoothing = input(14, title='ADX Smoothing')
+adxLevel = input(20, title='ADX Level') // adxLevel tanımlamasını ekledik
+
+// ADX hesaplaması
+[diPlus, diMinus, adx] = ta.dmi(adxLength, adxSmoothing)
+
+// Laguerre RSI hesaplamaları
+gamma = 1 - alpha
+L0 = 0.0
+L0 := (1 - gamma) * src + gamma * nz(L0[1])
+L1 = 0.0
+L1 := -gamma * L0 + nz(L0[1]) + gamma * nz(L1[1])
+L2 = 0.0
+L2 := -gamma * L1 + nz(L1[1]) + gamma * nz(L2[1])
+L3 = 0.0
+L3 := -gamma * L2 + nz(L2[1]) + gamma * nz(L3[1])
+cu = (L0 > L1 ? L0 - L1 : 0) + (L1 > L2 ? L1 - L2 : 0) + (L2 > L3 ? L2 - L3 : 0)
+cd = (L0 < L1 ? L1 - L0 : 0) + (L1 < L2 ? L2 - L1 : 0) + (L2 < L3 ? L3 - L2 : 0)
+temp = cu + cd == 0 ? -1 : cu + cd
+LaRSI = temp == -1 ? 0 : cu / temp
+
+// Alım ve satım sinyalleri
+longCondition = ta.crossover(100 * LaRSI, buyLevel) and adx > adxLevel
+shortCondition = ta.crossunder(100 * LaRSI, sellLevel) and adx > adxLevel
+
+// Strateji giriş ve çıkışları
+strategy.entry('Long', strategy.long, when=longCondition)
+strategy.entry('Short', strategy.short, when=shortCondition)
+
+// Göstergeleri çizme
+plot(100 * LaRSI, title='LaRSI', linewidth=2, color=color.new(color.blue, 0))
+hline(buyLevel, title='Buy Level', color=color.new(color.green, 0), linestyle=hline.style_dotted)
+hline(sellLevel, title='Sell Level', color=color.new(color.red, 0), linestyle=hline.style_dotted)
+plot(adx, title='ADX', color=color.new(color.orange, 0))
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/451723
+
+> Last Modified
+
+2024-05-17 15:01:17

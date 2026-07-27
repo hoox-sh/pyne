@@ -1,0 +1,59 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双均线黄金交叉量化策略Dual-Moving-Average-Golden-Cross-Quantitative-Strategy.md
+// content_hash: e591fcc359bcdb69
+// collected: 2026-07-27
+//                                                Indicator420 by SeaSide420
+strategy("Indicator420 strategy", overlay=true)
+q=input(title="HullMA",defval=420)
+z=input(title="HullMA cross",defval=3)
+a=input(title="VWMA",defval=14)
+rvwma=vwma(close,round(a))
+rvwma2=vwma(close,round(a*2))
+rvwma3=vwma(close,round(a*3))
+n2ma=2*wma(close,round(z/2))
+nma=wma(close,z)
+diff=n2ma-nma
+sqn=round(sqrt(z))
+n2ma1=2*wma(close[1],round(z/2))
+nma1=wma(close[1],z)
+diff1=n2ma1-nma1
+sqn1=round(sqrt(z))
+n2ma2=2*wma(close[2],round(q/2))
+nma2=wma(close[2],q)
+diff2=n2ma2-nma2
+sqn2=round(sqrt(q))
+n1=wma(diff,sqn)
+n2=wma(diff1,sqn)
+n3=wma(diff2,sqn)
+b=n1>n2?red:lime
+c=n1>n2?green:red
+d=n3>rvwma3?red:green
+e=rvwma2>rvwma3?green:red
+f=n1>n2?red:green
+//plot(rvwma3, color=e, linewidth=1)
+plot(cross(rvwma, rvwma2) ? rvwma : na, style = line,color=e, linewidth = 1)
+plot(cross(n1, n2) ? n1 : na, style = line,color=b, linewidth = 3)
+plot(cross(n1, n2) ? n1 : na, style = circles,color=c, linewidth = 4)
+closelong = n1<n2
+if (closelong)
+    strategy.close("Long")
+closeshort = n1>n2
+if (closeshort)
+    strategy.close("Short") 
+longCondition = n1>n2 and strategy.opentrades<1 and n1<rvwma3
+if (longCondition)
+    strategy.entry("Long",strategy.long)
+shortCondition = n1<n2 and strategy.opentrades<1 and n1>rvwma3
+if (shortCondition)
+    strategy.entry("Short",strategy.short)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/436658
+
+> Last Modified
+
+2023-12-26 17:02:29

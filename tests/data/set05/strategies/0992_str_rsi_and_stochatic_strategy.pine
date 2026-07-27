@@ -1,0 +1,106 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于相对强弱指标和随机相对强弱指标的交易策略Multi-Timeframe-RSI-SRSI-Trading-Strategy.md
+// content_hash: 8e48f8e2904f99d5
+// collected: 2026-07-27
+strategy("RSI and Stochatic Strategy", overlay=true, use_bar_magnifier = false)
+
+
+/////// Inputs ///////////////
+
+// RSI and SRSI
+rsiLength = input(14, title="RSI Length") 
+stochLength = input(14, title="Stochastic Length")
+kSmooth = input(3, title="K Smooth")
+dSmooth = input(3, title="D Smooth")
+
+
+//////// thresholds ///////////////
+st_low = input(5, title="Low SRSI") // stochastic RSI low -- prepare to sell
+st_hi = input(50, title="High SRSI") // stochastic RSI high -- prepare to buy
+diff = input(5, title="difference") // minimum change in RSI
+// inval_diff = input(12, title="difference") // invalidation difference: change in the oposite direction that invalidates rsi falling/rising
+rsi_low = input(30, title="Low RSI") // RSI considered low
+rsi_hi = input(60, title="High RSI") // RSI considered high
+rsi_ht_hi = input(45, title="High higher time frame RSI") // RSI in higher time frame considered high
+
+
+/// buy trigger duration 
+tr_dur = input(8, title="Trigger duration")
+low_dur = input(20, title="Monitoring last low")
+
+
+///////////////// Higher time frame trend ///////////////////
+// higher time frame resolution
+res2 = input.timeframe("W", title="Higher time-frame")
+// Input for the ticker symbol, default is an empty string
+// For instance we could monitor BTC higher time frame trend
+symbol = input("BTC_USDT:swap", "Input Ticker (leave empty for current)")
+
+// Determine the symbol to use
+inputSymbol = symbol == "" ? syminfo.tickerid : symbol
+//////////////////////////////////////////////////////////
+
+// Calculate RSI //
+rsi = ta.rsi(close, rsiLength)
+
+// Calculate Stochastic RSI //
+rsiLowest = ta.lowest(rsi, stochLength)
+rsiHighest = ta.highest(rsi, stochLength)
+stochRsi = 100 * (rsi - rsiLowest) / (rsiHighest - rsiLowest)
+
+// Apply smoothing
+K = ta.sma(stochRsi, kSmooth)
+D = ta.sma(K, dSmooth)
+
+// Higher time Frame RSI
+cl2 = request.security(inputSymbol, res2, close)
+rsi2 = ta.rsi(cl2, 14)
+
+// SRSI BUY/SELL signals 
+sell_stoch = (ta.lowest(K, tr_dur) < st_low) or (ta.highest(rsi, tr_dur) < rsi_low)
+buy_stoch = ((ta.lowest(K, tr_dur) > st_hi) or (ta.lowest(rsi, tr_dur) > rsi_hi)) and (rsi2 > rsi_ht_hi)
+
+ // valitation / invalidation sell signal
+ll = ta.barssince(not sell_stoch)+1
+sell_validation = (ta.highest(rsi, ll)>rsi[ll]+diff and rsi < rsi[ll]) or (rsi < rsi[ll]-diff)
+
+// valitation / invalidation buy signal
+llb = ta.barssince(not buy_stoch)+1
+buy_validation = (ta.lowest(rsi, llb)<rsi[llb]-diff and rsi > rsi[llb]) or (rsi > rsi_hi and rsi - rsi[tr_dur] > 0)
+
+sell_signal = sell_stoch and sell_validation
+buy_signal = buy_stoch and buy_validation 
+
+// Define the start date for the strategy
+startYear = input(2019, "Start Year")
+startMonth = input(1, "Start Month")
+startDay = input(1, "Start Day")
+
+// Convert the start date to Unix time
+startTime = timestamp(startYear, startMonth, startDay, 00, 00)
+
+// Define the end date for the strategy
+endYear = input(2030, "End Year")
+endMonth = input(1, "End Month")
+endDay = input(1, "End Day")
+
+// Convert the end date to Unix time
+endTime = timestamp(endYear, endMonth, endDay, 00, 00)
+
+
+if true
+    if buy_signal
+        strategy.entry("buy", strategy.long, comment = "Buy")
+    if sell_signal
+        strategy.close("buy", "Sell")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/442014
+
+> Last Modified
+
+2024-02-18 16:13:50

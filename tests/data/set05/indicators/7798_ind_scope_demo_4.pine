@@ -1,0 +1,17 @@
+//@version=5
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/v5/faq/programming.md::programming.md#block2
+// content_hash: 5d4e31f8b9c182ad
+// collected: 2026-07-27
+indicator("Scope demo")
+
+// Global scope
+int globalValue = close > open ? 1 : -1
+int localValue  = na
+
+if barstate.isconfirmed
+    // Local scope
+    localValue := close > open ? 1 : -1
+
+plot(localValue, "Local variable", chart.fg_color, 2)

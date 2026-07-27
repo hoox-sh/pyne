@@ -1,0 +1,132 @@
+//@version=4
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/Oscilator candles - momentum strategy.pine
+// content_hash: df96480e2824f0b2
+// collected: 2026-07-27
+strategy("Oscilator candles - strategy", overlay=false, initial_capital = 100000, default_qty_type = strategy.percent_of_equity, default_qty_value = 100, commission_type = strategy.commission.percent, pyramiding = 1, commission_value = 0.01)
+oscilatorType = input(title="Oscliator Type", defval="stoch", options=["rsi", "stoch", "cog", "macd", "tsi", "cci", "cmo", "mfi"])
+length = input(100, step=10)
+shortlength = input(3)
+longlength = input(9)
+showSupertrend = input(true)
+AtrMAType = input(title="Moving Average Type", defval="rma", options=["ema", "sma", "hma", "rma", "vwma", "wma"])
+AtrLength = input(30)
+AtrMult = input(4)
+wicks = input(true)
+colorByPreviousClose = input(true)
+// tradeDirection = input(title="Trade Direction", defval=strategy.direction.long, options=[strategy.direction.all, strategy.direction.long, strategy.direction.short])
+tradeDirection = strategy.direction.long
+i_startTime = input(defval = timestamp("01 Jan 2010 00:00 +0000"), title = "Backtest Start Time", type = input.time)
+i_endTime = input(defval = timestamp("01 Jan 2099 00:00 +0000"), title = "Backtest End Time", type = input.time)
+inDateRange = time >= i_startTime and time <= i_endTime
+f_getOscilatorValues(oscilatorType, length, shortlength, longlength)=>
+    oOpen = rsi(open, length)
+    oClose = rsi(close, length)
+    oHigh = rsi(high, length)
+    oLow = rsi(low, length)
+    if(oscilatorType == "tsi")
+        oOpen := tsi(open, shortlength, longlength)
+        oClose := tsi(close, shortlength, longlength)
+        oHigh := tsi(high, shortlength, longlength)
+        oLow := tsi(low, shortlength, longlength)
+    if(oscilatorType == "stoch")
+        oOpen := stoch(open, high, low, length)
+        oClose := stoch(close, high, low, length)
+        oHigh := stoch(high, high, low, length)
+        oLow := stoch(low, high, low, length)
+    if(oscilatorType == "cci")
+        oOpen := cci(open, length)
+        oClose := cci(close, length)
+        oHigh := cci(high, length)
+        oLow := cci(low, length)
+    if(oscilatorType == "cog")
+        oOpen := cog(open, length)
+        oClose := cog(close, length)
+        oHigh := cog(high, length)
+        oLow := cog(low, length)
+    if(oscilatorType == "cmo")
+        oOpen := cmo(open, length)
+        oClose := cmo(close, length)
+        oHigh := cmo(high, length)
+        oLow := cmo(low, length)
+    if(oscilatorType == "mfi")
+        oOpen := mfi(open, length)
+        oClose := mfi(close, length)
+        oHigh := mfi(high, length)
+        oLow := mfi(low, length)
+    if(oscilatorType == "macd")
+        [macdLineOpen, signalLineOpen, histLineOpen] = macd(open, shortlength, longlength, length)
+        [macdLineClose, signalLineClose, histLineClose] = macd(close, shortlength, longlength, length)
+        [macdLineHigh, signalLineHigh, histLineHigh] = macd(high, shortlength, longlength, length)
+        [macdLineLow, signalLineLow, histLineLow] = macd(low, shortlength, longlength, length)
+        oOpen := macdLineOpen
+        oClose := macdLineClose
+        oHigh := macdLineHigh
+        oLow := macdLineLow
+    [oOpen, oClose, oHigh, oLow]
+f_getMovingAverage(source, MAType, length)=>
+    ma = sma(source, length)
+    if(MAType == "ema")
+        ma := ema(source,length)
+    if(MAType == "hma")
+        ma := hma(source,length)
+    if(MAType == "rma")
+        ma := rma(source,length)
+    if(MAType == "vwma")
+        ma := vwma(source,length)
+    if(MAType == "wma")
+        ma := wma(source,length)
+    ma
+f_getSupertrend(oOpen, oClose, oHigh, oLow, AtrMAType, AtrLength, AtrMult, wicks)=>
+    truerange = max(oHigh, oClose[1]) - min(oLow, oClose[1])
+    
+    averagetruerange = f_getMovingAverage(truerange, AtrMAType, AtrLength)
+    atr = averagetruerange * AtrMult
+    longStop = oClose - atr
+    longStopPrev = nz(longStop[1], longStop)
+    longStop := (wicks ? oLow[1] : oClose[1]) > longStopPrev ? max(longStop, longStopPrev) : longStop
+    
+    shortStop = oClose + atr
+    shortStopPrev = nz(shortStop[1], shortStop)
+    shortStop := (wicks ? oHigh[1] : oClose[1]) < shortStopPrev ? min(shortStop, shortStopPrev) : shortStop
+    
+    dir = 1
+    dir := nz(dir[1], dir)
+    dir := dir == -1 and (wicks ? oHigh : oClose) > shortStopPrev ? 1 : dir == 1 and (wicks ? oLow : oClose) < longStopPrev ? -1 : dir
+    
+    trailingStop = dir == 1? longStop : shortStop
+    
+    [dir, trailingStop]
+f_secureSecurity(_symbol, _res, _src) => security(_symbol, _res, _src[1], lookahead = barmerge.lookahead_on, gaps=barmerge.gaps_off)
+f_multiple_resolution(HTFMultiplier) => 
+    target_Res_In_Min = timeframe.multiplier * HTFMultiplier * (
+      timeframe.isseconds   ? 1. / 60. :
+      timeframe.isminutes   ? 1. :
+      timeframe.isdaily     ? 1440. :
+      timeframe.isweekly    ? 7. * 24. * 60. :
+      timeframe.ismonthly   ? 30.417 * 24. * 60. : na)
+    target_Res_In_Min     <= 0.0417       ? "1S"  :
+      target_Res_In_Min   <= 0.167        ? "5S"  :
+      target_Res_In_Min   <= 0.376        ? "15S" :
+      target_Res_In_Min   <= 0.751        ? "30S" :
+      target_Res_In_Min   <= 1440         ? tostring(round(target_Res_In_Min)) :
+      tostring(round(min(target_Res_In_Min / 1440, 365))) + "D"
+    
+[oOpen, oClose, oHigh, oLow] = f_getOscilatorValues(oscilatorType, length, shortlength, longlength)
+[dir, trailingStop] = f_getSupertrend(oOpen, oClose, oHigh, oLow, AtrMAType, AtrLength, AtrMult, wicks)
+candleColor = colorByPreviousClose ?
+                 (oClose[1] < oClose ? color.green : oClose[1] > oClose ? color.red : color.silver) : 
+                 (oOpen < oClose ? color.green : oOpen > oClose ? color.red : color.silver)
+plotcandle(oOpen, oHigh, oLow, oClose, 'Oscilator Candles', color = candleColor)
+plot(showSupertrend?trailingStop:na, title="TrailingStop", style=plot.style_linebr, linewidth=1, color= dir == 1 ? color.green : color.red)
+buyCondition = dir == 1
+exitBuyConditin = dir == -1
+sellCondition = dir == -1
+exitSellCondition = dir == 1
+strategy.risk.allow_entry_in(tradeDirection)
+strategy.entry("Buy", strategy.long, when=buyCondition and inDateRange, oca_name="oca", oca_type=strategy.oca.cancel)
+strategy.entry("Sell", strategy.short, when=sellCondition and inDateRange, oca_name="oca", oca_type=strategy.oca.cancel)
+strategy.close("Buy", when = exitBuyConditin)
+strategy.close( "Sell", when = exitSellCondition)
+Expand (144 lines)

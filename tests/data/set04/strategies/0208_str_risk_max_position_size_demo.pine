@@ -1,0 +1,11 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block256
+// content_hash: d115949323a0d658
+// collected: 2026-07-27
+strategy("risk.max_position_size Demo", default_qty_value = 100)
+strategy.risk.max_position_size(10)
+if open > close
+    strategy.entry("buy", strategy.long)
+plot(strategy.position_size) // max plot value will be 10

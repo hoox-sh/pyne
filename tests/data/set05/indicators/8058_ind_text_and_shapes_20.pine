@@ -1,0 +1,9 @@
+//@version=5
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/v5/concepts/text-and-shapes.md::text-and-shapes.md#block18
+// content_hash: 6ad3f9029d685f88
+// collected: 2026-07-27
+indicator("", "", true)
+lbl = label.new(bar_index, high, str.tostring(high, format.mintick))
+label.delete(lbl[1])

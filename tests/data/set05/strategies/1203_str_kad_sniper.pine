@@ -1,0 +1,94 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动态波动率自适应EMAxRSI交叉策略-Dynamic-Volatility-Adaptive-EMA-RSI-Crossover-Strategy.md
+// content_hash: eb00d6b01d5dbca0
+// collected: 2026-07-27
+strategy("Kad_Sniper", overlay=true)
+// Entrée Sniper avec Fermeture Tendance + Taille de Lot + SL et TP
+
+// === Périodes des Moyennes Mobiles et RSI ===
+shortEMALen = input.int(20, title="Période EMA 20")
+longEMALen = input.int(50, title="Période EMA 50")
+rsiLen = input.int(14, title="Période RSI")
+rsiOverbought = input.int(70, title="RSI Suracheté")
+rsiOversold = input.int(30, title="RSI Survendu")
+
+// === Calcul des Moyennes Mobiles ===
+ema20 = ta.ema(close, shortEMALen)
+ema50 = ta.ema(close, longEMALen)
+
+// === Calcul du RSI ===
+rsi = ta.rsi(close, rsiLen)
+
+// === Paramètres de Gestion de Risque ===
+capital = input.float(1000, title="Capital Total ($)", minval=1)  // Capital total alloué
+risqueParTrade = input.float(1, title="Risque par Trade (%)", minval=0.1, maxval=100)  // Risque par trade en %
+stopLossMultiplier = input.float(1, title="Multiplier Stop Loss (en ATR)", minval=0.1, maxval=10)  // Multiplier du stop-loss basé sur l'ATR
+takeProfitMultiplier = input.float(2, title="Multiplier Take Profit (en ATR)", minval=0.1, maxval=10)  // Multiplier du take-profit basé sur l'ATR
+
+// === Calcul du Stop-Loss et Take Profit en Pips (en utilisant ATR pour déterminer la volatilité) ===
+atr = ta.atr(14)
+stopLossDistance = atr * stopLossMultiplier  // Distance du stop-loss en pips, ajustée par ATR
+takeProfitDistance = atr * takeProfitMultiplier  // Distance du take-profit en pips, ajustée par ATR
+
+// === Calcul de la Taille de Lot ===
+montantRisque = capital * (risqueParTrade / 100)  // Risque par trade en $ (capital * pourcentage de risque)
+tailleLot = montantRisque / stopLossDistance  // Taille du lot en fonction du risque et de la distance du stop-loss
+
+// === Signaux de Croisement EMA et RSI ===
+buySignal = ta.crossover(ema20, ema50) and rsi < rsiOverbought and close > ema50
+sellSignal = ta.crossunder(ema20, ema50) and rsi > rsiOversold and close < ema50
+
+// === Filtrage des Signaux ===
+confirmedBuySignal = buySignal and rsi < rsiOverbought
+confirmedSellSignal = sellSignal and rsi > rsiOversold
+
+// === Fermeture des Positions lors du Changement de Tendance ===
+// Fermer la position Buy si le signal Sell est détecté
+if (confirmedSellSignal)
+    strategy.close("Buy", comment="Close Buy")
+
+// Fermer la position Sell si le signal Buy est détecté
+if (confirmedBuySignal)
+    strategy.close("Sell", comment="Close Sell")
+
+// === Entrée dans les Positions avec SL et TP ===
+// Entrée Buy lorsque les conditions sont validées
+if (confirmedBuySignal)
+    strategy.entry("Buy", strategy.long, qty=tailleLot, comment="Buy")
+    strategy.exit("Exit", "Buy", stop=close - stopLossDistance, limit=close + takeProfitDistance)
+
+// Entrée Sell lorsque les conditions sont validées
+if (confirmedSellSignal)
+    strategy.entry("Sell", strategy.short, qty=tailleLot, comment="Sell")
+    strategy.exit("Exit", "Sell", stop=close + stopLossDistance, limit=close - takeProfitDistance )
+
+// === Affichage des Signaux sous forme de points ultra petits ===
+// Afficher un petit point vert (Buy) directement sous la bougie lorsque toutes les conditions sont validées
+plotshape(series=confirmedBuySignal, location=location.belowbar, color=color.green, style=shape.circle, title="Signal Buy", size=size.tiny)
+
+// Afficher un petit point rouge (Sell) directement au-dessus de la bougie lorsque toutes les conditions sont validées
+plotshape(series=confirmedSellSignal, location=location.abovebar, color=color.red, style=shape.circle, title="Signal Sell", size=size.tiny)
+
+// === Affichage de la Taille de Lot ===
+if (confirmedBuySignal or confirmedSellSignal)
+    label.new(bar_index, close, "Taille Lot: " + str.tostring(tailleLot, "#.##"), color=color.blue, style=label.style_label_down, textcolor=color.white, size=size.small)
+
+// === Affichage des Moyennes Mobiles ===
+plot(ema20, color=color.blue, title="EMA 20")
+plot(ema50, color=color.orange, title="EMA 50")
+
+// === Affichage RSI pour la confirmation ===
+hline(50, "RSI 50", color=color.gray)
+plot(rsi, color=color.rgb(153, 124, 158), title="RSI", linewidth=2)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/489650
+
+> Last Modified
+
+2025-04-07 13:25:33

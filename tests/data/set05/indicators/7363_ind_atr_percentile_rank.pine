@@ -1,0 +1,33 @@
+// set05 corpus entry
+// source_repo: Zettt-pinescripts
+// source_path: Zettt-pinescripts/ATR Percentile.pine
+// content_hash: 7ab50c2db5ebffdf
+// collected: 2026-07-27
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © Zettt
+// 2023-12-05 - Initial release
+
+//@version=5
+indicator("ATR Percentile Rank")
+
+atrLength = input.int(defval = 10, title = "ATR Length", minval = 1, group = "ATR Percentile")
+lookback = input.int(defval = 50, title = "Percentile Lookback", minval = 1, group = "ATR Percentile")
+emaLength = input.int(defval = 20, title = "EMA Length", minval = 1, group = "ATR Percentile")
+percentileRankExtreme = input.int(defval = 10, title = "Percentile Extreme", minval = 1, step = 1, group = "ATR Percentile")
+
+// Color gradient
+bottomColor = input.color(defval = color.rgb(255, 235, 59, 0), title = "Bottom Color", group = "Gradient")
+topColor = input.color(defval = color.rgb(242, 54, 69, 0), title = "Bottom Color", group = "Gradient")
+// bottomColorCutoff = input.float(defval = 0, title = "Bottom Color Cutoff", minval = 0, step = 0.1, group = "Gradient", tooltip = "Below this value, the gradient will not take effect, i.e. the color will stay constant.")
+// topColorCutoff = input.float(defval = 100, title = "Top Color Cutoff", minval = 0, step = 0.1, group = "Gradient", tooltip = "Above this value…")
+
+// Calculations and plots
+atr = ta.atr(atrLength)
+percentileRank = ta.percentrank(atr, lookback)
+percentileEMA = ta.ema(percentileRank, emaLength)
+
+plot(percentileRank, title = "ATR Percentile", color = color.from_gradient(percentileRank, 0, 100, bottomColor, topColor))
+plot(percentileEMA, title = "Percentile EMA", color = color.new(#64b5f6, 20))
+// plot volatility at extremes
+plot(percentileRank < percentileRankExtreme ? percentileRank : na, title="Lowest Volatility", color=color.rgb(255, 235, 59, 80), style=plot.style_columns, histbase=100)
+plot(percentileRank > 100-percentileRankExtreme ? percentileRank : na, title="Highest Volatility", color=color.rgb(242, 54, 69, 80), style=plot.style_columns, histbase=0)

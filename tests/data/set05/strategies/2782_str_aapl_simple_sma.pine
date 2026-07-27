@@ -1,0 +1,49 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/均线交叉移动止盈止损策略-Moving-Average-Crossover-with-Trailing-Stop-Loss-Strategy.md
+// content_hash: ee89dd7c232f2dbe
+// collected: 2026-07-27
+// suitable for : AMZN - 30 minutes, MSFT - 30 minutes, NVDA -15 minutes
+
+strategy("AAPL-SIMPLE_SMA", overlay=true)
+
+// Create Indicator's
+
+// Create Indicator's
+shortSMA = ta.sma(close, 10)
+longSMA = ta.sma(close, 30)
+rsi = ta.rsi(close, 14)
+atr = ta.atr(14)
+qty = 1
+
+// Specify crossover conditions
+longCondition = ta.crossover(shortSMA, longSMA)
+shortCondition = ta.crossunder(shortSMA, longSMA)
+
+// // Execute trade if condition is True
+if (longCondition)
+    stopLoss = close -2
+    // stopLoss=1
+    takeProfit = close +6
+
+    action = "buy"
+    strategy.entry("long", strategy.long, qty=qty)
+    // strategy.exit("exit", "long", stop=stopLoss, limit=takeProfit)
+    strategy.exit("exit", "long",  limit=takeProfit)
+    alert('{"TICKER":"'+syminfo.ticker+'","ACTION":"'+action+'","PRICE":"'+str.tostring(close)+'","STOPLOSS":"'+str.tostring(stopLoss)+'","TAKEPROFIT":"'+str.tostring(takeProfit)+'","QTY":"'+str.tostring(qty)+'"}')
+
+
+
+
+plot(shortSMA)
+plot(longSMA, color=color.purple)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/452821
+
+> Last Modified
+
+2024-05-29 17:02:19

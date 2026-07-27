@@ -1,0 +1,69 @@
+//@version=3
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动量商品选择指数策略Commodity-Momentum-Index-Strategy.md
+// content_hash: ee32a34c17720199
+// collected: 2026-07-27
+////////////////////////////////////////////////////////////
+//  Copyright by HPotter v1.0 20/03/2019
+// The Commodity Selection Index ("CSI") is a momentum indicator. It was 
+// developed by Welles Wilder and is presented in his book New Concepts in 
+// Technical Trading Systems. The name of the index reflects its primary purpose. 
+// That is, to help select commodities suitable for short-term trading.
+// A high CSI rating indicates that the commodity has strong trending and volatility 
+// characteristics. The trending characteristics are brought out by the Directional 
+// Movement factor in the calculation--the volatility characteristic by the Average 
+// True Range factor.
+// Wilder's approach is to trade commodities with high CSI values (relative to other 
+// commodities). Because these commodities are highly volatile, they have the potential 
+// to make the "most money in the shortest period of time." High CSI values imply 
+// trending characteristics which make it easier to trade the security.
+// The Commodity Selection Index is designed for short-term traders who can handle 
+// the risks associated with highly volatile markets.
+//
+// WARNING:
+// - For purpose educate only
+// - This script to change bars colors.
+////////////////////////////////////////////////////////////
+fADX(Len) =>
+    up = change(high)
+    down = -change(low)
+    trur = rma(tr, Len)
+    plus = fixnan(100 * rma(up > down and up > 0 ? up : 0, Len) / trur)
+    minus = fixnan(100 * rma(down > up and down > 0 ? down : 0, Len) / trur)
+    sum = plus + minus 
+    100 * rma(abs(plus - minus) / (sum == 0 ? 1 : sum), Len)
+
+strategy(title="Commodity Selection Index Backtest", shorttitle="CSI Backtest")
+PointValue = input(50)
+Margin = input(3000)
+Commission = input(10)
+Length = input(14)
+reverse = input(false, title="Trade reverse")
+K = 100 * ((PointValue / sqrt(Margin) / (150 + Commission)))
+xATR = atr(Length)
+xADX = fADX(Length)
+nADXR = (xADX + xADX[Length]) * 0.5
+xCSI = K * xATR * nADXR
+xMACSI = sma(xCSI, Length)
+pos = 0.0
+pos := iff(xCSI < xMACSI, 1,
+	   iff(xCSI > xMACSI, -1, nz(pos[1], 0))) 
+possig = iff(reverse and pos == 1, -1,
+          iff(reverse and pos == -1, 1, pos))	   
+if (possig == 1) 
+    strategy.entry("Long", strategy.long)
+if (possig == -1)
+    strategy.entry("Short", strategy.short)	   	    
+barcolor(possig == -1 ? red: possig == 1 ? green : blue ) 
+plot(xCSI, color=green, title="CSI")
+plot(xMACSI, color=red, title="CSI SMA")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/433579
+
+> Last Modified
+
+2023-11-28 16:27:55

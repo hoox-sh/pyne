@@ -1,0 +1,64 @@
+//@version=4
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/Momentum Strategy.pine
+// content_hash: 925cbdf537758107
+// collected: 2026-07-27
+strategy("Momentum Strategy", overlay=true, process_orders_on_close =true)
+isCrypto = false
+if(syminfo.prefix == "COINBASE" or syminfo.prefix == "BINANCE" or syminfo.prefix == "FTX" or syminfo.prefix == "BITSTAMP")
+    isCrypto := true
+benchmark = syminfo.root == "SPX" or syminfo.root == "BTCUSD"
+// momentum settings
+highPeriod = input(63, type = input.integer, title = "New Highs Period") 
+relativeHighPeriod = input(40, type = input.integer, title = "New Relative Highs Period") 
+trendMovingAverage = input(50, type = input.integer, title = "Uptrend Period")
+trailingMovingAverage = input(20, type = input.integer, title = "First Moving Average Stop")
+bullmarket = rising(ema(close, 200),1) and rising(ema(close, 200),1)
+strategy.risk.allow_entry_in(strategy.direction.long)
+longMA = ema(close, trendMovingAverage)
+shortMA = ema(close, trailingMovingAverage)
+plot(shortMA, transp = 70)
+plot(longMA, transp = 70)
+// check for new relative high 
+comparativeTickerStock = input("SPX", type = input.symbol, title = "Stock Benchmark")
+comparativeTickerCrypto = input("BTCUSD", type = input.symbol, title = "Crypto Benchmark")
+baseSymbol = security(syminfo.tickerid, timeframe.period, close)
+benchmarkStock = security(comparativeTickerStock, timeframe.period, close)
+benchmarkCrypto = security(comparativeTickerCrypto, timeframe.period, close)
+rs = baseSymbol / benchmarkStock
+// check if bitcoin should be used for relative strength 
+if(isCrypto)
+    rs := baseSymbol / benchmarkCrypto
+newRelativeHigh = rs > highest(rs[1], relativeHighPeriod)
+relativeUptrend = rising(ema(rs,trendMovingAverage),1)
+// triggers
+isNewHigh = close > highest(close[1], highPeriod)
+hasRelativeStrength = newRelativeHigh and relativeUptrend
+upperClosingRange = close-open > 0.85 * (open-high) // closing near upper 85% of candle range
+hasBullishRSI = rsi(close, 14) > 60
+inUptrend = rising(longMA,1)
+buyTrigger = isNewHigh and upperClosingRange and inUptrend and hasBullishRSI
+if(not benchmark) // do not do relative analysis for benchmarks
+    buyTrigger := buyTrigger and hasRelativeStrength
+// determine which exit to use
+exitTrigger = close < shortMA
+var trending = false
+// check if the stock is trending nicely
+if(close > strategy.position_avg_price * 1.20)
+    trending := true 
+// if the stock is trending well use a longer moving average
+if(trending)
+    exitTrigger := close <  longMA
+    
+// check if the stock is breaking down on a relative basis
+rsEMA = ema(rs, trendMovingAverage)
+if(rs < rsEMA )
+    exitTrigger :=true
+// strategy
+if (buyTrigger)
+    strategy.entry("buy ", strategy.long, comment = "Buy")
+if(exitTrigger)
+    strategy.entry("sell ", strategy.short, comment = "Exit")
+    trending := false
+Expand (79 lines)

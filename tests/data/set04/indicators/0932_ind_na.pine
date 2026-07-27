@@ -1,0 +1,12 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block188
+// content_hash: 6de21a19289bd9c1
+// collected: 2026-07-27
+indicator("na")
+// Use the `na()` function to test for `na`.
+plot(na(close[1]) ? close : close[1])
+// ALTERNATIVE
+// `nz()` also tests `close[1]` for `na`. It returns `close[1]` if it is not `na`, and `close` if it is.
+plot(nz(close[1], close))

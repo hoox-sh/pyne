@@ -1,0 +1,10 @@
+//@version=6
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/faq/techniques.md::techniques.md#block9
+// content_hash: 990469b7e620c4ca
+// collected: 2026-07-27
+indicator("Previous and current day open using `timeframe`", "", true, timeframe = "1D", timeframe_gaps = true)
+
+plot(open[1], "Yesterday's Open", color.red,   2, plot.style_line)
+plot(open,    "Today's Open",     color.green, 2, plot.style_line)

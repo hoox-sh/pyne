@@ -1,0 +1,67 @@
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/开盘价势动量反转-RSI-交易策略-Market-Open-Momentum-Reversal-RSI-Trading-Strategy.md
+// content_hash: bc3620253dc95916
+// collected: 2026-07-27
+strategy("Market Open Options Strategy", overlay=true)
+
+// Define trading session start (e.g., 9:30 AM for US markets)
+session_start = timestamp("GMT-4", year, month, dayofmonth, 09, 30, 00)
+
+// Time window for initial direction (90 seconds = 1.5 minutes)
+initial_window = 90 * 1000 // in milliseconds
+is_in_initial_window = (time - session_start) <= initial_window and (time - session_start) >= 0
+
+// Variables to track open price and direction
+var float open_price = 0.0
+var float direction = 0.0
+var bool direction_set = false
+
+// Capture open price at session start
+if (time == session_start)
+    open_price := close
+    direction_set := false
+
+// Determine direction after 90 seconds
+if (is_in_initial_window[1] and not is_in_initial_window and not direction_set)
+    direction := close > open_price ? 1.0 : close < open_price ? -1.0 : 0.0
+    direction_set := true
+
+// Reset direction_set at the start of a new day
+if (time == session_start)
+    direction_set := false
+
+// Reversal indicator (RSI-based)
+rsi_length = 14
+rsi_overbought = 70
+rsi_oversold = 30
+rsi = ta.rsi(close, rsi_length)
+reversal_signal = (direction == 1.0 and rsi >= rsi_overbought) or (direction == -1.0 and rsi <= rsi_oversold)
+
+// Time-based exit (10 minutes = 600 seconds)
+max_hold_time = 600 * 1000 // in milliseconds
+is_within_hold_time = (time - (session_start + initial_window)) <= max_hold_time and (time - (session_start + initial_window)) >= 0
+
+// Strategy logic
+if (direction_set and direction != 0.0 and is_within_hold_time and not reversal_signal)
+    if (direction == 1.0)
+        strategy.entry("BuyCall", strategy.long)
+    else if (direction == -1.0)
+        strategy.entry("BuyPut", strategy.short)
+
+// Exit conditions: Reversal or time-based
+if (reversal_signal or not is_within_hold_time)
+    strategy.close_all("Exit")
+
+// Plot signals
+plotshape(direction == 1.0 and strategy.position_size == 0 and direction_set ? close : na, "Buy Call", shape.triangleup, location.belowbar, color.green, size=size.small)
+plotshape(direction == -1.0 and strategy.position_size == 0 and direction_set ? close : na, "Buy Put", shape.triangledown, location.abovebar, color.red, size=size.small)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/491510
+
+> Last Modified
+
+2025-04-21 16:10:30

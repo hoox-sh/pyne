@@ -1,0 +1,49 @@
+//@version=4
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/Momentum Long Strategy.pine
+// content_hash: 8745123a4e6f605b
+// collected: 2026-07-27
+strategy("Momentum Long Strategy", overlay = false, precision = 2, initial_capital = 10000, default_qty_value = 10000, default_qty_type = strategy.cash, commission_type = strategy.commission.percent, commission_value = 0, calc_on_every_tick = true)
+// There will be no short entries, only exits from long.
+strategy.risk.allow_entry_in(strategy.direction.long)
+// Calculate start/end date and time condition
+startDate  = input(timestamp("2021-01-02T00:00:00"), title = "Start Date", type = input.time)
+finishDate = input(timestamp("2021-12-31T00:00:00"), title = "End Date",type = input.time)
+ 
+time_cond  = time >= startDate and time <= finishDate
+// Momentum settings
+i_len           =       input(defval = 12,      title = "Length",       minval = 1)
+i_src           =       input(defval = close,   title = "Source")
+i_percent       =       input(defval = true,    title = "Percent?")
+i_mom           =       input(defval = "MOM2",  title = "MOM Choice",   options = ["MOM1", "MOM2"])
+// Messages for buy and sell
+message_buy  = input("{{strategy.order.alert_message}}", title="Buy message")
+message_sell = input("{{strategy.order.alert_message}}", title="Sell message")
+// Momentum code
+momentum(seria, length, percent) =>
+    _mom        =       percent ? ( (seria / seria[length]) - 1) * 100 : seria - seria[length]
+    _mom
+mom0        =       momentum(i_src, i_len, i_percent)
+mom1        =       momentum(mom0, 1, i_percent)
+mom2        =       momentum(i_src, 1, i_percent)
+momX        =       mom1
+if i_mom == "MOM2"
+    momX    :=     mom2
+    
+// Strategy Alerts    
+if (mom0 > 0 and momX > 0 and time_cond)
+    strategy.entry("MomLE", strategy.long, stop = high + syminfo.mintick, comment = "MomLE", alert_message = message_buy)
+else
+    strategy.cancel("MomLE")
+if (mom0 < 0 and momX < 0 and time_cond)
+    strategy.entry("MomExit", strategy.short, stop = low - syminfo.mintick, comment = "MomExit", alert_message = message_sell)
+else
+    strategy.cancel("MomExit")
+    
+// Plotting
+plot(0, color = #5d606b, title = "ZERO")
+plot(mom0, color = #00bcd4, title = "MOM")
+plot(mom1, color = #00FF00, title = "MOM1", display = display.none)
+plot(mom2, color = #00FF00, title = "MOM2")
+Expand (55 lines)

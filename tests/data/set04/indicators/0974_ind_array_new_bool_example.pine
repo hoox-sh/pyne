@@ -1,0 +1,10 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block67
+// content_hash: 1f229e8fe53eb3ff
+// collected: 2026-07-27
+indicator("array.new_bool example")
+length = 5
+a = array.new_bool(length, close > open)
+plot(array.get(a, 0) ? close : open)

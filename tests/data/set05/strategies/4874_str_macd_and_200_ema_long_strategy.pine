@@ -1,0 +1,77 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/MACD金叉突破配200日均线的趋势追踪策略MACD-Golden-Cross-Breakout-with-200-Day-Moving-Average-Trend-Following-Strategy.md
+// content_hash: b53bc0f96997766f
+// collected: 2026-07-27
+strategy("MACD and 200 EMA Long Strategy", shorttitle="MACD200EMALong", overlay=true)
+
+// Input parameters
+fastLength = input(12, title="Fast Length")
+slowLength = input(26, title="Slow Length")
+signalLength = input(9, title="Signal Length")
+ema200Length = input(200, title="200 EMA Length")
+stopLossPercentage = input(0.5, title="Stop Loss Percentage")
+targetPercentage = input(1, title="Target Percentage")
+
+// Trading session
+startHour = input(09, title="Start Hour", minval=0, maxval=23)
+startMinute = input(00, title="Start Minute", minval=0, maxval=59)
+endHour = input(15, title="End Hour", minval=0, maxval=23)
+endMinute = input(15, title="End Minute", minval=0, maxval=59)
+
+// Calculate MACD
+[macdLine, signalLine, _] = macd(close, fastLength, slowLength, signalLength)
+
+// Calculate 200-period EMA
+ema200 = ema(close, ema200Length)
+
+// Conditions for entering a long position
+longCondition = crossover(macdLine, signalLine) and macdLine < 0 and close > ema200 and hour < 13
+
+// Calculate stop loss and target levels only once at the entry
+var float stopLossLevel = na
+var float targetLevel = na
+
+if (longCondition)
+    stopLossLevel := close * (1 + stopLossPercentage / 100)
+
+
+    targetLevel := close * (1 + targetPercentage / 100)
+
+// Trading session condition
+intradayCondition = true
+
+// Strategy logic
+strategy.entry("Long", strategy.long, when=longCondition and intradayCondition)
+strategy.exit("Take Profit/Stop Loss", from_entry="Long", loss=stopLossLevel, profit=targetLevel)
+
+// Force exit if the current close is below the stop loss level
+if (not na(stopLossLevel) and close < stopLossLevel)
+    strategy.close("Long")
+
+// Exit the trade if the current close is greater than or equal to the target level
+if (not na(targetLevel) and close >= targetLevel)
+    strategy.close("Long")
+
+// Manually force exit at 3:15 PM
+if (hour == 15 and minute == 15)
+    strategy.close("Long")
+
+// Plotting the EMA, target, and stop loss on the chart
+plot(ema200, color=color.blue, title="200 EMA")
+plot(stopLossLevel, color=color.red, title="Stop Loss", linewidth=2)
+plot(targetLevel, color=color.green, title="Target", linewidth=2)
+
+// Plot entry arrow
+plotshape(series=longCondition and intradayCondition, title="Long Entry", color=color.green, style=shape.triangleup, location=location.belowbar)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/435262
+
+> Last Modified
+
+2023-12-13 16:13:33

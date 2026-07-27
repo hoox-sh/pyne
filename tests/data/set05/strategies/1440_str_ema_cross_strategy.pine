@@ -1,0 +1,82 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双均线动态突破交易系统Dynamic-Dual-Moving-Average-Breakthrough-Trading-System-Dynamic-Dual-Moving-Average-Breakthrough-Trading-System.md
+// content_hash: 3d0b9b9686be53f3
+// collected: 2026-07-27
+//
+//  ██╗         █████╗         ██████╗     ██████╗     ██╗   ██╗    ██╗
+//  ██║        ██╔══██╗       ██╔═══██╗    ██╔══██╗    ██║   ██║    ██║
+//  ██║        ███████║       ██║   ██║    ██║  ██║    ██║   ██║    ██║
+//  ██║        ██╔══██║       ██║   ██║    ██║  ██║    ██║   ██║    ██║
+//  ███████╗   ██║  ██║       ╚██████╔╝    ██████╔╝    ╚██████╔╝    ██║
+//  ╚══════╝   ╚═╝  ╚═╝        ╚═════╝     ╚═════╝      ╚═════╝     ╚═╝
+//
+//  BTC-EMA做多策略(5分钟确认版) - 作者：LAODUI
+//  版本：2.0
+//  最后更新：2024
+// ═══════════════════════════════════════════════════════════════════════════
+
+strategy("EMA Cross Strategy", overlay=true, initial_capital=10000, default_qty_type=strategy.percent_of_equity, default_qty_value=100)
+
+// 添加策略参数设置
+var showLabels = input.bool(true, "显示标签", group="显示设置")
+var stopLossPercent = input.float(5.0, "止损百分比", minval=0.1, maxval=20.0, step=0.1, group="风险管理")
+var takeProfitPercent = input.float(10.0, "止盈百分比", step=0.1, group="风险管理")
+
+// EMA参数设置
+var emaFastLength = input.int(9, "快速EMA周期", minval=1, maxval=200, group="EMA设置")
+var emaSlowLength = input.int(21, "慢速EMA周期", minval=1, maxval=200, group="EMA设置")
+
+// 计算EMA
+ema_fast = ta.ema(close, emaFastLength)
+ema_slow = ta.ema(close, emaSlowLength)
+
+// 绘制EMA线
+plot(ema_fast, "快速EMA", color=color.blue, linewidth=2)
+plot(ema_slow, "慢速EMA", color=color.red, linewidth=2)
+
+// 检测交叉
+crossOver = ta.crossover(ema_fast, ema_slow)  
+crossUnder = ta.crossunder(ema_fast, ema_slow)
+
+// 格式化时间显示 (UTC+8)
+utc8Time = time + 8 * 60 * 60 * 1000
+timeStr = str.format("{0,date,MM-dd HH:mm}", utc8Time)
+
+// 计算止损止盈价格
+longStopLoss = strategy.position_avg_price * (1 - stopLossPercent / 100)
+longTakeProfit = strategy.position_avg_price * (1 + takeProfitPercent / 100)
+shortStopLoss = strategy.position_avg_price * (1 + stopLossPercent / 100)
+shortTakeProfit = strategy.position_avg_price * (1 - takeProfitPercent / 100)
+
+// 交易逻辑
+if crossOver
+    if strategy.position_size < 0  
+        strategy.close("做空")     
+    strategy.entry("做多", strategy.long)  
+    if showLabels
+        label.new(bar_index, high, text="做多入场\n" + timeStr + "\n入场价: " + str.tostring(close) + "\n止损价: " + str.tostring(longStopLoss) + "\n止盈价: " + str.tostring(longTakeProfit), color=color.green, textcolor=color.white, style=label.style_label_down, yloc=yloc.abovebar)
+
+if crossUnder
+    if strategy.position_size > 0  
+        strategy.close("做多")     
+    strategy.entry("做空", strategy.short)  
+    if showLabels
+        label.new(bar_index, low, text="做空入场\n" + timeStr + "\n入场价: " + str.tostring(close) + "\n止损价: " + str.tostring(shortStopLoss) + "\n止盈价: " + str.tostring(shortTakeProfit), color=color.red, textcolor=color.white, style=label.style_label_up, yloc=yloc.belowbar)
+
+// 设置止损止盈
+if strategy.position_size > 0  // 多仓止损止盈
+    strategy.exit("多仓止损止盈", "做多", stop=longStopLoss, limit=longTakeProfit)
+    
+if strategy.position_size < 0  // 空仓止损止盈
+    strategy.exit("空仓止损止盈", "做空", stop=shortStopLoss, limit=shortTakeProfit) 
+```
+
+> Detail
+
+https://www.fmz.com/strategy/474051
+
+> Last Modified
+
+2024-12-05 16:22:32

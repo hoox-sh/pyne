@@ -1,0 +1,61 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/三均线交叉均线跟踪交易策略结合动态止盈止损-Triple-EMA-Crossover-Trading-Strategy-with-Dynamic-Stop-Loss-and-Take-Profit.md
+// content_hash: 202c0d2b1bbd566f
+// collected: 2026-07-27
+strategy("EMA Crossover Strategy with 50 EMA Filter", overlay=true)
+
+// Customizable Inputs
+ema9Length = input(9, title="EMA 9 Length")
+ema15Length = input(15, title="EMA 15 Length")
+ema50Length = input(50, title="EMA 50 Length")
+stopLossPoints = input(100, title="Stop Loss Points")
+takeProfitPoints = input(200, title="Take Profit Points")
+
+// Calculate EMAs
+ema9 = ta.ema(close, ema9Length)
+ema15 = ta.ema(close, ema15Length)
+ema50 = ta.ema(close, ema50Length)
+
+// Detect crossovers
+crossover_above = ta.crossover(ema9, ema15)
+crossover_below = ta.crossunder(ema9, ema15)
+
+// Plot EMAs
+plot(ema9, color=color.blue, title="EMA 9")
+plot(ema15, color=color.red, title="EMA 15")
+// Make the 50 EMA invisible
+plot(ema50, color=color.new(color.white, 100), title="EMA 50", display=display.none)
+
+// Plot buy and sell signals as shapes
+plotshape(crossover_above and close > ema50, style=shape.triangleup, location=location.belowbar, color=color.green, size=size.small)
+plotshape(crossover_below and close < ema50, style=shape.triangledown, location=location.abovebar, color=color.red, size=size.small)
+
+// Execute trades
+if (crossover_above and close > ema50)
+    strategy.entry("Buy", strategy.long)
+
+if (crossover_below and close < ema50)
+    strategy.close("Buy")
+
+// Apply stop loss and take profit
+if (crossover_above and close > ema50)
+    strategy.exit("Exit", from_entry="Buy", loss=stopLossPoints, profit=takeProfitPoints)
+
+// Alerts for notifications
+if (crossover_above and close > ema50)
+    alert("EMA 9 crossed above EMA 15 with price above EMA 50 - Buy Signal", alert.freq_once_per_bar_close)
+
+if (crossover_below and close < ema50)
+    alert("EMA 9 crossed below EMA 15 with price below EMA 50 - Sell Signal", alert.freq_once_per_bar_close)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/473252
+
+> Last Modified
+
+2024-11-28 15:54:18

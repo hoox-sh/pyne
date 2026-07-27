@@ -1,0 +1,43 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于动量突破EMA策略Momentum-Breakthrough-EMA-Strategy.md
+// content_hash: 2d021a3af9eff595
+// collected: 2026-07-27
+strategy("Custom Strategy", overlay=true)
+
+len = input.int(9, minval=1, title="Length")
+src = input(close, title="Source")
+offset = input.int(0, title="Offset", minval=-500, maxval=500)
+
+ema5 = ta.ema(src, len)
+
+// Condition for Buy Entry
+buy_condition = close > high[1] and high[1] < ema5
+
+// Set Target and Stop Loss
+risk_reward_ratio = input(2.0, title="Risk-Reward Ratio")
+target_price = close + (high[1] - low[1]) * risk_reward_ratio
+stop_loss_price = low[1] - 100
+
+// Execute Buy Order
+if (buy_condition)
+    strategy.entry("Buy", strategy.long)
+
+// Exit conditions
+if (strategy.position_size > 0)
+    strategy.exit("Take Profit/Stop Loss", from_entry="Buy", profit=target_price, loss=stop_loss_price)
+
+// Plotting
+plot(ema5, title="EMA", color=color.blue, offset=offset)
+plotshape(series=buy_condition, title="Buy Entry Signal", color=color.green, style=shape.triangleup, size=size.small, location=location.belowbar)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/441086
+
+> Last Modified
+
+2024-02-05 14:51:12

@@ -1,0 +1,62 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动态双EMA趋势捕捉与ATR风控量化策略-Dynamic-Dual-EMA-Trend-Capture-with-ATR-Risk-Management-Quantitative-Strategy.md
+// content_hash: 5e3b8ce0030abf0b
+// collected: 2026-07-27
+strategy("9 & 15 EMA Scalping Strategy", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=100)
+
+// Input Variables
+fastEmaLength = input(9, title="Fast EMA Length")
+slowEmaLength = input(15, title="Slow EMA Length")
+riskRewardRatio = input.float(1.5, title="Risk-Reward Ratio") // 1:1.5 RR
+slMultiplier = input.float(1.0, title="SL Multiplier") // Adjust SL distance
+
+// EMA Calculation
+fastEMA = ta.ema(close, fastEmaLength)
+slowEMA = ta.ema(close, slowEmaLength)
+
+// Conditions for Buy Entry
+buyCondition = ta.crossover(fastEMA, slowEMA) and close > fastEMA and close > slowEMA
+
+// Conditions for Sell Entry
+sellCondition = ta.crossunder(fastEMA, slowEMA) and close < fastEMA and close < slowEMA
+
+// Stop-Loss and Take-Profit Calculation
+atrValue = ta.atr(14) // ATR for dynamic SL
+longSL = close - (atrValue * slMultiplier)
+longTP = close + ((close - longSL) * riskRewardRatio)
+
+shortSL = close + (atrValue * slMultiplier)
+shortTP = close - ((shortSL - close) * riskRewardRatio)
+
+// Executing Trades
+if buyCondition
+    strategy.entry("BUY", strategy.long)
+    strategy.exit("TP/SL Long", from_entry="BUY", stop=longSL, limit=longTP)
+
+if sellCondition
+    strategy.entry("SELL", strategy.short)
+    strategy.exit("TP/SL Short", from_entry="SELL", stop=shortSL, limit=shortTP)
+
+// Plot EMAs
+plot(fastEMA, title="9 EMA", color=color.blue, linewidth=2)
+plot(slowEMA, title="15 EMA", color=color.red, linewidth=2)
+
+// Mark Buy/Sell Signals
+plotshape(series=buyCondition, location=location.belowbar, color=color.green, style=shape.labelup, size=size.small, title="BUY Signal")
+plotshape(series=sellCondition, location=location.abovebar, color=color.red, style=shape.labeldown, size=size.small, title="SELL Signal")
+
+// Alerts
+alertcondition(buyCondition, title="BUY Alert", message="BUY Signal - 9 EMA crossed above 15 EMA!")
+alertcondition(sellCondition, title="SELL Alert", message="SELL Signal - 9 EMA crossed below 15 EMA!")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/488284
+
+> Last Modified
+
+2025-03-26 15:44:55

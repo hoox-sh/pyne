@@ -1,0 +1,96 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于双均线交叉和多时间周期DMI指标的趋势策略Trend-Following-Strategy-Based-on-Dual-Moving-Average-Crossover-and-Multi-Timeframe-DMI-Indicator.md
+// content_hash: 4602d9b75c1e78ed
+// collected: 2026-07-27
+strategy("Kyrie Crossover @zaytrade ", overlay=true, calc_on_every_tick=true)
+
+// Input parameters for EMA
+shortTermEMA = input.int(9, title="Short-Term EMA Period")
+longTermEMA = input.int(21, title="Long-Term EMA Period")
+riskPercentageEMA = input.float(1, title="Risk Percentage EMA", minval=0.1, maxval=5, step=0.1)
+
+// Calculate EMAs
+emaShort = ta.ema(close, shortTermEMA)
+emaLong = ta.ema(close, longTermEMA)
+
+// EMA Crossover Strategy
+longConditionEMA = ta.crossover(emaShort, emaLong)
+shortConditionEMA = ta.crossunder(emaShort, emaLong)
+
+// Input parameters for DMI
+adxlen = input(14, title="ADX Smoothing")
+dilen = input(14, title="DI Length")
+
+// DMI Logic
+dirmov(len) =>
+    up = ta.change(high)
+    down = -ta.change(low)
+    truerange = ta.tr
+    plus = fixnan(100 * ta.rma((up > down ? up : 0), len) / truerange)
+    minus = fixnan(100 * ta.rma((down > up ? down : 0), len) / truerange)
+    [plus, minus]
+
+adx(dilen, adxlen) => 
+    [plus, minus] = dirmov(dilen)
+    sum = plus + minus
+    adxValue = 100 * ta.rma(math.abs(plus - minus) / (sum == 0 ? 1 : sum), adxlen)
+    [adxValue, plus, minus]
+
+// Function to get trend and strength for a given timeframe
+getTrendAndStrength(_source, _dilen, _adxlen) =>
+    [adxValue, up, down] = adx(_dilen, _adxlen)
+    var string trendIndication = ""
+    var string trendStrength = ""
+    if (up > down) or ((up > down) and (up > down) and (up > adxValue)) // Bullish condition
+        trendIndication := "Bullish"
+        trendStrength := "Strengthening" 
+    else if (down > up) or ((down > up) and (down > up) and (down > adxValue)) // Bearish condition
+        trendIndication := "Bearish"
+        trendStrength := "Weakening" 
+    else
+        trendIndication := "No Clear Trend"
+        trendStrength := "Sideways"
+    [trendIndication, trendStrength]
+
+// Get trend and strength for selected timeframes
+[tf1_trend, tf1_strength] = request.security(syminfo.tickerid, "5", getTrendAndStrength(close, dilen, adxlen))
+[tf2_trend, tf2_strength] = request.security(syminfo.tickerid, "15", getTrendAndStrength(close, dilen, adxlen))
+[tf3_trend, tf3_strength] = request.security(syminfo.tickerid, "30", getTrendAndStrength(close, dilen, adxlen))
+[tf4_trend, tf4_strength] = request.security(syminfo.tickerid, "60", getTrendAndStrength(close, dilen, adxlen))
+[current_trend, _] = getTrendAndStrength(close, dilen, adxlen)
+
+// Define colors based on trend indication
+tf1_color = tf1_trend == "Bullish" ? color.green : (tf1_trend == "Bearish" ? color.red : color.white)
+tf2_color = tf2_trend == "Bullish" ? color.green : (tf2_trend == "Bearish" ? color.red : color.white)
+tf3_color = tf3_trend == "Bullish" ? color.green : (tf3_trend == "Bearish" ? color.red : color.white)
+tf4_color = tf4_trend == "Bullish" ? color.green : (tf4_trend == "Bearish" ? color.red : color.white)
+current_color = current_trend == "Bullish" ? color.green : (current_trend == "Bearish" ? color.red : color.white)
+
+// Create and fill the enhanced table for DMI
+var table dmiTable = na
+if (barstate.islast)
+    dmiTable := table.new(position.top_right, 6, 1)
+    table.cell(dmiTable, 0, 0, "DMI Metrics", bgcolor=color.new(color.black, 90), width=15, height=4, text_color=color.white)
+    table.cell(dmiTable, 1, 0, "5m Trend: " + tf1_trend, bgcolor=tf1_color, width=15, height=4, text_color=color.white)
+    table.cell(dmiTable, 2, 0, "15m Trend: " + tf2_trend, bgcolor=tf2_color, width=15, height=4, text_color=color.white)
+    table.cell(dmiTable, 3, 0, "30m Trend: " + tf3_trend, bgcolor=tf3_color, width=15, height=4, text_color=color.white)
+    table.cell(dmiTable, 4, 0, "1h Trend: " + tf4_trend, bgcolor=tf4_color, width=15, height=4, text_color=color.white)
+    table.cell(dmiTable, 5, 0, "Current Trend: " + current_trend, bgcolor=current_color, width=15, height=4, text_color=color.white)
+
+// Strategy logic
+if (longConditionEMA)
+    strategy.entry("Long", strategy.long)
+if (shortConditionEMA)
+    strategy.entry("Short", strategy.short)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/445813
+
+> Last Modified
+
+2024-03-22 14:23:30

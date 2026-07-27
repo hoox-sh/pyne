@@ -1,0 +1,15 @@
+//@version=4
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/Proper lookback period.pine
+// content_hash: c0838caf73074d20
+// collected: 2026-07-27
+strategy("Proper lookback period", overlay=true)
+startWhen = input(title="Enter date when the strategy should start trading", type=input.time, defval=timestamp("2 Jan 1900 00:00 +0000"))
+if (sma(close, 20) > sma(close, 200))
+    strategy.entry("Long", strategy.long)
+else
+    strategy.entry("Short", strategy.short)
+// This line will cancel all orders if the current bar preceeds the date you entered in "startWhen"
+strategy.cancel_all(when = time < startWhen)
+Expand (11 lines)

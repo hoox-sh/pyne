@@ -1,0 +1,80 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/VWAP与RSI动态布林带止盈止损策略-VWAP-and-RSI-Dynamic-Bollinger-Bands-Take-Profit-and-Stop-Loss-Strategy.md
+// content_hash: 7063eca0c45a1bac
+// collected: 2026-07-27
+strategy("VWAP and RSI Strategy", overlay=true)
+
+// VWAP calculation
+vwap = ta.vwap(close)
+
+// RSI calculation
+rsi_length = 16
+rsi = ta.rsi(close, rsi_length)
+
+// Bollinger Bands calculation
+bb_length = 14
+bb_std = 2.0
+[bb_middle, bb_upper, bb_lower] = ta.bb(close, bb_length, bb_std)
+
+// Variables for VWAP signal calculation
+backcandles = 15
+float vwapsignal = na
+
+// Function to check if last 15 candles are above or below VWAP
+calc_vwapsignal(backcandles) =>
+    upt = true
+    dnt = true
+    for i = 0 to backcandles - 1
+        if close[i] < vwap[i]
+            upt := false
+        if close[i] > vwap[i]
+            dnt := false
+    if upt and dnt
+        3
+    else if upt
+        2
+    else if dnt
+        1
+    else
+        0
+
+// Calculate VWAP signal for each bar
+vwapsignal := calc_vwapsignal(backcandles)
+
+// Calculate total signal
+totalsignal = 0
+if vwapsignal == 2 and close <= bb_lower and rsi < 45
+    totalsignal := 2
+else if vwapsignal == 1 and close >= bb_upper and rsi > 55
+    totalsignal := 1
+
+
+
+// Define strategy entry and exit conditions
+slatr = 1.2 * ta.atr(7)
+TPSLRatio = 1.5
+
+if (totalsignal == 2 and strategy.opentrades == 0)
+    strategy.entry("Long", strategy.long, stop=close - slatr, limit=close + slatr * TPSLRatio)
+
+if (totalsignal == 1 and strategy.opentrades == 0)
+    strategy.entry("Short", strategy.short, stop=close + slatr, limit=close - slatr * TPSLRatio)
+
+// Additional exit conditions based on RSI
+if (strategy.opentrades > 0)
+    if (strategy.position_size > 0 and rsi >= 90)
+        strategy.close("Long")
+    if (strategy.position_size < 0 and rsi <= 10)
+        strategy.close("Short")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/454140
+
+> Last Modified
+
+2024-06-14 15:18:39

@@ -1,0 +1,52 @@
+//@version=2
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于RSI指标和MA均线的趋势跟踪策略RSI-MA-Trend-Following-Strategy.md
+// content_hash: 1b8a4c12e8525c9f
+// collected: 2026-07-27
+//This strategy is best used with the Chrome Extension AutoView for automating TradingView alerts.
+//You can get the AutoView extension for FREE using the following link
+//https://chrome.google.com/webstore/detail/autoview/okdhadoplaoehmeldlpakhpekjcpljmb?utm_source=chrome-app-launcher-info-dialog
+strategy("4All", shorttitle="Strategy", overlay=false)
+
+src = close
+len = input(4, minval=1, title="Length")
+
+up = rma(max(change(src), 0), len)
+down = rma(-min(change(src), 0), len)
+rsi = down == 0 ? 100 : up == 0 ? 0 : 100 - (100 / (1 + up / down))
+plot(rsi, color=purple)
+band1 = hline(90)
+band0 = hline(10)
+fill(band1, band0, color=purple, transp=90)
+
+rsin = input(5)
+sn = 100 - rsin
+ln = 0 + rsin
+
+short = crossover(rsi, sn)
+long = crossunder(rsi, ln)
+
+strategy.entry("long", strategy.long, when=long)
+strategy.entry("short", strategy.short, when=short)
+
+TP = input(15) * 10
+SL = input(23) * 10
+TS = input(0) * 10
+CQ = 100
+
+TPP = (TP > 0) ? TP : na
+SLP = (SL > 0) ? SL : na
+TSP = (TS > 0) ? TS : na
+
+strategy.exit("Close Long", "long", qty_percent=CQ, profit=TPP, loss=SLP, trail_points=TSP)
+strategy.exit("Close Short", "short", qty_percent=CQ, profit=TPP, loss=SLP, trail_points=TSP)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/435002
+
+> Last Modified
+
+2023-12-11 16:14:07

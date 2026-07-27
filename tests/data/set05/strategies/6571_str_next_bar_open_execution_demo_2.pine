@@ -1,0 +1,10 @@
+//@version=2
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/v3/essential/strategies.md::strategies.md#block9
+// content_hash: 724282580d801e97
+// collected: 2026-07-27
+strategy("next bar open execution demo")
+if n > 4000
+    strategy.order("buy", strategy.long, when=strategy.position_size == 0)
+    strategy.order("sell", strategy.short, when=strategy.position_size != 0)

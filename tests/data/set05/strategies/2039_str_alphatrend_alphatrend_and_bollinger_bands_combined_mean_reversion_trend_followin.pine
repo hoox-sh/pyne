@@ -1,0 +1,64 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/AlphaTrend和布林带相结合的均值回归趋势跟踪策略AlphaTrend-and-Bollinger-Bands-Combined-Mean-Reversion-Trend-Following-Strategy.md
+// content_hash: b2850a4cbab77b9f
+// collected: 2026-07-27
+strategy(title="AlphaTrend and Bollinger Bands 120324 Strategy", shorttitle="AT_BB120324", overlay=true, format=format.price, precision=2, pyramiding=0)
+
+// AlphaTrend Indicator
+coeff = input.float(1, 'Multiplier', step=0.1)
+AP = input(14, 'Common Period')
+ATR = ta.sma(ta.tr, 20)
+src = input(close)
+novolumedata = input(title='Change calculation (no volume data)?', defval=false)
+upT = low - ATR * coeff
+downT = high + ATR * coeff
+AlphaTrend = 0.0
+AlphaTrend := (novolumedata ? ta.rsi(src, AP) >= 50 : ta.mfi(hlc3, AP) >= 50) ? upT < nz(AlphaTrend[1]) ? nz(AlphaTrend[1]) : upT : downT > nz(AlphaTrend[1]) ? nz(AlphaTrend[1]) : downT
+
+// Bollinger Bands Strategy
+BBPeriod = input.int(20, title="BB Period", minval=1)
+BBMultiplier = input.float(2.0, title="BB Multiplier", minval=0.1)
+basis = ta.sma(close, BBPeriod)
+dev = ta.stdev(close, BBPeriod)
+upper = basis + BBMultiplier * dev
+lower = basis - BBMultiplier * dev
+
+// Strategy Conditions
+longCondition = ta.crossover(close, upper) and ta.crossover(AlphaTrend, AlphaTrend[1])
+shortCondition = ta.crossunder(close, lower) and ta.crossunder(AlphaTrend, AlphaTrend[1])
+// Exit conditions for Strategy 6
+longExit_AT_6 = ta.crossover(close, AlphaTrend)
+shortExit_AT_6 = ta.crossunder(close, AlphaTrend)
+// Exit condition series
+exit1 = input.bool(true, title="Enable Exit Condition for Strategy 1")
+
+// Define exit conditions for each strategy
+exit1_condition = close < AlphaTrend ? 1.0 : na
+
+// Strategy Actions
+strategy.entry("Buy", strategy.long, when=longCondition)
+strategy.entry("Sell", strategy.short, when=shortCondition)
+// Exit conditions for Strategy 1
+strategy.exit("Buy", "longExit_AT_6", stop = exit1_condition, when =shortExit_AT_6 )
+strategy.exit("Sell", "shortExit_AT_6", stop = exit1_condition, when =longExit_AT_6)
+
+// Plotting
+plot(AlphaTrend, color=color.blue, title="AlphaTrend")
+plot(upper, color=color.green, title="Upper Bollinger Band")
+plot(lower, color=color.red, title="Lower Bollinger Band")
+
+// Alerts
+alertcondition(longCondition, title='Potential Buy Signal', message='AlphaTrend crossed above Upper Bollinger Band')
+alertcondition(shortCondition, title='Potential Sell Signal', message='AlphaTrend crossed below Lower Bollinger Band')
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/446435
+
+> Last Modified
+
+2024-03-28 16:32:35

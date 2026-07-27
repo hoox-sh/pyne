@@ -1,0 +1,53 @@
+//@version=6
+// set04 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多重指标交叉趋势跟踪交易策略基于随机相对强弱与均线系统的量化分析-Multi-Indicator-Cross-Trend-Following-Trading-Strategy-Quantitative-Analysis-Based-on-Stochastic-RSI-and-Moving-Average-System.md
+// content_hash: 3f10d6b5fd320277
+// collected: 2026-07-27
+version=6
+strategy("Quantuan Research - Alpha", overlay=true, pyramiding=200, default_qty_value=1)
+
+
+// Define Stochastic RSI settings
+lengthRSI = input(17, title="RSI Length")
+lengthStoch = input(20, title="Stochastic Length")
+src = input(close, title="Source")
+rsi = ta.rsi(src, lengthRSI)
+k = ta.stoch(rsi, rsi, rsi, lengthStoch)
+d = ta.sma(k, 3)
+
+// Define MA settings
+fastMALength = input(10, title="Fast MA Length")
+slowMALength = input(20, title="Slow MA Length")
+fastMA = ta.sma(close, fastMALength)
+slowMA = ta.sma(close, slowMALength)
+
+// Define long and short conditions
+longCondition = k < 17 and d < 23 and k > d
+shortCondition = k > 99 and d > 90 and k < d
+
+// Create long and short signals
+if longCondition//@
+    strategy.entry("Long", strategy.long)
+
+if shortCondition
+    strategy.entry("Short", strategy.short)
+
+// Add alerts for long and short signals
+alertcondition(longCondition, title="Long Signal", message="Long signal generated")
+alertcondition(shortCondition, title="Short Signal", message="Short signal generated")
+
+// Plot Moving Averages with color based on trend
+plot(fastMA, color = fastMA > slowMA ? color.new(color.rgb(0, 255, 170), 0) : color.new(color.rgb(255, 0, 0), 0), title = 'Fast MA')
+plot(slowMA, color = color.new(color.rgb(255, 255, 0), 0), title = 'Slow MA')
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/476253
+
+> Last Modified
+
+2024-12-27 14:37:55

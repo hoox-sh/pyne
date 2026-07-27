@@ -1,0 +1,130 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动态回归通道策略Dynamic-Regression-Channel-Strategy.md
+// content_hash: 3274364bce0b4bd7
+// collected: 2026-07-27
+strategy("Estratégia de Regressão Linear", shorttitle="Regressão Linear Estratégia", overlay=true, initial_capital = 100, default_qty_value = 10, default_qty_type = strategy.percent_of_equity)
+
+// média móvel exponencial para definição de regressao linear
+var SlopeEMASize = input.int(defval = 21, title = "Slope EMA" )
+// ema_length = 21
+slope_ema = ta.ema(close, SlopeEMASize)
+
+// média móvel exponencial para definição de nivel de stop
+var StopEMASize = input.int(defval = 13, title = "Stop EMA" )
+stop_ema = ta.ema(close, StopEMASize)
+
+// Variáveis para controle de posição
+var float long_stop_level = na
+var float long_entry_level = na
+var bool long_signal = false
+var bool long_order_open = false
+var int long_order_id = 0
+
+
+var float short_stop_level = na
+var float short_entry_level = na
+var bool short_signal = false
+var bool short_order_open = false
+var int short_order_id = 0
+
+// Regressão linear para uso como sinal de entrada 
+var SlopeLenght = input.int(defval = 21, title = "Slope Lenght" )
+entry_signal = ta.linreg(slope_ema, SlopeLenght, 0)
+
+//Variaveis com a indicação do pivot da regressao
+long_entry_signal = ta.crossover(entry_signal, entry_signal[1])
+short_entry_signal = ta.crossunder(entry_signal, entry_signal[1])
+
+// Condição de entrada (reversão da regressão)
+if long_entry_signal
+    long_signal := true
+    short_signal := false
+    long_entry_level := high
+    long_stop_level := low
+
+if short_entry_signal
+    short_signal := true
+    long_signal := false
+    short_entry_level := low
+    short_stop_level := high
+
+
+// Indica quando o preço cruzou o nível de stop 
+price_cross_stop_ema_up = ta.crossover(close, stop_ema)
+price_cross_stop_ema_down = ta.crossunder(close, stop_ema)
+
+// Mover o stop quando o preço cruzar a nível stop e operação long ativa
+if long_signal and long_order_open and price_cross_stop_ema_down
+    if low > long_entry_level
+        long_stop_level := high
+
+// Mover o stop quando o preço cruzar a nível stop e operação short ativa
+if short_signal and short_order_open and price_cross_stop_ema_up
+    if high < short_stop_level
+        short_stop_level := low
+
+// Sair da posição se houver nova reversão da regressão
+if long_order_open or short_order_open
+    if long_entry_signal //and short_order_open
+        strategy.close(str.tostring(short_order_id), comment ="Inversão Sinal("+str.tostring(short_order_id)+")")
+        short_order_open:= false
+    if short_entry_signal //and long_order_open
+        strategy.close(str.tostring(long_order_id), comment = "Inversão Sinal("+str.tostring(long_order_id)+")")
+        long_order_open:=false
+
+// Sinais de compra e venda com base no stop
+if long_signal and close > long_entry_level and not long_order_open
+    if strategy.opentrades != 0
+        strategy.cancel_all()
+
+    long_order_id+=1
+    // strategy.order(str.tostring(long_order_id), strategy.long, comment="Open Long("+str.tostring(long_order_id)+")", limit = long_entry_level) 
+    strategy.entry(str.tostring(long_order_id), strategy.long, comment="Open Long("+str.tostring(long_order_id)+")", limit = long_entry_level)
+    long_order_open := true
+    // log.info("Open Long:"+str.tostring(long_order_id))
+
+if short_signal and close < short_entry_level and not short_order_open
+    if strategy.opentrades != 0
+        strategy.cancel_all()
+
+    short_order_id+=1
+    // strategy.order(str.tostring(short_order_id), strategy.short, comment="Open Short("+str.tostring(short_order_id)+")", limit = short_entry_level)
+    strategy.entry(str.tostring(short_order_id), strategy.short, comment="Open Short("+str.tostring(short_order_id)+")", limit = short_entry_level)
+    short_order_open := true
+    // log.info("Open Short:"+str.tostring(short_order_id))
+
+// Sinais de compra e venda com base no stop
+if long_signal and close < long_stop_level and long_order_open
+    strategy.close(str.tostring(long_order_id), comment = "Stop Atingido("+str.tostring(long_order_id)+")", immediately = true)
+    long_order_open := false
+
+if short_signal and close > short_stop_level and short_order_open
+    strategy.close(str.tostring(short_order_id),comment = "Stop Atingido("+str.tostring(short_order_id)+")", immediately = true)
+    short_order_open := false
+
+// Plotagem da regressão e do stop
+
+plot(stop_ema, title="Stop Signal", color=color.red)
+plot(entry_signal,"Entry Signal", linewidth = 5, color = color.rgb(155, 0, 140))
+
+plotshape(long_order_open?long_stop_level:na, title = "Long Stop Level", color = color.green, location = location.absolute)
+plotshape(long_order_open?long_entry_level:na, title="Long Entry Value",location=location.absolute, color = color.green, style = shape.circle)
+plotshape(series=long_entry_signal, title="Long Signal", location=location.abovebar, color=color.green, style=shape.triangleup, size=size.small, text = "Long Signal")
+
+plotshape(short_order_open?short_stop_level:na, title = "Short Stop Level", color = color.red, location = location.absolute)
+plotshape(short_order_open?short_entry_level:na, title="Short Entry Value",location=location.absolute, color = color.red, style = shape.circle)
+
+plotshape(series=short_entry_signal, title="Short Signal", location=location.belowbar, color=color.red, style=shape.triangledown, size=size.small, text="Short Signal")
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/442622
+
+> Last Modified
+
+2024-02-23 12:14:49

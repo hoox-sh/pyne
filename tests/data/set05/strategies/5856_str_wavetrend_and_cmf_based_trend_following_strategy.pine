@@ -1,0 +1,73 @@
+//@version=3
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于波浪通道和资金流指标的趋势跟踪策略WaveTrend-and-CMF-Based-Trend-Following-Strategy.md
+// content_hash: e5314215bafd221c
+// collected: 2026-07-27
+strategy(title = "CMF - WaveTrend", shorttitle = "CMF - WaveTrend", overlay = true, pyramiding = 0, default_qty_type = strategy.percent_of_equity, default_qty_value = 100, currency = currency.EUR)
+
+//Chaikin Money Flow
+
+len = input(20, minval=1, title="Length")
+mas = input(title="Aggregation", defval="SUM", options=["SUM", "EMA", "WMA"])
+e = input(10.0, title="Volume Exponent (0-10 reduces & 10+ increases volume effect)")
+p = input(false, title="Show in Percentage")
+mvs = input(false, "Factor in Price (Money Volume)")
+src=input(hlc3, title="Source for price factor")
+
+trl = min(low,close[1]), trh = max(high,close[1]) // 'true range' fixes issues caused by gaps in price
+wv = pow(volume,e/10.0)*(mvs ? src : 1)
+ad = (trh==trl ? 0 : (2*close-(trh+trl))/tr(true))*wv
+cmf = mas=="SUM" ? sum(ad, len)/sum(wv, len) : mas=="EMA" ? ema(ad, len)/ema(wv, len) : mas=="WMA" ? wma(ad, len)/wma(wv, len) : na
+cmf_p  = if p
+    50*cmf+50
+else
+    cmf
+b = p ? 50 : 0
+
+
+//WaveTrend
+n1 = input(10, "Channel Length")
+n2 = input(21, "Average Length")
+obLevel1 = input(60, "Over Bought Level 1")
+obLevel2 = input(53, "Over Bought Level 2")
+osLevel1 = input(-60, "Over Sold Level 1")
+osLevel2 = input(-53, "Over Sold Level 2")
+ 
+ap = hlc3 
+esa = ema(ap, n1)
+d = ema(abs(ap - esa), n1)
+ci = (ap - esa) / (0.015 * d)
+tci = ema(ci, n2)
+ 
+wt1 = tci
+wt2 = sma(wt1,4)
+// 
+
+
+longCondition = wt1 < -60 and cmf < - 0.20
+if (longCondition)
+ 
+    strategy.entry("My Long Entry Id", strategy.long)
+    
+ 
+shortCondition = wt1 > 60 and cmf > 0.20
+if (shortCondition)
+ 
+    strategy.entry("My Short Entry Id", strategy.short)
+    
+closeLongCondition = cmf_p > 0.18 ? true : false
+closeShortCondition = cmf_p < -0.18 ? true : false
+    
+    
+strategy.close("My Long Entry Id", when=(closeLongCondition == true))
+strategy.close("My Short Entry Id", when=(closeShortCondition == true))
+```
+
+> Detail
+
+https://www.fmz.com/strategy/432343
+
+> Last Modified
+
+2023-11-16 16:38:03

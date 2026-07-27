@@ -1,0 +1,5 @@
+//@version=6indicator("Simple `request.security()` calls")// Returns 1D close of the current symbol.dailyClose = request.security(syminfo.tickerid, "1D", close)plot(dailyClose)// Returns the close of "AAPL" from the same timeframe as currently open on the chart.aaplClose = request.security("AAPL", timeframe.period, close)plot(aaplClose)// set05 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/reference/functions/request.md::request.md#block3
+// content_hash: 37c2b9b051cac464
+// collected: 2026-07-27

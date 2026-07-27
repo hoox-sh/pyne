@@ -1,0 +1,83 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于双重趋势突破策略Dual-Trend-Breakout-Strategy.md
+// content_hash: 4e97dbf299d417c0
+// collected: 2026-07-27
+strategy("FINANCE UP FREE STRATEGY (+919665229664)", overlay=true)
+
+// Script 01 - Trendlines
+length_tl = input.int(14, 'Swing Detection Lookback')
+mult_tl = input.float(1., 'Slope', minval=0, step=.1)
+calcMethod_tl = input.string('Atr', 'Slope Calculation Method', options=['Atr', 'Stdev', 'Linreg'])
+backpaint_tl = input(true, tooltip='Backpainting offset displayed elements in the past. Disable backpainting to see real-time information returned by the indicator.')
+upCss_tl = input(color.teal, 'Up Trendline Color', group='Style')
+dnCss_tl = input(color.red, 'Down Trendline Color', group='Style')
+showExt_tl = input(true, 'Show Extended Lines')
+
+var upper_tl = 0.
+var lower_tl = 0.
+var slope_ph_tl = 0.
+var slope_pl_tl = 0.
+var offset_tl = backpaint_tl ? length_tl : 0
+n_tl = bar_index
+src_tl = close
+ph_tl = ta.pivothigh(length_tl, length_tl)
+pl_tl = ta.pivotlow(length_tl, length_tl)
+slope_tl = switch calcMethod_tl
+    'Atr'    => ta.atr(length_tl) / length_tl * mult_tl
+    'Stdev'  => ta.stdev(src_tl, length_tl) / length_tl * mult_tl
+    'Linreg' => math.abs(ta.sma(src_tl * n_tl, length_tl) - ta.sma(src_tl, length_tl) * ta.sma(n_tl, length_tl)) / ta.variance(n_tl, length_tl) / 2 * mult_tl
+slope_ph_tl := ph_tl ? slope_tl : slope_ph_tl
+slope_pl_tl := pl_tl ? slope_tl : slope_pl_tl
+upper_tl := ph_tl ? ph_tl : upper_tl - slope_ph_tl
+lower_tl := pl_tl ? pl_tl : lower_tl + slope_pl_tl
+var upos_tl = 0
+var dnos_tl = 0
+upos_tl := ph_tl ? 0 : close > upper_tl - slope_ph_tl * length_tl ? 1 : upos_tl
+dnos_tl := pl_tl ? 0 : close < lower_tl + slope_pl_tl * length_tl ? 1 : dnos_tl
+
+// var uptl_tl = line.new(na, na, na, na, color=upCss_tl, style=line.style_dashed, extend=extend.right)
+// var dntl_tl = line.new(na, na, na, na, color=dnCss_tl, style=line.style_dashed, extend=extend.right)
+// if ph_tl and showExt_tl
+//     uptl_tl.set_xy1(n_tl - offset_tl, backpaint_tl ? ph_tl : upper_tl - slope_ph_tl * length_tl)
+//     uptl_tl.set_xy2(n_tl - offset_tl + 1, backpaint_tl ? ph_tl - slope_tl : upper_tl - slope_ph_tl * (length_tl + 1))
+// if pl_tl and showExt_tl
+//     dntl_tl.set_xy1(n_tl - offset_tl, backpaint_tl ? pl_tl : lower_tl + slope_pl_tl * length_tl)
+//     dntl_tl.set_xy2(n_tl - offset_tl + 1, backpaint_tl ? pl_tl + slope_tl : lower_tl + slope_pl_tl * (length_tl + 1))
+
+plot(backpaint_tl ? upper_tl : upper_tl - slope_ph_tl * length_tl, 'Upper', color=ph_tl ? na : upCss_tl, offset=-offset_tl)
+plot(backpaint_tl ? lower_tl : lower_tl + slope_pl_tl * length_tl, 'Lower', color=pl_tl ? na : dnCss_tl, offset=-offset_tl)
+
+plotshape(upos_tl > upos_tl[1] ? low : na, "Upper Break", shape.labelup, location.absolute, upCss_tl, text="B", textcolor=color.white, size=size.tiny)
+plotshape(dnos_tl > dnos_tl[1] ? high : na, "Lower Break", shape.labeldown, location.absolute, dnCss_tl, text="B", textcolor=color.white, size=size.tiny)
+
+alertcondition(upos_tl > upos_tl[1], 'Upward Breakout', 'Price broke the down-trendline upward')
+alertcondition(dnos_tl > dnos_tl[1], 'Downward Breakout', 'Price broke the up-trendline downward')
+
+// Script 02 - Channel Breakout
+length_channel = input.int(title="Channel Length", minval=1, maxval=1000, defval=5)
+upBound_channel = ta.highest(high, length_channel)
+downBound_channel = ta.lowest(low, length_channel)
+if (not na(close[length_channel]))
+    strategy.entry("LE-LE", strategy.long, stop=upBound_channel + syminfo.mintick, comment="LE-LE")
+strategy.entry("BECH-DE", strategy.short, stop=downBound_channel - syminfo.mintick, comment="BECH-DE")
+
+// Script 03 - MA Cross
+shortlen_ma = input.int(5, "Short MA Length", minval=1)
+longlen_ma = input.int(34, "Long MA Length", minval=1)
+short_ma = ta.sma(close, shortlen_ma)
+long_ma = ta.sma(close, longlen_ma)
+plot(short_ma, color=#FF6D00, title="Short MA")
+plot(long_ma, color=#43A047, title="Long MA")
+plot(ta.cross(short_ma, long_ma) ? short_ma : na, color=#2962FF, style=plot.style_cross, linewidth=4, title="Cross")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/442099
+
+> Last Modified
+
+2024-02-19 11:52:40

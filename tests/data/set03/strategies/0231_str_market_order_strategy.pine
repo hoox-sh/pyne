@@ -1,0 +1,70 @@
+//@version=6
+// set03 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block250
+// content_hash: 57f44cbb88a05b81
+// collected: 2026-07-27
+strategy("Market order strategy", overlay = true)
+
+// Calculate a 14-bar and 28-bar moving average of `close` prices.
+float sma14 = ta.sma(close, 14)
+float sma28 = ta.sma(close, 28)
+
+// Place a market order to enter a long position when `sma14` crosses over `sma28`.
+if ta.crossover(sma14, sma28) and strategy.position_size == 0
+    strategy.order("My Long Entry ID", strategy.long)
+
+// Place a market order to sell the same quantity as the long trade when `sma14` crosses under `sma28`, 
+// effectively closing the long position.
+if ta.crossunder(sma14, sma28) and strategy.position_size > 0
+    strategy.order("My Long Exit ID", strategy.short)
+
+//@version=6
+strategy("Limit and stop exit strategy", overlay = true)
+
+//@variable The distance from the long entry price for each short limit order.
+float shortOffsetInput = input.int(200, "Sell limit/stop offset, in ticks", 1) * syminfo.mintick
+
+//@function Draws a label and line at the specified `price` to visualize a limit order's level. 
+drawLimit(float price, bool isLong, bool isStop = false) =>
+    color col = isLong ? color.blue : color.red
+    label.new(
+         bar_index, price, (isLong ? "Long " : "Short ") + (isStop ? "stop" : "limit") + " order created", 
+         style = label.style_label_right, color = col, textcolor = color.white
+     )
+    line.new(bar_index, price, bar_index + 1, price, extend = extend.right, style = line.style_dashed, color = col)
+
+//@function Stops the `l` line from extending further.
+method stopExtend(line l) =>
+    l.set_x2(bar_index)
+    l.set_extend(extend.none)
+
+// Initialize two `line` variables to reference limit and stop line IDs.
+var line profitLimit = na
+var line lossStop    = na
+
+// Calculate a 14-bar and 28-bar moving average of `close` prices.
+float sma14 = ta.sma(close, 14)
+float sma28 = ta.sma(close, 28)
+
+if ta.crossover(sma14, sma28) and strategy.position_size == 0
+    // Place a market order to enter a long position.
+    strategy.order("My Long Entry ID", strategy.long)
+    
+if strategy.position_size > 0 and strategy.position_size[1] == 0
+    //@variable The entry price of the long trade. 
+    float entryPrice = strategy.opentrades.entry_price(0)
+    // Calculate short limit and stop levels above and below the `entryPrice`.
+    float profitLevel = entryPrice + shortOffsetInput
+    float lossLevel   = entryPrice - shortOffsetInput
+    // Place short limit and stop orders at the `profitLevel` and `lossLevel`. 
+    strategy.order("Profit", strategy.short, limit = profitLevel, oca_name = "Bracket", oca_type = strategy.oca.cancel)
+    strategy.order("Loss", strategy.short, stop = lossLevel, oca_name = "Bracket", oca_type = strategy.oca.cancel)
+    // Make new drawings for the `profitLimit` and `lossStop` lines.
+    profitLimit := drawLimit(profitLevel, isLong = false)
+    lossStop    := drawLimit(lossLevel, isLong = false, isStop = true)
+
+if ta.change(strategy.closedtrades) > 0
+    // Stop extending the `profitLimit` and `lossStop` lines.
+    profitLimit.stopExtend()
+    lossStop.stopExtend()

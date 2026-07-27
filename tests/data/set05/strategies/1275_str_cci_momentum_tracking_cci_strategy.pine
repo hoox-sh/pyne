@@ -1,0 +1,89 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动量追踪CCI策略Momentum-Tracking-CCI-Strategy.md
+// content_hash: 37c833b629a27546
+// collected: 2026-07-27
+// strategy("CCI+EMA Strategy with Percentage or ATR TP/SL [Alifer]", shorttitle = "CCI_EMA_%/ATR_TP/SL", overlay=false,
+//      initial_capital=10000, default_qty_type=strategy.percent_of_equity, default_qty_value=10, commission_type=strategy.commission.percent, commission_value=0.045)
+
+length = input(14, "CCI Length")
+overbought = input.int(150, step = 10, title = "Overbought")
+oversold = input.int(-140, step = 10, title = "Oversold")
+src = hlc3
+ma = ta.sma(src, length)
+cci = (src - ma) / (0.015 * ta.dev(src, length))
+
+// EMA
+useEMA = input(true, "Use EMA", tooltip = "Only enters long when price is above the EMA, only enters short when price is below the EMA")
+emaLength = input(55, "EMA Length")
+var float ema = na
+if useEMA
+    ema := ta.ema(src, emaLength)
+
+// Take Profit and Stop Loss Method
+tpSlMethod_percentage = input(true, "Percentage TP/SL", group="TP/SL Method")
+tpSlMethod_atr = input(false, "ATR TP/SL", group="TP/SL Method")
+
+// Percentage-based Take Profit and Stop Loss
+tp_percentage = input.float(10.0, title="Take Profit (%)", step=0.1, group="TP/SL Method")
+sl_percentage = input.float(10.0, title="Stop Loss (%)", step=0.1, group="TP/SL Method")
+
+// ATR-based Take Profit and Stop Loss
+atrLength = input(20, title="ATR Length", group="TP/SL Method")
+atrMultiplier = input(4, title="ATR SL Multiplier", group="TP/SL Method")
+riskRewardRatio = input(2, title="Risk Reward Ratio", group="TP/SL Method")
+
+// Calculate TP/SL levels based on the selected method, or leave them undefined if neither method is selected
+longTP = tpSlMethod_percentage ? strategy.position_avg_price * (1 + tp_percentage / 100) : na
+longSL = tpSlMethod_percentage ? strategy.position_avg_price * (1 - sl_percentage / 100) : na
+shortTP = tpSlMethod_percentage ? strategy.position_avg_price * (1 - tp_percentage / 100) : na
+shortSL = tpSlMethod_percentage ? strategy.position_avg_price * (1 + sl_percentage / 100) : na
+
+if tpSlMethod_atr
+    longSL := strategy.position_avg_price - ta.atr(atrLength) * atrMultiplier
+    longTP := ((strategy.position_avg_price - longSL) * riskRewardRatio) + strategy.position_avg_price
+    shortSL := strategy.position_avg_price + ta.atr(atrLength) * atrMultiplier
+    shortTP := ((strategy.position_avg_price - shortSL) * riskRewardRatio) - strategy.position_avg_price
+
+// Enter long position when CCI crosses below oversold level and price is above EMA
+longCondition = ta.crossover(cci, oversold) and (not useEMA or close > ema)
+if longCondition
+    strategy.entry("Buy", strategy.long)
+
+// Enter short position when CCI crosses above overbought level and price is below EMA
+shortCondition = ta.crossunder(cci, overbought) and (not useEMA or close < ema)
+if shortCondition
+    strategy.entry("Sell", strategy.short)
+
+// Close long positions with Take Profit or Stop Loss
+if strategy.position_size > 0
+    strategy.exit("Long Exit", "Buy", limit=longTP, stop=longSL)
+
+// Close short positions with Take Profit or Stop Loss
+if strategy.position_size < 0
+    strategy.exit("Short Exit", "Sell", limit=shortTP, stop=shortSL)
+
+// Close positions when CCI crosses back above oversold level in long positions or below overbought level in short positions
+if ta.crossover(cci, overbought)
+    strategy.close("Buy")
+if ta.crossunder(cci, oversold)
+    strategy.close("Sell")
+
+// Plotting
+color_c = cci > overbought ? color.red : (cci < oversold ? color.green : color.white)
+plot(cci, "CCI", color=color_c)
+hline(0, "Middle Band", color=color.new(#787B86, 50))
+obband = hline(overbought, "OB Band", color=color.new(#78867a, 50))
+osband = hline(oversold, "OS Band", color=color.new(#867878, 50))
+fill(obband, osband, color=color.new(#787B86, 90))
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/430170
+
+> Last Modified
+
+2023-10-25 17:37:39

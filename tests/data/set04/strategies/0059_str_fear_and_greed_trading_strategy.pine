@@ -1,0 +1,60 @@
+//@version=6
+// set04 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于市场情绪的动态阈值交易策略-Dynamic-Market-Sentiment-Threshold-Trading-Strategy.md
+// content_hash: a1e6a99432ac20ae
+// collected: 2026-07-27
+strategy("Fear and Greed Trading Strategy", overlay=false)
+
+// Manually input Fear and Greed Index data (example values for demo)
+fear_and_greed = array.from(40, 35, 50, 60, 45, 80, 20, 10)  // Replace with your data points
+
+// Get the current bar index within the array bounds
+current_index = bar_index % array.size(fear_and_greed)
+
+// Extract data for the current bar
+fgi_value = array.get(fear_and_greed, current_index)
+
+// Initialize variables for previous index and value
+var float fgi_prev = na
+if (current_index > 0)
+    fgi_prev := array.get(fear_and_greed, current_index - 1)
+
+// Set thresholds
+fear_threshold = 25
+greed_threshold = 75
+
+// Determine current and previous states
+state_prev = na(fgi_prev) ? "neutral" : fgi_prev < fear_threshold ? "fear" : fgi_prev > greed_threshold ? "greed" : "neutral"
+state_curr = fgi_value < fear_threshold ? "fear" : fgi_value > greed_threshold ? "greed" : "neutral"
+
+// Buy and sell conditions
+buy_condition = state_prev != "greed" and state_curr == "greed"
+sell_condition = state_prev != "fear" and state_curr == "fear"
+
+// Execute trades
+if (buy_condition)
+    strategy.entry("Buy", strategy.long, qty=100)
+if (sell_condition)
+    strategy.close("Buy")
+
+// Plotting for visualization
+plot(fgi_value, color=color.new(color.white, 0), linewidth=2, title="Fear and Greed Index")
+hline(fear_threshold, "Fear Threshold", color=color.red, linestyle=hline.style_dashed)
+hline(greed_threshold, "Greed Threshold", color=color.green, linestyle=hline.style_dashed)
+
+// Add labels for actions
+if (buy_condition)
+    label.new(bar_index, fgi_value, "Buy", style=label.style_label_down, color=color.green, textcolor=color.white)
+if (sell_condition)
+    label.new(bar_index, fgi_value, "Sell", style=label.style_label_up, color=color.red, textcolor=color.white)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/483022
+
+> Last Modified
+
+2025-02-21 09:30:29

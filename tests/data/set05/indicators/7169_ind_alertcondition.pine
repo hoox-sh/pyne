@@ -1,0 +1,8 @@
+//@version=6
+// set05 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block44
+// content_hash: 3993c319cfd8bbc9
+// collected: 2026-07-27
+indicator("alertcondition", overlay=true)
+alertcondition(close >= open, title='Alert on Green Bar', message='Green Bar!')

@@ -1,0 +1,148 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/高杠杆防止追加保证金头寸管理策略Leveraged-Position-Sizing-with-Margin-Call-Risk-Management-Strategy.md
+// content_hash: d80f1f6aff927568
+// collected: 2026-07-27
+//@author=Daveatt
+
+// Breakout on 2H high/low break Strategy
+
+SystemName = "Leverage Strategy"
+TradeId = "?"
+
+InitCapital             = 100000
+InitPosition            = 1
+UseMarginCall           = input(true, title="Use Margin Call?")
+MarginValue             = input(25000, title="Margin Value", type=input.float)
+// use 1 for no leverage
+// use 0.1 for be underleveraged and bet 1/10th of a pip value
+// use any value > 1 for full-degen mode
+UseLeverage             = input(true, title="Use Leverage")
+LeverageValue           = input(4, title="Leverage mult (1 for no leverage)", minval=0.1, type=input.float)
+// Risk Management
+UseRiskManagement       = input(true, title="Use Risk Management?")
+// ticks = 1/10th of a pip value
+StopLoss                = input(5, title="Stop Loss in ticks value", type=input.float)
+TakeProfit              = input(500, title="Take Profit in ticks value", type=input.float)
+
+InitCommission = 0.075
+InitPyramidMax = 1
+CalcOnorderFills = false
+CalcOnTick = true
+DefaultQtyType = strategy.cash
+DefaultQtyValue = strategy.cash
+Currency = currency.USD
+Precision = 2
+Overlay=false
+MaxBarsBack=3000
+
+strategy
+ (
+ title=SystemName, 
+ shorttitle=SystemName, 
+ overlay=Overlay 
+ )
+
+//////////////////////////// UTILITIES ///////////////////////////
+
+f_print(_txt, _condition) =>
+
+    var _lbl = label(na)
+    label.delete(_lbl)
+
+    if _condition
+        // saving the candle where we got rekt :(
+        _index = barssince(_condition)
+        _lbl := label.new(bar_index - _index, highest(100), _txt, xloc.bar_index, yloc.price, size = size.normal, style=label.style_labeldown)
+
+//////////////////////////// STRATEGY LOGIC ///////////////////////////
+
+// Date filterigng
+_Date       = input(true, title="[LABEL] DATE")
+FromYear = input(2019, "From Year", minval=1900),   FromMonth = input(12, "From Month", minval=1, maxval=12),    FromDay = input(1, "From Day", minval=1, maxval=31)
+ToYear = input(2019, "To Year", minval=1900),       ToMonth = input(12, "To Month", minval=1, maxval=12),        ToDay = input(9, "To Day", minval=1, maxval=31)
+FromDate = timestamp(FromYear, FromMonth, FromDay, 00, 00)     
+ToDate = timestamp(ToYear, ToMonth, ToDay, 23, 59)
+TradeDateIsAllowed = true
+
+// non-repainting security version
+four_hours_H     = security(syminfo.tickerid, '240', high[1], lookahead=true)
+four_hours_L     = security(syminfo.tickerid, '240', low[1], lookahead=true)
+buy_trigger     = crossover(close, four_hours_H)
+sell_trigger    = crossunder(close, four_hours_L)
+
+// trend states
+since_buy  = barssince(buy_trigger)
+since_sell = barssince(sell_trigger)
+buy_trend  = since_sell > since_buy
+sell_trend = since_sell < since_buy 
+
+change_trend = (buy_trend and sell_trend[1]) or (sell_trend and buy_trend[1])
+
+// plot(four_hours_H, title="4H High",  linewidth=2, color=#3c91c2, style=plot.style_linebr, transp=0,
+//  show_last=1, trackprice=true)
+// plot(four_hours_L, title="4H Low",  linewidth=2, color=#3c91c2, style=plot.style_linebr, transp=0,
+//  show_last=1, trackprice=true)
+
+plot(strategy.equity, color=color.blue, linewidth=3, title="Strategy Equity")
+
+// get the entry price
+entry_price = valuewhen(buy_trigger or sell_trigger, close, 0)
+
+// SL and TP
+
+SL_price    = buy_trend ? entry_price - StopLoss    : entry_price + StopLoss
+is_SL_hit   = buy_trend ? crossunder(low, SL_price) : crossover(high, SL_price) 
+
+TP_price    = buy_trend ? entry_price + TakeProfit  : entry_price - TakeProfit
+is_TP_hit   = buy_trend ? crossover(high, TP_price) : crossunder(low, TP_price)
+
+//  Account Margin Management:
+f_account_margin_call_cross(_amount)=>
+    _return = crossunder(strategy.equity, _amount)
+
+f_account_margin_call(_amount)=>
+    _return = strategy.equity <= _amount
+
+is_margin_call_cross    = f_account_margin_call_cross(MarginValue)
+is_margin_call          = f_account_margin_call(MarginValue)
+
+plot(strategy.equity, title='strategy.equity', transp=0, linewidth=4)
+//plot(barssince(is_margin_call ), title='barssince(is_margin_call)', transp=100)
+
+can_trade = iff(UseMarginCall, not is_margin_call, true)
+trade_size  = InitPosition * (not UseLeverage ? 1 : LeverageValue)
+
+// We can take the trade if not liquidated/margined called/rekt
+
+buy_final   = can_trade and buy_trigger and TradeDateIsAllowed
+sell_final  = can_trade and sell_trigger and TradeDateIsAllowed
+
+close_long  = buy_trend  and 
+ (UseRiskManagement and (is_SL_hit or is_TP_hit)) or sell_trigger
+
+close_short = sell_trend and 
+ (UseRiskManagement and (is_SL_hit or is_TP_hit)) or buy_trigger
+
+strategy.entry(TradeId + ' B', long=true, qty=trade_size, when=buy_final)
+strategy.entry(TradeId + ' S', long=false, qty=trade_size, when=sell_final)
+strategy.close(TradeId + ' B', when=close_long)
+strategy.close(TradeId + ' S', when=close_short)
+
+// FULL DEGEN MODE ACTIVATED
+// Margin called - Broker closing your account
+strategy.close_all(when=is_margin_call)
+
+if UseMarginCall and is_margin_call_cross
+    f_print("☠️REKT☠️", is_margin_call_cross)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/436653
+
+> Last Modified
+
+2023-12-26 16:21:58

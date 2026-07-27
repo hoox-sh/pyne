@@ -1,0 +1,76 @@
+//@version=4
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/Mathias & Christer EMA.pine
+// content_hash: 0394cf461e713ee1
+// collected: 2026-07-27
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © mattehalen
+strategy("Mathias & Christer EMA", shorttitle="M&C_EMA",overlay=true, process_orders_on_close = true, default_qty_type =  strategy.percent_of_equity, default_qty_value = 100)
+len = input(9, title="Length", type=input.integer)
+src = input(close, title="Source", type=input.source)
+//show4h = input(true, title="show 4h", type=input.bool)
+maxLoss = input(3000)
+//ema4h = security(syminfo.ticker, "240", rsi(src, len))
+ema4h                   = ema(src, len)
+emaCurrent              = ema(src, 1)
+difference              = (emaCurrent - ema4h)/ema4h
+buyLow                  = low>ema4h
+plot(buyLow?1:0,title="buyLow",display=display.none)
+myATR                   = atr(1)
+BuyFirstTrigger         = (difference>myATR) and (emaCurrent>ema4h) and (difference[1]<myATR[1])
+BuyTriggerLineBarssince = barssince(BuyFirstTrigger)
+BuyTriggerLine          = close[BuyTriggerLineBarssince]
+BuySignalTest           = crossover(close[1],BuyTriggerLine) and (BuyTriggerLineBarssince > 6)
+BuySignalTestBarssince  = barssince(BuySignalTest)
+bgcolor(BuySignalTest and BuySignalTestBarssince[1]>BuyTriggerLineBarssince[1]? color.green : na, transp=20)
+bgcolor(BuyFirstTrigger and not BuyFirstTrigger[1]? color.green : na, transp=80,title="BuyFirstTrigger")
+SellFirstTrigger         = ((difference*-1)>myATR) and (emaCurrent<ema4h)
+SellTriggerLineBarssince = barssince(SellFirstTrigger)
+SellTriggerLine          = close[SellTriggerLineBarssince]
+SellSignalTest           = crossunder(close[1],SellTriggerLine) and (SellTriggerLineBarssince > 6)
+SellSignalTestBarssince  = barssince(SellSignalTest)
+bgcolor(SellSignalTest and SellSignalTestBarssince[1]>SellTriggerLineBarssince? color.red : na, transp=20)
+bgcolor(SellFirstTrigger and not SellFirstTrigger[1] and SellTriggerLineBarssince[1]>SellTriggerLineBarssince? color.red : na, transp=80)
+plot(myATR,title="myATR",display=display.none)
+plot(difference,title="difference",display=display.none)
+plot(emaCurrent,title="emaCurrent")
+plot(ema4h,title="ema4h", color=color.purple, linewidth=5)
+plot(BuyTriggerLineBarssince,title="BuyTriggerLineBarssince",display=display.none)
+plot(BuySignalTestBarssince,title="BuySignalTestBarssince",display=display.none)
+plot(BuyTriggerLine,"BuyTriggerLine",color.green,linewidth=5)
+plot(SellTriggerLineBarssince,title="SellTriggerLineBarssince",display=display.none)
+plot(SellSignalTestBarssince,title="SellSignalTestBarssince",display=display.none)
+plot(SellTriggerLine,"SellTriggerLine",color.red,linewidth=5)
+//--------------------------------------------------
+//--------------------------------------------------
+//
+BuySignal       = BuySignalTest and BuySignalTestBarssince[1]>BuyTriggerLineBarssince
+BuySignalBarssince = barssince(BuySignal)
+BuySignalOutBarssince = barssince(crossunder(close[1],ema4h[1]))
+BuySignalOut   = crossunder(close[1],ema4h[1]) and BuySignalOutBarssince[1]>BuySignalTestBarssince[1]
+plot(BuySignalOutBarssince,title="BuySignalOutBarssince",display=display.none)
+SellSignal      = SellSignalTest and SellSignalTestBarssince[1]>SellTriggerLineBarssince
+SellSignalBarssince = barssince(ema4h[1]>ema4h[0] and ema4h[1]>80)
+SellSignalOutBarssince = barssince(crossover(close[1],ema4h[1]))
+SellSignalOut   = crossover(close[1],ema4h[1]) and SellSignalOutBarssince[1]>SellSignalTestBarssince[1]
+if BuySignal
+    strategy.close("short", comment = "Exit short")
+    strategy.entry("long", true)
+    strategy.exit("Max Loss", "long", loss = maxLoss)
+if BuySignalOut
+    strategy.close("long", comment = "Exit Long")
+if SellSignal
+    // Enter trade and issue exit order on max loss.
+    strategy.close("long", comment = "Exit Long")
+    strategy.entry("short", false)
+    strategy.exit("Max Loss", "short", loss = maxLoss)
+if SellSignalOut
+    // Force trade exit.
+    strategy.close("short", comment = "Exit short")
+    
+plotchar(BuySignal, "BuySignal", "⬆", location.belowbar, color.lime,size =size.huge )
+plotchar(BuySignalOut, "BuySignalOut", "█", location.belowbar, color.lime,size =size.small)
+plotchar(SellSignal, "SellSignal", "⬇", location.abovebar ,color.red,size =size.huge)
+plotchar(SellSignalOut, "SellSignalOut", "█", location.abovebar, color.red,size =size.small)
+Expand (95 lines)

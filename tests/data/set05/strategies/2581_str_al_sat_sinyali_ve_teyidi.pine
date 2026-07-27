@@ -1,0 +1,54 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于MACD和RSI的双确认入场策略Dual-Confirmation-MACD-and-RSI-Strategy.md
+// content_hash: 13bda1b6007cc01c
+// collected: 2026-07-27
+strategy("Al-Sat Sinyali ve Teyidi", overlay=true)
+
+// MACD (Hareketli Ortalama Yakınsaklık Sapma)
+[macdLine, signalLine, _] = ta.macd(close, 5, 13, 5)
+
+// RSI (Göreceli Güç Endeksi)
+rsiValue = ta.rsi(close, 14)
+
+// Hacim
+volumeAverage = ta.sma(volume, 20)
+
+// RSI ve MACD Filtreleri
+rsiOverbought = rsiValue > 70
+rsiOversold = rsiValue < 30
+macdBuySignal = ta.crossover(macdLine, signalLine) and not rsiOverbought
+macdSellSignal = ta.crossunder(macdLine, signalLine) and not rsiOversold
+
+// Al-Sat Stratejisi
+shouldBuy = ta.crossover(close, open) and not ta.crossover(close[1], open[1]) and macdBuySignal and volume > volumeAverage
+shouldSell = ta.crossunder(close, open) and not ta.crossunder(close[1], open[1]) and macdSellSignal and volume > volumeAverage
+
+strategy.entry("Buy", strategy.long, when=shouldBuy)
+strategy.entry("Sell", strategy.short, when=shouldSell)
+
+// Teyit için bir sonraki mumu bekleme
+strategy.close("Buy", when=ta.crossover(close, open))
+strategy.close("Sell", when=ta.crossunder(close, open))
+
+// Görselleştirmeyi devre dışı bırakma
+plot(na)
+
+// Al-Sat Etiketleri
+plotshape(series=shouldBuy, title="Al Sinyali", color=color.green, style=shape.triangleup, location=location.belowbar, size=size.small, text="Al")
+plotshape(series=shouldSell, title="Sat Sinyali", color=color.red, style=shape.triangledown, location=location.abovebar, size=size.small, text="Sat")
+
+// Varsayımsal bir sonraki mumun kapanış fiyatını hesapla
+nextBarClose = close[1]
+plot(nextBarClose, color=color.blue, linewidth=2, title="Tahmin Edilen Kapanış Fiyatı")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/442019
+
+> Last Modified
+
+2024-02-18 16:24:06

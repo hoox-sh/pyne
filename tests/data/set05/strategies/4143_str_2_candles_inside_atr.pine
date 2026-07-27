@@ -1,0 +1,17 @@
+//@version=4
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/2 Candles Inside ATR.pine
+// content_hash: 6a84e1dd48490d61
+// collected: 2026-07-27
+strategy("2 Candles Inside ATR", overlay=true)
+durATR = input(25, title="ATR duration")
+multiplier= input(0.6, title="ATR multiplier")
+ATR = sma(rma(tr, durATR), 2)
+combinedHigh = max(high, high[1])
+combinedLow = min(low, low[1])
+longCondition = multiplier * ATR > (combinedHigh - combinedLow) ? combinedHigh : na
+shortCondition = multiplier * ATR > (combinedHigh - combinedLow) ? combinedLow : na
+plotshape(longCondition, title="Buy Signal", text="Buy above High", textcolor=color.blue, style=shape.arrowup, size=size.small, location=location.belowbar, color=color.blue, transp=0)
+plotshape(shortCondition, title="Sell Signal", text="Sell below Low", textcolor=color.red, style=shape.arrowdown, size=size.small, location=location.abovebar, color=color.red, transp=0)
+Expand (15 lines)

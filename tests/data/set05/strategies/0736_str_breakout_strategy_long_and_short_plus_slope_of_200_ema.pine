@@ -1,0 +1,127 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多重趋势突破动量交易策略-Multi-Trend-Breakout-Momentum-Trading-Strategy.md
+// content_hash: 6babe28ef5c65281
+// collected: 2026-07-27
+strategy("Breakout Strategy (Long & Short) + Slope of 200 EMA", overlay=true)
+
+// -------------------
+// 1. Settings
+// -------------------
+breakout_candles = input.int(20, title="Number of Candles for Breakout")
+range_candles    = input.int(10, title="Number of Candles for Previous Range")
+
+ema_long_period   = input.int(200, title="Long EMA Period")
+ema_medium_period = input.int(50,  title="Medium EMA Period")
+ema_short_period  = input.int(30,  title="Short EMA Period")
+
+// Checkbox to allow/disallow short positions
+allowShort = input.bool(true, title="Allow Short Positions")
+
+// Inputs for the new Narrow Consolidation Short setup
+consolidationBars     = input.int(10,   "Consolidation Bars",   minval=1)
+narrowThreshInAtr     = input.float(0.5,"Narrowness (ATR Mult.)",minval=0.0)
+atrLength             = input.int(14,   "ATR Length for Range")
+
+// -------------------
+// 2. Calculations
+// -------------------
+breakout_up   = close > ta.highest(high, breakout_candles)[1]
+breakout_down = close < ta.lowest(low,  breakout_candles)[1]
+
+prev_range_high = ta.highest(high, range_candles)[1]
+prev_range_low  = ta.lowest(low,  range_candles)[1]
+
+ema_long   = ta.ema(close, ema_long_period)
+ema_medium = ta.ema(close, ema_medium_period)
+ema_short  = ta.ema(close, ema_short_period)
+
+average_vol      = ta.sma(volume, breakout_candles)
+volume_condition = volume > 2 * average_vol
+
+// 200 EMA sloping down?
+ema_long_slope_down = ema_long < ema_long[1]
+
+// For the Narrow Consolidation Short
+rangeHigh   = ta.highest(high, consolidationBars)
+rangeLow    = ta.lowest(low,  consolidationBars)
+rangeSize   = rangeHigh - rangeLow
+
+atrValue    = ta.atr(atrLength)
+
+// Condition: Price range is "narrow" if it's less than (ATR * threshold)
+narrowConsolidation = rangeSize < (atrValue * narrowThreshInAtr)
+
+// Condition: All bars under Medium EMA if the highest difference (high - ema_medium) in last N bars is < 0
+allBelowMedium = ta.highest(high - ema_medium, consolidationBars) < 0
+
+// -------------------
+// 3. Long Entry
+// -------------------
+breakout_candle_confirmed_long = ta.barssince(breakout_up) <= 3
+
+long_condition = breakout_candle_confirmed_long
+     and volume_condition
+     and close > prev_range_high
+     and close > ema_long
+     and ema_short > ema_medium
+     and ema_medium > ema_long
+     and strategy.opentrades == 0
+
+if long_condition
+    strategy.entry("Long", strategy.long)
+
+// -------------------
+// 4. Short Entries
+// -------------------
+
+// (A) Original breakout-based short logic
+breakout_candle_confirmed_short = ta.barssince(breakout_down) <= 3
+short_condition_breakout = breakout_candle_confirmed_short
+     and volume_condition
+     and close < prev_range_low
+     and close < ema_long
+     and ema_short < ema_medium
+     and ema_medium < ema_long
+     and ema_long_slope_down
+     and strategy.opentrades == 0
+
+// (B) NEW: Narrow Consolidation Short
+short_condition_consolidation = narrowConsolidation
+     and allBelowMedium
+     and strategy.opentrades == 0
+
+// Combine them: if either short scenario is valid, go short
+short_condition = (short_condition_breakout or short_condition_consolidation) and allowShort
+
+if short_condition
+    // Use a different order ID if you want to distinguish them
+    // but "Short" is fine for a single position
+    strategy.entry("Short", strategy.short)
+
+// -------------------
+// 5. Exits
+// -------------------
+if strategy.position_size > 0 and close < ema_long
+    strategy.close("Long", qty_percent=100)
+
+if strategy.position_size < 0 and close > ema_long
+    strategy.close("Short", qty_percent=100)
+
+// ======================================================================
+// 5. ADDITIONAL PARTIAL EXITS / STOPS
+// ======================================================================
+// You can add partial exits for shorts or longs similarly.
+// For example:
+// if strategy.position_size < 0 and close > stop_level_for_short
+//     strategy.close("Short", qty_percent=50)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/482819
+
+> Last Modified
+
+2025-02-20 14:53:56

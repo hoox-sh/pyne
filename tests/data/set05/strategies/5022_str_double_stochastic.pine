@@ -1,0 +1,67 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双随机震荡指数策略Dual-Stochastic-Oscillator-Strategy.md
+// content_hash: bfe8cc8c09ad9953
+// collected: 2026-07-27
+strategy("Double Stochastic", overlay=true)
+
+//-----------------------Stochastics------------------------//
+
+c= security(syminfo.tickerid,timeframe.period , close)  
+h= security(syminfo.tickerid, timeframe.period, high)  
+l= security(syminfo.tickerid, timeframe.period, low)  
+
+c1= security(syminfo.tickerid, timeframe.period, close)  
+h2= security(syminfo.tickerid, timeframe.period, high)  
+l1= security(syminfo.tickerid, timeframe.period, low)  
+
+K1 = input(5, title="K", minval=1, title="Leading K")
+SM1 = input(2, title="Smooth", minval=1, title="Leading Smooth ")
+k = ema(stoch(c, h, l, K1), SM1)
+
+K2 = input(97, title="K", minval=1, title="Lagging K")
+D2 = input(3, title="D", minval=1, title="Lagging D")
+SM2 = input(1, title="Smooth", minval=1, title="Lagging Smooth")
+k1 = ema(stoch(c1, h2, l1, K2), SM2)
+
+// buy ((k[2] < 40 and k > 40) and bars_up > 0 and k1 > 50) 
+// sell (k[2] > 60 and k < 60) and bars_down > 0 and k1 < 50
+
+//-----------------------Mechanics------------------------//
+
+buy = k1 > 50 and k < 30 and k > k[1] ? 1 : 0
+sell = k1 < 50 and k > 70 and k < k[1] ? 1 : 0
+
+buy_val = valuewhen(buy == 1, close, 1)
+sell_val = valuewhen(sell == 1, close, 1)
+
+buy_close = buy_val * input(1.20, minval=0.1)
+sell_close = sell_val / input(1.20, minval=0.1)
+
+//------------------------Buy/Sell-------------------------//
+
+longCondition = buy == 1
+if (longCondition)
+    strategy.entry("My Long Entry Id", strategy.long)
+
+close_long = close >= buy_close
+if (close_long)
+    strategy.close("My Long Entry Id")
+    
+sellCondition = sell == 1
+if (sellCondition)
+    strategy.entry("My Short Entry Id", strategy.short)
+
+close_short = close <= sell_close
+if (close_short)
+    strategy.close("My Short Entry Id")    
+```
+
+> Detail
+
+https://www.fmz.com/strategy/427065
+
+> Last Modified
+
+2023-09-17 18:26:16

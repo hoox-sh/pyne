@@ -1,0 +1,50 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于收盘价突破的买入策略Buy-Strategy-Based-on-Close-Price-Breakthrough.md
+// content_hash: 3bbe415e8a4a49f1
+// collected: 2026-07-27
+strategy("Buy on Close Strategy", overlay=true)
+
+// Входные параметры
+var float entry_price = na
+if (na(entry_price))
+    entry_price := input.float(title="Entry Price", defval=0)
+
+// Функция для расчета Take Profit
+calc_take_profit(price) =>
+    price * 1.005 // 0.5% от суммы сделки
+
+// Проверяем условие для открытия позиции на покупку
+buy_condition = close > open
+
+// Переменная для отслеживания открытой позиции
+var bool open_position = na
+
+// Реализация стратегии
+if (buy_condition)
+    // Открываем сделку на покупку
+    strategy.entry("Buy", strategy.long)
+    open_position := true
+
+// Закрываем позицию по Take Profit или при закрытии свечи
+if (open_position)
+    // Рассчитываем уровень Take Profit
+    take_profit_level = calc_take_profit(entry_price)
+
+    // Закрываем сделку по Take Profit
+    strategy.exit("Take Profit", "Buy", limit=take_profit_level)
+
+    // Закрываем сделку при закрытии свечи
+    if (close < open)
+        strategy.close("Close Candle", "Buy")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/442378
+
+> Last Modified
+
+2024-02-21 14:48:59

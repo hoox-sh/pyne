@@ -1,0 +1,92 @@
+//@version=6
+// set03 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多维技术指标复合趋势追踪量化交易策略-Multi-Dimensional-Technical-Indicator-Composite-Trend-Tracking-Quantitative-Trading-Strategy.md
+// content_hash: ab139aaf8d66aadd
+// collected: 2026-07-27
+strategy("Advanced BTC/USDT Strategy", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=10)
+
+// ==== INPUT PARAMETERS ====
+emaShortLength = input.int(50, title="Short EMA Length")
+emaLongLength = input.int(200, title="Long EMA Length")
+rsiLength = input.int(14, title="RSI Length")
+atrLength = input.int(14, title="ATR Length")
+supertrendFactor = input.float(2.0, title="Supertrend Factor")
+supertrendATRLength = input.int(10, title="Supertrend ATR Length")
+riskRewardRatio = input.float(2.0, title="Risk-Reward Ratio")
+
+// ==== TECHNICAL INDICATORS ====
+// Exponential Moving Averages (EMA)
+emaShort = ta.ema(close, emaShortLength)
+emaLong = ta.ema(close, emaLongLength)
+
+// Relative Strength Index (RSI)
+rsi = ta.rsi(close, rsiLength)
+
+// Supertrend Indicator
+[supertrend, supertrendDirection] = ta.supertrend(supertrendFactor, supertrendATRLength)
+
+// Average True Range (ATR) for Stop Loss Calculation
+atr = ta.atr(atrLength)
+stopLossDistance = atr * 1.5  // ATR-based stop-loss
+takeProfitDistance = stopLossDistance * riskRewardRatio
+
+// Volume Weighted Average Price (VWAP)
+vwap = ta.vwap(close)
+
+// ==== ENTRY CONDITIONS ====
+// Long Entry: Golden Cross + RSI Confirmation + VWAP Support + Supertrend Uptrend
+longCondition = ta.crossover(emaShort, emaLong) and rsi > 40 and rsi < 65 and close > vwap and supertrendDirection == 1
+
+// Short Entry: Death Cross + RSI Confirmation + VWAP Resistance + Supertrend Downtrend
+shortCondition = ta.crossunder(emaShort, emaLong) and rsi > 60 and rsi < 80 and close < vwap and supertrendDirection == -1
+
+// ==== EXIT CONDITIONS ====
+// Stop-Loss and Take-Profit Levels for Long Positions
+longStopLoss = close - stopLossDistance
+longTakeProfit = close + takeProfitDistance
+
+// Stop-Loss and Take-Profit Levels for Short Positions
+shortStopLoss = close + stopLossDistance
+shortTakeProfit = close - takeProfitDistance
+
+// ==== TRADE EXECUTION ====
+// Open Long Trade
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+    strategy.exit("Long Exit", from_entry="Long", limit=longTakeProfit, stop=longStopLoss)
+
+// Open Short Trade
+if (shortCondition)
+    strategy.entry("Short", strategy.short)
+    strategy.exit("Short Exit", from_entry="Short", limit=shortTakeProfit, stop=shortStopLoss)
+
+// ==== ALERT SYSTEM (OPTIONAL) ====
+// Send real-time alerts for buy/sell signals
+alertcondition(longCondition, title="BUY Alert ?", message="BTC Buy Signal! ?")
+alertcondition(shortCondition, title="SELL Alert ?", message="BTC Sell Signal! ?")
+
+// ==== PLOTTING ====
+// Plot Moving Averages
+plot(emaShort, color=color.blue, title="50 EMA")
+plot(emaLong, color=color.red, title="200 EMA")
+
+// Plot Supertrend
+plot(supertrend, color=supertrendDirection == 1 ? color.green : color.red, title="Supertrend")
+
+// Plot VWAP
+plot(vwap, color=color.orange, title="VWAP")
+
+// Plot Buy/Sell Signals
+plotshape(series=longCondition, location=location.belowbar, color=color.green, style=shape.labelup, title="Buy Signal")
+plotshape(series=shortCondition, location=location.abovebar, color=color.red, style=shape.labeldown, title="Sell Signal")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/488539
+
+> Last Modified
+
+2025-03-28 17:22:09

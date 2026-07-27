@@ -1,0 +1,77 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/趋势跟随可变仓位网格策略-Trend-Following-Variable-Position-Grid-Strategy.md
+// content_hash: d56eae69e21c2b08
+// collected: 2026-07-27
+strategy("Trend Follower Scalping Strategy", overlay=true, process_orders_on_close = true)
+
+// Inputs
+emaLen = input(200, 'EMA Length')
+rsiLen = input(9, 'RSI Length')
+trendDirection = input.string("Both", 'Trend Direction', options=["Long Only", "Short Only", "Both"])
+risk_reward_ratio = input(2, 'Risk Reward Ratio')
+useMacdFilter = input.bool(true, "Use MACD Filter")
+macdTimeframe = input("5", "MACD Timeframe")
+
+// EMA and RSI
+ema200 = ta.ema(close, emaLen)
+customRsi = ta.rsi(close, rsiLen)
+
+// MACD Filter
+[macdLine, signalLine, _] = request.security(syminfo.tickerid, macdTimeframe, ta.macd(close, 12, 26, 9))
+
+
+// Majority Body Candle Identification Function
+isMajorityBodyCandle(candleOpen, candleClose, high, low) =>
+    bodySize = math.abs(candleClose - candleOpen)
+    fullSize = high - low
+    bodySize / fullSize > 0.6
+
+// Engulfing Patterns
+isBullishEngulfing = close > open and close[1] < open[1] and (close - open) > (open[1] - close[1]) and isMajorityBodyCandle(open, close, high, low)
+isBearishEngulfing = close < open and close[1] > open[1] and (open - close) > (close[1] - open[1]) and isMajorityBodyCandle(open, close, high, low)
+
+// Entry Conditions with MACD Filter
+longCondition = close > ema200 and customRsi > 50 and isBullishEngulfing and (not useMacdFilter or macdLine > signalLine)
+shortCondition = close < ema200 and customRsi < 50 and isBearishEngulfing and (not useMacdFilter or macdLine < signalLine)
+
+// Trade Execution
+var float stopLossPrice = na
+var float entryPrice = na
+
+// Long Entry
+if (longCondition and (trendDirection == "Long Only" or trendDirection == "Both"))
+    entryPrice := close
+    engulfingBodySize = math.abs(close - open)
+    minimumStopLoss = entryPrice * 0.997
+    calculatedStopLoss = entryPrice - (engulfingBodySize * 2)
+    stopLossPrice := calculatedStopLoss < minimumStopLoss ? calculatedStopLoss : minimumStopLoss
+    risk = entryPrice - stopLossPrice
+    takeProfitPrice = entryPrice + (risk_reward_ratio * risk)
+    strategy.entry("Long", strategy.long)
+    strategy.exit("Exit Long", "Long", stop = stopLossPrice, limit = takeProfitPrice)
+
+// Short Entry
+if (shortCondition and (trendDirection == "Short Only" or trendDirection == "Both"))
+    entryPrice := close
+    engulfingBodySize = math.abs(open - close)
+    minimumStopLoss = entryPrice * 1.003
+    calculatedStopLoss = entryPrice + (engulfingBodySize * 2)
+    stopLossPrice := calculatedStopLoss > minimumStopLoss ? calculatedStopLoss : minimumStopLoss
+    risk = stopLossPrice - entryPrice
+    takeProfitPrice = entryPrice - (risk_reward_ratio * risk)
+    strategy.entry("Short", strategy.short)
+    strategy.exit("Exit Short", "Short", stop = stopLossPrice, limit = takeProfitPrice)
+
+// Plotting
+plot(ema200, color=color.blue, linewidth=2, title="EMA 200")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/446547
+
+> Last Modified
+
+2024-03-29 15:23:23

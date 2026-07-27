@@ -1,0 +1,16 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block260
+// content_hash: 1e500ec3d57b596a
+// collected: 2026-07-27
+indicator("ta.atr")
+plot(ta.atr(14))
+
+//the same on pine
+pine_atr(length) =>
+    trueRange = na(high[1])? high-low : math.max(math.max(high - low, math.abs(high - close[1])), math.abs(low - close[1]))
+    //true range can be also calculated with ta.tr(true)
+    ta.rma(trueRange, length)
+
+plot(pine_atr(14))

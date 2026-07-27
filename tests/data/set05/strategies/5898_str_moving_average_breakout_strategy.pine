@@ -1,0 +1,65 @@
+//@version=3
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于移动均线的突破交易策略Moving-Average-Breakout-Strategy.md
+// content_hash: 9b142565f4cc909b
+// collected: 2026-07-27
+//  |-- Initialize Strategy Parameters:
+strategy( 
+     // |-- Strategy Title.
+     title='[Tutorial][RS]Working with orders', 
+     // |-- if shorttitle is specified, it will overwrite the name on the chart window.
+     shorttitle='WwO', 
+     // |-- if true it overlays current chart window, otherwise it creates a drawer to display plotting outputs.
+     overlay=true, 
+     // |-- Strategy unit type for default quantity, possible arguments: (strategy.cash, strategy.fixed, strategy.percent_of_equity)
+     default_qty_type=strategy.cash, 
+     // |-- Value to use for default trade size
+     default_qty_value=1000, 
+     // |-- Default Account size 
+     initial_capital=100000, 
+     // |-- Account Currency parameter
+     currency=currency.USD
+     )
+
+//  |-- Strategy Profit/loss parameters:
+profit = input(defval=5000, title='Take Profit')
+loss = input(defval=5000, title='Stop Loss')
+ratio = input(defval=2.0, title='Ratio at wich to take out a percentage off the table (take profit / ratio).')
+percent = input(defval=50.0, title='Percentage of position to take profit.')
+//  |-- Signal Parameters:
+//  |
+//  |-- Moving Average input source and length parameters.
+src = input(defval=close)
+length = input(defval=100)
+//  |-- Moving Average Data series.
+ma = sma(src, length)
+
+//  |-- Condition for triggering a buy(long) order(trade).
+if crossover(src, ma)
+    //  |-- Create the order.
+    strategy.order(id='Buy', long=true)
+    //  |-- Issue a exit order to close a percentage of the trade when a specified ratio(take profit / ratio) is reached.
+    strategy.exit(id='Buy Half Exit', from_entry='Buy', qty_percent=percent, profit=profit/ratio)
+    //  |-- Issue a exit order to close the full position, when take profit or stop loss's are reached.
+    strategy.exit(id='Buy Full Exit', from_entry='Buy', qty_percent=100, profit=profit, loss=loss)
+if crossunder(src, ma)
+    //  |-- Create the order.
+    strategy.order(id='Sell', long=false)
+    //  |-- Issue a exit order to close a percentage of the trade when a specified ratio(take profit / ratio) is reached.
+    strategy.exit(id='Sell Half Exit', from_entry='Sell', qty_percent=percent, profit=profit/ratio)
+    //  |-- Issue a exit order to close the full position, when take profit or stop loss's are reached.
+    strategy.exit(id='Sell Full Exit', from_entry='Sell Half Exit', qty_percent=100, profit=profit, loss=loss)
+
+//  |-- Output Functions.
+plot(series=ma, title='MA', color=black)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/433541
+
+> Last Modified
+
+2023-11-28 13:50:49

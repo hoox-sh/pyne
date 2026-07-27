@@ -1,0 +1,69 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于VWAP和跨周期信号的多空动态止盈止损策略Dynamic-Stop-Loss-and-Take-Profit-Strategy-Based-on-VWAP-and-Cross-Timeframe-Signals.md
+// content_hash: fdf19ce570a14b49
+// collected: 2026-07-27
+strategy('Pine Script Tutorial Example Strategy 1', overlay=true, initial_capital=1000, default_qty_value=100, default_qty_type=strategy.percent_of_equity)
+// fastEMA = ta.ema(close, 24)
+// slowEMA = ta.ema(close, 200)
+// Higher Time Frame
+float sl = na
+float tgt = na
+posSize = 1
+vwap_1d = request.security(syminfo.tickerid, "1D", ta.vwap(close))
+// plot(vwap_1d)
+
+// To avoid differences on historical and realtime bars, you can use this technique, which only returns a value from the higher timeframe on the bar after it completes:
+// indexHighTF = barstate.isrealtime ? 1 : 0
+// indexCurrTF = barstate.isrealtime ? 0 : 1
+// nonRepaintingVWAP = request.security(syminfo.tickerid, "1D", close[indexHighTF])[indexCurrTF]
+// plot(nonRepaintingVWAP, "Non-repainting VWAP")
+
+enterLong = ta.crossover(close, vwap_1d)
+exitLong  = ta.crossunder(close, vwap_1d)
+
+enterShort = ta.crossunder(close, vwap_1d)
+exitShort  = ta.crossover(close, vwap_1d)
+
+if enterLong
+    sl := low[1]>vwap_1d ?low[1]:vwap_1d
+    tgt:=close+3
+    strategy.entry("EL", strategy.long, qty=posSize)
+    strategy.exit('exitEL', 'EL', stop=sl, limit=tgt)
+if enterShort
+    sl := high[1]<vwap_1d ?high[1]:vwap_1d
+    tgt := close-3
+    strategy.entry("ES", strategy.short, qty=posSize)
+    strategy.exit('exitES', 'ES', stop=sl, limit=tgt)
+
+// if exitLong
+//     strategy.close("EL")
+// if exitShort
+//     strategy.close("ES")
+
+
+
+
+
+// goLongCondition1 = ta.crossover(close, vwap_1d)
+// timePeriod = time >= timestamp(syminfo.timezone, 2021, 01, 01, 0, 0)
+// notInTrade = strategy.position_size <= 0
+// if goLongCondition1 and timePeriod and notInTrade
+//     stopLoss = low[1]
+//     takeProfit = close+3
+//     strategy.entry('long', strategy.long)
+//     strategy.exit('exit', 'long', stop=stopLoss, limit=takeProfit)
+plot(close, color=color.new(#00c510, 0))
+plot(vwap_1d, color=color.new(#f05619, 0))
+plot(sl, color=color.new(#fbff00, 0))
+plot(tgt, color=color.new(#00e1ff, 0))
+```
+
+> Detail
+
+https://www.fmz.com/strategy/444041
+
+> Last Modified
+
+2024-03-08 17:37:21

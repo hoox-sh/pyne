@@ -1,0 +1,52 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于SMA均线系统的趋势跟踪策略SMA-System-Trend-Following-Strategy.md
+// content_hash: 3355502d7695fcc7
+// collected: 2026-07-27
+strategy("Estrategia SMA y Ganancias Acumuladas con Stop Loss", shorttitle="SMA_Ganancias", overlay=true)
+
+// Definir las variables de las medias móviles
+sma1_length = input(1, title="SMA 1 Longitud")
+sma2_length = input(3, title="SMA 2 Longitud")
+
+// Calcular las medias móviles
+sma1 = ta.sma(close, sma1_length)
+sma2 = ta.sma(close, sma2_length)
+
+// Condiciones para las señales de compra y venta
+longCondition = ta.crossover(sma1, sma2)
+shortCondition = ta.crossunder(sma1, sma2)
+
+// Acumular las ganancias
+var float profitAccumulated = 0.0
+var float lastTradeProfit = na
+
+if (longCondition)
+    strategy.entry("Buy", strategy.long)
+    lastTradeProfit := strategy.netprofit - (profitAccumulated + lastTradeProfit)
+    profitAccumulated := strategy.netprofit
+
+if (shortCondition)
+    strategy.entry("Sell", strategy.short)
+    lastTradeProfit := strategy.netprofit - (profitAccumulated + lastTradeProfit)
+    profitAccumulated := strategy.netprofit
+
+// Mostrar las señales en el gráfico
+plot(sma1, color=color.blue, title="SMA 1")
+plot(sma2, color=color.red, title="SMA 2")
+
+// Añadir stop loss
+stopLossPips = input(5000, title="Stop Loss (en pips)")
+stopLossPrice = strategy.position_avg_price * (1 - stopLossPips * syminfo.mintick)
+strategy.exit("SL", "Buy", stop=stopLossPrice)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/442626
+
+> Last Modified
+
+2024-02-23 12:29:51

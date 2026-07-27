@@ -1,0 +1,43 @@
+//@version=2
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双指数移动平均线策略Developing-a-2-20-Exponential-Moving-Average-Strategy.md
+// content_hash: b8f3d65be369bfc1
+// collected: 2026-07-27
+////////////////////////////////////////////////////////////
+//  Copyright by HPotter v1.0 27/12/2016
+// Strategy
+// This indicator plots 2/20 exponential moving average. For the Mov 
+// Avg X 2/20 Indicator, the EMA bar will be painted when the Alert criteria is met.
+//
+// You can use in the xPrice any series: Open, High, Low, Close, HL2, HLC3, OHLC4 and ect...
+// You can change long to short in the Input Settings
+// Please, use it only for learning or paper trading. Do not for real trading.
+////////////////////////////////////////////////////////////
+strategy(title="Strategy 2/20 Exponential Moving Average", overlay = true)
+Length = input(20, minval=1)
+reverse = input(false, title="Trade reverse")
+xPrice = close
+xXA = ema(xPrice, Length)
+nHH = max(high, high[1])
+nLL = min(low, low[1])
+nXS = iff((nLL > xXA)or(nHH < xXA), nLL, nHH)
+pos =  iff(close > xXA and close > nXS , 1,
+	     iff(close < xXA and close < nXS, -1, nz(pos[1], 0))) 
+possig = iff(reverse and pos == 1, -1,
+          iff(reverse and pos == -1, 1, pos))	   
+if (possig == 1) 
+    strategy.entry("Long", strategy.long)
+if (possig == -1)
+    strategy.entry("Short", strategy.short)	   	    
+barcolor(possig == -1 ? red: possig == 1 ? green : blue )
+plot(nXS, color=blue, title="XAverage")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/428706
+
+> Last Modified
+
+2023-10-08 15:14:17

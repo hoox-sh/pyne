@@ -1,0 +1,11 @@
+//@version=5
+// set05 corpus entry
+// source_repo: PineTS
+// source_path: PineTS/AGENTS.md::AGENTS.md#block2
+// content_hash: 8b14be21180a43c0
+// collected: 2026-07-27
+indicator("EMA Cross")
+fast = ta.ema(close, 9)
+slow = ta.ema(close, 21)
+plot(fast, "Fast EMA")
+plot(slow, "Slow EMA")

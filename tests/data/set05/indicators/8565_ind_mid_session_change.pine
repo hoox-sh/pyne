@@ -1,0 +1,14 @@
+//@version=4
+// set05 corpus entry
+// source_repo: vikaschouhan-algotrade
+// source_path: vikaschouhan-algotrade/pinescript/ind_midsession_cng.psc
+// content_hash: 0fa4c08896fb6222
+// collected: 2026-07-27
+study("Mid-Session change", overlay=true)
+
+is_newbar2(res, sess) =>
+    t_cng  = change(time(res, sess))
+    tt_cng = change(na(t_cng) ? 1:0) != 0
+//
+
+plot(valuewhen(is_newbar2('D', '0900-1200'), close, 0))

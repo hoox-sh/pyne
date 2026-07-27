@@ -1,0 +1,75 @@
+//@version=3
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双均线交叉突破策略-Dual-Moving-Average-Crossover-Breakout-Strategy.md
+// content_hash: db1f6b628b46b2f5
+// collected: 2026-07-27
+//future strategy
+//strategy(title = "es1!_1minute_hull", default_qty_type = strategy.fixed, initial_capital=250000,  overlay = true, commission_type=strategy.commission.cash_per_contract,commission_value=2, calc_on_order_fills=false, calc_on_every_tick=false,pyramiding=0)
+//strategy.risk.max_position_size(2)
+//stock strategy
+strategy(title = "stub", default_qty_type = strategy.percent_of_equity, default_qty_value = 100, initial_capital=1000000, overlay = false)//, calc_on_order_fills=true, calc_on_every_tick=true)
+//forex strategy
+//strategy(title = "stub", default_qty_type = strategy.percent_of_equity, default_qty_value = 100,  overlay = true,initial_capital=250000, default_qty_type = strategy.percent_of_equity)
+//crypto strategy
+//strategy(title = "stub", default_qty_type = strategy.percent_of_equity, default_qty_value = 100,  overlay = true, commission_type=strategy.commission.percent,commission_value=.005,default_qty_value=10000)
+//strategy.risk.allow_entry_in(strategy.direction.long) // There will be no short entries, only exits from long.
+
+
+
+
+testStartYear = 2010
+testStartMonth = 1
+testStartDay = 1
+testPeriodStart = timestamp(testStartYear,testStartMonth,testStartDay,0,0)
+
+
+testEndYear = 2039
+testEndMonth = 1
+testEndDay = 1
+testPeriodEnd = timestamp(testEndYear,testEndMonth,testEndDay,0,0)
+
+
+testPeriod() =>
+    //true
+    time >= testPeriodStart and time <= testPeriodEnd ? true : false
+
+fast_length = 30
+slow_length = 33
+
+ema1 = 0.0
+ema2 = 0.0
+
+volumeSum1 = sum(volume, fast_length)
+volumeSum2 = sum(volume, slow_length)
+
+//ema1 := (((volumeSum1 - volume) * nz(ema1[1]) + volume * close) / volumeSum1)
+ema1 :=  ema(close,fast_length)
+//ema2 := (((volumeSum2 - volume) * nz(ema2[1]) + volume * close) / volumeSum2)
+ema2 :=  ema(close,slow_length)
+
+
+
+plot(ema1,color=#00ff00, linewidth=3)
+plot(ema2, color=#ffff00, linewidth=3)
+
+go_long = crossover(ema1,ema2)
+go_short = crossunder(ema1,ema2)
+
+if testPeriod()
+    strategy.entry("long_ride", strategy.long, when=go_long)
+    strategy.entry("short_ride", strategy.short,when=go_short)
+    
+        
+    strategy.close("long_ride",when=go_short)
+    strategy.close("short_ride",when=go_long)
+    
+```
+
+> Detail
+
+https://www.fmz.com/strategy/433436
+
+> Last Modified
+
+2023-11-27 16:21:45

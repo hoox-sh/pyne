@@ -1,0 +1,11 @@
+//@version=4
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/release-notes.md::release-notes.md#block28
+// content_hash: 701c1596c5538049
+// collected: 2026-07-27
+study("My Script", overlay = true)
+color c_labelColor = input(color.green, "Main Color", input.color)
+var l = label.new(bar_index, close, yloc = yloc.abovebar, text = "Colored label")
+label.set_x(l, bar_index)
+label.set_color(l, c_labelColor)

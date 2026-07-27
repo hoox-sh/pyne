@@ -1,0 +1,11 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block64
+// content_hash: 5bcdda2d3beef5c7
+// collected: 2026-07-27
+indicator("array.median example")
+a = array.new_float(0)
+for i = 0 to 9
+    array.push(a, close[i])
+plot(array.median(a))

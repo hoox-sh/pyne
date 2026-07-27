@@ -1,0 +1,75 @@
+//@version=6
+// set03 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多时间框架RSI与EMA交叉量化动量策略-Multi-Timeframe-RSI-EMA-Crossover-Momentum-Quantitative-Strategy.md
+// content_hash: 7d4b9f191ac6bf3a
+// collected: 2026-07-27
+strategy("RSI & EMA Crossover Strategy with Daily & Weekly RSI Filter", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=10)
+
+// === INPUTS ===
+rsiLength = input(14, "RSI Length")
+rsiOverbought = input(70, "RSI Overbought")
+rsiOversold = input(30, "RSI Oversold")
+dailyRSIThresholdBuy = input(55, "Daily RSI Buy Threshold")
+dailyRSIThresholdSell = input(45, "Daily RSI Sell Threshold")
+weeklyRSIThresholdBuy = input(55, "Weekly RSI Buy Threshold")
+weeklyRSIThresholdSell = input(45, "Weekly RSI Sell Threshold")
+
+ema1Length = input(13, "EMA 1 Length")
+ema2Length = input(21, "EMA 2 Length")
+ema3Length = input(34, "EMA 3 Length")
+ema4Length = input(55, "EMA 4 Length")
+
+// === RSI CALCULATION ===
+currentRSI = ta.rsi(close, rsiLength)
+dailyRSI = request.security(syminfo.tickerid, "D", ta.rsi(close, rsiLength), lookahead=barmerge.lookahead_on)
+weeklyRSI = request.security(syminfo.tickerid, "W", ta.rsi(close, rsiLength), lookahead=barmerge.lookahead_on)
+
+// === EMA CALCULATIONS ===
+ema1 = ta.ema(close, ema1Length)
+ema2 = ta.ema(close, ema2Length)
+ema3 = ta.ema(close, ema3Length)
+ema4 = ta.ema(close, ema4Length)
+
+// === BUY CONDITION ===
+buySignal = ta.crossover(ema1, ema2) and dailyRSI > dailyRSIThresholdBuy and weeklyRSI > weeklyRSIThresholdBuy
+
+// === SELL CONDITION ===
+sellSignal = ta.crossunder(ema1, ema2) and dailyRSI < dailyRSIThresholdSell and weeklyRSI < weeklyRSIThresholdSell
+
+// === EXIT CONDITIONS ===
+exitLong = ta.crossunder(ema1, ema3) or close < ema4
+exitShort = ta.crossover(ema1, ema3) or close > ema4
+
+// === STRATEGY EXECUTION ===
+if (buySignal)
+    strategy.close("Short")  // Close short position before opening long
+    strategy.entry("Long", strategy.long)
+if (sellSignal)
+    strategy.close("Long")  // Close long position before opening short
+    strategy.entry("Short", strategy.short)
+
+if (exitLong)
+    strategy.close("Long")
+if (exitShort)
+    strategy.close("Short")
+
+// === PLOTTING SIGNALS ===
+plotshape(series=buySignal, location=location.belowbar, color=color.green, style=shape.labelup, title="Buy Signal")
+plotshape(series=sellSignal, location=location.abovebar, color=color.red, style=shape.labeldown, title="Sell Signal")
+
+// === ALERTS ===
+alertcondition(buySignal, title="Buy Alert", message="Buy Signal Triggered")
+alertcondition(sellSignal, title="Sell Alert", message="Sell Signal Triggered")
+alertcondition(exitLong, title="Exit Long Alert", message="Exit Long Position")
+alertcondition(exitShort, title="Exit Short Alert", message="Exit Short Position")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/486570
+
+> Last Modified
+
+2025-03-14 10:11:29

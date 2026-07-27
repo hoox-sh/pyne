@@ -1,0 +1,19 @@
+//@version=2
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/v3/release-notes.md::release-notes.md#block5
+// content_hash: 4abeddca753b1063
+// collected: 2026-07-27
+strategy("Fake strategy", overlay=true)
+
+r = input("D", type=resolution)
+l = security(tickerid, r, low)
+h = security(tickerid, r, high)
+
+longCondition = low == l
+if (longCondition)
+    strategy.entry("My Long Entry Id", strategy.long)
+
+shortCondition = high == h
+if (shortCondition)
+    strategy.entry("My Short Entry Id", strategy.short)

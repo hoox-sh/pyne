@@ -1,0 +1,10 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block70
+// content_hash: 3b18e74d05ddf3f5
+// collected: 2026-07-27
+indicator("array.new_float example")
+length = 5
+a = array.new_float(length, close)
+plot(array.sum(a) / length)

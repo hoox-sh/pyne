@@ -1,0 +1,6 @@
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/release-notes.md::release-notes.md#block27
+// content_hash: 960a54b05dc98ee2
+// collected: 2026-07-27
+indicator(),

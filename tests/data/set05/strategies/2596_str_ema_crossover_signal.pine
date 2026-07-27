@@ -1,0 +1,54 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/移动均线交叉交易策略EMA-Crossover-Trading-Strategy.md
+// content_hash: 6488b5769c523340
+// collected: 2026-07-27
+strategy('EMA Crossover Signal', shorttitle='EMA Crossover Signal', overlay=true)
+// Define input for position size as a percentage of equity
+position_size_pct = input(1, title='Position Size (%)') / 100
+
+//Input EMA
+len1 = input.int(25, minval=1, title='EMA 1')
+src1 = input(close, title='Source')
+ema1 = ta.ema(src1, len1)
+len2 = input.int(100, minval=1, title='EMA 2')
+src2 = input(close, title='Source')
+ema2 = ta.ema(src2, len2)
+//End of format
+
+//Format RSI
+lenrsi = input(14, title='RSI length')
+outrsi = ta.rsi(close,lenrsi)
+
+bodybar1 = math.abs(close - open)
+bodybar2 = math.abs(close[1] - open[1])
+// Plot the EMAs
+plot(ema1, color=color.new(color.blue, 0), title='EMA 1')
+plot(ema2, color=color.new(color.red, 0), title='EMA 2')
+
+// EMA Crossover conditions
+emaCrossoverUp = ta.crossover(ema1, ema2)
+emaCrossoverDown = ta.crossunder(ema1, ema2)
+var entrybar = close  // Initialize entrybar with the current close
+
+// Calculate crossovers outside of the if statements
+emaCrossoverUpOccured = ta.crossover(close, ema1) and ema1 > ema2 and bodybar1 > bodybar2 and close > entrybar
+emaCrossoverDownOccured = ta.crossunder(close, ema1) and ema1 < ema2 and bodybar1 > bodybar2 and close < entrybar
+
+plotshape(series=emaCrossoverUpOccured, location=location.abovebar, color=color.new(color.green, 0), style=shape.triangleup, title='New Buy Order', size=size.tiny)
+plotshape(series=emaCrossoverDownOccured, location=location.belowbar, color=color.new(color.red, 0), style=shape.triangledown, title='New Sell Order', size=size.tiny)
+
+if emaCrossoverUpOccured
+    strategy.entry("Enter Long", strategy.long)
+else if emaCrossoverDownOccured
+    strategy.entry("Enter Short", strategy.short)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/435154
+
+> Last Modified
+
+2023-12-12 17:09:24

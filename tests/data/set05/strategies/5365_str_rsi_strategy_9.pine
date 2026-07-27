@@ -1,0 +1,50 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于RSI指标的短线交易策略RSI-Indicator-Based-Short-term-Trading-Strategy.md
+// content_hash: fd4e293383daee14
+// collected: 2026-07-27
+strategy("RSI Strategy", overlay=true)
+length = input( 14 )
+overSold = input( 30 )
+overBought = input( 70 )
+sl_inp = input(10.0, title='Stop Loss %')/100
+tp_inp = input(1.0, title='Take Profit %')/100
+
+haOpen = 0.0
+haOpen := haOpen[1]
+ 
+st_level = strategy.position_avg_price * (1 - sl_inp)
+take_level = strategy.position_avg_price * (1 + tp_inp)
+price = close
+vrsi = rsi(price, length)
+co = crossover(vrsi, overSold)
+cu = crossunder(vrsi, overBought)
+strategy.initial_capital =50000
+orderSize = ((strategy.initial_capital * 1) / close)
+if (not na(vrsi))
+	if (co)
+		strategy.order("RsiLE", strategy.long, orderSize, take_level, st_level, comment="RsiLE")
+	if (cu)
+		strategy.close("RsiLE")//strategy.entry("RsiSE", strategy.short, qty=orderSize, comment="RsiSE")
+
+plotshape(not na(vrsi) and co and haOpen == 0.0, style=shape.labelup, location=location.belowbar, color=color.green, size=size.tiny, title="buy label", text="BUY", textcolor=color.white)
+plotshape(not na(vrsi) and co and haOpen == 1.0, style=shape.labelup, location=location.belowbar, color=color.orange, size=size.tiny, title="buy label", text="INC", textcolor=color.white)
+plotshape(not na(vrsi) and cu and haOpen == 1.0, style=shape.labeldown, location=location.abovebar, color=color.red, size=size.tiny, title="sell label", text="SELL", textcolor=color.white)
+
+if (not na(vrsi))
+	if (co)
+	    haOpen := 1.0
+	if (cu)
+	    haOpen := 0.0
+//strategy.exit("Stop Loss/TP","RsiLE", stop=stop_level, limit=take_level)
+//plot(strategy.equity, title="equity", color=color.red, linewidth=2, style=plot.style_areabr)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/439049
+
+> Last Modified
+
+2024-01-17 11:49:15

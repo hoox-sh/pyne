@@ -1,0 +1,58 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多指标趋势动量交易策略基于布林带相对强弱与交易量的综合量化交易系统-Multi-Indicator-Trend-Momentum-Trading-Strategy-A-Comprehensive-Quantitative-Trading-System-Based-on-Bollinger-Bands-RSI-and-OBV.md
+// content_hash: f56273b98bcc5840
+// collected: 2026-07-27
+strategy("İstanbul Stratejisi", overlay=true)
+
+// Bollinger Bantları Hesaplamaları
+bbLength = 20
+bbMult = 2.0
+basis = ta.sma(close, bbLength)
+dev = bbMult * ta.stdev(close, bbLength)
+upperBand = basis + dev
+lowerBand = basis - dev
+
+// RSI Hesaplamaları
+rsiLength = 14
+rsi = ta.rsi(close, rsiLength)
+rsiThreshold = 50
+
+// OBV Hesaplaması
+obv = ta.cum(volume * math.sign(ta.change(close)))  // ta.cum yerine ta.cumulative kullanılmalı
+obvTrend = ta.ema(obv, 10) > ta.ema(obv[1], 10)  // OBV'nin yükseliş trendinde olup olmadığını kontrol eder
+
+// ALIM ŞARTLARI
+buyCondition = close > basis and rsi > rsiThreshold and obvTrend
+
+// SATIM ŞARTI
+sellCondition = close < lowerBand
+
+// Alım İşlemi Aç
+if buyCondition
+    strategy.entry("Long", strategy.long)
+
+// Satım İşlemi Yap (Pozisyon Kapat)
+if sellCondition
+    strategy.close("Long")
+
+// Bollinger Bantlarını Göster
+plot(upperBand, title="Üst Bollinger Bandı", color=color.red)
+plot(lowerBand, title="Alt Bollinger Bandı", color=color.green)
+plot(basis, title="Orta Bollinger Bandı", color=color.blue)
+
+// Alım ve Satım Sinyallerini İşaretle
+plotshape(series=buyCondition, location=location.belowbar, color=color.green, style=shape.labelup, title="Alım Sinyali")
+plotshape(series=sellCondition, location=location.abovebar, color=color.red, style=shape.labeldown, title="Satım Sinyali")
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/482464
+
+> Last Modified
+
+2025-02-18 15:24:56

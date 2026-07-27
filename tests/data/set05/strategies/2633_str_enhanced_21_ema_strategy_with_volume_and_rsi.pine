@@ -1,0 +1,53 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于21日EMA成交量和RSI的趋势动量策略Trend-Momentum-Strategy-Based-on-21-EMA-Volume-and-RSI.md
+// content_hash: f2c35f2dc8387722
+// collected: 2026-07-27
+strategy("Enhanced 21 EMA Strategy with Volume and RSI", overlay=true)
+
+// Input parameters
+input_volumeThresholdPct = input(10, title="Volume Threshold Percentage")
+input_rsiPeriod = input(14, title="RSI Period")
+input_rsiOverbought = input(70, title="RSI Overbought Level")
+input_rsiOversold = input(30, title="RSI Oversold Level")
+input_atrPeriod = input(14, title="ATR Period for Stop Loss")
+input_atrMultiplier = input(1.5, title="ATR Multiplier for Stop Loss")
+
+// Calculate indicators
+ema21 = ta.ema(close, 21)
+rsi = ta.rsi(close, input_rsiPeriod)
+ema21_volume = ta.ema(volume, 21)
+volumeThreshold = ema21_volume * (1 + input_volumeThresholdPct / 100)
+atr = ta.atr(input_atrPeriod)
+
+// Generate buy and sell signals with volume and RSI confirmation
+buySignal = ta.crossover(close, ema21) and volume > volumeThreshold and rsi > 50
+sellSignal = ta.crossunder(close, ema21) and volume < volumeThreshold and rsi < 50
+
+// Plot the 21 EMA and RSI on the chart
+plot(ema21, color=color.blue, title="21 EMA")
+hline(input_rsiOverbought, "RSI Overbought", color=color.red)
+hline(input_rsiOversold, "RSI Oversold", color=color.green)
+
+// Execute buy and sell orders based on signals with dynamic stop-loss levels
+if (buySignal)
+    strategy.entry("Buy", strategy.long)
+    strategy.exit("Sell", "Buy", stop=close - atr * input_atrMultiplier)
+if (sellSignal)
+    strategy.entry("Sell", strategy.short)
+    strategy.exit("Buy", "Sell", stop=close + atr * input_atrMultiplier)
+
+// Plot buy and sell signals on the chart
+plotshape(series=buySignal, title="Buy Signal", location=location.belowbar, color=color.green, style=shape.triangleup, size=size.small, text="Buy")
+plotshape(series=sellSignal, title="Sell Signal", location=location.abovebar, color=color.red, style=shape.triangledown, size=size.small, text="Sell")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/444002
+
+> Last Modified
+
+2024-03-08 14:59:14

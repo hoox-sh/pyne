@@ -1,0 +1,58 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/SMA双均线交易策略-SMA-Dual-Moving-Average-Trading-Strategy.md
+// content_hash: da4074ca7536ee09
+// collected: 2026-07-27
+strategy("Moving Average Crossover with Risk Management and Alerts", overlay=true)
+
+// Input parameters
+fast_length = input.int(9, title="Fast MA Length")
+slow_length = input.int(21, title="Slow MA Length")
+src = input(close, title="Source")
+stop_loss_percent = input.float(1.0, title="Stop Loss (%)")
+take_profit_percent = input.float(2.0, title="Take Profit (%)")
+risk_per_trade_percent = input.float(2.0, title="Risk Per Trade (%)")
+
+// Calculate moving averages
+fast_ma = ta.sma(src, fast_length)
+slow_ma = ta.sma(src, slow_length)
+
+// Plot moving averages
+plot(fast_ma, color=color.new(color.blue, 0), title="Fast MA")
+plot(slow_ma, color=color.new(color.red, 0), title="Slow MA")
+
+// Generate buy and sell signals
+buy_signal = ta.crossover(fast_ma, slow_ma)
+sell_signal = ta.crossunder(fast_ma, slow_ma)
+
+// Plot buy and sell signals
+plotshape(buy_signal, style=shape.triangleup, location=location.belowbar, color=color.new(color.green, 0), size=size.small, title="Buy Signal")
+plotshape(sell_signal, style=shape.triangledown, location=location.abovebar, color=color.new(color.red, 0), size=size.small, title="Sell Signal")
+
+// Calculate stop loss and take profit levels
+stop_loss_level = strategy.position_avg_price * (1 - stop_loss_percent / 100)
+take_profit_level = strategy.position_avg_price * (1 + take_profit_percent / 100)
+
+// Risk management
+if (buy_signal)
+    strategy.entry("Buy", strategy.long)
+    strategy.exit("Take Profit/Stop Loss", "Buy", stop=stop_loss_level, limit=take_profit_level)
+
+// Alerts
+alertcondition(buy_signal, title="Buy Signal", message="Buy Signal Detected!")
+alertcondition(sell_signal, title="Sell Signal", message="Sell Signal Detected!")
+
+// Visual enhancements
+bgcolor(buy_signal ? color.new(color.green, 90) : na)
+bgcolor(sell_signal ? color.new(color.red, 90) : na)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/451391
+
+> Last Modified
+
+2024-05-14 15:43:34

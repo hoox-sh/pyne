@@ -1,0 +1,409 @@
+//@version=6
+// set03 corpus entry
+// source_repo: nadi984-tradingview-indicator
+// source_path: nadi984-tradingview-indicator/src/indicator.pine
+// content_hash: 37966e1a8f7ddcaa
+// collected: 2026-07-27
+indicator("Professional TradingView Indicator", shorttitle="PRO-IND", overlay=true, max_labels_count=500, max_lines_count=500, max_boxes_count=500)
+
+// ╔════════════════════════════════════════════════════════════════════════════╗
+// ║                    PROFESSIONAL TRADINGVIEW INDICATOR                      ║
+// ║                          Pine Script v6 Complete                           ║
+// ║                                                                            ║
+// ║  مؤشر احترافي لـ TradingView - Pine Script v6 كامل                       ║
+// ║                                                                            ║
+// ╚════════════════════════════════════════════════════════════════════════════╝
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 01. LANGUAGE SETTINGS - إعدادات اللغة
+// ═══════════════════════════════════════════════════════════════════════════
+
+group_lang = "🌍 Language | اللغة"
+lang = input.string("AR", title="Language | اللغة", options=["AR", "EN"], group=group_lang)
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 02. LOCALIZATION STRINGS - سلاسل النصوص
+// ═══════════════════════════════════════════════════════════════════════════
+
+get_text(ar_text, en_text) =>
+    lang == "AR" ? ar_text : en_text
+
+// Common texts
+txt_trend = get_text("الاتجاه", "Trend")
+txt_buy = get_text("شراء", "BUY")
+txt_sell = get_text("بيع", "SELL")
+txt_strong = get_text("قوي", "STRONG")
+txt_weak = get_text("ضعيف", "WEAK")
+txt_bullish = get_text("صاعد", "BULLISH")
+txt_bearish = get_text("هابط", "BEARISH")
+txt_range = get_text("عرضي", "RANGE")
+txt_breakout = get_text("اختراق", "BREAKOUT")
+txt_entry = get_text("الدخول", "ENTRY")
+txt_tp1 = get_text("الهدف 1", "TP1")
+txt_tp2 = get_text("الهدف 2", "TP2")
+txt_tp3 = get_text("الهدف 3", "TP3")
+txt_sl = get_text("وقف الخسارة", "STOP LOSS")
+txt_rr = get_text("العائد/المخاطرة", "R:R")
+txt_rating = get_text("التقييم", "RATING")
+txt_hh = get_text("قمة أعلى", "Higher High")
+txt_hl = get_text("قاع أعلى", "Higher Low")
+txt_lh = get_text("قمة أدنى", "Lower High")
+txt_ll = get_text("قاع أدنى", "Lower Low")
+txt_bos = get_text("كسر الهيكل", "BOS")
+txt_choch = get_text("تغير الهيكل", "CHOCH")
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 03. GENERAL SETTINGS - الإعدادات العامة
+// ═══════════════════════════════════════════════════════════════════════════
+
+group_general = "⚙️ General | العام"
+
+show_trend = input(true, title="Show Trend | عرض الاتجاه", group=group_general)
+show_structure = input(true, title="Show Structure | عرض الهيكل", group=group_general)
+show_zones = input(true, title="Show Zones | عرض المناطق", group=group_general)
+show_signals = input(true, title="Show Signals | عرض الإشارات", group=group_general)
+show_dashboard = input(true, title="Show Dashboard | عرض لوحة المعلومات", group=group_general)
+
+enable_alerts = input(true, title="Enable Alerts | تفعيل التنبيهات", group=group_general)
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 04. TREND ANALYSIS SETTINGS - إعدادات تحليل الاتجاه
+// ═══════════════════════════════════════════════════════════════════════════
+
+group_trend = "📈 Trend Analysis | تحليل الاتجاه"
+
+ma_fast_len = input(9, title="Fast MA Length", minval=1, group=group_trend)
+ma_slow_len = input(21, title="Slow MA Length", minval=1, group=group_trend)
+rsi_len = input(14, title="RSI Length", minval=1, group=group_trend)
+atr_len = input(14, title="ATR Length", minval=1, group=group_trend)
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 05. MARKET STRUCTURE SETTINGS - إعدادات هيكل السوق
+// ═══════════════════════════════════════════════════════════════════════════
+
+group_structure = "🏗️ Market Structure | هيكل السوق"
+
+lookback_structure = input(20, title="Lookback Period", minval=5, group=group_structure)
+min_swing_size = input(0.001, title="Minimum Swing Size %", minval=0, group=group_structure)
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 06. ZONES SETTINGS - إعدادات المناطق
+// ═══════════════════════════════════════════════════════════════════════════
+
+group_zones = "🎯 Zones | المناطق"
+
+show_demand = input(true, title="Show Demand Zones | عرض مناطق الطلب", group=group_zones)
+show_supply = input(true, title="Show Supply Zones | عرض مناطق العرض", group=group_zones)
+show_fvg = input(true, title="Show FVG | عرض FVG", group=group_zones)
+show_liquidity = input(true, title="Show Liquidity | عرض السيولة", group=group_zones)
+
+zone_lookback = input(50, title="Zone Lookback", minval=10, group=group_zones)
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 07. RISK MANAGEMENT SETTINGS - إعدادات إدارة المخاطرة
+// ═══════════════════════════════════════════════════════════════════════════
+
+group_risk = "🛡️ Risk Management | إدارة المخاطرة"
+
+risk_percent = input(2.0, title="Risk % per Trade", minval=0.1, maxval=10, group=group_risk)
+tp1_ratio = input(1.0, title="TP1 Ratio", minval=0.5, group=group_risk)
+tp2_ratio = input(2.0, title="TP2 Ratio", minval=1, group=group_risk)
+tp3_ratio = input(3.0, title="TP3 Ratio", minval=2, group=group_risk)
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 08. CALCULATIONS - الحسابات
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Moving Averages
+ma_fast = ta.sma(close, ma_fast_len)
+ma_slow = ta.sma(close, ma_slow_len)
+
+// RSI
+rsi_val = ta.rsi(close, rsi_len)
+
+// ATR
+atr_val = ta.atr(atr_len)
+atr_pct = (atr_val / close) * 100
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 09. TREND DETERMINATION - تحديد الاتجاه
+// ═══════════════════════════════════════════════════════════════════════════
+
+is_bullish = ma_fast > ma_slow and close > ma_fast
+is_bearish = ma_fast < ma_slow and close < ma_fast
+is_range = not is_bullish and not is_bearish
+
+trend_strength = math.abs(rsi_val - 50) / 50
+
+is_strong_trend = trend_strength > 0.4
+is_weak_trend = trend_strength <= 0.4
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 10. MARKET STRUCTURE - هيكل السوق
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Find Higher Highs and Higher Lows (Uptrend)
+hh = ta.highest(high, lookback_structure)
+ll = ta.lowest(low, lookback_structure)
+
+// Detect structure changes
+hh_confirmed = false
+ll_confirmed = false
+bos_detected = false
+choch_detected = false
+
+for i = 1 to lookback_structure
+    if high[i] > hh[i+1]
+        hh_confirmed := true
+    if low[i] < ll[i+1]
+        ll_confirmed := true
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 11. DEMAND AND SUPPLY ZONES - مناطق الطلب والعرض
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Find demand zones (Support areas)
+demand_zone_high = ta.highest(close, zone_lookback)
+demand_zone_low = ta.lowest(close, zone_lookback) * 0.98
+
+// Find supply zones (Resistance areas)
+supply_zone_high = ta.highest(close, zone_lookback) * 1.02
+supply_zone_low = ta.lowest(close, zone_lookback)
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 12. FAIR VALUE GAP (FVG) - الفجوة العادلة
+// ═══════════════════════════════════════════════════════════════════════════
+
+fvg_bullish = (low[1] > high[2]) and (close > open)
+fvg_bearish = (high[1] < low[2]) and (close < open)
+
+fvg_high = fvg_bullish ? high[1] : na
+fvg_low = fvg_bullish ? low[2] : na
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 13. BREAKOUT DETECTION - اكتشاف الاختراقات
+// ═══════════════════════════════════════════════════════════════════════════
+
+recent_high = ta.highest(high, 20)
+recent_low = ta.lowest(low, 20)
+
+breakout_up = close > recent_high and close[1] <= recent_high
+breakout_down = close < recent_low and close[1] >= recent_low
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 14. ENTRY SIGNALS - إشارات الدخول
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Buy signal conditions
+buy_signal = is_bullish and rsi_val > 45 and rsi_val < 70 and close > ma_fast and breakout_up
+
+// Sell signal conditions
+sell_signal = is_bearish and rsi_val < 55 and rsi_val > 30 and close < ma_fast and breakout_down
+
+// Entry price
+entry_price = buy_signal ? close : (sell_signal ? close : na)
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 15. STOP LOSS AND TAKE PROFIT - وقف الخسارة والأهداف
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Calculate SL based on ATR
+sl_distance = atr_val * 2
+
+// Buy trade setup
+buy_sl = buy_signal ? close - sl_distance : na
+buy_tp1 = buy_signal ? close + (sl_distance * tp1_ratio) : na
+buy_tp2 = buy_signal ? close + (sl_distance * tp2_ratio) : na
+buy_tp3 = buy_signal ? close + (sl_distance * tp3_ratio) : na
+
+// Sell trade setup
+sell_sl = sell_signal ? close + sl_distance : na
+sell_tp1 = sell_signal ? close - (sl_distance * tp1_ratio) : na
+sell_tp2 = sell_signal ? close - (sl_distance * tp2_ratio) : na
+sell_tp3 = sell_signal ? close - (sl_distance * tp3_ratio) : na
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 16. RISK TO REWARD RATIO - نسبة العائد للمخاطرة
+// ═══════════════════════════════════════════════════════════════════════════
+
+buy_risk = buy_signal ? close - buy_sl : na
+buy_reward_tp1 = buy_signal ? buy_tp1 - close : na
+buy_reward_tp2 = buy_signal ? buy_tp2 - close : na
+buy_reward_tp3 = buy_signal ? buy_tp3 - close : na
+
+buy_rr_ratio = buy_signal ? buy_reward_tp2 / buy_risk : na
+
+sell_risk = sell_signal ? sell_sl - close : na
+sell_reward_tp1 = sell_signal ? close - sell_tp1 : na
+sell_reward_tp2 = sell_signal ? close - sell_tp2 : na
+sell_reward_tp3 = sell_signal ? close - sell_tp3 : na
+
+sell_rr_ratio = sell_signal ? sell_reward_tp2 / sell_risk : na
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 17. TRADE RATING - تقييم الصفقة
+// ═══════════════════════════════════════════════════════════════════════════
+
+calculate_rating() =>
+    rating = 0.0
+    
+    // Trend score (30%)
+    if is_bullish or is_bearish
+        rating += 30
+    else
+        rating += 15
+    
+    // Trend strength (25%)
+    rating += trend_strength * 25
+    
+    // RSI positioning (20%)
+    if (is_bullish and rsi_val > 50) or (is_bearish and rsi_val < 50)
+        rating += 20
+    else
+        rating += 10
+    
+    // Breakout (15%)
+    if breakout_up or breakout_down
+        rating += 15
+    else
+        rating += 7
+    
+    // Structure (10%)
+    if hh_confirmed or ll_confirmed
+        rating += 10
+    else
+        rating += 5
+    
+    rating
+
+trade_rating = calculate_rating()
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 18. VISUAL ELEMENTS - العناصر البصرية
+// ═══════════════════════════════════════════════════════════════════════════
+
+// ─────────────────────────────────────────────────────────────────────────
+// Moving Averages
+if show_trend
+    plot(ma_fast, title="Fast MA", color=color.blue, linewidth=2)
+    plot(ma_slow, title="Slow MA", color=color.orange, linewidth=2)
+
+// ─────────────────────────────────────────────────────────────────────────
+// Buy Signal
+if show_signals and buy_signal
+    label.new(bar_index, low - atr_val, txt_buy, style=label.style_label_up, 
+              color=color.green, textcolor=color.white, size=size.small)
+    
+    // Entry, SL, TP markers
+    line.new(bar_index, buy_sl, bar_index+10, buy_sl, color=color.red, width=1, extend=extend.both)
+    line.new(bar_index, buy_tp1, bar_index+10, buy_tp1, color=color.green, width=1, extend=extend.both)
+    line.new(bar_index, buy_tp2, bar_index+10, buy_tp2, color=color.lime, width=1, extend=extend.both)
+    line.new(bar_index, buy_tp3, bar_index+10, buy_tp3, color=color.olive, width=1, extend=extend.both)
+
+// ─────────────────────────────────────────────────────────────────────────
+// Sell Signal
+if show_signals and sell_signal
+    label.new(bar_index, high + atr_val, txt_sell, style=label.style_label_down, 
+              color=color.red, textcolor=color.white, size=size.small)
+    
+    // Entry, SL, TP markers
+    line.new(bar_index, sell_sl, bar_index+10, sell_sl, color=color.green, width=1, extend=extend.both)
+    line.new(bar_index, sell_tp1, bar_index+10, sell_tp1, color=color.red, width=1, extend=extend.both)
+    line.new(bar_index, sell_tp2, bar_index+10, sell_tp2, color=color.maroon, width=1, extend=extend.both)
+    line.new(bar_index, sell_tp3, bar_index+10, sell_tp3, color=color.burgundy, width=1, extend=extend.both)
+
+// ─────────────────────────────────────────────────────────────────────────
+// Supply and Demand Zones
+if show_zones
+    if show_supply
+        box.new(bar_index-zone_lookback, supply_zone_low, bar_index, supply_zone_high, 
+                border_color=color.red, bgcolor=color.new(color.red, 90), extend=extend.right)
+    
+    if show_demand
+        box.new(bar_index-zone_lookback, demand_zone_low, bar_index, demand_zone_high, 
+                border_color=color.green, bgcolor=color.new(color.green, 90), extend=extend.right)
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 19. DASHBOARD - لوحة المعلومات
+// ═══════════════════════════════════════════════════════════════════════════
+
+if show_dashboard
+    // Determine trend text and color
+    trend_text = is_bullish ? txt_bullish : (is_bearish ? txt_bearish : txt_range)
+    trend_color = is_bullish ? color.green : (is_bearish ? color.red : color.orange)
+    
+    strength_text = is_strong_trend ? txt_strong : txt_weak
+    
+    // Build dashboard info
+    info = ""
+    info += (lang == "AR" ? "═════════════════════════\n" : "═════════════════════════\n")
+    info += (lang == "AR" ? "📊 لوحة المعلومات\n" : "📊 DASHBOARD\n")
+    info += (lang == "AR" ? "═════════════════════════\n\n" : "═════════════════════════\n\n")
+    
+    info += (lang == "AR" ? "• الأصل: " : "• Asset: ") + syminfo.tickerid + "\n"
+    info += (lang == "AR" ? "• الاتجاه: " : "• Trend: ") + trend_text + "\n"
+    info += (lang == "AR" ? "• القوة: " : "• Strength: ") + strength_text + "\n"
+    info += (lang == "AR" ? "• RSI: " : "• RSI: ") + str.tostring(math.round(rsi_val)) + "\n"
+    info += (lang == "AR" ? "• السعر الحالي: " : "• Current Price: ") + str.tostring(math.round(close, 2)) + "\n"
+    
+    if buy_signal or sell_signal
+        info += "\n" + (lang == "AR" ? "🎯 تفاصيل الصفقة\n" : "🎯 TRADE DETAILS\n")
+        info += (lang == "AR" ? "────────────────────\n" : "────────────────────\n")
+        
+        if buy_signal
+            info += (lang == "AR" ? "• نوع الصفقة: شراء\n" : "• Trade Type: BUY\n")
+            info += (lang == "AR" ? "• سعر الدخول: " : "• Entry: ") + str.tostring(math.round(entry_price, 2)) + "\n"
+            info += (lang == "AR" ? "• وقف الخسارة: " : "• Stop Loss: ") + str.tostring(math.round(buy_sl, 2)) + "\n"
+            info += (lang == "AR" ? "• الهدف 1: " : "• TP1: ") + str.tostring(math.round(buy_tp1, 2)) + "\n"
+            info += (lang == "AR" ? "• الهدف 2: " : "• TP2: ") + str.tostring(math.round(buy_tp2, 2)) + "\n"
+            info += (lang == "AR" ? "• الهدف 3: " : "• TP3: ") + str.tostring(math.round(buy_tp3, 2)) + "\n"
+            info += (lang == "AR" ? "• R:R: " : "• R:R: ") + str.tostring(math.round(buy_rr_ratio, 2)) + ":1\n"
+        
+        if sell_signal
+            info += (lang == "AR" ? "• نوع الصفقة: بيع\n" : "• Trade Type: SELL\n")
+            info += (lang == "AR" ? "• سعر الدخول: " : "• Entry: ") + str.tostring(math.round(entry_price, 2)) + "\n"
+            info += (lang == "AR" ? "• وقف الخسارة: " : "• Stop Loss: ") + str.tostring(math.round(sell_sl, 2)) + "\n"
+            info += (lang == "AR" ? "• الهدف 1: " : "• TP1: ") + str.tostring(math.round(sell_tp1, 2)) + "\n"
+            info += (lang == "AR" ? "• الهدف 2: " : "• TP2: ") + str.tostring(math.round(sell_tp2, 2)) + "\n"
+            info += (lang == "AR" ? "• الهدف 3: " : "• TP3: ") + str.tostring(math.round(sell_tp3, 2)) + "\n"
+            info += (lang == "AR" ? "• R:R: " : "• R:R: ") + str.tostring(math.round(sell_rr_ratio, 2)) + ":1\n"
+        
+        info += "\n" + (lang == "AR" ? "⭐ التقييم: " : "⭐ Rating: ") + str.tostring(math.round(trade_rating)) + "/100\n"
+
+// Display dashboard in top-right corner
+table_position = position.top_right
+var table dashboard_table = na
+
+if show_dashboard
+    if na(dashboard_table)
+        dashboard_table := table.new(position=table_position, columns=1, rows=1, 
+                                    bgcolor=color.new(color.black, 20), 
+                                    border_color=color.gray, border_width=1)
+        table.cell(dashboard_table, 0, 0, text=info, text_halign=text.align_left, text_color=color.white, text_size=size.small)
+    else
+        table.cell(dashboard_table, 0, 0, text=info, text_halign=text.align_left, text_color=color.white, text_size=size.small)
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 20. ALERTS - التنبيهات
+// ═══════════════════════════════════════════════════════════════════════════
+
+if enable_alerts
+    if buy_signal
+        alert(get_text("إشارة شراء جديدة!", "New BUY Signal!"), alert.freq_once_per_bar_close)
+    
+    if sell_signal
+        alert(get_text("إشارة بيع جديدة!", "New SELL Signal!"), alert.freq_once_per_bar_close)
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 21. EXPORT INFORMATION - تصدير المعلومات
+// ═══════════════════════════════════════════════════════════════════════════
+
+// These can be used for external systems
+export_buy = buy_signal
+export_sell = sell_signal
+export_rating = trade_rating
+export_rr = buy_signal ? buy_rr_ratio : (sell_signal ? sell_rr_ratio : na)
+
+// ╚════════════════════════════════════════════════════════════════════════════╝
+// END OF INDICATOR
+// ╚════════════════════════════════════════════════════════════════════════════╝

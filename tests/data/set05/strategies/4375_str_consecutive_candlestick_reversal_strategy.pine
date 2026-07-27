@@ -1,0 +1,111 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/连续阳线短期反转策略Consecutive-Candlestick-Reversal-Strategy.md
+// content_hash: 81569d746da26d58
+// collected: 2026-07-27
+//This is part of a series of strategies developed automatically by a online software. I cannot share the site url, which is not related to me in any way, because it is against the TV reules.
+//
+//This strategy was optimized for GBPUSD, timeframe 1D, fixed lots 0.1, initial balance 1000€
+//LOGIC:
+//- LONG ENTRY when previous candle is bear
+//- LONG EXIT: RVI > signal line
+//- SHORT ENTRY when previous candle is bull
+//- SHORT EXIT: RVI <  signal line
+//
+//NOTE: I considered the open of actual candle instead of close otherwise there will be a back shift of 1 candle in pine script
+//
+//Take profit = no
+//Stop loss = no
+
+// strategy("Expert studio strategy 1 - GBPUSD", overlay=false, precision=6, initial_capital=1000,calc_on_every_tick=true, pyramiding=0, default_qty_type=strategy.fixed, default_qty_value=10000, currency=currency.EUR)
+
+//INPUTS
+src = input(close, "source")
+min_body_height = input(42, "Minimum body height", type=input.float)
+//bars_back=input(2, "Consecutive bars of same color")
+rvi_period = input(55, "RVI period")
+
+//CALCULATIONS_____________________________
+//candle color
+body_height = abs(open - close) / syminfo.mintick
+body_color = open > close ? color.red : color.green
+
+//da migliorare for i=0 to bars_back-1
+
+//RVI -------- thanks to hecate
+p = rvi_period
+
+CO = close - open
+HL = high - low
+
+value1 = (CO + 2 * CO[1] + 2 * CO[2] + CO[3]) / 6
+value2 = (HL + 2 * HL[1] + 2 * HL[2] + HL[3]) / 6
+
+num = sum(value1, p)
+denom = sum(value2, p)
+
+RVI = denom != 0 ? num / denom : 0
+
+RVIsig = (RVI + 2 * RVI[1] + 2 * RVI[2] + RVI[3]) / 6
+
+plot(RVI, color=color.green, style=plot.style_line, linewidth=1)
+plot(RVIsig, color=color.red, style=plot.style_line, linewidth=1)
+
+//----------------------------------
+
+longCondition = body_height[1] >= min_body_height and body_color[1] == color.red and 
+   body_height[0] >= min_body_height and body_color[0] == color.red and 
+   RVIsig > RVI
+exitLong = RVI > RVIsig
+
+shortCondition = body_height[1] >= min_body_height and body_color[1] == color.green and 
+   body_height[0] >= min_body_height and body_color[0] == color.green and 
+   RVIsig < RVI
+exitShort = RVI < RVIsig
+
+if longCondition and strategy.opentrades == 0
+    strategy.entry("Long", strategy.long)
+
+strategy.close("Long", when=exitLong)
+
+if shortCondition and strategy.opentrades == 0
+    strategy.entry("Short", strategy.short)
+
+strategy.close("Short", when=exitShort)
+
+// === Backtesting Dates === thanks to Trost
+
+testPeriodSwitch = input(false, "Custom Backtesting Dates")
+testStartYear = input(2011, "Backtest Start Year")
+testStartMonth = input(10, "Backtest Start Month")
+testStartDay = input(7, "Backtest Start Day")
+testStartHour = input(0, "Backtest Start Hour")
+testPeriodStart = timestamp(testStartYear, testStartMonth, testStartDay, testStartHour, 0)
+testStopYear = input(2018, "Backtest Stop Year")
+testStopMonth = input(12, "Backtest Stop Month")
+testStopDay = input(31, "Backtest Stop Day")
+testStopHour = input(23, "Backtest Stop Hour")
+testPeriodStop = timestamp(testStopYear, testStopMonth, testStopDay, testStopHour, 0)
+testPeriod() =>
+    time >= testPeriodStart and time <= testPeriodStop ? true : false
+testPeriod_1 = testPeriod()
+isPeriod = testPeriodSwitch == true ? testPeriod_1 : true
+// === /END
+
+if not isPeriod
+    strategy.cancel_all()
+    strategy.close_all()
+
+
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/428691
+
+> Last Modified
+
+2023-10-08 13:56:39

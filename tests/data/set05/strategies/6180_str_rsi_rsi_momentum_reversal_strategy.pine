@@ -1,0 +1,100 @@
+//@version=2
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/RSI动量反转策略RSI-Momentum-Reversal-Strategy.md
+// content_hash: ddf19e4633ddd9f7
+// collected: 2026-07-27
+strategy(title = "Noro's Connors RSI Strategy v1.0", shorttitle = "CRSI str 1.0", overlay = false, default_qty_type = strategy.percent_of_equity, default_qty_value = 100, pyramiding = 10)
+
+//Settings
+needlong = input(true, defval = true, title = "Long")
+needshort = input(true, defval = true, title = "Short")
+usemar = input(false, defval = false, title = "Use Martingale")
+capital = input(100, defval = 100, minval = 1, maxval = 10000, title = "Capital, %")
+usecrsi = input(true, defval = true, title = "Use CRSI Strategy")
+usefrsi = input(true, defval = true, title = "Use FRSI Strategy")
+usemod = input(true, defval = true, title = "CRSI+FRSI Mode")
+limit = input(25, defval = 25, minval = 1, maxval = 100, title = "RSI limit")
+usebod = input(true, defval = true, title = "Use Body-filter")
+usecol = input(true, defval = true, title = "Use Color-filter")
+fromyear = input(1900, defval = 1900, minval = 1900, maxval = 2100, title = "From Year")
+toyear = input(2100, defval = 2100, minval = 1900, maxval = 2100, title = "To Year")
+frommonth = input(01, defval = 01, minval = 01, maxval = 12, title = "From Month")
+tomonth = input(12, defval = 12, minval = 01, maxval = 12, title = "To Month")
+fromday = input(01, defval = 01, minval = 01, maxval = 31, title = "From day")
+today = input(31, defval = 31, minval = 01, maxval = 31, title = "To day")
+
+//CRSI
+rsilen = 3
+streaklen = 2
+lookback = 100
+rsi = rsi(close,rsilen)
+upday = close > close[1] ? 1 : 0
+downday = close < close[1] ? -1 : 0
+upstreak = upday!=0 ? upstreak[1] + upday : 0
+downstreak = downday!=0 ? downstreak[1] + downday : 0
+streak = upstreak + downstreak
+streakrsi = rsi(streak,streaklen)
+roc = close/close[1] - 1
+roccount = 0
+for i=1 to lookback-1
+    roccount := roc[i]<roc ? roccount + 1 : roccount
+crsi = (rsi + streakrsi + roccount) / 3
+
+//Oscilator
+// rsiplot = plot(crsi, title="RSI", style=line, linewidth=1, color=blue)
+// band1 = hline(80, title="Upper Line", linestyle=dashed, linewidth=1, color=red)
+// band0 = hline(20, title="Lower Line", linestyle=dashed, linewidth=1, color=green)
+// fill(band1, band0, color=purple, transp=90)
+
+//Fast RSI
+fastup = rma(max(change(close), 0), 7)
+fastdown = rma(-min(change(close), 0), 7)
+fastrsi = fastdown == 0 ? 100 : fastup == 0 ? 0 : 100 - (100 / (1 + fastup / fastdown))
+
+//Body Filter
+nbody = abs(close - open)
+abody = sma(nbody, 10)
+body = nbody > abody / 3 or usebod == false
+
+//Color Filter
+bar = close > open ? 1 : close < open ? -1 : 0
+gbar = bar == 1 or usecol == false
+rbar = bar == -1 or usecol == false
+
+//Signals
+
+up1 = rbar and (strategy.position_size == 0 or close < strategy.position_avg_price) and crsi < limit and body and usecrsi
+dn1 = gbar and (strategy.position_size == 0 or close > strategy.position_avg_price) and crsi > 100 - limit and body and usecrsi
+up2 = rbar and (strategy.position_size == 0 or close < strategy.position_avg_price) and fastrsi < limit and body and usefrsi
+dn2 = gbar and (strategy.position_size == 0 or close > strategy.position_avg_price) and fastrsi > 100 - limit and body and usefrsi
+exit = ((strategy.position_size > 0 and bar == 1) or (strategy.position_size < 0 and bar == -1)) and body
+
+//Trading
+profit = exit ? ((strategy.position_size > 0 and close > strategy.position_avg_price) or (strategy.position_size < 0 and close < strategy.position_avg_price)) ? 1 : -1 : profit[1]
+mult = usemar ? exit ? profit == -1 ? mult[1] * 2 : 1 : mult[1] : 1
+lot = strategy.position_size == 0 ? strategy.equity / close * capital / 100 * mult : lot[1]
+
+if ((up1 or up2) and usemod == false) or (up1 and up2 and usemod)
+    if strategy.position_size < 0
+        strategy.close_all()
+        
+    strategy.entry("Long", strategy.long, needlong == false ? 0 : lot)
+
+if ((dn1 or dn2) and usemod == false) or (dn1 and dn2 and usemod)
+    if strategy.position_size > 0
+        strategy.close_all()
+        
+    strategy.entry("Short", strategy.short, needshort == false ? 0 : lot)
+    
+if  exit
+    strategy.close_all()
+```
+
+> Detail
+
+https://www.fmz.com/strategy/431401
+
+> Last Modified
+
+2023-11-07 15:45:15

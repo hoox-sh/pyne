@@ -1,0 +1,19 @@
+//@version=5
+// set05 corpus entry
+// source_repo: tradingview-indicators-pine
+// source_path: tradingview-indicators-pine/SF-RSI-lightBackround.txt
+// content_hash: bd7981d9a9bd9cd2
+// collected: 2026-07-27
+indicator(title="RSI", shorttitle="RSI", format=format.price, precision=2, timeframe="", timeframe_gaps=true)
+
+rsiLengthInput = input.int(14, minval=1, title="RSI Length", group="RSI Settings")
+rsiSourceInput = input.source(close, "Source", group="RSI Settings")
+
+up = ta.rma(math.max(ta.change(rsiSourceInput), 0), rsiLengthInput)
+down = ta.rma(-math.min(ta.change(rsiSourceInput), 0), rsiLengthInput)
+rsi = down == 0 ? 100 : up == 0 ? 0 : 100 - (100 / (1 + up / down))
+
+plot(rsi, "", color=color.black)
+rsiUpperBand = hline(70, "RSI Upper Band", color=#787B86)
+hline(50, "RSI Middle Band", color=color.new(#787B86, 50))
+rsiLowerBand = hline(30, "RSI Lower Band", color=#787B86)

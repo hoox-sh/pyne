@@ -1,0 +1,76 @@
+//@version=6
+// set03 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多时间框架动量突破交易策略结合趋势跟踪与ATR风险管理-Multi-Timeframe-Momentum-Breakout-Trading-Strategy-with-Trend-Following-and-ATR-Risk-Management.md
+// content_hash: 7bc8f0a882605234
+// collected: 2026-07-27
+strategy("Ruben.Ramiro - Momentum Breakout Strategy", overlay=true, initial_capital=10000, default_qty_type=strategy.percent_of_equity, default_qty_value=10)
+
+// ** Adjustable Parameters **
+// Moving averages for trend detection
+emaFastLen    = input.int(20, "Fast EMA", minval=1)
+emaSlowLen    = input.int(50, "Slow EMA", minval=1)
+// RSI
+rsiLen        = input.int(14, "RSI Period", minval=1)
+rsiOverbought = input.int(70, "RSI Overbought", minval=1, maxval=100)
+rsiOversold   = input.int(30, "RSI Oversold", minval=1, maxval=100)
+// Breakout (resistance and support)
+breakoutPeriod = input.int(5, "Breakout Periods", minval=1)
+// ATR for risk management
+atrLen       = input.int(14, "ATR Period", minval=1)
+atrMultSL    = input.float(1.5, "ATR Stop-Loss Multiplier", step=0.1)
+atrMultTrail = input.float(1.5, "ATR Trailing Stop Multiplier", step=0.1)
+
+// ** Technical Indicators **
+emaFast = ta.ema(close, emaFastLen)
+emaSlow = ta.ema(close, emaSlowLen)
+rsi     = ta.rsi(close, rsiLen)
+atr     = ta.atr(atrLen)
+
+// ** Support and Resistance Calculation **
+recentResistance = ta.highest(high, breakoutPeriod)[1]  // Highest high of the last N periods
+recentSupport    = ta.lowest(low, breakoutPeriod)[1]    // Lowest low of the last N periods
+
+// ** Entry Conditions **
+bullishTrend   = emaFast > emaSlow
+bearishTrend   = emaFast < emaSlow
+notOverbought  = rsi < rsiOverbought
+notOversoldExt = rsi > rsiOversold
+
+// Long Entry: Breakout above resistance + bullish trend + not overbought
+longCondition  = close > recentResistance and bullishTrend and notOverbought
+// Short Entry: Breakout below support + bearish trend + not extremely oversold
+shortCondition = close < recentSupport and bearishTrend and notOversoldExt
+
+// ** Trade Execution **
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+if (shortCondition)
+    strategy.entry("Short", strategy.short)
+
+// ** Stop-Loss and Trailing Stop Management **
+if (strategy.position_size > 0)  // If a Long position is open
+    stopLong = strategy.position_avg_price - atr * atrMultSL
+    strategy.exit("Exit Long", from_entry="Long", stop=stopLong, trail_points=atr * atrMultTrail, trail_offset=atr * atrMultTrail)
+    
+if (strategy.position_size < 0)  // If a Short position is open
+    stopShort = strategy.position_avg_price + atr * atrMultSL
+    strategy.exit("Exit Short", from_entry="Short", stop=stopShort, trail_points=atr * atrMultTrail, trail_offset=atr * atrMultTrail)
+
+// ** Chart Visualization **
+plotshape(series=longCondition, location=location.belowbar, color=color.green, style=shape.triangleup, title="Long Entry")
+plotshape(series=shortCondition, location=location.abovebar, color=color.red, style=shape.triangledown, title="Short Entry")
+
+// ** Alerts for Webhook-Ready JSON in Alpaca **
+alertcondition(longCondition, title="Long Entry Alert", message='{"symbol":"{{ticker}}","qty":1,"side":"buy","type":"market","limit_price":"{{close}}","time_in_force":"gtc"}')
+alertcondition(shortCondition, title="Short Entry Alert", message='{"symbol":"{{ticker}}","qty":1,"side":"sell","type":"market","limit_price":"{{close}}","time_in_force":"gtc"}')
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/489284
+
+> Last Modified
+
+2025-04-03 15:17:50

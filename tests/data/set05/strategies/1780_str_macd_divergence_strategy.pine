@@ -1,0 +1,71 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/底部猎人策略Bottom-Hunter-Strategy.md
+// content_hash: 28d629cda769ce3e
+// collected: 2026-07-27
+strategy("MACD Divergence Strategy", shorttitle="Strategy: MACD Dive", overlay=true)
+
+// MACD设置
+fastLength = input.int(12, "Fast Length")
+slowLength = input.int(26, "Slow Length")
+signalSmoothing = input.int(9, "Signal Smoothing")
+
+[macdLine, signalLine, _] = ta.macd(close, fastLength, slowLength, signalSmoothing)
+
+// 计算99日EMA均线
+ema99 = ta.ema(close, 99)
+
+// 计算RSI
+rsiLength = input.int(14, title="RSI Length")
+rsi = ta.rsi(close, rsiLength)
+
+// 计算布林带中轨
+length = input.int(20, "BB Length")
+src = input(close, "Source")
+mult = input.float(2.0, "BB StdDev")
+basis = ta.sma(src, length)
+
+// 买入筛选条件
+priceLow = ta.lowest(low[1], 60)
+macdLow = ta.lowest(macdLine[1], 60)
+divergence = low < priceLow and macdLine > macdLow
+
+allHighsBelowEma99 = true
+for i = 0 to 14
+    if high[i] > ema99
+        allHighsBelowEma99 := false
+
+rsiBelow = rsi < 31.1
+priceDifference = (high - low) / low * 100
+
+buySignal1 = divergence and allHighsBelowEma99 and rsiBelow
+buySignal2 = high < ema99 and priceDifference >= 3 and close < open and high < basis 
+buySignal3 = buySignal1 or buySignal2
+
+// 定义一个变量来存储买入时的价格
+var float buyPrice = na
+
+// 买入逻辑
+if buySignal3
+    buyPrice := close // 存储买入时的价格
+    strategy.entry("Buy", strategy.long)
+
+// 止盈和止损条件
+longTakeProfit = buyPrice * 1.1 // 止盈设为买入价格的1.2倍
+longStopLoss = buyPrice * 0.98// 止损设为买入价格的0.99倍
+
+// 应用止盈和止损
+strategy.exit("Exit", "Buy", limit=longTakeProfit, stop=longStopLoss)
+// 绘制买入信号
+plotshape(series=buySignal3, title="Buy Signal", location=location.belowbar, color=color.green, style=shape.triangleup, size=size.small)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/441132
+
+> Last Modified
+
+2024-02-06 09:26:54

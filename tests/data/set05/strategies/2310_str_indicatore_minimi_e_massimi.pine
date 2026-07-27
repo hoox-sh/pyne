@@ -1,0 +1,59 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多重波动趋势追踪价格变化分析策略-Multi-Wave-Trend-Following-Price-Analysis-Strategy.md
+// content_hash: 424f905eed6b2923
+// collected: 2026-07-27
+strategy("Indicatore Minimi e Massimi", overlay=true)
+
+// Parametri di input per stop loss e take profit
+stopLossDistance = input(2, title="Distanza Stop Loss")
+takeProfitDistance = input(6, title="Distanza Take Profit")
+
+// Funzione per il conteggio dei massimi e minimi
+var int countUp = 0
+var int countDown = 0
+
+// Calcola i massimi e minimi
+if (low > low[1] and low[1] > low[2])
+    countUp := countUp + 1
+    countDown := 0
+else if (high < high[1] and high[1] < high[2])
+    countDown := countDown + 1
+    countUp := 0
+else
+    countUp := 0
+    countDown := 0
+
+// Segnali di acquisto e vendita
+longSignal = countUp == 3
+shortSignal = countDown == 3
+
+// Impostazione dello stop loss e take profit
+longStopLoss = close - stopLossDistance
+longTakeProfit = close + takeProfitDistance
+shortStopLoss = close + stopLossDistance
+shortTakeProfit = close - takeProfitDistance
+
+// Esegui le operazioni
+if (longSignal)
+    strategy.entry("Long", strategy.long)
+    strategy.exit("Take Profit", "Long", limit=longTakeProfit, stop=longStopLoss)
+
+if (shortSignal)
+    strategy.entry("Short", strategy.short)
+    strategy.exit("Take Profit", "Short", limit=shortTakeProfit, stop=shortStopLoss)
+
+// Visualizza segnali sul grafico
+plotshape(series=longSignal, location=location.belowbar, color=color.green, style=shape.labelup, text="Compra")
+plotshape(series=shortSignal, location=location.abovebar, color=color.red, style=shape.labeldown, text="Vendi")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/473399
+
+> Last Modified
+
+2024-11-29 16:40:36

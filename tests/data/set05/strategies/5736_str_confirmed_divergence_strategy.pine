@@ -1,0 +1,109 @@
+//@version=3
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/确认发散策略Confirmed-Divergence-Strategy.md
+// content_hash: 7d451e84c0e541ba
+// collected: 2026-07-27
+strategy("Confirmed Divergence Strategy", overlay=true)
+source = close
+length = input(30, minval=1)
+mult = input(2.0, minval=0.001, maxval=50)
+// SETTING UP VARIABLES //
+
+src = close
+
+// RSI //
+rsiprd = input(title="RSI period",defval=14)
+rv = rsi(src,rsiprd)
+ob = input(title="Overbought Level",  defval=70)
+os = input(title="Oversold Level",  defval=30)
+lengthAO1=input(title="Awesome Short MA", defval=5, minval=1) //5 periods
+lengthAO2=input(title="Awesome Long MA", defval=34, minval=1) //34 periods
+
+
+//Awesome//
+
+AO = sma((high+low)/2, lengthAO1) - sma((high+low)/2, lengthAO2)
+
+// look back periods //
+x = input(title = "short lookback period",defval=5)
+z = input(title = "long lookback period",defval=25)
+
+
+// END SETUP //
+
+////////////////////////
+// BULLISH DIVERGENCE //
+////////////////////////
+
+// define lower low in price //
+
+srcLL = src > lowest(src,x) and  lowest(src,x)<lowest(src,z)[x]
+
+// define higher low in rsi //
+
+rsiHL = rv>lowest(rv,x) and lowest(rv,x) > lowest(rv,z)[x] and lowest(rv,z)<os
+
+// define higher low in AO //
+
+
+aoHL = AO > lowest(AO,x) and lowest(AO,x) > lowest(AO,z)[x] and lowest(AO, x) < 0
+
+
+
+BullishDiv = srcLL and rsiHL and aoHL
+
+
+////////////////////////
+// BEARISH DIVERGENCE //
+////////////////////////
+
+// define higher high in price //
+
+srcHH = src < highest(src,x) and  highest(src,x)>highest(src,z)[x]
+
+// define lower high in RSI //
+
+rsiLH = rv<highest(rv,x) and highest(rv,x) < highest(rv,z)[x] and highest(rv,z)>ob
+
+// define lower high in AO //
+aoLH = AO<highest(AO,x) and highest(AO,x) < highest(AO,z)[x] and highest(AO, x) > 0
+
+BearishDiv = srcHH and rsiLH and aoLH
+
+
+basis = sma(source, length)
+dev = mult * stdev(source, length)
+
+upper = basis + dev
+lower = basis - dev
+
+
+
+if (BullishDiv)
+    strategy.entry("DivLE", strategy.long, stop=lower, oca_name="BullishDiv",comment="DivLE")
+else
+    strategy.cancel(id="DivLE")
+    
+if (crossover(close, lower))
+    strategy.close("DivSE")
+    
+if (crossunder(close, upper))
+    strategy.close("DivLE")
+
+if (BearishDiv)
+    strategy.entry("DivSE", strategy.short, stop=upper, oca_name="BearishDiv",comment="DivSE")
+else
+    strategy.cancel(id="DivSE")
+
+//plot(strategy.equity, title="equity", color=red, linewidth=2, style=areabr)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/438822
+
+> Last Modified
+
+2024-01-15 15:19:56

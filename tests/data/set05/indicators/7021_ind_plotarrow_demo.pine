@@ -1,0 +1,11 @@
+//@version=6
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/visuals/overview.md::overview.md#block5
+// content_hash: e869a057cc26c1d8
+// collected: 2026-07-27
+indicator("`plotarrow()` demo", overlay = true)
+
+//@variable The difference between the current `open` and previous `close`.
+float barGap = open - close[1]
+plotarrow(barGap, "Bar gap", color.rgb(0, 187, 212, 40), color.rgb(223, 64, 251, 40))

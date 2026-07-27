@@ -1,0 +1,67 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于布林带和RSI的交易策略A-Bollinger-Band-and-Trend-Tracking-Strategy-Based-on-RSI.md
+// content_hash: 472ebbcb8e840d21
+// collected: 2026-07-27
+strategy("TradeOptix 2.0", shorttitle="TradeOptix 2.0", overlay=true)
+
+
+///////////// RSI
+RSIlength = input(6, title='RSI Period Length')
+RSIoverSold = 50
+RSIoverBought = 50
+price = close
+vrsi = ta.rsi(price, RSIlength)
+
+
+///////////// Bollinger Bands
+BBlength = input.int(200, minval=1, title='Bollinger Period Length')
+BBmult = 2  // input(2.0, minval=0.001, maxval=50,title="Bollinger Bands Standard Deviation")
+BBbasis = ta.sma(price, BBlength)
+BBdev = BBmult * ta.stdev(price, BBlength)
+BBupper = BBbasis + BBdev
+BBlower = BBbasis - BBdev
+source = close
+buyEntry = ta.crossover(source, BBlower)
+sellEntry = ta.crossunder(source, BBupper)
+plot(BBbasis, color=color.new(color.aqua, 0), title='Bollinger Bands SMA Basis Line')
+p1 = plot(BBupper, color=color.new(#7787b9, 0), title='Bollinger Bands Upper Line')
+p2 = plot(BBlower, color=color.new(#7787b9, 0), title='Bollinger Bands Lower Line')
+fill(p1, p2, color = color.rgb(40, 226, 255, 90))
+
+
+
+
+
+///////////// RSI + Bollinger Bands Strategy
+long = ta.crossover(vrsi, RSIoverSold) and ta.crossover(source, BBlower)
+close_long = ta.crossunder(vrsi, RSIoverBought) and ta.crossunder(source, BBupper)
+
+if not na(vrsi)
+
+    if long
+        strategy.entry('Long', strategy.long, stop=BBlower, alert_message = "Exit")
+        alert("Enter Calls")
+    else
+        strategy.cancel(id='Long')
+        alert("Exit Calls")
+
+    if close_long
+        strategy.close('Long',alert_message = "Exit")
+        alert("Exit Calls")
+
+
+plotshape(long, title='UpTrend Begins', location=location.belowbar, style=shape.flag, size=size.tiny, color=color.new(color.green, 0))
+plotshape(close_long, title='DownTrend Begins', location=location.abovebar, style=shape.flag, size=size.tiny, color=color.new(color.red, 0))
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/441056
+
+> Last Modified
+
+2024-02-05 11:02:51

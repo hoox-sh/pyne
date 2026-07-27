@@ -1,0 +1,85 @@
+//@version=6
+// set03 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多周期波动跟踪量化策略-Multi-Timeframe-Volatility-Tracking-Quantitative-Strategy.md
+// content_hash: 55668b4cfc902e99
+// collected: 2026-07-27
+strategy("DOGE/USDT 5X Scalping Strategy", overlay=true, margin_long=20, margin_short=0)
+
+// === Core Parameters ===
+fastEMA = input.int(3, "Fast EMA Length", minval=1, maxval=20)
+slowEMA = input.int(8, "Slow EMA Length", minval=2, maxval=50) 
+trendEMA = input.int(55, "Trend EMA Length", minval=10, maxval=200)
+atrPeriod = input.int(14, "ATR Period", minval=1, maxval=50)
+tradeInterval = input.int(72, "Minutes Between Trades", minval=1, maxval=1440)
+
+// Risk Management
+slMultiplier = input.float(1.2, "Stop-Loss (ATR Multiple)", minval=0.5, maxval=5.0, step=0.1)
+tpMultiplier = input.float(2.0, "Take-Profit (ATR Multiple)", minval=0.5, maxval=10.0, step=0.1)
+riskPct = input.float(1.0, "Risk Per Trade (%)", minval=0.1, maxval=10.0, step=0.1)
+leverage = 5.0  // Fixed 5x leverage
+
+// === Calculate Indicators ===
+fastLine = ta.ema(close, fastEMA)
+slowLine = ta.ema(close, slowEMA)
+trendLine = ta.ema(close, trendEMA)
+atrValue = ta.atr(atrPeriod)
+
+// === Visualize Indicators ===
+// Using explicit colors to ensure visibility
+fastColor = #2196F3  // Blue
+slowColor = #FF9800  // Orange
+trendColor = #757575  // Gray
+
+p1 = plot(fastLine, "Fast EMA", color=fastColor, linewidth=2)
+p2 = plot(slowLine, "Slow EMA", color=slowColor, linewidth=2)
+p3 = plot(trendLine, "Trend EMA", color=trendColor, linewidth=1)
+
+// Cross detection for visualization
+crossUp = ta.crossover(fastLine, slowLine)
+crossDown = ta.crossunder(fastLine, slowLine)
+plotshape(crossUp, "EMA Cross Up", style=shape.triangleup, location=location.belowbar, color=color.green, size=size.small)
+plotshape(crossDown, "EMA Cross Down", style=shape.triangledown, location=location.abovebar, color=color.red, size=size.small)
+
+// === Trade Logic ===
+// Cooldown mechanism
+var int lastTradeBarIndex = 0
+timeElapsed = (bar_index - lastTradeBarIndex) >= tradeInterval
+noActivePosition = strategy.position_size == 0
+
+// Entry conditions
+emaCross = ta.crossover(fastLine, slowLine)
+trendFilter = close > trendLine
+validEntry = emaCross and trendFilter and timeElapsed and noActivePosition
+
+// Position sizing calculation
+equity = strategy.equity
+riskAmount = equity * (riskPct / 100)
+stopDistance = atrValue * slMultiplier
+positionSize = math.round((riskAmount / stopDistance) * leverage) // Round to whole tokens for DOGE
+
+// Visualize entry signals
+plotshape(validEntry, "Entry Signal", style=shape.circle, location=location.belowbar, color=color.lime, size=size.normal)
+
+// === Strategy Execution ===
+if (validEntry)
+    // Entry
+    strategy.entry("Long", strategy.long, qty=positionSize)
+    
+    // Set exit points
+    stopPrice = close - (atrValue * slMultiplier)
+    targetPrice = close + (atrValue * tpMultiplier)
+    strategy.exit("Exit", "Long", stop=stopPrice, limit=targetPrice)
+    
+    // Reset cooldown timer
+    lastTradeBarIndex := bar_index
+    
+```
+
+> Detail
+
+https://www.fmz.com/strategy/489149
+
+> Last Modified
+
+2025-04-02 10:50:32

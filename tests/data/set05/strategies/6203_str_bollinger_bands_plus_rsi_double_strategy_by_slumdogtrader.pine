@@ -1,0 +1,91 @@
+//@version=2
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/量化交易双重指标策略Quantitative-Trading-Dual-Indicator-Strategy.md
+// content_hash: a9865097a062bd3b
+// collected: 2026-07-27
+strategy("Bollinger Bands + RSI, Double Strategy (by SlumdogTrader)", shorttitle="BolBand_RSI_Strat", overlay=true)
+
+// SlumdogTrader's Bollinger Bands + RSI Double Strategy - Profit Trailer
+//
+// Version 1.0
+// Script by SlumdogTrader on July Fri 13(!), 2018.
+//
+// This strategy uses a normalise Bollinger Bands + RSI.
+//
+// Bollinger Band triggers
+// SELL - when the price is above the upper band.
+// BUY - when the price is below the lower band.
+//
+// RSI triggers
+// SELL - when the price is above 55.
+// BUY - when the price is below 45.
+//
+// This simple strategy only triggers when
+// both the BB and the RSI
+// indicators, at the same time, are in
+// a overbought or oversold condition.
+//
+// Visit my TradingView work at:
+// https://www.tradingview.com/u/SlumdogTrader/
+//
+// Visit my website at:
+// https://www.slumdogtrader.com
+//
+
+///////////// Bollinger Bands Settings
+BBlength = input(20, minval=1,title="Bollinger Bands SMA Period Length")
+BBmult = input(2.0, minval=0.001, maxval=50,title="Bollinger Bands Standard Deviation")
+price = input(close, title="Source")
+BBbasis = sma(price, BBlength)
+BBdev = BBmult * stdev(price, BBlength)
+BBupper = BBbasis + BBdev
+BBlower = BBbasis - BBdev
+source = close
+buyEntry = crossover(source, BBlower)
+sellEntry = crossunder(source, BBupper)
+plot(BBbasis, color=aqua,title="BBs SMA Basis Line")
+p1 = plot(BBupper, color=silver,title="BBs Upper Line")
+p2 = plot(BBlower, color=silver,title="BBs Lower Line")
+fill(p1, p2)
+
+///////////// RSI Settings
+RSIlength = input( 16 ,title="RSI Period Length")
+RSIvalue = input( 45 ,title="RSI Value Range")
+RSIoverSold = 0 + RSIvalue
+RSIoverBought = 100 - RSIvalue
+vrsi = rsi(price, RSIlength)
+
+
+///////////// Colour Settings
+switch1=input(true, title="Enable Bar Color?")
+switch2=input(true, title="Enable Background Color?")
+TrendColor = RSIoverBought and (price[1] > BBupper and price < BBupper) ? red : RSIoverSold and (price[1] < BBlower and price > BBlower)  ? green : na
+barcolor(switch1?TrendColor:na)
+bgcolor(switch2?TrendColor:na,transp=50)
+
+
+///////////// RSI + Bollinger Bands Strategy
+if (not na(vrsi))
+
+    if (crossover(vrsi, RSIoverSold) and crossover(source, BBlower))
+        strategy.entry("RSI_BB_L", strategy.long, stop=BBlower,  comment="RSI_BB_L")
+    else
+        strategy.cancel(id="RSI_BB_L")
+
+    if (crossunder(vrsi, RSIoverBought) and crossunder(source, BBupper))
+        strategy.entry("RSI_BB_S", strategy.short, stop=BBupper,  comment="RSI_BB_S")
+    else
+        strategy.cancel(id="RSI_BB_S")
+
+//plot(strategy.equity, title="equity", color=red, linewidth=2, style=areabr)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/438780
+
+> Last Modified
+
+2024-01-15 12:18:53

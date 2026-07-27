@@ -1,0 +1,46 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/自适应通道突破策略Adaptive-Channel-Breakout-Strategy.md
+// content_hash: de6c27112a531142
+// collected: 2026-07-27
+strategy("Turtle Trade Channels Strategy", shorttitle="TTCS", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=100)
+
+length = input(20,"Entry Length", minval=1)
+len2=input(10, "Exit Length", minval=1)
+
+lower = lowest(length)
+upper = highest(length)
+
+up=highest(high,length)
+down=lowest(low,length)
+sup=highest(high,len2)
+sdown=lowest(low,len2)
+K1=barssince(high>=up[1])<=barssince(low<=down[1]) ? down : up
+K2=iff(barssince(high>=up[1])<=barssince(low<=down[1]),sdown,sup)
+K3=iff(close>K1,down,na)
+K4=iff(close<K1,up,na)
+
+buySignal=high==upper[1] or crossover(high,upper[1])
+sellSignal = low==lower[1] or crossover(lower[1],low)
+buyExit=low==sdown[1] or crossover(sdown[1],low)
+sellExit = high==sup[1] or crossover(high,sup[1])
+
+strategy.entry("Buy", strategy.long, when = buySignal and barssince(buySignal) < barssince(sellSignal[1]))
+strategy.entry("Sell", strategy.short, when = sellSignal and barssince(sellSignal) < barssince(buySignal[1]))
+strategy.exit("Buy Exit", from_entry = "Buy", when = buyExit and barssince(buyExit) < barssince(sellExit[1]))
+strategy.exit("Sell Exit", from_entry = "Sell", when = sellExit and barssince(sellExit) < barssince(buyExit[1]))
+
+plot(K1, title="Trend Line", color=color.red, linewidth=2)
+e=plot(K2, title="Exit Line", color=color.blue, linewidth=1, style=6)
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/443136
+
+> Last Modified
+
+2024-02-29 14:49:05

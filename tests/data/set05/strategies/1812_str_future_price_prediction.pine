@@ -1,0 +1,70 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/波林格带动态止盈策略-Dynamic-Take-Profit-Bollinger-Bands-Strategy.md
+// content_hash: f7d2d703f1a11f06
+// collected: 2026-07-27
+strategy("Future Price Prediction", overlay=true)
+
+// Ayarlar
+length = input.int(14, "Length")
+mult = input.float(2.0, "Multiplier")
+showBands = input.bool(true, "Show Bands")
+takeProfitPercentage = 1.0
+
+// Ortalama ve Standart Sapma Hesaplamaları
+basis = ta.sma(close, length)
+dev = mult * ta.stdev(close, length)
+
+// Üst ve Alt Bantlar
+upper = basis + dev
+lower = basis - dev
+
+// Grafikte Gösterim
+plot(basis, color=color.blue, linewidth=2, title="Basis")
+plot(showBands ? upper : na, color=color.red, linewidth=1, title="Upper Band")
+plot(showBands ? lower : na, color=color.green, linewidth=1, title="Lower Band")
+
+// Al-Sat Sinyalleri
+longCondition = ta.crossover(close[1], lower[1]) and close[1] < open[1]
+shortCondition = ta.crossunder(close[1], upper[1]) and close[1] > open[1]
+
+// Kar al seviyeleri
+float longTakeProfit = na
+float shortTakeProfit = na
+
+if longCondition
+    longTakeProfit := close * (1 + takeProfitPercentage / 100)
+if shortCondition
+    shortTakeProfit := close * (1 - takeProfitPercentage / 100)
+
+// Strateji Giriş ve Çıkış
+if longCondition
+    strategy.entry("Buy", strategy.long)
+    strategy.exit("Take Profit", from_entry="Buy", limit=longTakeProfit)
+
+if shortCondition
+    strategy.entry("Sell", strategy.short)
+    strategy.exit("Take Profit", from_entry="Sell", limit=shortTakeProfit)
+
+// Al-Sat Sinyalleri Grafikte Gösterim
+plotshape(series=longCondition, title="Buy Signal", location=location.belowbar, color=color.green, style=shape.labelup, text="BUY")
+plotshape(series=shortCondition, title="Sell Signal", location=location.abovebar, color=color.red, style=shape.labeldown, text="SELL")
+
+// Bilgi Tablosu
+var table data = table.new(position.bottom_right, 2, 2, frame_color=color.black, frame_width=1)
+if barstate.islast
+    table.cell(data, 0, 0, "Current Price", text_color=color.white)
+    table.cell(data, 1, 0, str.tostring(close))
+    table.cell(data, 0, 1, "Predicted Basis", text_color=color.white)
+    table.cell(data, 1, 1, str.tostring(basis))
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/452360
+
+> Last Modified
+
+2024-05-24 17:54:47

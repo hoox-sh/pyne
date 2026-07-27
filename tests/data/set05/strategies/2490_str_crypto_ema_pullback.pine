@@ -1,0 +1,56 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于随机RSI和EMA交叉的加密货币回调交易策略Crypto-Pullback-Trading-Strategy-Based-on-Stochastic-RSI-and-EMA-Crossover.md
+// content_hash: 56ea5980cea97620
+// collected: 2026-07-27
+strategy("Crypto-EMA_Pullback=-", overlay=true,initial_capital = 10000000,default_qty_type=strategy.percent_of_equity, default_qty_value=10.0, pyramiding = 10)
+
+// Inputs
+lengthRsi = input(14, title="RSI Length")
+k = input(3, title="Stoch %K")
+d = input(3, title="Stoch %D")
+lengthStoch = input(14, title="Stochastic RSI Length")
+overSold = input(25, title="Oversold Level")
+overBought = input(85, title="Overbought Level")
+emaFastLength = input(9, title="Fast EMA Length")
+emaMediumLength = input(14, title="Medium EMA Length")
+emaSlowLength = input(20, title="Slow EMA Length")
+
+// Calculating EMAs
+emaFast = ta.ema(close, emaFastLength)
+emaMedium = ta.ema(close, emaMediumLength)
+emaSlow = ta.ema(close, emaSlowLength)
+
+// Calculating the RSI and Stoch RSI
+rsi = ta.rsi(close, lengthRsi)
+stochRsiK = ta.sma(ta.stoch(rsi, rsi, rsi, lengthStoch), k)
+stochRsiD = ta.sma(stochRsiK, d)
+
+// Entry Conditions
+bullishCondition = close > emaSlow and close < emaFast and close < emaMedium and stochRsiK < overSold
+bearishCondition = close < emaSlow and close > emaFast and close > emaMedium and stochRsiK > overBought
+
+// Strategy Execution
+if (bullishCondition)
+    strategy.entry("Long", strategy.long)
+
+if (bearishCondition)
+    strategy.entry("Short", strategy.short)
+
+// Plotting
+plot(emaFast, color=color.blue, title="Fast EMA")
+plot(emaMedium, color=color.orange, title="Medium EMA")
+plot(emaSlow, color=color.red, title="Slow EMA")
+hline(overSold, "Oversold", color=color.green)
+hline(overBought, "Overbought", color=color.red)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/444024
+
+> Last Modified
+
+2024-03-08 16:44:51

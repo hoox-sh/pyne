@@ -1,0 +1,21 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/visuals/overview.md::overview.md#block1
+// content_hash: c88f8e0959a21f4d
+// collected: 2026-07-27
+indicator("Plot visuals display demo", overlay = false)
+
+//@variable The difference between the bar's `open` and `close` prices.  
+float barCO = close - open
+
+// Horizontal lines and fills have only two possible `display` states. 
+h1 = hline(125, "Level 125", linewidth = 2, display = display.none)
+h2 = hline(100, "Level 100", linewidth = 2, display = display.all)
+fill(h1, h2, color = color.new(color.blue, 90), display = display.all)
+
+// `plot*()` visuals accept multiple `display` options and support addition and subtraction.
+plot(close, "Close", color.blue,   3, display = display.all)
+plot(open,  "Open",  color.orange, 3, display = display.all - display.pane)
+plotarrow(barCO, "Bar CO", color.green, color.red, display = display.status_line + display.data_window)
+plotshape(barCO > 5, "Large CO", shape.circle, location.abovebar, color.fuchsia, display = display.pane)

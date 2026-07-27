@@ -1,0 +1,78 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/优势均线突破趋势跟踪系统Advantage-Moving-Average-Breakout-Trend-Following-System.md
+// content_hash: 1135b1704af9f327
+// collected: 2026-07-27
+strategy("Long Term Trend Following System", overlay=true, margin_long=0, margin_short=0, pyramiding=4)
+
+// Backtest Range //
+
+Start = input(defval = timestamp("01 Jan 2017 00:00 +0000"), title = "Backtest Start Date", group = "backtest window")
+Finish = input(defval = timestamp("01 Jan 2100 00:00 +0000"), title = "Backtest End Date", group = "backtest window")
+
+//Moving Averages //
+
+len1 = input.int(40, minval=1, title="Length Fast EMA", group="Moving Average Inputs")
+len2 = input.int(120, minval=1, title="Length Slow EMA", group="Moving Average Inputs")
+src1 = input(close, title="Source Fast MA")
+src2 = input(close, title="Source Slow MA")
+maFast = input.color(color.new(color.red, 0), title = "Color Fast EMA", group = "Moving Average Inputs", inline = "maFast")
+maSlow = input.color(color.new(color.blue, 0), title = "Color Slow EMA", group = "Moving Average Inputs", inline = "maSlow")
+fast = ta.ema(src1, len1)
+slow = ta.ema(src2, len2)
+plot(fast, color=maFast, title="Fast EMA")
+plot(slow, color=maSlow, title="Slow EMA")
+
+// Donchian Channels //
+
+Length1 = input.int(title="Length Upper Channel", defval=50, minval=1, group="Donchian Channels Inputs")
+Length2 = input.int(title="Length Lower Channel", defval=50, minval=1, group="Donchian Channels Inputs")
+h1 = ta.highest(high[1], Length1)
+l1 = ta.lowest(low[1], Length2)
+fillColor = input.color(color.new(color.purple, 95), title = "Fill Color", group = "Donchian Channels Inputs")
+upperColor = input.color(color.new(color.orange, 0), title = " Color Upper Channel", group = "Donchian Channels Inputs", inline = "upper")
+lowerColor = input.color(color.new(color.orange, 0), title = " Color Lower Channel", group = "Donchian Channels Inputs", inline = "lower")
+u = plot(h1, "Upper", color=upperColor)
+l = plot(l1, "Lower", color=upperColor)
+fill(u, l, color=fillColor)
+strategy.initial_capital = 50000
+//ATR and Position Size //
+
+length = input.int(title="ATR Period", defval=14, minval=1, group="ATR Inputs")
+risk = input(title="Risk Per Trade", defval=0.01, group="ATR Inputs")
+multiplier = input(title="ATR Multiplier", defval=2, group="ATR Inputs")
+atr = ta.atr(length)
+amount = (risk * strategy.initial_capital / (multiplier * atr))
+
+// Buy and Sell Conditions //
+
+entrycondition1 = ta.crossover(fast, slow)
+entrycondition2 = fast > slow
+sellcondition1 = ta.crossunder(fast, slow)
+sellcondition2 = slow > fast
+
+// Buy and Sell Signals //
+
+if (close > h1 and entrycondition2)
+    strategy.entry("long", strategy.long, qty=amount)
+    stoploss = close - atr * 4
+    strategy.exit("exit sl", stop=stoploss, trail_offset=stoploss)
+if (sellcondition1 and sellcondition2)
+    strategy.close(id="long")
+
+if (close < l1 and sellcondition2)
+    strategy.entry("short", strategy.short, qty=amount)
+    stoploss = close + atr * 4
+    strategy.exit("exit sl", stop=stoploss, trail_offset=stoploss)
+if (entrycondition1 and entrycondition2)
+    strategy.close(id="short")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/432180
+
+> Last Modified
+
+2023-11-15 11:00:25

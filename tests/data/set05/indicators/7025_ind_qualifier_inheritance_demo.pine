@@ -1,0 +1,11 @@
+//@version=6
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/language/user-defined-functions.md::user-defined-functions.md#block13
+// content_hash: 21b161608229a230
+// collected: 2026-07-27
+indicator("Qualifier inheritance demo")
+
+//@function Returns the value of the `source` argument without modification.
+//          Each written call to the function can accept an argument of *any* type except for "void".
+pass(source) =>

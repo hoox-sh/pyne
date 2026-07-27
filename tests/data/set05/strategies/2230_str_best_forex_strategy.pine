@@ -1,0 +1,60 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多指标趋势确认动量交易策略-Multi-Indicator-Trend-Confirmation-Momentum-Trading-Strategy.md
+// content_hash: 21218961b8ff6c42
+// collected: 2026-07-27
+strategy("Best Forex Strategy", overlay=true)
+
+// Cài đặt EMA
+ema20 = ta.ema(close, 20)
+ema50 = ta.ema(close, 50)
+ema100 = ta.ema(close, 100)
+ema200 = ta.ema(close, 200)
+
+// Cài đặt RSI
+rsiLength = 14
+rsi = ta.rsi(close, rsiLength)
+
+// MACD Setup
+[macdLine, signalLine, _] = ta.macd(close, 12, 26, 9)
+
+// Fibonacci Levels
+fiboHigh = ta.highest(high, 50)
+fiboLow = ta.lowest(low, 50)
+fibo38 = fiboLow + (fiboHigh - fiboLow) * 0.382
+fibo50 = fiboLow + (fiboHigh - fiboLow) * 0.5
+fibo61 = fiboLow + (fiboHigh - fiboLow) * 0.618
+
+// Điều kiện MUA
+buyCondition = ta.crossover(ema20, ema50) and rsi > 50 and macdLine > signalLine and close > ema200
+if buyCondition
+    label.new(bar_index, low, "BUY", color=color.green, textcolor=color.white, style=label.style_label_down)
+    strategy.entry("Long", strategy.long)
+
+// Điều kiện BÁN
+sellCondition = ta.crossunder(ema20, ema50) and rsi < 50 and macdLine < signalLine and close < ema200
+if sellCondition
+    label.new(bar_index, high, "SELL", color=color.red, textcolor=color.white, style=label.style_label_up)
+    strategy.close("Long")
+
+// Hiển thị các đường EMA
+plot(ema20, "EMA 20", color=color.yellow)
+plot(ema50, "EMA 50", color=color.blue)
+plot(ema100, "EMA 100", color=color.white)
+plot(ema200, "EMA 200", color=color.purple)
+
+// Hiển thị Fibonacci Levels
+plot(fibo38, title="Fibo 38.2%", color=color.blue, style=plot.style_circles)
+plot(fibo50, title="Fibo 50%", color=color.orange, style=plot.style_circles)
+plot(fibo61, title="Fibo 61.8%", color=color.purple, style=plot.style_circles)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/484595
+
+> Last Modified
+
+2025-03-03 10:35:47

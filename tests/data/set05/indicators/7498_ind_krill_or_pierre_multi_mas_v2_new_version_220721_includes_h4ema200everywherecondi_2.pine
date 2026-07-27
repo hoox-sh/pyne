@@ -1,0 +1,193 @@
+//@version=5
+// set05 corpus entry
+// source_repo: tradingview-indicators-pine
+// source_path: tradingview-indicators-pine/Krill-or-Pierre-Multi-MAs-v2-new-version-220721-includes-H4ema200everywhereConditionalSmooth-SFcolorsIchi-darkbg.txt
+// content_hash: a9e8061b78b5928f
+// collected: 2026-07-27
+
+// Overlay=false makes the indicator labels nicer (doesn't include the script name with the MA / EMA label)
+// The MAs may be in their own panel (like RSI and Stoch) just drag them (left-click) from their panel to the
+// actual chart, then click "3dots", "Pin to scale", "Pinned to right side" to merge the scales into one
+indicator(title="Peanuts", shorttitle="Peanuts", overlay=false, timeframe="", timeframe_gaps=true)
+
+color_style_select = input.string(defval="K", title="K, P or M", options=["K", "P", "M"], group="Use K, P, or M colors")
+
+k_col_selected = color_style_select == "K" ? true : false
+p_col_selected = color_style_select == "P" ? true : false
+m_col_selected = color_style_select == "M" ? true : false
+if (k_col_selected and p_col_selected and m_col_selected)
+    runtime.error("No matching MA type found.")
+
+macros_MAs_on = input.bool(defval = true, title="Macro MAs on", group="Quick-select what to show")
+trend_MAs_on = input.bool(defval = true, title="Trend MAs on", group="Quick-select what to show")
+h4ema200_everywhere_on = input.bool(defval = false, title="H4-ema200 everywhere on", group="Quick-select what to show")
+ichi_macro_cloud_on = input.bool(defval = false, title="Ichimuko cloud for macro MAs on", group="Quick-select what to show")
+
+
+// ma 20
+ma20Source = input(defval = close)
+ma20Length = input.int(defval = 20, minval = 1)
+
+// ma 200
+ma200Source = input(defval = close)
+ma200Length = input.int(defval = 200, minval = 1)
+
+// ma 100
+ma100Source = input(defval = close)
+ma100Length = input.int(defval = 100, minval = 1)
+
+// ma 300
+ma300Source = input(defval = close)
+ma300Length = input.int(defval = 300, minval = 1)
+
+//ema 21
+ema21Source = input(defval = close)
+ema21Length = input.int(defval = 21, minval = 1)
+
+//ema 25
+ema25Source = input(defval = close)
+ema25Length = input.int(defval = 25, minval = 1)
+
+//ema 32
+ema32Source = input(defval = close)
+ema32Length = input.int(defval = 32, minval = 1)
+
+//ema 33
+ema33Source = input(defval = close)
+ema33Length = input.int(defval = 33, minval = 1)
+
+//ema 34
+ema34Source = input(defval = close)
+ema34Length = input.int(defval = 34, minval = 1)
+
+// ema200 - actually SMMA99
+ema200Source = input(defval = close)
+ema200Length = input.int(defval = 99, minval=1) 
+
+// ema 13
+ema13Source = input(defval = close)
+ema13Length = input.int(13, minval=1) 
+
+
+//Declare EMA
+ma20 = ta.sma(ema200Source, ma20Length)
+ma100 = ta.sma(ma100Source, ma100Length)
+ma300 = ta.sma(ma300Source, ma300Length)
+ma200 = ta.sma(ma200Source, ma200Length)
+ema13 = ta.ema(ema13Source, ema13Length)
+ema21 = ta.ema(ema21Source, ema21Length)
+ema25 = ta.ema(ema25Source, ema25Length)
+ema32 = ta.ema(ema32Source, ema32Length)
+ema33 = ta.ema(ema33Source, ema33Length)
+ema34 = ta.ema(ema34Source, ema34Length)
+EMA200() => 
+    ema200 = 0.0
+    ema200 := na(ema200[1]) ? ta.sma(ema200Source, ema200Length) : (ema200[1] * (ema200Length - 1) + ema200Source) / ema200Length
+
+// getting different timeframe MA/EMAs that can use the "timeframe gaps" checkbox (from indicator function)
+BackgroundData(symbol, timeframe, data) =>
+    isLive = barstate.isrealtime
+    request.security(symbol, timeframe, data[isLive ? 1 : 0])[isLive ? 0 : 1]
+
+// plot h4ema200-everywhere (H4-ema200 on all timeframes)
+h4ema200 = 0.0
+h4ema200 := BackgroundData(syminfo.tickerid,"240", EMA200())
+// don't plot h4ema200-everywhere on H4 chart
+currentChartTimeframe = timeframe.period
+h4ema200_plot_on_this_tf = currentChartTimeframe=="240" ? false : true
+
+// K colours
+h4ema200Col_k=color.new(color.blue, 0)
+ma300Col_k =  color.new(#ce93d8, 0)
+ma200Col_k =  color.new(color.orange, 0) 
+ema200Col_k = color.new(#ff0000, 0)
+ma100Col_k =  color.new(#00BFFF, 0)
+ema13Col_k =  color.new(#00FF00, 0) 
+ema21Col_k=   color.new(#00FF00, 0)
+ema25Col_k =  color.new(#00FF00, 0)
+ema32Col_k =  color.new(#00FF00, 0)
+ema33Col_k =  color.new(#00FF00, 0)
+ema34Col_k =  color.new(#00FF00, 0)
+
+// P colours
+h4ema200Col_p = color.new(color.orange, 0)
+ma300Col_p =    color.new(#ce93d9, 10)
+ma200Col_p =    color.new(color.blue, 0)
+ema200Col_p =   color.new(#d1d4dc, 0)
+ma100Col_p =    color.new(#81c784, 0)
+ema13Col_p =    color.new(#00FFFF, 0)
+ema21Col_p =    color.new(#00FFFF, 0)
+ema25Col_p =    color.new(#00FFFF, 0)
+ema32Col_p =    color.new(#f23645, 0)
+ema33Col_p =    color.new(#f23645, 0)
+ema34Col_p =    color.new(#f23645, 0)
+
+// M colors
+h4ema200Col_m=color.new(#ba68c8, 0)
+ma300Col_m =  color.new(#ffcc80, 20)
+ma200Col_m =  color.new(color.blue, 0) 
+ema200Col_m = color.new(color.white, 0)
+ma100Col_m =  color.new(#fe5f55, 0)
+ema13Col_m =  color.new(#00FFFF, 0) 
+ema21Col_m=   color.new(#00FFFF, 0)
+ema25Col_m =  color.new(#00FFFF, 0)
+ema32Col_m =  color.new(#00FFFF, 0)
+ema33Col_m =  color.new(#00FFFF, 0)
+ema34Col_m =  color.new(#00FFFF, 0)
+//nice minimalist - h4ema200Col_m=color.new(color.blue, 0)
+//nice minimalist - ma300Col_m =  color.new(#5d606b, 0)
+//nice minimalist - ma200Col_m =  color.new(color.blue, 0) 
+//nice minimalist - ema200Col_m = color.new(color.white, 0)
+//nice minimalist - ma100Col_m =  color.new(#d1d4dc, 0)
+//nice minimalist - ema13Col_m =  color.new(#00FFFF, 0) 
+
+
+// Plot K lines
+plot(na, title="---------- K ----------", color=color.red)
+plot((h4ema200_plot_on_this_tf) and (k_col_selected==true) and (h4ema200_everywhere_on) ? h4ema200 : na, title="4hEMA200", color=h4ema200Col_k, linewidth=2)
+p300maK=plot((k_col_selected==true) and (macros_MAs_on) ? ma300 : na, title="MA300", color=ma300Col_k, linewidth=1, style=plot.style_circles)
+plot((k_col_selected==true) and (macros_MAs_on) ? ma200 : na, title="MA200", color=ma200Col_k, linewidth=2, display=display.none)
+plot((k_col_selected==true) and (macros_MAs_on) ? EMA200() : na, title="EMA200", color=ema200Col_k, linewidth=2, style=plot.style_line) 
+p100maK=plot((k_col_selected==true) and (macros_MAs_on) ? ma100 : na, title="MA100", color=ma100Col_k, linewidth=1, style=plot.style_circles)
+plot((k_col_selected==true) and (trend_MAs_on) ? ema13 : na, title="EMA13", color=ema13Col_k, linewidth=1)
+plot((k_col_selected==true) and (trend_MAs_on) ? ema21 : na, title="EMA21", color=ema21Col_k, linewidth=1, style=plot.style_stepline)
+plot((k_col_selected==true) and (trend_MAs_on) ? ema25 : na, title="EMA25", color=ema25Col_k, linewidth=1, style=plot.style_stepline, display=display.none)
+plot((k_col_selected==true) and (trend_MAs_on) ? ema32 : na, title="EMA32", color=ema32Col_k, linewidth=1, style=plot.style_cross, display=display.none)
+plot((k_col_selected==true) and (trend_MAs_on) ? ema33 : na, title="EMA33", color=ema33Col_k, linewidth=1, style=plot.style_cross, display=display.none)
+plot((k_col_selected==true) and (trend_MAs_on) ? ema34 : na, title="EMA34", color=ema34Col_k, linewidth=1, style=plot.style_cross, display=display.none)
+
+// Plot P lines
+plot(na, title="---------- P ----------", color=color.blue)
+plot((h4ema200_plot_on_this_tf) and (p_col_selected==true) and (h4ema200_everywhere_on) ? h4ema200 : na, title="4hEMA200", color=h4ema200Col_p, linewidth=2)
+p300maP=plot((p_col_selected==true) and (macros_MAs_on) ? ma300 : na, title="MA300", color=ma300Col_p, linewidth=1, style=plot.style_circles)
+plot((p_col_selected==true) and (macros_MAs_on) ? ma200 : na, title="MA200", color=ma200Col_p, linewidth=2, display=display.none)
+plot((p_col_selected==true) and (macros_MAs_on) ? EMA200() : na, title="EMA200", color=ema200Col_p, linewidth=2, style=plot.style_stepline) 
+p100maP=plot((p_col_selected==true) and (macros_MAs_on) ? ma100 : na, title="MA100", color=ma100Col_p, linewidth=1, style=plot.style_circles)
+plot((p_col_selected==true) and (trend_MAs_on) ? ema13 : na, title="EMA13", color=ema13Col_p, linewidth=1)
+plot((p_col_selected==true) and (trend_MAs_on) ? ema21 : na, title="EMA21", color=ema21Col_p, linewidth=1, style=plot.style_stepline, display=display.none)
+plot((p_col_selected==true) and (trend_MAs_on) ? ema25 : na, title="EMA25", color=ema25Col_p, linewidth=1, style=plot.style_stepline)
+plot((p_col_selected==true) and (trend_MAs_on) ? ema32 : na, title="EMA32", color=ema32Col_p, linewidth=1, style=plot.style_cross)
+plot((p_col_selected==true) and (trend_MAs_on) ? ema33 : na, title="EMA33", color=ema33Col_p, linewidth=1, style=plot.style_cross, display=display.none)
+plot((p_col_selected==true) and (trend_MAs_on) ? ema34 : na, title="EMA34", color=ema34Col_p, linewidth=1, style=plot.style_cross, display=display.none)
+
+// Plot M lines
+plot(na, title="---------- M ----------", color=color.red)
+plot((h4ema200_plot_on_this_tf) and (m_col_selected==true) and (h4ema200_everywhere_on) ? h4ema200 : na, title="4hEMA200", color=h4ema200Col_m, linewidth=2)
+p300maM=plot((m_col_selected==true) and (macros_MAs_on) ? ma300 : na, title="MA300", color=ma300Col_m, linewidth=1, style=plot.style_cross)
+plot((m_col_selected==true) and (macros_MAs_on) ? ma200 : na, title="MA200", color=ma200Col_m, linewidth=2, display=display.none)
+plot((m_col_selected==true) and (macros_MAs_on) ? EMA200() : na, title="EMA200", color=ema200Col_m, linewidth=2, style=plot.style_line) 
+p100maM=plot((m_col_selected==true) and (macros_MAs_on) ? ma100 : na, title="MA100", color=ma100Col_m, linewidth=1, style=plot.style_circles)
+plot((m_col_selected==true) and (trend_MAs_on) ? ema13 : na, title="EMA13", color=ema13Col_m, linewidth=1)
+plot((m_col_selected==true) and (trend_MAs_on) ? ema21 : na, title="EMA21", color=ema21Col_m, linewidth=1, style=plot.style_stepline, display=display.none)
+plot((m_col_selected==true) and (trend_MAs_on) ? ema25 : na, title="EMA25", color=ema25Col_m, linewidth=1, style=plot.style_stepline)
+plot((m_col_selected==true) and (trend_MAs_on) ? ema32 : na, title="EMA32", color=ema32Col_m, linewidth=1, style=plot.style_cross, display=display.none)
+plot((m_col_selected==true) and (trend_MAs_on) ? ema33 : na, title="EMA33", color=ema33Col_m, linewidth=1, style=plot.style_cross)
+plot((m_col_selected==true) and (trend_MAs_on) ? ema34 : na, title="EMA34", color=ema34Col_m, linewidth=1, style=plot.style_cross, display=display.none)
+
+// fill macro MAs (Ichi cloud!)
+fillColorSelectK = (ma100 > ma300) ? color.new(color.lime, 75) : color.new(color.red, 75)
+fillColorSelectP = (ma100 > ma300) ? color.new(color.lime, 75) : color.new(color.red, 75)
+fillColorSelectM = (ma100 > ma300) ? color.new(color.lime, 75) : color.new(color.red, 75)
+fill(p100maK, p300maK, k_col_selected and (ichi_macro_cloud_on) ? fillColorSelectK : na, title="K")
+fill(p100maP, p300maP, p_col_selected and (ichi_macro_cloud_on) ? fillColorSelectP : na, title="P")
+fill(p100maM, p300maM, m_col_selected and (ichi_macro_cloud_on) ? fillColorSelectM : na, title="M")

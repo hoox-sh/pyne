@@ -1,0 +1,49 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于成交量和VWAP确认的短线策略Scalping-Strategy-with-Volume-and-VWAP-Confirmation.md
+// content_hash: 49c00f51dc3b7b0d
+// collected: 2026-07-27
+strategy("Scalping Strategy with Volume and VWAP Confirmation", overlay=true)
+
+// Input parameters
+length = input(14, title="MACD Length")
+volume_threshold = input(100, title="Volume Threshold")
+vwap_length = input(20, title="VWAP Length")
+
+// Calculate VWAP
+vwapValue = ta.vwap(close, vwap_length)
+
+// Calculate volume
+barVolume = volume
+
+// Define entry conditions
+longCondition = close > vwapValue and barVolume > volume_threshold
+shortCondition = close < vwapValue and barVolume > volume_threshold
+
+// Define exit conditions
+exitLongCondition = close < vwapValue
+exitShortCondition = close > vwapValue
+
+// Plot VWAP
+plot(vwapValue, color=color.blue, title="VWAP")
+
+// Plot Volume bars
+barcolor(barVolume >= volume_threshold ? color.green : na)
+
+// Execute strategy orders
+strategy.entry("Long", strategy.long, when=longCondition)
+strategy.entry("Short", strategy.short, when=shortCondition)
+strategy.close("Long", when=exitLongCondition)
+strategy.close("Short", when=exitShortCondition)
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/440315
+
+> Last Modified
+
+2024-01-29 11:35:45

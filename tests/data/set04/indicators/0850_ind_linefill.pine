@@ -1,0 +1,16 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block333
+// content_hash: f627701cdc59d32d
+// collected: 2026-07-27
+indicator("linefill", overlay=true)
+// Empty `linefill1` line ID.
+var linefill linefill1 = na
+// `linefill` type is unnecessary because `linefill.new()` returns "linefill" type.
+var linefill2 = linefill.new(na, na, na)
+
+if barstate.islastconfirmedhistory
+    line1 = line.new(bar_index - 10, high+1, bar_index, high+1, extend = extend.right)
+    line2 = line.new(bar_index - 10, low+1, bar_index, low+1, extend = extend.right)
+    linefill3 = linefill.new(line1, line2, color = color.new(color.green, 80))

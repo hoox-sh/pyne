@@ -1,0 +1,16 @@
+//@version=6
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/language/user-defined-functions.md::user-defined-functions.md#block2
+// content_hash: 2f26fc6e3adff6b6
+// collected: 2026-07-27
+indicator("Single-line function with more than one statement demo")
+
+//@function Calculates the z-score of a `source` series over `length` bars.
+zScore(float source, int length) => mean = ta.sma(source, length), sd = ta.stdev(source, length), (source - mean) / sd
+
+//@variable The 20-bar z-score of `close` values.
+float osc = zScore(close, 20)
+
+// Plot the `osc` series as color-coded columns.
+plot(osc, "Z-score", osc > 0 ? color.green : color.red, style = plot.style_columns)

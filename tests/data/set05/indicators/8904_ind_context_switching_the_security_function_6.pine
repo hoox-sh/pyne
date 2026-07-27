@@ -1,0 +1,11 @@
+//@version=3
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/v3/essential/context-switching-the-security-function.md::context-switching-the-security-function.md#block1
+// content_hash: 8699ad3191a63a8b
+// collected: 2026-07-27
+study('My Script', overlay=true)
+a = security(tickerid, '60', low, lookahead=barmerge.lookahead_off)
+plot(a, color=red)
+b = security(tickerid, '60', low, lookahead=barmerge.lookahead_on)
+plot(b, color=lime)

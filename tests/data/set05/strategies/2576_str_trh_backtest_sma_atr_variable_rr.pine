@@ -1,0 +1,55 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/SMA-ATR动态风险回报比趋势跟踪策略-SMA-ATR-Dynamic-Risk-Reward-Trend-Following-Strategy.md
+// content_hash: 1c9811e5bc38a60e
+// collected: 2026-07-27
+strategy("TRH Backtest SMA ATR Variable RR", overlay=true)
+
+// SMA Settings
+sma7 = ta.sma(close, 7)
+sma25 = ta.sma(close, 25)
+sma99 = ta.sma(close, 99)
+
+// ATR Settings
+atrLength = input.int(14, title="ATR Length")
+atrMultiplier = input.float(1.0, title="ATR Multiplier")
+atr = ta.atr(atrLength) * atrMultiplier
+
+// Entry and Exit Conditions
+longCondition = ta.crossover(sma7, sma25) and close > sma99
+shortCondition = ta.crossunder(sma7, sma25) and close < sma99
+longCross = ta.crossover(sma7, sma99) or ta.crossover(sma7, sma25)
+shortCross = ta.crossunder(sma7, sma99) or ta.crossunder(sma7, sma25)
+
+// Trade Execution
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+
+if (shortCondition)
+    strategy.entry("Short", strategy.short)
+
+// Variable Risk Reward
+riskRewardRatio = 2.0
+if (longCross or shortCross)
+    riskRewardRatio = 6.0
+
+// ATR Based Stop Loss and Take Profit
+longStopLoss = low - atr
+shortStopLoss = high + atr
+longTakeProfit = close + (atr * riskRewardRatio)
+shortTakeProfit = close - (atr * riskRewardRatio)
+
+// Apply Stop Loss and Take Profit
+strategy.exit("Exit Long", "Long", stop=longStopLoss, limit=longTakeProfit)
+strategy.exit("Exit Short", "Short", stop=shortStopLoss, limit=shortTakeProfit)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/486571
+
+> Last Modified
+
+2025-03-14 09:45:55

@@ -1,0 +1,82 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/超级趋势ATR策略Supertrend-ATR-Strategy.md
+// content_hash: aeb4d28f1916a9a5
+// collected: 2026-07-27
+strategy('Supertrend', overlay=true, format=format.price, precision=2)
+
+Periods = input(title='ATR Period', defval=10)
+src = input(hl2, title='Source')
+Multiplier = input.float(title='ATR Multiplier', step=0.1, defval=3.0)
+changeATR = input(title='Change ATR Calculation Method ?', defval=true)
+showsignals = input(title='Show Buy/Sell Signals ?', defval=true)
+highlighting = input(title='Highlighter On/Off ?', defval=true)
+atr2 = ta.sma(ta.tr, Periods)
+atr = changeATR ? ta.atr(Periods) : atr2
+up = src - Multiplier * atr
+up1 = nz(up[1], up)
+up := close[1] > up1 ? math.max(up, up1) : up
+dn = src + Multiplier * atr
+dn1 = nz(dn[1], dn)
+dn := close[1] < dn1 ? math.min(dn, dn1) : dn
+trend = 1
+trend := nz(trend[1], trend)
+trend := trend == -1 and close > dn1 ? 1 : trend == 1 and close < up1 ? -1 : trend
+upPlot = plot(trend == 1 ? up : na, title='Up Trend', style=plot.style_linebr, linewidth=2, color=color.new(color.green, 0))
+buySignal = trend == 1 and trend[1] == -1
+plotshape(buySignal ? up : na, title='UpTrend Begins', location=location.absolute, style=shape.circle, size=size.tiny, color=color.new(color.green, 0))
+plotshape(buySignal and showsignals ? up : na, title='Buy', text='Buy', location=location.absolute, style=shape.labelup, size=size.tiny, color=color.new(color.green, 0), textcolor=color.new(color.white, 0))
+dnPlot = plot(trend == 1 ? na : dn, title='Down Trend', style=plot.style_linebr, linewidth=2, color=color.new(color.red, 0))
+sellSignal = trend == -1 and trend[1] == 1
+plotshape(sellSignal ? dn : na, title='DownTrend Begins', location=location.absolute, style=shape.circle, size=size.tiny, color=color.new(color.red, 0))
+plotshape(sellSignal and showsignals ? dn : na, title='Sell', text='Sell', location=location.absolute, style=shape.labeldown, size=size.tiny, color=color.new(color.red, 0), textcolor=color.new(color.white, 0))
+mPlot = plot(ohlc4, title='', style=plot.style_circles, linewidth=0)
+longFillColor = highlighting ? trend == 1 ? color.green : color.white : color.white
+shortFillColor = highlighting ? trend == -1 ? color.red : color.white : color.white
+//fill(mPlot, upPlot, title='UpTrend Highligter', color=longFillColor)
+//fill(mPlot, dnPlot, title='DownTrend Highligter', color=shortFillColor)
+
+multiplier = input.float(title="ATR multiplier", defval = 1.5)
+rr           = input.float(title="Risk:Reward", defval=1.0)
+riskPerTrade = input.float(title="Risk Per Trade %", defval=1.0)
+atr3 = ta.atr(14)
+
+//calculate stops and targets 
+longstop = close - (atr3 * multiplier)
+shortstop = close + (atr3 * multiplier)
+longStopDistance  = close - longstop
+shortStopDistance = shortstop - close
+longTarget  = close + (longStopDistance * rr)
+shortTarget = close - (shortStopDistance * rr)
+
+// Save stops & targets
+var t_stop = 0.0
+var t_target = 0.0
+
+longCondition = buySignal 
+if (longCondition)
+    t_stop := longstop
+    t_target := longTarget
+    positionSize = math.floor((strategy.equity * (riskPerTrade/100)) / (close - t_stop))
+    strategy.entry("Long", strategy.long, qty = positionSize)
+
+shortCondition = sellSignal 
+if (shortCondition)
+    t_stop := shortstop
+    t_target := shortTarget
+    positionSize = math.floor((strategy.equity * (riskPerTrade/100)) / (t_stop - close))  
+    strategy.entry("Short", strategy.short, qty = positionSize)
+
+strategy.exit(id="Long Exit", from_entry="Long", limit=t_target, stop=t_stop)
+strategy.exit(id="Short Exit", from_entry="Short", limit=t_target, stop=t_stop)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/446525
+
+> Last Modified
+
+2024-03-29 11:29:15

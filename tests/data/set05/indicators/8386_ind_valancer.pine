@@ -1,0 +1,99 @@
+// set05 corpus entry
+// source_repo: tradingview-indicators-pine
+// source_path: tradingview-indicators-pine/ATZ/Valancer.txt
+// content_hash: 29eb94afefc783f6
+// collected: 2026-07-27
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © babdou
+//
+// Info:
+// now there some details to help you using it
+// green area under 0, means, a bullish momentum is building in bearish territory
+// keep watching the HH and HL
+// when it is broken, it's time for sideways or reversal
+
+//@version=4
+study(title="Valancer", shorttitle="Valancer", format=format.volume, resolution="", precision=3)
+
+len = input(24, "Length", type=input.integer)
+slen = input(24, "Signal Length", type=input.integer)
+
+bearColor = #f7395d
+bullColor = #00f3b2
+signalColor = color.yellow
+noneColor = color.new(color.white, 100)
+
+///////// VALUE + SIGNAL ///////// 
+
+value = (obv - ema(obv,len))/1000000
+signal = ema(value,slen)
+
+
+hline(0)
+pv = plot(value, color=noneColor, transp=100, title="Value")
+ps = plot(signal, color=signalColor, transp=0, title="Signal")
+fillColor = value>signal?bullColor:bearColor
+fill(pv, ps, color=fillColor, transp=0)
+
+///////// END VALUE + SIGNAL ///////// 
+
+
+
+///////// DIVERGENCES ///////// 
+
+lbR = input(title="Pivot Lookback Right", defval=5)
+lbL = input(title="Pivot Lookback Left", defval=5)
+rangeUpper = input(title="Max of Lookback Range", defval=60)
+rangeLower = input(title="Min of Lookback Range", defval=5)
+plotBull = input(title="Plot Bullish", defval=true)
+plotBear = input(title="Plot Bearish", defval=true)
+
+
+_inRange(cond) =>
+    bars = barssince(cond == true)
+    rangeLower <= bars and bars <= rangeUpper
+    
+osc = value    
+
+
+plFound = na(pivotlow(osc, lbL, lbR)) ? false : true
+phFound = na(pivothigh(osc, lbL, lbR)) ? false : true
+
+//------------------------------------------------------------------------------
+// Regular Bullish
+// Osc: Higher Low
+oscHL = osc[lbR] > valuewhen(plFound, osc[lbR], 1) and _inRange(plFound[1])
+// Price: Lower Low
+priceLL = low[lbR] < valuewhen(plFound, low[lbR], 1)
+
+bullCond = plotBull and priceLL and oscHL and plFound
+
+plot(
+	 plFound ? osc[lbR] : na,
+	 offset=-lbR,
+	 title="Regular Bullish",
+	 linewidth=2,
+	 color=(bullCond ? bullColor : noneColor),
+	 transp=0
+	 )
+
+
+//------------------------------------------------------------------------------
+// Regular Bearish
+// Osc: Lower High
+oscLH = osc[lbR] < valuewhen(phFound, osc[lbR], 1) and _inRange(phFound[1])
+// Price: Higher High
+priceHH = high[lbR] > valuewhen(phFound, high[lbR], 1)
+
+bearCond = plotBear and priceHH and oscLH and phFound
+
+plot(
+	 phFound ? osc[lbR] : na,
+	 offset=-lbR,
+	 title="Regular Bearish",
+	 linewidth=2,
+	 color=(bearCond ? bearColor : noneColor),
+	 transp=0
+	 )
+
+///////// END DIVERGENCES /////////

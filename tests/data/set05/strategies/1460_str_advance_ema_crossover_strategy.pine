@@ -1,0 +1,81 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/MACD-Crossover-Strategy-MACD-交叉策略.md
+// content_hash: dc87fc44428d7a3a
+// collected: 2026-07-27
+strategy('Advance EMA Crossover Strategy', overlay=true, precision=6)
+//****************************************************************************//
+// CDC Action Zone is based on a simple EMA crossover 
+// between [default] EMA12 and EMA26
+// The zones are defined by the relative position of 
+// price in relation to the two EMA lines
+// Different zones can be use to activate / deactivate 
+// other trading strategies
+// The strategy can also be used on its own with 
+// acceptable results, buy on the first green candle
+// and sell on the first red candle
+//****************************************************************************//
+// Define User Input Variables
+
+xsrc = input(title='Source Data', defval=close)
+xprd1 = input(title='Fast EMA period', defval=12)
+xprd2 = input(title='Slow EMA period', defval=26)
+xsmooth = input(title='Smoothing period (1 = no smoothing)', defval=1)
+fillSW = input(title='Paint Bar Colors', defval=true)
+fastSW = input(title='Show fast moving average line', defval=true)
+slowSW = input(title='Show slow moving average line', defval=true)
+plotSigsw = input(title='Plot Buy/Sell Signals?', defval=true)
+
+//****************************************************************************//
+//Calculate Indicators
+
+xPrice = ta.ema(xsrc, xsmooth)
+
+FastMA = ta.ema(xPrice, xprd1)
+SlowMA = ta.ema(xPrice, xprd2)
+
+//****************************************************************************//
+// Define Color Zones and Conditions
+
+BullZone = FastMA > SlowMA and xPrice > FastMA  // Bullish Zone
+BearZone = FastMA < SlowMA and xPrice < FastMA  // Bearish Zone
+
+//****************************************************************************//
+// Strategy Entry and Exit Conditions
+
+if (BullZone and not BullZone[1])
+    strategy.entry("Buy", strategy.long)  // Buy on the transition into BullZone
+
+if (BearZone and not BearZone[1])
+    strategy.close("Buy")  // Sell on the transition into BearZone
+
+//****************************************************************************//
+// Display color on chart
+
+plotcolor = BullZone ? color.green : BearZone ? color.red : color.gray
+barcolor(color=fillSW ? plotcolor : na)
+
+//****************************************************************************//
+// Plot Fast and Slow Moving Averages
+
+plot(fastSW ? FastMA : na, color=color.red, title="Fast EMA", linewidth=2)
+plot(slowSW ? SlowMA : na, color=color.blue, title="Slow EMA", linewidth=2)
+
+//****************************************************************************//
+// Plot Buy and Sell Signals
+
+plotshape(series=plotSigsw and BullZone and not BullZone[1], location=location.belowbar, color=color.green, style=shape.labelup, title="Buy Signal")
+plotshape(series=plotSigsw and BearZone and not BearZone[1], location=location.abovebar, color=color.red, style=shape.labeldown, title="Sell Signal")
+
+//****************************************************************************//
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/448778
+
+> Last Modified
+
+2024-04-18 17:56:23

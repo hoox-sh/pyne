@@ -1,0 +1,22 @@
+//@version=5
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/GENESIS.pine
+// content_hash: 95d376a1e93af0e6
+// collected: 2026-07-27
+strategy("GENESIS", overlay=true)
+lenght1= (20)
+lenght2= (50)
+ema1= ta.ema(close, lenght1)
+ema2 = ta.ema(close, lenght2)
+long = ta.crossover(ema1,ema2)
+short = ta.crossover(ema2,ema1)
+LongSignal  = ta.crossover (ema1,ema2)
+ShortSignal = ta.crossunder (ema1,ema2)
+plotshape(LongSignal , title="Señal para Long", color= color.green, location=location.belowbar, size=size.tiny, text="Long", textcolor=color.white)
+plotshape(ShortSignal , title="Señal para Short", color= color.red, location=location.abovebar, size=size.tiny, text="Short", textcolor=color.white)
+strategy.entry("long", strategy.long, when = long)
+strategy.exit("Exit", "Long", profit = 10, loss = 2)
+strategy.entry("short", strategy.short, when = short)
+strategy.exit("Exit", "short", profit = 10, loss = 2)
+Expand (28 lines)

@@ -1,0 +1,14 @@
+//@version=6
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/concepts/inputs.md::inputs.md#block4
+// content_hash: 89d0792ca9c67d43
+// collected: 2026-07-27
+indicator("`input()`", "", true)
+a = input(1, "input int")
+b = input(1.0, "input float")
+c = input(true, "input bool")
+d = input(color.orange, "input color")
+e = input("1", "input string")
+f = input(close, "series float")
+plot(na)

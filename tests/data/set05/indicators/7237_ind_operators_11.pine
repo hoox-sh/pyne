@@ -1,0 +1,5 @@
+//@version=6indicator("`=` showcase")// The following are all valid variable declarations.i = 1MS_IN_ONE_MINUTE = 1000 * 60showPlotInput = input.bool(true, "Show plots")pHi = ta.pivothigh(5, 5)plotColor = color.greenplot(pHi, color = plotColor, display = showPlotInput ? display.all : display.none, precision = i)// set05 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/reference/operators.md::operators.md#block9
+// content_hash: 5d5a6fb5f8dd81ab
+// collected: 2026-07-27

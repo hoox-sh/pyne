@@ -1,0 +1,63 @@
+//@version=6
+// set04 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多重均线趋势追踪与风控优化量化交易策略-Multi-Moving-Average-Trend-Following-and-Risk-Management-Quantitative-Trading-Strategy.md
+// content_hash: 25a8f59e5f38f2ee
+// collected: 2026-07-27
+strategy("High-Return Trend Strategy (Final)", overlay=true)
+
+// === Inputs ===
+longEmaLength = input(200, title="Long EMA Length")
+shortEmaLength = input(50, title="Short EMA Length")
+rsiLength = input(14, title="RSI Length")
+rsiBuyLevel = input(50, title="RSI Buy Level")
+atrLength = input(14, title="ATR Length")
+atrMultiplier = input(2.5, title="ATR Multiplier")  // Adjusted for lower drawdown
+riskPerTrade = input.float(1.0, title="Risk % per Trade", minval=0.1, maxval=5.0, step=0.1)  // Risk % of equity
+
+
+// === Indicators ===
+longEma = ta.ema(close, longEmaLength)
+shortEma = ta.ema(close, shortEmaLength)
+rsi = ta.rsi(close, rsiLength)
+atr = ta.atr(atrLength)
+[plusDI, minusDI, adx] = ta.dmi(14, 14)  // DI and ADX smoothing set to 14
+
+// === Position Sizing ===
+// Calculate position size based on risk per trade
+riskAmount = strategy.equity * (riskPerTrade / 100)  // Risk % of account equity
+positionSize = riskAmount / (atr * atrMultiplier)  // ATR-based stop-loss distance
+
+// === Entry Conditions ===
+trendConfirmed = ta.barssince(shortEma <= longEma) > 10  // Persistent trend above long EMA
+longCondition = shortEma > longEma and rsi > rsiBuyLevel and adx > 20 and trendConfirmed
+
+// === Exit Conditions ===
+longStopLoss = close - atr * atrMultiplier  // Dynamic stop-loss
+strategy.exit("Trailing Stop", from_entry="Buy", trail_points=atr * 1.5, trail_offset=atr * 1.5)  // Trailing stop
+
+// === Strategy Logic ===
+if (longCondition)
+    strategy.entry("Buy", strategy.long, qty=positionSize)
+
+// === Alerts ===
+alertcondition(longCondition, title="Buy Signal", message="Buy Signal Triggered!")
+alertcondition(strategy.closedtrades > 0, title="Trade Closed", message="Trade Closed!")
+
+// === Debugging and Visualization ===
+plot(longEma, color=color.red, title="Long EMA (200)")
+plot(shortEma, color=color.blue, title="Short EMA (50)")
+plot(rsi, color=color.purple, title="RSI")
+hline(rsiBuyLevel, "RSI Buy Level", color=color.green)
+plot(adx, color=color.orange, title="ADX")
+hline(20, "ADX Threshold", color=color.red)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/483118
+
+> Last Modified
+
+2025-02-21 14:22:42

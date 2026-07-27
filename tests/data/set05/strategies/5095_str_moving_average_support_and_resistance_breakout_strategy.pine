@@ -1,0 +1,63 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于移动平均线的支撐阻力突破策略Moving-Average-Support-and-Resistance-Breakout-Strategy.md
+// content_hash: 78f04a4cbd339ea9
+// collected: 2026-07-27
+//
+//  作品: [LunaOwl] 支撐壓力策略第4版
+//  英文: [LunaOwl] Support Resistance Strategy V4
+//
+////////////////////////////////
+//     ~~!!*(๑╹◡╹๑) **       //
+//  製作:  @LunaOwl 彭彭      //
+//  日期:  2019年03月05日     //
+//  修改:  2019年04月22日     //
+//  四版:  2020年06月16日     //
+//  發表:  2020年06月17日     //
+////////////////////////////////
+
+//==設定策略==//
+
+strategy("[LunaOwl] 支撐壓力策略 [回測]",
+     shorttitle          = "支撐壓力策略 [回測]",
+     overlay             = true,
+     calc_on_order_fills = false,
+     calc_on_every_tick  = false,
+     pyramiding          = 0,
+     currency            = currency.NONE,
+     initial_capital     = 10000,
+     slippage            = 5,
+     default_qty_value   = 100,
+     default_qty_type    = strategy.percent_of_equity,
+     commission_type     = strategy.commission.percent,
+     commission_value    = 0.05
+     )
+
+LB = input(50, title = "回溯期數", type = input.integer)
+R = valuewhen(cross(sma(close, LB),close), highest(high, LB), 1)
+S = valuewhen(cross(close,sma(close, LB)),  lowest( low, LB), 1)
+
+plot(R, title = "壓力", color = color.green)
+plot(S, title = "支撐", color = color.red)
+
+//==定義輸出結果==//
+
+Trend_up = crossover(close, R) ? 1 : 0
+Trend_dn = crossunder(close, S) ? -1 : 0
+
+//==設定出場規則==//
+
+Enter = Trend_up ==  1 and Trend_up[1] == 0 ? Trend_up : na
+Exit  = Trend_dn == -1 and Trend_dn[1] == 0 ? Trend_dn : na
+strategy.entry("多", strategy.long, when = Enter)
+strategy.entry("空", strategy.short, when = Exit)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/428086
+
+> Last Modified
+
+2023-09-28 15:20:47

@@ -1,0 +1,18 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block47
+// content_hash: 3ab29dbdf8a11dfb
+// collected: 2026-07-27
+indicator("array.binary_search_leftmost")
+a = array.from(5, -2, 0, 9, 1)
+array.sort(a) // [-2, 0, 1, 5, 9]
+position = array.binary_search_leftmost(a, 3) // 2
+plot(position)
+
+//@version=6
+indicator("array.binary_search_leftmost, repetitive elements")
+a = array.from(4, 5, 5, 5)
+// Returns the index of the first instance.
+position = array.binary_search_leftmost(a, 5) 
+plot(position) // Plots 1

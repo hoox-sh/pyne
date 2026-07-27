@@ -1,0 +1,97 @@
+//@version=6
+// set03 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/高频动态开盘区间突破交易策略-Dynamic-Opening-Range-Breakout-High-Frequency-Trading-Strategy.md
+// content_hash: f89862f9e287c1ca
+// collected: 2026-07-27
+strategy("ORB", overlay=true, fill_orders_on_standard_ohlc = true)
+
+trade_on_monday = input(false, "Trade on Monday") 
+trade_on_tuesday = input(true, "Trade on Tuesday") 
+trade_on_wednesday = input(true, "Trade on Wednesday")
+trade_on_thursday = input(false, "Trade on Thursday")
+trade_on_friday = input(true, "Trade on Friday")
+// Get the current day of the week (1=Monday, ..., 6=Saturday, 0=Sunday)
+current_day = dayofweek(time) 
+current_price = request.security(syminfo.tickerid, "1", close)
+// Define trading condition based on the day of the week
+is_trading_day = (trade_on_monday and current_day == dayofweek.monday) or
+                 (trade_on_tuesday and current_day == dayofweek.tuesday) or
+                 (trade_on_wednesday and current_day == dayofweek.wednesday) or
+                 (trade_on_thursday and current_day == dayofweek.thursday) or
+                 (trade_on_friday and current_day == dayofweek.friday)
+// ─── Persistent variables ─────────────────────────
+var line  orHighLine       = na   // reference to the drawn line for the OR high
+var line  orLowLine        = na   // reference to the drawn line for the OR low
+var float orHigh           = na   // stores the open-range high
+var float orLow            = na   // stores the open-range low
+var int   barIndex930      = na   // remember the bar_index at 9:30
+var bool  rangeEstablished = false
+var bool  tradeTakenToday  = false  // track if we've opened a trade for the day
+
+// ─── Detect times ────────────────────────────────
+is930  = (hour(time, "America/New_York") == 9 and minute(time, "America/New_York") == 30)
+is945  = (hour(time, "America/New_York") == 9 and minute(time, "America/New_York") == 45)
+
+// Between 9:30 and 9:44 (inclusive of 9:30 bar, exclusive of 9:45)?
+inSession = (hour(time, "America/New_York") == 9 and minute(time, "America/New_York") >= 30 and minute(time, "America/New_York") < 45)
+
+// ─── Reset each day at 9:30 ─────────────────────
+if is930
+    // Reset orHigh / orLow
+    orHigh := na
+    orLow  := na
+    rangeEstablished := false
+    tradeTakenToday  := false
+    // Record the bar_index for 9:30
+    barIndex930 := bar_index
+// ─── ONLY FORM OR / TRADE IF TODAY IS ALLOWED ─────────────────────
+if is_trading_day
+// ─── Accumulate the OR high/low from 9:30 to 9:44 ─
+    if inSession
+        orHigh := na(orHigh) ? high : math.max(orHigh, high)
+        orLow  := na(orLow)  ? low  : math.min(orLow, low)
+
+// ─── Exactly at 9:45, draw the lines & lock range ─
+    if is945 and not na(orHigh) and not na(orLow)
+
+    // Mark that the OR is established
+        rangeEstablished := true
+
+// ─── TRADING LOGIC AFTER 9:45, but BEFORE NOON, and if NO trade taken ─
+    if rangeEstablished and not na(orHigh) and not na(orLow) 
+    // Only trade if it's still BEFORE 12:00 (noon) EST and we haven't taken a trade today
+        if hour(time, "America/New_York") < 12 and (not tradeTakenToday)
+        // 1) Compute distances for stops & targets
+            float stopSize   = 0.5 * (orHigh - orLow)      // half the OR size
+            float targetSize = 3 * stopSize      // 3x the stop => 1.5x the entire OR
+    
+        // 2) Check if price breaks above OR => go long
+            if close > orHigh 
+            // Only enter a new long if not already in a long position (optional)
+                if strategy.position_size <= 0
+                    strategy.entry("ORB Long", strategy.long)
+                    strategy.exit("Long Exit", from_entry = "ORB Long", stop = orHigh - stopSize, limit  = strategy.position_avg_price + targetSize)
+                // Flag that we've taken a trade today
+                    tradeTakenToday := true
+    
+        // 3) Check if price breaks below OR => go short
+            if close < orLow 
+            // Only enter a new short if not already in a short position (optional)
+                if strategy.position_size >= 0
+                    strategy.entry("ORB Short", strategy.short)
+                    strategy.exit("Short Exit", from_entry = "ORB Short", stop = orLow + stopSize, limit  = strategy.position_avg_price - targetSize)
+                // Flag that we've taken a trade today
+                    tradeTakenToday := true
+if hour(time, "America/New_York") == 16 and minute(time, "America/New_York") == 0
+    strategy.close_all()
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/483111
+
+> Last Modified
+
+2025-02-21 14:02:59

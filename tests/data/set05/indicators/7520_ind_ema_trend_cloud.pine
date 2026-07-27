@@ -1,0 +1,48 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/EMA-TREND-CLOUD.md
+// content_hash: 4c4e57e5fce286e8
+// collected: 2026-07-27
+indicator(title='EMA TREND CLOUD', overlay=true)
+
+fastLen = input(title='Fast EMA Length', defval=9)
+slowLen = input(title='Slow EMA Length', defval=20)
+useTextLabels = input.bool(true, title='Use Text-Based Crossover Labels?', group='Crossover Moving Averages')
+
+fastEMA = ta.ema(close, fastLen)
+slowEMA = ta.ema(close, slowLen)
+
+fema = plot(fastEMA, title='FastEMA', color=color.new(color.green, 0), linewidth=1, style=plot.style_line)
+sema = plot(slowEMA, title='SlowEMA', color=color.new(color.red, 0), linewidth=1, style=plot.style_line)
+
+fill(fema, sema, color=fastEMA > slowEMA ? color.new(#417505, 50) : color.new(#890101, 50), title='Cloud')
+
+// Bull and Bear Alerts
+Bull = ta.crossover(fastEMA, slowEMA)
+Bear = ta.crossunder(fastEMA, slowEMA)
+
+plotshape(Bull, title='Calls Label', color=color.new(color.green, 25), textcolor=useTextLabels ? color.white : color.new(color.white, 100), style=useTextLabels ? shape.labelup : shape.triangleup, text='Calls', location=location.belowbar)
+
+plotshape(Bear, title='Puts Label', color=color.new(color.red, 25), textcolor=useTextLabels ? color.white : color.new(color.white, 100), style=useTextLabels ? shape.labeldown : shape.triangledown, text='Puts', location=location.abovebar)
+
+
+if Bull
+    alert('Calls Alert: 9ema crossed over 20ema', alert.freq_once_per_bar_close)
+if Bear
+    alert('Puts Alert: 9ema crossed under 20ema', alert.freq_once_per_bar_close)
+
+
+if Bull
+    strategy.entry("Enter Long", strategy.long)
+else if Bear
+    strategy.entry("Enter Short", strategy.short)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/364037
+
+> Last Modified
+
+2022-05-18 16:08:03

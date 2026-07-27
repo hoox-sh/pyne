@@ -1,0 +1,42 @@
+//@version=4
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/Backtest Signal To Noise.pine
+// content_hash: b4867f2a082df444
+// collected: 2026-07-27
+////////////////////////////////////////////////////////////
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © HPotter 05/01/2021
+// The signal-to-noise (S/N) ratio. 
+// And Simple Moving Average.
+// Thank you for idea BlockchainYahoo
+//
+// WARNING:
+// - For purpose educate only
+// - This script to change bars colors. 
+////////////////////////////////////////////////////////////
+SignalToNoise(length) =>
+    StN = 0.0
+    for i = 1 to length-1
+        StN := StN + (1/close[i])/length
+    StN := -10*log(StN)
+strategy(title="Backtest Signal To Noise ", shorttitle="StoN", overlay=false)
+length = input(title="Days", type=input.integer, defval=21, minval=2)
+Smooth =  input(title="Smooth", type=input.integer, defval=7, minval=2)
+reverse = input(false, title="Trade reverse")
+StN = SignalToNoise(length)
+SMAStN = sma(StN, Smooth)
+pos = iff(SMAStN[1] > StN[1] , -1,
+       iff(SMAStN[1] < StN[1], 1, 0)) 
+possig = iff(reverse and pos == 1, -1,
+          iff(reverse and pos == -1 , 1, pos))     
+if (possig == 1) 
+    strategy.entry("Long", strategy.long)
+if (possig == -1)
+    strategy.entry("Short", strategy.short)  
+if (possig == 0) 
+    strategy.close_all()
+barcolor(possig == -1 ? #b50404: possig == 1 ? #079605 : #0536b3 )
+plot(StN, title='StN' )
+plot(SMAStN, title='Smooth', color=#00ff00)
+Expand (37 lines)

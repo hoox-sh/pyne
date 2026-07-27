@@ -1,0 +1,26 @@
+//@version=4
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/Advanced OutSide with HMA and Klinger Forex Swing strategy.pine
+// content_hash: f4e00b7686bec410
+// collected: 2026-07-27
+strategy("Advanced OutSide Forex strategy", overlay = true, default_qty_type = strategy.percent_of_equity, default_qty_value = 100, calc_on_every_tick = true, commission_type = strategy.commission.percent, commission_value = 0.0)
+sv = change(hlc3) >= 0 ? volume : -volume
+kvo = ema(sv, 34) - ema(sv, 55)
+sig = ema(kvo, 13)
+length = input(title="Length", type=input.integer, defval=27)
+src = input(close, title="Source")
+lsma = hma(src, length)
+if (high > high[1] and low < low[1])
+    if (close > open and kvo>0 and lsma<close)
+        strategy.entry("long", strategy.long, comment="long")
+if (high < high[1] and low > low[1])        
+    if (close < open and kvo<0 and lsma>close)
+        strategy.entry("short", strategy.short, comment="short")
+tplong=input(0.006, step=0.001, title="Take profit % for long")
+sllong=input(0.012, step=0.001, title="Stop loss % for long")
+tpshort=input(0.0075, step=0.001, title="Take profit % for short")
+slshort=input(0.015, step=0.001, title="Stop loss % for short")
+strategy.exit("short_tp/sl", "long", profit=close * tplong / syminfo.mintick, loss=close * sllong / syminfo.mintick, comment='LONG EXIT',  alert_message = 'closeshort')
+strategy.exit("short_tp/sl", "short", profit=close * tpshort / syminfo.mintick, loss=close * slshort / syminfo.mintick, comment='SHORT EXIT',  alert_message = 'closeshort')
+Expand (30 lines)

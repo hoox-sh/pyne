@@ -1,0 +1,77 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/首个蜡烛突破-动态追踪止损与收盘平仓策略-First-Candle-Breakout-Dynamic-Trailing-Stop-EOD-Close-Strategy.md
+// content_hash: 6be199d9ffd961e2
+// collected: 2026-07-27
+strategy("First Candle Breakout - Trailing Stop & EOD Close", overlay=true)
+
+// User Inputs
+startHour = input(9, "Start Hour (Exchange Time)")
+startMinute = input(15, "Start Minute (Exchange Time)")
+endHour = input(15, "End Hour (Exchange Time)")  // Market closing hour
+endMinute = input(30, "End Minute (Exchange Time)")
+trailStopMultiplier = input(1.5, "Trailing Stop Multiplier")  // 1.5x first candle range
+
+// Variables to store the first candle's high & low
+var float firstCandleHigh = na
+var float firstCandleLow = na
+var bool tradeTaken = false  // Ensures only one trade per day
+var int tradeDirection = 0   // 1 for long, -1 for short
+var float trailStopLevel = na  // Trailing stop level
+
+// Identify first candle's high & low
+if (hour == startHour and minute == startMinute and bar_index > 1)
+    firstCandleHigh := high
+    firstCandleLow := low
+    tradeTaken := false  // Reset trade flag at start of day
+    tradeDirection := 0   // Reset trade direction
+    trailStopLevel := na  // Reset trailing stop
+
+// Calculate first candle range
+firstCandleRange = firstCandleHigh - firstCandleLow
+trailStopDistance = firstCandleRange * trailStopMultiplier
+
+// Buy condition: Close above first candle high AFTER the first candle closes
+longCondition = not na(firstCandleHigh) and close > firstCandleHigh and not tradeTaken and hour > startHour
+if (longCondition)
+    strategy.entry("Buy", strategy.long, comment="Buy")
+    trailStopLevel := close - trailStopDistance  // Set initial trailing stop
+    tradeTaken := true
+    tradeDirection := 1
+
+// Sell condition: Close below first candle low AFTER the first candle closes
+shortCondition = not na(firstCandleLow) and close < firstCandleLow and not tradeTaken and hour > startHour
+if (shortCondition)
+    strategy.entry("Sell", strategy.short, comment="Sell")
+    trailStopLevel := close + trailStopDistance  // Set initial trailing stop
+    tradeTaken := true
+    tradeDirection := -1
+
+// Update trailing stop for long trades
+if (tradeDirection == 1 and not na(trailStopLevel))
+    trailStopLevel := nz(trailStopLevel, close - trailStopDistance)  // Initialize if na
+    trailStopLevel := math.max(trailStopLevel, close - trailStopDistance)  // Adjust trailing stop up
+    if (close <= trailStopLevel)  // Stop loss hit
+        strategy.close("Buy", comment="Trailing SL Hit")
+
+// Update trailing stop for short trades
+if (tradeDirection == -1 and not na(trailStopLevel))
+    trailStopLevel := nz(trailStopLevel, close + trailStopDistance)  // Initialize if na
+    trailStopLevel := math.min(trailStopLevel, close + trailStopDistance)  // Adjust trailing stop down
+    if (close >= trailStopLevel)  // Stop loss hit
+        strategy.close("Sell", comment="Trailing SL Hit")
+
+// Close trade at end of day if still open
+if (tradeTaken and hour == endHour and minute == endMinute)
+    strategy.close_all(comment="EOD Close")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/489018
+
+> Last Modified
+
+2025-04-01 11:06:47

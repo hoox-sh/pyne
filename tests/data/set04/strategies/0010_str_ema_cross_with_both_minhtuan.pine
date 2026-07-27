@@ -1,0 +1,68 @@
+//@version=6
+// set04 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多重均线交叉动态趋势捕捉量化交易策略-Multi-EMA-Dynamic-Trend-Capture-Quantitative-Trading-Strategy.md
+// content_hash: 9b4c93ffab14b320
+// collected: 2026-07-27
+strategy("EMA Cross with both MinhTuan", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=10)
+
+// Tham số EMA
+fastLength = input.int(9, title="Fast EMA Length", minval=1)
+slowLength = input.int(21, title="Slow EMA Length", minval=1)
+filterLength = input.int(200, title="EMA Filter Length", minval=1)
+
+// Tùy chọn chế độ giao dịch
+tradeMode = input.string("Both", options=["Long", "Short", "Both"], title="Trade Mode")
+
+// Tính toán EMA
+fastEMA = ta.ema(close, fastLength)
+slowEMA = ta.ema(close, slowLength)
+filterEMA = ta.ema(close, filterLength)
+
+// Điều kiện vào lệnh Long: EMA nhanh cắt lên EMA chậm và cả hai nằm trên EMA 200
+longCondition = ta.crossover(fastEMA, slowEMA) and fastEMA > filterEMA and slowEMA > filterEMA
+
+// Điều kiện vào lệnh Short: EMA nhanh cắt xuống EMA chậm và cả hai nằm dưới EMA 200
+shortCondition = ta.crossunder(fastEMA, slowEMA) and fastEMA < filterEMA and slowEMA < filterEMA
+
+// Điều kiện thoát lệnh: EMA nhanh cắt ngược lại EMA chậm
+closeLongCondition = ta.crossunder(fastEMA, slowEMA) // Thoát lệnh Long
+closeShortCondition = ta.crossover(fastEMA, slowEMA) // Thoát lệnh Short
+
+// Thực hiện lệnh Long
+if (longCondition and (tradeMode == "Long" or tradeMode == "Both"))
+    strategy.entry("EMA_Cross_Long", strategy.long)
+    label.new(x=bar_index, y=low, text="Long", color=color.green, textcolor=color.white, size=size.small)
+
+// Thực hiện lệnh Short
+if (shortCondition and (tradeMode == "Short" or tradeMode == "Both"))
+    strategy.entry("EMA_Cross_Short", strategy.short)
+    label.new(x=bar_index, y=high, text="Short", color=color.red, textcolor=color.white, size=size.small)
+
+// Thoát lệnh Long
+if (closeLongCondition)
+    strategy.close("EMA_Cross_Long")
+    label.new(x=bar_index, y=high, text="Close Long", color=color.orange, textcolor=color.white, size=size.small)
+
+// Thoát lệnh Short
+if (closeShortCondition)
+    strategy.close("EMA_Cross_Short")
+    label.new(x=bar_index, y=low, text="Close Short", color=color.blue, textcolor=color.white, size=size.small)
+
+// Vẽ đường EMA nhanh, EMA chậm, và EMA 200
+plot(fastEMA, title="Fast EMA", color=color.blue, linewidth=2)
+plot(slowEMA, title="Slow EMA", color=color.orange, linewidth=2)
+plot(filterEMA, title="Filter EMA (200)", color=color.red, linewidth=2)
+
+// Hiển thị nền khi đang giữ lệnh
+bgcolor(strategy.position_size > 0 ? color.new(color.green, 90) : strategy.position_size < 0 ? color.new(color.red, 90) : na)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/476260
+
+> Last Modified
+
+2024-12-27 14:59:35

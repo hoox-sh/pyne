@@ -1,0 +1,69 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/高级布林带指标组合动态趋势突破交易策略-Advanced-Bollinger-Bands-Multi-Indicator-Dynamic-Trend-Breakout-Trading-Strategy.md
+// content_hash: 3605f5f5a3dec810
+// collected: 2026-07-27
+strategy("Optimized Bollinger Bands Breakout Strategy", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=1)
+
+// ? Bollinger Bands Settings
+length = input(20, title="Bollinger Length")
+mult = input(2.0, title="Bollinger Multiplier")
+basis = ta.sma(close, length)
+dev = mult * ta.stdev(close, length)
+upperBand = basis + dev
+lowerBand = basis - dev
+
+// ? ADX Calculation (Manually Calculated)
+adxLength = input(14, title="ADX Length")
+dmiLength = input(14, title="DMI Length")
+upMove = high - ta.highest(high[1], 1)
+downMove = ta.lowest(low[1], 1) - low
+plusDM = upMove > downMove and upMove > 0 ? upMove : 0
+minusDM = downMove > upMove and downMove > 0 ? downMove : 0
+plusDI = ta.sma(plusDM, dmiLength) / ta.atr(dmiLength) * 100
+minusDI = ta.sma(minusDM, dmiLength) / ta.atr(dmiLength) * 100
+dx = math.abs(plusDI - minusDI) / (plusDI + minusDI) * 100
+adx = ta.sma(dx, adxLength)
+
+// ? Additional Filters
+rsi = ta.rsi(close, 14)
+
+// ✅ Entry Conditions
+longCondition = ta.crossover(close, upperBand) and rsi > 40 and rsi < 60 and adx > 25
+shortCondition = ta.crossunder(close, lowerBand) and rsi > 40 and rsi < 60 and adx > 25
+
+// ? ATR-based Stop Loss
+stopLossMultiplier = input(1.5, title="Stop Loss (ATR Multiplier)") 
+atrValue = ta.atr(14)
+longSL = close - (atrValue * stopLossMultiplier)
+shortSL = close + (atrValue * stopLossMultiplier)
+
+// ✅ Trailing Stop
+trailMultiplier = input(1, title="Trailing Stop Multiplier")
+longTrailStop = close - (atrValue * trailMultiplier)
+shortTrailStop = close + (atrValue * trailMultiplier)
+
+// ? Executing Trades
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+    strategy.exit("Exit Long", from_entry="Long", stop=longSL, trail_price=longTrailStop, trail_offset=atrValue * 0.5)
+
+if (shortCondition)
+    strategy.entry("Short", strategy.short)
+    strategy.exit("Exit Short", from_entry="Short", stop=shortSL, trail_price=shortTrailStop, trail_offset=atrValue * 0.5)
+
+// ? Plot Bollinger Bands
+plot(upperBand, title="Upper Band", color=color.blue)
+plot(lowerBand, title="Lower Band", color=color.red)
+plot(basis, title="Middle Band", color=color.gray)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/482824
+
+> Last Modified
+
+2025-02-20 14:52:06

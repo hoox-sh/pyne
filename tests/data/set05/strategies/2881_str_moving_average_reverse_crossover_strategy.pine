@@ -1,0 +1,47 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/移动平均线反转跨越策略Moving-Average-Line-Reverse-Crossover-Strategy.md
+// content_hash: 7f4c2eccb21b6b76
+// collected: 2026-07-27
+strategy("Moving Average Reverse Crossover Strategy", overlay=true)
+
+// Calculate the 45-day moving average
+ma_length = 45
+ma = ta.sma(close, ma_length)
+
+// Track position entry and entry bar
+var bool in_short_position = na
+var int entry_bar = na
+var int exit_bar = na
+
+// Entry condition: Close price crosses below the 45-day moving average to enter the short position
+if (not in_short_position and ta.crossunder(close, ma) and not na(ma[1]) and close < ma and close[1] > ma[1])
+    in_short_position := true
+    entry_bar := bar_index
+
+// Exit condition: Close the short position after holding for 8 trading days
+if (in_short_position and bar_index - entry_bar >= 8)
+    in_short_position := false
+    exit_bar := bar_index
+
+// Re-entry condition: Wait for price to cross below the 45-day moving average again
+if (not in_short_position and ta.crossunder(close, ma) and not na(ma[1]) and close < ma and close[1] < ma[1] and (na(exit_bar) or bar_index - exit_bar >= 8))
+    in_short_position := true
+    entry_bar := bar_index
+
+// Execute short entry and exit
+if (in_short_position)
+    strategy.entry("Short", strategy.short)
+
+if (not in_short_position)
+    strategy.close("Short")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/433949
+
+> Last Modified
+
+2023-12-01 16:52:13

@@ -1,0 +1,146 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/趋势反转型跨时间幅特异波动率交易策略Trend-Reversal-with-Intrabar-Volatility-Trading-Strategy.md
+// content_hash: 140ab3c762912ebd
+// collected: 2026-07-27
+strategy("3 10 Oscillator Profile Flagging", shorttitle="3 10 Oscillator Profile Flagging", overlay=false)
+
+signalBiasValue = input(title="Signal Bias", defval=0.26)
+macdBiasValue = input(title="MACD Bias", defval=0.8)
+shortLookBack = input( title="Short LookBack", defval=3)
+longLookBack = input( title="Long LookBack", defval=10)
+takeProfit = input( title="Take Profit", defval=0.75)
+stopLoss = input( title="Stop Loss", defval=0.5)
+
+fast_ma = ta.sma(close, 3)
+slow_ma = ta.sma(close, 10)
+macd = fast_ma - slow_ma
+signal = ta.sma(macd, 16)
+hline(0, "Zero Line", color = color.black)
+
+buyVolume = volume*((close-low)/(high-low))
+sellVolume = volume*((high-close)/(high-low))
+buyVolSlope = buyVolume - buyVolume[1]
+sellVolSlope = sellVolume - sellVolume[1]
+signalSlope = ( signal - signal[1] )
+macdSlope = ( macd - macd[1] )
+plot(macd, color=color.blue, title="Total Volume")
+plot(signal, color=color.orange, title="Total Volume")
+intrabarRange = high - low
+
+getLookBackSlope(lookBack) => signal - signal[lookBack]
+getBuyerVolBias(lookBack) =>
+    j = 0
+    for i = 1 to lookBack
+        if buyVolume[i] > sellVolume[i]
+            j += 1
+    j
+
+getSellerVolBias(lookBack) =>
+    j = 0
+    for i = 1 to lookBack
+        if sellVolume[i] > buyVolume[i]
+            j += 1
+    j
+
+getVolBias(lookBack) =>
+    float b = 0
+    float s = 0
+    for i = 1 to lookBack
+        b += buyVolume[i]
+        s += sellVolume[i]
+    b > s
+
+getSignalBuyerBias(lookBack) =>
+    j = 0
+    for i = 1 to lookBack
+        if signal[i] > signalBiasValue
+            j += 1
+    j
+
+getSignalSellerBias(lookBack) =>
+    j = 0
+    for i = 1 to lookBack
+        if signal[i] < ( 0 - signalBiasValue )
+            j += 1
+    j
+
+getSignalNoBias(lookBack) =>
+    j = 0
+    for i = 1 to lookBack
+        if signal[i] < signalBiasValue and signal[i] > ( 0 - signalBiasValue )
+            j += 1
+    j
+
+getPriceRising(lookBack) =>
+    j = 0
+    for i = 1 to lookBack
+        if close[i] > close[i + 1]
+            j += 1
+    j
+
+
+getPriceFalling(lookBack) =>
+    j = 0
+    for i = 1 to lookBack
+        if close[i] < close[i + 1] 
+            j += 1
+    j
+
+getRangeNarrowing(lookBack) =>
+    j = 0
+    for i = 1 to lookBack
+        if intrabarRange[i] < intrabarRange[i + 1] 
+            j+= 1
+    j
+
+getRangeBroadening(lookBack) =>
+    j = 0
+    for i = 1 to lookBack
+        if intrabarRange[i] > intrabarRange[i + 1] 
+            j+= 1
+    j
+
+bool isNegativeSignalReversal = signalSlope < 0 and signalSlope[1] > 0
+bool isNegativeMacdReversal = macdSlope < 0 and macdSlope[1] > 0
+
+bool isPositiveSignalReversal = signalSlope > 0 and signalSlope[1] < 0
+bool isPositiveMacdReversal = macdSlope > 0 and macdSlope[1] < 0
+
+bool hasBearInversion = signalSlope > 0 and macdSlope < 0
+bool hasBullInversion = signalSlope < 0 and macdSlope > 0
+
+bool hasSignalBias = math.abs(signal) >= signalBiasValue
+bool hasNoSignalBias = signal < signalBiasValue and signal > ( 0 - signalBiasValue )
+
+bool hasSignalBuyerBias = hasSignalBias and signal > 0
+bool hasSignalSellerBias = hasSignalBias and signal < 0
+
+bool hasPositiveMACDBias = macd > macdBiasValue
+bool hasNegativeMACDBias = macd < ( 0 - macdBiasValue )
+
+bool hasBullAntiPattern = ta.crossunder(macd, signal)
+bool hasBearAntiPattern = ta.crossover(macd, signal)
+
+bool hasSignificantBuyerVolBias = buyVolume > ( sellVolume * 1.5 )
+bool hasSignificantSellerVolBias = sellVolume > ( buyVolume * 1.5 )
+
+// 7.48 Profit 52.5% 
+if ( hasSignificantBuyerVolBias and getPriceRising(shortLookBack) == shortLookBack  and getBuyerVolBias(shortLookBack) == shortLookBack and hasPositiveMACDBias and hasBullInversion)
+    strategy.entry("Short1", strategy.short, qty=10)
+strategy.exit("TPS", "Short1", limit=strategy.position_avg_price - takeProfit, stop=strategy.position_avg_price + stopLoss)
+
+// 32.53 Profit 47.91%
+if ( getPriceFalling(shortLookBack) and (getVolBias(shortLookBack) == false) and signalSlope < 0 and hasSignalSellerBias)
+    strategy.entry("Long1", strategy.long, qty=10)
+strategy.exit("TPS", "Long1", limit=strategy.position_avg_price + takeProfit, stop=strategy.position_avg_price - stopLoss)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/442866
+
+> Last Modified
+
+2024-02-26 17:15:54

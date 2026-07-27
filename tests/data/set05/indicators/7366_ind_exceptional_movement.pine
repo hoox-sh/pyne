@@ -1,0 +1,26 @@
+//@version=5
+// set05 corpus entry
+// source_repo: ExceptionalMovement
+// source_path: ExceptionalMovement/indicator.pine
+// content_hash: 1f45039dff046d6e
+// collected: 2026-07-27
+indicator("Exceptional Movement")
+
+mult = input(2.0, title="ADR multiplier")
+days = input(20, title = "periods for ADR")
+
+sumADR = 0.0
+ADR = 0.0
+curRange = 0.0
+ADRrel = 0.0
+
+if not na(high[days+2])
+    for i = 1 to days
+        sumADR := high[i] - low[i] + sumADR
+    ADR := sumADR / days
+
+    curRange := high - low
+    ADRrel := math.round(curRange / ADR * 100) / 100
+
+plot(ADRrel)
+bgcolor(color=(barstate.isrealtime and (ADRrel > mult)) ? color.green : color.white)

@@ -1,0 +1,61 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/抛物线SAR趋势跟踪策略-60Parabolic-SAR-Trend-Tracking-Strategy-60.md
+// content_hash: eb7af1bbe0e0a96f
+// collected: 2026-07-27
+strategy("SAR Trend 6.0", default_qty_type = strategy.percent_of_equity, default_qty_value =20, initial_capital=500, commission_type=strategy.commission.percent, commission_value=0.08, pyramiding=5 )
+
+// Parabolic SAR Parameters
+start = input(0.02, title="Start Value")
+increment = input(0.02, title="Increment Value")
+maximum = input(0.2, title="Maximum Value")
+long_win=input(0.1,title = "Preceding Increase for Long (%)")/100
+short_win=input(2,title = "Preceding Decrease for Short (%)")/100
+lose_pct=input (0.5, title="Stop Loss Percentage")
+win_pct_long=input(0.2,title = "Take Profit for Long Positions")
+win_pct_short=input(0.1,title = "Take Profit for Short Positions")
+start1 = input(0.02, title="Start Value (1H)")
+increment1 = input(0.02, title="Increment Value (1H)")
+maximum1 = input(0.2, title="Maximum Value (1H)")
+
+// Calculating Parabolic SAR
+sarValue = ta.sar(start, increment, maximum)
+
+// Generating Trading Signals
+longSignal = ta.crossover(close, sarValue)
+shortSignal = ta.crossunder(close, sarValue)
+
+// Get Parabolic SAR value for 1-hour time frame
+sarValue_1h = request.security(syminfo.tickerid, "5", ta.sar(start1, increment1, maximum1)[1])
+
+// Generating Trading Signals
+longSignal1 = close > sarValue_1h
+shortSignal1 = close < sarValue_1h
+
+if longSignal and (close - open)/open > long_win and longSignal1 
+    strategy.entry("Long", strategy.long)
+if shortSignal and (open - close)/open > short_win and shortSignal1 
+    strategy.entry("Short", strategy.short)
+
+if strategy.position_size > 0 and shortSignal and (close - strategy.position_avg_price)/strategy.position_avg_price > win_pct_long
+    strategy.close_all("Take Profit")
+
+if strategy.position_size < 0 and longSignal and (strategy.position_avg_price - close)/strategy.position_avg_price > win_pct_short
+    strategy.close_all("Take Profit")
+
+if strategy.position_size > 0 and (strategy.position_avg_price - close)/strategy.position_avg_price > lose_pct
+    strategy.close_all("Stop Loss")
+
+if strategy.position_size < 0 and (close - strategy.position_avg_price)/strategy.position_avg_price > lose_pct
+    strategy.close_all("Stop Loss")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/444028
+
+> Last Modified
+
+2024-03-08 16:54:49

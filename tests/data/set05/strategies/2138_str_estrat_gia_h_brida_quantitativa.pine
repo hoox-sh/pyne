@@ -1,0 +1,62 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/混合双态Z评分量化策略-Hybrid-Binomial-Z-Score-Quantitative-Strategy.md
+// content_hash: b9c4d544aff123fe
+// collected: 2026-07-27
+strategy("Estratégia Híbrida Quantitativa", overlay=true)
+
+// Definição de parâmetros
+sma_length = input.int(20, title="Período da SMA")
+threshold_high = input.float(1.5, title="Threshold Alto")
+threshold_low = input.float(-1.5, title="Threshold Baixo")
+lookback_period = input.int(252, title="Período de Retorno Histórico (dias)")
+
+// Funções auxiliares
+f_sma(source, length) =>
+    ta.sma(source, length)
+
+f_bollinger_band(source, length, mult) =>
+    basis = ta.sma(source, length)
+    dev = mult * ta.stdev(source, length)
+    [basis + dev, basis - dev]
+
+// Cálculo dos indicadores
+sma = f_sma(close, sma_length)
+[upper_band, lower_band] = f_bollinger_band(close, sma_length, 2)
+
+// Regime de Mercado: Binomial
+retornos = ta.change(close, 1)
+media_retornos = ta.sma(retornos, lookback_period)
+desvio_padrao_retornos = ta.stdev(retornos, lookback_period)
+
+// Indicador de Regime: Z-Score
+z_score = (retornos - media_retornos) / desvio_padrao_retornos
+
+// Sinal de Compra e Venda
+sinal_compra = z_score < threshold_low and close < lower_band
+sinal_venda = z_score > threshold_high and close > upper_band
+
+// Execução de Ordem
+if (sinal_compra)
+    strategy.entry("Long", strategy.long)
+if (sinal_venda)
+    strategy.close("Long")
+
+// Plotagem dos Indicadores
+plot(sma, title="SMA", color=color.blue)
+plot(upper_band, title="Upper Bollinger Band", color=color.red)
+plot(lower_band, title="Lower Bollinger Band", color=color.green)
+hline(threshold_high, "Threshold Alto", color=color.red, linestyle=hline.style_dashed)
+hline(threshold_low, "Threshold Baixo", color=color.green, linestyle=hline.style_dashed)
+plot(z_score, title="Z-Score", color=color.purple)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/452742
+
+> Last Modified
+
+2024-05-28 17:38:08

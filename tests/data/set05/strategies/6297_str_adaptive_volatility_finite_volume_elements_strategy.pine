@@ -1,0 +1,72 @@
+//@version=2
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于自适应波动性的有限体积要素策略Adaptive-Volatility-Finite-Volume-Elements-Strategy.md
+// content_hash: 4e9400dbfe6b0138
+// collected: 2026-07-27
+////////////////////////////////////////////////////////////
+//  Copyright by HPotter v1.0 18/08/2017
+// This is another version of FVE indicator that we have posted earlier 
+// in this forum.
+// This version has an important enhancement to the previous one that`s 
+// especially useful with intraday minute charts.
+// Due to the volatility had not been taken into account to avoid the extra 
+// complication in the formula, the previous formula has some drawbacks:
+// The main drawback is that the constant cutoff coefficient will overestimate 
+// price changes in minute charts and underestimate corresponding changes in 
+// weekly or monthly charts.
+// And now the indicator uses adaptive cutoff coefficient which will adjust to 
+// all time frames automatically.
+//
+// You can change long to short in the Input Settings
+// Please, use it only for learning or paper trading. Do not for real trading.
+////////////////////////////////////////////////////////////
+strategy(title="Volatility Finite Volume Elements", shorttitle="FVI")
+Samples = input(22, minval=1)
+Perma = input(40, minval=1)
+Cintra = input(0.1, step=0.1)
+Cinter = input(0.1, step=0.1)
+reverse = input(false, title="Trade reverse")
+xhl2 = hl2
+xhlc3 = hlc3
+xClose = close
+xIntra = log(high) - log(low)
+xInter = log(xhlc3) - log(xhlc3[1])
+xStDevIntra = stdev(sma(xIntra, Samples) , Samples)
+xStDevInter = stdev(sma(xInter, Samples) , Samples)
+xVolume = volume
+TP = xhlc3
+TP1 = xhlc3[1]
+Intra = xIntra
+Vintra = xStDevIntra
+Inter = xInter
+Vinter = xStDevInter
+CutOff = Cintra * Vintra + Cinter * Vinter
+MF = xClose - xhl2 + TP - TP1
+FveFactor = iff(MF > CutOff * xClose, 1, 
+             iff(MF < -1 * CutOff * xClose, -1,  0))
+xVolumePlusMinus = xVolume * FveFactor
+Fvesum = sum(xVolumePlusMinus, Samples)
+VolSum = sum(xVolume, Samples)
+xFVE = (Fvesum / VolSum) * 100
+xEMAFVE = ema(xFVE, Perma)
+pos = iff(xFVE > xEMAFVE, 1,
+	   iff(xFVE < xEMAFVE, -1, nz(pos[1], 0))) 
+possig = iff(reverse and pos == 1, -1,
+          iff(reverse and pos == -1, 1, pos))	   
+if (possig == 1) 
+    strategy.entry("Long", strategy.long)
+if (possig == -1)
+    strategy.entry("Short", strategy.short)	   	    
+barcolor(possig == -1 ? red: possig == 1 ? green : blue ) 
+plot(xFVE, color=green, title="FVI")
+plot(xEMAFVE, color=blue, title="FVI EMA")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/429476
+
+> Last Modified
+
+2023-10-17 14:50:13

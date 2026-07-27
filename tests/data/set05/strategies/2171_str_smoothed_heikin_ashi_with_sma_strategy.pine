@@ -1,0 +1,62 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/平滑型Heikin-Ashi结合SMA交叉趋势跟踪策略-Smoothed-Heikin-Ashi-with-SMA-Crossover-Trend-Following-Strategy.md
+// content_hash: 5749dc3726cd314f
+// collected: 2026-07-27
+strategy("Smoothed Heikin Ashi with SMA Strategy", overlay=true)
+
+// Input parameters for SMAs
+s1 = input.int(11, title="Short SMA Period")
+s2 = input.int(44, title="Long SMA Period")
+noPositionThreshold = input.float(0.001, title="No Position Threshold", step=0.0001)
+
+// Calculate the original Heikin-Ashi values
+haClose = (open + high + low + close) / 4
+var float haOpen = na
+haOpen := na(haOpen[1]) ? (open + close) / 2 : (haOpen[1] + haClose[1]) / 2
+haHigh = math.max(high, math.max(haOpen, haClose))
+haLow = math.min(low, math.min(haOpen, haClose))
+
+// Smoothing using exponential moving averages
+smoothLength = input.int(6, title="Smoothing Length")
+smoothedHaClose = ta.ema(haClose, smoothLength)
+smoothedHaOpen = ta.ema(haOpen, smoothLength)
+smoothedHaHigh = ta.ema(haHigh, smoothLength)
+smoothedHaLow = ta.ema(haLow, smoothLength)
+
+// Calculate SMAs
+smaShort = ta.sma(close, s1)
+smaLong = ta.sma(close, s2)
+
+// Plotting the smoothed Heikin-Ashi values
+plotcandle(smoothedHaOpen, smoothedHaHigh, smoothedHaLow, smoothedHaClose, color=(smoothedHaClose >= smoothedHaOpen ? color.green : color.red), title="Smoothed Heikin Ashi")
+plot(smaShort, color=color.blue, title="SMA Short")
+plot(smaLong, color=color.red, title="SMA Long")
+
+// Generate buy/sell signals based on SHA crossing 44 SMA
+longCondition = ta.crossover(smoothedHaClose, smaLong)
+shortCondition = ta.crossunder(smoothedHaClose, smaLong)
+noPositionCondition = math.abs(smoothedHaClose - smaLong) < noPositionThreshold
+
+// Strategy logic
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+if (shortCondition)
+    strategy.entry("Short", strategy.short)
+if (noPositionCondition and strategy.position_size != 0)
+    strategy.close_all("No Position")
+
+// Plot buy/sell signals
+plotshape(series=longCondition, location=location.belowbar, color=color.green, style=shape.labelup, text="BUY", size=size.small)
+plotshape(series=shortCondition, location=location.abovebar, color=color.red, style=shape.labeldown, text="SELL", size=size.small)
+plotshape(series=noPositionCondition and strategy.position_size != 0, location=location.belowbar, color=color.yellow, style=shape.labeldown, text="EXIT", size=size.small)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/473398
+
+> Last Modified
+
+2024-11-29 16:39:12

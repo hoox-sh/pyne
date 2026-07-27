@@ -1,0 +1,58 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/低风险DCA趋势交易策略Low-Risk-DCA-Trend-Trading-Strategy.md
+// content_hash: 91f3e14a22c08930
+// collected: 2026-07-27
+strategy("Phil's Pine Scripts - low risk long DCA Trend trade", overlay=true)
+
+////
+//// trade on BTCUSDT 4H chart
+//// $500 balance = $50 per trade, max 5 positions
+//// backtested 54% profit over 3 years (~270)
+////
+
+//// define $ amount per trade
+position_size = 50000
+
+//// Plot short / long signals
+
+// Get user input
+rsiSource = input(title="RSI Source", type=input.source, defval=close)
+rsiLength = input(title="RSI Length", type=input.integer, defval=14)
+rsiOverbought = input(title="RSI Overbought Level", type=input.integer, defval=70)
+rsiOversold = input(title="RSI Oversold Level", type=input.integer, defval=30)
+
+// Get RSI value
+rsiValue = rsi(rsiSource, rsiLength)
+rsiOB = rsiValue >= rsiOverbought
+rsiOS = rsiValue <= rsiOversold
+
+// Identify engulfing candles
+bullishEC = close > open[1] and close[1] < open[1]
+bearishEC = close < open[1] and close[1] > open[1]
+tradeSignal = ((rsiOS or rsiOS[1]) and bullishEC) or ((rsiOB or rsiOB[1]) and bearishEC)
+
+// Plot signals to chart
+plotshape(tradeSignal and bullishEC, title="Long", location=location.belowbar, color=color.green, transp=0, style=shape.triangleup, text="Long")
+plotshape(tradeSignal and bearishEC, title="Short", location=location.abovebar, color=color.red, transp=0, style=shape.triangledown, text="Short")
+
+//// DCA long trade when there is a bullish signal
+
+if tradeSignal and bullishEC
+    strategy.entry("OL", strategy.long, qty=position_size / close)
+
+//// Close all positions when there is a bearish signal
+
+if tradeSignal and bearishEC
+    strategy.close_all()
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/439603
+
+> Last Modified
+
+2024-01-22 10:20:40

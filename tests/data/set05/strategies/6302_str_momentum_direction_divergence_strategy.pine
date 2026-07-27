@@ -1,0 +1,72 @@
+//@version=2
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动量方向发散策略Momentum-Direction-Divergence-Strategy.md
+// content_hash: 3f51e2d65b196556
+// collected: 2026-07-27
+////////////////////////////////////////////////////////////
+//  Copyright by HPotter v1.0 20/06/2018
+// This is one of the techniques described by William Blau in his book 
+// "Momentum, Direction and Divergence" (1995). If you like to learn more, 
+// we advise you to read this book. His book focuses on three key aspects 
+// of trading: momentum, direction and divergence. Blau, who was an electrical 
+// engineer before becoming a trader, thoroughly examines the relationship between 
+// price and momentum in step-by-step examples. From this grounding, he then looks 
+// at the deficiencies in other oscillators and introduces some innovative techniques, 
+// including a fresh twist on Stochastics. On directional issues, he analyzes the 
+// intricacies of ADX and offers a unique approach to help define trending and 
+// non-trending periods.
+// This indicator plots Ergotic CSI and smoothed Ergotic CSI to filter out noise. 
+//
+// You can change long to short in the Input Settings
+// WARNING:
+// - For purpose educate only
+// - This script to change bars colors.
+////////////////////////////////////////////////////////////
+fADX(Len) =>
+    up = change(high)
+    down = -change(low)
+    trur = rma(tr, Len)
+    plus = fixnan(100 * rma(up > down and up > 0 ? up : 0, Len) / trur)
+    minus = fixnan(100 * rma(down > up and down > 0 ? down : 0, Len) / trur)
+    sum = plus + minus 
+    100 * rma(abs(plus - minus) / (sum == 0 ? 1 : sum), Len)
+
+strategy(title="Ergodic CSI Backtest")
+r = input(32, minval=1)
+Length = input(1, minval=1)
+BigPointValue = input(1.0, minval=0.00001)
+SmthLen = input(5, minval=1)
+SellZone = input(0.004, minval=0.00001)
+BuyZone = input(0.024, minval=0.001)
+reverse = input(false, title="Trade reverse")
+hline(BuyZone, color=green, linestyle=line)
+hline(SellZone, color=red, linestyle=line)
+source = close
+K = 100 * (BigPointValue / sqrt(r) / (150 + 5))
+xTrueRange = atr(1) 
+xADX = fADX(Length)
+xADXR = (xADX + xADX[1]) * 0.5
+nRes = iff(Length + xTrueRange > 0, K * xADXR * xTrueRange / Length,0)
+xCSI = iff(close > 0,  nRes / close, 0)
+xSMA_CSI = sma(xCSI, SmthLen)
+pos = iff(xSMA_CSI > BuyZone, 1,
+       iff(xSMA_CSI <= SellZone, -1, nz(pos[1], 0))) 
+possig = iff(reverse and pos == 1, -1,
+          iff(reverse and pos == -1, 1, pos))	   
+if (possig == 1) 
+    strategy.entry("Long", strategy.long)
+if (possig == -1)
+    strategy.entry("Short", strategy.short)	   	    
+barcolor(possig == -1 ? red: possig == 1 ? green : blue ) 
+plot(xCSI, color=green, title="Ergodic CSI")
+plot(xSMA_CSI, color=red, title="SigLin")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/436767
+
+> Last Modified
+
+2023-12-27 15:37:31

@@ -1,0 +1,67 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动态波动率止损的趋势动量交易策略-Dynamic-Volatility-Based-Stop-Loss-Trend-Momentum-Trading-Strategy.md
+// content_hash: 56166368413b1184
+// collected: 2026-07-27
+strategy("MACD + ATR Dynamic Stop-Loss Strategy", overlay=true)
+
+// Input parameters
+macdFastLength = input.int(12, title="MACD Fast Length")
+macdSlowLength = input.int(26, title="MACD Slow Length")
+macdSignalSmoothing = input.int(9, title="MACD Signal Smoothing")
+atrLength = input.int(14, title="ATR Length")
+stopLossMultiplier = input.float(1.0, title="Stop-Loss ATR Multiplier")
+useTrailingStop = input.bool(true, title="Use Trailing Stop")
+trailATRMultiplier = input.float(2.0, title="Trailing Stop ATR Multiplier")
+emaLength = input.int(20, title="EMA Length")
+
+// Calculate MACD
+[macdLine, signalLine, _] = ta.macd(close, macdFastLength, macdSlowLength, macdSignalSmoothing)
+
+// Calculate ATR
+atr = ta.atr(atrLength)
+
+// Calculate 20-period EMA
+ema20 = ta.ema(close, emaLength)
+
+// Entry Conditions
+buyCondition = ta.crossover(macdLine, signalLine) and close > ema20
+sellCondition = ta.crossunder(macdLine, signalLine)
+
+// Plot Buy and Sell Signals
+plotshape(series=buyCondition, title="Buy Signal", location=location.belowbar, color=color.green, style=shape.labelup, text="BUY")
+plotshape(series=sellCondition, title="Sell Signal", location=location.abovebar, color=color.red, style=shape.labeldown, text="SELL")
+
+// Dynamic Stop-Loss and Trailing Stop Logic
+var float stopLossLevel = na
+var float trailingStopLevel = na
+
+if (buyCondition)
+    stopLossLevel := close - atr * stopLossMultiplier
+    trailingStopLevel := close - atr * trailATRMultiplier
+
+if (strategy.position_size > 0)
+    if (useTrailingStop)
+        trailingStopLevel := math.max(trailingStopLevel, close - atr * trailATRMultiplier)
+        stopLossLevel := trailingStopLevel
+    strategy.exit("Trailing Stop", stop=stopLossLevel)
+
+// Execute Trades
+if (buyCondition)
+    strategy.entry("Long", strategy.long)
+
+if (sellCondition)
+    strategy.close("Long")
+
+// Plot Stop-Loss Level
+plot(stopLossLevel, title="Stop-Loss Level", color=color.red, linewidth=1, style=plot.style_linebr)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/483072
+
+> Last Modified
+
+2025-02-21 11:39:56

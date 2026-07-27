@@ -1,0 +1,13 @@
+//@version=6
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/visuals/tables.md::tables.md#block2
+// content_hash: d17c5a2455ab94cf
+// collected: 2026-07-27
+indicator("ATR", "", true)
+atrPeriodInput = input.int(14,  "ATR period", minval = 1, tooltip = "Using a period of 1 yields True Range.")
+
+var table atrDisplay = table.new(position.top_right, 1, 1, bgcolor = color.gray, frame_width = 2, frame_color = color.black)
+myAtr = ta.atr(atrPeriodInput)
+if barstate.islast
+    table.cell(atrDisplay, 0, 0, str.tostring(myAtr, format.mintick), text_color = color.white)

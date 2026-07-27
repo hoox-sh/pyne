@@ -1,0 +1,78 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多头锤形线交易策略Starbucks-Bullish-Hammer-Trading-Strategy.md
+// content_hash: 81c4a0293c2258af
+// collected: 2026-07-27
+strategy("Starbux", overlay=true)
+
+
+//VARIABLES
+
+//Candlestick Variables
+body=close-open
+range=high-low
+middle=(open+close)/2
+abody=abs(body)
+arange=abs(range)
+ratio=abody/range
+longcandle= (ratio>0.6)
+bodytop=max(open, close)
+bodybottom=min(open, close)
+shadowtop=high-bodytop
+shadowbottom=bodybottom-low
+
+//Closing Variables
+
+macd=macd(close,12,26,9)
+[macdLine, signalLine, histLine] = macd(close, 12, 26, 9)
+//plot(macdLine, color=color.blue)
+//plot(signalLine, color=color.orange)
+//plot(histLine, color=color.red, style=plot.style_histogram)
+
+rsi=rsi(close,14)
+
+sma50= sma(close,50)
+sma200= sma(close,200)
+
+exitrsi=rsi > 76
+exitmacd=macdLine >0 and signalLine>0
+//exitmacd=crossunder(macdLine,signalLine)
+stopprice= crossunder(sma50,sma200)
+
+//Candlestick Plotting
+blh = (arange*0.33>=abody and close>open and shadowbottom>=abody*2 and shadowtop<=arange*0.1)
+plotshape(blh, title= "Bullish Hammer", location=location.belowbar, color=color.lime, style=shape.arrowup, text="Bull\nHammer")
+
+//beh = (arange*0.25>=abody and close<open and shadowtop>=abody*2 and shadowbottom<=arange*0.05)
+//plotshape(beh, title= "Bearish Hammer", color=color.orange, style=shape.arrowdown, text="Bear\nHammer")
+
+//bpu = (open>close and close>low and shadowbottom>2*abody)
+//plotshape(bpu, title= "Black Paper Umbrella", color=color.red, style=shape.arrowdown, text="Black\nPaper\nUmbrella")
+
+//Trend Signal
+bull5= sma50 > sma200
+bullmacd=macdLine>=0 and signalLine>=0
+bearmacd=macdLine<= 0 and signalLine<=0
+
+//Trading Algorithm
+longCondition = blh and bearmacd and volume>volume[1]
+
+if (longCondition)
+    strategy.order("Buy", true, 1, when=longCondition)
+strategy.risk.max_position_size(10)
+//strategy.risk.max_drawdown(25,strategy.percent_of_equity)
+
+exitlong = exitmacd
+if (exitlong)
+    strategy.close_all()
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/427138
+
+> Last Modified
+
+2023-09-18 15:48:15

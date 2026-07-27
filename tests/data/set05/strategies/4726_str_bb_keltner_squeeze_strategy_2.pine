@@ -1,0 +1,83 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/BB-Keltner-Squeeze交易策略BB-Keltner-Squeeze-Trading-Strategy.md
+// content_hash: 2426ed4d8d3de2ff
+// collected: 2026-07-27
+strategy("BB Keltner Squeeze Strategy", overlay=true, initial_capital=10000, currency='USD')
+length = input(title="Length", type=input.integer, defval=20, minval=0)
+src = input(close, title="Source")
+bband(length, mult) =>
+    sma(close, length) + mult * stdev(close, length)
+keltner(length, mult) =>
+    ema(close, length) + mult * ema(tr, length)
+
+
+//BB
+B2mult = input(2.0, minval=0.001, maxval=50, title="Band 1 StDev")
+B2basis = sma(src, length)
+B2dev = B2mult * stdev(src, length)
+B2upper = B2basis + B2dev
+B2lower = B2basis - B2dev
+plot(B2basis, color=color.blue)
+p1 = plot(B2upper, color=#00ffff, linewidth=2, title="Band 2SD upper")
+p2 = plot(B2lower, color=#00ffff, linewidth=2, title="Band 2SD lower")
+
+//Keltner
+useTrueRange = input(true)
+Kmult = input(1.5, title="Keltner Range")
+Kma = ema(src, length)
+Krange = useTrueRange ? tr : high - low
+Krangema = ema(Krange, length)
+Kupper = Kma + Krangema * Kmult
+Klower = Kma - Krangema * Kmult
+p5 = plot(Kupper, color=color.yellow, linewidth=2, style=plot.style_circles, title="Keltner upper")
+p6 = plot(Klower, color=color.yellow, linewidth=2, style=plot.style_circles, title="Keltner lower")
+
+
+e1 = (highest(high, length) + lowest(low, length)) / 2 + sma(close, length)
+osc = linreg(close - e1 / 2, length, 0)
+diff = bband(length, 2) - keltner(length, 1)
+osc_color = osc[1] < osc[0] ? osc[0] >= 0 ? #00ffff : #cc00cc : 
+   osc[0] >= 0 ? #009b9b : #ff9bff
+mid_color = diff >= 0 ? color.green : color.red
+fromYear = year > 2014
+toYear = year < 2016
+
+
+direction = 0
+squeeze = Kupper > B2upper
+midc = 0
+midc := squeeze ? 0 : close > B2basis ? 1 : 2
+midcolor = midc == 0 ? #666666 : midc == 1 ? #00ff00 : #ff0000
+direction := midc[1]
+
+plot(B2basis, color=midcolor, linewidth=4, title="BB Mid")
+bgcolor(midc == 0 ? #333333 : #000000, transp=75)
+
+if direction == 0
+    if midc[1] == 0 and midc == 1
+        strategy.entry("LONG", strategy.long)
+        direction := 1
+    else if midc[1] == 0 and midc == 2
+        strategy.entry("SHORT", strategy.short)
+        direction := 2
+else if direction != midc
+    strategy.close_all()
+    direction := 0
+
+
+
+
+
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/427810
+
+> Last Modified
+
+2023-09-25 17:38:08

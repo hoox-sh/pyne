@@ -1,0 +1,112 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双SMA均线交叉交易策略Dual-Moving-Average-Crossover-Trading-Strategy.md
+// content_hash: d64dd93487773b6a
+// collected: 2026-07-27
+strategy(title = "Strategy Template", shorttitle = "ST v1.0", overlay = true, pyramiding = 1, initial_capital = 1000, commission_type = strategy.commission.percent, commission_value = 0.1, max_labels_count = 500)
+
+//INPUTS
+//indicator values
+shortSMAlength              = input.int(defval = 14, title = "Short SMA Length", tooltip = "Set the length of the short simple moving average here.", minval = 1, step = 1, group = "Indicator Settings")
+longSMAlength               = input.int(defval = 28, title = "Long SMA Length", tooltip = "Set the length of the long simple moving average here.", minval = 1, step = 1, group = "Indicator Settings")
+//compounding
+compoundingSelected         = input.bool(defval = true, title = "Compounding", tooltip = "Select this option if you want to compound your net profits.", group = "Compounding")
+//take profit and stop loss
+takeProfitSelected          = input.bool(defval = true, title = "Use Take Profit", tooltip = "Select this to enable take profits.", group = "Take Profit and Stop Loss")
+takeProfitPercent           = input.float(defval = 1.0, title = "Take Profit %", tooltip = "Set the value of take profits here.", minval = 0.1, step = 0.1, group = "Take Profit and Stop Loss")
+stopLossSelected            = input.bool(defval = true, title = "Use Stop Loss", tooltip = "Select this to enable stop losses.", group = "Take Profit and Stop Loss")
+stopLossPercent             = input.float(defval = 1.0, title = "Take Profit %", tooltip = "Set the value of stop losses here.", minval = 0.1, step = 0.1, group = "Take Profit and Stop Loss")
+//trading window
+startDate                   = input(defval = timestamp("1 Jan 2023 00:00:00"), title = "Start Date", tooltip = "Use this to set the date and time when Viva will start placing trades.  Set this to a time just after the last candle when activating auto trading.", group = "TRADING WINDOW")
+endDate                     = input(defval = timestamp("1 Jan 2030 00:00:00"), title = "End Date", tooltip = "Use this to set the date and time when Viva will stop placing trades.", group = "TRADING WINDOW")
+
+//VARIABLES
+var float tradingCapital    = na //trading capital is used to calculate position size based on the intitial capital and, if compounding is selected, also the net profit
+var float positionSize      = na //position size is used to set the quantity of the asset you want to buy.  It is based on the initial capital and the net profit if compounding is selected.
+var float takeProfitPrice   = na //this is used for take profit targets if selected
+var float stopLossPrice     = na //this is used for stop loss if selected
+
+inTradeWindow               = true
+strategy.initial_capital = 50000
+//COMPOUNDING
+if compoundingSelected // set the tradingCapital available to the strategy based on wither Compounding has been selected or not.  This will be used to determine the position size.
+    tradingCapital := strategy.initial_capital + strategy.netprofit
+else
+    tradingCapital := strategy.initial_capital
+
+//ENTRY CONDITIONS
+//replace these with your own conditions
+longCondition = ta.crossover(source1 = ta.sma(source = close, length = shortSMAlength), source2 =  ta.sma(source = close, length =longSMAlength))
+shortCondition = ta.crossunder(source1 = ta.sma(source = close, length = shortSMAlength), source2 = ta.sma(source = close, length = longSMAlength))
+
+//EXIT CONDITIONS
+//Exit conditions are based on stop loss, take profit and the opposite entry condition being present.  Stop Loss and Take Profit are contained in the strategy.exit code below and are based on the value assigned in the Inputs.
+
+
+//ENTRY ORDERS
+//Enter Long
+if longCondition and inTradeWindow
+    //close any prior short positions
+    if strategy.position_size < 0 //if in a short position
+        strategy.close_all(comment = "Buy to Close")
+    //set position size
+    positionSize := tradingCapital / close
+    //enter long position
+    strategy.entry(id = "Buy to Open", direction =  strategy.long, qty = positionSize)
+
+//Enter Short
+if shortCondition and inTradeWindow
+    //close any prior long positions
+    if strategy.position_size > 0 //if in a long position
+        strategy.close_all(comment = "Sell to Close")
+    //set position size
+    positionSize := tradingCapital / close
+    //enter short position
+    strategy.entry(id = "Sell to Open", direction =  strategy.short, qty = positionSize)
+
+//IN-ORDER MANAGEMENT
+//placeholder - none used in this template
+
+
+//EXIT ORDERS
+//Stop Loss and Take Profit for Long Positions
+if strategy.opentrades > 0 and strategy.position_size > 0 and (takeProfitSelected or stopLossSelected)   //if there is an open position and it is a long position and either a take profit or sto ploss is selected.
+    if takeProfitSelected
+        takeProfitPrice := strategy.position_avg_price * (1 + (takeProfitPercent / 100))
+    else
+        takeProfitPrice := na
+    if stopLossSelected
+        stopLossPrice := strategy.position_avg_price * (1 - (stopLossPercent / 100))
+    else
+        stopLossPrice := na
+    strategy.exit(id = "Exit", from_entry = "Buy to Open", qty_percent = 100, profit = takeProfitPrice, loss = stopLossPrice, comment_profit = "Take Profit", comment_loss = "Stop Loss")
+
+//Stop Loss and Take Profit for Short Positions
+if strategy.opentrades > 0 and strategy.position_size < 0 and (takeProfitSelected or stopLossSelected)   //if there is an open position and it is a short position and either a take profit or sto ploss is selected.
+    if takeProfitSelected
+        takeProfitPrice := strategy.position_avg_price * (1 - (takeProfitPercent / 100))
+    else
+        takeProfitPrice := na
+    if stopLossSelected
+        stopLossPrice := strategy.position_avg_price * (1 + (stopLossPercent / 100))
+    else
+        stopLossPrice := na
+    strategy.exit(id = "Exit", from_entry = "Buy to Open", qty_percent = 100, profit = takeProfitPrice, loss = stopLossPrice, comment_profit = "Take Profit", comment_loss = "Stop Loss")
+
+
+//VISUALISATIONS
+plot(series = ta.sma(source = close, length = shortSMAlength), title = "Short SMA", color = color.new(color = color.red, transp = 50), linewidth = 2)
+plot(series = ta.sma(source = close, length = longSMAlength), title = "Long SMA", color = color.new(color = color.blue, transp = 50), linewidth = 2)
+
+bgcolor(color = longCondition ? color.new(color = color.green, transp = 95) : na, title = "Long")
+bgcolor(color = shortCondition ? color.new(color = color.red, transp = 95) : na, title = "Short")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/432768
+
+> Last Modified
+
+2023-11-21 12:26:53

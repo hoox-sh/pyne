@@ -1,0 +1,17 @@
+//@version=5
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/v5/writing/profiling-and-optimization.md::profiling-and-optimization.md#block17
+// content_hash: f18e8c69f9cfa284
+// collected: 2026-07-27
+indicator("Profiler's inner workings demo")
+
+int seedInput = input.int(12345, "Seed")
+
+type LCG
+    float state
+
+method generate(LCG this, int generations = 1) =>
+    float result = 0.0
+    for i = 1 to generations
+        this.state := 16807 * this.state % 2147483647

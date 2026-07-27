@@ -1,0 +1,63 @@
+//@version=1
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双均线交叉多空策略Dual-Moving-Average-Crossover-Trend-Trading-Strategy.md
+// content_hash: 65e0baa2b681898c
+// collected: 2026-07-27
+strategy("Dieyson Swingtrade EMA 20+200 and bar & line color", overlay=true)
+
+
+//bar color rules
+Dgbar = close>close[1] and ema(close,20)>ema(close[1],20)
+Drbar = close<close[1] and ema(close,20)<ema(close[1],20)
+
+//Barcolors
+barcolor(Dgbar ? green : na)
+barcolor(Drbar ? red : na)
+
+//MM09 Colorful
+
+MMgreen9 = ema(close,9)>ema(close[1],9) and ema(close,20)>ema(close[1],20)
+MMred9 = ema(close,9)<ema(close[1],9) and ema(close,9)<ema(close[1],9)
+col8 = (MMgreen9 ? color(green,0) : na)
+col28 = (MMred9 ? color(red,0) : na)
+col38 = (not MMgreen9 and not MMred9 ? color(black,0) : na)
+
+//plot(ema(close,9), color=col8, style=line, linewidth=1)
+//plot(ema(close,9), color=col28, style=line, linewidth=1)
+//plot(ema(close,9), color=col38, style=line, linewidth=1)
+
+//MM20 Colorful
+
+MMgreen = ema(close,20)>ema(close[1],20)
+MMred = ema(close,20)<ema(close[1],20)
+col = (MMgreen ? color(green,0) : na)
+col2 = (MMred ? color(red,0) : na)
+col3 = (not MMgreen and not MMred ? color(yellow,0) : na)
+col4 = color(black,0)
+plot(ema(close,20), color=col, style=line, linewidth=2)
+plot(ema(close,20), color=col2, style=line, linewidth=2)
+plot(ema(close,20), color=col3, style=line, linewidth=2)
+plot(ema(close,200), color=col4, style=line, linewidth=3)
+//plot(vwap(15), color(white,0), style=line, linewidth=3)
+//plot(cross(ema(close,9), ema(close,20)) ? ema(close,9) : na, style = cross,color=fuchsia, transp=0, linewidth = 4)
+plot(cross(ema(close,20), ema(close,200)) ? ema(close,20) : na, style = cross,color=fuchsia, transp=0, linewidth = 4)
+
+c = crossover(ema(close,9), ema(close,20)) and ema(close,9) > ema(close,20)
+// c = crossover(close, ema (close,9) and ema(close,9) > ema(close[1],9))
+v = crossunder(close, ema (close,9))
+
+strategy.entry("COMPRA", strategy.long,when=c)
+strategy.entry("VENDA", strategy.short,when=v)
+
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/431222
+
+> Last Modified
+
+2023-11-06 10:27:00

@@ -1,0 +1,62 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/RSI动量背离突破策略-RSI-Momentum-Divergence-Breakout-Strategy.md
+// content_hash: 47547e5e467a58ac
+// collected: 2026-07-27
+strategy("RSI + RSI Divergence Strategy", overlay=true)
+
+// RSI settings
+rsiLength = 14
+rsiOverbought = 70
+rsiOversold = 30
+
+// Calculate RSI
+rsi = ta.rsi(close, rsiLength)
+
+// Function to detect bullish divergence
+bullishDivergence(prices, rsiValues) =>
+    ta.lowest(prices, 3) < ta.lowest(prices[1], 3)[1] and ta.lowest(rsiValues, 3) > ta.lowest(rsiValues[1], 3)[1]
+
+// Function to detect bearish divergence
+bearishDivergence(prices, rsiValues) =>
+    ta.highest(prices, 3) > ta.highest(prices[1], 3)[1] and ta.highest(rsiValues, 3) < ta.highest(rsiValues[1], 3)[1]
+
+// Detect divergences
+bullDiv = bullishDivergence(close, rsi)
+bearDiv = bearishDivergence(close, rsi)
+
+// Plot RSI
+plot(rsi, title="RSI", color=color.blue)
+hline(rsiOverbought, "Overbought", color=color.red)
+hline(rsiOversold, "Oversold", color=color.green)
+
+// Long condition: RSI oversold and bullish divergence
+if (rsi < rsiOversold and bullDiv)
+    strategy.entry("Long", strategy.long)
+
+// Short condition: RSI overbought and bearish divergence
+if (rsi > rsiOverbought and bearDiv)
+    strategy.entry("Short", strategy.short)
+
+// Exit condition: Define your trailing stop or take profit logic
+// This example uses a fixed take profit and stop loss
+strategy.exit("Take Profit/Stop Loss", from_entry="Long", limit=close + 50, stop=close - 20)
+strategy.exit("Take Profit/Stop Loss", from_entry="Short", limit=close - 50, stop=close + 20)
+
+// Plot divergence start and end markers
+plotshape(series=bullDiv, location=location.belowbar, color=color.red, style=shape.labeldown, text="Bull Div Start", size=size.small)
+plotshape(series=not bullDiv[1] and bullDiv, location=location.abovebar, color=color.green, style=shape.labelup, text="Bull Div End", size=size.small)
+
+plotshape(series=bearDiv, location=location.abovebar, color=color.red, style=shape.labeldown, text="Bear Div Start", size=size.small)
+plotshape(series=not bearDiv[1] and bearDiv, location=location.belowbar, color=color.green, style=shape.labelup, text="Bear Div End", size=size.small)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/468302
+
+> Last Modified
+
+2024-09-26 14:37:51

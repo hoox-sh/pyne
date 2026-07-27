@@ -1,0 +1,96 @@
+//@version=6
+// set02 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/templates/indicators/vwap-bands.pine
+// content_hash: e0faa1489a4568d6
+// collected: 2026-07-27
+indicator("VWAP Bands Template", shorttitle="VWAP Bands", overlay=true)
+
+// ============================================================================
+// INPUTS
+// ============================================================================
+// VWAP Settings
+vwapSource = input.source(hlc3, "VWAP Source", group="VWAP Settings", tooltip="Price source for VWAP calculation")
+anchorPeriod = input.string("Session", "Anchor Period", options=["Session", "Week", "Month", "Quarter", "Year"], group="VWAP Settings", tooltip="Period to anchor VWAP calculation")
+
+// Band Settings
+showBands = input.bool(true, "Show Standard Deviation Bands", group="Bands")
+bandMultiplier1 = input.float(1.0, "Band 1 Multiplier", minval=0.1, step=0.1, group="Bands")
+bandMultiplier2 = input.float(2.0, "Band 2 Multiplier", minval=0.1, step=0.1, group="Bands")
+bandMultiplier3 = input.float(3.0, "Band 3 Multiplier", minval=0.1, step=0.1, group="Bands")
+
+// Visual Settings
+vwapColor = input.color(color.blue, "VWAP Color", group="Visual")
+band1Color = input.color(color.green, "Band 1 Color", group="Visual")
+band2Color = input.color(color.orange, "Band 2 Color", group="Visual")
+band3Color = input.color(color.red, "Band 3 Color", group="Visual")
+showFill = input.bool(true, "Fill Between Bands", group="Visual")
+
+// ============================================================================
+// CALCULATIONS
+// ============================================================================
+// Anchor detection
+isNewPeriod = switch anchorPeriod
+    "Session" => ta.change(time("D")) != 0
+    "Week" => ta.change(time("W")) != 0
+    "Month" => ta.change(time("M")) != 0
+    "Quarter" => ta.change(time("3M")) != 0
+    "Year" => ta.change(time("12M")) != 0
+    => false
+
+// VWAP calculation with running totals
+var float sumPV = 0.0
+var float sumV = 0.0
+var float sumPV2 = 0.0
+
+if isNewPeriod
+    sumPV := 0.0
+    sumV := 0.0
+    sumPV2 := 0.0
+
+sumPV += vwapSource * volume
+sumV += volume
+sumPV2 += vwapSource * vwapSource * volume
+
+vwapValue = sumV != 0 ? sumPV / sumV : na
+variance = sumV != 0 ? sumPV2 / sumV - vwapValue * vwapValue : na
+stdev = variance > 0 ? math.sqrt(variance) : 0.0
+
+// Band levels
+upperBand1 = vwapValue + stdev * bandMultiplier1
+lowerBand1 = vwapValue - stdev * bandMultiplier1
+upperBand2 = vwapValue + stdev * bandMultiplier2
+lowerBand2 = vwapValue - stdev * bandMultiplier2
+upperBand3 = vwapValue + stdev * bandMultiplier3
+lowerBand3 = vwapValue - stdev * bandMultiplier3
+
+// ============================================================================
+// PLOTS
+// ============================================================================
+// VWAP line
+vwapPlot = plot(vwapValue, "VWAP", color=vwapColor, linewidth=2)
+
+// Band 1
+upper1Plot = plot(showBands ? upperBand1 : na, "Upper Band 1", color=band1Color, linewidth=1)
+lower1Plot = plot(showBands ? lowerBand1 : na, "Lower Band 1", color=band1Color, linewidth=1)
+
+// Band 2
+upper2Plot = plot(showBands ? upperBand2 : na, "Upper Band 2", color=band2Color, linewidth=1)
+lower2Plot = plot(showBands ? lowerBand2 : na, "Lower Band 2", color=band2Color, linewidth=1)
+
+// Band 3
+upper3Plot = plot(showBands ? upperBand3 : na, "Upper Band 3", color=band3Color, linewidth=1)
+lower3Plot = plot(showBands ? lowerBand3 : na, "Lower Band 3", color=band3Color, linewidth=1)
+
+// Fill between bands
+fill(upper1Plot, lower1Plot, showFill ? color.new(band1Color, 90) : na, "Band 1 Fill")
+fill(upper2Plot, upper1Plot, showFill ? color.new(band2Color, 95) : na, "Upper Band 2 Fill")
+fill(lower1Plot, lower2Plot, showFill ? color.new(band2Color, 95) : na, "Lower Band 2 Fill")
+
+// ============================================================================
+// ALERTS
+// ============================================================================
+alertcondition(ta.crossover(close, vwapValue), "Price Cross Above VWAP", "Price crossed above VWAP")
+alertcondition(ta.crossunder(close, vwapValue), "Price Cross Below VWAP", "Price crossed below VWAP")
+alertcondition(ta.crossover(close, upperBand2), "Price Above +2 StdDev", "Price crossed above 2nd upper band")
+alertcondition(ta.crossunder(close, lowerBand2), "Price Below -2 StdDev", "Price crossed below 2nd lower band")

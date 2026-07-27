@@ -1,0 +1,45 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于摆动高低价的突破策略Breakout-Strategy-Based-on-Swing-Highs-and-Lows.md
+// content_hash: b017ced9cd19bc58
+// collected: 2026-07-27
+strategy("JetzGiantz Strategy", overlay=true)
+
+// Getting inputs
+StopTgt = input(10, minval=1, title="Stop Loss $")
+ProfTgt = input(100, minval=1, title="Profit Target $")
+
+//Filter backtest month and year
+startMonth = input(1, minval=1, maxval=12, title="Month")
+startYear = input(2021, minval=2000, maxval=2100, title="Year")
+//Filter funtion inputs
+
+
+//Calculations
+Low3 = lowest(low,3)
+Low50 = lowest(low,50)
+High3 = highest(high,3)
+High50 = highest(high,50)
+
+if (month>=startMonth and year>=startYear)
+    if(close[1] < open[1] and close > open and close > open[1] and (Low3 < Low50[1] or Low3 < Low50[2] or Low3 < Low50[3]))
+		strategy.order("BuyEntry", strategy.long, when=strategy.position_size == 0, comment="BuyEntry")
+
+if (month>=startMonth and year>=startYear)
+    if(close[1] > open[1] and close < open and close > open[1] and (High3 > High50[1] or High3 > High50[2] or High3 > High50[3]))
+		strategy.order("SellEntry", strategy.short, when=strategy.position_size == 0, comment="SellEntry")
+
+strategy.exit("bracket", loss=StopTgt, profit=ProfTgt, when=strategy.position_size > 0)
+strategy.exit("bracket", loss=StopTgt, profit=ProfTgt, when=strategy.position_size < 0)
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/426885
+
+> Last Modified
+
+2023-09-15 11:47:13

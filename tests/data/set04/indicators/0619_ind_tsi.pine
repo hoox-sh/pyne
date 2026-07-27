@@ -1,0 +1,25 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/visuals/levels.md::levels.md#block2
+// content_hash: ec04cf0adaf25f14
+// collected: 2026-07-27
+indicator("TSI")
+myTSI = 100 * ta.tsi(close, 25, 13)
+
+plus50Hline  = hline( 50, "+50",  color.lime)
+plus25Hline  = hline( 25, "+25",  color.green)
+zeroHline    = hline(  0, "Zero", color.gray, linestyle = hline.style_dotted)
+minus25Hline = hline(-25, "-25",  color.maroon)
+minus50Hline = hline(-50, "-50",  color.red)
+
+// ————— Function returns a color in a light shade for use as a background.
+fillColor(color col) =>
+    color.new(col, 90)
+
+fill(plus50Hline,  plus25Hline,  fillColor(color.lime))
+fill(plus25Hline,  zeroHline,    fillColor(color.teal))
+fill(zeroHline,    minus25Hline, fillColor(color.maroon))
+fill(minus25Hline, minus50Hline, fillColor(color.red))
+
+plot(myTSI)

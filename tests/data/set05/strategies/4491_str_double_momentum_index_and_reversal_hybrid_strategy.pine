@@ -1,0 +1,100 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双重动量指数与反转复合策略Double-Momentum-Index-and-Reversal-Hybrid-Strategy.md
+// content_hash: 5d31307c3b691143
+// collected: 2026-07-27
+////////////////////////////////////////////////////////////
+//  Copyright by HPotter v1.0 25/10/2019
+// This is combo strategies for get a cumulative signal. 
+//
+// First strategy
+// This System was created from the Book "How I Tripled My Money In The 
+// Futures Market" by Ulf Jensen, Page 183. This is reverse type of strategies.
+// The strategy buys at market, if close price is higher than the previous close 
+// during 2 days and the meaning of 9-days Stochastic Slow Oscillator is lower than 50. 
+// The strategy sells at market, if close price is lower than the previous close price 
+// during 2 days and the meaning of 9-days Stochastic Fast Oscillator is higher than 50.
+//
+// Second strategy
+// The Commodity Selection Index ("CSI") is a momentum indicator. It was 
+// developed by Welles Wilder and is presented in his book New Concepts in 
+// Technical Trading Systems. The name of the index reflects its primary purpose. 
+// That is, to help select commodities suitable for short-term trading.
+// A high CSI rating indicates that the commodity has strong trending and volatility 
+// characteristics. The trending characteristics are brought out by the Directional 
+// Movement factor in the calculation--the volatility characteristic by the Average 
+// True Range factor.
+// Wilder's approach is to trade commodities with high CSI values (relative to other 
+// commodities). Because these commodities are highly volatile, they have the potential 
+// to make the "most money in the shortest period of time." High CSI values imply 
+// trending characteristics which make it easier to trade the security.
+// The Commodity Selection Index is designed for short-term traders who can handle 
+// the risks associated with highly volatile markets.
+//
+// WARNING:
+// - For purpose educate only
+// - This script to change bars colors.
+////////////////////////////////////////////////////////////
+Reversal123(Length, KSmoothing, DLength, Level) =>
+    vFast = sma(stoch(close, high, low, Length), KSmoothing) 
+    vSlow = sma(vFast, DLength)
+    pos = 0.0
+    pos := iff(close[2] < close[1] and close > close[1] and vFast < vSlow and vFast > Level, 1,
+	         iff(close[2] > close[1] and close < close[1] and vFast > vSlow and vFast < Level, -1, nz(pos[1], 0))) 
+	pos
+
+fADX(Len) =>
+    up = change(high)
+    down = -change(low)
+    trur = rma(tr, Len)
+    plus = fixnan(100 * rma(up > down and up > 0 ? up : 0, Len) / trur)
+    minus = fixnan(100 * rma(down > up and down > 0 ? down : 0, Len) / trur)
+    sum = plus + minus 
+    100 * rma(abs(plus - minus) / (sum == 0 ? 1 : sum), Len)
+
+CSI(Length, Commission, Margin, PointValue) =>
+    pos = 0.0
+    K = 100 * ((PointValue / sqrt(Margin) / (150 + Commission)))
+    xATR = atr(Length)
+    xADX = fADX(Length)
+    nADXR = (xADX + xADX[Length]) * 0.5
+    xCSI = K * xATR * nADXR
+    xMACSI = sma(xCSI, Length)
+    pos := iff(xCSI < xMACSI, 1,
+    	     iff(xCSI > xMACSI, -1, nz(pos[1], 0))) 
+    pos
+
+strategy(title="Combo Strategy 123 Reversal & Commodity Selection Index", shorttitle="Combo", overlay = true)
+Length = input(14, minval=1)
+KSmoothing = input(1, minval=1)
+DLength = input(3, minval=1)
+Level = input(50, minval=1)
+//-------------------------
+PointValue = input(50)
+Margin = input(3000)
+Commission = input(10)
+LengthCSI = input(14)
+reverse = input(false, title="Trade reverse")
+posReversal123 = Reversal123(Length, KSmoothing, DLength, Level)
+posCSI = CSI(LengthCSI, Commission, Margin, PointValue)
+pos = iff(posReversal123 == 1 and posCSI == 1 , 1,
+	   iff(posReversal123 == -1 and posCSI == -1, -1, 0)) 
+possig = iff(reverse and pos == 1, -1,
+          iff(reverse and pos == -1 , 1, pos))	   
+if (possig == 1) 
+    strategy.entry("Long", strategy.long)
+if (possig == -1)
+    strategy.entry("Short", strategy.short)	 
+if (possig == 0) 
+    strategy.close_all()
+barcolor(possig == -1 ? #b50404: possig == 1 ? #079605 : #0536b3 )
+```
+
+> Detail
+
+https://www.fmz.com/strategy/441164
+
+> Last Modified
+
+2024-02-06 12:22:32

@@ -1,0 +1,16 @@
+//@version=6
+// set04 corpus entry
+// source_repo: PineTS
+// source_path: PineTS/docs/alerts.md::alerts.md#block2
+// content_hash: 7e2b2737da5deb8c
+// collected: 2026-07-27
+indicator("RSI Alert Conditions")
+
+rsi = ta.rsi(close, 14)
+
+alertcondition(rsi > 70, "Overbought", "RSI crossed above 70!")
+alertcondition(rsi < 30, "Oversold", "RSI dropped below 30!")
+
+plot(rsi, "RSI")
+hline(70, "Overbought")
+hline(30, "Oversold")

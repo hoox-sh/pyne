@@ -1,0 +1,63 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多指标动态波动突破策略基于EMA趋势确认与RSI超买超卖结合K线形态分析-Multi-Indicator-Dynamic-Volatility-Breakout-Strategy-EMA-Trend-Confirmation-with-RSI-Overbought-Oversold-and-Candlestick-Pattern-Analysis.md
+// content_hash: bd3b8a3e6f197a54
+// collected: 2026-07-27
+strategy("Comprehensive Trading Strategy", overlay=true, pyramiding=1, calc_on_every_tick=true, process_orders_on_close=true, default_qty_type=strategy.percent_of_equity, default_qty_value=20)
+
+// Input Settings
+emaLength = input.int(50, title="Short EMA Length")
+longEmaLength = input.int(200, title="Long EMA Length")
+rsiLength = input.int(14, title="RSI Length")
+atrLength = input.int(14, title="ATR Length")
+stopLossMultiplier = input.float(1.5, title="Stop Loss Multiplier")
+takeProfitMultiplier = input.float(2.0, title="Take Profit Multiplier")
+
+// Indicators
+ema = ta.ema(close, emaLength)
+longEma = ta.ema(close, longEmaLength)
+rsi = ta.rsi(close, rsiLength)
+atr = ta.atr(atrLength)
+
+// Candlestick Patterns
+hammer = close > open and ta.lowest(low, 5) == low and (high - low) > 2 * (close - open)
+shootingStar = close < open and ta.highest(high, 5) == high and (high - low) > 2 * (open - close)
+hangingMan = close < open and ta.lowest(low, 5) == low and (high - low) > 2 * (open - close)
+morningStar = close[2] < open[2] and close[1] < open[1] and close > open and close > close[1]
+eveningStar = close[2] > open[2] and close[1] > open[1] and close < open and close < close[1]
+
+// Buy & Sell Conditions
+longCondition = ta.crossover(close, ema) and rsi < 45 and (hammer or morningStar or rsi < 30) and close > longEma
+shortCondition = ta.crossunder(close, ema) and rsi > 55 and (shootingStar or eveningStar or rsi > 70) and close < longEma
+
+// Stop Loss & Take Profit
+longStopLoss = close - (atr * stopLossMultiplier)
+longTakeProfit = close + (atr * takeProfitMultiplier * 2)
+shortStopLoss = close + (atr * stopLossMultiplier)
+shortTakeProfit = close - (atr * takeProfitMultiplier * 2)
+
+// Execute Trades
+if longCondition
+    strategy.entry("Buy", strategy.long)
+    strategy.exit("Take Profit", from_entry="Buy", limit=longTakeProfit, stop=longStopLoss)
+
+if shortCondition
+    strategy.entry("Sell", strategy.short)
+    strategy.exit("Take Profit", from_entry="Sell", limit=shortTakeProfit, stop=shortStopLoss)
+
+// Plot Indicators
+plot(ema, title="Short EMA", color=color.blue, linewidth=2)
+plot(longEma, title="Long EMA", color=color.orange, linewidth=2)
+plotshape(series=longCondition, location=location.belowbar, color=color.green, style=shape.labelup, title="Buy Signal", text="شراء")
+plotshape(series=shortCondition, location=location.abovebar, color=color.red, style=shape.labeldown, title="Sell Signal", text="بيع")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/488271
+
+> Last Modified
+
+2025-03-26 14:07:38

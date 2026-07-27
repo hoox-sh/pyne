@@ -1,0 +1,44 @@
+//@version=3
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于多空通道的回测交易策略Backtest-Channel-Breakout-Trading-Strategy.md
+// content_hash: 65e14dae3250424e
+// collected: 2026-07-27
+//strategy(title = "Backtest Donchian Teixeira", default_qty_type = strategy.fixed, default_qty_value = 100, overlay = true, commission_type = strategy.commission.cash_per_order, commission_value = 2.50, precision = 2, calc_on_every_tick = true, pyramiding = 0, initial_capital = 10000)
+
+testStartYear = input(2000, "Backtest Start Year")
+testStartMonth = input(1, "Backtest Start Month")
+testStartDay = input(1, "Backtest Start Day")
+testPeriodStart = timestamp(testStartYear, testStartMonth, testStartDay, 00, 00)
+
+testEndYear = input(2018, "Backtest End Year")
+testEndMonth = input(12, "Backtest End Month")
+testEndDay = input(1, "Backtest End Day")
+testPeriodEnd = timestamp(testStartYear, testStartMonth, testStartDay, 23, 59)
+
+window()  => true //nao funciona
+
+length1 = input(20, minval=1, title="Upper Channel")
+length2 = input(20, minval=1, title="Lower Channel")
+
+dcUpper = highest(length1)
+dcLower = lowest(length2)
+
+plot(dcLower, style=line, linewidth=1, color=red, offset=1)
+plot(dcUpper, style=line, linewidth=1, color=lime, offset=1)
+plot(dcLower, style=line, linewidth=1, color=gray)
+
+if (strategy.position_size == 0)
+    strategy.entry("COMPRA", true, stop = dcUpper)
+    
+if (strategy.position_size > 0)
+    strategy.exit("VENDA", stop = dcLower)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/427395
+
+> Last Modified
+
+2023-09-20 17:02:40

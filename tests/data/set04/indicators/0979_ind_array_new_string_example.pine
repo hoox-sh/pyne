@@ -1,0 +1,10 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block74
+// content_hash: 2f7d095ca352cc36
+// collected: 2026-07-27
+indicator("array.new_string example")
+length = 5
+a = array.new_string(length, "text")
+label.new(bar_index, close, array.get(a, 0))

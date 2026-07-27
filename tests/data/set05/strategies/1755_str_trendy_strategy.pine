@@ -1,0 +1,72 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多重指标趋势追踪策略-Multi-Indicator-Trend-Following-Strategy.md
+// content_hash: 0835c29490fed036
+// collected: 2026-07-27
+strategy("Trendy Strategy", overlay=true)
+
+// Ayarlanabilir parametreler
+rsiLength = input.int(3, title="RSI Length")
+longThreshold = input.int(80, title="Long RSI Threshold")
+shortThreshold = input.int(20, title="Short RSI Threshold")
+
+ema20 = ta.ema(close, 20)
+ema50 = ta.ema(close, 50)
+ema100 = ta.ema(close, 100)
+ema200 = ta.ema(close, 200)
+rsi = ta.rsi(close, rsiLength)
+
+// Long sinyal koşulu
+longSignal = rsi > longThreshold and ema20 > ema50 and ema50 > ema100 and ema100 > ema200
+
+// Short sinyal koşulu
+shortSignal = rsi < shortThreshold and ema20 < ema50 and ema50 < ema100 and ema100 < ema200
+
+// Longtayken stop sinyali: EMA 50'nin EMA 200'nin altına düşmesi veya RSI'nin 30'un altına düşmesi
+longStopSignal = ta.barssince(ema50 < ema200) <= 2 and rsi < 30
+
+// Shorttayken stop sinyali: EMA 50'nin EMA 200'nin üstüne çıkması veya RSI'nin 70'in üstüne çıkması
+shortStopSignal = ta.barssince(ema50 > ema200) <= 2 and rsi > 70
+
+// Sinyallerin art arda ne kadar süredir true olduğunu tutan değişkenler
+longConditionMet = ta.barssince(longSignal) <= 2
+shortConditionMet = ta.barssince(shortSignal) <= 2
+
+// Trend durumlarını izlemek için değişkenler
+var bool inLong = false
+var bool inShort = false
+
+if (longConditionMet and not inLong)
+    inLong := true
+    inShort := false
+    strategy.entry("Long", strategy.long)
+else if (shortConditionMet and not inShort)
+    inShort := true
+    inLong := false
+    strategy.entry("Short", strategy.short)
+else if (inLong and longStopSignal)
+    inLong := false
+    strategy.close("Long")
+else if (inShort and shortStopSignal)
+    inShort := false
+    strategy.close("Short")
+
+// Grafik üzerinde long ve short dönemlerini işaretleme
+bgcolor(inLong ? color.new(color.green, 80) : na)
+bgcolor(inShort ? color.new(color.red, 80) : na)
+
+// EMA'ları grafik üzerinde gösterme
+plot(ema20, title="EMA 20", color=color.blue)
+plot(ema50, title="EMA 50", color=color.orange)
+plot(ema100, title="EMA 100", color=color.purple)
+plot(ema200, title="EMA 200", color=color.red)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/458074
+
+> Last Modified
+
+2024-07-29 17:07:02

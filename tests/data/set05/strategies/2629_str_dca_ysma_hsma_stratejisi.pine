@@ -1,0 +1,53 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/DCA双均线海龟交易策略-DCA-Dual-Moving-Average-Turtle-Trading-Strategy.md
+// content_hash: 8e1249c7104a8d63
+// collected: 2026-07-27
+strategy("DCA YSMA HSMA Stratejisi", overlay=true, calc_on_every_tick=true)
+
+// Parametreler
+sma_fast = input(14, "Hızlı SMA Dönemi")
+sma_slow = input(28, "Yavaş SMA Dönemi")
+dca_amount = input(100, "DCA Miktarı")
+dca_interval = input(14, "DCA Aralığı (Gün)")
+
+// Hızlı ve yavaş SMA hesaplamaları
+fast_sma = ta.sma(close, sma_fast)
+slow_sma = ta.sma(close, sma_slow)
+
+// DCA hesaplamaları
+var float dca_average_price = na
+var int dca_count = na
+
+if (bar_index % dca_interval == 0)
+    dca_count := nz(dca_count, 0) + 1
+    dca_average_price := nz(dca_average_price, close) * (dca_count - 1) + close
+    dca_average_price /= dca_count
+
+// Alım ve satım sinyalleri
+longCondition = ta.crossover(fast_sma, slow_sma)
+shortCondition = ta.crossunder(fast_sma, slow_sma)
+
+if (longCondition)
+    strategy.entry("Alım", strategy.long, qty=dca_amount)
+if (shortCondition)
+    strategy.entry("Satım", strategy.short)
+
+// Grafik
+plot(fast_sma, "Hızlı SMA", color=color.blue)
+plot(slow_sma, "Yavaş SMA", color=color.red)
+
+// Uyarılar
+alertcondition(longCondition, "Alım Sinyali", "Alım Sinyali")
+alertcondition(shortCondition, "Satım Sinyali", "Satım Sinyali")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/449814
+
+> Last Modified
+
+2024-04-29 14:26:59

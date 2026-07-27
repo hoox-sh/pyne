@@ -1,0 +1,53 @@
+//@version=2
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双向交叉零轴Qstick指标回测策略Bi-directional-Crossing-Zero-Axis-Qstick-Indicator-Backtest-Strategy.md
+// content_hash: 99f4503d1b1ce5c8
+// collected: 2026-07-27
+////////////////////////////////////////////////////////////
+//  Copyright by HPotter v1.0 16/04/2018
+// A technical indicator developed by Tushar Chande to numerically identify 
+// trends in candlestick charting. It is calculated by taking an 'n' period 
+// moving average of the difference between the open and closing prices. A 
+// Qstick value greater than zero means that the majority of the last 'n' days 
+// have been up, indicating that buying pressure has been increasing. 
+//
+// Transaction signals come from when the Qstick indicator crosses through the 
+// zero line. Crossing above zero is used as the entry signal because it is indicating 
+// that buying pressure is increasing, while sell signals come from the indicator 
+// crossing down through zero. In addition, an 'n' period moving average of the Qstick 
+// values can be drawn to act as a signal line. Transaction signals are then generated 
+// when the Qstick value crosses through the trigger line.
+//
+// You can change long to short in the Input Settings
+// WARNING:
+//  - For purpose educate only
+//  - This script to change bars colors.
+////////////////////////////////////////////////////////////
+strategy(title="Qstick Indicator Backtest")
+Length = input(14, minval=1)
+reverse = input(false, title="Trade reverse")
+xR = close - open
+xQstick = sma(xR, Length)
+clr = iff(xQstick >= 0, green, red)
+pos = iff(xQstick > 0, 1,
+       iff(xQstick < 0, -1, nz(pos[1], 0))) 
+possig = iff(reverse and pos == 1, -1,
+          iff(reverse and pos == -1, 1, pos))	   
+if (possig == 1) 
+    strategy.entry("Long", strategy.long)
+if (possig == -1)
+    strategy.entry("Short", strategy.short)	   	    
+barcolor(possig == -1 ? red: possig == 1 ? green : blue ) 
+p1 = plot(0, color=black, title="0")
+p2 = plot(xQstick, color=blue, title="Qstick")
+fill(p1, p2, color=clr)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/439854
+
+> Last Modified
+
+2024-01-24 14:14:07

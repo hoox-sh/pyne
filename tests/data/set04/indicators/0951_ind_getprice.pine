@@ -1,0 +1,11 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block129
+// content_hash: f22deb1ff2104a11
+// collected: 2026-07-27
+indicator("GetPrice", overlay=true)
+var line l = na
+if bar_index == 10
+    l := line.new(0, high[5], bar_index, high)
+plot(line.get_price(l, bar_index), color=color.green)

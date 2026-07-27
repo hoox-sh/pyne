@@ -1,0 +1,69 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/三EMA配合DMI和MACD的趋势跟踪策略Trend-Following-Strategy-with-3-EMAs-DMI-and-MACD.md
+// content_hash: 96a5fa0bcb54a9cf
+// collected: 2026-07-27
+strategy("2 EMA di+ Buy Sell, strategy ", overlay=true)
+
+// Define the EMA calculation function
+ema(src, length) =>
+    ta.ema(src, length)
+
+// Calculate and plot EMA on M5
+ema34_M5 = ema(close, 34)
+ema89_M5 = ema(close, 89)
+ema200_M5 = ema(close, 200)
+
+// Plot EMAs
+plot(ema34_M5, color=color.green, title="EMA 34 M5", linewidth=2)
+plot(ema89_M5, color=color.blue, title="EMA 89 M5", linewidth=2)
+plot(ema200_M5, color=color.black, title="EMA 200 M5", linewidth=2)
+
+// Define DMI parameters
+len = input(14, title="DI Length")
+up = ta.change(high)
+down = -ta.change(low)
+plusDM = na(up) ? na : (up > down and up > 0 ? up : 0)
+minusDM = na(down) ? na : (down > up and down > 0 ? down : 0)
+trur = ta.rma(ta.tr, len)
+plusDI = 100 * ta.rma(plusDM, len) / trur
+minusDI = 100 * ta.rma(minusDM, len) / trur
+
+// Calculate ADX
+adxValue = 100 * ta.rma(math.abs(plusDI - minusDI) / (plusDI + minusDI == 0 ? 1 : plusDI + minusDI), len)
+
+// Define MACD parameters
+fastLength = input(12, title="Fast Length")
+slowLength = input(26, title="Slow Length")
+signalLength = input(9, title="Signal Length")
+
+// Calculate MACD
+[macdLine, signalLine, _] = ta.macd(close, fastLength, slowLength, signalLength)
+
+// Create buy/sell conditions
+buyCondition = close > ema34_M5 and plusDI > 17 and adxValue > minusDI 
+sellCondition = close < ema34_M5 and minusDI > 17 and adxValue > plusDI 
+
+// Strategy logic
+strategy.entry("Buy", strategy.long, when = buyCondition)
+strategy.entry("Sell", strategy.short, when = sellCondition)
+
+// Create alerts for buy/sell signals
+alertcondition(buyCondition, title="Buy Signal", message="Buy Signal")
+alertcondition(sellCondition, title="Sell Signal", message="Sell Signal")
+
+// Plot buy/sell arrows on the price chart
+bgcolor(buyCondition ? color.new(color.green, 90) : sellCondition ? color.new(color.red, 90) : na)
+
+plotarrow(buyCondition ? 1 : sellCondition ? -1 : na, colorup=color.new(color.green, 0), colordown=color.new(color.red, 0), offset=-1)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/439991
+
+> Last Modified
+
+2024-01-25 15:48:59

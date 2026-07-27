@@ -1,0 +1,27 @@
+//@version=6
+// set03 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/faq/visuals.md::visuals.md#block16
+// content_hash: 22b7aac8f90e741d
+// collected: 2026-07-27
+indicator("Limit drawings using arrays", overlay = true)
+int drawingQtyInput      = input.int(5, "Quantity of drawings to show", minval = 0, maxval = 50)
+int drawingIntervalInput = input.int(4, "Draw every n bars",            minval = 1, maxval = 10)
+
+// Create a label array sized according to the user-selected quantity.
+var array<label> labelsArray = array.new<label>(drawingQtyInput)
+if bar_index % drawingIntervalInput == 0  // Every n bars
+    // Draw a label and add it to the *end* of the array
+    labelsArray.push(label.new(bar_index, high, str.tostring(high), style = label.style_label_down,
+      color = color.new(chart.fg_color, 30), textcolor = chart.bg_color))
+    // Remove the oldest label and delete it.
+    label.delete(labelsArray.shift())
+
+// Create an *empty* line array.
+var array<line> linesArray = array.new<line>()
+// Every n bars (offset -1 from the labels), draw a vertical line and add it to the *end* of the array.
+if (bar_index + 1) % drawingIntervalInput == 0  
+    linesArray.push(line.new(bar_index, high, bar_index, low, color = chart.fg_color, extend = extend.both, width = 3))
+// If the array is larger than the number of drawings to display, remove the oldest line and delete it.
+if linesArray.size() > drawingQtyInput
+    line.delete(linesArray.shift())

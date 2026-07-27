@@ -1,0 +1,511 @@
+// set03 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/projects/raschke-patterns.pine
+// content_hash: 767400e14c12c455
+// collected: 2026-07-27
+// built with PineScript Agents by TradersPost
+//@version=6
+
+// ============================================================================
+// RASCHKE PATTERNS - Linda Raschke Short-Term Setups
+// ----------------------------------------------------------------------------
+// Detects and marks the mechanically-definable bar/candle setups popularized by
+// Linda Raschke (Street Smarts / short-term scalping). Only the patterns with
+// objective, codable rules are included:
+//
+//   Turtle Soup / +1     - false breakout of a prior N-bar extreme + reversal
+//   80-20 Bar            - opens within 20% of one extreme, closes within 20%
+//                          of the other (reversal expected the OPPOSITE way)
+//   Inside Bar           - range fully inside the prior bar
+//   FIB                  - failed inside-bar breakout (break then close back in)
+//   ODUP / ODDOWN        - outside bar closing up / down
+//   NR4 / NR7            - narrowest range of the last 4 / 7 bars (contraction)
+//   Bar Gap Reversal   - gap unfilled for N bars, then filled (reversal)
+//   Holy Grail           - ADX > threshold, pullback to the 20 EMA, turn bar
+//
+// NOT INCLUDED (no objective rule / no data in Pine): Wolfe Waves, News
+// Reversals, Eat the Tail, Umbrella, Hotdog, Hamburger, Whiplash.
+//
+// VISUALS: chart candle recolor (contraction), plotcandle highlight (signal
+// bars), boxes (inside-bar / gap zones), lines (swept levels, 20 EMA), and
+// plotshape / plotchar markers with abbreviations. Per-pattern toggles + alerts.
+//
+// NOTE: detections use the bar's CLOSE; on the live (forming) bar a signal can
+// appear/disappear until the bar closes. Bar Gap Reversal counts BARS on the
+// chart timeframe (lookback configurable) — true gaps mostly occur on daily /
+// session charts, so it's most useful there. All patterns use the chart timeframe.
+// ============================================================================
+
+indicator("Raschke Patterns", "Raschke", overlay=true,
+     max_lines_count=500, max_labels_count=500, max_boxes_count=500)
+
+// ============================================================================
+// INPUTS
+// ============================================================================
+
+// --- Pattern descriptions (shared by the settings tooltips AND the legend) ---
+TIP_TS   = "Name: Turtle Soup\n\nDescription: Price pokes just past a recent high or low like it's breaking out, then snaps right back through the level.\n\nExpectation: The breakout was a trap — price often reverses and runs the other way."
+TIP_TSP  = "Name: Turtle Soup +1\n\nDescription: The same false breakout, but the snap-back comes one bar later — fake breakout on one bar, reversal close on the next.\n\nExpectation: Failed breakout → reversal the other way, confirmed a bar later."
+TIP_8020 = "Name: 80-20 Bar\n\nDescription: A strong one-way bar that opens near one end of its range and closes near the other (the body fills ~80%+ of the bar).\n\nExpectation: A fade setup — look for a reversal the opposite way on the next bar. Tag above the bar = watch for a move down; below = watch for up."
+TIP_IB   = "Name: Inside Bar\n\nDescription: A quiet bar whose entire range stays inside the previous bar's high and low.\n\nExpectation: The market is coiling/pausing — often just before a bigger move (either direction)."
+TIP_FIB  = "Name: FIB (Failed Inside-Bar Breakout)\n\nDescription: Price breaks out of a recent inside bar but can't hold it and closes back inside the range.\n\nExpectation: The failed breakout often leads to a move in the opposite direction."
+TIP_OD   = "Name: Outside Up / Down\n\nDescription: A bar that runs both higher AND lower than the prior bar (engulfs it), closing up (ODUP) or down (ODDN).\n\nExpectation: A momentum / sentiment shift in the closing direction."
+TIP_NR4  = "Name: NR4 (Narrow Range 4)\n\nDescription: The tightest-range bar of the last 4 bars.\n\nExpectation: Volatility is contracting — a fast move often follows."
+TIP_NR7  = "Name: NR7 (Narrow Range 7)\n\nDescription: The tightest-range bar of the last 7 bars (a stronger coil than NR4).\n\nExpectation: The market is winding up for a bigger move."
+TIP_GAP  = "Name: Bar Gap Reversal\n\nDescription: A gap that stays unfilled for several bars, then price returns and fills it.\n\nExpectation: Price often reverses at the filled gap."
+TIP_HG   = "Name: Holy Grail\n\nDescription: In a strong trend, price pulls back to the 20-bar moving average, then turns back with the trend.\n\nExpectation: Trend continuation — a buy-the-dip / sell-the-rally entry."
+
+// --- Pattern toggles --------------------------------------------------------
+gPat = "Patterns"
+enTS    = input.bool(true, "Turtle Soup",            group=gPat, tooltip=TIP_TS)
+enTSP   = input.bool(true, "Turtle Soup +1",         group=gPat, tooltip=TIP_TSP)
+en8020  = input.bool(true, "80-20 Bar",              group=gPat, tooltip=TIP_8020)
+enInside= input.bool(true, "Inside Bar",             group=gPat, tooltip=TIP_IB)
+enFID   = input.bool(true, "FIB (failed inside bar)", group=gPat, tooltip=TIP_FIB)
+enOD    = input.bool(true, "Outside Up/Down (ODUP/ODDN)", group=gPat, tooltip=TIP_OD)
+enNR4   = input.bool(true, "NR4",                    group=gPat, tooltip=TIP_NR4)
+enNR7   = input.bool(true, "NR7",                    group=gPat, tooltip=TIP_NR7)
+enGap   = input.bool(true, "Bar Gap Reversal",       group=gPat, tooltip=TIP_GAP)
+enHG    = input.bool(true, "Holy Grail",             group=gPat, tooltip=TIP_HG)
+
+// --- Detection parameters ---------------------------------------------------
+gParam = "Parameters"
+tsLookback = input.int(20, "Turtle Soup Lookback (bars)", minval=5, maxval=100,
+     tooltip="The prior N-bar high/low that must be falsely broken. Raschke uses 20.",
+     group=gParam)
+tsRequireOld = input.bool(true, "Turtle Soup: require prior extreme is older",
+     tooltip="Classic rule: the swept N-bar extreme should have formed at least a few bars ago, not on the immediately preceding bar.",
+     group=gParam)
+tsMinBarsAgo = input.int(4, "  min bars since prior extreme", minval=1, maxval=20,
+     active=tsRequireOld, group=gParam)
+wide8020 = input.bool(true, "80-20: require wide range",
+     tooltip="Only flag 80-20 bars whose range exceeds the ATR multiple below. Recommended ON — the classic 80-20 is a wide, climactic bar, so this filters out ordinary strong-bodied candles.",
+     group=gParam)
+wideMult = input.float(1.5, "  range > ATR x", minval=0.5, step=0.1,
+     active=wide8020, group=gParam)
+atrLen = input.int(14, "ATR Length", minval=1, group=gParam)
+ibBreakBufPct = input.float(5.0, "Inside Bar: breakout buffer (% of box)", minval=0, maxval=50, step=0.5,
+     tooltip="The inside-bar box ends only when a candle CLOSES beyond the mother range by at least this % of the box height. Filters out marginal closes that barely poke past the edge. A wick that closes back inside is always a FIB, never a breakout. 0 = any close beyond ends the box.",
+     group=gParam)
+gapLookback = input.int(3, "Gap: bars unfilled before reversal", minval=1, maxval=20,
+     tooltip="A gap must stay unfilled at least this many bars; reversal fires when it is finally filled.",
+     group=gParam)
+gapMaxBars = input.int(15, "Gap: max bars to track", minval=2, maxval=60, group=gParam)
+adxLen = input.int(14, "Holy Grail: ADX/DI length", minval=2, group=gParam)
+adxThresh = input.float(30.0, "Holy Grail: ADX threshold", minval=10, maxval=60, group=gParam)
+emaLen = input.int(20, "Holy Grail: EMA length", minval=2, group=gParam)
+
+// --- Display ----------------------------------------------------------------
+gDisp = "Display"
+showMarkers = input.bool(true, "Show Markers", group=gDisp)
+showCandleColor = input.bool(true, "Recolor Contraction Bars (NR/Inside)", group=gDisp)
+usePlotcandle = input.bool(true, "Highlight Signal Bars (plotcandle)", group=gDisp)
+showBoxes = input.bool(true, "Show Boxes (inside / gap zones)", group=gDisp)
+showLines = input.bool(true, "Show Lines (swept levels)", group=gDisp)
+showEMA = input.bool(true, "Show Holy Grail EMA", active=enHG, group=gDisp)
+showLegend = input.bool(true, "Show Legend", group=gDisp)
+legendPos = input.string("Top Right", "Legend Position",
+     options=["Top Left", "Top Right", "Middle Right", "Bottom Left", "Bottom Right"],
+     active=showLegend, group=gDisp)
+monoMode = input.bool(false, "Monochrome (gray shades)",
+     tooltip="ON: bull/bear/contraction collapse to gray shades; rely on label text + above/below position. OFF: muted bull/bear colors.",
+     group=gDisp)
+
+// --- Colors -----------------------------------------------------------------
+gCol = "Colors"
+// Blue / orange (not red/green) so signal bars don't clash with normal candle colors.
+bullColorIn = input.color(#2962ff, "Bullish", active=not monoMode, group=gCol)
+bearColorIn = input.color(#ff9800, "Bearish", active=not monoMode, group=gCol)
+contractColorIn = input.color(#4aa3a3, "Contraction (NR4/NR7)", active=not monoMode, group=gCol)
+insideColorIn = input.color(#574b90, "Inside Bar", active=not monoMode, group=gCol)
+
+// --- Alerts -----------------------------------------------------------------
+gAlert = "Alerts"
+alertOn = input.bool(true, "Fire alert() on any enabled pattern", group=gAlert)
+logEvents = input.bool(true, "Log events to Pine Logs",
+     tooltip="Write a line to the Pine Logs panel each time an enabled pattern fires (on the confirmed bar) so you can jump straight to it.",
+     group=gAlert)
+
+// Resolved colors.
+cBull = monoMode ? color.new(#b2b5be, 0) : color.new(bullColorIn, 0)
+cBear = monoMode ? color.new(#787b86, 0) : color.new(bearColorIn, 0)
+cContract = monoMode ? color.new(#5d606b, 0) : color.new(contractColorIn, 0)
+cInside = monoMode ? color.new(#5d606b, 0) : color.new(insideColorIn, 0)
+
+// ============================================================================
+// SHARED SERIES
+// ============================================================================
+
+rng = high - low
+atrVal = ta.atr(atrLen)
+ema20 = ta.ema(close, emaLen)
+[diPlus, diMinus, adx] = ta.dmi(adxLen, adxLen)
+
+prior20High = ta.highest(high, tsLookback)[1]
+prior20Low  = ta.lowest(low, tsLookback)[1]
+prior20High1 = ta.highest(high, tsLookback)[2]   // as of one bar before the breakout
+prior20Low1  = ta.lowest(low, tsLookback)[2]
+
+// Age (in bars) of the most recent N-bar high/low as of the previous bar.
+ageHigh = -ta.highestbars(high, tsLookback)[1] + 1
+ageLow  = -ta.lowestbars(low, tsLookback)[1] + 1
+oldHighOK = not tsRequireOld or ageHigh >= tsMinBarsAgo
+oldLowOK  = not tsRequireOld or ageLow  >= tsMinBarsAgo
+
+// ============================================================================
+// PATTERN DETECTION
+// ============================================================================
+
+// --- Turtle Soup: false break of prior N-bar extreme, close back through -----
+tsBear = enTS and oldHighOK and high > prior20High and close < prior20High
+tsBull = enTS and oldLowOK  and low  < prior20Low  and close > prior20Low
+
+// --- Turtle Soup +1: false break on the PRIOR bar, reversal close now --------
+tsPlusBear = enTSP and high[1] > prior20High1 and close < prior20High1
+tsPlusBull = enTSP and low[1]  < prior20Low1  and close > prior20Low1
+
+// --- 80-20 Bar: open within 20% of one end, close within 20% of the other ----
+locOpen  = rng > 0 ? (open  - low) / rng : 0.5
+locClose = rng > 0 ? (close - low) / rng : 0.5
+wideOK = not wide8020 or rng >= atrVal * wideMult
+// Opened high / closed low -> potential UP reversal (bullish setup).
+is8020Bull = en8020 and wideOK and locOpen >= 0.8 and locClose <= 0.2
+// Opened low / closed high -> potential DOWN reversal (bearish setup).
+is8020Bear = en8020 and wideOK and locOpen <= 0.2 and locClose >= 0.8
+
+// --- Inside Bar + FIB (failed inside-bar breakout) ---------------------------
+// ONE range governs both: the consolidation = the mother bar (the bar before the
+// inside bar), shown as the box. The box extends right until price BREAKS the
+// range (closes beyond an edge). A bar that pokes past an edge but closes back
+// inside = a FAILED breakout (FIB) and the box keeps going. FIB is therefore
+// always tied to the box you see — it can only fire after a real poke outside it.
+insideRaw = high < high[1] and low > low[1]
+var bool  consolOn = false
+var float consolTop = na
+var float consolBot = na
+var box   insBox = na
+
+fidBull = false
+fidBear = false
+float fidLevel = na
+
+if consolOn
+    if showBoxes and not na(insBox)
+        box.set_right(insBox, bar_index)
+    buf = (consolTop - consolBot) * ibBreakBufPct / 100.0
+    if high > consolTop                            // wick poked above the box
+        if close > consolTop + buf
+            consolOn := false                     // confirmed breakout up — box ends
+        else if close <= consolTop
+            fidBear := enFID                      // closed back inside = FIB
+            fidLevel := consolTop
+        // else: closed just past the edge but within buffer — box keeps going
+    else if low < consolBot                        // wick poked below the box
+        if close < consolBot - buf
+            consolOn := false                     // confirmed breakout down — box ends
+        else if close >= consolBot
+            fidBull := enFID                      // closed back inside = FIB
+            fidLevel := consolBot
+        // else: closed just past the edge but within buffer — box keeps going
+
+// A fresh, non-nested inside bar (only when no consolidation is currently open).
+newInside = insideRaw and not consolOn
+inside = enInside and newInside
+if newInside
+    consolTop := high[1]
+    consolBot := low[1]
+    consolOn := true
+    if enInside and showBoxes
+        insBox := box.new(bar_index - 1, consolTop, bar_index, consolBot,
+             border_color=cInside, bgcolor=color.new(cInside, 88))
+
+// --- Outside Up / Down -------------------------------------------------------
+outside = high > high[1] and low < low[1]
+odUp   = enOD and outside and close > open
+odDown = enOD and outside and close < open
+
+// --- NR4 / NR7 (narrowest range of last 4 / 7) -------------------------------
+// Hoist ta.lowest() to global scope so it runs every bar (consistent history).
+lowest3 = ta.lowest(rng[1], 3)
+lowest6 = ta.lowest(rng[1], 6)
+nr4 = enNR4 and rng < lowest3
+nr7 = enNR7 and rng < lowest6
+// High/low envelope of the 4 / 7 bar window, for the contraction box.
+nr4Top = ta.highest(high, 4)
+nr4Bot = ta.lowest(low, 4)
+nr7Top = ta.highest(high, 7)
+nr7Bot = ta.lowest(low, 7)
+
+// --- Bar Gap Reversal: gap unfilled for N bars, then filled (stateful) -------
+gapUp = low > high[1]
+gapDown = high < low[1]
+
+// Gap UP -> fills downward -> bearish reversal when finally filled.
+var float guLevel = na
+var float guEdge = na
+var int   guBar = na
+var int   guAge = na
+var bool  guActive = false
+gap3Bear = false
+if guActive
+    if low <= guLevel
+        if guAge >= gapLookback
+            gap3Bear := enGap
+        guActive := false
+    else
+        guAge := guAge + 1
+        if guAge > gapMaxBars
+            guActive := false
+if gapUp
+    guLevel := high[1]
+    guEdge := low
+    guBar := bar_index
+    guAge := 0
+    guActive := true
+
+// Gap DOWN -> fills upward -> bullish reversal when finally filled.
+var float gdLevel = na
+var float gdEdge = na
+var int   gdBar = na
+var int   gdAge = na
+var bool  gdActive = false
+gap3Bull = false
+if gdActive
+    if high >= gdLevel
+        if gdAge >= gapLookback
+            gap3Bull := enGap
+        gdActive := false
+    else
+        gdAge := gdAge + 1
+        if gdAge > gapMaxBars
+            gdActive := false
+if gapDown
+    gdLevel := low[1]
+    gdEdge := high
+    gdBar := bar_index
+    gdAge := 0
+    gdActive := true
+
+// --- Holy Grail: strong ADX, pullback to 20 EMA, turn bar --------------------
+strongTrend = adx > adxThresh
+hgBull = enHG and strongTrend and diPlus > diMinus and low <= ema20 and close > ema20 and high > high[1]
+hgBear = enHG and strongTrend and diMinus > diPlus and high >= ema20 and close < ema20 and low < low[1]
+
+// ============================================================================
+// SIGNAL AGGREGATION
+// ============================================================================
+
+sigBull = tsBull or tsPlusBull or is8020Bull or fidBull or odUp or hgBull or gap3Bull
+sigBear = tsBear or tsPlusBear or is8020Bear or fidBear or odDown or hgBear or gap3Bear
+contractState = inside or nr4 or nr7
+
+// Abbreviation strings per direction.
+bullStr = ""
+bullStr := tsBull      ? bullStr + "TS "    : bullStr
+bullStr := tsPlusBull  ? bullStr + "TS+1 "  : bullStr
+bullStr := is8020Bull  ? bullStr + "80-20 " : bullStr
+bullStr := fidBull     ? bullStr + "FIB "   : bullStr
+bullStr := odUp        ? bullStr + "ODUP "  : bullStr
+bullStr := hgBull      ? bullStr + "HG "    : bullStr
+bullStr := gap3Bull    ? bullStr + "BGR "  : bullStr
+
+bearStr = ""
+bearStr := tsBear      ? bearStr + "TS "    : bearStr
+bearStr := tsPlusBear  ? bearStr + "TS+1 "  : bearStr
+bearStr := is8020Bear  ? bearStr + "80-20 " : bearStr
+bearStr := fidBear     ? bearStr + "FIB "   : bearStr
+bearStr := odDown      ? bearStr + "ODDN "  : bearStr
+bearStr := hgBear      ? bearStr + "HG "    : bearStr
+bearStr := gap3Bear    ? bearStr + "BGR "  : bearStr
+
+contractStr = ""
+contractStr := nr7    ? contractStr + "NR7 " : nr4 ? contractStr + "NR4 " : contractStr
+contractStr := inside ? contractStr + "IB "  : contractStr
+
+// ============================================================================
+// VISUALS
+// ============================================================================
+
+// 1) Recolor contraction bars (chart candles): blue for inside, gray for NR.
+barTint = inside ? color.new(cInside, 30) : (nr4 or nr7) ? color.new(cContract, 30) : na
+barcolor(showCandleColor and contractState ? barTint : na, title="Contraction")
+
+// 2) Highlight signal bars with an overlaid candle.
+sig = sigBull or sigBear
+sigCol = sigBull ? cBull : cBear
+plotcandle(usePlotcandle and sig ? open : na, usePlotcandle and sig ? high : na,
+     usePlotcandle and sig ? low : na, usePlotcandle and sig ? close : na,
+     title="Signal Bar", color=sigCol, wickcolor=sigCol, bordercolor=sigCol,
+     force_overlay=true)
+
+// 3) Holy Grail EMA reference line.
+plot(enHG and showEMA ? ema20 : na, "Holy Grail 20 EMA",
+     color=color.new(cContract, 20), linewidth=1)
+
+// 4) Markers: plotshape for directional signals (abbrev in the text), below the
+//    bar for bullish setups and above for bearish; plotchar for contraction.
+plotshape(showMarkers and tsBull, "TS (bull)", shape.triangleup, location.belowbar,
+     cBull, text="TS", textcolor=cBull, size=size.tiny)
+plotshape(showMarkers and tsPlusBull, "TS+1 (bull)", shape.triangleup, location.belowbar,
+     cBull, text="TS+1", textcolor=cBull, size=size.tiny)
+plotshape(showMarkers and is8020Bull, "80-20 (bull)", shape.triangleup, location.belowbar,
+     cBull, text="80-20", textcolor=cBull, size=size.tiny)
+plotshape(showMarkers and fidBull, "FIB (bull)", shape.triangleup, location.belowbar,
+     cBull, text="FIB", textcolor=cBull, size=size.tiny)
+plotshape(showMarkers and odUp, "ODUP", shape.triangleup, location.belowbar,
+     cBull, text="ODUP", textcolor=cBull, size=size.tiny)
+plotshape(showMarkers and hgBull, "HG (bull)", shape.triangleup, location.belowbar,
+     cBull, text="HG", textcolor=cBull, size=size.tiny)
+plotshape(showMarkers and gap3Bull, "BGR (bull)", shape.triangleup, location.belowbar,
+     cBull, text="BGR", textcolor=cBull, size=size.tiny)
+
+plotshape(showMarkers and tsBear, "TS (bear)", shape.triangledown, location.abovebar,
+     cBear, text="TS", textcolor=cBear, size=size.tiny)
+plotshape(showMarkers and tsPlusBear, "TS+1 (bear)", shape.triangledown, location.abovebar,
+     cBear, text="TS+1", textcolor=cBear, size=size.tiny)
+plotshape(showMarkers and is8020Bear, "80-20 (bear)", shape.triangledown, location.abovebar,
+     cBear, text="80-20", textcolor=cBear, size=size.tiny)
+plotshape(showMarkers and fidBear, "FIB (bear)", shape.triangledown, location.abovebar,
+     cBear, text="FIB", textcolor=cBear, size=size.tiny)
+plotshape(showMarkers and odDown, "ODDN", shape.triangledown, location.abovebar,
+     cBear, text="ODDN", textcolor=cBear, size=size.tiny)
+plotshape(showMarkers and hgBear, "HG (bear)", shape.triangledown, location.abovebar,
+     cBear, text="HG", textcolor=cBear, size=size.tiny)
+plotshape(showMarkers and gap3Bear, "BGR (bear)", shape.triangledown, location.abovebar,
+     cBear, text="BGR", textcolor=cBear, size=size.tiny)
+
+// Contraction states — plotchar above the bar (7 = NR7, 4 = NR4, square = inside).
+plotchar(showMarkers and nr7, "NR7", "7", location.abovebar, cContract, size=size.tiny)
+plotchar(showMarkers and nr4 and not nr7, "NR4", "4", location.abovebar, cContract, size=size.tiny)
+plotshape(showMarkers and inside, "Inside Bar", shape.diamond, location.abovebar,
+     cInside, text="IB", textcolor=cInside, size=size.tiny)
+
+// 5) Lines: the swept Turtle Soup level and the failed FID level.
+if showLines and (tsBull or tsBear)
+    lvl = tsBull ? prior20Low : prior20High
+    line.new(bar_index - 3, lvl, bar_index + 2, lvl, color=cContract,
+         width=1, style=line.style_dotted)
+if showLines and (fidBull or fidBear)
+    line.new(bar_index - 1, fidLevel, bar_index + 2, fidLevel, color=cContract,
+         width=1, style=line.style_dashed)
+
+// 6) Boxes: filled gap zones (the inside-bar box is handled in detection above,
+//    where it tracks the consolidation and extends right until breakout).
+if showBoxes and gap3Bear
+    box.new(guBar, guEdge, bar_index, guLevel, border_color=cBear,
+         bgcolor=color.new(cBear, 88))
+if showBoxes and gap3Bull
+    box.new(gdBar, gdLevel, bar_index, gdEdge, border_color=cBull,
+         bgcolor=color.new(cBull, 88))
+
+// NR contraction box: ONE box per cluster of consecutive NR bars. It opens on
+// the first NR of a run, then extends right and widens to the cluster's high/low
+// while NR bars continue; it freezes once a non-NR bar ends the run.
+var box   nrBox = na
+var bool  nrClusterOn = false
+var float nrTop = na
+var float nrBot = na
+nrAny = nr4 or nr7
+if showBoxes
+    if nrClusterOn
+        if nrAny
+            nrTop := math.max(nrTop, high)
+            nrBot := math.min(nrBot, low)
+            box.set_top(nrBox, nrTop)
+            box.set_bottom(nrBox, nrBot)
+            box.set_right(nrBox, bar_index)
+        else
+            nrClusterOn := false
+    if nrAny and not nrClusterOn
+        nrTop := nr7 ? nr7Top : nr4Top
+        nrBot := nr7 ? nr7Bot : nr4Bot
+        nrBox := box.new(bar_index - (nr7 ? 6 : 3), nrTop, bar_index, nrBot,
+             border_color=cContract, bgcolor=color.new(cContract, 90))
+        nrClusterOn := true
+
+// ============================================================================
+// LEGEND
+// ============================================================================
+// Maps each abbreviation to its full name. Hover a row for a structured
+// explanation (Name / Description / Expectation). Enabled patterns are bright;
+// disabled ones are dim.
+
+tPos = legendPos == "Top Left" ? position.top_left : legendPos == "Top Right" ? position.top_right : legendPos == "Middle Right" ? position.middle_right : legendPos == "Bottom Left" ? position.bottom_left : position.bottom_right
+
+var table legend = table.new(tPos, 2, 11, bgcolor=color.new(color.black, 70),
+     border_width=1, border_color=color.new(color.gray, 60),
+     frame_width=1, frame_color=color.new(color.gray, 40))
+
+if showLegend and barstate.islast
+    hdrBg = color.new(color.gray, 20)
+    table.cell(legend, 0, 0, "Raschke", text_color=color.white, bgcolor=hdrBg,
+         text_size=size.small, text_halign=text.align_left)
+    table.cell(legend, 1, 0, "Pattern", text_color=color.white, bgcolor=hdrBg,
+         text_size=size.small, text_halign=text.align_left)
+    tags = array.from("TS", "TS+1", "80-20", "IB", "FIB", "ODUP/DN", "NR4", "NR7", "BGR", "HG")
+    names = array.from("Turtle Soup", "Turtle Soup +1", "80-20 Bar", "Inside Bar",
+         "Failed Inside Brk", "Outside Up/Down", "Narrow Range 4", "Narrow Range 7",
+         "Bar Gap Reversal", "Holy Grail")
+    enabled = array.from(enTS, enTSP, en8020, enInside, enFID, enOD, enNR4, enNR7, enGap, enHG)
+    tips = array.from(TIP_TS, TIP_TSP, TIP_8020, TIP_IB, TIP_FIB, TIP_OD, TIP_NR4, TIP_NR7, TIP_GAP, TIP_HG)
+    for i = 0 to 9
+        on = array.get(enabled, i)
+        row = i + 1
+        tagCol = on ? color.white : color.new(color.gray, 55)
+        nameCol = on ? color.new(color.silver, 0) : color.new(color.gray, 55)
+        tip = array.get(tips, i)
+        table.cell(legend, 0, row, array.get(tags, i), text_color=tagCol,
+             text_size=size.small, text_halign=text.align_left, tooltip=tip)
+        table.cell(legend, 1, row, array.get(names, i), text_color=nameCol,
+             text_size=size.small, text_halign=text.align_left, tooltip=tip)
+
+// ============================================================================
+// ALERTS
+// ============================================================================
+
+// PER-PATTERN ALERTS use alert() (below), NOT alertcondition(). Reason: every
+// alertcondition() counts toward TradingView's 64-plot limit, and the chart
+// markers already consume most of it. alert() costs zero plots and its message
+// names the exact pattern(s) that fired. To use it: create an alert on this
+// indicator and choose condition = "Any alert() function call". It fires for any
+// ENABLED pattern (disable patterns you don't want to be alerted on).
+allStr = bullStr + bearStr + contractStr
+if alertOn and allStr != ""
+    alert("Raschke: " + syminfo.ticker + " " + timeframe.period + " - " + allStr,
+         alert.freq_once_per_bar_close)
+
+// A few combined alertcondition() entries for users who prefer picking a
+// condition from the Create Alert dropdown (kept small to stay under the limit).
+alertcondition(sigBull, "Any Bullish Signal", "Raschke bullish setup on {{ticker}} {{interval}} @ {{close}}")
+alertcondition(sigBear, "Any Bearish Signal", "Raschke bearish setup on {{ticker}} {{interval}} @ {{close}}")
+alertcondition(sigBull or sigBear or inside or nr4 or nr7, "Any Pattern", "Raschke pattern on {{ticker}} {{interval}} @ {{close}}")
+
+// ============================================================================
+// EVENT LOG (Pine Logs panel)
+// ============================================================================
+// Each enabled pattern writes one line to the Pine Logs when it fires on a
+// confirmed bar. Click a log entry to jump to that bar on the chart.
+
+logEvt(bool cond, string label) =>
+    if cond
+        log.info(syminfo.ticker + " " + timeframe.period + "  " + label + " @ " +
+             str.tostring(close, format.mintick))
+
+if logEvents and barstate.isconfirmed
+    logEvt(tsBull,     "Turtle Soup (bull)")
+    logEvt(tsBear,     "Turtle Soup (bear)")
+    logEvt(tsPlusBull, "Turtle Soup +1 (bull)")
+    logEvt(tsPlusBear, "Turtle Soup +1 (bear)")
+    logEvt(is8020Bull, "80-20 Bar (bull)")
+    logEvt(is8020Bear, "80-20 Bar (bear)")
+    logEvt(inside,     "Inside Bar (IB)")
+    logEvt(fidBull,    "FIB (bull)")
+    logEvt(fidBear,    "FIB (bear)")
+    logEvt(odUp,       "Outside Up (ODUP)")
+    logEvt(odDown,     "Outside Down (ODDN)")
+    logEvt(nr7,        "NR7")
+    logEvt(nr4 and not nr7, "NR4")
+    logEvt(gap3Bull,   "Bar Gap Reversal (bull)")
+    logEvt(gap3Bear,   "Bar Gap Reversal (bear)")
+    logEvt(hgBull,     "Holy Grail (bull)")
+    logEvt(hgBear,     "Holy Grail (bear)")

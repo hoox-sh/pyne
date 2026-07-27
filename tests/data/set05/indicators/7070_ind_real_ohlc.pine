@@ -1,0 +1,10 @@
+//@version=6
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/faq/general.md::general.md#block2
+// content_hash: d179c5fb50cb0376
+// collected: 2026-07-27
+indicator("Real OHLC", overlay = true)
+t = ticker.new(syminfo.prefix, syminfo.ticker)
+realC = request.security(t, timeframe.period, close)
+plot(realC)

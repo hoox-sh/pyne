@@ -1,0 +1,103 @@
+//@version=6
+// set03 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双模式自适应趋势交易策略EMA交叉结合ATR波动率风险管理系统-Dual-Mode-Adaptive-Trend-Trading-Strategy-EMA-Crossover-with-ATR-Volatility-Based-Risk-Management-System.md
+// content_hash: 627e2e95fdeeabec
+// collected: 2026-07-27
+strategy("DOGE/USDT 5X Adaptive Trend Strategy", overlay=true, margin_long=20, margin_short=20)
+
+// === Core Parameters ===
+fastEMA = input.int(3, "Fast EMA Length", minval=1, maxval=20)
+slowEMA = input.int(8, "Slow EMA Length", minval=2, maxval=50) 
+trendEMA = input.int(55, "Trend EMA Length", minval=10, maxval=200)
+atrPeriod = input.int(14, "ATR Period", minval=1, maxval=50)
+tradeInterval = input.int(72, "Minutes Between Trades", minval=1, maxval=1440)
+
+// Risk Management
+slMultiplier = input.float(1.2, "Stop-Loss (ATR Multiple)", minval=0.5, maxval=5.0, step=0.1)
+tpMultiplier = input.float(2.0, "Take-Profit (ATR Multiple)", minval=0.5, maxval=10.0, step=0.1)
+riskPct = input.float(1.0, "Risk Per Trade (%)", minval=0.1, maxval=10.0, step=0.1)
+leverage = 5.0  // Fixed 5x leverage
+
+// Adaptive mode selection
+useAdaptive = input.bool(true, "Use Adaptive Mode")
+adaptivePeriod = input.int(14, "Adaptive Period")
+
+// === Calculate Indicators ===
+fastLine = ta.ema(close, fastEMA)
+slowLine = ta.ema(close, slowEMA)
+trendLine = ta.ema(close, trendEMA)
+atrValue = ta.atr(atrPeriod)
+
+// === Adaptive Trend Detection ===
+// Determine market direction strength
+rsiValue = ta.rsi(close, adaptivePeriod)
+trendStrength = math.abs(rsiValue - 50) / 50 // 0 to 1 scale
+isTrending = trendStrength > 0.3 // Above 0.3 indicates trending
+
+// Determine trend direction
+uptrend = ta.sma(close, 5) > ta.sma(close, 20)
+downtrend = ta.sma(close, 5) < ta.sma(close, 20)
+
+// === Visualize Indicators ===
+p1 = plot(fastLine, "Fast EMA", color=#2196F3, linewidth=2)
+p2 = plot(slowLine, "Slow EMA", color=#FF9800, linewidth=2)
+p3 = plot(trendLine, "Trend EMA", color=#757575, linewidth=1)
+
+// Cross detection
+crossUp = ta.crossover(fastLine, slowLine)
+crossDown = ta.crossunder(fastLine, slowLine)
+plotshape(crossUp, "EMA Cross Up", style=shape.triangleup, location=location.belowbar, color=color.green, size=size.small)
+plotshape(crossDown, "EMA Cross Down", style=shape.triangledown, location=location.abovebar, color=color.red, size=size.small)
+
+// === Trade Logic ===
+var int lastTradeBarIndex = 0
+timeElapsed = (bar_index - lastTradeBarIndex) >= tradeInterval
+noActivePosition = strategy.position_size == 0
+
+// Adaptive entry conditions
+longTrendEntry = crossUp and close > trendLine and uptrend and isTrending
+shortTrendEntry = crossDown and close < trendLine and downtrend and isTrending
+
+// Counter-trend entries (when market is not strongly trending)
+longCounterEntry = crossUp and close < trendLine and not isTrending
+shortCounterEntry = crossDown and close > trendLine and not isTrending
+
+// Final entry signals
+validLong = (useAdaptive ? (isTrending ? longTrendEntry : longCounterEntry) : crossUp) and timeElapsed and noActivePosition
+validShort = (useAdaptive ? (isTrending ? shortTrendEntry : shortCounterEntry) : crossDown) and timeElapsed and noActivePosition
+
+// Position sizing calculation
+equity = strategy.equity
+riskAmount = equity * (riskPct / 100)
+stopDistance = atrValue * slMultiplier
+positionSize = math.round((riskAmount / stopDistance) * leverage)
+
+// Visualize entry signals
+plotshape(validLong, "Long Entry", style=shape.circle, location=location.belowbar, color=color.lime, size=size.normal)
+plotshape(validShort, "Short Entry", style=shape.circle, location=location.abovebar, color=color.red, size=size.normal)
+
+// === Strategy Execution ===
+if (validLong)
+    strategy.entry("Long", strategy.long, qty=positionSize)
+    stopPrice = close - (atrValue * slMultiplier)
+    targetPrice = close + (atrValue * tpMultiplier)
+    strategy.exit("Exit Long", "Long", stop=stopPrice, limit=targetPrice)
+    lastTradeBarIndex := bar_index
+if (validShort)
+    strategy.entry("Short", strategy.short, qty=positionSize)
+    stopPrice = close + (atrValue * slMultiplier)
+    targetPrice = close - (atrValue * tpMultiplier)
+    strategy.exit("Exit Short", "Short", stop=stopPrice, limit=targetPrice)
+    lastTradeBarIndex := bar_index
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/489039
+
+> Last Modified
+
+2025-04-01 14:20:50

@@ -1,0 +1,10 @@
+//@version=4
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/v4/language/comments.md
+// content_hash: fd8a4755a905e128
+// collected: 2026-07-27
+study("Test")
+// This line is a comment
+a = close // This is also a comment
+plot(a)

@@ -1,0 +1,14 @@
+//@version=5
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/v5/concepts/timeframes.md::timeframes.md#block2
+// content_hash: 2f6b9f42a5169e8c
+// collected: 2026-07-27
+indicator("Timeframe in minutes example", "", true)
+string tfInput = input.timeframe(defval = "", title = "Input TF")
+
+float chartTFInMinutes = timeframe.in_seconds() / 60
+float inputTFInMinutes = timeframe.in_seconds(tfInput) / 60
+
+var table t = table.new(position.top_right, 1, 1)
+string txt = "Chart TF: "    + str.tostring(chartTFInMinutes, "#.##### minutes") +

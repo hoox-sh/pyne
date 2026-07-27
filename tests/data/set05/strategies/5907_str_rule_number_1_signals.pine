@@ -1,0 +1,64 @@
+//@version=3
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多指标趋势追踪交易策略Trend-Following-Trading-Strategy-Based-on-Multiple-Indicators.md
+// content_hash: eb1a734d712eaa95
+// collected: 2026-07-27
+strategy("Rule Number 1 Signals", overlay=true)
+
+//Calculate MACD crossing or not
+fastLength = input(8)
+slowlength = input(17)
+MACDLength = input(9)
+
+MACD = ema(close, fastLength) - ema(close, slowlength)
+aMACD = ema(MACD, MACDLength)
+macdDelta = MACD - aMACD
+
+//Calculate Stochastic Crossing
+
+stochasticLength = input(14, minval=1)
+stochasticOverBought = input(80)
+stochasticOverSold = input(20)
+emaSignal = input(10)
+smoothK = 5
+smoothD = 5
+
+k = sma(stoch(close, high, low, stochasticLength), smoothK)
+d = sma(k, smoothD)
+
+//Crossovers and Over /Under
+macdCrossOver = crossover(macdDelta, 0)
+macdCrossUnder = crossunder(macdDelta, 0)
+macdOver = macdDelta > 0
+macdUnder = macdDelta < 0
+
+stochasticCrossOver = crossover(k, d)
+stochasticCrossUnder = crossunder(k, d)
+stochasticOver = k > d
+stochasticUnder = k < d
+
+ema = ema(close, emaSignal)
+smaCrossOver = crossover(close, ema)
+smaCrossUnder = crossunder(close, ema)
+smaOver = close > ema
+smaUnder = close < ema
+
+if ((macdCrossOver and stochasticOver and smaOver) or (macdOver and stochasticCrossOver and smaOver) or (macdOver and stochasticOver and smaCrossOver))
+    strategy.entry("Rule 1 Buy", strategy.long, comment="Rule 1 Buy")
+if ((macdCrossUnder and stochasticUnder and smaUnder) or (macdUnder and stochasticCrossUnder and smaUnder) or (macdUnder and stochasticUnder and smaCrossUnder))
+    strategy.entry("Rule 1 Sell", strategy.short, comment="Rule 1 Sell")
+
+
+//Plot the Oversold Study
+bgcol = k < stochasticOverSold ? green : k > stochasticOverBought ? red : na
+bgcolor(bgcol)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/438460
+
+> Last Modified
+
+2024-01-12 11:25:04

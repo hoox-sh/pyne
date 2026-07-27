@@ -1,0 +1,48 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/EMA均线交叉与短期信号策略-EMA-Crossover-with-Short-term-Signals-Strategy.md
+// content_hash: eaa9f40b35d7e933
+// collected: 2026-07-27
+strategy("EMA Crossover with Short-term Signals", overlay=true)
+
+// 定义EMA
+shortest = ta.ema(close, 144)
+short = ta.ema(close, 34)
+longer = ta.ema(close, 76)
+
+// 绘制EMA
+plot(shortest, color=color.new(color.yellow, 0))
+plot(short, color=color.new(color.orange, 0))
+plot(longer, color=color.new(color.red, 0))
+
+// 定义短线多空信号的EMA
+stLong = ta.ema(high, 30)
+stShort = ta.ema(low, 30)
+stLongPlot = plot(stLong, '短线多', color.new(color.aqua, 0))
+stShortPlot = plot(stShort, '短线空', color.new(color.green, 0))
+
+// 绘制短线多空信号
+clr = close > stLong ? color.green : color.aqua
+fill(stLongPlot, stShortPlot, color=clr, transp=90)
+
+// 交易信号
+if (close > stLong)
+    strategy.entry("Buy", strategy.long)
+if (close < stShort)
+    strategy.close("Buy")
+
+// 显示买卖信号
+plotshape(series=close > stLong, title="Buy Signal", location=location.belowbar, color=color.green, style=shape.labelup, text="BUY")
+plotshape(series=close < stShort, title="Sell Signal", location=location.abovebar, color=color.red, style=shape.labeldown, text="SELL")
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/452275
+
+> Last Modified
+
+2024-05-23 17:52:18

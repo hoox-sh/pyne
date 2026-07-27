@@ -1,0 +1,50 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双重珊瑚趋势交叉策略-Dual-Coral-Trend-Crossover-Strategy.md
+// content_hash: 2605593cfa33517b
+// collected: 2026-07-27
+strategy("D-Stryker LT", overlay=true)
+
+// Input settings for Coral Trend 1
+smoothingPeriod1 = input.int(3, title="Coral Trend 1 Smoothing Period")
+constantD1 = input.float(0.2, title="Coral Trend 1 Constant D")
+
+// Input settings for Coral Trend 2
+smoothingPeriod2 = input.int(6, title="Coral Trend 2 Smoothing Period")
+constantD2 = input.float(0.2, title="Coral Trend 2 Constant D")
+
+// Function to calculate Coral Trend
+coralTrend(source, smoothingPeriod, constantD) =>
+    emaValue = ta.ema(source, smoothingPeriod)
+    smoothEma = ta.ema(emaValue, smoothingPeriod)
+    trendLine = smoothEma + constantD * (emaValue - smoothEma)
+    trendLine
+
+// Calculate Coral Trends
+coralTrend1 = coralTrend(close, smoothingPeriod1, constantD1)
+coralTrend2 = coralTrend(close, smoothingPeriod2, constantD2)
+
+// Plot Coral Trends
+plot(coralTrend1, title="Coral Trend 1", color=color.blue, linewidth=2)
+plot(coralTrend2, title="Coral Trend 2", color=color.red, linewidth=2)
+
+// Generate buy signal when Coral Trend 1 crosses above Coral Trend 2
+buySignal = ta.crossover(coralTrend1, coralTrend2)
+
+// Plot buy signals on the chart
+plotshape(series=buySignal, title="Buy Signal", location=location.belowbar, color=color.green, style=shape.labelup, text="BUY")
+
+// Optional: Add strategy entry and exit logic
+if (buySignal)
+    strategy.entry("Buy", strategy.long)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/468330
+
+> Last Modified
+
+2024-09-26 16:00:59

@@ -1,0 +1,12 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block87
+// content_hash: 5907cff94eb89f6f
+// collected: 2026-07-27
+indicator("array.sort_indices")
+a = array.from(5, -2, 0, 9, 1)
+sortedIndices = array.sort_indices(a) // [1, 2, 4, 0, 3]
+indexOfSmallestValue = array.get(sortedIndices, 0) // 1
+smallestValue = array.get(a, indexOfSmallestValue) // -2
+plot(smallestValue)

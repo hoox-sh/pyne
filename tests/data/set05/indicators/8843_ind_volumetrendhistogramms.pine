@@ -1,0 +1,17 @@
+//@version=3
+// set05 corpus entry
+// source_repo: tradingview-custom-indicators
+// source_path: tradingview-custom-indicators/indicators/VolumeTrendHistogramms.pine
+// content_hash: c4eff79dbfd04538
+// collected: 2026-07-27
+study(title="Volume Trend Histograms", shorttitle="VTH")
+sourceLength = input(21)
+signalLength = input(9)
+signalLength2 = input(9)
+volumeMA = sma(volume,sourceLength)
+volumeSig = sma(volumeMA,signalLength)
+volumeSigSig = sma(volumeSig,signalLength2)
+
+histo = volumeSig - volumeSigSig
+
+plot(histo, style=histogram, color=histo>0 ? green : red)

@@ -1,0 +1,17 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block335
+// content_hash: 318a4becba90e052
+// collected: 2026-07-27
+indicator("matrix example")
+
+// Create `m1` matrix of `int` type.
+matrix<int> m1 = matrix.new<int>(2, 3, 0)
+
+// `matrix<int>` is unnecessary because the `matrix.new<int>()` function returns an `int` type matrix object.
+m2 = matrix.new<int>(2, 3, 0)
+
+// Display matrix using a label.
+if barstate.islastconfirmedhistory
+    label.new(bar_index, high, str.tostring(m2))

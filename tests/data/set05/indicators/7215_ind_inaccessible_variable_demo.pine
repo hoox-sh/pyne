@@ -1,0 +1,7 @@
+//@version=6
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/language/variable-declarations.md::variable-declarations.md#block4
+// content_hash: 64eba88675274614
+// collected: 2026-07-27
+indicator("Inaccessible variable demo", overlay = true)

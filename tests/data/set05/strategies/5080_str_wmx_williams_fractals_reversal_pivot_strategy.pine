@@ -1,0 +1,64 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/行情反转关键点策略WMX-Williams-Fractals-Reversal-Pivot-Strategy.md
+// content_hash: a9b69c881ca89753
+// collected: 2026-07-27
+SystemName="WMX Williams Fractals strategy V4"
+InitCapital = 1000000
+InitPosition = 100
+InitCommission = 0.075
+InitPyramidMax = 10
+strategy(title=SystemName, shorttitle=SystemName, overlay=true, initial_capital=InitCapital, default_qty_type=strategy.percent_of_equity, default_qty_value=InitPosition, commission_type=strategy.commission.percent, commission_value=InitCommission)
+
+
+//study("WMX Williams Fractals", shorttitle="WMX Fractals", format=format.price, precision=0, overlay=true)
+// Define "n" as the number of periods and keep a minimum value of 2 for error handling.
+n = input(title="Periods", defval=2, minval=2, type=input.integer)
+h=close
+l=close
+
+factorh(High)=>
+    upFractal = (                                                                                                          (High[n+2]  < High[n]) and (High[n+1]  < High[n]) and (High[n-1] < High[n]) and (High[n-2] < High[n]))
+             or (                                                                               (High[n+3]  < High[n]) and (High[n+2]  < High[n]) and (High[n+1] == High[n]) and (High[n-1] < High[n]) and (High[n-2] < High[n]))
+             or (                                                    (High[n+4]  < High[n]) and (High[n+3]  < High[n]) and (High[n+2] == High[n]) and (High[n+1] <= High[n]) and (High[n-1] < High[n]) and (High[n-2] < High[n]))
+             or (                          (High[n+5] < High[n]) and (High[n+4]  < High[n]) and (High[n+3] == High[n]) and (High[n+2] == High[n]) and (High[n+1] <= High[n]) and (High[n-1] < High[n]) and (High[n-2] < High[n]))
+             or ((High[n+6] < High[n]) and (High[n+5] < High[n]) and (High[n+4] == High[n]) and (High[n+3] <= High[n]) and (High[n+2] == High[n]) and (High[n+1] <= High[n]) and (High[n-1] < High[n]) and (High[n-2] < High[n]))
+    upFractal
+upFractal=factorh(h)
+factorl(Low)=>
+    dnFractal = (                                                                                                  (Low[n+2]  > Low[n]) and (Low[n+1]  > Low[n]) and (Low[n-1] > Low[n]) and (Low[n-2] > Low[n]))
+             or (                                                                         (Low[n+3]  > Low[n]) and (Low[n+2]  > Low[n]) and (Low[n+1] == Low[n]) and (Low[n-1] > Low[n]) and (Low[n-2] > Low[n]))
+             or (                                                (Low[n+4]  > Low[n]) and (Low[n+3]  > Low[n]) and (Low[n+2] == Low[n]) and (Low[n+1] >= Low[n]) and (Low[n-1] > Low[n]) and (Low[n-2] > Low[n]))
+             or (                        (Low[n+5] > Low[n]) and (Low[n+4]  > Low[n]) and (Low[n+3] == Low[n]) and (Low[n+2] == Low[n]) and (Low[n+1] >= Low[n]) and (Low[n-1] > Low[n]) and (Low[n-2] > Low[n]))
+             or ((Low[n+6] > Low[n]) and (Low[n+5] > Low[n]) and (Low[n+4] == Low[n]) and (Low[n+3] >= Low[n]) and (Low[n+2] == Low[n]) and (Low[n+1] >= Low[n]) and (Low[n-1] > Low[n]) and (Low[n-2] > Low[n]))
+    
+dnFractal=factorl(l)
+
+U=valuewhen(upFractal[0]!= upFractal[1],l[0],3)
+L=valuewhen(dnFractal[0]!=dnFractal[1],h[0],3)
+
+longcon=crossover(close ,L) and close>open
+shortcon=crossunder(close ,U) and close<open
+
+if longcon
+    
+    strategy.entry("Long", strategy.long,   when = strategy.position_size <= 0 )
+    
+if  shortcon
+    strategy.entry("Short", strategy.short,  when = strategy.position_size >= 0 )
+        
+
+
+
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/435469
+
+> Last Modified
+
+2023-12-15 10:37:01

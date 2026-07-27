@@ -1,0 +1,5 @@
+//@version=6indicator("[]")// [] can be used to "save" variable value between barsa = 0.0 // declare `a`a := a[1] // immediately set current value to the same as previous. `na` in the beginning of historyif high == low // if some condition - change `a` value to another    a := lowplot(a)// set05 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/reference/operators.md::operators.md#block4
+// content_hash: 0432e5545739cd11
+// collected: 2026-07-27

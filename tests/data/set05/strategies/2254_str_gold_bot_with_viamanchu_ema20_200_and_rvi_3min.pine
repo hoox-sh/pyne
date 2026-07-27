@@ -1,0 +1,60 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多重指标交叉动态策略系统基于EMARVI和交易信号的量化交易模型-Multi-Indicator-Crossover-Dynamic-Strategy-System-A-Quantitative-Trading-Model-Based-on-EMA-RVI-and-Trading-Signals.md
+// content_hash: cc62e500e6b7aeaa
+// collected: 2026-07-27
+strategy("Gold Bot with Viamanchu, EMA20/200, and RVI - 3min", overlay=true)
+
+// Parámetros de las EMAs
+ema20 = ta.ema(close, 20)
+ema200 = ta.ema(close, 200)
+
+// Relative Volatility Index (RVI)
+rvi_length = input(14, title="RVI Length")
+rvi = ta.rma(close - close[1], rvi_length) / ta.rma(math.abs(close - close[1]), rvi_length)
+
+// Simulación de Viamanchu (aleatoria para demo, se debe reemplazar por señal de Viamanchu real)
+var int seed = time
+simulated_vi_manchu_signal = math.random() > 0.5 ? 1 : -1  // 1 para compra, -1 para venta (puedes sustituir por la lógica de Viamanchu)
+
+// Gestión de riesgos: Stop Loss y Take Profit usando ATR
+atr_length = input(14, title="ATR Length")
+atr = ta.atr(atr_length)
+atr_multiplier = input.float(1.5, title="ATR Multiplier for Stop Loss/Take Profit")
+stop_loss_level = strategy.position_avg_price - (atr * atr_multiplier)
+take_profit_level = strategy.position_avg_price + (atr * atr_multiplier)
+
+// Condiciones de entrada
+longCondition = ta.crossover(ema20, ema200) and rvi > 0 and simulated_vi_manchu_signal == 1
+shortCondition = ta.crossunder(ema20, ema200) and rvi < 0 and simulated_vi_manchu_signal == -1
+
+// Ejecutar compra (long)
+if (longCondition)
+    strategy.entry("Compra", strategy.long, stop=stop_loss_level, limit=take_profit_level)
+
+// Ejecutar venta (short)
+if (shortCondition)
+    strategy.entry("Venta", strategy.short, stop=stop_loss_level, limit=take_profit_level)
+
+// Visualización de las condiciones de entrada en el gráfico
+plotshape(series=longCondition, title="Compra señal", location=location.belowbar, color=color.green, style=shape.labelup, text="BUY")
+plotshape(series=shortCondition, title="Venta señal", location=location.abovebar, color=color.red, style=shape.labeldown, text="SELL")
+
+// Visualización de las EMAs en el gráfico
+plot(ema20, color=color.blue, title="EMA 20")
+plot(ema200, color=color.red, title="EMA 200")
+
+// Visualización del RVI en el gráfico
+plot(rvi, color=color.green, title="RVI")
+hline(0, "Nivel 0", color=color.gray)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/471705
+
+> Last Modified
+
+2024-11-12 15:58:01

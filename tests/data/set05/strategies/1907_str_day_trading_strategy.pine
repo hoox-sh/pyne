@@ -1,0 +1,67 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/MACD与RSI相结合的多重过滤日内交易策略-MACD-and-RSI-Multi-Filter-Intraday-Trading-Strategy.md
+// content_hash: 23f74b7fcf2400cf
+// collected: 2026-07-27
+strategy("Day Trading Strategy", overlay=true)
+
+// Parametrii pentru MACD
+macdLength = input.int(12, title="MACD Length")
+signalSmoothing = input.int(9, title="MACD Signal Smoothing")
+src = input(close, title="Source")
+
+// Calculul MACD
+[macdLine, signalLine, _] = ta.macd(src, macdLength, 26, signalSmoothing)
+macdHist = macdLine - signalLine
+
+// Parametrii pentru RSI
+rsiLength = input.int(14, title="RSI Length")
+rsiOverbought = input.int(70, title="RSI Overbought Level")
+rsiOversold = input.int(30, title="RSI Oversold Level")
+
+// Calculul RSI
+rsi = ta.rsi(src, rsiLength)
+
+// Filtru suplimentar pentru a reduce semnalele false
+longFilter = ta.sma(close, 50) > ta.sma(close, 200)
+shortFilter = ta.sma(close, 50) < ta.sma(close, 200)
+
+// Conditii de intrare in pozitie long
+enterLong = ta.crossover(macdLine, signalLine) and rsi < rsiOverbought and longFilter
+
+// Conditii de iesire din pozitie long
+exitLong = ta.crossunder(macdLine, signalLine) or rsi > rsiOverbought
+
+// Conditii de intrare in pozitie short
+enterShort = ta.crossunder(macdLine, signalLine) and rsi > rsiOversold and shortFilter
+
+// Conditii de iesire din pozitie short
+exitShort = ta.crossover(macdLine, signalLine) or rsi < rsiOversold
+
+// Adaugarea strategiei pentru Strategy Tester
+if (enterLong)
+    strategy.entry("BUY", strategy.long)
+if (exitLong)
+    strategy.close("BUY")
+
+if (enterShort)
+    strategy.entry("SELL", strategy.short)
+if (exitShort)
+    strategy.close("SELL")
+
+// Plotarea MACD si Signal Line
+plot(macdLine, color=color.blue, title="MACD Line")
+plot(signalLine, color=color.orange, title="Signal Line")
+hline(0, "Zero Line", color=color.gray)
+plot(macdHist, color=color.red, style=plot.style_histogram, title="MACD Histogram")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/453653
+
+> Last Modified
+
+2024-06-07 15:20:13

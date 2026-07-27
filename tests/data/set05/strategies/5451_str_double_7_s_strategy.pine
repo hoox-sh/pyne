@@ -1,0 +1,45 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双7日突破策略Double-7-Days-Breakout-Strategy.md
+// content_hash: 5f06280645e1c2d1
+// collected: 2026-07-27
+strategy("Double 7's Strategy", overlay=true, default_qty_type = strategy.percent_of_equity, default_qty_value = 100)
+
+value1=input(7, title="Quantity of day low")
+value2=input(7, title="Quantity of day high")
+entry=lowest(close[1],value1)
+exit=highest(close[1],value2)
+
+
+mma200=sma(close,200)
+
+// Test Period
+testStartYear = input(2009, "Backtest Start Year")
+testStartMonth = input(1, "Backtest Start Month")
+testStartDay = input(2, "Backtest Start Day")
+testPeriodStart = timestamp(testStartYear,testStartMonth,testStartDay,0,0)
+
+testStopYear = input(2020, "Backtest Stop Year")
+testStopMonth = input(12, "Backtest Stop Month")
+testStopDay = input(30, "Backtest Stop Day")
+testPeriodStop = timestamp(testStopYear,testStopMonth,testStopDay,0,0)
+
+testPeriod() => true
+
+if testPeriod()
+    if (close>mma200) and (close<entry)
+        strategy.entry("RsiLE", strategy.long , comment="Open")
+
+    if (close>exit)
+        strategy.close_all()
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/440451
+
+> Last Modified
+
+2024-01-30 16:49:01

@@ -1,0 +1,26 @@
+//@version=2
+// set05 corpus entry
+// source_repo: aceri-tradingview_pinescript
+// source_path: aceri-tradingview_pinescript/ln es.txt
+// content_hash: 0a3bed5bb8299eb0
+// collected: 2026-07-27
+study("Dragon16",overlay=true)
+
+
+
+ln(a,b)=>linreg(a,b,0)
+
+
+sp1=60
+
+
+
+
+
+k1=ln(close,sp1)
+
+
+
+plot(k1,style=line,color=yellow,linewidth=3)
+
+

@@ -1,0 +1,67 @@
+//@version=3
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动态布林带时间范围选择策略Bollinger-Band-Strategy-with-Date-Range-Selection.md
+// content_hash: 013fa814c94de646
+// collected: 2026-07-27
+
+strategy("BB Range", shorttitle = "BB Range", overlay=true, max_bars_back=200)
+
+// Revision:        1
+// Author:          @allanster 
+
+// === INPUT BACKTEST RANGE ===
+FromMonth = input(defval = 7, title = "From Month", minval = 1, maxval = 12)
+FromDay   = input(defval = 20, title = "From Day", minval = 1, maxval = 31)
+FromYear  = input(defval = 2019, title = "From Year", minval = 2017)
+FromHour  = input(defval = 17, title = "From Hour", minval = 00)
+FromMinute  = input(defval = 00, title = "From Minute", minval = 00)
+
+ToMonth   = input(defval = 1, title = "To Month", minval = 1, maxval = 12)
+ToDay     = input(defval = 1, title = "To Day", minval = 1, maxval = 31)
+ToYear    = input(defval = 9999, title = "To Year", minval = 2017)
+ToHour  = input(defval = 23, title = "To Hour", minval = 00)
+ToMinute  = input(defval = 59, title = "To Minute", minval = 00)
+
+// === FUNCTION EXAMPLE ===
+start     = timestamp(FromYear, FromMonth, FromDay, FromHour, FromMinute)  // backtest start window
+finish    = timestamp(ToYear, ToMonth, ToDay, ToHour, ToMinute)        // backtest finish window
+window()  => true
+source = close
+length = input(20, minval=1)
+mult = input(2.0, minval=0.001, maxval=50)
+
+basis = sma(source, length)
+dev = mult * stdev(source, length)
+
+upper = basis + dev
+lower = basis - dev
+
+upper_stop = upper * 1.05
+lower_stop = lower * 0.95
+
+buyEntry = crossover(source, lower)
+sellEntry = crossunder(source, upper)
+
+if (crossover(source, lower))
+    strategy.entry("BBandLE", strategy.long, stop=lower_stop, when = window(), oca_name="BollingerBands",  comment="BBandLE")
+else
+    strategy.cancel(id="BBandLE")
+
+if (crossunder(source, upper))
+    strategy.entry("BBandSE", strategy.short, stop=upper_stop, when=window(), oca_name="BollingerBands",comment="BBandSE")
+else
+    strategy.cancel(id="BBandSE")
+
+
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/441104
+
+> Last Modified
+
+2024-02-05 16:04:40

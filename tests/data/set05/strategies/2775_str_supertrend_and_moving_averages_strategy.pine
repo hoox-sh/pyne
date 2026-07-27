@@ -1,0 +1,50 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/超级趋势与移动平均线结合策略Supertrend-and-Moving-Average-Crossover-Strategy.md
+// content_hash: 7a341c248136a469
+// collected: 2026-07-27
+strategy("Supertrend and Moving Averages Strategy", overlay=true)
+
+// Supertrend parameters
+atrLength = input.int(10, title="ATR Length", minval=1)
+factor = input.float(3.0, title="Factor", minval=0.01, step=0.01)
+[supertrend, direction] = ta.supertrend(factor, atrLength)
+
+// Moving Averages parameters
+length_ema = input(10, title="Length of EMA")
+length_sma = input(20, title="Length of SMA")
+
+// Calculate EMAs and SMAs
+ema_10 = ta.ema(close, length_ema)
+sma_20 = ta.sma(close, length_sma)
+
+// Strategy logic
+longCondition = ema_10 > sma_20 and direction > 0
+shortCondition = ema_10 < sma_20 and direction < 0
+
+strategy.entry("Long", strategy.long, when=longCondition)
+strategy.entry("Short", strategy.short, when=shortCondition)
+
+// Plot Supertrend
+plot(direction > 0 ? supertrend : na, color=color.green, style=plot.style_line, linewidth=2, title="Up Trend")
+plot(direction < 0 ? supertrend : na, color=color.red, style=plot.style_line, linewidth=2, title="Down Trend")
+
+// Plot Moving Averages
+plot(ema_10, color=color.blue, title="10 EMA")
+plot(sma_20, color=color.red, title="20 SMA")
+
+// Alerts for Supertrend
+alertcondition(direction[1] > direction, title='Downtrend to Uptrend', message='The Supertrend value switched from Downtrend to Uptrend ')
+alertcondition(direction[1] < direction, title='Uptrend to Downtrend', message='The Supertrend value switched from Uptrend to Downtrend')
+alertcondition(direction[1] != direction, title='Trend Change', message='The Supertrend value switched from Uptrend to Downtrend or vice versa')
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/442100
+
+> Last Modified
+
+2024-02-19 11:56:52

@@ -1,0 +1,64 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于EMA交叉结合RSIADX和成交量确认的动态止盈止损系统-Dynamic-Stop-Loss-and-Take-Profit-System-Based-on-EMA-Crossover-with-RSI-ADX-and-Volume-Confirmation.md
+// content_hash: cc3784313ccaa413
+// collected: 2026-07-27
+strategy("Estrategia Avançada - EMA, RSI, ADX e Volume", overlay=true)
+
+// Parâmetros das EMAs
+ema9 = ta.ema(close, 9)
+ema21 = ta.ema(close, 21)
+
+// RSI
+rsi14 = ta.rsi(close, 14)
+
+// Cálculo do ADX usando ta.dmi
+[plusDI, minusDI, adx] = ta.dmi(14, 14)
+
+
+// Volume com média
+volume_ma = ta.sma(volume, 20)
+
+// Critérios de Compra (Bullish)
+buy_signal = ta.crossover(ema9, ema21) and rsi14 > 50 and volume > volume_ma and adx > 25
+
+// Critérios de Venda (Bearish)
+sell_signal = ta.crossunder(ema9, ema21) or rsi14 < 50 or volume < volume_ma and adx > 25
+
+// Plotando indicadores no gráfico
+plot(ema9, color=color.blue, linewidth=2, title="EMA 9")
+plot(ema21, color=color.red, linewidth=2, title="EMA 21")
+hline(50, "RSI 50", color=color.gray)
+
+// Stop Loss e Take Profit dinâmicos
+long_sl = strategy.position_avg_price * 0.97  // Stop Loss de 3%
+long_tp = strategy.position_avg_price * 1.05  // Take Profit de 5%
+short_sl = strategy.position_avg_price * 1.03 // Stop Loss de 3% para vendas
+short_tp = strategy.position_avg_price * 0.95 // Take Profit de 5% para vendas
+
+// Executando compra
+if buy_signal
+    strategy.close("Venda")  // Fecha posição de venda se existir
+    strategy.entry("Compra", strategy.long)
+    strategy.exit("TakeProfit", from_entry="Compra", limit=long_tp, stop=long_sl)
+
+// Executando venda
+if sell_signal
+    strategy.close("Compra")  // Fecha posição de compra se existir
+    strategy.entry("Venda", strategy.short)
+    strategy.exit("TakeProfit", from_entry="Venda", limit=short_tp, stop=short_sl)
+
+// Alertas configurados
+alertcondition(buy_signal, title="Sinal de Compra", message="Hora de comprar!")
+alertcondition(sell_signal, title="Sinal de Venda", message="Hora de vender!")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/481367
+
+> Last Modified
+
+2025-02-10 15:10:20

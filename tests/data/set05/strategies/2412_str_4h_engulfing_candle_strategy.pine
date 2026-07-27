@@ -1,0 +1,57 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/4小时时间框架上的吞没形态交易策略与动态止盈止损优化-4-Hour-Timeframe-Engulfing-Pattern-Trading-Strategy-with-Dynamic-Take-Profit-and-Stop-Loss-Optimization.md
+// content_hash: 23f4aece8e720652
+// collected: 2026-07-27
+strategy("4H Engulfing Candle Strategy", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=10)
+
+// Input variables
+tpMultiplier = input.float(1.0, "Take Profit Multiplier", step=0.1)
+slTicks = input.int(100, "Stop Loss Ticks")  // Number of ticks for SL
+
+// Calculate body size for bullish and bearish engulfing candles on 4H timeframe
+bullishBodySize = close - open
+bearishBodySize = open - close
+
+// Determine engulfing conditions on 4H timeframe
+bullishEngulfing = close > open[1] and open < close[1] and open <= open[1] and close >= close[1]
+bearishEngulfing = close < open[1] and open > close[1] and open >= open[1] and close <= close[1]
+
+// Entry and exit levels
+var float entryPrice = na
+var float tpPrice = na
+var float slPrice = na
+
+if bullishEngulfing
+    entryPrice := close
+    tpPrice := close + bullishBodySize * tpMultiplier
+    slPrice := entryPrice - slTicks * syminfo.mintick  // Calculate SL price based on ticks and tick size
+
+    // Execute strategy orders for bullish engulfing
+    strategy.entry("Buy", strategy.long)
+    strategy.exit("TP/SL", "Buy", limit=tpPrice, stop=slPrice)
+
+if bearishEngulfing
+    entryPrice := close
+    tpPrice := close - bearishBodySize * tpMultiplier
+    slPrice := entryPrice + slTicks * syminfo.mintick  // Calculate SL price based on ticks and tick size
+
+    // Execute strategy orders for bearish engulfing
+    strategy.entry("Sell", strategy.short)
+    strategy.exit("TP/SL", "Sell", limit=tpPrice, stop=slPrice)
+
+// Plot entry, take profit and stop loss levels
+plot(entryPrice, color=color.new(color.green, 0), style=plot.style_stepline, title="Entry Price")
+plot(tpPrice, color=color.new(color.green, 0), style=plot.style_stepline, title="Take Profit")
+plot(slPrice, color=color.new(color.red, 0), style=plot.style_stepline, title="Stop Loss")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/457777
+
+> Last Modified
+
+2024-07-26 15:06:14

@@ -1,0 +1,46 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/高级均值回归交易策略基于标准差的动态区间突破系统-Advanced-Mean-Reversion-Trading-Strategy-Dynamic-Range-Breakout-System-Based-on-Standard-Deviation.md
+// content_hash: 456d989c60bcfba7
+// collected: 2026-07-27
+strategy("Simple Mean Reversion Strategy [nn1]", overlay=true)
+
+// Input parameters
+length = input.int(30, "SMA Length", minval=1)
+std_dev_threshold = input.float(2, "Standard Deviation Threshold", minval=0.1, step=0.1)
+
+// Calculate SMA and Standard Deviation
+sma = ta.sma(close, length)
+std_dev = ta.stdev(close, length)
+
+// Calculate upper and lower bands
+upper_band = sma + std_dev * std_dev_threshold
+lower_band = sma - std_dev * std_dev_threshold
+
+// Plot SMA and bands
+plot(sma, "SMA", color.blue)
+plot(upper_band, "Upper Band", color.red)
+plot(lower_band, "Lower Band", color.green)
+
+// Trading logic
+if (close <= lower_band)
+    strategy.entry("Long", strategy.long)
+else if (close >= upper_band)
+    strategy.entry("Short", strategy.short)
+
+// Exit logic
+if (ta.crossover(close, sma))
+    strategy.close("Long")
+if (ta.crossunder(close, sma))
+    strategy.close("Short")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/458079
+
+> Last Modified
+
+2024-07-29 17:16:43

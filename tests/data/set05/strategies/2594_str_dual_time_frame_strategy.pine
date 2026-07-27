@@ -1,0 +1,54 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双时间框架趋势跟踪策略Dual-Timeframe-Trend-Tracking-Strategy.md
+// content_hash: 2a2effb2be757b8b
+// collected: 2026-07-27
+strategy("Dual Time Frame Strategy", overlay=true)
+
+// Define Daily Time Frame Inputs
+lenShort = input.int(20, title="Short EMA Length (Daily)", minval=1)
+lenLong = input.int(50, title="Long EMA Length (Daily)", minval=1)
+
+// Calculate EMAs on Daily Time Frame
+emaShort_D = ta.ema(close, lenShort)
+emaLong_D = ta.ema(close, lenLong)
+
+// Define Hourly Time Frame Inputs
+lenShort_H = input.int(10, title="Short EMA Length (Hourly)", minval=1)
+lenLong_H = input.int(30, title="Long EMA Length (Hourly)", minval=1)
+
+// Calculate EMAs on Hourly Time Frame
+emaShort_H = ta.ema(close, lenShort_H)
+emaLong_H = ta.ema(close, lenLong_H)
+
+// Daily Time Frame Condition
+dailyUpTrend = emaShort_D > emaLong_D
+
+// Hourly Time Frame Condition
+hourlyBuy = ta.crossover(emaShort_H, emaLong_H)
+hourlySell = ta.crossunder(emaShort_H, emaLong_H)
+
+// Strategy Entry and Exit Conditions
+if (dailyUpTrend and hourlyBuy)
+    strategy.entry("Buy", strategy.long)
+    
+if (dailyUpTrend and hourlySell)
+    strategy.close("Buy")
+
+// Plot EMAs for Daily and Hourly Time Frames
+plot(emaShort_D, color=color.blue, title="Short EMA (Daily)")
+plot(emaLong_D, color=color.red, title="Long EMA (Daily)")
+
+plot(emaShort_H, color=color.green, title="Short EMA (Hourly)")
+plot(emaLong_H, color=color.orange, title="Long EMA (Hourly)")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/435492
+
+> Last Modified
+
+2023-12-15 13:46:47

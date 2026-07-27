@@ -1,0 +1,40 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动量指标与随机指标联合策略A-DMI-Stochastic-Trading-Strategy-with-Dynamic-Stop-loss.md
+// content_hash: a50df03a65b67f59
+// collected: 2026-07-27
+strategy("DMI with Stochastic and Dynamic Stop-Loss", shorttitle="DMI_Stoch_SL", overlay=true)
+
+length = input(14, title="DMI Length")
+adxThreshold = input(25, title="ADX Threshold")
+stochKLength = input(14, title="Stochastic %K Length")
+stochDLength = input(3, title="Stochastic %D Length")
+
+[diPlus, diMinus, adx] = ta.dmi(length, length)
+stochKLine = ta.stoch(close, high, low, stochKLength)
+
+var float lowestClose = na
+var float highestClose = na
+lowestClose := na(lowestClose) ? close : math.min(lowestClose, close)
+highestClose := na(highestClose) ? close : math.max(highestClose, close)
+
+longCondition = (diPlus > diMinus) and (adx > adxThreshold) and (stochKLine < 20)
+shortCondition = (diMinus > diPlus) and (adx > adxThreshold) and (stochKLine > 80)
+
+if longCondition
+    strategy.entry("Buy", strategy.long)
+    strategy.exit("Exit Buy", "Buy", stop=lowestClose)
+
+if shortCondition
+    strategy.entry("Sell", strategy.short)
+    strategy.exit("Exit Sell", "Sell", stop=highestClose)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/436634
+
+> Last Modified
+
+2023-12-26 14:30:23

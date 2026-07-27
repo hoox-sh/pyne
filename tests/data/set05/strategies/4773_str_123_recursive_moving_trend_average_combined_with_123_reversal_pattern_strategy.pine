@@ -1,0 +1,81 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/递归移动趋势均线结合123形态反转的组合策略Recursive-Moving-Trend-Average-Combined-with-123-Reversal-Pattern-Strategy.md
+// content_hash: 4ab0483a5a8d8497
+// collected: 2026-07-27
+////////////////////////////////////////////////////////////
+//  Copyright by HPotter v1.0 01/06/2021
+// This is combo strategies for get a cumulative signal. 
+//
+// First strategy
+// This System was created from the Book "How I Tripled My Money In The 
+// Futures Market" by Ulf Jensen, Page 183. This is reverse type of strategies.
+// The strategy buys at market, if close price is higher than the previous close 
+// during 2 days and the meaning of 9-days Stochastic Slow Oscillator is lower than 50. 
+// The strategy sells at market, if close price is lower than the previous close price 
+// during 2 days and the meaning of 9-days Stochastic Fast Oscillator is higher than 50.
+//
+// Second strategy
+// Taken from an article "The Yen Recused" in the December 1998 issue of TASC, 
+// written by Dennis Meyers. He describes the Recursive MA in mathematical terms 
+// as "recursive polynomial fit, a technique that uses a small number of past values 
+// of the estimated price and today's price to predict tomorrows price."
+// Red bars color - short position. Green is long.
+//
+// WARNING:
+// - For purpose educate only
+// - This script to change bars colors.
+////////////////////////////////////////////////////////////
+Reversal123(Length, KSmoothing, DLength, Level) =>
+    vFast = sma(stoch(close, high, low, Length), KSmoothing) 
+    vSlow = sma(vFast, DLength)
+    pos = 0.0
+    pos := iff(close[2] < close[1] and close > close[1] and vFast < vSlow and vFast > Level, 1,
+	         iff(close[2] > close[1] and close < close[1] and vFast > vSlow and vFast < Level, -1, nz(pos[1], 0))) 
+	pos
+
+
+RMTA(Length) =>
+    pos = 0.0
+    Bot = 0.0
+    nRes = 0.0
+    Alpha = 2 / (Length+1)
+    Bot := (1-Alpha) * nz(Bot[1],close) + close
+    nRes := (1-Alpha) * nz(nRes[1],close) + (Alpha*(close + Bot - nz(Bot[1], 0)))
+    pos:= iff(nRes > close[1], -1,
+    	     iff(nRes < close[1], 1, nz(pos[1], 0))) 
+    pos
+
+strategy(title="Combo Backtest 123 Reversal & Recursive Moving Trend Average", shorttitle="Combo", overlay = true)
+line1 = input(true, "---- 123 Reversal ----")
+Length = input(14, minval=1)
+KSmoothing = input(1, minval=1)
+DLength = input(3, minval=1)
+Level = input(50, minval=1)
+//-------------------------
+line2 = input(true, "---- Recursive Moving Trend Average ----")
+LengthRMTA = input(21, minval=3)
+reverse = input(false, title="Trade reverse")
+posReversal123 = Reversal123(Length, KSmoothing, DLength, Level)
+posRMTA = RMTA(LengthRMTA)
+pos = iff(posReversal123 == 1 and posRMTA == 1 , 1,
+	   iff(posReversal123 == -1 and posRMTA == -1, -1, 0)) 
+possig = iff(reverse and pos == 1, -1,
+          iff(reverse and pos == -1 , 1, pos))	   
+if (possig == 1 ) 
+    strategy.entry("Long", strategy.long)
+if (possig == -1 )
+    strategy.entry("Short", strategy.short)	 
+if (possig == 0) 
+    strategy.close_all()
+barcolor(possig == -1 ? #b50404: possig == 1 ? #079605 : #0536b3 )
+```
+
+> Detail
+
+https://www.fmz.com/strategy/442399
+
+> Last Modified
+
+2024-02-21 16:02:32

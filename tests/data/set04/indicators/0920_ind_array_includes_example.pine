@@ -1,0 +1,12 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block57
+// content_hash: 7ebf6dd84c4f6398
+// collected: 2026-07-27
+indicator("array.includes example")
+a = array.new_float(5,high)
+p = close
+if array.includes(a, high)
+    p := open
+plot(p)

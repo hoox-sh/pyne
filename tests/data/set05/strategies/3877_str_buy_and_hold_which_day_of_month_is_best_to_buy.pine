@@ -1,0 +1,44 @@
+//@version=4
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/Buy and Hold, which day of month is best to buy-.pine
+// content_hash: 666a715e7d4fb2f0
+// collected: 2026-07-27
+strategy(title="Buy and Hold, which day of month is best to buy?", overlay=true, pyramiding=20000)
+// Make input options that configure backtest date range
+startDate = input(title="Start Date", type=input.integer,
+     defval=1, minval=1, maxval=31, group="Starting From")
+     
+startMonth = input(title="Start Month", type=input.integer,
+     defval=1, minval=1, maxval=12, group="Starting From")
+     
+startYear = input(title="Start Year", type=input.integer,
+     defval=2021, minval=1800, maxval=2100, group="Starting From")
+endDate = input(title="End Date", type=input.integer,
+     defval=2, minval=1, maxval=31, group="Until")
+endMonth = input(title="End Month", type=input.integer,
+     defval=10, minval=1, maxval=12, group="Until")
+endYear = input(title="End Year", type=input.integer,
+     defval=2021, minval=1800, maxval=2100, group="Until")
+entryday = input(title="Entry Day", type=input.integer,
+     defval=26, minval=1, maxval=31, tooltip="When to enter (buy the asset) each month")
+exitday = input(title="Exit Day", type=input.integer,
+     defval=6, minval=1, maxval=31, tooltip="When to exit (sell the asset) each month")
+     
+useExitDay= input(title="Close position on exit day?", type=input.bool, defval=false, tooltip="Use the Exit Day to close each months position it true or close at the end of the period (if false)")
+     
+isEntryDay= (dayofmonth(time)==entryday)
+isExitDay= (dayofmonth(time)==exitday-1)
+inDateRange = (time >= timestamp(syminfo.timezone, startYear,
+         startMonth, startDate, 0, 0)) and
+     (time < timestamp(syminfo.timezone, endYear, endMonth, endDate, 0, 0))
+if (isEntryDay and inDateRange)
+    strategy.entry(id="Buy", long=true)
+    
+if (isExitDay and useExitDay)
+    strategy.close_all()
+// Exit open market position when date range ends
+if (not inDateRange and not useExitDay)
+    strategy.close_all()
+     
+Expand (49 lines)

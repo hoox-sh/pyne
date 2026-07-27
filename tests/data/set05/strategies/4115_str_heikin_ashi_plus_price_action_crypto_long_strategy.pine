@@ -1,0 +1,22 @@
+//@version=4
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/Heikin Ashi + Price Action Crypto LONG Strategy.pine
+// content_hash: 84ab300c5215f7cb
+// collected: 2026-07-27
+strategy(title="random", shorttitle="random", overlay=true, initial_capital = 1000, default_qty_type=strategy.percent_of_equity, default_qty_value=100, commission_type=strategy.commission.percent , commission_value=0.1 )
+UseHAcandles    = input(true, title="Use Heikin Ashi Candles in Algo Calculations")
+//
+// === /INPUTS ===
+// === BASE FUNCTIONS ===
+haClose = UseHAcandles ? security(heikinashi(syminfo.tickerid), timeframe.period, close) : close
+haOpen  = UseHAcandles ? security(heikinashi(syminfo.tickerid), timeframe.period, open) : open
+haHigh  = UseHAcandles ? security(heikinashi(syminfo.tickerid), timeframe.period, high) : high
+haLow   = UseHAcandles ? security(heikinashi(syminfo.tickerid), timeframe.period, low) : low
+long = haClose > haHigh[1] and haClose > haOpen  and haHigh[1] > haHigh[2] //and close > high[3]
+short =  haClose < haOpen and haClose < haLow[1]
+strategy.entry("long",1,when=long)
+//strategy.entry("short",0,when=short)
+strategy.close("long",when=short)
+//strategy.close_all()
+Expand (23 lines)

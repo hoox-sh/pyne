@@ -1,0 +1,21 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/language/matrices.md::matrices.md#block66
+// content_hash: b383efe3a65b2b41
+// collected: 2026-07-27
+indicator("Inverse example")
+
+// Element inputs for the 2x2 matrix.
+float r0c0 = input.float(4.0, "Row 0, Col 0")
+float r0c1 = input.float(3.0, "Row 0, Col 1")
+float r1c0 = input.float(2.0, "Row 1, Col 0")
+float r1c1 = input.float(1.0, "Row 1, Col 1")
+
+//@function Displays the rows of a matrix in a label with a note.
+//@param    this The matrix to display.
+//@param    barIndex The `bar_index` to display the label at.
+//@param    bgColor The background color of the label.
+//@param    textColor The color of the label's text.
+//@param    note The text to display above the rows.
+method debugLabel(

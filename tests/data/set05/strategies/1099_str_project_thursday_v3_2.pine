@@ -1,0 +1,99 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/VWAP-ATR-趋势跟踪与价格回转策略-VWAP-ATR-Trend-Following-and-Price-Reversal-Strategy.md
+// content_hash: 160a065db09fba58
+// collected: 2026-07-27
+strategy('Project Thursday v3.2', overlay=true)
+
+// Input variables
+length = input(9, title="Length of Calculation")
+numATRs1 = input(91, title="Number of ATRs (%)")
+numATRs = numATRs1 * 0.01
+anchor = input.string(defval='Week', title='External Timeframe', options=['Session', 'Week', 'Month', 'Year'])
+
+MILLIS_IN_DAY = 86400000
+
+// Get the appropriate bar time
+dwmBarTime = timeframe.isdwm ? time : time('D')
+
+// Handle cases where there might be no daily bar
+if na(dwmBarTime)
+    dwmBarTime := nz(dwmBarTime[1])
+
+var periodStart = time - time  // Initialize periodStart to zero
+
+// Helper functions
+makeMondayZero(dayOfWeek) =>
+    (dayOfWeek + 5) % 7
+
+isMidnight(t) =>
+    hour(t) == 0 and minute(t) == 0
+
+isSameDay(t1, t2) =>
+    dayofmonth(t1) == dayofmonth(t2) and month(t1) == month(t2) and year(t1) == year(t2)
+
+isOvernight() =>
+    not (isMidnight(dwmBarTime) or request.security(syminfo.tickerid, 'D', isSameDay(time, time_close), lookahead=barmerge.lookahead_on))
+
+tradingDayStart(t) =>
+    timestamp(year(t), month(t), dayofmonth(t), 0, 0)
+
+numDaysBetween(time1, time2) =>
+    diff = math.abs(timestamp('GMT', year(time1), month(time1), dayofmonth(time1), 0, 0) - timestamp('GMT', year(time2), month(time2), dayofmonth(time2), 0, 0))
+    diff / MILLIS_IN_DAY
+
+// Determine the trading day
+tradingDay = isOvernight() ? tradingDayStart(dwmBarTime + MILLIS_IN_DAY) : tradingDayStart(dwmBarTime)
+
+// Check if a new period has started
+isNewPeriod() =>
+    isNew = false
+    if tradingDay != nz(tradingDay[1])
+        if anchor == 'Session'
+            isNew := na(tradingDay[1]) or tradingDay > tradingDay[1]
+        else if anchor == 'Week'
+            isNew := makeMondayZero(dayofweek(periodStart)) + numDaysBetween(periodStart, tradingDay) >= 7
+        else if anchor == 'Month'
+            isNew := month(periodStart) != month(tradingDay) or year(periodStart) != year(tradingDay)
+        else if anchor == 'Year'
+            isNew := year(periodStart) != year(tradingDay)
+    isNew
+
+// Initialize source variables
+src = input(close, title="Source")
+src2 = input(close, title="Stop Source")
+src3 = input(close, title="Entry Source")
+sumSrc = float(na)
+sumVol = float(na)
+
+sumSrc := nz(sumSrc[1], 0)
+sumVol := nz(sumVol[1], 0)
+
+if isNewPeriod()
+    periodStart := tradingDay
+    sumSrc := 0.0
+    sumVol := 0.0
+
+if not na(src) and not na(volume)
+    sumSrc += src * volume
+    sumVol += volume
+
+vwapValue = sumSrc / sumVol
+
+atrs = ta.wma(2 * ta.wma(ta.tr, length / 2) - ta.wma(ta.tr, length), math.round(math.sqrt(length))) * numATRs
+
+// Strategy entries
+if not na(close[length])
+    strategy.entry('Long', strategy.long, stop=src2 + atrs, when=vwapValue < src3)
+    strategy.entry('Short', strategy.short, stop=src2 - atrs, when=vwapValue > src3)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/458172
+
+> Last Modified
+
+2024-07-30 15:50:19

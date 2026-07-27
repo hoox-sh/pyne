@@ -1,0 +1,45 @@
+//@version=3
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/熊转魔法蜡烛反转策略Bearish-Engulfing-Reversal-Strategy.md
+// content_hash: 895e6536d5b78a87
+// collected: 2026-07-27
+////////////////////////////////////////////////////////////
+//  Copyright by HPotter v1.0 30/10/2018
+//
+//    This is a bearish candlestick reversal pattern formed by two candlesticks. 
+//    Following an uptrend, the first candlestick is a up candlestick which is 
+//    followed by a down candlestick which has a long real body that engulfs or 
+//    contains  the real body of the prior bar. The Engulfing pattern is the reverse 
+//    of the Harami pattern. 
+//
+// WARNING:
+// - For purpose educate only
+// - This script to change bars colors.
+////////////////////////////////////////////////////////////
+
+strategy(title = "Bearish Engulfing Backtest", overlay = true)
+input_takeprofit = input(40, title="Take Profit pip")
+input_stoploss = input(20, title="Stop Loss pip")
+input_minsizebody = input(2, title="Min. Size Body pip")
+barcolor(abs(close[1] - open[1]) >= input_minsizebody? close[1] > open[1] ? open > close ? open >= close[1] ? open[1] >= close ? open - close > close[1] - open[1] ? yellow :na :na : na : na : na: na)
+pos = 0.0
+barcolor(nz(pos[1], 0) == -1 ? red: nz(pos[1], 0) == 1 ? green : blue ) 
+posprice = 0.0
+posprice := abs( close[1] - open[1]) >= input_minsizebody? close[1] > open[1] ? open > close ? open >= close[1] ? open[1] >= close ? open - close > close[1] - open[1] ? close :nz(posprice[1], 0) :nz(posprice[1], 0) : nz(posprice[1], 0) : nz(posprice[1], 0) : nz(posprice[1], 0): nz(posprice[1], 0)
+pos := iff(posprice > 0, -1, 0)
+if (pos == 0) 
+    strategy.close_all()
+if (pos == -1)
+    strategy.entry("Short", strategy.short)	   	    
+posprice := iff(low <= posprice - input_takeprofit and posprice > 0, 0 ,  nz(posprice, 0))
+posprice := iff(high >= posprice + input_stoploss and posprice > 0, 0 ,  nz(posprice, 0))
+```
+
+> Detail
+
+https://www.fmz.com/strategy/437682
+
+> Last Modified
+
+2024-01-04 17:35:18

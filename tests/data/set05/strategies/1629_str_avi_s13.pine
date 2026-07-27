@@ -1,0 +1,75 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/趋势动量渗透指标交易策略-Trend-Momentum-Penetration-Indicator-Trading-Strategy.md
+// content_hash: fd5c9a46150e5ffc
+// collected: 2026-07-27
+strategy("AVI - S13", overlay=true, initial_capital=10000, default_qty_type=strategy.fixed)
+
+// Get daily-level values
+dailyATR      = request.security(syminfo.tickerid, "D", ta.atr(10))
+dailyEMA10    = request.security(syminfo.tickerid, "D", ta.ema(close, 10))
+dailyEMA50    = request.security(syminfo.tickerid, "D", ta.ema(close, 50))
+dailyEMA100   = request.security(syminfo.tickerid, "D", ta.ema(close, 100))
+dailyClose    = request.security(syminfo.tickerid, "D", close)
+dailyOpen     = request.security(syminfo.tickerid, "D", open)
+dailyVol      = request.security(syminfo.tickerid, "D", volume)
+dailyVolEMA12 = request.security(syminfo.tickerid, "D", ta.ema(volume, 12))
+
+ema_plus_atr   = dailyEMA10 + dailyATR
+ema_minus_atr  = dailyEMA10 - dailyATR
+ema_plus_atr1  = dailyEMA10 + dailyATR * 3
+
+// Entry conditions
+conditionema    = dailyEMA50 > dailyEMA100
+conditionatr    = dailyClose > ema_plus_atr
+conditioncandel = dailyClose > dailyOpen
+conditionvol    = dailyVol > dailyVolEMA12
+entryCondition  = conditionema and conditionatr and conditioncandel and conditionvol
+
+bgcolor(entryCondition ? color.new(#26e600, 90) : na)
+plotshape(entryCondition, location=location.belowbar, style=shape.labelup, color=color.green, size=size.tiny, title="Entry")
+
+// Trade management variables
+var bool inTrade = false
+var float entryPrice = na
+var float stopLossPrice = na
+var float takeProfitPrice = na
+var int entryBar = na
+
+// Entry logic
+if entryCondition and not inTrade and timeframe.isdaily
+    stopLossPrice := ema_minus_atr
+    takeProfitPrice := ema_plus_atr1
+    riskPerShare = math.abs(dailyClose - stopLossPrice)
+    riskAmount = strategy.equity * 0.02
+    sharesCount = riskPerShare > 0 ? math.floor(riskAmount / riskPerShare) : 0
+
+    if sharesCount > 0
+        strategy.entry("Long", strategy.long, qty=sharesCount)
+        entryPrice := dailyClose
+        inTrade := true
+        entryBar := bar_index
+
+// Exit logic
+if inTrade
+    if low <= stopLossPrice
+        strategy.close("Long", comment="SL")
+        inTrade := false
+    else if high >= takeProfitPrice
+        strategy.close("Long", comment="TP")
+        inTrade := false
+
+// Draw horizontal lines for SL and TP during the trade
+plot(inTrade ? stopLossPrice : na, title="Stop Loss", color=color.red, linewidth=1, style=plot.style_linebr)
+plot(inTrade ? takeProfitPrice : na, title="Take Profit", color=color.green, linewidth=1, style=plot.style_linebr)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/492014
+
+> Last Modified
+
+2025-04-25 15:19:50

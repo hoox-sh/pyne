@@ -1,0 +1,52 @@
+//@version=3
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/增强移动平均聚合趋势策略Enhanced-Moving-Average-Convergence-Trend-Strategy.md
+// content_hash: eac5f171e51e0187
+// collected: 2026-07-27
+//study("MACDAS")
+// strategy("macdas",shorttitle="macdas",overlay=true,default_qty_value=10000,initial_capital=10000,currency=currency.USD)
+
+// Date range filter
+testStartYear = input(2018, "Backtest Start Year")
+testStartMonth = input(4, "Backtest Start Month")
+testStartDay = input(1, "Backtest Start Day")
+testPeriodStart = timestamp(testStartYear, testStartMonth, testStartDay, 0, 0)
+
+testStopYear = input(2018, "Backtest Stop Year")
+testStopMonth = input(12, "Backtest Stop Month")
+testStopDay = input(31, "Backtest Stop Day")
+testPeriodStop = timestamp(testStopYear, testStopMonth, testStopDay, 0, 0)
+
+inTimeRange = true
+
+
+fastperiod = input(12,title="fastperiod",minval=1,maxval=500)
+slowperiod = input(26,title="slowperiod",minval=1,maxval=500)
+signalperiod = input(9,title="signalperiod",minval=1,maxval=500)
+fastMA = ema(close, fastperiod)
+slowMA = ema(close, slowperiod)
+macd = fastMA - slowMA
+signal = ema(macd, signalperiod)
+macdAS = macd - signal
+signalAS = ema(macdAS, signalperiod)
+plot(macdAS, color=blue, linewidth=2)
+plot(signalAS, color=red, linewidth=2)
+plot(0, color=black)
+
+strategy.entry("LONG", strategy.long, when =inTimeRange and crossover(macdAS,signalAS))
+strategy.close("LONG", when= inTimeRange and crossunder(macdAS,signalAS))
+
+plotshape(crossover(macdAS, signalAS) , style = shape.arrowup, text="Long",color=green,size=size.huge)
+plotshape(crossover(signalAS,macdAS) , style = shape.arrowdown, text="End Long",color=red,size=size.huge)
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/426808
+
+> Last Modified
+
+2023-09-14 16:46:53

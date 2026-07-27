@@ -1,0 +1,81 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多重确认动态止盈止损交易策略RSI与MACD结合EMA趋势和蜡烛形态识别-Multi-Confirmation-Dynamic-TP-SL-Trading-Strategy-RSI-and-MACD-Combined-with-EMA-Trend-and-Candlestick-Pattern-Recognition.md
+// content_hash: e96be97d09d08e61
+// collected: 2026-07-27
+strategy("Enhanced Trading Strategy with RSI, MACD, TP/SL", overlay=true)
+
+// === EMA Settings ===
+emaLength = 50
+emaFilter = ta.ema(close, emaLength)
+
+// === RSI Settings ===
+rsiLength = 14
+rsi = ta.rsi(close, rsiLength)
+
+// === MACD Settings ===
+[macdLine, signalLine, _] = ta.macd(close, 12, 26, 9)
+
+// === Engulfing Detection ===
+avgBody = ta.sma(math.abs(close - open), 5)
+bodySize = math.abs(close - open)
+prevBodySize = math.abs(close[1] - open[1])
+
+bullishEngulfing = close[1] < open[1] and close > open and close > open[1] and open < close[1] and bodySize > prevBodySize * 1.5 and bodySize > avgBody and close > emaFilter
+bearishEngulfing = close[1] > open[1] and close < open and close < open[1] and open > close[1] and bodySize > prevBodySize * 1.5 and bodySize > avgBody and close < emaFilter
+
+// === Pin Bar Detection ===
+candleSize = high - low
+upperShadow = high - math.max(open, close)
+lowerShadow = math.min(open, close) - low
+shadowRatio = 2.5
+
+bullishPinBar = lowerShadow > (candleSize * 0.66) and upperShadow < (candleSize * 0.33) and lowerShadow > bodySize * shadowRatio and close > emaFilter
+bearishPinBar = upperShadow > (candleSize * 0.66) and lowerShadow < (candleSize * 0.33) and upperShadow > bodySize * shadowRatio and close < emaFilter
+
+// === RSI & MACD Filtering ===
+rsiFilterBuy = rsi < 70
+rsiFilterSell = rsi > 30
+macdFilterBuy = macdLine > signalLine
+macdFilterSell = macdLine < signalLine
+
+// === Buy/Sell Conditions ===
+buySignal = (bullishEngulfing or bullishPinBar) and rsiFilterBuy and macdFilterBuy
+sellSignal = (bearishEngulfing or bearishPinBar) and rsiFilterSell and macdFilterSell
+
+// === ATR-based Take Profit & Stop Loss ===
+atrMult = 1.5
+atrValue = ta.atr(14)
+tpLevel = atrValue * atrMult
+slLevel = atrValue * atrMult
+
+// === Strategy Execution ===
+if buySignal
+    strategy.entry("BUY", strategy.long)
+    strategy.exit("TP/SL", from_entry="BUY", limit=close + tpLevel, stop=close - slLevel)
+
+if sellSignal
+    strategy.entry("SELL", strategy.short)
+    strategy.exit("TP/SL", from_entry="SELL", limit=close - tpLevel, stop=close + slLevel)
+
+// === Plot EMA ===
+plot(emaFilter, title="EMA 50", color=color.blue, linewidth=2)
+
+// === Plot Buy/Sell Signals ===
+// plotshape(series=buySignal, location=location.belowbar, color=color.green, style=shape.labelup, size=size.small, title="BUY Signal", text="BUY")
+// plotshape(series=sellSignal, location=location.abovebar, color=color.red, style=shape.labeldown, size=size.small, title="SELL Signal", text="SELL")
+
+// === Alert Conditions ===
+alertcondition(buySignal, title="BUY Alert", message="Buy Signal Detected!")
+alertcondition(sellSignal, title="SELL Alert", message="Sell Signal Detected!")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/488521
+
+> Last Modified
+
+2025-03-28 15:37:01

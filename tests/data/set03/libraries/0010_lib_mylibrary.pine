@@ -1,0 +1,14 @@
+//@version=6
+// set03 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block349
+// content_hash: b253ca0993fce073
+// collected: 2026-07-27
+// @description Provides a tool to quickly output a label on the chart.
+library("MyLibrary")
+
+// @function Outputs a label with `labelText` on the bar's high.
+// @param labelText (series string) The text to display on the label.
+// @returns Drawn label.
+export drawLabel(string labelText) =>
+    label.new(bar_index, high, text = labelText)

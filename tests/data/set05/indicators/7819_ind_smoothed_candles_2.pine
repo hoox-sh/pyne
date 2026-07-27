@@ -1,0 +1,16 @@
+//@version=5
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/v5/concepts/bar-plotting.md::bar-plotting.md#block3
+// content_hash: 1864e43967c26b18
+// collected: 2026-07-27
+indicator("Smoothed candles", overlay = true)
+lenInput = input.int(9)
+smooth(source, length) =>
+    ta.sma(source, length)
+o = smooth(open, lenInput)
+h = smooth(high, lenInput)
+l = smooth(low, lenInput)
+c = smooth(close, lenInput)
+ourWickColor = close > c ? color.green : color.red
+plotcandle(o, h, l, c, wickcolor = ourWickColor)

@@ -1,0 +1,14 @@
+//@version=6
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/faq/times-dates-and-sessions.md::times-dates-and-sessions.md#block8
+// content_hash: 626e84e1a6fc9f55
+// collected: 2026-07-27
+indicator("Plot value starting n months/years back", overlay = true)
+int  monthsBackInput  = input.int(3, minval = 0)
+int  yearsBackInput   = input.int(0, minval = 0)
+bool calcFromNowInput = input(false, "Calculate from current date/time instead of first of the month")
+
+bool isTargetDate = time >= timestamp(
+  year(timenow)  - yearsBackInput,
+  month(timenow) - monthsBackInput,

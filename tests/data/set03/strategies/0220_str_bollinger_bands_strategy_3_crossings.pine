@@ -1,0 +1,71 @@
+//@version=6
+// set03 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/三重触及布林带趋势跟踪量化交易策略-Triple-Bollinger-Bands-Touch-Trend-Following-Quantitative-Trading-Strategy.md
+// content_hash: 2f888e935b2644a4
+// collected: 2026-07-27
+strategy("Bollinger Bands Strategy - 3 Crossings", overlay=true)
+
+// Input Parameters
+length = input.int(20, title="Bollinger Bands Length", minval=1)
+src = input(close, title="Source")
+mult = input.float(2.0, title="Multiplier", step=0.1)
+
+// Calculate Bollinger Bands
+basis = ta.sma(src, length)
+dev = mult * ta.stdev(src, length)
+upper = basis + dev
+lower = basis - dev
+
+// Plot Bollinger Bands
+plotBasis = plot(basis, color=color.blue, title="Basis")
+plotUpper = plot(upper, color=color.red, title="Upper Band")
+plotLower = plot(lower, color=color.green, title="Lower Band")
+fill(plot1=plotUpper, plot2=plotLower, color=color.new(color.blue, 90), title="Band Fill")
+
+// Counter Variables
+var int longCrossCount = 0
+var int shortCrossCount = 0
+
+// Detect Crossings
+longCondition = close < lower  // Price closes below the lower band
+shortCondition = close > upper  // Price closes above the upper band
+
+if longCondition
+    longCrossCount += 1  // Increment the counter for long
+    shortCrossCount := 0  // Reset the short counter
+
+if shortCondition
+    shortCrossCount += 1  // Increment the counter for short
+    longCrossCount := 0  // Reset the long counter
+
+if not longCondition and not shortCondition
+    longCrossCount := 0  // Reset if no crossing
+    shortCrossCount := 0
+
+// Entry and Exit Rules
+if longCrossCount >= 3 and strategy.position_size <= 0
+    strategy.entry("Long", strategy.long)
+    longCrossCount := 0  // Reset the counter after entering
+
+if shortCrossCount >= 3 and strategy.position_size >= 0
+    strategy.entry("Short", strategy.short)
+    shortCrossCount := 0  // Reset the counter after entering
+
+// Exit Condition (When Price Returns to the Middle Band)
+exitCondition = ta.crossover(src, basis) or ta.crossunder(src, basis)
+
+if exitCondition and strategy.position_size > 0
+    strategy.close("Long")
+if exitCondition and strategy.position_size < 0
+    strategy.close("Short")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/474630
+
+> Last Modified
+
+2024-12-11 11:01:52

@@ -1,0 +1,52 @@
+//@version = 2
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动量均差指标突破策略Momentum-Mean-Deviation-Breakthrough-Strategy.md
+// content_hash: 4504a4d23df00ce4
+// collected: 2026-07-27
+////////////////////////////////////////////////////////////
+//  Copyright by HPotter v1.0 12/12/2016
+// This is one of the techniques described by William Blau in his book "Momentum,
+// Direction and Divergence" (1995). If you like to learn more, we advise you to
+// read this book. His book focuses on three key aspects of trading: momentum, 
+// direction and divergence. Blau, who was an electrical engineer before becoming 
+// a trader, thoroughly examines the relationship between price and momentum in 
+// step-by-step examples. From this grounding, he then looks at the deficiencies 
+// in other oscillators and introduces some innovative techniques, including a 
+// fresh twist on Stochastics. On directional issues, he analyzes the intricacies 
+// of ADX and offers a unique approach to help define trending and non-trending periods.
+//
+// You can change long to short in the Input Settings
+// Please, use it only for learning or paper trading. Do not for real trading.
+////////////////////////////////////////////////////////////
+strategy(title="Ergotic MDI (Mean Deviation Indicator) Bactest")
+r = input(32, minval=1)
+s = input(5, minval=1)
+u = input(5, minval=1)
+SmthLen = input(3, minval=1)
+reverse = input(false, title="Trade reverse")
+hline(0, color=blue, linestyle=line)
+xEMA = ema(close, r)
+xEMA_S = close - xEMA
+xEMA_U = ema(ema(xEMA_S, s), u)
+xSignal = ema(xEMA_U, u)
+pos = iff(xEMA_U > xSignal, 1,
+	   iff(xEMA_U < xSignal, -1, nz(pos[1], 0))) 
+possig = iff(reverse and pos == 1, -1,
+          iff(reverse and pos == -1, 1, pos))	   
+if (possig == 1) 
+    strategy.entry("Long", strategy.long)
+if (possig == -1)
+    strategy.entry("Short", strategy.short)	   	    
+barcolor(possig == -1 ? red: possig == 1 ? green : blue )
+plot(xEMA_U, color=green, title="Ergotic MDI")
+plot(xSignal, color=red, title="SigLin")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/439067
+
+> Last Modified
+
+2024-01-17 14:08:46

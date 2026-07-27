@@ -1,0 +1,49 @@
+//@version=2
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于MBO指标的趋势跟随策略Trend-Following-Strategy-Based-on-MBO-Indicator.md
+// content_hash: c6131106fc7ab811
+// collected: 2026-07-27
+////////////////////////////////////////////////////////////
+//  Copyright by HPotter v1.0 16/08/2018
+// MBO indicator is the third component of TFS trading system. This indicator
+// was developed by Bryan Strain and Mark Whitley.
+// The idea of MBO is similar to moving average convergence/divergence (MACD)
+// indicator. It is calculated by subtracting the 200-day moving average from
+// the 25-day moving average.
+//
+// You can change long to short in the Input Settings
+// WARNING:
+// - For purpose educate only
+// - This script to change bars colors.
+////////////////////////////////////////////////////////////
+strategy(title="TFS: MBO Backtest", shorttitle="TFS: MBO indicator")
+Fastavg = input(25, minval=1)
+Slowavg = input(200, minval=1)
+Length = input(18, minval=1)
+reverse = input(false, title="Trade reverse")
+hline(0, color=blue, linestyle=line)
+xFastAvg = sma(close, Fastavg)
+xSlowAvg = sma(close, Slowavg)        
+nMBO = xFastAvg - xSlowAvg
+xSMAMBO = sma(nMBO, Length)
+pos = iff(nMBO > xSMAMBO, 1,
+       iff(nMBO < xSMAMBO, -1, nz(pos[1], 0))) 
+possig = iff(reverse and pos == 1, -1,
+          iff(reverse and pos == -1, 1, pos))	   
+if (possig == 1) 
+    strategy.entry("Long", strategy.long)
+if (possig == -1)
+    strategy.entry("Short", strategy.short)	   	    
+barcolor(possig == -1 ? red: possig == 1 ? green : blue ) 
+plot(nMBO, color=red, style = histogram, title="TFS: MBO indicator")
+plot(xSMAMBO, color=blue, title="SMA")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/428793
+
+> Last Modified
+
+2023-10-09 15:22:04

@@ -1,0 +1,60 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双重确认突破策略Double-Confirmation-Breakthrough-Strategy.md
+// content_hash: dd7e0c8e284769eb
+// collected: 2026-07-27
+strategy("Estrategia de Trading con Señales de Máximo/Mínimo Diario", overlay=true)
+
+// Obtenemos el alto y el bajo del día anterior
+previousDailyHigh = request.security(syminfo.tickerid, "D", high[1], lookahead=barmerge.lookahead_on)
+previousDailyLow = request.security(syminfo.tickerid, "D", low[1], lookahead=barmerge.lookahead_on)
+
+// Detectamos si el precio cruza por encima del máximo o por debajo del mínimo del día anterior
+priceCrossesPreviousHigh = ta.crossover(close, previousDailyHigh)
+priceCrossesPreviousLow = ta.crossunder(close, previousDailyLow)
+
+// Marcamos las señales en el gráfico con flechas bajistas y alcistas según corresponda
+plotshape(priceCrossesPreviousHigh, style=shape.triangledown, location=location.abovebar, color=color.red, size=size.small, title="Price crosses above previous daily high")
+plotshape(priceCrossesPreviousLow, style=shape.triangleup, location=location.belowbar, color=color.green, size=size.small, title="Price crosses below previous daily low")
+
+// EMA rápida
+fast_ema = ta.ema(close, 10)
+// EMA lenta
+slow_ema = ta.ema(close, 30)
+
+// Riesgo beneficio fijo de 1-4
+risk_reward_ratio = 4
+
+// Calculamos el tamaño del stop loss basado en el riesgo asumido
+risk = close - strategy.position_avg_price
+stop_loss = close - (risk / risk_reward_ratio)
+
+// Condiciones de compra y venta
+buy_condition = priceCrossesPreviousLow and fast_ema > slow_ema
+sell_condition = priceCrossesPreviousHigh and fast_ema < slow_ema
+
+// Marcar entradas
+strategy.entry("Compra", strategy.long, when=buy_condition)
+strategy.entry("Venta", strategy.short, when=sell_condition)
+
+// Definir objetivo de beneficio basado en el tamaño del stop loss y el riesgo beneficio fijo
+target_profit = close + (risk * risk_reward_ratio)
+
+// Definir stop loss y objetivo de beneficio
+strategy.exit("Stop Loss/Take Profit", "Compra", stop=stop_loss, limit=target_profit)
+strategy.exit("Stop Loss/Take Profit", "Venta", stop=stop_loss, limit=target_profit)
+
+// Señales de compra y venta
+plotshape(series=buy_condition, title="Compra", location=location.belowbar, color=color.green, style=shape.triangleup)
+plotshape(series=sell_condition, title="Venta", location=location.abovebar, color=color.red, style=shape.triangledown)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/443229
+
+> Last Modified
+
+2024-03-01 10:55:27

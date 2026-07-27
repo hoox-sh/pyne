@@ -1,0 +1,110 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于成交量均线的自适应金字塔动态止盈止损交易策略-Volume-MA-based-Adaptive-Pyramiding-Dynamic-Stop-Loss-and-Take-Profit-Trading-Strategy.md
+// content_hash: b5da4b4686dce303
+// collected: 2026-07-27
+strategy("Enhanced Trading Strategy v5 with Visible SL/TP", overlay=true)
+
+// Input settings
+hma_length = input(9, title="HMA Length")
+fast_length = input(12, title="MACD Fast Length")
+slow_length = input(26, title="MACD Slow Length")
+siglen = input(9, title="Signal Smoothing")
+atr_length = input(14, title="ATR Length")
+rsi_length = input(14, title="RSI Length")
+obv_length = input(10, title="OBV Length")
+volume_ma_length = input(10, title="Volume MA Length")
+
+// Pyramiding inputs
+max_pyramid_positions = input(3, title="Max Pyramid Positions")
+pyramid_factor = input(0.5, title="Pyramid Factor")
+
+// Risk and Reward Management Inputs
+risk_per_trade = input(1.0, title="Risk per Trade (%)")
+atr_multiplier_for_sl = input(1.5, title="ATR Multiplier for Stop Loss")
+atr_multiplier_for_tp = input(3.0, title="ATR Multiplier for Take Profit")
+trailing_atr_multiplier = input(2.0, title="ATR Multiplier for Trailing Stop")
+
+// Position sizing functions
+calc_position_size(equity, risk_pct, atr) =>
+    pos_size = (equity * risk_pct / 100) / (atr_multiplier_for_sl * atr)
+    pos_size
+
+calc_pyramid_size(current_size, max_positions) =>
+    pyramid_size = current_size * (max_positions - strategy.opentrades) / max_positions
+    pyramid_size
+
+// Pre-calculate lengths for HMA
+half_length = ceil(hma_length / 2)
+sqrt_length = round(sqrt(hma_length))
+
+// Calculate indicators
+hma = wma(2 * wma(close, half_length) - wma(close, hma_length), sqrt_length)
+my_obv = cum(close > close[1] ? volume : close < close[1] ? -volume : 0)
+obv_sma = sma(my_obv, obv_length)
+[macd_line, signal_line, _] = macd(close, fast_length, slow_length, siglen)
+atr = atr(atr_length)
+rsi = rsi(close, rsi_length)
+vol_ma = sma(volume, volume_ma_length)
+
+// Conditions
+long_condition = crossover(macd_line, signal_line) and my_obv > obv_sma and rsi > 50 and volume > vol_ma
+short_condition = crossunder(macd_line, signal_line) and my_obv < obv_sma and rsi < 50 and volume > vol_ma
+
+// Strategy Entry with improved risk-reward ratio
+var float long_take_profit = na
+var float long_stop_loss = na
+var float short_take_profit = na
+var float short_stop_loss = na
+
+if (long_condition)
+    size = calc_position_size(strategy.equity, risk_per_trade, atr)
+    strategy.entry("Long", strategy.long, qty = size)
+    long_stop_loss := close - atr_multiplier_for_sl * atr
+    long_take_profit := close + atr_multiplier_for_tp * atr
+    
+if (short_condition)
+    size = calc_position_size(strategy.equity, risk_per_trade, atr)
+    strategy.entry("Short", strategy.short, qty = size)
+    short_stop_loss := close + atr_multiplier_for_sl * atr
+    short_take_profit := close - atr_multiplier_for_tp * atr
+
+// Drawing the SL/TP lines
+// if (not na(long_take_profit))
+//     line.new(bar_index[1], long_take_profit, bar_index, long_take_profit, width = 2, color = color.green)
+//     line.new(bar_index[1], long_stop_loss, bar_index, long_stop_loss, width = 2, color = color.red)
+
+// if (not na(short_take_profit))
+//     line.new(bar_index[1], short_take_profit, bar_index, short_take_profit, width = 2, color = color.green)
+//     line.new(bar_index[1], short_stop_loss, bar_index, short_stop_loss, width = 2, color = color.red)
+
+// Pyramiding logic
+if (strategy.position_size > 0)
+    if (close > strategy.position_avg_price * (1 + pyramid_factor))
+        strategy.entry("Long Add", strategy.long, qty = calc_pyramid_size(strategy.position_size, max_pyramid_positions))
+
+if (strategy.position_size < 0)
+    if (close < strategy.position_avg_price * (1 - pyramid_factor))
+        strategy.entry("Short Add", strategy.short, qty = calc_pyramid_size(-strategy.position_size, max_pyramid_positions))
+
+// Trailing Stop
+strategy.exit("Trailing Stop Long", "Long", trail_points = atr * trailing_atr_multiplier, trail_offset = atr * trailing_atr_multiplier)
+strategy.exit("Trailing Stop Short", "Short", trail_points = atr * trailing_atr_multiplier, trail_offset = atr * trailing_atr_multiplier)
+
+// Plots
+plot(hma, title="HMA", color=color.blue)
+plot(obv_sma, title="OBV SMA", color=color.orange)
+hline(0, "Zero Line", color=color.gray, linestyle=hline.style_dotted)
+plotshape(long_condition, title="Long Entry", location=location.belowbar, color=color.green, style=shape.labelup, text="Long")
+plotshape(short_condition, title="Short Entry", location=location.abovebar, color=color.red, style=shape.labeldown, text="Short")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/448058
+
+> Last Modified
+
+2024-04-12 16:19:20

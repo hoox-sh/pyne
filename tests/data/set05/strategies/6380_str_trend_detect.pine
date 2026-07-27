@@ -1,0 +1,60 @@
+//@version=2
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于价格动作原理的趋势检测策略Trend-Detection-Strategy-Based-on-Price-Action-Principles.md
+// content_hash: e9f2e914103f530d
+// collected: 2026-07-27
+strategy("trend detect", overlay=false)
+
+
+lenght = input(34)
+ema_smooth = input(5)
+
+delt = high - close
+height = high - low
+
+color_plot=black
+state=0
+
+if delt > height/3*2
+    state := 1
+    color_plot := red
+else
+    if delt > height/3
+        state := 2
+        color_plot := blue
+    else 
+        state := 3
+        color_plot := green
+//plot(state, color=color_plot, style=histogram)
+percOfType(len, state_for_count) =>
+    num = 0
+    for i=1 to len
+        if state[i]==state_for_count
+            num := num+1
+    num/len*100
+    
+rise = ema(percOfType(lenght, 3), ema_smooth)
+fall = ema(percOfType(lenght, 1), ema_smooth)
+plot(rise, color = green)
+plot(ema(percOfType(lenght, 2), ema_smooth), color = blue)
+plot(fall, color = red)
+plot(10, color=black)
+plot(60, color=black)
+
+longCondition = crossover(rise, fall)
+if (longCondition)
+    strategy.entry("My Long Entry Id", strategy.long)
+
+shortCondition = crossunder(rise, fall)
+if (shortCondition)
+    strategy.entry("My Short Entry Id", strategy.short)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/427342
+
+> Last Modified
+
+2023-09-20 11:11:46

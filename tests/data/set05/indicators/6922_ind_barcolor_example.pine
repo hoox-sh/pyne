@@ -1,0 +1,13 @@
+//@version=6
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/visuals/bar-coloring.md
+// content_hash: 8ce2884b901badc2
+// collected: 2026-07-27
+indicator("barcolor example", overlay = true)
+isUp = close > open
+isDown = close <= open
+isOutsideUp = high > high[1] and low < low[1] and isUp
+isOutsideDown = high > high[1] and low < low[1] and isDown
+isInside = high < high[1] and low > low[1]
+barcolor(isInside ? color.yellow : isOutsideUp ? color.aqua : isOutsideDown ? color.purple : na)

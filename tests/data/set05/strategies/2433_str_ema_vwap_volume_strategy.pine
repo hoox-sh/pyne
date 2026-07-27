@@ -1,0 +1,57 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/VWAP交易策略-VWAP-Trading-Strategy.md
+// content_hash: c3ff45f1604d3677
+// collected: 2026-07-27
+strategy("EMA, VWAP, Volume Strategy", overlay=true, process_orders_on_close=true)
+
+// Inputs
+emaLength = input.int(21, title="EMA Length")
+vwapSource = input.source(defval=hlc3, title='VWAP Source')
+stopLossPoints = input.float(100, title="Stop Loss (points)")
+targetPoints = input.float(200, title="Target (points)")
+session = input("0950-1430", title='Only take entry during')
+exit = input(defval='1515-1525', title='Exit Trade')
+
+tradein = not na(time(timeframe.period, session))
+exit_time = not na(time(timeframe.period, exit))
+
+// Calculate indicators
+ema = ta.ema(close, emaLength)
+vwapValue = ta.vwap(vwapSource)
+
+// Entry Conditions
+longCondition = close > vwapValue and close > ema and volume > volume[1] and close > open and tradein
+shortCondition = close < vwapValue and close < ema and volume > volume[1] and open > close and tradein
+
+// Exit Conditions
+longExitCondition = ta.crossunder(close, vwapValue) or ta.crossunder(close, ema) or close - strategy.position_avg_price >= targetPoints or close - strategy.position_avg_price <= -stopLossPoints or exit_time
+shortExitCondition = ta.crossover(close, vwapValue) or ta.crossover(close, ema) or strategy.position_avg_price - close >= targetPoints or strategy.position_avg_price - close <= -stopLossPoints or exit_time
+
+// Plotting
+plot(vwapValue, color=color.blue, title="VWAP")
+plot(ema, color=color.green, title="EMA")
+
+// Strategy
+if longCondition
+    strategy.entry("Long", strategy.long)
+
+if shortCondition
+    strategy.entry("Short", strategy.short)
+
+if longExitCondition
+    strategy.close('Long', immediately=true)
+
+if shortExitCondition
+    strategy.close("Short", immediately=true)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/449813
+
+> Last Modified
+
+2024-04-29 14:20:39

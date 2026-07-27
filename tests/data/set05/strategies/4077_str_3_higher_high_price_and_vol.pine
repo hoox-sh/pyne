@@ -1,0 +1,25 @@
+//@version=4
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/3 Higher High Price & Vol - BTST next day Gap up.pine
+// content_hash: 802575d072eeda4e
+// collected: 2026-07-27
+//Scanner available 
+strategy("3 Higher High Price & Vol", overlay=true)
+volma = sma(volume, 20)
+PriceHH = high > high[1] and high[1] > high[2] 
+VolHH = volume > volume[1] and volume[1] > volume[2]
+Volma =  volume > volma and volume[1] > volma[1] and volume[2] > volma[2]
+Allgreen = close > open and close[1] > open[1] and close[2] > open[2]
+PriceLL = low < low[1] and low[1] < low[2]
+Allred = close < open and close[1] < open[1] and close[2] < open[2]
+Qty = 100
+Buy = (PriceHH == true and VolHH == true and Volma == true and Allgreen == true) and time("15", "1515-1530")
+Reversal = (PriceLL == true and VolHH == true and Volma == true and Allred == true) and time("15", "1515-1530")
+plotshape(Buy, style=shape.arrowup, size=size.large, color=color.green, location=location.belowbar)
+plotshape(Reversal, style=shape.arrowup, size=size.large, color=color.red, location=location.belowbar)
+strategy.entry(id="L", qty=Qty, long=true, when=Buy)
+// strategy.entry(id="R", qty=Qty, long=true, when=Reversal)
+// strategy.exit(id="LE", from_entry="L", profit=Profit, loss=Loss)
+strategy.close_all(when=(time("15", "1500-1515")) )
+Expand (32 lines)

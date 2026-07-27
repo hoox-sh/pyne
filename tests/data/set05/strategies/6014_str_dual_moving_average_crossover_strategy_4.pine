@@ -1,0 +1,51 @@
+//@version=3
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双均线交叉策略Dual-Moving-Average-Crossover-Strategy.md
+// content_hash: 6c2f87dfac91237e
+// collected: 2026-07-27
+strategy(title="Linear Regression Curve CrossOver Strategy", shorttitle="LRC Crossover", overlay=true)
+src = close
+len1 = input(defval=100, minval=1, title="Length")
+offset = 0
+outfast = linreg(src, len1, offset)
+plot(outfast,color=blue)
+
+len2 = input(defval=150, minval=1, title="Length")
+
+outslow = linreg(src, len2, offset)
+plot(outslow,color=red)
+
+
+
+yearfrom = input(2018)
+yearuntil =input(2019)
+monthfrom =input(1)
+monthuntil =input(12)
+dayfrom=input(1)
+dayuntil=input(31)
+
+
+
+if (  crossover(outfast,outslow)) 
+    strategy.entry("BUY", strategy.long, stop=close, oca_name="TREND",  comment="BUY")
+    
+else
+    strategy.cancel(id="BUY")
+
+
+if ( crossover(outslow,outfast)  ) 
+
+    strategy.entry("SELL", strategy.short,stop=close, oca_name="TREND", comment="SELL")
+else
+    strategy.cancel(id="SELL")
+    
+```
+
+> Detail
+
+https://www.fmz.com/strategy/426583
+
+> Last Modified
+
+2023-09-13 14:56:37

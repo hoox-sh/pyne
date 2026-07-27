@@ -1,0 +1,58 @@
+//@version=6
+// set03 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/.claude/skills/pine-publisher/SKILL.md::SKILL.md#block6
+// content_hash: 8049ea86a99fbc15
+// collected: 2026-07-27
+
+// ============================================================================
+// DOCUMENTATION - THIS GOES AT THE TOP OF YOUR PINE SCRIPT FILE
+// ============================================================================
+//
+// INDICATOR OVERVIEW
+// ==================
+// This indicator identifies [specific market conditions] by analyzing
+// [data sources used]. It is designed for [target audience/use case].
+//
+// CALCULATION METHOD
+// ==================
+// The indicator calculates:
+// 1. [First calculation] using [formula/method]
+// 2. [Second calculation] based on [inputs]
+// 3. [Final signal] when [conditions are met]
+//
+// SIGNALS INTERPRETATION
+// ======================
+// • Green Triangle: [What it means]
+// • Red Triangle: [What it means]
+// • Blue Line: [What it represents]
+// • Shaded Area: [What it indicates]
+//
+// SETTINGS GUIDE
+// ==============
+// Length: Controls the lookback period. Lower = more responsive, Higher = smoother
+// Threshold: Sets sensitivity. Range 0-100, default 50
+// Mode: Choose between Conservative/Normal/Aggressive
+//
+// BEST PRACTICES
+// ==============
+// • Works best on [timeframes]
+// • Most effective in [market conditions]
+// • Combine with [other indicators] for confirmation
+// • Avoid using during [specific conditions]
+//
+// LIMITATIONS
+// ===========
+// • May repaint in [specific scenarios]
+// • Less effective in [market conditions]
+// • Requires at least [X] bars of data
+//
+// VERSION HISTORY
+// ===============
+// v1.0 (2024-01-15): Initial release
+// v1.1 (2024-02-01): Added multi-timeframe support
+// v1.2 (2024-03-01): Performance optimizations
+//
+// ============================================================================
+
+indicator("Your Indicator Name", shorttitle="Short Name", overlay=true)

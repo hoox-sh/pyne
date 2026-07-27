@@ -1,0 +1,12 @@
+//@version=6
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/primer/first-indicator.md::first-indicator.md#block2
+// content_hash: 51f2883108f66173
+// collected: 2026-07-27
+indicator("MACD #2")
+fastInput = input(12, "Fast length")
+slowInput = input(26, "Slow length")
+[macdLine, signalLine, histLine] = ta.macd(close, fastInput, slowInput, 9)
+plot(macdLine, color = color.blue)
+plot(signalLine, color = color.orange)

@@ -1,0 +1,34 @@
+//@version=5
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/WhaleCrew Backtester.pine
+// content_hash: b475ee8db2d6a8a5
+// collected: 2026-07-27
+//Constants
+var LONG = 1
+var LONG_TP = 0.5
+var SHORT = -1
+var SHORT_TP = -0.5
+strategy('WhaleCrew Backtester')
+i_input = input.source(ohlc4, 'Select "Indicator: Backtest" (Backtest-Plot)', group='Indicator', tooltip='Select Backtest-Plot (e.g. "WhaleCrew Vision: Backtest") of a supported indicator')
+i_longPositions = input.bool(true, 'Enter Long Positions', group='Settings')
+i_shortPositions = input.bool(true, 'Enter Short Positions', group='Settings')
+//Current market position
+position = strategy.position_size < 0 ? SHORT : strategy.position_size > 0 ? LONG : 0
+if i_input == LONG and i_longPositions
+    strategy.close('Short', when=position == SHORT)
+    strategy.entry('Long', strategy.long, 10)
+    label.new(bar_index, -10, style=label.style_label_up, size=size.tiny, text='Entry', color=color.new(color.lime, 20), textcolor=color.white)
+    
+if i_input == LONG_TP and position == LONG
+    label.new(bar_index, 0, style=label.style_label_down, size=size.tiny, text='TP', color=color.new(color.red, 20), textcolor=color.white)
+    strategy.close('Long')
+    
+if i_input == SHORT and i_shortPositions
+    strategy.close('Long', when=position == LONG)
+    strategy.entry('Short', strategy.short, 10)
+    label.new(bar_index, 10, style=label.style_label_down, size=size.tiny, text='Entry', color=color.new(color.red, 20), textcolor=color.white)
+if i_input == SHORT_TP and position == SHORT
+    label.new(bar_index, 0, style=label.style_label_up, size=size.tiny, text='TP', color=color.new(color.lime, 20), textcolor=color.white)
+    strategy.close('Short')
+Expand (34 lines)

@@ -1,0 +1,81 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于RSI和MACD交叉策略The-RSI-and-MACD-Crossover-Strategy.md
+// content_hash: d7eef8b6f2f3de70
+// collected: 2026-07-27
+strategy('RSIand macd bull and bear', overlay=true)
+
+// Input parameters
+length = input.int(14, title='RSI Length', minval=1)
+overbought = input.int(60, title='RSI Overbought Level', minval=0, maxval=100)
+oversold = input.int(40, title='RSI Oversold Level', minval=0, maxval=100)
+
+ema30_length = input(10, title='EMA RSI')
+ema50_length = input(20, title='EMA MACD')
+
+// Calculate EMAs
+
+ema30 = ta.ema(close, ema30_length)
+ema50 = ta.ema(close, ema50_length)
+
+// Calculate RSI
+rsiValue = ta.rsi(close, length)
+
+// Calculate MACD
+[macdLine, signalLine, hist] = ta.macd(close, 12, 26, 9)
+
+var float buyPrice = na
+
+// Buy condition: EMA 3 crosses above EMA 30 and price is above EMA 50
+buyCondition =  rsiValue > oversold and ta.crossover(hist,0) or ta.crossover(rsiValue,oversold) and hist>0
+if (buyCondition)
+    // buyPrice := close
+    strategy.entry('Buy', strategy.long)
+
+// Exit long position when close is below EMA30 and below the low of the previous 3 candles after the buy entry0
+//exitLongCondition = close < ema30 and close < ta.lowest(low, 3) and close < buyPrice
+//if (exitLongCondition)
+  //  strategy.close('BuyExit')
+
+// Sell condition: EMA 3 crosses below EMA 30 and price is below EMA 50
+sellCondition = rsiValue < overbought and ta.crossunder(hist,0) or ta.crossunder(rsiValue, overbought) and hist<0
+if (sellCondition)
+    strategy.entry('Sell', strategy.short)
+
+// Exit short position when close is above EMA30 and above the high of the previous 3 candles after the sell entry
+//exitShortCondition = close > ema30 and close > ta.highest(high, 3)
+//if (exitShortCondition)
+  //  strategy.close('SellExit')
+
+// Plot EMAs on the chart
+
+
+// Change color of EMA 50 based on MACD histogram
+ema50Color = hist > 0 ? color.new(color.green, 0) :  hist<0 ? color.new(color.red, 0) : color.new(color.black, 0)
+plot(ema50, color=ema50Color, title='EMA 50 Colored')
+
+// Change color of EMA 30 based on RSI trend
+ema30Color = rsiValue > oversold ? color.new(color.green, 0) : rsiValue<overbought ? color.new(color.red, 0) : color.new(color.black, 0)
+plot(ema30, color=ema30Color, title='EMA 30 Colored')
+
+// Highlight Buy and Sell signals on the chart
+// bgcolor(buyCondition ? color.new(color.green, 90) : na)
+// bgcolor(sellCondition ? color.new(color.red, 90) : na)
+
+// Plotting Buy and Sell Signals on the Chart until strategy exit
+barcolor(strategy.position_size > 0 and rsiValue > overbought ? color.new(color.yellow, 0) : strategy.position_size < 0 and rsiValue < oversold ? color.new(color.black, 0) : na)
+// plotshape(buyCondition,  title = "Buy",  text = 'Buy',  style = shape.labelup,   location = location.belowbar, color= color.green,textcolor = color.white, transp = 0, size = size.tiny)
+// plotshape(sellCondition, title = "Sell", text = 'Sell', style = shape.labeldown, location = location.abovebar, color= color.red,textcolor = color.white, transp = 0, size = size.tiny)
+
+plotshape(buyCondition, color=color.green, style=shape.triangleup, size=size.small, location=location.belowbar, text="Buy")
+plotshape(sellCondition, color=color.red, style=shape.triangledown, size=size.small, location=location.abovebar, text="Sell")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/444963
+
+> Last Modified
+
+2024-03-15 15:08:39

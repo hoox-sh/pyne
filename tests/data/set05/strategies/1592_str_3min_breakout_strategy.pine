@@ -1,0 +1,76 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/三分钟突破量化策略多周期结合RSI动能突破交易系统-Three-Minute-Breakthrough-Quantitative-Strategy-Multi-Timeframe-RSI-Momentum-Breakout-Trading-System.md
+// content_hash: 99fa9574ac19acec
+// collected: 2026-07-27
+//@version=5
+strategy("3min Breakout Strategy", overlay=true)
+
+// Fetch 3-minute timeframe data
+close_3min = request.security(syminfo.tickerid, "3", close)
+high_3min = request.security(syminfo.tickerid, "3", high)
+low_3min = request.security(syminfo.tickerid, "3", low)
+open_3min = request.security(syminfo.tickerid, "3", open)
+
+// Calculate 60-period EMA on 3-minute data
+ema60_3min = ta.ema(close_3min, 60)
+
+// Detect peaks on 3-minute data
+aboveEMA_3min = close_3min > ema60_3min
+peakConfirmed_3min = aboveEMA_3min[2] and high_3min[2] > high_3min[3] and high_3min[2] > high_3min[4] and high_3min[2] > high_3min[1] and high_3min[2] > high_3min[0]
+
+// Persistent variables for peak and dip levels
+var float peak_level_3min = na
+var float dip_level_3min = na
+var bool in_dip_sequence_3min = false
+var int down_candle_count_3min = 0
+
+// Peak detection logic
+if peakConfirmed_3min
+    peak_level_3min := high_3min[2]
+    in_dip_sequence_3min := false
+    down_candle_count_3min := 0
+
+// Dip detection logic
+else if close_3min <= ema60_3min and not na(peak_level_3min)
+    if not in_dip_sequence_3min
+        in_dip_sequence_3min := true
+        down_candle_count_3min := close_3min < open_3min ? 1 : 0
+    else
+        if close_3min < open_3min
+            down_candle_count_3min := down_candle_count_3min + 1
+        else
+            down_candle_count_3min := 0
+        if down_candle_count_3min >= 3
+            dip_level_3min := ta.lowest(low_3min, down_candle_count_3min)
+else
+    in_dip_sequence_3min := false
+
+// 1-minute indicators for entry confirmation
+ema180 = ta.ema(close, 180)  // Roughly aligns with 60-period EMA on 3-min
+rsi = ta.rsi(close, 14)
+rsi_signal = ta.ema(rsi, 9)
+
+// Entry condition: Break above peak with bullish signals
+entry_condition = close > open and close > peak_level_3min and ema180 > ema180[1] and rsi > rsi_signal and rsi > rsi[1]
+
+// Enter trades only when levels are defined
+if not na(peak_level_3min) and not na(dip_level_3min) and entry_condition
+    strategy.entry("Buy", strategy.long, stop=dip_level_3min)
+
+// Exit condition: Price falls below dip level
+if strategy.position_size > 0 and close < dip_level_3min
+    strategy.close("Buy")
+
+// Plot EMA for reference
+plot(ema180, color=color.orange, linewidth=2, title="180 EMA")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/488529
+
+> Last Modified
+
+2025-03-28 16:39:58

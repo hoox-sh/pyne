@@ -1,0 +1,42 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于两个移动平均线的交叉策略Moving-Average-Crossover-Strategy.md
+// content_hash: ad05670005c07547
+// collected: 2026-07-27
+strategy("Moving Average Crossover", overlay=true)
+
+// Input parameters
+fastLength = input(9, title="Fast MA Length")
+slowLength = input(21, title="Slow MA Length")
+src = close
+
+// Calculate moving averages
+fastMA = sma(src, fastLength)
+slowMA = sma(src, slowLength)
+
+// Plot moving averages on the chart
+plot(fastMA, color=color.blue, title="Fast MA")
+plot(slowMA, color=color.red, title="Slow MA")
+
+// Strategy logic
+longCondition = crossover(fastMA, slowMA)
+shortCondition = crossunder(fastMA, slowMA)
+
+// Execute strategy
+strategy.entry("Long", strategy.long, when=longCondition)
+strategy.entry("Short", strategy.short, when=shortCondition)
+
+// Plot buy and sell signals on the chart
+plotshape(series=longCondition, title="Buy Signal", color=color.green, style=shape.labelup, text="Buy", location=location.belowbar)
+plotshape(series=shortCondition, title="Sell Signal", color=color.red, style=shape.labeldown, text="Sell", location=location.abovebar)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/440799
+
+> Last Modified
+
+2024-02-02 11:16:32

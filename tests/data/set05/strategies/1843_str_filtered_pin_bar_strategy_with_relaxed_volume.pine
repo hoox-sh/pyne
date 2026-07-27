@@ -1,0 +1,69 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/趋势过滤Pin-Bar反转策略-Trend-Filtered-Pin-Bar-Reversal-Strategy.md
+// content_hash: ec0a2345443e3ff1
+// collected: 2026-07-27
+strategy("Filtered Pin Bar Strategy with Relaxed Volume", overlay=true)
+
+// Define the size of the pin bar's wick and body
+wickSize = 0.6
+bodySize = 0.3
+
+// Calculate the size of the wicks and body
+upperWick = high - math.max(open, close)
+lowerWick = math.min(open, close) - low
+body = math.abs(close - open)
+
+// Define a simple moving average to determine the trend
+smaLength = 50
+sma = ta.sma(close, smaLength)
+
+// Define a more relaxed volume threshold
+volumeThreshold = ta.sma(volume, 20) * 1.0
+
+// Define RSI parameters
+rsiLength = 14
+rsiOverbought = 70
+rsiOversold = 30
+rsi = ta.rsi(close, rsiLength)
+
+// Define the conditions for a bullish pin bar
+bullishPinBar = (lowerWick > (wickSize * (high - low))) and
+     (body < (bodySize * (high - low))) and
+     (close > open) and
+     (close > sma) and
+     (volume > volumeThreshold)
+
+// Define the conditions for a bearish pin bar
+bearishPinBar = (upperWick > (wickSize * (high - low))) and
+     (body < (bodySize * (high - low))) and
+     (close < open) and
+     (close < sma) and
+     (volume > volumeThreshold)
+
+// Plot the bullish and bearish pin bars on the chart
+plotshape(series=bullishPinBar, title="Bullish Pin Bar", location=location.belowbar, color=color.green, style=shape.labelup, text="PB")
+plotshape(series=bearishPinBar, title="Bearish Pin Bar", location=location.abovebar, color=color.red, style=shape.labeldown, text="PB")
+
+// Entry and exit rules
+if (bullishPinBar)
+    strategy.entry("Bullish Pin Bar", strategy.long)
+if (bearishPinBar)
+    strategy.entry("Bearish Pin Bar", strategy.short)
+
+// Optional: Set stop loss and take profit
+stopLoss = 2 * body
+takeProfit = 3 * body
+strategy.exit("Exit Long", from_entry="Bullish Pin Bar", stop=low - stopLoss, limit=high + takeProfit)
+strategy.exit("Exit Short", from_entry="Bearish Pin Bar", stop=high + stopLoss, limit=low - takeProfit)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/453669
+
+> Last Modified
+
+2024-06-07 16:48:23

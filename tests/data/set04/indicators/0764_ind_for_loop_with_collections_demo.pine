@@ -1,0 +1,19 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/language/loops.md::loops.md#block11
+// content_hash: a5b19894baf53a45
+// collected: 2026-07-27
+indicator("`for` loop with collections demo", "Table of TA Indexes", overlay = true)
+
+// Calculate the RSI and momentum of `close` values with constant lengths of 10, 20, and 50.
+float rsi10 = ta.rsi(close, 10)
+float rsi20 = ta.rsi(close, 20)
+float rsi50 = ta.rsi(close, 50)
+float mom10 = ta.mom(close, 10)
+float mom20 = ta.mom(close, 20)
+float mom50 = ta.mom(close, 50)
+ 
+if barstate.islast
+    //@variable A `table` that displays indicator values in the top-right corner of the chart. 
+    var table displayTable = table.new(

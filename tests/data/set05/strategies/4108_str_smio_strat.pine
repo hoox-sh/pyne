@@ -1,0 +1,23 @@
+//@version=4
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/SMIO strat.pine
+// content_hash: 5266625f0d208141
+// collected: 2026-07-27
+strategy(shorttitle= "MFM", title= "SMIO", overlay=true)
+longlen = input(35, minval=1, title="Long Length")
+shortlen = input(15, minval=1, title="Short Length")
+siglen = input(15, minval=1, title="Signal Line Length")
+erg = tsi(close, shortlen, longlen)
+sig = ema(erg, siglen)
+osc = erg - sig
+plot(osc, color=#FF8080, style=plot.style_histogram, title="SMI Ergodic Oscillator")
+long = crossover(osc, 0)
+short = crossunder(osc, 0)
+strategy.entry("long", true, when = long)
+strategy.entry("short", false, when = short)
+strategy.close("long", when = short)
+strategy.close("short", when = long)
+start = timestamp(2020, 6, 1, 0, 0)
+end = timestamp(2021, 6, 1 ,0, 0)
+Expand (24 lines)

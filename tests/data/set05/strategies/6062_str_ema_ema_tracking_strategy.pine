@@ -1,0 +1,45 @@
+//@version=3
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/利用EMA指标进行跟踪的趋势策略EMA-Tracking-Strategy.md
+// content_hash: ed0b8455d493861b
+// collected: 2026-07-27
+strategy(title="PingEMA50V.3 Piw", shorttitle="EMA50 Piw", overlay=true)
+
+// input
+src = input(title="Data Array",defval=close)
+ema_period = input(title="EMA period", defval=50)
+percent = input(title="Band %", type=float,defval=0.003)
+
+// ema
+ema50 = ema(src, ema_period)
+plot(ema50, color=green)
+
+// upper lower
+upper = ema50 + (ema50*percent)
+lower = ema50 - (ema50*percent)
+plot(upper, color=blue)
+plot(lower, color=blue)
+
+// signal
+buy = src > upper
+sell = src < lower
+
+// bar color
+bcolor = buy ? lime : red
+barcolor(color=bcolor)
+
+// trade
+if (buy)
+    strategy.entry("long", strategy.long)
+if (sell)
+    strategy.close("long")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/439859
+
+> Last Modified
+
+2024-01-24 14:27:37

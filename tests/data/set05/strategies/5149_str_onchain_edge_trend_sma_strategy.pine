@@ -1,0 +1,60 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动态均线交叉趋势策略Dynamic-SMA-Cross-Trend-Strategy.md
+// content_hash: 56f2d4637f635e58
+// collected: 2026-07-27
+strategy("Onchain Edge Trend SMA Strategy", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=10)
+
+// Configuration Parameters
+priceSource = input(close, title="Price Source")
+includeIncompleteBars = input(true, title="Consider Incomplete Bars")
+maForecastMethod = input(defval="flat", options=["flat", "linreg"], title="Moving Average Prediction Method")
+linearRegressionLength = input(3, title="Linear Regression Length")
+fastMALength = input(7, title="Fast Moving Average Length")
+mediumMALength = input(30, title="Medium Moving Average Length")
+slowMALength = input(50, title="Slow Moving Average Length")
+tradingCapital = input(100000, title="Trading Capital")
+tradeRisk = input(1, title="Trade Risk (%)")
+
+// Calculation of Moving Averages
+calculateMA(source, period) => sma(source, period)
+predictMA(source, forecastLength, regressionLength) => 
+    maForecastMethod == "flat" ? source : linreg(source, regressionLength, forecastLength)
+
+offset = includeIncompleteBars ? 0 : 1
+actualSource = priceSource[offset]
+
+fastMA = calculateMA(actualSource, fastMALength)
+mediumMA = calculateMA(actualSource, mediumMALength)
+slowMA = calculateMA(actualSource, slowMALength)
+
+// Trading Logic
+enterLong = crossover(fastMA, mediumMA)
+exitLong = crossunder(fastMA, mediumMA)
+
+// Risk and Position Sizing
+riskCapital = tradingCapital * tradeRisk / 100
+lossThreshold = atr(14) * 2
+tradeSize = riskCapital / lossThreshold
+
+if (enterLong)
+    strategy.entry("Enter Long", strategy.long, qty=tradeSize)
+
+if (exitLong)
+    strategy.close("Enter Long")
+
+// Display Moving Averages
+plot(fastMA, color=color.blue, linewidth=2, title="Fast Moving Average")
+plot(mediumMA, color=color.purple, linewidth=2, title="Medium Moving Average")
+plot(slowMA, color=color.red, linewidth=2, title="Slow Moving Average")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/441067
+
+> Last Modified
+
+2024-02-05 12:14:12

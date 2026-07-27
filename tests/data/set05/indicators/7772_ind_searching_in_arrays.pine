@@ -1,0 +1,18 @@
+//@version=5
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/v5/language/arrays.md::arrays.md#block21
+// content_hash: 62c3abd2fe256dc7
+// collected: 2026-07-27
+indicator("Searching in arrays")
+valueInput = input.int(1)
+a = array.new<float>(0)
+array.push(a, 0)
+array.push(a, 1)
+array.push(a, 2)
+array.push(a, 1)
+if barstate.islast
+    valueFound      = array.includes(a, valueInput)
+    firstIndexFound = array.indexof(a, valueInput)
+    lastIndexFound  = array.lastindexof(a, valueInput)
+    label.new(bar_index, 0, "a: " + str.tostring(a) +

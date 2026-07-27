@@ -1,0 +1,52 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/两重分形突破策略Double-Fractal-Breakout-Strategy.md
+// content_hash: 7904a20880a525f2
+// collected: 2026-07-27
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © ceyhun
+
+strategy("Fractal Breakout Strategy", overlay=true)
+
+FUp = high[4] < high[2] and high[3] < high[2] and high[1] < high[2] and high < high[2] or 
+   high[5] < high[2] and high[4] < high[2] and high[3] <= high[2] and 
+   high[1] < high[2] and high < high[2] or 
+   high[6] < high[2] and high[5] < high[2] and high[4] <= high[2] and 
+   high[3] <= high[2] and high[1] < high[2] and high < high[2] or 
+   high[7] < high[2] and high[6] < high[2] and high[5] <= high[2] and 
+   high[4] <= high[2] and high[3] <= high[2] and high[1] < high[2] and 
+   high < high[2] or 
+   high[8] < high[2] and high[7] < high[2] and high[6] <= high[2] and 
+   high[5] <= high[2] and high[4] <= high[2] and high[3] <= high[2] and 
+   high[1] < high[2] and high < high[2]
+FractalUp = valuewhen(FUp, high[2], 1)
+plot(FractalUp, color=#0000FF,title="FractalUp")
+
+FDown = low[4] > low[2] and low[3] > low[2] and low[1] > low[2] and low > low[2] or 
+   low[5] > low[2] and low[4] > low[2] and low[3] >= low[2] and low[1] > low[2] and 
+   low > low[2] or 
+   low[6] > low[2] and low[5] > low[2] and low[4] >= low[2] and low[3] >= low[2] and 
+   low[1] > low[2] and low > low[2] or 
+   low[7] > low[2] and low[6] > low[2] and low[5] >= low[2] and low[4] >= low[2] and 
+   low[3] >= low[2] and low[1] > low[2] and low > low[2] or 
+   low[8] > low[2] and low[7] > low[2] and low[6] >= low[2] and low[5] >= low[2] and 
+   low[4] >= low[2] and low[3] >= low[2] and low[1] > low[2] and low > low[2]
+FractalDown = valuewhen(FDown, low[2], 1)
+plot(FractalDown, color=#FF0000,title="FractalDown")
+
+if crossover(close, FractalUp)
+    strategy.entry("Long", strategy.long, comment="Long")
+
+if crossunder(close, FractalDown)
+    strategy.entry("Short", strategy.short, comment="Short")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/440439
+
+> Last Modified
+
+2024-01-30 15:53:27

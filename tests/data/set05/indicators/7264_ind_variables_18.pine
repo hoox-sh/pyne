@@ -1,0 +1,5 @@
+//@version=6indicator("On Balance Volume")plot(ta.obv, color=color.yellow)// the same on pinef_obv() =>    ta.cum(math.sign(ta.change(close)) * volume)plot(f_obv())// set05 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/reference/variables.md::variables.md#block32
+// content_hash: 307ceef07ff20a5f
+// collected: 2026-07-27

@@ -1,0 +1,65 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双均线交叉确认策略与量价结合优化模型-Dual-Moving-Average-Crossover-Confirmation-Strategy-with-Volume-Price-Integration-Optimization-Model.md
+// content_hash: c266552a00c8d504
+// collected: 2026-07-27
+strategy("Customizable SMA Crossover Strategy with Confirmation", overlay=true)
+
+// Input parameters
+shortSMA_choice = input.string(title="Short-term SMA Choice", defval="SMA 20", options=["SMA 5", "SMA 10", "SMA 20", "SMA 50", "SMA 100", "SMA 200"])
+longSMA_choice = input.string(title="Long-term SMA Choice", defval="SMA 50", options=["SMA 5", "SMA 10", "SMA 20", "SMA 50", "SMA 100", "SMA 200"])
+
+// Determine short-term SMA length based on user choice
+shortSMA_length = switch shortSMA_choice
+    "SMA 5" => 5
+    "SMA 10" => 10
+    "SMA 20" => 20
+    "SMA 50" => 50
+    "SMA 100" => 100
+    "SMA 200" => 200
+
+// Determine long-term SMA length based on user choice
+longSMA_length = switch longSMA_choice
+    "SMA 5" => 5
+    "SMA 10" => 10
+    "SMA 20" => 20
+    "SMA 50" => 50
+    "SMA 100" => 100
+    "SMA 200" => 200
+
+// Calculate SMAs
+shortSMA = ta.sma(close, shortSMA_length)
+longSMA = ta.sma(close, longSMA_length)
+
+// Plot SMAs
+plot(shortSMA, title="Short-term SMA", color=color.blue)
+plot(longSMA, title="Long-term SMA", color=color.red)
+
+// Generate signals
+buySignal = ta.crossover(close, shortSMA) and close > longSMA and close[1] <= longSMA
+sellSignal = ta.crossunder(close, shortSMA) and close < longSMA and close[1] >= longSMA
+
+// Confirmation conditions
+buyCondition = buySignal and close[1] > longSMA and close > longSMA
+sellCondition = sellSignal and close[1] < longSMA and close < longSMA
+
+// Execute trades
+if (buySignal)
+    strategy.entry("Buy", strategy.long)
+if (sellSignal)
+    strategy.entry("Sell", strategy.short)
+
+// Plot signals on the chart
+plotshape(series=buySignal, location=location.belowbar, color=color.green, style=shape.labelup, text="Buy", title="Buy Signal")
+plotshape(series=sellSignal, location=location.abovebar, color=color.red, style=shape.labeldown, text="Sell", title="Sell Signal")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/458197
+
+> Last Modified
+
+2024-07-30 17:12:28

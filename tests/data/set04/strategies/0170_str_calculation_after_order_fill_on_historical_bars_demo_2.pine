@@ -1,0 +1,18 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/language/execution-model.md::execution-model.md#block12
+// content_hash: 6cbb2708875aea09
+// collected: 2026-07-27
+strategy("Calculation after order fill on historical bars demo", calc_on_order_fills = true)
+
+// Place a market order to close short trades and enter a long trade when there is a short position or no position.
+// Otherwise, if a long position is open, place a market order to close the long trades and enter a short trade.
+if strategy.position_size <= 0
+    strategy.entry("Long", strategy.long)
+else
+    strategy.entry("Short", strategy.short)
+
+//@variable Tracks the current execution number, where 0 represents the first execution.
+varip int executionNum = -1
+// Add 1 to the `executionNum` value.

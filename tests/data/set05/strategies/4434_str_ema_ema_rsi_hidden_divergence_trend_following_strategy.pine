@@ -1,0 +1,105 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于EMA和隐藏背离的趋势追踪策略EMA-RSI-Hidden-Divergence-Trend-Following-Strategy.md
+// content_hash: 364e28a0381fab2a
+// collected: 2026-07-27
+
+strategy(title="EMA RSI ATR Hidden Div Strat", shorttitle="Hidden Div Strat", overlay = true, pyramiding = 0, max_bars_back=3000, calc_on_order_fills = false, commission_type =  strategy.commission.percent, commission_value = 0, default_qty_type = strategy.percent_of_equity, default_qty_value = 10, initial_capital=5000, currency=currency.USD)
+
+// Time Range
+FromMonth=input(defval=1,title="FromMonth",minval=1,maxval=12)
+FromDay=input(defval=1,title="FromDay",minval=1,maxval=31)
+FromYear=input(defval=2020,title="FromYear",minval=2016)
+ToMonth=input(defval=1,title="ToMonth",minval=1,maxval=12)
+ToDay=input(defval=1,title="ToDay",minval=1,maxval=31)
+ToYear=input(defval=9999,title="ToYear",minval=2017)
+start=timestamp(FromYear,FromMonth,FromDay,00,00)
+finish=timestamp(ToYear,ToMonth,ToDay,23,59)
+window()=>true
+
+// Bar's time happened on/after start date?
+afterStartDate = time >= start and time<=finish?true:false
+
+//EMA'S
+emasrc = close
+
+len1 = input(50, minval=1, title="EMA1")
+ema1 = ema(emasrc, len1)
+col1 = color.white
+
+len2 = input(250, minval=1, title="EMA2")
+ema2 = ema(emasrc, len2)
+col2 = color.yellow
+
+//Plots
+plot(ema1, title="EMA1", linewidth=1, color=col1)
+plot(ema2, title="EMA2", linewidth=1, color=col2)
+
+//Stoch
+periodK = input(4, title="K", minval=1)
+periodD = input(4, title="D", minval=1)
+smoothK = input(3, title="Smooth", minval=1)
+k = sma(stoch(close, high, low, periodK), smoothK)
+d = sma(k, periodD)
+
+//Hidden Divergence Indikator
+
+len = input(title="RSI Period", minval=1, defval=14)
+src = input(title="RSI Source", defval=close)
+lbR = input(title="Pivot Lookback Right", defval=1)
+lbL = input(title="Pivot Lookback Left", defval=19)
+rangeUpper = input(title="Max of Lookback Range", defval=20)
+rangeLower = input(title="Min of Lookback Range", defval=4)
+hiddenBullColor = color.new(color.green, 80)
+textColor = color.white
+noneColor = color.new(color.white, 100)
+osc = rsi(src, len)
+
+plFound = na(pivotlow(osc, lbL, lbR)) ? false : true
+phFound = na(pivothigh(osc, lbL, lbR)) ? false : true
+_inRange(cond) =>
+	bars = barssince(cond == true)
+	rangeLower <= bars and bars <= rangeUpper
+
+//------------------------------------------------------------------------------
+// Hidden Bullish
+// Osc: Lower Low
+
+oscLL = osc[lbR] < valuewhen(plFound, osc[lbR], 1) and _inRange(plFound[1])
+
+// Price: Higher Low
+
+priceHL = low[lbR] > valuewhen(plFound, low[lbR], 1)
+hiddenBullCond = priceHL and oscLL and plFound
+
+//buy Conditions
+buyhiddenbull = hiddenBullCond[1] or hiddenBullCond[2] or hiddenBullCond[3] or hiddenBullCond[4] or hiddenBullCond[5] or hiddenBullCond[6] or hiddenBullCond[7] or hiddenBullCond[8] or hiddenBullCond[9] or hiddenBullCond[10]
+emacondition = ema1 > ema2
+upcondition = close[1] > ema1[1] and ema2[1] and close[2] > ema1[2] and ema2[2] and close[3] > ema1[3] and ema2[3]
+crossup = k[0] >= d[0] and k[1] <= d[1]
+longcondition = emacondition and upcondition and crossup and buyhiddenbull
+
+if (afterStartDate)
+    strategy.entry("Long", strategy.long, when = longcondition)
+
+//TakeProfit, StopLoss lowest low
+profitfactor = input(title="Profitfactor", type=input.float, step=0.1, defval=1.6)
+loLen = input(title="Lowest Low Lookback", type=input.integer,
+  defval=38, minval=2)
+stop_level = lowest(low, loLen)[1]
+bought = strategy.position_size[1] < strategy.position_size
+barsbought = barssince(bought)
+
+if strategy.position_size>0
+    profit_level = strategy.position_avg_price + ((strategy.position_avg_price - stop_level[barsbought])*profitfactor)
+    strategy.exit(id="TP/ SL", stop=stop_level[barsbought], limit=profit_level)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/440847
+
+> Last Modified
+
+2024-02-02 16:54:27

@@ -1,0 +1,65 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/极端分布摆动策略Extreme-Distribution-Swing-Strategy.md
+// content_hash: 40c1b943507a54e5
+// collected: 2026-07-27
+strategy("Chande Minute Swinger", overlay=true)
+
+//Chande
+
+length = input(9, minval=1)
+src = close
+momm = change(src)
+f1(m) => m >= 0.0 ? m : 0.0
+f2(m) => m >= 0.0 ? 0.0 : -m
+m1 = f1(momm)
+m2 = f2(momm)
+sm1 = sum(m1, length)
+sm2 = sum(m2, length)
+percent(nom, div) => 100 * nom / div
+chandeMO = percent(sm1-sm2, sm1+sm2)
+
+//Parameters to change
+
+lengthLookback = 425 //425 golden number
+buyPercentile = 1
+sellPercentile = 99
+linePercentileLow = 2.5
+linePercentileHigh = 97.5
+
+buy = percentile_nearest_rank(chandeMO, lengthLookback, buyPercentile)
+exitBuy= percentile_nearest_rank(chandeMO, lengthLookback, linePercentileHigh)
+sell = percentile_nearest_rank(chandeMO, lengthLookback, sellPercentile)
+exitSell = percentile_nearest_rank(chandeMO, lengthLookback, linePercentileLow)
+
+chandeMA = sma(chandeMO, 9) //sma for potential other strategies implementing cross / trend
+
+//Entry conditions
+
+closeLongCondition = chandeMO > exitBuy ? true : false
+closeShortCondition = chandeMO < exitSell ? true : false
+longCondition = chandeMO < buy
+shortCondition = chandeMO > sell
+
+if (longCondition)
+    strategy.entry("long", strategy.long)
+    
+
+if (shortCondition)
+    strategy.entry("short", strategy.short)
+    
+//Introducing the closes and a stoploss will minimise loss and bring up the sharpe ratio
+//Current settings are enabled for maximum potential but big risk
+    
+//strategy.close("long", when=(closeLongCondition == true))
+//strategy.close("short", when=(closeShortCondition == true))
+```
+
+> Detail
+
+https://www.fmz.com/strategy/431960
+
+> Last Modified
+
+2023-11-13 17:03:08

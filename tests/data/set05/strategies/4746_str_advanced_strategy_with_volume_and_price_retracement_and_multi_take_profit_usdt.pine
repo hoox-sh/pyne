@@ -1,0 +1,82 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于量价回落与多重止盈的先进交易策略Advanced-Strategy-with-Volume-and-Price-Pullback-Multiple-Take-Profit.md
+// content_hash: bfb731b140b0c9a2
+// collected: 2026-07-27
+strategy("Advanced Strategy with Volume and Price Retracement and Multi-Take Profit (USDT)", overlay=true)
+
+// Parametreler
+fastLength = input(12, minval=1, title="Fast Moving Average")
+slowLength = input(26, minval=1, title="Slow Moving Average")
+rsiPeriod = input(14, minval=1, title="RSI Period")
+volLength = input(20, minval=1, title="Volume MA Length")
+volMultiplier = input(2.0, title="Volume Spike Multiplier")
+trailOffset = input(1, title="Trailing Offset (%)")
+usdtPerTrade = input(50000, title="USDT per Trade")
+retraceFactor = input(0.8, title="Retracement Factor for Entry")
+takeProfit1 = input(1, title="Take Profit 1 (%)")
+takeProfit2 = input(2, title="Take Profit 2 (%)")
+takeProfit3 = input(3, title="Take Profit 3 (%)")
+trailForTP = input(true, title="Use Trailing Stop for Take Profits")
+
+// Hesaplamalar
+fastMA = sma(close, fastLength)
+slowMA = sma(close, slowLength)
+rsi = rsi(close, rsiPeriod)
+volMA = sma(volume, volLength)
+volumeSpike = volume > volMA * volMultiplier
+
+// Durum Değişkenleri ve Saklanan Değerler
+var float spikeVolume = na
+var float spikePrice = na
+var int direction = 0
+
+// Alım/Satım Sinyalleri
+longCondition = crossover(fastMA, slowMA) and rsi < 70
+shortCondition = crossunder(fastMA, slowMA) and rsi > 30
+
+// Hacim Spike ve Fiyat Hareketinin Saklanması
+if (longCondition and volumeSpike)
+    spikeVolume := volume
+    spikePrice := close
+    direction := 1
+else if (shortCondition and volumeSpike)
+    spikeVolume := volume
+    spikePrice := close
+    direction := -1
+
+// Retracement Kontrolü ve Giriş Emirleri
+if (direction == 1 and volume < spikeVolume * retraceFactor and close < spikePrice * (1 - trailOffset / 100))
+    strategy.entry("Long", strategy.long, qty=usdtPerTrade / close)
+    spikeVolume := na
+    direction := 0
+else if (direction == -1 and volume < spikeVolume * retraceFactor and close > spikePrice * (1 + trailOffset / 100))
+    strategy.entry("Short", strategy.short, qty=usdtPerTrade / close)
+    spikeVolume := na
+    direction := 0
+
+// Take Profit Emirleri
+if strategy.position_size > 0
+    strategy.exit("TP1", "Long", limit=strategy.position_avg_price * (1 + takeProfit1 / 100), qty_percent=33, trail_offset=trailForTP ? atr(14) / 2 : na)
+    strategy.exit("TP2", "Long", limit=strategy.position_avg_price * (1 + takeProfit2 / 100), qty_percent=33, trail_offset=trailForTP ? atr(14) : na)
+    strategy.exit("TP3", "Long", limit=strategy.position_avg_price * (1 + takeProfit3 / 100), qty_percent=34, trail_offset=trailForTP ? atr(14) * 1.5 : na)
+
+if strategy.position_size < 0
+    strategy.exit("TP1", "Short", limit=strategy.position_avg_price * (1 - takeProfit1 / 100), qty_percent=33, trail_offset=trailForTP ? atr(14) / 2 : na)
+    strategy.exit("TP2", "Short", limit=strategy.position_avg_price * (1 - takeProfit2 / 100), qty_percent=33, trail_offset=trailForTP ? atr(14) : na)
+    strategy.exit("TP3", "Short", limit=strategy.position_avg_price * (1 - takeProfit3 / 100), qty_percent=34, trail_offset=trailForTP ? atr(14) * 1.5 : na)
+
+// Pozisyon çıkışları
+strategy.close("Long", when=shortCondition)
+strategy.close("Short", when=longCondition)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/435131
+
+> Last Modified
+
+2023-12-12 15:39:19

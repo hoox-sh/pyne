@@ -1,0 +1,46 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于双移动平均线交叉的量化交易策略Dual-Moving-Average-Crossover-Quantitative-Trading-Strategy.md
+// content_hash: 00027f97c86c5e26
+// collected: 2026-07-27
+strategy("SMA Crossover Strategy", overlay=true)
+
+// SMA parametrelerini ayarla
+sma_short_length = input.int(15, "Kısa SMA Uzunluğu")
+sma_long_length = input.int(200, "Uzun SMA Uzunluğu")
+
+// Hareketli ortalama hesaplamalarını yap
+sma_short = ta.sma(close, sma_short_length)
+
+// Fiyatın SMA'yı yukarı veya aşağı kestiğini kontrol et
+price_above_sma = close > sma_short
+price_below_sma = close < sma_short
+
+// Alım-Satım noktalarını belirle
+longCondition = (close[1] < sma_short[1] and close > sma_short) and price_above_sma
+shortCondition = (close[1] > sma_short[1] and close < sma_short) and price_below_sma
+
+// Al-Sat stratejisi
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+if (shortCondition)
+    strategy.entry("Short", strategy.short)
+
+// Fiyatın kısa SMA'yı yukarı kesme noktalarını göster
+plotshape(series=longCondition, title="Long", location=location.belowbar, color=color.green, style=shape.triangleup, size=size.small)
+
+// Fiyatın kısa SMA'yı aşağı kesme noktalarını göster
+plotshape(series=shortCondition, title="Short", location=location.abovebar, color=color.red, style=shape.triangledown, size=size.small)
+
+// Hareketli ortalamaları grafiğe çiz
+plot(sma_short, color=color.blue, title="Kısa SMA")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/445464
+
+> Last Modified
+
+2024-03-19 17:16:21

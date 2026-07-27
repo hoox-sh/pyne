@@ -1,0 +1,64 @@
+// set01 corpus entry
+// source_repo: https://github.com/capissimo/Pinescript-Laboratory
+// source_path: Pinescript-Laboratory/scripts/002-JMA-Clone-(v3).pine
+// content_hash: 1239a9b938a1243a
+// collected: 2026-07-27
+// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © capissimo
+
+//@version=5
+indicator('JMA Clone [5] (v.3)', '', true)
+
+// The clone of Jurik Movine average function
+// inspired by LazyBear's solution (https://www.tradingview.com/script/XzcIRUHv-JMA-RSX-Clone-LazyBear/)
+// Added power parameter.
+
+//-- Inputs
+
+Period = input.int   (14, 'Period',           2)
+Pow    = input.int   (2,  'Power Parameter',  1)
+
+//-- Series
+
+var int signal = 0
+
+//-- Methods
+
+method jsmooth(float x, int p, int power=2) =>
+    float tmp0 = 0.0, float tmp1 = 0.0, float tmp2 = 0.0, float tmp3 = 0.0, float tmp4 = 0.0
+    float xna   = nz(x[1], x[2])
+    float beta  = 0.45 * (p - 1) / (0.45 * (p-1) + 2)
+    float alpha = math.pow(beta, power)
+    tmp4 := xna
+	tmp0 := xna
+	tmp2 := xna  
+    tmp0 := (1-alpha) * x + alpha * nz(tmp0[1])
+    tmp1 := (x - tmp0) * (1-beta) + beta * nz(tmp1[1])
+    tmp2 := tmp0 + tmp1
+    tmp3 := (tmp2 - nz(tmp4[1])) * math.pow((1-alpha), 2) + math.pow(alpha, 2) * nz(tmp3[1])
+    tmp4 := nz(tmp4[1]) + tmp3  
+    tmp4
+
+//-- Logic
+
+float x = request.security('', '', close[barstate.isrealtime?1:0])
+float y = x.jsmooth(Period, Pow)
+
+//-- Signals
+bool long  = y > y[1] 
+bool short = y < y[1]  
+bool clear = not(long and short)  
+
+signal := long ? 1 : short ? -1 : nz(signal[1])  
+
+bool changed         = bool(ta.change(signal))   
+bool long_condition  = changed and signal==1
+bool short_condition = changed and signal==-1
+bool clear_condition = changed and signal==0
+
+//-- Visuals
+
+plot(y, '', color.navy, 3)
+plot(y[1], '', color.orange, 3)
+plot(long_condition  ? low :  na, '', color.green, 5, plot.style_circles)
+plot(short_condition ? high : na, '', color.red,   5, plot.style_circles)

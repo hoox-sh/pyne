@@ -1,0 +1,86 @@
+//@version=3
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/神圣十字策略Holy-Grail-Strategy.md
+// content_hash: cc4a065d80365e34
+// collected: 2026-07-27
+strategy("LAT Holy Grail v3", overlay=true)
+
+/////////////TEST TIME ////////////////////////
+testStartYear = input(2018, "Backtest Start Year")
+testStartMonth = input(4, "Backtest Start Month")
+testStartDay = input(15, "Backtest Start Day")
+testPeriodStart = timestamp(testStartYear,testStartMonth,testStartDay,0,0)
+
+testStopYear = input(2018, "Backtest Stop Year")
+testStopMonth = input(5, "Backtest Stop Month")
+testStopDay = input(30, "Backtest Stop Day")
+testPeriodStop = timestamp(testStopYear,testStopMonth,testStopDay,0,0)
+
+// A switch to control background coloring of the test period
+testPeriodBackground = input(title="Color Background?", type=bool, defval=true)
+testPeriodBackgroundColor = testPeriodBackground and (time >= testPeriodStart) and (time <= testPeriodStop) ? #00FF00 : na
+bgcolor(testPeriodBackgroundColor, transp=97)
+
+testPeriod() =>
+    time >= testPeriodStart and time <= testPeriodStop ? true : false
+//////////////////////////////////////////////////////////////////////
+
+myema= ema(close, 20)
+plot(myema, color=green, title="eMA", linewidth=3)
+
+
+
+//longCondition = (crossover(close, myema)) //and adx3 < target
+//if (longCondition)
+    //strategy.entry("My Long Entry Id", strategy.long)
+
+//shortCondition = (crossunder(close, myema)) //and adx3 > target
+//if (shortCondition)
+    //strategy.entry("My Short Entry Id", strategy.short)
+    
+    //////////////////////////////////////////////////////////
+    ///////////////////////////////////////   DMI  ///////////////////////////////////////////////
+len3 = input(14, minval=1, title="DI Length")                           /////////////////////
+lensig3 = input(14, title="ADX Smoothing", minval=1, maxval=50)         ////////////////////
+up3 = change(high)                                                      ///////////////////
+down3 = -change(low)                                                    //////////////////
+plusDM3 = na(up3) ? na : (up3 > down3 and up3 > 0 ? up3 : 0)            /////////////////
+minusDM3 = na(down3) ? na : (down3 > up3 and down3 > 0 ? down3 : 0)     ////////////////
+trur3 = rma(tr, len3)                                                   ///////////////
+plus3 = fixnan(100 * rma(plusDM3, len3) / trur3)                        //////////////
+minus3 = fixnan(100 * rma(minusDM3, len3) / trur3)                      /////////////
+sum3 = plus3 + minus3                                                   ////////////
+adx3 = 100 * rma(abs(plus3 - minus3) / (sum3 == 0 ? 1 : sum3), lensig3) ///////////
+//plot(plus3, color=green, style=circles, linewidth=2, title="+DI")     //////////
+//plot(minus3, color=red, style=circles, linewidth=2, title="-DI")      /////////
+plot(adx3, color=aqua, style=line, linewidth=3, title="ADX")            ////////
+target = input(30, title=" ADX Target Line")                            ///////
+plot(target, color=yellow, title="ADX Target Line")                     //////
+/////////////////////////////////////////////////////////////////////////////////////////////////
+                                                                                        
+plot(hl2)
+
+
+///////////////////////////////////////////////  eMA SIGNAL LINE   ///////////////////////////////////////
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+//////////////////////////////////////// HOLY GRAIL STRATEGY ///////////////////////////////////////////////////////////////////
+
+if (adx3 <= target) and crossover(close, myema)
+    strategy.entry("HolyGrail", strategy.long, comment="Long")
+ 
+if (adx3 >= target) and crossunder(close, myema)
+    strategy.entry("HolyGrail", strategy.short, comment="Short")
+    
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/433936
+
+> Last Modified
+
+2023-12-01 15:27:39

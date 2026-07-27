@@ -1,0 +1,78 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/MACD与Supertrend组合策略-MACD-and-Supertrend-Combination-Strategy.md
+// content_hash: ab51917f9828dcf4
+// collected: 2026-07-27
+strategy(title="MACD + Supertrend Strategy", overlay=true)
+
+// MACD Calculation
+fastLength = 12
+slowLength = 26
+signalSmoothing = 9
+macdSrc = close
+
+// MACD Line
+fastMA = ta.ema(macdSrc, fastLength)
+slowMA = ta.ema(macdSrc, slowLength)
+macdLine = fastMA - slowMA
+
+// MACD Signal Line
+signalMA = ta.ema(macdLine, signalSmoothing)
+
+// MACD Histogram
+histogram = macdLine - signalMA
+
+// Supertrend Calculation
+supertrendATRLength = 10
+supertrendFactor = 3.0
+[supertrend, _] = ta.supertrend(supertrendFactor, supertrendATRLength)
+
+// Entry and Exit Conditions
+longCondition = (macdLine > signalMA) and (supertrend < close)
+shortCondition = (signalMA > macdLine) and (supertrend > close)
+
+// Long Entry
+if longCondition
+    strategy.entry("Long", strategy.long)
+
+// Long Exit (Sell)
+if signalMA > macdLine
+    strategy.close("Long")
+
+// Short Entry
+if shortCondition
+    strategy.entry("Short", strategy.short)
+
+// Short Exit (Cover)
+if macdLine > signalMA
+    strategy.close("Short")
+
+// Close Long Position if short condition is met
+if shortCondition
+    strategy.close("Long")
+
+// Close Short Position if long condition is met
+if longCondition
+    strategy.close("Short")
+
+// Plotting
+plotshape(series=longCondition, title="Long Entry Signal", location=location.belowbar, color=color.green, style=shape.labelup, text="Long")
+plotshape(series=shortCondition, title="Short Entry Signal", location=location.abovebar, color=color.red, style=shape.labeldown, text="Short")
+
+// Alerts
+alertcondition(longCondition, title='Long Entry Signal', message='MACD crossover and Supertrend below close price')
+alertcondition(signalMA > macdLine, title='Long Exit Signal', message='MACD signal line crosses above MACD line')
+
+alertcondition(shortCondition, title='Short Entry Signal', message='MACD crossunder and Supertrend above close price')
+alertcondition(macdLine > signalMA, title='Short Exit Signal', message='MACD line crosses above MACD signal line')
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/453271
+
+> Last Modified
+
+2024-06-03 16:35:15

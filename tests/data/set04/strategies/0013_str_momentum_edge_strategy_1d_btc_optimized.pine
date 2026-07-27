@@ -1,0 +1,68 @@
+//@version=6
+// set04 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动态多指标优化趋势追踪策略-Dynamic-Multi-Indicator-Optimized-Trend-Following-Strategy.md
+// content_hash: 6f64843713412af4
+// collected: 2026-07-27
+strategy("Momentum Edge Strategy - 1D BTC Optimized", overlay=true)
+
+// --- Input Parameters ---
+atrLength     = input.int(14, title="ATR Length")
+atrMultiplier = input.float(1.5, title="ATR Multiplier")
+bbWidthThreshold = input.float(0.02, title="Bollinger Band Width Threshold")
+
+// --- Ichimoku Cloud ---
+conversionLine = (ta.highest(high, 9) + ta.lowest(low, 9)) / 2
+baseLine = (ta.highest(high, 26) + ta.lowest(low, 26)) / 2
+leadingSpanA = (conversionLine + baseLine) / 2
+leadingSpanB = (ta.highest(high, 52) + ta.lowest(low, 52)) / 2
+priceAboveCloud = close > leadingSpanA and close > leadingSpanB
+priceBelowCloud = close < leadingSpanA and close < leadingSpanB
+
+// --- MACD Histogram ---
+[_, _, macdHistogram] = ta.macd(close, 12, 26, 9)
+
+// --- Multi-Timeframe Trend Confirmation ---
+higherTFTrend = request.security(syminfo.tickerid, "W", close > ta.sma(close, 50))
+
+// --- Bollinger Band Width ---
+bbBasis = ta.sma(close, 20)
+bbUpper = bbBasis + 2 * ta.stdev(close, 20)
+bbLower = bbBasis - 2 * ta.stdev(close, 20)
+bbWidth = (bbUpper - bbLower) / bbBasis
+
+// --- ATR-based Stop Loss ---
+atrValue     = ta.atr(atrLength)
+highestHigh = ta.highest(high, atrLength)
+lowestLow = ta.lowest(low, atrLength)
+longStopLoss = bbWidth < bbWidthThreshold ? lowestLow : close - atrValue * atrMultiplier
+shortStopLoss= bbWidth < bbWidthThreshold ? highestHigh : close + atrValue * atrMultiplier
+
+// --- Entry Conditions ---
+longCondition = priceAboveCloud and macdHistogram > -0.05 and higherTFTrend and bbWidth > bbWidthThreshold
+shortCondition = priceBelowCloud and macdHistogram < 0 and not higherTFTrend and bbWidth > bbWidthThreshold
+
+// --- Strategy Execution ---
+if longCondition
+    strategy.entry("Long", strategy.long)
+    strategy.exit("Exit Long", from_entry="Long", stop=longStopLoss)
+
+if shortCondition
+    strategy.entry("Short", strategy.short)
+    strategy.exit("Exit Short", from_entry="Short", stop=shortStopLoss)
+
+// --- Plotting ---
+plot(leadingSpanA, color=color.new(color.green, 80), title="Leading Span A")
+plot(leadingSpanB, color=color.new(color.red, 80), title="Leading Span B")
+plotshape(series=longCondition ? close : na, title="Long Signal", location=location.belowbar, color=color.green)
+plotshape(series=shortCondition ? close : na, title="Short Signal", location=location.abovebar, color=color.red)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/483044
+
+> Last Modified
+
+2025-02-21 10:46:28

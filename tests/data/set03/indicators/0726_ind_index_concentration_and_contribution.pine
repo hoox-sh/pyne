@@ -1,0 +1,435 @@
+// set03 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/projects/index-concentration.pine
+// content_hash: b3f83d51cb17d79c
+// collected: 2026-07-27
+// built with PineScript Agents by TradersPost
+//@version=6
+
+// ============================================================================
+// INDEX CONCENTRATION & CONTRIBUTION
+// ----------------------------------------------------------------------------
+// Decomposes a major index's session move into its top-N member contributions
+// so you can tell whether the move is broad-based or driven by 1-2 mega-caps.
+//
+// Supported indices: NDX (Nasdaq-100), SPX (S&P 500), DJIA (Dow 30, price-
+// weighted), RUT (Russell 2000 - illustrative top names only; coverage is low).
+//
+// IMPORTANT: index weights are HARD-CODED below and are approximations as of
+// the date stamp. Refresh them quarterly (or whenever index reconstitutions
+// happen). Pine Script has no API for live index weights.
+//
+// Weight tables as of: 2026-04 (verify before publishing).
+// ============================================================================
+
+indicator("Index Concentration & Contribution", "Concentration", overlay=true)
+
+// ============================================================================
+// INPUTS
+// ============================================================================
+
+idxChoice = input.string("NDX", "Index",
+     options=["NDX", "SPX", "DJIA", "RUT"],
+     tooltip="Which index to decompose. NDX = Nasdaq-100 (NQ futures). SPX = S&P 500 (ES). DJIA = Dow 30 (YM, price-weighted). RUT = Russell 2000 (RTY) — note: top-25 only covers ~6% of RUT, so the regime label is suppressed for RUT.",
+     group="Index")
+
+nTrack = input.int(15, "Tracked Members",
+     minval=5, maxval=25,
+     tooltip="How many top members to display. 15 covers ~65% of NDX weight, ~35% of SPX, ~75% of DJIA, ~6% of RUT. Larger N = more breadth signal but more table clutter.",
+     group="Index")
+
+windowMode = input.string("Day", "Move Window",
+     options=["Day", "Session", "N days"],
+     tooltip="Reference point for each member's % change. 'Day' (default) = vs. previous daily close — matches the % change shown on TradingView watchlists/charts. 'Session' = vs. today's regular-hours open (intraday move only). 'N days' = vs. close N trading days ago (rolling lookback).",
+     group="Window")
+
+nDays = input.int(20, "N (lookback days)",
+     minval=2, maxval=200,
+     tooltip="Only used when Move Window = 'N days'. Number of trading days to look back.",
+     group="Window")
+
+showTable = input.bool(true, "Show Table", group="Display")
+tablePosition = input.string("Top Right", "Table Position",
+     options=["Top Left", "Top Right", "Middle Right", "Bottom Left", "Bottom Right"],
+     group="Display")
+textSize = input.string("Small", "Text Size",
+     options=["Tiny", "Small", "Normal", "Large"],
+     group="Display")
+showRegime = input.bool(true, "Show Regime Label", group="Display")
+showCoverage = input.bool(true, "Show Coverage Warning", group="Display")
+colorByDir = input.bool(true, "Color Cells By Direction",
+     tooltip="Tint contribution cells green (positive) / red (negative) with intensity proportional to magnitude.",
+     group="Display")
+
+broadBreadth = input.float(65.0, "BROAD: Min breadth %",
+     minval=50, maxval=90,
+     tooltip="Min % of tracked members moving in the index's direction for a BROAD label.",
+     group="Regime Thresholds")
+broadTop3 = input.float(50.0, "BROAD: Max top-3 share %",
+     minval=20, maxval=80,
+     tooltip="Top 3 contributors must account for less than this % of |move| for a BROAD label.",
+     group="Regime Thresholds")
+narrowTop1 = input.float(40.0, "NARROW: Min top-1 share %",
+     minval=20, maxval=80,
+     tooltip="Top single contributor accounts for at least this % of |move| → NARROW.",
+     group="Regime Thresholds")
+narrowBreadth = input.float(40.0, "NARROW: Max breadth %",
+     minval=10, maxval=60,
+     tooltip="OR fewer than this % of members moving in the index's direction → NARROW.",
+     group="Regime Thresholds")
+
+// ============================================================================
+// WEIGHT TABLES (approximate — refresh quarterly)
+// ============================================================================
+// Each table has exactly 25 entries. Weights are % of index value.
+
+// --- NDX (Nasdaq-100, modified market-cap weighted) ---
+ndxT = array.from("NASDAQ:NVDA","NASDAQ:AAPL","NASDAQ:MSFT","NASDAQ:AMZN","NASDAQ:AVGO",
+                  "NASDAQ:META","NASDAQ:GOOGL","NASDAQ:GOOG","NASDAQ:TSLA","NASDAQ:COST",
+                  "NASDAQ:NFLX","NASDAQ:TMUS","NASDAQ:ADBE","NASDAQ:PEP","NASDAQ:AMD",
+                  "NASDAQ:LIN","NASDAQ:CSCO","NASDAQ:INTU","NASDAQ:ISRG","NASDAQ:QCOM",
+                  "NASDAQ:TXN","NASDAQ:BKNG","NASDAQ:AMAT","NASDAQ:AMGN","NASDAQ:SBUX")
+ndxW = array.from(9.0, 8.5, 7.5, 5.5, 5.0,
+                  4.5, 3.5, 3.5, 3.0, 2.5,
+                  2.0, 2.0, 1.6, 1.5, 1.5,
+                  1.3, 1.3, 1.2, 1.2, 1.2,
+                  1.1, 1.0, 1.0, 1.0, 0.9)
+
+// --- SPX (S&P 500, float-cap weighted) ---
+spxT = array.from("NASDAQ:AAPL","NASDAQ:MSFT","NASDAQ:NVDA","NASDAQ:AMZN","NASDAQ:META",
+                  "NASDAQ:GOOGL","NASDAQ:GOOG","NASDAQ:TSLA","NYSE:BRK.B","NASDAQ:AVGO",
+                  "NYSE:JPM","NYSE:LLY","NYSE:V","NYSE:UNH","NYSE:XOM",
+                  "NYSE:MA","NYSE:JNJ","NYSE:PG","NYSE:HD","NASDAQ:COST",
+                  "NYSE:ABBV","NASDAQ:NFLX","NYSE:BAC","NYSE:CVX","NYSE:KO")
+spxW = array.from(7.0, 6.5, 6.5, 3.5, 2.5,
+                  2.0, 1.7, 1.5, 1.5, 1.4,
+                  1.3, 1.2, 1.0, 1.0, 1.0,
+                  0.9, 0.8, 0.8, 0.8, 0.7,
+                  0.7, 0.7, 0.7, 0.6, 0.6)
+
+// --- DJIA (Dow 30, price-weighted) ---
+// Weight ≈ (stock_price / divisor) / index_value × 100. Approx for late-2025
+// price levels with DJI ~44000 and divisor ~0.152.
+djiT = array.from("NYSE:UNH","NYSE:GS","NASDAQ:MSFT","NYSE:HD","NYSE:CAT",
+                  "NYSE:CRM","NASDAQ:AMGN","NYSE:V","NYSE:MCD","NYSE:AXP",
+                  "NYSE:TRV","NYSE:HON","NYSE:JPM","NASDAQ:AAPL","NYSE:IBM",
+                  "NASDAQ:AMZN","NYSE:BA","NYSE:PG","NYSE:JNJ","NYSE:CVX",
+                  "NYSE:DIS","NYSE:MMM","NYSE:MRK","NYSE:NKE","NYSE:WMT")
+djiW = array.from(8.5, 8.0, 6.0, 5.5, 5.3,
+                  4.6, 4.4, 4.3, 4.1, 3.9,
+                  3.6, 2.9, 3.3, 3.2, 3.0,
+                  3.0, 2.9, 2.4, 2.2, 2.2,
+                  1.5, 1.9, 1.5, 1.1, 1.1)
+
+// --- RUT (Russell 2000) — top-25 covers ~6% of index, regime label suppressed ---
+rutT = array.from("NASDAQ:SMCI","NASDAQ:MSTR","NYSE:CVNA","NASDAQ:RKLB","NASDAQ:FTAI",
+                  "NASDAQ:APP","NASDAQ:ENSG","NASDAQ:ANF","NASDAQ:CORT","NASDAQ:HRMY",
+                  "NASDAQ:WIRE","NYSE:ELF","NYSE:KGC","NASDAQ:MARA","NYSE:BFH",
+                  "NASDAQ:WULF","NYSE:UEC","NASDAQ:WTS","NYSE:SFM","NASDAQ:CVLT",
+                  "NASDAQ:TGTX","NYSE:TPH","NASDAQ:BPOP","NYSE:CHRD","NYSE:PR")
+rutW = array.from(0.5, 0.4, 0.4, 0.4, 0.4,
+                  0.3, 0.3, 0.3, 0.3, 0.3,
+                  0.3, 0.3, 0.3, 0.3, 0.3,
+                  0.3, 0.3, 0.2, 0.2, 0.2,
+                  0.2, 0.2, 0.2, 0.2, 0.2)
+
+tickers = idxChoice == "NDX"  ? ndxT : idxChoice == "SPX" ? spxT : idxChoice == "DJIA" ? djiT : rutT
+weights = idxChoice == "NDX"  ? ndxW : idxChoice == "SPX" ? spxW : idxChoice == "DJIA" ? djiW : rutW
+idxSym  = idxChoice == "NDX"  ? "NASDAQ:NDX" : idxChoice == "SPX" ? "SP:SPX" : idxChoice == "DJIA" ? "DJ:DJI" : "TVC:RUT"
+
+// ============================================================================
+// SECURITY FETCHES
+// ============================================================================
+// Each call requests DAILY-timeframe data for the symbol with lookahead_on so
+// we get today's still-forming daily bar (close = current price, open = today's
+// daily session open) plus close[1] = previous daily close. lookahead_on is
+// safe here because we only render on barstate.islast — historical bars
+// don't display anything.
+//
+// Tuple: [todayClose, prevDailyClose, todayDailyOpen, lookbackClose]
+// 25 unrolled member calls + 1 index call = 26 calls (Pine cap is 40).
+
+[idxC, idxPrevC, idxO, idxL] = request.security(idxSym, "D",
+     [close, close[1], open, close[nDays]],
+     lookahead=barmerge.lookahead_on)
+
+[c00, p00, o00, l00] = request.security(array.get(tickers,  0), "D", [close, close[1], open, close[nDays]], lookahead=barmerge.lookahead_on)
+[c01, p01, o01, l01] = request.security(array.get(tickers,  1), "D", [close, close[1], open, close[nDays]], lookahead=barmerge.lookahead_on)
+[c02, p02, o02, l02] = request.security(array.get(tickers,  2), "D", [close, close[1], open, close[nDays]], lookahead=barmerge.lookahead_on)
+[c03, p03, o03, l03] = request.security(array.get(tickers,  3), "D", [close, close[1], open, close[nDays]], lookahead=barmerge.lookahead_on)
+[c04, p04, o04, l04] = request.security(array.get(tickers,  4), "D", [close, close[1], open, close[nDays]], lookahead=barmerge.lookahead_on)
+[c05, p05, o05, l05] = request.security(array.get(tickers,  5), "D", [close, close[1], open, close[nDays]], lookahead=barmerge.lookahead_on)
+[c06, p06, o06, l06] = request.security(array.get(tickers,  6), "D", [close, close[1], open, close[nDays]], lookahead=barmerge.lookahead_on)
+[c07, p07, o07, l07] = request.security(array.get(tickers,  7), "D", [close, close[1], open, close[nDays]], lookahead=barmerge.lookahead_on)
+[c08, p08, o08, l08] = request.security(array.get(tickers,  8), "D", [close, close[1], open, close[nDays]], lookahead=barmerge.lookahead_on)
+[c09, p09, o09, l09] = request.security(array.get(tickers,  9), "D", [close, close[1], open, close[nDays]], lookahead=barmerge.lookahead_on)
+[c10, p10, o10, l10] = request.security(array.get(tickers, 10), "D", [close, close[1], open, close[nDays]], lookahead=barmerge.lookahead_on)
+[c11, p11, o11, l11] = request.security(array.get(tickers, 11), "D", [close, close[1], open, close[nDays]], lookahead=barmerge.lookahead_on)
+[c12, p12, o12, l12] = request.security(array.get(tickers, 12), "D", [close, close[1], open, close[nDays]], lookahead=barmerge.lookahead_on)
+[c13, p13, o13, l13] = request.security(array.get(tickers, 13), "D", [close, close[1], open, close[nDays]], lookahead=barmerge.lookahead_on)
+[c14, p14, o14, l14] = request.security(array.get(tickers, 14), "D", [close, close[1], open, close[nDays]], lookahead=barmerge.lookahead_on)
+[c15, p15, o15, l15] = request.security(array.get(tickers, 15), "D", [close, close[1], open, close[nDays]], lookahead=barmerge.lookahead_on)
+[c16, p16, o16, l16] = request.security(array.get(tickers, 16), "D", [close, close[1], open, close[nDays]], lookahead=barmerge.lookahead_on)
+[c17, p17, o17, l17] = request.security(array.get(tickers, 17), "D", [close, close[1], open, close[nDays]], lookahead=barmerge.lookahead_on)
+[c18, p18, o18, l18] = request.security(array.get(tickers, 18), "D", [close, close[1], open, close[nDays]], lookahead=barmerge.lookahead_on)
+[c19, p19, o19, l19] = request.security(array.get(tickers, 19), "D", [close, close[1], open, close[nDays]], lookahead=barmerge.lookahead_on)
+[c20, p20, o20, l20] = request.security(array.get(tickers, 20), "D", [close, close[1], open, close[nDays]], lookahead=barmerge.lookahead_on)
+[c21, p21, o21, l21] = request.security(array.get(tickers, 21), "D", [close, close[1], open, close[nDays]], lookahead=barmerge.lookahead_on)
+[c22, p22, o22, l22] = request.security(array.get(tickers, 22), "D", [close, close[1], open, close[nDays]], lookahead=barmerge.lookahead_on)
+[c23, p23, o23, l23] = request.security(array.get(tickers, 23), "D", [close, close[1], open, close[nDays]], lookahead=barmerge.lookahead_on)
+[c24, p24, o24, l24] = request.security(array.get(tickers, 24), "D", [close, close[1], open, close[nDays]], lookahead=barmerge.lookahead_on)
+
+closesArr  = array.from(c00,c01,c02,c03,c04,c05,c06,c07,c08,c09,c10,c11,c12,c13,c14,c15,c16,c17,c18,c19,c20,c21,c22,c23,c24)
+prevCsArr  = array.from(p00,p01,p02,p03,p04,p05,p06,p07,p08,p09,p10,p11,p12,p13,p14,p15,p16,p17,p18,p19,p20,p21,p22,p23,p24)
+opensArr   = array.from(o00,o01,o02,o03,o04,o05,o06,o07,o08,o09,o10,o11,o12,o13,o14,o15,o16,o17,o18,o19,o20,o21,o22,o23,o24)
+lbsArr     = array.from(l00,l01,l02,l03,l04,l05,l06,l07,l08,l09,l10,l11,l12,l13,l14,l15,l16,l17,l18,l19,l20,l21,l22,l23,l24)
+
+// ============================================================================
+// WINDOW SELECTION & PCT-CHANGE COMPUTATION
+// ============================================================================
+
+pctChange(curr, ref) =>
+    na(curr) or na(ref) or ref == 0 ? 0.0 : (curr - ref) / ref * 100.0
+
+idxRef = windowMode == "Day" ? idxPrevC : windowMode == "Session" ? idxO : idxL
+idxPct = pctChange(idxC, idxRef)
+
+pcts = array.new<float>()
+bps  = array.new<float>()
+refs = array.new<float>()  // store the actual reference price used per member (for tooltips)
+nMembers = array.size(tickers)
+for i = 0 to nMembers - 1
+    if i < nTrack
+        c = array.get(closesArr, i)
+        ref = windowMode == "Day"     ? array.get(prevCsArr, i) :
+             windowMode == "Session" ? array.get(opensArr, i)  : array.get(lbsArr, i)
+        pct = pctChange(c, ref)
+        array.push(pcts, pct)
+        array.push(refs, ref)
+        array.push(bps, pct * array.get(weights, i))
+
+// ============================================================================
+// SUMMARY STATS
+// ============================================================================
+
+absBps = array.new<float>()
+totalAbsBps = 0.0
+sumBps = 0.0
+coverage = 0.0
+sameDir = 0
+n = array.size(bps)
+for i = 0 to n - 1
+    b = array.get(bps, i)
+    array.push(absBps, math.abs(b))
+    totalAbsBps += math.abs(b)
+    sumBps += b
+    coverage += array.get(weights, i)
+    p = array.get(pcts, i)
+    if (idxPct > 0 and p > 0) or (idxPct < 0 and p < 0)
+        sameDir += 1
+
+breadthPct = n > 0 ? sameDir / n * 100.0 : 0.0
+
+// Sort indices by |bps| desc to identify top contributors
+sortedIdx = array.sort_indices(absBps, order.descending)
+
+top1Share = 0.0
+top3Share = 0.0
+if totalAbsBps > 0
+    top1Share := array.get(absBps, array.get(sortedIdx, 0)) / totalAbsBps * 100.0
+    sumTop3 = 0.0
+    top3End = math.min(2, n - 1)
+    for k = 0 to top3End
+        sumTop3 += array.get(absBps, array.get(sortedIdx, k))
+    top3Share := sumTop3 / totalAbsBps * 100.0
+
+// Regime label
+lowCoverage = coverage < 25.0
+regime = lowCoverage ? "LOW COVERAGE" :
+     (top1Share >= narrowTop1 or breadthPct <= narrowBreadth) ? "NARROW" :
+     (breadthPct >= broadBreadth and top3Share <= broadTop3) ? "BROAD" : "MIXED"
+
+regimeColor = regime == "BROAD" ? color.new(color.green, 20) :
+     regime == "NARROW" ? color.new(color.red, 20) :
+     regime == "LOW COVERAGE" ? color.new(color.gray, 30) :
+     color.new(color.orange, 30)
+
+// ============================================================================
+// TABLE RENDER
+// ============================================================================
+
+tablePos = tablePosition == "Top Left" ? position.top_left :
+     tablePosition == "Top Right" ? position.top_right :
+     tablePosition == "Middle Right" ? position.middle_right :
+     tablePosition == "Bottom Left" ? position.bottom_left : position.bottom_right
+
+txtSize = textSize == "Tiny" ? size.tiny :
+     textSize == "Small" ? size.small :
+     textSize == "Normal" ? size.normal : size.large
+
+bgHeader = color.new(color.gray, 20)
+bgSubHeader = color.new(color.gray, 50)
+bgRow = color.new(color.black, 70)
+
+// Cell tint by direction & magnitude (cap at ~30 bps for color saturation)
+tintCell(b) =>
+    if not colorByDir or b == 0
+        bgRow
+    else
+        intensity = math.min(math.abs(b) / 30.0, 1.0)
+        transparency = int(90 - intensity * 60)
+        b > 0 ? color.new(color.green, transparency) : color.new(color.red, transparency)
+
+f2(x) => str.tostring(x, "#.##")
+fSign(x) => (x >= 0 ? "+" : "") + str.tostring(x, "#.##")
+
+// Left-pad a string with spaces so all values in the same column have equal
+// length. Combined with right-aligned cells, this keeps column widths stable
+// regardless of how each value's magnitude grows or shrinks.
+padR(s, n) =>
+    out = s
+    pad = n - str.length(s)
+    if pad > 0
+        for i = 1 to pad
+            out := " " + out
+    out
+
+// Width-stable formatters. Widths chosen for typical equity-stock magnitudes:
+//   wt: up to 99.9% (3.2 → 5 chars max)
+//   pct/bps: up to ±999.99 (-/+ + 3 digits + . + 2 = 7 chars max)
+//   pctPct: same as pct + "%" suffix → 8 chars
+//   share:  up to 100.00% → 7 chars
+padWt(x)     => padR(str.tostring(x, "#.0"), 5)              // " 9.0", "10.5"
+padPct(x)    => padR(fSign(x), 7)                            // " +1.32", "+11.22", " -23.44"
+padPctPct(x) => padR(fSign(x) + "%", 8)                      // " +0.42%"
+padShare(x)  => padR(str.tostring(x, "#.00") + "%", 7)       // "30.35%", " 8.36%"
+
+// Table is sized to exactly fit nTrack rows + 3 header rows (stats labels,
+// stats values, column headers). Regime is rendered into the top-left index
+// cell rather than its own row.
+var table t = table.new(tablePos, 6, nTrack + 3,
+     border_width=1, border_color=color.new(color.gray, 60))
+
+// Human-readable label for the active reference window
+windowLabel = windowMode == "Day"     ? "vs. previous daily close" :
+     windowMode == "Session" ? "vs. today's regular-session open" :
+     "vs. close " + str.tostring(nDays) + " trading days ago"
+
+if showTable and barstate.islast
+    // Tooltip body for the index/regime cell — explains regime + thresholds
+    regimeTooltip = "REGIME: " + regime + ".\n\n" +
+         "BROAD requires breadth ≥ " + f2(broadBreadth) + "% AND top-3 share < " + f2(broadTop3) + "%.\n" +
+         "NARROW triggers when top-1 share ≥ " + f2(narrowTop1) + "% OR breadth ≤ " + f2(narrowBreadth) + "%.\n" +
+         "LOW COVERAGE overrides when COVER < 25%.\n" +
+         "Otherwise: MIXED."
+
+    // Row 0 — index+regime, then stat headers (with explanatory tooltips)
+    indexCellText = showRegime ? idxChoice + " · " + regime : idxChoice
+    indexCellBg   = showRegime ? regimeColor : bgHeader
+    table.cell(t, 0, 0, indexCellText, text_color=color.white, bgcolor=indexCellBg,
+         text_size=txtSize, text_halign=text.align_center,
+         tooltip=showRegime ? regimeTooltip : "Index being decomposed. Member weights are hard-coded approximations — refresh quarterly.")
+    table.cell(t, 1, 0, "MOVE", text_color=color.white, bgcolor=bgHeader,
+         text_size=txtSize, text_halign=text.align_center,
+         tooltip="Index % change in the selected window. Currently: " + windowLabel + ". Change via the 'Move Window' input.")
+    table.cell(t, 2, 0, "COVER", text_color=color.white, bgcolor=bgHeader,
+         text_size=txtSize, text_halign=text.align_center,
+         tooltip="Sum of tracked members' weights as % of total index weight. The remaining (100% − COVER) is untracked. Below 25% triggers a LOW COVERAGE warning.")
+    table.cell(t, 3, 0, "TOP-1", text_color=color.white, bgcolor=bgHeader,
+         text_size=txtSize, text_halign=text.align_center,
+         tooltip="Single largest contributor's share of |total movement|. >40% triggers NARROW/IDIOSYNCRATIC regime.")
+    table.cell(t, 4, 0, "TOP-3", text_color=color.white, bgcolor=bgHeader,
+         text_size=txtSize, text_halign=text.align_center,
+         tooltip="Top three contributors' combined share of |total movement|. <50% (combined with high breadth) triggers BROAD regime.")
+    table.cell(t, 5, 0, "BREADTH", text_color=color.white, bgcolor=bgHeader,
+         text_size=txtSize, text_halign=text.align_center,
+         tooltip="% of tracked members moving in the index's direction. <40% triggers NARROW regime.")
+
+    // Row 1 — stat values (numbers padded to fixed widths; right-aligned)
+    table.cell(t, 0, 1, windowMode, text_color=color.white, bgcolor=bgSubHeader,
+         text_size=txtSize, text_halign=text.align_center,
+         tooltip="Active reference window: " + windowLabel + ".")
+    table.cell(t, 1, 1, padPctPct(idxPct),
+         text_color=idxPct >= 0 ? color.lime : color.red,
+         bgcolor=bgSubHeader, text_size=txtSize, text_halign=text.align_right,
+         tooltip=idxChoice + " current: " + str.tostring(idxC, "#.##") + "  |  reference: " + str.tostring(idxRef, "#.##") + "  |  Δ = " + fSign(idxPct) + "% (" + windowLabel + ")")
+    table.cell(t, 2, 1, padShare(coverage),
+         text_color=showCoverage and coverage < 25 ? color.orange : color.white,
+         bgcolor=bgSubHeader, text_size=txtSize, text_halign=text.align_right,
+         tooltip="Tracking " + str.tostring(nTrack) + " of " + idxChoice + "'s top members, summing to " + f2(coverage) + "% of index weight. Untracked tail = " + f2(100.0 - coverage) + "%.")
+    table.cell(t, 3, 1, padShare(top1Share),
+         text_color=color.white, bgcolor=bgSubHeader,
+         text_size=txtSize, text_halign=text.align_right,
+         tooltip="Top contributor accounts for " + f2(top1Share) + "% of total |movement|.")
+    table.cell(t, 4, 1, padShare(top3Share),
+         text_color=color.white, bgcolor=bgSubHeader,
+         text_size=txtSize, text_halign=text.align_right,
+         tooltip="Top 3 contributors account for " + f2(top3Share) + "% of total |movement|.")
+    table.cell(t, 5, 1, padShare(breadthPct),
+         text_color=color.white, bgcolor=bgSubHeader,
+         text_size=txtSize, text_halign=text.align_right,
+         tooltip=str.tostring(sameDir) + " of " + str.tostring(n) + " tracked members are moving in " + idxChoice + "'s direction (" + (idxPct >= 0 ? "up" : "down") + ").")
+
+    // Row 2 — column headers
+    table.cell(t, 0, 2, "#", text_color=color.white, bgcolor=bgHeader,
+         text_size=txtSize, text_halign=text.align_center,
+         tooltip="Rank within tracked members, sorted by absolute bps contribution.")
+    table.cell(t, 1, 2, "Ticker", text_color=color.white, bgcolor=bgHeader,
+         text_size=txtSize, text_halign=text.align_left,
+         tooltip="Member symbol (exchange prefix stripped for display).")
+    table.cell(t, 2, 2, "Wt%", text_color=color.white, bgcolor=bgHeader,
+         text_size=txtSize, text_halign=text.align_right,
+         tooltip="Member's weight in " + idxChoice + " as % of index value (hard-coded — refresh quarterly).")
+    table.cell(t, 3, 2, "Δ%", text_color=color.white, bgcolor=bgHeader,
+         text_size=txtSize, text_halign=text.align_right,
+         tooltip="Member's % change " + windowLabel + ".")
+    table.cell(t, 4, 2, "bps", text_color=color.white, bgcolor=bgHeader,
+         text_size=txtSize, text_halign=text.align_right,
+         tooltip="Contribution to " + idxChoice + " % move = Wt% × Δ%. Sum of bps ≈ MOVE × (COVER/100).")
+    table.cell(t, 5, 2, "Share", text_color=color.white, bgcolor=bgHeader,
+         text_size=txtSize, text_halign=text.align_right,
+         tooltip="This member's |bps| as % of total |bps| across all tracked members.")
+
+    // Rows 3+ — member data sorted by |bps| desc.
+    nSorted = array.size(sortedIdx)
+    rowsToFill = math.min(nSorted, nTrack)
+    for k = 0 to rowsToFill - 1
+        rowIdx = k + 3
+        srcIdx = array.get(sortedIdx, k)
+        ticker = array.get(tickers, srcIdx)
+        wt = array.get(weights, srcIdx)
+        pct = array.get(pcts, srcIdx)
+        b = array.get(bps, srcIdx)
+        cPx = array.get(closesArr, srcIdx)
+        rPx = array.get(refs, srcIdx)
+        share = totalAbsBps > 0 ? math.abs(b) / totalAbsBps * 100.0 : 0.0
+        cellTint = tintCell(b)
+        colonPos = str.pos(ticker, ":")
+        displayTicker = na(colonPos) ? ticker : str.substring(ticker, colonPos + 1)
+
+        // Per-row tooltip: full breakdown of this member's contribution
+        rowTip = displayTicker + "  (" + ticker + ")\n" +
+             "Weight in " + idxChoice + ":  " + f2(wt) + "%\n" +
+             "Price:  " + str.tostring(rPx, "#.##") + " → " + str.tostring(cPx, "#.##") + "\n" +
+             "Δ:  " + fSign(pct) + "% (" + windowLabel + ")\n" +
+             "Contribution:  " + fSign(b) + "% to " + idxChoice + "  ( = " + f2(wt) + "% × " + fSign(pct) + "% )\n" +
+             "Share of |total move|:  " + f2(share) + "%"
+
+        table.cell(t, 0, rowIdx, padR(str.tostring(k + 1), 2),
+             text_color=color.white, bgcolor=bgRow,
+             text_size=txtSize, text_halign=text.align_right, tooltip=rowTip)
+        table.cell(t, 1, rowIdx, displayTicker,
+             text_color=color.white, bgcolor=bgRow,
+             text_size=txtSize, text_halign=text.align_left, tooltip=rowTip)
+        table.cell(t, 2, rowIdx, padWt(wt),
+             text_color=color.white, bgcolor=bgRow,
+             text_size=txtSize, text_halign=text.align_right, tooltip=rowTip)
+        table.cell(t, 3, rowIdx, padPct(pct),
+             text_color=pct >= 0 ? color.lime : color.red, bgcolor=bgRow,
+             text_size=txtSize, text_halign=text.align_right, tooltip=rowTip)
+        table.cell(t, 4, rowIdx, padPct(b),
+             text_color=color.white, bgcolor=cellTint,
+             text_size=txtSize, text_halign=text.align_right, tooltip=rowTip)
+        table.cell(t, 5, rowIdx, padShare(share),
+             text_color=color.white, bgcolor=cellTint,
+             text_size=txtSize, text_halign=text.align_right, tooltip=rowTip)

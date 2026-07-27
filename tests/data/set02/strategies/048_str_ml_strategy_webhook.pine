@@ -1,0 +1,41 @@
+//@version=6
+// set02 corpus entry
+// source_repo: tradingview-ml-signals
+// source_path: tradingview-ml-signals/Webhook_Strategy.pine
+// content_hash: 7cb69666c563bdf2
+// collected: 2026-07-27
+strategy("ML Strategy Webhook", overlay=true)
+
+// Простая стратегия для отправки данных на ML сервер через webhook
+// Настройте Alerts в TradingView с webhook URL вашего сервера
+
+// ─── Параметры ──────────────────────────────────────────────
+fastLength = input.int(12, "Fast EMA")
+slowLength = input.int(26, "Slow EMA")
+
+// ─── Расчет ─────────────────────────────────────────────────
+fastEMA = ta.ema(close, fastLength)
+slowEMA = ta.ema(close, slowLength)
+
+plot(fastEMA, color=color.orange)
+plot(slowEMA, color=color.blue)
+
+// ─── Сигналы ────────────────────────────────────────────────
+buySignal = ta.crossover(fastEMA, slowEMA)
+sellSignal = ta.crossunder(fastEMA, slowEMA)
+
+// ─── Strategy Entries ──────────────────────────────────────
+if buySignal
+    strategy.entry("Long", strategy.long)
+
+if sellSignal
+    strategy.close("Long")
+    strategy.entry("Short", strategy.short)
+
+// ─── Alert Message для Webhook ──────────────────────────────
+// Настройте Alert с webhook URL: http://your-server:8000/webhook/alert
+// Message format:
+alert_msg = '{"ticker":"' + syminfo.ticker + '","exchange":"' + syminfo.exchange + '","price":' + str.tostring(close) + ',"time":' + str.tostring(time) + ',"action":"' + (buySignal ? "BUY" : sellSignal ? "SELL" : "HOLD") + '","volume":' + str.tostring(volume) + '}'
+
+alertcondition(buySignal, title="Webhook Buy", message=alert_msg)
+alertcondition(sellSignal, title="Webhook Sell", message=alert_msg)

@@ -1,0 +1,60 @@
+//@version=6
+// set04 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于内部强度指标的高位做空均值回归策略-High-Position-Internal-Bar-Strength-Based-Mean-Reversion-Short-Strategy.md
+// content_hash: d242510ac83f6618
+// collected: 2026-07-27
+strategy('[SHORT ONLY] Internal Bar Strength (IBS) Mean Reversion Strategy', overlay = false, default_qty_value = 100, default_qty_type = strategy.percent_of_equity, margin_long = 5, margin_short = 5, process_orders_on_close = true, precision = 4)
+
+//#region INPUTS SECTION
+// ============================================
+
+
+//#region IBS Thresholds
+upperThresholdInput = input.float(defval = 0.9, title = 'Upper Threshold', step = 0.1, maxval=1, group = 'IBS Settings')
+lowerThresholdInput = input.float(defval = 0.3, title = 'Lower Threshold', step = 0.1, minval=0, group = 'IBS Settings')
+//#endregion
+//#endregion
+
+//#region IBS CALCULATION
+// ============================================
+// IBS Value Calculation
+// ============================================
+internalBarStrength  = (close - low) / (high - low)
+//#endregion
+
+//#region TRADING CONDITIONS
+// ============================================
+// Entry/Exit Logic
+// ============================================
+shortCondition = internalBarStrength  >= upperThresholdInput and close>high[1] 
+exitCondition = internalBarStrength  <= lowerThresholdInput
+//#endregion
+
+//#region STRATEGY EXECUTION
+// ============================================
+// Order Management
+// ============================================
+if shortCondition
+    strategy.entry('short', strategy.short)
+if exitCondition
+    strategy.close_all()
+//#endregion
+
+//#region PLOTTING
+// ============================================
+// Visual Components
+// ============================================
+plot(internalBarStrength, color = color.white, title = "IBS Value")
+plot(upperThresholdInput, color = color.yellow, title = "Upper Threshold")
+plot(lowerThresholdInput, color = color.yellow, title = "Lower Threshold")
+//#endregion
+```
+
+> Detail
+
+https://www.fmz.com/strategy/482784
+
+> Last Modified
+
+2025-02-20 15:00:16

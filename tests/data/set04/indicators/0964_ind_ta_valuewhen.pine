@@ -1,0 +1,11 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block285
+// content_hash: 141f97847a276f98
+// collected: 2026-07-27
+indicator("ta.valuewhen")
+slow = ta.sma(close, 7)
+fast = ta.sma(close, 14)
+// Get value of `close` on second most recent cross
+plot(ta.valuewhen(ta.cross(slow, fast), close, 1))

@@ -1,0 +1,67 @@
+//@version=2
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动量均线交叉和MACD过滤的海肯阿什蜡烛策略Momentum-Crossover-Moving-Average-and-MACD-Filter-Heikin-Ashi-Candlestick-Strategy.md
+// content_hash: 4da2cf8402cabea4
+// collected: 2026-07-27
+//Heikin Ashi Strategy  V1 by nachobuey
+
+strategy("Heikin Ashi Strategy  V2",shorttitle="HAS V2",overlay=true)
+res = input(title="Heikin Ashi Candle Time Frame",  defval="15")
+hshift = input(0,title="Heikin Ashi Candle Time Frame Shift")
+//res1 = input(title="Heikin Ashi EMA Time Frame", type=resolution, defval="180")
+res1   = input(title="Time frame (Minutes. Not lower than chart)",defval="300")
+mhshift = input(0,title="Heikin Ashi EMA Time Frame Shift")
+fama = input(16,"Heikin Ashi EMA Period")
+test = input(0,"Heikin Ashi EMA Shift")
+sloma = input(21,"Slow EMA Period")
+slomas = input(0,"Slow EMA Shift")
+macdf = input(false,title="With MACD filter")
+res2 = input(title="MACD Time Frame",  defval="60")
+macds = input(1,title="MACD Shift")
+
+
+
+
+//Heikin Ashi Open/Close Price
+ha_t = heikinashi(syminfo.tickerid)
+ha_open = request.security(ha_t, res, open[hshift])
+ha_close = request.security(ha_t, res, close[hshift])
+mha_close = request.security(ha_t, res1, close[mhshift])
+
+//macd
+[macdLine, signalLine, histLine] = macd(close, 12, 26, 9)
+macdl = request.security(ha_t,res2,macdLine[macds])
+macdsl= request.security(ha_t,res2,signalLine[macds])
+
+//Moving Average
+fma = ema(mha_close[test],fama)
+sma = ema(ha_close[slomas],sloma)
+plot(fma,title="MA",color=lime,linewidth=2,style=line)
+plot(sma,title="SMA",color=red,linewidth=2,style=line)
+
+
+//Strategy
+golong =  crossover(fma,sma) and (macdl > macdsl or macdf == false )
+goshort =   crossunder(fma,sma) and (macdl < macdsl or macdf == false )
+
+
+strategy.entry("Long",strategy.long,when = golong)
+strategy.entry("Short",strategy.short,when = goshort)
+
+plotchar(golong,char="L", color=green)
+plotchar(goshort,char="S", color=red)
+
+alertcondition(golong, "HAS GO LONG", "OPEN LONG")
+alertcondition(goshort, "HAS GO SHORT", "OPEN SHORT")
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/437400
+
+> Last Modified
+
+2024-01-02 12:18:03

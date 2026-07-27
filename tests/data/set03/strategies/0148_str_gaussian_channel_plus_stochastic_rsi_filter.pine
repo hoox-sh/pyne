@@ -1,0 +1,86 @@
+//@version=6
+// set03 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于高斯通道与随机相对强弱指数过滤的趋势判断策略-Trend-Detection-Strategy-Based-on-Gaussian-Channel-and-Stochastic-RSI-Filter.md
+// content_hash: a7b5f786e86a4649
+// collected: 2026-07-27
+strategy("Gaussian Channel + Stochastic RSI Filter", overlay=true, margin_long=100, margin_short=100)
+
+// === INPUTS ===
+input_length = input.int(100, title="Gaussian Channel Length", minval=1)
+input_mult = input.float(2.0, title="Gaussian Channel Multiplier", minval=0.1, step=0.1)
+stoch_rsi_period = input.int(14, title="Stochastic RSI Period", minval=1)
+stoch_rsi_smoothK = input.int(3, title="Stochastic RSI Smooth K", minval=1)
+stoch_rsi_smoothD = input.int(3, title="Stochastic RSI Smooth D", minval=1)
+stoch_rsi_overbought = input.float(80.0, title="Stochastic RSI Overbought Level", minval=0, maxval=100)
+stoch_rsi_oversold = input.float(20.0, title="Stochastic RSI Oversold Level", minval=0, maxval=100)
+
+// === GAUSSIAN CHANNEL ===
+// Gaussian filter calculation with proper initialization
+gauss(src, len) =>
+    b = math.exp(-1.414 * 3.14159 / len)
+    a0 = 1 - b
+    var float f = na
+    f := na(f[1]) ? src : a0 * src + b * f[1]
+
+// Calculate Gaussian channel
+gaussian_channel_mid = gauss(close, input_length)
+gaussian_channel_high = gaussian_channel_mid + gaussian_channel_mid * input_mult / 100
+gaussian_channel_low = gaussian_channel_mid - gaussian_channel_mid * input_mult / 100
+
+// Plot Gaussian Channel
+plot(gaussian_channel_mid, color=color.blue, linewidth=2, title="Gaussian Channel Midline")
+plot(gaussian_channel_high, color=color.green, linewidth=1, title="Gaussian Channel Upper Band")
+plot(gaussian_channel_low, color=color.red, linewidth=1, title="Gaussian Channel Lower Band")
+
+// === STOCHASTIC RSI ===
+k = ta.sma(ta.stoch(close, high, low, stoch_rsi_period), stoch_rsi_smoothK)
+d = ta.sma(k, stoch_rsi_smoothD)
+is_oversold = k < stoch_rsi_oversold and d < stoch_rsi_oversold
+is_overbought = k > stoch_rsi_overbought and d > stoch_rsi_overbought
+
+// Plot Stochastic RSI
+hline(stoch_rsi_overbought, "Overbought", color=color.red, linestyle=hline.style_dotted)
+hline(stoch_rsi_oversold, "Oversold", color=color.green, linestyle=hline.style_dotted)
+plot(k, color=color.blue, title="Stochastic RSI %K")
+plot(d, color=color.orange, title="Stochastic RSI %D")
+
+// === ENTRY AND EXIT LOGIC ===
+// Long entry: Price crosses above Gaussian Channel lower band and Stochastic RSI is oversold
+long_condition = ta.crossover(close, gaussian_channel_low) and is_oversold
+
+// Short entry: Price crosses below Gaussian Channel upper band and Stochastic RSI is overbought
+short_condition = ta.crossunder(close, gaussian_channel_high) and is_overbought
+
+// Exit logic
+long_exit = ta.crossunder(close, gaussian_channel_mid) or is_overbought
+short_exit = ta.crossover(close, gaussian_channel_mid) or is_oversold
+
+// Execute trades
+if (long_condition)
+    strategy.entry("Long", strategy.long)
+
+if (short_condition)
+    strategy.entry("Short", strategy.short)
+
+if (long_exit)
+    strategy.close("Long")
+
+if (short_exit)
+    strategy.close("Short")
+
+// === SETTINGS ===
+// Backtest date range
+start_date = timestamp(2023, 1, 1, 0, 0)
+end_date = timestamp(2069, 1, 1, 0, 0)
+if (time < start_date or time > end_date)
+    strategy.close_all()
+```
+
+> Detail
+
+https://www.fmz.com/strategy/483073
+
+> Last Modified
+
+2025-02-21 11:42:36

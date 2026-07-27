@@ -1,0 +1,45 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于相对强弱指标动量轮回策略RSI-Crossover-Momentum-Cyclical-Strategy.md
+// content_hash: 994dd80d4b3a944c
+// collected: 2026-07-27
+strategy("RSI Cross 60/80 Strategy", overlay=true)
+
+// Input for RSI period
+rsiPeriod = input.int(14, title="RSI Period", minval=1)
+
+// Calculate RSI
+rsiValue = ta.rsi(close, rsiPeriod)
+
+// Input for RSI thresholds
+rsiBuyThreshold = input(60, title="RSI Threshold for Buy")
+rsiSellThreshold = input(80, title="RSI Threshold for Sell")
+
+// Conditions for Buy and Sell signals
+buySignal = ta.crossover(rsiValue, rsiBuyThreshold)
+sellSignal = ta.crossunder(rsiValue, rsiSellThreshold)
+
+// Plot RSI on the chart
+plot(rsiValue, title="RSI", color=color.blue)
+
+// Strategy entry and exit
+if (buySignal)
+    strategy.entry("Buy", strategy.long)
+
+if (sellSignal)
+    strategy.close("Buy")
+
+// Plot Buy and Sell signals on the chart
+plotshape(series=buySignal, title="Buy Signal", color=color.green, style=shape.labelup, location=location.belowbar)
+plotshape(series=sellSignal, title="Sell Signal", color=color.red, style=shape.labeldown, location=location.abovebar)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/435251
+
+> Last Modified
+
+2023-12-13 15:41:33

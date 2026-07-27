@@ -1,0 +1,60 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/跨周期动量均线交叉策略结合RSI与ATR动态止损-Cross-Period-Momentum-EMA-Strategy-with-RSI-and-Dynamic-ATR-Stop-Loss.md
+// content_hash: 67726afd9839a805
+// collected: 2026-07-27
+strategy("Day Trading EMA/RSI Strategy", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=200)
+
+// Ulazni parametri
+fastEmaPeriod   = input.int(9, "Fast EMA Period", minval=1)
+slowEmaPeriod   = input.int(21, "Slow EMA Period", minval=1)
+rsiPeriod       = input.int(14, "RSI Period", minval=1)
+rsiOversold     = input.int(30, "RSI Oversold Level")
+rsiOverbought   = input.int(70, "RSI Overbought Level")
+atrPeriod       = input.int(14, "ATR Period", minval=1)
+atrMultiplier   = input.float(1.5, "ATR Multiplier za Stop Loss", step=0.1)
+takeProfitFactor= input.float(2.0, "Take Profit Factor", step=0.1)
+
+// Izračun indikatora
+fastEMA = ta.ema(close, fastEmaPeriod)
+slowEMA = ta.ema(close, slowEmaPeriod)
+rsiValue = ta.rsi(close, rsiPeriod)
+atrValue = ta.atr(atrPeriod)
+
+// Definicija trenda: ako je fastEMA iznad slowEMA, smatramo da je trend uzlazan, inače silazni.
+trendUp   = fastEMA > slowEMA
+trendDown = fastEMA < slowEMA
+
+// Uvjeti za ulaz:
+// Ulaz u long poziciju: crossover fastEMA i slowEMA, uz filtriranje da RSI nije prekupovan (manje od rsiOverbought)
+longCondition  = ta.crossover(fastEMA, slowEMA) and (rsiValue < rsiOverbought)
+// Ulaz u short poziciju: crossunder fastEMA i slowEMA, uz filtriranje da RSI nije preprodavan (više od rsiOversold)
+shortCondition = ta.crossunder(fastEMA, slowEMA) and (rsiValue > rsiOversold)
+
+// Definicija dinamičnih stop-loss razina (ATR-based)
+stopLossLong  = close - (atrMultiplier * atrValue)
+stopLossShort = close + (atrMultiplier * atrValue)
+
+// Izvršenje naloga
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+    strategy.exit("Exit Long", "Long", stop=stopLossLong, limit=close + (takeProfitFactor * atrValue))
+
+if (shortCondition)
+    strategy.entry("Short", strategy.short)
+    strategy.exit("Exit Short", "Short", stop=stopLossShort, limit=close - (takeProfitFactor * atrValue))
+
+// Plotanje indikatora za preglednost
+plot(fastEMA, title="Fast EMA", color=color.green)
+plot(slowEMA, title="Slow EMA", color=color.red)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/481349
+
+> Last Modified
+
+2025-02-10 14:34:58

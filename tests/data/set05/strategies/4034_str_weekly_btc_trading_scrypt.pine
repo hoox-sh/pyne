@@ -1,0 +1,30 @@
+//@version=4
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/WEEKLY BTC TRADING SCRYPT.pine
+// content_hash: ac8577d971baeb22
+// collected: 2026-07-27
+strategy("WEEKLY BTC TRADING SCRYPT","WBTS",overlay=false,default_qty_type=strategy.fixed)
+source=input(defval=close,title="source",group="STRATEGY")
+btc=security('BTCUSDT','1W', source)
+ma=sma(btc,8)
+buy_condition= crossover(btc,ma) 
+sell_condition= crossunder(btc,ma)
+ma_color=input(defval=#FF3232,title="COLOR",group="MA")
+ma_linewidth=input(defval=2,title="LINE WIDTH",group="MA")
+graphic_color=input(defval=#6666FF,title="COLOR",group="GRAPHIC")
+graphic_linewidth=input(defval=2,title="LINE WIDTH",group="GRAPHIC")
+start_date=input(defval=2020,title="YEAR",group="STRATEGY EXECUTION YEAR")
+loss_ratio=input(defval=1,title="LOSS RATIO", group="STRATEGY")
+reward_ratio=input(defval=3,title="REWARD RATIO", group="STRATEGY")
+if(year>=start_date)
+    strategy.entry('BUY',long=true,when=buy_condition,alert_message='Price came to buying value!')
+    if(strategy.long)
+        alert('BTC buy order trigerred!',alert.freq_once_per_bar)
+    strategy.exit(id="SELL",loss=loss_ratio,profit=reward_ratio,when=sell_condition,alert_message='Price came to position closing value!')
+    if(sell_condition)
+        alert('BTC sell order trigerred!',alert.freq_once_per_bar)
+plot(series=source,title="WEEKLY CLOSE",color=graphic_color,linewidth=graphic_linewidth)
+plot(ma,title="SMA8 WEEKLY",color=ma_color,linewidth=ma_linewidth)
+plot(strategy.equity,display=0)
+Expand (38 lines)

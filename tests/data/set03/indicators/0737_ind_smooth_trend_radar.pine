@@ -1,0 +1,471 @@
+//@version=6
+// set03 corpus entry
+// source_repo: casoon-pine-scripts
+// source_path: casoon-pine-scripts/indicators/trend_direction/smooth_trend_radar/smooth_trend_radar.pine
+// content_hash: ba07fc988f388120
+// collected: 2026-07-27
+// ============================================================================
+// Smooth Trend Radar [WavesUnchained]
+// Version: 3.5.0
+// Author: WavesUnchained
+// Build: 2026-07-14 00:00:00
+// ============================================================================
+// Double-smoothed Supertrend baseline for trend direction, with live baseline
+// rejection signals at the baseline, statistical overextension highlighting,
+// and automatic SL/TP level visualization on flips.
+//
+// Features:
+//   ✓ Supertrend midline double-smoothed with WMA + EMA — fewer whipsaws
+//   ✓ Auto Timeframe Scaling — parameters self-adjust per chart timeframe
+//   ✓ Optional volatility-adaptive band width — normalizes factor across instruments
+//   ✓ Trend direction from ATR-scaled baseline slope with hysteresis — filters micro-noise flips
+//   ✓ Trend strength — percentile-ranked slope magnitude flags "strong trend" zones, self-adapting
+//   ✓ Baseline rejection with slope filter, touch validation,
+//       optional bar-polarity filter (Body or Pressure), and optional volume filter
+//   ✓ Rejections fire in both regimes, tagged Trend Pullback / Range Rejection
+//   ✓ Three SL methods: Flip Candle / Baseline ± ATR / Swing Structure
+//   ✓ Four TP modes: Pivot (R/S levels), R-Multiple, Fibonacci extension, ATR
+//   ✓ Pivot TP auto-fallback to ATR when prior session levels are out of range
+//   ✓ Re-Entry on rejection after SL hit (optional)
+//   ✓ Trail SL to break-even at TP1 (optional)
+//   ✓ Statistical overextension via percentile rank — candle coloring
+//   ✓ Risk/reward fill between entry–SL (red) and entry–TP3 (green)
+//   ✓ Hover tooltips on all signals — price, direction, timestamp
+//   ✓ Direction-aware alerts for flips, rejections, and TP/SL hits
+//
+// ============================================================================
+
+indicator("Smooth Trend Radar [WavesUnchained]", overlay=true, max_labels_count=500)
+
+// ─── User-defined types ─────────────────────────────────────────────────────
+type bar
+    float o = open
+    float h = high
+    float l = low
+    float c = close
+
+bar b = bar.new()
+
+// Display flag for inputs — keeps the chart status line uncluttered
+disp = display.all - display.status_line
+
+// ─── Inputs ──────────────────────────────────────────────────────────────────
+g_trend = "Trend"
+autoScale   = input.bool(true, "Auto Timeframe Scaling", group=g_trend, display=disp,
+     tooltip="Automatically selects Supertrend, WMA, and EMA periods for the active timeframe. Manual inputs below are ignored when enabled.")
+stFactor    = input.float(12, "Supertrend Factor",    minval=1, step=0.5, group=g_trend, display=disp,
+     tooltip="ATR multiplier for the Supertrend bands. Higher = wider bands, fewer flips.")
+stAtrPeriod = input.int(90,   "Supertrend ATR Period", minval=1, group=g_trend, display=disp,
+     tooltip="ATR lookback for the Supertrend. Longer = smoother, more lagging bands.")
+wmaLength   = input.int(40,   "WMA Length",            minval=1, group=g_trend, display=disp,
+     tooltip="Weighted Moving Average applied to the Supertrend midline.")
+emaLength   = input.int(14,   "EMA Length",            minval=1, group=g_trend, display=disp,
+     tooltip="EMA applied to the WMA output — second smoothing pass.")
+adxThreshold = input.float(25.0, "ADX Trend/Sideways Threshold", minval=5.0, maxval=50.0, step=1.0, group=g_trend, display=disp,
+     tooltip="ADX threshold: trend-following (flips) is allowed above this value; rejections/pullbacks are allowed below it.")
+trendSlopeLookback  = input.int(3, "Trend Slope Lookback", minval=1, group=g_trend, display=disp,
+     tooltip="Bars back to measure baseline slope for trend direction.")
+trendSlopeThreshold = input.float(0.05, "Trend Slope Threshold (× ATR)", minval=0.0, step=0.01, group=g_trend, display=disp,
+     tooltip="Minimum baseline movement over the Slope Lookback, in ATR units, required to flip trend direction. Higher = fewer, more decisive flips; 0 = flips on any directional move (old crossover behavior).")
+volAdaptive = input.bool(false, "Volatility-Adaptive Band Width", group=g_trend, display=disp,
+     tooltip="Scales the Supertrend factor by the instrument's own ATR percentile rank (200-bar lookback), so the same factor produces comparable relative band width across instruments. Off by default to preserve existing behavior.")
+
+g_strength = "Trend Strength"
+strengthLookback  = input.int(100, "Lookback", minval=20, group=g_strength, display=disp,
+     tooltip="How far back to rank the current baseline-slope magnitude. Self-adapts to symbol/timeframe characteristics, same methodology as the Overextension lookback.")
+strengthThreshold = input.float(70, "Percentile Threshold", minval=50, maxval=99, step=1, group=g_strength, display=disp,
+     tooltip="Trend counts as 'strong' once the slope clears the top X% of its own recent history. 70 = top 30%, 90 = top 10%.")
+showStrengthZone  = input.bool(true, "Highlight Strong Trend (Background)", group=g_strength, display=disp)
+
+g_rej = "Rejection"
+contFactor     = input.int(2, "Min Baseline Touches", minval=1, maxval=5, group=g_rej, display=disp,
+     tooltip="Minimum number of bars touching the baseline in the pivot window. Filters out single-spike touches — requires sustained contact before the pivot.")
+slopeLookback  = input.int(5, "Slope Lookback",       minval=1, group=g_rej, display=disp,
+     tooltip="Rejection only fires when the baseline is trending in the signal direction over this many bars. Filters out signals in flat/choppy zones.")
+polarityMethod = input.string("Off", "Polarity Filter", options=["Off", "Body", "Pressure"], group=g_rej, display=disp,
+     tooltip="Extra filter at the pivot bar. Off: no filter. Body: pivot bar must be bullish/bearish (close > open). Pressure: close must be in the upper/lower half of the bar's range — more robust against doji bars and long wicks (e.g. NatGas).")
+volumeFilter = input.string("Off", "Volume Filter", options=["Off", "Above Average"], group=g_rej, display=disp,
+     tooltip="Extra filter at the pivot bar. Off: no filter. Above Average: bar volume must exceed its SMA (Volume MA Length) — confirms rejections with real participation.")
+volumeMaLen  = input.int(20, "Volume MA Length", minval=1, group=g_rej, display=disp,
+     tooltip="SMA length for the Volume Filter. Ignored when Volume Filter is Off.")
+g_overext = "Overextension"
+overextLookback  = input.int(100, "Lookback", minval=20, group=g_overext, display=disp,
+     tooltip="How far back to compare current distance from baseline. Self-adapts to symbol/timeframe characteristics.")
+overextThreshold = input.float(85, "Percentile Threshold", minval=50, maxval=99, step=1, group=g_overext, display=disp,
+     tooltip="Bars where the distance from baseline is in the top X% of the lookback window are flagged as overextended. 85 = top 15%, 95 = top 5%.")
+overextBullCol   = input.color(#9c27b0, "Bull-Side Overext (price below baseline)", group=g_overext, display=disp,
+     tooltip="Color used when price is overextended below the baseline — potential reversal up.")
+overextBearCol   = input.color(#ff6f00, "Bear-Side Overext (price above baseline)", group=g_overext, display=disp,
+     tooltip="Color used when price is overextended above the baseline — potential reversal down.")
+
+g_tp = "Targets"
+showTargets   = input.bool(true,           "Show SL / TP Levels", group=g_tp, display=disp)
+tpMode        = input.string("Pivot",      "TP Method",
+     options=["Pivot", "R-Multiple", "Fibonacci", "ATR"], group=g_tp, display=disp,
+     tooltip="Pivot: nearest R/S pivot levels. R-Multiple: multiples of SL distance. Fibonacci: 0.618 / 1.0 / 1.618 of setup swing. ATR: multiples of long ATR.")
+
+slMode        = input.string("Flip Candle", "SL Method",
+     options=["Flip Candle", "Baseline", "Swing"], group=g_tp, display=disp,
+     tooltip="Flip Candle: low/high of the flip bar ± ATR. Baseline: smoothed baseline ± ATR. Swing: lowest low / highest high within lookback ± ATR.")
+swingLookback = input.int(20,  "Swing Lookback (bars)", minval=5, group=g_tp, display=disp,
+     tooltip="SL Method = Swing: bars to look back for swing low/high. Also used as the setup-swing lookback for TP Method = Fibonacci.")
+atrPeriod     = input.int(14,  "ATR Period",            minval=1, group=g_tp, display=disp)
+slMultiplier  = input.float(2.0, "SL ATR Multiplier",   minval=0.1, step=0.1, group=g_tp, display=disp,
+     tooltip="ATR distance added to the SL reference point.")
+
+pivotPeriod   = input.string("D", "Pivot Period",
+     options=["D", "W", "M"], group=g_tp, display=disp,
+     tooltip="Timeframe for pivot calculation. Used with TP Method = Pivot.")
+pivotFormula  = input.string("Camarilla", "Pivot Formula",
+     options=["Classic", "Camarilla"], group=g_tp, display=disp,
+     tooltip="Classic (Floor Trader): PP = (H+L+C)/3. Camarilla: tighter R/S bands scaled from close. Used with TP Method = Pivot.")
+
+tp1Multiplier = input.float(3.0, "TP1 Multiplier",      minval=0.1, step=0.1, group=g_tp, display=disp,
+     tooltip="R-Multiple: × SL distance. ATR: × long ATR. Not used for Pivot or Fibonacci.")
+tp2Multiplier = input.float(5.0, "TP2 Multiplier",      minval=0.1, step=0.1, group=g_tp, display=disp)
+tp3Multiplier = input.float(7.0, "TP3 Multiplier",      minval=0.1, step=0.1, group=g_tp, display=disp)
+atrLongPeriod = input.int(50,    "ATR Long Period",      minval=1,             group=g_tp, display=disp,
+     tooltip="ATR lookback for TP Method = ATR. Longer period = more stable volatility estimate.")
+rejReentry = input.bool(true,  "Re-Entry on Rejection after SL Hit", group=g_tp, display=disp,
+     tooltip="When the SL is hit but the trend direction is unchanged, the next confirmed rejection signal rebuilds the Entry/SL/TP setup at the current price.")
+trailBE    = input.bool(false, "Trail SL to Break-Even at TP1",      group=g_tp, display=disp,
+     tooltip="When TP1 is reached, the SL moves to the entry price. The trade can no longer result in a loss.")
+
+g_col = "Colors"
+bullCol = input.color(#26a69a, "Bullish", group=g_col, display=disp)
+bearCol = input.color(#ef5350, "Bearish", group=g_col, display=disp)
+flipSizeStr = input.string("Small", "Flip Label Size",       options=["Tiny","Small","Normal"], group=g_col, display=disp)
+rejSizeStr  = input.string("Tiny",  "Rejection Label Size",  options=["Tiny","Small","Normal"], group=g_col, display=disp)
+
+// String → size helper
+f_gTS(string _t) =>
+    switch _t
+        "Tiny"   => size.tiny
+        "Small"  => size.small
+        "Normal" => size.normal
+        => size.small
+
+flipSize = f_gTS(flipSizeStr)
+rejSize  = f_gTS(rejSizeStr)
+
+g_alert = "Alerts"
+awaitConfirm = input.bool(true, "Await Bar Confirmation", group=g_alert, display=disp)
+
+// ─── Timeframe-scaled parameters ─────────────────────────────────────────────
+_tf = timeframe.period
+_efFactor    = autoScale ? (_tf == "1" ? 4.0 : _tf == "5" ? 5.0 : _tf == "15" ? 6.0 : _tf == "30" ? 7.0 : _tf == "60" ? 5.0 : _tf == "240" ? 10.0 : timeframe.isdaily ? 12.0 : timeframe.isweekly ? 14.0 : stFactor)    : stFactor
+_efAtrPeriod = autoScale ? (_tf == "1" ? 10   : _tf == "5" ? 14   : _tf == "15" ? 20   : _tf == "30" ? 25   : _tf == "60" ? 14   : _tf == "240" ? 50   : timeframe.isdaily ? 90   : timeframe.isweekly ? 120  : stAtrPeriod) : stAtrPeriod
+_efWma       = autoScale ? (_tf == "1" ? 8    : _tf == "5" ? 10   : _tf == "15" ? 15   : _tf == "30" ? 18   : _tf == "60" ? 10   : _tf == "240" ? 30   : timeframe.isdaily ? 40   : timeframe.isweekly ? 50   : wmaLength)   : wmaLength
+_efEma       = autoScale ? (_tf == "1" ? 3    : _tf == "5" ? 4    : _tf == "15" ? 5    : _tf == "30" ? 6    : _tf == "60" ? 3    : _tf == "240" ? 10   : timeframe.isdaily ? 14   : timeframe.isweekly ? 18   : emaLength)   : emaLength
+_efPivBars   = autoScale ? (_tf == "1" ? 2    : _tf == "5" ? 2    : _tf == "15" ? 2    : _tf == "30" ? 2    : _tf == "60" ? 2    : _tf == "240" ? 3    : timeframe.isdaily ? 5    : timeframe.isweekly ? 4    : 2) : 2
+
+// ─── Supertrend midline ───────────────────────────────────────────────────────
+_supertrend(factor, atrPeriod) =>
+    atr       = ta.atr(atrPeriod)
+    upper     = hl2 + factor * atr
+    lower     = hl2 - factor * atr
+    prevLower = nz(lower[1])
+    prevUpper = nz(upper[1])
+    lower    := lower > prevLower or close[1] < prevLower ? lower : prevLower
+    upper    := upper < prevUpper or close[1] > prevUpper ? upper : prevUpper
+    [lower, upper, atr]
+
+// Volatility-adaptive band width: scale the factor by where current ATR ranks
+// within its own recent history, so the same factor yields comparable relative
+// band width across instruments. Off by default — preserves prior behavior.
+_volPctRank  = ta.percentrank(ta.atr(_efAtrPeriod), 200)
+_efFactorAdj = volAdaptive ? _efFactor * (0.85 + 0.3 * _volPctRank / 100) : _efFactor
+
+[lwr, upr, _stAtr] = _supertrend(_efFactorAdj, _efAtrPeriod)
+tL = ta.ema(ta.wma(math.avg(lwr, upr), _efWma), _efEma)
+
+// ─── Trend direction ─────────────────────────────────────────────────────────
+// Baseline slope over trendSlopeLookback bars, scaled to ATR units. Trend only
+// flips once the move exceeds trendSlopeThreshold — holds previous value
+// otherwise (hysteresis), filtering micro-noise crosses.
+_trendSlope = tL - tL[trendSlopeLookback]
+var int trend = 0
+trend := _trendSlope > _stAtr * trendSlopeThreshold ? 1 : _trendSlope < -_stAtr * trendSlopeThreshold ? -1 : trend
+
+// ADX Trend/Sideways Regime detection
+[diPlus, diMinus, adx] = ta.dmi(14, 14)
+isTrending = not na(adx) and adx > adxThreshold
+isSideways = not na(adx) and adx <= adxThreshold
+
+longSignal  = trend == 1  and trend[1] != 1 and isTrending
+shortSignal = trend == -1 and trend[1] != -1 and isTrending
+
+// ─── Trend strength ──────────────────────────────────────────────────────────
+// How decisively the baseline slope clears the flip threshold, ranked against its
+// own recent history — self-adapting, same percentile-rank approach as
+// Overextension below. Not distance-from-baseline: that axis already carries the
+// opposite meaning (Overextension = far from baseline = stretched / reversal-risk),
+// so strength reads slope magnitude — the trend's own rate of movement — instead.
+_slopeMag        = math.abs(_trendSlope) / _stAtr
+_strengthPctRank = ta.percentrank(_slopeMag, strengthLookback)
+strongTrend      = _strengthPctRank > strengthThreshold
+
+// ─── Rejection detection (live baseline touch validation) ───────────────────
+// Pivots are intentionally not used for signal timing. Rejection is detected
+// from the current bar plus recent baseline contact.
+var int _bullTouches = 0
+var int _bearTouches = 0
+_bullTouches := 0
+_bearTouches := 0
+for i = 0 to contFactor - 1
+    if trend[i] == 1  and low[i]  <= tL[i]
+        _bullTouches += 1
+    if trend[i] == -1 and high[i] >= tL[i]
+        _bearTouches += 1
+
+bool _polBull = polarityMethod == "Off" or (polarityMethod == "Body" ? close > open : (close - low) > (high - close))
+bool _polBear = polarityMethod == "Off" or (polarityMethod == "Body" ? close < open : (close - low) < (high - close))
+bool _volOk   = volumeFilter == "Off" or volume > ta.sma(volume, volumeMaLen)
+
+// Rejections fire in both ADX regimes — a baseline pullback in an active trend
+// is as valid a signal as one in a range. The regime is carried as a label tag
+// (Trend Pullback vs Range Rejection) rather than used to gate the signal.
+rejSignalBull = low <= tL and close > tL and trend == 1 and tL > tL[slopeLookback] and _bullTouches >= contFactor and _polBull and _volOk
+rejSignalBear = high >= tL and close < tL and trend == -1 and tL < tL[slopeLookback] and _bearTouches >= contFactor and _polBear and _volOk
+rejRegime     = isTrending ? "Trend Pullback" : "Range Rejection"
+rejSignalBullStrong = rejSignalBull and strongTrend
+rejSignalBearStrong = rejSignalBear and strongTrend
+
+// ─── SL / TP levels ──────────────────────────────────────────────────────────
+volatility = ta.atr(atrPeriod)
+atr_long   = ta.atr(atrLongPeriod)
+
+// Pivot data — previous completed period, no repainting
+[piv_h, piv_l, piv_c] = request.security(syminfo.tickerid, pivotPeriod,
+     [high[1], low[1], close[1]], lookahead=barmerge.lookahead_on)
+piv_range = piv_h - piv_l
+// Classic (Floor Trader)
+pp_c  = (piv_h + piv_l + piv_c) / 3
+r1_c  = 2 * pp_c - piv_l
+r2_c  = pp_c + piv_range
+r3_c  = piv_h + 2 * (pp_c - piv_l)
+s1_c  = 2 * pp_c - piv_h
+s2_c  = pp_c - piv_range
+s3_c  = piv_l - 2 * (piv_h - pp_c)
+// Camarilla
+r1_ca = piv_c + piv_range * 1.1 / 12
+r2_ca = piv_c + piv_range * 1.1 / 6
+r3_ca = piv_c + piv_range * 1.1 / 4
+s1_ca = piv_c - piv_range * 1.1 / 12
+s2_ca = piv_c - piv_range * 1.1 / 6
+s3_ca = piv_c - piv_range * 1.1 / 4
+
+var float SL      = na
+var float TP1_lvl = na
+var float TP2_lvl = na
+var float TP3_lvl = na
+var int   tradeDir = 0
+var bool  tp1Done  = false
+var bool  tp2Done  = false
+var bool  tp3Done  = false
+var bool  slDone   = false
+
+var line  entry_line  = na
+var line  sl_line     = na
+var line  tp1_line    = na
+var line  tp2_line    = na
+var line  tp3_line    = na
+var label entry_label = na
+var label sl_label    = na
+var label tp1_label   = na
+var label tp2_label   = na
+var label tp3_label   = na
+var linefill lf_risk   = na
+var linefill lf_reward = na
+var float    entryPrice = na
+
+bullRejRe = rejReentry and slDone and tradeDir == 1  and trend == 1  and rejSignalBull
+bearRejRe = rejReentry and slDone and tradeDir == -1 and trend == -1 and rejSignalBear
+
+if showTargets
+    if longSignal or shortSignal or bullRejRe or bearRejRe
+        line.delete(entry_line)
+        line.delete(sl_line)
+        line.delete(tp1_line)
+        line.delete(tp2_line)
+        line.delete(tp3_line)
+        label.delete(entry_label)
+        label.delete(sl_label)
+        label.delete(tp1_label)
+        label.delete(tp2_label)
+        label.delete(tp3_label)
+        linefill.delete(lf_risk)
+        linefill.delete(lf_reward)
+
+        isBull       = longSignal or bullRejRe
+        col          = isBull ? bullCol : bearCol
+        tradeDir    := isBull ? 1 : -1
+        entryPrice  := b.c
+        tp1Done  := false
+        tp2Done  := false
+        tp3Done  := false
+        slDone   := false
+
+        // SL method selection
+        float rawSL = na
+        if slMode == "Baseline"
+            rawSL := isBull ? tL - volatility * slMultiplier : tL + volatility * slMultiplier
+        else if slMode == "Swing"
+            rawSL := isBull ? ta.lowest(low, swingLookback) - volatility * slMultiplier : ta.highest(high, swingLookback) + volatility * slMultiplier
+        else  // "Flip Candle"
+            rawSL := isBull ? b.l - volatility * slMultiplier : b.h + volatility * slMultiplier
+
+        // Clamp SL to the correct side of entry
+        SL := isBull ? math.min(rawSL, b.c - syminfo.mintick) : math.max(rawSL, b.c + syminfo.mintick)
+
+        // TP levels by mode
+        if tpMode == "Pivot"
+            TP1_lvl := isBull ? (pivotFormula == "Classic" ? r1_c : r1_ca) : (pivotFormula == "Classic" ? s1_c : s1_ca)
+            TP2_lvl := isBull ? (pivotFormula == "Classic" ? r2_c : r2_ca) : (pivotFormula == "Classic" ? s2_c : s2_ca)
+            TP3_lvl := isBull ? (pivotFormula == "Classic" ? r3_c : r3_ca) : (pivotFormula == "Classic" ? s3_c : s3_ca)
+            // Pivot levels can land on the wrong side of entry when price has moved far from
+            // the prior session's range (e.g. price below all S levels for a short, or above
+            // all R levels for a long).  Fall back to ATR in that case.
+            if (isBull and TP1_lvl <= close) or (not isBull and TP1_lvl >= close)
+                TP1_lvl := isBull ? close + atr_long * tp1Multiplier : close - atr_long * tp1Multiplier
+                TP2_lvl := isBull ? close + atr_long * tp2Multiplier : close - atr_long * tp2Multiplier
+                TP3_lvl := isBull ? close + atr_long * tp3Multiplier : close - atr_long * tp3Multiplier
+        else if tpMode == "R-Multiple"
+            slDist   = math.abs(close - SL)
+            TP1_lvl := isBull ? close + slDist * tp1Multiplier : close - slDist * tp1Multiplier
+            TP2_lvl := isBull ? close + slDist * tp2Multiplier : close - slDist * tp2Multiplier
+            TP3_lvl := isBull ? close + slDist * tp3Multiplier : close - slDist * tp3Multiplier
+        else if tpMode == "Fibonacci"
+            swing    = isBull ? ta.lowest(low, swingLookback) : ta.highest(high, swingLookback)
+            fibRange = math.abs(close - swing)
+            TP1_lvl := isBull ? close + fibRange * 0.618 : close - fibRange * 0.618
+            TP2_lvl := isBull ? close + fibRange * 1.0   : close - fibRange * 1.0
+            TP3_lvl := isBull ? close + fibRange * 1.618  : close - fibRange * 1.618
+        else  // ATR
+            TP1_lvl := isBull ? close + atr_long * tp1Multiplier : close - atr_long * tp1Multiplier
+            TP2_lvl := isBull ? close + atr_long * tp2Multiplier : close - atr_long * tp2Multiplier
+            TP3_lvl := isBull ? close + atr_long * tp3Multiplier : close - atr_long * tp3Multiplier
+
+        x2 = bar_index + 40
+        entry_line  := line.new(bar_index, close,   x2, close,   color=col,                    width=2)
+        sl_line     := line.new(bar_index, SL,      x2, SL,      color=color.new(bearCol, 50), width=1)
+        tp1_line    := line.new(bar_index, TP1_lvl, x2, TP1_lvl, color=color.new(col, 60), width=1)
+        tp2_line    := line.new(bar_index, TP2_lvl, x2, TP2_lvl, color=color.new(col, 40), width=1)
+        tp3_line    := line.new(bar_index, TP3_lvl, x2, TP3_lvl, color=col,                width=1)
+        entry_label := label.new(x2, close,   "Entry " + str.tostring(close,   format.mintick), style=label.style_label_left, color=col,                    textcolor=color.white, size=size.small)
+        sl_label    := label.new(x2, SL,      "SL "    + str.tostring(SL,      format.mintick), style=label.style_label_left, color=color.new(bearCol, 50), textcolor=color.white, size=size.small)
+        tp1_label   := label.new(x2, TP1_lvl, "TP1 "   + str.tostring(TP1_lvl, format.mintick), style=label.style_label_left, color=color.new(col, 60), textcolor=color.white, size=size.small)
+        tp2_label   := label.new(x2, TP2_lvl, "TP2 "   + str.tostring(TP2_lvl, format.mintick), style=label.style_label_left, color=color.new(col, 40), textcolor=color.white, size=size.small)
+        tp3_label   := label.new(x2, TP3_lvl, "TP3 "   + str.tostring(TP3_lvl, format.mintick), style=label.style_label_left, color=col,                textcolor=color.white, size=size.small)
+        lf_risk     := linefill.new(entry_line, sl_line,  color.new(bearCol, 85))
+        lf_reward   := linefill.new(entry_line, tp3_line, color.new(bullCol, 85))
+
+    else if not na(entry_line)
+        x2 = bar_index + 40
+        line.set_x2(entry_line,  x2)
+        line.set_x2(sl_line,     x2)
+        line.set_x2(tp1_line,    x2)
+        line.set_x2(tp2_line,    x2)
+        line.set_x2(tp3_line,    x2)
+        label.set_x(entry_label, x2)
+        label.set_x(sl_label,    x2)
+        label.set_x(tp1_label,   x2)
+        label.set_x(tp2_label,   x2)
+        label.set_x(tp3_label,   x2)
+
+// ─── Overextension (statistical) ─────────────────────────────────────────────
+// Compares the current distance from the baseline against historical distances
+// over the lookback window. A bar is "overextended" when its distance is in the
+// top X% of all distances seen — self-adapts to symbol/timeframe.
+_distSigned   = close - tL
+_distAbs      = math.abs(_distSigned)
+_distPctRank  = ta.percentrank(_distAbs, overextLookback)
+isOverextBull = _distPctRank > overextThreshold and _distSigned < 0
+isOverextBear = _distPctRank > overextThreshold and _distSigned > 0
+
+// ─── Plots ───────────────────────────────────────────────────────────────────
+plot(tL, "Baseline", color=trend == 1 ? color.new(bullCol, 50) : color.new(bearCol, 50), linewidth=2)
+
+if longSignal
+    label.new(bar_index, tL, "▲",
+         style=label.style_label_up, color=bullCol, textcolor=color.white, size=flipSize,
+         tooltip="Bull Flip\nPrice: " + str.tostring(close, format.mintick) + "\n" + str.format_time(time, "yyyy-MM-dd HH:mm", syminfo.timezone))
+if shortSignal
+    label.new(bar_index, tL, "▼",
+         style=label.style_label_down, color=bearCol, textcolor=color.white, size=flipSize,
+         tooltip="Bear Flip\nPrice: " + str.tostring(close, format.mintick) + "\n" + str.format_time(time, "yyyy-MM-dd HH:mm", syminfo.timezone))
+if rejSignalBull
+    label.new(bar_index, low, "",
+         style=label.style_triangleup, color=color.new(bullCol, 30), size=rejSize,
+         tooltip="Bull Rejection (" + rejRegime + (strongTrend ? ", Strong Trend" : "") + ")\nLow: " + str.tostring(low, format.mintick) + "\n" + str.format_time(time, "yyyy-MM-dd HH:mm", syminfo.timezone))
+if rejSignalBear
+    label.new(bar_index, high, "",
+         style=label.style_triangledown, color=color.new(bearCol, 30), size=rejSize,
+         tooltip="Bear Rejection (" + rejRegime + (strongTrend ? ", Strong Trend" : "") + ")\nHigh: " + str.tostring(high, format.mintick) + "\n" + str.format_time(time, "yyyy-MM-dd HH:mm", syminfo.timezone))
+
+// Gradient-based overextension intensity: from threshold (faded) to 100% (full)
+_overextBullGrad = color.from_gradient(_distPctRank, overextThreshold, 100.0, color.new(overextBullCol, 60), color.new(overextBullCol, 0))
+_overextBearGrad = color.from_gradient(_distPctRank, overextThreshold, 100.0, color.new(overextBearCol, 60), color.new(overextBearCol, 0))
+_barCol = isOverextBull ? _overextBullGrad : isOverextBear ? _overextBearGrad : trend == 1 ? color.new(bullCol, 60) : color.new(bearCol, 60)
+barcolor(_barCol)
+
+// Strong Trend zone — background tint while the slope percentile-ranks above threshold
+bgcolor(showStrengthZone and strongTrend ? (trend == 1 ? color.new(bullCol, 90) : color.new(bearCol, 90)) : na, title="Strong Trend Zone")
+
+// ─── Alerts ──────────────────────────────────────────────────────────────────
+await = awaitConfirm ? barstate.isconfirmed : true
+
+tp1Hit = showTargets and not tp1Done and tradeDir != 0 and (tradeDir == 1 ? ta.crossover(close, TP1_lvl)  : ta.crossunder(close, TP1_lvl))
+tp2Hit = showTargets and not tp2Done and tradeDir != 0 and (tradeDir == 1 ? ta.crossover(close, TP2_lvl)  : ta.crossunder(close, TP2_lvl))
+tp3Hit = showTargets and not tp3Done and tradeDir != 0 and (tradeDir == 1 ? ta.crossover(close, TP3_lvl)  : ta.crossunder(close, TP3_lvl))
+slHit  = showTargets and not slDone  and tradeDir != 0 and (tradeDir == 1 ? ta.crossunder(close, SL)      : ta.crossover(close, SL))
+
+if tp1Hit
+    tp1Done := true
+    if trailBE and not na(sl_line)
+        SL := entryPrice
+        line.set_y1(sl_line,  SL)
+        line.set_y2(sl_line,  SL)
+        label.set_y(sl_label, SL)
+        label.set_text(sl_label, "BE " + str.tostring(SL, format.mintick))
+        linefill.delete(lf_risk)
+        lf_risk := na
+if tp2Hit
+    tp2Done := true
+if tp3Hit
+    tp3Done := true
+if slHit
+    slDone  := true
+    tp1Done := true
+    tp2Done := true
+    tp3Done := true
+    line.delete(entry_line)
+    line.delete(sl_line)
+    line.delete(tp1_line)
+    line.delete(tp2_line)
+    line.delete(tp3_line)
+    label.delete(entry_label)
+    label.delete(sl_label)
+    label.delete(tp1_label)
+    label.delete(tp2_label)
+    label.delete(tp3_label)
+    linefill.delete(lf_risk)
+    linefill.delete(lf_reward)
+    entry_line := na
+
+alertcondition(longSignal    and await, "STR Buy Signal",     "STR · Buy · {{ticker}} {{interval}}")
+alertcondition(shortSignal   and await, "STR Sell Signal",    "STR · Sell · {{ticker}} {{interval}}")
+alertcondition(rejSignalBull and await, "STR Bull Rejection", "STR · Bull Rejection · {{ticker}} {{interval}}")
+alertcondition(rejSignalBear and await, "STR Bear Rejection", "STR · Bear Rejection · {{ticker}} {{interval}}")
+alertcondition(rejSignalBullStrong and await, "STR Bull Rejection (Strong Trend)", "STR · Bull Rejection Strong · {{ticker}} {{interval}}")
+alertcondition(rejSignalBearStrong and await, "STR Bear Rejection (Strong Trend)", "STR · Bear Rejection Strong · {{ticker}} {{interval}}")
+alertcondition(tp1Hit and await,        "STR TP1 Hit",        "STR · TP1 Hit · {{ticker}} {{interval}}")
+alertcondition(tp2Hit and await,        "STR TP2 Hit",        "STR · TP2 Hit · {{ticker}} {{interval}}")
+alertcondition(tp3Hit and await,        "STR TP3 Hit",        "STR · TP3 Hit · {{ticker}} {{interval}}")
+alertcondition(slHit  and await,        "STR SL Hit",         "STR · SL Hit · {{ticker}} {{interval}}")
+
+_ticker = syminfo.tickerid + " (" + timeframe.period + ")"
+if longSignal and await
+    alert("Smooth Trend Radar Buy — " + _ticker, alert.freq_once_per_bar_close)
+if shortSignal and await
+    alert("Smooth Trend Radar Sell — " + _ticker, alert.freq_once_per_bar_close)

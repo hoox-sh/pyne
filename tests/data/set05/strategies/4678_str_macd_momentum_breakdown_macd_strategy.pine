@@ -1,0 +1,86 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动量熔断MACD策略Momentum-Breakdown-MACD-Strategy.md
+// content_hash: c00ab558f162809f
+// collected: 2026-07-27
+strategy(title="MACD MOMENTUM TEST", shorttitle="MACD MOM TEST")
+
+// Getting inputs
+fast_length = input(title="Fast Length", type=input.integer, defval=12)
+slow_length = input(title="Slow Length", type=input.integer, defval=26)
+len = input(title="Momentum", type=input.integer, defval=10)
+src1 = input(title="Source MACD", type=input.source, defval=close)
+src2 = input(title="Source MOMENTUM", type=input.source, defval=close)
+signal_length = input(title="Signal Smoothing", type=input.integer, minval = 1, maxval = 50, defval = 14)
+sma_source = input(title="Simple MA(Oscillator)", type=input.bool, defval=false)
+sma_signal = input(title="Simple MA(Signal Line)", type=input.bool, defval=false)
+
+// Plot colors
+col_grow_above = #0c8e61
+col_grow_below = #ffcdd2
+col_fall_above = #b2dfdb
+col_fall_below = #d42f28
+col_macd = #ffffff
+col_signal = #d42f28
+col_mom = #fbc02d
+
+// Calculating
+fast_ma = sma_source ? sma(src1, fast_length) : ema(src1, fast_length)
+slow_ma = sma_source ? sma(src1, slow_length) : ema(src1, slow_length)
+macd = fast_ma - slow_ma
+signal = sma_signal ? sma(macd, signal_length) : ema(macd, signal_length)
+hist = macd - signal
+mom = src2 - src2[len]
+
+
+ma(s,l) => ema(s,l)
+sema = ma( src1, fast_length )
+lema = ma( src1, slow_length )
+i1 = sema + mom + ma( src1 - sema, fast_length )
+i2 = lema + mom + ma( src1 - lema, slow_length )
+macdl = i1 - i2
+macd1 =sema - lema
+
+delta = mom - macd1
+
+// Strategy
+    // Backtest
+FromYear  = input(defval = 2001, title = "From Year", minval = 2009)
+FromMonth = input(defval = 1, title = "From Month", minval = 1, maxval = 12)
+FromDay   = input(defval = 1, title = "From Day", minval = 1, maxval = 31)
+ToYear    = input(defval = 9999, title = "To Year", minval = 2009)
+ToMonth   = input(defval = 12, title = "To Month", minval = 1, maxval = 12)
+ToDay     = input(defval = 31, title = "To Day", minval = 1, maxval = 31)
+
+    // Function exampel
+start     = timestamp(FromYear, FromMonth, FromDay, 00, 00)  // backtest start window
+finish    = timestamp(ToYear, ToMonth, ToDay, 23, 59)        // backtest finish window
+window()  => time >= start and time <= finish ? true : false // create function "within window of time"
+
+if (crossover(delta, 0))
+    strategy.entry("Buy", true, when=window(), comment="Buy")
+
+if (crossunder(delta, 0))
+    strategy.close_all(when=window())
+
+// Plot
+//plot(strategy.equity, title="equity", color=red, linewidth=2, style=areabr)
+plot(hist, title="Histogram", style=plot.style_histogram, color=(hist>=0 ? (hist[1] < hist ? col_grow_above : col_fall_above) : (hist[1] < hist ? col_grow_below : col_fall_below) ), transp=0 )
+plot(macd, title="MACD", color=col_macd, transp=0)
+plot(signal, title="Signal", color=col_signal, transp=0)
+plot(mom, color=col_mom, title="Mom")
+
+
+
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/429784
+
+> Last Modified
+
+2023-10-20 17:12:31

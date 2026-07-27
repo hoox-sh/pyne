@@ -1,0 +1,70 @@
+//@version=6
+// set03 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/智能双均线交叉风险管理交易系统-Intelligent-Dual-SMA-Crossover-Risk-Management-Trading-System.md
+// content_hash: e30e6d0251e1d944
+// collected: 2026-07-27
+strategy("AI Trade Bot with Risk Management", overlay=true)
+
+// Input parameters
+shortSMA = input.int(9, title="Short SMA")
+longSMA = input.int(21, title="Long SMA")
+riskPercent = input.float(1.0, title="Risk Percentage", step=0.1)
+
+// Calculate SMAs
+shortSMAValue = ta.sma(close, shortSMA)
+longSMAValue = ta.sma(close, longSMA)
+
+// Bullish and Bearish Signals
+bullishSignal = ta.crossover(shortSMAValue, longSMAValue)
+bearishSignal = ta.crossunder(shortSMAValue, longSMAValue)
+
+// Risk Management
+stopLossPercent = riskPercent / 100
+takeProfitPercent = stopLossPercent * 2
+
+// Calculate position size based on risk management
+riskAmount = strategy.equity * riskPercent / 100
+
+var float buyStopLossPrice = na
+var float buyTakeProfitPrice = na
+var float sellStopLossPrice = na
+var float sellTakeProfitPrice = na
+
+if (bullishSignal)
+    buyStopLossPrice := close * (1 - stopLossPercent)
+    buyTakeProfitPrice := close * (1 + takeProfitPercent)
+    strategy.entry("Buy", strategy.long)
+    strategy.exit("Take Profit/Stop Loss", from_entry="Buy", limit=buyTakeProfitPrice, stop=buyStopLossPrice)
+
+if (bearishSignal)
+    sellStopLossPrice := close * (1 + stopLossPercent)
+    sellTakeProfitPrice := close * (1 - takeProfitPercent)
+    strategy.entry("Sell", strategy.short)
+    strategy.exit("Take Profit/Stop Loss", from_entry="Sell", limit=sellTakeProfitPrice, stop=sellStopLossPrice)
+
+// Plot SMAs on the chart
+plot(shortSMAValue, color=color.blue, title="Short SMA")
+plot(longSMAValue, color=color.red, title="Long SMA")
+
+// Plot Buy/Sell signals on the chart
+plotshape(series=bullishSignal, location=location.belowbar, color=color.green, style=shape.labelup, title="Buy Signal", text="BUY")
+plotshape(series=bearishSignal, location=location.abovebar, color=color.red, style=shape.labeldown, title="Sell Signal", text="SELL")
+
+// Plot Buy Stop Loss and Take Profit levels
+plot(buyStopLossPrice, color=color.red, style=plot.style_linebr, linewidth=2, title="Buy Stop Loss")
+plot(buyTakeProfitPrice, color=color.green, style=plot.style_linebr, linewidth=2, title="Buy Take Profit")
+
+// Plot Sell Stop Loss and Take Profit levels
+plot(sellStopLossPrice, color=color.red, style=plot.style_linebr, linewidth=2, title="Sell Stop Loss")
+plot(sellTakeProfitPrice, color=color.green, style=plot.style_linebr, linewidth=2, title="Sell Take Profit")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/483026
+
+> Last Modified
+
+2025-02-21 09:56:11

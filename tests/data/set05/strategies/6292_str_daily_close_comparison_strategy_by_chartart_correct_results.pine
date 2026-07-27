@@ -1,0 +1,73 @@
+//@version=2
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于日线收盘价比较的量化交易策略Quantitative-Trading-Strategy-Based-on-Daily-Close-Price-Comparison.md
+// content_hash: 4f01b48b917c05fc
+// collected: 2026-07-27
+strategy("Daily Close Comparison Strategy (by ChartArt) correct results", shorttitle="CA_-_Daily_Close_Strat", overlay=false)
+
+// ChartArt's Daily Close Comparison Strategy
+//
+// Version 1.0
+// Idea by ChartArt on February 28, 2016.
+//
+// This strategy is equal to the very
+// popular "ANN Strategy" coded by sirolf2009,
+// but without the Artificial Neural Network (ANN).
+//
+// Main difference besides stripping out the ANN
+// is that I use close prices instead of OHLC4 prices.
+// And the default threshold is set to 0 instead of 0.0014
+// with a step of 0.001 instead of 0.0001.
+//
+// This strategy goes long if the close of the current day
+// is larger than the close price of the last day.
+// If the inverse logic is true, the strategy
+// goes short (last close larger current close).
+//
+// This simple strategy does not have any
+// stop loss or take profit money management logic.
+//
+// List of my work: 
+// https://www.tradingview.com/u/ChartArt/
+// 
+//  __             __  ___       __  ___ 
+// /  ` |__|  /\  |__)  |   /\  |__)  |  
+// \__, |  | /~~\ |  \  |  /~~\ |  \  |  
+// 
+// 
+
+threshold = input(title="Price Difference Threshold correct results", type=float, defval=0, step=0.004)
+
+getDiff() =>
+    yesterday=request.security(syminfo.tickerid, 'D', close[1])
+    today=close
+    delta=today-yesterday
+    percentage=delta/yesterday
+    
+closeDiff = getDiff()
+ 
+buying = closeDiff > threshold ? true : closeDiff < -threshold ? false : buying[1]
+
+hline(0, title="zero line")
+
+bgcolor(buying ? green : red, transp=25)
+plot(closeDiff, color=silver, style=area, transp=75)
+plot(closeDiff, color=aqua, title="prediction")
+
+longCondition = buying
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+
+shortCondition = buying != true
+if (shortCondition)
+    strategy.entry("Short", strategy.short)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/432782
+
+> Last Modified
+
+2023-11-21 14:34:11

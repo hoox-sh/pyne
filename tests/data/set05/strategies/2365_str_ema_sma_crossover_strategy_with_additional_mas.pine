@@ -1,0 +1,58 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/EMA-SMA-均线交叉-动量指标-EMA-SMA-Moving-Average-Crossover-Momentum-Indicator.md
+// content_hash: a5e398603f16eb4c
+// collected: 2026-07-27
+strategy("EMA/SMA Crossover Strategy with Additional MAs", overlay=true)
+
+// Define input parameters for the EMA and SMAs
+emaLength = input.int(9, title="EMA Length")
+sma30Length = input.int(30, title="30 SMA Length")
+sma50Length = input.int(50, title="50 SMA Length")
+sma200Length = input.int(200, title="200 SMA Length")
+sma325Length = input.int(325, title="325 SMA Length")
+
+// Calculate the EMA and SMAs
+emaValue = ta.ema(close, emaLength)
+sma30Value = ta.sma(close, sma30Length)
+sma50Value = ta.sma(close, sma50Length)
+sma200Value = ta.sma(close, sma200Length)
+sma325Value = ta.sma(close, sma325Length)
+
+// Plot the EMA and SMAs on the chart
+plot(emaValue, title="9-day EMA", color=color.blue, linewidth=2)
+plot(sma30Value, title="30-day SMA", color=color.white, linewidth=2)
+plot(sma200Value, title="200-day SMA", color=color.purple)
+plot(sma325Value, title="325-day SMA", color=color.yellow)
+
+// Plot the 50 SMA as an area chart with brown color and 21% opacity
+plot(sma50Value, title="50-day SMA", color=color.new(#8B4513, 79), style=plot.style_area)
+
+// Define the crossover conditions
+buySignal = ta.crossover(emaValue, sma30Value)
+sellSignal = ta.crossunder(emaValue, sma30Value) or ta.crossunder(emaValue, sma50Value)
+
+// Plot buy and sell signals on the chart
+plotshape(series=buySignal, location=location.belowbar, color=color.green, style=shape.labelup, text="BUY")
+plotshape(series=sellSignal, location=location.abovebar, color=color.red, style=shape.labeldown, text="SELL")
+
+// Implement the strategy
+if (buySignal)
+    strategy.entry("Buy", strategy.long)
+if (sellSignal)
+    strategy.close("Buy")
+
+// Optional: Add alert conditions
+alertcondition(buySignal, title="Buy Alert", message="Buy signal: EMA crossed above 30 SMA")
+alertcondition(sellSignal, title="Sell Alert", message="Sell signal: EMA crossed below 30 SMA or 50 SMA")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/458273
+
+> Last Modified
+
+2024-07-31 14:41:32

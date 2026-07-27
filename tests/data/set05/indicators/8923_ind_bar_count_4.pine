@@ -1,0 +1,8 @@
+//@version=3
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/v3/appendix/howtos.md::howtos.md#block7
+// content_hash: 7691479b6799a20f
+// collected: 2026-07-27
+study("Bar Count", overlay=true, scale=scale.none)
+plot(n + 1, style=histogram)

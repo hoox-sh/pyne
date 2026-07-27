@@ -1,0 +1,148 @@
+//@version=5
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/Machine Learning Regression Trend [LuxAlgo].pine
+// content_hash: 0e26023b5cf1a48b
+// collected: 2026-07-27
+indicator("Machine Learning Regression Trend [LuxAlgo]", "LuxAlgo - Machine Learning Regression Trend", overlay = true, max_labels_count = 500)
+//------------------------------------------------------------------------------
+//Settings
+//-----------------------------------------------------------------------------{
+length = input.int(100, minval = 5)
+widthMult = input.float(2, 'Channel Width', minval = 0) 
+src = input(close, 'Source')
+//RANSAC
+inlineN = input.int(10, 'Minimum Inliners', minval = 1, group = 'RANSAC')
+errorType = input.string('Auto', 'Allowed Error', options = ['Auto', 'Fixed'], inline = 'error', group = 'RANSAC')
+minError = input.float(1., '', minval = 0, step = 0.5, inline = 'error', group = 'RANSAC')
+maxIter = input(10000, 'Maximum Iteration Steps', group = 'RANSAC')
+//Style
+lineCss = input(#2157f3, 'Line Color', group = 'Style')
+showMargin = input(true, 'Show Margin', inline = 'margin', group = 'Style')
+marginCss = input(color.new(#2157f3, 80), '', inline = 'margin', group = 'Style')
+showChannel = input(true, 'Show Channel', inline = 'channel', group = 'Style')
+channelCss = input(color.new(color.gray, 90), '', inline = 'channel', group = 'Style')
+showInliners = input(true, 'Show Inliners', inline = 'inliners', group = 'Style')
+inlinersCss = input(#2157f3, '', inline = 'inliners', group = 'Style')
+showOutliers = input(true, 'Show Outliers', inline = 'outliers', group = 'Style')
+outliersCss = input(#ff1100, '', inline = 'outliers', group = 'Style')
+//-----------------------------------------------------------------------------}
+//UDT
+//-----------------------------------------------------------------------------{
+type LinearRegression
+    array<float> y
+    array<int> x
+    array<float> inliners_y
+    array<int> inliners_x
+    float a
+    float b
+//-----------------------------------------------------------------------------}
+//Methods
+//-----------------------------------------------------------------------------{
+method fit(LinearRegression id)=>
+    a = id.y.covariance(id.x) / id.x.variance()
+    b = id.y.avg() - a * id.x.avg()
+    id.a := a
+    id.b := b
+method predict(LinearRegression id, x)=>
+    predicted = id.a * x + id.b 
+method rmse(LinearRegression id)=>
+    i = 0
+    rmse = 0.
+    for value in id.y
+        rmse += math.pow(value - id.predict(id.x.get(i)), 2)
+        i += 1
+    
+    math.sqrt(rmse / i)
+//-----------------------------------------------------------------------------}
+//Get data
+//-----------------------------------------------------------------------------{
+var y = array.new<float>(0)
+var x = array.new<int>(0)
+n = bar_index
+y.unshift(src)
+x.unshift(n)
+if y.size() > length
+    y.pop()
+    x.pop()
+//Threshold
+threshold = switch errorType
+    'Auto' => ta.cum(math.abs(close - open)) / (n+1) * minError
+    'Fixed' => minError
+//-----------------------------------------------------------------------------}
+//Display linear regression
+//-----------------------------------------------------------------------------{
+if barstate.islastconfirmedhistory
+    size = inlineN
+    LinearRegression final_model = na
+    
+    for i = 0 to maxIter-1
+        //Possible inliners
+        inliners_y = array.new<float>(0) 
+        inliners_x = array.new<int>(0)
+        //Determine random indices
+        for j = 0 to 1
+            idx = int(math.random(0, length-1))
+            inliners_y.unshift(y.get(idx))
+            inliners_x.unshift(x.get(idx))
+        //Get model
+        model = LinearRegression.new(inliners_y, inliners_x)
+        model.fit()
+        true_inliners_y = array.new<float>(0)
+        true_inliners_x = array.new<int>(0)
+        k = 0
+        for point in y
+            pred = model.predict(x.get(k))
+            if math.abs(point - pred) < threshold
+                true_inliners_y.unshift(point)
+                true_inliners_x.unshift(x.get(k))
+            k += 1
+        if true_inliners_y.size() >= size
+            final_model := LinearRegression.new(true_inliners_y, true_inliners_x
+              , inliners_y = true_inliners_y
+              , inliners_x = true_inliners_x)
+            
+            final_model.fit()
+            size := true_inliners_y.size()
+    
+    //Tets for suitable model
+    if na(final_model)
+        runtime.error('A suitable model could not be obtained from the provided data/hyperparameters')
+    
+    //Set line
+    y1 = final_model.predict(n-length+1)
+    y2 = final_model.predict(n)
+    line.new(n-length+1, y1, n, y2, color = lineCss, extend = extend.right)
+    
+    //Error Margins
+    if showMargin
+        upper = line.new(n-length+1, y1 + threshold, n, y2 + threshold, color = na)
+        lower = line.new(n-length+1, y1 - threshold, n, y2 - threshold, color = na)
+        linefill.new(upper, lower, marginCss)
+    
+    //Channel
+    final_model.y := y
+    final_model.x := x
+    width = final_model.rmse() * widthMult
+    if showChannel
+        upper = line.new(n-length+1, y1 + width, n, y2 + width, color = na, extend = extend.right)
+        lower = line.new(n-length+1, y1 - width, n, y2 - width, color = na, extend = extend.right)
+        linefill.new(upper, lower, channelCss)
+    //Show inliners/outliners
+    k = 0
+    for value in y
+        if final_model.inliners_x.includes(n-k)
+            if showInliners
+                label.new(n-k, value, '•'
+                  , color = color(na)
+                  , textcolor = inlinersCss
+                  , style = label.style_label_center)
+        else if showOutliers
+            label.new(n-k, value, '•'
+              , color = color(na)
+              , textcolor = outliersCss
+              , style = label.style_label_center)
+        
+        k += 1
+//-----------------------------------------------------------------------------}
+Expand (169 lines)

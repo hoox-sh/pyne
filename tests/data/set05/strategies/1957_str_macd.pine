@@ -1,0 +1,66 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于连续MACD金叉死叉的交易策略-Trading-Strategy-Based-on-Consecutive-MACD-Golden-and-Death-Crosses.md
+// content_hash: 1dd7b92ecebdbdc5
+// collected: 2026-07-27
+strategy("连续MACD交叉和回测范围")
+//策略初始化時間設置
+useDateFilter = input.bool(true, title="启用时间回测范围", group="回测范围")
+backtestStartDate = input(timestamp("1 Jan 2023"), title="开始时间", group="回测范围")
+backtestEndDate = input(timestamp("1 Jan 2024"), title="结束时间", group="回测范围")
+inTradeWindow = true
+
+// 定义MACD指标参数
+fastLength = input.int(12, "快速EMA周期")
+slowLength = input.int(26, "慢速EMA周期")
+signalSmoothing = input.int(9, "信号线平滑周期")
+long_win = input.float(defval = 0.01,title = "多单止盈设置", tooltip = "0.01代表1%" )
+long_lose= input.float(0.01,"多单止损设置")
+short_win = input.float(0.01,"空单止盈设置")
+short_lose = input.float(0.01,"空单止损设置")
+
+// 计算MACD值
+[macdLine, signalLine, _] = ta.macd(close, fastLength, slowLength, signalSmoothing)
+
+// 定义金叉和死叉的条件
+crossUp = ta.crossover(macdLine, signalLine)
+crossDown = ta.crossunder(macdLine, signalLine)
+
+// 使用历史状态记录上一次交叉情况
+var lastCrossUp = false
+var lastCrossDown = false
+
+// 更新历史状态
+if crossUp
+    lastCrossUp := true
+else if crossDown
+    lastCrossUp := false
+
+if crossDown
+    lastCrossDown := true
+else if crossUp
+    lastCrossDown := false
+
+// 交易执行逻辑：检查是否存在连续的金叉或死叉
+if lastCrossUp and crossUp and inTradeWindow
+    strategy.entry("买入开多", strategy.long)
+    strategy.exit("买入止盈止损", "买入开多", limit=close * (1 + long_win), stop=close * (1 - long_lose))
+
+if lastCrossDown and crossDown and inTradeWindow
+    strategy.entry("卖出开空", strategy.short)
+    strategy.exit("卖出止盈止损", "卖出开空", limit=close * (1 - short_win), stop=close * (1 + short_lose))
+
+// 显示MACD线和信号线
+plot(macdLine, "MACD线", color=color.blue)
+plot(signalLine, "信号线", color=color.orange)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/449967
+
+> Last Modified
+
+2024-04-30 17:26:19

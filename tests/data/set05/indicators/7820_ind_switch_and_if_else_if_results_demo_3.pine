@@ -1,0 +1,16 @@
+//@version=5
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/v5/writing/profiling-and-optimization.md::profiling-and-optimization.md#block2
+// content_hash: 30f4816925bedfca
+// collected: 2026-07-27
+indicator("`switch` and `if...else if` results demo")
+
+//@variable The upper band for oscillator calculation.
+var float upperBand = close
+//@variable The lower band for oscillator calculation.
+var float lowerBand = close
+
+// Update the `upperBand` and `lowerBand` based on the proximity of the `close` to the current band values.
+// The "Line time" field on line 11 represents the time spent on all 4 conditional expressions in the structure.
+switch

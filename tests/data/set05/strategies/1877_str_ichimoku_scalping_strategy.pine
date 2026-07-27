@@ -1,0 +1,68 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动量分析式Ichimoku云雾闪电交易策略Momentum-Analysis-Ichimoku-Cloud-Fog-Lightning-Trading-Strategy.md
+// content_hash: 83cfccd1cbcbfc17
+// collected: 2026-07-27
+strategy("Ichimoku Scalping Strategy", shorttitle="Ichimoku Scalp", overlay=true)
+
+// Define Ichimoku Cloud components with shorter periods for scalping
+conversionPeriods = input(9, title="Conversion Line Periods")
+basePeriods = input(26, title="Base Line Periods")
+laggingSpan2Periods = input(52, title="Lagging Span 2 Periods")
+displacement = input(26, title="Displacement")
+
+// Calculate Ichimoku Cloud components
+tenkanSen = ta.sma((high + low) / 2, conversionPeriods)
+kijunSen = ta.sma((high + low) / 2, basePeriods)
+senkouSpanA = (tenkanSen + kijunSen) / 2
+senkouSpanB = ta.sma((high + low) / 2, laggingSpan2Periods)
+
+// Plot Ichimoku Cloud components
+p1 = plot(tenkanSen, color=color.green, linewidth=1, title="Tenkan Sen")
+p2 = plot(kijunSen, color=color.red, linewidth=1, title="Kijun Sen")
+p3 = plot(senkouSpanA, color=color.blue, linewidth=1, title="Senkou Span A", offset=displacement)
+p4 = plot(senkouSpanB, color=color.orange, linewidth=1, title="Senkou Span B", offset=displacement)
+fill(p3, p4, color=color.purple, transp=30, title="Cloud")
+
+// Define strategy conditions for scalping
+enterLong = ta.crossover(tenkanSen, kijunSen) and close > senkouSpanA[displacement] and close > senkouSpanB[displacement]
+exitLong = ta.crossunder(tenkanSen, kijunSen) or close < senkouSpanA[displacement]
+
+// Enter short condition for scalping
+enterShort = ta.crossunder(tenkanSen, kijunSen) and close < senkouSpanA[displacement] and close < senkouSpanB[displacement]
+exitShort = ta.crossover(tenkanSen, kijunSen) or close > senkouSpanA[displacement]
+
+// Execute strategy
+if (enterLong)
+    strategy.entry("Long", strategy.long)
+if (exitLong)
+    strategy.close("Long")
+if (enterShort)
+    strategy.entry("Short", strategy.short)
+if (exitShort)
+    strategy.close("Short")
+
+// Risk management: setting a stop loss and take profit for scalping
+stopLossPercent = input(1.5, title="Stop Loss (%)")
+takeProfitPercent = input(1.0, title="Take Profit (%)")
+stopLossPrice = strategy.position_avg_price * (1 - stopLossPercent / 100)
+takeProfitPrice = strategy.position_avg_price * (1 + takeProfitPercent / 100)
+
+// Set stop loss and take profit for long positions
+if (strategy.position_size > 0)
+    strategy.exit("Long SL/TP", "Long", stop=stopLossPrice, limit=takeProfitPrice)
+    
+// Set stop loss and take profit for short positions
+if (strategy.position_size < 0)
+    strategy.exit("Short SL/TP", "Short", stop=stopLossPrice, limit=takeProfitPrice)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/433123
+
+> Last Modified
+
+2023-11-24 15:49:06

@@ -1,0 +1,176 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于RSI-SMA的突发性买卖策略SMA-RSI-Sudden-Buy-Sell-Strategy.md
+// content_hash: 6542bdb3fb6aa6d9
+// collected: 2026-07-27
+
+
+strategy("sma RSI & sudden buy and sell Strategy v1", overlay=true)
+price = close
+length = input( 14 )
+inst_length = input( 10 )
+var rbc = 0
+var float rsiBP = 0.0
+var rsc = 0
+var float rsiSP = 0.0
+bars = input(10)
+
+lookbackno2 = input.int(20)
+rsi_buy = 0
+rsi_sell = 0
+
+
+
+//EMA inputs
+
+input_ema20 = input.int(20)
+ema20 = ta.ema(price, input_ema20)
+input_ema50 = input.int(50)
+ema50 = ta.ema(price, input_ema50)
+input_ema100 = input.int(100)
+ema100 = ta.ema(price, input_ema100)
+input_ema200 = input.int(200)
+ema200 = ta.ema(price, input_ema200)
+input_ema400 = input.int(400)
+ema400 = ta.ema(price, input_ema400)
+input_ema800 = input.int(800)
+ema800 = ta.ema(price, input_ema800)
+
+
+vrsi = ta.rsi(price, length)
+
+
+hi2 = ta.highest(price, lookbackno2)
+lo2 = ta.lowest(price, lookbackno2)
+
+buy_diff_rsi = vrsi - ta.rsi(close[1], length)
+sell_diff_rsi = ta.rsi(close[1],length) - vrsi
+
+
+//RSI high low
+
+var int sudS = 0
+var int sudB = 0
+var float sudSO = 0.0
+var float sudSC = 0.0
+var float sudBO = 0.0
+var float sudBC = 0.0
+var sudBuy = 0
+var sudSell = 0 
+var countB = 0
+var countS = 0
+
+
+
+var co_800 = false
+var co_400 = false
+var co_200 = false
+var co_100 = false
+var co_50 = false
+var co_20 = false
+
+co_800 := ta.crossover(price , ema800)
+co_400 := ta.crossover(price , ema400)
+co_200 := ta.crossover(price , ema200)
+co_100 := ta.crossover(price , ema100)
+co_50 := ta.crossover(price , ema50)
+co_20 := ta.crossover(price , ema20)
+
+if(ta.crossunder(price , ema20))
+    co_20 := false
+if(ta.crossunder(price , ema50))
+    co_50 := false
+if(ta.crossunder(price , ema100))
+    co_100 := false
+if(ta.crossunder(price , ema200))
+    co_200 := false
+if(ta.crossunder(price , ema400))
+    co_400 := false
+if(ta.crossunder(price , ema800))
+    co_800 := false
+    
+if((price> ema800) and (price > ema400))
+    if(co_20)
+        if(co_50)
+            if(co_100)
+                if(co_200)
+                    strategy.close("Sell")
+                    strategy.entry("Buy", strategy.long, comment="spl Buy")
+                    co_20 := false
+                    co_50 := false
+                    co_100 := false
+                    co_200 := false
+
+
+
+// too much rsi
+
+if(vrsi > 90)
+    strategy.close("Buy")
+    strategy.entry("Sell", strategy.short, comment="RSI too overbuy")
+if(vrsi < 10)
+    strategy.close("Sell")
+    strategy.entry("Buy", strategy.long, comment="RSI too oversold")
+
+
+var sudbcount = 0  // counting no. of bars till sudden rise
+var sudscount = 0  // counting no. of bars till sudden decrease
+
+
+
+if(sudB == 1)
+    sudbcount := sudbcount + 1
+if(sudS == 1)
+    sudscount := sudscount + 1
+
+
+if((buy_diff_rsi > inst_length) and (hi2 > price))
+    sudB := 1
+    sudBO := open
+    sudBC := close
+if((sell_diff_rsi > inst_length) )
+    sudS := 1
+    sudSO := open
+    sudSC := close   
+
+if(sudbcount == bars)
+    if(sudBC < price)
+        strategy.close("Sell")
+        strategy.entry("Buy", strategy.long, comment="sudd buy")
+        sudbcount := 0
+        sudB := 0
+    sudbcount := 0
+    sudB := 0
+if(sudscount == bars) 
+    if(sudSC > price)
+        strategy.close("Buy")
+        strategy.entry("Sell", strategy.short, comment="sudd sell")
+        sudscount := 0
+        sudS := 0
+    sudscount := 0
+    sudS := 0
+
+
+over40 = input( 40 )
+over60 = input( 60 )
+sma =ta.sma(vrsi, length)
+coo = ta.crossover(sma, over60)
+cuu = ta.crossunder(sma, over40)
+
+if (coo)
+    strategy.close("Sell")
+	strategy.entry("Buy", strategy.long, comment="modified buy")
+if (cuu)
+    strategy.close("Buy")
+	strategy.entry("Sell", strategy.short, comment="modefied sell")
+//plot(strategy.equity, title="equity", color=color.red, linewidth=2, style=plot.style_areabr)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/436008
+
+> Last Modified
+
+2023-12-20 17:33:04

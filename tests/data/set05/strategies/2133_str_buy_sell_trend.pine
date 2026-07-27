@@ -1,0 +1,62 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/EMA动态趋势追踪交易策略-EMA-Dynamic-Trend-Following-Trading-Strategy.md
+// content_hash: 86a88ce8249d5f35
+// collected: 2026-07-27
+strategy("buy sell Trend", overlay=true)
+
+atr_length = input.int(defval=14, title='atr length')
+highest_length = input.int(defval=60, title='highest length')
+highest_s_length = input.int(defval=60, title='sell highest length')
+lowest_length = input.int(defval=30, title='lowest length')
+sell_l_length = input.int(defval=55, title='sell line length')
+
+f = 2.382
+f2 = 5.618
+
+atr = ta.atr(atr_length)
+highest = ta.highest(highest_length)
+lowest = ta.lowest(lowest_length)
+
+f_atr = atr * f
+ema_hl = ta.ema((highest[1] + lowest[1]) / 2, 14)
+ema_highest = ema_hl + f_atr
+ema_lowest = ema_hl - f_atr
+ema_mid = (ema_highest + ema_lowest) / 2
+
+bs_hi = ta.highest(highest_s_length)
+f_atr2 = atr * f2
+sell_line = ta.ema(bs_hi[1] + f_atr2, sell_l_length)
+
+buy_cond = ta.crossover(ema_lowest, lowest) and close < ema_mid
+sell_cond = (ta.crossunder(ema_highest, highest) and close > ema_mid) or high >= sell_line
+
+if buy_cond
+    strategy.entry('BUY', strategy.long)
+
+if sell_cond
+    strategy.entry('SELL', strategy.short)
+
+
+plot(sell_line, color=color.new(color.maroon, 50))
+plot(highest, color=color.new(color.red, 50))
+plot(lowest, color=color.new(color.green, 50))
+plot(ema_highest, color=color.new(color.blue, 50))
+// plot(ema_mid, color=color.new(color.gray, 50))
+plot(ema_lowest, color=color.new(color.blue, 50))
+
+plotshape(buy_cond, title='buy', style=shape.triangleup, location=location.belowbar, 
+ color=color.green, textcolor=color.green, size=size.tiny)
+
+plotshape(sell_cond, title='sell', style=shape.triangledown, location=location.abovebar, 
+ color=color.red, textcolor=color.red, size=size.tiny)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/451023
+
+> Last Modified
+
+2024-05-11 11:31:46

@@ -1,0 +1,59 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/三重EMA交叉策略Triple-EMA-Crossover-Strategy.md
+// content_hash: 021fe273e15454f1
+// collected: 2026-07-27
+strategy("Triple EMA Crossover Strategy", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=10)
+
+// Input for EMA periods
+fastLength = input(10, title="Fast EMA Length")
+mediumLength = input(25, title="Medium EMA Length")
+slowLength = input(50, title="Slow EMA Length")
+riskMultiplier = input(3.0, title="Risk Multiplier for Stop Loss and Take Profit")
+
+// Calculating EMAs
+fastEMA = ta.ema(close, fastLength)
+mediumEMA = ta.ema(close, mediumLength)
+slowEMA = ta.ema(close, slowLength)
+
+// Plot EMAs
+plot(fastEMA, color=color.red, title="Fast EMA")
+plot(mediumEMA, color=color.orange, title="Medium EMA")
+plot(slowEMA, color=color.yellow, title="Slow EMA")
+
+// Define the crossover conditions for a bullish and bearish signal
+bullishCrossover = ta.crossover(fastEMA, slowEMA) and mediumEMA > slowEMA
+bearishCrossover = ta.crossunder(fastEMA, slowEMA) and mediumEMA < slowEMA
+
+// ATR for stop and limit calculations
+atr = ta.atr(14)
+longStopLoss = close - atr * riskMultiplier
+shortStopLoss = close + atr * riskMultiplier
+longTakeProfit = close + atr * riskMultiplier * 2
+shortTakeProfit = close - atr * riskMultiplier * 2
+
+// Entry signals with visual shapes
+plotshape(series=bullishCrossover, location=location.belowbar, color=color.green, style=shape.triangleup, title="Buy Signal", text="BUY")
+plotshape(series=bearishCrossover, location=location.abovebar, color=color.red, style=shape.triangledown, title="Sell Signal", text="SELL")
+
+// Strategy execution
+if (bullishCrossover)
+    strategy.entry("Long", strategy.long)
+    strategy.exit("Exit Long", "Long", stop=longStopLoss, limit=longTakeProfit)
+
+if (bearishCrossover)
+    strategy.entry("Short", strategy.short)
+    strategy.exit("Exit Short", "Short", stop=shortStopLoss, limit=shortTakeProfit)
+
+// Color bars based on EMA positions
+barcolor(fastEMA > slowEMA ? color.green : slowEMA > fastEMA ? color.red : na, title="Bar Color")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/449956
+
+> Last Modified
+
+2024-04-30 16:34:59

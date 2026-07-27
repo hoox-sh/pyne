@@ -1,0 +1,37 @@
+//@version=5
+// set05 corpus entry
+// source_repo: tradingview-indicators-pine
+// source_path: tradingview-indicators-pine/SF-TrendRibbon-OnlyPierre.txt
+// content_hash: a7e4bf8fee7d4eca
+// collected: 2026-07-27
+
+indicator(title="TrendribbonP", shorttitle="TrendribbonP", overlay=false)
+
+M_or_D = input.string("Mono", title="Mono or Dual color", options=["Mono", "Dual"])
+Mono_or_Dual_select(type) =>
+    switch type
+        "Mono" => 1
+        "Dual" => 0
+
+// slow ema
+slowEmaSource = input(defval = close)
+slowEmaLength = input.int(defval = 30, minval = 1)
+
+// fast ema
+fastEmaSource = input(defval = close)
+fastEmaLength = input.int(defval = 13, minval=1) 
+
+// declare EMAs
+fastEma = ta.ema(fastEmaSource, fastEmaLength)
+slowEma = ta.ema(slowEmaSource, slowEmaLength)
+
+// draw lines
+//transparencySetting=0     // visible outline
+transparencySetting=100   // invisible outline
+p1=plot(series=fastEma, title="FastEMA", color=color.new(#00FFFF, transparencySetting), linewidth=1, display=display.none)
+p2=plot(series=slowEma, title="SlowEMA", color=color.new(color.blue, transparencySetting), linewidth=1, style=plot.style_stepline, display=display.none)
+
+//fillColor = Krill_Pierre_select(K_or_P)
+Mono = Mono_or_Dual_select(M_or_D)
+fillColor = (fastEma > slowEma) ? #00BFFF : (Mono ?  #00BFFF :  color.red)
+fill(p1, p2, fillColor)

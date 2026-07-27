@@ -1,0 +1,23 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/language/type-system.md::type-system.md#block5
+// content_hash: 846100a27e272554
+// collected: 2026-07-27
+indicator("'input' values demo")
+
+//@variable An "input string" value representing the requested symbol.
+symbolInput = input.string("AAPL", "Symbol")
+//@variable An "input string" value representing the timeframe of the requested data.
+timeframeInput = input.string("1D", "Timeframe")
+//@variable An "input float" value for specifying the base of the plotted columns.
+colBaseInput = input.float(50.0, "Column base", 0.0, 100.0)
+
+//@variable The value of an RSI calculated on the `symbolInput` symbol and `timeframeInput` timeframe.
+//          The `request.security()` function's `symbol` and `timeframe` parameters accept "series string" values, 
+//          so they also allow weaker qualified types such as "input string".
+requestedRSI = request.security(symbol = symbolInput, timeframe = timeframeInput, expression = ta.rsi(close, 14))
+
+// Plot the `requestedRSI` value as columns with the base defined by `colBaseInput`. 
+// This call works, because `histbase` requires an "int" or "float" value with the "const" or "input" qualifier.
+plot(requestedRSI, "RSI", color.purple, 1, plot.style_columns, histbase = colBaseInput)

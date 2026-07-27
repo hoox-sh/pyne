@@ -1,0 +1,62 @@
+// set05 corpus entry
+// source_repo: tradingview-indicators-pine
+// source_path: tradingview-indicators-pine/ATZ/ATR2.txt
+// content_hash: e4d9bb1f19d92a88
+// collected: 2026-07-27
+
+//@version=4
+// ATZ ATR indicator
+study("ATR2", overlay=true)
+
+
+
+/////////// ATR FUNCTION //////////////////
+///// src : price source
+///// len : ATR length
+///// multi : Multiplier
+
+fn_atr(src, len, multi) =>
+    value = multi * atr(len)
+    lVal = src - value
+    uVal = src + value
+    [value, lVal, uVal]
+
+/////////// ATR FUNCTION WITH RESOLUTION //////////////////
+fn_atrRes(res, src, len, multi) =>
+    [value, lVal, uVal] = security(syminfo.tickerid, res, fn_atr(src, len, multi))
+    [value, lVal, uVal]
+
+
+
+///// INPUTS
+resolution = input(title="Resolution", type=input.resolution, defval="D")
+source = input(title="Source", type=input.source, defval=close)
+length = input(title="ATR Length", type=input.integer, defval=14, minval=1)
+muliplier = input(title="ATR Multiplier", type=input.float, defval=1, minval=0, step=0.1)
+band = input(title="Band in %", type=input.float, defval=1.2, minval=0, step=0.1) / 100
+
+
+//// CALCULATING VALUES
+[atrValue, lowLevel, highLevel] = fn_atrRes(resolution, source, length, muliplier)
+
+
+///// FIXING THE CURRENT CANDLE MIS-CALCULATION
+if not barstate.isnew
+    lowLevel := lowLevel[1], highLevel := highLevel[1]
+
+
+
+///// PLOTING HIGHER LEVLES
+hp = plot(highLevel, title='Higer ATR', linewidth=1, style=plot.style_circles, color=color.silver)
+hb = plot(highLevel*(1-band), title='Higer Band', linewidth=1, style=plot.style_circles, transp=100)
+fill(hp, hb, color=color.red)
+
+
+///// PLOTING LOWER LEVLES
+lp = plot(lowLevel, title='Lower ATR', linewidth=1, style=plot.style_circles, color=color.silver)
+lb = plot(lowLevel*(1+band), title='Lower Band', linewidth=1, style=plot.style_circles, transp=100)
+fill(lp, lb, color=color.green)
+
+
+
+

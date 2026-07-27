@@ -1,0 +1,55 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多维度动态ICT交易策略结合吞没形态与供需区域分析系统-Multi-Dimensional-Dynamic-ICT-Trading-Strategy-with-Engulfing-Patterns-and-Supply-Demand-Zone-Analysis-System.md
+// content_hash: 4f9b7087252a9034
+// collected: 2026-07-27
+strategy("ICT + Engulfing + Supply & Demand", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=10)
+
+// Input settings
+timeframe = input.timeframe("15", title="Backtest Timeframe")
+use_snd = input(true, title="Enable Supply & Demand Zones")
+stopLossPerc = input(1.5, title="Stop Loss %")
+takeProfitPerc = input(3, title="Take Profit %")
+
+// Identify Engulfing Patterns
+bullishEngulfing = (close[1] < open[1]) and (close > open) and (close > open[1]) and (open < close[1])
+bearishEngulfing = (close[1] > open[1]) and (close < open) and (close < open[1]) and (open > close[1])
+
+// Supply & Demand Zones (basic identification)
+highestHigh = ta.highest(high, 20)
+lowestLow = ta.lowest(low, 20)
+supplyZone = use_snd ? highestHigh : na
+demandZone = use_snd ? lowestLow : na
+
+// Entry & Exit Conditions
+longCondition = bullishEngulfing and close > demandZone
+shortCondition = bearishEngulfing and close < supplyZone
+
+// Stop-Loss & Take-Profit Calculation
+longSL = close * (1 - stopLossPerc / 100)
+longTP = close * (1 + takeProfitPerc / 100)
+shortSL = close * (1 + stopLossPerc / 100)
+shortTP = close * (1 - takeProfitPerc / 100)
+
+// Execute trades
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+    strategy.exit("Long Exit", from_entry="Long", stop=longSL, limit=longTP)
+
+if (shortCondition)
+    strategy.entry("Short", strategy.short)
+    strategy.exit("Short Exit", from_entry="Short", stop=shortSL, limit=shortTP)
+
+// Plot Supply & Demand Zones
+plot(use_snd ? supplyZone : na, color=color.red, title="Supply Zone")
+plot(use_snd ? demandZone : na, color=color.green, title="Demand Zone")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/482861
+
+> Last Modified
+
+2025-02-20 15:44:25

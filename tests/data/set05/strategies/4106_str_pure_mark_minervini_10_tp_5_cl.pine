@@ -1,0 +1,23 @@
+//@version=4
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/Pure Mark Minervini 10-TP 5-CL.pine
+// content_hash: c8a6128b3b1611b8
+// collected: 2026-07-27
+strategy(title="Pure Mark Minervini 10%TP 5%CL", pyramiding = 0, commission_type=strategy.commission.percent, commission_value=0.08, overlay=true)
+ma50 = sma(close,50)
+ma150 = sma(close,150)
+ma200 = sma(close,200)
+ma200_22 = ma200[22]
+high_loopback = input(260, "High Lookback Length")
+low_loopback = input(260, "Low Lookback Length")
+highest_price = highest(high, high_loopback)
+lowest_price = lowest(low, low_loopback)
+above52lo = ((close/lowest_price)-1)*100
+below52hi = (1-(close/highest_price))*100
+ep = strategy.position_avg_price
+buy = close>ma150 and close>ma200 and ma150>ma200 and ma200>ma200_22 and ma50>ma150 and ma50>ma200 and close>ma50 and above52lo>=25 and below52hi<=25 and close>0.3
+sell = close>ep*1.1 or close<ep*0.95
+strategy.entry("TF", strategy.long, when = buy)
+strategy.close("TF", when = sell)
+Expand (22 lines)

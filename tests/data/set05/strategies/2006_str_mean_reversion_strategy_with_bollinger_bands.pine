@@ -1,0 +1,65 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/Bollinger-Bands-Mean-Reversion-Trading-Strategy-with-Dynamic-Support-布林带均值回归交易策略与动态支撑.md
+// content_hash: 81faebedf24a8317
+// collected: 2026-07-27
+strategy("Mean Reversion Strategy with Bollinger Bands", overlay=true)
+
+// Bollinger Bands settings
+length = input.int(20, minval=1, title="Bollinger Bands Length")
+src = input(close, title="Source")
+mult = input.float(2.0, minval=0.1, title="Bollinger Bands Multiplier")
+
+// Calculate Bollinger Bands
+basis = ta.sma(src, length)
+dev = mult * ta.stdev(src, length)
+upper = basis + dev
+lower = basis - dev
+
+// Plot Bollinger Bands
+plot(basis, title="Middle Band", color=color.blue)
+p1 = plot(upper, title="Upper Band", color=color.red)
+p2 = plot(lower, title="Lower Band", color=color.red)
+fill(p1, p2, color=color.rgb(255, 0, 0, 90))
+
+// Buy condition: Price crosses above the middle band
+longCondition = ta.crossover(close, basis)
+
+// Close condition: Price touches the middle band
+closeCondition = ta.crossunder(close, basis)
+
+// Emergency stop condition: Price drops below 2% of entry price
+dropCondition = strategy.position_size > 0 and close < strategy.position_avg_price * 0.98
+
+// Plot Buy/Sell Signals only on initial cross
+plotshape(series=longCondition, location=location.belowbar, color=color.green, style=shape.triangleup, textcolor=color.black, text="BUY", size=size.small)
+plotshape(series=closeCondition and not dropCondition, location=location.abovebar, color=color.red, style=shape.triangledown, textcolor=color.black, text="SELL", size=size.small)
+plotshape(series=dropCondition, location=location.abovebar, color=color.red, style=shape.triangledown, textcolor=color.black, text="STOP", size=size.small)
+
+// Track entry date to ensure no same-day buy/sell
+var float entryPrice = na
+var int entryYear = na
+var int entryMonth = na
+var int entryDay = na
+
+// Strategy Logic
+if (longCondition and (na(entryDay) or (year != entryYear or month != entryMonth or dayofmonth != entryDay))) 
+    strategy.entry("Long", strategy.long)
+    entryPrice := close
+    entryYear := year
+    entryMonth := month
+    entryDay := dayofmonth
+
+if ((closeCondition or dropCondition) and strategy.position_size > 0 and (na(entryDay) or (year != entryYear or month != entryMonth or dayofmonth != entryDay or dropCondition)))
+    strategy.close("Long")
+    entryDay := na
+```
+
+> Detail
+
+https://www.fmz.com/strategy/458268
+
+> Last Modified
+
+2024-07-31 14:19:48

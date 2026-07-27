@@ -1,0 +1,52 @@
+//@version=3
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/RSI跳空反转策略RSI-Gap-Reversal-Strategy.md
+// content_hash: e72adf5d90d38195
+// collected: 2026-07-27
+strategy("GBP combine", overlay=true)
+length = input( 8 )
+overSold = input( 23 )
+overBought = input( 75 )
+price = close
+overSoldP = input( 35 )
+overBoughtP = input (78)
+ProfitL = input(406)
+LossL = input(189)
+ProfitS = input(370)
+LossS = input(152)
+BarssinceL = input(16)
+BarssinceS = input(26)
+
+vrsi = rsi(price, length)
+
+longCondition() => crossunder(vrsi, overSold)
+closeLPLCondition() => crossover(vrsi, overBoughtP)
+closeLCondition() => barssince(longCondition())>BarssinceL
+
+shortCondition() => crossover (vrsi, overBought)
+closeLPSCondition() => crossunder(vrsi, overSoldP)
+closeSCondition() => barssince(shortCondition())>BarssinceS
+
+if (longCondition())
+    strategy.entry("Long", strategy.long)
+    strategy.exit ("Exit", "Long", profit=ProfitL,loss=LossL)
+strategy.close("Long", when = closeLPLCondition() or closeLCondition())
+
+if (shortCondition())
+    strategy.entry("Short", strategy.short)
+    strategy.exit ("Exit", "Short", profit=ProfitS,loss=LossS)
+strategy.close("Short", when = closeLPSCondition() or closeSCondition())
+
+
+//plot(strategy.equity, title="equity", color=red, linewidth=2, style=areabr)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/433128
+
+> Last Modified
+
+2023-11-24 16:01:31

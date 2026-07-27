@@ -1,0 +1,57 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多重均线趋势动量识别与止损交易系统-Multi-EMA-Trend-Momentum-Recognition-and-Stop-Loss-Trading-System.md
+// content_hash: 2d35a4946d3d076a
+// collected: 2026-07-27
+strategy("4 EMA Strategy with Stop Loss", overlay=true)
+
+// Define the EMA lengths
+ema1_length = input(9, title="EMA 1 Length")
+ema2_length = input(21, title="EMA 2 Length")
+ema3_length = input(50, title="EMA 3 Length")
+ema4_length = input(200, title="EMA 4 Length")
+
+// Calculate the EMAs
+ema1 = ta.ema(close, ema1_length)
+ema2 = ta.ema(close, ema2_length)
+ema3 = ta.ema(close, ema3_length)
+ema4 = ta.ema(close, ema4_length)
+
+// Plot EMAs on the chart
+plot(ema1, color=color.blue, title="EMA 9")
+plot(ema2, color=color.orange, title="EMA 21")
+plot(ema3, color=color.green, title="EMA 50")
+plot(ema4, color=color.red, title="EMA 200")
+
+// Define conditions for Buy and Sell signals
+buy_condition = (ema1 > ema2 and ema2 > ema3 and ema3 > ema4)
+sell_condition = (ema1 < ema2 and ema2 < ema3 and ema3 < ema4)
+
+// Input stop loss percentage
+stop_loss_perc = input(2.0, title="Stop Loss %")
+
+// Execute buy signal
+if (buy_condition)
+    strategy.entry("Buy", strategy.long)
+    
+    // Set stop loss at a percentage below the entry price
+    strategy.exit("Sell", "Buy", stop=strategy.position_avg_price * (1 - stop_loss_perc / 100))
+
+// Execute sell signal
+if (sell_condition)
+    strategy.entry("Sell", strategy.short)
+
+    // Set stop loss at a percentage above the entry price
+    strategy.exit("Cover", "Sell", stop=strategy.position_avg_price * (1 + stop_loss_perc / 100))
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/472936
+
+> Last Modified
+
+2024-11-25 11:09:00

@@ -1,0 +1,42 @@
+//@version=2
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于Stochastic指标的长短交叉策略Stochastic-Crossover-Long-and-Short-Strategy.md
+// content_hash: a130ce15ecbc55cf
+// collected: 2026-07-27
+////////////////////////////////////////////////////////////
+//  Copyright by HPotter v1.0 11/01/2017
+// This back testing strategy generates a long trade at the Open of the following 
+// bar when the %K line crosses below the %D line and both are above the Overbought level.
+// It generates a short trade at the Open of the following bar when the %K line 
+// crosses above the %D line and both values are below the Oversold level.
+//
+// You can change long to short in the Input Settings
+// Please, use it only for learning or paper trading. Do not for real trading.
+////////////////////////////////////////////////////////////
+strategy(title="Strategy Stochastic Crossover", shorttitle="Strategy Stochastic Crossover1", overlay = true )
+Length = input(7, minval=1)
+DLength = input(3, minval=1)
+Oversold = input(20, minval=1)
+Overbought = input(70, minval=1)
+reverse = input(false, title="Trade reverse")
+vFast = stoch(close, high, low, Length)
+vSlow = sma(vFast, DLength)
+pos = iff(vFast < vSlow and vFast > Overbought and vSlow > Overbought, 1,
+	   iff(vFast >= vSlow and vFast < Oversold and vSlow < Oversold, -1, nz(pos[1], 0))) 
+possig = iff(reverse and pos == 1, -1,
+          iff(reverse and pos == -1, 1, pos))	   
+if (possig == 1) 
+    strategy.entry("Long", strategy.long)
+if (possig == -1)
+    strategy.entry("Short", strategy.short)	   	    
+barcolor(possig == -1 ? red: possig == 1 ? green : blue )
+```
+
+> Detail
+
+https://www.fmz.com/strategy/435468
+
+> Last Modified
+
+2023-12-15 10:29:29

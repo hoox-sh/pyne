@@ -1,0 +1,69 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/黄金复合移动平均线交叉RSI混入策略Gold-Trading-with-Simons-Strategy.md
+// content_hash: dabef441dbf9a666
+// collected: 2026-07-27
+strategy("Gold Trading with Simons Strategy", overlay=true)
+
+// Parameters
+length21 = input(21, minval=1, title="Length for 21 MA")
+length50 = input(50, minval=1, title="Length for 50 MA")
+length200 = input(200, minval=1, title="Length for 200 MA")
+rsiLength = input(14, minval=1, title="RSI Length")
+rsiOverbought = input(70, title="RSI Overbought Level")
+rsiOversold = input(30, title="RSI Oversold Level")
+takeProfitPercent = input(4, title="Take Profit %")
+stopLossPercent = input(1, title="Stop Loss %")
+
+// Moving Averages
+ma21 = sma(close, length21)
+ma50 = sma(close, length50)
+ma200 = sma(close, length200)
+
+// RSI
+rsi = rsi(close, rsiLength)
+
+// Engulfing Pattern
+isBullishCandle(c) => close[c] > open[c]
+isBearishCandle(c) => close[c] < open[c]
+
+bearishEngulfing = isBullishCandle(1) and isBearishCandle(0) and close < open[1] and open > close[1]
+bullishEngulfing = isBearishCandle(1) and isBullishCandle(0) and close > open[1] and open < close[1]
+
+// Calculate Take Profit and Stop Loss Levels
+takeProfitLevel(entryPrice) => entryPrice * (1 + takeProfitPercent / 100)
+stopLossLevel(entryPrice) => entryPrice * (1 - stopLossPercent / 100)
+
+// Entry Conditions
+longCondition = crossover(ma21, ma200) and close > ma21 and close > ma50 and rsi < rsiOverbought and bullishEngulfing
+shortCondition = crossunder(ma21, ma200) and close < ma21 and close < ma50 and rsi > rsiOversold and bearishEngulfing
+
+// Entry
+if (longCondition)
+    entryPrice = close
+    strategy.entry("Long", strategy.long)
+    strategy.exit("Take Profit", "Long", limit=takeProfitLevel(entryPrice))
+    strategy.exit("Stop Loss", "Long", stop=stopLossLevel(entryPrice))
+if (shortCondition)
+    entryPrice = close
+    strategy.entry("Short", strategy.short)
+    strategy.exit("Take Profit", "Short", limit=takeProfitLevel(entryPrice))
+    strategy.exit("Stop Loss", "Short", stop=stopLossLevel(entryPrice))
+
+// Plotting
+plot(ma21, color=color.blue, title="21 MA")
+plot(ma50, color=color.orange, title="50 MA")
+plot(ma200, color=color.red, title="200 MA")
+hline(rsiOverbought, "RSI Overbought", color=color.green)
+hline(rsiOversold, "RSI Oversold", color=color.red)
+plot(rsi, "RSI", color=color.purple)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/443247
+
+> Last Modified
+
+2024-03-01 12:28:38

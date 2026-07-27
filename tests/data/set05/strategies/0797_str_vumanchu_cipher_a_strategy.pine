@@ -1,0 +1,131 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/高级WaveTrend与EMA-Ribbon融合交易策略-Advanced-WaveTrend-and-EMA-Ribbon-Fusion-Trading-Strategy.md
+// content_hash: 24c97e39f49de0c9
+// collected: 2026-07-27
+strategy("VuManChu Cipher A Strategy", overlay=true, initial_capital=10000, default_qty_type=strategy.fixed, default_qty_value=1.0)
+
+// === 函数定义 ===
+// WaveTrend函数
+f_wavetrend(_src, _chlen, _avg, _malen) =>
+    _esa = ta.ema(_src, _chlen)
+    _de = ta.ema(math.abs(_src - _esa), _chlen)
+    _ci = (_src - _esa) / (0.015 * _de)
+    _tci = ta.ema(_ci, _avg)
+    _wt1 = _tci
+    _wt2 = ta.sma(_wt1, _malen)
+    [_wt1, _wt2]
+
+// EMA Ribbon函数
+f_emaRibbon(_src, _e1, _e2, _e3, _e4, _e5, _e6, _e7, _e8) =>
+    _ema1 = ta.ema(_src, _e1)
+    _ema2 = ta.ema(_src, _e2)
+    _ema3 = ta.ema(_src, _e3)
+    _ema4 = ta.ema(_src, _e4)
+    _ema5 = ta.ema(_src, _e5)
+    _ema6 = ta.ema(_src, _e6)
+    _ema7 = ta.ema(_src, _e7)
+    _ema8 = ta.ema(_src, _e8)
+    [_ema1, _ema2, _ema3, _ema4, _ema5, _ema6, _ema7, _ema8]
+
+// === 变量声明 ===
+var float stopPrice = na      // 止损价格变量
+var float targetPrice = na    // 止盈价格变量
+var float lastLongPrice = na
+var float lastShortPrice = na
+var float highestSinceLastLong = na
+var float lowestSinceLastShort = na
+
+// === WaveTrend参数 ===
+wtChannelLen = input.int(9, title = 'WT Channel Length')
+wtAverageLen = input.int(13, title = 'WT Average Length')
+wtMASource = hlc3
+wtMALen = input.int(3, title = 'WT MA Length')
+
+// === EMA Ribbon参数 ===
+ema1Len = input.int(5, "EMA 1 Length")
+ema2Len = input.int(11, "EMA 2 Length")
+ema3Len = input.int(15, "EMA 3 Length")
+ema4Len = input.int(18, "EMA 4 Length")
+ema5Len = input.int(21, "EMA 5 Length")
+ema6Len = input.int(24, "EMA 6 Length")
+ema7Len = input.int(28, "EMA 7 Length")
+ema8Len = input.int(34, "EMA 8 Length")
+
+// === 计算指标 ===
+// WaveTrend计算
+[wt1, wt2] = f_wavetrend(wtMASource, wtChannelLen, wtAverageLen, wtMALen)
+
+// WaveTrend交叉条件
+wtCross = ta.cross(wt1, wt2)
+wtCrossDown = wt2 - wt1 >= 0
+
+// EMA Ribbon计算
+[ema1, ema2, ema3, ema4, ema5, ema6, ema7, ema8] = f_emaRibbon(close, ema1Len, ema2Len, ema3Len, ema4Len, ema5Len, ema6Len, ema7Len, ema8Len)
+
+// === 交易信号 ===
+longEma = ta.crossover(ema2, ema8)
+shortEma = ta.crossover(ema8, ema2)
+redCross = ta.crossunder(ema1, ema2)
+blueTriangle = ta.crossover(ema2, ema3)
+redDiamond = wtCross and wtCrossDown
+bloodDiamond = redDiamond and redCross
+
+// 更新最高最低价
+if not na(lastLongPrice)
+    highestSinceLastLong := math.max(high, nz(highestSinceLastLong))
+if not na(lastShortPrice)
+    lowestSinceLastShort := math.min(low, nz(lowestSinceLastShort))
+
+// === 交易信号条件 ===
+longCondition = longEma or (blueTriangle and not bloodDiamond)
+shortCondition = shortEma or bloodDiamond
+
+// === 执行交易 ===
+if (longCondition)
+    // 记录多头入场价格
+    lastLongPrice := close
+    // 重置最高价跟踪
+    highestSinceLastLong := high
+    
+    stopPrice := nz(lowestSinceLastShort, close * 0.98)  // 使用前一个空头信号后的最低价作为止损
+    float riskAmount = math.abs(close - stopPrice)
+    targetPrice := close + (riskAmount * 2)  // 止盈为止损距离的2倍
+    
+    strategy.entry("做多", strategy.long)
+    strategy.exit("多头止盈止损", "做多", limit=targetPrice, stop=stopPrice)
+
+if (shortCondition)
+    // 记录空头入场价格
+    lastShortPrice := close
+    // 重置最低价跟踪
+    lowestSinceLastShort := low
+    
+    stopPrice := nz(highestSinceLastLong, close * 1.02)  // 使用前一个多头信号后的最高价作为止损
+    float riskAmount = math.abs(stopPrice - close)
+    targetPrice := close - (riskAmount * 3)  // 止盈为止损距离的2倍
+    
+    strategy.entry("做空", strategy.short)
+    strategy.exit("空头止盈止损", "做空", limit=targetPrice, stop=stopPrice)
+
+// === 绘制信号 ===
+plotshape(longCondition, style=shape.triangleup, color=color.green, location=location.belowbar, size=size.small, title="做多信号")
+plotshape(shortCondition, style=shape.triangledown, color=color.red, location=location.abovebar, size=size.small, title="做空信号")
+
+// 绘制止损线
+plot(strategy.position_size > 0 ? stopPrice : na, color=color.red, style=plot.style_linebr, linewidth=2, title="多头止损线")
+plot(strategy.position_size < 0 ? stopPrice : na, color=color.red, style=plot.style_linebr, linewidth=2, title="空头止损线")
+
+// 绘制止盈线
+plot(strategy.position_size > 0 ? targetPrice : na, color=color.green, style=plot.style_linebr, linewidth=2, title="多头止盈线")
+plot(strategy.position_size < 0 ? targetPrice : na, color=color.green, style=plot.style_linebr, linewidth=2, title="空头止盈线")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/477580
+
+> Last Modified
+
+2025-01-06 15:21:57

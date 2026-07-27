@@ -1,0 +1,52 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于布林带和指数移动平均线的趋势追踪策略Trend-Tracking-Strategy-Based-on-Bollinger-Bands-and-Exponential-Moving-Average.md
+// content_hash: ad1f4624dc5af67d
+// collected: 2026-07-27
+strategy(shorttitle=" BB+EMA", title="Bollinger Bands", overlay=true)
+date1 = input(title="Start Date", type=input.time, defval=timestamp("2020-01-01T00:00:00"))
+date2 = input(title="Stop Date", type=input.time, defval=timestamp("2030-01-01T00:00:00"))
+length = input(40, minval=1)
+src = input(close, title="Source")
+mult = input(2.0,title="StdDev",step=0.1)
+basis = sma(src, length)
+dev = mult * stdev(src, length)
+upper = basis + dev
+lower = basis - dev
+//offset = input(0, "Offset", minval = -500, maxval = 500)
+offset=0
+stopcon=input(title="stopcon/lot", type=input.bool, defval=true)
+lot1=input(title="lot",defval=1)
+stoploss=input(title="stopcon",defval=1000)
+emacon=input(title="emacon", type=input.bool, defval=true)
+ema_value=input(title="value",defval=30, minval=2,step=1)
+plot(basis, "Basis", color=#FF6D00, offset = offset)
+p1 = plot(upper, "Upper", color=color.new(color.blue,50), offset = offset)
+p2 = plot(lower, "Lower", color=color.new(color.blue,50), offset = offset)
+ema1=ema(close,ema_value)
+plot(ema1, "SMA", color=#2962FF)
+period() => true
+//-----------
+if period()
+    if strategy.opentrades==0 and ema1<upper
+        if close>upper
+            lot_L=stoploss/((close-lower)/2)
+            strategy.entry("OP_L",strategy.long,qty=stopcon==true?lot_L:lot1,stop=emacon==true?max(basis,ema1):basis)
+    if strategy.opentrades==0 and ema1>lower
+        if close<lower
+            lot_S=stoploss/((upper-close)/2)
+            strategy.entry("OP_S",strategy.short,qty=stopcon==true?lot_S:lot1,stop=emacon==true?min(basis,ema1):basis)
+    if strategy.position_size>0
+        strategy.exit("OP_L",stop=emacon==true?max(basis,ema1):basis,comment="exit_L")
+    if strategy.position_size<0
+        strategy.exit("OP_S",stop=emacon==true?min(basis,ema1):basis,comment="exit_S")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/432425
+
+> Last Modified
+
+2023-11-17 17:36:43

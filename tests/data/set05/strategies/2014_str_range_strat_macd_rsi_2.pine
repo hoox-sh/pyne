@@ -1,0 +1,65 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/MACD和RSI指标融合的震荡市场交易策略Trading-Strategy-for-Oscillating-Markets-Combining-MACD-and-RSI-Indicators.md
+// content_hash: 2160bf353d443d32
+// collected: 2026-07-27
+strategy("Range Strat - MACD/RSI", 
+     overlay=true,
+     default_qty_type=strategy.percent_of_equity,
+     default_qty_value=100, precision=2, initial_capital=100,
+     pyramiding=2,
+     commission_value=0.05)
+
+// Make input options that configure backtest date range
+startDate = input(title="Start Date", defval=13)
+startMonth = input(title="Start Month", defval=6)
+startYear = input(title="Start Year", defval=2022)
+
+endDate = input(title="End Date", defval=1)
+endMonth = input(title="End Month", defval=7)
+endYear = input(title="End Year", defval=2200)
+
+// Look if the close time of the current bar
+// falls inside the date range
+inDateRange = (time >= timestamp(syminfo.timezone, startYear,
+         startMonth, startDate, 0, 0)) and
+     (time < timestamp(syminfo.timezone, endYear, endMonth, endDate, 0, 0))
+
+// RSI Settings
+length = input( 14 )
+overSold = input( 55 )
+overBought = input( 50 )
+price = open
+vrsi = ta.rsi(price, length)
+cu = (vrsi <= overSold)
+co = (vrsi >= overBought)
+
+//MACD Settings
+fastLength = input(12)
+slowlength = input(26)
+MACDLength = input(9)
+MACD = ta.ema(open, fastLength) - ta.ema(open, slowlength)
+aMACD = ta.ema(MACD, MACDLength)
+delta = MACD - aMACD
+MACDco = ta.crossover(delta, 0)
+MACDcu = ta.crossunder(delta, 0)
+
+// Strategy Entry
+if (not na(vrsi))
+	if (inDateRange and MACDco and cu)
+		strategy.entry("LONG", strategy.long, comment="LONG")
+	if (inDateRange and MACDcu and co)
+		strategy.entry("SHORT", strategy.short, comment="SHORT")
+//plot(strategy.equity, title="equity", color=color.red, linewidth=2, style=plot.style_areabr)
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/426588
+
+> Last Modified
+
+2023-09-13 15:14:43

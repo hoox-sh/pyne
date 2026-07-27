@@ -1,0 +1,13 @@
+//@version=5
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/v5/language/matrices.md::matrices.md#block38
+// content_hash: 7de8032df1e80daa
+// collected: 2026-07-27
+indicator("Matrix inspection demo")
+
+//@function Inspects a matrix using `matrix.is_*()` functions and returns a `string` describing some of its features.
+method inspect(matrix<int> this)=>
+    //@variable A string describing `this` matrix.
+    string result = "This matrix:\n"
+    if this.is_square()

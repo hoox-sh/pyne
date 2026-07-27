@@ -1,0 +1,73 @@
+//@version=6
+// set03 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于EMA平滑RSI和ATR动态止盈止损的多时序量化交易策略-Multi-Timeframe-Quantitative-Trading-Strategy-Based-on-EMA-Smoothed-RSI-and-ATR-Dynamic-Stop-Loss-Take-Profit.md
+// content_hash: ef2125a6a926ee59
+// collected: 2026-07-27
+strategy("RSI Trading Strategy with EMA and ATR Stop Loss/Take Profit", overlay=true)
+length = input.int(14, minval=1, title="RSI Length")
+src = input(close, title="Source")
+rsi = ta.rsi(src, length)
+smoothingLength = input.int(14, minval=1, title="Smoothing Length")
+smoothedRsi = ta.ema(rsi, smoothingLength)  // استفاده از EMA برای صاف کردن RSI
+atrLength = input.int(14, title="ATR Length")
+atrMultiplier = input.float(1, title="ATR Multiplier")
+atrValue = ta.atr(atrLength)  // محاسبه ATR
+level1 = 30
+level2 = 70
+
+// تنظیمات استراتژی
+var table crossingTable = table.new(position.top_right, 2, 5, border_width=1)
+var int crossCount = 0
+var float crossPrice = na
+
+// شرط ورود به معامله خرید زمانی که RSI از سطح 70 به بالا عبور می‌کند
+if (ta.crossover(smoothedRsi, level2))
+    strategy.entry("Long", strategy.long)
+    // تنظیم حد سود و حد ضرر
+    strategy.exit("Take Profit/Stop Loss", "Long", stop=close - atrMultiplier * atrValue, limit=close + atrMultiplier * atrValue, comment="")
+    crossCount := crossCount + 1
+    crossPrice := close
+
+// شرط ورود به معامله فروش زمانی که RSI از سطح 70 به پایین عبور می‌کند
+if (ta.crossunder(smoothedRsi, level2))
+    strategy.entry("Short", strategy.short)
+    // تنظیم حد سود و حد ضرر
+    strategy.exit("Take Profit/Stop Loss", "Short", stop=close + atrMultiplier * atrValue, limit=close - atrMultiplier * atrValue, comment="")
+    crossCount := crossCount + 1
+    crossPrice := close
+
+// شرط ورود به معامله خرید زمانی که RSI از سطح 30 به بالا عبور می‌کند
+if (ta.crossover(smoothedRsi, level1))
+    strategy.entry("Long", strategy.long)
+    // تنظیم حد سود و حد ضرر
+    strategy.exit("Take Profit/Stop Loss", "Long", stop=close - atrMultiplier * atrValue, limit=close + atrMultiplier * atrValue, comment="")
+    crossCount := crossCount + 1
+    crossPrice := close
+
+// شرط ورود به معامله فروش زمانی که RSI از سطح 30 به پایین عبور می‌کند
+if (ta.crossunder(smoothedRsi, level1))
+    strategy.entry("Short", strategy.short)
+    // تنظیم حد سود و حد ضرر
+    strategy.exit("Take Profit/Stop Loss", "Short", stop=close + atrMultiplier * atrValue, limit=close - atrMultiplier * atrValue, comment="")
+    crossCount := crossCount + 1
+    crossPrice := close
+
+if (not na(crossPrice))
+    table.cell(crossingTable, 0, crossCount % 5, text=str.tostring(crossCount), bgcolor=color.green)
+    table.cell(crossingTable, 1, crossCount % 5, text=str.tostring(crossPrice), bgcolor=color.green)
+
+// ترسیم خطوط و مقادیر RSI
+plot(smoothedRsi, title="Smoothed RSI", color=color.blue)
+hline(level1, "Level 30", color=color.red)
+hline(level2, "Level 70", color=color.green)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/477608
+
+> Last Modified
+
+2025-01-06 16:43:14

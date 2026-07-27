@@ -1,0 +1,119 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于RVI和EMA的比特币交易策略Bitcoin-Trading-Strategy-Based-on-RVI-and-EMA.md
+// content_hash: 2d7313d00fb69f26
+// collected: 2026-07-27
+strategy(title="Relative Vigor Index", shorttitle="RVGI",overlay=true)
+//indicator(title="Relative Vigor Index", shorttitle="RVGI", format=format.price, precision=4, timeframe="", timeframe_gaps=true)
+len = input.int(4, title="Length rvi", minval=1)
+rvi = math.sum(ta.swma(close-open), len)/math.sum(ta.swma(high-low),len)
+sig = ta.swma(rvi)
+offset = input.int(0, "Offset rvi", minval = -500, maxval = 500)
+
+
+atrlength = input.int(19,title="Atr Length",minval=1)
+ema1 =  input.int(95,title="Long EMA rapida",minval=1,step=10)
+ema2 =  input.int(200,title="Long EMA lenta",minval=1,step=10)
+
+atrSL = input.float(2.0,title="Atr SL", step=0.1)
+atrTP = input.float(1.0,title="Atr TP", step=0.1)
+
+atr = ta.atr(atrlength)
+esalcista = low > ta.ema(close,ema1) and ta.ema(close,ema1) > ta.ema(close,ema2)
+bajista = high < ta.ema(close,ema1) and ta.ema(close,ema1) < ta.ema(close,ema2)
+
+
+//plot(high + atr)
+//plot(low - atr)
+
+//strategy.entry("compra",strategy.long, when=ta.crossover(rvi,sig))
+//strategy.close("compra",when=ta.crossunder(rvi,sig))
+
+//plot(rvi, color=#008000, title="RVGI", offset = offset)
+//plot(sig, color=#FF0000, title="Signal", offset = offset)
+//plotshape(true,style=shape.xcross)
+
+var TP = 0.0
+var SL = 0.0
+
+comprado = strategy.position_size>0
+vendido = strategy.position_size<0
+
+crucepositivo = ta.crossover(rvi,sig)
+crucenegativo = ta.crossunder(rvi,sig)
+
+if comprado
+    // ver SL
+    if low < SL
+        strategy.close("BUY",comment="SL")
+        
+        
+if comprado    
+    //ver tp
+    if high > TP
+        strategy.close("BUY",comment="TP")
+        
+       
+    
+    
+    
+if not comprado and not vendido
+    if crucepositivo and esalcista
+        strategy.entry("BUY",strategy.long)
+        SL := low - (atr * atrSL)
+        TP := high + (atr * atrTP)
+        alert("BUY",alert.freq_once_per_bar)
+
+
+
+//---------------
+
+if vendido
+    // ver SL
+    if high > SL
+        strategy.close("SELL",comment="SL")
+        
+        
+if vendido    
+    //ver tp
+    if low < TP
+        strategy.close("SELL",comment="TP")
+        
+       
+
+if not vendido and not comprado
+    if crucenegativo and bajista
+        strategy.entry("SELL",strategy.short)
+        SL := high + (atr * atrSL)
+        TP := low - (atr * atrTP)
+        alert("SELL",alert.freq_once_per_bar)
+
+
+
+
+
+
+
+//----------------
+
+//plotshape(comprado,style=shape.xcross)
+plot( comprado ? SL : na, color=color.red,style=plot.style_circles)
+plot( comprado ? TP : na, color=color.blue,style=plot.style_circles)
+
+plot( ta.ema(close,ema1),color=color.orange)
+plot( ta.ema(close,ema2),color=color.yellow)
+
+
+plot( vendido ? SL : na, color=color.red,style=plot.style_circles)
+plot( vendido ? TP : na, color=color.blue,style=plot.style_circles)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/442506
+
+> Last Modified
+
+2024-02-22 13:50:17

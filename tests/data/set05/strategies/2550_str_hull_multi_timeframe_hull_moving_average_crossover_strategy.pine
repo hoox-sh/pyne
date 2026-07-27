@@ -1,0 +1,55 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多周期Hull移动平均线交叉策略-Multi-Timeframe-Hull-Moving-Average-Crossover-Strategy.md
+// content_hash: 25b61e5c1a207c89
+// collected: 2026-07-27
+strategy(title='Hull v2 Strategy', shorttitle='V2 HMA', overlay=true)
+
+// Hull MA 1
+length_1 = input.int(20, minval=1, title="Length 1")
+src_1 = input(close, title='Source 1')
+timeframe_1 = input.timeframe('25')
+hullma_1 = request.security(syminfo.tickerid, timeframe_1, ta.wma(2 * ta.wma(src_1, length_1 / 2) - ta.wma(src_1, length_1), math.round(math.sqrt(length_1))))
+plot(hullma_1, title='Hull MA 1', color=color.blue, linewidth=2)
+
+// Hull MA 2
+length_2 = input.int(20, minval=1, title="Length 2")
+src_2 = input(close, title='Source 2')
+timeframe_2 = input.timeframe('75')
+hullma_2 = request.security(syminfo.tickerid, timeframe_2, ta.wma(2 * ta.wma(src_2, length_2 / 2) - ta.wma(src_2, length_2), math.round(math.sqrt(length_2))))
+plot(hullma_2, title='Hull MA 2', color=color.red, linewidth=2)
+
+// Hull MA 3
+length_3 = input.int(20, minval=1, title="Length 3")
+src_3 = input(close, title='Source 3')
+timeframe_3 = input.timeframe('125')
+hullma_3 = request.security(syminfo.tickerid, timeframe_3, ta.wma(2 * ta.wma(src_3, length_3 / 2) - ta.wma(src_3, length_3), math.round(math.sqrt(length_3))))
+plot(hullma_3, title='Hull MA 3', color=color.green, linewidth=2)
+
+// Cross Strategy
+longCondition = ta.crossover(hullma_1, hullma_2)
+shortCondition = ta.crossunder(hullma_1, hullma_2)
+// Entry and Exit
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+if (shortCondition)
+    strategy.entry("Short", strategy.short)
+
+// Plot Buy/Sell Signals
+plotshape(series=longCondition, location=location.belowbar, color=color.green, style=shape.labelup, title='Buy Signal', text='BUY')
+plotshape(series=shortCondition, location=location.abovebar, color=color.red, style=shape.labeldown, title='Sell Signal', text='SELL')
+
+// Alerts
+alertcondition(longCondition, title='Long Alert', message='Long Condition Met')
+alertcondition(shortCondition, title='Short Alert', message='Short Condition Met')
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/458047
+
+> Last Modified
+
+2024-07-29 14:44:25

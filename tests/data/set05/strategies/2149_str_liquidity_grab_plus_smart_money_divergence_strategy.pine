@@ -1,0 +1,62 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/流动性捕捉与智能资金分歧指标结合策略-Liquidity-Grab-Smart-Money-Divergence-Indicator-Combination-Strategy.md
+// content_hash: 548cf8beaea903bc
+// collected: 2026-07-27
+strategy("Liquidity Grab + Smart Money Divergence Strategy", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=1)
+
+// Input settings
+length = input(14, "RSI Length")
+lookback = input(5, "Lookback Bars")
+src = close
+maLength = input(50, "MA Length")
+atrLength = input(14, "ATR Length")
+atrMultiplier = input(1.5, "ATR Multiplier")
+
+// RSI Calculation
+rsiValue = ta.rsi(src, length)
+
+// Moving Average Trend Filter
+ma = ta.sma(close, maLength)
+trendUp = close > ma
+trendDown = close < ma
+
+// ATR for dynamic stop-loss and take-profit
+atr = ta.atr(atrLength)
+sl = atr * atrMultiplier
+
+// Detect liquidity grab (sweep of recent high/low)
+sweepHigh = ta.highest(high, lookback) == high and close < high[1]
+sweepLow = ta.lowest(low, lookback) == low and close > low[1]
+
+// Detect Smart Money Divergence
+bullishDivergence = sweepLow and (rsiValue > ta.lowest(rsiValue, lookback))
+bearishDivergence = sweepHigh and (rsiValue < ta.highest(rsiValue, lookback))
+
+// Trade signals with trend confirmation
+buySignal = bullishDivergence and trendUp
+sellSignal = bearishDivergence and trendDown
+
+// Execute trades with stop-loss and take-profit
+if buySignal
+    strategy.entry("Buy", strategy.long)
+    strategy.exit("Sell", from_entry="Buy", stop=close - sl, limit=close + sl * 2)
+if sellSignal
+    strategy.entry("Sell", strategy.short)
+    strategy.exit("Buy", from_entry="Sell", stop=close + sl, limit=close - sl * 2)
+
+// Plot signals on chart
+plotshape(buySignal, location=location.belowbar, color=color.green, style=shape.labelup, size=size.small, title="Buy Signal")
+plotshape(sellSignal, location=location.abovebar, color=color.red, style=shape.labeldown, size=size.small, title="Sell Signal")
+plot(ma, title="50 MA", color=color.blue)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/488156
+
+> Last Modified
+
+2025-03-25 15:12:43

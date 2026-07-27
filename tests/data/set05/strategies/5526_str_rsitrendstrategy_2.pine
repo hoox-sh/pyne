@@ -1,0 +1,40 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/RSI双叉反转策略RSI-Dual-Cross-Reversal-Strategy.md
+// content_hash: 1d824430a3aae5ab
+// collected: 2026-07-27
+strategy("RSITrendStrategy", overlay=false)
+len1 = input(title="MA 1", defval = 5)
+len2 = input(title="MA 1", defval = 11)
+len3 = input(title="MA 1", defval = 6)
+
+h1 = hline(30.)
+h2 = hline(70.)
+///fill(h1, h2, color = color.new(color.blue, 80))
+sh = rsi(close, len1)
+ln = rsi(close, len2)
+rs = rsi(close, len3)
+p1 = plot(sh, color = color.red)
+p2 = plot(ln, color = color.green)
+p3 = plot(rs, color = color.white)
+
+mycol = sh > ln ? color.lime : color.red
+fill(p1, p2, color = mycol)
+
+buy = (sh[1] < ln[1] and sh > ln and rs[1] < 30) 
+if (buy)
+    strategy.entry("long", strategy.long)
+
+sell = (sh[1] > ln[1] and sh < ln and rs[1] > 70)
+if (sell)
+    strategy.entry("short", strategy.short)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/432885
+
+> Last Modified
+
+2023-11-22 14:59:07

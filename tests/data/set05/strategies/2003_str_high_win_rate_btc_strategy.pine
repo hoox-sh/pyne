@@ -1,0 +1,65 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多周期均线趋势跟踪结合RSI超买超卖动态优化策略-Multi-Period-EMA-Trend-Following-with-RSI-Overbought-Oversold-Dynamic-Optimization-Strategy.md
+// content_hash: c4411de5f8d9b8d3
+// collected: 2026-07-27
+strategy("High Win Rate BTC Strategy", overlay=true)
+
+// 参数设置
+emaShortLength = input(20, title="Short EMA Length")
+emaLongLength = input(50, title="Long EMA Length")
+rsiLength = input(14, title="RSI Length")
+rsiOverbought = input(70, title="RSI Overbought Level")
+rsiOversold = input(30, title="RSI Oversold Level")
+atrLength = input(14, title="ATR Length")
+atrThreshold = input(1.0, title="ATR Threshold")
+holdBars = input(5, title="Hold Bars")
+
+// 计算指标
+emaShort = ta.ema(close, emaShortLength)
+emaLong = ta.ema(close, emaLongLength)
+rsi = ta.rsi(close, rsiLength)
+atr = ta.atr(atrLength)
+
+// 趋势确认
+uptrend = emaShort > emaLong
+downtrend = emaShort < emaLong
+
+// 入场条件
+longCondition = uptrend and close > emaShort and rsi < rsiOverbought and atr > atrThreshold
+shortCondition = downtrend and close < emaShort and rsi > rsiOversold and atr > atrThreshold
+
+// 出场条件
+var int holdCount = 0
+if (strategy.position_size > 0 or strategy.position_size < 0)
+    holdCount := holdCount + 1
+else
+    holdCount := 0
+
+exitCondition = holdCount >= holdBars
+
+// 执行交易
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+if (shortCondition)
+    strategy.entry("Short", strategy.short)
+
+if (exitCondition)
+    strategy.close_all()
+
+// 绘制指标
+plot(emaShort, color=color.blue, title="Short EMA")
+plot(emaLong, color=color.red, title="Long EMA")
+hline(rsiOverbought, "RSI Overbought", color=color.red)
+hline(rsiOversold, "RSI Oversold", color=color.green)
+plot(rsi, color=color.purple, title="RSI")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/477567
+
+> Last Modified
+
+2025-01-06 14:10:46

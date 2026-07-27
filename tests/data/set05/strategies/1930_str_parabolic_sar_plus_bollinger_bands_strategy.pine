@@ -1,0 +1,67 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/抛物线停损反转与布林带趋势识别量化交易策略-Parabolic-SAR-and-Bollinger-Bands-Trend-Identification-Quantitative-Trading-Strategy.md
+// content_hash: 86a0adb1b79606ee
+// collected: 2026-07-27
+strategy("Parabolic SAR + Bollinger Bands Strategy", overlay=true)
+
+// ———— Inputs ———— //
+// Parabolic SAR Inputs
+sar_step = input.float(0.02, "SAR Step", minval=0.001, maxval=0.1)
+sar_max = input.float(0.2, "SAR Max", minval=0.1, maxval=0.5)
+
+// Bollinger Bands Inputs
+bb_length = input.int(20, "BB Length")
+bb_mult = input.float(2.0, "BB Multiplier")
+
+// ———— Calculate Indicators ———— //
+// Parabolic SAR
+sar = ta.sar(sar_step, sar_max, sar_max)
+plot(sar, "SAR", color=color.blue, style=plot.style_circles)
+
+// Bollinger Bands
+bb_basis = ta.sma(close, bb_length)
+bb_dev = bb_mult * ta.stdev(close, bb_length)
+bb_upper = bb_basis + bb_dev
+bb_lower = bb_basis - bb_dev
+
+// Plot Bollinger Bands
+plot(bb_basis, "BB Basis", color=color.orange)
+plot(bb_upper, "BB Upper", color=color.blue)
+plot(bb_lower, "BB Lower", color=color.blue)
+
+// ———— Strategy Logic ———— //
+// Long Condition: Price closes above SAR (uptrend) AND below Upper BB
+longCondition = close > sar and close < bb_upper
+
+// Short Condition: Price closes below SAR (downtrend) AND above Lower BB
+shortCondition = close < sar and close > bb_lower
+
+// Exit Conditions
+exitLong = close < sar or close >= bb_upper
+exitShort = close > sar or close <= bb_lower
+
+// ———— Execute Orders ———— //
+if (longCondition)
+    strategy.entry("Buy", strategy.long)
+if (exitLong)
+    strategy.close("Buy")
+
+if (shortCondition)
+    strategy.entry("Sell", strategy.short)
+if (exitShort)
+    strategy.close("Sell")
+
+// ———— Visual Alerts ———— //
+plotshape(longCondition, style=shape.triangleup, location=location.belowbar, color=color.green, size=size.small)
+plotshape(shortCondition, style=shape.triangledown, location=location.abovebar, color=color.red, size=size.small)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/488417
+
+> Last Modified
+
+2025-03-27 14:20:59

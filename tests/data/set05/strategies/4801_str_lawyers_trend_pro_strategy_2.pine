@@ -1,0 +1,80 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/趋势追踪利润最大化策略Trend-Tracking-Maximized-Profit-Strategy.md
+// content_hash: bd3d7fd1a82cdba4
+// collected: 2026-07-27
+strategy("Lawyers Trend Pro Strategy", shorttitle="Lawyers Trend Pro Strategy", overlay=true)
+
+src = close
+mult = 2.0
+basis = sma(src, 20)
+dev = mult * stdev(src, 20)
+upper = basis + dev
+lower = basis - dev
+offset = 0
+
+
+lower2 = lowest(20)
+upper2 = highest(20)
+basis2 = avg(upper2, lower2)
+
+
+MB= (basis+basis2)/2
+
+
+
+
+
+col1=close>MB
+col3=MB>close
+colorE = col1 ? color.blue : col3 ? color.red : color.yellow
+p3=plot(MB, color=colorE, linewidth=3)
+
+// Deternine if we are currently LONG
+isLong = false
+isLong := nz(isLong[1], false)
+
+// Determine if we are currently SHORT
+isShort = false
+isShort := nz(isShort[1], false)
+
+// Buy only if the buy signal is triggered and we are not already long
+buySignal = not isLong and crossover(close,MB)
+
+// Sell only if the sell signal is triggered and we are not already short
+sellSignal= not isShort and crossover(MB,close)
+if (buySignal)
+    isLong := true
+    isShort := false
+
+if (sellSignal)
+    isLong := false
+    isShort := true
+
+
+
+
+
+
+
+/// LONG
+strategy.entry("long", true , when = buySignal, comment="Open Long")
+
+strategy.close("long", when=sellSignal, comment = "Close Long")
+
+/// SHORT
+strategy.entry("short", false,  when = sellSignal, comment="Open Short")
+
+strategy.close("short", when=buySignal, comment = "Close Short")
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/428966
+
+> Last Modified
+
+2023-10-11 14:38:40

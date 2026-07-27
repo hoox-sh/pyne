@@ -1,0 +1,25 @@
+//@version=2
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/Renko反转价格突破交易策略Renko-Reversal-Price-Breakout-Trading-Strategy.md
+// content_hash: 2187fcc927c5b11d
+// collected: 2026-07-27
+strategy(title='[STRATEGY][RS]Renko V0', shorttitle='S', overlay=true, pyramiding=0, initial_capital=100000, currency=currency.USD)
+trade_size = 1
+
+ro = open
+rc = close
+buy_entry = rc[4] < ro[4] and rc[3] > ro[3] and rc[2] > ro[2] and rc[1] > ro[1] and rc > ro
+sel_entry = rc[4] > ro[4] and rc[3] < ro[3] and rc[2] < ro[2] and rc[1] < ro[1] and rc < ro
+
+strategy.entry('buy', long=strategy.long, qty=trade_size, comment='buy', when=buy_entry)
+strategy.entry('sell', long=strategy.short, qty=trade_size, comment='sell', when=sel_entry)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/426932
+
+> Last Modified
+
+2023-09-15 16:27:29

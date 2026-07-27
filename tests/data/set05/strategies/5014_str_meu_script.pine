@@ -1,0 +1,68 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/趋势跟踪止损策略Trend-Following-Strategy-with-Trailing-Stop-Loss.md
+// content_hash: e09a289165df438f
+// collected: 2026-07-27
+strategy("Meu Script", overlay=true)
+plot(ohlc4)
+
+//Funçao de Datas
+testStartYear = input(2018, "Backtest Start Year")
+testStartMonth = input(6, "Backtest Start Month")
+testStartDay = input(1, "Backtest Start Day")
+testPeriodStart = timestamp(testStartYear,testStartMonth,testStartDay,0,0)
+
+testStopYear = input(2019, "Backtest Stop Year")
+testStopMonth = input(12, "Backtest Stop Month")
+testStopDay = input(30, "Backtest Stop Day")
+testPeriodStop = timestamp(testStopYear,testStopMonth,testStopDay,0,0)
+
+testPeriod() => time >= testPeriodStart and time <= testPeriodStop ? true : false
+
+//Funções de Trailing Stop
+long_stop_price = 0.0
+short_stop_price = 0.0
+long_trail_perc = 0
+short_trail_perc = 0
+
+long_stop_price := if (strategy.position_size > 0)
+    stopValue = close * (1 - long_trail_perc)
+    max(stopValue, long_stop_price[1])
+else
+    0
+
+short_stop_price := if (strategy.position_size < 0)
+    stopValue = close * (1 + short_trail_perc)
+    min(stopValue, short_stop_price[1])
+else
+    999999
+
+//Função de Debug
+debug(value) =>
+    x = bar_index
+    y = close
+    label.new(x, y, tostring(value))
+    
+//Take Profit
+profit = close * (1 + 0.12)
+strategy.entry("Long", true)
+strategy.exit("Take Profit 1 Long", from_entry="Long", limit=profit, qty_percent=50.0)
+ 
+//ATR Stop
+ 
+// xATRTrailingStopLong = 0.0
+// xATR = atr(nATRPeriod)
+// nLossLong = nATRMultipLong * xATR
+
+// if (strategy.position_size > 0)
+//     xATRTrailingStopLong := max(nz(xATRTrailingStopLong[1]), close - nLossLong)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/430577
+
+> Last Modified
+
+2023-10-30 15:21:54

@@ -1,0 +1,119 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于MACD和RSI的短线突破策略MACD-RSI-Short-Term-Breakout-Strategy.md
+// content_hash: 28fd920c66e9c507
+// collected: 2026-07-27
+strategy("5 Minute Scalp", overlay=true, margin_long=100, margin_short=100)
+
+fast_length = input(title="Fast Length", defval=12)
+slow_length = input(title="Slow Length", defval=26)
+src = input(title="Source", defval=close)
+signal_length = input.int(title="Signal Smoothing",  minval = 1, maxval = 50, defval = 9)
+sma_source = input.string(title="Oscillator MA Type",  defval="EMA", options=["SMA", "EMA"])
+sma_signal = input.string(title="Signal Line MA Type", defval="EMA", options=["SMA", "EMA"])
+// Plot colors
+col_macd = input(#2962FF, "MACD Line  ", group="Color Settings", inline="MACD")
+col_signal = input(#FF6D00, "Signal Line  ", group="Color Settings", inline="Signal")
+col_grow_above = input(#26A69A, "Above   Grow", group="Histogram", inline="Above")
+col_fall_above = input(#B2DFDB, "Fall", group="Histogram", inline="Above")
+col_grow_below = input(#FFCDD2, "Below Grow", group="Histogram", inline="Below")
+col_fall_below = input(#FF5252, "Fall", group="Histogram", inline="Below")
+// Calculating
+fast_ma = sma_source == "SMA" ? ta.sma(src, fast_length) : ta.ema(src, fast_length)
+slow_ma = sma_source == "SMA" ? ta.sma(src, slow_length) : ta.ema(src, slow_length)
+macd = fast_ma - slow_ma
+signal = sma_signal == "SMA" ? ta.sma(macd, signal_length) : ta.ema(macd, signal_length)
+hist = macd - signal
+hist_1m = request.security(syminfo.tickerid,"1",hist [barstate.isrealtime ? 1 : 0])
+hline(0, "Zero Line", color=color.new(#787B86, 50))
+////////////////////////////////////////////////////
+//plotting emas on the chart
+len1 = input.int(9, minval=1, title="Length")
+src1 = input(close, title="Source")
+offset1 = input.int(title="Offset", defval=0, minval=-500, maxval=500)
+out1 = ta.ema(src1, len1)
+plot(out1, title="EMA9", color=color.blue, offset=offset1)
+
+len2 = input.int(50, minval=1, title="Length")
+src2 = input(close, title="Source")
+offset2 = input.int(title="Offset", defval=0, minval=-500, maxval=500)
+out2 = ta.ema(src2, len2)
+plot(out2, title="EMA50", color=color.yellow, offset=offset2)
+
+len3 = input.int(200, minval=1, title="Length")
+src3 = input(close, title="Source")
+offset3 = input.int(title="Offset", defval=0, minval=-500, maxval=500)
+out3 = ta.ema(src3, len3)
+plot(out3, title="EMA200", color=color.white, offset=offset3)
+//////////////////////////////////////////////////////////////////
+//Setting up the BB
+/////////////////////////////////////////////////////////////
+srcBB = hist_1m
+lengthBBLong = input.int(94,title = "LengthBB Long", minval=1)
+lengthBBShort = input.int(83,title = "LengthBB Short", minval=1)
+multBB = input.float(2.0, minval=0.001, maxval=50, title="StdDev")
+basisBBLong = ta.sma(srcBB, lengthBBLong)
+basisBBShort = ta.sma(srcBB, lengthBBShort)
+devBBLong = multBB * ta.stdev(srcBB, lengthBBLong)
+devBBShort = multBB * ta.stdev(srcBB, lengthBBShort)
+upperBB = basisBBShort + devBBShort
+lowerBB = basisBBLong - devBBLong
+offsetBB = input.int(0, "Offset", minval = -500, maxval = 500)
+
+/////////////////////////////////////////
+//aetting up rsi
+///////////////////////////////////////////
+rsilengthlong = input.int(defval = 11, title = "Rsi Length Long", minval = 1)
+rlong=ta.rsi(close,rsilengthlong)
+rsilengthshort = input.int(defval = 29, title = "Rsi Length Short", minval = 1)
+rshort=ta.rsi(close,rsilengthshort)
+///////////////////////////
+//Only taking long and shorts, if RSI is above 51 or bellow 49
+rsilong = rlong >= 51
+rsishort = rshort <= 49
+//////////////////////////////////////
+//only taking trades if all 3 emas are in the correct order
+long = out1 > out2 and out2 > out3
+short = out1 < out2 and out2 < out3
+/////////////////////////////////////
+
+
+///////////////////////////////////////////
+//setting up TP and SL
+TP = input.float(defval = 0.5, title = "Take Profit %",step = 0.1) / 100
+SL = input.float(defval = 0.3, title = "Stop Loss %", step = 0.1) / 100
+
+longCondition = hist_1m <= lowerBB
+longhight = input(defval=-10,title = "MacdTick Low")
+if (longCondition and long and rsilong and hist_1m <= longhight) 
+    strategy.entry("Long", strategy.long)
+
+if (strategy.position_size>0)
+    longstop = strategy.position_avg_price * (1-SL)
+    longprofit = strategy.position_avg_price * (1+TP)
+    strategy.exit(id ="close long",from_entry="Long",stop=longstop,limit=longprofit)
+
+shortCondition = hist_1m >= upperBB
+shorthight = input(defval=35,title = "MacdTick High")
+if (shortCondition and short and rsishort and hist_1m >= shorthight)
+    strategy.entry("short ", strategy.short)
+
+shortstop = strategy.position_avg_price * (1+SL)
+shortprofit = strategy.position_avg_price * (1-TP)
+
+if (strategy.position_size<0)
+    strategy.exit(id ="close short",stop=shortstop,limit=shortprofit)
+
+
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/428624
+
+> Last Modified
+
+2023-10-07 16:08:53

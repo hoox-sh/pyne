@@ -1,0 +1,14 @@
+//@version=5
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/v5/language/type-system.md::type-system.md#block2
+// content_hash: f3eb84057be224d5
+// collected: 2026-07-27
+
+// The following global variables are all of the "const string" qualified type:
+
+//@variable The title of the indicator.
+INDICATOR_TITLE = "const demo"
+//@variable The title of the first plot.
+var PLOT1_TITLE = "High"
+//@variable The title of the second plot.

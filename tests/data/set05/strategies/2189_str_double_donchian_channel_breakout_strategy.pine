@@ -1,0 +1,61 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双唐奇安通道突破策略Double-Donchian-Channel-Breakout-Strategy.md
+// content_hash: 80408d3f29a1b8b7
+// collected: 2026-07-27
+strategy(title="Double Donchian Channel Breakout", overlay=true, initial_capital = 1000, commission_value = 0.05, default_qty_value = 100, default_qty_type = strategy.percent_of_equity)
+
+
+slowLen = input.int(50, title="Slow Donchian")
+fastLen = input.int(30, title="Fast Donchian")
+volatility = input.int(3, title="Volatility (%)")
+longProfitPerc = input.float(2, title="Long TP1 (%)", minval=0.0, step=0.1) * 0.01
+shortProfitPerc = input.float(2, title="Short TP1 (%)", minval=0.0, step=0.1) * 0.01
+TP1Yuzde =input.int(50, title = "TP1 Position Amount (%)")
+
+ubSlow = ta.highest(close, slowLen)[1]
+lbSlow = ta.lowest(close, slowLen)[1]
+
+ubFast = ta.highest(close, fastLen)[1]
+lbFast = ta.lowest(close, fastLen)[1]
+
+plot(ubSlow, color=color.green, linewidth=2, title="Slow DoCh - Upperband")
+plot(lbSlow, color=color.green, linewidth=2, title="Slow DoCh - Lowerband")
+plot(ubFast, color=color.blue, linewidth=2, title="Fast DoCh - Upperband")
+plot(lbFast, color=color.blue, linewidth=2, title="Fast DoCh - Lowerband")
+
+fark = (ubSlow - lbSlow) / lbSlow * 100
+
+longExitPrice  = strategy.position_avg_price * (1 + longProfitPerc)
+shortExitPrice = strategy.position_avg_price * (1 - shortProfitPerc)
+
+longCondition = ta.crossover(close, ubSlow) and fark > volatility
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+
+shortCondition = ta.crossunder(close, lbSlow) and fark > volatility
+if (shortCondition)
+    strategy.entry("Short", strategy.short)
+
+if strategy.position_size > 0 and ta.crossunder(close, lbFast) 
+    strategy.close("Long", "Close All")
+
+if strategy.position_size < 0 and ta.crossover(close, ubFast)
+    strategy.close("Short", "Close All")
+
+// Take Profit
+if strategy.position_size > 0
+    strategy.exit("TP1", "Long", qty_percent = TP1Yuzde, limit = longExitPrice)
+
+if strategy.position_size < 0
+    strategy.exit("TP1", "Short", qty_percent = TP1Yuzde, limit = shortExitPrice)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/440949
+
+> Last Modified
+
+2024-02-04 09:42:14

@@ -1,0 +1,46 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/一目均衡动力指数策略Ichimoku-Oscillator-with-Stochastic-Momentum-Index-Strategy.md
+// content_hash: 2a9a7338d843802e
+// collected: 2026-07-27
+strategy(title='Ichimoku Oscillator with SMI', shorttitle='IOSMI', overlay = false)
+io = ta.ema(hl2, 9) / 2 + ta.ema(hl2, 26) / 2 + ta.sma(close, 14) - ta.ema(hl2, 52) - ta.sma(open, 14)
+plot(io, color=ta.change(io) <= 0 ? #872323 : #007F0E, style=plot.style_columns)
+a = input(21, 'Percent K Length')
+b = input(9, 'Percent D Length')
+// Range Calculation
+ll = ta.lowest(low, a)
+hh = ta.highest(high, a)
+diff = hh - ll
+rdiff = close - (hh + ll) / 2
+// Nested Moving Average for smoother curves
+avgrel = ta.ema(ta.ema(rdiff, b), b)
+avgdiff = ta.ema(ta.ema(diff, b), b)
+// SMI calculations
+SMI = avgdiff != 0 ? avgrel / (avgdiff / 2) * 100 : 0
+SMIsignal = ta.ema(SMI, b)
+//All PLOTS
+plot(SMI, color = color.blue , title='Stochastic Momentum Index', linewidth = 2)
+plot(SMIsignal, color=color.new(#FF5252, 0), title='SMI Signal Line', linewidth = 2)
+plot(60, color=color.new(#00E676, 0), title='Over Bought')
+plot(-60, color=color.new(#FF9800, 0), title='Over Sold')
+plot(0, color=color.new(#E040FB, 0), title='Zero Line')
+
+longCondition = SMI > SMIsignal and io > 0
+if (longCondition)
+    strategy.entry("Buy", strategy.long)
+
+shortCondition = SMI < SMIsignal and io < 0
+if (shortCondition)
+    strategy.entry("Sell", strategy.short)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/444975
+
+> Last Modified
+
+2024-03-15 16:23:55

@@ -1,0 +1,12 @@
+//@version=6
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/language/arrays.md::arrays.md#block32
+// content_hash: 2505a97b9731ea53
+// collected: 2026-07-27
+indicator("Slice out of bounds")
+a = array.new<float>(5, 0)
+b = array.slice(a, 3, 5)
+array.remove(a, 0)
+c = array.indexof(b, 2)
+plot(c)         Previous       Methods      Next   Matrices              On this pageOverviewIntroductionDeclaring arraysUsing var and varip keywordsReading and writing array elementsLooping through array elementsScopeHistory referencingInserting and removing array elementsInsertingRemovingUsing an array as a stackUsing an array as a queueNegative indexingCalculations on arraysManipulating arraysConcatenationCopyingJoiningSortingReversingSlicingSearching arraysError handlingIndex xx is out of bounds. Array size is yyCannot call array methods when ID of array is ‘na’Array is too large. Maximum size is 100000Cannot create an array with a negative sizeCannot use shift() if array is empty.Cannot use pop() if array is empty.Index ‘from’ should be less than index ‘to’Slice is out of bounds of the parent array

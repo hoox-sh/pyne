@@ -1,0 +1,16 @@
+//@version=6
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/language/type-system.md::type-system.md#block26
+// content_hash: 2a6f67296e253e63
+// collected: 2026-07-27
+indicator("Replaced `na` demo", overlay = true)
+
+//@variable Stores the chart's all-time high value as of the current bar. 
+var float allTimeHigh = na
+
+// The `nz()` call in this line replaces `allTimeHigh` with `high` when the variable's value is `na`. Now, the 
+// `math.max()` function never receives an `na` argument, so the `na` result no longer persists. 
+allTimeHigh := math.max(nz(allTimeHigh, high), high)
+
+plot(allTimeHigh)

@@ -1,0 +1,51 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于AO震荡指标的EMA交叉日内交易策略EMA-Crossover-Intraday-Trading-Strategy-Based-on-AO-Oscillator.md
+// content_hash: 703fbaeecb6028cf
+// collected: 2026-07-27
+//@author SoftKill21
+
+strategy(title="MA cross + AO", shorttitle="MA_AO")
+ao = sma(hl2,5) - sma(hl2,34)
+
+len = input(3, minval=1, title="Length")
+src = input(close, title="Source")
+out = ema(src, len)
+
+len1 = input(20, minval=1, title="Length")
+src1 = input(close, title="Source")
+out1 = sma(src1, len1)
+
+timeinrange(res, sess) => time(res, sess) != 0
+londopen = timeinrange(timeframe.period, "0300-1100") 
+nyopen = timeinrange(timeframe.period, "0800-1600") 
+
+longC = crossover(out,out1) and ao>0 and londopen
+shortC = crossunder(out,out1) and ao<0 and londopen
+
+invert = input(title="Reverse position ?", type=input.bool, defval=false)
+
+if(invert==false)
+    strategy.entry("LONG",1,when=longC)
+    strategy.entry("SHORT",0,when=shortC)
+
+
+
+if(invert==true)
+    strategy.entry("short",0,when=longC)
+    strategy.entry("long",1,when=shortC)
+    
+strategy.close_all(when= not (londopen))
+
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/436475
+
+> Last Modified
+
+2023-12-25 10:53:48

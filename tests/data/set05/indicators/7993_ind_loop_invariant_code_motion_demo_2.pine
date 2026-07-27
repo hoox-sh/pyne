@@ -1,0 +1,10 @@
+//@version=5
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/v5/writing/profiling-and-optimization.md::profiling-and-optimization.md#block44
+// content_hash: 645f38dc2303dd3d
+// collected: 2026-07-27
+indicator("Loop-invariant code motion demo")
+
+//@function Returns a feature scaled version of `this` array.
+featureScale(array<float> this) =>

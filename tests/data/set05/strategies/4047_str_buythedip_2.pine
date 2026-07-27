@@ -1,0 +1,28 @@
+//@version=4
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/Buying Dip Strategy With Take Profit And Stop Loss [racer8].pine
+// content_hash: 08dc42235d172ef1
+// collected: 2026-07-27
+strategy("BuyTheDip", overlay=true)
+atn = input(10, "ATR Length")
+atr = sma(tr,atn)[1]
+bought = strategy.position_size[0] > strategy.position_size[1]
+tpm = input(2.0,"ATR Take Profit",minval=0)
+TakePrice  = strategy.position_avg_price + tpm*atr              // determines Take Profit's price 
+FixedTakePrice = valuewhen(bought,TakePrice,0)                  // stores original TakePrice  
+plot(FixedTakePrice,"ATR Take Profit",color=color.blue,linewidth=1,style=plot.style_cross)
+slm = input(2.0,"ATR Stop Loss",minval=0)
+StopPrice  = strategy.position_avg_price - slm*atr              // determines stop loss's price 
+FixedStopPrice = valuewhen(bought,StopPrice,0)                  // stores original StopPrice  
+plot(FixedStopPrice,"ATR Stop Loss",color=color.yellow,linewidth=1,style=plot.style_cross)
+n = input(7,"Dip Length")
+Dip = lowest(low,n)
+if close<Dip[1]
+    strategy.entry("Buy",strategy.long)
+if strategy.position_size > 0
+    strategy.exit(id="Stop", stop=FixedStopPrice, limit=FixedTakePrice)    // commands stop loss order to exit!
+    
+plot(Dip,"Dip Line",color=color.aqua,linewidth=2)    
+// ♡♡♡
+Expand (29 lines)

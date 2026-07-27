@@ -1,0 +1,38 @@
+//@version=6
+// set03 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/writing/debugging.md::debugging.md#block27
+// content_hash: 133c851eb04be377
+// collected: 2026-07-27
+indicator("Extraction using reference types demo", overlay = true)
+
+//@variable The number of bars in the `customMA()` calculation.
+int lengthInput = input.int(50, "Length", 2)
+
+//@variable A global map of "string" keys and "float" values to store debug information from local scopes. 
+var map<string, float> debugData = map.new<string, float>()
+
+//@function      Calculates a moving average that changes only when `source` is outside the first and third quartiles.
+//@param source  The series of values to process.
+//@param length  The number of bars in the quartile calculation.
+//@returns       The adaptive moving average value.
+customMA(float source, int length) =>
+    //@variable The custom moving average.
+    var float result = na
+    // Calculate the 25th and 75th percentiles (first and third quartiles).
+    float q1 = ta.percentile_linear_interpolation(source, length, 25),      debugData.put("q1", q1)
+    float q3 = ta.percentile_linear_interpolation(source, length, 75),      debugData.put("q3", q3)
+    //@variable The distance from `source` to its interquartile range. 
+    float outerRange = 0.0
+    // Calculate the `outerRange` value when `source` is not `na`.
+    if not na(source)
+        float upperRange = source - q3,                                     debugData.put("upperRange", upperRange)
+        float lowerRange = q1 - source,                                     debugData.put("lowerRange", lowerRange)
+        outerRange := math.max(upperRange, lowerRange, 0.0),                debugData.put("outerRange", outerRange)
+    //@variable The total range of `source` values over `length` bars.
+    float totalRange = ta.range(source, length),                            debugData.put("totalRange", totalRange)
+    //@variable Half the ratio of the `outerRange` to the `totalRange`.
+    float alpha = 0.5 * outerRange / totalRange,                            debugData.put("alpha", alpha)
+    // Mix the `source` with the `result` based on the `alpha` value.
+    result := (1.0 - alpha) * nz(result, source) + alpha * source
+    // Return the `result`.

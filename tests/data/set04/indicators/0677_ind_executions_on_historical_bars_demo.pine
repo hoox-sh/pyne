@@ -1,0 +1,22 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pine_script_execution_model.md::pine_script_execution_model.md#block6
+// content_hash: 3c5b347f2aad1d0e
+// collected: 2026-07-27
+indicator("Executions on historical bars demo")
+//@variable The average of the latest 20 `close` values.
+float sma = ta.sma(close, 20)
+//@variable Is `color.green` if the `sma` value is above the value on the previous bar; `color.red` otherwise.
+color plotColor = sma > sma[1] ? color.green : color.red
+//@variable Tracks the current execution number, where 0 represents the first execution.
+varip int executionNum = -1
+// Add 1 to the `executionNum` value.
+executionNum += 1
+// Display the `sma` as a line plot on the main chart pane, colored by the `plotColor`.
+plot(sma, "SMA", plotColor, 3, force_overlay = true)
+// Display the `executionNum` and `bar_index` series in a separate pane.
+plot(executionNum, "Execution number", color.purple, 5)
+plot(bar_index,    "Bar index",        color.aqua,   2)
+// Highlight the chart's background in translucent orange when `barstate.ishistory` is `true`.
+bgcolor(barstate.ishistory ? color.new(color.orange, 70) : na, title = "Historical highlight", force_overlay = true)

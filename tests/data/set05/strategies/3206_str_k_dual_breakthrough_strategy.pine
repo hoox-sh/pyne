@@ -1,0 +1,348 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于K线的双向突破交易策略Dual-Breakthrough-Strategy.md
+// content_hash: fa88bcd62b3ae866
+// collected: 2026-07-27
+
+// # ========================================================================= #
+// #                   |   Strategy  |
+// # ========================================================================= #
+
+SystemName = "Strategy Template Autoview"
+TradeId = "S"
+// These values are used both in the strategy() header and in the script's relevant inputs as default values so they match.
+// Unless these values match in the script's Inputs and the TV backtesting Properties, results between them cannot be compared.
+InitCapital = 1000000
+InitPosition = 2
+InitCommission = 0.075
+InitPyramidMax = 1
+CalcOnorderFills = false
+ProcessOrdersOnClose = true // display the signals one candle earlier
+CalcOnEveryTick = true // forward testing
+//CloseEntriesRule = "ANY"
+
+strategy(title=SystemName, shorttitle=SystemName, 
+ overlay=true, pyramiding=InitPyramidMax, initial_capital=InitCapital, default_qty_type=strategy.fixed, process_orders_on_close=ProcessOrdersOnClose,
+ default_qty_value=InitPosition, commission_type=strategy.commission.percent, commission_value=InitCommission, calc_on_order_fills=CalcOnorderFills, 
+ calc_on_every_tick=CalcOnEveryTick, 
+ precision=6, max_lines_count=500, max_labels_count=500)
+
+// # ========================================================================= #
+// # ========================================================================= #
+// #                   ||   Alerts  ||
+// # ========================================================================= #
+// # ========================================================================= #
+
+show_alerts_debug = input.bool(true, title = "Show Alerts Debug Label?", group = "Debug")
+
+//i_alert_txt_entry_long = input.text_area(defval = "", title = "Long Entry Message", group = "Alerts")
+//i_alert_txt_entry_short = input.text_area(defval = "", title = "Short Entry Message", group = "Alerts")
+//i_alert_txt_exit_long = input.text_area(defval = "", title = "Long Exit Message", group = "Alerts")
+//i_alert_txt_exit_short = input.text_area(defval = "", title = "Short Exit Message", group = "Alerts")
+
+i_broker_mode = input.string("DEMO", title = "Use Demo or Live Broker", options=["DEMO", "LIVE"], group = "Automation")
+i_broker_name = input.string("Tradovate", title = "Broker Name", options=["Tradovate", "AscendEX", "Binance", "Binance Futures", "Binance US", "Binance Delivery", "Kraken", "Deribit", "Poloniex", "Okcoin", "Bitfinex", "Oanda", "Kucoin", "Okex", "Bybit", "FTX", "Bitmex", "Alpaca", "Gemini"], group = "Automation")
+
+i_enable_trades = input.bool(true, title = "Enable trades?", group = "Automation", tooltip = "If not enabled, disables live trades, but more importantly, it will output what Autoview is going to do when you go live.")
+
+i_account_name = input.string("*", title = "Account Name", group = "Automation")
+i_symbol_name  = input.string("btcusd_perp", title = "Symbol Name", group = "Automation")
+nb_contracts = input.int(2, title = "Nb Contracts", group = "Automation")
+
+use_delay = input.bool(false, title = "Use Delay between orders", group = "Automation", inline = "delay")
+i_delay_qty = input.int(1, title = "Delay in seconds", group = "Automation", inline = "delay")
+
+i_use_borrow_repay   = input.bool(false, title = "Use Borrow/Repay Mode?", group = "Binance Automation")
+i_asset_borrow_repay = input.string("BTC", title = "Asset to Borrow/Repay", group = "Binance Automation")
+i_qty_borrow_repay   = input.float(1., title = "Quantity of assets to borrow?", group = "Binance Automation")
+
+// # ========================================================================= #
+// # ========================================================================= #
+// #                   ||   Dates Range Filtering  ||
+// # ========================================================================= #
+// # ========================================================================= #
+
+DateFilter = input(false, "Date Range Filtering", group="Date")
+
+// ————— Syntax coming from https://www.tradingview.com/blog/en/new-parameter-for-date-input-added-to-pine-21812/
+i_startTime = input(defval = timestamp("01 Jan 2019 13:30 +0000"), title = "Start Time", group="Date")
+i_endTime = input(defval = timestamp("30 Dec 2021 23:30 +0000"), title = "End Time", group="Date")
+
+TradeDateIsAllowed() => true
+
+
+// # ========================================================================= #
+// #                   |   Custom Exits |
+// # ========================================================================= #
+
+//use_custom_exit = input.bool(true, title = "Use Custom Exits?", group = "Custom Exits")
+
+// # ========================================================================= #
+// #                   |   Stop Loss |
+// # ========================================================================= #
+
+use_sl        = input.string("None", title = "Select Stop Loss Mode", options=["None", "Percent", "Price"], group = "Stop Loss")
+sl_input_perc = input.float(3, minval = 0, title = "Stop Loss (%)", group = "Stop Loss (%)") * 0.01
+sl_input_pips = input.float(30, minval = 0, title = "Stop Loss (USD)", group = "Stop Loss (USD)")
+
+// # ========================================================================= #
+// #                   |   Take Profit |
+// # ========================================================================= #
+
+use_tp       = input.string("None", title = "Select Take Profit Mode", options=["None", "Percent", "Price"], group = "Take Profit")
+tp_input_perc = input.float(3, minval = 0, title = "Take Profit (%)", group = "Take Profit (%)") * 0.01
+tp_input_pips = input.float(30, minval = 0, title = "Take Profit (USD)", group = "Take Profit (USD)")
+
+
+// # ========================================================================= #
+// #                   |   Consolidated Entries |
+// # ========================================================================= #
+
+bull = close > open and close > math.max(close[2], open[2]) and low[1] < low[2] and high[1] < high[2] // low < low[1] and low[1] < low[2] 
+bear = close < open and close < math.min(close[2], open[2]) and low[1] > low[2] and high[1] > high[2] // low < low[1] and low[1] < low[2] 
+
+// # ========================================================================= #
+// #       |   Entry Price |
+// # ========================================================================= #
+
+entry_long_price  = ta.valuewhen(condition=bull and strategy.position_size[1] <= 0, source=close, occurrence=0)
+entry_short_price = ta.valuewhen(condition=bear and strategy.position_size[1] >= 0, source=close, occurrence=0)
+
+var float entry_price = 0.
+
+if bull
+    entry_price := entry_long_price
+if bear
+    entry_price := entry_short_price
+
+// # ========================================================================= #
+// #                   ||   Global Trend Variables ||
+// # ========================================================================= #
+
+T1_sinceUP = ta.barssince(bull)
+T1_sinceDN = ta.barssince(bear)
+
+T1_nUP = ta.crossunder(T1_sinceUP,T1_sinceDN)
+T1_nDN = ta.crossover(T1_sinceUP,T1_sinceDN)
+
+T1_sinceNUP = ta.barssince(T1_nUP)
+T1_sinceNDN = ta.barssince(T1_nDN)
+
+T1_BuyTrend  = T1_sinceDN > T1_sinceUP
+T1_SellTrend = T1_sinceDN < T1_sinceUP
+
+T1_SellToBuy   = T1_BuyTrend and T1_SellTrend[1]
+T1_BuyToSell   = T1_SellTrend and T1_BuyTrend[1]
+T1_ChangeTrend = T1_BuyToSell or T1_SellToBuy
+
+// # ========================================================================= #
+// #                   |   Stop Loss |
+// # ========================================================================= #
+
+var float final_SL_Long  = 0.
+var float final_SL_Short = 0.
+
+if use_sl == "Percent"
+    final_SL_Long := entry_long_price * (1 - sl_input_perc)
+    final_SL_Short := entry_short_price * (1 + sl_input_perc)
+else if use_sl == "Price"
+    final_SL_Long := entry_long_price - (sl_input_pips)
+    final_SL_Short := entry_short_price + (sl_input_pips)
+
+plot(strategy.position_size > 0 and use_sl != "None" ? final_SL_Long : na, title = "SL Long", color = color.fuchsia, linewidth=2, style=plot.style_linebr)
+plot(strategy.position_size < 0 and use_sl != "None" ? final_SL_Short : na, title = "SL Short", color = color.fuchsia, linewidth=2, style=plot.style_linebr)
+
+// # ========================================================================= #
+// #                   |   Take Profit |
+// # ========================================================================= #
+
+var float final_TP_Long  = 0.
+var float final_TP_Short = 0.
+
+if use_tp == "Percent"
+    final_TP_Long := entry_long_price   * (1 + tp_input_perc)
+    final_TP_Short := entry_short_price * (1 - tp_input_perc)
+else if use_tp == "Price"
+    final_TP_Long := entry_long_price   + (tp_input_pips)
+    final_TP_Short := entry_short_price - (tp_input_pips)
+
+plot(strategy.position_size > 0 and use_tp != "None" ? final_TP_Long : na, title = "TP Long", color = color.orange, linewidth=2, style=plot.style_linebr)
+plot(strategy.position_size < 0 and use_tp != "None" ? final_TP_Short : na, title = "TP Short", color = color.orange, linewidth=2, style=plot.style_linebr)
+
+// # ========================================================================= #
+// #                   |   AutoView Calls |
+// # ========================================================================= #
+
+float quantity = nb_contracts
+
+string product_type_ticker = i_symbol_name
+
+var string broker_mode = ""
+
+if i_broker_mode == "DEMO"
+
+    broker_mode := switch i_broker_name
+        "Tradovate" => "tradovatesim"
+        "Ascendex"  => "ascendex-sandbox"
+        "Binance Futures" => "binancefuturestestnet"
+        "Binance Delivery" => "binancedeliverytestnet"
+        "Oanda" => "oandapractice"
+        "Bitmex" => "bitmextestnet"
+        "Bybit" => "bybittestnet"
+        "Alpaca" => "alpacapaper"
+        "Kucoin" => "kucoinsandbox"
+        "Deribit" => "deribittestnet"
+        "Gemini" => "gemini-sandbox"
+        => i_broker_name
+
+else // "LIVE"
+
+    broker_mode := switch i_broker_name
+        "Tradovate" => "tradovate"
+        "Ascendex"  => "ascendex"
+        "Binance Futures" => "binancefutures"
+        "Binance Delivery" => "binancedelivery"
+        "Binance" => "binance"
+        "Oanda" => "oanda"
+        "Kraken" => "kraken"
+        "Deribit" => "deribit"
+        "Bitfinex" => "bitfinex"
+        "Poloniex" => "poloniex"
+        "Bybit" => "bybit"
+        "Okcoin" => "okcoin"
+        "Kucoin" => "kucoin"
+        "FTX" => "ftx"
+        "Bitmex" => "bitmex"
+        "Alpaca" => "alpaca"
+        "Gemini" => "gemini"
+        => i_broker_name
+
+enable_trades = i_enable_trades ? "" : " d=1"
+string delay_qty = use_delay ? " delay=" + str.tostring(i_delay_qty) : ""
+
+i_alert_txt_entry_long = "a=" + i_account_name + " e=" + broker_mode + " s=" + product_type_ticker + enable_trades + " b=short c=position t=market" + 
+ "\n a=" + i_account_name + " e=" + broker_mode + " s=" + product_type_ticker + " b=long q=" + str.tostring(quantity, "#") + " t=market" + enable_trades + delay_qty
+ 
+i_alert_txt_entry_short = "a=" + i_account_name + " e=" + broker_mode + " s=" + product_type_ticker + enable_trades + " b=long c=position t=market" + 
+ "\n a=" + i_account_name + " e=" + broker_mode + " s=" + product_type_ticker + " b=short q=" + str.tostring(quantity, "#") + " t=market" + enable_trades + delay_qty
+
+var string temp_txt_SL_long = ""
+var string temp_txt_SL_short = ""
+
+var string temp_txt_TP_long = ""
+var string temp_txt_TP_short = ""
+
+if use_sl == "Percent"
+
+    temp_txt_SL_long  := "sl=-" + str.tostring(sl_input_perc * 100) + "%"
+    temp_txt_SL_short := "sl=" + str.tostring(sl_input_perc * 100) + "%"
+
+else if use_sl == "Price"
+
+    temp_txt_SL_long  := "fsl=" + str.tostring(final_SL_Long)
+    temp_txt_SL_short := "fsl=" + str.tostring(final_SL_Short)
+
+if use_tp == "Percent"
+
+    temp_txt_TP_long := "p=" + str.tostring(tp_input_perc * 100) + "%" 
+    temp_txt_TP_short := "p=-" + str.tostring(tp_input_perc * 100) + "%" 
+
+else if use_tp == "Price"
+
+    temp_txt_TP_long  := "fpx=" + str.tostring(final_TP_Long)
+    temp_txt_TP_short := "fpx=" + str.tostring(final_TP_Short)  
+
+i_alert_txt_exit_SL_long  = "a=" + i_account_name + " e=" + broker_mode + " s=" + product_type_ticker + " b=long c=position t=market " + temp_txt_SL_long + enable_trades 
+i_alert_txt_exit_SL_short = "a=" + i_account_name + " e=" + broker_mode + " s=" + product_type_ticker + " b=short c=position t=market " + temp_txt_SL_short + enable_trades 
+i_alert_txt_exit_TP_long  = "a=" + i_account_name + " e=" + broker_mode + " s=" + product_type_ticker + " b=long c=position t=market " + temp_txt_TP_long + enable_trades 
+i_alert_txt_exit_TP_short = "a=" + i_account_name + " e=" + broker_mode + " s=" + product_type_ticker + " b=short c=position t=market " + temp_txt_TP_short + enable_trades 
+
+string final_alert_txt_entry_long = i_alert_txt_entry_long
+string final_alert_txt_entry_short = i_alert_txt_entry_short
+
+if i_use_borrow_repay and i_broker_name == "Binance"
+
+    final_alert_txt_entry_long := "a=" + i_account_name + " e=" + broker_mode + "y=borrow w=" + i_asset_borrow_repay + " q=" + str.tostring(i_qty_borrow_repay, "#") + enable_trades +
+     "\n a=" + i_account_name + " e=" + broker_mode + " s=" + product_type_ticker + enable_trades + " b=short c=position t=market" + delay_qty +
+     "\n a=" + i_account_name + " e=" + broker_mode + " s=" + product_type_ticker + " b=long q=" + str.tostring(quantity, "#") + " t=market" + enable_trades + delay_qty +
+     "\n a=" + i_account_name + " e=" + broker_mode + "y=repay w=" + i_asset_borrow_repay + " q=" + str.tostring(i_qty_borrow_repay, "#") + enable_trades
+
+    final_alert_txt_entry_short := "a=" + i_account_name + " e=" + broker_mode + "y=borrow w=" + i_asset_borrow_repay + " q=" + str.tostring(i_qty_borrow_repay, "#") + enable_trades +
+     "\n a=" + i_account_name + " e=" + broker_mode + " s=" + product_type_ticker + enable_trades + " b=long c=position t=market" + delay_qty +
+     "\n a=" + i_account_name + " e=" + broker_mode + " s=" + product_type_ticker + " b=short q=" + str.tostring(quantity, "#") + " t=market" + enable_trades + delay_qty +
+     "\n a=" + i_account_name + " e=" + broker_mode + "y=repay w=" + i_asset_borrow_repay + " q=" + str.tostring(i_qty_borrow_repay, "#") + enable_trades
+
+//i_alert_txt_entry_long  := final_alert_txt_entry_long
+//i_alert_txt_entry_short := final_alert_txt_entry_short
+
+if show_alerts_debug and barstate.islastconfirmedhistory
+
+    var label lblTest = na
+
+    label.delete(lblTest)
+
+    string label_txt = i_alert_txt_entry_long
+
+    if use_sl != "None"
+        label_txt := label_txt + "\n" + i_alert_txt_exit_SL_long
+
+    if use_tp != "None"
+        label_txt := label_txt + "\n" + i_alert_txt_exit_TP_long
+
+    t = time + (time - time[1]) * 25
+
+    lblTest := label.new(
+     x            = t,
+     y            = ta.highest(50),
+     text         = label_txt,
+     xloc         = xloc.bar_time,
+     yloc         = yloc.price,
+     color        = color.new(color = color.gray, transp = 0),
+     style        = label.style_label_left,
+     textcolor    = color.new(color = color.white, transp = 0),
+     size         =  size.large
+     )
+
+// # ========================================================================= #
+// #                   |   Strategy Calls and Alerts |
+// # ========================================================================= #
+
+if bull and TradeDateIsAllowed() 
+
+    strategy.entry(id = "Long", direction =  strategy.long, comment = "Long", alert_message = i_alert_txt_entry_long, qty = nb_contracts)
+    alert(i_alert_txt_entry_long, alert.freq_once_per_bar)
+    
+else if bear and TradeDateIsAllowed()
+    strategy.entry(id = "Short", direction =  strategy.short, comment = "Short", alert_message = i_alert_txt_entry_short, qty = nb_contracts)
+    alert(i_alert_txt_entry_short, alert.freq_once_per_bar)
+
+//quantity := quantity * 2
+
+strategy.exit(id = "Exit Long",  from_entry = "Long",  stop = (use_sl != "None") ? final_SL_Long : na,  comment_loss = "Long Exit SL", alert_loss  = (use_sl != "None") ? i_alert_txt_exit_SL_long : na,   limit = (use_tp != "None") ? final_TP_Long  : na, comment_profit = "Long Exit TP", alert_profit = (use_tp != "None") ? i_alert_txt_exit_TP_long : na)   
+strategy.exit(id = "Exit Short", from_entry = "Short", stop = (use_sl != "None") ? final_SL_Short : na, comment_loss = "Short Exit SL", alert_loss = (use_sl != "None") ? i_alert_txt_exit_SL_short : na, limit = (use_tp != "None") ? final_TP_Short : na, comment_profit = "Short Exit TP", alert_profit = (use_tp != "None") ? i_alert_txt_exit_TP_short : na)   
+
+if strategy.position_size > 0 and low < final_SL_Long and use_sl != "None"
+    alert(i_alert_txt_exit_SL_long, alert.freq_once_per_bar)
+
+else if strategy.position_size < 0 and high > final_SL_Short and use_sl != "None"
+    alert(i_alert_txt_exit_SL_short, alert.freq_once_per_bar)
+
+if strategy.position_size > 0 and high > final_TP_Long and use_tp != "None"
+    alert(i_alert_txt_exit_TP_long, alert.freq_once_per_bar)
+
+else if strategy.position_size < 0 and low < final_TP_Short and use_tp != "None"
+    alert(i_alert_txt_exit_TP_short, alert.freq_once_per_bar)
+
+// # ========================================================================= #
+// #                   |   Reset Variables |
+// # ========================================================================= #
+```
+
+> Detail
+
+https://www.fmz.com/strategy/440460
+
+> Last Modified
+
+2024-01-30 17:27:01

@@ -1,0 +1,89 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/均线与超级趋势结合的日内多空动态平衡策略Dynamic-Intraday-Long-Short-Balancing-Strategy-Combining-Moving-Average-and-Supertrend.md
+// content_hash: 3e8e261c914d13a6
+// collected: 2026-07-27
+strategy("EQ - INTRA - Samsuga supertrend prod", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=100, calc_on_every_tick = false)
+
+
+atrPeriod = input.int(7,    "ATR Length", minval = 1)
+factor =    input.float(1.0, "Factor",     minval = 0.01, step = 0.01)
+st_tf = "3"
+macd_tf="30"
+
+[supertrend, direction] =request.security(symbol = syminfo.tickerid, timeframe = st_tf,expression =  ta.supertrend(factor, atrPeriod),lookahead=barmerge.lookahead_on)
+
+supertrend := barstate.isfirst ? na : supertrend
+upTrend =    plot(direction <= 0 ? supertrend : na, "Up Trend",   color = color.green, style = plot.style_linebr)
+downTrend =  plot(direction <= 0 ? na : supertrend, "Down Trend", color = color.red,   style = plot.style_linebr)
+bodyMiddle = plot(barstate.isfirst ? na : (open + close) / 2, "Body Middle",display = display.none)
+longcondition = direction[1] > direction 
+shortCondition = direction[1] < direction 
+
+macdp1 = 2
+macdp2=8
+macdp3=4
+
+[macdLine, signalLine, histLine] =request.security(symbol = syminfo.tickerid, timeframe = macd_tf,expression = ta.macd(close,macdp1,macdp2,macdp3),lookahead=barmerge.lookahead_on)
+// log.info(str.tostring(syminfo.tickerid)+str.tostring(histLine[0]))
+timezone_input = input("Asia/Kolkata", title="Timezone")
+// log.info(timezone_input)
+if(hour==15 and minute==15)
+    strategy.close_all(comment = "DAY EXIT",alert_message = "X-D")
+else if(hour==9 and minute==30)
+    if(longcondition or histLine[1]>0)
+        strategy.entry(id= "Long", direction=strategy.long,  comment = "DL",alert_message = "L")
+    else if(shortCondition or histLine[1]<0) 
+        strategy.entry(id= "Short", direction=strategy.short,  comment = "DS",alert_message = "S")
+else
+    if(longcondition)
+        strategy.close("Short",comment = "X-S", alert_message = "X-S")
+        if(histLine[1]>0)    
+            strategy.entry(id= "Long", direction=strategy.long,  comment = "L",alert_message = "L")
+    else if(shortCondition) 
+        strategy.close("Long",comment = "X-L",alert_message = "X-L")
+        if(histLine[1]<0)    
+            strategy.entry(id= "Short", direction=strategy.short,  comment = "S",alert_message = "S")
+
+
+// plot(macdLine,   title = "MACD",   color = #2962FF)
+// plot(signalLine, title = "Signal", color = #FF6D00)
+// 8, 21, 5
+// 8,13,9
+// 12,26,9
+//  1--> 3, 17, 5
+// 3, 10, 16
+// log.info(str.tostring(syminfo.tickerid)+str.tostring(histLine[0]))
+//  /////////----------------METHOD 1-----------------////////////////
+// if(longcondition)
+//     if(strategy.opentrades>0)
+//         strategy.close("Long","Prev Exit", immediately = true)
+//     if( histLine[0] > 0.1)
+//         strategy.entry(id= "Long", direction=strategy.long,  comment = "update long")
+
+    
+// else if(shortCondition and strategy.openprofit<=0.1) 
+//     strategy.close("Long",comment = "Close",immediately = true)
+//  /////////----------------METHOD 2-----------------////////////////
+// if(longcondition)
+//     if(histLine[0] > 0)
+//         strategy.entry(id= "Long", direction=strategy.long,  comment = "update long" )
+//         strategy.exit("Long", loss = close*0.2)
+
+
+    
+// else if(shortCondition ) 
+//     strategy.close("Long",comment = "Close",immediately = true)
+//  /////////----------------METHOD 3-----------------////////////////
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/444352
+
+> Last Modified
+
+2024-03-11 11:33:47

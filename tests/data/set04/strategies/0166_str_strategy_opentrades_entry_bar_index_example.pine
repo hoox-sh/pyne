@@ -1,0 +1,19 @@
+// set04 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block241
+// content_hash: 79c3c2c3adaa42d0
+// collected: 2026-07-27
+// Wait 10 bars and then close the position.
+//@version=6
+strategy("`strategy.opentrades.entry_bar_index` Example")
+
+barsSinceLastEntry() =>
+    strategy.opentrades > 0 ? bar_index - strategy.opentrades.entry_bar_index(strategy.opentrades - 1) : na
+
+// Enter a long position if there are no open positions.
+if strategy.opentrades == 0
+    strategy.entry("Long", strategy.long)
+
+// Close the long position after 10 bars. 
+if barsSinceLastEntry() >= 10
+    strategy.close("Long")

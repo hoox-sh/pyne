@@ -1,0 +1,56 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于Z分数标准化的线性信号量化交易策略-Z-Score-Normalized-Linear-Signal-Quantitative-Trading-Strategy.md
+// content_hash: 4c941330cb41a01d
+// collected: 2026-07-27
+strategy("Linear Signal-Based Strategy", shorttitle = "LSB_V1", overlay=true)
+
+// Inputs
+lookback_period = input.int(14, title="Lookback Period for Moving Averages")
+signal_alpha = input.float(0.5, title="Signal Weight Alpha (Exogenous Variable)")
+take_profit_percent = input.float(0.02, title="Take Profit (%)")
+stop_loss_percent = input.float(0.01, title="Stop Loss (%)")
+risk_adjustment_factor = input.float(1.5, title="Risk Adjustment Factor")
+
+// Fetch Exogenous Variable (Example: RSI as a Proxy)
+rsi_value = ta.rsi(close, lookback_period)
+
+// Linear Signal Calculation
+linear_signal = signal_alpha * rsi_value + (1 - signal_alpha) * close
+
+// Z-Score Normalization for Signal
+mean_signal = ta.sma(linear_signal, lookback_period)
+stddev_signal = ta.stdev(linear_signal, lookback_period)
+z_score_signal = (linear_signal - mean_signal) / stddev_signal
+
+// Entry Conditions
+long_condition = z_score_signal < -risk_adjustment_factor
+short_condition = z_score_signal > risk_adjustment_factor
+
+// Risk Management
+long_take_profit = close * (1 + take_profit_percent)
+long_stop_loss = close * (1 - stop_loss_percent)
+short_take_profit = close * (1 - take_profit_percent)
+short_stop_loss = close * (1 + stop_loss_percent)
+
+// Execute Trades
+if (long_condition)
+    strategy.entry("Long", strategy.long, qty=1)
+    strategy.exit("Exit Long", "Long", stop=long_stop_loss, limit=long_take_profit)
+
+if (short_condition)
+    strategy.entry("Short", strategy.short, qty=1)
+    strategy.exit("Exit Short", "Short", stop=short_stop_loss, limit=short_take_profit)
+
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/477593
+
+> Last Modified
+
+2025-01-06 16:14:07

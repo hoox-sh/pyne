@@ -1,0 +1,57 @@
+//@version=4
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/Swing-Scalper HULL + T3 avg Crypto Strategy.pine
+// content_hash: 7c3021b78fc6e9c0
+// collected: 2026-07-27
+strategy(title="Swing HULL + T3 avg", shorttitle="Swing HULL T3 AVG", overlay=true)
+fromDay = input(defval = 1, title = "From Day", minval = 1, maxval = 31)
+fromMonth = input(defval = 1, title = "From Month", minval = 1, maxval = 12)
+fromYear = input(defval = 2000, title = "From Year", minval = 1970)
+ //monday and session 
+// To Date Inputs
+toDay = input(defval = 31, title = "To Day", minval = 1, maxval = 31)
+toMonth = input(defval = 12, title = "To Month", minval = 1, maxval = 12)
+toYear = input(defval = 2021, title = "To Year", minval = 1970)
+startDate = timestamp(fromYear, fromMonth, fromDay, 00, 00)
+finishDate = timestamp(toYear, toMonth, toDay, 00, 00)
+time_cond = time >= startDate and time <= finishDate 
+////////////////////////////GENERAL INPUTS//////////////////////////////////////
+length_Ma= input(defval=50, title="Length MAs", minval=1)
+//==========HMA
+getHULLMA(src, len) =>
+    hullma = wma(2*wma(src, len/2)-wma(src, len), round(sqrt(len)))
+    hullma
+//==========T3
+getT3(src, len, vFactor) =>
+    ema1 = ema(src, len)
+    ema2 = ema(ema1,len)
+    ema3 = ema(ema2,len)
+    ema4 = ema(ema3,len)
+    ema5 = ema(ema4,len)
+    ema6 = ema(ema5,len)
+    c1 = -1 * pow(vFactor,3)
+    c2 = 3*pow(vFactor,2) + 3*pow(vFactor,3)
+    c3 = -6*pow(vFactor,2) - 3*vFactor - 3*pow(vFactor,3)
+    c4 = 1 + 3*vFactor + pow(vFactor,3) + 3*pow(vFactor,2)
+    T3 = c1*ema6 + c2*ema5 + c3*ema4 + c4*ema3
+    T3
+hullma = getHULLMA(close,length_Ma)
+t3 = getT3(close,length_Ma,0.7)
+avg = (hullma+t3) /2
+////////////////////////////PLOTTING////////////////////////////////////////////
+colorado = avg > avg[1]? color.green : color.red
+plot(avg , title="avg", color=colorado, linewidth = 4)
+long=avg>avg[1]
+short=avg<avg[1]
+tplong=input(0.08, title="TP Long", step=0.01)
+sllong=input(1.0, title="SL Long", step=0.01)
+tpshort=input(0.03, title="TP Short", step=0.01)
+slshort=input(0.06, title="SL Short", step=0.01)
+if(time_cond)
+    strategy.entry("long",1,when=long)
+    strategy.exit("closelong", "long" , profit = close * tplong / syminfo.mintick, loss = close * sllong / syminfo.mintick, alert_message = "closelong")
+    
+    strategy.entry("short",0,when=short)
+    strategy.exit("closeshort", "short" , profit = close * tpshort / syminfo.mintick, loss = close * slshort / syminfo.mintick, alert_message = "closeshort")
+Expand (83 lines)

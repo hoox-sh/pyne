@@ -1,0 +1,43 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/玛雅寻宝指南Mayan-Treasure-Hunting-Guide.md
+// content_hash: 40faf33509227370
+// collected: 2026-07-27
+strategy("Megalodon", shorttitle="Megalodon", overlay=true)
+
+// Parámetros de la EMA
+length = input.int(20, minval=1, title="Length")
+src = input(close, title="Source")
+
+// Calcular la EMA
+ema = ta.ema(src, length)
+
+// Plot de la EMA
+plot(ema, title="EMA", color=color.blue)
+
+// Encontrar los puntos más altos y más bajos
+last8h = ta.highest(close, 8)
+lastl8 = ta.lowest(close, 8)
+
+// Plot de los puntos más altos y más bajos
+plot(last8h, color=color.red, linewidth=2)
+plot(lastl8, color=color.green, linewidth=2)
+
+// Condiciones de compra y venta
+buy_condition = ta.cross(close, ema) == 1 and close[1] < close
+sell_condition = ta.cross(close, ema) == 1 and close[1] > close
+
+// Estrategia de trading
+strategy.entry("Buy", strategy.long, when=buy_condition)
+strategy.entry("Sell", strategy.short, when=sell_condition)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/442961
+
+> Last Modified
+
+2024-02-27 16:33:02

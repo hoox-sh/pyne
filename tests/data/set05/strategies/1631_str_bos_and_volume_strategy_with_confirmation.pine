@@ -1,0 +1,75 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/突破结构与成交量确认的多重条件智能交易策略-Break-of-Structure-with-Volume-Confirmation-Multi-Condition-Intelligent-Trading-Strategy.md
+// content_hash: e8b3621232bb6088
+// collected: 2026-07-27
+strategy("BOS and Volume Strategy with Confirmation", overlay=true)
+
+// Parameters
+swingLength = input.int(20, title="Swing Length", minval=1)
+volumeMultiplier = input.float(1.1, title="Volume Multiplier", step=0.1)
+volumeSMA_length = input.int(10, title="Volume SMA Length", minval=1)
+takeProfitPercentage = input.float(0.02, title="Take Profit Percentage", step=0.01)
+stopLossPercentage = input.float(0.15, title="Stop Loss Percentage", step=0.01)  // New parameter for stop loss
+atrLength = input.int(14, title="ATR Length")
+confirmationBars = input.int(2, title="Confirmation Bars", minval=1)
+
+// Calculate Swing Highs and Lows
+swingHigh = ta.highest(high, swingLength)[1]
+swingLow = ta.lowest(low, swingLength)[1]
+
+// Calculate Volume Moving Average
+volumeSMA = ta.sma(volume, volumeSMA_length)
+highVolume = volume > (volumeSMA * volumeMultiplier)
+
+// Break of Structure Detection with Confirmation
+var int bullishCount = 0
+var int bearishCount = 0
+
+if (close > swingHigh and highVolume)
+    bullishCount := bullishCount + 1
+    bearishCount := 0
+else if (close < swingLow and highVolume)
+    bearishCount := bearishCount + 1
+    bullishCount := 0
+else
+    bullishCount := 0
+    bearishCount := 0
+
+bullishBOSConfirmed = (bullishCount >= confirmationBars)
+bearishBOSConfirmed = (bearishCount >= confirmationBars)
+
+// Entry and Exit Conditions
+var float entryPrice = na  // Declare entryPrice as a variable
+
+if (bullishBOSConfirmed and strategy.position_size <= 0)
+    entryPrice := close  // Use ':=' for assignment
+    strategy.entry("Long", strategy.long)
+
+if (strategy.position_size > 0)
+    // Calculate stop loss price
+    stopLossPrice = entryPrice * (1 - stopLossPercentage)
+    strategy.exit("Take Profit Long", from_entry="Long", limit=entryPrice * (1 + takeProfitPercentage), stop=stopLossPrice)
+
+if (bearishBOSConfirmed and strategy.position_size >= 0)
+    entryPrice := close  // Use ':=' for assignment
+    strategy.entry("Short", strategy.short)
+
+if (strategy.position_size < 0)
+    // Calculate stop loss price
+    stopLossPrice = entryPrice * (1 + stopLossPercentage)
+    strategy.exit("Take Profit Short", from_entry="Short", limit=entryPrice * (1 - takeProfitPercentage), stop=stopLossPrice)
+
+// Plot Swing Highs and Lows for Visualization
+plot(swingHigh, title="Swing High", color=color.green, linewidth=1)
+plot(swingLow, title="Swing Low", color=color.red, linewidth=1)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/475623
+
+> Last Modified
+
+2024-12-20 16:15:43

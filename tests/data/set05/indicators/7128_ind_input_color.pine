@@ -1,0 +1,9 @@
+//@version=6
+// set05 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block110
+// content_hash: 21683773f35dfe4a
+// collected: 2026-07-27
+indicator("input.color", overlay=true)
+i_col = input.color(color.red, "Plot Color")
+plot(close, color=i_col)

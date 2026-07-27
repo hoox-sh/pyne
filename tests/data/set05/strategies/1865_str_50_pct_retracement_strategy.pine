@@ -1,0 +1,68 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动态斐波那契回撤交易策略-Dynamic-Fibonacci-Retracement-Trading-Strategy.md
+// content_hash: 0a39b49997dc610d
+// collected: 2026-07-27
+strategy("50% Retracement Strategy", overlay=true)
+
+// Input Parameters
+len_200 = input.int(200, title="200-period Moving Average")
+len_50 = input.int(50, title="50-period Moving Average")
+len_21 = input.int(21, title="21-candle Retracement")
+len_9 = input.int(9, title="9-candle Retracement")
+risk_reward_ratio = input.float(2.0, title="Risk/Reward Ratio")
+
+// Moving Averages
+ma_200 = ta.sma(close, len_200)
+ma_50 = ta.sma(close, len_50)
+
+// Fibonacci Retracement Levels
+var float fib_50_level = na
+var float fib_786_level = na
+
+if (close > ma_200 and close > ma_50)
+    // Calculate retracements for different periods
+    retrace_21_high = ta.highest(high, len_21)
+    retrace_21_low = ta.lowest(low, len_21)
+    retrace_21_mid = (retrace_21_high + retrace_21_low) / 2
+    
+    retrace_50_high = ta.highest(high, len_50)
+    retrace_50_low = ta.lowest(low, len_50)
+    retrace_50_mid = (retrace_50_high + retrace_50_low) / 2
+    
+    retrace_9_high = ta.highest(high, len_9)
+    retrace_9_low = ta.lowest(low, len_9)
+    retrace_9_mid = (retrace_9_high + retrace_9_low) / 2
+
+    // Choose the retracement to use (you can adjust this logic)
+    fib_50_level := (retrace_21_mid + retrace_50_mid + retrace_9_mid) / 3
+    fib_786_level := (retrace_21_high + retrace_50_high + retrace_9_high) / 3 - ((retrace_21_high + retrace_50_high + retrace_9_high - (retrace_21_low + retrace_50_low + retrace_9_low)) * 0.786)
+
+// Strategy Entry
+longCondition = close > ma_200 and close > ma_50 and close <= fib_50_level
+
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+
+// Strategy Exit
+takeProfitLevel = strategy.position_avg_price + (strategy.position_avg_price - fib_786_level) * risk_reward_ratio
+stopLossLevel = fib_786_level
+
+strategy.exit("Take Profit", "Long", limit=takeProfitLevel, stop=stopLossLevel)
+
+// Plotting
+plot(ma_200, color=color.blue, title="200-period MA")
+plot(ma_50, color=color.red, title="50-period MA")
+plot(fib_50_level, color=color.green, title="50% Retracement Level")
+plot(fib_786_level, color=color.orange, title="78.6% Retracement Level")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/454369
+
+> Last Modified
+
+2024-06-17 17:02:30

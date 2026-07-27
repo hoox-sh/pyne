@@ -1,0 +1,62 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多维图表模式量化策略融合头肩顶底与双顶底形态的技术分析交易系统-Multi-Dimensional-Chart-Pattern-Quantitative-Strategy-A-Technical-Analysis-Trading-System-Integrating-Head-and-Shoulders-and-Double-Top-Bottom-Formations.md
+// content_hash: 7eeb05ce7ab4abe3
+// collected: 2026-07-27
+strategy("Chart Pattern Strategy - Head and Shoulders / Double Top/Bottom", overlay=true)
+
+// Function to detect a simple Head and Shoulders pattern
+isHeadAndShoulders() =>
+    high[1] > high[2] and high[1] > high[0] and high[1] > high[3] and high[1] > high[4] and high[0] < high[2] and high[0] < high[3]
+
+// Function to detect a Double Top pattern
+isDoubleTop() =>
+    high[1] > high[2] and high[1] > high[0] and high[1] > high[3] and high[1] > high[4] and high[0] < high[2] and high[0] < high[3]
+
+// Function to detect a Double Bottom pattern
+isDoubleBottom() =>
+    low[1] < low[2] and low[1] < low[0] and low[1] < low[3] and low[1] < low[4] and low[0] > low[2] and low[0] > low[3]
+
+// Detecting Head and Shoulders, Double Top, and Double Bottom Patterns
+headAndShouldersPattern = isHeadAndShoulders()
+doubleTopPattern = isDoubleTop()
+doubleBottomPattern = isDoubleBottom()
+
+// Plotting Head and Shoulders, Double Top, and Double Bottom detections
+plotshape(headAndShouldersPattern, title="Head and Shoulders", location=location.abovebar, color=color.red, style=shape.labelup, text="HS")
+plotshape(doubleTopPattern, title="Double Top", location=location.abovebar, color=color.red, style=shape.labelup, text="DT")
+plotshape(doubleBottomPattern, title="Double Bottom", location=location.belowbar, color=color.green, style=shape.labeldown, text="DB")
+
+// Entry logic for Buy and Sell signals
+longSignal = doubleBottomPattern and close > open
+shortSignal = doubleTopPattern and close < open
+
+// Take profit and stop loss based on ATR for simplicity
+atrLength = input.int(14, title="ATR Length")
+atrValue = ta.atr(atrLength)
+stopLoss = atrValue * 1.5  // Stop loss 1.5 ATR
+takeProfit = atrValue * 3  // Take profit 3 ATR
+
+// Plot buy and sell signals
+plotshape(longSignal, title="Buy Signal", location=location.belowbar, color=color.green, style=shape.labelup, text="BUY")
+plotshape(shortSignal, title="Sell Signal", location=location.abovebar, color=color.red, style=shape.labeldown, text="SELL")
+
+// Executing trades based on conditions
+if (longSignal)
+    strategy.entry("Buy", strategy.long)
+    strategy.exit("Take Profit/Stop Loss", from_entry="Buy", stop=close - stopLoss, limit=close + takeProfit)
+
+if (shortSignal)
+    strategy.entry("Sell", strategy.short)
+    strategy.exit("Take Profit/Stop Loss", from_entry="Sell", stop=close + stopLoss, limit=close - takeProfit)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/484101
+
+> Last Modified
+
+2025-02-28 10:19:51

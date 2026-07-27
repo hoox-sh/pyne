@@ -1,0 +1,60 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/逆向线性回归策略Reverse-Linear-Regression-Strategy.md
+// content_hash: 93197dd892f23b28
+// collected: 2026-07-27
+strategy("Reverse Up/Down Strategy", currency=currency.USD, initial_capital=1000, pyramiding=2, default_qty_type=strategy.percent_of_equity, default_qty_value=100,overlay=true)
+
+//User Options
+consecutiveBarsUp   = input(title="Sell after how many bars up?",   type=input.integer, minval=1, defval=1)
+consecutiveBarsDown = input(title="Buy after how many bars down?",  type=input.integer, minval=1, defval=1)
+atrLength           = input(title="ATR Length",                     type=input.integer, minval=1, defval=14)
+atrMult             = input(title="ATR Multiplier",                 type=input.float,   minval=0.1, defval=2.33)
+
+//ATR Channel
+adjustedATR     = sma(atr(atrLength),atrLength) * atrMult
+longATR         = low - adjustedATR
+shortATR        = high + adjustedATR
+plot(shortATR,  title="Short ATR",  color=color.red)
+plot(longATR,   title="Long ATR",   color=color.lime)
+
+
+// This is the true linear regression slope rather than an approximation given by numerical differentiation
+src = hlc3
+len = input(defval=14, minval=1, title="Slope Length")
+lrc = linreg(src, len, 0)
+lrc1 = linreg(src, len,1)
+lrs = (lrc-lrc1)
+
+//Check if last candle was up or down
+priceOpen = open
+priceClose = close
+longCondition = priceOpen > priceClose
+shortCondition = priceOpen < priceClose
+ups = 0.0
+dns = 0.0
+
+ups := shortCondition ? nz(ups[1]) + 1 : 0
+dns := longCondition ? nz(dns[1]) + 1 : 0
+
+if (shortCondition)
+    strategy.close("buy", qty_percent=100, comment="Close")
+    if (ups >= consecutiveBarsUp and lrs <= 0)
+    	strategy.entry("sell", strategy.short, comment="Sell")
+    	
+
+if (longCondition)
+    strategy.close("sell", qty_percent=100, comment="Close")
+    if (dns >= consecutiveBarsDown and lrs >= 0)
+	    strategy.entry("buy", strategy.long, comment = "Buy")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/437045
+
+> Last Modified
+
+2023-12-29 17:15:07

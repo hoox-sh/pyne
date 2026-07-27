@@ -1,0 +1,67 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/内部收敛突破策略Inside-Bar-Breakout-Strategy.md
+// content_hash: 4794f762255c4041
+// collected: 2026-07-27
+strategy("inside bar strategy  Wıth SL-TP ", overlay=true )
+
+
+
+insides = high < high[1] and low > low[1]
+outsides = high > high[1] and low < low[1]
+
+candle_control=insides or outsides
+
+
+target_profit_percent=input(3,"target profit%",step=0.1)
+stop_loss_percent=input(1,"stop loss %",step=0.1)
+
+
+
+yearfrom = input(2021)
+yearuntil =input(2022)
+monthfrom =input(1)
+monthuntil =input(12)
+dayfrom=input(1)
+dayuntil=input(31)
+
+
+long_cond=candle_control[1] and close>open and high>high[1]
+short_cond=candle_control[1] and close<open and low<low[1]
+
+
+
+if ( long_cond ) 
+    strategy.entry("LONG", strategy.long, stop=close, oca_name="TREND",  comment="LONG")
+    
+else
+    strategy.cancel(id="LONG")
+
+
+if (  short_cond ) 
+
+    strategy.entry("SHORT", strategy.short,stop=close, oca_name="TREND", comment="SHORT")
+else
+    strategy.cancel(id="SHORT")
+    
+    
+    
+    
+profit_target=(close*(target_profit_percent/100))/syminfo.mintick
+stop_target=(close*(stop_loss_percent/100))/syminfo.mintick
+
+
+strategy.exit("LONG EXIT","LONG",profit=profit_target, loss=stop_target ) 
+    
+strategy.exit("LONG EXIT","SHORT",profit=profit_target, loss=stop_target ) 
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/442825
+
+> Last Modified
+
+2024-02-26 12:16:52

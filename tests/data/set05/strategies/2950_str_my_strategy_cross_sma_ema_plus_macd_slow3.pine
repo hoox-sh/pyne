@@ -1,0 +1,205 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/均线交叉MACD慢线动量策略Moving-Average-Crossover-MACD-Slow-Line-Momentum-Strategy.md
+// content_hash: 20ed869b59b2a489
+// collected: 2026-07-27
+strategy("My strategy_Cross_SMA(EMA)+Macd,slow3",overlay=true)
+// ver 4
+// Date Inputs
+startDate     = input(timestamp('2019-01-01T00:00:00+0300'), ''                              , inline='time1',
+  tooltip=' Время первого бара расчета стратегии. Первый ордер может быть выставлен на следующем баре после стартового.')
+finishDate    = input(timestamp('2044-01-01T00:00:00+0300'), ''                              , inline='time2',
+  tooltip=' Время после которого больше не будут размещаться ордера входа в позицию.')
+
+// Calculate start/end date and time condition
+time_cond = true
+
+//SMA(EMA) Inputs
+
+fast=input.int(12, title="Fastlength",group="MA")
+slow1=input.int(54,title="Slowlength1",group="MA")
+slow2=input.int(100, title="Slowlength2",group="MA")
+slow3=input.int(365, title="Slowlength3",group="MA")
+
+fastma=input.string(title="Fastlength", defval="EMA",options=["SMA","EMA"],group="MA")
+slowma1=input.string(title="Slowlength1", defval="EMA",options=["SMA","EMA"],group="MA")
+slowma2=input.string(title="Slowlength2", defval="EMA",options=["SMA","EMA"],group="MA")
+slowma3=input.string(title="Slowlength3", defval="EMA",options=["SMA","EMA"],group="MA")
+
+fastlength = fastma == "EMA" ? ta.ema(close, fast) : ta.sma(close, fast)
+slowlength1 = slowma1 == "EMA" ? ta.ema(close, slow1) : ta.sma(close, slow1)
+slowlength2 = slowma2 == "EMA" ? ta.ema(close, slow2) : ta.sma(close, slow2)
+slowlength3 = slowma3 == "EMA" ? ta.ema(close, slow3) : ta.sma(close, slow3)
+
+//Macd Inputs
+
+macdfastline = input.int(12, title="FastMacd",group="MACD")
+macdslowline = input.int(26,title="SlowMacd",group="MACD")
+macdhistline = input.int(9,title="HistMacd",group="MACD")
+src=input(defval=close,title="Source",group="MACD")
+sma_source = input.string(title="Oscillator MA Type",  defval="EMA", options=["SMA", "EMA"],group="MACD")
+sma_signal = input.string(title="Signal Line MA Type", defval="EMA", options=["SMA", "EMA"],group="MACD")
+
+
+fast_ma = sma_source == "SMA" ? ta.sma(src, macdfastline) : ta.ema(src, macdfastline)
+slow_ma = sma_source == "SMA" ? ta.sma(src, macdslowline) : ta.ema(src, macdslowline)
+macd = fast_ma - slow_ma
+signal = sma_signal == "SMA" ? ta.sma(macd, macdhistline) : ta.ema(macd, macdhistline)
+hist = macd - signal
+//fastMACD = ta.ema(close, macdline) - ta.ema(close, signalline)
+//signalMACD = ta.ema(MACD, histline)
+//histMACD = MACD - aMACD
+
+//EMA Plot
+
+plot(fastlength,title="SMAfast",color=color.blue)
+plot(slowlength1,title="SMAslow1",color=color.orange)
+plot(slowlength2,title="SMAslow2",color=color.red)
+plot(slowlength3,title="SMAslow3",color=color.black)
+
+//Macd plot
+//col_macd = input(#2962FF, "MACD Line  ", group="Color Settings", inline="MACD")
+//col_signal = input(#FF6D00, "Signal Line  ", group="Color Settings", inline="Signal")
+//col_grow_above = input(#26A69A, "Above   Grow", group="Histogram", inline="Above")
+//col_fall_above = input(#B2DFDB, "Fall", group="Histogram", inline="Above")
+//col_grow_below = input(#FFCDD2, "Below Grow", group="Histogram", inline="Below")
+//col_fall_below = input(#FF5252, "Fall", group="Histogram", inline="Below")
+
+//plot(hist, title="Histogram", style=plot.style_columns, color=(hist>=0 ? (hist[1] < hist ? col_grow_above : col_fall_above) : (hist[1] < hist ? col_grow_below : col_fall_below)))
+//plot(macd, title="MACD", color=col_macd)
+//plot(signal, title="Signal", color=col_signal)
+
+//Take profit
+tp1=input.float(5.1,title="Take Profit1_%",step=0.1)/100
+tp2=input.float(10.1,title="Take Profit2_%",step=0.1)/100
+
+//Stop loss
+sl1=input.float(5.1,title="Stop loss1_%",step=0.1)/100
+sl2=input.float(0.1,title="Stop loss2_%",step=0.1)/100
+sl3=input.float(-5.5,title="Stop loss3_%", step=0.1)/100
+
+//Qty closing position
+
+Qty1 = input.float(0.5, title="QtyClosingPosition1",step=0.01)
+Qty2 = input.float(0.25, title="QtyClosingPosition2",step=0.01)
+
+//Take profit Long and Short
+
+LongTake1=strategy.position_avg_price*(1+tp1)
+LongTake2=strategy.position_avg_price*(1+tp2)
+
+ShortTake1=strategy.position_avg_price*(1-tp1)
+ShortTake2=strategy.position_avg_price*(1-tp2)
+
+//Plot Levels Take 
+plot(strategy.position_size > 0 ? LongTake1 : na,color=color.green,style=plot.style_linebr)
+plot(strategy.position_size > 0 ? LongTake2 : na,color=color.green,style=plot.style_linebr)
+plot(strategy.position_size < 0 ? ShortTake1 : na,color=color.green,style=plot.style_linebr)
+plot(strategy.position_size < 0 ? ShortTake2 : na,color=color.green,style=plot.style_linebr)
+
+//Stop loss long and short
+
+LongStop1=strategy.position_avg_price*(1-sl1)
+LongStop2=strategy.position_avg_price*(1-sl2)
+LongStop3=strategy.position_avg_price*(1-sl3)
+ShortStop1=strategy.position_avg_price*(1+sl1)
+ShortStop2=strategy.position_avg_price*(1+sl2)
+ShortStop3=strategy.position_avg_price*(1+sl3)
+//Stop=strategy.position_avg_price
+
+
+//Plot Levels Stop
+plot(strategy.position_size > 0 ? LongStop1 : na,color=color.red,style=plot.style_linebr)
+plot(strategy.position_size > 0 ? LongStop2 : na,color=color.red,style=plot.style_linebr)
+plot(strategy.position_size > 0 ? LongStop3 : na,color=color.red,style=plot.style_linebr)
+plot(strategy.position_size < 0 ? ShortStop1 : na,color=color.red,style=plot.style_linebr)
+plot(strategy.position_size < 0 ? ShortStop2 : na,color=color.red,style=plot.style_linebr)
+plot(strategy.position_size < 0 ? ShortStop3 : na,color=color.red,style=plot.style_linebr)
+
+
+//Entry condition
+
+LongCondition1 = ta.crossover(fastlength, slowlength1)
+LongCondition2 = close>slowlength2
+LongCondition3 = time_cond
+LongCondition4=close>slowlength3
+//LongCondition5=slowlength100>slowlength3
+LongCondition6 = hist > 0
+buy=(LongCondition1 and LongCondition2 and LongCondition3 and LongCondition4 and LongCondition6 ) and strategy.position_size<=0
+//longCondition3 = nz(strategy.position_size) == 0//если отсутствует открытая позиция
+
+
+ShortCondition1 = ta.crossunder(fastlength, slowlength1)
+ShortCondition2 = close<slowlength2
+ShortCondition3 = time_cond
+ShortCondition4=close<slowlength3
+//ShortCondition5=slowlength100<slowlength3
+ShortCondition6=hist < 0
+sell=(ShortCondition1 and ShortCondition2 and ShortCondition3 and ShortCondition4 and ShortCondition6 ) and strategy.position_size>=0
+
+
+
+//Strategy entry
+
+strategy.cancel_all(not strategy.position_size)
+
+if(buy)
+    strategy.cancel_all()
+    strategy.entry("Buy",strategy.long)
+if(sell)
+    strategy.cancel_all()
+    strategy.entry("Sell",strategy.short)
+    
+//Strategy Long exit    
+
+var int exitCounter=0
+
+exitCounter := not strategy.position_size or strategy.position_size > 0 and strategy.position_size[1] < 0 or strategy.position_size < 0  and strategy.position_size[1] > 0 ? 0:
+               strategy.position_size > 0 and strategy.position_size[1]>strategy.position_size?  exitCounter[1] + 1:
+               strategy.position_size < 0 and strategy.position_size[1]<strategy.position_size?  exitCounter[1] - 1:
+               exitCounter[1]
+if strategy.position_size > 0 and strategy.position_size[1]<=0
+    strategy.order("Take Long1",strategy.short, qty=math.abs(strategy.position_size*Qty1), limit=LongTake1, oca_name='Long1', oca_type=strategy.oca.cancel)
+if strategy.position_size > 0  and strategy.position_size[1]<=0   
+    strategy.order("Take Long2",strategy.short, qty=math.abs(strategy.position_size*Qty2), limit=LongTake2, oca_name='Long2', oca_type=strategy.oca.cancel)
+
+    
+if strategy.position_size > 0  and strategy.position_size[1]<=0   
+    strategy.order("Stop Long1",strategy.short, qty=math.abs(strategy.position_size),stop=LongStop1,oca_name='Long1',oca_type=strategy.oca.cancel)
+if ta.change(exitCounter) and exitCounter==1
+    strategy.order("Stop Long2",strategy.short, qty=math.abs(strategy.position_size),stop=LongStop2,oca_name='Long2',oca_type=strategy.oca.cancel)
+if ta.change(exitCounter) and exitCounter==2
+    strategy.order("Stop Long3",strategy.short, qty=math.abs(strategy.position_size),stop=LongStop3)
+    
+    
+    
+    
+//  Strategy Short exit  
+    
+    
+if strategy.position_size < 0 and strategy.position_size[1]>=0
+    strategy.order("Take Short1", strategy.long, qty=math.abs(strategy.position_size*Qty1), limit=ShortTake1, oca_name='Short1', oca_type=strategy.oca.cancel)
+if strategy.position_size < 0 and strategy.position_size[1]>=0 
+    strategy.order("Take Short2", strategy.long, qty=math.abs(strategy.position_size*Qty2), limit=ShortTake2, oca_name='Short2', oca_type=strategy.oca.cancel)
+
+
+    
+if strategy.position_size < 0 and strategy.position_size[1]>=0
+    strategy.order("Stop Short1",strategy.long, qty=math.abs(strategy.position_size),stop=ShortStop1,oca_name='Short1',oca_type=strategy.oca.cancel)
+if ta.change(exitCounter) and exitCounter==-1
+    strategy.order("Stop Short2",strategy.long, qty=math.abs(strategy.position_size),stop=ShortStop2,oca_name='Short2',oca_type=strategy.oca.cancel)
+if ta.change(exitCounter) and exitCounter==-2
+    strategy.order("Stop Short3",strategy.long,qty=math.abs(strategy.position_size),stop=ShortStop3)
+    
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/448074
+
+> Last Modified
+
+2024-04-12 17:16:06

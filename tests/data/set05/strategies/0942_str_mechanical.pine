@@ -1,0 +1,141 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动力追踪交易策略Momentum-Tracking-Trading-Strategy.md
+// content_hash: 07a0760b976a152c
+// collected: 2026-07-27
+strategy("Mechanical", shorttitle="MECH", overlay=true)
+
+// Get the current date and time
+currentYear = year
+currentMonth = month
+currentDay = dayofmonth
+
+// Create a timestamp for the present date and time
+currentTimestamp = timestamp(currentYear, currentMonth, currentDay)
+
+// Define time interval for backtesting
+dStart = input(timestamp('2023-07-01'), title='Set Start date', tooltip='Select a start date to run the script from')
+
+// Define direction of strategy
+direction = input.string('Forward',title='Direction', tooltip='Forward will go LONG on a Green anchor candle. Inverse will go short on a Green anchor candle and vice versa for Red candle', options=['Forward', 'Inverse'])
+
+// Define the anchor hour as user input with a range of 0 to 23
+anchorHour = input.int(11, title="Anchor Hour", tooltip='Set the hour to trade', minval=0, maxval=23)
+
+// Define the take profit and stop loss in pips
+takeProfitPips = input.int(10, title='Define TP Pips', tooltip='How many pips do you want to set TP. Choose a sensible value related to the instrument', minval=5)
+stopLossPips = input.int(10,'Define SL Pips', tooltip='How many pips do you want to set SL. Choose a sensible value related to the instrument', minval=5)
+
+// Define Tick size
+tick10p = input.int(100, title='tick size', tooltip='Choose how many ticks equal 10 pips. This can vary by broker so measure 10 pips on the chart and select how many ticks that equates to. Forex is typically 100. Some instruments such as indices can be 1000', options=[100,1000])
+
+// Declare TP/SL variables
+var float takeProfit = na
+var float stopLoss = na
+
+// Calculate take profit and stop loss levels in ticks
+if tick10p == 100
+    takeProfit := takeProfitPips * 10
+    stopLoss := stopLossPips * 10
+if tick10p == 1000
+    takeProfit := takeProfitPips * 100
+    stopLoss := stopLossPips * 100
+
+// Declare offset time
+var int offset = na
+
+if currentTimestamp > timestamp('2023-10-29')
+    offset := 4
+else
+    offset := 5
+
+//adjust for exchange time
+anchorHour := anchorHour - offset
+
+// Define the anchor hour as user input with a range of 0 to 23
+tradeHour = anchorHour
+
+// Define logical check for strategy date range
+isStratTime = true
+
+// Calculate the time condition for placing the order at the user-defined hour (start of the next hour)
+isTradeTime = true
+
+// Logic condition for forwards or inverse
+isForward = direction == 'Forward'
+isInverse = direction == 'Inverse'
+
+// Declare entry condition variables
+var bool longCondition = na
+var bool shortCondition = na
+
+// Declare and initialize variables for anchorCandle open and close prices
+var float anchorOpen = na
+var float anchorClose = na
+var float tradeOpen = na
+var float tradeClose = na
+
+// Set logic by direction
+
+if isForward
+    // Strategy logic
+    if isTradeTime and isStratTime
+        //Obtain candle open/close
+        anchorOpen := open
+        anchorClose := close
+        // Define entry conditions
+        longCondition := anchorClose > anchorOpen
+        shortCondition := anchorClose < anchorOpen
+        
+        // Entry logic
+        if longCondition
+            strategy.entry("Long", strategy.long)
+            strategy.exit("Exit Long", from_entry="Long", profit=takeProfit, loss=stopLoss, comment_profit='TP', comment_loss='SL')
+        if shortCondition
+            strategy.entry("Short", strategy.short)
+            strategy.exit("Exit Short", from_entry="Short", profit=takeProfit, loss=stopLoss, comment_profit='TP', comment_loss='SL')
+
+if isInverse
+    // Strategy logic
+    if isTradeTime and isStratTime
+        //Obtain candle open/close
+        anchorOpen := open
+        anchorClose := close
+        // Define entry conditions
+        shortCondition := anchorClose > anchorOpen
+        longCondition := anchorClose < anchorOpen
+        
+        // Entry logic
+        if longCondition
+            strategy.entry("Long", strategy.long)
+            strategy.exit("Exit Long", from_entry="Long", profit=takeProfit, loss=stopLoss, comment_profit='TP', comment_loss='SL')
+        if shortCondition
+            strategy.entry("Short", strategy.short)
+            strategy.exit("Exit Short", from_entry="Short", profit=takeProfit, loss=stopLoss, comment_profit='TP', comment_loss='SL')
+
+// Define the time range for the background shade
+startHour = anchorHour
+startMinute = 0
+endHour = anchorHour
+endMinute = 0
+
+// Check if the current time is within the specified range
+isInTimeRange = (hour == startHour and minute >= startMinute) or (hour == endHour and minute <= endMinute) or (hour > startHour and hour < endHour)
+
+// Define the background color for the shade
+backgroundColor = color.new(color.red, 90)
+
+// Apply the background shade
+bgcolor(isInTimeRange ? backgroundColor : na)
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/435987
+
+> Last Modified
+
+2023-12-20 16:06:26

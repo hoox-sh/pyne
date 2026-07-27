@@ -1,0 +1,20 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/language/variable-declarations.md::variable-declarations.md#block31
+// content_hash: 1de2590d7072eccd
+// collected: 2026-07-27
+indicator("Using past values of a variable demo")
+
+// This declaration does not use `var` or `varip`.
+// Therefore, the script reinitializes the variable to 0 on every execution.
+int count = 0
+
+// Retrieve the value of the `count` variable from the previous bar, or 0 if it is not available, add 1 to that value,
+// then reassign the result to the `count` variable on the current bar. The script accesses this result with
+// the `count[1]` operation while executing on the next bar.
+// Therefore, the current value of the variable is always one greater than the value on the previous bar.
+count := nz(count[1]) + 1
+
+// Plot the variable's final value.
+plot(count, "Bar counter", color.blue, 3)

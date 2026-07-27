@@ -1,0 +1,16 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block311
+// content_hash: ef40bdea328ef19f
+// collected: 2026-07-27
+indicator("timestamp")
+plot(timestamp(2016, 01, 19, 09, 30), linewidth=3, color=color.green)
+plot(timestamp(syminfo.timezone, 2016, 01, 19, 09, 30), color=color.blue)
+plot(timestamp(2016, 01, 19, 09, 30), color=color.yellow)
+plot(timestamp("GMT+6", 2016, 01, 19, 09, 30))
+plot(timestamp(2019, 06, 19, 09, 30, 15), color=color.lime)
+plot(timestamp("GMT+3", 2019, 06, 19, 09, 30, 15), color=color.fuchsia)
+plot(timestamp("Feb 01 2020 22:10:05"))
+plot(timestamp("2011-10-10T14:48:00"))
+plot(timestamp("04 Dec 1995 00:12:00 GMT+5"))

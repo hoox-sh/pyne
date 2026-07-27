@@ -1,0 +1,65 @@
+//@version=6
+// set04 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/市云转向指标改良型多空交叉交易策略-Enhanced-Ichimoku-Cloud-Trading-Strategy-with-Dynamic-Crossover-Signals.md
+// content_hash: 97206bab48889372
+// collected: 2026-07-27
+
+strategy(title="Ichimoku Cloud with Lables", shorttitle="Ichimoku", overlay=true)
+conversionPeriods = input.int(9, minval=1, title="Conversion Line Length")
+basePeriods = input.int(26, minval=1, title="Base Line Length")
+laggingSpan2Periods = input.int(52, minval=1, title="Leading Span B Length")
+displacement = input.int(26, minval=1, title="Lagging Span")
+donchian(len) => math.avg(ta.lowest(len), ta.highest(len))
+conversionLine = donchian(conversionPeriods)
+baseLine = donchian(basePeriods)
+leadLine1 = math.avg(conversionLine, baseLine)
+leadLine2 = donchian(laggingSpan2Periods)
+plot(conversionLine, color=#2962FF, title="Conversion Line")
+plot(baseLine, color=#B71C1C, title="Base Line")
+
+
+
+
+
+plot(close, offset = -displacement + 1, color=#43A047, title="Lagging Span", display = display.none)
+p1 = plot(leadLine1, offset = displacement - 1, color=#A5D6A7,
+	 title="Leading Span A")
+p2 = plot(leadLine2, offset = displacement - 1, color=#EF9A9A,
+	 title="Leading Span B")
+plot(leadLine1 > leadLine2 ? leadLine1 : leadLine2, offset = displacement - 1, title = "Kumo Cloud Upper Line", display = display.none) 
+plot(leadLine1 < leadLine2 ? leadLine1 : leadLine2, offset = displacement - 1, title = "Kumo Cloud Lower Line", display = display.none) 
+fill(p1, p2, color = leadLine1 > leadLine2 ? color.rgb(67, 160, 71, 90) : color.rgb(244, 67, 54, 90))
+
+if barstate.islast
+    label.new(bar_index+5,baseLine,style=label.style_none,xloc=xloc.bar_index,text="Base",color=color.white,textcolor=#B71C1C)
+    label.new(bar_index +8, conversionLine,style=label.style_none,xloc=xloc.bar_index,text="Conversion",color=color.white,textcolor=#2962FF)
+	label.new(bar_index+(displacement-1)+5,leadLine1,style=label.style_none,xloc=xloc.bar_index,text="Lead1",color=color.white,textcolor=#A5D6A7)
+	label.new(bar_index+(displacement-1)+5,leadLine2,style=label.style_none,xloc=xloc.bar_index,text="Lead2",color=color.white,textcolor=#EF9A9A)
+
+// --- TRADING LOGIC ---
+
+// 1) Detect bullish cross (Conversion crosses above Base)
+longSignal = ta.crossover(conversionLine, baseLine)
+
+// 2) Detect bearish cross (Conversion crosses below Base)
+closeSignal = ta.crossunder(conversionLine, baseLine)
+
+// 3) If bullish cross occurs, open a new long
+if longSignal
+    strategy.entry("LongTK", strategy.long)
+
+// 4) If bearish cross occurs, close the open long
+if closeSignal
+    // Closes all orders opened with the ID "LongTK"
+    strategy.close("LongTK")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/483042
+
+> Last Modified
+
+2025-02-21 10:41:00

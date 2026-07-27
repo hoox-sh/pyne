@@ -1,0 +1,127 @@
+//@version=6
+// set03 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多因子趋势价格行为策略与动态风险管理系统-Multi-Factor-Trend-Price-Action-Strategy-with-Dynamic-Risk-Management-System.md
+// content_hash: da6e292174053114
+// collected: 2026-07-27
+strategy("Prism Confluence System", overlay=true, margin_long=100, margin_short=100)
+
+// --- Input Parameters ---
+lengthMA = input.int(20, "Short EMA Length")
+emaLongLength = input.int(50, "Long EMA Length")
+lengthSR = input.int(14, "Support/Resistance Length")
+fvgLookback = input.int(10, "FVG Lookback")
+atrLength = input.int(14, "ATR Length")
+volumeSpikeMultiplier = input.float(1.5, "Volume Spike Threshold")
+volumeSpikeThreshold = input.float(1.2, "Secondary Volume Threshold")
+adxLength = input.int(14, "ADX Trend Filter Length")
+slMultiplier = input.float(2, "ATR Stop-Loss Multiplier")
+tpMultiplier = input.float(3, "ATR Take-Profit Multiplier")
+
+// --- Anti-Repainting Support/Resistance ---
+recentHigh = ta.highest(high, lengthSR)
+recentLow = ta.lowest(low, lengthSR)
+plot(recentHigh, "Resistance Zone", color.new(color.red, 70), 2, plot.style_circles)
+plot(recentLow, "Support Zone", color.new(color.green, 70), 2, plot.style_circles)
+
+// --- Multi-Timeframe Trend Confirmation ---
+emaShort = ta.ema(close, lengthMA)
+emaLong = ta.ema(close, emaLongLength)
+plot(emaShort, "Short EMA", color.blue)
+plot(emaLong, "Long EMA", color.purple)
+trendBullish = emaShort > emaLong
+trendBearish = emaShort < emaLong
+
+// --- Enhanced Candlestick Patterns ---
+engulfingBull = close > open and close[1] < open[1] and 
+  close > open[1] and open < close[1] and 
+  (close - open) > (open[1] - close[1])
+
+engulfingBear = close < open and close[1] > open[1] and 
+  close < open[1] and open > close[1] and 
+  (open - close) > (close[1] - open[1])
+
+hammer = low == ta.lowest(low, 10) and close > open and 
+  (close - low) > (high - low) * 0.6 and trendBullish
+
+invertedHammer = high == ta.highest(high, 10) and close < open and 
+  (high - close) > (high - low) * 0.6 and trendBearish
+
+// --- Improved FVG Logic ---
+fvgBull = low[fvgLookback] > high[1] and high[1] < low
+fvgBear = high[fvgLookback] < low[1] and low[1] > high
+fvgBullFilled = ta.barssince(fvgBull) <= 5
+fvgBearFilled = ta.barssince(fvgBear) <= 5
+
+// --- Volume Validation ---
+volumeMA = ta.sma(volume, lengthMA)
+volumeSpike = volume > volumeMA * volumeSpikeMultiplier and 
+  volume[1] > volumeMA[1] * volumeSpikeThreshold
+
+// --- Market Context Filter ---
+[_, _, adxValue] = ta.dmi(adxLength, adxLength)
+trendingMarket = adxValue > 20
+
+// --- Signal Logic with Priority System ---
+strongBuy = (fvgBull and fvgBullFilled and engulfingBull) and 
+  trendBullish and volumeSpike and trendingMarket
+
+weakBuy = (engulfingBull or hammer) and close > recentLow and 
+  volumeSpike and trendingMarket
+
+strongSell = (fvgBear and fvgBearFilled and engulfingBear) and 
+  trendBearish and volumeSpike and trendingMarket
+
+weakSell = (engulfingBear or invertedHammer) and close < recentHigh and 
+  volumeSpike and trendingMarket
+
+// --- Risk Management ---
+atrValue = ta.atr(atrLength)
+var float longStop = na
+var float longProfit = na
+var float shortStop = na
+var float shortProfit = na
+
+if strongBuy or weakBuy
+    longStop := close - (atrValue * slMultiplier)
+    longProfit := close + (atrValue * tpMultiplier)
+    strategy.entry("Long", strategy.long)
+    strategy.exit("Exit Long", "Long", stop=longStop, limit=longProfit)
+    
+if strongSell or weakSell
+    shortStop := close + (atrValue * slMultiplier)
+    shortProfit := close - (atrValue * tpMultiplier)
+    strategy.entry("Short", strategy.short)
+    strategy.exit("Exit Short", "Short", stop=shortStop, limit=shortProfit)
+
+// --- Visual SL/TP Levels ---
+plot(strategy.position_size > 0 ? longStop : na, "Long Stop", color.red, 2, plot.style_linebr)
+plot(strategy.position_size > 0 ? longProfit : na, "Long Target", color.green, 2, plot.style_linebr)
+plot(strategy.position_size < 0 ? shortStop : na, "Short Stop", color.red, 2, plot.style_linebr)
+plot(strategy.position_size < 0 ? shortProfit : na, "Short Target", color.green, 2, plot.style_linebr)
+
+// --- Signal Visualization ---
+plotshape(strongBuy, "Strong Buy", location=location.belowbar, 
+  color=color.new(#00FF00, 0), style=shape.triangleup, size=size.large)
+
+plotshape(weakBuy, "Weak Buy", location=location.belowbar, 
+  color=color.new(#90EE90, 0), style=shape.triangleup, size=size.small)
+
+plotshape(strongSell, "Strong Sell", location=location.abovebar, 
+  color=color.new(#FF0000, 0), style=shape.triangledown, size=size.large)
+
+plotshape(weakSell, "Weak Sell", location=location.abovebar, 
+  color=color.new(#FFA07A, 0), style=shape.triangledown, size=size.small)
+
+// --- Alerts ---
+alertcondition(strongBuy, "Strong Buy Alert", "Prism Confluence System STRONG BUY")
+alertcondition(strongSell, "Strong Sell Alert", "Prism Confluence System STRONG SELL")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/488018
+
+> Last Modified
+
+2025-03-24 14:11:32

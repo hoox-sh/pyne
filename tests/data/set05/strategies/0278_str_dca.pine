@@ -1,0 +1,65 @@
+//@version=5
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/DCA Simulator.pine
+// content_hash: ea7e1d29376334ec
+// collected: 2026-07-27
+//Made by "Liquidator", all credits for this script go to him.
+strategy('dca', overlay=true, pyramiding=10000, calc_on_every_tick=true, process_orders_on_close=true)
+fn_plot_label_below(txt, offset_x) =>
+    x = time + (time - time[1]) * offset_x
+    var label lab = na
+    label.delete(lab)
+    lab := label.new(x=x, y=0, text=txt, xloc=xloc.bar_time, yloc=yloc.belowbar, color=color.red, textcolor=color.black, size=size.normal, style=label.style_label_up)
+    label.set_x(lab, x)
+fn_plot_label_above(txt, offset_x) =>
+    x = time + (time - time[1]) * offset_x
+    var label lab = na
+    label.delete(lab)
+    lab := label.new(x=x, y=0, text=txt, xloc=xloc.bar_time, yloc=yloc.abovebar, color=color.green, textcolor=color.black, size=size.normal, style=label.style_label_down)
+    label.set_x(lab, x)
+DAILY = 'DAILY'
+WEEKLY = 'WEEKLY'
+MONTHLY = 'MONTHLY'
+month_day = input.int(15, minval=1, maxval=28)
+week_day = input.int(dayofweek.monday, options=[dayofweek.monday, dayofweek.tuesday, dayofweek.wednesday, dayofweek.thursday, dayofweek.friday, dayofweek.saturday, dayofweek.sunday])
+dca_period = input.string(MONTHLY, options=[DAILY, MONTHLY, WEEKLY])
+dca_sigle_size = input(100.0, title='sigle operation size in quote currency ( ex: USD on ticker EUR/USD )')
+dca_long = input(true)
+EXIT_NONE = 'NONE'
+EXIT_GAIN_THRESHOLD = 'GAIN THRESHOLD'
+exit_strategy = input.string(EXIT_NONE, options=[EXIT_NONE, EXIT_GAIN_THRESHOLD])
+exit_gain_threshold = input(1000.0)
+exit_close_perc = input(25)
+start = timestamp(input(2018, 'start year'), input(1, 'start month'), input(1, 'start day'), 00, 00)
+end = timestamp(input(2100, 'end year'), input(1, 'end month'), input(1, 'end day'), 00, 00)
+daily_close = request.security(ticker.new(syminfo.prefix, syminfo.ticker), 'D', close, gaps=barmerge.gaps_on)
+new_day = ta.change(dayofweek)
+is_today = year(timenow) == year(time) and month(timenow) == month(time) and dayofmonth(timenow) == dayofmonth(time)
+is_buy_day = dca_period == WEEKLY and dayofweek == week_day or dca_period == MONTHLY and month_day == dayofmonth or dca_period == DAILY
+position_cost = strategy.opentrades * dca_sigle_size
+//position_cost = strategy.position_size * strategy.position_avg_price
+position_value = strategy.position_size * close
+profit = position_value - position_cost
+float max_dd = 0
+max_dd := math.min(profit, nz(max_dd[1]))
+trigger = time > start and time < end and is_buy_day and new_day
+close_dca = time > end or is_today
+if trigger
+    strategy.entry('DCA', direction=dca_long ? strategy.long : strategy.short, qty=dca_sigle_size / close)
+    if dca_long
+        label.new(x=bar_index, y=0, yloc=yloc.belowbar, size=size.tiny, style=label.style_triangleup, color=color.green)
+    else
+        label.new(x=bar_index, y=0, yloc=yloc.abovebar, size=size.tiny, style=label.style_triangledown, color=color.red)
+if exit_strategy == EXIT_GAIN_THRESHOLD and ta.crossover(profit, exit_gain_threshold)
+    strategy.close('DCA', qty_percent=exit_close_perc)
+    label.new(x=bar_index, y=0, yloc=yloc.abovebar, size=size.tiny, style=label.style_triangledown, color=color.purple)
+if close_dca
+    strategy.close('DCA', qty_percent=100)
+plot(strategy.position_avg_price, title='average position entry price')
+bgcolor(dca_long ? close < strategy.position_avg_price ? color.red : color.green : close < strategy.position_avg_price ? color.green : color.red,transp=90)
+if ta.change(max_dd) != 0
+    fn_plot_label_below('max drowdown: ' + str.tostring(max_dd, '#.##'), 0)
+if not close_dca
+    fn_plot_label_above('profit: ' + str.tostring(profit, '#.##') + '\n' + 'cost:   ' + str.tostring(position_cost, '#.##'), 0)
+Expand (84 lines)

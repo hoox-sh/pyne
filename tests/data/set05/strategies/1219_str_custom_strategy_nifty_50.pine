@@ -1,0 +1,93 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/MORNING-CANDLE-BREAKOUT-AND-REVERSION-STRATEGY-早晨蜡烛突破与反转策略.md
+// content_hash: 486ac08f646ecb7d
+// collected: 2026-07-27
+strategy("Custom Strategy Nifty 50", overlay=true)
+
+// Define the time variables
+var bool morningCandleFound = false
+var float morningHigh = na
+var float morningLow = na
+var bool inTrade = false
+var int tradeDirection = 0 // 0: No trade, 1: Buy Call, -1: Buy Put
+var bool noNewTrades = false // To prevent new trades after 15:15
+
+// Identify the high and low of the 11:00 morning candle
+if (hour == 11 and minute == 0)
+    morningHigh := high
+    morningLow := low
+    morningCandleFound := true
+
+// Plot the high and low of the 11:00 morning candle
+plot(morningHigh, title="11:00 morning High", color=color.green, linewidth=2)
+plot(morningLow, title="11:00 morning Low", color=color.red, linewidth=2)
+
+// Conditions for Buy Call and Buy Put signals
+var bool buyCallCondition = false
+var bool buyPutCondition = false
+
+if (morningCandleFound and (hour > 11 or (hour == 11 and minute > 0)) and not noNewTrades)
+    // Check for Buy Call condition
+    if (close[1] > morningHigh and close > morningHigh)
+        if (not inTrade or tradeDirection != 1)
+            strategy.entry("Buy Call", strategy.long, stop=morningLow)
+            buyCallCondition := true
+            inTrade := true
+            tradeDirection := 1
+            label.new(bar_index, high, "Buy Call", color=color.green)
+            alert("Buy Call: Price crossed morning high", alert.freq_once_per_bar_close)
+    else if (close[1] <= morningHigh)
+        buyCallCondition := false
+
+    // Check for Buy Put condition
+    if (close[1] < morningLow and close < morningLow)
+        if (not inTrade or tradeDirection != -1)
+            strategy.entry("Buy Put", strategy.short, stop=morningHigh)
+            buyPutCondition := true
+            inTrade := true
+            tradeDirection := -1
+            label.new(bar_index, low, "Buy Put", color=color.red)
+            alert("Buy Put: Price crossed morning low", alert.freq_once_per_bar_close)
+    else if (close[1] >= morningLow)
+        buyPutCondition := false
+
+    // Exit conditions
+    if (inTrade)
+        if (tradeDirection == 1 and low <= morningLow)
+            strategy.close("Buy Call")
+            label.new(bar_index, low, "Exit Call", color=color.red)
+            alert("Exit Call: Price fell below stop", alert.freq_once_per_bar_close)
+            buyCallCondition := false
+            inTrade := false
+            tradeDirection := 0
+        if (tradeDirection == -1 and high >= morningHigh)
+            strategy.close("Buy Put")
+            label.new(bar_index, high, "Exit Put", color=color.green)
+            alert("Exit Put: Price rose above stop", alert.freq_once_per_bar_close)
+            buyPutCondition := false
+            inTrade := false
+            tradeDirection := 0
+
+// Close all positions at 15:15 and prevent new trades for the rest of the day
+if (hour == 15 and minute == 15)
+    strategy.close_all()
+    inTrade := false
+    tradeDirection := 0
+    noNewTrades := true
+    alert("Close All Positions at 15:15", alert.freq_once_per_bar_close)
+
+// Reset noNewTrades at the start of a new day
+if (hour == 11 and minute == 0)
+    noNewTrades := false
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/458267
+
+> Last Modified
+
+2024-07-31 14:16:42

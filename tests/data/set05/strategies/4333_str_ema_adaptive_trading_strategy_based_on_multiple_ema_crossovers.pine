@@ -1,0 +1,115 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于多重EMA交叉的自适应交易策略Adaptive-Trading-Strategy-Based-on-Multiple-EMA-Crossovers.md
+// content_hash: 108f2d4a99f14293
+// collected: 2026-07-27
+
+// strategy(title="BTC - 4hr - Long/Short", shorttitle="BTC - 4hr - Long/Short", overlay=true, initial_capital=1000, default_qty_type=strategy.percent_of_equity, default_qty_value=75,commission_type=strategy.commission.percent, commission_value=0.075)//////<---Uses a percentage of starting equity
+
+//DATE RANGE//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+startDate = input(title="Start Date", type=input.integer,
+     defval=1, minval=1, maxval=31)
+startMonth = input(title="Start Month", type=input.integer,
+     defval=1, minval=1, maxval=12)
+startYear = input(title="Start Year", type=input.integer,
+     defval=2020, minval=2000, maxval=2100)
+endDate = input(title="End Date", type=input.integer,
+     defval=1, minval=1, maxval=31)
+endMonth = input(title="End Month", type=input.integer,
+     defval=12, minval=1, maxval=12)
+endYear = input(title="End Year", type=input.integer,
+     defval=2021, minval=2000, maxval=2100)
+
+inDateRange =  true
+
+
+//EMAs//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//LONG
+//11,33,3,40
+lof= input(11, title="Long Open - Fast", step=1)
+los= input(33, title="Long Open - Slow", step=1)
+lcf= input(3, title="Long Close - Fast", step=1)
+lcs= input(40, title="Long Close - Slow", step=1)
+ema_long_open_fast = ema(close, lof)
+ema_long_open_slow = ema(close, los)
+ema_long_close_fast= ema(close, lcf)
+ema_long_close_slow = ema(close, lcs)
+//SHORT
+//5,11,4,7
+sof= input(5, title="Short Open - Fast", step=1)
+sos= input(11, title="Short Open - Slow", step=1)
+scf= input(4, title="Short Close - Fast", step=1)
+scs= input(7, title="Short Close - Slow", step=1)
+ema_short_open_fast = ema(close, sof)
+ema_short_open_slow = ema(close, sos)
+ema_short_close_fast = ema(close, scf)
+ema_short_close_slow = ema(close, scs)
+
+
+//CONDITIONS///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//LONG
+openlong = crossover(ema_long_open_fast, ema_long_open_slow)
+closelong = crossover(ema_long_close_slow, ema_long_close_fast)
+//1.7%
+long_loss_percent = input(title="Long Stop Loss (%)", type=input.float, minval=0.0, step=0.1, defval=1.7) * 0.01
+long_stop_price = strategy.position_avg_price * (1 - long_loss_percent)
+//SHORT
+openshort = crossover(ema_short_open_slow, ema_short_open_fast)
+closeshort = crossover(ema_short_close_fast, ema_short_close_slow)
+//0.4%
+short_loss_percent = input(title="Short Stop Loss (%)", type=input.float, minval=0.0, step=0.1, defval=0.4) * 0.01
+short_stop_price = strategy.position_avg_price * (1 + short_loss_percent)
+
+
+//PLOT EMAs////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//LONG
+plot(ema_long_open_fast, "Long EMA open lower", linewidth=1, color=color.green)
+plot(ema_long_open_slow, "Long EMA close upper", linewidth=1, color=color.green)
+plot(ema_long_close_fast, "Long close lower", linewidth=1, color=color.red)
+plot(ema_long_close_slow, "Long close upper", linewidth=1, color=color.red)
+//SHORT
+plot(ema_short_open_fast, "Short open fast", linewidth=1, color=color.green)
+plot(ema_short_open_slow, "Short open slow", linewidth=1, color=color.green)
+plot(ema_short_close_fast, "Short close fast", linewidth=1, color=color.red)
+plot(ema_short_close_slow, "Short close slow", linewidth=1, color=color.red)
+
+
+//LONG-TERM TRENDS
+//LONG 144
+long_term_trend_longs= input(144, title="Long-term trend - Longs", step=1)
+lttl= ema(close, long_term_trend_longs)
+plot(lttl, "Long-term trend - Longs", linewidth=2, color=color.blue)
+//SHORT 89
+long_term_trend_shorts= input(89, title="Long-term trend - Shorts", step=1)
+ltts = ema(close, long_term_trend_shorts)
+plot(ltts, "Long-term trend - Shorts", linewidth=2, color=color.blue)
+
+
+//STRATEGY//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//LONG
+if (inDateRange and openlong and (close > lttl))
+    strategy.entry("OL", long=true, comment="##insert open long comment here##")
+if (inDateRange and closelong)
+    strategy.close("OL", comment="##insert close long comment here##")
+if strategy.position_size > 0
+    strategy.exit("L-SL", stop=long_stop_price, comment="##insert long stop-loss comment here##")
+//SHORT  
+if (inDateRange and openshort and (close < ltts))
+    strategy.entry("OS", long=false, comment="##insert open short comment here##")
+if (inDateRange and closeshort)
+    strategy.close("OS", comment="##insert close short comment here##")
+if strategy.position_size < 0
+    strategy.exit("S-SL", stop=short_stop_price, comment="##inster short stop-loss comment here##")
+
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/427871
+
+> Last Modified
+
+2023-09-26 14:41:00

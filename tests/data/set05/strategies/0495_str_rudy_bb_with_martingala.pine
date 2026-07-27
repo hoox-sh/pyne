@@ -1,0 +1,32 @@
+//@version=5
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/Rudy's BB with Martingale.pine
+// content_hash: 4232a59a8347296f
+// collected: 2026-07-27
+strategy("Rudy BB with Martingala", overlay=true, margin_long=100, margin_short=100)
+base_contract_size= input.float(0.01, 'Base Contract Size')
+lastTradeProfit() =>
+    strategy.closedtrades.profit(strategy.closedtrades-1) + strategy.closedtrades.commission(strategy.closedtrades-1)
+    
+amountOfLastNegativeProfits() =>
+    result = 0
+    i = strategy.closedtrades - 1
+    while strategy.closedtrades.profit(i) < 0
+        result+=1
+        i-=1
+    result
+    
+ma200 = ta.ema(close, 200)
+[middle, upper, lower] = ta.bb(close, 20, 2)
+plot(ma200, "MA200", color=color.green)
+plot(middle, "Middle BB", color=color.purple)
+plot(upper, "Upper BB", color=color.purple)
+plot(lower, "Lower BB", color=color.purple)
+amount_buy = lastTradeProfit() < 0 ? base_contract_size * amountOfLastNegativeProfits() : 0.01
+strategy.entry("bb buy", strategy.long, amount_buy, when=close < lower)
+strategy.close("bb buy", when=close>=upper)
+    
+plotchar(strategy.openprofit, "Current profit", "", location = location.top)
+plotchar(amountOfLastNegativeProfits(), "Amount of last negative profits", "", location = location.top)
+Expand (39 lines)

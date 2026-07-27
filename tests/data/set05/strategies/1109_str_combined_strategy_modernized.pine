@@ -1,0 +1,98 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多均线趋势动量交易策略结合风险管理系统-Multi-EMA-Trend-Momentum-Trading-Strategy-with-Risk-Management-System.md
+// content_hash: 7e43332a0fcad35b
+// collected: 2026-07-27
+strategy("Combined Strategy (Modernized)", overlay = true)
+
+//----------//
+// MOMENTUM //
+//----------//
+ema8 = ta.ema(close, 8)
+ema13 = ta.ema(close, 13)
+ema21 = ta.ema(close, 21)
+ema34 = ta.ema(close, 34)
+ema55 = ta.ema(close, 55)
+
+// Plotting EMAs for visualization
+plot(ema8, color=color.red, title="EMA 8", linewidth=1)
+plot(ema13, color=color.orange, title="EMA 13", linewidth=1)
+plot(ema21, color=color.yellow, title="EMA 21", linewidth=1)
+plot(ema34, color=color.aqua, title="EMA 34", linewidth=1)
+plot(ema55, color=color.lime, title="EMA 55", linewidth=1)
+
+longEmaCondition = ema8 > ema13 and ema13 > ema21 and ema21 > ema34 and ema34 > ema55
+exitLongEmaCondition = ema13 < ema55
+
+shortEmaCondition = ema8 < ema13 and ema13 < ema21 and ema21 < ema34 and ema34 < ema55
+exitShortEmaCondition = ema13 > ema55
+
+// ----------  //
+// OSCILLATORS //
+// ----------- //
+rsi = ta.rsi(close, 14)
+longRsiCondition = rsi < 70 and rsi > 40
+exitLongRsiCondition = rsi > 70
+
+shortRsiCondition = rsi > 30 and rsi < 60
+exitShortRsiCondition = rsi < 30
+
+// Stochastic
+k = ta.stoch(close, high, low, 14)
+d = ta.sma(k, 3)
+
+longStochasticCondition = k < 80
+exitLongStochasticCondition = k > 95
+
+shortStochasticCondition = k > 20
+exitShortStochasticCondition = k < 5
+
+//----------//
+// STRATEGY //
+//----------//
+
+// ATR for dynamic stop loss and take profit
+atr = ta.atr(14)
+stopLossMultiplier = 2
+takeProfitMultiplier = 4
+stopLoss = atr * stopLossMultiplier
+takeProfit = atr * takeProfitMultiplier
+
+// Trailing stop settings
+trailStopMultiplier = 1.5
+trailOffset = atr * trailStopMultiplier
+
+// Risk management: dynamic position sizing
+riskPerTrade = 0.01  // 1% risk per trade
+positionSize = strategy.equity * riskPerTrade / stopLoss
+
+longCondition = longEmaCondition and longRsiCondition and longStochasticCondition and strategy.position_size == 0
+exitLongCondition = (exitLongEmaCondition or exitLongRsiCondition or exitLongStochasticCondition) and strategy.position_size > 0
+
+if (longCondition)
+    strategy.entry("LONG", strategy.long, qty=positionSize)
+    strategy.exit("Take Profit Long", "LONG", stop=close - stopLoss, limit=close + takeProfit, trail_offset=trailOffset)
+
+if (exitLongCondition)
+    strategy.close("LONG")
+    
+shortCondition = shortEmaCondition and shortRsiCondition and shortStochasticCondition and strategy.position_size == 0
+exitShortCondition = (exitShortEmaCondition or exitShortRsiCondition or exitShortStochasticCondition) and strategy.position_size < 0
+
+if (shortCondition)
+    strategy.entry("SHORT", strategy.short, qty=positionSize)
+    strategy.exit("Take Profit Short", "SHORT", stop=close + stopLoss, limit=close - takeProfit, trail_offset=trailOffset)
+
+if (exitShortCondition)
+    strategy.close("SHORT")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/474022
+
+> Last Modified
+
+2024-12-05 14:52:06

@@ -1,0 +1,57 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于K线收盘价的买卖策略Buy-Sell-on-Candle-Close-Strategy.md
+// content_hash: 905be56cfc8a7e61
+// collected: 2026-07-27
+strategy("Buy/Sell on Candle Close", overlay=true)
+
+var float prevLowest = na
+var float prevHighest = na
+var float slDistance = na
+var float tpDistance = na
+
+// Specify the desired timeframe here (e.g., "D" for daily, "H" for hourly, etc.)
+timeframe = "D"
+
+// Fetching historical data for the specified timeframe
+pastLow = request.security(syminfo.tickerid, timeframe, low, lookahead=barmerge.lookahead_on)
+pastHigh = request.security(syminfo.tickerid, timeframe, high, lookahead=barmerge.lookahead_on)
+
+if bar_index > 0
+    prevLowest := pastLow[1]
+    prevHighest := pastHigh[1]
+
+currentClose = close
+
+if not na(prevLowest) and not na(prevHighest)
+    slDistance := prevHighest - prevLowest
+    tpDistance := 3 * slDistance // Adjusted for 1:3 risk-reward ratio
+
+// Buy trigger when current close is higher than previous highest
+if not na(prevLowest) and not na(prevHighest) and currentClose > prevHighest
+    strategy.entry("Buy", strategy.long)
+    strategy.exit("Buy TP/SL", "Buy", stop=prevLowest - slDistance, limit=prevHighest + tpDistance)
+
+// Sell trigger when current close is lower than previous lowest
+if not na(prevLowest) and not na(prevHighest) and currentClose < prevLowest
+    strategy.entry("Sell", strategy.short)
+    strategy.exit("Sell TP/SL", "Sell", stop=prevHighest + slDistance, limit=prevLowest - tpDistance)
+
+plot(prevLowest, color=color.blue, title="Previous Lowest")
+plot(prevHighest, color=color.red, title="Previous Highest")
+
+
+
+
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/438017
+
+> Last Modified
+
+2024-01-08 11:11:18

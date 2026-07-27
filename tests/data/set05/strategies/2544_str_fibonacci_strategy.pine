@@ -1,0 +1,55 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/指数均线交叉策略Exponential-Moving-Average-Crossover-Strategy.md
+// content_hash: 40106e0440cb6b6d
+// collected: 2026-07-27
+strategy("Fibonacci Strategy", overlay=true)
+
+// Define Fibonacci 0.5 level
+fib_level = input(0.5, title="Fibonacci Level")
+
+// Calculate Fibonacci 0.5 level price
+fib_price = ta.lowest(low, 100) + (ta.highest(high, 100) - ta.lowest(low, 100)) * fib_level
+
+// Define entry and exit conditions
+long_condition = ta.crossover(close, fib_price)
+short_condition = ta.crossunder(close, fib_price)
+
+// Set exit points (using previous high or low)
+long_exit = ta.highest(high, 10)
+short_exit = ta.lowest(low, 10)
+
+// Plot Fibonacci 0.5 level
+plot(fib_price, "Fib 0.5", color=color.blue, linewidth=1, style=plot.style_circles)
+
+// Initialize variables
+var inLong = false
+var inShort = false
+
+// Set trading signals
+if (long_condition)
+    if not inLong
+        strategy.entry("Buy", strategy.long)
+        inLong := true
+    strategy.exit("Exit", "Buy", limit=long_exit)
+
+if (short_condition)
+    if not inShort
+        strategy.entry("Sell", strategy.short)
+        inShort := true
+    strategy.exit("Exit", "Sell", limit=short_exit)
+
+if (ta.crossover(close, long_exit) or ta.crossunder(close, short_exit))
+    inLong := false
+    inShort := false
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/438021
+
+> Last Modified
+
+2024-01-08 11:30:21

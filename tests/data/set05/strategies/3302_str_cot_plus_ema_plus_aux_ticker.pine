@@ -1,0 +1,139 @@
+//@version=4
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/COT + ema + aux ticker.pine
+// content_hash: 62858683c8bf205c
+// collected: 2026-07-27
+strategy("COT + ema + aux ticker", overlay=true, default_qty_type = strategy.percent_of_equity, default_qty_value = 10)
+src = close
+bFX = false 
+startDate = input(title="Start Date", type=input.integer,
+     defval=1, minval=1, maxval=31)
+startMonth = input(title="Start Month", type=input.integer,
+     defval=1, minval=1, maxval=12)
+startYear = input(title="Start Year", type=input.integer,
+     defval=2010, minval=1800, maxval=2100)
+afterStartDate = (time >= timestamp(syminfo.timezone,
+     startYear, startMonth, startDate, 0, 0))
+string ticket00 = input(defval='EUR', type=input.string, options=["AUD","GBP","CAD","EUR","JPY","CHF","NZD","USD"], title='1st', group='Tickets:', inline='T0')
+string ticket01 = input(defval='EUR', type=input.string, options=["AUD","GBP","CAD","EUR","JPY","CHF","NZD","USD"],title='2nd', group='Tickets:', inline='T0')
+usecot = input(title="COT ON/OFF", type=input.bool, defval=true)
+useema = input(title="EMA ON/OFF", type=input.bool, defval=true)
+len = input(4, minval=1, title="Length")
+srcsma = input(close, title="Source")
+offset = input(title="Offset COT", defval=0, minval=0, maxval=10)
+out = ema(srcsma, len)
+useaux1 = input(title="Aux 1 ON/OFF", type=input.bool, defval=true)
+auxinv1 = input(title="Aux 1 inv.", type=input.bool, defval=false)
+lenaux1 = input( 4, minval=1, title="Ema aux 1 period.")
+auxsma1 = input(title="AUX Symbol", type=input.symbol, defval="DELL")
+s1 = security(auxsma1, "W", close)
+outaux1 = ema(s1, lenaux1)
+useaux2 = input(title="Aux 2 ON/OFF", type=input.bool, defval=true)
+auxinv2 = input(title="Aux 2 inv.", type=input.bool, defval=false)
+lenaux2 = input( 4, minval=1, title="Ema aux 2 period.")
+auxsma2 = input(title="AUX 2 Symbol", type=input.symbol, defval="DELL")
+s2 = security(auxsma2, "W", close)
+outaux2 = ema(s2, lenaux2)
+//Can't set bFX as an input because plot and legend titles require literals
+// INPUTS
+sCalc  = "MARKETS"
+// ***** MARKET TYPES *****
+// Financial Markets (Commercial)
+bTotal = (sCalc == "MARKETS")
+sHead = "QUANDL:CFTC/"
+sLong = "_F_L_ALL|4"
+sShort = "_F_L_ALL|5"
+iWidth = 2
+// Non-Commercials (Speculators)
+bTotal2 = (sCalc == "NON-COMS")
+sHead2  = "QUANDL:CFTC/"
+sLong2  = "_F_L_ALL|1"
+sShort2 = "_F_L_ALL|2"
+iWidth2 = 2
+//***** CFTC MARKET CODES *****
+// 1 - Futures
+sCode1 =
+         
+         ticket00 == "AUD" ? "232741" :  
+         ticket00 == "GBP" ? "096742" : 
+         ticket00 == "CAD" ? "090741" :
+         ticket00 == "EUR" ? "099741" :
+         ticket00 == "JPY" ? "097741" : 
+         ticket00 == "CHF" ? "092741" :
+         ticket00 == "NZD" ? "112741" : 
+         ticket00 == "USD" ? "098662" :
+         ""
+sCode2 =
+         
+         ticket01 == "AUD" ? "232741" :  
+         ticket01 == "GBP" ? "096742" : 
+         ticket01 == "CAD" ? "090741" :
+         ticket01 == "EUR" ? "099741" :
+         ticket01 == "JPY" ? "097741" : 
+         ticket01 == "CHF" ? "092741" :
+         ticket01 == "NZD" ? "112741" : 
+         ticket01 == "USD" ? "098662" :
+         ""
+//Titles
+sTitle1 =  "1st Ticker" 
+// COT CFTC Auto Generation Codes 
+//Data functions
+dLong(asCode) =>  security(sHead + asCode + (sLong),   "W", close[0 + offset] - close[1 + offset], lookahead=barmerge.lookahead_on)
+dShort(asCode) => security(sHead +asCode + (sShort),   "W", close[0 + offset] - close[1 + offset], lookahead=barmerge.lookahead_on)
+// COMMERCIALS 1 ticker 
+_pos_coms1_short = dShort(sCode1)
+_pos_coms1_long  = dLong (sCode1)
+net_com1 = _pos_coms1_long - _pos_coms1_short
+// COMMERCIALS 2 ticker
+sTitle2 =  "2nd Ticker"
+dLong2(asCode2) =>  security(sHead + asCode2 + (sLong),   "W", close[0 + offset] - close[1 + offset], lookahead=barmerge.lookahead_on)
+dShort2(asCode2) => security(sHead +asCode2 + (sShort),   "W", close[0 + offset] - close[1 + offset], lookahead=barmerge.lookahead_on)
+_pos_coms2_long    =  dLong2(sCode2)
+_pos_coms2_short   =  dShort2(sCode2)
+net_com2 = _pos_coms2_long - _pos_coms2_short
+buy =  false
+sell = false
+//if(not useaux1)
+//    buy :=  (net_com1 > 0) and (net_com2 < 0)  and (out[0] > out[1])  and afterStartDate
+//    sell :=  (net_com1 < 0) and (net_com2 > 0) and (out[0] < out[1])  and afterStartDate
+// Plot data 
+buy_aux1 = false
+buy_aux2 = false
+sell_aux1 = false
+sell_aux2 = false
+buy_cot = ((net_com1 > 0) and (net_com2 < 0) and usecot) or (not usecot)
+sell_cot = ((net_com1 < 0) and (net_com2 > 0) and usecot) or (not usecot)
+buy_ema = ((out[0] > out[1]) and useema) or (not useema)
+sell_ema = ((out[0] < out[1]) and useema) or (not useema)
+if(auxinv1)
+    buy_aux1 := ((outaux1[0]<outaux1[1]) and useaux1) or (not useaux1)
+    sell_aux1 := ((outaux1[0]>outaux1[1]) and useaux1) or not useaux1
+if not auxinv1
+    buy_aux1:= ((outaux1[0]>outaux1[1]) and useaux1) or not useaux1
+    sell_aux1 := ((outaux1[0]<outaux1[1]) and useaux1) or not useaux1
+if auxinv2
+    buy_aux2 := ((outaux2[0]<outaux2[1]) and useaux2) or not useaux2
+    sell_aux2 := ((outaux2[0]>outaux2[1]) and useaux2) or not useaux2
+if not auxinv2
+    buy_aux2:= ((outaux2[0]>outaux2[1]) and useaux2) or not useaux2
+    sell_aux2 := ((outaux2[0]<outaux2[1]) and useaux2) or not useaux2
+buy :=  buy_cot  and buy_ema and buy_aux1 and buy_aux2 and afterStartDate
+sell :=  sell_cot and sell_ema and sell_aux1 and sell_aux2 and afterStartDate
+if (sell)
+    strategy.entry("Short", strategy.short,  qty = 100000)
+    strategy.exit("SL-TP Short","Short",stop = high[0])
+    
+if (buy)
+    strategy.entry("Long", strategy.long,  qty = 100000)
+    strategy.exit("SL-TP Long","Long",stop = low[0])
+//if close[0] < close[1] or close[0] > close[1]
+//    strategy.close("Short")
+//    strategy.close("Long")
+    
+if strategy.openprofit > 0 
+    strategy.close("Short")
+    strategy.close("Long")
+plotshape(buy, style=shape.triangleup,   location=location.belowbar, offset=0, color=color.green, size = size.small)
+plotshape(sell, style=shape.triangledown,   location=location.abovebar, offset=0, color=color.red, size = size.small)
+Expand (196 lines)

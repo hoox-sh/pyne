@@ -1,0 +1,5 @@
+//@version=6strategy("strategy.fixed", overlay = true, default_qty_value = 50, default_qty_type = strategy.fixed, initial_capital = 1000000)if bar_index == 0    // As ‘qty’ is not defined, the previously defined values for the `default_qty_type` and `default_qty_value` parameters are used to enter trades, namely 50 contracts.    // qty = 50    strategy.entry("EN", strategy.long)if bar_index == 2    strategy.close("EN")// set05 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/reference/constants.md::constants.md#block2
+// content_hash: 55f368dd46c654da
+// collected: 2026-07-27

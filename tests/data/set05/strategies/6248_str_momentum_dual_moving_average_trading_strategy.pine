@@ -1,0 +1,82 @@
+//@version=2
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动量双均线交易策略Momentum-Dual-Moving-Average-Trading-Strategy.md
+// content_hash: e984f8c5b4a168c9
+// collected: 2026-07-27
+strategy(title = "Noro's Price Channel Strategy v1.2", shorttitle = "Price Channel str 1.2", overlay=true, default_qty_type = strategy.percent_of_equity, default_qty_value = 100, pyramiding = 0)
+
+//Settings
+needlong = input(true, defval = true, title = "Long")
+needshort = input(true, defval = true, title = "Short")
+capital = input(100, defval = 100, minval = 1, maxval = 100000, title = "capital, %")
+uset = input(true, defval = true, title = "Use trend entry")
+usect = input(true, defval = true, title = "Use counter-trend entry")
+usersi = input(true, defval = true, title = "Use RSI strategy")
+pch = input(30, defval = 30, minval = 2, maxval = 200, title = "Price Channel Period")
+showcl = input(true, defval = true, title = "Price Channel")
+fromyear = input(2018, defval = 2018, minval = 1900, maxval = 2100, title = "From Year")
+toyear = input(2100, defval = 2100, minval = 1900, maxval = 2100, title = "To Year")
+frommonth = input(01, defval = 01, minval = 01, maxval = 12, title = "From Month")
+tomonth = input(12, defval = 12, minval = 01, maxval = 12, title = "To Month")
+fromday = input(01, defval = 01, minval = 01, maxval = 31, title = "From day")
+today = input(31, defval = 31, minval = 01, maxval = 31, title = "To day")
+src = close
+
+//Price channel
+lasthigh = highest(src, pch)
+lastlow = lowest(src, pch)
+center = (lasthigh + lastlow) / 2
+trend = low > center ? 1 : high < center ? -1 : trend[1]
+col = showcl ? blue : na
+col2 = showcl ? black : na
+plot(lasthigh, color = col2, linewidth = 2)
+plot(lastlow, color = col2, linewidth = 2)
+plot(center, color = col, linewidth = 2)
+
+//Bars
+bar = close > open ? 1 : close < open ? -1 : 0
+rbars = sma(bar, 2) == -1
+gbars = sma(bar, 2) == 1
+
+//Fast RSI
+fastup = rma(max(change(src), 0), 2)
+fastdown = rma(-min(change(src), 0), 2)
+fastrsi = fastdown == 0 ? 100 : fastup == 0 ? 0 : 100 - (100 / (1 + fastup / fastdown))
+
+//Signals
+body = abs(close - open)
+abody = sma(body, 10)
+up1 = rbars and close > center and uset
+dn1 = gbars and close < center and uset
+up2 = close <= lastlow and close < open and usect
+dn2 = close >= lasthigh and close > open and usect
+up3 = fastrsi < 25 and close > center and usersi
+dn3 = fastrsi > 75 and close < center and usersi
+exit = (((strategy.position_size > 0 and close > open) or (strategy.position_size < 0 and close < open)) and body > abody / 2)
+lot = strategy.position_size == 0 ? strategy.equity / close * capital / 100 : lot[1]
+
+//Trading
+if up1 or up2 or up3
+    if strategy.position_size < 0
+        strategy.close_all()
+        
+    strategy.entry("Long", strategy.long, needlong == false ? 0 : lot, when=(time > timestamp(fromyear, frommonth, fromday, 00, 00) and time < timestamp(toyear, tomonth, today, 23, 59)))
+
+if dn1 or dn2 or dn3
+    if strategy.position_size > 0
+        strategy.close_all()
+        
+    strategy.entry("Short", strategy.short, needshort == false ? 0 : lot, when=(time > timestamp(fromyear, frommonth, fromday, 00, 00) and time < timestamp(toyear, tomonth, today, 23, 59)))
+    
+if time > timestamp(toyear, tomonth, today, 23, 59) or exit
+    strategy.close_all()
+```
+
+> Detail
+
+https://www.fmz.com/strategy/433968
+
+> Last Modified
+
+2023-12-01 18:13:21

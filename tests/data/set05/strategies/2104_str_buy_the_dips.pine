@@ -1,0 +1,63 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多层级超买超卖震荡买入策略-Multi-Level-Oversold-Oscillator-Buy-Strategy.md
+// content_hash: 44128d8ac3608993
+// collected: 2026-07-27
+strategy("Buy The Dips [aep]", overlay=false, pyramiding = 3)
+
+//-------  strategy details ------------ {
+// The strategy is to buy the dips by entering the market in the territory of oversold
+// When both Stochastic (K) and Stochastic RSI (Kr) are below OS line is time to look for 
+// crossovers in the Stochastic RSI indicator and buy @ market
+// Take profit will happend when Kr is way up near the 100% as Overbought territory
+// Since we are buy dips of during bullmarkets, there is no stoploss
+//}
+
+ 
+// ------stochastics --------{
+periodK = input.int(66, title="%K Length", minval=1)
+smoothK = input.int(3, title="%K Smoothing", minval=1)
+periodD = input.int(3, title="%D Smoothing", minval=1)
+
+// classic stochastic
+k = ta.sma(ta.stoch(close, high, low, periodK), smoothK)
+
+
+// stochastic rsi
+periodRSI = input(14)
+rsi = ta.rsi(close,periodRSI)
+kr = ta.sma(ta.stoch(rsi, rsi, rsi, periodK), smoothK)
+d = ta.sma(kr, periodD) 
+ 
+// plots
+OB = input.int(99, "Overbought")
+OS = input.int(20, 'Oversold')
+
+plot(k,'stochastic',color.white,2)
+plot(kr, 'stochastic rsi', color.blue, 1)
+plot(d, '%rsi D',color.maroon, 1 )
+
+hline(OS, color = color.rgb(39, 230, 18), linestyle= hline.style_dashed)
+hline(OB, color = color.rgb(229, 28, 18), linestyle= hline.style_dashed)
+hline(100, color = color.red, linestyle= hline.style_dotted)
+hline(0, color = color.green, linestyle= hline.style_dotted)
+
+//}
+// -------------- strategy excecution --------------- {
+
+if  ta.crossover(kr, d) and kr < OS and k < OS
+	strategy.entry("by the dip",strategy.long)
+if kr >= OB
+	strategy.close_all()
+
+//}
+```
+
+> Detail
+
+https://www.fmz.com/strategy/458170
+
+> Last Modified
+
+2024-07-30 15:45:44

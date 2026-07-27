@@ -1,0 +1,12 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block332
+// content_hash: 3ae3aae89978555b
+// collected: 2026-07-27
+indicator("line")
+// Empty `line1` line ID.
+var line line1 = na
+// `line` type is unnecessary because `line.new()` returns "line" type.
+var line2 = line.new(na, na, na, na)
+line3 = line.new(bar_index - 1, high, bar_index, high, extend = extend.right)

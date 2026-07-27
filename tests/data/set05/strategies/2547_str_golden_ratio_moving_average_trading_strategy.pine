@@ -1,0 +1,55 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/黄金分割移动平均线交易策略Golden-Ratio-Moving-Average-Trading-Strategy.md
+// content_hash: 78d391fde9d15cdf
+// collected: 2026-07-27
+strategy("聖杯", overlay=true,default_qty_type=strategy.percent_of_equity,
+     default_qty_value=100)
+
+//ユーザーインプットの準備
+malongperiod=input.int(200,"長期移動平均BASE200",group = "パラメータ")
+mashortperiod=input.int(10,"長期移動平均BASE10",group = "パラメータ")
+stop=input.int(20,title = "損切の割合％",group = "パラメータ")
+profit=input.int(5,title = "利食いの割合％",group = "パラメータ")
+startday=input(title="バックテストを始める日", defval=timestamp("01 Jan 2018 13:30 +0000"), group="期間")
+endday=input(title="バックテスを終わる日", defval=timestamp("1 Jan 2099 19:30 +0000"), group="期間")
+
+//使う変数
+var float stopprice=0
+var float takeprofit=0
+
+//とりあえず使うインジケーターをプロット
+malong=ta.sma(close,malongperiod)
+mashort=ta.sma(close,mashortperiod)
+
+
+plot(malong,color=color.aqua,linewidth = 2)
+plot(mashort,color=color.yellow,linewidth = 2)
+bgcolor(ta.rsi(close,3)<30?color.rgb(229, 86, 86, 48):na)
+
+//期間条件
+datefilter = true
+
+//エントリー条件
+if close>malong and close<mashort and strategy.position_size == 0 and datefilter and ta.rsi(close,3)<30
+    strategy.entry(id="long", direction=strategy.long)
+
+if strategy.position_size>0 
+    strategy.exit(id="long",stop=(1-0.01*stop)*strategy.position_avg_price)
+
+//売り
+if  strategy.position_size > 0 and close>mashort and close<low[1] 
+    strategy.close(id ="long")
+
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/437774
+
+> Last Modified
+
+2024-01-05 14:21:52

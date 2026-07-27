@@ -1,0 +1,63 @@
+//@version=6
+// set04 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双均线交叉与随机RSI超买超卖区间优化交易策略-Dual-Moving-Average-Crossover-with-Stochastic-RSI-Overbought-Oversold-Enhanced-Trading-Strategy.md
+// content_hash: 50312b7a6f2f6665
+// collected: 2026-07-27
+strategy("SMA & Stoch RSI Buy Strategy with K > 80 Exit", overlay=true)
+
+// Input parameters for the SMAs
+sma21Length = input(21, title="21 SMA Length")
+sma55Length = input(55, title="55 SMA Length")
+
+// Input parameters for the Stochastic RSI
+stochRsiLength = input(14, title="Stoch RSI Length")
+stochRsiK = input(3, title="Stoch RSI %K Smoothing")
+stochRsiD = input(3, title="Stoch RSI %D Smoothing")
+
+// Calculate the SMAs
+sma21 = ta.sma(close, sma21Length)
+sma55 = ta.sma(close, sma55Length)
+
+// Calculate the Stochastic RSI
+rsiValue = ta.rsi(close, stochRsiLength)
+stochRsi = ta.stoch(rsiValue, rsiValue, rsiValue, stochRsiLength)
+stochRsiKLine = ta.sma(stochRsi, stochRsiK)
+stochRsiDLine = ta.sma(stochRsiKLine, stochRsiD)
+
+// Buy signal conditions
+smaCondition = sma21 > sma55
+stochRsiCondition = ta.crossover(stochRsiKLine, stochRsiDLine) and stochRsiKLine < 20
+
+// Entry condition
+buySignal = smaCondition and stochRsiCondition
+
+// Exit condition: Stochastic RSI K > 80 and K crosses below D
+exitCondition = ta.crossunder(stochRsiKLine, stochRsiDLine) and stochRsiKLine > 80
+
+// Execute buy order on signal
+if (buySignal)
+    strategy.entry("Buy", strategy.long)
+
+// Exit the trade on the modified exit condition
+if (exitCondition)
+    strategy.close("Buy")
+
+// Plot the SMAs
+plot(sma21, color=color.blue, title="21 SMA")
+plot(sma55, color=color.red, title="55 SMA")
+
+// Plot Stochastic RSI for reference (not overlayed)
+hline(20, "Stoch RSI 20", color=color.gray, linestyle=hline.style_dotted)
+hline(80, "Stoch RSI 80", color=color.gray, linestyle=hline.style_dotted)
+plot(stochRsiKLine, title="%K Line", color=color.green)
+plot(stochRsiDLine, title="%D Line", color=color.red)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/481352
+
+> Last Modified
+
+2025-02-10 14:40:04

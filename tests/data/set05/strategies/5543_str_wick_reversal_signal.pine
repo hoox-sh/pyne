@@ -1,0 +1,38 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/形态翻转策略Wick-Reversal-Pattern-Strategy.md
+// content_hash: f831f95a758124f2
+// collected: 2026-07-27
+strategy("Wick Reversal Signal", overlay=true)
+
+wickMultiplier = input(3.25)
+bodyPercentage = input(0.35)
+barsBack = input(50)
+bodyMultiplier = input(1.1)
+
+myCandleSize = high-low
+averageCandleSize = rma(myCandleSize, barsBack)
+
+longSignal = close > open and open-low >= (close-open)*wickMultiplier and high-close <= (high-low)*bodyPercentage and high-low >= averageCandleSize*bodyMultiplier
+longSignal := longSignal or (close < open and close-low >= (open-close)*wickMultiplier and high-close <= (high-low)*bodyPercentage and high-low >= averageCandleSize*bodyMultiplier)
+longSignal := longSignal or (abs(close-open) < 0.01 and close != high and high-low >= (high-close)*wickMultiplier and high-close <= (high-low)*bodyPercentage and high-low >= averageCandleSize*bodyMultiplier)
+
+shortSignal = close < open and high-open >= (open-close)*wickMultiplier and close-low <= (high-low)*bodyPercentage and high-low >= averageCandleSize*bodyMultiplier
+shortSignal := shortSignal or (close > open and high-close >= (close-open)*wickMultiplier and close-low <= (high-low)*bodyPercentage and high-low >= averageCandleSize*bodyMultiplier)
+shortSignal := shortSignal or (abs(close-open) < 0.01 and close != low and high-low >= (close-low)*wickMultiplier and close-low <= (high-low)*bodyPercentage and high-low >= averageCandleSize*bodyMultiplier)
+
+plotshape(longSignal, style=shape.triangleup, size=size.normal)
+plotshape(shortSignal, style=shape.triangledown, size=size.normal)
+
+strategy.entry("LONG", strategy.long, when=longSignal)
+strategy.entry("SHORT", strategy.short, when=shortSignal)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/429333
+
+> Last Modified
+
+2023-10-16 08:58:12

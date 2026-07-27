@@ -1,0 +1,166 @@
+//@version=5
+// set05 corpus entry
+// source_repo: Private-Pine-Scripts
+// source_path: Private-Pine-Scripts/Holy Grail Strategy.pine
+// content_hash: d7bcee224f3b9706
+// collected: 2026-07-27
+//
+// Author: benso87
+// benso87.com
+//
+//
+strategy("Holy Grail Strat", overlay=true, initial_capital=100, default_qty_value=100, default_qty_type=strategy.percent_of_equity, process_orders_on_close=true, backtest_fill_limits_assumption=1, pyramiding=0, max_bars_back=500)
+
+noColor = color.new(color.white, transp=100)
+////////////////////////////////////////////////////////////
+// Inputs
+
+//Dates
+startDate = input.time(timestamp('1 Jan 2022 00:00'), title='Start', group='Dates')
+endDate = input.time(timestamp('1 Jan 2100 00:00'), title='End', group='Dates')
+
+// Moving Average
+maLength = input.int(20, title='MA Length', minval=1, group='Moving Average')
+maType = input.string('EMA', title='MA Type', options=['SMA', 'EMA'], group='Moving Average')
+maSource = input.source(close, title='MA Source', group='Moving Average')
+
+// ADX
+adxLength = input.int(14, title='ADK Length', minval=1, group='ADX')
+adxLevel = input.float(30, title='Signal Level', minval=0, maxval=100, group='ADX')
+
+// Swings
+pvtLenL = input.int(3, minval=1, title='Pivot Length Left')
+pvtLenR = input.int(3, minval=1, title='Pivot Length Right')
+
+////////////////////////////////////////////////////////////
+// Calculations
+
+// Moving Average
+ma = maType == 'EMA' ? ta.ema(maSource, maLength) : ta.sma(maSource, maLength)
+
+// ADX
+up = ta.change(high)
+down = -ta.change(low)
+plusDM = na(up) ? na : (up > down and up > 0 ? up : 0)
+minusDM = na(down) ? na : (down > up and down > 0 ? down : 0)
+trur = ta.rma(ta.tr, adxLength)
+plus = fixnan(100 * ta.rma(plusDM, adxLength) / trur)
+minus = fixnan(100 * ta.rma(minusDM, adxLength) / trur)
+sum = plus + minus
+adx = 100 * ta.rma(math.abs(plus - minus) / (sum == 0 ? 1 : sum), adxLength)
+
+var bool adxWindow = na
+adxWindow := ta.crossover(adx,adxLevel) ? true : ta.crossunder(adx,adxLevel) ? false : adxWindow
+
+// MA tests
+maTestLong = open > ma and close >= ma and low <= ma and adxWindow
+maTestShort = open < ma and close <= ma and high >= ma and adxWindow
+
+var bool testWindowLong = na
+var float testHigh = na
+var float testLow = na
+var bool testWindowShort = na
+
+if maTestLong or maTestShort
+    testHigh := high
+    testLow := low
+
+if maTestLong
+    testWindowLong := true
+
+if maTestShort
+    testWindowShort := true
+
+if close < ma or adx < adxLevel
+    testWindowLong := false
+
+if close > ma or adx < adxLevel
+    testWindowShort := false
+
+maSignalLong = testWindowLong and close >= testHigh and time >= startDate and time <= endDate
+maSignalShort = testWindowShort and close <= testLow and time >= startDate and time <= endDate
+
+// Get High and Low Pivot Points
+pvthi_ = ta.pivothigh(high, pvtLenL, pvtLenR)
+pvtlo_ = ta.pivotlow(low, pvtLenL, pvtLenR)
+
+// Force Pivot completion before plotting.
+Shunt = 1  //Wait for close before printing pivot? 1 for true 0 for flase
+maxLvlLen = 0  //Maximum Extension Length
+pvthi = pvthi_[Shunt]
+pvtlo = pvtlo_[Shunt]
+
+// Count How many candles for current Pivot Level, If new reset.
+counthi = ta.barssince(not na(pvthi))
+countlo = ta.barssince(not na(pvtlo))
+
+pvthis = fixnan(pvthi)
+pvtlos = fixnan(pvtlo)
+hipc = ta.change(pvthis) != 0 ? na : #ff0014
+lopc = ta.change(pvtlos) != 0 ? na : #0bff00
+
+// Entries
+longEntry = adxWindow and maSignalLong and close <= pvthis
+shortEntry = adxWindow and maSignalShort and close >= pvtlos
+
+// Trade variables
+var float entryPrice = na
+var float slLong = na
+var float slShort = na
+var float tpLong = na
+var float tpShort = na
+var float testHighVar = na
+var float testLowVar = na
+var string tradeType = na
+
+if longEntry and strategy.position_size == 0
+    entryPrice := close
+    slLong := testLow
+    tpLong := pvthis
+    tradeType := 'long'
+    adxWindow := false
+
+if shortEntry and strategy.position_size == 0
+    entryPrice := close
+    slShort := testHigh
+    tpShort := pvtlos
+    tradeType := 'short'
+    adxWindow := false
+
+stopLoss = tradeType == 'long' ? slLong : tradeType == 'short' ? slShort : na
+takeProfit = tradeType == 'long' ? tpLong : tradeType == 'short' ? tpShort : na
+trailSize = tradeType == 'long' ? (close - ma) * syminfo.mintick : tradeType == 'short' ? (ma - close) * syminfo.mintick : na
+
+
+//////////////////////////////////////////////////////////////
+// Strategy
+
+// Entries
+if strategy.position_size == 0
+    strategy.entry('Long', strategy.long, when=longEntry)
+    strategy.entry('Short', strategy.short, when=shortEntry)
+
+// Exits
+strategy.exit('Long Exit', from_entry='Long', stop=slLong, trail_price=tpLong, trail_points=trailSize)
+strategy.exit('Short Exit', from_entry='Short', stop=slShort, trail_price=tpShort, trail_points=trailSize)
+
+
+////////////////////////////////////////////////////////////
+// Plots
+
+plot(ma, title='MA', color=color.yellow, linewidth=2)
+plotchar(maTestLong, color=#0bff00, char='·', location=location.abovebar, size=size.normal)
+plotchar(maTestShort, color=#ff0014, char='·', location=location.belowbar, size=size.normal)
+
+// Trades
+sl = plot(strategy.position_size != 0 or strategy.position_size[1] != 0 ? stopLoss : na, title='Stop Loss', color=color.red, style=plot.style_linebr)
+e = plot(strategy.position_size != 0 or strategy.position_size[1] != 0 ? entryPrice : na, title='Entry', color=color.yellow, style=plot.style_linebr)
+tp = plot(strategy.position_size != 0 or strategy.position_size[1] != 0 ? takeProfit : na, title='Take Profit', color=color.green, style=plot.style_linebr)
+
+fill(sl, e, color=color.new(color.red, transp=80))
+fill(tp, e, color=color.new(color.green, transp=80))
+
+
+//////////////////////////////////////////////////////////////
+// Testing
+

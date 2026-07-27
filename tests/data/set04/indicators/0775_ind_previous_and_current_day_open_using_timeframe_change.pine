@@ -1,0 +1,19 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/faq/techniques.md::techniques.md#block7
+// content_hash: 702419c03ad09a5f
+// collected: 2026-07-27
+indicator("Previous and current day open using `timeframe.change()`", "", true)
+
+bool newDay = timeframe.change("1D")
+var float yesterdayOpen = na
+var float todayOpen     = na
+
+if newDay
+    yesterdayOpen := todayOpen  // We reassign this value first
+    todayOpen     := open  // and then store today's open
+
+plot(yesterdayOpen, "Yesterday's Open", newDay ? na : color.red, 2, plot.style_line)
+plot(todayOpen, "Today's Open", newDay ? na : color.green, 2, plot.style_line)
+bgcolor(newDay ? color.new(color.gray, 80) : na)

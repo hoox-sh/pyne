@@ -1,0 +1,51 @@
+//@version=4
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/inside bar strategy  Wıth SL-TP.pine
+// content_hash: 1c02ab34c8f48ea9
+// collected: 2026-07-27
+strategy("inside bar strategy  Wıth SL-TP ", overlay=true,default_qty_type = strategy.percent_of_equity, default_qty_value = 100,commission_type=strategy.commission.percent,commission_value=0.1,slippage=1)
+insides = high < high[1] and low > low[1]
+outsides = high > high[1] and low < low[1]
+candle_control=insides or outsides
+target_profit_percent=input(3,"target profit%",step=0.1)
+stop_loss_percent=input(1,"stop loss %",step=0.1)
+yearfrom = input(2021)
+yearuntil =input(2022)
+monthfrom =input(1)
+monthuntil =input(12)
+dayfrom=input(1)
+dayuntil=input(31)
+long_cond=candle_control[1] and close>open and high>high[1]
+short_cond=candle_control[1] and close<open and low<low[1]
+if ( long_cond and   year >= yearfrom and year <= yearuntil and month>=monthfrom and month <=monthuntil and dayofmonth>=dayfrom and dayofmonth < dayuntil) 
+    strategy.entry("LONG", strategy.long, stop=close, oca_name="TREND", oca_type=strategy.oca.cancel, comment="LONG")
+    
+else
+    strategy.cancel(id="LONG")
+if (  short_cond and  year >= yearfrom and year <= yearuntil and month>=monthfrom and month <=monthuntil and dayofmonth>=dayfrom and dayofmonth < dayuntil ) 
+    strategy.entry("SHORT", strategy.short,stop=close, oca_name="TREND", oca_type=strategy.oca.cancel, comment="SHORT")
+else
+    strategy.cancel(id="SHORT")
+    
+    
+    
+    
+profit_target=(close*(target_profit_percent/100))/syminfo.mintick
+stop_target=(close*(stop_loss_percent/100))/syminfo.mintick
+strategy.exit("LONG EXIT","LONG",profit=profit_target, loss=stop_target ) 
+    
+strategy.exit("LONG EXIT","SHORT",profit=profit_target, loss=stop_target ) 
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+Expand (66 lines)

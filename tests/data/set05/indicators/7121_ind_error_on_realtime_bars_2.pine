@@ -1,0 +1,9 @@
+//@version=6
+// set05 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/concepts/common_errors.md::common_errors.md#block14
+// content_hash: b7c5a3378fb0a3e7
+// collected: 2026-07-27
+indicator("Error on realtime bars")
+myVar = close[barstate.isfirst ? 1000 : barstate.ishistory ? 500 : 1000]
+plot(myVar)

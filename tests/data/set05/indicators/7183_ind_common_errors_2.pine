@@ -1,0 +1,8 @@
+//@version=6
+// set05 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/concepts/common_errors.md::common_errors.md#block7
+// content_hash: 74ae9589a79a5e07
+// collected: 2026-07-27
+indicator("My Script")
+plot(1)

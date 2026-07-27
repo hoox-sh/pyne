@@ -1,0 +1,45 @@
+//@version=5
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/Faytterro Estimator Strategy.pine
+// content_hash: 07fb8164d9a9eef0
+// collected: 2026-07-27
+strategy("Faytterro Estimator Strategy v2", overlay=true, default_qty_type = strategy.percent_of_equity, default_qty_value = 100)
+src=input(hlc3,title="source")
+len=input.int(10,title="faytterro estimator lenght", maxval=500)
+len2=100
+len3=input.float(650,title="minumum enrty-close gap (different direction)")
+len4=input.float(650,title="minumum entry-entry gap (same direction)")
+cr(x, y) =>
+    z = 0.0
+    weight = 0.0
+    for i = 0 to y-1
+        z:=z + x[i]*((y-1)/2+1-math.abs(i-(y-1)/2))
+    z/(((y+1)/2)*(y+1)/2)
+cr= cr(src,2*len-1) 
+dizi = array.new_float(500)
+var line=array.new_line()
+for i=0 to len*2
+    array.set(dizi,i,(i*(i-1)*(cr-2*cr[1]+cr[2])/2+i*(cr[1]-cr[2])+cr[2]))
+buy = array.get(dizi,len+1+5)>array.get(dizi,len+1+4) and array.get(dizi,len+1+5)<cr[len] 
+sell = array.get(dizi,len+1+5)<array.get(dizi,len+1+4) and array.get(dizi,len+1+5)>cr[len]
+bb=buy? hlc3 : na
+ss=sell? hlc3 : na 
+sbuy= buy and close<(close[ta.barssince(buy or sell)])[1]-len4 and close<ta.highest(fixnan(ss),len2)-len3*3
+ssell= sell and close>(close[ta.barssince(buy or sell)])[1]+len4 and close>ta.lowest(fixnan(bb),len2)+len3*3
+buy:= buy and close<(close[ta.barssince(buy or sell)])[1]-len4 and close<ta.highest(fixnan(ss),len2)-len3 //and close>ta.highest(fixnan(ss),len2)-len3*3
+sell:=  sell and close>(close[ta.barssince(buy or sell)])[1]+len4 and close>ta.lowest(fixnan(bb),len2)+len3 //and close<ta.lowest(fixnan(bb),len2)+len3*3
+alertcondition(buy or sell)
+sl = input.float(5, title = "trailing stop loss", step = 0.1)
+//if (sbuy)
+//    strategy.entry("strong long", strategy.long,width)
+ //   strategy.exit("close long","strong long", stop = close*(100-sb)/100  )
+//if (ssell)
+//    strategy.entry("strong sell", strategy.short,width)
+if (buy)
+    strategy.entry("long", strategy.long)
+    strategy.exit("close long","long", trail_price = close, trail_offset = close*sl)
+if (sell)
+    strategy.entry("short", strategy.short)
+    strategy.exit("close short","short", trail_price = close, trail_offset = close*sl)
+Expand (47 lines)

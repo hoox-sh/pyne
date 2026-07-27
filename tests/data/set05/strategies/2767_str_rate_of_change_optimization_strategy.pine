@@ -1,0 +1,50 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于动量震荡率优化策略Rate-of-Change-Optimization-Strategy.md
+// content_hash: fec28ff6d93948c2
+// collected: 2026-07-27
+strategy(title="Rate Of Change Mod Strategy", shorttitle="ROC", format=format.price, precision=2)
+//length = input.int(9, minval=1)
+//source = input(close, "Source")
+//roc = 100 * (source - source[length])/source[length]
+//plot(roc, color=#2962FF, title="ROC")
+//hline(0, color=#787B86, title="Zero Line")
+
+length = input.int(9, minval=1, title="Length")
+maxHistory = input(200, title="Max Historical Period for ROC")
+lenghtSmooth = input.int(10, minval=1, title="Length Smoothed ROC")
+lenghtBUY = input.int(-80, title="Buy Threshold")
+lenghtSELL = input.int(80, title="Buy Threshold")
+
+source = close
+roc = 100 * (source - source[length]) / source[length]
+
+// Calculate the maximum ROC value in the historical period
+maxRoc = ta.highest(roc, maxHistory)
+
+// Calculate current ROC as a percentage of the maximum historical ROC
+rocPercentage = (roc / maxRoc) * 100
+
+
+rocPercentageS = ta.sma(rocPercentage, lenghtSmooth)
+if ta.rising(rocPercentageS, 3) and rocPercentageS < lenghtBUY
+    strategy.entry("Buy", strategy.long)
+
+if ta.falling(rocPercentageS, 3) and rocPercentageS > lenghtSELL
+    strategy.close("Buy")
+
+
+plot(rocPercentage, color=color.new(color.blue, 0), title="Percentage ROC")
+plot(rocPercentageS, color=color.new(#21f32c, 0), title="Percentage ROC")
+hline(0, color=color.new(color.gray, 0), title="Zero Line")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/442221
+
+> Last Modified
+
+2024-02-20 13:54:49

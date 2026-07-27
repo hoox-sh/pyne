@@ -1,0 +1,68 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双时间周期随机指标动量交易策略-Dual-Timeframe-Stochastic-Momentum-Trading-Strategy.md
+// content_hash: 71d532a3dbac6ce9
+// collected: 2026-07-27
+strategy("Enhanced Stochastic Strategy", overlay=true)
+
+// Input untuk Stochastic
+length = input.int(14, title="Length", minval=1)
+OverBought = input(80, title="Overbought Level")
+OverSold = input(20, title="Oversold Level")
+smoothK = input.int(3, title="Smooth %K")
+smoothD = input.int(3, title="Smooth %D")
+
+// Input untuk Manajemen Risiko
+tpPerc = input.float(2.0, title="Take Profit (%)", step=0.1)
+slPerc = input.float(1.0, title="Stop Loss (%)", step=0.1)
+
+// Hitung Stochastic
+k = ta.sma(ta.stoch(close, high, low, length), smoothK)
+d = ta.sma(k, smoothD)
+
+// Logika Sinyal
+co = ta.crossover(k, d)  // %K memotong %D ke atas
+cu = ta.crossunder(k, d) // %K memotong %D ke bawah
+
+longCondition = co and k < OverSold
+shortCondition = cu and k > OverBought
+
+// Harga untuk TP dan SL
+var float longTP = na
+var float longSL = na
+var float shortTP = na
+var float shortSL = na
+
+if (longCondition)
+    longTP := close * (1 + tpPerc / 100)
+    longSL := close * (1 - slPerc / 100)
+    strategy.entry("Buy", strategy.long, comment="StochLE")
+    strategy.exit("Sell Exit", "Buy", limit=longTP, stop=longSL)
+
+if (shortCondition)
+    shortTP := close * (1 - tpPerc / 100)
+    shortSL := close * (1 + slPerc / 100)
+    strategy.entry("Sell", strategy.short, comment="StochSE")
+    strategy.exit("Buy Exit", "Sell", limit=shortTP, stop=shortSL)
+
+// Plot Stochastic dan Level
+hline(OverBought, "Overbought", color=color.red, linestyle=hline.style_dotted)
+hline(OverSold, "Oversold", color=color.green, linestyle=hline.style_dotted)
+hline(50, "Midline", color=color.gray, linestyle=hline.style_dotted)
+
+plot(k, color=color.blue, title="%K")
+plot(d, color=color.orange, title="%D")
+
+// Tambahkan sinyal visual
+plotshape(longCondition, title="Buy Signal", location=location.belowbar, style=shape.labelup, color=color.new(color.green, 0), text="BUY")
+plotshape(shortCondition, title="Sell Signal", location=location.abovebar, style=shape.labeldown, color=color.new(color.red, 0), text="SELL")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/474833
+
+> Last Modified
+
+2024-12-12 14:19:54

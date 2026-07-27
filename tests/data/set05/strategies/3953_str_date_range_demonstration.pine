@@ -1,0 +1,36 @@
+//@version=4
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/Date Range Demonstration.pine
+// content_hash: 222247408d80a4c5
+// collected: 2026-07-27
+//
+//  This is a simple strategy to demonstrate a quick and easy way to impose a date range on a strategy for
+//    for backtesting purposes.
+//  To use:
+//      1.  Copy the code between the '////' lines into your strategy
+//      2.  Add the variable 'inDateRange' to your entry conditions.
+//
+strategy("Date Range Demonstration", overlay=true)
+//////////////////////////////
+// Limit backtesting dates  //
+//////////////////////////////
+useDateRange = input(defval=true, title="Limit backtesting by date", type=input.bool, group="Limit by date")
+rangeType = input(defval="Custom", title="Date range:", options=["Custom", "30 Days", "90 Days", "180 Days", "Year to Date"], group="Limit by date", tooltip="If set to other than custom, this overrides any set dates.")
+startDate = input(title="Start Date (YYYY/DD/MM)", type=input.time,
+     defval=timestamp("1 Jan 2021 1:01 -0400"), group="Limit by date")
+endDate =   input(title="End Date (YYYY/DD/MM)  ", type=input.time,
+     defval=timestamp("31 Dec 2100 19:59 -0400"), group="Limit by date", tooltip="You likely want to leave this far in the future.")
+// subtract number of days (in milliseconds) from current time
+startDate := rangeType == "Custom" ? startDate :
+     rangeType == "30 Days" ? timenow - 2592000000 :   
+     rangeType == "90 Days" ? timenow - 7776000000 :    
+     rangeType == "180 Days" ? timenow - 15552000000 :
+     rangeType == "Year to Date" ? timestamp(syminfo.timezone, year(timenow), 01, 01, 00, 01) : na
+inDateRange = (time >= startDate) and (time < endDate)
+inDateRange := useDateRange ? inDateRange : 1
+//////////////////////////////
+longCondition = crossover(sma(close, 14), sma(close, 28))
+if inDateRange and longCondition
+    strategy.entry("My Long Entry Id", strategy.long)
+Expand (38 lines)

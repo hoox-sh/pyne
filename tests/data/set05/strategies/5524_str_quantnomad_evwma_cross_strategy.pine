@@ -1,0 +1,40 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于EVWMA指标的趋势跟踪策略EVWMA-Trend-Following-Strategy.md
+// content_hash: 9e1b23d68ec486a0
+// collected: 2026-07-27
+strategy("QuantNomad - EVWMA Cross Strategy", shorttitle="EVWMA Cross", overlay=true)
+
+// Inputs
+fast_sum_length = input(10, title = "Fast Sum Length", type = input.integer)
+slow_sum_length = input(20, title = "Slow Sum Length", type = input.integer)
+
+// Calculate Volume Period
+fast_vol_period = sum(volume, fast_sum_length)
+slow_vol_period = sum(volume, slow_sum_length)
+
+// Calculate EVWMA
+fast_evwma = 0.0
+fast_evwma := ((fast_vol_period - volume) * nz(fast_evwma[1], close) + volume * close) / (fast_vol_period)
+
+// Calculate EVWMA
+slow_evwma = 0.0
+slow_evwma := ((slow_vol_period - volume) * nz(slow_evwma[1], close) + volume * close) / (slow_vol_period)
+
+// Plot 
+plot(fast_evwma, title = "EVWMA Fast", linewidth = 2, color = color.red)
+plot(slow_evwma, title = "EVWMA Slow", linewidth = 2, color = color.green)
+
+// Strategy
+strategy.entry("Long",   true, when = crossover(fast_evwma, slow_evwma))
+strategy.entry("Short", false, when = crossunder(fast_evwma, slow_evwma))
+```
+
+> Detail
+
+https://www.fmz.com/strategy/435137
+
+> Last Modified
+
+2023-12-12 16:00:37

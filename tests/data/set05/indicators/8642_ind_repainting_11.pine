@@ -1,0 +1,10 @@
+//@version=4
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/v4/essential/indicator-repainting.md
+// content_hash: ba9792635be073f6
+// collected: 2026-07-27
+study("My Script")
+c = security(syminfo.tickerid, "5", close)
+plot(close)
+plot(c, color=color.red)

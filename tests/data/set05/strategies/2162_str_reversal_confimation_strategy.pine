@@ -1,0 +1,62 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多时间框架逆转确认交易策略Multi-Timeframe-Reversal-Confirmation-Trading-Strategy.md
+// content_hash: 6ac8974047fd8ccd
+// collected: 2026-07-27
+strategy("Reversal Confimation Strategy", overlay=true)
+
+// Indicator inputs
+lookback = input.int(50, 'Lookback Period', minval=1, step=1)
+downColor = input(color.red, 'Shape Color Down')
+upColor = input(color.green, 'Shape Color Up')
+
+// Indicator calculations
+find_highest = ta.highest(high, lookback)
+find_lowest = ta.lowest(low, lookback)
+ema = ta.ema(close, lookback)
+
+var dnRv = 0.0
+var dnRv_trigger = false
+var upRv = 0.0
+var upRv_trigger = false
+
+if high == find_highest
+    dnRv_trigger := false
+if low == find_lowest
+    upRv_trigger := false
+
+for i = 0 to lookback - 1
+    if high[i] == find_highest
+        dnRv := low[i]
+for i = 0 to lookback - 1
+    if low[i] == find_lowest
+        upRv := high[i]
+
+dnRv_signal = close < dnRv and dnRv_trigger == false 
+upRv_signal = close > upRv and upRv_trigger == false
+
+if dnRv_signal  
+    dnRv_trigger := true
+if upRv_signal  
+    upRv_trigger := true
+
+// Entry and exit conditions
+if dnRv_signal
+    strategy.entry("Sell", strategy.short)
+if upRv_signal
+    strategy.entry("Buy", strategy.long)
+
+// Plotting
+plotshape(dnRv_signal ? 1 : 0, style=shape.triangledown, location=location.abovebar, color=downColor, size=size.small)
+plotshape(upRv_signal ? 1 : 0, style=shape.triangleup, location=location.belowbar, color=upColor, size=size.small)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/451076
+
+> Last Modified
+
+2024-05-11 17:38:35

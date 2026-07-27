@@ -1,0 +1,49 @@
+//@version=2
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于枢轴指标的趋势操纵策略Pivot-Detector-Oscillator-Trend-Trading-Strategy.md
+// content_hash: 05bb4670a15aa0ea
+// collected: 2026-07-27
+////////////////////////////////////////////////////////////
+//  Copyright by HPotter v1.0 03/10/2017
+// The Pivot Detector Oscillator, by Giorgos E. Siligardos
+// The related article is copyrighted material from Stocks & Commodities 2009 Sep
+//
+// You can change long to short in the Input Settings
+// WARNING:
+// - For purpose educate only
+// - This script to change bars colors.
+////////////////////////////////////////////////////////////
+strategy(title="The Pivot Detector Oscillator, by Giorgos E. Siligardos")
+Length_MA = input(200, minval=1)
+Length_RSI = input(14, minval=1)
+UpBand = input(100, minval=1)
+DownBand = input(0)
+MidlleBand = input(50)
+reverse = input(false, title="Trade reverse")
+// hline(MidlleBand, color=black, linestyle=dashed)
+// hline(UpBand, color=red, linestyle=line)
+// hline(DownBand, color=green, linestyle=line)
+xMA = sma(close, Length_MA)
+xRSI = rsi(close, Length_RSI)
+nRes = iff(close > xMA, (xRSI - 35) / (85-35), 
+         iff(close <= xMA, (xRSI - 20) / (70 - 20), 0))
+pos = iff(nRes * 100 > 50, 1,
+	   iff(nRes * 100 < 50, -1, nz(pos[1], 0))) 
+possig = iff(reverse and pos == 1, -1,
+          iff(reverse and pos == -1, 1, pos))	   
+if (possig == 1) 
+    strategy.entry("Long", strategy.long)
+if (possig == -1)
+    strategy.entry("Short", strategy.short)	   	    
+barcolor(possig == -1 ? red: possig == 1 ? green : blue )       
+plot(nRes * 100, color=blue, title="Pivot Detector Oscillator")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/430669
+
+> Last Modified
+
+2023-10-31 14:47:05

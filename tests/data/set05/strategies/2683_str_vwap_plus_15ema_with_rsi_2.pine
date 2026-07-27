@@ -1,0 +1,52 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/VWAP均线RSI组合追踪策略VWAP-EMA-RSI-Trend-Following-Strategy.md
+// content_hash: 124aff0abcdd8ff7
+// collected: 2026-07-27
+strategy("VWAP+15EMA with RSI", overlay=true)
+
+// Inputs
+ema_length = input.int(15, title="EMA Length")
+rsi_length = input.int(14, title="RSI Length")
+rsi_overbought = input.int(45, title="RSI Overbought Level")
+stop_loss_pct = input.float(0.5, title="Stop Loss %")
+take_profit_pct = input.float(3.5, title="Take Profit %")
+trailing_stop_pct = input.float(1, title="Trailing Stop %")
+
+// Calculate Indicators
+vwap = ta.vwap(hlc3)
+ema = ta.ema(close, ema_length)
+rsi = ta.rsi(close, rsi_length)
+
+// Entry Condition
+long_entry = close > vwap and close > ema and rsi > rsi_overbought
+
+// Exit Conditions
+stop_loss = strategy.position_avg_price * (1 - stop_loss_pct / 100)
+take_profit = strategy.position_avg_price * (1 + take_profit_pct / 100)
+trailing_stop = strategy.position_avg_price * (1 - trailing_stop_pct / 100)
+
+// Submit Orders
+if long_entry and strategy.position_size == 0
+    strategy.entry("Long", strategy.long)
+
+if strategy.position_size > 0
+    strategy.exit("Stop Loss /Profit", "Long", profit = take_profit, stop=stop_loss, trail_offset = trailing_stop)
+
+
+// Plot Indicators
+plot(vwap, title="VWAP", color=color.blue)
+plot(ema, title="EMA", color=color.orange)
+plot(rsi, title="RSI", color=color.purple)
+hline(rsi_overbought, title="RSI Overbought", color=color.red)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/426578
+
+> Last Modified
+
+2023-09-13 14:37:47

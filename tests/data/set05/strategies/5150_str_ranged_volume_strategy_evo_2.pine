@@ -1,0 +1,60 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于量化范围突破的自适应波动策略Adaptive-Fluctuation-Strategy-Based-on-Quantitative-Range-Breakthrough.md
+// content_hash: 7d3779f6c05a58a8
+// collected: 2026-07-27
+strategy("Ranged Volume Strategy - evo", shorttitle="Ranged Volume", format=format.volume)
+
+// INPUTS {
+Range_Length    =   input(5,        title="Range Length",                       minval=1)
+
+Heikin_Ashi     =   input(true,     title="Heikin Ashi Colors")
+Display_Bars    =   input(true,     title="Show Bar Colors")
+Display_Break   =   input(true,     title="Show Break-Out")
+Display_Range   =   input(true,     title="Show Range")
+// }
+
+// SETTINGS {
+Close           =   Heikin_Ashi ? security(heikinashi(syminfo.tickerid), timeframe.period, close)    : close
+Open            =   Heikin_Ashi ? security(heikinashi(syminfo.tickerid), timeframe.period, open)     : open
+
+Positive        =    volume
+Negative        =   -volume
+
+Highest         =   highest(volume, Range_Length)
+Lowest          =   lowest(-volume, Range_Length)
+
+Up              =   Highest > Highest[1] and Close > Open
+Dn              =   Highest > Highest[1] and Close < Open
+
+Volume_Color    =   
+ Display_Break and Up   ? color.new(#ffeb3b, 0)     : 
+ Display_Break and Dn   ? color.new(#f44336, 0)     : 
+ Close > Open           ? color.new(#00c0ff, 60)    : 
+ Close < Open           ? color.new(#000000, 60)    : na 
+// }
+
+//PLOTS {
+plot(Positive,                      title="Positive Volume",    color=Volume_Color,             style=plot.style_histogram,  linewidth=4)
+plot(Negative,                      title="Negative Volume",    color=Volume_Color,             style=plot.style_histogram,  linewidth=4)
+
+plot(Display_Range ? Highest : na,  title="Highest",            color=color.new(#000000, 0),    style=plot.style_line,       linewidth=2)
+plot(Display_Range ? Lowest  : na,  title="Lowest",             color=color.new(#000000, 0),    style=plot.style_line,       linewidth=2)
+
+barcolor(Display_Bars ? Volume_Color : na)
+// }
+
+if (Up)
+    strategy.entry("Long Entry", strategy.long)
+if (Dn)
+    strategy.entry("Short Entry", strategy.short)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/442545
+
+> Last Modified
+
+2024-02-22 16:50:46

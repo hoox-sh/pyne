@@ -1,0 +1,26 @@
+//@version=4
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/Mou Value Areas.pine
+// content_hash: 3efa5167080aa179
+// collected: 2026-07-27
+strategy(title="Mou Value Areas", shorttitle="Mou Value Areas", overlay = true)
+MA1 = input(21, "Moving Average1 Lenght")
+MA2 = input(50, "Moving Average2 Lenght")
+MA3 = input(75, "Moving Average3 Lenght")
+HL = input(5, "Length", step = 1)
+MyMA1 = ema(close, MA1)
+MyMA2 = ema(close, MA2)
+MyMA3 = ema(close, MA3)
+plot(MyMA1, title= "EMA1", color=color.blue, linewidth = 2)
+plot(MyMA2, title="EMA2", color=color.yellow, linewidth = 1)
+plot(MyMA3, title="EMA3", color=color.red, linewidth = 1)
+UP = MyMA1[HL] - MyMA2[HL] <= MyMA1 - MyMA2
+DOWN = MyMA1[HL] - MyMA2[HL] >= MyMA1 - MyMA2
+bgcolor(UP ? color.new(color.red, 85) : na)
+bgcolor(DOWN ? color.new(color.green, 85) : na)
+//BULL = close - open > close[1] - open[1] and close > high[1] and DOWN
+//BEAR = open -close > open[1] - close [1] and close < low[1] and UP
+//plotshape(BULL, style=shape.arrowup, size = size.large, color = color.green )
+//plotshape(BEAR, style=shape.arrowdown, size = size.large, color = color.red)
+Expand (30 lines)

@@ -1,0 +1,14 @@
+//@version=6
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/release-notes.md::release-notes.md#block3
+// content_hash: 9ee70f55fc1eec3e
+// collected: 2026-07-27
+indicator("Invalid line wrap demo", overlay = true)
+
+// The second line that starts with `*` in this wrapped expression causes a compilation error.
+// For the script to compile successfully, do any of the following:
+// - Move that part of the expression to line 9.
+// - Add another leading space to line 10 so that it doesn't start after a multiple of four spaces.
+// - Enclose the entire expression in another set of parentheses. 
+float median = 0.5

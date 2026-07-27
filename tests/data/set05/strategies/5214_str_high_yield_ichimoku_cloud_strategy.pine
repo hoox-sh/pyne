@@ -1,0 +1,56 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/高收益日线交易策略Cloud-Soaring-High-Yield-Daily-Trading-Strategy.md
+// content_hash: 05be46c783cfa3af
+// collected: 2026-07-27
+strategy("High Yield Ichimoku Cloud Strategy", shorttitle="HY Ichimoku", overlay=true)
+
+// Ichimoku Cloud settings
+tenkanPeriods = input(9, title="Tenkan Sen Periods")
+kijunPeriods = input(26, title="Kijun Sen Periods")
+senkouSpanBPeriods = input(52, title="Senkou Span B Periods")
+displacement = input(26, title="Displacement")
+
+// Calculating the Ichimoku lines
+tenkanSen = (highest(high, tenkanPeriods) + lowest(low, tenkanPeriods)) / 2
+kijunSen = (highest(high, kijunPeriods) + lowest(low, kijunPeriods)) / 2
+senkouSpanA = (tenkanSen + kijunSen) / 2
+senkouSpanB = (highest(high, senkouSpanBPeriods) + lowest(low, senkouSpanBPeriods)) / 2
+chikouSpan = close[displacement]
+
+// Plotting the Ichimoku Cloud
+p1 = plot(tenkanSen, color=color.red, title="Tenkan Sen")
+p2 = plot(kijunSen, color=color.blue, title="Kijun Sen")
+p3 = plot(senkouSpanA, color=color.green, title="Senkou Span A", offset=displacement)
+p4 = plot(senkouSpanB, color=color.orange, title="Senkou Span B", offset=displacement)
+fill(p1, p2, color=color.purple, transp=80, title="Cloud")
+
+// Buy and Sell conditions
+buyCondition = crossover(tenkanSen, kijunSen) and close > max(senkouSpanA, senkouSpanB)[displacement]
+sellCondition = crossunder(tenkanSen, kijunSen) and close < min(senkouSpanA, senkouSpanB)[displacement]
+
+// Execute trade if conditions are met
+if (buyCondition)
+    strategy.entry("Buy", strategy.long)
+    
+if (sellCondition)
+    strategy.close("Buy")
+
+// Strategy exit conditions
+strategy.close("Buy", when = crossunder(tenkanSen, kijunSen) or close < min(senkouSpanA, senkouSpanB)[displacement])
+
+// Plot buy/sell signals
+plotshape(series=buyCondition, title="Buy Signal", location=location.belowbar, color=color.green, style=shape.labelup, text="BUY")
+plotshape(series=sellCondition, title="Sell Signal", location=location.abovebar, color=color.red, style=shape.labeldown, text="SELL")
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/432970
+
+> Last Modified
+
+2023-11-23 10:56:49

@@ -1,0 +1,31 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/Simple-EMA20-Strategy-Stochastic.md
+// content_hash: dedc109e8bbd29e4
+// collected: 2026-07-27
+strategy("Simple EMA20 Strat", overlay=true, margin_long=100, margin_short=100)
+
+periodK = input.int(14, title="%K Length", minval=1)
+smoothK = input.int(1, title="%K Smoothing", minval=1)
+periodD = input.int(3, title="%D Smoothing", minval=1)
+k = ta.sma(ta.stoch(close, high, low, periodK), smoothK)
+d = ta.sma(k, periodD)
+
+ema = ta.ema(close, 20)
+
+plot(series=ema, title="ema 20", color=color.blue)
+
+if(low > ema and k > d and ema > ema[20])
+    strategy.entry("long", strategy.long)
+if(close < ema)
+    strategy.close("long")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/426136
+
+> Last Modified
+
+2023-09-08 15:56:24

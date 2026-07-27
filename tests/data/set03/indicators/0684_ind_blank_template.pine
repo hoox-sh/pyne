@@ -1,0 +1,19 @@
+// set03 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/projects/blank.pine
+// content_hash: fd2fdfec70e1fb83
+// collected: 2026-07-27
+// built with PineScript Agents by TradersPost
+//@version=6
+// This is a blank Pine Script template
+// It will be renamed and populated based on your requirements
+// 
+// Project: [To be defined]
+// Type: [Indicator/Strategy]
+// Created: [Date]
+// 
+// ============================================================================
+
+indicator("Blank Template", overlay=true)
+
+// Your Pine Script code will be generated here

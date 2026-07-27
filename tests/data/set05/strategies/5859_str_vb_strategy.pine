@@ -1,0 +1,72 @@
+//@version=3
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于量价弥长计的波动力量策略VB-Strategy-Based-on-Volume-Balances.md
+// content_hash: 654dbc4ef071629f
+// collected: 2026-07-27
+strategy("VB Strategy", overlay=true)
+
+length = input(130, title="거래량 길이")
+coef = input(0.2, title="계수")
+vcoef = input(2.5, title="최대 계수")
+signalLength=input(5)
+smoothVFI=input(false, type=bool, title="부드럽게")
+//볼밴
+length2 = input(20, minval=1, title="볼밴 길이")
+
+ma(x,y) => smoothVFI ? sma(x,y) : x
+
+typical=hlc3
+inter = log( typical ) - log( typical[1] )
+vinter = stdev(inter, 30 )
+cutoff = coef * vinter * close
+vave = sma( volume, length )[1]
+vmax = vave * vcoef
+vc = iff(volume < vmax, volume, vmax)
+mf = typical - typical[1]
+vcp = iff( mf > cutoff, vc, iff ( mf < -cutoff, -vc, 0 ) )
+
+vfi = ma(sum( vcp , length )/vave, 3)
+vfima=ema( vfi, signalLength )
+d=vfi-vfima
+
+upper = vfima + stdev(vfi, length2)
+lower = vfima - stdev(vfi, length2)
+
+buysignal = cross(vfi, lower) and crossunder(vfi, lower) == 1 ? vfima : na
+
+sellsignal = cross(vfi, upper) and crossover(vfi, upper) == 1 ? vfima : na
+
+//times = timestamp("GMT+6", 2017, 12, 6, 00, 00)
+
+//if (buysignal and times <= time)
+if (buysignal)
+    if(strategy.position_size < 0)
+        strategy.close("SHORT")
+        
+    if(strategy.position_size > 0)
+        strategy.order("LONG", true, 1, when = (low+high)/2)
+        
+    if(strategy.position_size == 0)
+        strategy.entry("LONG", strategy.long, when = (low+high)/2)
+
+//if (sellsignal and times <= time)
+if (sellsignal)
+    if(strategy.position_size > 0)
+        strategy.close("LONG")
+        
+    if(strategy.position_size < 0)
+        strategy.order("SHORT", false, 1, when = (low+high)/2)
+        
+    if(strategy.position_size == 0)
+        strategy.entry("SHORT", strategy.short, when = (low+high)/2)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/430594
+
+> Last Modified
+
+2023-10-30 17:03:02

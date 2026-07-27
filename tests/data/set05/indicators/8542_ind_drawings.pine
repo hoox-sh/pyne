@@ -1,0 +1,18 @@
+//@version=4
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/v4/essential/drawings.md::drawings.md#block8
+// content_hash: 0977353c824a5d82
+// collected: 2026-07-27
+study("My Script", overlay=true)
+l = label.new(bar_index, na)
+if close >= open
+    label.set_text(l, "green")
+    label.set_color(l, color.green)
+    label.set_yloc(l, yloc.belowbar)
+    label.set_style(l, label.style_label_up)
+else
+    label.set_text(l, "red")
+    label.set_color(l, color.red)
+    label.set_yloc(l, yloc.abovebar)
+    label.set_style(l, label.style_label_down)

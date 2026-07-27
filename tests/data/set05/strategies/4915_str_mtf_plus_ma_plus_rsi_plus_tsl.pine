@@ -1,0 +1,74 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于多时间框架移动平均线与RSI的趋势跟踪策略Trend-Following-Strategy-Based-on-Multi-Timeframe-Moving-Average-and-RSI.md
+// content_hash: 5dfdc2d5d403d1bd
+// collected: 2026-07-27
+//Cryptocurrency Trading Tools by XMAXPRO
+//ATA INDIKATORU
+//Test 4.0v Tarih:23.02.2020
+//
+
+strategy("MTF+MA+RSI+TSL", overlay=false, shorttitle="ATA v4 Strategy")
+src = input(title="kaynak", type=input.source, defval=close)
+fast = input(title="hızlıbarlar", type=input.integer, defval=21)
+slow = input(title="yavaşbarlar", type=input.integer, defval=34)
+
+//MTF source
+long = input(title="uzunvade", type=input.resolution, defval="240")
+mid = input(title="ortavade", type=input.resolution, defval="60")
+short = input(title="kısavade", type=input.resolution, defval="5")
+
+//MTF Grafikleri
+ln = security(syminfo.ticker, long, src)
+md = security(syminfo.ticker, mid, src)
+sh = security(syminfo.ticker, short, src)
+
+//0
+lnma = ema(ln, fast) - ema(ln, slow)
+mdma = ema(sh, fast) - ema(md, slow)
+shma = ema(sh, fast) - ema(sh, slow)
+
+//Makeup
+uzunrenk = lnma > 0 ? color.white : color.red
+ortarenk = mdma > 0 ? color.white : color.red
+kisarenk = shma > 0 ? color.white : color.red
+
+l1 = 1
+m1 = 2
+s1 = 3
+
+plot(l1, style=plot.style_line, color=uzunrenk, linewidth=25)
+plot(m1, style=plot.style_line, color=ortarenk, linewidth=25)
+plot(s1, style=plot.style_line, color=kisarenk, linewidth=25)
+
+atarsi = rsi(close, 14)
+rsiob = input(title="aşırıalım", type=input.integer, defval=60)
+rsios = input(title="aşırısatış", type=input.integer, defval=25)
+
+sell = atarsi > rsiob and lnma > 0 and mdma > 0 and shma > 0
+buy = atarsi < rsios and lnma < 0 and mdma < 0 and shma < 0
+
+barcolor(sell ? color.white : color.red)
+barcolor(buy ? color.white : color.red)
+
+//strateji
+strategy.entry("long", strategy.long, comment = "BULL", when = sell)
+strategy.entry("short", strategy.short, comment = "BEAR", when = buy)
+
+//kompleks alarm
+//alertcondition(sell, title = "ATA LONG SIGNAL", message = "btc/usd ata long sinyali")
+//alertcondition(buy, title = "ATA SHORT SIGNAL", message = "btc/usd ata short sinyali")
+
+//iz sürücü TSL
+strategy.exit ("Bull TSL", "long", trail_points=close * 0.02 / syminfo.mintick, trail_offset=close * 0.02/syminfo.mintick)
+strategy.exit ("Bear TSL", "short", trail_points=close * 0.02 / syminfo.mintick, trail_offset=close * 0.02/syminfo.mintick)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/438064
+
+> Last Modified
+
+2024-01-08 16:57:29

@@ -1,0 +1,23 @@
+//@version=5
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/Orderbug.pine
+// content_hash: 3e3777166460a925
+// collected: 2026-07-27
+strategy(title="Orderbug", overlay=true, shorttitle="RSI", pyramiding=10,  default_qty_type=strategy.percent_of_equity, default_qty_value=100, initial_capital=20000)
+varip int orderNum=1
+if strategy.equity>1000 and year==2022 and month==1 and dayofmonth==5
+    if hour>=1 and hour<=10 and minute==0 and second==0
+        orderStr = str.tostring(orderNum)
+        name = "enter "+orderStr
+        strategy.entry(name , strategy.long)
+        strategy.exit("exit loss"+orderStr, from_entry=name, qty_percent=30, stop=close*0.98)
+        strategy.exit("exit profit"+orderStr, from_entry=name, qty_percent=30, limit=close*1.02)
+        orderNum := orderNum+1
+        
+    if hour == 23 and minute==0 and second==0
+        for i=1 to orderNum-1
+            orderStr = str.tostring(i)
+            name = "enter "+orderStr
+            strategy.close(name, qty_percent=100)
+Expand (19 lines)

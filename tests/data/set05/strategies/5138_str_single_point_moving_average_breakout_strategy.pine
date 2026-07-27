@@ -1,0 +1,61 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/单均点横盘突破策略Single-Point-Moving-Average-Breakout-Strategy.md
+// content_hash: 3e166c32d468a258
+// collected: 2026-07-27
+
+//* Backtesting Period Selector | Component *//
+//* https://www.tradingview.com/script/eCC1cvxQ-Backtesting-Period-Selector-Component *//
+//* https://www.tradingview.com/u/pbergden/ *//
+//* Modifications made *//
+testStartYear = input(2021, "Backtest Start Year") 
+testStartMonth = input(1, "Backtest Start Month")
+testStartDay = input(10, "Backtest Start Day")
+testPeriodStart = timestamp(testStartYear,testStartMonth,testStartDay,0,0)
+
+testStopYear = input(999999, "Backtest Stop Year")
+testStopMonth = input(9, "Backtest Stop Month")
+testStopDay = input(26, "Backtest Stop Day")
+testPeriodStop = timestamp(testStopYear,testStopMonth,testStopDay,0,0)
+
+testPeriod() => true
+/////////////// END - Backtesting Period Selector | Component ///////////////
+strategy(title="Chande Momentum Strat", shorttitle="ChandeMO Strat", format=format.price, precision=2)
+length = input(9, minval=1)
+src = input(close, "Price", type = input.source)
+momm = change(src)
+f1(m) => m >= 0.0 ? m : 0.0
+f2(m) => m >= 0.0 ? 0.0 : -m
+m1 = f1(momm)
+m2 = f2(momm)
+sm1 = sum(m1, length)
+sm2 = sum(m2, length)
+percent(nom, div) => 100 * nom / div
+chandeMO = percent(sm1-sm2, sm1+sm2)
+plot(chandeMO, "Chande MO", color=color.blue)
+hline(0, color=#C0C0C0, linestyle=hline.style_dashed, title="Zero Line")
+buyline= input(-80)
+sellline= input(80)
+hline(buyline, color=color.gray)
+hline(sellline, color=color.gray)
+
+if testPeriod()
+    if crossover(chandeMO, buyline)
+        strategy.entry("Long", strategy.long, alert_message="a=ABCD b=buy e=binanceus q=1.2 s=uniusd")
+    //    strategy.exit(id="Long Stop Loss", stop=strategy.position_avg_price*0.8) //20% stop loss 
+        
+    if crossunder(chandeMO, sellline)
+        strategy.entry("Short", strategy.short, alert_message="a=ABCD b=sell e=binanceus q=1.2 s=uniusd")
+    //    strategy.exit(id="Short Stop Loss", stop=strategy.position_avg_price*1.2) //20% stop loss
+
+//      remember to alert as    {{strategy.order.alert_message}}
+```
+
+> Detail
+
+https://www.fmz.com/strategy/440800
+
+> Last Modified
+
+2024-02-02 11:19:19

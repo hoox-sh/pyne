@@ -1,0 +1,22 @@
+//@version=4
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/BarUpDn Strategy.pine
+// content_hash: f32477e6c5362626
+// collected: 2026-07-27
+strategy("BarUpDn Strategy", overlay=true, initial_capital = 10000, default_qty_value = 10000, default_qty_type = strategy.cash)
+BarsUp = input(1)
+BarsDown = input(1)
+// Strategy Backesting
+startDate  = input(timestamp("2021-01-01T00:00:00"), type = input.time)
+finishDate = input(timestamp("2021-12-31T00:00:00"), type = input.time)
+time_cond  = time >= startDate and time <= finishDate
+// Messages for buy and sell
+message_buy  = input("{{strategy.order.alert_message}}", title="Buy message")
+message_sell = input("{{strategy.order.alert_message}}", title="Sell message")
+if (close > open and open > close[BarsUp]) and time_cond
+    strategy.entry("BarUp", strategy.long, stop = high + syminfo.mintick, alert_message = message_buy)
+if (close < open and open < close[BarsDown]) and time_cond
+    strategy.entry("BarDn", strategy.short, stop = low + syminfo.mintick, alert_message = message_sell)
+//plot(strategy.equity, title="equity", color=color.red, linewidth=2, style=plot.style_areabr)
+Expand (21 lines)

@@ -1,0 +1,52 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/横线突破捕捉趋势策略Trend-Capturing-Strategy-with-Horizontal-Line-Breakout.md
+// content_hash: c7234564824955cc
+// collected: 2026-07-27
+strategy("Alarm Trader_ALL", overlay=true)
+
+// Yatay çizgi oluşum
+yatayc = low[1] > close[0]
+
+if yatayc
+    if strategy.opentrades > 0
+        strategy.close("AL", comment = "Fiyat:" + str.tostring(low[1], "#.##") + "\n" + timeframe.period +"\n Yatay Direnç Oluştu")
+    else
+        strategy.entry("AL", strategy.long, comment = "Fiyat:" + str.tostring(low[1], "#.##") + "\n" + timeframe.period +"\n Yatay Direnç Oluştu")
+
+
+//YATAY ÇİZGİ
+int cizgilen = input.int(20, "Çizgi uzunluğu?", group = "Yatay Çizgi Ayarları")
+var array<line> lines = array.new<line>()
+int numberOfLines = input.int(10, "Son Kaç Çizgi?", 0, group = "Yatay Çizgi Ayarları")
+kural22 = low[1] > close[0]
+// if kural22
+//     newLine = line.new(bar_index-2, low[1], bar_index+cizgilen, low[1] ,color=color.red, width=1, style=line.style_solid)
+//     // Push the `newLine` into the `lines` array.
+//     lines.push(newLine)
+//     // Delete the oldest line when the size of the array exceeds the specified `numberOfLines`.
+//     if array.size(lines) > numberOfLines
+//         line.delete(lines.shift())
+    
+// Alarm kırılım için koşul
+
+var float lastLinePrice = na
+if not na(close) and array.size(lines) > 0 
+    lastLinePrice := line.get_price(array.get(lines, array.size(lines) - 1), bar_index)
+if open < lastLinePrice and close > lastLinePrice
+    if strategy.opentrades > 0
+        strategy.close("AL", comment = "Fiyat:" + str.tostring(lastLinePrice, "#.##") + "\n" + timeframe.period +" \n Yatay çizgi yukarı kırılımı")
+    else
+        strategy.entry("AL", strategy.long, comment = "Fiyat:" + str.tostring(lastLinePrice, "#.##") + "\n" + timeframe.period +" \n Yatay çizgi yukarı kırılımı")
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/449518
+
+> Last Modified
+
+2024-04-26 15:22:06

@@ -1,0 +1,15 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block161
+// content_hash: a30e5ecf65e44fd9
+// collected: 2026-07-27
+indicator("`matrix.get()` Example", "", true)
+
+// Create a 2x3 "float" matrix from the `hl2` values.
+m = matrix.new<float>(2, 3, hl2)
+
+// Return the value of the element at index [0, 0] of matrix `m`.
+x = matrix.get(m, 0, 0)
+
+plot(x)

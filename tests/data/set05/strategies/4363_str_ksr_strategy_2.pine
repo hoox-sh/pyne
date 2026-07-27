@@ -1,0 +1,112 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双均线交叉趋势跟踪策略Dual-Moving-Average-Crossover-Trend-Tracking-Strategy.md
+// content_hash: 75fb2f4f2daf21ff
+// collected: 2026-07-27
+
+strategy("KSR Strategy", overlay=true)
+
+
+
+par1=input(10)
+par2=input(20)
+ema1=ema(close,par1)
+ema2=ema(close,par2)
+buy=ema1>ema2
+sell=ema2<ema1
+mycolor= iff(buy,color.green,iff(sell,color.blue,color.red))
+barcolor(color=mycolor)
+
+
+
+ema100=ema(close,100)
+ibuy=crossover(ema1,ema2)
+iSell=crossunder(ema1,ema2)
+
+varp=tostring(close[1])
+plotshape(ibuy, "Up Arrow", shape.triangleup, location.belowbar, color.green, 0, 0,"Buy" , color.green, true, size.tiny)
+plotshape(iSell, "Down Arrow", shape.triangledown, location.abovebar, color.red, 0, 0, "Sell", color.red, true, size.tiny)
+
+crossed =crossover(ema(close,par1), ema(close,par2))
+// if crossed
+//     l = label.new(bar_index, na, tostring(close), 
+//          color=color.green, 
+//          textcolor=color.white,
+//          style=label.style_labelup, yloc=yloc.belowbar)
+         
+crossed2 =crossunder(ema(close,par1), ema(close,par2))
+// if crossed2
+//     l = label.new(bar_index, na, tostring(close), 
+//          color=color.red, 
+//          textcolor=color.white,
+//          style=label.style_labeldown, yloc=yloc.abovebar)
+         
+plot(ema(close,par1),"EMA Short",color=color.white)
+plot(ema(close,par2),"EMA Long",color=color.orange)
+
+
+longCondition = crossover(ema(close, par1), ema(close, par2))
+if (longCondition)
+    strategy.entry("My Long Entry Id", strategy.long)
+
+shortCondition = crossunder(ema(close, par1), ema(close, par2))
+if (shortCondition)
+    strategy.entry("My Short Entry Id", strategy.short)
+
+
+
+
+ma1_len = input(title="MA1", type=input.integer, defval=8, minval=1, maxval=100, step=1)
+ma2_len = input(title="MA2", type=input.integer, defval=12, minval=1, maxval=100, step=1)
+
+o = ema(open, ma1_len)
+c = ema(close, ma1_len)
+h = ema(high, ma1_len)
+l = ema(low, ma1_len)
+
+tim1=input('D',"Short Time")
+tim2=input('W',"Long Time")
+
+ema_p=input(title="EMA Period", type=input.integer, defval=16, minval=1, maxval=100, step=1)
+refma = ema(close, ema_p)
+plot(refma, title="EMA" , linewidth=1, color=close < refma ? color.orange : color.blue)
+ha_t = heikinashi(syminfo.tickerid)
+ha_o = security(ha_t, tim2, o)
+ha_c = security(ha_t, tim2, c)
+ha_h = security(ha_t, tim2, h)
+ha_l = security(ha_t, tim2, l)
+o2 = ema(ha_o, ma2_len)
+c2 = ema(ha_c, ma2_len)
+h2 = ema(ha_h, ma2_len)
+l2 = ema(ha_l, ma2_len)
+ha_col = ha_c > ha_o ? color.red : color.green
+plotshape(true, style=shape.circle, color=ha_c > ha_o ? color.green : color.red, location=location.bottom)
+
+
+ha_t1 = heikinashi(syminfo.tickerid)
+ha_o1 = security(ha_t1, tim1, o)
+ha_c1 = security(ha_t1, tim1, c)
+ha_h1 = security(ha_t1, tim1, h)
+ha_l1 = security(ha_t1, tim1, l)
+o3 = ema(ha_o1, ma2_len)
+c3 = ema(ha_c1, ma2_len)
+h3 = ema(ha_h1, ma2_len)
+l3 = ema(ha_l1, ma2_len)
+ha_col1 = ha_c1 > ha_o1 ? color.red : color.green
+plotshape(true, style=shape.circle, color=ha_c1 > ha_o1 ? color.green : color.red, location=location.top)
+
+
+
+
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/428068
+
+> Last Modified
+
+2023-09-28 11:52:16

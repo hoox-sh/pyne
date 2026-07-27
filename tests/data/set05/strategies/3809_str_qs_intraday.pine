@@ -1,0 +1,51 @@
+//@version=4
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/QuickSilver Intraday using RSI.pine
+// content_hash: 64d3c7bf11c913cb
+// collected: 2026-07-27
+strategy("QS - Intraday", overlay=true, calc_on_every_tick = false,pyramiding=0)
+// ********** Strategy inputs - Start **********
+// Used for intraday handling
+// Session value should be from market start to the time you want to square-off 
+// your intraday strategy
+// Important: The end time should be at least 2 minutes before the intraday
+// square-off time set by your broker
+var i_marketSession = input(title="Market session", type=input.session, 
+     defval="0915-1455", confirm=true)
+rsiPreiod = input(14, title="RSI Period", type=input.integer)
+rsiBuy = input(50, title="Buy when RSI is above", type=input.integer)
+rsiSell = input(50, title="Sell when RSI is Bellow", type=input.integer)
+isReversal = input(true, title="Exit on VWap Reversal ?", type=input.bool)
+// ********** Strategy inputs - End **********
+// ********** Supporting functions - Start **********
+// A function to check whether the bar or period is in intraday session
+barInSession(sess) => time(timeframe.period, sess) != 0
+// ********** Supporting functions - End **********
+// ********** Strategy - Start **********
+o=(open[1]+close[1])/2
+h=max(high,close,o) 
+l=min(low,close,o)
+c=(open+high+low+close)/4
+//additional conditions to improve the % profitablilty
+greenCandle = (close > open)
+redCandle = (close < open)
+vol = volume > volume[1]
+// See if intraday session is active
+bool intradaySession = barInSession(i_marketSession)
+// Trade only if intraday session is active
+//long and short conditions
+longCondition = vwap > vwap[1]  and rsi(close,rsiPreiod)>rsiBuy and intradaySession
+if (longCondition)
+    strategy.entry("Buy", strategy.long)
+shortCondition =  vwap < vwap[1] and rsi(close,rsiPreiod)<rsiSell and intradaySession
+if (shortCondition)
+    strategy.entry("Sell", strategy.short)
+if(isReversal)
+    strategy.close("Buy", when = vwap < vwap[1] ,comment = "ExitBuy")
+    strategy.close("Sell", when =vwap > vwap[1], comment = "ExitSell")
+// Square-off position (when session is over and position is open)
+squareOff = (not intradaySession) and (strategy.position_size != 0)
+strategy.close_all(when = squareOff, comment = "Square-off")
+// ********** Strategy - End **********
+Expand (67 lines)

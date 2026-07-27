@@ -1,0 +1,75 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于MFI指标的金融资产超卖区域退出及信号平均系统-Financial-Asset-MFI-Based-Oversold-Zone-Exit-and-Signal-Averaging-System.md
+// content_hash: b4c9ef230fbea4b2
+// collected: 2026-07-27
+strategy("MFI Strategy with Oversold Zone Exit and Averaging", overlay=true)
+
+// Strategy parameters
+mfiPeriod = input.int(title="MFI Period", defval=14) // Period for calculating MFI
+mfiOS = input.float(title="MFI Oversold Level", defval=20.0) // Oversold level for MFI
+longEntryPercentage = input.float(title="Long Entry Percentage (%)", minval=0.0, step=0.1, defval=0.1) // Percentage for the buy limit order
+stopLossPercentage = input.float(title="Stop Loss Percentage (%)", minval=0.0, step=0.1, defval=1.0) // Percentage for the stop-loss
+exitGainPercentage = input.float(title="Exit Gain Percentage (%)", minval=0.0, step=0.1, defval=1.0) // Percentage gain for the take-profit
+cancelAfterBars = input.int(title="Cancel Order After # Bars", minval=1, defval=5) // Cancel order after a certain number of bars
+
+// Calculate MFI
+mfi = ta.mfi(close, mfiPeriod)  // MFI with specified period
+
+// Variables for tracking state
+var bool inOversoldZone = false  // Flag for being in the oversold zone
+var float longEntryPrice = na  // Price for long entry
+var int barsSinceEntryOrder = na  // Counter for bars after placing an order
+
+// Define being in the oversold zone
+if (mfi < mfiOS)
+    inOversoldZone := true  // Entered oversold zone
+
+// Condition for exiting the oversold zone and placing a limit order
+if (inOversoldZone and mfi > mfiOS)
+    inOversoldZone := false  // Leaving the oversold zone
+    longEntryPrice := close * (1 - longEntryPercentage / 100)  // Calculate limit price for entry
+    strategy.entry("Long Entry", strategy.long, limit=longEntryPrice)  // Place a limit order
+    barsSinceEntryOrder := 0  // Reset counter for bars after placing the order
+
+// Increase the bar counter if the order has not yet been filled
+if (not na(barsSinceEntryOrder))
+    barsSinceEntryOrder += 1
+
+// Cancel order if it hasn’t been filled within the specified number of bars
+if (not na(barsSinceEntryOrder) and barsSinceEntryOrder >= cancelAfterBars and strategy.position_size == 0)
+    strategy.cancel("Long Entry")
+    barsSinceEntryOrder := na  // Reset bar counter
+
+// Set stop-loss and take-profit for filled positions
+if (strategy.position_size > 0)
+    stopLossPrice = longEntryPrice * (1 - stopLossPercentage / 100)  // Calculate stop-loss level
+    takeProfitPrice = longEntryPrice * (1 + exitGainPercentage / 100)  // Calculate take-profit level
+    strategy.exit("Exit Long", from_entry="Long Entry", limit=takeProfitPrice, stop=stopLossPrice)
+
+// Visualize oversold and overbought zones
+bgcolor(mfi < mfiOS ? color.new(color.green, 90) : na)  // Background in oversold zone
+plot(mfi, title="MFI", color=color.blue)  // MFI plot
+hline(mfiOS, "Oversold Level", color=color.red)  // Oversold level line
+
+
+
+
+
+
+
+
+
+
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/474060
+
+> Last Modified
+
+2024-12-05 16:40:47

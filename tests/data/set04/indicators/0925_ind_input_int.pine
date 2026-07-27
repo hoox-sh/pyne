@@ -1,0 +1,12 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block113
+// content_hash: fe53847d0fae02e6
+// collected: 2026-07-27
+indicator("input.int", overlay=true)
+i_len1 = input.int(10, "Length 1", minval=5, maxval=21, step=1)
+plot(ta.sma(close, i_len1))
+
+i_len2 = input.int(10, "Length 2", options=[5, 10, 21])
+plot(ta.sma(close, i_len2))

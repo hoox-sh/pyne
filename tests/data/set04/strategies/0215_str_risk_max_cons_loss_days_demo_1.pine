@@ -1,0 +1,9 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block252
+// content_hash: be3c797ba74a3233
+// collected: 2026-07-27
+strategy("risk.max_cons_loss_days Demo 1")
+strategy.risk.max_cons_loss_days(3) // No orders will be placed after 3 days, if each day is with loss.
+plot(strategy.position_size)

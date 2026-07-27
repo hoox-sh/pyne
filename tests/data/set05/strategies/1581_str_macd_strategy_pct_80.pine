@@ -1,0 +1,77 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/MACD基于均线的动态趋势判断策略MACD-Moving-Average-Combination-Cross-Period-Dynamic-Trend-Strategy.md
+// content_hash: d662baa5d1ddf161
+// collected: 2026-07-27
+strategy('MACD Strategy %80', overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=50)
+
+fastLength = input.int(title='MACD Fast Length', defval=12, minval=1)
+slowLength = input.int(title='MACD Slow Length', defval=26, minval=1)
+signalLength = input.int(title='MACD Signal Length', defval=9, minval=1)
+crossscore = input(title='Cross (buy/sell) Score', defval=10.)
+indiside = input(title='indicator Direction Score', defval=8)
+histside = input(title='Histogram Direction Score', defval=2)
+shotsl = input(title='Show Stop Loss Line', defval=false)
+Mult = input.float(title='Stop Loss Factor', defval=1.2, minval=0.1, maxval=100)
+Period = input.int(title='Stop Loss Period', defval=10, minval=1, maxval=100)
+lookaheadi = input(title='Lookahead', defval=true)
+
+HTF = timeframe.period == '1' ? '5' : timeframe.period == '3' ? '15' : timeframe.period == '5' ? '15' : timeframe.period == '15' ? '60' : timeframe.period == '30' ? '60' : timeframe.period == '45' ? '60' : timeframe.period == '60' ? '240' : timeframe.period == '120' ? '240' : timeframe.period == '180' ? '240' : timeframe.period == '240' ? 'D' : timeframe.period == 'D' ? 'W' : 'W'
+
+calc = timeframe.period == '1' ? 5 : timeframe.period == '3' ? 5 : timeframe.period == '5' ? 3 : timeframe.period == '15' ? 4 : timeframe.period == '30' ? 4 : timeframe.period == '45' ? 4 : timeframe.period == '60' ? 4 : timeframe.period == '120' ? 3 : timeframe.period == '180' ? 3 : timeframe.period == '240' ? 6 : timeframe.period == 'D' ? 5 : 1
+
+count() =>
+    indi = ta.ema(close, fastLength) - ta.ema(close, slowLength)
+    signal = ta.ema(indi, signalLength)
+    Anlyse = 0.0
+    // direction of indi and histogram
+    hist = indi - signal
+    Anlyse := indi > indi[1] ? hist > hist[1] ? indiside + histside : hist == hist[1] ? indiside : indiside - histside : 0
+    Anlyse += (indi < indi[1] ? hist < hist[1] ? -(indiside + histside) : hist == hist[1] ? -indiside : -(indiside - histside) : 0)
+    Anlyse += (indi == indi[1] ? hist > hist[1] ? histside : hist < hist[1] ? -histside : 0 : 0)
+    // cross now earlier ?
+    countcross = indi >= signal and indi[1] < signal[1] ? crossscore : indi <= signal and indi[1] > signal[1] ? -crossscore : 0.
+    countcross += nz(countcross[1]) * 0.6
+    Anlyse += countcross
+    nz(Anlyse)
+
+Anlys = count()
+AnlysHfrm = lookaheadi ? request.security(syminfo.tickerid, HTF, count(), lookahead=barmerge.lookahead_on) : request.security(syminfo.tickerid, HTF, count(), lookahead=barmerge.lookahead_off)
+Result = (AnlysHfrm * calc + Anlys) / (calc + 1)
+
+longCondition = ta.change(Result) != 0 and Result > 0
+if longCondition
+    strategy.entry('MACD Long', strategy.long,alert_message = 'MACD Long')
+
+shortCondition = ta.change(Result) != 0 and Result < 0
+if shortCondition
+    strategy.entry('MACD Short', strategy.short,alert_message = 'MACD Short')
+
+countstop(pos) =>
+    Upt = hl2 - Mult * ta.atr(Period)
+    Dnt = hl2 + Mult * ta.atr(Period)
+    TUp = 0.
+    TDown = 0.
+    TUp := close[1] > TUp[1] ? math.max(Upt, TUp[1]) : Upt
+    TDown := close[1] < TDown[1] ? math.min(Dnt, TDown[1]) : Dnt
+    tslmtf = pos == 1 ? TUp : TDown
+    tslmtf
+
+pos = longCondition ? 1 : -1
+stline = 0.
+countstop__1 = countstop(pos)
+security_1 = request.security(syminfo.tickerid, HTF, countstop__1)
+stline := ta.change(time(HTF)) != 0 or longCondition or shortCondition ? security_1 : nz(stline[1])
+plot(stline, color=shotsl ? color.rgb(148, 169, 18) : na, style=plot.style_line, linewidth=2, title='Stop Loss')
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/442080
+
+> Last Modified
+
+2024-02-19 10:48:11

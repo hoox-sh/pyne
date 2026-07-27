@@ -1,0 +1,9 @@
+//@version=6
+// set05 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block61
+// content_hash: da9e43f506dad0aa
+// collected: 2026-07-27
+indicator("array.last example")
+arr = array.new_int(3, 10)
+plot(array.last(arr))

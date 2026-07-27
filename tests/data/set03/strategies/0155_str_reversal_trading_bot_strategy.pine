@@ -1,0 +1,84 @@
+//@version=6
+// set03 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多指标联动反转点捕捉交易策略-Multi-Indicator-Reversal-Point-Capture-Trading-Strategy.md
+// content_hash: e1366a1ac71403fd
+// collected: 2026-07-27
+strategy("Reversal Trading Bot Strategy[BullByte]", overlay=true, margin_long=100, margin_short=100)
+
+// Inputs
+rsiLength = input(8)
+bbLength = input(20)
+adxThreshold = input(20)
+
+// Toggle Filters
+volumeFilter = input.bool(false, "Volume Filter (2x SMA)")
+adxAlignmentFilter = input.bool(false, "ADX Trend Alignment")
+bbConfirmationFilter = input.bool(false, "BB Close Confirmation")
+rsiDivergenceExit = input.bool(false, "RSI Divergence Exit")
+bbMeanReversionExit = input.bool(false, "BB Mean Reversion Exit")
+riskRewardFilter = input.bool(false, "Risk/Reward 2:1")
+candlePatternFilter = input.bool(false, "Candle Movement(2%)")
+adxTrendExit = input.bool(false, "ADX Trend Exit")
+
+// Indicators
+rsi = ta.rsi(close, rsiLength)
+[diPlus, diMinus, adx] = ta.dmi(14, 14)
+[upperBB, middleBB, lowerBB] = ta.bb(close, bbLength, 2)
+atr = ta.atr(14)
+volumeSma = ta.sma(volume, 20)
+
+// Bullish Conditions
+bullishDiv = ta.lowest(close, 5) < ta.lowest(close, 5)[1] and rsi > ta.lowest(rsi, 5)[1]
+bullishBB = bbConfirmationFilter ? close > upperBB : close > lowerBB
+volumeConditionBullish = volumeFilter ? volume >= 2 * volumeSma : volume > volumeSma
+adxBullish = adxAlignmentFilter ? diPlus > diMinus : true
+bullishCandle = candlePatternFilter ? (close - open)/open >= 0.02 : true
+riskRewardBullish = riskRewardFilter ? (upperBB - close) >= 2 * atr : true
+
+bullishEntry = bullishDiv and bullishBB and volumeConditionBullish and adx > adxThreshold and adxBullish and bullishCandle and riskRewardBullish
+
+// Bearish Conditions
+bearishDiv = ta.highest(close, 5) > ta.highest(close, 5)[1] and rsi < ta.highest(rsi, 5)[1]
+bearishBB = bbConfirmationFilter ? close < lowerBB : close < upperBB
+volumeConditionBearish = volumeFilter ? volume >= 2 * volumeSma : volume > volumeSma
+adxBearish = adxAlignmentFilter ? diMinus > diPlus : true
+bearishCandle = candlePatternFilter ? (open - close)/close >= 0.02 : true
+riskRewardBearish = riskRewardFilter ? (close - lowerBB) >= 2 * atr : true
+
+bearishEntry = bearishDiv and bearishBB and volumeConditionBearish and adx > adxThreshold and adxBearish and bearishCandle and riskRewardBearish
+
+// Execute Trades
+if (bullishEntry)
+    strategy.entry("Long", strategy.long)
+    strategy.exit("Exit Long", "Long", stop=low - atr, trail_points=close*0.005, trail_offset=close*0.005)
+
+if (bearishEntry)
+    strategy.entry("Short", strategy.short)
+    strategy.exit("Exit Short", "Short", stop=high + atr, trail_points=close*0.005, trail_offset=close*0.005)
+
+// Exit Conditions
+if (strategy.position_size > 0)
+    if (rsiDivergenceExit and rsi < rsi[1] and close > close[1])
+        strategy.close("Long", "RSI Div Exit")
+    if (bbMeanReversionExit and close < middleBB)
+        strategy.close("Long", "BB Mean Rev Exit")
+    if (adxTrendExit and adx < adxThreshold and diPlus < diMinus)
+        strategy.close("Long", "ADX Trend Exit")
+
+if (strategy.position_size < 0)
+    if (rsiDivergenceExit and rsi > rsi[1] and close < close[1])
+        strategy.close("Short", "RSI Div Exit")
+    if (bbMeanReversionExit and close > middleBB)
+        strategy.close("Short", "BB Mean Rev Exit")
+    if (adxTrendExit and adx < adxThreshold and diMinus < diPlus)
+        strategy.close("Short", "ADX Trend Exit")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/489652
+
+> Last Modified
+
+2025-04-07 13:32:55

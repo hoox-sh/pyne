@@ -1,0 +1,55 @@
+//@version=3
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/鹰眼短线交易策略Hawk-Eye-Short-term-Trading-Strategy.md
+// content_hash: 957167894a2d82cf
+// collected: 2026-07-27
+strategy("Hawk 1H Strategy", overlay=true)
+
+fastLength = input(21)
+slowlength = input(55)
+MACDLength = input(8)
+smallEMA = ema(close, fastLength)
+largeEMA = ema(close, slowlength)
+MACD = smallEMA - largeEMA
+aMACD = ema(MACD, MACDLength)
+delta = MACD - aMACD
+
+smoothK = input(5, minval=1)
+smoothD = input(5, minval=1)
+lengthRSI = input(8, minval=1)
+lengthStoch = input(21, minval=1)
+src = input(close, title="RSI Source")
+vFast = stoch(close, high, low, 8)
+vSlow = sma(vFast, 5)
+rsi1 = rsi(src, lengthRSI)
+k = sma(stoch(rsi1, rsi1, rsi1, lengthStoch), smoothK)
+d = sma(k, smoothD)
+
+fiftyVWMA = vwma(close, 55)
+twohunVWMA = vwma(close,144)
+
+
+if (MACD > MACD[1]) and (MACD[1] > MACD[2]) and (fiftyVWMA < twohunVWMA)
+    if (vFast > vSlow) and (k < 30) //and (vSlow < 40)
+        strategy.entry("MacdLE", strategy.long, comment='Buy')
+        
+if (MACD < MACD[1]) and (MACD[1] < MACD[2]) and (fiftyVWMA > twohunVWMA)
+    if (vFast < vSlow) and (k > 70)//and (vSlow > 60)//and (rsi1 > 60)
+        strategy.entry("MacdSE", strategy.short, comment='Sell')
+
+
+    
+
+
+
+//plot(strategy.equity, title="equity", color=red, linewidth=2, style=areabr)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/427574
+
+> Last Modified
+
+2023-09-22 12:09:01

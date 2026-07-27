@@ -1,0 +1,11 @@
+//@version=4
+// set05 corpus entry
+// source_repo: pine-utils
+// source_path: pine-utils/strategies/templates/basic_strategy.pine
+// content_hash: a982d7c5dc111938
+// collected: 2026-07-27
+strategy("Basic Strategy Boilerplate",
+	 shorttitle="Strategy Boilerplate",
+	 overlay=true
+	 )
+

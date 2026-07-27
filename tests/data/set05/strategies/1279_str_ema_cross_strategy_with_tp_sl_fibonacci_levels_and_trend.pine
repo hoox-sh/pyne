@@ -1,0 +1,89 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多指标交叉趋势跟踪策略结合斐波那契回调及止盈止损优化系统-Multi-Indicator-Crossover-Trend-Following-Strategy-with-Fibonacci-Retracement-and-Stop-Loss-Take-Profit-Optimization-System.md
+// content_hash: 0c19947eb974c38b
+// collected: 2026-07-27
+strategy("EMA Cross Strategy with TP, SL, Fibonacci Levels, and Trend", overlay=true)
+
+// Input for stop loss and take profit percentages
+stopLossPercentage = input.int(2, title="Stop Loss (%)") // Stop loss percentage
+takeProfitPercentage = input.int(4, title="Take Profit (%)") // Take profit percentage
+
+// EMA Length Inputs
+fastEMALength = input.int(9, title="Fast EMA Length")
+slowEMALength = input.int(21, title="Slow EMA Length")
+
+// Compute EMAs
+fastEMA = ta.ema(close, fastEMALength)
+slowEMA = ta.ema(close, slowEMALength)
+
+// Entry conditions for EMA crossover
+longCondition = ta.crossover(fastEMA, slowEMA)  // EMA 9 crosses above EMA 21
+shortCondition = ta.crossunder(fastEMA, slowEMA) // EMA 9 crosses below EMA 21
+
+// Plot EMAs
+plot(fastEMA, color=color.blue, title="Fast EMA (9)")
+plot(slowEMA, color=color.red, title="Slow EMA (21)")
+
+// Fibonacci Retracement Levels
+lookback = input.int(100, title="Lookback Period for Fibonacci Levels")
+highLevel = ta.highest(high, lookback)
+lowLevel = ta.lowest(low, lookback)
+
+fib236 = lowLevel + (highLevel - lowLevel) * 0.236
+fib382 = lowLevel + (highLevel - lowLevel) * 0.382
+fib50 = lowLevel + (highLevel - lowLevel) * 0.5
+fib618 = lowLevel + (highLevel - lowLevel) * 0.618
+
+// Display Fibonacci levels (Left of the candle near price)
+label.new(bar_index, fib236, text="Fib 23.6%: " + str.tostring(fib236, "#.##"), style=label.style_label_left, color=color.purple, textcolor=color.white, size=size.small)
+label.new(bar_index, fib382, text="Fib 38.2%: " + str.tostring(fib382, "#.##"), style=label.style_label_left, color=color.blue, textcolor=color.white, size=size.small)
+label.new(bar_index, fib50, text="Fib 50%: " + str.tostring(fib50, "#.##"), style=label.style_label_left, color=color.green, textcolor=color.white, size=size.small)
+label.new(bar_index, fib618, text="Fib 61.8%: " + str.tostring(fib618, "#.##"), style=label.style_label_left, color=color.red, textcolor=color.white, size=size.small)
+
+// Trend condition: Price uptrend or downtrend
+trendCondition = close > fastEMA ? "Uptrending" : close < fastEMA ? "Downtrending" : "Neutral"
+
+// Display Trend Status (Left of candle near price)
+var label trendLabel = na
+if (not na(trendLabel))
+    label.delete(trendLabel)
+trendLabel := label.new(bar_index, close, text="Trend: " + trendCondition, style=label.style_label_left, color=color.blue, textcolor=color.white, size=size.small)
+
+// Buy and Sell orders with Stop Loss and Take Profit
+if (longCondition)
+    stopLossLevel = close * (1 - stopLossPercentage / 100)
+    takeProfitLevel = close * (1 + takeProfitPercentage / 100)
+    strategy.entry("BUY", strategy.long)
+    strategy.exit("Sell", "BUY", stop=stopLossLevel, limit=takeProfitLevel)
+    
+    // Display TP, SL, and Buy label (Left of candle near price)
+    label.new(bar_index, takeProfitLevel, text="TP\n" + str.tostring(takeProfitLevel, "#.##"), style=label.style_label_left, color=color.green, textcolor=color.white, size=size.small)
+    label.new(bar_index, stopLossLevel, text="SL\n" + str.tostring(stopLossLevel, "#.##"), style=label.style_label_left, color=color.red, textcolor=color.white, size=size.small)
+    label.new(bar_index, close, text="BUY\n" + str.tostring(close, "#.##"), style=label.style_label_left, color=color.blue, textcolor=color.white, size=size.small)
+
+if (shortCondition)
+    stopLossLevel = close * (1 + stopLossPercentage / 100)
+    takeProfitLevel = close * (1 - takeProfitPercentage / 100)
+    strategy.entry("SELL", strategy.short)
+    strategy.exit("Cover", "SELL", stop=stopLossLevel, limit=takeProfitLevel)
+    
+    // Display TP, SL, and Sell label (Left of candle near price)
+    label.new(bar_index, takeProfitLevel, text="TP\n" + str.tostring(takeProfitLevel, "#.##"), style=label.style_label_left, color=color.green, textcolor=color.white, size=size.small)
+    label.new(bar_index, stopLossLevel, text="SL\n" + str.tostring(stopLossLevel, "#.##"), style=label.style_label_left, color=color.red, textcolor=color.white, size=size.small)
+    label.new(bar_index, close, text="SELL\n" + str.tostring(close, "#.##"), style=label.style_label_left, color=color.orange, textcolor=color.white, size=size.small)
+
+// Plot Buy/Sell Signals
+plotshape(series=longCondition, title="BUY Signal", location=location.belowbar, color=color.green, style=shape.labelup, text="BUY")
+plotshape(series=shortCondition, title="SELL Signal", location=location.abovebar, color=color.red, style=shape.labeldown, text="SELL")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/482889
+
+> Last Modified
+
+2025-02-20 16:43:42

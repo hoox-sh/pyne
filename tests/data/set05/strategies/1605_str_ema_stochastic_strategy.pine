@@ -1,0 +1,76 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双均线随机指标趋势跟踪交易策略-Dual-EMA-Stochastic-Trend-Following-Trading-Strategy.md
+// content_hash: 4b014e2e59b43086
+// collected: 2026-07-27
+//indicator("My script")
+//@version=5
+strategy("EMA-Stochastic Strategy", overlay=true)
+
+// EMA settings
+ema50 = ta.ema(close, 50)
+ema150 = ta.ema(close, 150)
+
+// Stochastic settings
+kLength = 14
+dLength = 3
+smoothK = 3
+stochK = ta.sma(ta.stoch(close, high, low, kLength), smoothK)
+stochD = ta.sma(stochK, dLength)
+
+// Parameters for Stop Loss and Take Profit
+var float stopLossLevel = na
+var float takeProfitLevel = na
+
+// Buy condition
+buySignal = (close > ema50 and close > ema150) and (ema50 > ema150) and (stochK < 30 and ta.crossover(stochK, stochD))
+
+// Sell condition
+sellSignal = (close < ema50 and close < ema150) and (ema50 < ema150) and (stochK > 70 and ta.crossunder(stochK, stochD))
+
+// Previous low for Stop Loss for Buy
+lowBeforeBuy = ta.lowest(low, 5)
+
+// Previous high for Stop Loss for Sell
+highBeforeSell = ta.highest(high, 5)
+
+// Entry and exit logic
+if (buySignal)
+    stopLossLevel := lowBeforeBuy
+    risk = close - stopLossLevel
+    takeProfitLevel := close + 2 * risk
+    strategy.entry("Buy", strategy.long)
+    strategy.exit("Take Profit/Stop Loss", "Buy", stop=stopLossLevel, limit=takeProfitLevel)
+
+if (sellSignal)
+    stopLossLevel := highBeforeSell
+    risk = stopLossLevel - close
+    takeProfitLevel := close - 2 * risk
+    strategy.entry("Sell", strategy.short)
+    strategy.exit("Take Profit/Stop Loss", "Sell", stop=stopLossLevel, limit=takeProfitLevel)
+
+// Plotting EMAs
+plot(ema50, color=color.blue, title="50 EMA")
+plot(ema150, color=color.red, title="150 EMA")
+
+// Visualize Buy and Sell signals
+plotshape(series=buySignal, title="Buy Signal", location=location.belowbar, color=color.green, style=shape.labelup, text="BUY")
+plotshape(series=sellSignal, title="Sell Signal", location=location.abovebar, color=color.red, style=shape.labeldown, text="SELL")
+
+// Visualize Stop Loss and Take Profit levels
+plot(stopLossLevel, color=color.red, style=plot.style_line, linewidth=2, title="Stop Loss")
+plot(takeProfitLevel, color=color.green, style=plot.style_line, linewidth=2, title="Take Profit")
+
+
+plot(close)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/474964
+
+> Last Modified
+
+2024-12-13 10:48:46

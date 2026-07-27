@@ -1,0 +1,170 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/平滑移动平均止损策略Smooth-Moving-Average-Stop-Loss-Strategy.md
+// content_hash: 0e59194acf525e3f
+// collected: 2026-07-27
+//
+//  作品: [LunaOwl] 超級趨勢2
+//
+////////////////////////////////
+//     ~~!!*(๑╹◡╹๑) **       //
+//  製作: @LunaOwl 彭彭       //
+//  第1版: 2019年05月29日     //
+//  第2版: 2019年06月12日     //
+//  微調:  2019年10月26日     //
+//  第3版: 2020年02月12日     //
+////////////////////////////////
+//
+//
+//超級趨勢的缺點：
+//--1.止損距離可能相當大, 請自己調整週期
+//--2.市場沒有存在明顯趨勢的時候表現不佳
+//
+//超級趨勢的優點：
+//--1.具有可以參考的移動止損線, 適合新手
+//--2.市場存在明顯趨勢的時候表現會很不錯
+//
+//使用須知：
+//--1.每筆交易都需要下移動止損單, 絕對要下
+//--2.中途被針掃出場時不要急著再進去
+//--3.當錯失機會不要追高追低, 等待下次機會
+//--4.實質槓桿比率不要太高, 不要輕忽市場變化
+//--5.訂單進出場都建議分成五份、十份區間掛單
+//--6.不要妄圖賺到市場上的每一分錢
+//
+//稍做更新：
+//--1.平均真實區間利用了遞迴均線減少雜訊
+//--2.針對高波動率的小幣市場，中期順勢策略應該以減少雜訊為重點
+//--3.研究國外交易策略後，它們常用平滑因子過濾隨機走勢
+//--4.績效上和其它平均法比較並沒有突出，但優點是參數變動穩定性
+//--5.我選擇四小時線回測小幣市場，並且選擇經歷過牛熊市的以太坊
+
+//==設定研究==//
+
+//study(title = "[LunaOwl] 超級趨勢2", shorttitle = "[LunaOwl] 超級趨勢2", overlay = true)
+
+//==設定策略==//
+
+strategy(
+     title               = "[LunaOwl] 超級趨勢2",
+     shorttitle          = "[LunaOwl] 超級趨勢2",
+     format              = format.inherit,
+     overlay             = true,
+     calc_on_order_fills = true,
+     calc_on_every_tick  = false,
+     pyramiding          =  0,      
+     currency            = currency.USD,    
+     initial_capital     = 10000,
+     slippage            = 10,
+     default_qty_value   = 100,
+     default_qty_type    = strategy.percent_of_equity,
+     commission_value    = 0.1
+     )
+
+//==設定參數==//
+
+src = input(close, "數據來源")
+
+length = input(
+     title  = "ATR 周期", 
+     type   = input.integer,
+     minval = 1,
+     maxval = 4,
+     defval = 1
+     )
+
+//可以設定的精度為小數點後三位
+
+mult = input(
+     title  = "ATR 乘數", 
+     type   = input.float,
+     minval = 1.000, 
+     maxval = 9.000,
+     defval = 2.618,
+     step   = 0.001
+     )
+     
+atr = mult * atr(length) 
+atr_rma = rma(atr, 14)  //平均真實區間添加遞回均線
+
+//==算法邏輯==//
+
+LongStop      = hl2 - atr_rma
+LongStopPrev  = nz(LongStop[1], LongStop)
+LongStop     := close[1] > LongStopPrev ? max(LongStop, LongStopPrev) : LongStop
+ 
+ShortStop     = hl2 + atr_rma
+ShortStopPrev = nz(ShortStop[1], ShortStop)
+ShortStop    := close[1] < ShortStopPrev ? min(ShortStop, ShortStopPrev) : ShortStop
+
+dir  = 1
+dir := nz(dir[1], dir)
+dir := dir == -1 and close > ShortStopPrev ? 1 :
+       dir ==  1 and close < LongStopPrev ? -1 : 
+       dir
+
+LongStop_data  = dir == 1 ? LongStop : na
+ShortStop_data = dir == 1 ? na : ShortStop
+
+LongMark  = dir ==  1 and dir[1] == -1 ? LongStop : na
+ShortMark = dir == -1 and dir[1] == 1 ? ShortStop : na
+
+LongColor  = #0D47A1  //普魯士藍
+ShortColor = #B71C1C  //酒紅色
+
+//==設置止損線==//
+
+plot(LongStop_data,
+     title     = "移動止損線",
+     style     = plot.style_linebr,
+     color     = LongColor,
+     linewidth = 1
+     )
+     
+plot(ShortStop_data,
+     title     = "移動止損線",
+     style     = plot.style_linebr,
+     color     = ShortColor,
+     linewidth = 1 
+     )
+
+//==設定K線顏色==//
+
+barcolor(dir == 1 ? LongColor : ShortColor, title = "K線顏色")
+
+//==設定快訊通知==//
+
+alertcondition(LongMark,
+     title   = "多頭標記", 
+     message = "多頭標記: 行情可能出現潛在變化，請注意個人的對沖或空頭部位，留意風險。")
+     
+alertcondition(ShortMark,
+     title   = "空頭標記", 
+     message = "空頭標記: 行情可能出現潛在變化，請注意個人的現貨或多單持倉狀況，留意風險。")
+
+// - 設定日期範圍 - //
+
+test_Year   = input(2017, title = "設定範圍：年", minval = 1, maxval = 2140) 
+test_Month  = input(  11, title = "＿＿＿＿＿月", minval = 1, maxval =   12)
+test_Day    = input(  01, title = "＿＿＿＿＿日", minval = 1, maxval =   31)
+test_Period = timestamp( test_Year, test_Month, test_Day, 0, 0)
+
+// - 買賣條件 - //
+
+Long = src > LongStop_data
+strategy.entry("多頭進場", strategy.long, when = Long)
+strategy.close("多頭出場", when = Long) 
+
+Short = src < ShortStop_data
+strategy.entry("空頭進場", strategy.short, when = Short)
+strategy.close("空頭回補", when = Short) 
+```
+
+> Detail
+
+https://www.fmz.com/strategy/440534
+
+> Last Modified
+
+2024-01-31 14:25:29

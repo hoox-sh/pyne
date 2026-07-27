@@ -1,0 +1,47 @@
+//@version=2
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双平滑随机指数布雷瑟策略Dual-Smoothed-Stochastic-Bressert-Strategy.md
+// content_hash: c5cf2644ca64e4a3
+// collected: 2026-07-27
+////////////////////////////////////////////////////////////
+//  Copyright by HPotter v1.0 05/04/2017
+// Double Smoothed Stochastics (DSS) is designed by William Blaw. 
+// It attempts to combine moving average methods with oscillator principles. 
+//
+// You can change long to short in the Input Settings
+// Please, use it only for learning or paper trading. Do not for real trading.
+////////////////////////////////////////////////////////////
+strategy(title="DSS Bressert (Double Smoothed Stochastic)", shorttitle="DSS Bressert")
+PDS = input(10, minval=1)
+EMAlen = input(9, minval=1)
+TriggerLen = input(5, minval=1)
+Overbought = input(80, minval=1)
+Oversold = input(20, minval=1)
+reverse = input(false, title="Trade reverse")
+hline(Overbought, color=green, linestyle=line)
+hline(Oversold, color=red, linestyle=line)
+xPreCalc = ema(stoch(close, high, low, PDS), EMAlen)
+xDSS = ema(stoch(xPreCalc, xPreCalc, xPreCalc, PDS), EMAlen)
+//xDSS = stoch(xPreCalc, xPreCalc, xPreCalc, PDS)
+xTrigger = ema(xDSS, TriggerLen)
+pos = iff(xTrigger < xDSS and xTrigger < Oversold, -1,
+	     iff(xTrigger > xDSS and xTrigger > Overbought, 1, nz(pos[1], 0))) 
+possig = iff(reverse and pos == 1, -1,
+          iff(reverse and pos == -1, 1, pos))	   
+if (possig == 1) 
+    strategy.entry("Long", strategy.long)
+if (possig == -1)
+    strategy.entry("Short", strategy.short)	   	    
+barcolor(possig == -1 ? red: possig == 1 ? green : blue )
+plot(xDSS, color=blue, title="DSS")
+plot(xTrigger, color=red, title="Trigger")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/441102
+
+> Last Modified
+
+2024-02-05 15:57:37

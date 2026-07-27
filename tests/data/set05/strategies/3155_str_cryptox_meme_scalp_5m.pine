@@ -1,0 +1,248 @@
+//@version=5
+// set05 corpus entry
+// source_repo: dexcextrade-TradingView-PineScripts
+// source_path: dexcextrade-TradingView-PineScripts/5M meme scalp 90% winrate
+// content_hash: eb1db62097042995
+// collected: 2026-07-27
+strategy("cryptox meme scalp 5m",
+     overlay=true,
+     pyramiding=0,
+     initial_capital=10000,
+     commission_type=strategy.commission.percent,
+     commission_value=0.05,
+     default_qty_type=strategy.percent_of_equity,
+     default_qty_value=100)
+
+// =====================================================
+// SETTINGS (OPTIMIZED FOR WARD / MEMECOINS)
+// =====================================================
+
+// EMA
+fastEMA = input.int(7, "Fast EMA")
+slowEMA = input.int(21, "Slow EMA")
+
+// RSI
+useRSI = input.bool(false, "Use RSI Filter")
+rsiLen = input.int(14, "RSI Length")
+rsiLong = input.int(52, "RSI Long")
+rsiShort = input.int(48, "RSI Short")
+
+// VOLUME
+useVolume = input.bool(true, "Use Volume Filter")
+volLen = input.int(20, "Volume SMA")
+volMultiplier = input.float(1.4, "Volume Multiplier")
+
+// BREAKOUT
+breakoutLen = input.int(3, "Breakout Length")
+
+// ATR
+atrLen = input.int(14, "ATR Length")
+
+// TAKE PROFIT / STOP LOSS
+takeProfit = input.float(12.0, "Take Profit %")
+stopLoss = input.float(3.0, "Stop Loss %")
+
+// TRAILING
+useTrailing = input.bool(true, "Use Trailing")
+trailATR = input.float(1.8, "Trailing ATR")
+
+// =====================================================
+// INDICATORS
+// =====================================================
+
+emaFast = ta.ema(close, fastEMA)
+emaSlow = ta.ema(close, slowEMA)
+
+rsi = ta.rsi(close, rsiLen)
+
+avgVol = ta.sma(volume, volLen)
+
+atr = ta.atr(atrLen)
+
+// =====================================================
+// FILTERS
+// =====================================================
+
+// TREND
+bullTrend = emaFast > emaSlow
+bearTrend = emaFast < emaSlow
+
+// VOLUME FILTER
+volFilter =
+     not useVolume
+     ? true
+     : volume > avgVol * volMultiplier
+
+// RSI FILTER
+rsiBull =
+     not useRSI
+     ? true
+     : rsi > rsiLong
+
+rsiBear =
+     not useRSI
+     ? true
+     : rsi < rsiShort
+
+// =====================================================
+// BREAKOUTS
+// =====================================================
+
+highestBreak = ta.highest(high, breakoutLen)[1]
+lowestBreak = ta.lowest(low, breakoutLen)[1]
+
+bullBreakout =
+     close > highestBreak and
+     close > open
+
+bearBreakout =
+     close < lowestBreak and
+     close < open
+
+// =====================================================
+// VOLATILITY STRENGTH
+// =====================================================
+
+bullStrength =
+     (close - low) > atr * 0.15
+
+bearStrength =
+     (high - close) > atr * 0.15
+
+// =====================================================
+// FINAL SIGNALS
+// =====================================================
+
+longSignal =
+     bullTrend and
+     bullBreakout and
+     bullStrength and
+     volFilter and
+     rsiBull
+
+shortSignal =
+     bearTrend and
+     bearBreakout and
+     bearStrength and
+     volFilter and
+     rsiBear
+
+// =====================================================
+// ENTRIES
+// =====================================================
+
+if longSignal
+    strategy.entry("LONG", strategy.long)
+
+if shortSignal
+    strategy.entry("SHORT", strategy.short)
+
+// =====================================================
+// TAKE PROFIT / STOP LOSS
+// =====================================================
+
+// LONG
+longTP =
+     strategy.position_avg_price *
+     (1 + takeProfit / 100)
+
+longSL =
+     strategy.position_avg_price *
+     (1 - stopLoss / 100)
+
+// SHORT
+shortTP =
+     strategy.position_avg_price *
+     (1 - takeProfit / 100)
+
+shortSL =
+     strategy.position_avg_price *
+     (1 + stopLoss / 100)
+
+// =====================================================
+// TRAILING
+// =====================================================
+
+trailOffset = atr * trailATR
+
+// =====================================================
+// EXITS
+// =====================================================
+
+if useTrailing
+
+    strategy.exit(
+         "LONG EXIT",
+         from_entry="LONG",
+         limit=longTP,
+         stop=longSL,
+         trail_offset=trailOffset)
+
+    strategy.exit(
+         "SHORT EXIT",
+         from_entry="SHORT",
+         limit=shortTP,
+         stop=shortSL,
+         trail_offset=trailOffset)
+
+else
+
+    strategy.exit(
+         "LONG EXIT",
+         from_entry="LONG",
+         limit=longTP,
+         stop=longSL)
+
+    strategy.exit(
+         "SHORT EXIT",
+         from_entry="SHORT",
+         limit=shortTP,
+         stop=shortSL)
+
+// =====================================================
+// VISUALS
+// =====================================================
+
+plot(emaFast, color=color.lime, linewidth=2)
+plot(emaSlow, color=color.orange, linewidth=2)
+
+plotshape(
+     longSignal,
+     title="BUY",
+     location=location.belowbar,
+     style=shape.labelup,
+     color=color.lime,
+     text="BUY",
+     textcolor=color.black)
+
+plotshape(
+     shortSignal,
+     title="SELL",
+     location=location.abovebar,
+     style=shape.labeldown,
+     color=color.red,
+     text="SELL",
+     textcolor=color.white)
+
+// =====================================================
+// BACKGROUND
+// =====================================================
+
+bgcolor(
+     bullTrend
+     ? color.new(color.green, 93)
+     : color.new(color.red, 93))
+
+// =====================================================
+// ALERTS
+// =====================================================
+
+alertcondition(
+     longSignal,
+     title="BUY ALERT",
+     message="WARD MEME SNIPER BUY")
+
+alertcondition(
+     shortSignal,
+     title="SELL ALERT",
+     message="WARD MEME SNIPER SELL")

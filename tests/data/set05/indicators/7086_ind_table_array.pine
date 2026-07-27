@@ -1,0 +1,10 @@
+//@version=6
+// set05 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block75
+// content_hash: 4d3fe64d7405409b
+// collected: 2026-07-27
+indicator("table array")
+tables = array.new_table()
+array.push(tables, table.new(position = position.top_left, rows = 1, columns = 2, bgcolor = color.yellow, border_width=1))
+plot(1)

@@ -1,0 +1,9 @@
+//@version=5
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/v5/concepts/text-and-shapes.md::text-and-shapes.md#block5
+// content_hash: e239a0ad76af5d0f
+// collected: 2026-07-27
+indicator("", "", true)
+longSignal = ta.rising(close, 2) and ta.rising(high, 2) and (na(volume) or ta.rising(volume, 2))
+plotshape(longSignal, "Long", shape.arrowup, location.belowbar)

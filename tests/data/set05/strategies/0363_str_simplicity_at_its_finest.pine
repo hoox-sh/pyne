@@ -1,0 +1,54 @@
+//@version=5
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/DC Breakout Strategy - This is simplicity at its finest..pine
+// content_hash: 805b6f7626af5c22
+// collected: 2026-07-27
+strategy("Simplicity at its finest", overlay=true, margin_long=0, margin_short=0, pyramiding=3)
+// Backtest Range //
+Start = input.time(defval = timestamp("01 Jan 2017 00:00 +0000"), title = "Backtest Start Date", group = "backtest window")
+Finish = input.time(defval = timestamp("01 Jan 2100 00:00 +0000"), title = "Backtest End Date", group = "backtest window")
+// Moving Averages //
+len1 = input.int(8, minval=1, title="Length Fast MA", group="Moving Average Inputs")
+len2 = input.int(32, minval=1, title="Length Slow MA", group="Moving Average Inputs")
+src1 = input(close, title="Source Fast MA")
+src2 = input(close, title="Source Slow MA")
+maFast = input.color(color.new(color.red, 0), title = "Color Fast MA", group = "Moving Average Inputs", inline = "maFast")
+maSlow = input.color(color.new(color.purple, 0), title = "Color Slow MA", group = "Moving Average Inputs", inline = "maSlow")
+fast = ta.sma(src1, len1)
+slow = ta.sma(src2, len2)
+plot(fast, color=maFast, title="Fast MA")
+plot(slow, color=maSlow, title="Slow MA")
+// Donchian Channels //
+Length1 = input.int(title="Length Upper Channel", defval=20, minval=1, group="Donchian Channels Inputs")
+Length2 = input.int(title="Length Lower Channel", defval=20, minval=1, group="Donchian Channels Inputs")
+h1 = ta.highest(high[1], Length1)
+l1 = ta.lowest(low[1], Length2)
+fillColor = input.color(color.new(color.gray, 100), title = "Fill Color", group = "Donchian Channels Inputs")
+upperColor = input.color(color.new(color.white, 0), title = " Color Upper Channel", group = "Donchian Channels Inputs", inline = "upper")
+lowerColor = input.color(color.new(color.white, 0), title = " Color Lower Channel", group = "Donchian Channels Inputs", inline = "lower")
+u = plot(h1, "Upper", color=upperColor)
+l = plot(l1, "Lower", color=upperColor)
+fill(u, l, color=fillColor)
+// ATR and Position Size //
+leverage = input.int(title = "Leverage Used", defval = 1, minval = 1, group = "ATR Position Size Inputs")
+pointvalue = input.int(title = "Point Value/ATR Multipliers from Entry", defval = 4, minval = 1, group = "ATR Position Size Inputs")
+length = input.int(title = "ATR Period", defval = 14, minval = 1, group ="ATR Position Size Inputs")
+risk = input(title = "Risk Per Trade", defval = 0.01, group = "ATR Position Size Inputs")
+atr = ta.atr(length)
+amount = (risk * strategy.initial_capital / (pointvalue * atr * leverage))
+// Buy and Sell Conditions //
+entrycondition1 = ta.crossover(fast, slow)
+entrycondition2 = fast > slow
+sellcondition1 = ta.crossunder(fast, slow)
+sellcondition2 = slow > fast
+// Buy and Sell Signals //
+if (close > h1 and entrycondition2)
+    strategy.entry("long", strategy.long, qty=amount)
+if (sellcondition1 and sellcondition2)
+    strategy.close(id="long")
+if (close < l1 and sellcondition2)
+    strategy.entry("short", strategy.short, qty=amount)
+if (entrycondition1 and entrycondition2)
+    strategy.close(id="short")
+Expand (64 lines)

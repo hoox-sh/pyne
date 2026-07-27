@@ -1,0 +1,19 @@
+// set05 corpus entry
+// source_repo: ricardosantos79-pinescript
+// source_path: ricardosantos79-pinescript/beta/arrays/test-001-double.pinescript
+// content_hash: 3e6d8363a1bc7dee
+// collected: 2026-07-27
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © RicardoSantos
+
+//@version=4
+study("double size every bar")
+length = 5
+var float[] a = array.new_float(length, close)
+_length = array.size(a)
+sum = 0
+for _i = _length-1 to 1
+    array.insert(a, _i, _i)
+
+
+plot(_length)

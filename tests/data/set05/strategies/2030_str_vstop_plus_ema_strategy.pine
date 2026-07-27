@@ -1,0 +1,65 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于波动率止损的均线趋势跟踪交易策略-Volatility-Stop-Based-EMA-Trend-Following-Trading-Strategy.md
+// content_hash: 87099a989f3e3115
+// collected: 2026-07-27
+strategy("VStop + EMA Strategy", overlay=true)
+
+// VStop Parameters
+length = input.int(20, "VStop Length", minval=2)
+multiplier = input.float(2.0, "VStop Multiplier", minval=0.25, step=0.25)
+
+// EMA Parameters
+emaLength = input.int(30, "EMA Length", minval=1)
+
+// VStop Calculation
+volStop(src, atrlen, atrfactor) =>
+    if not na(src)
+        var max     = src
+        var min     = src
+        var uptrend = true
+        var float stop    = na
+        atrM        = nz(ta.atr(atrlen) * atrfactor, ta.tr)
+        max         := math.max(max, src)
+        min         := math.min(min, src)
+        stop        := nz(uptrend ? math.max(stop, max - atrM) : math.min(stop, min + atrM), src)
+        uptrend     := src - stop >= 0.0
+        if uptrend != uptrend[1] and not barstate.isfirst
+            max    := src
+            min    := src
+            stop   := uptrend ? max - atrM : min + atrM
+        [stop, uptrend]
+
+// Calculate VStop
+[vStop, isUptrend] = volStop(close, length, multiplier)
+
+// Plot VStop
+plot(vStop, "Volatility Stop", style=plot.style_cross, color=isUptrend ? color.teal : color.red)
+
+// Calculate 30 EMA
+emaValue = ta.ema(close, emaLength)
+plot(emaValue, "EMA", color=color.blue)
+
+// Entry and Exit Conditions
+longCondition = isUptrend and close > emaValue
+exitCondition = close <= emaValue
+
+// Strategy Execution
+if longCondition and not strategy.opentrades
+    strategy.entry("Long", strategy.long)
+if exitCondition and strategy.opentrades
+    strategy.close("Long")
+
+// Display Strategy Info
+bgcolor(isUptrend ? color.new(color.teal, 90) : color.new(color.red, 90), title="Trend Background")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/478708
+
+> Last Modified
+
+2025-01-17 15:06:09

@@ -1,0 +1,9 @@
+//@version=6
+// set05 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block307
+// content_hash: 61134f68d774ca9e
+// collected: 2026-07-27
+indicator("Time", overlay=true)
+t1 = time_close(timeframe.period, "1200-1300", "America/New_York")
+bgcolor(not na(t1) ? color.new(color.blue, 90) : na)

@@ -1,0 +1,76 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/斐波那契黄金分割回撤买入策略-Fibonacci-Golden-Ratio-Retracement-Buying-Strategy.md
+// content_hash: 5fee9c2890d008c1
+// collected: 2026-07-27
+strategy(title='Fibonacci BFSP', overlay=true)
+
+// Define Fibonacci retracement levels
+fib0 = input(0, title="Fibonacci 0% Level")
+fib1 = input(1, title="Fibonacci 1% Level")
+fib23 = input(0.236, title="Fibonacci 23.6% Level")
+fib38 = input(0.382, title="Fibonacci 38.2% Level")
+fib50 = input(0.5, title="Fibonacci 50% Level")
+fib61 = input(0.618, title="Fibonacci 61.8% Level")
+fib78 = input(0.786, title="Fibonacci 78.6% Level")
+Price = input(50, title="Price")
+
+// Calculate Fibonacci levels
+priceHigh = ta.highest(high, Price)
+priceLow = ta.lowest(low, Price)
+priceRange = priceHigh - priceLow
+fibRetracement0 = priceHigh - fib0 * priceRange
+fibRetracement1 = priceHigh - fib1 * priceRange
+fibRetracement23 = priceHigh - fib23 * priceRange
+fibRetracement38 = priceHigh - fib38 * priceRange
+fibRetracement50 = priceHigh - fib50 * priceRange
+fibRetracement61 = priceHigh - fib61 * priceRange
+fibRetracement78 = priceHigh - fib78 * priceRange
+
+// Plot Fibonacci retracement levels
+plot(fibRetracement0, color=color.gray, linewidth=2)
+plot(fibRetracement1, color=color.gray, linewidth=2)
+plot(fibRetracement23, color=color.green, linewidth=2)
+plot(fibRetracement38, color=color.olive, linewidth=2)
+plot(fibRetracement50, color=color.white, linewidth=2)
+plot(fibRetracement61, color=color.orange, linewidth=2)
+plot(fibRetracement78, color=color.red, linewidth=2)
+
+// Inputs
+no = input(1, title="Swing")
+
+// Calculate swing highs and lows
+res = ta.highest(high, no)
+sup = ta.lowest(low, no)
+
+// Calculate trailing stop loss
+avd = close > res[1] ? 1 : close < sup[1] ? -1 : 0
+avn = ta.valuewhen(avd != 0, avd, 0)
+tsl = avn == 1 ? sup : res
+
+// Define buy and sell conditions
+buyCondition = (close > tsl) and (close > fibRetracement23 or close > fibRetracement38 or close > fibRetracement50 or close > fibRetracement61 or close > fibRetracement78)
+sellCondition = (close < tsl) and (close < fibRetracement23 or close < fibRetracement38 or close < fibRetracement50 or close < fibRetracement61 or close < fibRetracement78)
+
+// Entry strategy
+if (buyCondition)
+    strategy.entry("Buy", strategy.long)
+
+// Exit strategy
+if (sellCondition)
+    strategy.close("Buy")
+
+// Color bars based on buy and sell conditions
+barColor = buyCondition ? color.green : sellCondition ? color.red : na
+barcolor(barColor)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/449846
+
+> Last Modified
+
+2024-04-29 17:08:07

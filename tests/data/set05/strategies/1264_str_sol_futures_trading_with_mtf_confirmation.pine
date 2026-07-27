@@ -1,0 +1,90 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多周期确认的移动平均线与RSI趋势交易策略-Multi-Timeframe-Moving-Average-and-RSI-Trend-Trading-Strategy.md
+// content_hash: 6fb4e3709d0d7ba6
+// collected: 2026-07-27
+strategy("SOL Futures Trading with MTF Confirmation", overlay=true)
+
+// Input parameters
+short_ma_length = input.int(9, title="Short MA Length")
+long_ma_length = input.int(21, title="Long MA Length")
+rsi_length = input.int(14, title="RSI Length")
+rsi_overbought = input.int(70, title="RSI Overbought Level")
+rsi_oversold = input.int(30, title="RSI Oversold Level")
+atr_length = input.int(14, title="ATR Length")
+risk_percentage = input.float(1, title="Risk Percentage", step=0.1) / 100
+capital = input.float(50000, title="Capital")
+
+// Higher Time Frame (1-hour) Indicators
+short_ma_1h = request.security(syminfo.tickerid, "60", ta.sma(close, short_ma_length))
+long_ma_1h = request.security(syminfo.tickerid, "60", ta.sma(close, long_ma_length))
+rsi_1h = request.security(syminfo.tickerid, "60", ta.rsi(close, rsi_length))
+
+// Lower Time Frame (15-minute) Confirmation Indicators
+short_ma_15m = ta.sma(close, short_ma_length)
+long_ma_15m = ta.sma(close, long_ma_length)
+rsi_15m = ta.rsi(close, rsi_length)
+
+// ATR for dynamic stop loss and take profit
+atr = ta.atr(atr_length)
+
+// Position sizing
+position_size = (capital * risk_percentage) / atr
+
+// Strategy Conditions on 1-hour chart
+longCondition_1h = (short_ma_1h > long_ma_1h) and (rsi_1h < rsi_overbought)
+shortCondition_1h = (short_ma_1h < long_ma_1h) and (rsi_1h > rsi_oversold)
+
+// Entry Confirmation on 15-minute chart
+longCondition_15m = (short_ma_15m > long_ma_15m) and (rsi_15m < rsi_overbought)
+shortCondition_15m = (short_ma_15m < long_ma_15m) and (rsi_15m > rsi_oversold)
+
+// Combine Conditions
+longCondition = longCondition_1h and longCondition_15m
+shortCondition = shortCondition_1h and shortCondition_15m
+
+// Dynamic stop loss and take profit
+long_stop_loss = close - 1.5 * atr
+long_take_profit = close + 3 * atr
+short_stop_loss = close + 1.5 * atr
+short_take_profit = close - 3 * atr
+
+// Plotting Moving Averages
+plot(short_ma_1h, color=color.blue, title="Short MA (1H)")
+plot(long_ma_1h, color=color.red, title="Long MA (1H)")
+
+// Highlighting Long and Short Conditions
+bgcolor(longCondition ? color.new(color.green, 90) : na, title="Long Signal Background")
+bgcolor(shortCondition ? color.new(color.red, 90) : na, title="Short Signal Background")
+
+// Generate Buy/Sell Signals with dynamic stop loss and take profit
+if (longCondition)
+    strategy.entry("Long", strategy.long, qty=position_size)
+    strategy.exit("Long Exit", "Long", stop=long_stop_loss, limit=long_take_profit)
+
+if (shortCondition)
+    strategy.entry("Short", strategy.short, qty=position_size)
+    strategy.exit("Short Exit", "Short", stop=short_stop_loss, limit=short_take_profit)
+
+// Plotting Buy/Sell Signals
+plotshape(series=longCondition, title="Buy Signal", location=location.belowbar, color=color.green, style=shape.labelup, text="BUY")
+plotshape(series=shortCondition, title="Sell Signal", location=location.abovebar, color=color.red, style=shape.labeldown, text="SELL")
+
+// // Plotting RSI
+// hline(rsi_overbought, "RSI Overbought", color=color.red)
+// hline(rsi_oversold, "RSI Oversold", color=color.green)
+// plot(rsi_1h, title="RSI (1H)", color=color.blue)
+
+// // Plotting ATR
+// plot(atr, title="ATR", color=color.purple)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/458134
+
+> Last Modified
+
+2024-07-30 10:59:34

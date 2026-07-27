@@ -1,0 +1,80 @@
+//@version=6
+// set03 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多重技术指标动态波段交易策略-Multi-Technical-Indicator-Dynamic-Wave-Trading-Strategy.md
+// content_hash: bd9c7a44694ccb1d
+// collected: 2026-07-27
+strategy("专业级交易系统", overlay=true, max_labels_count=500)
+// ===== 参数设置 =====
+x1 = input.float(1.5,"atr倍数",step=0.1)
+x2 = input.int(50,"k线数量",step=1)
+// EMA参数
+ema55_len = input.int(55, "EMA55长度")
+ema144_len = input.int(144, "EMA144长度")
+// ADX参数
+adx_len = input.int(14, "ADX长度")
+adx_threshold = input.float(30.0, "ADX趋势过滤")
+// RSI参数
+rsi_len = input.int(14, "RSI长度")
+rsi_oversold = input.float(45.0, "RSI超卖阈值")
+rsi_overbuy = input.float(55.0, "RSI超买阈值")
+// MACD参数
+macd_fast = input.int(12, "MACD快线")
+macd_slow = input.int(26, "MACD慢线")
+macd_signal = input.int(9, "MACD信号线")
+// ===== 指标计算 =====
+// EMA计算
+ema55 = ta.ema(close, ema55_len)
+ema144 = ta.ema(close, ema144_len)
+// ADX计算（使用标准函数）
+[di_plus, di_minus, adx] = ta.dmi(adx_len, adx_len)
+// RSI计算
+rsi = ta.rsi(close, rsi_len)
+// MACD计算（修正参数顺序）
+[macdLine, signalLine, histLine] = ta.macd(close, macd_fast, macd_slow, macd_signal)
+// ===== 信号逻辑 =====
+// 趋势条件：EMA55 > EMA144 且 ADX > 30
+trendCondition = ema55 > ema144 and adx > adx_threshold
+trendConditions = ema55 < ema144 and adx > adx_threshold
+// 回调条件：RSI < 45 且 MACD柱状线 > -0.002
+pullbackCondition = rsi < rsi_oversold 
+pullbackConditions = rsi > rsi_overbuy 
+// 综合信号
+entrySignal = trendCondition and pullbackCondition
+entrySignals = trendConditions and pullbackConditions
+
+// ===== 可视化 =====
+// 绘制EMA
+plot(ema55, "EMA55", color=color.new(#FFA500, 0))
+plot(ema144, "EMA144", color=color.new(#008000, 0))
+//plotshape(series=entrySignal,title="买入信号",location=location.belowbar,color=color.new(color.green, 0),style=shape.labelup,text="BUY",textcolor=color.new(color.white, 0))
+s = strategy.position_avg_price ,s1 = strategy.position_size
+le = false
+le := low < ema144 and low[1] > ema144 and ema55 > ema144 ? true : s1 > 0 ? false : le[1] 
+se = false
+se := high > ema144 and high[1] < ema144 and ema55 < ema144 ? true : s1 < 0 ? false : se[1]
+if entrySignal and low < ema144 and close > ema144
+    strategy.entry("l",strategy.long)
+strategy.exit("止盈一半","l",limit= ta.highest(x2),qty_percent = 50)
+if s1 > 0 and low < (close - x1*ta.atr(12))[1]
+    strategy.close_all("动态止损")
+
+if entrySignals and high > ema144 and close < ema144
+    strategy.entry("s",strategy.short)   
+strategy.exit("止盈一半","s",limit = ta.lowest(x2),qty_percent = 50)
+if s1 < 0 and high > (close + x1*ta.atr(12))[1]
+    strategy.close_all("动态止损")
+
+//plotshape(series=entrySignal,title="买入信号",location=location.belowbar,color=color.new(color.green, 0),style=shape.labelup,text="BUY",textcolor=color.new(color.white, 0))
+//plot(close+x1*ta.atr(12))
+//plot(close-x1*ta.atr(12))
+//bgcolor(le ? color.red:na)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/482499
+
+> Last Modified
+
+2025-02-18 17:13:58

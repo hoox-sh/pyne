@@ -1,0 +1,42 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/单均线组合交易策略Simple-Moving-Average-Crossover-Strategy.md
+// content_hash: f551445b6bb98637
+// collected: 2026-07-27
+strategy("Bitboy Strategy", overlay=true)
+
+// Define MAs
+SlowMA = ta.sma(close, 9)
+FastMA = ta.sma(close, 21)
+
+// Plot MAs
+plot1 = plot(SlowMA, color=color.new(color.red, 0), title="Slow MA")
+plot2 = plot(FastMA, color=color.new(color.green, 0), title="Fast MA")
+
+// Plot MA Ribbon
+fill(plot1, plot2, color=FastMA > SlowMA ? color.rgb(233, 21, 21, 50) : color.new(#1de223, 45))
+
+// Define buy/sell conditions
+longCondition = ta.crossover(SlowMA, FastMA)
+shortCondition = ta.crossunder(SlowMA, FastMA)
+
+// Strategy commands for buy/sell
+if longCondition
+    strategy.entry("Long", strategy.long)
+
+if shortCondition
+    strategy.entry("Short", strategy.short)
+
+// Plot buy/sell signals (for visualization)
+plotshape(longCondition, location=location.belowbar, color=color.rgb(18, 230, 25, 37), style=shape.labelup, text="Buy", textcolor=color.white)
+plotshape(shortCondition, location=location.abovebar, color=color.rgb(239, 23, 23, 40), style=shape.labeldown, text="Sell", textcolor=color.white)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/442388
+
+> Last Modified
+
+2024-02-21 15:11:32

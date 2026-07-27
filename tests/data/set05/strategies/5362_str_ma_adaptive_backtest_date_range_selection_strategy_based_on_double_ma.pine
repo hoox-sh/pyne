@@ -1,0 +1,50 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于双MA叠加的自适应回测时间范围选择策略Adaptive-Backtest-Date-Range-Selection-Strategy-Based-on-Double-MA.md
+// content_hash: 98a7e256b62b749f
+// collected: 2026-07-27
+
+strategy(title = "How To Auto Set Date Range", shorttitle = " ", overlay = true)
+
+// Revision:        1
+// Author:          @allanster 
+
+// === INPUT MA ===
+fastMA = input(defval = 14, title = "FastMA", type = input.integer, minval = 1, step = 1)
+slowMA = input(defval = 28, title = "SlowMA", type = input.integer, minval = 1, step = 1)
+
+// === INPUT BACKTEST RANGE ===
+useRange     = input(defval = "WEEKS", title = "Date Range", type = input.string, confirm = false, options = ["ALL", "DAYS", "WEEKS", "MANUAL"])
+nDaysOrWeeks = input(defval = 52, title = "# Days or Weeks", type = input.integer, minval = 1)
+FromMonth    = input(defval = 9, title = "From Month", minval = 1, maxval = 12)
+FromDay      = input(defval = 15, title = "From Day", minval = 1, maxval = 31)
+FromYear     = input(defval = 2019, title = "From Year", minval = 2014)
+ToMonth      = input(defval = 12, title = "To Month", minval = 1, maxval = 12)
+ToDay        = input(defval = 31, title = "To Day", minval = 1, maxval = 31)
+ToYear       = input(defval = 9999, title = "To Year", minval = 2014)
+
+// === FUNCTION EXAMPLE ===
+window() => true
+
+// === LOGIC ===
+buy  = crossover(sma(close, fastMA), sma(close, slowMA))         // buy when fastMA crosses over slowMA
+sell = crossunder(sma(close, fastMA), sma(close, slowMA))        // sell when fastMA crosses under slowMA
+
+// === EXECUTION ===
+strategy.entry("L", strategy.long, when=window() and buy)        // buy long when "within window of time" AND crossover
+strategy.close("L", when=window() and sell)                      // sell long when "within window of time" AND crossunder         
+
+// === PLOTTING ===
+plot(sma(close, fastMA), title = 'FastMA', color = color.aqua, linewidth = 2, style = plot.style_line)    // plot FastMA
+plot(sma(close, slowMA), title = 'SlowMA', color = color.yellow, linewidth = 2, style = plot.style_line)  // plot SlowMA
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/437748
+
+> Last Modified
+
+2024-01-05 12:12:10

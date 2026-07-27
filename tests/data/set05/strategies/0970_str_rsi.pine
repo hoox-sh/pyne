@@ -1,0 +1,107 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/RSI策略的回测与优化Backtesting-and-Optimization-of-RSI-Strategy.md
+// content_hash: 7cc084eb9c5089dc
+// collected: 2026-07-27
+strategy("rsi超买超卖_回测用", overlay=false, initial_capital=50000, currency=currency.USD, default_qty_type=strategy.cash)
+open_pos = input.int(50000, title = "每次开单资金(usdt)")
+rsi_period = input.int(14, title = "rsi周期")
+rsi_line      = input.float(20.0,      title='RSI触发线',      step=0.05)
+stop_rsi_top_line = input.float(70, title = "顶部rsi止损线")
+stop_rsi_bottom_line = input.float(30, title = "底部rsi止损线")
+stop_loss_perc = input.float(0.03, title = "止损线")
+stop_profit = input.float(0.01, title = "止盈")
+loss_stop_trade_k = input.int(24, title = "亏损后x根K线不做交易")
+
+
+rsiParam = ta.rsi(close, rsi_period)
+
+var int failedTimes = 0
+var bool stopTrade = false
+
+// plot(rsiParam)
+
+if stopTrade
+    failedTimes += 1
+    if failedTimes == loss_stop_trade_k
+        failedTimes := 0
+        stopTrade := false
+
+
+
+// 获取当前持仓方向
+checkCurrentPosition() =>
+    strategy.position_size > 0 ? 1 : strategy.position_size < 0 ? -1 : 0
+
+curPosition = checkCurrentPosition()
+
+// 当前持仓成本价
+position_avg_price = strategy.position_avg_price
+
+
+// 当前持单, 触达反向的rsi线，清仓
+if curPosition > 0 and rsiParam >= stop_rsi_top_line
+    strategy.close_all(comment = "closebuy")
+
+if curPosition < 0 and rsiParam <= stop_rsi_bottom_line
+    strategy.close_all(comment = "closesell")
+
+
+// 止盈止损清仓
+if curPosition > 0
+    // if (position_avg_price - close) / close >= stop_loss_perc
+    //     // 止损
+    //     strategy.close_all(comment = "closebuy")
+    //     stopTrade := true
+    if (close - position_avg_price) / position_avg_price >= stop_profit
+        // 止盈
+        strategy.close_all(comment = "closebuy")
+
+
+
+if curPosition < 0
+    // if (close - position_avg_price) / position_avg_price >= stop_loss_perc
+    //     // 止损
+    //     strategy.close_all(comment = "closesell")
+    //     stopTrade := true
+
+    if (position_avg_price - close) / close >= stop_profit
+        // 止盈
+        strategy.close_all(comment = "closesell")
+
+
+a = strategy.closedtrades.exit_bar_index(strategy.closedtrades - 1)
+
+if bar_index == a and strategy.closedtrades.profit(strategy.closedtrades - 1) < 0
+    stopTrade := true
+
+var float openPrice = 0.0
+
+
+
+if rsiParam <= rsi_line and stopTrade == false
+	strategy.entry("long", strategy.long, open_pos / close, comment = "long")
+    if curPosition == 0
+        openPrice := close
+    strategy.exit("long_stop", "long", limit = openPrice * (1+stop_profit), stop=openPrice * (1-stop_loss_perc), comment = "closebuy")
+
+if rsiParam >= 100 - rsi_line and stopTrade == false
+    strategy.entry("short", strategy.short, open_pos / close, comment = "short")
+    if curPosition == 0
+        openPrice := close
+    strategy.exit("short_stop", "short", limit = openPrice * (1-stop_profit), stop=openPrice * (1+stop_loss_perc), comment = "closesell")
+
+
+
+
+plot(failedTimes)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/431668
+
+> Last Modified
+
+2023-11-10 11:59:40

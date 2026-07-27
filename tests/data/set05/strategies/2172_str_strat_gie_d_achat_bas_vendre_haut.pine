@@ -1,0 +1,62 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于动量突破策略The-Momentum-Breakout-Strategy.md
+// content_hash: f86216b5de262777
+// collected: 2026-07-27
+strategy("Stratégie d'achat bas/vendre haut", shorttitle="Achat/Vente")
+
+// Paramètres d'entrée
+crypto = input("BTC", "Crypto-monnaie")
+capital = input(1.0, "Capital de départ")
+buy_threshold = input(0.02, "Seuil d'achat")
+sell_threshold = input(0.02, "Seuil de vente")
+fee_rate = input(0.01, "Taux de frais")
+
+// Balances
+var float initial_balance = na
+var float current_balance = na
+
+// Fonction pour calculer les frais
+calculate_fees(amount) =>
+    amount * fee_rate
+
+// Fonction pour acheter
+should_buy() =>
+    close < ta.highest(close, 10) * (1 - buy_threshold)
+
+// Fonction pour vendre
+should_sell() =>
+    close > ta.lowest(close, 10) * (1 + sell_threshold)
+
+// Logique de la stratégie
+if barstate.isfirst
+    initial_balance := capital
+    current_balance := capital
+
+if should_buy()
+    amount_to_buy = current_balance / close
+    fees = calculate_fees(amount_to_buy)
+    current_balance := current_balance - amount_to_buy - fees
+    strategy.entry("Achat", strategy.long)
+
+if should_sell()
+    amount_to_sell = current_balance
+    fees = calculate_fees(amount_to_sell)
+    current_balance := current_balance - amount_to_sell - fees
+    strategy.close("Achat")
+
+// Affichage des informations
+plot(initial_balance, color=color.green, title="Capital de départ")
+plot(current_balance, color=color.blue, title="Capital actuel")
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/443124
+
+> Last Modified
+
+2024-02-29 14:04:50

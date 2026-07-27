@@ -1,0 +1,71 @@
+//@version=5
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/Outside Day.pine
+// content_hash: 6b179cda3e3ea3f5
+// collected: 2026-07-27
+strategy("Outside Day", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=50,
+ process_orders_on_close=true, margin_long=100, margin_short=100)
+// Constants
+var G_ATR = "ATR settings"
+var G_ENTRY = "Entry settings"
+var G_EXIT = "Exit settings"
+var LONG = "Long"
+var SHORT = "Short"
+var BOTH = "Both"
+// Inputs
+var ATR_PERIOD = input.int(20, "Period", 1, inline=G_ATR, group=G_ATR)
+var ATR_MULT = input.float(1.0, "Multiplier", minval=0.0, step=0.1, inline=G_ATR, group=G_ATR)
+var MAX_BARS = input.int(3, "Max bars with open trading", minval=0, 
+ tooltip="Determine how many bars you can stay with an open position.\nEntries longer than this will automatically be closed.", group=G_ENTRY)
+var DIRECTION = input.string(BOTH, "Direction of orders", [BOTH, LONG, SHORT])
+var MEAN_REVERSE = input.bool(true, "Mean reverse", tooltip="Entries will be done as a mean reverse, so it will sell at up days, and buy at down days.", group=G_EXIT)
+// ATR
+var float atr = na
+if ATR_MULT != 0.0
+    atr := ta.atr(ATR_PERIOD) * ATR_MULT
+// Conditions
+outsideDay = high[0] > high[1] and low[0] < low[1]
+outsideLow = close[0] < low[1]
+outsideHigh = close[0] > high[1]
+// Entry orders
+enterLong() => strategy.entry(LONG, strategy.long, when=DIRECTION != SHORT)
+enterShort() => strategy.entry(SHORT, strategy.short, when=DIRECTION != LONG)
+if not na(atr) or (DIRECTION == BOTH and ATR_MULT == 0)
+    if outsideDay
+        if outsideLow
+            if MEAN_REVERSE
+                enterLong()
+            else
+                enterShort()
+        else if outsideHigh
+            if MEAN_REVERSE
+                enterShort()
+            else
+                enterLong()
+// Exit orders
+var float entryPrice = na
+var float longTarget = na
+var float shortTarget = na
+targetCalc(increment_) => entryPrice + increment_
+if strategy.position_size[0] == 0.0
+    entryPrice := close
+    longTarget := targetCalc(atr)
+    shortTarget := targetCalc(-atr)
+if ATR_MULT != 0.0
+    strategy.exit("Long", "Long", limit=longTarget)
+    strategy.exit("Short", "Short", limit=shortTarget)
+daysInTrade = ta.barssince(strategy.opentrades == 0)
+exitMessage = "This position has remained open for more than " + str.tostring(MAX_BARS) + " day" + (MAX_BARS > 1 ? "s" : "")
+exitLateCond = daysInTrade >= MAX_BARS and MAX_BARS != 0
+strategy.close_all(exitLateCond, exitMessage)
+// Plots
+plotTarget = strategy.position_size > 0 ? longTarget : strategy.position_size < 0 ? shortTarget : na
+plotTarget := not exitLateCond[1] and strategy.position_size[1] != 0 ? plotTarget[1] : plotTarget[0]
+var color p_color = na
+if strategy.position_size > 0
+    p_color := color.teal
+else if strategy.position_size < 0
+    p_color := color.red
+plot(plotTarget, "Take profit", p_color, 2, plot.style_linebr)
+Expand (94 lines)

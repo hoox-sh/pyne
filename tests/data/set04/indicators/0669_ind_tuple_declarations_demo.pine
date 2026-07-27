@@ -1,0 +1,23 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/language/variable-declarations.md::variable-declarations.md#block7
+// content_hash: c29309376a136a02
+// collected: 2026-07-27
+indicator("Tuple declarations demo")
+
+//@variable Holds a string to specify a colorful or grayscale style.
+string styleInput = input.string("Color", "Style", ["Color", "Grayscale"])
+
+//@function Calculates the width between two bands, and a gradient color based on the normalized width over a
+//          specified length.
+calcWidthAndGradient(float upper, float lower, int length, color upperColor, color lowerColor) =>
+    float width = upper - lower
+    float normWidth = width / ta.highest(width, length)
+    color gradient = color.from_gradient(normWidth, 0, 1, lowerColor, upperColor)
+    // Return a tuple containing the values of `width` ("series float") and `gradient` ("series color").
+    [width, gradient]
+
+// Declares two variables named `lowColor` and `highColor` to hold the two values returned by the `switch` structure.
+// The value of `lowColor` is `color.purple` or `#606060`, and the value of `highColor` is `color.orange` or `#b1b1b1`.
+[lowColor, highColor] = switch styleInput

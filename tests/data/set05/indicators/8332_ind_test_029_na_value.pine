@@ -1,0 +1,20 @@
+// set05 corpus entry
+// source_repo: ricardosantos79-pinescript
+// source_path: ricardosantos79-pinescript/beta/arrays/test-029-na_value.pinescript
+// content_hash: 8a5fe416a4e5d381
+// collected: 2026-07-27
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © RicardoSantos
+
+//@version=4
+study("test-029-na_value")
+
+int[] T = array.new_int(size=0, initial_value=0)
+array.push(id=T, value=0)
+array.push(id=T, value=1)
+array.push(id=T, value=int(na))
+array.push(id=T, value=2)
+
+test = tostring(T)
+label la = label.new(bar_index, 0.0, test)
+label.delete(id=la[1])

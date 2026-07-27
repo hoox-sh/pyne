@@ -1,0 +1,99 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多重成交量动量组合交易策略-Multi-Volume-Momentum-Combined-Trading-Strategy.md
+// content_hash: 3969465c5bcf38f0
+// collected: 2026-07-27
+strategy("Combined Volume Indicators Strategy", overlay=true)
+
+// تنظیمات
+lengthRSI = 14
+lengthMFI = 14
+lengthCMF = 20
+fastLength = 5
+slowLength = 10
+
+// محاسبه OBV
+obv = ta.cum(close > close[1] ? volume : close < close[1] ? -volume : 0)
+
+// محاسبه A/D به‌صورت دستی
+var float ad = na
+ad := na(ad[1]) ? 0 : ad[1] + ((close - low) - (high - close)) / (high - low) * volume
+
+// محاسبه CMF (Chaikin Money Flow)
+moneyFlowMultiplier = ((close - low) - (high - close)) / (high - low)
+moneyFlowVolume = moneyFlowMultiplier * volume
+cmf = ta.sma(moneyFlowVolume, lengthCMF) / ta.sma(volume, lengthCMF)
+
+// محاسبه MFI به‌صورت دستی
+typicalPrice = (high + low + close) / 3
+moneyFlow = typicalPrice * volume
+
+// محاسبه جریان پول مثبت و منفی
+positiveFlow = 0.0
+negativeFlow = 0.0
+
+for i = 0 to lengthMFI - 1
+    positiveFlow := positiveFlow + (close[i] > close[i + 1] ? moneyFlow[i] : 0)
+    negativeFlow := negativeFlow + (close[i] < close[i + 1] ? moneyFlow[i] : 0)
+
+mfi = 100 - (100 / (1 + (positiveFlow / negativeFlow)))
+
+// محاسبه VWAP
+vwap = ta.vwap(close)
+
+// محاسبه Volume Oscillator
+fastVolMA = ta.sma(volume, fastLength)
+slowVolMA = ta.sma(volume, slowLength)
+volumeOscillator = fastVolMA - slowVolMA
+
+// محاسبه VRSI (Volume RSI)
+vrsi = ta.rsi(volume, lengthRSI)
+
+// شمارش اندیکاتورهای سیگنال خرید
+buySignals = 0
+buySignals := buySignals + (obv > obv[1] ? 1 : 0)
+buySignals := buySignals + (ad > ad[1] ? 1 : 0)
+buySignals := buySignals + (cmf > 0 ? 1 : 0)
+buySignals := buySignals + (mfi < 40 ? 1 : 0)
+buySignals := buySignals + (close < vwap ? 1 : 0)
+buySignals := buySignals + (volumeOscillator > 0 ? 1 : 0)
+buySignals := buySignals + (vrsi < 40 ? 1 : 0)
+
+// شمارش اندیکاتورهای سیگنال فروش
+sellSignals = 0
+sellSignals := sellSignals + (obv < obv[1] ? 1 : 0)
+sellSignals := sellSignals + (ad < ad[1] ? 1 : 0)
+sellSignals := sellSignals + (cmf < 0 ? 1 : 0)
+sellSignals := sellSignals + (mfi > 60 ? 1 : 0)
+sellSignals := sellSignals + (close > vwap ? 1 : 0)
+sellSignals := sellSignals + (volumeOscillator < 0 ? 1 : 0)
+sellSignals := sellSignals + (vrsi > 60 ? 1 : 0)
+
+// شرایط سیگنال خرید: اگر بیش از 4 اندیکاتور سیگنال خرید دهند
+buyCondition = (buySignals > 4)
+
+// شرایط سیگنال فروش: اگر بیش از 4 اندیکاتور سیگنال فروش دهند
+sellCondition = (sellSignals > 4)
+
+// ورود به معامله خرید
+if (buyCondition)
+    strategy.entry("Buy", strategy.long)
+
+// خروج از معامله فروش
+if (sellCondition)
+    strategy.close("Buy")
+
+// رسم سیگنال‌های خرید و فروش بر روی چارت
+plotshape(buyCondition, title="Buy Signal", location=location.belowbar, color=color.green, style=shape.labelup, text="BUY")
+plotshape(sellCondition, title="Sell Signal", location=location.abovebar, color=color.red, style=shape.labeldown, text="SELL")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/471663
+
+> Last Modified
+
+2024-11-12 10:52:54

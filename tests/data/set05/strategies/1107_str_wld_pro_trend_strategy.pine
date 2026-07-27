@@ -1,0 +1,98 @@
+//@version=5
+// set05 corpus entry
+// source_repo: dexcextrade-TradingView-PineScripts
+// source_path: dexcextrade-TradingView-PineScripts/WLD trend day
+// content_hash: 9e73c6780e8a93d1
+// collected: 2026-07-27
+strategy("WLD Pro Trend Strategy", overlay=true, initial_capital=10000, pyramiding=0)
+
+// ===== INPUTS =====
+fastEMA = input.int(50, "Fast EMA")
+slowEMA = input.int(200, "Slow EMA")
+
+rsiLength = input.int(14, "RSI Length")
+rsiLong = input.int(55, "RSI Long")
+rsiShort = input.int(45, "RSI Short")
+
+atrLength = input.int(14, "ATR Length")
+atrSL = input.float(1.5, "Stop ATR")
+rr = input.float(3.0, "Risk Reward")
+
+volumeLength = input.int(20, "Volume MA")
+
+// ===== INDICATORS =====
+emaFast = ta.ema(close, fastEMA)
+emaSlow = ta.ema(close, slowEMA)
+
+rsi = ta.rsi(close, rsiLength)
+atr = ta.atr(atrLength)
+
+volMA = ta.sma(volume, volumeLength)
+
+// ===== TREND =====
+bullTrend = emaFast > emaSlow
+bearTrend = emaFast < emaSlow
+
+// ===== BREAKOUT =====
+highest20 = ta.highest(high, 20)[1]
+lowest20 = ta.lowest(low, 20)[1]
+
+// ===== VOLUME FILTER =====
+volumeFilter = volume > volMA
+
+// ===== ENTRIES =====
+longSignal =
+     bullTrend and
+     close > emaFast and
+     rsi > rsiLong and
+     close > highest20 and
+     volumeFilter
+
+shortSignal =
+     bearTrend and
+     close < emaFast and
+     rsi < rsiShort and
+     close < lowest20 and
+     volumeFilter
+
+// ===== ORDERS =====
+if longSignal and strategy.position_size <= 0
+    strategy.entry("LONG", strategy.long)
+
+if shortSignal and strategy.position_size >= 0
+    strategy.entry("SHORT", strategy.short)
+
+// ===== RISK MANAGEMENT =====
+longSL = strategy.position_avg_price - atr * atrSL
+longTP = strategy.position_avg_price + atr * atrSL * rr
+
+shortSL = strategy.position_avg_price + atr * atrSL
+shortTP = strategy.position_avg_price - atr * atrSL * rr
+
+strategy.exit("LONG EXIT", "LONG", stop=longSL, limit=longTP)
+strategy.exit("SHORT EXIT", "SHORT", stop=shortSL, limit=shortTP)
+
+// ===== VISUALS =====
+plot(emaFast, title="EMA 50")
+plot(emaSlow, title="EMA 200")
+
+plotshape(longSignal,
+     title="LONG",
+     style=shape.labelup,
+     location=location.belowbar,
+     text="LONG")
+
+plotshape(shortSignal,
+     title="SHORT",
+     style=shape.labeldown,
+     location=location.abovebar,
+     text="SHORT")
+
+// ===== ALERTS =====
+alertcondition(longSignal,
+     title="LONG SIGNAL",
+     message="WLD LONG")
+
+alertcondition(shortSignal,
+     title="SHORT SIGNAL",
+     message="WLD SHORT")

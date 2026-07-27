@@ -1,0 +1,43 @@
+//@version=3
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于9日EMA的突破回调交易策略9-day-EMA-Breakout-Pullback-Trading-Strategy.md
+// content_hash: 58a19340fc804a9f
+// collected: 2026-07-27
+strategy("larry willians teste2", overlay=true)
+
+//Window of time
+start     = timestamp(2019, 00, 00, 00, 00)  // backtest start window
+finish    = timestamp(2019, 12, 31, 23, 59)        // backtest finish window
+window()  => true // create function "within window of time"  
+
+ema9=ema(close,9) // Ema de 9 periodos
+
+//Condições de compra
+c1= (open< ema9 and close > ema9) //abrir abaixo da ema9 e fechar acima da ema9
+
+if(window())
+    if(c1)
+        strategy.entry("Compra", true, stop = high) // Coloca ordem stopgain no topo anterior
+    else
+        strategy.cancel("Compra") // Cancela a ordem se o proximo candle não "pegar"
+        
+//codições de venda
+v1= (open> ema9 and close < ema9) // abrir acima da ema9 e fechar abaixo ema9
+
+if(window())
+    if (v1)
+        strategy.exit("Venda", from_entry = "Compra", stop = low) // Saida da entrada com stop no fundo anterior
+    else
+        strategy.cancel("Venda") //Cancela a ordem se o proximo candle não "pegar"
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/427353
+
+> Last Modified
+
+2023-09-20 11:45:21

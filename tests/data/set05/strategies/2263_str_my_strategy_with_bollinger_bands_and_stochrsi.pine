@@ -1,0 +1,60 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/布林线与StochRSI动量策略Bollinger-Bands-and-StochRSI-Momentum-Strategy.md
+// content_hash: 2a20df0b148f28da
+// collected: 2026-07-27
+strategy("My Strategy with Bollinger Bands and StochRSI", overlay=true)
+
+// Define your Bollinger Bands parameters
+bollinger_length = input.int(20, title="Bollinger Bands Length")
+bollinger_dev = input.float(2, title="Bollinger Bands Deviation")
+
+// Calculate Bollinger Bands
+sma = ta.sma(close, bollinger_length)
+dev = bollinger_dev * ta.stdev(close, bollinger_length)
+
+upper_band = sma + dev
+lower_band = sma - dev
+
+// Define your StochRSI parameters
+stoch_length = input.int(14, title="StochRSI Length")
+k_period = input.int(3, title="K Period")
+d_period = input.int(3, title="D Period")
+
+// Calculate StochRSI
+rsi = ta.rsi(close, stoch_length)
+k = ta.sma(ta.stoch(rsi, rsi, rsi, k_period), k_period)
+d = ta.sma(k, d_period)
+
+// Define your buy and sell conditions
+buy_condition = ta.crossover(k, d) and close < lower_band
+sell_condition = ta.crossunder(k, d) and close > upper_band
+
+// Place orders based on the conditions
+if (buy_condition)
+    strategy.entry("Buy", strategy.long)
+
+if (sell_condition)
+    strategy.entry("Sell", strategy.short)
+
+// Optional: Plot buy and sell signals on the chart
+plotshape(buy_condition, color=color.green, style=shape.triangleup, location=location.belowbar, size=size.small)
+plotshape(sell_condition, color=color.red, style=shape.triangledown, location=location.abovebar, size=size.small)
+
+// Plot Bollinger Bands and StochRSI on the chart
+plot(upper_band, title="Upper Bollinger Band", color=color.blue)
+plot(lower_band, title="Lower Bollinger Band", color=color.orange)
+plot(k, title="StochRSI K", color=color.green)
+plot(d, title="StochRSI D", color=color.red)
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/430597
+
+> Last Modified
+
+2023-10-30 17:19:21

@@ -1,0 +1,66 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/RSI动量反转短期趋势跟踪策略与移动平均线聚合-RSI-Momentum-Reversal-Short-Term-Trend-Following-Strategy-with-Moving-Average-Confluence.md
+// content_hash: 407b4fb6f421271c
+// collected: 2026-07-27
+strategy("_Rerun's Dip Bonanza", overlay=true, initial_capital=100000, currency="USD")
+
+// === Input Parameters ===
+// RSI settings
+rsiLength = input.int(2, "RSI Length", minval=1)
+rsiBuyLevel = input.float(5.0, "RSI Oversold Level (Buy Threshold)", minval=1, maxval=50)
+// Trend filter MA length (use 200 for daily charts; for intraday, a smaller period can be considered)
+trendMaLen = input.int(200, "Trend MA Length (Long Filter)", minval=1)
+// Exit MA length
+exitMaLen = input.int(5, "Exit MA Length", minval=1)
+// Optional stop-loss (as % of entry price). Set to 0 to disable.
+stopLossPerc = input.float(0.0, "Emergency Stop-Loss (%)", minval=0.0, step=0.1)
+
+// === Indicators Calculation ===
+rsiValue = ta.rsi(close, rsiLength)
+longMA = ta.sma(close, trendMaLen)
+exitMA = ta.sma(close, exitMaLen)
+
+// === Entry and Exit Conditions ===
+// Long entry when price is above longMA and RSI is oversold
+inUptrend = close > longMA
+oversold = rsiValue < rsiBuyLevel
+
+// **We use a crossover condition to ensure RSI was below the level and is now ticking up**
+entryTrigger = ta.crossover(rsiValue, rsiBuyLevel)
+longCondition = inUptrend and entryTrigger
+
+// Exit when price closes above the short exit MA
+exitCondition = close > exitMA
+
+// === Strategy Orders ===
+if (longCondition)
+    strategy.entry(id="Long", direction=strategy.long, comment="Buy Dip")
+
+// Exit the long when exit condition met
+if (strategy.position_size > 0 and exitCondition)
+    strategy.close(id="Long", comment="Take Profit")
+
+// Optional emergency stop-loss: if enabled and price falls X% below entry price, exit early
+if (strategy.position_size > 0 and stopLossPerc > 0)
+    if (close < strategy.position_avg_price * (1 - stopLossPerc/100))
+        strategy.close(id="Long", comment="StopLoss")
+
+// === Visual Cues on Chart ===
+// Plot moving averages for reference
+plot(longMA, color=color.blue, linewidth=2, title="Long-term MA")
+plot(exitMA, color=color.orange, linewidth=1, title="Exit MA")
+// Mark buy and sell points on chart
+plotshape(longCondition, title="Buy Signal", text="Buy", style=shape.triangleup, location=location.belowbar, color=color.lime, size=size.small)
+plotshape(exitCondition and strategy.position_size > 0, title="Exit Signal", text="Sell", style=shape.triangledown, location=location.abovebar, color=color.red, size=size.small)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/488288
+
+> Last Modified
+
+2025-03-26 16:13:25

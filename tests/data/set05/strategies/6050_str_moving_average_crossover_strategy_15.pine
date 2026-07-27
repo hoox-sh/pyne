@@ -1,0 +1,47 @@
+//@version=3
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于移动均线交叉策略Moving-Average-Crossover-Strategy.md
+// content_hash: 546978d4dde5ee7c
+// collected: 2026-07-27
+strategy(title = "MA Close Strategy", shorttitle = "MA Close",calc_on_order_fills=true,calc_on_every_tick =true, initial_capital=21000,commission_value=.25,overlay = true,default_qty_type = strategy.percent_of_equity, default_qty_value = 100)
+
+MASource   = input(defval = open, title = "MA Source")
+MaLength   = input(defval = 18, title = "MA Period", minval = 1)
+
+StartYear = input(2018, "Backtest Start Year")
+StartMonth = input(1, "Backtest Start Month")
+StartDay = input(1, "Backtest Start Day")
+UseStopLoss = input(true,"UseStopLoss")
+stopLoss = input(50, title = "Stop loss percentage(0.1%)") 
+
+window() => time >=  timestamp(StartYear, StartMonth, StartDay,00,00) ? true : false
+
+MA = sma(MASource,MaLength)
+
+plot(MA, title = "Fast MA", color = green, linewidth = 2, style = line, transp = 50)
+
+long = crossunder(MA, close)
+short = crossover(MA, close)
+
+if (long)
+    strategy.entry("LongId", strategy.long, when = long)
+    strategy.exit("ExitLong", from_entry = "LongId", when = short)
+
+if (short)
+    strategy.entry("ShortId", strategy.short, when = short)
+    strategy.exit("ExitShort", from_entry = "ShortId", when = long)
+
+if (UseStopLoss)
+    strategy.exit("StopLoss", "LongId", loss = close * stopLoss / 1000 / syminfo.mintick)
+    strategy.exit("StopLoss", "ShortId", loss = close * stopLoss / 1000 / syminfo.mintick)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/432987
+
+> Last Modified
+
+2023-11-23 13:38:02

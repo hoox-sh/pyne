@@ -1,0 +1,65 @@
+//@version=3
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/三重RSI极值交易策略Triple-RSI-Extremum-Trading-Strategy.md
+// content_hash: e5e55a3f11c062cf
+// collected: 2026-07-27
+strategy(title = "Noro's Triple RSI Top/Bottom", shorttitle = "3RSI Top/Bottom", overlay = true, default_qty_type = strategy.percent_of_equity, default_qty_value = 100, pyramiding = 0)
+
+//Settings
+needlong = input(true, defval = true, title = "Long")
+needshort = input(true, defval = true, title = "Short")
+accuracy = input(3, defval = 3, minval = 1, maxval = 10, title = "accuracy")
+fromyear = input(1900, defval = 1900, minval = 1900, maxval = 2100, title = "From Year")
+toyear = input(2100, defval = 2100, minval = 1900, maxval = 2100, title = "To Year")
+frommonth = input(01, defval = 01, minval = 01, maxval = 12, title = "From Month")
+tomonth = input(12, defval = 12, minval = 01, maxval = 12, title = "To Month")
+fromday = input(01, defval = 01, minval = 01, maxval = 31, title = "From day")
+today = input(31, defval = 31, minval = 01, maxval = 31, title = "To day")
+
+
+//RSI-2
+fastup = rma(max(change(close), 0), 2)
+fastdown = rma(-min(change(close), 0), 2)
+fastrsi = fastdown == 0 ? 100 : fastup == 0 ? 0 : 100 - (100 / (1 + fastup / fastdown))
+
+//RSI-7
+middleup = rma(max(change(close), 0), 7)
+middledown = rma(-min(change(close), 0), 7)
+middlersi = middledown == 0 ? 100 : middleup == 0 ? 0 : 100 - (100 / (1 + middleup / middledown))
+
+//RSI-14
+slowup = rma(max(change(close), 0), 14)
+slowdown = rma(-min(change(close), 0), 14)
+slowrsi = slowdown == 0 ? 100 : slowup == 0 ? 0 : 100 - (100 / (1 + slowup / slowdown))
+
+//Signals
+acc = 10 - accuracy
+up = fastrsi < (5 + acc) and middlersi < (10 + acc * 2) and slowrsi < (15 + acc * 3)
+dn = fastrsi > (95 - acc) and middlersi > (90 - acc * 2) and slowrsi > (85 - acc * 3)
+exit = (strategy.position_size > 0 and close > open) or (strategy.position_size > 0 and close > open)
+
+//Trading
+if up
+    if strategy.position_size < 0
+        strategy.close_all()
+        
+    strategy.entry("Bottom", strategy.long, needlong == false ? 0 : na, when=(time > timestamp(fromyear, frommonth, fromday, 00, 00) and time < timestamp(toyear, tomonth, today, 23, 59)))
+
+if dn
+    if strategy.position_size > 0
+        strategy.close_all()
+        
+    strategy.entry("Top", strategy.short, needshort == false ? 0 : na, when=(time > timestamp(fromyear, frommonth, fromday, 00, 00) and time < timestamp(toyear, tomonth, today, 23, 59)))
+    
+if time > timestamp(toyear, tomonth, today, 23, 59) or exit
+    strategy.close_all()
+```
+
+> Detail
+
+https://www.fmz.com/strategy/430844
+
+> Last Modified
+
+2023-11-02 14:34:21

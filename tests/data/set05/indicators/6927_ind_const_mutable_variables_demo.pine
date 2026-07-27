@@ -1,0 +1,13 @@
+//@version=6
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/migration-guides/to-pine-version-6.md::to-pine-version-6.md#block12
+// content_hash: 5f51ee4373ae2dff
+// collected: 2026-07-27
+indicator("`const` mutable variables demo")
+
+// Variable is now of `const int` type.
+var seriesLen = 1
+
+// `ta.ema()` uses `length = 1` throughout execution.
+plot(ta.ema(close, seriesLen))

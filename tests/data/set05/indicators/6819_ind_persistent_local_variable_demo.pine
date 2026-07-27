@@ -1,0 +1,16 @@
+//@version=6
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/language/variable-declarations.md::variable-declarations.md#block36
+// content_hash: a626089bb23c191a
+// collected: 2026-07-27
+indicator("Persistent local variable demo")
+
+//@variable Stores the value of the `localVar` variable on each 10th bar, and `na` on other bars.
+int globalVar = if bar_index % 10 == 0
+    //@variable A persistent local variable initialized to -1 and then modified across bars.
+    //          This variable persists across bars after initialization, even when the scope does not execute.
+    var int localVar = -1
+    // Multiply the local variable's value by -1 and reassign it using the result.
+    // If the current value is -1, it changes to 1. If 1, it changes to -1.
+    // The structure returns the result of this operation only on bars where the scope executes.

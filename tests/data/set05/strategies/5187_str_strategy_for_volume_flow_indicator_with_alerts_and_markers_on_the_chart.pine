@@ -1,0 +1,58 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于交易量强弱的趋势跟踪策略Volume-Flow-Indicator-Based-Trend-Following-Strategy.md
+// content_hash: 47412bc491a3ed20
+// collected: 2026-07-27
+strategy("Strategy for Volume Flow Indicator with alerts and markers on the chart", overlay=true)
+// This indicator has been copied form Lazy Bear's code
+lengthVFI = 130 
+coefVFI = 0.2 
+vcoefVFI = 2.5 
+signalLength= 5 
+smoothVFI=true 
+
+ma(x,y) => smoothVFI ? sma(x,y) : x
+
+typical=hlc3
+inter = log( typical ) - log( typical[1] )
+vinter = stdev(inter, 30 )
+cutoff = coefVFI * vinter * close
+vave = sma( volume, lengthVFI )[1]
+vmax = vave * vcoefVFI
+vc = iff(volume < vmax, volume, vmax)
+mf = typical - typical[1]
+vcp = iff( mf > cutoff, vc, iff ( mf < -cutoff, -vc, 0 ) )
+
+vfi = ma(sum( vcp , lengthVFI )/vave, 3)
+vfima=ema( vfi, signalLength )
+dVFI=vfi-vfima
+
+bullishVFI = dVFI > 0 and dVFI[1] <=0
+bearishVFI =  dVFI < 0 and dVFI[1] >=0
+
+longCondition = dVFI > 0 and dVFI[1] <=0
+shortCondition = dVFI < 0 and dVFI[1] >=0
+
+plotshape(bullishVFI, color=color.green, style=shape.labelup, textcolor=#000000, text="VFI", location=location.belowbar, transp=0)
+plotshape(bearishVFI, color=color.red, style=shape.labeldown, textcolor=#ffffff,  text="VFI", location=location.abovebar, transp=0)
+
+alertcondition(bullishVFI, title='Bullish - Volume Flow Indicator', message='Bullish - Volume Flow Indicator')
+alertcondition(bearishVFI, title='Bearish - Volume Flow Indicator', message='Bearish - Volume Flow Indicator')
+
+if(year > 2018)
+    strategy.entry("Long", strategy.long, when=dVFI > 0 and dVFI[1] <=0)
+
+if(shortCondition)
+    strategy.close(id="Long")
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/432240
+
+> Last Modified
+
+2023-11-15 17:53:51

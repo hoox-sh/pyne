@@ -1,0 +1,403 @@
+// set03 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/projects/golden-bullet-indicator.pine
+// content_hash: 25df9927c1d946a1
+// collected: 2026-07-27
+// built with PineScript Agents by TradersPost
+// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © Based on "The SIMPLE ICT Silver Bullet Strategy" by The Trading Geek (YouTube: rU0vQUTNXVE)
+//
+// Golden Bullet Strategy (The Trading Geek's take on the ICT Silver Bullet) — signal indicator.
+// Time-based liquidity model, indices/NY-session variant. Five-stage setup:
+//   1) Liquidity sweep of the 9:00am ET reference candle high/low
+//   2) Market Structure Shift (MSS): close through the most recent opposing swing
+//   3) Displacement: the MSS move is a strong momentum candle (ATR-scaled)
+//   4) Pullback into an entry model — Fair Value Gap (preferred) or Order Block
+//   5) Entry on mitigation; stop beyond the zone; target opposite-side liquidity
+//
+// This is a DISCRETIONARY signal tool: it marks each stage, draws the entry/stop/target,
+// and fires alerts. It does not place orders. Pivot-based swings confirm `pivotLength`
+// bars late (inherent lag); FVGs confirm on bar close.
+
+//@version=6
+indicator("Golden Bullet Strategy", shorttitle="Golden Bullet", overlay=true, max_lines_count=500, max_boxes_count=500, max_labels_count=500)
+
+// ============================================================================
+// INPUTS
+// ============================================================================
+
+// --- Timing (the heart of the strategy) ---
+grpTime = "Timing (New York time)"
+tz            = input.string("America/New_York", "Timezone", options=["America/New_York", "America/Chicago", "Europe/London", "UTC"], group=grpTime, tooltip="Exchange timezone the windows below are expressed in.")
+refSession    = input.session("0900-1000", "Reference candle window", group=grpTime, tooltip="Its high & low become the liquidity to sweep. Default = the 9:00–10:00am ET hourly candle.")
+huntSession   = input.session("1000-1100", "Hunt / trade window", group=grpTime, tooltip="Only look for a sweep inside this window. Default = the classic Silver Bullet 10:00–11:00am ET hour.")
+entryAfterHunt = input.bool(true, "Allow entry after hunt window", group=grpTime, tooltip="Sweep + MSS must occur in the hunt window, but the pullback entry may complete later in the session.")
+
+// --- Structure / MSS ---
+grpMSS = "Market Structure Shift"
+pivotLength   = input.int(5, "Swing pivot length", minval=1, maxval=25, group=grpMSS, tooltip="Bars either side of a pivot. Larger = fewer, more significant swings but more lag.")
+
+// --- Displacement ---
+grpDisp = "Displacement"
+atrLength     = input.int(14, "ATR length", minval=2, maxval=100, group=grpDisp)
+dispMult      = input.float(1.0, "Displacement strength (× ATR)", minval=0.1, maxval=5.0, step=0.1, group=grpDisp, tooltip="The MSS-breaking candle's range must exceed ATR × this to count as displacement.")
+
+// --- Entry model ---
+grpEntry = "Entry Model"
+useFVG        = input.bool(true, "Use Fair Value Gap", group=grpEntry, tooltip="Preferred entry model: 3-candle imbalance left by the displacement.")
+useOB         = input.bool(true, "Use Order Block (fallback)", group=grpEntry, tooltip="If no FVG forms, use the last opposing candle before displacement.")
+fvgSearchBars = input.int(10, "Bars to find FVG after MSS", minval=1, maxval=50, group=grpEntry)
+obLookback    = input.int(10, "Order-block lookback (bars)", minval=1, maxval=50, group=grpEntry)
+minFVGTicks   = input.float(1.0, "Minimum FVG size (ticks)", minval=0.0, step=0.5, group=grpEntry, tooltip="Ignore imbalances smaller than this many ticks.")
+
+// --- Risk / target ---
+grpRisk = "Risk & Target"
+stopBufTicks  = input.float(4.0, "Stop buffer beyond zone (ticks)", minval=0.0, step=1.0, group=grpRisk)
+targetMode    = input.string("Opposite liquidity", "Target", options=["Opposite liquidity", "Fixed R:R"], group=grpRisk, tooltip="Opposite liquidity = nearest opposing swing (the model's own rule). Fixed R:R = entry ± multiple of risk.")
+rrFallback    = input.float(2.0, "R:R (fallback / fixed)", minval=0.5, maxval=10.0, step=0.5, group=grpRisk, tooltip="Used when Fixed R:R is chosen, or when no valid opposing liquidity exists.")
+
+// --- Visuals ---
+grpViz = "Visuals"
+showRef       = input.bool(true, "Reference range", group=grpViz)
+showZone      = input.bool(true, "Entry zone (FVG/OB)", group=grpViz)
+showLevels    = input.bool(true, "Entry / Stop / Target lines", group=grpViz)
+showStages    = input.bool(true, "Stage markers (sweep, MSS)", group=grpViz)
+showPanel     = input.bool(true, "Setup checklist panel", group=grpViz, tooltip="A running checklist of the 5 conditions and which are met for today's setup.")
+
+grpDbg = "Market Structure (debug)"
+showStructure = input.bool(true, "Show pivots + structure breaks", group=grpDbg, tooltip="Debug layer: labels every swing high (H) / low (L) the script detects, connects them into a zigzag, and flags every break of structure. GREEN/RED 'MSS' = a break that qualifies as a setup shift (right direction after the sweep, with displacement). GRAY 'BOS' = a structure break that did NOT qualify. Lets you see exactly what the engine sees.")
+colLong       = input.color(color.new(#26a69a, 0), "Long", group=grpViz, inline="c")
+colShort      = input.color(color.new(#ef5350, 0), "Short", group=grpViz, inline="c")
+colZone       = input.color(color.new(#42a5f5, 78), "Zone", group=grpViz, inline="c")
+colRef        = input.color(color.new(#f5b300, 0), "9am range", group=grpViz, inline="c2", tooltip="Accent color for the 9am reference high/low band.")
+colHunt       = input.color(color.new(#26c6da, 0), "Hunt window", group=grpViz, inline="c2", tooltip="Tint for the 10–11am hunt window — where you watch for the sweep.")
+
+// --- Alerts ---
+grpAlert = "Alerts"
+alertSweep    = input.bool(true, "Alert on sweep", group=grpAlert)
+alertMSS      = input.bool(true, "Alert on MSS", group=grpAlert)
+alertEntry    = input.bool(true, "Alert on entry", group=grpAlert)
+
+// ============================================================================
+// TIME / SESSION HELPERS
+// ============================================================================
+
+atr      = ta.atr(atrLength)
+tickBuf  = stopBufTicks * syminfo.mintick
+minFVG   = minFVGTicks * syminfo.mintick
+
+inRef    = not na(time(timeframe.period, refSession, tz))
+inHunt   = not na(time(timeframe.period, huntSession, tz))
+newDay   = ta.change(time("D")) != 0
+
+// ============================================================================
+// STATE MACHINE (per day)
+//   stage: 0 idle → 1 swept → 2 MSS+displacement → 3 entered
+//   bias:  +1 long (low swept)   -1 short (high swept)
+// ============================================================================
+
+var float refHigh   = na
+var float refLow    = na
+var bool  refDone   = false
+var int   stage     = 0
+var int   bias      = 0
+var float mssLevel  = na
+var float zoneTop   = na
+var float zoneBot   = na
+var bool  fvgFound  = false
+var int   mssBar    = na
+var int   sweepBar  = na
+var int   mssSwingBar = na
+var int   zoneBar   = na
+var bool  leftZone  = false
+var int   refStartBar = na
+var float entryPx   = na
+var float stopPx    = na
+var float tgtPx     = na
+
+// Most recent confirmed swings (pivotLength bars of lag)
+ph = ta.pivothigh(pivotLength, pivotLength)
+pl = ta.pivotlow(pivotLength, pivotLength)
+var float lastSwingHigh = na
+var float lastSwingLow  = na
+var int   lastSwingHighBar = na
+var int   lastSwingLowBar  = na
+if not na(ph)
+    lastSwingHigh := ph
+    lastSwingHighBar := bar_index - pivotLength
+if not na(pl)
+    lastSwingLow := pl
+    lastSwingLowBar := bar_index - pivotLength
+
+// Daily reset — start each session flat
+if newDay
+    refHigh  := na
+    refLow   := na
+    refDone  := false
+    stage    := 0
+    bias     := 0
+    mssLevel := na
+    zoneTop  := na
+    zoneBot  := na
+    fvgFound := false
+    mssBar   := na
+    sweepBar := na
+    mssSwingBar := na
+    zoneBar  := na
+    leftZone := false
+    refStartBar := na
+
+// Build the reference range while inside the reference window
+if inRef
+    if na(refStartBar)
+        refStartBar := bar_index
+    refHigh := na(refHigh) ? high : math.max(refHigh, high)
+    refLow  := na(refLow)  ? low  : math.min(refLow, low)
+if (not inRef) and inRef[1] and not na(refHigh)
+    refDone := true
+
+// ---------------------------------------------------------------------------
+// STAGE 1 — liquidity sweep (wick beyond the reference level, close back inside)
+// ---------------------------------------------------------------------------
+canHunt   = refDone and inHunt and stage == 0
+sweepHigh = canHunt and high > refHigh and close < refHigh
+sweepLow  = canHunt and low  < refLow  and close > refLow
+
+if sweepHigh
+    stage       := 1
+    bias        := -1
+    sweepBar    := bar_index
+    mssLevel    := na             // short: wait for the first swing LOW to form after the sweep
+    mssSwingBar := na
+if sweepLow
+    stage       := 1
+    bias        := 1
+    sweepBar    := bar_index
+    mssLevel    := na             // long: wait for the first swing HIGH to form after the sweep
+    mssSwingBar := na
+
+// Lock the first opposing swing that forms AFTER the sweep — this is the CHoCH level.
+// Breaking it (a higher-high for longs / lower-low for shorts) IS the structure shift.
+pivotBar = bar_index - pivotLength
+if stage == 1 and na(mssLevel) and not na(sweepBar) and pivotBar > sweepBar
+    if bias == 1 and not na(ph)
+        mssLevel    := ph
+        mssSwingBar := pivotBar
+    if bias == -1 and not na(pl)
+        mssLevel    := pl
+        mssSwingBar := pivotBar
+
+// ---------------------------------------------------------------------------
+// STAGE 2 — market structure shift + displacement
+// ---------------------------------------------------------------------------
+barRange   = high - low
+dispOK     = barRange >= atr * dispMult
+mssShort   = stage == 1 and bias == -1 and not na(mssLevel) and close < mssLevel and dispOK
+mssLong    = stage == 1 and bias == 1  and not na(mssLevel) and close > mssLevel and dispOK
+
+if mssShort or mssLong
+    stage    := 2
+    mssBar   := bar_index
+    fvgFound := false
+    // Order-block fallback: most recent opposing candle within lookback
+    zoneTop  := na
+    zoneBot  := na
+    if useOB
+        for i = 0 to obLookback
+            isOpp = bias == 1 ? close[i] < open[i] : close[i] > open[i]
+            if isOpp and na(zoneTop)
+                zoneTop := high[i]
+                zoneBot := low[i]
+    zoneBar  := bar_index
+    leftZone := false
+
+// While in stage 2, prefer a Fair Value Gap if one forms within the search window
+if stage == 2 and useFVG and not fvgFound and not na(mssBar) and (bar_index - mssBar) <= fvgSearchBars
+    // Bullish FVG: gap between high[2] and current low ; Bearish FVG: gap between current high and low[2]
+    bullFVG = bias == 1  and low  > high[2] and (low - high[2]) >= minFVG
+    bearFVG = bias == -1 and high < low[2]  and (low[2] - high) >= minFVG
+    if bullFVG
+        zoneTop  := low
+        zoneBot  := high[2]
+        fvgFound := true
+        zoneBar  := bar_index
+        leftZone := false
+    if bearFVG
+        zoneTop  := high
+        zoneBot  := low[2]
+        fvgFound := true
+        zoneBar  := bar_index
+        leftZone := false
+
+// ---------------------------------------------------------------------------
+// STAGE 3 — pullback into the zone = entry
+// ---------------------------------------------------------------------------
+// Wait for a genuine pullback: after the zone forms, price must first move AWAY from it
+// (displacement), then RETURN into it. This stops the old bug of entering on the same bar
+// the FVG forms (i.e. at the top of the displacement).
+if stage == 2 and not na(zoneTop) and not leftZone and not na(zoneBar) and bar_index > zoneBar
+    if (bias == 1 and low > zoneTop) or (bias == -1 and high < zoneBot)
+        leftZone := true
+
+entryAllowed = stage == 2 and leftZone and not na(zoneTop) and not na(zoneBot) and (entryAfterHunt or inHunt)
+touchLong  = entryAllowed and bias == 1  and low  <= zoneTop   // price retraces down into the gap
+touchShort = entryAllowed and bias == -1 and high >= zoneBot   // price retraces up into the gap
+enterLong  = touchLong
+enterShort = touchShort
+
+if enterLong or enterShort
+    stage   := 3
+    entryPx := bias == 1 ? zoneTop : zoneBot
+    stopPx  := bias == 1 ? zoneBot - tickBuf : zoneTop + tickBuf
+    risk    = math.abs(entryPx - stopPx)
+    // Target: opposite-side liquidity — but only if it's a worthwhile distance (>= 1R).
+    // Otherwise fall back to a clean R multiple so we never target a sub-1R nearby swing.
+    oppLiq   = bias == 1 ? lastSwingHigh : lastSwingLow
+    oppDist  = na(oppLiq) ? na : (bias == 1 ? oppLiq - entryPx : entryPx - oppLiq)
+    validOpp = not na(oppDist) and oppDist >= risk
+    if targetMode == "Opposite liquidity" and validOpp
+        tgtPx := oppLiq
+    else
+        tgtPx := bias == 1 ? entryPx + rrFallback * risk : entryPx - rrFallback * risk
+
+// ============================================================================
+// VISUALS
+// ============================================================================
+
+// --- Market structure debug layer: every pivot, the zigzag between them, and every
+//     break of structure (BOS). The SETUP's accepted MSS is highlighted separately
+//     (green/red box below); anything only gray here is a break the setup did NOT take.
+var int   zzBar = na
+var float zzPx  = na
+if showStructure and (not na(ph) or not na(pl))
+    pbar   = bar_index - pivotLength
+    isHigh = not na(ph)
+    ppx    = isHigh ? ph : pl
+    label.new(pbar, ppx, isHigh ? "H" : "L", xloc=xloc.bar_index, style=isHigh ? label.style_label_down : label.style_label_up, color=color.new(color.gray, 15), textcolor=color.white, size=size.tiny)
+    if not na(zzBar)
+        line.new(zzBar, zzPx, pbar, ppx, xloc=xloc.bar_index, color=color.new(color.gray, 55), width=1)
+    zzBar := pbar
+    zzPx  := ppx
+
+bosUp   = showStructure and not na(lastSwingHigh) and close > lastSwingHigh and close[1] <= lastSwingHigh
+bosDown = showStructure and not na(lastSwingLow)  and close < lastSwingLow  and close[1] >= lastSwingLow
+if bosUp
+    line.new(lastSwingHighBar, lastSwingHigh, bar_index, lastSwingHigh, xloc=xloc.bar_index, color=color.new(color.gray, 10), style=line.style_dotted, width=1)
+    label.new(bar_index, lastSwingHigh, "BOS ↑", xloc=xloc.bar_index, style=label.style_label_down, color=color.new(color.gray, 10), textcolor=color.white, size=size.tiny)
+if bosDown
+    line.new(lastSwingLowBar, lastSwingLow, bar_index, lastSwingLow, xloc=xloc.bar_index, color=color.new(color.gray, 10), style=line.style_dotted, width=1)
+    label.new(bar_index, lastSwingLow, "BOS ↓", xloc=xloc.bar_index, style=label.style_label_up, color=color.new(color.gray, 10), textcolor=color.white, size=size.tiny)
+
+// Time windows — tint the two regions so "you are in the window" (step 1) is visible.
+//   Gold column = the 9–10am reference candle.   Cyan column = the 10–11am hunt window.
+bgcolor(showRef and inRef  ? color.new(colRef,  88) : na, title="Reference window (9–10)")
+bgcolor(showRef and inHunt ? color.new(colHunt, 88) : na, title="Hunt window (10–11)")
+
+// Reference candle — tight gold box over the 9–10 window; H/L levels projected into the hunt window
+if showRef and (not inRef) and inRef[1] and not na(refHigh)
+    leftX = na(refStartBar) ? bar_index : refStartBar
+    projX = bar_index + 40
+    box.new(leftX, refHigh, bar_index, refLow, border_color=colRef, border_width=2, bgcolor=color.new(colRef, 82))
+    line.new(leftX, refHigh, projX, refHigh, color=colRef, width=2, style=line.style_dashed)
+    line.new(leftX, refLow,  projX, refLow,  color=colRef, width=2, style=line.style_dashed)
+    label.new(leftX, refHigh, "9am High — sweep me", xloc=xloc.bar_index, style=label.style_label_right, color=colRef, textcolor=color.black, size=size.normal)
+    label.new(leftX, refLow,  "9am Low — sweep me",  xloc=xloc.bar_index, style=label.style_label_right, color=colRef, textcolor=color.black, size=size.normal)
+
+// "Hunt" tag at the start of the 10–11 window so the user knows where to watch
+if showRef and inHunt and not inHunt[1]
+    label.new(bar_index, high, "HUNT 10–11: watch for a sweep", xloc=xloc.bar_index, yloc=yloc.abovebar, style=label.style_label_down, color=colHunt, textcolor=color.black, size=size.small)
+
+// Sweep marker — larger, semantic color, clear text
+plotshape(showStages and sweepHigh, title="Sweep High", style=shape.triangledown, location=location.abovebar, color=colShort, size=size.small, text="SWEEP", textcolor=colShort)
+plotshape(showStages and sweepLow,  title="Sweep Low",  style=shape.triangleup,   location=location.belowbar, color=colLong,  size=size.small, text="SWEEP", textcolor=colLong)
+
+// MSS marker — box the whole shift: from the swing that formed after the sweep,
+// across to the candle that closes through it. Left edge = the swing being broken;
+// right edge = the break. Box height also shows the displacement thrust.
+if showStages and (mssShort or mssLong)
+    mc     = mssLong ? colLong : colShort
+    xSwing = na(mssSwingBar) ? bar_index - 5 : mssSwingBar
+    bTop   = math.max(mssLevel, close)
+    bBot   = math.min(mssLevel, close)
+    line.new(xSwing, mssLevel, bar_index, mssLevel, color=mc, width=2, style=line.style_dotted)
+    label.new(xSwing, mssLevel, mssLong ? "swing high" : "swing low", xloc=xloc.bar_index, style=label.style_label_right, color=color.new(mc, 25), textcolor=color.white, size=size.tiny)
+    box.new(xSwing, bTop, bar_index, bBot, border_color=mc, border_width=2, bgcolor=color.new(mc, 84))
+    label.new(bar_index, mssLong ? bTop : bBot, "MSS ✓ broke swing " + (mssLong ? "high" : "low"), xloc=xloc.bar_index, style=mssLong ? label.style_label_down : label.style_label_up, color=mc, textcolor=color.white, size=size.small)
+
+// Entry zone box (FVG / order block)
+if showZone and (enterLong or enterShort)
+    box.new(bar_index, zoneTop, bar_index + 25, zoneBot, border_color=color.new(colZone, 0), border_width=2, bgcolor=colZone)
+
+// Entry / Stop / Target — thick lines + right-anchored SL/TP tags
+if showLevels and (enterLong or enterShort)
+    dc     = bias == 1 ? colLong : colShort
+    rightX = bar_index + 30
+    line.new(bar_index, entryPx, rightX, entryPx, color=dc, width=2)
+    line.new(bar_index, stopPx,  rightX, stopPx,  color=color.new(color.red, 0), width=2, style=line.style_dashed)
+    line.new(bar_index, tgtPx,   rightX, tgtPx,   color=color.new(color.green, 0), width=2, style=line.style_dashed)
+    rr = math.abs(tgtPx - entryPx) / math.max(math.abs(entryPx - stopPx), syminfo.mintick)
+    label.new(bar_index, entryPx, (bias == 1 ? "▲ LONG" : "▼ SHORT") + "  " + str.tostring(rr, "#.0#") + "R", style=bias == 1 ? label.style_label_up : label.style_label_down, color=dc, textcolor=color.white, size=size.normal)
+    label.new(rightX, stopPx, "SL", xloc=xloc.bar_index, style=label.style_label_left, color=color.new(color.red, 0),   textcolor=color.white, size=size.small)
+    label.new(rightX, tgtPx,  "TP", xloc=xloc.bar_index, style=label.style_label_left, color=color.new(color.green, 0), textcolor=color.white, size=size.small)
+
+// ============================================================================
+// SETUP CHECKLIST PANEL — the 5 conditions and what to look for, ticked live
+// ============================================================================
+f_mark(done) => done ? "✓ " : "▢ "
+f_col(done)  => done ? color.new(#26a69a, 0) : color.new(color.gray, 30)
+
+var table panel = table.new(position.top_right, 2, 10, bgcolor=color.new(#131722, 10), border_color=color.new(color.gray, 60), border_width=1, frame_color=color.new(color.gray, 40), frame_width=1)
+
+if showPanel and barstate.islast
+    biasTxt = bias == 1 ? "LONG" : bias == -1 ? "SHORT" : "—"
+    biasCol = bias == 1 ? colLong : bias == -1 ? colShort : color.gray
+    entered = stage >= 3
+    rrTxt   = entered ? str.tostring(math.abs(tgtPx - entryPx) / math.max(math.abs(entryPx - stopPx), syminfo.mintick), "#.0#") + "R" : "—"
+    nowTxt  = str.format_time(time, "HH:mm", tz)
+    phase   = inRef ? "9–10 Reference" : inHunt ? "10–11 Hunt" : "Outside window"
+    phaseCol = inRef ? colRef : inHunt ? colHunt : color.gray
+
+    table.cell(panel, 0, 0, "GOLDEN BULLET", text_color=color.white, text_size=size.normal, bgcolor=color.new(#f5b300, 20))
+    table.cell(panel, 1, 0, biasTxt, text_color=color.white, text_size=size.normal, bgcolor=color.new(biasCol, 10))
+
+    table.cell(panel, 0, 1, "Now (NY)",           text_color=color.white, text_size=size.small, text_halign=text.align_left)
+    table.cell(panel, 1, 1, nowTxt + "  " + phase, text_color=color.black, text_size=size.small, bgcolor=color.new(phaseCol, 20))
+
+    table.cell(panel, 0, 2, "In 9–10 window",     text_color=color.white, text_size=size.small, text_halign=text.align_left)
+    table.cell(panel, 1, 2, f_mark(inRef),         text_color=color.white, text_size=size.small, bgcolor=inRef ? color.new(colRef, 0) : color.new(color.gray, 30))
+
+    table.cell(panel, 0, 3, "In 10–11 hunt",      text_color=color.white, text_size=size.small, text_halign=text.align_left)
+    table.cell(panel, 1, 3, f_mark(inHunt),        text_color=color.white, text_size=size.small, bgcolor=inHunt ? color.new(colHunt, 0) : color.new(color.gray, 30))
+
+    table.cell(panel, 0, 4, "1  Liquidity sweep",  text_color=color.white, text_size=size.small, text_halign=text.align_left)
+    table.cell(panel, 1, 4, f_mark(stage >= 1),    text_color=color.white, text_size=size.small, bgcolor=f_col(stage >= 1))
+
+    table.cell(panel, 0, 5, "2  Structure shift",  text_color=color.white, text_size=size.small, text_halign=text.align_left)
+    table.cell(panel, 1, 5, f_mark(stage >= 2),    text_color=color.white, text_size=size.small, bgcolor=f_col(stage >= 2))
+
+    table.cell(panel, 0, 6, "3  Displacement",     text_color=color.white, text_size=size.small, text_halign=text.align_left)
+    table.cell(panel, 1, 6, f_mark(stage >= 2),    text_color=color.white, text_size=size.small, bgcolor=f_col(stage >= 2))
+
+    table.cell(panel, 0, 7, "4  Pullback entry",   text_color=color.white, text_size=size.small, text_halign=text.align_left)
+    table.cell(panel, 1, 7, f_mark(entered),       text_color=color.white, text_size=size.small, bgcolor=f_col(entered))
+
+    table.cell(panel, 0, 8, "Bias",               text_color=color.white, text_size=size.small, text_halign=text.align_left)
+    table.cell(panel, 1, 8, biasTxt,               text_color=color.white, text_size=size.small, bgcolor=color.new(biasCol, 20))
+
+    table.cell(panel, 0, 9, "Risk : Reward",       text_color=color.white, text_size=size.small, text_halign=text.align_left)
+    table.cell(panel, 1, 9, rrTxt,                 text_color=color.white, text_size=size.small)
+
+// ============================================================================
+// ALERTS
+// ============================================================================
+alertcondition(sweepHigh or sweepLow,  "Golden Bullet: Liquidity Sweep", "Golden Bullet sweep on {{ticker}} ({{interval}})")
+alertcondition(mssShort or mssLong,     "Golden Bullet: Market Structure Shift", "Golden Bullet MSS on {{ticker}} ({{interval}})")
+alertcondition(enterLong,               "Golden Bullet: Long Entry", "Golden Bullet LONG on {{ticker}} ({{interval}})")
+alertcondition(enterShort,              "Golden Bullet: Short Entry", "Golden Bullet SHORT on {{ticker}} ({{interval}})")
+
+if alertSweep and (sweepHigh or sweepLow)
+    alert("Golden Bullet sweep (" + (sweepHigh ? "high → short bias" : "low → long bias") + ")", alert.freq_once_per_bar)
+if alertMSS and (mssShort or mssLong)
+    alert("Golden Bullet MSS confirmed (" + (mssLong ? "long" : "short") + ")", alert.freq_once_per_bar)
+if alertEntry and (enterLong or enterShort)
+    alert("Golden Bullet entry (" + (enterLong ? "LONG" : "SHORT") + ")", alert.freq_once_per_bar)

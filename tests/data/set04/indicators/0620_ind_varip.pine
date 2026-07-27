@@ -1,0 +1,25 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block322
+// content_hash: 382d5e1626bc4533
+// collected: 2026-07-27
+indicator("varip")
+varip int v = -1
+v := v + 1
+plot(v)
+
+//@version=6
+indicator("varip with types")
+type barData
+    int index = -1
+    varip int ticks = -1
+
+var currBar = barData.new()
+currBar.index += 1
+currBar.ticks += 1
+
+// Will be equal to bar_index on all bars
+plot(currBar.index)
+// In real time, will increment per every tick on the chart
+plot(currBar.ticks)

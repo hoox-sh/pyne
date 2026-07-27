@@ -1,0 +1,49 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/黄金交叉均线突破策略Crude-Oil-Moving-Average-Crossover-Strategy.md
+// content_hash: d1e27f967aed6b6b
+// collected: 2026-07-27
+strategy("Crude Oil Moving Average Crossover", overlay=true)
+
+// Define inputs
+fastLength = input(10, "Fast Length")
+slowLength = input(30, "Slow Length")
+
+// Calculate moving averages
+fastMA = ta.sma(close, fastLength)
+slowMA = ta.sma(close, slowLength)
+
+// Plot moving averages
+plot(fastMA, color=color.blue, title="Fast MA")
+plot(slowMA, color=color.red, title="Slow MA")
+
+// Entry conditions
+longCondition = ta.crossover(fastMA, slowMA)
+shortCondition = ta.crossunder(fastMA, slowMA)
+
+// Exit conditions
+exitCondition = ta.crossover(slowMA, fastMA)
+
+// Execute strategy
+if longCondition
+    strategy.entry("Buy", strategy.long)
+if shortCondition
+    strategy.entry("Sell", strategy.short)
+if exitCondition
+    strategy.close_all()
+
+// Plot buy and sell signals
+plotshape(longCondition, title="Buy Signal", location=location.belowbar, color=color.green, style=shape.triangleup, size=size.small)
+plotshape(shortCondition, title="Sell Signal", location=location.abovebar, color=color.red, style=shape.triangledown, size=size.small)
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/438010
+
+> Last Modified
+
+2024-01-08 10:25:00

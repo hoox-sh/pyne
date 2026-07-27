@@ -1,0 +1,58 @@
+//@version=4
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/Weis Chop Strategy.pine
+// content_hash: 451b899c143ce8af
+// collected: 2026-07-27
+strategy("Weis Chop Strategy", overlay=false, default_qty_type = strategy.percent_of_equity, default_qty_value = 10,max_lines_count = 500, max_labels_count = 500)
+maxIdLossPcnt = input(1, "Max Intraday Loss(%)", type=input.float)
+strategy.risk.max_intraday_loss(maxIdLossPcnt, strategy.percent_of_equity)
+method = input(defval="ATR", options=["ATR", "Traditional", "Part of Price"], title="Renko Assignment Method")
+methodvalue = input(defval=14.0, type=input.float, minval=0, title="Value")
+pricesource = input(defval="Close", options=["Close", "Open / Close", "High / Low"], title="Price Source")
+useClose = pricesource == "Close"
+useOpenClose = pricesource == "Open / Close" or useClose
+useTrueRange = input(defval="Auto", options=["Always", "Auto", "Never"], title="Use True Range instead of Volume")
+isOscillating = input(defval=false, type=input.bool, title="Oscillating")
+normalize = input(defval=false, type=input.bool, title="Normalize")
+vol = useTrueRange == "Always" or useTrueRange == "Auto" and na(volume) ? tr : volume
+op = useClose ? close : open
+hi = useOpenClose ? close >= op ? close : op : high
+lo = useOpenClose ? close <= op ? close : op : low
+if method == "ATR"
+    methodvalue := atr(round(methodvalue))
+if method == "Part of Price"
+    methodvalue := close / methodvalue
+currclose = float(na)
+prevclose = nz(currclose[1])
+prevhigh = prevclose + methodvalue
+prevlow = prevclose - methodvalue
+currclose := hi > prevhigh ? hi : lo < prevlow ? lo : prevclose
+direction = int(na)
+direction := currclose > prevclose ? 1 : currclose < prevclose ? -1 : nz(direction[1])
+directionHasChanged = change(direction) != 0
+directionIsUp = direction > 0
+directionIsDown = direction < 0
+barcount = 1
+barcount := not directionHasChanged and normalize ? barcount[1] + barcount : barcount
+vol := not directionHasChanged ? vol[1] + vol : vol
+res = barcount > 1 ? vol / barcount : vol
+plot(isOscillating and directionIsDown ? -res : res, style=plot.style_columns, color=directionIsUp ? color.green : color.red, transp=75, linewidth=3, title="Wave Volume")
+length = input(14, minval=1)
+ci = 100 * log10(sum(atr(1), length) / (highest(length) - lowest(length))) / log10(length)
+offset = input(0, "Offset", type = input.integer, minval = -500, maxval = 500)
+plot(ci, "CHOP", color=#2962FF, offset = offset)
+band1 = hline(61.8, "Upper Band", color=#787B86, linestyle=hline.style_dashed)
+band0 = hline(38.2, "Lower Band", color=#787B86, linestyle=hline.style_dashed)
+fill(band1, band0, color = color.rgb(33, 150, 243, 90), title = "Background")
+MomentumBull = close>ema(close,8)
+MomentumBear = close<ema(close,8)
+Tradecon = crossunder(ci,61.8)
+if (MomentumBull and directionIsUp and Tradecon)
+    strategy.entry("Buy", strategy.long)
+if (MomentumBear and directionIsDown and Tradecon )
+    strategy.entry("Sell", strategy.short)
+    strategy.exit("exit","Buy",when=directionIsDown,qty_percent=100,profit=20,loss=10)
+    strategy.exit("exit","Sell",when=directionIsUp,qty_percent=100,profit=20,loss=10)
+    
+Expand (64 lines)

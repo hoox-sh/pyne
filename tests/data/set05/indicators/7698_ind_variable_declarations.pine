@@ -1,0 +1,22 @@
+//@version=5
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/v5/language/variable-declarations.md::variable-declarations.md#block2
+// content_hash: 8d1f14bcce48efc0
+// collected: 2026-07-27
+indicator("", "", true)
+sensitivityInput = input.int(2, "Sensitivity", minval = 1, tooltip = "Higher values make color changes less sensitive.")
+ma = ta.sma(close, 20)
+maUp = ta.rising(ma, sensitivityInput)
+maDn = ta.falling(ma, sensitivityInput)
+
+// On first bar only, initialize color to gray
+var maColor = color.gray
+if maUp
+    // MA has risen for two bars in a row; make it lime.
+    maColor := color.lime
+else if maDn
+    // MA has fallen for two bars in a row; make it fuchsia.
+    maColor := color.fuchsia
+
+plot(ma, "MA", maColor, 2)

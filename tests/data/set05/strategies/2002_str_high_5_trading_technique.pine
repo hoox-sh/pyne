@@ -1,0 +1,65 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动态趋势跟踪多周期均线交叉策略-Dynamic-Trend-Following-Multi-Period-Moving-Average-Crossover-Strategy.md
+// content_hash: 1227b223d20b3da2
+// collected: 2026-07-27
+strategy("High 5 Trading Technique", overlay=true)
+
+// --- Input parameters ---
+sma89Length = input.int(title="SMA 89 Length", defval=89)
+sma21Length = input.int(title="SMA 21 Length", defval=21)
+ema5HighLength = input.int(title="EMA 5 High Length", defval=5)
+ema5LowLength = input.int(title="EMA 5 Low Length", defval=5)
+contracts = input.int(title="Aantal Contracten", defval=1)
+stopLossPoints = input.int(title="Stop Loss Points per Contract", defval=25)
+takeProfitPoints = input.int(title="Take Profit Points per Contract", defval=25)
+
+// --- Calculate moving averages ---
+sma89 = ta.sma(close, sma89Length)
+sma21 = ta.sma(close, sma21Length)
+ema5High = ta.ema(high, ema5HighLength)
+ema5Low = ta.ema(low, ema5LowLength)
+
+// --- Identify trend and order of moving averages ---
+longSetup = close > sma89 and close > sma21 and ema5High > sma21 and sma21 > sma89
+shortSetup = close < sma89 and close < sma21 and ema5Low < sma21 and sma21 < sma89
+
+// --- Entry signals ---
+longTrigger = longSetup and close <= ema5Low
+shortTrigger = shortSetup and close >= ema5High
+
+// --- Entry orders ---
+if (longTrigger)
+    strategy.entry("Long 1", strategy.long, qty=contracts)
+    strategy.entry("Long 2", strategy.long, qty=contracts)
+
+if (shortTrigger)
+    strategy.entry("Short 1", strategy.short, qty=contracts)
+    strategy.entry("Short 2", strategy.short, qty=contracts)
+
+// --- Stop-loss and take-profit for long positions ---
+if (strategy.position_size > 0)
+    strategy.exit("Exit Long 1", "Long 1", stop=strategy.position_avg_price - stopLossPoints, limit=strategy.position_avg_price + takeProfitPoints)
+    strategy.exit("Exit Long 2", "Long 2", stop=strategy.position_avg_price - stopLossPoints, trail_offset=takeProfitPoints, trail_points=takeProfitPoints)
+
+// --- Stop-loss and take-profit for short positions ---
+if (strategy.position_size < 0)
+    strategy.exit("Exit Short 1", "Short 1", stop=strategy.position_avg_price + stopLossPoints, limit=strategy.position_avg_price - takeProfitPoints)
+    strategy.exit("Exit Short 2", "Short 2", stop=strategy.position_avg_price + stopLossPoints, trail_offset=takeProfitPoints, trail_points=takeProfitPoints)
+
+// --- Plot moving averages ---
+plot(sma89, color=color.blue, linewidth=2)
+plot(sma21, color=color.red, linewidth=2)
+plot(ema5High, color=color.green, linewidth=2)
+plot(ema5Low, color=color.orange, linewidth=2)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/474962
+
+> Last Modified
+
+2024-12-13 10:40:30

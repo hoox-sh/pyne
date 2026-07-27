@@ -1,0 +1,74 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/EMA交叉指示双重止盈止损策略-EMA-Crossover-with-Dual-Take-Profit-and-Stop-Loss-Strategy.md
+// content_hash: 692ed2e16aeec720
+// collected: 2026-07-27
+strategy("Estratégia com Médias Móveis", overlay=true)
+
+// Parâmetros das médias móveis
+ema_short_length = input.int(20, title="EMA Curta")
+ema_long_length = input.int(50, title="EMA Longa")
+tp_pips = input.int(200, title="Take Profit em Pips")
+sl_pips = input.int(100, title="Stop Loss em Pips")
+
+// Cálculo das médias móveis
+ema_short = ta.ema(close, ema_short_length)
+ema_long = ta.ema(close, ema_long_length)
+
+// Definição do Take Profit e Stop Loss iniciais em pips
+pip_size = syminfo.mintick
+initial_take_profit_buy = tp_pips * pip_size
+initial_take_profit_sell = tp_pips * pip_size
+initial_stop_loss_buy = ema_long - sl_pips * pip_size
+initial_stop_loss_sell = ema_long + sl_pips * pip_size
+
+// Variáveis para controle de SL e TP móveis
+var float stop_loss_level = na
+var float take_profit_level = na
+
+// Condições para Compra e Venda
+buy_condition = ta.crossover(ema_short, ema_long)
+sell_condition = ta.crossunder(ema_short, ema_long)
+
+// Atualização do Stop Loss Móvel e Take Profit Móvel
+if (buy_condition)
+    stop_loss_level := ema_long - sl_pips * pip_size
+    take_profit_level := close + initial_take_profit_buy
+
+if (sell_condition)
+    stop_loss_level := ema_long + sl_pips * pip_size
+    take_profit_level := close - initial_take_profit_sell
+
+// Execução da Estratégia de Compra
+if (buy_condition)
+    strategy.entry("Compra", strategy.long)
+
+// Saída da Estratégia de Compra
+if (strategy.position_size > 0)
+    strategy.exit("Take Profit", "Compra", limit=take_profit_level, stop=stop_loss_level)
+
+// Execução da Estratégia de Venda
+if (sell_condition)
+    strategy.entry("Venda", strategy.short)
+
+// Saída da Estratégia de Venda
+if (strategy.position_size < 0)
+    strategy.exit("Take Profit", "Venda", limit=take_profit_level, stop=stop_loss_level)
+
+// Plotagem das EMAs
+plot(ema_short, color=color.blue, title="EMA Curta")
+plot(ema_long, color=color.red, title="EMA Longa")
+
+// Estilo de fundo baseado na posição
+bgcolor(buy_condition ? color.green : sell_condition ? color.red : na, transp=80)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/458049
+
+> Last Modified
+
+2024-07-29 14:46:31

@@ -1,0 +1,19 @@
+//@version=4
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/Buy and hold strategy.pine
+// content_hash: f533a9515df0b35f
+// collected: 2026-07-27
+strategy("Buy and hold strategy")
+startDate = input(title="Start Date", type=input.time, defval=timestamp("01 Jan 1970 00:00"))
+endDate = input(title="End Date", type=input.time, defval=timestamp("20 June 2022"))
+tradeDirection = input(title="Trade Direction", options=["Long", "Short"], defval="Long")
+inDateRange = (time >= startDate) and (time < endDate)
+if(inDateRange)
+    if(tradeDirection == "Long")
+        strategy.entry("Long", strategy.long)
+    if(tradeDirection == "Short")
+        strategy.entry("Short", strategy.short)
+if(not inDateRange)
+    strategy.exit(id="Exit", stop=close)
+Expand (17 lines)

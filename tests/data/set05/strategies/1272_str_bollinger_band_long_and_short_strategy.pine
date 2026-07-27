@@ -1,0 +1,89 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多周期布林带突破回归交易策略-Multi-Timeframe-Bollinger-Band-Breakout-Reversion-Strategy.md
+// content_hash: 4b1ef2c25ba5f5ba
+// collected: 2026-07-27
+strategy("Bollinger Band Long & Short Strategy", overlay=true)
+
+// Bollinger Bands settings
+length = 20
+src = close
+mult = 1.5
+basis = ta.sma(src, length)
+deviation = ta.stdev(src, length)
+upperBand = basis + (mult * deviation)
+lowerBand = basis - (mult * deviation)
+
+// Detecting a candle fully outside the upper Bollinger Band
+prevCandleOutsideUpper = (close[1] > upperBand[1]) and (open[1] > upperBand[1]) and (low[1] > upperBand[1])
+
+// Detecting a candle fully outside the lower Bollinger Band
+prevCandleOutsideLower = (close[1] < lowerBand[1]) and (open[1] < lowerBand[1]) and (high[1] < lowerBand[1])
+
+// Entry condition - Only within the next 4 candles break the low of the previous candle (Short)
+breaksLow = ta.lowest(low, 4) < low[1] and ta.barssince(prevCandleOutsideUpper) <= 4
+
+// Entry condition - Only within the next 4 candles break the high of the previous candle (Long)
+breaksPrevHigh = ta.highest(high, 4) > high[1] and ta.barssince(prevCandleOutsideLower) <= 4
+
+var float entryPrice = na
+var float stopLoss = na
+var float takeProfit = na
+var float breakevenLevel = na
+var float quantity = na
+maxLoss = 4000.0 // Max loss set to INR 4000 per trade
+
+// Short Trade
+if prevCandleOutsideUpper and breaksLow
+    entryPrice := low[1]
+    stopLoss := high[1] // Stop-loss set to the high of the candle outside the upper BB
+    risk = stopLoss - entryPrice
+    quantity := risk > 0 ? math.floor(maxLoss / risk) : na // Ensuring risk is exactly 4000 per trade
+    takeProfit := entryPrice - (risk * 3) // Adjusted for 1:3 risk-reward
+    breakevenLevel := entryPrice - (risk * 2) // 1:2 level where stop loss moves to breakeven
+    if not na(quantity) and quantity > 0
+        strategy.entry("Short", strategy.short, qty=quantity)
+
+// Move SL to breakeven if 1:2 is reached for Short
+if strategy.position_size < 0 and close <= breakevenLevel
+    strategy.exit("Move SL to breakeven", from_entry="Short", stop=entryPrice)
+
+// Close trade at 1:3 for Short
+if strategy.position_size < 0 and close <= takeProfit
+    strategy.close("Short")
+
+// Long Trade
+if prevCandleOutsideLower and breaksPrevHigh
+    entryPrice := high[1]
+    stopLoss := low[1] // Stop-loss set to the low of the candle outside the lower BB
+    risk = entryPrice - stopLoss
+    quantity := risk > 0 ? math.floor(maxLoss / risk) : na // Ensuring risk is exactly 4000 per trade
+    takeProfit := entryPrice + (risk * 3) // Adjusted for 1:3 risk-reward
+    breakevenLevel := entryPrice + (risk * 2) // 1:2 level where stop loss moves to breakeven
+    if not na(quantity) and quantity > 0
+        strategy.entry("Long", strategy.long, qty=quantity)
+
+// Move SL to breakeven if 1:2 is reached for Long
+if strategy.position_size > 0 and close >= breakevenLevel
+    strategy.exit("Move SL to breakeven", from_entry="Long", stop=entryPrice)
+
+// Close trade at 1:3 for Long
+if strategy.position_size > 0 and close >= takeProfit
+    strategy.close("Long")
+
+// Plot Bollinger Bands with increased visibility
+plot(upperBand, color=color.red, linewidth=3, title="Upper Band")
+plot(lowerBand, color=color.green, linewidth=3, title="Lower Band")
+plot(basis, color=color.blue, linewidth=3, title="Middle Band")
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/489281
+
+> Last Modified
+
+2025-04-03 10:26:06

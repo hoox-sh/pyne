@@ -1,0 +1,1312 @@
+//@version=6
+// set03 corpus entry
+// source_repo: casoon-pine-scripts
+// source_path: casoon-pine-scripts/indicators/market_structure/wyckoff_schematics/wyckoff_schematics.pine
+// content_hash: 912016c7228dd49b
+// collected: 2026-07-27
+// ============================================================================
+// Wyckoff Schematics [WavesUnchained]
+// Version: 4.8.2
+// Author: WavesUnchained
+// Build: 2026-06-30 00:00:00
+// ============================================================================
+// Volume/spread-based Wyckoff schematic detector with A–E phase heuristics,
+// event labeling (PS/PSY, SC, BC, AR, ST, Spring, Test, SOS, LPS, UTAD, SOW,
+// LPSY), confidence/range scoring, pivot-confirmed LPS/LPSY (pivot-bar volume),
+// multi-timeframe bias (EMA + slope), phase-anchored VWAP, and combined quality alerts.
+//
+// Features:
+//   ✓ Phases A–E within Accumulation and Distribution
+//   ✓ Schematic #1 (Spring/UTAD) and #2 (no Spring/UTAD, direct SOS/SOW)
+//   ✓ Full event set: PS/PSY, SC, BC, AR, ST, Spring, Test, SOS, LPS, UTAD, SOW, LPSY
+//   ✓ Pivot-confirmed LPS and LPSY detection
+//   ✓ Setup confidence score (0–100) with quality label
+//   ✓ Range quality score (0–100) with quality label
+//   ✓ Phase-anchored VWAP (AVWAP) as value-area proxy
+//   ✓ Multi-timeframe bias via configurable HTF
+//   ✓ No Supply / No Demand / Volume Dry-Up detection
+//   ✓ Effort vs Result analysis (Wyckoff's 3rd Law)
+//   ✓ P&F-approximate Cause & Effect price targets
+//   ✓ Relative strength vs configurable benchmark
+//   ✓ Combined quality alerts (Spring→Test, UTAD→Test, full sequence, HTF align)
+//
+// ============================================================================
+indicator("Wyckoff Schematics [WavesUnchained]", "Wyckoff", overlay=true, max_boxes_count=50, max_labels_count=100, max_lines_count=50)
+
+// ============================================================================
+// INPUTS
+// ============================================================================
+
+var g1 = "Wyckoff Analysis"
+int   volumeLookback     = input.int(20,   "Volume Lookback",           minval=10,  maxval=100,  group=g1)
+float climaxMultiplier   = input.float(2.0, "Climax Volume Multiplier", minval=1.5, maxval=5.0,  group=g1)
+float springThreshold    = input.float(2.0,  "Spring / UTAD Range Break %", minval=0.5, maxval=10.0, group=g1)
+float sosThreshold       = input.float(70.0, "SOS / SOW Range Progress %", minval=50.0, maxval=95.0, group=g1)
+int   rangeEstablishBars = input.int(20,   "Range Establish Bars",      minval=5,   maxval=100,  group=g1)
+float invalidationFactor = input.float(0.33, "Range Invalidation Factor", minval=0.2, maxval=2.0, step=0.1, group=g1, tooltip="Fraction of the range width beyond the opposite edge that invalidates a frozen schematic. 0.5 keeps broken schematics alive far too long; ~0.33 is tighter.")
+int   pivotLen           = input.int(3,    "Pivot Length (LPS/LPSY)",   minval=2,   maxval=10,   group=g1, tooltip="Bars left/right for pivot confirmation of LPS and LPSY events.")
+int   eventCooldownBars  = input.int(10,   "Event Cooldown Bars",       minval=1,   maxval=50,   group=g1)
+int   markupMinScore     = input.int(50,   "Min Breakout Score (Markup/Markdown)", minval=0, maxval=100, group=g1, tooltip="A confirmed range breakout only flips to Markup/Markdown when the schematic's setup score is at least this high. Raise it to demand cleaner structures, lower it to label more breakouts.")
+
+var g2 = "Display"
+bool showPhaseRanges      = input.bool(true,  "Show Phase Ranges",               group=g2)
+bool showCurrentPhaseLabel = input.bool(true, "Show Current Phase Label",        group=g2, tooltip="Off renders the schematic boxes without the phase text overlay.")
+bool showEventLabels      = input.bool(true,  "Show Event Labels",                group=g2)
+bool showEffortMarkers    = input.bool(true,  "Show Effort vs Result Markers",    group=g2)
+bool showNSDMarkers       = input.bool(true,  "Show No Supply / No Demand / VDU", group=g2)
+bool showDashboard        = input.bool(false, "Show Dashboard",                   group=g2)
+string oldPhaseRangeMode = input.string("Fade", "Old Phase Ranges", options=["Delete", "Fade", "Keep", "Current Only"], group=g2)
+int maxOldPhaseRanges    = input.int(8, "Max Old Phase Ranges", minval=0, maxval=24, group=g2)
+int oldPhaseRangeTransp  = input.int(92, "Old Phase Range Transparency", minval=75, maxval=100, group=g2)
+
+var g2a = "Display Lookback (per Timeframe)"
+int eventLookback_5M  = input.int(200, "Lookback: 5M",     minval=50, maxval=500, group=g2a)
+int eventLookback_15M = input.int(150, "Lookback: 15M",    minval=50, maxval=500, group=g2a)
+int eventLookback_1H  = input.int(100, "Lookback: 1H",     minval=20, maxval=300, group=g2a)
+int eventLookback_4H  = input.int(75,  "Lookback: 4H",     minval=20, maxval=200, group=g2a)
+int eventLookback_D   = input.int(50,  "Lookback: Daily",  minval=10, maxval=150, group=g2a)
+int eventLookback_W   = input.int(30,  "Lookback: Weekly", minval=10, maxval=100, group=g2a)
+
+int eventLookback = switch
+    timeframe.isintraday and timeframe.multiplier <= 5  => eventLookback_5M
+    timeframe.isintraday and timeframe.multiplier <= 30 => eventLookback_15M
+    timeframe.isintraday and timeframe.multiplier <= 60 => eventLookback_1H
+    timeframe.isdaily                                    => eventLookback_D
+    timeframe.isweekly or timeframe.ismonthly           => eventLookback_W
+    =>                                                      eventLookback_4H
+
+var g2b = "Colors"
+color accumColor    = input.color(color.new(color.green,  70), "Accumulation", group=g2b)
+color distribColor  = input.color(color.new(color.red,    70), "Distribution", group=g2b)
+color markupColor   = input.color(color.new(color.lime,   70), "Markup",       group=g2b)
+color markdownColor = input.color(color.new(color.maroon, 70), "Markdown",     group=g2b)
+
+var g3 = "Relative Strength"
+bool   showRS   = input.bool(false,      "Enable Relative Strength", group=g3)
+string rsSymbol = input.symbol("SP:SPX", "Benchmark Symbol",         group=g3)
+
+var g4 = "Multi-Timeframe"
+string htfTF     = input.timeframe("D", "HTF Bias Timeframe", group=g4)
+int    htfEmaPer = input.int(20, "HTF EMA Period", minval=5, maxval=100, group=g4)
+
+var g5 = "Signal Mode"
+bool showOnlyQualitySignals = input.bool(false, "Show Only Quality Signals", group=g5, tooltip="When enabled, only entry/confirmation labels such as TEST, SOS, SOW, LPS and LPSY require the minimum setup score. Structure labels remain visible.")
+int  minSignalScore         = input.int(70,    "Min Setup Score (0–100)",   minval=0, maxval=100, group=g5)
+
+// ============================================================================
+// TYPES
+// ============================================================================
+
+type WyckoffPhase
+    string name
+    string subphase
+    string phaseAE
+    string schematicType
+    int    startBar
+    float  startPrice
+    float  rangeHigh
+    float  rangeLow
+    float  confidence
+    int    rangeEstablishedBar
+    float  climaxVolRatio
+    float  climaxPrice
+    float  arExtreme
+    int    arBar
+    int    springUtadBar
+    float  springUtadPrice
+    float  springUtadVolRatio
+    bool   awaitingTest
+    string priorTrend
+
+type WyckoffEvent
+    string eventType
+    int    bar
+    float  price
+    float  volume
+    float  volumeRatio
+    float  spread
+    float  significance
+    string description
+    bool   labeled
+    bool   isAboveBar
+
+type EffortResult
+    float  effort
+    float  result
+    string relationship
+    bool   isPositive
+    float  strength
+
+type WyckoffState
+    WyckoffPhase        currentPhase
+    WyckoffPhase        previousPhase
+    array<WyckoffEvent> events
+    EffortResult        effortResult
+    string              compositeOperator
+    float               causeBuilt
+    float               effectExpected
+    float               pfTarget
+    int                 lastUpdateBar
+    int                 setupScore
+    string              setupQuality
+    int                 rangeScore
+    string              rangeQuality
+    float               avwapPrice
+    float               vwapNum
+    float               vwapDen
+    string              htfBias
+    bool                springConfirmed
+    bool                utadConfirmed
+
+type WyckoffConfig
+    int   volumeLookback
+    float climaxVolumeMultiplier
+    float springThreshold
+    float sosThreshold
+    int   minRangeBars
+    int   rangeEstablishBars
+    float invalidationFactor
+    int   pivotLen
+    int   eventCooldownBars
+    int   markupMinScore
+
+// ============================================================================
+// INITIALIZATION
+// ============================================================================
+
+newWyckoffState() =>
+    WyckoffState.new(na, na, array.new<WyckoffEvent>(), na, "NEUTRAL",
+         0.0, 0.0, na, 0,
+         0, "Weak", 0, "Poor", na, 0.0, 0.0,
+         "NEUTRAL", false, false)
+
+newWyckoffConfig() =>
+    WyckoffConfig.new(volumeLookback, climaxMultiplier, springThreshold, sosThreshold, 10, rangeEstablishBars, invalidationFactor, pivotLen, eventCooldownBars, markupMinScore)
+
+newWyckoffPhase(string phaseName, string sub = "", string ae = "", string priorTrend = "UNKNOWN") =>
+    WyckoffPhase.new(phaseName, sub, ae, "TBD",
+         bar_index, close, high, low,
+         50.0, na,
+         0.0, na, na, na, na, na, 0.0, false,
+         priorTrend)
+
+newWyckoffEvent(string eventType, string desc = "", float eventPrice = close, bool isAboveBar = false) =>
+    WyckoffEvent.new(eventType, bar_index, eventPrice, volume, 0.0, high - low, 50.0, desc, false, isAboveBar)
+
+pushEvent(array<WyckoffEvent> events, WyckoffEvent evt) =>
+    array.push(events, evt)
+    if array.size(events) > 50
+        array.shift(events)
+
+// ============================================================================
+// EFFORT VS RESULT
+// ============================================================================
+
+analyzeEffortResult(float volCurrent, float volAvg, float spread, float spreadAvg) =>
+    effort   = volCurrent / volAvg
+    result   = spread / spreadAvg
+    // Close position within the bar: 0 = closed at low, 1 = closed at high
+    closePos = (high - low) > 0 ? (close - low) / (high - low) : 0.5
+    relationship = "CONFIRMATION"
+    isPositive = close > open
+    strength = 50.0
+    if effort > 2.0 and result < 0.8
+        // High effort, small result: absorption climax
+        relationship := "CLIMAX"
+        strength := 90.0
+    else if effort > 1.5 and result > 1.5 and closePos < 0.3
+        // Wide-spread down bar closing near the low on high volume: bearish climax
+        relationship := "CLIMAX"
+        strength := 82.0
+    else if effort > 1.5 and result > 1.5 and closePos > 0.7
+        // Wide-spread up bar closing near the high on high volume: strong confirmation
+        strength := 80.0
+    else if effort > 1.5 and result > 1.5
+        // Wide spread but close in middle: ambiguous, moderate confirmation
+        strength := 65.0
+    else if effort < 0.8 and result > 1.2
+        relationship := "DIVERGENCE"
+        strength := 70.0
+    EffortResult.new(effort, result, relationship, isPositive, strength)
+
+// ============================================================================
+// EVENT DETECTION
+// ============================================================================
+
+detectSellingClimax(float volumeRatio, WyckoffConfig config, float atrVal) =>
+    barRange = high - low
+    closePos = barRange > 0 ? (close - low) / barRange : 0.5
+    exhaustionClose = close < open and closePos < 0.35
+    absorptionClose = close > open and closePos > 0.45
+    volumeRatio >= config.climaxVolumeMultiplier
+     and barRange > atrVal * 1.5
+     and (exhaustionClose or absorptionClose)
+
+detectBuyingClimax(float volumeRatio, WyckoffConfig config, float atrVal) =>
+    barRange = high - low
+    closePos = barRange > 0 ? (close - low) / barRange : 0.5
+    exhaustionClose = close > open and closePos > 0.65
+    absorptionClose = close < open and closePos < 0.55
+    volumeRatio >= config.climaxVolumeMultiplier
+     and barRange > atrVal * 1.5
+     and (exhaustionClose or absorptionClose)
+
+detectST(float climaxRef, float climaxVolRatio, float volumeRatio, bool isAccum, float spreadAvg) =>
+    narrowSpread = (high - low) < spreadAvg * 1.2
+    if isAccum
+        // ST: low retests SC zone on reduced volume + narrow spread (no panic)
+        low >= climaxRef * 0.97 and low <= climaxRef * 1.05 and volumeRatio < climaxVolRatio and narrowSpread
+    else
+        // ST: high retests BC zone on reduced volume + narrow spread (no euphoria)
+        high <= climaxRef * 1.03 and high >= climaxRef * 0.95 and volumeRatio < climaxVolRatio and narrowSpread
+
+detectSpring(float rangeLow, float rangeHigh, WyckoffConfig config, float atrVal) =>
+    rangeWidth = rangeHigh - rangeLow
+    springDepth = rangeLow - low
+    barRange = high - low
+    closePos = barRange > 0 ? (close - low) / barRange : 0.5
+    lowerWick = math.min(open, close) - low
+    wickRatio = barRange > 0 ? lowerWick / barRange : 0.0
+    minBreak = math.max(atrVal * 0.25, rangeWidth * config.springThreshold / 100.0)
+    rangeWidth > 0
+     and springDepth >= minBreak
+     and close > rangeLow
+     and (close > open or closePos > 0.55)
+     and wickRatio >= 0.25
+
+detectUTAD(float rangeLow, float rangeHigh, WyckoffConfig config, float atrVal) =>
+    rangeWidth = rangeHigh - rangeLow
+    utadHeight = high - rangeHigh
+    barRange = high - low
+    closePos = barRange > 0 ? (close - low) / barRange : 0.5
+    upperWick = high - math.max(open, close)
+    wickRatio = barRange > 0 ? upperWick / barRange : 0.0
+    minBreak = math.max(atrVal * 0.25, rangeWidth * config.springThreshold / 100.0)
+    rangeWidth > 0
+     and utadHeight >= minBreak
+     and close < rangeHigh
+     and (close < open or closePos < 0.45)
+     and wickRatio >= 0.25
+
+detectSOS(float rangeLow, float rangeHigh, float volumeRatio, WyckoffConfig config) =>
+    rangeWidth = rangeHigh - rangeLow
+    rangeProgress = rangeWidth > 0 ? (close - rangeLow) / rangeWidth * 100.0 : 0.0
+    rangeWidth > 0 and rangeProgress >= config.sosThreshold and volumeRatio >= 1.5 and close > open
+
+detectSOW(float rangeHigh, float rangeLow, float volumeRatio, WyckoffConfig config) =>
+    rangeWidth = rangeHigh - rangeLow
+    rangeProgress = rangeWidth > 0 ? (rangeHigh - close) / rangeWidth * 100.0 : 0.0
+    rangeWidth > 0 and rangeProgress >= config.sosThreshold and volumeRatio >= 1.5 and close < open
+
+// Pivot-confirmed LPS: pivot low in lower 35% of range — volume check on pivot bar
+detectLPS(float rangeLow, float rangeHigh, float volumeAvg, float pivLow, int pLen) =>
+    rangeWidth = rangeHigh - rangeLow
+    pivotConfirmed = not na(pivLow)
+    pivVolRatio    = volumeAvg[pLen] > 0 ? volume[pLen] / volumeAvg[pLen] : 1.0
+    inSupportZone  = rangeWidth > 0 and low[pLen] >= rangeLow and low[pLen] <= rangeLow + rangeWidth * 0.35
+    pivVolRatio < 0.85 and close[pLen] > open[pLen] and inSupportZone and pivotConfirmed
+
+// Pivot-confirmed LPSY: pivot high in upper 35% of range — volume check on pivot bar
+detectLPSY(float rangeLow, float rangeHigh, float volumeAvg, float pivHigh, int pLen) =>
+    rangeWidth = rangeHigh - rangeLow
+    pivotConfirmed = not na(pivHigh)
+    pivVolRatio    = volumeAvg[pLen] > 0 ? volume[pLen] / volumeAvg[pLen] : 1.0
+    inSupplyZone   = rangeWidth > 0 and high[pLen] <= rangeHigh and high[pLen] >= rangeHigh - rangeWidth * 0.35
+    pivVolRatio < 0.85 and close[pLen] < open[pLen] and inSupplyZone and pivotConfirmed
+
+detectTest(float springPrice, float springVolRatio, float volumeRatio, bool isAccum, float rangeLow, float rangeHigh, float atrVal) =>
+    rangeWidth = rangeHigh - rangeLow
+    testBand = math.max(atrVal * 0.5, rangeWidth * 0.05)
+    if isAccum
+        low <= springPrice + testBand and low >= springPrice - testBand and volumeRatio < springVolRatio and close > springPrice
+    else
+        high >= springPrice - testBand and high <= springPrice + testBand and volumeRatio < springVolRatio and close < springPrice
+
+detectNoSupply(float volumeRatio, float spreadAvg) =>
+    close < open and (high - low) < spreadAvg * 0.7 and volumeRatio < 0.7
+
+detectNoDemand(float volumeRatio, float spreadAvg) =>
+    close > open and (high - low) < spreadAvg * 0.7 and volumeRatio < 0.7
+
+detectVDU() =>
+    volume < volume[1] and volume[1] < volume[2] and volume[2] < volume[3]
+
+// ============================================================================
+// SCORING
+// ============================================================================
+
+// Check if an event of a given type occurred on or after startBar
+phaseHasEvent(array<WyckoffEvent> events, string eventType, int startBar) =>
+    result = false
+    for i = 0 to array.size(events) - 1
+        evt = array.get(events, i)
+        if evt.eventType == eventType and evt.bar >= startBar
+            result := true
+            break
+    result
+
+// Bar index of the first event of a given type on/after startBar, or -1 if absent.
+// Used for sequence validation: the canonical Wyckoff order (Spring → Test → SOS) must hold,
+// not just "the event exists somewhere".
+eventBar(array<WyckoffEvent> events, string eventType, int startBar) =>
+    result = -1
+    for i = 0 to array.size(events) - 1
+        evt = array.get(events, i)
+        if evt.eventType == eventType and evt.bar >= startBar
+            result := evt.bar
+            break
+    result
+
+// recentVolDecline / pivLow3 / pivHigh3 are computed at global scope and passed in —
+// ta.* calls inside this conditionally-executed function would build inconsistent series.
+calcRangeScore(WyckoffPhase phase, float atrVal, int rangeDuration, bool recentVolDecline, float pivLow3, float pivHigh3) =>
+    score = 0
+    rangeWidth = phase.rangeHigh - phase.rangeLow
+
+    // Duration: 20–80 bars is ideal range-building
+    if rangeDuration >= 10 and rangeDuration < 20
+        score += 10
+    else if rangeDuration >= 20 and rangeDuration <= 80
+        score += 20
+    else if rangeDuration > 80
+        score += 12
+
+    // Width in ATR multiples: 1–5 ATR is meaningful but not chaotic
+    rangeWidthATR = atrVal > 0 ? rangeWidth / atrVal : 0.0
+    if rangeWidthATR >= 1.0 and rangeWidthATR <= 5.0
+        score += 25
+    else if rangeWidthATR > 0.5
+        score += 12
+
+    // Volume: short-term SMA below long-term SMA (contraction)
+    if recentVolDecline
+        score += 20
+
+    // Multiple pivot tests within range
+    pivLowInRange  = not na(pivLow3)  and low[3]  > phase.rangeLow  * 0.98 and low[3]  < phase.rangeLow  + rangeWidth * 0.4
+    pivHighInRange = not na(pivHigh3) and high[3] < phase.rangeHigh * 1.02 and high[3] > phase.rangeHigh - rangeWidth * 0.4
+    if pivLowInRange or pivHighInRange
+        score += 15
+
+    // Climax volume ratio: high climax = clean initiation
+    if phase.climaxVolRatio >= 2.5
+        score += 20
+    else if phase.climaxVolRatio >= 1.5
+        score += 10
+
+    math.min(score, 100)
+
+calcSetupScore(WyckoffState state, float rsNorm, int rangeDuration) =>
+    score = 0
+    phase = state.currentPhase
+    if na(phase)
+        score
+    else
+        bool isTrendPhase = phase.name == "MARKUP" or phase.name == "MARKDOWN"
+        isAccum = phase.name == "ACCUMULATION" or phase.name == "MARKUP"
+        events = state.events
+        // In a trend phase the schematic that produced it lives in previousPhase — score the
+        // events from that range so the confirmed breakout (SOSB/SOWB) is credited there too.
+        int sb = isTrendPhase and not na(state.previousPhase) ? state.previousPhase.startBar : phase.startBar
+
+        // Resolve event bars once — directional aliases keep the logic symmetric.
+        arB    = eventBar(events, "AR", sb)
+        stB    = eventBar(events, "ST", sb)
+        springB = eventBar(events, isAccum ? "SPRING" : "UTAD", sb)
+        testB  = eventBar(events, "TEST", sb)
+        sosB   = eventBar(events, isAccum ? "SOS"  : "SOW",  sb)   // in-range strength/weakness
+        sosbB  = eventBar(events, isAccum ? "SOSB" : "SOWB", sb)   // confirmed breakout/breakdown
+        lpsB   = eventBar(events, isAccum ? "LPS"  : "LPSY", sb)
+
+        // Phase A events
+        if arB >= 0
+            score += 8
+        if stB >= 0
+            score += 8
+
+        // Phase B/C completion
+        if phase.phaseAE == "C" or phase.phaseAE == "D"
+            score += 5
+
+        // Spring / UTAD
+        if springB >= 0
+            score += 18
+
+        // Test — only credited when it follows the Spring/UTAD it is supposed to confirm.
+        if testB >= 0 and (springB < 0 or springB < testB)
+            score += 18
+
+        // SOS / SOW (in-range) — in a #1 schematic it must come after the Test; a #2 schematic
+        // has no Test, so the order check is vacuously satisfied (testB < 0).
+        if sosB >= 0 and (testB < 0 or testB < sosB)
+            score += 14
+
+        // Confirmed breakout / breakdown
+        if sosbB >= 0
+            score += 12
+
+        // LPS / LPSY
+        if lpsB >= 0
+            score += 10
+
+        // Canonical sequence intact — Spring → Test → SOS in order (Schematic #1),
+        // or a direct in-range SOS with no Spring/Test (Schematic #2). Rewards a clean
+        // structure beyond the sum of individual events.
+        bool seqIntact = false
+        if phase.schematicType == "#2"
+            seqIntact := sosB >= 0
+        else
+            seqIntact := springB >= 0 and testB >= 0 and sosB >= 0 and springB < testB and testB < sosB
+        if seqIntact
+            score += 8
+
+        // Relative strength alignment
+        if isAccum and not na(rsNorm) and rsNorm > 1.02
+            score += 8
+        else if not isAccum and not na(rsNorm) and rsNorm < 0.98
+            score += 8
+
+        // HTF alignment
+        if isAccum and state.htfBias == "BULLISH"
+            score += 8
+        else if not isAccum and state.htfBias == "BEARISH"
+            score += 8
+
+        // Range quality bonus
+        if state.rangeScore >= 60
+            score += 5
+
+        math.min(score, 100)
+
+scoreLabel(int score) =>
+    score >= 80 ? "High Confidence" : score >= 60 ? "Strong" : score >= 40 ? "Moderate" : "Weak"
+
+// ============================================================================
+// HELPERS
+// ============================================================================
+
+pfApproxTarget(float rangeLow, float rangeHigh, int rangeDuration, float atrVal, bool isAccum) =>
+    boxSize = math.max(atrVal * 0.25, (rangeHigh - rangeLow) * 0.05)
+    estimatedColumns = math.max(1.0, rangeDuration / 3.0)
+    targetDistance = math.min(estimatedColumns * boxSize, (rangeHigh - rangeLow) * 12.0)
+    isAccum ? rangeLow + targetDistance : rangeHigh - targetDistance
+
+// ============================================================================
+// PHASE IDENTIFICATION
+// ============================================================================
+
+identifyWyckoffPhase(WyckoffState state, float volumeAvg, float spreadAvg, float atrVal, float pivLow, float pivHigh, WyckoffConfig config, string priorTrend) =>
+    volumeRatio = volume / volumeAvg
+    spread = high - low
+    state.effortResult := analyzeEffortResult(volume, volumeAvg, spread, spreadAvg)
+
+    isSellingClimax = detectSellingClimax(volumeRatio, config, atrVal)
+    isBuyingClimax  = detectBuyingClimax(volumeRatio, config, atrVal)
+
+    if na(state.currentPhase)
+        state.currentPhase := newWyckoffPhase("RANGING", "", "", priorTrend)
+
+    prevRangeHigh = state.currentPhase.rangeHigh
+    prevRangeLow  = state.currentPhase.rangeLow
+
+    // === Selling Climax → Accumulation Phase A ===
+    // Prior-trend context: an SC marks the END of a decline — it is meaningless inside a
+    // clear uptrend. We block only the clearly-wrong case (UP) rather than requiring strict
+    // DOWN, since accumulation ranges often form after the EMA slope has already flattened.
+    if isSellingClimax and state.currentPhase.name != "ACCUMULATION" and priorTrend != "UP"
+        state.previousPhase := state.currentPhase
+        state.currentPhase := newWyckoffPhase("ACCUMULATION", "SC", "A", priorTrend)
+        state.currentPhase.climaxVolRatio := volumeRatio
+        state.currentPhase.climaxPrice    := low
+        state.compositeOperator := "ACCUMULATING"
+        state.springConfirmed := false
+        state.utadConfirmed   := false
+        state.vwapNum := 0.0
+        state.vwapDen := 0.0
+        scEvent = newWyckoffEvent("SC", "Selling Climax — panic selling exhaustion", low)
+        scEvent.volumeRatio := volumeRatio
+        scEvent.significance := 90.0
+        pushEvent(state.events, scEvent)
+        int _psLookback = math.min(20, bar_index)
+        if _psLookback > 1
+            for j = 1 to _psLookback
+                barRng = high[j] - low[j]
+                closeRatio = barRng > 0 ? (close[j] - low[j]) / barRng : 0.5
+                if volume[j] > volumeAvg[j] * 1.1 and closeRatio > 0.30
+                    psEvt = WyckoffEvent.new("PS", bar_index - j, low[j], volume[j], volumeAvg[j] > 0 ? volume[j] / volumeAvg[j] : 1.0, barRng, 60.0, "Preliminary Support — first demand in the decline", false, false)
+                    pushEvent(state.events, psEvt)
+                    break
+
+    // === Buying Climax → Distribution Phase A ===
+    // Symmetric to the SC gate: a BC ends an advance — block only the clearly-wrong DOWN case.
+    else if isBuyingClimax and state.currentPhase.name != "DISTRIBUTION" and priorTrend != "DOWN"
+        state.previousPhase := state.currentPhase
+        state.currentPhase := newWyckoffPhase("DISTRIBUTION", "BC", "A", priorTrend)
+        state.currentPhase.climaxVolRatio := volumeRatio
+        state.currentPhase.climaxPrice    := high
+        state.compositeOperator := "DISTRIBUTING"
+        state.springConfirmed := false
+        state.utadConfirmed   := false
+        state.vwapNum := 0.0
+        state.vwapDen := 0.0
+        bcEvent = newWyckoffEvent("BC", "Buying Climax — euphoric buying exhaustion", high, true)
+        bcEvent.volumeRatio := volumeRatio
+        bcEvent.significance := 90.0
+        pushEvent(state.events, bcEvent)
+        int _psyLookback = math.min(20, bar_index)
+        if _psyLookback > 1
+            for j = 1 to _psyLookback
+                barRng = high[j] - low[j]
+                closeRatio = barRng > 0 ? (close[j] - low[j]) / barRng : 0.5
+                if volume[j] > volumeAvg[j] * 1.1 and closeRatio < 0.70
+                    psyEvt = WyckoffEvent.new("PSY", bar_index - j, high[j], volume[j], volumeAvg[j] > 0 ? volume[j] / volumeAvg[j] : 1.0, barRng, 60.0, "Preliminary Supply — first supply appeared in the rally", false, true)
+                    pushEvent(state.events, psyEvt)
+                    break
+
+    currentPhase = state.currentPhase
+    phaseAge = bar_index - currentPhase.startBar
+    bool rangeFrozen = not na(currentPhase.rangeEstablishedBar)
+    bool isAccumOrDistrib = currentPhase.name == "ACCUMULATION" or currentPhase.name == "DISTRIBUTION"
+    bool isAccum = currentPhase.name == "ACCUMULATION"
+
+    // === Range expansion (pre-freeze) ===
+    if not rangeFrozen
+        if high > currentPhase.rangeHigh
+            currentPhase.rangeHigh := high
+        if low < currentPhase.rangeLow
+            currentPhase.rangeLow := low
+        if isAccumOrDistrib and phaseAge >= config.rangeEstablishBars
+            currentPhase.rangeEstablishedBar := bar_index
+            rangeFrozen := true
+
+    // === VWAP (POC proxy) accumulation ===
+    if isAccumOrDistrib
+        state.vwapNum := state.vwapNum + volume * close
+        state.vwapDen := state.vwapDen + volume
+        if state.vwapDen > 0
+            state.avwapPrice := state.vwapNum / state.vwapDen
+
+    // === Phase A–E state machine ===
+    if isAccumOrDistrib and phaseAge > 0
+        phaseAE = currentPhase.phaseAE
+
+        // ── Phase A ──
+        if phaseAE == "A"
+            // AR must be a genuine reaction away from the climax, not the first counter-candle:
+            // require the swing to have travelled at least ~1 ATR from the climax extreme.
+            float arMinMove = atrVal
+            if na(currentPhase.arBar) and phaseAge <= 15 and volumeRatio >= 0.8
+                if isAccum and close > open and not na(currentPhase.climaxPrice) and high - currentPhase.climaxPrice >= arMinMove
+                    currentPhase.arExtreme := high
+                    currentPhase.arBar     := bar_index
+                    arEvt = newWyckoffEvent("AR", "Automatic Rally — demand absorbs supply", high, true)
+                    arEvt.volumeRatio := volumeRatio
+                    arEvt.significance := 70.0
+                    pushEvent(state.events, arEvt)
+                else if not isAccum and close < open and not na(currentPhase.climaxPrice) and currentPhase.climaxPrice - low >= arMinMove
+                    currentPhase.arExtreme := low
+                    currentPhase.arBar     := bar_index
+                    arEvt = newWyckoffEvent("AR", "Automatic Reaction — supply overcomes demand", low)
+                    arEvt.volumeRatio := volumeRatio
+                    arEvt.significance := 70.0
+                    pushEvent(state.events, arEvt)
+            else if not na(currentPhase.arBar)
+                climaxRef = not na(currentPhase.climaxPrice) ? currentPhase.climaxPrice : (isAccum ? currentPhase.rangeLow : currentPhase.rangeHigh)
+                arAge     = bar_index - currentPhase.arBar
+                if arAge >= 3 and detectST(climaxRef, currentPhase.climaxVolRatio, volumeRatio, isAccum, spreadAvg)
+                    currentPhase.phaseAE  := "B"
+                    currentPhase.subphase := "ST"
+                    stEvt = newWyckoffEvent("ST", "Secondary Test — tests climax level on lower volume", isAccum ? low : high, not isAccum)
+                    stEvt.volumeRatio := volumeRatio
+                    stEvt.significance := 70.0
+                    pushEvent(state.events, stEvt)
+            if phaseAE == "A" and phaseAge > config.rangeEstablishBars
+                currentPhase.phaseAE := "B"
+
+        // ── Phase B ──
+        else if phaseAE == "B"
+            climaxRef = not na(currentPhase.climaxPrice) ? currentPhase.climaxPrice : (isAccum ? currentPhase.rangeLow : currentPhase.rangeHigh)
+            // Spring/UTAD checked first — a range break takes priority over an ST retest
+            if isAccum and rangeFrozen and detectSpring(currentPhase.rangeLow, currentPhase.rangeHigh, config, atrVal)
+                currentPhase.phaseAE          := "C"
+                currentPhase.subphase         := "SPRING"
+                currentPhase.schematicType    := "#1"
+                currentPhase.springUtadBar    := bar_index
+                currentPhase.springUtadPrice  := low
+                currentPhase.springUtadVolRatio := volumeRatio
+                currentPhase.awaitingTest     := true
+                sprEvt = newWyckoffEvent("SPRING", "Spring — false breakdown traps sellers", low)
+                sprEvt.volumeRatio  := volumeRatio
+                sprEvt.significance := 85.0
+                pushEvent(state.events, sprEvt)
+            else if not isAccum and rangeFrozen and detectUTAD(currentPhase.rangeLow, currentPhase.rangeHigh, config, atrVal)
+                currentPhase.phaseAE          := "C"
+                currentPhase.subphase         := "UTAD"
+                currentPhase.schematicType    := "#1"
+                currentPhase.springUtadBar    := bar_index
+                currentPhase.springUtadPrice  := high
+                currentPhase.springUtadVolRatio := volumeRatio
+                currentPhase.awaitingTest     := true
+                utadEvt = newWyckoffEvent("UTAD", "UTAD — upthrust after distribution", high, true)
+                utadEvt.volumeRatio  := volumeRatio
+                utadEvt.significance := 85.0
+                pushEvent(state.events, utadEvt)
+            // ST fires only when no Spring/UTAD this bar and no recent ST is active
+            else if detectST(climaxRef, currentPhase.climaxVolRatio, volumeRatio, isAccum, spreadAvg) and not phaseHasEvent(state.events, "ST", bar_index - config.eventCooldownBars)
+                currentPhase.subphase := "ST"
+                stEvt = newWyckoffEvent("ST", "Secondary Test — re-test of climax level", isAccum ? low : high, not isAccum)
+                stEvt.volumeRatio := volumeRatio
+                stEvt.significance := 65.0
+                pushEvent(state.events, stEvt)
+            // Accum #2: SOS without Spring → skip to Phase D
+            else if isAccum and rangeFrozen and detectSOS(currentPhase.rangeLow, currentPhase.rangeHigh, volumeRatio, config)
+                currentPhase.phaseAE       := "D"
+                currentPhase.schematicType := "#2"
+                currentPhase.subphase      := "SOS"
+                sosEvt = newWyckoffEvent("SOS", "Sign of Strength (Schematic #2) — no Spring, direct rally", close)
+                sosEvt.volumeRatio  := volumeRatio
+                sosEvt.significance := 80.0
+                pushEvent(state.events, sosEvt)
+            // Distrib #2: SOW without UTAD → skip to Phase D
+            else if not isAccum and rangeFrozen and detectSOW(currentPhase.rangeHigh, currentPhase.rangeLow, volumeRatio, config)
+                currentPhase.phaseAE       := "D"
+                currentPhase.schematicType := "#2"
+                currentPhase.subphase      := "SOW"
+                sowEvt = newWyckoffEvent("SOW", "Sign of Weakness (Schematic #2) — no UTAD, direct decline", high, true)
+                sowEvt.volumeRatio  := volumeRatio
+                sowEvt.significance := 80.0
+                pushEvent(state.events, sowEvt)
+
+        // ── Phase C ──
+        else if phaseAE == "C"
+            if currentPhase.awaitingTest and not na(currentPhase.springUtadBar)
+                if detectTest(currentPhase.springUtadPrice, currentPhase.springUtadVolRatio, volumeRatio, isAccum, currentPhase.rangeLow, currentPhase.rangeHigh, atrVal)
+                    currentPhase.awaitingTest := false
+                    currentPhase.phaseAE      := "D"
+                    currentPhase.subphase     := "TEST"
+                    if isAccum
+                        state.springConfirmed := true
+                    else
+                        state.utadConfirmed := true
+                    testEvt = newWyckoffEvent("TEST", "Test — confirms Spring/UTAD on lower volume", isAccum ? low : high, not isAccum)
+                    testEvt.volumeRatio  := volumeRatio
+                    testEvt.significance := 80.0
+                    pushEvent(state.events, testEvt)
+            if currentPhase.phaseAE == "C" and isAccum and detectSOS(currentPhase.rangeLow, currentPhase.rangeHigh, volumeRatio, config)
+                currentPhase.awaitingTest := false
+                currentPhase.phaseAE  := "D"
+                currentPhase.subphase := "SOS"
+                sosEvt = newWyckoffEvent("SOS", "Sign of Strength — strong rally on volume", close)
+                sosEvt.volumeRatio  := volumeRatio
+                sosEvt.significance := 80.0
+                pushEvent(state.events, sosEvt)
+            else if currentPhase.phaseAE == "C" and not isAccum and detectSOW(currentPhase.rangeHigh, currentPhase.rangeLow, volumeRatio, config)
+                currentPhase.awaitingTest := false
+                currentPhase.phaseAE  := "D"
+                currentPhase.subphase := "SOW"
+                sowEvt = newWyckoffEvent("SOW", "Sign of Weakness — sharp decline on volume", high, true)
+                sowEvt.volumeRatio  := volumeRatio
+                sowEvt.significance := 80.0
+                pushEvent(state.events, sowEvt)
+
+        // ── Phase D ──
+        else if phaseAE == "D"
+            if isAccum
+                if detectLPS(currentPhase.rangeLow, currentPhase.rangeHigh, volumeAvg, pivLow, config.pivotLen) and not phaseHasEvent(state.events, "LPS", bar_index - config.eventCooldownBars)
+                    currentPhase.subphase := "LPS"
+                    lpsEvt = newWyckoffEvent("LPS", "Last Point of Support — pivot low on low volume", low[config.pivotLen])
+                    lpsEvt.bar := bar_index - config.pivotLen
+                    lpsEvt.volumeRatio  := volumeAvg[config.pivotLen] > 0 ? volume[config.pivotLen] / volumeAvg[config.pivotLen] : 0.0
+                    lpsEvt.significance := 75.0
+                    pushEvent(state.events, lpsEvt)
+                else if detectSOS(currentPhase.rangeLow, currentPhase.rangeHigh, volumeRatio, config) and not phaseHasEvent(state.events, "SOS", bar_index - config.eventCooldownBars)
+                    currentPhase.subphase := "SOS"
+                    sosEvt = newWyckoffEvent("SOS", "Sign of Strength — breakout confirmation", close)
+                    sosEvt.volumeRatio  := volumeRatio
+                    sosEvt.significance := 85.0
+                    pushEvent(state.events, sosEvt)
+            else
+                if detectLPSY(currentPhase.rangeLow, currentPhase.rangeHigh, volumeAvg, pivHigh, config.pivotLen) and not phaseHasEvent(state.events, "LPSY", bar_index - config.eventCooldownBars)
+                    currentPhase.subphase := "LPSY"
+                    lpsyEvt = newWyckoffEvent("LPSY", "Last Point of Supply — pivot high on low volume", high[config.pivotLen], true)
+                    lpsyEvt.bar := bar_index - config.pivotLen
+                    lpsyEvt.volumeRatio  := volumeAvg[config.pivotLen] > 0 ? volume[config.pivotLen] / volumeAvg[config.pivotLen] : 0.0
+                    lpsyEvt.significance := 75.0
+                    pushEvent(state.events, lpsyEvt)
+                else if detectSOW(currentPhase.rangeHigh, currentPhase.rangeLow, volumeRatio, config) and not phaseHasEvent(state.events, "SOW", bar_index - config.eventCooldownBars)
+                    currentPhase.subphase := "SOW"
+                    sowEvt = newWyckoffEvent("SOW", "Sign of Weakness — breakdown confirmation", high, true)
+                    sowEvt.volumeRatio  := volumeRatio
+                    sowEvt.significance := 85.0
+                    pushEvent(state.events, sowEvt)
+
+    // === Breakout / Invalidation ===
+    float rangeWidth = currentPhase.rangeHigh - currentPhase.rangeLow
+    float invalidBuffer = rangeWidth * config.invalidationFactor
+
+    // Markup/Markdown require the schematic to have reached Phase D (structure complete via
+    // Test or in-range SOS/SOW) AND a confirmed close beyond the range edge on expanding volume.
+    // The breakout itself is the decisive SOS/SOW — emitted as a distinct SOSB/SOWB event so
+    // it reads differently from the in-range strength shown earlier. A bare close > rangeHigh
+    // is no longer enough (that fired on any random Phase-B range probe).
+    // Phase D alone is too weak — require a confirmed internal structure (Spring/UTAD test,
+    // an in-range SOS/SOW, or a pivot-confirmed LPS/LPSY) and a non-trivial setup score.
+    // state.setupScore reflects the prior bar (scoring runs after this function), i.e. the
+    // quality of the schematic built up to the breakout — exactly the right gate.
+    bool canMarkup = currentPhase.phaseAE == "D" and state.setupScore >= config.markupMinScore
+         and (state.springConfirmed or phaseHasEvent(state.events, "SOS", currentPhase.startBar) or phaseHasEvent(state.events, "LPS", currentPhase.startBar))
+    bool canMarkdown = currentPhase.phaseAE == "D" and state.setupScore >= config.markupMinScore
+         and (state.utadConfirmed or phaseHasEvent(state.events, "SOW", currentPhase.startBar) or phaseHasEvent(state.events, "LPSY", currentPhase.startBar))
+    if currentPhase.name == "ACCUMULATION" and rangeFrozen
+        if barstate.isconfirmed and canMarkup and close > currentPhase.rangeHigh and volumeRatio >= 1.2
+            sosbEvt = newWyckoffEvent("SOSB", "SOS breakout — jump across the creek, markup begins", close)
+            sosbEvt.volumeRatio  := volumeRatio
+            sosbEvt.significance := 88.0
+            pushEvent(state.events, sosbEvt)
+            state.previousPhase := currentPhase
+            state.currentPhase := newWyckoffPhase("MARKUP", "SOSB", "E", priorTrend)
+            state.currentPhase.schematicType := currentPhase.schematicType
+            state.currentPhase.rangeLow := currentPhase.rangeHigh
+            state.compositeOperator := "NEUTRAL"
+            state.springConfirmed := false
+            state.utadConfirmed   := false
+            state.avwapPrice := na
+            state.vwapNum    := 0.0
+            state.vwapDen    := 0.0
+        else if barstate.isconfirmed and close < currentPhase.rangeLow - invalidBuffer
+            state.previousPhase := currentPhase
+            state.currentPhase := newWyckoffPhase("RANGING", "FAIL", "", priorTrend)
+            state.compositeOperator := "NEUTRAL"
+            state.springConfirmed := false
+            state.utadConfirmed   := false
+            state.avwapPrice := na
+            state.vwapNum    := 0.0
+            state.vwapDen    := 0.0
+    else if currentPhase.name == "DISTRIBUTION" and rangeFrozen
+        if barstate.isconfirmed and canMarkdown and close < currentPhase.rangeLow and volumeRatio >= 1.2
+            sowbEvt = newWyckoffEvent("SOWB", "SOW breakdown — falls through the ice, markdown begins", close, true)
+            sowbEvt.volumeRatio  := volumeRatio
+            sowbEvt.significance := 88.0
+            pushEvent(state.events, sowbEvt)
+            state.previousPhase := currentPhase
+            state.currentPhase := newWyckoffPhase("MARKDOWN", "SOWB", "E", priorTrend)
+            state.currentPhase.schematicType := currentPhase.schematicType
+            state.currentPhase.rangeHigh := currentPhase.rangeLow
+            state.compositeOperator := "NEUTRAL"
+            state.springConfirmed := false
+            state.utadConfirmed   := false
+            state.avwapPrice := na
+            state.vwapNum    := 0.0
+            state.vwapDen    := 0.0
+        else if barstate.isconfirmed and close > currentPhase.rangeHigh + invalidBuffer
+            state.previousPhase := currentPhase
+            state.currentPhase := newWyckoffPhase("RANGING", "FAIL", "", priorTrend)
+            state.compositeOperator := "NEUTRAL"
+            state.springConfirmed := false
+            state.utadConfirmed   := false
+            state.avwapPrice := na
+            state.vwapNum    := 0.0
+            state.vwapDen    := 0.0
+    else if currentPhase.name == "MARKUP"
+        if high > currentPhase.rangeHigh
+            currentPhase.rangeHigh := high
+        if barstate.isconfirmed and close < currentPhase.rangeLow
+            state.previousPhase := currentPhase
+            state.currentPhase := newWyckoffPhase("RANGING", "", "", priorTrend)
+            state.compositeOperator := "NEUTRAL"
+            state.springConfirmed := false
+            state.utadConfirmed   := false
+            state.avwapPrice := na
+            state.vwapNum    := 0.0
+            state.vwapDen    := 0.0
+    else if currentPhase.name == "MARKDOWN"
+        if low < currentPhase.rangeLow
+            currentPhase.rangeLow := low
+        if barstate.isconfirmed and close > currentPhase.rangeHigh
+            state.previousPhase := currentPhase
+            state.currentPhase := newWyckoffPhase("RANGING", "", "", priorTrend)
+            state.compositeOperator := "NEUTRAL"
+            state.springConfirmed := false
+            state.utadConfirmed   := false
+            state.avwapPrice := na
+            state.vwapNum    := 0.0
+            state.vwapDen    := 0.0
+
+    // === Cause & Effect ===
+    finalPhase = state.currentPhase
+    if finalPhase.name == "ACCUMULATION" or finalPhase.name == "DISTRIBUTION"
+        finalRangeWidth = finalPhase.rangeHigh - finalPhase.rangeLow
+        rangeDuration   = bar_index - finalPhase.startBar
+        state.causeBuilt    := finalRangeWidth * rangeDuration
+        state.pfTarget      := pfApproxTarget(finalPhase.rangeLow, finalPhase.rangeHigh, rangeDuration, atrVal, finalPhase.name == "ACCUMULATION")
+        state.effectExpected := math.abs(state.pfTarget - (finalPhase.name == "ACCUMULATION" ? finalPhase.rangeLow : finalPhase.rangeHigh))
+
+updateWyckoffAnalysis(WyckoffState state, float volumeAvg, float spreadAvg, float atrVal, float rsNorm, float pivLow, float pivHigh, WyckoffConfig config, string priorTrend, bool recentVolDecline, float pivLow3, float pivHigh3) =>
+    identifyWyckoffPhase(state, volumeAvg, spreadAvg, atrVal, pivLow, pivHigh, config, priorTrend)
+    // Scoring (computed after phase update)
+    if not na(state.currentPhase)
+        nm = state.currentPhase.name
+        rangeDuration = bar_index - state.currentPhase.startBar
+        // Range score is only meaningful while a range is forming.
+        if nm == "ACCUMULATION" or nm == "DISTRIBUTION"
+            state.rangeScore   := calcRangeScore(state.currentPhase, atrVal, rangeDuration, recentVolDecline, pivLow3, pivHigh3)
+            state.rangeQuality := scoreLabel(state.rangeScore)
+        // Setup score also runs through Markup/Markdown so the confirmed breakout is credited
+        // (calcSetupScore scores the originating schematic via previousPhase in a trend phase).
+        if nm == "ACCUMULATION" or nm == "DISTRIBUTION" or nm == "MARKUP" or nm == "MARKDOWN"
+            state.setupScore   := calcSetupScore(state, rsNorm, rangeDuration)
+            state.setupQuality := scoreLabel(state.setupScore)
+    state.lastUpdateBar := bar_index
+
+// ============================================================================
+// QUERY FUNCTIONS
+// ============================================================================
+
+getCurrentWyckoffPhase(WyckoffState state) =>
+    na(state.currentPhase) ? "UNKNOWN" : state.currentPhase.name
+
+getCurrentSubphase(WyckoffState state) =>
+    na(state.currentPhase) ? "" : state.currentPhase.subphase
+
+isAccumulating(WyckoffState state) =>
+    na(state.currentPhase) ? false : state.currentPhase.name == "ACCUMULATION" or state.compositeOperator == "ACCUMULATING"
+
+isDistributing(WyckoffState state) =>
+    na(state.currentPhase) ? false : state.currentPhase.name == "DISTRIBUTION" or state.compositeOperator == "DISTRIBUTING"
+
+isMarkup(WyckoffState state) =>
+    na(state.currentPhase) ? false : state.currentPhase.name == "MARKUP"
+
+isMarkdown(WyckoffState state) =>
+    na(state.currentPhase) ? false : state.currentPhase.name == "MARKDOWN"
+
+getRecentEvents(WyckoffState state, int count = 5) =>
+    events = state.events
+    sz = array.size(events)
+    result = array.new<WyckoffEvent>()
+    if sz > 0
+        startIdx = math.max(0, sz - count)
+        for i = startIdx to sz - 1
+            array.push(result, array.get(events, i))
+    result
+
+// ============================================================================
+// ANALYSIS ENGINE
+// ============================================================================
+
+var wyckoffState  = newWyckoffState()
+var wyckoffConfig = newWyckoffConfig()
+
+float volumeAvg = ta.sma(volume, volumeLookback)
+float spreadAvg = ta.sma(high - low, 20)
+float atrVal    = ta.atr(14)
+float pivLow    = ta.pivotlow(low, pivotLen, pivotLen)
+float pivHigh   = ta.pivothigh(high, pivotLen, pivotLen)
+
+// Series consumed inside conditionally-executed functions — computed here at global
+// scope so the ta.* state updates on every bar.
+float  trendEma         = ta.ema(close, 50)
+float  trendEmaSlope    = trendEma - trendEma[25]
+string priorTrend       = trendEmaSlope > trendEma * 0.001 ? "UP" : trendEmaSlope < trendEma * -0.001 ? "DOWN" : "SIDEWAYS"
+bool   recentVolDecline = ta.sma(volume, 10) < ta.sma(volume, 30)
+float  pivLow3          = ta.pivotlow(low, 3, 3)
+float  pivHigh3         = ta.pivothigh(high, 3, 3)
+
+// === RELATIVE STRENGTH ===
+float benchClose = showRS ? request.security(rsSymbol, timeframe.period, close, lookahead=barmerge.lookahead_off) : na
+float rsRatio    = showRS and not na(benchClose) and benchClose > 0 ? close / benchClose : na
+float rsNorm     = not na(rsRatio) ? rsRatio / ta.sma(rsRatio, 50) : na
+
+// === HTF BIAS ===
+// Slope is computed inside request.security so it reflects the HTF EMA's own bar-to-bar change,
+// not a comparison of two chart-bar snapshots of the same HTF value.
+float htfClose    = request.security(syminfo.tickerid, htfTF, close,                                                         lookahead=barmerge.lookahead_off)
+float htfEma      = request.security(syminfo.tickerid, htfTF, ta.ema(close, htfEmaPer),                                      lookahead=barmerge.lookahead_off)
+float htfEmaSlope = request.security(syminfo.tickerid, htfTF, ta.ema(close, htfEmaPer) - ta.ema(close, htfEmaPer)[1],        lookahead=barmerge.lookahead_off)
+string htfBias = not na(htfClose) and not na(htfEma) and not na(htfEmaSlope)
+     ? (htfClose > htfEma * 1.005 and htfEmaSlope > 0 ? "BULLISH"
+      : htfClose < htfEma * 0.995 and htfEmaSlope < 0 ? "BEARISH"
+      : "NEUTRAL")
+     : "NEUTRAL"
+wyckoffState.htfBias := htfBias
+
+bool dataReady = not na(volumeAvg) and not na(spreadAvg) and not na(atrVal) and volumeAvg > 0 and spreadAvg > 0 and high > low and close > 0
+if dataReady
+    updateWyckoffAnalysis(wyckoffState, volumeAvg, spreadAvg, atrVal, rsNorm, pivLow, pivHigh, wyckoffConfig, priorTrend, recentVolDecline, pivLow3, pivHigh3)
+
+// ============================================================================
+// VISUALIZATION
+// ============================================================================
+
+// ─── PHASE RANGES ───
+var box   phaseBox   = na
+var label phaseLabel = na
+var color phaseBoxColor = na
+var array<box> oldPhaseBoxes = array.new<box>()
+
+bool drawPhaseBox = not na(wyckoffState.currentPhase) and wyckoffState.currentPhase.name != "RANGING"
+
+if not showPhaseRanges
+    if not na(phaseBox)
+        box.delete(phaseBox)
+        phaseBox := na
+    if not na(phaseLabel)
+        label.delete(phaseLabel)
+        phaseLabel := na
+    if array.size(oldPhaseBoxes) > 0
+        for i = 0 to array.size(oldPhaseBoxes) - 1
+            box.delete(array.get(oldPhaseBoxes, i))
+        array.clear(oldPhaseBoxes)
+
+if showPhaseRanges and not drawPhaseBox
+    if not na(phaseBox)
+        box.delete(phaseBox)
+        phaseBox := na
+    if not na(phaseLabel)
+        label.delete(phaseLabel)
+        phaseLabel := na
+    if oldPhaseRangeMode == "Current Only" and array.size(oldPhaseBoxes) > 0
+        for i = 0 to array.size(oldPhaseBoxes) - 1
+            box.delete(array.get(oldPhaseBoxes, i))
+        array.clear(oldPhaseBoxes)
+
+if showPhaseRanges and drawPhaseBox
+    cp = wyckoffState.currentPhase
+    phaseColor = cp.name == "ACCUMULATION" ? accumColor :
+                 cp.name == "DISTRIBUTION" ? distribColor :
+                 cp.name == "MARKUP"        ? markupColor :
+                 cp.name == "MARKDOWN"      ? markdownColor :
+                 color.new(color.gray, 85)
+
+    // Clamp left edge: drawings further than ~10000 bars back raise a runtime error
+    int phaseLeft = math.max(cp.startBar, bar_index - 9000)
+
+    if bar_index == cp.startBar or na(phaseBox)
+        if oldPhaseRangeMode == "Current Only" and array.size(oldPhaseBoxes) > 0
+            for i = 0 to array.size(oldPhaseBoxes) - 1
+                box.delete(array.get(oldPhaseBoxes, i))
+            array.clear(oldPhaseBoxes)
+        if not na(phaseBox)
+            if oldPhaseRangeMode == "Delete" or oldPhaseRangeMode == "Current Only" or maxOldPhaseRanges == 0
+                box.delete(phaseBox)
+            else
+                if oldPhaseRangeMode == "Fade"
+                    oldColor = na(phaseBoxColor) ? color.new(color.gray, 85) : phaseBoxColor
+                    box.set_bgcolor(phaseBox, color.new(oldColor, oldPhaseRangeTransp))
+                    box.set_border_color(phaseBox, color.new(oldColor, 85))
+                // "Keep" retains old boxes at full color (no fade).
+                array.push(oldPhaseBoxes, phaseBox)
+                if array.size(oldPhaseBoxes) > maxOldPhaseRanges
+                    oldBox = array.shift(oldPhaseBoxes)
+                    box.delete(oldBox)
+        if not na(phaseLabel)
+            label.delete(phaseLabel)
+            phaseLabel := na
+        phaseBox := box.new(phaseLeft, cp.rangeHigh, bar_index, cp.rangeLow,
+             border_color=phaseColor, bgcolor=phaseColor, border_width=2)
+        phaseBoxColor := phaseColor
+        // The current phase text overlay is independent of the old-range mode.
+        if showCurrentPhaseLabel
+            labelText = cp.phaseAE != "" ?
+                 str.format("{0} {1}\n{2}", cp.name, cp.phaseAE, cp.subphase) : cp.name
+            phaseLabel := label.new(phaseLeft, cp.rangeHigh, labelText,
+                 color=color.new(color.black, 20), textcolor=color.white,
+                 style=label.style_label_down, size=size.normal)
+    else
+        box.set_right(phaseBox, bar_index)
+        box.set_top(phaseBox, cp.rangeHigh)
+        box.set_bottom(phaseBox, cp.rangeLow)
+        box.set_border_color(phaseBox, phaseColor)
+        box.set_bgcolor(phaseBox, phaseColor)
+        if not showCurrentPhaseLabel and not na(phaseLabel)
+            label.delete(phaseLabel)
+            phaseLabel := na
+        if not na(phaseLabel)
+            labelText = cp.phaseAE != "" ?
+                 str.format("{0} {1}\n{2}", cp.name, cp.phaseAE, cp.subphase) : cp.name
+            label.set_text(phaseLabel, labelText)
+            label.set_y(phaseLabel, cp.rangeHigh)
+            label.set_textcolor(phaseLabel, color.white)
+
+// ─── EVENT LABELS ───
+// Event labels were never tracked, so they only got pruned by TradingView's max_labels_count
+// backstop. Keep an explicit handle array and cap it well under that limit so the chart stays
+// readable and never sits near the drawing limit.
+var array<label> eventLabels = array.new<label>()
+int maxEventLabels = 60
+
+if not showEventLabels and array.size(eventLabels) > 0
+    for i = 0 to array.size(eventLabels) - 1
+        label.delete(array.get(eventLabels, i))
+    array.clear(eventLabels)
+
+if showEventLabels
+    recentEvents = getRecentEvents(wyckoffState, 20)
+    if array.size(recentEvents) > 0
+        for i = 0 to array.size(recentEvents) - 1
+            evt = array.get(recentEvents, i)
+            isEntryEvent = evt.eventType == "TEST" or evt.eventType == "SOS" or evt.eventType == "SOW" or evt.eventType == "LPS" or evt.eventType == "LPSY"
+            scoreOk      = not showOnlyQualitySignals or not isEntryEvent or wyckoffState.setupScore >= minSignalScore
+            if bar_index - evt.bar <= eventLookback and not evt.labeled and scoreOk
+                eventColor = switch evt.eventType
+                    "SC"     => color.new(color.green,  0)
+                    "BC"     => color.new(color.red,    0)
+                    "PS"     => color.new(color.teal,   0)
+                    "PSY"    => color.new(color.purple, 0)
+                    "AR"     => color.new(color.aqua,   0)
+                    "ST"     => color.new(color.silver, 0)
+                    "SPRING" => color.new(color.lime,   0)
+                    "UTAD"   => color.new(color.maroon, 0)
+                    "TEST"   => color.new(color.yellow, 0)
+                    "SOS"    => color.new(color.blue,   0)
+                    "SOW"    => color.new(color.orange, 0)
+                    "SOSB"   => color.new(#0d47a1,      0)
+                    "SOWB"   => color.new(#e65100,      0)
+                    "LPS"    => color.new(color.navy,   0)
+                    "LPSY"   => color.new(color.fuchsia,0)
+                    =>          color.new(color.gray,   0)
+                eventStyle = evt.isAboveBar ? label.style_label_down : label.style_label_up
+                tooltip = str.format("{0}\nPrice: {1}  |  Vol: {2}x avg\n{3}",
+                     evt.eventType,
+                     str.tostring(evt.price, "#.####"),
+                     str.tostring(evt.volumeRatio, "#.##"),
+                     evt.description)
+                evtLabel = label.new(evt.bar, evt.price, evt.eventType,
+                     color=eventColor, textcolor=color.white,
+                     style=eventStyle, size=size.small, tooltip=tooltip)
+                evt.labeled := true
+                array.push(eventLabels, evtLabel)
+                if array.size(eventLabels) > maxEventLabels
+                    label.delete(array.shift(eventLabels))
+
+// ─── EFFORT VS RESULT MARKERS ───
+bool _erReady      = showEffortMarkers and not na(wyckoffState.effortResult) and barstate.isconfirmed and bar_index > last_bar_index - eventLookback
+bool _erClimax     = _erReady and wyckoffState.effortResult.relationship == "CLIMAX"     and wyckoffState.effortResult.strength >= 70
+bool _erDivergence = _erReady and wyckoffState.effortResult.relationship == "DIVERGENCE" and wyckoffState.effortResult.strength >= 70
+bool _erPositive   = _erReady ? wyckoffState.effortResult.isPositive : false
+plotshape(_erClimax     and     _erPositive, title="Effort Climax (Bull)",     style=shape.triangleup, location=location.belowbar, color=color.new(color.green,  0), size=size.tiny)
+plotshape(_erClimax     and not _erPositive, title="Effort Climax (Bear)",     style=shape.triangleup, location=location.belowbar, color=color.new(color.red,    0), size=size.tiny)
+plotshape(_erDivergence and     _erPositive, title="Effort Divergence (Bull)", style=shape.diamond,    location=location.belowbar, color=color.new(color.lime,   0), size=size.tiny)
+plotshape(_erDivergence and not _erPositive, title="Effort Divergence (Bear)", style=shape.diamond,    location=location.belowbar, color=color.new(color.orange, 0), size=size.tiny)
+
+// ─── NO SUPPLY / NO DEMAND / VDU ───
+bool _nsdBase  = showNSDMarkers and dataReady and barstate.isconfirmed and bar_index > last_bar_index - eventLookback
+bool _noSupply = _nsdBase and detectNoSupply(volume / volumeAvg, spreadAvg)
+bool _noDemand = _nsdBase and detectNoDemand(volume / volumeAvg, spreadAvg)
+bool _vdu      = _nsdBase and detectVDU()
+plotshape(_noSupply, title="No Supply",  style=shape.xcross, location=location.belowbar, color=color.new(color.teal,   0), size=size.tiny)
+plotshape(_noDemand, title="No Demand",  style=shape.xcross, location=location.abovebar, color=color.new(color.orange, 0), size=size.tiny)
+plotshape(_vdu,      title="Vol Dry-Up", style=shape.circle, location=location.belowbar, color=color.new(color.silver, 0), size=size.tiny)
+
+// ============================================================================
+// DASHBOARD
+// ============================================================================
+
+if showDashboard and barstate.islast
+    color tc = color.new(color.gray, 20)
+    color hd = color.new(color.gray, 90)
+
+    var table dashboard = table.new(position.top_right, 2, 23,
+         bgcolor=color.new(color.white, 5),
+         border_color=color.new(color.gray, 60),
+         border_width=1,
+         frame_color=color.new(color.gray, 40),
+         frame_width=1)
+
+    table.cell(dashboard, 0, 0, "Wyckoff", text_color=tc, bgcolor=hd, text_size=size.small)
+    table.cell(dashboard, 1, 0, "State",   text_color=tc, bgcolor=hd, text_size=size.small)
+
+    cp = wyckoffState.currentPhase
+    if not na(cp)
+        phaseName = getCurrentWyckoffPhase(wyckoffState)
+        subphase  = getCurrentSubphase(wyckoffState)
+        composite = wyckoffState.compositeOperator
+
+        phaseActive = phaseName != "RANGING" and phaseName != "UNKNOWN"
+        color phaseBg = color.new(color.gray, 80)
+        if phaseName == "ACCUMULATION"
+            phaseBg := color.new(#00c853, 20)
+        else if phaseName == "MARKUP"
+            phaseBg := color.new(#00c853, 40)
+        else if phaseName == "DISTRIBUTION"
+            phaseBg := color.new(#d50000, 20)
+        else if phaseName == "MARKDOWN"
+            phaseBg := color.new(#d50000, 40)
+        phaseTextCol = phaseActive ? color.white : tc
+
+        table.cell(dashboard, 0, 1, "Phase",   text_color=tc,           text_size=size.small)
+        table.cell(dashboard, 1, 1, phaseName, text_color=phaseTextCol, text_size=size.small, bgcolor=phaseBg)
+        table.cell(dashboard, 0, 2, "A-E",     text_color=tc, text_size=size.small)
+        table.cell(dashboard, 1, 2, cp.phaseAE != "" ? "Phase " + cp.phaseAE : "—", text_color=tc, text_size=size.small)
+        table.cell(dashboard, 0, 3, "Event",   text_color=tc, text_size=size.small)
+        table.cell(dashboard, 1, 3, subphase != "" ? subphase : "—", text_color=tc, text_size=size.small)
+        table.cell(dashboard, 0, 4, "Schematic", text_color=tc, text_size=size.small)
+        table.cell(dashboard, 1, 4, cp.schematicType != "TBD" ? cp.schematicType : "—", text_color=tc, text_size=size.small)
+
+        compActive = composite == "ACCUMULATING" or composite == "DISTRIBUTING"
+        color compBg = color.new(color.gray, 80)
+        if composite == "ACCUMULATING"
+            compBg := color.new(#00c853, 20)
+        else if composite == "DISTRIBUTING"
+            compBg := color.new(#d50000, 20)
+        compTextCol = compActive ? color.white : tc
+        table.cell(dashboard, 0, 5, "Operator", text_color=tc,          text_size=size.small)
+        table.cell(dashboard, 1, 5, composite,  text_color=compTextCol, text_size=size.small, bgcolor=compBg)
+
+        table.cell(dashboard, 0, 6, "Prior Trend", text_color=tc, text_size=size.small)
+        table.cell(dashboard, 1, 6, cp.priorTrend, text_color=tc, text_size=size.small)
+
+        // HTF Bias
+        htfColor = wyckoffState.htfBias == "BULLISH" ? color.new(#00c853, 0) : wyckoffState.htfBias == "BEARISH" ? color.new(#d50000, 0) : tc
+        table.cell(dashboard, 0, 7, "HTF Bias",            text_color=tc,       text_size=size.small)
+        table.cell(dashboard, 1, 7, wyckoffState.htfBias,  text_color=htfColor, text_size=size.small)
+
+        table.cell(dashboard, 0, 8, "", bgcolor=color.new(color.gray, 80))
+        table.cell(dashboard, 1, 8, "", bgcolor=color.new(color.gray, 80))
+
+        // Scoring
+        setupColor = wyckoffState.setupScore >= 80 ? color.new(#00c853, 0) : wyckoffState.setupScore >= 60 ? color.new(#ffd600, 0) : wyckoffState.setupScore >= 40 ? color.new(#ff6f00, 0) : tc
+        table.cell(dashboard, 0, 9,  "Setup Score",  text_color=tc,         text_size=size.small)
+        table.cell(dashboard, 1, 9,  str.tostring(wyckoffState.setupScore) + " / 100  " + wyckoffState.setupQuality, text_color=setupColor, text_size=size.small)
+
+        rangeColor = wyckoffState.rangeScore >= 70 ? color.new(#00c853, 0) : wyckoffState.rangeScore >= 50 ? color.new(#ffd600, 0) : tc
+        table.cell(dashboard, 0, 10, "Range Score", text_color=tc,          text_size=size.small)
+        table.cell(dashboard, 1, 10, str.tostring(wyckoffState.rangeScore) + " / 100  " + wyckoffState.rangeQuality, text_color=rangeColor, text_size=size.small)
+
+        table.cell(dashboard, 0, 11, "", bgcolor=color.new(color.gray, 80))
+        table.cell(dashboard, 1, 11, "", bgcolor=color.new(color.gray, 80))
+
+        // Range metrics
+        rangeW    = cp.rangeHigh - cp.rangeLow
+        rangeWPct = cp.rangeLow > 0 ? rangeW / cp.rangeLow * 100 : 0.0
+        rangeBars = bar_index - cp.startBar
+        table.cell(dashboard, 0, 12, "Range",       text_color=tc, text_size=size.small)
+        table.cell(dashboard, 1, 12, str.tostring(rangeBars) + "b  " + str.tostring(rangeWPct, "#.#") + "%", text_color=tc, text_size=size.small)
+
+        // Anchored VWAP — only meaningful while accumulating/distributing
+        bool avwapActive = (phaseName == "ACCUMULATION" or phaseName == "DISTRIBUTION") and not na(wyckoffState.avwapPrice)
+        avwapStr = avwapActive ? str.tostring(wyckoffState.avwapPrice, "#.####") : "—"
+        table.cell(dashboard, 0, 13, "AVWAP", text_color=tc, text_size=size.small)
+        table.cell(dashboard, 1, 13, avwapStr, text_color=tc, text_size=size.small)
+
+        // P&F target
+        table.cell(dashboard, 0, 14, "Cause Target (~)", text_color=tc, text_size=size.small)
+        table.cell(dashboard, 1, 14, not na(wyckoffState.pfTarget) ? str.tostring(wyckoffState.pfTarget, "#.##") : "—", text_color=tc, text_size=size.small)
+
+        table.cell(dashboard, 0, 15, "", bgcolor=color.new(color.gray, 80))
+        table.cell(dashboard, 1, 15, "", bgcolor=color.new(color.gray, 80))
+
+        // RS
+        rsLabel = showRS ? "RS vs Bench" : "RS"
+        rsValue = showRS and not na(rsNorm) ? str.tostring(rsNorm, "#.###") : "off"
+        rsColor  = showRS and not na(rsNorm) ? (rsNorm > 1.05 ? color.new(#00c853, 0) : rsNorm < 0.95 ? color.new(#d50000, 0) : tc) : tc
+        table.cell(dashboard, 0, 16, rsLabel, text_color=tc,      text_size=size.small)
+        table.cell(dashboard, 1, 16, rsValue,  text_color=rsColor, text_size=size.small)
+
+        table.cell(dashboard, 0, 17, "", bgcolor=color.new(color.gray, 80))
+        table.cell(dashboard, 1, 17, "", bgcolor=color.new(color.gray, 80))
+
+        if not na(wyckoffState.effortResult)
+            er = wyckoffState.effortResult
+            erActive = er.relationship != "CONFIRMATION"
+            color erBg = color.new(color.gray, 80)
+            if er.relationship == "CLIMAX"
+                erBg := color.new(#d50000, 20)
+            else if er.relationship == "DIVERGENCE"
+                erBg := color.new(#ff6f00, 20)
+            erTextCol = erActive ? color.white : tc
+            table.cell(dashboard, 0, 18, "Effort", text_color=tc, text_size=size.small)
+            table.cell(dashboard, 1, 18, str.tostring(er.effort, "#.##") + "x", text_color=tc, text_size=size.small)
+            table.cell(dashboard, 0, 19, "Result", text_color=tc, text_size=size.small)
+            table.cell(dashboard, 1, 19, str.tostring(er.result, "#.##") + "x",  text_color=tc, text_size=size.small)
+            table.cell(dashboard, 0, 20, "E/R",           text_color=tc,        text_size=size.small)
+            table.cell(dashboard, 1, 20, er.relationship, text_color=erTextCol, text_size=size.small, bgcolor=erBg)
+
+        // Sequence indicator
+        seqText = wyckoffState.springConfirmed ? "Spring → Test ✓" : wyckoffState.utadConfirmed ? "UTAD → Test ✓" : "—"
+        seqColor = wyckoffState.springConfirmed or wyckoffState.utadConfirmed ? color.new(#00c853, 0) : tc
+        table.cell(dashboard, 0, 21, "", bgcolor=color.new(color.gray, 80))
+        table.cell(dashboard, 1, 21, "", bgcolor=color.new(color.gray, 80))
+        table.cell(dashboard, 0, 22, "Sequence",  text_color=tc,       text_size=size.small)
+        table.cell(dashboard, 1, 22, seqText,     text_color=seqColor, text_size=size.small)
+    else
+        table.cell(dashboard, 0, 1, "Status",     text_color=tc, text_size=size.small)
+        table.cell(dashboard, 1, 1, "Detecting…", text_color=tc, text_size=size.small)
+
+// ============================================================================
+// ALERTS
+// ============================================================================
+
+string _phaseName      = not na(wyckoffState.currentPhase) ? wyckoffState.currentPhase.name : ""
+string currentSubphase = not na(wyckoffState.currentPhase) ? wyckoffState.currentPhase.subphase : ""
+bool   _springConf     = wyckoffState.springConfirmed
+bool   _utadConf       = wyckoffState.utadConfirmed
+int    _setupScore     = wyckoffState.setupScore
+string _erRelationship = not na(wyckoffState.effortResult) ? wyckoffState.effortResult.relationship : "CONFIRMATION"
+float  _erStrength     = not na(wyckoffState.effortResult) ? wyckoffState.effortResult.strength     : 0.0
+
+bool alertsOnBarClose = input.bool(true, "Alerts only on bar close (confirmed)", group="Alerts")
+bool alertOk = not alertsOnBarClose or barstate.isconfirmed
+
+// Phase transition alerts
+bool accumulationStarted = _phaseName == "ACCUMULATION" and _phaseName[1] != "ACCUMULATION"
+alertcondition(alertOk and (accumulationStarted), "Accumulation Started", "WYS · ACCUMULATION STARTED · {{ticker}} {{interval}}")
+
+bool distributionStarted = _phaseName == "DISTRIBUTION" and _phaseName[1] != "DISTRIBUTION"
+alertcondition(alertOk and (distributionStarted), "Distribution Started", "WYS · DISTRIBUTION STARTED · {{ticker}} {{interval}}")
+
+bool markupStarted = _phaseName == "MARKUP" and _phaseName[1] != "MARKUP"
+alertcondition(alertOk and (markupStarted), "Markup Started", "WYS · MARKUP STARTED LONG · {{ticker}} {{interval}}")
+
+bool markdownStarted = _phaseName == "MARKDOWN" and _phaseName[1] != "MARKDOWN"
+alertcondition(alertOk and (markdownStarted), "Markdown Started", "WYS · MARKDOWN STARTED SHORT · {{ticker}} {{interval}}")
+
+// Event alerts
+bool springDetected = currentSubphase == "SPRING" and currentSubphase[1] != "SPRING"
+alertcondition(alertOk and (springDetected), "Spring Detected", "WYS · SPRING LONG · {{ticker}} {{interval}}")
+
+bool utadDetected = currentSubphase == "UTAD" and currentSubphase[1] != "UTAD"
+alertcondition(alertOk and (utadDetected), "UTAD Detected", "WYS · UTAD SHORT · {{ticker}} {{interval}}")
+
+bool testDetected = currentSubphase == "TEST" and currentSubphase[1] != "TEST"
+alertcondition(alertOk and (testDetected), "Test Detected", "WYS · TEST · {{ticker}} {{interval}}")
+
+// Phase D entry events
+bool sosDetected = currentSubphase == "SOS" and currentSubphase[1] != "SOS"
+alertcondition(alertOk and (sosDetected), "SOS Detected", "WYS · SIGN OF STRENGTH LONG · {{ticker}} {{interval}}")
+
+bool sowDetected = currentSubphase == "SOW" and currentSubphase[1] != "SOW"
+alertcondition(alertOk and (sowDetected), "SOW Detected", "WYS · SIGN OF WEAKNESS SHORT · {{ticker}} {{interval}}")
+
+// Confirmed breakout / breakdown (Phase E)
+bool sosbDetected = currentSubphase == "SOSB" and currentSubphase[1] != "SOSB"
+alertcondition(alertOk and (sosbDetected), "SOSB Breakout", "WYS · SOS BREAKOUT LONG · {{ticker}} {{interval}}")
+
+bool sowbDetected = currentSubphase == "SOWB" and currentSubphase[1] != "SOWB"
+alertcondition(alertOk and (sowbDetected), "SOWB Breakdown", "WYS · SOW BREAKDOWN SHORT · {{ticker}} {{interval}}")
+
+bool lpsDetected = currentSubphase == "LPS" and currentSubphase[1] != "LPS"
+alertcondition(alertOk and (lpsDetected), "LPS Detected", "WYS · LAST POINT OF SUPPORT LONG · {{ticker}} {{interval}}")
+
+bool lpsyDetected = currentSubphase == "LPSY" and currentSubphase[1] != "LPSY"
+alertcondition(alertOk and (lpsyDetected), "LPSY Detected", "WYS · LAST POINT OF SUPPLY SHORT · {{ticker}} {{interval}}")
+
+bool climaxDetected = _erRelationship == "CLIMAX" and _erStrength >= 80 and _erRelationship[1] != "CLIMAX"
+alertcondition(alertOk and (climaxDetected), "Climax Detected", "WYS · CLIMAX · {{ticker}} {{interval}}")
+
+// Combined quality alerts
+bool springTestConfirmed = _springConf and not _springConf[1]
+alertcondition(alertOk and (springTestConfirmed), "Spring + Test Confirmed", "WYS · SPRING+TEST CONFIRMED LONG · {{ticker}} {{interval}}")
+
+bool utadTestConfirmed = _utadConf and not _utadConf[1]
+alertcondition(alertOk and (utadTestConfirmed), "UTAD + Test Confirmed", "WYS · UTAD+TEST CONFIRMED SHORT · {{ticker}} {{interval}}")
+
+bool highQualityAccum = not accumulationStarted and _phaseName == "ACCUMULATION" and _setupScore >= 75 and _setupScore[1] < 75
+alertcondition(alertOk and (highQualityAccum), "High Quality Accumulation Setup", "WYS · HIGH QUALITY ACCUMULATION LONG · {{ticker}} {{interval}}")
+
+bool highQualityDistrib = not distributionStarted and _phaseName == "DISTRIBUTION" and _setupScore >= 75 and _setupScore[1] < 75
+alertcondition(alertOk and (highQualityDistrib), "High Quality Distribution Setup", "WYS · HIGH QUALITY DISTRIBUTION SHORT · {{ticker}} {{interval}}")
+
+bool htfLtfAligned = (_phaseName == "ACCUMULATION" and wyckoffState.htfBias == "BULLISH") or (_phaseName == "DISTRIBUTION" and wyckoffState.htfBias == "BEARISH")
+bool htfAlignStart = htfLtfAligned and not htfLtfAligned[1]
+alertcondition(alertOk and (htfAlignStart), "HTF/LTF Aligned", "WYS · HTF/LTF ALIGNED · {{ticker}} {{interval}}")

@@ -1,0 +1,28 @@
+//@version=6
+// set03 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/concepts/strings.md::strings.md#block20
+// content_hash: bf13256b0b26f19b
+// collected: 2026-07-27
+indicator("Invalid arguments with whitespaces demo", overlay = true)
+
+//@variable A string containing a comma-separated list of timeframes. 
+string timeframesInput = input.text_area("1, 5, 15, 30, 60, 240, 720, 1D", "Timeframes")
+
+//@variable A boolean variable that defines whether to trim the input string.
+bool doTrimInput = input.bool(false, "Trim the \"Timeframes\" input string")
+
+//@variable An array of timeframe substrings.
+var array<string> timeframes = str.split(timeframesInput, ",")
+
+//@variable A concatenated string containing formatted dates and times for each value in the `timeframes` array.
+string displayText = "Opening times:"
+
+for timeframe in timeframes
+    //@variable A copy of the `timeframe` string with surrounding whitespaces removed. 
+    string trimmedTimeframe = str.trim(timeframe)
+    //@variable The UNIX timestamp of the bar's opening time on the timeframe.
+    //          This call causes a runtime error if the input string is not trimmed, because the argument contains
+    //          a leading whitespace (e.g., " 5"), which is an *unsupported format* for timeframe strings.  
+    int timestamp = time(doTrimInput ? trimmedTimeframe : timeframe)
+    // Add a new text line containing the `timestamp` formatted as a date and time in the exchange time zone.

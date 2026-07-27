@@ -1,0 +1,21 @@
+//@version=6
+// set04 corpus entry
+// source_repo: algocode2022-PineScript
+// source_path: algocode2022-PineScript/oGun
+// content_hash: c2c7247f510a2890
+// collected: 2026-07-27
+// authow: erolmutlu
+strategy("oGun [erolmutlu]", overlay=true)
+
+yeniGun = ta.change(time("D")) > 0
+var float oGun = na
+if yeniGun or na(oGun)
+    oGun := open
+
+plot(oGun, color=color.red, linewidth=1, style = plot.style_circles)
+barcolor(strategy.position_size > 0 ? color.lime : color.gray)
+
+if (close > oGun[1])
+    strategy.entry("A", strategy.long)
+if (close < oGun[1])
+    strategy.close_all("F")

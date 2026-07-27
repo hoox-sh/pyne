@@ -1,0 +1,143 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/零滞后叠加移动平均线结合悬臂线出口交易策略Zero-Lag-Overlapping-Moving-Average-with-Chandelier-Exit-Trading-Strategy.md
+// content_hash: 242112897b49b151
+// collected: 2026-07-27
+
+strategy(title = "ZLSMA + Chandelier Exit", shorttitle="ZLSMA + CE", overlay=true)
+
+
+var GRP1 = "take profit / stop loss"
+TP = input(title='long TP%', defval=2.0,   inline = "1", group = GRP1) 
+SL = input(title='long SL%', defval=2.0,    inline = "1", group = GRP1) 
+TP2 = input(title='short TP', defval=2.0,    inline = "2", group = GRP1) 
+SL2 = input(title='short SL', defval=2.0,    inline = "2", group = GRP1) 
+//-------------------------------------------------calculations
+takeProfitPrice = strategy.position_avg_price * (1+(TP/100))
+stopLossPrice = strategy.position_avg_price * (1-(SL/100))
+takeProfitPrice2 = strategy.position_avg_price * (1-(TP2/100))
+stopLossPrice2 = strategy.position_avg_price * (1+(SL2/100))
+
+
+//---------------------------------------ZLSMA - Zero Lag LSMA
+var GRP2 = "ZLSMA settings"
+length1 = input(title='Length', defval=130, inline = "1", group = GRP2) 
+offset1 = input(title='Offset', defval=0, inline = "2", group = GRP2) 
+src = input(close, title='Source', inline = "3", group = GRP2) 
+lsma = ta.linreg(src, length1, offset1)
+lsma2 = ta.linreg(lsma, length1, offset1)
+eq = lsma - lsma2
+zlsma = lsma + eq
+
+plot(zlsma, color=color.new(color.yellow, 0), linewidth=3)
+
+
+//---------------------------------------ZLSMA conditisions 
+//---------long
+longc1 = close > zlsma
+longclose1 = close < zlsma
+//---------short
+shortc1 = close < zlsma
+shortclose1 = close > zlsma
+
+
+//---------------------------------------Chandelier Exit
+var string calcGroup = 'Chandelier exit settings'
+length = input.int(title='ATR Period', defval=1, group=calcGroup)
+mult = input.float(title='ATR Multiplier', step=0.1, defval=2.0, group=calcGroup)
+useClose = input.bool(title='Use Close Price for Extremums', defval=true, group=calcGroup)
+
+var string visualGroup = 'Visuals'
+showLabels = input.bool(title='Show Buy/Sell Labels', defval=true, group=visualGroup)
+highlightState = input.bool(title='Highlight State', defval=true, group=visualGroup)
+
+var string alertGroup = 'Alerts'
+awaitBarConfirmation = input.bool(title="Await Bar Confirmation", defval=true, group=alertGroup)
+
+atr = mult * ta.atr(length)
+
+longStop = (useClose ? ta.highest(close, length) : ta.highest(length)) - atr
+longStopPrev = nz(longStop[1], longStop)
+longStop := close[1] > longStopPrev ? math.max(longStop, longStopPrev) : longStop
+
+shortStop = (useClose ? ta.lowest(close, length) : ta.lowest(length)) + atr
+shortStopPrev = nz(shortStop[1], shortStop)
+shortStop := close[1] < shortStopPrev ? math.min(shortStop, shortStopPrev) : shortStop
+
+var int dir = 1
+dir := close > shortStopPrev ? 1 : close < longStopPrev ? -1 : dir
+
+var color longColor = color.green
+var color shortColor = color.red
+var color longFillColor = color.new(color.green, 90)
+var color shortFillColor = color.new(color.red, 90)
+var color textColor = color.new(color.white, 0)
+
+longStopPlot = plot(dir == 1 ? longStop : na, title='Long Stop', style=plot.style_linebr, linewidth=2, color=color.new(longColor, 0))
+buySignal = dir == 1 and dir[1] == -1
+plotshape(buySignal ? longStop : na, title='Long Stop Start', location=location.absolute, style=shape.circle, size=size.tiny, color=color.new(longColor, 0))
+plotshape(buySignal and showLabels ? longStop : na, title='Buy Label', text='Buy', location=location.absolute, style=shape.labelup, size=size.tiny, color=color.new(longColor, 0), textcolor=textColor)
+
+shortStopPlot = plot(dir == 1 ? na : shortStop, title='Short Stop', style=plot.style_linebr, linewidth=2, color=color.new(shortColor, 0))
+sellSignal = dir == -1 and dir[1] == 1
+plotshape(sellSignal ? shortStop : na, title='Short Stop Start', location=location.absolute, style=shape.circle, size=size.tiny, color=color.new(shortColor, 0))
+plotshape(sellSignal and showLabels ? shortStop : na, title='Sell Label', text='Sell', location=location.absolute, style=shape.labeldown, size=size.tiny, color=color.new(shortColor, 0), textcolor=textColor)
+
+midPricePlot = plot(ohlc4, title='', style=plot.style_circles, linewidth=0, display=display.none, editable=false)
+
+longStateFillColor = highlightState ? dir == 1 ? longFillColor : na : na
+shortStateFillColor = highlightState ? dir == -1 ? shortFillColor : na : na
+fill(midPricePlot, longStopPlot, title='Long State Filling', color=longStateFillColor)
+fill(midPricePlot, shortStopPlot, title='Short State Filling', color=shortStateFillColor)
+
+await = awaitBarConfirmation ? barstate.isconfirmed : true
+alertcondition(dir != dir[1] and await, title='Alert: CE Direction Change', message='Chandelier Exit has changed direction!')
+alertcondition(buySignal and await, title='Alert: CE Buy', message='Chandelier Exit Buy!')
+alertcondition(sellSignal and await, title='Alert: CE Sell', message='Chandelier Exit Sell!')
+
+
+
+
+//---------------------------------------Chandelier Exit conditisions 
+//---------long
+longc2 = buySignal
+longclose2 = sellSignal
+//---------short
+shortc2 = sellSignal
+shortclose2 = buySignal
+
+
+
+//---------------------------------------Long entry and exit
+if longc1 and longc2 
+    strategy.entry("long", strategy.long)
+
+if strategy.position_avg_price > 0
+    strategy.exit("close long", "long", limit = takeProfitPrice, stop = stopLossPrice, alert_message = "close all orders")
+
+if longclose1 and longclose2 and strategy.opentrades == 1
+    strategy.close("long","ema long cross", alert_message = "close all orders")
+
+
+//---------------------------------------Short entry and exit
+if shortc1 and shortc2 
+    strategy.entry("short", strategy.short)
+
+if strategy.position_avg_price > 0
+    strategy.exit("close short", "short", limit = takeProfitPrice2, stop = stopLossPrice2, alert_message = "close all orders")
+
+if shortclose1 and shortclose2 and strategy.opentrades == 1
+    strategy.close("close short","short", alert_message = "close all orders")
+
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/439599
+
+> Last Modified
+
+2024-01-22 10:03:05

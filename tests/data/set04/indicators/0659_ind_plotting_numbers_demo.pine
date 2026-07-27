@@ -1,0 +1,23 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/writing/debugging.md::debugging.md#block13
+// content_hash: a834079b7530bed8
+// collected: 2026-07-27
+indicator("Plotting numbers demo")
+
+//@variable The length of each oscillator.
+int lengthInput = input.int(20, "Length", 2)
+
+//@variable The correlation between `close` and `bar_index` over `lengthInput` bars.
+float osc1 = ta.correlation(close, bar_index, lengthInput)
+//@variable The RSI of `close` over `lengthInput` bars, scaled to the range [-1, 1].
+float osc2 = (ta.rsi(close, lengthInput) - 50) / 50
+//@variable The percent rank of `close` compared to `lengthInput` past values, scaled to the range [-1, 1].
+float osc3 = (ta.percentrank(close, lengthInput) - 50) / 50
+
+//@variable The average of `osc1`, `osc2`, and `osc3`.
+float oscillator = math.avg(osc1, osc2, osc3)
+
+// Plot the `oscillator`.
+plot(oscillator, "Combined oscillator", color.purple, 3)

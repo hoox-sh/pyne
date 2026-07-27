@@ -1,0 +1,121 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/三重超趋势Ichimoku云量化交易策略Triple-Supertrend-Ichimoku-Cloud-Quantitative-Trading-Strategy.md
+// content_hash: dd0b264a113c1182
+// collected: 2026-07-27
+strategy(title="HyperTrend", shorttitle="HyperTrend", overlay=true )
+
+// 
+float percent_of_portfo = input.int(2, title = "percent of portfo per order", minval = 0, maxval = 100) / 100
+
+// ichimoku Cloud
+conversionPeriods = input.int(9, minval=1, title="Conversion Line Length", group = "ichimoku")
+basePeriods = input.int(26, minval=1, title="Base Line Length", group = "ichimoku")
+laggingSpan2Periods = input.int(52, minval=1, title="Leading Span B Length", group = "ichimoku")
+displacement = input.int(26, minval=1, title="Lagging Span", group = "ichimoku")
+donchian(len) => math.avg(ta.lowest(len), ta.highest(len))
+conversionLine = donchian(conversionPeriods)
+baseLine = donchian(basePeriods)
+leadLine1 = math.avg(conversionLine, baseLine)
+leadLine2 = donchian(laggingSpan2Periods)
+p1 = plot(leadLine1, offset = displacement - 1, color=#A5D6A7,
+	 title="Leading Span A", display = display.none)
+p2 = plot(leadLine2, offset = displacement - 1, color=#ef9a9a,
+	 title="Leading Span B", display = display.none)
+plot(leadLine1 > leadLine2 ? leadLine1 : leadLine2, offset = displacement - 1, title = "Kumo Cloud Upper Line", display = display.none) 
+plot(leadLine1 < leadLine2 ? leadLine1 : leadLine2, offset = displacement - 1, title = "Kumo Cloud Lower Line", display = display.none) 
+fill(p1, p2, color = leadLine1 > leadLine2 ? color.rgb(67, 160, 72, 59) : color.rgb(244, 67, 54, 70))
+
+
+// three supertrend
+
+//1
+atrPeriod1 = input(10, "ATR Length1", group="SuperTrend")
+factor1 = input.float(1.0, "Factor1", step = 0.01, group="SuperTrend")
+
+[supertrend1, direction1] = ta.supertrend(factor1, atrPeriod1)
+supertrend1 := barstate.isfirst ? na : supertrend1
+
+bodyMiddle1 = plot(barstate.isfirst ? na : (open + close) / 2, display = display.none)
+upTrend1 =    plot(direction1 < 0 ? supertrend1 : na, "Up Trend",   color = color.green, style = plot.style_linebr)
+downTrend1 =  plot(direction1 < 0 ? na : supertrend1, "Down Trend", color = color.red,   style = plot.style_linebr)
+
+
+//2
+atrPeriod2 = input(11, "ATR Length2", group="SuperTrend")
+factor2 = input.float(2.0, "Factor2", step = 0.01, group="SuperTrend")
+
+[supertrend2, direction2] = ta.supertrend(factor2, atrPeriod2)
+supertrend2 := barstate.isfirst ? na : supertrend2
+
+bodyMiddle2 = plot(barstate.isfirst ? na : (open + close) / 2, display = display.none)
+upTrend2 =    plot(direction2 < 0 ? supertrend2 : na, "Up Trend",   color = color.green, style = plot.style_linebr)
+downTrend2 =  plot(direction2 < 0 ? na : supertrend2, "Down Trend", color = color.red,   style = plot.style_linebr)
+
+
+//3
+atrPeriod3 = input(12, "ATR Length2", group="SuperTrend")
+factor3 = input.float(3.0, "Factor2", step = 0.01, group="SuperTrend")
+
+[supertrend3, direction3] = ta.supertrend(factor3, atrPeriod3)
+supertrend3 := barstate.isfirst ? na : supertrend3
+
+bodyMiddle3 = plot(barstate.isfirst ? na : (open + close) / 2, display = display.none)
+upTrend3 =    plot(direction3 < 0 ? supertrend3 : na, "Up Trend",   color = color.green, style = plot.style_linebr)
+downTrend3 =  plot(direction3 < 0 ? na : supertrend3, "Down Trend", color = color.red,   style = plot.style_linebr)
+
+
+// ATR
+lengthATR = input.int(title="Length (ATR)", defval=14, minval=1, group="ATR")
+smoothingATR = input.string(title="Smoothing (ATR)", defval="RMA", options=["RMA", "SMA", "EMA", "WMA"], group="ATR")
+ma_function(sourceATR, lengthATR) =>
+	switch smoothingATR
+		"RMA" => ta.rma(sourceATR, lengthATR)
+		"SMA" => ta.sma(sourceATR, lengthATR)
+		"EMA" => ta.ema(sourceATR, lengthATR)
+		=> ta.wma(sourceATR, lengthATR)
+ATR = ma_function(ta.tr(true), lengthATR)
+plot(ATR, title = "ATR", color=color.new(#B71C1C, 0), display = display.none)
+
+// EMA
+lenEMA = input.int(200, minval=1, title="Length of EMA", group="EMA")
+srcEMA = input(close, title="Source of EMA", group="EMA")
+offset = input.int(title="Offset (EMA)", defval=0, minval=-500, maxval=500, group="EMA")
+outEMA = ta.ema(srcEMA, lenEMA)
+plot(outEMA, title="EMA", color=color.blue, offset=offset, display = display.none)
+
+ma(sourceEMA, lengthEMA, type) =>
+    switch type
+        "SMA" => ta.sma(sourceEMA, lengthEMA)
+        "EMA" => ta.ema(sourceEMA, lengthEMA)
+        "SMMA (RMA)" => ta.rma(sourceEMA, lengthEMA)
+        "WMA" => ta.wma(sourceEMA, lengthEMA)
+        "VWMA" => ta.vwma(sourceEMA, lengthEMA)
+
+typeMA = input.string(title = "Method (EMA)", defval = "SMA", options=["SMA", "EMA", "SMMA (RMA)", "WMA", "VWMA"], group="EMA")
+smoothingLengthEMA = input.int(title = "Smoothing Length (EMA)", defval = 5, minval = 1, maxval = 100, group="EMA")
+
+smoothingLine = ma(outEMA, smoothingLengthEMA, typeMA)
+plot(smoothingLine, title="Smoothing Line", color=#f37f20, offset=offset, display=display.none)
+
+
+//logic
+
+
+
+if (open + ATR > supertrend1) and (open + ATR > supertrend2) and (open + ATR > supertrend3) 
+	strategy.entry("L", strategy.long)
+else if (open < supertrend1 + ATR) and (open < supertrend2 + ATR) and (open < supertrend3 + ATR) 
+	strategy.entry("S", strategy.short)
+else
+	strategy.close_all("C")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/436763
+
+> Last Modified
+
+2023-12-27 15:22:40

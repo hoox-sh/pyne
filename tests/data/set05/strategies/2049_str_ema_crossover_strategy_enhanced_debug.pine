@@ -1,0 +1,64 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多重EMA交叉趋势跟踪量化交易策略-Multi-EMA-Crossover-Trend-Following-Quantitative-Trading-Strategy.md
+// content_hash: f45744f9473b1b97
+// collected: 2026-07-27
+strategy("EMA Crossover Strategy (Enhanced Debug)", overlay=true)
+
+// Inputs for EMA periods
+shortEMA = input.int(10, title="Short EMA Period")
+mediumEMA = input.int(50, title="Medium EMA Period")
+longEMA = input.int(200, title="Long EMA Period")
+
+// Calculating EMAs
+emaShort = ta.ema(close, shortEMA)
+emaMedium = ta.ema(close, mediumEMA)
+emaLong = ta.ema(close, longEMA)
+
+// Plot EMAs
+plot(emaShort, color=color.green, title="Short EMA")
+plot(emaMedium, color=color.blue, title="Medium EMA")
+plot(emaLong, color=color.red, title="Long EMA")
+
+// Conditions for entry and exit
+longCondition = close > emaLong and ta.crossover(emaShort, emaMedium) and emaMedium > emaLong
+shortCondition = close < emaLong and ta.crossunder(emaShort, emaMedium) and emaMedium < emaLong
+closeLongCondition = ta.crossunder(emaShort, emaMedium)
+closeShortCondition = ta.crossover(emaShort, emaMedium)
+
+// Debugging labels for unexpected behavior
+if (ta.crossover(emaShort, emaLong) and not ta.crossover(emaShort, emaMedium))
+    label.new(bar_index, high, "Short > Long", style=label.style_circle, color=color.red, textcolor=color.white)
+
+// Debugging EMA relationships
+if (emaMedium <= emaLong)
+    label.new(bar_index, high, "Medium < Long", style=label.style_cross, color=color.orange, textcolor=color.white)
+
+// Entry logic
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+
+if (shortCondition)
+    strategy.entry("Short", strategy.short)
+
+// Exit logic
+if (closeLongCondition)
+    strategy.close("Long")
+
+if (closeShortCondition)
+    strategy.close("Short")
+
+// Display labels for signals
+plotshape(series=longCondition, style=shape.labelup, color=color.green, location=location.belowbar, title="Buy Signal")
+plotshape(series=shortCondition, style=shape.labeldown, color=color.red, location=location.abovebar, title="Sell Signal")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/477977
+
+> Last Modified
+
+2025-01-10 16:33:35

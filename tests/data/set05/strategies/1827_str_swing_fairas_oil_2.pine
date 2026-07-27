@@ -1,0 +1,70 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多时间框架随机指标波段交易策略与动态止盈止损系统-Multi-Timeframe-Stochastic-Oscillator-Swing-Trading-Strategy-with-Dynamic-Take-Profit-and-Stop-Loss.md
+// content_hash: 5fd3b2bcef14847f
+// collected: 2026-07-27
+strategy("Swing Fairas Oil", overlay=true)
+
+// Input parameters
+kLength = input(14, title="Stochastic K Length")
+dLength = input(3, title="Stochastic D Length")
+smoothK = input(3, title="Smooth K")
+tfHigher = input.timeframe("30", title="Higher Timeframe")
+takeProfit = input(1.7, title="Take Profit Multiplier")
+stopLoss = input(1.7, title="Stop Loss Multiplier")
+
+// Calculate Stochastic Oscillator for current timeframe
+k = ta.sma(ta.stoch(close, high, low, kLength), smoothK)
+d = ta.sma(k, dLength)
+
+// Calculate Stochastic Oscillator for higher timeframe
+kHTF = request.security(syminfo.tickerid, tfHigher, ta.sma(ta.stoch(close, high, low, kLength), smoothK))
+dHTF = request.security(syminfo.tickerid, tfHigher, ta.sma(kHTF, dLength))
+
+// Buy and sell conditions (confirmation from two timeframes)
+buyCondition = ta.crossover(k, d) and k < 20 and kHTF < 20 and kHTF > dHTF
+sellCondition = ta.crossunder(k, d) and k > 80 and kHTF > 80 and kHTF < dHTF
+
+// Define Take Profit and Stop Loss levels
+longStopLoss = close * (1 - stopLoss / 100)
+longTakeProfit = close * (1 + takeProfit / 100)
+shortStopLoss = close * (1 + stopLoss / 100)
+shortTakeProfit = close * (1 - takeProfit / 100)
+
+// Execute Trades
+if buyCondition
+    strategy.entry("Long", strategy.long)
+    strategy.exit("Long Exit", from_entry="Long", limit=longTakeProfit, stop=longStopLoss)
+if sellCondition
+    strategy.entry("Short", strategy.short)
+    strategy.exit("Short Exit", from_entry="Short", limit=shortTakeProfit, stop=shortStopLoss)
+
+// Plot buy/sell signals on candlestick chart
+plotshape(series=buyCondition, location=location.belowbar, color=color.green, style=shape.labelup, size=size.small, title="Buy Signal")
+plotshape(series=sellCondition, location=location.abovebar, color=color.red, style=shape.labeldown, size=size.small, title="Sell Signal")
+
+// Highlight candles for buy and sell conditions
+barcolor(buyCondition ? color.green : sellCondition ? color.red : na)
+
+// Draw Take Profit and Stop Loss levels dynamically with labels
+var float tpLevel = na
+var float slLevel = na
+if buyCondition
+    tpLevel := longTakeProfit
+    slLevel := longStopLoss
+
+if sellCondition
+    tpLevel := shortTakeProfit
+    slLevel := shortStopLoss
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/482837
+
+> Last Modified
+
+2025-02-20 14:49:38

@@ -1,0 +1,15 @@
+//@version=6
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/language/matrices.md::matrices.md#block61
+// content_hash: d13b2e18d21a33e4
+// collected: 2026-07-27
+indicator("Determinants example", "Cramer's Rule")
+
+//@function Solves a system of linear equations with a matching number of unknowns using Cramer's rule.
+//@param    this An augmented matrix containing the coefficients for each unknown and the results of
+//          the equations. For example, a row containing the values 2, -1, and 3 represents the equation
+//          `2 * x0 + (-1) * x1 = 3`, where `x0` and `x1` are the unknown values in the system.
+//@returns  An array containing solutions for each variable in the system.
+solve(matrix<float> this) =>
+    //@variable The coefficient matrix for the system of equations.

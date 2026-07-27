@@ -1,0 +1,15 @@
+//@version=4
+// set05 corpus entry
+// source_repo: vikaschouhan-algotrade
+// source_path: vikaschouhan-algotrade/pinescript/rsi_multi_timeframe.psc
+// content_hash: 0ded2f88fb1ce538
+// collected: 2026-07-27
+study("RSI multiframe", overlay=false)
+
+rsi_len = input(title="RSI Length", defval=14)
+rsi_res = input(title="RSI timeframe", type=input.resolution, defval="1D")
+
+rsi_ind   = rsi(close, rsi_len)
+rsi_ind_m = security(syminfo.tickerid, rsi_res, rsi_ind)
+
+plot(rsi_ind_m, color=color.blue)

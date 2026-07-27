@@ -1,0 +1,24 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/release_notes.md::release_notes.md#block7
+// content_hash: af96e7ed88d0cd57
+// collected: 2026-07-27
+
+// Before the update, wrapped lines in this code that start at multiples of four spaces caused compilation errors.
+
+indicator(
+    "Line wrapping between parentheses demo", // Indented by four spaces.
+        overlay = true                        // Indented by eight spaces.
+)                                             // No indentation.
+
+float median = 0.5 * (
+    ta.highest(20) + ta.lowest(20) // Indented by four spaces.
+)                                  // No indentation.
+
+plot(
+median,              // No indentation.
+  "Median",          // Indented by two spaces.
+   chart.fg_color,   // Indented by three spaces.
+    3                // Indented by four spaces.
+)                    // No indentation.

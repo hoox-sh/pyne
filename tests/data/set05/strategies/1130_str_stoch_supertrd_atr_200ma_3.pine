@@ -1,0 +1,97 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/Stochastic-Supertrend跟踪止损交易策略Stochastic-Supertrend-Tracking-Stop-Loss-Trading-Strategy.md
+// content_hash: 15531916ceb1ec74
+// collected: 2026-07-27
+strategy("stoch supertrd atr 200ma", overlay=true, process_orders_on_close=true)
+var B = 0
+if strategy.position_size > 0 //to figure out how many bars away did buy order happen
+    B += 1 
+
+if strategy.position_size == 0
+    B := 0
+    
+atrPeriod = input(10, "ATR Length")
+factor = input.float(3.0, "Factor", step = 0.01)
+
+[supertrend, direction] = ta.supertrend(factor, atrPeriod)
+
+bodyMiddle = plot((open + close) / 2, display=display.none)
+upTrend = plot(direction < 0 ? supertrend : na, "Up Trend", color = color.green, style=plot.style_linebr)
+downTrend = plot(direction < 0? na : supertrend, "Down Trend", color = color.red, style=plot.style_linebr)
+
+ema = ta.ema(close, 200)
+plot(ema, title="200 ema", color=color.yellow)
+
+b = input.int(defval=14, title="length k%")
+d = input.int(defval=3, title="smoothing k%")
+s = input.int(defval=3, title="smoothing d%")
+smooth_k = ta.sma(ta.stoch(close, high, low, b), d)
+smooth_d = ta.sma(smooth_k, s)
+
+////////////////////////////////////////////////////////////////////////////////
+length = input.int(title="Length", defval=12, minval=1)
+smoothing = input.string(title="Smoothing", defval="SMA", options=["RMA", "SMA", "EMA", "WMA"])
+m = input(1.5, "Multiplier")
+src1 = input(high)
+src2 = input(low)
+pline = input(true, "Show Price Lines")
+col1 = input(color.blue, "ATR Text Color")
+col2 = input(color.teal, "Low Text Color",inline ="1")
+col3 = input(color.red, "High Text Color",inline ="2")
+
+collong = input(color.teal, "Low Line Color",inline ="1")
+colshort = input(color.red, "High Line Color",inline ="2")
+
+ma_function(source, length) =>
+	if smoothing == "RMA"
+		ta.rma(source, length)
+	else
+		if smoothing == "SMA"
+			ta.sma(source, length)
+		else
+			if smoothing == "EMA"
+				ta.ema(source, length)
+			else
+				ta.wma(source, length)
+				
+a = ma_function(ta.tr(true), length) * m
+x = ma_function(ta.tr(true), length) * m + src1
+x2 = src2 - ma_function(ta.tr(true), length) * m
+
+p1 = plot(x, title = "ATR Short Stop Loss", color=color.blue)
+p2 = plot(x2, title = "ATR Long Stop Loss", color= color.blue)
+
+
+///////////////////////////////////////////////////////////////////////////////////////////////
+
+shortCondition = high < ema and direction == 1 and smooth_k > 80
+if (shortCondition) and strategy.position_size == 0
+    strategy.entry("sell", strategy.short)
+
+longCondition = low > ema and direction == -1 and smooth_k < 20
+if (longCondition) and strategy.position_size == 0
+    strategy.entry("buy", strategy.long)
+    
+g = (strategy.opentrades.entry_price(0)-x2) * 2
+k = (x - strategy.opentrades.entry_price(0)) * 2
+
+if strategy.position_size > 0
+    strategy.exit(id="buy exit", from_entry="buy",limit=strategy.opentrades.entry_price(0) + g, stop=x2) 
+
+if strategy.position_size < 0
+    strategy.exit(id="sell exit", from_entry="sell",limit=strategy.opentrades.entry_price(0) - k, stop=x) 
+    
+//plot(strategy.opentrades.entry_price(0) - k, color=color.yellow)
+//plot(strategy.opentrades.entry_price(0) + g, color=color.red)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/439997
+
+> Last Modified
+
+2024-01-25 16:04:39

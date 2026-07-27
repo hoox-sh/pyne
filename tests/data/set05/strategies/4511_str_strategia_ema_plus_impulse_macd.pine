@@ -1,0 +1,99 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于指数移动平均线和MACD指标的量化交易策略Strategy-Based-on-Exponential-Moving-Average-and-MACD-Indicator.md
+// content_hash: 987f4f3c7af272a1
+// collected: 2026-07-27
+strategy("Strategia EMA + Impulse MACD", shorttitle="EMA+IMACD", overlay=true)
+
+// Impostazioni
+ema_length = input(200, title="Periodo EMA a 200", type=input.integer)
+lengthMA = input(34, title="Periodo EMA", type=input.integer)
+lengthSignal = input(9, title="Periodo Signal", type=input.integer)
+lengthImpulseMACD = input(12, title="Periodo Impulse MACD", type=input.integer)
+lengthImpulseMACDSignal = input(9, title="Periodo Impulse MACD Signal", type=input.integer)
+stopLossPeriod = input(20, title="Periodo Stop Loss", type=input.integer)
+
+var float ema200 = na
+if bar_index >= ema_length
+    ema200 := ema(close, ema_length)
+
+// Impulse MACD
+var float hi = na
+var float lo = na
+var float mi = na
+var float impulseMACD = na
+var float impulseMACDSignal = na
+
+calc_smma(src, len) =>
+    var float smma = na
+    if na(smma)
+        smma := sma(src, len)
+    else
+        smma := (smma[1] * (len - 1) + src) / len
+    smma
+
+calc_zlema(src, length) =>
+    ema1 = ema(src, length)
+    ema2 = ema(ema1, length)
+    d = ema1 - ema2
+    ema1 + d
+
+if bar_index >= lengthMA
+    src = hlc3
+    hi := calc_smma(high, lengthMA)
+    lo := calc_smma(low, lengthMA)
+    mi := calc_zlema(src, lengthMA)
+
+    impulseMACD := (mi > hi) ? (mi - hi) : (mi < lo) ? (mi - lo) : 0
+    impulseMACDSignal := sma(impulseMACD, lengthSignal)
+
+// Calcolo dello stop loss
+var float stopLossLong = na
+var float stopLossShort = na
+
+stopLossLong := lowest(low, stopLossPeriod)
+stopLossShort := highest(high, stopLossPeriod)
+
+// Calcolo del take profit
+var float takeProfitLong = na
+var float takeProfitShort = na
+
+if not na(stopLossLong)
+    takeProfitLong := close + (close - stopLossLong) * 1.5
+if not na(stopLossShort)
+    takeProfitShort := close - (stopLossShort - close) * 1.5
+
+// Condizioni per aprire una posizione long
+longCondition = not na(ema200) and not na(impulseMACD) and not na(impulseMACDSignal) and close > ema200 and impulseMACD < 0 and impulseMACDSignal < 0 and crossover(impulseMACD, impulseMACDSignal)
+
+// Condizioni per aprire una posizione short
+shortCondition = not na(ema200) and not na(impulseMACD) and not na(impulseMACDSignal) and close < ema200 and impulseMACD > 0 and impulseMACDSignal > 0 and crossunder(impulseMACD, impulseMACDSignal)
+
+// Disegna l'EMA 200 sul grafico
+plot(ema200, color=color.blue, title="EMA 200")
+
+// Imposta lo stop loss e il take profit
+strategy.entry("Long", strategy.long, when=longCondition)
+strategy.entry("Short", strategy.short, when=shortCondition)
+strategy.exit("Take Profit/Stop Loss Long", from_entry="Long", stop=stopLossLong, limit=takeProfitLong)
+strategy.exit("Take Profit/Stop Loss Short", from_entry="Short", stop=stopLossShort, limit=takeProfitShort)
+
+// Impulse MACD
+plot(0, color=color.gray, linewidth=1, title="MidLine")
+plot(impulseMACD, color=color.red, linewidth=2, title="ImpulseMACD", style=plot.style_histogram)
+plot(impulseMACDSignal, color=color.blue, linewidth=2, title="ImpulseMACDSignal", style=plot.style_histogram)
+
+// Disegna le operazioni long e short sul grafico
+plotshape(series=longCondition, location=location.belowbar, color=color.green, style=shape.triangleup, title="Long Entry")
+plotshape(series=shortCondition, location=location.abovebar, color=color.red, style=shape.triangledown, title="Short Entry")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/434715
+
+> Last Modified
+
+2023-12-08 17:04:03

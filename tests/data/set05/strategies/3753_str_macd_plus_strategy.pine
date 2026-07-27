@@ -1,0 +1,56 @@
+//@version=4
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/MACD+ Strategy [SystemAlpha].pine
+// content_hash: 82284c64c3370387
+// collected: 2026-07-27
+strategy(title="MACD Strategy", shorttitle="MACD Strategy [PUBLIC]", overlay=true, initial_capital=10000, currency='USD', 
+   default_qty_type=strategy.percent_of_equity, default_qty_value=100, commission_type=strategy.commission.percent, commission_value=0.04)
+// == /MAIN INPUT  ==
+/////////////////////////////////////
+//*STRATEGY LOGIC                 *//
+/////////////////////////////////////
+// == MACD ==
+fastLength = input(12, title="Fast Length")
+slowlength = input(26, title="Slow Length")
+MACDLength = input(9, title="MACD Length")
+MACD = ema(close, fastLength) - ema(close, slowlength)
+aMACD = ema(MACD, MACDLength)
+delta = MACD - aMACD
+// Calc breakouts
+buySignal        = crossover(delta, 0)
+shortSignal      = crossunder(delta,0)
+// == /MACD ==
+//////////////////////////
+//* STRATEGY COMPONENT *//
+//////////////////////////
+// === BACKTEST RANGE ===
+From_Year   = input(defval = 2017, title = "BACKTEST: From Year")
+From_Month  = input(defval = 1, title = "BACKTEST: From Month", minval = 1, maxval = 12)
+From_Day    = input(defval = 1, title = "BACKTEST: From Day", minval = 1, maxval = 31)
+To_Year     = input(defval = 9999, title = "BACKTEST: To Year")
+To_Month    = input(defval = 1, title = "BACKTEST: To Month", minval = 1, maxval = 12)
+To_Day      = input(defval = 1, title = "BACKTEST: To Day", minval = 1, maxval = 31)
+Start       = timestamp(From_Year, From_Month, From_Day, 00, 00)  // backtest start window
+Finish      = timestamp(To_Year, To_Month, To_Day, 23, 59)        // backtest finish window
+testPeriod() =>
+    time >= Start and time <= Finish ? true : false
+// === /BACKTEST RANGE ===
+// === STRATEGY ===
+// Make input option to configure trade direction
+tradeDirection = input(title="Trade Direction", defval="Both", options=["Long", "Short", "Both"]) 
+// Translate input into trading conditions
+longOK  = (tradeDirection == "Long") or (tradeDirection == "Both")
+shortOK = (tradeDirection == "Short") or (tradeDirection == "Both")
+// == STRATEGY ENTRIES/EXITS ==
+longCondition = longOK and buySignal and testPeriod()
+shortcondition = shortOK and shortSignal and testPeriod()
+// === STRATEGY - LONG POSITION EXECUTION ===
+if longCondition
+    strategy.entry("Long", strategy.long)
+// === STRATEGY - SHORT POSITION EXECUTION ===
+if shortcondition
+    strategy.entry("Short", strategy.short)
+// === /STRATEGY ===
+//EOF
+Expand (66 lines)

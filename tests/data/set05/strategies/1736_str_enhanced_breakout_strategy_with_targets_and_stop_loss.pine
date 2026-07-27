@@ -1,0 +1,72 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/增强型突破策略与目标和止损优化-Enhanced-Breakout-Strategy-with-Targets-and-Stop-Loss-Optimization.md
+// content_hash: 04505c297a574e77
+// collected: 2026-07-27
+strategy("Enhanced Breakout Strategy with Targets and Stop Loss", overlay=true)
+
+// Input parameters using input.float() for percentage inputs
+percentage_up = input.float(0.09, title="Percentage Up", step=0.01) / 100
+percentage_down = input.float(0.09, title="Percentage Down", step=0.01) / 100
+target_percentage = input.float(0.45, title="Target Percentage", step=0.01) / 100
+stop_loss_percentage = input.float(0.18, title="Stop Loss Percentage", step=0.01) / 100
+
+// Use input.int() for initial candles
+initial_candles = input.int(5, title="Number of Initial Candles")
+
+// Initialize variables
+var float highest_high = na
+var float lowest_low = na
+var float upper_level = na
+var float lower_level = na
+var bool breakout_occurred = false
+
+// Track the high and low for the first `initial_candles`
+if (bar_index < initial_candles)
+    highest_high := na(highest_high) ? high : math.max(highest_high, high)
+    lowest_low := na(lowest_low) ? low : math.min(lowest_low, low)
+
+// Ensure calculations are done after the first `initial_candles` are formed
+if (bar_index >= initial_candles) 
+    upper_level := highest_high * (1 + percentage_up)
+    lower_level := lowest_low * (1 - percentage_down)
+
+// Plot the breakout levels
+plot(upper_level, color=color.green, title="Upper Level", linewidth=2, style=plot.style_line)
+plot(lower_level, color=color.red, title="Lower Level", linewidth=2, style=plot.style_line)
+
+// Trading Conditions
+long_condition = not breakout_occurred and close > upper_level
+short_condition = not breakout_occurred and close < lower_level
+
+// Execute trades based on conditions
+if (long_condition)
+    strategy.entry("Long", strategy.long)
+    breakout_occurred := true
+    // Exit using position_avg_price for accurate target and stop-loss
+    strategy.exit("Exit Long", from_entry="Long", limit=strategy.position_avg_price * (1 + target_percentage), stop=strategy.position_avg_price * (1 - stop_loss_percentage))
+    
+if (short_condition)
+    strategy.entry("Short", strategy.short)
+    breakout_occurred := true
+    // Exit using position_avg_price for accurate target and stop-loss
+    strategy.exit("Exit Short", from_entry="Short", limit=strategy.position_avg_price * (1 - target_percentage), stop=strategy.position_avg_price * (1 + stop_loss_percentage))
+
+// Reset breakout after the trade is closed
+if (strategy.opentrades == 0)
+    breakout_occurred := false
+
+// Alerts
+alertcondition(long_condition, title="Long Signal", message="Breakout above upper level: Consider a long trade!")
+alertcondition(short_condition, title="Short Signal", message="Breakout below lower level: Consider a short trade!")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/468340
+
+> Last Modified
+
+2024-09-26 16:30:30

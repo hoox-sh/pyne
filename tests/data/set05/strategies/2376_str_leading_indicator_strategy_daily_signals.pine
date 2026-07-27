@@ -1,0 +1,58 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于RSI和趋势均线的双重过滤交易策略-RSI-and-Trend-MA-Dual-Filter-Trading-Strategy.md
+// content_hash: 3ff07320cc19a90c
+// collected: 2026-07-27
+strategy("Leading Indicator Strategy – Daily Signals", overlay=true, 
+     pyramiding=1, initial_capital=100000, 
+     default_qty_type=strategy.percent_of_equity, default_qty_value=100)
+
+/// **Inputs for Customization**
+rsiLength   = input.int(14,  minval=1, title="RSI Period")
+oversold    = input.float(30.0, minval=1, maxval=50, title="Oversold Level")
+overbought  = input.float(70.0, minval=50, maxval=100, title="Overbought Level")
+maLength    = input.int(200, minval=1, title="Trend MA Period")
+useTrendFilter = input.bool(true, title="Use Trend Filter (MA)",
+     tooltip="Require price above MA for buys and below MA for sells")
+
+/// **Indicator Calculations**
+rsiValue = ta.rsi(close, rsiLength)                      // RSI calculation
+trendMA  = ta.sma(close, maLength)                       // Long-term moving average
+
+/// **Signal Conditions** (RSI crosses with optional trend filter)
+buySignal  = ta.crossover(rsiValue, oversold)            // RSI crosses above oversold level
+sellSignal = ta.crossunder(rsiValue, overbought)         // RSI crosses below overbought level
+
+bullCond = buySignal and (not useTrendFilter or close > trendMA)   // final Buy condition
+bearCond = sellSignal and (not useTrendFilter or close < trendMA)  // final Sell condition
+
+/// **Trade Execution** (entries and exits with alerts)
+if bullCond
+    strategy.close("Short",  alert_message="Buy Signal – Closing Short")   // close short position if open
+    strategy.entry("Long",  strategy.long,  alert_message="Buy Signal – Enter Long")  // go long
+if bearCond
+    strategy.close("Long",   alert_message="Sell Signal – Closing Long")   // close long position if open
+    strategy.entry("Short", strategy.short, alert_message="Sell Signal – Enter Short") // go short
+
+/// **Plotting** (MA and signal markers for clarity)
+plot(trendMA, color=color.orange, linewidth=2, title="Trend MA")
+plotshape(bullCond, title="Buy Signal", style=shape.labelup, location=location.belowbar,
+     color=color.green, text="BUY", textcolor=color.white)
+plotshape(bearCond, title="Sell Signal", style=shape.labeldown, location=location.abovebar,
+     color=color.red, text="SELL", textcolor=color.white)
+
+// (Optional) Plot RSI in a separate pane for reference:
+// plot(rsiValue,  title="RSI", color=color.blue)
+// hline(oversold, title="Oversold",  color=color.gray, linestyle=hline.style_dotted)
+// hline(overbought, title="Overbought", color=color.gray, linestyle=hline.style_dotted)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/483112
+
+> Last Modified
+
+2025-02-21 14:05:21

@@ -1,0 +1,61 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多指标融合期权销售策略趋势确认与ATR动态止损优化Multi-Indicator-Fusion-Options-Selling-Strategy-Trend-Confirmation-with-ATR-Dynamic-Stop-Loss-Optimization.md
+// content_hash: bc1f654a400dbf65
+// collected: 2026-07-27
+strategy("Improved Option Selling Strategy", overlay=true)
+
+// Input Parameters
+emaShortLength = input(20, title="Short EMA")
+emaLongLength = input(50, title="Long EMA")
+adxLength = input(14, title="ADX Length")
+rsiLength = input(14, title="RSI Length")
+atrMultiplier = input(1.5, title="ATR Multiplier")
+
+// Indicator Calculations
+emaShort = ta.ema(close, emaShortLength)
+emaLong = ta.ema(close, emaLongLength)
+vwap = ta.vwap(close)
+rsi = ta.rsi(close, rsiLength)
+atr = ta.atr(adxLength)
+
+// ADX Calculation (Manual)
+upMove = ta.change(high)
+downMove = -ta.change(low)
+plusDM = upMove > downMove and upMove > 0 ? upMove : 0
+minusDM = downMove > upMove and downMove > 0 ? downMove : 0
+plusDI = 100 * ta.rma(plusDM, adxLength) / ta.rma(high - low, adxLength)
+minusDI = 100 * ta.rma(minusDM, adxLength) / ta.rma(high - low, adxLength)
+dx = 100 * math.abs(plusDI - minusDI) / (plusDI + minusDI)
+adx = ta.rma(dx, adxLength)
+
+// Buy Condition (Bull Put Spread)
+buyCondition = ta.crossover(emaShort, emaLong) and adx > 15 and rsi > 45 and close > vwap
+
+// Sell Condition (Bear Call Spread)
+sellCondition = ta.crossunder(emaShort, emaLong) and adx > 15 and rsi < 55 and close < vwap
+
+// Stop-Loss Calculation (ATR Based)
+stopLossLevel = atr * atrMultiplier
+
+// Plot Buy & Sell Signals
+plotshape(series=buyCondition, location=location.belowbar, color=color.green, style=shape.labelup, title="BUY Signal")
+plotshape(series=sellCondition, location=location.abovebar, color=color.red, style=shape.labeldown, title="SELL Signal")
+
+// Strategy Execution with Stop-Loss
+strategy.entry("BullPutSpread", strategy.long, when=buyCondition)
+strategy.exit("BullPutSpreadExit", from_entry="BullPutSpread", stop=close - stopLossLevel)
+
+strategy.entry("BearCallSpread", strategy.short, when=sellCondition)
+strategy.exit("BearCallSpreadExit", from_entry="BearCallSpread", stop=close + stopLossLevel)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/488862
+
+> Last Modified
+
+2025-03-31 13:10:34

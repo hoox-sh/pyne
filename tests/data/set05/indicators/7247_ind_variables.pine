@@ -1,0 +1,5 @@
+//@version=6indicator("label.all")//delete all labelslabel.new(bar_index, close)a_allLabels = label.allif array.size(a_allLabels) > 0    for i = 0 to array.size(a_allLabels) - 1        label.delete(array.get(a_allLabels, i))// set05 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/reference/variables.md::variables.md#block1
+// content_hash: 22c57f14b75ce0b8
+// collected: 2026-07-27

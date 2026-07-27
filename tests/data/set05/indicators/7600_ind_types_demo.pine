@@ -1,0 +1,31 @@
+//@version=5
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/v5/language/type-system.md::type-system.md#block12
+// content_hash: 7d6d226111b50e9e
+// collected: 2026-07-27
+indicator("Types demo", overlay = true)
+
+//@variable A value of the "const string" type for the `ma` plot's title.
+string MA_TITLE = "MA"
+
+//@variable A value of the "input int" type. Controls the length of the average.
+int lengthInput = input.int(100, "Length", minval = 2)
+
+//@variable A "series float" value representing the last `close` that crossed over the `ma`.
+var float crossValue = na
+
+//@variable A "series float" value representing the moving average of `close`.
+float ma = ta.sma(close, lengthInput)
+//@variable A "series bool" value that's `true` when the `close` crosses over the `ma`.
+bool crossUp = ta.crossover(close, ma)
+//@variable A "series color" value based on whether `close` is above or below its `ma`.
+color maColor = close > ma ? color.lime : color.fuchsia
+
+// Update the `crossValue`.
+if crossUp
+    crossValue := close
+
+plot(ma, MA_TITLE, maColor)
+plot(crossValue, "Cross value", style = plot.style_circles)
+plotchar(crossUp, "Cross Up", "▲", location.belowbar, size = size.small)

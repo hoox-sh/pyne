@@ -1,0 +1,96 @@
+//@version=2
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于移动平均线交叉的趋势追踪策略Trend-Following-Strategy-Based-on-Moving-Average-Crossover.md
+// content_hash: d7ccc4f7a4afb630
+// collected: 2026-07-27
+strategy(title = "Noro's MAs Cross Tests v1.0", shorttitle = "MAs Cross tests 1.0", overlay=true, default_qty_type = strategy.percent_of_equity, default_qty_value = 100.0, pyramiding = 0)
+
+needlong = input(true, "long")
+needshort = input(true, "short")
+
+len2 = input(15, defval = 15, minval = 2, maxval = 1000, title = "Fast MA length")
+type2 = input(1, defval = 1, minval = 1, maxval = 7, title = "Fast MA Type")
+src2 = input(close, defval = close, title = "Fast MA Source")
+
+len1 = input(30, defval = 30, minval = 2, maxval = 1000, title = "Slow MA length")
+type1 = input(1, defval = 1, minval = 1, maxval = 7, title = "Slow MA Type")
+src1 = input(close, defval = close, title = "Slow MA Source")
+
+col = input(false, defval = false, title = "Color of bar")
+
+o = input(false, title = "1 SMA, 2 EMA, 3 VWMA, 4 DEMA, 5 TEMA, 6 KAMA, 7 Price Channel") 
+
+//DEMA 1
+dema1 = 2 * ema(src1, len1) - ema(ema(close, len1), len1)
+
+//TEMA 1
+xEMA1 = ema(src1, len1)
+xEMA2 = ema(xEMA1, len1)
+xEMA3 = ema(xEMA2, len1)
+tema1 = 3 * xEMA1 - 3 * xEMA2 + xEMA3
+
+//KAMA 1
+xvnoise = abs(src1 - src1[1])
+nfastend = 0.20
+nslowend = 0.05
+nsignal = abs(src1 - src1[len1])
+nnoise = sum(xvnoise, len1)
+nefratio = iff(nnoise != 0, nsignal / nnoise, 0)
+nsmooth = pow(nefratio * (nfastend - nslowend) + nslowend, 2) 
+kama1 = nz(kama1[1]) + nsmooth * (src1 - nz(kama1[1]))
+
+//PriceChannel 1
+lasthigh1 = highest(src1, len1)
+lastlow1 = lowest(src1, len1)
+center1 = (lasthigh1 + lastlow1) / 2
+
+//DEMA 2
+dema2 = 2 * ema(src2, len2) - ema(ema(close, len2), len2)
+
+//TEMA 2
+xEMA12 = ema(src2, len2)
+xEMA22 = ema(xEMA12, len2)
+xEMA32 = ema(xEMA22, len2)
+tema2 = 3 * xEMA12 - 3 * xEMA22 + xEMA32
+
+//KAMA 2
+xvnoise2 = abs(src2 - src2[1])
+nfastend2 = 0.20
+nslowend2 = 0.05
+nsignal2 = abs(src2 - src2[len2])
+nnoise2 = sum(xvnoise2, len2)
+nefratio2 = iff(nnoise2 != 0, nsignal2 / nnoise2, 0)
+nsmooth2 = pow(nefratio2 * (nfastend2 - nslowend2) + nslowend2, 2) 
+kama2 = nz(kama2[1]) + nsmooth2 * (src2 - nz(kama2[1]))
+
+//PriceChannel 2
+lasthigh2 = highest(src2, len2)
+lastlow2 = lowest(src2, len2)
+center2 = (lasthigh2 + lastlow2) / 2
+
+//MAs
+ma1 = type1 == 1 ? sma(src1, len1) : type1 == 2 ? ema(src1, len1) : type1 == 3 ? vwma(src1, len1) : type1 == 4 ? dema1 : type1 == 5 ? tema1 : type1 == 6 ? kama1 : type1 == 7 ? center1 : 0
+ma2 = type2 == 1 ? sma(src2, len2) : type2 == 2 ? ema(src2, len2) : type2 == 3 ? vwma(src2, len2) : type2 == 4 ? dema2 : type2 == 5 ? tema2 : type2 == 6 ? kama2 : type2 == 7 ? center2 : 0
+plot(ma1, color = blue, linewidth = 3, transp = 0)
+plot(ma2, color = red, linewidth = 3, transp = 0)
+
+//Signals
+trend = ma2 > ma1 ? 1 : ma2 < ma1 ? -1 : trend[1]
+up = trend == 1 and ((close < open and close[1] < open[1]) or col == false)
+dn = trend == -1 and ((close > open and close[1] > open[1]) or col == false)
+
+if up
+    strategy.entry("Long", strategy.long, needlong == false ? 0 : na)
+
+if dn
+    strategy.entry("Short", strategy.short, needshort == false ? 0 : na)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/442624
+
+> Last Modified
+
+2024-02-23 12:21:40

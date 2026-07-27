@@ -1,0 +1,63 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/超短期动量突破交易策略SSL-Channel-Breakout-Strategy-with-Trailing-Stop-Loss.md
+// content_hash: a5b93d5bc2c9d04d
+// collected: 2026-07-27
+strategy("SSL Channel Cross with Trailing Stop and Stop Loss", overlay=true)
+
+period = input(title="Period", defval=10)
+len = input(title="Length", defval=10)
+smaHigh = sma(high, len)
+smaLow = sma(low, len)
+
+Hlv = 0
+Hlv := close > smaHigh ? 1 : close < smaLow ? -1 : Hlv[1]
+
+sslDown = Hlv < 0 ? smaHigh : smaLow
+sslUp = Hlv < 0 ? smaLow : smaHigh
+
+plot(sslDown, linewidth=2, color=color.red)
+plot(sslUp, linewidth=2, color=color.lime)
+
+longCondition = crossover(sslUp, sslDown)
+shortCondition = crossunder(sslUp, sslDown)
+
+// Define el tamaño del trailing stop en puntos (ajusta según tu preferencia)
+trailingStopSize = input(title="Trailing Stop Size (in Points)", defval=10)
+
+var float trailingStopPrice = na
+var float stopLossPrice = na
+
+if (longCondition)
+    // Si se cumple la condición de compra, configura la posición larga, el trailing stop y el stop loss
+    strategy.entry("Long", strategy.long)
+    trailingStopPrice := low - trailingStopSize
+    stopLossPrice := sslDown
+
+if (shortCondition)
+    // Si se cumple la condición de venta corta, configura la posición corta, el trailing stop y el stop loss
+    strategy.entry("Short", strategy.short)
+    trailingStopPrice := high + trailingStopSize
+    stopLossPrice := sslUp
+
+// Calcula el trailing stop
+if (strategy.position_size > 0)
+    trailingStopPrice := max(trailingStopPrice, stopLossPrice)
+    if (close < trailingStopPrice)
+        strategy.close("ExitLong", comment="Trailing Stop Long")
+
+if (strategy.position_size < 0)
+    trailingStopPrice := min(trailingStopPrice, stopLossPrice)
+    if (close > trailingStopPrice)
+        strategy.close("ExitShort", comment="Trailing Stop Short")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/430171
+
+> Last Modified
+
+2023-10-25 17:40:37

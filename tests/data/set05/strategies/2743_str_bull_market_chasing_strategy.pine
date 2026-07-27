@@ -1,0 +1,50 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/牛市追踪策略Bull-Market-Chasing-Strategy.md
+// content_hash: adf41d0d1890199b
+// collected: 2026-07-27
+// strategy(title = "STB - Gianno Nano Strategy",
+//          shorttitle= "STB - Gianno Nano Strategy",
+//          overlay = true,
+//          initial_capital = 1000,
+//          default_qty_type = strategy.cash,
+//          default_qty_value = 1000,
+//          commission_type = strategy.commission.percent,
+//          commission_value = 0.075)
+
+short_yes = input.bool(true,"Attiva Short")
+ema_fast = input.int(10, "Periodo Media veloce")
+ema_slow = input.int(60, "Periodo Media lenta")
+
+// Variable declarations
+
+ema10 = ta.ema(close, ema_fast)
+ema60 = ta.ema(close, ema_slow)
+
+plot(ema10, "EMA 10", color.yellow, 2)
+plot(ema60, "EMA 60", color.aqua, 2)
+
+// Long Condition
+
+long_cond = ta.crossover(ema10, ema60)
+short_cond = ta.crossunder(ema10, ema60) and short_yes
+close_cond = ta.crossunder(ema10, ema60) and not short_yes
+// Engine strategy
+
+if long_cond
+    strategy.entry("EL", strategy.long)
+if short_cond
+    strategy.entry("ES", strategy.short)
+if close_cond
+    strategy.close("EL" )
+    
+```
+
+> Detail
+
+https://www.fmz.com/strategy/428106
+
+> Last Modified
+
+2023-09-28 16:23:41

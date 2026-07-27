@@ -1,0 +1,62 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多重技术指标融合趋势追踪量化交易策略-Multi-Technical-Indicator-Fusion-Trend-Following-Quantitative-Trading-Strategy.md
+// content_hash: f9e0c2555bfdbfde
+// collected: 2026-07-27
+strategy("RSI + MA + BB30 Strategy", overlay=true)
+
+// === Cài đặt RSI ===
+rsiLength = input(14, title="RSI Length")
+rsiOverbought = input(80, title="RSI Overbought Level")
+rsiOversold = input(25, title="RSI Oversold Level")
+rsi = ta.rsi(close, rsiLength)
+
+// === Cài đặt MA ===
+maLength20 = input(20, title="MA20 Length")
+maLength50 = input(50, title="MA50 Length")
+ma20 = ta.sma(close, maLength20)
+ma50 = ta.sma(close, maLength50)
+
+// === Cài đặt Bollinger Bands (BB30) ===
+bbLength = input(30, title="Bollinger Bands Length")
+bbStdDev = input(2, title="BB Standard Deviation")
+[bbUpper, bbBasis, bbLower] = ta.bb(close, bbLength, bbStdDev)
+
+// === Điều kiện giao dịch ===
+// Điều kiện Long
+longCondition = (rsi < rsiOversold) and (ma20 > ma50) and (close < bbLower)
+
+// Điều kiện Short
+shortCondition = (rsi > rsiOverbought) and (ma20 < ma50) and (close > bbUpper)
+
+// === Mở lệnh giao dịch ===
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+
+if (shortCondition)
+    strategy.entry("Short", strategy.short)
+
+// === Hiển thị chỉ báo trên biểu đồ ===
+// Hiển thị MA
+plot(ma20, color=color.blue, title="MA20")
+plot(ma50, color=color.red, title="MA50")
+
+// Hiển thị Bollinger Bands
+plot(bbUpper, color=color.green, title="BB Upper")
+plot(bbBasis, color=color.gray, title="BB Basis")
+plot(bbLower, color=color.green, title="BB Lower")
+
+// Hiển thị RSI và mức quan trọng
+hline(rsiOverbought, "RSI Overbought", color=color.red, linestyle=hline.style_dashed)
+hline(rsiOversold, "RSI Oversold", color=color.green, linestyle=hline.style_dashed)
+plot(rsi, color=color.purple, title="RSI")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/477613
+
+> Last Modified
+
+2025-01-06 16:57:57

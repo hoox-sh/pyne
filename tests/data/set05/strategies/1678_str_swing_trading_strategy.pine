@@ -1,0 +1,74 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动量震荡跨均线交易策略Swing-Trading-Strategy-Based-on-Momentum.md
+// content_hash: 495238decc6d77a3
+// collected: 2026-07-27
+strategy("Swing Trading Strategy", overlay=true)
+
+// Input for moving averages
+shortMA = input(20, title="Short-term MA")
+longMA = input(50, title="Long-term MA")
+
+// Input for RSI
+rsiLength = input(14, title="RSI Length")
+
+// Input for MACD
+macdShort = input(12, title="MACD Short")
+macdLong = input(26, title="MACD Long")
+macdSignal = input(9, title="MACD Signal")
+
+// Input for Bollinger Bands
+bbLength = input(20, title="Bollinger Bands Length")
+bbMultiplier = input(2, title="Bollinger Bands Multiplier")
+
+// Calculate moving averages
+shortTermMA = ta.sma(close, shortMA)
+longTermMA = ta.sma(close, longMA)
+
+// Calculate RSI
+rsiValue = ta.rsi(close, rsiLength)
+
+// Calculate MACD
+[macdLine, signalLine, _] = ta.macd(close, macdShort, macdLong, macdSignal)
+
+// Calculate Bollinger Bands
+basis = ta.sma(close, bbLength)
+upperBand = basis + bbMultiplier * ta.stdev(close, bbLength)
+lowerBand = basis - bbMultiplier * ta.stdev(close, bbLength)
+
+// Plot moving averages
+plot(shortTermMA, color=color.blue, title="Short-term MA")
+plot(longTermMA, color=color.red, title="Long-term MA")
+
+// Plot RSI
+hline(50, "RSI 50", color=color.gray)
+
+// Plot MACD
+plot(macdLine - signalLine, color=color.green, title="MACD Histogram")
+
+// Plot Bollinger Bands
+plot(upperBand, color=color.orange, title="Upper Bollinger Band")
+plot(lowerBand, color=color.orange, title="Lower Bollinger Band")
+
+// Strategy conditions
+longCondition = ta.crossover(shortTermMA, longTermMA) and rsiValue > 50
+shortCondition = ta.crossunder(shortTermMA, longTermMA) and rsiValue < 50
+
+// Execute trades
+strategy.entry("Long", strategy.long, when=longCondition)
+strategy.entry("Short", strategy.short, when=shortCondition)
+
+// Plot trade signals on the chart
+plotshape(series=longCondition, title="Long Signal", color=color.green, style=shape.triangleup, size=size.small)
+plotshape(series=shortCondition, title="Short Signal", color=color.red, style=shape.triangledown, size=size.small)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/440965
+
+> Last Modified
+
+2024-02-04 10:59:36

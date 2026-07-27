@@ -1,0 +1,114 @@
+//@version=4
+// set05 corpus entry
+// source_repo: tradingview-indicators-pine
+// source_path: tradingview-indicators-pine/Talin-VWAPS-70EMA-original.txt
+// content_hash: 44100c64fce114d3
+// collected: 2026-07-27
+// https://www.tradingview.com/script/BbTWxzyQ-VWAP-Gu5/
+// VWAP (Volume Weighted Average Price)
+// Original Indicator:	 Unknow
+// Actual Study Version: @gu5tavo71
+// v1.2.1, 2020.06.13
+// I am using part of this code published by @PineCoders and Public Library by @Tradingview
+// Disclaimer: I am not a financial advisor.
+//             For purpose educate only. Use at your own risk.
+study	 (title = "VWAP [Gu5]", shorttitle = "VWAP", overlay = false)
+
+
+// ---------   Inputs
+i_src		 = input(defval = hlc3,	  title = "Source",		   type = input.source)
+i_anchor	 = input(defval = "Week", title = "VWAP Periodic", type = input.string,
+			   options = ["Session", "Week", "Month", "Year"])
+i_millisDay	 = 86400000
+i_daysInWeek = 7
+i_barCol	 = input(defval = true,	  title = "Bar Color")
+
+// ---------   Calculations
+f_dwmBarTime = timeframe.isdwm ? time : time("D")
+if na(f_dwmBarTime)
+    f_dwmBarTime	:= nz(f_dwmBarTime[1])
+var _periodStart	 = time - time
+f_makeMondayZero(_dayOfWeek) => (_dayOfWeek + 5) % 7
+f_isMidnight(_t)	 =>
+    hour(_t) == 0 and minute(_t) == 0
+f_isSameDay(_t1, _t2) =>
+    dayofmonth(_t1) == dayofmonth(_t2) and
+  month(_t1) == month(_t2) and
+  year (_t1) == year (_t2)
+f_isOvernight()		 =>
+    not (f_isMidnight(f_dwmBarTime) or security(syminfo.tickerid,
+	 "D",
+	 f_isSameDay(time, time_close),
+	 lookahead = true))
+f_tradingDayStart(_t) =>
+    _y		 = year(_t)
+    _m		 = month(_t)
+    _d		 = dayofmonth(_t)
+    timestamp(_y, _m, _d, 0, 0)
+f_numDaysBetween(_time1, _time2) =>
+    _y1		 = year(_time1)
+    _m1		 = month(_time1)
+    _d1		 = dayofmonth(_time1)
+    
+    _y2		 = year(_time2)
+    _m2		 = month(_time2)
+    _d2		 = dayofmonth(_time2)
+    
+    _diff	 = abs(timestamp("GMT", _y1, _m1, _d1, 0, 0) -
+				   timestamp("GMT", _y2, _m2, _d2, 0, 0))
+    _diff / i_millisDay
+f_tradingDay = f_isOvernight() ?
+	 f_tradingDayStart(f_dwmBarTime + i_millisDay) :
+	 f_tradingDayStart(f_dwmBarTime)
+f_isNewPeriod() =>
+    _isNew = false
+    if f_tradingDay != nz(f_tradingDay[1])
+        if i_anchor == "Session"
+            _isNew  := na(f_tradingDay[1]) or
+					   f_tradingDay > f_tradingDay[1]
+            
+        if i_anchor == "Week"
+            _isNew  := f_makeMondayZero(dayofweek(_periodStart)) +
+					   f_numDaysBetween(_periodStart, f_tradingDay) >=
+					   i_daysInWeek
+            
+        if i_anchor == "Month"
+            _isNew  := month(_periodStart) != month(f_tradingDay) or
+					   year (_periodStart) != year (f_tradingDay)
+            
+        if i_anchor == "Year"
+            _isNew	 := year(_periodStart) != year(f_tradingDay)
+    _isNew
+f_sumSrc	 = float(na)
+f_sumVol	 = float(na)
+f_sumSrc    := nz(f_sumSrc[1], 0)
+f_sumVol    := nz(f_sumVol[1], 0)
+if f_isNewPeriod()
+    _periodStart := f_tradingDay
+    f_sumSrc := 0.0
+    f_sumVol := 0.0
+if not na(i_src) and not na(volume)
+    f_sumSrc := f_sumSrc + i_src * volume
+    f_sumVol := f_sumVol + volume
+f_vwap		 = f_sumSrc / f_sumVol
+//
+f_dir		 = (f_sumVol > i_src) and (i_src > f_vwap) ?  1 :
+			   (f_sumVol > i_src) and (i_src < f_vwap) ? -1 : 0
+f_range		 = f_vwap < high and
+			   f_vwap > low
+
+// ---------   Colors
+c_vwap		 = f_range	   ? color.orange :
+			   f_dir ==  1 ? color.green  :
+			   f_dir == -1 ? color.red	  : color.orange
+
+// ---------   Plot
+plot(
+  f_vwap,
+  title		 = "VWAP",
+  linewidth	 = 2,
+  color		 = c_vwap)
+
+// ---------   Alerts
+barcolor(
+  i_barCol	 ? c_vwap : na)

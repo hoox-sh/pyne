@@ -1,0 +1,52 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于Fibonacci水平的日内高低价突破Breakthrough-of-Daily-High-low-Price-Based-on-Fibonacci-Levels.md
+// content_hash: dd8d17584f0d7601
+// collected: 2026-07-27
+strategy("Day High/Low Fibonacci Levels Strategy", shorttitle="DHL Fibonacci", overlay=true)
+
+// Calculate the day's high and low
+var float dayHigh = na
+var float dayLow = na
+if change(time("D"))
+    dayHigh := high
+    dayLow := low
+
+// Define input for plotting lines
+showLines = input(true, title="Show Day High/Low Lines")
+showFibLevels = input(true, title="Show Fibonacci Levels")
+
+// Plot the day's high and low as lines
+plot(showLines ? dayHigh : na, color=color.green, style=plot.style_line, linewidth=1, title="Day High")
+plot(showLines ? dayLow : na, color=color.red, style=plot.style_line, linewidth=1, title="Day Low")
+
+// Calculate buy and sell conditions
+buyCondition = crossover(close, dayHigh)
+sellCondition = crossunder(close, dayLow)
+
+// Plot buy and sell signals
+plotshape(buyCondition, style=shape.triangleup, location=location.belowbar, color=color.green, size=size.small, title="Buy Signal")
+plotshape(sellCondition, style=shape.triangledown, location=location.abovebar, color=color.red, size=size.small, title="Sell Signal")
+
+// Calculate Fibonacci levels for the day's high and low
+fib236High = dayLow + (0.236 * (dayHigh - dayLow))
+fib786High = dayLow + (0.786 * (dayHigh - dayLow))
+
+// Plot Fibonacci levels
+plot(showFibLevels ? fib236High : na, color=color.blue, style=plot.style_line, linewidth=1, title="Fib 0.236 Day High")
+plot(showFibLevels ? fib786High : na, color=color.purple, style=plot.style_line, linewidth=1, title="Fib 0.786 Day High")
+
+// Strategy
+strategy.entry("Buy", strategy.long, when=buyCondition)
+strategy.close("Buy", when=sellCondition)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/439083
+
+> Last Modified
+
+2024-01-17 15:59:17

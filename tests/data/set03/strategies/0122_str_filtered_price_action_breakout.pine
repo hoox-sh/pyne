@@ -1,0 +1,93 @@
+//@version=6
+// set03 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于价格结构的高比例回报突破交易策略-High-Reward-to-Risk-Price-Structure-Breakout-Trading-Strategy.md
+// content_hash: b6aab6d25882463c
+// collected: 2026-07-27
+strategy("Filtered Price Action Breakout", overlay=true)
+
+// === INPUTS ===
+lookback = input.int(20, title="Breakout Lookback Period", minval=5)
+stopLookback = input.int(10, title="Stop Loss Lookback Period", minval=3)
+rrMultiplier = input.float(5.0, title="Risk-to-Reward Multiplier", step=0.1)
+maxTradesPerDay = input.int(5, title="Max Trades Per Day", minval=1)
+
+// Ensure there are enough bars for calculations
+inRange = bar_index >= lookback
+
+// === CALCULATIONS ===
+// Highest high and lowest low over the 'lookback' period
+highestHigh = ta.highest(high, lookback)
+lowestLow = ta.lowest(low, lookback)
+
+// Define breakout conditions (using previous bar's level)
+bullBreakout = ta.crossover(close, highestHigh[1])
+bearBreakout = ta.crossunder(close, lowestLow[1])
+
+// Store breakout signals in variables to prevent inconsistencies
+bullBreakoutSignal = bullBreakout
+bearBreakoutSignal = bearBreakout
+
+// Determine stop levels based on recent swing lows/highs
+longStop = ta.lowest(low, stopLookback)
+shortStop = ta.highest(high, stopLookback)
+
+// Track number of trades per day (fixing boolean condition issue)
+newDay = ta.change(time("D")) != 0
+todayTrades = ta.barssince(newDay)
+tradeCount = 0
+if newDay
+    tradeCount := 0
+else
+    tradeCount := tradeCount + 1
+
+// === STRATEGY LOGIC: ENTRY & EXIT ===
+if bullBreakoutSignal and tradeCount < maxTradesPerDay
+    entryPrice = close
+    stopLevel = longStop
+    risk = entryPrice - stopLevel
+    if risk > 0
+        target = entryPrice + rrMultiplier * risk
+        strategy.entry("Long", strategy.long)
+        strategy.exit("Long Exit", from_entry="Long", stop=stopLevel, limit=target)
+        tradeCount := tradeCount + 1
+        
+        // // Draw Markups
+        // label.new(bar_index, entryPrice, text="Long Entry", color=color.green, textcolor=color.white, size=size.small, style=label.style_label_down)
+        // line.new(x1=bar_index, y1=entryPrice, x2=bar_index + 5, y2=entryPrice, color=color.green, width=2)
+        // line.new(x1=bar_index, y1=stopLevel, x2=bar_index + 5, y2=stopLevel, color=color.red, width=2, style=line.style_dotted)
+        // line.new(x1=bar_index, y1=target, x2=bar_index + 5, y2=target, color=color.blue, width=2, style=line.style_dashed)
+        // label.new(bar_index, stopLevel, text="Stop Loss", color=color.red, textcolor=color.white, size=size.small, style=label.style_label_down)
+        // label.new(bar_index, target, text="Target", color=color.blue, textcolor=color.white, size=size.small, style=label.style_label_up)
+
+if bearBreakoutSignal and tradeCount < maxTradesPerDay
+    entryPrice = close
+    stopLevel = shortStop
+    risk = stopLevel - entryPrice
+    if risk > 0
+        target = entryPrice - rrMultiplier * risk
+        strategy.entry("Short", strategy.short)
+        strategy.exit("Short Exit", from_entry="Short", stop=stopLevel, limit=target)
+        tradeCount := tradeCount + 1
+        
+        // // Draw Markups
+        // label.new(bar_index, entryPrice, text="Short Entry", color=color.red, textcolor=color.white, size=size.small, style=label.style_label_up)
+        // line.new(x1=bar_index, y1=entryPrice, x2=bar_index + 5, y2=entryPrice, color=color.red, width=2)
+        // line.new(x1=bar_index, y1=stopLevel, x2=bar_index + 5, y2=stopLevel, color=color.green, width=2, style=line.style_dotted)
+        // line.new(x1=bar_index, y1=target, x2=bar_index + 5, y2=target, color=color.blue, width=2, style=line.style_dashed)
+        // label.new(bar_index, stopLevel, text="Stop Loss", color=color.green, textcolor=color.white, size=size.small, style=label.style_label_up)
+        // label.new(bar_index, target, text="Target", color=color.blue, textcolor=color.white, size=size.small, style=label.style_label_down)
+
+// === PLOTTING ===
+plot(highestHigh, color=color.green, title="Highest High (Breakout Level)")
+plot(lowestLow, color=color.red, title="Lowest Low (Breakout Level)")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/482473
+
+> Last Modified
+
+2025-02-18 15:42:01

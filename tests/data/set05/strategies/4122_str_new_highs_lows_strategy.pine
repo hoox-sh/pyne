@@ -1,0 +1,21 @@
+//@version=4
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/New Highs-Lows Strategy.pine
+// content_hash: d4b9dbf5273e34b1
+// collected: 2026-07-27
+strategy(title = "New Highs-Lows", shorttitle="New Highs-Lows Strategy", overlay=false, default_qty_type=strategy.percent_of_equity, default_qty_value=100, calc_on_every_tick=true)
+newhigh = security("HIGQ", timeframe.period, close)
+newlow = security("LOWQ", timeframe.period, close)
+net = newhigh - newlow
+sum_ = sum(net, 20)
+avg_fast = ema(net, 10)
+avg_slow = ema(net, 20)
+buy = avg_fast > avg_slow and net > 0
+sell = avg_fast < avg_slow  and net < 0
+plot(net, title="Net NASDAQ", color=net > 0? color.green: color.red, style=plot.style_columns, linewidth=2)
+if buy
+    strategy.entry("Long", strategy.long, comment="")
+if sell
+    strategy.close("Long", comment="", alert_message="")
+Expand (26 lines)

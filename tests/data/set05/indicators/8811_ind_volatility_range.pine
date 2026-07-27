@@ -1,0 +1,23 @@
+//@version=3
+// set05 corpus entry
+// source_repo: Jaqobs-pinescripts
+// source_path: Jaqobs-pinescripts/volatility range.pine
+// content_hash: 18bfb02e2e4e071b
+// collected: 2026-07-27
+// @author Jaqobs
+// Ploting the volatility over time
+
+study("Volatility Range")
+
+//==Input==
+inp_len = input(defval=7, title="Length")
+
+//==Formula==
+a = ema(high/low, inp_len)
+
+//==Plot==
+plot(a, color = a < 1.10 ? white : a < 1.15 ? orange : red)
+
+
+
+

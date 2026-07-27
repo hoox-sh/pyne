@@ -1,0 +1,58 @@
+//@version=3
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于重叠差额的反转交易策略Reverse-Trading-Strategy-Based-on-Overlapping-Price-Differentials.md
+// content_hash: 23f253a0d1019a1a
+// collected: 2026-07-27
+strategy(title="Fst",currency="USD",initial_capital=100000)
+
+//Length0 = input(30, title="fastperiod", minval=1)
+Length = input(30, title="SUMM")
+Length1 = input(15, title="Signalperiod", minval=1)
+Length2= input(30, title="Info", minval=1)
+profit=input(95, title="profit", minval=1)
+loss=input(95, title="loss", minval=1)
+//f=iff(close>open,close-open,iff(close>open[1],close[1]-open[1],0))
+f=0.0
+dd1=0.0
+dd2=0.0
+ff=0.0
+ff0=0.0
+f:=close-close[1]
+ff:=sum(f,Length)
+//ff0:=sum(f,Length0)
+dd1:=wma(ff,Length1)
+dd2:=wma(ff,Length2)
+
+bull=ff<0 and dd1<0 and ff[1]<dd1 and ff>dd1 and abs(ff)>20
+bear=ff>0 and dd1>0 and ff[1]>dd1 and ff<dd1 and abs(ff)>20
+if(bull)
+    
+    strategy.entry("long", strategy.long)
+strategy.exit("exit", "long", profit = close*profit/1000, loss=close*loss/1000) 
+
+strategy.close("long", when = bear)
+
+
+
+
+plotchar(bull,size=size.small,location=location.bottom)
+plot(ff,color=black,linewidth=2)
+plot(ff0,color=green,linewidth=2)
+plot(wma(ff,Length1),color=red,linewidth=2)
+plot(wma(ff,Length2),color=blue,linewidth=2)
+plot(wma(ff,Length1)-wma(ff,Length2),color=green,style=columns)
+
+plot(0,linewidth=1,color=black)
+plot(500,linewidth=1,color=red)
+plot(-500,linewidth=1,color=red)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/435506
+
+> Last Modified
+
+2023-12-15 15:47:23

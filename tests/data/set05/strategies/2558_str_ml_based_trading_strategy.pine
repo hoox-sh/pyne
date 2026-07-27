@@ -1,0 +1,55 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于机器学习的移动平均线交叉量化交易策略-Machine-Learning-Based-Moving-Average-Crossover-Quantitative-Trading-Strategy.md
+// content_hash: 92f333f5c4ce9aa8
+// collected: 2026-07-27
+strategy("ML Based Trading Strategy", overlay=true)
+
+// Define input parameters
+shortPeriod = input.int(9, title="Short MA Period")
+longPeriod = input.int(21, title="Long MA Period")
+
+// Calculate moving averages
+shortMA = ta.sma(close, shortPeriod)
+longMA = ta.sma(close, longPeriod)
+
+// Simulated "machine learning" decision based on moving averages crossover
+longCondition = ta.crossover(shortMA, longMA)
+shortCondition = ta.crossunder(shortMA, longMA)
+
+// Plot moving averages
+plot(shortMA, color=color.blue, title="Short MA")
+plot(longMA, color=color.red, title="Long MA")
+
+// Buy signal
+if (longCondition)
+    strategy.entry("Buy", strategy.long)
+
+// Sell signal
+if (shortCondition)
+    strategy.entry("Sell", strategy.short)
+
+// Plot buy/sell indicators on chart
+plotshape(series=longCondition, location=location.belowbar, color=color.green, style=shape.labelup, text="Buy")
+plotshape(series=shortCondition, location=location.abovebar, color=color.red, style=shape.labeldown, text="Sell")
+
+// Define and plot order indicators
+plotarrow(series=longCondition ? 1 : shortCondition ? -1 : na, colorup=color.green, colordown=color.red, offset=-1)
+
+// Alerts
+if (longCondition)
+    alert("Buy signal triggered", alert.freq_once_per_bar)
+
+if (shortCondition)
+    alert("Sell signal triggered", alert.freq_once_per_bar)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/454762
+
+> Last Modified
+
+2024-06-21 17:59:06

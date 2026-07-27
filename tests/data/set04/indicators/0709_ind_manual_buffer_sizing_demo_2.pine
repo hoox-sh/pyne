@@ -1,0 +1,21 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pine_script_execution_model.md::pine_script_execution_model.md#block15
+// content_hash: a8588149e4938b95
+// collected: 2026-07-27
+indicator("Manual buffer sizing demo", overlay = true)
+// @variable The historical offset for retrieving past values from the `close` series.
+//           If the bar is historical, the offset is 100. Otherwise, the offset is 150.
+int offset = barstate.ishistory ? 100 : 150
+// Set the size of the `close` historical buffer to include 150 past values, ensuring the script has exactly
+// the amount of history that it requires on realtime bars.
+max_bars_back(close, 150)
+// @variable The value of `close` from `offset` bars back.
+//           This code no longer causes an error when it executes on a realtime bar, because the historical
+//           buffer has an appropriate size defined in advance.
+float pastClose = close[offset]
+// Plot the `pastClose` series.
+plot(pastClose, "Past `close`", chart.fg_color, 3)
+// Highlight the background of all realtime bars in orange.
+bgcolor(barstate.isrealtime ? color.new(color.orange, 70) : na, title = "Realtime highlight")

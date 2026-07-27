@@ -1,0 +1,94 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/融合布林带与RSI的动态多指标交易策略-Dynamic-Multi-Indicator-Trading-Strategy-Combining-Bollinger-Bands-and-RSI.md
+// content_hash: 3edc2431263c2418
+// collected: 2026-07-27
+strategy("Enhanced Bollinger Bands Strategy for Silver", overlay=true)
+
+// ? Input Variables
+length = input(20, title="Bollinger Bands Length")
+mult = input(2.0, title="Bollinger Bands Multiplier")
+rsiLength = input(14, title="RSI Length")
+rsiOverbought = input(70, title="RSI Overbought Level")
+rsiOversold = input(30, title="RSI Oversold Level")
+
+// ? Volume Confirmation (Check if volume is above SMA of volume)
+volLength = input(20, title="Volume SMA Length")
+volSMA = ta.sma(volume, volLength)
+highVolume = volume > volSMA
+
+// ? Calculate Bollinger Bands
+basis = ta.sma(close, length)
+dev = mult * ta.stdev(close, length)
+upperBand = basis + dev
+lowerBand = basis - dev
+
+// ? RSI Calculation
+rsi = ta.rsi(close, rsiLength)
+
+// ? Define Trading Conditions
+longCondition = ta.crossover(close, lowerBand) and rsi < rsiOversold
+shortCondition = ta.crossunder(close, upperBand) and rsi > rsiOverbought
+
+// ? Breakout Conditions (Only valid if volume is high)
+breakoutLong = ta.crossover(close, upperBand) and highVolume
+breakoutShort = ta.crossunder(close, lowerBand) and highVolume
+
+// ? Squeeze Condition (Bollinger Bands Tightening)
+bandWidth = (upperBand - lowerBand) / basis
+squeeze = ta.lowest(bandWidth, length) == bandWidth
+
+// ? Execute Trades
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+if (shortCondition)
+    strategy.entry("Short", strategy.short)
+if (breakoutLong)
+    strategy.entry("Breakout Long", strategy.long)
+if (breakoutShort)
+    strategy.entry("Breakout Short", strategy.short)
+
+// ? Stop Loss, Take Profit, and Trailing Stop
+stopLossPercent = input(2.0, title="Stop Loss %") / 100
+takeProfitPercent = input(4.0, title="Take Profit %") / 100
+trailingStopPercent = input(1.5, title="Trailing Stop %") / 100
+
+stopLossLong = close * (1 - stopLossPercent)
+takeProfitLong = close * (1 + takeProfitPercent)
+trailingStopLong = close * (1 - trailingStopPercent)
+
+stopLossShort = close * (1 + stopLossPercent)
+takeProfitShort = close * (1 - takeProfitPercent)
+trailingStopShort = close * (1 + trailingStopPercent)
+
+// Apply stop loss, take profit, and trailing stop
+strategy.exit("Exit Long", from_entry="Long", stop=stopLossLong, limit=takeProfitLong, trail_points=trailingStopLong)
+strategy.exit("Exit Short", from_entry="Short", stop=stopLossShort, limit=takeProfitShort, trail_points=trailingStopShort)
+
+// ? Alerts for Trade Signals
+alertcondition(longCondition, title="Buy Alert", message="Silver Buy Signal - Lower Band Touch & RSI Oversold")
+alertcondition(shortCondition, title="Sell Alert", message="Silver Sell Signal - Upper Band Touch & RSI Overbought")
+alertcondition(breakoutLong, title="Breakout Buy Alert", message="Silver Breakout Buy - High Volume")
+alertcondition(breakoutShort, title="Breakout Sell Alert", message="Silver Breakout Sell - High Volume")
+
+// ? Plot Bollinger Bands
+plot(upperBand, color=color.blue, title="Upper Band")
+plot(basis, color=color.orange, title="Middle Band")
+plot(lowerBand, color=color.blue, title="Lower Band")
+
+// ? Highlight Squeeze Areas
+bgcolor(squeeze ? color.yellow : na, transp=80, title="Bollinger Squeeze")
+
+// ? Plot Volume Confirmation (Optional)
+plot(highVolume ? volume : na, style=plot.style_columns, color=color.green, title="High Volume Confirmation")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/484597
+
+> Last Modified
+
+2025-03-03 10:38:37

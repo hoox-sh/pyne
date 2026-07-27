@@ -1,0 +1,110 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多周期动量驱动型自适应波动率过滤策略-Multi-Period-Momentum-Driven-Adaptive-Volatility-Filtered-Strategy.md
+// content_hash: c39f1bbd04f1fd87
+// collected: 2026-07-27
+strategy("GOATED Long-Only", overlay=true, initial_capital=1000, default_qty_type=strategy.percent_of_equity, default_qty_value=100)
+
+// Strategy parameters
+var float VOLATILITY_THRESHOLD = input.float(0.5, "Volatility Threshold", minval=0.1, maxval=1.0, step=0.1)
+var int TRADING_DAYS_PER_YEAR = 252
+var float SQRT_TRADING_DAYS = math.sqrt(TRADING_DAYS_PER_YEAR)
+
+// Trade parameters
+var float STOP_LOSS = input.float(0.05, "Stop Loss %", minval=0.01, maxval=0.20, step=0.01)
+var float TAKE_PROFIT = input.float(0.15, "Take Profit %", minval=0.05, maxval=0.50, step=0.01)
+
+// Momentum periods (in trading days)
+var int MOMENTUM_3M = input.int(63, "3-Month Momentum Period", minval=20)
+var int MOMENTUM_6M = input.int(126, "6-Month Momentum Period", minval=40)
+var int MOMENTUM_9M = input.int(189, "9-Month Momentum Period", minval=60)
+var int MOMENTUM_12M = input.int(252, "12-Month Momentum Period", minval=80)
+
+// Function to calculate momentum for a specific period
+momentum(period) =>
+    close / close[period] - 1
+
+// Function to calculate annualized volatility
+calcVolatility() =>
+    returns = ta.change(close) / close[1]
+    stdDev = ta.stdev(returns, TRADING_DAYS_PER_YEAR)
+    annualizedVol = stdDev * SQRT_TRADING_DAYS
+    annualizedVol
+
+// Calculate individual momentum scores
+float mom3m = momentum(MOMENTUM_3M)
+float mom6m = momentum(MOMENTUM_6M)
+float mom9m = momentum(MOMENTUM_9M)
+float mom12m = momentum(MOMENTUM_12M)
+
+// Calculate average momentum score
+var int validPeriods = 0
+var float totalMomentum = 0.0
+
+validPeriods := 0
+totalMomentum := 0.0
+
+if not na(mom3m)
+    validPeriods := validPeriods + 1
+    totalMomentum := totalMomentum + mom3m
+
+if not na(mom6m)
+    validPeriods := validPeriods + 1
+    totalMomentum := totalMomentum + mom6m
+
+if not na(mom9m)
+    validPeriods := validPeriods + 1
+    totalMomentum := totalMomentum + mom9m
+
+if not na(mom12m)
+    validPeriods := validPeriods + 1
+    totalMomentum := totalMomentum + mom12m
+
+float compositeMomentum = validPeriods > 0 ? totalMomentum / validPeriods : na
+
+// Calculate volatility
+float annualizedVolatility = calcVolatility()
+
+// Generate trading signals
+var float MOMENTUM_THRESHOLD = input.float(0.0, "Momentum Threshold", minval=-1.0, maxval=1.0, step=0.01)
+bool validVolatility = not na(annualizedVolatility) and annualizedVolatility <= VOLATILITY_THRESHOLD
+bool validMomentum = not na(compositeMomentum) and compositeMomentum > MOMENTUM_THRESHOLD
+
+// Store previous momentum state
+bool prevValidMomentum = nz(validMomentum[1])
+
+// Entry and exit conditions
+bool longCondition = validVolatility and validMomentum and not prevValidMomentum
+bool exitLongCondition = validVolatility and (not validMomentum) and prevValidMomentum
+
+// Plot signals
+plotshape(longCondition, title="Long Entry", location=location.belowbar, color=color.green, style=shape.triangleup, size=size.small)
+plotshape(exitLongCondition, title="Long Exit", location=location.abovebar, color=color.red, style=shape.triangledown, size=size.small)
+
+// Plot momentum and volatility indicators
+plot(compositeMomentum, "Composite Momentum", color=color.blue, linewidth=2)
+hline(MOMENTUM_THRESHOLD, "Momentum Threshold", color=color.gray, linestyle=hline.style_dashed)
+
+plot(annualizedVolatility, "Annualized Volatility", color=color.purple, linewidth=1)
+hline(VOLATILITY_THRESHOLD, "Volatility Threshold", color=color.gray, linestyle=hline.style_dashed)
+
+// Strategy execution - Long positions
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+    
+if (strategy.position_size > 0)
+    float longStopLoss = strategy.position_avg_price * (1 - STOP_LOSS)
+    float longTakeProfit = strategy.position_avg_price * (1 + TAKE_PROFIT)
+    strategy.exit("Exit Long", "Long", stop=longStopLoss, limit=longTakeProfit)
+    if (exitLongCondition)
+        strategy.close("Long", comment="Signal Exit")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/483505
+
+> Last Modified
+
+2025-02-24 09:38:10

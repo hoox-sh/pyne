@@ -1,0 +1,24 @@
+//@version=5
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/meta-capitulation.pine
+// content_hash: 14b5a929a4dcbc99
+// collected: 2026-07-27
+strategy("7 period sma diff")
+sma_p = 30
+diff = (ta.sma(close, sma_p) - low)/ta.sma(close, sma_p)
+is_oversold = (diff) > 0.25
+val = is_oversold ? 1 : 0
+local_max = 0.0
+for over_days = 1 to 200
+    tmp = val[over_days] * (low - open[over_days-1])/open[over_days-1] * 100
+    if (local_max > tmp)
+        local_max := tmp
+drawdown_if_oversold_yesterday = local_max
+sum = ta.cum(val)
+n = 34
+over_past_2_years = ((sum - sum[n])/n)*100 
+plot(over_past_2_years) 
+plot(val, color = color.red)
+plot(-drawdown_if_oversold_yesterday, color = color.green)
+Expand (31 lines)

@@ -1,0 +1,60 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/SMA-FVG-SMA交叉策略与公平价值缺口回调结合的综合交易系统Comprehensive-Trading-System-Combining-SMA-Crossover-Strategy-with-Fair-Value-Gap-Pullback.md
+// content_hash: 83212529e522dc3c
+// collected: 2026-07-27
+strategy("8 SMA and 20 SMA with FVG Pullback", overlay=true)
+
+// Input parameters
+smaShortLength = input.int(8, title="Short SMA Length")
+smaLongLength = input.int(20, title="Long SMA Length")
+
+// Calculate SMAs
+smaShort = ta.sma(close, smaShortLength)
+smaLong = ta.sma(close, smaLongLength)
+
+// Plot SMAs
+plot(smaShort, title="8 SMA", color=color.blue)
+plot(smaLong, title="20 SMA", color=color.red)
+
+// Identify SMA crossovers
+longCondition = ta.crossover(smaShort, smaLong)
+shortCondition = ta.crossunder(smaShort, smaLong)
+
+// Fair Value Gaps (FVG) logic
+var float fvgHigh = na
+var float fvgLow = na
+
+if (ta.valuewhen(high[1] < high and low[1] > low, high, 0) and ta.valuewhen(high[1] < high and low[1] > low, low, 0))
+    fvgHigh := high
+    fvgLow := low
+
+plot(fvgHigh, title="FVG High", color=color.purple, linewidth=1, style=plot.style_line)
+plot(fvgLow, title="FVG Low", color=color.orange, linewidth=1, style=plot.style_line)
+
+// Entry conditions
+if (longCondition)
+    if (low <= fvgLow)
+        strategy.entry("Long", strategy.long)
+        
+if (shortCondition)
+    if (high >= fvgHigh)
+        strategy.entry("Short", strategy.short)
+        
+// Exit conditions (optional, you can modify these as per your risk management strategy)
+if (ta.crossunder(smaShort, smaLong))
+    strategy.close("Long")
+    
+if (ta.crossover(smaShort, smaLong))
+    strategy.close("Short")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/458272
+
+> Last Modified
+
+2024-07-31 14:38:42

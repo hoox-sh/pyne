@@ -1,0 +1,10 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pine_script_execution_model.md::pine_script_execution_model.md#block1
+// content_hash: 5c416457719b4682
+// collected: 2026-07-27
+indicator("Bar-by-bar execution demo", overlay = true, behind_chart = false)
+// Plot the `close` series on the chart.
+// This call defines the plotted point for the current bar on each execution.
+plot(close, "Close price", chart.fg_color, 5)

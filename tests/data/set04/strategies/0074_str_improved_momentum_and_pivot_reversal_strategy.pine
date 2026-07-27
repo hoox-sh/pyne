@@ -1,0 +1,58 @@
+//@version=6
+// set04 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/高级动量EMA趋势跟踪结合RSI超买超卖的交易策略-Advanced-Momentum-EMA-Trend-Following-with-RSI-Overbought-Oversold-Trading-Strategy.md
+// content_hash: dc5ad3a13acfbff4
+// collected: 2026-07-27
+strategy("Improved Momentum and Pivot Reversal Strategy", overlay=true)
+
+// Define user inputs
+lengthEMA = input.int(34, title="EMA Length", minval=1)
+lengthRSI = input.int(14, title="RSI Length", minval=1)
+rsiOverbought = input.int(70, title="RSI Overbought Level", minval=50, maxval=100)
+rsiOversold = input.int(30, title="RSI Oversold Level", minval=0, maxval=50)
+lengthATR = input.int(14, title="ATR Length", minval=1)
+multATR = input.float(1.5, title="ATR Multiplier for Take-Profit", minval=1.0)
+stopLossMultiplier = input.float(1.0, title="Stop Loss Multiplier for ATR", minval=0.5, maxval=3.0) // Adjust the stop-loss to be tighter or wider
+
+// Calculate the indicators
+ema34 = ta.ema(close, lengthEMA)
+rsiValue = ta.rsi(close, lengthRSI)
+atrValue = ta.atr(lengthATR)
+
+// Define entry conditions
+longCondition = close > ema34 and close[1] < open[1] and close > open and close[2] > open[2] and close[1] < open[1] and rsiValue > 50
+
+// Define stop-loss and take-profit based on ATR
+stopLoss = close - (atrValue * stopLossMultiplier) // Tighter stop-loss using the ATR multiplier
+takeProfit = close + (atrValue * multATR) // Take profit with adjustable multiplier
+
+// Volume condition filter (make sure that the volume is higher than average over the past 20 bars)
+avgVolume = ta.sma(volume, 20)
+volumeCondition = volume > avgVolume
+
+// Only trigger long if all conditions are met (trend above 34 EMA, red-green-green candle pattern, volume confirmation)
+if (longCondition and volumeCondition)
+    strategy.entry("Long", strategy.long, stop=stopLoss, limit=takeProfit)
+
+// Exit conditions based on RSI overbought/oversold and trailing stop
+exitCondition = rsiValue > rsiOverbought or close < stopLoss
+
+// Execute the exit strategy when RSI is overbought or price hits the stop-loss level
+if (exitCondition)
+    strategy.close("Long")  // Close the position when exit condition is met
+
+// Plotting for visualization
+plot(ema34, title="34 EMA", color=color.blue)
+plot(stopLoss, title="Stop Loss", color=color.red, linewidth=2)
+plot(takeProfit, title="Take Profit", color=color.green, linewidth=2)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/482821
+
+> Last Modified
+
+2025-02-20 13:20:15

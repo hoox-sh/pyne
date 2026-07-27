@@ -1,0 +1,51 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/EMA-Cloud-Intraday-Strategy.md
+// content_hash: cc8b61beef1ddadc
+// collected: 2026-07-27
+strategy("EMA Cloud Intraday Strategy", overlay=true, margin_long=100, margin_short=100, process_orders_on_close=true)
+
+i_trdQty = input.int(10, "Trade Quantity", minval = 1)
+
+
+
+
+fastLen = input(title = "Fast EMA Length", defval = 7)
+slowLen = input(title = "Slow EMA Length", defval = 20)
+
+fastEMA = ta.ema(close, fastLen)
+slowEMA = ta.ema(close, slowLen)
+
+fema = plot(fastEMA, title = "FastEMA", color = color.green, linewidth = 1, style = plot.style_line)
+sema = plot(slowEMA, title = "SlowEMA", color = color.red, linewidth = 1, style = plot.style_line)
+
+fill(fema, sema, color = fastEMA > slowEMA ? color.new(#417505, 50) : color.new(#890101, 50), title = "Cloud")
+
+longCondition = (close > fastEMA and fastEMA > slowEMA)
+
+if (longCondition)
+    strategy.entry("Long_Entry", strategy.long)
+longExit = close[1] < fastEMA
+if (longExit)
+    strategy.close("Long_Entry",when=longExit)
+    //strategy.exit("exit", "My Long Entry Id", trail_points=1.5, trail_offset=0)
+
+shortCondition = (close < fastEMA and fastEMA < slowEMA)
+if (shortCondition)
+    strategy.entry("Short_Entry", strategy.short)
+shortExit = close[1] > fastEMA
+if (shortExit)
+    strategy.close("Short_Entry",when=shortExit)
+    //strategy.exit("exit", "My Short Entry Id", trail_points=1.5, trail_offset=0)
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/363835
+
+> Last Modified
+
+2022-05-17 16:38:28

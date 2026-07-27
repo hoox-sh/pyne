@@ -1,0 +1,59 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多时间框架超级趋势追踪策略Multi-timeframe-Super-Trend-Tracking-Strategy.md
+// content_hash: 20a541938e0778f6
+// collected: 2026-07-27
+strategy('超级趋势精简优化版', overlay=true)
+Periods = input(title='ATR周期', defval=10)
+src = input(hl2, title='价格数据源')
+Multiplier = input.float(title='ATR 乘数', step=0.1, defval=3.0)
+changeATR = input(title='更改ATR计算方法', defval=true,tooltip = '默认为art否则sma(ta.tr,ATR周期)')
+showsignals = input(title='显示买入/卖出信号', defval=false)
+atr2 = ta.sma(ta.tr, Periods)
+atr = changeATR ? ta.atr(Periods) : atr2
+up = src - Multiplier * atr
+up1 = nz(up[1], up)
+up := close[1] > up1 ? math.max(up, up1) : up
+dn = src + Multiplier * atr
+dn1 = nz(dn[1], dn)
+dn := close[1] < dn1 ? math.min(dn, dn1) : dn
+trend = 1
+trend := nz(trend[1], trend)
+trend := trend == -1 and close > dn1 ? 1 : trend == 1 and close < up1 ? -1 : trend
+upPlot = plot(trend == 1 ? up : na, title='上涨趋势', style=plot.style_linebr, linewidth=2, color=color.new(color.green, 0))
+buySignal = trend == 1 and trend[1] == -1
+plotshape(buySignal and showsignals ? up : na, title='买点', text='买点', location=location.absolute, style=shape.labelup, size=size.tiny, color=color.new(color.green, 0), textcolor=color.new(color.white, 0))
+dnPlot = plot(trend == 1 ? na : dn, title='下跌趋势', style=plot.style_linebr, linewidth=2, color=color.new(color.red, 0))
+sellSignal = trend == -1 and trend[1] == 1
+plotshape(sellSignal and showsignals ? dn : na, title='卖点', text='卖点', location=location.absolute, style=shape.labeldown, size=size.tiny, color=color.new(color.red, 0), textcolor=color.new(color.white, 0))
+FromMonth = input.int(defval=9, title='From Month', minval=1, maxval=12)
+FromDay = input.int(defval=1, title='From Day', minval=1, maxval=31)
+FromYear = input.int(defval=2018, title='From Year', minval=999)
+ToMonth = input.int(defval=1, title='To Month', minval=1, maxval=12)
+ToDay = input.int(defval=1, title='To Day', minval=1, maxval=31)
+ToYear = input.int(defval=9999, title='To Year', minval=999)
+start = timestamp(FromYear, FromMonth, FromDay, 00, 00)
+finish = timestamp(ToYear, ToMonth, ToDay, 23, 59)
+window() =>
+    time >= start and time <= finish ? true : false
+longCondition = buySignal
+if longCondition and window()
+    strategy.entry('BUY', strategy.long, comment = '买入')
+shortCondition = sellSignal
+if shortCondition and window()
+    strategy.close('BUY',comment = '卖出')
+buy1 = ta.barssince(buySignal)
+sell1 = ta.barssince(sellSignal)
+color1 = buy1[1] < sell1[1] ? color.green : buy1[1] > sell1[1] ? color.red : na
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/438769
+
+> Last Modified
+
+2024-01-15 11:35:47

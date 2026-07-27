@@ -1,0 +1,137 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/SPARK动态仓位与双重指标交易策略-SPARK-Dynamic-Position-Sizing-and-Dual-Indicator-Trading-Strategy.md
+// content_hash: 6f39eb2fb12f503a
+// collected: 2026-07-27
+strategy("SPARK", shorttitle="SPARK", overlay=true)
+
+// Choose whether to activate the minimal bars in trade feature
+minBarsEnabled = input(true, title="Activate Minimal Bars in Trade")
+portfolioPercentage = input(10, title="Portfolio Percentage", minval=1, maxval=100)
+// Leverage Input
+leverage = input(1, title="Leverage", minval=1)
+
+// Calculate position size according to portfolio percentage and leverage
+positionSizePercent = portfolioPercentage / 100 * leverage
+positionSize = (strategy.initial_capital / close) * positionSizePercent
+
+// Take Profit and Stop Loss settings
+useFixedTPSL = input(1, title="Use Fixed TP/SL", options=[1, 0])
+tp_sl_step = 0.1
+fixedTP = input(2.0, title="Fixed Take Profit (%)", step=tp_sl_step)
+fixedSL = input(1.0, title="Fixed Stop Loss (%)", step=tp_sl_step)
+
+// Calculate Take Profit and Stop Loss Levels
+takeProfitLong = close * (1 + fixedTP / 100)
+takeProfitShort = close * (1 - fixedTP / 100)
+stopLossLong = close * (1 - fixedSL / 100)
+stopLossShort = close * (1 + fixedSL / 100)
+
+// Plot TP and SL levels on the chart
+plotshape(series=takeProfitLong, title="Take Profit Long", color=color.green, style=shape.triangleup, location=location.abovebar)
+plotshape(series=takeProfitShort, title="Take Profit Short", color=color.red, style=shape.triangledown, location=location.belowbar)
+plotshape(series=stopLossLong, title="Stop Loss Long", color=color.red, style=shape.triangleup, location=location.abovebar)
+plotshape(series=stopLossShort, title="Stop Loss Short", color=color.green, style=shape.triangledown, location=location.belowbar)
+
+// Minimum Bars Between Trades Input
+minBarsBetweenTrades = input(5, title="Minimum Bars Between Trades")
+
+// Inputs for selecting trading direction
+tradingDirection = input("Both", "Choose Trading Direction", options=["Long", "Short", "Both"])
+
+// SuperTrend Function
+trendFlow(src, atrLength, multiplier) =>
+    atr = atr(atrLength)
+    up = hl2 - (multiplier * atr)
+    dn = hl2 + (multiplier * atr)
+    trend = 1
+    trend := nz(trend[1], 1)
+    up := src > nz(up[1], 0) and src[1] > nz(up[1], 0) ? max(up, nz(up[1], 0)) : up
+    dn := src < nz(dn[1], 0) and src[1] < nz(dn[1], 0) ? min(dn, nz(dn[1], 0)) : dn
+    trend := src > nz(dn[1], 0) ? 1 : src < nz(up[1], 0)? -1 : nz(trend[1], 1)
+    [up, dn, trend]
+
+// Inputs for SuperTrend settings
+atrLength1 = input(7, title="ATR Length for Trend 1")
+multiplier1 = input(4.0, title="Multiplier for Trend 1")
+atrLength2 = input(14, title="ATR Length for Trend 2")
+multiplier2 = input(3.618, title="Multiplier for Trend 2")
+atrLength3 = input(21, title="ATR Length for Trend 3")
+multiplier3 = input(3.5, title="Multiplier for Trend 3")
+atrLength4 = input(28, title="ATR Length for Trend 4")
+multiplier4 = input(3.382, title="Multiplier for Trend 4")
+
+// Calculate SuperTrend
+[up1, dn1, trend1] = trendFlow(close, atrLength1, multiplier1)
+[up2, dn2, trend2] = trendFlow(close, atrLength2, multiplier2)
+[up3, dn3, trend3] = trendFlow(close, atrLength3, multiplier3)
+[up4, dn4, trend4] = trendFlow(close, atrLength4, multiplier4)
+
+// Entry Conditions based on SuperTrend and Elliott Wave-like patterns
+longCondition = trend1 == 1 and trend2 == 1 and trend3 == 1 and trend4 == 1
+shortCondition = trend1 == -1 and trend2 == -1 and trend3 == -1 and trend4 == -1
+
+// Calculate bars since last trade
+barsSinceLastTrade = barssince(tradingDirection == "Long" ? longCondition : shortCondition)
+
+// Strategy Entry logic based on selected trading direction and minimum bars between trades
+if tradingDirection == "Long" or tradingDirection == "Both"
+    if longCondition and (not minBarsEnabled or barsSinceLastTrade >= minBarsBetweenTrades)
+        strategy.entry("Long", strategy.long, qty=positionSize)
+        strategy.exit("TP/SL Long", from_entry="Long", stop=stopLossLong, limit=takeProfitLong)
+
+if tradingDirection == "Short" or tradingDirection == "Both"
+    if shortCondition and (not minBarsEnabled or barsSinceLastTrade >= minBarsBetweenTrades)
+        strategy.entry("Short", strategy.short, qty=positionSize)
+        strategy.exit("TP/SL Short", from_entry="Short", stop=stopLossShort, limit=takeProfitShort)
+
+// Color bars based on position
+var color barColor = na
+barColor := strategy.position_size > 0 ? color.green : strategy.position_size < 0 ? color.red : na
+
+// Plot colored bars
+plotcandle(open, high, low, close, color=barColor)
+
+// Plot moving averages
+plot(sma(close, 50), color=color.blue)
+plot(sma(close, 200), color=color.orange)
+
+// More customizable trading bot - adding a new indicator
+// This indicator is the RSI (Relative Strength Index)
+
+// RSI Inputs
+rsi_length = input(14, title="RSI Length")
+rsi_oversold = input(30, title="RSI Oversold")
+rsi_overbought = input(70, title="RSI Overbought")
+
+// Calculate RSI
+rsi = rsi(close, rsi_length)
+
+// Plot RSI
+plot(rsi, color=color.purple, title="RSI")
+
+// Entry Conditions based on RSI
+rsi_long_condition = rsi < rsi_oversold
+rsi_short_condition = rsi > rsi_overbought
+
+// Strategy Entry logic based on RSI
+if tradingDirection == "Long" or tradingDirection == "Both"
+    if rsi_long_condition and (not minBarsEnabled or barsSinceLastTrade >= minBarsBetweenTrades)
+        strategy.entry("Long_RSI", strategy.long, qty=positionSize)
+        strategy.exit("TP/SL Long_RSI", from_entry="Long_RSI", stop=stopLossLong, limit=takeProfitLong)
+
+if tradingDirection == "Short" or tradingDirection == "Both"
+    if rsi_short_condition and (not minBarsEnabled or barsSinceLastTrade >= minBarsBetweenTrades)
+        strategy.entry("Short_RSI", strategy.short, qty=positionSize)
+        strategy.exit("TP/SL Short_RSI", from_entry="Short_RSI", stop=stopLossShort, limit=takeProfitShort)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/448076
+
+> Last Modified
+
+2024-04-12 17:22:47

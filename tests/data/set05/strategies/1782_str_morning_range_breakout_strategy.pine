@@ -1,0 +1,179 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/早盘区间突破量化交易策略-Early-Morning-Range-Breakout-Quantitative-Trading-Strategy.md
+// content_hash: 2e5513ae65e299fe
+// collected: 2026-07-27
+strategy("Morning Range Breakout Strategy", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=100)
+
+// Input parameters
+var useStrategy = input.bool(true, title="Enable Strategy Execution")
+var debugMode = input.bool(true, title="Debug Mode")
+
+// Variables to store specific candle data
+var float high915 = na
+var float low915 = na
+var float high916 = na
+var float low916 = na
+var float high917 = na
+var float low917 = na
+var float high918 = na
+var float low918 = na
+var float high919 = na
+var float low919 = na
+
+// Final range variables
+var float highestHigh = na
+var float lowestLow = na
+var bool rangeEstablished = false
+
+// Get current bar time components
+t = time("1", "0930-1600:1234567")
+timeHour = hour(t)
+timeMinute = minute(t)
+
+// Debug variables
+var string timeString = na
+var int barNum = 0
+barNum := barNum + 1
+
+// Record exact timestamp for debugging
+timeString := str.tostring(timeHour) + ":" + str.tostring(timeMinute)
+
+// Capture each specific minute's high and low
+if timeHour == 9 and timeMinute == 15
+    high915 := high
+    low915 := low
+    if debugMode
+        label.new(bar_index, high, "9:15 H:" + str.tostring(high, "#.##") + " L:" + str.tostring(low, "#.##"), 
+                 color=color.new(color.blue, 50), style=label.style_label_down, textcolor=color.white)
+
+if timeHour == 9 and timeMinute == 16
+    high916 := high
+    low916 := low
+
+if timeHour == 9 and timeMinute == 17
+    high917 := high
+    low917 := low
+
+if timeHour == 9 and timeMinute == 18
+    high918 := high
+    low918 := low
+
+if timeHour == 9 and timeMinute == 19
+    high919 := high
+    low919 := low
+
+// At 9:20, calculate the highest high and lowest low from all values
+if timeHour == 9 and timeMinute == 20 and not rangeEstablished
+    // Initialize with first non-NA value
+    if not na(high915)
+        highestHigh := high915
+    else if not na(high916)
+        highestHigh := high916
+    else if not na(high917)
+        highestHigh := high917
+    else if not na(high918)
+        highestHigh := high918
+    else if not na(high919)
+        highestHigh := high919
+    
+    if not na(low915)
+        lowestLow := low915
+    else if not na(low916)
+        lowestLow := low916
+    else if not na(low917)
+        lowestLow := low917
+    else if not na(low918)
+        lowestLow := low918
+    else if not na(low919)
+        lowestLow := low919
+    
+    // Now find the highest high and lowest low across all minutes
+    if not na(high915) and high915 > highestHigh
+        highestHigh := high915
+    if not na(high916) and high916 > highestHigh
+        highestHigh := high916
+    if not na(high917) and high917 > highestHigh
+        highestHigh := high917
+    if not na(high918) and high918 > highestHigh
+        highestHigh := high918
+    if not na(high919) and high919 > highestHigh
+        highestHigh := high919
+    
+    if not na(low915) and low915 < lowestLow
+        lowestLow := low915
+    if not na(low916) and low916 < lowestLow
+        lowestLow := low916
+    if not na(low917) and low917 < lowestLow
+        lowestLow := low917
+    if not na(low918) and low918 < lowestLow
+        lowestLow := low918
+    if not na(low919) and low919 < lowestLow
+        lowestLow := low919
+    
+    rangeEstablished := true
+    
+    if debugMode
+        label.new(bar_index, high, "Range Set\nHigh:" + str.tostring(highestHigh, "#.##") + 
+                 "\nLow:" + str.tostring(lowestLow, "#.##") + 
+                 "\n9:15 values included: " + str.tostring(not na(high915)), 
+                 color=color.new(color.purple, 0), style=label.style_label_down, textcolor=color.white)
+
+// Reset values for the next day
+if dayofweek != dayofweek[1]
+    high915 := na
+    low915 := na
+    high916 := na
+    low916 := na
+    high917 := na
+    low917 := na
+    high918 := na
+    low918 := na
+    high919 := na
+    low919 := na
+    highestHigh := na
+    lowestLow := na
+    rangeEstablished := false
+
+// Generate buy/sell signals
+longCondition = rangeEstablished and ta.crossover(close, highestHigh)
+shortCondition = rangeEstablished and ta.crossunder(close, lowestLow)
+
+// Execute strategy if enabled
+if useStrategy and rangeEstablished
+    if longCondition
+        strategy.entry("Long", strategy.long)
+    if shortCondition
+        strategy.entry("Short", strategy.short)
+
+// Plotting
+plot(rangeEstablished ? highestHigh : na, color=color.green, linewidth=2, title="Highest High")
+plot(rangeEstablished ? lowestLow : na, color=color.red, linewidth=2, title="Lowest Low")
+
+// Plot buy/sell signals
+plotshape(longCondition, title="Buy Signal", location=location.belowbar, color=color.green, style=shape.triangleup, size=size.small)
+plotshape(shortCondition, title="Sell Signal", location=location.abovebar, color=color.red, style=shape.triangledown, size=size.small)
+
+// Display range information
+if barstate.islast and rangeEstablished
+    label.new(bar_index, highestHigh, text="High: " + str.tostring(highestHigh, "#.##") + " (9:15-9:19)", color=color.green, textcolor=color.white, style=label.style_label_down)
+    label.new(bar_index, lowestLow, text="Low: " + str.tostring(lowestLow, "#.##") + " (9:15-9:19)", color=color.red, textcolor=color.white, style=label.style_label_up)
+
+// Debug information
+if debugMode and barstate.islast
+    label.new(bar_index, high + (high * 0.05), 
+              "9:15 recorded: " + str.tostring(not na(high915)) + 
+              "\n9:15 High: " + str.tostring(high915, "#.##") + 
+              "\n9:15 Low: " + str.tostring(low915, "#.##") +
+              "\nTime seen: " + timeString, 
+              color=color.blue, textcolor=color.white, style=label.style_label_down)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/488513
+
+> Last Modified
+
+2025-03-28 14:55:19

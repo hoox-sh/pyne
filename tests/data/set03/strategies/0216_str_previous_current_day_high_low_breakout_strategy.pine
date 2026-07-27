@@ -1,0 +1,72 @@
+//@version=6
+// set03 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动态ATR优化的日内高低点突破交易策略-Dynamic-ATR-Optimized-Intraday-High-Low-Breakout-Trading-Strategy.md
+// content_hash: 697c6ba7811a2a19
+// collected: 2026-07-27
+strategy("Previous/Current Day High-Low Breakout Strategy", overlay=true)
+
+// === INPUTS ===
+buffer = input(10, title="Buffer Points Above/Below Day High/Low")  // 0-10 point buffer
+atrMultiplier = input.float(1.5, title="ATR Multiplier for SL/TP")  // ATR-based SL & TP
+
+// === DETECT A NEW DAY CORRECTLY ===
+dayChange = ta.change(time("D")) != 0  // Returns true when a new day starts
+
+// === FETCH PREVIOUS DAY HIGH & LOW CORRECTLY ===
+var float prevDayHigh = na
+var float prevDayLow = na
+
+if dayChange
+    prevDayHigh := high[1]  // Store previous day's high
+    prevDayLow := low[1]  // Store previous day's low
+
+// === TRACK CURRENT DAY HIGH & LOW ===
+todayHigh = ta.highest(high, ta.barssince(dayChange))  // Highest price so far today
+todayLow = ta.lowest(low, ta.barssince(dayChange))  // Lowest price so far today
+
+// === FINAL HIGH/LOW SELECTION (Whichever Happens First) ===
+finalHigh = math.max(prevDayHigh, todayHigh)  // Use the highest value
+finalLow = math.min(prevDayLow, todayLow)  // Use the lowest value
+
+// === ENTRY CONDITIONS ===
+// ? BUY (LONG) Condition: Closes below final low - buffer
+longCondition = close <= (finalLow - buffer)
+
+// ? SELL (SHORT) Condition: Closes above final high + buffer
+shortCondition = close >= (finalHigh + buffer)
+
+// === ATR STOP-LOSS & TAKE-PROFIT ===
+atr = ta.atr(14)
+longSL = close - (atr * atrMultiplier)  // Stop-Loss for Long
+longTP = close + (atr * atrMultiplier * 2)  // Take-Profit for Long
+shortSL = close + (atr * atrMultiplier)  // Stop-Loss for Short
+shortTP = close - (atr * atrMultiplier * 2)  // Take-Profit for Short
+
+// === EXECUTE LONG (BUY) TRADE ===
+if longCondition
+    strategy.entry("BUY", strategy.long, comment="? BUY Signal")
+    strategy.exit("SELL TP", from_entry="BUY", stop=longSL, limit=longTP)
+
+// === EXECUTE SHORT (SELL) TRADE ===
+if shortCondition
+    strategy.entry("SELL", strategy.short, comment="? SELL Signal")
+    strategy.exit("BUY TP", from_entry="SELL", stop=shortSL, limit=shortTP)
+
+// === PLOT LINES FOR VISUALIZATION ===
+plot(finalHigh, title="Breakout High (Prev/Today)", color=color.new(color.blue, 60), linewidth=2, style=plot.style_stepline)
+plot(finalLow, title="Breakout Low (Prev/Today)", color=color.new(color.red, 60), linewidth=2, style=plot.style_stepline)
+
+// === ALERT CONDITIONS ===
+alertcondition(longCondition, title="? Buy Signal", message="BUY triggered ?")
+alertcondition(shortCondition, title="? Sell Signal", message="SELL triggered ?")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/483125
+
+> Last Modified
+
+2025-02-27 16:53:19

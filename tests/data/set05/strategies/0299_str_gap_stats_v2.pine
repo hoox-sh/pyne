@@ -1,0 +1,61 @@
+//@version=5
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/Gap Stats v2.pine
+// content_hash: 545156b7cce2cabb
+// collected: 2026-07-27
+strategy("Gap Stats v2", overlay=true, margin_long=100, margin_short=100)
+minGapPerc = input.float(1.0,"Min Gap %")/100
+var gapPercs = array.new<float>()
+var gapDates = array.new<string>()
+var gapAmounts = array.new<float>()
+var gapPercCovered = array.new<float>()
+theMonth = str.tostring(month)
+theDay = str.tostring(dayofmonth)
+theYear = str.tostring(year)
+theDate = theMonth+'/'+theDay+'/'+theYear
+isGapUp = open > high[1] + (high[1] * minGapPerc)
+isGapDown = open < low[1] - (low[1] * minGapPerc)
+var coveredCount = 0
+plotshape(isGapUp, style=shape.arrowup, color=color.green, location=location.bottom)
+plotshape(isGapDown, style=shape.arrowdown, color=color.red, location=location.top)
+if isGapUp
+    gapPerc = ((open - high[1])/high[1]) * 100
+    gapAmount = open-high[1]
+    diff = open-low
+    percCovered = math.abs(diff/gapAmount) > 1 ? 100 : (math.abs(diff/gapAmount)) * 100
+    array.push(gapDates,theDate)
+    array.push(gapPercs,gapPerc)
+    array.push(gapAmounts,gapAmount)
+    array.push(gapPercCovered,percCovered)
+    if percCovered >= 100
+        coveredCount := coveredCount+1
+    
+if isGapDown
+    gapPerc = ((low[1] - open)/low) * 100
+    gapAmount = open-low[1]
+    diff = high - open
+    percCovered = math.abs(diff/gapAmount) > 1 ? 100 : (math.abs(diff/gapAmount)) * 100
+    array.push(gapDates,theDate)
+    array.push(gapPercs,-gapPerc)
+    array.push(gapAmounts,gapAmount)
+    array.push(gapPercCovered,percCovered)
+    if percCovered >= 100
+        coveredCount := coveredCount+1
+gapTable = table.new(position = position.top_right, columns = 4, rows = array.size(gapDates) > 0 ? array.size(gapDates) + 1 : 1, frame_color=#151715, frame_width=1, border_width=1, border_color=color.white)
+table.cell(gapTable, 0, 0, 'Date', text_halign = text.align_center, bgcolor = color.gray, text_color = color.white, text_size = size.normal)
+table.cell(gapTable, 1, 0, 'Gap %', text_halign = text.align_center, bgcolor = color.gray, text_color = color.white, text_size = size.normal)
+table.cell(gapTable, 2, 0, 'Gap $', text_halign = text.align_center, bgcolor = color.gray, text_color = color.white, text_size = size.normal)
+table.cell(gapTable, 3, 0, 'Gap % Covered', text_halign = text.align_center, bgcolor = color.gray, text_color = color.white, text_size = size.normal)
+if barstate.islastconfirmedhistory and array.size(gapDates) > 0
+    array.reverse(gapDates)
+    array.reverse(gapPercs)
+    array.reverse(gapAmounts)
+    array.reverse(gapPercCovered)
+    for i = 0 to array.size(gapDates) - 1
+        table.cell(gapTable, column = 0, row = i + 1, text = array.get(gapDates,i),text_halign = text.align_left,   bgcolor = color.gray, text_color = color.white, text_size = size.small)
+        table.cell(gapTable, column = 1, row = i + 1, text = str.tostring(array.get(gapPercs,i),'.##')+'%', text_halign = text.align_left,   bgcolor = array.get(gapPercs,i) > 0 ? color.green : color.red, text_color = color.white, text_size = size.small)
+        table.cell(gapTable, column = 2, row = i + 1, text = '$'+str.tostring(array.get(gapAmounts,i),'.##'), text_halign = text.align_left,   bgcolor = array.get(gapAmounts,i) > 0 ? color.green : color.red, text_color = color.white, text_size = size.small)
+        table.cell(gapTable, column = 3, row = i + 1, text = str.tostring(array.get(gapPercCovered,i),'.##')+'%', text_halign = text.align_left,   bgcolor = color.gray, text_color = color.white, text_size = size.small)
+        
+Expand (67 lines)

@@ -1,0 +1,71 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/RSI-反转交叉动量盈利目标量化交易策略-RSI-Reversal-Cross-Momentum-Profit-Target-Quantitative-Trading-Strategy.md
+// content_hash: 6946782f25b8d455
+// collected: 2026-07-27
+strategy("1H RSI Reversal Scalping Bot with Profit Target", overlay=true)
+
+// Input settings
+rsiPeriod = input(14, title="RSI Period")
+overboughtLevel = input(70, title="Overbought Level")
+oversoldLevel = input(30, title="Oversold Level")
+entryOverbought = input(69, title="Entry Overbought Level")
+entryOversold = input(31, title="Entry Oversold Level")
+profitTarget = input(2000, title="Profit Target (in USD)")
+tradeSize = input(2, title="Trade Size (Lots)")
+
+// RSI Calculation
+rsi = ta.rsi(close, rsiPeriod)
+
+// Entry conditions
+longCondition = ta.crossover(rsi, entryOversold) and ta.valuewhen(ta.crossunder(rsi, oversoldLevel), rsi, 0) < entryOversold
+shortCondition = ta.crossunder(rsi, entryOverbought) and ta.valuewhen(ta.crossover(rsi, overboughtLevel), rsi, 0) > entryOverbought
+
+// Calculate profit in ticks
+tickValue = syminfo.pointvalue
+profitTicks = profitTarget / (tickValue * tradeSize)
+
+// Determine the profit target level in price units
+longExitPrice = strategy.position_avg_price + profitTicks * syminfo.mintick
+shortExitPrice = strategy.position_avg_price - profitTicks * syminfo.mintick
+
+// Plotting entry and exit points
+plotshape(series=longCondition, location=location.belowbar, color=color.green, style=shape.labelup, title="Buy Signal")
+plotshape(series=shortCondition, location=location.abovebar, color=color.red, style=shape.labeldown, title="Sell Signal")
+
+// Strategy execution
+if (longCondition)
+    strategy.entry("Long", strategy.long, qty=tradeSize)
+if (shortCondition)
+    strategy.entry("Short", strategy.short, qty=tradeSize)
+
+// Close long position if profit target met
+if (strategy.position_size > 0 and close >= longExitPrice)
+    strategy.close("Long")
+
+// Close short position if profit target met
+if (strategy.position_size < 0 and close <= shortExitPrice)
+    strategy.close("Short")
+
+// Plot expected close markers
+var label expectedCloseMarker = na
+if (longCondition)
+    expectedCloseMarker := label.new(x=bar_index, y=longExitPrice, text="Expected Close", style=label.style_label_down, color=color.blue, textcolor=color.white, size=size.small)
+if (shortCondition)
+    expectedCloseMarker := label.new(x=bar_index, y=shortExitPrice, text="Expected Close", style=label.style_label_up, color=color.blue, textcolor=color.white, size=size.small)
+
+// Plot RSI for reference
+// hline(overboughtLevel, "Overbought", color=color.red)
+// hline(oversoldLevel, "Oversold", color=color.green)
+// plot(rsi, color=color.purple, title="RSI")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/458057
+
+> Last Modified
+
+2024-07-29 15:56:41

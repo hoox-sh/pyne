@@ -1,0 +1,16 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block304
+// content_hash: e2b107c8ba54bd5e
+// collected: 2026-07-27
+indicator("ticker.renko", overlay=true) 
+renko_tickerid = ticker.renko(syminfo.tickerid, "ATR", 10)
+renko_close = request.security(renko_tickerid, timeframe.period, close)
+plot(renko_close)
+
+//@version=6
+indicator("Renko candles", overlay=false)
+renko_tickerid = ticker.renko(syminfo.tickerid, "ATR", 10)
+[renko_open, renko_high, renko_low, renko_close] = request.security(renko_tickerid, timeframe.period, [open, high, low, close])
+plotcandle(renko_open, renko_high, renko_low, renko_close, color = renko_close > renko_open ? color.green : color.red)

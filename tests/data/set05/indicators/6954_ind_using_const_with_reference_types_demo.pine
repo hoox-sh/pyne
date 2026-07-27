@@ -1,0 +1,13 @@
+//@version=6
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/language/type-system.md::type-system.md#block42
+// content_hash: 6391849526ba206f
+// collected: 2026-07-27
+indicator("Using `const` with reference types demo")
+
+//@variable Holds a reference to an array of three pseudorandom "float" values.
+//          Although the variable is declared using `const`, the reference returned by `array.from()` has the "series" 
+//          qualifier, because each execution creates a new, unique array object. Additionally, all elements in the 
+//          array are of the type "series float".
+//          This *does not* cause an error, because the script does not *reassign* the variable during any execution.

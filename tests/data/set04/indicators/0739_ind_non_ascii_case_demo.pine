@@ -1,0 +1,20 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/concepts/strings.md::strings.md#block18
+// content_hash: 6041ebfda4f926ff
+// collected: 2026-07-27
+indicator("Non-ASCII case demo", overlay = true)
+
+if barstate.isfirst
+    //@variable A literal string that uses Unicode characters in the "Mathematical Sans-Serif" family. 
+    string originalString = "𝖳𝗁𝗂𝗌 𝗌𝗍𝗋𝗂𝗇𝗀 𝗂𝗌 𝗎𝗇𝖺𝖿𝖿𝖾𝖼𝗍𝖾𝖽 𝖻𝗒 𝗍𝗁𝖾 𝖼𝖺𝗌𝖾-𝗌𝗐𝖺𝗉𝗉𝗂𝗇𝗀 𝖿𝗎𝗇𝖼𝗍𝗂𝗈𝗇𝗌!"
+
+    // Call `str.upper()` and `str.lower()` to change the case of letters. 
+    // Although the characters in the `originalString` have the "Letter" property, they are not part of the standard 
+    // ASCII set. Consequently, these calls return unmodified strings. 
+    string uppercaseString = str.upper(originalString)
+    string lowercaseString = str.lower(uppercaseString)
+
+    // Log a formatted message containing all three values.
+    log.info("\n\nOriginal: {0}\nUppercase: {1}\nLowercase: {2}", originalString, uppercaseString, lowercaseString)

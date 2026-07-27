@@ -1,0 +1,76 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/自适应趋势跟踪策略结合动态回撤控制系统-Adaptive-Trend-Following-Strategy-with-Dynamic-Drawdown-Control-System.md
+// content_hash: 954beb9f39b051e7
+// collected: 2026-07-27
+strategy(title="Disruptor Trend-Following (Drawdown < 30%)", shorttitle="DisruptorStrategyDD", overlay=true)
+
+//-----------------------------------------------------
+// User Inputs
+//-----------------------------------------------------
+emaLen         = input.int(200,  "Long EMA Length",    minval=1)
+rsiLen         = input.int(14,   "RSI Length",         minval=1)
+rsiThreshold   = input.float(50, "RSI Buy Threshold",  minval=1, maxval=100)
+stopLossPerc   = input.float(20, "Stop-Loss %",        minval=0.1, step=0.1)
+takeProfitPerc = input.float(40, "Take-Profit %",      minval=0.1, step=0.1)
+ddLimit        = input.float(30, "Max Drawdown %",     minval=0.1, step=0.1)
+
+//-----------------------------------------------------
+// Indicators
+//-----------------------------------------------------
+emaValue       = ta.ema(close, emaLen)
+rsiValue       = ta.rsi(close, rsiLen)
+
+//-----------------------------------------------------
+// Conditions
+//-----------------------------------------------------
+longCondition  = close > emaValue and rsiValue > rsiThreshold
+exitCondition  = close < emaValue or rsiValue < rsiThreshold
+
+//-----------------------------------------------------
+// Position Tracking
+//-----------------------------------------------------
+var bool inTrade = false
+
+if longCondition and not inTrade
+    strategy.entry("Long", strategy.long)
+
+if inTrade and exitCondition
+    strategy.close("Long")
+
+inTrade := strategy.position_size > 0
+
+//-----------------------------------------------------
+// Stop-Loss & Take-Profit
+//-----------------------------------------------------
+if inTrade
+    stopPrice       = strategy.position_avg_price * (1 - stopLossPerc / 100)
+    takeProfitPrice = strategy.position_avg_price * (1 + takeProfitPerc / 100)
+    strategy.exit("Exit", from_entry="Long", stop=stopPrice, limit=takeProfitPrice)
+
+//-----------------------------------------------------
+// Dynamic Drawdown Handling
+//-----------------------------------------------------
+var float peakEquity = strategy.equity
+peakEquity := math.max(peakEquity, strategy.equity)
+
+currentDrawdownPerc = (peakEquity - strategy.equity) / peakEquity * 100
+if currentDrawdownPerc > ddLimit
+    strategy.close_all("Max Drawdown Exceeded")
+
+//-----------------------------------------------------
+// Plotting
+//-----------------------------------------------------
+plot(emaValue, title="EMA 200", color=color.yellow, linewidth=2)
+plotchar(rsiValue, title="RSI", char='•', location=location.bottom, color=color.new(color.teal, 60))
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/475634
+
+> Last Modified
+
+2024-12-20 16:59:37

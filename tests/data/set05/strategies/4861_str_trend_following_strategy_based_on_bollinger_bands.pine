@@ -1,0 +1,78 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于布林带的趋势跟踪策略Trend-Following-Strategy-Based-on-Bollinger-Bands.md
+// content_hash: 7dda3bc731a44df2
+// collected: 2026-07-27
+strategy(title="Strategy: Trend Following Bollinger Bands", shorttitle="Strategy: Trend Following Bollinger Bands", overlay = true, pyramiding = 0, default_qty_type = strategy.percent_of_equity)
+
+//Inputs
+//Bollinger Bands Parameters
+length = input(defval=20, minval=1, title= "Length")
+stddev = input(defval=2, minval=0.5, title= "StdDev")
+
+// STRATEGY INPUTS
+//Entry and Exit Parameters
+checkbox1 = input(true, title="Enable Long Entrys")
+checkbox2 = input(true, title="Enable Short Entrys")
+
+
+//Bollinger Bands Calculation
+
+[middle, upper, lower] = bb(close, length, stddev)
+
+//Long Conditions
+
+bulls1 = close > upper
+bulls2 = close[1] < upper[1]
+bulls = bulls1 and bulls2
+
+//Short Conditions
+
+bears1 = close < lower
+bears2 = close[1] > lower[1]
+bears = bears1 and bears2
+
+// Plots of Bollinger Bands
+plot(upper, title = "Upper Band", color = color.aqua)//, display = display.none)
+plot(middle, title = "MA", color = color.red)//, display = display.none)
+plot(lower, title = "Lower Band", color = color.aqua)//, display = display.none)
+
+neutral_color = color.new(color.black, 100)
+barcolors = bulls ? color.green : bears ? color.red : neutral_color
+
+//Paint bars with the entry colors
+barcolor(barcolors)
+
+//Strategy
+
+
+//STRATEGY LONG
+long_entry = bulls and checkbox1
+
+long_entry_level = high
+
+strategy.entry("Long", true, stop = long_entry_level, when = long_entry)
+strategy.cancel("Long", when = not long_entry)
+
+strategy.exit("Stop Long", "Long", stop = middle)
+
+//STRATEGY SHORT
+short_entry = bears and checkbox2
+
+short_entry_level = low
+
+strategy.entry("Short", false, stop = short_entry_level, when = short_entry)
+strategy.cancel("Short", when = not short_entry)
+
+strategy.exit("Stop Short", "Short", stop = middle)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/442552
+
+> Last Modified
+
+2024-02-22 17:21:42

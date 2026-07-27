@@ -1,0 +1,55 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动量趋势跟踪型双指标MACD与抛物线SAR结合策略-Momentum-Trend-Following-Dual-Indicator-MACD-and-Parabolic-SAR-Combination-Strategy.md
+// content_hash: 369822d3402fa73c
+// collected: 2026-07-27
+strategy("MACD + Parabolic SAR Strategy", shorttitle="MACD+SAR", overlay=true)
+
+//========== User Inputs ==========//
+// MACD parameters
+fastLength   = input.int(12, "MACD Fast Length")
+slowLength   = input.int(26, "MACD Slow Length")
+signalLength = input.int(9,  "MACD Signal Length")
+
+// SAR parameters (start, step, maximum)
+afStart     = input.float(0.02, "SAR Start")
+afIncrement = input.float(0.02, "SAR Increment")
+afMax       = input.float(0.2,  "SAR Max")
+
+//========== MACD Calculation ==========//
+[macdLine, signalLine, histLine] = ta.macd(close, fastLength, slowLength, signalLength)
+
+//========== Parabolic SAR Calculation ==========//
+sarValue = ta.sar(afStart, afIncrement, afMax)
+
+//========== Entry Conditions ==========//
+// Long: MACD > Signal + close > SAR
+longCondition  = (macdLine > signalLine) and (close > sarValue)
+
+// Short: MACD < Signal + close < SAR
+shortCondition = (macdLine < signalLine) and (close < sarValue)
+
+//========== Enter Positions ==========//
+if longCondition
+    strategy.entry("Long", strategy.long)
+
+if shortCondition
+    strategy.entry("Short", strategy.short)
+
+//========== Exit Positions on Opposite Signal ==========//
+if strategy.position_size > 0 and shortCondition
+    strategy.close("Long", comment="Exit Long")
+
+if strategy.position_size < 0 and longCondition
+    strategy.close("Short", comment="Exit Short")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/482806
+
+> Last Modified
+
+2025-02-27 17:45:03

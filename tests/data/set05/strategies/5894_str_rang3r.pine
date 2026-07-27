@@ -1,0 +1,66 @@
+//@version=3
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/量化交易中的支撑阻力云形态指标Quant-Trading-Support-and-Resistance-Cloud-Indicator.md
+// content_hash: 394d5c9d15bf5a2e
+// collected: 2026-07-27
+strategy("[IND] rang3r", overlay=true)
+entP = input(50, "Entry Period: ")
+exP = input(25, "Exit period: ")
+sensitivity = input(0.9999, "Sensitivity")
+periodHigh = 0.0
+periodLow = 0.0
+epH = 0.0
+epL = 0.0
+
+    
+//Entry Trades
+for i = 1 to (entP+1)
+    if i == 1 
+        periodHigh:=high[i]
+    else
+        if periodHigh < high[i]
+            periodHigh:=high[i]
+    
+
+for i = 1 to (entP+1)
+    if i == 1 
+        periodLow:=low[i]
+    else
+        if periodLow > low[i]
+            periodLow:=low[i]
+                
+s = high[1] > periodHigh*sensitivity and open > close //and (close[1] > open[1] ? open[1] : close[1]) > close
+l = low[1] < periodLow*(1/sensitivity) and close > open //and (close[1] > open[1] ? close[1] : open[1]) < close
+
+strategy.entry("long", strategy.long, when=s)
+strategy.entry("short", strategy.short, when=l)
+
+bgcolor(l ? green : na)
+bgcolor(s ? red : na)
+
+periodCenter = (periodHigh+periodLow)/2
+period0618 = (periodLow)+(periodHigh-periodLow)*0.618
+period0382 = (periodLow)+(periodHigh-periodLow)*0.382
+
+cloud1 = plot(period0382, color=#494949)
+cloud2 = plot(period0618, color=#494949)
+
+fill(cloud1, cloud2, color=#d8d8d8)
+
+plot(periodHigh, color=#d81751)
+plot(periodLow, color=#0daa20)
+//plot(periodCenter, color=#494949)
+
+bc = close > period0618 ? white : (close < period0382 ? black : na)
+
+barcolor(bc)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/439233
+
+> Last Modified
+
+2024-01-18 15:30:46

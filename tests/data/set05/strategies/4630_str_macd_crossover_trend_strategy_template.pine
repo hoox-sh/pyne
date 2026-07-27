@@ -1,0 +1,89 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双均线交叉趋势策略Dual-Moving-Average-Crossover-Trend-Strategy.md
+// content_hash: 5dd68c506c8a1ab7
+// collected: 2026-07-27
+// Hi,
+// This is my first strategy made by myself(except for the MACD indicator). I'm publishing this to get myself out there and for some newer people to see how a basic strategy works. All credits go to Zen&TheArtofTrading, for teaching me almost everything I know about Pinescript
+// The strategy is basically an MACD crossover trend strategy. If the MACD line crosses the signal line upward, above the zero point of the histogram, while the price is above 200 EMA and 100 SMA it's a buy signal
+// If the MACD line crosses the signal line downward, while below zero point of the histogram, as well as the price being below 200 EMA and 100 SMA it's a sell signal
+// I used the 200 EMA and 100 SMA because I wanted to filter weak signals as much as possible when the market is ranging, if you have any suggestions to go around this better, please let me know, still learning everyday
+
+// If you have any suggestions, tips or tricks please let me know. I'm still new to Pinescript, but having a lot of fun trying stuff out. If you see something in my code that you don't understand, feel free to ask, I'll try to answer as best as I can
+
+// I opened the strategy with predetermined backtesting pyramiding, currency etc. This made the progress of backtesting multiple TP and SL easier. Also the commission value is from Binance Futures, I just left it in there for anyone who wants to just copy this strategy
+strategy("MACD Crossover Trend Strategy Template", overlay = true )
+
+// Determining inputs and values, I just copied the built-in MACD strategy and removed everything I didn't need, just needed the barebone indicator and added EMA + SMA inputs
+fast_length = input(title = "Fast Length", type = input.integer, defval = 12, group = "MACD Values")
+slow_length = input(title = "Slow Length", type = input.integer, defval = 26, group = "MACD Values")
+src = input(title = "Source", type = input.source, defval = close, group = "MACD Values")
+signal_length = input(title = "Signal Smoothing", type=input.integer, minval = 1, maxval = 50, defval = 9, group = "MACD Values")
+sma_source = input(title = "Simple MA (Oscillator)", type = input.bool, defval = false, group = "MACD Values")
+sma_signal = input(title = "Simple MA (Signal Line)", type = input.bool, defval = false, group = "MACD Values")
+fast_ma = sma_source ? sma(src, fast_length) : ema(src, fast_length)
+slow_ma = sma_source ? sma(src, slow_length) : ema(src, slow_length)
+macd = fast_ma - slow_ma
+signal = sma_signal ? sma(macd, signal_length) : ema(macd, signal_length)
+hist = macd - signal
+emaLength = input(title = "EMA", type = input.integer, defval = 200, step = 10, group = "Moving Averages")
+smaLength = input(title = "SMA", type = input.integer, defval = 100, step = 10, group = "Moving Averages")
+
+// Input backtest range, you can adjust this here or in the input options
+fromMonth = input(defval = 1,    title = "From Month",      type = input.integer, minval = 1, maxval = 12, group = "Backtest Date Range")
+fromDay   = input(defval = 1,    title = "From Day",        type = input.integer, minval = 1, maxval = 31, group = "Backtest Date Range")
+fromYear  = input(defval = 2000, title = "From Year",       type = input.integer, minval = 1970, group = "Backtest Date Range")
+thruMonth = input(defval = 1,    title = "Thru Month",      type = input.integer, minval = 1, maxval = 12, group = "Backtest Date Range")
+thruDay   = input(defval = 1,    title = "Thru Day",        type = input.integer, minval = 1, maxval = 31, group = "Backtest Date Range")
+thruYear  = input(defval = 2099, title = "Thru Year",       type = input.integer, minval = 1970, group = "Backtest Date Range")
+
+// Inputs for EMA, SMA and to adjust your take profit and stop losses in the input options while backtesting, it's result of your input is calculated back to percentages
+ema = ema(close, emaLength)
+sma = sma(close, smaLength)
+profitlong = input(title = "Profit Long %", type = input.float, defval = 2, minval = 0.1, maxval = 100, step = 0.1, group = "TP / SL %") * 0.01
+losslong = input(title = "Loss Long %", type = input.float, defval = 1, minval = 0.1, maxval = 100, step = 0.1, group = "TP / SL %") * 0.01
+profitshort = input(title = "Profit Short %", type = input.float, defval = 2, minval = 0.1, maxval = 100, step = 0.1, group = "TP / SL %") * 0.01
+lossshort = input(title = "Loss Short %", type = input.float, defval = 1, minval = 0.1, maxval = 100, step = 0.1, group = "TP / SL %") * 0.01
+
+// Check EMA and SMA also check the backtest range. inDataRange is a true or false statement, true if the date right now is between the parameters that's filled at the corresponding inputs
+// (for example 1-1-2020 till 12-12-2020, if that specific bar is between these dates, statement is true and trade will be executed)
+// If the date is not in between the given parameters, statement turns to false and it won't allow new trades and closes all current trades as seen with the strategy.close_all function
+inDataRange = (time >= timestamp(syminfo.timezone, fromYear, fromMonth, fromDay, 0, 0)) and (time < timestamp(syminfo.timezone, thruYear, thruMonth, thruDay, 0, 0))
+long = close > ema and close > sma and inDataRange
+short = close < ema and close < sma and inDataRange
+
+// Entry and exit signals + checking backtest date range, what the signals are supposed to do is noted at the beginning of the code
+// I want a way to filter out weak signals that are ranging around the zero point of the histogram. 
+// So far couldn't think of a decent way to do this over multiple symbols since the range of the histogram changes with every symbol, sometimes ranging between 0 and 1 or sometimes ranging between 0 and 1000
+// I could probably use a cofficiency or something, but that's beyond my grasp at the moment
+// Also I wanted a way to let my strategy determine a stop loss based on the pullback and having a 1.5 risk/reward TP on top of that. Couldn't really figure out a way to determine the pullback
+if (crossover(macd, signal) and macd > 0)
+    strategy.entry("Long", long = strategy.long,
+     comment = "Long Buy",
+     when = long)
+
+strategy.exit("Exit Long", "Long", profit = close * profitlong / syminfo.mintick, loss = close * losslong / syminfo.mintick)
+
+
+if (crossunder(macd, signal) and macd < 0)
+    strategy.entry("Short", long = strategy.short,
+     comment = "Short Buy",
+     when = short)
+
+strategy.exit("Exit Short", "Short", profit = close * profitshort / syminfo.mintick, loss = close * lossshort / syminfo.mintick)
+
+// To make sure the backtesting doesn't leave a position open beyond, or before, our applied dates
+if (not inDataRange)
+    strategy.close_all()
+
+// plot(strategy.equity, title="equity", color=color.red, linewidth=2, style=plot.style_areabr)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/434434
+
+> Last Modified
+
+2023-12-06 11:52:20

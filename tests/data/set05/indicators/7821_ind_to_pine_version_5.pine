@@ -1,0 +1,16 @@
+//@version=5
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/migration-guides/to-pine-version-5.md::to-pine-version-5.md#block6
+// content_hash: 57d624da7759e837
+// collected: 2026-07-27
+indicator("")
+plotStyleInput = input.string("Line", options = ["Line", "Stepline", "Histogram", "Cross", "Area", "Columns", "Circles"])
+hlineStyleInput = input.string("Solid", options = ["Solid", "Dashed", "Dotted"])
+
+plotStyle = plotStyleInput == "Line" ? plot.style_line : 
+      plotStyleInput == "Stepline" ? plot.style_stepline :
+      plotStyleInput == "Histogram" ? plot.style_histogram :
+      plotStyleInput == "Cross" ? plot.style_cross :
+      plotStyleInput == "Area" ? plot.style_area :
+      plotStyleInput == "Columns" ? plot.style_columns :

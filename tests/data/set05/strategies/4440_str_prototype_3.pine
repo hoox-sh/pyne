@@ -1,0 +1,105 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动量突破布林带交易策略Bollinger-Band-Momentum-Breakout-Trading-Strategy.md
+// content_hash: 77c0902b4a741600
+// collected: 2026-07-27
+initial_capital=1000
+strategy("prototype", overlay=true)
+length1=input(1)
+length3=input(3)
+length7=input(7)
+length9=input(9)
+length14=input(14)
+length20=input(20)
+length60=input(60)
+length120=input(120)
+ma1= sma(close,length1)
+ma3= sma(close,length3)
+ma7= sma(close,length7)
+ma9= sma(close,length9)
+ma14=sma(close,length14)
+ma20=sma(close,length20)
+ma60=sma(close,length60)
+ma120=sma(close,length120)
+rsi=rsi(close,14)
+// BUYING VOLUME AND SELLING VOLUME //
+BV = iff( (high==low), 0, volume*(close-low)/(high-low))
+SV = iff( (high==low), 0, volume*(high-close)/(high-low))
+vol = iff(volume > 0, volume, 1)
+dailyLength = input(title = "Daily MA length", type = input.integer, defval = 50, minval = 1, maxval = 100)
+weeklyLength = input(title = "Weekly MA length", type = input.integer, defval = 10, minval = 1, maxval = 100)
+//-----------------------------------------------------------
+Davgvol = sma(volume, dailyLength)
+Wavgvol = sma(volume, weeklyLength)
+//-----------------------------------------------------------
+length = input(20, minval=1)
+src = input(close, title="Source")
+mult = input(2.0, minval=0.001, maxval=50, title="StdDev")
+mult2= input(1.5, minval=0.001, maxval=50, title="exp")
+mult3= input(1.0, minval=0.001, maxval=50, title="exp1")
+mult4= input(2.5, minval=0.001, maxval=50, title="exp2")
+basis = sma(src, length)
+dev = mult * stdev(src, length)
+upper = basis + dev
+lower = basis - dev
+dev2= mult2 * stdev(src, length)
+Supper= basis + dev2
+Slower= basis - dev2
+dev3= mult3 * stdev(src, length)
+upper1= basis + dev3
+lower1= basis - dev3
+dev4= mult4 * stdev(src, length)
+upper2=basis + dev4
+lower2=basis - dev4
+offset = input(0, "Offset", type = input.integer, minval = -500, maxval = 500)
+plot(basis, "Basis", color=#FF6D00, offset = offset)
+p1 = plot(upper, "Upper", color=#2962FF, offset = offset)
+p2 = plot(lower, "Lower", color=#2962FF, offset = offset)
+fill(p1, p2, title = "Background", color=color.rgb(33, 150, 243, 95))
+//----------------------------------------------------
+exit=(close-strategy.position_avg_price / strategy.position_avg_price*100)
+bull=( BV>SV and BV>Davgvol)
+bull2=(BV>SV and BV>Davgvol)
+bux =(close>Supper and close>Slower and volume<Davgvol)
+bear=(SV>BV and SV>Davgvol)
+con=(BV>Wavgvol and rsi>80)
+imInATrade = strategy.position_size != 0
+highestPriceAfterEntry = valuewhen(imInATrade, high, 0)
+// STRATEGY LONG //
+if (bull and close>upper1 and close>Supper and high>upper and rsi<80)
+    strategy.entry("Long",strategy.long)
+
+if (strategy.position_avg_price*1.02<close)
+    strategy.close("Long")
+else if (low<ma9 and strategy.position_avg_price<close)
+    strategy.close("Long")
+else if (ma20>close and strategy.position_avg_price<close )
+    strategy.close("Long")
+else if (rsi>80 and strategy.position_avg_price<close)
+    strategy.close("Long")
+else if (strategy.openprofit < strategy.position_avg_price*0.9-close)
+    strategy.close("Long")
+else if (high<upper and strategy.position_avg_price<close)
+    strategy.close("Long")
+//////////////////////////////////////////////////////////////////////////////////
+
+//////////////////////////////////////////////////////////////////////////////////
+strategy.entry("Short",strategy.short,when=low<ma20 and low<lower1 and close<Slower and crossunder(ma60,ma120))
+
+if (close<strategy.position_avg_price*0.98)
+    strategy.close("Short")
+
+else if (rsi<20)
+    strategy.close("Short")
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/441054
+
+> Last Modified
+
+2024-02-05 10:53:46

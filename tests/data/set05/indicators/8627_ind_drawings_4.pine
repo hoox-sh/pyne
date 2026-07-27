@@ -1,0 +1,10 @@
+//@version=4
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/v4/essential/drawings.md::drawings.md#block18
+// content_hash: e975cf2c18c1af41
+// collected: 2026-07-27
+study("My Script", overlay=true)
+
+if barstate.isrealtime
+    label.new(bar_index[10], na, text="Label", yloc=yloc.abovebar)

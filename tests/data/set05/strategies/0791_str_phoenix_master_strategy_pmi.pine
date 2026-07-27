@@ -1,0 +1,119 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多重指标交叉动态仓位波动率自适应量化交易策略-Multi-Indicator-Dynamic-Position-Size-Volatility-Adaptive-Quantitative-Trading-Strategy.md
+// content_hash: da8bcc9ea1018991
+// collected: 2026-07-27
+strategy("Phoenix Master Strategy (PMI)", overlay=true, max_lines_count=500, max_labels_count=500)
+
+// === INPUTLAR === //
+timeframeTrend = input.timeframe("D", "Trend Zaman Dilimi")
+showBackground = input.bool(true, "Trend Arka Plan Rengi Göster")
+riskPercent = input.float(1.0, title="Risk %", minval=0.1, maxval=10.0)
+accountSize = input.float(10000, title="Hesap Büyüklüğü ($)", minval=100)
+
+// === EMA Trend === //
+emaFast = input.int(9, "Hızlı EMA")
+emaSlow = input.int(21, "Yavaş EMA")
+ema1 = request.security(syminfo.tickerid, timeframeTrend, ta.ema(close, emaFast))
+ema2 = request.security(syminfo.tickerid, timeframeTrend, ta.ema(close, emaSlow))
+trendUp = ema1 > ema2
+trendDown = ema1 < ema2
+
+// === RSI === //
+rsiLength = input.int(14, "RSI Periyodu")
+rsiOB = input.int(70, "RSI Overbought")
+rsiOS = input.int(30, "RSI Oversold")
+rsi = ta.rsi(close, rsiLength)
+
+// === MACD === //
+macdSource = input.source(close, "MACD Kaynağı")
+[macdLine, signalLine, macdHist] = ta.macd(macdSource, 12, 26, 9)
+
+// === Stoch RSI === //
+stochLength = input.int(14, "Stoch RSI Uzunluğu")
+stochK = input.int(3, "%K")
+stochD = input.int(3, "%D")
+k = ta.stoch(close, high, low, stochLength)
+stochKval = ta.sma(k, stochK)
+stochDval = ta.sma(stochKval, stochD)
+// === Ichimoku === //
+tenkanPeriod = input.int(9, "Tenkan (Dönem)")
+kijunPeriod = input.int(26, "Kijun (Dönem)")
+senkouSpanBPeriod = input.int(52, "Senkou Span B (Dönem)")
+displacement = input.int(26, "İchimoku Gecikme (Displacement)")
+
+tenkan = (ta.highest(high, tenkanPeriod) + ta.lowest(low, tenkanPeriod)) / 2
+kijun = (ta.highest(high, kijunPeriod) + ta.lowest(low, kijunPeriod)) / 2
+senkouSpanA = (tenkan + kijun) / 2
+senkouSpanB = (ta.highest(high, senkouSpanBPeriod) + ta.lowest(low, senkouSpanBPeriod)) / 2
+chikouSpan = close[displacement]
+
+// Ichimoku Trend Yorumlama
+cloudUp = senkouSpanA > senkouSpanB
+cloudDown = senkouSpanA < senkouSpanB
+
+// Bulut Çizimi (İsteğe Bağlı Görsel İçin)
+// plot(senkouSpanA[displacement], title="Senkou Span A", color=color.green)
+// plot(senkouSpanB[displacement], title="Senkou Span B", color=color.red)
+
+// === ATR & Volatilite === //
+atrLength = input.int(14, "ATR Periyodu")
+atr = ta.atr(atrLength)
+
+// === Hacim Tabanlı Volatilite Alarmı === //
+volumeExplode = volume > ta.sma(volume, 20) * 2
+
+// === Destek & Direnç Bölgeleri (Pivot) === //
+pivotHigh = ta.pivothigh(high, 5, 5)
+pivotLow = ta.pivotlow(low, 5, 5)
+plot(pivotHigh, title="Direnç", style=plot.style_cross, color=color.red, linewidth=1)
+plot(pivotLow, title="Destek", style=plot.style_cross, color=color.green, linewidth=1)
+
+// === Sentiment Göstergesi (Haber Sinyali Placeholder) === //
+sentimentDummy = close > ta.sma(close, 50) ? 1 : -1
+plotshape(sentimentDummy == 1 ? close : na, title="Pozitif Sentiment", location=location.abovebar, style=shape.triangleup, color=color.lime, size=size.tiny)
+plotshape(sentimentDummy == -1 ? close : na, title="Negatif Sentiment", location=location.belowbar, style=shape.triangledown, color=color.maroon, size=size.tiny)
+
+// === Likidite Heatmap (Zonal Risk Göstergesi Dummy) === //
+heatZone = ta.sma(volume, 20)
+plot(heatZone, title="Likidite Isı Haritası", color=color.orange, style=plot.style_columns)
+
+// === Arka Plan Rengi === //
+bgcolor(showBackground ? (trendUp ? color.new(color.green, 85) : trendDown ? color.new(color.red, 85) : na) : na)
+
+// === Giriş/Çıkış Sinyalleri === //
+longSignal = trendUp and rsi < 50 and macdHist > 0 and stochKval < 80 and cloudUp
+shortSignal = trendDown and rsi > 50 and macdHist < 0 and stochKval > 20 and cloudDown
+
+plotshape(longSignal, title="Al Sinyali", location=location.belowbar, color=color.green, style=shape.labelup, text="AL")
+plotshape(shortSignal, title="Sat Sinyali", location=location.abovebar, color=color.red, style=shape.labeldown, text="SAT")
+
+// === Alarm Koşulları === //
+alertcondition(longSignal, title="AL Sinyali Alarmı", message="Phoenix - AL Sinyali")
+alertcondition(shortSignal, title="SAT Sinyali Alarmı", message="Phoenix - SAT Sinyali")
+alertcondition(volumeExplode, title="Hacim Patlaması", message="Phoenix - Hacim Patlaması Tespit Edildi")
+
+// === Pozisyon Büyüklüğü Hesaplama === //
+riskDollar = accountSize * (riskPercent / 100)
+positionSize = riskDollar / atr
+plot(positionSize, title="Pozisyon Büyüklüğü (Lot)", color=color.fuchsia, linewidth=1)
+
+// === STRATEJİ MODÜLÜ === //
+strategy.entry("AL", strategy.long, when=longSignal)
+strategy.close("AL", when=shortSignal)
+strategy.entry("SAT", strategy.short, when=shortSignal)
+strategy.close("SAT", when=longSignal)
+
+// === BİTTİ === //
+// Phoenix Master Indicator tüm ileri düzey fonksiyonlarla aktif: trend, sinyal, volatilite, sentiment, likidite, pozisyon büyüklüğü ve strateji test!
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/491042
+
+> Last Modified
+
+2025-04-18 09:55:17

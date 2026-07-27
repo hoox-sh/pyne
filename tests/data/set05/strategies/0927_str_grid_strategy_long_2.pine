@@ -1,0 +1,140 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/趋势追踪网格策略Trend-Following-Grid-Strategy.md
+// content_hash: 3ad930f341edd2b2
+// collected: 2026-07-27
+strategy("grid strategy long", overlay=true)
+
+
+// 版本更新记录：
+// v1.0 2021/11/09 只做多、不做空，选择大趋势向上的时间段。网格大小默认为1倍ATR，往下1、2、3个网格吃单，第5个网格止损。空仓时到达往上一个网格则网格整体抬升。（Only go long, not short, choose a time period when the general trend is up. The default grid size is 1x ATR, the next one, two, and three grids will take orders, and the fifth grid will stop loss. When the empty position reaches the upper grid, the grid as a whole rises.）
+
+
+X_ATR = input.float(title='网格大小是多少倍ATR？', defval = 1)
+
+
+// 1.基础变量
+ema169 = ta.ema(close, 169)
+ema144 = ta.ema(close, 144)
+ema12 = ta.ema(close, 12)
+
+ema576 = ta.ema(close, 576)
+ema676 = ta.ema(close, 676)
+
+plot(ema169, color=color.new(color.orange, 0), linewidth=2)
+// plot(ema144, color=color.orange)
+plot(ema12,  color=color.blue)
+// plot(ema676, color=color.orange, linewidth=1)
+
+mtr = math.max(high - low, math.abs(close[1] - high), math.abs(close[1] - low))
+atr = ta.ema(mtr, 30)
+
+is_0930 = hour(time, 'GMT-4') == 9  and minute(time, 'GMT-4') == 30
+is_1500 = hour(time, 'GMT-4') == 15 and minute(time, 'GMT-4') == 00
+is_1530 = hour(time, 'GMT-4') == 15 and minute(time, 'GMT-4') == 30
+
+is_yangxian = close>open
+is_yinxian = close<open
+
+// 2.基本趋势标记
+
+big_trend  = ema12 >= ema169 ? 1 : 0
+big_trend2 = ema12 <= ema169 ? 1 : 0
+
+// 背景的变色处理：
+bgcolor(big_trend == 1 ? color.new(color.green, 90) : color.new(color.red, 90) )
+
+// 3.网格点位初始化
+
+grid_size = atr * X_ATR // 网格大小
+        
+price_entry1 = open - grid_size*1
+price_entry2 = open - grid_size*2
+price_entry3 = open - grid_size*3
+price_stop_loss = open - grid_size*5
+
+price_exit1 = price_entry1 + grid_size*1
+price_exit2 = price_entry2 + grid_size*1
+price_exit3 = price_entry3 + grid_size*1
+
+qty1 = int(1000/price_entry1)
+qty2 = int(1000/price_entry2)
+qty3 = int(1000/price_entry3)
+
+
+// 标出各种点位
+slm_lines_time(time, price_entry1, price_entry2, price_entry3, price_stop_loss, price_exit1)=>
+    time2 = time + 1000*3600*24*5
+    line.new(time, price_stop_loss, time2, price_stop_loss, color=color.red, xloc = xloc.bar_time, width=2)  // 止损位
+    line.new(time, price_entry1, time2, price_entry1, color=color.green, xloc = xloc.bar_time)  // 
+    line.new(time, price_entry2, time2, price_entry2, color=color.green, xloc = xloc.bar_time)  // 
+    line.new(time, price_entry3, time2, price_entry3, color=color.green, xloc = xloc.bar_time)  // 
+    line.new(time, price_exit1,  time2, price_exit1,  color=color.green, xloc = xloc.bar_time, width=2)  // 
+
+slm_lines(time, price_entry1, price_entry2, price_entry3, price_stop_loss, price_exit1)=>
+    line.new(bar_index, price_stop_loss, bar_index[5], price_stop_loss, color=color.red, xloc = xloc.bar_index, width=2)  // 止损位
+    line.new(bar_index, price_entry1, bar_index[5], price_entry1, color=color.green, xloc = xloc.bar_index)  // 
+    line.new(bar_index, price_entry2, bar_index[5], price_entry2, color=color.green, xloc = xloc.bar_index)  // 
+    line.new(bar_index, price_entry3, bar_index[5], price_entry3, color=color.green, xloc = xloc.bar_index)  // 
+    line.new(bar_index, price_exit1,  bar_index[5], price_exit1,  color=color.green, xloc = xloc.bar_index, width=2)  // 
+
+
+// 4.网格点位更新和下单
+
+is_entry0 = big_trend==1 and year>=2020
+
+var is_entry = false
+
+// 未进场时：
+if is_entry0 and not is_entry
+    is_entry := true
+    
+    grid_size := atr * X_ATR // 网格大小
+    
+    price_entry1 := close - grid_size*1
+    price_entry2 := close - grid_size*2
+    price_entry3 := close - grid_size*3
+    price_stop_loss := close - grid_size*5
+    
+    price_exit1 := price_entry1 + grid_size*1
+    price_exit2 := price_entry2 + grid_size*1
+    price_exit3 := price_entry3 + grid_size*1
+    
+    qty1 := int(1000/price_entry1)
+    qty2 := int(1000/price_entry2)
+    qty3 := int(1000/price_entry3)
+    
+    // slm_lines(time, price_entry1, price_entry2, price_entry3, price_stop_loss, price_exit1)
+    
+    strategy.entry("open1", strategy.long, qty1, limit = price_entry1)
+    strategy.entry("open2", strategy.long, qty2, limit = price_entry2)
+    strategy.entry("open3", strategy.long, qty3, limit = price_entry3)
+    
+    strategy.exit("close1", qty = qty1, limit = price_exit1, stop = price_stop_loss)
+    strategy.exit("close2", qty = qty2, limit = price_exit2, stop = price_stop_loss)
+    strategy.exit("close3", qty = qty3, limit = price_exit3, stop = price_stop_loss)
+
+// 已进场的各类情况
+
+// 1.止损
+if is_entry and close <= price_stop_loss
+    strategy.close_all()
+    is_entry := false
+
+// 2.网格抬升
+if is_entry and close >= price_exit1
+    is_entry := false
+        
+
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/434685
+
+> Last Modified
+
+2023-12-08 12:05:17

@@ -1,0 +1,23 @@
+// set04 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block240
+// content_hash: 7bc088a14731c71d
+// collected: 2026-07-27
+// Calculates the gross profit or loss for the current open position.
+//@version=6
+strategy("`strategy.opentrades.commission` Example", commission_type = strategy.commission.percent, commission_value = 0.1)
+
+// Strategy calls to enter long trades every 15 bars and exit long trades every 20 bars.
+if bar_index % 15 == 0
+    strategy.entry("Long", strategy.long)
+if bar_index % 20 == 0
+    strategy.close("Long")
+
+// Calculate gross profit or loss for open positions only.
+tradeOpenGrossPL() =>
+    sumOpenGrossPL = 0.0
+    for tradeNo = 0 to strategy.opentrades - 1
+        sumOpenGrossPL += strategy.opentrades.profit(tradeNo) - strategy.opentrades.commission(tradeNo)
+    result = sumOpenGrossPL
+    
+plot(tradeOpenGrossPL())

@@ -1,0 +1,53 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动态支撑阻力通道突破策略Dynamic-Support-and-Resistance-Channel-Breakout.md
+// content_hash: 71698577dd7e628f
+// collected: 2026-07-27
+strategy("Support and Resistance channel with Breaks p5", shorttitle="Support and Resistance channel with Breaks [cryptoonchain]", overlay=true, max_bars_back=1000)
+
+// Input variables
+toggleBreaks = input(true, title="Show Breaks")
+leftBars = input(15, title="Left Bars")
+rightBars = input(15, title="Right Bars")
+volumeThresh = input(20, title="Volume Threshold")
+
+// Calculate pivot levels
+highUsePivot = fixnan(ta.pivothigh(leftBars, rightBars)[1])
+lowUsePivot = fixnan(ta.pivotlow(leftBars, rightBars)[1])
+
+// Plot resistance and support lines
+r1 = plot(highUsePivot, color=color.new(na(highUsePivot) ? na : #FF0000, 0), linewidth=3, offset=-(rightBars + 1), title="Resistance")
+s1 = plot(lowUsePivot, color=color.new(na(lowUsePivot) ? na : #233dee, 0), linewidth=3, offset=-(rightBars + 1), title="Support")
+
+// Volume %
+short = ta.ema(volume, 5)
+long = ta.ema(volume, 10)
+osc = 100 * (short - long) / long
+
+// Plot shapes for breaks with volume
+plotshape(toggleBreaks and ta.crossunder(close, lowUsePivot) and not (open - close < high - open) and osc > volumeThresh, title="Break", text='B', style=shape.labeldown, location=location.abovebar, color=color.red, textcolor=color.white, transp=0, size=size.tiny)
+plotshape(toggleBreaks and ta.crossover(close, highUsePivot) and not (open - low > close - open) and osc > volumeThresh, title="Break", text='B', style=shape.labelup, location=location.belowbar, color=color.green, textcolor=color.white, transp=0, size=size.tiny)
+
+// Alert conditions
+alertcondition(ta.crossunder(close, lowUsePivot) and osc > volumeThresh, title="Support Broken", message="Support Broken")
+alertcondition(ta.crossover(close, highUsePivot) and osc > volumeThresh, title="Resistance Broken", message="Resistance Broken")
+
+// Strategy conditions with filter
+longCondition = low > highUsePivot and osc > volumeThresh
+shortCondition = high < lowUsePivot and osc > volumeThresh
+
+
+// Strategy entries
+strategy.entry("My Long Entry Id", strategy.long, when=longCondition)
+strategy.entry("My Short Entry Id", strategy.short, when=shortCondition)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/439205
+
+> Last Modified
+
+2024-01-18 12:30:04

@@ -1,0 +1,33 @@
+//@version=4
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/Linear RSI.pine
+// content_hash: ddbe0cfc45f714d7
+// collected: 2026-07-27
+strategy("Linear RSI", default_qty_type=strategy.percent_of_equity, default_qty_value=100, commission_type=strategy.commission.percent, commission_value=0.075, currency='USD')
+startP = timestamp(input(2017, "Start Year"), input(12, "Month"), input(17, "Day"), 0, 0)
+end   = timestamp(input(9999, "End Year"),   input(1, "Month"),   input(1, "Day"),   0, 0)
+_testPeriod() =>
+    iff(time >= startP and time <= end, true, false)
+//inputs
+length = input(defval=50, minval=1, title="LR length")
+length2 = input(defval=21, minval=1, title="RSI length")
+ema_fast = input(defval=50, minval=1, title="EMA")
+lag = 0
+threshold = input(50)
+//rsi
+src = close
+Lr = linreg(src, length, lag)
+rsi = rsi(Lr, length2)
+ema = ema(rsi, ema_fast)
+plot(rsi, color = rsi > threshold ? color.green : rsi < threshold ? color.red : color.silver)
+plot(threshold, color=color.purple)
+plot(ema, color=color.blue)
+first_type = input(true, title="Use first logic?")
+second_type =  input(false, title="Use second logic?")
+long_condition = (first_type ? crossover(rsi, ema) and close > ema(close, 200) and _testPeriod() : false) or (second_type ? rsi > ema and rsi > threshold and close > ema(close, 200) and _testPeriod() : false)
+strategy.entry('BUY', strategy.long, when=long_condition)  
+ 
+short_condition = crossunder(rsi, ema) 
+strategy.close('BUY', when=short_condition)
+Expand (36 lines)

@@ -1,0 +1,17 @@
+//@version=6
+// set03 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block313
+// content_hash: 326e8e18ca71fa47
+// collected: 2026-07-27
+//@description Library of debugging functions.
+library("Debugging_library", overlay = true)
+//@function Displays a string as a table cell for debugging purposes.
+//@param txt String to display.
+//@returns Void.
+export print(string txt) => 
+    var table t = table.new(position.middle_right, 1, 1)
+    table.cell(t, 0, 0, txt, bgcolor = color.yellow)
+// Using the function from inside the library to show an example on the published chart.
+// This has no impact on scripts using the library.
+print("Library Test")

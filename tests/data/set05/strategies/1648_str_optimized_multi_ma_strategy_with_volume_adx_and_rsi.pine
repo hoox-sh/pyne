@@ -1,0 +1,75 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多重均线交易系统结合动量与成交量确认的量化趋势策略-Multi-Moving-Average-Trading-System-with-Momentum-and-Volume-Confirmation-Quantitative-Trend-Strategy.md
+// content_hash: 449ac96f3bc88acd
+// collected: 2026-07-27
+strategy("Optimized Multi-MA Strategy with Volume, ADX and RSI", overlay=true)
+
+// Kullanıcı Parametreleri
+keh = input.int(3, title="Double HullMA", minval=1)
+teh = input.int(3, title="Volume-Weighted MA", minval=1)
+yeh = input.int(75, title="Base Weighted MA", minval=1)
+rsiPeriod = input.int(14, title="RSI Period", minval=1)
+adxPeriod = input.int(14, title="ADX Period", minval=1)
+volumeLookback = input.int(10, title="Volume Lookback Period", minval=1)  // Son X mumun hacmi
+adxThreshold = input.int(20, title="ADX Trend Strength Threshold", minval=1) // ADX için trend gücü eşiği
+
+// Hareketli Ortalamalar
+rvwma = ta.vwma(close, teh)
+yma = ta.wma(close, yeh)
+n2ma = 2 * ta.wma(close, math.round(keh / 2))
+nma = ta.wma(close, keh)
+diff = n2ma - nma
+sqrtKeh = math.round(math.sqrt(keh))
+n1 = ta.wma(diff, sqrtKeh)
+n2 = ta.wma(diff[1], sqrtKeh)
+
+// ADX Hesaplaması
+trueRange = ta.rma(ta.tr, adxPeriod)
+plusDM = ta.rma(math.max(high - high[1], 0), adxPeriod)
+minusDM = ta.rma(math.max(low[1] - low, 0), adxPeriod)
+plusDI = (plusDM / trueRange) * 100
+minusDI = (minusDM / trueRange) * 100
+dx = math.abs(plusDI - minusDI) / (plusDI + minusDI) * 100
+adx = ta.rma(dx, adxPeriod)
+trendIsStrong = adx > adxThreshold
+
+// RSI Filtreleme
+rsiValue = ta.rsi(close, rsiPeriod)
+rsiFilter = rsiValue > 30 and rsiValue < 70  // Aşırı alım ve aşırı satım bölgelerinin dışında olmak
+
+// Hacim Filtresi
+volumeThreshold = ta.sma(volume, volumeLookback)  // Ortalama hacim seviyesi
+highVolume = volume > volumeThreshold
+
+// Sinyal Şartları (Sadece güçlü trendler ve rsi'nın aşırı bölgelerde olmaması)
+longCondition = n1 > n2 and close > rvwma and trendIsStrong and rsiFilter and highVolume
+shortCondition = n1 < n2 and close < rvwma and trendIsStrong and rsiFilter and highVolume
+
+// Hacim Filtresi ile İşaretler
+plotshape(series=longCondition and highVolume ? close : na, style=shape.triangleup, location=location.belowbar, color=color.blue, size=size.small, title="High Volume Long Signal")
+plotshape(series=shortCondition and highVolume ? close : na, style=shape.triangledown, location=location.abovebar, color=color.purple, size=size.small, title="High Volume Short Signal")
+
+// Strateji Giriş ve Çıkış Şartları
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+
+if (shortCondition)
+    strategy.entry("Short", strategy.short)
+
+// Görsel Göstergeler
+plot(n1, color=color.green, title="N1 Line")
+plot(n2, color=color.red, title="N2 Line")
+plot(rvwma, color=color.yellow, linewidth=2, title="VWMA")
+plot(yma, color=color.orange, title="Base Weighted MA")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/474836
+
+> Last Modified
+
+2024-12-12 14:27:59

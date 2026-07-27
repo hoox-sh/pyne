@@ -1,0 +1,65 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双均线交叉带定时交易窗口与止盈止损策略-Dual-Moving-Average-Crossover-with-Trading-Window-and-Risk-Management-Strategy.md
+// content_hash: 301cfae0e77cadca
+// collected: 2026-07-27
+strategy("Custom MACrossOver", overlay=true)
+
+// Parámetros configurables
+fastLength = input(10, title="Fast Period")
+slowLength = input(25, title="Slow Period")
+stopLossTicks = input(50, title="Stop (Ticks)")
+profitTargetTicks = input(50, title="Target (Ticks)")
+defaultQuantity = input(2, title="Default Quantity")
+
+// Cálculo de medias móviles
+fastMA = ta.sma(close, fastLength)
+slowMA = ta.sma(close, slowLength)
+
+// Condiciones de cruce
+longCondition = ta.crossover(fastMA, slowMA)
+shortCondition = ta.crossunder(fastMA, slowMA)
+
+// Guardar precio de entrada
+var float tradeEntryPrice = na
+
+// Definir rango de mercado abierto (08:30 - 15:00)
+market_open = (hour >= 8 and minute >= 30) and (hour < 15)
+
+// Apertura de operaciones
+if (market_open)
+    if (longCondition)
+        strategy.entry("Long", strategy.long, defaultQuantity)
+        tradeEntryPrice := close
+    else if (shortCondition)
+        strategy.entry("Short", strategy.short, defaultQuantity)
+        tradeEntryPrice := close
+
+// Definir Stop Loss y Take Profit
+if (not na(tradeEntryPrice))
+    stopLossPrice = tradeEntryPrice - stopLossTicks * syminfo.mintick
+    takeProfitPrice = tradeEntryPrice + profitTargetTicks * syminfo.mintick
+
+    if (strategy.position_size > 0) // Si estamos en largo
+        strategy.exit("SL/TP", from_entry="Long", stop=stopLossPrice, limit=takeProfitPrice)
+    else if (strategy.position_size < 0) // Si estamos en corto
+        strategy.exit("SL/TP", from_entry="Short", stop=stopLossPrice, limit=takeProfitPrice)
+
+// Salir de todas las operaciones a las 15:00
+if (hour == 15 and minute == 0)
+    strategy.close_all()
+
+// Dibujar medias móviles
+plot(fastMA, title="Fast MA", color=color.blue)
+plot(slowMA, title="Slow MA", color=color.red)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/484771
+
+> Last Modified
+
+2025-03-04 10:59:50

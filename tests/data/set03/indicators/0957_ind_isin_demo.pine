@@ -1,0 +1,29 @@
+//@version=6
+// set03 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/release_notes.md::release_notes.md#block9
+// content_hash: 22315b998450e7da
+// collected: 2026-07-27
+indicator("ISIN demo")
+
+// Define inputs for two symbols to compare.
+string symbol1Input = input.symbol("NASDAQ:AAPL", "Symbol 1")
+string symbol2Input = input.symbol("GETTEX:APC",  "Symbol 2")
+
+if barstate.islastconfirmedhistory
+    // Retrieve ISIN strings for `symbol1Input` and `symbol2Input`.
+    var string isin1 = request.security(symbol1Input, "", syminfo.isin)
+    var string isin2 = request.security(symbol2Input, "", syminfo.isin)
+
+    // Log the retrieved ISIN codes. 
+    log.info("Symbol 1 ISIN: " + isin1)
+    log.info("Symbol 2 ISIN: " + isin2)
+
+    // Log an error message if one of the symbols does not have ISIN information.
+    if isin1 == "" or isin2 == ""
+        log.error("ISIN information is not available for both symbols.")
+    // If both symbols do have ISIN information, log a message to confirm whether both refer to the same security.
+    else if isin1 == isin2
+        log.info("Both symbols refer to the same security.")
+    else
+        log.info("The two symbols refer to different securities.")

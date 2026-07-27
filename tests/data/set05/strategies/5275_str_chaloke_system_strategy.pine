@@ -1,0 +1,53 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/趋势跟踪移动平均指标策略Moving-Average-Trend-Tracking-Strategy.md
+// content_hash: 17d51775fe95b894
+// collected: 2026-07-27
+strategy("Chaloke System Strategy",overlay=true)
+
+P1=input(9,title="ShortTerm Period")
+P2=input(15,title="MidTerm Period")
+P3=input(24,title="LongTerm Period")
+P4=input(5,title="Invesment Term")
+P5=input(5,title="ATR Period")
+Barcolor=input(true,title="Barcolor")
+
+Sm=2*P5/10
+ATRX=Sm*atr(P4)
+S=ema(close,P1)-ATRX
+M=ema(close,P2)-ATRX
+Lg=ema(close,P3)-ATRX
+
+Sht=iff(close==highest(close,3),S,ema(close[1],P1)-ATRX)
+Mid=iff(close==highest(close,3),M,ema(close[1],P2)-ATRX)
+Lng=iff(close==highest(close,3),Lg,ema(close[1],P3)-ATRX)
+
+colors=iff(Sht>Mid and close > Sht ,color.green,iff(close < Lng or Sht<Lng,color.red,color.black))
+
+plot(Sht,"Short",color=color.green,linewidth=2)
+plot(Mid,"Middle",color=color.black,linewidth=2)
+plot(Lng,"Long",color=color.red,linewidth=2)
+
+barcolor(Barcolor ? colors :na)
+   
+long =  crossover(Sht,Mid) and close > Sht
+short = crossunder(Sht,Lng) or close < Lng
+
+if long
+    strategy.entry("Long", strategy.long, comment="Long")
+    
+if short
+    strategy.entry("Short", strategy.short, comment="Short")
+
+alertcondition(long, title='Long', message='Chaloke System Alert Long')
+alertcondition(short, title='Short', message='Chaloke System Alert Short')
+```
+
+> Detail
+
+https://www.fmz.com/strategy/440320
+
+> Last Modified
+
+2024-01-29 11:46:15

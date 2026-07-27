@@ -1,0 +1,59 @@
+//@version=6
+// set04 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于多重条件的Donchian通道动量突破策略-Multi-Condition-Donchian-Channel-Momentum-Breakout-Strategy.md
+// content_hash: 9e2431faa18d100e
+// collected: 2026-07-27
+
+strategy("Breakout Strategy", overlay=true, calc_on_every_tick=false, initial_capital=10000, default_qty_type=strategy.percent_of_equity, default_qty_value=100, commission_type=strategy.commission.percent, commission_value=0.1, pyramiding=1, fill_orders_on_standard_ohlc=true)
+
+// Input Parameters
+start_date = input(timestamp("2018-01-01 00:00"), "Start Date")
+end_date = input(timestamp("2060-01-01 00:00"), "End Date")
+in_time_range = true
+length = input.int(27, title="Donchian Channel Length", minval=1, tooltip="Number of bars used to calculate the Donchian channel.")
+lag = input.int(10, title="Donchian Channel Offset", minval=1, tooltip = "Offset to delay the Donchian channel, enhancing stability.")
+volume_mult = input.float(1.4, title="Volume Multiplier", minval=0.1, step=0.1, tooltip="Multiplier for the average volume to filter breakout conditions.")
+closing_condition = input.string("Mid", title="Trade Closing Band", options= ["Upper","Lower","Mid"], tooltip = "Donchian Channel Band to use for exiting trades: Upper, Lower, or Middle.") //
+
+// Donchian Channel (Lagged for Stability)
+upper_band = ta.highest(high[lag], length)
+lower_band = ta.lowest(low[lag], length)
+middle_band = (upper_band + lower_band) / 2
+plot(upper_band, color=color.blue, title="Upper Band (Lagged)")
+plot(middle_band, color=color.orange, title="Middle Band")
+plot(lower_band, color=color.blue, title="Lower Band (Lagged)")
+
+// Volume Filter
+avg_volume = ta.sma(volume, length)
+volume_condition = volume > avg_volume * volume_mult
+
+// Long Breakout Condition
+long_condition = close > upper_band and volume_condition
+
+bool reverse_exit_condition = false
+// Exit Condition (Close below the middle line)
+if closing_condition == "Lower"
+    reverse_exit_condition := close < lower_band
+else if closing_condition == "Upper"
+    reverse_exit_condition := close < upper_band
+else
+    reverse_exit_condition := close < middle_band
+
+// Long Strategy: Entry and Exit
+if in_time_range and long_condition
+    strategy.entry("Breakout Long", strategy.long)
+
+// Exit on Reverse Signal
+if in_time_range and reverse_exit_condition
+    strategy.close("Breakout Long", comment="Reverse Exit")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/478689
+
+> Last Modified
+
+2025-01-17 14:28:22

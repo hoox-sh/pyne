@@ -1,0 +1,46 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/短期长期EMA决策合并策略Merged-Short-Term-and-Long-Term-EMA-Decision-Strategy.md
+// content_hash: 446519feffa8acf5
+// collected: 2026-07-27
+strategy("Merged EMA Strategy", shorttitle="MergedEMA", overlay=true)
+
+// Define EMA periods
+shortEMA = ta.ema(close, 3)
+longEMA = ta.ema(close, 30)
+
+// Plot EMAs on the chart
+plot(shortEMA, color=color.blue, title="3 EMA")
+plot(longEMA, color=color.red, title="30 EMA")
+
+// Calculate the difference between short and long EMAs
+emaDifference = shortEMA - longEMA
+
+// Set threshold for buy and sell signals
+buyThreshold = 0.0005
+sellThreshold = -0.0005
+
+// Define buy and sell conditions
+buyCondition = emaDifference > buyThreshold
+sellCondition = emaDifference < sellThreshold
+
+// Plot buy and sell signals on the chart
+plotshape(series=buyCondition, title="Buy Signal", color=color.green, style=shape.triangleup, location=location.belowbar)
+plotshape(series=sellCondition, title="Sell Signal", color=color.red, style=shape.triangledown, location=location.abovebar)
+
+// Strategy logic
+strategy.entry("Buy", strategy.long, when = buyCondition)
+strategy.close("Buy", when = sellCondition)
+
+strategy.entry("Sell", strategy.short, when = sellCondition)
+strategy.close("Sell", when = buyCondition)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/437794
+
+> Last Modified
+
+2024-01-05 16:07:58

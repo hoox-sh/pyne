@@ -1,0 +1,33 @@
+//@version=3
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/百分比止盈止损跟踪策略Percentage-Stop-Loss-Take-Profit-Trailing-Strategy.md
+// content_hash: 657d6c113c841415
+// collected: 2026-07-27
+strategy("Stop Loss Example: Simple Stoploss", overlay=true)
+
+sma_per = input(200, title='SMA Lookback Period', minval=1)
+sl_inp = input(2.0, title='Stop Loss %', type=float)/100
+tp_inp = input(1.0, title='Take Profit %', type=float)/100
+
+sma = sma(close, sma_per)
+
+stop_level = strategy.position_avg_price * (1 - sl_inp)
+take_level = strategy.position_avg_price * (1 + tp_inp)
+
+strategy.entry("Simple SMA Entry", strategy.long, when=crossover(close, sma))
+
+strategy.exit("Stop Loss/TP","Simple SMA Entry", stop=stop_level, limit=take_level)
+
+plot(sma, color=orange, linewidth=2)
+plot(stop_level, color=red, style=linebr, linewidth=2)
+plot(take_level, color=green, style=linebr, linewidth=2)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/427821
+
+> Last Modified
+
+2023-09-25 18:09:14

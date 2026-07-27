@@ -1,0 +1,57 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于15分钟突破的高效价格通道交易策略-Efficient-Price-Channel-Trading-Strategy-Based-on-15-Minute-Breakout.md
+// content_hash: a91812aafee4a6c5
+// collected: 2026-07-27
+strategy("15 Min Breakout Strategy by https://x.com/iamgod43 (Yallappa) ", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=100)
+
+// Define the start of backtest period
+startDate = timestamp(2023, 1, 1, 0, 0)
+
+// Ensure the script is run on a 15-minute chart
+// if (timeframe.period != "15")
+//     alert("Switch to a 15-minute chart for this strategy.", alert.freq_once_per_bar_close)
+
+// Variables to store the first 15-minute candle's high and low
+var float firstCandleHigh = na
+var float firstCandleLow = na
+var bool isFirstCandleCaptured = false
+
+// Detect the first candle of the session
+isFirstCandle = (hour == 9 and minute == 15)
+
+// Reset first candle values for the new session
+if isFirstCandle
+    firstCandleHigh := high
+    firstCandleLow := low
+    isFirstCandleCaptured := true
+
+// Check for breakout conditions
+longCondition = isFirstCandleCaptured and close > firstCandleHigh
+shortCondition = isFirstCandleCaptured and close < firstCandleLow
+
+// Entry signals
+if longCondition
+    strategy.entry("Buy Signal", strategy.long)
+
+if shortCondition
+    strategy.entry("Sell Signal", strategy.short)
+
+// Plot the first 15-minute candle high and low
+plot(isFirstCandleCaptured ? firstCandleHigh : na, color=color.green, linewidth=2, title="First Candle High")
+plot(isFirstCandleCaptured ? firstCandleLow : na, color=color.red, linewidth=2, title="First Candle Low")
+
+// Backtesting start date logic
+if time < startDate
+    strategy.close_all("Pre-Backtest Period")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/478700
+
+> Last Modified
+
+2025-01-17 14:49:53

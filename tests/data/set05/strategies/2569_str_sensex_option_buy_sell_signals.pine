@@ -1,0 +1,55 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多周期日线K线形态信号交易策略-Multi-Timeframe-Candlestick-Pattern-Trading-Strategy.md
+// content_hash: 86ee4999312f1daa
+// collected: 2026-07-27
+strategy("Sensex Option Buy/Sell Signals", overlay=true)
+
+// Input parameters
+bullishColor = color.new(color.green, 0)
+bearishColor = color.new(color.red, 0)
+dojiColor = color.new(color.yellow, 0)
+
+// Candlestick pattern identification
+isBullishEngulfing = close[1] < open[1] and close > open and close > high[1] and open < low[1]
+isBearishEngulfing = close[1] > open[1] and close < open and close < low[1] and open > high[1]
+isDoji = math.abs(close - open) <= (high - low) * 0.1
+
+// Plot buy/sell signals
+buySignal = isBullishEngulfing
+sellSignal = isBearishEngulfing
+
+timeframeCondition = input.timeframe("D", title="Timeframe for signals")
+
+// Buy Signal
+if buySignal
+    label.new(bar_index, high, "Buy", style=label.style_label_up, color=bullishColor, textcolor=color.white)
+    strategy.entry("Buy", strategy.long)
+
+// Sell Signal
+if sellSignal
+    label.new(bar_index, low, "Sell", style=label.style_label_down, color=bearishColor, textcolor=color.white)
+    strategy.entry("Sell", strategy.short)
+
+// Highlight Doji candles
+if isDoji
+    label.new(bar_index, high, "Doji", style=label.style_circle, color=dojiColor, textcolor=color.black)
+
+// Alerts
+alertcondition(buySignal, title="Buy Alert", message="Bullish Engulfing Pattern Detected")
+alertcondition(sellSignal, title="Sell Alert", message="Bearish Engulfing Pattern Detected")
+
+// Add plot shapes for visibility
+plotshape(series=buySignal, title="Buy Signal", location=location.belowbar, color=bullishColor, style=shape.labelup, text="BUY")
+plotshape(series=sellSignal, title="Sell Signal", location=location.abovebar, color=bearishColor, style=shape.labeldown, text="SELL")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/477606
+
+> Last Modified
+
+2025-01-06 16:40:11

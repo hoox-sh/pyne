@@ -1,0 +1,93 @@
+//@version= 2
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动量均线破坏策略Momentum-Breakout-Strategy.md
+// content_hash: 1fc383bb02af9a6b
+// collected: 2026-07-27
+strategy("DPD+STOCH+RSI ", overlay=false)
+
+buyper =input(-1,step=0.1)
+sellper=input(1,step=0.1)
+
+demalen = input(50,title="Dema Length")
+
+e1= ema(close,demalen)
+e2=ema(e1,demalen)
+demaprice  =   2 * e1 - e2
+
+price=close
+
+demadifper =  ((price-demaprice)/price)*100
+
+
+
+plot(demadifper, color=red)
+OverDemaPer = input(1, title="Band for OverBought")
+UnderDemaPer= input(-1,title="Band for OverSold")
+
+
+
+
+band1 = hline(OverDemaPer)
+band0 = hline(UnderDemaPer)
+zeroline=0
+fill(band1, band0, color=green, transp=90)
+
+
+lengthrsi = input(10)
+overSold = input( 30 )
+overBought = input( 55 )
+vrsi = rsi(price, lengthrsi)
+
+
+smoothK = input(3, minval=1)
+smoothD = input(3, minval=1)
+lengthRSI = input(14, minval=1)
+lengthStoch = input(14, minval=1)
+src = input(close, title="RSI Source")
+
+rsi1 = rsi(src, lengthRSI)
+k = sma(stoch(rsi1, rsi1, rsi1, lengthStoch), smoothK)
+d = sma(k, smoothD)
+srsilow=input(20)
+srsiup=input(80)
+
+
+
+
+
+
+
+yearfrom = input(2018)
+yearuntil =input(2019)
+monthfrom =input(6)
+monthuntil =input(12)
+dayfrom=input(1)
+dayuntil=input(31)
+
+
+
+if ( ( (demadifper<buyper) or crossover(demadifper,buyper)) and (vrsi<overSold) ) 
+    strategy.entry("BUY", strategy.long, stop=close, oca_name="TREND",  comment="BUY")
+    
+else
+    strategy.cancel(id="BUY")
+
+
+if ( vrsi>overBought  and ( crossunder(k,d) ) and ( demadifper>sellper  or crossunder(demadifper,sellper)  )  ) 
+
+    strategy.entry("SELL", strategy.short,stop=close, oca_name="TREND",  comment="SELL")
+else
+    strategy.cancel(id="SELL")
+    
+    
+    
+```
+
+> Detail
+
+https://www.fmz.com/strategy/428972
+
+> Last Modified
+
+2023-10-11 15:01:12

@@ -1,0 +1,85 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/跨趋势反转结合三十振荡器双策略Cross-Trend-Reversal-Combined-with-Three-Ten-Oscillator-Dual-Strategies.md
+// content_hash: 5cfb729ae2760b9d
+// collected: 2026-07-27
+////////////////////////////////////////////////////////////
+//  Copyright by HPotter v1.0 04/12/2019
+// This is combo strategies for get a cumulative signal. 
+//
+// First strategy
+// This System was created from the Book "How I Tripled My Money In The 
+// Futures Market" by Ulf Jensen, Page 183. This is reverse type of strategies.
+// The strategy buys at market, if close price is higher than the previous close 
+// during 2 days and the meaning of 9-days Stochastic Slow Oscillator is lower than 50. 
+// The strategy sells at market, if close price is lower than the previous close price 
+// during 2 days and the meaning of 9-days Stochastic Fast Oscillator is higher than 50.
+//
+// Second strategy
+// TradeStation does not allow the user to make a Multi Data Chart with 
+// a Tick Bar Chart and any other type a chart. This indicator allows the 
+// user to plot a daily 3-10 Oscillator on a Tick Bar Chart or any intraday interval.
+// Walter Bressert's 3-10 Oscillator is a detrending oscillator derived 
+// from subtracting a 10 day moving average from a 3 day moving average. 
+// The second plot is an 16 day simple moving average of the 3-10 Oscillator. 
+// The 16 period moving average is the slow line and the 3/10 oscillator is 
+// the fast line.
+// For more information on the 3-10 Oscillator see Walter Bressert's book 
+// "The Power of Oscillator/Cycle Combinations" 
+//
+// WARNING:
+// - For purpose educate only
+// - This script to change bars colors.
+////////////////////////////////////////////////////////////
+Reversal123(Length, KSmoothing, DLength, Level) =>
+    vFast = sma(stoch(close, high, low, Length), KSmoothing) 
+    vSlow = sma(vFast, DLength)
+    pos = 0.0
+    pos := iff(close[2] < close[1] and close > close[1] and vFast < vSlow and vFast > Level, 1,
+	         iff(close[2] > close[1] and close < close[1] and vFast > vSlow and vFast < Level, -1, nz(pos[1], 0))) 
+	pos
+
+D_Three(Length1, Length2, Length3) =>
+    pos = 0.0
+    xPrice =  security(syminfo.tickerid,"D", hl2)
+    xfastMA = ema(xPrice, Length1)
+    xslowMA = ema(xPrice, Length2)
+    xMACD = xfastMA - xslowMA
+    xSignal = sma(xMACD, Length3)
+    pos := iff(xSignal > xMACD, -1,
+    	     iff(xSignal < xMACD, 1, nz(pos[1], 0)))     
+    pos
+
+strategy(title="Combo Backtest 123 Reversal & D_Three Ten Osc", shorttitle="Combo", overlay = true)
+Length = input(14, minval=1)
+KSmoothing = input(1, minval=1)
+DLength = input(3, minval=1)
+Level = input(50, minval=1)
+//-------------------------
+Length1 = input(3, minval=1)
+Length2 = input(10, minval=1)
+Length3 = input(16, minval=1)
+reverse = input(false, title="Trade reverse")
+posReversal123 = Reversal123(Length, KSmoothing, DLength, Level)
+posD_Three = D_Three(Length1, Length2, Length3)
+pos = iff(posReversal123 == 1 and posD_Three == 1 , 1,
+	   iff(posReversal123 == -1 and posD_Three == -1, -1, 0)) 
+possig = iff(reverse and pos == 1, -1,
+          iff(reverse and pos == -1 , 1, pos))	   
+if (possig == 1) 
+    strategy.entry("Long", strategy.long)
+if (possig == -1)
+    strategy.entry("Short", strategy.short)	 
+if (possig == 0) 
+    strategy.close_all()
+barcolor(possig == -1 ? #b50404: possig == 1 ? #079605 : #0536b3 )
+```
+
+> Detail
+
+https://www.fmz.com/strategy/439351
+
+> Last Modified
+
+2024-01-19 14:41:02

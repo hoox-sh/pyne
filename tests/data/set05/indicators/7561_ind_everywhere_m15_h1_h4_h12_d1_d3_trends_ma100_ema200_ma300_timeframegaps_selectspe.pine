@@ -1,0 +1,213 @@
+//@version=5
+// set05 corpus entry
+// source_repo: tradingview-indicators-pine
+// source_path: tradingview-indicators-pine/Everywhere-m15-H1-H4-H12-D1-D3-trends-ma100-ema200-ma300-timeframeGaps-selectSpecificTrends-lightBackground.txt
+// content_hash: f2e861dc0fe3a286
+// collected: 2026-07-27
+// adapted MTF EMA indicator
+
+// using timeframe_gaps to mimic the inbuilt EMA indicator
+// (which produces smooth plots from different timeframes)
+
+// maximum amount of security requests is 40 -
+// if I try and do weeklies too, I'm requesting too much (47)
+
+//study("Everywhere", overlay=false, timeframe_gaps=true)
+indicator(title="Everywhere", overlay=false, timeframe="", timeframe_gaps=true)
+
+// Select which trend EMAs to include
+plotEMA13 = input.bool(title="EMA13", defval=true, group="EMAs that constitute the trend")
+plotEMA21 = input.bool(title="EMA21", defval=false, group="EMAs that constitute the trend")
+plotEMA25 = input.bool(title="EMA25", defval=false, group="EMAs that constitute the trend")
+plotEMA32 = input.bool(title="EMA32", defval=false, group="EMAs that constitute the trend")
+
+plotm15Trends = input.bool(title="15m", defval=false, group="Time-frames that will have their trend plotted")
+plotH1Trends = input.bool(title="H1", defval=true, group="Time-frames that will have their trend plotted")
+plotH4Trends = input.bool(title="H4", defval=true, group="Time-frames that will have their trend plotted")
+plotH12Trends = input.bool(title="H12", defval=false, group="Time-frames that will have their trend plotted")
+plotD1Trends = input.bool(title="D1", defval=true, group="Time-frames that will have their trend plotted")
+//plotD3Trends = input.bool(title="D3", defval=false, group="Time-frames that will have their trend plotted")
+//plotW1Trends = input.bool(title="W1", defval=false, group="Time-frames that will have their trend plotted")
+
+// plot the Macro MAs?
+plotMacroMAs_m15_input = input.bool(title="15m", defval=false, group="Include Macro Moving Averages")
+plotMacroMAs_H1_input = input.bool(title="H1", defval=false, group="Include Macro Moving Averages")
+plotMacroMAs_H4_input = input.bool(title="H4", defval=false, group="Include Macro Moving Averages")
+plotMacroMAs_H12_input = input.bool(title="H12", defval=false, group="Include Macro Moving Averages")
+plotMacroMAs_D1_input = input.bool(title="D1", defval=false, group="Include Macro Moving Averages")
+//plotMacroMAs_D3_input = input.bool(title="D3", defval=false, group="Include Macro Moving Averages")
+//plotMacroMAs_W1_input = input.bool(title="W1", defval=false, group="Include Macro Moving Averages")
+plotMacroMAs_all = input.bool(title="all (override individual selections)", defval=false, group="Include Macro Moving Averages")
+
+// plot the Macro EMAs?
+plotMacroEMAs_m15_input = input.bool(title="15m", defval=false, group="Include Macro Exponential Moving Averages")
+plotMacroEMAs_H1_input = input.bool(title="H1", defval=false, group="Include Macro Exponential Moving Averages")
+plotMacroEMAs_H4_input = input.bool(title="H4", defval=false, group="Include Macro Exponential Moving Averages")
+plotMacroEMAs_H12_input = input.bool(title="H12", defval=false, group="Include Macro Exponential Moving Averages")
+plotMacroEMAs_D1_input = input.bool(title="D1", defval=false, group="Include Macro Exponential Moving Averages")
+//plotMacroEMAs_D3_input = input.bool(title="D3", defval=false, group="Include Macro Exponential Moving Averages")
+//plotMacroEMAs_W1_input = input.bool(title="W1", defval=false, group="Include Macro Exponential Moving Averages")
+plotMacroEMAs_all = input.bool(title="all (override individual selections)", defval=true, group="Include Macro Exponential Moving Averages")
+
+plotMacroMAs_m15 = plotMacroMAs_all ? true : plotMacroMAs_m15_input
+plotMacroMAs_H1 = plotMacroMAs_all ? true : plotMacroMAs_H1_input
+plotMacroMAs_H4 = plotMacroMAs_all ? true : plotMacroMAs_H4_input
+plotMacroMAs_H12 = plotMacroMAs_all ? true : plotMacroMAs_H12_input
+plotMacroMAs_D1 = plotMacroMAs_all ? true : plotMacroMAs_D1_input
+// plotMacroMAs_D3 = plotMacroMAs_all ? true : plotMacroMAs_D3_input
+// plotMacroMAs_W1 = plotMacroMAs_all ? true : plotMacroMAs_W1_input
+
+plotMacroEMAs_m15 = plotMacroEMAs_all ? true : plotMacroEMAs_m15_input
+plotMacroEMAs_H1 = plotMacroEMAs_all ? true : plotMacroEMAs_H1_input
+plotMacroEMAs_H4 = plotMacroEMAs_all ? true : plotMacroEMAs_H4_input
+plotMacroEMAs_H12 = plotMacroEMAs_all ? true : plotMacroEMAs_H12_input
+plotMacroEMAs_D1 = plotMacroEMAs_all ? true : plotMacroEMAs_D1_input
+// plotMacroEMAs_D3 = plotMacroEMAs_all ? true : plotMacroEMAs_D3_input
+// plotMacroEMAs_W1 = plotMacroEMAs_all ? true : plotMacroEMAs_W1_input
+
+
+// select which timeframes MA/EMAs to include by default
+plotm15s = input.bool(title="15m EMAs, MAs and trend", defval=false, group="Time-frames to plot")
+plotH1s = input.bool(title="H1 EMAs, MAs and trend", defval=true, group="Time-frames to plot")
+plotH4s = input.bool(title="H4 EMAs, MAs and trend", defval=true, group="Time-frames to plot")
+plotH12s = input.bool(title="H12 EMAs, MAs and trend", defval=false, group="Time-frames to plot")
+plotD1s = input.bool(title="D1 EMAs, MAs and trend", defval=true, group="Time-frames to plot")
+//plotD3s = input.bool(title="D3 EMAs, MAs and trend", defval=false, group="Time-frames to plot")
+//plotW1s = input.bool(title="W1 EMAs, MAs and trend", defval=false, group="Time-frames")
+
+
+// getting different timeframe MA/EMAs that can use the "timeframe gaps" checkbox (from indicator function)
+BackgroundData_slightlyWrong(symbol, timeframe, data) =>
+    isLive = barstate.isrealtime
+    request.security(symbol, timeframe, data[isLive ? 1 : 0])[isLive ? 0 : 1]
+
+BackgroundData(symbol, timeframe, data) =>
+    request.security(symbol, timeframe, data)
+
+
+// m15
+m15="15"
+m15ema13= BackgroundData(syminfo.tickerid, m15, ta.ema(close, 13))
+m15ema21= BackgroundData(syminfo.tickerid, m15, ta.ema(close, 21))
+m15ema25= BackgroundData(syminfo.tickerid, m15, ta.ema(close, 25))
+m15ema32= BackgroundData(syminfo.tickerid, m15, ta.ema(close, 32))
+m15ma100 = BackgroundData(syminfo.tickerid, m15, ta.sma(close, 100))
+m15ema200 = BackgroundData(syminfo.tickerid, m15, ta.ema(close, 200))
+m15ma300 = BackgroundData(syminfo.tickerid, m15, ta.sma(close, 300))
+
+// H1
+H1="60"
+H1ema13= BackgroundData(syminfo.tickerid, H1, ta.ema(close, 13))
+H1ema21= BackgroundData(syminfo.tickerid, H1, ta.ema(close, 21))
+H1ema25= BackgroundData(syminfo.tickerid, H1, ta.ema(close, 25))
+H1ema32= BackgroundData(syminfo.tickerid, H1, ta.ema(close, 32))
+H1ma100 = BackgroundData(syminfo.tickerid, H1, ta.sma(close, 100))
+H1ema200 = BackgroundData(syminfo.tickerid, H1, ta.ema(close, 200))
+H1ma300 = BackgroundData(syminfo.tickerid, H1, ta.sma(close, 300))
+
+// H4
+H4="240"
+H4ema13= BackgroundData(syminfo.tickerid, H4, ta.ema(close, 13))
+H4ema21= BackgroundData(syminfo.tickerid, H4, ta.ema(close, 21))
+H4ema25= BackgroundData(syminfo.tickerid, H4, ta.ema(close, 25))
+H4ema32= BackgroundData(syminfo.tickerid, H4, ta.ema(close, 32))
+H4ma100 = BackgroundData(syminfo.tickerid, H4, ta.sma(close, 100))
+H4ema200 = BackgroundData(syminfo.tickerid, H4, ta.ema(close, 200))
+H4ma300 = BackgroundData(syminfo.tickerid, H4, ta.sma(close, 300))
+
+// H12
+H12="720"
+H12ema13= BackgroundData(syminfo.tickerid, H12, ta.ema(close, 13))
+H12ema21= BackgroundData(syminfo.tickerid, H12, ta.ema(close, 21))
+H12ema25= BackgroundData(syminfo.tickerid, H12, ta.ema(close, 25))
+H12ema32= BackgroundData(syminfo.tickerid, H12, ta.ema(close, 32))
+H12ma100 = BackgroundData(syminfo.tickerid, H12, ta.sma(close, 100))
+H12ema200 = BackgroundData(syminfo.tickerid, H12, ta.ema(close, 200))
+H12ma300 = BackgroundData(syminfo.tickerid, H12, ta.sma(close, 300))
+
+// D1
+D1="1D"
+D1ema13= BackgroundData(syminfo.tickerid, D1, ta.ema(close, 13))
+D1ema21= BackgroundData(syminfo.tickerid, D1, ta.ema(close, 21))
+D1ema25= BackgroundData(syminfo.tickerid, D1, ta.ema(close, 25))
+D1ema32= BackgroundData(syminfo.tickerid, D1, ta.ema(close, 32))
+D1ma100 = BackgroundData(syminfo.tickerid, D1, ta.sma(close, 100))
+D1ema200 = BackgroundData(syminfo.tickerid, D1, ta.ema(close, 200))
+D1ma300 = BackgroundData(syminfo.tickerid, D1, ta.sma(close, 300))
+
+// // D3
+// D3="3D"
+// D3ema13= BackgroundData(syminfo.tickerid, D3, ta.ema(close, 13))
+// D3ema21= BackgroundData(syminfo.tickerid, D3, ta.ema(close, 21))
+// D3ema25= BackgroundData(syminfo.tickerid, D3, ta.ema(close, 25))
+// D3ema32= BackgroundData(syminfo.tickerid, D3, ta.ema(close, 32))
+// D3ma100 = BackgroundData(syminfo.tickerid, D3, ta.sma(close, 100))
+// D3ema200 = BackgroundData(syminfo.tickerid, D3, ta.ema(close, 200))
+// D3ma300 = BackgroundData(syminfo.tickerid, D3, ta.sma(close, 300))
+
+// // W1
+// W1="1W"
+// W1ema13= BackgroundData(syminfo.tickerid, W1, ta.ema(close, 13))
+// W1ema21= BackgroundData(syminfo.tickerid, W1, ta.ema(close, 21))
+// W1ema25= BackgroundData(syminfo.tickerid, W1, ta.ema(close, 25))
+// W1ema32= BackgroundData(syminfo.tickerid, W1, ta.ema(close, 32))
+// W1ma100 = BackgroundData(syminfo.tickerid, W1, ta.sma(close, 100))
+// W1ema200 = BackgroundData(syminfo.tickerid, W1, ta.ema(close, 200))
+// W1ma300 = BackgroundData(syminfo.tickerid, W1, ta.sma(close, 300))
+
+// Plots
+plot(plotm15s and plotEMA13 and plotm15Trends ? m15ema13 : na, title="m15 EMA 13", color=color.purple , style=plot.style_line, linewidth=2, offset=0, transp=0)
+plot(plotm15s and plotEMA21 and plotm15Trends ? m15ema21 : na, title="m15 EMA 21", color=color.purple , style=plot.style_line, linewidth=2, offset=0, transp=0)
+plot(plotm15s and plotEMA25 and plotm15Trends ? m15ema25 : na, title="m15 EMA 25", color=color.purple , style=plot.style_line, linewidth=2, offset=0, transp=0)
+plot(plotm15s and plotEMA32 and plotm15Trends ? m15ema32 : na, title="m15 EMA 32", color=color.purple , style=plot.style_line, linewidth=2, offset=0, transp=0)
+plot(plotm15s and plotMacroMAs_m15 ? m15ma100 : na, title="m15 MA 100", color=color.purple , style=plot.style_cross, linewidth=1, offset=0, transp=0)
+plot(plotm15s and plotMacroEMAs_m15? m15ema200 : na, title="m15 EMA 200", color=color.purple , style=plot.style_line, linewidth=4, offset=0, transp=0)
+plot(plotm15s and plotMacroMAs_m15 ? m15ma300 : na, title="m15 MA 300", color=color.purple  , style=plot.style_cross, linewidth=1, offset=0, transp=0)
+
+plot(plotH1s and plotEMA13 and plotH1Trends ? H1ema13 : na, title="H1 EMA 13", color=color.green , style=plot.style_line, linewidth=2, offset=0, transp=0)
+plot(plotH1s and plotEMA21 and plotH1Trends ? H1ema21 : na, title="H1 EMA 21", color=color.green , style=plot.style_line, linewidth=2, offset=0, transp=0)
+plot(plotH1s and plotEMA25 and plotH1Trends ? H1ema25 : na, title="H1 EMA 25", color=color.green , style=plot.style_line, linewidth=2, offset=0, transp=0)
+plot(plotH1s and plotEMA32 and plotH1Trends ? H1ema32 : na, title="H1 EMA 32", color=color.green , style=plot.style_line, linewidth=2, offset=0, transp=0)
+plot(plotH1s and plotMacroMAs_H1 ? H1ma100 : na, title="H1 MA 100", color=color.green , style=plot.style_cross, linewidth=1, offset=0, transp=0)
+plot(plotH1s and plotMacroEMAs_H1? H1ema200 : na, title="H1 EMA 200", color=color.green , style=plot.style_line, linewidth=4, offset=0, transp=0)
+plot(plotH1s and plotMacroMAs_H1 ? H1ma300 : na, title="H1 MA 300", color=color.green  , style=plot.style_cross, linewidth=1, offset=0, transp=0)
+
+plot(plotH4s and plotEMA13 and plotH4Trends ? H4ema13 : na, title="H4 EMA 13", color=color.blue , style=plot.style_line, linewidth=2, offset=0, transp=0)
+plot(plotH4s and plotEMA21 and plotH4Trends ? H4ema21 : na, title="H4 EMA 21", color=color.blue , style=plot.style_line, linewidth=2, offset=0, transp=0)
+plot(plotH4s and plotEMA25 and plotH4Trends ? H4ema25 : na, title="H4 EMA 25", color=color.blue , style=plot.style_line, linewidth=2, offset=0, transp=0)
+plot(plotH4s and plotEMA32 and plotH4Trends ? H4ema32 : na, title="H4 EMA 32", color=color.blue , style=plot.style_line, linewidth=2, offset=0, transp=0)
+plot(plotH4s and plotMacroMAs_H4 ? H4ma100 : na, title="H4 MA 100", color=color.blue , style=plot.style_cross, linewidth=1, offset=0, transp=0)
+plot(plotH4s and plotMacroEMAs_H4? H4ema200 : na, title="H4 EMA 200", color=color.blue , style=plot.style_line, linewidth=4, offset=0, transp=0)
+plot(plotH4s and plotMacroMAs_H4 ? H4ma300 : na, title="H4 MA 300", color=color.blue , style=plot.style_cross, linewidth=1, offset=0, transp=0)
+
+plot(plotH12s and plotEMA13 and plotH12Trends ? H12ema13 : na, title="H12 EMA 13", color=color.gray , style=plot.style_line, linewidth=2, offset=0, transp=0)
+plot(plotH12s and plotEMA21 and plotH12Trends ? H12ema21 : na, title="H12 EMA 21", color=color.gray , style=plot.style_line, linewidth=2, offset=0, transp=0)
+plot(plotH12s and plotEMA25 and plotH12Trends ? H12ema25 : na, title="H12 EMA 25", color=color.gray , style=plot.style_line, linewidth=2, offset=0, transp=0)
+plot(plotH12s and plotEMA32 and plotH12Trends ? H12ema32 : na, title="H12 EMA 32", color=color.gray , style=plot.style_line, linewidth=2, offset=0, transp=0)
+plot(plotH12s and plotMacroMAs_H12 ? H12ma100 : na, title="H12 MA 100", color=color.gray , style=plot.style_cross, linewidth=1, offset=0, transp=0)
+plot(plotH12s and plotMacroEMAs_H12? H12ema200 : na, title="H12 EMA 200", color=color.gray , style=plot.style_line, linewidth=4, offset=0, transp=0)
+plot(plotH12s and plotMacroMAs_H12 ? H12ma300 : na, title="H12 MA 300", color=color.gray , style=plot.style_cross, linewidth=1, offset=0, transp=0)
+
+plot(plotD1s and plotEMA13 and plotD1Trends ? D1ema13 : na, title="D1 EMA 13", color=color.orange, style=plot.style_line, linewidth=2, offset=0, transp=0)
+plot(plotD1s and plotEMA21 and plotD1Trends ? D1ema21 : na, title="D1 EMA 21", color=color.orange, style=plot.style_line, linewidth=2, offset=0, transp=0)
+plot(plotD1s and plotEMA25 and plotD1Trends ? D1ema25 : na, title="D1 EMA 25", color=color.orange, style=plot.style_line, linewidth=2, offset=0, transp=0)
+plot(plotD1s and plotEMA32 and plotD1Trends ? D1ema32 : na, title="D1 EMA 32", color=color.orange, style=plot.style_line, linewidth=2, offset=0, transp=0)
+plot(plotD1s and plotMacroMAs_D1 ? D1ma100 : na, title="D1 MA 100", color=color.orange , style=plot.style_cross, linewidth=1, offset=0, transp=0)
+plot(plotD1s and plotMacroEMAs_D1? D1ema200 : na, title="D1 EMA 200", color=color.orange , style=plot.style_line, linewidth=4, offset=0, transp=0)
+plot(plotD1s and plotMacroMAs_D1 ? D1ma300 : na, title="D1 MA 300", color=color.orange , style=plot.style_cross, linewidth=1, offset=0, transp=0)
+
+// plot(plotD3s and plotEMA13 and plotD3Trends ? D3ema13 : na, title="D3 EMA 13", color=color.yellow, style=plot.style_line, linewidth=2, offset=0, transp=0)
+// plot(plotD3s and plotEMA21 and plotD3Trends ? D3ema21 : na, title="D3 EMA 21", color=color.yellow, style=plot.style_line, linewidth=2, offset=0, transp=0)
+// plot(plotD3s and plotEMA25 and plotD3Trends ? D3ema25 : na, title="D3 EMA 25", color=color.yellow, style=plot.style_line, linewidth=2, offset=0, transp=0)
+// plot(plotD3s and plotEMA32 and plotD3Trends ? D3ema32 : na, title="D3 EMA 32", color=color.yellow, style=plot.style_line, linewidth=2, offset=0, transp=0)
+// plot(plotD3s and plotMacroMAs_D3? D3ma100 : na, title="D3 MA 100", color=color.yellow , style=plot.style_cross, linewidth=1, offset=0, transp=0)
+// plot(plotD3s and plotMacroEMAs_D3? D3ema200 : na, title="D3 EMA 200", color=color.yellow , style=plot.style_line, linewidth=4, offset=0, transp=0)
+// plot(plotD3s and plotMacroMAs_D3 ? D3ma300 : na, title="D3 MA 300", color=color.yellow , style=plot.style_cross, linewidth=1, offset=0, transp=0)
+
+// plot(plotW1s and plotEMA13 and plotW1Trends ? W1ema13 : na, title="W1 EMA 13", color=color.red, style=plot.style_line, linewidth=2, offset=0, transp=0)
+// plot(plotW1s and plotEMA21 and plotW1Trends ? W1ema21 : na, title="W1 EMA 21", color=color.red, style=plot.style_line, linewidth=2, offset=0, transp=0)
+// plot(plotW1s and plotEMA25 and plotW1Trends ? W1ema25 : na, title="W1 EMA 25", color=color.red, style=plot.style_line, linewidth=2, offset=0, transp=0)
+// plot(plotW1s and plotEMA32 and plotW1Trends ? W1ema32 : na, title="W1 EMA 32", color=color.red, style=plot.style_line, linewidth=2, offset=0, transp=0)
+// plot(plotW1s and plotMacroMAs_W1? W1ma100 : na, title="W1 MA 100", color=color.red , style=plot.style_cross, linewidth=1, offset=0, transp=0)
+// plot(plotW1s and plotMacroEMAs_W1? W1ema200 : na, title="W1 EMA 200", color=color.red , style=plot.style_line, linewidth=4, offset=0, transp=0)
+// plot(plotW1s and plotMacroMAs_W1 ? W1ma300 : na, title="W1 MA 300", color=color.red , style=plot.style_cross, linewidth=1, offset=0, transp=0)

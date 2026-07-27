@@ -1,0 +1,71 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双均线均值监控模型Dual-Moving-Average-Monitoring-Model.md
+// content_hash: fa1b262a3c7f1da4
+// collected: 2026-07-27
+// strategy('Fast EMA above Slow EMA with MACD (by Coinrule)',
+//          overlay=true,
+//          initial_capital=1000,
+//          process_orders_on_close=true,
+//          default_qty_type=strategy.percent_of_equity,
+//          default_qty_value=30,
+//          commission_type=strategy.commission.percent,
+//          commission_value=0.1)
+
+showDate = input(defval=true, title='Show Date Range')
+timePeriod = time >= timestamp(syminfo.timezone, 2022, 1, 1, 0, 0)
+notInTrade = strategy.position_size <= 0
+
+// EMAs 
+fastEMA = ta.ema(close, 8)
+slowEMA = ta.ema(close, 26)
+plot(fastEMA, color = color.blue)
+plot(slowEMA, color = color.green)
+//buyCondition1 = ta.crossover(fastEMA, slowEMA)
+buyCondition1 = fastEMA > slowEMA
+
+
+// DMI and MACD inputs and calculations
+[macd, macd_signal, macd_histogram] = ta.macd(close, 12, 26, 9)
+buyCondition2 = ta.crossover(macd, macd_signal)
+
+
+// Configure trail stop level with input options
+longTrailPerc = input.float(title='Trail Long Loss (%)', minval=0.0, step=0.1, defval=3) * 0.01
+shortTrailPerc = input.float(title='Trail Short Loss (%)', minval=0.0, step=0.1, defval=1) * 0.01
+
+// Determine trail stop loss prices
+longStopPrice = 0.0
+shortStopPrice = 0.0
+
+longStopPrice := if strategy.position_size > 0
+    stopValue = close * (1 - longTrailPerc)
+    math.max(stopValue, longStopPrice[1])
+else
+    0
+
+shortStopPrice := if strategy.position_size < 0
+    stopValue = close * (1 + shortTrailPerc)
+    math.min(stopValue, shortStopPrice[1])
+else
+    999999
+    
+
+if (buyCondition1 and buyCondition2 and notInTrade and timePeriod)
+    strategy.entry(id="Long", direction = strategy.long)
+
+strategy.exit(id="Exit", stop = longStopPrice, limit = shortStopPrice)
+
+
+//if (sellCondition1 and sellCondition2 and notInTrade and timePeriod)
+//strategy.close(id="Close", when = sellCondition1 or sellCondition2)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/429497
+
+> Last Modified
+
+2023-10-17 16:33:29

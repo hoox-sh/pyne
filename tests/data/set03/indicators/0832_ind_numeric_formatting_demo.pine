@@ -1,0 +1,56 @@
+//@version=6
+// set03 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/concepts/strings.md::strings.md#block13
+// content_hash: 96e28438d5b8be45
+// collected: 2026-07-27
+indicator("Numeric formatting demo")
+
+//@variable A two-row, eight-column table showing a pseudorandom number formatted with different format patterns. 
+var table display = table.new(position.middle_center, 2, 8, frame_color = chart.fg_color, frame_width = 1)
+
+//@variable Initializes a row to show two specified strings in the `display` table.
+makeRow(int row, string str0, string str1) =>
+    color bgColor   = row == 0 ? chart.fg_color : chart.bg_color
+    color textColor = row == 0 ? chart.bg_color : chart.fg_color
+    display.cell(0, row, str0, text_color = textColor, text_halign = text.align_left, text_size = 30, bgcolor = bgColor)
+    display.cell(1, row, str1, text_color = textColor, text_halign = text.align_left, text_size = 30, bgcolor = bgColor)
+
+// Initialize the header row for the `display` table on the first bar. 
+if barstate.isfirst
+    makeRow(0, "Format pattern", "Result")
+
+if barstate.islast
+    //@variable A pseudorandom value between 0 and 10000. 
+    float value = math.random(0, 10000)
+
+    //@variable Represents the `value` using the `str.format()` function's default numeric format (`#,###.###`).
+    //          This format uses comma-separated sets of three whole digits, and allows up to three fractional digits.  
+    //          This default differs from the default for `str.tostring()` (`#.########`). 
+    string default = str.format("{0}", value)
+    //@variable Represents the `value` using the `integer` preset (`#,###`). 
+    //          This format rounds the `value` to the nearest whole and adds comma separation for three-digit sets. 
+    string integerPreset = str.format("{0,number,integer}", value)
+    //@variable Represents the `value` as an integer without comma-separated digits (`#`). 
+    string integerNoComma = str.format("{0,number,#}", value)
+    //@variable Represents the `value` using the `currency` preset (`'$'#,###.00`). 
+    //          This format prefixes the result with the `$` symbol, adds comma separation for sets of three whole 
+    //          digits, and includes two fractional digits. 
+    string currencyPreset = str.format("{0,number,currency}", value)
+    //@variable Represents the `value` in dollars with comma-separated whole digits and four fractional digits (`'$',###.0000`). 
+    string currencyCustom = str.format("{0,number,'$',###.0000}", value)
+    //@variable Represents the `value` using the `percent` preset (`#,###%`).
+    //          This format multiplies the `value` by 100, rounds the result to the nearest whole number, adds comma 
+    //          separation for three-digit sets, and includes the `%` symbol at the end. 
+    string percentPreset = str.format("{0,number,percent}", value)
+    //@variable Represents the `value` as a percentage with comma-separated whole digits and up to three fractional digits. 
+    string percentCustom = str.format("{0,number,#,###.###%}", value)
+
+    // Initialize rows showing each numeric format and the resulting representation of the `value`. 
+    makeRow(1, "Default (#,###.###)",                                 default)
+    makeRow(2, "integer (#,###)",                                     integerPreset)
+    makeRow(3, "integer without commas (#)",                          integerNoComma)
+    makeRow(4, "currency ('$'#,###.00)",                              currencyPreset)
+    makeRow(5, "currency with 4 fractional digits ('$',###.0000)",    currencyCustom)
+    makeRow(6, "percent (#,###%)",                                    percentPreset)
+    makeRow(7, "percent with up to 3 fractional digits (#,###.###%)", percentCustom)

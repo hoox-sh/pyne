@@ -1,0 +1,206 @@
+// set01 corpus entry
+// source_repo: https://github.com/Alorse/pinescript-strategies
+// source_path: pinescript-strategies/multi/RSI Multi Alerts.pine
+// content_hash: 6443e3e22c728b25
+// collected: 2026-07-27
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © alorse
+
+//@version=5
+indicator('RSI Multi Alerts [Alorse]', shorttitle='RSI Multi Alerts [Alorse]', overlay=true)
+
+////////////
+// INPUTS //
+
+// RSI Params
+rsi_length = input(14, title='RSI Length')
+rsi_overbought = input(70, title='RSI Overbought Level')
+rsi_oversold = input(30, title='RSI Overbought Level')
+
+// Symbols 
+// There is a limit of 40 security calls so only 40 symbols at the same time is possible
+
+e01 = input.bool(title='', defval=true, group='Symbol 1', inline='s01')
+s01 = input.symbol('ADAUSDT', title='', group='Symbol 1', inline='s01')
+
+e02 = input.bool(title='', defval=true, group='Symbol 2', inline='s02')
+s02 = input.symbol('ALPHAUSDT', title='', group='Symbol 2', inline='s02')
+
+e03 = input.bool(title='', defval=true, group='Symbol 3', inline='s03')
+s03 = input.symbol('ALICEUSDT', title='', group='Symbol 3', inline='s03')
+
+e04 = input.bool(title='', defval=true, group='Symbol 4', inline='s04')
+s04 = input.symbol('ANKRUSDT', title='', group='Symbol 4', inline='s04')
+
+e05 = input.bool(title='', defval=true, group='Symbol 5', inline='s05')
+s05 = input.symbol('ARPAUSDT', title='', group='Symbol 5', inline='s05')
+
+e06 = input.bool(title='', defval=true, group='Symbol 6', inline='s06')
+s06 = input.symbol('AVAXUSDT', title='', group='Symbol 6', inline='s06')
+
+e07 = input.bool(title='', defval=true, group='Symbol 7', inline='s07')
+s07 = input.symbol('AXSUSDT', title='', group='Symbol 7', inline='s07')
+
+e08 = input.bool(title='', defval=true, group='Symbol 8', inline='s08')
+s08 = input.symbol('BAKEUSDT', title='', group='Symbol 8', inline='s08')
+
+e09 = input.bool(title='', defval=true, group='Symbol 9', inline='s09')
+s09 = input.symbol('BELUSDT', title='', group='Symbol 9', inline='s09')
+
+e10 = input.bool(title='', defval=true, group='Symbol 10', inline='s10')
+s10 = input.symbol('BLZUSDT', title='', group='Symbol 10', inline='s10')
+
+e11 = input.bool(title='', defval=true, group='Symbol 11', inline='s11')
+s11 = input.symbol('BTCUSDT', title='', group='Symbol 11', inline='s11')
+
+e12 = input.bool(title='', defval=true, group='Symbol 12', inline='s12')
+s12 = input.symbol('CHZUSDT', title='', group='Symbol 12', inline='s12')
+
+e13 = input.bool(title='', defval=true, group='Symbol 13', inline='s13')
+s13 = input.symbol('CTKUSDT', title='', group='Symbol 13', inline='s13')
+
+e14 = input.bool(title='', defval=true, group='Symbol 14', inline='s14')
+s14 = input.symbol('CTSIUSDT', title='', group='Symbol 14', inline='s14')
+
+e15 = input.bool(title='', defval=true, group='Symbol 15', inline='s15')
+s15 = input.symbol('CVCUSDT', title='', group='Symbol 15', inline='s15')
+
+e16 = input.bool(title='', defval=true, group='Symbol 16', inline='s16')
+s16 = input.symbol('EGLDUSDT', title='', group='Symbol 16', inline='s16')
+
+e17 = input.bool(title='', defval=true, group='Symbol 17', inline='s17')
+s17 = input.symbol('ENJUSDT', title='', group='Symbol 17', inline='s17')
+
+e18 = input.bool(title='', defval=true, group='Symbol 18', inline='s18')
+s18 = input.symbol('ETCUSDT', title='', group='Symbol 18', inline='s18')
+
+e19 = input.bool(title='', defval=true, group='Symbol 19', inline='s19')
+s19 = input.symbol('FILUSDT', title='', group='Symbol 19', inline='s19')
+
+e20 = input.bool(title='', defval=true, group='Symbol 20', inline='s20')
+s20 = input.symbol('GRTUSDT', title='', group='Symbol 20', inline='s20')
+
+e21 = input.bool(title='', defval=true, group='Symbol 21', inline='s21')
+s21 = input.symbol('HOTUSDT ', title='', group='Symbol 21', inline='s21')
+
+e22 = input.bool(title='', defval=true, group='Symbol 22', inline='s22')
+s22 = input.symbol('ICPUSDT', title='', group='Symbol 22', inline='s22')
+
+e23 = input.bool(title='', defval=true, group='Symbol 23', inline='s23')
+s23 = input.symbol('KNCUSDT', title='', group='Symbol 23', inline='s23')
+
+e24 = input.bool(title='', defval=true, group='Symbol 24', inline='s24')
+s24 = input.symbol('LITUSDT', title='', group='Symbol 24', inline='s24')
+
+e25 = input.bool(title='', defval=true, group='Symbol 25', inline='s25')
+s25 = input.symbol('MANAUSDT', title='', group='Symbol 25', inline='s25')
+
+e26 = input.bool(title='', defval=true, group='Symbol 26', inline='s26')
+s26 = input.symbol('MATICUSDT', title='', group='Symbol 26', inline='s26')
+
+e27 = input.bool(title='', defval=true, group='Symbol 27', inline='s27')
+s27 = input.symbol('NEOUSDT', title='', group='Symbol 27', inline='s27')
+
+e28 = input.bool(title='', defval=true, group='Symbol 28', inline='s28')
+s28 = input.symbol('NKNUSDT', title='', group='Symbol 28', inline='s28')
+
+e29 = input.bool(title='', defval=true, group='Symbol 29', inline='s29')
+s29 = input.symbol('OGNUSDT', title='', group='Symbol 29', inline='s29')
+
+e30 = input.bool(title='', defval=true, group='Symbol 30', inline='s30')
+s30 = input.symbol('REEFUSDT', title='', group='Symbol 30', inline='s30')
+
+e31 = input.bool(title='', defval=true, group='Symbol 31', inline='s31')
+s31 = input.symbol('ROSEUSDT', title='', group='Symbol 31', inline='s31')
+
+e32 = input.bool(title='', defval=true, group='Symbol 32', inline='s32')
+s32 = input.symbol('SFPUSDT', title='', group='Symbol 32', inline='s32')
+
+e33 = input.bool(title='', defval=true, group='Symbol 33', inline='s33')
+s33 = input.symbol('SNXUSDT', title='', group='Symbol 33', inline='s33')
+
+e34 = input.bool(title='', defval=true, group='Symbol 34', inline='s34')
+s34 = input.symbol('SXPUSDT', title='', group='Symbol 34', inline='s34')
+
+e35 = input.bool(title='', defval=true, group='Symbol 35', inline='s35')
+s35 = input.symbol('TLMUSDT', title='', group='Symbol 35', inline='s35')
+
+e36 = input.bool(title='', defval=true, group='Symbol 36', inline='s36')
+s36 = input.symbol('TRBUSDT', title='', group='Symbol 36', inline='s36')
+
+e37 = input.bool(title='', defval=true, group='Symbol 37', inline='s37')
+s37 = input.symbol('UNFIUSDT', title='', group='Symbol 37', inline='s37')
+
+e38 = input.bool(title='', defval=true, group='Symbol 38', inline='s38')
+s38 = input.symbol('WAVESUSDT', title='', group='Symbol 38', inline='s38')
+
+e39 = input.bool(title='', defval=true, group='Symbol 39', inline='s39')
+s39 = input.symbol('XRPUSDT', title='', group='Symbol 39', inline='s39')
+
+e40 = input.bool(title='', defval=true, group='Symbol 40', inline='s40')
+s40 = input.symbol('ZECUSDT', title='', group='Symbol 40', inline='s40')
+
+///////////////
+// FUNCTIONS //
+
+// RSI Screener Function (overbought / orvesold)
+// Function outputs only 2 values
+// * Value - Numeric value you want to display in screener
+// * Cindition - True/False variable that shows if current symbol should be displayed in the screener
+
+screenerFunc(_ticker) =>
+    rsi = request.security(_ticker, timeframe.period, ta.rsi(close, rsi_length))
+
+    cond = rsi > rsi_overbought or rsi < rsi_oversold
+    value = rsi
+    cleanTicker = str.replace_all(_ticker, 'BINANCE:', '')
+    if rsi < rsi_oversold
+        alert('612e425361de9e0072e37083|AOS_Test|buy|' + cleanTicker + '|long', alert.freq_once_per_bar_close)
+    if rsi > rsi_overbought
+        alert('612e425361de9e0072e37083|AOS_Test|sell|' + cleanTicker + '|flat', alert.freq_once_per_bar_close)
+
+    [cond, value]
+
+///////////////////////////////////////
+// Running Functions for all sybmols //
+
+[v01, c01] = screenerFunc(s01)
+[v02, c02] = screenerFunc(s02)
+[v03, c03] = screenerFunc(s03)
+[v04, c04] = screenerFunc(s04)
+[v05, c05] = screenerFunc(s05)
+[v06, c06] = screenerFunc(s06)
+[v07, c07] = screenerFunc(s07)
+[v08, c08] = screenerFunc(s08)
+[v09, c09] = screenerFunc(s09)
+[v10, c10] = screenerFunc(s10)
+[v11, c11] = screenerFunc(s11)
+[v12, c12] = screenerFunc(s12)
+[v13, c13] = screenerFunc(s13)
+[v14, c14] = screenerFunc(s14)
+[v15, c15] = screenerFunc(s15)
+[v16, c16] = screenerFunc(s16)
+[v17, c17] = screenerFunc(s17)
+[v18, c18] = screenerFunc(s18)
+[v19, c19] = screenerFunc(s19)
+[v20, c20] = screenerFunc(s20)
+[v21, c21] = screenerFunc(s21)
+[v22, c22] = screenerFunc(s22)
+[v23, c23] = screenerFunc(s23)
+[v24, c24] = screenerFunc(s24)
+[v25, c25] = screenerFunc(s25)
+[v26, c26] = screenerFunc(s26)
+[v27, c27] = screenerFunc(s27)
+[v28, c28] = screenerFunc(s28)
+[v29, c29] = screenerFunc(s29)
+[v30, c30] = screenerFunc(s30)
+[v31, c31] = screenerFunc(s31)
+[v32, c32] = screenerFunc(s32)
+[v33, c33] = screenerFunc(s33)
+[v34, c34] = screenerFunc(s34)
+[v35, c35] = screenerFunc(s35)
+[v36, c36] = screenerFunc(s36)
+[v37, c37] = screenerFunc(s37)
+[v38, c38] = screenerFunc(s38)
+[v39, c39] = screenerFunc(s39)
+[v40, c40] = screenerFunc(s40)

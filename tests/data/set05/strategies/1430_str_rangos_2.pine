@@ -1,0 +1,83 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于真实波幅的加权移动平均跨期策略True-Range-Based-Weighted-Moving-Average-Cross-Period-Strategy.md
+// content_hash: fefd6f9e416c755c
+// collected: 2026-07-27
+strategy("[MACLEN] Rangos", shorttitle="Rangos [https://t.me/Bitcoin_Maclen]", overlay=false )
+
+//------WINDOW----------
+
+i_startTime = input(defval = timestamp("01 Jan 2022 00:00 -0700"), title = "Start Time", group = "Backtest Window")
+i_endTime = input(defval = timestamp("31 Dec 2025 00:00 -0700"), title = "End Time")
+window = true
+
+//-----------------------------
+
+sube = close>close[1] ? ta.tr : 0
+baja = close<close[1] ? ta.tr : 0
+
+corto = input(10)
+largo = input(30)
+suavizado = input(10)
+
+fastDiff = ta.wma(sube, corto) - ta.wma(baja,corto)
+slowDiff = ta.wma(sube, largo) - ta.wma(baja, largo)
+ind = ta.wma(fastDiff - slowDiff, suavizado)
+
+iColor = ind>0 ? color.green : ind<0 ? color.red : color.black
+plot(ind, color=iColor)
+plot(0, color=color.white)
+
+long = ind[1]<ind and ind[2]<ind[1] and ind<0
+short = ind[1]>ind and ind[2]>ind[1] and ind>0
+
+plotshape(long and not long[1], style = shape.xcross, color=color.green, location=location.bottom, size=size.tiny)
+plotshape(short and not short[1], style = shape.xcross, color=color.red, location=location.top, size=size.tiny)
+
+//Contratos
+contrato1 = input(50000)/(16*close)
+c1 = contrato1
+c2 = contrato1
+c3 = contrato1*2
+c4 = contrato1*4
+c5 = contrato1*8
+
+//cap_enopentrade = strategy.opentrades == 1 ? c1: strategy.opentrades == 2 ? c1+c2: strategy.opentrades == 3 ? c1+c2+c3: strategy.opentrades == 4 ? c1+c2+c3+c4: strategy.opentrades == 5 ? c1+c2+c3+c4+c5 : 0
+openprofit_porc = math.round((close-strategy.position_avg_price)/strategy.position_avg_price * 100,2)
+
+porc_tp = input.float(6.5)
+safe = input(-6)
+
+//----------------Strategy---------------------------
+
+if strategy.opentrades == 0
+    strategy.entry('BUY1', strategy.long, qty=c1, when = long and not long[1] and window)
+
+if strategy.opentrades == 1
+    strategy.entry('BUY2', strategy.long, qty=c2, when = long and not long[1] and window and openprofit_porc<safe)
+
+if strategy.opentrades == 2
+    strategy.entry('BUY3', strategy.long, qty=c3, when = long and not long[1] and window and openprofit_porc<safe)
+
+if strategy.opentrades == 3
+    strategy.entry('BUY4', strategy.long, qty=c4, when = long and not long[1] and window and openprofit_porc<safe)
+
+if strategy.opentrades == 4
+    strategy.entry('BUY5', strategy.long, qty=c5, when = long and not long[1] and window and openprofit_porc<safe)
+
+min_prof = strategy.openprofit>0
+
+strategy.close_all(when=short and min_prof)
+
+plot(openprofit_porc)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/439074
+
+> Last Modified
+
+2024-01-17 15:09:28

@@ -1,0 +1,59 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/高级MACD均线交叉交易策略结合自适应风险管理-Advanced-MACD-Crossover-Trading-Strategy-with-Adaptive-Risk-Management.md
+// content_hash: cd14315439cb3e60
+// collected: 2026-07-27
+strategy("Estrategia MACD", overlay=true)
+
+// Parámetros entrada
+direccion = input.string("ambas", "Dirección de operaciones", options=["larga", "corta", "ambas"])
+velas_sl = input.int(3, "Velas para calcular Stop Loss", minval=1)
+ratio = input.float(1.5, "Ratio Beneficio:Riesgo", minval=0.5)
+rapida = input.int(12, "Periodo Media Rápida")
+lenta = input.int(26, "Periodo Media Lenta")
+senal = input.int(9, "Periodo Señal")
+
+// Calcular MACD
+[macdLinea, senalLinea, histograma] = ta.macd(close, rapida, lenta, senal)
+
+// Señales
+senal_larga = ta.crossover(macdLinea, senalLinea) and histograma > 0
+senal_corta = ta.crossunder(macdLinea, senalLinea) and histograma < 0
+
+// Gestión de riesgo
+calcular_sl_largo() => ta.lowest(low, velas_sl)
+calcular_sl_corto() => ta.highest(high, velas_sl)
+
+calcular_tp(entrada, sl, es_larga) =>
+    distancia = math.abs(entrada - sl)
+    es_larga ? entrada + (distancia * ratio) : entrada - (distancia * ratio)
+
+// Operaciones
+sl_largo = calcular_sl_largo()
+sl_corto = calcular_sl_corto()
+
+if (direccion != "corta" and senal_larga and strategy.position_size == 0)
+    entrada = close
+    tp = calcular_tp(entrada, sl_largo, true)
+    strategy.entry("Larga", strategy.long)
+    strategy.exit("Salida Larga", "Larga", stop=sl_largo, limit=tp)
+
+if (direccion != "larga" and senal_corta and strategy.position_size == 0)
+    entrada = close
+    tp = calcular_tp(entrada, sl_corto, false)
+    strategy.entry("Corta", strategy.short)
+    strategy.exit("Salida Corta", "Corta", stop=sl_corto, limit=tp)
+
+// Visualización
+plotshape(senal_larga and direccion != "corta", "Compra", location=location.belowbar, color=color.green, style=shape.triangleup, size=size.normal)
+plotshape(senal_corta and direccion != "larga", "Venta", location=location.abovebar, color=color.red, style=shape.triangledown, size=size.normal)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/477604
+
+> Last Modified
+
+2025-01-06 16:34:49

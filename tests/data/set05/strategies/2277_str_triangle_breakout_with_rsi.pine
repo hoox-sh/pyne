@@ -1,0 +1,60 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/三角形突破结合RSI动量策略-Triangle-Breakout-with-RSI-Momentum-Strategy.md
+// content_hash: f6f9757d12abca0a
+// collected: 2026-07-27
+strategy("Triangle Breakout with RSI", overlay=true)
+
+// Input parameters
+len = input.int(15, title="Triangle Length")
+rsiPeriod = input.int(14, title="RSI Period")
+rsiThresholdBuy = input.int(50, title="RSI Threshold for Buy")
+rsiThresholdSell = input.int(50, title="RSI Threshold for Sell")
+
+// Calculate the RSI
+rsi = ta.rsi(close, rsiPeriod)
+
+// Calculate highest high and lowest low for triangle pattern
+highLevel = ta.highest(high, len)
+lowLevel = ta.lowest(low, len)
+
+// Create trendlines for the triangle
+upperTrend = ta.linreg(high, len, 0)
+lowerTrend = ta.linreg(low, len, 0)
+
+// Plot the trendlines on the chart
+plot(upperTrend, color=color.green, linewidth=2, title="Upper Trendline")
+plot(lowerTrend, color=color.red, linewidth=2, title="Lower Trendline")
+
+// Detect breakout conditions
+breakoutUp = close > upperTrend
+breakoutDown = close < lowerTrend
+
+// Confirm breakout with RSI
+buyCondition = breakoutUp and rsi > rsiThresholdBuy
+sellCondition = breakoutDown and rsi < rsiThresholdSell
+
+// Plot breakout signals with confirmation from RSI
+plotshape(series=buyCondition, title="Buy Signal", location=location.belowbar, color=color.green, style=shape.labelup, size=size.small)
+plotshape(series=sellCondition, title="Sell Signal", location=location.abovebar, color=color.red, style=shape.labeldown, size=size.small)
+
+// Strategy: Buy when triangle breaks upwards and RSI is above 50; Sell when triangle breaks downwards and RSI is below 50
+if (buyCondition)
+    strategy.entry("Buy", strategy.long)
+
+if (sellCondition)
+    strategy.entry("Sell", strategy.short)
+
+// Plot RSI on the bottom pane
+hline(50, "RSI 50 Level", color=color.gray, linestyle=hline.style_dotted)
+plot(rsi, color=color.blue, linewidth=2, title="RSI")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/474049
+
+> Last Modified
+
+2024-12-05 16:19:31

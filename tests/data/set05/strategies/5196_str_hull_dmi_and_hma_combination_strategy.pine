@@ -1,0 +1,57 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动向指标与-Hull-平均线组合策略DMI-and-HMA-Combination-Strategy.md
+// content_hash: 9d6869359875385c
+// collected: 2026-07-27
+strategy(title="DMI + HMA - No Risk Management", overlay = false, pyramiding=1, default_qty_type=strategy.percent_of_equity, default_qty_value=100, commission_type=strategy.commission.percent, commission_value=0.025)
+
+//Inputs
+hullLen1 = input(title="Hull 1 length", type=input.integer, defval=29)
+hullLen2 = input(title="Hull 2 length", type=input.integer, defval=2)
+len = input(title="Length for DI", type=input.integer, defval=76)
+
+//Calculations
+TrueRange = max(max(high-low, abs(high-nz(close[1]))), abs(low-nz(close[1])))
+DirectionalMovementPlus = high-nz(high[1]) > nz(low[1])-low ? max(high-nz(high[1]), 0): 0
+DirectionalMovementMinus = nz(low[1])-low > high-nz(high[1]) ? max(nz(low[1])-low, 0): 0
+
+SmoothedTrueRange = 0.0
+SmoothedTrueRange := nz(SmoothedTrueRange[1]) - (nz(SmoothedTrueRange[1])/len) + TrueRange
+SmoothedDirectionalMovementPlus = 0.0
+SmoothedDirectionalMovementPlus := nz(SmoothedDirectionalMovementPlus[1]) - (nz(SmoothedDirectionalMovementPlus[1])/len) + DirectionalMovementPlus
+SmoothedDirectionalMovementMinus = 0.0
+SmoothedDirectionalMovementMinus := nz(SmoothedDirectionalMovementMinus[1]) - (nz(SmoothedDirectionalMovementMinus[1])/len) + DirectionalMovementMinus
+
+//Indicators
+fasthull = hma(close, hullLen1)
+slowhull = hma(close, hullLen2)
+DIPlus = SmoothedDirectionalMovementPlus / SmoothedTrueRange * 100
+DIMinus = SmoothedDirectionalMovementMinus / SmoothedTrueRange * 100
+DX = abs(DIPlus-DIMinus) / (DIPlus+DIMinus)*100
+ADX = sma(DX, len)
+
+//Plots
+plot(DIPlus, color=color.green, title="DI+")
+plot(DIMinus, color=color.red, title="DI-")
+plot(ADX, color=color.black, title="ADX")
+
+//conditions
+go_long = crossover(DIPlus, DIMinus) and fasthull > slowhull //crossover(fasthull, slowhull) and DIPlus > DIMinus
+go_short = crossover(DIMinus, DIPlus) and fasthull < slowhull //crossunder(fasthull, slowhull) and DIMinus > DIPlus
+
+//Entry
+if strategy.position_size < 0 or strategy.position_size == 0
+    strategy.order("long", strategy.long, when=go_long)
+
+if strategy.position_size > 0 or strategy.position_size == 0
+    strategy.order("Short", strategy.short, when=go_short)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/437675
+
+> Last Modified
+
+2024-01-04 17:23:06

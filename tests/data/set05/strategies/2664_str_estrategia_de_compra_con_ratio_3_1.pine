@@ -1,0 +1,52 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双移动均线趋势跟踪交易系统结合风险收益比优化策略-Dual-Moving-Average-Trend-Following-Trading-System-with-Risk-Reward-Ratio-Optimization-Strategy.md
+// content_hash: 526cf7675d31da7d
+// collected: 2026-07-27
+strategy("Estrategia de Compra con Ratio 3:1", overlay=true)
+
+// Parámetros de la temporalidad diaria y las EMAs
+ema20 = ta.ema(close, 20)
+ema200 = ta.ema(close, 200)
+
+// Condiciones para la entrada en largo
+cierre_por_encima_ema20 = close > ema20
+ema20_mayor_ema200 = ema20 > ema200
+
+// Variable para registrar si ya se realizó una compra
+var bool compra_realizada = false
+
+// Condición para registrar una compra: primera vez que cierra por encima de EMA 20 con EMA 20 > EMA 200
+if (cierre_por_encima_ema20 and ema20_mayor_ema200 and not compra_realizada)
+    // Abrir una operación de compra
+    strategy.entry("Compra", strategy.long)
+    compra_realizada := true  // Registrar que se realizó una compra
+
+    // Definir los niveles de stop loss y take profit basados en el ratio 3:1
+    stop_loss = strategy.position_avg_price * 0.995  // -0.50% (rendimiento)
+    take_profit = strategy.position_avg_price * 1.015  // +1.50% (3:1 ratio)
+    
+    // Establecer el stop loss y take profit
+    strategy.exit("Take Profit / Stop Loss", from_entry="Compra", stop=stop_loss, limit=take_profit)
+
+// Condición para resetear la compra: cuando el precio cierra por debajo de la EMA de 20
+if (close < ema20)
+    compra_realizada := false  // Permitir una nueva operación
+
+// Ploteo de las EMAs
+plot(ema20, title="EMA 20", color=color.blue, linewidth=2)
+plot(ema200, title="EMA 200", color=color.red, linewidth=2)
+
+// Colorear el fondo cuando el precio está por encima de ambas EMAs
+bgcolor(cierre_por_encima_ema20 and ema20_mayor_ema200 ? color.new(color.green, 80) : na)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/473270
+
+> Last Modified
+
+2024-11-28 17:20:13

@@ -1,0 +1,20 @@
+//@version=6
+// set04 corpus entry
+// source_repo: mcp-server-pinescript
+// source_path: mcp-server-pinescript/.project/bug-reports/MCP_PINESCRIPT_COMPREHENSIVE_UDT_VALIDATION_BUG_REPORT.md::MCP_PINESCRIPT_COMPREHENSIVE_UDT_VALIDATION_BUG_REPORT.md#block1
+// content_hash: 2ddafa90872d3471
+// collected: 2026-07-27
+strategy("UDT History Bug Test", overlay=true)
+
+type TestState
+    float value
+    int count
+    bool active
+
+var state = TestState.new(0.0, 0, false)
+
+// ❌ CRITICAL SYNTAX ERROR - Should be detected by MCP service
+badValue = state.value[1]  // ERROR: Cannot use history-referencing on UDT fields
+badCount = state.count[1]  // ERROR: Cannot use history-referencing on UDT fields
+
+plot(badValue)

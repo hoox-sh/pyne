@@ -1,0 +1,66 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多指标趋势确认高倍收益量化交易策略-Multi-Indicator-Trend-Confirmation-High-Profit-Quantitative-Trading-Strategy.md
+// content_hash: 09968a5687e04bf3
+// collected: 2026-07-27
+strategy("Solana Max Profit Strategy", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=30)
+
+// Definition of Exponential Moving Averages (EMAs)
+ema10 = ta.ema(close, 10)
+ema20 = ta.ema(close, 20)
+ema50 = ta.ema(close, 50)
+ema100 = ta.ema(close, 100)
+ema200 = ta.ema(close, 200)
+
+// Relative Strength Index (RSI)
+rsi = ta.rsi(close, 14)
+
+// MACD for confirmation
+[macdLine, signalLine, _] = ta.macd(close, 12, 26, 9)
+
+// Volume for trend validation
+vol_ma = ta.sma(volume, 20)
+strong_volume = volume > vol_ma * 1.5
+
+// Market trend identification
+higher_high = ta.highest(high, 50)
+lower_low = ta.lowest(low, 50)
+trend = close > (higher_high + lower_low) / 2 ? 1 : -1
+
+// Optimized Buy Conditions
+long_condition = ta.crossover(ema10, ema20) and close > ema50 and close > ema100 and close > ema200 and rsi > 55 and trend == 1 and ta.crossover(macdLine, signalLine) and strong_volume
+
+// Optimized Sell Conditions
+short_condition = ta.crossunder(ema10, ema20) and close < ema50 and close < ema100 and close < ema200 and rsi < 45 and trend == -1 and ta.crossunder(macdLine, signalLine) and strong_volume
+
+// Execution of trades
+if long_condition
+    strategy.entry("Buy", strategy.long)
+
+if short_condition
+    strategy.close("Buy")
+
+// Adjusted Stop Loss and Take Profit
+stop_loss = close * 0.98  // Risk reduction
+profit_target = close * 2.0  // Maximizing gains
+strategy.exit("Take Profit", from_entry="Buy", limit=profit_target, stop=stop_loss)
+
+// Visual signals
+plot(ema10, color=color.blue, title="EMA 10")
+plot(ema20, color=color.orange, title="EMA 20")
+plot(ema50, color=color.green, title="EMA 50")
+plot(ema100, color=color.purple, title="EMA 100")
+plot(ema200, color=color.red, title="EMA 200")
+plot(macdLine, color=color.aqua, title="MACD")
+plot(signalLine, color=color.fuchsia, title="Signal Line")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/488128
+
+> Last Modified
+
+2025-03-25 11:36:57

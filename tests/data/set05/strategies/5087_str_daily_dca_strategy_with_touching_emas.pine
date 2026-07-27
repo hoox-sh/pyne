@@ -1,0 +1,63 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/每日均成本策略结合EMA触碰信号Daily-DCA-Strategy-with-Touching-EMAs.md
+// content_hash: a994229a833ece6a
+// collected: 2026-07-27
+strategy("Daily DCA Strategy with Touching EMAs", overlay=true, pyramiding=10000)
+
+// Customizable Parameters
+daily_investment = input(50000, title="Daily Investment")
+start_year = input(2022, title="Start Year")
+start_month = input(1, title="Start Month")
+start_day = input(1, title="Start Day")
+end_year = input(2023, title="End Year")
+end_month = input(12, title="End Month")
+end_day = input(1, title="End Day")
+trade_count_limit = input(10000, title="Pyramiding Limit")
+enable_sell = input(true, title="Enable Sell")
+
+start_date = timestamp(start_year, start_month, start_day)
+var int trade_count = 0
+
+// Calculate the number of shares to buy based on the current closing price
+shares_to_buy = daily_investment / close
+
+// Check if a new day has started and after the start date
+isNewDay = dayofmonth != dayofmonth[1] and time >= start_date
+
+// Buy conditions based on EMA crossovers
+ema5_cross_above = crossover(close, ema(close, 5))
+ema10_cross_above = crossover(close, ema(close, 10))
+ema20_cross_above = crossover(close, ema(close, 20))
+ema50_cross_above = crossover(close, ema(close, 50))
+ema100_cross_above = crossover(close, ema(close, 100))
+ema200_cross_above = crossover(close, ema(close, 200))
+
+if isNewDay and (ema5_cross_above or ema10_cross_above or ema20_cross_above or ema50_cross_above or ema100_cross_above or ema200_cross_above) and trade_count < trade_count_limit
+    strategy.entry("Buy", strategy.long, qty=shares_to_buy)
+    trade_count := trade_count + 1
+
+// Dynamic sell conditions (optional)
+sell_condition =  true
+
+if enable_sell and sell_condition
+    strategy.close_all()
+
+// EMA Ribbon for visualization
+plot(ema(close, 5), color=color.red, title="EMA 5")
+plot(ema(close, 10), color=color.orange, title="EMA 10")
+plot(ema(close, 20), color=color.yellow, title="EMA 20")
+plot(ema(close, 50), color=color.green, title="EMA 50")
+plot(ema(close, 100), color=color.blue, title="EMA 100")
+plot(ema(close, 200), color=color.purple, title="EMA 200")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/438947
+
+> Last Modified
+
+2024-01-16 15:30:17

@@ -1,0 +1,77 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多重EMA交叉趋势跟踪与动态止盈止损优化策略-Multi-EMA-Crossover-Trend-Following-Strategy-with-Dynamic-Stop-Loss-and-Take-Profit-Optimization.md
+// content_hash: 1f3e4ae18da1a0f2
+// collected: 2026-07-27
+strategy("EMA Crossover with SL and TP Levels", overlay=true)
+
+// Input settings for stop loss and take profit
+slTicks = input.int(50, title="Stop Loss (ticks)", minval=1)
+tpTicks = input.int(100, title="Take Profit (ticks)", minval=1)
+
+// Input settings for moving averages
+shortMAPeriod = input.int(21, title="Short MA Period")
+longMAPeriod = input.int(50, title="Long MA Period")
+thirdMAPeriod = input.int(200, title="Third MA Period")
+
+// Calculate moving averages
+shortMA = ta.ema(close, shortMAPeriod) // Short EMA (21-period)
+longMA = ta.ema(close, longMAPeriod) // Long EMA (50-period)
+thirdMA = ta.ema(close, thirdMAPeriod) // Third EMA (200-period)
+
+// Detect crossovers for entry signals
+bullishCross = ta.crossover(shortMA, longMA) and close > thirdMA
+bearishCross = ta.crossunder(shortMA, longMA) and close < thirdMA
+
+// Initialize variables for SL and TP
+var float longSL = na
+var float longTP = na
+var float shortSL = na
+var float shortTP = na
+
+// Execute trades based on crossovers
+if (bullishCross) 
+    longSL := close - slTicks * syminfo.mintick
+    longTP := close + tpTicks * syminfo.mintick
+    strategy.entry("Long", strategy.long)
+    strategy.exit("Exit Long", "Long", stop=longSL, limit=longTP)
+
+if (bearishCross)
+    shortSL := close + slTicks * syminfo.mintick
+    shortTP := close - tpTicks * syminfo.mintick
+    strategy.entry("Short", strategy.short)
+    strategy.exit("Exit Short", "Short", stop=shortSL, limit=shortTP)
+
+// Plot the MAs
+plot(shortMA, color=color.green, linewidth=2, title="21-period EMA")
+plot(longMA, color=color.red, linewidth=2, title="50-period EMA")
+plot(thirdMA, color=color.blue, linewidth=2, title="200-period EMA")
+
+// Plot buy/sell signals
+plotshape(series=bullishCross, title="Buy Signal", location=location.belowbar, color=color.green, style=shape.labelup, text="BUY", size=size.small, offset=-1)
+plotshape(series=bearishCross, title="Sell Signal", location=location.abovebar, color=color.red, style=shape.labeldown, text="SELL", size=size.small, offset=-1)
+
+// // Draw SL and TP lines for Long positions
+// if (bullishCross)
+//     line.new(x1=bar_index, y1=longSL, x2=bar_index + 1, y2=longSL, color=color.red, width=2, style=line.style_dotted)
+//     line.new(x1=bar_index, y1=longTP, x2=bar_index + 1, y2=longTP, color=color.green, width=2, style=line.style_dotted)
+//     label.new(bar_index, longSL, text="Long SL", style=label.style_label_down, color=color.red, textcolor=color.white, size=size.small)
+//     label.new(bar_index, longTP, text="Long TP", style=label.style_label_up, color=color.green, textcolor=color.white, size=size.small)
+
+// // Draw SL and TP lines for Short positions
+// if (bearishCross)
+//     line.new(x1=bar_index, y1=shortSL, x2=bar_index + 1, y2=shortSL, color=color.red, width=2, style=line.style_dotted)
+//     line.new(x1=bar_index, y1=shortTP, x2=bar_index + 1, y2=shortTP, color=color.green, width=2, style=line.style_dotted)
+//     label.new(bar_index, shortSL, text="Short SL", style=label.style_label_down, color=color.red, textcolor=color.white, size=size.small)
+//     label.new(bar_index, shortTP, text="Short TP", style=label.style_label_up, color=color.green, textcolor=color.white, size=size.small)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/472248
+
+> Last Modified
+
+2024-11-18 15:44:37

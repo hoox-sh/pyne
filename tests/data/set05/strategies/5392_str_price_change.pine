@@ -1,0 +1,48 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动态阈值价格变化突破策略-Dynamic-Threshold-Price-Change-Breakout-Strategy.md
+// content_hash: 0b30fb65c3746d29
+// collected: 2026-07-27
+strategy("Price Change", shorttitle="Price Change", overlay=true)
+
+change = input(00.1, title="Change", minval=0.0001, maxval=1, type=input.float)
+
+
+// Calculate price change
+priceChange = close / close[1] - 1
+
+// Buy and Sell Signals
+buyp = priceChange >= change
+sellp = priceChange <= (change * -1)
+
+// Initialize position and track the current position
+var int position = na
+
+// Strategy entry conditions
+buy_condition = buyp and (na(position) or position == -1)
+sell_condition = sellp and (na(position) or position == 1)
+
+var float stop = na
+
+if (buy_condition)
+    strategy.entry("Long", strategy.long)
+    stop := lowest(low, 6)
+    position := 1
+if (sell_condition or low < stop)
+    strategy.close("Long")
+    position := -1
+
+// Plot Buy and Sell signals using plotshape
+plotshape(series=buy_condition, title="Buy Signal", location=location.belowbar, color=color.green, style=shape.triangleup, size=size.small)
+plotshape(series=sell_condition, title="Sell Signal", location=location.abovebar, color=color.red, style=shape.triangledown, size=size.small)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/446765
+
+> Last Modified
+
+2024-04-01 12:03:59

@@ -1,0 +1,19 @@
+// set04 corpus entry
+// source_repo: casoon-pine-scripts
+// source_path: casoon-pine-scripts/CLAUDE.md::CLAUDE.md#block2
+// content_hash: 98b4797da1e5a858
+// collected: 2026-07-27
+Rules:
+- `//@version=6` is always the first line
+- The comment block always comes **before** the `indicator()` call
+- Script name in the comment block always ends with `[WavesUnchained]`
+- The `indicator()` title string also always ends with `[WavesUnchained]`
+- Features use `✓` prefix (not `-` or `*`)
+- `Build:` date is kept from the original; only update it when the script is actually modified
+- No `@description`, `@author`, `@version` JSDoc-style tags — use the structured fields above
+
+## Dashboard table style
+
+All indicator dashboards use the same light-theme table style. The reference implementation is `indicators/trend_direction/vein/vein_trend.pine`.
+
+### Table init

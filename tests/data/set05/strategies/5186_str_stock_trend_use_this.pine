@@ -1,0 +1,58 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/唐奇安通道突破策略Donchian-Channel-Breakout-Strategy-with-ATRSL-Trailing-Stop.md
+// content_hash: aa8d578c58cf5acd
+// collected: 2026-07-27
+strategy("Stock Trend USE THIS", overlay = true)
+donLength = input(100, minval=1)
+
+//Donchian Long
+donLower = lowest(donLength)
+donUpper = highest(donLength)
+donBasis = avg(donUpper,donLower)
+
+// ATRSL
+SC = close
+
+// Slow Trail //
+AP2 = input(10, title="Slow ATR period")  // ATR Period
+AF2 = input(3, title="Slow ATR multiplier")  // ATR Factor
+SL2 = AF2 * atr(AP2)  // Stop Loss
+Trail2 = 0.0
+iff_3 = SC > nz(Trail2[1], 0) ? SC - SL2 : SC + SL2
+iff_4 = SC < nz(Trail2[1], 0) and SC[1] < nz(Trail2[1], 0) ? min(nz(Trail2[1], 0), SC + SL2) : iff_3
+Trail2 := SC > nz(Trail2[1], 0) and SC[1] > nz(Trail2[1], 0) ? max(nz(Trail2[1], 0), SC - SL2) : iff_4
+
+
+
+// Long and Short Conditions
+longCondition = (crossover(close,donUpper[1])) 
+
+// Close Conditions
+closeLongCondition = crossunder(close,Trail2)
+
+// Strategy logic
+if (longCondition) 
+    strategy.entry("Long", strategy.long)
+    alert("Open Long position")
+
+if (closeLongCondition)
+    strategy.close("Long")
+    alert("Close Long position")
+
+// Plot Donchian
+l = plot(donLower, color=color.blue)
+u = plot(donUpper, color=color.blue)
+plot(donBasis, color=color.orange)
+fill(u, l, color=color.blue)
+plot(Trail2, color=color.blue, title="ATRSL Trail")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/445840
+
+> Last Modified
+
+2024-03-22 16:13:58

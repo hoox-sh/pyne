@@ -1,0 +1,165 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动态价格摆荡器趋势策略Dynamic-Price-Swing-Oscillator-Strategy.md
+// content_hash: 2a09c93501ae743f
+// collected: 2026-07-27
+
+// ██████╗██████╗ ███████╗ █████╗ ████████╗███████╗██████╗     ██████╗ ██╗   ██╗    
+//██╔════╝██╔══██╗██╔════╝██╔══██╗╚══██╔══╝██╔════╝██╔══██╗    ██╔══██╗╚██╗ ██╔╝                       
+//██║     ██████╔╝█████╗  ███████║   ██║   █████╗  ██║  ██║    ██████╔╝ ╚████╔╝                        
+//██║     ██╔══██╗██╔══╝  ██╔══██║   ██║   ██╔══╝  ██║  ██║    ██╔══██╗  ╚██╔╝                         
+//╚██████╗██║  ██║███████╗██║  ██║   ██║   ███████╗██████╔╝    ██████╔╝   ██║                          
+// ╚═════╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝   ╚═╝   ╚══════╝╚═════╝     ╚═════╝    ╚═╝                          
+                                                                                                     
+//███████╗ ██████╗ ██╗     ██╗   ██╗████████╗██╗ ██████╗ ███╗   ██╗███████╗ ██╗ █████╗ ███████╗ █████╗ 
+//██╔════╝██╔═══██╗██║     ██║   ██║╚══██╔══╝██║██╔═══██╗████╗  ██║██╔════╝███║██╔══██╗╚════██║██╔══██╗
+//███████╗██║   ██║██║     ██║   ██║   ██║   ██║██║   ██║██╔██╗ ██║███████╗╚██║╚██████║    ██╔╝╚█████╔╝
+//╚════██║██║   ██║██║     ██║   ██║   ██║   ██║██║   ██║██║╚██╗██║╚════██║ ██║ ╚═══██║   ██╔╝ ██╔══██╗
+//███████║╚██████╔╝███████╗╚██████╔╝   ██║   ██║╚██████╔╝██║ ╚████║███████║ ██║ █████╔╝   ██║  ╚█████╔╝
+//╚══════╝ ╚═════╝ ╚══════╝ ╚═════╝    ╚═╝   ╚═╝ ╚═════╝ ╚═╝  ╚═══╝╚══════╝ ╚═╝ ╚════╝    ╚═╝   ╚════╝ 
+                                                                                                     
+
+strategy(shorttitle='DPS',title='Dynamic Price Swing', overlay=true, scale=scale.left, initial_capital = 1000, process_orders_on_close=true, default_qty_type = strategy.percent_of_equity, default_qty_value = 100, commission_type=strategy.commission.percent, commission_value=0.18, calc_on_every_tick=true)
+
+
+// -----------------  Strategy Inputs -------------------------------------------------------------
+//Backtest dates with auto finish date of today
+start = input(defval = timestamp("22 June 2021 00:00 -0500"), title = "Start Time")
+finish = input(defval = timestamp("31 December 2021 00:00 -0600"), title = "End Time")
+window()  => true       // create function "within window of time"
+
+// Strategy Selection - Long, Short, or Both
+stratinfo = input(true, "Long/Short for Mixed Market, Long for Bull, Short for Bear")
+strat = input(title="Trade Types", defval="Long/Short", options=["Long Only", "Long/Short", "Short Only"])
+strat_val = strat == "Long Only" ? 1 : strat == "Long/Short" ? 0 : -1
+
+// Risk Management Inputs
+sl= input(10.0, "Stop Loss %", minval = 0, maxval = 100, step = 0.01)
+stoploss = sl/100
+tp = input(20.0, "Target Profit %", minval = 0, maxval = 100, step = 0.01)
+TargetProfit = tp/100
+ld = input(2, "Stop Trading After This Many Losing Days", type=input.integer, minval=0, maxval=100, step=1)
+// strategy.risk.max_cons_loss_days(count=ld)
+ml = input(10, "Maximum % of Equity Lost to Halt Trading", type=input.integer, minval=1, maxval=100, step=1)
+// strategy.risk.max_drawdown(value=ml, type=strategy.percent_of_equity)
+
+// Price Movement Inputs
+PriceInfo = input(true, "Number of bars to look back on to calculate price swings.")
+lkbk = input(5,"Max Lookback Period")
+high_source = input(high,"High Source")
+low_source= input(low,"Low Source")
+
+// Trend Inputs
+TrendInfo = input(true, "Trend uses Fast and Slow EMA to prevent going the wrong direction")
+length = input(14, "RSI Length", minval=1)
+fastLength = input(12, minval=1, title="EMA Fast Length")
+slowLength = input(26, minval=1, title="EMA Slow Length")
+
+// Trigger Selection
+usePrice = input(true, "Use Average Price Channel Only")
+useMA = input(false, "Use Price Moving Average Only")
+useFib = input(false, "Use Price Fibonacci Average Only")
+
+
+// Trend Direction Calculation
+rsi_ema = ema(rsi(close, length), length)
+emaA = ema(rsi_ema, fastLength)                                     
+emaFast = 2 * emaA - ema(emaA, fastLength)
+emaB = ema(rsi_ema, slowLength)                                     
+emaSlow = 2 * emaB - ema(emaB, slowLength) 
+
+
+bullishRule =emaFast > emaSlow and rsi_ema >=rsi_ema[1]
+bearishRule =emaFast < emaSlow and rsi_ema <= rsi_ema[1]
+
+
+// Price Channel
+
+lasthigh = highest(high_source, lkbk)
+lastlow = lowest(low_source, lkbk)
+
+
+// Fibonacci and Moving Average
+MA1 = sma(close,5),HA1 = sma(high,5),LA1 = sma(low,5),
+MA2 = sma(close,8),HA2 = sma(high,8),LA2 = sma(low,8),
+MA3 = sma(close,13),HA3 = sma(high,13),LA3 = sma(low,13),
+MA4 = sma(close,21),HA4 = sma(high,21),LA4 = sma(low,21),
+MA5 = sma(close,34),HA5 = sma(high,34),LA5 = sma(low,34),
+MA6 = sma(close,55),HA6 = sma(high,55),LA6 = sma(low,55),
+MA7 = sma(close,89),HA7 = sma(high,89),LA7 = sma(low,89),
+
+CMA = (MA1+MA2+MA3+MA4+MA5+MA6+MA7)/7,
+HMA = (HA1+HA2+HA3+HA4+HA5+HA6+HA7)/7,
+HMA2 = CMA + (atr(lkbk)*1.618)
+
+LMA = (LA1+LA2+LA3+LA4+LA5+LA6+LA7)/7,
+LMA2 = CMA - (atr(lkbk)*1.618)
+
+
+plot(CMA, title="CMA", color=color.new(#00ffaa, 70), linewidth=2)
+plot(HMA, title="HMA", color=color.maroon, linewidth=2)
+plot(HMA2, title="HMA Fib", color=color.red, linewidth=3)
+plot(LMA, title="LMA", color=color.green, linewidth=2)
+plot(LMA2, title="LMA Fib", color=color.teal, linewidth=3)
+
+    
+
+// -------------------------------- Entry and Exit Logic ------------------------------------
+
+// Entry Logic
+
+Channel_Sell = close >= lasthigh[1] and bearishRule and window()
+Channel_Buy =  close <= lastlow[1] and bullishRule and window()
+
+MA_Sell = high>HMA and window()
+MA_Buy = low<LMA and window()
+
+Fib_Sell = high>HMA2 and window()
+Fib_Buy = low<LMA2 and window()
+
+qty = strategy.equity/close
+
+
+// Strategy Entry and Exit with built in Risk Management
+if(strategy.opentrades==0 and strat_val>-1)
+    GoLong = usePrice ? Channel_Buy : useMA ? MA_Buy : useFib ? Fib_Buy : false
+    if (GoLong)
+        strategy.entry("LONG", strategy.long, qty)
+
+if(strategy.opentrades==0 and strat_val<1)
+    GoShort = usePrice ? Channel_Sell : useMA ? MA_Sell : useFib ? Fib_Sell : false
+    if (GoShort) 
+        strategy.entry("SHORT", strategy.short, qty)
+
+
+longStopPrice  = strategy.position_avg_price * (1 - stoploss)
+longTakePrice  = strategy.position_avg_price * (1 + TargetProfit)
+shortStopPrice = strategy.position_avg_price * (1 + stoploss)
+shortTakePrice = strategy.position_avg_price * (1 - TargetProfit)
+
+if (strategy.position_size > 0)
+    strategy.exit(id="Exit Long", from_entry = "LONG", stop = longStopPrice, limit = longTakePrice)
+    
+if (strategy.position_size < 0)
+    strategy.exit(id="Exit Short", from_entry = "SHORT", stop = shortStopPrice, limit = shortTakePrice)
+
+CloseShort= usePrice ? Channel_Buy : useMA ? MA_Buy : useFib ? Fib_Buy : false
+CloseLong = usePrice ? Channel_Sell : useMA ? MA_Sell : useFib ? Fib_Sell : false
+
+if(CloseLong and strategy.position_size > 0)
+    strategy.close("LONG")
+        
+
+if(CloseShort and strategy.position_size < 0)
+    strategy.close("SHORT")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/432968
+
+> Last Modified
+
+2023-11-23 10:45:02

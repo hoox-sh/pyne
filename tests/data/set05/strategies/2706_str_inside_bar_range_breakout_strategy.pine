@@ -1,0 +1,51 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/突破重叠K线高低位策略Inside-Bar-Range-Breakout-Strategy.md
+// content_hash: ba09d494226a427f
+// collected: 2026-07-27
+strategy("Inside Bar Range Breakout Strategy", overlay=true)
+
+// Inputs
+lookback = input.int(20, "Lookback Period", minval=1)
+atrMult = input.float(1.5, "ATR Multiplier", step=0.1)
+atrLen = input.int(14, "ATR Length", minval=1)
+slMult = input.float(2, "Stop Loss Multiplier", step=0.1)
+tpMult = input.float(3, "Take Profit Multiplier", step=0.1)
+
+// Variables
+atr = ta.atr(atrLen)
+Range = high - low 
+insideBar = Range < Range[1]
+breakoutUp = close > high[1]
+breakoutDown = close < low[1]
+liquidityUp = ta.highest(high, lookback)
+liquidityDown = ta.lowest(low, lookback)
+longEntry = breakoutUp and low > liquidityDown
+shortEntry = breakoutDown and high < liquidityUp
+longExit = close < low[1] 
+shortExit = close > high[1]
+
+// Plotting
+plot(liquidityUp, "Liquidity Up", color.new(color.green, 30), 1)
+plot(liquidityDown, "Liquidity Down", color.new(color.red, 30), 1)
+bgcolor(longEntry ? color.new(color.green, 30) : na, title="Long Entry")
+bgcolor(shortEntry ? color.new(color.maroon, 30) : na, title="Short Entry")
+
+// Trading
+if (longEntry)
+    strategy.entry("Long", strategy.long)
+    strategy.exit("Long Exit", "Long", stop=low - slMult * atr, limit=high + tpMult * atr)
+
+if (shortEntry)
+    strategy.entry("Short", strategy.short)
+    strategy.exit("Short Exit", "Short", stop=high + slMult * atr, limit=low - tpMult * atr)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/434989
+
+> Last Modified
+
+2023-12-11 15:16:53

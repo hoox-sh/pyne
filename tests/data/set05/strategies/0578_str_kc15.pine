@@ -1,0 +1,232 @@
+//@version=5
+// set05 corpus entry
+// source_repo: Private-Pine-Scripts
+// source_path: Private-Pine-Scripts/KC15.pine
+// content_hash: 09215223b955eb89
+// collected: 2026-07-27
+//
+// Author: benso87
+// benso87.com
+//
+//
+strategy("KC15", overlay=true, initial_capital=100, default_qty_value=100, default_qty_type=strategy.percent_of_equity, process_orders_on_close=true, backtest_fill_limits_assumption=1, pyramiding=0, max_bars_back=500)
+
+noColor = color.new(color.white, transp=100)
+////////////////////////////////////////////////////////////
+// Inputs
+
+// Dates
+startDate	= input.time	(timestamp('1 Jan 2022 00:00'), title='Start', group='Dates')
+endDate		= input.time	(timestamp('1 Jan 2100 00:00'), title='End', group='Dates')
+
+// Moving Average Inputs
+ma1Color 	= input.color	(#0bff00, title="MA 1", inline="MA 1", group="Moving Averages")
+ma1Length 	= input.int		(21, title="", minval=1, inline="MA 1", group="Moving Averages")
+ma1Type 	= input.string	("EMA", title="", options=["SMA","EMA"], inline="MA 1", group="Moving Averages")
+ma2Color 	= input.color	(#ff0014, title="MA 2", inline="MA 2", group="Moving Averages")
+ma2Length 	= input.int		(55, title="", minval=1, inline="MA 2", group="Moving Averages")
+ma2Type 	= input.string	("EMA", title="", options=["SMA","EMA"], inline="MA 2", group="Moving Averages")
+
+//Signal inputs
+bbwp_threshold	 	= input.float	(35, 'BBWP threshold', minval=0.1, maxval=100, step=0.01, inline='1', group='Signal Settings')
+includeLongs		= input.bool	(true, 'Longs', inline='2', group='Signal Settings')
+pmarp_long_signal 	= input.float	(15, 'PMARP long signal', minval=0.1, maxval=100, step=0.01, inline='3', group='Signal Settings')
+pmarp_long_exit		= input.float	(75, 'PMARP long exit', minval=0.1, maxval=100, step=0.01, inline='3', group='Signal Settings')
+includeShorts		= input.bool	(true, 'Shorts', inline='4', group='Signal Settings')
+pmarp_short_signal	= input.float	(85, 'PMARP short signal', minval=0.1, maxval=100, step=0.01, inline='5', group='Signal Settings')
+pmarp_short_exit	= input.float	(25, 'PMARP short exit', minval=0.1, maxval=100, step=0.01, inline='5', group='Signal Settings')
+errorMarginInput    = input.float   (100, 'Margin for Error (%)', minval=0, inline='6', group='Signal Settings')
+
+// Pivots
+pvtLenL = input.int(20, minval=1, title='Pivot Length Left', group='Pivots')
+pvtLenR = input.int(20, minval=1, title='Pivot Length Right', group='Pivots')
+
+//BBWP input variable declarations
+var string STM = 'Spectrum'
+var string SLD = 'Solid'
+var string BGR = 'Blue Green Red'
+var string BR  = 'Blue Red'
+
+// BBWP Inputs
+i_priceSrc      = input.source  (close, 'Price Source', group='BBWP Properties')
+i_basisType     = input.string  ('SMA', 'Basis Type', options=['SMA', 'EMA', 'VWMA'], group='BBWP Properties')
+i_bbwpLen       = input.int     (13, 'BBWP Length', minval=1, group='BBWP Properties')
+i_bbwpLkbk      = input.int     (252, 'BBWP Lookback', minval=1, group='BBWP Properties')
+
+// PMARP Inputs
+i_src_price         = input.source  (close, 'Price source', inline='1', group='PMARP Properties')
+i_pmarp_lookback    = input.int		(350, 'PMARP Lookback', minval=1, maxval=1900, inline='2', group='PMARP Properties')
+i_ma_len            = input.int     (20, 'PMAR length', minval=1, inline='3', group='PMARP Properties')
+i_ma_typ            = input.string  ('VWMA', 'MA type...', options=[ 'SMA', 'EMA', 'HMA', 'RMA', 'VWMA' ], inline='3', group='PMARP Properties')
+
+////////////////////////////////////////////////////////////
+// Calculations
+
+//////////////////////////////////////////////////////////////
+// Credit to The_Caretaker
+// BBWP
+
+// BBWP function declarations
+f_maType ( _price, _len, _type ) =>
+    _type == 'SMA' ? ta.sma ( _price, _len ) : _type == 'EMA' ? ta.ema ( _price, _len ) : ta.vwma ( _price, _len )
+
+f_bbwp ( _price, _bbwLen, _bbwpLen, _type ) =>
+    float _basis = f_maType ( _price, _bbwLen, _type )
+    float _dev = ta.stdev ( _price, _bbwLen )
+    _bbw = ( _basis + _dev - ( _basis - _dev )) / _basis
+    _bbwSum = 0.0
+    _len = bar_index < _bbwpLen ? bar_index : _bbwpLen
+    for _i = 1 to _len by 1
+        _bbwSum += ( _bbw[_i] > _bbw ? 0 : 1 )
+        _bbwSum
+    _return = bar_index >= _bbwLen ? ( _bbwSum / _len) * 100 : na
+    _return
+
+// BBWP calculations
+bbwp	= f_bbwp ( i_priceSrc, i_bbwpLen, i_bbwpLkbk, i_basisType )
+
+
+//////////////////////////////////////////////////////////////
+// Credit to The_Caretaker
+// PMARP
+
+// PMARP function declarations
+f_prior_sum ( _P, _X ) =>
+    math.sum ( _P[1], _X - 1 )
+
+f_ma_val ( _P, _typ, _len ) =>
+    _typ == 'SMA' ? ta.sma ( _P, _len ) : _typ == 'EMA' ? ta.ema ( _P, _len ) : _typ == 'RMA' ? ta.rma ( _P, _len ) : _typ == 'HMA' ? ta.hma ( _P, _len ) : ta.vwma ( _P, _len )
+
+f_pmarp ( _price, _pmarLen, _pmarpLen, _type_p ) =>
+    _pmar = math.abs ( _price / f_ma_val ( _price, _type_p, _pmarLen ))
+    _pmarpSum = 0
+    _len = bar_index < _pmarpLen ? bar_index : _pmarpLen
+    for i = 1 to _len by 1
+        _pmarpSum += ( _pmar[i] > _pmar ? 0 : 1 )
+        _pmarpSum
+    _return = bar_index >= _pmarLen ? _pmarpSum / _len * 100 : na
+
+// PMARP calculations
+ma          = f_ma_val ( i_src_price, i_ma_typ, i_ma_len )
+pmar        = i_src_price / ma
+pmarp       = f_pmarp ( i_src_price, i_ma_len, i_pmarp_lookback, i_ma_typ )
+
+
+//////////////////////////////////////////////////////////////
+// Calculations
+
+// Error margin
+errorMargin = errorMarginInput / 100
+
+f_near(ma, margin) =>
+    x = close > ma - (ma * margin) and close < ma + (ma * margin)
+
+// Swings
+pvthi_ = ta.pivothigh(high, pvtLenL, pvtLenR)
+pvtlo_ = ta.pivotlow(low, pvtLenL, pvtLenR)
+
+// Force Pivot completion before plotting.
+Shunt = 0  //Wait for close before printing pivot? 1 for true 0 for false
+maxLvlLen = 0  //Maximum Extension Length
+pvthi = pvthi_[Shunt]
+pvtlo = pvtlo_[Shunt]
+
+// Count How many candles for current Pivot Level, If new reset.
+counthi = ta.barssince(not na(pvthi))
+countlo = ta.barssince(not na(pvtlo))
+
+pvthis = fixnan(pvthi)
+pvtlos = fixnan(pvtlo)
+hipc = ta.change(pvthis) != 0 ? na : #ff0014
+lopc = ta.change(pvtlos) != 0 ? na : #0bff00
+
+// Moving averages
+ma1 = ta.ema(close, ma1Length)
+ma2 = ta.ema(close, ma2Length)
+
+ma1Above2 = ma1 > ma2
+ma1Below2 = ma1 < ma2
+ma12mid = math.avg(ma1, ma2)
+
+silverCross = ta.crossover(ma1, ma2)
+darkCross = ta.crossover(ma2, ma1)
+
+ma1ishHigh = ma1 + ((ma1 - ma2) * errorMargin)
+ma1ishLow = ma1 - ((ma2 - ma1) * errorMargin)
+ma2ishHigh = ma2 + ((ma1 - ma2) * errorMargin)
+ma2ishLow = ma2 - ((ma2 - ma1) * errorMargin)
+
+ma2TestLong = close <= open and low <= ma2ishHigh or close <= ma2ishHigh
+ma2TestShort = close >= open and high >= ma2ishLow or close >= ma2ishLow
+
+maLongSignal 	= ma1Above2 and ma2TestLong
+maShortSignal 	= ma1Below2 and ma2TestShort
+
+// BBWP
+bbwpLow	= bbwp < bbwp_threshold
+
+// PMARP
+pmarpLongSignal		= pmarp <= pmarp_long_signal
+pmarpShortSignal	= pmarp >= pmarp_short_signal
+
+
+// Entries and exits
+longEntry   = includeLongs and maLongSignal and bbwpLow and time >= startDate and time <= endDate
+longExit    = pmarp >= pmarp_long_exit
+shortEntry  = includeShorts and maShortSignal and bbwpLow and time >= startDate and time <= endDate
+shortExit   = pmarp <= pmarp_short_exit
+
+// Trade variables
+var float entryPrice = na
+var float slLong = na
+var float slShort = na
+var float tpLong = na
+var float tpShort = na
+var string tradeType = na
+
+if longEntry and strategy.position_size == 0
+    entryPrice := close
+    slLong := pvtlos
+    tpLong := pvthis
+    tradeType := 'long'
+
+if shortEntry and strategy.position_size == 0
+    entryPrice := close
+    slShort := pvthis
+    tpShort := pvtlos
+    tradeType := 'short'
+
+stopLoss = tradeType == 'long' ? slLong : tradeType == 'short' ? slShort : na
+takeProfit = tradeType == 'long' ? tpLong : tradeType == 'short' ? tpShort : na
+
+
+//////////////////////////////////////////////////////////////
+// Strategy
+
+// Entries
+strategy.entry('Long', strategy.long, when=longEntry)
+strategy.entry('Short', strategy.short, when=shortEntry)
+
+// Exits
+strategy.exit('Long Exit', from_entry='Long', stop=slLong)
+strategy.exit('Short Exit', from_entry='Short', stop=slShort)
+
+strategy.close('Long', when=longExit)
+strategy.close('Short', when=shortExit)
+
+
+////////////////////////////////////////////////////////////
+// Plots
+
+// Trades
+sl = plot(strategy.position_size != 0 or strategy.position_size[1] != 0 ? stopLoss : na, title='Stop Loss', color=color.red, style=plot.style_linebr)
+e = plot(strategy.position_size != 0 or strategy.position_size[1] != 0 ? entryPrice : na, title='Entry', color=color.yellow, style=plot.style_linebr)
+//tp = plot(strategy.position_size != 0 or strategy.position_size[1] != 0 ? takeProfit : na, title='Take Profit', color=color.green, style=plot.style_linebr)
+
+// fill(sl, e, color=color.new(color.red, transp=80))
+// fill(tp, e, color=color.new(color.green, transp=80))
+
+
+//////////////////////////////////////////////////////////////
+// Testing
+

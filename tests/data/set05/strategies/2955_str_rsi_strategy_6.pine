@@ -1,0 +1,45 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于RSI-穿越交易策略The-RSI-Crossover-Trading-Strategy.md
+// content_hash: d8c16e8fc2e8b56a
+// collected: 2026-07-27
+strategy("RSI Strategy", overlay=true)
+
+length = input(19)
+overSold = input(35)
+overBought = input(70)
+price = close
+
+vrsi = ta.rsi(price, length)
+co = ta.crossover(vrsi, overSold)
+cu = ta.crossunder(vrsi, overBought)
+
+if (not na(vrsi))
+    if (co)
+        strategy.entry("RsiLE", strategy.long, comment="RsiLE")
+    if (cu)
+        strategy.entry("RsiSE", strategy.short, comment="RsiSE")
+
+// Define exit conditions
+exitLong = ta.crossunder(vrsi, overBought)
+exitShort = ta.crossover(vrsi, overSold)
+
+// Exit trades based on exit conditions
+if exitLong
+    strategy.close("RsiLE")
+    label.new(x = bar_index, y = low, text = "E", color = color.green, textcolor = color.white, style = label.style_label_down)
+if exitShort
+    strategy.close("RsiSE")
+    label.new(x = bar_index, y = high, text = "E", color = color.red, textcolor = color.white, style = label.style_label_up)
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/444383
+
+> Last Modified
+
+2024-03-11 16:05:04

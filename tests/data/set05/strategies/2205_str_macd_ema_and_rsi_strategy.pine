@@ -1,0 +1,61 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动量突破金叉策略Momentum-Breakthrough-Golden-Cross-Strategy.md
+// content_hash: e674bffa6e0aafa8
+// collected: 2026-07-27
+strategy("MACD, EMA, and RSI Strategy", overlay=true)
+
+// Input for MACD
+fastLength = input(5, title="Fast Length")
+slowLength = input(13, title="Slow Length")
+signalLength = input(9, title="Signal Length")
+
+// Input for EMA
+emaLength = input(21, title="EMA Length")
+
+// Input for RSI
+rsiLength = input(14, title="RSI Length")
+rsiOverbought = input(50, title="RSI Overbought Level")
+
+// Calculate MACD on the weekly timeframe
+[macdLine, signalLine, _] = ta.macd(close, fastLength, slowLength, signalLength)
+
+// Calculate 50-day EMA
+ema50 = ta.ema(close, emaLength)
+
+// Calculate RSI on the weekly timeframe
+rsi = ta.rsi(close, rsiLength)
+
+// Condition for Buy Entry
+buyCondition = ta.crossover(macdLine, 0) and dayofweek == dayofweek.monday and rsi > rsiOverbought
+
+// Condition for Sell Exit
+sellCondition = ta.crossunder(close, ema50) or ta.crossunder(macdLine, 0)
+
+// Execute Buy Entry on the next day's open
+if buyCondition
+    strategy.entry("My Long Entry Id", strategy.long)
+
+// Execute Sell Exit on the next day's open
+if sellCondition
+    strategy.close("My Long Entry Id")
+
+// Plotting MACD and EMA
+plot(macdLine - signalLine, title="MACD Histogram", color=color.blue, style=plot.style_histogram)
+hline(0, "Zero Line", color=color.gray)
+plot(ema50, title="50-day EMA", color=color.red)
+
+// Plotting RSI
+hline(rsiOverbought, "RSI Overbought", color=color.red)
+plot(rsi, title="RSI", color=color.green)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/440313
+
+> Last Modified
+
+2024-01-29 11:27:31

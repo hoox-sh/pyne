@@ -1,0 +1,5 @@
+//@version=6strategy("strategy.percent_of_equity", overlay = false, default_qty_value = 100, default_qty_type = strategy.percent_of_equity, initial_capital = 1000000)// As ‘qty’ is not defined, the previously defined values for the `default_qty_type` and `default_qty_value` parameters are used to enter trades, namely 100% of available equity.if bar_index == 0    strategy.entry("EN", strategy.long)if bar_index == 2    strategy.close("EN")plot(strategy.equity) // The ‘qty’ parameter is set to 10. Entering position with fixed size of 10 contracts and entry market price = (10 * close).if bar_index == 4    strategy.entry("EN", strategy.long, qty = 10)if bar_index == 6    strategy.close("EN")// set05 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/reference/constants.md::constants.md#block3
+// content_hash: 4c94c4cdffcc8ba9
+// collected: 2026-07-27

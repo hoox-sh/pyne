@@ -1,0 +1,17 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/pine-error-log.md::pine-error-log.md#block3
+// content_hash: aa94b82271b3781e
+// collected: 2026-07-27
+strategy("Trend + Oscillator", overlay=false)   // home = lower pane
+
+// --- price-chart layer (forced up onto price) ---
+plot(trendLine, "Trend", color=color.aqua, force_overlay=true)
+plotshape(buySig, style=shape.labelup, location=location.belowbar, force_overlay=true)
+bgcolor(regime ? color.new(color.green, 92) : na, force_overlay=true)
+barcolor(up ? color.green : color.red)           // no force_overlay — already on price
+
+// --- oscillator layer (lives in this pane) ---
+plot(osc, "Oscillator", style=plot.style_area)
+hline(0, "Zero", linestyle=hline.style_dotted)   // stays in pane

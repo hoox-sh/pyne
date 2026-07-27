@@ -1,0 +1,70 @@
+//@version=6
+// set03 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动态趋势跟踪型双均线交叉交易策略-Dynamic-Trend-Following-Dual-Moving-Average-Crossover-Trading-Strategy.md
+// content_hash: f1d60bdb091b56f6
+// collected: 2026-07-27
+strategy("BTCUSDT Daily - Enhanced Bitcoin Bull Market Support [CYRANO]", shorttitle="BTCUSDT Daily BULL MARKET", overlay=true, commission_type=strategy.commission.percent, commission_value=0.1, slippage=3)
+
+// Inputs
+smaLength = input.int(200, title="SMA Length (Bull Market)")
+emaLength = input.int(147, title="EMA Length (21-Week Approximation)")
+atrLength = input.int(14, title="ATR Length")
+riskATR = input.float(2.0, title="ATR Multiplier for Stop Loss", step=0.1)
+takeProfitPercent = input.float(10.0, title="Take Profit (%)", step=0.1)
+rsiFilter = input.bool(true, title="Enable RSI Filter")
+rsiLength = input.int(14, title="RSI Length")
+adxFilter = input.bool(true, title="Enable ADX Filter")
+adxThreshold = input.float(25, title="ADX Threshold")
+
+// Date Range Filter
+startDate = input(timestamp("2018-01-01 00:00 +0000"), title="Start Date")
+endDate = input(timestamp("2069-12-31 00:00 +0000"), title="End Date")
+inDateRange = true
+
+// Moving Averages
+sma200 = ta.sma(close, smaLength)
+ema21w = ta.ema(close, emaLength)
+
+// ATR Calculation
+atr = ta.atr(atrLength)
+stopLoss = close - (riskATR * atr)
+takeProfit = close * (1 + takeProfitPercent / 100)
+
+// RSI Filter
+rsi = ta.rsi(close, rsiLength)
+rsiCondition = rsiFilter ? rsi > 50 : true
+
+// ADX Filter
+[diplus, diminus, adx] = ta.dmi(14, 14)
+adxCondition = adxFilter ? adx > adxThreshold : true
+
+// Entry and Exit Conditions
+buyCondition = inDateRange and close > sma200 and close > ema21w and rsiCondition and adxCondition
+exitCondition = inDateRange and (close < sma200 or close < ema21w)
+
+// Strategy Execution
+if buyCondition
+    strategy.entry("BUY", strategy.long, stop=stopLoss, limit=takeProfit)
+
+if exitCondition
+    strategy.close("BUY")
+
+// Plot MAs
+plot(sma200, title="200-Day SMA", color=color.blue, linewidth=2)
+plot(ema21w, title="21-Week EMA", color=color.purple, linewidth=2)
+
+// Background Highlight
+bullColor = color.new(color.green, 80)
+bearColor = color.new(color.red, 80)
+bgcolor(close > sma200 and close > ema21w ? bullColor : bearColor, title="Bull Market Background")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/481107
+
+> Last Modified
+
+2025-02-08 15:18:58

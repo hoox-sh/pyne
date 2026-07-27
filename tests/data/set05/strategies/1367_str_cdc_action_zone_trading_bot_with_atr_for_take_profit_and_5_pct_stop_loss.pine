@@ -1,0 +1,85 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于CDC行动区的ATR止盈止损交易机器人策略-CDC-Action-Zone-Trading-Bot-Strategy-with-ATR-for-Take-Profit-and-Stop-Loss.md
+// content_hash: 2e871b260e90e6a3
+// collected: 2026-07-27
+strategy("CDC Action Zone Trading Bot with ATR for Take Profit and 5% Stop Loss", overlay=true)
+
+// ดึงข้อมูลราคาปิด
+close_price = close
+
+// คำนวณเส้น EMA 12 และ EMA 26
+ema12 = ta.ema(close_price, 12)
+ema26 = ta.ema(close_price, 26)
+
+// คำนวณ ATR
+atr_length = input.int(14, title="ATR Length")
+atr = ta.atr(atr_length)
+
+// กำหนด Multiplier สำหรับ ATR Trailing Stoploss
+mult_atr_stoploss = input.float(2.5, title="ATR Stoploss Multiplier")
+
+// คำนวณ ATR Trailing Stoploss
+prev_stoploss = close_price
+for i = 1 to 10
+    prev_stoploss := math.max(prev_stoploss, high[i] - mult_atr_stoploss * atr)
+
+// กำหนด Take Profit เป็น ATR Trailing Stoploss
+takeProfitPercent = input.float(10, title="Take Profit (%)") / 100
+takeProfit = close_price + (close_price - prev_stoploss) * takeProfitPercent
+
+// กำหนด Stop Loss เป็น 5% ของราคาปิดปัจจุบัน
+stopLossPercent = input.float(5, title="Stop Loss (%)") / 100
+stopLoss = close_price * stopLossPercent
+
+// กำหนดสีแท่งกราฟ
+buyColor = input.color(color.green, title="Buy Color")
+sellColor = input.color(color.red, title="Sell Color")
+neutralColor = input.color(color.gray, title="Neutral Color")
+color = if (ema12 > ema26)
+    buyColor
+else if (ema12 < ema26)
+    sellColor
+else
+    neutralColor
+
+// สัญญาณ Buy
+buySignal = (color == buyColor) and (color[1] != buyColor)
+
+// สัญญาณ Sell
+sellSignal = (color == sellColor) and (color[1] != sellColor)
+
+// เปิด Position Long
+if (buySignal)
+    strategy.entry("Long", strategy.long)
+
+// เปิด Position Short
+if (sellSignal)
+    strategy.entry("Short", strategy.short)
+
+// ปิด Position เมื่อถึง Take profit
+if (strategy.position_size > 0 and close_price > takeProfit)
+    strategy.exit("Long", profit=takeProfit)
+
+// ปิด Position เมื่อถึง Stop loss
+if (strategy.position_size > 0 and close_price < stopLoss)
+    strategy.exit("Long", loss=stopLoss)
+
+// ปิด Position เมื่อถึง Take profit
+if (strategy.position_size < 0 and close_price < takeProfit)
+    strategy.exit("Short", profit=takeProfit)
+
+// ปิด Position เมื่อถึง Stop loss
+if (strategy.position_size < 0 and close_price > stopLoss)
+    strategy.exit("Short", loss=stopLoss)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/453266
+
+> Last Modified
+
+2024-06-03 16:19:32

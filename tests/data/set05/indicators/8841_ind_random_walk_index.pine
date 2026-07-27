@@ -1,0 +1,17 @@
+//@version=3
+// set05 corpus entry
+// source_repo: tradingview-custom-indicators
+// source_path: tradingview-custom-indicators/oscillators/random_walk_index.pine
+// content_hash: 7068d707cde0415e
+// collected: 2026-07-27
+// Copyright (c) 2018-present, Alex Orekhov (everget)
+// Random Walk Index script may be freely distributed under the MIT license.
+study("Random Walk Index", shorttitle="RWI")
+
+length = input(title="Length", type=integer, minval=1, defval=14)
+
+rwiHigh = (high - nz(low[length])) / (atr(length) * sqrt(length))
+rwiLow = (nz(high[length]) - low) / (atr(length) * sqrt(length))
+
+plot(rwiHigh, title="High", linewidth=2, color=#6d1e7f, transp=0)
+plot(rwiLow, title="Low", linewidth=2, color=#ff3737, transp=0)

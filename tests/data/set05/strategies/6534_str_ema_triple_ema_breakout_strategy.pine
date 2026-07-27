@@ -1,0 +1,42 @@
+//@version=2
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/三重EMA移动平均突破策略Triple-EMA-Breakout-Strategy.md
+// content_hash: 37af3016f9c6acc8
+// collected: 2026-07-27
+////////////////////////////////////////////////////////////
+//  Copyright by HPotter v1.0 14/08/2018
+// This study plots the TEMA1 indicator. TEMA1 ia s triple MA (Moving Average),
+// and is calculated as 3*MA - (3*MA(MA)) + (MA(MA(MA)))
+//
+// You can change long to short in the Input Settings
+// WARNING:
+// - For purpose educate only
+// - This script to change bars colors.
+////////////////////////////////////////////////////////////
+strategy(title="TEMA1 Backtest", shorttitle="TEMA", overlay = true )
+Length = input(26, minval=1)
+reverse = input(false, title="Trade reverse")
+xPrice = close
+xEMA1 = ema(xPrice, Length)
+xEMA2 = ema(xEMA1, Length)
+xEMA3 = ema(xEMA2, Length)
+nRes = 3 * xEMA1 - 3 * xEMA2 + xEMA3
+pos = iff(close > nRes, 1,
+       iff(close < nRes, -1, nz(pos[1], 0))) 
+possig = iff(reverse and pos == 1, -1,
+          iff(reverse and pos == -1, 1, pos))	   
+if (possig == 1) 
+    strategy.entry("Long", strategy.long)
+if (possig == -1)
+    strategy.entry("Short", strategy.short)	   	    
+barcolor(possig == -1 ? red: possig == 1 ? green : blue ) 
+```
+
+> Detail
+
+https://www.fmz.com/strategy/426906
+
+> Last Modified
+
+2023-12-01 14:58:23

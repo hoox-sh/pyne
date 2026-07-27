@@ -1,0 +1,63 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/均值回归型布林带交易策略结合理性回归信号-Mean-Reversion-Bollinger-Bands-Trading-Strategy-with-Rational-Return-Signal.md
+// content_hash: f5afd7d7705280e6
+// collected: 2026-07-27
+strategy("Estratégia com Bandas de Bollinger e Sinal de Retorno", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=200)
+
+// Configurações das Bandas de Bollinger
+length = input.int(20, title="Período da média")
+mult = input.float(2.0, title="Desvio padrão")
+bbBasis = ta.sma(close, length)
+bbUpper = bbBasis + mult * ta.stdev(close, length)
+bbLower = bbBasis - mult * ta.stdev(close, length)
+
+// Configuração para a distância da média
+percent_threshold = input.float(3.5, title="Distância da média (%)") / 100
+
+dist_from_mean = 0.0
+trigger_condition = false
+if not na(bbBasis)
+    dist_from_mean := math.abs(close - bbBasis) / bbBasis
+    trigger_condition := dist_from_mean >= percent_threshold
+
+// Variáveis para identificar o estado do afastamento
+var bool is_outside = false
+var color candle_color = color.new(color.white, 0)
+
+if trigger_condition
+    is_outside := true
+
+if is_outside and close <= bbUpper and close >= bbLower
+    is_outside := false
+    candle_color := color.new(color.blue, 0) // Atribui uma cor válida
+else
+    candle_color := color.new(color.white, 0)
+
+// Aplicar cor às velas
+barcolor(candle_color)
+
+// Plotar Bandas de Bollinger
+plot(bbBasis, color=color.yellow, title="Média")
+plot(bbUpper, color=color.red, title="Banda Superior")
+plot(bbLower, color=color.green, title="Banda Inferior")
+
+// Lógica de entrada e saída
+longCondition = not is_outside and close > bbUpper
+if (longCondition)
+    strategy.entry("Buy", strategy.long)
+
+shortCondition = not is_outside and close < bbLower
+if (shortCondition)
+    strategy.entry("Sell", strategy.short)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/477583
+
+> Last Modified
+
+2025-01-06 15:33:01

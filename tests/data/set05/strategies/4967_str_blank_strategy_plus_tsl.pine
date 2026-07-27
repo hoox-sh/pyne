@@ -1,0 +1,70 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/移动均线多边形策略Polygon-Moving-Average-Strategy.md
+// content_hash: 9b40d6abca0b4fbb
+// collected: 2026-07-27
+strategy("BLANK Strategy + TSL", initial_capital=5000, default_qty_type=strategy.percent_of_equity, default_qty_value=100, commission_type=strategy.commission.percent, pyramiding=1, commission_value=0.075, overlay=true)
+
+////////////////////////////////////////////////////////////////////////////////
+// BACKTESTING RANGE
+ 
+// From Date Inputs
+fromDay = input(defval = 1, title = "From Day", minval = 1, maxval = 31)
+fromMonth = input(defval = 1, title = "From Month", minval = 1, maxval = 12)
+fromYear = input(defval = 2019, title = "From Year", minval = 1970)
+ 
+// To Date Inputs
+toDay = input(defval = 1, title = "To Day", minval = 1, maxval = 31)
+toMonth = input(defval = 1, title = "To Month", minval = 1, maxval = 12)
+toYear = input(defval = 2020, title = "To Year", minval = 1970)
+ 
+// Calculate start/end date and time condition
+startDate = timestamp(fromYear, fromMonth, fromDay, 00, 00)
+finishDate = timestamp(toYear, toMonth, toDay, 00, 00)
+time_cond = true
+ 
+////////////////////////////////////////////////////////////////////////////////
+
+
+/// YOUR INPUTS BELOW - DELET EXAPLES ///
+
+
+ema1=ema(close,input(3))
+ema2=ema(close,input(7))
+ema3=ema(close,input(13))
+
+
+/// PLOTS IF YOU NEED BELOW - DELET EXAPLES ///
+
+
+plot(ema1, "EMA1", color.yellow)
+plot(ema2, "EMA2", color.white)
+plot(ema3, "EMA3", color.blue)
+
+
+/// YOUR CONDITIONS BELOW - DELET EXAPLES ///
+
+
+longCondition = close>ema1 and ema1>ema2 and ema2>ema3 and time_cond
+shortCondition = close<ema1 and ema1<ema2 and ema2<ema3 and time_cond
+
+/// EXECUTION ///
+
+
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+strategy.exit("Long Exit", "Long", trail_points = close * 0.05 / syminfo.mintick, trail_offset = close * 0.02 / syminfo.mintick)
+
+if (shortCondition)
+    strategy.entry("Short", strategy.short)
+strategy.exit("Short Exit", "Short", trail_points = close * 0.05 / syminfo.mintick, trail_offset = close * 0.02 / syminfo.mintick)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/430671
+
+> Last Modified
+
+2023-10-31 14:53:50

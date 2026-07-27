@@ -1,0 +1,88 @@
+//@version=6
+// set03 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多指数自适应动量交叉交易系统-Multi-Indicator-Adaptive-Momentum-Crossover-Trading-System.md
+// content_hash: a5c91ae99e247d40
+// collected: 2026-07-27
+strategy("MuSTeaTZa v1.7 ?", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=100)
+
+// ? Verificare Timeframe (30m și 1h)
+validTimeframe = timeframe.period == "30" or timeframe.period == "60"
+
+// ? Parametri personalizabili
+emaLenFast = input.int(9, title="EMA Fast (galbenă)")
+emaLenSlow = input.int(21, title="EMA Slow (albastră)")
+rsiLen = input.int(14, title="RSI Length")
+atrLen = input.int(14, title="ATR Length")
+atrMultiplier = input.float(1.5, title="ATR Sensitivity")
+adxLen = input.int(14, title="ADX Length")
+adxThreshold = input.float(25, title="ADX Min Threshold", tooltip="Filtrare trend mai puternică")
+volatilityThreshold = input.float(1.5, title="Volatility Filter")
+
+// ? Parametri pentru TP și SL
+tpMultiplier = input.float(2.5, title="Take Profit Multiplier")
+slMultiplier = input.float(1.2, title="Stop Loss Multiplier")
+
+// ? Calcul Indicatori
+emaFast = ta.ema(close, emaLenFast)  // EMA galbenă (scurtă)
+emaSlow = ta.ema(close, emaLenSlow)  // EMA albastră (lungă)
+rsi = ta.rsi(close, rsiLen)
+atr = ta.atr(atrLen)
+
+// ? Calcul ADX manual
+upMove = high - high[1]
+downMove = low[1] - low
+plusDM = upMove > downMove and upMove > 0 ? upMove : 0
+minusDM = downMove > upMove and downMove > 0 ? downMove : 0
+smoothedPlusDM = ta.rma(plusDM, adxLen)
+smoothedMinusDM = ta.rma(minusDM, adxLen)
+dx = 100 * math.abs(smoothedPlusDM - smoothedMinusDM) / math.max(smoothedPlusDM + smoothedMinusDM, 1)
+adx = ta.rma(dx, adxLen)
+
+// ? OBV ca filtru de volum
+obv = ta.cum(volume * (close > close[1] ? 1 : close < close[1] ? -1 : 0))
+obvSignal = ta.sma(obv, 10)
+volConfirm = obv > obvSignal
+
+// ? Filtru ADX, RSI și Volatilitate
+strongTrend = adx > adxThreshold
+rsiFilter = rsi > 40 and rsi < 60  // Filtru mai larg pentru evitarea zgomotului
+volatilityFilter = atr > volatilityThreshold  // Evităm perioadele de consolidare
+
+// ? Cross-over EMA pentru BUY/SELL
+crossUp = ta.crossover(emaFast, emaSlow) and strongTrend and rsiFilter and volatilityFilter and volConfirm
+crossDown = ta.crossunder(emaFast, emaSlow) and strongTrend and rsiFilter and volatilityFilter and volConfirm
+
+// ? Calcule TP & SL dinamice
+stopLossLong = close - (atr * slMultiplier)
+stopLossShort = close + (atr * slMultiplier)
+takeProfitLong = close + (atr * tpMultiplier)
+takeProfitShort = close - (atr * tpMultiplier)
+
+// ? Semnale de tranzacționare optimizate
+if validTimeframe
+    if crossUp
+        strategy.entry("BUY", strategy.long)
+        strategy.exit("TP/SL", from_entry="BUY", limit=takeProfitLong, stop=stopLossLong)
+    
+    if crossDown
+        strategy.entry("SELL", strategy.short)
+        strategy.exit("TP/SL", from_entry="SELL", limit=takeProfitShort, stop=stopLossShort)
+
+// ? Semnale vizuale pe chart
+plotshape(series=crossUp and validTimeframe, location=location.belowbar, color=color.green, style=shape.triangleup, size=size.small, title="BUY Signal", offset=-1)
+plotshape(series=crossDown and validTimeframe, location=location.abovebar, color=color.red, style=shape.triangledown, size=size.small, title="SELL Signal", offset=-1)
+
+// ? Linie EMA pentru trend vizual
+plot(emaFast, color=color.yellow, title="EMA Fast (galbenă)")
+plot(emaSlow, color=color.blue, title="EMA Slow (albastră)")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/485127
+
+> Last Modified
+
+2025-04-03 15:24:39

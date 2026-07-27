@@ -1,0 +1,59 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/DZ-Session-Breakout-Strategy-DZ交易时段突破策略.md
+// content_hash: b73701a6dd613eda
+// collected: 2026-07-27
+strategy("DZ Strategy ICT", overlay=true)
+
+// Input parameters
+london_open_hour = input(13, "London Open Hour")
+london_open_minute = input(30, "London Open Minute")
+london_close_hour = input(16, "London Close Hour")
+
+// Get current datetime
+hour = hour(time)
+minute = minute(time)
+
+// Get session high, daily high, and weekly high
+sessionHigh = request.security(syminfo.tickerid, "D", high)
+dailyHigh = request.security(syminfo.tickerid, "D", high)
+weeklyHigh = request.security(syminfo.tickerid, "W", high)
+
+// Condition for being in the specified time range
+inLondonTimeRange = (hour >= london_open_hour and hour < london_close_hour) or (hour == london_close_hour and minute == 0)
+
+// Check for breakout above session, daily, or weekly high
+breakoutAboveSessionHigh = high > sessionHigh
+breakoutAboveDailyHigh = high > dailyHigh
+breakoutAboveWeeklyHigh = high > weeklyHigh
+
+// Check for breakout below session, daily, or weekly high
+breakoutBelowSessionHigh = low < sessionHigh
+breakoutBelowDailyHigh = low < dailyHigh
+breakoutBelowWeeklyHigh = low < weeklyHigh
+
+// Check for new lower low or higher high on 1-minute chart
+newLowerLow = ta.lowest(low, 10)[1] > low
+newHigherHigh = ta.highest(high, 10)[1] < high
+
+// Set entry point based on imbalance
+imbalanceLevel = low[1] // Placeholder for imbalance level, adjust this as needed
+
+// Entry conditions for short position
+if (inLondonTimeRange and (breakoutAboveSessionHigh or breakoutAboveDailyHigh or breakoutAboveWeeklyHigh) and newLowerLow)
+    strategy.entry("Short Entry", strategy.short)
+
+// Entry conditions for long position
+if (inLondonTimeRange and (breakoutBelowSessionHigh or breakoutBelowDailyHigh or breakoutBelowWeeklyHigh) and newHigherHigh)
+    strategy.entry("Long Entry", strategy.long)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/451411
+
+> Last Modified
+
+2024-05-14 17:24:33

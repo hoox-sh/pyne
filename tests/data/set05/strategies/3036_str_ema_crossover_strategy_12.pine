@@ -1,0 +1,40 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双均线交叉交易策略Dual-Moving-Average-Crossover-Trading-Strategy.md
+// content_hash: 4ccfe32e51b85368
+// collected: 2026-07-27
+strategy("EMA Crossover Strategy", overlay=true)
+
+// Hareketli Ortalamaları Hesapla
+ema50 = ta.ema(close, 50)
+ema144 = ta.ema(close, 144)
+ema200 = ta.ema(close, 200)
+
+// Al sinyali koşulu: Fiyat EMA 50, EMA 144 ve EMA 200 üzerine çıktığında
+longCondition = close > ema50 and close > ema144 and close > ema200
+
+// Sat sinyali koşulu: Fiyat EMA 200, EMA 144 ve EMA 50 altına indiğinde
+shortCondition = close < ema200 and close < ema144 and close < ema50
+
+// Al ve Sat sinyallerinin gerçekleştiği çubuğu ok ile belirt
+plotarrow(series=longCondition ? 1 : shortCondition ? -1 : na, colorup=color.green, colordown=color.red, offset=-1, title="Trade Arrow")
+
+// Hareketli Ortalamaları Çiz
+plot(ema50, color=color.blue, title="EMA 50")
+plot(ema144, color=color.orange, title="EMA 144")
+plot(ema200, color=color.red, title="EMA 200")
+
+// Strateji testi ekleyin
+strategy.entry("AL", strategy.long, when=longCondition)
+strategy.entry("SAT", strategy.short, when=shortCondition)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/434523
+
+> Last Modified
+
+2023-12-07 10:36:46

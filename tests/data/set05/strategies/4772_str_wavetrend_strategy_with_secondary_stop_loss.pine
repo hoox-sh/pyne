@@ -1,0 +1,82 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/波浪趋势多止损多止盈策略Multi-Take-Profit-and-Stop-Loss-WaveTrend-Trend-Following-Strategy.md
+// content_hash: 3c04bf42368e2dc0
+// collected: 2026-07-27
+strategy("WaveTrend Strategy [LazyBear] with Secondary Stop Loss", overlay=true)
+
+// Input parameters
+n1 = input(10, "Channel Length")
+n2 = input(21, "Average Length")
+obLevel1 = input(60, "Over Bought Level 1")
+obLevel2 = input(53, "Over Bought Level 2")
+osLevel1 = input(-60, "Over Sold Level 1")
+osLevel2 = input(-53, "Over Sold Level 2")
+useEmaFilter = input(false, "Use EMA Filter")
+emaLength = input(50, "EMA Length")
+emaTimeFrame = input("60", "EMA Time Frame")
+tradeMode = input("Both", "Trade Mode", options=["Long Only", "Short Only", "Both"])
+useSecondarySL = input(false, "Use Secondary Stop Loss")
+slPercentage = input(5.0, "Stop Loss Percentage (%)")
+
+// WaveTrend Indicator Calculations
+ap = hlc3 
+esa = ema(ap, n1)
+d = ema(abs(ap - esa), n1)
+ci = (ap - esa) / (0.015 * d)
+tci = ema(ci, n2)
+wt1 = tci
+wt2 = sma(wt1, 4)
+
+// EMA Calculation with Selected Time Frame
+getEma(timeFrame) =>
+    security(syminfo.tickerid, timeFrame, ema(close, emaLength))
+
+emaFilter = getEma(emaTimeFrame)
+
+// Secondary Stop Loss Calculation
+longStopPrice = strategy.position_avg_price * (1 - slPercentage / 100)
+shortStopPrice = strategy.position_avg_price * (1 + slPercentage / 100)
+
+// Long Entry and Exit Conditions with EMA Filter and Trade Mode
+longEntry = crossover(wt1, wt2) and wt2 < osLevel1 and (not useEmaFilter or close > emaFilter) and (tradeMode == "Long Only" or tradeMode == "Both")
+if (longEntry)
+    strategy.entry("Long", strategy.long)
+longExit = crossunder(wt1, wt2) and wt2 > obLevel1
+if (longExit)
+    strategy.close("Long")
+if (useSecondarySL and strategy.position_size > 0 and low < longStopPrice)
+    strategy.close("Long", comment="SL Hit")
+
+// Short Entry and Exit Conditions with EMA Filter and Trade Mode
+shortEntry = crossunder(wt1, wt2) and wt2 > obLevel1 and (not useEmaFilter or close < emaFilter) and (tradeMode == "Short Only" or tradeMode == "Both")
+if (shortEntry)
+    strategy.entry("Short", strategy.short)
+shortExit = crossover(wt1, wt2) and wt2 < osLevel1
+if (shortExit)
+    strategy.close("Short")
+if (useSecondarySL and strategy.position_size < 0 and high > shortStopPrice)
+    strategy.close("Short", comment="SL Hit")
+
+// Plotting
+plot(0, color=color.gray)
+plot(obLevel1, color=color.red)
+plot(osLevel1, color=color.green)
+plot(obLevel2, color=color.red, style=plot.style_cross)
+plot(osLevel2, color=color.green, style=plot.style_cross)
+plot(wt1, color=color.green)
+plot(wt2, color=color.red, style=plot.style_cross)
+plot(wt1-wt2, color=color.blue, style=plot.style_area, transp=80)
+plot(emaFilter, color=color.blue)
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/433966
+
+> Last Modified
+
+2023-12-01 18:09:12

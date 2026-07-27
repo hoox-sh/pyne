@@ -1,0 +1,55 @@
+//@version=5
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/Linear Regression MA - Strategy.pine
+// content_hash: a7142ff4ee52dc5d
+// collected: 2026-07-27
+strategy('Linear Regression MA', overlay=true, initial_capital=10000)
+datesGroup = "Date Info"
+startMonth = input.int(defval = 1,    title = "Start Month",  minval = 1, maxval = 12,  group=datesGroup)
+startDay   = input.int(defval = 1,    title = "Start Day",    minval = 1, maxval = 31,  group=datesGroup)
+startYear  = input.int(defval = 2022, title = "Start Year",   minval = 1970,            group=datesGroup)
+averagesGroup = "Averages"
+lrLineInput     = input.int(title="Linear Regression Line",   defval=55, minval = 1, group=averagesGroup)
+lrMAInput       = input.int(title="Linear Regression MA",     defval=55, minval = 1, group=averagesGroup)
+emaInput        = input.int(title="EMA Length",               defval=55, minval = 1, group=averagesGroup)
+tradesGroup = "Execute Trades"
+executeLongInput    = input.bool(title="Execute Long Trades",       defval=true)
+executeShortInput   = input.bool(title="Execute Short Trades",      defval=true)
+executeStopLoss     = input.bool(title="Execute Stop Loss",         defval=true)
+fourHrSMAExpr       = ta.sma(close, 200)
+fourHrMA            = request.security(symbol=syminfo.tickerid, timeframe="240", expression=fourHrSMAExpr)
+bullish             = close > fourHrMA ? true : false
+maxProfitInput              = input.float(  title="Max Profit (%)",         defval=10.0,    minval=0.0)   * 0.01
+stopLossPercentageInput     = input.float(  title="Stop Loss (%)",          defval=1.75,    minval=0.0)   * 0.01
+start       = timestamp(startYear, startMonth, startDay, 00, 00)            // backtest start  window
+window()    => time >= start ? true : false                              // create function "within window of time"
+showDate    = input(defval = true, title = "Show Date Range")
+lrLine = ta.linreg(close, lrLineInput, 0)
+lrMA   = ta.sma(lrLine, lrMAInput)
+ema     = ta.ema(close, emaInput)
+longEntry   = ema   < lrMA
+longExit    = lrMA  < ema
+shortEntry  = lrMA  < ema
+shortExit   = ema   < lrMA
+maxProfitLong   = strategy.opentrades.entry_price(0) * (1 + maxProfitInput)
+maxProfitShort  = strategy.opentrades.entry_price(0) * (1 - maxProfitInput)
+stopLossPriceShort  = strategy.position_avg_price * (1 + stopLossPercentageInput)
+stopLossPriceLong   = strategy.position_avg_price * (1 - stopLossPercentageInput)
+if(executeLongInput and bullish)
+    strategy.entry( id="long_entry", direction=strategy.long,   when=longEntry and window(),    qty=10,  comment="long_entry")
+    strategy.close( id="long_entry", when=longExit,     comment="long_exit")
+    // strategy.close( id="long_entry", when=maxProfitLong <= close, comment="long_exit_mp")
+    
+if(executeShortInput and not bullish)
+    strategy.entry( id="short_entry", direction=strategy.short,   when=shortEntry and window(),    qty=10,  comment="short_entry")
+    strategy.close( id="short_entry", when=shortExit,     comment="short_exit")
+    // strategy.close( id="short_entry", when=maxProfitShort <= close, comment="short_exit_mp")
+if(strategy.position_size > 0 and executeStopLoss)
+    strategy.exit(  id="long_entry",        stop=stopLossPriceLong,             comment="exit_long_SL")
+    strategy.exit(  id="short_entry",       stop=stopLossPriceShort,            comment="exit_short_SL")
+    
+// plot(series=lrLine,     color=color.green)
+plot(series=lrMA,       color=color.red)
+plot(series=ema,        color=color.blue)
+Expand (69 lines)

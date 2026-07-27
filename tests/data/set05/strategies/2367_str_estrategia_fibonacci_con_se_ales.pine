@@ -1,0 +1,58 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/自动化斐波那契回撤交易系统策略-Automated-Fibonacci-Retracement-Trading-System-Strategy.md
+// content_hash: e43822ce1234c3d1
+// collected: 2026-07-27
+strategy("Estrategia Fibonacci con Señales", overlay=true, initial_capital=100, currency=currency.USD, margin_long=100, margin_short=100)
+
+// 1. Configuración de Fibonacci
+lookback = input.int(20, "Período Swing", minval=10)
+fibLevels = input.string("38.2|61.8", "Niveles Fib") 
+riskPercentage = input.float(1.0, "Riesgo por Operación %", step=0.5)
+
+// 2. Detectar swings y niveles Fib
+swingHigh = ta.highest(high, lookback)
+swingLow = ta.lowest(low, lookback)
+fib382 = swingLow + (swingHigh - swingLow) * 0.382
+fib618 = swingLow + (swingHigh - swingLow) * 0.618
+
+// 3. Condiciones de trading
+longCondition = ta.crossover(close, fib618)
+shortCondition = ta.crossunder(close, fib382)
+
+// 4. Indicadores Visuales
+plotshape(series=longCondition, title="Señal Compra", color=color.new(color.green, 0), 
+  style=shape.triangleup, location=location.belowbar, size=size.small, text="COMPRA")
+
+plotshape(series=shortCondition, title="Señal Venta", color=color.new(color.red, 0), 
+  style=shape.triangledown, location=location.abovebar, size=size.small, text="VENTA")
+
+// 5. Gestión de Capital
+positionSize = (strategy.equity * riskPercentage/100) / (close * 0.01)
+
+// 6. Lógica de Ejecución
+if (longCondition)
+    strategy.entry("Long", strategy.long, qty=positionSize)
+    strategy.exit("SL/TP Long", "Long", stop=close*0.99, limit=close*1.02)
+
+if (shortCondition)
+    strategy.entry("Short", strategy.short, qty=positionSize)
+    strategy.exit("SL/TP Short", "Short", stop=close*1.01, limit=close*0.98)
+
+// 7. Líneas Fibonacci
+plot(fib382, "38.2% Fib", color=color.purple, linewidth=2)
+plot(fib618, "61.8% Fib", color=color.blue, linewidth=2)
+
+// 8. Alertas
+alertcondition(longCondition, "Alerta COMPRA Oro", "Entrada Long en Fib 61.8%")
+alertcondition(shortCondition, "Alerta VENTA Oro", "Entrada Short en Fib 38.2%")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/489031
+
+> Last Modified
+
+2025-04-01 13:25:30

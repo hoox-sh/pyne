@@ -1,0 +1,78 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/波动势能趋势深度分析及交易策略-Advanced-Vortex-Momentum-Analysis-and-Trading-Strategy.md
+// content_hash: 6ad34825330a16fa
+// collected: 2026-07-27
+strategy("Vortex Strategy with Signals", shorttitle="VI_Strat", overlay=true)
+
+// Užívateľský vstup
+length = input.int(14, title="Period", minval=1)
+
+//------------------------------------
+// 1) Výpočet Vortexu
+//------------------------------------
+vmPlus     = math.abs(high - low[1])
+vmMinus    = math.abs(low - high[1])
+trueRange  = math.max(math.max(high - low, math.abs(high - close[1])), math.abs(low - close[1]))
+
+// SMA vyhladzovanie
+smoothedVMPlus     = ta.sma(vmPlus,     length)
+smoothedVMMinus    = ta.sma(vmMinus,    length)
+smoothedTrueRange  = ta.sma(trueRange,  length)
+
+// Vortex Indikátory
+viPlus  = smoothedVMPlus  / smoothedTrueRange
+viMinus = smoothedVMMinus / smoothedTrueRange
+
+//------------------------------------
+// 2) Plot indikátora
+//------------------------------------
+plot(viPlus,  color=color.green, title="VI+")
+plot(viMinus, color=color.red,   title="VI-")
+
+//------------------------------------
+// 3) Definícia signálov
+//------------------------------------
+bullSignal = ta.crossover(viPlus, viMinus)    // VI+ pretína VI- smerom nahor
+bearSignal = ta.crossunder(viPlus, viMinus)   // VI+ pretína VI- smerom nadol
+
+//------------------------------------
+// 4) Vizualizácia signálov na grafe
+//------------------------------------
+plotshape(bullSignal, 
+     title="Bull Signal", 
+     style=shape.labelup, 
+     location=location.belowbar, 
+     color=color.green, 
+     text="BUY", 
+     textcolor=color.white, 
+     size=size.small)
+
+plotshape(bearSignal, 
+     title="Bear Signal", 
+     style=shape.labeldown, 
+     location=location.abovebar, 
+     color=color.red, 
+     text="SELL", 
+     textcolor=color.white, 
+     size=size.small)
+
+//------------------------------------
+// 5) STRATEGY LOGIC
+//------------------------------------
+if bullSignal
+    strategy.entry("Long", strategy.long)
+
+if bearSignal
+    strategy.entry("Short", strategy.short)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/481351
+
+> Last Modified
+
+2025-02-10 14:38:40

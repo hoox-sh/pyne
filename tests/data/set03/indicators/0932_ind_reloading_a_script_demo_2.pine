@@ -1,0 +1,31 @@
+//@version=6
+// set03 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pine_script_execution_model.md::pine_script_execution_model.md#block10
+// content_hash: a4085ee58d4e0362
+// collected: 2026-07-27
+indicator("Reloading a script demo", precision = 5)
+//@variable The one-bar arithmetic return of the `close` series.
+float priceReturn = ta.change(close, 1) / close[1]
+// Declare persistent variables to track the first, highest, and lowest `priceReturn` values across ticks in
+// each realtime bar.
+varip float o = na
+varip float h = na
+varip float l = na
+if barstate.isrealtime
+    // On the first tick in the realtime bar, reassign `o`, `h`, and `l` to hold the value of `priceReturn`.
+    if barstate.isnew
+        o := priceReturn
+        h := priceReturn
+        l := priceReturn
+    // Otherwise, reassign `h` and `l` to the bar's highest and lowest `priceReturn` value as of the current tick.
+    else
+        h := math.max(h, priceReturn)
+        l := math.min(l, priceReturn)
+// Plot candles to display the `o`, `h`, `l`, and `priceReturn` values for each realtime bar.
+// The candles do not appear on historical bars, because `o`, `h`, and `l` are `na` on those bars.
+plotcandle(o, h, l, priceReturn, "Return candles", color.blue, chart.fg_color, bordercolor = chart.fg_color)
+// Dispaly the `priceReturn` series as a purple line plot.
+plot(priceReturn, "Return plot", color.purple, 3)
+// Highlight the background of all realtime bars in orange.
+bgcolor(barstate.isrealtime ? color.new(color.orange, 70) : na, title = "Realtime highlight")

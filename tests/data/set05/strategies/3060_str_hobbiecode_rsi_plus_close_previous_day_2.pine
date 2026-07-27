@@ -1,0 +1,37 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于双重指标突破策略Dual-Indicators-Breakthrough-Strategy.md
+// content_hash: 3c2bac9b749b8926
+// collected: 2026-07-27
+strategy("Hobbiecode - RSI + Close previous day", overlay=true)
+
+// RSI parameters
+rsi_period = 2
+rsi_lower = 15
+
+// Calculate RSI
+rsi_val = ta.rsi(close, rsi_period)
+
+// Check if RSI is lower than the defined threshold
+if (rsi_val < rsi_lower)
+    strategy.entry("Buy", strategy.long)
+
+// Check if today's close is higher than yesterday's high
+if (strategy.position_size > 0 and close > ta.highest(high[1], 1))
+    strategy.close("Buy")
+
+// Plot RSI on chart
+plot(rsi_val, title="RSI", color=color.red)
+hline(rsi_lower, title="Oversold Level", color=color.blue)
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/439989
+
+> Last Modified
+
+2024-01-25 15:39:06

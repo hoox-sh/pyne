@@ -1,0 +1,100 @@
+//@version=3
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/布林带和Stoch-RSI交易策略Bollinger-Band-and-Stoch-RSI-Trading-Strategy.md
+// content_hash: b3405c5871f5e143
+// collected: 2026-07-27
+
+strategy(title = "BB+RSI v2", overlay = true)
+
+price=close
+////////// ///////  BB /////////////////////////
+
+bblength = input(50)
+bbupmult =input(2,step=0.1,title="Multiplier for BB Upper Band")
+bblowmult = input(2,step=0.1,title="Multiplier for BB Lower Band")
+
+basis =  sma(close,bblength)
+
+devup = bbupmult * stdev(close, bblength)
+devlow = bblowmult * stdev(close, bblength)
+
+upper = basis + devup
+lower = basis - devlow
+plot(basis, color=red)
+p1 = plot(upper, color=blue)
+p2 = plot(lower, color=blue)
+fill(p1, p2)
+
+
+bbbuy= crossover(price,lower)
+bbsell = crossunder(price,upper) or price>upper or crossunder(price,basis)
+
+
+
+//////////////////// BB //////////////////////
+
+
+
+
+////////////////////////  S RSI  /////////////////////
+
+lengthrsi = input(6)
+overSold = input( 20 )
+overBought = input( 70 )
+vrsi = rsi(price, lengthrsi)
+
+smoothK = input(3, minval=1)
+smoothD = input(3, minval=1)
+lengthRSI = input(14, minval=1)
+lengthStoch = input(14, minval=1)
+src = input(close, title="RSI Source")
+
+rsi1 = rsi(src, lengthRSI)
+k = sma(stoch(rsi1, rsi1, rsi1, lengthStoch), smoothK)
+d = sma(k, smoothD)
+
+SRSIbuy=crossover(k,d)
+
+////////////////////// S  RSI  ///////////////////////
+
+// Conditions
+
+
+
+longcond = bbbuy and SRSIbuy
+closelong = bbsell
+
+
+monthfrom =input(6)
+monthuntil =input(12)
+dayfrom=input(1)
+dayuntil=input(31)
+
+
+
+if (  longcond ) 
+    strategy.entry("BUY", strategy.long, stop=close, oca_name="TREND",  comment="BUY")
+    
+else
+    strategy.cancel(id="BUY")
+
+
+if ( closelong  ) 
+
+    strategy.close("BUY")
+
+
+
+
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/427515
+
+> Last Modified
+
+2023-09-21 21:02:02

@@ -1,0 +1,53 @@
+//@version=2
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于双SMA系统的趋势跟踪策略Dual-SMA-Trend-Following-Strategy.md
+// content_hash: e579cc40af2c222e
+// collected: 2026-07-27
+strategy("Noro's Trend SMA Strategy v1.4", shorttitle = "Trend SMA str 1.4", overlay=true, default_qty_type = strategy.percent_of_equity, default_qty_value=100.0, pyramiding=0)
+
+needlong = input(true, "long")
+needshort = input(true, "short")
+usefastsma = input(true, "Use fast SMA")
+fastlen = input(5, defval = 5, minval = 1, maxval = 50, title = "fast SMA Period")
+slowlen = input(20, defval = 20, minval = 2, maxval = 200, title = "slow SMA Period")
+bars = input(2, defval = 2, minval = 0, maxval = 3, title = "Bars Q")
+
+fastsma = ema(close, fastlen)
+slowsma = ema(close, slowlen)
+
+//PriceChannel
+src = ohlc4
+lasthigh = highest(src, slowlen)
+lastlow = lowest(src, slowlen)
+center = (lasthigh + lastlow) / 2
+
+trend = low > center ? 1 : high < center ? -1 : trend[1]
+
+bar = close > open ? 1 : close < open ? -1 : 0
+redbars = bars == 0 ? 1 : bars == 1 and bar == -1 ? 1 : bars == 2 and bar == -1 and bar[1] == -1 ? 1 : bars == 3 and bar == -1 and bar[1] == -1 and bar[2] == -1 ? 1 : 0
+greenbars = bars == 0 ? 1 : bars == 1 and bar == 1 ? 1 : bars == 2 and bar == 1 and bar[1] == 1 ? 1 : bars == 3 and bar == 1 and bar[1] == 1 and bar[2] == 1 ? 1 : 0
+
+up = trend == 1 and (low < fastsma or usefastsma == false) and redbars == 1 ? 1 : 0
+dn = trend == -1 and (high > fastsma or usefastsma == false) and greenbars == 1 ? 1 : 0
+
+colorfastsma = usefastsma == true ? red : na
+plot(fastsma, color = colorfastsma, title = "Fast SMA")
+plot(center, color = blue, title = "Price Channel")
+
+longCondition = up == 1
+if (longCondition)
+    strategy.entry("Long", strategy.long, needlong == false ? 0 : na)
+
+shortCondition = dn == 1
+if (shortCondition)
+    strategy.entry("Short", strategy.short, needshort == false ? 0 : na)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/427347
+
+> Last Modified
+
+2023-09-20 11:35:30

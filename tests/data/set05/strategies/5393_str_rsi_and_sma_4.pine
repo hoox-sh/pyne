@@ -1,0 +1,48 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动量指标均线交叉策略Momentum-Indicator-Crossover-Strategy.md
+// content_hash: 65a7d0639ca36db6
+// collected: 2026-07-27
+strategy ("RSI&SMA", overlay=false )
+startP = timestamp(input(2017, "Start Year"), input(12, "Month"), input(17, "Day"), 0, 0)
+end   = timestamp((9999), (1), (1), 0, 0)
+_testPeriod() => true
+
+length = input(3, minval=1, title = "RSI period")
+length2 = input(21, minval=1, title = "RSI SMA-1")
+length3 = input(13, minval=1, title = "RSI SMA-2")
+threshold  = input(0,step=0.5, title="Threshold")
+filter = input(false, title="Use filter?") 
+
+
+up = rma (max (change (close), 0), length)
+down = rma (-min (change (close), 0), length)
+RSI = down == 0? 100: up == 0? 0: 100-100 / (1 + up / down)
+
+SMA_RSI = sma(RSI, length2)
+delta = RSI-SMA_RSI
+SMA_RSI2 = sma(delta, length3)
+Long = crossover(SMA_RSI2, threshold) 
+Short = crossunder(SMA_RSI2, threshold) 
+
+plot(threshold, color=color.silver)
+plot(SMA_RSI2, color= SMA_RSI2 > 0 ? color.blue : color.purple)
+//plot(SMA_RSI, color=color.green)
+//plot(delta, color=color.red)
+
+long_condition =  Long and (filter ? close > ema(close, 200) : true) and _testPeriod()
+strategy.entry('BUY', strategy.long, when=long_condition)  
+ 
+short_condition =  Short
+strategy.close('BUY', when=short_condition)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/440720
+
+> Last Modified
+
+2024-02-01 14:50:26

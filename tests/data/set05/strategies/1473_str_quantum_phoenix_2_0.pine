@@ -1,0 +1,81 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多时间框架趋势确认量化突破交易策略-Multi-Timeframe-Trend-Confirmed-Quantitative-Breakout-Trading-Strategy.md
+// content_hash: 2020f42104047547
+// collected: 2026-07-27
+strategy("Quantum Phoenix 2.0", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=100)
+
+// === INPUT === //
+riskPercent = input.float(1.0, title="Risk %", minval=0.1, maxval=10)
+accountSize = input.float(10000, title="Hesap Büyüklüğü ($)")
+takeProfitPercent = input.float(3.0, title="Take Profit %")
+stopLossPercent = input.float(1.5, title="Stop Loss %")
+adxThreshold = input.int(20, title="Min. ADX Trend Gücü")
+volumeFilter = input.bool(true, title="Hacim Filtresi")
+
+// === GÖSTERGELER === //
+ema50 = ta.ema(close, 50)
+ema200 = ta.ema(close, 200)
+rsi = ta.rsi(close, 14)
+[macdLine, signalLine, macdHist] = ta.macd(close, 12, 26, 9)
+[supertrend, dir] = ta.supertrend(3, 7)
+[_, _, adx] = ta.dmi(14, 14)
+vol = volume
+volMA = ta.sma(volume, 20)
+
+// === MTF TREND === //
+ema50_1h = request.security(syminfo.tickerid, "60", ta.ema(close, 50))
+ema200_1h = request.security(syminfo.tickerid, "60", ta.ema(close, 200))
+mtfTrendUp = ema50_1h > ema200_1h
+mtfTrendDown = ema50_1h < ema200_1h
+
+// === RİSK HESABI === //
+atr = ta.atr(14)
+riskAmount = accountSize * (riskPercent / 100)
+positionSize = riskAmount / atr
+
+// === KOŞULLAR === //
+isBullish = dir and adx > adxThreshold and (not volumeFilter or vol > volMA)
+isBearish = not dir and adx > adxThreshold and (not volumeFilter or vol > volMA)
+
+longCond = close > ema200 and ema50 > ema200 and rsi > 40 and rsi < 70 and macdHist > 0 and mtfTrendUp and isBullish
+shortCond = close < ema200 and ema50 < ema200 and rsi > 30 and rsi < 60 and macdHist < 0 and mtfTrendDown and isBearish
+
+// === STRATEJİ === //
+strategy.entry("Long", strategy.long, when=longCond)
+strategy.exit("TP/SL Long", from_entry="Long", limit=close * (1 + takeProfitPercent / 100), stop=close * (1 - stopLossPercent / 100))
+strategy.close("Long", when=macdHist < 0 or rsi > 70)
+
+strategy.entry("Short", strategy.short, when=shortCond)
+strategy.exit("TP/SL Short", from_entry="Short", limit=close * (1 - takeProfitPercent / 100), stop=close * (1 + stopLossPercent / 100))
+strategy.close("Short", when=macdHist > 0 or rsi < 30)
+
+// === GÖRSEL DESTEK === //
+plot(ema50, title="EMA 50", color=color.orange)
+plot(ema200, title="EMA 200", color=color.teal)
+plotshape(longCond, title="Long", location=location.belowbar, color=color.green, text="AL", style=shape.labelup)
+plotshape(shortCond, title="Short", location=location.abovebar, color=color.red, text="SAT", style=shape.labeldown)
+
+// === DASHBOARD === //
+var table dash = table.new(position.top_right, 1, 5, border_width=1)
+
+if bar_index % 5 == 0
+    table.cell(dash, 0, 0, "? Quantum Phoenix 2.0", text_color=color.white, bgcolor=color.blue)
+    table.cell(dash, 0, 1, "Hesap: $" + str.tostring(accountSize, "#.##"), text_color=color.white)
+    table.cell(dash, 0, 2, "TP: " + str.tostring(takeProfitPercent) + "% | SL: " + str.tostring(stopLossPercent) + "%", text_color=color.white)
+    table.cell(dash, 0, 3, "ADX: " + str.tostring(adx, "#.##") + " | ATR: " + str.tostring(atr, "#.##"), text_color=color.white)
+    table.cell(dash, 0, 4, "MTF Trend: " + (mtfTrendUp ? "UP" : mtfTrendDown ? "DOWN" : "FLAT"), text_color=color.white)
+
+// === ALARMLAR === //
+alertcondition(longCond, title="LONG Giriş", message="Quantum Phoenix 2.0 - LONG sinyali!")
+alertcondition(shortCond, title="SHORT Giriş", message="Quantum Phoenix 2.0 - SHORT sinyali!")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/491044
+
+> Last Modified
+
+2025-04-18 10:00:15

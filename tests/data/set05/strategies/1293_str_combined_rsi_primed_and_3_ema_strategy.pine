@@ -1,0 +1,88 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多周期RSI动量与三重EMA趋势跟踪复合策略-Multi-Period-RSI-Momentum-and-Triple-EMA-Trend-Following-Composite-Strategy.md
+// content_hash: 1e78417bedbf0b05
+// collected: 2026-07-27
+strategy("Combined RSI Primed and 3 EMA Strategy", overlay=true)
+
+// Input for EMA lengths
+emaLength1 = input(21, title="EMA Length 1")
+emaLength2 = input(50, title="EMA Length 2")
+emaLength3 = input(200, title="EMA Length 3")
+
+// Input for RSI settings
+rsiLength = input(14, title="RSI Length")
+rsiOverbought = input(94, title="RSI Overbought Level")
+rsiNeutral = input(50, title="RSI Neutral Level")
+rsiOversold = input(4, title="RSI Oversold Level")
+
+// Calculate EMAs
+ema1 = ta.ema(close, emaLength1)
+ema2 = ta.ema(close, emaLength2)
+ema3 = ta.ema(close, emaLength3)
+
+// Calculate RSI using Chebyshev method from RSI Primed
+rsi(source) =>
+    up = math.max(ta.change(source), 0)
+    down = -math.min(ta.change(source), 0)
+    rs = up / down
+    rsiValue = down == 0 ? 100 : 100 - (100 / (1 + rs))
+    rsiValue
+
+rsiValue = rsi(close)
+
+// Plot EMAs
+plot(ema1, color=color.red, title="EMA 21")
+plot(ema2, color=color.white, title="EMA 50")
+plot(ema3, color=color.blue, title="EMA 200")
+
+// Plot RSI for visual reference
+hline(rsiOverbought, "Overbought", color=color.red)
+hline(rsiNeutral, "Neutral", color=color.gray)
+hline(rsiOversold, "Oversold", color=color.green)
+plot(rsiValue, color=color.blue, title="RSI")
+
+// Trading logic with position management
+var bool inPositionShort = false
+var bool inPositionLong = false
+
+// Trading logic for 1-minute timeframe
+if (rsiValue > rsiOverbought and not inPositionShort)
+    strategy.entry("Sell", strategy.short)
+    inPositionShort := true
+
+if (rsiValue < rsiOversold and inPositionShort)
+    strategy.close("Sell")
+    inPositionShort := false
+
+if (ta.crossover(rsiValue, rsiNeutral) and inPositionShort)
+    strategy.exit("Break Even", "Sell", stop=close)
+
+// Trading logic for 5-minute timeframe
+var float lastBearishClose = na
+
+if (close < ema3 and close[1] >= ema3) // Check if the current close is below EMA200
+    lastBearishClose := close
+
+if (not na(lastBearishClose) and close > lastBearishClose and not inPositionLong)
+    strategy.entry("Buy", strategy.long)
+    inPositionLong := true
+
+if (rsiValue > rsiOverbought and inPositionLong)
+    strategy.close("Buy")
+    inPositionLong := false
+
+if (ta.crossunder(rsiValue, rsiNeutral) and inPositionLong)
+    strategy.exit("Break Even", "Buy", stop=close)
+
+lastBearishClose := na // Reset after trade execution
+```
+
+> Detail
+
+https://www.fmz.com/strategy/471694
+
+> Last Modified
+
+2024-11-12 15:07:54

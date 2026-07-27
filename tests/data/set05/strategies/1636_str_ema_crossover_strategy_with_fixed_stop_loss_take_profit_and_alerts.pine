@@ -1,0 +1,75 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/高级EMA交叉策略基于动态止损和获利目标的自适应交易系统Advanced-EMA-Crossover-Strategy-Adaptive-Trading-System-with-Dynamic-Stop-Loss-and-Take-Profit-Targets.md
+// content_hash: 875c04e96e9126dd
+// collected: 2026-07-27
+strategy("EMA Crossover Strategy with Fixed Stop Loss, Take Profit, and Alerts", overlay=true)
+
+// Define the EMAs
+ema9 = ta.ema(close, 9)
+ema26 = ta.ema(close, 26)
+
+// Plot the EMAs on the chart
+plot(ema9, color=color.blue, title="9 EMA")
+plot(ema26, color=color.red, title="26 EMA")
+
+// Define the crossover conditions
+longCondition = ta.crossover(ema9, ema26)
+shortCondition = ta.crossunder(ema9, ema26)
+
+// Define stop loss and take profit (in ticks)
+tick_size = syminfo.mintick
+stop_loss_ticks = 90
+take_profit_ticks = 270
+stop_loss = stop_loss_ticks * tick_size
+take_profit = take_profit_ticks * tick_size
+
+// Plot buy and sell signals on the chart
+plotshape(series=longCondition, location=location.belowbar, color=color.green, style=shape.labelup, title="Buy Signal")
+plotshape(series=shortCondition, location=location.abovebar, color=color.red, style=shape.labeldown, title="Sell Signal")
+
+// Initialize variables to store the stop loss and take profit prices
+var float long_stop_price = na
+var float long_take_profit_price = na
+var float short_stop_price = na
+var float short_take_profit_price = na
+
+// Strategy orders with fixed stop loss and take profit
+if (longCondition)
+    long_stop_price := close - stop_loss
+    long_take_profit_price := close + take_profit
+    strategy.entry("Long", strategy.long)
+    strategy.exit("Exit Long", from_entry="Long", stop=long_stop_price, limit=long_take_profit_price)
+
+if (shortCondition)
+    short_stop_price := close + stop_loss
+    short_take_profit_price := close - take_profit
+    strategy.entry("Short", strategy.short)
+    strategy.exit("Exit Short", from_entry="Short", stop=short_stop_price, limit=short_take_profit_price)
+
+// Display stop loss and take profit on chart
+plot(long_stop_price, color=color.green, linewidth=2, title="Long Stop Level")
+plot(long_take_profit_price, color=color.green, linewidth=2, title="Long Take Profit Level")
+plot(short_stop_price, color=color.red, linewidth=2, title="Short Stop Level")
+plot(short_take_profit_price, color=color.red, linewidth=2, title="Short Take Profit Level")
+
+// Alert conditions
+alertcondition(longCondition, title="Long Alert", message="9 EMA crossed above 26 EMA - Buy Signal")
+alertcondition(shortCondition, title="Short Alert", message="9 EMA crossed below 26 EMA - Sell Signal")
+
+// Trigger alerts
+if (longCondition)
+    alert("9 EMA crossed above 26 EMA - Buy Signal", alert.freq_once_per_bar)
+
+if (shortCondition)
+    alert("9 EMA crossed below 26 EMA - Sell Signal", alert.freq_once_per_bar)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/458051
+
+> Last Modified
+
+2024-07-29 15:20:23

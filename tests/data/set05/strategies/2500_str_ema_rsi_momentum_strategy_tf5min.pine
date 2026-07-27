@@ -1,0 +1,56 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动量驱动型均线-RSI交叉策略-Momentum-Driven-EMA-RSI-Crossover-Strategy.md
+// content_hash: a1c30ba99ba3640a
+// collected: 2026-07-27
+strategy("EMA RSI Momentum Strategy TF5min [capayam.com]", overlay=false)
+
+//Desc: Buys when price crosses above long EMA line and above RSI Buy threshold. Exits when RSI above Sell threshold.
+//Recomended pair: RNDRUSDT TF5min (Binance)
+
+// Adjustable Inputs
+emaLength = input.int(450, title="EMA Length")
+rsiLength = input.int(14, title="RSI Length")
+rsiOverboughtLevel = input.int(80, title="RSI Sell Threshold")
+rsiOversoldLevel = input.int(67, title="RSI Buy Threshold")
+
+
+// Define the EMAs
+ema = ta.ema(close, emaLength)
+
+// Define the RSI
+rsi = ta.rsi(close, rsiLength)
+
+
+// Buy Condition: Price crosses above Long EMA and RSI buy Threshold
+buyCondition = ta.crossover(close, ema) and rsi > rsiOversoldLevel
+
+// Exit Condition
+exitCondition = rsi > rsiOverboughtLevel
+
+// Plot the EMAs
+plot(ema, color=color.green, title="EMA Long")
+
+
+// Plot the RSI
+hline(rsiOverboughtLevel, "Overbought", color=color.red)
+hline(rsiOversoldLevel, "Oversold", color=color.green)
+plot(rsi, title="RSI", color=color.purple)
+
+// Strategy entry and exit
+if (buyCondition)
+    strategy.entry("Buy", strategy.long)
+
+if (exitCondition)
+    strategy.close("Buy")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/458232
+
+> Last Modified
+
+2024-07-31 10:31:18

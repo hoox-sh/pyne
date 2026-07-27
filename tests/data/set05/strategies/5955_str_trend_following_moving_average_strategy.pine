@@ -1,0 +1,59 @@
+//@version=3
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于趋势追踪均线战略Trend-Following-Moving-Average-Strategy.md
+// content_hash: 2fad3c7214527d66
+// collected: 2026-07-27
+//future strategy
+//strategy(title = "stub", default_qty_type = strategy.fixed, default_qty_value = 1,  overlay = true, commission_type=strategy.commission.cash_per_contract,commission_value=2)
+//stock strategy
+strategy(title = "dc", default_qty_type = strategy.percent_of_equity, default_qty_value = 20,  overlay = true, commission_type=strategy.commission.cash_per_contract,commission_value=.005)
+//forex strategy
+//strategy(title = "stub", default_qty_type = strategy.percent_of_equity, default_qty_value = 20,  overlay = true)
+//crypto strategy
+//strategy(title = "stub", default_qty_type = strategy.percent_of_equity, default_qty_value = 20,  overlay = true, commission_type=strategy.commission.percent,commission_value=.25,default_qty_value=20)
+
+
+testStartYear = input(2000, "Backtest Start Year")
+testStartMonth = input(1, "Backtest Start Month")
+testStartDay = input(1, "Backtest Start Day")
+testPeriodStart = timestamp(testStartYear,testStartMonth,testStartDay,0,0)
+
+testEndYear = input(2019, "Backtest Start Year")
+testEndMonth = input(3)
+testEndDay = input(31, "Backtest Start Day")
+testPeriodEnd = timestamp(testStartYear,testStartMonth,testStartDay,0,0)
+
+
+testPeriod() =>
+    true
+    //time >= testPeriodStart  ? true : false
+
+dcPeriod = 20
+
+dcUpper = highest(close, dcPeriod)[1]
+dcLower = lowest(close, dcPeriod)[1]
+dcAverage = (dcUpper + dcLower) / 2
+
+plot(dcLower, style=line, linewidth=3, color=red, offset=1)
+plot(dcUpper, style=line, linewidth=3, color=aqua, offset=1)
+
+plot(dcAverage, color=black, style=line, linewidth=3, title="Mid-Line Average")
+
+strategy.entry("simpleBuy", strategy.long, when=close > dcAverage)
+strategy.close("simpleBuy",when=close < dcLower)
+    
+strategy.entry("simpleSell", strategy.short,when=close < dcAverage)
+strategy.close("simpleSell",when=close > dcAverage)
+    
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/443123
+
+> Last Modified
+
+2024-02-29 14:00:35

@@ -1,0 +1,88 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/亚洲盘高低点突破策略-Asian-Session-High-Low-Breakout-Strategy.md
+// content_hash: f4ef3b239866f2c8
+// collected: 2026-07-27
+strategy("Asia Session", overlay=true)
+
+var hourSessionStart = input(19, "Asia session start hour", minval=0, maxval=23)
+var hourSessionStop  = input(1, "Asia session end hour", minval=0, maxval=23)
+var offsetHours = input(3, "Offset hours after Asia session end")
+
+var float hi              = na
+var float lo              = na
+var float plotHi          = na
+var float plotLo          = na
+
+var bool  inSession       = na
+var bool  enteringSession = na
+var bool  exitingSession  = na
+
+inSession       := (hour >= hourSessionStart or hour < hourSessionStop)
+enteringSession := inSession and not inSession[1]
+exitingSession  := not inSession and inSession[1]
+
+if enteringSession
+    plotLo := na
+    plotHi := na
+
+if inSession
+    lo := min(low,  nz(lo, 1.0e23))
+    hi := max(high, nz(hi))
+
+if exitingSession
+    plotLo := lo
+    plotHi := hi
+    lo     := na
+    hi     := na
+
+bgcolor(inSession ? color.blue : na)
+
+plot(plotLo, "Asia session Low",  color.red,   style=plot.style_linebr)
+plot(plotHi, "Asia session High", color.green, style=plot.style_linebr)
+
+// Implementazione delle condizioni di entrata
+var float asiaSessionLow = na
+var float asiaSessionHigh = na
+var int maxTrades = 100000 // Impostiamo il massimo numero di operazioni contemporanee
+var int tradesOpened = 0 // Variabile per tenere traccia del numero di operazioni aperte
+var bool tradeOpened = false
+var bool operationClosed = false // Nuova variabile per tenere traccia dello stato di chiusura dell'operazione
+
+// Calcolo del range asiatico
+if (inSession)
+    asiaSessionLow := lo
+    asiaSessionHigh := hi
+
+// Apertura di un solo trade al giorno
+if (enteringSession)
+    tradeOpened := false
+
+// Condizioni di entrata
+var float stopLoss = 300 * syminfo.mintick
+var float takeProfit = 300 * syminfo.mintick
+
+if (not tradeOpened and not operationClosed and close < asiaSessionLow and tradesOpened < maxTrades and hour >= hourSessionStop + offsetHours)
+    strategy.entry("Buy", strategy.long)
+    tradeOpened := true
+    tradesOpened := tradesOpened + 1 // Incrementiamo il contatore delle operazioni aperte
+
+if (not tradeOpened and not operationClosed and close > asiaSessionHigh and tradesOpened < maxTrades and hour >= hourSessionStop + offsetHours)
+    strategy.entry("Sell", strategy.short)
+    tradeOpened := true
+    tradesOpened := tradesOpened + 1 // Incrementiamo il contatore delle operazioni aperte
+
+// Impostazione dello stop loss e del take profit
+strategy.exit("Stop Loss / Take Profit", "Buy", stop=close - stopLoss, limit=close + takeProfit)
+strategy.exit("Stop Loss / Take Profit", "Sell", stop=close + stopLoss, limit=close - takeProfit)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/446567
+
+> Last Modified
+
+2024-03-29 17:12:49

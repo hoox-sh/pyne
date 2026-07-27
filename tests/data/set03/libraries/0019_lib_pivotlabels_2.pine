@@ -1,0 +1,26 @@
+//@version=5    
+// set03 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/v5/concepts/libraries.md::libraries.md#block9
+// content_hash: 7f56359255e15d38
+// collected: 2026-07-27
+library("PivotLabels", true)    
+
+// We use this `point` UDT in the library, but it does NOT require exporting because    
+//   1. The exported function's parameters do not use the UDT.  
+//   2. The exported function does not return a UDT result. 
+type point  
+    int x   
+    float y 
+    bool isHi   
+    bool wasBreached = false    
+
+fillPivotsArray(qtyLabels, leftLegs, rightLegs) =>  
+    // Create an array of the specified qty of pivots to maintain.  
+    var pivotsArray = array.new<point>(math.max(qtyLabels, 0))  
+
+    // Detect pivots.   
+    float pivotHi = ta.pivothigh(leftLegs, rightLegs)   
+    float pivotLo = ta.pivotlow(leftLegs, rightLegs)    
+
+    // Create a new `point` object when a pivot is found.

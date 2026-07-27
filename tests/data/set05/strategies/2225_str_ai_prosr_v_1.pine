@@ -1,0 +1,60 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动态阻力与支撑的双K线形态ATR风险控制量化交易策略-Dynamic-Resistance-and-Support-Dual-Candlestick-Pattern-ATR-Risk-Management-Quantitative-Trading-Strategy.md
+// content_hash: c4299b4baad48857
+// collected: 2026-07-27
+strategy("Ai ProSR V.1", overlay=true)
+
+// Define parameters
+lookback = input(50, title="Lookback Period for S/R")
+atrLength = input(14, title="ATR Length")
+atrMultiplier = input(1.5, title="ATR Multiplier for Stop Loss")
+
+// Calculate ATR (Average True Range)
+atr = ta.atr(atrLength)
+
+// Find the highest and lowest points over the lookback period (Support/Resistance levels)
+resistance = ta.highest(high, lookback)
+support = ta.lowest(low, lookback)
+
+// Display support and resistance on the chart
+plot(resistance, color=color.red, linewidth=2, title="Resistance")
+plot(support, color=color.green, linewidth=2, title="Support")
+
+// Bullish Engulfing condition (Buy signal)
+bullishEngulfing = (close[1] < open[1]) and (close > open) and (close > open[1]) and (open < close[1])
+
+// Bearish Engulfing condition (Sell signal)
+bearishEngulfing = (close[1] > open[1]) and (close < open) and (close < open[1]) and (open > close[1])
+
+// Trading conditions: 2-candlestick pattern + Support/Resistance levels
+buyCondition = bullishEngulfing and (close > support)  // Buy when Bullish Engulfing appears and price is above support
+sellCondition = bearishEngulfing and (close < resistance)  // Sell when Bearish Engulfing appears and price is below resistance
+
+// Display Buy and Sell signals on the chart
+plotshape(series=buyCondition, title="Buy Signal", location=location.belowbar, color=color.green, style=shape.labelup, text="BUY")
+plotshape(series=sellCondition, title="Sell Signal", location=location.abovebar, color=color.red, style=shape.labeldown, text="SELL")
+
+// Stop Loss and Take Profit levels
+stopLoss = atr * atrMultiplier
+takeProfit = stopLoss * 2  // Risk-Reward Ratio 1:2
+
+// Entry and exit conditions
+if (buyCondition)
+    strategy.entry("Buy", strategy.long)
+    strategy.exit("Take Profit/Stop Loss", "Buy", stop=close - stopLoss, limit=close + takeProfit)
+
+if (sellCondition)
+    strategy.entry("Sell", strategy.short)
+    strategy.exit("Take Profit/Stop Loss", "Sell", stop=close + stopLoss, limit=close - takeProfit)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/488021
+
+> Last Modified
+
+2025-03-24 14:24:55

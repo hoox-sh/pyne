@@ -1,0 +1,99 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/MACDRSI与EMA策略MACD-RSI-and-EMA-Strategy.md
+// content_hash: 57ee257e9ac7c870
+// collected: 2026-07-27
+strategy("MACD,RSI & EMA strategy with MA+PSAR by MAM", overlay=true)
+
+//Input Data
+_ema_len1 = input(5, title="EMA1 length")
+_ema_len2 = input(20, title="EMA2 length")
+
+_macd_fast = input(12, title="MACD Fast")
+_macd_slow = input(26, title="MACD Slow")
+_macd_signal_len = input(20, title="MACD Signal length")
+
+//MAM add SMA
+_sma_len1 = input(5, title="SMA1 Length")
+_sma_len2 = input(10, title="SMA2 Length")
+_sma_len3 = input(50, title="SMA3 Length")
+_sma_len4 = input(200, title="SMA4 Length")
+
+lineWidth = input(1, minval=1, title="Line width")
+
+src = input(close, title="Source")
+
+SMA1 = if _sma_len1 != 0
+    sma(src, _sma_len1)
+SMA2 = if _sma_len2 != 0
+    sma(src, _sma_len2)
+SMA3 = if _sma_len3 != 0
+    sma(src, _sma_len3)
+SMA4 = if _sma_len4 != 0
+    sma(src, _sma_len4)
+
+
+//__________________________________________________________________________
+
+_rsi_len = input(14, title="RSI length")
+_rsi_signal_len = input(20, title="RSI signal length")
+
+//_________________________________________________________________________
+//MAM Add PSAR
+PSAR_start = input(0.02)
+PSAR_increment = input(0.02)
+PSAR_maximum = input(0.2)
+
+psar = sar(PSAR_start, PSAR_increment, PSAR_maximum)
+//_________________________________________________________________________
+
+_ema1 = ema(close, _ema_len1)
+_ema2 = ema(close, _ema_len2)
+
+//_________________________________________________________________________
+//MAM add SMA
+//_sma1 = ema(close, _sma_len1)
+//_sma2 = ema(close, _sma_len2)
+//_________________________________________________________________________
+
+_macd = ema(close, _macd_fast) - ema(close, _macd_slow)
+_macd_signal = ema(_macd, _macd_signal_len)
+
+_rsi = rsi(close, _rsi_len)
+_rsi_signal = ema(_rsi, _rsi_signal_len)
+
+
+//PLOT SMA
+plot(SMA1, color=#B71C1C, title="SMA1", linewidth=lineWidth)
+plot(SMA2, color=#FFFF00, title="SMA2", linewidth=lineWidth)
+plot(SMA3, color=#5b34ff, title="SMA3", linewidth=lineWidth)
+plot(SMA4, color=#d7d7d7, title="SMA4", linewidth=lineWidth)
+
+
+//PLOT PSAR
+plot(psar, "ParabolicSAR", style=plot.style_cross, color=#3A6CA8)
+
+//plot(_rsi, color=color.yellow)
+//plot(_rsi_signal, color=color.green)
+//plot(_macd, color=color.blue)
+//plot(_macd_signal, color=color.red)
+
+
+longCondition = close > _ema1 and close > _ema2 and _macd > _macd_signal and _rsi > _rsi_signal 
+if (longCondition)
+    strategy.entry("Buy",strategy.long)
+    
+shortCondition = close < _ema1 and close <_ema2 and _macd < _macd_signal and _rsi < _rsi_signal
+if (shortCondition)
+    strategy.entry("Sell",strategy.short)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/443246
+
+> Last Modified
+
+2024-03-01 12:23:38

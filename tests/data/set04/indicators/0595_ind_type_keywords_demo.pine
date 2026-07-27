@@ -1,0 +1,26 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/language/type-system.md::type-system.md#block11
+// content_hash: 92a7510b937312e7
+// collected: 2026-07-27
+indicator("Type keywords demo", overlay = true)
+
+// The `string`, `int`, `float`, `bool` and `color` keywords are *optional* in the following variable declarations:
+string MA_TITLE    = "MA"
+int    lengthInput = input.int(100, "Length", minval = 2)
+float  ma          = ta.sma(close, lengthInput)
+bool   crossUp     = ta.crossover(close, ma)
+color  maColor     = close > ma ? color.lime : color.fuchsia
+
+// Specifying a type is required in this declaration, because the variable's initial value is `na`.
+// The `float` keyword tells the compiler that the variable accepts "float" values.
+var float crossValue = na
+
+// Update the `crossValue` variable based on the `crossUp` condition.
+if crossUp
+    crossValue := close
+
+plot(ma, MA_TITLE, maColor)
+plot(crossValue, "Cross value", style = plot.style_circles)
+plotchar(crossUp, "Cross Up", "▲", location.belowbar, size = size.small)

@@ -1,0 +1,64 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动态神经网络RSI趋势跟踪交易策略-Dynamic-Neural-RSI-Trend-Following-Trading-Strategy.md
+// content_hash: f0a6e505aa03464a
+// collected: 2026-07-27
+strategy("200 SMA Crossover Strategy", overlay=false)
+
+// Define inputs
+smaLength = input.int(200, title="SMA Length")
+rsiLength = input.int(14, title="RSI Length")
+rsiThreshold = input.float(40, title="RSI Threshold")
+trailStopPercent = input.float(5.0, title="Trailing Stop Loss (%)")
+waitingPeriod = input.int(10, title="Waiting Period (Days)")
+
+// Calculate 200 SMA
+sma200 = ta.sma(close, smaLength)
+
+// Calculate RSI
+rsi = ta.rsi(close, rsiLength)
+
+// Plot the 200 SMA and RSI
+plot(sma200, color=color.blue, linewidth=2, title="200 SMA")
+plot(rsi, color=color.purple, title="RSI", display=display.none)
+
+// Define buy and sell conditions
+var isLong = false
+var float lastExitTime = na
+var float trailStopPrice = na
+
+// Explicitly declare timeSinceExit as float
+float timeSinceExit = na(lastExitTime) ? na : (time - lastExitTime) / (24 * 60 * 60 * 1000)
+canEnter = na(lastExitTime) or timeSinceExit > waitingPeriod
+
+buyCondition = close > sma200 and rsi < rsiThreshold and canEnter
+
+if (buyCondition and not isLong)
+    strategy.entry("Buy", strategy.long)
+    trailStopPrice := na
+    isLong := true
+
+// Update trailing stop loss if long
+if (isLong)
+    trailStopPrice := na(trailStopPrice) ? close * (1 - trailStopPercent / 100) : math.max(trailStopPrice, close * (1 - trailStopPercent / 100))
+
+// Check for trailing stop loss or sell condition
+if (isLong and (close < trailStopPrice or close < sma200))
+    strategy.close("Buy")
+    lastExitTime := time
+    isLong := false
+
+// Plot buy and sell signals
+plotshape(series=buyCondition, title="Buy Signal", location=location.belowbar, color=color.green, style=shape.labelup, text="BUY")
+plotshape(series=(isLong and close < trailStopPrice) or close < sma200, title="Sell Signal", location=location.abovebar, color=color.red, style=shape.labeldown, text="SELL")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/478685
+
+> Last Modified
+
+2025-01-17 14:19:08

@@ -1,0 +1,49 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于K线形态的高频套利策略Up-Down-K-Line-Pattern-High-Frequency-Arbitrage-Strategy.md
+// content_hash: dbee23c8acfa7774
+// collected: 2026-07-27
+
+// Strategy
+strategy("Up/Down Strategy", initial_capital = 10000, default_qty_value = 10000, default_qty_type = strategy.cash)
+
+consecutiveBarsUp = input(1)
+consecutiveBarsDown = input(1)
+
+price = close
+
+ups = 0.0
+ups := price > price[1] ? nz(ups[1]) + 1 : 0
+
+dns = 0.0
+dns := price < price[1] ? nz(dns[1]) + 1 : 0
+
+// Strategy Backesting
+startDate  = input(timestamp("2021-01-01T00:00:00"), type = input.time)
+finishDate = input(timestamp("2021-12-31T00:00:00"), type = input.time)
+
+time_cond  = true
+
+// Messages for buy and sell
+message_buy  = input("{{strategy.order.alert_message}}", title="Buy message")
+message_sell = input("{{strategy.order.alert_message}}", title="Sell message")
+
+// Strategy Execution
+
+if (ups >= consecutiveBarsUp) and time_cond
+    strategy.entry("Long", strategy.long, stop = high + syminfo.mintick, alert_message = message_buy)
+    
+if (dns >= consecutiveBarsDown) and time_cond
+    strategy.entry("Short", strategy.short, stop = low + syminfo.mintick, alert_message = message_sell)
+
+//plot(strategy.equity, title="equity", color=color.red, linewidth=2, style=plot.style_areabr)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/438044
+
+> Last Modified
+
+2024-01-08 15:47:41

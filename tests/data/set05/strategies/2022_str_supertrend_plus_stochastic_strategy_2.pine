@@ -1,0 +1,65 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动量趋势型SuperTrend与随机指标交叉策略-Momentum-Trend-Following-SuperTrend-and-Stochastic-Crossover-Strategy.md
+// content_hash: e6655a96e7e83b7a
+// collected: 2026-07-27
+strategy("SuperTrend + Stochastic Strategy", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=10)
+
+// SuperTrend Settings
+superTrendFactor = input.float(3.0, title="SuperTrend Factor", step=0.1)
+superTrendATRLength = input.int(10, title="SuperTrend ATR Length")
+
+// Calculate SuperTrend
+[superTrend, direction] = ta.supertrend(superTrendFactor, superTrendATRLength)
+
+// Plot SuperTrend
+plot(superTrend, color=direction == 1 ? color.green : color.red, title="SuperTrend")
+bgcolor(direction == 1 ? color.new(color.green, 90) : color.new(color.red, 90), transp=90)
+
+// Stochastic Settings
+stochKLength = input.int(14, title="Stochastic %K Length")
+stochDLength = input.int(3, title="Stochastic %D Length")
+stochSmoothK = input.int(3, title="Stochastic %K Smoothing")
+stochOverbought = input.int(80, title="Stochastic Overbought Level")
+stochOversold = input.int(20, title="Stochastic Oversold Level")
+
+// Calculate Stochastic
+k = ta.sma(ta.stoch(close, high, low, stochKLength), stochSmoothK)
+d = ta.sma(k, stochDLength)
+
+// Plot Stochastic in separate pane
+hline(stochOverbought, "Overbought", color=color.red)
+hline(stochOversold, "Oversold", color=color.green)
+plot(k, color=color.blue, title="%K", linewidth=2)
+plot(d, color=color.orange, title="%D", linewidth=2)
+
+// Long Condition: SuperTrend is up and Stochastic %K crosses above oversold
+longCondition = direction == 1 and ta.crossover(k, stochOversold)
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+
+// Short Condition: SuperTrend is down and Stochastic %K crosses below overbought
+shortCondition = direction == -1 and ta.crossunder(k, stochOverbought)
+if (shortCondition)
+    strategy.entry("Short", strategy.short)
+
+// Exit Long: SuperTrend turns down or Stochastic %K crosses below overbought
+exitLong = direction == -1 or ta.crossunder(k, stochOverbought)
+if (exitLong)
+    strategy.close("Long")
+
+// Exit Short: SuperTrend turns up or Stochastic %K crosses above oversold
+exitShort = direction == 1 or ta.crossover(k, stochOversold)
+if (exitShort)
+    strategy.close("Short")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/482805
+
+> Last Modified
+
+2025-02-20 14:55:49

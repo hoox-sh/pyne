@@ -1,0 +1,57 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/MACD多区间动态止盈止损交易系统-MACD-Multi-Interval-Dynamic-Stop-Loss-and-Take-Profit-Trading-System.md
+// content_hash: e5ad501c8f201760
+// collected: 2026-07-27
+strategy("MACD Strategy with Settings", overlay=true)
+
+// Параметры MACD в контрольной панели
+fastLength = input.int(12, title="Fast Length", minval=1, maxval=50)
+slowLength = input.int(26, title="Slow Length", minval=1, maxval=50)
+signalSmoothing = input.int(9, title="Signal Smoothing", minval=1, maxval=50)
+
+// Параметры риска
+stopLossPerc = input.float(1, title="Stop Loss (%)", step=0.1) // Стоп-лосс в процентах
+takeProfitPerc = input.float(2, title="Take Profit (%)", step=0.1) // Тейк-профит в процентах
+trailStopPerc = input.float(1.5, title="Trailing Stop (%)", step=0.1) // Трейлинг-стоп в процентах
+
+// Вычисляем MACD
+[macdLine, signalLine, _] = ta.macd(close, fastLength, slowLength, signalSmoothing)
+
+// Показываем MACD и сигнальную линию на графике
+plot(macdLine, color=color.blue, title="MACD Line")
+plot(signalLine, color=color.red, title="Signal Line")
+hline(0, "Zero Line", color=color.gray)
+
+// Условия для покупки и продажи
+longCondition = ta.crossover(macdLine, signalLine) // Покупка при пересечении MACD вверх сигнальной линии
+shortCondition = ta.crossunder(macdLine, signalLine) // Продажа при пересечении MACD вниз сигнальной линии
+
+// Расчет стоп-лосса и тейк-профита
+var float longStopLevel = na
+var float longTakeProfitLevel = na
+
+if (longCondition)
+    longStopLevel := strategy.position_avg_price * (1 - stopLossPerc / 100)
+    longTakeProfitLevel := strategy.position_avg_price * (1 + takeProfitPerc / 100)
+    strategy.entry("Long", strategy.long)
+
+if (strategy.position_size > 0)
+    // Установка стоп-лосса и тейк-профита
+    strategy.exit("Take Profit/Stop Loss", "Long", stop=longStopLevel, limit=longTakeProfitLevel, trail_offset=trailStopPerc)
+
+// Закрытие позиции при медвежьем сигнале
+if (shortCondition)
+    strategy.close("Long")
+    strategy.entry("Short", strategy.short)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/473353
+
+> Last Modified
+
+2024-11-29 15:01:33

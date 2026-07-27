@@ -1,0 +1,59 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/布林带与相对强弱指数交叉交易策略-Bollinger-Bands-and-RSI-Crossover-Trading-Strategy.md
+// content_hash: ea11255bff25ba89
+// collected: 2026-07-27
+strategy("Bollinger Bands and RSI Strategy", overlay=true)
+
+// Define Bollinger Bands parameters
+length = input(20, title="Bollinger Bands Length")
+src = close
+mult = input(2.0, title="Bollinger Bands Multiplier")
+basis = ta.sma(src, length)
+dev = mult * ta.stdev(src, length)
+upper = basis + dev
+lower = basis - dev
+
+// Define RSI parameters
+rsiLength = input(14, title="RSI Length")
+rsiOverbought = input(70, title="RSI Overbought Level")
+rsiOversold = input(30, title="RSI Oversold Level")
+rsi = ta.rsi(close, rsiLength)
+
+// Generate Buy Signal
+buySignal = ta.crossover(close, lower) and rsi < rsiOversold
+
+// Generate Sell Signal
+sellSignal = ta.crossunder(close, upper) and rsi > rsiOverbought
+
+// Plot Bollinger Bands on Chart
+plot(basis, color=color.blue, title="Bollinger Bands Basis")
+p1 = plot(upper, color=color.red, title="Bollinger Bands Upper")
+p2 = plot(lower, color=color.green, title="Bollinger Bands Lower")
+fill(p1, p2, color=color.rgb(0, 0, 0, 90))
+
+// Plot Buy and Sell Signals on Chart
+plotshape(series=buySignal, location=location.belowbar, color=color.green, style=shape.labelup, text="BUY")
+plotshape(series=sellSignal, location=location.abovebar, color=color.red, style=shape.labeldown, text="SELL")
+
+// Execute Buy and Sell Orders
+if (buySignal)
+    strategy.entry("Buy", strategy.long)
+if (sellSignal)
+    strategy.entry("Sell", strategy.short)
+
+// Plot RSI on separate chart
+hline(rsiOverbought, "RSI Overbought", color=color.red)
+hline(rsiOversold, "RSI Oversold", color=color.green)
+plot(rsi, color=color.blue, title="RSI")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/457792
+
+> Last Modified
+
+2024-07-26 16:16:09

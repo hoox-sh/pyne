@@ -1,0 +1,64 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于双均线波动率跟踪策略Dual-Moving-Average-Volatility-Tracking-Strategy.md
+// content_hash: bf33098388d7ce0a
+// collected: 2026-07-27
+strategy("Combined Golden Cross and Progressive Trend Tracker", shorttitle="GCC-PTT", overlay=true)
+
+// Inputs
+fastMA_period = input(50, title="Fast MA Period")
+slowMA_period = input(200, title="Slow MA Period")
+src = input(close, title="Source")
+lengthBB = input(20, title="Bollinger Bands Length")
+mult = input(2.0, title="Bollinger Bands Multiplier")
+mavType = input.string(title="Moving Average Type", defval="VAR", options=['SMA', 'EMA', 'WMA', 'TMA', 'VAR', 'WWMA', 'ZLEMA', 'TSF'])
+
+// Calculate Moving Averages for Golden Cross
+fastMA = ta.sma(src, fastMA_period)
+slowMA = ta.sma(src, slowMA_period)
+bullish_cross = ta.crossover(fastMA, slowMA)
+bearish_cross = ta.crossunder(fastMA, slowMA)
+
+// Progressive Trend Tracker Components (Adjusted for NA assignment issue)
+Var_Func(src, length) =>
+    valpha = 2 / (length + 1)
+    vud1 = src > src[1] ? src - src[1] : 0
+    vdd1 = src < src[1] ? src[1] - src : 0
+    vUD = math.sum(vud1, length)
+    vDD = math.sum(vdd1, length)
+    vCMO = (vUD - vDD) / (vUD + vDD)
+    VAR = 0.0 // Adjusted here, assign an initial value
+    VAR := ta.ema(src * math.abs(vCMO), length)
+    VAR
+
+VAR = Var_Func(src, 14) // Example VAR calculation, adjust as needed
+
+// Bollinger Bands for dynamic support and resistance
+BBandTop = fastMA + mult * ta.stdev(src, lengthBB)
+BBandBot = fastMA - mult * ta.stdev(src, lengthBB)
+
+// Plotting
+plot(fastMA, color=color.blue, title="Fast MA")
+plot(slowMA, color=color.red, title="Slow MA")
+plot(BBandTop, color=color.green, title="Bollinger Band Top")
+plot(BBandBot, color=color.red, title="Bollinger Band Bottom")
+plot(VAR, color=color.purple, title="VAR", linewidth=2)
+
+// Strategy Logic (Adjusted for strategy use)
+// Long Entry when bullish cross and close above VAR
+// Exit when bearish cross or close below VAR
+if (bullish_cross and close > VAR)
+    strategy.entry("CGC_PTT_Long", strategy.long)
+if (bearish_cross or close < VAR)
+    strategy.close("CGC_PTT_Long")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/443096
+
+> Last Modified
+
+2024-02-29 11:15:08

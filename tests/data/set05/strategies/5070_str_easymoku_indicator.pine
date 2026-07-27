@@ -1,0 +1,64 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/易经模古市场分析策略Ichimoku-Cloud-Market-Analysis-Strategy.md
+// content_hash: 5e91e15b89f5cdd3
+// collected: 2026-07-27
+strategy("EASYMOKU INDICATOR", overlay = true, initial_capital = 10000, currency = "USD", commission_value = 0.04)
+
+// Initial Ichimoku inputs
+Act_IKH = input(true, "ICHIMOKU KYNKO HYO")
+Multiplier = input(5.9, "MULTIPLIER", minval = 0.1, type = input.float, step = 0.1)
+Settings_input = input("OCCIDENTAL 7-22-44-22", "SETTINGS", options = ["ORIENTAL 9-26-52-26", "OCCIDENTAL 7-22-44-22"])
+Settings(_oriental,_occidental) => round(((Settings_input == "ORIENTAL 9-26-52-26") ? _oriental : _occidental)*Multiplier)
+tenkanPeriods = Settings(9,7)
+kijunPeriods = Settings(26,22)
+sekouBPeriods = Settings(52,44)
+displacement = Settings(26,22)
+
+// Ichimoku Calculations
+donchian(_len) => avg(lowest(_len), highest(_len))
+tenkan = donchian(tenkanPeriods)
+kijun = donchian(kijunPeriods)
+senkouA = avg(tenkan, kijun)
+senkouB = donchian(sekouBPeriods)
+
+// KUMO Conditions
+var bool KUMO_Cond = na
+KUMO_Cond := (close > senkouA[displacement-1] and close > senkouB[displacement-1]) ? 1 : (close < senkouA[displacement-1] and close < senkouB[displacement-1]) ? 0 : na
+
+// CHIKOU Conditions
+var bool CHIKOU_Cond = na
+CHIKOU_Cond := (close > senkouA[2*displacement] and close > senkouB[2*displacement]) ? 1 : (close < senkouA[2*displacement] and close < senkouB[2*displacement]) ? 0 : na
+
+// TENKAN & KIJUN Crossings Conditions
+var bool TENKAN_KIJUN = na
+TENKAN_KIJUN := crossover(tenkan,kijun) ? 1 : crossunder(tenkan,kijun) ? -1 : nz(TENKAN_KIJUN[1])
+
+// Plottings
+t = plot(Act_IKH ? tenkan : na, color = color.lime, linewidth = 2, title = "TENKAN SEN")
+k = plot(Act_IKH ? kijun : na, color = color.red, linewidth = 2, title = "KIJUN SEN")
+c = plot(Act_IKH ? close : na, offset = -displacement+1, color = color.aqua, title = "CHIKOU SPAN")
+sA = plot(Act_IKH ? senkouA : na, offset = displacement-1, color = color.green, title = "SENKOU A")
+sB = plot(Act_IKH ? senkouB : na, offset = displacement-1, color = color.red, title = "SENKOU B")
+fill(sA, sB, title = "KUMO", color = senkouA > senkouB ? color.green : color.red)
+
+// Bar colors according to Ichimoku Conditions    
+barcolor(KUMO_Cond == 1 and CHIKOU_Cond == 1 ? color.lime : KUMO_Cond == 0 and CHIKOU_Cond == 0 ? color.red : color.orange)
+
+// Strategy
+if KUMO_Cond == 1 and CHIKOU_Cond == 1
+    strategy.entry("LONG", strategy.long, when = TENKAN_KIJUN == 1)
+    strategy.close("LONG", comment = "XLONG", when = TENKAN_KIJUN == -1)
+if KUMO_Cond == 0 and CHIKOU_Cond == 0
+    strategy.entry("SHORT", strategy.short, when = TENKAN_KIJUN == -1)
+    strategy.close("SHORT", comment = "XSHORT", when = TENKAN_KIJUN == 1)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/426901
+
+> Last Modified
+
+2023-12-01 14:58:48

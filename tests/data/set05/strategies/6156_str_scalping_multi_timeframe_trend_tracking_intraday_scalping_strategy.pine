@@ -1,0 +1,128 @@
+//@version=2
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多时间框架趋势追踪日内scalping策略Multi-Timeframe-Trend-Tracking-Intraday-Scalping-Strategy.md
+// content_hash: 0eb9d104eb2177c4
+// collected: 2026-07-27
+strategy(title="PeBAS $JPY Scalper 15m ",overlay=true) 
+zeigeallebars= input(false, title="Zeige alle (Show all) Candles/Bars?")
+profitwert=input(52, title="Profit")
+myatr=  input(title="ATR", type=float, defval=0.00002, minval=0.00001,step=0.00001)
+
+
+//Plot  EMA-Differenz Aktueller Timeframe
+
+dif=(ema(close,8)+ema(close,20))/2
+mcolor=ema(close,8) > ema(close,20) ? green : red
+bs = ema(close,8) > ema(close,20) ? true : false
+ThisATR=atr(16)
+
+//trans = zeigeallebars == true ? 00 : 100
+//plot(dif,"dif",color=mcolor,linewidth=6,transp=trans)
+
+
+//1M EMA
+htf_ma1Mema8 = ema(close, 5)
+htf_ma1Mema20 = ema(close, 20)
+ema81m=request.security(syminfo.tickerid, "1", htf_ma1Mema8)
+ema201m=request.security(syminfo.tickerid, "1", htf_ma1Mema20)
+dif1M = (ema81m + ema201m) / 2
+Close1M = request.security(syminfo.tickerid, "1", close)
+color1=ema81m > ema201m ? green : red
+//plot(dif1M,"dif",color1,linewidth=6)
+//plotshape(1, style=shape.cross, color=color1,location=location.top)
+ls1 = ema81m > ema201m ? 1 : 0
+
+
+
+//5M EMA
+
+htf_ma5Mema8 = ema(close, 8)
+htf_ma5Mema20 = ema(close, 20)
+ema85m=request.security(syminfo.tickerid, "5", htf_ma5Mema8)
+ema205m=request.security(syminfo.tickerid, "5", htf_ma5Mema20)
+dif5M = (ema85m + ema205m) / 2
+ 
+color5=ema85m > ema205m ? green : red
+plot(dif5M,"dif",color5,linewidth=5)
+ls5 = ema85m > ema205m ? 1 : 0
+alert1= ema85m > ema205m and ema85m[1] < ema205m[1] ? 1 : 0
+islong5 = ema85m > ema205m ? 1 : 0
+isshort5 = ema85m < ema205m ? 1 : 0
+
+//15M EMA
+
+htf_ma15Mema8 = ema(close, 8)
+htf_ma15Mema20 = ema(close, 20)
+ema815m=request.security(syminfo.tickerid, "15", htf_ma15Mema8)
+ema2015m=request.security(syminfo.tickerid, "15", htf_ma15Mema20)
+dif15M = (ema815m + ema2015m) / 2
+ 
+color15=ema815m > ema2015m ? green : red
+plot(dif15M,"dif",color15,linewidth=3)
+ls15= ema815m > ema2015m ? 1 : 0
+alert2= ema815m > ema2015m and ema815m[1] < ema2015m[1] ? 1 : 0
+islong15 = ema815m > ema2015m ? 1 : 0
+isshort15 = ema815m < ema2015m ? 1 : 0
+
+
+
+
+
+//30M EMA
+htf_ma30Mema8 = ema(close, 8)
+htf_ma30Mema20 = ema(close, 20)
+ema830m=request.security(syminfo.tickerid, "30", htf_ma30Mema8)
+ema2030m=request.security(syminfo.tickerid, "30", htf_ma30Mema20)
+dif30M = (ema830m + ema2030m) / 2
+ 
+color30=ema830m > ema2030m ? green : red
+ls30= ema830m > ema2030m ?1 : 0
+islong30 = ema830m > ema2030m ? 1 : 0
+isshort30 = ema830m < ema2030m ? 1 : 0
+
+
+
+//60M EMA
+
+htf_ma60Mema8 = ema(close, 8)
+htf_ma60Mema20 = ema(close, 20)
+ema860m=request.security(syminfo.tickerid, "60", htf_ma60Mema8)
+ema2060m=request.security(syminfo.tickerid, "60", htf_ma60Mema20)
+dif60M = (ema860m + ema2060m) / 2
+ 
+color60=ema860m > ema2060m ? green : red
+ls60= ema860m > ema2060m ?1 : 0
+
+islong60 = ema860m > ema2060m ? 1 : 0
+isshort60 = ema860m < ema2060m ? 1 : 0
+
+plot(dif60M,"dif",color60,linewidth=3,transp=70)
+
+islong = islong5 ==1 and islong15 ==1 and islong60 ==1 and year > 2017 ? 1 : 0
+isshort = isshort5 ==1 and isshort15 ==1 and  isshort60 ==1 and year > 2017 ? 1 : 0
+
+
+condition2l= 0 
+condition2s = 0
+
+c= alert1 == alert2  and alert1[1] != alert2[1] ? 1 : 0
+alertcondition(c, title='Da tat sich was ', message='Da tat sich was!')
+
+strategy.entry("enter long", strategy.long,1,when = islong ==1 and islong[1] == 0  ) 
+strategy.entry("enter short", strategy.short,1,when = isshort == 1  and isshort [1] == 0) 
+strategy.exit("close",profit=profitwert)
+strategy.exit("close",profit=profitwert)
+
+
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/432362
+
+> Last Modified
+
+2023-11-16 17:47:06

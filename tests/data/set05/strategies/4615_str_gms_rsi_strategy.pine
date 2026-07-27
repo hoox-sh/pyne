@@ -1,0 +1,90 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/利用RSI指标和均线指标的量化策略RSI-and-Moving-Average-Breakout-Strategy.md
+// content_hash: 7ee7dd8ef34221b0
+// collected: 2026-07-27
+strategy("GMS: RSI Strategy", overlay=true)
+
+LongShort = input(title="Long Only or Short Only or Both?", type=input.string, defval="Both", options=["Both", "Long Only", "Short Only"])
+RSILength = input(title="RSI Length", type = input.integer ,defval=14)
+RSIUpper = input(title="Upper Threshold", type = input.float ,defval=70)
+RSILower = input(title="Lower Threshold", type = input.float ,defval=30)
+LongExit = input(title="Long Exit SMA Length", type = input.integer ,defval=5)
+ShortExit = input(title="Short Exit SMA Length", type = input.integer ,defval=5)
+AboveBelow = input(title="Trend SMA Filter?", type=input.string, defval="Above", options=["Above", "Below", "Don't Include"])
+TrendLength = input(title="Trend SMA Length", type = input.integer ,defval=200)
+
+
+//Long Side
+
+if LongShort =="Long Only" and AboveBelow == "Above"
+    strategy.entry("LONG", true, when = rsi(close,RSILength)<RSILower and close< sma(close,LongExit) and close>sma(close,TrendLength))
+    strategy.close("LONG", when = close>sma(close,LongExit))
+    
+if LongShort =="Long Only" and AboveBelow == "Below"
+    strategy.entry("LONG", true, when = rsi(close,RSILength)<RSILower and close< sma(close,LongExit) and close<sma(close,TrendLength))
+    strategy.close("LONG", when = close>sma(close,LongExit))
+    
+if LongShort =="Long Only" and AboveBelow == "Don't Include"
+    strategy.entry("LONG", true, when = rsi(close,RSILength)<RSILower and close< sma(close,LongExit))
+    strategy.close("LONG", when = close>sma(close,LongExit))
+    
+if LongShort =="Both" and AboveBelow == "Above"
+    strategy.entry("LONG", true, when = rsi(close,RSILength)<RSILower and close< sma(close,LongExit) and close>sma(close,TrendLength))
+    strategy.close("LONG", when = close>sma(close,LongExit))
+    
+if LongShort =="Both" and AboveBelow == "Below"
+    strategy.entry("LONG", true, when = rsi(close,RSILength)<RSILower and close< sma(close,LongExit) and close<sma(close,TrendLength))
+    strategy.close("LONG", when = close>sma(close,LongExit))
+    
+if LongShort =="Both" and AboveBelow == "Don't Include"
+    strategy.entry("LONG", true, when = rsi(close,RSILength)<RSILower and close< sma(close,LongExit))
+    strategy.close("LONG", when = close>sma(close,LongExit))
+    
+    
+//SHORT SIDE
+
+if LongShort =="Short Only" and AboveBelow == "Above"
+    strategy.entry("SHORT", false, when = rsi(close,RSILength)>RSIUpper and close> sma(close,ShortExit) and close>sma(close,TrendLength))
+    strategy.close("SHORT", when = close<sma(close,ShortExit))
+    
+if LongShort =="Short Only" and AboveBelow == "Below"
+    strategy.entry("SHORT", false, when = rsi(close,RSILength)>RSIUpper and close> sma(close,ShortExit) and close<sma(close,TrendLength))
+    strategy.close("SHORT", when = close<sma(close,ShortExit))
+    
+if LongShort =="Short Only" and AboveBelow == "Don't Include"
+    strategy.entry("SHORT", false, when = rsi(close,RSILength)>RSIUpper and close> sma(close,ShortExit))
+    strategy.close("SHORT", when = close<sma(close,ShortExit))
+    
+if LongShort =="Both" and AboveBelow == "Above"
+    strategy.entry("SHORT", false, when = rsi(close,RSILength)>RSIUpper and close> sma(close,ShortExit) and close>sma(close,TrendLength))
+    strategy.close("SHORT", when = close<sma(close,ShortExit))
+    
+if LongShort =="Both" and AboveBelow == "Below"
+    strategy.entry("SHORT", false, when = rsi(close,RSILength)>RSIUpper and close> sma(close,ShortExit) and close<sma(close,TrendLength))
+    strategy.close("SHORT", when = close<sma(close,ShortExit))
+    
+if LongShort =="Both" and AboveBelow == "Don't Include"
+    strategy.entry("SHORT", false, when = rsi(close,RSILength)>RSIUpper and close> sma(close,ShortExit))
+    strategy.close("SHORT", when = close<sma(close,ShortExit))
+    
+    
+    
+    
+    
+    
+   
+
+
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/439860
+
+> Last Modified
+
+2024-01-24 14:31:01

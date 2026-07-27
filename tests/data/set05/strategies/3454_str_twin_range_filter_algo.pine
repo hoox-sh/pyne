@@ -1,0 +1,163 @@
+//@version=4
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/Twin Range Filter Algo.pine
+// content_hash: 7047700d711c3d30
+// collected: 2026-07-27
+strategy(title="Twin Range Filter Algo v.3", shorttitle = "Twin Range Strategy", overlay=true)
+source = input(defval=close, title="Source")
+// Smooth Average Range
+per1 = input(defval=27, minval=1, title="Fast period", group ="Twin Range Filter @colinmck")
+mult1 = input(defval=1.6, minval=0.1, title="Fast range", group ="Twin Range Filter @colinmck")
+per2 = input(defval=55, minval=1, title="Slow period", group ="Twin Range Filter @colinmck")
+mult2 = input(defval=2, minval=0.1, title="Slow range", group ="Twin Range Filter @colinmck")
+smoothrng(x, t, m) =>
+    wper = t * 2 - 1
+    avrng = ema(abs(x - x[1]), t)
+    smoothrng = ema(avrng, wper) * m
+    smoothrng
+smrng1 = smoothrng(source, per1, mult1)
+smrng2 = smoothrng(source, per2, mult2)
+smrng = (smrng1 + smrng2) / 2
+// Range Filter
+rngfilt(x, r) =>
+    rngfilt = x
+    rngfilt := x > nz(rngfilt[1]) ? x - r < nz(rngfilt[1]) ? nz(rngfilt[1]) : x - r : 
+       x + r > nz(rngfilt[1]) ? nz(rngfilt[1]) : x + r
+    rngfilt
+filt = rngfilt(source, smrng)
+upward = 0.0
+upward := filt > filt[1] ? nz(upward[1]) + 1 : filt < filt[1] ? 0 : nz(upward[1])
+downward = 0.0
+downward := filt < filt[1] ? nz(downward[1]) + 1 : filt > filt[1] ? 0 : nz(downward[1])
+hband = filt + smrng
+lband = filt - smrng
+longCond = bool(na)
+shortCond = bool(na)
+longCond := source > filt and source > source[1] and upward > 0 or source > filt and source < source[1] and upward > 0
+shortCond := source < filt and source < source[1] and downward > 0 or source < filt and source > source[1] and downward > 0
+CondIni = 0
+CondIni := longCond ? 1 : shortCond ? -1 : CondIni[1]
+long = longCond and CondIni[1] == -1
+short = shortCond and CondIni[1] == 1
+// Plotting
+// Strategy
+// From this part on, programmer is greenmaks9
+//
+Separator = input(title="Following conditions and backtest algorithm are added by @greenmask9 🎯, original script is written by @colinmck 👍. Read both of their's release notes for more info on how this script works.", type=input.bool, defval=false, group = "Greenmask's testing resources & ATR condition")
+disabler = input(title="Disable @greenmask9's ATR conditions", type=input.bool, defval=false, group = "Greenmask's testing resources & ATR condition")
+//second
+l2 = input(title="ATR1", defval=32, minval=1, group = "ATR condition", tooltip = "C: Short-range volatility must be low than long-term volatility measurement for the entry.")
+s2 = input(title="Smoothing", defval="SMA", options=["RMA", "SMA", "EMA", "WMA"], tooltip = "C: Short-range volatility must be low than long-term volatility measurement for the entry.", group = "ATR condition")
+atr2(source, l2) => 
+    if s2 == "SMA"
+        sma(source, l2)
+    else
+        if s2 == "RMA"
+            rma(source, l2)
+        else
+            if s2 == "EMA"
+                ema(source, l2)
+            else
+                wma(source, l2)
+//third
+l3 = input(title="ATR2", defval=64, minval=1, group = "ATR condition", tooltip = "C: Short-range volatility must be low than long-term volatility measurement for the entry.")
+s3 = input(title="Smoothing", defval="RMA", options=["RMA", "SMA", "EMA", "WMA"], tooltip = "C: Short-range volatility must be low than long-term volatility measurement for the entry.", group = "ATR condition")
+atr3(source, l3) => 
+    if s3 == "RMA"
+        rma(source, l3)
+    else
+        if s3 == "SMA"
+            sma(source, l3)
+        else
+            if s3 == "EMA"
+                ema(source, l3)
+            else
+                wma(source, l3)
+atr20=atr2(tr(true), l2)
+atr30=atr3(tr(true), l3)
+ordersize=floor(strategy.initial_capital/close)
+maxcandles_till_close = input(title="Time-based Close", type=input.integer, defval=17, group = "Alternative Exit")
+i_time = input(true, "Enable Time Base Close", group = "Alternative Exit" )
+//stop
+varip stop_long = 0.0, varip entry = 0.0, varip stop_short = 0.0
+i_sl_type = input("Low - (close - lowest low[len]) * %", options = ["Low - (ATR[len] * %)", "Low - (close - lowest low[len]) * %", "Low - (close - average low[len]) * %", "Close - (ATR[len] * %)", "Low - TicksNumber"], title="Calculation (Long)", group = "Stop-loss", tooltip = "This is a stop-loss calculation for long positions. Reversed logic is used for short stop-loss. *Calculation Low - TicksNumber doesn't use Percentage-based multiplier. **Number of ticks is always substracted (added) after the initial calculation. ")
+i_sl_atr = input(10, "Calculation Length", group = "Stop-loss")
+i_sl_perc = input(80, "Percentage", group = "Stop-loss", type = input.float) / 100
+i_sl_ticks = input(defval = 10, minval = 1, title = "Number of ticks", group = "Stop-loss") * syminfo.mintick
+i_stoploss = input(true, "Enable Stop-loss", group = "Stop-loss")
+f_stop_long (calculation, length, mult, ticks) =>
+    stop_0 = calculation == "Low - (ATR[len] * %)" ? low - (atr(length) * mult) - ticks   :
+     calculation == "Low - (close - lowest low[len]) * %" ? low - (close - (lowest(low, length))) * mult - ticks :
+     calculation == "Low - (close - average low[len]) * %" ? low - (close - sma(low, length)) * mult - ticks :
+     calculation ==  "Close - (ATR[len] * %)" ? close - (atr(length) * mult) - ticks  :
+     low - ticks
+f_stop_short (calculation, length, mult, ticks) =>
+    stop_0 = calculation == "Low - (ATR[len] * %)" ? high + (atr(length) * mult) + ticks  :
+     calculation == "Low - (close - lowest low[len]) * %" ? high + abs(close - lowest(high, length)) * mult + ticks :
+     calculation == "Low - (close - average low[len]) * %" ? high + abs(close - sma(high, length)) * mult + ticks :
+     calculation ==  "Close - (ATR[len] * %)" ? close + (atr(length) * mult) + ticks  :
+     high + ticks
+//target
+varip target_long = 0.0, varip target_short = 0.0
+i_tr_type = input("Close + (ATR[len] * %)", options = ["High + (ATR[len] * %)", "Close + (ATR[len] * %)", "Close + abs(close - highest high[len]) * %",  "Close + abs(close - average high[len]) * %",  "High + TicksNumber", "Close + TicksNumber"], title="Calculation (Long)", group = "Target", tooltip = "Raw number of ticks is always added to the target.")
+i_tr_atr = input(10, "Calculation Length", group = "Target")
+i_tr_perc = input(500, "Percentage", group = "Target", type = input.float) / 100
+i_tr_ticks = input(defval = 10, minval = 1, title = "Number of ticks", group = "Target") * syminfo.mintick
+i_target = input(true, "Enable Target", group = "Target")
+f_target_long (calculation, length, mult, ticks) =>
+    stop_0 = calculation == "High + (ATR[len] * %)" ? high + (atr(length) * mult) + ticks :
+     calculation == "Close + (ATR[len] * %)" ? close + (atr(length) * mult) + ticks :
+     calculation == "Close + abs(close - highest high[len]) * %" ? close + abs(close - (highest(high, length))) * mult + ticks :
+     calculation == "Close + abs(close - average high[len]) * %" ? close + abs(close - sma(high, length)) * mult + ticks :
+     calculation ==  "High + TicksNumber" ? high + ticks  :
+     close + ticks
+f_target_short (calculation, length, mult, ticks) =>
+    stop_0 = calculation == "High + (ATR[len] * %)" ? low - (atr(length) * mult) - ticks :
+     calculation == "Close + (ATR[len] * %)" ? close - (atr(length) * mult) - ticks :
+     calculation == "Close + abs(close - highest high[len]) * %" ? close - abs(close - (lowest(low, length))) * mult - ticks :
+     calculation == "Close + abs(close - average high[len]) * %" ? close - abs(close - sma(low, length)) * mult - ticks :
+     calculation ==  "High + TicksNumber" ? low - ticks  :
+     close - ticks
+if (strategy.position_size >= 0 or strategy.position_size[1] != strategy.position_size)
+    stop_short := i_stoploss ? f_stop_short(i_sl_type, i_sl_atr, i_sl_perc, i_sl_ticks) : na
+    target_short := i_target ? f_target_short(i_tr_type, i_tr_atr, i_tr_perc, i_tr_ticks) : na
+if (strategy.position_size <= 0 or strategy.position_size[1] != strategy.position_size)
+    stop_long := i_stoploss ? f_stop_long(i_sl_type, i_sl_atr, i_sl_perc, i_sl_ticks) : na
+    target_long := i_target ? f_target_long(i_tr_type, i_tr_atr, i_tr_perc, i_tr_ticks) : na
+if (strategy.position_size == 0 or strategy.position_size[1] != strategy.position_size)
+    entry := open
+bull = long and (atr20<atr30 or disabler)
+bear = short and (atr20<atr30 or disabler)
+bullclock = barssince(bull)
+bearclock = barssince(bear)
+if (bull)
+    strategy.entry("Twin Long", strategy.long, ordersize)
+strategy.exit("Exit", from_entry =  "Twin Long", limit = target_long, stop = stop_long)
+if (bear)
+    strategy.entry("Twin Short", strategy.short, ordersize)
+strategy.exit("Exit", from_entry = "Twin Short", limit = target_short, stop = stop_short)
+i_message_long = input("Long entry default message: x", "Long Entry Alert Message", group = "Alert")
+i_long_alert = input(true,"Enable Long Alert", group = "Alert")
+i_message_short = input("Long entry default message: x", "Short Entry Alert Message", group = "Alert")
+i_short_alert = input(true,"Enable Short Alert", group = "Alert")
+if (bull and strategy.position_size[1] == 0 and i_long_alert)
+    alert(i_message_long, alert.freq_once_per_bar_close)
+if (bear and strategy.position_size[1] == 0 and i_short_alert)
+    alert(i_message_short, alert.freq_once_per_bar_close)
+//time stoploss
+if (i_time)
+    strategy.close("Twin Long", when = bullclock == maxcandles_till_close, comment = "Time")
+    strategy.close("Twin Short", when = bearclock == maxcandles_till_close, comment = "Time")
+c_fill_stop = color.new(color.red, 90)
+c_fill_target = color.new(color.green, 90)
+p_longstop = plot(strategy.position_size > 0 and i_stoploss  ? stop_long : na, linewidth = 2, color = color.red, style = plot.style_linebr)
+p_shortstop = plot(strategy.position_size < 0 and i_stoploss ? stop_short : na, linewidth = 2, color = color.red, style = plot.style_linebr)
+p_entry = plot(strategy.position_size != 0 ? entry : na, linewidth = 2, color = color.blue, style = plot.style_linebr)
+p_longtarget = plot(strategy.position_size > 0 and i_target ? target_long : na, linewidth = 2, color = color.green, style = plot.style_linebr)
+p_shorttarget = plot(strategy.position_size < 0 and i_target ? target_short : na, linewidth = 2, color = color.green, style = plot.style_linebr)
+fill(p_entry, p_longstop, c_fill_stop)
+fill(p_entry, p_shortstop, c_fill_stop)
+fill(p_entry, p_longtarget, c_fill_target)
+fill(p_entry, p_shorttarget, c_fill_target)
+Expand (217 lines)

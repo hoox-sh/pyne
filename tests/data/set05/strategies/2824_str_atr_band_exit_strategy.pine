@@ -1,0 +1,48 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于ATR波动率和均线的自适应趋势跟踪退出策略-ATR-Volatility-and-Moving-Average-Based-Adaptive-Trend-Following-Exit-Strategy.md
+// content_hash: 4071534344a86490
+// collected: 2026-07-27
+strategy("ATR Band Exit Strategy", overlay=true)
+
+// Define input parameters
+atrLength = input(14, title="ATR Length")
+atrMultiplier = input(2.0, title="ATR Multiplier")
+maLength = input(50, title="Moving Average Length")
+
+// Calculate ATR and moving average
+atrValue = ta.atr(atrLength)
+maValue = ta.sma(close, maLength)
+
+// Calculate upper and lower ATR bands
+upperBand = close + atrMultiplier * atrValue
+lowerBand = close - atrMultiplier * atrValue
+
+// Plot ATR bands
+plot(upperBand, title="Upper ATR Band", color=color.red, linewidth=2)
+plot(lowerBand, title="Lower ATR Band", color=color.green, linewidth=2)
+
+// Entry condition (for demonstration: long if price above moving average)
+longCondition = ta.crossover(close, maValue)
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+
+// Exit conditions (exit if price crosses the upper or lower ATR bands)
+if (close >= upperBand)
+    strategy.close("Long", comment="Exit on Upper ATR Band")
+if (close <= lowerBand)
+    strategy.close("Long", comment="Exit on Lower ATR Band")
+
+// Optional: Plot the moving average for reference
+plot(maValue, title="Moving Average", color=color.blue)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/473121
+
+> Last Modified
+
+2024-11-27 14:07:11

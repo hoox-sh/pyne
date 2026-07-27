@@ -1,0 +1,159 @@
+//@version=5
+// set05 corpus entry
+// source_repo: dexcextrade-TradingView-PineScripts
+// source_path: dexcextrade-TradingView-PineScripts/30M BTC classic
+// content_hash: 6f6e245ca4aaec3b
+// collected: 2026-07-27
+strategy("BTC 30M cryptox classic",
+     overlay=true,
+     initial_capital=10000,
+     pyramiding=0,
+     commission_type=strategy.commission.percent,
+     commission_value=0.04,
+     default_qty_type=strategy.percent_of_equity,
+     default_qty_value=100)
+
+// =====================================================
+// INPUTS
+// =====================================================
+
+fastEMA = input.int(50, "EMA 50")
+slowEMA = input.int(200, "EMA 200")
+
+bbLen = input.int(20, "BB Length")
+bbMult = input.float(2.0, "BB Mult")
+
+atrLen = input.int(14, "ATR Length")
+
+slATR = input.float(1.2, "SL ATR")
+rr = input.float(2.5, "RR")
+
+volLen = input.int(20, "Volume Length")
+volMult = input.float(1.3, "Volume Mult")
+
+cooldown = input.int(5, "Cooldown")
+
+// =====================================================
+// TREND
+// =====================================================
+
+ema50 = ta.ema(close, fastEMA)
+ema200 = ta.ema(close, slowEMA)
+
+bullTrend = ema50 > ema200
+bearTrend = ema50 < ema200
+
+// =====================================================
+// BOLLINGER BAND SQUEEZE
+// =====================================================
+
+basis = ta.sma(close, bbLen)
+dev = ta.stdev(close, bbLen)
+
+upper = basis + dev * bbMult
+lower = basis - dev * bbMult
+
+bandWidth = (upper - lower) / basis
+
+lowVolatility =
+     bandWidth < ta.sma(bandWidth, 50)
+
+// =====================================================
+// BREAKOUT
+// =====================================================
+
+highestHigh = ta.highest(high, 10)
+lowestLow = ta.lowest(low, 10)
+
+longBreakout =
+     close > highestHigh[1]
+
+shortBreakout =
+     close < lowestLow[1]
+
+// =====================================================
+// VOLUME
+// =====================================================
+
+volMA = ta.sma(volume, volLen)
+
+highVolume =
+     volume > volMA * volMult
+
+// =====================================================
+// ATR
+// =====================================================
+
+atr = ta.atr(atrLen)
+
+// =====================================================
+// CONDITIONS
+// =====================================================
+
+longCondition =
+     bullTrend and
+     lowVolatility and
+     longBreakout and
+     highVolume
+
+shortCondition =
+     bearTrend and
+     lowVolatility and
+     shortBreakout and
+     highVolume
+
+// =====================================================
+// COOLDOWN
+// =====================================================
+
+var int lastTrade = na
+
+canTrade =
+     na(lastTrade) or
+     (bar_index - lastTrade > cooldown)
+
+// =====================================================
+// EXECUTION
+// =====================================================
+
+longSL = close - atr * slATR
+longTP = close + ((close - longSL) * rr)
+
+shortSL = close + atr * slATR
+shortTP = close - ((shortSL - close) * rr)
+
+if longCondition and canTrade
+    strategy.entry("LONG", strategy.long)
+    strategy.exit("LONG EXIT", "LONG", stop=longSL, limit=longTP)
+    lastTrade := bar_index
+
+if shortCondition and canTrade
+    strategy.entry("SHORT", strategy.short)
+    strategy.exit("SHORT EXIT", "SHORT", stop=shortSL, limit=shortTP)
+    lastTrade := bar_index
+
+// =====================================================
+// PLOTS
+// =====================================================
+
+plot(ema50, color=color.orange, linewidth=2)
+plot(ema200, color=color.blue, linewidth=2)
+
+// =====================================================
+// SIGNALS
+// =====================================================
+
+plotshape(
+     longCondition,
+     style=shape.labelup,
+     location=location.belowbar,
+     color=color.lime,
+     text="BUY")
+
+plotshape(
+     shortCondition,
+     style=shape.labeldown,
+     location=location.abovebar,
+     color=color.red,
+     text="SELL")
+     

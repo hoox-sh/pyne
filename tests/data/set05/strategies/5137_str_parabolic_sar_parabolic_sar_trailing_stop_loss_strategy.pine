@@ -1,0 +1,61 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/Parabolic-SAR扇形跟踪止损策略Parabolic-SAR-Trailing-Stop-Loss-Strategy.md
+// content_hash: 4827d417c1449141
+// collected: 2026-07-27
+strategy(title="Parabolic SAR Strategy (on close) [QuantNomad]", shorttitle="SAR Strategy [QN]", overlay=true)
+
+start     = input(0.02)
+increment = input(0.02)
+maximum   = input(0.2)
+
+psar      = 0.0 // PSAR
+af        = 0.0 // Acceleration Factor
+trend_dir = 0   // Current direction of PSAR
+ep        = 0.0 // Extreme point
+
+sar_long_to_short = trend_dir[1] == 1  and close <= psar[1] // PSAR switches from long to short
+sar_short_to_long = trend_dir[1] == -1 and close >= psar[1] // PSAR switches from short to long
+
+trend_change = barstate.isfirst[1] or sar_long_to_short or sar_short_to_long
+
+// Calculate trend direction
+trend_dir    := barstate.isfirst[1] and close[1] > open[1] ? 1 : 
+   barstate.isfirst[1] and close[1] <= open[1] ? -1 : 
+   sar_long_to_short ? -1 : 
+   sar_short_to_long ?  1 : nz(trend_dir[1])
+
+// Calculate  Acceleration Factor
+af := trend_change ? start : 
+   (trend_dir == 1 and high > ep[1]) or  
+   (trend_dir == -1 and low < ep[1]) ? 
+   min(maximum, af[1] + increment) : 
+   af[1]
+
+// Calculate extreme point
+ep := trend_change and trend_dir == 1 ? high :  
+   trend_change and trend_dir == -1 ? low : 
+   trend_dir == 1 ? max(ep[1], high) : 
+   min(ep[1], low)
+
+// Calculate PSAR
+psar := barstate.isfirst[1] and close[1] > open[1] ? low[1] : 
+   barstate.isfirst[1] and close[1] <= open[1] ? high[1] : 
+   trend_change ? ep[1] :    
+   trend_dir == 1 ? psar[1] + af * (ep - psar[1]) : psar[1] - af * (psar[1] - ep) 
+
+plot(psar, style=plot.style_cross, color=trend_dir == 1 ? color.green : color.red,  linewidth = 2)
+
+// Strategy 
+strategy.entry("Long",  true,  when = sar_short_to_long)
+strategy.entry("Short", false, when = sar_long_to_short)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/426993
+
+> Last Modified
+
+2023-09-16 18:54:28

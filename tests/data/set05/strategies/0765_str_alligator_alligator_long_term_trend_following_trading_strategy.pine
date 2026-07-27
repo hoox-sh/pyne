@@ -1,0 +1,120 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/Alligator-长期趋势跟踪交易策略-Alligator-Long-Term-Trend-Following-Trading-Strategy.md
+// content_hash: bf1c190f1bb7fa1f
+// collected: 2026-07-27
+
+//_______ <declaration_statement>
+strategy(title = "Alligator Long Term Trend Following Strategy [Skyrex.io]", 
+         shorttitle = "Alligator Strategy [Skyrex.io]", 
+         overlay = true, 
+         format = format.inherit, 
+         pyramiding = 1, 
+         calc_on_order_fills = false, 
+         calc_on_every_tick = true, 
+         default_qty_type = strategy.percent_of_equity, 
+         default_qty_value = 100, 
+         initial_capital = 10000, 
+         currency = currency.NONE,  
+         commission_type = strategy.commission.percent, 
+         commission_value = 0.1,
+         slippage = 5)
+
+
+//_______ <constant_declarations>
+var color skyrexGreen = color.new(#2ECD99, 0)
+var color skyrexGray = color.new(#F2F2F2, 0)
+var color skyrexWhite = color.new(#FFFFFF, 0)
+
+var color barcolor = na
+
+
+//_______ <inputs>
+// Trading bot settings
+sourceUuid = input.string(title = "sourceUuid:", defval = "yourBotSourceUuid", group = "Trading Bot Settings")
+secretToken = input.string(title = "secretToken:", defval = "yourBotSecretToken", group = "Trading Bot Settings")
+
+// Trading Period Settings
+lookBackPeriodStart = input(title = "Trade Start Date/Time", defval = timestamp('2023-01-01T00:00:00'), group = "Trading Period Settings")
+lookBackPeriodStop = input(title = "Trade Stop Date/Time", defval = timestamp('2025-01-01T00:00:00'), group = "Trading Period Settings")
+
+//_______ <function_declarations>
+//@function       Used to calculate Simple moving average for Alligator
+//@param src      Sourse for smma Calculations
+//@param length   Number of bars to calculate smma
+//@returns        The calculated smma value 
+smma(src, length) =>
+    smma =  0.0
+    smma := na(smma[1]) ? ta.sma(src, length) : (smma[1] * (length - 1) + src) / length
+    smma
+
+
+//@function       Used to decide if current candle above the Alligator
+//@param jaw      Jaw line of an Alligator
+//@param teeth    Teeth line of an Alligator
+//@param lips     Lips line of an Alligator
+//@returns        Bool value  
+is_LowAboveAlligator(jaw, teeth, lips) =>
+    result = low > jaw and low > lips and low > teeth 
+    result
+
+
+//@function       Used to decide if current candle below the Alligator
+//@param jaw      Jaw line of an Alligator
+//@param teeth    Teeth line of an Alligator
+//@param lips     Lips line of an Alligator
+//@returns        Bool value  
+is_HighBelowAlligator(jaw, teeth, lips) =>
+    result = high < jaw and high < lips and high < teeth 
+    result
+
+
+//@function       Used to decide if Alligator's mouth is open
+//@param jaw      Jaw line of an Alligator
+//@param teeth    Teeth line of an Alligator
+//@param lips     Lips line of an Alligator
+//@returns        Bool value 
+is_AlligatorHungry(jaw, teeth, lips) =>
+    result = lips > jaw[5] and lips > teeth[2] and teeth > jaw[3]
+    result
+
+
+//_______ <calculations>
+jaw = smma(hl2, 13)[8]
+teeth = smma(hl2, 8)[5]
+lips = smma(hl2, 5)[3]
+
+
+jaw_o = smma(hl2, 13)
+teeth_o = smma(hl2, 8)
+lips_o = smma(hl2, 5)
+
+
+//_______ <strategy_calls>
+longCondition = is_LowAboveAlligator(jaw, teeth, lips) and is_AlligatorHungry(jaw_o, teeth_o, lips_o) 
+if (longCondition)
+    strategy.entry(id = "entry1", direction = strategy.long, alert_message = '{\n"base": "' + syminfo.basecurrency + '",\n"quote": "' + syminfo.currency + '",\n"position": "entry1",\n"price": "' + str.tostring(close) + '",\n"sourceUuid": "' + sourceUuid + '",\n"secretToken": "' + secretToken + '",\n"timestamp": "' + str.tostring(timenow) + '"\n}')
+
+if close < jaw
+    strategy.close(id = "entry1", alert_message = '{\n"base": "' + syminfo.basecurrency + '",\n"quote": "' + syminfo.currency + '",\n"position": "close",\n"price": "' + str.tostring(close) + '",\n"sourceUuid": "' + sourceUuid + '",\n"secretToken": "' + secretToken + '",\n"timestamp": "' + str.tostring(timenow) + '"\n}')
+
+
+
+//_______ <visuals>
+if strategy.opentrades > 0
+    barcolor := skyrexGreen
+else 
+    barcolor := skyrexGray
+
+barcolor(barcolor)
+//_______ <alerts>
+```
+
+> Detail
+
+https://www.fmz.com/strategy/451731
+
+> Last Modified
+
+2024-05-17 15:40:13

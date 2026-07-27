@@ -1,0 +1,44 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双移动均线突破策略Dual-Moving-Average-Crossover-Strategy.md
+// content_hash: 29a0618b2beb4de6
+// collected: 2026-07-27
+
+strategy(title='Chirag Strategy SMA', shorttitle='CHIRAGSMA', overlay=true)
+
+longCondition = crossover(sma(close, 10), sma(close, 13))
+shortCondition = crossover(sma(close, 13), sma(close, 10))
+
+// Set stop loss level with input options
+longLossPerc = input(title="Long Stop Loss (%)", type=input.float, minval=0.0, step=0.1, defval=1) * 0.01
+shortLossPerc = input(title="Short Stop Loss (%)", type=input.float, minval=0.0, step=0.1, defval=1) * 0.01
+
+longStopPrice  = strategy.position_avg_price * (1 - longLossPerc)
+shortStopPrice = strategy.position_avg_price * (1 + shortLossPerc)
+
+if longCondition
+    if strategy.position_size < 0
+        strategy.close('Short', comment="SHORT EXIT")
+    strategy.entry('Long', strategy.long, comment="BUY")
+
+if shortCondition
+    if strategy.position_size > 0
+        strategy.close('Long', comment="BUY EXIT")
+    strategy.entry('Short', strategy.short, comment="SHORT")
+
+if strategy.position_size > 0
+    strategy.exit('LONG SL', stop=longStopPrice, comment="LONG SL EXIT")
+
+if strategy.position_size < 0
+    strategy.exit('SHORT SL', stop=shortStopPrice, comment="SHORT SL EXIT")
+    
+```
+
+> Detail
+
+https://www.fmz.com/strategy/430897
+
+> Last Modified
+
+2023-11-02 17:04:55

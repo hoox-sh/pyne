@@ -1,0 +1,96 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双重趋势追踪策略Combo-Trend-Tracking-Strategy.md
+// content_hash: 30d11fb3134b83b4
+// collected: 2026-07-27
+////////////////////////////////////////////////////////////
+//  Copyright by HPotter v1.0 19/02/2020
+// This is combo strategies for get a cumulative signal. 
+//
+// First strategy
+// This System was created from the Book "How I Tripled My Money In The 
+// Futures Market" by Ulf Jensen, Page 183. This is reverse type of strategies.
+// The strategy buys at market, if close price is higher than the previous close 
+// during 2 days and the meaning of 9-days Stochastic Slow Oscillator is lower than 50. 
+// The strategy sells at market, if close price is lower than the previous close price 
+// during 2 days and the meaning of 9-days Stochastic Fast Oscillator is higher than 50.
+//
+// Second strategy
+// This technique was described by William Blau in his book "Momentum,
+// Direction and Divergence" (1995). His book focuses on three key aspects 
+// of trading: momentum, direction and divergence. Blau, who was an electrical 
+// engineer before becoming a trader, thoroughly examines the relationship between 
+// price and momentum in step-by-step examples. From this grounding, he then looks 
+// at the deficiencies in other oscillators and introduces some innovative techniques, 
+// including a fresh twist on Stochastics. On directional issues, he analyzes the 
+// intricacies of ADX and offers a unique approach to help define trending and 
+// non-trending periods.
+// Directional Trend Index is an indicator similar to DM+ developed by Welles Wilder. 
+// The DM+ (a part of Directional Movement System which includes both DM+ and 
+// DM- indicators) indicator helps determine if a security is "trending." William 
+// Blau added to it a zeroline, relative to which the indicator is deemed positive or 
+// negative. A stable uptrend is a period when the DTI value is positive and rising, a 
+// downtrend when it is negative and falling. 
+//
+// WARNING:
+// - For purpose educate only
+// - This script to change bars colors.
+////////////////////////////////////////////////////////////
+Reversal123(Length, KSmoothing, DLength, Level) =>
+    vFast = sma(stoch(close, high, low, Length), KSmoothing) 
+    vSlow = sma(vFast, DLength)
+    pos = 0.0
+    pos := iff(close[2] < close[1] and close > close[1] and vFast < vSlow and vFast > Level, 1,
+	         iff(close[2] > close[1] and close < close[1] and vFast > vSlow and vFast < Level, -1, nz(pos[1], 0))) 
+	pos
+
+TDI(r,s,u,OS,OB) =>
+    pos = 0.0
+    xHMU = iff(high - high[1] > 0, high - high[1], 0)
+    xLMD = iff(low - low[1] < 0, -(low - low[1]), 0)
+    xPrice = xHMU - xLMD
+    xPriceAbs = abs(xPrice)
+    xuXA = ema(ema(ema(xPrice, r),s),u)
+    xuXAAbs = ema(ema(ema(xPriceAbs, r),s),u)
+    Val1 = 100 * xuXA
+    Val2 = xuXAAbs
+    DTI = iff(Val2 != 0, Val1 / Val2, 0)
+    pos := iff(DTI > OS, -1,
+    	     iff(DTI < OB, 1, nz(pos[1], 0))) 
+    pos
+
+strategy(title="Combo Backtest 123 Reversal & Directional Trend Index (DTI)", shorttitle="Combo", overlay = true)
+Length = input(14, minval=1)
+KSmoothing = input(1, minval=1)
+DLength = input(3, minval=1)
+Level = input(50, minval=1)
+//-------------------------
+r = input(14, minval=1)
+s = input(10, minval=1)
+u = input(5, minval=1)
+OS = input(45, minval=1)
+OB = input(-45, maxval=-1)
+reverse = input(false, title="Trade reverse")
+posReversal123 = Reversal123(Length, KSmoothing, DLength, Level)
+posTDI = TDI(r,s,u,OS,OB)
+pos = iff(posReversal123 == 1 and posTDI == 1 , 1,
+	   iff(posReversal123 == -1 and posTDI == -1, -1, 0)) 
+possig = iff(reverse and pos == 1, -1,
+          iff(reverse and pos == -1 , 1, pos))	   
+if (possig == 1) 
+    strategy.entry("Long", strategy.long)
+if (possig == -1)
+    strategy.entry("Short", strategy.short)	 
+if (possig == 0) 
+    strategy.close_all()
+barcolor(possig == -1 ? #b50404: possig == 1 ? #079605 : #0536b3 )
+```
+
+> Detail
+
+https://www.fmz.com/strategy/437377
+
+> Last Modified
+
+2024-01-02 10:41:30

@@ -1,0 +1,65 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多重技术指标配合的趋势追踪型量化策略Quantitative-Trend-Tracking-Strategy-Based-on-Multiple-Technical-Indicators.md
+// content_hash: c3e60016f3dbc072
+// collected: 2026-07-27
+strategy("Stratégie d'Entrée et de Sortie Longue", overlay=true)
+
+// Paramètres des indicateurs
+longueurBollinger = 20
+stdDevBollinger = 2
+longueurStochastic = 14
+smoothK = 3
+smoothD = 3
+longueurRSI = 14
+
+// Bollinger Bands
+basis = ta.sma(close, longueurBollinger)
+dev = ta.stdev(close, longueurBollinger)
+lowerBand = basis - stdDevBollinger * dev
+
+// Stochastic Oscillator
+k = ta.sma(ta.stoch(close, high, low, longueurStochastic), smoothK)
+d = ta.sma(k, smoothD)
+
+// RSI
+rsi = ta.rsi(close, longueurRSI)
+
+// Logique des autres indicateurs (à compléter)
+
+// Conditions d'entrée (à définir)
+conditionBollinger = close < lowerBand
+conditionStochastic = k < 20 and k > d
+conditionRSI = rsi < 30
+// Autres conditions (Braid Filter, VolumeBIS, Price Density...)
+
+conditionEntree = conditionBollinger and conditionStochastic and conditionRSI // et autres conditions
+
+// Exécution du trade (entrée)
+if (conditionEntree)
+    strategy.entry("Long Position", strategy.long)
+
+// Conditions de sortie
+stochCrossOver70 = k > 70 and k[1] <= 70
+
+// Simplification de la détection de divergence baissière
+// (Cette méthode est basique et devrait être raffinée pour une analyse précise)
+highsRising = high > high[1]
+lowsRising = low > low[1]
+rsiFalling = rsi < rsi[1]
+divergenceBearish = highsRising and lowsRising and rsiFalling
+
+// Clôturer la moitié de la position
+if (stochCrossOver70 and divergenceBearish)
+    strategy.close("Long Position", qty_percent = 50)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/439607
+
+> Last Modified
+
+2024-01-22 10:40:01

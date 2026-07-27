@@ -1,0 +1,10 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block329
+// content_hash: 17c0135d81074902
+// collected: 2026-07-27
+indicator("float")
+float f = 3.14    // Same as `f = 3.14`
+f := na
+plot(f)

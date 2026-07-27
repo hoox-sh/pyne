@@ -1,0 +1,73 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于K线蜡烛图吸收形态的双向交易量化策略-Bidirectional-Trading-Strategy-Based-on-Candlestick-Absorption-Pattern-Analysis.md
+// content_hash: 7331c23941d83de4
+// collected: 2026-07-27
+strategy("Candle Absorption Strategy", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=100)
+
+// Условия индикатора
+// 1. Две соседних свечи должны быть разнонаправленными
+condition1 = (close[1] > open[1] and close < open) or (close[1] < open[1] and close > open)
+
+// 2. Дельта по цене открытия/закрытия у первой свечи меньше, чем у следующей
+delta1 = math.abs(close[1] - open[1])
+delta2 = math.abs(close - open)
+condition2 = delta1 < delta2
+
+// 3. Объем первой свечи должен быть больше, а последней меньше
+condition3 = volume[1] > volume and volume < volume[2]
+
+// Проверяем выполнение всех условий
+all_conditions = condition1 and condition2 and condition3
+
+// Определяем направление для входа
+is_bullish = close > open  // Зеленая свеча больше (бычье поглощение)
+is_bearish = close < open  // Красная свеча больше (медвежье поглощение)
+
+// Переменные для отслеживания состояния позиции
+var float entryPrice = na
+var bool isLong = false
+var bool isShort = false
+
+// Логика генерации сигналов
+buySignal = all_conditions and is_bullish and not isLong
+sellSignal = all_conditions and is_bearish and not isShort
+
+// Обработка лонгового входа
+if (buySignal)
+    isLong := true
+    isShort := false
+    entryPrice := close
+    strategy.entry("Long", strategy.long)
+
+// Обработка шортового входа
+if (sellSignal)
+    isLong := false
+    isShort := true
+    entryPrice := close
+    strategy.entry("Short", strategy.short)
+
+// Визуализация точек поглощения
+// if all_conditions
+//     label.new(bar_index, high, "✔", color=is_bullish ? color.green : color.red, textcolor=color.white, style=label.style_circle, size=size.small)
+
+// Логика сброса состояния при закрытии позиции
+if (strategy.position_size == 0)
+    isLong := false
+    isShort := false
+    entryPrice := na
+
+// Дополнительно: можно добавить стоп-лосс и тейк-профит (пример ниже)
+// strategy.exit("Exit Long", from_entry="Long", stop=low - atr(14), limit=high + atr(14))
+// strategy.exit("Exit Short", from_entry="Short", stop=high + atr(14), limit=low - atr(14))
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/474813
+
+> Last Modified
+
+2024-12-12 11:27:27

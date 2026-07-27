@@ -1,0 +1,9 @@
+//@version=6
+// set05 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block109
+// content_hash: 68d74d6a86ef302d
+// collected: 2026-07-27
+indicator("input.bool", overlay=true)
+i_switch = input.bool(true, "On/Off")
+plot(i_switch ? open : na)

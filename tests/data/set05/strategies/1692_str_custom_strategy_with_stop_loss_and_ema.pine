@@ -1,0 +1,73 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于Nadaraya-Watson回归和ATR通道的趋势跟踪策略Trend-Following-Strategy-Based-on-Nadaraya-Watson-Regression-and-ATR-Channel.md
+// content_hash: 0cec57ef4cd51e77
+// collected: 2026-07-27
+strategy("Custom Strategy with Stop Loss and EMA", overlay=true)
+
+src = input(close, title='Source')
+h = input(10, title='Lookback Window', tooltip='The number of bars used for the estimation.')
+r = input(10, title='Relative Weighting', tooltip='Relative weighting of time frames.')
+x_0 = input(50, title='Start Regression at Bar',  tooltip='Bar index on which to start regression.')
+lag = input(2, title='Lag', tooltip='Lag for crossover detection.')
+stopLossBars = input(3, title='Stop Loss Bars', tooltip='Number of bars to check for stop loss condition.')
+emaPeriod = input(46, title='EMA Period',  tooltip='Period for Exponential Moving Averages.')
+
+lenjeje = input(32, title='ATR Period', tooltip='Period to calculate upper and lower band')
+coef = input(2.7, title='Multiplier', tooltip='Multiplier to calculate upper and lower band')
+
+// Function for Nadaraya-Watson Kernel Regression
+kernel_regression1(_src, _size, _h) =>
+    _currentWeight = 0.0
+    _cumulativeWeight = 0.0
+    for i = 0 to _size + x_0
+        y = _src[i] 
+        w = math.pow(1 + (math.pow(i, 2) / ((math.pow(_h, 2) * 2 * r))), -r)
+        _currentWeight += y * w
+        _cumulativeWeight += w
+    [_currentWeight, _cumulativeWeight]
+
+// Calculate Nadaraya-Watson Regression
+[currentWeight1, cumulativeWeight1] = kernel_regression1(src, h, h)
+yhat1 = currentWeight1 / cumulativeWeight1
+[currentWeight2, cumulativeWeight2] = kernel_regression1(src, h-lag, h-lag)
+yhat2 = currentWeight2 / cumulativeWeight2
+
+// Calculate Upper and Lower Bands
+upperjeje = yhat1 + coef * ta.atr(lenjeje)
+lowerjeje = yhat1 - coef * ta.atr(lenjeje)
+
+// Plot Upper and Lower Bands
+plot(upperjeje, color=color.rgb(0, 247, 8), title="Upper Band", linewidth=2)
+plot(lowerjeje, color=color.rgb(255, 0, 0), title="Lower Band", linewidth=2)
+
+// Calculate EMAs
+emaLow = ta.ema(low, emaPeriod)
+emaHigh = ta.ema(high, emaPeriod)
+
+// Plot EMAs
+plot(emaLow, color=color.rgb(33, 149, 243, 47), title="EMA (Low)", linewidth=2)
+plot(emaHigh, color=color.rgb(255, 153, 0, 45), title="EMA (High)", linewidth=2)
+
+// Long Entry Condition
+longCondition = low < lowerjeje
+strategy.entry("Long", strategy.long, when=longCondition)
+
+// Stop Loss Condition
+stopLossCondition = close[1] < strategy.position_avg_price and close[2] < strategy.position_avg_price and close[3] < strategy.position_avg_price
+strategy.close("Long", when=stopLossCondition)
+
+// Close and Reverse (Short) Condition
+shortCondition = high > upperjeje
+strategy.close("Long", when=shortCondition)
+strategy.entry("Short", strategy.short, when=shortCondition)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/442511
+
+> Last Modified
+
+2024-02-22 15:15:03

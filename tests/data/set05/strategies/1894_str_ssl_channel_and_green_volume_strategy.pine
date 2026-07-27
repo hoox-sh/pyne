@@ -1,0 +1,68 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/SSL通道与绿量策略SSL-Channel-and-Green-Volume-Strategy.md
+// content_hash: 502a2f398095583f
+// collected: 2026-07-27
+strategy("SSL Channel and Green Volume Strategy", overlay=true)
+
+// SSL Channel Function
+ssl_channel(src, length, mult) =>
+    mid = ta.sma(src, length)
+    rangeVal = mult * ta.atr(length)
+    up = mid + rangeVal
+    down = mid - rangeVal
+    [up, down]
+
+// SSL Channel Settings
+length = input(14, title="SSL Channel Length")
+mult = input(1.5, title="SSL Channel Multiplier")
+[channelUp, channelDown] = ssl_channel(close, length, mult)
+
+// Green Volume Function
+isGreenVolume() =>
+    close > open
+
+// Buy Signal Conditions
+buySignal = close > channelUp and isGreenVolume()
+
+// Sell Signal Conditions
+sellSignal = close < channelDown and isGreenVolume()
+
+// Plotting SSL Channel on the Chart
+plot(channelUp, color=color.green, title="SSL Channel Up")
+plot(channelDown, color=color.red, title="SSL Channel Down")
+
+// Plot Buy and Sell Signals on the Chart
+plotshape(series=buySignal, title="Buy Signal", color=color.green, style=shape.triangleup, location=location.belowbar)
+plotshape(series=sellSignal, title="Sell Signal", color=color.red, style=shape.triangledown, location=location.abovebar)
+
+// Strategy Execution
+strategy.entry("Buy", strategy.long, when=buySignal)
+strategy.entry("Sell", strategy.short, when=sellSignal)
+
+// Risk Management
+target_percent = 1
+stop_loss_percent = 0.5
+
+// Buy Signal Take Profit and Stop Loss
+buy_target_price = close * (1 + target_percent / 100)
+buy_stop_loss_price = close * (1 - stop_loss_percent / 100)
+
+strategy.exit("Take Profit/Stop Loss", from_entry="Buy", loss=buy_stop_loss_price, profit=buy_target_price)
+
+// Sell Signal Take Profit and Stop Loss
+sell_target_price = close * (1 - target_percent / 100)
+sell_stop_loss_price = close * (1 + stop_loss_percent / 100)
+
+strategy.exit("Take Profit/Stop Loss", from_entry="Sell", loss=sell_stop_loss_price, profit=sell_target_price)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/443990
+
+> Last Modified
+
+2024-03-08 14:23:54

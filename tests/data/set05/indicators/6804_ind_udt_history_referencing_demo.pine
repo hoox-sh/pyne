@@ -1,0 +1,17 @@
+//@version=6
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/migration-guides/to-pine-version-6.md::to-pine-version-6.md#block25
+// content_hash: 1f61e5270c11e140
+// collected: 2026-07-27
+indicator("UDT history-referencing demo", overlay = true)
+
+//@type A custom type to hold bar's `label` settings based on bar's direction.
+//Includes bar direction, label style and color, and "string" percentage difference between bar's `open` and `close`. 
+type LblSettings
+    bool isUp = false
+    string lblStyle
+    color lblColor
+    string diff
+
+//@variable A `LblSettings` instance declared on every bar.

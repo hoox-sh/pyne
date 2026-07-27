@@ -1,0 +1,93 @@
+//@version=3
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/高低突破回测策略High-Low-Breaker-Backtest-Strategy.md
+// content_hash: 3ce06dfa6c1ea011
+// collected: 2026-07-27
+strategy("High/Low Breaker Backtest 1.0", overlay=true, initial_capital=1000, default_qty_type=strategy.percent_of_equity, default_qty_value=100, max_bars_back=700)
+
+// Strategy Settings
+takeProfitPercentageLong = input(.1, title='Take Profit Percentage Long', type=float)/100
+stopLossPercentageLong = input(0.15, title='Stop Loss Percentage Long', type=float)/100
+takeProfitPercentageShort = input(.1, title='Take Profit Percentage Short', type=float)/100
+stopLossPercentageShort = input(0.15, title='Stop Loss Percentage Short', type=float)/100
+
+
+candlesBack = input(title="Number of candles back",  defval=50)
+useHighAndLows =  input(true, title="Use high and lows (uncheck to use close)", defval=true)
+lastBarsBackMinimum =  input(title="Number of candles back to ignore for last high/low",  defval=30)
+showHighsAndLows = input(true, title="Show high/low lines", defval=true)
+
+getIndexOfLowestInSeries(series, period) => 
+    index = 0
+    current = series
+    for i = 1 to period
+        if series[i] <= current
+            index := i
+            current := series[i]
+    index
+
+getIndexOfHighestInSeries(series, period) => 
+    index = 0
+    current = series
+    for i = 1 to period
+        if series[i] >= current
+            index := i
+            current := series[i]
+    index
+
+indexOfHighestInRange = getIndexOfHighestInSeries(useHighAndLows ? high : close, candlesBack)
+indexOfLowestInRange = getIndexOfLowestInSeries(useHighAndLows ? low : close, candlesBack)
+
+max = useHighAndLows ? high[indexOfHighestInRange] : close[indexOfHighestInRange]
+min = useHighAndLows ? low[indexOfLowestInRange] : close[indexOfLowestInRange]
+
+barsSinceLastHigh = indexOfHighestInRange
+barsSinceLastLow = indexOfLowestInRange
+
+isNewHigh = (useHighAndLows ? high > max[1] : close > max[1]) and (barsSinceLastHigh[1] + 1 > lastBarsBackMinimum)
+isNewLow = (useHighAndLows ? low < min[1] : close < min[1]) and (barsSinceLastLow[1] + 1 > lastBarsBackMinimum)
+
+alertcondition(condition=isNewHigh, title="New High", message="Last High Broken")
+alertcondition(condition=isNewLow, title="New Low", message="Last Low Broken")
+
+if high > max 
+    max := high
+    barsSinceLastHigh := 0
+
+if low < min
+    min := low
+    barsSinceLastLow := 0 
+
+plot( showHighsAndLows ? max : na, color=red, style=line, title="High", linewidth=3)
+plot( showHighsAndLows ? min : na, color=green, style=line, title="Low", linewidth=3)
+
+// Strategy Entry/Exit Logic
+goLong =isNewHigh
+longStopLevel = strategy.position_avg_price * (1 - stopLossPercentageLong)
+longTakeProfitLevel = strategy.position_avg_price * (1 + takeProfitPercentageLong)
+
+goShort = isNewLow
+shortStopLevel = strategy.position_avg_price * (1 + stopLossPercentageShort)
+shortTakeProfitLevel = strategy.position_avg_price * (1 - takeProfitPercentageShort)
+
+strategy.entry("Long", strategy.long, when=goLong)
+strategy.exit("Long Exit", "Long", stop=longStopLevel, limit=longTakeProfitLevel)
+
+strategy.entry("Short", strategy.short, when=goShort)
+strategy.exit("Short Exit", "Short", stop=shortStopLevel, limit=shortTakeProfitLevel)
+        
+plot(goShort ? shortStopLevel : na, color=yellow, style=linebr, linewidth=2)
+plot(goShort ? shortTakeProfitLevel : na, color=blue, style=linebr, linewidth=2)
+plot(goLong ? longStopLevel : na, color=yellow, style=linebr, linewidth=2)
+plot(goLong ? longTakeProfitLevel : na, color=blue, style=linebr, linewidth=2)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/433426
+
+> Last Modified
+
+2023-11-27 15:37:13

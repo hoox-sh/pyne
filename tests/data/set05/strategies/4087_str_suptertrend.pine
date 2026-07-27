@@ -1,0 +1,25 @@
+//@version=4
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/SupterTrend.pine
+// content_hash: ce2c70c641827c33
+// collected: 2026-07-27
+//@Gurjant_Singh IISMA-Indian Institute of stock Market Analysis 
+strategy("SupterTrend ", overlay=true, initial_capital=100000, default_qty_type=strategy.percent_of_equity, default_qty_value=300, calc_on_order_fills=false, calc_on_every_tick=false)
+mult = input(type=input.float, defval=3)
+len = input(type=input.integer, defval=5)
+[superTrend, dir] = supertrend(mult, len)
+plot(superTrend)
+intrady = input(false, "Do you want to exit intrday position", type = input.bool)
+IntraDay_SquareOff = minute >= 45 and hour >= 14
+buy = close > superTrend
+sell = close < superTrend
+if buy
+    strategy.entry("Buy", true)
+    
+if sell
+    strategy.entry("sell", false)
+if intrady and IntraDay_SquareOff
+    strategy.close("buy")
+    strategy.close("sell")
+Expand (41 lines)

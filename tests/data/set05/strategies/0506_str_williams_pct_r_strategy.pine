@@ -1,0 +1,30 @@
+//@version=5
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/Williams -R Strategy.pine
+// content_hash: bdebc9acbf76ee8b
+// collected: 2026-07-27
+strategy("Williams %R Strategy", overlay=true, initial_capital=100000, shorttitle="W%R Strategy")
+// Parameters
+length = input(14, "Length")
+overboughtLevel = input(-20, "Overbought Level")
+oversoldLevel = input(-80, "Oversold Level")
+enableShort = input(false, "Enable Short Positions")
+// Calculation of Williams %R
+williamsR = -100 * (ta.highest(high, length) - close) / (ta.highest(high, length) - ta.lowest(low, length))
+// Buy and sell conditions
+buySignal = ta.crossover(williamsR, oversoldLevel)
+sellSignal = ta.crossunder(williamsR, overboughtLevel)
+// Enter long position
+if buySignal
+    strategy.entry("Buy", strategy.long)
+// Exit long position
+if sellSignal
+    strategy.close("Buy")
+// Enter short position if enabled
+if enableShort and sellSignal
+    strategy.entry("Sell", strategy.short)
+// Exit short position if enabled
+if enableShort and buySignal
+    strategy.close("Sell")
+Expand (34 lines)

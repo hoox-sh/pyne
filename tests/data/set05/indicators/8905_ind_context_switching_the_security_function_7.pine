@@ -1,0 +1,11 @@
+//@version=3
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/v3/essential/context-switching-the-security-function.md::context-switching-the-security-function.md#block4
+// content_hash: 807350c5b762d8bc
+// collected: 2026-07-27
+//...
+indexHighTF = barstate.isrealtime ? 1 : 0
+indexCurrTF = barstate.isrealtime ? 0 : 1
+a0 = security(tickerid, 'D', close[indexHighTF], lookahead=barmerge.lookahead_off)
+a = a0[indexCurrTF]

@@ -1,0 +1,11 @@
+//@version=4
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/v4/essential/arrays.md::arrays.md#block1
+// content_hash: 5fce90dbcc65dda4
+// collected: 2026-07-27
+study("Using `var`")
+var a = array.new_float(0)
+array.push(a, close)
+if barstate.islast
+    label.new(bar_index, 0, "Array size: " + tostring(array.size(a)) + "\nbar_index: " + tostring(bar_index), size = size.large)

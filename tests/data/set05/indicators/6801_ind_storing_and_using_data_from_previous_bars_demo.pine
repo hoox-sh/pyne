@@ -1,0 +1,17 @@
+//@version=6
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/language/execution-model.md::execution-model.md#block4
+// content_hash: d0ef32865116df3d
+// collected: 2026-07-27
+indicator("Storing and using data from previous bars demo")
+
+//@variable The one-bar price return, based on the current and *previous* bars' `close` values.
+//          This variable's final value on each bar automatically becomes part of the internal time series. 
+float priceReturn = ta.change(close, 1) / close[1]
+
+//@variable Is `color.teal` if the `priceReturn` value is above the value on the previous bar; `color.maroon` otherwise. 
+color returnColor = priceReturn > priceReturn[1] ? color.teal : color.maroon
+
+// Plot the current `priceReturn` value as a column, colored using the value of `returnColor`. 
+plot(priceReturn, "Price return", returnColor, 1, plot.style_columns)

@@ -1,0 +1,47 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于StochRSI和交易量的多空策略Stochastic-RSI-and-Volume-Based-Trading-Strategy.md
+// content_hash: 9f4854f249050486
+// collected: 2026-07-27
+strategy("StochRSI Volume Strategy", overlay = true)
+
+// StochRSI inputs
+smoothK = input.int(3, title="K")
+smoothD = input.int(3, title="D")
+lengthRSI = input.int(14, "RSI Length")
+lengthStoch = input.int(14, "Stochastic Length")
+
+// Calculate StochRSI
+rsiValue = ta.rsi(close, lengthRSI)
+k = ta.sma(ta.stoch(rsiValue, rsiValue, rsiValue, lengthStoch), smoothK)
+d = ta.sma(k, smoothD)
+
+// Calculate difference between lines
+lineDifference = k - d
+
+// Calculate indicator level based on line positions
+level = lineDifference >= 0 ? 1 : -1
+
+// Calculate mean of last 7 volume bars
+meanVolume = ta.sma(volume, 7)
+
+// Determine buy and sell conditions
+buyCondition = level > -1 and level[1] <= -1 and close > open and volume > meanVolume
+sellCondition = level < 1 and level[1] >= 1 and close < open and volume > meanVolume
+
+// Execute buy and sell signals
+strategy.entry("Buy", strategy.long, when = buyCondition)
+strategy.entry("Sell", strategy.short, when = sellCondition)
+
+// Plot StochRSI levels
+plot(level, title="Indicator Level", color=color.blue, linewidth=2)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/430839
+
+> Last Modified
+
+2023-11-02 14:12:13

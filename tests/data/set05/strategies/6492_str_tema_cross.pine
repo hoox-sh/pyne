@@ -1,0 +1,48 @@
+//@version=2
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于Renko砖和TEMA指标的微利策略Renko-Boxes-and-TEMA-Indicator-Micro-Profit-Strategy.md
+// content_hash: b1bfbb9d11f76ac6
+// collected: 2026-07-27
+strategy("TEMA Cross", overlay = true, precision = 7, overlay=true, pyramiding = 100, commission_type = strategy.commission.percent, commission_value = 0.25)
+
+tema(src, len) =>
+    3*ema(src, len) - 3*ema(ema(src, len), len) + ema(ema(ema(src, len),len),len)
+
+smma(src, len) =>
+    sa = 0.0
+    sa := na(sa[1]) ? sma(src, len) : (sa[1] * (len - 1) + src) / len
+    sa
+
+temaLength = input(5)
+smaLength = input(3)
+smmaLength = input(30)
+tema1 = tema(close, temaLength)
+sma1 = sma(tema1, smaLength)
+smma1 = smma(close,smmaLength)
+
+
+plot(tema1, color = green, title = "TEMA")
+plot(sma1, color = orange, title = "SMA")
+plot(smma1, color = red, title = "SMMA")
+
+minGainPercent = input(2)
+gainMultiplier = minGainPercent * 0.01 + 1
+
+avg_protection = input(1)
+gain_protection = input(1)
+
+longCondition = crossover(tema1, sma1) and tema1 < smma1
+shortCondition = crossunder(tema1, sma1)
+
+strategy.entry("Buy", strategy.long, qty = 1, when = longCondition and time > timestamp(2017, 9, 22, 4, 20)  and (avg_protection >= 1 ? (na(strategy.position_avg_price) ? true : close <= strategy.position_avg_price) : true))
+strategy.close_all(when = shortCondition and time > timestamp(2017, 9, 22, 4, 20) and (gain_protection >=1 ? (close >= gainMultiplier * strategy.position_avg_price) : true))
+```
+
+> Detail
+
+https://www.fmz.com/strategy/427372
+
+> Last Modified
+
+2023-09-20 14:36:46

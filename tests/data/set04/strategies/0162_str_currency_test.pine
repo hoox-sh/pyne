@@ -1,0 +1,19 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/concepts/strategies.md::strategies.md#block41
+// content_hash: 263c037751ad839c
+// collected: 2026-07-27
+strategy("Currency Test", currency = currency.EUR)
+
+if last_bar_index - bar_index < 500
+    // Place an entry order with a size that results in a P/L of `syminfo.pointvalue` units of chart currency per tick. 
+    strategy.entry("LE", strategy.long, math.round_to_mintick(1.0 / syminfo.mintick))
+    // Place exit orders one tick above and below the "LE" entry price, 
+    // meaning each trade closes with one point of profit or loss in the chart's currency.
+    strategy.exit("LX", "LE", profit = 1, loss = 1)
+
+// Plot the absolute change in `strategy.netprofit / syminfo.pointvalue`, which represents 1 chart unit of profit/loss. 
+plot(
+     math.abs(ta.change(strategy.netprofit / syminfo.pointvalue)), "1 chart unit of profit/loss in EUR", 
+     color = color.fuchsia, linewidth = 4

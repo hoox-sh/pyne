@@ -1,0 +1,55 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/Ichimoku-Cloud-and-ATR-Strategy-一目云和ATR策略.md
+// content_hash: 231e753966dad66d
+// collected: 2026-07-27
+strategy("Ichimoku Cloud and ATR Strategy - ChatGPT by RCForex", overlay=true)
+
+
+// Define Inputs
+conversionPeriod = input(9, title="Conversion Line Period")
+basePeriod = input(26, title="Base Line Period")
+leadSpanBPeriod = input(52, title="Lead Span B Period")
+atrPeriod = input(14, title="ATR Period")
+atrMultiplier = input(2, title="ATR Multiplier")
+
+
+// Define Indicators
+conversion = sma((high + low) / 2, conversionPeriod)
+base = sma((high + low) / 2, basePeriod)
+leadSpanA = avg(conversion, base)
+leadSpanB = sma(high + low + close, leadSpanBPeriod) / 3
+atr = atr(atrPeriod)
+atrStop = atr * atrMultiplier
+
+
+// Define Conditions
+aboveCloud = close > leadSpanA and close > leadSpanB
+belowCloud = close < leadSpanA and close < leadSpanB
+longSignal = aboveCloud and (close > high[1] or high > high[1])
+shortSignal = belowCloud and (close < low[1] or low < low[1])
+
+
+// Enter Long Position
+if longSignal
+    strategy.entry("Buy", strategy.long, stop=leadSpanA - atrStop, comment="Long")
+
+
+// Enter Short Position
+if shortSignal
+    strategy.entry("Sell", strategy.short, stop=leadSpanA + atrStop, comment="Short")
+
+
+// Exit Positions
+strategy.exit("Exit", "Buy", stop=leadSpanA - atrStop)
+strategy.exit("Exit", "Sell", stop=leadSpanA + atrStop)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/452274
+
+> Last Modified
+
+2024-05-23 17:40:00

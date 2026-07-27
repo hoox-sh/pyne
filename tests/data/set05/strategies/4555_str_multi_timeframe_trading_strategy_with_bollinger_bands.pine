@@ -1,0 +1,95 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于波带通道的多时间框架交易策略Multi-timeframe-Trading-Strategy-with-Bollinger-Bands.md
+// content_hash: 937aadbb97dda0c1
+// collected: 2026-07-27
+strategy(title = "Underworld Hunter", overlay=true)
+
+len = input(75, minval=1, title="Length")
+src = input(close, title="Source")
+basis = 0.0
+basis := na(basis[1]) ? sma(src, len) : ema(ema(ema(src,len),len),len)
+
+mult = input(1.9, minval=0.001, maxval=50, title="Deviation")
+dev = mult * stdev(src, len)
+upper = basis + dev
+lower = basis - dev
+
+//CCI calculation and inputs
+
+lengthcci = input(20, minval=1, title="Period for CCI")
+ma = sma(close, lengthcci)
+ccivalue = (src - ma) / (0.015 * dev(src, lengthcci))
+
+//CCI plotting
+
+cciover0 = ccivalue >= 100 and ccivalue <= 120
+cciover1 = ccivalue > 120 and ccivalue <= 140
+cciover2 = ccivalue > 140 and ccivalue <= 160
+cciover3 = ccivalue > 160 and ccivalue <= 180
+cciover4 = ccivalue > 180
+
+cciunder0 = ccivalue <= -100 and ccivalue >= -120
+cciunder1 = ccivalue <= -120 and ccivalue > -140
+cciunder2 = ccivalue <= -140 and ccivalue > -160
+cciunder3 = ccivalue <= -160 and ccivalue > -180
+cciunder4 = ccivalue <= -180
+
+plotshape(cciover0, title="CCIO0", location=location.abovebar, color=#c6ff1a, transp=0, style=shape.circle, size=size.tiny)
+plotshape(cciunder0, title="CCIU0", location=location.belowbar, color=#c6ff1a, transp=0, style=shape.circle, size=size.tiny)
+plotshape(cciover1, title="CCIO1", location=location.abovebar, color=#ffff00, transp=0,style=shape.circle, size=size.tiny)
+plotshape(cciunder1, title="CCIU1", location=location.belowbar, color=#ffff00, transp=0, style=shape.circle, size=size.tiny)
+plotshape(cciover2, title="CCIO2", location=location.abovebar, color=#ff9900, transp=0, style=shape.circle, size=size.tiny)
+plotshape(cciunder2, title="CCIU2", location=location.belowbar, color=#ff9900, transp=0, style=shape.circle, size=size.tiny)
+plotshape(cciover3, title="CCIO3", location=location.abovebar, color=#ff0000, transp=0, style=shape.circle, size=size.tiny)
+plotshape(cciunder3, title="CCIU3", location=location.belowbar, color=#ff0000, transp=0, style=shape.circle, size=size.tiny)
+plotshape(cciover4, title="CCIO4", location=location.abovebar, color=#cc00cc, transp=0,style=shape.circle, size=size.tiny)
+plotshape(cciunder4, title="CCIU4", location=location.belowbar, color=#cc00cc, transp=0,style=shape.circle, size=size.tiny)
+
+//plotting
+
+plot(upper, title="Upper shadow", color=color.black, transp = 30, linewidth = 4)
+plot(upper, title="Upper line", color=#FF2E00, transp = 0, linewidth = 2)
+plot(lower, title="Lower shadow", color=color.black, transp = 30, linewidth = 4)
+plot(lower, title="Lower line", color=#FF2E00, transp = 0, linewidth = 2)
+plot(basis, title="Basic line", color=color.red, transp = 50, linewidth = 2)
+
+mean = input(title="Test Reverse to the Mean instead", type=input.bool, defval=false)
+test = input(title="Enable testing", type=input.bool, defval=true)
+
+ordersize=floor(50000/close)
+
+if(close>upper and strategy.opentrades==0 and not mean and test)
+    strategy.entry("Hunt Up", strategy.long, ordersize)
+if (close<upper and close[1]<upper and close[2]<upper)
+    strategy.close("Hunt Up", qty_percent = 100, comment = "Hunt End")
+
+if(close<lower and strategy.opentrades==0 and not mean and test)
+    strategy.entry("Hunt Down", strategy.short, ordersize)
+if (close>lower and close[1]>lower and close[2]>lower)
+    strategy.close("Hunt Down", qty_percent = 100, comment = "Hunt End")
+
+//bounce of bands
+
+if(close>upper and strategy.opentrades==0 and mean and test)
+    strategy.entry("Sneak Down", strategy.short, ordersize)
+if (close<upper and close[1]<upper and close[2]<upper and close>high[1])
+    strategy.close("Sneak Down", qty_percent = 100, comment = "SneakEnd")
+
+if(close<lower and strategy.opentrades==0 and mean and test)
+    strategy.entry("Sneak Up", strategy.long, ordersize)
+if (close>lower and close[1]>lower and close[2]>lower and close<low[1])
+    strategy.close("Sneak Up", qty_percent = 100, comment = "Sneak End")
+
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/427386
+
+> Last Modified
+
+2023-09-20 15:47:46

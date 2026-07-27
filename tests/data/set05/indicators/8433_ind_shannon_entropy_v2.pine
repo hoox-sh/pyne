@@ -1,0 +1,64 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/Shannon-Entropy-V2.md
+// content_hash: 67fb71049db02e62
+// collected: 2026-07-27
+//
+// @author Kocurekc
+// Rev-3, Added STDev bands and Precent Rank
+// Rev-2, Shannon entropy
+// Rev-1, new picture for moderators
+// Rev-0, added colors, flipped delta to clean up view
+//
+// Live a little, publish your scripts...be a John Elhers
+//
+
+study(title="Shannon Entropy V2", shorttitle="Info-S", precision=2)
+src = input(close, title="source", type=input.source)
+len = input(9, title="Entropy Length", type=input.integer)
+range = input(0.025, title="color level", type=input.float)
+avg = input(44, title="Averaging Length", type=input.integer)
+vPR = input(2, title="Percent Rank Limit", type=input.integer)
+bc = input(true, title="Include Source", type=input.bool)
+vc = input(true, title="Include Volume", type=input.bool)
+pb = input(true, title="Print Bands", type=input.bool)
+
+//Shannon Entropy, for source (close) or for Volume or both
+cr = src/sum(src,len)
+vr = log(volume)/sum(log(volume),len)
+info = ((vc ? sum(vr*log10(vr)/log10(2),len) : 0) - (bc ? vc ? sum(cr*log10(cr)/log10(2),len) : sum(cr*log10(cr)/log10(2),len) : 0))
+
+//coloring for Shannon Entropy using both source and volume
+hc1 = info > range ? #4caf50 : info > range * -1 ? #ffeb3b : info <= range * -1 ? #f44336 : na
+
+//Plotting 
+plot(info, style=(bc and vc ? plot.style_columns :plot.style_line ), color=hc1 )
+plot((bc and vc ? 0 : na), color=color.gray)
+
+
+//Top/Bottom STDev
+value = wma(info,avg)
+top = value+stdev(info,len)
+btm = value-stdev(info,len)
+plot(pb ? top:na)
+plot(pb ? btm:na)
+
+//Percent Rank and ploting
+hvp = percentrank(info,avg)
+plotshape(hvp>(100-vPR) ? info : na, location=location.absolute, style=shape.triangledown, color=color.red, size=size.tiny, transp=30, offset=0)
+plotshape(hvp<vPR ? info : na, location=location.absolute, style=shape.triangleup, color=color.green, size=size.tiny, transp=30, offset=0)
+
+if hvp<vPR
+    strategy.entry("Enter Long", strategy.long)
+else if hvp>(100-vPR)
+    strategy.entry("Enter Short", strategy.short)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/365095
+
+> Last Modified
+
+2022-05-24 10:13:21

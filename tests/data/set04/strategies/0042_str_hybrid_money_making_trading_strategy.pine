@@ -1,0 +1,63 @@
+//@version=6
+// set04 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于波动率突破和多重技术指标的混合交易策略-Hybrid-Trading-Strategy-Based-on-Volatility-Breakout-and-Multiple-Technical-Indicators.md
+// content_hash: f8576a4cfdc6bc95
+// collected: 2026-07-27
+strategy("Hybrid Money Making Trading Strategy", overlay=true)
+
+// VWAP Calculation
+cumulative_vp = ta.cum(volume * close)
+cumulative_vol = ta.cum(volume)
+vwap = cumulative_vp / cumulative_vol
+plot(vwap, title="VWAP", color=color.blue)
+
+// TWAP Calculation
+twap = ta.sma((high + low + close) / 3, 14)
+plot(twap, title="TWAP", color=color.orange)
+
+// Volatility Breakout
+atr = ta.atr(14)
+bb_upper = ta.sma(close, 20) + 2 * ta.stdev(close, 20)
+bb_lower = ta.sma(close, 20) - 2 * ta.stdev(close, 20)
+volatility_breakout = close > bb_upper
+
+// Pattern Recognition (Basic Example)
+head_shoulders = ta.crossover(close, ta.sma(close, 50))
+triangle_pattern = ta.crossover(ta.sma(close, 10), ta.sma(close, 50))
+pattern_signal = head_shoulders or triangle_pattern
+
+// Volume Confirmation (Require high volume for entry)
+vol_avg = ta.sma(volume, 20)
+high_volume = volume > 1.5 * vol_avg
+
+// Buy/Sell Signal Conditions
+buy_signal = volatility_breakout and pattern_signal and high_volume
+sell_signal = not volatility_breakout and pattern_signal
+
+// Track Latest Signal
+var float last_signal_price = na
+var string last_signal_type = ""
+if buy_signal
+    last_signal_price := close
+    last_signal_type := "BUY"
+if sell_signal
+    last_signal_price := close
+    last_signal_type := "SELL"
+
+// Strategy Entry & Exit
+if buy_signal
+    strategy.entry("Long", strategy.long)
+    strategy.exit("TakeProfit", from_entry="Long", stop=close - 1.5 * atr, limit=close + 2 * atr)
+if sell_signal
+    strategy.close("Long")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/482780
+
+> Last Modified
+
+2025-02-20 15:01:24

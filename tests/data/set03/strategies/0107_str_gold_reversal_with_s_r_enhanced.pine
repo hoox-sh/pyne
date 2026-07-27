@@ -1,0 +1,97 @@
+//@version=6
+// set03 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/支撑阻力增强型动量反转策略-Support-and-Resistance-Enhanced-Momentum-Reversal-Strategy.md
+// content_hash: e240207a38d25639
+// collected: 2026-07-27
+// TradingView Strategy: Gold Reversal with S/R (Enhanced)
+// Targets reversals near support/resistance with additional filters
+
+strategy("Gold Reversal with S/R Enhanced", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=10)
+
+// --- Inputs ---
+stop_loss_percent = input.float(0.5, "Stop Loss (%)", minval=0.1, maxval=5.0)
+take_profit_percent = input.float(0.5, "Take Profit (%)", minval=0.1, maxval=10.0)
+rsi_period = input.int(14, "RSI Period", minval=2, maxval=50)
+rsi_min = input.float(30, "RSI Minimum Threshold", minval=0, maxval=50)
+pivot_lookback = input.int(20, "Pivot Lookback", minval=1, maxval=20)
+proximity_percent = input.float(0.5, "S/R Proximity (%)", minval=0.1, maxval=2.0, step=0.1)
+ma_period = input.int(50, "Trend MA Period", minval=10, maxval=200)
+max_hold_bars = input.int(18, "Max Hold Period (bars)", minval=5, maxval=100)  // Reduced from 20 to 18
+volume_lookback = input.int(14, "Volume Lookback", minval=5, maxval=50)
+
+// --- Trend Filter --- (unchanged)
+ma = ta.sma(close, ma_period)
+in_uptrend = close > ma
+in_downtrend = close < ma
+
+// --- Volatility Calculation --- (unchanged)
+atr = ta.atr(14)
+base_risk = atr / close * 100
+risk_factor = stop_loss_percent / base_risk
+adjusted_qty = math.min(25, math.max(2, 10 / risk_factor))
+
+// --- Candlestick Patterns --- (unchanged)
+hammer = (high - low) > 0 and (close - open) / (high - low) <= 0.3 and (open - low) >= 2 * (high - close) and close[1] < open[1]
+shooting_star = (high - low) > 0 and (close - open) / (high - low) <= 0.3 and (high - open) >= 2 * (close - low) and close[1] > open[1]
+bullish_engulfing = close[1] < open[1] and close > open and close > open[1] and open < close[1]
+bearish_engulfing = close[1] > open[1] and close < open and close < open[1] and open > close[1]
+
+// --- RSI Divergence --- (unchanged)
+rsi = ta.rsi(close, rsi_period)
+bullish_rsi_div = close < close[1] and rsi > rsi[1] and rsi > rsi_min
+bearish_rsi_div = close > close[1] and rsi < rsi[1]
+
+// --- Volume Confirmation --- (unchanged)
+avg_volume = ta.sma(volume, volume_lookback)
+volume_confirmed = volume > avg_volume * 1.5
+
+// --- Support/Resistance --- (unchanged)
+support = ta.lowest(low, pivot_lookback)
+resistance = ta.highest(high, pivot_lookback)
+
+// --- Proximity to S/R --- (unchanged)
+proximity_factor = proximity_percent / 100
+near_support = close >= support * (1 - proximity_factor) and close <= support * (1 + proximity_factor)
+near_resistance = close >= resistance * (1 - proximity_factor) and close <= resistance * (1 + proximity_factor)
+
+// --- Combined Conditions --- (unchanged)
+long_condition = near_support and in_downtrend and volume_confirmed and (hammer or bullish_engulfing or bullish_rsi_div)
+short_condition = near_resistance and in_uptrend and volume_confirmed and (shooting_star or bearish_engulfing or bearish_rsi_div)
+
+// --- Execute Trades --- (unchanged)
+if (long_condition)
+    strategy.entry("Long", strategy.long, qty=adjusted_qty)
+    strategy.exit("Long Exit", "Long", stop=strategy.position_avg_price * (1 - stop_loss_percent / 100), 
+                 profit=strategy.position_avg_price * (1 + take_profit_percent / 100), 
+                 trail_offset=atr*100)
+
+if (short_condition)
+    strategy.entry("Short", strategy.short, qty=adjusted_qty)
+    strategy.exit("Short Exit", "Short", stop=strategy.position_avg_price * (1 + stop_loss_percent / 100), 
+                 profit=strategy.position_avg_price * (1 - take_profit_percent / 100), 
+                 trail_offset=atr*100)
+
+// --- Time-based Exit ---
+if (strategy.position_size != 0)
+    bars_held = ta.barssince(strategy.position_size[1] == 0)
+    if (bars_held >= max_hold_bars)
+        strategy.close_all("Time Exit")
+
+// --- Plot Signals --- (unchanged)
+plotshape(long_condition, title="Buy", location=location.belowbar, color=color.green, style=shape.triangleup, size=size.small)
+plotshape(short_condition, title="Sell", location=location.abovebar, color=color.red, style=shape.triangledown, size=size.small)
+plot(ma, "Trend MA", color=color.blue)
+
+// --- Debug Outputs --- (unchanged)
+plotchar(rsi, "RSI", "", location.bottom)
+plotchar(adjusted_qty, "Position Size", "", location.bottom)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/488166
+
+> Last Modified
+
+2025-03-25 17:03:13

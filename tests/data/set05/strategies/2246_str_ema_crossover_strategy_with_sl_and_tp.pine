@@ -1,0 +1,60 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双均线突破交易策略结合止损止盈的自动化量化系统-Automated-Quantitative-Trading-System-with-Dual-EMA-Crossover-and-Risk-Management.md
+// content_hash: d92d81ca07db8902
+// collected: 2026-07-27
+strategy("EMA Crossover Strategy with SL & TP", overlay=true, default_qty_type=strategy.percent_of_equity)
+
+// Input settings for SL and TP (ticks)
+slTicks = input.int(40, title="Stop Loss (ticks)", minval=1)
+tpTicks = input.int(80, title="Take Profit (ticks)", minval=1)
+
+// Define EMA periods
+ema21 = ta.ema(close, 21)
+ema50 = ta.ema(close, 50)
+
+// Detect crossovers
+bullishCross = ta.crossover(ema21, ema50)
+bearishCross = ta.crossunder(ema21, ema50)
+
+// Plot the EMAs
+plot(ema21, color=color.green, linewidth=2, title="EMA 21")
+plot(ema50, color=color.red, linewidth=2, title="EMA 50")
+
+// Calculate tick size in points
+var float tickSize = syminfo.mintick
+
+// Calculate stop loss and take profit prices for long and short positions
+longSL = close - slTicks * tickSize
+longTP = close + tpTicks * tickSize
+
+shortSL = close + slTicks * tickSize
+shortTP = close - tpTicks * tickSize
+
+// Execute trades on crossover signals
+if (bullishCross)
+    strategy.entry("Long", strategy.long)
+    strategy.exit("Exit Long", "Long", stop=longSL, limit=longTP)
+
+if (bearishCross)
+    strategy.entry("Short", strategy.short)
+    strategy.exit("Exit Short", "Short", stop=shortSL, limit=shortTP)
+
+// Plot arrows on crossovers
+plotshape(series=bullishCross, title="Buy Signal", location=location.belowbar, color=color.green, style=shape.labelup, text="BUY", size=size.small)
+plotshape(series=bearishCross, title="Sell Signal", location=location.abovebar, color=color.red, style=shape.labeldown, text="SELL", size=size.small)
+
+// Optional: Background coloring
+bgcolor(bullishCross ? color.new(color.green, 90) : na, title="Bullish Background")
+bgcolor(bearishCross ? color.new(color.red, 90) : na, title="Bearish Background")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/473324
+
+> Last Modified
+
+2024-11-29 11:20:40

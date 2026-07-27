@@ -1,0 +1,11 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block199
+// content_hash: 92c6d7891959dcc8
+// collected: 2026-07-27
+indicator("request.earnings")
+s1 = request.earnings("NASDAQ:BELFA")
+plot(s1)
+s2 = request.earnings("NASDAQ:BELFA", earnings.actual, gaps=barmerge.gaps_on, lookahead=barmerge.lookahead_on)
+plot(s2)

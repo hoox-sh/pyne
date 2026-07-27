@@ -1,0 +1,34 @@
+//@version=4
+// set01 corpus entry
+// source_repo: https://github.com/everget/tradingview-pinescript-indicators
+// source_path: tradingview-pinescript-indicators/research/utc_clock.pine
+// content_hash: f59cdabc7213f9e0
+// collected: 2026-07-27
+// Copyright (c) 2019-present, Alex Orekhov (everget)
+// UTC Clock script may be freely distributed under the terms of the GPL-3.0 license.
+study("UTC Clock", overlay=true)
+
+secondsRaw = floor(timenow / 1000)
+minutesRaw = floor(secondsRaw / 60)
+hoursRaw = floor(minutesRaw / 60)
+
+seconds = secondsRaw % 60
+minutes = minutesRaw % 60
+hours = hoursRaw % 24
+
+f_format(_val) =>
+    (0 < _val and _val < 10 ? "0" : "") + tostring(_val, "##") + (_val == 0 ? "0" : "")
+
+labelText = f_format(hours) + ":" + f_format(minutes) + ":" + f_format(seconds)
+
+var label l = label.new(
+     x=bar_index,
+     y=na,
+     text="",
+     textcolor=color.black,
+     style=label.style_none,
+     size=size.huge
+     )
+
+label.set_text(l, labelText)
+label.set_xy(l, bar_index, highest(high, 50))

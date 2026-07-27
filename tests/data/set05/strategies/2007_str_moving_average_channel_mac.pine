@@ -1,0 +1,65 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动态趋势跟踪型双均线通道策略与风险管理系统-Dynamic-Trend-Following-Dual-Moving-Average-Channel-Strategy-with-Risk-Management-System.md
+// content_hash: ea492b56f28b4fc3
+// collected: 2026-07-27
+strategy("Moving Average Channel (MAC)", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=100)
+
+// Parameters for Moving Averages
+upperMALength = input.int(10, title="Upper MA Length")
+lowerMALength = input.int(8, title="Lower MA Length")
+stopLossPercent = input.float(25.0, title="Stop Loss (%)", minval=0.1) / 100
+
+// Calculate Moving Averages
+upperMA = ta.sma(high, upperMALength)
+lowerMA = ta.sma(low, lowerMALength)
+
+// Plot Moving Averages
+plot(upperMA, color=color.red, title="Upper Moving Average")
+plot(lowerMA, color=color.green, title="Lower Moving Average")
+
+// Initialize variables
+var int upperCounter = 0
+var int lowerCounter = 0
+var float entryPrice = na
+var float highestPrice = na
+
+// Update counters based on conditions
+if (low <= upperMA)
+    upperCounter := 0
+else
+    upperCounter += 1
+
+if (high >= lowerMA)
+    lowerCounter := 0
+else
+    lowerCounter += 1
+
+// Entry condition: 5 consecutive bars above the Upper MA
+if (upperCounter == 5 and strategy.position_size == 0)
+    strategy.entry("Long", strategy.long)
+    highestPrice := high  // Initialize highest price
+
+// Update the highest price after entry
+if (strategy.position_size > 0)
+    highestPrice := na(highestPrice) ? high : math.max(highestPrice, high)
+
+// Exit condition: 5 consecutive bars below the Lower MA
+if (lowerCounter == 5 and strategy.position_size > 0)
+    strategy.close("Long", comment="Exit: 5 bars below Lower MA")
+
+// Stop-loss condition: Exit if market closes below 25% of the highest price since entry
+stopLossCondition = low < highestPrice * (1 - stopLossPercent)
+if (stopLossCondition and strategy.position_size > 0)
+    strategy.close("Long", comment="Exit: Stop Loss")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/477974
+
+> Last Modified
+
+2025-01-10 16:26:56

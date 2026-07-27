@@ -1,0 +1,41 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/EMA交叉系统策略EMA-Crossover-Strategy.md
+// content_hash: 16c14058a39de6e4
+// collected: 2026-07-27
+
+
+
+
+strategy (title="Crossing Ema 20:9 by Sedkur", overlay=false)
+
+src = close
+
+ema20 = ema(src, 20)
+ema9 = ema(src, 9)
+
+plot( ema20, color=color.orange, style=plot.style_line, title="EMA20", linewidth=2)
+plot( ema9, color=color.blue, style=plot.style_line, title="EMA9", linewidth=2)
+
+//bullish = (ema9>ema20)?true:false
+bullish = cross(ema9, ema20) and (ema9>ema20)?true:false
+bearish = cross(ema9, ema20) and (ema20>ema9)?true:false
+plotshape(bullish, style=shape.triangleup , location=location.belowbar, color=color.lime,size=size.tiny)
+plotshape(bearish, style=shape.triangledown , location=location.abovebar, color=color.red,size=size.tiny)
+alertcondition(bullish, title="Bullish", message="AL verdi")
+
+if (bullish)
+    strategy.entry("buy", strategy.long, comment="al", when = year>2016)
+if (bearish)
+    strategy.entry("sell", strategy.short, comment="sat", when = year>2016)
+plot(strategy.equity)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/428059
+
+> Last Modified
+
+2023-09-28 11:22:39

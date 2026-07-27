@@ -1,0 +1,58 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/高级趋势捕捉型均线交叉多指标确认交易策略-Advanced-Trend-Capturing-EMA-Crossover-Multi-Indicator-Confirmation-Trading-Strategy.md
+// content_hash: de4cdd098ab45bba
+// collected: 2026-07-27
+strategy("Optimized BTC/USD Scalping", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=10)
+
+// --- Indicator Parameters ---
+ema_fast = ta.ema(close, 9)
+ema_slow = ta.ema(close, 21)
+sma_trend = ta.sma(close, 200)
+rsi_value = ta.rsi(close, 14)
+
+// --- Bollinger Bands Definition ---
+[bb_upper, bb_middle, bb_lower] = ta.bb(close, 20, 2)
+
+// --- Trading Parameters ---
+take_profit_multiplier = 2.0
+stop_loss_multiplier = 1.0
+atr_value = ta.atr(14)
+
+// --- Entry Conditions ---
+longCondition = ta.crossover(ema_fast, ema_slow) and close > sma_trend and rsi_value > 50 and close > bb_middle
+shortCondition = ta.crossunder(ema_fast, ema_slow) and close < sma_trend and rsi_value < 50 and close < bb_middle
+
+// --- Define TP and SL ---
+long_sl = close - atr_value * stop_loss_multiplier
+long_tp = close + atr_value * take_profit_multiplier
+short_sl = close + atr_value * stop_loss_multiplier
+short_tp = close - atr_value * take_profit_multiplier
+
+// --- Execute Trades ---
+if longCondition
+    strategy.entry("Long", strategy.long)
+    strategy.exit("Take Profit Long", from_entry="Long", limit=long_tp, stop=long_sl)
+
+if shortCondition
+    strategy.entry("Short", strategy.short)
+    strategy.exit("Take Profit Short", from_entry="Short", limit=short_tp, stop=short_sl)
+
+// --- Fix for plotshape issue ---
+plot_buy_signal = longCondition ? 1 : na
+plot_sell_signal = shortCondition ? 1 : na
+
+plotshape(series=plot_buy_signal, location=location.belowbar, color=color.green, style=shape.labelup, title="BUY")
+plotshape(series=plot_sell_signal, location=location.abovebar, color=color.red, style=shape.labeldown, title="SELL")
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/483791
+
+> Last Modified
+
+2025-02-27 16:36:10

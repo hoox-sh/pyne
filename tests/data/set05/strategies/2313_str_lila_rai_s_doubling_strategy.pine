@@ -1,0 +1,59 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于马丁格尔理论的网格式加仓策略模型-Grid-based-Position-Accumulation-Strategy-Based-on-Martingale-Theory.md
+// content_hash: 679b101b776ab6c0
+// collected: 2026-07-27
+strategy("Lila Rai's doubling strategy", overlay=true)
+
+// Input for price drop thresholds
+dropPercent = 0.95  // 8% drop (100% - 8%)
+takeProfitPercent = 1.05  // 5% TP above avg entry
+
+var float avgPrice = na
+var int qty = 1  // Start with 1 lot
+var float totalCost = 0
+var float totalQty = 0
+var int doublingCount = 0  // To count the number of times the position size is doubled
+
+// Calculate price movement
+lookbackBars = 15  // Assuming 1-minute chart
+priceChange = close / ta.highest(close, lookbackBars)
+
+// Buy condition: price drops 8%
+if (priceChange < dropPercent)
+    totalCost := totalCost + close * qty  // Add cost of new position
+    totalQty := totalQty + qty  // Update total quantity
+    avgPrice := totalCost / totalQty  // Compute weighted average price
+    strategy.order("DCA Buy", strategy.long, qty)
+    qty := qty * 2  // Double the next position size
+    doublingCount := doublingCount + 1  // Increase the doubling count
+
+// Condition for selling in loss after 5 doublings
+if (doublingCount >= 10)
+    strategy.close("DCA Buy")  // Close the position at market price
+    doublingCount := 0  // Reset the doubling count after selling
+    qty := 1  // Reset qty to 1 for fresh buying
+
+// Take Profit Condition: 5% above avg price
+if (not na(avgPrice))
+    takeProfit = avgPrice * takeProfitPercent
+    strategy.exit("Take Profit", from_entry="DCA Buy", limit=takeProfit)
+
+// Reset qty if take profit is hit
+if (strategy.position_size == 0)  
+    qty := 1  // Reset qty after exiting in profit
+
+// Plot indicators
+plot(avgPrice, title="Average Entry Price", color=color.blue, linewidth=2)
+plot(close, title="Close Price", color=color.red, linewidth=1)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/482783
+
+> Last Modified
+
+2025-02-20 15:00:44

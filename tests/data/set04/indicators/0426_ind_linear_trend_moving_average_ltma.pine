@@ -1,0 +1,46 @@
+// set04 corpus entry
+// source_repo: QuanTAlib
+// source_path: QuanTAlib/lib/trends_IIR/ltma/ltma.pine
+// content_hash: 4e2c5069753a8b33
+// collected: 2026-07-27
+// Licensed under the Apache License, Version 2.0
+// © mihakralj
+//@version=6
+indicator("Linear Trend Moving Average (LTMA)", "LTMA", overlay=true)
+
+//@function Calculates LTMA using dual cascaded EMAs with linear trend extrapolation
+//@param source Series to smooth
+//@param period Lookback period (determines alpha = 2/(period+1))
+//@returns LTMA value: lag-corrected EMA (equivalent to DEMA = 2·EMA1 − EMA2)
+//@description Removes the EMA lag by estimating the per-bar slope from the spread
+//  between two cascaded EMAs and projecting forward by exactly one lag interval.
+//  EMA1 lags by τ = (1−α)/α bars; EMA1−EMA2 ≈ slope·τ; result = EMA1 + (EMA1−EMA2).
+//  Initializing both EMAs to source on bar 1 gives zero warmup bias with no compensator needed.
+ltma(series float source, simple int period) =>
+    float alpha = 2.0 / (period + 1)
+    float beta  = 1.0 - alpha
+
+    var float ema1 = na
+    var float ema2 = na
+
+    float src = nz(source)
+
+    if na(ema1)
+        ema1 := src
+        ema2 := src
+    else
+        ema1 := alpha * src + beta * ema1
+        ema2 := alpha * ema1 + beta * ema2
+
+    // slope = EMA1 − EMA2 ≈ slope_per_bar × lag
+    // result = EMA1 + slope × 1.0  →  2·EMA1 − EMA2
+    ema1 + (ema1 - ema2)
+
+// ---------- Main loop ----------
+
+i_period = input.int(14, "Period", minval=1)
+i_source = input.source(close, "Source")
+
+ltma_value = ltma(i_source, period=i_period)
+
+plot(ltma_value, "LTMA", color=color.yellow, linewidth=2)

@@ -1,0 +1,16 @@
+//@version=6
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/language/variable-declarations.md::variable-declarations.md#block27
+// content_hash: 3c11c874ce22a36b
+// collected: 2026-07-27
+indicator("Shadowing a built-in demo", overlay = true)
+
+//@variable Stores the value of the `open` variable.
+float close = open
+
+// Plot the values associated with the `close` and `open` identifiers.
+// Both plots show the *same* value, because the script *cannot access* the built-in `close` variable in this part of
+// the global scope.
+plot(close, "`close` value", color.purple, 5)
+plot(open, "`open` value", color.orange, 2)

@@ -1,0 +1,54 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/玫瑰十字星双重指标波动策略Rose-Cross-Star-Dual-Indicator-Volatility-Strategy.md
+// content_hash: 04bdcae8db0481a4
+// collected: 2026-07-27
+strategy("Estrategia de Ruptura con Bollinger y RSI Modificada", shorttitle="BB RSI Mod", overlay=true)
+
+// Parámetros de Bollinger Bands
+src = close
+length = input(20, title="Longitud", minval=1)
+mult = input(2.0)
+basis = sma(src, length)
+upper = basis + mult * stdev(src, length)
+lower = basis - mult * stdev(src, length)
+
+// Parámetros del RSI
+rsiSource = rsi(close, 14)
+overbought = 70
+oversold = 30
+
+longCondition = crossover(src, lower) and rsiSource < oversold
+shortCondition = crossunder(src, upper) and rsiSource > overbought
+
+longExit = crossunder(src, upper)
+shortExit = crossover(src, lower)
+
+if (longCondition)
+    strategy.entry("Compra", strategy.long, stop=low)
+    
+if (shortCondition)
+    strategy.entry("Venta", strategy.short, stop=high)
+
+if (longExit)
+    strategy.close("Compra")
+
+if (shortExit)
+    strategy.close("Venta")
+
+// Visualización
+plotshape(series=longCondition, title="Compra", location=location.belowbar, color=color.green, style=shape.labelup, text="Compra")
+plotshape(series=shortCondition, title="Venta", location=location.abovebar, color=color.red, style=shape.labeldown, text="Venta")
+plot(upper, "Banda Superior", color=color.red)
+plot(lower, "Banda Inferior", color=color.green)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/430692
+
+> Last Modified
+
+2023-10-31 17:33:10

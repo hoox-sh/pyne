@@ -1,0 +1,51 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于9EMA动态仓位的5分钟双收盘价强势突破策略9EMA-Dynamic-Position-Sizing-Strategy-with-Two-5-Minute-Close-Breakouts.md
+// content_hash: ef635bafec9f7e91
+// collected: 2026-07-27
+strategy("Two 5min Closes Above 9EMA Strategy with Dynamic Position Size", overlay=true)
+
+// Define the fixed amount for position sizing
+fixedAmount = 1000
+
+// Calculate the 9-period EMA
+ema9 = ta.ema(close, 9)
+
+// Define time constraints (9:30 AM to 9:40 AM EST, adjust for your timezone)
+sessionStart = 0930
+sessionEnd = 0940
+timeCondition = (hour * 100 + minute) >= sessionStart and (hour * 100 + minute) < sessionEnd
+
+// Detect two consecutive 5-min bars where close is near 0.99 times the high and above 9 EMA
+closeNearHighAndAboveEMA = close >= high * 0.99 and close > ema9
+twoConsecutiveBars = closeNearHighAndAboveEMA and closeNearHighAndAboveEMA[1]
+
+// Entry condition: Within the first 10 minutes of the day and two consecutive bars match criteria
+entryCondition = twoConsecutiveBars
+
+// Exit condition: First 5-min close below 9 EMA after entry
+exitCondition = close < ema9
+
+// Plot EMA for visualization
+plot(ema9, color=color.blue, linewidth=2, title="9 EMA")
+
+// Calculate position size
+positionSize = fixedAmount / close
+
+// Strategy execution
+if (entryCondition)
+    strategy.entry("Buy", strategy.long, qty=positionSize)
+
+if (exitCondition)
+    strategy.close("Buy")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/445449
+
+> Last Modified
+
+2024-03-19 15:03:56

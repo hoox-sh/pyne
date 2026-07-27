@@ -1,0 +1,11 @@
+// set05 corpus entry
+// source_repo: aceri-tradingview_pinescript
+// source_path: aceri-tradingview_pinescript/MA Cross Copy.txt
+// content_hash: d70cfbe839279553
+// collected: 2026-07-27
+study(title="MA Cross", overlay=true)
+short = sma(close, 643)
+long = sma(close, 13)
+plot(short, color = red)
+plot(long, color = green)
+plot(cross(short, long) ? short : na, style = cross, linewidth = 4)

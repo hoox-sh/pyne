@@ -1,0 +1,46 @@
+//@version=6
+// set03 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block320
+// content_hash: 608e25759a160a04
+// collected: 2026-07-27
+indicator("Multi Time Period Chart", overlay = true)
+
+timeframeInput = input.timeframe("1D")
+
+type bar
+    float o = open
+    float h = high
+    float l = low
+    float c = close
+    int   t = time
+
+drawBox(bar b, right) =>
+    bar s = bar.new()
+    color boxColor = b.c >= b.o ? color.green : color.red
+    box.new(b.t, b.h, right, b.l, boxColor, xloc = xloc.bar_time, bgcolor = color.new(boxColor, 90))
+
+updateBox(box boxId, bar b) =>
+    color boxColor = b.c >= b.o ? color.green : color.red
+    box.set_border_color(boxId, boxColor)
+    box.set_bgcolor(boxId, color.new(boxColor, 90))
+    box.set_top(boxId, b.h)
+    box.set_bottom(boxId, b.l)
+    box.set_right(boxId, time)
+
+secBar = request.security(syminfo.tickerid, timeframeInput, bar.new())
+
+if not na(secBar)
+    // To avoid a runtime error, only process data when an object exists.
+    if not barstate.islast
+        if timeframe.change(timeframeInput)
+            // On historical bars, draw a new box in the past when the HTF closes.
+            drawBox(secBar, time[1])
+    else
+        var box lastBox = na
+        if na(lastBox) or timeframe.change(timeframeInput)
+            // On the last bar, only draw a new current box the first time we get there or when HTF changes.
+            lastBox := drawBox(secBar, time)
+        else
+            // On other chart updates, use setters to modify the current box.
+            updateBox(lastBox, secBar)

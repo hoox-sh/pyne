@@ -1,0 +1,20 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block236
+// content_hash: 2ae993b867c6c741
+// collected: 2026-07-27
+strategy("`strategy.convert_to_symbol` Example", currency = currency.EUR)
+
+// Calculate the max qty we can buy using current chart's currency.
+calcContracts(accountMoney) =>
+    math.floor(strategy.convert_to_symbol(accountMoney) / syminfo.pointvalue / close)
+
+// Return max qty we can buy using 300 euros
+qt = calcContracts(300)
+
+// Strategy calls to enter long trades every 15 bars and exit long trades every 20 bars using our custom qty.
+if bar_index % 15 == 0
+    strategy.entry("Long", strategy.long, qty = qt)
+if bar_index % 20 == 0
+    strategy.close("Long")

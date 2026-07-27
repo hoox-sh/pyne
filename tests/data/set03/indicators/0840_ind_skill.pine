@@ -1,0 +1,52 @@
+//@version=6
+// set03 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/.claude/skills/pine-publisher/SKILL.md::SKILL.md#block11
+// content_hash: 3c926259d094b585
+// collected: 2026-07-27
+//@description Advanced RSI divergence detector with multi-timeframe analysis and customizable alerts
+
+indicator(title="RSI Divergence Pro - MTF Scanner with Alerts v2.0",
+         shorttitle="RSI Div Pro",
+         overlay=true,
+         max_labels_count=500)
+
+// ╔═══════════════════════════════════════════════════════════════════════╗
+// ║                        RSI DIVERGENCE PRO v2.0                         ║
+// ║                    Multi-Timeframe Scanner with Alerts                 ║
+// ╠═══════════════════════════════════════════════════════════════════════╣
+// ║ Author: TradingView_Username                                           ║
+// ║ Version: 2.0                                                           ║
+// ║ Release Date: January 15, 2024                                         ║
+// ║ Category: Momentum Indicators                                          ║
+// ║ License: Mozilla Public License 2.0                                    ║
+// ╠═══════════════════════════════════════════════════════════════════════╣
+// ║                            DESCRIPTION                                 ║
+// ╠═══════════════════════════════════════════════════════════════════════╣
+// ║ This indicator identifies bullish and bearish RSI divergences across   ║
+// ║ multiple timeframes. It features:                                      ║
+// ║                                                                         ║
+// ║ • Regular and hidden divergence detection                              ║
+// ║ • Multi-timeframe confluence analysis                                  ║
+// ║ • Customizable alert system                                            ║
+// ║ • Visual divergence lines and labels                                   ║
+// ║ • Performance statistics table                                         ║
+// ║                                                                         ║
+// ║ Perfect for: Swing traders, reversal traders, multi-TF analysts        ║
+// ╠═══════════════════════════════════════════════════════════════════════╣
+// ║                          HOW TO USE                                    ║
+// ╠═══════════════════════════════════════════════════════════════════════╣
+// ║ 1. Add indicator to chart                                              ║
+// ║ 2. Configure RSI settings (default: 14)                                ║
+// ║ 3. Set divergence sensitivity (1-5)                                    ║
+// ║ 4. Enable desired timeframes for scanning                              ║
+// ║ 5. Look for divergence signals:                                        ║
+// ║    - Green lines/labels: Bullish divergence                            ║
+// ║    - Red lines/labels: Bearish divergence                              ║
+// ║ 6. Use confluence table for multi-TF confirmation                      ║
+// ╠═══════════════════════════════════════════════════════════════════════╣
+// ║                          DISCLAIMER                                    ║
+// ╠═══════════════════════════════════════════════════════════════════════╣
+// ║ This indicator is for educational purposes only. Past performance     ║
+// ║ does not guarantee future results. Always do your own analysis.       ║
+// ╚═══════════════════════════════════════════════════════════════════════╝

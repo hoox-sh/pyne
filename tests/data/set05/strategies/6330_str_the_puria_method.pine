@@ -1,0 +1,68 @@
+//@version=2
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/金叉死叉双均线MACD趋势追踪策略Golden-Cross-Dead-Cross-Dual-Moving-Average-MACD-Trend-Tracking-Strategy.md
+// content_hash: b46c5ab0afa0a208
+// collected: 2026-07-27
+strategy('The Puria Method', shorttitle = 'Puria',overlay = true)
+
+//=== GENERAL INPUTS ===
+
+// short ma
+maFastSource   = input(defval = close, title = "Fast MA Source")
+maFastLength   = input(defval = 5, title = "Fast MA Period", minval = 1)
+
+// long ma 1
+maSlow1Source   = input(defval = low, title = "Slow MA1 Source")
+maSlow1Length   = input(defval = 85, title = "Slow MA Period", minval = 1)
+
+// long ma 2
+maSlow2Source   = input(defval = low, title = "Slow MA2 Source")
+maSlow2Length   = input(defval = 75, title = "Slow MA Period", minval = 1)
+
+//macd
+macdFastLength   = input(defval = 12, title = "Fast MACD Period", minval = 1)
+macdSlowLength   = input(defval = 26, title = "Slow MACD Period", minval = 1)
+macdSmaLength   = input(defval = 9, title = "SMA MACD Period", minval = 1)
+
+// the risk management inputs
+inpTakeProfit   = input(defval = 30, title = "Take Profit", minval = 0)
+inpStopLoss     = input(defval = 10, title = "Stop Loss", minval = 0)
+inpTrailStop    = input(defval = 5, title = "Trailing Stop Loss", minval = 0)
+inpTrailOffset  = input(defval = 0, title = "Trailing Stop Loss Offset", minval = 0)
+
+// if an input is less than 1, assuming not wanted so we assign 'na' value to disable it.
+useTakeProfit   = inpTakeProfit  >= 1 ? inpTakeProfit  : na
+useStopLoss     = inpStopLoss    >= 1 ? inpStopLoss    : na
+useTrailStop    = inpTrailStop   >= 1 ? inpTrailStop   : na
+useTrailOffset  = inpTrailOffset >= 1 ? inpTrailOffset : na
+
+// === SERIES SETUP ===
+maFast = ema(maFastSource, maFastLength)
+maSlow1 = wma(maSlow1Source, maSlow1Length)
+maSlow2 = wma(maSlow2Source, maSlow2Length)
+[_, signal, histLine] = macd(close, macdFastLength, macdSlowLength, macdSmaLength)
+
+// === PLOTTING ===
+fast = plot(maFast, title = "Fast MA", color = green, linewidth = 2, style = line, transp = 50)
+slow1 = plot(maSlow1, title = "Slow MA1", color = red, linewidth = 2, style = line, transp = 50)
+slow2 = plot(maSlow2, title = "Slow MA2", color = red, linewidth = 2, style = line, transp = 50)
+
+// === LOGIC ===
+signalUp = crossover(maFast, maSlow1) and crossover(maFast, maSlow2) and histLine > 0
+signalDown = crossunder(maFast, maSlow1) and crossunder(maFast, maSlow2) and histLine < 0
+
+// ===STRATEGY===
+strategy.entry(id = "Long", long = true, when = signalUp) 
+strategy.entry(id = "Short", long = false, when = signalDown)
+strategy.exit("Exit Long", from_entry = "Long", profit = useTakeProfit, loss = useStopLoss, trail_points = useTrailStop, trail_offset = useTrailOffset)
+strategy.exit("Exit Short", from_entry = "Short", profit = useTakeProfit, loss = useStopLoss, trail_points = useTrailStop, trail_offset = useTrailOffset)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/436241
+
+> Last Modified
+
+2023-12-22 14:17:34

@@ -1,0 +1,13 @@
+//@version=2
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/v3/appendix/pine-compilation-errors.md::pine-compilation-errors.md#block5
+// content_hash: 477ffd3c5fe8c137
+// collected: 2026-07-27
+study("Loop is too long", max_bars_back=101)
+s = 0
+for i = 1 to 1e3 // to make it longer
+    for j = 0 to 100
+        if (timestamp(2017, 02, 23, 00, 00) <= time[j] and time[j] < timestamp(2017, 02, 23, 23, 59))
+            s := s + 1
+plot(s)

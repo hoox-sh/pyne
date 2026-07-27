@@ -1,0 +1,73 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多重指标动态反转交易系统RSI与VWAP协同反转策略-Multi-Indicator-Dynamic-Reversal-Trading-System-RSI-and-VWAP-Synergistic-Reversal-Strategy.md
+// content_hash: c57bfa215ac533ee
+// collected: 2026-07-27
+strategy("BTC/USDT Smart Long & Short (RSI + VWAP + Rejection)", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=10)
+
+// === INPUTS ===
+rsiLength     = input.int(14, title="RSI Length")
+rsiOverbought = input.int(72, title="RSI Overbought Level")
+rsiOversold   = input.int(28, title="RSI Oversold Level")
+minVol        = input.float(500, title="Min Volume Filter")
+cooldownBars  = input.int(10, title="Cooldown Period (bars)")
+atrLength     = input.int(14, title="ATR Length")
+atrMultiplier = input.float(1.5, title="SL/TP ATR Multiplier")
+useTrailing   = input.bool(true, title="Use Trailing Stop")
+trailingPerc  = input.float(1.5, title="Trailing %")
+
+// === INDICATORS ===
+rsi  = ta.rsi(close, rsiLength)
+vwap = ta.vwap(hlc3)
+atr  = ta.atr(atrLength)
+vol  = volume
+
+// === COOLDOWN LOGIC ===
+var int lastShortBar = na
+var int lastLongBar = na
+canShort = na(lastShortBar) or (bar_index - lastShortBar > cooldownBars)
+canLong  = na(lastLongBar)  or (bar_index - lastLongBar  > cooldownBars)
+
+// === CANDLE REJECTION LOGIC ===
+bearishRejection = close < close[1] and close > vwap     // Short filter
+bullishRejection = close > close[1] and close < vwap     // Long filter
+
+// === SHORT ENTRY ===
+shortSignal = ta.crossunder(rsi, rsiOverbought) and vol > minVol and bearishRejection and canShort
+if (shortSignal)
+    strategy.entry("Short", strategy.short)
+    if useTrailing
+        strategy.exit("Short Exit", from_entry="Short", trail_points=trailingPerc * close * 0.01, trail_offset=trailingPerc * close * 0.01)
+    else
+        sl = atr * atrMultiplier
+        tp = atr * atrMultiplier
+        strategy.exit("Short Exit", from_entry="Short", profit=tp, loss=sl)
+    lastShortBar := bar_index
+
+// === LONG ENTRY ===
+longSignal = ta.crossover(rsi, rsiOversold) and vol > minVol and bullishRejection and canLong
+if (longSignal)
+    strategy.entry("Long", strategy.long)
+    if useTrailing
+        strategy.exit("Long Exit", from_entry="Long", trail_points=trailingPerc * close * 0.01, trail_offset=trailingPerc * close * 0.01)
+    else
+        sl = atr * atrMultiplier
+        tp = atr * atrMultiplier
+        strategy.exit("Long Exit", from_entry="Long", profit=tp, loss=sl)
+    lastLongBar := bar_index
+
+// === PLOTS ===
+plot(vwap, title="VWAP", color=color.orange, linewidth=2)
+plotshape(shortSignal, title="Short Signal", location=location.abovebar, color=color.red, style=shape.triangledown, size=size.small)
+plotshape(longSignal, title="Long Signal", location=location.belowbar, color=color.green, style=shape.triangleup, size=size.small)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/489894
+
+> Last Modified
+
+2025-04-09 17:09:01

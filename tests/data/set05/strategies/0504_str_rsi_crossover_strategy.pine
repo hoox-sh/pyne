@@ -1,0 +1,30 @@
+//@version=5
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/RSI SMA Crossover Strategy.pine
+// content_hash: c823c52bdb94bd9b
+// collected: 2026-07-27
+//
+strategy('RSI Crossover Strategy', shorttitle='RSI Cross', default_qty_type=strategy.percent_of_equity, default_qty_value=100, initial_capital=1000, calc_on_every_tick=true)
+// inputs
+rsiLength = input(title='RSI Length', defval=50)
+smaLength = input(title='SMA Length', defval=25)
+// data/series
+rsi = ta.rsi(close, rsiLength)
+sma = ta.sma(rsi, smaLength)
+// plot
+plotColor = rsi > sma ? color.green : color.red
+rsiPlot = plot(rsi, color=color.new(plotColor, 0), title='RSI')
+smaPlot = plot(sma, color=color.new(color.black, 0), title='SMA')
+fillColor = rsi > sma ? color.lime : color.red
+fill(rsiPlot, smaPlot, color=color.new(fillColor, 75))
+oversoldLine = hline(30, title='Oversold level')
+overboughtLine = hline(70, title='Overbought level')
+// strategy
+buy = ta.crossover(rsi, sma)
+sell = ta.crossunder(rsi, sma)
+if buy == true
+    strategy.entry('Long', strategy.long, comment='Buy')
+if sell == true
+    strategy.close('Long', comment='Sell')
+Expand (27 lines)

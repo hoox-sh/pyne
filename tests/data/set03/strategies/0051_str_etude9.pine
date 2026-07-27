@@ -1,0 +1,135 @@
+//@version=6
+// set03 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多重均线趋势捕捉与交叉确认交易系统-Multi-Moving-Average-Trend-Capture-and-Crossover-Confirmation-Trading-System.md
+// content_hash: ea9b93f24fbfeebb
+// collected: 2026-07-27
+strategy("etude9", shorttitle="etude 9", overlay=true)
+//on tente de comlbiner avec le RSi un stratégie pas si mauvaise sur les longs 
+// un d7 r rsi qui donne des indiciataions pas mal pour les short pour les long pas très concluant 
+// === Paramètres d'entrée ===
+// Source de prix
+// et merde rendement sur long est plus efficace sans condition sur ATR !!
+// par contre j'ai l'imression que le rsi ça va être bien pour les shorts 
+// bon avec le RSi ça donne rien, et avec le macd, ç ce stade c'est foireux mmm 
+pricetype = input(close, title="Source de prix pour les moyennes mobiles")
+
+// Périodes des moyennes mobiles
+instant = input(14, title="Période de la moyenne instantanée (10)")
+interm = input(25, title="Perdiode intermediaire (25)")
+shortperiod = input(50, title="Période de la moyenne mobile courte (20)")
+mediumperiod = input(100, title="Période de la moyenne mobile moyenne (50)")
+longperiod = input(200, title="Période de la moyenne mobile longue (100)")
+
+// Paramètres du RSI
+rsi_length = input.int(14, title="Période RSI")
+rsi_overbought = input.int(78, title="Niveau de surachat (RSI)")
+rsi_oversold = input.int(30, title="Niveau de survente (RSI)")
+
+// Paramètres pour le MACD
+fast_length = input.int(12, title="Longueur Rapide MACD")
+slow_length = input.int(26, title="Longueur Lente MACD")
+signal_length = input.int(9, title="Longueur du Signal MACD")
+
+// Paramètres de l'ATR
+atr_length = input.int(14, title="Période ATR")
+atr_multiplier = input.float(1.5, title="Multiplicateur ATR pour le Stop-Loss")
+
+// Calcul de l'ATR
+atr = ta.atr(atr_length)
+
+// === Calcul des moyennes mobiles (EMA uniquement) ===
+instant_ma = ta.ema(pricetype, instant) // Moyenne mobile instantanée
+short_ma = ta.ema(pricetype, shortperiod)  // Moyenne mobile courte (20)
+medium_ma = ta.ema(pricetype, mediumperiod)  // Moyenne mobile moyenne (50)
+long_ma = ta.ema(pricetype, longperiod)    // Moyenne mobile longue (100)
+interm_ma = ta.ema(pricetype, interm)
+
+// Calcul du RSI
+rsi = ta.rsi(close, rsi_length)
+
+// Calcul du MACD
+[macd_line, signal_line, hist_line] = ta.macd(close, fast_length, slow_length, signal_length)
+
+// Stocker les résultats de crossover et crossunder dans des variables globales
+is_crossover = ta.crossover(macd_line, signal_line)
+is_crossunder = ta.crossunder(macd_line, signal_line)
+
+// Filtre ATR : on ne trade que si la volatilité est suffisante
+min_atr = atr > ta.sma(atr, atr_length)  // ATR supérieur à sa moyenne
+
+// === Conditions de tendance ===
+trending_up = instant_ma > short_ma and instant_ma > medium_ma and instant_ma > long_ma and short_ma > medium_ma   // Tendance haussière
+trending_down = instant_ma< short_ma and instant_ma<medium_ma and instant_ma<long_ma and short_ma<long_ma  // Tendance baissière
+// Filtre RSI
+rsi_filter_buy = rsi < rsi_overbought  // RSI n'est pas en surachat pour un achat
+rsi_filter_sell = rsi > rsi_oversold  // RSI n'est pas en survente pour une vente
+
+// === Gestion des positions ===
+var bool in_position = false  // Variable pour suivre si une position est ouverte
+var bool is_long = false      // Variable pour suivre si la position est longue ou courte
+
+// === Signaux d'ouverture et de fermeture ===
+bool buy_signal = false  // Signal d'ouverture d'une position longue
+bool close_signal = false  // Signal de fermeture d'une position longue
+bool sell_signal = false  // Signal d'ouverture d'une position courte
+bool close_short_signal = false  // Signal de fermeture d'une position courte
+
+
+// Ouvrir une position longue
+if (trending_up and not in_position)
+    strategy.entry("Long", strategy.long)
+    in_position := true
+    is_long := true
+    buy_signal := true  // Signal d'ouverture
+else
+    buy_signal := false
+
+// Fermer la position longue si instant_ma < medium_ma
+if (in_position and is_long and instant_ma < short_ma)
+    strategy.close("Long")
+    in_position := false
+    is_long := false
+    close_signal := true  // Signal de fermeture
+else
+    close_signal := false
+
+// Ouvrir une position courte
+if (trending_down and not in_position and min_atr)
+    strategy.entry("Short", strategy.short)
+    in_position := true
+    is_long := false
+    sell_signal := true  // Signal d'ouverture
+else
+    sell_signal := false
+// Fermer la position courte si instant_ma > medium_ma
+if (in_position and not is_long and instant_ma > medium_ma)
+    strategy.close("Short")
+    in_position := false
+    close_short_signal := true  // Signal de fermeture
+else
+    close_short_signal := false
+// === Affichage des signaux sur le graphique ===
+plotshape(series=buy_signal, title="Buy Signal", location=location.belowbar, color=color.green, style=shape.labelup, text="Buy", size=size.small)
+plotshape(series=sell_signal, title="Sell Signal", location=location.abovebar, color=color.red, style=shape.labeldown, text="Sell", size=size.small)
+plotshape(series=close_signal, title="Close Long Signal", location=location.abovebar, color=color.orange, style=shape.labeldown, text="Close Long", size=size.small)
+plotshape(series=close_short_signal, title="Close Short Signal", location=location.belowbar, color=color.blue, style=shape.labelup, text="Close Short", size=size.small)
+
+// === Affichage des moyennes mobiles sur le graphique ===
+plot(short_ma, color=color.blue, title="Moyenne mobile courte (20)", linewidth=2)
+plot(medium_ma, color=color.orange, title="Moyenne mobile moyenne (50)", linewidth=2)
+plot(long_ma, color=color.red, title="Moyenne mobile longue (100)", linewidth=2)
+plot(instant_ma, color=color.rgb(43, 14, 111), title="Moyenne mobile instantanée (10)", linewidth=2)
+plot(interm_ma, color=color.rgb(26, 192, 34), title="Moyenne mobile instantanée (10)", linewidth=2)
+
+// Coloration de fond pour les tendances
+bgcolor(color=trending_up ? color.new(color.green, 90) : trending_down ? color.new(color.red, 90) : na, title="Coloration de fond")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/484584
+
+> Last Modified
+
+2025-03-03 10:11:37

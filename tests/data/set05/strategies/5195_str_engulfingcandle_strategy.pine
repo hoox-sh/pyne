@@ -1,0 +1,57 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/蜡烛包裹RSI交易策略Engulfing-Candle-RSI-Trading-Strategy.md
+// content_hash: d8ee987e04b48370
+// collected: 2026-07-27
+strategy("EngulfingCandle Strategy", overlay=true)
+
+// Your existing definitions
+bullishCandle=close >= open[1] and close[1] < open[1]
+bearishCandle=close <= open[1] and close[1] > open[1]
+
+// RSI Definitions
+rsiSource=input(close, title="rsiSource")
+rsiLenghth=input(14, title="rsi length", type=input.integer)
+rsiOverBought=input(70, title="rsi overbought level", type=input.integer)
+rsiOverSold=input(30, title="rsi over sold level", type=input.integer)
+
+rsiValue=rsi(rsiSource, rsiLenghth)
+isRSIOB=rsiValue >= rsiOverBought
+isRSIOS=rsiValue <= rsiOverSold
+
+// Trade Signal
+tradeSignal=((isRSIOS or isRSIOS[1] or isRSIOS[2]) and bullishCandle ) or ((isRSIOB or isRSIOB[1] or isRSIOB[2]) and bearishCandle)
+
+// Stop Loss and Take Profit Inputs
+sl_pips = input(20, title="Stop Loss (in pips)")
+tp_pips = input(40, title="Take Profit (in pips)")
+
+// Calculating Stop Loss and Take Profit Prices
+long_sl = close - syminfo.mintick * sl_pips
+long_tp = close + syminfo.mintick * tp_pips
+short_sl = close + syminfo.mintick * sl_pips
+short_tp = close - syminfo.mintick * tp_pips
+
+// Entering and Exiting Trades
+if (tradeSignal and bullishCandle)
+    strategy.entry("Long", strategy.long)
+    strategy.exit("Exit Long", "Long", stop=long_sl, limit=long_tp)
+    
+if (tradeSignal and bearishCandle)
+    strategy.entry("Short", strategy.short)
+    strategy.exit("Exit Short", "Short", stop=short_sl, limit=short_tp)
+
+// Plotting
+plotshape(tradeSignal and bullishCandle, title="Bullish", location=location.belowbar, color=color.green, style=shape.triangleup, text="Buy")
+plotshape(tradeSignal and bearishCandle, title="Bearish", location=location.abovebar, color=color.red, style=shape.triangledown, text="Sell")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/441057
+
+> Last Modified
+
+2024-02-05 11:06:58

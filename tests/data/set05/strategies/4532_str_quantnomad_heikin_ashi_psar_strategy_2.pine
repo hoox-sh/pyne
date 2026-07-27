@@ -1,0 +1,97 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/均衡线PSAR指标交易策略Heikin-Ashi-PSAR-Trend-Trading-Strategy.md
+// content_hash: a11e8c6d47027718
+// collected: 2026-07-27
+strategy("QuantNomad - Heikin-Ashi PSAR Strategy", shorttitle = "HA-PSAR[QN]", overlay = false)
+
+////////////
+// INPUTS //
+
+start      = input(0.02, title = "PSAR Start")
+increment  = input(0.02, title = "PSAR Increment")
+maximum    = input(0.2,  title = "PSAR Max")
+
+start_year  = input(2018, 'Start Year',  input.integer)
+start_month = input(1,    'Start Month', input.integer)
+start_day   = input(1,    'Start Day',   input.integer)
+
+end_year  = input(2100, 'End Year',  input.integer)
+end_month = input(1,    'End Month', input.integer)
+end_day   = input(1,    'End Day',   input.integer)
+
+date_start = timestamp(start_year, start_month, start_day, 00, 00)
+date_end   = timestamp(end_year,   end_month,   end_day,   00, 00)
+
+// if time is in correct period
+time_cond = time >= date_start and time <= date_end
+
+// Calculation HA Values 
+haopen  = 0.0
+haclose = (open + high + low + close) / 4
+haopen := na(haopen[1]) ? (open + close) / 2 : (haopen[1] + haclose[1]) / 2
+hahigh  = max(high, max(haopen, haclose))
+halow   = min(low,  min(haopen, haclose))
+
+// HA colors
+hacolor = haclose > haopen ? color.green : color.red
+
+psar        = 0.0 // PSAR
+af          = 0.0 // Acceleration Factor
+trend_dir   = 0   // Current direction of PSAR
+ep          = 0.0 // Extreme point
+trend_bars  = 0
+
+sar_long_to_short = trend_dir[1] == 1  and haclose <= psar[1] // PSAR switches from long to short
+sar_short_to_long = trend_dir[1] == -1 and haclose >= psar[1] // PSAR switches from short to long
+
+trend_change = barstate.isfirst[1] or sar_long_to_short or sar_short_to_long
+
+// Calculate trend direction
+trend_dir    := barstate.isfirst[1] and haclose[1] > haopen[1] ? 1 : 
+   barstate.isfirst[1] and haclose[1] <= haopen[1] ? -1 : 
+   sar_long_to_short ? -1 : 
+   sar_short_to_long ?  1 : nz(trend_dir[1])
+
+trend_bars := sar_long_to_short ? -1 : 
+              sar_short_to_long ?  1 : 
+              trend_dir ==  1   ? nz(trend_bars[1]) + 1 : 
+              trend_dir == -1   ? nz(trend_bars[1]) - 1 : 
+              nz(trend_bars[1])
+
+// Calculate  Acceleration Factor
+af := trend_change ? start : 
+   (trend_dir == 1 and hahigh > ep[1]) or  
+   (trend_dir == -1 and low < ep[1]) ? 
+   min(maximum, af[1] + increment) : 
+   af[1]
+
+// Calculate extreme point
+ep := trend_change and trend_dir == 1 ? hahigh :  
+   trend_change and trend_dir == -1 ? halow : 
+   trend_dir == 1 ? max(ep[1], hahigh) : 
+   min(ep[1], halow)
+
+// Calculate PSAR
+psar := barstate.isfirst[1] and haclose[1] > haopen[1] ? halow[1] : 
+   barstate.isfirst[1] and haclose[1] <= haopen[1] ? hahigh[1] : 
+   trend_change ? ep[1] :    
+   trend_dir == 1 ? psar[1] + af * (ep - psar[1]) : psar[1] - af * (psar[1] - ep) 
+
+plotcandle(haopen, hahigh, halow, haclose, title = "HA", color = hacolor)
+plot(psar, style=plot.style_cross, color=trend_dir == 1 ? color.green : color.red,  linewidth = 2)
+
+// Strategy
+strategy.entry("long",  true,  when = sar_short_to_long and time_cond)
+strategy.entry("short", false, when = sar_long_to_short and time_cond)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/426489
+
+> Last Modified
+
+2023-09-12 15:16:17

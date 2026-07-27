@@ -1,0 +1,79 @@
+//@version=6
+// set03 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多指标趋势动量ATR目标价交易策略-Multi-Indicator-Trend-Momentum-ATR-Target-Trading-Strategy.md
+// content_hash: 9526ff9e1d7b0a25
+// collected: 2026-07-27
+strategy("ADX & RSI Strategy with ATR Targets", overlay=true)
+
+// Input parameters
+adxLength = input.int(14, title="ADX Length")
+adxSmoothing = input.int(14, title="ADX Smoothing")
+rsiLength = input.int(14, title="RSI Length")
+rsiSmaLength = input.int(20, title="RSI SMA Length")
+atrLength = input.int(14, title="ATR Length")
+atrMultiplierTarget = input.float(2.5, title="ATR Multiplier for Target")
+atrMultiplierStop = input.float(1.5, title="ATR Multiplier for Stop Loss")
+
+// ADX and DMI calculations
+[adx, plusDI, minusDI] = ta.dmi(adxLength, adxSmoothing)
+
+// RSI calculations
+rsi = ta.rsi(close, rsiLength)
+rsiSma = ta.sma(rsi, rsiSmaLength)
+
+// ATR calculation
+atr = ta.atr(atrLength)
+
+// Slope calculations (difference from the previous value)
+adxSlope = adx - adx[1]
+rsiSlope = rsi - rsi[1]
+
+// Entry conditions
+adxCondition = adx > 18 and plusDI > minusDI and adxSlope > 0
+rsiCondition = rsi > rsiSma and rsiSlope > 0
+rsiCross60 = ta.crossover(rsi, 60)
+
+// Global variable for long entry
+var bool longEntry = false
+if (adxCondition and rsiCondition and rsiCross60)
+    longEntry := true
+else
+    longEntry := false
+
+// Variables for target and stop loss levels
+var float entryPrice = na
+var float targetLevel = na
+var float stopLossLevel = na
+
+// Strategy actions
+if (longEntry)
+    entryPrice := close
+    targetLevel := entryPrice + atr * atrMultiplierTarget
+    stopLossLevel := entryPrice - atr * atrMultiplierStop
+    strategy.entry("Long", strategy.long)
+
+if (strategy.position_size > 0)
+    if (close >= targetLevel)
+        strategy.close("Long", comment="Tgt Hit")
+    if (close <= stopLossLevel)
+        strategy.close("Long", comment="SL Hit")
+
+// Ensure lines plot on the chart body
+targetLine = strategy.position_size > 0 ? targetLevel : na
+stopLossLine = strategy.position_size > 0 ? stopLossLevel : na
+
+plot(targetLine, title="Target Level", color=color.green, linewidth=2, offset=0)
+plot(stopLossLine, title="Stop Loss Level", color=color.red, linewidth=2, offset=0)
+
+// Add entry price for reference
+plot(strategy.position_size > 0 ? entryPrice : na, title="Entry Price", color=color.blue, linewidth=1, style=plot.style_cross, offset=0)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/482773
+
+> Last Modified
+
+2025-02-27 17:51:29

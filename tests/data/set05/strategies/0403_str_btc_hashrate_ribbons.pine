@@ -1,0 +1,47 @@
+//@version=5
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/BTC Hashrate ribbons.pine
+// content_hash: 012c5147fa7ea748
+// collected: 2026-07-27
+strategy("BTC Hashrate ribbons", overlay = true, scale=scale.none, default_qty_type = strategy.cash, default_qty_value = 100, initial_capital = 100)
+enableDirection = input(0, title="Both(0), Long(1), Short(-1)", group="Direction")
+smoothingS = input.string(title="Smoothing short MA", defval="SMA", options=["SMA", "RMA", "EMA", "WMA"], group="Hashrate Settings")
+SmoothLengthS = input(30, 'Short MA length', group="Hashrate Settings")
+smoothingL = input.string(title="Smoothing long MA", defval="SMA", options=["SMA", "RMA", "EMA", "WMA"], group="Hashrate Settings")
+SmoothLengthL = input(60, 'Long MA length', group="Hashrate Settings")
+ma_functionS(source, length) =>
+    switch smoothingS
+        "RMA" => ta.rma(source, length)
+        "SMA" => ta.sma(source, length)
+        "EMA" => ta.ema(source, length)
+        => ta.wma(source, length)
+ma_functionL(source, length) =>
+    switch smoothingL
+        "RMA" => ta.rma(source, length)
+        "SMA" => ta.sma(source, length)
+        "EMA" => ta.ema(source, length)
+        => ta.wma(source, length)
+Source = input.string(title="Data Source", defval="Quandl", options=["Quandl", "Glassnode", "IntoTheBlock"], group="Source Settings")
+SourceE = switch Source
+    "Quandl" => "QUANDL:BCHAIN/HRATE"
+    "Glassnode" => "GLASSNODE:BTC_HASHRATE"
+    "IntoTheBlock" => "INTOTHEBLOCK:BTC_HASHRATE"
+HashRate = request.security(SourceE, "D", close)
+SignalLine = ma_functionS(HashRate, SmoothLengthS)
+LongLine = ma_functionL(HashRate, SmoothLengthL)
+plot(ma_functionS(HashRate, SmoothLengthS), "Short MA", color=color.yellow)
+plot(ma_functionL(HashRate, SmoothLengthL), "Long MA", color=color.blue)
+LongCondition = ta.crossover(SignalLine, LongLine)
+ShortCondition = ta.crossunder(SignalLine, LongLine)
+//Long Entry Condition
+if LongCondition and (enableDirection == 1 or enableDirection == 0)
+    strategy.entry("Long", strategy.long)
+if LongCondition and (enableDirection == -1)
+    strategy.close("Short")
+//Short Entry condition
+if ShortCondition and (enableDirection == -1 or enableDirection == 0)
+    strategy.entry("Short", strategy.short)
+if ShortCondition and (enableDirection == 1)
+    strategy.close("Long")
+Expand (51 lines)

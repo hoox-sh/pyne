@@ -1,0 +1,51 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/CM多重EMA金叉死叉策略CM-Multiple-EMA-Crossover-Strategy.md
+// content_hash: 60841b87d9d08c33
+// collected: 2026-07-27
+
+// +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+// --------------------------------------------------------------RULES------------------------------------------------------------------------------
+// - VISUALLY REPRESENTS THE CROSSING OF 8,13,21,55 EMA'S FROM KROWNS PROGRAM 
+strategy(title="CM EMA Trend Cross STRAT", shorttitle="CM EMA Strat", overlay=true)
+
+ema8  = ema(close,8)
+ema13 = ema(close, 13)
+ema21 = ema(close, 21)
+ema55 = ema(close, 55)
+
+//PLOT
+plot(ema8,  title="EMA 1",linewidth=2, color=#00eeff)
+plot(ema13, title="EMA 2",linewidth=2, color=#fff900)
+plot(ema21, title="EMA 3",linewidth=2, color=#42ff0f)
+plot(ema55, title="EMA 4",linewidth=2, color=#8b49ff)
+
+//LOGIC---------------------------------------------------------------------------------------------------------------------------------
+emacrossover = crossover(ema21, ema55) and ema8 and ema13 > ema55
+emacrossunder = crossunder(ema21, ema55) and ema8 and ema13 < ema55
+
+//Long----------------------------------------------------------------------------------------------------------------------------------
+longCondition = emacrossover
+closelongCondition = emacrossunder
+
+strategy.entry("Long", strategy.long, qty=na, when=longCondition)
+strategy.close("Close Long", when=closelongCondition)
+
+//Short----------------------------------------------------------------------------------------------------------------------------------
+shortCondition = emacrossunder
+closeshortCondition = emacrossover
+
+strategy.entry("Short", strategy.short,qty=na, when=shortCondition)
+strategy.close("Close Short", when=closeshortCondition)
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/427460
+
+> Last Modified
+
+2023-09-21 12:12:56

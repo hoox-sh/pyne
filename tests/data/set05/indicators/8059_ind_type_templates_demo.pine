@@ -1,0 +1,9 @@
+//@version=5
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/v5/language/type-system.md::type-system.md#block25
+// content_hash: d4104016dcec4546
+// collected: 2026-07-27
+indicator("Type templates demo")
+
+//@variable A variable initially assigned to `na` that accepts arrays of "int" values.

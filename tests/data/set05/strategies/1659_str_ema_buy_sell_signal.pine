@@ -1,0 +1,74 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双EMA黄金交叉突破策略Dual-EMA-Golden-Cross-Breakout-Strategy.md
+// content_hash: 7e7f6d6e15612e53
+// collected: 2026-07-27
+strategy("EMA Buy/Sell Signal", shorttitle="EMABuySell", overlay=true)
+
+// === INPUTS ===
+src = input(close)
+ema1Length = input(26, title='EMA-1')
+ema2Length = input(200, title='EMA-2')
+
+EMASig = input(true, title="Show EMA ?")
+takeProfitPercent = input(2.0, title="Take Profit (%)") / 100
+stopLossPercent = input(1, title="Stop Loss (%)") / 100
+
+pema1 = ta.ema(src, ema1Length)
+pema2 = ta.ema(src, ema2Length)
+
+// Plotting EMAs
+plot(EMASig ? pema1 : na, title='EMA-1', color=color.new(color.blue, 0), linewidth=2)
+plot(EMASig ? pema2 : na, title='EMA-2', color=color.new(color.orange, 0), linewidth=2)
+
+// EMA Crossover Buy Signal
+EMACrossoverLong = ta.crossover(pema1, pema2)
+
+// EMA Crossunder Short Signal
+EMACrossoverShort = ta.crossunder(pema1, pema2)
+
+// Crossover above EMA-200 Long Signal
+CrossoverAboveEMA200 = ta.crossover(close, pema2)
+
+// Trading logic for Long
+if ((EMACrossoverLong and close > pema1 and close > pema2) or CrossoverAboveEMA200)
+    strategy.entry("Buy", strategy.long, qty=1)
+
+// Take Profit logic for Long
+longCondition = close >= strategy.position_avg_price * (1 + takeProfitPercent)
+if (strategy.position_size > 0 and longCondition)
+    strategy.close("Buy")
+
+// Stop Loss logic for Long
+stopLossConditionLong = ta.crossunder(pema1, pema2)
+if (strategy.position_size > 0 and stopLossConditionLong)
+    strategy.close("Buy")
+
+// Trading logic for Short
+if (EMACrossoverShort and close < pema1 and close < pema2)
+    strategy.entry("Sell", strategy.short, qty=1)
+
+// Take Profit logic for Short
+shortCondition = close <= strategy.position_avg_price * (1 - takeProfitPercent)
+if (strategy.position_size < 0 and shortCondition)
+    strategy.close("Sell")
+
+// Stop Loss logic for Short
+stopLossConditionShort = ta.crossover(pema1, pema2)
+if (strategy.position_size < 0 and stopLossConditionShort)
+    strategy.close("Sell")
+
+// Visual Signals
+plotshape(series=EMACrossoverLong or CrossoverAboveEMA200, title="Buy Signal", color=color.green, style=shape.triangleup, size=size.small)
+plotshape(series=EMACrossoverShort, title="Sell Signal", color=color.red, style=shape.triangledown, size=size.small)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/440087
+
+> Last Modified
+
+2024-01-26 15:13:59

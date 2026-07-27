@@ -1,0 +1,70 @@
+//@version=4
+// set05 corpus entry
+// source_repo: thanhnguyennguyen-tradingview-pine-scripts
+// source_path: thanhnguyennguyen-tradingview-pine-scripts/scripts/RSI+CCI.pine
+// content_hash: c64c7df1fac7597f
+// collected: 2026-07-27
+study("RSI + CCI", shorttitle="RSI + CCI", precision=1, overlay=false)
+
+//1. Calculate RSI
+src = input(close, 'RSI Source')
+len = input(14, minval=1, title="RSI Length")
+ob = input(80, "Overbought", input.integer, minval=0, maxval=100)
+os = input(20, "Oversold", input.integer, minval=0, maxval=100)
+RSI = rsi(src, len)
+
+//2. Divergence Framework
+xbars = input(90, "Div lookback period (bars)?", input.integer, minval=1)
+hb = abs(highestbars(RSI, xbars))  // Finds bar with highest value in last X bars
+lb = abs(lowestbars(RSI, xbars))  // Finds bar with lowest value in last X bars
+
+// (2a. Defining variable values, mandatory in Pine 4)
+max = float(na),        min = float(na),        pivoth = bool(na),      divbear = bool(na)  
+max_rsi = float(na),    min_rsi = float(na),    pivotl = bool(na),      divbull = bool(na)
+
+//2b. Identify Divergences --> "If bar with lowest / highest is current bar, use it's value"
+max := hb == 0 ? close : na(max[1]) ? close : max[1]
+max_rsi := hb == 0 ? RSI : na(max_rsi[1]) ? RSI : max_rsi[1]
+min := lb == 0 ? close : na(min[1]) ? close : min[1]
+min_rsi := lb == 0 ? RSI : na(min_rsi[1]) ? RSI : min_rsi[1]
+
+//3. Compare high of current bar being examined with previous bar's high --> "If curr bar high is higher than the max bar high in the lookback window range"
+if close > max  // "if  we have a new high"
+    max := close  // "change variable "max" to use current bar's high value"
+    max
+if RSI > max_rsi  // we have a new high
+    max_rsi := RSI  // change variable "max_rsi" to use current bar's RSI value
+    max_rsi
+if close < min  // we have a new low
+    min := close  // change variable "min" to use current bar's low value
+    min
+if RSI < min_rsi  // we have a new low
+    min_rsi := RSI  // change variable "min_rsi" to use current bar's RSI value
+    min_rsi
+
+//4. Finds pivot point with at least 2 right candles with lower value
+pivoth := max_rsi == max_rsi[2] and max_rsi[2] != max_rsi[3] ? true : na,       pivotl := min_rsi == min_rsi[2] and min_rsi[2] != min_rsi[3] ? true : na
+
+if max[1] > max[2] and RSI[1] < max_rsi and RSI <= RSI[1]
+    divbear := true
+    divbear
+if min[1] < min[2] and RSI[1] > min_rsi and RSI >= RSI[1]
+    divbull := true
+    divbull
+
+//5. Plot
+plot(RSI, "RSI Bear", color=RSI < 70 ? na : color.red, linewidth=3)
+plot(RSI, "RSI Bull", color=RSI > 30 ? na : color.green, linewidth=3)
+plot(RSI, "RSI", color=color.purple, linewidth=1)
+hline(20)
+hline(80)
+
+
+//cci
+ma = sma(src, len)
+cci = (src - ma) / (0.015 * dev(src, len))
+plot(cci, title="cci", color=color.green, linewidth=2, transp=0)
+band1 = hline(100, color=color.gray, linestyle=hline.style_dashed, linewidth=1)
+band0 = hline(-100, color=color.gray, linestyle=hline.style_dashed, linewidth=1)
+fill(band1, band0, color=#F9E79F)
+

@@ -1,0 +1,47 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动态趋势追踪策略-多指标综合动量分析系统-Dynamic-Trend-Following-Strategy-Multi-Indicator-Integrated-Momentum-Analysis-System.md
+// content_hash: 5a6a39add7e6c789
+// collected: 2026-07-27
+strategy("TrendFollower", overlay=true)
+
+input_ma_period = input.int(50, title="MA Period")
+input_rsi_period = input.int(14, title="RSI Period")
+input_lot_size = input.float(1, title="Lot Size")
+input_stop_loss_pips = input.float(300, title="Stop Loss (Pips)")
+input_take_profit_pips = input.float(600, title="Take Profit (Pips)")
+input_adx_period = input.int(14, title="ADX Period")
+input_adx_threshold = input.float(25.0, title="ADX Threshold")
+
+// Calculate Indicators
+ma = ta.sma(close, input_ma_period)
+rsi = ta.rsi(close, input_rsi_period)
+
+// Calculate ADX manually
+adx_smoothing = input.int(14, title="ADX Smoothing")
+[plus_di, minus_di, adx_line] = ta.dmi(input_adx_period, adx_smoothing)
+
+// Calculate Stop Loss and Take Profit in terms of price
+stop_loss = input_stop_loss_pips * syminfo.pointvalue
+take_profit = input_take_profit_pips * syminfo.pointvalue
+
+// Define trade logic
+long_condition = close > ma and adx_line > input_adx_threshold
+short_condition = close < ma and adx_line > input_adx_threshold
+
+// Execute trades
+if (long_condition)
+    strategy.entry("Buy", strategy.long, qty=input_lot_size, stop=close - stop_loss, limit=close + take_profit)
+if (short_condition)
+    strategy.entry("Sell", strategy.short, qty=input_lot_size, stop=close + stop_loss, limit=close - take_profit)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/458147
+
+> Last Modified
+
+2024-07-30 12:16:32

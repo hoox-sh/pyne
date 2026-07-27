@@ -1,0 +1,78 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/趋势突破短线策略Intraday-Trend-Breakout-Strategy.md
+// content_hash: b2b8a65c68b13893
+// collected: 2026-07-27
+strategy("Supertrend - Intraday", overlay=true, calc_on_every_tick = true)
+
+// ********** Strategy inputs - Start **********
+
+// Used for intraday handling
+// Session value should be from market start to the time you want to square-off 
+// your intraday strategy
+// Important: The end time should be at least 2 minutes before the intraday
+// square-off time set by your broker
+var i_marketSession = input(title="Market session", type=input.session, 
+     defval="0915-1455", confirm=true)
+
+var float i_multiplier = input(title = "Multiplier", type = input.float, 
+     defval = 4, confirm=true)
+
+var int i_atrPeriod = input(title = "ATR Period", type = input.integer, 
+     defval = 14, confirm=true)
+
+// ********** Strategy inputs - End **********
+
+
+// ********** Supporting functions - Start **********
+
+// A function to check whether the bar or period is in intraday session
+barInSession(sess) => time(timeframe.period, sess) != 0
+
+// ********** Supporting functions - End **********
+
+
+// ********** Strategy - Start **********
+
+[superTrend, dir] = supertrend(i_multiplier, i_atrPeriod)
+
+colResistance = dir == 1 and dir == dir[1] ? color.new(color.red, 0) : color.new(color.red, 100)
+colSupport = dir == -1 and dir == dir[1] ? color.new(color.green, 0) : color.new(color.green, 100)
+
+plot(superTrend, color = colResistance, linewidth=2)
+plot(superTrend, color = colSupport, linewidth=2)
+
+// Long/short condition
+longCondition = close > superTrend
+shortCondition = close < superTrend
+
+// See if intraday session is active
+bool intradaySession = barInSession(i_marketSession)
+
+// Trade only if intraday session is active
+ 
+// Long position
+// When longCondition and intradaySession both are true
+strategy.entry(id = "Long", long = strategy.long, 
+     when = longCondition and intradaySession)
+ 
+// Short position
+// When shortCondition and intradaySession both are true
+strategy.entry(id = "Short", long = strategy.short, 
+     when = shortCondition and intradaySession)
+ 
+// Square-off position (when session is over and position is open)
+squareOff = (not intradaySession) and (strategy.position_size != 0)
+strategy.close_all(when = squareOff, comment = "Square-off")
+
+// ********** Strategy - End **********
+```
+
+> Detail
+
+https://www.fmz.com/strategy/427115
+
+> Last Modified
+
+2023-09-18 13:11:51

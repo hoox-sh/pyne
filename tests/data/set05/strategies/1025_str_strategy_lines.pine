@@ -1,0 +1,104 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于双EMA策略分析The-Double-EMA-Strategy-Analysis.md
+// content_hash: bd9a81abe25f39b6
+// collected: 2026-07-27
+// This can only draw so many lines. Use bar replay to go back further
+strategy("Strategy Lines", shorttitle="Strategy Lines", overlay=true, max_lines_count=500)
+
+//###########################################################################################################################################
+// Replace your strategy here
+//###########################################################################################################################################
+
+shortEMA = ta.ema(close, input(9, title="Short EMA Length"))
+longEMA = ta.ema(close, input(21, title="Long EMA Length"))
+
+// Entry conditions for long and short positions
+longCondition = ta.crossover(shortEMA, longEMA)
+shortCondition = ta.crossunder(shortEMA, longEMA)
+
+//###########################################################################################################################################
+// Strategy Lines
+//###########################################################################################################################################
+
+var timeLow = bar_index
+var line li = na
+var openLPrice = 0.0000
+var openSPrice = 0.0000
+
+LongWColor = input.color(color.rgb(0,255,0,0),"Long Win Color", group="Strategy Lines")
+LongLColor = input.color(color.rgb(0,0,255,0),"Long Loss Color", group="Strategy Lines")
+ShortWColor = input.color(color.rgb(255,255,0,0),"Short Win Color", group="Strategy Lines")
+ShortLColor = input.color(color.rgb(255,0,0,0),"Short Loss Color", group="Strategy Lines")
+WinFontColor = input.color(color.rgb(0,0,0,0),"Win Font Color", group="Strategy Lines")
+LossFontColor = input.color(color.rgb(255,255,255,0),"Loss Font Color", group="Strategy Lines")
+LinesShowLabel = input(false,"Show Labels?",group = "Strategy Lines")
+
+// // Start new line when we go long
+// if strategy.position_size >0
+//     line.delete(li)
+//     li := line.new(timeLow, close[bar_index-timeLow], bar_index, close, width=2, color=close>openLPrice?LongWColor:LongLColor)
+
+// // Start new line when we go short
+// if strategy.position_size <0
+//     line.delete(li)
+//     li := line.new(timeLow, close[bar_index-timeLow], bar_index, close, width=2, color=close<openSPrice?ShortWColor:ShortLColor)
+
+// //Delete Lines if we don't have a position open
+// if strategy.position_size ==0
+//     li := line.new(timeLow, close[bar_index-timeLow], bar_index, close, width=2, color=color.rgb(0,0,0,100))
+//     line.delete(li)
+
+if LinesShowLabel
+    // Short Label
+    if strategy.position_size>=0 and strategy.position_size[1] <0
+        label.new(
+             timeLow, na, 
+             text=str.tostring((openSPrice-close[1])/(syminfo.mintick*10)), 
+             color=close[1]<openSPrice?ShortWColor:ShortLColor, 
+             textcolor=close[1]<openSPrice?WinFontColor:LossFontColor,
+             size=size.small, 
+             style=label.style_label_down, yloc=yloc.abovebar)
+    // Long Label
+    if strategy.position_size<=0 and strategy.position_size[1] >0
+        label.new(
+             timeLow, na,
+             text=str.tostring((close[1]-openLPrice)/(syminfo.mintick*10)), 
+             color=close[1]>openLPrice?LongWColor:LongLColor, 
+             textcolor=close[1]>openLPrice?WinFontColor:LossFontColor,
+             size=size.small, 
+             style=label.style_label_down, yloc=yloc.abovebar)
+
+// Open long position and draw line
+if (longCondition)
+    //strategy.entry("Long", strategy.long)
+    // timeLow := bar_index
+    // li := line.new(timeLow, close[bar_index-timeLow], bar_index, close, width=2, color=close>openLPrice?LongWColor:LongLColor)
+    openLPrice := close
+
+// Open short position and draw line
+if (shortCondition)
+    //strategy.entry("Short", strategy.short)
+    // timeLow := bar_index
+    // li := line.new(timeLow, close[bar_index-timeLow], bar_index, close, width=2, color=close<openSPrice?ShortWColor:ShortLColor)
+    openSPrice := close
+
+//###########################################################################################################################################
+// Strategy Execution (Replace this as well)
+//###########################################################################################################################################
+
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+
+if (shortCondition)
+    strategy.entry("Short", strategy.short)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/443043
+
+> Last Modified
+
+2024-02-28 18:07:59

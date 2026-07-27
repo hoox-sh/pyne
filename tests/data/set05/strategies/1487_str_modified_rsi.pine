@@ -1,0 +1,80 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/修正相对强弱指数趋势跟踪策略-Modified-Relative-Strength-Index-Trend-Following-Strategy.md
+// content_hash: 43557253aa9d3352
+// collected: 2026-07-27
+
+
+// Verical lines
+
+
+// // Define the times
+// t1 = timestamp(year, month, dayofmonth, 09, 15) // 9:15
+// t2 = timestamp(year, month, dayofmonth, 11, 15) // 11:15
+// t3 = timestamp(year, month, dayofmonth, 13, 15) // 1:15
+// t4 = timestamp(year, month, dayofmonth, 15, 25) // 3:25
+
+// // Check if the current bar is on the current day
+// is_today = (year(time) == year(timenow)) and (month(time) == month(timenow)) and (dayofmonth(time) == dayofmonth(timenow))
+
+// // Draw a vertical line at each time
+// if is_today and (time == t1 or time == t2 or time == t3 or time == t4)
+//     line.new(x1 = bar_index, y1 = low, x2 = bar_index, y2 = high, extend = extend.both, color=color.red, width = 1)
+
+strategy('Modified RSI')
+col_grow_above = input(#02ac11, "Above   Grow", group="Histogram", inline="Above")
+col_fall_above = input(#6ee47d, "Fall", group="Histogram", inline="Above")
+col_grow_below = input(#e5939b, "Below Grow", group="Histogram", inline="Below")
+col_fall_below = input(#dd0000, "Fall", group="Histogram", inline="Below")
+EMA_length = input.int(13, 'Price_EMA', minval=1)
+RSI_length = input.int(14, 'RSI_Period', minval=1)
+Avg_length = input.int(5, 'RSI_Avg_EMA', minval=1)
+fastMA = ta.ema(close, EMA_length)
+modrsi = ta.rsi(fastMA, RSI_length)
+RSIAVG = ta.ema(modrsi, Avg_length)
+plot(modrsi, color=color.rgb(38, 0, 255), linewidth=2)
+plot(RSIAVG, color=color.rgb(247, 0, 0))
+rsiUpperBand = hline(60, 'RSI Upper Band', color=#099b0e)
+//hline(50, "RSI Middle Band", color=color.new(#787B86, 50))
+rsiLowerBand = hline(40, 'RSI Lower Band', color=#e90101)
+
+RSI_hist = modrsi - RSIAVG
+
+//plot(RSI_hist,"RSI_Histogram", color = #c201e9, style = plot.style_columns,linewidth= 5)
+
+plot(RSI_hist, title="RSI_Histogram", style=plot.style_columns, color=(RSI_hist>=0 ? (RSI_hist[1] < RSI_hist ? col_grow_above : col_fall_above) : (RSI_hist[1] < RSI_hist ? col_grow_below : col_fall_below)))
+
+
+/////// Moving Averages 20 50 EMA
+
+fast_ma = input.int(20, minval=2, title="Fast_EMA")
+slow_ma = input.int(50, minval=2, title="Slow_EMA")
+
+src = input.source(close, title="Source")
+
+out = ta.ema(src, fast_ma)
+out1 = ta.ema(src, slow_ma)
+
+//plot(out, title="20 EMA", color=color.rgb(117, 71, 247), linewidth = 2)
+//plot(out1, title="50 EMA", color=color.rgb(0, 0, 0), linewidth = 2)
+
+
+longCondition = ((ta.crossover(modrsi, RSIAVG)) and (RSI_hist > 0))
+if longCondition
+    strategy.entry('B', strategy.long)
+
+shortCondition = ((ta.crossunder(modrsi, RSIAVG)) and (RSI_hist < 0))
+if shortCondition
+    strategy.entry('S', strategy.short)
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/446553
+
+> Last Modified
+
+2024-03-29 16:16:37

@@ -1,0 +1,36 @@
+//@version=6
+// set03 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/release-notes.md::release-notes.md#block6
+// content_hash: 2498a58a473a2b5c
+// collected: 2026-07-27
+indicator("Active input demo")
+
+//@variable The length for the RSI calculation. 
+int rsiLengthInput = input.int(14, "RSI length")
+
+string GRP1 = "Smoothing"
+//@variable If `true`, the script applies smoothing based on the two inputs below. 
+//          If `false`, it does not apply smoothing, and those inputs are grayed out. 
+bool enableSmoothingInput = input.bool(false, "Enable", group = GRP1)
+
+//@variable The length of the EMA for smoothing the RSI. 
+int smoothLengthInput = input.int(9, "Length", 1, inline = "01", group = GRP1, active = enableSmoothingInput)
+//@variable The strength of the smoothing. If 1, the result is the EMA of the RSI. 
+//          If less than 1, the result is a mix between the EMA and the original RSI. 
+float mixInput = input.float(1.0, "Mix", 0, 1, 0.01, inline = "01", group = GRP1, active = enableSmoothingInput)
+
+//@variable The RSI of `close`.
+float rsi = ta.rsi(close, rsiLengthInput)
+//@variable The smoothed RSI.
+float smoothed = ta.ema(rsi, enableSmoothingInput ? smoothLengthInput : 1)
+//@variable The mixture between `rsi` and `smoothed`, based on the inputs. 
+float osc = enableSmoothingInput ? (1.0 - mixInput) * rsi + mixInput * smoothed : rsi
+
+// Make horizontal lines, and fill the space between `obLine` and `osLine`. 
+obLine = hline(70)
+hline(50)
+osLine = hline(30)
+fill(obLine, osLine, color.new(color.purple, 90))
+// Plot the `osc` series.
+plot(osc, "Custom RSI")

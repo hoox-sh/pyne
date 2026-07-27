@@ -1,0 +1,56 @@
+//@version=6
+// set04 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双均线趋势追踪量化策略-Dual-EMA-Trend-Following-Quantitative-Strategy.md
+// content_hash: 4921c8988515c51e
+// collected: 2026-07-27
+strategy("onetrend Lite v1.0", overlay=true)
+
+// User input
+emaFastLen       = input.int(30, title="Length EMA Fast")
+emaSlowLen       = input.int(60, title="Length EMA Slow")
+emaMarginATRLen  = input.int(60, title="Margin EMA - ATR Length")
+emaMarginATRMult = input.float(0.3, title="Margin EMA - ATR Multiplier", step=0.01)
+
+// Moving averages
+emaFast = ta.ema(close, emaFastLen)
+emaSlow = ta.ema(close, emaSlowLen)
+emaDiff = emaFast - emaSlow
+
+// Trend determination
+emaBull = emaDiff > emaMarginATRMult * ta.atr(emaMarginATRLen)
+emaBear = emaDiff < -emaMarginATRMult * ta.atr(emaMarginATRLen)
+
+/// COLOR DEFINITIONS
+clrUp = color.rgb(70, 163, 255)
+clrDown = color.rgb(255, 102, 170)
+clrNeutral = color.rgb(128, 128, 128)
+clrUpFill = color.new(clrUp, 70)
+clrDownFill = color.new(clrDown, 70)
+clrNeutralFill = color.new(clrNeutral, 70)
+
+// Plotting EMAs with dynamic colors based on trend
+emaFastPlot = plot(emaFast, linewidth=2, color=emaBull ? clrUp : emaBear ? clrDown : clrNeutral)
+emaSlowPlot = plot(emaSlow, linewidth=2, color=emaBull ? clrUp : emaBear ? clrDown : clrNeutral)
+fill(emaFastPlot, emaSlowPlot, color=emaBull ? clrUpFill : emaBear ? clrDownFill : clrNeutralFill)
+
+// Define signals
+longSignal = ta.crossover(emaDiff, emaMarginATRMult * ta.atr(emaMarginATRLen))
+sellSignal = ta.crossunder(emaDiff, -emaMarginATRMult * ta.atr(emaMarginATRLen))
+
+// Strategy orders: go long at a buy signal, short at a sell signal, and close opposite positions
+if longSignal
+    strategy.entry("Long", strategy.long, comment="Long Entry")
+    // strategy.close("Short", comment="Close Short")
+if sellSignal
+    // strategy.entry("Short", strategy.short, comment="Short Entry")
+    strategy.close("Long", comment="Close Long")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/489017
+
+> Last Modified
+
+2025-04-01 10:59:19

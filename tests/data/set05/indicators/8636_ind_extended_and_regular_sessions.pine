@@ -1,0 +1,10 @@
+//@version=4
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/v4/essential/extended-and-regular-sessions.md::extended-and-regular-sessions.md#block2
+// content_hash: 26200b99b61786d6
+// collected: 2026-07-27
+study(“Example 2: Extended Session Data”)
+t = tickerid(“BATS”, “AAPL”, session.extended)
+cc = security(t, timeframe.period, close, true)
+plot(cc, style=plot.style_linebr)

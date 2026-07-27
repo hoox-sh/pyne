@@ -1,0 +1,50 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/防跳空开仓策略Gap-Opening-Strategy.md
+// content_hash: 58de5747d28f313b
+// collected: 2026-07-27
+strategy("Estrategia de Diferencia HL y MA para Criptomonedas", shorttitle="HL MA Crypto Strategy-Ortiz", overlay=true)
+
+// Definir longitud de MA y HL
+ma_length = input(20, title="Longitud MA")
+hl_length = input(3, title="Longitud HL")
+exit_below_price = input(0.98, title="Salir por debajo de precio")
+
+// Calcular MA
+ma = ta.sma(close, ma_length)
+
+// Calcular HL
+hh = ta.highest(high, hl_length)
+ll = ta.lowest(low, hl_length)
+hl = hh - ll
+
+// Condiciones de tendencia alcista
+bullish_trend = close > ma
+
+// Condiciones de entrada y salida
+long_condition = close > ma and close > ma[1] and hl > ta.sma(hl, ma_length)
+short_condition = false // No operar en tendencia bajista
+exit_condition = low < close * exit_below_price
+
+// Entrada y salida de la estrategia
+if (long_condition)
+    strategy.entry("Buy", strategy.long)
+if (short_condition)
+    strategy.entry("Sell", strategy.short)
+if (exit_condition)
+    strategy.close("Buy")
+
+// Plot de señales en el gráfico
+plotshape(long_condition, style=shape.triangleup, location=location.belowbar, color=color.green, size=size.small, title="Buy Signal")
+plotshape(short_condition, style=shape.triangledown, location=location.abovebar, color=color.red, size=size.small, title="Sell Signal")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/443035
+
+> Last Modified
+
+2024-02-28 17:12:52

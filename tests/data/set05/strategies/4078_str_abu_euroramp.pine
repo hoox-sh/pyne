@@ -1,0 +1,25 @@
+//@version=4
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/ABUs Euroramp.pine
+// content_hash: c8c3fcf10a97adee
+// collected: 2026-07-27
+strategy("ABU Euroramp", overlay=true)
+//Chicago timezone 9am Europe / 3am EST
+if (hour == 2 and minute == 00)
+    strategy.entry("LE", strategy.long, comment="Long", qty = 2)
+    
+if (strategy.position_avg_price - 5 >= close)
+    strategy.exit("LE", comment = "Stop Loss", stop = strategy.position_avg_price - 5, qty_percent = 100)
+if (strategy.position_size == 2)
+    if (close - strategy.position_avg_price >= 3)
+        strategy.close("LE", comment="TP 1", qty_percent = 50)
+        strategy.exit("LE", comment = "Stop BE", stop = strategy.position_avg_price + 0.5)
+else
+    if (close - strategy.position_avg_price >= 10)
+        strategy.cancel("LE")
+        strategy.exit("LE", comment = "Trail Stop + 5", stop = strategy.position_avg_price + 5)
+    
+    if (hour == 15 and minute == 00)
+        strategy.close_all(comment="Close EOD")
+Expand (21 lines)

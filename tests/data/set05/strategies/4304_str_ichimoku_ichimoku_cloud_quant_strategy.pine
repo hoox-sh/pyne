@@ -1,0 +1,118 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/Ichimoku云图量化策略Ichimoku-Cloud-Quant-Strategy.md
+// content_hash: 70fed3a50888e7a0
+// collected: 2026-07-27
+
+strategy(title="Ichimoku only Long Strategy", shorttitle="Ichimoku only Long", overlay = true, pyramiding = 0, calc_on_order_fills = false, commission_type =  strategy.commission.percent, commission_value = 0, default_qty_type = strategy.percent_of_equity, default_qty_value = 100, initial_capital=10000, currency=currency.USD)
+
+// Time Range
+FromMonth=input(defval=1,title="FromMonth",minval=1,maxval=12)
+FromDay=input(defval=1,title="FromDay",minval=1,maxval=31)
+FromYear=input(defval=2017,title="FromYear",minval=2017)
+ToMonth=input(defval=1,title="ToMonth",minval=1,maxval=12)
+ToDay=input(defval=1,title="ToDay",minval=1,maxval=31)
+ToYear=input(defval=9999,title="ToYear",minval=2017)
+start=timestamp(FromYear,FromMonth,FromDay,00,00)
+finish=timestamp(ToYear,ToMonth,ToDay,23,59)
+window()=>true
+// See if this bar's time happened on/after start date
+afterStartDate = time >= start and time<=finish?true:false
+
+//Enable RSI
+enableema = input(true, title="Enable EMA?")
+enablestochrsi = input(false, title="Enable Stochastik RSI?")
+
+//EMA
+emasrc = close, 
+len1 = input(24, minval=1, title="EMA 1")
+len2 = input(90, minval=1, title="EMA 2")
+
+ema1 = ema(emasrc, len1)
+ema2 = ema(emasrc, len2)
+
+col1 = color.lime
+col2 = color.red
+
+//EMA Plots
+plot(ema1, title="EMA 1", linewidth=1, color=col1)
+plot(ema2, title="EMA 2", linewidth=1, color=col2)
+
+//STOCH RSI
+smoothK = input(3, minval=1, title="RSI K Line")
+smoothD = input(3, minval=1, title="RSI D Line")
+lengthRSI = input(14, minval=1, title="RSI Length")
+lengthStoch = input(14, minval=1, title="Stochastik Length")
+src = input(close, title="RSI Source")
+
+rsi1 = rsi(src, lengthRSI)
+k = sma(stoch(rsi1, rsi1, rsi1, lengthStoch), smoothK)
+d = sma(k, smoothD)
+
+//Ichimoku
+conversionPeriods = input(9, minval=1, title="Ichi Conversion Line Length")
+basePeriods = input(26, minval=1, title="Ichi Base Line Length")
+laggingSpan2Periods = input(52, minval=1, title="Ichi Lagging Span 2 Length")
+displacement = input(1, minval=0, title="Ichi Displacement")
+donchian(len) => avg(lowest(len), highest(len))
+conversionLine = donchian(conversionPeriods)
+baseLine = donchian(basePeriods)
+leadLine1 = avg(conversionLine, baseLine)
+leadLine2 = donchian(laggingSpan2Periods)
+p1 = plot(leadLine1, offset = displacement - 1, color=color.green,
+	 title="Lead 1")
+p2 = plot(leadLine2, offset = displacement - 1, color=color.red,
+	 title="Lead 2")
+fill(p1, p2, color = leadLine1 > leadLine2 ? color.green : color.red)
+
+
+//Long Condition
+crossup = k[0] > d[0] and k[1] <= d[1]
+ichigreenabovered = leadLine1 > leadLine2
+ichimokulong = close > leadLine1
+greencandle =  close > open
+redcandle = close < open
+emacond = ema1 > ema2
+longcondition = ichigreenabovered and ichimokulong and greencandle
+
+//Exit Condition
+ichimokuexit = close < leadLine1
+
+exitcondition = ichimokuexit and redcandle
+
+//Entrys
+
+if (enablestochrsi == false) and (enableema == false) and (longcondition) and (afterStartDate) and (strategy.opentrades < 1)
+    strategy.entry("Long", strategy.long)
+    
+if (enablestochrsi == true) and (enableema == false) and (longcondition) and (crossup) and (afterStartDate) and (strategy.opentrades < 1)
+    strategy.entry("Long", strategy.long)
+
+if (enableema == true) and (enablestochrsi == false) and (longcondition) and (emacond) and (afterStartDate) and (strategy.opentrades < 1)
+    strategy.entry("Long", strategy.long)
+
+if (enableema == true) and (enablestochrsi == true) and (longcondition) and (emacond) and (crossup) and (afterStartDate) and (strategy.opentrades < 1)
+    strategy.entry("Long", strategy.long)
+
+
+//Exits
+if (afterStartDate)
+    strategy.close(id = "Long", when = exitcondition)
+
+
+
+
+
+
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/433068
+
+> Last Modified
+
+2023-11-24 10:15:15

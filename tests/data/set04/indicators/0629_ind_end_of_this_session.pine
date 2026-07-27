@@ -1,0 +1,24 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/concepts/sessions.md::sessions.md#block4
+// content_hash: 842bcadb8f8ebeda
+// collected: 2026-07-27
+indicator("End of this session", overlay = true)
+
+//@variable The session to check for. It applies every day of the week.
+string sessionInput = input.session("0900-1700:1234567", "Session")
+
+if barstate.islast
+    bool isInSession = not na(time(timeframe.period, sessionInput))
+    //@variable A UNIX timestamp for the closing time of the final bar in the active session, used to position the label. 
+    //  If session is not active, then the `time_close` of the current bar anchors the label instead.
+    var int sessionEndTime = time_close
+
+    // If the current bar is in the session, search forwards for the end of the session.
+    if isInSession
+        for i = 1 to 499
+            // Check closing time of the next future bar, using dynamic `bars_back` argument.
+            //@variable On each loop iteration, holds the closing time of the next future bar, to test if `na`.
+            int futureBarCloseTime = time_close(timeframe.period, sessionInput, bars_back = -i)
+            if na(futureBarCloseTime)

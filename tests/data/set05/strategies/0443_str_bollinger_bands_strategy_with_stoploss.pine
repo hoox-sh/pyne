@@ -1,0 +1,40 @@
+//@version=5
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/Bollinger Bands Strategy with StopLoss.pine
+// content_hash: f632782f339e05f9
+// collected: 2026-07-27
+strategy(title="Bollinger Bands Strategy With StopLoss", overlay=false, shorttitle="BBS", pyramiding=0, currency=currency.USD, commission_type=strategy.commission.percent, commission_value=0.03, initial_capital=1000)
+source = input(close, "Source")
+length = input.int(20, minval=1)
+mult = input.float(2.0, minval=0.001, maxval=50, step=0.001)
+stopLossFactor = input.float(1, "Stop Loss Percent", maxval = 100, minval = 0, step=0.1)
+basis = ta.sma(source, length)
+dev = mult * ta.stdev(source, length)
+upper = basis + dev
+lower = basis - dev
+var bool currentIsLong = na
+var bool nextExpectedIsLong = true
+buyEntry = ta.crossover(source, lower)
+sellEntry = ta.crossunder(source, upper)
+if (buyEntry and nextExpectedIsLong == true)
+    strategy.entry("BBandLE", strategy.long, comment="BBandLE")
+    nextExpectedIsLong := false
+else
+    strategy.cancel("BBandLE")
+if (sellEntry and nextExpectedIsLong == false)
+    strategy.entry("BBandSE", strategy.short, comment="BBandSE")
+    nextExpectedIsLong := true
+else
+    strategy.cancel("BBandSE")
+strategy.close("BBandLE", close < strategy.opentrades.entry_price(0) * (1 - (stopLossFactor / 100)))
+strategy.close("BBandSE", close > strategy.opentrades.entry_price(0) * (1 + (stopLossFactor / 100)))
+plot(source, "close", color.blue)
+plot(lower, "lower", color.red)
+plot(upper, "upper", color.red)
+plot(strategy.opentrades.entry_price(0), "lastTradePrice", color.green)
+plot(strategy.opentrades.entry_price(0) * (1 - (stopLossFactor / 100)), "stopLossLow", color.black)
+plot(strategy.opentrades.entry_price(0) * (1 + (stopLossFactor / 100)), "stopLossHigh", color.black)
+plotchar(strategy.position_size > 0, "OpenLongStatus", char="-", size=size.tiny, location=location.bottom, color=color.green)
+plotchar(strategy.position_size < 0, "",char="-", size=size.tiny, location=location.bottom, color=color.red)
+Expand (71 lines)

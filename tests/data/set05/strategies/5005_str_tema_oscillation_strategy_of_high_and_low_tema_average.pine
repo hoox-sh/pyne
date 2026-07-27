@@ -1,0 +1,69 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/高低TEMA平均值震荡策略Oscillation-Strategy-of-High-and-Low-TEMA-Average.md
+// content_hash: c75da788a5b161b6
+// collected: 2026-07-27
+strategy(title="TEMA_HMA_VWMACD short strategy", shorttitle="Short strategy", overlay=false, default_qty_type=strategy.percent_of_equity, default_qty_value=100, commission_type=strategy.commission.percent, commission_value=0.018, currency='USD')
+startP = timestamp(input(2017, "Start Year"), input(12, "Month"), input(17, "Day"), 0, 0)
+end   = timestamp(9999,1,1,0,0)
+_testPeriod() =>
+    iff(time >= startP and time <= end, true, false)
+    
+
+slow = input(13, "Short period")
+fast = input(21, "Long period")
+signal = input(5, "Smoothing period")
+
+Fast = ema( volume * close, fast ) / ema( volume, fast ) 
+Slow = ema( volume * close, slow ) / ema( volume, slow ) 
+Macd = Slow - Fast 
+Signal = ema(Macd, signal) 
+Hist=Macd-Signal
+plot(Hist, color=color.silver, linewidth=1, style=plot.style_histogram)
+plot(0, color=color.red)
+
+length = input(400, minval=1, title = "HMA")
+hullma = wma(2*wma(close, length/2)-wma(close, length), floor(sqrt(length)))
+
+tema_length_1 = input(5, "Fast moving TEMA")
+tema_length_2 = input(8, "Slow moving TEMA")
+
+
+tema(sec, length)=>
+    tema1= ema(sec, length)
+    tema2= ema(tema1, length)
+    tema3= ema(tema2, length)
+    tema = 3*tema1-3*tema2+tema3
+
+tema1 = tema(hlc3, tema_length_1)
+tema2 = tema(hlc3, tema_length_2)
+
+threshold  = 0
+tm = tema1 - tema2
+plot_fast = plot(tm, color = tm > 0 ? color.green : color.red)
+plot(threshold, color=color.purple)
+
+up =  crossover(tm, 0) 
+down = crossunder(tm, 0)
+
+longCondition =  (Hist < 0) and hullma > close and (tema1 < tema2)  and _testPeriod() 
+strategy.entry('BUY', strategy.short, when=longCondition)  
+ 
+shortCondition =  (Hist > 0) or hullma < close or up
+strategy.close('BUY', when=shortCondition)
+
+
+// Take profit  
+tp = input(1, type=input.float, title='Take Profit (%)')  
+sl = input(4, type=input.float, title='Stop Loss (%)')  
+strategy.exit('XLong', from_entry='BUY', profit=(close * (tp/100) * (1/syminfo.mintick)), loss=(close * (sl/100) * (1/syminfo.mintick)))
+```
+
+> Detail
+
+https://www.fmz.com/strategy/432239
+
+> Last Modified
+
+2023-11-15 17:49:52

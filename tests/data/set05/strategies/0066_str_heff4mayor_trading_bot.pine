@@ -1,0 +1,103 @@
+//@version=5
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/HEFF4MAYOR TRADING BOT.pine
+// content_hash: 821db24fa215c058
+// collected: 2026-07-27
+strategy("HEFF4MAYOR TRADING BOT", overlay=true, max_lines_count=500)
+length = input(14, 'Pivot Lookback')
+sma_length = input(20, "SMA Length")
+ema_length = input(50, "EMA Length")
+incr = input.float(100, 'Increment Factor %', minval=0)
+resetOn = input('CHoCH', 'Reset Stop On')
+showMS = input(true, "Show Structures")
+riskPercentage = input.float(50, "Risk Percentage (%)", minval=1, maxval=100)
+accountBalance = 1000
+bullCss = color.teal
+bearCss = color.red
+retCss = #ff5d00
+areaTransp = input.int(80, 'Area Transparency', minval=0, maxval=100)
+signalColor = color.purple
+signalSize = 3
+var float ph_y = na, var int ph_x = na
+var float pl_y = na, var int pl_x = na
+var float top = na, var float btm = na
+var ph_cross = false, var pl_cross = false
+var float max = na
+var float min = na
+var float ts_buy = na
+var float ts_sell = na
+var os = 0
+ms = 0
+n = bar_index
+ph = ta.pivothigh(length, length)
+pl = ta.pivotlow(length, length)
+sma = ta.sma(close, sma_length)
+ema = ta.ema(close, ema_length)
+if ph and close > sma and close > ema
+    ph_y := ph
+    ph_x := n - length
+    ph_cross := false
+if pl and close < sma and close < ema
+    pl_y := pl
+    pl_x := n - length
+    pl_cross := false
+if close > ph_y and not ph_cross and strategy.position_size <= 0
+    if resetOn == 'CHoCH'
+        ms := os == -1 ? 1 : 0
+    else
+        ms := 1
+    ph_cross := true
+    if showMS
+        line.new(ph_x, ph_y, n, ph_y, color=bullCss, style=os == -1 ? line.style_dashed : line.style_dotted)
+    os := 1
+    btm := low
+    for i = 0 to (n - ph_x) - 1
+        btm := math.min(low[i], btm)
+    // Calculate position size based on risk percentage
+    riskAmount = accountBalance * riskPercentage / 100
+    positionSize = riskAmount / math.abs(close - btm)
+    strategy.entry("Buy", strategy.long, qty=positionSize)
+    strategy.exit("TP Long", "Buy", limit=close + math.abs(close - btm)) // Take profit for Buy
+    ts_buy := btm
+if close < pl_y and not pl_cross and strategy.position_size >= 0
+    if resetOn == 'CHoCH'
+        ms := os == 1 ? -1 : 0
+    else
+        ms := -1
+    pl_cross := true
+    if showMS
+        line.new(pl_x, pl_y, n, pl_y, color=bearCss, style=os == 1 ? line.style_dashed : line.style_dotted)
+    os := -1
+    top := high
+    for i = 0 to (n - pl_x) - 1
+        top := math.max(high[i], top)
+    // Calculate position size based on risk percentage
+    riskAmount = accountBalance * riskPercentage / 100
+    positionSize = riskAmount / math.abs(close - top)
+    strategy.entry("Sell", strategy.short, qty=positionSize)
+    strategy.exit("TP Short", "Sell", limit=close - math.abs(close - top)) // Take profit for Sell
+    ts_sell := top
+if ms == 1
+    max := close
+else if ms == -1
+    min := close
+else
+    max := math.max(close, max)
+    min := math.min(close, min)
+ts = 0.0
+ts := ms == 1 ? ts_buy :
+      ms == -1 ? ts_sell :
+      os == 1 ? ts + (high - high[1]) * incr / 100 :
+      ts + (low - low[1]) * incr / 100
+css = ms ? na :
+      os == 1 ? bullCss :
+      bearCss
+plot_price = plot(close, editable=false, display=display.none)
+plot_ts = plot(ts, 'Trailing Stop', color=css)
+css_area = (close - ts) * os < 0 ? retCss :
+           css
+fill(plot_price, plot_ts, color.new(css_area, areaTransp))
+risk = math.abs(strategy.position_avg_price - ts)
+label.new(bar_index, ts, "Risk: " + str.tostring(risk), xloc=xloc.bar_index, yloc=yloc.price, color=color.yellow, textcolor=color.black)
+Expand (133 lines)

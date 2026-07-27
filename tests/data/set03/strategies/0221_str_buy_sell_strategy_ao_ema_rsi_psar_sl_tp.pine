@@ -1,0 +1,71 @@
+//@version=6
+// set03 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多时间框架EMA-RSI-AO-PSAR动态止盈止损策略-Multi-Timeframe-EMA-RSI-AO-PSAR-Dynamic-Stop-Loss-and-Take-Profit-Strategy.md
+// content_hash: 82ab412f36a6e728
+// collected: 2026-07-27
+strategy("Buy/Sell Strategy AO EMA RSI PSAR SL/TP", overlay=true)
+
+// Input parameters for custom timeframes
+aoTF = input.timeframe("5", title="AO Timeframe")
+emaTF = input.timeframe("60", title="EMA 100 TF")
+rsiTF = input.timeframe("15", title="RSI Timeframe")
+psarTF = input.timeframe("60", title="PSAR Timeframe")
+
+// Input parameters for custom periods
+aoPeriod = input.int(34, minval=1, title="AO Period")
+emaPeriod = input.int(100, minval=1, title="EMA Period")
+rsiPeriod = input.int(14, minval=1, title="RSI Period")
+psarStart = input.float(0.02, title="PSAR Start")
+psarInc = input.float(0.02, title="PSAR Increment")
+psarMax = input.float(0.2, title="PSAR Max")
+
+// Indicator calculations with custom timeframes and periods
+ao = request.security(syminfo.tickerid, aoTF, ta.sma(close, aoPeriod) - ta.sma(close, aoPeriod * 2))
+ema100 = request.security(syminfo.tickerid, emaTF, ta.ema(close, emaPeriod))
+rsi = request.security(syminfo.tickerid, rsiTF, ta.rsi(close, rsiPeriod))
+psar = request.security(syminfo.tickerid, psarTF, ta.sar(psarStart, psarInc, psarMax))
+
+// Buy signal condition: Price must be above EMA, and other conditions must be met
+buyCond = ta.crossover(ao[1], 0) and ao > 0 and close > ema100 and rsi >= 50
+
+// Sell signal condition: Price must be below EMA, and other conditions must be met
+sellCond = ta.crossunder(ao[1], 0) and ao < 0 and close < ema100 and rsi <= 50
+
+// Calculate stop loss and take profit levels
+stopLossLevel = psar
+takeProfitLevel = close + 2 * (close - stopLossLevel) // Take profit is twice the size of the stop loss
+
+// Strategy entries and exits with stop loss and take profit
+if (buyCond)
+    strategy.entry("Buy", strategy.long, stop=stopLossLevel, limit=takeProfitLevel)
+
+if (sellCond)
+    strategy.exit("Sell", from_entry="Buy", stop=stopLossLevel, limit=takeProfitLevel)
+
+// Plotting the EMA100 for visual reference
+plot(ema100, title="EMA 100", color=color.blue)
+
+// Plot Awesome Oscillator (AO) in its own subplot
+plot(ao, title="AO", color=color.red, linewidth=2, style=plot.style_histogram)
+hline(0, title="AO Zero Line", color=color.gray)
+
+// Plot RSI in its own subplot
+plot(rsi, title="RSI", color=color.blue, linewidth=2)
+hline(50, title="RSI 50", color=color.gray)
+hline(70, title="RSI 70", color=color.red)
+hline(30, title="RSI 30", color=color.green)
+
+// Plot Parabolic SAR (PSAR) on the main chart
+plot(psar, title="PSAR", color=color.purple, style=plot.style_cross, linewidth=2)
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/489057
+
+> Last Modified
+
+2025-04-01 17:03:22

@@ -1,0 +1,60 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/高频量化交易中的趋势匹配与退出优化策略-High-Frequency-Quantitative-Trading-Strategy-with-Trend-Matching-and-Exit-Optimization.md
+// content_hash: cfefeeb77b32a521
+// collected: 2026-07-27
+strategy("Intraday + 1-Hour Trend Match", overlay=true)
+
+// Inputs
+emaLength3Min = input.int(50, title="EMA Length (3-Min)")
+emaLength1Hr = input.int(50, title="EMA Length (1-Hour)")
+volumeMultiplier = input.float(1.5, title="Volume Spike Multiplier")
+
+// Intraday (3-Minute) EMA and Volume Spike
+ema3Min = ta.ema(close, emaLength3Min)
+volumeSMA = ta.sma(volume, 20)
+isVolumeSpike = volume > (volumeSMA * volumeMultiplier)
+
+// 1-Hour Trend (EMA)
+ema1Hr = request.security(syminfo.tickerid, "60", ta.ema(close, emaLength1Hr))
+is1HrUptrend = close > ema1Hr
+
+// Intraday Signal
+buyCondition3Min = close > ema3Min and isVolumeSpike
+
+// Combined Signal: Match 3-Min Signal with 1-Hour Trend
+finalBuyCondition = buyCondition3Min and is1HrUptrend
+
+// All-Day High Tracking
+var float allDayHigh = na
+if (hour == 9 and minute == 0)
+    allDayHigh := high // Reset the all-day high at market open
+else
+    allDayHigh := math.max(allDayHigh, high) // Update all-day high
+
+// Debugging Plots
+plot(ema3Min, color=color.blue, title="EMA 3-Min")
+plot(ema1Hr, color=color.orange, title="EMA 1-Hour")
+plotshape(isVolumeSpike, style=shape.circle, color=color.blue, title="Volume Spike (3-Min)")
+plotshape(finalBuyCondition, style=shape.triangleup, color=color.green, title="Buy Signal")
+plot(allDayHigh, color=color.red, title="All-Day High", linewidth=2)
+
+// Strategy Execution
+if (finalBuyCondition)
+    strategy.entry("Buy Signal", strategy.long)
+
+// Exit Conditions
+exitCondition = (close == allDayHigh) or (hour == 15 and minute >= 0)
+if (exitCondition)
+    strategy.close("Buy Signal")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/482423
+
+> Last Modified
+
+2025-02-18 13:44:12

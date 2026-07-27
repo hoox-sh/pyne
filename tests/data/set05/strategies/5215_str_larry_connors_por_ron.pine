@@ -1,0 +1,56 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于复合突破策略The-Compound-Breakout-Strategy.md
+// content_hash: 77405a66ec72212f
+// collected: 2026-07-27
+strategy("Larry Connors por RON", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=100)
+
+value1 = input(7, title="Quantity of day low")
+value2 = input(7, title="Quantity of day high")
+entry = lowest(close[1], value1)
+exit = highest(close[1], value2)
+
+lengthMMA = input(200, title="Length of SMA", minval=1)
+mma = sma(close, lengthMMA)
+
+// Calcular el mínimo de los precios bajos de las últimas 'value1' velas
+minLow = lowest(low, value1)
+
+// Calcular el máximo de los precios altos de las últimas 'value2' velas
+maxHigh = highest(high, value2)
+
+// Test Period
+testStartYear = input(2009, "Backtest Start Year")
+testStartMonth = input(1, "Backtest Start Month")
+testStartDay = input(2, "Backtest Start Day")
+testPeriodStart = timestamp(testStartYear, testStartMonth, testStartDay, 0, 0)
+
+testStopYear = input(2020, "Backtest Stop Year")
+testStopMonth = input(12, "Backtest Stop Month")
+testStopDay = input(30, "Backtest Stop Day")
+testPeriodStop = timestamp(testStopYear, testStopMonth, testStopDay, 0, 0)
+
+testPeriod() => true
+
+if testPeriod()
+    // Condiciones de entrada
+    conditionMet = (close > mma) and (close < entry) and (low == minLow)
+    strategy.entry("Buy", strategy.long, when=conditionMet)
+    
+    if conditionMet
+        label.new(bar_index, entry, text="↑", style=label.style_arrowup, color=color.green, size=size.small, yloc=yloc.belowbar)
+    
+    // Condiciones de salida
+    conditionExit = close > exit or close > maxHigh
+    strategy.close("Buy", when=conditionExit)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/443125
+
+> Last Modified
+
+2024-02-29 14:07:54

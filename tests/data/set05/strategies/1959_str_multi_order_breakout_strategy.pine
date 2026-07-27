@@ -1,0 +1,66 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多重订单突破趋势跟踪策略-Multi-Order-Breakout-Trend-Following-Strategy.md
+// content_hash: aafd0addb708661f
+// collected: 2026-07-27
+strategy("Multi-Order Breakout Strategy", overlay=true)
+
+// Parameters
+risk_per_trade = input.float(1.0, "Risk Per Trade")
+lookback = input(20, "Lookback Period")
+breakout_mult = input.float(2.0, "Breakout Multiplier")
+stop_loss_percent = input.float(2.0, "Stop Loss Percentage")
+max_positions = input(5, "Maximum Open Positions")
+atr_period = input(14, "ATR Period")
+ma_len = input(100, "MA Length")
+
+// Calculate Bollinger Bands and other indicators
+[middle, upper, lower] = ta.bb(close, lookback, breakout_mult)
+atr = ta.atr(atr_period)
+sar = ta.sar(0.02, 0.02, 0.2)
+
+ma = ta.ema(close, ma_len)
+plot(ma, color=color.white)
+
+// Entry conditions
+long_condition = close > upper and close > sar and close > ma
+
+// Exit conditions
+exit_condition = ta.crossunder(close, middle) or ta.crossunder(close, sar)
+
+// Count open positions
+var open_positions = 0
+
+// Dynamic position sizing
+position_size = (strategy.equity * risk_per_trade/100) / (close * stop_loss_percent / 100)
+
+
+// Strategy execution
+if (long_condition and open_positions < max_positions and atr > ta.sma(atr, 100) and position_size > 0)
+    strategy.entry("Long " + str.tostring(open_positions + 1), strategy.long, qty=position_size)
+    open_positions := open_positions + 1
+
+// Apply fixed stop loss to each position
+for i = 1 to max_positions
+    strategy.exit("SL " + str.tostring(i), "Long " + str.tostring(i), stop=strategy.position_avg_price * (1 - stop_loss_percent/100))
+
+// Close all positions on exit condition
+if (exit_condition and open_positions > 0)
+    strategy.close_all()
+    open_positions := 0
+
+// Plot
+plot(upper, "Upper BB", color.blue)
+plot(lower, "Lower BB", color.blue)
+plot(middle, "Middle BB", color.orange)
+plot(sar, "SAR", color.purple, style=plot.style_cross)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/458200
+
+> Last Modified
+
+2024-07-30 17:18:11

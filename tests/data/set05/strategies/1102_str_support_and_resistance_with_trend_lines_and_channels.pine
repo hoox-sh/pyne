@@ -1,0 +1,99 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/自适应通道突破策略与动态支阻位交易系统-Adaptive-Channel-Breakout-Strategy-with-Dynamic-Support-and-Resistance-Trading-System.md
+// content_hash: b8f6ed704014ac77
+// collected: 2026-07-27
+strategy("Support and Resistance with Trend Lines and Channels", overlay=true)
+
+// Inputs
+lookback = input.int(20, title="Lookback Period for Support/Resistance", minval=1)
+channelWidth = input.float(0.01, title="Channel Width (%)", minval=0.001) / 100
+startDate = input(timestamp("2023-01-01 00:00"), title="Backtesting Start Date")
+endDate = input(timestamp("2023-12-31 23:59"), title="Backtesting End Date")
+
+// Check if the current bar is within the testing range
+inTestingRange = true
+
+// Support and Resistance Levels
+supportLevel = ta.lowest(low, lookback)  // Swing low (support)
+resistanceLevel = ta.highest(high, lookback)  // Swing high (resistance)
+
+// Trend Lines and Channels
+var line supportLine = na
+var line resistanceLine = na
+var line upperChannelLine = na
+var line lowerChannelLine = na
+
+// Calculate channel levels
+upperChannel = resistanceLevel * (1 + channelWidth)  // Upper edge of channel
+lowerChannel = supportLevel * (1 - channelWidth)  // Lower edge of channel
+
+// Create or update the support trend line
+// if na(supportLine)
+//     supportLine := line.new(bar_index, supportLevel, bar_index + 1, supportLevel, color=color.green, width=2, extend=extend.right)
+// else
+//     line.set_y1(supportLine, supportLevel)
+//     line.set_y2(supportLine, supportLevel)
+
+// // Create or update the resistance trend line
+// if na(resistanceLine)
+//     resistanceLine := line.new(bar_index, resistanceLevel, bar_index + 1, resistanceLevel, color=color.red, width=2, extend=extend.right)
+// else
+//     line.set_y1(resistanceLine, resistanceLevel)
+//     line.set_y2(resistanceLine, resistanceLevel)
+
+// // Create or update the upper channel line
+// if na(upperChannelLine)
+//     upperChannelLine := line.new(bar_index, upperChannel, bar_index + 1, upperChannel, color=color.blue, width=1, style=line.style_dashed, extend=extend.right)
+// else
+//     line.set_y1(upperChannelLine, upperChannel)
+//     line.set_y2(upperChannelLine, upperChannel)
+
+// // Create or update the lower channel line
+// if na(lowerChannelLine)
+//     lowerChannelLine := line.new(bar_index, lowerChannel, bar_index + 1, lowerChannel, color=color.purple, width=1, style=line.style_dashed, extend=extend.right)
+// else
+//     line.set_y1(lowerChannelLine, lowerChannel)
+//     line.set_y2(lowerChannelLine, lowerChannel)
+
+// Buy Condition: When price is near support level
+buyCondition = close <= supportLevel * 1.01 and inTestingRange
+if buyCondition
+    strategy.entry("Buy", strategy.long)
+
+// Stop Loss and Take Profit
+stopLossPercentage = input.float(1.5, title="Stop Loss Percentage", minval=0.0) / 100
+takeProfitPercentage = input.float(3.0, title="Take Profit Percentage", minval=0.0) / 100
+
+var float longStopLoss = na
+var float longTakeProfit = na
+if strategy.position_size > 0
+    longStopLoss := strategy.position_avg_price * (1 - stopLossPercentage)
+    longTakeProfit := strategy.position_avg_price * (1 + takeProfitPercentage)
+    strategy.exit("Exit Buy", "Buy", stop=longStopLoss, limit=longTakeProfit)
+
+// Visualize Entry, Stop Loss, and Take Profit Levels
+var float entryPrice = na
+if buyCondition
+    entryPrice := close
+if not na(entryPrice)
+    label.new(bar_index, entryPrice, text="Entry: " + str.tostring(entryPrice, "#.##"), style=label.style_label_up, color=color.green, textcolor=color.white)
+
+if strategy.position_size > 0
+    line.new(bar_index, longStopLoss, bar_index + 1, longStopLoss, color=color.red, width=1, extend=extend.right)
+    line.new(bar_index, longTakeProfit, bar_index + 1, longTakeProfit, color=color.blue, width=1, extend=extend.right)
+
+// Risk-to-Reward Ratio (Optional)
+if not na(entryPrice) and not na(longStopLoss) and not na(longTakeProfit)
+    riskToReward = (longTakeProfit - entryPrice) / (entryPrice - longStopLoss)
+    label.new(bar_index, entryPrice, text="R:R " + str.tostring(riskToReward, "#.##"), style=label.style_label_up, color=color.yellow, textcolor=color.black, size=size.small)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/477528
+
+> Last Modified
+
+2025-01-06 11:40:35

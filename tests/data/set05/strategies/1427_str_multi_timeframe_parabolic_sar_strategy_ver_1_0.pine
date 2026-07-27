@@ -1,0 +1,83 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多时间框架抛物线SAR动态趋势跟踪量化策略-Multi-Timeframe-Parabolic-SAR-Dynamic-Trend-Following-Quantitative-Strategy.md
+// content_hash: 1e452335467f9097
+// collected: 2026-07-27
+strategy("Multi-Timeframe Parabolic SAR Strategy ver 1.0", overlay=true, shorttitle="MTF PSAR Strategy ver 1.0")
+
+// --- Input Settings ---
+
+// PSAR Settings
+start = input.float(0.02, title="Start", minval=0.001)
+increment = input.float(0.02, title="Increment", minval=0.001)
+maximum = input.float(0.2, title="Maximum", maxval=1)
+
+// Multi-Timeframe Settings
+higherTimeframe = input.timeframe("D", title="Higher Timeframe PSAR")
+showCurrentTF = input.bool(true, title="Show Current Timeframe PSAR")
+showHigherTF = input.bool(true, title="Show Higher Timeframe PSAR")
+
+// Color Settings
+currentTFColor = input.color(color.blue, title="Current TF PSAR Color")
+higherTFColor = input.color(color.orange, title="Higher TF PSAR Color")
+
+
+// --- PSAR Calculations ---
+
+// Current Timeframe PSAR
+currentPSAR = ta.sar(start, increment, maximum)
+
+// Higher Timeframe PSAR
+higherPSAR = request.security(syminfo.tickerid, higherTimeframe, ta.sar(start, increment, maximum), lookahead=barmerge.lookahead_off)
+
+
+// --- Plotting ---
+plot(showCurrentTF ? currentPSAR : na, style=plot.style_circles, color=currentTFColor, linewidth=2)
+plot(showHigherTF ? higherPSAR : na, style=plot.style_circles, color=higherTFColor, linewidth=2)
+
+
+// --- Strategy Logic ---
+
+// Determine Trend Direction based on PSAR
+currentTrend = close > currentPSAR ? 1 : -1
+higherTrend = close > higherPSAR ? 1 : -1  //compare to close of current timeframe
+
+// Entry Conditions
+longCondition = showCurrentTF and showHigherTF and currentTrend == 1 and higherTrend == 1 and currentTrend[1] == -1  //Both bullish and Current flipped
+shortCondition = showCurrentTF and showHigherTF and currentTrend == -1 and higherTrend == -1 and currentTrend[1] == 1 //Both bearish and Current flipped
+
+longConditionSingleTF = showCurrentTF and not showHigherTF and currentTrend == 1 and currentTrend[1] == -1  // Current TF bullish, HTF disabled
+shortConditionSingleTF = showCurrentTF and not showHigherTF and currentTrend == -1 and currentTrend[1] == 1  // Current TF bearish, HTF disabled
+
+longConditionHTFOnly =  not showCurrentTF and showHigherTF and higherTrend == 1 and higherTrend[1] == -1
+shortConditionHTFOnly = not showCurrentTF and showHigherTF and higherTrend == -1 and higherTrend[1] == 1
+
+// Exit Conditions (Trailing Stop using Current Timeframe PSAR)
+longExitCondition = showCurrentTF ? currentTrend == -1 : false
+shortExitCondition = showCurrentTF ? currentTrend == 1 : false
+
+longExitConditionHTF = showHigherTF ? higherTrend == -1 : false
+shortExitConditionHTF = showHigherTF ? higherTrend == 1: false
+// --- Strategy Orders ---
+
+if (longCondition or longConditionSingleTF or longConditionHTFOnly)
+    strategy.entry("Long", strategy.long)
+
+if (shortCondition or shortConditionSingleTF or shortConditionHTFOnly)
+    strategy.entry("Short", strategy.short)
+    
+if (longExitCondition or longExitConditionHTF)
+    strategy.close("Long", comment="PSAR Exit") // Close long position when PSAR flips
+
+if (shortExitCondition or shortExitConditionHTF)
+    strategy.close("Short", comment="PSAR Exit") // Close short position when PSAR flips
+```
+
+> Detail
+
+https://www.fmz.com/strategy/488134
+
+> Last Modified
+
+2025-03-25 13:22:41

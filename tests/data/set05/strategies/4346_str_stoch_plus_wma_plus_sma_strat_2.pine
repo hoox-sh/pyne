@@ -1,0 +1,114 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于RSI和平均线的多时间框架交易策略Multi-timeframe-RSI-and-Moving-Average-Trading-Strategy.md
+// content_hash: 6a3362aa41a32b63
+// collected: 2026-07-27
+strategy("Stoch + WMA + SMA strat", overlay=true)
+
+//SL & TP Inputs
+i_SL=input(true, title="Use Swing Lo/Hi Stop Loss & Take Profit")
+i_SwingLookback=input(20, title="Swing Lo/Hi Lookback")
+i_SLExpander=input(defval=10, step=1, title="SL Expander")
+i_TPExpander=input(defval=30, step=1, title="TP Expander")
+i_reverse=input(false, title="Reverse Trades")
+i_TStop =input(false, title="Use Trailing Stop")
+
+//Strategy Inputs
+src4 = input(close, title="RSI Source")
+stochOS=input(defval=20, step=5, title="Stochastics Oversold Level")
+stochOB=input(defval=80, step=5, title="Stochastics Overbought Level")
+
+//Stoch rsi Calculations
+smoothK = input(3, minval=1)
+smoothD = input(3, minval=1)
+lengthRSI = input(14, minval=1)
+lengthStoch = input(14, minval=1)
+rsi1 = rsi(src4, lengthRSI)
+k = sma(stoch(rsi1, rsi1, rsi1, lengthStoch), smoothK)
+d = sma(k, smoothD)
+h0 = hline(80, linestyle=hline.style_dotted)
+h1 = hline(20, linestyle=hline.style_dotted)
+
+//MA
+wmalen=input(defval=144, title="WMA Length")
+WMA = security(syminfo.tickerid, "60", wma(close, wmalen))
+SMA = security(syminfo.tickerid, "60", sma(close, 5))
+minWMA = wma(close, wmalen)
+minSMA = sma(close, 5)
+
+//Entry Logic
+stobuy = crossover(k, d) and k < stochOS
+stosell = crossunder(k, d) and k > stochOB
+mabuy = minSMA > minWMA
+daymabuy = SMA > WMA
+
+//SL & TP Calculations
+SwingLow=lowest(i_SwingLookback)
+SwingHigh=highest(i_SwingLookback)
+bought=strategy.position_size != strategy.position_size[1]
+LSL=valuewhen(bought, SwingLow, 0)-((valuewhen(bought, atr(14), 0)/5)*i_SLExpander)
+SSL=valuewhen(bought, SwingHigh, 0)+((valuewhen(bought, atr(14), 0)/5)*i_SLExpander)
+lTP=(strategy.position_avg_price + (strategy.position_avg_price-(valuewhen(bought, SwingLow, 0)))+((valuewhen(bought, atr(14), 0)/5)*i_TPExpander))
+sTP=(strategy.position_avg_price - (valuewhen(bought, SwingHigh, 0) - strategy.position_avg_price))-((valuewhen(bought, atr(14), 0)/5)*i_TPExpander)
+islong=strategy.position_size > 0
+isshort=strategy.position_size < 0
+
+//TrailingStop
+dif=(valuewhen(strategy.position_size>0 and strategy.position_size[1]<=0, high,0))
+ -strategy.position_avg_price
+trailOffset     = strategy.position_avg_price - LSL
+var tstop = float(na)
+if strategy.position_size > 0
+    tstop := high- trailOffset - dif
+    if tstop<tstop[1]
+        tstop:=tstop[1]
+else
+    tstop := na
+StrailOffset     = SSL - strategy.position_avg_price
+var Ststop = float(na)
+Sdif=strategy.position_avg_price-(valuewhen(strategy.position_size<0 
+ and strategy.position_size[1]>=0, low,0))
+if strategy.position_size < 0
+    Ststop := low+ StrailOffset + Sdif
+    if Ststop>Ststop[1]
+        Ststop:=Ststop[1]
+else
+    Ststop := na
+    
+//Stop Selector
+SL= islong ? LSL : isshort ? SSL : na
+if i_TStop 
+    SL:= islong ? tstop : isshort ? Ststop : na
+TP= islong ? lTP : isshort ? sTP : na
+
+
+//Entries
+if stobuy and mabuy and daymabuy
+    strategy.entry("long", long=not i_reverse?true:false)
+if stosell and not mabuy and not daymabuy
+    strategy.entry("short", long=not i_reverse?false:true)
+
+
+//Exit
+if i_SL
+    strategy.exit("longexit", "long", stop=SL, limit=TP)
+    strategy.exit("shortexit", "short", stop=SL, limit=TP)
+
+//Plots
+plot(i_SL ? SL : na, color=color.red, style=plot.style_cross)
+plot(i_SL ? TP : na, color=color.green, style=plot.style_cross)
+plot(minWMA)
+plot(minSMA, color=color.green)
+
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/439611
+
+> Last Modified
+
+2024-01-22 11:00:20

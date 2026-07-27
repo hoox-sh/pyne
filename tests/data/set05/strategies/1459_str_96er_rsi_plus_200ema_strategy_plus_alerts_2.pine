@@ -1,0 +1,81 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/移动平均线结合的高效量化交易策略The-Efficient-Quant-Trading-Strategy-Combining.md
+// content_hash: b5323b72ac6ef31d
+// collected: 2026-07-27
+strategy("96er RSI+200EMA Strategy + Alerts", overlay=true)
+// This works best on a small account $100, with 50% of equity and up to 10 max open trades. 
+// 96% Profitable, turns $100 into $350 in 1 month. very few losses. super happy with it.
+// So far it triples the account on a 1m chart in 1 month back testing on the SEI-USD pair.
+// I did not test on FX pairs or other instruments.
+// had some issues with the inputs not working so had to hard code some, also the lastClose var sometimes breaks and starts following every candle, not sure why.
+
+in_r1 = input.int(5,"5 day input or RSI1")
+in_openOrders = input.int(3,"max open orders")
+
+in_lowerRSI = input.int(30,"RSI Lower")
+in_upperRSI = input.int(72,"RSI Upper ")
+
+in_emaperiod = input.int(200,"EMA Period")
+
+in_buybreakout = input.int(50,"Buy breakout range")
+
+in_buyTP = input.float(1.05,"Buy TP: 1+TP %, .05 seems to work well.")
+in_sellTP = input.float(0.9850, "Sell TP: 1-TP%. .025 seems to work well. ")
+
+simple int rsi5 = in_r1
+
+// 3 rsi strategy , when all of them are overbought we sell, and vice versa
+rsi7 = ta.rsi(close,rsi5)
+lastClose = request.security(syminfo.tickerid, "D", close, lookahead = barmerge.lookahead_on)
+rsi3 = ta.rsi(close[5],rsi5)
+
+ma = ta.ema(close,in_emaperiod)
+
+plot(rsi7,"5 Day RSI",color.red)
+plot(lastClose,"Yesterdays Close",color.green)
+plot(rsi3,"Previous 5th candles RSI",color.purple)
+
+
+// sell condition
+//sell = ta.crossunder(rsi7,70) and ta.crossunder(rsi14,70) and ta.crossunder(rsi21,70)
+
+//buy condition
+//buy = ta.crossover(rsi7,in_lowerRSI) and close < ma and rsi3 <= in_upperRSI and strategy.opentrades < in_openOrders
+//sell = ta.crossunder(rsi7,in_upperRSI) and close > ma and rsi3 >= in_lowerRSI3 and strategy.opentrades < in_openOrders
+
+buy = ta.crossover(rsi7,in_lowerRSI) and close < ma and close < lastClose and strategy.opentrades < in_openOrders
+sell = ta.crossunder(rsi7,in_upperRSI) and close > ma and close > lastClose and strategy.opentrades < in_openOrders
+
+
+var lastBuy = close 
+var lastSell = close 
+
+if (buy)
+    strategy.entry("BUY", strategy.long)
+    lastBuy := close 
+    alert("Buy")
+
+if ((close >= lastBuy*in_buyTP ) or rsi7 > in_buybreakout and close >= lastClose and (close >= lastClose*in_buyTP or close >= lastBuy*in_buyTP ) )
+    strategy.close("BUY", "BUY Exit")
+    alert("Buy Exit")
+    
+if (sell)
+    strategy.entry("SELL", strategy.short)
+    lastSell := close 
+    alert("Sell")
+
+if ( close < ma and (close <= lastSell*in_sellTP ) or (close < lastClose*in_sellTP) )
+    strategy.close("SELL", "Sell Exit")
+    alert("Sell Exit")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/440729
+
+> Last Modified
+
+2024-02-01 15:09:06

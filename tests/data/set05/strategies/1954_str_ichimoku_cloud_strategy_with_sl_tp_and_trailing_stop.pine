@@ -1,0 +1,66 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于Ichimoku云图的量化交易策略Quant-Trading-Strategy-Based-on-Ichimoku-Cloud.md
+// content_hash: f48c36fa31be682b
+// collected: 2026-07-27
+strategy("Ichimoku Cloud Strategy with SL, TP, and Trailing Stop", overlay=true)
+
+conversionPeriods = input(9, "Conversion Line Length")
+basePeriods = input(26, "Base Line Length")
+laggingSpan2Periods = input(52, "Leading Span B Length")
+displacement = input(26, "Lagging Span")
+atrLength = input(14, title="ATR Length")
+
+donchian(len) => math.avg(ta.lowest(len), ta.highest(len))
+conversionLine = donchian(conversionPeriods)
+baseLine = donchian(basePeriods)
+leadLine1 = math.avg(conversionLine, baseLine)
+leadLine2 = donchian(laggingSpan2Periods)
+
+// Plot the Ichimoku Cloud components
+plot(conversionLine, color=color.blue, title="Conversion Line")
+plot(baseLine, color=color.red, title="Base Line")
+plot(leadLine1, color=color.green, title="Leading Span A")
+plot(leadLine2, color=color.orange, title="Leading Span B")
+plot(leadLine1 > leadLine2 ? leadLine1 : leadLine2, color=color.green, title="Kumo Cloud Upper Line")
+plot(leadLine1 < leadLine2 ? leadLine1 : leadLine2, color=color.red, title="Kumo Cloud Lower Line")
+
+// ATR for stop loss and take profit
+atrValue = ta.atr(atrLength)
+stopLoss = atrValue * 2
+takeProfit = atrValue * 4
+
+// Strategy entry and exit conditions
+longCondition = ta.crossover(close, leadLine1) and close > leadLine2
+shortCondition = ta.crossunder(close, leadLine1) and close < leadLine2
+
+// Plot buy and sell signals
+plotshape(series=longCondition ? leadLine1 : na, title="Buy Signal", location=location.belowbar, color=color.green, style=shape.triangleup, size=size.small)
+plotshape(series=shortCondition ? leadLine1 : na, title="Sell Signal", location=location.abovebar, color=color.red, style=shape.triangledown, size=size.small)
+
+// Execute strategy orders with stop loss and take profit
+strategy.entry("Buy", strategy.long, when=longCondition)
+strategy.close("Buy", when=shortCondition) // Close buy position when sell condition is met
+strategy.entry("Sell", strategy.short, when=shortCondition)
+strategy.close("Sell", when=longCondition) // Close sell position when buy condition is met
+
+// Trailing stop
+strategy.cancel("Trailing Stop")
+var float trailingStopPrice = na
+if (longCondition)
+    trailingStopPrice := math.max(trailingStopPrice, close - atrValue * 2)
+    strategy.exit("Trailing Stop", from_entry="Buy", trail_offset=atrValue * 2, trail_price=trailingStopPrice)
+else if (shortCondition)
+    trailingStopPrice := math.min(trailingStopPrice, close + atrValue * 2)
+    strategy.exit("Trailing Stop", from_entry="Sell", trail_offset=atrValue * 2, trail_price=trailingStopPrice)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/438492
+
+> Last Modified
+
+2024-01-12 14:20:43

@@ -1,0 +1,48 @@
+//@version=4
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/Joseph Nemeth Heiken Ashi Renko MTF Strategy.pine
+// content_hash: 7e92d33c2b9ee0ea
+// collected: 2026-07-27
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// Joseph Nemeth Heiken Ashi Renko MTF Strategy
+// by SparkyFlary
+//For Educational Purposes
+//Results can differ on different markets and can fail at any time. Profit is not guaranteed.
+strategy(title="Joseph Nemeth Heiken Ashi Renko MTF Strategy", shorttitle="Nemeth Strategy", overlay=true)
+res1 = input("60", title="Middle time frame")
+res2 = input("D", title="Higher time frame")
+renkoSize = input(1.0, title="Renko size")
+renkoType = input("ATR", title="Renko type", options=["ATR", "Traditional"])
+//withRecovery = input(false, title="with trade recovery?")
+//renko
+renko_tickerid = renko(syminfo.tickerid, renkoType, renkoSize)
+renko_close = security(renko_tickerid, timeframe.period, close)
+renko_open = security(renko_tickerid, timeframe.period, open)
+renkoGreen = renko_close>renko_open
+renkoRed = renko_close<renko_open
+//heiken ashi
+ha_id = heikinashi(syminfo.tickerid)
+//middle time frame
+haopen1 = security(ha_id, resolution=res1, expression=open)
+haclose1 = security(ha_id, resolution=res1, expression=close)
+green1 = haclose1 > haopen1
+red1 = haclose1 < haopen1
+ema1 = security(syminfo.tickerid, resolution=res1, expression=ema(close, 20))
+slopeUp1 = ema1 > ema1[1]
+slopeDown1 = ema1 < ema1[1]
+//higher time frame
+haopen2 = security(ha_id, resolution=res2, expression=open)
+haclose2 = security(ha_id, resolution=res2, expression=close)
+green2 = haclose2 > haopen2
+red2 = haclose2 < haopen2
+//Strategy
+buy = green1 and green2 and slopeUp1 and renkoGreen //and abs(strategy.position_size[1])==0
+sell = red1 or red2 or slopeDown1 or renkoRed //and (strategy.openprofit>0)
+short = red1 and red2 and slopeDown1 and renkoRed //and abs(strategy.position_size[1])==0
+cover = green1 or green2 or slopeUp1 or renkoGreen //and (strategy.openprofit>0) 
+strategy.entry(id="enter long", long=true, when=buy)
+strategy.close(id="enter long", comment="exit long", when=sell)
+strategy.entry(id="enter short", long=false, when=short)
+strategy.close(id="enter short", comment="exit short", when=cover)
+Expand (51 lines)

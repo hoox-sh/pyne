@@ -1,0 +1,96 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双均线趋势捕捉策略结合动态止损和过滤器-Dual-Moving-Average-Trend-Capture-Strategy-with-Dynamic-Stop-Loss-and-Filter.md
+// content_hash: f00f8179e0bb6efd
+// collected: 2026-07-27
+strategy("Moving Average Breakout with Filter and Dynamic Stop Loss", overlay=true)
+
+// Параметры
+maLength = input.int(14, "MA Length")
+maType = input.string("SMA", "MA Type", options=["SMA", "EMA", "WMA"])
+takeProfitPercent = input.float(1.0, "Take Profit (%)", step=0.1)
+filterMaLength = input.int(50, "Filter MA Length")
+filterMaType = input.string("SMA", "Filter MA Type", options=["SMA", "EMA", "WMA"])
+useDynamicStopLoss = input.bool(false, "Use Dynamic Stop Loss")
+dynamicStopLossPercent = input.float(1.0, "Dynamic Stop Loss (%)", step=0.1)
+
+// Выбор типа основной скользящей средней
+float ma = na
+switch maType
+    "SMA" => ma := ta.sma(close, maLength)
+    "EMA" => ma := ta.ema(close, maLength)
+    "WMA" => ma := ta.wma(close, maLength)
+
+// Выбор типа скользящей средней фильтра
+float filterMa = na
+switch filterMaType
+    "SMA" => filterMa := ta.sma(close, filterMaLength)
+    "EMA" => filterMa := ta.ema(close, filterMaLength)
+    "WMA" => filterMa := ta.wma(close, filterMaLength)
+
+// Построение скользящих средних
+plot(ma, color=color.blue, linewidth=2, title="Moving Average")
+plot(filterMa, color=color.orange, linewidth=2, title="Filter Moving Average")
+
+// Логика открытия позиций
+longCondition = ta.crossover(close, ma) and close > filterMa
+shortCondition = ta.crossunder(close, ma) and close < filterMa
+
+var bool inPosition = false
+var float entryPrice = na
+var float takeProfitLevel = na
+var float stopLossLevel = na
+
+if (longCondition and not inPosition and strategy.position_size == 0)
+    entryPrice := close
+    takeProfitLevel := close * (1 + takeProfitPercent / 100)
+    if (useDynamicStopLoss)
+        stopLossLevel := close * (1 - dynamicStopLossPercent / 100)
+    else
+        stopLossLevel := low[1]
+    strategy.entry("Long", strategy.long)
+    strategy.exit("Take Profit/Stop Loss", from_entry="Long", limit=takeProfitLevel, stop=stopLossLevel)
+    // line.new(bar_index, entryPrice, bar_index + 1, entryPrice, color=color.blue, width=2)
+    // line.new(bar_index, takeProfitLevel, bar_index + 1, takeProfitLevel, color=color.green, width=2, style=line.style_dashed)
+    // line.new(bar_index, stopLossLevel, bar_index + 1, stopLossLevel, color=color.red, width=2, style=line.style_dashed)
+    inPosition := true
+
+if (shortCondition and not inPosition and strategy.position_size == 0)
+    entryPrice := close
+    takeProfitLevel := close * (1 - takeProfitPercent / 100)
+    if (useDynamicStopLoss)
+        stopLossLevel := close * (1 + dynamicStopLossPercent / 100)
+    else
+        stopLossLevel := high[1]
+    strategy.entry("Short", strategy.short)
+    strategy.exit("Take Profit/Stop Loss", from_entry="Short", limit=takeProfitLevel, stop=stopLossLevel)
+    // line.new(bar_index, entryPrice, bar_index + 1, entryPrice, color=color.blue, width=2)
+    // line.new(bar_index, takeProfitLevel, bar_index + 1, takeProfitLevel, color=color.green, width=2, style=line.style_dashed)
+    // line.new(bar_index, stopLossLevel, bar_index + 1, stopLossLevel, color=color.red, width=2, style=line.style_dashed)
+    inPosition := true
+
+// Проверка закрытия позиции по тейк-профиту или стоп-лоссу
+if (strategy.position_size == 0)
+    inPosition := false
+
+// Отображение текущих линий стоп-лосса и тейк-профита
+// if (strategy.position_size > 0)
+    // line.new(bar_index[1], takeProfitLevel, bar_index, takeProfitLevel, color=color.green, width=2, style=line.style_dashed)
+    // line.new(bar_index[1], stopLossLevel, bar_index, stopLossLevel, color=color.red, width=2, style=line.style_dashed)
+    // line.new(bar_index[1], entryPrice, bar_index, entryPrice, color=color.blue, width=2)
+
+// if (strategy.position_size < 0)
+    // line.new(bar_index[1], takeProfitLevel, bar_index, takeProfitLevel, color=color.green, width=2, style=line.style_dashed)
+    // line.new(bar_index[1], stopLossLevel, bar_index, stopLossLevel, color=color.red, width=2, style=line.style_dashed)
+    // line.new(bar_index[1], entryPrice, bar_index, entryPrice, color=color.blue, width=2)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/458249
+
+> Last Modified
+
+2024-07-31 11:46:38

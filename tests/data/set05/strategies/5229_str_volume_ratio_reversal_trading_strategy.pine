@@ -1,0 +1,56 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于量化指标的反转交易策略Volume-Ratio-Reversal-Trading-Strategy.md
+// content_hash: 63cda474fc59d009
+// collected: 2026-07-27
+
+strategy(title="Volume Ratio_30min", shorttitle="VR_30min")//,initial_capital=1000)
+
+// User Input ------------------------------------------------------------------
+len = input(20, title="Length", minval=1)
+threshold  = input(3,step=0.05, title="閾値")
+
+// Volume Caliculetion ---------------------------------------------------------
+vol = volume
+sma=sma(volume,len)
+vrs = vol / sma
+
+// Direction -------------------------------------------------------------------
+dirtime=input(1,"direction picker # bars")
+dir=if close/close[dirtime] > 1
+    1
+else
+    -1
+
+// Plot ------------------------------------------------------------------------
+plot(vrs, title="VRS",  color=color.green, transp=0)
+hline(1, title="baseline")
+plot(threshold, color=color.white)
+
+// ️⚠️⚠️Logic　-----------------------------------------------------------------
+
+long    = vrs > threshold  and dir == 1
+short   = vrs > threshold  and dir ==-1
+
+// Back Test Fnction -----------------------------------------------------------
+start = timestamp(input(2019, "Start Year"), input(1, "Start Month"), input(1, "Start Day"), 0, 0)
+end = timestamp(input(9999, "End Year"), input(1, "End Month"), input(1, "End Day"), 0, 0)
+_testPeriod() => true
+
+// Order -----------------------------------------------------------------------
+if _testPeriod()
+    if long
+        strategy.entry("Long", strategy.long)
+    if short
+        strategy.entry("Short", strategy.short)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/438469
+
+> Last Modified
+
+2024-01-12 12:08:05

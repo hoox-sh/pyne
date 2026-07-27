@@ -1,0 +1,23 @@
+//@version=5
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/MFI Simple Strategy.pine
+// content_hash: 67098e6a96d70787
+// collected: 2026-07-27
+strategy("MFI Simple Strategy", overlay=false)
+len = input(18, "Length")
+mfi = ta.sma(ta.mfi(close, len), len)
+mfiup = (mfi[1] < mfi) and (mfi[2] < mfi[1])
+mfidn = (mfi[1] > mfi) and (mfi[2] < mfi[1])
+goldsma = ta.sma(close, 200)
+if goldsma < close
+    strategy.entry("Long", strategy.long, when=mfiup)
+strategy.exit("Long", stop=goldsma)
+strategy.close("Long", when=mfidn)
+a = plot(mfi)
+b = plot(80, color=color.gray)
+c = plot(20, color=color.gray)
+fillclr = color.new(color.blue, 70)
+fill(a, b, color=(mfi > 80) ? fillclr : na)
+// fill(a, c)
+Expand (25 lines)

@@ -1,0 +1,100 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多指标趋势跟踪期权交易EMA交叉策略-Multi-Indicator-Trend-Following-Options-Trading-EMA-Cross-Strategy.md
+// content_hash: 9f79c53424643c5d
+// collected: 2026-07-27
+strategy("OptionsMillionaire Strategy with Take Profit Only", overlay=true, default_qty_type=strategy.fixed, default_qty_value=1)
+
+// Define custom magenta color
+magenta = color.rgb(255, 0, 255)  // RGB for magenta
+
+// Input settings for Moving Averages
+ema8 = ta.ema(close, 8)
+ema21 = ta.ema(close, 21)
+sma100 = ta.sma(close, 100)
+sma200 = ta.sma(close, 200)
+vwap = ta.vwap(close)  // Fixed VWAP calculation
+
+// Input settings for MACD and RSI
+[macdLine, signalLine, _] = ta.macd(close, 12, 26, 9)
+rsi = ta.rsi(close, 14)
+
+// Define trend direction
+isBullish = ema8 > ema21 and close > sma100 and close > sma200
+isBearish = ema8 < ema21 and close < sma100 and close < sma200
+
+// Buy (Call) Signal
+callSignal = ta.crossover(ema8, ema21) and isBullish and macdLine > signalLine and rsi > 50
+
+// Sell (Put) Signal
+putSignal = ta.crossunder(ema8, ema21) and isBearish and macdLine < signalLine and rsi < 50
+
+// Define Position Size and Take-Profit Level
+positionSize = 1  // Position size set to 1 (each trade will use one contract)
+takeProfitPercent = 5  // Take profit is 5%
+
+// Variables to track entry price and whether the position is opened
+var float entryPrice = na  // To store the entry price
+var bool positionOpen = false  // To check if a position is open
+
+// Backtesting Execution
+if callSignal and not positionOpen
+    // Enter long position (call)
+    strategy.entry("Call", strategy.long, qty=positionSize)
+    entryPrice := close  // Store the entry price
+    positionOpen := true  // Set position as opened
+
+if putSignal and not positionOpen
+    // Enter short position (put)
+    strategy.entry("Put", strategy.short, qty=positionSize)
+    entryPrice := close  // Store the entry price
+    positionOpen := true  // Set position as opened
+
+// Only check for take profit after position is open
+if positionOpen
+    // Calculate take-profit level (5% above entry price for long, 5% below for short)
+    takeProfitLevel = entryPrice * (1 + takeProfitPercent / 100)
+
+    // Exit conditions (only take profit)
+    if strategy.position_size > 0
+        // Long position (call)
+        if close >= takeProfitLevel
+            strategy.exit("Take Profit", "Call", limit=takeProfitLevel)
+    if strategy.position_size < 0
+        // Short position (put)
+        if close <= takeProfitLevel
+            strategy.exit("Take Profit", "Put", limit=takeProfitLevel)
+
+// Reset position when it is closed (this happens when an exit is triggered)
+if strategy.position_size == 0
+    positionOpen := false  // Reset positionOpen flag
+
+// Plot EMAs
+plot(ema8, color=magenta, linewidth=2, title="8 EMA")
+plot(ema21, color=color.green, linewidth=2, title="21 EMA")
+
+// Plot SMAs
+plot(sma100, color=color.orange, linewidth=1, title="100 SMA")
+plot(sma200, color=color.blue, linewidth=1, title="200 SMA")
+
+// Plot VWAP
+plot(vwap, color=color.white, style=plot.style_circles, title="VWAP")
+
+// Highlight buy and sell zones
+bgcolor(callSignal ? color.new(color.green, 90) : na, title="Call Signal Background")
+bgcolor(putSignal ? color.new(color.red, 90) : na, title="Put Signal Background")
+
+// Add buy and sell markers (buy below, sell above)
+plotshape(series=callSignal, style=shape.labelup, location=location.belowbar, color=color.green, text="Buy", title="Call Signal Marker")
+plotshape(series=putSignal, style=shape.labeldown, location=location.abovebar, color=color.red, text="Sell", title="Put Signal Marker")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/475602
+
+> Last Modified
+
+2024-12-20 14:49:04

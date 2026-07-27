@@ -1,0 +1,55 @@
+//@version=6
+// set04 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/智能型指数均线交易策略优化系统-Intelligent-Exponential-Moving-Average-Trading-Strategy-Optimization-System.md
+// content_hash: e35f43fd2c8dff72
+// collected: 2026-07-27
+strategy("Smart EMA Algo", overlay=true)
+
+// Inputs
+emaShortLength = input.int(9, title="Short EMA Length", minval=1)
+emaLongLength = input.int(21, title="Long EMA Length", minval=1)
+src = input(close, title="Source")
+
+// EMA Calculations
+emaShort = ta.ema(src, emaShortLength)
+emaLong = ta.ema(src, emaLongLength)
+
+// Market Direction
+isUptrend = emaShort > emaLong
+isDowntrend = emaShort < emaLong
+
+// Entry Conditions
+longCondition = isUptrend and ta.crossover(close, emaShort)
+shortCondition = isDowntrend and ta.crossunder(close, emaShort)
+
+// Exit Conditions
+exitLong = ta.crossunder(close, emaShort)
+exitShort = ta.crossover(close, emaShort)
+
+// Strategy Logic
+if (longCondition)
+    strategy.entry("Buy", strategy.long)
+
+if (shortCondition)
+    strategy.entry("Sell", strategy.short)
+
+if (exitLong)
+    strategy.close("Buy")
+
+if (exitShort)
+    strategy.close("Sell")
+
+// Plot EMAs
+plot(emaShort, color=color.blue, title="Short EMA")
+plot(emaLong, color=color.red, title="Long EMA")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/476240
+
+> Last Modified
+
+2024-12-27 13:56:21

@@ -1,0 +1,10 @@
+//@version=6
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/faq/times-dates-and-sessions.md::times-dates-and-sessions.md#block1
+// content_hash: 6777136e2a82a7eb
+// collected: 2026-07-27
+indicator('Time at first bar')
+// Capture the time of the first bar in the dataset.
+var int t = time
+plot(t)

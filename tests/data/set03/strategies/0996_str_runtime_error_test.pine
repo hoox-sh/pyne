@@ -1,0 +1,27 @@
+//@version=6
+// set03 corpus entry
+// source_repo: mcp-server-pinescript
+// source_path: mcp-server-pinescript/.project/bug-reports/MCP_PINESCRIPT_RUNTIME_NA_OBJECT_BUG_REPORT_02.md::MCP_PINESCRIPT_RUNTIME_NA_OBJECT_BUG_REPORT_02.md#block1
+// content_hash: 0e5c3855e8586195
+// collected: 2026-07-27
+strategy("Runtime Error Test", shorttitle="RT_TEST", overlay=true)
+
+// User-defined type for testing
+type KellyData
+    float winRate
+    float avgWin
+    float avgLoss
+    int sampleSize
+
+// Initialize with na - this will cause runtime error
+var KellyData kellyData = na
+
+// PROBLEMATIC CODE - This should cause runtime error on bar 0
+// Cannot access field of undefined (na) object
+sampleSize = kellyData.sampleSize  // ERROR: Cannot access 'KellyData.sampleSize' field of undefined object
+winRate = kellyData.winRate        // ERROR: Cannot access 'KellyData.winRate' field of undefined object
+
+// Another pattern - accessing na object field in history
+historicalSample = (kellyData[1]).sampleSize  // ERROR if kellyData[1] is na
+
+plot(sampleSize)

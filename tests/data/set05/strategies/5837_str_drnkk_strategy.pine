@@ -1,0 +1,76 @@
+//@version=3
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多元指标融合策略Multivariate-Indicator-Fusion-Strategy.md
+// content_hash: 063a4082654b6268
+// collected: 2026-07-27
+strategy("drnkk Strategy", overlay=true)
+
+//IF Function
+IF(input)=>(exp(2*input)-1)/(exp(2*input)+1)
+
+//VI Inputs
+VI_pm = input(4, title="VI Period",minval=2)
+VI_ps = input(3, title="VI Smoothing Period",minval=0)
+
+//VI Calculation
+VMP = sum( abs( high - low[1]), VI_pm )
+VMM = sum( abs( low - high[1]), VI_pm )
+STR = sum( atr(1), VI_pm )
+VIP = VMP / STR
+VIM = VMM / STR
+
+//VI Smoothing
+wmaVIP = (wma(VIP-1,VI_ps))*10
+wmaVIM = (wma(VIM-1,VI_ps))*10
+
+//VI IF Transform
+IF_VIP=IF(wmaVIP)*100
+IF_VIM=IF(wmaVIM)*100
+
+roc_VIP =(wmaVIP - wmaVIP[VI_ps]) / VI_ps
+plot(roc_VIP ? roc_VIP : na, color=lime)
+
+roc_VIM = (wmaVIM - wmaVIM[VI_ps]) / VI_ps
+plot(roc_VIM ? roc_VIM : na, color=purple)
+
+//ROC-RSI Inputs
+RSI_pm = input(2, title="ROC-RSI Period",minval=2)
+RSI_ps = input(2, title="Smooth Period",minval=0)
+
+//ROC Calculation and Smoothing
+raw_ROC=(close - close[RSI_pm])/RSI_pm
+wma_ROC=wma(raw_ROC,RSI_ps)
+IF_ROC = IF(wma_ROC)*100
+
+//RSI Calculation, Smoothing, Inverse Fisher Transformation
+raw_RSI=0.1*(rsi(close,RSI_pm)-50)
+wma_RSI=wma(raw_RSI,RSI_ps)
+IF_RSI = IF(wma_RSI)*100
+
+VI_long = roc_VIP >roc_VIM
+VI_short = roc_VIM >roc_VIP
+
+RSI_long = IF_RSI > 80
+RSI_short = IF_RSI < -80
+
+ROC_long = IF_ROC > 75
+ROC_short = IF_ROC < -75
+
+longCondition = year >= 2018 and VI_long and ROC_long and RSI_long
+if (longCondition)
+    strategy.entry("BUY", strategy.long)
+
+shortCondition = year >= 2018 and VI_short and ROC_short and RSI_short
+if (shortCondition)
+    strategy.entry("SELL", strategy.short)
+    
+```
+
+> Detail
+
+https://www.fmz.com/strategy/428071
+
+> Last Modified
+
+2023-09-28 12:01:57

@@ -1,0 +1,60 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/布林带跨度交易策略Bollinger-Band-Breakout-Trading-Strategy.md
+// content_hash: dd875d05b697377e
+// collected: 2026-07-27
+strategy("I11L OIL Bot",overlay=true, initial_capital=1000000,default_qty_value=1000000,default_qty_type=strategy.cash,commission_type=strategy.commission.percent,commission_value=0.00)
+
+leverage = input.float(1,"Leverage (x)",step=1)
+SL_Factor = 1 - input.float(1,"Risk Capital per Trade (%)", minval=0.1, maxval=100, step=0.05) / 100 / leverage
+TP_Factor = input.float(2, step=0.1)
+invertBuyLogic = input.bool(false)
+ 
+lookbackDistance = input.int(25)
+devMult = input.float(2,step=0.1)
+
+var lastSellHour = 0
+var disableAdditionalBuysThisDay = false
+
+
+if(time > lastSellHour + 1000 * 60 * 60 * 6)
+    disableAdditionalBuysThisDay := false
+if(strategy.position_size != strategy.position_size[1])
+    disableAdditionalBuysThisDay := true
+    lastSellHour := time
+
+source = close
+
+//Trade Logic
+basis = ta.sma(source, lookbackDistance)
+dev = devMult * ta.stdev(source, lookbackDistance)
+upper = basis + dev
+lower = basis - dev
+isBuy = ta.crossunder(source, upper)
+isBuyInverted = ta.crossover(source, lower)
+
+plot(upper, color=color.white)
+plot(lower, color=color.white)
+
+strategy.initial_capital = 50000
+
+if((invertBuyLogic ? isBuyInverted : isBuy) and not(disableAdditionalBuysThisDay))
+    strategy.entry("Long", strategy.long, (strategy.initial_capital / close) * leverage)
+
+if(strategy.position_size > 0)
+    strategy.exit("SL Long", "Long", stop=strategy.position_avg_price * SL_Factor)
+    strategy.close("Long",  when=close > strategy.position_avg_price * (1 + (1 - SL_Factor) * TP_Factor), comment="TP Long")
+
+
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/435869
+
+> Last Modified
+
+2023-12-19 14:08:45

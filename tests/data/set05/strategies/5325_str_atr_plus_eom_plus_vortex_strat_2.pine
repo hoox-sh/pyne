@@ -1,0 +1,51 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于ATREOM和VORTEX的长线趋势策略ATR-EOM-and-VORTEX-Based-Long-Trend-Strategy.md
+// content_hash: 823be50ff40b8239
+// collected: 2026-07-27
+strategy("atr+eom+vortex strat", overlay=true )
+
+//atr and ema
+atr_lenght=input(10)
+atrvalue = atr(atr_lenght)
+
+
+//plot(atrvalue)
+ema_atr_length=input(5)
+ema_atr = ema(atrvalue,ema_atr_length)
+
+//plot(ema_atr,color=color.white)
+
+//EOM and ema
+lengthEOM = input(10, minval=1)
+div = 10//input(10000, title="Divisor", minval=1)
+eom = sma(div * change(hl2) * (high - low) / volume, lengthEOM)
+// + - 0 long/short
+
+//VORTEX
+period_ = input(10, title="Length", minval=2)
+VMP = sum( abs( high - low[1]), period_ )
+VMM = sum( abs( low - high[1]), period_ )
+STR = sum( atr(1), period_ )
+VIP = VMP / STR
+VIM = VMM / STR
+avg_vortex=(VIP+VIM)/2
+//plot(avg_vortex)
+
+long= atrvalue > ema_atr and eom > 0 and avg_vortex>1 
+short=atrvalue < ema_atr and eom < 0 and avg_vortex<1 
+
+strategy.entry("long",1,when=long)
+//strategy.entry("short",0,when=short)
+
+strategy.close("long",when=short)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/442011
+
+> Last Modified
+
+2024-02-18 16:01:07

@@ -1,0 +1,13 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block331
+// content_hash: fdf441f48d0252f0
+// collected: 2026-07-27
+indicator("label")
+// Empty `label1` label ID.
+var label label1 = na
+// `label` type is unnecessary because `label.new()` returns "label" type.
+var label2 = label.new(na, na, na)
+if barstate.islastconfirmedhistory
+    label3 = label.new(bar_index, high, text = "label3 text")

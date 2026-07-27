@@ -1,0 +1,47 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/布林带突破量化交易策略-Bollinger-Bands-Breakout-Quantitative-Trading-Strategy.md
+// content_hash: 04728251c732adfd
+// collected: 2026-07-27
+strategy("Bollinger Bands Breakout Strategy", overlay=true)
+
+// Parameters
+bbLength = input.int(20, title="Bollinger Bands Length")
+bbMultiplier = input.float(2.0, title="Bollinger Bands Multiplier")
+
+// Calculate Bollinger Bands
+basis = ta.sma(close, bbLength)
+dev = bbMultiplier * ta.stdev(close, bbLength)
+upperBand = basis + dev
+lowerBand = basis - dev
+
+// Plot Bollinger Bands
+plot(basis, color=color.blue, title="Basis")
+plot(upperBand, color=color.red, title="Upper Band")
+plot(lowerBand, color=color.green, title="Lower Band")
+
+// Entry conditions
+longCondition = close < lowerBand
+shortCondition = close > upperBand
+
+// Execute trades
+if (longCondition)
+    strategy.entry("Buy", strategy.long)
+
+if (shortCondition)
+    strategy.entry("Sell", strategy.short)
+
+// Plot buy/sell signals
+plotshape(series=longCondition, title="Buy Signal", location=location.belowbar, color=color.green, style=shape.labelup, text="BUY")
+plotshape(series=shortCondition, title="Sell Signal", location=location.abovebar, color=color.red, style=shape.labeldown, text="SELL")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/458192
+
+> Last Modified
+
+2024-07-30 16:55:32

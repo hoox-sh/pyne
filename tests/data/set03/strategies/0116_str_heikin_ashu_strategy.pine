@@ -1,0 +1,94 @@
+//@version=6
+// set03 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/三次蜡烛突破动量平滑平均交易策略-Triple-Candle-Breakout-Momentum-Heikin-Ashi-Trading-System.md
+// content_hash: a3722890e84730d3
+// collected: 2026-07-27
+strategy("Heikin-Ashu Strategy", overlay=true)
+
+// Calculate Heikin-Ashi values
+var float ha_open  = na
+var float ha_close = na
+var float ha_high  = na
+var float ha_low   = na
+
+ha_close := (open + high + low + close) / 4
+ha_open  := na(ha_open[1]) ? (open + close) / 2 : (ha_open[1] + ha_close[1]) / 2
+ha_high  := math.max(high, math.max(ha_open, ha_close))
+ha_low   := math.min(low, math.min(ha_open, ha_close))
+
+//---------------- Long Logic ----------------//
+// Identify red/green Heikin-Ashi candles
+ha_red = ha_close < ha_open
+ha_green = ha_close > ha_open
+
+// Long entry: three consecutive red candles followed by a green candle
+consecutive_red = ha_red[3] and ha_red[2] and ha_red[1] and ha_green
+// Capture the high of the first green candle after the red streak
+var float first_green_high = na
+first_green_high := consecutive_red ? ha_high : nz(first_green_high)
+// Trigger long entry AFTER the next candle breaks the high of that green candle
+long_breakout = not na(first_green_high) and ha_high[1] == first_green_high and high > first_green_high
+
+// Long exit: after a long entry, exit when a red candle forms and its low is broken
+var float first_red_low = na
+first_red_low := long_breakout ? na : (ha_red and na(first_red_low) ? ha_low : first_red_low)
+var bool long_active = false
+long_active := long_breakout ? true : long_active
+long_exit = long_active and not na(first_red_low) and low < first_red_low
+long_active := long_exit ? false : long_active
+
+//---------------- Short Logic ----------------//
+// Short entry: three consecutive green candles followed by a red candle
+consecutive_green = ha_green[3] and ha_green[2] and ha_green[1] and ha_red
+// Capture the low of the first red candle after the green streak
+var float first_red_entry_low = na
+first_red_entry_low := consecutive_green ? ha_low : nz(first_red_entry_low)
+// Trigger short entry AFTER the next candle breaks the low of that red candle
+short_breakout_entry = not na(first_red_entry_low) and ha_low[1] == first_red_entry_low and low < first_red_entry_low
+
+// Short exit: after a short entry, exit when a green candle forms and its high is broken
+var float first_green_exit_high = na
+first_green_exit_high := short_breakout_entry ? na : (ha_green and na(first_green_exit_high) ? ha_high : first_green_exit_high)
+var bool short_active = false
+short_active := short_breakout_entry ? true : short_active
+short_exit = short_active and not na(first_green_exit_high) and high > first_green_exit_high
+short_active := short_exit ? false : short_active
+
+//---------------- Strategy Orders ----------------//
+if (long_breakout)
+    strategy.entry("Long", strategy.long)
+if (long_exit)
+    strategy.close("Long")
+
+if (short_breakout_entry)
+    strategy.entry("Short", strategy.short)
+if (short_exit)
+    strategy.close("Short")
+
+//---------------- Visualization ----------------//
+plot(ha_high, color=color.new(color.green, 80), title="HA High")
+plot(ha_low, color=color.new(color.red, 80), title="HA Low")
+
+// Mark long signals (buy and sell)
+plotshape(long_breakout, location=location.belowbar, color=color.green, style=shape.triangleup, title="Buy Signal", size=size.small, offset=-1)
+plotshape(long_exit, location=location.abovebar, color=color.red, style=shape.triangledown, title="Sell Signal", size=size.small, offset=-1)
+// Mark short signals (short entry and cover)
+plotshape(short_breakout_entry, location=location.abovebar, color=color.red, style=shape.triangledown, title="Short Sell Signal", size=size.small, offset=-1)
+plotshape(short_exit, location=location.belowbar, color=color.green, style=shape.triangleup, title="Cover Signal", size=size.small, offset=-1)
+
+//---------------- Alerts ----------------//
+alertcondition(long_breakout, title="Long Entry", message="Heikin-Ashi Long Breakout Signal")
+alertcondition(long_exit, title="Long Exit", message="Heikin-Ashi Long Exit Signal")
+alertcondition(short_breakout_entry, title="Short Entry", message="Heikin-Ashi Short Entry Signal")
+alertcondition(short_exit, title="Short Exit", message="Heikin-Ashi Short Exit Signal")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/489296
+
+> Last Modified
+
+2025-04-03 11:17:32

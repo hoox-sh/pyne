@@ -1,0 +1,12 @@
+//@version=5
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/v5/language/arrays.md::arrays.md#block24
+// content_hash: a7ccbb40f49661ef
+// collected: 2026-07-27
+indicator("Protected array size")
+sizeInput = input.int(10, "Array size", minval = 1, maxval = 100000)
+a = array.new<float>(sizeInput)
+for i = 0 to sizeInput - 1
+    array.set(a, i, i)
+plot(array.size(a))

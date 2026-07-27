@@ -1,0 +1,72 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/FVG动量短线交易策略-FVG-Momentum-Scalping-Strategy.md
+// content_hash: 5ecbc2842f517bb7
+// collected: 2026-07-27
+strategy("ScalpingStrategy", overlay=true)
+
+// Define the FVG calculation
+fvgLow = ta.lowest(low, 3)
+fvgHigh = ta.highest(high, 3)
+
+var float entrySL=0
+// Define the Bullish and Bearish FVG conditions
+bullishFVG = low[1] > high[3]
+bearishFVG = high[1] < low[3]
+
+// Define the mid-point of the FVG range
+fvgMid = (fvgLow + fvgHigh) / 2
+
+// Define the buy and sell conditions
+buyCondition = bullishFVG and close >= fvgMid and low<=fvgHigh
+sellCondition = bearishFVG and close <= fvgMid and high>=fvgLow
+
+// Plot buy and sell signals
+plotshape(buyCondition, style=shape.labelup, location=location.belowbar, color=color.green, text="B")
+plotshape(sellCondition, style=shape.labeldown, location=location.abovebar, color=color.red, text="S")
+
+// Execute buy and sell orders
+var float targetLong = 0
+var float targetShort = 0
+
+if (buyCondition)
+    strategy.entry("Buy", strategy.long)
+    targetLong := high * 1.0012 // Calculate target price 2% above high
+    strategy.exit("Target", "Buy", limit=targetLong)
+    entrySL=fvgLow*0.994
+
+if (sellCondition)
+    strategy.entry("Sell", strategy.short)
+    targetShort := low * 0.994 // Calculate target price 2% below low
+    strategy.exit("Target", "Sell", limit=targetShort)
+    entrySL=fvgHigh*1.0028
+
+
+
+// Trailing stoploss
+//stopLossLong = fvgLow * 0.997 // strategy.position_avg_price * 0.995
+//stopLossShort = fvgHigh * 1.003 // strategy.position_avg_price * 1.005
+stopLossLong = math.max(fvgLow * 0.997, strategy.position_avg_price * 0.995)
+stopLossShort = math.min(fvgHigh * 1.003, strategy.position_avg_price * 1.005)
+
+
+// Plot stoploss lines with small length
+plot(stopLossLong, title="Stop Loss Long", color= strategy.position_size > 0 ? color.red : na, linewidth=1)
+plot(stopLossShort, title="Stop Loss Short", color= strategy.position_size < 0 ? color.red : na, linewidth=1)
+
+plot(targetLong, title="TLong", color= strategy.position_size > 0 ? color.green : na,  linewidth=1)
+plot(targetShort, title="TShort",color= strategy.position_size < 0 ? color.green : na,  linewidth=1)
+
+// Exit with stoploss
+strategy.exit("Stop Loss", "Buy", stop=stopLossLong)
+strategy.exit("Stop Loss", "Sell", stop=stopLossShort)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/452736
+
+> Last Modified
+
+2024-05-28 17:23:09

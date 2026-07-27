@@ -1,0 +1,50 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/金叉死叉量化交易策略Gold-Cross-Dead-Cross-Quantitative-Trading-Strategy.md
+// content_hash: b9c5904f113cca23
+// collected: 2026-07-27
+strategy("Estrategia de Cruce de Medias Móviles", overlay=true)
+
+// Medias móviles
+ma30 = ta.sma(close, 30)
+ma60 = ta.sma(close, 60)
+ma200 = ta.sma(close, 200)
+
+// Cruce de medias móviles
+crossoverUp = ta.crossover(ma30, ma200)
+crossoverDown = ta.crossunder(ma30, ma200)
+
+// Señales de compra y venta
+longCondition = crossoverUp
+shortCondition = crossoverDown
+
+// Ejecución de órdenes
+if (longCondition)
+    strategy.entry("Buy", strategy.long)
+    strategy.exit("Cover", "Buy", stop=close - 40.000, limit=close + 40.000)
+if (shortCondition)
+    strategy.entry("Sell", strategy.short)
+    strategy.exit("Cover", "Sell", stop=close + 40.000, limit=close - 40.000)
+
+// Plot de las medias móviles
+plot(ma30, color=color.blue, title="MA 30")
+plot(ma60, color=color.orange, title="MA 60")
+plot(ma200, color=color.green, title="MA 200")
+
+// Condiciones para cerrar la posición contraria
+if (strategy.position_size > 0)
+    if (crossoverDown)
+        strategy.close("Buy")
+if (strategy.position_size < 0)
+    if (crossoverUp)
+        strategy.close("Sell")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/440829
+
+> Last Modified
+
+2024-02-02 14:46:11

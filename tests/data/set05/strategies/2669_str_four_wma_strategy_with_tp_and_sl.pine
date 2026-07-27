@@ -1,0 +1,52 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/四均线跨度趋势追踪策略Four-WMA-Trend-Tracking-Strategy.md
+// content_hash: c2bf86fd88fcef6d
+// collected: 2026-07-27
+strategy("Four WMA Strategy with TP and SL", shorttitle="4WMA TP/SL", overlay=true)
+
+// Inputs for WMA lengths
+longM1 = input.int(10, title="Long WMA1")
+longM2 = input.int(20, title="Long WMA2")
+shortM1 = input.int(30, title="Short WMA1")
+shortM2 = input.int(40, title="Short WMA2")
+
+// Inputs for TP and SL
+tp_percent = input.float(1.0, title="Take Profit %") / 100
+sl_percent = input.float(1.0, title="Stop Loss %") / 100
+
+// Calculating WMAs
+longWMA1 = ta.wma(close, longM1)
+longWMA2 = ta.wma(close, longM2)
+shortWMA1 = ta.wma(close, shortM1)
+shortWMA2 = ta.wma(close, shortM2)
+
+// Entry Conditions
+longCondition = ta.crossunder(longWMA1, longWMA2)
+shortCondition = ta.crossunder(shortWMA2, shortWMA1)
+
+// Strategy Entry
+if (longCondition)
+    strategy.entry("Long", strategy.long, comment = "Long entry")
+    strategy.exit("Long TP/SL", "Long", limit=close * (1 + tp_percent), stop=close * (1 - sl_percent), comment = "Long Exit" )
+
+if (shortCondition)
+    strategy.entry("Short", strategy.short, comment = "Short entry")
+    strategy.exit("Short TP/SL", "Short", limit=close * (1 - tp_percent), stop=close * (1 + sl_percent), comment = "Short Exit")
+
+// Plotting WMAs
+plot(longWMA1, color=color.blue)
+plot(longWMA2, color=color.orange)
+plot(shortWMA1, color=color.red)
+plot(shortWMA2, color=color.purple)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/442512
+
+> Last Modified
+
+2024-02-22 15:21:46

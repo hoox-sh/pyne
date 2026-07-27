@@ -1,0 +1,629 @@
+// set03 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/projects/trade-conditions-checklist.pine
+// content_hash: 26ae724c492cf122
+// collected: 2026-07-27
+// built with PineScript Agents by TradersPost
+//@version=6
+indicator(title="[TradersPost] Trading Checklist",
+     shorttitle="Checklist",
+     overlay=true)
+
+// ============================================================================
+// TYPES
+// ============================================================================
+
+type ConditionResult
+    string name
+    string value
+    bool enabled
+    int longState    // 1 = favorable, 0 = neutral, -1 = against
+    int shortState
+
+// ============================================================================
+// INPUTS
+// ============================================================================
+
+// --- VWAP ---
+vwapGroup = "VWAP"
+enableVWAP = input.bool(true, "Enable",
+     tooltip="Price vs session-anchored VWAP.\nLong: Price > VWAP\nShort: Price < VWAP",
+     group=vwapGroup)
+vwapSession = input.session("0930-1600", "Session",
+     tooltip="Session window for VWAP anchor reset",
+     group=vwapGroup, active=enableVWAP)
+vwapTimezone = input.string("America/New_York", "Timezone",
+     tooltip="e.g. America/New_York, America/Chicago, UTC",
+     group=vwapGroup, active=enableVWAP)
+vwapTf = input.timeframe("", "Timeframe",
+     tooltip="Leave blank for chart timeframe",
+     group=vwapGroup, active=enableVWAP)
+showVwapOnChart = input.bool(false, "Show on Chart",
+     tooltip="Plot VWAP line on chart at half opacity",
+     group=vwapGroup, active=enableVWAP)
+
+// --- Moving Averages ---
+maGroup = "Moving Averages"
+enableEMAFast = input.bool(true, "EMA Fast", inline="ema_fast", group=maGroup)
+emaFastLength = input.int(9, "", inline="ema_fast",
+     group=maGroup, active=enableEMAFast)
+enableEMASlow = input.bool(true, "EMA Slow", inline="ema_slow", group=maGroup)
+emaSlowLength = input.int(21, "", inline="ema_slow",
+     group=maGroup, active=enableEMASlow)
+enableEMACross = input.bool(true, "EMA Cross",
+     tooltip="Compares Fast vs Slow EMA.\nLong: Fast > Slow\nShort: Fast < Slow",
+     group=maGroup)
+enableSMA = input.bool(true, "SMA", inline="sma", group=maGroup)
+smaLength = input.int(200, "", inline="sma",
+     group=maGroup, active=enableSMA)
+maTf = input.timeframe("", "Timeframe",
+     tooltip="Leave blank for chart timeframe",
+     group=maGroup)
+showMaOnChart = input.bool(false, "Show on Chart",
+     tooltip="Plot moving averages on chart at half opacity",
+     group=maGroup)
+
+// --- RSI ---
+rsiGroup = "RSI"
+enableRSI = input.bool(true, "Enable", inline="rsi_en", group=rsiGroup)
+rsiLength = input.int(14, "", inline="rsi_en",
+     group=rsiGroup, active=enableRSI)
+rsiOverbought = input.int(70, "Overbought", minval=50, maxval=95,
+     tooltip="RSI above this = overbought (Short favorable)",
+     group=rsiGroup, active=enableRSI)
+rsiOversold = input.int(30, "Oversold", minval=5, maxval=50,
+     tooltip="RSI below this = oversold (Long favorable)",
+     group=rsiGroup, active=enableRSI)
+rsiTf = input.timeframe("", "Timeframe",
+     group=rsiGroup, active=enableRSI)
+
+// --- MACD ---
+macdGroup = "MACD"
+enableMACD = input.bool(true, "Enable",
+     tooltip="MACD histogram direction.\nLong: Histogram > 0\nShort: Histogram < 0",
+     group=macdGroup)
+macdFast = input.int(12, "Fast", minval=2, maxval=100,
+     group=macdGroup, active=enableMACD)
+macdSlow = input.int(26, "Slow", minval=2, maxval=200,
+     group=macdGroup, active=enableMACD)
+macdSignal = input.int(9, "Signal", minval=2, maxval=100,
+     group=macdGroup, active=enableMACD)
+macdTf = input.timeframe("", "Timeframe",
+     group=macdGroup, active=enableMACD)
+
+// --- Stochastic ---
+stochGroup = "Stochastic"
+enableStoch = input.bool(false, "Enable",
+     tooltip="Stochastic %K overbought/oversold.\nLong: %K < oversold\nShort: %K > overbought",
+     group=stochGroup)
+stochKLength = input.int(14, "%K Length", minval=2, maxval=100,
+     group=stochGroup, active=enableStoch)
+stochKSmooth = input.int(3, "%K Smooth", minval=1, maxval=20,
+     group=stochGroup, active=enableStoch)
+stochDSmooth = input.int(3, "%D Smooth", minval=1, maxval=20,
+     group=stochGroup, active=enableStoch)
+stochOverbought = input.int(80, "Overbought", minval=50, maxval=99,
+     group=stochGroup, active=enableStoch)
+stochOversold = input.int(20, "Oversold", minval=1, maxval=50,
+     group=stochGroup, active=enableStoch)
+stochTf = input.timeframe("", "Timeframe",
+     group=stochGroup, active=enableStoch)
+
+// --- CCI ---
+cciGroup = "CCI"
+enableCCI = input.bool(false, "Enable", inline="cci_en", group=cciGroup)
+cciLength = input.int(20, "", inline="cci_en",
+     group=cciGroup, active=enableCCI)
+cciOverbought = input.int(100, "Overbought", minval=50, maxval=300,
+     group=cciGroup, active=enableCCI)
+cciOversold = input.int(-100, "Oversold", minval=-300, maxval=-50,
+     group=cciGroup, active=enableCCI)
+cciTf = input.timeframe("", "Timeframe",
+     group=cciGroup, active=enableCCI)
+
+// --- MFI ---
+mfiGroup = "MFI"
+enableMFI = input.bool(false, "Enable", inline="mfi_en", group=mfiGroup)
+mfiLength = input.int(14, "", inline="mfi_en",
+     group=mfiGroup, active=enableMFI)
+mfiOverbought = input.int(80, "Overbought", minval=50, maxval=95,
+     group=mfiGroup, active=enableMFI)
+mfiOversold = input.int(20, "Oversold", minval=5, maxval=50,
+     group=mfiGroup, active=enableMFI)
+mfiTf = input.timeframe("", "Timeframe",
+     group=mfiGroup, active=enableMFI)
+
+// --- Bollinger Bands ---
+bbGroup = "Bollinger Bands"
+enableBB = input.bool(false, "Enable",
+     tooltip="Price vs Bollinger Bands.\nLong: Price < lower band\nShort: Price > upper band\nNeutral: between bands",
+     group=bbGroup)
+bbLength = input.int(20, "Length", minval=2, maxval=200,
+     group=bbGroup, active=enableBB)
+bbMult = input.float(2.0, "StdDev", minval=0.5, maxval=5.0, step=0.1,
+     group=bbGroup, active=enableBB)
+bbTf = input.timeframe("", "Timeframe",
+     group=bbGroup, active=enableBB)
+showBbOnChart = input.bool(false, "Show on Chart",
+     tooltip="Plot Bollinger Bands on chart at half opacity",
+     group=bbGroup, active=enableBB)
+
+// --- ATR ---
+atrGroup = "ATR"
+enableATR = input.bool(false, "Enable", inline="atr_en", group=atrGroup)
+atrLength = input.int(14, "", inline="atr_en",
+     group=atrGroup, active=enableATR)
+atrThreshold = input.float(1.0, "Threshold", minval=0.1, maxval=5.0, step=0.1,
+     tooltip="ATR must exceed (average * threshold) to be favorable",
+     group=atrGroup, active=enableATR)
+atrTf = input.timeframe("", "Timeframe",
+     group=atrGroup, active=enableATR)
+
+// --- Volume ---
+volumeGroup = "Volume"
+enableVolume = input.bool(true, "Enable",
+     tooltip="Current volume vs average.\nFavorable: Volume > average * multiplier\nNeutral: below threshold",
+     group=volumeGroup)
+volumeLength = input.int(20, "Average Length", minval=2, maxval=200,
+     group=volumeGroup, active=enableVolume)
+volumeMultiplier = input.float(1.0, "Multiplier", minval=0.1, maxval=5.0, step=0.1,
+     tooltip="Volume must exceed average * multiplier to be favorable",
+     group=volumeGroup, active=enableVolume)
+volumeTf = input.timeframe("", "Timeframe",
+     group=volumeGroup, active=enableVolume)
+
+// --- Bar Colors ---
+barGroup = "Bar Colors"
+enableBarColor = input.bool(true, "Enable Bar Coloring",
+     tooltip="Color chart bars based on condition alignment.\nGreen = long favorable, Red = short favorable, White = conflict",
+     group=barGroup)
+barEntryThreshold = input.int(5, "Entry Threshold", minval=1, maxval=15,
+     tooltip="Minimum favorable conditions to START coloring bars",
+     group=barGroup, active=enableBarColor)
+barExitThreshold = input.int(2, "Exit Threshold", minval=0, maxval=14,
+     tooltip="Score must drop BELOW this to STOP coloring bars.\nSet lower than entry threshold to reduce noise (hysteresis).",
+     group=barGroup, active=enableBarColor)
+longBarColor = input.color(color.green, "Long", inline="bar_colors",
+     group=barGroup, active=enableBarColor)
+shortBarColor = input.color(color.red, "Short", inline="bar_colors",
+     group=barGroup, active=enableBarColor)
+conflictBarColor = input.color(color.white, "Conflict", inline="bar_colors",
+     group=barGroup, active=enableBarColor)
+
+// --- Alerts ---
+alertGroup = "Alerts"
+enableLongAlert = input.bool(true, "Alert on Long Alignment",
+     tooltip="Fire alert when Long score reaches threshold",
+     group=alertGroup)
+enableShortAlert = input.bool(true, "Alert on Short Alignment",
+     tooltip="Fire alert when Short score reaches threshold",
+     group=alertGroup)
+alertThreshold = input.int(5, "Score Threshold", minval=1, maxval=15,
+     tooltip="Number of favorable conditions required to trigger alert",
+     group=alertGroup)
+
+// --- Display (last) ---
+displayGroup = "Display"
+tablePosition = input.string(defval="top_right", title="Position",
+     options=["top_left", "top_center", "top_right", "middle_left", "middle_center", "middle_right", "bottom_left", "bottom_center", "bottom_right"],
+     group=displayGroup)
+tableSize = input.string(defval="small", title="Size",
+     options=["tiny", "small", "normal", "large", "huge"],
+     tooltip="tiny ~8px, small ~11px, normal ~14px, large ~18px, huge ~24px",
+     group=displayGroup)
+
+// ============================================================================
+// HELPER FUNCTIONS
+// ============================================================================
+
+getTablePosition(pos) =>
+    switch pos
+        "top_left" => position.top_left
+        "top_center" => position.top_center
+        "top_right" => position.top_right
+        "middle_left" => position.middle_left
+        "middle_center" => position.middle_center
+        "middle_right" => position.middle_right
+        "bottom_left" => position.bottom_left
+        "bottom_center" => position.bottom_center
+        "bottom_right" => position.bottom_right
+        => position.top_right
+
+getTableSize(sz) =>
+    switch sz
+        "tiny" => size.tiny
+        "small" => size.small
+        "normal" => size.normal
+        "large" => size.large
+        "huge" => size.huge
+        => size.small
+
+getStateSymbol(int state) =>
+    switch state
+        1 => "✓"
+        -1 => "✗"
+        => "~"
+
+getStateColor(int state, color favorable, color against, color neutral) =>
+    switch state
+        1 => favorable
+        -1 => against
+        => neutral
+
+triState(bool favorable, bool against) =>
+    favorable ? 1 : against ? -1 : 0
+
+makeCondition(string name, string value, bool enabled, int longSt, int shortSt) =>
+    ConditionResult.new(name, value, enabled, enabled ? longSt : 0, enabled ? shortSt : 0)
+
+formatTf(string tf) =>
+    if tf == "" or tf == timeframe.period
+        ""
+    else
+        secs = timeframe.in_seconds(tf)
+        secs < 3600 ? " " + str.tostring(secs / 60) + "m" : secs < 86400 ? " " + str.tostring(secs / 3600) + "h" : " " + tf
+
+// ============================================================================
+// THEME-AWARE COLORS
+// ============================================================================
+
+textColor = chart.fg_color
+mutedTextColor = color.new(chart.fg_color, 30)
+borderColor = color.new(chart.fg_color, 60)
+subtleBgColor = chart.bg_color
+headerBgColor = color.new(chart.fg_color, 75)
+scoreBgColor = color.new(chart.fg_color, 82)
+
+favorableColor = color.green
+againstColor = color.red
+neutralColor = color.new(color.yellow, 20)
+
+// ============================================================================
+// CALCULATIONS (10 security calls — well under 40 limit)
+// ============================================================================
+
+// --- VWAP (1 security call) ---
+isVwapSession = not na(time(timeframe.period, vwapSession, vwapTimezone))
+var bool wasVwapSession = false
+vwapAnchor = isVwapSession and not wasVwapSession
+wasVwapSession := isVwapSession
+vwapChartTf = ta.vwap(hlc3, vwapAnchor)
+vwapSec = request.security(syminfo.tickerid, vwapTf, ta.vwap(hlc3), lookahead=barmerge.lookahead_off)
+vwapResult = vwapTf == "" ? vwapChartTf : vwapSec
+
+// --- Moving Averages (1 security call, batched) ---
+emaFastCalc = ta.ema(close, emaFastLength)
+emaSlowCalc = ta.ema(close, emaSlowLength)
+smaCalc = ta.sma(close, smaLength)
+[emaFastResult, emaSlowResult, smaResult] = request.security(
+     syminfo.tickerid, maTf,
+     [emaFastCalc, emaSlowCalc, smaCalc],
+     lookahead=barmerge.lookahead_off)
+
+// --- RSI (1 security call) ---
+rsiCalc = ta.rsi(close, rsiLength)
+rsiResult = request.security(syminfo.tickerid, rsiTf, rsiCalc, lookahead=barmerge.lookahead_off)
+
+// --- MACD (1 security call, batched) ---
+[macdLineCalc, macdSignalCalc, macdHistCalc] = ta.macd(close, macdFast, macdSlow, macdSignal)
+[macdLineResult, macdSignalResult, macdHistResult] = request.security(
+     syminfo.tickerid, macdTf,
+     [macdLineCalc, macdSignalCalc, macdHistCalc],
+     lookahead=barmerge.lookahead_off)
+
+// --- Stochastic (1 security call, batched) ---
+stochRaw = ta.stoch(close, high, low, stochKLength)
+stochK = ta.sma(stochRaw, stochKSmooth)
+stochD = ta.sma(stochK, stochDSmooth)
+[stochKResult, stochDResult] = request.security(
+     syminfo.tickerid, stochTf,
+     [stochK, stochD],
+     lookahead=barmerge.lookahead_off)
+
+// --- CCI (1 security call) ---
+cciCalc = ta.cci(close, cciLength)
+cciResult = request.security(syminfo.tickerid, cciTf, cciCalc, lookahead=barmerge.lookahead_off)
+
+// --- MFI (1 security call) ---
+mfiCalc = ta.mfi(close, mfiLength)
+mfiResult = request.security(syminfo.tickerid, mfiTf, mfiCalc, lookahead=barmerge.lookahead_off)
+
+// --- Bollinger Bands (1 security call, batched) ---
+[bbMiddleCalc, bbUpperCalc, bbLowerCalc] = ta.bb(close, bbLength, bbMult)
+[bbMiddleResult, bbUpperResult, bbLowerResult] = request.security(
+     syminfo.tickerid, bbTf,
+     [bbMiddleCalc, bbUpperCalc, bbLowerCalc],
+     lookahead=barmerge.lookahead_off)
+
+// --- ATR (1 security call, batched) ---
+atrCalc = ta.atr(atrLength)
+atrAvgCalc = ta.sma(ta.atr(atrLength), atrLength)
+[atrResult, atrAvgResult] = request.security(
+     syminfo.tickerid, atrTf,
+     [atrCalc, atrAvgCalc],
+     lookahead=barmerge.lookahead_off)
+
+// --- Volume (1 security call, batched) ---
+volAvgCalc = ta.sma(volume, volumeLength)
+[volResult, volAvgResult] = request.security(
+     syminfo.tickerid, volumeTf,
+     [volume, volAvgCalc],
+     lookahead=barmerge.lookahead_off)
+
+// ============================================================================
+// ALERT SCORE CALCULATION (global scope for alerts)
+// ============================================================================
+
+alertLongScore = 0
+alertShortScore = 0
+alertEnabledCount = 0
+
+if enableVWAP
+    alertEnabledCount += 1
+    alertLongScore += close > vwapResult ? 1 : 0
+    alertShortScore += close < vwapResult ? 1 : 0
+if enableEMAFast
+    alertEnabledCount += 1
+    alertLongScore += close > emaFastResult ? 1 : 0
+    alertShortScore += close < emaFastResult ? 1 : 0
+if enableEMASlow
+    alertEnabledCount += 1
+    alertLongScore += close > emaSlowResult ? 1 : 0
+    alertShortScore += close < emaSlowResult ? 1 : 0
+if enableEMACross
+    alertEnabledCount += 1
+    alertLongScore += emaFastResult > emaSlowResult ? 1 : 0
+    alertShortScore += emaFastResult < emaSlowResult ? 1 : 0
+if enableSMA
+    alertEnabledCount += 1
+    alertLongScore += close > smaResult ? 1 : 0
+    alertShortScore += close < smaResult ? 1 : 0
+if enableRSI
+    alertEnabledCount += 1
+    alertLongScore += rsiResult < rsiOversold ? 1 : 0
+    alertShortScore += rsiResult > rsiOverbought ? 1 : 0
+if enableMACD
+    alertEnabledCount += 1
+    alertLongScore += macdHistResult > 0 ? 1 : 0
+    alertShortScore += macdHistResult < 0 ? 1 : 0
+if enableStoch
+    alertEnabledCount += 1
+    alertLongScore += stochKResult < stochOversold ? 1 : 0
+    alertShortScore += stochKResult > stochOverbought ? 1 : 0
+if enableCCI
+    alertEnabledCount += 1
+    alertLongScore += cciResult < cciOversold ? 1 : 0
+    alertShortScore += cciResult > cciOverbought ? 1 : 0
+if enableMFI
+    alertEnabledCount += 1
+    alertLongScore += mfiResult < mfiOversold ? 1 : 0
+    alertShortScore += mfiResult > mfiOverbought ? 1 : 0
+if enableBB
+    alertEnabledCount += 1
+    alertLongScore += close < bbLowerResult ? 1 : 0
+    alertShortScore += close > bbUpperResult ? 1 : 0
+if enableATR
+    alertEnabledCount += 1
+    alertLongScore += atrResult > atrAvgResult * atrThreshold ? 1 : 0
+    alertShortScore += atrResult > atrAvgResult * atrThreshold ? 1 : 0
+if enableVolume
+    alertEnabledCount += 1
+    alertLongScore += volResult > volAvgResult * volumeMultiplier ? 1 : 0
+    alertShortScore += volResult > volAvgResult * volumeMultiplier ? 1 : 0
+
+// ============================================================================
+// BAR COLORING WITH HYSTERESIS
+// ============================================================================
+
+// State persists across bars — once entered, stays until exit threshold crossed
+var bool longBarActive = false
+var bool shortBarActive = false
+
+if alertLongScore >= barEntryThreshold
+    longBarActive := true
+else if alertLongScore < barExitThreshold
+    longBarActive := false
+
+if alertShortScore >= barEntryThreshold
+    shortBarActive := true
+else if alertShortScore < barExitThreshold
+    shortBarActive := false
+
+barcolor(enableBarColor ? (longBarActive and shortBarActive ? conflictBarColor : longBarActive ? longBarColor : shortBarActive ? shortBarColor : na) : na)
+
+// ============================================================================
+// CONDITION EVALUATION & TABLE DISPLAY
+// ============================================================================
+
+if barstate.islast
+    conditions = array.new<ConditionResult>()
+    vwapTfLabel = formatTf(vwapTf)
+    maTfLabel = formatTf(maTf)
+    rsiTfLabel = formatTf(rsiTf)
+    macdTfLabel = formatTf(macdTf)
+    stochTfLabel = formatTf(stochTf)
+    cciTfLabel = formatTf(cciTf)
+    mfiTfLabel = formatTf(mfiTf)
+    bbTfLabel = formatTf(bbTf)
+    atrTfLabel = formatTf(atrTf)
+    volTfLabel = formatTf(volumeTf)
+
+    // VWAP
+    if enableVWAP
+        array.push(conditions, makeCondition("VWAP" + vwapTfLabel, str.tostring(vwapResult, format.mintick), true, close > vwapResult ? 1 : close < vwapResult ? -1 : 0, close < vwapResult ? 1 : close > vwapResult ? -1 : 0))
+
+    // Moving Averages
+    if enableEMAFast
+        array.push(conditions, makeCondition("EMA (" + str.tostring(emaFastLength) + ")" + maTfLabel, str.tostring(emaFastResult, format.mintick), true, close > emaFastResult ? 1 : -1, close < emaFastResult ? 1 : -1))
+    if enableEMASlow
+        array.push(conditions, makeCondition("EMA (" + str.tostring(emaSlowLength) + ")" + maTfLabel, str.tostring(emaSlowResult, format.mintick), true, close > emaSlowResult ? 1 : -1, close < emaSlowResult ? 1 : -1))
+    if enableEMACross
+        emaDiff = emaFastResult - emaSlowResult
+        array.push(conditions, makeCondition("EMA Cross" + maTfLabel, str.tostring(emaDiff, format.mintick), true, emaFastResult > emaSlowResult ? 1 : -1, emaFastResult < emaSlowResult ? 1 : -1))
+    if enableSMA
+        array.push(conditions, makeCondition("SMA (" + str.tostring(smaLength) + ")" + maTfLabel, str.tostring(smaResult, format.mintick), true, close > smaResult ? 1 : -1, close < smaResult ? 1 : -1))
+
+    // RSI
+    if enableRSI
+        array.push(conditions, makeCondition("RSI (" + str.tostring(rsiLength) + ")" + rsiTfLabel, str.tostring(rsiResult, "#.#"), true, triState(rsiResult < rsiOversold, rsiResult > rsiOverbought), triState(rsiResult > rsiOverbought, rsiResult < rsiOversold)))
+
+    // MACD
+    if enableMACD
+        array.push(conditions, makeCondition("MACD" + macdTfLabel, str.tostring(macdHistResult, "#.####"), true, macdHistResult > 0 ? 1 : -1, macdHistResult < 0 ? 1 : -1))
+
+    // Stochastic
+    if enableStoch
+        array.push(conditions, makeCondition("Stoch" + stochTfLabel, str.tostring(stochKResult, "#.#"), true, triState(stochKResult < stochOversold, stochKResult > stochOverbought), triState(stochKResult > stochOverbought, stochKResult < stochOversold)))
+
+    // CCI
+    if enableCCI
+        array.push(conditions, makeCondition("CCI (" + str.tostring(cciLength) + ")" + cciTfLabel, str.tostring(cciResult, "#.#"), true, triState(cciResult < cciOversold, cciResult > cciOverbought), triState(cciResult > cciOverbought, cciResult < cciOversold)))
+
+    // MFI
+    if enableMFI
+        array.push(conditions, makeCondition("MFI (" + str.tostring(mfiLength) + ")" + mfiTfLabel, str.tostring(mfiResult, "#.#"), true, triState(mfiResult < mfiOversold, mfiResult > mfiOverbought), triState(mfiResult > mfiOverbought, mfiResult < mfiOversold)))
+
+    // Bollinger Bands
+    if enableBB
+        bbWidth = bbMiddleResult != 0 ? (bbUpperResult - bbLowerResult) / bbMiddleResult * 100 : 0.0
+        array.push(conditions, makeCondition("BB" + bbTfLabel, str.tostring(bbWidth, "#.##") + "%", true, triState(close < bbLowerResult, close > bbUpperResult), triState(close > bbUpperResult, close < bbLowerResult)))
+
+    // ATR
+    if enableATR
+        atrAboveAvg = atrResult > atrAvgResult * atrThreshold
+        atrRatio = atrAvgResult != 0 ? atrResult / atrAvgResult : 0.0
+        array.push(conditions, makeCondition("ATR (" + str.tostring(atrLength) + ")" + atrTfLabel, str.tostring(atrRatio, "#.##") + "x", true, atrAboveAvg ? 1 : 0, atrAboveAvg ? 1 : 0))
+
+    // Volume
+    if enableVolume
+        volAboveAvg = volResult > volAvgResult * volumeMultiplier
+        volRatio = volAvgResult != 0 ? volResult / volAvgResult : 0.0
+        array.push(conditions, makeCondition("Volume" + volTfLabel, str.tostring(volRatio, "#.##") + "x", true, volAboveAvg ? 1 : 0, volAboveAvg ? 1 : 0))
+
+    // Calculate display scores
+    condCount = array.size(conditions)
+    longScore = 0
+    shortScore = 0
+    for cond in conditions
+        if cond.longState == 1
+            longScore += 1
+        if cond.shortState == 1
+            shortScore += 1
+
+    // Create table
+    totalRows = 2 + condCount
+    tSize = getTableSize(tableSize)
+
+    dashboard = table.new(
+         position=getTablePosition(tablePosition),
+         columns=4,
+         rows=totalRows,
+         bgcolor=subtleBgColor,
+         border_width=1,
+         border_color=borderColor)
+
+    // Row 0: Header
+    table.cell(dashboard, 0, 0, "TRADE CONDITIONS",
+         text_color=textColor, text_size=tSize,
+         bgcolor=headerBgColor, text_halign=text.align_left)
+    table.cell(dashboard, 1, 0, "Value",
+         text_color=textColor, text_size=tSize,
+         bgcolor=headerBgColor, text_halign=text.align_right)
+    table.cell(dashboard, 2, 0, "Long",
+         text_color=textColor, text_size=tSize,
+         bgcolor=headerBgColor, text_halign=text.align_center)
+    table.cell(dashboard, 3, 0, "Short",
+         text_color=textColor, text_size=tSize,
+         bgcolor=headerBgColor, text_halign=text.align_center)
+
+    // Row 1: Scores
+    table.cell(dashboard, 0, 1, "Score",
+         text_color=mutedTextColor, text_size=tSize,
+         bgcolor=scoreBgColor)
+    table.cell(dashboard, 1, 1, "",
+         text_size=tSize, bgcolor=scoreBgColor)
+    longScoreText = str.tostring(longScore) + "/" + str.tostring(condCount)
+    shortScoreText = str.tostring(shortScore) + "/" + str.tostring(condCount)
+    longScoreColor = condCount > 0 and longScore > condCount / 2 ? favorableColor : (longScore == 0 ? againstColor : neutralColor)
+    shortScoreColor = condCount > 0 and shortScore > condCount / 2 ? favorableColor : (shortScore == 0 ? againstColor : neutralColor)
+    table.cell(dashboard, 2, 1, longScoreText,
+         text_color=longScoreColor, text_size=tSize,
+         bgcolor=scoreBgColor, text_halign=text.align_center)
+    table.cell(dashboard, 3, 1, shortScoreText,
+         text_color=shortScoreColor, text_size=tSize,
+         bgcolor=scoreBgColor, text_halign=text.align_center)
+
+    // Rows 2+: Individual conditions
+    row = 2
+    for cond in conditions
+        table.cell(dashboard, 0, row, cond.name,
+             text_color=mutedTextColor, text_size=tSize)
+        table.cell(dashboard, 1, row, cond.value,
+             text_color=textColor, text_size=tSize,
+             text_halign=text.align_right)
+        table.cell(dashboard, 2, row, getStateSymbol(cond.longState),
+             text_color=getStateColor(cond.longState, favorableColor, againstColor, neutralColor),
+             text_size=tSize, text_halign=text.align_center)
+        table.cell(dashboard, 3, row, getStateSymbol(cond.shortState),
+             text_color=getStateColor(cond.shortState, favorableColor, againstColor, neutralColor),
+             text_size=tSize, text_halign=text.align_center)
+        row += 1
+
+// ============================================================================
+// ALERTS
+// ============================================================================
+
+var int prevLongScore = 0
+var int prevShortScore = 0
+
+longAligned = alertLongScore >= alertThreshold and alertEnabledCount > 0
+shortAligned = alertShortScore >= alertThreshold and alertEnabledCount > 0
+longJustAligned = longAligned and prevLongScore < alertThreshold
+shortJustAligned = shortAligned and prevShortScore < alertThreshold
+
+if barstate.isconfirmed
+    prevLongScore := alertLongScore
+    prevShortScore := alertShortScore
+
+if enableLongAlert and longJustAligned
+    alert("Trade Conditions: " + str.tostring(alertLongScore) + "/" + str.tostring(alertEnabledCount) + " LONG conditions met on " + syminfo.ticker, alert.freq_once_per_bar_close)
+
+if enableShortAlert and shortJustAligned
+    alert("Trade Conditions: " + str.tostring(alertShortScore) + "/" + str.tostring(alertEnabledCount) + " SHORT conditions met on " + syminfo.ticker, alert.freq_once_per_bar_close)
+
+alertcondition(longAligned, "Long Conditions Aligned", "Long alignment threshold reached")
+alertcondition(shortAligned, "Short Conditions Aligned", "Short alignment threshold reached")
+
+// ============================================================================
+// OVERLAY PLOTS (chart lines at half opacity)
+// ============================================================================
+
+overlayTransp = 50
+
+// VWAP
+plot(enableVWAP and showVwapOnChart ? vwapResult : na, "VWAP",
+     color=color.new(color.orange, overlayTransp), linewidth=2)
+
+// Moving Averages
+plot(enableEMAFast and showMaOnChart ? emaFastResult : na, "EMA Fast",
+     color=color.new(color.blue, overlayTransp))
+plot(enableEMASlow and showMaOnChart ? emaSlowResult : na, "EMA Slow",
+     color=color.new(color.red, overlayTransp))
+plot(enableSMA and showMaOnChart ? smaResult : na, "SMA",
+     color=color.new(color.purple, overlayTransp))
+
+// Bollinger Bands
+p_bbUpper = plot(enableBB and showBbOnChart ? bbUpperResult : na, "BB Upper",
+     color=color.new(color.gray, overlayTransp))
+p_bbLower = plot(enableBB and showBbOnChart ? bbLowerResult : na, "BB Lower",
+     color=color.new(color.gray, overlayTransp))
+fill(p_bbUpper, p_bbLower,
+     color=enableBB and showBbOnChart ? color.new(color.gray, 90) : na)
+
+// ============================================================================
+// DATA WINDOW PLOTS
+// ============================================================================
+
+plot(alertLongScore, title="Long Score", display=display.data_window, color=color.new(color.green, 80))
+plot(alertShortScore, title="Short Score", display=display.data_window, color=color.new(color.red, 80))
+plot(alertEnabledCount, title="Enabled Count", display=display.data_window, color=color.new(textColor, 80))

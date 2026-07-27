@@ -1,0 +1,107 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于月相计算的比特币交易策略Lunar-Phase-Based-Bitcoin-Trading-Strategy.md
+// content_hash: 12d13d5294c8f8a6
+// collected: 2026-07-27
+strategy("Lunar Phase Strategy by Symphoenix", overlay=true)
+
+// Input parameters
+start_year = input(2023, title="Start year")
+end_year = input(2023, title="End year")
+longPhaseThreshold = input(0.51, title="Long Phase Threshold")
+shortPhaseThreshold = input(0.49, title="Short Phase Threshold")
+riskPerTrade = input(0.05, title="Risk Per Trade (as a % of Equity)")
+stopLossPerc = input(0.01, title="Stop Loss Percentage")
+atrLength = input(21, title="ATR Length for Volatility")
+trailPerc = input(0.1, title="Trailing Stop Percentage")
+maxDrawdownPerc = input(0.1, title="Maximum Drawdown Percentage")
+volumeLength = input(7, title="Volume MA Length")
+
+// Constants for lunar phase calculation and ATR
+atr = ta.atr(atrLength)
+volMA = ta.sma(volume, volumeLength) // Volume moving average
+
+// Improved Lunar Phase Calculation
+calculateLunarPhase() =>
+    moonCycleLength = 29.5305882
+    daysSinceKnownFullMoon = (time - timestamp("2019-12-12T05:12:00")) / (24 * 60 * 60 * 1000)
+    lunarAge = daysSinceKnownFullMoon % moonCycleLength
+    phase = ((1 + math.cos(lunarAge / moonCycleLength * 2 * math.pi)) / 2)
+    phase
+
+lunarPhase = calculateLunarPhase()
+
+// Advanced Volume Analysis
+priceChange = ta.change(close)
+obv = ta.cum(priceChange > 0 ? volume : priceChange < 0 ? -volume : 0)
+
+// Additional Technical Indicators
+rsi = ta.rsi(close, 14)
+[macdLine, signalLine, _] = ta.macd(close, 12, 26, 9)
+
+// Calculate Position Size based on Volatility and Account Equity
+calculatePositionSize() =>
+    equity = strategy.equity
+    riskAmount = equity * riskPerTrade
+    positionSize = riskAmount / atr
+    if positionSize > 1000000000000
+        positionSize := 1000000000000
+    positionSize
+
+positionSize = calculatePositionSize()
+
+// Maximum Drawdown Tracking
+var float maxPortfolioValue = na
+maxPortfolioValue := math.max(maxPortfolioValue, strategy.equity)
+drawdown = (maxPortfolioValue - strategy.equity) / maxPortfolioValue
+
+// Check for maximum drawdown
+if drawdown > maxDrawdownPerc
+    strategy.close_all()
+    strategy.cancel_all()
+
+// Volume Analysis
+isVolumeConfirmed = volume > volMA
+
+// Date Check for Backtesting Period
+isWithinBacktestPeriod = year >= start_year and year <= end_year
+
+// Entry and Exit Conditions
+// Adjusted Entry and Exit Conditions
+longCondition = lunarPhase > longPhaseThreshold and lunarPhase < 0.999 and isVolumeConfirmed and obv > obv[1] and rsi < 70 and macdLine > signalLine and isWithinBacktestPeriod
+shortCondition = lunarPhase < shortPhaseThreshold and lunarPhase > 0.001 and isVolumeConfirmed and obv < obv[1] and rsi > 30 and macdLine < signalLine and isWithinBacktestPeriod
+
+if longCondition
+    if strategy.position_size < 0
+        strategy.close_all()
+    if strategy.position_size < positionSize
+        strategy.entry("Long", strategy.long, qty=positionSize)
+        strategy.exit("Exit Long", "Long", trail_offset=atr * trailPerc, trail_points=atr)
+
+if shortCondition
+    if strategy.position_size > 0
+        strategy.close_all()
+    if strategy.position_size > -positionSize
+        strategy.entry("Short", strategy.short, qty=positionSize)
+        strategy.exit("Exit Short", "Short", trail_offset=atr * trailPerc, trail_points=atr)
+
+// Implementing Stop-Loss Logic
+longStopLoss = strategy.position_avg_price * (1 - stopLossPerc)
+shortStopLoss = strategy.position_avg_price * (1 + stopLossPerc)
+
+if strategy.position_size > 0 and close < longStopLoss
+    strategy.close("Long")
+
+if strategy.position_size < 0 and close > shortStopLoss
+    strategy.close("Short")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/438784
+
+> Last Modified
+
+2024-01-15 12:31:06

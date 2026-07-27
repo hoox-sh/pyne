@@ -1,0 +1,58 @@
+//@version=6
+// set04 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双均线动态交叉策略之指数移动均线交叉执行单次交易系统-Dynamic-Dual-Moving-Average-Crossover-Strategy-with-Single-Trade-Execution-System-using-Exponential-Moving-Averages.md
+// content_hash: 8fe78a7c4b3312e5
+// collected: 2026-07-27
+strategy("EMA Crossover Labels (One Trade at a Time)", overlay=true, initial_capital=100000, default_qty_type=strategy.percent_of_equity, default_qty_value=10)
+
+// ==== User Inputs ====
+// Set the testing timeframe (ensure the chart is on a 10-min timeframe)
+testTimeFrame = input.timeframe("10", "Strategy Timeframe")
+
+// EMA period inputs
+emaPeriod9  = input.int(9, "EMA 9 Period", minval=1)
+emaPeriod21 = input.int(21, "EMA 2q Period", minval=1)
+
+// ==== Retrieve Price Data ====
+// For simplicity, we use the chart's timeframe (should be 10-min)
+price = close
+
+// ==== Calculate EMAs ====
+ema9  = ta.ema(price, emaPeriod9)
+ema21 = ta.ema(price, emaPeriod21)
+
+// ==== Define Crossover Conditions ====
+// Buy signal: when EMA9 crosses above EMA21 AND no current position is open
+buySignal = ta.crossover(ema9, ema21) and strategy.position_size == 0
+// Sell signal: when EMA9 crosses below EMA21 AND a long position is active
+sellSignal = ta.crossunder(ema9, ema21) and strategy.position_size > 0
+
+// ==== Strategy Orders ====
+// Enter a long position when a valid buy signal occurs
+if buySignal
+    strategy.entry("Long", strategy.long)
+    alert("Long Signal: " + syminfo.tickerid + " - EMA9 crossed above EMA21", alert.freq_once_per_bar_close)
+// Exit the long position when a valid sell signal occurs
+if sellSignal
+    strategy.close("Long")
+    alert("Sell Long Signal: " + syminfo.tickerid + " - EMA9 crossed below EMA21", alert.freq_once_per_bar_close)
+
+// ==== Plot Buy/Sell Labels ====
+// Only plot a "Buy" label if there's no open position
+plotshape(buySignal, title="Buy Label", location=location.belowbar, color=color.green, style=shape.labelup, text="Buy", textcolor=color.white)
+// Only plot a "Sell" label if a position is active
+plotshape(sellSignal, title="Sell Label", location=location.abovebar, color=color.red, style=shape.labeldown, text="Sell", textcolor=color.white)
+
+// ==== Plot EMAs for Visualization ====
+plot(ema9, color=color.blue, title="EMA 21")
+plot(ema21, color=color.orange, title="EMA 21")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/483495
+
+> Last Modified
+
+2025-02-24 09:15:19

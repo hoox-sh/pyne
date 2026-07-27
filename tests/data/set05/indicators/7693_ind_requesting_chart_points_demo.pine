@@ -1,0 +1,22 @@
+//@version=5
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/v5/concepts/other-timeframes-and-data.md::other-timeframes-and-data.md#block25
+// content_hash: 0e55b2f23a0aa572
+// collected: 2026-07-27
+indicator("Requesting chart points demo", "HTF Boxes", true, max_boxes_count = 500)
+
+//@variable The timeframe to request data from.
+string higherTimeframe = input.timeframe("1D", "Timeframe")
+
+// Raise a runtime error if the `higherTimeframe` is smaller than the chart's timeframe.
+if timeframe.in_seconds(higherTimeframe) < timeframe.in_seconds(timeframe.period)
+    runtime.error("The selected timeframe is too small. Choose a higher timeframe.")
+
+//@variable A `chart.point` containing top-left coordinates from the last confirmed bar.
+topLeft = chart.point.now(high)[1]
+//@variable A `chart.point` containing bottom-right coordinates from the last confirmed bar.
+bottomRight = chart.point.from_time(time_close, low)[1]
+
+// Request the last confirmed `topLeft` and `bottomRight` chart points from the `higherTimeframe`.
+[requestedTopLeft, requestedBottomRight] = request.security(

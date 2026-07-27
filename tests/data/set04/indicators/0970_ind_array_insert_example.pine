@@ -1,0 +1,10 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block59
+// content_hash: b1db7f29431f869a
+// collected: 2026-07-27
+indicator("array.insert example")
+a = array.new_float(5, close)
+array.insert(a, 0, open)
+plot(array.get(a, 5))

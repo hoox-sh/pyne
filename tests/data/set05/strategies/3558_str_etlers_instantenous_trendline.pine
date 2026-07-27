@@ -1,0 +1,74 @@
+//@version=4
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/Etlers Instantenous Trendline.pine
+// content_hash: 5dbd33792e09655f
+// collected: 2026-07-27
+strategy(title= "Etlers Instantenous Trendline", shorttitle = "Instantenous Trendline", overlay=true)
+//commission_type=strategy.commission.percent, commission_value=.5
+//
+//Capital Management
+capitaltype = input(defval="Initial", title="Capital Settings", options=["Initial", "Growing","Manual"], type=input.string)
+manualcapital = input(title="Manual Position Size", defval=100.3, type=input.float)
+leverage = input(title="Leverage", defval=1, type=input.float)
+capitalsystem(capitaltype) =>
+    v1 = floor(strategy.initial_capital/close) * leverage
+    v2 = floor((strategy.initial_capital + strategy.netprofit)/close) * leverage
+    v3 = manualcapital
+    capitaltype== "Initial"? v1 : capitaltype == "Growing" ? v2 : v3
+ordersize=capitalsystem(capitaltype)
+//Targets, Stops
+percentages = input(title="Percentage stop 🎯", defval=true)
+targetpercentage = input(title="Profit (%)", type=input.float, minval=0.0, step=0.1, defval=1) * 0.01
+stoppercentage = input(title="Stop Loss (%)", type=input.float, minval=0.0, step=0.1, defval=1) * 0.01
+longtp  = strategy.position_avg_price * (1 + targetpercentage)
+shorttp = strategy.position_avg_price * (1 - targetpercentage)
+longStopPrice  = strategy.position_avg_price * (1 - stoppercentage)
+shortStopPrice = strategy.position_avg_price * (1 + stoppercentage)
+//Cheatcountry's part
+// Copyright (c) 2019-present, Franklin Moormann (cheatcountry)
+// Ehlers Instantaneous Trendline V2 [CC] script may be freely distributed under the MIT license.
+inp = input(title="Source", type=input.source, defval=hl2)
+res = input(title="Resolution", type=input.resolution, defval="")
+src = security(syminfo.tickerid, res, inp[barstate.isrealtime ? 1 : 0])[barstate.isrealtime ? 0 : 1]
+alpha = input(title="Alpha", type=input.float, defval=0.07, minval=0.01, step = 0.01)
+itrend = 0.0
+itrend := bar_index < 7 ? (src + (2 * nz(src[1])) + nz(src[2])) / 4 : ((alpha - (pow(alpha, 2) / 4)) * src) + (0.5 * pow(alpha, 2) * nz(src[1])) - 
+         ((alpha - (0.75 * pow(alpha, 2))) * nz(src[2])) + (2 * (1 - alpha) * nz(itrend[1])) - (pow(1 - alpha, 2) * nz(itrend[2]))
+trigger = (2 * itrend) - nz(itrend[2])
+sig = trigger > itrend ? 1 : trigger < itrend ? -1 : 0
+itColor = sig > 0 ? color.green : sig < 0 ? color.red : color.black
+plot(trigger, title="Trigger", color=itColor, linewidth=2)
+plot(itrend, title="ITrend", color=color.black, linewidth=1)
+//End Cheatcountry's part
+//Things
+buy = crossover(trigger, itrend)
+sell = crossunder(trigger, itrend)
+if (buy)
+    strategy.entry("Buy", strategy.long, ordersize)
+if (percentages)
+    strategy.exit( "Buy", from_entry="Buy", stop=longStopPrice, limit= longtp)
+//    if (target and stop)
+//        strategy.exit( "Set Value tp/sl", from_entry="Buy", profit=targetticks, loss=stopnumberticks)
+//    if (target and not stop)
+//        strategy.exit( "Set Value tp/sl", from_entry="Buy", profit=targetticks)
+//    if (stop and not target)
+//        strategy.exit( "Set Value tp/sl", from_entry="Buy", loss=stopnumberticks)
+//strategy.close("Buy", buyend)
+if (sell)
+    strategy.entry("Short", strategy.short, ordersize)
+if (percentages)
+    strategy.exit( "Short", from_entry="Short", stop=shortStopPrice, limit = shorttp)
+plot(series=(strategy.position_size > 0) ? longStopPrice : na,
+     color=color.red, style=plot.style_linebr,
+     linewidth=2, title="Long Stop Loss")
+plot(series=(strategy.position_size < 0) ? shortStopPrice : na,
+     color=color.red, style=plot.style_linebr,
+     linewidth=2, title="Short Stop Loss")
+plot(series=(strategy.position_size > 0) ? longtp : na,
+     color=color.lime, style=plot.style_linebr,
+     linewidth=2, title="Long Stop Loss")
+plot(series=(strategy.position_size < 0) ? shorttp : na,
+     color=color.lime, style=plot.style_linebr,
+     linewidth=2, title="Short Stop Loss")
+Expand (101 lines)

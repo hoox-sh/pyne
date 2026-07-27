@@ -1,0 +1,51 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于Parabolic-SARStoch和Security指标的多时间框架量化交易策略Parabolic-SAR-Stoch-and-Security-Indicator-Based-Multi-Timeframe-Quantitative-Trading-Strategy.md
+// content_hash: 761b9ccb085b7653
+// collected: 2026-07-27
+strategy(title='kyenji', shorttitle='kyenji90', overlay=true)
+
+// Parabolic SAR
+parabolicSARStart=input.float(0.01)
+parabolicSARInc=input.float(0.01)
+parabolicSARMax=input.float(0.2)
+psarDot = ta.sar(parabolicSARStart,parabolicSARInc,parabolicSARMax)
+longConditionPSAR = psarDot > close
+shortConditionPSAR = psarDot < close
+
+// Stoch
+periodK = input.int(14, title="K", minval=1)
+periodD = input.int(3, title="D", minval=1)
+smoothK = input.int(3, title="Smooth", minval=1)
+k = ta.sma(ta.stoch(close, high, low, periodK), smoothK)
+d = ta.sma(k, periodD)
+h0 = 80
+h1 = 20
+longConditionStoch = k < h1
+shortConditionStoch = k > h0
+
+// Security
+securityPeriod=input('180')
+longConditionSecurity = ta.crossover(request.security(syminfo.tickerid, securityPeriod, close),request.security(syminfo.tickerid, securityPeriod, open))
+shortConditionSecurity = ta.crossunder(request.security(syminfo.tickerid, securityPeriod, close),request.security(syminfo.tickerid, securityPeriod, open))
+
+// Generate Signal
+longCondition = longConditionSecurity and longConditionPSAR and longConditionStoch
+shortCondition = shortConditionSecurity and shortConditionPSAR and shortConditionStoch
+
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+
+if (shortCondition)
+    strategy.entry("Short", strategy.short)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/439193
+
+> Last Modified
+
+2024-01-18 11:40:38

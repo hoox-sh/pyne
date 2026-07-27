@@ -1,0 +1,68 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/趋势跟踪与动量交易相结合的双重MACD优化策略-Dual-MACD-Optimization-Strategy-Combining-Trend-Following-and-Momentum-Trading.md
+// content_hash: 2daf69fd11a6abb9
+// collected: 2026-07-27
+strategy("Improved MACD_VXI Strategy", overlay=true)
+
+// Calculate MACD and Signal Line
+fastLength = input.int(13, title="Fast Length")
+slowLength = input.int(21, title="Slow Length")
+signalLength = input.int(8, title="Signal Length")
+
+fastMA = ta.ema(close, fastLength)
+slowMA = ta.ema(close, slowLength)
+macd = fastMA - slowMA
+signal = ta.sma(macd, signalLength)
+
+// Plot MACD and Signal Line
+plot(macd, color=color.red, linewidth=1)
+plot(signal, color=color.blue, linewidth=2)
+
+// Calculate Cross Signals with Trend Confirmation
+smaPeriod = input.int(50, title="SMA Period")
+sma = ta.sma(close, smaPeriod)
+
+trendUp = close > sma
+trendDown = close < sma
+
+crossOver = ta.crossover(signal, macd)
+crossUnder = ta.crossunder(signal, macd)
+
+buySignal = crossOver and trendUp
+sellSignal = crossUnder and trendDown
+
+// Execute Buy/Sell Operations
+if buySignal
+    strategy.entry("Buy", strategy.long)
+if sellSignal
+    strategy.entry("Sell", strategy.short)
+
+// Extend Signal Confirmation Time Window
+longSignal = crossOver[1] and trendUp[1]
+shortSignal = crossUnder[1] and trendDown[1]
+
+if longSignal
+    strategy.entry("Buy", strategy.long)
+if shortSignal
+    strategy.entry("Sell", strategy.short)
+
+// Set Fixed Percentage Stop Loss and Take Profit
+stopLossPercent = input.float(1, title="Stop Loss (%)") / 100
+takeProfitPercent = input.float(2, title="Take Profit (%)") / 100
+
+stopLossPrice = strategy.position_avg_price * (1 - stopLossPercent)
+takeProfitPrice = strategy.position_avg_price * (1 + takeProfitPercent)
+
+strategy.exit("Stop Loss/Profit", "Buy", stop=stopLossPrice, limit=takeProfitPrice)
+strategy.exit("Stop Loss/Profit", "Sell", stop=stopLossPrice, limit=takeProfitPrice)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/451413
+
+> Last Modified
+
+2024-05-14 17:35:54

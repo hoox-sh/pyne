@@ -1,0 +1,74 @@
+//@version=6
+// set03 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/自适应趋势跟踪与动态风控策略-Adaptive-Trend-Following-with-Dynamic-Risk-Control-Strategy.md
+// content_hash: a02992ec6fd3b5ff
+// collected: 2026-07-27
+strategy("妮可百分百", overlay=true)
+
+// ? 設定 Parabolic SAR 參數
+start = input.float(0.02, "起始 AF")
+increment = input.float(0.02, "加速因子")
+maximum = input.float(0.2, "最大 AF")
+
+// ? 計算 Parabolic SAR
+SAR = ta.sar(start, increment, maximum)
+
+// ? ATR 計算（用於動態止損）
+atrLength = input.int(14, "ATR 計算週期")
+atrMultiplier = input.float(1.3, "ATR 係數")  // 2倍 ATR 作為止損範圍
+ATR = ta.atr(atrLength)
+
+// ? 固定 0.5% 止盈計算
+takeProfitPercent = 0.007  // 0.7% 固定止盈
+takeProfitLong = close * (1 + takeProfitPercent)  // 多單止盈
+takeProfitShort = close * (1 - takeProfitPercent) // 空單止盈
+
+// ? **50 EMA 過濾**
+ema50 = ta.ema(close, 50)
+
+// ? **RSI 過濾（防止震盪進場）**
+rsiLength = input.int(14, "RSI 週期")
+rsi = ta.rsi(close, rsiLength)
+longFilter = rsi > 40  // 只在 RSI > 31 時做多
+shortFilter = rsi < 60 // 只在 RSI < 69 時做空
+
+// ? **檢查是否已經有持倉**
+isFlat = strategy.position_size == 0  // **無持倉時，才能開新單**
+
+// ? **多頭進場條件**
+longCondition = ta.crossover(close, SAR) and close > ema50 and longFilter and isFlat  
+
+// ? **空頭進場條件**
+shortCondition = ta.crossunder(close, SAR) and close < ema50 and shortFilter and isFlat  
+
+// ? **進場策略**
+if (longCondition)
+    strategy.entry("B", strategy.long, comment="B")
+
+if (shortCondition)
+    strategy.entry("S", strategy.short, comment="S")
+
+// ? **止盈 & 止損**
+stopLossLong = close - (ATR * atrMultiplier)  // 多單 ATR 止損
+stopLossShort = close + (ATR * atrMultiplier) // 空單 ATR 止損
+
+strategy.exit("Exit Long", from_entry="B", stop=stopLossLong, limit=takeProfitLong, comment="TP Long")
+strategy.exit("Exit Short", from_entry="S", stop=stopLossShort, limit=takeProfitShort, comment="TP Short")
+
+// ? **標記進出場點**
+plotshape(series=longCondition, location=location.belowbar, style=shape.triangleup, size=size.small, title="B")
+plotshape(series=shortCondition, location=location.abovebar, style=shape.triangledown, size=size.small, title="S")
+
+// ? **繪製 50 EMA**
+plot(ema50, color=color.blue, title="50 EMA")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/482600
+
+> Last Modified
+
+2025-02-19 11:26:56

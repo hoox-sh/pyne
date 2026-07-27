@@ -1,0 +1,58 @@
+//@version=2
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双MACD量化交易策略Dual-MACD-Quantitative-Trading-Strategy.md
+// content_hash: 3229f4a37be73e7e
+// collected: 2026-07-27
+strategy("Multiple MACD RSI simple strategy", overlay=true, initial_capital=5000, default_qty_type=strategy.percent_of_equity, default_qty_value=80, pyramiding=0, calc_on_order_fills=true)
+
+fastLength = input(10)
+slowlength = input(22)
+MACDLength = input(9)
+
+MACD = ema(close, fastLength) - ema(close, slowlength)
+aMACD = sma(MACD, MACDLength)
+delta = MACD - aMACD
+
+fastLength2 = input(21)
+slowlength2 = input(45)
+MACDLength2 = input(20)
+
+MACD2 = ema(open, fastLength2) - ema(open, slowlength2)
+aMACD2 = sma(MACD2, MACDLength2)
+delta2 = MACD2 - aMACD2
+
+
+uptrend = (close + high)/(close[1] + high[1])
+downtrend = (close + low)/(close[1] + low[1])
+
+smoothK = input(2, minval=1, title="K smoothing Stoch RSI")
+smoothD = input(3, minval=1, title= "D smoothing for Stoch RSI")
+lengthRSI = input(7, minval=1, title="RSI Length")
+lengthStoch = input(8, minval=1, title="Stochastic Length")
+src = input(close, title="RSI Source")
+
+rsi1 = rsi(src, lengthRSI)
+k = sma(stoch(rsi1, rsi1, rsi1, lengthStoch), smoothK)
+d = sma(k, smoothD)
+h0 = hline(80)
+h1 = hline(20)
+
+yearin = input(2018, title="Year to start backtesting from")
+
+if (delta > 0) and (year>=yearin) and (delta2 > 0) and (uptrend > 1)
+    strategy.entry("buy", strategy.long, comment="buy")
+
+if (delta < 0) and (year>=yearin) and (delta2 < 0) and (downtrend < 1) and (d > 20)
+    strategy.entry("sell", strategy.short, comment="sell")
+
+//plot(strategy.equity, title="equity", color=red, linewidth=2, style=areabr)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/431974
+
+> Last Modified
+
+2023-11-13 18:04:07

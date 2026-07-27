@@ -1,0 +1,79 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动量反转组合策略Momentum-Reversal-Combo-Strategy.md
+// content_hash: 0fdb7b03b63ef367
+// collected: 2026-07-27
+////////////////////////////////////////////////////////////
+//  Copyright by HPotter v1.0 18/11/2019
+// This is combo strategies for get a cumulative signal. 
+//
+// First strategy
+// This System was created from the Book "How I Tripled My Money In The 
+// Futures Market" by Ulf Jensen, Page 183. This is reverse type of strategies.
+// The strategy buys at market, if close price is higher than the previous close 
+// during 2 days and the meaning of 9-days Stochastic Slow Oscillator is lower than 50. 
+// The strategy sells at market, if close price is lower than the previous close price 
+// during 2 days and the meaning of 9-days Stochastic Fast Oscillator is higher than 50.
+//
+// Second strategy
+// Detrended Synthetic Price is a function that is in phase with the 
+// dominant cycle of real price data. This DSP is computed by subtracting 
+// a half-cycle exponential moving average (EMA) from the quarter cycle 
+// exponential moving average.
+// See "MESA and Trading Market Cycles" by John Ehlers pages 64 - 70. 
+//
+// WARNING:
+// - For purpose educate only
+// - This script to change bars colors.
+////////////////////////////////////////////////////////////
+Reversal123(Length, KSmoothing, DLength, Level) =>
+    vFast = sma(stoch(close, high, low, Length), KSmoothing) 
+    vSlow = sma(vFast, DLength)
+    pos = 0.0
+    pos := iff(close[2] < close[1] and close > close[1] and vFast < vSlow and vFast > Level, 1,
+	         iff(close[2] > close[1] and close < close[1] and vFast > vSlow and vFast < Level, -1, nz(pos[1], 0))) 
+	pos
+
+D_DSP(Length, SellBand, BuyBand) =>
+    pos = 0.0
+    xHL2 = hl2
+    xEMA1 = ema(xHL2, Length)
+    xEMA2 = ema(xHL2, 2 * Length)
+    xEMA1_EMA2 = xEMA1 - xEMA2
+    pos := iff(xEMA1_EMA2 > SellBand, 1,
+	         iff(xEMA1_EMA2 < BuyBand, -1, nz(pos[1], 0))) 
+	pos
+
+strategy(title="Combo Backtest 123 Reversal & D_DSP (Detrended Synthetic Price) V 2", shorttitle="Combo", overlay = true)
+Length = input(14, minval=1)
+KSmoothing = input(1, minval=1)
+DLength = input(3, minval=1)
+Level = input(50, minval=1)
+//-------------------------
+LengthDSP = input(14, minval=1)
+SellBand = input(-25)
+BuyBand = input(25)
+reverse = input(false, title="Trade reverse")
+posReversal123 = Reversal123(Length, KSmoothing, DLength, Level)
+posD_DSP = D_DSP(LengthDSP, SellBand, BuyBand)
+pos = iff(posReversal123 == 1 and posD_DSP == 1 , 1,
+	   iff(posReversal123 == -1 and posD_DSP == -1, -1, 0)) 
+possig = iff(reverse and pos == 1, -1,
+          iff(reverse and pos == -1 , 1, pos))	   
+if (possig == 1) 
+    strategy.entry("Long", strategy.long)
+if (possig == -1)
+    strategy.entry("Short", strategy.short)	 
+if (possig == 0) 
+    strategy.close_all()
+barcolor(possig == -1 ? #b50404: possig == 1 ? #079605 : #0536b3 )
+```
+
+> Detail
+
+https://www.fmz.com/strategy/430555
+
+> Last Modified
+
+2023-10-30 11:49:26

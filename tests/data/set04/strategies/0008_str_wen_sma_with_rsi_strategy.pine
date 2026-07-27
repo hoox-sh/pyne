@@ -1,0 +1,69 @@
+//@version=6
+// set04 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于动量增强型简单移动平均线和RSI的趋势跟踪策略-Momentum-Enhanced-Simple-Moving-Average-and-RSI-Strategy-for-Trend-Following.md
+// content_hash: 8bac5c4140f46657
+// collected: 2026-07-27
+strategy("WEN - SMA with RSI Strategy", overlay=true)
+
+// Define input parameters
+// SMA Inputs
+shortLength = input(8, title="Short MA Length")
+longLength = input(21, title="Long MA Length")
+
+// RSI Inputs
+rsiLength = input(14, title="RSI Length")
+rsiOverbought = input(70, title="RSI Overbought")
+rsiOversold = input(30, title="RSI Oversold")
+
+// Calculate indicators
+// Moving Averages
+shortMA = ta.sma(close, shortLength)
+longMA = ta.sma(close, longLength)
+
+// RSI
+rsi = ta.rsi(close, rsiLength)
+
+// Plot indicators
+plot(shortMA, title="Short MA", color=color.blue)
+plot(longMA, title="Long MA", color=color.red)
+// RSI is typically plotted in a separate panel in trading platforms
+
+// Entry conditions with RSI confirmation
+smaLongCondition = ta.crossover(shortMA, longMA)
+smaShortCondition = ta.crossunder(shortMA, longMA)
+
+rsiLongCondition = rsi < rsiOverbought  // Not overbought for long entry
+rsiShortCondition = rsi > rsiOversold   // Not oversold for short entry
+
+// Combined entry conditions
+longCondition = smaLongCondition and rsiLongCondition
+shortCondition = smaShortCondition and rsiShortCondition
+
+// Execute trades
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+if (shortCondition)
+    strategy.close("Long")
+    strategy.entry("Short", strategy.short)
+
+// Set stop loss and take profit
+stopLoss = input(1, title="Stop Loss (%)") / 100
+takeProfit = input(2, title="Take Profit (%)") / 100
+
+longStopLossPrice = strategy.position_avg_price * (1 - stopLoss)
+longTakeProfitPrice = strategy.position_avg_price * (1 + takeProfit)
+shortStopLossPrice = strategy.position_avg_price * (1 + stopLoss)
+shortTakeProfitPrice = strategy.position_avg_price * (1 - takeProfit)
+
+strategy.exit("Take Profit / Stop Loss", from_entry="Long", stop=longStopLossPrice, limit=longTakeProfitPrice)
+strategy.exit("Take Profit / Stop Loss", from_entry="Short", stop=shortStopLossPrice, limit=shortTakeProfitPrice)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/483525
+
+> Last Modified
+
+2025-02-24 10:19:03

@@ -1,0 +1,45 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动量策略的RSI指标聚合RSI-Momentum-Aggregation-Strategy.md
+// content_hash: 89449b845a05e473
+// collected: 2026-07-27
+strategy("Crypto Buy & Sell Strategy (Pine Script v5)", overlay=true)
+
+// User-defined input for RSI
+rsiLength = input.int(14, title="RSI Length")
+rsiOverbought = input.int(70, title="RSI Overbought Threshold")
+rsiOversold = input.int(30, title="RSI Oversold Threshold")
+
+// Calculate RSI
+rsiValue = ta.rsi(close, rsiLength)
+
+// Define entry and exit conditions
+longCondition = ta.crossover(rsiValue, rsiOversold)
+shortCondition = ta.crossunder(rsiValue, rsiOverbought)
+
+// Plot RSI and Overbought/Oversold thresholds
+plot(rsiValue, title="RSI", color=color.blue)
+hline(rsiOverbought, title="Overbought", color=color.red)
+hline(rsiOversold, title="Oversold", color=color.green)
+
+// Execute the strategy using conditional blocks
+if longCondition
+    strategy.entry("Long", strategy.long, comment="Buy")
+    
+if shortCondition
+    strategy.entry("Short", strategy.short, comment="Sell")
+
+// Highlight buying and selling on the chart
+bgcolor(longCondition ? color.new(color.green, 90) : na, title="Buy Background")
+bgcolor(shortCondition ? color.new(color.red, 90) : na, title="Sell Background")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/433544
+
+> Last Modified
+
+2023-12-01 15:01:58

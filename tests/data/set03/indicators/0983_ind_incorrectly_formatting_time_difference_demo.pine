@@ -1,0 +1,27 @@
+//@version=6
+// set03 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/concepts/time.md::time.md#block40
+// content_hash: 96381e31f5c679fe
+// collected: 2026-07-27
+indicator("Incorrectly formatting time difference demo", overlay = true)
+
+//@variable A table that displays monthly close countdown information.
+var table displayTable = table.new(position.top_right, 1, 4, color.rgb(0, 188, 212, 60))
+
+if barstate.islast
+    //@variable A UNIX timestamp representing the current time as of the script's latest execution. 
+    int currentTime = timenow
+    //@variable A UNIX timestamp representing the expected closing time of the current "1M" bar. 
+    int monthCloseTime = time_close("1M")
+
+    //@variable The number of milliseconds between the `currentTime` and the `monthCloseTime`. 
+    //          This value is NOT intended as a UNIX timestamp.
+    int timeLeft = monthCloseTime - currentTime
+    //@variable A "string" representing the `timeLeft` as a date and time in the exchange time zone, in ISO 8601 format.
+    //          This format is INCORRECT for the `timeLeft` value because it's supposed to represent the time between 
+    //          two nonzero UNIX timestamps, NOT a specific point in time.
+    string incorrectTimeFormat = str.format_time(timeLeft)
+
+    // Initialize `displayTable` cells to initialize the `currentTime` and `monthCloseTime`.
+    displayTable.cell(

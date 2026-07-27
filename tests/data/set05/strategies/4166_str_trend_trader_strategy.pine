@@ -1,0 +1,9 @@
+//@version=4
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/Trend trader Strategy.pine
+// content_hash: 8640ad6b4b002423
+// collected: 2026-07-27
+strategy("My Script")
+plot(close)
+//if you want acess to the better version of this, just message me :)

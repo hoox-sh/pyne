@@ -1,0 +1,11 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block308
+// content_hash: 5b0be45bb0f81368
+// collected: 2026-07-27
+// Run this script on an intraday chart.
+indicator("New day started", overlay = true)
+// Highlights the first bar of the new day.
+isNewDay = timeframe.change("1D")
+bgcolor(isNewDay ? color.new(color.green, 80) : na)

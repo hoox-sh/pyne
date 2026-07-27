@@ -1,0 +1,27 @@
+//@version=4
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/Turtle Trend Trading System [racer8].pine
+// content_hash: b928c42fd9f1ca52
+// collected: 2026-07-27
+strategy("Turtle System", overlay=true)
+n = input(55,"Entry Length")
+e = input(20,"Exit Length")
+HI = highest(n)
+LO = lowest(n)
+hi = highest(e)
+lo = lowest(e)
+if close>HI[1]
+    strategy.entry("Buy", strategy.long)
+if close<LO[1]
+    strategy.entry("Sell", strategy.short)
+    
+if low<lo[1]
+    strategy.close("Buy")
+if high>hi[1]
+    strategy.close("Sell")
+plot(HI,color=color.lime)
+plot(LO,color=color.red)
+plot(hi,color=color.blue)
+plot(lo,color=color.maroon)
+Expand (30 lines)

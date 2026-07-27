@@ -1,0 +1,69 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/P-信号反转策略P-Signal-Reversal-Strategy.md
+// content_hash: ec8608ad31deb8de
+// collected: 2026-07-27
+// **********************************************************************************************************
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// P-Signal Strategy RVS © Kharevsky
+// **********************************************************************************************************
+strategy('P-Signal Strategy RVS.', precision=3, process_orders_on_close=true, pyramiding=0, 
+     commission_type=strategy.commission.percent,
+     commission_value=0.2)
+// Parameters and const of P-Signal.
+nPoints = input.int(title='Cardinality:', defval=4, minval=4, maxval=200, group='Parameters of strategy.')
+ndErf = input.float(title='|ΔErf|:', defval=0, minval=0, maxval=1, step=0.01, group='Parameters of strategy.')
+tStartDate = input(title='Start date:', defval=timestamp('30 Dec 1957 00:00 +0300'), group='Observation time.')
+int nIntr = nPoints - 1
+// Horner's method for the error (Gauss) & P-Signal functions.
+fErf(x) =>
+    nT = 1.0 / (1.0 + 0.5 * math.abs(x))
+    nAns = 1.0 - nT * math.exp(-x * x - 1.26551223 + 
+     nT * (1.00002368 + nT * (0.37409196 + nT * (0.09678418 + 
+     nT * (-0.18628806 + nT * (0.27886807 + nT * (-1.13520398 + 
+     nT * (1.48851587 + nT * (-0.82215223 + nT * 0.17087277)))))))))
+    x >= 0 ? nAns : -nAns
+fPSignal(ser, int) =>
+    nStDev = ta.stdev(ser, int)
+    nSma = ta.sma(ser, int)
+    nStDev > 0 ? fErf(nSma / nStDev / math.sqrt(2)) : math.sign(nSma)
+// Data.
+float nPSignal = ta.sma(fPSignal(ta.change(ohlc4), nIntr), nIntr)
+float ndPSignal = math.sign(nPSignal[0] - nPSignal[1])
+bool isStartDate = true
+// Reversal Strategy.
+strategy.entry('short', strategy.short, when=isStartDate and nPSignal > ndErf and ndPSignal < 0)
+strategy.entry('long', strategy.long, when=isStartDate and nPSignal < -ndErf and ndPSignal > 0)
+// Plotting. 
+hline(+1.0, color=color.new(color.orange, 70), linestyle=hline.style_dotted, editable=false)
+hline(-1.0, color=color.new(color.orange, 70), linestyle=hline.style_dotted, editable=false)
+hline(-ndErf, color=color.new(color.orange, 70), linestyle=hline.style_dotted, editable=false)
+hline(ndErf, color=color.new(color.orange, 70), linestyle=hline.style_dotted, editable=false)
+plot(nPSignal, color=color.new(color.blue, 0), style=plot.style_line)
+// Table of state.
+if barstate.isconfirmed
+    var Table = table.new(position=position.bottom_right, columns=3, rows=1, 
+     frame_color=color.new(color.orange, 70), frame_width=1, 
+     border_color=color.new(color.orange, 70), border_width=1)
+    table.cell(table_id=Table, column=0, row=0, 
+     text=strategy.position_size > 0 ? 'Long: ' + str.tostring(strategy.position_size) : 'Short: ' + str.tostring(strategy.position_size), 
+     text_color=strategy.position_size > 0 ? color.green : color.red)
+    table.cell(table_id=Table, column=1, row=0, 
+     text='Net P/L: ' + str.tostring(strategy.netprofit, '#.#'), 
+     text_color=strategy.netprofit > 0 ? color.green : color.red)
+    table.cell(table_id=Table, column=2, row=0, 
+     text='Open P/L: ' + str.tostring(strategy.openprofit, '#.#'), 
+     text_color=strategy.openprofit > 0 ? color.green : color.red)
+// The end.
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/440338
+
+> Last Modified
+
+2024-01-29 14:44:56

@@ -1,0 +1,82 @@
+//@version=3
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动量跟随的Schaff趋势循环策略Schaff-Trend-Cycle-Momentum-Following-Strategy.md
+// content_hash: 46aecd2edcc0e757
+// collected: 2026-07-27
+// Copyright (c) 2018-present, Alex Orekhov (everget)
+// Schaff Trend Cycle script may be freely distributed under the MIT license.
+strategy("Schaff Trend Cycle", shorttitle="STC Backtest", overlay=true)
+
+fastLength = input(title="MACD Fast Length",  defval=23)
+slowLength = input(title="MACD Slow Length",  defval=50)
+cycleLength = input(title="Cycle Length",  defval=10)
+d1Length = input(title="1st %D Length",  defval=3)
+d2Length = input(title="2nd %D Length",  defval=3)
+src = input(title="Source",  defval=close)
+highlightBreakouts = input(title="Highlight Breakouts ?", type=bool, defval=true)
+
+macd = ema(src, fastLength) - ema(src, slowLength)
+
+k = nz(fixnan(stoch(macd, macd, macd, cycleLength)))
+
+d = ema(k, d1Length)
+
+kd = nz(fixnan(stoch(d, d, d, cycleLength)))
+
+stc = ema(kd, d2Length)
+stc := 	stc > 100 ? 100 : stc < 0 ? 0 : stc
+
+//stcColor = not highlightBreakouts ? (stc > stc[1] ? green : red) : #ff3013
+//stcPlot = plot(stc, title="STC", color=stcColor, transp=0)
+
+upper = input(75, defval=75)
+lower = input(25, defval=25)
+
+transparent = color(white, 100)
+
+upperLevel = plot(upper, title="Upper", color=gray)
+// hline(50, title="Middle", linestyle=dotted)
+lowerLevel = plot(lower, title="Lower", color=gray)
+
+fill(upperLevel, lowerLevel, color=#f9cb9c, transp=90)
+
+upperFillColor = stc > upper and highlightBreakouts ? green : transparent
+lowerFillColor = stc < lower and highlightBreakouts ? red : transparent
+
+//fill(upperLevel, stcPlot, color=upperFillColor, transp=80)
+//fill(lowerLevel, stcPlot, color=lowerFillColor, transp=80)
+
+long =  crossover(stc, lower) ? lower : na
+short = crossunder(stc, upper) ? upper : na
+
+long_filt = long and not short
+short_filt = short and not long
+
+prev = 0
+prev := long_filt ? 1 : short_filt ? -1 : prev[1]
+
+long_final = long_filt and prev[1] == -1
+short_final = short_filt and prev[1] == 1
+
+strategy.entry("long", strategy.long, when = long )
+strategy.entry("short", strategy.short, when = short)
+
+plotshape(crossover(stc, lower) ? lower : na, title="Crossover", location=location.absolute, style=shape.circle, size=size.tiny, color=green, transp=0)
+plotshape(crossunder(stc, upper) ? upper : na, title="Crossunder", location=location.absolute, style=shape.circle, size=size.tiny, color=red, transp=0)
+
+alertcondition(long_final, "Long", message="Long")
+alertcondition(short_final,"Short", message="Short")
+
+plotshape(long_final, style=shape.arrowup, text="Long", color=green, location=location.belowbar)
+plotshape(short_final, style=shape.arrowdown, text="Short", color=red, location=location.abovebar)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/430757
+
+> Last Modified
+
+2023-11-01 16:08:35

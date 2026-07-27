@@ -1,0 +1,42 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/反转低点反弹策略Low-Point-Rebound-Strategy.md
+// content_hash: c25c1334080397cc
+// collected: 2026-07-27
+strategy("Hobbiecode - Five Day Low RSI Strategy", overlay=true)
+
+// RSI parameters
+rsi_period = 2
+rsi_upper = 50
+
+// Calculate RSI
+rsi_val = ta.rsi(close, rsi_period)
+
+// Check if today's close is below yesterday's 5-day low
+conditionEntry = close < ta.lowest(low[1], 5) and strategy.position_size < 1
+if (conditionEntry)
+    strategy.entry("Buy", strategy.long)
+
+// Check if RSI closes above 50
+if (strategy.position_size > 0 and rsi_val > rsi_upper)
+    strategy.close("Buy")
+
+// If position held for more than 5 days without sell criteria, then close position
+if (strategy.position_size > 0 and ta.barssince(conditionEntry) >= 5)
+    strategy.close("Buy")
+
+
+// Plot RSI on chart
+plot(rsi_val, title="RSI", color=color.red)
+hline(rsi_upper, title="Overbought Level", color=color.blue)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/430556
+
+> Last Modified
+
+2023-10-30 11:53:56

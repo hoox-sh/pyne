@@ -1,0 +1,64 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/开放市场曝光度动态调仓量化交易策略-Open-Market-Exposure-Dynamic-Position-Adjustment-Quantitative-Trading-Strategy.md
+// content_hash: 0cd7d550a752fb81
+// collected: 2026-07-27
+strategy("Open Market Exposure (OME) Strategy", overlay=true)
+
+// Input parameters
+length = input(14, title="Length for Variance")
+sharpe_length = input(30, title="Length for Sharpe Ratio")
+threshold = input(0.01, title="Cumulative OME Threshold")  // Define a threshold for entry
+take_profit = input(0.02, title="Take Profit (%)")  // Define a take profit percentage
+stop_loss = input(0.01, title="Stop Loss (%)")  // Define a stop loss percentage
+
+// Calculate Daily Returns
+daily_return = (close - close[1]) / close[1]
+
+// Open Market Exposure (OME) calculation
+ome = (close - open[1]) / open[1]
+
+// Cumulative OME
+var float cum_ome = na
+if na(cum_ome)
+    cum_ome := 0.0
+if (dayofweek != dayofweek[1])  // Reset cumulative OME daily
+    cum_ome := 0.0
+cum_ome := cum_ome + ome
+
+// Performance Metrics Calculation (Sharpe Ratio)
+mean_return = ta.sma(cum_ome, sharpe_length)
+std_dev = ta.stdev(cum_ome, sharpe_length)
+sharpe_ratio = na(cum_ome) or (std_dev == 0) ? na : mean_return / std_dev
+
+// Entry Condition: Buy when Cumulative OME crosses above the threshold
+if (cum_ome > threshold)
+    strategy.entry("Long", strategy.long)
+
+// Exit Condition: Sell when Cumulative OME crosses below the threshold
+if (cum_ome < -threshold)
+    strategy.close("Long")
+
+// Take Profit and Stop Loss
+if (strategy.position_size > 0)
+    // Calculate target and stop levels
+    target_price = close * (1 + take_profit)
+    stop_price = close * (1 - stop_loss)
+
+    // Place limit and stop orders
+    strategy.exit("Take Profit", "Long", limit=target_price)
+    strategy.exit("Stop Loss", "Long", stop=stop_price)
+
+
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/471690
+
+> Last Modified
+
+2024-11-12 14:48:05

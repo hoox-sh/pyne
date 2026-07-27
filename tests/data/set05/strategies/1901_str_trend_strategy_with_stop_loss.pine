@@ -1,0 +1,68 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多维度趋势跟踪与波动率自适应止损策略-Multi-Dimensional-Trend-Following-Strategy-with-Volatility-Adaptive-Stop-Loss.md
+// content_hash: 1b8dc6674a1bf219
+// collected: 2026-07-27
+strategy("Trend Strategy with Stop Loss", overlay=true, margin_long=100, margin_short=100)
+
+// ———— Inputs ———— //
+atrLength = input(14, "ATR Length")
+supertrendMultiplier = input(3.0, "Supertrend Multiplier")
+rsiLength = input(14, "RSI Length")
+maLength = input(50, "MA Length")
+trailOffset = input(1.5, "Trailing Stop ATR Multiplier")
+
+// ———— Indicators ———— //
+// Supertrend for trend direction
+[supertrend, direction] = ta.supertrend(supertrendMultiplier, atrLength)
+
+// RSI for momentum filter
+
+rsi = ta.rsi(close, rsiLength)
+
+// Moving Average for trend confirmation
+ma = ta.sma(close, maLength)
+
+// ATR for volatility-based stop loss
+atr = ta.atr(atrLength)
+
+// ———— Strategy Logic ———— //
+// Buy Signal: Supertrend bullish + RSI not overbought + Price above MA
+buyCondition = direction < 0 and rsi < 65 and close > ma
+
+// Sell Signal: Supertrend turns bearish
+sellCondition = direction > 0
+
+// ———— Stop Loss & Trailing ———— //
+stopPrice = close - (atr * trailOffset)
+var float trail = na
+if buyCondition and strategy.position_size == 0
+    trail := stopPrice
+else
+    trail := math.max(stopPrice, nz(trail[1]))
+
+// ———— Execute Orders ———— //
+strategy.entry("Long", strategy.long, when=buyCondition)
+strategy.close("Long", when=sellCondition)
+strategy.exit("Trail Exit", "Long", stop=trail)
+
+// ———— Visuals ———— //
+plot(supertrend, "Supertrend", color=direction < 0 ? color.green : color.red)
+plot(ma, "MA", color=color.blue)
+plot(strategy.position_size > 0 ? trail : na, "Trailing Stop", color=color.orange, style=plot.style_linebr)
+
+// ———— Alerts ———— //
+plotshape(buyCondition, "Buy", shape.triangleup, location.belowbar, color.green, size=size.small)
+plotshape(sellCondition, "Sell", shape.triangledown, location.abovebar, color.red, size=size.small)
+plot(close)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/481104
+
+> Last Modified
+
+2025-02-08 15:12:57

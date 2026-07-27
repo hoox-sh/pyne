@@ -1,0 +1,20 @@
+//@version=4
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/Donchian Strat EXMO.pine
+// content_hash: aae3bf09b969d7e9
+// collected: 2026-07-27
+strategy("Donchian Strat EXMO", overlay=true)
+long_per = input(defval = 20, title = "Long Period")
+h = highest(high, long_per)
+l = lowest(low, long_per)
+plot(l)
+plot(h)
+perc = close/100
+if h[1] < h[2]
+    strategy.order("BUY", true, stop = h)
+    //strategy.exit("BUY", profit = 400)
+if l[1] > l[2]
+    strategy.order("SELL", false, stop = l)
+    //strategy.exit("SELL", profit = 400)
+Expand (25 lines)

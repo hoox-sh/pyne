@@ -1,0 +1,82 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/高效震荡突破双安全盈亏策略Efficient-Oscillation-Breakthrough-Dual-Stop-Profit-and-Stop-Loss-Strategy.md
+// content_hash: 5bafdff78b45dec8
+// collected: 2026-07-27
+strategy("Erweiterte SSL Channel Strategy mit 2 TPs, SL und BE", overlay=true)
+
+period = input(title="Period", defval=10)
+len = input(title="Length", defval=10)
+multiplier = input(title="Multiplier", defval=1.0, minval=1.0)
+tp1Percent = input(title="Take Profit 1 (%)", defval=1.0) / 100
+tp2Percent = input(title="Take Profit 2 (%)", defval=20.0) / 100
+slPercent = input(title="Stop Loss (%)", defval=3.0) / 100
+
+var float tp1Price = na
+var float tp2Price = na
+var float slPrice = na
+var bool tp1Reached = false
+
+smaHigh = sma(high * multiplier, len)
+smaLow = sma(low / multiplier, len)
+
+Hlv = 0
+Hlv := close > smaHigh ? 1 : close < smaLow ? -1 : nz(Hlv[1])
+sslDown = Hlv < 0 ? smaHigh : smaLow
+sslUp = Hlv < 0 ? smaLow : smaHigh
+
+plot(sslDown, linewidth=2, color=color.red)
+plot(sslUp, linewidth=2, color=color.lime)
+
+longCondition = crossover(close, sslUp)
+shortCondition = crossunder(close, sslDown)
+
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+    tp1Price := strategy.position_avg_price * (1 + tp1Percent)
+    tp2Price := strategy.position_avg_price * (1 + tp2Percent)
+    slPrice := strategy.position_avg_price * (1 - slPercent)
+    tp1Reached := false
+
+if (shortCondition)
+    strategy.entry("Short", strategy.short)
+    tp1Price := strategy.position_avg_price * (1 - tp1Percent)
+    tp2Price := strategy.position_avg_price * (1 - tp2Percent)
+    slPrice := strategy.position_avg_price * (1 + slPercent)
+    tp1Reached := false
+
+// Take Profit, Break-even und Stop-Loss Logik
+if (strategy.position_size > 0) // Long-Positionen
+    if (not tp1Reached and close >= tp1Price)
+        strategy.close("Long", qty_percent = 50)
+        strategy.exit("BE Long", "Long", stop = strategy.position_avg_price)
+        tp1Reached := true
+    if (tp1Reached and close < tp1Price)
+        strategy.exit("BE Long", "Long", stop = strategy.position_avg_price)
+    if (close >= tp2Price)
+        strategy.close("Long", qty_percent = 100)
+    if (not tp1Reached)
+        strategy.exit("SL Long", "Long", stop = slPrice)
+
+if (strategy.position_size < 0) // Short-Positionen
+    if (not tp1Reached and close <= tp1Price)
+        strategy.close("Short", qty_percent = 50)
+        strategy.exit("BE Short", "Short", stop = strategy.position_avg_price)
+        tp1Reached := true
+    if (tp1Reached and close > tp1Price)
+        strategy.exit("BE Short", "Short", stop = strategy.position_avg_price)
+    if (close <= tp2Price)
+        strategy.close("Short", qty_percent = 100)
+    if (not tp1Reached)
+        strategy.exit("SL Short", "Short", stop = slPrice)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/440719
+
+> Last Modified
+
+2024-02-01 14:46:00

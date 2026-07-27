@@ -1,0 +1,57 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多重指标趋势跟踪结合RSI超买超卖的量化交易策略-Multi-Indicator-Trend-Following-with-RSI-Overbought-Oversold-Quantitative-Trading-Strategy.md
+// content_hash: 71c2173f2e1ff1ab
+// collected: 2026-07-27
+strategy("RSI ve EMA Tabanlı Alım-Satım Stratejisi", overlay=false)
+
+// EMA Hesaplamaları
+ema_short = ta.ema(close, 50)  // EMA 50
+ema_long = ta.ema(close, 200) // EMA 200
+
+// MACD Hesaplamaları
+[macd, signal, _] = ta.macd(close, 12, 26, 9)
+
+// RSI Hesaplamaları
+rsi = ta.rsi(close, 14)
+
+// Alım Sinyali Koşulları
+macd_condition = (macd < 0) and (macd > nz(macd[1])) and (nz(macd[1]) < nz(macd[2]))
+buy_signal = (ema_short > ema_long) and macd_condition
+
+// Satım Sinyali Koşulları
+sell_signal = (rsi[1] > 70) and (rsi <= 70)  // RSI 70'i yukarıdan aşağıya kırdı
+
+// Stop Loss Koşulu
+stop_loss = ema_short < ema_long
+
+// İşlem ve Etiketler
+if buy_signal
+    strategy.entry("Buy", strategy.long)
+    label.new(bar_index, high, "AL", style=label.style_label_up, color=color.green, textcolor=color.white)
+
+if sell_signal
+    strategy.close("Buy", comment="SAT")
+    label.new(bar_index, high, "SAT", style=label.style_label_down, color=color.red, textcolor=color.white)
+
+if stop_loss
+    strategy.close("Buy", comment="STOP LOSS")
+    label.new(bar_index, low, "STOP LOSS", style=label.style_label_down, color=color.orange, textcolor=color.white)
+
+// Grafik Üzerine Çizgiler ve Göstergeler
+plot(ema_short, color=color.blue, title="EMA 50")
+plot(ema_long, color=color.red, title="EMA 200")
+plot(rsi, color=color.orange, title="RSI 14")
+hline(70, "RSI 70", color=color.red)
+hline(30, "RSI 30", color=color.green)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/478701
+
+> Last Modified
+
+2025-01-17 14:52:29

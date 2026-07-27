@@ -1,0 +1,10 @@
+//@version=6
+// set05 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block300
+// content_hash: bf084712e3f39d69
+// collected: 2026-07-27
+indicator("ticker.linebreak", overlay=true) 
+linebreak_tickerid = ticker.linebreak(syminfo.tickerid, 3)
+linebreak_close = request.security(linebreak_tickerid, timeframe.period, close)
+plot(linebreak_close)

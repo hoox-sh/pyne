@@ -1,0 +1,60 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于K线收盘方向的高频交易突破策略-High-Frequency-Breakout-Trading-Strategy-Based-on-Candlestick-Close-Direction.md
+// content_hash: 5b19b991b7b54e54
+// collected: 2026-07-27
+strategy("Candle Close Strategy", overlay=true)
+
+// Define conditions for bullish and bearish candlesticks
+isBullish = close > open
+isBearish = close < open
+
+// Track the number of bars since the trade was opened and the number of trades per day
+var int barsSinceTrade = na
+var int tradesToday = 0
+
+// Define a fixed position size for testing
+fixedPositionSize = 1
+
+// Entry condition: buy after the close of a bullish candlestick
+if (isBullish and tradesToday < 200)  // Limit to 200 trades per day
+    strategy.entry("Buy", strategy.long, qty=fixedPositionSize)
+    barsSinceTrade := 0
+    tradesToday := tradesToday + 1
+
+// Entry condition: sell after the close of a bearish candlestick
+if (isBearish and tradesToday < 200)  // Limit to 200 trades per day
+    strategy.entry("Sell", strategy.short, qty=fixedPositionSize)
+    barsSinceTrade := 0
+    tradesToday := tradesToday + 1
+
+// Update barsSinceTrade if a trade is open
+if (strategy.opentrades > 0)
+    barsSinceTrade := nz(barsSinceTrade) + 1
+
+// Reset tradesToday at the start of a new day
+if (dayofmonth != dayofmonth[1])
+    tradesToday := 0
+
+// Exit condition: close the trade after the next candlestick closes
+if (barsSinceTrade == 2)
+    strategy.close("Buy")
+    strategy.close("Sell")
+
+// Plot bullish and bearish conditions
+plotshape(series=isBullish, location=location.belowbar, color=color.green, style=shape.labelup, text="BUY")
+plotshape(series=isBearish, location=location.abovebar, color=color.red, style=shape.labeldown, text="SELL")
+
+// Plot the candlesticks
+plotcandle(open, high, low, close, title="Candlesticks")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/474839
+
+> Last Modified
+
+2024-12-12 14:35:24

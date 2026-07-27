@@ -1,0 +1,67 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双均线交叉趋势跟踪策略结合风控与时间筛选系统-Dual-EMA-Crossover-Trend-Following-Strategy-with-Risk-Management-and-Time-Filtering-System.md
+// content_hash: b832536be34455c3
+// collected: 2026-07-27
+strategy("Estrategia Cruce de EMAs con: Stop Loss, Take Profit, Días de Operación y Alertas (Modificables)", overlay=true, commission_value = 0.2, process_orders_on_close = true, initial_capital = 1000)
+
+// Parámetros de las EMAs
+emaRapidaLen = input.int(5, title="Periodo EMA rápida")
+emaLentaLen = input.int(21, title="Periodo EMA lenta")
+
+// Parámetros de Stop Loss y Take Profit
+stopLoss = input.float(3.0, title="Stop Loss (%)", step=0.1) / 100
+takeProfit = input.float(6.0, title="Take Profit (%)", step=0.1) / 100
+
+// Tipo de operación: Largo, Corto o Ambos
+operacion = input.string(title="Tipo de operación", defval="Largo", options=["Largo", "Corto", "Ambos"])
+
+// Parámetros de la duración de la estrategia (días)
+diasInicio = input(timestamp("2009-01-03 00:00"), title="Fecha de inicio (YYYY-MM-DD HH:MM)")
+diasFin = input(timestamp("2024-09-11 00:00"), title="Fecha de fin (YYYY-MM-DD HH:MM)")
+
+// Comprobar si estamos dentro del rango de días definido
+dentroDeRango = true
+
+// Cálculo de las EMAs
+emaRapida = ta.ema(close, emaRapidaLen)
+emaLenta = ta.ema(close, emaLentaLen)
+
+// Condiciones para cruce de EMAs
+cruceAlcista = ta.crossover(emaRapida, emaLenta)
+cruceBajista = ta.crossunder(emaRapida, emaLenta)
+
+// Operaciones en Largo (solo si estamos en el rango de días definido)
+if dentroDeRango and (operacion == "Largo" or operacion == "Ambos") and cruceAlcista 
+    strategy.entry("Compra", strategy.long)
+    alert("Posición larga abierta: Cruce alcista de EMAs", alert.freq_once_per_bar_close)
+
+// Operaciones en Corto (solo si estamos en el rango de días definido)
+if dentroDeRango and (operacion == "Corto" or operacion == "Ambos") and cruceBajista
+    strategy.entry("Venta", strategy.short)
+    alert("Posición corta abierta: Cruce bajista de EMAs", alert.freq_once_per_bar_close)
+
+// Cálculo del Stop Loss y Take Profit para largos
+if (strategy.position_size > 0 and strategy.opentrades.entry_id(strategy.opentrades - 1) == "Compra")
+    strategy.exit("Cerrar Compra", "Compra", stop=strategy.position_avg_price * (1 - stopLoss), limit=strategy.position_avg_price * (1 + takeProfit))
+    alert("Posición larga cerrada: Alcanzado Stop Loss o Take Profit", alert.freq_once_per_bar_close)
+
+// Cálculo del Stop Loss y Take Profit para cortos
+if (strategy.position_size < 0 and strategy.opentrades.entry_id(strategy.opentrades - 1) == "Venta")
+    strategy.exit("Cerrar Venta", "Venta", stop=strategy.position_avg_price * (1 + stopLoss), limit=strategy.position_avg_price * (1 - takeProfit))
+    alert("Posición corta cerrada: Alcanzado Stop Loss o Take Profit", alert.freq_once_per_bar_close)
+
+// Plot de las EMAs
+plot(emaRapida, color=color.blue, title="EMA rápida", linewidth = 2)
+plot(emaLenta, color=color.red, title="EMA lenta", linewidth = 2)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/473355
+
+> Last Modified
+
+2024-11-29 15:05:45

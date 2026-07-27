@@ -1,0 +1,58 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/量化交易策略-开仓量化趋势跟踪Quantitative-Trading-Strategy-Quantity-Trend-Tracking-Opening.md
+// content_hash: 97c7e8431ec1e309
+// collected: 2026-07-27
+strategy(title="Lp-Op vol",shorttitle="LPV", max_bars_back = 5000,overlay=false,format=format.volume )
+
+//Resolutions
+
+Resn=input.timeframe(defval="",title="resolution")
+Resn1=input.timeframe(defval="D",title="resolution")
+
+//Intraday Open and Last Price and Last price- Open Price calculations.
+
+Last_Price=math.round_to_mintick(close)
+Open_Price = request.security(syminfo.tickerid ,Resn1,close[1],barmerge.gaps_off, barmerge.lookahead_on) 
+Op_Cl=math.round_to_mintick(Last_Price-Open_Price)
+
+
+//length from Intra Day Open Price 
+ 
+Nifnum= ta.change(Open_Price)
+Length_Intraday=int(math.max(1, nz(ta.barssince(Nifnum)) + 1))
+
+//Input for Length for Volume 
+
+Length_Vol=input(defval=20, title="L for Vol")
+
+// Last Price- Open price Volume, Average Intraday Last price-Open Price Volume 
+//and  Volume Bars  calculations.
+
+Op_Cl_Vol=(Op_Cl*volume)
+Avg_Vol_Opcl=ta.sma(Op_Cl_Vol,Length_Intraday)
+Vol_Bars=ta.sma(volume,Length_Vol)
+
+//Plots 
+plot(Op_Cl_Vol,color=Op_Cl_Vol>0 ? color.green:color.red,title="OPCLV")
+plot(Avg_Vol_Opcl, title="Avg Vol", color=color.fuchsia)
+plot(Vol_Bars, title="Vol Bars", color=color.yellow)
+
+//Strategy parameters 
+
+startst=timestamp(2015,10,1)
+
+strategy.entry("lo",strategy.long,when= ta.crossover(Op_Cl_Vol,Avg_Vol_Opcl) and ta.crossover(volume,Vol_Bars))
+strategy.entry("sh",strategy.short,when=ta.crossunder(Op_Cl_Vol,Avg_Vol_Opcl)and ta.crossunder(volume,Vol_Bars )) 
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/438500
+
+> Last Modified
+
+2024-01-12 14:46:04

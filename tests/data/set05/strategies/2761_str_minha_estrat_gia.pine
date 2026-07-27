@@ -1,0 +1,50 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于线性回归斜率的动态市场状态识别策略-Dynamic-Market-Regime-Identification-Strategy-Based-on-Linear-Regression-Slope.md
+// content_hash: 1575eb7df1c296c1
+// collected: 2026-07-27
+strategy("Minha estratégia", overlay=true, margin_long=100, margin_short=100)
+
+// Função para calcular o slope (inclinação) com base na média móvel simples (SMA)
+slope_length = input(20, title="Slope Length")
+sma_length = input(50, title="SMA Length")
+slope_threshold = input.float(0.1, title="Slope Threshold")
+
+sma = ta.sma(close, sma_length)
+
+// Calculando o slope (inclinação)
+var float slope = na
+if (not na(close[slope_length - 1]))
+    slope := (close - close[slope_length]) / slope_length
+
+// Identificação dos regimes de mercado com base no slope
+bullish_market = slope > slope_threshold
+bearish_market = slope < -slope_threshold
+
+// Condições de entrada e saída para mercados bullish e bearish
+if (bullish_market)
+    strategy.entry("Long", strategy.long)
+
+if (bearish_market)
+    strategy.entry("Short", strategy.short)
+
+// Saída das posições
+exit_condition = ta.crossover(close, sma) or ta.crossunder(close, sma)
+if (exit_condition)
+    strategy.close("Long")
+    strategy.close("Short")
+
+// Exibir a inclinação em uma janela separada
+slope_plot = plot(slope, title="Slope", color=color.blue)
+hline(0, "Zero Line", color=color.gray)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/452712
+
+> Last Modified
+
+2024-05-28 13:51:31

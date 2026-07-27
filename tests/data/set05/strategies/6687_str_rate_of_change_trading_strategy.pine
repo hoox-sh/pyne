@@ -1,0 +1,91 @@
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于变化率的交易策略Rate-of-Change-Trading-Strategy.md
+// content_hash: f135480bac1aa172
+// collected: 2026-07-27
+strategy(shorttitle="ROC+Strategy", title="Rate of Change Strategy",
+                                      overlay=true,  currency=currency.USD,
+                                      initial_capital=10000)
+
+// Inputs and variables
+ss = input(14, minval=10, maxval=50, title="SMA Fast (days)")
+ff = input(100, minval=55, maxval=200, title="SMA Slow (days)")
+ref = input(30, minval=20, maxval=50, title="SMA Reference (days)")
+lowOffset = input(0.023, "ROC Low (%)", minval=0, step=0.01)
+highOffset = input(0.047, "ROC High (%)", minval=0, step=0.01)
+orderStake = input(0.96, "Order Stake (%)", minval=0, step=0.01)
+lookback = input(12, "Lookback Candles", minval=1, step=1) 
+
+// SMA
+smaFast = sma(close, ss)
+smaSlow = sma(close, ff)
+smaRef = sma(close, ref)
+ROC = (max(close[lookback],close) - min(close[lookback],close)) / max(close[lookback],close)
+
+// Set up SMA plot but don't show by default
+plot(smaFast, "smaFast", color=#00ff00, display = 0)
+plot(smaSlow, "smaSlow", color=#ff0000, display = 0)
+plot(smaRef, "smaRef", color=#ffffff, display = 0)
+
+// The buy stratey:
+// Guard that the low is under our SMA Reference line 
+// Guard that the rate of change over the lookback period is greater than our 
+// ROC lowOffset %, default is 0.023. (low < smaRef) and (ROC > lowOffset)
+// SMA fast is on the rise and SMA slow is falling and they are very likely
+// to cross. (rising(smaFast,1)) and (falling(smaSlow, 1)) 
+enterLong = (low < smaRef) and (ROC > lowOffset) and (rising(smaFast,1)) and (falling(smaSlow,1)) 
+
+// The sell Strategy:
+// Guard that close is higher than our SMA reference line and that the rate of 
+// change over the lookback period is greater than our highOffset %, default
+// is 0.047. (close > smaRef) and (ROC > highOffset)
+// Guard that close has risen by 3 candles in a row (rising(close,3)) 
+// Guard that we currently have profit (strategy.openprofit > 0)
+// Guard that SMA fast is higher than smaSlow (smaFast > smaSlow)
+// If it keeps going up past our close position the trailing stoploss will kick in!
+enterShort = (close > smaRef) and (ROC > highOffset) and (rising(close,3)) and (strategy.openprofit > 0) and (smaFast > smaSlow)
+
+// Order size is based on total equity
+// Example 1:
+// startingEquity = 2000
+// close = 47434.93
+// orderStake = 0.45
+// (2,000 × orderStake) / close = orderSize = 0.0189733599 = approx $900
+
+// Example 2:
+// startingEquity = 2000
+// close = 1.272
+// orderStake = 0.45
+// (startingEquity × orderStake) / close = orderSize = 707.5471698113 = approx $900
+orderSize = (strategy.equity * orderStake) / close
+
+// Trailing Stoploss
+// I'm using 2.62 as my default value, play with this for different results.
+longTrailPerc = input(title="Trailing Stoploss (%)",
+     type=input.float, minval=0.0, step=0.1, defval=3.62) * 0.01
+     
+longStopPrice = 0.0
+
+longStopPrice := if (strategy.position_size > 0)
+    stopValue = close * (1 - longTrailPerc)
+    max(stopValue, longStopPrice[1])
+else
+    0
+
+if (enterLong)
+    strategy.entry("Open Long Position", strategy.long, orderSize, when=strategy.position_size <= 0)
+    
+if (enterShort)
+    strategy.exit(id="Close Long Position", stop=longStopPrice)
+
+
+//plot(strategy.equity)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/428060
+
+> Last Modified
+
+2023-09-28 11:26:44

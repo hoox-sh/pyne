@@ -1,0 +1,62 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/二年新高回调均线策略Two-Year-New-High-Retracement-Moving-Average-Strategy.md
+// content_hash: dcc56bc130307619
+// collected: 2026-07-27
+strategy("AMRS_LongOnly_PartTimer", overlay = true)
+
+//i_endTime = input(defval = timestamp("02 Jun 2021 15:30 +0000"), title = "End Time", type=input.time)
+
+StartYear=input(defval = 2000, title ="Start Year", type=input.integer)
+StartMonth=input(defval = 01, title ="Start Month", type=input.integer)
+StartDate=input(defval = 01, title ="Start Date", type=input.integer)
+
+endYear=input(defval = 2021, title ="End Year", type=input.integer)
+endMonth=input(defval = 06, title ="End Month", type=input.integer)
+endDate=input(defval = 03, title ="End Date", type=input.integer)
+
+ema11=ema(close,11)
+ema13=ema(close,13)
+ema21=ema(close,21)
+
+afterStartDate = true
+//g=bar_index==1
+//ath()=>
+    //a=0.0
+    //a:=g ? high : high>a[1] ? high:a[1]
+    
+//a = security(syminfo.tickerid, 'M', ath(),lookahead=barmerge.lookahead_on)
+
+newHigh = (high > highest(high,504)[1])
+//plot down arrows whenever it's a new high
+plotshape(newHigh, style=shape.triangleup, location=location.abovebar, color=color.green, size=size.tiny)
+b=highest(high,504)[1]
+VarChk=((b-ema13)/b)*100
+TrigLow = (low <= ema13) and (low >= ema21) and (VarChk <= 10)
+plotshape(TrigLow, style=shape.triangleup, location=location.belowbar, color=color.white, size=size.tiny)
+ExitPrice=(ema21 - (ema21*0.05))
+DrawPrice=(b - (b*0.20))
+stopprice=0.0
+if (close <= ExitPrice)
+    stopprice := ExitPrice
+if (close <= DrawPrice)
+    stopprice := DrawPrice
+
+if (TrigLow and afterStartDate)
+    strategy.entry("Long", strategy.long)
+
+strategy.exit("exit","Long", stop=stopprice)
+//beforeEndDate = (time < i_endTime)
+beforeEndDate = (time >= timestamp(syminfo.timezone,endYear, endMonth, endDate, 0, 0))
+if (beforeEndDate)
+    strategy.close_all()
+```
+
+> Detail
+
+https://www.fmz.com/strategy/440080
+
+> Last Modified
+
+2024-01-26 14:49:28

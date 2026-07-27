@@ -1,0 +1,54 @@
+//@version=3
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/随机Fisher变换临时停止反转STOCH指标量化策略Random-Fisher-Transform-Temporary-Stop-Reverse-STOCH-Indicator-Quantitative-Strategy.md
+// content_hash: 3b21f4ea54cc9d77
+// collected: 2026-07-27
+strategy("IFT Stochastic + Trailing Stop", overlay=false, pyramiding = 0, calc_on_order_fills = false, commission_type =  strategy.commission.percent, commission_value = 0.0454, default_qty_type = strategy.percent_of_equity, default_qty_value = 100)
+
+//INPUTS
+stochlength=input(19, "STOCH Length")
+wmalength=input(4, title="Smooth")
+ul = input(0.64,step=0.01, title="UP line")
+dl = input(-0.62,step=0.01, title="DOWN line")
+uts = input(true, title="Use trailing stop")
+tsi = input(title="trailing stop actiation pips",defval=245)                                                                       
+tso = input(title="trailing stop offset pips",defval=20)
+
+//CALCULATIONS
+v1=0.1*(stoch(close, high, low, stochlength)-50)
+v2=wma(v1, wmalength)
+INVLine=(exp(2*v2)-1)/(exp(2*v2)+1)
+
+//CONDITIONS
+sell = crossunder(INVLine,ul)? 1 : 0
+buy = crossover(INVLine,dl)? 1 : 0
+
+//PLOTS
+plot(INVLine, color=aqua, linewidth=1, title="STOCH")
+hline(ul, color=red)
+hline(dl, color=green)
+bgcolor(sell==1? red : na, transp=30, title = "sell signal")
+bgcolor(buy==1? lime : na, transp=30, title = "buy signal")
+plotchar(buy==1, title="Buy Signal", char='B', location=location.bottom, color=white, transp=0, offset=0)
+plotchar(sell==1, title="Sell Signal", char='S', location=location.top, color=white, transp=0, offset=0)
+
+//STRATEGY
+strategy.entry("BUY", strategy.long, when = buy==1)
+strategy.entry("SELL", strategy.short, when = sell==1)
+
+if  (uts)
+    strategy.entry("BUY", strategy.long, when = buy)
+    strategy.entry("SELL", strategy.short, when = sell)
+    strategy.exit("Close BUY with TS","BUY", trail_points = tsi, trail_offset = tso)
+    strategy.exit("Close SELL with TS","SELL", trail_points = tsi, trail_offset = tso)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/437390
+
+> Last Modified
+
+2024-01-02 11:14:12

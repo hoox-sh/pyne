@@ -1,0 +1,69 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/VWAP突破追踪策略The-VWAP-breakout-tracking-strategy.md
+// content_hash: a8ca6cb357e979a3
+// collected: 2026-07-27
+strategy(title="VWAP Push", initial_capital = 100000, default_qty_type = strategy.percent_of_equity, default_qty_value = 100, pyramiding = 0, currency = 'USD', overlay=true)
+
+
+//VWAP
+vwap = ta.vwap(close)
+plot(vwap, color=color.black, title="vwap")
+
+//Last 5 Closes
+closeBarPrevious5 = close[5]
+closeBarPrevious4 = close[4]
+closeBarPrevious3 = close[3]
+closeBarPrevious2 = close[2]
+closeBarPrevious1 = close[1]
+closeBarCurrent = close
+
+
+//is_1530 = (hour == 15) and (minute == 30)
+
+is_push_up = (closeBarCurrent > closeBarPrevious1) and (closeBarPrevious1 > closeBarPrevious2) and (closeBarPrevious2 > closeBarPrevious3) and (closeBarPrevious4 < vwap) and (closeBarPrevious3 > vwap)  
+is_push_down = (closeBarCurrent < closeBarPrevious1) and (closeBarPrevious1 < closeBarPrevious2) and (closeBarPrevious2 < closeBarPrevious3) and (closeBarPrevious4 > vwap) and (closeBarPrevious3 < vwap)  
+
+var float hi = na
+var float lo = na
+
+hi := is_push_up ? high : hi
+lo := is_push_down and (close < vwap) ? low : lo
+
+plot(hi, "High", color.green, 1, plot.style_circles)
+plot(lo, "Low", color.red, 1, plot.style_circles)
+
+// Conditions
+
+longCondition = ta.crossover(close,hi)
+exitLong = ta.crossunder(close,vwap)
+
+shortCondition = ta.crossunder(close,lo) and (close < vwap)
+exitShort = ta.crossover(close,vwap)
+
+// Entries Exits
+
+
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+if (exitLong)
+    strategy.close("Long")
+ 
+
+if (shortCondition)
+    strategy.entry("Sell", strategy.short)
+if (exitShort)
+    strategy.close("Sell")
+
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/435991
+
+> Last Modified
+
+2023-12-20 16:25:18

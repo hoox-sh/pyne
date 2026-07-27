@@ -1,0 +1,45 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动态止盈智能追踪策略-Dynamic-Take-Profit-Smart-Trailing-Strategy.md
+// content_hash: 99b025c0ead401fd
+// collected: 2026-07-27
+strategy("Price Drop Buy Signal Strategy", overlay=true)
+
+// 输入参数
+percentDrop = input.float(defval=-0.98, title="Price Drop Percentage", minval=-100, step=0.01) / 100
+plotShapeStyle = input.string("shape_triangle_up", "Shape", options=["shape_xcross", "shape_cross", "shape_triangle_up", "shape_triangle_down", "shape_flag", "shape_circle", "shape_arrow_up", "shape_arrow_down", "shape_label_up", "shape_label_down", "shape_square", "shape_diamond"], tooltip="Choose the shape of the buy signal marker")
+targetProfit = input.float(1.23, title="目标利润百分比", step=0.01) / 100
+trailingStopPercent = input.float(0.6, title="Trailing Stop Percentage", step=0.01) / 100
+
+// 计算每根K线的涨跌幅
+priceDrop = open * (1.0 + percentDrop)
+isBuySignal = low <= priceDrop
+
+// 在当前K线下方标注买入信号（可选）
+plotshape(series=isBuySignal, location=location.belowbar, color=color.green, style=plotShapeStyle, size=size.small, title="Buy Signal", text="Buy")
+
+// 显示信息
+if bar_index == na
+    label.new(x=bar_index, y=na, text=str.tostring(percentDrop * 100, format.mintick) + "% Drop", xloc=xloc.bar_index, yloc=yloc.price, style=label.style_label_down, color=color.new(color.green, 0))
+else
+    label.delete(na)
+
+// 策略逻辑
+if (isBuySignal)
+    strategy.entry("买入", strategy.long)
+
+// 目标卖出价
+if (strategy.position_size > 0)
+    targetSellPrice = strategy.position_avg_price * (1 + targetProfit)
+    strategy.exit("卖出", from_entry="买入", limit=targetSellPrice, trail_offset=strategy.position_avg_price * trailingStopPercent)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/473155
+
+> Last Modified
+
+2024-11-27 16:41:16

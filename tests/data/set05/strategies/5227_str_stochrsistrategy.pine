@@ -1,0 +1,56 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/StochRSI反转交易策略StochRSI-Reversal-Trading-Strategy.md
+// content_hash: 6ec1daee7e6e6b00
+// collected: 2026-07-27
+strategy("StochRSIStrategy", overlay=true)
+
+// Define the K and D periods, RSI length, and overbought/oversold levels
+K = input(3, title="%K")
+D = input(3, title="%D")
+rsiLength = input(14, title="RSI Length")
+stochLength = input(14, title="Stoch Length")
+overbought = input(80, title="Overbought Level")
+oversold = input(20, title="Oversold Level")
+
+// Calculate the RSI
+rsi = rsi(close, rsiLength)
+
+// Calculate Stochastic RSI
+stochRsi = stoch(rsi, rsi, rsi, stochLength)
+Kline = sma(stochRsi, K)
+Dline = sma(Kline, D)
+
+// Plot Stochastic RSI
+plot(Kline, title="K", color=color.blue)
+plot(Dline, title="D", color=color.orange)
+
+// Define bullish and bearish conditions
+bullCond = (Kline < oversold) and (crossover(Kline, Dline))
+bearCond = (Kline > overbought) and (crossunder(Kline, Dline))
+
+// Generate and plot signals
+if (bullCond)
+    strategy.entry("L", strategy.long)
+if (bearCond)
+    strategy.close("L")
+
+if (bearCond)
+    strategy.entry("S", strategy.short)
+if (bullCond)
+    strategy.close("S")
+
+// Plot signals
+plotshape(series=bullCond, title="L", location=location.belowbar, color=color.green, style=shape.circle, size=size.small)
+plotshape(series=bearCond, title="S", location=location.abovebar, color=color.red, style=shape.circle, size=size.small)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/442838
+
+> Last Modified
+
+2024-02-26 14:17:36

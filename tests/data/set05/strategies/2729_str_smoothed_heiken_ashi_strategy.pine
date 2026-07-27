@@ -1,0 +1,51 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于平滑均线的启源阿须策略Origix-Ashi-Strategy-Based-on-Smoothed-Moving-Average.md
+// content_hash: c880930f54c733fa
+// collected: 2026-07-27
+strategy("Smoothed Heiken Ashi Strategy", overlay=true)
+
+// Inputs
+g_TimeframeSettings = 'Display & Timeframe Settings'
+time_frame = input.timeframe(title='Timeframe for HA candle calculation', defval='', group=g_TimeframeSettings)
+
+g_SmoothedHASettings = 'Smoothed HA Settings'
+smoothedHALength = input.int(title='HA Price Input Smoothing Length', minval=1, maxval=500, step=1, defval=10, group=g_SmoothedHASettings)
+
+// Define a function for calculating the smoothed moving average
+smoothedMovingAvg(src, len) => 
+    smma = 0.0
+    smma := na(smma[1]) ? ta.sma(src, len) : (smma[1] * (len - 1) + src) / len 
+    smma
+
+// Function to get Heiken Ashi close
+getHAClose(o, h, l, c) =>
+    ((o + h + l + c) / 4)
+
+// Calculate smoothed HA candles
+smoothedHAOpen = request.security(syminfo.tickerid, time_frame, open)
+smoothedMA1close = smoothedMovingAvg(request.security(syminfo.tickerid, time_frame, close), smoothedHALength)
+smoothedHAClose = getHAClose(smoothedHAOpen, smoothedHAOpen, smoothedHAOpen, smoothedMA1close)
+
+// Plot Smoothed Heiken Ashi candles
+plotcandle(open=smoothedHAOpen, high=smoothedHAOpen, low=smoothedHAOpen, close=smoothedHAClose, color=color.new(color.blue, 0), wickcolor=color.new(color.blue, 0))
+
+// Strategy logic
+longCondition = close > smoothedHAClose
+shortCondition = close < smoothedHAClose
+
+strategy.entry("Buy", strategy.long, when=longCondition)
+strategy.close("Buy", when=shortCondition)
+
+plotshape(series=longCondition, title="Buy Signal", color=color.green, style=shape.labelup, location=location.belowbar)
+plotshape(series=shortCondition, title="Sell Signal", color=color.red, style=shape.labeldown, location=location.abovebar)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/439985
+
+> Last Modified
+
+2024-01-25 15:26:25

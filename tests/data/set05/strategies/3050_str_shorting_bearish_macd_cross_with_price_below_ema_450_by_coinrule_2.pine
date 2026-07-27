@@ -1,0 +1,39 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/熊市MACD做空策略Bear-Market-MACD-Short-Strategy.md
+// content_hash: a518df0849b0e2ec
+// collected: 2026-07-27
+strategy("Shorting Bearish MACD Cross with Price Below EMA 450 (By Coinrule)", overlay=true, initial_capital = 10000, default_qty_value = 30, default_qty_type = strategy.percent_of_equity, commission_type=strategy.commission.percent, commission_value=0.1)
+
+// EMAs 
+slowEMA = ta.ema(close, 450)
+
+// MACD
+[macdLine, signalLine, histogramLine] = ta.macd(close, 11, 26, 9)
+
+// Conditions
+goShortCondition1 = ta.crossunder(macdLine, signalLine)
+goShortCondition2 = slowEMA > close
+
+timePeriod = time >= timestamp(syminfo.timezone, 2021, 12, 1, 0, 0)
+notInTrade = strategy.position_size <= 0
+strategyDirection = strategy.direction.short
+
+if (goShortCondition1 and goShortCondition2 and timePeriod and notInTrade)
+    stopLoss = high * 1.04
+    takeProfit = low * 0.92
+    strategy.entry("Short", strategy.short)
+    strategy.exit("exit","Short", stop=stopLoss, limit=takeProfit)
+    
+plot(slowEMA, color=color.green)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/426836
+
+> Last Modified
+
+2023-09-14 18:04:28

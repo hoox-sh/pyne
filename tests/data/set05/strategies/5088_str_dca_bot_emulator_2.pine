@@ -1,0 +1,63 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动态加仓策略Dynamic-Pyramiding-Strategy.md
+// content_hash: 719b4536518870c0
+// collected: 2026-07-27
+
+strategy("DCA Bot Emulator", overlay=true, pyramiding=99, default_qty_type=strategy.cash, commission_value = 0.02)
+
+// Date Ranges
+from_month = input(defval = 1, title = "From Month", minval = 1, maxval = 12)
+from_day   = input(defval = 1, title = "From Day", minval = 1, maxval = 31)
+from_year  = input(defval = 2021, title = "From Year")
+to_month   = input(defval = 1, title = "To Month", minval = 1, maxval = 12)
+to_day     = input(defval = 1, title = "To Day", minval = 1, maxval = 31)
+to_year    = input(defval = 9999, title = "To Year")
+start  = timestamp(from_year, from_month, from_day, 00, 00)  // backtest start window
+finish = timestamp(to_year, to_month, to_day, 23, 59)        // backtest finish window
+window = time >= start and time <= finish ? true : false // create function "within window of time"
+
+// Strategy Inputs
+price_deviation = input(2, title='Price deviation to open safety orders', maxval=0)/100
+take_profit = input(1.5, title='Target Take Profit', minval=0)/100
+
+// base order
+base_order  = input(100000, title='base order') 
+safe_order  = input(200, title='safe order') 
+safe_order_volume_scale  = input(2, title='Safety order volume scale') 
+safe_order_step_scale  = input(1, title='Safety order step scale') 
+
+max_safe_order = input(10, title='max safe order') 
+var current_so = 1
+var initial_order = 0.0
+
+// Calculate our key levels
+pnl = (close - strategy.position_avg_price) / strategy.position_avg_price
+
+take_profit_level = strategy.position_avg_price * (1 + take_profit)
+
+// First Position
+if(strategy.position_size == 0 and window)
+    strategy.entry("Long", strategy.long, qty = base_order/close)
+    initial_order := close
+    current_so := 1
+
+// Average Down!
+if current_so > 0 and close  < initial_order * (1 - price_deviation * current_so * safe_order_step_scale) and current_so <= max_safe_order
+    so_name = "SO " + tostring(current_so) 
+    strategy.entry(so_name, long=strategy.long , qty = safe_order * safe_order_volume_scale /close)
+    current_so := current_so + 1
+    
+// Take Profit!
+strategy.close_all(when=take_profit_level <= close  and strategy.position_size > 0)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/436245
+
+> Last Modified
+
+2023-12-22 14:36:30

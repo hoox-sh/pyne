@@ -1,0 +1,10 @@
+//@version=6
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/concepts/time.md::time.md#block11
+// content_hash: dcc9e0fc1333ebd5
+// collected: 2026-07-27
+indicator("`time_tradingday` demo", overlay = true)
+
+//@variable A concatenated "string" containing the `time_tradingday` timestamp and a formatted representation in UTC.
+string tradingDayText = "`time_tradingday`: " + str.tostring(time_tradingday) + "\n"

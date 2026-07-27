@@ -1,0 +1,298 @@
+// set02 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/projects/qtrend-kvo-strategy.pine
+// content_hash: 117dba6ea20fdb5e
+// collected: 2026-07-27
+// built with PineScript Agents by TradersPost
+//@version=6
+//
+// Q-Trend + Klinger Volume Oscillator Confluence Strategy
+// ---------------------------------------------------------------------------
+// Recreated from the video "This NEW TradingView Indicator Pinpoints EXACT
+// BUY & SELL Levels" (STOCK MARKET US). Combines two community indicators:
+//   • Q-Trend           — © tarasenko_  (ATR-banded trend/breakout signals)
+//   • Klinger Volume Osc — © Alex Orekhov (everget) (volume-force momentum)
+//
+// Both indicators are ported inline to Pine v6. Defaults follow the video's
+// presets (Q-Trend ATR 40, KVO fast 29 / signal 16) except EMA source
+// smoothing, which is OFF by default (the Q-Trend original default; period 10
+// applies only when you enable it).
+//
+// ENTRY (all conditions on the same bar):
+//   LONG  : Q-Trend BUY signal  + KVO green area (kvo > 0) + bullish candle
+//   SHORT : Q-Trend SELL signal + KVO red area   (kvo < 0) + bearish candle
+// EXIT: Stop = recent swing low/high, Take Profit = 1 : 1.5 risk:reward.
+//
+// NOTE ON FAITHFULNESS: the narrator says "buy signal" for longs but "strong
+// signal" for shorts — almost certainly loose wording. Base logic uses the
+// directional Q-Trend signal on both sides; the "Require STRONG signal"
+// toggles let you demand the strong variant per side to match either reading.
+// ===========================================================================
+
+strategy("[TradersPost] Q-Trend + KVO Strategy",
+     shorttitle="QTrend+KVO",
+     overlay=false,
+     default_qty_type=strategy.fixed,
+     default_qty_value=1,
+     pyramiding=0,
+     initial_capital=100000,
+     commission_type=strategy.commission.cash_per_contract,
+     commission_value=0.0,
+     slippage=1,
+     calc_on_every_tick=false)
+//@strategy_alert_message {{strategy.order.alert_message}}
+
+// ===========================================================================
+// INPUTS
+// ===========================================================================
+
+// --- Q-Trend Settings (defaults match the video) ---------------------------
+qtGroup = "Q-Trend Settings"
+qtSrcInput  = input.source(close, "Source",
+     tooltip="Price source Q-Trend tracks.", group=qtGroup)
+qtPeriod    = input.int(200, "Trend Period",
+     minval=1,
+     tooltip="Lookback for the highest/lowest band midline. Higher = fewer, stronger signals.",
+     group=qtGroup)
+qtAtrPeriod = input.int(40, "ATR Period",
+     minval=1,
+     tooltip="ATR length for band width. Video changes this from 14 to 40.",
+     group=qtGroup)
+qtMult      = input.float(1.0, "ATR Multiplier", step=0.1,
+     minval=0.1,
+     tooltip="Band sensitivity. Higher = wider bands = fewer signals.",
+     group=qtGroup)
+qtMode      = input.string("Type A", "Signal Mode", options=["Type A", "Type B"],
+     tooltip="Type A uses crossover/crossunder; Type B uses cross (either direction).",
+     group=qtGroup)
+qtUseEma    = input.bool(false, "Smooth Source with EMA?",
+     tooltip="Video enables EMA smoothing on the source. Turn off for the indicator's original default.",
+     group=qtGroup)
+qtEmaPeriod = input.int(10, "EMA Smoother Period",
+     minval=1,
+     tooltip="EMA length used when smoothing is enabled. Video changes this from 3 to 10.",
+     group=qtGroup)
+
+// --- Klinger Volume Oscillator Settings (defaults match the video) ---------
+kvGroup = "Klinger Volume Oscillator"
+kvFastLength   = input.int(29, "Fast Length",
+     minval=1,
+     tooltip="Fast EMA of the volume force. Video changes this from 34 to 29.",
+     group=kvGroup)
+kvSlowLength   = input.int(55, "Slow Length",
+     minval=1,
+     tooltip="Slow EMA of the volume force.",
+     group=kvGroup)
+kvSignalType   = input.string("EMA", "Signal Smoothing Type", options=["EMA", "SMA"],
+     tooltip="Smoothing method for the KVO signal line.",
+     group=kvGroup)
+kvSignalLength = input.int(16, "Signal Smoothing Length",
+     minval=1,
+     tooltip="Length of the KVO signal line. Video changes this from 13 to 16.",
+     group=kvGroup)
+
+// --- Signal Logic ----------------------------------------------------------
+sigGroup = "Signal Logic"
+requireStrongLong  = input.bool(false, "Long: require STRONG buy signal",
+     tooltip="If on, longs need a Q-Trend STRONG BUY (breakout from the lower band zone), not just a normal buy.",
+     group=sigGroup)
+requireStrongShort = input.bool(false, "Short: require STRONG sell signal",
+     tooltip="If on, shorts need a Q-Trend STRONG SELL. The video's narration hints at this for shorts.",
+     group=sigGroup)
+requireCandle = input.bool(true, "Require candle confirmation",
+     tooltip="Require a bullish candle for longs / bearish candle for shorts on the signal bar (as in the video).",
+     group=sigGroup)
+allowLongs  = input.bool(true, "Allow Long trades",  group=sigGroup)
+allowShorts = input.bool(true, "Allow Short trades", group=sigGroup)
+
+// --- Risk Management -------------------------------------------------------
+riskGroup = "Risk Management"
+slLookback = input.int(5, "Stop-Loss Swing Lookback (bars)",
+     minval=1, maxval=100,
+     tooltip="Stop is placed at the lowest low (long) / highest high (short) over this many bars. Set to 1 for the literal 'previous candle' low/high.",
+     group=riskGroup)
+rrRatio = input.float(1.5, "Risk : Reward Ratio",
+     minval=0.1, step=0.1,
+     tooltip="Take-profit distance as a multiple of the stop distance. Video uses 1 : 1.5.",
+     group=riskGroup)
+
+// --- Visuals & Table -------------------------------------------------------
+visGroup = "Visuals & Table"
+showTrendLine = input.bool(true, "Show Q-Trend line", group=visGroup)
+showSignals   = input.bool(true, "Show entry signals", group=visGroup)
+colorBars     = input.bool(false, "Color bars by Q-Trend", group=visGroup)
+showKvoBg     = input.bool(false, "Tint background by KVO area", group=visGroup)
+showKvo       = input.bool(true, "Show KVO oscillator (this pane)", group=visGroup)
+longColor  = input.color(color.new(#26a69a, 0), "Long / TP color",  group=visGroup, inline="col")
+shortColor = input.color(color.new(#ef5350, 0), "Short / SL color", group=visGroup, inline="col")
+
+// --- Alerts (TradersPost) --------------------------------------------------
+alertGroup = "Alerts (TradersPost)"
+tpTicker = input.string("{{ticker}}", "Ticker field",
+     tooltip="Symbol sent in the TradersPost webhook. Leave as {{ticker}} to use the chart symbol.",
+     group=alertGroup)
+tpQty = input.string("", "Quantity field (optional)",
+     tooltip="Optional 'quantity' value for the webhook JSON. Leave blank to let TradersPost use the connection's default sizing.",
+     group=alertGroup)
+
+// ===========================================================================
+// Q-TREND CALCULATION  (ported from tarasenko_ v5, MPL-2.0)
+// ===========================================================================
+
+qSrc = qtUseEma ? ta.ema(qtSrcInput, qtEmaPeriod) : qtSrcInput
+
+qH = ta.highest(qSrc, qtPeriod)
+qL = ta.lowest(qSrc, qtPeriod)
+qD = qH - qL
+
+// Midline, seeded until enough bars have elapsed
+m = (qH + qL) / 2
+m := bar_index > qtPeriod ? m[1] : m
+
+qAtr = ta.atr(qtAtrPeriod)[1]
+epsilon = qtMult * qAtr
+
+changeUp = (qtMode == "Type B" ? ta.cross(qSrc, m + epsilon) : ta.crossover(qSrc, m + epsilon)) or qSrc > m + epsilon
+changeDown = (qtMode == "Type B" ? ta.cross(qSrc, m - epsilon) : ta.crossunder(qSrc, m - epsilon)) or qSrc < m - epsilon
+
+// Strong-zone detection: open opening near the extreme of the range
+sb = open < qL + qD / 8 and open >= qL
+ss = open > qH - qD / 8 and open <= qH
+strongBuy = sb or sb[1] or sb[2] or sb[3] or sb[4]
+strongSell = ss or ss[1] or ss[2] or ss[3] or ss[4]
+
+// Trend-line update
+m := (changeUp or changeDown) and m != m[1] ? m : changeUp ? m + epsilon : changeDown ? m - epsilon : nz(m[1], m)
+
+// Last-signal tracker prevents repeated same-direction signals
+var string ls = ""
+ls := changeUp ? "B" : changeDown ? "S" : ls[1]
+
+// Fresh Q-Trend signals (transition bar only)
+qBuySignal  = changeUp and ls[1] != "B"
+qSellSignal = changeDown and ls[1] != "S"
+
+// ===========================================================================
+// KLINGER VOLUME OSCILLATOR  (ported from everget v3, MIT)
+// ===========================================================================
+
+kvMom = ta.change(hlc3)
+
+kvTrend = 0.0
+kvTrend := na(kvTrend[1]) ? 0.0 : (kvMom > 0 ? 1 : kvMom < 0 ? -1 : kvTrend[1])
+
+kvDm = high - low
+
+kvCm = 0.0
+kvCm := na(kvCm[1]) ? 0.0 : (kvTrend == kvTrend[1] ? kvCm[1] + kvDm : kvDm + kvDm[1])
+
+kvVf = kvCm != 0 ? 100 * nz(volume) * kvTrend * math.abs(2 * kvDm / kvCm - 1) : 0.0
+
+kvo = ta.ema(kvVf, kvFastLength) - ta.ema(kvVf, kvSlowLength)
+kvSignal = kvSignalType == "EMA" ? ta.ema(kvo, kvSignalLength) : ta.sma(kvo, kvSignalLength)
+
+kvoGreen = kvo > 0   // "green area" in the video
+kvoRed   = kvo < 0   // "red area" in the video
+
+// ===========================================================================
+// ENTRY CONDITIONS
+// ===========================================================================
+
+bullishCandle = close > open
+bearishCandle = close < open
+
+qLongOk  = requireStrongLong  ? (qBuySignal  and strongBuy)  : qBuySignal
+qShortOk = requireStrongShort ? (qSellSignal and strongSell) : qSellSignal
+
+candleLongOk  = not requireCandle or bullishCandle
+candleShortOk = not requireCandle or bearishCandle
+
+longSignal  = allowLongs  and qLongOk  and kvoGreen and candleLongOk  and barstate.isconfirmed
+shortSignal = allowShorts and qShortOk and kvoRed   and candleShortOk and barstate.isconfirmed
+
+// ===========================================================================
+// STRATEGY EXECUTION
+// ===========================================================================
+
+var float longStop  = na
+var float longTP    = na
+var float shortStop = na
+var float shortTP   = na
+
+// Alert-message builders (TradersPost JSON)
+qtyField = tpQty == "" ? "" : ",\"quantity\":" + tpQty
+buyMsg   = "{\"ticker\":\"" + tpTicker + "\",\"action\":\"buy\",\"sentiment\":\"long\"" + qtyField + "}"
+sellMsg  = "{\"ticker\":\"" + tpTicker + "\",\"action\":\"sell\",\"sentiment\":\"short\"" + qtyField + "}"
+exitLong  = "{\"ticker\":\"" + tpTicker + "\",\"action\":\"sell\",\"sentiment\":\"flat\"}"
+exitShort = "{\"ticker\":\"" + tpTicker + "\",\"action\":\"buy\",\"sentiment\":\"flat\"}"
+
+// Swing levels computed every bar (ta.* must run each bar for consistent history)
+swingLow  = ta.lowest(low, slLookback)
+swingHigh = ta.highest(high, slLookback)
+
+// --- Entries (only when flat) ---
+if longSignal and strategy.position_size == 0
+    risk = close - swingLow
+    if risk > 0
+        longStop := swingLow
+        longTP := close + risk * rrRatio
+        strategy.entry("Long", strategy.long, comment="QTrend+KVO Long", alert_message=buyMsg)
+
+if shortSignal and strategy.position_size == 0
+    risk = swingHigh - close
+    if risk > 0
+        shortStop := swingHigh
+        shortTP := close - risk * rrRatio
+        strategy.entry("Short", strategy.short, comment="QTrend+KVO Short", alert_message=sellMsg)
+
+// --- Exits (stop + 1.5R target) ---
+if strategy.position_size > 0 and not na(longStop)
+    strategy.exit("Long Exit", "Long", stop=longStop, limit=longTP, alert_message=exitLong)
+
+if strategy.position_size < 0 and not na(shortStop)
+    strategy.exit("Short Exit", "Short", stop=shortStop, limit=shortTP, alert_message=exitShort)
+
+// ===========================================================================
+// PLOTS
+// ===========================================================================
+
+trendCol = ls == "B" ? longColor : shortColor
+
+// --- Main-chart layer (force_overlay so it renders on price, not this pane) --
+plot(showTrendLine ? m : na, "Q-Trend Line", color=trendCol, linewidth=2, force_overlay=true)
+
+plotshape(showSignals and longSignal,
+     title="Long Signal", location=location.belowbar, style=shape.labelup,
+     size=size.small, color=longColor, textcolor=color.white, text="BUY", force_overlay=true)
+
+plotshape(showSignals and shortSignal,
+     title="Short Signal", location=location.abovebar, style=shape.labeldown,
+     size=size.small, color=shortColor, textcolor=color.white, text="SELL", force_overlay=true)
+
+// Active-trade risk levels (SL red-ish, TP green-ish, thin)
+plot(strategy.position_size > 0 ? longStop : na, "Long Stop",
+     color=shortColor, style=plot.style_linebr, linewidth=1, force_overlay=true)
+plot(strategy.position_size > 0 ? longTP : na, "Long Target",
+     color=longColor, style=plot.style_linebr, linewidth=1, force_overlay=true)
+plot(strategy.position_size < 0 ? shortStop : na, "Short Stop",
+     color=shortColor, style=plot.style_linebr, linewidth=1, force_overlay=true)
+plot(strategy.position_size < 0 ? shortTP : na, "Short Target",
+     color=longColor, style=plot.style_linebr, linewidth=1, force_overlay=true)
+
+barcolor(colorBars ? trendCol : na, title="Bar Color")
+
+bgcolor(showKvoBg ? (kvoGreen ? color.new(longColor, 92) : kvoRed ? color.new(shortColor, 92) : na) : na,
+     title="KVO Area Background", force_overlay=true)
+
+// --- KVO oscillator layer (stays in this pane) -------------------------------
+kvoCol = kvoGreen ? longColor : shortColor
+plot(showKvo ? kvo : na, "KVO", color=color.new(kvoCol, 20), style=plot.style_area, linewidth=1)
+plot(showKvo ? kvSignal : na, "KVO Signal", color=color.new(color.gray, 0), linewidth=1)
+hline(0, "KVO Zero", color=color.new(color.gray, 60), linestyle=hline.style_dotted)
+
+// ===========================================================================
+// ALERTS (indicator-style, in addition to order alert_message)
+// ===========================================================================
+
+alertcondition(longSignal,  title="Q-Trend+KVO LONG",  message="Long confluence: Q-Trend buy + KVO green + bullish candle")
+alertcondition(shortSignal, title="Q-Trend+KVO SHORT", message="Short confluence: Q-Trend sell + KVO red + bearish candle")

@@ -1,0 +1,59 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/N-Bars-Breakout-Strategy-N-Bars-突破策略.md
+// content_hash: 47edda183c0573c3
+// collected: 2026-07-27
+strategy("Breakout", overlay=true, precision=6, pyramiding=0, initial_capital=1000, default_qty_type=strategy.percent_of_equity, default_qty_value=25.0, commission_value=0.05)
+
+n = input.int(5, "N Bars", minval=1)
+src_input = input.string("Close", "Source", ["Close", "High/Low"])
+
+bull_src = switch src_input
+	"Close" => close
+	"High/Low" => high
+	=>
+		runtime.error("Invalid source input")
+		na
+
+bear_src = switch src_input
+	"Close" => close
+	"High/Low" => low
+	=>
+		runtime.error("Invalid source input")
+		na
+
+highest = ta.highest(bull_src[1], n)
+lowest = ta.lowest(bear_src[1], n)
+
+//-----------------------------------------------------------------------------------------------------------------------------------------------------------------
+// Plots
+//-----------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+bool long = ta.crossover(bull_src, highest)
+bool short = ta.crossunder(bear_src, lowest)
+
+//Plots
+lowest_plot  = plot(lowest,  color=color.red, title="Lowest")
+highest_plot  = plot(highest,  color=color.green, title="Highest")
+bull_src_plot = plot(bull_src, color=color.blue, title="Bull")
+bear_src_plot = plot(bear_src, color=color.orange, title="Bear")
+
+// this message is an alert that can be sent to a webhook, which allows for simple automation if you have a server that listens to alerts and trades programmatically.
+enter_long_alert = '{"side": "Long", "order": "Enter", "price": ' + str.tostring(open) + ', "timestamp": ' + str.tostring(timenow) + '}'
+exit_long_alert = '{"side": "Long", "order": "Exit", "price": ' + str.tostring(open) + ', "timestamp": ' + str.tostring(timenow) + '}'
+
+if long
+    strategy.entry(id="Long", direction=strategy.long, limit=open, alert_message=enter_long_alert)
+
+if short
+    strategy.close(id="Long", comment="Close Long", alert_message=exit_long_alert)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/448067
+
+> Last Modified
+
+2024-04-12 16:57:15

@@ -1,0 +1,11 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block302
+// content_hash: a26ee5cf8e999402
+// collected: 2026-07-27
+indicator("ticker.new", overlay=true) 
+t = ticker.new(syminfo.prefix, syminfo.ticker, session.regular, adjustment.splits)
+t2 = ticker.heikinashi(t)
+c = request.security(t2, timeframe.period, low, barmerge.gaps_on)
+plot(c, style=plot.style_linebr)

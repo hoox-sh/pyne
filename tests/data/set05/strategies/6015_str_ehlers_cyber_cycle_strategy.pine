@@ -1,0 +1,51 @@
+//@version=3
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于信号平滑的埃尔斯循环策略Signal-Smoothing-Ehlers-Cyber-Cycle-Strategy.md
+// content_hash: fa37ad295e449e63
+// collected: 2026-07-27
+strategy("Ehlers Cyber Cycle Strategy",overlay=false, default_qty_type = strategy.percent_of_equity, default_qty_value = 100.0, pyramiding = 1, commission_type = strategy.commission.percent, commission_value = 0.1)
+src = input(hl2, title = "Source") 
+alpha = input(.07, title = "Alpha")
+lag = input(9, title = "Lag")
+smooth = (src + 2 * src[1] + 2 * src[2] + src[3]) / 6
+
+cycle = na
+if na(cycle[7])
+    cycle := (src - 2 * src[1] + src[2]) / 4
+else
+    cycle := (1 - .5 * alpha) * (1 - .5 * alpha) * (smooth - 2 * smooth[1] + smooth[2]) + 2 * (1 - alpha) * cycle[1] - (1 - alpha) * (1 - alpha) * cycle[2]
+
+alpha2 = 1 / (lag + 1)
+signal = na
+signal := alpha2 * cycle + (1 - alpha2) * nz(signal[1])
+oppositeTrade = input(true)
+barsSinceEntry = 0
+barsSinceEntry := nz(barsSinceEntry[1]) + 1
+if strategy.position_size == 0
+    barsSinceEntry := 0
+if (crossover(signal, signal[1]) and not oppositeTrade) or (oppositeTrade and crossunder(signal, signal[1]))
+    strategy.entry("Long", strategy.long)
+    barsSinceEntry := 0
+if (crossunder(signal, signal[1]) and not oppositeTrade) or (oppositeTrade and crossover(signal, signal[1]))
+    strategy.entry("Short", strategy.short)
+    barsSinceEntry := 0
+if strategy.openprofit < 0 and barsSinceEntry > 8
+    strategy.close_all()
+    barsSinceEntry := 0
+    
+    
+plot(0, title="ZeroLine", color=gray) 
+plotSrc = signal
+cyclePlot = plot(plotSrc, title = "CyberCycle", color = blue)
+triggerPlot = plot(plotSrc[1], title = "Trigger", color = green)
+fill(cyclePlot, triggerPlot, color = plotSrc < plotSrc[1] ? red : lime, transp = 50)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/442078
+
+> Last Modified
+
+2024-02-19 10:42:34

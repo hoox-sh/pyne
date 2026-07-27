@@ -1,0 +1,41 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/阴阳吊颈线策略Yin-Yang-Hanging-Man-Strategy.md
+// content_hash: 84ffb1e2bb5ca154
+// collected: 2026-07-27
+strategy("Doji Candlestick Strategy", shorttitle="Doji", overlay=true)
+
+// Calculate body and shadow sizes
+bodySize = close > open ? close - open : open - close
+upperShadow = high - (open > close ? open : close)
+lowerShadow = (open > close ? close : open) - low
+
+// Define thresholds for identifying different Doji types
+dojiThreshold = 0.05
+longLeggedDojiThreshold = 0.02
+
+// Buy conditions for different Doji types
+dojiCondition = bodySize <= dojiThreshold and upperShadow > bodySize * 2 and lowerShadow > bodySize * 2
+dragonflyDojiCondition = bodySize <= dojiThreshold and upperShadow > bodySize * 2 and lowerShadow <= bodySize * 0.5
+gravestoneDojiCondition = bodySize <= dojiThreshold and upperShadow <= bodySize * 0.5 and lowerShadow > bodySize * 2
+longLeggedDojiCondition = bodySize <= longLeggedDojiThreshold and upperShadow > bodySize * 2 and lowerShadow > bodySize * 2
+
+// Buy signal
+buyCondition = dojiCondition or dragonflyDojiCondition or gravestoneDojiCondition or longLeggedDojiCondition
+
+// Strategy orders
+strategy.entry("Buy", strategy.long, when=buyCondition)
+
+// Plotting
+plotshape(series=buyCondition, title="Buy Signal", color=color.green, style=shape.triangleup, location=location.belowbar, size=size.small)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/440692
+
+> Last Modified
+
+2024-02-01 11:09:15

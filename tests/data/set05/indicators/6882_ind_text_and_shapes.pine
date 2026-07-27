@@ -1,0 +1,15 @@
+//@version=6
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/visuals/text-and-shapes.md::text-and-shapes.md#block16
+// content_hash: 8ed0e79f908c2648
+// collected: 2026-07-27
+MAX_LABELS = 500
+indicator("", max_labels_count = MAX_LABELS)
+qtyLabelsInput = input.int(5, "Labels to keep", minval = 0, maxval = MAX_LABELS)
+myRSI = ta.rsi(close, 20)
+if myRSI > ta.highest(myRSI, 20)[1]
+    label.new(bar_index, myRSI, str.tostring(myRSI, "#.00"), style = label.style_none)
+    if array.size(label.all) > qtyLabelsInput
+        label.delete(array.get(label.all, 0))
+plot(myRSI)

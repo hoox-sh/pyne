@@ -1,0 +1,45 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于简单双均线反转策略Double-Moving-Average-Reversal-Strategy.md
+// content_hash: 78766bf9de1e472b
+// collected: 2026-07-27
+strategy("300% STRATEGY", overlay=true, margin_long=10, margin_short=10)
+ 
+var float lastLongOrderPrice = na
+var float lastShortOrderPrice = na
+
+longCondition = ta.crossover(ta.sma(close, 1), ta.sma(close, 4))
+if (longCondition)
+    strategy.entry("Long Entry", strategy.long)  // Enter long
+
+shortCondition = ta.crossunder(ta.sma(close, 1), ta.sma(close, 4))
+if (shortCondition)
+    strategy.entry("Short Entry", strategy.short)  // Enter short
+
+if (longCondition)
+    lastLongOrderPrice := close
+
+if (shortCondition)
+    lastShortOrderPrice := close
+
+// Calculate stop loss and take profit based on the last executed order's price
+stopLossLong = lastLongOrderPrice - 170  // 10 USDT lower than the last long order price
+takeProfitLong = lastLongOrderPrice + 150  // 100 USDT higher than the last long order price
+stopLossShort = lastShortOrderPrice + 170  // 10 USDT higher than the last short order price
+takeProfitShort = lastShortOrderPrice - 150  // 100 USDT lower than the last short order price
+
+// Apply stop loss and take profit to long positions
+strategy.exit("Long Exit", from_entry="Long Entry", stop=stopLossLong, limit=takeProfitLong)
+
+// Apply stop loss and take profit to short positions
+strategy.exit("Short Exit", from_entry="Short Entry", stop=stopLossShort, limit=takeProfitShort) 
+```
+
+> Detail
+
+https://www.fmz.com/strategy/435968
+
+> Last Modified
+
+2023-12-20 14:43:41

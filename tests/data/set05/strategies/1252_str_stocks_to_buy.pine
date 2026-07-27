@@ -1,0 +1,91 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/交叉动能趋势跟踪策略SMA-RSI交叉动量系统-Cross-Momentum-Trend-Following-Strategy-SMA-RSI-Cross-Momentum-System.md
+// content_hash: 5c111fd2b78268cf
+// collected: 2026-07-27
+strategy("STOCKS TO BUY", overlay=true, fill_orders_on_standard_ohlc=true)
+
+// Define 20-period SMA
+sma20 = ta.sma(close, 20)
+
+// RSI Calculation (8-period)
+rsiValue = ta.rsi(close, 8)
+
+// Buy Condition: Close crosses above 20-SMA and RSI > 60
+buyCondition = ta.crossover(close, sma20) and rsiValue > 60
+
+// Sell Condition: Close crosses below 20-SMA and RSI < 40
+sellCondition = ta.crossunder(close, sma20) and rsiValue < 40
+
+// Tracking Performance Metrics
+var int totalSignals = 0  // Total number of 'B' signals
+var int successCount = 0  // Times price rose >2% from 'B' candle close
+var int failureCount = 0  // Times price fell below 'B' candle low within 7 bars
+
+// Store entry price and low when signal occurs
+var float entryPrice = na
+var float entryLow = na
+var int barCounter = na  // Bar counter for tracking 7-candle window
+
+if buyCondition
+    strategy.entry("Buy", strategy.long)
+    totalSignals := totalSignals + 1  // Increment 'B' count
+    entryPrice := close
+    entryLow := low
+    barCounter := 0  // Reset counter when new 'B' signal appears
+
+if sellCondition
+    strategy.close("Buy")  // Close the buy position on sell signal
+
+// Monitor for 7 candles only
+if not na(barCounter)
+    barCounter := barCounter + 1
+
+    // Check for Success (Price rises >2%)
+    success = high >= entryPrice * 1.02
+    if success
+        successCount := successCount + 1
+        entryPrice := na  // Reset entry price after success
+
+    // Check for Failure (Price falls below entryLow within 7 candles)
+    failure = low < entryLow and barCounter <= 7
+    if failure
+        failureCount := failureCount + 1
+        entryLow := na  // Reset entry low after failure
+
+    // Stop tracking after 7 candles
+    if barCounter > 7
+        barCounter := na
+
+// Plot 'B' on chart when buy condition is met
+plotshape(series=buyCondition, location=location.belowbar, color=color.green, style=shape.labelup, text="B")
+
+// Plot 'S' on chart when sell condition is met
+plotshape(series=sellCondition, location=location.abovebar, color=color.red, style=shape.labeldown, text="S")
+
+// Display Performance Metrics Table
+var table performanceTable = table.new(position=position.top_right, columns=2, rows=4, bgcolor=color.gray, border_width=1)
+
+if bar_index % 10 == 0  // Update table every 10 bars for efficiency
+    table.cell(performanceTable, 0, 0, "Metric", text_color=color.white, bgcolor=color.blue)
+    table.cell(performanceTable, 1, 0, "Value", text_color=color.white, bgcolor=color.blue)
+    
+    table.cell(performanceTable, 0, 1, "Total 'B' Signals", text_color=color.white)
+    table.cell(performanceTable, 1, 1, str.tostring(totalSignals), text_color=color.white)
+
+    table.cell(performanceTable, 0, 2, "Price Rose >2%", text_color=color.white)
+    table.cell(performanceTable, 1, 2, str.tostring(successCount), text_color=color.green)
+
+    table.cell(performanceTable, 0, 3, "Price Fell Below 'B' Low (7 bars)", text_color=color.white)
+    table.cell(performanceTable, 1, 3, str.tostring(failureCount), text_color=color.red)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/483674
+
+> Last Modified
+
+2025-02-25 10:44:04

@@ -1,0 +1,98 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双均线交叉RSI动量策略与风险收益优化系统-Dual-Moving-Average-Cross-RSI-Momentum-Strategy-with-Risk-Reward-Optimization-System.md
+// content_hash: 3f0951db39e6317f
+// collected: 2026-07-27
+strategy("JakeJohn", overlay=true)
+
+// Input parameters
+smaShortLength = input(9, title="Short SMA Length")
+smaLongLength = input(21, title="Long SMA Length")
+lengthRSI = input(14, title="RSI Length")
+rsiOverbought = input(65, title="RSI Overbought Level")
+rsiOversold = input(35, title="RSI Oversold Level")
+riskRewardRatio = input(2, title="Risk/Reward Ratio") // 2:1
+atrMultiplier = input(1.5, title="ATR Multiplier") // Multiplier for ATR to set stop loss
+
+// Calculate indicators
+smaShort = ta.sma(close, smaShortLength)
+smaLong = ta.sma(close, smaLongLength)
+rsi = ta.rsi(close, lengthRSI)
+atr = ta.atr(14)
+
+// Entry conditions
+longCondition = (smaShort > smaLong) and (rsi < rsiOversold) // Buy when short SMA is above long SMA and RSI is oversold
+shortCondition = (smaShort < smaLong) and (rsi > rsiOverbought) // Sell when short SMA is below long SMA and RSI is overbought
+
+// Variables for trade management
+var float entryPrice = na
+var float takeProfit = na
+var int entryBarIndex = na
+
+// Entry logic for long trades
+if (longCondition and (strategy.position_size == 0))
+    entryPrice := close
+    takeProfit := entryPrice + (entryPrice - (entryPrice - (atr * atrMultiplier))) * riskRewardRatio
+    strategy.entry("Buy", strategy.long)
+    entryBarIndex := bar_index // Record the entry bar index
+    label.new(bar_index, high, "BUY", style=label.style_label_up, color=color.green, textcolor=color.white, size=size.small)
+
+// Entry logic for short trades
+if (shortCondition and (strategy.position_size == 0))
+    entryPrice := close
+    takeProfit := entryPrice - (entryPrice - (entryPrice + (atr * atrMultiplier))) * riskRewardRatio
+    strategy.entry("Sell", strategy.short)
+    entryBarIndex := bar_index // Record the entry bar index
+    label.new(bar_index, low, "SELL", style=label.style_label_down, color=color.red, textcolor=color.white, size=size.small)
+
+// Manage trade duration and exit after a minimum of 3 hours
+if (strategy.position_size != 0)
+    // Check if the trade has been open for at least 3 hours (180 minutes)
+    if (bar_index - entryBarIndex >= 180) // 3 hours in 1-minute bars
+        if (strategy.position_size > 0)
+            strategy.exit("Take Profit Long", from_entry="Buy", limit=takeProfit)
+        else
+            strategy.exit("Take Profit Short", from_entry="Sell", limit=takeProfit)
+
+// Background colors for active trades
+var color tradeColor = na
+if (strategy.position_size > 0)
+    tradeColor := color.new(color.green, 90) // Light green for long trades
+else if (strategy.position_size < 0)
+    tradeColor := color.new(color.red, 90) // Light red for short trades
+else
+    tradeColor := na // No color when no trade is active
+
+bgcolor(tradeColor, title="Trade Background")
+
+// Plotting position tools
+if (strategy.position_size > 0)
+    // Plot long position tool
+    strategy.exit("TP Long", limit=takeProfit)
+    
+if (strategy.position_size < 0)
+    // Plot short position tool
+    strategy.exit("TP Short", limit=takeProfit)
+
+// Plotting indicators
+plot(smaShort, color=color.green, title="Short SMA", linewidth=2)
+plot(smaLong, color=color.red, title="Long SMA", linewidth=2)
+
+// Visual enhancements for RSI
+hline(rsiOverbought, "Overbought", color=color.red)
+hline(rsiOversold, "Oversold", color=color.green)
+plot(rsi, color=color.blue, title="RSI", linewidth=2)
+
+// Ensure there's at least one plot function
+plot(close, color=color.black, title="Close Price", display=display.none) // Hidden plot for compliance
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/471707
+
+> Last Modified
+
+2024-11-12 16:00:58

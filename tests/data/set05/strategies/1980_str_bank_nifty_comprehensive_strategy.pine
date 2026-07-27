@@ -1,0 +1,65 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多重指标综合动量交易策略-Multi-Indicator-Comprehensive-Momentum-Trading-Strategy.md
+// content_hash: 9af57ae836d822d4
+// collected: 2026-07-27
+strategy("Bank Nifty Comprehensive Strategy", overlay=true)
+
+// Inputs
+emaShortLength = input.int(12, minval=1, title="Short EMA Length")
+emaLongLength = input.int(26, minval=1, title="Long EMA Length")
+macdFastLength = input.int(12, minval=1, title="MACD Fast Length")
+macdSlowLength = input.int(26, minval=1, title="MACD Slow Length")
+macdSignalSmoothing = input.int(9, minval=1, title="MACD Signal Smoothing")
+rsiLength = input.int(14, title="RSI Length")
+rsiOverbought = input.int(70, title="RSI Overbought Level")
+rsiOversold = input.int(30, title="RSI Oversold Level")
+atrLength = input.int(14, title="ATR Length")
+atrMultiplier = input.float(1.5, title="ATR Multiplier")
+
+// EMA Calculation
+emaShort = ta.ema(close, emaShortLength)
+emaLong = ta.ema(close, emaLongLength)
+
+// MACD Calculation
+[macdLine, signalLine, _] = ta.macd(close, macdFastLength, macdSlowLength, macdSignalSmoothing)
+macdHist = macdLine - signalLine
+
+// RSI Calculation
+rsi = ta.rsi(close, rsiLength)
+
+// ATR Calculation
+atr = ta.atr(atrLength)
+
+// Trading Conditions
+longCondition = emaShort > emaLong and macdLine > signalLine and rsi < rsiOverbought
+shortCondition = emaShort < emaLong and macdLine < signalLine and rsi > rsiOversold
+
+// Trade Execution with Risk Management
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+    strategy.exit("Take Profit/Stop Loss", from_entry="Long", limit=close + atr * atrMultiplier, stop=close - atr * atrMultiplier)
+
+if (shortCondition)
+    strategy.entry("Short", strategy.short)
+    strategy.exit("Take Profit/Stop Loss", from_entry="Short", limit=close - atr * atrMultiplier, stop=close + atr * atrMultiplier)
+
+// Plot Indicators
+plot(emaShort, title="Short EMA", color=color.blue)
+plot(emaLong, title="Long EMA", color=color.red)
+hline(rsiOverbought, "RSI Overbought", color=color.red)
+hline(rsiOversold, "RSI Oversold", color=color.green)
+plot(macdLine, title="MACD Line", color=color.green)
+plot(signalLine, title="Signal Line", color=color.red)
+plot(macdHist, title="MACD Histogram", color=color.blue, style=plot.style_histogram)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/458255
+
+> Last Modified
+
+2024-07-31 12:01:10

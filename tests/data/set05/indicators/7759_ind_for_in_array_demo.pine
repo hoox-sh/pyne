@@ -1,0 +1,18 @@
+//@version=5
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/v5/language/loops.md::loops.md#block23
+// content_hash: 86de7e0bd9a6a6af
+// collected: 2026-07-27
+indicator("`for [index, item] in array` demo", "Array numerated output")
+
+//@variable An array of "string" values to display as a numerated list.
+var array<string> stringArray = array.from("First", "Second", "Third", "Before Last", "Last")
+
+if barstate.islastconfirmedhistory
+    //@variable A "string" modified within a loop to display within the `label`.
+    string labelText = "Array values: \n"
+    // Loop through the `stringArray`, accessing each `index` and corresponding `element`. 
+    for [index, element] in stringArray
+        // Skip the third `element` (at `index == 2`) in the `labelText`. Include an "ELEMENT SKIPPED" message instead. 
+        if index == 2

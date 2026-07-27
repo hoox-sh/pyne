@@ -1,0 +1,11 @@
+//@version=6
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/language/user-defined-functions.md::user-defined-functions.md#block11
+// content_hash: 67831c99f3eac8e8
+// collected: 2026-07-27
+indicator("Declared parameter type demo")
+
+//@function Returns the value of the `source` argument.
+//          The argument in each call must be an integer. No other type is allowed.
+pass(int source) =>

@@ -1,0 +1,216 @@
+//@version=5
+// set05 corpus entry
+// source_repo: dexcextrade-TradingView-PineScripts
+// source_path: dexcextrade-TradingView-PineScripts/JUP 80% winrate
+// content_hash: 669714ca75b322a3
+// collected: 2026-07-27
+strategy("Cryptox classic alts", overlay=true, initial_capital=1000, pyramiding=0, commission_type=strategy.commission.percent, commission_value=0.075, slippage=1, default_qty_type=strategy.percent_of_equity, default_qty_value=100)
+
+// =====================================================================
+// SETTINGS
+// =====================================================================
+
+allowLongs  = input.bool(true, "Allow Longs")
+allowShorts = input.bool(false, "Allow Shorts")
+
+useEMAFilter = input.bool(true, "Use EMA200 Filter")
+
+cooldownBars = input.int(10, "Cooldown Bars")
+
+stoploss_perc = input.float(2.2, "Stop Loss %") / 100
+tp1_perc      = input.float(3.5, "TP1 %") / 100
+tp2_perc      = input.float(7.0, "TP2 %") / 100
+
+// =====================================================================
+// EMA200
+// =====================================================================
+
+ema200 = ta.ema(close, 200)
+
+bull = close > ema200
+bear = close < ema200
+
+// =====================================================================
+// EXTENSION FILTER
+// =====================================================================
+
+distanceFromEMA = math.abs(close - ema200) / ema200
+notExtended = distanceFromEMA < 0.08
+
+// =====================================================================
+// MACD
+// =====================================================================
+
+fastMA = ta.ema(close, 12)
+slowMA = ta.ema(close, 26)
+
+macd   = fastMA - slowMA
+signal = ta.ema(macd, 9)
+
+macdBull = macd > signal
+macdBear = macd < signal
+
+macdLongTrigger  = ta.crossover(macd, signal)
+macdShortTrigger = ta.crossunder(macd, signal)
+
+// =====================================================================
+// SUPERTREND
+// =====================================================================
+
+atrPeriod = input.int(10, "Supertrend ATR Period")
+factor    = input.float(3.0, "Supertrend Factor")
+
+[supertrend, direction] = ta.supertrend(factor, atrPeriod)
+
+superBull = direction < 0
+superBear = direction > 0
+
+// =====================================================================
+// TREND FILTER
+// =====================================================================
+
+fastTrend = ta.ema(close, 50)
+slowTrend = ta.ema(close, 200)
+
+trendBull = fastTrend > slowTrend
+trendBear = fastTrend < slowTrend
+
+// =====================================================================
+// COOLDOWN
+// =====================================================================
+
+var int lastTradeBar = na
+
+canTrade = na(lastTradeBar) or (bar_index - lastTradeBar > cooldownBars)
+
+// =====================================================================
+// ENTRY CONDITIONS
+// =====================================================================
+
+longCondition =
+     allowLongs and
+     macdLongTrigger and
+     superBull and
+     trendBull and
+     notExtended and
+     (not useEMAFilter or bull)
+
+shortCondition =
+     allowShorts and
+     macdShortTrigger and
+     superBear and
+     trendBear and
+     notExtended and
+     (not useEMAFilter or bear)
+
+// =====================================================================
+// ENTRIES
+// =====================================================================
+
+if longCondition and strategy.position_size <= 0 and canTrade
+    strategy.entry("LONG", strategy.long)
+    lastTradeBar := bar_index
+
+if shortCondition and strategy.position_size >= 0 and canTrade
+    strategy.entry("SHORT", strategy.short)
+    lastTradeBar := bar_index
+
+// =====================================================================
+// STOP LOSS + TAKE PROFITS
+// =====================================================================
+
+long_stop  = strategy.position_avg_price * (1 - stoploss_perc)
+short_stop = strategy.position_avg_price * (1 + stoploss_perc)
+
+long_tp1 = strategy.position_avg_price * (1 + tp1_perc)
+long_tp2 = strategy.position_avg_price * (1 + tp2_perc)
+
+short_tp1 = strategy.position_avg_price * (1 - tp1_perc)
+short_tp2 = strategy.position_avg_price * (1 - tp2_perc)
+
+// =====================================================================
+// LONG EXITS
+// =====================================================================
+
+strategy.exit("LONG TP1", from_entry="LONG", qty_percent=50, stop=long_stop, limit=long_tp1)
+
+strategy.exit("LONG TP2", from_entry="LONG", qty_percent=100, stop=long_stop, limit=long_tp2)
+
+// =====================================================================
+// SHORT EXITS
+// =====================================================================
+
+strategy.exit("SHORT TP1", from_entry="SHORT", qty_percent=50, stop=short_stop, limit=short_tp1)
+
+strategy.exit("SHORT TP2", from_entry="SHORT", qty_percent=100, stop=short_stop, limit=short_tp2)
+
+// =====================================================================
+// BREAK EVEN
+// =====================================================================
+
+var bool movedBE = false
+
+if strategy.position_size == 0
+    movedBE := false
+
+if strategy.position_size > 0 and high >= long_tp1 and not movedBE
+    strategy.exit("LONG BE", from_entry="LONG", stop=strategy.position_avg_price)
+    movedBE := true
+
+if strategy.position_size < 0 and low <= short_tp1 and not movedBE
+    strategy.exit("SHORT BE", from_entry="SHORT", stop=strategy.position_avg_price)
+    movedBE := true
+
+// =====================================================================
+// EXIT ON REVERSAL
+// =====================================================================
+
+closeLong =
+     strategy.position_size > 0 and
+     macdBear and
+     superBear
+
+closeShort =
+     strategy.position_size < 0 and
+     macdBull and
+     superBull
+
+if closeLong
+    strategy.close("LONG")
+
+if closeShort
+    strategy.close("SHORT")
+
+// =====================================================================
+// PLOTS
+// =====================================================================
+
+plot(ema200, color=color.orange, linewidth=2, title="EMA200")
+
+plot(supertrend, color=direction < 0 ? color.green : color.red, linewidth=2)
+
+plotshape(longCondition,
+     title="BUY",
+     style=shape.labelup,
+     location=location.belowbar,
+     color=color.lime,
+     textcolor=color.black,
+     size=size.small,
+     text="BUY")
+
+plotshape(shortCondition,
+     title="SELL",
+     style=shape.labeldown,
+     location=location.abovebar,
+     color=color.red,
+     textcolor=color.white,
+     size=size.small,
+     text="SELL")
+
+// =====================================================================
+// ALERTS
+// =====================================================================
+
+alertcondition(longCondition, title="LONG SIGNAL", message="LONG SIGNAL")
+
+alertcondition(shortCondition, title="SHORT SIGNAL", message="SHORT SIGNAL")

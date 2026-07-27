@@ -1,0 +1,63 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于多因子组合趋势交易策略Multi-factor-Trend-Trading-Strategy.md
+// content_hash: d22313a1cad4b799
+// collected: 2026-07-27
+strategy("Combined Strategy", overlay=true)
+
+// Moving Averages
+fastMA = sma(close, 9)
+slowMA = sma(close, 21)
+
+// Bollinger Bands
+bb_upper = sma(close, 20) + 2 * stdev(close, 20)
+bb_lower = sma(close, 20) - 2 * stdev(close, 20)
+
+// Support and Resistance
+support = 1500  // Replace with your support level
+resistance = 1600  // Replace with your resistance level
+
+// Trend Following (MA Crossovers)
+maCrossUp = crossover(fastMA, slowMA)
+maCrossDown = crossunder(fastMA, slowMA)
+
+// Breakout Trading
+breakoutUp = close > resistance
+breakoutDown = close < support
+
+// Entry Conditions
+longCondition = maCrossUp or breakoutUp
+shortCondition = maCrossDown or breakoutDown
+
+// Exit Conditions
+exitLongCondition = crossunder(close, slowMA)
+exitShortCondition = crossover(close, slowMA)
+
+strategy.entry("Long", strategy.long, when=longCondition)
+strategy.entry("Short", strategy.short, when=shortCondition)
+
+strategy.exit("ExitLong", from_entry="Long", when=exitLongCondition)
+strategy.exit("ExitShort", from_entry="Short", when=exitShortCondition)
+
+// Plotting Support and Resistance Lines
+plot(support, color=color.green, style=plot.style_line, linewidth=2)
+plot(resistance, color=color.red, style=plot.style_line, linewidth=2)
+
+// Plotting Bollinger Bands
+plot(bb_upper, color=color.blue)
+plot(bb_lower, color=color.blue)
+
+// Plotting Moving Averages
+plot(fastMA, color=color.orange, title="Fast MA")
+plot(slowMA, color=color.purple, title="Slow MA")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/440348
+
+> Last Modified
+
+2024-01-29 15:17:38

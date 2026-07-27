@@ -1,0 +1,13 @@
+//@version=5
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/EMA12-26 buy spot only.pine
+// content_hash: d31af3ce042ba290
+// collected: 2026-07-27
+strategy("EMA12/26 buy spot only", overlay=true)
+longCondition = ta.crossover(ta.ema(close, 12), ta.ema(close, 26))
+if (longCondition)
+    strategy.entry("buy", strategy.long)
+if ta.crossunder(ta.ema(close, 12), ta.ema(close, 26))
+    strategy.close("buy")
+Expand (13 lines)

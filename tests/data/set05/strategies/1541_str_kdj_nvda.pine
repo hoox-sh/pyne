@@ -1,0 +1,78 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/KDJ阳线突破买入策略KDJ-Golden-Cross-Long-Entry-Strategy.md
+// content_hash: 52ebc03897e337f3
+// collected: 2026-07-27
+strategy('KDJ NVDA', shorttitle='KDJ')
+
+ilong = input(9, title='period')
+isig = input(3, title='signal')
+
+bcwsma(s, l, m) =>
+    _bcwsma = float(na)
+    _s = s
+    _l = l
+    _m = m
+    _bcwsma := (_m * _s + (_l - _m) * nz(_bcwsma[1])) / _l
+    _bcwsma
+
+// profit strategy add
+profit_m = input.float(1.20,"Profit Margin",minval=1.0,maxval=1.99,step=0.05)
+stop_m = input.float(0.98,"Stop Loss Margin",minval=0.0,maxval=1,step=0.05)
+
+// Make input options that configure backtest date range
+startDate = input.int(title="Start Date", defval=1, minval=1,maxval=31)
+startMonth = input.int(title="Start Month", defval=1,minval=1,maxval=12)
+startYear = input.int(title="Start Year", defval=2023,minval=2018,maxval=2024)
+endDate = input.int(title="End Date", defval=1, minval=1,maxval=31)
+endMonth = input.int(title="End Month", defval=1,minval=1,maxval=12)
+endYear = input.int(title="End Year", defval=2024,minval=2018,maxval=2099)
+
+// intialization of variables
+// Look if the close time of the current bar
+// falls inside the date range
+inDateRange = (time >= timestamp(syminfo.timezone, startYear,startMonth, startDate, 0, 0)) and (time < timestamp(syminfo.timezone, endYear, endMonth, endDate, 0, 0))
+
+c = close
+h = ta.highest(high, ilong)
+l = ta.lowest(low, ilong)
+RSV = 100 * ((c - l) / (h - l))
+pK = bcwsma(RSV, isig, 1)
+pD = bcwsma(pK, isig, 1)
+pJ = 3 * pK - 2 * pD
+KDJ = math.avg(pD, pJ, pK)
+
+go_long= ta.crossunder(pD,pJ)
+
+
+if (inDateRange and go_long)
+    strategy.entry("S",strategy.long,comment="C")
+	// strategy.exit("S", limit=c*profit_m, stop=c*stop_m, comment="SL/SP")
+	
+if (inDateRange and pJ > 100)
+	strategy.close("S", comment="TP")
+	
+// Plot options
+// plot(pK, color= #1E88E5)
+// plot(pD, color=#FF6F00)
+// plot(ma, color=color.yellow)
+// bgcolor(pJ>pD? color.green : color.red)
+
+plot(pK, title='% K', color=color.new(color.orange, 0))
+plot(pD, title='% D', color=color.new(color.lime, 0))
+plot(pJ, title='% J', color=color.new(color.fuchsia, 0))
+plot(KDJ, title='KDJ', color=color.new(color.white, 0))
+// </PINE> </SCRIPT>
+// ## This source code is subject to the terms of the ozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// ## !<------------------ End Script --------------------------> 
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/440679
+
+> Last Modified
+
+2024-02-01 10:28:12

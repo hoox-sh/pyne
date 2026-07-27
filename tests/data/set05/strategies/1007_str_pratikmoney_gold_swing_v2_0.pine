@@ -1,0 +1,105 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多时间框架金反转跟踪策略Multi-Timeframe-Gold-Reversal-Tracking-Strategy.md
+// content_hash: d8810fc3790448de
+// collected: 2026-07-27
+strategy("PratikMoney_Gold_Swing_v2.0", overlay=true)
+
+// Trend Following
+fastMA = ta.sma(close, 50)
+slowMA = ta.sma(close, 200)
+rsiValue = ta.rsi(close, 14)
+[macdLine, signalLine, _] = ta.macd(close, 12, 26, 9)
+macdDivergence = macdLine - signalLine
+trendUp = ta.crossover(fastMA, slowMA) and rsiValue > 50 and macdLine > 0 and macdDivergence > 0
+trendDown = ta.crossunder(fastMA, slowMA) and rsiValue < 50 and macdLine < 0 and macdDivergence < 0
+
+// Breakout Trading
+resistanceLevel = input(1500, title="Resistance Level")
+supportLevel = input(1400, title="Support Level")
+
+breakoutUp = close > resistanceLevel and close[1] <= resistanceLevel
+breakoutDown = close < supportLevel and close[1] >= supportLevel
+
+// Moving Average Crossovers
+shortTermMA = ta.sma(close, 9)
+longTermMA = ta.sma(close, 21)
+
+maCrossUp = ta.crossover(shortTermMA, longTermMA)
+maCrossDown = ta.crossunder(shortTermMA, longTermMA)
+
+// Bollinger Bands
+bbUpper = ta.sma(close, 20) + 2 * ta.stdev(close, 20)
+bbLower = ta.sma(close, 20) - 2 * ta.stdev(close, 20)
+
+bbBreakoutUp = close > bbUpper and close[1] <= bbUpper
+bbBreakoutDown = close < bbLower and close[1] >= bbLower
+
+// Support and Resistance
+bounceFromSupport = close < supportLevel and close[1] >= supportLevel
+reversalFromResistance = close > resistanceLevel and close[1] <= resistanceLevel
+
+// Fibonacci Retracement
+fibonacciLevel = input(0.618, title="Fibonacci Level")
+
+fibRetraceUp = ta.lowest(low, 50) >= ta.highest(high, 50) * (1 - fibonacciLevel)
+fibRetraceDown = ta.highest(high, 50) <= ta.lowest(low, 50) * (1 + fibonacciLevel)
+
+// Price Action Trading
+pinBar = close < open and low < close[1] and close > open[1]
+engulfing = close < open and close[1] > open and close[2] > open[1] and close > open[2]
+
+priceActionLong = pinBar or engulfing and close > open
+priceActionShort = pinBar or engulfing and close < open
+
+// Scalping
+scalpLong = ta.change(close) > 0.1
+scalpShort = ta.change(close) < -0.1
+
+// Volatility Breakout
+atrLevel = input(1.5, title="ATR Multiplier")
+
+volatilityBreakoutUp = close > ta.sma(close, 20) + atrLevel * ta.atr(20)
+volatilityBreakoutDown = close < ta.sma(close, 20) - atrLevel * ta.atr(20)
+
+// Strategy Execution
+strategy.entry("TrendLong", strategy.long, when=trendUp)
+strategy.entry("TrendShort", strategy.short, when=trendDown)
+
+strategy.entry("BreakoutLong", strategy.long, when=breakoutUp)
+strategy.entry("BreakoutShort", strategy.short, when=breakoutDown)
+
+strategy.entry("VolatilityLong", strategy.long, when=volatilityBreakoutUp)
+strategy.entry("VolatilityShort", strategy.short, when=volatilityBreakoutDown)
+
+strategy.entry("PriceActionLong", strategy.long, when=priceActionLong)
+strategy.entry("PriceActionShort", strategy.short, when=priceActionShort)
+
+strategy.entry("ScalpLong", strategy.long, when=scalpLong)
+strategy.entry("ScalpShort", strategy.short, when=scalpShort)
+
+// Plotting
+plot(supportLevel, color=color.green, title="Support Level")
+plot(resistanceLevel, color=color.red, title="Resistance Level")
+
+plot(bbUpper, color=color.blue, title="Upper Bollinger Band")
+plot(bbLower, color=color.blue, title="Lower Bollinger Band")
+
+// Plotting Price Action Signals
+plotshape(series=priceActionLong, title="Price Action Long", color=color.green, style=shape.triangleup, location=location.belowbar)
+plotshape(series=priceActionShort, title="Price Action Short", color=color.red, style=shape.triangledown, location=location.abovebar)
+
+// Plotting Scalping Signals
+plotshape(series=scalpLong, title="Scalp Long", color=color.green, style=shape.triangleup, location=location.abovebar)
+plotshape(series=scalpShort, title="Scalp Short", color=color.red, style=shape.triangledown, location=location.belowbar)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/440540
+
+> Last Modified
+
+2024-01-31 15:01:39

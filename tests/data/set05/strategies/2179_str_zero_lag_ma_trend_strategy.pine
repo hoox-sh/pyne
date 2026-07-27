@@ -1,0 +1,62 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/零延迟移动平均趋势交叉策略Zero-Lag-Moving-Average-Trend-Crossover-Strategy.md
+// content_hash: 04441d973ac6d535
+// collected: 2026-07-27
+strategy("Zero-Lag MA Trend Strategy", overlay = true, default_qty_type = strategy.percent_of_equity, default_qty_value = 10)
+
+// --------------------------------------------------------------------------------------------------------------------}
+// ???? ??????
+// --------------------------------------------------------------------------------------------------------------------{
+int  length    = input.int(15, title="Length") // Length for moving averages
+
+// Colors for visualization
+color up = input.color(#30d453, "+", group = "Colors", inline = "i")
+color dn = input.color(#4043f1, "-", group = "Colors", inline = "i")
+
+// --------------------------------------------------------------------------------------------------------------------}
+// ????????? ????????????
+// --------------------------------------------------------------------------------------------------------------------{
+emaValue   = ta.ema(close, length) // EMA
+correction = close + (close - emaValue) // Correction factor
+zlma       = ta.ema(correction, length) // Zero-Lag Moving Average (ZLMA)
+
+// Entry signals
+longSignal  = ta.crossover(zlma, emaValue) // Bullish crossover
+shortSignal = ta.crossunder(zlma, emaValue) // Bearish crossunder
+// Close positions before the market closes
+var int marketCloseHour = 15
+var int marketCloseMinute = 45
+timeToClose = hour == marketCloseHour and minute >= marketCloseMinute
+// --------------------------------------------------------------------------------------------------------------------}
+// ????? ?????????
+// --------------------------------------------------------------------------------------------------------------------{
+if longSignal
+    strategy.entry("Long", strategy.long)
+
+if shortSignal
+    strategy.close("Long")
+
+if timeToClose
+    strategy.close_all("EOD Exit")
+// --------------------------------------------------------------------------------------------------------------------}
+// ?????????????
+// --------------------------------------------------------------------------------------------------------------------{
+// Plot the Zero-Lag Moving Average and EMA
+plot(zlma, color = zlma > zlma[3] ? up : dn, linewidth = 2, title = "ZLMA")
+plot(emaValue, color = emaValue < zlma ? up : dn, linewidth = 2, title = "EMA")
+
+// Mark trade entries with shapes
+plotshape(series=longSignal, location=location.belowbar, color=up, style=shape.labelup, title="Buy Signal")
+plotshape(series=shortSignal, location=location.abovebar, color=dn, style=shape.labeldown, title="Sell Signal")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/485126
+
+> Last Modified
+
+2025-03-06 11:06:36

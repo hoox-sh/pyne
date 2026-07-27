@@ -1,0 +1,12 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block144
+// content_hash: a3af6dc0cea9f382
+// collected: 2026-07-27
+indicator("map.size example")
+a = map.new<int, int>()
+size = 10
+for i = 0 to size
+    a.put(i, size-i)
+plot(map.size(a))

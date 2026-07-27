@@ -1,0 +1,57 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/移动平均线多空策略Moving-Average-Trend-Trading-Strategy.md
+// content_hash: 9d761862448b2b1c
+// collected: 2026-07-27
+strategy(title = "Noro's ShiftMA-multi Strategy v1.0", shorttitle = "ShiftMA-multi", overlay = true, default_qty_type = strategy.percent_of_equity, default_qty_value = 100, pyramiding = 3)
+
+//Settings
+capital = input(100, defval = 100, minval = 1, maxval = 10000, title = "Lot")
+len = input(3, minval = 1, title = "MA Lenghs")
+src = input(ohlc4, title = "MA Source")
+longlevel1 = input(-4.0, title = "Long line 1")
+longlevel2 = input(-5.0, title = "Long line 2")
+longlevel3 = input(-6.0, title = "Long line 3")
+needoffset = input(true, title = "Offset")
+
+//Variables
+size = strategy.position_size
+mult = 1 / syminfo.mintick
+
+//MA
+ma = sma(src, len)
+longline1 = round(ma * ((100 + longlevel1) / 100) * mult) / mult
+longline2 = round(ma * ((100 + longlevel2) / 100) * mult) / mult
+longline3 = round(ma * ((100 + longlevel3) / 100) * mult) / mult
+
+//Lines
+offset = needoffset ? 1 : 0
+plot(ma, color = color.blue)
+plot(longline1, offset = offset, color = color.lime)
+plot(longline2, offset = offset, color = color.lime)
+plot(longline3, offset = offset, color = color.lime)
+
+//Trading
+lot = 0.0
+lot := size == 0 ? strategy.equity / close * capital / 100 : lot[1]
+lots = 0.0
+if ma > 0
+    lots := round(size / lot)
+    strategy.entry("L1", strategy.long, lot, limit = longline1, when = (lots == 0))
+    lots := round(size / lot)
+    strategy.entry("L2", strategy.long, lot, limit = longline2, when = (lots <= 1))
+    lots := round(size / lot)
+    strategy.entry("L3", strategy.long, lot, limit = longline3, when = (lots <= 2))
+if size > 0
+    strategy.entry("TP", strategy.short, 0, limit = ma)
+    
+```
+
+> Detail
+
+https://www.fmz.com/strategy/428804
+
+> Last Modified
+
+2023-10-09 16:00:02

@@ -1,0 +1,46 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于一目均衡的趋势追踪策略Trend-Following-Strategy-Based-on-Ichimoku-Cloud.md
+// content_hash: 774189fc5547cc45
+// collected: 2026-07-27
+strategy("My Custom Strategy", overlay=true)
+
+// Ichimoku Cloud components
+tenkanSenPeriods = 9
+kijunSenPeriods = 26
+displacement = 26
+
+highTenkanSen = ta.highest(high, tenkanSenPeriods)
+lowTenkanSen = ta.lowest(low, tenkanSenPeriods)
+tenkanSen = (highTenkanSen + lowTenkanSen) / 2
+
+highKijunSen = ta.highest(high, kijunSenPeriods)
+lowKijunSen = ta.lowest(low, kijunSenPeriods)
+kijunSen = (highKijunSen + lowKijunSen) / 2
+
+chikouSpan = close[displacement]
+
+// Buy condition: Chikou Span crosses over both Tenkan Sen and Kijun Sen
+buyCondition = chikouSpan > tenkanSen[displacement] and chikouSpan > kijunSen[displacement]
+if (buyCondition)
+    strategy.entry("Buy", strategy.long)
+
+// Sell condition: Chikou Span crosses down both Tenkan Sen and Kijun Sen
+sellCondition = chikouSpan < tenkanSen[displacement] and chikouSpan < kijunSen[displacement]
+if (sellCondition)
+    strategy.close("Buy")
+
+plot(tenkanSen, color=color.red)
+plot(kijunSen, color=color.blue)
+plot(chikouSpan, color=color.green, offset=-displacement)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/435699
+
+> Last Modified
+
+2023-12-18 10:20:01

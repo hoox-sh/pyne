@@ -1,0 +1,62 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动态头寸规模短线外汇交易策略Dynamic-Position-Sizing-Short-Term-Forex-Trading-Strategy.md
+// content_hash: 3f114e8e2249bece
+// collected: 2026-07-27
+strategy("Short High-Grossing Forex Pair - Enhanced Risk Management", overlay=true)
+
+// Parameters
+shortDuration = input.int(7, title="Short Duration (days)")
+priceDropPercentage = input.float(30, title="Price Drop Percentage", minval=0, maxval=100)
+riskPerTrade = input.float(2, title="Risk per Trade (%)", minval=0.1, maxval=100) / 100  // Increased risk for short trades
+stopLossPercent = input.float(2, title="Stop Loss Percentage", minval=0)  // Tighter stop-loss for short trades
+takeProfitPercent = input.float(30, title="Take Profit Percentage", minval=0)  // Take Profit Percentage
+
+// Initialize variables
+var int shortEnd = na
+var float entryPrice = na
+
+// Calculate dynamic position size
+equity = strategy.equity
+riskAmount = equity * riskPerTrade
+pipValue = syminfo.pointvalue
+stopLossPips = close * (stopLossPercent / 100)
+positionSize = riskAmount / (stopLossPips * pipValue)
+
+// Entry condition: Enter short position at the first bar with calculated position size
+if (strategy.opentrades == 0)
+    strategy.entry("Short", strategy.short, qty=positionSize)
+    shortEnd := bar_index + shortDuration
+    entryPrice := close
+    alert("Entering short position", alert.freq_once_per_bar_close)
+
+// Exit conditions
+exitCondition = (bar_index >= shortEnd) or (close <= entryPrice * (1 - priceDropPercentage / 100))
+
+// Stop-loss and take-profit conditions
+stopLossCondition = (close >= entryPrice * (1 + stopLossPercent / 100))
+takeProfitCondition = (close <= entryPrice * (1 - takeProfitPercent / 100))
+
+// Exit the short position based on the conditions
+if (strategy.opentrades > 0 and (exitCondition or stopLossCondition or takeProfitCondition))
+    strategy.close("Short")
+    alert("Exiting short position", alert.freq_once_per_bar_close)
+
+// Plot entry and exit points for visualization
+plotshape(series=strategy.opentrades > 0, location=location.belowbar, color=color.red, style=shape.labeldown, text="Short")
+plotshape(series=strategy.opentrades == 0, location=location.abovebar, color=color.green, style=shape.labelup, text="Exit")
+
+// Add alert conditions
+alertcondition(strategy.opentrades > 0, title="Short Entry Alert", message="Entering short position")
+alertcondition(strategy.opentrades == 0, title="Short Exit Alert", message="Exiting short position")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/452696
+
+> Last Modified
+
+2024-05-28 11:11:26

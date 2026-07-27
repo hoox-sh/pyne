@@ -1,0 +1,50 @@
+//@version=2
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/Dual-Moving-Average-Breakout-Strategy.md
+// content_hash: da8a9e44cc6673e5
+// collected: 2026-07-27
+strategy(title = "Noro's Multima v1.0", shorttitle = "Multima 1.0", overlay=true, default_qty_type = strategy.percent_of_equity, default_qty_value=100.0, pyramiding=0)
+
+needlong = input(true, "long")
+needshort = input(true, "short")
+
+usema1 = input(true, "Use MA1 (SMA, blue)")
+usema2 = input(true, "Use MA2 (EMA, red)")
+lenma1 = input(40, defval = 40, minval = 2, maxval = 1000, title = "MA1 length")
+lenma2 = input(40, defval = 40, minval = 2, maxval = 1000, title = "MA2 length")
+//anti = input(true, defval = true, title = "Antipila")
+usecf = input(true, defval = true, title = "Use color-filter")
+
+//Strategy
+ma1 = sma(close, lenma1)
+ma2 = ema(close, lenma2)
+signal1 = usema1 == false ? 0 : close > ma1 ? 1 : -1
+signal2 = usema2 == false ? 0 : close > ma2 ? 1 : -1
+lots = signal1 + signal2
+
+//Lines
+plot(ma1, color = blue, linewidth = 3, transp = 0)
+plot(ma2, color = red, linewidth = 3, transp = 0)
+
+//Trading
+if lots > 0 and (close < open or usecf == false)
+    strategy.entry("Long", strategy.long, needlong == false ? 0 : na)
+
+if lots < 0 and (close > open or usecf == false)
+    strategy.entry("Short", strategy.short, needshort == false ? 0 : na)
+    
+if lots == 0
+    strategy.close_all()
+    
+    
+    
+```
+
+> Detail
+
+https://www.fmz.com/strategy/426340
+
+> Last Modified
+
+2023-09-11 12:31:51

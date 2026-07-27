@@ -1,0 +1,27 @@
+//@version=5
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/TPS - FX Trade.pine
+// content_hash: dc4ab401fce9413f
+// collected: 2026-07-27
+strategy("TPS - FX Trade", overlay=true)
+laggingSpan2Periods = input.int(52, minval=1, title="Lead Look Back")
+displacement = input.int(26, minval=1, title="Displacement")
+pozyonu = input.bool(false,title="Sadece Long Yönlü Poz Aç")
+// Stop Loss ve Kar Al Seviye Girişleri
+TPLong = input.int(10000, minval = 30, title ="Long Kar Al Puanı", step=10)
+SLLong = input.int(7500, minval = 30, title ="Long Zarar Durdur Puanı", step=10)
+TPShort = input.int(20000, minval = 30, title ="Short Kar Al Puanı", step=10)
+SLShort = input.int(7500, minval = 30, title ="Short Zarar Durdur Puanı", step=10)
+donchian(len) => math.avg(ta.lowest(len), ta.highest(len))
+leadLine = donchian(laggingSpan2Periods)
+plot(leadLine, offset = displacement - 1, color=#EF9A9A,title="Lead2 Çizgisi")
+buycross = ta.crossover(close,leadLine[displacement-1]) 
+sellcross = ta.crossover(leadLine[displacement-1],close)
+if (buycross) and (pozyonu == true) or buycross 
+    strategy.entry("Long", strategy.long)
+    strategy.exit("Exit Long", "Long", profit=TPLong, loss=SLLong)
+if (sellcross) and pozyonu == false
+    strategy.entry("Short", strategy.short)
+    strategy.exit("Exit Short", "Short", profit=TPShort, loss=SLShort)
+Expand (35 lines)

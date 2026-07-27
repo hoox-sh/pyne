@@ -1,0 +1,56 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于SMA和PSAR指标的多空策略SMA-and-PSAR-Strategy-for-Spot-Trading.md
+// content_hash: 47b6ee254126173f
+// collected: 2026-07-27
+strategy(title="SMA and Parabolic SAR Strategy with Time-Based Exit", shorttitle="SMA+PSAR", overlay=true)
+
+// Define the parameters for the Parabolic SAR
+psarStart = 0.02
+psarIncrement = 0.01
+psarMax = 0.2
+
+// Calculate the 100-period SMA
+sma100 = sma(close, 1000)
+
+// Calculate the Parabolic SAR
+sar = sar(psarStart, psarIncrement, psarMax)
+
+// Determine the trend direction
+isUpTrend = close < sma100
+
+// Buy condition: Up trend and SAR below price
+buyCondition = isUpTrend and sar < close
+
+// Sell condition: Down trend and SAR above price
+sellCondition = not isUpTrend and sar > close
+
+// Plot the SMA and Parabolic SAR
+plot(sma100, color=color.blue, title="100-period SMA")
+plot(sar, color=color.red, title="Parabolic SAR")
+
+// Plot buy and sell signals
+plotshape(series=buyCondition, title="Buy Signal", location=location.belowbar, color=color.green, style=shape.triangleup, size=size.small)
+plotshape(series=sellCondition, title="Sell Signal", location=location.abovebar, color=color.red, style=shape.triangledown, size=size.small)
+
+// Strategy entry
+strategy.entry("Buy", strategy.long, when = buyCondition)
+
+// Time-based exit after 5 minutes
+strategy.exit("Close Buy", from_entry = "Buy", when = time[0] > timestamp(year, month, dayofmonth, hour, minute + 5))
+
+strategy.entry("Sell", strategy.short, when = sellCondition)
+
+// Time-based exit after 5 minutes
+strategy.exit("Close Sell", from_entry = "Sell", when = time[0] > timestamp(year, month, dayofmonth, hour, minute + 5))
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/435704
+
+> Last Modified
+
+2023-12-18 10:31:31

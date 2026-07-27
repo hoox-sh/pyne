@@ -1,0 +1,45 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动态仓位调整量化策略Dynamic-Position-Sizing-Quant-Strategy.md
+// content_hash: 37b7b9f3a5c0f8d7
+// collected: 2026-07-27
+strategy("Tendies Heist Auto Compounding Example", overlay=true)
+
+    
+leverage = input(10000)
+
+maxps = input(25, "max position size")
+strategy.risk.max_position_size(maxps)
+
+balance = max(1,floor(strategy.equity / leverage))
+
+o        = 1
+ps       = true
+size     = 0.
+balance2 = size[1] < balance
+balance3 = size[1] > balance
+l        = balance3
+w        = balance2
+
+if ps
+    size := w ? size[1]+o : l ? size[1]-o : nz(size[1],o)
+if size > maxps
+    size := maxps
+
+longCondition = crossover(sma(close, 14), sma(close, 28))
+if (longCondition)
+    strategy.entry("My Long Entry Id", strategy.long,qty=size)
+
+shortCondition = crossunder(sma(close, 14), sma(close, 28))
+if (shortCondition)
+    strategy.entry("My Short Entry Id", strategy.short,qty=size)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/442381
+
+> Last Modified
+
+2024-02-21 14:52:10

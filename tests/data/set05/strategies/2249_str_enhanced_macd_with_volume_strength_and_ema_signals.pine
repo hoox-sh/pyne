@@ -1,0 +1,60 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多层次技术指标动量交易策略基于增强型MACD交易量强度和EMA信号系统-Multi-Level-Technical-Indicator-Momentum-Trading-Strategy-Based-on-Enhanced-MACD-Volume-Strength-and-EMA-Signal-System.md
+// content_hash: bc1d0c92be49a058
+// collected: 2026-07-27
+strategy("Enhanced MACD with Volume Strength and EMA Signals", overlay=true)
+
+// Inputs
+fastLength = input(9, title="Fast EMA Length")
+slowLength = input(26, title="Slow EMA Length")
+signalSmoothing = input(9, title="MACD Signal Smoothing")
+volumeStrengthLength = input(20, title="Volume Strength Length")
+
+// MACD Calculation
+macdLine = ta.ema(close, fastLength) - ta.ema(close, slowLength)
+signalLine = ta.ema(macdLine, signalSmoothing)
+histogram = macdLine - signalLine
+
+// Volume Strength Calculation
+volumeMA = ta.sma(volume, volumeStrengthLength)
+volumeStrength = volume / volumeMA
+
+// EMA Calculation
+ema9 = ta.ema(close, 9)
+ema26 = ta.ema(close, 26)
+
+// Buy and Sell Conditions
+buySignal = ta.crossover(ema9, ema26) or (ta.crossover(macdLine, signalLine) and volumeStrength > 1)
+sellSignal = ta.crossunder(ema9, ema26) or (ta.crossunder(macdLine, signalLine) and volumeStrength > 1)
+
+// Plot Buy and Sell Signals on Chart
+plotshape(buySignal, location=location.belowbar, color=color.green, style=shape.labelup, title="Buy Signal", size=size.small)
+plotshape(sellSignal, location=location.abovebar, color=color.red, style=shape.labeldown, title="Sell Signal", size=size.small)
+
+// Plot MACD, Signal Line, and Histogram
+plot(macdLine, title="MACD Line", color=color.blue)
+plot(signalLine, title="Signal Line", color=color.orange)
+histColor = histogram >= 0 ? color.green : color.red
+plot(histogram, title="Histogram", style=plot.style_columns, color=histColor, transp=50)
+
+// Plot EMA Lines
+plot(ema9, title="9-Min EMA", color=color.blue)
+plot(ema26, title="26-Min EMA", color=color.orange)
+
+// Strategy Execution
+strategy.entry("Long", strategy.long, when=buySignal)
+strategy.close("Long", when=sellSignal)
+strategy.entry("Short", strategy.short, when=sellSignal)
+strategy.close("Short", when=buySignal)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/488138
+
+> Last Modified
+
+2025-03-25 14:04:00

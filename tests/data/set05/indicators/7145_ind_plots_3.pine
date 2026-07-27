@@ -1,0 +1,9 @@
+//@version=6
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/visuals/plots.md::plots.md#block9
+// content_hash: 6d8da08636d6e781
+// collected: 2026-07-27
+indicator("", "", true)
+color lineColorInput  = input(#1848CC, "Line color")
+plot(close, color = lineColorInput)

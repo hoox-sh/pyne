@@ -1,0 +1,103 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/威廉姆斯鳄鱼点差交易策略Williams-Alligator-Scalping-Strategy.md
+// content_hash: eb0d29a8fe76c7e9
+// collected: 2026-07-27
+strategy("Bill Williams Alligator improved", shorttitle="Scalping alligator",overlay=true)
+//source = input(close)
+useHA = input (true,"Use heikin ashi candle?")
+
+// ----------MA calculation - ChartArt-------------
+smoothinput = input(1, minval=1, maxval=5, title='Moving Average Calculation: (1=SMA), (2=EMA), (3=WMA), (4=Linear), (5=VWMA)')
+
+calc_ma(src,l) => 
+    smoothinput == 1 ? sma(src, l):smoothinput == 2 ? ema(src, l):smoothinput == 3 ? wma(src, l):smoothinput == 4 ? linreg(src, l,0):smoothinput == 5 ? vwma(src,l):na
+//----------------------------------------------
+
+heikinashi_close = security(heikinashi(syminfo.tickerid), timeframe.period, close)
+heikinashi_open = security(heikinashi(syminfo.tickerid), timeframe.period, open)
+heikinashi_hl2 = security(heikinashi(syminfo.tickerid), timeframe.period, hl2)
+
+direzione=heikinashi_close>heikinashi_open and heikinashi_close[1]>heikinashi_open[1]? 1 : heikinashi_close<heikinashi_open and heikinashi_close[1]<heikinashi_open[1]? -1 : 0
+
+jawLength = input(13, minval=1, title="Jaw Length")
+teethLength = input(8, minval=1, title="Teeth Length")
+lipsLength = input(5, minval=1, title="Lips Length")
+jawOffset = input(8, title="Jaw Offset")
+teethOffset = input(5, title="Teeth Offset")
+lipsOffset = input(3, title="Lips Offset")
+jaw = calc_ma(heikinashi_hl2, jawLength)
+teeth = calc_ma(heikinashi_hl2, teethLength)
+lips = calc_ma(heikinashi_hl2, lipsLength)
+plot(jaw, title="jaw",offset = jawOffset, color=#3BB3E4)
+plot(teeth, title="teeth",offset = teethOffset, color=#FF006E)
+plot(lips, title="lips",offset = lipsOffset, color=#36C711)
+
+longCondition = direzione[0]==1 and jaw<teeth and jaw<lips and teeth<lips 
+shortCondition = direzione[0]==-1 and jaw>teeth and jaw>lips and teeth>lips
+
+
+//  Strategy: (Thanks to JayRogers)
+// === STRATEGY RELATED INPUTS ===
+//tradeInvert     = input(defval = false, title = "Invert Trade Direction?")
+// the risk management inputs
+inpTakeProfit   = input(defval = 0, title = "Take Profit Points", minval = 0)
+inpStopLoss     = input(defval = 0, title = "Stop Loss Points", minval = 0)
+inpTrailStop    = input(defval = 0, title = "Trailing Stop Loss Points", minval = 0)
+inpTrailOffset  = input(defval = 0, title = "Trailing Stop Loss Offset Points", minval = 0)
+
+// === RISK MANAGEMENT VALUE PREP ===
+// if an input is less than 1, assuming not wanted so we assign 'na' value to disable it.
+useTakeProfit   = inpTakeProfit  >= 1 ? inpTakeProfit  : na
+useStopLoss     = inpStopLoss    >= 1 ? inpStopLoss    : na
+useTrailStop    = inpTrailStop   >= 1 ? inpTrailStop   : na
+useTrailOffset  = inpTrailOffset >= 1 ? inpTrailOffset : na
+
+// === STRATEGY - LONG POSITION EXECUTION ===
+enterLong() => direzione[0]==1 and jaw<teeth and jaw<lips and teeth<lips // functions can be used to wrap up and work out complex conditions
+exitLong() => jaw>teeth or jaw>lips or teeth>lips
+strategy.entry(id = "Buy", long = true, when = enterLong() )    // use function or simple condition to decide when to get in
+strategy.close(id = "Buy", when = exitLong() )                  // ...and when to get out
+
+// === STRATEGY - SHORT POSITION EXECUTION ===
+enterShort() => direzione[0]==-1 and jaw>teeth and jaw>lips and teeth>lips
+exitShort() => jaw<teeth or jaw<lips or teeth<lips
+strategy.entry(id = "Sell", long = false, when = enterShort())
+strategy.close(id = "Sell", when = exitShort() )
+
+// === STRATEGY RISK MANAGEMENT EXECUTION ===
+// finally, make use of all the earlier values we got prepped
+strategy.exit("Exit Buy", from_entry = "Buy", profit = useTakeProfit, loss = useStopLoss, trail_points = useTrailStop, trail_offset = useTrailOffset)
+strategy.exit("Exit Sell", from_entry = "Sell", profit = useTakeProfit, loss = useStopLoss, trail_points = useTrailStop, trail_offset = useTrailOffset)
+
+// === Backtesting Dates === thanks to Trost
+
+testPeriodSwitch = input(false, "Custom Backtesting Dates")
+testStartYear = input(2020, "Backtest Start Year")
+testStartMonth = input(1, "Backtest Start Month")
+testStartDay = input(1, "Backtest Start Day")
+testStartHour = input(0, "Backtest Start Hour")
+testPeriodStart = timestamp(testStartYear,testStartMonth,testStartDay,testStartHour,0)
+testStopYear = input(2020, "Backtest Stop Year")
+testStopMonth = input(12, "Backtest Stop Month")
+testStopDay = input(31, "Backtest Stop Day")
+testStopHour = input(23, "Backtest Stop Hour")
+testPeriodStop = timestamp(testStopYear,testStopMonth,testStopDay,testStopHour,0)
+testPeriod() =>
+    time >= testPeriodStart and time <= testPeriodStop ? true : false
+isPeriod = true
+// === /END
+
+if not isPeriod
+    strategy.cancel_all()
+    strategy.close_all()
+```
+
+> Detail
+
+https://www.fmz.com/strategy/427811
+
+> Last Modified
+
+2023-09-25 17:42:27

@@ -1,0 +1,1255 @@
+//@version=6
+// set03 corpus entry
+// source_repo: casoon-pine-scripts
+// source_path: casoon-pine-scripts/indicators/trend_direction/vein/vein_reversal_score.pine
+// content_hash: 32a2c996ae70ffaf
+// collected: 2026-07-27
+// ============================================================================
+// Vein Reversal Score 4H [WavesUnchained]
+// Version: 0.1.4
+// Author: WavesUnchained
+// Build: 2026-06-30 00:00:00
+// ============================================================================
+// Two-layer reversal scoring for 4H NatGas.
+//
+// Layer A: SETUP SCORE — momentum, overextension, candle, volume
+//   → "conditions are building"
+//
+// Layer B: CONFIRMATION SCORE — BOS, Spring/Upthrust, Fake Break, Climax+Test
+//   → "structure confirms the setup"
+//
+// Combined status logic:
+//   Setup only          → WATCH (observe, don't act)
+//   Setup + Confirmation → CANDIDATE (take seriously)
+//   Confirmation only    → ALERT (structure event, check context)
+//
+// Features:
+//   ✓ Separate Setup and Confirmation scores (bull/bear)
+//   ✓ Combined status with clear decision logic
+//   ✓ Dual-panel visualization
+//   ✓ Traffic light background
+//   ✓ Light / Debug / Research display modes
+//   ✓ Alert conditions
+//
+// ============================================================================
+indicator("Vein: Reversal Score 4H [WavesUnchained]", "Vein Score", overlay=false, max_labels_count=200)
+
+// ============================================================================
+// MODULE: inputs — indicator parameters
+// ============================================================================
+
+var gCore = "Core Parameters"
+int emaFastLen  = input.int(20, "EMA Fast", minval=1, group=gCore)
+int emaSlowLen  = input.int(50, "EMA Slow", minval=1, group=gCore)
+int emaSlopeLen = input.int(3, "EMA Slope Lookback", minval=1, group=gCore)
+int rsiLen      = input.int(14, "RSI Length", minval=1, group=gCore)
+int stochRsiLen = input.int(14, "Stoch RSI Length", minval=1, group=gCore)
+int stochK      = input.int(3, "Stoch RSI K", minval=1, group=gCore)
+int stochD      = input.int(3, "Stoch RSI D", minval=1, group=gCore)
+int mfiLen      = input.int(14, "MFI Length", minval=1, group=gCore)
+int atrLen      = input.int(14, "ATR Length", minval=1, group=gCore)
+int bbLen       = input.int(20, "Bollinger Length", minval=1, group=gCore)
+float bbMult    = input.float(2.0, "Bollinger Multiplier", minval=0.5, step=0.1, group=gCore)
+int volAvgLen   = input.int(20, "Volume Average Length", minval=5, group=gCore)
+
+var gSwing = "Swing / Structure"
+int leftBars       = input.int(3, "Micro Pivot Left Bars", minval=1, group=gSwing)
+int rightBars      = input.int(3, "Micro Pivot Right Bars", minval=1, group=gSwing)
+int majorLeftBars  = input.int(7, "Major Pivot Left Bars", minval=3, group=gSwing)
+int majorRightBars = input.int(7, "Major Pivot Right Bars", minval=3, group=gSwing)
+float minWickRatio   = input.float(0.35, "Spring/UT Min Wick Ratio", minval=0.1, step=0.05, group=gSwing)
+float minCandleATR   = input.float(0.5, "Spring/UT Min Candle/ATR", minval=0.1, step=0.1, group=gSwing)
+float climaxRangeATR = input.float(1.8, "Climax Min Range/ATR", minval=1.0, step=0.1, group=gSwing)
+float climaxVolFact  = input.float(1.8, "Climax Min Vol Factor", minval=1.0, step=0.1, group=gSwing)
+
+// ============================================================================
+// MODULE: inputs — score thresholds
+// ============================================================================
+
+var gVariant = "Score Variant"
+string scoreVariant = input.string("A: RSI+MFI+MACD", "Momentum Mix", options=["A: RSI+MFI+MACD", "B: RSI+MFI+StochRSI", "C: All"], group=gVariant, tooltip="A = without Stoch RSI (cleaner)\nB = without MACD, with Stoch RSI (faster)\nC = all active (max score)")
+bool useStochRSI = scoreVariant == "B: RSI+MFI+StochRSI" or scoreVariant == "C: All"
+bool useMACD     = scoreVariant == "A: RSI+MFI+MACD" or scoreVariant == "C: All"
+
+var gThresh = "Score Thresholds"
+float rsiBullThresh    = input.float(35.0, "RSI Bull Threshold", minval=10, maxval=50, group=gThresh)
+float rsiBearThresh    = input.float(65.0, "RSI Bear Threshold", minval=50, maxval=90, group=gThresh)
+float stochExtLow      = input.float(20.0, "Stoch RSI Low Zone", minval=5, maxval=40, group=gThresh)
+float stochExtHigh     = input.float(80.0, "Stoch RSI High Zone", minval=60, maxval=95, group=gThresh)
+float mfiBullThresh    = input.float(30.0, "MFI Bull Threshold", minval=10, maxval=50, group=gThresh)
+float mfiBearThresh    = input.float(70.0, "MFI Bear Threshold", minval=50, maxval=90, group=gThresh)
+float priceEmaATRThresh = input.float(1.5, "Price→EMA20 ATR Threshold", minval=0.5, step=0.1, group=gThresh)
+float wickThresh       = input.float(0.4, "Wick Ratio Threshold", minval=0.1, maxval=0.8, step=0.05, group=gThresh)
+float slopeThresh      = input.float(0.0, "EMA Slope Strong Threshold", minval=0.0, step=0.01, group=gThresh, tooltip="Absolute slope value for strong trend deduction")
+
+var gZones = "Score Zones"
+float setupReady   = input.float(3.0, "Setup Ready (min setup score)", minval=1, step=0.5, group=gZones)
+float setupStrong  = input.float(5.0, "Setup Strong (high setup score)", minval=2, step=0.5, group=gZones)
+float confRequired = input.float(2.0, "Confirmation Required (min conf score)", minval=1, step=0.5, group=gZones)
+float wSetupRole   = input.float(1.0, "Setup Role Weight (momentum/location)", minval=0.0, maxval=3.0, step=0.1, group=gZones, tooltip="Weight on the Setup layer in the combined score")
+float wConfRole    = input.float(1.3, "Confirmation Role Weight (structure)", minval=0.0, maxval=3.0, step=0.1, group=gZones, tooltip="Weight on the Confirmation layer in the combined score — structure events outweigh raw setup")
+
+var gAdvanced = "Advanced Features"
+int   effEmaLen       = input.int(5, "Efficiency EMA Length", minval=2, group=gAdvanced)
+int   effFallLen      = input.int(3, "Efficiency Falling Lookback", minval=2, group=gAdvanced)
+float effFallBonus    = input.float(1.5, "Efficiency Falling Bonus", minval=0, step=0.1, group=gAdvanced, tooltip="Setup bonus when bar efficiency is falling (momentum decelerating)")
+float shockRangeMult  = input.float(2.5, "Shock Bar Range/ATR Mult", minval=1.5, step=0.1, group=gAdvanced, tooltip="Candle range must exceed this × ATR to count as shock")
+float shockVolMult    = input.float(2.0, "Shock Bar Rel Vol Mult", minval=1.0, step=0.1, group=gAdvanced)
+float shockPenalty    = input.float(2.0, "Shock Bar Score Penalty", minval=0, step=0.5, group=gAdvanced)
+int   qualityMinAlert = input.int(50, "Min Quality for ACTION Alert", minval=0, maxval=100, group=gAdvanced, tooltip="ACTION alerts only fire when quality >= this value")
+
+var gDisplay = "Display"
+string displayMode = input.string("Light", "Display Mode", options=["Light", "Debug", "Research"], group=gDisplay)
+bool showBg        = input.bool(true, "Show Background Colors", group=gDisplay)
+bool showComponents = input.bool(false, "Show Component Lines (Setup/Conf separate)", group=gDisplay, tooltip="Plots Setup and Confirm as separate lines for research")
+
+// ============================================================================
+// MODULE: calculations — indicators
+// ============================================================================
+
+// Trend
+float ema20 = ta.ema(close, emaFastLen)
+float ema50 = ta.ema(close, emaSlowLen)
+float ema20Slope = (ema20 - ema20[emaSlopeLen]) / emaSlopeLen
+float atr14 = ta.atr(atrLen)
+float priceToEma20ATR = atr14 > 0 ? (close - ema20) / atr14 : 0.0
+
+// Momentum
+float rsi14 = ta.rsi(close, rsiLen)
+float stochRsiRaw = ta.stoch(rsi14, rsi14, rsi14, stochRsiLen)
+float stochRsiKVal = ta.sma(stochRsiRaw, stochK)
+float stochRsiDVal = ta.sma(stochRsiKVal, stochD)
+
+// MACD
+[macdLine, signalLine, macdHist] = ta.macd(close, 12, 26, 9)
+
+// Volume
+float mfi14 = ta.mfi(hlc3, mfiLen)
+float avgVol = ta.sma(volume, volAvgLen)
+float relVol = avgVol > 0 ? volume / avgVol : 1.0
+
+// Bollinger
+float bbBasis = ta.sma(close, bbLen)
+float bbDev   = ta.stdev(close, bbLen) * bbMult
+float bbUpper = bbBasis + bbDev
+float bbLower = bbBasis - bbDev
+
+// Candle
+float candleRange = high - low
+float upperWick   = high - math.max(open, close)
+float lowerWick   = math.min(open, close) - low
+float upperWickRatio = candleRange > 0 ? upperWick / candleRange : 0.0
+float lowerWickRatio = candleRange > 0 ? lowerWick / candleRange : 0.0
+float candleATR      = atr14 > 0 ? candleRange / atr14 : 0.0
+
+// Bar efficiency & shock detection
+float barEfficiency  = candleRange > 0 ? math.abs(close - close[1]) / candleRange : 0.0
+float efficiencyEMA  = ta.ema(barEfficiency, effEmaLen)
+bool  effFalling     = ta.falling(efficiencyEMA, effFallLen)
+
+bool  isShockBar     = candleATR > shockRangeMult and relVol > shockVolMult
+
+// ============================================================================
+// MODULE: regime detection
+// ============================================================================
+// Simple regime filter based on EMA alignment, slope, and BB width.
+// Regimes: TREND_UP, TREND_DOWN, RANGE, HIGH_VOL, LOW_VOL
+
+// Trend detection: EMA20 vs EMA50 + slope strength
+float absSlope = math.abs(ema20Slope)
+bool ema20AboveEma50 = ema20 > ema50
+bool ema20BelowEma50 = ema20 < ema50
+
+// Volatility regime: BB width percentile (simple: vs SMA of BB width)
+float bbWidthRaw = bbUpper - bbLower
+float bbWidthAvg = ta.sma(bbWidthRaw, 50)
+float bbWidthRatio = bbWidthAvg > 0 ? bbWidthRaw / bbWidthAvg : 1.0
+
+// ADX-like trend strength via efficiency ratio
+float priceChange = math.abs(close - close[10])
+float pathLength  = math.sum(math.abs(close - close[1]), 10)
+float efficiencyRatio = pathLength > 0 ? priceChange / pathLength : 0.0
+
+// Regime classification
+bool isTrendUp   = ema20AboveEma50 and efficiencyRatio > 0.35
+bool isTrendDown = ema20BelowEma50 and efficiencyRatio > 0.35
+bool isRange     = efficiencyRatio <= 0.35
+bool isHighVol   = bbWidthRatio > 1.3
+bool isLowVol    = bbWidthRatio < 0.7
+
+// Regime weight multipliers for score components
+// In range: oscillators and mean-reversion signals are more valuable
+// In trend: structure events (BOS) are more valuable, oscillators less
+float setupMultiplier = isRange ? 1.2 : isTrendUp or isTrendDown ? 0.8 : 1.0
+float confMultiplier  = isTrendUp or isTrendDown ? 1.3 : isRange ? 1.0 : 1.0
+
+// High vol bonus for structure events (climax/spring more meaningful)
+float volBonus = isHighVol ? 1.2 : isLowVol ? 0.8 : 1.0
+
+// ============================================================================
+// MODULE: level context
+// ============================================================================
+// How close is price to significant levels? Reversals at key levels are higher quality.
+
+// 20-bar range extremes
+float range20High = ta.highest(high, 20)
+float range20Low  = ta.lowest(low, 20)
+float range20Span = range20High - range20Low
+
+// Distance to range extremes (normalized 0..1, 0 = at the extreme)
+float distToRange20High = range20Span > 0 ? (range20High - close) / range20Span : 0.5
+float distToRange20Low  = range20Span > 0 ? (close - range20Low) / range20Span : 0.5
+
+// Near range extreme?
+bool nearRange20High = distToRange20High < 0.15
+bool nearRange20Low  = distToRange20Low < 0.15
+
+// Distance to major swings (will be set after swing detection below)
+var float distToMajorSwingHighATR = na
+var float distToMajorSwingLowATR  = na
+
+// ============================================================================
+// MODULE: calculations — structure events (micro + major)
+// ============================================================================
+
+// Micro swings
+float pivotHi = ta.pivothigh(high, leftBars, rightBars)
+float pivotLo = ta.pivotlow(low, leftBars, rightBars)
+
+var float lastSwingHigh = na
+var float lastSwingLow  = na
+
+if not na(pivotHi)
+    lastSwingHigh := pivotHi
+if not na(pivotLo)
+    lastSwingLow := pivotLo
+
+// Major swings
+float majorPivotHi = ta.pivothigh(high, majorLeftBars, majorRightBars)
+float majorPivotLo = ta.pivotlow(low, majorLeftBars, majorRightBars)
+
+var float lastMajorSwingHigh = na
+var float lastMajorSwingLow  = na
+
+if not na(majorPivotHi)
+    lastMajorSwingHigh := majorPivotHi
+if not na(majorPivotLo)
+    lastMajorSwingLow := majorPivotLo
+
+// Level context: distance to major swings
+distToMajorSwingHighATR := not na(lastMajorSwingHigh) and atr14 > 0 ? (close - lastMajorSwingHigh) / atr14 : na
+distToMajorSwingLowATR  := not na(lastMajorSwingLow) and atr14 > 0 ? (close - lastMajorSwingLow) / atr14 : na
+
+// Near major swing levels?
+bool nearMajorSwingHigh = not na(distToMajorSwingHighATR) and math.abs(distToMajorSwingHighATR) < 0.5
+bool nearMajorSwingLow  = not na(distToMajorSwingLowATR) and math.abs(distToMajorSwingLowATR) < 0.5
+
+// Level quality uses live range position only. Confirmed swing pivots remain
+// structure diagnostics and do not feed setup/quality scores directly.
+bool bullAtLevel = nearRange20Low
+bool bearAtLevel = nearRange20High
+
+// Micro BOS
+bool microBullBOS = not na(lastSwingHigh) and close > lastSwingHigh and close[1] <= lastSwingHigh
+bool microBearBOS = not na(lastSwingLow) and close < lastSwingLow and close[1] >= lastSwingLow
+
+// Major BOS
+bool majorBullBOS = not na(lastMajorSwingHigh) and close > lastMajorSwingHigh and close[1] <= lastMajorSwingHigh
+bool majorBearBOS = not na(lastMajorSwingLow) and close < lastMajorSwingLow and close[1] >= lastMajorSwingLow
+
+bool bullishBOS = microBullBOS or majorBullBOS
+bool bearishBOS = microBearBOS or majorBearBOS
+
+// CHoCH vs BOS distinction (mirrored from structure events)
+var int microSwingTrend = 0
+var int majorSwingTrend = 0
+
+bool microBullCHoCH = microBullBOS and microSwingTrend == -1
+bool microBearCHoCH = microBearBOS and microSwingTrend == 1
+bool majorBullCHoCH = majorBullBOS and majorSwingTrend == -1
+bool majorBearCHoCH = majorBearBOS and majorSwingTrend == 1
+
+if microBullBOS
+    microSwingTrend := 1
+if microBearBOS
+    microSwingTrend := -1
+if majorBullBOS
+    majorSwingTrend := 1
+if majorBearBOS
+    majorSwingTrend := -1
+
+bool isBullCHoCH = microBullCHoCH or majorBullCHoCH
+bool isBearCHoCH = microBearCHoCH or majorBearCHoCH
+
+// ── Premium / Discount Zones ──
+// Uses last major swing high/low to define price zones
+float pdRange = not na(lastMajorSwingHigh) and not na(lastMajorSwingLow) ? lastMajorSwingHigh - lastMajorSwingLow : na
+float pdPremiumLine  = not na(pdRange) and pdRange > 0 ? lastMajorSwingLow + pdRange * 0.75 : na
+float pdDiscountLine = not na(pdRange) and pdRange > 0 ? lastMajorSwingLow + pdRange * 0.25 : na
+
+// Zone classification: 1 = Premium, -1 = Discount, 0 = Equilibrium
+int priceZone = not na(pdPremiumLine) and not na(pdDiscountLine) ? (close >= pdPremiumLine ? 1 : close <= pdDiscountLine ? -1 : 0) : 0
+string priceZoneStr = priceZone == 1 ? "Premium" : priceZone == -1 ? "Discount" : "Equilibrium"
+
+// Fake breaks (micro + major)
+bool fakeBreakout  = not na(lastSwingHigh) and high > lastSwingHigh and close <= lastSwingHigh
+bool fakeBreakdown = not na(lastSwingLow) and low < lastSwingLow and close >= lastSwingLow
+bool majorFakeBreakout  = not na(lastMajorSwingHigh) and high > lastMajorSwingHigh and close <= lastMajorSwingHigh
+bool majorFakeBreakdown = not na(lastMajorSwingLow) and low < lastMajorSwingLow and close >= lastMajorSwingLow
+
+// Spring / Upthrust (micro)
+bool isSpring   = fakeBreakdown and lowerWickRatio >= minWickRatio and candleATR >= minCandleATR
+bool isUpthrust = fakeBreakout and upperWickRatio >= minWickRatio and candleATR >= minCandleATR
+
+// Major Spring / Upthrust
+bool isMajorSpring   = majorFakeBreakdown and lowerWickRatio >= minWickRatio and candleATR >= minCandleATR
+bool isMajorUpthrust = majorFakeBreakout and upperWickRatio >= minWickRatio and candleATR >= minCandleATR
+
+// Climax detection
+bool isClimaxCandle = candleATR >= climaxRangeATR and avgVol > 0 and volume >= climaxVolFact * avgVol
+bool isSellingClimax = isClimaxCandle and close < open
+bool isBuyingClimax  = isClimaxCandle and close > open
+
+// ── Climax Sequence State Machine (mirrored from structure events) ──
+var int   clxState     = 0
+var int   clxDirection  = 0
+var float clxClose     = na
+var float clxHigh      = na
+var float clxLow       = na
+var float clxRange     = na
+var float clxVolume    = na
+var int   clxBar       = na
+
+if isClimaxCandle
+    clxState     := 1
+    clxDirection := isSellingClimax ? 1 : isBuyingClimax ? -1 : 0
+    clxClose     := close
+    clxHigh      := high
+    clxLow       := low
+    clxRange     := candleRange
+    clxVolume    := volume
+    clxBar       := bar_index
+
+int clxLookback = 20
+bool hasActiveClx = clxState >= 1 and not na(clxBar) and (bar_index - clxBar) <= clxLookback
+
+if hasActiveClx and clxState == 1
+    if clxDirection == 1 and close > clxClose
+        clxState := 2
+    if clxDirection == -1 and close < clxClose
+        clxState := 2
+
+if hasActiveClx and clxState == 2
+    bool returningToZone = false
+    if clxDirection == 1 and not na(clxClose) and atr14 > 0
+        returningToZone := close < clxClose + 1.5 * atr14 and close > clxLow - 0.5 * atr14
+    if clxDirection == -1 and not na(clxClose) and atr14 > 0
+        returningToZone := close > clxClose - 1.5 * atr14 and close < clxHigh + 0.5 * atr14
+    if returningToZone and (bar_index - clxBar) >= 2
+        clxState := 3
+
+if hasActiveClx and clxState == 3
+    bool isTestBar = not na(clxRange) and not na(clxVolume) and candleRange <= clxRange * 0.6 and volume <= clxVolume * 0.7 and candleRange > 0
+    bool inZone = not na(clxClose) and atr14 > 0 and math.abs(close - clxClose) <= 1.5 * atr14
+    if isTestBar and inZone
+        clxState   := 4
+
+if hasActiveClx and clxState == 4
+    if clxDirection == 1 and (microBullBOS or majorBullBOS)
+        clxState := 5
+    if clxDirection == -1 and (microBearBOS or majorBearBOS)
+        clxState := 5
+
+if hasActiveClx and not na(clxBar) and (bar_index - clxBar) > clxLookback
+    clxState := 0
+
+bool clxTestValid    = clxState == 4 or clxState == 5
+bool clxConfirmed    = clxState == 5
+bool clxBullSequence = clxDirection == 1 and clxState >= 1
+bool clxBearSequence = clxDirection == -1 and clxState >= 1
+string clxStateStr   = clxState == 0 ? "—" : clxState == 1 ? "CLX" : clxState == 2 ? "REACTING" : clxState == 3 ? "TEST PENDING" : clxState == 4 ? "TEST VALID" : clxState == 5 ? "CONFIRMED" : "—"
+
+// ============================================================================
+// MODULE: Layer A — SETUP SCORE (bullish)
+// ============================================================================
+// Momentum + Overextension + Candle + Volume
+// Max theoretical: ~8.5
+
+float bullSetup = 0.0
+
+// RSI in oversold zone
+if rsi14 < rsiBullThresh
+    bullSetup += 1.0
+// RSI turning up from low
+if rsi14 < rsiBullThresh + 10 and rsi14 > rsi14[1]
+    bullSetup += 0.5
+
+// MFI in oversold zone
+if mfi14 < mfiBullThresh
+    bullSetup += 1.0
+// MFI turning up
+if mfi14 > mfi14[1] and mfi14[1] < mfiBullThresh + 10
+    bullSetup += 0.5
+
+// Stoch RSI in low zone (only in variant B/C)
+if useStochRSI and stochRsiKVal < stochExtLow
+    bullSetup += 0.5
+// Stoch RSI bullish cross (only in variant B/C)
+if useStochRSI and ta.crossover(stochRsiKVal, stochRsiDVal) and stochRsiKVal < stochExtLow + 15
+    bullSetup += 1.0
+
+// MACD histogram turning (only in variant A/C)
+if useMACD and macdHist > macdHist[1] and macdHist[1] < 0
+    bullSetup += 0.5
+
+// Price below EMA20
+if priceToEma20ATR < -priceEmaATRThresh
+    bullSetup += 1.0
+if priceToEma20ATR < -priceEmaATRThresh * 1.5
+    bullSetup += 0.5
+
+// Bollinger lower band
+if low <= bbLower
+    bullSetup += 1.0
+
+// Strong lower wick
+if lowerWickRatio >= wickThresh
+    bullSetup += 1.0
+
+// Efficiency falling — momentum decelerating below EMA20
+if effFalling and close < ema20
+    bullSetup += effFallBonus
+
+// Deductions
+if ema20Slope < -math.abs(slopeThresh) and slopeThresh > 0
+    bullSetup -= 1.0
+if relVol < 0.6
+    bullSetup -= 0.5
+// Shock bar penalty
+if isShockBar
+    bullSetup -= shockPenalty
+
+bullSetup := math.max(0.0, bullSetup) * setupMultiplier
+
+// ============================================================================
+// MODULE: Layer B — CONFIRMATION SCORE (bullish)
+// ============================================================================
+// Structure events only
+// Max theoretical: ~6.5
+
+float bullConf = 0.0
+
+// Spring quality factors for scoring
+float sprSweep = isSpring and not na(lastSwingLow) and atr14 > 0 ? (lastSwingLow - low) / atr14 : 0.0
+float majSprSweep = isMajorSpring and not na(lastMajorSwingLow) and atr14 > 0 ? (lastMajorSwingLow - low) / atr14 : 0.0
+float bullBOSSw = microBullBOS and not na(lastSwingHigh) and atr14 > 0 ? (close - lastSwingHigh) / atr14 : 0.0
+float majBullBOSSw = majorBullBOS and not na(lastMajorSwingHigh) and atr14 > 0 ? (close - lastMajorSwingHigh) / atr14 : 0.0
+
+// Spring scoring helper
+f_springScore(bool triggered, float wickR, float cATR, float rv, float sweep, bool isMajor) =>
+    float sc = 0.0
+    if triggered
+        int factors = 0
+        if wickR >= 0.55
+            factors += 1
+        if cATR >= 0.8
+            factors += 1
+        if rv >= 1.3
+            factors += 1
+        if sweep >= 0.15
+            factors += 1
+        // weak=1, normal=2, strong=3+
+        float base = isMajor ? 3.0 : 1.5
+        sc := factors >= 3 ? base + 1.5 : factors >= 1 ? base + 0.5 : base
+    sc
+
+// Major Spring
+if isMajorSpring
+    bullConf += f_springScore(true, lowerWickRatio, candleATR, relVol, majSprSweep, true)
+// Micro Spring
+else if isSpring
+    bullConf += f_springScore(true, lowerWickRatio, candleATR, relVol, sprSweep, false)
+
+// BOS scoring helper
+f_bosScore(bool triggered, float sweep, float rv, bool isMajor) =>
+    float sc = 0.0
+    if triggered
+        int factors = 0
+        if sweep >= 0.1
+            factors += 1
+        if sweep >= 0.3
+            factors += 1
+        if rv >= 1.3
+            factors += 1
+        float base = isMajor ? 2.0 : 0.5
+        sc := factors >= 2 ? base + 1.5 : factors >= 1 ? base + 0.5 : base
+    sc
+
+// Major BOS
+if majorBullBOS
+    bullConf += f_bosScore(true, majBullBOSSw, relVol, true)
+    // CHoCH bonus: change of character is more significant than continuation
+    if majorBullCHoCH
+        bullConf += 1.5
+// Micro BOS
+else if microBullBOS
+    bullConf += f_bosScore(true, bullBOSSw, relVol, false)
+    if microBullCHoCH
+        bullConf += 0.75
+
+// Fake Breakdown at swing (without Spring quality)
+if fakeBreakdown and not isSpring and not isMajorSpring
+    bullConf += 0.5
+if majorFakeBreakdown and not isMajorSpring
+    bullConf += 1.0
+
+// ── Climax Sequence (progressive scoring) ──
+// Each stage of the sequence adds more confirmation
+// Selling climax = bullish reversal potential
+if isClimaxCandle and close < ema20
+    bullConf += 1.0   // CLX detected
+
+// Test validated after climax
+if clxTestValid and clxDirection == 1
+    bullConf += 1.5   // Test confirms climax wasn't just noise
+
+// Full sequence: CLX → Test → BOS
+if clxConfirmed and clxDirection == 1
+    bullConf += 2.5   // Strongest possible confirmation
+
+// Premium/Discount zone adjustment
+if priceZone == -1   // Discount zone: bull setup gets bonus
+    bullConf += 1.0
+if priceZone == 1    // Premium zone: bull setup gets penalty
+    bullConf -= 0.5
+
+bullConf := math.max(0.0, bullConf) * confMultiplier * volBonus
+
+// ============================================================================
+// MODULE: Layer A — SETUP SCORE (bearish)
+// ============================================================================
+
+float bearSetup = 0.0
+
+// RSI in overbought zone
+if rsi14 > rsiBearThresh
+    bearSetup += 1.0
+if rsi14 > rsiBearThresh - 10 and rsi14 < rsi14[1]
+    bearSetup += 0.5
+
+// MFI in overbought zone
+if mfi14 > mfiBearThresh
+    bearSetup += 1.0
+if mfi14 < mfi14[1] and mfi14[1] > mfiBearThresh - 10
+    bearSetup += 0.5
+
+// Stoch RSI in high zone (only in variant B/C)
+if useStochRSI and stochRsiKVal > stochExtHigh
+    bearSetup += 0.5
+if useStochRSI and ta.crossunder(stochRsiKVal, stochRsiDVal) and stochRsiKVal > stochExtHigh - 15
+    bearSetup += 1.0
+
+// MACD histogram turning (only in variant A/C)
+if useMACD and macdHist < macdHist[1] and macdHist[1] > 0
+    bearSetup += 0.5
+
+// Price above EMA20
+if priceToEma20ATR > priceEmaATRThresh
+    bearSetup += 1.0
+if priceToEma20ATR > priceEmaATRThresh * 1.5
+    bearSetup += 0.5
+
+// Bollinger upper band
+if high >= bbUpper
+    bearSetup += 1.0
+
+// Strong upper wick
+if upperWickRatio >= wickThresh
+    bearSetup += 1.0
+
+// Efficiency falling — momentum decelerating above EMA20
+if effFalling and close > ema20
+    bearSetup += effFallBonus
+
+// Deductions
+if ema20Slope > math.abs(slopeThresh) and slopeThresh > 0
+    bearSetup -= 1.0
+if relVol < 0.6
+    bearSetup -= 0.5
+// Shock bar penalty
+if isShockBar
+    bearSetup -= shockPenalty
+
+bearSetup := math.max(0.0, bearSetup) * setupMultiplier
+
+// ============================================================================
+// MODULE: Layer B — CONFIRMATION SCORE (bearish)
+// ============================================================================
+
+float bearConf = 0.0
+
+// Upthrust quality factors
+float utSweep = isUpthrust and not na(lastSwingHigh) and atr14 > 0 ? (high - lastSwingHigh) / atr14 : 0.0
+float majUtSweep = isMajorUpthrust and not na(lastMajorSwingHigh) and atr14 > 0 ? (high - lastMajorSwingHigh) / atr14 : 0.0
+float bearBOSSw = microBearBOS and not na(lastSwingLow) and atr14 > 0 ? (lastSwingLow - close) / atr14 : 0.0
+float majBearBOSSw = majorBearBOS and not na(lastMajorSwingLow) and atr14 > 0 ? (lastMajorSwingLow - close) / atr14 : 0.0
+
+// Major Upthrust
+if isMajorUpthrust
+    bearConf += f_springScore(true, upperWickRatio, candleATR, relVol, majUtSweep, true)
+// Micro Upthrust
+else if isUpthrust
+    bearConf += f_springScore(true, upperWickRatio, candleATR, relVol, utSweep, false)
+
+// Major BOS
+if majorBearBOS
+    bearConf += f_bosScore(true, majBearBOSSw, relVol, true)
+    // CHoCH bonus: change of character is more significant than continuation
+    if majorBearCHoCH
+        bearConf += 1.5
+// Micro BOS
+else if microBearBOS
+    bearConf += f_bosScore(true, bearBOSSw, relVol, false)
+    if microBearCHoCH
+        bearConf += 0.75
+
+// Fake Breakout at swing (without Upthrust quality)
+if fakeBreakout and not isUpthrust and not isMajorUpthrust
+    bearConf += 0.5
+if majorFakeBreakout and not isMajorUpthrust
+    bearConf += 1.0
+
+// ── Climax Sequence (progressive scoring) ──
+// Buying climax = bearish reversal potential
+if isClimaxCandle and close > ema20
+    bearConf += 1.0
+
+// Test validated after climax
+if clxTestValid and clxDirection == -1
+    bearConf += 1.5
+
+// Full sequence: CLX → Test → BOS
+if clxConfirmed and clxDirection == -1
+    bearConf += 2.5
+
+// Premium/Discount zone adjustment
+if priceZone == 1    // Premium zone: bear setup gets bonus
+    bearConf += 1.0
+if priceZone == -1   // Discount zone: bear setup gets penalty
+    bearConf -= 0.5
+
+bearConf := math.max(0.0, bearConf) * confMultiplier * volBonus
+
+// ============================================================================
+// MODULE: event tracking — trigger level + age
+// ============================================================================
+// Track the most recent bull/bear confirmation event for follow-through
+
+var float bullTriggerLevel = na   // price level the bull event occurred at
+var int   bullEventBar     = na   // bar_index when bull event fired
+var float bearTriggerLevel = na
+var int   bearEventBar     = na
+
+// Register new bull confirmation events
+bool newBullEvent = (isSpring or isMajorSpring or microBullBOS or majorBullBOS or (clxConfirmed and clxDirection == 1))
+bool newBearEvent = (isUpthrust or isMajorUpthrust or microBearBOS or majorBearBOS or (clxConfirmed and clxDirection == -1))
+
+if newBullEvent
+    bullTriggerLevel := isSpring or isMajorSpring ? low : close
+    bullEventBar     := bar_index
+if newBearEvent
+    bearTriggerLevel := isUpthrust or isMajorUpthrust ? high : close
+    bearEventBar     := bar_index
+
+// ============================================================================
+// MODULE: event decay
+// ============================================================================
+// Events lose weight over time. After decayBars, confirmation is heavily discounted.
+
+int decayStart = 3    // bars before decay begins
+int decayFull  = 6    // bars until event is expired
+
+int bullEventAge = not na(bullEventBar) ? bar_index - bullEventBar : 999
+int bearEventAge = not na(bearEventBar) ? bar_index - bearEventBar : 999
+
+// Decay multiplier: 1.0 within decayStart, linear fade to 0.2 at decayFull, then 0
+float bullDecay = bullEventAge <= decayStart ? 1.0 : bullEventAge <= decayFull ? 1.0 - 0.8 * (bullEventAge - decayStart) / (decayFull - decayStart) : 0.0
+float bearDecay = bearEventAge <= decayStart ? 1.0 : bearEventAge <= decayFull ? 1.0 - 0.8 * (bearEventAge - decayStart) / (decayFull - decayStart) : 0.0
+
+// Apply decay to confirmation scores
+float bullConfDecayed = bullConf * bullDecay
+float bearConfDecayed = bearConf * bearDecay
+
+// ============================================================================
+// MODULE: follow-through
+// ============================================================================
+// After a bull/bear event, check if price confirms in the expected direction.
+// Follow-through requires within 2-4 bars after event:
+//   Bull: higher close, price holds above trigger level
+//   Bear: lower close, price holds below trigger level
+
+bool bullEventActive = bullEventAge >= 1 and bullEventAge <= 4 and not na(bullTriggerLevel)
+bool bearEventActive = bearEventAge >= 1 and bearEventAge <= 4 and not na(bearTriggerLevel)
+
+// Bull follow-through checks
+bool bullHigherClose    = bullEventActive and close > close[1]
+bool bullHoldsAbove     = bullEventActive and close > bullTriggerLevel
+bool bullNoCounterBOS   = bullEventActive and not microBearBOS and not majorBearBOS
+bool bullFollowThrough  = bullHigherClose and bullHoldsAbove and bullNoCounterBOS
+
+// Bear follow-through checks
+bool bearLowerClose     = bearEventActive and close < close[1]
+bool bearHoldsBelow     = bearEventActive and close < bearTriggerLevel
+bool bearNoCounterBOS   = bearEventActive and not microBullBOS and not majorBullBOS
+bool bearFollowThrough  = bearLowerClose and bearHoldsBelow and bearNoCounterBOS
+
+// Track if follow-through was ever achieved for current event
+var bool bullFTAchieved = false
+var bool bearFTAchieved = false
+
+if newBullEvent
+    bullFTAchieved := false
+if newBearEvent
+    bearFTAchieved := false
+if bullFollowThrough
+    bullFTAchieved := true
+if bearFollowThrough
+    bearFTAchieved := true
+
+// ============================================================================
+// MODULE: failed reversal / trap detection
+// ============================================================================
+// A confirmed event that fails to follow through, or where price
+// breaks back through the trigger level, is a failed reversal.
+// Failed reversals can hint at continuation in the opposite direction.
+
+bool bullExpiredNoFT = bullEventAge > decayFull and not bullFTAchieved and not na(bullTriggerLevel)
+bool bearExpiredNoFT = bearEventAge > decayFull and not bearFTAchieved and not na(bearTriggerLevel)
+
+// Active failure: price breaks back through trigger level after event
+bool bullTriggerLost = not na(bullTriggerLevel) and bullEventAge >= 1 and bullEventAge <= decayFull * 2 and close < bullTriggerLevel and bullFTAchieved
+bool bearTriggerLost = not na(bearTriggerLevel) and bearEventAge >= 1 and bearEventAge <= decayFull * 2 and close > bearTriggerLevel and bearFTAchieved
+
+// Failed status
+var bool bullFailed = false
+var bool bearFailed = false
+
+if newBullEvent
+    bullFailed := false
+if newBearEvent
+    bearFailed := false
+if bullExpiredNoFT or bullTriggerLost
+    bullFailed := true
+if bearExpiredNoFT or bearTriggerLost
+    bearFailed := true
+
+// Trap hint: failed reversal suggests opposite direction
+bool bullTrapHint = bullFailed and bearSetup > 0  // failed bull = potential bear continuation
+bool bearTrapHint = bearFailed and bullSetup > 0  // failed bear = potential bull continuation
+
+// ============================================================================
+// MODULE: combined status
+// ============================================================================
+
+// Raw setup/conf thresholds
+bool bullSetupReady   = bullSetup >= setupReady
+bool bullSetupStrong  = bullSetup >= setupStrong
+bool bullConfirmed    = bullConfDecayed >= confRequired  // uses decayed confirmation
+
+bool bearSetupReady   = bearSetup >= setupReady
+bool bearSetupStrong  = bearSetup >= setupStrong
+bool bearConfirmed    = bearConfDecayed >= confRequired
+
+// ── Conflict detection (multi-dimensional) ──
+
+bool setupConflict = bullSetupReady and bearSetupReady
+bool confConflict = bullConfirmed and bearConfirmed
+bool bullTrendConflict = bullSetupReady and isTrendDown and efficiencyRatio > 0.45
+bool bearTrendConflict = bearSetupReady and isTrendUp and efficiencyRatio > 0.45
+bool bullCandidateOpposed = bullSetupReady and bullConfirmed and bearConfirmed
+bool bearCandidateOpposed = bearSetupReady and bearConfirmed and bullConfirmed
+
+bool isConflict = setupConflict or confConflict or bullTrendConflict or bearTrendConflict or bullCandidateOpposed or bearCandidateOpposed
+bool bothConfirmed = confConflict
+
+int conflictCount = (setupConflict ? 1 : 0) + (confConflict ? 1 : 0) + (bullTrendConflict ? 1 : 0) + (bearTrendConflict ? 1 : 0)
+string conflictSeverity = conflictCount >= 3 ? "HIGH" : conflictCount >= 2 ? "MODERATE" : conflictCount >= 1 ? "LOW" : "NONE"
+
+string conflictReason = ""
+if setupConflict
+    conflictReason := "Both setups active"
+if confConflict
+    conflictReason := conflictReason + (str.length(conflictReason) > 0 ? " + " : "") + "Both confirmed"
+if bullTrendConflict
+    conflictReason := conflictReason + (str.length(conflictReason) > 0 ? " + " : "") + "Bull vs downtrend"
+if bearTrendConflict
+    conflictReason := conflictReason + (str.length(conflictReason) > 0 ? " + " : "") + "Bear vs uptrend"
+
+// ── Status with follow-through and failure awareness ──
+string bullStatus = "—"
+if bullFailed
+    bullStatus := "FAILED"
+else if bullSetupReady and bullConfirmed and bullFTAchieved
+    bullStatus := bullCandidateOpposed ? "CONFLICTED" : bullTrendConflict ? "CONFLICTED" : "CANDIDATE"
+else if bullSetupReady and bullConfirmed and not bullFTAchieved and bullEventActive
+    bullStatus := bullCandidateOpposed ? "CONFLICTED" : bullTrendConflict ? "CONFLICTED" : "PENDING"
+else if bullSetupReady and bullConfirmed
+    bullStatus := bullCandidateOpposed ? "CONFLICTED" : bullTrendConflict ? "CONFLICTED" : bullDecay < 0.5 ? "EXPIRED" : "CANDIDATE"
+else if bullSetupStrong
+    bullStatus := bullTrendConflict ? "CONFLICTED" : "SETUP"
+else if bullConfirmed and not bullSetupReady
+    bullStatus := "ALERT"
+else if bullSetupReady
+    bullStatus := "WATCH"
+
+string bearStatus = "—"
+if bearFailed
+    bearStatus := "FAILED"
+else if bearSetupReady and bearConfirmed and bearFTAchieved
+    bearStatus := bearCandidateOpposed ? "CONFLICTED" : bearTrendConflict ? "CONFLICTED" : "CANDIDATE"
+else if bearSetupReady and bearConfirmed and not bearFTAchieved and bearEventActive
+    bearStatus := bearCandidateOpposed ? "CONFLICTED" : bearTrendConflict ? "CONFLICTED" : "PENDING"
+else if bearSetupReady and bearConfirmed
+    bearStatus := bearCandidateOpposed ? "CONFLICTED" : bearTrendConflict ? "CONFLICTED" : bearDecay < 0.5 ? "EXPIRED" : "CANDIDATE"
+else if bearSetupStrong
+    bearStatus := bearTrendConflict ? "CONFLICTED" : "SETUP"
+else if bearConfirmed and not bearSetupReady
+    bearStatus := "ALERT"
+else if bearSetupReady
+    bearStatus := "WATCH"
+
+// Combined scores — role-weighted, not a flat sum of two heterogeneous layers.
+// Setup = Momentum/Location role · Confirmation = Structure/Trigger role.
+// Structure confirmation is weighted higher than raw momentum setup so the combined
+// score reflects confirmed reversals over oscillator-only extension.
+float bullScore = wSetupRole * bullSetup + wConfRole * bullConf
+float bearScore = wSetupRole * bearSetup + wConfRole * bearConf
+
+// ============================================================================
+// MODULE: quality breakdown
+// ============================================================================
+// Data-driven quality modifier on top of scores. 50 = baseline.
+// Used to gate ACTION alerts and shown in table tooltip.
+
+// Absorption: high volume but small candle range (supply/demand absorbed)
+bool isAbsorption = relVol >= 1.5 and candleATR < 0.7
+
+float bullQuality = 50.0
+if effFalling and (bullAtLevel or close < ema20)
+    bullQuality += 15.0
+if lowerWickRatio > 0.4
+    bullQuality += 10.0
+if isAbsorption
+    bullQuality += 15.0
+if isShockBar
+    bullQuality -= 20.0
+if bullSetup >= setupStrong and bullConf < confRequired
+    bullQuality -= 15.0
+if bullDecay < 0.3 and bullEventAge < 999
+    bullQuality -= 10.0
+// CHoCH quality bonus — character change is high-significance
+if isBullCHoCH
+    bullQuality += 10.0
+// Premium/Discount quality adjustment
+if priceZone == -1   // Discount zone = good for bull
+    bullQuality += 5.0
+if priceZone == 1    // Premium zone = bad for bull
+    bullQuality -= 5.0
+
+float bearQuality = 50.0
+if effFalling and (bearAtLevel or close > ema20)
+    bearQuality += 15.0
+if upperWickRatio > 0.4
+    bearQuality += 10.0
+if isAbsorption
+    bearQuality += 15.0
+if isShockBar
+    bearQuality -= 20.0
+if bearSetup >= setupStrong and bearConf < confRequired
+    bearQuality -= 15.0
+if bearDecay < 0.3 and bearEventAge < 999
+    bearQuality -= 10.0
+// CHoCH quality bonus — character change is high-significance
+if isBearCHoCH
+    bearQuality += 10.0
+// Premium/Discount quality adjustment
+if priceZone == 1    // Premium zone = good for bear
+    bearQuality += 5.0
+if priceZone == -1   // Discount zone = bad for bear
+    bearQuality -= 5.0
+
+// Clamp quality to 0..100
+bullQuality := math.max(0.0, math.min(100.0, bullQuality))
+bearQuality := math.max(0.0, math.min(100.0, bearQuality))
+
+// (Conflict detection is defined in the combined status module above)
+
+// ============================================================================
+// MODULE: visuals — dual score plot
+// ============================================================================
+
+// ── Bull scores (above zero) — area fill between setup and total ──
+// Setup = filled area from zero, Confirmation = brighter area on top
+
+// Bull setup gradient: intensity by strength
+color bullSetupFill = bullSetupStrong ? color.new(#00e676, 40) : bullSetupReady ? color.new(#00e676, 60) : bullSetup > 0 ? color.new(#00e676, 80) : color.new(#00e676, 95)
+// Bull total (setup + conf)
+color bullTotalCol = bullConfirmed ? color.new(#00e676, 20) : bullConf > 0 ? color.new(#69f0ae, 40) : na
+
+// Bear setup gradient (below zero, mirrored)
+color bearSetupFill = bearSetupStrong ? color.new(#ff1744, 40) : bearSetupReady ? color.new(#ff1744, 60) : bearSetup > 0 ? color.new(#ff1744, 80) : color.new(#ff1744, 95)
+color bearTotalCol = bearConfirmed ? color.new(#ff1744, 20) : bearConf > 0 ? color.new(#ff8a80, 40) : na
+
+// Bull area: setup base + confirmation on top
+p_bullSetup = plot(bullSetup, "Bull Setup", color=color.new(#00e676, 60), style=plot.style_stepline, linewidth=1)
+p_bullTotal = plot(bullSetup + bullConf, "Bull Total", color=bullConf > 0 ? #00e676 : color.new(#00e676, 80), style=plot.style_stepline, linewidth=2)
+p_zero      = plot(0.0, "Zero", color=color.new(color.gray, 80))
+
+// Bear area: mirrored below zero
+p_bearSetup = plot(-bearSetup, "Bear Setup", color=color.new(#ff1744, 60), style=plot.style_stepline, linewidth=1)
+p_bearTotal = plot(-(bearSetup + bearConf), "Bear Total", color=bearConf > 0 ? #ff1744 : color.new(#ff1744, 80), style=plot.style_stepline, linewidth=2)
+
+// Area fills: setup = lighter, confirmation = brighter overlay
+fill(p_zero, p_bullSetup, color=bullSetupFill, title="Bull Setup Area")
+fill(p_bullSetup, p_bullTotal, color=bullConf > 0 ? color.new(#69f0ae, 50) : na, title="Bull Confirm Area")
+fill(p_zero, p_bearSetup, color=bearSetupFill, title="Bear Setup Area")
+fill(p_bearSetup, p_bearTotal, color=bearConf > 0 ? color.new(#ff8a80, 50) : na, title="Bear Confirm Area")
+
+// Quality markers — small diamonds when quality is high or low
+plotshape(bullQuality >= 70 and bullSetup > 0 ? bullSetup + bullConf + 0.5 : na, "Bull High Quality", shape.diamond, location.absolute, color.new(#00e676, 0), size=size.tiny)
+plotshape(bearQuality >= 70 and bearSetup > 0 ? -(bearSetup + bearConf + 0.5) : na, "Bear High Quality", shape.diamond, location.absolute, color.new(#ff1744, 0), size=size.tiny)
+
+// Reference lines
+hline(setupStrong, "Setup Strong", color=color.new(#00e676, 70), linestyle=hline.style_dotted)
+hline(setupReady, "Setup Ready", color=color.new(color.gray, 70), linestyle=hline.style_dotted)
+hline(-setupReady, "Setup Ready Bear", color=color.new(color.gray, 70), linestyle=hline.style_dotted)
+hline(-setupStrong, "Setup Strong Bear", color=color.new(#ff1744, 70), linestyle=hline.style_dotted)
+
+// Background — status-driven coloring
+color bgColor = na
+if showBg
+    if bullStatus == "FAILED" or bearStatus == "FAILED"
+        bgColor := color.new(#ff6d00, 90)  // orange = failed reversal
+    else if bullStatus == "CONFLICTED" or bearStatus == "CONFLICTED"
+        bgColor := color.new(#78909c, 80)
+    else if bothConfirmed
+        bgColor := color.new(#ffab00, 82)
+    else if setupConflict
+        bgColor := color.new(#78909c, 88)
+    else if bullStatus == "CANDIDATE"
+        bgColor := color.new(#00e676, 85)
+    else if bearStatus == "CANDIDATE"
+        bgColor := color.new(#ff1744, 85)
+    else if bullStatus == "PENDING"
+        bgColor := color.new(#00e676, 92)
+    else if bearStatus == "PENDING"
+        bgColor := color.new(#ff1744, 92)
+    else if bullStatus == "ALERT" or bearStatus == "ALERT"
+        bgColor := color.new(#ffab00, 92)
+bgcolor(bgColor)
+
+// ============================================================================
+// MODULE: status bar (always visible, bottom left)
+// ============================================================================
+
+// (Status bar removed — integrated into score table above)
+
+// ============================================================================
+// MODULE: data window
+// ============================================================================
+
+// Data window — restored with most useful research plots
+plot(efficiencyRatio, "Efficiency Ratio [dw]", display=display.data_window, color=color.new(color.gray, 100))
+plot(isTrendUp ? 1 : isTrendDown ? -1 : 0, "Trend Direction [dw]", display=display.data_window, color=color.new(color.gray, 100))
+plot(isHighVol ? 1 : isLowVol ? -1 : 0, "Vol Regime [dw]", display=display.data_window, color=color.new(color.gray, 100))
+plot(bullSetup, "Bull Setup [dw]", display=display.data_window, color=color.new(color.gray, 100))
+plot(bullConf, "Bull Conf [dw]", display=display.data_window, color=color.new(color.gray, 100))
+plot(bullSetupReady ? 1 : 0, "Bull Setup Active [dw]", display=display.data_window, color=color.new(color.gray, 100))
+plot(bullConfirmed ? 1 : 0, "Bull Confirmed [dw]", display=display.data_window, color=color.new(color.gray, 100))
+plot(bearSetup, "Bear Setup [dw]", display=display.data_window, color=color.new(color.gray, 100))
+plot(bearConf, "Bear Conf [dw]", display=display.data_window, color=color.new(color.gray, 100))
+plot(bearSetupReady ? 1 : 0, "Bear Setup Active [dw]", display=display.data_window, color=color.new(color.gray, 100))
+plot(bearConfirmed ? 1 : 0, "Bear Confirmed [dw]", display=display.data_window, color=color.new(color.gray, 100))
+plot(isConflict ? 1 : 0, "Conflict [dw]", display=display.data_window, color=color.new(color.gray, 100))
+plot(conflictCount, "Conflict Count [dw]", display=display.data_window, color=color.new(color.gray, 100))
+plot(bullFTAchieved ? 1 : 0, "Bull FT [dw]", display=display.data_window, color=color.new(color.gray, 100))
+plot(bearFTAchieved ? 1 : 0, "Bear FT [dw]", display=display.data_window, color=color.new(color.gray, 100))
+plot(bullFailed ? 1 : 0, "Bull Failed [dw]", display=display.data_window, color=color.new(color.gray, 100))
+plot(bearFailed ? 1 : 0, "Bear Failed [dw]", display=display.data_window, color=color.new(color.gray, 100))
+plot(bullScore, "Bull Total [dw]", display=display.data_window, color=color.new(color.gray, 100))
+plot(bearScore, "Bear Total [dw]", display=display.data_window, color=color.new(color.gray, 100))
+plot(bullDecay, "Bull Decay [dw]", display=display.data_window, color=color.new(color.gray, 100))
+plot(bearDecay, "Bear Decay [dw]", display=display.data_window, color=color.new(color.gray, 100))
+plot(bullEventAge < 999 ? bullEventAge : na, "Bull Event Age [dw]", display=display.data_window, color=color.new(color.gray, 100))
+plot(bearEventAge < 999 ? bearEventAge : na, "Bear Event Age [dw]", display=display.data_window, color=color.new(color.gray, 100))
+plot(effFalling ? 1 : 0, "Efficiency Falling [dw]", display=display.data_window, color=color.new(color.gray, 100))
+plot(isShockBar ? 1 : 0, "Shock Bar [dw]", display=display.data_window, color=color.new(color.gray, 100))
+plot(bullQuality, "Bull Quality [dw]", display=display.data_window, color=color.new(color.gray, 100))
+plot(bearQuality, "Bear Quality [dw]", display=display.data_window, color=color.new(color.gray, 100))
+plot(priceZone, "Price Zone [dw]", display=display.data_window, color=color.new(color.gray, 100))
+
+// ============================================================================
+// MODULE: debug / research table
+// ============================================================================
+
+bool isDebug   = displayMode == "Debug" or displayMode == "Research"
+bool isResearch = displayMode == "Research"
+
+// ── Combined score table (right side) ──
+// Always shows: compact interpretation (3 lines)
+// Debug/Research adds: component details below
+
+// ── Compact interpretation strings (computed before table render) ──
+
+// Bull status line
+string bullShort = ""
+if bullStatus == "CANDIDATE"
+    bullShort := "▲ Confirmed"
+else if bullStatus == "PENDING"
+    bullShort := "▲ Awaiting FT"
+else if bullStatus == "CONFLICTED"
+    bullShort := "▲ Conflicted"
+else if bullStatus == "FAILED"
+    bullShort := "▲ Failed"
+else if bullStatus == "SETUP"
+    bullShort := "▲ No structure yet"
+else if bullStatus == "ALERT"
+    bullShort := "▲ Weak setup"
+else if bullStatus == "WATCH"
+    bullShort := "▲ Early signs"
+else
+    if isTrendDown and rsi14 > 40
+        bullShort := "▲ Still bearish"
+    else if rsi14 < 35 and mfi14 < 30
+        bullShort := "▲ Oversold, no confirm"
+    else
+        bullShort := "▲ Inactive"
+
+// Bear status line
+string bearShort = ""
+if bearStatus == "CANDIDATE"
+    bearShort := "▼ Confirmed"
+else if bearStatus == "PENDING"
+    bearShort := "▼ Awaiting FT"
+else if bearStatus == "CONFLICTED"
+    bearShort := "▼ Conflicted"
+else if bearStatus == "FAILED"
+    bearShort := "▼ Failed"
+else if bearStatus == "SETUP"
+    bearShort := "▼ No structure yet"
+else if bearStatus == "ALERT"
+    bearShort := "▼ Weak setup"
+else if bearStatus == "WATCH"
+    bearShort := "▼ Early signs"
+else
+    if isTrendUp and rsi14 < 60
+        bearShort := "▼ Still bullish"
+    else if rsi14 > 65 and mfi14 > 70
+        bearShort := "▼ Overbought, no confirm"
+    else
+        bearShort := "▼ Inactive"
+
+// Context / market state line
+string ctxShort = ""
+if isConflict
+    ctxShort := "⊘ Conflict"
+else if bullConf > 0 and bullSetup < setupReady
+    ctxShort := "Struct w/o setup"
+else if bullSetup >= setupReady and bullConf == 0
+    ctxShort := "Setup w/o struct"
+else if bearConf > 0 and bearSetup < setupReady
+    ctxShort := "Struct w/o setup"
+else if bearSetup >= setupReady and bearConf == 0
+    ctxShort := "Setup w/o struct"
+else
+    string regime = isTrendUp ? "Up" : isTrendDown ? "Down" : "Range"
+    string vol = isHighVol ? "|HiVol" : isLowVol ? "|LoVol" : ""
+    string momentum = rsi14 < 30 ? "|OS" : rsi14 > 70 ? "|OB" : ""
+    ctxShort := regime + vol + momentum
+
+// ── Render combined table ──
+// Created once (var) with the row count for the active display mode —
+// re-creating the table on every realtime tick would stack abandoned table objects.
+int scoreTableRows = isDebug ? 28 : 4
+var table scoreTable = table.new(position.top_right, 3, scoreTableRows, bgcolor=color.new(color.white, 100), border_color=color.new(color.gray, 80), border_width=0, frame_color=color.new(color.gray, 80), frame_width=0)
+if barstate.islast
+    // Interpretation rows (always visible)
+    color bullSC = bullStatus == "CANDIDATE" ? #00e676 : bullStatus == "PENDING" ? color.new(#00e676, 30) : bullStatus == "FAILED" ? #e65100 : bullStatus == "CONFLICTED" ? #78909c : color.new(chart.fg_color, 40)
+    color bearSC = bearStatus == "CANDIDATE" ? #ff1744 : bearStatus == "PENDING" ? color.new(#ff1744, 30) : bearStatus == "FAILED" ? #e65100 : bearStatus == "CONFLICTED" ? #78909c : color.new(chart.fg_color, 40)
+
+    // ── Tooltip texts ──
+    string headerTip = "Vein Reversal Score\n────────────────\nTwo-layer scoring system:\n\nSetup (S): Momentum + overextension + candle + volume\n• RSI, MFI, StochRSI, Price/EMA, Wick, BB, Level\n\nConfirmation (C): Structure events\n• BOS (micro/major), Spring/Upthrust\n• Fake Break, Climax→Test sequence\n\nStatus levels:\n• WATCH: early signs (S≥3, C<2)\n• SETUP: overextended (S≥5, C<2)\n• ALERT: structure w/o setup (C≥2, S<3)\n• CANDIDATE: confirmed (S≥3, C≥2, FT)\n• CONFLICTED: both sides active\n• FAILED: no follow-through"
+    string bullTip = "Bull Score\n────────────────\nSetup: " + str.tostring(bullSetup, "#.0") + " / Confirm: " + str.tostring(bullConf, "#.0") + "\nQuality: " + str.tostring(bullQuality, "#") + "%\nStatus: " + bullStatus + "\n\nSetup components:\n• RSI " + str.tostring(rsi14, "#") + (rsi14 < rsiBullThresh ? " ✓" : "") + "\n• MFI " + str.tostring(mfi14, "#") + (mfi14 < mfiBullThresh ? " ✓" : "") + "\n• StochK " + str.tostring(stochRsiKVal, "#") + (stochRsiKVal < stochExtLow ? " ✓" : "") + "\n• Price/EMA " + str.tostring(priceToEma20ATR, "#.1") + (priceToEma20ATR < -priceEmaATRThresh ? " ✓" : "") + "\n• At Level: " + (bullAtLevel ? "yes" : "no") + "\n• Eff Falling: " + (effFalling and close < ema20 ? "✓ +" + str.tostring(effFallBonus, "#.1") : "no") + "\n• Shock: " + (isShockBar ? "✓ -" + str.tostring(shockPenalty, "#.1") : "no") + "\n\nConfirm components:\n• Spring: " + (isSpring ? "yes" : "no") + "\n• Bull BOS: " + (majorBullBOS ? "major" : microBullBOS ? "micro" : "no") + "\n• CLX Seq: " + (clxBullSequence ? clxStateStr : "no") + "\n\nQuality breakdown:\n• Base: 50" + (effFalling and (bullAtLevel or close < ema20) ? "\n• Eff falling near support: +15" : "") + (lowerWickRatio > 0.4 ? "\n• Strong lower wick: +10" : "") + (isAbsorption ? "\n• Absorption: +15" : "") + (isShockBar ? "\n• Shock bar: -20" : "") + (bullSetup >= setupStrong and bullConf < confRequired ? "\n• Momentum only: -15" : "") + (bullDecay < 0.3 and bullEventAge < 999 ? "\n• Event too old: -10" : "")
+    string bearTip = "Bear Score\n────────────────\nSetup: " + str.tostring(bearSetup, "#.0") + " / Confirm: " + str.tostring(bearConf, "#.0") + "\nQuality: " + str.tostring(bearQuality, "#") + "%\nStatus: " + bearStatus + "\n\nSetup components:\n• RSI " + str.tostring(rsi14, "#") + (rsi14 > rsiBearThresh ? " ✓" : "") + "\n• MFI " + str.tostring(mfi14, "#") + (mfi14 > mfiBearThresh ? " ✓" : "") + "\n• StochK " + str.tostring(stochRsiKVal, "#") + (stochRsiKVal > stochExtHigh ? " ✓" : "") + "\n• Price/EMA " + str.tostring(priceToEma20ATR, "#.1") + (priceToEma20ATR > priceEmaATRThresh ? " ✓" : "") + "\n• At Level: " + (bearAtLevel ? "yes" : "no") + "\n• Eff Falling: " + (effFalling and close > ema20 ? "✓ +" + str.tostring(effFallBonus, "#.1") : "no") + "\n• Shock: " + (isShockBar ? "✓ -" + str.tostring(shockPenalty, "#.1") : "no") + "\n\nConfirm components:\n• Upthrust: " + (isUpthrust ? "yes" : "no") + "\n• Bear BOS: " + (majorBearBOS ? "major" : microBearBOS ? "micro" : "no") + "\n• CLX Seq: " + (clxBearSequence ? clxStateStr : "no") + "\n\nQuality breakdown:\n• Base: 50" + (effFalling and (bearAtLevel or close > ema20) ? "\n• Eff falling near resistance: +15" : "") + (upperWickRatio > 0.4 ? "\n• Strong upper wick: +10" : "") + (isAbsorption ? "\n• Absorption: +15" : "") + (isShockBar ? "\n• Shock bar: -20" : "") + (bearSetup >= setupStrong and bearConf < confRequired ? "\n• Momentum only: -15" : "") + (bearDecay < 0.3 and bearEventAge < 999 ? "\n• Event too old: -10" : "")
+    string ctxTip = "Market Context\n────────────────\nRegime: " + (isTrendUp ? "Uptrend" : isTrendDown ? "Downtrend" : "Range") + "\nVolatility: " + (isHighVol ? "High" : isLowVol ? "Low" : "Normal") + "\nSetup multiplier: " + str.tostring(setupMultiplier, "#.1") + "x\nConfirm multiplier: " + str.tostring(confMultiplier * volBonus, "#.1") + "x\n\nConflict: " + (isConflict ? "YES (" + conflictSeverity + ")" : "none") + "\nBull trend conflict: " + (bullTrendConflict ? "yes" : "no") + "\nBear trend conflict: " + (bearTrendConflict ? "yes" : "no")
+    string ftTip = "Follow-Through\n────────────────\nBull: " + (bullFTAchieved ? "✓ achieved" : bullFailed ? "✗ failed" : bullEventActive ? "waiting..." : "inactive") + "\nBear: " + (bearFTAchieved ? "✓ achieved" : bearFailed ? "✗ failed" : bearEventActive ? "waiting..." : "inactive") + "\n\nBull event age: " + (bullEventAge < 999 ? str.tostring(bullEventAge) + " bars" : "—") + "\nBull decay: " + (bullEventAge < 999 ? str.tostring(bullDecay * 100, "#") + "%" : "—") + "\nBear event age: " + (bearEventAge < 999 ? str.tostring(bearEventAge) + " bars" : "—") + "\nBear decay: " + (bearEventAge < 999 ? str.tostring(bearDecay * 100, "#") + "%" : "—") + "\n\nEvents expire after " + str.tostring(decayFull) + " bars"
+
+    // Row 0: Header with scores
+    table.cell(scoreTable, 0, 0, "Vein Score", text_color=chart.fg_color, text_size=size.normal, tooltip=headerTip)
+    table.cell(scoreTable, 1, 0, "▲ S:" + str.tostring(bullSetup, "#.0") + " C:" + str.tostring(bullConf, "#.0"), text_color=bullSC, text_size=size.normal, text_halign=text.align_right, tooltip=bullTip)
+    table.cell(scoreTable, 2, 0, "▼ S:" + str.tostring(bearSetup, "#.0") + " C:" + str.tostring(bearConf, "#.0"), text_color=bearSC, text_size=size.normal, text_halign=text.align_right, tooltip=bearTip)
+
+    // Row 1: Bull interpretation (full width feel)
+    table.cell(scoreTable, 0, 1, bullShort, text_color=bullSC, text_size=size.normal, tooltip=bullTip)
+    table.cell(scoreTable, 1, 1, "", text_size=size.normal)
+    table.cell(scoreTable, 2, 1, "", text_size=size.normal)
+
+    // Row 2: Bear interpretation (full width feel)
+    table.cell(scoreTable, 0, 2, bearShort, text_color=bearSC, text_size=size.normal, tooltip=bearTip)
+    table.cell(scoreTable, 1, 2, "", text_size=size.normal)
+    table.cell(scoreTable, 2, 2, "", text_size=size.normal)
+
+    // Row 3: Context + Follow-through
+    color ctxCol = isConflict ? #e65100 : color.new(chart.fg_color, 30)
+    string ftShort = bullFTAchieved ? "FT ✓" : bearFTAchieved ? "FT ✓" : bullFailed ? "FT ✗" : bearFailed ? "FT ✗" : bullEventActive or bearEventActive ? "FT ..." : ""
+    color ftCol = bullFTAchieved or bearFTAchieved ? #00e676 : bullFailed or bearFailed ? #e65100 : color.new(chart.fg_color, 40)
+    table.cell(scoreTable, 0, 3, ctxShort, text_color=ctxCol, text_size=size.normal, tooltip=ctxTip)
+    table.cell(scoreTable, 1, 3, ftShort, text_color=ftCol, text_size=size.normal, text_halign=text.align_right, tooltip=ftTip)
+    table.cell(scoreTable, 2, 3, "", text_size=size.normal)
+
+    // Debug details (only in Debug/Research)
+    if isDebug
+        table.cell(scoreTable, 0, 4, "─ SETUP ─", text_color=color.new(chart.fg_color, 40), text_size=size.normal)
+        table.cell(scoreTable, 1, 4, "Bull", text_color=#00e676, text_size=size.normal, text_halign=text.align_right)
+        table.cell(scoreTable, 2, 4, "Bear", text_color=#ff1744, text_size=size.normal, text_halign=text.align_right)
+
+        table.cell(scoreTable, 0, 5, "RSI " + str.tostring(rsi14, "#.0"), text_color=chart.fg_color, text_size=size.normal)
+        table.cell(scoreTable, 1, 5, rsi14 < rsiBullThresh ? "✓" : "·", text_color=rsi14 < rsiBullThresh ? #00e676 : color.new(chart.fg_color, 60), text_size=size.normal, text_halign=text.align_right)
+        table.cell(scoreTable, 2, 5, rsi14 > rsiBearThresh ? "✓" : "·", text_color=rsi14 > rsiBearThresh ? #ff1744 : color.new(chart.fg_color, 60), text_size=size.normal, text_halign=text.align_right)
+
+        table.cell(scoreTable, 0, 6, "MFI " + str.tostring(mfi14, "#.0"), text_color=chart.fg_color, text_size=size.normal)
+        table.cell(scoreTable, 1, 6, mfi14 < mfiBullThresh ? "✓" : "·", text_color=mfi14 < mfiBullThresh ? #00e676 : color.new(chart.fg_color, 60), text_size=size.normal, text_halign=text.align_right)
+        table.cell(scoreTable, 2, 6, mfi14 > mfiBearThresh ? "✓" : "·", text_color=mfi14 > mfiBearThresh ? #ff1744 : color.new(chart.fg_color, 60), text_size=size.normal, text_halign=text.align_right)
+
+        table.cell(scoreTable, 0, 7, "StochK " + str.tostring(stochRsiKVal, "#.0"), text_color=chart.fg_color, text_size=size.normal)
+        table.cell(scoreTable, 1, 7, stochRsiKVal < stochExtLow ? "✓" : "·", text_color=stochRsiKVal < stochExtLow ? #00e676 : color.new(chart.fg_color, 60), text_size=size.normal, text_halign=text.align_right)
+        table.cell(scoreTable, 2, 7, stochRsiKVal > stochExtHigh ? "✓" : "·", text_color=stochRsiKVal > stochExtHigh ? #ff1744 : color.new(chart.fg_color, 60), text_size=size.normal, text_halign=text.align_right)
+
+        table.cell(scoreTable, 0, 8, "Pr→EMA " + str.tostring(priceToEma20ATR, "#.00"), text_color=chart.fg_color, text_size=size.normal)
+        table.cell(scoreTable, 1, 8, priceToEma20ATR < -priceEmaATRThresh ? "✓" : "·", text_color=priceToEma20ATR < -priceEmaATRThresh ? #00e676 : color.new(chart.fg_color, 60), text_size=size.normal, text_halign=text.align_right)
+        table.cell(scoreTable, 2, 8, priceToEma20ATR > priceEmaATRThresh ? "✓" : "·", text_color=priceToEma20ATR > priceEmaATRThresh ? #ff1744 : color.new(chart.fg_color, 60), text_size=size.normal, text_halign=text.align_right)
+
+        table.cell(scoreTable, 0, 9, "Level", text_color=color.new(chart.fg_color, 30), text_size=size.normal)
+        table.cell(scoreTable, 1, 9, bullAtLevel ? "✓" : "·", text_color=bullAtLevel ? #00e676 : color.new(chart.fg_color, 60), text_size=size.normal, text_halign=text.align_right)
+        table.cell(scoreTable, 2, 9, bearAtLevel ? "✓" : "·", text_color=bearAtLevel ? #ff1744 : color.new(chart.fg_color, 60), text_size=size.normal, text_halign=text.align_right)
+
+        table.cell(scoreTable, 0, 10, "SETUP", text_color=chart.fg_color, text_size=size.normal)
+        table.cell(scoreTable, 1, 10, str.tostring(bullSetup, "#.0"), text_color=bullSetupStrong ? #00e676 : bullSetupReady ? #e65100 : color.new(chart.fg_color, 60), text_size=size.normal, text_halign=text.align_right)
+        table.cell(scoreTable, 2, 10, str.tostring(bearSetup, "#.0"), text_color=bearSetupStrong ? #ff1744 : bearSetupReady ? #e65100 : color.new(chart.fg_color, 60), text_size=size.normal, text_halign=text.align_right)
+
+        table.cell(scoreTable, 0, 11, "─ CONFIRM ─", text_color=color.new(chart.fg_color, 40), text_size=size.normal)
+        table.cell(scoreTable, 1, 11, "", text_size=size.normal)
+        table.cell(scoreTable, 2, 11, "", text_size=size.normal)
+
+        table.cell(scoreTable, 0, 12, "Spring/UT", text_color=color.new(chart.fg_color, 30), text_size=size.normal)
+        table.cell(scoreTable, 1, 12, isSpring ? "SPR" : "—", text_color=isSpring ? #00e676 : color.new(chart.fg_color, 60), text_size=size.normal, text_halign=text.align_right)
+        table.cell(scoreTable, 2, 12, isUpthrust ? "UT" : "—", text_color=isUpthrust ? #ff1744 : color.new(chart.fg_color, 60), text_size=size.normal, text_halign=text.align_right)
+
+        table.cell(scoreTable, 0, 13, "BOS/CHoCH", text_color=color.new(chart.fg_color, 30), text_size=size.normal)
+        string bullBosStr = majorBullCHoCH ? "CHoCH↑" : majorBullBOS ? "MAJ↑" : microBullCHoCH ? "choch↑" : microBullBOS ? "mic↑" : "—"
+        color  bullBosCol = majorBullCHoCH ? #00bfa5 : majorBullBOS ? #00e676 : microBullCHoCH ? color.new(#00bfa5, 30) : microBullBOS ? color.new(#00e676, 40) : color.new(chart.fg_color, 60)
+        table.cell(scoreTable, 1, 13, bullBosStr, text_color=bullBosCol, text_size=size.normal, text_halign=text.align_right)
+        string bearBosStr = majorBearCHoCH ? "CHoCH↓" : majorBearBOS ? "MAJ↓" : microBearCHoCH ? "choch↓" : microBearBOS ? "mic↓" : "—"
+        color  bearBosCol = majorBearCHoCH ? #d50000 : majorBearBOS ? #ff1744 : microBearCHoCH ? color.new(#d50000, 30) : microBearBOS ? color.new(#ff1744, 40) : color.new(chart.fg_color, 60)
+        table.cell(scoreTable, 2, 13, bearBosStr, text_color=bearBosCol, text_size=size.normal, text_halign=text.align_right)
+
+        table.cell(scoreTable, 0, 14, "CLX Seq", text_color=color.new(chart.fg_color, 30), text_size=size.normal)
+        table.cell(scoreTable, 1, 14, clxBullSequence ? clxStateStr : "—", text_color=clxConfirmed and clxDirection == 1 ? #00e676 : clxBullSequence ? color.new(#e040fb, 30) : color.new(chart.fg_color, 60), text_size=size.normal, text_halign=text.align_right)
+        table.cell(scoreTable, 2, 14, clxBearSequence ? clxStateStr : "—", text_color=clxConfirmed and clxDirection == -1 ? #ff1744 : clxBearSequence ? color.new(#e040fb, 30) : color.new(chart.fg_color, 60), text_size=size.normal, text_halign=text.align_right)
+
+        table.cell(scoreTable, 0, 15, "CONF", text_color=chart.fg_color, text_size=size.normal)
+        table.cell(scoreTable, 1, 15, str.tostring(bullConf, "#.0"), text_color=bullConfirmed ? #00e676 : color.new(chart.fg_color, 60), text_size=size.normal, text_halign=text.align_right)
+        table.cell(scoreTable, 2, 15, str.tostring(bearConf, "#.0"), text_color=bearConfirmed ? #ff1744 : color.new(chart.fg_color, 60), text_size=size.normal, text_halign=text.align_right)
+
+        // Follow-through detail
+        table.cell(scoreTable, 0, 16, "─ STATUS ─", text_color=color.new(chart.fg_color, 40), text_size=size.normal)
+        table.cell(scoreTable, 1, 16, "", text_size=size.normal)
+        table.cell(scoreTable, 2, 16, "", text_size=size.normal)
+
+        string bullFTStr = bullFTAchieved ? "✓ FT" : bullFailed ? "✗ FAIL" : bullEventActive ? "wait" : bullDecay < 0.5 and bullEventAge < 999 ? "exp" : "—"
+        string bearFTStr = bearFTAchieved ? "✓ FT" : bearFailed ? "✗ FAIL" : bearEventActive ? "wait" : bearDecay < 0.5 and bearEventAge < 999 ? "exp" : "—"
+        table.cell(scoreTable, 0, 17, "Follow-thru", text_color=color.new(chart.fg_color, 30), text_size=size.normal)
+        table.cell(scoreTable, 1, 17, bullFTStr, text_color=bullFTAchieved ? #00e676 : bullFailed ? #e65100 : color.new(chart.fg_color, 60), text_size=size.normal, text_halign=text.align_right)
+        table.cell(scoreTable, 2, 17, bearFTStr, text_color=bearFTAchieved ? #ff1744 : bearFailed ? #e65100 : color.new(chart.fg_color, 60), text_size=size.normal, text_halign=text.align_right)
+
+        table.cell(scoreTable, 0, 18, "Decay", text_color=color.new(chart.fg_color, 30), text_size=size.normal)
+        table.cell(scoreTable, 1, 18, bullEventAge < 999 ? str.tostring(bullDecay * 100, "#") + "%" : "—", text_color=bullDecay > 0.5 ? color.new(chart.fg_color, 30) : color.new(chart.fg_color, 60), text_size=size.normal, text_halign=text.align_right)
+        table.cell(scoreTable, 2, 18, bearEventAge < 999 ? str.tostring(bearDecay * 100, "#") + "%" : "—", text_color=bearDecay > 0.5 ? color.new(chart.fg_color, 30) : color.new(chart.fg_color, 60), text_size=size.normal, text_halign=text.align_right)
+
+        color cCol = conflictCount >= 3 ? #e65100 : conflictCount >= 2 ? #e65100 : conflictCount >= 1 ? #78909c : color.new(chart.fg_color, 60)
+        table.cell(scoreTable, 0, 19, isConflict ? "⊘ CONFLICT" : "✓ CLEAR", text_color=isConflict ? cCol : color.new(#00e676, 40), text_size=size.normal)
+        table.cell(scoreTable, 1, 19, isConflict ? conflictSeverity : "", text_color=cCol, text_size=size.normal, text_halign=text.align_right)
+        table.cell(scoreTable, 2, 19, "", text_size=size.normal)
+
+        table.cell(scoreTable, 0, 20, "Regime", text_color=color.new(chart.fg_color, 30), text_size=size.normal)
+        table.cell(scoreTable, 1, 20, isTrendUp ? "TREND ↑" : isTrendDown ? "TREND ↓" : "RANGE", text_color=isTrendUp ? #00e676 : isTrendDown ? #ff1744 : #e65100, text_size=size.normal, text_halign=text.align_right)
+        table.cell(scoreTable, 2, 20, isHighVol ? "Hi Vol" : isLowVol ? "Lo Vol" : "Norm", text_color=color.new(chart.fg_color, 30), text_size=size.normal, text_halign=text.align_right)
+
+        table.cell(scoreTable, 0, 21, "×Setup " + str.tostring(setupMultiplier, "#.0") + " ×Conf " + str.tostring(confMultiplier * volBonus, "#.0"), text_color=color.new(chart.fg_color, 50), text_size=size.normal)
+        table.cell(scoreTable, 1, 21, "", text_size=size.normal)
+        table.cell(scoreTable, 2, 21, "", text_size=size.normal)
+
+        table.cell(scoreTable, 0, 22, "─ ADVANCED ─", text_color=color.new(chart.fg_color, 40), text_size=size.normal)
+        table.cell(scoreTable, 1, 22, "", text_size=size.normal)
+        table.cell(scoreTable, 2, 22, "", text_size=size.normal)
+
+        table.cell(scoreTable, 0, 23, "Eff EMA " + str.tostring(efficiencyEMA, "#.00"), text_color=color.new(chart.fg_color, 30), text_size=size.normal)
+        table.cell(scoreTable, 1, 23, effFalling and close < ema20 ? "FALL" : effFalling ? "fall" : "—", text_color=effFalling and close < ema20 ? #00e676 : effFalling ? color.new(chart.fg_color, 30) : color.new(chart.fg_color, 60), text_size=size.normal, text_halign=text.align_right)
+        table.cell(scoreTable, 2, 23, effFalling and close > ema20 ? "FALL" : effFalling ? "fall" : "—", text_color=effFalling and close > ema20 ? #ff1744 : effFalling ? color.new(chart.fg_color, 30) : color.new(chart.fg_color, 60), text_size=size.normal, text_halign=text.align_right)
+
+        table.cell(scoreTable, 0, 24, "Shock Bar", text_color=color.new(chart.fg_color, 30), text_size=size.normal)
+        table.cell(scoreTable, 1, 24, isShockBar ? "SHOCK" : "—", text_color=isShockBar ? #e65100 : color.new(chart.fg_color, 60), text_size=size.normal, text_halign=text.align_right)
+        table.cell(scoreTable, 2, 24, isShockBar ? "-" + str.tostring(shockPenalty, "#.0") : "", text_color=isShockBar ? #e65100 : color.new(chart.fg_color, 60), text_size=size.normal, text_halign=text.align_right)
+
+        table.cell(scoreTable, 0, 25, "Quality", text_color=color.new(chart.fg_color, 30), text_size=size.normal)
+        table.cell(scoreTable, 1, 25, str.tostring(bullQuality, "#") + "%", text_color=bullQuality >= 50 ? #00e676 : bullQuality >= 35 ? #e65100 : color.new(chart.fg_color, 60), text_size=size.normal, text_halign=text.align_right)
+        table.cell(scoreTable, 2, 25, str.tostring(bearQuality, "#") + "%", text_color=bearQuality >= 50 ? #ff1744 : bearQuality >= 35 ? #e65100 : color.new(chart.fg_color, 60), text_size=size.normal, text_halign=text.align_right)
+
+        // CHoCH row
+        table.cell(scoreTable, 0, 26, "CHoCH", text_color=color.new(chart.fg_color, 30), text_size=size.normal)
+        table.cell(scoreTable, 1, 26, isBullCHoCH ? "CHoCH ↑" : microBullBOS or majorBullBOS ? "BOS ↑" : "—", text_color=isBullCHoCH ? #00bfa5 : microBullBOS or majorBullBOS ? color.new(#00e676, 40) : color.new(chart.fg_color, 60), text_size=size.normal, text_halign=text.align_right)
+        table.cell(scoreTable, 2, 26, isBearCHoCH ? "CHoCH ↓" : microBearBOS or majorBearBOS ? "BOS ↓" : "—", text_color=isBearCHoCH ? #d50000 : microBearBOS or majorBearBOS ? color.new(#ff1744, 40) : color.new(chart.fg_color, 60), text_size=size.normal, text_halign=text.align_right)
+
+        // Premium/Discount zone row
+        color pdCol = priceZone == 1 ? #ff1744 : priceZone == -1 ? #00e676 : #ffab00
+        table.cell(scoreTable, 0, 27, "P/D Zone", text_color=color.new(chart.fg_color, 30), text_size=size.normal)
+        table.cell(scoreTable, 1, 27, priceZoneStr, text_color=pdCol, text_size=size.normal, text_halign=text.align_right)
+        table.cell(scoreTable, 2, 27, not na(pdRange) ? str.tostring(pdRange, "#.##") : "—", text_color=color.new(chart.fg_color, 40), text_size=size.normal, text_halign=text.align_right)
+
+// ============================================================================
+// MODULE: alerts
+// ============================================================================
+
+// ── REVIEW ALERTS — "look at this, situation is building" ──
+bool bullReview = bullSetup >= 4.0 and bullConfDecayed >= 1.5 and conflictCount < 2 and (newBullEvent or bullEventAge <= 2)
+bool bearReview = bearSetup >= 4.0 and bearConfDecayed >= 1.5 and conflictCount < 2 and (newBearEvent or bearEventAge <= 2)
+
+bool alertsOnBarClose = input.bool(true, "Alerts only on bar close (confirmed)", group="Alerts")
+bool alertOk = not alertsOnBarClose or barstate.isconfirmed
+
+alertcondition(alertOk and (bullReview), "Bull Review", "VEIN-RS · REVIEW LONG · {{ticker}} {{interval}}")
+alertcondition(alertOk and (bearReview), "Bear Review", "VEIN-RS · REVIEW SHORT · {{ticker}} {{interval}}")
+
+// ── ACTION ALERTS — "this is serious, consider acting" ──
+bool bullAction = bullSetup >= 5.0 and bullConfDecayed >= 3.0 and bullFTAchieved and not bullCandidateOpposed and not bullTrendConflict and close > nz(bullTriggerLevel) and bullQuality >= qualityMinAlert
+bool bearAction = bearSetup >= 5.0 and bearConfDecayed >= 3.0 and bearFTAchieved and not bearCandidateOpposed and not bearTrendConflict and close < nz(bearTriggerLevel) and bearQuality >= qualityMinAlert
+
+alertcondition(alertOk and (bullAction), "Bull Action", "VEIN-RS · ACTION LONG · {{ticker}} {{interval}}")
+alertcondition(alertOk and (bearAction), "Bear Action", "VEIN-RS · ACTION SHORT · {{ticker}} {{interval}}")
+
+// ── INVALIDATION ALERTS — "previous signal is dead" ──
+alertcondition(alertOk and (bullFailed and not bullFailed[1]), "Bull Invalidation", "VEIN-RS · INVALIDATION LONG · {{ticker}} {{interval}}")
+alertcondition(alertOk and (bearFailed and not bearFailed[1]), "Bear Invalidation", "VEIN-RS · INVALIDATION SHORT · {{ticker}} {{interval}}")
+
+// ── STRUCTURAL ALERTS ──
+alertcondition(alertOk and (bullStatus == "CANDIDATE"), "Bull Candidate", "VEIN-RS · CANDIDATE LONG · {{ticker}} {{interval}}")
+alertcondition(alertOk and (bearStatus == "CANDIDATE"), "Bear Candidate", "VEIN-RS · CANDIDATE SHORT · {{ticker}} {{interval}}")
+alertcondition(alertOk and (isConflict and conflictCount >= 2), "Conflict", "VEIN-RS · CONFLICT · {{ticker}} {{interval}}")
+alertcondition(alertOk and (isSpring or isMajorSpring), "Spring Detected", "VEIN-RS · SPRING · {{ticker}} {{interval}}")
+alertcondition(alertOk and (isUpthrust or isMajorUpthrust), "Upthrust Detected", "VEIN-RS · UPTHRUST · {{ticker}} {{interval}}")
+alertcondition(alertOk and (majorBullBOS), "Major Bull BOS", "VEIN-RS · MAJOR BOS LONG · {{ticker}} {{interval}}")
+alertcondition(alertOk and (majorBearBOS), "Major Bear BOS", "VEIN-RS · MAJOR BOS SHORT · {{ticker}} {{interval}}")
+alertcondition(alertOk and (bullTrapHint and not bullTrapHint[1]), "Bull Trap Hint", "VEIN-RS · BULL TRAP · {{ticker}} {{interval}}")
+alertcondition(alertOk and (bearTrapHint and not bearTrapHint[1]), "Bear Trap Hint", "VEIN-RS · BEAR TRAP · {{ticker}} {{interval}}")
+alertcondition(alertOk and (isBullCHoCH), "Bull CHoCH", "VEIN-RS · CHOCH LONG · {{ticker}} {{interval}}")
+alertcondition(alertOk and (isBearCHoCH), "Bear CHoCH", "VEIN-RS · CHOCH SHORT · {{ticker}} {{interval}}")

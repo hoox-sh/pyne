@@ -1,0 +1,74 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于布林带通道的突破回归策略Bollinger-Bands-Channel-Breakout-Mean-Reversion-Strategy.md
+// content_hash: 15f643019e59f000
+// collected: 2026-07-27
+
+strategy("bb 2ND target", overlay=true)
+ 
+// STEP 1. Create inputs that configure the backtest's date range
+useDateFilter = input.bool(true, title="Filter Date Range of Backtest",
+     group="Backtest Time Period")
+backtestStartDate = input(timestamp("1 Jan 1997"), 
+     title="Start Date", group="Backtest Time Period",
+     tooltip="This start date is in the time zone of the exchange " + 
+     "where the chart's instrument trades. It doesn't use the time " + 
+     "zone of the chart or of your computer.")
+backtestEndDate = input(timestamp("1 Sept 2023"),
+     title="End Date", group="Backtest Time Period",
+     tooltip="This end date is in the time zone of the exchange " + 
+     "where the chart's instrument trades. It doesn't use the time " + 
+     "zone of the chart or of your computer.")
+
+// STEP 2. See if the current bar falls inside the date range
+inTradeWindow = true
+
+// Bollinger Bands inputs
+length = input.int(20, title="Bollinger Bands Length")
+mult = input.float(2.0, title="Multiplier")
+src = input(close, title="Source")
+basis = ta.sma(src, length)
+dev = mult * ta.stdev(src, length)
+upper = basis + dev
+lower = basis - dev
+
+// EMA Settings
+ema20 = ta.ema(close, 20)
+plot(ema20, color=color.blue, title="20 EMA")
+
+// Entry condition
+longEntryCondition = ta.crossover(close, lower)
+
+// Define stop loss level as the low of the entry bar
+var float stopLossPrice = na
+if longEntryCondition
+    stopLossPrice := low
+
+// Top Bollinger Band itself is set as the target
+topBandTarget = upper
+
+// Enter long position when conditions are met
+if inTradeWindow and longEntryCondition
+    strategy.entry("Long", strategy.long, qty=1)
+
+// Set profit targets
+strategy.exit("ProfitTarget2", from_entry="Long", limit=topBandTarget)
+
+// Set stop loss
+strategy.exit("StopLoss", stop=stopLossPrice)
+
+// Plot Bollinger Bands with the same gray color
+plot(upper, color=color.gray, title="Upper Bollinger Band")
+plot(lower, color=color.gray, title="Lower Bollinger Band")
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/439608
+
+> Last Modified
+
+2024-01-22 10:47:45

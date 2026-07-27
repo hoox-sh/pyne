@@ -1,0 +1,63 @@
+//@version=1
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于周线EMA的日内交易策略Daily-Trading-Strategy-Based-on-Weekly-EMAs.md
+// content_hash: 03e0cd07cf8589c4
+// collected: 2026-07-27
+
+strategy("Investing Weekly mapped to Daily", overlay=true,  pyramiding=100)
+
+
+// === PLOTTING EMA ===
+
+plot(ema(close, 6), color=aqua, transp=0, linewidth=2, title="ema6")
+plot(ema(close, 12), color=white, transp=0, linewidth=2, title="ema12")
+plot(ema(close, 26), color=#9802FF, transp=0, linewidth=2, title="ema26")
+plot(ema(close, 52), color=orange, transp=0, linewidth=2, title="ema52")
+plot(ema(close, 42), color=aqua, transp=0, linewidth=5, title="W-ema6")
+plot(ema(close, 84), color=white, transp=0, linewidth=5, title="W-ema12")
+plot(ema(close, 182), color=#9802FF, transp=0, linewidth=5, title="W-ema26")
+plot(ema(close, 364), color=orange, transp=0, linewidth=5, title="W-ema52")
+
+
+// === INPUT BACKTEST RANGE ===
+
+FromMonth = input(defval = 1, title = "From Month", minval = 1, maxval = 12)
+FromDay   = input(defval = 1, title = "From Day", minval = 1, maxval = 31)
+FromYear  = input(defval = 2017, title = "From Year", minval = 2017)
+ToMonth   = input(defval = 1, title = "To Month", minval = 1, maxval = 12)
+ToDay     = input(defval = 1, title = "To Day", minval = 1, maxval = 31)
+ToYear    = input(defval = 9999, title = "To Year", minval = 2017)
+
+start     = timestamp(FromYear, FromMonth, FromDay, 00, 00)  // backtest start window
+finish    = timestamp(ToYear, ToMonth, ToDay, 23, 59)        // backtest finish window
+window()  => true // create function "within window of time"
+
+
+// === STRATEGY FOR CRYPTO ===
+
+ema42= ema(close, 42)
+ema84= ema(close, 84)
+ema182= ema(close, 182)
+
+enterLong1 = cross(ema42, ema84) and ema42 > ema84
+exitLong1 = cross(ema42, ema84) and ema42 < ema84
+
+enterLong2 = cross(ema84, ema182) and ema84 > ema182
+exitLong2 = cross(ema84, ema182) and ema84 < ema182
+
+
+strategy.entry(id="Entry_1", long=true, when=enterLong1)
+strategy.entry(id="Entry_2", long=true, when=enterLong2)
+strategy.entry(id="Exit_1", long=false, when=exitLong1)
+strategy.entry(id="Exit_2", long=false, when=exitLong2)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/427398
+
+> Last Modified
+
+2023-09-20 17:11:52

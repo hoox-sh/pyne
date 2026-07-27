@@ -1,0 +1,57 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于Faytterro-Estimator的交易策略Trading-Strategy-Based-on-Faytterro-Estimator.md
+// content_hash: ac7776a0be50e065
+// collected: 2026-07-27
+// strategy("Faytterro Estimator Strategy", overlay=true, pyramiding=100)
+
+src=input(hlc3,title="source")
+len=input.int(10,title="faytterro estimator lenght", maxval=500)
+len2=100
+len3=input.float(500,title="minumum enrty-close gap (different direction)")
+len4=input.float(500,title="minumum entry-entry gap (same direction)")
+cr(x, y) =>
+    z = 0.0
+    weight = 0.0
+    for i = 0 to y-1
+        z:=z + x[i]*((y-1)/2+1-math.abs(i-(y-1)/2))
+    z/(((y+1)/2)*(y+1)/2)
+cr= cr(src,2*len-1) 
+width=input.int(10, title="strong entry size", minval=1)
+
+dizi = array.new_float(500)
+// var line=array.new_line()
+//if barstate.islast
+for i=0 to len*2
+    array.set(dizi,i,(i*(i-1)*(cr-2*cr[1]+cr[2])/2+i*(cr[1]-cr[2])+cr[2]))
+
+buy = array.get(dizi,len+1+5)>array.get(dizi,len+1+4) and array.get(dizi,len+1+5)<cr[len] 
+sell = array.get(dizi,len+1+5)<array.get(dizi,len+1+4) and array.get(dizi,len+1+5)>cr[len]
+bb=buy? hlc3 : na
+ss=sell? hlc3 : na 
+sbuy= buy and close<(close[ta.barssince(buy or sell)])[1]-len4 and close<ta.highest(fixnan(ss),len2)-len3*3
+ssell= sell and close>(close[ta.barssince(buy or sell)])[1]+len4 and close>ta.lowest(fixnan(bb),len2)+len3*3
+
+buy:= buy and close<(close[ta.barssince(buy or sell)])[1]-len4 and close<ta.highest(fixnan(ss),len2)-len3 //and close>ta.highest(fixnan(ss),len2)-len3*3
+sell:=  sell and close>(close[ta.barssince(buy or sell)])[1]+len4 and close>ta.lowest(fixnan(bb),len2)+len3 //and close<ta.lowest(fixnan(bb),len2)+len3*3
+alertcondition(buy or sell)
+
+
+if (sbuy)
+    strategy.entry("strong buy", strategy.long,width)
+if (ssell)
+    strategy.entry("strong sell", strategy.short,width)
+if (buy)
+    strategy.entry("buy", strategy.long)
+if (sell)
+    strategy.entry("sell", strategy.short)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/427588
+
+> Last Modified
+
+2023-09-22 14:12:27

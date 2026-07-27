@@ -1,0 +1,49 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于EMA200的移动止盈移动止损策略EMA-200-Based-Trailing-Take-Profit-and-Trailing-Stop-Loss-Strategy.md
+// content_hash: 8bdb770fce218fa2
+// collected: 2026-07-27
+strategy("EMA 200 Based Trailing Take Profit", overlay=true, margin_long=100, margin_short=100, default_qty_value=1, initial_capital=100)
+
+// EMA 200 tanımı
+ema200 = ta.ema(close, 200)
+
+// Orijinal long ve short koşulları
+longConditionOriginal = ta.crossover(ta.sma(close, 14), ta.sma(close, 28))
+shortConditionOriginal = ta.crossunder(ta.sma(close, 14), ta.sma(close, 28))
+
+// EMA 200'ün üzerinde ve altında long ve short koşulları
+longCondition = longConditionOriginal and close > ema200
+shortCondition = shortConditionOriginal and close < ema200
+
+if longCondition
+    strategy.entry("Long", strategy.long, comment="Long", alert_message="Long")
+
+if shortCondition
+    strategy.entry("Short", strategy.short, comment="Short", alert_message="Short")
+
+atr_length=input.int(7, title="ATR Length")
+atr_multiplier = input.float(1.5, title="ATR Multiplier")
+atr_multiplied = atr_multiplier * ta.atr(atr_length)
+ttp_top_bracket = strategy.position_size > 0 ? high[1] + atr_multiplied : na
+ttp_bottom_bracket = strategy.position_size < 0 ? low[1] - atr_multiplied : na
+
+plot(ttp_top_bracket, title="TTP Top Bracket", color=color.lime, style=plot.style_linebr, offset=1)
+plot(ttp_bottom_bracket, title="TTP Bottom Bracket", color=color.red, style=plot.style_linebr, offset=1)
+
+strategy.exit("Close Long", from_entry="Long", limit=ttp_top_bracket, alert_message="Close Long")
+strategy.exit("Close Short", from_entry="Short", limit=ttp_bottom_bracket, alert_message="Close Short")
+
+
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/438046
+
+> Last Modified
+
+2024-01-08 15:50:52

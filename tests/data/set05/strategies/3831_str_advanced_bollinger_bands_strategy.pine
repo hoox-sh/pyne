@@ -1,0 +1,48 @@
+//@version=4
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/Advanced Bollinger Bands Strategy.pine
+// content_hash: b9a3e22f81cbb51c
+// collected: 2026-07-27
+//
+strategy("Advanced Bollinger Bands Strategy", overlay=true) 
+//BB Values 
+wall1= input(defval=true,title="===BB Values===",type=input.bool)
+source = input(defval=close,title="BB Source",type=input.source)
+length = input(20,title="BB Length", minval=1)
+mult = input(2.0,title="BB Multiplier",minval=0.001, maxval=50)
+basis = sma(source, length)
+dev = mult * stdev(source, length)
+upper = basis + dev
+lower = basis - dev 
+offset = input(0, " BB Offset", type = input.integer, minval = -500, maxval = 500)
+plot(basis, "Basis", color=#872323, offset = offset)
+p1 = plot(upper, "Upper", color=color.teal, offset = offset)
+p2 = plot(lower, "Lower", color=color.teal, offset = offset)
+fill(p1, p2, title = "Background", color=#198787, transp=95)
+//Moving Average Values 
+wall2= input(defval=true,title="===MA Values===",type=input.bool)
+nfl= input(defval=14,title="Moving Average Period",type=input.integer,minval=1,maxval=100) 
+source1= input(defval=close,title="Moving Average Source",type=input.source)
+noisefilter= sma(source1,nfl)
+plot(noisefilter,style=plot.style_line,linewidth=2,color=color.yellow,title=" Moving Average Filter")
+bgcolor(noisefilter<lower?color.green:noisefilter>upper?color.red:na,title="Moving Average Filter")
+//Strategy Conditions
+wall3= input(defval=true,title="===Strategy Conditions===",type=input.bool)
+bl= input(defval=false,title="Exit at Basis Line?",type=input.bool)
+nflb= input(defval=false,title="Use Moving Average Filter?",type=input.bool)
+//Strategy Condition
+buyEntry = crossover(source, lower)
+sellEntry = crossunder(source, upper) 
+if (nflb?(crossover(source,lower) and noisefilter<lower): crossover(source, lower))
+    strategy.entry("BBandLE", strategy.long, oca_name="BollingerBands", oca_type=strategy.oca.cancel, comment="BBandLE")
+    
+else
+    strategy.cancel(id="BBandLE")
+if (nflb?(crossunder(source,lower) and noisefilter>upper): crossunder(source, lower))
+    strategy.entry("BBandSE", strategy.short, oca_name="BollingerBands", oca_type=strategy.oca.cancel, comment="BBandSE") 
+else
+    strategy.cancel(id="BBandSE")  
+    
+strategy.close_all(when=bl?crossover(source,basis) or crossunder(source,basis):crossover(source,upper) or crossunder(source,lower))
+Expand (45 lines)

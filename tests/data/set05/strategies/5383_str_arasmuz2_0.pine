@@ -1,0 +1,48 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于Bollinger-Bands的短线交易策略Short-term-Trading-Strategy-Based-on-Bollinger-Bands.md
+// content_hash: 3b37c90c3ec57bc8
+// collected: 2026-07-27
+strategy("arasmuz2.0", overlay=true)
+
+// Bollinger Bands Parametreleri
+length = input(20, title="Bollinger Bands Length")
+mult = input(2.0, title="Multiplier")
+
+// Bollinger Bands Hesaplamaları
+basis = sma(close, length)
+upper_band = basis + mult * stdev(close, length)
+lower_band = basis - mult * stdev(close, length)
+
+// Long (Alım) Koşulları
+longCondition = crossover(close, lower_band)
+
+// Short (Satım) Koşulları
+shortCondition = crossunder(close, upper_band)
+
+// Long (Alım) Giriş
+strategy.entry("Long", strategy.long, when=longCondition)
+
+// Short (Satım) Giriş
+strategy.entry("Short", strategy.short, when=shortCondition)
+
+// Al sinyalini mumun altına koy
+plotshape(series=longCondition, title="Buy Signal", color=color.green, style=shape.triangleup, location=location.belowbar, size=size.small)
+
+// Sat sinyalini mumun üstüne koy
+plotshape(series=shortCondition, title="Sell Signal", color=color.red, style=shape.triangledown, location=location.abovebar, size=size.small)
+
+// Bollinger Bands'ı Grafik Üzerinde Görüntüle
+plot(upper_band, color=color.red, title="Upper Bollinger Band")
+plot(lower_band, color=color.green, title="Lower Bollinger Band")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/443094
+
+> Last Modified
+
+2024-02-29 11:07:35

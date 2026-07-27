@@ -1,0 +1,21 @@
+//@version=5
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/migration-guides/to-pine-version-6.md::to-pine-version-6.md#block10
+// content_hash: 262eec805cf068a7
+// collected: 2026-07-27
+indicator("`int` division demo")
+
+// `float` division produces fractional remainder in both v5 and v6.
+plot( 5.0 / 2.0, "`float` values", color.blue)
+
+// `const int` division produces rounded-down result in v5. In v6, it produces a fractional remainder.
+plot( 5 / 2,           "`const int` values",     color.orange)
+plot( int(5) / int(2), "values wrapped `int()`", color.red)
+
+// Wrapped `int()` division produces rounded down result in both v5 and v6.
+plot( int(5 / 2), "result wrapped `int()`", color.green)
+
+// Using `input int` type in division preserves the fractional remainder in both v5 and v6.
+inputNum = input.int(2, "Division int", minval = 1)
+plot( 5 / inputNum, "`input int` value", color.purple)

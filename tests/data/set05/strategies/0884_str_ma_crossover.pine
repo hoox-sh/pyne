@@ -1,0 +1,112 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/移动平均线交叉趋势跟踪策略-Moving-Average-Crossover-Trend-Following-Strategy.md
+// content_hash: 01ca8c8792cbfffa
+// collected: 2026-07-27
+strategy("MA Crossover [ClémentCrypto]", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=20, initial_capital=10000,process_orders_on_close=true)
+
+// Groupe pour le choix entre preset et personnalisé
+usePreset = input.bool(title="Utiliser Preset", defval=true, group="Mode Selection")
+
+// Inputs pour la stratégie
+timeframeChoice = input.string(title="Timeframe Preset", defval="1H", options=["1H", "4H", "1D", "1W", "2W"], group="Preset Settings")
+tradeDirection = input.string(title="Trading Direction", defval="Long Only", options=["Long Only", "Short Only", "Both Directions"], group="Strategy Settings")
+
+// Paramètres personnalisés MA
+customFastLength = input.int(title="Custom Fast MA Length", defval=23, minval=1, group="Custom MA Settings")
+customSlowLength = input.int(title="Custom Slow MA Length", defval=395, minval=1, group="Custom MA Settings")
+customMAType = input.string(title="Custom MA Type", defval="EMA", options=["SMA", "EMA"], group="Custom MA Settings")
+
+// Paramètres MA optimisés pour chaque timeframe
+var int fastLength = 0
+var int slowLength = 0
+var string maType = ""
+
+if usePreset
+    if timeframeChoice == "1H"
+        fastLength := 23
+        slowLength := 395
+        maType := "EMA"
+    else if timeframeChoice == "4H"
+        fastLength := 41
+        slowLength := 263
+        maType := "SMA"
+    else if timeframeChoice == "1D"
+        fastLength := 8
+        slowLength := 44
+        maType := "SMA"
+    else if timeframeChoice == "1W"
+        fastLength := 32
+        slowLength := 38
+        maType := "SMA"
+    else if timeframeChoice == "2W"
+        fastLength := 17
+        slowLength := 20
+        maType := "SMA"
+else
+    fastLength := customFastLength
+    slowLength := customSlowLength
+    maType := customMAType
+
+// Calcul des moyennes mobiles
+fastMA = maType == "SMA" ? ta.sma(close, fastLength) : ta.ema(close, fastLength)
+slowMA = maType == "SMA" ? ta.sma(close, slowLength) : ta.ema(close, slowLength)
+
+// Conditions de trading simplifiées
+longEntier = ta.crossover(fastMA, slowMA)
+longExit = ta.crossunder(fastMA, slowMA)
+shortEntier = ta.crossunder(fastMA, slowMA)
+shortExit = ta.crossover(fastMA, slowMA)
+
+// Définition des couleurs
+var BULL_COLOR = color.new(#00ff9f, 20)
+var BEAR_COLOR = color.new(#ff0062, 20)
+var BULL_COLOR_LIGHT = color.new(#00ff9f, 90)
+var BEAR_COLOR_LIGHT = color.new(#ff0062, 90)
+
+// Couleurs des lignes MA
+fastMAColor = fastMA > slowMA ? BULL_COLOR : BEAR_COLOR
+slowMAColor = color.new(#FF6D00, 60)
+
+// Gestion des positions
+if tradeDirection == "Long Only"
+    if (longEntier)
+        strategy.entry("Long", strategy.long)
+    if (longExit)
+        strategy.close("Long")
+        
+else if tradeDirection == "Short Only"
+    if (shortEntier)
+        strategy.entry("Short", strategy.short)
+    if (shortExit)
+        strategy.close("Short")
+        
+else if tradeDirection == "Both Directions"
+    if (longEntier)
+        strategy.entry("Long", strategy.long)
+    if (longExit)
+        strategy.close("Long")
+    if (shortEntier)
+        strategy.entry("Short", strategy.short)
+    if (shortExit)
+        strategy.close("Short")
+
+// Plots
+var fastMAplot = plot(fastMA, "Fast MA", color=fastMAColor, linewidth=2)
+var slowMAplot = plot(slowMA, "Slow MA", color=slowMAColor, linewidth=1)
+fill(fastMAplot, slowMAplot, color=fastMA > slowMA ? BULL_COLOR_LIGHT : BEAR_COLOR_LIGHT)
+
+
+
+// Barres colorées
+barcolor(fastMA > slowMA ? color.new(BULL_COLOR, 90) : color.new(BEAR_COLOR, 90))
+```
+
+> Detail
+
+https://www.fmz.com/strategy/483523
+
+> Last Modified
+
+2025-02-24 10:15:28

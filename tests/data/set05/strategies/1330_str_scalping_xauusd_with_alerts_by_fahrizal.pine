@@ -1,0 +1,87 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双均线波动率自适应交易策略与多级利润优化系统-Dual-EMA-Volatility-Adaptive-Trading-Strategy-with-Multi-Tiered-Profit-Optimization-System.md
+// content_hash: 1a3fd341b1c6726e
+// collected: 2026-07-27
+strategy("Scalping XAUUSD with Alerts By Fahrizal", overlay=true, default_qty_type=strategy.fixed, default_qty_value=0.1)
+
+// Custom Inputs
+tpMultiplier1 = input.float(1.5, "TP1 Multiplier (ATR)", minval=0.5, step=0.1) 
+tpMultiplier2 = input.float(3.0, "TP2 Multiplier (ATR)", minval=1.0, step=0.1) 
+slMultiplier = input.float(1.0, "SL Multiplier (ATR)", minval=0.5, step=0.1)   
+
+// Indicator Definitions
+emaFast = ta.ema(close, 5)   
+emaSlow = ta.ema(close, 15)  
+rsi = ta.rsi(close, 14)      
+atr = ta.atr(14)             
+
+// Variables to store levels
+var float longSL = na
+var float longTP1 = na
+var float longTP2 = na
+var float shortSL = na
+var float shortTP1 = na
+var float shortTP2 = na
+
+// Plot to chart
+plot(emaFast, color=color.green, title="EMA5")
+plot(emaSlow, color=color.red, title="EMA15")
+
+// Buy/Sell conditions
+buySignal = ta.crossover(emaFast, emaSlow) and rsi > 50
+sellSignal = ta.crossunder(emaFast, emaSlow) and rsi < 50
+
+// Calculate and store TP and SL levels when signals trigger
+if (buySignal)
+    longSL := close - (atr * slMultiplier) 
+    longTP1 := close + (atr * tpMultiplier1)
+    longTP2 := close + (atr * tpMultiplier2)
+    strategy.entry("Buy", strategy.long)
+    strategy.exit("TP1 Long", "Buy", qty_percent=50, limit=longTP1) 
+    strategy.exit("TP2 Long", "Buy", qty_percent=50, limit=longTP2) 
+    strategy.exit("SL Long", "Buy", stop=longSL)                    
+
+if (sellSignal)
+    shortSL := close + (atr * slMultiplier)     
+    shortTP1 := close - (atr * tpMultiplier1)   
+    shortTP2 := close - (atr * tpMultiplier2)   
+    strategy.entry("Sell", strategy.short)
+    strategy.exit("TP1 Short", "Sell", qty_percent=50, limit=shortTP1)  
+    strategy.exit("TP2 Short", "Sell", qty_percent=50, limit=shortTP2)  
+    strategy.exit("SL Short", "Sell", stop=shortSL)                    
+
+// Display signals on the chart
+plotshape(buySignal, title="Buy", location=location.belowbar, color=color.green, style=shape.triangleup, size=size.small)
+plotshape(sellSignal, title="Sell", location=location.abovebar, color=color.red, style=shape.triangledown, size=size.small)
+
+// Display levels on chart using labels
+if (buySignal)
+    label.new(bar_index, high, "SL: " + str.tostring(longSL, "#.##") + "\nTP1: " + str.tostring(longTP1, "#.##") + "\nTP2: " + str.tostring(longTP2, "#.##"), 
+              color=color.blue, textcolor=color.white, style=label.style_label_down)
+if (sellSignal)
+    label.new(bar_index, low, "SL: " + str.tostring(shortSL, "#.##") + "\nTP1: " + str.tostring(shortTP1, "#.##") + "\nTP2: " + str.tostring(shortTP2, "#.##"), 
+              color=color.red, textcolor=color.white, style=label.style_label_up)
+
+// Simple notifications when positions are opened
+alertcondition(buySignal, title="Buy Alert", message="Buy Signal Detected! Check chart for SL, TP1, TP2 levels.")
+alertcondition(sellSignal, title="Sell Alert", message="Sell Signal Detected! Check chart for SL, TP1, TP2 levels.")
+
+// Plot levels (optional)
+plot(buySignal ? longTP1 : na, "TP1 Long", color=color.green, style=plot.style_cross)
+plot(buySignal ? longTP2 : na, "TP2 Long", color=color.lime, style=plot.style_cross)
+plot(buySignal ? longSL : na, "SL Long", color=color.red, style=plot.style_cross)
+plot(sellSignal ? shortTP1 : na, "TP1 Short", color=color.green, style=plot.style_cross)
+plot(sellSignal ? shortTP2 : na, "TP2 Short", color=color.lime, style=plot.style_cross)
+plot(sellSignal ? shortSL : na, "SL Short", color=color.red, style=plot.style_cross)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/483681
+
+> Last Modified
+
+2025-02-27 16:38:38

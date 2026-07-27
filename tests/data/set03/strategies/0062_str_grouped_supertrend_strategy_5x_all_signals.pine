@@ -1,0 +1,138 @@
+//@version=6
+// set03 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动态资金管理型SuperTrend趋势跟踪5倍风险回报策略-Dynamic-Position-Sizing-SuperTrend-Trend-Following-Strategy-with-51-Reward-Risk-Ratio.md
+// content_hash: 494bedcf6f3c4bd6
+// collected: 2026-07-27
+strategy("Grouped SuperTrend Strategy 5x – All Signals", overlay=true, initial_capital=100000, default_qty_type=strategy.fixed, default_qty_value=0, pyramiding=500, calc_on_order_fills=true)
+
+// INPUTS
+atrPeriod     = input.int(10, title="ATR Period")
+atrMultiplier = input.float(3.0, title="ATR Multiplier")
+
+// CALCULATE ATR & BASIC BANDS
+atrValue    = ta.atr(atrPeriod)
+hl2         = (high + low) / 2
+upperBasic  = hl2 + atrMultiplier * atrValue
+lowerBasic  = hl2 - atrMultiplier * atrValue
+
+// CALCULATE FINAL BANDS (recursive smoothing)
+var float finalUpperBand = na
+var float finalLowerBand = na
+finalUpperBand := na(finalUpperBand[1]) ? upperBasic : (upperBasic < finalUpperBand[1] or close[1] > finalUpperBand[1] ? upperBasic : finalUpperBand[1])
+finalLowerBand := na(finalLowerBand[1]) ? lowerBasic : (lowerBasic > finalLowerBand[1] or close[1] < finalLowerBand[1] ? lowerBasic : finalLowerBand[1])
+
+// DETERMINE TREND
+var int trend = 1
+trend := nz(trend[1], 1)
+if close > finalUpperBand[1]
+    trend := 1
+else if close < finalLowerBand[1]
+    trend := -1
+else
+    trend := nz(trend[1], 1)
+    
+// SUPER TREND VALUE: For an uptrend use finalLowerBand, for a downtrend use finalUpperBand.
+superTrend = trend == 1 ? finalLowerBand : finalUpperBand
+
+// SIGNALS: A change in trend generates a signal.
+buySignal  = (trend == 1 and nz(trend[1], 1) == -1)
+sellSignal = (trend == -1 and nz(trend[1], 1) == 1)
+
+// Plot SuperTrend
+plot(superTrend, color = trend == 1 ? color.green : color.red, title="SuperTrend")
+
+// POSITION SIZING FUNCTION: Risk 1% of equity per signal based on the stop distance.
+calc_qty(stopDistance) =>
+    stopDistance > 0 ? math.floor(strategy.equity * 0.01 / stopDistance) : 0
+
+// ─── GROUPING VARIABLES ─────────────────────────────
+// When a new group trade is initiated (position goes from flat to non‑zero),
+// record the SuperTrend value as the group’s initial stop.
+var float groupInitialStop = na
+if strategy.position_size == 0
+    groupInitialStop := na
+if strategy.position_size != 0 and strategy.position_size[1] == 0
+    groupInitialStop := superTrend
+
+// Declare groupStopDistance and groupProfitTarget with explicit type.
+var float groupStopDistance = na
+var float groupProfitTarget = na
+if strategy.position_size > 0
+    groupStopDistance := strategy.position_avg_price - groupInitialStop
+    groupProfitTarget := strategy.position_avg_price + 5 * groupStopDistance
+else if strategy.position_size < 0
+    groupStopDistance := groupInitialStop - strategy.position_avg_price
+    groupProfitTarget := strategy.position_avg_price - 5 * groupStopDistance
+
+// ─── ENTRY LOGIC ─────────────────────────────
+// Every SuperTrend signal is taken.
+// For same‑direction signals (or when flat), add to the group.
+// For reversal signals, exit the existing group per our conditions and then enter the new direction.
+
+// LONG ENTRIES
+if buySignal
+    // Reversal: if currently short, exit short first.
+    if strategy.position_size < 0
+        // For shorts, a loss is when close > avg entry.
+        if close > strategy.position_avg_price
+            strategy.close("Short", comment="Short Reversal Loss Exit")
+        // For shorts, profit when price is below the profit target.
+        else if close <= groupProfitTarget
+            strategy.close("Short", comment="Short Reversal Profit Target Exit")
+        else
+            // Otherwise, update exit to break-even.
+            strategy.exit("Short_BE", from_entry="Short", stop=strategy.position_avg_price, comment="Short BE Trailing")
+        // Enter new long trade.
+        stopDist = close - superTrend
+        qty = calc_qty(stopDist)
+        if qty > 0
+            strategy.entry("Long", strategy.long, qty=qty, comment="Long Entry on Reversal")
+        // Reset group initial stop for new group.
+        groupInitialStop := superTrend
+    else
+        // Flat or already long – add to the long group.
+        stopDist = close - superTrend
+        qty = calc_qty(stopDist)
+        if qty > 0
+            strategy.entry("Long", strategy.long, qty=qty, comment="Long Add Entry")
+
+// SHORT ENTRIES
+if sellSignal
+    if strategy.position_size > 0
+        // Reversal: if currently long, exit long first.
+        if close < strategy.position_avg_price
+            strategy.close("Long", comment="Long Reversal Loss Exit")
+        else if close >= groupProfitTarget
+            strategy.close("Long", comment="Long Reversal Profit Target Exit")
+        else
+            strategy.exit("Long_BE", from_entry="Long", stop=strategy.position_avg_price, comment="Long BE Trailing")
+        // Enter new short trade.
+        stopDist = superTrend - close
+        qty = calc_qty(stopDist)
+        if qty > 0
+            strategy.entry("Short", strategy.short, qty=qty, comment="Short Entry on Reversal")
+        groupInitialStop := superTrend
+    else
+        // Flat or already short – add to the short group.
+        stopDist = superTrend - close
+        qty = calc_qty(stopDist)
+        if qty > 0
+            strategy.entry("Short", strategy.short, qty=qty, comment="Short Add Entry")
+
+// ─── EXIT ORDERS ─────────────────────────────
+// Set default aggregated exit orders based on the group’s initial stop and profit target.
+if strategy.position_size > 0
+    strategy.exit("LongExit", from_entry="Long", stop=groupInitialStop, limit=groupProfitTarget)
+if strategy.position_size < 0
+    strategy.exit("ShortExit", from_entry="Short", stop=groupInitialStop, limit=groupProfitTarget)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/488851
+
+> Last Modified
+
+2025-03-31 11:53:06

@@ -1,0 +1,55 @@
+//@version=4
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/255 EMA Strategy.pine
+// content_hash: d2f3be142a8dfd83
+// collected: 2026-07-27
+strategy("255 EMA Strategy", overlay=true, pyramiding=1, default_qty_type=strategy.cash, default_qty_value=30000, commission_value = 0.04, initial_capital=10000)
+//Inputs
+i_reverse=input(false, title="Trade Reverse")
+i_EMAreverse=input(true, title="EMA Reverse Entry")
+i_EMAlength=input(defval=255, title="EMA Length")
+i_EMAexpander=input(defval=5, title="EMA Expander")
+i_MACDmult=input(defval=1, minval=1, title="MACD Mult")
+//Strategy Variables
+EMA=ema(close,i_EMAlength)
+[macdLine, signalLine, histLine]=macd(close, 12*i_MACDmult, 26*i_MACDmult, 9*i_MACDmult)
+EMAupper=EMA+((atr(100))*i_EMAexpander)
+EMAlower=EMA-((atr(100))*i_EMAexpander)
+//SL & TP Inputs
+i_SL=input(true, title="Use Swing Lo/Hi Stop Loss & Take Profit")
+i_SwingLookback=input(10, title="Swing Lo/Hi Lookback")
+i_SLExpander=input(defval=0.6, step=.2, title="SL Expander")*.01
+i_TPExpander=input(defval=1.2, step=.2, title="TP Expander")*.01
+//SL & TP Variables
+SwingLow=lowest(i_SwingLookback)
+SwingHigh=highest(i_SwingLookback)
+//SL & TP Calculations
+bought=strategy.position_size != strategy.position_size[1]
+lSL=valuewhen(bought, SwingLow, 0)*(1-i_SLExpander)
+sSL=valuewhen(bought, SwingHigh, 0)*(1+i_SLExpander)
+lTP=strategy.position_avg_price + (strategy.position_avg_price-(valuewhen(bought, SwingLow, 0))*(1-i_TPExpander))
+sTP=strategy.position_avg_price - (valuewhen(bought, SwingHigh, 0) - strategy.position_avg_price)*(1+i_TPExpander*100)
+islong=strategy.position_size > 0
+isshort=strategy.position_size < 0
+SL= islong ? lSL : isshort ? sSL : na
+TP= islong ? lTP : isshort ? sTP : na
+//Calculations
+EMAbuy=i_EMAreverse ? close > EMAupper : close < EMAlower
+EMAsell=i_EMAreverse ? close < EMAlower : close > EMAupper
+MACDbuy=crossover(macdLine, signalLine)
+MACDsell=crossunder(macdLine, signalLine)
+//Entries
+strategy.entry("long", long=not i_reverse?true:false, when=EMAbuy and MACDbuy)
+strategy.entry("short", long=not i_reverse?false:true, when=EMAsell and MACDsell)
+//Exits
+if i_SL
+    strategy.exit("longexit", "long", stop=SL, limit=TP)
+    strategy.exit("shortexit", "short", stop=SL, limit=TP)
+//Plots
+plot(EMA, "EMA", color=color.white, linewidth=2)
+plot(EMAupper, "EMA Upper Band")
+plot(EMAlower, "EMA Lower Band")
+plot(i_SL ? SL : na, color=color.red, style=plot.style_cross, title="SL")
+plot(i_SL ? TP : na, color=color.green, style=plot.style_cross, title="TP")
+Expand (82 lines)

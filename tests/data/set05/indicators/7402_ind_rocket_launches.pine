@@ -1,0 +1,122 @@
+//@version=5
+// set05 corpus entry
+// source_repo: yankeexlr-tradingview
+// source_path: yankeexlr-tradingview/Rocket Launches (Crypto).txt
+// content_hash: 071db9516dbc1a07
+// collected: 2026-07-27
+// Carefully crafted by https://www.tradingview.com/u/cryptoexorcist/
+indicator("Rocket Launches", overlay=true)
+
+// Phase 1: Identifying the Oversold Candles
+
+// RSI Calculation
+rsi_length1 = input.int(14, title="RSI Length 1")
+rsi1 = ta.rsi(close, rsi_length1)
+
+// Moving Average Calculation
+ma50_length1 = input.int(50, title="MA 50 Length 1")
+ma501 = ta.sma(close, ma50_length1)
+
+ma21_length1 = input.int(21, title="MA 21 Length 1")
+ma211 = ta.sma(close, ma21_length1)
+
+ma100_length1 = input.int(100, title="MA 100 Length 1")
+ma1001 = ta.sma(close, ma100_length1)
+
+ma300_length1 = input.int(300, title="MA 300 Length 1")
+ma3001 = ta.sma(close, ma300_length1)
+
+// Bearish Candle Condition
+bearishCandle = close < open
+
+// Track the occurrence of oversold
+oversold1 = rsi1 < 20
+
+// Track whether banana, rocket, unicorn, cucumber, and moai have been printed
+var bool bananaPrinted1 = false
+var bool rocketPrintedNew1 = false // Different name
+var bool cucumberPrintedNew1 = false // Different name
+var bool unicornPrinted1 = false
+var bool moaiPrinted1 = false
+var bool moaiXCond1 = false // New variable
+var bool moaiYCond1 = false // New variable
+
+// Variable to store the last banana lower shadow price value
+var float lastBananaPrice1 = na
+var float lastRocketLow = na // New variable to store the low of the last rocket candle
+var float lastMoonHigh = na // New variable to store the high of the last moon candle
+
+// Track the status of the previous candles
+var bool prevRocketNew1 = na // Different name
+var bool prevBananaNew1 = na // Different name
+var bool prevUnicorn1 = na
+var bool prevMonkey1 = na
+
+// Monkey patterns
+ma50CrossedAbove1 = ta.crossover(close, ma501)
+monkey1 = ma50CrossedAbove1
+
+// Plot Monkey
+
+if monkey1
+    rocketPrintedNew1 := true // Different name
+
+// Plot Banana under Bearish Candles in RSI Oversold
+banana1 = bearishCandle and oversold1
+
+if banana1
+    bananaPrinted1 := true
+    lastBananaPrice1 := low // Store the last banana lower shadow price value
+    prevRocketNew1 := false // Different name
+    prevBananaNew1 := true // Different name
+
+// Phase 2: Calculate Banana Monkey Sequence and add Unicorn on Both True
+
+// Mark Price Crossing Above 21-period Moving Average with Unicorn Emoji
+priceCrossAboveMA3001 = ta.crossover(close, ma3001)
+unicornCondition1 = priceCrossAboveMA3001 and bananaPrinted1 and rocketPrintedNew1 // Different name
+if unicornCondition1
+    bananaPrinted1 := false
+    rocketPrintedNew1 := false // Different name
+    unicornPrinted1 := true
+
+// Update cucumberPrintedNew when cucumber is printed
+cucumberPrintedNew1 := prevRocketNew1 and prevBananaNew1 // Different name
+
+// Plot Moai
+moai1 = prevMonkey1
+
+// Phase 3: Filtering for Second Level Break
+
+// Mark banana candles that are both banana and close below the previous lastBananaPrice with a rocket
+bananaBelowLastPrice1 = bearishCandle and close < lastBananaPrice1
+
+// Plot Rocket if the previous candle was a banana and the candle before that was a rocket
+rocketCondition1 = prevBananaNew1 and prevRocketNew1 // Different names
+if rocketCondition1
+    lastRocketLow := low // Store the low of the last rocket candle
+
+// Plot Moon if the previous candle was a banana and the candle before that was a unicorn
+moonCondition1 = prevUnicorn1 and prevBananaNew1
+if moonCondition1
+    lastMoonHigh := high // Store the high of the last moon candle
+
+// Update previous candle status
+prevRocketNew1 := bearishCandle and oversold1 // Different name
+prevBananaNew1 := banana1 // Different name
+prevUnicorn1 := unicornCondition1
+prevMonkey1 := monkey1
+
+// Update moaiYCond
+moaiYCond1 := moaiXCond1 and prevMonkey1 // New condition
+
+// Collect coordinates for candles with rocket and moon emojis
+rocketCoords = rocketCondition1 ? lastRocketLow : na
+moonCoords = moonCondition1 ? lastMoonHigh : na
+
+
+// Plot the rocket and moon emojis
+plotshape(rocketCoords, style=shape.labelup, location=location.belowbar, color=color.black, text="🚀", size=size.normal)
+
+if rocketCoords
+    alert('LFG!')

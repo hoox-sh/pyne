@@ -1,0 +1,65 @@
+//@version=2
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于ZigZag的趋势追踪策略ZigZag-Based-Trend-Following-Strategy.md
+// content_hash: 20c70d7327e779a2
+// collected: 2026-07-27
+strategy(title = "Noro's ZZ Strategy v1.0", shorttitle = "ZZ str 1.0", overlay = true, default_qty_type = strategy.percent_of_equity, default_qty_value = 100, pyramiding = 0)
+
+//Settings
+needlong = input(true, defval = true, title = "Long")
+needshort = input(false, defval = false, title = "Short")
+capital = input(100, defval = 100, minval = 1, maxval = 10000, title = "Capital, %")
+tf = input('W', title='Timeframe for ZigZag')
+showzz = input(false, defval = false, title = "Show ZigZag")
+showbg = input(false, defval = false, title = "Show Background")
+fromyear = input(1900, defval = 1900, minval = 1900, maxval = 2100, title = "From Year")
+toyear = input(2100, defval = 2100, minval = 1900, maxval = 2100, title = "To Year")
+frommonth = input(01, defval = 01, minval = 01, maxval = 12, title = "From Month")
+tomonth = input(12, defval = 12, minval = 01, maxval = 12, title = "To Month")
+fromday = input(01, defval = 01, minval = 01, maxval = 31, title = "From day")
+today = input(31, defval = 31, minval = 01, maxval = 31, title = "To day")
+
+//ZigZag
+zigzag() =>
+    _isUp = close >= open
+    _isDown = close <= open
+    _direction = _isUp[1] and _isDown ? -1 : _isDown[1] and _isUp ? 1 : nz(_direction[1])
+    _zigzag = _isUp[1] and _isDown and _direction[1] != -1 ? highest(2) : _isDown[1] and _isUp and _direction[1] != 1 ? lowest(2) : na
+useAltTF = true
+zz = useAltTF ? (change(time(tf)) != 0 ? request.security(syminfo.tickerid, tf, zigzag()) : na) : zigzag()
+zzcolor = showzz ? black : na
+plot(zz, title = 'ZigZag', color = zzcolor, linewidth = 2)
+
+//Levels
+dot = zz > 0 ? zz : dot[1]
+uplevel = dot > dot[1] ? dot : uplevel[1]
+dnlevel = dot < dot[1] ? dot : dnlevel[1]
+colorup = close[1] < uplevel[1] and uplevel == uplevel[1] ? lime : na
+colordn = close[1] > dnlevel[1] and dnlevel == dnlevel[1] ? red : na
+plot(uplevel, color = colorup, linewidth = 3)
+plot(dnlevel, color = colordn, linewidth = 3)
+
+//Background
+size = strategy.position_size
+bgcol = showbg == false ? na : size != size[1] ? blue : na
+bgcolor(bgcol, transp = 50)
+
+//Trading
+lot = strategy.position_size != strategy.position_size[1] ? strategy.equity / close * capital / 100 : lot[1]
+
+if uplevel > 0 and dnlevel > 0
+    strategy.entry("Long", strategy.long, needlong == false ? 0 : lot, stop = uplevel + syminfo.mintick)
+    strategy.entry("Short", strategy.short, needshort == false ? 0 : lot, stop = dnlevel - syminfo.mintick)
+
+if time > timestamp(toyear, tomonth, today, 23, 59)
+    strategy.close_all()
+```
+
+> Detail
+
+https://www.fmz.com/strategy/430572
+
+> Last Modified
+
+2023-10-30 14:51:08

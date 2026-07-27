@@ -1,0 +1,42 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/趋势强度确认策略Trend-Strength-Confirm-Bars-Strategy.md
+// content_hash: 29737c69b933a9a0
+// collected: 2026-07-27
+strategy("Confirm Bars Strategy [TS Trader]", overlay=true)
+
+confirmBars = input(1)
+
+// === INPUT BACKTEST RANGE ===
+fromYear = input.int(2019, title="Backtest Start Year")
+fromMonth = input.int(1, title="Backtest Start Month", minval=1, maxval=12)
+fromDay = input.int(1, title="Backtest Start Day", minval=1, maxval=31)
+toYear = input.int(2023, title="Backtest End Year")
+toMonth = input.int(12, title="Backtest End Month", minval=1, maxval=12)
+toDay = input.int(31, title="Backtest End Day", minval=1, maxval=31)
+
+startTimestamp = timestamp(fromYear, fromMonth, fromDay, 00, 00)
+endTimestamp = timestamp(toYear, toMonth, toDay, 23, 59)
+
+inBacktestRange = true
+
+// === STRATEGY LOGIC ===
+bcount = 0
+bcount := close[1] < close ? nz(bcount[1]) + 1 : 0
+if (bcount == confirmBars and inBacktestRange)
+    strategy.entry("Buy", strategy.long, comment="Long")
+
+scount = 0
+scount := close[1] > close ? nz(scount[1]) + 1 : 0
+if (scount == confirmBars and inBacktestRange)
+    strategy.entry("Sell", strategy.short, comment="Short")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/438946
+
+> Last Modified
+
+2024-01-16 15:22:53

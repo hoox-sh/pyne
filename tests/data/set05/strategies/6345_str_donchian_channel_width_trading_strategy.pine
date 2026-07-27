@@ -1,0 +1,65 @@
+//@version=2
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于唐奇安通道指标开发的量化交易策略Donchian-Channel-Width-Trading-Strategy.md
+// content_hash: fa2b5916ec8a3e4e
+// collected: 2026-07-27
+////////////////////////////////////////////////////////////
+//  Copyright by HPotter v1.0 12/02/2018
+// The Donchian Channel was developed by Richard Donchian and it could be compared 
+// to the Bollinger Bands. When it comes to volatility analysis, the Donchian Channel 
+// Width was created in the same way as the Bollinger Bandwidth technical indicator was.
+//
+// As was mentioned above the Donchian Channel Width is used in technical analysis to measure 
+// volatility. Volatility is one of the most important parameters in technical analysis. 
+// A price trend is not just about a price change. It is also about volume traded during this 
+// price change and volatility of a this price change. When a technical analyst focuses his/her 
+// attention solely on price analysis by ignoring volume and volatility, he/she only sees a part 
+// of a complete picture only. This could lead to a situation when a trader may miss something and 
+// lose money. Lets take a look at a simple example how volatility may help a trader:
+//
+//    Most of the price based technical indicators are lagging indicators.
+//    When price moves on low volatility, it takes time for a price trend to change its direction and 
+// it could be ok to have some lag in an indicator.
+//    When price moves on high volatility, a price trend changes its direction faster and stronger. 
+// An indicator's lag acceptable under low volatility could be financially suicidal now - Buy/Sell signals could be generated when it is already too late.
+//
+// Another use of volatility - very popular one - it is to adapt a stop loss strategy to it:
+//    Smaller stop-loss recommended in low volatility periods. If it is not done, a stop-loss could 
+// be generated when it is too late.
+//    Bigger stop-loss recommended in high volatility periods. If it is not done, a stop-loss could 
+// be triggered too often and you may miss good trades.
+//
+//You can change long to short in the Input Settings
+//WARNING:
+//- For purpose educate only
+//- This script to change bars colors.
+////////////////////////////////////////////////////////////
+strategy(title="Donchian Channel Width Strategy")
+length = input(50, minval=1)
+smoothe = input(50, minval=1)
+reverse = input(false, title="Trade reverse")
+xUpper = highest(high, length)
+xLower = lowest(low, length)
+xDonchianWidth = xUpper - xLower
+xSmoothed = sma(xDonchianWidth, smoothe)
+pos = iff(xDonchianWidth > xSmoothed, -1,
+       iff(xDonchianWidth < xSmoothed, 1, nz(pos[1], 0))) 
+possig = iff(reverse and pos == 1, -1,
+          iff(reverse and pos == -1, 1, pos))	   
+if (possig == 1) 
+    strategy.entry("Long", strategy.long)
+if (possig == -1)
+    strategy.entry("Short", strategy.short)	   	    
+barcolor(possig == -1 ? red: possig == 1 ? green : blue )  
+plot(xDonchianWidth, color=blue, title="DCW")
+plot(xSmoothed, color=red, title="sDCW")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/440955
+
+> Last Modified
+
+2024-02-04 10:35:11

@@ -1,0 +1,9 @@
+//@version=5
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/v5/language/variable-declarations.md::variable-declarations.md#block4
+// content_hash: a5c9aa663711631e
+// collected: 2026-07-27
+indicator("Inefficient version", "", true)
+closeLine = line.new(bar_index - 1, close, bar_index, close, extend = extend.right, width = 3)
+line.delete(closeLine[1])

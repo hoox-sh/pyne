@@ -1,0 +1,29 @@
+//@version=3
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/SMA-Crossover-Trading-Strategy.md
+// content_hash: 435f16f2840d107c
+// collected: 2026-07-27
+strategy("SMA Crossover demo", overlay=true)
+
+shortCondition = crossover(sma(close, 34), sma(close, 4))
+if (shortCondition)
+    strategy.entry("Sell/Short", strategy.short)
+
+longCondition = crossunder(sma(close, 34), sma(close, 4))
+if (longCondition)
+    strategy.entry("Buy/Long", strategy.long)
+    
+
+
+
+    
+```
+
+> Detail
+
+https://www.fmz.com/strategy/426335
+
+> Last Modified
+
+2023-09-11 11:42:52

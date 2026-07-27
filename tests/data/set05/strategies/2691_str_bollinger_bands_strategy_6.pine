@@ -1,0 +1,51 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/Bollinger-Bands-Breakout-Strategy-布林带突破策略.md
+// content_hash: 7dfc0440ed099a8f
+// collected: 2026-07-27
+strategy("Bollinger Bands Strategy", shorttitle='BB Strategy', overlay=true)
+
+// Bollinger Bands parameters
+length = input.int(20, title="Length")
+mult = input.float(2.0, title="Multiplier")
+
+// Calculate Bollinger Bands
+basis = ta.sma(close, length)
+dev = mult * ta.stdev(close, length)
+upper_band = basis + dev
+lower_band = basis - dev
+
+// Plot Bollinger Bands
+plot(basis, color=color.blue, title="Basis")
+plot(upper_band, color=color.red, title="Upper Band")
+plot(lower_band, color=color.green, title="Lower Band")
+
+// Strategy
+long_condition = ta.crossover(close, upper_band)
+short_condition = ta.crossunder(close, lower_band)
+
+if (long_condition)
+    strategy.entry("Long", strategy.long)
+    
+if (short_condition)
+    strategy.entry("Short", strategy.short)
+
+// Exit conditions
+exit_long_condition = ta.crossunder(close, basis)
+exit_short_condition = ta.crossover(close, basis)
+
+if (exit_long_condition)
+    strategy.close("Long")
+    
+if (exit_short_condition)
+    strategy.close("Short")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/449965
+
+> Last Modified
+
+2024-04-30 17:21:16

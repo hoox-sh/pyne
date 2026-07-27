@@ -1,0 +1,105 @@
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/追踪熊市策略Follow-The-Bear-Strategy.md
+// content_hash: ecb3fe43fcb3fd3c
+// collected: 2026-07-27
+strategy("[2021] FTB Strategy", shorttitle="FTB", overlay=true)
+
+// Risk Settings
+var g_risk      = "Risk Settings"
+pips            = input(title="Stop Pips", type=input.float, defval=2.0, group=g_risk, tooltip="How many pips above high to put stop loss")
+rr              = input(title="Risk:Reward", type=input.float, defval=1.0, group=g_risk, tooltip="This determines the risk:reward profile of the setup")
+// Filters
+var g_filter    = "Filter Settings"
+timezone        = input(title="Timezone", type=input.session, defval="0200-0700", group=g_filter, tooltip="Which timezone to search for FTB signals in")
+days            = input(title="Days To Trade", defval="13457", group=g_filter, tooltip="Which days to trade this strategy on (Monday & Friday disabled by default)")
+useRsiFilter    = input(title="RSI OB/OS?", type=input.bool, defval=true, group=g_filter, tooltip="If true then the RSI must be considered overbought before a signal is valid")
+useCloseFilter  = input(title="Previous Bar Must Be Bullish?", type=input.bool, defval=false, group=g_filter, tooltip="If true then the previous bar must have closed bullish")
+useHighFilter   = input(title="High Filter", type=input.bool, defval=false, group=g_filter, tooltip="If true then the signal bar must be the highest bar over X bars")
+highLookback    = input(title="High Lookback", type=input.integer, defval=10, group=g_filter, tooltip="This is for setting the High Filter lookback distance")
+fib             = input(title="Candle Close %", defval=0.5, group=g_filter, tooltip="For identifying shooting star candles (0.5 = must close <= 50% mark of candle size)")
+rsiLen          = input(title="RSI Length", type=input.integer, defval=3, group=g_filter, tooltip="RSI length")
+rsiOB           = input(title="RSI OB", type=input.float, defval=70.0, group=g_filter, tooltip="RSI overbought threshold")
+// PineConnector Settings
+var g_pc        = "PineConnector Settings"
+pc_id           = input(title="License ID", defval="YOUR_ID", type=input.string, group=g_pc, tooltip="This is your PineConnector license ID")
+pc_risk         = input(title="Risk Per Trade", defval=1, step=0.5, type=input.float, group=g_pc, tooltip="This is how much to risk per trade (% of balance or lots)")
+pc_prefix       = input(title="MetaTrader Prefix", defval="", type=input.string, group=g_pc, tooltip="This is your broker's MetaTrader symbol prefix")
+pc_suffix       = input(title="MetaTrader Suffix", defval="", type=input.string, group=g_pc, tooltip="This is your broker's MetaTrader symbol suffix")
+pc_spread       = input(title="Spread", defval=0.5, type=input.float, group=g_pc, tooltip="Enter your average spread for this pair (used for offsetting limit order)")
+pc_limit        = input(title="Use Limit Order?", defval=true, type=input.bool, group=g_pc, tooltip="If true a limit order will be used, if false a market order will be used")
+
+// Generate PineConnector alert string
+var symbol = pc_prefix + syminfo.ticker + pc_suffix
+var limit = pc_limit ? "limit" : ""
+pc_entry_alert(direction, sl, tp) =>
+    price = pc_limit ? "price=" + tostring(pc_spread) + "," : ""
+    pc_id + "," + direction + limit + "," + symbol + "," + price + "sl=" + tostring(sl) + ",tp=" + tostring(tp) + ",risk=" + tostring(pc_risk)
+
+// Get RSI filter
+rsiValue = rsi(close, rsiLen)
+rsiFilter = not useRsiFilter or rsiValue >= rsiOB
+
+// Check high & close filter
+highFilter = not useHighFilter or high == highest(high, highLookback)
+closeFilter = not useCloseFilter or close[1] > open[1]
+
+// InSession() determines if a price bar falls inside the specified session
+inSession(sess) => na(time(timeframe.period, sess + ":" + days)) == false
+
+// Calculate 50% mark of candle size
+bearFib = (high - low) * fib + low
+
+// Check filters
+filters = inSession(timezone) and closeFilter and high > high[1] and rsiFilter and highFilter and open != close
+
+// Detect valid shooting star pinbar pattern
+var takenTradeAlready = false
+star = true
+
+// Calculate stops & targets
+shortStopPrice = high + (syminfo.mintick * pips * 10)
+shortStopDistance = shortStopPrice - close
+shortTargetPrice = close - (shortStopDistance * rr)
+
+// Save stops & targets for the current trade
+var tradeStopPrice = 0.0
+var tradeTargetPrice = 0.0
+
+// If we detect a valid shooting star, save our stops & targets, enter short and generate alert
+if star and barstate.isconfirmed
+    tradeStopPrice := shortStopPrice
+    tradeTargetPrice := shortTargetPrice
+    takenTradeAlready := true
+    alertString = pc_entry_alert("sell", tradeStopPrice, tradeTargetPrice)
+    alert(alertString, alert.freq_once_per_bar_close)
+    strategy.entry(id="Short", long=strategy.short, when=strategy.position_size == 0, comment=alertString)
+
+// If we have exited the FTB session then reset our takenTradeAlready flag for the next session
+if not inSession(timezone) and inSession(timezone)[1]
+    takenTradeAlready := false
+    
+// If price has exceeded target then cancel limit order if it's still active
+if pc_limit and low <= tradeTargetPrice and strategy.position_size == 0
+    alert(pc_id + ",cancelshort," + symbol)
+    tradeTargetPrice := na
+
+// Draw stops & targets
+plot(star ? tradeStopPrice : na, color=color.red, style=plot.style_linebr, title="SL")
+plot(star ? shortTargetPrice : na, color=color.green, style=plot.style_linebr, title="TP")
+// Draw short signals
+plotshape(star ? 1 : na, style=shape.triangledown, color=color.red)
+// Change background color to highlight detection zone
+bgcolor(color=inSession(timezone) ? color.new(color.red,80) : na, title="Session")
+
+// Exit trade whenever our stop or target is hit
+strategy.exit(id="Short Exit", from_entry="Short", limit=tradeTargetPrice, stop=tradeStopPrice, when=strategy.position_size != 0)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/442836
+
+> Last Modified
+
+2024-02-26 14:12:09

@@ -1,0 +1,37 @@
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/ATR趋势跟踪策略ATR-Trend-Following-Strategy.md
+// content_hash: 01a12ac5e0f491c5
+// collected: 2026-07-27
+strategy(title="ATR Strategy", overlay = true,  commission_type=strategy.commission.percent,commission_value=0.075)
+//credits to HPotter for the orginal code
+nATRPeriod = input(5)
+nATRMultip = input(3.5)
+xATR = ta.atr(nATRPeriod)
+nLoss = nATRMultip * xATR
+xATRTrailingStop = iff(close > nz(xATRTrailingStop[1], 0) and close[1] > nz(xATRTrailingStop[1], 0), math.max(nz(xATRTrailingStop[1]), close - nLoss),
+                    iff(close < nz(xATRTrailingStop[1], 0) and close[1] < nz(xATRTrailingStop[1], 0), math.min(nz(xATRTrailingStop[1]), close + nLoss), 
+                        iff(close > nz(xATRTrailingStop[1], 0), close - nLoss, close + nLoss)))
+pos =	iff(close[1] < nz(xATRTrailingStop[1], 0) and close > nz(xATRTrailingStop[1], 0), 1,
+	    iff(close[1] > nz(xATRTrailingStop[1], 0) and close < nz(xATRTrailingStop[1], 0), -1, nz(pos[1], 0))) 
+color = pos == -1 ? color.red: pos == 1 ? color.green : color.blue 
+plot(xATRTrailingStop, color=color, title="ATR Trailing Stop")
+
+barbuy = close > xATRTrailingStop 
+barsell = close < xATRTrailingStop 
+
+strategy.entry("Long", strategy.long, when = barbuy) 
+strategy.entry("Short", strategy.short, when = barsell) 
+
+barcolor(barbuy? color.green:color.red)
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/427470
+
+> Last Modified
+
+2023-09-21 15:13:47

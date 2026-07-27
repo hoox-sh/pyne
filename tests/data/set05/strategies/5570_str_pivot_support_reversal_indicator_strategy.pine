@@ -1,0 +1,29 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/主轴支撑反转指标交易策略Pivot-Support-Reversal-Indicator-Strategy.md
+// content_hash: 7335454805a05f5f
+// collected: 2026-07-27
+strategy(title="SOJA PIVOT", shorttitle="SOJA PIVOT")
+soja = ((cmo(close,5) > 25) and (cmo(close,5) < 70) and (close> close[1]) and (bbw(close,50,1) < 0.6) and (sum(volume,5)> 250000) and (obv[5]>15))
+TP = 2.1 * hlc3[1]- high[1]
+TP2 = TP + high[1] - low[1]
+SL = avg(close,14) - 3*atr(14)
+strategy.entry("buy", true, 1, when = soja == 1)
+strategy.close("buy", when = close > TP)
+strategy.close("buy", when = close > TP2)
+strategy.exit("stop", "exit", when = close < SL)
+
+
+
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/426785
+
+> Last Modified
+
+2023-09-14 15:49:31

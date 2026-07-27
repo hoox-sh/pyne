@@ -1,0 +1,109 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/KD-Dual-direction-Tracking-Strategy.md
+// content_hash: 7f4aa6db9d382934
+// collected: 2026-07-27
+// strategy("KD base strategy", overlay=true, pyramiding=1000, process_orders_on_close=true, precision=6, max_bars_back=720)
+
+
+max=input(defval=20, title="庫存上限(share)", type=input.integer)
+min=input(defval=-10, title="庫存下限(share)", type=input.integer)
+period=input(defval=9, title="KD 週期(KD period)", type=input.integer, minval=2)
+
+k=0.0
+rsv=0.0
+dir2=0
+sum2=0.0
+share2=0
+first=0
+up=0.0
+bottom=0.0
+k80=0.0
+k50=0.0
+k20=0.0
+k_value=0.0
+
+share=strategy.position_size
+rsv:=stoch(close, high, low, period)
+
+up:=highest(high,period)
+bottom:=lowest(low,period)
+
+if bar_index <= period
+    k:=rsv
+    dir2:=0
+    sum2:=0
+else
+    k:=k[1]*2/3 + rsv/3
+    dir2 := dir2[1]
+    sum2 := sum2[1]
+
+// rsv = 100 * (close - lowest(low, period)) / (highest(high, period) - lowest(low, period))
+// k=k[1]*2/3 + rsv/3
+// 3k=k[1]*2 + rsv
+// 3k-k[1]*2= 100 * (close - lowest(low, period)) / (highest(high, period) - lowest(low, period))
+// (3k-k[1]*2)/100*(highest(high, period) - lowest(low, period)) + lowest(low, period) = close
+// let k = 80, close = (3*80-k[1]*2)/100*(highest(high, period) - lowest(low, period)) + lowest(low, period)
+k80:=(3*80-k[1]*2)/100*(highest(high, period) - lowest(low, period)) + lowest(low, period)
+k50:=(3*50-k[1]*2)/100*(highest(high, period) - lowest(low, period)) + lowest(low, period)
+k20:=(3*20-k[1]*2)/100*(highest(high, period) - lowest(low, period)) + lowest(low, period)
+
+// rule 1, strong target, buy when k < 50.
+if (dir2 == 1 and k[1] >= 50 and k < 50 and sum2 < 1 and sum2 >= 0 and sum2 < 0.66)
+    sum2 := sum2 + 0.33
+// rule 2, weak target, sell when k > 50.
+if (dir2 == -1 and k[1] <= 50 and k > 50 and sum2 > -1 and sum2 <= 0 and sum2 > -0.66) 
+    sum2 := sum2 -0.33
+
+// become to strong    
+if (k >= 80) 
+    dir2 := 1
+
+// become to weak
+if (k <= 20) 
+    dir2 := -1
+
+// rule 3, strong become to weak, buy when k < 20
+if (dir2 == -1 and dir2[1] == 1)
+    sum2 := sum2 + 0.33
+// rule 4, weak become to strong, buy when k > 80
+if (dir2 == 1 and dir2[1] == -1)
+    sum2 := sum2 - 0.33
+
+// rule 5, strong but share is smaller than 0    
+if (dir2 == 1 and k[1] >= 50 and k < 50 and sum2 <= 0)
+    sum2 := 0.33
+
+// rule 6, weak but share is bigger than 0
+if (dir2 == -1 and k[1] >= 50 and k < 50 and sum2 >= 0)
+    sum2 := -0.33
+    
+if sum2 > 0
+    share2 := round(sum2 * max)
+else
+    if sum2 < 0
+        share2 := round(abs(sum2) * min)
+
+if share2 > share
+    strategy.order(id='buy', long=true)
+else
+    if share2 < share
+        strategy.order(id="sell", long=false)
+
+plot(share, "持股(share)")
+plot(dir2, "方向(direction)")
+plot(k80, "Strong", color.red)
+plot(k50, "Middle", color.white)
+plot(k20, "Weak", color.green)
+plot(k, "k")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/426364
+
+> Last Modified
+
+2023-09-11 15:06:36

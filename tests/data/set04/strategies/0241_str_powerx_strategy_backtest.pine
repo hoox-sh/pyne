@@ -1,0 +1,122 @@
+//@version=5
+// set04 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/PowerX Strategy Backtest.pine
+// content_hash: 63e9332fff2c8e48
+// collected: 2026-07-27
+strategy('PowerX Strategy Backtest', overlay = true, initial_capital = 10000)
+// Make input options that configure backtest date range
+var startDate = input.int(title = "Start Date", defval = 15, minval = 1, maxval = 31)
+var startMonth = input.int(title = "Start Month", defval = 9, minval = 1, maxval = 12)
+var startYear = input.int(title = "Start Year", defval = 2019, minval = 1800, maxval = 2100)
+var endDate = input.int(title = "End Date", defval = 15, minval = 1, maxval = 31)
+var endMonth = input.int(title = "End Month", defval = 9, minval = 1, maxval = 12)
+var endYear = input.int(title = "End Year", defval = 2021,minval = 1800, maxval = 2100)
+     
+// Make input options that select the direction of trades
+var short = input.bool(title = "Short positions", defval = false)
+var long = input.bool(title = "Long positions", defval = true)
+// Make input option for the capital at risk
+var capital_at_risk = input.float(title = "Capital at risk [%]", minval = 0, maxval = 100, defval = 2)/100
+// Make input options for risk and reward
+var risk = input.float(title = "Risk", minval = 0, defval = 1.5)
+var reward = input.float(title = "Reward", minval = 0, defval = 3)
+// Make input option for the duration of pending trades
+// If a trade is pending for more than <decay> time units it is cancelled and a 
+// new trade is opened
+var decay = input.int(title = "Max. duration of pending trades", minval = 0, defval = 7)
+// Define PowerX signal
+[macdLine, signalLine, histLine] = ta.macd(close, 12, 26, 9)
+rsiLine = ta.rsi(close, 7)
+stochLine = ta.sma(ta.sma(ta.stoch(close, high, low, 14), 3), 3)
+signal = histLine > 0 and rsiLine > 50 and stochLine > 50 ? 'buy' : histLine <= 0 and rsiLine <= 50 and stochLine <= 50 ? 'sell' : 'none'
+palette = signal == 'buy' ? color.lime : signal == 'sell' ? color.red : color.black
+plotbar(open, high, low, close, color=palette)
+// Define variables to define entry and exit prices
+var entry = float(na)
+var quantity = int(na)
+var stop_loss = float(na)
+var take_profit = float(na)
+// Variable to track the state
+// -2 = pending short
+// -1 = active short
+// 0 = ready
+// 1 = active long
+// 2 = pending long
+var state = 0
+adr = ta.sma(high - low, 7)
+// Look if the close time of the current bar falls inside the date range
+inDateRange = (time >= timestamp(syminfo.timezone, startYear,
+         startMonth, startDate, 0, 0)) and
+     (time <= timestamp(syminfo.timezone, endYear, endMonth, endDate, 0, 0))
+if (inDateRange)
+    // Reduce the decay to invalidate pending positions
+    decay := decay - 1
+    
+    // If current open position is too old open a new one
+    if (state == 2 and decay <= 0)
+        state := 0
+        
+    // On a neutral signal exit all (pending) positions
+    if (signal == 'none')
+        strategy.close("long")
+        strategy.close("short")
+        strategy.cancel("long")
+        strategy.cancel("short")
+        state := 0
+    
+    // On signal direction change reset the state
+    if (signal != signal[1])
+        // If open position close
+        if (state == -1 or state == 1)
+            strategy.close("long")
+            strategy.close("short")
+        // If pending position cancel
+        else 
+            strategy.cancel("long")
+            strategy.cancel("short")
+        state := 0
+    
+    // If pending position has been filled change state to active
+    if (state == 2 and strategy.opentrades > 0)
+        state := 1
+    
+    if (state == -2 and strategy.opentrades < 0)
+        state := -1
+        
+    // If active position has been closed change state to ready
+    if ((state == -1 or state == 1) and strategy.opentrades == 0)
+        state := 0
+    // On a buy signal define entry and exit prices and place orders
+    if (signal == 'buy' and long)
+        if (state == 0)
+            entry := high + 0.01
+            quantity := math.floor(strategy.initial_capital * capital_at_risk / (risk * adr))
+            stop_loss := entry - risk * adr
+            take_profit := entry + reward * adr
+            state := 2
+            decay := 7
+            strategy.entry(id = "long", direction = strategy.long, qty = quantity,stop = entry)
+            strategy.exit(id = "long", qty_percent = 100, limit = take_profit,stop = stop_loss)
+    
+    // On a sell signal define entry and exit prices and place orders
+    if (signal == 'sell' and short)
+        if (state == 0)
+            entry := low - 0.01
+            quantity := math.floor(strategy.initial_capital * capital_at_risk / (risk * adr))
+            stop_loss := entry + risk * adr
+            take_profit := entry - reward * adr
+            state := -2
+            decay := 7
+            strategy.entry(id = "short", direction = strategy.short,qty = quantity, stop = entry)
+            strategy.exit(id = "short", qty_percent = 100, limit = take_profit, stop = stop_loss)
+            
+// Debugging
+plotchar(state, "state", "", location.top)
+plotchar(decay, "decay", "", location.top)
+plotchar(adr, "ADR", "", location.top)
+plotchar(entry, "entry", "", location.top)
+plotchar(quantity, "quantity", "", location.top)
+plotchar(stop_loss, "stop loss", "", location.top)
+plotchar(take_profit, "take profit", "", location.top)
+Expand (130 lines)

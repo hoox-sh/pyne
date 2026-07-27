@@ -1,0 +1,20 @@
+//@version=4
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/simple but effective.pine
+// content_hash: babc89d4834288d1
+// collected: 2026-07-27
+strategy("simple but effective", overlay=true)
+v1low = input(3, minval=1)
+v1high = input(3, minval=1)
+v2open = input(9, minval=1)
+plot (sma(open, v2open))
+plot (sma(high, v1high))
+plot (sma(low, v1low))
+longCondition = crossover(sma(high, v1high), sma(open, v2open))
+if (longCondition)
+    strategy.entry("My Long Entry Id", strategy.long)
+shortCondition = crossunder(sma(low, v1low), sma(open, v2open))
+if (shortCondition)
+    strategy.entry("My Short Entry Id", strategy.short)
+Expand (24 lines)

@@ -1,0 +1,121 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/Swing-High-Low-Indicator-w-MACD-and-EMA-Confirmations.md
+// content_hash: 2e4019f20bf36dfe
+// collected: 2026-07-27
+study("Swing High/Low Indicator w/ MACD and HTF EMA's", overlay=true)
+
+barsback = input(5, title='Bars back to check for a swing')
+showsig = input(true, title='Show Signal Markers')
+res = input(title="EMA Timeframe", defval="240")
+flen = input(title="Fast EMA Length", type=input.integer, defval=20)
+slen = input(title="Slow EMA Length", type=input.integer, defval=50)
+showema = input(title="Show EMA's", type=input.bool, defval=true)
+showentry = input(title="Show Swing Break Entry Levels", type=input.bool, defval=true)
+
+//HTF EMA's
+
+fema = ema(close, flen)
+sema = ema(close, slen)
+
+rp_security(_symbol, _res, _src, _gaps, _lookahead) => security(_symbol, _res, _src[barstate.isrealtime ? 1 : 0], _gaps, _lookahead)
+
+femaSmooth = rp_security(syminfo.tickerid, res, fema, barmerge.gaps_on, barmerge.lookahead_off)
+semaSmooth = rp_security(syminfo.tickerid, res, sema, barmerge.gaps_on, barmerge.lookahead_off)
+plot(showema ? femaSmooth : na,"Fast HTF EMA", color.lime, 3)
+plot(showema ? semaSmooth : na,"Slow HTF EMA", color.navy, 3)
+
+downtrend = femaSmooth < semaSmooth
+uptrend = femaSmooth > semaSmooth
+
+//Swing Highs and Lows
+////////////////////////////////////////////////////////////////////////////////
+//Thank you Backtest-Rookies.com for the Swing Detection Indicator code
+
+swing_detection(index)=>
+    swing_high = false
+    swing_low = false
+    start = (index*2) - 1 // -1 so we have an even number of
+    swing_point_high = high[index]
+    swing_point_low = low[index]
+    
+    //Swing Highs
+    for i = 0 to start
+        swing_high := true
+        if i < index 
+            if high[i] > swing_point_high 
+                swing_high := false
+                break
+        // Have to do checks before pivot and after seperately because we can get
+        // two highs of the same value in a row. Notice the > and >= difference
+        if i > index
+            if high[i] >= swing_point_high 
+                swing_high := false
+                break
+        
+    //Swing lows
+    for i = 0 to start
+        swing_low := true
+        if i < index
+            if low[i] < swing_point_low 
+                swing_low := false
+                break  
+        // Have to do checks before pivot and after seperately because we can get
+        // two lows of the same value in a row. Notice the > and >= difference
+        if i > index
+            if low[i] <= swing_point_low 
+                swing_low := false
+                break 
+        
+    [swing_high, swing_low]
+
+// Check for a swing
+[swing_high, swing_low] = swing_detection(barsback)
+////////////////////////////////////////////////////////////////////////////////
+
+float swing_high_price = na
+float swing_low_price = na
+ 
+if swing_high
+    swing_high_price := high[barsback] 
+if swing_low
+    swing_low_price := low[barsback] 
+
+[macdline, signalline, histline] = macd(close,12,26,9)
+
+macpos = histline[barsback] > 0
+macneg = histline[barsback] < 0
+
+// Plotting
+
+SHPrice = "SH\n" + str.tostring(swing_high_price)
+SLPrice = "SL\n" + str.tostring(swing_low_price)
+
+if swing_high and macpos and showsig
+    //SHLabel = label.new(bar_index[barsback], swing_high_price, SHPrice, xloc.bar_index, yloc.abovebar, color.red, label.style_arrowdown, textcolor=color.red, size=size.normal)
+    //SHLine = line.new(bar_index[barsback], swing_high_price, bar_index[barsback] + 20, swing_high_price, xloc.bar_index, extend.none, color.black, width=2)
+    //line.delete(SHLine[1])
+
+if swing_low and macneg and showsig
+    //label.new(bar_index[barsback], swing_low_price, SLPrice, xloc.bar_index, yloc.belowbar, color.green, label.style_arrowup, textcolor=color.green)
+    //SLLine = line.new(bar_index[barsback], swing_low_price, bar_index[barsback] + 20, swing_low_price, xloc.bar_index, extend.none, color.black, width=2)
+    //line.delete(SLLine[2])
+    
+//alerts
+alertcondition(uptrend and close > swing_high_price, "Swing High Break in Uptrend", "Swing High Break!")
+alertcondition(downtrend and close < swing_low_price, "Swing Low Break in Downtrend", "Swing Low Break!")
+
+if uptrend
+    strategy.entry("Enter Long", strategy.long)
+else if downtrend
+    strategy.entry("Enter Short", strategy.short)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/362443
+
+> Last Modified
+
+2022-05-11 16:33:11

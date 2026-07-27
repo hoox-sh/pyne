@@ -1,0 +1,32 @@
+//@version=6
+// set03 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/concepts/strings.md::strings.md#block28
+// content_hash: d431ddaaca3b4ce5
+// collected: 2026-07-27
+indicator("Checking for substrings demo")
+
+//@variable A spread symbol created from two symbol inputs. The first input is an empty string by default.
+var string spreadInput = input.symbol("", "Symbol 1") + " / " + input.symbol("BATS:SPY", "Symbol 2")
+
+//@variable Is `true` if the `spreadInput` starts with ` /`, meaning the first input is empty. 
+var bool missingNumerator = str.startswith(spreadInput, " /")
+//@variable A copy of the spreadInput` that inserts the chart's standard ticker ID when `missingNumerator` is `true`. 
+var string spread = missingNumerator ? str.replace(spreadInput, " /", ticker.standard() + " /") : spreadInput
+
+// Request a tuple of OHLC data from the `spread` context. 
+[o, h, l, c] = request.security(" " + spread, "", [open, high, low, close])
+
+//@variable Is `true` if the chart's ticker ID contains `replay`, meaning Bar Replay mode is active. 
+var bool isReplay = str.contains(syminfo.tickerid, "replay")
+
+// Define variables to hold colors for up and down candles. Their values depend on whether `isReplay` is `true`.
+var color upColor = isReplay ? color.blue : color.teal
+var color dnColor = isReplay ? color.maroon : color.red
+
+// Plot the candles in a separate pane. 
+plotcandle(o, h, l, c, "Spread candles", c > o ? upColor : dnColor)
+
+// Log the original `spreadInput`, the final `spread` value, and the `isReplay` value` in the Pine Logs pane.
+if barstate.isfirst
+    log.info("\n\nOriginal input: {0}\nFinal spread: {1}\nReplay chart: {2}", spreadInput, spread, isReplay)

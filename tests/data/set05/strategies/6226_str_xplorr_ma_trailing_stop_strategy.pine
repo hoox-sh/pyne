@@ -1,0 +1,87 @@
+//@version=2
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/移动平均跟踪止损策略Moving-Average-Trailing-Stop-Strategy.md
+// content_hash: c9788fae9ba69a74
+// collected: 2026-07-27
+//created by XPloRR 04-03-2018
+
+strategy("XPloRR MA-Trailing-Stop Strategy",overlay=true, initial_capital=1000,default_qty_type=strategy.percent_of_equity,default_qty_value=100)
+
+testStartYear = input(2005, "Start Year")
+testStartMonth = input(1, "Start Month")
+testStartDay = input(1, "Start Day")
+testPeriodStart = timestamp(testStartYear,testStartMonth,testStartDay,0,0)
+
+testStopYear = input(2050, "Stop Year")
+testStopMonth = input(12, "Stop Month")
+testStopDay = input(31, "Stop Day")
+testPeriodStop = timestamp(testStopYear,testStopMonth,testStopDay,0,0)
+
+testPeriodBackground = input(title="Background", type=bool, defval=true)
+testPeriodBackgroundColor = testPeriodBackground and (time >= testPeriodStart) and (time <= testPeriodStop) ? #00FF00 : na
+bgcolor(testPeriodBackgroundColor, transp=97)
+
+ema1Period = input(12, "Fast EMA Buy")
+sma1Period = input(54, "Slow SMA Buy")
+strength1 = input(52, "Minimum Buy Strength")
+
+ema2Period = input(18, "Fast EMA Sell")
+sma2Period = input(55, "Slow SMA Sell")
+strength2 = input(100, "Minimum Sell Strength")
+
+delta = input(8, "Trailing Stop (#ATR)")
+
+testPeriod() => true
+
+ema1val=ema(close,ema1Period)
+sma1val=sma(close,sma1Period)
+ema1strength=10000*(ema1val-ema1val[1])/ema1val[1]
+
+ema2val=ema(close,ema2Period)
+sma2val=sma(close,sma2Period)
+ema2strength=10000*(ema2val-ema2val[1])/ema2val[1]
+
+plot(ema1val,color=blue,linewidth=1)
+plot(sma1val,color=orange,linewidth=1)
+plot(ema2val,color=navy,linewidth=1)
+plot(sma2val,color=red,linewidth=1)
+
+long=crossover(ema1val,sma1val) and (ema1strength > strength1) 
+short=crossunder(ema2val,sma2val) and (ema2strength < -strength2)
+
+stopval=ema(close,6)
+atr=sma((high-low),15)
+
+inlong=0
+buy=0
+stop=0
+if testPeriod()
+    if (inlong[1])
+        inlong:=inlong[1]
+        buy:=close
+        stop:=iff((stopval>(stop[1]+delta*atr)),stopval-delta*atr,stop[1])
+    if (long) and (not inlong[1])
+        strategy.entry("buy",strategy.long)
+        inlong:=close
+        buy:=close
+        stop:=stopval-delta*atr
+plot(buy,color=iff(close<inlong,red,lime),style=columns,transp=90,linewidth=1)
+plot(stop,color=iff((short or (stopval<stop)) and (close<inlong),red,lime),style=columns,transp=60,linewidth=1)
+if testPeriod()
+    if (short or (stopval<stop)) and (inlong[1])
+        strategy.close("buy")
+        inlong:=0
+        stop:=0
+        buy:=0
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/427305
+
+> Last Modified
+
+2023-09-19 21:33:48

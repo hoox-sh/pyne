@@ -1,0 +1,45 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动量交叉均线策略Dynamic-Momentum-Strategy.md
+// content_hash: e7f1e853d5dead5e
+// collected: 2026-07-27
+strategy("Tu Estrategia", overlay=true)
+
+// Variables de estrategia
+var bool longCondition = na
+var bool shortCondition = na
+
+// Indicador
+emaValue = ta.ema(close, 30)
+plotColor = close > open ? color.green : color.red
+plot(emaValue, color=plotColor, linewidth=2)
+value = 10 * open / close
+plotColor2 = close == open ? color.orange : color.blue
+plot(value, color=plotColor2, linewidth=2)
+
+// Lógica de la estrategia
+longCondition := ta.crossover(ta.sma(close, 14), ta.sma(close, 28))
+shortCondition := ta.crossunder(ta.sma(close, 14), ta.sma(close, 28))
+
+// Entradas de estrategia
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+if (shortCondition)
+    strategy.entry("Short", strategy.short)
+
+plotColor3 = strategy.position_size > 0 ? color.green :
+     strategy.position_size < 0 ? color.red :
+     color.yellow
+
+plot(ta.sma(close, 10), color=plotColor3)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/434556
+
+> Last Modified
+
+2023-12-07 15:26:38

@@ -1,0 +1,60 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/高频混合技术分析量化策略-High-Frequency-Hybrid-Technical-Analysis-Quantitative-Strategy.md
+// content_hash: 1919379042bf09f7
+// collected: 2026-07-27
+strategy("BTC Scalping Strategy with Risk-Reward 1:3", overlay=true)
+
+// Heiken Ashi Candle Calculation
+var float haOpen = na
+haClose = (open + high + low + close) / 4
+haOpen := na(haOpen[1]) ? (open + close) / 2 : (haOpen[1] + haClose[1]) / 2
+haHigh = math.max(high, math.max(haOpen, haClose))
+haLow = math.min(low, math.min(haOpen, haClose))
+
+// Plot Heiken Ashi Candles
+plotcandle(haOpen, haHigh, haLow, haClose, color=haClose >= haOpen ? color.green : color.red)
+
+// Bollinger Bands Calculation
+lengthBB = 20
+src = close
+mult = 2.0
+basis = ta.sma(src, lengthBB)
+dev = mult * ta.stdev(src, lengthBB)
+upperBB = basis + dev
+lowerBB = basis - dev
+
+// Stochastic RSI Calculation (fixed parameters)
+kLength = 14
+dSmoothing = 3
+stochRSI = ta.stoch(close, high, low, kLength)
+
+// Average True Range (ATR) for stop loss and take profit
+atrLength = 14
+atrValue = ta.atr(atrLength)
+
+// Entry conditions
+longCondition = ta.crossover(close, lowerBB) and stochRSI < 20
+shortCondition = ta.crossunder(close, upperBB) and stochRSI > 80
+
+// Alerts and trade signals
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+    strategy.exit("Take Profit", "Long", profit=atrValue*3, loss=atrValue)
+    alert("Buy Signal Triggered", alert.freq_once_per_bar_close)
+
+if (shortCondition)
+    strategy.entry("Short", strategy.short)
+    strategy.exit("Take Profit", "Short", profit=atrValue*3, loss=atrValue)
+    alert("Sell Signal Triggered", alert.freq_once_per_bar_close)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/473942
+
+> Last Modified
+
+2024-12-04 15:34:08

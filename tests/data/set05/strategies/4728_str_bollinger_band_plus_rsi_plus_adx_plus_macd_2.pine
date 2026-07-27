@@ -1,0 +1,83 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/量化趋势追踪策略Quantitative-Trend-Tracking-Strategy.md
+// content_hash: 3779fbe33819e934
+// collected: 2026-07-27
+strategy("Bollinger Band + RSI + ADX + MACD", overlay=true)
+
+//Session
+
+session = input(title="Trading Session", type=input.session, defval="0930-1500")
+
+sessionColor = BarInSession(session) ? color.green : na
+
+bgcolor(color=sessionColor, transp=95)
+
+// Bollinger Bands
+src = input(high, title="Bollinger Band Source", type=input.source)
+length = input(3, minval=1, type=input.integer, title="Bollinger Band Length")
+mult = input(4.989, minval=0.001, maxval=50, step=0.001, type=input.float, title="Bollinger Band Std Dev")
+basis = sma(src, length)
+dev = mult * stdev(src, length)
+upper = basis + dev
+lower = basis - dev
+
+
+plot(upper, title="Bollinger Band Upper", color=color.red)
+plot(lower, title="Bollinger Band Lower", color=color.green)
+
+// RSI
+rsiSrc = input(close, title="RSI Source", type=input.source)
+rsiLength = input(16, minval=1, type=input.integer, title="RSI Length")
+rsiComparator = input(39.2, title="RSI Comparator", type=input.float, step=0.1)
+
+rsi = rsi(rsiSrc, rsiLength)
+
+// ADX
+adxLength = input(14, minval=1, type=input.integer, title="ADX Length")
+adxComparator = input(14, minval=1, type=input.integer, title="ADX Comparator")
+
+adx = Adx(adxLength)
+
+// Heikinashi
+
+haClose = security(heikinashi(syminfo.ticker), timeframe.period, close)
+haOpen = security(heikinashi(syminfo.ticker), timeframe.period, open)
+
+nextHaOpen = (haOpen + haClose) / 2
+
+//MACD
+
+macdCalcTypeProcessed = input(title="MACD Source", type=input.source, defval=high)
+fast = input(12, title="MACD Fast")
+slow = input(20, title="MACD Slow")
+signalLen = input(15, title="MACD Signal")
+
+fastMA = ema(macdCalcTypeProcessed, fast)
+slowMA = ema(macdCalcTypeProcessed, slow)
+macd = fastMA - slowMA
+signal = sma(macd, signalLen)
+
+
+
+longCondition() =>
+    (low < lower) and (rsi[0] > rsiComparator) and (adx > adxComparator) and (close > nextHaOpen) and BarInSession(session) and macd > signal
+
+stop = (close - max((low - (low * 0.0022)), (close - (close * 0.0032)))) / syminfo.mintick
+target = (max(upper, (close + (close * 0.0075))) - close) / syminfo.mintick
+
+
+strategy.entry("SX,LE", strategy.long, when=longCondition(), comment="SX,LE")
+strategy.close_all(when=(not BarInSession(session)))
+strategy.exit("LX", from_entry="SX,LE", profit=target, loss=stop)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/440700
+
+> Last Modified
+
+2024-02-01 11:42:22

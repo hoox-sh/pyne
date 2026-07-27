@@ -1,0 +1,85 @@
+//@version=6
+// set03 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动态趋势跟踪的EMA-ADX多级止盈策略-Dynamic-Trend-Following-EMA-ADX-Multi-Level-Take-Profit-Strategy.md
+// content_hash: 567fe80aad34a99e
+// collected: 2026-07-27
+strategy("BTC Optimized Strategy v6", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=250)
+
+// === 參數設定 ===
+lengthEMA = input(50, title="EMA 週期")
+adxLength = input(14, title="ADX 週期")
+atrLength = input(14, title="ATR 週期")
+riskReward = input(2.0, title="風險報酬比")
+tp1_ratio = input(1.0, title="TP1 (ATR 倍數)")
+tp2_ratio = input(2.0, title="TP2 (ATR 倍數)")
+trailATR = input(3.0, title="移動止盈 ATR 倍數")
+
+// === 計算技術指標 ===
+ema = ta.ema(close, lengthEMA)
+atr = ta.atr(atrLength)
+
+// === 計算 ADX ===
+upMove = math.max(high - nz(high[1], high), 0)
+downMove = math.max(nz(low[1], low) - low, 0)
+tr = math.max(math.max(high - low, math.abs(high - nz(close[1], close))), math.abs(low - nz(close[1], close)))
+plusDM = upMove > downMove and upMove > 0 ? upMove : 0
+minusDM = downMove > upMove and downMove > 0 ? downMove : 0
+plusDI = 100 * ta.rma(plusDM, adxLength) / ta.rma(tr, adxLength)
+minusDI = 100 * ta.rma(minusDM, adxLength) / ta.rma(tr, adxLength)
+dx = 100 * math.abs(plusDI - minusDI) / (plusDI + minusDI)
+adx = ta.rma(dx, adxLength)
+
+// === 趨勢過濾條件 ===
+isTrending = adx > 20
+
+// === 進場條件 ===
+longCondition = ta.crossover(close, ema) and isTrending
+shortCondition = ta.crossunder(close, ema) and isTrending
+
+// === 計算止損、止盈價格 ===
+longStopLoss = low - atr
+shortStopLoss = high + atr
+longTP1 = close + tp1_ratio * atr
+longTP2 = close + tp2_ratio * atr
+shortTP1 = close - tp1_ratio * atr
+shortTP2 = close - tp2_ratio * atr
+
+// === 設定進場和出場 ===
+if longCondition
+    strategy.entry("Long", strategy.long)
+    strategy.exit("Long_Exit1", from_entry="Long", qty_percent=30, limit=longTP1, stop=longStopLoss)
+    strategy.exit("Long_Exit2", from_entry="Long", qty_percent=50, limit=longTP2, stop=longStopLoss)
+    strategy.exit("Long_Trail", from_entry="Long", qty_percent=20, 
+                 trail_points=atr * trailATR, 
+                 trail_offset=atr * trailATR)
+
+if shortCondition
+    strategy.entry("Short", strategy.short)
+    strategy.exit("Short_Exit1", from_entry="Short", qty_percent=30, limit=shortTP1, stop=shortStopLoss)
+    strategy.exit("Short_Exit2", from_entry="Short", qty_percent=50, limit=shortTP2, stop=shortStopLoss)
+    strategy.exit("Short_Trail", from_entry="Short", qty_percent=20, 
+                 trail_points=atr * trailATR, 
+                 trail_offset=atr * trailATR)
+
+// === 當價格超過 TP2 後，自動平倉 ===
+if close >= longTP2
+    strategy.close("Long")
+
+if close <= shortTP2
+    strategy.close("Short")
+
+// === 畫圖標示 ===
+plotshape(series=longCondition, location=location.belowbar, color=color.blue, style=shape.labelup, title="買入")
+plotshape(series=shortCondition, location=location.abovebar, color=color.red, style=shape.labeldown, title="賣出")
+plot(ema, color=color.orange, title="EMA")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/482432
+
+> Last Modified
+
+2025-02-18 14:08:02

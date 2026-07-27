@@ -1,0 +1,47 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于AO指标和均线的趋势跟踪策略AO-Indicator-Based-Trend-Following-Strategy.md
+// content_hash: 64c0522629b9ab3a
+// collected: 2026-07-27
+strategy(title="Bingx ESTRATEGIA de Trading en 1 minuto ", shorttitle="AO")
+long = input.bool(true, "long")
+short = input.bool(true, "short")
+profit = (input.float(10, "profit") / 100) + 1
+stop = (input.float(5, "stop") / 100) + 1
+ao = ta.sma(hl2,5) - ta.sma(hl2,34)
+diff = ao - ao[1]
+plot(ao, color = diff <= 0 ? #F44336 : #009688, style=plot.style_columns)
+changeToGreen = ta.crossover(diff, 0)
+changeToRed = ta.crossunder(diff, 0)
+alertcondition(changeToGreen, title = "AO color changed to green", message = "Awesome Oscillator's color has changed to green")
+alertcondition(changeToRed, title = "AO color changed to red", message = "Awesome Oscillator's color has changed to red")
+
+ema20 = ta.ema(close, 20)
+ema200 = ta.ema(close, 200)
+rsi = ta.rsi(close, 7)
+plot(rsi)
+plot(0, color=color.white)
+var float pentry = 0.0
+var float lentry = 0.0
+var bool oab = false
+// oab := ta.crossover(ao, 0) ? true : ta.crossover(0, ao) ? false : oab[1]
+
+if long and close > open and ta.crossover(close, ema20) and ema20 > ema200 and ao > 0 and rsi > 50
+    strategy.entry("long", strategy.long)
+    pentry := close
+strategy.exit("exit long", "long", limit=pentry * profit, stop=pentry / stop)
+
+if short and close < open and ta.crossunder(close, ema20) and ema20 < ema200 and ao < 0 and rsi < 50
+    strategy.entry("short", strategy.short)
+    lentry := close
+strategy.exit("exit short", "short", limit=lentry / profit, stop=lentry * stop)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/435945
+
+> Last Modified
+
+2023-12-20 11:59:48

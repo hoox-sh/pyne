@@ -1,0 +1,57 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多指标趋势追踪策略-Multi-Indicator-Trend-Following-Strategy.md
+// content_hash: 995953e9ea36e274
+// collected: 2026-07-27
+strategy("Jancok Strategycs v3", overlay=true, initial_capital=100, currency="USD")
+
+// Inputs
+short_ma_length = input.int(9, title="Short MA Length", minval=1)
+long_ma_length = input.int(21, title="Long MA Length", minval=1)
+atr_multiplier_for_sl = input.float(2, title="ATR Multiplier for Stop Loss", minval=1.0)
+atr_multiplier_for_tp = input.float(4, title="ATR Multiplier for Take Profit", minval=1.0)
+volume_ma_length = input.int(20, title="Volume MA Length", minval=1)
+volatility_threshold = input.float(1.5, title="Volatility Threshold", minval=0.1, step=0.1)
+use_trailing_stop = input.bool(false, title="Use Trailing Stop")
+trailing_stop_atr_multiplier = input.float(2.5, title="Trailing Stop ATR Multiplier", minval=1.0)
+
+// Calculating indicators
+short_ma = ta.sma(close, short_ma_length)
+long_ma = ta.sma(close, long_ma_length)
+[macdLine, signalLine, _] = ta.macd(close, 12, 26, 9)
+atr = ta.atr(14)
+volume_ma = ta.sma(volume, volume_ma_length)
+volatility = atr / close
+
+// Plotting indicators
+plot(short_ma, color=color.red)
+plot(long_ma, color=color.blue)
+
+// Defining entry conditions with added indicators and filters
+long_condition = ta.crossover(short_ma, long_ma) and (macdLine > signalLine) and (volume > volume_ma) and (volatility < volatility_threshold)
+short_condition = ta.crossunder(short_ma, long_ma) and (macdLine < signalLine) and (volume > volume_ma) and (volatility < volatility_threshold)
+
+// Entering trades with dynamic stop loss and take profit based on ATR
+if (long_condition)
+    strategy.entry("Long", strategy.long)
+    if use_trailing_stop
+        strategy.exit("Exit Long", "Long", trail_points=atr * trailing_stop_atr_multiplier, trail_offset=atr * 0.5)
+    else
+        strategy.exit("Exit Long", "Long", loss=atr * atr_multiplier_for_sl, profit=atr * atr_multiplier_for_tp)
+
+if (short_condition)
+    strategy.entry("Short", strategy.short)
+    if use_trailing_stop
+        strategy.exit("Exit Short", "Short", trail_points=atr * trailing_stop_atr_multiplier, trail_offset=atr * 0.5)
+    else
+        strategy.exit("Exit Short", "Short", loss=atr * atr_multiplier_for_sl, profit=atr * atr_multiplier_for_tp)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/449721
+
+> Last Modified
+
+2024-04-28 14:25:12

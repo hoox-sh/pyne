@@ -1,0 +1,67 @@
+//@version=3
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/RSI收敛破位趋势震荡停损策略Price-Drop-Buy-Strategy-in-Downtrend-with-Stop-Loss.md
+// content_hash: 90ad538a895eaf0c
+// collected: 2026-07-27
+strategy("price drop buy in", overlay=true, initial_capital=1000, max_bars_back=24)
+
+// === INPUT BACKTEST RANGE ===
+FromMonth = input(defval = 1, title = "From Month", minval = 1, maxval = 12)
+FromDay   = input(defval = 1, title = "From Day", minval = 1, maxval = 31)
+FromYear  = input(defval = 2018, title = "From Year", minval = 2017)
+ToMonth   = input(defval = 1, title = "To Month", minval = 1, maxval = 12)
+ToDay     = input(defval = 1, title = "To Day", minval = 1, maxval = 31)
+ToYear    = input(defval = 9999, title = "To Year", minval = 2017)
+
+// === FUNCTION EXAMPLE ===
+start     = timestamp(FromYear, FromMonth, FromDay, 00, 00)  // backtest start window
+finish    = timestamp(ToYear, ToMonth, ToDay, 23, 59)        // backtest finish window
+window()  => true // create function "within window of time"
+
+
+///////////// RSI
+RSIlength = input(60,title="RSI Period Length") 
+RSIoverSold = 40
+RSIoverBought = 50
+price = close
+vrsi = rsi(close, RSIlength)
+
+smaLong = sma(close,80)
+smaShort = sma(close,40)
+
+///////////// Bollinger Bands
+BBlength = input(20, minval=1,title="Bollinger Period Length")
+BBmult = 2 // input(2.0, minval=0.001, maxval=50,title="Bollinger Bands Standard Deviation")
+BBbasis = sma(price, BBlength)
+BBdev = BBmult * stdev(price, BBlength)
+BBupper = BBbasis + BBdev
+BBlower = BBbasis - BBdev
+
+longcondition = (price < BBlower and vrsi < RSIoverSold) 
+
+    // vrsi < RSIoverSold
+
+shortcondition = (RSIoverBought and strategy.openprofit > 50 )  or price > BBupper
+
+
+
+
+
+
+if(longcondition)
+    strategy.entry('buy', strategy.long, when = window())
+    
+if(shortcondition)
+    strategy.entry('sell', strategy.short, when = window())
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/437773
+
+> Last Modified
+
+2024-01-05 14:18:05

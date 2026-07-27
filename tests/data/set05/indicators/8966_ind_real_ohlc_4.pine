@@ -1,0 +1,10 @@
+//@version=2
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/v3/appendix/howtos.md::howtos.md#block2
+// content_hash: e9497c669de09d0b
+// collected: 2026-07-27
+study("Real OHLC", overlay=true)
+t = tickerid(syminfo.prefix, ticker)
+realC = security(t, period, close)
+plot(realC)

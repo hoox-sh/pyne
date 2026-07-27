@@ -1,0 +1,53 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/GBS高低点确认策略-GBS-TOP-BOTTOM-Confirmed-Strategy.md
+// content_hash: 8b698c2f8fa10784
+// collected: 2026-07-27
+strategy("GBS TOP BOTTOM Confirmed", overlay=true)
+
+// Entry condition
+var float entryHigh = na
+var line entryLine = na
+entryCondition = high < high[1] and high[1] > high[2]
+if (entryCondition)
+    entryHigh := high[1]
+    // entryLine := line.new(bar_index - 1, entryHigh, bar_index + 10, entryHigh, color=color.green)
+
+// Buy condition based on nearest entry
+buyCondition = not na(entryHigh) and high > entryHigh and open < entryHigh
+
+// Exit condition
+var float exitLow = na
+var line exitLine = na
+exitCondition = low > low[1] and low[1] < low[2]
+if (exitCondition)
+    exitLow := low[1]
+    // exitLine := line.new(bar_index - 1, exitLow, bar_index + 10, exitLow, color=color.red)
+
+// Sell condition based on nearest exit
+sellCondition = not na(exitLow) and low < exitLow and open > exitLow
+
+// Strategy logic
+strategy.entry("Buy", strategy.long, when = buyCondition)
+strategy.close("Buy", when = sellCondition)
+
+// Plot tiny dot above high[1] for entry condition
+plotshape(series=entryCondition, title="Entry Dot", color=color.rgb(3, 99, 5), style=shape.circle, size=size.tiny, location=location.abovebar, offset=-1)
+
+// Plot tiny dot below low[1] for exit condition
+plotshape(series=exitCondition, title="Exit Dot", color=color.rgb(107, 3, 3), style=shape.circle, size=size.tiny, location=location.belowbar, offset=-1)
+
+// Plot buy and sell signals
+plotshape(series=buyCondition, title="Buy Signal", color=color.blue, style=shape.triangleup, size=size.small, location=location.abovebar, text="Buy")
+plotshape(series=sellCondition, title="Sell Signal", color=color.orange, style=shape.triangledown, size=size.small, location=location.belowbar, text="Sell")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/449724
+
+> Last Modified
+
+2024-04-28 14:42:02

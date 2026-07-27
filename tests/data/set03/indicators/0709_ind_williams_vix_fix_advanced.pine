@@ -1,0 +1,385 @@
+//@version=6
+// set03 corpus entry
+// source_repo: casoon-pine-scripts
+// source_path: casoon-pine-scripts/indicators/volatility/williams_vix_fix_advanced/williams_vix_fix_advanced.pine
+// content_hash: bf99425a3a4c1c84
+// collected: 2026-07-27
+// ============================================================================
+// Williams VIX Fix Advanced [WavesUnchained]
+// Version: 1.9
+// Author: WavesUnchained
+// Build: 2026-07-07 00:00:00
+// ============================================================================
+// Synthetic fear gauge (Williams VIX Fix) with dual-direction signals, StdDev
+// and percentile bands, stall/absorption context, slow-WVF trend context,
+// divergence wedge, and gradient coloring on a bounded 0–100 panel.
+//
+// Features:
+//   ✓ Bullish WVF: (Highest(Close,N) − Low) / Highest(Close,N) × 100
+//   ✓ Bearish WVF: (High − Lowest(Close,N)) / Lowest(Close,N) × 100
+//   ✓ StdDev upper band + percentile threshold for spike detection
+//   ✓ Stall/absorption: WVF surges but price barely moves (weak signal context),
+//     computed independently for the bullish and bearish side
+//   ✓ Spike Quality (0–100): how far each side pushed past its own band and
+//     context EMA, penalized by stall/absorption
+//   ✓ Reclaim: marks price reclaiming the range within N bars of a
+//     non-absorbed spike — the actionable signal, not just the extreme
+//   ✓ Slow WVF context line as background fear reference
+//   ✓ Fast ↔ Slow WVF divergence wedge
+//   ✓ View Mode (Clean / Balanced / Full) controls how many layers show at once
+//   ✓ Gradient coloring, shadow fills, band fills, and alerts
+//   ✓ Sentiment bar — live ±100 bull/bear dominance score + mini bar at the
+//     panel's right edge, not a fixed Bullish/Bearish claim
+//
+// ============================================================================
+
+indicator("Williams VIX Fix Advanced [WavesUnchained]", "WVFA", overlay=false, max_labels_count=500)
+
+// ─────────────────────────────────────────────────────────────────────────────
+// INPUTS
+// ─────────────────────────────────────────────────────────────────────────────
+
+g_core = "1 · Core"
+wvfLen     = input.int(22, "WVF Lookback", minval=2, group=g_core)
+smoothWVF  = input.bool(false, "Smooth WVF output", group=g_core,
+     tooltip="Apply a smoothing filter to the raw WVF values. Reduces noise at the cost of lag.")
+smoothLen  = input.int(3, "  Length", minval=1, group=g_core)
+smoothType = input.string("EMA", "  Type",
+     options=["EMA", "SMA", "RMA", "WMA", "SuperSmoother", "T3", "KAMA", "JMA Approx"],
+     group=g_core)
+jmaPhase   = input.int(50,    "  JMA Phase", minval=-100, maxval=100,             group=g_core)
+jmaPower   = input.float(2.0, "  JMA Power", minval=1.0,  maxval=4.0, step=0.25, group=g_core)
+showBearWVF = input.bool(true, "Show Bearish WVF (complacency / top gauge)", group=g_core)
+
+g_levels = "2 · Reference Levels"
+midLevel = input.float(3.0, "Reference Level (±)", minval=0.0, step=0.5, group=g_levels,
+     tooltip="Shown as dotted lines at +N and −N as loose reference markers. Not used in signal logic.")
+
+g_bands = "3 · Spike Bands"
+bbl           = input.int(20,   "StdDev Band Length",       minval=2, group=g_bands)
+mult          = input.float(2.0,"StdDev Multiplier",        minval=0.1, step=0.1, group=g_bands)
+rangeLen      = input.int(100,  "Percentile Lookback",      minval=10, group=g_bands)
+rangeHigh     = input.float(90, "Percentile Threshold (%)", minval=50, maxval=100, step=1, group=g_bands)
+useBand       = input.bool(true, "Spike: above StdDev band",      group=g_bands)
+usePercentile = input.bool(false, "Spike: above percentile level", group=g_bands)
+minSpikeLevel = input.float(0.0, "Min absolute WVF level for spike", minval=0.0, step=0.5, group=g_bands,
+     tooltip="Absolute minimum WVF value required for a spike signal. 0 = disabled (pure band logic). Raise to 5–10 on forex or sub-daily timeframes where WVF values are inherently small.")
+
+g_stall = "4 · Stall / Absorption"
+useStall     = input.bool(true, "Detect Stall (WVF surges, price holds)", group=g_stall,
+     tooltip="Flags bars where WVF spikes sharply but price barely moves — likely a thin wick rather than genuine fear. Never changes spike detection logic.")
+stallLen     = input.int(5,     "Stall Lookback (bars)", minval=1, group=g_stall)
+stallFlatATR = input.float(0.5, "Max Price Move (ATR)",  minval=0.0, step=0.1, group=g_stall)
+stallWVFMin  = input.float(2.0, "Min WVF Surge",         minval=0.0, step=0.5, group=g_stall)
+
+g_ctx = "5 · Context"
+useCtx = input.bool(true, "Show Context Line (EMA of WVF)", group=g_ctx,
+     tooltip="EMA of the fast WVF — acts as the D-line (signal line). Histogram shows WVF deviation from this average. Rises toward 0 on slow-down, spikes positive on fear extremes.")
+ctxLen = input.int(44, "Context EMA Length", minval=4, group=g_ctx)
+
+g_div = "6 · Divergence"
+showDiv = input.bool(true, "Highlight Fast ↔ Slow WVF Divergence", group=g_div,
+     tooltip="Fills the wedge between fast WVF and the slow context line when they move in opposite directions.")
+divLen  = input.int(4,   "Divergence Slope Lookback", minval=1, group=g_div)
+divMin  = input.float(3, "Min Fast Slope",            minval=0, step=0.5, group=g_div)
+
+g_plots = "7 · Plots"
+viewMode = input.string("Balanced", "View Mode", options=["Clean", "Balanced", "Full"], group=g_plots,
+     tooltip="Clean: WVF + Bear WVF + Reclaim markers + Sentiment Bar only. Balanced: adds the Context lines and StdDev bands. Full: adds Percentile levels, zone fills, and the Divergence fill.")
+showShadow   = input.bool(true, "Zone Fills (WVF vs zero line)",    group=g_plots)
+
+
+showSentiment = input.bool(true, "Show Sentiment Bar", group=g_plots,
+     tooltip="Live bull/bear dominance score on the right edge of the panel — not a fixed Bullish/Bearish claim, but a ±100 score with a mini bar showing how close either side is to its own spike band.")
+
+g_col = "7 · Plots · Colors"
+colCalm    = input.color(#00bcd4,                "Bull WVF (fear gauge)",         group=g_col)
+colFear    = input.color(#f06292,                "Fear fills/bands",              group=g_col)
+colBearWVF = input.color(#9c27b0,                "Bear WVF (complacency gauge)",  group=g_col)
+colSpike   = input.color(#00c853,                "Long context marker",           group=g_col)
+colSpikeB  = input.color(#e53935,                "Short context marker",          group=g_col)
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SMOOTHING FUNCTIONS
+// ─────────────────────────────────────────────────────────────────────────────
+
+f_supersmoother(series float x, simple int len) =>
+    float pi = math.pi
+    float a1 = math.exp(-1.414 * pi / len)
+    float b1 = 2.0 * a1 * math.cos(1.414 * pi / len)
+    float c2 = b1
+    float c3 = -(a1 * a1)
+    float c1 = 1.0 - c2 - c3
+    var float ss = na
+    ss := c1 * (x + nz(x[1])) / 2.0 + c2 * nz(ss[1]) + c3 * nz(ss[2])
+    ss
+
+f_t3(series float x, simple int len) =>
+    float b  = 0.7
+    float e1 = ta.ema(x, len)
+    float e2 = ta.ema(e1, len)
+    float e3 = ta.ema(e2, len)
+    float e4 = ta.ema(e3, len)
+    float e5 = ta.ema(e4, len)
+    float e6 = ta.ema(e5, len)
+    float c1 = -(b * b * b)
+    float c2 =  3.0 * b * b + 3.0 * b * b * b
+    float c3 = -6.0 * b * b - 3.0 * b - 3.0 * b * b * b
+    float c4 =  1.0 + 3.0 * b + b * b * b + 3.0 * b * b
+    c1 * e6 + c2 * e5 + c3 * e4 + c4 * e3
+
+f_kama(series float x, simple int len) =>
+    float change   = math.abs(x - x[len])
+    float vol      = math.sum(math.abs(x - x[1]), len)
+    float er       = vol != 0.0 ? change / vol : 0.0
+    float sc       = math.pow(er * (2.0 / 3.0 - 2.0 / 31.0) + 2.0 / 31.0, 2)
+    var float kama = na
+    kama := nz(kama[1], x) + sc * (x - nz(kama[1], x))
+    kama
+
+f_jma(series float x, simple int len, simple int phase, simple float power) =>
+    var float jma = na
+    var float e0  = na
+    var float e1  = na
+    var float e2  = na
+    float phaseRatio = phase < -100 ? 0.5 : phase > 100 ? 2.5 : phase / 100.0 + 1.5
+    float beta       = 0.45 * (len - 1) / (0.45 * (len - 1) + 2.0)
+    float alpha      = math.pow(beta, power)
+    e0  := (1.0 - alpha) * x + alpha * nz(e0[1], x)
+    e1  := (x - e0) * (1.0 - beta) + beta * nz(e1[1], 0.0)
+    e2  := (e0 + phaseRatio * e1 - nz(jma[1], x)) * math.pow(1.0 - alpha, 2.0) + math.pow(alpha, 2.0) * nz(e2[1], 0.0)
+    jma := nz(jma[1], x) + e2
+    jma
+
+f_smooth(series float x, simple int len, simple string mode) =>
+    switch mode
+        "SMA"           => ta.sma(x, len)
+        "RMA"           => ta.rma(x, len)
+        "WMA"           => ta.wma(x, len)
+        "SuperSmoother" => f_supersmoother(x, len)
+        "T3"            => f_t3(x, len)
+        "KAMA"          => f_kama(x, len)
+        "JMA Approx"    => f_jma(x, len, jmaPhase, jmaPower)
+        =>                 ta.ema(x, len)
+
+// ─────────────────────────────────────────────────────────────────────────────
+// WVF CORE
+// ─────────────────────────────────────────────────────────────────────────────
+
+float hc = ta.highest(close, wvfLen)
+float lc = ta.lowest(close,  wvfLen)
+
+float wvfRaw  = hc != 0.0 ? (hc - low)  / hc * 100.0 : 0.0
+float bwvfRaw = lc != 0.0 ? (high - lc) / lc * 100.0 : 0.0
+
+float wvf  = smoothWVF ? f_smooth(wvfRaw,  smoothLen, smoothType) : wvfRaw
+float bwvf = smoothWVF ? f_smooth(bwvfRaw, smoothLen, smoothType) : bwvfRaw
+
+float ctxWVF  = ta.ema(wvf,  ctxLen)
+float ctxBWVF = ta.ema(bwvf, ctxLen)
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SPIKE BANDS
+// ─────────────────────────────────────────────────────────────────────────────
+
+float upperBand       = ta.sma(wvf, bbl) + mult * ta.stdev(wvf, bbl)
+float wvfHigh         = ta.highest(wvf, rangeLen)
+float wvfLow          = ta.lowest(wvf,  rangeLen)
+float percentileLvl   = wvfLow + rangeHigh / 100.0 * (wvfHigh - wvfLow)
+
+bool spikeRaw = ((useBand and wvf >= upperBand) or (usePercentile and wvf >= percentileLvl)) and wvf >= minSpikeLevel
+
+float bUpperBand      = ta.sma(bwvf, bbl) + mult * ta.stdev(bwvf, bbl)
+float bwvfHigh        = ta.highest(bwvf, rangeLen)
+float bwvfLow         = ta.lowest(bwvf,  rangeLen)
+float bPercentileLvl  = bwvfLow + rangeHigh / 100.0 * (bwvfHigh - bwvfLow)
+
+bool bSpikeRaw = showBearWVF and ((useBand and bwvf >= bUpperBand) or (usePercentile and bwvf >= bPercentileLvl)) and bwvf >= minSpikeLevel
+
+// ─────────────────────────────────────────────────────────────────────────────
+// STALL / ABSORPTION
+// ─────────────────────────────────────────────────────────────────────────────
+
+float atrRef   = ta.atr(14)
+float priceChg = atrRef != 0.0 ? math.abs(close - close[stallLen]) / atrRef : 0.0
+bool  flatPx   = priceChg < stallFlatATR
+
+float wvfChg    = wvf  - wvf[stallLen]
+bool  stallNow  = useStall and wvfChg  > stallWVFMin and flatPx
+
+float bwvfChg   = bwvf - bwvf[stallLen]
+bool  bStallNow = useStall and bwvfChg > stallWVFMin and flatPx
+
+bool spikeCross  = spikeRaw  and not spikeRaw[1]
+bool bSpikeCross = bSpikeRaw and not bSpikeRaw[1]
+
+bool spikeStrong  = spikeCross  and not stallNow
+bool spikeWeak    = spikeCross  and stallNow
+bool bSpikeStrong = bSpikeCross and not bStallNow
+bool bSpikeWeak   = bSpikeCross and bStallNow
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SPIKE QUALITY — 0–100, how far each side has pushed past its own spike band
+// and context EMA, penalized when the stall/absorption filter is active
+// ─────────────────────────────────────────────────────────────────────────────
+
+float spikeExcess  = upperBand  != 0.0 ? math.max(0.0, wvf  / upperBand  - 1.0) : 0.0
+float ctxExcess    = ctxWVF     != 0.0 ? math.max(0.0, wvf  / ctxWVF     - 1.0) : 0.0
+float bullQuality  = math.min(100.0, spikeExcess  * 50.0 + ctxExcess  * 25.0 + (stallNow  ? 0.0 : 25.0))
+
+float bSpikeExcess = bUpperBand != 0.0 ? math.max(0.0, bwvf / bUpperBand - 1.0) : 0.0
+float bCtxExcess   = ctxBWVF    != 0.0 ? math.max(0.0, bwvf / ctxBWVF    - 1.0) : 0.0
+float bearQuality  = math.min(100.0, bSpikeExcess * 50.0 + bCtxExcess * 25.0 + (bStallNow ? 0.0 : 25.0))
+
+var float lastBullQuality = 0.0
+var float lastBearQuality = 0.0
+if spikeCross
+    lastBullQuality := bullQuality
+if bSpikeCross
+    lastBearQuality := bearQuality
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DIVERGENCE (fast WVF vs slow context WVF)
+// ─────────────────────────────────────────────────────────────────────────────
+
+float fastDir = wvf    - wvf[divLen]
+float slowDir = ctxWVF - ctxWVF[divLen]
+bool  divBull = useCtx and showDiv and fastDir < -divMin and slowDir > 0.0
+bool  divBear = useCtx and showDiv and fastDir >  divMin and slowDir < 0.0
+
+// ─────────────────────────────────────────────────────────────────────────────
+// COLORS
+// ─────────────────────────────────────────────────────────────────────────────
+
+color lineCol  = wvf  >= ctxWVF  ? colCalm    : color.new(colCalm,    65)
+color lineColB = bwvf >= ctxBWVF ? colBearWVF : color.new(colBearWVF, 65)
+color ctxCol   = color.new(colCalm,    70)
+color ctxColB  = color.new(colBearWVF, 70)
+
+// ─────────────────────────────────────────────────────────────────────────────
+// HLINES
+// ─────────────────────────────────────────────────────────────────────────────
+
+hline(0,          "Zero",  color=color.new(color.gray, 50), linewidth=1)
+hline( midLevel,  "Ref+",  color=color.new(color.gray, 78), linestyle=hline.style_dotted, linewidth=1)
+hline(-midLevel,  "Ref−",  color=color.new(color.gray, 78), linestyle=hline.style_dotted, linewidth=1)
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PLOTS — View Mode gates which layers show: Clean = core lines only,
+// Balanced = + Context/Bands, Full = + Percentile/Fills/Divergence
+// ─────────────────────────────────────────────────────────────────────────────
+
+bool showBandsNow = viewMode != "Clean"
+bool showPctNow   = viewMode == "Full"
+bool showCtxNow   = useCtx  and viewMode != "Clean"
+bool showFillsNow = showShadow and viewMode == "Full"
+bool showDivNow   = showDiv  and viewMode == "Full"
+
+pZero = plot(0, display=display.none)
+plot(showBandsNow ? upperBand : na,                         "Bull Band",         color=color.new(colCalm,    55), linewidth=1)
+plot(showPctNow   ? percentileLvl : na,                     "Bull Percentile",   color=color.new(colCalm,    78), linewidth=1)
+plot(showBearWVF and showBandsNow ? -bUpperBand    : na,     "Bear Band",         color=color.new(colBearWVF, 55), linewidth=1)
+plot(showBearWVF and showPctNow   ? -bPercentileLvl : na,    "Bear Percentile",   color=color.new(colBearWVF, 78), linewidth=1)
+
+pCtx  = plot(showCtxNow ? ctxWVF                  : na, "WVF Context",  color=ctxCol,  linewidth=1)
+pCtxB = plot(showBearWVF and showCtxNow ? -ctxBWVF : na, "Bear Context", color=ctxColB, linewidth=1)
+pBWVF = plot(showBearWVF ? -bwvf              : na, "Bear WVF",     color=lineColB, linewidth=2)
+pWVF  = plot(wvf,                                   "WVF",          color=lineCol,  linewidth=2)
+
+fill(pWVF,  pCtx,
+     color=showDivNow and divBull ? color.new(colCalm, 82) : showDivNow and divBear ? color.new(colBearWVF, 82) : na,
+     title="Divergence Fill")
+
+fill(pWVF,  pZero, color=showFillsNow ? color.new(lineCol,  88) : na, title="Bull Zone")
+fill(pBWVF, pZero, color=showFillsNow and showBearWVF ? color.new(lineColB, 88) : na, title="Bear Zone")
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SENTIMENT BAR — live bull/bear dominance score (0 = balanced, ±100 = at/above
+// that side's own spike band). A graded score + mini bar, not a fixed
+// Bullish/Bearish claim.
+// ─────────────────────────────────────────────────────────────────────────────
+
+float bullPct   = upperBand  != 0.0 ? wvf  / upperBand  * 100.0 : 0.0
+float bearPct   = bUpperBand != 0.0 ? bwvf / bUpperBand * 100.0 : 0.0
+float sentScore = math.max(-100.0, math.min(100.0, bullPct - bearPct))
+float absScore  = math.abs(sentScore)
+
+f_scoreColor(score, absS) =>
+    base = score > 0 ? colSpike : colSpikeB
+    color result = na
+    if absS < 15
+        result := color.new(color.gray, 40)
+    else if absS >= 80
+        result := color.new(base, 10)
+    else if absS >= 60
+        result := color.new(base, 30)
+    else if absS >= 40
+        result := color.new(base, 50)
+    else
+        result := color.new(base, 70)
+    result
+
+int    barSegments = 8
+int    filled      = int(math.round(absScore / 100.0 * barSegments))
+string barStr       = str.repeat("■", filled) + str.repeat("·", barSegments - filled)
+string signStr       = sentScore > 0 ? "+" : ""
+string sentTxt       = signStr + str.tostring(sentScore, "#") + "  " + barStr
+color  sentColor     = f_scoreColor(sentScore, absScore)
+
+var label sentLabel = na
+if showSentiment and barstate.islast
+    label.delete(sentLabel)
+    sentLabel := label.new(bar_index + 3, 0, sentTxt,
+         xloc=xloc.bar_index, yloc=yloc.price, style=label.style_label_left,
+         color=sentColor, textcolor=color.white, size=size.normal,
+         tooltip="Bull/bear dominance: (WVF ÷ its StdDev band − Bear-WVF ÷ its StdDev band) × 100, clamped to ±100. Positive = fear side closer to/above its spike band; negative = complacency side closer to/above its spike band. |score| < 15 reads as balanced.")
+else if not showSentiment and barstate.islast
+    label.delete(sentLabel)
+
+// ─────────────────────────────────────────────────────────────────────────────
+// RECLAIM — price reclaiming the range after a non-absorbed spike: the
+// actionable signal, versus the spike itself which only flags an extreme
+// ─────────────────────────────────────────────────────────────────────────────
+
+g_reclaim = "8 · Reclaim"
+useReclaim        = input.bool(true, "Detect Reclaim After Spike", group=g_reclaim,
+     tooltip="Marks the bar where price reclaims the recent range within N bars of a non-absorbed spike — the point where the extreme actually gets bought/sold back, not the extreme itself.")
+reclaimWindow     = input.int(5, "Spike Recency Window (bars)",        minval=1, group=g_reclaim)
+reclaimConfirmLen = input.int(3, "Reclaim Confirmation Length (bars)", minval=1, group=g_reclaim)
+minReclaimQuality = input.float(0.0, "Min Spike Quality for Reclaim", minval=0.0, maxval=100.0, step=5.0, group=g_reclaim,
+     tooltip="0 = disabled. Raise to only mark reclaims that followed a high-quality spike.")
+
+bool fearSpikeRecent = useReclaim and ta.barssince(spikeStrong)  <= reclaimWindow
+bool compSpikeRecent = useReclaim and ta.barssince(bSpikeStrong) <= reclaimWindow
+
+bool reclaimLongRaw  = fearSpikeRecent and close > ta.highest(high, reclaimConfirmLen)[1] and lastBullQuality >= minReclaimQuality
+bool reclaimShortRaw = compSpikeRecent and close < ta.lowest(low,  reclaimConfirmLen)[1]  and lastBearQuality >= minReclaimQuality
+
+bool reclaimLong  = reclaimLongRaw  and not reclaimLongRaw[1]
+bool reclaimShort = reclaimShortRaw and not reclaimShortRaw[1]
+
+if reclaimLong
+    label.new(bar_index, wvf, "▲",
+         style=label.style_label_up, color=colSpike, textcolor=color.white, size=size.tiny,
+         tooltip="Reclaim Long — Fear spike (Quality " + str.tostring(lastBullQuality, "#") + "/100) reclaimed within " + str.tostring(reclaimWindow) + " bars: close broke above the prior " + str.tostring(reclaimConfirmLen) + "-bar high.")
+
+if reclaimShort
+    label.new(bar_index, -bwvf, "▼",
+         style=label.style_label_down, color=colSpikeB, textcolor=color.white, size=size.tiny,
+         tooltip="Reclaim Short — Complacency spike (Quality " + str.tostring(lastBearQuality, "#") + "/100) reclaimed within " + str.tostring(reclaimWindow) + " bars: close broke below the prior " + str.tostring(reclaimConfirmLen) + "-bar low.")
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ALERTS
+// ─────────────────────────────────────────────────────────────────────────────
+
+bool alertsOnBarClose = input.bool(true, "Alerts only on bar close (confirmed)", group="9 · Alerts")
+bool alertOk = not alertsOnBarClose or barstate.isconfirmed
+
+alertcondition(alertOk and spikeStrong,  "WVF Bull Spike",           "WVFA · SPIKE BULL · {{ticker}} {{interval}}")
+alertcondition(alertOk and spikeWeak,    "WVF Bull Spike (Absorbed)", "WVFA · SPIKE BULL ABSORBED · {{ticker}} {{interval}}")
+alertcondition(alertOk and bSpikeStrong, "WVF Bear Spike",           "WVFA · SPIKE BEAR · {{ticker}} {{interval}}")
+alertcondition(alertOk and bSpikeWeak,   "WVF Bear Spike (Absorbed)", "WVFA · SPIKE BEAR ABSORBED · {{ticker}} {{interval}}")
+alertcondition(alertOk and (spikeStrong or bSpikeStrong), "WVF Any Spike", "WVFA · SPIKE · {{ticker}} {{interval}}")
+alertcondition(alertOk and reclaimLong,  "Reclaim Long",  "WVFA · RECLAIM LONG · {{ticker}} {{interval}}")
+alertcondition(alertOk and reclaimShort, "Reclaim Short", "WVFA · RECLAIM SHORT · {{ticker}} {{interval}}")

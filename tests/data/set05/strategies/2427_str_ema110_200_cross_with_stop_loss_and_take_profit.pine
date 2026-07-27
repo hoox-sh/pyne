@@ -1,0 +1,57 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双均线趋势跟踪与风险控制策略-Dual-Moving-Average-Trend-Following-Strategy-with-Risk-Management.md
+// content_hash: fb25f8bed4cf750e
+// collected: 2026-07-27
+strategy("EMA110/200 Cross with Stop-Loss and Take-Profit", overlay=true)
+
+// 定义EMA110和EMA200
+ema110 = ta.ema(close, 110)
+ema200 = ta.ema(close, 250)
+
+// 画出EMA
+plot(ema110, color=color.blue, title="EMA110")
+plot(ema200, color=color.red, title="EMA200")
+
+// 计算交叉信号
+longCondition = ta.crossover(ema110, ema200)  // EMA110上穿EMA200，做多
+shortCondition = ta.crossunder(ema110, ema200)  // EMA110下穿EMA200，做空
+
+// 设置止损和止盈
+stopLoss = 0.01  // 止损1%
+takeProfit = 0.005  // 止盈0.5%
+
+// 判断是否已有仓位
+isLong = strategy.position_size > 0  // 当前是否为多头仓位
+isShort = strategy.position_size < 0  // 当前是否为空头仓位
+
+// 执行策略：做多时平空，做空时平多
+if (longCondition and not isLong)  // 如果满足做多条件并且当前没有多头仓位
+    if (isShort)  // 如果当前是空头仓位，先平空
+        strategy.close("Short")
+    strategy.entry("Long", strategy.long)  // 执行做多
+    strategy.exit("Take Profit/Stop Loss", "Long", stop=close * (1 - stopLoss), limit=close * (1 + takeProfit))
+
+if (shortCondition and not isShort)  // 如果满足做空条件并且当前没有空头仓位
+    if (isLong)  // 如果当前是多头仓位，先平多
+        strategy.close("Long")
+    strategy.entry("Short", strategy.short)  // 执行做空
+    strategy.exit("Take Profit/Stop Loss", "Short", stop=close * (1 + stopLoss), limit=close * (1 - takeProfit))
+
+// 在表格中显示信号
+var table myTable = table.new(position.top_right, 1, 1)
+if (longCondition and not isLong)
+    table.cell(myTable, 0, 0, "Buy Signal", text_color=color.green)
+if (shortCondition and not isShort)
+    table.cell(myTable, 0, 0, "Sell Signal", text_color=color.red)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/475597
+
+> Last Modified
+
+2024-12-20 14:30:29

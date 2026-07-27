@@ -1,0 +1,11 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block296
+// content_hash: f6eebe620a238111
+// collected: 2026-07-27
+indicator("table.new example")
+var testTable = table.new(position = position.top_right, columns = 2, rows = 1, bgcolor = color.yellow, border_width = 1)
+if barstate.islast
+    table.cell(table_id = testTable, column = 0, row = 0, text = "Open is " + str.tostring(open))
+    table.cell(table_id = testTable, column = 1, row = 0, text = "Close is " + str.tostring(close), bgcolor=color.teal)

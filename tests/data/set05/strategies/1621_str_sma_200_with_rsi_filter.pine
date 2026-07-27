@@ -1,0 +1,76 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双均线趋势跟踪策略与RSI过滤器-Dual-Moving-Average-Trend-Following-Strategy-with-RSI-Filter.md
+// content_hash: 04f1420010058ee7
+// collected: 2026-07-27
+strategy("SMA 200 with RSI Filter", overlay=true)
+
+// Inputs
+smaLength = input.int(200, title="SMA Length")
+confirmBars = input.int(30, title="Confirmation Bars (30 minutes)")
+takeProfitPerc = input.float(2.0, title="Take Profit (%)", step=0.1) / 100
+stopLossPerc = input.float(0.5, title="Stop Loss (%)", step=0.1) / 100
+rsiLength = input.int(14, title="RSI Length")
+rsiOverbought = input.int(70, title="RSI Overbought Level")
+rsiOversold = input.int(30, title="RSI Oversold Level")
+
+// Calculate SMA
+sma = ta.sma(close, smaLength)
+
+// Calculate RSI
+rsi = ta.rsi(close, rsiLength)
+
+// Buy condition
+priceAboveSMA = close > sma
+aboveSMAcount = ta.barssince(priceAboveSMA == false)
+rsiCondition = rsi < rsiOversold
+enterLongCondition = priceAboveSMA and aboveSMAcount >= confirmBars and rsiCondition
+
+// Track entry price for calculating take profit and stop loss levels
+var float entryPrice = na
+if (enterLongCondition and na(entryPrice))
+    entryPrice := close
+
+// Ensure the entryPrice is only set when a position is opened
+if (strategy.opentrades == 0)
+    entryPrice := na
+
+takeProfitLevel = entryPrice * (1 + takeProfitPerc)
+stopLossLevel = entryPrice * (1 - stopLossPerc)
+
+// Exit conditions
+takeProfitCondition = close >= takeProfitLevel
+stopLossCondition = close <= stopLossLevel
+
+// Plot SMA and RSI
+plot(sma, title="SMA 200", color=color.blue)
+hline(rsiOverbought, "Overbought", color=color.red)
+hline(rsiOversold, "Oversold", color=color.green)
+plot(rsi, title="RSI", color=color.purple)
+
+// Plot shapes for entries and exits
+plotshape(series=enterLongCondition, location=location.belowbar, color=color.green, style=shape.labelup, text="BUY")
+plotshape(series=takeProfitCondition, location=location.abovebar, color=color.red, style=shape.labeldown, text="TP")
+plotshape(series=stopLossCondition, location=location.abovebar, color=color.red, style=shape.labeldown, text="SL")
+
+// Strategy entry and exit
+if (enterLongCondition)
+    strategy.entry("Long", strategy.long, comment="SMA200LE")
+
+if (takeProfitCondition or stopLossCondition)
+    strategy.close("Long", when=takeProfitCondition or stopLossCondition)
+
+// Reset entry price after position is closed
+if (strategy.position_size == 0)
+    entryPrice := na
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/458064
+
+> Last Modified
+
+2024-07-29 16:45:59

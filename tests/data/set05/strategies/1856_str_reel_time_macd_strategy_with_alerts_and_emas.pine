@@ -1,0 +1,69 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/MACD-EMA多周期动态交叉量化交易系统-MACD-EMA-Multi-Period-Dynamic-Crossover-Quantitative-Trading-System.md
+// content_hash: bc4ada12062aac14
+// collected: 2026-07-27
+strategy("REEL TIME MACD Strategy with Alerts and EMAs", overlay=true)
+
+// --- Custom Indicator: MACD ---
+fastLength = input(12, title="MACD Fast Length")
+slowLength = input(26, title="MACD Slow Length")
+signalSmoothing = input(9, title="MACD Signal Smoothing")
+src = close
+
+[macdLine, signalLine, _] = ta.macd(src, fastLength, slowLength, signalSmoothing)
+histogram = macdLine - signalLine
+
+// Plot MACD components
+plot(macdLine, color=color.blue, linewidth=2, title="MACD Line")
+plot(signalLine, color=color.orange, linewidth=2, title="Signal Line")
+plot(histogram, style=plot.style_histogram, color=(histogram >= 0 ? color.green : color.red), title="Histogram")
+
+// --- Custom Indicator: EMAs ---
+ema10 = ta.ema(src, 10)
+ema20 = ta.ema(src, 20)
+ema50 = ta.ema(src, 50)
+ema100 = ta.ema(src, 100)
+ema200 = ta.ema(src, 200)
+
+// Plot EMAs on the chart
+plot(ema10, color=color.green, linewidth=1, title="EMA 10")
+plot(ema20, color=color.blue, linewidth=1, title="EMA 20")
+plot(ema50, color=color.purple, linewidth=1, title="EMA 50")
+plot(ema100, color=color.orange, linewidth=1, title="EMA 100")
+plot(ema200, color=color.red, linewidth=1, title="EMA 200")
+
+// --- Strategy: Buy and Sell conditions (MACD) ---
+buyCondition = ta.crossover(macdLine, signalLine) // Buy when MACD crosses above signal line
+sellCondition = ta.crossunder(macdLine, signalLine) // Sell when MACD crosses below signal line
+
+// Execute strategy based on buy/sell conditions
+if (buyCondition)
+    strategy.entry("Buy", strategy.long)
+
+if (sellCondition)
+    strategy.close("Buy")
+
+// --- Alerts ---
+alertcondition(buyCondition, title="MACD Buy Alert", message="MACD XUP - Buy")
+alertcondition(sellCondition, title="MACD Sell Alert", message="MACD XDN - Sell")
+
+// Optional: Visualization for Buy/Sell signals
+plotshape(series=buyCondition, location=location.belowbar, color=color.green, style=shape.labelup, title="Buy Signal", text="BUY")
+plotshape(series=sellCondition, location=location.abovebar, color=color.red, style=shape.labeldown, title="Sell Signal", text="SELL")
+
+
+
+
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/473132
+
+> Last Modified
+
+2024-11-27 14:58:04

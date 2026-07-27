@@ -1,0 +1,14 @@
+//@version=5
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/v5/writing/debugging.md::debugging.md#block2
+// content_hash: bed7af1329a97cfd
+// collected: 2026-07-27
+indicator("The lay of the land - Background and bar colors")
+
+//@variable Is `true` if the `close` is rising over 2 bars.
+bool risingPrice = ta.rising(close, 2)
+
+// Highlight the chart background and color the main chart bars based on `risingPrice`.
+bgcolor(risingPrice ? color.new(color.green, 70) : na, title= "`risingPrice` highlight")
+barcolor(risingPrice ? color.aqua : chart.bg_color, title = "`risingPrice` bar color")

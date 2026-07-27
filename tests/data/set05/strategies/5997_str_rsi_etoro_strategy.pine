@@ -1,0 +1,54 @@
+//@version=3
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于RSI的趋势追踪策略RSI-Trend-Following-Strategy.md
+// content_hash: ad01d866de55577a
+// collected: 2026-07-27
+
+strategy("RSI Etoro Strategy", overlay=true, max_bars_back=2000)
+// To use:
+// Capital = capital * leverage
+// Slippage Ticks: 3, 5 ? (Mainly for spread)
+// etoroStopTicks: Set it accordingly to the stock (to corresponds to etoro default of 50 % for exemple...)
+
+// === INPUT BACKTEST RANGE ===
+FromMonth = input(defval = 12, title = "From Month", minval = 1, maxval = 12)
+FromDay   = input(defval = 1, title = "From Day", minval = 1, maxval = 31)
+FromYear  = input(defval = 2018, title = "From Year", minval = 1995)
+ToMonth   = input(defval = 1, title = "To Month", minval = 1, maxval = 12)
+ToDay     = input(defval = 1, title = "To Day", minval = 1, maxval = 31)
+ToYear    = input(defval = 9999, title = "To Year", minval = 1995)
+
+
+// === FUNCTION EXAMPLE ===
+start     = timestamp(FromYear, FromMonth, FromDay, 00, 00)  // backtest start window
+finish    = timestamp(ToYear, ToMonth, ToDay, 23, 59)        // backtest finish window
+window()  => time >= start and time <= finish ? true : false // create function "within window of time"
+
+length = input( 14 )
+overSold = input( 30 )
+overBought = input( 70 )
+etoroStopTicks = input( 120 )
+// 120 because it is approximatively the number of ticks for default SL of 50% at x5 leverage for copper (no fee)...
+price = close
+
+vrsi = rsi(price, length)
+
+if (not na(vrsi))
+    if (crossover(vrsi, overSold))
+        strategy.entry("RsiLE", strategy.long, comment="RsiLE", when = window())
+    if (crossunder(vrsi, overBought))
+        strategy.entry("RsiSE", strategy.short, comment="RsiSE", when = window())
+strategy.exit("exit SE", "RsiSE", loss=etoroStopTicks, when = window())
+strategy.exit("exit LE", "RsiLE", loss=etoroStopTicks, when = window())
+
+//plot(strategy.equity, title="equity", color=red, linewidth=2, style=areabr)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/431411
+
+> Last Modified
+
+2023-11-07 16:33:43

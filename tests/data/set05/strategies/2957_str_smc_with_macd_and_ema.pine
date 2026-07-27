@@ -1,0 +1,45 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/MACD与EMA结合的SMC策略SMC-Strategy-Combining-MACD-and-EMA.md
+// content_hash: 9d8d44ea96b8cca5
+// collected: 2026-07-27
+strategy("SMC with MACD and EMA", overlay=true)
+
+// 1. MACD Settings
+fastLength = input(12, title="MACD Fast Length")
+slowLength = input(26, title="MACD Slow Length")
+signalLength = input(9, title="MACD Signal Length")
+
+// 2. EMA Settings
+emaLength = input(200, title="EMA Length")
+
+// 3. Calculating MACD and assigning variables correctly
+[macdLine, signalLine, hist] = ta.macd(close, fastLength, slowLength, signalLength)
+
+// 4. EMA Calculation
+emaValue = ta.ema(close, emaLength)
+
+// 5. Get Buy/Sell Signals from Lux Algo SMC Indicator (Modify as needed)
+buySignal = input.bool(true, title="Buy Signal from Lux Algo SMC") 
+sellSignal = input.bool(true, title="Sell Signal from Lux Algo SMC")
+
+// 6. Strategy Logic (Using the corrected variables)
+if buySignal and macdLine > signalLine and close > emaValue 
+    strategy.entry("Buy", strategy.long)
+
+if sellSignal and macdLine < signalLine and close < emaValue 
+    strategy.entry("Sell", strategy.short)
+
+// 7. Optional: Plot MACD for visualization 
+plot(macdLine, color=color.blue, title="MACD")
+plot(signalLine, color=color.orange, title="Signal")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/445468
+
+> Last Modified
+
+2024-03-19 17:37:45

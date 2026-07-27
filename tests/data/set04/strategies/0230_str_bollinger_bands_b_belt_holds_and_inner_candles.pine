@@ -1,0 +1,125 @@
+//@version=5
+// set04 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/Bollinger Bands -B - Belt Holds & Inner Candles.pine
+// content_hash: 396da563c99e274e
+// collected: 2026-07-27
+//Created by Tathal
+//Credit to Duyck for the ATR function,  mischa23v for testing, review and clean up
+strategy(title='Bollinger Bands %B - Belthold & Inner Candles', shorttitle='%BBHIC', format=format.price, precision=2, default_qty_type=strategy.percent_of_equity, default_qty_value=100)
+/// Date Functions for backtesting
+startDate = input.int(title='Start Date', defval=1, minval=1, maxval=31)
+startMonth = input.int(title='Start Month', defval=1, minval=1, maxval=12)
+startYear = input.int(title='Start Year', defval=2021, minval=1800, maxval=2100)
+endDate = input.int(title='End Date', defval=31, minval=1, maxval=31)
+endMonth = input.int(title='End Month', defval=12, minval=1, maxval=12)
+endYear = input.int(title='End Year', defval=2021, minval=1800, maxval=2100)
+/// Look if the close time of the current bar
+/// falls inside the date range
+inDateRange = time >= timestamp(syminfo.timezone, startYear, startMonth, startDate, 0, 0) and time < timestamp(syminfo.timezone, endYear, endMonth, endDate, 0, 0)
+trailType = input.string('modified', 'Trailtype', options=['modified', 'unmodified'], tooltip = 'Change the stoploss ATR settings')
+ATRPeriod = input(28, 'ATR Period', tooltip = 'Change the trailing ATR STOPLOSS period')
+ATRFactor = input(5, 'ATR Factor', tooltip ='Change the trailing ATR STOPLOSS Factor')
+norm_o = request.security(ticker.new(syminfo.prefix, syminfo.ticker), timeframe.period, open)
+norm_h = request.security(ticker.new(syminfo.prefix, syminfo.ticker), timeframe.period, high)
+norm_l = request.security(ticker.new(syminfo.prefix, syminfo.ticker), timeframe.period, low)
+norm_c = request.security(ticker.new(syminfo.prefix, syminfo.ticker), timeframe.period, close)
+//}
+//.:*~*:._.:*~*:._.:*~*:._.:*~*:._.:*~*:._.:*~*:._.:*~*:._.:*~*:.
+//---------------------TRUE RANGE CALCULATIONS---------------------------------
+//.:*~*:._.:*~*:._.:*~*:._.:*~*:._.:*~*:._.:*~*:._.:*~*:._.:*~*:.
+/////////// TRUE RANGE CALCULATIONS /////////////////
+HiLo = math.min(norm_h - norm_l, 1.5 * nz(ta.sma(norm_h - norm_l, ATRPeriod)))
+HRef = norm_l <= norm_h[1] ? norm_h - norm_c[1] : norm_h - norm_c[1] - 0.5 * (norm_l - norm_h[1])
+LRef = norm_h >= norm_l[1] ? norm_c[1] - norm_l : norm_c[1] - norm_l - 0.5 * (norm_l[1] - norm_h)
+trueRange = trailType == 'modified' ? math.max(HiLo, HRef, LRef) : math.max(norm_h - norm_l, math.abs(norm_h - norm_c[1]), math.abs(norm_l - norm_c[1]))
+//}
+loss = ATRFactor * ta.ema(trueRange, ATRPeriod)
+Up = norm_c - loss
+Dn = norm_c + loss
+TrendUp = Up
+TrendDown = Dn
+Trend = 1
+TrendUp := norm_c[1] > TrendUp[1] ? math.max(Up, TrendUp[1]) : Up
+TrendDown := norm_c[1] < TrendDown[1] ? math.min(Dn, TrendDown[1]) : Dn
+Trend := norm_c > TrendDown[1] ? 1 : norm_c < TrendUp[1] ? -1 : nz(Trend[1], 1)
+trail = Trend == 1 ? TrendUp : TrendDown
+ex = 0.0
+ex := ta.crossover(Trend, 0) ? norm_h : ta.crossunder(Trend, 0) ? norm_l : Trend == 1 ? math.max(ex[1], norm_h) : Trend == -1 ? math.min(ex[1], norm_l) : ex[1]
+sl_inp = input(50.0, title='Percentage Stop Loss')/100
+tp_inp = input(15.0, title='Percentage Take Profit %')/100
+ 
+stop_level = strategy.position_avg_price * (1 + sl_inp)
+take_level = strategy.position_avg_price * (1 - tp_inp)
+lstop_level = strategy.position_avg_price * (1 - sl_inp)
+ltake_level = strategy.position_avg_price * (1 + tp_inp)
+/// Toggles
+show_bar_color = input(title="Show Candlestick Pattern Colors on Bar?", defval=true)
+show_bg_color = input(title="Show Candlestick Pattern Colors on Background?", defval=true)
+/// BB%B Calculation
+length = input.int(20, minval=1)
+src = input(close, title='Source')
+mult = input.float(2.0, minval=0.001, maxval=50, title='StdDev')
+basis = ta.sma(src, length)
+dev = mult * ta.stdev(src, length)
+upper = basis + dev
+lower = basis - dev
+bbr = (src - lower) / (upper - lower)
+plot(bbr, 'Bollinger Bands %B', color=color.new(#26A69A, 0), style=plot.style_columns)
+/// Overbought / Oversold Line Declaration & Painting
+inputoverbought = input(1)
+inputoversold = input(0)
+inputbuy = input(.3)
+inputsell = input(.7)
+band1 = hline(inputoverbought, 'Overbought', color=#787B86, linestyle=hline.style_dashed)
+band0 = hline(inputoversold, 'Oversold', color=#787B86, linestyle=hline.style_dashed)
+bandsell = hline(inputsell, 'Slightly Overbought', color=#787B86, linestyle=hline.style_dashed)
+bandbuy = hline(inputbuy, 'Slightly Oversold', color=#787B86, linestyle=hline.style_dashed)
+fill(band1, band0, color=color.rgb(38, 166, 154, 90), title='Background')
+fill(band1, bandsell, color=color.rgb(255, 0, 0, 90), title='Background')
+fill(band0, bandbuy, color=color.rgb(0, 255, 0, 90), title='Background')
+/// Inside candle function, default return false, else if inside candle, return true.
+icreturn = false
+innercandle = if high < high[1] and low > low[1]
+    icreturn := true
+    icreturn
+    
+// Bullish Belthold
+lowerb = ta.lowest(10)[1]
+lbelthold = low == open ?  open < lower ? open < close ? close > ((high[1] - low[1]) / 2) + low[1] :na  : na : na
+barcolor(lbelthold and show_bar_color? color.new(color.yellow,0) : na)
+bgcolor(lbelthold and show_bg_color ? color.new(color.yellow,90) : na)
+// Bearish Belthold
+upperb = ta.highest(10)[1]
+sbelthold = high == open ?  open > upperb ? open > close ? close < ((high[1] - low[1]) / 2) + low[1] : na : na : na
+barcolor(sbelthold and show_bar_color ? color.new(color.purple,0) : na)
+bgcolor(sbelthold and show_bg_color ? color.new(color.purple,90) : na)
+/// paint inside candles
+barcolor(icreturn and show_bar_color ? color.new(color.white,0) : na)
+bgcolor(icreturn and show_bg_color ? color.new(color.white,90) : na)
+/// long and sell conditions
+long = bbr < inputbuy and (icreturn or lbelthold)
+sell = bbr > inputsell and (icreturn or sbelthold)
+short = bbr > inputsell and (icreturn or sbelthold)
+exit = bbr < inputbuy and (icreturn or lbelthold)
+// atr or % based stop loss / take profit
+stoplosschoiceinput = input.string(title="Stoploss Type :", defval="ATR", options=["ATR", 
+                                                                  "Percentage" ])
+takeprofitchoiceinput = input.string(title="Take Profit Type :", defval="ATR", options=["ATR", 
+                                                                  "Percentage" ])
+longstoplosscondition = stoplosschoiceinput == "ATR" ? trail : lstop_level
+shortstoplosscondition = stoplosschoiceinput == "ATR" ? trail : stop_level
+longtakeprofitcondition = takeprofitchoiceinput == "ATR" ? ex : ltake_level
+shorttakeprofitcondition = takeprofitchoiceinput == "ATR" ? ex : take_level
+/// order logic
+if inDateRange
+    strategy.entry('long', strategy.long, when=long)
+if inDateRange and strategy.position_size > 0
+    strategy.exit("close", "long", profit=longtakeprofitcondition, stop=longstoplosscondition)
+    strategy.close("close", when=sell)
+if inDateRange
+    strategy.entry('short', strategy.short, when=short)
+if inDateRange and strategy.position_size > 0
+    strategy.exit("cancel", "short", profit=shorttakeprofitcondition, stop=shortstoplosscondition)
+    strategy.close("close", when=exit)
+Expand (167 lines)

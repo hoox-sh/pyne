@@ -1,0 +1,56 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动量趋势跟踪交易策略Momentum-Trend-Following-Trading-Strategy.md
+// content_hash: 5d958859acb1a310
+// collected: 2026-07-27
+strategy("Trading Trend Following", overlay=true)
+
+// Define EMA parameters
+emaLengthShort = input(50, title="Short EaMA Length")
+emaLengthLong = input(200, title="Long EMA Length")
+ema50 = ema(close, emaLengthShort)
+ema200 = ema(close, emaLengthLong)
+
+// Calculate RSI
+rsiLength = input(14, title="RSI Length")
+rsiValue = rsi(close, rsiLength)
+
+// Define Demand and Supply zones
+demandZone = input(true, title="Demand Zone")
+supplyZone = input(true, title="Supply Zone")
+
+// Define Buy and Sell conditions
+buyCondition = crossover(ema50, ema200) and close > ema50 and rsiValue > 55
+sellCondition = crossunder(ema50, ema200) and close < ema50 and rsiValue < 45
+
+// Entry point buy when the price is closed above Demand and EMA gives a buy signal
+buyEntryCondition = close > ema50 and demandZone
+strategy.entry("Buy", strategy.long, when=buyCondition and buyEntryCondition)
+
+// Entry point sell when the price is closed below Supply and EMA gives a sell signal
+sellEntryCondition = close < ema50 and supplyZone
+strategy.entry("Sell", strategy.short, when=sellCondition and sellEntryCondition)
+
+// Plot EMAs for visualization
+plot(ema50, color=color.blue, title="Short EMA")
+plot(ema200, color=color.red, title="Long EMA")
+
+// Plot RSI for visualization
+hline(55, "Overbought", color=color.red)
+hline(45, "Oversold", color=color.green)
+plot(rsiValue, color=color.purple, title="RSI")
+
+// Plot Demand and Supply zones
+bgcolor(demandZone ? color.new(color.green, 90) : na)
+bgcolor(supplyZone ? color.new(color.red, 90) : na)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/438802
+
+> Last Modified
+
+2024-01-15 14:27:09

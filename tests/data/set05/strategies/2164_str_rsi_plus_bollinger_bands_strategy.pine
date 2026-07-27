@@ -1,0 +1,62 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/高级双均线动量反转策略RSI与布林带协同交易系统-Advanced-Dual-Moving-Average-Momentum-Reversal-Strategy-RSI-and-Bollinger-Bands-Synergy-Trading-System.md
+// content_hash: 13051ce040f0b354
+// collected: 2026-07-27
+strategy("RSI + Bollinger Bands Strategy", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=10)
+
+// Bollinger Bands Settings
+bbLength = input.int(20, title="BB Length")
+bbStdDev = input.float(2.0, title="BB Standard Deviation")
+basis = ta.sma(close, bbLength)
+dev = bbStdDev * ta.stdev(close, bbLength)
+upperBB = basis + dev
+lowerBB = basis - dev
+
+// Plot Bollinger Bands
+plot(basis, color=color.orange, title="BB Basis")
+plot(upperBB, color=color.blue, title="Upper Bollinger Band")
+plot(lowerBB, color=color.blue, title="Lower Bollinger Band")
+fill(plot(upperBB), plot(lowerBB), color=color.blue, transp=90, title="BB Fill")
+
+// RSI Settings
+rsiLength = input.int(14, title="RSI Length")
+rsiOverbought = input.int(70, title="RSI Overbought Level")
+rsiOversold = input.int(30, title="RSI Oversold Level")
+rsi = ta.rsi(close, rsiLength)
+
+// Plot RSI on separate pane
+hline(rsiOverbought, "Overbought", color=color.red)
+hline(rsiOversold, "Oversold", color=color.green)
+plot(rsi, color=color.purple, title="RSI", linewidth=2, display=display.none) // Hidden on main chart
+
+// Long Condition: RSI crosses above oversold and price touches lower BB
+longCondition = ta.crossover(rsi, rsiOversold) and close <= lowerBB
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+
+// Short Condition: RSI crosses below overbought and price touches upper BB
+shortCondition = ta.crossunder(rsi, rsiOverbought) and close >= upperBB
+if (shortCondition)
+    strategy.entry("Short", strategy.short)
+
+// Exit Long: RSI crosses above overbought or price crosses above basis
+exitLong = ta.crossunder(rsi, rsiOverbought) or close >= basis
+if (exitLong)
+    strategy.close("Long")
+
+// Exit Short: RSI crosses below oversold or price crosses below basis
+exitShort = ta.crossover(rsi, rsiOversold) or close <= basis
+if (exitShort)
+    strategy.close("Short")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/482775
+
+> Last Modified
+
+2025-02-27 17:51:02

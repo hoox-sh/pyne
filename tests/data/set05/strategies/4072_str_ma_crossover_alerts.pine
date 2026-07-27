@@ -1,0 +1,26 @@
+//@version=4
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/MA Crossover Alerts.pine
+// content_hash: 62c785597abd1022
+// collected: 2026-07-27
+//study(title="MA Crossover Strategy", overlay = true)
+strategy("MA Crossover Alerts", overlay=true)
+src = input(close, title="Source")
+price = security(syminfo.tickerid, timeframe.period, src)
+ma1 = input(25, title="1st MA Length")
+type1 = input("SMA", "1st MA Type", options=["SMA", "EMA"])
+ma2 = input(50, title="2nd MA Length")
+type2 = input("SMA", "2nd MA Type", options=["SMA", "EMA"])
+price1 = if type1 == "SMA"
+    sma(price, ma1)
+else
+    ema(price, ma1)
+price2 = if type2 == "SMA"
+    sma(price, ma2)
+else
+    ema(price, ma2)
+    
+alertcondition(crossover(price1, price2), title='Alert! Long Crossover', message='Go Long')
+alertcondition(crossunder(price1, price2), title='Alert! Short Crossover', message='Go Short')
+Expand (27 lines)

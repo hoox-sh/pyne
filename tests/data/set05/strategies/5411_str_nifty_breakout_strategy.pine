@@ -1,0 +1,47 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于移动平均线的突破交易策略Moving-Average-Breakout-Trading-Strategy.md
+// content_hash: 0029ae267da7fb96
+// collected: 2026-07-27
+strategy("Nifty Breakout Strategy", overlay=true)
+
+// Define Inputs
+breakoutPeriod = input(20, title="Breakout Period")
+stopLossPercent = input(1, title="Stop Loss (%)") / 100
+takeProfitPercent = input(3, title="Take Profit (%)") / 100
+
+// Calculate Moving Average
+smaValue = sma(close, breakoutPeriod)
+
+// Define Breakout Conditions
+longCondition = crossover(close, smaValue)
+shortCondition = crossunder(close, smaValue)
+
+// Set Stop Loss and Take Profit Levels
+longStopLoss = close * (1 - stopLossPercent)
+longTakeProfit = close * (3 + takeProfitPercent)
+shortStopLoss = close * (1 + stopLossPercent)
+shortTakeProfit = close * (3 - takeProfitPercent)
+
+// Execute Long Trade
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+    strategy.exit("LongExit", "Long", stop=longStopLoss, limit=longTakeProfit)
+
+// Execute Short Trade
+if (shortCondition)
+    strategy.entry("Short", strategy.short)
+    strategy.exit("ShortExit", "Short", stop=shortStopLoss, limit=shortTakeProfit)
+
+// Plot Moving Average for Visualization
+plot(smaValue, color=color.blue)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/444011
+
+> Last Modified
+
+2024-03-08 15:33:24

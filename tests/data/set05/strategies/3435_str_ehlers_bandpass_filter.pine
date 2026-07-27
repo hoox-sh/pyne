@@ -1,0 +1,90 @@
+//@version=4
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/Ehlers Bandpass Filter.pine
+// content_hash: e0078c74be6f72f2
+// collected: 2026-07-27
+strategy(title= "Ehlers Bandpass Filter", shorttitle = "Bandpass Filter", overlay=false)
+//commission_type=strategy.commission.percent, commission_value=.5
+//
+//Capital Management
+capitaltype = input(defval="Initial", title="Capital Settings", options=["Initial", "Growing","Manual"], type=input.string)
+manualcapital = input(title="Manual Position Size", defval=100.3, type=input.float)
+leverage = input(title="Leverage", defval=1, type=input.float)
+capitalsystem(capitaltype) =>
+    v1 = floor(strategy.initial_capital/close) * leverage
+    v2 = floor((strategy.initial_capital + strategy.netprofit)/close) * leverage
+    v3 = manualcapital
+    capitaltype== "Initial"? v1 : capitaltype == "Growing" ? v2 : v3
+ordersize=capitalsystem(capitaltype)
+//Targets, Stops
+percentages = input(title="Percentage stop 🎯", defval=true)
+targetpercentage = input(title="Profit (%)", type=input.float, minval=0.0, step=0.1, defval=1.3) * 0.01
+stoppercentage = input(title="Stop Loss (%)", type=input.float, minval=0.0, step=0.1, defval=0.6) * 0.01
+longtp  = strategy.position_avg_price * (1 + targetpercentage)
+shorttp = strategy.position_avg_price * (1 - targetpercentage)
+longStopPrice  = strategy.position_avg_price * (1 - stoppercentage)
+shortStopPrice = strategy.position_avg_price * (1 + stoppercentage)
+//Cheatcountry's part
+// Copyright (c) 2019-present, Franklin Moormann (cheatcountry)
+// Ehlers Bandpass Filter script may be freely distributed under the MIT license.
+inp = input(title="Source", type=input.source, defval=close)
+res = input(title="Resolution", type=input.resolution, defval="")
+rep = input(title="Allow Repainting?", type=input.bool, defval=false)
+src = security(syminfo.tickerid, res, inp[rep ? 0 : barstate.isrealtime ? 1 : 0])[rep ? 0 : barstate.isrealtime ? 0 : 1]
+length = input(title="Length", type=input.integer, defval=20, minval=1)
+bw = input(title="Bandwidth", type=input.float, defval=0.3, minval=0.01, step = 0.01)
+pi = 2 * asin(1)
+twoPiPrd1 = 0.25 * bw * 2 * pi / length
+twoPiPrd2 = 1.5 * bw * 2 * pi / length
+beta = cos(2 * pi / length)
+gamma = 1.0 / cos(2 * pi * bw / length)
+alpha1 = gamma - sqrt((gamma * gamma) - 1)
+alpha2 = (cos(twoPiPrd1) + sin(twoPiPrd1) - 1) / cos(twoPiPrd1)
+alpha3 = (cos(twoPiPrd2) + sin(twoPiPrd2) - 1) / cos(twoPiPrd2)
+hp = 0.0
+hp := ((1 + (alpha2 / 2)) * (src - nz(src[1]))) + ((1 - alpha2) * nz(hp[1]))
+bp = 0.0
+bp := bar_index > 2 ? (0.5 * (1 - alpha1) * (hp - nz(hp[2]))) + (beta * (1 + alpha1) * nz(bp[1])) - (alpha1 * nz(bp[2])) : 0
+peak = 0.0
+peak := 0.991 * nz(peak[1])
+peak := abs(bp) > peak ? abs(bp) : peak
+signal = peak != 0 ? bp / peak : 0
+trigger = 0.0
+trigger := ((1 + (alpha3 / 2)) * (signal - nz(signal[1]))) + ((1 - alpha3) * nz(trigger[1]))
+sig = trigger > nz(trigger[1]) ? 1 : trigger < nz(trigger[1]) ? -1 : 0
+sigColor = sig > 0 ? color.green : sig < 0 ? color.red : color.black
+plot(signal, title="Signal", color=sigColor, linewidth=2)
+plot(trigger, title="Trigger", color=color.black, linewidth=1)
+//End Cheatcountry's part
+//Things
+buy = crossover(trigger, signal)
+sell = crossunder(trigger, signal)
+if (buy)
+    strategy.entry("Buy", strategy.long, ordersize)
+if (percentages)
+    strategy.exit( "Buy", from_entry="Buy", stop=longStopPrice, limit= longtp)
+//    if (target and stop)
+//        strategy.exit( "Set Value tp/sl", from_entry="Buy", profit=targetticks, loss=stopnumberticks)
+//    if (target and not stop)
+//        strategy.exit( "Set Value tp/sl", from_entry="Buy", profit=targetticks)
+//    if (stop and not target)
+//        strategy.exit( "Set Value tp/sl", from_entry="Buy", loss=stopnumberticks)
+//strategy.close("Buy", buyend)
+if (sell)
+    strategy.entry("Short", strategy.short, ordersize)
+if (percentages)
+    strategy.exit( "Short", from_entry="Short", stop=shortStopPrice, limit = shorttp)
+//plot(series=(strategy.position_size > 0) ? longStopPrice : na,
+//     color=color.red, style=plot.style_linebr,
+//     linewidth=2, title="Long Stop Loss")
+//plot(series=(strategy.position_size < 0) ? shortStopPrice : na,
+//     color=color.red, style=plot.style_linebr,
+//     linewidth=2, title="Short Stop Loss")
+//plot(series=(strategy.position_size > 0) ? longtp : na,
+//     color=color.lime, style=plot.style_linebr,
+//     linewidth=2, title="Long Stop Loss")
+//plot(series=(strategy.position_size < 0) ? shorttp : na,
+//     color=color.lime, style=plot.style_linebr,
+//     linewidth=2, title="Short Stop Loss")
+Expand (121 lines)

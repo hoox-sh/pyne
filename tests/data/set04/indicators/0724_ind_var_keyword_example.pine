@@ -1,0 +1,21 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block321
+// content_hash: e3f5e4b1eccc4d61
+// collected: 2026-07-27
+indicator("Var keyword example")
+var a = close
+var b = 0.0
+var c = 0.0
+var green_bars_count = 0
+if close > open
+    var x = close
+    b := x
+    green_bars_count := green_bars_count + 1
+    if green_bars_count >= 10
+        var y = close
+        c := y
+plot(a)
+plot(b)
+plot(c)

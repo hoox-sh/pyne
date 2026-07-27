@@ -1,0 +1,34 @@
+//@version=3
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/Buy the Dips (by Coinrule).pine
+// content_hash: 96d74e5afc8eefcf
+// collected: 2026-07-27
+strategy(shorttitle='Buy the Dips',title='Buy the Dips (by Coinrule)', overlay=true, initial_capital = 1000, default_qty_type = strategy.percent_of_equity, default_qty_value = 30, commission_type=strategy.commission.percent, commission_value=0.1)
+//Backtest dates
+fromMonth = input(defval = 1,  title = "From Month")     
+fromDay   = input(defval = 10,    title = "From Day")       
+fromYear  = input(defval = 2020, title = "From Year")       
+thruMonth = input(defval = 1,    title = "Thru Month")     
+thruDay   = input(defval = 1,    title = "Thru Day")     
+thruYear  = input(defval = 2112, title = "Thru Year")       
+showDate  = input(defval = true, title = "Show Date Range")
+start     = timestamp(fromYear, fromMonth, fromDay, 00, 00)        // backtest start window
+finish    = timestamp(thruYear, thruMonth, thruDay, 23, 59)        // backtest finish window
+window()  => time >= start and time <= finish ? true : false       // create function "within window of time"
+inp_lkb = input(1, title='Lookback Period')
+ 
+perc_change(lkb) =>
+    overall_change = ((close[0] - close[lkb]) / close[lkb]) * 100
+// Call the function    
+overall = perc_change(inp_lkb)
+//Entry
+dip= -(input(2))
+strategy.entry(id="long", long = true, when = overall< dip and window()) 
+//Exit
+Stop_loss= ((input (2))/100)
+Take_profit= ((input (2))/100)
+longStopPrice  = strategy.position_avg_price * (1 - Stop_loss)
+longTakeProfit = strategy.position_avg_price * (1 + Take_profit)
+strategy.close("long", when = close < longStopPrice or close > longTakeProfit and window())
+Expand (43 lines)

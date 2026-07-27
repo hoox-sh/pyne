@@ -1,0 +1,8 @@
+//@version=6
+// set05 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block289
+// content_hash: daea8df1b7d875ac
+// collected: 2026-07-27
+indicator("Williams %R", shorttitle="%R", format=format.price, precision=2)
+plot(ta.wpr(14), title="%R", color=color.new(#ff6d00, 0))

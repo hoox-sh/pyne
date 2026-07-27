@@ -1,0 +1,77 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基均线回环策略Kijun-Loopback-Strategy.md
+// content_hash: cd48769e295990e8
+// collected: 2026-07-27
+strategy("Master VP","MVP",true)
+        
+//INDICATOR---------------------------------------------------------------------    
+    //Average True Range (1. RISK)
+atr_period = input(14, "Average True Range Period")
+atr = atr(atr_period)
+
+    //Ichimoku Cloud - Kijun Sen (2. BASELINE)
+ks_period = input(20, "Kijun Sen Period")
+kijun_sen = (highest(high, ks_period) + lowest(low,ks_period))/2
+base_long = open < kijun_sen and close > kijun_sen
+base_short = open > kijun_sen and close < kijun_sen
+
+//TRADE LOGIC-------------------------------------------------------------------
+    //Long Entry
+    //if -> WPR crosses below -39 AND MACD line is less than signal line
+l_en = base_long
+    //Long Exit
+    //if -> WPR crosses above -14
+l_ex = close < kijun_sen
+    //Short Entry
+    //if -> WPR crosses above -39 AND MACD line is greater than signal line
+s_en = base_short
+    //Short Exit
+    //if -> WPR crosses under -14
+s_ex = close > kijun_sen
+strategy.initial_capital = 50000
+//MONEY MANAGEMENT--------------------------------------------------------------
+balance = strategy.netprofit + strategy.initial_capital //current balance
+floating = strategy.openprofit          //floating profit/loss
+risk = input(4,"Risk %")/100           //risk % per trade
+equity_protector = input(30,"Equity Protection %")/100  //equity protection %
+stop = atr*100000*input(1.5,"Average True Range multiplier")    //Stop level
+target = input(100, "Target TP in Points")  //TP level
+    //Calculate current DD and determine if stopout is necessary
+equity_stopout = false
+if(floating<0 and abs(floating/balance)>equity_protector)
+    equity_stopout := true
+    
+    //Calculate the size of the next trade
+temp01 = balance * risk     //Risk in USD
+temp02 = temp01/stop        //Risk in lots
+temp03 = temp02*100000      //Convert to contracts
+size = temp03 - temp03%1000 //Normalize to 1000s (Trade size)
+if(size < 1000)
+    size := 1000            //Set min. lot size
+
+//TRADE EXECUTION---------------------------------------------------------------
+strategy.close_all(equity_stopout)      //Close all trades w/equity protector
+is_open = strategy.opentrades > 0
+
+if true
+    strategy.entry("l_en",true,oca_name="a",when=l_en and not is_open)  //Long entry
+    strategy.entry("s_en",false,oca_name="a",when=s_en and not is_open) //Short entry
+    
+    strategy.exit("S/L","l_en",loss=stop, profit=target)      //Long exit (stop loss)
+    strategy.close("l_en",when=l_ex)            //Long exit (exit condition)
+    strategy.exit("S/L","s_en",loss=stop, profit=target)      //Short exit (stop loss)
+    strategy.close("s_en",when=s_ex)            //Short exit (exit condition)
+    
+//PLOTTING----------------------------------------------------------------------
+plot(kijun_sen,"Kijun-Sen",color.blue,2)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/431282
+
+> Last Modified
+
+2023-11-06 16:46:45

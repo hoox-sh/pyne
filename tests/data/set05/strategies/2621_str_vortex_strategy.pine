@@ -1,0 +1,54 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/历史走势诱变策略Vortex-Trend-Reversal-Strategy.md
+// content_hash: 01fc61b4eddde883
+// collected: 2026-07-27
+strategy("Vortex Strategy [AstroHub]", shorttitle="VS [AstroHub]", overlay=true)
+
+// Vortex Indicator Settings
+length = input(14, title="Length", group ="AstroHub Vortex Strategy", tooltip="Number of bars used in the Vortex Indicator calculation. Higher values may result in smoother but slower responses to price changes.")
+mult = input(1.0, title="Multiplier", group ="AstroHub Vortex Strategy", tooltip="Multiplier for the Vortex Indicator calculation. Adjust to fine-tune the sensitivity of the indicator to price movements.")
+threshold = input(0.5, title="Threshold",group ="AstroHub Vortex Strategy",  tooltip="Threshold level for determining the trend. Higher values increase the likelihood of a trend change being identified.")
+emaLength = input(20, title="EMA Length", group ="AstroHub Vortex Strategy", tooltip="Length of the Exponential Moving Average (EMA) used in the strategy. A longer EMA may provide a smoother trend indication.")
+
+// Calculate Vortex Indicator components
+a = math.abs(close - close[1])
+b = close - ta.sma(close, length)
+shl = ta.ema(b, length)
+svl = ta.ema(a, length)
+
+// Determine trend direction
+upTrend = shl > svl
+downTrend = shl < svl
+
+// Define Buy and Sell signals
+buySignal = ta.crossover(shl, svl) and close > ta.ema(close, emaLength) and (upTrend != upTrend[1])
+sellSignal = ta.crossunder(shl, svl) and close < ta.ema(close, emaLength) and (downTrend != downTrend[1])
+
+// Execute strategy based on signals
+strategy.entry("Sell", strategy.short, when=buySignal)
+strategy.entry("Buy", strategy.long, when=sellSignal)
+
+// Background color based on the trend
+bgcolor(downTrend ? color.new(color.green, 90) : upTrend ? color.new(color.red, 90) : na)
+
+// Plot Buy and Sell signals with different shapes and colors
+buySignal1 = ta.crossover(shl, svl) and close > ta.ema(close, emaLength)
+sellSignal1 = ta.crossunder(shl, svl) and close < ta.ema(close, emaLength) 
+
+plotshape(buySignal1, style=shape.square, color=color.new(color.green, 10), size=size.tiny, location=location.belowbar, title="Buy Signal")
+plotshape(sellSignal1, style=shape.square, color=color.new(color.red, 10), size=size.tiny, location=location.abovebar, title="Sell Signal")
+plotshape(buySignal1, style=shape.square, color=color.new(color.green, 90), size=size.small, location=location.belowbar, title="Buy Signal")
+plotshape(sellSignal1, style=shape.square, color=color.new(color.red, 90), size=size.small, location=location.abovebar, title="Sell Signal")
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/442861
+
+> Last Modified
+
+2024-02-26 16:45:21

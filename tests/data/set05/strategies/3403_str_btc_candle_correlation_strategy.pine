@@ -1,0 +1,94 @@
+//@version=4
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/BTC Candle Correlation Strategy.pine
+// content_hash: ab36a75542b55f81
+// collected: 2026-07-27
+strategy(title="BTC Candle Correlation Strategy", overlay=true, initial_capital = 1000, default_qty_type=strategy.percent_of_equity, default_qty_value=100, commission_type=strategy.commission.percent, commission_value=0.1, pyramiding=1  )
+//sources for average
+src_c = close
+src1_c = security("BITFINEX:BTCUSD", timeframe.period, src_c), src2_c = security("POLONIEX:BTCUSDT", timeframe.period, src_c),
+src3_c = security("BITSTAMP:BTCUSD", timeframe.period, src_c), src4_c = security("COINBASE:BTCUSD", timeframe.period, src_c),
+src5_c = security("BITMEX:XBTUSD", timeframe.period, src_c), src6_c = security("KRAKEN:XBTUSD", timeframe.period, src_c),
+src7_c = security("BINANCE:BTCUSDT", timeframe.period, src_c)
+src_h = high
+src1_h = security("BITFINEX:BTCUSD", timeframe.period, src_h), src2_h = security("POLONIEX:BTCUSDT", timeframe.period, src_h),
+src3_h = security("BITSTAMP:BTCUSD", timeframe.period, src_h), src4_h = security("COINBASE:BTCUSD", timeframe.period, src_h),
+src5_h = security("BITMEX:XBTUSD", timeframe.period, src_h), src6_h = security("KRAKEN:XBTUSD", timeframe.period, src_h),
+src7_h = security("BINANCE:BTCUSDT", timeframe.period, src_h)
+src_l = low
+src1_l = security("BITFINEX:BTCUSD", timeframe.period, src_l), src2_l = security("POLONIEX:BTCUSDT", timeframe.period, src_l),
+src3_l = security("BITSTAMP:BTCUSD", timeframe.period, src_l), src4_l = security("COINBASE:BTCUSD", timeframe.period, src_l),
+src5_l = security("BITMEX:XBTUSD", timeframe.period, src_l), src6_l = security("KRAKEN:XBTUSD", timeframe.period, src_l), 
+src7_l = security("BINANCE:BTCUSDT", timeframe.period, src_l)
+src_o = open
+src1_o = security("BITFINEX:BTCUSD", timeframe.period, src_o), src2_o = security("POLONIEX:BTCUSDT", timeframe.period, src_o),
+src3_o = security("BITSTAMP:BTCUSD", timeframe.period, src_o), src4_o = security("COINBASE:BTCUSD", timeframe.period, src_o),
+src5_o = security("BITMEX:XBTUSD", timeframe.period, src_o), src6_o = security("KRAKEN:XBTUSD", timeframe.period, src_o),
+src7_o = security("BINANCE:BTCUSDT", timeframe.period, src_o)
+//declaring variables
+candle_open = avg(src1_o, src2_o, src3_o, src4_o, src5_o, src6_o, src7_o)
+candle_high = avg(src1_h, src2_h, src3_h, src4_h, src5_h, src6_h, src7_h)
+candle_low = avg(src1_l, src2_l, src3_l, src4_l, src5_l, src6_l, src7_l)
+candle_close = avg(src1_c, src2_c, src3_c, src4_c, src5_c, src6_c, src7_c)
+//plots
+//plotcandle(candle_open, candle_high, candle_low, candle_close, title = "Average BTC candles", color = open < close ? color.green : color.red, wickcolor = color.white)
+ 
+//////////////////////////////////////////////////////////
+// high^2 / 2 - low^2 -2
+h=pow(candle_high,2) / 2
+l=pow(candle_low,2) / 2
+o=pow(candle_open,2) /2
+c=pow(candle_close,2) /2
+x=(h+l+o+c) / 4
+y= sqrt(x)
+source = y
+useTrueRange = false
+length = input(9, minval=1)
+mult = input(0.9, step=0.1)
+ma = sma(source, length)
+range = useTrueRange ? tr : candle_high - candle_low
+rangema = sma(range, length)
+upper = ma + rangema * mult
+lower = ma - rangema * mult
+crossUpper = crossover(source, upper)
+crossLower = crossunder(source, lower)
+bprice = 0.0
+bprice := crossUpper ? candle_high: nz(bprice[1])
+sprice = 0.0
+sprice := crossLower ? candle_low  : nz(sprice[1])
+crossBcond = false
+crossBcond := crossUpper ? true
+     : na(crossBcond[1]) ? false : crossBcond[1]
+crossScond = false
+crossScond := crossLower ? true
+     : na(crossScond[1]) ? false : crossScond[1]
+cancelBcond = crossBcond and (source < ma or candle_high >= bprice )
+cancelScond = crossScond and (source > ma or candle_low <= sprice )
+longOnly = input(true)
+fromDay = input(defval = 1, title = "From Day", minval = 1, maxval = 31)
+fromMonth = input(defval = 1, title = "From Month", minval = 1, maxval = 12)
+fromYear = input(defval = 2000, title = "From Year", minval = 1970)
+ //monday and session 
+// To Date Inputs
+toDay = input(defval = 31, title = "To Day", minval = 1, maxval = 31)
+toMonth = input(defval = 12, title = "To Month", minval = 1, maxval = 12)
+toYear = input(defval = 2021, title = "To Year", minval = 1970)
+startDate = timestamp(fromYear, fromMonth, fromDay, 00, 00)
+finishDate = timestamp(toYear, toMonth, toDay, 00, 00)
+time_cond = time >= startDate and time <= finishDate 
+if(longOnly==false and time_cond)
+    if (crossLower)
+        strategy.cancel("long")
+    if (crossUpper)
+        strategy.entry("long", strategy.long)
+    if (cancelScond)
+        strategy.cancel("short")
+    if (crossLower)
+        strategy.entry("short", strategy.short)
+if(longOnly and time_cond)
+    if (crossLower)
+        strategy.close("long")
+    if (crossUpper and candle_close > candle_open)
+        strategy.entry("long", strategy.long)
+Expand (114 lines)

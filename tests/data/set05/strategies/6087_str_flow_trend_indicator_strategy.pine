@@ -1,0 +1,40 @@
+//@version=3
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于流动性趋势的量化交易策略Liquidity-Driven-Trend-Strategy-A-Quant-Trading-Strategy-Based-on-Flow-Trend-Indication.md
+// content_hash: d82cb9daa3eaa850
+// collected: 2026-07-27
+strategy("Flow Trend Indicator Strategy", "FlowTI", overlay=true, calc_on_every_tick=true)
+
+isTimeFrame(timeFrame) =>
+    timeFrame == timeframe.period ? true : false
+
+Htf() =>
+    isTimeFrame("12") ? "60" : isTimeFrame("60") ? "300" : isTimeFrame("300") ? "D" : isTimeFrame("D") ? "W" : isTimeFrame("W") ? "M" : isTimeFrame("M") ? "5M" : "D"
+
+TrendIndication() =>
+    trendFastLength = 20
+    trendSlowLength = 50
+    upFastHtf = request.security(syminfo.tickerid, Htf(), rma(max(change(close), 0), trendFastLength), barmerge.gaps_off, barmerge.lookahead_on)
+    downFastHtf = request.security(syminfo.tickerid, Htf(), rma(-min(change(close), 0), trendFastLength), barmerge.gaps_off, barmerge.lookahead_on)
+    rsiFastHtf = downFastHtf == 0 ? 100 : upFastHtf == 0 ? 0 : 100 - (100 / (1 + upFastHtf / downFastHtf))
+    upSlowHtf = request.security(syminfo.tickerid, Htf(), rma(max(change(close), 0), trendSlowLength), barmerge.gaps_off, barmerge.lookahead_on)
+    downSlowHtf = request.security(syminfo.tickerid, Htf(), rma(-min(change(close), 0), trendSlowLength), barmerge.gaps_off, barmerge.lookahead_on)
+    rsiSlowHtf = downSlowHtf == 0 ? 100 : upSlowHtf == 0 ? 0 : 100 - (100 / (1 + upSlowHtf / downSlowHtf))
+    rsiDiff = rsiFastHtf - rsiSlowHtf
+    crossover(rsiDiff, 0) ? true : crossunder(rsiDiff, 0) ? false : na
+
+if (TrendIndication() == true)
+    strategy.entry("Long", strategy.long)
+
+if (TrendIndication() == false)
+    strategy.entry("Short", strategy.short)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/436089
+
+> Last Modified
+
+2023-12-21 10:19:52

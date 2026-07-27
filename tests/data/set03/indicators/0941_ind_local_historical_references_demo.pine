@@ -1,0 +1,30 @@
+//@version=6
+// set03 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pine_script_execution_model.md::pine_script_execution_model.md#block16
+// content_hash: 9e205c0817592053
+// collected: 2026-07-27
+indicator("Local historical references demo")
+//@function  Returns `color.blue` if `source` is above its last committed value; `color.orange` otherwise.
+//           For consistent results, this function should execute on *every bar*, because it uses the
+//           history-referencing operator on the `source` series.
+//
+//           Even if the argument supplied to `source` comes from a global variable, the `source` parameter remains
+//           part of the function's *local scope*. The system maintains a *separate historical buffer* for the `source`
+//           series in each function call instance. The buffer contains only the committed `source` values from the bars
+//           where the function call occurs. If the call does not occur on a bar, the buffer for `source` contains
+//           **no data** for that bar.
+upDownColor(float source) =>
+    source > source[1] ? color.blue : color.orange
+//@variable The value by which to divide the `bar_index` value.
+int divisorInput = input.int(5, "Divisor", 1)
+//@variable The remainder of dividing `bar_index` by `divisorInput`.
+float remainder = bar_index % divisorInput
+//@variable Is `color.orange` if `remainder` equals 0, and the result of `upDownColor(remainder)` otherwise.
+//          The `upDownColor()` call does not execute on every bar. Therefore, it does *not* always compare the
+//          `remainder` value from one bar back to calculate the color. Instead, the function compares the current
+//          `remainder` to the value from the last bar where `remainder` is nonzero.
+color plotColor = remainder == 0 ? color.gray : upDownColor(remainder)
+// Plot the `remainder` series and color it using `plotColor`. The plot is orange after each bar where `remainder == 0`,
+// because the `upDownColor()` function call does not have data for that bar to use in its logic.
+plot(remainder, "Remainder", plotColor, 5)

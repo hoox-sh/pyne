@@ -1,0 +1,42 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/三色交叉趋势追踪策略Three-Color-Cross-Trend-Tracking-Strategy.md
+// content_hash: fb828726ccf76354
+// collected: 2026-07-27
+strategy("3 Line Strick", overlay=true, margin_long=100, margin_short=100)
+
+
+//Sell
+fifth= close < low[1]
+fourth= close[1] > open[1]
+third= close[2] < open[2]
+seccond= close[3] < open[3]
+first= close[4] < open[4]
+
+
+//Buy
+fifth1= close > high[1]
+fourth1= close[1] < open[1]
+third1= close[2] > open[2]
+second1= close[3] > open[3]
+first1= close[4] > open[4]
+
+
+longCondition = fifth1 and fourth1 and third1 and second1 and first1
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+
+shortCondition = fifth and fourth and third and seccond and first
+if (shortCondition)
+    strategy.entry("Short", strategy.short)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/442230
+
+> Last Modified
+
+2024-02-20 14:19:26

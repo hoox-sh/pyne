@@ -1,0 +1,64 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双均线策略360Dual-Moving-Average-Strategy-360.md
+// content_hash: 9cf8ad8bd4464854
+// collected: 2026-07-27
+//@library=math
+strategy("策略360°（测试）", overlay=true)
+
+// 定义1分钟均线
+ma1 = request.security(syminfo.tickerid, "1", ta.sma(close, 1)) // 在这里使用了 math.sma() 函数
+//plot(ma1, color=color.yellow, title="原始均线")
+
+// 定义卡尔曼滤波函数，参考了[1](https://www.tradingview.com/pine-script-docs/en/v5/language/Methods.html)和[2](https://www.tradingview.com/pine-script-docs/en/v5/language/Operators.html)的代码
+kalman(x, g) => 
+    kf = 0.0 
+    dk = x - nz(kf[1], x) // 在这里使用了 nz() 函数
+    smooth = nz(kf[1], x) + dk * math.sqrt(g * 2) // 在这里使用了 math.sqrt() 函数
+    velo = 0.0 
+    velo := nz(velo[1], 0) + g * dk // 在这里使用了 nz() 函数
+    kf := smooth + velo 
+    kf 
+
+// 定义卡尔曼滤波后的均线
+ma2 = kalman(ma1, 0.01) 
+plot(ma2, color=color.blue, title="卡尔曼滤波后的均线")
+
+// 定义切线角
+angle = math.todegrees(math.atan(ma2 - ma2[1])) // 在这里使用了 math.degrees() 和 math.atan() 函数
+
+// 定义累加的切线角
+cum_angle = 0.0
+cum_angle := nz(cum_angle[1], 0) + angle // 在这里使用了 nz() 函数
+
+// 定义30分钟周期
+period = 30 // 您可以根据您的需要修改这个参数
+
+// 定义周期内的切线角总和
+sum_angle = 0.0
+sum_angle := math.sum(angle, period) // 在这里使用了 math.sum() 函数，把周期内的切线角总和改成简单地把 5 个切线角相加
+
+// 定义买入和卖出条件
+buy = sum_angle > 360// 在这里使用了 math.radians() 函数
+sell = sum_angle < -360
+
+// 执行买入和卖出操作
+strategy.entry("Long", strategy.long, when=buy)
+strategy.close("Short", when=buy)
+strategy.entry("Short", strategy.short, when=sell)
+strategy.close("Long", when=sell)
+
+// 绘制曲线图
+plot(sum_angle, color=color.green, title="周期内的切线角总和")
+plot(angle, color=color.red, title="切线角") // 这是我为您添加的代码，用于显示实时计算的切线角
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/440827
+
+> Last Modified
+
+2024-02-02 14:29:59

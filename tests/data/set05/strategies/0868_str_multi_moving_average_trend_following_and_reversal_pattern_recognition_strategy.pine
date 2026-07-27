@@ -1,0 +1,137 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多重均线趋势跟踪与反转模式识别策略-Multi-Moving-Average-Trend-Following-and-Reversal-Pattern-Recognition-Strategy.md
+// content_hash: 0dbd645aacc6db79
+// collected: 2026-07-27
+strategy(title="TMA Overlay Strategy", shorttitle="TMA Overlay", overlay=true)
+
+// ### Four Smoothed Moving Averages
+
+len1 = input.int(21, minval=1, title="Length 1", group="Smoothed MA Inputs")
+src1 = close
+smma1 = 0.0
+sma_1 = ta.sma(src1, len1)
+smma1 := na(smma1[1]) ? sma_1 : (smma1[1] * (len1 - 1) + src1) / len1
+plot(smma1, color=color.white, linewidth=2, title="21 SMMA")
+
+len2 = input.int(50, minval=1, title="Length 2", group="Smoothed MA Inputs")
+src2 = close
+smma2 = 0.0
+sma_2 = ta.sma(src2, len2)
+smma2 := na(smma2[1]) ? sma_2 : (smma2[1] * (len2 - 1) + src2) / len2
+plot(smma2, color=color.new(#6aff00, 0), linewidth=2, title="50 SMMA")
+
+h100 = input.bool(true, title="Show 100 Line", group="Smoothed MA Inputs")
+len3 = input.int(100, minval=1, title="Length 3", group="Smoothed MA Inputs")
+src3 = close
+smma3 = 0.0
+sma_3 = ta.sma(src3, len3)
+smma3 := na(smma3[1]) ? sma_3 : (smma3[1] * (len3 - 1) + src3) / len3
+sma3plot = plot(h100 ? smma3 : na, color=color.new(color.yellow, 0), linewidth=2, title="100 SMMA")
+
+len4 = input.int(200, minval=1, title="Length 4", group="Smoothed MA Inputs")
+src4 = close
+smma4 = 0.0
+sma_4 = ta.sma(src4, len4)
+smma4 := na(smma4[1]) ? sma_4 : (smma4[1] * (len4 - 1) + src4) / len4
+sma4plot = plot(smma4, color=color.new(#ff0500, 0), linewidth=2, title="200 SMMA")
+
+// Trend Fill
+trendFill = input.bool(true, title="Show Trend Fill", group="Smoothed MA Inputs") 
+ema2 = ta.ema(close, 2)
+ema2plot = plot(ema2, color=color.new(#2ecc71, 100), linewidth=1, title="EMA(2)", editable=false)
+fill(ema2plot, sma4plot, color=color.new(ema2 > smma4 and trendFill ? color.green : color.red, 85), title="Trend Fill")
+
+// End ###
+
+// ### 3 Line Strike
+bearS = input.bool(true, title="Show Bearish 3 Line Strike", group="3 Line Strike")
+bullS = input.bool(true, title="Show Bullish 3 Line Strike", group="3 Line Strike")
+
+bearSig = close[3] > open[3] and close[2] > open[2] and close[1] > open[1] and close < open[1]
+bullSig = close[3] < open[3] and close[2] < open[2] and close[1] < open[1] and close > open[1]
+
+plotshape(bullS ? bullSig : na, style=shape.triangleup, color=color.green, location=location.belowbar, size=size.small, text="3s-Bull", title="3 Line Strike Up")
+plotshape(bearS ? bearSig : na, style=shape.triangledown, color=color.red, location=location.abovebar, size=size.small, text="3s-Bear", title="3 Line Strike Down")
+
+// End ###
+
+//### Engulfing Candles
+bearE = input.bool(true, title="Show Bearish Big A$$ Candles", group="Big A$$ Candles")
+bullE = input.bool(true, title="Show Bullish Big A$$ Candles", group="Big A$$ Candles")
+
+openBarPrevious = open[1]
+closeBarPrevious = close[1]
+openBarCurrent = open
+closeBarCurrent = close
+
+bullishEngulfing = openBarCurrent <= closeBarPrevious and openBarCurrent < openBarPrevious and closeBarCurrent > openBarPrevious
+bearishEngulfing = openBarCurrent >= closeBarPrevious and openBarCurrent > openBarPrevious and closeBarCurrent < openBarPrevious
+
+plotshape(bullE ? bullishEngulfing : na, style=shape.triangleup, location=location.belowbar, color=color.green, size=size.tiny, title="Big Ass Candle Up")
+plotshape(bearE ? bearishEngulfing : na, style=shape.triangledown, location=location.abovebar, color=color.red, size=size.tiny, title="Big Ass Candle Down")
+
+alertcondition(bullishEngulfing, title="Bullish Engulfing", message="[CurrencyPair] [TimeFrame], Bullish candle engulfing previous candle")
+alertcondition(bearishEngulfing, title="Bearish Engulfing", message="[CurrencyPair] [TimeFrame], Bearish candle engulfing previous candle")
+
+// End ###
+
+// ### Trading Session
+ts = input.bool(true, title="Show Trade Session", group="Trade Session")
+
+tzOffset = input.int(0, title="Timezone Offset (hours from UTC)", group="Trade Session")
+label = input.string("CME Open", title="Label", tooltip="For easy identification", group="Trade Session")
+
+startHour = input.int(7, title="Analysis Start Hour", minval=0, maxval=23, group="Trade Session")
+startMinute = input.int(0, title="Analysis Start Minute", minval=0, maxval=59, group="Trade Session")
+
+startHour2 = input.int(8, title="Session Start Hour", minval=0, maxval=23, group="Trade Session")
+startMinute2 = input.int(30, title="Session Start Minute", minval=0, maxval=59, group="Trade Session")
+endHour2 = input.int(12, title="Session End Hour", minval=0, maxval=23, group="Trade Session")
+endMinute2 = input.int(0, title="Session End Minute", minval=0, maxval=59, group="Trade Session")
+
+rangeColor = input.color(#1976d21f, title="Color", group="Trade Session")
+showMon = input.bool(true, title="Monday", group="Trade Session")
+showTue = input.bool(true, title="Tuesday", group="Trade Session")
+showWed = input.bool(true, title="Wednesday", group="Trade Session")
+showThu = input.bool(true, title="Thursday", group="Trade Session")
+showFri = input.bool(true, title="Friday", group="Trade Session")
+showSat = input.bool(false, title="Saturday", group="Trade Session")
+showSun = input.bool(false, title="Sunday", group="Trade Session")
+
+startTime = timestamp("UTC", year(time), month(time), dayofmonth(time), startHour - tzOffset, startMinute)
+endTime = timestamp("UTC", year(time), month(time), dayofmonth(time), endHour2 - tzOffset, endMinute2)
+
+active = (startTime <= time and time <= endTime and ts) and ((dayofweek == dayofweek.monday and showMon) or (dayofweek == dayofweek.tuesday and showTue) or (dayofweek == dayofweek.wednesday and showWed) or (dayofweek == dayofweek.thursday and showThu) or (dayofweek == dayofweek.friday and showFri) or (dayofweek == dayofweek.saturday and showSat) or (dayofweek == dayofweek.sunday and showSun))
+bgcolor(color=active ? rangeColor : na, title="Session Background")
+
+startTime2 = timestamp("UTC", year(time), month(time), dayofmonth(time), startHour2 - tzOffset, startMinute2)
+endTime2 = timestamp("UTC", year(time), month(time), dayofmonth(time), endHour2 - tzOffset, endMinute2)
+
+active2 = (startTime2 <= time and time <= endTime2 and ts) and ((dayofweek == dayofweek.monday and showMon) or (dayofweek == dayofweek.tuesday and showTue) or (dayofweek == dayofweek.wednesday and showWed) or (dayofweek == dayofweek.thursday and showThu) or (dayofweek == dayofweek.friday and showFri) or (dayofweek == dayofweek.saturday and showSat) or (dayofweek == dayofweek.sunday and showSun))
+bgcolor(color=active2 ? rangeColor : na, title="Session Background")
+
+// End ###
+
+// Trading Strategy
+longCondition = bullSig or bullishEngulfing
+shortCondition = bearSig or bearishEngulfing
+
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+
+if (shortCondition)
+    strategy.entry("Short", strategy.short)
+
+// eof
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/458183
+
+> Last Modified
+
+2024-07-30 16:30:26

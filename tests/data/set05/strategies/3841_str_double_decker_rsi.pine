@@ -1,0 +1,47 @@
+//@version=4
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/Strategy- Double Decker RSI.pine
+// content_hash: 1903384a2f3c68a1
+// collected: 2026-07-27
+// ********************************************************************************************************
+// This was coded live during webinar on Backtesting in Tradingview 
+// That was held on 16-Jan-21
+// Aim of this strategy is to code a Double Decker RSI Strategy - Rules of Strategy are given in Description
+// *********************************************************************************************************
+// Identifier of strategy or an indicator (study())
+strategy(title="Strategy- Double Decker RSI",shorttitle='Strategy - Double Decker RSI',overlay=true,initial_capital=250000)
+// ********************
+// INPUTS
+// ********************
+// RSI Lookback Periods
+slowRSI=input(defval=14,title='Slow RSI Period',type=input.integer)
+fastRSI=input(defval=5,title='Fast RSI Period',type=input.integer)
+// Time Period Backtesting Input
+start_year=input(defval=2000,title='Backtest Start Year',type=input.integer)
+end_year=input(defval=2021,title='Backtest End Year',type=input.integer)
+//Specific Years to Test Starategy
+timeFilter=(year>=start_year and year<=end_year)
+// Trade Conditions and signals
+long = rsi(close,fastRSI)>70 and rsi(close,slowRSI)>50
+short = rsi(close,fastRSI)<40 and rsi(close,slowRSI)<50
+long_exit=rsi(close,fastRSI)<55
+short_exit=rsi(close,fastRSI)>45
+//positionSize - 1 Unit (also default setting)
+positionSize=1
+// Trade Firing - Entries and Exits 
+if(timeFilter)
+    if(long and strategy.position_size<=0)
+        strategy.entry(id='Long',long=strategy.long,qty=positionSize)
+    if(short and strategy.position_size>=0)
+        strategy.entry(id="Short",long=strategy.short,qty=positionSize)
+    if(long_exit and strategy.position_size>0)
+        strategy.close_all(comment='Ex')
+    if(short_exit and strategy.position_size<0)
+        strategy.close_all(comment='Ex')
+// Plot on Charts the Buy Sell Labels
+plotshape(strategy.position_size<1 and long,style=shape.labelup,location=location.belowbar,color=color.green,size=size.tiny,text='Long',textcolor=color.white)
+plotshape(strategy.position_size>-1 and short,style=shape.labeldown,location=location.abovebar,color=color.red,size=size.tiny,text='Short',textcolor=color.white)
+plotshape(strategy.position_size<0 and short_exit?1:0,style=shape.labelup,location=location.belowbar,color=color.maroon,size=size.tiny,text='ExShort',textcolor=color.white)
+plotshape(strategy.position_size>0 and long_exit?1:0,style=shape.labeldown,location=location.abovebar,color=color.olive,size=size.tiny,text='ExLong',textcolor=color.white)
+Expand (56 lines)

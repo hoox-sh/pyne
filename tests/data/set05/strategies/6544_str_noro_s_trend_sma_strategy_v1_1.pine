@@ -1,0 +1,39 @@
+//@version=2
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/趋势SMA交易策略11Trend-SMA-Trading-Strategy-11.md
+// content_hash: db6e3d414e017350
+// collected: 2026-07-27
+strategy("Noro's Trend SMA Strategy v1.1", shorttitle = "Trend SMA str 1.1", overlay=true, default_qty_type = strategy.percent_of_equity, default_qty_value=100.0, pyramiding=0)
+
+fastlen = input(5, "fast SMA Period")
+slowlen = input(15, "slow SMA Period")
+only = input(false, "Only long?")
+
+fastsma = ema(close, fastlen)
+slowsma = ema(close, slowlen)
+
+trend = low > slowsma ? 1 : high < slowsma ? -1 : trend[1]
+
+up = trend == 1 and low < fastsma and close < open ? 1 : 0
+dn = trend == -1 and high > fastsma and close > open ? 1 : 0
+
+plot(fastsma, color = red, title = "Fast SMA")
+plot(slowsma, color = blue, title = "Slow SMA")
+
+longCondition = up == 1
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+
+shortCondition = dn == 1
+if (shortCondition)
+    strategy.entry("Short", strategy.short, only == true ? 0 : na)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/427607
+
+> Last Modified
+
+2023-09-22 16:40:33

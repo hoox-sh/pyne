@@ -1,0 +1,45 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/MACD-量能反转交易策略MACD-Volume-Reversal-Trading-Strategy.md
+// content_hash: a487a2c2169098e3
+// collected: 2026-07-27
+strategy("MACD Anti-Pattern Detector with Volume", shorttitle="MACD-APD-Vol", overlay=true)
+
+// MACD settings
+fastLength = input(3, title="Fast Length")
+slowLength = input(10, title="Slow Length")
+signalSmoothing = input(16, title="Signal Smoothing")
+takeProfitPct = input(10.0, title="Take Profit (%)") / 100
+volumeMultiplier = input(1.0, title="Volume Multiplier")
+
+[macd, signal, _] = ta.macd(close, fastLength, slowLength, signalSmoothing)
+
+// Detect anti-patterns with volume confirmation
+bullishAntiPattern = ta.crossunder(macd, signal) and volume > volume[1] * volumeMultiplier
+bearishAntiPattern = ta.crossover(macd, signal) and volume > volume[1] * volumeMultiplier
+
+// Entry conditions
+if (bullishAntiPattern)
+    strategy.entry("Short", strategy.short)
+
+if (bearishAntiPattern)
+    strategy.entry("Long", strategy.long)
+
+// Take profit conditions
+strategy.exit("Take Profit Long", "Long", limit=strategy.position_avg_price * (1 + takeProfitPct))
+strategy.exit("Take Profit Short", "Short", limit=strategy.position_avg_price * (1 - takeProfitPct))
+
+// Highlight anti-patterns
+plotshape(series=bullishAntiPattern, title="Bullish Anti-Pattern", style=shape.triangledown, location=location.abovebar, color=color.red, size=size.small, text="PUT")
+plotshape(series=bearishAntiPattern, title="Bearish Anti-Pattern", style=shape.triangleup, location=location.belowbar, color=color.green, size=size.small, text="CALL")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/441047
+
+> Last Modified
+
+2024-02-05 10:26:23

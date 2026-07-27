@@ -1,0 +1,20 @@
+//@version=5
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/Triple RSI strategy.pine
+// content_hash: d57771f14b7aa158
+// collected: 2026-07-27
+strategy("3 RSI", overlay=true, margin_long=100, margin_short=100)
+// 3 rsi strategy , when all of them are overbought we sell, and vice versa
+rsi7 = ta.rsi(close,7)
+rsi14 = ta.rsi(close,14)
+rsi21 = ta.rsi(close,21)
+// sell condition
+sell = ta.crossunder(rsi7,70) and ta.crossunder(rsi14,70) and ta.crossunder(rsi21,70)
+//buy condition
+buy = ta.crossover(rsi7,30) and ta.crossover(rsi14,30) and ta.crossover(rsi21,30)
+if (buy)
+    strategy.entry("BUY", strategy.long)
+if (sell)
+    strategy.entry("SELL", strategy.short)
+Expand (26 lines)

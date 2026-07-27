@@ -1,0 +1,84 @@
+//@version=2
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多重EMA均线交叉趋势跟踪策略Multi-EMA-Crossover-Trend-Following-Strategy.md
+// content_hash: 5712ca8983623187
+// collected: 2026-07-27
+strategy("EMA Trades", overlay=true, pyramiding=4)
+
+src = input(close, title="Source")
+
+shortestLine = input(12, minval=1, title="Shortest Line")
+shorterLine = input(26, minval=1, title="Shorter Line")
+shortLine = input(50, minval=1, title="Short Line")
+middleLine = input(100, minval=1, title="Middle Line")
+longLine = input(200, minval=1, title="Long Line")
+longerLine = input(89, minval=1, title="Longer Line")
+longestLine = input(144, minval=1, title="Longest Line")
+
+shortestLineOutput = ema(src, shortestLine)
+shorterLineOutput = ema(src, shorterLine)
+shortLineOutput = ema(src, shortLine)
+middleLineOutput = ema(src, middleLine)
+longLineOutput = ema(src, longLine)
+longerLineOutput = ema(src, longerLine)
+longestLineOutput = ema(src, longestLine)
+
+//plot(shortestLineOutput, title="Shortest EMA", color=#ffffff)
+//plot(shorterLineOutput, title="Shorter EMA", color=#e54fe6)
+//plot(shortLineOutput, title="Short EMA", color=#4e6bc3)
+//plot(middleLineOutput, title="Middle EMA", color=#1dd6d8)
+//plot(longLineOutput, title="Long EMA", color=#d0de10)
+//plot(longerLineOutput, title="Longer EMA", color=#ef6a1a)
+//plot(longestLineOutput, title="Longest EMA", color=#ff0e0e)
+
+longEnrtyCondition_1 = crossover(shortestLineOutput[1], shorterLineOutput[1]) and shortestLineOutput > shorterLineOutput
+longEntryCondition_2 = crossover(shortestLineOutput[1], shortLineOutput[1]) and shortestLineOutput > shortLineOutput
+longEnrtyCondition_3 = crossover(shortestLineOutput[1], middleLineOutput[1]) and shortestLineOutput > middleLineOutput
+longEntryCondition_4 = crossover(shortestLineOutput[1], longLineOutput[1]) and shortestLineOutput > longLineOutput
+
+shortEnrtyCondition_1 = crossunder(shortestLineOutput[1], shorterLineOutput[1]) and shortestLineOutput < shorterLineOutput
+shortEntryCondition_2 = crossunder(shortestLineOutput[1], shortLineOutput[1]) and shortestLineOutput < shortLineOutput
+shortEnrtyCondition_3 = crossunder(shortestLineOutput[1], middleLineOutput[1]) and shortestLineOutput < middleLineOutput
+shortEntryCondition_4 = crossunder(shortestLineOutput[1], longLineOutput[1]) and shortestLineOutput < longLineOutput
+
+if (longEnrtyCondition_1)
+    strategy.entry("Buy1", strategy.long)
+    strategy.exit("Sell1")
+
+if (longEntryCondition_2)
+    strategy.entry("Buy2", strategy.long)
+    strategy.exit("Sell2")
+
+if (longEnrtyCondition_3)
+    strategy.entry("Buy3", strategy.long)
+    strategy.exit("Sell3")
+
+if (longEntryCondition_4)
+    strategy.entry("Buy4", strategy.long)
+    strategy.exit("Sell4")
+
+if (shortEnrtyCondition_1)
+    strategy.entry("Sell1", strategy.short)
+    strategy.exit("Buy1")
+
+if (shortEntryCondition_2)
+    strategy.entry("Sell2", strategy.short)
+    strategy.exit("Buy2")
+
+if (shortEnrtyCondition_3)
+    strategy.entry("Sell3", strategy.short)
+    strategy.exit("Buy3")
+
+if (shortEntryCondition_4)
+    strategy.entry("Sell4", strategy.short)
+    strategy.exit("Buy4")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/437665
+
+> Last Modified
+
+2024-01-04 16:22:07

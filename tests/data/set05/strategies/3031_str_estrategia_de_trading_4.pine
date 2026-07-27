@@ -1,0 +1,41 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于均线交易趋势策略The-Moving-Average-Crossover-Trading-Strategy.md
+// content_hash: 016881fe54f7574f
+// collected: 2026-07-27
+strategy("Estrategia de Trading")
+
+// Definir medias móviles para identificar tendencias
+fast_ma = ta.sma(close, 50) // Media móvil rápida
+slow_ma = ta.sma(close, 200) // Media móvil lenta
+
+// Condiciones para identificar tendencia alcista
+tendencia_alcista = fast_ma > slow_ma
+
+// Condiciones para identificar tendencia bajista
+tendencia_bajista = fast_ma < slow_ma
+
+// Dibujar las medias móviles en el gráfico
+plot(fast_ma, color=color.blue, linewidth=2)
+plot(slow_ma, color=color.red, linewidth=2)
+
+// Detectar señales de entrada y salida
+if (tendencia_alcista)
+    strategy.entry("Compra", strategy.long)
+    strategy.exit("Venta", "Compra", loss=close*0.02) // Salida de la posición con una pérdida del 2%
+    
+if (tendencia_bajista)
+    strategy.entry("Venta", strategy.short)
+    strategy.exit("Compra", "Venta", loss=close*0.02) // Salida de la posición con una pérdida del 2%
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/442542
+
+> Last Modified
+
+2024-02-22 16:36:26

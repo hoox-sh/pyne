@@ -1,0 +1,50 @@
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/Improved-RSI-Breakout-Strategy-with-Stop-Loss-and-Take-Profit改进RSI突破策略带止损止盈.md
+// content_hash: bc6568f6584f6823
+// collected: 2026-07-27
+strategy("Simple RSI Buy/Sell at a level", shorttitle="Simple RSI Strategy (SL/TP)", overlay=false )
+overbought = input(70, title="overbought value")
+oversold = input(30, title="oversold value")
+
+lenght = 14
+rsi = rsi(close, lenght)
+myrsi = rsi > overbought
+myrsi2 = rsi < oversold
+
+barcolor(myrsi ? color.black : na)
+barcolor(myrsi2 ? color.blue : na)
+
+// Risk Management Sysyem
+convert_percent_to_points(percent) =>
+    strategy.position_size != 0 ? round(percent / 100 * strategy.position_avg_price / syminfo.mintick) : float(na)
+    
+setup_percent(percent) =>
+    convert_percent_to_points(percent)
+
+STOP_LOSS = 2
+TAKE_PROFIT = 10
+
+plot(rsi)
+plot(overbought, color = color.red)
+plot(oversold, color = color.green)
+
+//STRATEGY
+if (myrsi)
+    strategy.entry("Long", strategy.long)
+    
+if (myrsi2)
+    strategy.entry("Short", strategy.short)
+
+strategy.exit("Exit", qty_percent = 100, profit = setup_percent(STOP_LOSS), loss = setup_percent(TAKE_PROFIT))
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/440990
+
+> Last Modified
+
+2024-02-04 15:27:50

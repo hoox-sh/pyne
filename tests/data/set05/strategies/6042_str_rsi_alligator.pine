@@ -1,0 +1,48 @@
+//@version=3
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/RSI鳄鱼交易策略Alligator-RSI-Trading-Strategy.md
+// content_hash: 943830f671430f32
+// collected: 2026-07-27
+strategy("RSI Alligator", overlay=false)
+
+jaws = rsi(close, 34)
+teeth = rsi(close, 5)
+lips = rsi(close, 13)
+plot(jaws, color=blue, title="Jaw")
+plot(teeth, color=green, title="Teeth")
+plot(lips, color=red, title="Lips")
+
+
+
+longCondition = crossover(rsi(close, 13), rsi(close, 34)) and (rsi(close, 5) > rsi(close, 34))
+longCondition1 = crossover(rsi(close, 5), rsi(close, 34)) and (rsi(close, 13) > rsi(close, 34))
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+if (longCondition1)
+    strategy.entry("Long", strategy.long)
+
+shortCondition = crossunder(rsi(close, 13), rsi(close, 34)) and (rsi(close, 5) < rsi(close, 34))
+shortCondition1 = crossunder(rsi(close, 5), rsi(close, 34)) and (rsi(close, 13) < rsi(close, 34))
+if (shortCondition)
+    strategy.entry("Short", strategy.short)
+if (shortCondition1)
+    strategy.entry("Short", strategy.short)
+    
+    // === BACKTESTING: EXIT strategy ===
+sl_inp = input(10, title='Stop Loss %', type=float)/100
+tp_inp = input(90, title='Take Profit %', type=float)/100
+
+stop_level = strategy.position_avg_price * (1 - sl_inp)
+take_level = strategy.position_avg_price * (1 + tp_inp)
+
+strategy.exit("Stop Loss/Profit", "Long", stop=stop_level, limit=take_level)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/434562
+
+> Last Modified
+
+2023-12-07 15:46:57

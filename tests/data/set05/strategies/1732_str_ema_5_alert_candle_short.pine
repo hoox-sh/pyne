@@ -1,0 +1,72 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/指数移动平均突破倒轨交易系统-Exponential-Moving-Average-Breakout-Reversal-Trading-System.md
+// content_hash: ee2b510fcd3b34e4
+// collected: 2026-07-27
+strategy("EMA 5 Alert Candle Short", overlay=true)
+
+// Define EMA
+emaLength = 5
+emaValue = ta.ema(close, emaLength)
+
+// Risk Management Parameters
+capital = 1000
+riskPerTrade = 2  // Fixed risk per trade in dollars
+
+// Check if previous candles touched EMA, but the current candle is far above EMA
+candleTouchesEMA = low <= emaValue
+alertCandle = not candleTouchesEMA[0] and candleTouchesEMA[1] and candleTouchesEMA[2] and candleTouchesEMA[3]
+
+// Persistent Variables to Store Alert Levels
+varip float validAlertLow = na
+varip float validAlertHigh = na
+varip bool isAlertActive = false
+varip float positionSize = na
+varip float capitalUsed = na
+
+// When an alert candle is identified, store its high and low
+if alertCandle
+    validAlertLow := low
+    validAlertHigh := high
+    isAlertActive := true
+
+// Calculate Position Sizing
+if isAlertActive
+    alertCandleRange = validAlertHigh - validAlertLow
+    positionSize := riskPerTrade / alertCandleRange  // Shares or contracts
+    capitalUsed := positionSize * validAlertLow      // Capital used in dollars
+
+// Check if the next candle breaks the alert candle low (entry condition)
+shortTrigger = isAlertActive and low < validAlertLow
+if shortTrigger
+    shortEntry = validAlertLow
+    stopLoss = validAlertHigh
+    target = shortEntry - (stopLoss - shortEntry)
+    isAlertActive := false  // Disable alert after trade execution
+
+    // Execute trade
+    strategy.entry("Short", strategy.short, qty=positionSize, stop=shortEntry)
+    strategy.exit("Take Profit", from_entry="Short", limit=target, stop=stopLoss)
+
+// Reset alert candle if next candle does not break low but also does not touch 5EMA
+if not shortTrigger and not candleTouchesEMA[0]
+    validAlertLow := low
+    validAlertHigh := high
+    isAlertActive := true
+
+// Plot EMA
+plot(emaValue, title="EMA 5", color=color.blue, linewidth=2)
+
+// Mark alert candle
+plotshape(alertCandle, location=location.abovebar, color=color.red, style=shape.labeldown, title="Alert Candle")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/484574
+
+> Last Modified
+
+2025-03-03 09:44:20

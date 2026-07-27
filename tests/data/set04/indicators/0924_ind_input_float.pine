@@ -1,0 +1,12 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block112
+// content_hash: a5a6e111da8ef566
+// collected: 2026-07-27
+indicator("input.float", overlay=true)
+i_angle1 = input.float(0.5, "Sin Angle", minval=-3.14, maxval=3.14, step=0.02)
+plot(math.sin(i_angle1) > 0 ? close : open, "sin", color=color.green)
+
+i_angle2 = input.float(0, "Cos Angle", options=[-3.14, -1.57, 0, 1.57, 3.14])
+plot(math.cos(i_angle2) > 0 ? close : open, "cos", color=color.red)

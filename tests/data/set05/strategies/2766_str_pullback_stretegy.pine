@@ -1,0 +1,50 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多时间框架比特币币安币和以太坊交易回撤策略-Multi-Timeframe-Bitcoin-Binance-Coin-and-Ethereum-Pullback-Trading-Strategy.md
+// content_hash: 65a3e94fdc080fc1
+// collected: 2026-07-27
+strategy("Pullback stretegy", overlay=true,initial_capital = 1000,default_qty_type = strategy.percent_of_equity,default_qty_value = 100)
+
+//input
+ma_lenth1=input.int(200,'MA lenth 1',step=10,group = 'Moving avrege pprameter',inline = 'MA')
+ma_lenth2=input.int(13,'MA lenth 2',step=1,group = 'Moving avrege pprameter',inline = 'MA')
+sl=input.float(title = "stop loss%",defval=0.07,step=0.1,group = 'moving avrege pprameter')
+too_deep=input.float(title = 'Too deep(%)',defval = 0.27,step=0.01,group='Too Deep and Too Thin',inline='Too')
+too_thin=input.float(title = 'Too thin(%)',defval = 0.03,step=0.01,group='Too Deep and Too Thin',inline='Too')
+//claulation
+ma1=ta.sma(close,ma_lenth1)
+ma2=ta.sma(close,ma_lenth2)
+
+too_deep2=  (ma2/ma1-1)<too_deep
+too_thin2=  (ma2/ma1-1)>too_thin
+//entry and colose Conditionq
+var float buy_price=0
+buy_condition=(close>ma1)and(close<ma2)and strategy.position_size==0 and too_deep2 and too_thin2
+close_condition1=(close>ma2)and strategy.position_size>0 and (close<low[1])
+stop_distance=strategy.position_size>0? ((buy_price-close)/close): na
+close_condition2=strategy.position_size>0 and stop_distance>sl
+stop_price= strategy.position_size>0?buy_price-(buy_price*sl): na
+
+
+//entry and close order
+
+if buy_condition
+    strategy.entry('Long',strategy.long)
+if buy_condition[1]
+    buy_price:=open
+if close_condition1 or close_condition2
+    strategy.close('Long' ,comment = "exite"+(close_condition2 ? "SL=ture":""))
+    buy_price :=na
+plot(ma1,color = color.blue)
+plot(ma2,color = color.orange)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/449852
+
+> Last Modified
+
+2024-04-29 17:36:12

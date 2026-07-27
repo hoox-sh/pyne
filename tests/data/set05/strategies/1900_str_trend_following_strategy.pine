@@ -1,0 +1,68 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/均线趋势追踪策略Trend-Following-Strategy.md
+// content_hash: 257ad521ce2ca767
+// collected: 2026-07-27
+strategy("????? ?????", overlay=true, initial_capital=1000, default_qty_type=strategy.percent_of_equity, default_qty_value=15)
+
+//Heikin Ashi Option
+ha = input(true, title = "Heikin Ashi Source")
+src = ha ? request.security(ticker.heikinashi(syminfo.tickerid), timeframe.period, close, barmerge.gaps_off, barmerge.lookahead_off) : close
+usestoploss = input(true, title="Stop Loss")
+
+//EMA
+len1 = input.int(9, minval=1, title="EMA Length")
+ema = ta.ema(src, len1)
+emaline = plot(ema, title="EMA", color=color.blue, linewidth=2)
+
+//HMA
+len2 = input.int(69, minval=1, title="HMA Length")
+hma = ta.wma(2*ta.wma(src, len2/2)-ta.wma(src, len2), math.floor(math.sqrt(len2)))
+hmaline = plot(hma, title="HMA", color=color.purple, linewidth=2)
+fillcolor = hma < ema ? color.blue : color.purple
+fill(emaline, hmaline, title="EMA Fill", color=color.new(fillcolor, 80), editable=true)
+
+//Stop Loss Conditions
+stoplosspercent = input.float(title="Stop Loss (%)", defval=-6.5, minval=-50, maxval=0, step=.1) / 100
+stoploss = strategy.position_avg_price * (1 + stoplosspercent)
+stop = stoploss > close and stoploss[1] < close[1] and strategy.position_size > 0 and usestoploss
+
+//Buy Sell Conditions
+buy = hma < ema
+sell = hma > ema
+
+//Trades and Alerts
+if buy
+	strategy.entry("Long Position", strategy.long, comment="BUY")
+//	alert("{\n\"message_type\": \"bot\",\n\"bot_id\": 6477543,\n\"email_token\": \"9b842a1b-9cb4-48ac-9ed4-524c98557e5f\",\n\"delay_seconds\": 0\n}", alert.freq_once_per_bar)
+if sell and strategy.openprofit > 0
+	strategy.close("Long Position", comment="SELL")
+//	alert("{\n\"action\": \"close_at_market_price\",\n\"message_type\": \"bot\",\n\"bot_id\": 6477543,\n\"email_token\": \"9b842a1b-9cb4-48ac-9ed4-524c98557e5f\",\n\"delay_seconds\": 0\n}", alert.freq_once_per_bar)
+if stop
+    strategy.close("Long Position", comment="STOP")
+//    alert("{\n\"action\": \"close_at_market_price\",\n\"message_type\": \"bot\",\n\"bot_id\": 6477543,\n\"email_token\": \"9b842a1b-9cb4-48ac-9ed4-524c98557e5f\",\n\"delay_seconds\": 0\n}", alert.freq_once_per_bar)
+
+//Alternate Labels
+var pos = 0
+if buy and pos <= 0
+    pos := 1
+if sell and pos >= 0
+    pos := -1
+buylabel  = pos ==  1 and (pos !=  1)[1]
+selllabel = pos == -1 and (pos != -1)[1]
+
+//Plot Labels
+plotshape(buylabel,  style=shape.labelup,   location=location.belowbar, color=color.blue,   text="BUY",  textcolor=color.white, size=size.tiny)
+plotshape(selllabel, style=shape.labeldown, location=location.abovebar, color=color.purple, text="SELL", textcolor=color.white, size=size.tiny)
+plotshape(stop,      style=shape.labeldown, location=location.abovebar, color=color.yellow, text="STOP", textcolor=color.white, size=size.tiny)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/431224
+
+> Last Modified
+
+2023-11-06 10:34:19

@@ -1,0 +1,58 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动态ATR止盈止损移动均线交叉策略-Dynamic-ATR-Stop-Loss-and-Take-Profit-Moving-Average-Crossover-Strategy.md
+// content_hash: c86cd151935e03be
+// collected: 2026-07-27
+strategy("Enhanced Moving Average Crossover Strategy", overlay=true)
+
+// Input parameters
+fastLength = input(10, title="Fast MA Length")
+slowLength = input(50, title="Slow MA Length")
+atrLength = input(14, title="ATR Length")
+riskPerTrade = input(1, title="Risk Per Trade (%)") / 100
+
+// Time-based conditions
+isLondonSession = hour >= 8 and hour <= 15
+isAsianSession = hour >= 0 and hour <= 7
+isEuropeanSession = hour >= 7 and hour <= 14
+
+// Moving Averages
+fastMA = ta.sma(close, fastLength)
+slowMA = ta.sma(close, slowLength)
+
+// Average True Range (ATR) for dynamic stop loss and take profit
+atr = ta.atr(atrLength)
+
+// Buy and Sell Conditions
+buySignal = ta.crossover(fastMA, slowMA)
+sellSignal = ta.crossunder(fastMA, slowMA)
+
+// Dynamic stop loss and take profit
+stopLoss = close - atr * 1.5
+takeProfit = close + atr * 3
+
+// Strategy Logic
+if (buySignal and isEuropeanSession)
+    strategy.entry("Buy", strategy.long)
+    strategy.exit("Take Profit/Stop Loss", "Buy", limit=takeProfit, stop=stopLoss)
+
+if (sellSignal and isEuropeanSession)
+    strategy.entry("Sell", strategy.short)
+    strategy.exit("Take Profit/Stop Loss", "Sell", limit=takeProfit, stop=stopLoss)
+
+// Plotting
+plot(fastMA, color=color.blue, title="Fast MA")
+plot(slowMA, color=color.red, title="Slow MA")
+plotshape(series=buySignal, location=location.belowbar, color=color.green, style=shape.labelup, text="BUY")
+plotshape(series=sellSignal, location=location.abovebar, color=color.red, style=shape.labeldown, text="SELL")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/452827
+
+> Last Modified
+
+2024-05-29 17:19:21

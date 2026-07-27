@@ -1,0 +1,66 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/牛市追涨杀跌策略Bull-Market-Buy-Dips-Strategy.md
+// content_hash: 6ee6f69db22685f4
+// collected: 2026-07-27
+strategy(shorttitle='Buy The Dips in Bull Market',title='Buy The Dips in Bull Market (by Coinrule)', overlay=true, initial_capital = 1000, default_qty_type = strategy.percent_of_equity, default_qty_type = strategy.percent_of_equity, default_qty_value = 30, commission_type=strategy.commission.percent, commission_value=0.1)
+    
+//Backtest dates
+fromMonth = input(defval = 1,  title = "From Month")     
+fromDay   = input(defval = 10,    title = "From Day")       
+fromYear  = input(defval = 2020, title = "From Year")       
+thruMonth = input(defval = 1,    title = "Thru Month")     
+thruDay   = input(defval = 1,    title = "Thru Day")     
+thruYear  = input(defval = 2112, title = "Thru Year")       
+    
+showDate  = input(defval = true, title = "Show Date Range")
+    
+start     = timestamp(fromYear, fromMonth, fromDay, 00, 00)        // backtest start window
+finish    = timestamp(thruYear, thruMonth, thruDay, 23, 59)        // backtest finish window
+window()  => time >= start and time <= finish ? true : false       // create function "within window of time"
+    
+    
+// RSI inputs and calculations
+lengthRSI = input(14, title = 'RSI period', minval=1)
+RSI = rsi(close, lengthRSI)
+
+//MA inputs and calculations
+inSignal=input(9, title='MAfast')
+inlong1=input(50, title='MAslow')
+inlong2=input(200, title='MAslow')
+
+
+MAfast= sma(close, inSignal)
+MAslow= sma(close, inlong1)
+MAlong= sma(close, inlong2)
+
+
+RSI_buy_signal= input(35, title='RSI Buy Signal')
+
+    
+//Entry
+    
+    
+strategy.entry(id="long", long = true, when = RSI < RSI_buy_signal and MAlong < MAslow and window()) 
+    
+//Exit
+    
+    
+strategy.close("long", when = close > MAfast and MAfast > MAslow and window())
+
+
+plot(MAslow, color=color.orange, linewidth=1)
+plot(MAfast, color=color.purple, linewidth=1)
+plot(MAlong, color=color.blue, linewidth=2)
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/430878
+
+> Last Modified
+
+2023-11-02 16:21:21

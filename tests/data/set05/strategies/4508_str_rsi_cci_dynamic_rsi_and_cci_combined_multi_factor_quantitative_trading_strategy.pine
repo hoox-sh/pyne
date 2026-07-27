@@ -1,0 +1,99 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动态RSI与CCI结合的多因子量化交易策略Dynamic-RSI-and-CCI-Combined-Multi-factor-Quantitative-Trading-Strategy.md
+// content_hash: 61aac2ca63815e4f
+// collected: 2026-07-27
+strategy(title="ATOM2.0", shorttitle="ATOM V2.0", overlay=false, default_qty_type=strategy.cash, currency=currency.USD, initial_capital=200, default_qty_type=strategy.cash, default_qty_value=100, pyramiding=10)
+
+// Set Parameter MA12
+len12 = input(12, minval=1, title="Length")
+src12 = input(close, title="Source")
+ma12 = sma(src12, len12)
+//plot(ma12, color=color.blue, title="MA12")
+
+// Set Parameter MA26
+len26 = input(26, minval=1, title="Length")
+src26 = input(close, title="Source")
+ma26 = sma(src26, len26)
+//plot(ma26, color=color.orange, title="MA12")
+
+//Stochastic RSI 14,3,3
+smoothK_1 = input(3, minval=1)
+smoothD_1 = input(3, minval=1)
+lengthRSI = input(14, minval=1)
+lengthStoch = input(14, minval=1)
+src_1 = input(close, title="RSI Source_1")
+
+rsi1 = rsi(src_1, lengthRSI)
+k = sma(stoch(rsi1, rsi1, rsi1, lengthStoch), smoothK_1)
+d = sma(k, smoothD_1)
+//plot(k, color=color.red)
+//plot(d, color=color.yellow)
+
+//Stochastic RSI 5,4,3
+smoothK_2 = input(4, minval=1)
+smoothD_2 = input(3, minval=1)
+lengthRSI_2 = input(5, minval=1)
+lengthStoch_2 = input(5, minval=1)
+src_2 = input(close, title="RSI Source_2")
+
+rsi2 = rsi(src_2, lengthRSI_2)
+k_2 = sma(stoch(rsi2, rsi2, rsi2, lengthStoch_2), smoothK_2)
+d_2 = sma(k_2, smoothD_2)
+//plot(k_2, color=color.white)
+//plot(d_2, color=color.green)
+
+// CCI
+cci = cci(close,26)
+//plot(cci,color=color.blue)
+
+// Dynamic RSI
+DZbuy = 0.1
+DZsell = 0.1
+Period = 14
+Lb = 60
+
+RSILine = rsi(close,Period)
+jh = highest(RSILine, Lb)
+jl = lowest(RSILine, Lb)
+jc = (wma((jh-jl)*0.5,Period) + wma(jl,Period))
+Hiline = jh - jc * DZbuy
+Loline = jl + jc * DZsell
+R = (4 * RSILine + 3 * RSILine[1] + 2 * RSILine[2] + RSILine[3] ) / 10
+
+plot(R, title='R', color=color.white, linewidth=1, transp=0)
+plot(Hiline, title='Hiline', color=color.yellow,  linewidth=1, transp=0)
+plot(Loline, title='Loline', color=color.yellow, linewidth=1, transp=0)
+plot(jc, title='Jc', color=color.purple,  linewidth=1, transp=50)
+
+col_1 = R > Hiline ? color.red:na
+col_2 = R < Loline ? color.green:na
+
+fill(plot(R, title='R', color=color.white, linewidth=1, transp=0), plot(Hiline, title='Hiline', color=color.yellow,  linewidth=1, transp=0), color=col_1,transp=0)
+fill(plot(R, title='R', color=color.white, linewidth=1, transp=0), plot(Loline, title='Loline', color=color.yellow, linewidth=1, transp=0), color=col_2,transp=0)
+//------------------------------------------------------------------------------
+// Calculate qty
+// Parameter
+fund = 10           // Fund per Contract in USD
+leverage = 100     // Leverage
+// Buy Condition
+buyCondition = (ma12>ma26 and cci<100 and k<80 and d<80 and k_2<80 and d_2<80 and crossover(k_2, d_2))
+buy = (buyCondition == input(1))
+alertcondition(buy, title='time to Long', message='Long!!!')
+//closeBuy = (cci>100 and cci<cci[1] and cci<cci[2])
+closeBuy = (crossunder(R, Hiline) and k>80)
+alertcondition(closeBuy, title='Time to Close', message='Close Long')
+
+// Submit Orders
+strategy.entry(id="Long", qty=(fund*leverage)/close, long=true, when=buyCondition)
+strategy.close(id="Long", when=closeBuy)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/433456
+
+> Last Modified
+
+2023-11-27 18:54:34

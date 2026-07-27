@@ -1,0 +1,41 @@
+//@version=3
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双EMA跨度突破策略Dual-EMA-Spread-Breakout-Strategy.md
+// content_hash: 14e6db670036fcf3
+// collected: 2026-07-27
+strategy("2-EMA Strategy", overlay=true, initial_capital=100, currency="USD", default_qty_type=strategy.percent_of_equity, default_qty_value=100, commission_type=strategy.commission.percent, commission_value=0.075)
+
+diffMinimum = input(0.95, step=0.01)
+
+small_ema = input(13, title="Small EMA")
+long_ema = input(26, title="Long EMA")
+
+ema1 = ema(close, small_ema)
+ema2 = ema(close, long_ema)
+
+
+orderCondition = ema1 > ema2?((ema1/ema2)*100)-100 > diffMinimum:((ema2/ema1)*100)-100 > diffMinimum
+
+longCondition = close > ema1 and ema1 > ema2
+if (longCondition and orderCondition)
+    strategy.entry("Long", strategy.long)
+
+shortCondition = close < ema1 and ema1 < ema2
+if (shortCondition and orderCondition)
+    strategy.entry("Short", strategy.short)
+    
+strategy.close("Short", when=close > ema1)
+strategy.close("Long", when=close < ema1)
+    
+plot(ema(close, small_ema), title="EMA 1", color=green, transp=0, linewidth=2)
+plot(ema(close, long_ema), title="EMA 2", color=orange, transp=0, linewidth=2)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/430132
+
+> Last Modified
+
+2023-10-25 12:43:59

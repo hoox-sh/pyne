@@ -1,0 +1,64 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/增强趋势多重信号动态交易策略-Enhanced-Trend-Multi-Signal-Dynamic-Trading-Strategy.md
+// content_hash: 5c8124af76ade37e
+// collected: 2026-07-27
+strategy("Supertrend Strategy", overlay=true)
+atrPeriod = input(10, "ATR Length")
+factor = input.float(3.0, "Factor", step=0.01)
+
+// Compute supertrend values
+[supertrendValue, supertrendDirection] = ta.supertrend(factor, atrPeriod)
+var float direction = na
+if not na(supertrendDirection[1]) and supertrendDirection[1] != supertrendDirection
+    direction := supertrendDirection > 0 ? 1 : -1
+
+// Variables to track conditions
+var int lastShortTime = na
+var int lastLongTime = na
+
+// Detecting short and long entries
+if direction == -1
+    strategy.entry("My Short Entry Id", strategy.short)
+    lastShortTime := bar_index
+
+if direction == 1
+    strategy.entry("My Long Entry Id", strategy.long)
+    lastLongTime := bar_index
+
+// Custom signal logic
+bool bullishSignal = false
+bool bearishSignal = false
+
+// Define bullish signal conditions
+if not na(lastShortTime) and (bar_index - lastShortTime >= 15 and bar_index - lastShortTime <= 19)
+    if close > open and close[1] > open[1] and close[2] > open[2]
+        bullishSignal := true
+
+// Define bearish signal conditions
+if not na(lastLongTime) and (bar_index - lastLongTime >= 15 and bar_index - lastLongTime <= 19)
+    if close < open and close[1] < open[1] and close[2] < open[2]
+        bearishSignal := true
+
+// Plot signals
+if bullishSignal
+    strategy.entry("Bullish Upward Signal", strategy.long)
+    label.new(bar_index, close, text="Bullish", style=label.style_circle, color=color.green, textcolor=color.white)
+
+if bearishSignal
+    strategy.entry("Bearish Downward Signal", strategy.short)
+    label.new(bar_index, close, text="Bearish", style=label.style_circle, color=color.red, textcolor=color.white)
+
+// Optionally plot the strategy equity
+//plot(strategy.equity, title="Equity", color=color.red, linewidth=2, style=plot.style_areabr)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/477519
+
+> Last Modified
+
+2025-01-06 11:06:26

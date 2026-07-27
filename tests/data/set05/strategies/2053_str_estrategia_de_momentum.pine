@@ -1,0 +1,64 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多重动量线性回归交叉策略-Multi-Momentum-Linear-Regression-Crossover-Strategy.md
+// content_hash: 83e4f2aceb2b2f90
+// collected: 2026-07-27
+strategy("Estrategia de Momentum", overlay=true)
+
+// Indicadores de momentum
+rsi = ta.rsi(close, 14)
+ema_fast = ta.ema(close, 5)
+ema_slow = ta.ema(close, 20)
+
+// Parámetros de la regresión lineal
+reg_length = input(100, title="Longitud de la Regresión Lineal")
+offset = input(0, title="Desplazamiento de la Regresión Lineal")
+
+// Cálculo de la regresión lineal
+linreg = ta.linreg(close, reg_length, offset)
+linreg_std = ta.stdev(close, reg_length)
+
+// Plot de la regresión lineal
+plot(linreg, color=color.yellow, title="Regresión Lineal")
+plot(linreg + linreg_std, color=color.purple, title="Canal Superior de la Regresión")
+plot(linreg - linreg_std, color=color.orange, title="Canal Inferior de la Regresión")
+
+// Condiciones de entrada
+longCondition = ta.crossover(ema_fast, ema_slow) and rsi > 50
+shortCondition = ta.crossunder(ema_fast, ema_slow) and rsi < 50
+
+// Gestión de operaciones
+if (longCondition)
+    strategy.entry("Buy", strategy.long)
+
+if (shortCondition)
+    strategy.entry("Sell", strategy.short)
+
+// Plot de indicadores para visualización
+plot(ema_fast, color=color.blue, title="EMA rápida")
+plot(ema_slow, color=color.red, title="EMA lenta")
+hline(50, "RSI 50", color=color.gray)
+
+// Señales visuales de compra y venta
+plotshape(series=longCondition, title="Buy Signal", location=location.belowbar, color=color.green, style=shape.triangleup, size=size.small)
+plotshape(series=shortCondition, title="Sell Signal", location=location.abovebar, color=color.red, style=shape.triangledown, size=size.small)
+
+// Alertas de TradingView
+alertcondition(longCondition, title='Alerta de Compra', message='{"action": "BUY", "symbol": "BTCUSDT", "percentage": 75}')
+alertcondition(shortCondition, title='Alerta de Venta', message='{"action": "SELL", "symbol": "BTCUSDT", "percentage": 75}')
+
+if (longCondition)
+    alert('{"action": "BUY", "symbol": "BTCUSDT", "percentage": 75}')
+
+if (shortCondition)
+    alert('{"action": "SELL", "symbol": "BTCUSDT", "percentage": 75}')
+```
+
+> Detail
+
+https://www.fmz.com/strategy/455361
+
+> Last Modified
+
+2024-06-28 15:21:38

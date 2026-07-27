@@ -1,0 +1,50 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/RSI回调突破策略RSI-Pullback-Breakout-Strategy.md
+// content_hash: 5e6cb3fbbf3fc604
+// collected: 2026-07-27
+strategy("*RSI 5 - Long only- Daily charts & above*", overlay = false)
+
+// Define inputs
+rsi_length = input(5, "RSI Length")
+
+// Calculate indicators
+rsi = ta.rsi(close, rsi_length)
+
+// Entry conditions
+long = rsi[1] < 50 and rsi > 60
+
+// Exit conditions
+longExit = rsi < rsi[1] 
+
+
+// Execute trade with adjusted position size
+if (long) 
+    strategy.entry("Long", strategy.long)
+    
+    
+if  (longExit)
+	strategy.close("LongExit")
+
+
+// Close long position if long exit condition is met
+if (longExit)
+    strategy.close("Long", comment="Long exit")
+
+rsiPlot = plot(rsi, "RSI", color=#7E57C2)
+rsiUpperBand = hline(60, "RSI Upper Band", color=#787B86)
+midline = hline(50, "RSI Middle Band", color=color.new(#787B86, 50))
+rsiLowerBand = hline(40, "RSI Lower Band", color=#787B86)
+fill(rsiUpperBand, rsiLowerBand, color=color.rgb(126, 87, 194, 90), title="RSI Background Fill")
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/431889
+
+> Last Modified
+
+2023-11-13 10:15:48

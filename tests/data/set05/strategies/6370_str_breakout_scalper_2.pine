@@ -1,0 +1,61 @@
+//@version=2
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/黄金快速突破策略Breakout-Scalper-Catching-Trend-Changes-Quickly.md
+// content_hash: 1bed6603095f0349
+// collected: 2026-07-27
+strategy("Breakout Scalper", overlay=true)
+
+fast_window = input(title="Fast Window",  defval=13, minval=1)
+slow_window = input(title="Slow Window",  defval=52, minval=1)
+instant_period = input(title="Instant Period",  defval=3, minval=1)
+
+fast_low = lowest(fast_window)
+fast_high = highest(fast_window)
+fast_mid = (fast_low + fast_high) / 2
+
+slow_low = lowest(slow_window)
+slow_high = highest(slow_window)
+slow_mid = (slow_low + slow_high) / 2
+
+instant_price = ema(close, instant_period)
+
+plot(instant_price, title="Instant Price", color=black, transp=50)
+fp = plot(fast_mid, title="Fast Mid", color=green)
+sp = plot(slow_mid, title="Slow Mid", color=red)
+fill(fp, sp, color=(fast_mid > slow_mid ? green : red))
+
+is_buy_mode = (instant_price > fast_mid) and (fast_mid > slow_mid)
+is_sell_mode = (instant_price < fast_mid) and (fast_mid < slow_mid)
+entry_color = is_buy_mode ? green : (is_sell_mode ? red : na)
+exit_color = is_buy_mode ? red : (is_sell_mode ? green : na)
+
+entry_buy_stop = slow_high
+entry_sell_stop = slow_low
+exit_buy_stop = max(fast_low, slow_low)
+exit_sell_stop = min(fast_high, slow_high)
+strategy.entry("long", strategy.long, stop=entry_buy_stop, when=is_buy_mode)
+strategy.exit("stop", "long", stop=exit_buy_stop)
+strategy.entry("short", strategy.short, stop=entry_sell_stop, when=is_sell_mode)
+strategy.exit("stop", "short", stop=exit_sell_stop)
+strategy.close("long", when=(not is_buy_mode))
+strategy.close("short", when=(not is_sell_mode))
+
+entry_buy_stop_color = (strategy.position_size == 0) ? (is_buy_mode ? green : na) : na
+plotshape(entry_buy_stop, location=location.absolute, color=entry_buy_stop_color, style=shape.circle)
+entry_sell_stop_color = (strategy.position_size == 0) ? (is_sell_mode ? red : na) : na
+plotshape(entry_sell_stop, location=location.absolute, color=entry_sell_stop_color, style=shape.circle)
+exit_buy_stop_color = (strategy.position_size > 0) ? red : na
+plotshape(exit_buy_stop, location=location.absolute, color=exit_buy_stop_color, style=shape.xcross)
+exit_sell_stop_color = (strategy.position_size < 0) ? green : na
+plotshape(exit_sell_stop, location=location.absolute, color=exit_sell_stop_color, style=shape.xcross)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/430175
+
+> Last Modified
+
+2023-10-25 17:58:11

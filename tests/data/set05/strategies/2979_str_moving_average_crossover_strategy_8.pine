@@ -1,0 +1,44 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/移动平均线交叉穿越策略Moving-Average-Crossover-Strategy.md
+// content_hash: d299f6f04f73d35a
+// collected: 2026-07-27
+strategy(title="MA Crossover (40)", overlay=true)
+
+// Input for the SMA length (24)
+sma_length = input(40, title="SMA Length")
+sma = ta.sma(close, sma_length)
+
+// Determine if the current candle crosses above the 24-period SMA
+longCondition = ta.crossover(close, sma)
+
+// Determine if the current candle crosses and closes below the 24-period SMA
+closeLongCondition = ta.crossunder(close, sma)
+
+// Plot the 24-period SMA
+plot(sma, color=color.blue, title="24-period SMA")
+
+// Long entry signal
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+
+// Close long position when the current candle crosses and closes below the 24-period SMA
+if (closeLongCondition)
+    strategy.close("Long")
+
+
+// Create alerts
+alertcondition(longCondition, title="Candle Crosses Above SMA 40", message="Candle has crossed above SMA 40.")
+alertcondition(longCondition, title="Candle Closes Above SMA 40", message="Candle has closed above SMA 40.")
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/434304
+
+> Last Modified
+
+2023-12-05 11:52:28

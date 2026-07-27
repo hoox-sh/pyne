@@ -1,0 +1,40 @@
+//@version=4
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/Jim's MACD.pine
+// content_hash: 2ef7741e3e05426b
+// collected: 2026-07-27
+strategy("Jim's MACD v8", overlay=true)
+Tendies = input(true, title="Check here for tendies")
+//Momentum Logic
+mlength = input(12)
+price = close
+momentum(seria, mlength) =>
+    mom = seria - seria[mlength]
+    mom
+mom0 = momentum(price, mlength)
+mom1 = momentum( mom0, 1)
+//MACD Setup 
+signalLength=input(9)
+[macdLine, signalLine, histLine] = macd(close, 12, 26, signalLength)
+//Hullema
+hlength = input(9, minval=1)
+src = input(close, title="Source")
+hullma = wma(2*wma(src, hlength/2)-wma(src, hlength), floor(sqrt(hlength)))
+//Time
+entryt = time(timeframe.period, "0955-1430,1755-2030") //Ensures no new trades in last 30 minutes 
+exitt = time(timeframe.period, "0955-1500,1755-2100") //Trading times : 11AM-4PM , 7PM-10PM EST 
+b = (na(entryt) ? 0 : 1)
+c = (na(exitt) ? 0 : 1)
+//Bar coloring
+barcolor((strategy.position_size>0)?color.green:(strategy.position_size<0)?color.red:color.white)
+//Entry
+if( mom0 > 0 and mom1 > 0 and histLine > 0 and signalLine < 0 and close > hullma ) 
+    strategy.entry( "BUY", strategy.long, when = b == 1 )
+if( mom0 < 0 and mom1 < 0 and histLine < -0.1 and signalLine > 0 and close < hullma )
+    strategy.entry( "SELL", strategy.short, when = b == 1 )
+    
+//Exit 
+strategy.close("BUY", when = histLine < 0 or c == 0)
+strategy.close("SELL", when = histLine > 0 or c == 0)
+Expand (44 lines)

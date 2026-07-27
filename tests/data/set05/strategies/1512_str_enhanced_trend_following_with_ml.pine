@@ -1,0 +1,79 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动态趋势跟踪策略与机器学习增强型风险管理Dynamic-Trend-Following-Strategy-with-Machine-Learning-Enhanced-Risk-Management.md
+// content_hash: b5f342b0c0612ddb
+// collected: 2026-07-27
+strategy("Enhanced Trend Following with ML", overlay=true)
+
+// User Inputs
+shortLength = input.int(20, minval=1, title="Short Moving Average Length")
+longLength = input.int(50, minval=1, title="Long Moving Average Length")
+atrPeriod = input.int(14, title="ATR Period")
+stopLossMultiplier = input.float(2.0, title="Stop Loss Multiplier")
+mlConfidenceThreshold = input.float(0.5, title="ML Confidence Threshold")
+
+// Calculate Moving Averages
+shortMA = ta.sma(close, shortLength)
+longMA = ta.sma(close, longLength)
+
+// Plot Moving Averages
+plot(shortMA, title="Short MA", color=color.red)
+plot(longMA, title="Long MA", color=color.blue)
+
+// Trend Strength Indicator (using RSI as a proxy for ML confidence)
+mlSignal = math.round(ta.rsi(close, 14) / 100)
+
+// Conditions for entering trades
+longCondition = ta.crossover(shortMA, longMA) and mlSignal > mlConfidenceThreshold
+shortCondition = ta.crossunder(shortMA, longMA) and mlSignal < (1 - mlConfidenceThreshold)
+
+// ATR for dynamic stop loss
+atrValue = ta.atr(atrPeriod)
+stopLoss = atrValue * stopLossMultiplier
+
+// Trade Entry
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+    strategy.exit("SLLong", "Long", stop=strategy.position_avg_price - stopLoss)
+
+if (shortCondition)
+    strategy.entry("Short", strategy.short)
+    strategy.exit("SLShort", "Short", stop=strategy.position_avg_price + stopLoss)
+
+// Trade Management
+longCrossover = ta.crossover(shortMA, longMA)
+shortCrossunder = ta.crossunder(shortMA, longMA)
+
+if (strategy.position_size > 0)
+    if (longCrossover)
+        strategy.close("Long")
+
+if (strategy.position_size < 0)
+    if (shortCrossunder)
+        strategy.close("Short")
+
+// Trailing Stop for existing positions
+var float trailStopLong = strategy.position_avg_price
+var float trailStopShort = strategy.position_avg_price
+
+if (strategy.position_size > 0)
+    trailStopLong := math.min(trailStopLong, close)
+    strategy.exit("TrailLong", "Long", stop=trailStopLong)
+
+if (strategy.position_size < 0)
+    trailStopShort := math.max(trailStopShort, close)
+    strategy.exit("TrailShort", "Short", stop=trailStopShort)
+
+// Additional alert for trend changes
+alertcondition(longCrossover, title="Bullish Trend Change", message="Bullish trend change detected")
+alertcondition(shortCrossunder, title="Bearish Trend Change", message="Bearish trend change detected")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/468309
+
+> Last Modified
+
+2024-09-26 14:58:34

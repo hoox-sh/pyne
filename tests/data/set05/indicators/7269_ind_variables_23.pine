@@ -1,0 +1,5 @@
+//@version=6indicator("table.all")//delete all tablestable.new(position = position.top_right, columns = 2, rows = 1, bgcolor = color.yellow, border_width = 1)a_allTables = table.allif array.size(a_allTables) > 0    for i = 0 to array.size(a_allTables) - 1        table.delete(array.get(a_allTables, i))// set05 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/reference/variables.md::variables.md#block37
+// content_hash: 597b15c08cc9b7e8
+// collected: 2026-07-27

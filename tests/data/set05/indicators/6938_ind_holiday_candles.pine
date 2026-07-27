@@ -1,0 +1,13 @@
+//@version=6
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/visuals/colors.md::colors.md#block5
+// content_hash: bae4e09683fa94c6
+// collected: 2026-07-27
+indicator("Holiday candles", "", true)
+float r = math.random(0, 255)
+float g = math.random(0, 255)
+float b = math.random(0, 255)
+float t = math.random(0, 100)
+color holidayColor = color.rgb(r, g, b, t)
+plotcandle(open, high, low, close, color = holidayColor, wickcolor = holidayColor, bordercolor = holidayColor)

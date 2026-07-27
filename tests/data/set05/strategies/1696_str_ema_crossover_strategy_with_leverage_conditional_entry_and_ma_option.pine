@@ -1,0 +1,73 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/指数移动平均线交叉杠杆策略-Exponential-Moving-Average-Crossover-Leverage-Strategy.md
+// content_hash: 89d3f9ba12cd5776
+// collected: 2026-07-27
+strategy("EMA Crossover Strategy with Leverage, Conditional Entry, and MA Option", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=100)
+
+// Inputs for backtesting period
+startDate = input(defval=timestamp("2023-01-01"), title="Start Date")
+endDate = input(defval=timestamp("2024-04-028"), title="End Date")
+
+// Input for leverage multiplier
+leverage = input.float(3.0, title="Leverage Multiplier", minval=1.0, maxval=10.0, step=0.1)
+
+// Input for choosing between EMA and MA
+useEMA = input.bool(true, title="Use EMA (true) or MA (false)?")
+
+// Input source and lengths for MAs
+src = close
+ema1_length = input.int(20, title='EMA/MA-1 Length')
+ema2_length = input.int(55, title='EMA/MA-2 Length')
+
+// Calculate the MAs based on user selection
+pema1 = useEMA ? ta.ema(src, ema1_length) : ta.sma(src, ema1_length)
+pema2 = useEMA ? ta.ema(src, ema2_length) : ta.sma(src, ema2_length)
+
+// Tracking the crossover condition for strategy entry
+crossedAbove = ta.crossover(pema1, pema2)
+
+// Define a variable to track if a valid entry condition has been met
+var bool readyToEnter = false
+
+// Check for MA crossover and update readyToEnter
+if (crossedAbove)
+    readyToEnter := true
+
+// Entry condition: Enter when price touches MA-1 after the crossover // and (low <= pema1 and high >= pema1)
+entryCondition = readyToEnter
+
+// Reset readyToEnter after entry
+if (entryCondition)
+    readyToEnter := false
+
+// Exit condition: Price crosses under MA-1
+exitCondition = ta.crossunder(pema1, pema2)
+
+// Check if the current bar's time is within the specified period
+inBacktestPeriod = true
+
+// Execute trade logic only within the specified date range and apply leverage to position sizing
+if (inBacktestPeriod)
+    if (entryCondition)
+        strategy.entry("Long", strategy.long, qty=strategy.equity * leverage / close)
+    if (exitCondition)
+        strategy.close("Long")
+
+
+// Plotting the MAs for visual reference
+ema1_color = pema1 > pema2 ? color.red : color.green
+ema2_color = pema1 > pema2 ? color.red : color.green
+plot(pema1, color=ema1_color, style=plot.style_line, linewidth=1, title='EMA/MA-1')
+plot(pema2, color=ema2_color, style=plot.style_line, linewidth=1, title='EMA/MA-2')
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/449954
+
+> Last Modified
+
+2024-04-30 16:26:37

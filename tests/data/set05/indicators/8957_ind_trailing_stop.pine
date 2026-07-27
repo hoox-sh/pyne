@@ -1,0 +1,14 @@
+//@version=2
+// set05 corpus entry
+// source_repo: tradingview-indicators-pine
+// source_path: tradingview-indicators-pine/ATZ/TrailingStopLoss-brokenNow.txt
+// content_hash: 5a8d93bef01d148e
+// collected: 2026-07-27
+// Trailing Stop Loss Multiple of ATR by Bluephantom
+study("Trailing Stop", "Trailing Stop Loss", true, 2)
+ATR = atr(input(defval=14,title="ATR",type=integer))[1]
+Multip = input(defval=1.5,title="Multiplier",type=integer)
+Longstop =low - ATR * Multip
+Shortstop =high + ATR * Multip
+plot(Longstop,"Long Stop Loss")
+plot(Shortstop,"Short Stop Loss")

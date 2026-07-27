@@ -1,0 +1,13 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block86
+// content_hash: 2d1d2e488e56f45f
+// collected: 2026-07-27
+indicator("array.sort example")
+a = array.new_float(0,0)
+for i = 0 to 5
+    array.push(a, high[i])
+array.sort(a, order.descending)
+if barstate.islast
+    label.new(bar_index, close, str.tostring(a))

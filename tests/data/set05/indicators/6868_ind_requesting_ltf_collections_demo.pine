@@ -1,0 +1,15 @@
+//@version=6
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/concepts/other-timeframes-and-data.md::other-timeframes-and-data.md#block40
+// content_hash: eeadd71c700748d4
+// collected: 2026-07-27
+indicator("Requesting LTF collections demo", "Intrabar viewer", true)
+
+//@variable The timeframe of the LTF data request.
+string lowerTimeframe = input.timeframe("1", "Timeframe")
+//@variable The index of the intrabar to show on each chart bar. 0 is the first available intrabar.
+int intrabarIndex = input.int(0, "Intrabar to show", 0)
+
+//@variable A custom type to store an `array<float>` reference.
+type Prices

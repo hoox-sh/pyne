@@ -1,0 +1,69 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/Algorithm-RSI区间突破策略Algorithm-RSI-Range-Breakout-Strategy.md
+// content_hash: a5091a20d1feb8d9
+// collected: 2026-07-27
+strategy("BTC/USD - RSI", overlay=false, initial_capital = 5000)
+
+// User input
+length = input(title = "Length", defval=14, tooltip="RSI period")
+
+first_buy_level = input(title = "Buy Level 1", defval=27, tooltip="Level where 1st buy triggers")
+second_buy_level = input(title = "Buy Level 2", defval=18, tooltip="Level where 2nd buy triggers")
+
+first_sell_level = input(title = "Sell Level 1", defval=68, tooltip="Level where 1st sell triggers")
+second_sell_level = input(title = "Sell Level 2", defval=80, tooltip="Level where 2nd sell triggers")
+
+takeProfit= input(title="target Pips", defval=2500, tooltip="Fixed pip stop loss distance")
+stopLoss = input(title="Stop Pips", defval=5000, tooltip="Fixed pip stop loss distance")
+
+lot = input(title = "Lot Size", defval = 1, tooltip="Trading Lot size")
+
+// Get RSI
+vrsi = ta.rsi(close, length)
+
+// Entry Conditions
+long1 = (vrsi <= first_buy_level and vrsi>second_buy_level)
+long2 = (vrsi <= second_buy_level)
+
+short1= (vrsi >= first_sell_level and vrsi<second_sell_level)
+short2= (vrsi >= second_sell_level)
+
+
+// Entry Orders
+// Buy Orders
+if (long1 and strategy.position_size == 0)
+    strategy.entry("Long", strategy.long, qty=lot, comment="Buy")
+    if (long2 and  strategy.position_size == 0)
+        strategy.entry("Long", strategy.long, qty=lot, comment="Buy")
+
+// Short Orders
+if (short1 and strategy.position_size == 0)
+    strategy.entry("Short", strategy.short,qty=lot, comment="Sell")
+    if (short2 and strategy.position_size == 0)
+        strategy.entry("Short", strategy.short,qty=lot, comment="Sell")
+    
+// Exit our trade if our stop loss or take profit is hit
+strategy.exit(id="Long Exit", from_entry="Long",qty = lot, profit=takeProfit, loss=stopLoss)
+strategy.exit(id="Short Exit", from_entry="Short", qty = lot, profit=takeProfit, loss=stopLoss)
+
+// plot data to the chart
+hline(first_sell_level, "Overbought Zone", color=color.red, linestyle=hline.style_dashed, linewidth = 2)
+hline(second_sell_level, "Overbought Zone", color=color.green, linestyle=hline.style_dashed, linewidth = 2)
+hline(first_buy_level, "Oversold Zone", color=color.red, linestyle=hline.style_dashed, linewidth = 2)
+hline(second_buy_level, "Oversold Zone", color=color.green, linestyle=hline.style_dashed, linewidth = 2)
+plot (vrsi, title = "RSI", color = color.blue, linewidth=2)
+
+
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/429509
+
+> Last Modified
+
+2023-10-17 17:14:09

@@ -1,0 +1,49 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于均线交叉的趋势跟随策略EMA-Cross-Trend-Following-Strategy.md
+// content_hash: eb774ffd5133d46f
+// collected: 2026-07-27
+strategy("Habitrade EMA Cross Strategy"), overlay=true
+
+//Input for EMA lengths
+emaShortLength = input.int(20, title="Short EMA Length")
+emaLongLength = input.int(50, title="Long EMA Length")
+
+//Calculate EMAs based on inputs
+emaShort = ta.ema(close, emaShortLength)
+emaLong = ta.ema(close, emaLongLength)
+
+//Plot the EMAs
+plot(emaShort, color=color.blue, linewidth=2, title="EMA Short")
+plot(emaLong, color=color.orange, linewidth=2, title="EMA Long")
+
+//Generate long and short signals
+longCondition = ta.crossover(emaShort, emaLong)
+shortCondition = ta.crossunder(emaShort, emaLong)
+
+//Enter long positions
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+
+//Enter short positions
+if (shortCondition)
+    strategy.entry("Short", strategy.short)
+
+//Close long positions
+if (shortCondition)
+    strategy.close("Long")
+
+//Clos short positions
+if (longCondition)
+    strategy.close("Short")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/442958
+
+> Last Modified
+
+2024-02-27 16:25:51

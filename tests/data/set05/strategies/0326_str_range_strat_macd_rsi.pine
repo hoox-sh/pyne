@@ -1,0 +1,58 @@
+//@version=5
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/Range Strat - MACD-RSI.pine
+// content_hash: ce9d44bdce80289d
+// collected: 2026-07-27
+strategy("Range Strat - MACD/RSI", 
+     overlay=true,
+     default_qty_type=strategy.percent_of_equity,
+     default_qty_value=10, precision=2, initial_capital=1000,
+     pyramiding=2,
+     commission_value=0.05)
+//Backtest date range
+StartDate = input.time(timestamp("13 Jun 2022"), title="Start Date")
+EndDate = input.time(timestamp("13 Jun 2024"), title="Start Date")
+inDateRange = (time >= StartDate) and (time < EndDate)
+// RSI Input Settings
+rsisrc = input(title="RSI Source", defval=open, group="RSI Settings")
+length = input(title="Length", defval=14, group="RSI Settings" )
+overSold = input(title="Over Sold Threshold", defval=55, group="RSI Settings" )
+overBought = input(title="Over Bought Threshold", defval=50, group="RSI Settings" )
+// Calculating RSI
+vrsi = ta.rsi(rsisrc, length)
+RSIunder = (vrsi <= overSold)
+RSIover = (vrsi >= overBought)
+// MACD Input Settings
+macdsrc = input(title="MACD Source", defval=open, group="MACD Settings")
+fast_length = input(title="Fast Length", defval=12, group="MACD Settings")
+slow_length = input(title="Slow Length", defval=26, group="MACD Settings")
+signal_length = input.int(title="Signal Smoothing",  minval = 1, maxval = 50, defval = 9, group="MACD Settings")
+sma_source = input.string(title="Oscillator MA Type",  defval="EMA", options=["SMA", "EMA"], group="MACD Settings")
+sma_signal = input.string(title="Signal Line MA Type", defval="EMA", options=["SMA", "EMA"], group="MACD Settings")
+// Calculating MACD
+fast_ma = sma_source == "SMA" ? ta.sma(macdsrc, fast_length) : ta.ema(macdsrc, fast_length)
+slow_ma = sma_source == "SMA" ? ta.sma(macdsrc, slow_length) : ta.ema(macdsrc, slow_length)
+macd = fast_ma - slow_ma
+signal = sma_signal == "SMA" ? ta.sma(macd, signal_length) : ta.ema(macd, signal_length)
+delta = macd - signal
+MACDcrossover = ta.crossover(delta, 0)
+MACDcrossunder = ta.crossunder(delta, 0)
+// Stop Loss Input Settings
+longLossPerc = input(title="Long Stop Loss (%)", defval=15, group="Stop Loss Settings") * 0.01
+shortLossPerc = input(title="Short Stop Loss (%)", defval=15, group="Stop Loss Settings") * 0.01
+// Calculating Stop Loss
+longStopPrice  = strategy.position_avg_price * (1 - longLossPerc)
+shortStopPrice = strategy.position_avg_price * (1 + shortLossPerc)
+// Strategy Entry
+if (not na(vrsi))
+    if (inDateRange and MACDcrossover and RSIunder)
+        strategy.entry("LONG", strategy.long, comment="LONG")
+    if (inDateRange and MACDcrossunder and RSIover)
+        strategy.entry("SHORT", strategy.short, comment="SHORT")
+// Submit exit orders based on calculated stop loss price
+if (strategy.position_size > 0)
+    strategy.exit(id="LONG STOP", stop=longStopPrice)
+if (strategy.position_size < 0)
+    strategy.exit(id="SHORT STOP", stop=shortStopPrice)
+Expand (63 lines)

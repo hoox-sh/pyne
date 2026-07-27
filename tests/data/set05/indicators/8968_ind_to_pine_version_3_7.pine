@@ -1,0 +1,10 @@
+//@version=2
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/migration-guides/to-pine-version-3.md::to-pine-version-3.md#block4
+// content_hash: 2f70d20c38d766ce
+// collected: 2026-07-27
+//...
+d = nz(f[1])
+e = d + 1
+f = e + close

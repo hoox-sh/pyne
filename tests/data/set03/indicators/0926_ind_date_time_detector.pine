@@ -1,0 +1,31 @@
+//@version=6
+// set03 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/faq/times-dates-and-sessions.md::times-dates-and-sessions.md#block14
+// content_hash: a6f2564b26612c85
+// collected: 2026-07-27
+indicator("Date/Time detector", overlay = true)
+
+int targetInput = input.time(defval = timestamp("2025-03-24 10:00"), title = "Target Date/Time", confirm = true)
+
+bool isTargetYear = year == year(targetInput)
+bool isTargetMonth = month == month(targetInput)
+
+int targetDay = dayofmonth(targetInput)
+int dayOpen = dayofmonth  // The built-in `dayofmonth` variable holds the day of the month of the bar open.
+int dayClose = dayofmonth(time_close)
+bool day_isBetweenOpenAndClose = (targetDay >= dayOpen) and (targetDay < dayClose)
+
+bool isTargetDay = timeframe.ismonthly or targetDay == dayofmonth or day_isBetweenOpenAndClose
+
+bool TF_isOneHourOrLess = timeframe.in_seconds() <= (60 * 60)
+bool TF_isAboveOneHour = timeframe.in_seconds() > (60 * 60)
+bool TF_isAboveOrEqualToOneHour = timeframe.in_seconds() >= (60 * 60)
+bool TF_isDayOrAbove = timeframe.isdwm
+
+int targetHour = hour(targetInput)
+int hourOpen = hour  // The built-in `hour` variable holds the hour of the bar open.
+int hourClose = hour(time_close)
+bool hour_isBetweenOpenAndClose = (targetHour >= hourOpen) and (targetHour < hourClose)
+
+bool isTargetHour = TF_isDayOrAbove or

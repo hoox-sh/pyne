@@ -1,0 +1,66 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动态唐奇安通道与简单移动平均线结合的量化策略-Dynamic-Donchian-Channel-and-Simple-Moving-Average-Combination-Quantitative-Strategy.md
+// content_hash: 500ff7114d42083e
+// collected: 2026-07-27
+strategy("FBK Donchian Channel Strategy", overlay=true)
+
+// Inputs
+donchian_period = input.int(20, title="Donchian Channel Period")
+donchian_offset = input.int(1, title="Donchian Channel Offset")
+sma_period = input.int(200, title="SMA Period")
+start_date = input(timestamp("2023-01-01 00:00 +0000"), title="Start Date")
+end_date = input(timestamp("2023-12-31 23:59 +0000"), title="End Date")
+trade_type = input.string("Both", title="Trade Type", options=["Buy Only", "Sell Only", "Both"])
+
+// Calculate indicators
+donchian_upper = ta.highest(high, donchian_period)[donchian_offset]
+donchian_lower = ta.lowest(low, donchian_period)[donchian_offset]
+sma = ta.sma(close, sma_period)
+
+// Plot indicators
+plot(donchian_upper, color=color.red, title="Donchian Upper")
+plot(donchian_lower, color=color.green, title="Donchian Lower")
+plot(sma, color=color.blue, title="SMA")
+
+// Helper function to check if within testing period
+is_in_testing_period() => true
+
+// Entry conditions
+long_condition = low <= donchian_lower and close > sma
+short_condition = high >= donchian_upper and close < sma
+
+// Exit conditions
+exit_long_condition = high >= donchian_upper
+exit_short_condition = low <= donchian_lower
+
+// Open long position
+if (is_in_testing_period() and (trade_type == "Buy Only" or trade_type == "Both") and long_condition)
+    strategy.entry("Long", strategy.long)
+
+// Close long position
+if (is_in_testing_period() and exit_long_condition)
+    strategy.close("Long")
+
+// Open short position
+if (is_in_testing_period() and (trade_type == "Sell Only" or trade_type == "Both") and short_condition)
+    strategy.entry("Short", strategy.short)
+
+// Close short position
+if (is_in_testing_period() and exit_short_condition)
+    strategy.close("Short")
+
+// Close all positions at the end of the testing period
+if not is_in_testing_period()
+    strategy.close_all()
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/454371
+
+> Last Modified
+
+2024-06-17 17:29:48

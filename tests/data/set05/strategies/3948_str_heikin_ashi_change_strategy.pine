@@ -1,0 +1,37 @@
+//@version=4
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/Heikin-Ashi Change Strategy- Indicator.pine
+// content_hash: 0566688a152bc9fe
+// collected: 2026-07-27
+strategy("Heikin-Ashi Change Strategy", overlay=true)
+UseHAcandles    = input(true, title="Use Heikin Ashi Candles in Algo Calculations")
+//
+// === /INPUTS ===
+// === BASE FUNCTIONS ===
+haClose = UseHAcandles ? security(heikinashi(syminfo.tickerid), timeframe.period, close) : close
+haOpen  = UseHAcandles ? security(heikinashi(syminfo.tickerid), timeframe.period, open) : open
+haHigh  = UseHAcandles ? security(heikinashi(syminfo.tickerid), timeframe.period, high) : high
+haLow   = UseHAcandles ? security(heikinashi(syminfo.tickerid), timeframe.period, low) : low
+// Calculation HA Values 
+haopen = 0.0
+haclose = (haOpen + haHigh + haLow + haClose) / 4
+haopen := na(haopen[1]) ? (haOpen + haClose) / 2 : (haopen[1] + haclose[1]) / 2
+hahigh = max(haHigh, max(haopen, haclose))
+halow = min(haLow, min(haopen, haclose))
+// HA colors
+hacolor = haclose > haopen ? color.green : color.red
+// Signals
+turnGreen = haclose > haopen and haclose[1] <= haopen[1]
+turnRed = haclose <= haopen and haclose[1] > haopen[1]
+// Plotting
+bgcolor(hacolor)
+plotshape(turnGreen, style=shape.arrowup, location=location.belowbar, color=color.green)
+plotshape(turnRed, style=shape.arrowdown, location=location.abovebar, color=color.red)
+// Alerts
+alertcondition(turnGreen, "ha_green", "ha_green")
+alertcondition(turnRed, "ha_red", "ha_red")
+strategy.entry("long", 1, when=turnGreen)
+//strategy.entry("short", 0, when=turnRed)
+strategy.close("long", when=turnRed)
+Expand (42 lines)

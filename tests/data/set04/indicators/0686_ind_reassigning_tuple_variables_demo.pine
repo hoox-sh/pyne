@@ -1,0 +1,22 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/language/variable-declarations.md::variable-declarations.md#block19
+// content_hash: 3bae86dbcf89e5e6
+// collected: 2026-07-27
+indicator("Reassigning tuple variables demo")
+
+//@variable Stores a multiplier to apply to the histogram value while modifying the `macd` variable.
+float factorInput = input.float(2.0, "Factor")
+
+// Declare three variables to store the MACD, signal, and histogram values from `ta.macd()`.
+[macd, sig, hist] = ta.macd(close, 12, 26, 9)
+
+// Plot the initial value of the `macd` variable. The reassignment operation below does not affect this plot.
+plot(macd, "Initial `macd` value", color.blue, 2)
+
+// Reassign the `macd` variable a new value.
+macd := sig + hist * factorInput
+
+// Plot the new value of the `macd` variable.
+plot(macd, "Modified `macd` value", color.orange, 2)

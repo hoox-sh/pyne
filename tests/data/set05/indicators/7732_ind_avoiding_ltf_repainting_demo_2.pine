@@ -1,0 +1,19 @@
+//@version=5
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/v5/concepts/other-timeframes-and-data.md::other-timeframes-and-data.md#block53
+// content_hash: ecc55739a30d4bf4
+// collected: 2026-07-27
+indicator("Avoiding LTF repainting demo", overlay = true)
+
+//@variable The lower timeframe of the requested data.
+string lowerTimeframe = input.timeframe("1", "Timeframe")
+
+//@variable The first intrabar `close` requested from the `lowerTimeframe` on each bar.
+//          Only works as intended on historical bars.
+float requestedClose = request.security(syminfo.tickerid, lowerTimeframe, close, lookahead = barmerge.lookahead_on)
+
+// Plot the `requestedClose`.
+plot(requestedClose, "First intrabar close", linewidth = 3)
+// Highlight the background on realtime bars.
+bgcolor(barstate.isrealtime ? color.new(color.orange, 60) : na, title = "Realtime bar Highlight")

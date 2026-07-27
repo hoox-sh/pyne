@@ -1,0 +1,62 @@
+//@version=2
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于Hull移动平均的趋势跟踪策略Hull-Moving-Average-Trend-Following-Strategy.md
+// content_hash: 3aa45cb700280ca9
+// collected: 2026-07-27
+//SeaSide420
+strategy("SS420FX", overlay=true, default_qty_type=strategy.percent_of_equity, max_bars_back=720, default_qty_value=100, calc_on_order_fills= true, calc_on_every_tick=true, pyramiding=0)
+q=input(title="HullMA Short",defval=14)
+z=input(title="HullMA Long",defval=14)
+dt = input(defval=0.0010, title="Decision Threshold", type=float, step=0.0001)
+SL = input(defval=-50000.00, title="Stop Loss in $", type=float, step=1)
+TP = input(defval=100000.00, title="Target Point in $", type=float, step=1)
+ot=1
+n2ma=2*wma(close,round(q/2))
+nma=wma(close,q)
+diff=n2ma-nma
+sqn=round(sqrt(q))
+n2ma1=2*wma(close[1],round(q/2))
+nma1=wma(close[1], q)
+diff1=n2ma1-nma1
+sqn1=round(sqrt(q))
+n1=wma(diff,sqn)
+n2=wma(diff1,sqn)
+z2ma=2*wma(close[11],round(z/2))
+zma=wma(close[11],z)
+ziff=n2ma-nma
+zqn=round(sqrt(z))
+z2ma1=2*wma(close[12],round(z/2))
+zma1=wma(close[12], z)
+ziff1=n2ma1-nma1
+zqn1=round(sqrt(z))
+z1=wma(diff,sqn)
+z2=wma(diff1,sqn)
+z1e=z1>z2?green:black
+z2e=z1>z2?black:red
+z3e=z1>z2?green:red
+n1e=plot(z1, title="HMA1", color=z1e, linewidth=2, offset=2)
+n2e=plot(z2, title="HMA2", color=z2e, linewidth=2, offset=2)
+fill(n1e, n2e, color=z3e, transp=80)
+confidence=(security(syminfo.tickerid, 'D', close)-security(syminfo.tickerid, 'D', close[1]))/security(syminfo.tickerid, 'D', close[1])
+closelong = n1<n2 and close<n2 and confidence<dt or strategy.openprofit<SL or strategy.openprofit>TP
+if (closelong)
+    strategy.close("Long")
+closeshort = n1>n2 and close>n2 and confidence>dt or strategy.openprofit<SL or strategy.openprofit>TP
+if (closeshort)
+    strategy.close("Short")
+longCondition = n1>n2 and z1>z2 and strategy.opentrades<ot and confidence>dt and close>n1
+if (longCondition)
+    strategy.entry("Long",strategy.long)
+shortCondition = n1<n2 and z1<z2 and strategy.opentrades<ot and confidence<dt and close<n1 
+if (shortCondition)
+    strategy.entry("Short",strategy.short)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/427271
+
+> Last Modified
+
+2023-09-19 16:40:00

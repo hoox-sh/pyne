@@ -1,0 +1,149 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/马德里带状RSI增强型多时框EMA趋势策略-Madrid-Ribbon-RSI-Enhanced-Multi-Timeframe-EMA-Trend-Strategy.md
+// content_hash: fca2b4ad544e6a24
+// collected: 2026-07-27
+strategy("Madrid Ribbon Strategy with Backtesting", shorttitle="Madrid Ribbon Strat", overlay=true, default_qty_type=strategy.cash, default_qty_value=100000)
+
+// Inputs
+i_exp = input.bool(true, title="Use Exponential MA")
+wallet_balance = input.float(100000, title="Starting Wallet Balance", minval=1000)
+
+// RSI Settings
+rsi_length = input.int(14, title="RSI Length")
+rsi = ta.rsi(close, rsi_length)
+
+// Profit Target & Stop Loss (%)
+long_take_profit_perc = input.float(0.5, title="Long Take Profit (%)") / 100  // 0.5%
+long_stop_loss_perc = input.float(1.0, title="Long Stop Loss (%)") / 100    // 1%
+short_take_profit_perc = input.float(0.5, title="Short Take Profit (%)") / 100  // 0.5%
+short_stop_loss_perc = input.float(1.0, title="Short Stop Loss (%)") / 100    // 1%
+
+// Source
+src = close
+
+// Compute Moving Averages
+ma05 = i_exp ? ta.ema(src, 5) : ta.sma(src, 5)
+ma10 = i_exp ? ta.ema(src, 10) : ta.sma(src, 10)
+ma15 = i_exp ? ta.ema(src, 15) : ta.sma(src, 15)
+ma20 = i_exp ? ta.ema(src, 20) : ta.sma(src, 20)
+ma25 = i_exp ? ta.ema(src, 25) : ta.sma(src, 25)
+ma30 = i_exp ? ta.ema(src, 30) : ta.sma(src, 30)
+ma35 = i_exp ? ta.ema(src, 35) : ta.sma(src, 35)
+ma40 = i_exp ? ta.ema(src, 40) : ta.sma(src, 40)
+ma45 = i_exp ? ta.ema(src, 45) : ta.sma(src, 45)
+ma50 = i_exp ? ta.ema(src, 50) : ta.sma(src, 50)
+ma55 = i_exp ? ta.ema(src, 55) : ta.sma(src, 55)
+ma60 = i_exp ? ta.ema(src, 60) : ta.sma(src, 60)
+ma65 = i_exp ? ta.ema(src, 65) : ta.sma(src, 65)
+ma70 = i_exp ? ta.ema(src, 70) : ta.sma(src, 70)
+ma75 = i_exp ? ta.ema(src, 75) : ta.sma(src, 75)
+ma80 = i_exp ? ta.ema(src, 80) : ta.sma(src, 80)
+ma85 = i_exp ? ta.ema(src, 85) : ta.sma(src, 85)
+ma90 = i_exp ? ta.ema(src, 90) : ta.sma(src, 90)
+ma100 = i_exp ? ta.ema(src, 100) : ta.sma(src, 100)
+
+// Function for ribbon color
+maColor(_ma, _maRef) =>
+    diffMA = ta.change(_ma)
+    resultColor = diffMA >= 0 and _ma > _maRef ? color.lime :
+                  diffMA < 0 and _ma > _maRef ? color.maroon :
+                  diffMA <= 0 and _ma < _maRef ? color.red :
+                  diffMA >= 0 and _ma < _maRef ? color.green : color.gray
+    resultColor
+
+// Count Green and Red Ribbons
+count_green = 0
+count_red = 0
+
+mas = array.new_float(18)
+array.set(mas, 0, ma05)
+array.set(mas, 1, ma10)
+array.set(mas, 2, ma15)
+array.set(mas, 3, ma20)
+array.set(mas, 4, ma25)
+array.set(mas, 5, ma30)
+array.set(mas, 6, ma35)
+array.set(mas, 7, ma40)
+array.set(mas, 8, ma45)
+array.set(mas, 9, ma50)
+array.set(mas, 10, ma55)
+array.set(mas, 11, ma60)
+array.set(mas, 12, ma65)
+array.set(mas, 13, ma70)
+array.set(mas, 14, ma75)
+array.set(mas, 15, ma80)
+array.set(mas, 16, ma85)
+array.set(mas, 17, ma90)
+
+for i = 0 to array.size(mas) - 1
+    ma = array.get(mas, i)
+    col = maColor(ma, ma100)
+    count_green += col == color.lime or col == color.green ? 1 : 0
+    count_red += col == color.red or col == color.maroon ? 1 : 0
+
+// Buy/Sell Conditions
+buy_signal = count_green >= 13
+sell_signal = count_red >= 9
+
+// RSI Filtering
+rsi_buy = buy_signal and rsi < 30
+rsi_sell = sell_signal and rsi > 70
+
+// Calculate Entry, Take Profit & Stop Loss for Long and Short
+entry_price = close
+long_take_profit = entry_price * (1 + long_take_profit_perc)  // +0.5%
+long_stop_loss = entry_price * (1 - long_stop_loss_perc)      // -1%
+short_take_profit = entry_price * (1 - short_take_profit_perc) // -0.5%
+short_stop_loss = entry_price * (1 + short_stop_loss_perc)     // +1%
+
+// Backtesting Orders
+if rsi_buy
+    strategy.entry("Buy", strategy.long, qty=wallet_balance / close)
+    strategy.exit("Long Exit", from_entry="Buy", limit=long_take_profit, stop=long_stop_loss)
+    alert("? Buy Signal! Entering long trade at " + str.tostring(entry_price), alert.freq_once_per_bar_close)
+
+if rsi_sell
+    strategy.entry("Sell", strategy.short, qty=wallet_balance / close)
+    strategy.exit("Short Exit", from_entry="Sell", limit=short_take_profit, stop=short_stop_loss)
+    alert("? Sell Signal! Entering short trade at " + str.tostring(entry_price), alert.freq_once_per_bar_close)
+
+// Highlight Chart Background Based on Ribbon Counts
+bgcolor(count_green >= 13 ? color.new(color.green, 90) : count_red >= 9 ? color.new(color.red, 90) : na, title="Ribbon Trend Highlight")
+
+// Plot "B" when Buy Signal is active
+plotshape(rsi_buy, location=location.belowbar, color=color.green, style=shape.labelup, title="Buy Signal", text="B")
+
+// Plot "S" when Sell Signal is active
+plotshape(rsi_sell, location=location.abovebar, color=color.red, style=shape.labeldown, title="Sell Signal", text="S")
+
+// Plot the Madrid Ribbon (all MAs)
+plot(ma05, color=maColor(ma05, ma100), title="MA05", linewidth=1)
+plot(ma10, color=maColor(ma10, ma100), title="MA10", linewidth=1)
+plot(ma15, color=maColor(ma15, ma100), title="MA15", linewidth=1)
+plot(ma20, color=maColor(ma20, ma100), title="MA20", linewidth=1)
+plot(ma25, color=maColor(ma25, ma100), title="MA25", linewidth=1)
+plot(ma30, color=maColor(ma30, ma100), title="MA30", linewidth=1)
+plot(ma35, color=maColor(ma35, ma100), title="MA35", linewidth=1)
+plot(ma40, color=maColor(ma40, ma100), title="MA40", linewidth=1)
+plot(ma45, color=maColor(ma45, ma100), title="MA45", linewidth=1)
+plot(ma50, color=maColor(ma50, ma100), title="MA50", linewidth=1)
+plot(ma55, color=maColor(ma55, ma100), title="MA55", linewidth=1)
+plot(ma60, color=maColor(ma60, ma100), title="MA60", linewidth=1)
+plot(ma65, color=maColor(ma65, ma100), title="MA65", linewidth=1)
+plot(ma70, color=maColor(ma70, ma100), title="MA70", linewidth=1)
+plot(ma75, color=maColor(ma75, ma100), title="MA75", linewidth=1)
+plot(ma80, color=maColor(ma80, ma100), title="MA80", linewidth=1)
+plot(ma85, color=maColor(ma85, ma100), title="MA85", linewidth=1)
+plot(ma90, color=maColor(ma90, ma100), title="MA90", linewidth=1)
+plot(ma100, color=maColor(ma100, ma100), title="MA100", linewidth=2)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/488034
+
+> Last Modified
+
+2025-03-24 15:52:28

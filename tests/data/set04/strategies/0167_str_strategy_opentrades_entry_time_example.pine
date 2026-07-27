@@ -1,0 +1,19 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block245
+// content_hash: 252d19b37110f69e
+// collected: 2026-07-27
+strategy("strategy.opentrades.entry_time Example")
+
+// Strategy calls to enter long trades every 15 bars and exit long trades every 20 bars.
+if bar_index % 15 == 0
+    strategy.entry("Long", strategy.long)
+if bar_index % 20 == 0
+    strategy.close("Long")
+
+// Calculates duration in milliseconds since the last position was opened.
+timeSinceLastEntry()=>
+    strategy.opentrades > 0 ? (time - strategy.opentrades.entry_time(strategy.opentrades - 1)) : na
+
+plot(timeSinceLastEntry() / 1000 * 60 * 60 * 24, "Days since last entry")

@@ -1,0 +1,72 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/RSI趋势突破与动量增强交易策略-RSI-Trend-Breakthrough-and-Momentum-Enhancement-Trading-Strategy.md
+// content_hash: 7d04e7cc6d17981c
+// collected: 2026-07-27
+strategy("Improved Strategy with RSI Trending Upwards", overlay=true)
+
+// Inputs for moving averages
+ma21_length = input.int(21, title="21-day MA Length")
+ma55_length = input.int(55, title="55-day MA Length")
+ma144_length = input.int(144, title="144-day MA Length")
+
+// Moving averages
+ma21 = ta.sma(close, ma21_length)
+ma55 = ta.sma(close, ma55_length)
+ma144 = ta.sma(close, ma144_length)
+
+// RSI settings
+rsi_length = input.int(13, title="RSI Length")
+rsi_avg_length = input.int(13, title="RSI Average Length")
+rsi = ta.rsi(close, rsi_length)
+rsi_avg = ta.sma(rsi, rsi_avg_length)
+
+// RSI breakout condition
+rsi_breakout = ta.crossover(rsi, rsi_avg)
+
+// RSI trending upwards
+rsi_trending_up = rsi > rsi[1] and rsi[1] > rsi[2]
+
+// Higher high condition
+hh1 = high[2] > high[3]  // 1st higher high
+hh2 = high[1] > high[2]  // 2nd higher high
+hh3 = high > high[1]     // 3rd higher high
+higher_high_condition = hh1 and hh2 and hh3
+
+// Filter for trades starting after 1st January 2007
+date_filter = (year >= 2007 and month >= 1 and dayofmonth >= 1)
+
+// Combine conditions for buying
+buy_condition = rsi > rsi_avg and higher_high_condition and rsi_trending_up //and close > ma21 and ma21 > ma55
+// buy_condition = rsi > rsi_avg and rsi_trending_up
+
+// Sell condition
+// Sell condition: Close below 21-day MA for 3 consecutive days
+downtrend_condition = close < close[1] and close[1] < close[2] and close[2] < close[3] and close[3] < close[4] and close[4] < close[5]
+// downtrend_condition = close < close[1] and close[1] < close[2] and close[2] < close[3]
+
+sell_condition_ma21 = close < ma55 and close[1] < ma55 and close[2] < ma55 and close[3] < ma55 and close[4] < ma55 and downtrend_condition
+
+// Final sell condition
+sell_condition = ta.crossunder(close, ma55) or (ta.crossunder(rsi, rsi_avg) and ta.crossunder(close, ma55))
+
+// Execute trades
+if (buy_condition and date_filter)
+    // strategy.entry("Long", strategy.long, comment="Buy")
+    strategy.entry("Long", strategy.long, qty=strategy.equity * 0.1 / close)
+if (sell_condition and date_filter)
+    strategy.close("Long", comment="Sell")
+
+// Plot moving averages
+plot(ma55, color=color.red, title="55-day MA")
+plot(ma144, color=color.blue, title="144-day MA")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/477550
+
+> Last Modified
+
+2025-01-06 13:43:48

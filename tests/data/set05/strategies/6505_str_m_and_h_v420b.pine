@@ -1,0 +1,46 @@
+//@version=2
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双均线均值反转策略Double-Moving-Average-Reversal-Strategy.md
+// content_hash: 8af44b8802ae319d
+// collected: 2026-07-27
+//                   //////////////// Attempt to Reduced ReDraw version /////////////////////
+//
+//                         Microcana.com strategy by pilotgsms - version 4.20b <<<< Edited by Seaside420 >>>> special thanks to 55cosmicpineapple
+//                            Hull_MA_cross added to script
+strategy("M&H_v420b", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=100, calc_on_order_fills= true, calc_on_every_tick=true, pyramiding=0)
+dt = input(defval=0.0010, title="Decision Threshold", type=float, step=0.0001)
+dd = input(defval=1, title="Post Signal Bar Delay", type=float, step=1)
+df = input(defval=5, title="Close Position Bar Delay", type=float, step=1)
+keh=input(title="Double HullMA Cross",defval=7, minval=1)
+confidence=(request.security(syminfo.tickerid, 'D', close)-request.security(syminfo.tickerid, 'D', close[1]))/request.security(syminfo.tickerid, 'D', close[1])
+prediction = confidence > dt ? true : confidence < -dt ? false : prediction[1]
+n2ma=2*wma(close,round(keh/2))
+nma=wma(close,keh)
+diff=n2ma-nma,sqn=round(sqrt(keh))
+n2ma1=2*wma(close[2],round(keh/2))
+nma1=wma(close[2],keh)
+diff1=n2ma1-nma1,sqn1=round(sqrt(keh))
+n1=wma(diff,sqn)
+n2=wma(diff1,sqn)
+openlong=prediction[dd] and n1>n2 and strategy.opentrades<1
+if (openlong)
+    strategy.entry("Long", strategy.long)
+openshort=not prediction[dd] and n2>n1 and strategy.opentrades<1
+if (openshort)
+    strategy.entry("Short", strategy.short)
+closeshort=prediction and close<low[df]
+if (closeshort)
+    strategy.close("Short")
+closelong=not prediction and close>high[df]  
+if (closelong)
+    strategy.close("Long")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/429473
+
+> Last Modified
+
+2023-10-17 14:38:55

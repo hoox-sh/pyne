@@ -1,0 +1,71 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多周期EMA交叉结合VWAP的高胜率日内交易策略-Multi-Period-EMA-Crossover-with-VWAP-High-Win-Rate-Intraday-Trading-Strategy.md
+// content_hash: c9dd39fa3d9c4be1
+// collected: 2026-07-27
+strategy("High Win Rate EMA VWAP Strategy with Alerts", overlay=true, default_qty_type=strategy.fixed, default_qty_value=1)
+
+// Inputs
+emaShort = input.int(8, title="Short-term EMA", minval=1)
+emaLong = input.int(21, title="Long-term EMA", minval=1)
+emaTrend = input.int(55, title="Trend EMA", minval=1)
+stopLossPerc = input.float(0.5, title="Stop Loss Percentage", minval=0.1, step=0.1)
+takeProfitPerc = input.float(1.5, title="Take Profit Percentage", minval=0.1, step=0.1)
+
+// Calculate EMAs and VWAP
+shortEMA = ta.ema(close, emaShort)
+longEMA = ta.ema(close, emaLong)
+trendEMA = ta.ema(close, emaTrend)
+vwap = ta.vwap(close)
+
+// Trend Filter: Only trade in the direction of the trend
+isBullishTrend = close > trendEMA
+isBearishTrend = close < trendEMA
+
+// Generate Buy and Sell Signals with Trend Confirmation
+buySignal = ta.crossover(shortEMA, longEMA) and close > vwap and isBullishTrend
+sellSignal = ta.crossunder(shortEMA, longEMA) and close < vwap and isBearishTrend
+
+// Strategy Execution
+if (buySignal and strategy.opentrades == 0)
+    strategy.entry("Buy", strategy.long, qty=1)
+
+if (sellSignal and strategy.opentrades == 0)
+    strategy.entry("Sell", strategy.short, qty=1)
+
+// Stop Loss and Take Profit (Signal-Based)
+if (strategy.position_size > 0)  // Long position
+    strategy.exit("Take Profit/Stop Loss Long", from_entry="Buy", stop=strategy.position_avg_price * (1 - stopLossPerc / 100), limit=strategy.position_avg_price * (1 + takeProfitPerc / 100))
+    
+if (strategy.position_size < 0)  // Short position
+    strategy.exit("Take Profit/Stop Loss Short", from_entry="Sell", stop=strategy.position_avg_price * (1 + stopLossPerc / 100), limit=strategy.position_avg_price * (1 - takeProfitPerc / 100))
+
+// Close All Trades at End of Day
+if (hour == 15 and minute == 59)  // Adjust this time according to your market's closing time
+    strategy.close("Buy")
+    strategy.close("Sell")
+
+// Plot Buy/Sell Signals on the chart
+plotshape(series=buySignal, title="Buy Signal", location=location.belowbar, color=color.green, style=shape.labelup, text="BUY")
+plotshape(series=sellSignal, title="Sell Signal", location=location.abovebar, color=color.red, style=shape.labeldown, text="SELL")
+
+// Plot the EMAs and VWAP
+plot(shortEMA, color=color.blue, title="Short-term EMA")
+plot(longEMA, color=color.orange, title="Long-term EMA")
+plot(trendEMA, color=color.green, title="Trend EMA")
+plot(vwap, color=color.purple, title="VWAP", linewidth=2)
+
+// Alert Conditions
+alertcondition(buySignal, title="Buy Alert", message="Buy Signal Triggered")
+alertcondition(sellSignal, title="Sell Alert", message="Sell Signal Triggered")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/468342
+
+> Last Modified
+
+2024-09-26 16:39:51

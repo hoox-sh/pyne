@@ -1,0 +1,68 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/RSI超卖定期投资策略与冷却期优化RSI-Oversold-Periodic-Investment-Strategy-with-Cooldown-Optimization.md
+// content_hash: f0de6af1b481b989
+// collected: 2026-07-27
+strategy("RSI Buy Strategy with 30-day Cooldown", overlay=true)
+
+// 参数设置
+rsiLength = 14
+rsiOversold = 30
+usdAmount = 1000
+cooldownPeriod = 30 * 24 * 60  
+
+// 计算RSI
+rsi = ta.rsi(close, rsiLength)
+
+// 跟踪上次买入时间
+var int lastBuyTime = 0
+var bool buySignal = false
+
+daysBack = input.int(1000, title="策略开始天数（从今天往回）", minval=1)
+startDate = timenow - daysBack * 24 * 60 * 60 * 1000
+isInTradingPeriod = true
+
+// 执行策略
+if (isInTradingPeriod and rsi < rsiOversold and (time - lastBuyTime) >= cooldownPeriod * 60000)
+    strategy.entry("Buy", strategy.long)
+    lastBuyTime := time
+    buySignal := true
+    
+    // 在交易列表中显示详细信息
+    strategy.order("Buy", strategy.long, comment="USD: " + str.tostring(usdAmount))
+else
+    buySignal := false
+
+// 在买入点显示一个小标记
+plotshape(buySignal, title="Buy Signal", location=location.belowbar, color=color.green, style=shape.triangleup, size=size.small)
+
+// 在图表上显示RSI
+plot(rsi, "RSI", color=color.purple)
+hline(rsiOversold, "RSI Oversold", color=color.red)
+
+// 计算并显示总结
+if (barstate.islastconfirmedhistory)
+    tradeCount = strategy.opentrades
+    totalUsd = usdAmount * tradeCount
+    totalBtc = strategy.position_size
+    
+    // 计算正确的平均买入成本
+    avgCost = totalBtc != 0 ? totalUsd / totalBtc : na
+    
+    label.new(bar_index, high, text="\nUSD总量: " + str.tostring(totalUsd) + 
+              "\nBTC总量: " + str.tostring(totalBtc) + 
+              "\n买入成本: " + str.tostring(avgCost,"#.##") + 
+              "\n交易次数: " + str.tostring(tradeCount), 
+              style=label.style_label_down, 
+              color=color.new(color.teal, 20),
+              textalign="left")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/458243
+
+> Last Modified
+
+2024-07-31 11:31:45

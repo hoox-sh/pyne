@@ -1,0 +1,63 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/简易枢轴反转量化交易策略Simple-Pivot-Reversal-Algorithmic-Trading-Strategy.md
+// content_hash: be78932040bdcbe0
+// collected: 2026-07-27
+strategy("Pivot Reversal Strategy - FIGS & DATES 2.0", overlay=true, pyramiding=0, initial_capital=10000, currency="USD", default_qty_type=strategy.percent_of_equity, default_qty_value=100.0, commission_value=0.075)
+
+leftBars = input(4)
+rightBars = input(2)
+
+// backtesting date range
+from_day = input(defval=1, title="From Day", minval=1, maxval=31)
+from_month = input(defval=1, title="From Month", minval=1, maxval=12)
+from_year = input(defval=2018, title="From Year", minval=1900)
+
+to_day = input(defval=1, title="To Day", minval=1, maxval=31)
+to_month = input(defval=1, title="To Month", minval=1, maxval=12)
+to_year = input(defval=9999, title="To Year", minval=1900)
+
+time_cond = true
+
+swh = pivothigh(leftBars, rightBars)
+swl = pivotlow(leftBars, rightBars)
+
+middle = (swh+swl)/2
+
+swh_cond = not na(swh)
+
+
+
+hprice = 0.0
+hprice := swh_cond ? swh : hprice[1]
+
+le = false
+le := swh_cond ? true : le[1] and high > hprice ? false : le[1]
+
+if le and time_cond
+    strategy.entry("LONG", strategy.long, comment="LONG", stop=hprice + syminfo.mintick)
+
+swl_cond = not na(swl)
+
+lprice = 0.0
+lprice := swl_cond ? swl : lprice[1]
+
+
+se = false
+se := swl_cond ? true : se[1] and low < lprice ? false : se[1]
+
+if se and time_cond
+    strategy.entry("SHORT", strategy.short, comment="SHORT", stop=lprice - syminfo.mintick)
+
+//plot(strategy.equity, title="equity", color=red, linewidth=2, style=areabr)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/439078
+
+> Last Modified
+
+2024-01-17 15:37:33

@@ -1,0 +1,60 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双移动平均趋势跟踪策略Dual-Moving-Average-Trend-Tracking-Strategy.md
+// content_hash: cb1ffd2160640c6e
+// collected: 2026-07-27
+strategy(title = "Noro's TrendMA Strategy", shorttitle = "TrendMA str", overlay = true, default_qty_type = strategy.percent_of_equity, default_qty_value = 100, pyramiding = 0, commission_value = 0.1)
+
+//Settings
+needlong = input(true, title = "Long")
+needshort = input(true, title = "Short")
+fast = input(10, minval = 1, title = "MA Fast (red)")
+slow = input(30, minval = 2, title = "MA Slow (blue)")
+type = input(defval = "SMA", options = ["SMA", "EMA"], title = "MA Type")
+src = input(ohlc4, title = "MA Source")
+showma = input(true, title = "Show MAs")
+showbg = input(false, title = "Show Background")
+
+//MAs
+fastma = type == "EMA" ? ema(src, fast) : sma(src, fast)
+slowma = type == "EMA" ? ema(src, slow) : sma(src, slow)
+
+//Lines
+colorfast = showma ? color.red : na
+colorslow = showma ? color.blue : na
+plot(fastma, color = colorfast, title = "MA Fast")
+plot(slowma, color = colorslow, title = "MA Slow")
+
+//Trend
+trend1 = fastma > fastma[1] ? 1 : -1
+trend2 = slowma > slowma[1] ? 1 : -1
+trend = 0
+trend := trend1 == 1 and trend2 == 1 ? 1 : trend1 == -1 and trend2 == -1 ? -1 : trend[1]
+
+//Backgrouns
+colbg = showbg == false ? na : trend == 1 ? color.lime : trend == -1 ? color.red : na
+bgcolor(colbg, transp = 80)
+
+//Trading
+if trend == 1
+    if needlong
+        strategy.entry("Long", strategy.long)
+    if needlong == false
+        strategy.close_all()
+
+if trend == -1
+    if needshort
+        strategy.entry("Short", strategy.short)
+    if needshort == false
+        strategy.close_all()
+    
+```
+
+> Detail
+
+https://www.fmz.com/strategy/435881
+
+> Last Modified
+
+2023-12-19 14:49:52

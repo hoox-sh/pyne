@@ -1,0 +1,11 @@
+//@version=5
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/v5/language/conditional-structures.md::conditional-structures.md#block2
+// content_hash: d5e65d7720214bd2
+// collected: 2026-07-27
+indicator("", "", true)
+var ourLabel = label.new(bar_index, na, na, color = color(na), textcolor = color.orange)
+if barstate.islast
+    label.set_xy(ourLabel, bar_index + 2, hl2[1])
+    label.set_text(ourLabel, str.tostring(bar_index + 1, "# bars in chart"))

@@ -1,0 +1,23 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/language/type-system.md::type-system.md#block9
+// content_hash: 9c4217de01d0ca52
+// collected: 2026-07-27
+indicator("'series' values demo", overlay = true)
+
+//@variable The source series to process in the `ta.highest()` call. 
+//          This variable's type is "series float", because `input.source()` returns "series" values.
+sourceInput = input.source(close, "Source")
+//@variable The number of bars to analyze. This variable's type is "input int".
+lengthInput = input.int(20, "Length")
+
+//@variable The highest `sourceInput` value over `lengthInput` bars. This variable's type is "series float".
+highest = ta.highest(source = sourceInput, length = lengthInput)
+//@variable The result of calculating the lowest value from a constant. This variable's type is also "series float". 
+//          The `source` parameter's type is "series float", so the function returns a "series float" value, regardless 
+//          of the argument's type qualifier. 
+lowest = ta.lowest(source = 100.0, length = lengthInput)
+
+plot(highest, "Highest", color.green)
+plot(lowest,  "Lowest",  color.red)

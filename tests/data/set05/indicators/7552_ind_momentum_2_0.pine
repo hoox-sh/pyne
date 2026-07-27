@@ -1,0 +1,39 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/Momentum-20.md
+// content_hash: 2a90689cd1aafded
+// collected: 2026-07-27
+indicator("Momentum 2.0", overlay = false)
+
+source = close
+
+// Script Inputs 
+window = input(defval=15, title="Oscillator Period")
+base_level_window = input.int(defval=450, title="Base Level Period", minval=300)
+
+// Calculate normalized and smoothed momentum oscillator
+momentum = ta.mom(source, window) 
+momentum_normalized = ( momentum ) / ta.stdev(momentum, base_level_window)
+momentum_smoothed = ta.linreg(momentum_normalized, 30,0)
+
+// Calculated the base-level
+momentum_base = -ta.ema(momentum_normalized,base_level_window)
+
+// Calculate base-level cross signals
+bullish = ta.crossover(momentum_smoothed, momentum_base)  
+bearish = ta.crossunder(momentum_smoothed, momentum_base) 
+
+if bullish
+    strategy.entry("Enter Long", strategy.long)
+else if bearish
+    strategy.entry("Enter Short", strategy.short)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/362163
+
+> Last Modified
+
+2022-05-10 10:32:54

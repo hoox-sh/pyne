@@ -1,0 +1,105 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/MACD-ATR-EMA-多重指标动态趋势跟踪策略-MACD-ATR-EMA-Multi-Indicator-Dynamic-Trend-Following-Strategy.md
+// content_hash: 18c8f0f8e0648d43
+// collected: 2026-07-27
+strategy("[ROOT] MACD, ATR, & EMA Strategy", overlay = true)
+
+// Input parameters
+macd_fast_length = input.int(12, title="MACD Fast Length")
+macd_slow_length = input.int(26, title="MACD Slow Length")
+macd_length = input.int(9, title="MACD Signal Length")
+atr_length = input.int(14, title="ATR Length")
+slow_ema_length = input.int(200, title="Slow EMA Length")
+fast_ema_length = input.int(50, title="Fast EMA Length")
+risk_per_trade = input.float(100, title="Risk % of Total Balance per Trade", minval=0.1, maxval=100, step=0.1)
+swing_lookback = input.int(10, title="Swing High/Low Lookback Period", minval=1, maxval=50, step=1)
+stop_loss_type = input.string("Swing Low/High", title="Stop Loss Type", options=["Swing Low/High", "ATR-Based"])
+stop_loss_buffer = input.float(0.5, title="ATR Multiplier for Stop Loss", minval=0.1, step=0.1)
+min_atr_threshold = input.float(0.1, title="Minimum ATR Threshold", minval=0.01, step=0.01)
+
+// Calculate MACD
+MACD = ta.ema(close, macd_fast_length) - ta.ema(close, macd_slow_length)
+signal = ta.ema(MACD, macd_length)
+macd_histogram = MACD - signal
+
+// Calculate EMAs
+slow_ema = ta.ema(close, slow_ema_length)
+fast_ema = ta.ema(close, fast_ema_length)
+
+// Plot EMAs
+plot(slow_ema, color=color.white, linewidth=3, title="200 EMA")
+plot(fast_ema, color=color.gray, linewidth=2, title="50 EMA")
+
+// Calculate ATR for dynamic stop-loss
+atr_value = ta.atr(atr_length)
+
+// Determine recent swing high and swing low
+recent_swing_high = ta.highest(high, swing_lookback)
+recent_swing_low = ta.lowest(low, swing_lookback)
+
+// Determine dynamic stop-loss levels based on user input
+var float long_stop_loss = na
+var float short_stop_loss = na
+
+if (stop_loss_type == "Swing Low/High") 
+    // Stop Loss based on recent swing low/high with a buffer
+    long_stop_loss := recent_swing_low - (stop_loss_buffer * atr_value)
+    short_stop_loss := recent_swing_high + (stop_loss_buffer * atr_value)
+else if (stop_loss_type == "ATR-Based")
+    // Stop Loss based purely on ATR
+    long_stop_loss := close - (stop_loss_buffer * atr_value)
+    short_stop_loss := close + (stop_loss_buffer * atr_value)
+
+// Calculate position size based on percentage of total balance
+capital_to_use = strategy.equity * (risk_per_trade / 100)
+position_size = capital_to_use / close
+
+// ATR Filter: Only trade when ATR is above the minimum threshold
+atr_filter = atr_value > min_atr_threshold
+
+// Buy and Sell Conditions with ATR Filter
+long_condition = atr_filter and ta.crossover(MACD, signal) and close > slow_ema and close > fast_ema and MACD < 0 and signal < 0
+short_condition = atr_filter and ta.crossunder(MACD, signal) and close < slow_ema and close < fast_ema and MACD > 0 and signal > 0
+
+// Check if no open trades exist
+no_open_trades = (strategy.opentrades == 0)
+
+// Execute Buy Orders (only on bar close and if no trades are open)
+if (long_condition and barstate.isconfirmed and no_open_trades)
+    strategy.entry("Long", strategy.long, qty=position_size, stop=long_stop_loss)
+    label.new(bar_index, low, "Buy", color=color.green, style=label.style_label_up, textcolor=color.white, size=size.small)
+
+// Execute Sell Orders (only on bar close and if no trades are open)
+if (short_condition and barstate.isconfirmed and no_open_trades)
+    strategy.entry("Short", strategy.short, qty=position_size, stop=short_stop_loss)
+    label.new(bar_index, high, "Sell", color=color.red, style=label.style_label_down, textcolor=color.white, size=size.small)
+
+// Exit Conditions for Long and Short Positions (only on bar close)
+long_exit_condition = close < fast_ema
+short_exit_condition = close > fast_ema
+
+if (long_exit_condition and barstate.isconfirmed)
+    strategy.close("Long")
+
+if (short_exit_condition and barstate.isconfirmed)
+    strategy.close("Short")
+
+// Alert Conditions (only on bar close)
+alertcondition(long_condition and barstate.isconfirmed, title="Buy Alert", message="Buy Signal")
+alertcondition(short_condition and barstate.isconfirmed, title="Sell Alert", message="Sell Signal")
+
+// Exit Signal Alerts
+alertcondition(long_exit_condition and barstate.isconfirmed, title="Long Exit Alert", message="Exit Long Signal")
+alertcondition(short_exit_condition and barstate.isconfirmed, title="Short Exit Alert", message="Exit Short Signal")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/468304
+
+> Last Modified
+
+2024-09-26 14:43:19

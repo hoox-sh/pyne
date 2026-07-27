@@ -1,0 +1,52 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/三重超级趋势交叉策略-Triple-Supertrend-Crossover-Strategy.md
+// content_hash: d9455f14aaf04326
+// collected: 2026-07-27
+strategy("Supertrend Strategy", overlay=true)
+
+// Supertrend function
+supertrend(length, factor) =>
+    [superTrend, direction] = ta.supertrend(factor, length)
+    superTrend
+
+// Supertrend parameters
+length1 = 7
+factor1 = 3
+length2 = 14
+factor2 = 2
+length3 = 21
+factor3 = 1
+
+// Supertrend calculations
+superTrend1 = supertrend(length1, factor1)
+superTrend2 = supertrend(length2, factor2)
+superTrend3 = supertrend(length3, factor3)
+
+// Plot Supertrend lines
+plot(superTrend1, color=color.red, title="Supertrend 1")
+plot(superTrend2, color=color.green, title="Supertrend 2")
+plot(superTrend3, color=color.blue, title="Supertrend 3")
+
+// Buy and sell signals
+buySignal = ta.crossover(close, superTrend1) or ta.crossover(close, superTrend2) or ta.crossover(close, superTrend3)
+sellSignal = ta.crossunder(close, superTrend1) or ta.crossunder(close, superTrend2) or ta.crossunder(close, superTrend3)
+
+// Strategy entry and exit
+strategy.entry("Buy", strategy.long, when=buySignal)
+strategy.close("Buy", when=sellSignal)
+
+// Plot buy and sell signals on chart
+plotshape(series=buySignal, location=location.belowbar, color=color.green, style=shape.labelup, text="BUY")
+plotshape(series=sellSignal, location=location.abovebar, color=color.red, style=shape.labeldown, text="SELL")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/458278
+
+> Last Modified
+
+2024-07-31 14:57:21

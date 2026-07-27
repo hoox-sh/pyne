@@ -1,0 +1,108 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于布林带和ATR的多级智能动态跟踪止损策略-Multi-Level-Intelligent-Dynamic-Trailing-Stop-Strategy-Based-on-Bollinger-Bands-and-ATR.md
+// content_hash: 26e6ecc1437040e3
+// collected: 2026-07-27
+strategy("Demo GPT - Bollinger Bands Strategy with Tightened Trailing Stops", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=100, commission_value=0.1, slippage=3)
+
+// Input settings
+length = input.int(20, minval=1)
+maType = input.string("SMA", "Basis MA Type", options=["SMA", "EMA", "SMMA (RMA)", "WMA", "VWMA"])
+src = input(close, title="Source")
+mult = 1.5 // Standard deviation multiplier set to 1.5
+offset = input.int(0, "Offset", minval=-500, maxval=500)
+atrMultiplier = input.float(1.0, title="ATR Multiplier for Trailing Stop", minval=0.1) // ATR multiplier for trailing stop
+
+// Time range filters
+start_date = input(timestamp("2018-01-01 00:00"), title="Start Date")
+end_date = input(timestamp("2069-12-31 23:59"), title="End Date")
+in_date_range = true
+
+// Moving average function
+ma(source, length, _type) =>
+    switch _type
+        "SMA" => ta.sma(source, length)
+        "EMA" => ta.ema(source, length)
+        "SMMA (RMA)" => ta.rma(source, length)
+        "WMA" => ta.wma(source, length)
+        "VWMA" => ta.vwma(source, length)
+
+// Calculate Bollinger Bands
+basis = ma(src, length, maType)
+dev = mult * ta.stdev(src, length)
+upper = basis + dev
+lower = basis - dev
+
+// ATR Calculation
+atr = ta.atr(length) // Use ATR for trailing stop adjustments
+
+// Plotting
+plot(basis, "Basis", color=#2962FF, offset=offset)
+p1 = plot(upper, "Upper", color=#F23645, offset=offset)
+p2 = plot(lower, "Lower", color=#089981, offset=offset)
+fill(p1, p2, title="Background", color=color.rgb(33, 150, 243, 95))
+
+// Candle color detection
+isGreen = close > open
+isRed = close < open
+
+// Flags for entry and exit conditions
+var bool redTouchedLower = false
+var float targetPrice = na
+var float stopLossPrice = na
+var float trailingStopPrice = na
+
+if in_date_range
+    // Entry Logic: First green candle after a red candle touches the lower band
+    if close < lower and isRed
+        redTouchedLower := true
+    if redTouchedLower and isGreen
+        strategy.entry("Long", strategy.long)
+        targetPrice := close * 1.2       // Set the target price to 20% above the entry price
+        stopLossPrice := close * 0.88   // Set the stop loss to 12% below the entry price
+        trailingStopPrice := na         // Reset trailing stop on entry
+        redTouchedLower := false
+
+    // Exit Logic: Trailing stop after 20% price increase
+    if strategy.position_size > 0 and not na(targetPrice) and close >= targetPrice
+        if na(trailingStopPrice)
+            trailingStopPrice := close - atr * atrMultiplier // Initialize trailing stop using ATR
+        trailingStopPrice := math.max(trailingStopPrice, close - atr * atrMultiplier) // Tighten dynamically based on ATR
+
+    // Exit if the price falls below the trailing stop after 20% increase
+    if strategy.position_size > 0 and not na(trailingStopPrice) and close < trailingStopPrice
+        strategy.close("Long", comment="Trailing Stop After 20% Increase")
+        targetPrice := na // Reset the target price
+        stopLossPrice := na // Reset the stop loss price
+        trailingStopPrice := na // Reset trailing stop
+
+    // Stop Loss: Exit if the price drops 12% below the entry price
+    if strategy.position_size > 0 and not na(stopLossPrice) and close <= stopLossPrice
+        strategy.close("Long", comment="Stop Loss Triggered")
+        targetPrice := na // Reset the target price
+        stopLossPrice := na // Reset the stop loss price
+        trailingStopPrice := na // Reset trailing stop
+
+    // Trailing Stop: Activate after touching the upper band
+    if strategy.position_size > 0 and close >= upper and isGreen
+        if na(trailingStopPrice)
+            trailingStopPrice := close - atr * atrMultiplier // Initialize trailing stop using ATR
+        trailingStopPrice := math.max(trailingStopPrice, close - atr * atrMultiplier) // Tighten dynamically based on ATR
+
+    // Exit if the price falls below the trailing stop
+    if strategy.position_size > 0 and not na(trailingStopPrice) and close < trailingStopPrice
+        strategy.close("Long", comment="Trailing Stop Triggered")
+        trailingStopPrice := na // Reset trailing stop
+        targetPrice := na // Reset the target price
+        stopLossPrice := na // Reset the stop loss price
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/474668
+
+> Last Modified
+
+2024-12-11 14:52:24

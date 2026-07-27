@@ -1,0 +1,10 @@
+//@version=6
+// set05 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block207
+// content_hash: 01a32888813f975b
+// collected: 2026-07-27
+indicator("str.contains")
+// If the current chart is a continuous futures chart, e.g “BTC1!”, then the function will return true, false otherwise.
+var isFutures = str.contains(syminfo.tickerid, "!")
+plot(isFutures ? 1 : 0)

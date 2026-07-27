@@ -1,0 +1,70 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于卡马奇拉枢轴与布林带的量化策略Camarilla-Pivot-Points-Strategy-Based-on-Bollinger-Bands.md
+// content_hash: e3f127915b63c028
+// collected: 2026-07-27
+////////////////////////////////////////////////////////////
+//  Copyright by HPotter v1.0 12/05/2020
+// Camarilla pivot point formula is the refined form of existing classic pivot point formula. 
+// The Camarilla method was developed by Nick Stott who was a very successful bond trader. 
+// What makes it better is the use of Fibonacci numbers in calculation of levels.
+//
+// Camarilla equations are used to calculate intraday support and resistance levels using 
+// the previous days volatility spread. Camarilla equations take previous day’s high, low and 
+// close as input and generates 8 levels of intraday support and resistance based on pivot points. 
+// There are 4 levels above pivot point and 4 levels below pivot points. The most important levels 
+// are L3 L4 and H3 H4. H3 and L3 are the levels to go against the trend with stop loss around H4 or L4 . 
+// While L4 and H4 are considered as breakout levels when these levels are breached its time to 
+// trade with the trend.
+//
+// WARNING:
+//  - For purpose educate only
+//  - This script to change bars colors.
+////////////////////////////////////////////////////////////
+strategy(title="Camarilla Pivot Points V2 Backtest", shorttitle="CPP V2", overlay = true)
+res = input(title="Resolution", type=input.resolution, defval="D")
+width = input(1, minval=1)
+SellFrom = input(title="Sell from ", defval="R1", options=["R1", "R2", "R3", "R4"])
+BuyFrom = input(title="Buu from ", defval="S1", options=["S1", "S2", "S3", "S4"])
+reverse = input(false, title="Trade reverse")
+xHigh  = security(syminfo.tickerid,res, high)
+xLow   = security(syminfo.tickerid,res, low)
+xClose = security(syminfo.tickerid,res, close)
+H4 = (0.55*(xHigh-xLow)) + xClose
+H3 = (0.275*(xHigh-xLow)) + xClose
+H2 = (0.183*(xHigh-xLow)) + xClose
+H1 = (0.0916*(xHigh-xLow)) + xClose
+L1 = xClose - (0.0916*(xHigh-xLow))
+L2 = xClose - (0.183*(xHigh-xLow))
+L3 = xClose - (0.275*(xHigh-xLow))
+L4 = xClose - (0.55*(xHigh-xLow))
+pos = 0
+S = iff(BuyFrom == "S1", H1, 
+      iff(BuyFrom == "S2", H2,
+       iff(BuyFrom == "S3", H3,
+         iff(BuyFrom == "S4", H4,0))))
+B = iff(SellFrom == "R1", L1, 
+      iff(SellFrom == "R2", L2,
+       iff(SellFrom == "R3", L3,
+         iff(SellFrom == "R4", L4,0))))
+pos := iff(close > B, 1,
+       iff(close < S, -1, nz(pos[1], 0))) 
+possig = iff(reverse and pos == 1, -1,
+          iff(reverse and pos == -1 , 1, pos))	   
+if (possig == 1) 
+    strategy.entry("Long", strategy.long)
+if (possig == -1)
+    strategy.entry("Short", strategy.short)	 
+if (possig == 0) 
+    strategy.close_all()
+barcolor(possig == -1 ? #b50404: possig == 1 ? #079605 : #0536b3 )
+```
+
+> Detail
+
+https://www.fmz.com/strategy/441083
+
+> Last Modified
+
+2024-02-05 14:23:59

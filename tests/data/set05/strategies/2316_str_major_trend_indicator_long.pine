@@ -1,0 +1,59 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/大趋势指标多头策略Major-Trend-Indicator-Long.md
+// content_hash: c60ba018453bffad
+// collected: 2026-07-27
+strategy("Major Trend Indicator Long", shorttitle='MTIL', overlay = true)
+
+startDate = timestamp("2001 06 18")
+// Sets the start date for the strategy.
+
+// Optimized parameters
+length_high = 5
+length_low = 5
+linReg_st = 3
+linReg_st1 = 23
+linReg_lt = 75
+// Defines key parameters for the strategy.
+
+X_i = ta.highest(high, length_high)
+Y_i = ta.lowest(low, length_low)
+// Calculates the highest and lowest price values within the defined lookback periods.
+
+x_y = ta.linreg(X_i + high, linReg_st1, 1)
+y_x = ta.linreg(Y_i + low, linReg_lt, 1)
+// Applies linear regression to smoothed high and low prices.
+
+upper = ta.linreg(x_y, linReg_st1, 6)
+lower = ta.linreg(y_x, linReg_st1, 6)
+// Determines upper and lower bounds using linear regression.
+
+upperInside = upper < y_x and upper > x_y
+lowerInside = lower > y_x and lower < x_y
+y_pos = (upper + lower) / 4
+
+X_i1 = ta.highest(high, length_high)
+Y_i1 = ta.lowest(low, length_low)
+
+bull = x_y > upper and y_x > lower and ta.linreg(close, linReg_st, 1) > ta.linreg(close, linReg_lt, 5)
+// Defines a bullish condition based on linear regression values and price bounds.
+
+plotshape(series=(bull) ? y_pos : na, style=shape.circle, location=location.absolute, color=color.rgb(41, 3, 255, 40), size=size.tiny)
+
+if (time >= startDate)
+    if (bull)
+        strategy.entry("Long", strategy.long)
+    if not (bull)
+        strategy.close("Long")
+// Controls the strategy's execution based on the bullish condition and the start date.
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/442090
+
+> Last Modified
+
+2024-02-19 11:15:57

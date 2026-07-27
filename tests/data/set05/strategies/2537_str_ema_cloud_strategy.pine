@@ -1,0 +1,55 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多重均线云层趋势交易策略-Multi-EMA-Cloud-Trend-Trading-Strategy.md
+// content_hash: 13712a2654c38c36
+// collected: 2026-07-27
+strategy("EMA Cloud Strategy", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=10)
+
+// Inputs for EMA periods
+ema9_length = input.int(9, title="9 EMA Length", minval=1)
+ema21_length = input.int(21, title="21 EMA Length", minval=1)
+ema200_length = input.int(200, title="200 EMA Length", minval=1)
+
+// Inputs for EMA colors
+ema9_color = input.color(color.new(color.blue, 0), title="9 EMA Color")
+ema21_color = input.color(color.new(color.orange, 0), title="21 EMA Color")
+ema200_color = input.color(color.new(color.red, 0), title="200 EMA Color")
+
+// Calculate EMAs
+ema9 = ta.ema(close, ema9_length)
+ema21 = ta.ema(close, ema21_length)
+ema200 = ta.ema(close, ema200_length)
+
+// Plot EMAs
+plot(ema9, color=ema9_color, title="9 EMA", linewidth=2)
+plot(ema21, color=ema21_color, title="21 EMA", linewidth=2)
+plot(ema200, color=ema200_color, title="200 EMA", linewidth=2)
+
+// Conditions for clouds
+is_bullish = close > ema9 and ema9 > ema21
+is_bearish = close < ema9 and ema9 < ema21
+
+// Plot clouds
+fill_color = is_bullish ? color.new(color.green, 90) : is_bearish ? color.new(color.red, 90) : na
+fill(plot(close, title="Price", display=display.none), plot(ema200, title="200 EMA", display=display.none), color=fill_color, title="Cloud")
+
+// Strategy logic
+if (is_bullish)
+    strategy.entry("Buy", strategy.long) // Enter long position when green cloud starts
+
+if (is_bearish)
+    strategy.close("Buy") // Close long position when red cloud starts
+
+// Optional: Add alerts for strategy conditions
+alertcondition(is_bullish, title="Bullish Condition", message="Price is above 9 EMA and 9 EMA is above 21 EMA")
+alertcondition(is_bearish, title="Bearish Condition", message="Price is below 9 EMA and 9 EMA is below 21 EMA")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/482843
+
+> Last Modified
+
+2025-02-20 14:48:05

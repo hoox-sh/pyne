@@ -1,0 +1,19 @@
+//@version=4
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/Simple Heiken Ashi Stop and Reverse Trading on Futures.pine
+// content_hash: 38e23202525cb6fd
+// collected: 2026-07-27
+strategy(title = "Modified Smoothed Heiken Ashi", shorttitle="Modified Smoothed Heiken Ashi", overlay=true)
+t_id = tickerid(syminfo.prefix, syminfo.ticker)
+heikin_o = security(heikinashi(t_id), timeframe.period, open)
+heikin_h = security(heikinashi(t_id), timeframe.period, high)
+heikin_l = security(heikinashi(t_id), timeframe.period, low)
+heikin_c = security(heikinashi(t_id), timeframe.period, close)
+startYear = 2019
+endYear = 2019
+buy_entry = heikin_o[0] == heikin_l[0]
+sel_entry = heikin_o[0] == heikin_h[0]
+strategy.entry('buy', long=strategy.long, comment='buy', when=buy_entry and (time > timestamp(startYear, 01, 01, 00, 00) and time < timestamp(endYear, 12, 31, 00, 00)))
+strategy.entry('sell', long=strategy.short, comment='sell', when=sel_entry and (time > timestamp(startYear, 01, 01, 00, 00) and time < timestamp(endYear, 12, 31, 00, 00)))
+Expand (20 lines)

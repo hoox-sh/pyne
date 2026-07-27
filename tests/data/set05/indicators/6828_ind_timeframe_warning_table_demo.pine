@@ -1,0 +1,16 @@
+//@version=6
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/visuals/overview.md::overview.md#block8
+// content_hash: 75b973a29b9f5ec0
+// collected: 2026-07-27
+indicator("Timeframe warning table demo", overlay = true, max_labels_count = 500, behind_chart = false) 
+
+// Input for the trading session (e.g., "0930-1600" for US stocks regular hours)
+sessionInput = input.session("0930-1600", "Trading Session")
+
+// Display `warningTable` on last bar if the chart timeframe is not intraday.
+if barstate.islastconfirmedhistory and timeframe.isdwm
+    //@variable A single-cell `table` that inform users about the unsupported timeframe.
+    var table warningTable = table.new(position.middle_center, 1, 1, color.yellow)
+    warningTable.cell(0, 0,

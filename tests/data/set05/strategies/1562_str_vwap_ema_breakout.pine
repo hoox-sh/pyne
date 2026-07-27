@@ -1,0 +1,78 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多周期成交量加权均价与移动平均线突破交易策略-Multi-Timeframe-VWAP-and-EMA-Breakout-Trading-Strategy.md
+// content_hash: 466e5b3ff9db7c8b
+// collected: 2026-07-27
+strategy("VWAP EMA Breakout", overlay=true)
+
+// Define Indicators
+ema10 = ta.ema(close, 10)
+ema20 = ta.ema(close, 20)
+ema200 = ta.ema(close, 200)
+vwap = ta.vwap(close)
+atr = ta.atr(14)
+
+// Price Conditions (Long)
+priceAboveVWAP200EMA = close > vwap and close > ema200 and close > ema10 and close > ema20
+bullishCandle = close > open
+
+// Additional Conditions for VWAP and EMA Relationships (Long)
+vwapAbove200EMA = vwap > ema200
+emaConditions = ema10 > ema20 and ema20 > vwap and vwap > ema200
+
+// Entry Conditions (Long)
+longCondition = priceAboveVWAP200EMA and bullishCandle and vwapAbove200EMA and emaConditions
+
+// Stop-Loss & Take-Profit (Long)
+swingLow = ta.lowest(low, 10)
+stopLossLong = swingLow - atr
+riskLong = close - stopLossLong
+takeProfitLong2 = close + (riskLong * 2) // 1:2 RR
+takeProfitLong3 = close + (riskLong * 3) // 1:3 RR
+
+// Execute Long Trade
+if longCondition
+    strategy.entry("Long", strategy.long)
+    strategy.exit("TP 1:2", from_entry="Long", limit=takeProfitLong2, stop=stopLossLong)
+    strategy.exit("TP 1:3", from_entry="Long", limit=takeProfitLong3, stop=stopLossLong)
+
+// Price Conditions (Short)
+priceBelowVWAP200EMA = close < vwap and close < ema200 and close < ema10 and close < ema20
+bearishCandle = close < open
+
+// Additional Conditions for VWAP and EMA Relationships (Short)
+vwapBelow200EMA = vwap < ema200
+emaConditionsShort = ema10 < ema20 and ema20 < vwap and vwap < ema200
+
+// Entry Conditions (Short)
+shortCondition = priceBelowVWAP200EMA and bearishCandle and vwapBelow200EMA and emaConditionsShort
+
+// Stop-Loss & Take-Profit (Short)
+swingHigh = ta.highest(high, 10)
+stopLossShort = swingHigh + atr
+riskShort = stopLossShort - close
+takeProfitShort2 = close - (riskShort * 2) // 1:2 RR
+takeProfitShort3 = close - (riskShort * 3) // 1:3 RR
+
+// Execute Short Trade
+if shortCondition
+    strategy.entry("Short", strategy.short)
+    strategy.exit("TP 1:2", from_entry="Short", limit=takeProfitShort2, stop=stopLossShort)
+    strategy.exit("TP 1:3", from_entry="Short", limit=takeProfitShort3, stop=stopLossShort)
+
+// Plot Indicators
+plot(ema10, color=color.red, title="10 EMA")
+plot(ema20, color=color.green, title="20 EMA")
+plot(ema200, color=color.purple, title="200 EMA")
+plot(vwap, color=color.white, title="VWAP")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/482823
+
+> Last Modified
+
+2025-02-20 13:25:02

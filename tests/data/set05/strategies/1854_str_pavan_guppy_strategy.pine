@@ -1,0 +1,69 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多重均线交叉动量趋势跟踪策略-Multi-EMA-Crossover-Momentum-Trend-Following-Strategy.md
+// content_hash: d7408c479f206976
+// collected: 2026-07-27
+strategy("Pavan Guppy Strategy", shorttitle="Pavan Avg", overlay=true, 
+         default_qty_type=strategy.percent_of_equity, default_qty_value=10)
+
+// Short-term EMAs
+shortEMA1 = ta.ema(close, 3)
+shortEMA2 = ta.ema(close, 5)
+shortEMA3 = ta.ema(close, 8)
+shortEMA4 = ta.ema(close, 10)
+shortEMA5 = ta.ema(close, 12)
+shortEMA6 = ta.ema(close, 15)
+
+// Long-term EMAs
+longEMA1 = ta.ema(close, 30)
+longEMA2 = ta.ema(close, 35)
+longEMA3 = ta.ema(close, 40)
+longEMA4 = ta.ema(close, 45)
+longEMA5 = ta.ema(close, 50)
+longEMA6 = ta.ema(close, 60)
+
+// Average short-term EMAs
+shortAvg = (shortEMA1 + shortEMA2 + shortEMA3 + shortEMA4 + shortEMA5 + shortEMA6) / 6.0
+
+// Average long-term EMAs
+longAvg = (longEMA1 + longEMA2 + longEMA3 + longEMA4 + longEMA5 + longEMA6) / 6.0
+
+// Plot averaged EMAs
+plot(shortAvg, color=color.green, linewidth=2, title="Averaged Short-term EMAs")
+plot(longAvg, color=color.red, linewidth=2, title="Averaged Long-term EMAs")
+
+// Define the target and stop loss percentages
+takeProfitPerc = 10
+stopLossPerc = 5
+
+// Generate buy signal when shortAvg crosses above longAvg
+if ta.crossover(shortAvg, longAvg)
+    strategy.entry("Buy", strategy.long)
+
+// Generate sell signal when shortAvg crosses below longAvg
+if ta.crossunder(shortAvg, longAvg)
+    strategy.entry("Sell", strategy.short)
+
+// Calculate take profit and stop loss prices for long trades
+longTakeProfit = close * (1 + (takeProfitPerc / 100.0))
+longStopLoss = close * (1 - (stopLossPerc / 100.0))
+
+// Set take profit and stop loss for long positions
+strategy.exit("Take Profit/Stop Loss", from_entry="Buy", limit=longTakeProfit, stop=longStopLoss)
+
+// Calculate take profit and stop loss prices for short trades
+shortTakeProfit = close * (1 - takeProfitPerc / 100.0)
+shortStopLoss = close * (1 + stopLossPerc / 100.0)
+
+// Set take profit and stop loss for short positions
+strategy.exit("Take Profit/Stop Loss", from_entry="Sell", limit=shortTakeProfit, stop=shortStopLoss)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/474843
+
+> Last Modified
+
+2024-12-12 14:46:33

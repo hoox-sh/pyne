@@ -1,0 +1,5 @@
+//@version=6indicator("/=")// Equals to expr1 = expr1 / expr2.float a = 3.0b = 3a /= b// Result: a = 1.plot(a)// set05 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/reference/operators.md::operators.md#block6
+// content_hash: ea3a21d80e8390e6
+// collected: 2026-07-27

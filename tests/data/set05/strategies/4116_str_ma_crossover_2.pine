@@ -1,0 +1,22 @@
+//@version=4
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/Moving Average Cross Strategy early Closing.pine
+// content_hash: 71e0e3f40b82e116
+// collected: 2026-07-27
+strategy("MA Crossover", overlay = true)
+start = timestamp(2009,2,1,0,0)
+sma50 = sma(close, 50)
+sma40 = sma(close, 40)
+sma3 =  sma(close, 3)
+plot(sma50,title='50', color=#00ffaa, linewidth=2)
+plot(sma3,title='3', color=#2196F3, linewidth=2)
+long = crossover(sma3,sma50)
+neut = crossunder(close,sma50)
+short = crossunder(sma3,sma40)
+if time >= start
+    strategy.entry("Long", strategy.long, 10.0, when=long)
+strategy.close("Long", when = short)
+strategy.close("Long", when = neut)
+plot(close)
+Expand (28 lines)

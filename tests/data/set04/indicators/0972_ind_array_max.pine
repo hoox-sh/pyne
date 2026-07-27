@@ -1,0 +1,10 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block63
+// content_hash: b250d0d9e5fa8623
+// collected: 2026-07-27
+indicator("array.max")
+a = array.from(5, -2, 0, 9, 1)
+thirdHighest = array.max(a, 2) // 1
+plot(thirdHighest)

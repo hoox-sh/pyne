@@ -1,0 +1,24 @@
+//@version=5
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/Profitable Contrarian scalping.pine
+// content_hash: f7282c76fe872222
+// collected: 2026-07-27
+strategy("Smooth VWMA scalping contrarian", overlay = true, default_qty_type = strategy.percent_of_equity, default_qty_value = 100)
+length1 = input(5, title = "Length1")
+length2 = input(200, title = "Length2")
+length3 = input(20, title = "Stop length")
+vwma1 = ta.vwma(ta.sma(close,5), length1)
+vwma2 = ta.vwma(ta.sma(close,5), length2)
+vwma3 = ta.vwma(ta.sma(close, 5), length3)
+plot(vwma1)
+plot(vwma2, color = color.white)
+if ta.crossover(vwma1, vwma2)
+    strategy.entry("Short", strategy.short)
+if ta.crossunder(vwma1, vwma3)
+    strategy.close("Short")
+if ta.crossunder(vwma1, vwma2)
+    strategy.entry("Long", strategy.long)
+if ta.crossover(vwma1, vwma3)
+    strategy.close("Long")
+Expand (21 lines)

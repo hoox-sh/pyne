@@ -1,0 +1,68 @@
+//@version=3
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动态均价追踪策略Dynamic-Average-Price-Tracking-Strategy.md
+// content_hash: 64797f40ef96a25a
+// collected: 2026-07-27
+
+// ########################################################################## // 
+//
+// This scipt is intended to demonstrate how pyramiding can be used to average
+// down a position.
+//
+// We will buy when a stock closes above its 20 day MA and Average down if
+// the trade does not go in our favor. We will hold until a profit is made. 
+// (which could mean we hold forever)
+//
+// ########################################################################## //
+
+strategy("Average Down", overlay=true )
+
+// Date Ranges
+from_month = input(defval = 1, title = "From Month", minval = 1, maxval = 12)
+from_day   = input(defval = 1, title = "From Day", minval = 1, maxval = 31)
+from_year  = input(defval = 2010, title = "From Year")
+to_month   = input(defval = 1, title = "To Month", minval = 1, maxval = 12)
+to_day     = input(defval = 1, title = "To Day", minval = 1, maxval = 31)
+to_year    = input(defval = 9999, title = "To Year")
+start  = timestamp(from_year, from_month, from_day, 00, 00)  // backtest start window
+finish = timestamp(to_year, to_month, to_day, 23, 59)        // backtest finish window
+window = true
+// Strategy Inputs
+target_perc = input(-10, title='Target Loss to Average Down (%)', maxval=0)/100
+take_profit = input(10, title='Target Take Profit', minval=0)/100
+target_qty  = input(50, title='% Of Current Holdings to Buy', minval=0)/100 
+sma_period  = input(20, title='SMA Period') 
+
+// Get our SMA, this will be used for our first entry 
+ma = sma(close,sma_period)
+
+// Calculate our key levels
+pnl = (close - strategy.position_avg_price) / strategy.position_avg_price
+take_profit_level = strategy.position_avg_price * (1 + take_profit)
+
+// First Position
+first_long = crossover(close, ma) and strategy.position_size == 0 and window
+if (first_long)
+    strategy.entry("Long", strategy.long)
+
+// Average Down!
+if (pnl <= target_perc)
+    qty = floor(strategy.position_size * target_qty)
+    strategy.entry("Long", strategy.long, qty=qty)
+
+// Take Profit!
+strategy.exit("Take Profit", "Long", limit=take_profit_level)
+
+// Plotting
+plot(ma, color=blue, linewidth=2, title='SMA')
+plot(strategy.position_avg_price, style=linebr, color=red, title='Average Price')
+```
+
+> Detail
+
+https://www.fmz.com/strategy/440354
+
+> Last Modified
+
+2024-01-29 15:28:53

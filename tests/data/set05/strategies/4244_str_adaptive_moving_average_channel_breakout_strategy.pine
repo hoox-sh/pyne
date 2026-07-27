@@ -1,0 +1,127 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/均自适应通道价格突破策略Adaptive-Moving-Average-Channel-Breakout-Strategy.md
+// content_hash: 6e49e4b2e2e99f91
+// collected: 2026-07-27
+
+// CryptoStatistical - 2019
+// AMA Strategy Channel Breakout Strategy from E. Durenard - Professional Automated Trading 
+// https://www.amazon.com/Professional-Automated-Trading-Theory-Practice/dp/1118129857
+
+strategy(title="[CS] AMA Strategy - Channel Break Out", shorttitle="AMA_ChannelBreakout_Strategy", initial_capital = 1000, overlay=true, pyramiding = 0, calc_on_every_tick=false, calc_on_order_fills=false, commission_type= strategy.commission.percent, commission_value = 0.08, currency=currency.USD)
+testStartYear = input(2019, "Backtest Start Year")
+testStartMonth = input(6, "Backtest Start Month")
+testStartDay = input(1, "Backtest Start Day")
+testPeriodStart = timestamp(testStartYear,testStartMonth,testStartDay,0,0)
+
+testStopYear = input(2019, "Backtest Stop Year")
+testStopMonth = input(12, "Backtest Stop Month")
+testStopDay = input(31, "Backtest Stop Day")
+testPeriodStop = timestamp(testStopYear,testStopMonth,testStopDay,0,0)
+
+testPeriodBackground = input(title="Color Background?", type=input.bool, defval=true)
+testPeriodBackgroundColor = testPeriodBackground and (time >= testPeriodStart) and (time <= testPeriodStop) ? #00FF00 : na
+bgcolor(testPeriodBackgroundColor, transp=95)
+
+testPeriod() =>  true
+
+price = input(title='Price Source:', type=input.source, defval=close)
+
+ama = price
+hb = price
+lb = price
+
+// Static model parameters
+minfactor = 0.
+maxfactor = 1.
+deviation_max = 1.
+deviation_min = 1.
+beta_hb = 1.
+beta_lb = 1.
+snr = 1.
+
+normalized_atan= 0.
+alpha = 0.5
+// Suggested snr-factor from .5 upto 3.1 by .3 to find best parameter
+snrfactor = input(title='SNR Factor:', type=input.float, minval=0.6, maxval=3.3, step=0.3, defval=2.1)
+
+// Sensitivity Lookback search for the best perdiod from 5 to 20
+lookback = input(title='Sensitivity Lookback:', type=input.integer, defval=5)
+
+// Suggested Beta from .5 below 4.5 by .3, usually in the range 1.2, 1.5
+beta = input(title='Beta:', type=input.float, minval=0.6, maxval=4.5, step=0.3, defval=2.1)
+
+offsetlabel = input(title='Offset Label:', type=input.float, minval=0.001, maxval=0.03, step=0.001, defval=0.001)
+
+// pi/2
+pi2 = 1.5707963267948966
+
+// Zero-lag resampled moving average (Durschner nwma)
+f_nwma(_src, _period) =>
+    fast = _period/2
+    lambda = _period/fast
+    alpha = lambda * (_period - 1)/(_period - lambda)
+    average1 = wma(_src,_period)
+    average2 = wma(average1,fast)
+    nwma = (1+alpha)*average1 - alpha*average2
+
+ama := alpha[1]*price + (1-alpha[1])*nz(ama[1])
+
+deviation_max := alpha[1]*max((price[0] - price[1])/price[1],0) + (1-alpha[1])*nz(deviation_max[1])
+deviation_min := -alpha[1]*min((price[0] - price[1])/price[1],0) + (1-alpha[1])*nz(deviation_min[1])
+
+beta_hb := beta*deviation_max
+beta_lb := beta*deviation_min
+hb := (1 + beta_hb[1])*ama
+lb := (1 - beta_lb[1])*ama
+
+snr := if price > hb
+    ((price - ama[1])/ama[1])/beta_lb
+else
+    if price < lb
+        -((price - ama[1])/ama[1])/beta_hb
+    else
+        0
+
+normalized_atan := (atan(snrfactor*snr) + pi2)/(2*pi2)
+alpha := f_nwma(minfactor + (maxfactor - minfactor)*normalized_atan, lookback)
+
+plot(ama, color=color.black)
+plot(hb, color=color.green)
+plot(lb, color=color.red)
+
+// Buy Condition Var
+bc = false
+// Sell Condition Var
+sc = false
+d = color.black
+
+// Buy Condition
+if(price > hb)
+    bc := true
+    d := color.green
+
+// Sell Condition
+if(price < lb)
+    sc := true
+    d := color.red
+
+if(testPeriod())
+    strategy.entry("Long", strategy.long, when = bc)
+    strategy.entry("Short", strategy.short, when = sc)
+
+alertcondition(bc, title='BuyCondition', message='Buy')
+alertcondition(sc, title='SellCondition', message='Sell')
+
+plotshape(title='Buy', series=bc ? price * (1 - offsetlabel) : na, text='A1B', style=shape.labelup, location=location.absolute, color=d, textcolor=color.white, offset=0)
+plotshape(title='Sell', series=sc ? price  * (1 + offsetlabel) : na, text='A1S', style=shape.labeldown, location=location.absolute, color=d, textcolor=color.white, offset=0)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/430855
+
+> Last Modified
+
+2023-11-02 15:05:56

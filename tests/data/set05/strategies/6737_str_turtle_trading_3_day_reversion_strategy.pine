@@ -1,0 +1,38 @@
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/海龟交易三日反转策略Turtle-Trading-3-Day-Reversion-Strategy.md
+// content_hash: 1e4081ccbdda3158
+// collected: 2026-07-27
+strategy(title="ETF 3-Day Reversion Strategy", shorttitle="ETF 3-Day Reversion Strategy", process_orders_on_close=true, overlay=true, commission_type=strategy.commission.cash_per_order, commission_value=1, initial_capital = 10000000, default_qty_type=strategy.percent_of_equity, default_qty_value=100)
+
+
+// Backtest Date Range Inputs // 
+StartTime = input(defval=timestamp('01 Jan 2012 05:00 +0000'), title='Start Time')
+EndTime = input(defval=timestamp('01 Jan 2099 00:00 +0000'), title='End Time')
+InDateRange = true
+
+// Strategy Rules //
+DayEMA5 = ta.ema(close, 5)
+Rule1 = close>ta.ema(close, 200)
+Rule2 = close<DayEMA5
+Rule3 = high<high[1] and low<low[1] and high[1]<high[2] and low[1]<low[2] and high[2]<high[3] and low[2]<low[3]
+ExitEMA = ta.ema(close, input.int(5, "EMA Length For Exit Strategy", tooltip = "The strategy will sell when the price crosses over this EMA"))
+plot(DayEMA5)
+plot(ExitEMA, color=color.green)
+
+// Entry & Exit Functions //
+if (InDateRange)
+    strategy.entry("Long", strategy.long, when = Rule1 and Rule2 and Rule3)
+//    strategy.close("Long", when = ta.crossunder(close, ATRTrailingStop))
+    strategy.close("Long", when = ta.crossover(close, ExitEMA))
+if (not InDateRange)
+    strategy.close_all()
+```
+
+> Detail
+
+https://www.fmz.com/strategy/429146
+
+> Last Modified
+
+2023-10-13 15:37:18

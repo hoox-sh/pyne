@@ -1,0 +1,44 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于均线的趋势跟踪策略Trend-Tracking-Strategy-Based-on-Moving-Average.md
+// content_hash: 9740b49cc6de5c7c
+// collected: 2026-07-27
+strategy("Una AI Strategy", overlay=true)
+
+// Устанавливаем период скользящей средней
+smaPeriod = input(500, title="SMA Period")
+
+// Вычисляем скользящую среднюю
+sma = ta.sma(close, smaPeriod)
+
+// Логика для входа в долгую позицию при пересечении вверх
+longCondition = close > sma and close[1] <= sma
+
+// Логика для входа в короткую позицию при пересечении вниз
+shortCondition = close < sma and close[1] >= sma
+
+// Вход в позиции
+strategy.entry("Buy", strategy.long, when=longCondition)
+strategy.entry("Sell", strategy.short, when=shortCondition)
+
+// Выход из позиции
+strategy.close("Buy", when=shortCondition)
+strategy.close("Sell", when=longCondition)
+
+// Рисуем линию скользящей средней для визуального анализа
+plot(sma, color=color.blue, title="SMA")
+
+// Метки сигналов
+plotshape(series=longCondition, title="Buy Signal", color=color.green, style=shape.triangleup, size=size.small, location=location.belowbar)
+plotshape(series=shortCondition, title="Sell Signal", color=color.red, style=shape.triangledown, size=size.small, location=location.abovebar)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/442959
+
+> Last Modified
+
+2024-02-27 16:29:06

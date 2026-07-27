@@ -1,0 +1,66 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/均线交叉与MACD组合策略Moving-Average-Crossover-and-MACD-Combination-Strategy.md
+// content_hash: b5087aa1fff7ded1
+// collected: 2026-07-27
+// strategy("MA_50_200_CROSS", overlay=true, margin_long=100, margin_short=100)
+
+EMA21 = ta.ema(close, 21)
+EMA100 = ta.ema(close, 100)
+[macdLine, signalLine, histLine] = ta.macd(close, 12, 26, 9)
+
+plot(EMA21)
+plot(EMA100, color = color.orange)
+
+openLong = ta.crossover(EMA21, EMA100) and macdLine > signalLine
+openShort = ta.crossunder(EMA21, EMA100) and ta.rsi(close, 14) <= 33
+
+crossunderMACD = ta.crossunder(macdLine, signalLine)
+
+
+if (strategy.opentrades < 1)
+    if openLong 
+        strategy.entry("L",strategy.long, 1)
+
+   if openShort
+      strategy.entry("S",strategy.short, 1)
+
+// slose long
+// if ((strategy.opentrades.entry_price(0) + strategy.opentrades.entry_price(0)*0.03) <= open) 
+//     strategy.exit("profit L", "L", limit = close)
+
+// else if strategy.opentrades.entry_price(0) - strategy.opentrades.entry_price(0)*0.01 >= open or crossunderMACD
+//     strategy.exit("loss L", "L", stop = close)
+
+// slose short
+// if (strategy.opentrades.entry_price(0) - strategy.opentrades.entry_price(0)*0.03) >= open
+//     strategy.exit("profit S", "S", limit = (strategy.opentrades.entry_price(0) - strategy.opentrades.entry_price(0)*0.03))
+
+// else if strategy.opentrades.entry_price(0) + strategy.opentrades.entry_price(0)*0.01 <= open
+//    strategy.exit("loss S", "S", stop = (strategy.opentrades.entry_price(0) + strategy.opentrades.entry_price(0)*0.01))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/430030
+
+> Last Modified
+
+2023-10-24 13:51:02

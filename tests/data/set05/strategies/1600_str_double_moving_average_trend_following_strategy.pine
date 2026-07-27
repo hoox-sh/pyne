@@ -1,0 +1,76 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双均线趋势跟踪策略Double-Moving-Average-Trend-Following-Strategy.md
+// content_hash: db77cbca86d33a9b
+// collected: 2026-07-27
+
+//study(title="Demo - SSL Basic", shorttitle="Demo - SSL Basic", overlay=true)
+strategy(title='Demo - SSL Basic', shorttitle='Demo - SSL Basic', overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=100, initial_capital=100, commission_value=0.15)
+
+// Backtest Date Range
+start_date_long = input(title='Backtest Long Start Date', defval=timestamp('01 Jan 2018 00:00 +0530'))
+end_date_long = input(title='Backtest Long End Date', defval=timestamp('25 Jan 2030 00:00 +0530'))
+backtest_range = true
+
+// Inputs
+maType = input.string(title='SSL MA Type', options=['SMA', 'EMA', 'WMA'], defval='SMA')
+sslLen = input(title='SSL Length', defval=32)
+showCross = input(title='Show Crossover?', defval=true)
+showEntry = input(title='Show Entry?', defval=true)
+showTrend = input(title='Show Trend Colors?', defval=true)
+
+// Calc MA for SSL Channel
+calc_ma(close, len, type) =>
+    float result = 0
+    if type == 'SMA'  // Simple
+        result := ta.sma(close, len)
+        result
+    if type == 'EMA'  // Exponential
+        result := ta.ema(close, len)
+        result
+    if type == 'WMA'  // Weighted
+        result := ta.wma(close, len)
+        result    
+    result
+
+// Add SSL Channel
+maHigh = calc_ma(high, sslLen, maType)
+maLow = calc_ma(low, sslLen, maType)
+Hlv = int(na)
+Hlv := close > maHigh ? 1 : close < maLow ? -1 : Hlv[1]
+sslDown = Hlv < 0 ? maHigh : maLow
+sslUp = Hlv < 0 ? maLow : maHigh
+ss1 = plot(sslDown, title='Down SSL', linewidth=2, color=showTrend ? na : color.red)
+ss2 = plot(sslUp, title='Up SSL', linewidth=2, color=showTrend ? na : color.lime)
+
+// Conditions
+longCondition = ta.crossover(sslUp, sslDown)
+shortCondition = ta.crossover(sslDown, sslUp)
+
+// Strategy
+if shortCondition
+    strategy.close('Long', comment='Long Exit', alert_message='JSON')
+
+if longCondition
+    strategy.close('Short', comment='Short Exit', alert_message='JSON')
+
+if backtest_range and longCondition
+    strategy.entry('Long', strategy.long, comment='Long Entry', alert_message='JSON')
+
+if backtest_range and shortCondition
+    strategy.entry('Short', strategy.short, comment= 'Short Entry', alert_message='JSON')
+
+
+// Plots
+fill(ss1, ss2, color=showTrend ? sslDown < sslUp ? color.new(color.lime, transp=75) : color.new(color.red, transp=75) : na, title='Trend Colors')
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/445803
+
+> Last Modified
+
+2024-03-22 13:56:44

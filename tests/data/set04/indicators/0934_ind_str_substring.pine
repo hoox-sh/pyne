@@ -1,0 +1,12 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block213
+// content_hash: 88fed7bc01355a17
+// collected: 2026-07-27
+indicator("str.substring", overlay = true)
+sym= input.symbol("NASDAQ:AAPL")
+pos = str.pos(sym, ":") // Get position of ":" character
+tkr= str.substring(sym, pos+1) // "AAPL"
+if barstate.islastconfirmedhistory
+    label.new(bar_index, high, text = tkr)

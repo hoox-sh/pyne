@@ -1,0 +1,103 @@
+// set05 corpus entry
+// source_repo: PineTS
+// source_path: PineTS/AGENTS.md::AGENTS.md#block22
+// content_hash: 62c09450a051e2df
+// collected: 2026-07-27
+**Fix**: Use either Pine Script (with `//@version=5`) OR PineTS syntax (with `($) => {}`), never both.
+
+## Transpiler Rules
+
+### DO NOT modify the transpiler unless absolutely necessary
+
+-   The transpiler is complex and fragile
+-   Always run the full test suite after transpiler changes
+-   Understand scope management before making changes
+-   Consult [Transpiler Documentation](docs/architecture/transpiler/index.md)
+
+### Variable Transformation
+
+| Original Pattern       | Transformed Pattern                            | Purpose                |
+| ---------------------- | ---------------------------------------------- | ---------------------- |
+| `let x = value`        | `$.let.glb1_x = $.init($.let.glb1_x, value)`   | State persistence      |
+| `const x = value`      | `$.const.glb1_x = $.init($.const.glb1_x, val)` | Constant series        |
+| `var x = value`        | `$.var.glb1_x = $.initVar($.var.glb1_x, val)`  | Persistent state       |
+| `x = value`            | `$.set($.let.glb1_x, value)`                   | Update current value   |
+| `x[1]`                 | `$.get(x, 1)`                                  | Pine Script indexing   |
+| `ta.func(a, b)`        | `ta.func(p0, p1, '_ta0')` (each arg wrapped)   | State isolation        |
+| `a == b`               | `$.pine.math.__eq(a, b)`                       | NaN-safe comparison    |
+| `const [a, b] = f()`   | Split into individual inits                    | Tuple destructuring    |
+
+Notes:
+
+-   The storage namespace (`$.let` / `$.var` / `$.const`) matches the variable's actual declaration kind; `$.let` above is illustrative.
+-   **TA calls wrap each argument** into its own hoisted temp via `ta.param(...)`, then append the generated call-id literal: `ta.ema(close, 9)` → `const p0 = ta.param(close, …); const p1 = ta.param(9, …); ta.ema(p0, p1, '_ta0')`.
+-   **All comparisons** are rewritten to na-aware helpers with a `1e-10` tolerance: `==`/`===` → `__eq`, `!=`/`!==` → `__neq`, `<` → `__lt`, `<=` → `__le`, `>` → `__gt`, `>=` → `__ge`. Relational operators inside `for`/`while` loop headers and the generated loop guard are left as native JS (their operands are integer counters that are never `na`).
+
+### Scope Prefixes
+
+Variables are renamed by scope. **Each scope *type* keeps its own counter**, so the number is how many scopes of that type have been opened so far during transpilation (order-dependent) — it is **not** a single global `1, 2, 3, 4` sequence across types. The counter for a type can also advance by more than one when nested block scopes are pushed.
+
+| Scope Type    | Prefix pattern | Example (first of its type) |
+| ------------- | -------------- | --------------------------- |
+| Global        | `glb<n>_`      | `glb1_x`                    |
+| Function      | `fn<n>_`       | `fn1_x`                     |
+| For loop      | `for<n>_`      | `for1_i`                    |
+| While loop    | `whl<n>_`      | `whl1_n`                    |
+| If block      | `if<n>_`       | `if2_y` (count may skip)    |
+| Else block    | `els<n>_`      | `els1_z`                    |
+
+To see the real prefixes a script produces, transpile it and inspect the generated code (see [View Transpiled Code](#view-transpiled-code)).
+
+## Code Style
+
+### TypeScript
+
+-   Use TypeScript for new code
+-   Type function signatures properly
+-   Document complex logic with comments
+
+### Naming Conventions
+
+-   TA functions: lowercase (e.g., `ema`, `sma`, `rsi`)
+-   Classes: PascalCase (e.g., `Series`, `Context`)
+-   Private methods: prefix with `_` (e.g., `_initializeState`)
+-   State keys: use `_callId` or a descriptive string
+
+### Comments
+
+-   Explain WHY, not WHAT
+-   Document non-obvious behavior
+-   Add warnings for critical sections
+
+## Git Workflow
+
+### Commits
+
+-   Write clear, descriptive commit messages
+-   Reference issue numbers when applicable
+-   Keep commits focused and atomic
+-   Commit the regression test alongside the fix it guards
+
+### Branches
+
+-   Feature branches: `feature/description`
+-   Bug fixes: `fix/description`
+-   Optimizations: `optimization/description`
+
+### Pull Requests
+
+-   Include test coverage for every change
+-   Update documentation if you changed public APIs
+-   Regenerate barrel files if adding namespace methods
+-   Ensure all tests pass: `npm test -- --run`
+
+## Performance Considerations
+
+1.  **Incremental Calculation**: O(1) per bar, not O(n)
+2.  **State Management**: Store only necessary data
+3.  **Series Wrapping**: Reuse Series objects when possible
+4.  **Avoid Redundant Calculations**: Cache expensive operations
+
+## Debugging
+
+### Enable Debug Output

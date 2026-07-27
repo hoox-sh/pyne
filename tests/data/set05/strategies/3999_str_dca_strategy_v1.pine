@@ -1,0 +1,32 @@
+//@version=4
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/ETF - Stocks - Crypto - DCA Strategy v1.pine
+// content_hash: 12cb150c2998c797
+// collected: 2026-07-27
+strategy("DCA Strategy v1", overlay=false)
+//user inputs
+contribution = input(title="Contribution (USD)",type=input.integer,minval=1,maxval=1000000,step=1,defval=10000,confirm=false)
+frequency = input(title="Frequency (Months)",type=input.integer,minval=1,maxval=1000000,step=1,defval=12,confirm=false)
+//units to buy
+units = contribution / close
+//when to dca
+hourDca = bar_index[0] % (frequency * 28 * 24)
+dayDca = bar_index[0] % (frequency * 28)
+weekDca = bar_index[0] % (frequency * 4)
+monthDca = bar_index[0] % frequency
+//when to dca
+if(timeframe.period == "60" and hourDca == 0)
+    strategy.order("DCA", strategy.long, units)
+    
+if(timeframe.period == "D" and dayDca == 0)
+    strategy.order("DCA", strategy.long, units)
+    
+if(timeframe.period == "W" and weekDca == 0)
+    strategy.order("DCA", strategy.long, units)
+    
+if(timeframe.period == "M" and monthDca == 0)
+    strategy.order("DCA", strategy.long, units)
+//plot strategy equity
+plot(strategy.equity - strategy.initial_capital, color=color.blue, linewidth=2, title="Net Profit")
+Expand (35 lines)

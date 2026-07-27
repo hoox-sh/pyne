@@ -1,0 +1,71 @@
+//@version=5
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/DBMA - Dual Bollinger Moving Average.pine
+// content_hash: c44bdb258a448def
+// collected: 2026-07-27
+indicator(title='Dual Bollinger Moving Average', shorttitle='DBMA', overlay=true)
+string GRP1             = "════════ Moving Average ═════════"
+MA_length = input.int(title='', minval=1, maxval=1000, defval=20, inline='line 1', group=GRP1)
+MA_type = input.string(title='', options=['SMA', 'EMA', 'WMA'], defval='SMA', inline='line 1', group=GRP1)
+MA_source = input.source(title='', defval=close, inline='line 1', group=GRP1)
+MA_color = input.color(title='', defval=color.green, inline='line 1', group=GRP1)
+MA_width = input.int(title='MA line width', defval=1, minval=1, maxval=4, inline='line 2', group=GRP1)
+string GRP2             = "════════ Bollinger Bands ═════════"
+BB_show_upper = input.bool(title='Show Upper Bands', defval=true, inline='line 1', group=GRP2)
+BB_show_lower = input.bool(title='Show Lower Bands', defval=false, inline='line 2', group=GRP2)
+BB_stdev_near = input.float(title='Near Band', minval=0, maxval=3, defval=0.5, step = 0.5, inline='line 3', group=GRP2)
+colorOrangeHalf = input.color(color.new(color.orange, 85), '', inline='line 3', group=GRP2)
+BB_stdev_far = input.float(title='Far Band', minval=0, maxval=3, defval=1, step = 0.5, inline='line 4', group=GRP2)
+colorOrangeOne = input.color(color.new(color.orange, 90), '', inline='line 4', group=GRP2)
+string GRP3             = "════════ Squeeze ═════════"
+toggleSQZColors = input.bool(title='Squeeze Colors', defval=true, inline='line 3', group=GRP3)
+colorRed = input.color(color.red, 'High-compression Squeeze', group=GRP3)
+colorOrange = input.color(color.orange, 'Mid-compression Squeeze', group=GRP3)
+colorYellow = input.color(color.yellow, 'Low-compression Squeeze', group=GRP3)
+colorGreen = input.color(color.green, 'Fired Squeeze', group=GRP3)
+colorBlue = input.color(color.blue, 'No Squeeze', group=GRP3)
+//--------BMA------
+BMA = 0.0
+BMA := MA_type == 'SMA' ? ta.sma(MA_source, MA_length) : MA_type == 'EMA' ? ta.ema(MA_source, MA_length) : MA_type == 'WMA' ? ta.vwma(MA_source, MA_length) : na
+p1 = plot(BMA, title='Bollingerised Moving Average', color=MA_color, linewidth=MA_width)
+//--------SQUEEZE------
+// original concept from John Carter's book "Mastering the Trade"
+// based on LazyBear's script (Squeeze Momentum Indicator) https://in.tradingview.com/script/nqQ1DT5a-Squeeze-Momentum-Indicator-LazyBear/
+devBB = BB_stdev_far * ta.stdev(MA_source, MA_length)
+devKC = ta.sma(ta.tr, MA_length)
+//Bollinger 2x
+upBB = BMA + devBB * 2
+lowBB = BMA - devBB * 2
+//Keltner 2x
+upKCWide = BMA + devKC * 2
+lowKCWide = BMA - devKC * 2
+//Keltner 1.5x
+upKCNormal = BMA + devKC * 1.5
+lowKCNormal = BMA - devKC * 1.5
+//Keltner 1x
+upKCNarrow = BMA + devKC
+lowKCNarrow = BMA - devKC
+sqzOnWide = lowBB >= lowKCWide and upBB <= upKCWide  //Low-compression Squeeze: YELLOW
+sqzOnNormal = lowBB >= lowKCNormal and upBB <= upKCNormal  //Mid-compression Squeeze: ORANGE
+sqzOnNarrow = lowBB >= lowKCNarrow and upBB <= upKCNarrow  //High-compression Squeeze: RED
+sqzOffWide = lowBB < lowKCWide and upBB > upKCWide  //Fired Squeeze: GREEN
+noSqz = sqzOnWide == false and sqzOffWide == false  //No Squeeze: BLUE
+sq_color = noSqz ? colorBlue : sqzOnNarrow ? colorRed : sqzOnNormal ? colorOrange : sqzOnWide ? colorYellow : colorGreen
+bb_colorOne = toggleSQZColors ? color.new(sq_color, 80) : colorOrangeOne
+bb_colorHalf = toggleSQZColors ? color.new(sq_color, 80) : colorOrangeHalf
+//--------BOLLINGER BANDS------
+upper = BMA + devBB
+lower = BMA - devBB
+p2 = plot(BB_show_upper ? upper : na, 'Upper Far Band', color=color.new(color.orange, 100))
+p3 = plot(BB_show_lower ? lower : na, 'Lower Far Band', color=color.new(color.red, 100))
+fill(p1, p2, title='BB Background', color=bb_colorOne)
+fill(p1, p3, title='BB Background', color=bb_colorOne)
+devhalf = BB_stdev_near * ta.stdev(close, 20)
+upperhalf = BMA + devhalf
+lowerhalf = BMA - devhalf
+p4 = plot(BB_show_upper ? upperhalf : na, 'Upper Near Band', color=color.new(color.orange, 100))
+p5 = plot(BB_show_lower ? lowerhalf : na, 'Lower Near Band', color=color.new(color.red, 100))
+fill(p1, p4, title='BB Background', color=bb_colorHalf)
+fill(p1, p5, title='BB Background', color=bb_colorHalf)
+Expand (104 lines)

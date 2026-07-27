@@ -1,0 +1,65 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多均线趋势交叉三重过滤交易策略-Triple-Moving-Average-Cross-Filter-Trading-System.md
+// content_hash: b148f4cee66e3169
+// collected: 2026-07-27
+strategy("Vezpa's Gold Strategy", overlay=true)
+
+// ======================== MAIN STRATEGY ========================
+// Input parameters for the main strategy
+fast_length = input.int(21, title="Fast MA Length", minval=1)
+slow_length = input.int(50, title="Slow MA Length", minval=1)
+trend_filter_length = input.int(100, title="Trend Filter MA Length", minval=1)
+
+// Calculate moving averages for the main strategy
+fast_ma = ta.sma(close, fast_length)
+slow_ma = ta.sma(close, slow_length)
+trend_ma = ta.sma(close, trend_filter_length)
+
+// Plot moving averages
+plot(fast_ma, color=color.blue, title="21 MA")
+plot(slow_ma, color=color.red, title="50 MA")
+plot(trend_ma, color=color.orange, title="100 MA")
+
+// Buy condition: 21 MA crosses above 50 MA AND both are above the 100 MA
+if (ta.crossover(fast_ma, slow_ma) and fast_ma > trend_ma and slow_ma > trend_ma)
+    strategy.entry("Buy", strategy.long)
+
+// Sell condition: 21 MA crosses below 50 MA AND both are below the 100 MA
+if (ta.crossunder(fast_ma, slow_ma) and fast_ma < trend_ma and slow_ma < trend_ma)
+    strategy.close("Buy")
+
+// Plot buy signals as green balloons
+plotshape(series=ta.crossover(fast_ma, slow_ma) and fast_ma > trend_ma and slow_ma > trend_ma, 
+     title="Buy Signal", 
+     location=location.belowbar, 
+     color=color.green, 
+     style=shape.labelup, 
+     text="BUY", 
+     textcolor=color.white, 
+     size=size.small, 
+     transp=0)
+
+// Plot sell signals as red balloons
+plotshape(series=ta.crossunder(fast_ma, slow_ma) and fast_ma < trend_ma and slow_ma < trend_ma, 
+     title="Sell Signal", 
+     location=location.abovebar, 
+     color=color.red, 
+     style=shape.labeldown, 
+     text="SELL", 
+     textcolor=color.white, 
+     size=size.small, 
+     transp=0)
+
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/483045
+
+> Last Modified
+
+2025-02-21 10:48:37

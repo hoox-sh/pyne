@@ -1,0 +1,57 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于双均线和RSI的短线可扩展趋势追踪策略-Dual-Moving-Average-and-RSI-Based-Short-Term-Scalable-Trend-Following-Strategy.md
+// content_hash: 1a821909c2da6583
+// collected: 2026-07-27
+strategy("Short-Term Scalp Trading Strategy", overlay=true)
+
+// Define strategy parameters
+fastMA_length = input(5, title="Fast MA Length")
+slowMA_length = input(10, title="Slow MA Length")
+rsi_length = input(7, title="RSI Length")
+rsi_oversold = input(20, title="RSI Oversold Level")
+rsi_overbought = input(80, title="RSI Overbought Level")
+
+// Calculate Moving Averages
+fastMA = ta.sma(close, fastMA_length)
+slowMA = ta.sma(close, slowMA_length)
+
+// Calculate RSI
+rsi = ta.rsi(close, rsi_length)
+
+// Define entry conditions
+longCondition = ta.crossunder(fastMA, slowMA) and rsi < rsi_oversold
+shortCondition = ta.crossover(fastMA, slowMA) and rsi > rsi_overbought
+
+// Enter long position
+strategy.entry("Long", strategy.long, when=longCondition)
+
+// Enter short position
+strategy.entry("Short", strategy.short, when=shortCondition)
+
+// Define exit conditions
+longExitCondition = ta.crossunder(fastMA, slowMA) or ta.crossover(rsi, rsi_overbought)
+shortExitCondition = ta.crossover(fastMA, slowMA) or ta.crossunder(rsi, rsi_oversold)
+
+// Exit long position
+if (longExitCondition)
+    strategy.close("Exit Long", "Long")
+
+// Exit short position
+if (shortExitCondition)
+    strategy.close("Exit Short", "Short")
+
+// Plot buy and sell signals
+plotshape(series=longCondition, title="Buy Signal", location=location.belowbar, color=color.green, style=shape.triangleup, size=size.small)
+plotshape(series=shortCondition, title="Sell Signal", location=location.abovebar, color=color.red, style=shape.triangledown, size=size.small)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/446756
+
+> Last Modified
+
+2024-04-01 10:58:30

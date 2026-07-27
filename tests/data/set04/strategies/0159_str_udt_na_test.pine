@@ -1,0 +1,20 @@
+//@version=6
+// set04 corpus entry
+// source_repo: mcp-server-pinescript
+// source_path: mcp-server-pinescript/.project/bug-reports/MCP_TRIAGE_REPORT_UDT_NA_ERRORS.md::MCP_TRIAGE_REPORT_UDT_NA_ERRORS.md#block1
+// content_hash: 92b4b5843e12cb29
+// collected: 2026-07-27
+strategy("UDT NA Test", "UDT_TEST", overlay = false)
+
+type MyState
+    bool flag = false
+    int count = 0
+
+// Explicitly set to na
+var MyState myState = na
+
+// This causes runtime error but MCP service doesn't detect it
+if myState.flag  // ERROR: Cannot access field of na object
+    plot(1, title = "Error", color = color.red)
+
+value = myState.count  // ERROR: Another na access

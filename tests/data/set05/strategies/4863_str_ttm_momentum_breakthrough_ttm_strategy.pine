@@ -1,0 +1,78 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动量突破TTM策略Momentum-Breakthrough-TTM-Strategy.md
+// content_hash: 5594f9ebb67d0b5c
+// collected: 2026-07-27
+strategy (title="EA_Binary Option Spfrat Strategy", shorttitle="Spyfrate_Binary Option 5min", overlay=false, pyramiding=1999, initial_capital=60000, currency=currency.USD)
+
+// TTM Squeeze code
+lengthttm = input(title="Length",  defval=20, minval=0) 
+bband(lengthttm, mult) =>
+	sma(close, lengthttm) + mult * stdev(close, lengthttm)
+keltner(length, mult) =>
+	ema(close, lengthttm) + mult * ema(tr, lengthttm)
+
+e1 = (highest(high, lengthttm) + lowest(low, lengthttm)) / 2 + sma(close, lengthttm)
+osc = linreg(close - e1 / 2, lengthttm, 0)
+diff = bband(lengthttm, 2) - keltner(lengthttm, 1)
+osc_color = osc[1] < osc[0] ? osc[0] >= 0 ? #00ffff : #cc00cc : osc[0] >= 0 ? #009b9b : #ff9bff
+mid_color = diff >= 0 ? green : red
+conso = diff >= 0?1:0
+
+//plot(osc, color=osc_color, style=histogram, linewidth=2)
+//plot(0, color=mid_color, style=circles, linewidth=3)
+
+// BB Init
+source = close
+length = input(50, minval=1)
+mult = input(0.2, title="Mult Factor", minval=0.001, maxval=50)
+alertLevel=input(0.1)
+impulseLevel=input(0.75)
+showRange = input(false, type=bool)
+
+//RSI CODE
+src = close, 
+up = rma(max(change(src), 0), 30)
+down = rma(-min(change(src), 0), 30)
+rsi = down == 0 ? 100 : up == 0 ? 0 : 100 - (100 / (1 + up / down))
+
+//BB CODE
+basis = sma(source, length)
+dev = mult * stdev(source, length)
+upper = basis + dev
+lower = basis - dev
+bbr = source>upper?(((source-upper)/(upper-lower))/10): source<lower?(((source-lower)/(upper-lower))/10) : 0.05
+bbi = bbr - nz(bbr[1]) 
+//Rule
+long1 = rsi>50.5 and rsi<70 and  bbi>0.15  and osc>0.00100 and conso>0
+short1 = rsi<49.5 and rsi>30 and  bbi<-0.15 and osc<-0.00100 and conso>0
+//
+long = long1[1] == 0 and long1 == 1
+short = short1[1] == 0 and short1 == 1
+longclose = long[5] == 1
+shortclose = short[5] == 1
+
+//Alert
+
+strategy.entry("short", strategy.short, when=short)
+strategy.entry("long", strategy.long, when=long)
+plot(long,"long",color=green,linewidth=1)
+plot(short,"short",color=red,linewidth=1)
+strategy.close("long",when=longclose)
+strategy.close("short",when=shortclose)
+
+//strategy.exit(id="long",qty = 100000,when=longclose)
+//strategy.exit(id="short",qty = 100000,when=shortclose)
+plot(longclose,"close",color=blue,linewidth=1)
+plot(shortclose,"close",color=orange,linewidth=1)
+//strategy.exit(id="Stop", profit = 20, loss = 100)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/432788
+
+> Last Modified
+
+2023-11-21 15:07:38

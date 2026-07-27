@@ -1,0 +1,64 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/移动平均线动态止盈策略Moving-Average-Strategy-with-Dynamic-Profit-Target.md
+// content_hash: 2f066c45cd435860
+// collected: 2026-07-27
+strategy("利润目标止损的移动平均线", overlay=true)
+
+period = input(80,'')
+ptper = input(252,'')
+ptfactor = input(12,'')
+sizeper = input(20, '')
+
+trend = 0.0
+signal = 0
+size = 1.0
+investment = 100000
+atrange = 0.0
+ptrange = 0.0
+stoph = 0.0
+stopl = 0.0
+
+
+if sizeper != 0
+	atrange := atr(sizeper)
+
+if atrange == 0 or sizeper == 0 
+	size := 1
+else
+	size := investment/atrange * 0.1
+
+trend := sma(close,period)
+
+
+if signal != 1 and nz(trend[1]) < nz(trend[2]) and trend > nz(trend[1])
+	strategy.entry('long',strategy.long, comment='open_long')
+	signal := 1
+else
+    signal := nz(signal[1])
+    
+if signal != -1 and nz(trend[1]) > nz(trend[2]) and trend < nz(trend[1])
+	strategy.entry('short',strategy.short, comment='open_short')
+	signal := -1
+else
+    if signal == 0
+        signal := nz(signal[1])
+
+ptrange := atr(ptper)
+
+if strategy.position_size > 0
+	strategy.exit("exit_long", "long", qty = strategy.position_size, limit = close + ptfactor*ptrange , comment='trail_long') 
+else
+	if strategy.position_size < 0
+		strategy.exit("exit_short", "short", qty = abs(strategy.position_size), limit = close - ptfactor*ptrange, comment='trail_short')
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/427187
+
+> Last Modified
+
+2023-09-18 21:46:47

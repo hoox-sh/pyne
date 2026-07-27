@@ -1,0 +1,912 @@
+//@version=5
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/Dual Fibonacci Zone & Ranged Vol DCA Strategy - R3c0nTrader.pine
+// content_hash: e50a0e2384133a6f
+// collected: 2026-07-27
+strategy('Dual Fibonacci Zones & Ranged Vol DCA Strategy - R3c0nTrader', shorttitle='Dual Fib Zones RV DCA Strategy', 
+   overlay=true, pyramiding=999, default_qty_type=strategy.cash, initial_capital=10000, commission_value=0.0, process_orders_on_close=true, max_labels_count=500)
+// Declare all variables
+var current_so = 0
+var initial_order = 0.0
+var original_ttp_value = 0.0
+var previous_high_value = 0.0
+var stopValue = float(0.0)
+var strat = ""
+var take_profit_1 = float(0.03)
+var take_profit_2 = float(0.03)
+var trailing = 0.0
+var trailing_price = float(0.0)
+var pnl_pct = 0.0
+var current_sourceInput = 0.0
+fib_exit_level = float(0)
+fib_exit_level_2 = float(0)
+fib_level = float(0)
+fib_level_2 = float(0)
+so_qty = float(0.0)
+take_profit = float(na)
+take_profit_level = float(na)
+buy = bool(false)
+DIxUp_1 = bool(false)
+DIxDown_1 = bool(false)
+DIxUp_2 = bool(false)
+DIxDown_2 = bool(false)
+sell = bool(false)
+e_trig_bool = bool(false)
+e_trig_bool_2 = bool(false)
+exit_trig_bool = bool(false)
+exit_trig_bool_2 = bool(false)
+use_labels = bool(false)
+Close = 0.0
+Open = 0.0
+e_trig = 0
+e_trig_2 = 0
+fib_exit = 0
+fib_exit_2 = 0
+fib_tp = 0
+fib_tp_2 = 0
+threshold = 0.0
+Volume_Color = color(na)
+buy_message = ""
+sell_message = ""
+// Strategy Inputs
+// Start and End Dates----------------------------------------------------------
+i_startTime = input.time(defval=timestamp('01 Jan 2015 00:00 +0000'), title='Start Time', group="Date Range")
+i_endTime = input.time(defval=timestamp('31 Dec 2050 23:59 +0000'), title='End Time', group="Date Range")
+inDateRange = time >= i_startTime and time <= i_endTime
+//------------------------------------------------------------------------------
+// Start: Prevent repainting----------------------------------------------------
+stop_repainting_choice = input.bool(false,title='Disable repainting?', 
+   tooltip='Per Pine v5 User Manual: You can very well decide to use repainting indicators if you understand how they behave, and that behavior meets your trading methodology’s requirements.' +
+   'Don’t be one of those newcomers to trading who slap “repaint” sentences on published scripts as if it discredits them. Doing so only reveals your incomprehension of the subject.' +
+   'What’s important is that you understand how the tools you use work, and if their behavior is compatible with your objectives, repainting or not. Repainting is a complex matter. It has many faces and many causes.',
+   group='Repainting')
+nonRepaintingSecurity(sym, tf, src) =>
+    request.security(sym, tf, src[barstate.isrealtime ? 1 : 0])[barstate.isrealtime ? 0 : 1]
+// End: Prevent repainting------------------------------------------------------
+// Start: Bull/Sell Indicator Options-------------------------------------------
+highlight_trades = input.bool(true, title='Highlight background color for trades?', tooltip='Used to add a green or red background color with the buy and sell arrows.', group="Buy/Sell Indicator Options")
+buy_color = input.color(color.new(color.green, 70), 'Buy background color', group="Buy/Sell Indicator Options")
+sell_color = input.color(color.new(color.red, 70), 'Sell background color', group="Buy/Sell Indicator Options")
+use_labels := input.bool(false, title='Use Labels?', tooltip='Enable to show labels. To remove the other text, you must open the "Style" menu and uncheck "Signal labels" and "Quantity". \n\nOnly 500 labels can be displayed on the chart.', group="Buy/Sell Indicator Options")
+// End: Bull/Sell Indicator Options---------------------------------------------
+// Start: 3Commas Bot ----------------------------------------------------------
+bool cfg_enable_bot_control     = input.bool(title='Enable 3Commas Webhook?', defval=false, group='3commas Bot Settings', 
+   tooltip='If this is enabled the strategy can control some bot operations via Webhook calls.\n\nTo enable Webhook calls, check this option, select the bot type,' + 
+   ' enter the Bot id and Email Token.\n\nAfter the strategy is configured, create an alert on the strategy, select "alert() function calls only", ' + 
+   'check "Webhook URL", enter the 3Commas webhook URL, and enter the "Alert Name"')
+bot_type = input.string("Simple bot", title="Select the bot type", options=["Simple bot", "Composite bot"], group='3commas Bot Settings',
+   tooltip='Select the bot type. If "Simple bot" is selected the currency pair (e.g. BTCUSD or BTCUSDT) will not be passed in the alert. ' +
+   '\nIf "Composite bot" is selected the currency pair will be passed in the alert.')
+string cfg_bot_id               = input.string(title='Bot id', defval='bot_id', tooltip = 'Go to your 3Commas bot settings>Expand "Message for deal start signal"', group='3commas Bot Settings')
+string cfg_email_token          = input.string(title='Email token', defval='email_token', tooltip = 'Go to your 3Commas bot settings>Expand "Message for deal start signal"', group='3commas Bot Settings')
+if cfg_enable_bot_control
+    if bot_type == "Simple bot"
+        buy_message := '{"message_type":"bot", "bot_id":"' + cfg_bot_id + '", "email_token":"' + cfg_email_token + '", "delay_seconds":0}'
+        sell_message := '{"action": "close_at_market_price_all", "message_type":"bot", "bot_id":"' + cfg_bot_id + '", "email_token":"' + cfg_email_token + '", "delay_seconds":0}'
+    else if bot_type == "Composite bot"
+        buy_message := '{"message_type":"bot", "bot_id":"' + cfg_bot_id + '", "email_token":"' + cfg_email_token + '", "delay_seconds":0, "pair":"' + str.tostring(syminfo.currency) + '_' + str.tostring(syminfo.basecurrency) + '"}'
+        sell_message := '{"action": "close_at_market_price_all", "message_type":"bot", "bot_id":"' + cfg_bot_id + '", "email_token":"' + cfg_email_token + '", "delay_seconds":0, "pair":"' + str.tostring(syminfo.currency) + '_' + str.tostring(syminfo.basecurrency) + '"}'
+// End: 3Commas Bot ------------------------------------------------------------
+// Start: Trade Entry Settings--------------------------------------------------
+// Start: Fibonacci Entry-1 Settings--------------------------------------------
+fib_enable = input.bool(true, title="🥇 Use First Fibonacci Zone Strategy? 💎✋🤚'", tooltip='Enable this option if you want to factor in the first set of Fibonacci Zones as part of your strategy', group="1st Fibonacci Trade Entry Settings")
+sourceInput = input.source(close, "Source", group="1st Fibonacci Trade Entry Settings")
+sourceInput01_func() =>
+    sourceInput01_f = stop_repainting_choice ? nonRepaintingSecurity(syminfo.tickerid, timeframe.period, sourceInput) : sourceInput
+per = input(14, title='Fibonacci length', tooltip='Number of bars to look back. Recommended for beginners to set DI Length to the same value as this.', group="1st Fibonacci Trade Entry Settings")
+hl = stop_repainting_choice ? ta.highest(high, per)[1] : ta.highest(high, per)  //Top-High Fib Border
+ll = stop_repainting_choice ? ta.lowest(low, per)[1] : ta.lowest(low, per)      //Top-Low Fib Border
+dist = hl - ll              //Range of the channel    
+hf = hl - dist * 0.236      //Bottom-High Fib Border
+cfh = hl - dist * 0.382     //Top-Center Fib Border
+cfl = hl - dist * 0.618     //Bottom-Center Fib Border
+lf = hl - dist * 0.764      //Top-Low Fib Border
+// If Fibonacci Entry-1 is not enabled, then null out entry so it cannot be used
+if fib_enable == false
+    hl := na
+    hf := na
+    cfh := na
+    cfl := na
+    lf := na
+    ll := na
+// Start: ADX Settings----------------------------------------------------------
+lensig = input.int(14, title="ADX Smoothing", tooltip='Fibonacci signals work best when market is trending. ADX is used to measure trend strength. Default and recommended value is 14.',minval=1, maxval=50, group="1st Fibonacci Trade Entry Settings")
+len = input.int(14, minval=1, title="DI Length", tooltip='Fibonacci signals work best when market is trending. DI Length is used to calculate ADX to measure trend strength. Default value is 14. Recommend for beginners to match this with Fibonacci length.', group="1st Fibonacci Trade Entry Settings")
+adx_min = input.int(25, title='Min ADX value to open trade', tooltip='Use this to set the minimum ADX value (trend strength) to open trade. 25 or higher is recommended for beginners. 0 to 20 is a weak trend. 25 to 35 is a strong trend. 35 to 45 is a very strong trend. 45 to 100 is an extremely strong trend.', group="1st Fibonacci Trade Entry Settings")
+adx_max = input.int(100, title='Max ADX value to open trade', tooltip='Use this to set the maximum ADX value (trend strength) to open trade. 100 is recommended for beginners. 0 to 20 is a weak trend. 25 to 35 is a strong trend. 35 to 45 is a very strong trend. 45 to 100 is an extremely strong trend.', group="1st Fibonacci Trade Entry Settings")
+up = stop_repainting_choice ? ta.change(high)[1] : ta.change(high)
+down = stop_repainting_choice ? -ta.change(low)[1] : -ta.change(low)
+plusDM = na(up) ? na : (up > down and up > 0 ? up : 0)
+minusDM = na(down) ? na : (down > up and down > 0 ? down : 0)
+trur = ta.rma(ta.tr, len)
+di_plus = fixnan(100 * ta.rma(plusDM, len) / trur)
+di_minus = fixnan(100 * ta.rma(minusDM, len) / trur)
+sum = di_plus + di_minus
+adx = 100 * ta.rma(math.abs(di_plus - di_minus) / (sum == 0 ? 1 : sum), lensig)
+adx_inrange_1 = adx >= adx_min and adx <= adx_max
+// End: ADX Settings------------------------------------------------------------
+// Start: Input to setup Buy signals when the source crosses a fib border-------
+entry_trigger = input.string("1-Crosses", title="Buy signals when the source: [cont.]", options=["1-Crosses", "2-Crosses up", "3-Crosses down"], tooltip="'Crosses' includes up and down movements. 'Crosses Up' only includes up movements. 'Crosses Down' only includes down movements" , group="1st Fibonacci Trade Entry Settings")
+if entry_trigger == "1-Crosses"
+    e_trig := 1
+else if entry_trigger == "2-Crosses up"
+    e_trig := 2
+else if entry_trigger == "3-Crosses down"
+    e_trig := 3
+entry_choice = input.string("6-Bottom-Low Fib Border", title="...The Fib line:", options=["1-Top-High Fib Border", "2-Bottom-High Fib Border", "3-Top-Center Fib Border", "4-Bottom-Center Fib Border", "5-Top-Low Fib Border", "6-Bottom-Low Fib Border"],
+   tooltip='There are three fib zones and each zone has 2 borders (Top & Bottom). The options are listed from the top zone to the bottom zone. The bottom zone is the Downtrend zone; the middle zone is the Ranging zone; The top fib zone is the Uptrend zone.',
+   group="1st Fibonacci Trade Entry Settings")
+if entry_choice == "1-Top-High Fib Border"
+    fib_level := hl
+else if entry_choice == "2-Bottom-High Fib Border"
+    fib_level := hf
+else if entry_choice == "3-Top-Center Fib Border"
+    fib_level := cfh
+else if entry_choice == "4-Bottom-Center Fib Border"
+    fib_level := cfl
+else if entry_choice == "5-Top-Low Fib Border"
+    fib_level := lf
+else if entry_choice == "6-Bottom-Low Fib Border"
+    fib_level := ll
+// End: Input to setup Buy signals when the source crosses a fib border---------
+// Start: +DI/-DI options-------------------------------------------------------
+di_choice = input.bool(false, title="Only open trades on bullish +DI (Positive Directional Index)?", tooltip=
+  'Default is disabled. If you want to be more selective (you want a bullish confirmation), enable this and it will only open trades when the +DI (Positive Directional Index) is higher than the -DI (Negative Directional Index). Contrarian traders (buy the dip) should leave this disabled', 
+  group="1st Fibonacci Trade Entry Settings")
+di_min = input.int(0, title='Min +DI value to open trade', 
+  tooltip='Default is zero. Use this to set the minium +DI value to open the trade. Try incrementing this value if you want to be more selective and filter for more bullish moves (e.g. 20-25). For Contrarian traders, uncheck "Only open trades on bullish DI" option and set Min +DI to zero', 
+  group="1st Fibonacci Trade Entry Settings")
+di_max = input.int(100, title='Max +DI value to open trade', tooltip='Default is 100. Use this to set the maximum +DI value to open trade. For Contrarian traders, uncheck "Only open trades on bullish DI" option and try a Max +DI value no higher than 20 or 25', group="1st Fibonacci Trade Entry Settings")
+di_neg_min = input.int(0, title='Min -DI value to open trade', 
+  tooltip='Default is zero. Use this to set the minium -DI value to open the trade. Try incrementing this value if you want to be more selective and filter for more bearish moves (e.g. 25 or higher).', 
+  group="1st Fibonacci Trade Entry Settings")
+di_neg_max = input.int(100, title='Max -DI value to open trade', tooltip='Default is 100. Use this to set the maximum -DI value to open trade.', group="1st Fibonacci Trade Entry Settings")
+di_inrange = di_plus >= di_min and di_plus <= di_max and di_minus >= di_neg_min and di_minus <= di_neg_max
+// End: +DI/-DI options---------------------------------------------------------
+// End: Fibonacci Entry-1 Settings----------------------------------------------
+// Start: Fibonacci Entry-2 Settings--------------------------------------------
+fib_enable_2 = input.bool(false, title="🥈 Use 2nd Fibonacci Zone Strategy? 💎✋🤚'", tooltip='Enable this option if you want to factor in a 2nd Fibonacci Zones as part of your strategy', group="2nd Fibonacci Trade Entry Settings")
+sourceInput_2 = input.source(close, "Source", group="2nd Fibonacci Trade Entry Settings")
+sourceInput02_func() =>
+    sourceInput02_f = stop_repainting_choice ? nonRepaintingSecurity(syminfo.tickerid, timeframe.period, sourceInput_2) : sourceInput_2
+per_2 = input(14, title='Fibonacci length', tooltip='Number of bars to look back. Recommended for beginners to set DI Length to the same value as this.', group="2nd Fibonacci Trade Entry Settings")
+hl_2 = stop_repainting_choice ? ta.highest(high, per_2)[1] : ta.highest(high, per_2)    //Top-High Fib Border
+ll_2 = stop_repainting_choice ? ta.lowest(low, per_2)[1] : ta.lowest(low, per_2)        //Top-Low Fib Border
+dist_2 = hl_2 - ll_2            //Range of the channel    
+hf_2 = hl_2 - dist_2 * 0.236    //Bottom-High Fib Border
+cfh_2 = hl_2 - dist_2 * 0.382   //Top-Center Fib Border
+cfl_2 = hl_2 - dist_2 * 0.618   //Bottom-Center Fib Border
+lf_2 = hl_2 - dist_2 * 0.764    //Top-Low Fib Border
+// If Fibonacci Entry-2 is not enable, then null out entry so it cannot be used
+if fib_enable_2 == false
+    hl_2 := na
+    hf_2 := na
+    cfh_2 := na
+    cfl_2 := na
+    lf_2 := na
+    ll_2 := na
+// Start: +DI/-DI options-------------------------------------------------------
+lensig_2 = input.int(14, title="ADX Smoothing", tooltip='Fibonacci signals work best when market is trending. ADX is used to measure trend strength. Default and recommended value is 14.',minval=1, maxval=50, group="2nd Fibonacci Trade Entry Settings")
+len_2 = input.int(14, minval=1, title="DI Length", tooltip='Fibonacci signals work best when market is trending. DI Length is used to calculate ADX to measure trend strength. Default value is 14. Recommend for beginners to match this with Fibonacci length.', group="2nd Fibonacci Trade Entry Settings")
+adx_min_2 = input.int(25, title='Min ADX value to open trade', tooltip='Use this to set the minium ADX value (trend strength) to open trade. 25 or higher is recommended for beginners. 0 to 20 is a weak trend. 25 to 35 is a strong trend. 35 to 45 is a very strong trend. 45 to 100 is an extremely strong trend.', group="2nd Fibonacci Trade Entry Settings")
+adx_max_2 = input.int(100, title='Max ADX value to open trade', tooltip='Use this to set the maximum ADX value (trend strength) to open trade. 100 is recommended for beginners. 0 to 20 is a weak trend. 25 to 35 is a strong trend. 35 to 45 is a very strong trend. 45 to 100 is an extremely strong trend.', group="2nd Fibonacci Trade Entry Settings")
+up_2 = stop_repainting_choice ? ta.change(high)[1] : ta.change(high)
+down_2 = stop_repainting_choice ? -ta.change(low)[1] : -ta.change(low)
+plusDM_2 = na(up_2) ? na : (up_2 > down_2 and up_2 > 0 ? up_2 : 0)
+minusDM_2 = na(down_2) ? na : (down_2 > up_2 and down_2 > 0 ? down_2 : 0)
+trur_2 = ta.rma(ta.tr, len_2)
+di_plus_2 = fixnan(100 * ta.rma(plusDM_2, len_2) / trur_2)
+di_minus_2 = fixnan(100 * ta.rma(minusDM_2, len_2) / trur_2)
+sum_2 = di_plus_2 + di_minus_2
+adx_2 = 100 * ta.rma(math.abs(di_plus_2 - di_minus_2) / (sum_2 == 0 ? 1 : sum_2), lensig_2)
+adx_inrange_2 = adx_2 >= adx_min_2 and adx_2 <= adx_max_2
+// End: +DI/-DI options-------------------------------------------------------
+// Start: Input to setup Buy signals when the source crosses a fib border-------
+entry_trigger_2 = input.string("1-Crosses", title="Buy signals when the source: [cont.]", options=["1-Crosses", "2-Crosses up", "3-Crosses down"], tooltip="'Crosses' includes up and down movements. 'Crosses Up' only includes up movements. 'Crosses Down' only includes down movements" , group="2nd Fibonacci Trade Entry Settings")
+if entry_trigger_2 == "1-Crosses"
+    e_trig_2 := 1
+else if entry_trigger_2 == "2-Crosses up"
+    e_trig_2 := 2
+else if entry_trigger_2 == "3-Crosses down"
+    e_trig_2 := 3
+entry_choice_2 = input.string("6-Bottom-Low Fib Border", title="...The Fib line:", options=["1-Top-High Fib Border", "2-Bottom-High Fib Border", "3-Top-Center Fib Border", "4-Bottom-Center Fib Border", "5-Top-Low Fib Border", "6-Bottom-Low Fib Border"],
+   tooltip='There are three fib zones and each zone has 2 borders (Top & Bottom). The options are listed from the top zone to the bottom zone. The bottom zone is the Downtrend zone; the middle zone is the Ranging zone; The top fib zone is the Uptrend zone.',
+   group="2nd Fibonacci Trade Entry Settings")
+if entry_choice_2 == "1-Top-High Fib Border"
+    fib_level_2 := hl_2
+else if entry_choice_2 == "2-Bottom-High Fib Border"
+    fib_level_2 := hf_2
+else if entry_choice_2 == "3-Top-Center Fib Border"
+    fib_level_2 := cfh_2
+else if entry_choice_2 == "4-Bottom-Center Fib Border"
+    fib_level_2 := cfl_2
+else if entry_choice_2 == "5-Top-Low Fib Border"
+    fib_level_2 := lf_2
+else if entry_choice_2 == "6-Bottom-Low Fib Border"
+    fib_level_2 := ll
+// End: Input to setup Buy signals when the source crosses a fib border---------
+// Start: +DI/-DI options-------------------------------------------------------
+di_choice_2 = input.bool(false, title="Only open trades on bullish +DI (Positive Directional Index)?", tooltip=
+  'Default is disabled. If you want to be more selective (you want a bullish confirmation), enable this and it will only open trades when the +DI (Positive Directional Index) is higher than the -DI (Negative Directional Index). Contrarian traders (buy the dip) should leave this disabled', 
+  group="2nd Fibonacci Trade Entry Settings")
+di_min_2 = input.int(0, title='Min +DI value to open trade', 
+  tooltip='Default is zero. Use this to set the minium +DI value to open the trade. Try incrementing this value if you want to be more selective and filter for more bullish moves (e.g. 20-25). For Contrarian traders, uncheck "Only open trades on bullish DI" option and set Min +DI to zero', 
+  group="2nd Fibonacci Trade Entry Settings")
+di_max_2 = input.int(100, title='Max +DI value to open trade', tooltip='Default is 100. Use this to set the maximum +DI value to open trade. For Contrarian traders, uncheck "Only open trades on bullish DI" option and try a Max +DI value no higher than 20 or 25', group="2nd Fibonacci Trade Entry Settings")
+di_neg_min_2 = input.int(0, title='Min -DI value to open trade', 
+  tooltip='Default is zero. Use this to set the minium -DI value to open the trade. Try incrementing this value if you want to be more selective and filter for more bearish moves (e.g. 25 or higher).', 
+  group="2nd Fibonacci Trade Entry Settings")
+di_neg_max_2 = input.int(100, title='Max -DI value to open trade', tooltip='Default is 100. Use this to set the maximum -DI value to open trade.', group="2nd Fibonacci Trade Entry Settings")
+di_inrange_2 = di_plus_2 >= di_min_2 and di_plus_2 <= di_max_2 and di_minus_2 >= di_neg_min_2 and di_minus_2 <= di_neg_max_2
+// End: +DI/-DI options---------------------------------------------------------
+// End: Fibonacci Entry-2 Settings----------------------------------------------
+// Start: Ranged Volume Settings------------------------------------------------
+rv_enable = input.bool(false, title="Use Ranged Volume?", tooltip='Uses "Source-close" values only. Otherwise it causes some candles to not appear in the study. Enable this option if you want to factor in Ranged Volume as part of your strategy', group="Ranged Volume Trade Entry Settings")
+Range_Length    =   input.int(1,    title="Volume Range Length", minval=1, group="Ranged Volume Trade Entry Settings")
+Heikin_Ashi     =   input(false,     title="Heikin Ashi", tooltip='Try toggling for different results. Used with Ranged Volume calculation.', group="Ranged Volume Trade Entry Settings")
+Display_Bars    =   input(true,     title="Show Bar Colors", tooltip=' Used with Ranged Volume.', group="Ranged Volume Trade Entry Settings")
+Display_Break   =   input(true,     title="Show Break-Out", tooltip=' Used with Ranged Volume.', group="Ranged Volume Trade Entry Settings")
+// Repaint option---------------------------------------------------------------
+Close := Heikin_Ashi ? request.security(ticker.heikinashi(syminfo.tickerid), timeframe.period, sourceInput01_func()) : sourceInput01_func()
+Open := Heikin_Ashi ? request.security(ticker.heikinashi(syminfo.tickerid), timeframe.period, open) : open
+Highest_vol = stop_repainting_choice ? ta.highest(volume, Range_Length)[1] : ta.highest(volume, Range_Length)
+Lowest_vol = stop_repainting_choice ? ta.lowest(-volume, Range_Length)[1] : ta.lowest(-volume, Range_Length)
+rv_up = Highest_vol > Highest_vol[1] and Close > Open
+rv_down = Highest_vol > Highest_vol[1] and Close < Open
+// Repaint option---------------------------------------------------------------
+if rv_enable
+    Volume_Color := 
+     Display_Break and rv_up ? color.new(#ffeb3b, 20) : 
+     Display_Break and rv_down ? color.new(#f44336, 20) : 
+     Close > Open ? color.new(#00c0ff, 20) : 
+     Close < Open ? color.new(#0001f6, 20) : na
+else
+    Volume_Color := na
+// End: Ranged Volume Settings--------------------------------------------------
+// Start: 3Commas settings, Base Order and Safety Order, etc--------------------
+enable_order_asap_1 = input.bool(false, title='Fib-1, Open trades faster?\nDo not wait for candle close?', tooltip="Enable this if you do not want to wait for a closing candle to open a trade on your Fib-1 Fib Zone Strategy." +
+   " The candle's high or low value will be used instead (the wick will be the trigger). Will use the appropriate high/low signal based what you selected for Fib entry (Crosses, Crosses up, Crosses down)" +
+   "\nCan be useful if a bot is opening trades slower than you would like. ", group="Trade Entry Settings")
+enable_order_asap_2 = input.bool(false, title='Fib-2, Open trades faster?\nDo not wait for candle close?', tooltip="Enable this if you do not want to wait for a closing candle to open a trade on your Fib-2 Fib Zone Strategy." +
+   " The candle's high or low value will be used instead (the wick will be the trigger). Will use the appropriate high/low signal based (Crosses, Crosses up, Crosses down)" +
+   "\nCan be useful if a bot is opening trades slower than you would like. ", group="Trade Entry Settings")
+base_order = input.float(100.0, minval=0.0, title='Base order', group="Trade Entry Settings")
+safe_order = input.float(200.0, minval=0.0, title='Safety order', group="Trade Entry Settings")
+price_deviation = input.float(6.0, title='Price deviation to open safety orders (%)', step=0.25, minval=0.0, group="Trade Entry Settings") / 100
+safe_order_volume_scale = input.float(2.0, step=0.5, minval=0.0, title='Safety order volume scale', group="Trade Entry Settings")
+safe_order_step_scale = input.float(1, step=0.1, minval=0, title='Safety order step scale', group="Trade Entry Settings")
+max_safe_order = input.int(5, minval=0, title='Max safety orders', group="Trade Entry Settings")
+min_vol_choice = input.bool(false, title='Require Minimum Volume to Enter Trade?', tooltip='Enable this to only enter trades with the specified minimum volume', group="Trade Entry Settings")
+min_vol = input.int(0, step=10000, minval=0, title='Minimum Volume to Enter Trade', group="Trade Entry Settings")
+ma_vol_choice = input.bool(false, title='Require Volume MA to Enter Trade?', tooltip='Enable this to only enter trades when volume is equal to or greater than the Volume Moving Average', group="Trade Entry Settings")
+ma_vol = input.int(1, step=1, minval=1, title='Volume MA', group="Trade Entry Settings")
+// Determine if Minimum volume option is enabled and if the minimum value >= current volume or volume ma
+min_vol_bool = volume >= min_vol
+use_min_vol = min_vol_choice ? min_vol_bool : true
+ma_vol_bool = volume >= ta.sma(volume,ma_vol)
+use_ma_vol = ma_vol_choice ? ma_vol_bool : true
+rsi_choice = input.bool(false, title='Use Max RSI level to limit trade entries?', tooltip='Enable this to only enter trades when the RSI is below the level you enter. Currently the source for the RSI is what you specified for Fib-1. Fib-2 source is not used.', group="Trade Entry Settings")
+rsi_length = input.int(14, step=1, minval=1, title='RSI Length', tooltip='Currently the source for the RSI is what you specified for Fib-1. Fib-2 source is not used.', group="Trade Entry Settings")
+rsi_overbought = input.int(70,title="Specify Max RSI level to limit trade entry", tooltip='If the RSI is at this level or higher, no trade entry is allowed', group="Trade Entry Settings")
+rsi_value = ta.rsi(sourceInput01_func(), rsi_length)
+rsi_overbought_bool = rsi_value >= rsi_overbought
+use_rsi_ob = rsi_choice ? rsi_overbought_bool : false
+// End: 3Commas settings, Base Order and Safety Order, etc----------------------
+// End: Trade Entry Settings----------------------------------------------------
+// Truncate function
+truncate(number, decimals) =>
+    factor = math.pow(10, decimals)
+    int(number * factor) / factor
+// Start: Trade Exit Settings---------------------------------------------------
+enable_exit_asap_1 = input.bool(false, title='Fib-1, Exit trades faster?\nDo not wait for candle close?', tooltip="Enable this if you do not want to wait for a closing candle to exit a trade on your Fib-1 Fib Zone Strategy." +
+   " The candle's high or low value will be used instead (the wick will be the trigger). Will use the appropriate high/low signal based what you selected for Fib entry (Crosses, Crosses up, Crosses down)" +
+   "\nCan be useful if a bot is exiting trades slower than you would like. ", group="Trade Exit Settings")
+enable_exit_asap_2 = input.bool(false, title='Fib-2, Exit trades faster?\nDo not wait for candle close?', tooltip="Enable this if you do not want to wait for a closing candle to exit a trade on your Fib-2 Fib Zone Strategy." +
+   " The candle's high or low value will be used instead (the wick will be the trigger). Will use the appropriate high/low signal based what you selected for Fib entry (Crosses, Crosses up, Crosses down)" +
+   "\nCan be useful if a bot is exiting trades slower than you would like. ", group="Trade Exit Settings")
+// Start: Fibonacci Exit-1------------------------------------------------------
+fib_tp_trigger = input.string("1-Crosses", title="🥇 Fib-1, 💰 Take Profit when the source: [cont.]", options=["1-Crosses", "2-Crosses up", "3-Crosses down", "4-Reaches Target Take Profit (%)"], tooltip=
+   "'Crosses' includes up and down movements. 'Crosses Up' only includes up movements. 'Crosses Down' only includes down movements" , 
+   group="1st Fibonacci Trade Exit Settings")
+if fib_tp_trigger == "1-Crosses"
+    fib_tp := 1
+else if fib_tp_trigger == "2-Crosses up"
+    fib_tp := 2
+else if fib_tp_trigger == "3-Crosses down"
+    fib_tp := 3
+else if fib_tp_trigger == "4-Reaches Target Take Profit (%)"
+    fib_tp := 4
+// Take Profit Drop-down menu option for Fib-1
+tp_choice = input.string("1-Top-High Fib Border", title="...The Fib line:", options=["1-Top-High Fib Border", "2-Bottom-High Fib Border", "3-Top-Center Fib Border", "4-Bottom-Center Fib Border"], tooltip=
+  'Select how to exit your trade and take profit. Then specify below this option the condition to exit. "Top-High Fib Border" is the top-most Fibonacci line in the green uptrend zone. "Bottom-High Fib Border" is the bottom Fibonacci line in the green uptrend zone. You can find these lines on the "Style" tab and toggle them off/on to locate these lines for more clarity', 
+  group="1st Fibonacci Trade Exit Settings")
+if tp_choice == "1-Top-High Fib Border"
+    take_profit_1 := float(hl)
+else if tp_choice == "2-Bottom-High Fib Border"
+    take_profit_1 := float(hf)
+else if tp_choice == "3-Top-Center Fib Border"
+    take_profit_1 := float(cfh)
+else if tp_choice == "4-Bottom-Center Fib Border"
+    take_profit_1 := float(cfl)
+// End: Fibonacci Exit-1--------------------------------------------------------
+// Start: Fibonacci Exit-2------------------------------------------------------
+fib_tp_trigger_2 = input.string("1-Crosses", title="🥈 Fib-2, Take 💰 Profit when the source: [cont.]", options=["1-Crosses", "2-Crosses up", "3-Crosses down", "4-Reaches Target Take Profit (%)"], tooltip=
+   "'Crosses' includes up and down movements. 'Crosses Up' only includes up movements. 'Crosses Down' only includes down movements.", 
+   group="2nd Fibonacci Trade Exit Settings")
+if fib_tp_trigger_2 == "1-Crosses"
+    fib_tp_2 := 1
+else if fib_tp_trigger_2 == "2-Crosses up"
+    fib_tp_2 := 2
+else if fib_tp_trigger_2 == "3-Crosses down"
+    fib_tp_2 := 3
+else if fib_tp_trigger_2 == "4-Reaches Target Take Profit (%)"
+    fib_tp_2 := 4
+// Take Profit Drop-down menu option for Fib-2
+tp_choice_2 = input.string("1-Top-High Fib Border", title="...The Fib line:", options=["1-Top-High Fib Border", "2-Bottom-High Fib Border", "3-Top-Center Fib Border", "4-Bottom-Center Fib Border"], tooltip=
+  'Select how to exit your trade and take profit. Then specify below this option the condition to exit. "Top-High Fib Border" is the top-most Fibonacci line in the green uptrend zone. "Bottom-High Fib Border" is the bottom Fibonacci line in the green uptrend zone. You can find these lines on the "Style" tab and toggle them off/on to locate these lines for more clarity', 
+  group="2nd Fibonacci Trade Exit Settings")
+if tp_choice_2 == "1-Top-High Fib Border"
+    take_profit_2 := float(hl_2)
+else if tp_choice_2 == "2-Bottom-High Fib Border"
+    take_profit_2 := float(hf_2)
+else if tp_choice_2 == "3-Top-Center Fib Border"
+    take_profit_2 := float(cfh_2)
+else if tp_choice_2 == "4-Bottom-Center Fib Border"
+    take_profit_2 := float(cfl_2)
+// End: Fibonacci Exit-2--------------------------------------------------------
+// Start: Input for TTP %-------------------------------------------------------
+if fib_tp == 4 
+    take_profit_1 := input.float(3.0, title='Fib-1 Target Take Profit (%)', step=0.5, minval=0.0, tooltip='Only used if "Target Take Profit (%)" is selected above.', group="1st Fibonacci Trade Exit Settings") / 100
+if fib_tp_2 == 4 
+    take_profit_2 := input.float(3.0, title='Fib-2 Target Take Profit (%)', step=0.5, minval=0.0, tooltip='Only used if "Target Take Profit (%)" is selected above.', group="2nd Fibonacci Trade Exit Settings") / 100
+// End: Input for TTP %---------------------------------------------------------
+// Start: Trailing settings ----------------------------------------------------
+trailing_1 = input.float(0.0, title='Fib-1, 🚦 Trailing deviation.', step=0.1, minval=0.0, group="1st Fibonacci Trade Exit Settings") / 100
+trailing_2 = input.float(0.0, title='Fib-2, 🚦 Trailing deviation.', step=0.1, minval=0.0, group="2nd Fibonacci Trade Exit Settings") / 100
+// END: Trailing settings ------------------------------------------------------
+// Fibonacci-1 TP and Fibonacci-2 TP--------------------------------------------
+fb_tp_condition = false
+fb_tp_condition_2 = false
+if enable_exit_asap_1 
+    if fib_tp == 1
+        fb_tp_condition := stop_repainting_choice ? ta.cross(sourceInput01_func(), take_profit_1) or ta.cross(low, take_profit_1) or ta.cross(high, take_profit_1) : ta.cross(sourceInput, take_profit_1) or ta.cross(low, take_profit_1) or ta.cross(high, take_profit_1)
+    else if fib_tp == 2
+        fb_tp_condition := stop_repainting_choice ? ta.crossover(sourceInput01_func(), take_profit_1) or ta.crossover(high, take_profit_1) : ta.crossover(sourceInput, take_profit_1) or ta.crossover(high, take_profit_1)
+    else if fib_tp == 3
+        fb_tp_condition := stop_repainting_choice ? ta.crossunder(sourceInput01_func(), take_profit_1) or ta.crossunder(low, take_profit_1) : ta.crossunder(sourceInput, take_profit_1) or ta.crossunder(low, take_profit_1)
+else
+    if fib_tp == 1
+        fb_tp_condition := stop_repainting_choice ? ta.cross(sourceInput01_func(), take_profit_1) : ta.cross(sourceInput, take_profit_1)
+    else if fib_tp == 2
+        fb_tp_condition := stop_repainting_choice ? ta.crossover(sourceInput01_func(), take_profit_1) : ta.crossover(sourceInput, take_profit_1)
+    else if fib_tp == 3
+        fb_tp_condition := stop_repainting_choice ? ta.crossunder(sourceInput01_func(), take_profit_1) : ta.crossunder(sourceInput, take_profit_1) 
+        
+if enable_exit_asap_2
+    if fib_tp_2 == 1
+        fb_tp_condition_2 := stop_repainting_choice ? ta.cross(sourceInput02_func(), take_profit_2) or ta.cross(low, take_profit_2) or ta.cross(high, take_profit_2) : ta.cross(sourceInput_2, take_profit_2) or ta.cross(low, take_profit_2) or ta.cross(high, take_profit_2)
+    else if fib_tp_2 == 2
+        fb_tp_condition_2 := stop_repainting_choice ? ta.crossover(sourceInput02_func(), take_profit_2) or ta.crossover(high, take_profit_2) : ta.crossover(sourceInput_2, take_profit_2) or ta.crossover(high, take_profit_2)
+    else if fib_tp_2 == 3
+        fb_tp_condition_2 := stop_repainting_choice ? ta.crossunder(sourceInput02_func(), take_profit_2) or ta.crossunder(low, take_profit_2) : ta.crossunder(sourceInput_2, take_profit_2) or ta.crossunder(low, take_profit_2)
+else
+    if fib_tp_2 == 1
+        fb_tp_condition_2 := stop_repainting_choice ? ta.cross(sourceInput02_func(), take_profit_2) : ta.cross(sourceInput_2, take_profit_2)
+    else if fib_tp_2 == 2
+        fb_tp_condition_2 := stop_repainting_choice ? ta.crossover(sourceInput02_func(), take_profit_2) : ta.crossover(sourceInput_2, take_profit_2)
+    else if fib_tp_2 == 3
+        fb_tp_condition_2 := stop_repainting_choice ? ta.crossunder(sourceInput02_func(), take_profit_2) : ta.crossunder(sourceInput_2, take_profit_2)
+// End: Trade Exit Settings-----------------------------------------------------
+// Start: WHEN TO BUY LOGIC-----------------------------------------------------
+// Determine if Fib Entry Trigger was met
+// First Fib Entry Calculation for when to buy
+if enable_order_asap_1
+    if e_trig == 1
+        e_trig_bool := stop_repainting_choice ? ta.cross(sourceInput01_func(), fib_level) or ta.cross(low, fib_level) or ta.cross(high, fib_level) : ta.cross(sourceInput, fib_level) or ta.cross(low, fib_level) or ta.cross(high, fib_level)
+    else if e_trig == 2
+        e_trig_bool := stop_repainting_choice ? ta.crossover(sourceInput01_func(), fib_level) or ta.crossover(high, fib_level) : ta.crossover(sourceInput, fib_level) or ta.crossover(high, fib_level)
+    else if e_trig == 3
+        e_trig_bool := stop_repainting_choice ? ta.crossunder(sourceInput01_func(), fib_level) or ta.crossunder(low, fib_level) : ta.crossunder(sourceInput, fib_level) or ta.crossunder(low, fib_level)
+    else 
+        e_trig_bool := false
+else
+    if e_trig == 1        
+        e_trig_bool := stop_repainting_choice ? ta.cross(sourceInput01_func(), fib_level) : ta.cross(sourceInput, fib_level)
+    else if e_trig == 2
+        e_trig_bool := stop_repainting_choice ? ta.crossover(sourceInput01_func(), fib_level) : ta.crossover(sourceInput, fib_level)
+    else if e_trig == 3
+        e_trig_bool := stop_repainting_choice ? ta.crossunder(sourceInput01_func(), fib_level) : ta.crossunder(sourceInput, fib_level)
+    else 
+        e_trig_bool := false
+// Second Fib Entry Calculation for when to buy
+if enable_order_asap_2
+    if e_trig_2 == 1
+        e_trig_bool_2 := stop_repainting_choice ? ta.cross(sourceInput02_func(), fib_level_2) or low <= fib_level_2 or high >= fib_level_2 : ta.cross(sourceInput_2, fib_level_2) or low <= fib_level_2 or high >= fib_level_2
+    else if e_trig_2 == 2
+        e_trig_bool_2 := stop_repainting_choice ? ta.crossover(sourceInput02_func(), fib_level_2) or high >= fib_level_2 : ta.crossover(sourceInput_2, fib_level_2) or high >= fib_level_2
+    else if e_trig_2 == 3
+        e_trig_bool_2 := stop_repainting_choice ? ta.crossunder(sourceInput02_func(), fib_level_2) or low <= fib_level_2 : ta.crossunder(sourceInput_2, fib_level_2) or low <= fib_level_2
+    else 
+        e_trig_bool_2 := false
+else
+    if e_trig_2 == 1
+        e_trig_bool_2 := stop_repainting_choice ? ta.cross(sourceInput02_func(), fib_level_2) : ta.cross(sourceInput_2, fib_level_2)
+    else if e_trig_2 == 2
+        e_trig_bool_2 := stop_repainting_choice ? ta.crossover(sourceInput02_func(), fib_level_2) : ta.crossover(sourceInput_2, fib_level_2)
+    else if e_trig_2 == 3
+        e_trig_bool_2 := stop_repainting_choice ? ta.crossunder(sourceInput02_func(), fib_level_2) : ta.crossunder(sourceInput_2, fib_level_2)
+    else 
+        e_trig_bool_2 := false
+use_rv = rv_enable ? rv_up : true
+use_fib = true
+use_fib_2 = true
+fib_1_strat_active = false
+fib_2_strat_active = false
+// First Fib Entry Calculation for when to buy
+if fib_enable
+    use_fib := e_trig_bool and adx_inrange_1
+else 
+    use_fib := false
+// Second Fib Entry Calculation for when to buy
+if fib_enable_2
+    use_fib_2 := e_trig_bool_2 and adx_inrange_2
+else 
+    use_fib_2 := false
+// Check for Bullish +DI entry on Fib-1 zone strategy
+// 'di_entry' checks for Bullish +DI entry (di_plus > diminus) on both Fib strategies
+di_entry = false
+if di_choice
+    di_entry := (di_plus > di_minus) ? true : false
+else
+    di_entry := true
+// Check for Bullish +DI entry on Fib-2 zone strategy
+di_entry_2 = false
+if di_choice_2
+    di_entry_2 := (di_plus_2 > di_minus_2) ? true : false
+else
+    di_entry_2 := true
+// If-else condition order structure
+// Use minimum volime->Date Range->Enabled Strategy (fib_enable/fib_enable_2)->Fib entry (use_fib/use_fib_2)->
+// DI Range->Bullish +DI option (di_choice/di_choice_2)->Bullish +DI entry (di_entry)->RV enabled(rv_enable->use_rv)
+// Only check for buy signal, if condition exists to check for trade entry and we are in the Date Range specified, else buy is false
+if strategy.position_size == 0  and inDateRange and use_min_vol and use_ma_vol and use_rsi_ob == false
+    // If Fib-1 is enabled, check for possible trade entries
+    if fib_enable
+        // Buy if Fib entry is found (use_fib) and DI is in range and Bullish +DI enabled (di_choice) and RV enabled(rv_enable->use_rv)
+        if use_fib and di_inrange and di_choice and di_entry and use_rv 
+            buy := true
+        // Else buy if Fib-1's Bullish +DI is disabled (di_choice==false) and RV is enabled and +DI is in range 
+        else if use_fib and di_inrange and di_choice == false and use_rv
+            buy := true
+    // Else if Fib-2 is enabled and buy is still false (after checking for entries with Fib-1 strategy), check for possible trade entries
+    if fib_enable_2 and buy == false
+        // Buy if Fib entry is found (use_fib_2) and DI is in range (di_inrange_2) and Bullish +DI enabled (di_choice_2) and DI Bullish if enabled (di_entry) and RV enabled (rv_enable->use_rv)
+        if use_fib_2 and di_inrange_2 and di_choice_2 and di_entry_2 and use_rv 
+            buy := true
+        // Else buy if Fib-2's Bullish +DI is disabled (di_choice==false) and RV is enabled and +DI is in range 
+        else if use_fib_2 and di_inrange_2 and di_choice_2 == false and use_rv
+            buy := true
+// If "buy" is True, then open trade based on user settings and track the active strategy via "strat"
+if buy and strategy.position_size == 0 and sourceInput > 0 and fib_enable and use_fib
+    strat := "Fib-1"
+    if use_labels
+        label.new(bar_index, sourceInput, text = strat + ' Long @ ' + str.tostring(math.round(sourceInput,5)), style = label.style_label_up, color=color.green)
+        strategy.entry('🥇 ' + strat + ' Long @' + str.tostring(math.round(sourceInput,5))+'💎✋🤚', strategy.long, qty=base_order / sourceInput)
+    else
+        strategy.entry('🥇 ' + strat + ' Long @' + str.tostring(math.round(sourceInput,5))+'💎✋🤚', strategy.long, qty=base_order / sourceInput)
+    initial_order := sourceInput
+    current_so := 1
+    previous_high_value := 0.0
+    original_ttp_value := 0
+    fib_1_strat_active := true
+    fib_2_strat_active := false
+    current_sourceInput := sourceInput
+    
+else if buy and strategy.position_size == 0 and sourceInput_2 > 0 and fib_enable_2 and use_fib_2
+    strat := "Fib-2"
+    if use_labels
+        label.new(bar_index, sourceInput_2, text = strat + ' Long @ ' + str.tostring(math.round(sourceInput_2,5)), style = label.style_label_up, color=color.lime)
+        strategy.entry('🥈 ' + strat + ' Long @' + str.tostring(math.round(sourceInput_2,5))+'💎✋🤚', strategy.long, qty=base_order / sourceInput_2)
+    else
+        strategy.entry('🥈 ' + strat + ' Long @' + str.tostring(math.round(sourceInput_2,5))+'💎✋🤚', strategy.long, qty=base_order / sourceInput_2)
+    initial_order := sourceInput_2
+    current_so := 1
+    previous_high_value := 0.0
+    original_ttp_value := 0
+    fib_2_strat_active := true
+    fib_1_strat_active := false
+    current_sourceInput := sourceInput_2
+// End: WHEN TO BUY-------------------------------------------------------------
+// Start: Fib-1, Fib Based Stop Loss--------------------------------------------
+tp_choice_fibstoploss = input.bool(false, title='Use Fib-based 🛑 Stop Loss on Fib-1 strategy?', tooltip='Enable to exit Fib-1 trade when source crosses a Fib Border', group="1st Fibonacci Trade Exit Settings")
+fib_exit_trigger = input.string("1-Crosses", title="Fib Stop Loss signals when the source: [cont.]", options=["1-Crosses", "2-Crosses up", "3-Crosses down"], 
+   tooltip="Ignored if above option for Fib-based Stop Loss is not enabled. 'Crosses' includes up and down movements. 'Crosses Up' only includes up movements. 'Crosses Down' only includes down movements" , group="1st Fibonacci Trade Exit Settings")
+if fib_exit_trigger == "1-Crosses"
+    fib_exit := 1
+else if fib_exit_trigger == "2-Crosses up"
+    fib_exit := 2
+else if fib_exit_trigger == "3-Crosses down"
+    fib_exit := 3
+fib_exit_choice = input.string("6-Bottom-Low Fib Border", title="...The Fib line:", options=["1-Top-High Fib Border", "2-Bottom-High Fib Border", "3-Top-Center Fib Border", "4-Bottom-Center Fib Border", "5-Top-Low Fib Border", "6-Bottom-Low Fib Border"],
+   tooltip='There are three fib zones and each zone has 2 borders (Top & Bottom). The options are listed from the top zone to the bottom zone. The bottom zone is the Downtrend zone; the middle zone is the Ranging zone; The top fib zone is the Uptrend zone.',
+   group="1st Fibonacci Trade Exit Settings")
+if fib_exit_choice == "1-Top-High Fib Border"
+    fib_exit_level := hl
+else if fib_exit_choice == "2-Bottom-High Fib Border"
+    fib_exit_level := hf
+else if fib_exit_choice == "3-Top-Center Fib Border"
+    fib_exit_level := cfh
+else if fib_exit_choice == "4-Bottom-Center Fib Border"
+    fib_exit_level := cfl
+else if fib_exit_choice == "5-Top-Low Fib Border"
+    fib_exit_level := lf
+else if fib_exit_choice == "6-Bottom-Low Fib Border"
+    fib_exit_level := ll
+// End: Fib-1, Fib Based Stop Loss----------------------------------------------
+// Start: Fib-2, Fib Based Stop Loss -------------------------------------------
+tp_choice_fibstoploss_2 = input.bool(false, title='Use Fib-based 🛑 Stop Loss on Fib-2 strategy?', tooltip='Enable to exit Fib-2 trade when source crosses a Fib Border', group="2nd Fibonacci Trade Exit Settings")
+fib_exit_trigger_2 = input.string("1-Crosses", title="Fib Stop Loss signals when the source: [cont.]", options=["1-Crosses", "2-Crosses up", "3-Crosses down"], 
+   tooltip="Ignored if above option for Fib-based Stop Loss is not enabled. 'Crosses' includes up and down movements. 'Crosses Up' only includes up movements. 'Crosses Down' only includes down movements" , group="2nd Fibonacci Trade Exit Settings")
+if fib_exit_trigger_2 == "1-Crosses"
+    fib_exit_2 := 1
+else if fib_exit_trigger_2 == "2-Crosses up"
+    fib_exit_2 := 2
+else if fib_exit_trigger_2 == "3-Crosses down"
+    fib_exit_2 := 3
+fib_exit_choice_2 = input.string("6-Bottom-Low Fib Border", title="...The Fib line:", options=["1-Top-High Fib Border", "2-Bottom-High Fib Border", "3-Top-Center Fib Border", "4-Bottom-Center Fib Border", "5-Top-Low Fib Border", "6-Bottom-Low Fib Border"],
+   tooltip='There are three fib zones and each zone has 2 borders (Top & Bottom). The options are listed from the top zone to the bottom zone. The bottom zone is the Downtrend zone; the middle zone is the Ranging zone; The top fib zone is the Uptrend zone.',
+   group="2nd Fibonacci Trade Exit Settings")
+if fib_exit_choice_2 == "1-Top-High Fib Border"
+    fib_exit_level_2 := hl_2
+else if fib_exit_choice_2 == "2-Bottom-High Fib Border"
+    fib_exit_level_2 := hf_2
+else if fib_exit_choice_2 == "3-Top-Center Fib Border"
+    fib_exit_level_2 := cfh_2
+else if fib_exit_choice_2 == "4-Bottom-Center Fib Border"
+    fib_exit_level_2 := cfl_2
+else if fib_exit_choice_2 == "5-Top-Low Fib Border"
+    fib_exit_level_2 := lf_2
+else if fib_exit_choice_2 == "6-Bottom-Low Fib Border"
+    fib_exit_level_2 := ll_2
+// End: Fib-2, Fib Based Stop Loss----------------------------------------------
+// Start: Input to exit trade on either Bullish or Bearish DI Crossovers--------
+di_bull_choice_1 = input.bool(false, title='🐮 Exit trade on bull traps?', tooltip='Enable to exit trade when the +DI crosses over the -DI and the previous close was a red candle.', group="1st Fibonacci Trade Exit Settings")
+di_bear_choice_1 = input.bool(false, title='🐻 Exit trade on bear traps?', tooltip='Enable to exit trade when the -DI crosses over the +DI and the previous close was a green candle.', group="1st Fibonacci Trade Exit Settings")
+di_bull_choice_2 = input.bool(false, title='🐮 Exit trade on bull trap?', tooltip='Enable to exit trade when the +DI crosses over the -DI and the previous close was a red candle.', group="2nd Fibonacci Trade Exit Settings")
+di_bear_choice_2 = input.bool(false, title='🐻 Exit trade on bear trap?', tooltip='Enable to exit trade when the -DI crosses over the +DI and the previous close was a green candle.', group="2nd Fibonacci Trade Exit Settings")
+// Start: Input to exit trade on either Bullish or Bearish DI Crossovers--------
+// Start: Check for DI Crossovers-----------------------------------------------
+// Detect Bull trap when the +DI x-over -DI and the previous close was a red candle
+DIxUp_1 := ta.crossover(di_plus, di_minus) and close[1] < open[1] ? true : na
+// Detect Bear trap when the +DI x-under -DI and the previous close was a green candle
+DIxDown_1 := ta.crossunder(di_plus, di_minus) and close[1] > open[1] ? true : na
+// Detect Bull trap when the +DI x-over -DI and the previous close was a red candle
+DIxUp_2 := ta.crossover(di_plus_2, di_minus_2) and close[1] < open[1] ? true : na
+// Detect Bear trap when the +DI x-under -DI and the previous close was a green candle
+DIxDown_2 := ta.crossunder(di_plus_2 , di_minus_2) and close[1] > open[1] ? true : na
+// End: Check for DI Crossovers-------------------------------------------------
+// Start: Determine which Fib Based Stop Loss was selected for Fib-1------------
+if enable_exit_asap_1
+    if fib_exit == 1
+        exit_trig_bool := stop_repainting_choice ? ta.cross(sourceInput01_func(), fib_exit_level) or ta.cross(high, fib_exit_level) : ta.cross(sourceInput, fib_exit_level) or ta.cross(high, fib_exit_level)
+    else if fib_exit == 2
+        exit_trig_bool := stop_repainting_choice ? ta.crossover(sourceInput01_func(), fib_exit_level) or ta.crossover(high, fib_exit_level) : ta.crossover(sourceInput, fib_exit_level) or ta.crossover(high, fib_exit_level)
+    else if fib_exit == 3
+        exit_trig_bool := stop_repainting_choice ? ta.crossunder(sourceInput01_func(), fib_exit_level) or ta.crossunder(low, fib_exit_level) : ta.crossunder(sourceInput, fib_exit_level) or ta.crossunder(low, fib_exit_level)
+    else 
+        exit_trig_bool := false
+else
+    if fib_exit == 1
+        exit_trig_bool := stop_repainting_choice ? ta.cross(sourceInput01_func(), fib_exit_level) : ta.cross(sourceInput, fib_exit_level)
+    else if fib_exit == 2
+        exit_trig_bool := stop_repainting_choice ? ta.crossover(sourceInput01_func(), fib_exit_level) : ta.crossover(sourceInput, fib_exit_level)
+    else if fib_exit == 3
+        exit_trig_bool := stop_repainting_choice ? ta.crossunder(sourceInput01_func(), fib_exit_level) : ta.crossunder(sourceInput, fib_exit_level)
+    else 
+        exit_trig_bool := false
+// End: Determine which Fib Based Stop Loss was selected for Fib-1--------------
+// Start: Determine which Fib Based Stop Loss was selected for Fib-2 -----------
+if enable_exit_asap_2
+    if fib_exit_2 == 1
+        exit_trig_bool_2 := stop_repainting_choice ? ta.cross(sourceInput02_func(), fib_exit_level_2) or ta.cross(high, fib_exit_level_2) : ta.cross(sourceInput, fib_exit_level_2) or ta.cross(high, fib_exit_level_2)
+    else if fib_exit_2 == 2
+        exit_trig_bool_2 := stop_repainting_choice ? ta.crossover(sourceInput02_func(), fib_exit_level_2) or ta.crossover(high, fib_exit_level_2) : ta.crossover(sourceInput, fib_exit_level_2) or ta.crossover(high, fib_exit_level_2)
+    else if fib_exit_2 == 3
+        exit_trig_bool_2 := stop_repainting_choice ? ta.crossunder(sourceInput02_func(), fib_exit_level_2) or ta.crossunder(low, fib_exit_level_2) : ta.crossunder(sourceInput, fib_exit_level_2) or ta.crossunder(low, fib_exit_level_2)
+    else 
+        exit_trig_bool_2 := false
+else
+    if fib_exit_2 == 1
+        exit_trig_bool_2 := stop_repainting_choice ? ta.cross(sourceInput02_func(), fib_exit_level_2) : ta.cross(sourceInput, fib_exit_level_2)
+    else if fib_exit_2 == 2
+        exit_trig_bool_2 := stop_repainting_choice ? ta.crossover(sourceInput02_func(), fib_exit_level_2) : ta.crossover(sourceInput, fib_exit_level_2)
+    else if fib_exit_2 == 3
+        exit_trig_bool_2 := stop_repainting_choice ? ta.crossunder(sourceInput02_func(), fib_exit_level_2) : ta.crossunder(sourceInput, fib_exit_level_2)
+    else 
+        exit_trig_bool_2 := false
+// End: Determine which Fib Based Stop Loss was selected for Fib-2 -------------
+// Start: Determine if Fib Stop Loss condition is met for Fib-1 ----------------
+if strategy.position_size > 0
+    pnl_pct := truncate((close - strategy.position_avg_price) / strategy.position_avg_price*100,3)
+    if strat == "Fib-1"
+        if tp_choice_fibstoploss and exit_trig_bool
+            if use_labels
+                label.new(bar_index, current_sourceInput, text = "Fib-1 Stop Loss " + str.tostring(math.round(current_sourceInput,5)) + ', ' + str.tostring(pnl_pct) + '%', style = label.style_label_down, color=color.red, textcolor = color.white)
+                strategy.close_all(comment='🥇🛑 ' + strat + ' Stop-Loss @' + str.tostring(math.round(current_sourceInput,5)) + ', ' + str.tostring(pnl_pct) + '%')
+            else
+                strategy.close_all(comment='🥇🛑 ' + strat + ' Stop-Loss @' + str.tostring(math.round(current_sourceInput,5)) + ', ' + str.tostring(pnl_pct) + '%')
+            current_so := 0
+            previous_high_value := 0
+            original_ttp_value := 0
+            fib_1_strat_active := false
+            fib_2_strat_active := false
+            stopValue := 0
+            trailing := 0
+            trailing_price := 0
+            original_ttp_value := 0
+            stopValue := 0
+            sell := true
+            // Send Sell Alert to 3Commas bot
+            alert(sell_message, alert.freq_once_per_bar_close)
+    // End: Determine if Fib Stop Loss condition is met for Fib-1 ------------------
+    else if strat == "Fib-2"
+    // Start: Determine if Fib Stop Loss condition is met for Fib-2 ----------------
+        if tp_choice_fibstoploss_2 and exit_trig_bool_2
+            if use_labels
+                label.new(bar_index, current_sourceInput, text = "Fib-2 Stop Loss " + str.tostring(math.round(current_sourceInput,5)) + ', ' + str.tostring(pnl_pct) + '%', style = label.style_label_down, color=color.red, textcolor = color.white)        
+                strategy.close_all(comment='🥈🛑 ' + strat + ' Stop-Loss @' + str.tostring(math.round(current_sourceInput,5)) + ', ' + str.tostring(pnl_pct) + '%')
+            else
+                strategy.close_all(comment='🥈🛑 ' + strat + ' Stop-Loss @' + str.tostring(math.round(current_sourceInput,5)) + ', ' + str.tostring(pnl_pct) + '%')
+            current_so := 0
+            previous_high_value := 0
+            original_ttp_value := 0
+            fib_1_strat_active := false
+            fib_2_strat_active := false
+            trailing_price := 0
+            stopValue := 0
+            trailing := 0
+            trailing_price := 0
+            original_ttp_value := 0
+            stopValue := 0
+            sell := true
+            // Send Sell Alert to 3Commas bot
+            alert(sell_message, alert.freq_once_per_bar_close)
+// End: Determine if Fib Stop Loss condition is met for Fib-2 ------------------
+// End: Fib Based Stop Loss-----------------------------------------------------
+// Start: Take Profit Level-----------------------------------------------------
+// Conditions when to take profit and which Fib strategy is the active strategy
+// Condition to take profit if active strategy is Fib-1
+if strategy.position_size > 0
+    if strat == "Fib-1"
+        if fib_tp == 4
+            take_profit_level := strategy.position_avg_price * (1 + take_profit_1)
+            fib_1_strat_active := true
+            fib_2_strat_active := false
+        else if take_profit_1 > 0 and fib_tp != 4
+            take_profit := take_profit_1
+            fib_1_strat_active := true
+            fib_2_strat_active := false
+        trailing := trailing_1
+    // Condition to take profit if active strategy is Fib-2
+    if strat == "Fib-2"
+        if take_profit_2 > 0 and fib_tp_2 == 4
+            take_profit_level := strategy.position_avg_price * (1 + take_profit_2)
+            fib_1_strat_active := false
+            fib_2_strat_active := true
+        else if take_profit_2 > 0 and fib_tp_2 != 4
+            take_profit := take_profit_2
+            fib_1_strat_active := false
+            fib_2_strat_active := true
+        trailing := trailing_2
+// If 1st Fib strat is enabled (fib_enable is true) and take profit is not TTP% (fib_tp not 4) and there is an active order originated from 1st Fib strat (fib_1_strat_active is true)
+if fib_enable and fib_tp != 4 and fib_1_strat_active and strategy.position_size > 0 and strat == "Fib-1"
+    take_profit_level := take_profit_1
+    fib_1_strat_active := true
+    fib_2_strat_active := false
+// Else if 2nd Fib strat is enabled (fib_enable_2 is true) and take profit is not TTP% (fib_tp not 4) and there is an active order originated from 2nd Fib strat (fib_2_strat_active is true)
+else if fib_enable_2 and fib_tp_2 != 4 and fib_2_strat_active and strategy.position_size > 0 and strat == "Fib-2"
+    take_profit_level := take_profit_2
+    fib_1_strat_active := false
+    fib_2_strat_active := true
+// End: Take Profit Level-------------------------------------------------------
+// Start: Safety Order threshold logic------------------------------------------
+if safe_order_step_scale == 1.0
+    threshold := initial_order - initial_order * price_deviation * safe_order_step_scale * current_so
+else if current_so <= max_safe_order
+    threshold := initial_order - initial_order * ((price_deviation * math.pow(safe_order_step_scale, current_so) - price_deviation) / (safe_order_step_scale - 1))
+else if current_so > max_safe_order
+    threshold := initial_order - initial_order * ((price_deviation * math.pow(safe_order_step_scale, max_safe_order) - price_deviation) / (safe_order_step_scale - 1))
+// Start Take Profit------------------------------------------------------------
+// Start: Take profit if Bull/Bear Trap was selected-----------------------------
+if strategy.position_size > 0
+    if di_bull_choice_1 and DIxUp_1 and strat == "Fib-1"
+        pnl_pct := truncate((sourceInput01_func() - strategy.position_avg_price) / strategy.position_avg_price*100,3)
+        if use_labels
+            label.new(bar_index, sourceInput01_func(), text = strat + ' Bull Trap Close @ ' + str.tostring(math.round(sourceInput01_func(),5)) + ', ' + str.tostring(pnl_pct) + '%', style = label.style_label_down, color=color.purple, textcolor = color.white)
+            strategy.close_all(comment='💰 ' + strat + ' Bull Trap Close @' + str.tostring(sourceInput01_func()) + ', ' + str.tostring(pnl_pct) + '%')
+        else 
+            strategy.close_all(comment='💰 ' + strat + ' Bull Trap Close @' + str.tostring(sourceInput01_func()) + ', ' + str.tostring(pnl_pct) + '%')
+        alert(sell_message, alert.freq_once_per_bar_close)
+        sell := true
+    if di_bear_choice_1 and DIxDown_1 and strat == "Fib-1"
+        if use_labels
+            label.new(bar_index, sourceInput01_func(), text = strat + ' Bear Trap Close @ ' + str.tostring(math.round(sourceInput01_func(),5)) + ', ' + str.tostring(pnl_pct) + '%', style = label.style_label_down, color=color.purple, textcolor = color.white)
+            strategy.close_all(comment='💰 ' + strat + ' Bear Trap Close @' + str.tostring(sourceInput01_func()) + ', ' + str.tostring(pnl_pct) + '%')
+        else
+            strategy.close_all(comment='💰 ' + strat + ' Bear Trap Close @' + str.tostring(sourceInput01_func()) + ', ' + str.tostring(pnl_pct) + '%')
+        alert(sell_message, alert.freq_once_per_bar_close)
+        sell := true
+    if di_bull_choice_2 and DIxUp_2 and strat == "Fib-2"
+        pnl_pct := truncate((sourceInput01_func() - strategy.position_avg_price) / strategy.position_avg_price*100,3)
+        if use_labels
+            label.new(bar_index, sourceInput02_func(), text = strat + ' Bull Trap Close @ ' + str.tostring(math.round(sourceInput02_func(),5)) + ', ' + str.tostring(pnl_pct) + '%', style = label.style_label_down, color=color.purple, textcolor = color.white)
+            strategy.close_all(comment='💰 ' + strat + ' Bull Trap Close @' + str.tostring(sourceInput02_func()) + ', ' + str.tostring(pnl_pct) + '%')
+        else         
+            strategy.close_all(comment='💰 ' + strat + ' Bull Trap Close @' + str.tostring(sourceInput02_func()) + ', ' + str.tostring(pnl_pct) + '%')
+        alert(sell_message, alert.freq_once_per_bar_close)
+        sell := true
+    if di_bear_choice_2 and DIxDown_2 and strat == "Fib-2"
+        if use_labels
+            label.new(bar_index, sourceInput02_func(), text = strat + ' Bear Trap Close @ ' + str.tostring(math.round(sourceInput02_func(),5)) + ', ' + str.tostring(pnl_pct) + '%', style = label.style_label_down, color=color.purple, textcolor = color.white)
+            strategy.close_all(comment='💰 ' + strat + ' Bear Trap Close @' + str.tostring(sourceInput02_func()) + ', ' + str.tostring(pnl_pct) + '%')
+        else    
+            strategy.close_all(comment='💰 ' + strat + ' Bear Trap Close @' + str.tostring(sourceInput02_func()) + ', ' + str.tostring(pnl_pct) + '%')
+        alert(sell_message, alert.freq_once_per_bar_close)
+        sell := true
+    if sell
+        current_so := 0
+        previous_high_value := 0
+        original_ttp_value := 0
+        fib_1_strat_active := false
+        fib_2_strat_active := false
+        stopValue := 0
+        trailing := 0
+        trailing_price := 0
+        original_ttp_value := 0
+        stopValue := 0
+        sell := true
+// End: Take profit if DI crossovers was selected-------------------------------
+// If Fib-1 strategy is active and a take profit condition is found OR If Fib-2 strategy is active and a take profit condition is found
+// Take profit when take profit level is equal to or higher than the high of the candle
+if take_profit_level <= high and strategy.position_size > 0 or previous_high_value > 0.0 or (fib_enable and fb_tp_condition) or (fib_enable_2 and fb_tp_condition_2)
+    pnl_pct := truncate((close - strategy.position_avg_price) / strategy.position_avg_price*100,3)
+    if trailing > 0.0
+        // 'trailing_price' will contain the largest percentage-based stop value
+        trailing_price := if (strategy.position_size > 0)
+            // 'stopValue' will update every candle close and contain a percentage-based stop value
+            if (enable_exit_asap_1 and fb_tp_condition) or (enable_exit_asap_2 and fb_tp_condition_2)
+                stopValue := high * (1 - trailing)
+            else
+                stopValue := close * (1 - trailing)
+            // The 'max' function is what allows the percentage-based stop to 'Trail'.
+            // If the stopValue is higher than the previous trailing_price (which was the old stopValue) then we keep the higher value
+            // The trailing_price can only increase or remain the same.            
+            math.max(stopValue, trailing_price[1])
+        else
+            0
+        if previous_high_value > 0.0
+            if high >= previous_high_value
+                previous_high_value := strat == "Fib-1" ? sourceInput01_func() : sourceInput02_func()
+            if enable_exit_asap_1 or enable_exit_asap_2
+                if high <= trailing_price
+                    if strat == "Fib-1"
+                        if use_labels
+                            label.new(bar_index, sourceInput01_func(), text = strat + ' Close (trailing) @ ' + str.tostring(math.round(close,5)) + ', ' + str.tostring(pnl_pct) + '%', style = label.style_label_down, color=color.yellow)
+                            strategy.close_all(comment= '🥇 🚦 ' + strat + ' Close (trailing) @' + str.tostring(math.round(close,5)) + ', ' + str.tostring(pnl_pct) + '%')
+                        else
+                            strategy.close_all(comment= '🥇 🚦 ' + strat + ' Close (trailing) @' + str.tostring(math.round(close,5)) + ', ' + str.tostring(pnl_pct) + '%')
+                    else if strat == "Fib-2"
+                        if use_labels
+                            label.new(bar_index, sourceInput02_func(), text = strat + ' Close (trailing) @ ' + str.tostring(math.round(close,5)) + ', ' + str.tostring(pnl_pct) + '%', style = label.style_label_down, color=color.white)
+                            strategy.close_all(comment= '🥈 🚦 ' + strat + ' Close (trailing) @' + str.tostring(math.round(close,5)) + ', ' + str.tostring(pnl_pct) + '%')
+                        else
+                            strategy.close_all(comment= '🥈 🚦 ' + strat + ' Close (trailing) @' + str.tostring(math.round(close,5)) + ', ' + str.tostring(pnl_pct) + '%')
+                    sell := true
+                    strat := na
+                    // Send Sell Alert to 3Commas bot
+                    alert(sell_message, alert.freq_once_per_bar_close)
+            else
+                if close <= trailing_price
+                    if strat == "Fib-1"
+                        if use_labels
+                            label.new(bar_index, sourceInput01_func(), text = strat + ' Close (trailing) @ ' + str.tostring(math.round(close,5)) + ', ' + str.tostring(pnl_pct) + '%', style = label.style_label_down, color=color.yellow)
+                            strategy.close_all(comment= '🥇 🚦 ' + strat + ' Close (trailing) @' + str.tostring(math.round(close,5)) + ', ' + str.tostring(pnl_pct) + '%')
+                        else
+                            strategy.close_all(comment= '🥇 🚦 ' + strat + ' Close (trailing) @' + str.tostring(math.round(close,5)) + ', ' + str.tostring(pnl_pct) + '%')
+                    else if strat == "Fib-2"
+                        if use_labels
+                            label.new(bar_index, sourceInput02_func(), text = strat + ' Close (trailing) @ ' + str.tostring(math.round(close,5)) + ', ' + str.tostring(pnl_pct) + '%', style = label.style_label_down, color=color.white)
+                            strategy.close_all(comment= '🥈 🚦 ' + strat + ' Close (trailing) @' + str.tostring(math.round(close,5)) + ', ' + str.tostring(pnl_pct) + '%')
+                        else
+                            strategy.close_all(comment= '🥈 🚦 ' + strat + ' Close (trailing) @' + str.tostring(math.round(close,5)) + ', ' + str.tostring(pnl_pct) + '%')
+                    sell := true
+                    strat := na
+                    // Send Sell Alert to 3Commas bot
+                    alert(sell_message, alert.freq_once_per_bar_close)
+        else
+            previous_high_value := high
+            original_ttp_value := high
+    else
+        if use_labels and strategy.position_size > 0 and sell == false 
+            label.new(bar_index, current_sourceInput, text = strat + ' Close @ ' + str.tostring(math.round(high,5)) + ', ' + str.tostring(pnl_pct) + '%', style = label.style_label_down, color=color.yellow)
+            strategy.close_all(comment='💰 ' + strat + ' Close @' + str.tostring(math.round(high,5)) + ', ' + str.tostring(pnl_pct) + '%')
+            sell := true
+            strat := na
+            alert(sell_message, alert.freq_once_per_bar_close)
+        else
+            strategy.close_all(comment='💰 ' + strat + ' Close @' + str.tostring(math.round(high,5)) + ', ' + str.tostring(pnl_pct) + '%')
+            sell := true
+            strat := na
+            alert(sell_message, alert.freq_once_per_bar_close)
+            
+// Zero out values after trade is closed
+if na(strat)
+    current_so := 0
+    previous_high_value := 0
+    original_ttp_value := 0
+    fib_1_strat_active := false
+    fib_2_strat_active := false
+    stopValue := 0
+    trailing := 0
+    trailing_price := 0
+// End Take Profit--------------------------------------------------------------
+// Average down when lowest candle value crosses below threshold
+if current_so > 0 and low <= threshold and current_so <= max_safe_order and previous_high_value == 0.0 and strategy.position_size > 0
+    // Calculate qty to buy if SO is triggered
+    so_qty := safe_order * math.pow(safe_order_volume_scale, current_so - 1) / threshold
+    if use_labels
+        label.new(bar_index, current_sourceInput, text = strat + ' SO-' + str.tostring(current_so) + ' @' + str.tostring(math.round(threshold, 5)) + ' ' + str.tostring(math.round(so_qty,2)), style = label.style_label_up, color=color.new(#3d85c6, 0), textcolor = color.white)
+    strategy.entry('😨🙏 ' + strat + ' SO-' + str.tostring(current_so) + ' @' + str.tostring(math.round(threshold, 5)), direction=strategy.long, qty=so_qty)
+    current_so += 1
+// End: Safety Order threshold logic--------------------------------------------
+// Clear the trailing values if no open trades
+if strategy.opentrades == 0
+    original_ttp_value := 0
+    stopValue := 0
+// Start: Plots-----------------------------------------------------------------
+//Plot bar color for volume range indicator
+barcolor(Volume_Color, title="Ranged Volume Bar Coloring: (Disable bar coloring in any studies added or this bar coloring won't work.)", editable=false)
+// Plot Trailing Stop Loss and associated original TTP value
+plot(original_ttp_value > 0 ? original_ttp_value : na, style=plot.style_linebr, color=color.white, linewidth=4, title="Original TTP Value", editable=true)
+plot(stopValue > 0 ? stopValue : na, style=plot.style_linebr, color=color.red, linewidth=4, title="Stop Value", editable=true)
+plot(trailing_price > 0 ? trailing_price : na, style=plot.style_linebr, color=color.yellow, linewidth=4, title="Trailing stop loss", editable=true)
+// Plot Fibonacci Areas
+fill(plot(hl, title='1st Top-High Fib Border', color=color.new(#00FFFF, 50), linewidth=1), plot(hf, title='1st Bottom-High Fib Border', color=color.new(#38761d, 50), linewidth=1), color=color.new(#00FFFF, 80), title='1st Uptrend Fibonacci Zone @ 23.6%')  //uptrend zone
+fill(plot(cfh, title='1st Top-Center Fib Border', color=color.new(#0589f4, 50), linewidth=1), plot(cfl, title='1st Bottom-Center Fib Border', color=color.new(#2018ff, 50), linewidth=1), color=color.new(color.blue, 80), title='1st Ranging Fibonacci Zone @ 61.8%')  // ranging zone
+fill(plot(lf, title='1st Top-Low Fib Border', color=color.new(color.yellow, 50), linewidth=1), plot(ll, title='1st Bottom-Low Fib Border', color=color.new(#bf00ff, 50), linewidth=1), color=color.new(color.orange, 80), title='1st Downtrend Fibonacci Zone @ 76.4%')  //down trend zone
+// Plot Fibonacci-2 Areas
+fill(plot(hl_2, title='2nd Top-High Fib Border', color=color.new(#BCBCBC, 50), linewidth=1), plot(hf_2, title='2nd Bottom-High Fib Border', color=color.new(#BCBCBC, 50), linewidth=1), color=color.new(#BCBCBC, 80), title='2nd Uptrend Fibonacci Zone @ 23.6%')  //uptrend zone
+fill(plot(cfh_2, title='2nd Top-Center Fib Border', color=color.new(#BCBCBC, 50), linewidth=1), plot(cfl_2, title='2nd Bottom-Center Fib Border', color=color.new(#BCBCBC, 50), linewidth=1), color=color.new(#BCBCBC, 80), title='2nd Ranging Fibonacci Zone @ 61.8%')  // ranging zone
+fill(plot(lf_2, title='2nd Top-Low Fib Border', color=color.new(#BCBCBC, 50), linewidth=1), plot(ll_2, title='2nd Bottom-Low Fib Border', color=color.new(#BCBCBC, 50), linewidth=1), color=color.new(#BCBCBC, 80), title='2nd Downtrend Fibonacci Zone @ 76.4%')  //down trend zone
+// Plot TP
+plot(strategy.position_size > 0 ? take_profit_level : na, style=plot.style_linebr, color=color.green, linewidth=3, title="Take Profit Level")
+// Plot All Safety Order lines except for last one as bright blue
+plot(strategy.position_size > 0 and current_so <= max_safe_order and current_so > 0 ? threshold : na, style=plot.style_linebr, color=color.new(#00ffff,0), linewidth=3, title="Safety Order line")
+// Plot Last Safety Order Line as Red
+plot(strategy.position_size > 0 and current_so > max_safe_order ? threshold : na, style=plot.style_linebr, color=color.red, linewidth=3, title="Zero Safety Orders remaining line")
+// Plot Average Position Price Line as Orange
+plot(strategy.position_size > 0 ? strategy.position_avg_price : na, style=plot.style_linebr, color=color.orange, linewidth=3, title="Avg Position Price")
+// Fill TP Area and SO Area
+h1 = plot(strategy.position_avg_price, color=color.new(#000000,100), title="Avg Price Plot Area", display=display.none, editable=false)
+h2 = plot(take_profit_level, color=color.new(#000000,100), title="Take Profit Plot Area", display=display.none, editable=false)
+h3 = plot(threshold, color=color.new(#000000,100), title="SO Plot Area", display=display.none, editable=false)
+// Fill TP Area and SO Area
+fill(h1,h2,color=color.new(#38761d,80), title="Take Profit Plot Area")
+// Current SO Area
+fill(h1,h3,color=color.new(#3d85c6,80), title="SO Plot Area")
+// This will remove the extraneous sell signals before we use them to plot with
+sell := strategy.position_size > 0 ? sell : false
+// Plot Highlight for Buy/Sell Arrows
+sessioncolor = if highlight_trades
+    switch 
+        buy =>  buy_color
+        sell => sell_color
+        => color(na)
+bgcolor(sessioncolor, editable=false)
+// Send Buy Alert to 3Commas bot
+if buy
+    alert(buy_message, alert.freq_once_per_bar_close)
+    buy := false
+// End: Plots-------------------------------------------------------------------
+Expand (1006 lines)

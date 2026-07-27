@@ -1,0 +1,52 @@
+//@version=3
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/移动平均线穿越策略Crossing-Moving-Average-Strategy.md
+// content_hash: eceabea220a413fe
+// collected: 2026-07-27
+strategy(title="EMA 34, 89, 200 e cruzamento das EMA", overlay=true)
+
+// Input options
+fastMALen = input(title="Fast MA",  defval=34)
+midMALen  = input(title="Medium MA",  defval=89)
+slowMALen = input(title="Slow MA",  defval=200)
+
+// Calculate values
+fastMA = ema(close, fastMALen)
+midMA  = ema(close, midMALen)
+slowMA = ema(close, slowMALen)
+
+// Plot values
+plot(series=fastMA, color=yellow,
+     title="Fast MA", linewidth=3, trackprice=false)
+plot(series=midMA, color=red,
+     title="Mid MA", linewidth=4, trackprice=false)
+plot(series=slowMA, color=white,
+     title="Slow MA", linewidth=5)
+
+// Highlight crossovers
+longCondition = crossover(ema(close, 34), ema(close, 200)) 
+if (longCondition)
+    strategy.entry("COMPRA FINAL", strategy.long)
+
+longCondition1 = crossover(ema(close, 34), ema(close, 89)) 
+if (longCondition1)
+    strategy.entry("COMPRA INICIAL", strategy.long)
+
+shortCondition = crossunder(ema(close, 34), ema(close, 200))
+if (shortCondition)
+    strategy.entry("VENDE FINAL", strategy.short)
+    
+shortCondition1 = crossunder(ema(close, 34), ema(close, 89))
+if (shortCondition1)
+    strategy.entry("VENDE INICIAL", strategy.short)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/431287
+
+> Last Modified
+
+2023-11-06 17:01:53

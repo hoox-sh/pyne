@@ -1,0 +1,137 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多时间框架融合型动量捕捉自动交易策略-Multi-Timeframe-Momentum-Confluence-Automated-Trading-Strategy.md
+// content_hash: a27cf4e75d58eb56
+// collected: 2026-07-27
+strategy("M.Shiham-XAUUSD Sniper Strategy", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=10, max_lines_count=500, max_boxes_count=500)
+
+// === Input ===
+fastLen = input.int(9, "Fast EMA")
+slowLen = input.int(21, "Slow EMA")
+rsiLen = input.int(14, "RSI Period")
+tpMultiplier = input.float(2.0, "TP Multiplier")
+slMultiplier = input.float(1.0, "SL Multiplier")
+
+// === Function Trend Check ===
+getTrend(tf) =>
+    emaFast = request.security(syminfo.tickerid, tf, ta.ema(close, fastLen))
+    emaSlow = request.security(syminfo.tickerid, tf, ta.ema(close, slowLen))
+    rsi = request.security(syminfo.tickerid, tf, ta.rsi(close, rsiLen))
+    price = request.security(syminfo.tickerid, tf, close)
+    isBuy = emaFast > emaSlow and rsi > 50 and price > emaFast
+    isSell = emaFast < emaSlow and rsi < 50 and price < emaFast
+    isBuy ? 1 : isSell ? -1 : 0
+
+// === Trend by Timeframe ===
+trend1m = getTrend("1")
+trend5m = getTrend("5")
+trend15m = getTrend("15")
+trend1h = getTrend("60")
+trend4h = getTrend("240")
+
+// === Alert Conditions ===
+allBuy = trend1m == 1 and trend5m == 1 and trend15m == 1 and trend1h == 1 and trend4h == 1
+allSell = trend1m == -1 and trend5m == -1 and trend15m == -1 and trend1h == -1 and trend4h == -1
+
+alertcondition(allBuy, title="All TF Buy", message="? BUY SIGNAL! All timeframes agree: BUY XAUUSD")
+alertcondition(allSell, title="All TF Sell", message="? SELL SIGNAL! All timeframes agree: SELL XAUUSD")
+
+txt(val) => val == 1 ? "BUY" : val == -1 ? "SELL" : "-"
+clr(val) => val == 1 ? color.green : val == -1 ? color.red : color.gray
+
+// === Table Dashboard (Optional Toggle) ===
+showTable = input.bool(true, "Show Trend Dashboard")
+var table t = table.new(position.top_right, 2, 6, border_width=1)
+if showTable and bar_index % 5 == 0
+    table.cell(t, 0, 0, "Timeframe", text_color=color.white, bgcolor=color.black)
+    table.cell(t, 1, 0, "Signal", text_color=color.white, bgcolor=color.black)
+
+    table.cell(t, 0, 1, "1 MIN", text_color=color.white)
+    table.cell(t, 1, 1, txt(trend1m), bgcolor=clr(trend1m), text_color=color.white)
+
+    table.cell(t, 0, 2, "5 MIN", text_color=color.white)
+    table.cell(t, 1, 2, txt(trend5m), bgcolor=clr(trend5m), text_color=color.white)
+
+    table.cell(t, 0, 3, "15 MIN", text_color=color.white)
+    table.cell(t, 1, 3, txt(trend15m), bgcolor=clr(trend15m), text_color=color.white)
+
+    table.cell(t, 0, 4, "1 H", text_color=color.white)
+    table.cell(t, 1, 4, txt(trend1h), bgcolor=clr(trend1h), text_color=color.white)
+
+    table.cell(t, 0, 5, "4 H", text_color=color.white)
+    table.cell(t, 1, 5, txt(trend4h), bgcolor=clr(trend4h), text_color=color.white)
+
+// === Support/Resistance Box ===
+pHigh = ta.pivothigh(high, 5, 5)
+pLow = ta.pivotlow(low, 5, 5)
+
+// === Volume Spike ===
+avgVol = ta.sma(volume, 20)
+volSpike = volume > avgVol * 2
+
+// === Breakout + Alert ===
+breakoutUp = high > ta.highest(high, 20)[1] and volSpike
+alertcondition(breakoutUp, title="Breakout Up", message="? XAUUSD Breakout Up with Volume")
+breakoutDown = low < ta.lowest(low, 20)[1] and volSpike
+alertcondition(breakoutDown, title="Breakout Down", message="⚠️ XAUUSD Breakout Down with Volume")
+
+// === Engulfing Pattern ===
+bullishEngulf = open[1] > close[1] and close > open and open < close[1] and close > open[1]
+bearishEngulf = open[1] < close[1] and close < open and open > close[1] and close < open[1]
+
+// === Moving Averages, Momentum & RSI ===
+rsi = ta.rsi(close, rsiLen)
+cmiPeriod = 14
+cmi = 100 * math.abs(close - close[cmiPeriod]) / (ta.highest(high, cmiPeriod) - ta.lowest(low, cmiPeriod))
+vwma = ta.vwma(close, 20)
+
+plot(cmi, title="CMI", color=color.purple, display=display.none)
+plot(vwma, title="VWMA", color=color.orange, display=display.none)
+ma30 = ta.sma(close, 30)
+plot(ma30, title="MA 30", color=color.blue)
+
+// === STRATEGY MODE: Auto Entry & TP/SL ===
+longEntry = allBuy and bullishEngulf and volSpike and rsi > 55 and cmi > 30 and close > vwma
+shortEntry = allSell and bearishEngulf and volSpike and rsi < 45 and cmi > 30 and close < vwma
+
+if (longEntry)
+    strategy.entry("Buy", strategy.long)
+    entry = close
+    sl = entry - (high - low) * slMultiplier
+    tp = entry + (entry - sl) * tpMultiplier
+    strategy.exit("TP Buy", from_entry="Buy", stop=sl, limit=tp)
+if (shortEntry)
+    strategy.entry("Sell", strategy.short)
+    entry = close
+    sl = entry + (high - low) * slMultiplier
+    tp = entry - (sl - entry) * tpMultiplier
+    strategy.exit("TP Sell", from_entry="Sell", stop=sl, limit=tp)
+
+if longEntry
+    entry = close
+    sl = entry - (high - low) * slMultiplier
+    tp = entry + (entry - sl) * tpMultiplier
+
+
+if shortEntry
+    entry = close
+    sl = entry + (high - low) * slMultiplier
+    tp = entry - (sl - entry) * tpMultiplier
+
+
+// === Plot Signals ===
+plotshape(bullishEngulf, title="Bullish Engulfing", location=location.belowbar, color=color.green, style=shape.triangleup, size=size.small, text="Bull")
+plotshape(bearishEngulf, title="Bearish Engulfing", location=location.abovebar, color=color.red, style=shape.triangledown, size=size.small, text="Bear")
+plotshape(breakoutUp, title="Breakout Up", location=location.belowbar, color=color.blue, style=shape.labelup, text="BO↑")
+plotshape(breakoutDown, title="Breakout Down", location=location.abovebar, color=color.orange, style=shape.labeldown, text="BO↓")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/490046
+
+> Last Modified
+
+2025-04-11 09:48:15

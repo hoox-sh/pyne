@@ -1,0 +1,66 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/聚合多时间帧MACD-RSI-CCI-StochRSI-MA线性交易策略Aggregated-Multi-timeframe-MACD-RSI-CCI-StochRSI-MA-Linear-Trading-Strategy.md
+// content_hash: 78823b119d439515
+// collected: 2026-07-27
+strategy("MACD RSI CCI StochRSI MA Strategy", shorttitle="MRCSSMA", overlay=true)
+
+// MACD göstergesi
+fastLength = input(12, title="Fast Length")
+slowLength = input(26, title="Slow Length")
+signalLength = input(9, title="Signal Length")
+[macdLine, signalLine, _] = macd(close, fastLength, slowLength, signalLength)
+
+// RSI göstergesi
+rsiLength = input(14, title="RSI Length")
+rsiLevel = input(70, title="RSI Overbought Level")
+rsiValue = rsi(close, rsiLength)
+
+// CCI göstergesi
+cciLength = input(14, title="CCI Length")
+cciLevel = input(100, title="CCI Overbought Level")
+cciValue = cci(close, cciLength)
+
+// Stochastic Oscillator göstergesi
+stochLength = input(14, title="Stoch Length")
+stochK = input(3, title="Stoch K")
+stochD = input(3, title="Stoch D")
+stochValue = stoch(close, high, low, stochLength)
+stochDValue = sma(stochValue, stochD)
+
+// 200 günlük hareketli ortalama
+ma200 = sma(close, 200)
+
+// Alış ve Satış Sinyalleri
+buySignal = crossover(macdLine, signalLine) and rsiValue < rsiLevel and cciValue < cciLevel and stochValue > stochDValue and close > ma200
+sellSignal = crossunder(macdLine, signalLine) and rsiValue > (100 - rsiLevel) and cciValue > (100 - cciLevel) and stochValue < stochDValue and close < ma200
+
+// Ticaret stratejisi uygula
+strategy.entry("Buy", strategy.long, when = buySignal)
+strategy.close("Buy", when = sellSignal)
+strategy.entry("Sell", strategy.short, when = sellSignal)
+strategy.close("Sell", when = buySignal)
+
+// Göstergeleri çiz
+hline(rsiLevel, "RSI Overbought", color=color.red)
+hline(100 - rsiLevel, "RSI Oversold", color=color.green)
+hline(cciLevel, "CCI Overbought", color=color.red)
+hline(100 - cciLevel, "CCI Oversold", color=color.green)
+
+// 200 günlük hareketli ortalama çiz
+plot(ma200, color=color.blue, title="200-day MA")
+
+// Grafik üzerinde sinyal okları çiz
+plotshape(series=buySignal, title="Buy Signal", color=color.green, style=shape.triangleup, location=location.belowbar, size=size.small)
+plotshape(series=sellSignal, title="Sell Signal", color=color.red, style=shape.triangledown, location=location.abovebar, size=size.small)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/439734
+
+> Last Modified
+
+2024-01-23 14:11:26

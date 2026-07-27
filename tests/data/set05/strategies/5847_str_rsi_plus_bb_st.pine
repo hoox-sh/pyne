@@ -1,0 +1,75 @@
+//@version=3
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/RSI与布林带结合的短线交易策略RSI-Bollinger-Bands-Short-term-Trading-Strategy.md
+// content_hash: 4835d04fa09431ee
+// collected: 2026-07-27
+strategy("rsi+bb st", shorttitle="rsibb st 0.3")
+
+len_rsi=input(14)
+len_bb = input(25)
+mul10 = input(20.0)
+mul=mul10/10
+sl100 = input(94.0, title='stop loss rate')
+sl=sl100/100
+
+lw = 3
+
+vwma_e(src, len) =>
+    ema(src*volume, len)/ema(volume,len)
+
+rsi = rsi(close, len_rsi)
+plot(rsi, color=blue, title= 'rsi blue', linewidth=lw)
+plot(70, color=gray, title='line 70', linewidth=lw)
+plot(30, color=gray, title='line 30', linewidth=lw)
+
+bbg = stdev(rsi, len_bb)*mul
+bbc = vwma_e(rsi, len_bb)
+//bbc=ema(rsi,len_bb)
+ratio = 0.6
+bbc := bbc*ratio + 50*(1-ratio)
+
+bbu = bbc+bbg
+bbl = bbc-bbg
+plot(bbu, color=green, title='bb_up green', linewidth=lw)
+plot(bbl, color=red, title='bb_low red', linewidth=lw)
+plot(bbc, color=#808000ff, title='bb center', linewidth=lw)
+
+plot(50, color=black)
+
+lc = crossover(rsi, bbl) //or crossover(rsi, bbc)
+sc = crossunder(rsi, bbu)
+
+last_pos = 0*close
+if lc
+    last_pos := 1
+else
+    last_pos := last_pos[1]
+if sc
+    last_pos := 2
+
+last_price = 0*close
+if last_pos[1] !=1 and last_pos == 1
+    last_price := close
+else
+    last_price := last_price[1]
+    
+if last_pos==1 and close < last_price*sl
+    lc:=false
+    sc:=true
+    last_pos:=2
+
+if (lc)
+    strategy.entry("long", strategy.long)
+
+if (sc)
+    strategy.entry("short", strategy.short)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/435843
+
+> Last Modified
+
+2023-12-19 11:31:09

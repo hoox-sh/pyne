@@ -1,0 +1,48 @@
+//@version=3
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/RSI指标结合CCI指标的量化交易策略RSI-amp-CCI-Combination-Quantitative-Trading-Strategy.md
+// content_hash: 77fd4eb0e35fff7e
+// collected: 2026-07-27
+//Author: RvZ14
+//Based on Joseph Nemeth MACD+CCI strategy
+//Reference reading: https://sites.google.com/site/forexjosephnemeth/home/macd-cci
+
+strategy(title="MACD+CCI Strategy", shorttitle="macd/cci")
+length = input(14, minval=1)
+fastLength = input(12, minval=1), slowLength=input(26,minval=1)
+signalLength=input(2,minval=1)
+src = input(close, title="CCI Source")
+
+//cci
+ma = sma(src, length)
+cci = (src - ma) / (0.015 * dev(src, length))
+plot(cci, title = "cci", color=#5DADE2,linewidth = 1,transp = 0)
+band1 = hline(100, color=gray, linewidth = 1)
+band0 = hline(-100, color=gray, linewidth = 1)
+fill(band1, band0, color= #F9E79F)
+
+//macd
+source = close
+fastMA = ema(source, fastLength)
+slowMA = ema(source, slowLength)
+macd = fastMA - slowMA
+signal = ema(macd, signalLength)
+hist = macd - signal
+plot(hist, color=#EC7063, style=histogram)
+plot(macd, title = "macd", color=#5DADE2, linewidth = 1,transp = 0)
+plot(signal, title = "signal", color=#F5B041,linewidth = 1,transp = 0)
+
+longCond = cci > 100 and macd > 0 or cci > -100 and macd < 0
+shortCond = cci < -100 and macd < 0 or cci < 100 and macd > 0
+strategy.entry("long",strategy.long,when = longCond == true)
+strategy.entry("short",strategy.short,when=shortCond == true)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/439605
+
+> Last Modified
+
+2024-01-22 10:33:03

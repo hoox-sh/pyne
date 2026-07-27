@@ -1,0 +1,64 @@
+//@version=1
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/九日均线和二十日均线交叉策略Nine-and-Twenty-Moving-Average-Crossover-Strategy.md
+// content_hash: ae689a0c55193ef1
+// collected: 2026-07-27
+strategy("Dieyson daytrade EMA 9+20+200+VWAP and bar & line color", overlay=true)
+
+
+//bar color rules
+Dgbar = close>close[1] and ema(close,20)>ema(close[1],20)
+Drbar = close<close[1] and ema(close,20)<ema(close[1],20)
+
+//Barcolors
+barcolor(Dgbar ? green : na)
+barcolor(Drbar ? red : na)
+
+//MM09 Colorful
+
+MMgreen9 = ema(close,9)>ema(close[1],9) and ema(close,20)>ema(close[1],20)
+MMred9 = ema(close,9)<ema(close[1],9) and ema(close,9)<ema(close[1],9)
+col8 = (MMgreen9 ? color(green,0) : na)
+col28 = (MMred9 ? color(red,0) : na)
+col38 = (not MMgreen9 and not MMred9 ? color(black,0) : na)
+
+plot(ema(close,9), color=col8, style=line, linewidth=2)
+plot(ema(close,9), color=col28, style=line, linewidth=2)
+plot(ema(close,9), color=col38, style=line, linewidth=2)
+
+//MM20 Colorful
+
+MMgreen = ema(close,20)>ema(close[1],20)
+MMred = ema(close,20)<ema(close[1],20)
+col = (MMgreen ? color(black,0) : na)
+col2 = (MMred ? color(black,0) : na)
+col3 = (not MMgreen and not MMred ? color(black,0) : na)
+col4 = color(navy,0)
+plot(ema(close,20), color=col, style=line, linewidth=1)
+plot(ema(close,20), color=col2, style=line, linewidth=1)
+plot(ema(close,20), color=col3, style=line, linewidth=1)
+plot(ema(close,200), color=col4, style=line, linewidth=3)
+plot(cross(ema(close,9), ema(close,20)) ? ema(close,9) : na, style = cross,color=fuchsia, transp=0, linewidth = 4)
+//plot(cross(ema(close,9), ema(close,200)) ? ema(close,9) : na, style = cross, color=fuchsia, transp=0,linewidth = 4)
+
+colorvwap = color(white,0)
+plot(vwap, color=colorvwap, style=line, linewidth=1)
+
+c = crossover(ema(close,9), ema(close,20)) and ema(close,9) > ema(close,20)
+v = crossunder(ema(close,9), ema(close,20))
+
+strategy.entry("COMPRA", strategy.long,when=c)
+strategy.entry("VENDA", strategy.short,when=v)
+
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/428058
+
+> Last Modified
+
+2023-09-28 11:17:10

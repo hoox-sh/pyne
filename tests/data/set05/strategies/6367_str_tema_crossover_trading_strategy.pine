@@ -1,0 +1,62 @@
+//@version=2
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于三重指数移动平均线交叉的交易策略TEMA-Crossover-Trading-Strategy.md
+// content_hash: 43838c4a303259c1
+// collected: 2026-07-27
+strategy(title="TEMA With Alert", shorttitle="ALRTEMA", overlay = true )
+//Blue
+Length = input(34, minval=1)
+xPrice = close
+xEMA1 = ema(xPrice, Length)
+xEMA2 = ema(xEMA1, Length)
+xEMA3 = ema(xEMA2, Length)
+nRes = 3 * xEMA1 - 3 * xEMA2 + xEMA3
+
+
+//RED
+Length2 = input(13, minval=1)
+xPrice2 = close
+xEMA12 = ema(xPrice2, Length2)
+xEMA22 = ema(xEMA12, Length2)
+xEMA32 = ema(xEMA22, Length2)
+nRes2 = 3 * xEMA12 - 3 * xEMA22 + xEMA32
+
+
+buy = 1
+sell = 0
+
+x = if nRes > nRes2
+	buy
+else
+	sell
+
+
+c = cross(nRes, nRes2)
+
+xy = "Do Some Thing :" + tostring(x)
+
+
+alertcondition(c, title="Crosing Found", message=xy)
+
+plot(nRes, color=red)
+plot(nRes2, color=blue)
+
+short = cross(nRes, nRes2) and nRes > nRes2
+long = cross(nRes, nRes2) and nRes < nRes2
+
+strategy.entry("long", strategy.long, when=long)
+strategy.entry("short", strategy.short, when=short)
+
+
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/427257
+
+> Last Modified
+
+2023-09-19 15:41:47

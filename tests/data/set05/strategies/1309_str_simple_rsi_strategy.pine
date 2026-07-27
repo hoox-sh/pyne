@@ -1,0 +1,88 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/RSI趋势策略-RSI-Trend-Strategy.md
+// content_hash: 397243f645c3b4f1
+// collected: 2026-07-27
+strategy("Simple RSI Strategy", overlay=true,  initial_capital=20, commission_value=0.1, commission_type=strategy.commission.percent)
+
+// Define the hardcoded date (Year, Month, Day, Hour, Minute)
+var hardcodedYear = 2024
+var hardcodedMonth = 6
+var hardcodedDay = 10
+
+// Convert the hardcoded date to a timestamp
+var start_date = timestamp(hardcodedYear, hardcodedMonth, hardcodedDay)
+
+// settings
+order_size_usdt = input.float(20, title="Order Size (USDT)")
+rsiLength = input.int(9, title="RSI Length")
+rsiBuyThreshold = input.int(30, title="RSI Buy Threshold")
+rsiSellThreshold = input.int(70, title="RSI Sell Threshold")
+rsibuystrat = input.int(1, title="buy strat 1=achieved,2=recross")
+rsisellstrat = input.int(1, title="sell strat 1=achieved,2=recross")
+stoploss = input.int(1, title="Stop loss percent")
+max_duration = input(24, title="Max Position Duration (hours)")*60
+
+// emaPeriod = input.int(50, title="EMA Period")
+// smaPeriod = input.int(200, title="SMA Period")
+
+rsi = ta.rsi(close, rsiLength) 
+// ma_rsi = ta.sma(rsi, rsiLength)
+// ema = ta.ema(close,emaPeriod)
+// sma = ta.sma(close,smaPeriod)
+// plot(sma, color=color.red, title="exp Moving Average")
+// plot(smal, color=color.blue, title="Simple Moving Average")
+
+longCondition = ((ta.crossunder(rsi, rsiBuyThreshold) and rsibuystrat==1) or (ta.crossover(rsi, rsiBuyThreshold) and rsibuystrat==2) ) and strategy.position_size == 0
+shortCondition = ( (ta.crossover(rsi, rsiSellThreshold) and rsisellstrat==1) or (ta.crossunder(rsi, rsiSellThreshold) and rsisellstrat==2) ) and strategy.position_size > 0 
+
+// Execute Buy and Sell orders
+if (longCondition)
+	positionSize = order_size_usdt / close
+	strategy.entry("Long", strategy.long,qty=positionSize)
+	if (stoploss>0)
+		stopLossPrice = close * (1 - stoploss/100 )
+		strategy.exit("Stop Loss", from_entry="Long", stop=stopLossPrice)
+	
+if (shortCondition )//or stopCondition)
+	strategy.close("Long")
+
+//add condition open time
+if (strategy.position_size > 0 and max_duration >0)
+	var float entry_time = na
+	if (strategy.opentrades > 0)
+		entry_time := nz(strategy.opentrades.entry_time(0), na)
+	else
+		entry_time := na
+
+	current_time = time
+	var float duration_minutes = -1
+	if (not na(entry_time))
+		duration_minutes := (current_time - entry_time) / 60000
+
+	
+	// Close positions after a certain duration (e.g., 60 minutes)
+	// if ( duration_minutes > max_duration and close>=strategy.opentrades.entry_price(0))
+	if ( duration_minutes > max_duration )
+		label.new(bar_index, high, text="Duration: " + str.tostring(duration_minutes/60) + " hrs", color=color.blue, textcolor=color.white, style=label.style_label_down, size=size.small)
+		strategy.close("Long")
+
+
+// Plot Buy and Sell signals
+plotshape(series=longCondition, title="Buy Signal", location=location.belowbar, color=color.green, style=shape.labelup, text="BUY")
+plotshape(series=shortCondition, title="Sell Signal", location=location.abovebar, color=color.red, style=shape.labeldown, text="SELL")
+//plotshape(series=stopCondition, title="stop Sell Signal", location=location.abovebar, color=color.red, style=shape.labeldown, text="SELL")
+
+// Plot RSI
+// hline(rsiBuyThreshold, "RSI Buy Threshold", color=color.green)
+// hline(rsiSellThreshold, "RSI Sell Threshold", color=color.red)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/454144
+
+> Last Modified
+
+2024-06-14 15:28:38

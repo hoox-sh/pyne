@@ -1,0 +1,9 @@
+//@version=6
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/faq/general.md::general.md#block1
+// content_hash: ed1b6c7c972b4653
+// collected: 2026-07-27
+indicator("Visible OHLC", overlay=true)
+c = close
+plot(c)

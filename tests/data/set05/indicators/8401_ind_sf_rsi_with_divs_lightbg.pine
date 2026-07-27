@@ -1,0 +1,84 @@
+// set05 corpus entry
+// source_repo: tradingview-indicators-pine
+// source_path: tradingview-indicators-pine/SF-RSI-with-divs-lightbg.txt
+// content_hash: 47e1597a29f59837
+// collected: 2026-07-27
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © JayTradingCharts
+
+//@version=4
+//---- thank to mohanee for the base code. we modified this to not give entries but instead alert on the just the divs 
+study(title="RSI", format=format.price, resolution="")
+len = input(title="RSI Period", minval=1, defval=14)
+src = input(title="RSI Source", defval=close)
+lbR = input(title="Pivot Lookback Right", defval=5)
+lbL = input(title="Pivot Lookback Left", defval=5)
+rangeUpper = input(title="Max of Lookback Range", defval=60)
+rangeLower = input(title="Min of Lookback Range", defval=5)
+plotBull = input(title="Plot Bullish", defval=true)
+plotBear = input(title="Plot Bearish", defval=true)
+
+bullColor = color.green
+bearColor = color.red
+textColor = color.white
+noneColor = color.new(color.white, 100)
+osc = rsi(src, len)
+
+plot(osc, title="RSI", linewidth=1, color=#b2b5be)
+hline(50, title="Middle Line", linestyle=hline.style_dotted)
+obLevel = hline(70, title="Overbought", linestyle=hline.style_dotted)
+osLevel = hline(30, title="Oversold", linestyle=hline.style_dotted)
+fill(obLevel, osLevel, title="Background", color=#9915FF, transp=100)
+
+plFound = na(pivotlow(osc, lbL, lbR)) ? false : true
+phFound = na(pivothigh(osc, lbL, lbR)) ? false : true
+_inRange(cond) =>
+	bars = barssince(cond == true)
+	rangeLower <= bars and bars <= rangeUpper
+
+//------------------------------------------------------------------------------
+// Regular Bullish
+// Osc: Higher Low
+
+oscHL = osc[lbR] > valuewhen(plFound, osc[lbR], 1) and _inRange(plFound[1])
+
+// Price: Lower Low
+
+priceLL = low[lbR] < valuewhen(plFound, low[lbR], 1)
+bullCond = plotBull and priceLL and oscHL and plFound
+
+plot(
+     plFound ? osc[lbR] : na,
+     offset=-lbR,
+     title="",
+     linewidth=2,
+     color=(bullCond ? bullColor : noneColor),
+     transp=20
+     )
+
+
+
+//------------------------------------------------------------------------------
+// Regular Bearish
+// Osc: Lower High
+
+oscLH = osc[lbR] < valuewhen(phFound, osc[lbR], 1) and _inRange(phFound[1])
+
+// Price: Higher High
+
+priceHH = high[lbR] > valuewhen(phFound, high[lbR], 1)
+
+bearCond = plotBear and priceHH and oscLH and phFound
+
+plot(
+	 phFound ? osc[lbR] : na,
+	 offset=-lbR,
+	 title="",
+	 linewidth=2,
+	 color=(bearCond ? bearColor : noneColor),
+	 transp=20
+	 )
+
+// Alerts
+alertcondition(bullCond, title="Bull", message="Regular Bull Div {{ticker}} XXmin")
+alertcondition(bearCond, title="Bear", message="Regular Bear Div {{ticker}} XXmin")

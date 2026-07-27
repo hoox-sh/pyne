@@ -1,0 +1,11 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block198
+// content_hash: 98141e0955253ec8
+// collected: 2026-07-27
+indicator("request.dividends")
+s1 = request.dividends("NASDAQ:BELFA")
+plot(s1)
+s2 = request.dividends("NASDAQ:BELFA", dividends.net, gaps=barmerge.gaps_on, lookahead=barmerge.lookahead_on)
+plot(s2)

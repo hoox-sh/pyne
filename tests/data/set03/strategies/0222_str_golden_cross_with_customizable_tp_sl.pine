@@ -1,0 +1,71 @@
+//@version=6
+// set03 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多重均线黄金交叉分批止盈策略-Multi-EMA-Golden-Cross-Strategy-with-Tiered-Take-Profit.md
+// content_hash: bc55f56cc4c2fc6f
+// collected: 2026-07-27
+strategy("Golden Cross with Customizable TP/SL", overlay=true)
+
+// Parameters for EMA
+ema_short_length = 25
+ema_mid_length = 50
+ema_long_length = 100
+
+// Parameters for stop-loss and take-profit
+lookback_bars = input.int(20, title="Lookback bars for lowest low")
+pip_buffer = input.float(0.0003, title="Stop-loss buffer (pips)")  // Fixed default pip value (e.g., 3 pips for 5-digit pairs)
+tp_multiplier1 = input.float(1.0, title="Take-profit multiplier 1")
+tp_multiplier2 = input.float(1.5, title="Take-profit multiplier 2")
+
+// Calculate EMAs
+ema25 = ta.ema(close, ema_short_length)
+ema50 = ta.ema(close, ema_mid_length)
+ema100 = ta.ema(close, ema_long_length)
+
+// Golden Cross condition (EMA25 > EMA50 > EMA100)
+golden_cross = ema25 > ema50 and ema50 > ema100
+
+// Entry condition: Candle crosses above EMA25 after a golden cross
+cross_above_ema25 = ta.crossover(close, ema25)
+entry_condition = golden_cross and cross_above_ema25
+
+// Stop-loss and take-profit calculation
+lowest_low = ta.lowest(low, lookback_bars)
+var float entry_price = na
+var float stop_loss = na
+var float take_profit1 = na
+var float take_profit2 = na
+
+if (entry_condition)
+    entry_price := close
+    stop_loss := lowest_low - pip_buffer
+    take_profit1 := entry_price + (entry_price - stop_loss) * tp_multiplier1
+    take_profit2 := entry_price + (entry_price - stop_loss) * tp_multiplier2
+    strategy.entry("Buy1", strategy.long, qty=0.5)  // First 50%
+    strategy.entry("Buy2", strategy.long, qty=0.5)  // Second 50%
+
+// Separate exit conditions for each entry
+cross_below_ema100 = ta.crossunder(close, ema100)
+exit_condition1 = close >= take_profit1
+exit_condition2 = close >= take_profit2
+exit_condition_sl = close <= stop_loss
+
+if (exit_condition1 or cross_below_ema100)
+    strategy.close("Buy1")
+if (exit_condition2 or cross_below_ema100 or exit_condition_sl)
+    strategy.close("Buy2")
+
+// Plot EMAs
+plot(ema25, color=color.blue, title="EMA 25")
+plot(ema50, color=color.orange, title="EMA 50")
+plot(ema100, color=color.red, title="EMA 100")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/475633
+
+> Last Modified
+
+2024-12-20 16:54:43

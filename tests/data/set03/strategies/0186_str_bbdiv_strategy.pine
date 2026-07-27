@@ -1,0 +1,77 @@
+//@version=6
+// set03 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于布林带趋势背离的多层级量化交易策略-Multi-Level-Quantitative-Trading-Strategy-Based-on-Bollinger-Bands-Trend-Divergence.md
+// content_hash: 77517b70cb9c1936
+// collected: 2026-07-27
+strategy("BBDIV_Strategy", overlay=true)
+
+// Inputs for Bollinger Bands
+length = input.int(20, title="BB Length")
+mult = input.float(2.0, title="BB Multiplier")
+
+// Calculate Bollinger Bands
+basis = ta.sma(close, length)
+deviation = mult * ta.stdev(close, length)
+upperBB = basis + deviation
+lowerBB = basis - deviation
+
+// Calculate Bollinger Band width
+bb_width = upperBB - lowerBB
+prev_width = ta.valuewhen(not na(bb_width[1]), bb_width[1], 0)
+prev_prev_width = ta.valuewhen(not na(bb_width[2]), bb_width[2], 0)
+
+// Determine BB state
+bb_state = bb_width > prev_width and prev_width > prev_prev_width ? 1 : bb_width < prev_width and prev_width < prev_prev_width ? -1 : 0
+
+// Assign colors based on BB state
+bb_color = bb_state == 1 ? color.green : bb_state == -1 ? color.red : color.gray
+
+// Highlight candles closed outside BB
+candle_size = high - low
+highlight_color = (candle_size > bb_width / 2 and close > upperBB) ? color.new(color.green, 50) : (candle_size > bb_width / 2 and close < lowerBB) ? color.new(color.red, 50) : na
+
+bgcolor(highlight_color, title="Highlight Candles")
+
+// Plot Bollinger Bands
+plot(upperBB, title="Upper BB", color=bb_color, linewidth=2, style=plot.style_line)
+plot(lowerBB, title="Lower BB", color=bb_color, linewidth=2, style=plot.style_line)
+plot(basis, title="Middle BB", color=color.blue, linewidth=1, style=plot.style_line)
+
+// Calculate EMA 200
+ema200 = ta.ema(close, 200)
+
+// Plot EMA 200
+plot(ema200, title="EMA 200", color=color.orange, linewidth=2, style=plot.style_line)
+
+// Strategy logic
+enter_long = highlight_color == color.new(color.green, 50)
+exit_long = highlight_color == color.new(color.red, 50)
+
+if (enter_long)
+    strategy.entry("Buy", strategy.long)
+
+if (exit_long)
+    strategy.close("Buy")
+
+// Display profit at close
+if (exit_long)
+    var float entry_price = na
+    var float close_price = na
+    var float profit = na
+
+    if (strategy.opentrades > 0)
+        entry_price := strategy.opentrades.entry_price(strategy.opentrades - 1)
+        close_price := close
+        profit := (close_price - entry_price) * 100 / entry_price * 2 * 10 // Assuming 1 pip = 0.01 for XAUUSD
+        label.new(bar_index, high + (candle_size * 2), str.tostring(profit, format.mintick) + " USD", style=label.style_label_up, color=color.green)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/476279
+
+> Last Modified
+
+2024-12-27 15:52:41

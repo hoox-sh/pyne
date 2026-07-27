@@ -1,0 +1,1151 @@
+// set02 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/projects/exit-orders.pine
+// content_hash: 634987d4faddb981
+// collected: 2026-07-27
+// built with PineScript Agents by TradersPost
+
+//@contributor sacredprofit
+
+//@version=6
+//@strategy_alert_message {{strategy.order.alert_message}}
+
+//@description Reusable strategy building blocks for entries, exits, and risk management. Provides unit conversion, session filtering, backtest ranges, and complete entry/exit handlers.
+strategy('[TradersPost] Exit Orders', 'Exit Orders', overlay = true, margin_long = 0, margin_short = 0, use_bar_magnifier = true, calc_on_every_tick = true)
+
+// ============================================================================
+// EXPORTED TYPES
+// ============================================================================
+
+//@type Converts values between different unit systems (Dollars, PnL, Percent, Ticks, Points)
+//@field unit_type The unit type string: 'Dollars' | 'PnL' | 'Percent' | 'Ticks' | 'Points'
+//@field value The numeric value in the specified unit
+type UnitConverter
+    string unit_type   // 'Dollars' | 'PnL' | 'Percent' | 'Ticks' | 'Points'
+    float value
+
+//@type Risk management settings: stop loss, trailing stop, breakeven
+//@field use_stop_loss Enable fixed stop loss
+//@field sl_unit Unit type for stop loss (also used by trailing stop and breakeven)
+//@field sl_value Stop loss value
+//@field use_trailing_stop Enable trailing stop (uses sl_unit)
+//@field trail_activation Profit before trailing activates
+//@field trail_offset Distance trailing stop follows price
+//@field use_breakeven Enable breakeven (uses sl_unit)
+//@field breakeven_activation Profit before breakeven activates
+//@field breakeven_profit Profit to lock in once breakeven activates
+type RiskSettings
+    // Stop Loss (unit applies to trailing stop and breakeven too)
+    bool use_stop_loss = false
+    string sl_unit = 'Dollars'
+    float sl_value = 100.0
+
+    // Trailing Stop (uses sl_unit)
+    bool use_trailing_stop = false
+    float trail_activation = 50.0    // Profit before trailing activates
+    float trail_offset = 25.0        // Distance trailing stop follows price
+
+    // Breakeven (uses sl_unit)
+    bool use_breakeven = false
+    float breakeven_activation = 100.0  // Profit before breakeven activates
+    float breakeven_profit = 50.0       // Profit to lock in once activated
+
+    // Trigger price type: 'Current' (high/low) or 'Close'
+    string trigger_price = 'Current'
+
+//@type Profit management settings: take profit, trailing take profit
+//@field use_take_profit Enable fixed take profit
+//@field tp_unit Unit type for take profit (also used by trailing TP)
+//@field tp_value Take profit value
+//@field use_trailing_tp Enable trailing take profit (uses tp_unit)
+//@field trail_tp_activation Profit before trailing TP activates
+//@field trail_tp_offset Distance trailing TP follows price
+type ProfitSettings
+    // Take Profit (unit applies to trailing TP too)
+    bool use_take_profit = false
+    string tp_unit = 'Dollars'
+    float tp_value = 200.0
+
+    // Trailing Take Profit (uses tp_unit)
+    bool use_trailing_tp = false
+    float trail_tp_activation = 100.0  // Profit before TP starts trailing
+    float trail_tp_offset = 50.0       // Distance trailing TP follows price
+
+    // Trigger price type: 'Current' (high/low) or 'Close'
+    string trigger_price = 'Current'
+
+//@type Trading session configuration
+//@field use Enable session filtering
+//@field session Session time window (e.g., '0930-1600')
+//@field timezone IANA timezone string
+//@field close_at_end Close positions at session end
+type SessionSettings
+    bool use = false
+    string session = '0930-1600'
+    string timezone = 'America/New_York'
+    bool close_at_end = false
+
+//@type Backtest date range configuration
+//@field use Enable date range filtering
+//@field start_time Unix timestamp for range start
+//@field end_time Unix timestamp for range end
+type BacktestRange
+    bool use = false
+    int start_time = 0
+    int end_time = 0
+
+//@type Entry configuration settings
+//@field direction Trade direction: 'Long' | 'Short' | 'Both'
+//@field order_type Order type: 'Market' | 'Limit'
+//@field limit_offset Offset from signal price for limit orders
+//@field limit_offset_unit Unit for limit offset
+//@field position_mode Position handling: 'Single' | 'Reversals' | 'Pyramid'
+type EntrySettings
+    string direction = 'Both'       // 'Long' | 'Short' | 'Both'
+    string order_type = 'Market'    // 'Market' | 'Limit'
+    float limit_offset = 0.0        // Offset from signal price for limit orders
+    string limit_offset_unit = 'Ticks'
+    string position_mode = 'Single' // 'Single' | 'Reversals' | 'Pyramid'
+
+//@type Mutable strategy state - caller must declare with 'var' and pass to methods
+//@field in_long Currently in long position
+//@field in_short Currently in short position
+//@field entry_price Average entry price
+//@field entry_atr ATR value at entry (locked for ATR-based calculations)
+//@field highest_since_entry Highest price since entry (for trailing stops)
+//@field lowest_since_entry Lowest price since entry (for trailing stops)
+//@field trail_stop_active Trailing stop has been activated
+//@field trail_tp_active Trailing take profit has been activated
+//@field current_trail_stop Current trailing stop price
+//@field current_trail_tp Current trailing take profit price
+type StrategyState
+    bool in_long = false
+    bool in_short = false
+    float entry_price = na
+    float entry_atr = na                   // ATR locked at entry for consistent calculations
+    float highest_since_entry = na
+    float lowest_since_entry = na
+    bool trail_stop_active = false
+    bool trail_tp_active = false
+    bool be_active = false                 // Breakeven has been triggered (stays true once triggered)
+    float current_trail_stop = na
+    float current_trail_tp = na
+    float highest_since_trail_tp = na      // For trailing TP: tracks high since activation
+    float lowest_since_trail_tp = na       // For trailing TP: tracks low since activation (shorts)
+
+// ============================================================================
+// EXPORTED METHODS
+// ============================================================================
+
+//@function Converts the unit value to a price distance
+//@param uc The UnitConverter instance
+//@param entry_price The entry price for percentage calculations
+//@param qty Position quantity for dollar-based calculations
+//@param atr Current ATR value for ATR-based calculations
+//@returns Price distance in absolute terms
+method toPrice(UnitConverter uc, float entry_price, float qty, float atr = na) =>
+    float result = 0.0
+    switch uc.unit_type
+        'Dollars' =>
+            // Direct price offset - $1000 means 1000 price units (entry 80,000 + $1000 = 81,000)
+            result := uc.value
+        'PnL' =>
+            // Position P&L - calculate price distance for this total P&L
+            // Formula: pnl = qty * pointvalue * price_distance, so price_distance = pnl / (qty * pointvalue)
+            result := qty > 0 and syminfo.pointvalue > 0 ? uc.value / (qty * syminfo.pointvalue) : 0.0
+        'Percent' =>
+            // Percentage of entry price
+            result := entry_price * (uc.value / 100)
+        'Ticks' =>
+            // Ticks to price
+            result := uc.value * syminfo.mintick
+        'Points' =>
+            // Points = number of pointvalue units (e.g., 100 points at $0.10/point = 10 price movement)
+            result := uc.value * syminfo.pointvalue
+        'ATR' =>
+            // Multiple of ATR - value is multiplier (e.g., 1.5 = 1.5x ATR)
+            result := not na(atr) ? uc.value * atr : 0.0
+    result
+
+//@function Converts the unit value to ticks (for trail_offset parameter)
+//@param uc The UnitConverter instance
+//@param entry_price The entry price for percentage calculations
+//@param qty Position quantity for dollar-based calculations
+//@param atr Current ATR value for ATR-based calculations
+//@returns Number of ticks
+method toTicks(UnitConverter uc, float entry_price, float qty, float atr = na) =>
+    float price_dist = uc.toPrice(entry_price, qty, atr)
+    int ticks = math.round(price_dist / syminfo.mintick)
+    ticks
+
+//@function Checks if current bar is within the session window
+//@param ss The SessionSettings instance
+//@returns True if session is enabled AND currently in session window
+method inSession(SessionSettings ss) =>
+    ss.use and not na(time(timeframe.period, ss.session, ss.timezone))
+
+//@function Checks if session just ended (for close_at_end logic)
+//@param ss The SessionSettings instance
+//@returns True if session ended this bar
+method sessionEnded(SessionSettings ss) =>
+    if ss.use and ss.close_at_end
+        was_in = not na(time(timeframe.period, ss.session, ss.timezone)[1])
+        now_out = na(time(timeframe.period, ss.session, ss.timezone))
+        (was_in and now_out) or session.islastbar
+    else
+        false
+
+//@function Checks if session just started (for event logging)
+//@param ss The SessionSettings instance
+//@returns True if session started this bar
+method sessionStarted(SessionSettings ss) =>
+    if ss.use
+        was_out = na(time(timeframe.period, ss.session, ss.timezone)[1])
+        now_in = not na(time(timeframe.period, ss.session, ss.timezone))
+        was_out and now_in
+    else
+        false
+
+//@function Checks if session just ended (for event logging, ignores close_at_end)
+//@param ss The SessionSettings instance
+//@returns True if session ended this bar
+method sessionEnd(SessionSettings ss) =>
+    if ss.use
+        was_in = not na(time(timeframe.period, ss.session, ss.timezone)[1])
+        now_out = na(time(timeframe.period, ss.session, ss.timezone))
+        was_in and now_out
+    else
+        false
+
+//@function Checks if current bar is within the backtest date range
+//@param br The BacktestRange instance
+//@returns True if in range (or range not enabled)
+method inRange(BacktestRange br) =>
+    if br.use
+        (br.start_time == 0 or time >= br.start_time) and (br.end_time == 0 or time <= br.end_time)
+    else
+        true
+
+// ============================================================================
+// EXPORTED HELPER FUNCTIONS
+// ============================================================================
+
+//@function Updates strategy state based on current position and price action. Call at start of each bar.
+//@param state The StrategyState to update (must be declared with 'var')
+//@param atr Current ATR value (locked at entry for ATR-based calculations)
+//@returns The updated StrategyState
+updateState(StrategyState state, float atr = na) =>
+    state.in_long := strategy.position_size > 0
+    state.in_short := strategy.position_size < 0
+
+    // Detect new position entry
+    if strategy.position_size != 0 and strategy.position_size[1] == 0
+        state.entry_price := strategy.position_avg_price
+        state.entry_atr := atr  // Lock ATR at entry
+        state.highest_since_entry := high
+        state.lowest_since_entry := low
+        state.trail_stop_active := false
+        state.trail_tp_active := false
+        state.be_active := false
+        state.current_trail_stop := na
+        state.current_trail_tp := na
+        state.highest_since_trail_tp := na
+        state.lowest_since_trail_tp := na
+
+    // Update extremes while in position
+    if state.in_long
+        state.highest_since_entry := math.max(nz(state.highest_since_entry, high), high)
+    if state.in_short
+        state.lowest_since_entry := math.min(nz(state.lowest_since_entry, low), low)
+
+    // Reset on position close
+    if strategy.position_size == 0 and strategy.position_size[1] != 0
+        state.entry_price := na
+        state.entry_atr := na
+        state.highest_since_entry := na
+        state.lowest_since_entry := na
+        state.trail_stop_active := false
+        state.trail_tp_active := false
+        state.be_active := false
+        state.current_trail_stop := na
+        state.current_trail_tp := na
+        state.highest_since_trail_tp := na
+        state.lowest_since_trail_tp := na
+
+    state
+
+//@function Checks if any of the provided sessions are currently active
+//@param session1 First session settings
+//@param session2 Second session settings (optional, pass SessionSettings.new() if unused)
+//@param session3 Third session settings (optional, pass SessionSettings.new() if unused)
+//@returns True if any enabled session is active (or no sessions enabled)
+anySessionActive(SessionSettings session1, SessionSettings session2, SessionSettings session3) =>
+    any_enabled = session1.use or session2.use or session3.use
+    not any_enabled or session1.inSession() or session2.inSession() or session3.inSession()
+
+//@function Checks if any session with close_at_end just ended
+//@param session1 First session settings
+//@param session2 Second session settings
+//@param session3 Third session settings
+//@returns True if any session ended this bar
+anySessionEnded(SessionSettings session1, SessionSettings session2, SessionSettings session3) =>
+    session1.sessionEnded() or session2.sessionEnded() or session3.sessionEnded()
+
+//@function Closes all positions if any session ended
+//@param session1 First session settings
+//@param session2 Second session settings
+//@param session3 Third session settings
+//@param comment Optional comment for close order
+closeOnSessionEnd(SessionSettings session1, SessionSettings session2, SessionSettings session3, string comment = 'Session End') =>
+    if anySessionEnded(session1, session2, session3) and strategy.position_size != 0
+        strategy.close_all(comment = comment)
+
+//@function Closes all positions if outside backtest range
+//@param br BacktestRange configuration
+//@param comment Optional comment for close order
+closeOutsideBacktestRange(BacktestRange br, string comment = 'Backtest End') =>
+    if br.use and time > br.end_time and strategy.position_size != 0
+        strategy.close_all(comment = comment)
+
+//@function Executes a long entry based on settings and conditions
+//@param signal Entry signal condition (true to enter)
+//@param settings EntrySettings configuration
+//@param can_trade Combined filter result (session, backtest range, etc.)
+//@param entry_id Order ID for the entry
+//@param comment Optional comment for the order
+//@param alert_message Optional alert message
+//@param atr Current ATR value for ATR-based calculations
+enterLong(bool signal, EntrySettings settings, bool can_trade, string entry_id = 'Long', string comment = na, string alert_message = na, float atr = na) =>
+    can_long = settings.direction == 'Long' or settings.direction == 'Both'
+    can_enter = switch settings.position_mode
+        'Single' => strategy.position_size == 0           // must be flat
+        'Reversals' => strategy.position_size <= 0        // flat or short (will reverse)
+        'Pyramid' => strategy.position_size >= 0          // flat or already long (add)
+
+    if signal and can_long and can_enter and can_trade
+        if settings.order_type == 'Market'
+            strategy.entry(entry_id, strategy.long, comment = comment, alert_message = alert_message)
+        else
+            limit_uc = UnitConverter.new(settings.limit_offset_unit, settings.limit_offset)
+            limit_offset_price = limit_uc.toPrice(close, 1, atr)
+            strategy.entry(entry_id, strategy.long, limit = close - limit_offset_price, comment = comment, alert_message = alert_message)
+        if not na(alert_message)
+            log.info('ALERT LONG | {0}', alert_message)
+
+//@function Executes a short entry based on settings and conditions
+//@param signal Entry signal condition (true to enter)
+//@param settings EntrySettings configuration
+//@param can_trade Combined filter result (session, backtest range, etc.)
+//@param entry_id Order ID for the entry
+//@param comment Optional comment for the order
+//@param alert_message Optional alert message
+//@param atr Current ATR value for ATR-based calculations
+enterShort(bool signal, EntrySettings settings, bool can_trade, string entry_id = 'Short', string comment = na, string alert_message = na, float atr = na) =>
+    can_short = settings.direction == 'Short' or settings.direction == 'Both'
+    can_enter = switch settings.position_mode
+        'Single' => strategy.position_size == 0           // must be flat
+        'Reversals' => strategy.position_size >= 0        // flat or long (will reverse)
+        'Pyramid' => strategy.position_size <= 0          // flat or already short (add)
+
+    if signal and can_short and can_enter and can_trade
+        if settings.order_type == 'Market'
+            strategy.entry(entry_id, strategy.short, comment = comment, alert_message = alert_message)
+        else
+            limit_uc = UnitConverter.new(settings.limit_offset_unit, settings.limit_offset)
+            limit_offset_price = limit_uc.toPrice(close, 1, atr)
+            strategy.entry(entry_id, strategy.short, limit = close + limit_offset_price, comment = comment, alert_message = alert_message)
+        if not na(alert_message)
+            log.info('ALERT SHORT | {0}', alert_message)
+
+//@function Manages all exit logic for long positions including SL, TP, trailing stop, trailing TP, breakeven
+//@param state StrategyState to update and use for calculations (must be declared with 'var')
+//@param risk RiskSettings configuration (SL, trailing stop, breakeven)
+//@param profit ProfitSettings configuration (TP, trailing TP)
+//@param entry_id The entry order ID to exit from
+//@param exit_id The exit order ID
+//@param sl_comment Comment when stopped out
+//@param tp_comment Comment when take profit hit
+//@param trail_comment Comment when trailing stop hit
+//@param trail_tp_comment Comment when trailing TP hit
+//@param be_comment Comment when breakeven hit
+//@param alert_message Optional alert message
+//@param atr Current ATR value for ATR-based calculations
+manageLongExits(StrategyState state, RiskSettings risk, ProfitSettings profit, string entry_id = 'Long', string exit_id = 'Long Exit', string sl_comment = 'SL', string tp_comment = 'TP', string trail_comment = 'Trail SL', string trail_tp_comment = 'Trail TP', string be_comment = 'BE', string alert_message = na, float atr = na) =>
+    float pos_qty = math.abs(strategy.position_size)
+
+    if state.in_long and pos_qty > 0
+        float entry_price = strategy.position_avg_price
+        // Use locked ATR from entry for consistent calculations throughout the trade
+        float effective_atr = not na(state.entry_atr) ? state.entry_atr : atr
+
+        // Calculate price distances
+        float sl_distance = UnitConverter.new(risk.sl_unit, risk.sl_value).toPrice(entry_price, pos_qty, effective_atr)
+        float tp_distance = UnitConverter.new(profit.tp_unit, profit.tp_value).toPrice(entry_price, pos_qty, effective_atr)
+        float trail_activation_dist = UnitConverter.new(risk.sl_unit, risk.trail_activation).toPrice(entry_price, pos_qty, effective_atr)
+        float trail_offset_dist = UnitConverter.new(risk.sl_unit, risk.trail_offset).toPrice(entry_price, pos_qty, effective_atr)
+
+        float trail_tp_activation_dist = UnitConverter.new(profit.tp_unit, profit.trail_tp_activation).toPrice(entry_price, pos_qty, effective_atr)
+        int trail_tp_offset_ticks = UnitConverter.new(profit.tp_unit, profit.trail_tp_offset).toTicks(entry_price, pos_qty, effective_atr)
+        float be_activation_dist = UnitConverter.new(risk.sl_unit, risk.breakeven_activation).toPrice(entry_price, pos_qty, effective_atr)
+        float be_profit_dist = UnitConverter.new(risk.sl_unit, risk.breakeven_profit).toPrice(entry_price, pos_qty, effective_atr)
+
+        float sl_price = entry_price - sl_distance
+        float tp_price = entry_price + tp_distance
+        float trail_tp_activation_price = entry_price + trail_tp_activation_dist
+
+        // Debug trailing TP values
+        if barstate.islast
+            log.info('TRAIL TP DEBUG | Unit: {0} | Entry: {1} | Entry ATR: {2} | Current ATR: {3}',
+                 profit.tp_unit, entry_price, state.entry_atr, atr)
+            log.info('TRAIL TP DEBUG | Activation Price: {0} | Offset Ticks: {1} | Mintick: {2}',
+                 trail_tp_activation_price, trail_tp_offset_ticks, syminfo.mintick)
+
+        // Calculate profit for trigger checks (Current uses high, Close uses close)
+        float risk_trigger_profit = risk.trigger_price == 'Current' ? high - entry_price : close - entry_price
+        float profit_trigger_profit = profit.trigger_price == 'Current' ? high - entry_price : close - entry_price
+
+        // ===== TRAILING STOP: Manual calculation, pass to stop parameter =====
+        if risk.use_trailing_stop and risk_trigger_profit >= trail_activation_dist
+            state.trail_stop_active := true
+
+        if state.trail_stop_active
+            float new_trail = state.highest_since_entry - trail_offset_dist
+            if na(state.current_trail_stop) or new_trail > state.current_trail_stop
+                state.current_trail_stop := new_trail
+
+        // ===== TRAILING TP: Track for visualization (native trail_* handles execution) =====
+        float trail_tp_offset_dist = UnitConverter.new(profit.tp_unit, profit.trail_tp_offset).toPrice(entry_price, pos_qty, effective_atr)
+
+        if profit.use_trailing_tp and profit_trigger_profit >= trail_tp_activation_dist
+            if not state.trail_tp_active
+                // First activation - initialize high tracking from this point
+                state.highest_since_trail_tp := high
+                log.info('TRAIL TP ACTIVATED | High: {0} | Profit: {1} | Req: {2}',
+                     high, profit_trigger_profit, trail_tp_activation_dist)
+            state.trail_tp_active := true
+
+        if state.trail_tp_active
+            // Update highest since trail TP activated
+            if high > state.highest_since_trail_tp
+                state.highest_since_trail_tp := high
+            // Calculate trail TP based on high since activation (matches native trail_* behavior)
+            float new_trail_tp = state.highest_since_trail_tp - trail_tp_offset_dist
+            if na(state.current_trail_tp) or new_trail_tp > state.current_trail_tp
+                state.current_trail_tp := new_trail_tp
+
+        // ===== DETERMINE EFFECTIVE STOP LOSS =====
+        float effective_stop = na
+        string stop_comment = na
+
+        // Fixed stop loss (base)
+        if risk.use_stop_loss
+            effective_stop := sl_price
+            stop_comment := sl_comment
+
+        // Breakeven (overrides fixed SL if higher) - uses persistent flag so it stays active
+        float be_stop = entry_price + be_profit_dist
+        // Activate BE when condition first met (stays active thereafter)
+        if risk.use_breakeven and risk_trigger_profit >= be_activation_dist
+            state.be_active := true
+        // Apply BE stop if BE has been activated (not just currently triggered)
+        if state.be_active
+            if na(effective_stop) or be_stop > effective_stop
+                effective_stop := be_stop
+                stop_comment := be_comment
+
+        // Trailing stop (overrides if higher)
+        if state.trail_stop_active and not na(state.current_trail_stop)
+            if na(effective_stop) or state.current_trail_stop > effective_stop
+                effective_stop := state.current_trail_stop
+                stop_comment := trail_comment
+
+        // ===== EXECUTE EXITS =====
+        if profit.use_trailing_tp
+            // Combine SL + TP + trailing TP in single exit call (separate calls interfere)
+            // Use from_entry="" and qty_percent=100 for single exit covering entire position
+            float effective_limit = profit.use_take_profit ? tp_price : na
+            strategy.exit(exit_id, from_entry = '',
+                 qty_percent = 100,
+                 stop = effective_stop,
+                 limit = effective_limit,
+                 trail_price = trail_tp_activation_price,
+                 trail_offset = trail_tp_offset_ticks,
+                 comment_loss = stop_comment,
+                 comment_profit = tp_comment,
+                 comment_trailing = trail_tp_comment,
+                 alert_message = alert_message)
+        else
+            // Fixed TP or no TP - can combine with SL in one exit
+            // Use from_entry="" and qty_percent=100 for single exit covering entire position
+            float effective_limit = profit.use_take_profit ? tp_price : na
+            if not na(effective_stop) or not na(effective_limit)
+                strategy.exit(exit_id, from_entry = '',
+                     qty_percent = 100,
+                     stop = effective_stop,
+                     limit = effective_limit,
+                     comment_loss = stop_comment,
+                     comment_profit = tp_comment,
+                     alert_message = alert_message)
+
+//@function Manages all exit logic for short positions including SL, TP, trailing stop, trailing TP, breakeven
+//@param state StrategyState to update and use for calculations (must be declared with 'var')
+//@param risk RiskSettings configuration (SL, trailing stop, breakeven)
+//@param profit ProfitSettings configuration (TP, trailing TP)
+//@param entry_id The entry order ID to exit from
+//@param exit_id The exit order ID
+//@param sl_comment Comment when stopped out
+//@param tp_comment Comment when take profit hit
+//@param trail_comment Comment when trailing stop hit
+//@param trail_tp_comment Comment when trailing TP hit
+//@param be_comment Comment when breakeven hit
+//@param alert_message Optional alert message
+//@param atr Current ATR value for ATR-based calculations
+manageShortExits(StrategyState state, RiskSettings risk, ProfitSettings profit, string entry_id = 'Short', string exit_id = 'Short Exit', string sl_comment = 'SL', string tp_comment = 'TP', string trail_comment = 'Trail SL', string trail_tp_comment = 'Trail TP', string be_comment = 'BE', string alert_message = na, float atr = na) =>
+    float pos_qty = math.abs(strategy.position_size)
+
+    if state.in_short and pos_qty > 0
+        float entry_price = strategy.position_avg_price
+        // Use locked ATR from entry for consistent calculations throughout the trade
+        float effective_atr = not na(state.entry_atr) ? state.entry_atr : atr
+
+        // Calculate price distances
+        float sl_distance = UnitConverter.new(risk.sl_unit, risk.sl_value).toPrice(entry_price, pos_qty, effective_atr)
+        float tp_distance = UnitConverter.new(profit.tp_unit, profit.tp_value).toPrice(entry_price, pos_qty, effective_atr)
+        float trail_activation_dist = UnitConverter.new(risk.sl_unit, risk.trail_activation).toPrice(entry_price, pos_qty, effective_atr)
+        float trail_offset_dist = UnitConverter.new(risk.sl_unit, risk.trail_offset).toPrice(entry_price, pos_qty, effective_atr)
+        float trail_tp_activation_dist = UnitConverter.new(profit.tp_unit, profit.trail_tp_activation).toPrice(entry_price, pos_qty, effective_atr)
+        int trail_tp_offset_ticks = UnitConverter.new(profit.tp_unit, profit.trail_tp_offset).toTicks(entry_price, pos_qty, effective_atr)
+        float be_activation_dist = UnitConverter.new(risk.sl_unit, risk.breakeven_activation).toPrice(entry_price, pos_qty, effective_atr)
+        float be_profit_dist = UnitConverter.new(risk.sl_unit, risk.breakeven_profit).toPrice(entry_price, pos_qty, effective_atr)
+
+        float sl_price = entry_price + sl_distance
+        float tp_price = entry_price - tp_distance
+        float trail_tp_activation_price = entry_price - trail_tp_activation_dist
+
+        // Calculate profit for trigger checks (Current uses low, Close uses close)
+        float risk_trigger_profit = risk.trigger_price == 'Current' ? entry_price - low : entry_price - close
+        float profit_trigger_profit = profit.trigger_price == 'Current' ? entry_price - low : entry_price - close
+
+        // ===== TRAILING STOP: Manual calculation, pass to stop parameter =====
+        if risk.use_trailing_stop and risk_trigger_profit >= trail_activation_dist
+            state.trail_stop_active := true
+
+        if state.trail_stop_active
+            float new_trail = state.lowest_since_entry + trail_offset_dist
+            if na(state.current_trail_stop) or new_trail < state.current_trail_stop
+                state.current_trail_stop := new_trail
+
+        // ===== TRAILING TP: Track for visualization (native trail_* handles execution) =====
+        if profit.use_trailing_tp and profit_trigger_profit >= trail_tp_activation_dist
+            if not state.trail_tp_active
+                // First activation - initialize low tracking from this point
+                state.lowest_since_trail_tp := low
+            state.trail_tp_active := true
+
+        if state.trail_tp_active
+            // Update lowest since trail TP activated
+            if low < state.lowest_since_trail_tp
+                state.lowest_since_trail_tp := low
+            // Calculate trail TP based on low since activation (matches native trail_* behavior)
+            float trail_tp_offset_dist = UnitConverter.new(profit.tp_unit, profit.trail_tp_offset).toPrice(entry_price, pos_qty, effective_atr)
+            float new_trail_tp = state.lowest_since_trail_tp + trail_tp_offset_dist
+            if na(state.current_trail_tp) or new_trail_tp < state.current_trail_tp
+                state.current_trail_tp := new_trail_tp
+
+        // ===== DETERMINE EFFECTIVE STOP LOSS =====
+        float effective_stop = na
+        string stop_comment = na
+
+        // Fixed stop loss (base)
+        if risk.use_stop_loss
+            effective_stop := sl_price
+            stop_comment := sl_comment
+
+        // Breakeven (overrides fixed SL if lower) - uses persistent flag so it stays active
+        float be_stop = entry_price - be_profit_dist
+        // Activate BE when condition first met (stays active thereafter)
+        if risk.use_breakeven and risk_trigger_profit >= be_activation_dist
+            state.be_active := true
+        // Apply BE stop if BE has been activated (not just currently triggered)
+        if state.be_active
+            if na(effective_stop) or be_stop < effective_stop
+                effective_stop := be_stop
+                stop_comment := be_comment
+
+        // Trailing stop (overrides if lower)
+        if state.trail_stop_active and not na(state.current_trail_stop)
+            if na(effective_stop) or state.current_trail_stop < effective_stop
+                effective_stop := state.current_trail_stop
+                stop_comment := trail_comment
+
+        // ===== EXECUTE EXITS =====
+        if profit.use_trailing_tp
+            // Combine SL + TP + trailing TP in single exit call (separate calls interfere)
+            // Use from_entry="" and qty_percent=100 for single exit covering entire position
+            float effective_limit = profit.use_take_profit ? tp_price : na
+            strategy.exit(exit_id, from_entry = '',
+                 qty_percent = 100,
+                 stop = effective_stop,
+                 limit = effective_limit,
+                 trail_price = trail_tp_activation_price,
+                 trail_offset = trail_tp_offset_ticks,
+                 comment_loss = stop_comment,
+                 comment_profit = tp_comment,
+                 comment_trailing = trail_tp_comment,
+                 alert_message = alert_message)
+        else
+            // Fixed TP or no TP - can combine with SL in one exit
+            // Use from_entry="" and qty_percent=100 for single exit covering entire position
+            float effective_limit = profit.use_take_profit ? tp_price : na
+            if not na(effective_stop) or not na(effective_limit)
+                strategy.exit(exit_id, from_entry = '',
+                     qty_percent = 100,
+                     stop = effective_stop,
+                     limit = effective_limit,
+                     comment_loss = stop_comment,
+                     comment_profit = tp_comment,
+                     alert_message = alert_message)
+
+// ============================================================================
+// DEMO / EXAMPLE USAGE (Global scope - for testing library on chart)
+// ============================================================================
+
+// Note: This demo code uses inputs and strategy calls in global scope.
+// When importing this library, you would define your own inputs and call the exported functions.
+
+string g_signals = 'Entry Signals'
+string g_backtest = 'Backtest Range'
+string g_entry = 'Entry Settings'
+string g_risk = 'Risk Settings'
+string g_profit = 'Profit Settings'
+string g_sessions = 'Sessions'
+string g_scheduled = 'Scheduled Alert'
+string g_design = 'Design'
+string g_global = 'Global Settings'
+string g_alerts = 'Alerts'
+
+// ============================================================================
+// ENTRY SIGNALS
+// ============================================================================
+
+i_long_source = input.source(close, 'Long Signal', group = g_signals, tooltip = 'Source for long entry signals.\nConnect an external indicator plot.\nSignal triggers when value crosses above 0.')
+i_short_source = input.source(close, 'Short Signal', group = g_signals, tooltip = 'Source for short entry signals.\nConnect an external indicator plot.\nSignal triggers when value crosses above 0.')
+
+// Global Settings
+i_global_unit = input.string('PnL', 'Default Unit', options = ['Dollars', 'PnL', 'Percent', 'Ticks', 'Points', 'ATR'], group = g_global, tooltip = 'Default unit for Stop Loss and Take Profit.\n\nDollars — Price movement\nExample: 10 = asset moves $10\n\nPnL — Position profit/loss\nExample: 10 = position gains/loses $10\n\nPercent — % of entry price\n\nTicks — Minimum tick (syminfo.mintick)\n\nPoints — Price points (1.0 = 1 point)\n\nATR — Multiple of Average True Range\nExample: 1.5 = 1.5× ATR')
+i_atr_period = input.int(14, 'ATR Period', minval = 1, step = 1, group = g_global, tooltip = 'Period for ATR calculations.\nUsed when ATR is selected as a unit type.', display = display.none)
+i_global_tz = input.string('America/New_York', 'Timezone', options = ['America/New_York', 'America/Chicago', 'America/Los_Angeles', 'Europe/London', 'Europe/Berlin', 'Asia/Tokyo', 'Asia/Hong_Kong', 'Asia/Singapore', 'Australia/Sydney', 'UTC'], group = g_global, tooltip = 'Timezone used for all trading sessions.\nAll session time windows are interpreted in this timezone.', display = display.none)
+i_trigger_price = input.string('Current', 'Trigger Price', options = ['Current', 'Close'], group = g_global, tooltip = 'When trailing/breakeven triggers activate:\n\nCurrent — Triggers when high (longs) or low (shorts) reaches the level during a bar\n\nClose — Triggers only when the bar closes at or beyond the level', display = display.none)
+
+// Global ATR calculation
+global_atr = ta.atr(i_atr_period)
+
+// Helper to resolve 'Global' to actual unit value
+resolveUnit(string unit) =>
+    unit == 'Global' ? i_global_unit : unit
+
+// Backtest Inputs
+i_use_backtest_range = input.bool(false, 'Use Date Range', inline = 'bt', group = g_backtest, tooltip = 'Restrict backtesting to a specific date range.\nTrades will only be taken within this period.', display = display.none)
+i_backtest_preset = input.string('Custom', '', options = ['Last 7 Days', 'This Month', 'This Quarter', 'This Year', 'Custom'], inline = 'bt', group = g_backtest, active = i_use_backtest_range, tooltip = 'Quick date range presets:\n\nLast 7 Days — Rolling 7-day window\n\nThis Month — From 1st of current month\n\nThis Quarter — From start of current quarter\n(Jan 1, Apr 1, Jul 1, or Oct 1)\n\nThis Year — From Jan 1 of current year\n\nCustom — Use manual start/end dates below', display = display.none)
+i_backtest_start = input.time(timestamp('01 Jan 2020 00:00 +0000'), 'Start Date', group = g_backtest, active = i_use_backtest_range and i_backtest_preset == 'Custom', display = display.none)
+i_backtest_end = input.time(timestamp('31 Dec 2030 23:59 +0000'), 'End Date', group = g_backtest, active = i_use_backtest_range and i_backtest_preset == 'Custom', display = display.none)
+
+// Calculate backtest start based on preset
+getBacktestStart() =>
+    int result = i_backtest_start
+    if i_backtest_preset == 'Last 7 Days'
+        result := timenow - 7 * 24 * 60 * 60 * 1000
+    else if i_backtest_preset == 'This Month'
+        result := timestamp(year(timenow), month(timenow), 1, 0, 0, 0)
+    else if i_backtest_preset == 'This Quarter'
+        int q_month = month(timenow) <= 3 ? 1 : month(timenow) <= 6 ? 4 : month(timenow) <= 9 ? 7 : 10
+        result := timestamp(year(timenow), q_month, 1, 0, 0, 0)
+    else if i_backtest_preset == 'This Year'
+        result := timestamp(year(timenow), 1, 1, 0, 0, 0)
+    result
+
+backtest_start = getBacktestStart()
+backtest_end = i_backtest_preset == 'Custom' ? i_backtest_end : timenow
+backtest_range = BacktestRange.new(i_use_backtest_range, backtest_start, backtest_end)
+
+// Entry Inputs
+i_direction = input.string('Both', 'Direction', options = ['Long', 'Short', 'Both'], inline = 'dir', group = g_entry, tooltip = 'Which direction to trade:\n• Long: Only buy signals\n• Short: Only sell signals\n• Both: Trade both directions', display = display.none)
+i_order_type = input.string('Market', '', options = ['Market', 'Limit'], inline = 'dir', group = g_entry, tooltip = 'How to enter trades:\n• Market: Enter immediately at current price\n• Limit: Place limit order at offset from signal price', display = display.none)
+i_color_entry = input.color(color.gray, '', inline = 'dir', group = g_entry, display = display.none)
+i_limit_offset = input.float(5, '└ Limit Offset', minval = 0, step = 0.5, inline = 'limit', group = g_entry, tooltip = 'Distance from signal price for limit orders.\nPositive value = better price (below for longs, above for shorts).', active = i_order_type == 'Limit', display = display.none)
+i_limit_offset_unit = input.string('Ticks', '', options = ['Dollars', 'Percent', 'Ticks', 'Points', 'ATR'], inline = 'limit', group = g_entry, active = i_order_type == 'Limit', display = display.none)
+i_position_mode = input.string('Single', 'Position Mode', options = ['Single', 'Reversals', 'Pyramid'], group = g_entry, tooltip = 'Single — One position at a time, wait for close\nReversals — Opposite signal flips position\nPyramid — Add same direction only', display = display.none)
+
+entry_settings = EntrySettings.new(i_direction, i_order_type, i_limit_offset, i_limit_offset_unit, i_position_mode)
+
+// Risk Inputs (Stop Loss, Trailing Stop, Breakeven - all use the SL unit)
+i_use_sl = input.bool(true, 'Use Stop Loss', inline = 'sl', group = g_risk, tooltip = 'Fixed stop loss at a set distance from entry.\nThe unit selected here also applies to Trailing Stop and Breakeven.', display = display.none)
+i_sl_value = input.float(200, '', minval = 0.01, step = 0.5, inline = 'sl', group = g_risk, active = i_use_sl, display = display.none)
+i_sl_unit = input.string('Global', '', options = ['Global', 'Dollars', 'PnL', 'Percent', 'Ticks', 'Points', 'ATR'], inline = 'sl', group = g_risk, active = i_use_sl, tooltip = 'Unit for Stop Loss, Trailing Stop, and Breakeven.\n\nGlobal — Uses Default Unit setting\n\nDollars — Price movement\n\nPnL — Position profit/loss\n\nATR — Multiple of ATR', display = display.none)
+i_color_sl = input.color(color.red, '', inline = 'sl', group = g_risk, display = display.none)
+
+i_use_trail = input.bool(false, '└ Trailing  ›', inline = 'trail', group = g_risk, tooltip = 'Stop loss that trails price after reaching the trigger profit.\nOnce activated, the stop moves up (longs) or down (shorts) as price moves favorably,\nbut never moves against you. Uses Stop Loss unit.', display = display.none)
+i_trail_activation = input.float(500, 'Trigger', minval = 0, step = 0.5, inline = 'trail', group = g_risk, active = i_use_trail, display = display.none)
+i_trail_offset = input.float(250, 'Offset', minval = 0.01, step = 0.5, inline = 'trail', group = g_risk, active = i_use_trail, display = display.none)
+
+i_use_breakeven = input.bool(false, '└ BE  ›', inline = 'be', group = g_risk, tooltip = 'Moves stop to lock in profit after reaching the trigger.\nOnce activated, stop moves to entry price + Lock In amount.\nSet Lock In to 0 for true breakeven. Uses Stop Loss unit.', display = display.none)
+i_breakeven_activation = input.float(1000, 'Trigger', minval = 0, step = 0.5, inline = 'be', group = g_risk, active = i_use_breakeven, display = display.none)
+i_breakeven_profit = input.float(500, 'Lock In', minval = 0, step = 0.5, inline = 'be', group = g_risk, active = i_use_breakeven, display = display.none)
+i_color_be_trig = input.color(#ff9900ba, '', inline = 'be', group = g_risk, display = display.none)
+
+risk_settings = RiskSettings.new(
+     i_use_sl, resolveUnit(i_sl_unit), i_sl_value,
+     i_use_trail, i_trail_activation, i_trail_offset,
+     i_use_breakeven, i_breakeven_activation, i_breakeven_profit,
+     i_trigger_price)
+
+// Profit Inputs (Take Profit, Trailing TP - all use the TP unit)
+i_use_tp = input.bool(true, 'Use Take Profit', inline = 'tp', group = g_profit, tooltip = 'Fixed take profit at a set distance from entry.\nThe unit selected here also applies to Trailing TP.', display = display.none)
+i_tp_value = input.float(200, '', minval = 0.01, step = 0.5, inline = 'tp', group = g_profit, active = i_use_tp, display = display.none)
+i_tp_unit = input.string('Global', '', options = ['Global', 'Dollars', 'PnL', 'Percent', 'Ticks', 'Points', 'ATR'], inline = 'tp', group = g_profit, active = i_use_tp, tooltip = 'Unit for Take Profit and Trailing TP.\n\nGlobal — Uses Default Unit setting\n\nDollars — Price movement\n\nPnL — Position profit/loss\n\nATR — Multiple of ATR', display = display.none)
+i_color_tp = input.color(color.green, '', inline = 'tp', group = g_profit, display = display.none)
+
+i_use_trail_tp = input.bool(false, '└ Trailing  ›', inline = 'trail_tp', group = g_profit, tooltip = 'Take profit that trails price after reaching the trigger profit.\nOnce activated, the TP moves up (longs) or down (shorts) as price moves favorably,\nlocking in more profit. Uses Take Profit unit.', display = display.none)
+i_trail_tp_activation = input.float(1000, 'Trigger', minval = 0, step = 0.5, inline = 'trail_tp', group = g_profit, active = i_use_trail_tp, display = display.none)
+i_trail_tp_offset = input.float(500, 'Offset', minval = 0.01, step = 0.5, inline = 'trail_tp', group = g_profit, active = i_use_trail_tp, display = display.none)
+
+profit_settings = ProfitSettings.new(
+     i_use_tp, resolveUnit(i_tp_unit), i_tp_value,
+     i_use_trail_tp, i_trail_tp_activation, i_trail_tp_offset,
+     i_trigger_price)
+
+// Session Inputs
+i_use_session1 = input.bool(true, 'Session 1', inline = 's1', group = g_sessions, tooltip = 'Trading window for Session 1.\nTrades only taken when at least one enabled session is active.\nTimezone set in Global Settings.', display = display.none)
+i_session1 = input.session('0930-1600', '', inline = 's1', group = g_sessions, active = i_use_session1, display = display.none)
+i_session1_close = input.bool(false, 'Close', inline = 's1', group = g_sessions, active = i_use_session1, tooltip = 'Close all positions when Session 1 ends.', display = display.none)
+
+i_use_session2 = input.bool(false, 'Session 2', inline = 's2', group = g_sessions, tooltip = 'Trading window for Session 2.\nTrades only taken when at least one enabled session is active.\nTimezone set in Global Settings.', display = display.none)
+i_session2 = input.session('1900-0400', '', inline = 's2', group = g_sessions, active = i_use_session2, display = display.none)
+i_session2_close = input.bool(false, 'Close', inline = 's2', group = g_sessions, active = i_use_session2, tooltip = 'Close all positions when Session 2 ends.', display = display.none)
+
+i_use_session3 = input.bool(false, 'Session 3', inline = 's3', group = g_sessions, tooltip = 'Trading window for Session 3.\nTrades only taken when at least one enabled session is active.\nTimezone set in Global Settings.', display = display.none)
+i_session3 = input.session('0300-1100', '', inline = 's3', group = g_sessions, active = i_use_session3, display = display.none)
+i_session3_close = input.bool(false, 'Close', inline = 's3', group = g_sessions, active = i_use_session3, tooltip = 'Close all positions when Session 3 ends.', display = display.none)
+
+// Session objects (use global timezone)
+session1 = SessionSettings.new(i_use_session1, i_session1, i_global_tz, i_session1_close)
+session2 = SessionSettings.new(i_use_session2, i_session2, i_global_tz, i_session2_close)
+session3 = SessionSettings.new(i_use_session3, i_session3, i_global_tz, i_session3_close)
+
+// Session event logs
+if session1.sessionStarted()
+    log.info('SESSION 1 START | {0}', i_session1)
+if session1.sessionEnd()
+    log.info('SESSION 1 END | {0}', i_session1)
+if session2.sessionStarted()
+    log.info('SESSION 2 START | {0}', i_session2)
+if session2.sessionEnd()
+    log.info('SESSION 2 END | {0}', i_session2)
+if session3.sessionStarted()
+    log.info('SESSION 3 START | {0}', i_session3)
+if session3.sessionEnd()
+    log.info('SESSION 3 END | {0}', i_session3)
+
+// Scheduled Alert Inputs
+i_use_scheduled_alert = input.bool(false, 'Enable', group = g_scheduled, tooltip = 'Fire an alert at a specific time each trading day.\nAlert fires at the close of the bar BEFORE the scheduled time,\nso you can act before potentially exiting a session.')
+i_alert_hour = input.int(15, 'Time (HH:MM:SS)', minval = 0, maxval = 23, inline = 'sched_time', group = g_scheduled, active = i_use_scheduled_alert)
+i_alert_minute = input.int(55, ':', minval = 0, maxval = 59, inline = 'sched_time', group = g_scheduled, active = i_use_scheduled_alert)
+i_alert_second = input.int(0, ':', minval = 0, maxval = 59, inline = 'sched_time', group = g_scheduled, active = i_use_scheduled_alert, tooltip = 'Scheduled time using the Global timezone.\nSecond precision requires sub-minute chart timeframe.')
+i_scheduled_alert_msg = input.text_area('', 'Message', group = g_scheduled, active = i_use_scheduled_alert, tooltip = 'Alert message to send at the scheduled time.\nLeave empty to disable.')
+
+// Track the last scheduled timestamp we fired for (prevents re-firing on same scheduled time)
+// Using varip for real-time tick persistence (var only persists across bars, not intrabar ticks)
+varip int last_fired_scheduled_time = 0
+
+// Historical bars: use bars_back approach (fires at bar close before scheduled time)
+// Real-time bars: use timenow for second-precision firing
+
+if i_use_scheduled_alert
+    if barstate.isrealtime
+        // Real-time: use timenow for precise second timing
+        rt_year = year(timenow, i_global_tz)
+        rt_month = month(timenow, i_global_tz)
+        rt_day = dayofmonth(timenow, i_global_tz)
+
+        // Build scheduled timestamp for today in user's timezone
+        rt_scheduled_time = timestamp(i_global_tz, rt_year, rt_month, rt_day, i_alert_hour, i_alert_minute, i_alert_second)
+
+        // Only fire if we haven't already fired for this exact scheduled time
+        if timenow >= rt_scheduled_time and last_fired_scheduled_time != rt_scheduled_time
+            // Mark as fired FIRST to prevent re-entry on next tick
+            last_fired_scheduled_time := rt_scheduled_time
+
+            // Log both scheduled time and actual fire time
+            rt_fire_hour = hour(timenow, i_global_tz)
+            rt_fire_minute = minute(timenow, i_global_tz)
+            rt_fire_second = second(timenow, i_global_tz)
+            log.info('SCHEDULED ALERT | scheduled: {0,number,00}:{1,number,00}:{2,number,00} | fired: {3,number,00}:{4,number,00}:{5,number,00}', i_alert_hour, i_alert_minute, i_alert_second, rt_fire_hour, rt_fire_minute, rt_fire_second)
+            if i_scheduled_alert_msg != ''
+                alert(i_scheduled_alert_msg, alert.freq_once_per_bar)
+    else
+        // Historical: use bars_back approach (fires at bar close before scheduled time)
+        // Build session string for scheduled minute window (e.g., "1555-1556")
+        scheduled_end_hour = i_alert_minute == 59 ? (i_alert_hour + 1) % 24 : i_alert_hour
+        scheduled_end_minute = (i_alert_minute + 1) % 60
+        scheduled_session = str.format("{0,number,00}{1,number,00}-{2,number,00}{3,number,00}", i_alert_hour, i_alert_minute, scheduled_end_hour, scheduled_end_minute)
+
+        // Look ahead to NEXT bar using bars_back = -1
+        next_bar_in_scheduled = not na(time(timeframe.period, scheduled_session, i_global_tz, -1))
+        current_bar_in_scheduled = not na(time(timeframe.period, scheduled_session, i_global_tz, 0))
+
+        if next_bar_in_scheduled and not current_bar_in_scheduled
+            log.info('SCHEDULED ALERT | {0,number,00}:{1,number,00}:{2,number,00} (historical)', i_alert_hour, i_alert_minute, i_alert_second)
+            if i_scheduled_alert_msg != ''
+                alert(i_scheduled_alert_msg, alert.freq_once_per_bar)
+
+// Design Inputs
+i_show_levels = input.bool(true, 'Show Levels', group = g_design, tooltip = 'Entry, stop, and target lines while in position.\n\nExample:\n───────── SL\n───────── Entry\n───────── TP', display = display.none)
+i_show_triggers = input.bool(true, 'Show Triggers', group = g_design, tooltip = 'Dotted lines where trailing/breakeven activate.\n\nExample:\n┈┈┈┈┈┈┈┈┈ BE▸\n┈┈┈┈┈┈┈┈┈ SL▸\n┈┈┈┈┈┈┈┈┈ TP▸', display = display.none)
+i_show_labels = input.bool(true, 'Show Labels', group = g_design, tooltip = 'Text labels on price levels.\n\nExample:\nSL ─────────\nTP ─────────', display = display.none)
+i_show_values = input.bool(false, 'Show Values', group = g_design, tooltip = 'Price/PnL values in labels.\n\nExample:\nSL $100 ─────────\nTP $200 ─────────', display = display.none)
+i_show_session_bg = input.bool(false, 'Session Shading', inline = 'session_bg', group = g_design, tooltip = 'Shade background during or outside trading sessions.', display = display.none)
+i_session_bg_mode = input.string('In Session', '', options = ['In Session', 'Out of Session'], inline = 'session_bg', group = g_design, display = display.none)
+i_session_bg_color = input.color(color.blue, '', inline = 'session_bg', group = g_design, display = display.none)
+
+// Alert Messages
+i_alert_long_raw = input.text_area('', 'Long Entry', group = g_alerts, tooltip = 'Alert message when opening a long position.\nSupports TradingView placeholders like {{ticker}}, {{close}}, etc.', display = display.none)
+i_alert_short_raw = input.text_area('', 'Short Entry', group = g_alerts, tooltip = 'Alert message when opening a short position.\nSupports TradingView placeholders like {{ticker}}, {{close}}, etc.', display = display.none)
+i_alert_exit_raw = input.text_area('', 'Exit', group = g_alerts, tooltip = 'Alert message when closing a position (SL, TP, trailing, or breakeven).\nSupports TradingView placeholders like {{ticker}}, {{close}}, etc.', display = display.none)
+
+// Convert empty strings to na (TradingView ignores empty string alerts)
+i_alert_long = i_alert_long_raw == '' ? na : i_alert_long_raw
+i_alert_short = i_alert_short_raw == '' ? na : i_alert_short_raw
+i_alert_exit = i_alert_exit_raw == '' ? na : i_alert_exit_raw
+
+// ============================================================================
+// ENTRY SIGNAL PROCESSING
+// ============================================================================
+
+// Source-based signals - trigger on crossover above 0
+// With default 'close' source, this won't fire (close is always > 0)
+// Connect an indicator that outputs 0/1 or negative/positive for signals
+long_signal = ta.crossover(i_long_source, 0)
+short_signal = ta.crossover(i_short_source, 0)
+
+// State (declared with var)
+var StrategyState state = StrategyState.new()
+
+// Update state
+updateState(state, global_atr)
+
+// Trading filters
+can_trade = backtest_range.inRange() and anySessionActive(session1, session2, session3)
+
+// Entries
+enterLong(long_signal, entry_settings, can_trade, alert_message = i_alert_long, atr = global_atr)
+enterShort(short_signal, entry_settings, can_trade, alert_message = i_alert_short, atr = global_atr)
+
+// Exits
+manageLongExits(state, risk_settings, profit_settings, alert_message = i_alert_exit, atr = global_atr)
+manageShortExits(state, risk_settings, profit_settings, alert_message = i_alert_exit, atr = global_atr)
+
+// Session/backtest closes
+closeOnSessionEnd(session1, session2, session3)
+closeOutsideBacktestRange(backtest_range)
+
+// ── Position Visualization ──
+
+// Calculate visualization values (only while in position)
+bool in_position = strategy.position_size != 0
+float pos_qty = math.abs(strategy.position_size)
+float entry = strategy.position_avg_price
+bool is_long = strategy.position_size > 0
+// Use trigger_price setting to match strategy's BE activation logic
+float current_profit = is_long ?
+     (risk_settings.trigger_price == 'Current' ? high - entry : close - entry) :
+     (risk_settings.trigger_price == 'Current' ? entry - low : entry - close)
+
+// Persistent state for stop/target (can change during position)
+var float viz_stop = na
+var float viz_target = na
+var float viz_be_trig = na
+var float viz_be_lockin = na
+var float viz_trail_trig = na
+var float viz_trail_tp_trig = na
+var float viz_trail_tp_level = na   // Actual trailing TP exit level (separate from activation)
+
+// Persistent labels (left side - static)
+var label lbl_sl = na
+var label lbl_tp = na
+var label lbl_be_trig = na
+var label lbl_trail_trig = na
+var label lbl_trail_tp_trig = na
+
+// Persistent labels (right side - live PnL)
+var label lbl_pnl = na
+var label lbl_sl_pnl = na
+var label lbl_tp_pnl = na
+var label lbl_be_lockin_pnl = na
+
+// Track trigger activation for visualization
+var bool viz_be_triggered = false
+var bool viz_trail_triggered = false
+var bool viz_trail_tp_triggered = false
+
+// Detect when visualization needs to reset
+bool new_position = strategy.position_size != 0 and strategy.position_size[1] == 0
+bool reversed_position = (strategy.position_size > 0 and strategy.position_size[1] < 0) or (strategy.position_size < 0 and strategy.position_size[1] > 0)
+bool trade_closed_this_bar = strategy.closedtrades > strategy.closedtrades[1]
+// Pyramid entry: added to existing position (avg price changed while already in position)
+bool pyramid_entry = in_position and not new_position and not reversed_position and strategy.position_avg_price != strategy.position_avg_price[1]
+// Reset viz if: new from flat, reversed, trade closed, OR pyramid entry (recalc from new avg)
+bool position_changed = in_position and (new_position or reversed_position or trade_closed_this_bar or pyramid_entry)
+bool position_closed = strategy.position_size == 0 and strategy.position_size[1] != 0
+
+// Format value with unit for labels
+formatVal(float val, string unit) =>
+    switch unit
+        'Dollars' => '$' + str.tostring(val, format.volume)
+        'PnL' => '$' + str.tostring(val, format.volume)
+        'Percent' => str.tostring(val) + '%'
+        'Ticks' => str.tostring(val) + 't'
+        'Points' => str.tostring(val) + 'pt'
+        => str.tostring(val)
+
+// Format PnL value for right-side labels
+formatPnL(float pnl) =>
+    string sign = pnl >= 0 ? '+' : ''
+    sign + '$' + str.tostring(math.abs(pnl), format.volume)
+
+// Initialize on new position or reversal
+if position_changed
+    // Delete previous trade's labels first (left side)
+    label.delete(lbl_sl)
+    label.delete(lbl_tp)
+    label.delete(lbl_be_trig)
+    label.delete(lbl_trail_trig)
+    label.delete(lbl_trail_tp_trig)
+    // Delete right-side PnL labels
+    label.delete(lbl_pnl)
+    label.delete(lbl_sl_pnl)
+    label.delete(lbl_tp_pnl)
+    label.delete(lbl_be_lockin_pnl)
+    // Reset trigger states
+    viz_be_triggered := false
+    viz_trail_triggered := false
+    viz_trail_tp_triggered := false
+
+    // Use locked ATR from entry for visualization consistency
+    float viz_atr = not na(state.entry_atr) ? state.entry_atr : global_atr
+    float sl_dist = UnitConverter.new(risk_settings.sl_unit, risk_settings.sl_value).toPrice(entry, pos_qty, viz_atr)
+    float tp_dist = UnitConverter.new(profit_settings.tp_unit, profit_settings.tp_value).toPrice(entry, pos_qty, viz_atr)
+    float be_act_dist = UnitConverter.new(risk_settings.sl_unit, risk_settings.breakeven_activation).toPrice(entry, pos_qty, viz_atr)
+    float be_lockin_dist = UnitConverter.new(risk_settings.sl_unit, risk_settings.breakeven_profit).toPrice(entry, pos_qty, viz_atr)
+    float trail_act_dist = UnitConverter.new(risk_settings.sl_unit, risk_settings.trail_activation).toPrice(entry, pos_qty, viz_atr)
+    float trail_tp_act_dist = UnitConverter.new(profit_settings.tp_unit, profit_settings.trail_tp_activation).toPrice(entry, pos_qty, viz_atr)
+
+    viz_stop := risk_settings.use_stop_loss ? (is_long ? entry - sl_dist : entry + sl_dist) : na
+    viz_target := profit_settings.use_take_profit ? (is_long ? entry + tp_dist : entry - tp_dist) : na
+    viz_be_trig := risk_settings.use_breakeven ? (is_long ? entry + be_act_dist : entry - be_act_dist) : na
+    viz_be_lockin := risk_settings.use_breakeven ? (is_long ? entry + be_lockin_dist : entry - be_lockin_dist) : na
+    viz_trail_trig := risk_settings.use_trailing_stop ? (is_long ? entry + trail_act_dist : entry - trail_act_dist) : na
+    viz_trail_tp_trig := profit_settings.use_trailing_tp ? (is_long ? entry + trail_tp_act_dist : entry - trail_tp_act_dist) : na
+
+    // Log new position
+    log.info('ENTRY {0} @ {1} | SL: {2} | TP: {3} | Qty: {4}',
+         is_long ? 'LONG' : 'SHORT', entry, viz_stop, viz_target, pos_qty)
+
+    // Create labels (offset left by 2 bars)
+    if i_show_levels and i_show_labels
+        int lbl_x = bar_index - 2
+        string sl_txt = i_show_values ? 'SL ' + formatVal(risk_settings.sl_value, risk_settings.sl_unit) : 'SL'
+        string tp_txt = i_show_values ? 'TP ' + formatVal(profit_settings.tp_value, profit_settings.tp_unit) : 'TP'
+        string be_txt = i_show_values ? 'BE▸ ' + formatVal(risk_settings.breakeven_activation, risk_settings.sl_unit) : 'BE▸'
+        string trail_txt = i_show_values ? 'SL▸ ' + formatVal(risk_settings.trail_activation, risk_settings.sl_unit) : 'SL▸'
+        string trail_tp_txt = i_show_values ? 'TP▸ ' + formatVal(profit_settings.trail_tp_activation, profit_settings.tp_unit) : 'TP▸'
+        if not na(viz_stop)
+            lbl_sl := label.new(lbl_x, viz_stop, sl_txt, xloc.bar_index, yloc.price, color.new(chart.bg_color, 100), label.style_label_right, i_color_sl, 12, text.align_left, font.family_monospace)
+        if not na(viz_target)
+            lbl_tp := label.new(lbl_x, viz_target, tp_txt, xloc.bar_index, yloc.price, color.new(chart.bg_color, 100), label.style_label_right, i_color_tp, 12, text.align_left, font.family_monospace)
+        if not na(viz_be_trig) and i_show_triggers
+            lbl_be_trig := label.new(lbl_x, viz_be_trig, be_txt, xloc.bar_index, yloc.price, color.new(chart.bg_color, 100), label.style_label_right, i_color_be_trig, 11, text.align_left, font.family_monospace)
+        if not na(viz_trail_trig) and i_show_triggers
+            lbl_trail_trig := label.new(lbl_x, viz_trail_trig, trail_txt, xloc.bar_index, yloc.price, color.new(chart.bg_color, 100), label.style_label_right, i_color_sl, 11, text.align_left, font.family_monospace)
+        if not na(viz_trail_tp_trig) and i_show_triggers
+            lbl_trail_tp_trig := label.new(lbl_x, viz_trail_tp_trig, trail_tp_txt, xloc.bar_index, yloc.price, color.new(chart.bg_color, 100), label.style_label_right, i_color_tp, 11, text.align_left, font.family_monospace)
+
+    // Create right-side PnL labels (offset 1 bar right, will be updated each bar)
+    if i_show_levels and i_show_labels
+        float current_pnl = strategy.openprofit
+        float sl_pnl = not na(viz_stop) ? (is_long ? viz_stop - entry : entry - viz_stop) * pos_qty * syminfo.pointvalue : na
+        float tp_pnl = not na(viz_target) ? (is_long ? viz_target - entry : entry - viz_target) * pos_qty * syminfo.pointvalue : na
+        color pnl_color = current_pnl > 0 ? i_color_tp : current_pnl < 0 ? i_color_sl : chart.fg_color
+        lbl_pnl := label.new(bar_index + 1, close, formatPnL(current_pnl), xloc.bar_index, yloc.price, color.new(chart.bg_color, 100), label.style_label_left, pnl_color, 12, text.align_right, font.family_monospace)
+        if not na(viz_stop)
+            lbl_sl_pnl := label.new(bar_index + 1, viz_stop, formatPnL(sl_pnl), xloc.bar_index, yloc.price, color.new(chart.bg_color, 100), label.style_label_left, i_color_sl, 12, text.align_right, font.family_monospace)
+        if not na(viz_target)
+            lbl_tp_pnl := label.new(bar_index + 1, viz_target, formatPnL(tp_pnl), xloc.bar_index, yloc.price, color.new(chart.bg_color, 100), label.style_label_left, i_color_tp, 12, text.align_right, font.family_monospace)
+
+// Detect trade closure using strategy.closedtrades (more accurate than price-based detection)
+bool trade_just_closed = strategy.closedtrades > strategy.closedtrades[1]
+float actual_exit_price = trade_just_closed ? strategy.closedtrades.exit_price(strategy.closedtrades - 1) : na
+float actual_entry_price = trade_just_closed ? strategy.closedtrades.entry_price(strategy.closedtrades - 1) : na
+float actual_pnl = trade_just_closed ? strategy.closedtrades.profit(strategy.closedtrades - 1) : na
+bool was_long = trade_just_closed ? strategy.closedtrades.size(strategy.closedtrades - 1) > 0 : false
+
+// Determine exit type based on exit price relative to entry
+bool exited_at_loss = false
+bool exited_at_profit = false
+if trade_just_closed
+    if was_long
+        exited_at_loss := actual_exit_price < actual_entry_price
+        exited_at_profit := actual_exit_price >= actual_entry_price
+    else
+        exited_at_loss := actual_exit_price > actual_entry_price
+        exited_at_profit := actual_exit_price <= actual_entry_price
+
+// Log exit events with actual trade data
+if trade_just_closed
+    string exit_type = exited_at_loss ? 'SL' : 'TP'
+    log.info('EXIT {0} @ {1} | Entry: {2} | PnL: {3}', exit_type, actual_exit_price, actual_entry_price, actual_pnl)
+
+// For visualization freeze - detect based on position closing
+bool exit_hit_this_bar = position_closed
+
+// Update stop/target while in position (for trailing/breakeven) - skip on position change or exit
+if in_position and not position_changed and not exit_hit_this_bar
+    // Use locked ATR from entry
+    float update_atr = not na(state.entry_atr) ? state.entry_atr : global_atr
+    float be_act_dist = UnitConverter.new(risk_settings.sl_unit, risk_settings.breakeven_activation).toPrice(entry, pos_qty, update_atr)
+    float be_profit_dist = UnitConverter.new(risk_settings.sl_unit, risk_settings.breakeven_profit).toPrice(entry, pos_qty, update_atr)
+
+    // Update stop if breakeven active
+    if risk_settings.use_breakeven and current_profit >= be_act_dist
+        viz_stop := is_long ? entry + be_profit_dist : entry - be_profit_dist
+        if not viz_be_triggered
+            viz_be_triggered := true
+            log.info('BE TRIGGERED | Profit: {0} | New SL: {1}', current_profit, viz_stop)
+
+    // Update stop if trailing active
+    if state.trail_stop_active and not na(state.current_trail_stop)
+        viz_stop := state.current_trail_stop
+        if not viz_trail_triggered
+            viz_trail_triggered := true
+            log.info('TRAIL STOP TRIGGERED | SL now trailing @ {0}', viz_stop)
+
+    // Update trailing TP level if active (separate from activation line)
+    if state.trail_tp_active and not na(state.current_trail_tp)
+        viz_trail_tp_level := state.current_trail_tp
+        if not viz_trail_tp_triggered
+            viz_trail_tp_triggered := true
+            log.info('TRAIL TP TRIGGERED | TP now trailing @ {0}', viz_trail_tp_level)
+
+// Update right-side PnL labels every bar while in position
+if in_position and i_show_levels and i_show_labels
+    float current_pnl = strategy.openprofit
+    float sl_pnl = not na(viz_stop) ? (is_long ? viz_stop - entry : entry - viz_stop) * pos_qty * syminfo.pointvalue : na
+    // Use trailing TP level for PnL if active, otherwise use fixed target
+    float tp_level_for_pnl = not na(viz_trail_tp_level) ? viz_trail_tp_level : viz_target
+    float tp_pnl = not na(tp_level_for_pnl) ? (is_long ? tp_level_for_pnl - entry : entry - tp_level_for_pnl) * pos_qty * syminfo.pointvalue : na
+    float be_lockin_pnl = not na(viz_be_lockin) ? (is_long ? viz_be_lockin - entry : entry - viz_be_lockin) * pos_qty * syminfo.pointvalue : na
+    color pnl_color = current_pnl > 0 ? i_color_tp : current_pnl < 0 ? i_color_sl : chart.fg_color
+
+    // Update PnL label at current price level
+    if not na(lbl_pnl)
+        label.set_xy(lbl_pnl, bar_index + 1, close)
+        label.set_text(lbl_pnl, formatPnL(current_pnl))
+        label.set_textcolor(lbl_pnl, pnl_color)
+
+    // Update SL PnL label (position and text may change with trailing/breakeven)
+    if not na(lbl_sl_pnl) and not na(viz_stop)
+        label.set_xy(lbl_sl_pnl, bar_index + 1, viz_stop)
+        label.set_text(lbl_sl_pnl, formatPnL(sl_pnl))
+
+    // Update TP PnL label (follows trailing level when active, otherwise fixed target)
+    if not na(lbl_tp_pnl) and not na(tp_level_for_pnl)
+        label.set_xy(lbl_tp_pnl, bar_index + 1, tp_level_for_pnl)
+        label.set_text(lbl_tp_pnl, formatPnL(tp_pnl))
+
+    // Create/update BE lock-in PnL label after trigger
+    if viz_be_triggered and not na(viz_be_lockin) and i_show_triggers
+        if na(lbl_be_lockin_pnl)
+            lbl_be_lockin_pnl := label.new(bar_index + 1, viz_be_lockin, formatPnL(be_lockin_pnl), xloc.bar_index, yloc.price, color.new(chart.bg_color, 100), label.style_label_left, i_color_be_trig, 12, text.align_right, font.family_monospace)
+        else
+            label.set_xy(lbl_be_lockin_pnl, bar_index + 1, viz_be_lockin)
+            label.set_text(lbl_be_lockin_pnl, formatPnL(be_lockin_pnl))
+
+// Log position closed (for session close or other non-SL/TP exits)
+if position_closed and not exited_at_loss and not exited_at_profit
+    log.info('EXIT CLOSED | Entry: {0} | Final PnL: {1}', entry[1], strategy.netprofit - strategy.netprofit[1])
+
+// Delete right-side PnL labels when position closes or exit hit
+if position_closed or exit_hit_this_bar
+    label.delete(lbl_pnl)
+    label.delete(lbl_sl_pnl)
+    label.delete(lbl_tp_pnl)
+    label.delete(lbl_be_lockin_pnl)
+    lbl_pnl := na
+    lbl_sl_pnl := na
+    lbl_tp_pnl := na
+    lbl_be_lockin_pnl := na
+
+// Reset plot values one bar AFTER exit (use [1] to delay) - but NOT if we just set new values
+if exit_hit_this_bar[1] and not position_changed
+    viz_stop := na
+    viz_target := na
+    viz_be_trig := na
+    viz_be_lockin := na
+    viz_trail_trig := na
+    viz_trail_tp_trig := na
+    viz_trail_tp_level := na
+    viz_be_triggered := false
+    viz_trail_triggered := false
+    viz_trail_tp_triggered := false
+
+// Plot values - hide on reversal bar (to avoid zigzag), but show on new/reentry position
+bool show_viz = in_position and not reversed_position and (new_position or trade_closed_this_bar or pyramid_entry or not exit_hit_this_bar[1])
+
+float plot_entry = show_viz and i_show_levels ? entry : na
+float plot_stop = show_viz and i_show_levels ? viz_stop : na
+float plot_target = show_viz and i_show_levels ? viz_target : na
+// BE trigger visible until hit (including trigger bar for fill), lock-in visible after hit
+float plot_be_trig = show_viz and i_show_levels and i_show_triggers and (not viz_be_triggered or not viz_be_triggered[1]) ? viz_be_trig : na
+float plot_be_lockin = show_viz and i_show_levels and i_show_triggers and viz_be_triggered ? viz_be_lockin : na
+// Fill zone between BE trigger and lock-in (show until trigger hit, including trigger bar)
+float plot_be_lockin_fill = show_viz and i_show_levels and i_show_triggers and (not viz_be_triggered or not viz_be_triggered[1]) ? viz_be_lockin : na
+// Trailing stop/TP triggers - visible until hit (including trigger bar)
+float plot_trail_trig = show_viz and i_show_levels and i_show_triggers and (not viz_trail_triggered or not viz_trail_triggered[1]) ? viz_trail_trig : na
+float plot_trail_tp_trig = show_viz and i_show_levels and i_show_triggers and (not viz_trail_tp_triggered or not viz_trail_tp_triggered[1]) ? viz_trail_tp_trig : na
+// Trailing TP level - visible after trigger (this is where exit will happen)
+float plot_trail_tp_level = show_viz and i_show_levels and viz_trail_tp_triggered ? viz_trail_tp_level : na
+
+// Main level plots
+p_entry = plot(plot_entry, 'Entry', i_color_entry, 1, plot.style_linebr, linestyle = plot.linestyle_dotted)
+p_stop = plot(plot_stop, 'Stop Loss', i_color_sl, 2, plot.style_linebr)
+p_target = plot(plot_target, 'Take Profit', i_color_tp, 2, plot.style_linebr)
+
+// BE trigger/lock-in plots (trigger = dotted, lock-in = dashed)
+p_be_trig = plot(plot_be_trig, 'BE Trigger', i_color_be_trig, 1, plot.style_linebr, linestyle = plot.linestyle_dotted)
+plot(plot_be_lockin, 'BE Lock-In', i_color_be_trig, 1, plot.style_linebr, linestyle = plot.linestyle_dashed)
+
+// Trailing trigger plots (trigger = dotted, offset = dashed)
+plot(plot_trail_trig, 'Trail Trigger', i_color_sl, 1, plot.style_linebr, linestyle = plot.linestyle_dotted)
+plot(plot_trail_tp_trig, 'Trail TP Trigger', i_color_tp, 1, plot.style_linebr, linestyle = plot.linestyle_dotted)
+// Trailing TP level (where exit will actually happen after activation)
+plot(plot_trail_tp_level, 'Trail TP Level', i_color_tp, 1, plot.style_linebr, linestyle = plot.linestyle_dashed)
+
+// BE lock-in fill plot (invisible, just for fill)
+p_be_lockin_fill = plot(plot_be_lockin_fill, 'BE Lock-In Fill', color.new(color.white, 100), 1, plot.style_linebr)
+
+// Fill between entry and stop/target
+fill(p_entry, p_stop, color.new(i_color_sl, 92), title = 'Risk Zone')
+fill(p_entry, p_target, color.new(i_color_tp, 92), title = 'Reward Zone')
+
+// Fill between BE trigger and lock-in (before trigger hit)
+fill(p_be_trig, p_be_lockin_fill, color.new(i_color_be_trig, 95), title = 'BE Zone')
+
+// ── Session Visualization ──
+any_session_enabled = session1.use or session2.use or session3.use
+any_session_active = session1.inSession() or session2.inSession() or session3.inSession()
+session_bg_show = i_show_session_bg and any_session_enabled
+session_bg_condition = i_session_bg_mode == 'In Session' ? any_session_active : not any_session_active
+bgcolor(session_bg_show and session_bg_condition ? color.new(i_session_bg_color, 95) : na, title = 'Session Shading')
+
+// Backtest range visualization
+bgcolor(backtest_range.use and not backtest_range.inRange() ? color.new(color.gray, 85) : na, title = 'Outside Backtest Range')
+

@@ -1,0 +1,60 @@
+//@version=4
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/Catch the Big Fish.pine
+// content_hash: 75ff6484483b7cdb
+// collected: 2026-07-27
+strategy("Catch the Big Fish", overlay=true)
+multiplier = input(9, title="Volume Multiplier")
+duration = input(150, title="Volume SMA duration")
+daysToPlot = input(7, title="Calendar Days")
+showLabels = input(false, title="Show Labels?")
+heavyVolume = volume > (sma(volume, duration) * multiplier)
+line highToPlot = na
+line lowToPlot = na
+// for heavy volume candle, plot the high and low for given number of calendar days
+// bold lines indicate stronger support / resistance than thin lines
+if (heavyVolume)
+    if (close > open)
+        highToPlot := line.new(x1=time, y1=high, x2=time + 86400000 * daysToPlot, y2=high, color=color.navy, style=line.style_dashed, width=1, extend=extend.none, xloc=xloc.bar_time)
+        lowToPlot := line.new(x1=time, y1=low, x2=time + 86400000 * daysToPlot, y2=low, color=color.maroon, style=line.style_dashed, width=2, extend=extend.none, xloc=xloc.bar_time)
+    else
+        highToPlot := line.new(x1=time, y1=high, x2=time + 86400000 * daysToPlot, y2=high, color=color.navy, style=line.style_solid, width=2, extend=extend.none, xloc=xloc.bar_time)
+        lowToPlot := line.new(x1=time, y1=low, x2=time + 86400000 * daysToPlot, y2=low, color=color.maroon, style=line.style_solid, width=1, extend=extend.none, xloc=xloc.bar_time)
+plotshape(showLabels and heavyVolume and close > open ? 1 : na, style = shape.labeldown , color = color.red , location = location.abovebar, size = size.small, text = "Short Below", textcolor=color.white)
+plotshape(showLabels and heavyVolume and close < open ? 1 : na , style = shape.labelup , color = color.teal , location = location.belowbar , size = size.tiny, text = "Buy Above",  textcolor=color.white)
+calcLongBrkOut()=> 
+    x = 0.0
+    
+    if (heavyVolume and close < open)
+        x := high
+    else if (x[1] > 0)
+        x := x[1]
+    x
+    
+calcShortBrkOut()=> 
+    x = 0.0
+    
+    if (heavyVolume and close > open)
+        x := low
+    else if (x[1] > 0)
+        x := x[1]
+    x
+   
+   
+longBrkOutVal = calcLongBrkOut()
+shortBrkOutVal = calcShortBrkOut()
+   
+buyLbl = "Go long"
+slLong = "SL - Low of prev candle"
+shortLbl = "Go short"
+slShort = "SL = High of prev candle"
+longBrkOut = longBrkOutVal > 0 and close[1] >= longBrkOutVal and low[1] <= longBrkOutVal and close >= close[1] and close[1] >= open[1] and close >= open[1]
+shortBrkOut = shortBrkOutVal > 0 and close[1] <= shortBrkOutVal and high[1] >= shortBrkOutVal and close <= close[1] and close[1] <= open[1] and close <= open[1]
+alertcondition(condition=longBrkOut, message="Go long")
+     
+plotshape( longBrkOut ? 1 : na, style = shape.labeldown , color = color.teal , location = location.abovebar, size = size.small, text = buyLbl, textcolor=color.white)
+plotshape( longBrkOut ? 1 : na , style = shape.labelup , color = color.orange , location = location.belowbar , size = size.tiny, text = slLong,  textcolor=color.white)
+plotshape( shortBrkOut ? 1 : na, style = shape.labelup , color = color.red , location = location.belowbar, size = size.small, text = shortLbl, textcolor=color.white)
+plotshape( shortBrkOut ? 1 : na , style = shape.labeldown , color = color.maroon , location = location.abovebar , size = size.tiny, text = slShort,  textcolor=color.white)
+Expand (70 lines)

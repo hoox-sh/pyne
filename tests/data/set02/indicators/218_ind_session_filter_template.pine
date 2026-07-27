@@ -1,0 +1,184 @@
+//@version=6
+// set02 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/templates/utilities/session-filter.pine
+// content_hash: 92f2eace2dba437f
+// collected: 2026-07-27
+indicator("Session Filter Template", shorttitle="Sessions", overlay=true)
+
+// ============================================================================
+// INPUTS
+// ============================================================================
+// Session Definitions (in exchange timezone)
+showAsia = input.bool(true, "Show Asia Session", group="Sessions")
+asiaStart = input.session("1900-0400", "Asia Session", group="Sessions", tooltip="Tokyo session in exchange timezone")
+asiaColor = input.color(color.new(color.blue, 85), "Asia Color", group="Sessions")
+
+showLondon = input.bool(true, "Show London Session", group="Sessions")
+londonStart = input.session("0300-1200", "London Session", group="Sessions", tooltip="London session in exchange timezone")
+londonColor = input.color(color.new(color.green, 85), "London Color", group="Sessions")
+
+showNY = input.bool(true, "Show New York Session", group="Sessions")
+nyStart = input.session("0800-1700", "New York Session", group="Sessions", tooltip="New York session in exchange timezone")
+nyColor = input.color(color.new(color.red, 85), "NY Color", group="Sessions")
+
+// Custom Session
+showCustom = input.bool(false, "Show Custom Session", group="Custom Session")
+customStart = input.session("0930-1600", "Custom Session", group="Custom Session")
+customColor = input.color(color.new(color.purple, 85), "Custom Color", group="Custom Session")
+customLabel = input.string("Custom", "Custom Label", group="Custom Session")
+
+// Overlap Settings
+highlightOverlap = input.bool(true, "Highlight Session Overlaps", group="Overlaps")
+londonNYOverlapColor = input.color(color.new(color.yellow, 80), "London/NY Overlap", group="Overlaps")
+
+// Display Settings
+showLabels = input.bool(true, "Show Session Labels", group="Display")
+showHighLow = input.bool(true, "Show Session High/Low", group="Display")
+extendLevels = input.bool(true, "Extend Levels", group="Display")
+
+// Filter Output
+filterMode = input.string("None", "Filter Mode", options=["None", "Asia Only", "London Only", "NY Only", "London+NY", "Custom Only"], group="Filter Output", tooltip="Use this to filter signals to specific sessions")
+
+// ============================================================================
+// FUNCTIONS
+// ============================================================================
+// Check if current bar is in session
+inSession(sess) =>
+    not na(time(timeframe.period, sess))
+
+// Get session start
+isSessionStart(sess) =>
+    inSession(sess) and not inSession(sess)[1]
+
+// Get session end
+isSessionEnd(sess) =>
+    not inSession(sess) and inSession(sess)[1]
+
+// ============================================================================
+// CALCULATIONS
+// ============================================================================
+// Session status
+inAsia = inSession(asiaStart) and showAsia
+inLondon = inSession(londonStart) and showLondon
+inNY = inSession(nyStart) and showNY
+inCustom = inSession(customStart) and showCustom
+
+// Session overlaps
+londonNYOverlap = inLondon and inNY and highlightOverlap
+
+// Session starts
+asiaStarted = isSessionStart(asiaStart) and showAsia
+londonStarted = isSessionStart(londonStart) and showLondon
+nyStarted = isSessionStart(nyStart) and showNY
+customStarted = isSessionStart(customStart) and showCustom
+
+// Track session high/low
+var float asiaHigh = na
+var float asiaLow = na
+var float londonHigh = na
+var float londonLow = na
+var float nyHigh = na
+var float nyLow = na
+var float customHigh = na
+var float customLow = na
+
+// Reset and track Asia
+if asiaStarted
+    asiaHigh := high
+    asiaLow := low
+else if inAsia
+    asiaHigh := math.max(nz(asiaHigh), high)
+    asiaLow := math.min(nz(asiaLow, high), low)
+
+// Reset and track London
+if londonStarted
+    londonHigh := high
+    londonLow := low
+else if inLondon
+    londonHigh := math.max(nz(londonHigh), high)
+    londonLow := math.min(nz(londonLow, high), low)
+
+// Reset and track NY
+if nyStarted
+    nyHigh := high
+    nyLow := low
+else if inNY
+    nyHigh := math.max(nz(nyHigh), high)
+    nyLow := math.min(nz(nyLow, high), low)
+
+// Reset and track Custom
+if customStarted
+    customHigh := high
+    customLow := low
+else if inCustom
+    customHigh := math.max(nz(customHigh), high)
+    customLow := math.min(nz(customLow, high), low)
+
+// Filter output - use this in your strategy
+filterActive = switch filterMode
+    "None" => true
+    "Asia Only" => inAsia
+    "London Only" => inLondon
+    "NY Only" => inNY
+    "London+NY" => inLondon or inNY
+    "Custom Only" => inCustom
+    => true
+
+// ============================================================================
+// PLOTS
+// ============================================================================
+// Session backgrounds
+bgcolor(inAsia and not londonNYOverlap ? asiaColor : na, title="Asia Session")
+bgcolor(inLondon and not londonNYOverlap ? londonColor : na, title="London Session")
+bgcolor(inNY and not londonNYOverlap ? nyColor : na, title="NY Session")
+bgcolor(inCustom ? customColor : na, title="Custom Session")
+bgcolor(londonNYOverlap ? londonNYOverlapColor : na, title="London/NY Overlap")
+
+// Session high/low lines
+plot(showHighLow and (inAsia or (extendLevels and not inLondon and not inNY)) ? asiaHigh : na, "Asia High", color=color.new(color.blue, 50), style=plot.style_linebr, linewidth=1)
+plot(showHighLow and (inAsia or (extendLevels and not inLondon and not inNY)) ? asiaLow : na, "Asia Low", color=color.new(color.blue, 50), style=plot.style_linebr, linewidth=1)
+
+plot(showHighLow and (inLondon or extendLevels) ? londonHigh : na, "London High", color=color.new(color.green, 50), style=plot.style_linebr, linewidth=1)
+plot(showHighLow and (inLondon or extendLevels) ? londonLow : na, "London Low", color=color.new(color.green, 50), style=plot.style_linebr, linewidth=1)
+
+plot(showHighLow and (inNY or extendLevels) ? nyHigh : na, "NY High", color=color.new(color.red, 50), style=plot.style_linebr, linewidth=1)
+plot(showHighLow and (inNY or extendLevels) ? nyLow : na, "NY Low", color=color.new(color.red, 50), style=plot.style_linebr, linewidth=1)
+
+// Session start labels
+if showLabels and asiaStarted
+    label.new(bar_index, high, "Asia", color=color.new(color.blue, 70), textcolor=color.white, style=label.style_label_down, size=size.small)
+
+if showLabels and londonStarted
+    label.new(bar_index, high, "London", color=color.new(color.green, 70), textcolor=color.white, style=label.style_label_down, size=size.small)
+
+if showLabels and nyStarted
+    label.new(bar_index, high, "New York", color=color.new(color.red, 70), textcolor=color.white, style=label.style_label_down, size=size.small)
+
+if showLabels and customStarted
+    label.new(bar_index, high, customLabel, color=color.new(color.purple, 70), textcolor=color.white, style=label.style_label_down, size=size.small)
+
+// ============================================================================
+// FILTER OUTPUT INDICATOR
+// ============================================================================
+// This plots whether the filter is active - use this in conjunction with your signals
+plot(filterActive ? 1 : 0, "Filter Active", color=color.new(color.white, 100), display=display.status_line)
+
+// ============================================================================
+// ALERTS
+// ============================================================================
+alertcondition(asiaStarted, "Asia Session Start", "Asia trading session has started")
+alertcondition(londonStarted, "London Session Start", "London trading session has started")
+alertcondition(nyStarted, "NY Session Start", "New York trading session has started")
+alertcondition(londonNYOverlap and not londonNYOverlap[1], "London/NY Overlap Start", "London and New York sessions are now overlapping")
+
+// ============================================================================
+// USAGE NOTES
+// ============================================================================
+// To use the filter in your strategy:
+// 1. Copy the relevant session detection code
+// 2. Use filterActive in your entry conditions:
+//    longCondition = yourSignal and filterActive
+//
+// Or use specific session booleans:
+//    longCondition = yourSignal and inLondon

@@ -1,0 +1,50 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/ZeroLag-MACD-多空策略-ZeroLag-MACD-Long-Short-Strategy.md
+// content_hash: d76e1973f561c152
+// collected: 2026-07-27
+strategy("Zero Lag MACD Strategy", shorttitle="ZL_MACD Strategy", overlay=true)
+
+// Input variables
+fastLength = input(12, title="Fast MM period", minval=1)
+slowLength = input(26, title="Slow MM period", minval=1)
+signalLength = input(9, title="Signal MM period", minval=1)
+MacdEmaLength = input(9, title="MACD EMA period", minval=1)
+useEma = input(true, title="Use EMA (otherwise SMA)")
+useOldAlgo = input(false, title="Use Glaz algo (otherwise 'real' original zero lag)")
+
+// Calculate Zero Lag MACD components
+ma1 = useEma ? ema(close, fastLength) : sma(close, fastLength) 
+ma2 = useEma ? ema(ma1, fastLength) : sma(ma1, fastLength) 
+zerolagEMA = ((2 * ma1) - ma2)
+
+mas1 = useEma ? ema(close, slowLength) : sma(close, slowLength)
+mas2 = useEma ? ema(mas1, slowLength) : sma(mas1, slowLength)
+zerolagslowMA = ((2 * mas1) - mas2)
+
+ZeroLagMACD = zerolagEMA - zerolagslowMA 
+
+emasig1 = ema(ZeroLagMACD, signalLength)
+emasig2 = ema(emasig1, signalLength)
+signal = useOldAlgo ? sma(ZeroLagMACD, signalLength) : (2 * emasig1) - emasig2
+
+// Generate buy and sell signals
+buySignal = crossover(ZeroLagMACD, signal)
+sellSignal = crossunder(ZeroLagMACD, signal)
+
+// Strategy conditions
+if (buySignal)
+    strategy.entry("Buy", strategy.long)
+if (sellSignal)
+    strategy.entry("Sell", strategy.short)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/448772
+
+> Last Modified
+
+2024-04-18 17:06:49

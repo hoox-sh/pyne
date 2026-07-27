@@ -1,0 +1,42 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于参数优化的趋势跟踪型量化策略Parameter-Optimized-Trend-Following-Quantitative-Strategy.md
+// content_hash: 049346c4c920a353
+// collected: 2026-07-27
+strategy(title="percentrank", shorttitle="percentrank")
+src = input(close, title="Source")
+len = input(title="lookback - Период сравнения", type=input.integer, defval=10, minval=2)
+scale = input(title="scale offset - смещение шкалы", type=input.integer, defval=50, minval=0, maxval=100)
+level_1 = input(title="sygnal line 1", type=input.integer, defval=30)
+level_2 = input(title="sygnal line 2", type=input.integer, defval=-30)
+
+prank = percentrank(src,len)-scale
+plot(prank, style = plot.style_columns)
+plot(level_2, style = plot.style_line, color = color.red)
+plot(level_1, style = plot.style_line, color = color.green)
+
+longCondition = (crossunder(level_1, prank) == true)
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+longExitCondition = (crossover(level_2, prank) == true)
+if (longExitCondition)
+    strategy.close("Long")
+    
+shortCondition = (crossover(level_2, prank) == true)
+if (shortCondition)
+    strategy.entry("Short", strategy.short)
+shortexitCondition = (crossunder(level_1, prank) == true)
+if (shortexitCondition)
+    strategy.close("Short")
+
+    
+```
+
+> Detail
+
+https://www.fmz.com/strategy/437383
+
+> Last Modified
+
+2024-01-02 11:01:22

@@ -1,0 +1,37 @@
+//@version=6
+// set03 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block150
+// content_hash: a0119528f13e6c0b
+// collected: 2026-07-27
+indicator("`matrix.add_row()` Example 1")
+
+// Create a 2x3 "int" matrix containing values `0`.
+m = matrix.new<int>(2, 3, 0)
+
+// Add a row with `na` values to the matrix.
+matrix.add_row(m)
+
+// Display matrix elements.
+if barstate.islastconfirmedhistory
+    var t = table.new(position.top_right, 2, 2, color.green)
+    table.cell(t, 0, 0, "Matrix elements:")
+    table.cell(t, 0, 1, str.tostring(m))
+
+//@version=6
+indicator("`matrix.add_row()` Example 2")
+
+if barstate.islastconfirmedhistory
+    // Create an empty matrix object. 
+    var m = matrix.new<int>()
+    
+    // Create an array with values `1` and `2`.
+    var a = array.from(1, 2)
+    
+    // Add the `a` array as the first row of the empty matrix.
+    matrix.add_row(m, 0, a)
+    
+    // Display matrix elements.
+    var t = table.new(position.top_right, 2, 2, color.green)
+    table.cell(t, 0, 0, "Matrix elements:")
+    table.cell(t, 0, 1, str.tostring(m))

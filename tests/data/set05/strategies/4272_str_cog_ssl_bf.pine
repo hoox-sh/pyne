@@ -1,0 +1,129 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/中心引力通道趋势跟踪策略Center-of-Gravity-SSL-Channel-Trend-Following-Strategy.md
+// content_hash: 56b8767c5b8bf84b
+// collected: 2026-07-27
+// Thanks to HPotter for the original code for Center of Gravity Backtest
+strategy("CoG SSL BF ?", overlay=true, initial_capital=10000, default_qty_type=strategy.percent_of_equity, default_qty_value=100, commission_type=strategy.commission.percent, commission_value=0.075)
+
+/////////////// Time Frame ///////////////
+_0 = input(false,  "════════ Test Period ═══════")
+testStartYear = input(2017, "Backtest Start Year") 
+testStartMonth = input(1, "Backtest Start Month")
+testStartDay = input(1, "Backtest Start Day")
+testPeriodStart = timestamp(testStartYear,testStartMonth,testStartDay, 0, 0)
+
+testStopYear = input(2019, "Backtest Stop Year")
+testStopMonth = input(12, "Backtest Stop Month")
+testStopDay = input(31, "Backtest Stop Day")
+testPeriodStop = timestamp(testStopYear,testStopMonth,testStopDay, 0, 0)
+
+testPeriod() => true
+
+/////////////// SSL Channels /////////////// 
+_1 = input(false,  "═════════ SSL ══════════")
+len1=input(title="SMA Length 1", defval=12)
+len2=input(title="SMA Length 2", defval=13)
+
+smaHigh = sma(high, len1)
+smaLow = sma(low, len2)
+
+Hlv = 0
+Hlv := close > smaHigh ? 1 : close < smaLow ? -1 : Hlv[1]
+sslDown = Hlv < 0 ? smaHigh : smaLow
+sslUp = Hlv < 0 ? smaLow : smaHigh
+
+///////////// Center of Gravity /////////////
+_2 = input(false,  "═════════ CoG ══════════")
+Length = input(25, minval=1)
+m = input(5, minval=0)
+Percent = input(6, minval=0, title="COG %")
+
+xLG = linreg(close, Length, m)
+xLG1r = xLG + ((close * Percent) / 100)
+xLG1s = xLG - ((close * Percent) / 100)
+
+pos = 0.0
+pos := iff(close > xLG1r, 1, iff(close < xLG1s, -1, nz(pos[1], 0))) 
+possig = iff(pos == 1, 1, iff(pos == -1, -1, pos))
+
+///////////// Rate Of Change ///////////// 
+_3 = input(false,  "══════ Rate of Change ══════")
+source = close
+roclength = input(2, "ROC Length",  minval=1)
+pcntChange = input(10, "ROC % Change", minval=1)
+roc = 100 * (source - source[roclength]) / source[roclength]
+emaroc = ema(roc, roclength / 2)
+isMoving() => emaroc > (pcntChange / 2) or emaroc < (0 - (pcntChange / 2))
+
+/////////////// Srategy ///////////////
+long = possig == 1 or (sslUp > sslDown and isMoving())
+short = possig == -1 or (sslUp < sslDown and isMoving())
+
+last_long = 0.0
+last_short = 0.0
+last_long := long ? time : nz(last_long[1])
+last_short := short ? time : nz(last_short[1])
+
+long_signal = crossover(last_long, last_short)
+short_signal = crossover(last_short, last_long)
+
+last_open_long_signal = 0.0
+last_open_short_signal = 0.0
+last_open_long_signal := long_signal ? open : nz(last_open_long_signal[1])
+last_open_short_signal := short_signal ? open : nz(last_open_short_signal[1])
+
+last_long_signal = 0.0
+last_short_signal = 0.0
+last_long_signal := long_signal ? time : nz(last_long_signal[1])
+last_short_signal := short_signal ? time : nz(last_short_signal[1])
+
+in_long_signal = last_long_signal > last_short_signal
+in_short_signal = last_short_signal > last_long_signal
+
+last_high = 0.0
+last_low = 0.0
+last_high := not in_long_signal ? na : in_long_signal and (na(last_high[1]) or high > nz(last_high[1])) ? high : nz(last_high[1])
+last_low := not in_short_signal ? na : in_short_signal and (na(last_low[1]) or low < nz(last_low[1])) ? low : nz(last_low[1])
+
+since_longEntry = barssince(last_open_long_signal != last_open_long_signal[1]) 
+since_shortEntry = barssince(last_open_short_signal != last_open_short_signal[1]) 
+
+/////////////// Dynamic ATR Stop Losses ///////////////
+_4 = input(false,  "════════ Stop Loss ═══════")
+atrLkb = input(1, minval=1, title='ATR Stop Period')
+atrMult = input(2, step=0.25, title='ATR Stop Multiplier') 
+atr1 = atr(atrLkb)
+
+longStop = 0.0
+longStop :=  short_signal ? na : long_signal ? close - (atr1 * atrMult) : longStop[1]
+shortStop = 0.0
+shortStop := long_signal ? na : short_signal ? close + (atr1 * atrMult) : shortStop[1]
+
+/////////////// Execution ///////////////
+if testPeriod()
+    strategy.entry("L",  strategy.long, when=long)
+    strategy.entry("S", strategy.short, when=short)
+    strategy.exit("L SL", "L", stop=longStop, when=since_longEntry > 0)
+    strategy.exit("S SL", "S", stop=shortStop, when=since_shortEntry > 0)
+
+/////////////// Plotting ///////////////
+p1 = plot(sslDown, linewidth = 1, color=color.red, title="SSL down")
+p2 = plot(sslUp, linewidth = 1, color=color.lime, title="SSL up")
+fill(p1, p2,  color = not isMoving() ? color.white : sslDown < sslUp ? color.lime : color.red, transp=80)
+plot(xLG1r, color=color.lime, title="LG1r")
+plot(xLG1s, color=color.red, title="LG1s")
+plot(strategy.position_size <= 0 ? na : longStop, title="Long Stop Loss", color=color.yellow, style=plot.style_circles, linewidth=1)
+plot(strategy.position_size >= 0 ? na : shortStop, title="Short Stop Loss", color=color.orange, style=plot.style_circles, linewidth=1)
+bgcolor(long ? color.green : short ? color.red : not isMoving() ? color.white : na, transp=80)
+bgcolor(long_signal ? color.lime : short_signal ? color.red : na, transp=60)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/427304
+
+> Last Modified
+
+2023-09-19 21:30:23

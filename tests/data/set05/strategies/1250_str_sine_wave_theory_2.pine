@@ -1,0 +1,91 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/量化折线策略Quantitative-Zigzag-Strategy.md
+// content_hash: 45c54d41851493e6
+// collected: 2026-07-27
+strategy("Sine Wave Theory",overlay=false, precision = 2, initial_capital = 1000,shorttitle = "SINE_W_T")
+
+var bar_change_wave_direction = input.int(defval=1,title="Starting Wave Direction",group="Bar Change")
+bar_change_sine_wave_number = input.int(defval=28,title="Sine Wave #",group="Bar Change")
+bar_change_sine_wave_res = input.timeframe(defval="D",title="Resolution",group="Bar Change")
+bar_change_trade = input.bool(defval=true,title="Trade",group="Bar Change")
+
+var volume_wave_direction = input.int(defval=1,title="Starting Wave Direction",group="Volume")
+avg_volume_length = input.int(7,title="Lookback Length",group="Volume")
+volume_sine_wave_number = input.int(defval=28,title="Sine Wave #",group="Volume")
+volume_sine_wave_res = input.timeframe(defval="D",title="Resolution",group="Volume")
+volume_trade = input.bool(defval=false,title="Trade",group="Volume")
+
+var coin_flip_wave_direction = input.int(defval=1,title="Starting Wave Direction",group="Coin Flip")
+coin_flip_sine_wave_number = input.int(defval=28,title="Sine Wave #",group="Coin Flip")
+coin_flip_seed = input.int(defval=1,title="Seed #",group="Coin Flip")
+coin_flip_trade = input.bool(defval=false,title="Trade",group="Coin Flip")
+
+avg_volume = ta.sma(volume,avg_volume_length)
+
+//Green or Red Candle
+bar_color = close>open ? color.green : color.red
+bar_color_time_adj = request.security(syminfo.tickerid, bar_change_sine_wave_res, bar_color)
+
+//Above or Below Average
+volume_state = (volume>avg_volume) ? color.blue : color.purple
+volume_state_time_adj = request.security(syminfo.tickerid, volume_sine_wave_res, volume_state)
+ 
+//Coinflip
+coin_flip = math.random(0,100,coin_flip_seed)>=50 ? color.teal : color.yellow
+
+var bar_change_wave_count = 0
+var volume_wave_count = 0
+var coin_flip_wave_count = 0
+
+//Wave Counters
+if(volume_state_time_adj[1] != volume_state_time_adj)
+    volume_wave_count := volume_wave_count + volume_wave_direction
+
+if(bar_color_time_adj[1] != bar_color_time_adj)
+    bar_change_wave_count := bar_change_wave_count + bar_change_wave_direction
+
+if(coin_flip[1] != coin_flip)
+    coin_flip_wave_count := coin_flip_wave_count + coin_flip_wave_direction
+
+//Direction changers
+if(math.abs(bar_change_wave_count) == bar_change_sine_wave_number and bar_color_time_adj[1] != bar_color_time_adj)
+    bar_change_wave_direction := bar_change_wave_direction * -1
+
+if(math.abs(volume_wave_count) == volume_sine_wave_number and volume_state_time_adj[1] != volume_state_time_adj)
+    volume_wave_direction := volume_wave_direction * -1
+
+if(math.abs(coin_flip_wave_count) == coin_flip_sine_wave_number and coin_flip[1] != coin_flip)
+    coin_flip_wave_direction := coin_flip_wave_direction * -1
+
+//Entry positions
+if(bar_change_wave_count==bar_change_sine_wave_number and bar_change_trade==true)
+    strategy.entry(id="short",direction=strategy.short)
+if(bar_change_wave_count==bar_change_sine_wave_number*-1 and bar_change_trade==true)
+    strategy.entry(id="long",direction=strategy.long)
+
+if(volume_wave_count==volume_sine_wave_number and volume_trade==true)
+    strategy.entry(id="short-volume",direction=strategy.short)
+if(volume_wave_count==volume_sine_wave_number*-1 and volume_trade==true)
+    strategy.entry(id="long-volume",direction=strategy.long)
+
+if(coin_flip_wave_count==coin_flip_sine_wave_number and coin_flip_trade==true)
+    strategy.entry(id="short-coinflip",direction=strategy.short)
+if(coin_flip_wave_count==coin_flip_sine_wave_number*-1 and coin_flip_trade==true)
+    strategy.entry(id="long-coinflip",direction=strategy.long)
+
+hline(0, title='Center', color=color.white, linestyle=hline.style_dashed, linewidth=1)
+plot(bar_change_wave_count,title="Bar Change", color=bar_color, linewidth=2)
+plot(volume_wave_count,title="Volume Average Change", color=volume_state, linewidth=2)
+plot(coin_flip_wave_count,title="Coin Flip Change", color=coin_flip, linewidth=2)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/432774
+
+> Last Modified
+
+2023-12-01 15:01:07

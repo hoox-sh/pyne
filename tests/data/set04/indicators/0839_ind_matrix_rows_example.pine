@@ -1,0 +1,17 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block178
+// content_hash: b4568be84f0339ed
+// collected: 2026-07-27
+indicator("`matrix.rows()` Example")
+
+// Create a 2x6 matrix with values `0`.
+var m = matrix.new<int>(2, 6, 0)
+
+// Get the quantity of rows in the matrix.
+var x = matrix.rows(m)
+
+// Display using a label.
+if barstate.islastconfirmedhistory
+    label.new(bar_index, high, "Rows: " + str.tostring(x) + "\n" + str.tostring(m))

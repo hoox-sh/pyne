@@ -1,0 +1,46 @@
+//@version=3
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/趋势追踪EMA策略EMA-Trend-Following-Strategy.md
+// content_hash: 907fa14cc8a8e4b9
+// collected: 2026-07-27
+strategy(title = "EMA Close Strategy", shorttitle = "EMA Close",calc_on_order_fills=true,calc_on_every_tick =true, initial_capital=21000,commission_value=.25,overlay = true,default_qty_type = strategy.percent_of_equity, default_qty_value = 100)
+
+EmaSource   = input(defval = close, title = "EMA Source")
+EmaLength   = input(defval = 8, title = "EMA Period", minval = 1)
+
+StartYear = input(2018, "Backtest Start Year")
+StartMonth = input(1, "Backtest Start Month")
+StartDay = input(1, "Backtest Start Day")
+stopLoss = input(30, title = "Stop loss percentage(0.1%)") 
+UseStopLoss = input(true,"UseStopLoss")
+
+window() => time >=  timestamp(StartYear, StartMonth, StartDay,00,00) ? true : false
+
+
+
+EMA = ema(EmaSource,EmaLength)
+
+plot(EMA, title = "EMA", color = green, linewidth = 2, style = line, transp = 50)
+
+long = crossunder(EMA, close)
+short= crossover(EMA, close)
+
+if (long)
+    strategy.entry("LongId", strategy.long, when=window())
+    
+if (short)
+    strategy.entry("ShortId", strategy.short, when=window())
+
+if (UseStopLoss)
+    strategy.exit("StopLoss", "LongId", loss = close * stopLoss / 1000 / syminfo.mintick)
+    strategy.exit("StopLoss", "ShortId", loss = close * stopLoss / 1000 / syminfo.mintick)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/429384
+
+> Last Modified
+
+2023-10-16 15:54:41

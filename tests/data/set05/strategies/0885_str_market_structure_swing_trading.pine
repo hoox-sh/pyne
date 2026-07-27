@@ -1,0 +1,112 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/市场结构摆动交易策略-Market-Structure-Swing-Trading-Strategy.md
+// content_hash: 0d5231c44cd410c0
+// collected: 2026-07-27
+strategy("Market Structure Swing Trading", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=5)
+
+// === Input Parameters ===
+len = input(50, "CHoCH Detection Period")
+shortLen = input(3, "IDM Detection Period")
+atrMultiplierSL = input(2.0, "ATR Multiplier for Stop Loss")
+atrMultiplierTP = input(3.0, "ATR Multiplier for Take Profit")
+rsiPeriod = input(14, "RSI Period")
+rsiOverbought = input(70, "RSI Overbought Level")
+rsiOversold = input(30, "RSI Oversold Level")
+volThreshold = input(1.2, "Volume Multiplier Threshold") 
+
+// === ATR Calculation for SL & TP ===
+atr = ta.atr(14)
+stopLossLong = close - (atr * atrMultiplierSL)
+takeProfitLong = close + (atr * atrMultiplierTP)
+stopLossShort = close + (atr * atrMultiplierSL)
+takeProfitShort = close - (atr * atrMultiplierTP)
+
+// === RSI Filter ===
+rsi = ta.rsi(close, rsiPeriod)
+longConditionRSI = rsi < rsiOversold
+shortConditionRSI = rsi > rsiOverbought
+
+// === Volume Filter ===
+volThresholdValue = ta.sma(volume, 20) * volThreshold
+highVolume = volume > volThresholdValue
+
+// === Market Structure Functions ===
+swings(len) =>
+    var int topx = na
+    var int btmx = na
+    upper = ta.highest(len)
+    lower = ta.lowest(len)
+    top = high[len] > upper ? high[len] : na
+    btm = low[len] < lower ? low[len] : na
+    topx := top ? bar_index[len] : topx
+    btmx := btm ? bar_index[len] : btmx
+    [top, topx, btm, btmx]
+
+[top, topx, btm, btmx] = swings(len)
+
+// === CHoCH Detection ===
+var float topy = na
+var float btmy = na
+var os = 0
+var top_crossed = false
+var btm_crossed = false
+
+if top
+    topy := top
+    top_crossed := false
+if btm
+    btmy := btm
+    btm_crossed := false
+
+if close > topy and not top_crossed
+    os := 1
+    top_crossed := true
+if close < btmy and not btm_crossed
+    os := 0
+    btm_crossed := true
+
+// === Break of Structure (BOS) ===
+var float max = na
+var float min = na
+var int max_x1 = na
+var int min_x1 = na
+
+if os != os[1]
+    max := high
+    min := low
+    max_x1 := bar_index
+    min_x1 := bar_index
+
+bullishBOS = close > max and os == 1
+bearishBOS = close < min and os == 0
+
+// === Trade Conditions with Filters ===
+longEntry = bullishBOS and longConditionRSI and highVolume
+shortEntry = bearishBOS and shortConditionRSI and highVolume
+
+// === Execute Trades ===
+if longEntry
+    strategy.entry("Long", strategy.long)
+    strategy.exit("Long TP/SL", from_entry="Long", stop=stopLossLong, limit=takeProfitLong)
+
+if shortEntry
+    strategy.entry("Short", strategy.short)
+    strategy.exit("Short TP/SL", from_entry="Short", stop=stopLossShort, limit=takeProfitShort)
+
+// === Plotting Market Structure ===
+plotshape(series=longEntry, location=location.belowbar, color=color.green, style=shape.labelup, title="BUY")
+plotshape(series=shortEntry, location=location.abovebar, color=color.red, style=shape.labeldown, title="SELL")
+plot(topy, color=color.blue, title="CHoCH High")
+plot(btmy, color=color.orange, title="CHoCH Low")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/488545
+
+> Last Modified
+
+2025-03-28 17:38:45

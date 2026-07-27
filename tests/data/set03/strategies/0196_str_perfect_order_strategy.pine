@@ -1,0 +1,76 @@
+//@version=6
+// set03 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多重指数移动平均线趋势反转交易策略-Multi-EMA-Trend-Reversal-Trading-Strategy.md
+// content_hash: c6051c8ec54e7576
+// collected: 2026-07-27
+strategy("Perfect Order Strategy", overlay=true)
+
+// User input - EMA periods
+aPeriod = input.int(10, "EMA A Period", minval=1)
+bPeriod = input.int(20, "EMA B Period", minval=1)
+cPeriod = input.int(30, "EMA C Period", minval=1)
+
+// User input - EMA colors
+colorA = input.color(color.red, "EMA A Color")
+colorB = input.color(color.orange, "EMA B Color")
+colorC = input.color(color.aqua, "EMA C Color")
+
+// User input - Label colors
+upTColor = input.color(color.red, "UP-T Color")
+downTColor = input.color(color.aqua, "Down-T Color")
+endColor = input.color(color.black, "End Color")
+
+// Calculate EMAs
+emaA = ta.ema(close, aPeriod)
+emaB = ta.ema(close, bPeriod)
+emaC = ta.ema(close, cPeriod)
+
+// Plot EMAs on the chart
+plot(emaA, title="EMA A", color=colorA, linewidth=1)
+plot(emaB, title="EMA B", color=colorB, linewidth=1)
+plot(emaC, title="EMA C", color=colorC, linewidth=1)
+
+// Condition checks
+condition1 = emaA > emaB and emaB > emaC  // Uptrend condition
+condition2 = emaA < emaB and emaB < emaC  // Downtrend condition
+
+// Variables for state management
+var bool wasCondition1 = false
+var bool wasCondition2 = false
+var bool endDisplayed = false  // Control for displaying "End" label
+
+// Label display logic and trade signals
+if condition1 and not wasCondition1
+    label.new(bar_index, high, "UP-T", color=upTColor, textcolor=color.white, style=label.style_label_down)
+    strategy.entry("Long", strategy.long)  // Enter long on "UP-T"
+    wasCondition1 := true
+    wasCondition2 := false
+    endDisplayed := false
+else if condition2 and not wasCondition2
+    label.new(bar_index, low, "Down-T", color=downTColor, textcolor=color.black, style=label.style_label_up)
+    strategy.entry("Short", strategy.short)  // Enter short on "Down-T"
+    wasCondition2 := true
+    wasCondition1 := false
+    endDisplayed := false
+else if (not condition1 and wasCondition1) or (not condition2 and wasCondition2)
+    if not endDisplayed
+        label.new(bar_index, high, "End", color=endColor, textcolor=color.white, style=label.style_label_down)
+        strategy.close_all()  // Close all positions on "End"
+        endDisplayed := true
+    wasCondition1 := false
+    wasCondition2 := false
+else if not condition1 and not condition2
+    wasCondition1 := false
+    wasCondition2 := false
+    endDisplayed := false
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/489007
+
+> Last Modified
+
+2025-04-01 10:02:12

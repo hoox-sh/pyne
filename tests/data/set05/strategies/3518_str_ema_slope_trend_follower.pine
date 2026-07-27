@@ -1,0 +1,77 @@
+//@version=4
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/EMA Slope Trend Follower Strategy.pine
+// content_hash: d2cfd1ab45318b15
+// collected: 2026-07-27
+strategy("EMA Slope Trend Follower", initial_capital=10000, default_qty_type=strategy.percent_of_equity, commission_type=strategy.commission.percent, commission_value=0.06, slippage = 2, default_qty_value=30, overlay=false)
+//definizione input
+average = input (title="Source MA Type", type=input.string, defval="EMA",options=["EMA","SMA"])
+len = input(130, minval=1, title="Source MA Length")
+slopeFlen = input (9,title="Fast Slope MA Length")
+slopeSlen= input (21,title="Slow Slope MA Length")
+trendfilter=input(true,title="Trend Filter")
+trendfilterperiod=input(200,title="Trend Filter MA Period")
+trendfiltertype=input (title="Trend Filter MA Type", type=input.string, defval="EMA",options=["EMA","SMA"])
+volatilityfilter=input(false,title="Volatility Filter")
+volatilitystdevlength=input(20,title="Vol Filter STDev Length")
+volatilitystdevmalength=input(30,title="Vol Filter STDev MA Length")
+//variabili
+out = if average == "EMA" 
+    ema(close,len)
+else
+    sma(close,len)
+    
+slp = change(out)/out
+emaslopeF = ema(slp,slopeFlen)
+emaslopeS = ema(slp,slopeSlen)
+//variabili accessorie e condizioni
+TrendConditionL=if trendfiltertype =="EMA"
+    close>ema(close,trendfilterperiod)
+else
+    close>sma(close,trendfilterperiod)
+    
+TrendConditionS=if trendfiltertype =="EMA"
+    close<ema(close,trendfilterperiod)
+else
+    close<sma(close,trendfilterperiod)
+VolatilityCondition=stdev(close,volatilitystdevlength)>sma(stdev(close,volatilitystdevlength),volatilitystdevmalength)
+ConditionEntryL= if trendfilter == true
+    if volatilityfilter == true
+        emaslopeF>emaslopeS and TrendConditionL and VolatilityCondition
+    else
+        emaslopeF>emaslopeS and TrendConditionL
+else
+    if volatilityfilter == true
+        emaslopeF>emaslopeS and VolatilityCondition
+    else 
+        emaslopeF>emaslopeS
+ConditionEntryS= if trendfilter == true
+    if volatilityfilter == true
+        emaslopeF<emaslopeS and TrendConditionS and VolatilityCondition
+    else 
+        emaslopeF<emaslopeS and TrendConditionS
+else
+    if volatilityfilter == true
+        emaslopeF<emaslopeS and VolatilityCondition
+    else
+        emaslopeF<emaslopeS
+ConditionExitL=crossunder(emaslopeF,emaslopeS)
+ConditionExitS=crossover(emaslopeF,emaslopeS)
+//plot
+plot (slp, color=color.white)
+plot (emaslopeF,color=color.yellow)
+plot (emaslopeS,color=color.red)
+//ingressi e uscite
+if ConditionExitS
+    if strategy.position_size < 0
+        strategy.close("SLPShort")
+if ConditionExitL
+    if strategy.position_size > 0
+        strategy.close("SLPLong")
+if ConditionEntryL
+    strategy.entry("SLPLong",long=true)
+    
+if ConditionEntryS
+    strategy.entry("SLPShort",long=false)
+Expand (94 lines)

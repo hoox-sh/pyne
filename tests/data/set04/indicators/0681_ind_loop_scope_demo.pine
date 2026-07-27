@@ -1,0 +1,22 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/language/loops.md::loops.md#block6
+// content_hash: ed6cb39be1558d6b
+// collected: 2026-07-27
+indicator("Loop scope demo", overlay = true)
+
+//@variable The number of bars in the calculation.
+int lengthInput = input.int(20, "Lookback length", 1)
+
+if barstate.islastconfirmedhistory
+    for i = 1 to lengthInput
+        //@variable Has a value of `color.blue` if `close[i]` is above the current `close`, `color.orange` otherwise.
+        //          This variable is LOCAL to the `for` loop's scope.
+        color labelColor = close[i] > close ? color.blue : color.orange
+        // Display a colored `label` on the historical `high` from `i` bars back, using `labelColor` to set the color.
+        label.new(bar_index - i, high[i], "", color = labelColor, size = size.normal)
+
+    // Call `label.new()` to using the `i` and `labelColor` variables outside the loop's local scope.
+    // This code causes a compilation error because these variables are not accessible in this location.  
+    label.new(

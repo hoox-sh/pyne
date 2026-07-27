@@ -1,0 +1,22 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/faq/data-structures.md::data-structures.md#block17
+// content_hash: fe59ffc0da2cbef8
+// collected: 2026-07-27
+indicator("Debugging arrays with tables", overlay = true)
+
+// Import the `getSeries` PineCoders library to build fixed-size arrays populated on specific conditions.
+//      https://www.tradingview.com/v/Bn7QkdZR/
+import PineCoders/getSeries/1 as PCgs
+
+// Calculate MAs and create cross condition.
+float ma50        = ta.sma(close,  50)
+float ma200       = ta.sma(close,  200)
+bool  goldenCross = ta.cross(ma50, ma200)
+
+// Calculate the RSI and determine if it's hitting a new all-time high.
+float myRsi       = ta.rsi(close,  20)
+bool newRsiAth    = myRsi == ta.max(myRsi)
+
+// Create two arrays using the imported `whenSince()` function.

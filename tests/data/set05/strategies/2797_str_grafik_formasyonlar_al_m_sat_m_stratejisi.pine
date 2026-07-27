@@ -1,0 +1,49 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于均线交叉的趋势追踪策略Trend-Tracking-Strategy-Based-on-Moving-Average-Crossover.md
+// content_hash: 45611d2000cd05e9
+// collected: 2026-07-27
+strategy("Grafik Formasyonları Alım-Satım Stratejisi", overlay=true)
+
+// Inverse Head and Shoulders (İnverse Omuz-Baş-Omuz)
+ihs_condition = ta.crossover(ta.sma(close, 50), ta.sma(close, 200))
+
+// Head and Shoulders (Omuz-Baş-Omuz)
+hs_condition = ta.crossunder(ta.sma(close, 50), ta.sma(close, 200))
+
+// Flag Pattern (Bayrak Formasyonu)
+flag_condition = ta.crossover(ta.sma(close, 10), ta.sma(close, 30))
+
+// Triangle Pattern (Trekgen Formasyonu)
+triangle_condition = ta.crossover(ta.sma(close, 20), ta.sma(close, 50))
+
+// Pennant Pattern (Ters Bayrak Formasyonu)
+pennant_condition = ta.crossunder(ta.sma(close, 10), ta.sma(close, 20))
+
+// Inverse Triangle Pattern (Ters Üçgen Formasyonu)
+inverse_triangle_condition = ta.crossunder(ta.sma(close, 30), ta.sma(close, 60))
+
+// Alım-Satım Sinyalleri
+if (ihs_condition)
+    strategy.entry("İHS_Long", strategy.long)
+if (hs_condition)
+    strategy.close("İHS_Long")
+if (flag_condition)
+    strategy.entry("Flag_Long", strategy.long)
+if (triangle_condition)
+    strategy.entry("Triangle_Long", strategy.long)
+if (pennant_condition)
+    strategy.entry("Pennant_Short", strategy.short)
+if (inverse_triangle_condition)
+    strategy.close("Pennant_Short")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/442509
+
+> Last Modified
+
+2024-02-22 14:02:03

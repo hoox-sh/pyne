@@ -1,0 +1,17 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/release_notes.md::release_notes.md#block1
+// content_hash: b831d5226586c6d9
+// collected: 2026-07-27
+indicator("Multiline string demo")
+
+//@variable A multiline string enclosed by `"""` delimiters.
+string multilineStr = """This is a multiline string.
+Each of these code lines literally represents a separate line of text. 
+The newline character is automatically included before each new line. 
+We do not have to manually add the `\\n` escape sequence to separate the lines."""
+
+// Log the string's text in the Pine Logs pane on the first bar.
+if barstate.isfirst
+    log.info(multilineStr)

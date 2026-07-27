@@ -1,0 +1,90 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/自适应波动率与动量量化交易系统AVMQTS-Adaptive-Volatility-and-Momentum-Quantitative-Trading-System-AVMQTS.md
+// content_hash: 656cffe7259cf958
+// collected: 2026-07-27
+strategy("[ETH] Volatility & Momentum Adaptive Strategy", shorttitle="Definitive 1 day Ethereum Signal", overlay=true, initial_capital=10000, currency=currency.USD)
+
+// === Input Parameters === //
+trade_size = input.float(5, title="Trade Size (ETH)")
+atr_length = input.int(8, minval=1, title="ATR Length")
+macd_fast = input.int(8, minval=1, title="MACD Fast Length")
+macd_slow = input.int(7, minval=1, title="MACD Slow Length")
+macd_signal = input.int(9, minval=1, title="MACD Signal Length")
+momentum_length = input.int(37, title="Momentum Length")
+stop_loss_percent = input.float(9.9, title="Stop Loss Percentage (%)")
+take_profit_percent = input.float(9.0, title="Take Profit Percentage (%)")
+alternate_signal = input.bool(true, title="Alternate Buy/Sell Signals")
+
+// === Indicators === //
+// ATR to measure volatility
+atr = ta.atr(atr_length)
+
+// MACD for trend momentum
+[macd_line, signal_line, _] = ta.macd(close, macd_fast, macd_slow, macd_signal)
+macd_cross_up = ta.crossover(macd_line, signal_line)
+macd_cross_down = ta.crossunder(macd_line, signal_line)
+
+// Momentum
+momentum = ta.mom(close, momentum_length)
+
+// === Signal Control Variables === //
+var bool last_signal_long = na
+var int last_trade_bar = na
+min_bars_between_trades = 5 // Adjust for minimal trade frequency control
+time_elapsed = na(last_trade_bar) or (bar_index - last_trade_bar) >= min_bars_between_trades
+
+// === Buy and Sell Conditions === //
+// Buy when:
+buy_signal = (macd_cross_up and momentum > 0 and close > ta.sma(close, 50) and time_elapsed)
+
+// Sell when:
+sell_signal = (macd_cross_down and momentum < 0 and close < ta.sma(close, 50) and time_elapsed)
+
+// Enforce alternate signals if selected
+if alternate_signal
+    buy_signal := buy_signal and (na(last_signal_long) or not last_signal_long)
+    sell_signal := sell_signal and (not na(last_signal_long) and last_signal_long)
+
+// === Trade Execution === //
+// Buy Position
+if (buy_signal)
+    if strategy.position_size < 0
+        strategy.close("Short")
+    strategy.entry("Long", strategy.long, qty=trade_size)
+    last_signal_long := true
+    last_trade_bar := bar_index
+
+// Sell Position
+if (sell_signal)
+    if strategy.position_size > 0
+        strategy.close("Long")
+    strategy.entry("Short", strategy.short, qty=trade_size)
+    last_signal_long := false
+    last_trade_bar := bar_index
+
+// === Stop Loss and Take Profit === //
+if strategy.position_size > 0
+    long_take_profit = strategy.position_avg_price * (1 + take_profit_percent / 100)
+    long_stop_loss = strategy.position_avg_price * (1 - stop_loss_percent / 100)
+    strategy.exit("TP/SL Long", from_entry="Long", limit=long_take_profit, stop=long_stop_loss)
+
+if strategy.position_size < 0
+    short_take_profit = strategy.position_avg_price * (1 - take_profit_percent / 100)
+    short_stop_loss = strategy.position_avg_price * (1 + stop_loss_percent / 100)
+    strategy.exit("TP/SL Short", from_entry="Short", limit=short_take_profit, stop=short_stop_loss)
+
+// === Visual Signals === //
+plotshape(series=buy_signal and time_elapsed, title="Buy Signal", location=location.belowbar, color=color.green, style=shape.labelup, text="BUY")
+plotshape(series=sell_signal and time_elapsed, title="Sell Signal", location=location.abovebar, color=color.red, style=shape.labeldown, text="SELL")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/473123
+
+> Last Modified
+
+2024-11-27 14:20:24

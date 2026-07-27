@@ -1,0 +1,39 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动态风险调整杠杆交易系统Dynamic-Risk-Adjusted-Leverage-Trading-System.md
+// content_hash: 75b871f909313aca
+// collected: 2026-07-27
+strategy("I11L - Risk Adjusted Leveraging", overlay=false, pyramiding=25, default_qty_value=20, initial_capital=20000, default_qty_type=strategy.percent_of_equity,process_orders_on_close=false, calc_on_every_tick=false)
+
+atr = ta.atr(14) / close
+avg_atr = ta.sma(atr,100)
+ratio = atr / avg_atr
+
+targetLeverage = 2 / ratio
+targetOpentrades = 5 * targetLeverage
+
+plot(targetOpentrades)
+plot(strategy.opentrades)
+isBuy = strategy.opentrades < targetOpentrades
+isClose = strategy.opentrades > targetOpentrades + 1
+
+var string[] openTrades = array.new_string(0)
+
+if(isBuy)
+    strategy.entry("Buy"+str.tostring(array.size(openTrades)),strategy.long)
+    array.push(openTrades, "Buy" + str.tostring(array.size(openTrades)))
+
+if(isClose)
+    if array.size(openTrades) > 0
+        strategy.close(array.get(openTrades, array.size(openTrades) - 1))
+        array.pop(openTrades)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/429387
+
+> Last Modified
+
+2023-10-16 16:00:52

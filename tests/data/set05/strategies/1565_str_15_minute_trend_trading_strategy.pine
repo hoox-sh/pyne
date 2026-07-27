@@ -1,0 +1,77 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于MACDADX和EMA200的多时间框架趋势交易策略Multi-Timeframe-Trend-Trading-Strategy-Based-on-MACD-ADX-and-EMA200.md
+// content_hash: f2821ae96f09d6d4
+// collected: 2026-07-27
+strategy("15-Minute Trend Trading Strategy", overlay=true)
+
+// Exponential Moving Average (EMA)
+ema200 = ta.ema(close, 200)
+
+// MACD Indicator
+[macdLine, signalLine, _] = ta.macd(close, 12, 26, 9)
+macdHistogram = macdLine - signalLine
+
+// Calculate True Range (TR)
+tr = ta.tr
+
+// Calculate +DI and -DI
+plusDM = high - high[1]
+minusDM = low[1] - low
+
+atr14 = ta.atr(14)
+plusDI = ta.wma(100 * ta.sma(plusDM, 14) / atr14, 14)
+minusDI = ta.wma(100 * ta.sma(minusDM, 14) / atr14, 14)
+
+// Calculate Directional Movement Index (DX)
+dx = ta.wma(100 * math.abs(plusDI - minusDI) / (plusDI + minusDI), 14)
+
+// Calculate ADX
+adxValue = ta.wma(dx, 14)
+
+// Long Entry Condition
+longCondition = close > ema200 and (macdLine > signalLine) and (macdLine < 0) and (adxValue >= 25)
+
+// Short Entry Condition
+shortCondition = close < ema200 and (macdLine < signalLine) and (macdLine > 0) and (adxValue >= 25)
+
+// Calculate ATR for Stop Loss
+atrValue = ta.atr(14)
+
+// Initialize Take Profit and Stop Loss
+var float takeProfit = na
+var float stopLoss = na
+
+// Calculate Risk (Stop Loss Distance)
+risk = close - low[1]  // Using the previous candle's low as stop loss reference
+
+// Strategy Orders
+if longCondition
+    stopLoss := close * 0.99  // Set Stop Loss 1% below the entry price
+    takeProfit := close * 1.015 // Set Take Profit 1.5% above the entry price
+    strategy.entry("Buy", strategy.long, stop=stopLoss, limit=takeProfit)
+
+if shortCondition
+    stopLoss := close * 1.01 // Set Stop Loss 1% above the entry price
+    takeProfit := close * 0.985 // Set Take Profit 1.5% below the entry price
+    strategy.entry("Sell", strategy.short, stop=stopLoss, limit=takeProfit)
+
+// Plot EMA
+// plot(ema200, color=color.blue, linewidth=1, title="200 EMA")
+
+// Plot MACD Histogram
+// plot(macdHistogram, color=macdHistogram > 0 ? color.green : color.red, style=plot.style_columns, title="MACD Histogram")
+
+// Display ADX Value
+// plot(adxValue, color=color.purple, title="ADX Value")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/445785
+
+> Last Modified
+
+2024-03-22 10:50:35

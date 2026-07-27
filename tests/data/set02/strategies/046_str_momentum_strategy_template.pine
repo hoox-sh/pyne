@@ -1,0 +1,178 @@
+//@version=6
+// set02 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/templates/strategies/momentum.pine
+// content_hash: 1a74b47c5ca65766
+// collected: 2026-07-27
+strategy("Momentum Strategy Template", overlay=true,
+         default_qty_type=strategy.percent_of_equity,
+         default_qty_value=10,
+         commission_type=strategy.commission.percent,
+         commission_value=0.1)
+//@strategy_alert_message {{strategy.order.alert_message}}
+
+// ============================================================================
+// INPUTS
+// ============================================================================
+// Momentum Indicator Settings
+momentumType = input.string("MACD", "Momentum Type", options=["MACD", "RSI", "Stochastic", "ROC"], group="Momentum")
+
+// MACD Settings
+macdFast = input.int(12, "MACD Fast", minval=1, group="MACD")
+macdSlow = input.int(26, "MACD Slow", minval=1, group="MACD")
+macdSignal = input.int(9, "MACD Signal", minval=1, group="MACD")
+
+// RSI Settings
+rsiLength = input.int(14, "RSI Length", minval=1, group="RSI")
+rsiBullThreshold = input.int(50, "RSI Bull Threshold", minval=30, maxval=70, group="RSI")
+rsiBearThreshold = input.int(50, "RSI Bear Threshold", minval=30, maxval=70, group="RSI")
+
+// Stochastic Settings
+stochK = input.int(14, "Stoch %K", minval=1, group="Stochastic")
+stochD = input.int(3, "Stoch %D", minval=1, group="Stochastic")
+stochSmooth = input.int(3, "Stoch Smooth", minval=1, group="Stochastic")
+
+// ROC Settings
+rocLength = input.int(12, "ROC Length", minval=1, group="ROC")
+
+// Trend Filter
+useTrendFilter = input.bool(true, "Use Trend Filter", group="Trend Filter")
+trendMALength = input.int(50, "Trend MA Length", minval=10, maxval=200, group="Trend Filter")
+trendMAType = input.string("EMA", "Trend MA Type", options=["SMA", "EMA"], group="Trend Filter")
+
+// Entry Settings
+entryMode = input.string("Signal Cross", "Entry Mode", options=["Signal Cross", "Zero Cross", "Threshold Cross"], group="Entry")
+
+// Risk Management
+useStopLoss = input.bool(true, "Use Stop Loss", group="Risk Management")
+stopLossType = input.string("ATR", "Stop Loss Type", options=["ATR", "Percent"], group="Risk Management")
+stopLossATR = input.float(2.0, "Stop Loss ATR", minval=0.5, maxval=5.0, step=0.5, group="Risk Management")
+stopLossPercent = input.float(2.0, "Stop Loss %", minval=0.5, maxval=10.0, step=0.5, group="Risk Management")
+atrLength = input.int(14, "ATR Length", minval=1, group="Risk Management")
+
+useTakeProfit = input.bool(true, "Use Take Profit", group="Risk Management")
+takeProfitRR = input.float(2.0, "Take Profit R:R", minval=0.5, maxval=10.0, step=0.5, group="Risk Management")
+
+// Direction
+longOnly = input.bool(false, "Long Only", group="Direction")
+shortOnly = input.bool(false, "Short Only", group="Direction")
+
+// ============================================================================
+// CALCULATIONS
+// ============================================================================
+// ATR for stops
+atr = ta.atr(atrLength)
+
+// Trend filter
+trendMA = trendMAType == "EMA" ? ta.ema(close, trendMALength) : ta.sma(close, trendMALength)
+bullishTrend = not useTrendFilter or close > trendMA
+bearishTrend = not useTrendFilter or close < trendMA
+
+// MACD
+[macdLine, signalLine, histLine] = ta.macd(close, macdFast, macdSlow, macdSignal)
+
+// RSI
+rsi = ta.rsi(close, rsiLength)
+
+// Stochastic
+stochKLine = ta.sma(ta.stoch(close, high, low, stochK), stochSmooth)
+stochDLine = ta.sma(stochKLine, stochD)
+
+// ROC
+roc = ta.roc(close, rocLength)
+
+// Momentum signals based on type and entry mode
+getMomentumSignal(isLong) =>
+    result = false
+
+    if momentumType == "MACD"
+        if entryMode == "Signal Cross"
+            result := isLong ? ta.crossover(macdLine, signalLine) : ta.crossunder(macdLine, signalLine)
+        else if entryMode == "Zero Cross"
+            result := isLong ? ta.crossover(macdLine, 0) : ta.crossunder(macdLine, 0)
+        else
+            result := isLong ? macdLine > 0 and histLine > histLine[1] : macdLine < 0 and histLine < histLine[1]
+
+    else if momentumType == "RSI"
+        if entryMode == "Signal Cross"
+            result := isLong ? ta.crossover(rsi, rsiBullThreshold) : ta.crossunder(rsi, rsiBearThreshold)
+        else if entryMode == "Zero Cross"
+            result := isLong ? ta.crossover(rsi, 50) : ta.crossunder(rsi, 50)
+        else
+            result := isLong ? rsi > rsiBullThreshold : rsi < rsiBearThreshold
+
+    else if momentumType == "Stochastic"
+        if entryMode == "Signal Cross"
+            result := isLong ? ta.crossover(stochKLine, stochDLine) and stochKLine < 80 : ta.crossunder(stochKLine, stochDLine) and stochKLine > 20
+        else if entryMode == "Zero Cross"
+            result := isLong ? ta.crossover(stochKLine, 20) : ta.crossunder(stochKLine, 80)
+        else
+            result := isLong ? stochKLine > stochDLine and stochKLine < 80 : stochKLine < stochDLine and stochKLine > 20
+
+    else if momentumType == "ROC"
+        if entryMode == "Signal Cross"
+            result := isLong ? ta.crossover(roc, 0) and roc > roc[1] : ta.crossunder(roc, 0) and roc < roc[1]
+        else if entryMode == "Zero Cross"
+            result := isLong ? ta.crossover(roc, 0) : ta.crossunder(roc, 0)
+        else
+            result := isLong ? roc > 0 and roc > roc[1] : roc < 0 and roc < roc[1]
+
+    result
+
+// ============================================================================
+// STRATEGY CONDITIONS
+// ============================================================================
+longSignal = getMomentumSignal(true)
+shortSignal = getMomentumSignal(false)
+
+longCondition = longSignal and bullishTrend and not shortOnly
+shortCondition = shortSignal and bearishTrend and not longOnly
+
+// Calculate stop loss
+calcStop(isLong) =>
+    switch stopLossType
+        "ATR" => isLong ? close - atr * stopLossATR : close + atr * stopLossATR
+        "Percent" => isLong ? close * (1 - stopLossPercent/100) : close * (1 + stopLossPercent/100)
+
+// ============================================================================
+// STRATEGY EXECUTION
+// ============================================================================
+if longCondition
+    stopPrice = calcStop(true)
+    riskAmount = close - stopPrice
+    targetPrice = useTakeProfit ? close + riskAmount * takeProfitRR : na
+
+    strategy.entry("Long", strategy.long, alert_message="Long momentum entry")
+
+    if useStopLoss and useTakeProfit
+        strategy.exit("Long Exit", "Long", stop=stopPrice, limit=targetPrice, alert_message="Long exit")
+    else if useStopLoss
+        strategy.exit("Long SL", "Long", stop=stopPrice, alert_message="Long stop loss")
+    else if useTakeProfit
+        strategy.exit("Long TP", "Long", limit=targetPrice, alert_message="Long take profit")
+
+if shortCondition
+    stopPrice = calcStop(false)
+    riskAmount = stopPrice - close
+    targetPrice = useTakeProfit ? close - riskAmount * takeProfitRR : na
+
+    strategy.entry("Short", strategy.short, alert_message="Short momentum entry")
+
+    if useStopLoss and useTakeProfit
+        strategy.exit("Short Exit", "Short", stop=stopPrice, limit=targetPrice, alert_message="Short exit")
+    else if useStopLoss
+        strategy.exit("Short SL", "Short", stop=stopPrice, alert_message="Short stop loss")
+    else if useTakeProfit
+        strategy.exit("Short TP", "Short", limit=targetPrice, alert_message="Short take profit")
+
+// ============================================================================
+// PLOTS
+// ============================================================================
+plot(trendMA, "Trend MA", color=color.blue, linewidth=2)
+
+// Entry markers
+plotshape(longCondition, "Long Signal", shape.triangleup, location.belowbar, color.green, size=size.small)
+plotshape(shortCondition, "Short Signal", shape.triangledown, location.abovebar, color.red, size=size.small)
+
+// Background for trend
+bgcolor(bullishTrend and not bearishTrend ? color.new(color.green, 95) : bearishTrend and not bullishTrend ? color.new(color.red, 95) : na)

@@ -1,0 +1,49 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/移动平均线交叉趋势跟踪策略Moving-Average-Crossover-Strategy.md
+// content_hash: 8246d0de04e7878e
+// collected: 2026-07-27
+
+strategy("QUANT", overlay=true)
+lenght1 = input(20)
+lenght2 = input(50)
+
+
+ema1 = ta.ema(close, lenght1)
+ema2 = ta.ema(close, lenght2)
+plot(ema1, color=color.black)
+plot(ema2, color=color.red)
+
+long = ta.crossover(ema1, ema2)
+
+SL = 0.004
+TP = 0.007
+
+if long == true
+    strategy.entry("Compra Call", strategy.long)
+longstop=strategy.position_avg_price*(1-SL)
+longprofit=strategy.position_avg_price*(1+TP)
+strategy.exit("Venta Call", stop=longstop, limit=longprofit)
+
+short = ta.crossover(ema2, ema1)
+
+if short == true
+    strategy.entry("Compra Put", strategy.short)
+shortstop=strategy.position_avg_price*(1+SL)
+shortprofit=strategy.position_avg_price*(1-TP)
+strategy.exit("Venta Put", stop=shortstop, limit=shortprofit)
+
+
+
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/434473
+
+> Last Modified
+
+2023-12-06 16:58:20

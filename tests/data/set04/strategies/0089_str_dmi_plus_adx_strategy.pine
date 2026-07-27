@@ -1,0 +1,56 @@
+//@version=6
+// set04 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动量趋势跟踪指标DMIADX交叉策略-Momentum-Trend-Following-DMIADX-Crossover-Strategy.md
+// content_hash: 069b0fd4f2e1ffd4
+// collected: 2026-07-27
+strategy("DMI + ADX Strategy", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=250)
+
+// Nastavenie parametrov
+adxLength = input.int(14, title="ADX Length")
+adxSmoothing = input.int(14, title="ADX Smoothing")
+dmiLength = input.int(14, title="DMI Length")
+adxThreshold = input.float(25.0, title="ADX Threshold")
+stopLossPerc = input.float(1.0, title="Stop Loss (%)")
+takeProfitPerc = input.float(2.0, title="Take Profit (%)")
+
+// Výpočet DMI a ADX pomocou ta.dmi
+[plusDI, minusDI, adxValue] = ta.dmi(dmiLength, adxSmoothing)
+
+// Nákupné podmienky
+longCondition = ta.crossover(plusDI, minusDI) and adxValue > adxThreshold
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+
+// Predajné podmienky
+shortCondition = ta.crossunder(plusDI, minusDI) and adxValue > adxThreshold
+if (shortCondition)
+    strategy.entry("Short", strategy.short)
+
+// Definovanie Stop a Limit pre Long pozíciu
+longStop = strategy.position_avg_price * (1 - stopLossPerc / 100)
+longLimit = strategy.position_avg_price * (1 + takeProfitPerc / 100)
+if (strategy.position_size > 0)
+    strategy.exit("Long Exit", "Long", stop=longStop, limit=longLimit)
+
+// Definovanie Stop a Limit pre Short pozíciu
+shortStop = strategy.position_avg_price * (1 + stopLossPerc / 100)
+shortLimit = strategy.position_avg_price * (1 - takeProfitPerc / 100)
+if (strategy.position_size < 0)
+    strategy.exit("Short Exit", "Short", stop=shortStop, limit=shortLimit)
+
+// Vizualizácia indikátorov na grafe
+plot(adxValue, title="ADX", color=color.blue)
+hline(adxThreshold, "ADX Threshold", color=color.gray)
+plot(plusDI, title="+DI", color=color.green)
+plot(minusDI, title="-DI", color=color.red)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/482424
+
+> Last Modified
+
+2025-02-18 13:47:09

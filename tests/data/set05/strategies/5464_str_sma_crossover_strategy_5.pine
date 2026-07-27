@@ -1,0 +1,45 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于SMA均线交叉的量化交易策略SMA-Crossover-Based-Quantitative-Trading-Strategy.md
+// content_hash: 69a0b4ee9331d8d2
+// collected: 2026-07-27
+strategy("SMA Crossover Strategy", overlay=true)
+
+// Define SMAs
+sma5 = sma(close, 5)
+sma10 = sma(close, 10)
+sma20 = sma(close, 20)
+sma50 = sma(close, 50)
+sma130 = sma(close, 130)
+sma200 = sma(close, 200)
+
+// Plot SMAs on the chart
+plot(sma5, color=color.blue, title="5 SMA")
+plot(sma10, color=color.orange, title="10 SMA")
+plot(sma20, color=color.red, title="20 SMA")
+plot(sma50, color=color.green, title="50 SMA")
+plot(sma130, color=color.purple, title="130 SMA")
+plot(sma200, color=color.black, title="200 SMA")
+
+// Generating the buy and sell signals
+buySignal = crossover(sma5, sma200)
+sellSignal = crossunder(sma5, sma200)
+
+// Execute trades based on signals
+if (buySignal)
+    strategy.entry("Buy", strategy.long)
+
+if (sellSignal)
+    strategy.close("Sell")
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/438450
+
+> Last Modified
+
+2024-01-12 10:51:33

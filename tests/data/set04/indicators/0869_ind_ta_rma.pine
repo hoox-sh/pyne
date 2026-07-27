@@ -1,0 +1,15 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block278
+// content_hash: ef56ffe20cddcfce
+// collected: 2026-07-27
+indicator("ta.rma")
+plot(ta.rma(close, 15))
+
+//the same on pine
+pine_rma(src, length) =>
+    alpha = 1/length
+    sum = 0.0
+    sum := na(sum[1]) ? ta.sma(src, length) : alpha * src + (1 - alpha) * nz(sum[1])
+plot(pine_rma(close, 15))

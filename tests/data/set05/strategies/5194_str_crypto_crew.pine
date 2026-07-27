@@ -1,0 +1,57 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多动量指标融合的加密货币交易策略Cryptocurrency-Trading-Strategy-Combining-Multiple-Momentum-Indicators.md
+// content_hash: 6ff8dd12e95c0421
+// collected: 2026-07-27
+strategy("Crypto Crew")
+
+//inputs
+source = hlc3
+rsi_length = input(14, minval=1)
+mfi_lenght =  input(14, minval=1)
+smoothK = input(3, minval=1)
+smoothD = input(3, minval=1)
+lengthRSI = input(14, minval=1)
+lengthStoch = input(14, minval=1)
+okay = "Okay"
+good = "Good"
+veryGood = "Very good"
+tradingOpportunity = input(title="Opportunity Type", defval=veryGood, options=[okay, good, veryGood])
+longThreshhold = tradingOpportunity==okay? 40 : tradingOpportunity==good ? 30 : tradingOpportunity==veryGood? 20 : 0
+shortThreshhold = tradingOpportunity==okay? 60 : tradingOpportunity==good ? 70 : tradingOpportunity==veryGood? 80 : 0
+
+//lines
+mfi = mfi(source, mfi_lenght)
+rsi = rsi(source, rsi_length)
+rsi1 = rsi(close, lengthRSI)
+k = sma(stoch(rsi1, rsi1, rsi1, lengthStoch), smoothK)
+d = sma(k, smoothD)
+
+longSignal = mfi<longThreshhold and rsi<longThreshhold and k<longThreshhold and d<longThreshhold? 1:-1
+shortSignal = mfi>shortThreshhold and rsi>shortThreshhold and k>shortThreshhold and d>shortThreshhold? 1:-1
+
+if longSignal > 0
+    strategy.entry("Long", strategy.long)
+    strategy.exit(id="Long Stop Loss", stop=close*0.8) //20% stop loss 
+    
+if shortSignal > 0
+    strategy.entry("Short", strategy.short, stop=close*1.2)
+    strategy.exit(id="Short Stop Loss", stop=close*1.2) //20% stop loss
+
+plot(k, color=color.blue)
+plot(d, color=color.red)
+plot(rsi, color=color.yellow)
+plot(mfi, color=color.blue)
+hline(longThreshhold, color=color.gray, linestyle=hline.style_dashed)
+hline(shortThreshhold, color=color.gray, linestyle=hline.style_dashed)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/426589
+
+> Last Modified
+
+2023-09-13 15:16:55

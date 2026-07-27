@@ -1,0 +1,23 @@
+//@version=4
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/10PreBuyer.pine
+// content_hash: 49088bbdce83f7f8
+// collected: 2026-07-27
+// >> 3D 1.2 target, .9 loss
+strategy("10PreBuyer", "", 1)
+length              = input(10)
+multiplier          = input(0.90, step=0.01)
+highest             = input(2) 
+prof_trg_perc       = input(1.2, "Prof TRG %",  step=0.05)
+loss_trg_perc       = input(0.9, "Loss TRG %",  step=0.05)
+teemo               = highest(hma(high, length), highest) * multiplier // teemo
+strategy.entry("enter", true, limit=teemo, alert_message = "Enter > DONE >> V3.5 Perc Buyer") // Pre-Place ENTER WITH LIMIT ORDERS and wait for them to fill !!! If they don't fill, then move the order limit price up in line with previous candle's teemo amount
+prof_line           = strategy.position_avg_price * prof_trg_perc // if no new trade, these numbers will just be the previous trades numbers
+loss_line           = strategy.position_avg_price * loss_trg_perc
+strategy.exit("exit", "enter", limit=prof_line, stop=loss_line, alert_message = "Exit > DONE >> V3.5 Perc Buyer")
+plot(teemo,         "Place Limit orders and hope 4 Fill",        color.blue, 2) // blue
+plot(prof_line,     "ProfLine",    #00ff00, 2) // green
+plot(loss_line,     "LossLine",    #ff0000, 2) // red
+barcolor(strategy.opentrades > 0 ? color.yellow : na)
+Expand (30 lines)

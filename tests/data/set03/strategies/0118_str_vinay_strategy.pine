@@ -1,0 +1,94 @@
+//@version=6
+// set03 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多指标协同确认交易策略MACD抛物线SAR与超级趋势三重验证系统-Multi-Indicator-Confirmation-Trading-System-MACD-Parabolic-SAR-and-Supertrend-Triple-Verification-Framework.md
+// content_hash: aeaa2270cbce2f82
+// collected: 2026-07-27
+strategy("Vinay Strategy", 
+     overlay=true,
+     default_qty_type=strategy.percent_of_equity, 
+     default_qty_value=100, 
+     commission_type=strategy.commission.percent, 
+     commission_value=0,    // No commissions
+     slippage=0)            // No slippage
+
+// --- Input Parameters
+atrPeriod  = input.int(10,   "ATR Length for Supertrend", minval=1)
+atrFactor  = input.float(3.0,"ATR Factor for Supertrend", step=0.1)
+
+fastLength = input.int(12, "MACD Fast Length", minval=1)
+slowLength = input.int(26, "MACD Slow Length", minval=1)
+sigLength  = input.int(9,  "MACD Signal Length", minval=1)
+
+sarStep    = input.float(0.02, "Parabolic SAR Step", step=0.001)
+sarMax     = input.float(0.2,  "Parabolic SAR Max",  step=0.001)
+
+// --- Supertrend Calculation
+[stValue, stDir] = ta.supertrend(atrFactor, atrPeriod)
+// stDir < 0 => Bullish (Green), stDir > 0 => Bearish (Red)
+bullishTrend = stDir < 0
+bearishTrend = stDir > 0
+
+// --- Parabolic SAR Calculation
+sarValue = ta.sar(sarStep, sarStep, sarMax)
+
+// --- MACD Calculation
+[macdLine, signalLine, histLine] = ta.macd(close, fastLength, slowLength, sigLength)
+
+// --- Entry Conditions
+macdBullish = macdLine > signalLine   // MACD in bullish phase
+macdBearish = macdLine < signalLine   // MACD in bearish phase
+
+priceAboveSAR = close > sarValue  // Price above SAR (bullish)
+priceBelowSAR = close < sarValue  // Price below SAR (bearish)
+
+// **Long Entry: Enter when all 3 conditions are met (sequence doesn't matter)**
+longEntryCond = macdBullish and priceAboveSAR and bullishTrend
+
+// **Short Entry: Enter when all 3 conditions are met (sequence doesn't matter)**
+shortEntryCond = macdBearish and priceBelowSAR and bearishTrend
+
+// **Exit Long: Only exit if BOTH conditions are met**
+exitLongCond = macdBearish and priceBelowSAR
+
+// **Exit Short: Only exit if BOTH conditions are met**
+exitShortCond = macdBullish and priceAboveSAR
+
+// --- Strategy Orders
+if longEntryCond
+    strategy.entry("Long", strategy.long)
+
+if shortEntryCond
+    strategy.entry("Short", strategy.short)
+
+if exitLongCond
+    strategy.close("Long")
+
+if exitShortCond
+    strategy.close("Short")
+
+// --- Plotting Indicators
+// 1) Supertrend
+plot(bullishTrend ? stValue : na, "Supertrend Up", color=color.green, style=plot.style_linebr, linewidth=2)
+plot(bearishTrend ? stValue : na, "Supertrend Down", color=color.red, style=plot.style_linebr, linewidth=2)
+
+// 2) Parabolic SAR as blue crosses
+plot(sarValue, "Parabolic SAR", color=color.blue, style=plot.style_cross, linewidth=2)
+
+// 3) MACD Visualization
+plot(macdLine,     "MACD Line",    color=color.teal,   linewidth=1)
+plot(signalLine,   "Signal Line",  color=color.orange, linewidth=1)
+
+// Histogram Visualization
+plot(histLine,     "MACD Hist",    style=plot.style_columns, 
+     color = histLine >= 0 ? color.new(color.teal, 60) : color.new(color.orange, 60))
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/488129
+
+> Last Modified
+
+2025-03-25 11:51:14

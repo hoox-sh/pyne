@@ -1,0 +1,57 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双移动均线与布林带结合的趋势追踪策略Dual-Moving-Average-and-Bollinger-Band-Combination-Trend-Tracking-Strategy.md
+// content_hash: 4ca875cceb17ed97
+// collected: 2026-07-27
+strategy("RSA", overlay=true)
+
+// Bollinger Bands
+bb_length = input(20, title="BB Length")
+bb_mult = input(2.0, title="BB MultFactor")
+bb_basis = sma(close, bb_length)
+bb_upper = bb_basis + bb_mult * stdev(close, bb_length)
+bb_lower = bb_basis - bb_mult * stdev(close, bb_length)
+
+// RSI
+rsi_length = input(14, title="RSI Length")
+rsi_oversold = input(30, title="RSI Oversold")
+rsi_overbought = input(70, title="RSI Overbought")
+rsi_value = rsi(close, rsi_length)
+
+// Buy and Sell Conditions
+buy_condition = crossover(rsi_value, rsi_oversold) and (close < bb_lower)
+sell_condition = crossunder(rsi_value, rsi_overbought) and (close > bb_upper)
+
+// Add Buy and Sell Signals
+if (buy_condition)
+    strategy.order("Buy", strategy.long)
+if (sell_condition)
+    strategy.order("Sell", strategy.short)
+
+// Plot Bollinger Bands
+plot(bb_upper, color=color.blue, title="Upper Bollinger Band")
+plot(bb_lower, color=color.blue, title="Lower Bollinger Band")
+
+// Plot RSI
+plot(rsi_value, color=color.orange, title="RSI")
+
+// Plot Moving Averages
+fast_ma = sma(close, 20)
+slow_ma = sma(close, 50)
+plot(fast_ma, color=color.green, title="Fast MA")
+plot(slow_ma, color=color.red, title="Slow MA")
+
+// Plot Trend Lines
+trend_line = linreg(close, 50, 0)
+plot(trend_line, color=color.purple, title="Trend Line")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/442546
+
+> Last Modified
+
+2024-02-22 17:01:05

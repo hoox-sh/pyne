@@ -1,0 +1,58 @@
+//@version=2
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于均线的趋势跟踪策略Trend-Following-Strategy-Based-on-Moving-Average.md
+// content_hash: b898df9ea5933bb8
+// collected: 2026-07-27
+strategy("EMA Strategy v2", shorttitle = "EMA Strategy v2", overlay=true, pyramiding = 3,default_qty_type = strategy.percent_of_equity, default_qty_value = 10)
+
+
+// === Inputs ===
+// short ma
+maFastSource   = input(defval = close, title = "Fast MA Source")
+maFastLength   = input(defval = 30, title = "Fast MA Period", minval = 1)
+
+// long ma
+maSlowSource   = input(defval = close, title = "Slow MA Source")
+maSlowLength   = input(defval = 100, title = "Slow MA Period", minval = 1)
+
+// invert trade direction
+tradeInvert = input(defval = false, title = "Invert Trade Direction?")
+// risk management
+useStop     = input(defval = true, title = "Use Initial Stop Loss?")
+slPoints    = input(defval = 0, title = "Initial Stop Loss Points", minval = 1)
+useTS       = input(defval = true, title = "Use Trailing Stop?")
+tslPoints   = input(defval = 0, title = "Trail Points", minval = 1)
+useTSO      = input(defval = false, title = "Use Offset For Trailing Stop?")
+tslOffset   = input(defval = 0, title = "Trail Offset Points", minval = 1)
+
+// === Vars and Series ===
+fastMA = ema(maFastSource, maFastLength)
+slowMA = ema(maSlowSource, maSlowLength)
+
+plot(fastMA, color=blue)
+plot(slowMA, color=purple)
+
+goLong() => crossover(fastMA, slowMA)
+killLong() => crossunder(fastMA, slowMA)
+strategy.entry("Buy", strategy.long, when = goLong())
+strategy.close("Buy", when = killLong())
+
+// Shorting if using
+goShort() => crossunder (fastMA, slowMA)
+killShort() => crossover(fastMA, slowMA)
+//strategy.entry("Sell", strategy.short, when = goShort())
+//strategy.close("Sell", when = killShort())
+
+if (useStop)
+    strategy.exit("XLS", from_entry ="Buy", stop = strategy.position_avg_price / 1.08 )
+    strategy.exit("XSS", from_entry ="Sell", stop = strategy.position_avg_price * 1.58)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/439648
+
+> Last Modified
+
+2024-01-22 17:26:04

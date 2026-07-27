@@ -1,0 +1,64 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/常用移动平均线交叉策略Moving-Average-Crossover-Strategy.md
+// content_hash: c211c0b0a5659507
+// collected: 2026-07-27
+strategy("MA Cross Strategy", overlay=true,commission_value = 0.1)
+
+type = input(defval = "WMA", title = "MA Type: ", options=["RMA", "SMA", "EMA", "WMA"])
+
+length = input(28)
+source = close
+
+
+
+// === INPUT BACKTEST RANGE ===
+FromDay   = input(defval = 1, title = "From Day", minval = 1, maxval = 31)
+FromMonth = input(defval = 1, title = "From Month", minval = 1, maxval = 12)
+FromYear  = input(defval = 2000, title = "From Year", minval = 2000)
+
+// === FUNCTION EXAMPLE ===
+start     = timestamp(FromYear, FromMonth, FromDay, 00, 00)  // backtest start window
+finish    = timestamp(9999, 1, 1, 23, 59)        // backtest finish window
+window()  => time >= start and time <= finish ? true : false // create function "within window of time"
+
+
+
+variant(type, src, len) =>
+    v1 = sma(src, len)                                                  // Simple
+    v2 = ema(src, len)                                                  // Exponential
+    v5 = wma(src, len)                                                  // Weighted
+    v7 = rma(src, len)                                                  // Smoothed
+    type=="EMA"?v2 : type=="WMA"?v5 : type=="RMA"?v7 : v1
+ma = variant(type,source, length)
+
+
+atr = security(syminfo.tickerid, "D", atr(14))
+
+range = valuewhen(cross(close,ma), (atr*2), na)
+
+ep = valuewhen(cross(close,ma), close, na)
+
+plot(ma,color=ma>ma[1]?color.blue:color.red,transp=0,linewidth=1)
+plot(ep,color=#2196f3,transp=100,trackprice=true, offset=-9999)
+plot(ep+range,color=#2196f3,transp=100,trackprice=true, offset=-9999)
+plot(ep-range,color=#2196f3,transp=100,trackprice=true, offset=-9999)
+
+strategy.entry("Long Entry", true, when = crossover(close,ma)  and window() , stop  = ep ) 
+strategy.exit("Long Exit", "Long Entry", stop  = ep-range) 
+strategy.exit("Long Exit", "Long Entry", when = high > ep+range ,stop = ep[1] ) 
+
+strategy.entry("Short Entry", false, when = crossunder(close,ma)  and window() , stop  = ep ) 
+strategy.exit("Short Exit", "Short Entry", stop  = ep+range) 
+strategy.exit("Short Exit", "Short Entry", when = low < ep-range ,stop = ep[1] ) 
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/431014
+
+> Last Modified
+
+2023-11-03 17:23:54

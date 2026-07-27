@@ -1,0 +1,42 @@
+//@version=6
+// set03 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block315
+// content_hash: 0252dcbd8f157ceb
+// collected: 2026-07-27
+indicator("for...in")
+// Here we determine on each bar how many of the bar's OHLC values are greater than the SMA of 'close' values
+float[] ohlcValues = array.from(open, high, low, close)
+qtyGreaterThan(value, array) =>
+    int result = 0
+    for currentElement in array
+        if currentElement > value
+            result += 1
+        result
+plot(qtyGreaterThan(ta.sma(close, 20), ohlcValues))
+
+//@version=6
+indicator("for...in")
+var valuesArray = array.from(4, -8, 11, 78, -16, 34, 7, 99, 0, 55)
+var isPos = array.new_bool(10, false)
+
+for [index, value] in valuesArray
+    if value > 0
+        array.set(isPos, index, true)
+
+if barstate.islastconfirmedhistory
+    label.new(bar_index, high, str.tostring(isPos))
+
+//@version=6
+indicator("`for ... in` matrix Example")
+
+// Create a 2x3 matrix with values `4`.
+matrix1 = matrix.new<int>(2, 3, 4)
+
+sum = 0.0
+// Loop through every row of the matrix.
+for rowArray in matrix1
+    // Sum values of the every row 
+    sum += array.sum(rowArray)
+
+plot(sum)

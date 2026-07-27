@@ -1,0 +1,71 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/RSI动态区间反转量化策略与波动率优化模型-RSI-Dynamic-Range-Reversal-Quantitative-Strategy-with-Volatility-Optimization-Model.md
+// content_hash: 33af2fe588825022
+// collected: 2026-07-27
+strategy("RSI Options Strategy", overlay=true)
+
+// RSI settings
+rsiLength = input(14, title="RSI Length")
+rsiOverbought = input(80, title="Overbought Level")
+rsiOversold = input(30, title="Oversold Level")
+rsiSource = input(close, title="RSI Source")
+rsi = ta.rsi(rsiSource, rsiLength)
+
+// Convergence/Divergence Input
+convergenceLevel = input(3.0, title="Convergence/Divergence Sensitivity")
+
+// Order size (5 contracts)
+contracts = 10
+
+// Date Range for Backtesting
+startDate = timestamp("2024-09-10 00:00")
+endDate = timestamp("2024-11-09 23:59")
+
+// Limit trades to the backtesting period
+inDateRange = true
+
+// RSI buy/sell conditions with convergence/divergence sensitivity
+buySignalOverbought = ta.crossover(rsi, rsiOverbought - convergenceLevel)
+sellSignalOversold = ta.crossunder(rsi, rsiOversold + convergenceLevel)
+buySignalOversold = ta.crossunder(rsi, rsiOversold - convergenceLevel)
+sellSignalOverbought = ta.crossover(rsi, rsiOverbought + convergenceLevel)
+
+// Execute trades only within the specified date range
+if (inDateRange)
+    // Buy when RSI crosses above 80 (overbought)
+    if (buySignalOverbought)
+        strategy.entry("Buy Overbought", strategy.long, qty=contracts)
+    
+    // Sell when RSI crosses below 30 (oversold)
+    if (sellSignalOversold)
+        strategy.close("Buy Overbought")
+
+    // Buy when RSI crosses below 30 (oversold)
+    if (buySignalOversold)
+        strategy.entry("Buy Oversold", strategy.long, qty=contracts)
+    
+    // Sell when RSI crosses above 80 (overbought)
+    if (sellSignalOverbought)
+        strategy.close("Buy Oversold")
+
+// Plot the RSI for visualization
+plot(rsi, color=color.blue, title="RSI")
+hline(rsiOverbought, "Overbought", color=color.red)
+hline(rsiOversold, "Oversold", color=color.green)
+
+ 
+
+
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/471704
+
+> Last Modified
+
+2024-11-12 15:55:34

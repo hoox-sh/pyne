@@ -1,0 +1,50 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/带滑点止损的DCA定投策略DCA-Strategy-with-Trailing-Take-Profit.md
+// content_hash: c9b85a3bdad3c92b
+// collected: 2026-07-27
+strategy("DCA Strategy with Trailing Take Profit", overlay=true, initial_capital=1000, default_qty_type=strategy.percent_of_equity, default_qty_value=10)
+
+// Correctly using input to define user-configurable parameters
+takeProfitPercent = input.float(0.6, title="Take Profit (%)", minval=0.1, maxval=5)
+trailingPercent = input.float(0.1, title="Trailing Stop (%)", minval=0.05, maxval=1)
+maxDCAOrders = input.int(10, title="Max DCA Orders", minval=1, maxval=20)
+priceDeviationPercent = input.float(1.0, title="Price Deviation (%)", minval=0.5, maxval=5)
+
+var float lastBuyPrice = na
+var int buyCount = 0
+var float initialBuyPrice = na
+var float trailingStopPrice = na
+
+// Strategy logic here...
+// Note: The detailed logic for buying and selling based on the DCA strategy
+// needs to be tailored to your specific requirements and tested for correctness.
+
+if (buyCount < maxDCAOrders)
+    if (na(lastBuyPrice) or close < lastBuyPrice * (1 - priceDeviationPercent / 100))
+        strategy.entry("Buy", strategy.long)
+        lastBuyPrice := close
+        buyCount += 1
+        if (na(initialBuyPrice))
+            initialBuyPrice := close
+
+if (not na(lastBuyPrice) and close > lastBuyPrice * (1 + takeProfitPercent / 100))
+    if (na(trailingStopPrice) or close > trailingStopPrice)
+        trailingStopPrice := close * (1 - trailingPercent / 100)
+    if (close < trailingStopPrice)
+        strategy.close("Buy")
+        lastBuyPrice := na
+        trailingStopPrice := na
+        buyCount := 0
+        initialBuyPrice := na
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/442635
+
+> Last Modified
+
+2024-02-23 14:01:20

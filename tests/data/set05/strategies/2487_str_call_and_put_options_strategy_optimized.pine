@@ -1,0 +1,56 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双均线交叉与相对强弱指数结合的自适应趋势跟踪策略-Adaptive-Trend-Following-Strategy-Combining-Dual-Moving-Average-Crossover-and-RSI.md
+// content_hash: 03d6637c885e0621
+// collected: 2026-07-27
+strategy("Call & Put Options Strategy (Optimized)", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=10)
+
+// ? Configuration Parameters
+emaShort = input(9, title="Short EMA")
+emaLong = input(21, title="Long EMA")
+rsiLength = input(14, title="RSI Period")
+rsiOverbought = input(60, title="RSI Overbought") // Adjusted for more signals
+rsiOversold = input(40, title="RSI Oversold")   // More flexible to confirm buys
+atrLength = input(14, title="ATR Period")
+atrMult = input(1.5, title="ATR Multiplier for Stop Loss")
+minVol = input(100000, title="Minimum Volume to Confirm Entry") // Volume filter
+
+// ? Indicator Calculations
+emaFast = ta.ema(close, emaShort)
+emaSlow = ta.ema(close, emaLong)
+rsi = ta.rsi(close, rsiLength)
+atr = ta.atr(atrLength)
+vol = volume
+
+// ? Entry Signal Conditions
+condCALL = ta.crossover(emaFast, emaSlow) and rsi > rsiOversold and vol > minVol
+condPUT = ta.crossunder(emaFast, emaSlow) and rsi < rsiOverbought and vol > minVol
+
+// ? Plot signals on the chart
+plotshape(condCALL, location=location.belowbar, color=color.green, style=shape.labelup, title="CALL", size=size.small)
+plotshape(condPUT, location=location.abovebar, color=color.red, style=shape.labeldown, title="PUT", size=size.small)
+
+// ? Alert conditions
+alertcondition(condCALL, title="CALL Signal", message="? CALL signal confirmed")
+alertcondition(condPUT, title="PUT Signal", message="? PUT signal confirmed")
+
+// ? Risk Management - Stop Loss and Take Profit
+longStop = close - (atr * atrMult)
+shortStop = close + (atr * atrMult)
+
+strategy.entry("CALL", strategy.long, when=condCALL)
+strategy.exit("CALL Exit", from_entry="CALL", stop=longStop)
+
+strategy.entry("PUT", strategy.short, when=condPUT)
+strategy.exit("PUT Exit", from_entry="PUT", stop=shortStop)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/482877
+
+> Last Modified
+
+2025-02-27 17:32:08

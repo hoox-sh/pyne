@@ -1,0 +1,390 @@
+// set02 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/projects/daily-bias-fvg-strategy.pine
+// content_hash: 9a4de6198ee59a28
+// collected: 2026-07-27
+// built with PineScript Agents by TradersPost
+// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © Based on "The Ultimate Daily Bias Trading Strategy" by Lewis Kelly
+
+//@version=6
+//@strategy_alert_message {{strategy.order.alert_message}}
+strategy("Daily Bias + FVG Strategy", overlay=true, initial_capital=10000, default_qty_type=strategy.percent_of_equity, default_qty_value=2, commission_type=strategy.commission.percent, commission_value=0.1, slippage=1)
+
+// ============================================================================
+// INPUT SETTINGS
+// ============================================================================
+
+// Daily Bias Settings
+grpBias = "Daily Bias Settings"
+showDailyLevels = input.bool(true, "Show Previous Day High/Low", group=grpBias, tooltip="Display previous day's high and low levels")
+showDailyOpen = input.bool(true, "Show Daily Open", group=grpBias, tooltip="Display current day's opening price")
+biasLookback = input.int(1, "Lookback Days for Bias", minval=1, maxval=5, group=grpBias, tooltip="Number of days to look back for bias determination")
+
+// Fair Value Gap Settings
+grpFVG = "Fair Value Gap (FVG) Settings"
+showFVG = input.bool(true, "Show Fair Value Gaps", group=grpFVG, tooltip="Display FVG zones on chart")
+fvgMinSize = input.float(0.0001, "Minimum FVG Size", minval=0, step=0.0001, group=grpFVG, tooltip="Minimum gap size to qualify as FVG (in price)")
+fvgMaxAge = input.int(50, "Max FVG Age (bars)", minval=10, maxval=200, group=grpFVG, tooltip="Maximum age of FVG before it expires")
+mitigateFVG = input.bool(true, "Mitigate FVG on Touch", group=grpFVG, tooltip="Remove FVG when price touches it")
+
+// Entry Settings
+grpEntry = "Entry Settings"
+entryTimeframe = input.timeframe("60", "Entry Timeframe", group=grpEntry, tooltip="Timeframe for entry signals (default: 1H)")
+requireFVGEntry = input.bool(true, "Require FVG for Entry", group=grpEntry, tooltip="Only enter when price is in an FVG zone")
+sessionFilter = input.bool(true, "Use Session Filter", group=grpEntry, tooltip="Only trade during active sessions")
+sessionStart = input.session("0800-1600", "Trading Session", group=grpEntry, tooltip="Time window for taking trades")
+
+// Risk Management
+grpRisk = "Risk Management"
+riskRewardRatio = input.float(5.0, "Risk:Reward Ratio", minval=1.0, maxval=10.0, step=0.5, group=grpRisk, tooltip="Target R:R ratio (1:5 = 5.0)")
+useATRStop = input.bool(true, "Use ATR for Stop Loss", group=grpRisk, tooltip="Use ATR-based stop loss instead of fixed")
+atrLength = input.int(14, "ATR Length", minval=5, maxval=50, group=grpRisk, tooltip="ATR period for stop loss calculation")
+atrMultiplier = input.float(1.5, "ATR Multiplier", minval=0.5, maxval=5.0, step=0.1, group=grpRisk, tooltip="ATR multiplier for stop distance")
+fixedStopPips = input.float(20.0, "Fixed Stop (pips)", minval=5, maxval=100, group=grpRisk, tooltip="Fixed stop loss in pips (if ATR disabled)")
+
+// Visual Settings
+grpVisual = "Visual Settings"
+bullColor = input.color(color.new(color.green, 70), "Bullish Color", group=grpVisual)
+bearColor = input.color(color.new(color.red, 70), "Bearish Color", group=grpVisual)
+showLabels = input.bool(true, "Show Signal Labels", group=grpVisual)
+showStats = input.bool(true, "Show Statistics Table", group=grpVisual)
+
+// Debug Settings
+grpDebug = "Debug Settings"
+debugMode = input.bool(false, "Enable Debug Mode", group=grpDebug, tooltip="Show additional debug information")
+
+// ============================================================================
+// DAILY BIAS CALCULATION
+// ============================================================================
+
+// Get daily timeframe data
+[dailyOpen, dailyHigh, dailyLow, dailyClose] = request.security(syminfo.tickerid, "D", [open, high, low, close], lookahead=barmerge.lookahead_on)
+[prevDayHigh, prevDayLow, prevDayClose, prevDayOpen] = request.security(syminfo.tickerid, "D", [high[1], low[1], close[1], open[1]], lookahead=barmerge.lookahead_on)
+
+// Calculate daily bias based on "One Candle Rule"
+// Bullish: Previous candle wicked below prior low but closed inside range (bullish rejection)
+// Bearish: Previous candle wicked above prior high but closed inside range (bearish rejection)
+
+// Get data from 2 days ago for comparison
+[twoDaysAgoHigh, twoDaysAgoLow] = request.security(syminfo.tickerid, "D", [high[2], low[2]], lookahead=barmerge.lookahead_on)
+
+// Bullish bias conditions:
+// 1. Yesterday's low went below 2-days-ago low (liquidity grab)
+// 2. Yesterday closed above 2-days-ago low (rejection)
+// 3. Yesterday closed in upper portion of its range
+bullishWick = prevDayLow < twoDaysAgoLow
+bullishClose = prevDayClose > twoDaysAgoLow
+bullishCandleStructure = prevDayClose > prevDayOpen or (prevDayClose > (prevDayHigh + prevDayLow) / 2)
+bullishBias = bullishWick and bullishClose and bullishCandleStructure
+
+// Bearish bias conditions:
+// 1. Yesterday's high went above 2-days-ago high (liquidity grab)
+// 2. Yesterday closed below 2-days-ago high (rejection)
+// 3. Yesterday closed in lower portion of its range
+bearishWick = prevDayHigh > twoDaysAgoHigh
+bearishClose = prevDayClose < twoDaysAgoHigh
+bearishCandleStructure = prevDayClose < prevDayOpen or (prevDayClose < (prevDayHigh + prevDayLow) / 2)
+bearishBias = bearishWick and bearishClose and bearishCandleStructure
+
+// Track bias state
+var int currentBias = 0  // 1 = bullish, -1 = bearish, 0 = neutral
+if bullishBias
+    currentBias := 1
+else if bearishBias
+    currentBias := -1
+
+// ============================================================================
+// FAIR VALUE GAP DETECTION
+// ============================================================================
+
+// FVG Types for tracking
+type FVGZone
+    float top
+    float bottom
+    int startBar
+    bool isBullish
+    bool isActive
+
+// Arrays to store FVG zones
+var array<FVGZone> bullishFVGs = array.new<FVGZone>()
+var array<FVGZone> bearishFVGs = array.new<FVGZone>()
+
+// Detect Bullish FVG: Gap between candle[2] high and candle[0] low
+bullishFVGCondition = low > high[2] and (low - high[2]) >= fvgMinSize
+if bullishFVGCondition and showFVG
+    newFVG = FVGZone.new(low, high[2], bar_index, true, true)
+    array.push(bullishFVGs, newFVG)
+
+// Detect Bearish FVG: Gap between candle[2] low and candle[0] high
+bearishFVGCondition = high < low[2] and (low[2] - high) >= fvgMinSize
+if bearishFVGCondition and showFVG
+    newFVG = FVGZone.new(low[2], high, bar_index, false, true)
+    array.push(bearishFVGs, newFVG)
+
+// Function to check if price is in any bullish FVG
+isInBullishFVG() =>
+    result = false
+    if array.size(bullishFVGs) > 0
+        for i = array.size(bullishFVGs) - 1 to 0
+            fvg = array.get(bullishFVGs, i)
+            if fvg.isActive and low <= fvg.top and high >= fvg.bottom
+                result := true
+                break
+    result
+
+// Function to check if price is in any bearish FVG
+isInBearishFVG() =>
+    result = false
+    if array.size(bearishFVGs) > 0
+        for i = array.size(bearishFVGs) - 1 to 0
+            fvg = array.get(bearishFVGs, i)
+            if fvg.isActive and high >= fvg.bottom and low <= fvg.top
+                result := true
+                break
+    result
+
+// Mitigate (deactivate) FVGs when price fills them
+if mitigateFVG
+    // Mitigate bullish FVGs
+    if array.size(bullishFVGs) > 0
+        for i = array.size(bullishFVGs) - 1 to 0
+            fvg = array.get(bullishFVGs, i)
+            if fvg.isActive
+                // Mitigate if price trades through the zone
+                if low <= fvg.bottom
+                    fvg.isActive := false
+                // Expire old FVGs
+                if bar_index - fvg.startBar > fvgMaxAge
+                    fvg.isActive := false
+
+    // Mitigate bearish FVGs
+    if array.size(bearishFVGs) > 0
+        for i = array.size(bearishFVGs) - 1 to 0
+            fvg = array.get(bearishFVGs, i)
+            if fvg.isActive
+                // Mitigate if price trades through the zone
+                if high >= fvg.top
+                    fvg.isActive := false
+                // Expire old FVGs
+                if bar_index - fvg.startBar > fvgMaxAge
+                    fvg.isActive := false
+
+// Clean up old FVGs to prevent array bloat
+if array.size(bullishFVGs) > 100
+    array.shift(bullishFVGs)
+if array.size(bearishFVGs) > 100
+    array.shift(bearishFVGs)
+
+// ============================================================================
+// SESSION FILTER
+// ============================================================================
+
+inSession = not sessionFilter or not na(time(timeframe.period, sessionStart))
+
+// ============================================================================
+// ENTRY CONDITIONS
+// ============================================================================
+
+// ATR for stop loss calculation
+atr = ta.atr(atrLength)
+
+// Power of Three concept:
+// After daily bias is established, wait for manipulation (move against bias)
+// Then enter on pullback to FVG in direction of bias
+
+// Track if we've seen manipulation today
+var bool manipulationSeen = false
+var float manipulationHigh = na
+var float manipulationLow = na
+
+// Reset manipulation tracking on new day
+if ta.change(time("D"))
+    manipulationSeen := false
+    manipulationHigh := na
+    manipulationLow := na
+
+// Detect manipulation (price moving against bias from daily open)
+if currentBias == 1 and not manipulationSeen
+    // For bullish bias, manipulation is a move below daily open
+    if low < dailyOpen
+        manipulationSeen := true
+        manipulationLow := low
+
+if currentBias == -1 and not manipulationSeen
+    // For bearish bias, manipulation is a move above daily open
+    if high > dailyOpen
+        manipulationSeen := true
+        manipulationHigh := high
+
+// Entry conditions
+priceInBullishFVG = isInBullishFVG()
+priceInBearishFVG = isInBearishFVG()
+
+// Long entry: Bullish bias + manipulation seen + price in bullish FVG (or FVG not required)
+longCondition = currentBias == 1 and manipulationSeen and inSession and (not requireFVGEntry or priceInBullishFVG)
+
+// Short entry: Bearish bias + manipulation seen + price in bearish FVG (or FVG not required)
+shortCondition = currentBias == -1 and manipulationSeen and inSession and (not requireFVGEntry or priceInBearishFVG)
+
+// ============================================================================
+// STOP LOSS AND TAKE PROFIT CALCULATION
+// ============================================================================
+
+// Calculate stop loss distance
+stopDistance = useATRStop ? atr * atrMultiplier : fixedStopPips * syminfo.mintick * 10
+
+// Long trade levels
+longStopLoss = low - stopDistance
+longTakeProfit = close + (stopDistance * riskRewardRatio)
+
+// Short trade levels
+shortStopLoss = high + stopDistance
+shortTakeProfit = close - (stopDistance * riskRewardRatio)
+
+// ============================================================================
+// STRATEGY EXECUTION
+// ============================================================================
+
+// Track if we have an open position
+var bool inLongTrade = false
+var bool inShortTrade = false
+
+// Entry logic
+if longCondition and not inLongTrade and not inShortTrade
+    strategy.entry("Long", strategy.long)
+    strategy.exit("Long Exit", "Long", stop=longStopLoss, limit=longTakeProfit)
+    inLongTrade := true
+
+if shortCondition and not inShortTrade and not inLongTrade
+    strategy.entry("Short", strategy.short)
+    strategy.exit("Short Exit", "Short", stop=shortStopLoss, limit=shortTakeProfit)
+    inShortTrade := true
+
+// Reset position tracking when trade closes
+if strategy.position_size == 0
+    inLongTrade := false
+    inShortTrade := false
+
+// ============================================================================
+// VISUAL ELEMENTS
+// ============================================================================
+
+// Plot previous day levels
+plot(showDailyLevels ? prevDayHigh : na, "Prev Day High", color=color.new(color.red, 50), style=plot.style_linebr, linewidth=1)
+plot(showDailyLevels ? prevDayLow : na, "Prev Day Low", color=color.new(color.green, 50), style=plot.style_linebr, linewidth=1)
+plot(showDailyOpen ? dailyOpen : na, "Daily Open", color=color.new(color.orange, 50), style=plot.style_linebr, linewidth=1)
+
+// Background color for bias
+biasColor = currentBias == 1 ? color.new(color.green, 95) : currentBias == -1 ? color.new(color.red, 95) : na
+bgcolor(biasColor, title="Bias Background")
+
+// Draw FVG boxes
+var array<box> fvgBoxes = array.new<box>()
+
+// Limit box drawing to prevent clutter
+if barstate.islast and showFVG
+    // Clear old boxes
+    for i = array.size(fvgBoxes) - 1 to 0
+        box.delete(array.get(fvgBoxes, i))
+    array.clear(fvgBoxes)
+
+    // Draw active bullish FVGs
+    if array.size(bullishFVGs) > 0
+        for i = math.max(0, array.size(bullishFVGs) - 10) to array.size(bullishFVGs) - 1
+            fvg = array.get(bullishFVGs, i)
+            if fvg.isActive
+                b = box.new(fvg.startBar, fvg.top, bar_index, fvg.bottom, bgcolor=bullColor, border_color=color.green, border_width=1)
+                array.push(fvgBoxes, b)
+
+    // Draw active bearish FVGs
+    if array.size(bearishFVGs) > 0
+        for i = math.max(0, array.size(bearishFVGs) - 10) to array.size(bearishFVGs) - 1
+            fvg = array.get(bearishFVGs, i)
+            if fvg.isActive
+                b = box.new(fvg.startBar, fvg.top, bar_index, fvg.bottom, bgcolor=bearColor, border_color=color.red, border_width=1)
+                array.push(fvgBoxes, b)
+
+// Signal labels
+if showLabels and longCondition and not inLongTrade[1]
+    label.new(bar_index, low, "LONG\nBias: Bullish\nFVG Entry", style=label.style_label_up, color=color.green, textcolor=color.white, size=size.small)
+
+if showLabels and shortCondition and not inShortTrade[1]
+    label.new(bar_index, high, "SHORT\nBias: Bearish\nFVG Entry", style=label.style_label_down, color=color.red, textcolor=color.white, size=size.small)
+
+// ============================================================================
+// STATISTICS TABLE
+// ============================================================================
+
+if showStats and barstate.islast
+    var table statsTable = table.new(position.top_right, 2, 8, bgcolor=color.new(color.black, 80), border_width=1)
+
+    // Headers
+    table.cell(statsTable, 0, 0, "Daily Bias Strategy", text_color=color.white, text_size=size.normal, bgcolor=color.new(color.blue, 70), text_halign=text.align_center)
+    table.merge_cells(statsTable, 0, 0, 1, 0)
+
+    // Current bias
+    biasText = currentBias == 1 ? "BULLISH" : currentBias == -1 ? "BEARISH" : "NEUTRAL"
+    biasTextColor = currentBias == 1 ? color.green : currentBias == -1 ? color.red : color.gray
+    table.cell(statsTable, 0, 1, "Current Bias:", text_color=color.white, text_size=size.small)
+    table.cell(statsTable, 1, 1, biasText, text_color=biasTextColor, text_size=size.small)
+
+    // Manipulation status
+    manipText = manipulationSeen ? "YES" : "NO"
+    manipColor = manipulationSeen ? color.green : color.orange
+    table.cell(statsTable, 0, 2, "Manipulation:", text_color=color.white, text_size=size.small)
+    table.cell(statsTable, 1, 2, manipText, text_color=manipColor, text_size=size.small)
+
+    // Active FVGs
+    activeBullFVG = 0
+    activeBearFVG = 0
+    if array.size(bullishFVGs) > 0
+        for i = 0 to array.size(bullishFVGs) - 1
+            if array.get(bullishFVGs, i).isActive
+                activeBullFVG += 1
+    if array.size(bearishFVGs) > 0
+        for i = 0 to array.size(bearishFVGs) - 1
+            if array.get(bearishFVGs, i).isActive
+                activeBearFVG += 1
+
+    table.cell(statsTable, 0, 3, "Bull FVGs:", text_color=color.white, text_size=size.small)
+    table.cell(statsTable, 1, 3, str.tostring(activeBullFVG), text_color=color.green, text_size=size.small)
+
+    table.cell(statsTable, 0, 4, "Bear FVGs:", text_color=color.white, text_size=size.small)
+    table.cell(statsTable, 1, 4, str.tostring(activeBearFVG), text_color=color.red, text_size=size.small)
+
+    // Session status
+    sessionText = inSession ? "ACTIVE" : "CLOSED"
+    sessionColor = inSession ? color.green : color.gray
+    table.cell(statsTable, 0, 5, "Session:", text_color=color.white, text_size=size.small)
+    table.cell(statsTable, 1, 5, sessionText, text_color=sessionColor, text_size=size.small)
+
+    // Strategy performance
+    table.cell(statsTable, 0, 6, "Win Rate:", text_color=color.white, text_size=size.small)
+    winRate = strategy.wintrades / math.max(strategy.closedtrades, 1) * 100
+    table.cell(statsTable, 1, 6, str.tostring(winRate, "#.##") + "%", text_color=color.white, text_size=size.small)
+
+    table.cell(statsTable, 0, 7, "Profit Factor:", text_color=color.white, text_size=size.small)
+    pf = strategy.grossprofit / math.max(strategy.grossloss, 1)
+    table.cell(statsTable, 1, 7, str.tostring(pf, "#.##"), text_color=color.white, text_size=size.small)
+
+// ============================================================================
+// DEBUG MODE
+// ============================================================================
+
+if debugMode
+    // Plot debug info
+    plotchar(bullishBias, "Bullish Bias Signal", "▲", location.bottom, color.green, size=size.tiny)
+    plotchar(bearishBias, "Bearish Bias Signal", "▼", location.top, color.red, size=size.tiny)
+    plotchar(manipulationSeen, "Manipulation", "M", location.abovebar, color.orange, size=size.tiny)
+    plotchar(priceInBullishFVG, "In Bull FVG", "B", location.belowbar, color.green, size=size.tiny)
+    plotchar(priceInBearishFVG, "In Bear FVG", "S", location.abovebar, color.red, size=size.tiny)
+
+// ============================================================================
+// ALERTS
+// ============================================================================
+
+alertcondition(longCondition and not inLongTrade[1], "Long Signal", "Daily Bias Strategy: LONG signal - Bullish bias with FVG entry")
+alertcondition(shortCondition and not inShortTrade[1], "Short Signal", "Daily Bias Strategy: SHORT signal - Bearish bias with FVG entry")
+alertcondition(bullishBias and not bullishBias[1], "Bullish Bias Detected", "Daily Bias: New BULLISH bias detected")
+alertcondition(bearishBias and not bearishBias[1], "Bearish Bias Detected", "Daily Bias: New BEARISH bias detected")

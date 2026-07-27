@@ -1,0 +1,11 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block96
+// content_hash: 06ec493370c8f1cd
+// collected: 2026-07-27
+indicator("box.new")
+var b = box.new(time, open, time + 60 * 60 * 24, close, xloc=xloc.bar_time, border_style=line.style_dashed)
+box.set_lefttop(b, time, 100)
+box.set_rightbottom(b, time + 60 * 60 * 24, 500)
+box.set_bgcolor(b, color.green)

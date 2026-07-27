@@ -1,0 +1,95 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/量化交易突破策略首时段ATR止损与EMA斜率优化策略-Quantitative-Breakout-Strategy-First-Hour-ATR-Stop-Loss-with-EMA-Slope-Optimization.md
+// content_hash: 44b813406bc14098
+// collected: 2026-07-27
+strategy("FnO Intraday Strategy with ATR SL, EMA Slope & Signals", overlay=true, initial_capital=100000, default_qty_type=strategy.percent_of_equity, default_qty_value=10)
+
+// INPUTS
+atrPeriod      = input.int(14, "ATR Period")
+atrMultiplier  = input.float(1.0, "ATR Stop Loss Multiplier", step=0.1)
+targetPercent  = input.float(1.0, "Profit Target (%)", step=0.1) * 0.01
+
+// Define session start and first candle period (for Indian market, session starts at 09:15)
+sessionStartHour   = input.int(9, "Session Start Hour", minval=0, maxval=23)
+sessionStartMinute = input.int(15, "Session Start Minute", minval=0, maxval=59)
+firstCandleMins    = 60  // First candle duration in minutes
+
+// Compute today's session start and first candle end timestamps
+currYear  = year(time)
+currMonth = month(time)
+currDay   = dayofmonth(time)
+sessionStartTS = timestamp(currYear, currMonth, currDay, sessionStartHour, sessionStartMinute)
+sessionEndTS   = sessionStartTS + firstCandleMins * 60 * 1000  // PineScript time is in ms
+
+// INITIALIZE first-hour high/low (reset at the start of each day)
+var float firstHourHigh = na
+var float firstHourLow  = na
+if (ta.change(time("D")))
+    firstHourHigh := na, firstHourLow := na
+
+// Update first-hour high/low while within the first candle period
+if (time >= sessionStartTS and time <= sessionEndTS)
+    firstHourHigh := na(firstHourHigh) ? high : math.max(firstHourHigh, high)
+    firstHourLow  := na(firstHourLow)  ? low  : math.min(firstHourLow, low)
+
+// Plot the first-hour high and low once the first candle period is over
+plot(time > sessionEndTS ? firstHourHigh : na, title="First Hour High", color=color.green, style=plot.style_linebr)
+plot(time > sessionEndTS ? firstHourLow  : na, title="First Hour Low",  color=color.red,   style=plot.style_linebr)
+
+// Calculate indicators: 9 EMA, VWAP, and EMA slope
+ema9    = ta.ema(close, 9)
+vwapVal = ta.vwap(hlc3)  // Using typical price for VWAP calculation
+emaSlope = ema9 - ema9[1]
+
+// Define "first hour complete" flag so entries only occur after the first candle period
+firstHourComplete = time > sessionEndTS
+
+// ENTRY CONDITIONS
+// Long: Price breaks above first-hour high, and 9 EMA crosses above VWAP with a positive slope.
+longBreakout       = ta.crossover(close, firstHourHigh)
+longEMAConfirmation = ta.crossover(ema9, vwapVal) and (emaSlope > 0)
+longCondition      = firstHourComplete and longBreakout and longEMAConfirmation
+
+// Short: Price breaks below first-hour low, and 9 EMA crosses below VWAP with a negative slope.
+shortBreakout       = ta.crossunder(close, firstHourLow)
+shortEMAConfirmation = ta.crossunder(ema9, vwapVal) and (emaSlope < 0)
+shortCondition      = firstHourComplete and shortBreakout and shortEMAConfirmation
+
+// Generate entries
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+if (shortCondition)
+    strategy.entry("Short", strategy.short)
+
+// Add buy and sell signals on the chart
+plotshape(longCondition, title="Buy Signal", location=location.belowbar, color=color.green, style=shape.labelup, text="BUY")
+plotshape(shortCondition, title="Sell Signal", location=location.abovebar, color=color.red, style=shape.labeldown, text="SELL")
+
+// Calculate ATR for dynamic stop loss
+atrValue = ta.atr(atrPeriod)
+
+// Set exits using ATR-based stop loss and fixed profit target (1% gain)
+if (strategy.position_size > 0)
+    longStop   = strategy.position_avg_price - atrValue * atrMultiplier
+    longTarget = strategy.position_avg_price * (1 + targetPercent)
+    strategy.exit("Long Exit", from_entry="Long", stop=longStop, limit=longTarget)
+if (strategy.position_size < 0)
+    shortStop   = strategy.position_avg_price + atrValue * atrMultiplier
+    shortTarget = strategy.position_avg_price * (1 - targetPercent)
+    strategy.exit("Short Exit", from_entry="Short", stop=shortStop, limit=shortTarget)
+
+// Plot EMA and VWAP for visual confirmation
+plot(ema9, title="9 EMA", color=color.blue)
+plot(vwapVal, title="VWAP", color=color.orange)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/484091
+
+> Last Modified
+
+2025-02-28 09:46:26

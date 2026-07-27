@@ -1,0 +1,92 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动态风险管理的均线交叉与布林带策略-Dynamic-Risk-Managed-EMA-Crossover-with-Bollinger-Bands-Strategy.md
+// content_hash: 0a0c0ac124f4dbac
+// collected: 2026-07-27
+strategy("Intraday Strategy with Risk-Reward 1:2, Bollinger Bands, and Stop Loss", overlay=true)
+
+// Parameters
+fastLength = input(9, title="Fast EMA Length")
+slowLength = input(21, title="Slow EMA Length")
+rsiLength = input(14, title="RSI Length")
+overbought = input(70, title="RSI Overbought Level")
+oversold = input(30, title="RSI Oversold Level")
+minVolume = input(100000, title="Min Volume for Confirmation")
+bbLength = input(20, title="Bollinger Bands Length")
+bbStdDev = input.float(2.0, title="Bollinger Bands Standard Deviation")
+stopLossPercent = input.float(1, title="Stop Loss (%)", minval=0.1) // Stop Loss %
+riskRewardRatio = 2.0 // Fixed risk-reward ratio 1:2
+
+// Indicators
+fastEMA = ta.ema(close, fastLength)
+slowEMA = ta.ema(close, slowLength)
+rsi = ta.rsi(close, rsiLength)
+volumeCondition = volume > minVolume
+
+// Bollinger Bands
+bbBasis = ta.sma(close, bbLength) // Basis (middle line) is the SMA
+bbUpper = bbBasis + bbStdDev * ta.stdev(close, bbLength) // Upper band
+bbLower = bbBasis - bbStdDev * ta.stdev(close, bbLength) // Lower band
+
+// Bullish Engulfing Pattern
+bullishEngulfing = close > open and close[1] < open[1] and close > open[1]
+
+// Bearish Engulfing Pattern
+bearishEngulfing = close < open and close[1] > open[1] and close < open[1]
+
+// Entry Conditions
+bullishCrossover = ta.crossover(fastEMA, slowEMA) and rsi < oversold and volumeCondition
+bearishCrossover = ta.crossunder(fastEMA, slowEMA) and rsi > overbought and volumeCondition
+
+// Signal Conditions
+longCondition = (bullishCrossover or bullishEngulfing) and close < bbBasis // Buy below Bollinger Bands middle line
+shortCondition = (bearishCrossover or bearishEngulfing) and close > bbBasis // Sell above Bollinger Bands middle line
+
+// Stop Loss and Target Calculation for Long and Short Positions
+stopLossLong = close * (1 - stopLossPercent / 100) // Stop loss for long positions
+targetLong = close + (close - stopLossLong) * riskRewardRatio // Target for long positions (1:2 ratio)
+
+stopLossShort = close * (1 + stopLossPercent / 100) // Stop loss for short positions
+targetShort = close - (stopLossShort - close) * riskRewardRatio // Target for short positions (1:2 ratio)
+
+// Strategy Execution with Stop Loss and Target
+if (longCondition)
+    strategy.entry("Long", strategy.long, stop=stopLossLong, limit=targetLong)
+
+if (shortCondition)
+    strategy.entry("Short", strategy.short, stop=stopLossShort, limit=targetShort)
+
+// Plot Moving Averages for Visualization
+plot(fastEMA, color=color.blue, linewidth=1, title="Fast EMA")
+plot(slowEMA, color=color.red, linewidth=1, title="Slow EMA")
+
+// Plot Bollinger Bands with Color Fill
+plot(bbUpper, "BB Upper", color=color.gray, linewidth=1)
+plot(bbLower, "BB Lower", color=color.gray, linewidth=1)
+plot(bbBasis, "BB Basis", color=color.gray, linewidth=1)
+fill(plot(bbUpper), plot(bbLower), color=color.new(color.blue, 90), title="Bollinger Bands Area")
+
+// Plot Risk-Reward Levels
+plot(longCondition ? targetLong : na, color=color.green, linewidth=2, title="Long Target (1:2)", style=plot.style_circles)
+plot(shortCondition ? targetShort : na, color=color.red, linewidth=2, title="Short Target (1:2)", style=plot.style_circles)
+
+plot(longCondition ? stopLossLong : na, color=color.red, linewidth=2, title="Long Stop Loss", style=plot.style_cross)
+plot(shortCondition ? stopLossShort : na, color=color.green, linewidth=2, title="Short Stop Loss", style=plot.style_cross)
+
+// Plot Buy and Sell Signals
+plotshape(series=longCondition, location=location.belowbar, color=color.green, style=shape.labelup, size=size.small, title="Buy Signal", text="BUY")
+plotshape(series=shortCondition, location=location.abovebar, color=color.red, style=shape.labeldown, size=size.small, title="Sell Signal", text="SELL")
+
+// Clean Background Color for Trades
+bgcolor(longCondition ? color.new(color.green, 90) : na, title="Background Long", transp=90)
+bgcolor(shortCondition ? color.new(color.red, 90) : na, title="Background Short", transp=90)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/469613
+
+> Last Modified
+
+2024-10-14 11:31:59

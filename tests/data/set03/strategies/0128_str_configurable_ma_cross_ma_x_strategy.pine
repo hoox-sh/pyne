@@ -1,0 +1,92 @@
+//@version=6
+// set03 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/可配置移动平均线交叉策略-Configurable-Moving-Average-Crossover-Strategy.md
+// content_hash: aabe1cf175d1b524
+// collected: 2026-07-27
+strategy("Configurable MA Cross (MA-X) Strategy", "MA-X", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=10, commission_type = strategy.commission.percent, commission_value = 0.06)
+
+// === Inputs ===
+// Moving Average Periods
+maPeriodA = input.int(13, title="Fast MA")
+maPeriodB = input.int(55, title="Slow MA")
+maPeriodC = input.int(34, title="Exit MA")
+
+// MA Type Selection
+maType = input.string("EMA", title="MA Type", options=["SMA", "EMA", "WMA", "HMA"])
+
+// Toggle for Short Trades (Disabled by Default)
+enableShorts = input.bool(false, title="Enable Short Trades", tooltip="Enable or disable short positions")
+
+// === Function to Select MA Type ===
+getMA(src, length) =>
+    maType == "SMA" ? ta.sma(src, length) : maType == "EMA" ? ta.ema(src, length) : maType == "WMA" ? ta.wma(src, length) : ta.hma(src, length)
+
+// === MA Calculation ===
+maA = getMA(close, maPeriodA)
+maB = getMA(close, maPeriodB)
+maC = getMA(close, maPeriodC)
+
+// === Global Variables for Crossover Signals ===
+var bool crossAboveA = false
+var bool crossBelowA = false
+
+crossAboveA := ta.crossover(close, maA)
+crossBelowA := ta.crossunder(close, maA)
+
+// === Bar Counter for Exit Control ===
+var int barSinceEntry = na
+
+// Reset the counter on new entries
+if (strategy.opentrades == 0)
+    barSinceEntry := na
+
+// Increment the counter on each bar
+if (strategy.opentrades > 0)
+    barSinceEntry := (na(barSinceEntry) ? 1 : barSinceEntry + 1)
+
+// === Entry Conditions ===
+goLong = close > maA and maA > maB and close > maC and crossAboveA
+goShort = enableShorts and close < maA and maA < maB and close < maC and crossBelowA  // Shorts only when toggle is enabled
+
+// === Exit Conditions (only after 1+ bar since entry) ===
+exitLong = (strategy.position_size > 0) and (barSinceEntry >= 2) and (close < maC)
+exitShort = enableShorts and (strategy.position_size < 0) and (barSinceEntry >= 2) and (close > maC)
+
+// === Strategy Execution ===
+// Long entry logic
+if (goLong)
+    strategy.close("Short")         // Close any short position
+    strategy.entry("Long", strategy.long)
+    alert("[MA-X] Go Long")
+    barSinceEntry := 1               // Reset the bar counter
+
+// Short entry logic (only if enabled)
+if (enableShorts and goShort)
+    strategy.close("Long")          // Close any long position
+    strategy.entry("Short", strategy.short)
+    alert("[MA-X] Go Short")
+    barSinceEntry := 1               // Reset the bar counter
+
+// Exit logic (only after at least 1 bar has passed)
+if (exitLong)
+    strategy.close("Long")
+    alert("[MA-X] Exit Long")
+
+if (enableShorts and exitShort)
+    strategy.close("Short")
+    alert("[MA-X] Exit Short")
+
+// === Plotting ===
+plot(maA, color=color.green, linewidth=2, title="Fast MA")
+plot(maB, color=color.blue, linewidth=2, title="Slow MA")
+plot(maC, color=color.red, linewidth=2, title="Exit MA")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/489300
+
+> Last Modified
+
+2025-04-03 11:31:33

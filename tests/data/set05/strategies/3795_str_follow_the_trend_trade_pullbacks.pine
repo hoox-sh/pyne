@@ -1,0 +1,52 @@
+//@version=4
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/Follow the Trend - Trade Pullbacks.pine
+// content_hash: bb768cc4747a32f2
+// collected: 2026-07-27
+strategy("Follow the Trend - Trade Pullbacks",overlay=true)
+resHigh = input(title="Higher Time Frame", type=input.resolution, defval="30",confirm = true)
+resMiddle = input(title="Middle Time Frame", type=input.resolution, defval="15",confirm = true)
+CCI = input(20,title = "CCI")
+ATR = input(20,title = "ATR")
+Multiplier= 1
+thisCCI = cci(close, CCI)
+calcx()=> 
+    x = 0.0
+    tgtHigh= x[1]>0?x[1]:close[1] + Multiplier * nz(rma(tr,ATR))
+    tgtLow= x[1]>0?x[1]:close[1] - Multiplier * nz(rma(tr,ATR))
+    
+    if (min(low, low[1], low[2]) >= nz(x[1]) and ((close >= tgtHigh) or (low > nz(x[1]))))
+        x := min(low, low[1], low[2])
+    else if (max(high, high[1], high[2]) <= nz(x[1]) and ((close <= tgtLow) or (high < nz(x[1]))))
+        x := max(high, high[1], high[2])
+    else 
+        x := x[1]
+    x
+tempx = calcx()
+calcswap() =>
+    swap = 0.0
+    swap := (tempx>tempx[1] and thisCCI>=0)?1:(tempx<tempx[1] and thisCCI<=0)?-1:swap[1]
+    swap
+tempswap = calcswap()
+hswap=tempswap==1?color.teal:color.red
+mswap=tempswap==1?color.blue:color.orange
+//display higher timeframe's Trend
+htfx = security(syminfo.tickerid,resHigh,tempx,lookahead = barmerge.lookahead_off)
+htfHigh = security(syminfo.tickerid,resHigh,hswap,lookahead = barmerge.lookahead_off)
+plot(htfx,color=htfHigh,transp=0,linewidth=2)
+//display middle timeframe's Trend
+mtfx = security(syminfo.tickerid,resMiddle,tempx,lookahead = barmerge.lookahead_off)
+mtfMid = security(syminfo.tickerid,resMiddle,mswap,lookahead = barmerge.lookahead_off)
+plot(mtfx,color=mtfMid,transp=0,linewidth=2)
+//display current timeframe's Trend
+plot(tempx, color=hswap,transp=0,linewidth=2)
+buyLbl = "Buy"
+sellLbl = "Sell"
+plotshape( htfHigh[1] == color.red and htfHigh == color.teal ? 1 : na , style = shape.circle , color = color.teal , location = location.belowbar , size = size.small )
+plotshape( htfHigh[1] == color.teal and htfHigh == color.red ? 1 : na , style = shape.circle , color = color.red , location = location.abovebar , size = size.small)
+plotshape( mtfMid[1] == color.orange and mtfMid == color.blue ? 1 : na , style = shape.triangleup , color = color.blue , location = location.belowbar , size = size.small )
+plotshape( mtfMid[1] == color.blue and mtfMid == color.orange ? 1 : na , style = shape.triangledown , color = color.orange , location = location.abovebar , size = size.small)
+plotshape( hswap[1] == color.red and hswap == color.teal ? 1 : na , style = shape.labelup , color = color.teal , location = location.belowbar, size = size.small, text = buyLbl, textcolor=color.white)
+plotshape( hswap[1] == color.teal and hswap == color.red ? 1 : na , style = shape.labeldown , color = color.red , location = location.abovebar , size = size.small, text = sellLbl,  textcolor=color.white)
+Expand (68 lines)

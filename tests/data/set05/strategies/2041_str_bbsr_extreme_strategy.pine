@@ -1,0 +1,64 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/Bollinger-Bands-Stochastic-RSI-Extreme-Strategy-BBSR-Extreme-Strategy.md
+// content_hash: 5e44c68a19a3a6ac
+// collected: 2026-07-27
+strategy("BBSR Extreme Strategy [nachodog]", shorttitle="BBSRExtStrat", overlay=true)
+
+//General Inputs
+src = input(close, title="Source")
+offset = input.int(0, title="Offset", minval=-500, maxval=500)
+sl_pct = input.float(1.5, title="Stop Loss (%)", minval=0.1, maxval=50)
+
+//Bollinger Inputs
+length = input.int(20, title="Bollinger Band Length", minval=1)
+mult = input.float(2.0, title="StdDev", minval=0.001, maxval=50)
+
+//Bollinger Code
+basis = ta.sma(src, length)
+dev = mult * ta.stdev(src, length)
+upper = basis + dev
+lower = basis - dev
+plot(basis, "BB Basis", color=color.new(#872323, 0), offset=offset)
+p1 = plot(upper, "BB Upper", color=color.teal, offset=offset)
+p2 = plot(lower, "BB Lower", color=color.teal, offset=offset)
+fill(p1, p2, title="BB Background", color=color.new(#198787, 95))
+
+//Stoch Inputs
+smoothK = input.int(3, "K", minval=1)
+smoothD = input.int(3, "D", minval=1)
+lengthRSI = input.int(14, "RSI Length", minval=1)
+lengthStoch = input.int(14, "Stochastic Length", minval=1)
+
+upperlimit = input.float(90, "Upper Limit", minval=0.01)
+lowerlimit = input.float(10, "Lower Limit", minval=0.01)
+
+//Stochastic Code
+rsi1 = ta.rsi(src, lengthRSI)
+k = ta.sma(ta.stoch(rsi1, rsi1, rsi1, lengthStoch), smoothK)
+d = ta.sma(k, smoothD)
+
+//Evaluation
+Bear = close[1] > upper[1] and close < upper and k[1] > upperlimit and d[1] > upperlimit
+Bull = close[1] < lower[1] and close > lower and k[1] < lowerlimit and d[1] < lowerlimit
+
+//Entering Trades
+if (Bull)
+    strategy.entry("Bull Entry", strategy.long)
+if (Bear)
+    strategy.entry("Bear Entry", strategy.short)
+
+//Exiting Trades
+strategy.exit("Exit Long", from_entry="Bull Entry", stop=close * (1 - sl_pct / 100), when=Bear or close < lower)
+strategy.exit("Exit Short", from_entry="Bear Entry", stop=close * (1 + sl_pct / 100), when=Bull or close > upper)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/448771
+
+> Last Modified
+
+2024-04-18 16:55:57

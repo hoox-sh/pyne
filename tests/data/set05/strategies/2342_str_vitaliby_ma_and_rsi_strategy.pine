@@ -1,0 +1,59 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双均线-RSI多重信号趋势交易策略-Dual-Moving-Average-RSI-Multi-Signal-Trend-Trading-Strategy.md
+// content_hash: 41dcf570d09b668c
+// collected: 2026-07-27
+strategy("Vitaliby MA and RSI Strategy", overlay=true)
+
+// Входные параметры для настройки
+shortMALength = input.int(9, title="Short MA Length")
+longMALength = input.int(21, title="Long MA Length")
+rsiLength = input.int(14, title="RSI Length")
+rsiOverbought = input.int(70, title="RSI Overbought Level")
+rsiOversold = input.int(30, title="RSI Oversold Level")
+
+// Расчет скользящих средних и RSI
+shortMA = ta.sma(close, shortMALength)
+longMA = ta.sma(close, longMALength)
+rsi = ta.rsi(close, rsiLength)
+
+// Определение условий для входа и выхода
+longCondition = ta.crossover(shortMA, longMA) and rsi > rsiOversold
+shortCondition = ta.crossunder(shortMA, longMA) and rsi < rsiOverbought
+
+// Отображение сигналов на графике
+plotshape(series=longCondition, location=location.belowbar, color=color.green, style=shape.labelup, text="BUY", size=size.small)
+plotshape(series=shortCondition, location=location.abovebar, color=color.red, style=shape.labeldown, text="SELL", size=size.small)
+
+// Отображение скользящих средних на графике
+plot(shortMA, color=color.blue, title="Short MA")
+plot(longMA, color=color.orange, title="Long MA")
+
+// Отображение RSI на отдельном окне
+hline(rsiOverbought, "Overbought", color=color.red)
+hline(rsiOversold, "Oversold", color=color.green)
+plot(rsi, color=color.purple, title="RSI")
+
+// Управление позициями
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+
+if (shortCondition)
+    strategy.close("Long")
+
+if (shortCondition)
+    strategy.entry("Short", strategy.short)
+
+if (longCondition)
+    strategy.close("Short")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/478744
+
+> Last Modified
+
+2025-01-17 16:31:31

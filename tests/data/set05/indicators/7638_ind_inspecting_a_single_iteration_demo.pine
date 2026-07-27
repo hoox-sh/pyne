@@ -1,0 +1,26 @@
+//@version=5
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/v5/writing/debugging.md::debugging.md#block51
+// content_hash: e33aef47aa14c83d
+// collected: 2026-07-27
+indicator("Inspecting a single iteration demo", "Aggregate ROC", max_lines_count = 500)
+
+//@variable The number of bars in the calculation.
+int lookbackInput = input.int(20, "Lookback", 1)
+//@variable The `length` value in the loop's execution where value extraction occurs.
+int debugCounterInput = input.int(1, "Loop counter value", 1, group = "Debugging")
+
+//@variable The `roc` value extracted from the loop.
+float rocDebug = na
+
+//@variable The average ROC of `close` over lags from 1 to `lookbackInput` bars.
+float aroc = 0.0
+
+// Calculation loop.
+for length = 1 to lookbackInput
+    //@variable The `close` value `length` bars ago.
+    float pastClose = close[length]
+    //@variable The `close` rate of change over `length` bars.
+    float roc = (close - pastClose) / pastClose
+    // Add the `roc` to `aroc`.

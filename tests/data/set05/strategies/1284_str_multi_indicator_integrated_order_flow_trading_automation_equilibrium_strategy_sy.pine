@@ -1,0 +1,89 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多指标综合订单流交易自动化均衡策略系统-Multi-Indicator-Integrated-Order-Flow-Trading-Automation-Equilibrium-Strategy-System.md
+// content_hash: 7e23c1b6754465c0
+// collected: 2026-07-27
+strategy("订单流轨迹自动交易脚本", overlay=true, margin_long=100, margin_short=100, default_qty_type=strategy.percent_of_equity, default_qty_value=10)
+
+// === 参数设置 ===
+deltaThreshold = input.int(100, "Delta阈值（多空失衡）", minval=1)
+imbalanceRatio = input.float(3.0, "失衡比率（如3:1）", minval=1)
+stackedImbalanceBars = input.int(2, "连续失衡堆积数", minval=1)
+lookback = input.int(20, "POC&支撑阻力回溯K线数", minval=5)
+stoplossTicks = input.int(2, "止损跳数", minval=1)
+takeprofitTicks = input.int(4, "止盈跳数", minval=1)
+
+// === 订单流核心指标 ===
+// 模拟主动买卖量（真实逐笔需Level2数据，此处用tick替代）
+upVol = volume * (close > open ? 1 : 0)
+downVol = volume * (close < open ? 1 : 0)
+delta = upVol - downVol
+
+// 计算POC（本K线最大成交量价位，简化为收盘价附近最大成交量）
+var float poc = na
+if bar_index > lookback
+    poc := ta.highestbars(volume, lookback) == 0 ? close : na
+
+// 失衡判定
+imbalance = upVol > downVol * imbalanceRatio ? 1 : downVol > upVol * imbalanceRatio ? -1 : 0
+
+// 堆积失衡（连续多K线同一方向失衡）
+var int stackedImbalance = 0
+if imbalance != 0
+    stackedImbalance := imbalance == nz(stackedImbalance[1]) ? stackedImbalance + imbalance : imbalance
+else
+    stackedImbalance := 0
+
+// === 交易信号 ===
+// 顶部/底部微单（趋势末端量能萎缩，反转信号）
+microBuy = ta.lowest(volume, 3) == volume and delta < 0
+microSell = ta.highest(volume, 3) == volume and delta > 0
+
+// 失衡堆积支撑/阻力
+longSupport = stackedImbalance >= stackedImbalanceBars and imbalance == 1
+shortResistance = stackedImbalance <= -stackedImbalanceBars and imbalance == -1
+
+// 吸收与主动出击（区间震荡后放量突破）
+absorption = ta.lowest(volume, lookback) == volume[1] and volume > volume[1] * 2
+
+// === 交易逻辑 ===
+// 多单：失衡堆积支撑+微单反转+delta放大
+enterLong = (longSupport and microBuy and delta > deltaThreshold) or (absorption and delta > deltaThreshold)
+if enterLong
+    strategy.entry("Long", strategy.long)
+    strategy.exit("Long Exit", "Long", stop=close-stoplossTicks*syminfo.mintick, limit=close+takeprofitTicks*syminfo.mintick)
+
+// 空单：失衡堆积阻力+微单反转+delta放大
+enterShort = (shortResistance and microSell and delta < -deltaThreshold) or (absorption and delta < -deltaThreshold)
+if enterShort
+    strategy.entry("Short", strategy.short)
+    strategy.exit("Short Exit", "Short", stop=close+stoplossTicks*syminfo.mintick, limit=close-takeprofitTicks*syminfo.mintick)
+
+// === 画图可视化 ===
+plotshape(enterLong, title="多单信号", location=location.belowbar, color=color.green, style=shape.triangleup, size=size.small)
+plotshape(enterShort, title="空单信号", location=location.abovebar, color=color.red, style=shape.triangledown, size=size.small)
+plot(delta, color=color.blue, title="Delta多空差")
+hline(0, "Delta中轴", color=color.gray)
+bgcolor(longSupport ? color.new(color.green, 90) : na)
+bgcolor(shortResistance ? color.new(color.red, 90) : na)
+
+// === 说明提示 ===
+var table info = table.new(position.top_right, 1, 7, border_width=1)
+if bar_index % 10 == 0
+    table.cell(info, 0, 0, "订单流轨迹自动交易脚本", bgcolor=color.yellow)
+    table.cell(info, 0, 1, "Delta: " + str.tostring(delta))
+    table.cell(info, 0, 2, "POC: " + str.tostring(poc))
+    table.cell(info, 0, 3, "失衡: " + str.tostring(imbalance))
+    table.cell(info, 0, 4, "堆积失衡: " + str.tostring(stackedImbalance))
+    table.cell(info, 0, 5, "微单反转: " + str.tostring(microBuy ? "多" : microSell ? "空" : "无"))
+    table.cell(info, 0, 6, "吸收突破: " + str.tostring(absorption ? "是" : "否"))
+```
+
+> Detail
+
+https://www.fmz.com/strategy/491509
+
+> Last Modified
+
+2025-04-21 16:05:15

@@ -1,0 +1,76 @@
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/三倍标准差布林带突破量化交易策略结合百日均线优化-Triple-Standard-Deviation-Bollinger-Bands-Breakout-Strategy-with-100-Day-Moving-Average-Optimization.md
+// content_hash: 185b06f8ab66dca6
+// collected: 2026-07-27
+strategy("Bollinger Bands", overlay=true, initial_capital=100000, default_qty_type=strategy.percent_of_equity, default_qty_value=200)
+
+// Get user input
+var g_bb        = "Bollinger Band Settings"
+upperBandSD     = input.float(title="Upper Band Std Dev", defval=3.0, tooltip="Upper band's standard deviation multiplier", group=g_bb)
+lowerBandSD     = input.float(title="Lower Band Std Dev", defval=1.0, tooltip="Lower band's standard deviation multiplier", group=g_bb)
+maPeriod        = input.int(title="Middle Band MA Length", defval=100, tooltip="Middle band's SMA period length", group=g_bb)
+var g_tester    = "Backtester Settings"
+drawTester      = input.bool(title="Draw Backtester", defval=true, group=g_tester, tooltip="Turn on/off inbuilt backtester display")
+
+// Get Bollinger Bands
+[bbIgnore1, bbHigh, bbIgnore2] = ta.bb(close, maPeriod, upperBandSD)
+[bbMid, bbIgnore3, bbLow]      = ta.bb(close, maPeriod, lowerBandSD)
+
+// Prepare trade persistent variables
+drawEntry   = false
+drawExit    = false
+
+// Detect bollinger breakout
+if close > bbHigh and barstate.isconfirmed and strategy.position_size == 0
+    drawEntry := true
+    strategy.entry(id="Trade", direction=strategy.long)
+    alert("Bollinger Breakout Detected for " + syminfo.ticker, alert.freq_once_per_bar_close)
+
+// Detect bollinger sell signal
+if close < bbLow and barstate.isconfirmed and strategy.position_size != 0
+    drawExit := true
+    strategy.close(id="Trade")
+    alert("Bollinger Exit detected for " + syminfo.ticker, alert.freq_once_per_bar_close)
+
+// Draw bollinger bands
+plot(bbMid, color=color.blue, title="Middle SMA")
+plot(bbHigh, color=color.green, title="Upper Band")
+plot(bbLow, color=color.red, title="Lower Band")
+
+// Draw signals
+plotshape(drawEntry, style=shape.triangleup, color=color.green, location=location.belowbar, size=size.normal, title="Buy Signal")
+plotshape(drawExit, style=shape.xcross, color=color.red, location=location.belowbar, size=size.normal, title="Sell Signal")
+
+// // =============================================================================
+// // START BACKTEST CODE
+// // =============================================================================
+
+// // Prepare stats table
+// var table testTable = table.new(position.top_right, 2, 2, border_width=1)
+// f_fillCell(_table, _column, _row, _title, _value, _bgcolor, _txtcolor) =>
+//     _cellText = _title + "\n" + _value
+//     table.cell(_table, _column, _row, _cellText, bgcolor=_bgcolor, text_color=_txtcolor)
+
+// // Draw stats table
+// var bgcolor = color.black
+// if barstate.islastconfirmedhistory
+//     if drawTester
+//         dollarReturn = strategy.equity - strategy.initial_capital
+//         f_fillCell(testTable, 0, 0, "Total Trades:", str.tostring(strategy.closedtrades), bgcolor, color.white)
+//         f_fillCell(testTable, 0, 1, "Win Rate:", str.tostring(strategy.wintrades / strategy.closedtrades * 100, "##.##") + "%", bgcolor, color.white)
+//         f_fillCell(testTable, 1, 0, "Equity:", "$" + str.tostring(strategy.equity, "###,###.##"), bgcolor, color.white)
+//         f_fillCell(testTable, 1, 1, "Return:", str.tostring((strategy.netprofit / strategy.initial_capital) * 100, "##.##") + "%", dollarReturn > 0 ? color.green : color.red, color.white)
+
+// // =============================================================================
+// // END BACKTEST CODE
+// // =============================================================================
+```
+
+> Detail
+
+https://www.fmz.com/strategy/474971
+
+> Last Modified
+
+2024-12-13 11:20:13

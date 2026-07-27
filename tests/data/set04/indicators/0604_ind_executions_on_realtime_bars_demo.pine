@@ -1,0 +1,25 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pine_script_execution_model.md::pine_script_execution_model.md#block9
+// content_hash: 0d2b5c82cb42635b
+// collected: 2026-07-27
+indicator("Executions on realtime bars demo")
+//@variable The 14-bar RSI of `close` prices.
+float rsi = ta.rsi(close, 14)
+//@variable Tracks the number of script executions, where 1 represents the first execution.
+varip int executions = 0
+// Add 1 to the `executions` value.
+executions += 1
+//@variable Is `color.gray` if the bar is confirmed (closed); `color.purple` otherwise.
+color labelColor = barstate.isconfirmed ? color.gray : color.purple
+// Calculate the one-bar change in `executions`, then convert the value to a string and display the result in a label.
+// Each call to `label.new()` creates a *new* `label` object.
+label.new(
+     bar_index, high, str.tostring(ta.change(executions)),
+     color = labelColor, textcolor = color.white, size = 20, force_overlay = true
+ )
+// Plot the `rsi` value with colors based on whether the value is above 50 or not.
+plot(rsi, "RSI", rsi > 50 ? color.teal : color.maroon, 3)
+// Highlight the chart's background in translucent orange when `barstate.isrealtime` is `true`.
+bgcolor(barstate.isrealtime ? color.new(color.orange, 70) : na, title = "Realtime highlight", force_overlay = true)

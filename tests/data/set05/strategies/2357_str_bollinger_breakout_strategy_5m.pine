@@ -1,0 +1,58 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/布林5分钟突破日内交易策略-Bollinger-5-Minute-Breakout-Intraday-Trading-Strategy.md
+// content_hash: ebe694ef4fbeeb8b
+// collected: 2026-07-27
+strategy("Bollinger Breakout Strategy 5m", shorttitle="BB Strategy 5m", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=100, margin_long=100)
+
+// Define the strategy parameters
+length = 100
+multUpper = 3.0
+multLower = 1.0
+src = close
+
+// Calculate Bollinger Bands
+basis = ta.sma(src, length)
+upperDev = multUpper * ta.stdev(src, length)
+lowerDev = multLower * ta.stdev(src, length)
+upperBand = basis + upperDev
+lowerBand = basis - lowerDev
+
+// Plot Bollinger Bands
+plot(basis, "Basis", color=color.blue)
+plot(upperBand, "Upper Band", color=color.green)
+plot(lowerBand, "Lower Band", color=color.red)
+
+// Entry and exit conditions
+enterLong = ta.crossover(src, upperBand)
+exitLong = ta.crossunder(src, lowerBand)
+
+// Visual signals for entries and exits
+bgcolor(enterLong ? color.new(color.green, 90) : na, title="Entry Background")
+bgcolor(exitLong ? color.new(color.red, 90) : na, title="Exit Background")
+plotshape(enterLong, style=shape.triangleup, location=location.belowbar, color=color.green, size=size.small, title="Enter Long")
+plotshape(exitLong, style=shape.triangledown, location=location.abovebar, color=color.red, size=size.small, title="Exit Long")
+
+// Adjusting for timezone - Ensure the time is converted to the exchange's timezone
+session_close_hour = 15 // 3 PM in EST, adjust if your trading platform uses a different timezone
+is_time_to_exit = (hour >= session_close_hour and minute > 0) or (hour > session_close_hour)
+
+// Trading logic
+if (enterLong)
+    strategy.entry("Long", strategy.long)
+
+if (exitLong or is_time_to_exit)
+    strategy.close("Long")
+
+// Note: Adjust 'session_close_hour' to match your exchange's closing hour if it differs from EST.
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/446456
+
+> Last Modified
+
+2024-03-28 17:43:37

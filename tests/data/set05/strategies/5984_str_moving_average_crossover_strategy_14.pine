@@ -1,0 +1,55 @@
+//@version=3
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于移动平均线交叉交易策略Moving-Average-Crossover-Strategy.md
+// content_hash: a5327303ccb437de
+// collected: 2026-07-27
+strategy(title="Moving Average Cross", overlay=true, initial_capital=10000, currency='USD')
+
+
+
+// === GENERAL INPUTS ===
+// short ma
+maFastSource   = input(defval = close, title = "Fast MA Source")
+maFastLength   = input(defval = 9, title = "Fast MA Period", minval = 1)
+// long ma
+maSlowSource   = input(defval = close, title = "Slow MA Source")
+maSlowLength   = input(defval = 18, title = "Slow MA Period", minval = 1)
+
+
+// === SERIES SETUP ===
+/// a couple of ma's..
+maFast = ema(maFastSource, maFastLength)
+maSlow = ema(maSlowSource, maSlowLength)
+
+
+
+// === PLOTTING ===
+fast = plot(maFast, title = "Fast MA", color = red, linewidth = 2, style = line, transp = 30)
+slow = plot(maSlow, title = "Slow MA", color = green, linewidth = 2, style = line, transp = 30)
+
+
+
+// === LOGIC ===
+enterLong = crossover(maFast, maSlow)
+exitLong = crossover(maSlow, maFast)
+
+
+
+// Entry //
+strategy.entry(id="Long Entry", long=true, when=enterLong)
+strategy.entry(id="Short Entry", long=false, when=exitLong)
+
+
+// === FILL ====
+
+fill(fast, slow, color = maFast > maSlow ? green : red)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/441002
+
+> Last Modified
+
+2024-02-04 16:00:31

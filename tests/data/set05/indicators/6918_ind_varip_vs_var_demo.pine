@@ -1,0 +1,14 @@
+//@version=6
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/faq/variables-and-operators.md::variables-and-operators.md#block2
+// content_hash: a74524c422acb69e
+// collected: 2026-07-27
+indicator("varip vs var demo")
+
+// `var`  : Retains value across bars, resets on intrabar price updates.
+// 'varip': Retains value across bars and across intrabar price updates within a realtime bar.
+var   int varCount   = -1
+varip int varipCount = -1
+
+// Increment `varCount` on each bar and `varipCount` on each intrabar price update.

@@ -1,0 +1,174 @@
+//@version=4
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/Ichimoku Long and Short Strategy.pine
+// content_hash: 133a032e3ffb082a
+// collected: 2026-07-27
+strategy("Ichimoku Strategy", overlay = true)
+//ICHIMOKU-------
+conversionPeriods = input(9, minval=1, title="Conversion Line Length", group = "Ichimoku Settings")
+basePeriods = input(26, minval=1, title="Base Line Length", group = "Ichimoku Settings")
+laggingSpan2Periods = input(52, minval=1, title="Lagging Span 2 Length", group = "Ichimoku Settings")
+displacement = input(26, minval=1, title="Displacement", group = "Ichimoku Settings")
+entryStrategy = input(title = "Entry Strategy", defval = "Ichimoku", options = ["Ichimoku"], type =  input.string, group = "Entry Strategy")
+exitStrategy = input(title = "Exit Strategy", defval = "Ichimoku", options = ["Ichimoku","ATR Pullback"], type = input.string, group = "Position Exit Settings")
+exitATRLength = input(14, title = "ATR Length", minval = 1 ,type = input.integer, group = "Position Exit Settings")
+exitATRMult = input(2, title = "ATR Multiplier", minval = 0.1 , step = 0.1 ,type = input.float, group = "Position Exit Settings")
+riskReward = input(2, title = "Risk Reward Ratio", minval = 0.1 , step = 0.1 ,type = input.float, group = "Position Exit Settings")
+closeLagBelow = input(true, title = "Close long position if lagging span crosses below the price", type = input.bool, group = "Position Exit Settings")
+closelagAbove = input(true, title = "Close short position if lagging span crosses above the price", type = input.bool, group = "Position Exit Settings")
+showDash = input(true, title = "Show Dashboard", type = input.bool, group = "Dashboard Options")
+colorDash = input(color.new(#696969, 80), title = "Background Color", type = input.color, inline = "Dash Colors", group = "Dashboard Options")
+colorTextDash = input(color.new(#FFFFFF,0), title = "Text Color", type = input.color, inline = "Dash Colors", group = "Dashboard Options")
+distance = input(30, title = "Bars Distance (to rigth)", minval = 1 ,type = input.integer, group = "Dashboard Options")
+showSignals = input(true, title = "Show Signals (long/short)", type = input.bool, group = "Extra Options")
+showTargets = input(true, title = "Show Targets (Profit/Loss)", type = input.bool, group = "Extra Options")
+donchian(len) => avg(lowest(len), highest(len))
+conversionLine = donchian(conversionPeriods)
+baseLine = donchian(basePeriods)
+leadLine1 = avg(conversionLine, baseLine)
+leadLine2 = donchian(laggingSpan2Periods)
+//---------------------
+var long = false
+var short = false
+var signalLong = false
+var signalShort = false
+//LONG 
+conAbvBase = conversionLine > baseLine 
+cloudGreen = leadLine1 > leadLine2 
+closeAbvCloud = open > leadLine1[displacement] and open > leadLine2[displacement] 
+lagSpanAbvCloud = close > leadLine1[displacement*2] and close > leadLine2[displacement*2] 
+conditionLong = not long and conAbvBase and cloudGreen and closeAbvCloud and lagSpanAbvCloud 
+//SHORT
+conBlwBase = conversionLine < baseLine 
+cloudRed = leadLine2 > leadLine1 
+closeBlwCloud = open < leadLine1[displacement] and open < leadLine2[displacement] 
+lagSpanBlwCloud = close < leadLine1[displacement*2] and close < leadLine2[displacement*2] 
+conditionShort = not short and conBlwBase and cloudRed and closeBlwCloud and lagSpanBlwCloud 
+var drawing = false
+var waitingLong = false
+var waitingShort = false
+var profit = 0.0
+var current = 0.0
+var loss = 0.0
+var pullPrice = 0.0
+atrExit = atr(exitATRLength)
+if conditionLong
+    long := true
+    short := false
+    signalLong := true
+    signalShort := false
+    drawing := true
+    if exitStrategy == "Ichimoku"
+        loss := leadLine2[displacement] < leadLine1[displacement] ? leadLine2[displacement] : leadLine1[displacement]
+        profit := open + ((open - loss) * riskReward)
+        current := open
+    else
+        loss := open - atrExit * exitATRMult
+        current := open
+        profit := open + (open - loss) * riskReward
+    strategy.entry("Long", strategy.long, 10 ,alert_message = "Long Position Open")
+    strategy.exit("Long exit", "Long", limit = profit, stop = loss, alert_message = "Long Position Close")
+if conditionShort
+    short := true
+    long := false
+    signalShort := true
+    signalLong := false
+    drawing := true
+    if exitStrategy == "Ichimoku"
+        loss := leadLine2[displacement] > leadLine1[displacement] ? leadLine2[displacement] : leadLine1[displacement]
+        profit := open - ((loss - open) * riskReward)
+        current := open
+    else 
+        loss := open + atrExit * exitATRMult
+        current := open
+        profit := open - (loss - open) * riskReward
+    strategy.entry("Short", strategy.short, 10 , alert_message = "Short Position Open")
+    strategy.exit("Short exit","Short", limit = profit, stop = loss, alert_message = "Short Position Close")
+if long
+    if closeLagBelow and open < close[displacement + 1]
+        drawing := false
+        signalLong := false
+        strategy.close("Long", alert_message = "Long Closed by Lagging Span Crossing Below Price")
+    else if high[1] >= profit or low[1] <= loss
+        drawing := false
+        signalLong := false
+        strategy.close("Long", alert_message = "Long Closed")
+if short 
+    if closelagAbove and open > close[displacement + 1]
+        drawing := false
+        signalShort := false
+        strategy.close("Short", alert_message = "Short Closed by Lagging Span Crossing Above Price")
+    else if low[1] <= profit  or high[1] >= loss
+        drawing := false
+        signalShort := false
+        strategy.close("Short", alert_message = "Short Closed")
+        
+decision(condition) =>
+    var text = ""
+    if condition
+        text := "🟢"
+    else
+        text := "🔴"
+position = time+((time-time[1])*distance)
+PandL = signalLong ? ((open-current)/current)*100 : signalShort ? (((open-current)/current)*100)*-1 : 0.0
+if showDash
+    label dashBoard = label.new(position,open,
+     text = "-----------Long conditions-----------"
+     +"\n\n"+decision(signalLong)+" Long position is open"
+     +"\n\n"+decision(conAbvBase)+" Conversion line above base line"
+     +"\n\n"+decision(cloudGreen)+" Cloud is green"
+     +"\n\n"+decision(closeAbvCloud)+" Price closed above cloud"
+     +"\n\n"+decision(lagSpanAbvCloud)+" Lagging span above cloud"
+     +"\n\n-----------Short conditions-----------"
+     +"\n\n"+decision(signalShort)+" Short position is open"
+     +"\n\n"+decision(conBlwBase)+" Conversion line below base line"
+     +"\n\n"+decision(cloudRed)+" Cloud is red"
+     +"\n\n"+decision(closeBlwCloud)+" Price closed below cloud"
+     +"\n\n"+decision(lagSpanBlwCloud)+" Lagging span below cloud"
+     +"\n\n---------------Extra---------------"
+     +"\n\nUnrealized P&L(%): "+tostring(PandL),
+     xloc = xloc.bar_time, textalign = text.align_left, style = label.style_label_left, color = colorDash, textcolor = colorTextDash)
+    label.delete(dashBoard[1])
+//DRAWING
+plotshape(showSignals ? conditionLong : na, title = "Long Signal", location=location.belowbar,style=shape.labelup,color=color.green,textcolor=color.white,size=size.small,text="Long")
+plotshape(showSignals ? conditionShort : na, title = "Short Signal", location=location.abovebar,style=shape.labeldown,color=color.red,textcolor=color.white,size=size.small,text="Short")
+profitLine = plot(showTargets ? drawing ? profit : na : na, title = "Take profit", color = color.green, style = plot.style_linebr)
+currentLine =plot(showTargets ? drawing ? current : na : na, title = "Middle Line", color = color.white, style = plot.style_linebr)
+lossLine = plot(showTargets ? drawing ? loss : na : na, title = "Stop Loss", color = color.red, style = plot.style_linebr)
+fill(currentLine,profitLine, title = "Profit Background" ,color = color.new(color.green,75))
+fill(currentLine,lossLine, title = "Loss Background" ,color = color.new(color.red,75))
+plot(conversionLine, color = #0496ff, title = "Conversion Line")
+plot(baseLine, color = color.yellow, title = "Base Line")
+plot(close, offset = -displacement + 1, color = color.purple, title = "Lagging Span")
+p1 = plot(leadLine1, offset = displacement - 1, color=color.green,
+     title="Lead 1")
+p2 = plot(leadLine2, offset = displacement - 1, color=color.red,
+     title="Lead 2")
+fill(p1, p2, title = "Lead 1 and 2 Background" ,color = leadLine1 > leadLine2 ? color.green : color.red)
+//------NOTE FOR ALERTS
+//IF YOU WANT TO RECIVE A ALERT JUST FOLLOW THE NEXT STEPS:
+//1.-GO TO ALERTS AND CLICK IN "CREATE NEW ALERT"
+//2.-IN CONDITION  CHOOSE THE "ICHIMOKU STRATEGY"
+//3.-GIVE THE ALERT A NAME
+//4.-IN MESSAGE YOU ARE GOING TO WRITE "{{strategy.order.alert_message}}", WITH THIS WHEN A SHORT OR LONG SIGNAL APPEAR WILL SHOW THE "alert_message" IN THE ALERT.
+//THE alert_message IS DEFINED IN THE "strategy.entry" and "strategy.exit"
+//------NOTE IF YOU WANT TO USE A BOT WITH THIS STRATEGY
+//THIS IS A STRATEGY SO YOU ONLY CAN RECIVE ALERTS FROM THE "strategy.entry" AND "strategy.exit" BUT THIS ARE ONLY IN ONE ALERT
+//SO IF YOU WANT TO USE A BOTH WITH THE STRATEGY FOLLOW THE NEXT STEPS:
+//1.-ALREADY HAVE A BOT CREATED
+//2.-LOCATE  YOUR WEBHOOK AND COMMANDS FOR THE BOT 
+//3.-IN THE "alert_message" OF THE "strategy.entry (LINE 95)" YOU WILL PASTE THE COMMAND OF YOUR BOT FOR ENTER A LONG AND IN THE "strategy.exit (LINE 96)" THAT ARE BELOW IN THE "alert_message" PASTE THE COMMAND THAT IS FOR CLOSE THE LONG POSITION
+//4.-YOU WILL DO THE SAME FOR THE "strategy.entry (LINE 109)" AND THE "strategy.exit (LINE 110)" BUT THIS TIME WITH THE COMMAND OF OPEN A SHORT AND CLOSE A SHORT
+//5.-AFTER THE PREVIOUS STEPS GO TO ALERTS AND CLICK IN "CREATE NEW ALERT"
+//6.-IN CONDITION CHOOSE THE "ICHIMOKU STRATEGY"
+//7.-SELECT "URL from webhook"
+//8.-GIVE THE ALERT A NAME
+//9.-IN MESSAGE WRITE "{{strategy.order.alert_message}}"
+//10.-NOW WITH ALL THIS EACH TIME A SIGNAL APPEAR IN THE STRATEGY THIS WILL SEND THE COMMAND TO YOUR BOT TO OPEN OR CLOSE A LONG OR SHORT
+////------ANOTHER IMPORTANT NOTE FOR PEOPLE THAT WANT TO USE A BOT
+//I NOW THAT I'M SO BAD EXPLAINING THINGS SO WATCH THE FOLLOWING VIDEO THAT EXPLAINS BETTER THAN ME, ITS FROM THE CHANNEL "The Art of Trading"
+//AND ALSO U CAN CHECK HIS TRADINGVIEW ACCOUNT, HE CREATE AN AMAZING SCRIPT FOR THE COMMUNITY AND CHECK HIS CHANNEL TO LEARN PINE SCRIPT
+//https://www.youtube.com/watch?v=-d_rFRd3o-0
+//https://es.tradingview.com/u/ZenAndTheArtOfTrading/#published-charts
+Expand (206 lines)

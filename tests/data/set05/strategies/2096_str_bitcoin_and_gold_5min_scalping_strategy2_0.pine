@@ -1,0 +1,63 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/比特币和黄金双跳空策略Bitcoin-and-Gold-Double-Gap-Strategy.md
+// content_hash: c77220fe1adec175
+// collected: 2026-07-27
+strategy("Bitcoin and Gold 5min Scalping Strategy2.0", overlay=true)
+
+
+// Input parameters
+fastLength = input(5, title="Fast EMA Length")
+slowLength = input(13, title="Slow EMA Length")
+bollingerLength = input(20, title="Bollinger Band Length")
+bollingerMultiplier = input(2, title="Bollinger Band Multiplier")
+stopLossMultiplier = input(1, title="Stop Loss Multiplier")
+
+// Calculate EMAs
+fastEMA = ta.ema(close, fastLength)
+slowEMA = ta.ema(close, slowLength)
+
+// Calculate Bollinger Bands
+basis = ta.sma(close, bollingerLength)
+upperBand = basis + bollingerMultiplier * ta.stdev(close, bollingerLength)
+lowerBand = basis - bollingerMultiplier * ta.stdev(close, bollingerLength)
+
+// Buy condition
+buyCondition = ta.crossover(fastEMA, slowEMA) and (close <= upperBand or close <= basis)
+
+// Sell condition
+sellCondition = ta.crossunder(fastEMA, slowEMA) and (close >= lowerBand or close >= basis)
+
+// Calculate stop loss level
+stopLossLevel = ta.lowest(low, 2)[1] - stopLossMultiplier * ta.atr(14)
+
+// Plot EMAs
+plot(fastEMA, color=color.rgb(0, 156, 21), title="Fast EMA")
+plot(slowEMA, color=color.rgb(255, 0, 0), title="Slow EMA")
+
+// Plot Bollinger Bands
+plot(upperBand, color=color.new(#000000, 0), title="Upper Bollinger Band")
+plot(lowerBand, color=color.new(#1b007e, 0), title="Lower Bollinger Band")
+
+// Plot Buy and Sell signals
+plotshape(series=buyCondition, title="Buy Signal", color=color.green, style=shape.labelup, location=location.belowbar)
+plotshape(series=sellCondition, title="Sell Signal", color=color.red, style=shape.labeldown, location=location.abovebar)
+
+// Plot Stop Loss level
+plot(stopLossLevel, color=color.orange, title="Stop Loss Level")
+
+// Strategy logic
+strategy.entry("Buy", strategy.long, when = buyCondition)
+strategy.exit("Stop Loss/Close", from_entry="Buy", loss=stopLossLevel)
+strategy.close("Sell", when = sellCondition)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/439759
+
+> Last Modified
+
+2024-01-23 15:28:56

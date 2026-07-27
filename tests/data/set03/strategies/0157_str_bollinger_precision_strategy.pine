@@ -1,0 +1,83 @@
+//@version=6
+// set03 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/布林带精准风险优化策略-Bollinger-Precision-Risk-Optimization-Strategy.md
+// content_hash: b61882636d068f3b
+// collected: 2026-07-27
+strategy("Bollinger Precision Strategy", overlay=true, initial_capital=10000, currency=currency.USD, default_qty_type=strategy.percent_of_equity, default_qty_value=2)
+
+// === Input Settings ===
+// Bollinger Bands settings
+bb_length = input.int(20, title="BB Length", minval=1)
+bb_mult   = input.float(2.0, title="BB Multiplier", step=0.1)
+
+// RSI settings (used as an additional filter)
+rsiPeriod  = input.int(14, title="RSI Period")
+oversold   = input.int(30, title="RSI Oversold Level")
+overbought = input.int(70, title="RSI Overbought Level")
+
+// === Risk Management Inputs ===
+enable_stop_loss   = input.bool(true, title="Enable Stop-Loss")
+enable_take_profit = input.bool(true, title="Enable Take-Profit")
+stop_loss_percent  = input.float(4.0, title="Stop-Loss (%)", step=0.1)
+take_profit_percent = input.float(8.0, title="Take-Profit (%)", step=0.1)
+
+// === Bollinger Bands Calculations ===
+basis = ta.sma(close, bb_length)
+dev   = bb_mult * ta.stdev(close, bb_length)
+upper = basis + dev
+lower = basis - dev
+
+// Plot Bollinger Bands
+plot(basis, color=color.blue, title="Basis")
+plot(upper, color=color.red, title="Upper Band")
+plot(lower, color=color.green, title="Lower Band")
+
+// === RSI Calculation ===
+rsiValue = ta.rsi(close, rsiPeriod)
+
+// === Entry Conditions ===
+buySignal  = ta.crossover(close, lower) and (rsiValue < oversold)
+sellSignal = ta.crossunder(close, upper) and (rsiValue > overbought)
+
+// Variable to store the entry price
+var float entry_price = na
+
+// === Trading Logic with Copied Risk–Reward Function ===
+if buySignal
+    entry_price := close
+    strategy.entry("Long", strategy.long)
+    strategy.close("Short")
+    
+    // Risk–Reward Management for Long Trades
+    sl_long = enable_stop_loss ? entry_price * (1 - stop_loss_percent / 100) : na
+    tp_long = enable_take_profit ? entry_price * (1 + take_profit_percent / 100) : na
+    strategy.exit("Exit Long", from_entry="Long", stop=sl_long, limit=tp_long)
+    
+    // If both SL and TP are disabled, close the Long position on signal
+    if not enable_stop_loss and not enable_take_profit
+        strategy.close("Long")
+
+if sellSignal
+    entry_price := close
+    strategy.entry("Short", strategy.short)
+    strategy.close("Long")
+    
+    // Risk–Reward Management for Short Trades
+    sl_short = enable_stop_loss ? entry_price * (1 + stop_loss_percent / 100) : na
+    tp_short = enable_take_profit ? entry_price * (1 - take_profit_percent / 100) : na
+    strategy.exit("Exit Short", from_entry="Short", stop=sl_short, limit=tp_short)
+    
+    // If both SL and TP are disabled, close the Short position on signal
+    if not enable_stop_loss and not enable_take_profit
+        strategy.close("Short")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/484583
+
+> Last Modified
+
+2025-03-03 10:07:56

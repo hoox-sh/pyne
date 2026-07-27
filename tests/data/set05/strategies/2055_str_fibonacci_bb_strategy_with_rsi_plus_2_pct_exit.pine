@@ -1,0 +1,64 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/斐波那契布林带与相对强弱指数组合动态止盈策略-Fibonacci-Bollinger-Bands-with-RSI-Dynamic-Take-Profit-Strategy.md
+// content_hash: fe3aa560553bb9fc
+// collected: 2026-07-27
+strategy("Fibonacci BB Strategy with RSI + 2% Exit", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=100)
+
+// === INPUTS ===
+length = input(200, title="VWMA Length")
+src = input(hlc3, title="Source")
+mult = input(3.0, title="Deviation Multiplier")
+rsiLength = input.int(14, title="RSI Length")
+profitTargetPercent = input.float(2.0, title="Profit Target (%)")
+
+// === FBB CALCULATIONS ===
+basis = ta.vwma(src, length)
+dev = mult * ta.stdev(src, length)
+upper_6 = basis + (1 * dev)  // RED line
+lower_6 = basis - (1 * dev)  // GREEN line
+
+// === RSI ===
+rsi = ta.rsi(close, rsiLength)
+
+// === SIGNAL CONDITIONS ===
+buySignal = ta.crossover(close, upper_6)
+sellSignal = ta.crossunder(close, lower_6)
+
+// === STRATEGY ENTRIES ===
+if buySignal
+    strategy.entry("Long", strategy.long)
+
+if sellSignal
+    strategy.entry("Short", strategy.short)
+
+// === STRATEGY EXITS ===
+// 2% profit in points
+longTakeProfit = strategy.position_avg_price * (1 + profitTargetPercent / 100)
+shortTakeProfit = strategy.position_avg_price * (1 - profitTargetPercent / 100)
+
+// Long Exit: RSI < 30 or price >= TP
+if strategy.position_size > 0
+    if close >= longTakeProfit or rsi < 30
+        strategy.close("Long")
+
+// Short Exit: RSI > 70 or price <= TP
+if strategy.position_size < 0
+    if close <= shortTakeProfit or rsi > 70
+        strategy.close("Short")
+
+// === PLOTS ===
+plot(basis, color=color.fuchsia, linewidth=2, title="VWMA Basis")
+plot(upper_6, color=color.red, linewidth=2, title="Upper Band (1x Dev)")
+plot(lower_6, color=color.green, linewidth=2, title="Lower Band (1x Dev)")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/489134
+
+> Last Modified
+
+2025-04-02 09:37:00

@@ -1,0 +1,238 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/超趋势MACD量化策略Supertrend-MACD-Quantitative-Strategy.md
+// content_hash: e3ad776bcb32a758
+// collected: 2026-07-27
+
+strategy("SuperTrend.MACD Strategy", overlay=false, default_qty_type=strategy.percent_of_equity, default_qty_value=100, initial_capital=100000, pyramiding=5, process_orders_on_close=true)
+
+// ---------------- Utility Functions ----------------
+getArrayValue(float[] arr, int ago) =>
+    if ago >= 0
+        array.get(arr, ago >= array.size(arr) ? na: array.size(arr) + -1 * ago -1)
+    else
+        na
+
+filterNA(float[] a, s, int y) =>
+    int x = 0
+    if not na(s[0])
+        array.push(a, s[0])
+        if array.size(a) > y
+            array.shift(a)
+    a
+
+pine_rsi(float[] x, int y) =>
+    x0 = getArrayValue(x, 0)
+    x1 = getArrayValue(x, 1)
+
+    u = math.max(x0 - x1, 0) // upward ta.change
+    d = math.max(x1 - x0, 0) // downward ta.change
+    rs = ta.rma(u, y) / ta.rma(d, y)
+    res = 100 - 100 / (1 + rs)
+    res
+
+turnAround(float[] arr) =>
+    int isTurnAround = 0
+    
+    now = getArrayValue(arr, 0)
+    p1 = getArrayValue(arr, 1)
+    p2 = getArrayValue(arr, 2)
+
+    if p1 > now and p1 > p2
+        isTurnAround := -1
+    else if p1 < now and p1 < p2
+        isTurnAround := 1
+
+intergerizeSignal(i) =>
+    i>0 ? 1 : i<0 ? -1 : 0
+
+linreg(float[] y, int n, int offset=0) => 
+    float slope = na
+    float intercept = na
+
+    int endcursor = offset + n - 1
+
+    if array.size(y) > endcursor
+        float sumX = 0
+        float sumX2 = 0
+        float sumY = 0
+        float sumY2 = 0
+        float sumXY = 0
+
+        for i=offset to endcursor
+            yv = array.get(y, i)
+            sumY += yv
+            sumY2 += math.pow(yv, 2)
+            sumX += i
+            sumX2 += math.pow(i, 2)
+            sumXY += i*yv
+
+        // Pearson correlation coefficient
+        r = (n * sumXY - sumX * sumY) / math.sqrt((n * sumY2 - math.pow(sumY, 2)) * (n * sumX2 - math.pow(sumX, 2)))
+
+        // Coefficient of determination
+        r2 = math.pow(r, 2)
+
+        meanX = sumX / n
+        meanY = sumY / n
+
+        slope := (n * sumXY - sumX * sumY) / (n * sumX2 - math.pow(sumX, 2))
+        intercept := meanY - slope * meanX
+
+    [slope, intercept]
+
+isStartOfDay() => dayofweek != dayofweek[1]
+
+// ---------------- Variables ----------------
+
+varip float st_signal = 0
+varip float macd_signal = 0
+varip float macd_close_signal = 0
+varip float histo_signal = 0
+
+var int openSignal = 0
+var int closeSignal = 0
+
+// -------------------------------- Supertrend Signal (Open) --------------------------------
+
+// ST calculation
+atrPeriod = input(10, "Supertrend ATR Length")
+factor = input.float(2.0, "Supertrend Factor", step = 0.01)
+
+[_, direction] = ta.supertrend(factor, atrPeriod)
+
+st_direction_change = ta.change(direction)
+if st_direction_change < 0
+    st_signal := 4
+if st_direction_change > 0
+    st_signal := -4
+
+// -------------------------------- MACD Signal (Open + Close) --------------------------------
+
+// MACD Calculation
+fastLength = input(12, title="MACD Fast Length")
+slowLength = input(26, title="MACD Slow Length")
+signalLength = input(9, title="MACD Signal Length")
+macdSlowTimeframe = input.timeframe("D", "MACD Timeframe")
+macdSlopeLookbackOpen = input(7, title="MACD Slope Lookback - Open")
+macdSlopeLookbackClose = input(3, title="MACD Slope Lookback - Close")
+
+dailyClose = request.security(syminfo.tickerid, macdSlowTimeframe, close, barmerge.gaps_on)
+[macdLine, signalLine, _] = ta.macd(dailyClose, fastLength, slowLength, signalLength)
+
+// MACD Slope calculation
+
+varip macdHistory = array.new<float>(0)
+varip macdSlowSlopeArr = array.new<float>(0)
+varip float macdSlowSlope = na
+varip float macdCloseSlope = na
+
+if not na(macdLine[0])
+    array.push(macdHistory, macdLine[0])
+    if array.size(macdHistory) > macdSlopeLookbackOpen
+        array.shift(macdHistory)
+    [s1, _] = linreg(macdHistory, macdSlopeLookbackOpen)
+    macdSlowSlope := s1
+
+    array.push(macdSlowSlopeArr, macdSlowSlope)
+    if array.size(macdSlowSlopeArr) > macdSlopeLookbackClose
+        array.shift(macdSlowSlopeArr)
+    [s2, _] = linreg(macdSlowSlopeArr, macdSlopeLookbackClose)
+    macdCloseSlope := s2
+
+// MACD Signal Calculation
+// > open signal
+threshold_macdSlowSlope = input.float(0.75, "MACD Slope Open Threshold", step = 0.05)
+
+macdSlowSlopeOverThreshold = math.abs(macdSlowSlope) >= threshold_macdSlowSlope
+macdSlowSlopeTrend = macdSlowSlope - getArrayValue(macdSlowSlopeArr, 1)
+macdSlowSlopeTrendConfirm = macdSlowSlope*macdSlowSlopeTrend >0
+
+if (macdSlowSlopeOverThreshold and macdSlowSlopeTrendConfirm)
+    macd_signal := 3*macdSlowSlope/math.abs(macdSlowSlope)
+else
+    macd_signal := 0
+
+// > close signal
+int macdCloseSignal = 0
+macdCloseSignal := intergerizeSignal(macdCloseSlope)
+
+// Histogram signal Calculation
+histSlow = macdLine - signalLine
+
+if (ta.crossover(histSlow, 0))
+	histo_signal := 2
+if (ta.crossunder(histSlow, 0))
+	histo_signal := -2
+
+// -------------------------------- RSI Signal (Close) --------------------------------
+int rsiCloseSignal = 0
+varip float rsiSlow = na
+
+rsiPeriod = input(14, title="RSI Period")
+
+varip dailyCloseRSIFilter = array.new_float()
+
+// rewrite pine_rsi to remove NaN value from series at calculation
+dailyCloseRSIFilter := filterNA(dailyCloseRSIFilter, dailyClose, rsiPeriod)
+
+if not na(dailyClose[0])
+    rsiSlow := pine_rsi(dailyCloseRSIFilter, rsiPeriod)
+
+if rsiSlow > 80
+    rsiCloseSignal := -1
+else if rsiSlow < 20
+    rsiCloseSignal := 1
+else
+    rsiCloseSignal := 0
+
+// -------------------------------- Overall Signal --------------------------------
+
+// Close signal
+closeSignals = array.from(macdCloseSignal, rsiCloseSignal)
+closeSignal := array.includes(closeSignals, 1) ? 1 : array.includes(closeSignals, -1) ? -1 : 0
+closeSignal := closeSignal * 5
+
+// Open signal
+if (macd_signal * st_signal > 0) and (macd_signal * macd_close_signal >= 0)
+    openSignal := intergerizeSignal(st_signal)
+    openSignal := openSignal * 6
+else
+    openSignal := 0
+
+// -------------------------------- Order --------------------------------
+// if strategy.position_size == 0
+if openSignal * closeSignal >=0
+    if openSignal > 0
+        strategy.entry("Long Entry", strategy.long)
+    else if openSignal < 0
+        strategy.entry("Short Entry", strategy.short)
+
+if strategy.position_size != 0
+    if closeSignal < 0
+        strategy.close("Long Entry")
+    if closeSignal > 0
+        strategy.close("Short Entry")
+
+
+// -------------------------------- Plot --------------------------------
+
+plot(closeSignal, title="Close Signal", color=color.red, linewidth = 1, style=plot.style_area)
+plot(openSignal, title="Open Signal", color=color.green, linewidth = 1, style=plot.style_area)
+plot(st_signal, title="ST Signal", color=color.black, linewidth = 1, style=plot.style_circles)
+plot(macd_signal, title="MACD Signal", color=color.blue, linewidth = 1, style=plot.style_circles)
+// plot(macdSlowSlope, title="macd slow slope", color=color.purple, linewidth = 1, style=plot.style_line)
+// plot(macdCloseSlope, title="macd slow slope", color=color.lime, linewidth = 1, style=plot.style_line)
+
+hline(0, "Zero Line", color=color.gray)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/436607
+
+> Last Modified
+
+2023-12-26 11:13:24

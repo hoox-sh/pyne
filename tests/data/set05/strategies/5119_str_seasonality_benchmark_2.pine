@@ -1,0 +1,62 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/季节反转跨期交易策略Seasonal-Reversal-Intertemporal-Trading-Strategy.md
+// content_hash: 3777fd6c736189e6
+// collected: 2026-07-27
+strategy("Seasonality Benchmark ","Season",overlay=false,default_qty_type=strategy.percent_of_equity,
+     default_qty_value=25,initial_capital=100000,currency="USD",
+     commission_type=strategy.commission.percent,commission_value=0.5)
+input_entry_direction = input("Long","Position Type",options=["Long","Short"])
+input_entry_month = input("Oct","Entry Month",options=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"])
+input_exit_month = input("Jan","Entry Month",options=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"])
+
+//Convert three character month string to integer
+month_str_to_int(m)=>
+    ret = m == "Jan" ? 1 :
+          m == "Feb" ? 2 :
+          m == "Mar" ? 3 :
+          m == "Apr" ? 4 :
+          m == "May" ? 5 :
+          m == "Jun" ? 6 :
+          m == "Jul" ? 7 :
+          m == "Aug" ? 8 :
+          m == "Sep" ? 9 :
+          m == "Oct" ? 10 :
+          m == "Nov" ? 11 :
+          m == "Dec" ? 12 : -1
+          
+is_long = input_entry_direction == "Long" ? true : false
+entry = month_str_to_int(input_entry_month)
+exit = month_str_to_int(input_exit_month)
+var balance = strategy.equity
+
+//Entering a position is conditional on:
+    //1. No currently active trades
+    //2. Input entry month matches current month
+if(strategy.opentrades == 0 and entry == month)
+    strategy.entry("Swing",is_long)
+
+//Exiting a position is conditional on:
+    //1. Must have open trade
+    //2. Input exit month matches current month
+if(strategy.opentrades > 0 and exit == month)
+    strategy.close("Swing")
+    
+//Update the balance every time a trade is exited
+if(change(strategy.closedtrades)>0)
+    balance := strategy.equity
+    
+plot(strategy.equity,"Equity",color.orange)
+plot(balance,"Balance",color.red)
+
+    
+```
+
+> Detail
+
+https://www.fmz.com/strategy/439970
+
+> Last Modified
+
+2024-01-25 14:07:35

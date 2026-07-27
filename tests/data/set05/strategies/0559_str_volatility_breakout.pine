@@ -1,0 +1,23 @@
+//@version=5
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/[TH] Volatility Breakout.pine
+// content_hash: f1968ce8f7c9c94a
+// collected: 2026-07-27
+password = input.string("Your Password", title="Password", confirm = true)
+strategy("[TH] Volatility Breakout", overlay=true, initial_capital = 10000, currency = currency.KRW, default_qty_type = strategy.percent_of_equity, default_qty_value = 100, process_orders_on_close = true, pyramiding = 2)
+import dokang/TradingHook/1 as TH
+if timeframe.period != "D"
+    runtime.error("This strategy is only available in 1-day timeframe.")
+height = high-low
+k = input.float(0.5, minval = 0.0, step = 0.1)
+entry_price = close+height*k
+plot(entry_price, color = color.yellow, linewidth=2, offset = 1)
+var inTrade = false
+if barstate.islastconfirmedhistory
+    inTrade := true
+    
+if inTrade
+    strategy.entry("Buy", strategy.long, stop = entry_price, alert_message = TH.buy_message(password, order_name = "Volatility Breakout Buy"))
+    strategy.close("Buy", comment = "Sell",alert_message = TH.sell_message(password, "100%", order_name = "Volatility Breakout Sell"))
+Expand (25 lines)

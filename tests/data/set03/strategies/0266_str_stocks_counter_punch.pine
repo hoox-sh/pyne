@@ -1,0 +1,35 @@
+//@version=6
+// set03 corpus entry
+// source_repo: LouisLetcher-quant-pine
+// source_path: LouisLetcher-quant-pine/docs/TV_MIGRATION_PLAN.md::TV_MIGRATION_PLAN.md#block2
+// content_hash: 21dd80df451a5e47
+// collected: 2026-07-27
+strategy("Stocks - Counter Punch", shorttitle = "Stocks - Counter Punch",
+     overlay=true, default_qty_type = strategy.percent_of_equity, default_qty_value = 100)
+
+//-------------------------------------------
+// User Inputs
+//-------------------------------------------
+rsiLength = input.int(2, title="RSI Length", minval=1)
+...
+
+//-------------------------------------------
+// Conditions
+//-------------------------------------------
+...
+
+//-------------------------------------------
+// Orders
+//-------------------------------------------
+if longEntryCondition
+    strategy.entry("Long", strategy.long)
+if longExitCondition
+    strategy.close("Long")
+
+//-------------------------------------------
+// Alerts (webhook contract: tv-quant-lab alert_schema.json)
+//-------------------------------------------
+alertcondition(longEntryCondition, title="Long Entry",
+     message='{"action":"buy","symbol":"{{ticker}}","signal":1,"price":{{close}},"bar_time":"{{time}}","timeframe":"{{interval}}","confidence":1.0}')
+alertcondition(longExitCondition, title="Long Exit",
+     message='{"action":"close","symbol":"{{ticker}}","signal":0,"price":{{close}},"bar_time":"{{time}}","timeframe":"{{interval}}","confidence":1.0}')

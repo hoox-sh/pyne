@@ -1,0 +1,87 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于ADX和MACD指标的交易策略ADX-and-MACD-Indicators-based-Trading-Strategy.md
+// content_hash: c2f7fb910df02c33
+// collected: 2026-07-27
+strategy("TUE ADX/MACD Confluence V1.0", overlay=true)
+
+showsignals = input(true, title="Show BUY/SELL Signals")
+showcandlecolors = input(true, title="Show Candle Colors")
+length = input(14, title="ADX Length")
+smoothing = input(10, title="ADX Smoothing")
+macdsource = input(close, title="MACD Source")
+macdfast = input(12, title="MACD Fast Length")
+macdslow = input(26, title="MACD Slow Length")
+macdsignal = input(9, title="MACD Signal Length")
+colorup = input(color.green, title="Up Candle Color")
+colordown = input(color.red, title="Down Candle Color")
+
+/////////////////////////////////////////////////////////////////////////////////////////////// ADX AND MACD CALC
+[diplus, diminus, adx] = ta.dmi(length, smoothing)
+
+[macdline, signalline, histline] = ta.macd(macdsource, macdfast, macdslow, macdsignal)
+
+//////////////////////////////////////////////////////////////////////////////////////////////TRADE CALC
+
+longcheck = diplus > diminus and macdline > signalline
+shortcheck = diminus > diplus and signalline > macdline
+
+int trade = 0
+
+//Open from nothing
+
+if trade == 0 and longcheck
+    trade := 1
+
+else if trade == 0 and shortcheck
+    trade := -1
+    
+//Reversal
+
+else if trade == 1 and shortcheck
+    trade := -1
+    
+else if trade == -1 and longcheck
+    trade := 1
+    
+//Keep status quo until crossover
+
+else
+    trade := trade[1]
+
+//////////////////////////////////////////////////////////////////////////////////////////////PLOT 
+
+colors = longcheck ? colorup : shortcheck ? colordown : color.white
+
+plotcandle(open, high, low, close, color = showcandlecolors ? colors : na)
+
+plotshape(trade[1] != 1 and trade == 1 and showsignals, style=shape.labelup, text='BUY', textcolor=color.white, color=color.green, size=size.small, location=location.belowbar)
+plotshape(trade[1] != -1 and trade == -1 and showsignals, style=shape.labeldown, text='SELL', textcolor=color.white, color=color.red, size=size.small, location=location.abovebar)
+
+///////////////////////////////////////////////////////////////////////////////////////////// ALERTS
+
+// Add Stop Loss
+stopLossPrice = input(100, title="Stop Loss Price")
+
+if trade == 1
+    strategy.entry("Long", strategy.long)
+
+if trade == -1
+    strategy.entry("Short", strategy.short)
+
+if trade == 1 and close < close[1] - stopLossPrice
+    strategy.close("LongExit")
+
+if trade == -1 and close > close[1] + stopLossPrice
+    strategy.close("ShortExit")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/435252
+
+> Last Modified
+
+2023-12-13 15:45:24

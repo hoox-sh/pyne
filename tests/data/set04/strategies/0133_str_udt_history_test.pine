@@ -1,0 +1,23 @@
+//@version=6
+// set04 corpus entry
+// source_repo: mcp-server-pinescript
+// source_path: mcp-server-pinescript/.project/bug-reports/MCP_PINESCRIPT_UDT_HISTORY_ERROR_BUG_REPORT.md::MCP_PINESCRIPT_UDT_HISTORY_ERROR_BUG_REPORT.md#block1
+// content_hash: 34ffe64c97871d46
+// collected: 2026-07-27
+strategy("UDT History Test", shorttitle="UDT_TEST", overlay=true)
+
+// User-defined type for testing
+type TestState
+    float value
+    int count
+    bool active
+
+// Initialize state
+var TestState state = TestState.new(0.0, 0, false)
+
+// PROBLEMATIC CODE - This should cause the compilation error
+// Using object.field[1] instead of (object[1]).field
+badValue = state.value[1]  // ERROR: Cannot use history-referencing on UDT fields
+badCount = state.count[1]  // ERROR: Cannot use history-referencing on UDT fields
+
+plot(badValue)

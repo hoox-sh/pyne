@@ -1,0 +1,287 @@
+//@version=4
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/AZ V.3 Test ++Position Size Fix+Float.pine
+// content_hash: 0abbda594005fdd4
+// collected: 2026-07-27
+strategy("CDC Action Zone V.3 Test ++Position Size Fix+Float", shorttitle="Action Zone V.3 + Position Sizing [Float],[Fix] Equity", overlay=true, precision = 4, initial_capital=3000, default_qty_type=strategy.cash, default_qty_value=10, currency=currency.USD, process_orders_on_close=true, pyramiding=0)
+//****************************************************************************//
+// CDC Action Zone is based on a simple EMA crossover 
+// between [default] EMA12 and EMA26
+// The zones are defined by the relative position of 
+// price in relation to the two EMA lines
+// Different zones can be use to activate / deactivate 
+// other trading strategies
+// The strategy can also be used on its own with 
+// acceptable result, buy on the first green candle
+// and sell on the first red candle
+//****************************************************************************//
+//****************************************************************************//
+//=============================//
+//   Define Money Management   //
+//=============================//
+SnowBall        = input(title="Profit+Fund = Gear Up [Float]", type=input.bool, defval=false) // Compound Profit Switch
+ZeroRisk        = input(title="Only Fund = 0% Risk [Fix]", type=input.bool, defval=true)      // Not Compound Profit Switch
+Risk_Per_Trade          = input(2.5, "% of Risk Per Trade") / 100                             // Risk% Per Trade Switch
+//=============================//
+// Define User Input Variables //
+//=============================//
+plotSig2sw       = input(title="Momentum based Buy/Sell Strategy ", type=input.bool, defval=true)
+GreenRedStrategy = input(title="เขียว-แดง Long Strategy ", type=input.bool, defval=true)
+xsrc             = input(title="Source Data",type=input.source, defval=close)
+xprd1            = input(title="Fast EMA period", type=input.integer, defval=12)
+xprd2            = input(title="Slow EMA period", type=input.integer, defval=26)
+xsmooth          = input(title="Smoothing period (1 = no smoothing)", type=input.integer, defval=1)
+fillSW           = input(title="Paint Bar Colors", type=input.bool, defval=true)
+fastSW           = input(title="Show fast moving average line", type=input.bool, defval=true)
+slowSW           = input(title="Show slow moving average line", type=input.bool, defval=true)
+labelSwitch      =  input(title="Turn on assistive text", type=input.bool, defval=false)
+plotSigsw        = input(title="Plot Buy/Sell Signals? ", type=input.bool, defval=true)
+plotRibsw        = input(title="Plot Buy/Sell Ribbon", type=input.bool, defval=true)
+plotRibbonPos    = input(title="Ribbon Position", options=["Top", "Bottom"], defval="Top")
+xfixtf           = input(title="** Use Fixed time frame Mode (advanced) **", type=input.bool, defval=false)
+xtf              = input(title="** Fix chart to which time frame ? **)", type=input.resolution, defval="D")
+plotSig2lv       = input(title="Set signal threshold (higher = stricter)", type=input.integer, defval=1, minval=0, maxval=1)
+//****************************************************************************//
+//****************************************************************************//
+//=======================//
+// Calculate Action Zone //
+//=======================//
+xPrice = ema(xsrc,xsmooth)
+FastMA = xfixtf ?
+     ema(
+         security(syminfo.ticker,
+             xtf,
+             ema(xsrc,xprd1)),
+         xsmooth):
+     ema(xPrice,xprd1)
+SlowMA = xfixtf ?
+     ema(
+         security(syminfo.ticker,
+             xtf,
+             ema(xsrc,xprd2)),
+         xsmooth):
+     ema(xPrice,xprd2)
+Bull = FastMA > SlowMA
+Bear = FastMA < SlowMA
+//****************************************************************************//
+//====================//
+// Define Color Zones //
+//====================//
+Green  = Bull and xPrice>FastMA // Buy
+Blue   = Bear and xPrice>FastMA and xPrice>SlowMA //Pre Buy 2
+LBlue  = Bear and xPrice>FastMA and xPrice<SlowMA //Pre Buy 1
+Red    = Bear and xPrice < FastMA // Sell
+Orange = Bull and xPrice < FastMA and xPrice < SlowMA // Pre Sell 2
+Yellow = Bull and xPrice < FastMA and xPrice > SlowMA // Pre Sell 1
+//****************************************************************************//
+//========================//
+// Display color on chart //
+//========================//
+bColor = Green ? color.green : 
+     Blue ? color.blue : 
+     LBlue ? color.aqua : 
+     Red ? color.red : 
+     Orange ? color.orange : 
+     Yellow ? color.yellow : 
+     color.black
+barcolor(color=fillSW? bColor : na)
+//****************************************************************************//
+//==================//
+// Display MA lines //
+//==================//
+FastL      = plot(fastSW ? FastMA : na,"Fast EMA",color=color.red)
+SlowL      = plot(slowSW ? SlowMA : na,"Slow EMA",color=color.blue)
+fillcolor  = Bull ? color.green : Bear ? color.red : color.black
+fill(FastL,SlowL,fillcolor)
+//****************************************************************************//
+// Define Buy and Sell condition
+// This is only for thebasic usage of CDC Actionzone (EMA Crossover) 
+// ie. Buy on first green bar and sell on first red bar
+buycond  = Green and Green[1]==0
+sellcond = Red and Red[1]==0
+bullish  = barssince(buycond) < barssince(sellcond)
+bearish  = barssince(sellcond) < barssince(buycond)
+buy      = bearish[1]and buycond
+sell     = bullish[1] and sellcond
+bColor_BullBear = bullish ? color.green : bearish ? color.red : color.black
+//****************************************************************************//
+//==================================//
+// Plot Buy and Sell point on chart //
+//==================================//
+plotshape(plotSigsw ? buy : na,
+     style=shape.circle,
+     title = "Buy Signal",
+     location = location.belowbar,
+     color = color.green)
+plotshape(plotSigsw ? sell : na,
+     style=shape.circle,
+     title = "Sell Signal",
+     location=location.abovebar,
+     color = color.red)
+// Display Buy/Sell Ribbon
+plotshape(plotRibsw ? plotRibbonPos == "Top" ? close : na : na,
+     style=shape.square,
+     title = "Buy/Sell Ribbon", 
+     location = location.top, 
+     color = bColor_BullBear)
+     
+plotshape(plotRibsw ? plotRibbonPos == "Bottom" ? close : na : na,
+     style=shape.square,
+     title = "Buy/Sell Ribbon", 
+     location = location.bottom, 
+     color = bColor_BullBear)
+    
+//****************************************************************************//
+//=======//
+// Label //
+//=======//
+labelstyle = close>SlowMA ? label.style_labeldown : label.style_labelup
+labelyloc = close>SlowMA ? yloc.abovebar : yloc.belowbar
+labeltcolor = buy? color.black : 
+     sell ? color.white :
+     close > close[1] ? color.green : 
+     color.red
+labelbgcolor = buy ? color.green : sell ? color.red : color.silver
+labeltext = buy ? "BUY next bar\n" : sell ? "SELL next bar\n" : " "
+trendText = bullish ? "bullish" : bearish ? "bearish" : "sideways"
+l1 = label.new(bar_index,na,
+     text=labeltext+syminfo.ticker + " "+tostring(close) + " " + syminfo.currency + "\n currently in a " + trendText + " trend \n" ,
+     color = labelbgcolor, 
+     textcolor=labeltcolor, 
+     yloc=labelyloc, 
+     style=labelstyle)
+label.delete(labelSwitch ? l1[1] : l1)
+//____________________________________________________________________________//
+//____________________________________________________________________________//
+// Momentum Signal using StochRSI //
+// Adds a momentum based signal following trends to the script
+// Default is hidden, only use with caution
+// Parameters for STOCH RSI is hard-coded to avoid cluttering the input screen further
+// If you need to change anything, make a copy of the code and change it.
+// Inputs are commented out, to enable them comment out the hard coded variables first!
+// fixed inputs //
+smoothK  = 3
+smoothD  = 3
+RSIlen   = 14
+STOlen   = 14
+SRsrc    = close
+OSlevel  = 30
+OBlevel  = 70
+// User inputs // // COMMENT ABOVE VARIABLES FIRST!! 
+// smoothK = input(3,"StochRSI smooth K",type=input.integer,minval=1)
+// smoothD = input(3,"StochRSI smooth D",type=input.integer,minval=1)
+// RSIlen = input(14,"RSI length",type=input.integer,minval=1)
+// STOlen = input(14,"Stochastic length",type=input.integer,minval=1)
+// SRsrc = input(close,"Source for StochasticRSI",type=input.source)
+// OSlevel = input(30,"Oversold Threshold",type=input.float,minval=0.00)
+// OBlevel = input(70,"Oversold Threshold",type=input.float,minval=0.00)
+// calculations //
+rsi1  = rsi(SRsrc,RSIlen)
+k     = sma(stoch(rsi1,rsi1,rsi1,STOlen),smoothK)
+d     = sma(k,smoothD)
+// storsiBuySig =  if bullish
+//     if (d < OSlevel and crossover(k,d))
+//         3
+//     else if crossover(k,OSlevel)
+//         2
+//     else if d > OSlevel and crossover(k,d)
+//         1
+//     else
+//         0
+// else
+//     0
+storsiBuySig = iff(bullish,
+                     iff(d < OSlevel and crossover(k,d),
+                         2,
+                         iff(d > OSlevel and crossover(k,d),
+                             1,
+                             0)),
+                     0)
+storsiSellSig = iff(bearish,
+                     iff(d > OBlevel and crossunder(k,d),
+                         2,
+                         iff(d < OBlevel and crossunder(k,d),
+                             1,
+                             0)),
+                     0)
+BuyMomentum = iff(bullish,
+                     iff(d < OSlevel and crossover(k,d),
+                         2,
+                         iff(d > OSlevel and crossover(k,d),
+                             1,
+                             0)),
+                     0)
+SellMomentum   = iff(bearish,
+                     iff(d > OBlevel and crossunder(k,d),
+                         2,
+                         iff(d < OBlevel and crossunder(k,d),
+                             1,
+                             0)),
+                     0)
+//****************************************************************************//
+// === BACKTEST RANGE === //
+use_date_range = input(true)
+FromYear  = input(defval = 2018, title = "From Year", minval = 1950)
+FromMonth = input(defval = 1, title = "From Month", minval = 1)
+FromDay   = input(defval = 1, title = "From Day", minval = 1)
+ToYear    = input(defval = 9999, title = "To Year", minval = 1950)
+ToMonth   = input(defval = 1, title = "To Month", minval = 1)
+ToDay     = input(defval = 1, title = "To Day", minval = 1)
+in_date_range = use_date_range ? (time > timestamp(FromYear, FromMonth, FromDay, 00, 00)) and (time < timestamp(ToYear, ToMonth, ToDay, 23, 59)) : true
+//stopLoss = (price * stop_loss_percent / 100 / leverage) / syminfo.mintick
+//****************************************************************************//
+//****************************************************************************//
+//////////////////////////////////////////////
+//    define strategy entry / exit          //
+//////////////////////////////////////////////
+// Equity Monitor
+var initialCapital_A = ( strategy.initial_capital + strategy.netprofit + strategy.openprofit )  // Compound Profit 
+initialCapital_B     = ( strategy.initial_capital + strategy.netprofit + strategy.openprofit )  // Not Compound Profit 
+// LONG CONDITIONS
+Select_Long_Condition_1       = (  Bull and xPrice > FastMA  ) and (GreenRedStrategy == true)    // Buy when color bar = GREEN
+Open_Long_Condition           = (( Select_Long_Condition_1 )) and strategy.opentrades == 0
+//****************************************************************************//
+// STOP LOSS
+float longSL = na
+longSL := Open_Long_Condition ? lowest(low, 11)[1] : longSL[1]                                   // This is Hard Stop
+//****************************************************************************//
+// TAKE PROFIT
+Long_Entry_Price   = close
+Diff_OPEN_to_SL    = abs(Long_Entry_Price - longSL)                                              // Clac. the different price for find the [Stoploss %]
+// Exit CONDITIONS
+Select_TakeProfit_Condition_1       = ( Red and Red[1]==0 )                                      // Sell when color bar = RED
+Exit_Long_Condition                 = (( Select_TakeProfit_Condition_1 )) 
+Position_Value_USD_A      = initialCapital_A * Risk_Per_Trade / ( Diff_OPEN_to_SL / Long_Entry_Price )   // Compound Profit
+Position_Value_USD_B      = initialCapital_B * Risk_Per_Trade / ( Diff_OPEN_to_SL / Long_Entry_Price )   // Not Compound Profit
+Real_Position_Size_A        = Position_Value_USD_A / Long_Entry_Price                                    // Compound Profit
+Real_Position_Size_B        = Position_Value_USD_B / Long_Entry_Price                                    // Not Compound Profit
+//****************************************************************************//
+// POSITION SIZE CAP
+Not_Over_Size_A       = ( Real_Position_Size_A * xPrice ) < initialCapital_A    // Compound Profit
+Over_Size_A           = ( Real_Position_Size_A * xPrice ) > initialCapital_A    // Compound Profit
+Not_Over_Size_B       = ( Real_Position_Size_B * xPrice ) < initialCapital_B    // Not Compound Profit
+Over_Size_B           = ( Real_Position_Size_B * xPrice ) > initialCapital_B    // Not Compound Profit
+//****************************************************************************//
+// ENTRY/EXIT
+if ( Open_Long_Condition ) and ( in_date_range ) and ( Not_Over_Size_A ) and ( ZeroRisk == 1 )    // Compound Profit
+    strategy.entry( "LONG", strategy.long, qty= Real_Position_Size_A )
+if ( Open_Long_Condition ) and ( in_date_range ) and ( Not_Over_Size_B ) and ( SnowBall == 1 )    // Not Compound Profit
+    strategy.entry( "LONG", strategy.long, qty= Real_Position_Size_B )
+if ( Open_Long_Condition ) and ( in_date_range ) and ( Over_Size_A ) and ( ZeroRisk == 1 )        // Compound Profit
+    strategy.entry( "LONG", strategy.long, qty= initialCapital_A / Long_Entry_Price ) 
+if ( Open_Long_Condition ) and ( in_date_range ) and ( Over_Size_B ) and ( SnowBall == 1 )        // Not Compound Profit
+    strategy.entry( "LONG", strategy.long, qty= initialCapital_B / Long_Entry_Price ) 
+if ( Exit_Long_Condition ) and in_date_range
+    strategy.close(  "LONG"  ) 
+//****************************************************************************//
+//****************************************************************************//
+// PLOT STOP LOSS
+longPlotSL = strategy.opentrades > 0 and strategy.position_size > 0 ? longSL : na
+plot(longPlotSL, title='LONG STOP LOSS', linewidth=3, style=plot.style_linebr, color=color.red)
+// PLOT BUY MORE
+plotshape(plotSig2sw ? storsiBuySig > plotSig2lv ? storsiBuySig : na : na, "Buy more signals", style=shape.triangleup, location=location.bottom, color = color.teal)
+plotshape(plotSig2sw ? storsiSellSig > plotSig2lv ? storsiSellSig : na : na, "Sell more signals", style=shape.triangledown, location=location.bottom, color = color.orange)
+//****************************************************************************//
+//****************************************************************************//
+Expand (480 lines)

@@ -1,0 +1,15 @@
+//@version=6
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/language/variable-declarations.md::variable-declarations.md#block10
+// content_hash: 71fddc6ee13de1de
+// collected: 2026-07-27
+indicator("Type inheritance demo")
+
+//@variable Counts the number of bars remaining until the script reaches the latest bar.
+//          The expression returns a "series int" value. Therefore, the variable automatically inherits the "int" type.
+//          You can hover over the `myVar` identifier to confirm the type.
+myVar = last_bar_index - bar_index
+
+// Plot the value on the chart.
+plot(myVar, "Bars remaining", color.purple, 3)

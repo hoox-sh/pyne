@@ -1,0 +1,85 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动量增强型超级趋势-随机双指标交易策略-Momentum-Enhanced-SuperTrend-Stochastic-Dual-Indicator-Trading-Strategy.md
+// content_hash: d2a8c242082b12ce
+// collected: 2026-07-27
+strategy("SuperTrend + Stochastic Strategy", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=10)
+
+// === Vstupy ===
+// SuperTrend
+atrPeriod = input.int(10, title="ATR Period", minval=1)
+multiplier = input.float(3.0, title="SuperTrend Multiplier", step=0.1)
+
+// Stochastic Oscillator
+kPeriod = input.int(14, title="%K Period", minval=1)
+dPeriod = input.int(3, title="%D Period", minval=1)
+smoothK = input.int(3, title="Smooth %K", minval=1)
+
+// === Výpočty Indikátorov ===
+// Výpočet ATR
+atr = ta.atr(atrPeriod)
+
+// Výpočet SuperTrend
+upperBasic = (ta.highest(high, 1) + ta.lowest(low, 1)) / 2 + (multiplier * atr)
+lowerBasic = (ta.highest(high, 1) + ta.lowest(low, 1)) / 2 - (multiplier * atr)
+
+var float upperBand = na
+var float lowerBand = na
+var bool isBullish = true
+
+if (na(upperBand[1]))
+    upperBand := upperBasic
+    lowerBand := lowerBasic
+else
+    upperBand := close[1] > upperBand[1] ? math.max(upperBasic, upperBand[1]) : upperBasic
+    lowerBand := close[1] < lowerBand[1] ? math.min(lowerBasic, lowerBand[1]) : lowerBasic
+
+isBullish := close > upperBand[1] ? true : close < lowerBand[1] ? false : isBullish[1]
+
+// Výpočet Stochastic Oscillator
+stochK = ta.sma(ta.stoch(high, low, close, kPeriod), smoothK)
+stochD = ta.sma(stochK, dPeriod)
+
+// === Podmienky Pre Vstupy ===
+// Nákupný signál
+longCondition = isBullish and ta.crossover(stochK, stochD) and stochK < 20
+
+// Predajný signál
+shortCondition = not isBullish and ta.crossunder(stochK, stochD) and stochK > 80
+
+// === Vstupné Signály ===
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+
+if (shortCondition)
+    strategy.entry("Short", strategy.short)
+
+// === Výstupné Podmienky ===
+// Môžete pridať vlastné podmienky pre uzatvorenie pozícií alebo použitie stop-loss/take-profit
+
+// === Vykreslenie Indikátorov na Grafe ===
+// Vykreslenie SuperTrend
+plot(isBullish ? upperBand : na, color=color.green, title="SuperTrend Up", linewidth=2)
+plot(not isBullish ? lowerBand : na, color=color.red, title="SuperTrend Down", linewidth=2)
+fill(plot(isBullish ? upperBand : na, color=color.green), plot(not isBullish ? lowerBand : na, color=color.red), color=isBullish ? color.new(color.green, 90) : color.new(color.red, 90), title="SuperTrend Fill")
+
+// Vykreslenie Stochastic Oscillator na samostatnom okne
+hline(80, "Overbought", color=color.red, linestyle=hline.style_dotted)
+hline(20, "Oversold", color=color.green, linestyle=hline.style_dotted)
+plot(stochK, color=color.blue, title="%K")
+plot(stochD, color=color.orange, title="%D")
+
+// Vizualizácia Signálov
+plotshape(series=longCondition, title="Long Entry", location=location.belowbar, color=color.green, style=shape.labelup, text="Long")
+plotshape(series=shortCondition, title="Short Entry", location=location.abovebar, color=color.red, style=shape.labeldown, text="Short")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/482831
+
+> Last Modified
+
+2025-02-20 14:51:10

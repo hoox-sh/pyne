@@ -1,0 +1,64 @@
+//@version=6
+// set04 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多重均线协同趋势波动交易策略基于ATR动态风控-Multi-EMA-Trend-Following-Swing-Trading-Strategy-with-ATR-Based-Risk-Management.md
+// content_hash: e4a4a6d6463fd1e5
+// collected: 2026-07-27
+strategy("EMA Swing Strategy with ATR", overlay=true)
+
+// Inputs
+emaShort = input.int(20, "Short EMA")
+emaMid = input.int(50, "Mid EMA")
+emaLong = input.int(100, "Long EMA")
+rrRatio = input.float(1.5, "Risk-Reward Ratio")
+contracts = input.int(5, "Number of Contracts")
+
+// Calculations
+ema20 = ta.ema(close, emaShort)
+ema50 = ta.ema(close, emaMid)
+ema100 = ta.ema(close, emaLong)
+
+atr = ta.atr(14)
+
+// Conditions
+longCondition = ta.crossover(close, ema20) and close > ema50
+shortCondition = ta.crossunder(close, ema20) and close < ema50
+
+// Variables for trades
+var float entryPrice = na
+var float stopLoss = na
+var float takeProfit = na
+
+// Long Trades
+if (longCondition)
+    entryPrice := close
+    stopLoss := close - atr
+    takeProfit := close + atr * rrRatio
+    strategy.entry("Long", strategy.long, contracts)
+    strategy.exit("Exit Long", from_entry="Long", stop=stopLoss, limit=takeProfit)
+
+// Short Trades
+if (shortCondition)
+    entryPrice := close
+    stopLoss := close + atr
+    takeProfit := close - atr * rrRatio
+    strategy.entry("Short", strategy.short, contracts)
+    strategy.exit("Exit Short", from_entry="Short", stop=stopLoss, limit=takeProfit)
+
+// Plot EMAs
+plot(ema20, color=color.green, title="EMA 20")
+plot(ema50, color=color.red, title="EMA 50")
+plot(ema100, color=color.white, title="EMA 100")
+
+// Visualization for Entries
+plotshape(series=longCondition, style=shape.labelup, color=color.green, location=location.belowbar, title="Long Entry")
+plotshape(series=shortCondition, style=shape.labeldown, color=color.red, location=location.abovebar, title="Short Entry")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/475637
+
+> Last Modified
+
+2024-12-20 17:06:20

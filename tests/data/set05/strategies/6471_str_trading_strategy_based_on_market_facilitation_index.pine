@@ -1,0 +1,50 @@
+//@version=2
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于市场促进指数的交易策略Trading-Strategy-Based-on-Market-Facilitation-Index.md
+// content_hash: 35f9e2a9ddf651f9
+// collected: 2026-07-27
+////////////////////////////////////////////////////////////
+//  Copyright by HPotter v1.0 12/09/2018
+// The Market Facilitation Index is an indicator that relates price range to 
+// volume and measures the efficency of price movement. Use the indicator to 
+// determine if the market is trending. If the Market Facilitation Index increased, 
+// then the market is facilitating trade and is more efficient, implying that the 
+// market is trending. If the Market Facilitation Index decreased, then the market 
+// is becoming less efficient, which may indicate a trading range is developing that 
+// may be a trend reversal.
+//
+// You can change long to short in the Input Settings
+// WARNING:
+// - For purpose educate only
+// - This script to change bars colors.
+////////////////////////////////////////////////////////////
+strategy(title="Market Facilitation Index (MFI) Backtest", shorttitle="MFI")
+SellZone = input(6.2, minval=0.01, step = 0.01)
+BuyZone = input(1, minval=0.01, step = 0.01)
+reverse = input(false, title="Trade reverse")
+hline(BuyZone, color=green, linestyle=line)
+hline(SellZone, color=red, linestyle=line)
+xmyVol = volume
+xmyhigh = high
+xmylow = low
+nRes = (xmyhigh - xmylow) / xmyVol * 10000
+pos = iff(nRes > BuyZone, 1,
+       iff(nRes < SellZone, -1, nz(pos[1], 0)))
+possig = iff(reverse and pos == 1, -1,
+          iff(reverse and pos == -1, 1, pos))	   
+if (possig == 1) 
+    strategy.entry("Long", strategy.long)
+if (possig == -1)
+    strategy.entry("Short", strategy.short)	   	    
+barcolor(possig == -1 ? red: possig == 1 ? green : blue )        
+plot(nRes, color=green, title="MFI", style = histogram)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/427262
+
+> Last Modified
+
+2023-09-19 15:56:29

@@ -1,0 +1,10 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block291
+// content_hash: fa690bf874e2320f
+// collected: 2026-07-27
+indicator("Example of setting the table cell font")
+var t = table.new(position.top_left, rows = 1, columns = 1)
+table.cell(t, 0, 0, "monospace", text_color = color.blue)
+table.cell_set_text_font_family(t, 0, 0, font.family_monospace)

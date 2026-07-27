@@ -1,0 +1,51 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/烛台形态趋势过滤策略Candlestick-Pattern-Trend-Filter-Strategy.md
+// content_hash: 124ac5b3e029036d
+// collected: 2026-07-27
+strategy("Candlestick Pattern Strategy with Trend Filters", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=5, initial_capital=10000, commission_type=strategy.commission.percent, commission_value=0.02)
+
+// Custom SMA function
+sma(src, length) =>
+    sum = 0.0
+    for i = 0 to length - 1
+        sum += src[i]
+    sum / length
+
+// Calculations
+bullishEngulfing = close > open and open < close[1] and close[1] < open[1] and close > open[1]
+bearishEngulfing = close < open and open > close[1] and close[1] > open[1] and close < open[1]
+darkCloudCover = close < open and open > close[1] and close < open[1]
+morningStar = close[2] < open[2] and close[1] < open[1] and close[1] < close[2] and open[1] > close[2] and close > open and close > open[1]
+
+ema14 = sma(close, 14)
+ema60 = sma(close, 60)
+upTrend = close > ema14 and close > ema60
+downTrend = close < ema14 and close < ema60
+
+// Entry Conditions
+longCondition = (bullishEngulfing and close > ema14 and close > ema60 and upTrend) or (morningStar and close < ema60 and upTrend)
+shortCondition = (bearishEngulfing and close < ema14 and close < ema60 and downTrend) or (darkCloudCover and close > ema14 and close > ema60 and downTrend)
+
+// Plot Signals
+plotshape(longCondition, title="Buy", style=shape.triangleup, location=location.belowbar, size=size.small, color=color.green, text="Buy")
+plotshape(shortCondition, title="Sell", style=shape.triangledown, location=location.abovebar, size=size.small, color=color.red, text="Sell")
+plot(ema14, title="EMA 14", color=color.blue, linewidth=2)
+plot(ema60, title="EMA 60", color=color.purple, linewidth=2)
+
+// Entry and Exit Orders
+if (longCondition)
+    strategy.entry("Long", strategy.long, comment="Long Entry")
+if (shortCondition)
+    strategy.entry("Short", strategy.short, comment="Short Entry")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/445804
+
+> Last Modified
+
+2024-03-22 14:01:14

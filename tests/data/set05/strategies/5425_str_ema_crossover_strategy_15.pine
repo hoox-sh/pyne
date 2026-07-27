@@ -1,0 +1,46 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于EMA均线交叉的短期量化交易策略Quantitative-Trading-Strategy-Based-on-EMA-Crossover.md
+// content_hash: 770a573d4c01f434
+// collected: 2026-07-27
+strategy("EMA Crossover Strategy", overlay=true)
+
+// Define the EMAs
+shortEma = ema(close, 9)
+mediumEma = ema(close, 15)
+longEma = ema(close, 50)
+
+// Plot EMAs
+plot(shortEma, title="ShortSignal", color=color.blue)
+plot(mediumEma, title="LongSignal", color=color.orange)
+plot(longEma, title="TrendIdentifier", color=color.red)
+
+// Define the crossover conditions
+buyCondition = crossover(shortEma, mediumEma) and close > longEma
+sellCondition = crossunder(shortEma, mediumEma) and close < longEma
+
+// Plot labels for crossovers with black text color
+plotshape(series=buyCondition, title="Buy Signal", location=location.belowbar, color=color.green, style=shape.labelup, text="BUY", textcolor=color.white)
+plotshape(series=sellCondition, title="Sell Signal", location=location.abovebar, color=color.red, style=shape.labeldown, text="SELL", textcolor=color.white)
+
+// Define the strategy conditions
+if (buyCondition)
+    strategy.entry("Buy", strategy.long)
+    strategy.exit("Take Profit", "Buy")
+
+if (sellCondition)
+    strategy.entry("Sell", strategy.short)
+    strategy.exit("Take Profit", "Sell")
+
+// Run the strategy
+strategy.exit("TP/SL", profit=1, loss=0.5)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/437765
+
+> Last Modified
+
+2024-01-05 14:01:25

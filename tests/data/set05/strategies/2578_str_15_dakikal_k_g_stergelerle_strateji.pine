@@ -1,0 +1,54 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/EMA交叉与RSI过滤的双重趋势策略-Dual-Trend-Strategy-with-EMA-Crossover-and-RSI-Filter.md
+// content_hash: 63b62cc41f888294
+// collected: 2026-07-27
+strategy("15 Dakikalık Göstergelerle Strateji", shorttitle="15m Strat", overlay=true)
+
+// Parametreler
+short_ma_length = input.int(9, title="Kısa EMA")
+long_ma_length = input.int(21, title="Uzun EMA")
+rsi_length = input.int(14, title="RSI Periyodu")
+rsi_overbought = input.int(70, title="RSI Aşırı Alım")
+rsi_oversold = input.int(30, title="RSI Aşırı Satım")
+
+// EMA Hesaplamaları
+short_ema = ta.ema(close, short_ma_length)
+long_ema = ta.ema(close, long_ma_length)
+
+// RSI Hesaplaması
+rsi = ta.rsi(close, rsi_length)
+
+// MACD Hesaplaması
+[macdLine, signalLine, _] = ta.macd(close, 12, 26, 9)
+
+// Göstergeleri Grafiğe Çizme
+plot(short_ema, title="Kısa EMA", color=color.blue)
+plot(long_ema, title="Uzun EMA", color=color.red)
+hline(rsi_overbought, "Aşırı Alım", color=color.red)
+hline(rsi_oversold, "Aşırı Satım", color=color.green)
+plot(rsi, title="RSI", color=color.purple)
+
+// İşlem Koşulları
+longCondition = ta.crossover(short_ema, long_ema) and rsi < rsi_overbought and macdLine > signalLine
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+
+shortCondition = ta.crossunder(short_ema, long_ema) and rsi > rsi_oversold and macdLine < signalLine
+if (shortCondition)
+    strategy.entry("Short", strategy.short)
+
+// Grafik Arkaplanı İşlem Koşullarına Göre Değiştirme
+bgcolor(longCondition ? color.new(color.green, 90) : na, title="Long Signal Background")
+bgcolor(shortCondition ? color.new(color.red, 90) : na, title="Short Signal Background")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/453655
+
+> Last Modified
+
+2024-06-07 15:29:57

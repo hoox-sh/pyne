@@ -1,0 +1,104 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/布林带与指数移动平均结合交易策略-Bollinger-Bands-and-Exponential-Moving-Average-Crossover-Trading-Strategy.md
+// content_hash: 7e9a5ff380c5f7b8
+// collected: 2026-07-27
+strategy("Bollinger Bands and EMA Strategy", overlay=true)
+
+// Define the Bollinger Bands
+length = input.int(20, title="BB Length")
+src = input(close, title="BB Source")
+mult = input.float(2.0, title="BB Multiplier")
+
+basis = ta.sma(src, length)
+dev = mult * ta.stdev(src, length)
+upper = basis + dev
+lower = basis - dev
+
+// Plot Bollinger Bands
+plot(upper, "Upper Band", color=color.red)
+plot(lower, "Lower Band", color=color.green)
+plot(basis, "Middle Band", color=color.blue)  // Use plot instead of hline for basis
+
+// Define the 5-period EMA
+ema5 = ta.ema(close, 5)
+
+// Plot the 5 EMA
+plot(ema5, "5 EMA", color=color.orange)
+
+// Generate signals
+var float entry_price = na
+var string trade_direction = "none"
+
+if (na(close[1]))
+    trade_direction := "none"
+
+// Condition for entering a short trade
+if (open > upper and close < ema5)
+    if (trade_direction != "short")
+        strategy.entry("Short", strategy.short)
+        entry_price := close
+        trade_direction := "short"
+
+// Condition for entering a long trade
+if (open < lower and close > ema5)
+    if (trade_direction != "long")
+        strategy.entry("Long", strategy.long)
+        entry_price := close
+        trade_direction := "long"
+
+// Close short trade on a long signal
+if (trade_direction == "short" and open < lower and close > ema5)
+    strategy.close("Short")
+    strategy.entry("Long", strategy.long)
+    entry_price := close
+    trade_direction := "long"
+
+// Close long trade on a short signal
+if (trade_direction == "long" and open > upper and close < ema5)
+    strategy.close("Long")
+    strategy.entry("Short", strategy.short)
+    entry_price := close
+    trade_direction := "short"
+
+// Close trades when opposite signal is generated
+if (trade_direction == "long" and open > upper and close < ema5)
+    strategy.close("Long")
+    trade_direction := "none"
+
+if (trade_direction == "short" and open < lower and close > ema5)
+    strategy.close("Short")
+    trade_direction := "none"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/454368
+
+> Last Modified
+
+2024-06-17 16:58:43

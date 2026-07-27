@@ -1,0 +1,33 @@
+//@version=2
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/快慢EMA交叉intraday交易策略Fast-and-Slow-EMA-Cross-Intraday-Trading-Strategy.md
+// content_hash: 88b8b6abb4794205
+// collected: 2026-07-27
+strategy("Eli Strategy", overlay=true)
+fastLength = input(110)
+slowLength = input(40)
+price = close
+
+emafast = ema(price, fastLength)
+emaslow = ema(price, slowLength)
+
+
+if (crossover(emafast, emaslow))
+    strategy.entry("EMA2CrossLE", strategy.long, comment="long")
+    strategy.exit("Exit Long", from_entry = "EMA2CrossLE", loss = 500, comment= "Rshort")
+
+if (crossunder(emafast, emaslow))
+    strategy.entry("EMA2CrossSE", strategy.short, comment="short")
+    strategy.exit("Exit short", from_entry = "EMA2CrossSE", loss = 500, comment= "RLong")
+
+//plot(strategy.equity, title="equity", color=red, linewidth=2, style=areabr)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/426506
+
+> Last Modified
+
+2023-09-12 16:28:09

@@ -1,0 +1,55 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于多重EMA和RSI的趋势追踪策略Multi-EMA-and-RSI-Trend-Following-Strategy.md
+// content_hash: c409109b9911c67d
+// collected: 2026-07-27
+
+strategy('new', overlay=true)
+
+start = timestamp(1990, 1, 1, 0, 0)
+end = timestamp(2043, 12, 12, 23, 59)
+ema0 = ta.ema(close, 9)
+ema1 = ta.ema(close, 21)
+ema2 = ta.ema(close, 51)
+ema3 = ta.ema(close, 100)
+ema4 = ta.ema(close, 200)
+
+rsi2=ta.rsi(ta.sma(close,14),14)
+plot(ema0, '9', color.new(color.green, 0))
+plot(ema1, '21', color.new(color.black, 0))
+plot(ema2, '51', color.new(color.red, 0))
+plot(ema3, '200', color.new(color.blue, 0))   
+
+//plot(ema4, '100', color.new(color.gray, 0)) 
+
+
+//LongEntry = (  ta.crossover(ema0,ema3)  or  ta.crossover(ema0,ema2) or  ta.crossunder(ema2,ema3) ) // ta.crossover(ema0,ema1) //
+LongEntry=false
+if ta.crossover(ema0,ema1) 
+    if rsi2>65
+        LongEntry:=true
+if ta.crossover(ema1,ema2)
+    if rsi2>65
+        LongEntry:=true
+        
+LongExit =  ta.crossunder(ema0,ema2) or close >(strategy.position_avg_price*1.25) or rsi2 <40 or close < (strategy.position_avg_price*0.98)
+
+
+
+if time >= start and time <= end 
+    if(LongEntry and rsi2>60)
+        strategy.entry('Long', strategy.long, 1)
+    if(LongExit)
+        strategy.close('Long') 
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/443251
+
+> Last Modified
+
+2024-03-01 13:26:24

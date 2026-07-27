@@ -1,0 +1,94 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/BTST高概率突破策略与精选股票筛选系统-BTST-High-Probability-Breakout-Strategy-with-Selective-Stock-Screening-System.md
+// content_hash: 410b2a3486db960e
+// collected: 2026-07-27
+strategy("BTST Strategy", overlay=true)
+
+// --- 1. Initial Screening at 3 PM (Identify 2-3% gain) ---
+is3pm = (hour == 15 and minute == 0)  // Check if it's 3 PM
+priceChangePercentage = (close - close[1]) / close[1] * 100  // Calculate percentage change from previous close
+
+// Stocks with a gain of 2-3% by 3 PM
+isSelectedStock = is3pm and priceChangePercentage >= 2 and priceChangePercentage <= 3
+plotshape(series=isSelectedStock, title="Selected Stock", location=location.belowbar, color=color.green, style=shape.labelup, text="Selected")
+
+// --- 2. Daily Candle Analysis (Bullish Patterns) ---
+// Bullish Engulfing pattern
+bullishEngulfing = close > open and open[1] > close[1] and close > open[1] and open < close[1]
+
+// Morning Star pattern
+morningStar = close[2] < open[2] and close[1] < open[1] and close > open and close[1] > open[1]
+
+// Three White Soldiers pattern
+threeWhiteSoldiers = close > open and close[1] > open[1] and close[2] > open[2] and close > close[1] and close[1] > close[2]
+
+// Combine the patterns for bullish confirmation
+bullishPattern = bullishEngulfing or morningStar or threeWhiteSoldiers
+plotshape(series=bullishPattern, title="Bullish Pattern", location=location.belowbar, color=color.green, style=shape.labelup, text="Bullish")
+
+// --- 3. 30-Minute Candle Breakout ---
+var float resistanceLevel = na
+
+// Capture the highest point every 30 minutes
+if (minute == 30 or minute == 0)
+    resistanceLevel := high
+
+// Check for breakout above resistance level
+breakoutAboveResistance = close > resistanceLevel
+plotshape(series=breakoutAboveResistance, title="Breakout Above Resistance", location=location.abovebar, color=color.blue, style=shape.labelup, text="Breakout")
+
+// --- 4. Avoid Over-Extended Stocks (5-10% intraday gains) ---
+// Calculate the percentage gain from the open price
+percentageGain = (close - open) / open * 100
+
+// Avoid stocks that are up more than 5-10% intraday
+avoidOverExtendedStocks = percentageGain > 5 or percentageGain < -10
+plotshape(series=avoidOverExtendedStocks, title="Avoid Over-Extended Stocks", location=location.abovebar, color=color.red, style=shape.labeldown, text="Over-Extended")
+
+// --- 5. Second-Day Watchlist (Add shortlisted stocks to watchlist) ---
+// We will skip implementing a watchlist in Pine Script because it isn't supported for direct interaction with external systems, but we will mark it in the script visually.
+watchlistCondition = isSelectedStock and bullishPattern and not avoidOverExtendedStocks
+plotshape(series=watchlistCondition, title="Second Day Watchlist", location=location.belowbar, color=color.purple, style=shape.triangledown, text="Watchlist")
+
+// --- 6. Exit Strategy - Pre-Market & Opening Observation ---
+// This part requires real-time data and pre-market data, which isn't supported directly in Pine Script
+// But, we can simulate exit strategy by showing potential exit points based on the gap-up opening:
+gapUpOpening = open > close[1] * 1.02  // If the stock opens 2% above the previous close
+hold15Min = gapUpOpening and close > low[1]  // Hold if price doesn't break the previous low
+
+plotshape(series=hold15Min, title="Gap-Up Hold for 15 Minutes", location=location.abovebar, color=color.blue, style=shape.triangledown, text="Hold")
+
+// --- 7. Buy and Sell Triggers (Strategy) ---
+
+// Define conditions for the buy trigger
+buySignal = bullishPattern and isSelectedStock and not avoidOverExtendedStocks
+
+// Buy when the conditions are met
+if buySignal
+    strategy.entry("Buy", strategy.long)
+
+// Define conditions for the sell trigger
+sellSignal = breakoutAboveResistance and not avoidOverExtendedStocks
+
+// Sell when the breakout above resistance condition is met
+if sellSignal
+    strategy.close("Buy")
+
+// --- Alerts ---
+// Alerts for Buy Signal based on 0.5% price movement
+alertcondition(buySignal, title="Buy Signal", message="Buy Signal: Confirmed Bullish Pattern and 2-3% price increase by 3 PM!")
+
+// Alerts for Sell Signal based on Breakout and other conditions
+alertcondition(sellSignal, title="Sell Signal", message="Sell Signal: Breakout above resistance!")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/489133
+
+> Last Modified
+
+2025-04-02 09:33:50

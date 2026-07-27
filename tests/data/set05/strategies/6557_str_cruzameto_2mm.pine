@@ -1,0 +1,32 @@
+//@version=2
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/快慢均线金叉死叉策略Fast-and-Slow-Moving-Average-Crossover-Strategy.md
+// content_hash: 5657aca37323398e
+// collected: 2026-07-27
+strategy("Cruzameto 2MM", overlay=true)
+
+fastLength = input(9)
+slowlength = input(40)
+//MACDLength = input(9)
+
+delta = ema(close, fastLength) - sma(close, slowlength)
+//aMACD = ema(MACD, MACDLength)
+//delta = MACD - aMACD
+
+if (crossover(delta, 0))
+    strategy.entry("Compra", strategy.long, comment="2MM")
+
+if (crossunder(delta, 0))
+    strategy.entry("Venda", strategy.short, comment="2MM")
+
+//plot(strategy.equity, title="equity", color=red, linewidth=2, style=areabr)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/426908
+
+> Last Modified
+
+2023-12-01 14:57:24

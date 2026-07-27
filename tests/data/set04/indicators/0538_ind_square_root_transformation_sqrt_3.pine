@@ -1,0 +1,32 @@
+// set04 corpus entry
+// source_repo: QuanTAlib
+// source_path: QuanTAlib/lib/numerics/sqrttrans/sqrttrans.pine
+// content_hash: c2edfacfd106b894
+// collected: 2026-07-27
+// Licensed under the Apache License, Version 2.0
+// © mihakralj
+//@version=6
+indicator("Square Root Transformation (SQRT)", "Sqrttrans", overlay=false)
+
+//@function Applies a square root transformation (y = √x) to the input series.
+//@param source series float The input series to transform. Must contain non-negative values.
+//@returns series float The square root transformed series. Returns na if source < 0.
+//@optimized for performance and dirty data
+sqrtT(series float source) =>
+    if na(source)
+        na
+    else if source < 0
+        na
+    else
+        math.sqrt(source)
+
+// ---------- Main loop ----------
+
+// Inputs
+i_source = input.source(close, "Source")
+
+// Calculation
+transformedSource = sqrtT(i_source)
+
+// Plot
+plot(transformedSource, "Sqrttrans", color=color.yellow, linewidth=2)

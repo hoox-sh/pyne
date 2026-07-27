@@ -1,0 +1,18 @@
+//@version=5
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/v5/language/type-system.md::type-system.md#block16
+// content_hash: a2d1e6c4a4cdc050
+// collected: 2026-07-27
+indicator("Chart points demo", overlay = true)
+
+//@variable A new `chart.point` at the previous `bar_index` and `high`.
+firstPoint = chart.point.from_index(bar_index - 1, high[1])
+//@variable A new `chart.point` at the current bar's `low`.
+secondPoint = chart.point.now(low)
+
+// Draw a new line connecting coordinates from the `firstPoint` and `secondPoint`.
+// This line uses the `index` fields from the points as x-coordinates.
+line.new(firstPoint, secondPoint, color = color.purple, width = 3)
+// Draw a label at the `firstPoint`. Uses the point's `index` field as its x-coordinate.
+label.new(

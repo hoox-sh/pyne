@@ -1,0 +1,50 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/移动平均线交叉与平仓交易策略Exponential-Moving-Average-and-Moving-Average-Crossover-with-Close-Strategy.md
+// content_hash: 8b56b436c5f003e8
+// collected: 2026-07-27
+strategy("EMA and MA Crossover with Close Strategy", shorttitle="EMA_MA_Close", overlay=true)
+
+// Define the length of the Exponential Moving Average and Moving Average
+lengthEMA = 9
+lengthMA = 20
+
+// Calculate the 9 EMA and 20 MA
+ema9 = ema(close, lengthEMA)
+ma20 = sma(close, lengthMA)
+
+// Define the buy and sell conditions
+buyCondition = close > ema9 and close > ma20
+sellCondition = close < ema9 and close < ma20
+
+// Define the close position condition
+closeCondition = crossover(close, ema9) or crossover(close, ma20)
+
+// Execute buy or sell orders
+if (buyCondition)
+    strategy.entry("Buy", strategy.long)
+else if (sellCondition)
+    strategy.entry("Sell", strategy.short)
+
+// Close any position if the close condition is met
+if (closeCondition)
+    strategy.close_all()
+
+// Coloring the candles based on conditions
+barcolor(buyCondition ? color.green : na)
+barcolor(sellCondition ? color.red : na)
+
+// Plotting the EMA and MA for reference
+plot(ema9, color=color.blue, title="9 EMA")
+plot(ma20, color=color.orange, title="20 MA")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/439353
+
+> Last Modified
+
+2024-01-19 14:50:50

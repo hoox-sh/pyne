@@ -1,0 +1,88 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/量化策略之MA强弱趋势追踪Quantitative-Strategy-of-MA-Strength-Trend-Tracking.md
+// content_hash: c5cff9cb12731c3c
+// collected: 2026-07-27
+strategy("MA Strength Strategy", overlay=false, initial_capital = 20000, default_qty_type = strategy.percent_of_equity, default_qty_value = 100, commission_type = strategy.commission.percent, pyramiding = 1, commission_value = 0.01)
+MAType = input(title="Moving Average Type", defval="ema", options=["ema", "sma", "hma", "rma", "vwma", "wma"])
+LookbackPeriod = input(10, step=10)
+
+IndexMAType = input(title="Moving Average Type", defval="hma", options=["ema", "sma", "hma", "rma", "vwma", "wma"])
+IndexMAPeriod = input(200, step=10)
+
+considerTrendDirection = input(true)
+considerTrendDirectionForExit = input(true)
+offset = input(1, step=1)
+tradeDirection = input(title="Trade Direction", defval=strategy.direction.long, options=[strategy.direction.all, strategy.direction.long, strategy.direction.short])
+i_startTime = input(defval = timestamp("01 Jan 2010 00:00 +0000"), title = "Start Time", type = input.time)
+i_endTime = input(defval = timestamp("01 Jan 2099 00:00 +0000"), title = "End Time", type = input.time)
+inDateRange = true
+
+f_getMovingAverage(source, MAType, length)=>
+    ma = sma(source, length)
+    if(MAType == "ema")
+        ma := ema(source,length)
+    if(MAType == "hma")
+        ma := hma(source,length)
+    if(MAType == "rma")
+        ma := rma(source,length)
+    if(MAType == "vwma")
+        ma := vwma(source,length)
+    if(MAType == "wma")
+        ma := wma(source,length)
+    ma
+    
+
+f_getMaAlignment(MAType, includePartiallyAligned)=>
+    ma5 = f_getMovingAverage(close,MAType,5)
+    ma10 = f_getMovingAverage(close,MAType,10)
+    ma20 = f_getMovingAverage(close,MAType,20)
+    ma30 = f_getMovingAverage(close,MAType,30)
+    ma50 = f_getMovingAverage(close,MAType,50)
+    ma100 = f_getMovingAverage(close,MAType,100)
+    ma200 = f_getMovingAverage(close,MAType,200)
+
+    upwardScore = 0.0
+    upwardScore := close > ma5? upwardScore+1.10:upwardScore
+    upwardScore := ma5 > ma10? upwardScore+1.10:upwardScore
+    upwardScore := ma10 > ma20? upwardScore+1.10:upwardScore
+    upwardScore := ma20 > ma30? upwardScore+1.10:upwardScore
+    upwardScore := ma30 > ma50? upwardScore+1.15:upwardScore
+    upwardScore := ma50 > ma100? upwardScore+1.20:upwardScore
+    upwardScore := ma100 > ma200? upwardScore+1.25:upwardScore
+    
+    upwards = close > ma5 and ma5 > ma10 and ma10 > ma20 and ma20 > ma30 and ma30 > ma50 and ma50 > ma100 and ma100 > ma200
+    downwards = close < ma5 and ma5 < ma10 and ma10 < ma20 and ma20 < ma30 and ma30 < ma50 and ma50 < ma100 and ma100 < ma200
+    trendStrength = upwards?1:downwards?-1:includePartiallyAligned ? (upwardScore > 6? 0.5: upwardScore < 2?-0.5:upwardScore>4?0.25:-0.25) : 0
+    [trendStrength, upwardScore]
+    
+includePartiallyAligned = true
+[trendStrength, upwardScore] = f_getMaAlignment(MAType, includePartiallyAligned)
+
+upwardSum = sum(upwardScore, LookbackPeriod)
+
+indexSma = f_getMovingAverage(upwardSum,IndexMAType,IndexMAPeriod)
+
+plot(upwardSum, title="Moving Average Strength", color=color.green, linewidth=2, style=plot.style_linebr)
+plot(indexSma, title="Strength MA", color=color.red, linewidth=1, style=plot.style_linebr)
+buyCondition = crossover(upwardSum,indexSma) and (upwardSum > upwardSum[offset] or not considerTrendDirection) 
+sellCondition = crossunder(upwardSum,indexSma) and (upwardSum < upwardSum[offset]  or not considerTrendDirection)
+
+exitBuyCondition = crossunder(upwardSum,indexSma)
+exitSellCondition = crossover(upwardSum,indexSma) 
+strategy.risk.allow_entry_in(tradeDirection)
+strategy.entry("Buy", strategy.long, when= inDateRange and buyCondition, oca_name="oca_buy")
+strategy.close("Buy", when = considerTrendDirectionForExit? sellCondition : exitBuyCondition)
+strategy.entry("Sell", strategy.short, when= inDateRange and sellCondition, oca_name="oca_sell")
+strategy.close( "Sell", when = considerTrendDirectionForExit? buyCondition : exitSellCondition)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/439373
+
+> Last Modified
+
+2024-01-19 16:50:13

@@ -1,0 +1,82 @@
+//@version=6
+// set03 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动态突破下降楔形趋势线量化交易策略-Dynamic-Breakout-Falling-Wedge-Trendline-Quantitative-Trading-Strategy.md
+// content_hash: 3618d589f9ef7093
+// collected: 2026-07-27
+strategy("Falling Wedge Strategy by Nitin", overlay=true, margin_long=100, margin_short=100)
+
+// Input parameters
+leftBars = input.int(5, "Left Bars for Pivot", minval=1, maxval=20)
+rightBars = input.int(5, "Right Bars for Pivot", minval=1, maxval=20)
+takeProfitPercent = input.float(20, "Take Profit %", minval=0.1, maxval=100)/100
+stopLossPercent = input.float(2, "Stop Loss %", minval=0.1, maxval=100)/100
+
+// Global variables
+var float buyPrice = na
+var line upperLine = na
+var line lowerLine = na
+
+// Detect pivot highs and lows
+ph = ta.pivothigh(leftBars, rightBars)
+pl = ta.pivotlow(leftBars, rightBars)
+
+// Track last two pivot highs
+var float[] highs = array.new_float()
+var int[] highIndices = array.new_int()
+if not na(ph)
+    array.unshift(highs, ph)
+    array.unshift(highIndices, bar_index[rightBars])
+    if array.size(highs) > 2
+        array.pop(highs)
+        array.pop(highIndices)
+
+// Track last two pivot lows
+var float[] lows = array.new_float()
+var int[] lowIndices = array.new_int()
+if not na(pl)
+    array.unshift(lows, pl)
+    array.unshift(lowIndices, bar_index[rightBars])
+    if array.size(lows) > 2
+        array.pop(lows)
+        array.pop(lowIndices)
+
+// Calculate trendlines and signals
+if array.size(highs) >= 2 and array.size(lows) >= 2
+    h1 = array.get(highs, 0)
+    h2 = array.get(highs, 1)
+    i1 = array.get(highIndices, 0)
+    i2 = array.get(highIndices, 1)
+    
+    l1 = array.get(lows, 0)
+    l2 = array.get(lows, 1)
+    j1 = array.get(lowIndices, 0)
+    j2 = array.get(lowIndices, 1)
+    
+    m_upper = (h1 - h2) / (i1 - i2)
+    m_lower = (l1 - l2) / (j1 - j2)
+    
+    currentUpper = h2 + m_upper * (bar_index - i2)
+    currentLower = l2 + m_lower * (bar_index - j2)
+    
+    if h1 < h2 and l1 < l2 and m_upper < m_lower and m_upper < 0 and m_lower < 0
+        
+        // Buy signal on breakout
+        if ta.crossover(close, currentUpper)
+            strategy.entry("Buy", strategy.long)
+            buyPrice := close
+            strategy.exit("Take Profit/Stop Loss", "Buy", stop=buyPrice * (1 - stopLossPercent), limit=buyPrice * (1 + takeProfitPercent))
+
+// Plotting
+plotshape(strategy.position_size > 0 ? buyPrice : na, "Buy Price", style=shape.labelup, location=location.belowbar, color=color.green, textcolor=color.white, text="BUY")
+plot(strategy.position_size > 0 ? buyPrice * (1 - stopLossPercent) : na, "Stop Loss", color=color.red, linewidth=2)
+plot(strategy.position_size > 0 ? buyPrice * (1 + takeProfitPercent) : na, "Take Profit", color=color.green, linewidth=2)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/483089
+
+> Last Modified
+
+2025-02-27 17:02:08

@@ -1,0 +1,87 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动态趋势动量交叉策略-基于双重EMA与MACD指标的量化交易系统-Dynamic-Trend-Momentum-Crossover-Strategy-Quantitative-Trading-System-Based-on-Dual-EMA-and-MACD-Indicators.md
+// content_hash: 5350602e9b267e7b
+// collected: 2026-07-27
+strategy("EMA + MACD Strategy", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=10)
+
+// === Inputs ===
+shortEmaLength = input.int(12, title="Short EMA Period", minval=1)
+longEmaLength = input.int(26, title="Long EMA Period", minval=1)
+macdFastLength = input.int(12, title="MACD Fast EMA Period", minval=1)
+macdSlowLength = input.int(26, title="MACD Slow EMA Period", minval=1)
+macdSignalLength = input.int(9, title="MACD Signal Period", minval=1)
+stopLossPerc = input.float(2.0, title="Stop-Loss (%)", minval=0.1, step=0.1)
+takeProfitPerc = input.float(5.0, title="Take-Profit (%)", minval=0.1, step=0.1)
+
+// === Indicator Calculations ===
+// Exponential Moving Averages (EMA)
+shortEMA = ta.ema(close, shortEmaLength)
+longEMA = ta.ema(close, longEmaLength)
+
+// MACD
+[macdLine, signalLine, _] = ta.macd(close, macdFastLength, macdSlowLength, macdSignalLength)
+
+// === Entry Conditions ===
+// Buy signal: Short EMA crosses above Long EMA and MACD > Signal Line
+longCondition = ta.crossover(shortEMA, longEMA) and (macdLine > signalLine)
+
+// Sell signal: Short EMA crosses below Long EMA and MACD < Signal Line
+shortCondition = ta.crossunder(shortEMA, longEMA) and (macdLine < signalLine)
+
+// === Entry Signals with Stop-Loss and Take-Profit ===
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+    // Calculate Stop-Loss and Take-Profit
+    stopPrice = close * (1 - stopLossPerc / 100)
+    takePrice = close * (1 + takeProfitPerc / 100)
+    strategy.exit("Long Exit", from_entry="Long", stop=stopPrice, limit=takePrice)
+
+if (shortCondition)
+    strategy.entry("Short", strategy.short)
+    // Calculate Stop-Loss and Take-Profit
+    stopPrice = close * (1 + stopLossPerc / 100)
+    takePrice = close * (1 - takeProfitPerc / 100)
+    strategy.exit("Short Exit", from_entry="Short", stop=stopPrice, limit=takePrice)
+
+// === Exit Conditions ===
+// Alternative exit conditions based on crossovers
+exitLongCondition = ta.crossunder(shortEMA, longEMA) or (macdLine < signalLine)
+exitShortCondition = ta.crossover(shortEMA, longEMA) or (macdLine > signalLine)
+
+if (exitLongCondition)
+    strategy.close("Long")
+
+if (exitShortCondition)
+    strategy.close("Short")
+
+// === Indicator Plotting ===
+// EMA
+plot(shortEMA, color=color.blue, title="Short EMA")
+plot(longEMA, color=color.red, title="Long EMA")
+
+// MACD Indicator in separate window
+hline(0, "Zero Line", color=color.gray, linestyle=hline.style_dotted)
+plot(macdLine - signalLine, color=(macdLine - signalLine) >= 0 ? color.green : color.red, title="MACD Histogram", style=plot.style_histogram)
+plot(macdLine, color=color.blue, title="MACD Line")
+plot(signalLine, color=color.orange, title="Signal Line")
+
+// === Signal Visualization ===
+// Markers for Long and Short entries
+plotshape(series=longCondition, title="Long Entry", location=location.belowbar, color=color.green, style=shape.labelup, text="Long")
+plotshape(series=shortCondition, title="Short Entry", location=location.abovebar, color=color.red, style=shape.labeldown, text="Short")
+
+// Markers for Long and Short exits
+plotshape(series=exitLongCondition, title="Long Exit", location=location.abovebar, color=color.red, style=shape.labeldown, text="Exit Long")
+plotshape(series=exitShortCondition, title="Short Exit", location=location.belowbar, color=color.green, style=shape.labelup, text="Exit Short")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/483121
+
+> Last Modified
+
+2025-02-27 16:56:29

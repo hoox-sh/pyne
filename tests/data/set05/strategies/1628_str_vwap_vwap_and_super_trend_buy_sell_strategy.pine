@@ -1,0 +1,76 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/VWAP与超级趋势买卖策略-VWAP-and-Super-Trend-Buy-Sell-Strategy.md
+// content_hash: 7c3348d64b0641ac
+// collected: 2026-07-27
+strategy(title="VWAP and Super Trend Buy/Sell Strategy", shorttitle="VWAPST", overlay=true)
+
+
+//===== VWAP =====
+showVWAP = input.bool(title="Show VWAP", defval=true, group="VWAP")
+VWAPSource = input.source(title="VWAP Source", defval=hl2, group="VWAP")
+VWAPrice = ta.vwap(VWAPSource)
+plot(showVWAP ? VWAPrice : na, color=color.teal, title="VWAP", linewidth=2)
+
+
+//===== Super Trend =====
+showST = input.bool(true, "Show SuperTrend Indicator", group="Super Trend")
+Period = input.int(title="ATR Period", defval=10, group="Super Trend")
+Multiplier = input.float(title="ATR Multiplier", defval=2.0, group="Super Trend")
+
+
+// Super Trend ATR
+Up = hl2 - (Multiplier * ta.atr(Period))
+Dn = hl2 + (Multiplier * ta.atr(Period))
+var float TUp = na
+var float TDown = na
+TUp := na(TUp[1]) ? Up : close[1] > TUp[1] ? math.max(Up, TUp[1]) : Up
+TDown := na(TDown[1]) ? Dn : close[1] < TDown[1] ? math.min(Dn, TDown[1]) : Dn
+var int Trend = na
+Trend := na(Trend[1]) ? 1 : close > TDown[1] ? 1 : close < TUp[1] ? -1 : Trend[1]
+
+
+Tsl = Trend == 1 ? TUp : TDown
+linecolor = Trend == 1 ? color.green : color.red
+plot(showST ? Tsl : na, color=linecolor, style=plot.style_line, linewidth=2, title="SuperTrend")
+
+
+// Buy/Sell Conditions
+var bool previousBuysignal = false
+var bool previousSellsignal = false
+
+
+buysignal = not previousBuysignal and Trend == 1 and close > VWAPrice
+sellsignal = not previousSellsignal and Trend == -1 and close < VWAPrice
+
+
+// Ensure the signals are not repetitive
+if (buysignal)
+    previousBuysignal := true
+    previousSellsignal := false
+else if (sellsignal)
+    previousBuysignal := false
+    previousSellsignal := true
+
+
+// Execute buy and sell orders
+if (buysignal)
+    strategy.entry("Buy", strategy.long)
+if (sellsignal)
+    strategy.entry("Sell", strategy.short)
+
+
+// Plot Buy/Sell Labels
+//plotshape(buysignal, title="Buy Signal", location=location.belowbar, color=color.green, style=shape.labelup, text="BUY", textcolor=color.white, size=size.normal)
+//plotshape(sellsignal, title="Sell Signal", location=location.abovebar, color=color.red, style=shape.labeldown, text="SELL", textcolor=color.white, size=size.normal)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/453226
+
+> Last Modified
+
+2024-06-03 10:45:14

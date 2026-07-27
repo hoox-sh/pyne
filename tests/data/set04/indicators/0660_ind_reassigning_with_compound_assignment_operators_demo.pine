@@ -1,0 +1,23 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/language/variable-declarations.md::variable-declarations.md#block18
+// content_hash: 2f37c120e590d313
+// collected: 2026-07-27
+indicator("Reassigning with compound assignment operators demo", overlay = true)
+
+//@variable Stores the length for the smoothing factor of the EMA (`alpha`).
+int lengthInput = input.int(20, "Length", 1)
+
+//@variable The EMA's smoothing factor.
+float alpha = 2.0 / (lengthInput + 1.0)
+
+//@variable Stores an initial value of 0, and is modified through reassignment.
+float ema = 0.0
+
+// Reassign the `ema` variable the previous bar's `ema` value, or the `close` value if the previous value is `na`.
+// The variable no longer stores a value of 0.
+ema := nz(ema[1], close)
+
+// Multiply and reassign the `ema` variable's value.
+// After this operation, the value equals the result of `nz(ema[1], close) * (1.0 - alpha)`.

@@ -1,0 +1,5 @@
+//@version=6indicator("request.splits")s1 = request.splits("NASDAQ:BELFA", splits.denominator)plot(s1)s2 = request.splits("NASDAQ:BELFA", splits.denominator, gaps=barmerge.gaps_on, lookahead=barmerge.lookahead_on)plot(s2)// set05 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/reference/functions/request.md::request.md#block7
+// content_hash: ed0f7a39542e4780
+// collected: 2026-07-27

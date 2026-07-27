@@ -1,0 +1,47 @@
+//@version=1
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于RSI的追踪趋势策略Trend-Following-RSI-Scalping-Strategy.md
+// content_hash: 1f5b880a6139a054
+// collected: 2026-07-27
+strategy(shorttitle='Trend-following RSI Scalping Strategy (by Coinrule)',title='Trend-following RSI Strategy ', overlay=true, initial_capital = 1000, default_qty_type = strategy.percent_of_equity, default_qty_type = strategy.percent_of_equity, default_qty_value = 30, commission_type=strategy.commission.percent, commission_value=0.1)
+
+//Backtest dates
+fromMonth = input(defval = 1,  title = "From Month")     
+fromDay   = input(defval = 10,    title = "From Day")       
+fromYear  = input(defval = 2020, title = "From Year")       
+thruMonth = input(defval = 1,    title = "Thru Month")     
+thruDay   = input(defval = 1,    title = "Thru Day")     
+thruYear  = input(defval = 2112, title = "Thru Year")       
+
+showDate  = input(defval = true, title = "Show Date Range")
+
+start     = timestamp(fromYear, fromMonth, fromDay, 00, 00)        // backtest start window
+finish    = timestamp(thruYear, thruMonth, thruDay, 23, 59)        // backtest finish window
+window()  => true
+
+
+// RSI inputs and calculations
+lengthRSI = input(14, title = 'RSI period', minval=1)
+RSI = rsi(close, lengthRSI)
+
+//Entry
+
+
+strategy.entry(id="long", long = true, when = RSI > 70 and window()) 
+
+//Exit
+
+Take_profit= ((input (6))/100)
+longTakeProfit = strategy.position_avg_price * (1 + Take_profit)
+
+strategy.close("long", when = RSI < 55 or close > longTakeProfit and window())
+```
+
+> Detail
+
+https://www.fmz.com/strategy/440832
+
+> Last Modified
+
+2024-02-02 14:54:53

@@ -1,0 +1,63 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于双移动平均策略Dual-Moving-Average-Strategy.md
+// content_hash: 83e53987bf5a5fe3
+// collected: 2026-07-27
+strategy(title="Moving Average", shorttitle="MA", overlay=true)
+timeinrange(res, sess) => time(res, sess) != 0
+len = input(5, minval=1, title="Length")
+src = input(high, title="Source")
+offset = input(title="Offset", type=input.integer, defval=0, minval=-500, maxval=500)
+out = sma(src, len)
+plot(out, color=color.white, title="MA", offset=offset)
+
+len2 = input(5, minval=1, title="Length")
+src2 = input(low, title="Source")
+offset2 = input(title="Offset", type=input.integer, defval=0, minval=-500, maxval=500)
+out2 = sma(src2, len2)
+plot(out2, color=color.white, title="MA", offset=offset2)
+
+length = input( 5 )
+overSold = input( 10 )
+overBought = input( 80 )
+price = input(close, title="Source RSI")
+
+vrsi = rsi(price, length)
+
+longcond= close > out and close > out2 and vrsi > overBought
+shortcont = close < out and close < out2 and vrsi < overSold
+tp=input(150,title="tp")
+sl=input(80,title="sl")
+
+
+strategy.entry("long",1,when=longcond)
+//strategy.close("long",when= close < out2)
+strategy.exit("long_exit","long",profit=tp,loss=sl)
+
+strategy.entry("short",1,when=shortcont)
+//strategy.close("short",when=close >out)
+strategy.exit("short_exit","short",profit=tp,loss=sl)
+
+// maxOrder = input(6, title="max trades per day")
+// maxRisk = input(2,type=input.float, title="maxrisk per day")
+// strategy.risk.max_intraday_filled_orders(maxOrder)
+
+// strategy.risk.max_intraday_loss(maxRisk, strategy.percent_of_equity)
+
+
+// strategy.close_all(when =not timeinrange(timeframe.period, "0300-1100"))
+
+
+
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/442377
+
+> Last Modified
+
+2024-02-21 14:43:26

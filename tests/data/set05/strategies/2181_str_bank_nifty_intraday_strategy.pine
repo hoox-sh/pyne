@@ -1,0 +1,61 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动态支撑阻力突破均线交叉策略-Dynamic-Support-Resistance-Breakout-Moving-Average-Crossover-Strategy.md
+// content_hash: 9645af9edfd6aebc
+// collected: 2026-07-27
+strategy("Bank Nifty Intraday Strategy", overlay=true)
+
+// Input parameters
+shortPeriod = input.int(9, title="Short Moving Average Period")
+longPeriod = input.int(21, title="Long Moving Average Period")
+resistanceColor = input.color(color.red, title="Resistance Line Color")
+supportColor = input.color(color.green, title="Support Line Color")
+lineWidth = input.int(1, title="Line Width", minval=1, maxval=5)
+buySignalColor = input.color(color.green, title="Buy Signal Color")
+sellSignalColor = input.color(color.red, title="Sell Signal Color")
+
+// Calculate moving averages
+shortMA = ta.sma(close, shortPeriod)
+longMA = ta.sma(close, longPeriod)
+
+// Detecting Support and Resistance
+support = ta.lowest(low, shortPeriod)
+resistance = ta.highest(high, shortPeriod)
+
+// Plotting support and resistance lines
+plot(support, color=supportColor, linewidth=lineWidth, title="Support")
+plot(resistance, color=resistanceColor, linewidth=lineWidth, title="Resistance")
+
+// Buy and Sell signals based on crossover and crossunder
+buySignal = ta.crossover(shortMA, longMA) and close > support
+sellSignal = ta.crossunder(shortMA, longMA) and close < resistance
+
+// Plotting Buy and Sell signals
+plotshape(series=buySignal, title="Buy Signal", location=location.belowbar, color=buySignalColor, style=shape.labelup, text="BUY", size=size.small)
+plotshape(series=sellSignal, title="Sell Signal", location=location.abovebar, color=sellSignalColor, style=shape.labeldown, text="SELL", size=size.small)
+
+// Execution logic for strategy
+if (buySignal)
+    strategy.entry("Buy Call", strategy.long)
+if (sellSignal)
+    strategy.entry("Buy Put", strategy.short)
+
+// Exit conditions
+if (strategy.opentrades > 0)
+    strategy.close("Buy Call", when=sellSignal)
+if (strategy.opentrades < 0)
+    strategy.close("Buy Put", when=buySignal)
+
+// Plotting profit and loss on chart
+plot(strategy.equity, title="Equity", color=color.blue, linewidth=2)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/458271
+
+> Last Modified
+
+2024-07-31 14:33:44

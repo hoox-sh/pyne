@@ -1,0 +1,121 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/指数平滑移动平均值结合尾随止损与百分比止损的股票量化交易策略Stock-Quant-Trading-Strategy-Combining-Exponential-Moving-Average-with-Trailing-Stop-Loss-and-Percentage-Stop-Loss.md
+// content_hash: 41f88358a15641de
+// collected: 2026-07-27
+strategy(title=" Combining Trailing Stop and Stop loss (% of instrument price)",
+     overlay=true, pyramiding=1, shorttitle="TSL&SL%")
+
+//INDICATOR SECTION
+
+// Indicator Input options+
+i_FastEMA = input.int(title = "Fast EMA period", minval = 0, defval = 20)
+i_SlowEMA = input.int(title = "Slow EMA period", minval = 0, defval = 50)
+     
+// Calculate moving averages
+fastEMA = ta.ema(close, i_FastEMA)
+slowEMA = ta.ema(close, i_SlowEMA)
+
+// Plot moving averages
+plot(fastEMA, title="Fast SMA", color=color.blue)
+plot(slowEMA, title="Slow SMA", color=color.orange)
+
+
+
+
+//STRATEGY SECTION  
+
+// Calculate trading conditions
+buy  = ta.crossover(fastEMA, slowEMA)
+sell = ta.crossunder(fastEMA, slowEMA)
+
+// STEP 1:
+// Configure trail stop loss level with input options (optional)
+
+longTrailPerc = input.float(title="Long Trailing Stop (%)", minval=0.0, step=0.1, defval=7) * 0.01
+
+shortTrailPerc = input.float(title="Short Trailing Stop (%)", minval=0.0, step=0.1, defval=7) * 0.01
+
+//Configure stop loss level with input options (optional)
+
+longStopPerc = input.float(title="Long Stop Loss (%)", minval=0.0, step=0.1, defval=2)*0.01
+
+shortStopPerc = input.float(title="Short Stop Loss (%)", minval=0.0, step=0.1, defval=2)*0.01
+
+
+// STEP 2:
+// Determine trail stop loss prices
+longTrailPrice = 0.0, shortTrailPrice = 0.0
+
+longTrailPrice := if (strategy.position_size > 0)
+    stopValue = high * (1 - longTrailPerc)
+    math.max(stopValue, longTrailPrice[1])
+else
+    0
+
+shortTrailPrice := if (strategy.position_size < 0)
+    stopValue = low * (1 + shortTrailPerc)
+    math.min(stopValue, shortTrailPrice[1])
+else
+    999999
+
+// Determine stop loss prices
+entryPrice = 0.0
+
+entryPrice := strategy.opentrades.entry_price(strategy.opentrades - 1)
+
+
+longLossPrice = entryPrice * (1 - longStopPerc)
+
+shortLossPrice = entryPrice * (1 + shortStopPerc)
+
+
+// Plot stop loss values for confirmation
+
+plot(series=(strategy.position_size > 0) ? longTrailPrice : na,
+     color=color.fuchsia, style=plot.style_cross,
+     linewidth=2, title="Long Trail Stop")
+plot(series=(strategy.position_size < 0) ? shortTrailPrice : na,
+     color=color.fuchsia, style=plot.style_cross,
+     linewidth=2, title="Short Trail Stop")
+
+plot(series=(strategy.position_size > 0) ? longLossPrice : na,
+     color=color.olive, style=plot.style_cross,
+     linewidth=2, title="Long Stop Loss")
+plot(series=(strategy.position_size < 0) ? shortLossPrice : na,
+     color=color.olive, style=plot.style_cross,
+     linewidth=2, title="Short Stop Loss")
+
+// Submit entry orders
+if (buy)
+    strategy.entry("Buy", strategy.long)
+
+if (sell)
+    strategy.entry("Sell", strategy.short)
+
+
+//Evaluating trailing stop or stop loss to use
+
+longStopPrice = longTrailPrice < longLossPrice ? longLossPrice : longTrailPrice
+
+shortStopPrice = shortTrailPrice > shortLossPrice ? shortLossPrice : shortTrailPrice
+
+// STEP 3:
+// Submit exit orders for stop price
+
+if (strategy.position_size > 0)
+    strategy.exit(id="Buy Stop", stop=longStopPrice)
+
+if (strategy.position_size < 0)
+    strategy.exit(id="Sell Stop", stop=shortStopPrice)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/437547
+
+> Last Modified
+
+2024-01-03 16:25:54

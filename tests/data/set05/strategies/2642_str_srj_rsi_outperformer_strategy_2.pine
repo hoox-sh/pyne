@@ -1,0 +1,53 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于RSI均线交叉策略RSI-Moving-Average-Crossover-Strategy.md
+// content_hash: 4566a2f6e28365a9
+// collected: 2026-07-27
+strategy("SRJ RSI Outperformer Strategy", overlay=true)
+
+srcperiod1 = input.int(100, minval=1, title="Length Of Fast RSI")
+srcperiod2 = input.int(40, minval=1, title="Length Of Slow RSI")
+srcperiod3 = input.int(21, minval=1, title="Length Of Moving Average")
+srcperiod4 = input.int(200, minval=1, title="Length Of Deciding Moving Average")
+rsi1 = ta.rsi(close, srcperiod1)
+rsi2 = ta.rsi(close, srcperiod2)
+divergence1 = (rsi2/rsi1)
+divergence2 = (rsi1/divergence1)
+ma1 = ta.sma(rsi1, srcperiod3)
+ma2 = ta.sma(divergence2, srcperiod3)
+
+
+
+//Long Conditions//
+
+
+
+longcondition = (ta.crossover(ma2, ma1) and (close > ta.sma(close, srcperiod4)))
+
+    
+
+//Exit onditions//
+
+
+exitcondition = (ta.crossunder(ma2, ma1) or (ta.crossunder(close, ta.sma(close, srcperiod4))))
+
+
+if (longcondition)
+    strategy.entry("Long Entry", strategy.long)
+    
+if (exitcondition)
+    
+    strategy.exit("Long Exit", profit = close * 1.20, loss = close * 0.95)
+
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/433521
+
+> Last Modified
+
+2023-11-28 11:23:19

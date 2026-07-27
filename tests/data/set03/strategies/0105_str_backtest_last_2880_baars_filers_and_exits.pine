@@ -1,0 +1,98 @@
+//@version=6
+// set03 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于多均线趋势和ATR动态止盈止损的加密货币交易策略-Multi-EMA-Trend-Following-with-Dynamic-ATR-Based-Exit-Strategy-for-Cryptocurrency-Trading.md
+// content_hash: 9b5df665f94ee7a7
+// collected: 2026-07-27
+strategy("Backtest Last 2880 Baars Filers and Exits", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=2, backtest_fill_limits_assumption=0)
+
+// Define EMAs
+shortEMA = ta.ema(close, 9)
+longEMA = ta.ema(close, 20)
+refEMA = ta.ema(close, 50)
+
+// **Force Strategy to Trade on Historical Bars**
+barLimit = bar_index > 10  // Allow trading on past bars
+allowTrade = strategy.opentrades == 0 or barLimit  // Enable first trade on history
+
+// **Define ATR for Stop-Loss & Take-Profit**
+atrLength = 14
+atrValue = ta.atr(atrLength)
+atr50 = ta.sma(atrValue, 50)  // 50-period ATR average
+
+// **Relaxed RSI Filters (More Trades Allowed)**
+rsi = ta.rsi(close, 14)
+rsiFilterBuy = rsi > 45 and rsi < 70  
+rsiFilterSell = rsi < 55 and rsi > 30  
+
+// **Reduce Trend Filter - Allow Smaller Price Movement**
+minDistance = atrValue * 1.1  
+isTrending = math.abs(close - refEMA) > minDistance  
+
+// **Allow Trading in All Conditions (No ATR Filter)**
+atrFilter = true  
+
+// **Allow Flat EMA Slopes - Increase Trade Frequency**
+emaSlope = ta.linreg(refEMA, 5, 0) > -0.2  
+emaSlopeSell = ta.linreg(refEMA, 5, 0) < 0.2  
+
+// **Trade Counter: Allow 1 Trade Per Day**
+var int dailyTradeCount = 0
+if dayofweek != dayofweek[1]  
+    dailyTradeCount := 0  
+
+// **ATR-Based Stop-Loss & Take-Profit Per Pair**
+atrSL = switch syminfo.ticker
+    "EURUSD" => 3.0 * atrValue,  
+    "USDJPY" => 2.5 * atrValue,  
+    "GBPUSD" => 3.0 * atrValue,  
+    "AUDUSD" => 3.2 * atrValue,  
+    "GBPJPY" => 3.0 * atrValue,  
+    => 2.5 * atrValue  
+
+atrTP = switch syminfo.ticker
+    "EURUSD" => 3.8 * atrValue,  
+    "USDJPY" => 3.5 * atrValue,  
+    "GBPUSD" => 4.0 * atrValue,  
+    "AUDUSD" => 4.0 * atrValue,  
+    "GBPJPY" => 5.0 * atrValue,  
+    => 3.5 * atrValue  
+
+// **Ensure Trade Size is Not Zero**
+riskPerTrade = 2  
+accountSize = strategy.equity
+tradeSize = (accountSize * (riskPerTrade / 100)) / atrSL
+tradeSize := tradeSize < 1 ? 1 : tradeSize  // Minimum lot size of 1
+
+// **Buy/Sell Conditions (Now More Trades Will Trigger)**
+buyCondition = ta.crossover(shortEMA, longEMA) and rsiFilterBuy and close > refEMA and close > longEMA and isTrending and emaSlope and allowTrade and dailyTradeCount < 1
+sellCondition = ta.crossunder(shortEMA, longEMA) and rsiFilterSell and close < refEMA and close < longEMA and isTrending and emaSlopeSell and allowTrade and dailyTradeCount < 1
+
+// **Execute Trades**
+if buyCondition
+    strategy.entry("Buy", strategy.long, qty=tradeSize)
+    strategy.exit("Take Profit/Stop Loss", from_entry="Buy", limit=close + atrTP, stop=close - atrSL)
+    label.new(x=bar_index, y=low, text="BUY", color=color.green, textcolor=color.white, size=size.small, style=label.style_label_down)
+    alert("BUY", alert.freq_once_per_bar_close)  
+    dailyTradeCount := dailyTradeCount + 1  
+
+if sellCondition
+    strategy.entry("Sell", strategy.short, qty=tradeSize)
+    strategy.exit("Take Profit/Stop Loss", from_entry="Sell", limit=close - atrTP, stop=close + atrSL)
+    label.new(x=bar_index, y=high, text="SELL", color=color.red, textcolor=color.white, size=size.small, style=label.style_label_up)
+    alert("SELL", alert.freq_once_per_bar_close)  
+    dailyTradeCount := dailyTradeCount + 1  
+
+// **Plot Indicators**
+plot(shortEMA, color=color.yellow, title="9 EMA")
+plot(longEMA, color=color.fuchsia, title="20 EMA")
+plot(refEMA, color=color.blue, title="50 EMA")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/482670
+
+> Last Modified
+
+2025-02-20 14:45:33

@@ -1,0 +1,53 @@
+//@version=2
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/震荡指数变换策略Oscillator-Index-Transformation-Strategy.md
+// content_hash: 663c89afe047b5a7
+// collected: 2026-07-27
+////////////////////////////////////////////////////////////
+//  Copyright by HPotter v1.0 27/03/2017
+// TradeStation does not allow the user to make a Multi Data Chart with 
+// a Tick Bar Chart and any other type a chart. This indicator allows the 
+// user to plot a daily 3-10 Oscillator on a Tick Bar Chart or any intraday interval.
+// Walter Bressert's 3-10 Oscillator is a detrending oscillator derived 
+// from subtracting a 10 day moving average from a 3 day moving average. 
+// The second plot is an 16 day simple moving average of the 3-10 Oscillator. 
+// The 16 period moving average is the slow line and the 3/10 oscillator is 
+// the fast line.
+// For more information on the 3-10 Oscillator see Walter Bressert's book 
+// "The Power of Oscillator/Cycle Combinations" 
+//
+// You can change long to short in the Input Settings
+// Please, use it only for learning or paper trading. Do not for real trading.
+////////////////////////////////////////////////////////////
+strategy(title="D_Three Ten Osc", shorttitle="D_Three Ten Osc")
+Length1 = input(3, minval=1)
+Length2 = input(10, minval=1)
+Length3 = input(16, minval=1)
+reverse = input(false, title="Trade reverse")
+hline(0, color=green, linestyle=line)
+xPrice =  request.security(syminfo.tickerid,"D", hl2)
+xfastMA = ema(xPrice, Length1)
+xslowMA = ema(xPrice, Length2)
+xMACD = xfastMA - xslowMA
+xSignal = sma(xMACD, Length3)
+pos = iff(xSignal > xMACD, -1,
+	     iff(xSignal < xMACD, 1, nz(pos[1], 0))) 
+possig = iff(reverse and pos == 1, -1,
+          iff(reverse and pos == -1, 1, pos))	   
+if (possig == 1) 
+    strategy.entry("Long", strategy.long)
+if (possig == -1)
+    strategy.entry("Short", strategy.short)	   	    
+barcolor(possig == -1 ? red: possig == 1 ? green : blue )
+plot(request.security(syminfo.tickerid, "D", xMACD), color=blue, title="D_Three Ten Osc")
+plot(request.security(syminfo.tickerid, "D", xSignal), color=red, title="D_Three Ave")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/436242
+
+> Last Modified
+
+2023-12-22 14:21:28

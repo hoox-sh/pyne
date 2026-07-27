@@ -1,0 +1,56 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/最后K线趋势跟踪策略Last-Candle-Strategy.md
+// content_hash: 6d9390faa4189224
+// collected: 2026-07-27
+strategy("Last Candle Strategy with Date Range", overlay=true)
+
+// Define the start and end dates for the backtest
+startDate = timestamp(2015, 01, 01, 00, 00)
+endDate = timestamp(2023, 11, 24, 23, 59)
+
+// Check if the current bar is within the specified date range
+withinDateRange = time >= startDate and time <= endDate
+
+// If outside the date range, skip the strategy logic
+if (not withinDateRange)
+    strategy.close_all()
+
+// Calculate the opening and closing values for the last candle
+lastCandleOpen = request.security(syminfo.tickerid, "D", open[1], lookahead=barmerge.lookahead_on)
+lastCandleClose = request.security(syminfo.tickerid, "D", close[1], lookahead=barmerge.lookahead_on)
+
+// Determine the trade direction based on the last candle
+tradeDirection = lastCandleOpen < lastCandleClose ? 1 : -1  // 1 for buy, -1 for sell
+
+// Plot the last candle's opening and closing values on the chart
+plot(lastCandleOpen, color=color.blue, title="Last Candle Open")
+plot(lastCandleClose, color=color.red, title="Last Candle Close")
+
+// Execute strategy orders
+if (withinDateRange)
+    if (tradeDirection == 1)
+        strategy.entry("Buy", strategy.long)
+
+    if (tradeDirection == -1)
+        strategy.entry("Sell", strategy.short)
+
+// Set stop loss and take profit
+stopLoss = 0.01 * lastCandleOpen
+takeProfit = close
+
+// Exit strategy
+strategy.exit("StopLoss/Profit", from_entry="Buy", loss=stopLoss, profit=takeProfit)
+strategy.exit("StopLoss/Profit", from_entry="Sell", loss=stopLoss, profit=takeProfit)
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/436112
+
+> Last Modified
+
+2023-12-21 12:15:23

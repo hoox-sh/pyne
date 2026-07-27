@@ -1,0 +1,68 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双均线-RSI联动期权量化交易策略-Dual-Moving-Average-RSI-Synergy-Options-Quantitative-Trading-Strategy.md
+// content_hash: 94c83ac06a0e7405
+// collected: 2026-07-27
+strategy("MA Crossover with RSI Debugging", overlay=true)
+
+// Inputs
+fastLength = input.int(7, title="Fast MA Length", minval=1)
+slowLength = input.int(13, title="Slow MA Length", minval=1)
+rsiLength = input.int(17, title="RSI Length", minval=1)
+rsiOverbought = input.int(64, title="RSI Overbought Level", minval=50, maxval=100)
+rsiOversold = input.int(43, title="RSI Oversold Level", minval=0, maxval=50)
+takeProfitPerc = input.float(4, title="Take Profit (%)", minval=0.1)
+stopLossPerc = input.float(0.5, title="Stop Loss (%)", minval=0.1)
+
+// Moving Averages
+fastMA = ta.sma(close, fastLength)
+slowMA = ta.sma(close, slowLength)
+
+// RSI
+rsi = ta.rsi(close, rsiLength)
+
+// Entry Conditions
+longCondition = ta.crossover(fastMA, slowMA) and rsi < rsiOversold
+shortCondition = ta.crossunder(fastMA, slowMA) and rsi > rsiOverbought
+
+// Plot Debugging Shapes
+plotshape(ta.crossover(fastMA, slowMA), color=color.green, style=shape.circle, location=location.belowbar, title="Fast MA Crossover")
+plotshape(ta.crossunder(fastMA, slowMA), color=color.red, style=shape.circle, location=location.abovebar, title="Fast MA Crossunder")
+
+plotshape(rsi < rsiOversold, color=color.blue, style=shape.triangleup, location=location.belowbar, title="RSI Oversold")
+plotshape(rsi > rsiOverbought, color=color.orange, style=shape.triangledown, location=location.abovebar, title="RSI Overbought")
+
+// Entry and Exit Execution
+if (longCondition)
+    strategy.entry("Buy", strategy.long)
+
+if (shortCondition)
+    strategy.entry("Sell", strategy.short)
+
+takeProfitPrice = strategy.position_avg_price * (1 + takeProfitPerc / 100)
+stopLossPrice = strategy.position_avg_price * (1 - stopLossPerc / 100)
+
+if (strategy.position_size > 0)
+    strategy.exit("Exit Buy", from_entry="Buy", limit=takeProfitPrice, stop=stopLossPrice)
+
+if (strategy.position_size < 0)
+    strategy.exit("Exit Sell", from_entry="Sell", limit=takeProfitPrice, stop=stopLossPrice)
+
+// Plot Moving Averages
+plot(fastMA, color=color.blue, title="Fast MA")
+plot(slowMA, color=color.red, title="Slow MA")
+
+// RSI Levels
+hline(rsiOverbought, "RSI Overbought", color=color.red)
+hline(rsiOversold, "RSI Oversold", color=color.green)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/477581
+
+> Last Modified
+
+2025-01-06 15:24:09

@@ -1,0 +1,59 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多重技术指标趋势跟踪交易策略-Multi-Technical-Indicator-Trend-Following-Trading-Strategy.md
+// content_hash: d4a026a75b8828fd
+// collected: 2026-07-27
+strategy("Estratégia Completa - Volume, RSI e Tendência", overlay=true)
+
+// Definir médias móveis
+ma14 = ta.sma(close, 14)  // Média móvel de 14 períodos
+ma200 = ta.sma(close, 200)  // Média móvel de 200 períodos
+
+// Calcular o RSI de 14 períodos
+rsi = ta.rsi(close, 14)
+
+// Média de volume de 20 períodos
+volumeMA = ta.sma(volume, 20)
+
+// Condição para volume ser acima da média de 20 períodos
+volumeAboveAvg = volume > volumeMA
+
+// Condição para o RSI cruzar acima de 50
+rsiCrossover50 = ta.crossover(rsi, 50)
+
+// Condição para o fechamento estar acima da média de 14 períodos
+closeAboveMA14 = close > ma14
+
+// Condição para candlestick forte de alta (bullish engulfing)
+bullishEngulfing = close > open and close[1] < open[1] and close > open[1]
+
+// Condição para o preço estar acima da média de 200 períodos
+priceAboveMA200 = close > ma200
+
+// Condição de compra: todos os critérios precisam ser atendidos
+buyCondition = volumeAboveAvg and rsiCrossover50 and closeAboveMA14 and bullishEngulfing and priceAboveMA200
+
+// Executar a compra quando a condição for atendida
+if (buyCondition)
+    strategy.entry("Compra", strategy.long)
+
+// Plotar as médias móveis no gráfico
+plot(ma14, color=color.blue, linewidth=2, title="Média de 14 períodos")
+plot(ma200, color=color.red, linewidth=2, title="Média de 200 períodos")
+
+// Adicionar no gráfico o RSI
+hline(50, "RSI 50", color=color.gray, linestyle=hline.style_dashed)
+plot(rsi, color=color.green, linewidth=1, title="RSI (14)")
+
+// Plotar a média de volume
+plot(volumeMA, color=color.purple, linewidth=2, title="Média de Volume (20)")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/473669
+
+> Last Modified
+
+2024-12-02 10:40:02

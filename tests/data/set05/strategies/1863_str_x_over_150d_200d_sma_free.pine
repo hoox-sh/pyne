@@ -1,0 +1,69 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/均线交叉的移动平均趋势策略Moving-Average-Crossover-Trend-Strategy.md
+// content_hash: f3d0025188b66271
+// collected: 2026-07-27
+//
+
+strategy("x-over 150d_200d_sma - Free", overlay = true)
+
+repaint = input.bool(defval = false, title = "[RePaint] Uncheck to see real time results") //when you deselect it - it shows what would have happened in real time while trading the system
+srcmc   = request.security(syminfo.tickerid, 'D', open, lookahead= repaint ? barmerge.lookahead_on : barmerge.lookahead_off, gaps=barmerge.gaps_off)
+
+fast_length         = input(title="Fast Length", defval=60)
+slow_length         = input(title="Slow Length", defval=275)
+
+_fast               = ta.sma(srcmc,  fast_length)
+_slow               = ta.sma(srcmc,  slow_length)
+
+plot(_fast, 
+  title="Fast SMA", 
+  color=color.red,
+  linewidth = 1) 
+
+plot(_slow, 
+  title="Slow SMA", 
+  color=color.white,
+  linewidth = 3)
+//
+// ————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————
+// ————————————————————————————————— Calculating  —————————————————————————————————————————————————————————————————————————
+// ————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————
+//
+longProfitPerc      = input.float(title="Long Take Profit (%)", minval=0.01, step=1.0, defval=42) * .01
+longStopPerc        = input.float(title="Long Stop (%)",        minval=0.01, step=1.0, defval=13)  * .01
+//
+// ————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————
+// ————————————————————————————————— Stop Conditions   ————————————————————————————————————————————————————————————————————
+// ————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————
+longExitPrice  = strategy.opentrades > 0 ? strategy.position_avg_price * (1 + longProfitPerc) : srcmc *  (1 + longProfitPerc)
+longStopPrice = strategy.opentrades  > 0 ? strategy.position_avg_price * (1 - longStopPerc)   : srcmc *  (1 - longStopPerc)
+// ————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————
+// ————————————————————————————————— Long Conditions   ————————————————————————————————————————————————————————————————————
+// ————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————
+longCondition   = srcmc > _slow and  ta.crossover(_fast, _slow)
+closeCondition  =  ta.crossover(srcmc, _slow)  
+
+if (longCondition)
+    strategy.entry("Entry (long)", strategy.long, comment="→ ?? ?????")
+
+if (closeCondition)
+    strategy.close("Entry (long)", comment=" ?? ???? ←")
+
+if (strategy.position_size > 0)
+    strategy.exit(id="XL", limit=longExitPrice, stop = longStopPrice, comment_profit = "Take Profit", comment_loss = "Stop Loss")
+//
+// ————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————
+// —————————————————————————————————  Never the End Just the beginning    —————————————————————————————————————————————————
+// ————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————
+//
+```
+
+> Detail
+
+https://www.fmz.com/strategy/438451
+
+> Last Modified
+
+2024-01-12 10:56:57

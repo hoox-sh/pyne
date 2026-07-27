@@ -1,0 +1,12 @@
+//@version=6
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/faq/times-dates-and-sessions.md::times-dates-and-sessions.md#block12
+// content_hash: 57e3771fb0c280aa
+// collected: 2026-07-27
+indicator("Pre-market high/low", overlay = true)
+
+// Inputs
+string timeAllowedInput = input.session("0700-0930", "Allowed Hours")
+string lowerTfInput     = input.timeframe("15",      "Intrabar Resolution")
+string timezoneInput    = input.string("Default",      "Time zone", options = ["Default", "GMT-12", "GMT-11", "GMT-10",

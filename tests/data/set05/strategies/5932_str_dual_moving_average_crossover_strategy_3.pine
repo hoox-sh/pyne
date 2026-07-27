@@ -1,0 +1,61 @@
+//@version=3
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双均线金叉死叉趋势追踪策略Dual-Moving-Average-Crossover-Strategy.md
+// content_hash: fa61a1f1421e6a09
+// collected: 2026-07-27
+strategy(title = " bhramaji EMA Cross Strategy", shorttitle = "EMA Cross",calc_on_order_fills=true,calc_on_every_tick =true, initial_capital=21000,commission_value=.25,overlay = true,default_qty_type = strategy.percent_of_equity, default_qty_value = 100)
+StartYear = input(2018, "Backtest Start Year")
+StartMonth = input(1, "Backtest Start Month")
+StartDay = input(1, "Backtest Start Day")
+UseStopLoss = input(true,"UseStopLoss")
+
+
+stopLoss = input(20, title = "Stop loss percentage(0.1%)")
+
+
+maSource   = input(defval = close, title = "MA Source")
+maLength6   = input(defval = 6, title = "MA Period 6", minval = 1)
+maLength14  = input(defval = 14, title = "MA Period 14", minval = 1)
+maLength25  = input(defval = 25, title = "MA Period 25", minval = 1)
+maLength80  = input(defval = 80, title = "MA Period 80", minval = 1)
+
+ma6 = ema(maSource, maLength6)
+ma14 = ema(maSource, maLength14)
+ma25 = ema(maSource, maLength25)
+ma80 = ema(maSource, maLength80)
+
+ma_6_plot = plot(ma6 , title = "MA  6", color = red, linewidth = 2, style = line, transp = 50)
+ma14_plot = plot(ma14, title = "MA 14", color = green, linewidth = 2, style = line, transp = 50)
+ma25_plot = plot(ma25, title = "MA 25", color = blue, linewidth = 2, style = line, transp = 50)
+ma80_plot = plot(ma80, title = "MA 80", color = silver, linewidth = 2, style = line, transp = 50)
+
+
+longEMA = (crossover(ma6, ma14) or crossover(ma6, ma25)) and (ma6>ma80) 
+exitLong = (crossunder(ma6, ma14) or crossunder(ma6, ma25)) 
+
+shortEMA = (crossunder(ma6, ma14) or crossunder(ma6, ma25)) and (ma6< ma80)
+exitShort =(crossover(ma6, ma14) or crossover(ma6, ma25))
+
+if (longEMA)
+    strategy.entry("LongId", strategy.long)
+ 
+if (shortEMA)
+    strategy.entry("ShortId", strategy.short)
+
+if (UseStopLoss)
+    strategy.exit("StopLoss", "LongId", loss = close * stopLoss / 1000 / syminfo.mintick)
+    strategy.exit("StopLoss", "ShortId", loss = close * stopLoss / 1000 / syminfo.mintick)
+
+
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/431910
+
+> Last Modified
+
+2023-11-13 10:55:09

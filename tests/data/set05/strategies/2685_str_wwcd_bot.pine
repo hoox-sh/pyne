@@ -1,0 +1,52 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于200日均线和随机振子的趋势追踪策略-Trend-Following-Strategy-Based-on-200-Day-Moving-Average-and-Stochastic-Oscillator.md
+// content_hash: 1484a63611fb0887
+// collected: 2026-07-27
+strategy("WWCD Bot", overlay=true)
+
+// Calculate the 200-day moving average
+ema200 = ta.ema(close, 200)
+
+// Calculate Stochastic Oscillator
+length = input(2, title="Stochastic Length")
+smoothK = input(3, title="Stochastic Smoothing")
+smoothD = input(3, title="Stochastic D Smoothing")
+k = ta.stoch(close, high, low, length)
+d = ta.ema(k, smoothD)
+
+// Variable to store previous value of k
+var float prev_k = na
+
+// Check if current k is above 20 and previous k was below 20
+crossed_above_20 = k >= 20 and prev_k < 20
+crossed_above_80 = k <= 80 and prev_k > 80
+
+// Condition for buy and sell signals
+buy_signal_condition = close < ema200 and crossed_above_20
+sell_signal_condition = close > ema200 and crossed_above_80
+
+// Store current k for the next bar
+prev_k := k
+
+// Strategy
+lot_size = 1 // Position size
+
+if (buy_signal_condition)
+    strategy.entry("Buy", strategy.long, qty=lot_size)
+    strategy.exit("Take Profit/Stop Loss", "Buy", stop=close - 1.00, limit=close + 16)
+
+if (sell_signal_condition)
+    strategy.entry("Sell", strategy.short, qty=lot_size)
+    strategy.exit("Take Profit/Stop Loss", "Sell", stop=close + 1.00, limit=close - 16)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/454145
+
+> Last Modified
+
+2024-06-14 15:32:24

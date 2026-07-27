@@ -1,0 +1,31 @@
+//@version=4
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/Plot Break-even Price.pine
+// content_hash: 2b64f43929e6f47b
+// collected: 2026-07-27
+strategy("Plot Break-even Price", overlay=true)
+/// Break-even calculation
+ep = 0.0
+ep := na(ep[1]) ? na : ep[1]
+p = 0.0
+p := na(p[1]) ? na : p[1]
+/// Fees Input
+fee_inp = input(0.25, title='Price Change in %', step=0.1)/100
+/// Your Strategy calculation
+longCondition = crossover(sma(close, 14), sma(close, 28))
+shortCondition = crossunder(sma(close, 14), sma(close, 28))
+/// Stategy Entry
+if (longCondition)
+    ep := close
+    p := close * (1 + fee_inp)
+    strategy.entry("My Long Entry Id", strategy.long)
+if (shortCondition)
+    ep := close
+    p := close * (1 - fee_inp)
+    strategy.entry("My Short Entry Id", strategy.short)
+/// Plot Break-even Price 
+p1 = plot(ep, color = color.red, transp = 85)
+p2 = plot(p, color = color.green)
+fill(p1, p2, color = color.red, transp = 85)
+Expand (34 lines)

@@ -1,0 +1,53 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/低波动定向买入止盈止损策略Low-Volatility-Directional-Buy-with-Profit-Taking-and-Stop-Loss.md
+// content_hash: 55fb610465c03bb4
+// collected: 2026-07-27
+strategy(shorttitle='Low volatility Buy w/ TP & SL (by Coinrule)',title='Low volatility Buy w/ TP & SL', overlay=true, initial_capital = 1000, process_orders_on_close=true, default_qty_type = strategy.percent_of_equity, default_qty_value = 100)
+
+//Backtest dates
+fromMonth = input(defval = 1,    title = "From Month",      type = input.integer, minval = 1, maxval = 12)
+fromDay   = input(defval = 10,    title = "From Day",        type = input.integer, minval = 1, maxval = 31)
+fromYear  = input(defval = 2019, title = "From Year",       type = input.integer, minval = 1970)
+thruMonth = input(defval = 1,    title = "Thru Month",      type = input.integer, minval = 1, maxval = 12)
+thruDay   = input(defval = 1,    title = "Thru Day",        type = input.integer, minval = 1, maxval = 31)
+thruYear  = input(defval = 2112, title = "Thru Year",       type = input.integer, minval = 1970)
+
+showDate  = input(defval = true, title = "Show Date Range", type = input.bool)
+
+start     = timestamp(fromYear, fromMonth, fromDay, 00, 00)        // backtest start window
+finish    = timestamp(thruYear, thruMonth, thruDay, 23, 59)        // backtest finish window
+window()  => time >= start and time <= finish ? true : false       // create function "within window of time"
+
+//MA inputs and calculations
+movingaverage_fast = sma(close, input(50))
+movingaverage_slow = sma(close, input(200))
+movingaverage_normal= sma(close, input(100))
+
+
+
+//Entry 
+strategy.entry(id="long", long = true, when = movingaverage_slow > movingaverage_normal and movingaverage_fast > movingaverage_normal)
+
+//Exit
+longStopPrice  = strategy.position_avg_price * (1 - 0.04)
+longTakeProfit = strategy.position_avg_price * (1 + 0.08)
+
+strategy.close("long", when = close < longStopPrice or close > longTakeProfit and window())
+
+//PLOT
+
+plot(movingaverage_fast, color=color.orange, linewidth=2)
+plot(movingaverage_slow, color=color.purple, linewidth=3)
+plot(movingaverage_normal, color=color.blue, linewidth=2)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/435715
+
+> Last Modified
+
+2023-12-18 12:00:07

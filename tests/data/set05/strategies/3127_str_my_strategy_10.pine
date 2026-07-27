@@ -1,0 +1,17 @@
+//@version=5
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/migration-guides/to-pine-version-6.md::to-pine-version-6.md#block16
+// content_hash: ea180a1b116916f1
+// collected: 2026-07-27
+strategy("My strategy", overlay=true, default_qty_type = strategy.percent_of_equity, default_qty_value=100)
+// v6 defaults: margin_long=100, margin_short=100 
+// v5 defaults: margin_long=0, margin_short=0
+
+longCondition = ta.crossover(ta.sma(close, 14), ta.sma(close, 28))
+if (longCondition)
+    strategy.entry("My Long Entry Id", strategy.long)
+
+shortCondition = ta.crossunder(ta.sma(close, 14), ta.sma(close, 28))
+if (shortCondition)
+    strategy.entry("My Short Entry Id", strategy.short)

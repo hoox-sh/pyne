@@ -1,0 +1,75 @@
+//@version=5
+// set05 corpus entry
+// source_repo: dexcextrade-TradingView-PineScripts
+// source_path: dexcextrade-TradingView-PineScripts/MemeTrade bonk mew pepe wif
+// content_hash: f71bbc59c62fe3e2
+// collected: 2026-07-27
+strategy("Meme Momentum Hunter", overlay=true, initial_capital=1000, default_qty_type=strategy.percent_of_equity, default_qty_value=100, commission_type=strategy.commission.percent, commission_value=0.1)
+
+
+// === SETTINGS ===
+
+emaLength = input.int(20, "EMA Length")
+rsiLength = input.int(14, "RSI Length")
+volumeMultiplier = input.float(2.0, "Volume Spike")
+breakoutLength = input.int(20, "Breakout Period")
+
+atrLength = input.int(14, "ATR Length")
+slATR = input.float(1.5, "Stop ATR")
+tpATR = input.float(3.0, "Take ATR")
+
+
+// === INDICATORS ===
+
+ema20 = ta.ema(close, emaLength)
+
+rsi = ta.rsi(close, rsiLength)
+
+atr = ta.atr(atrLength)
+
+avgVolume = ta.sma(volume, 20)
+
+highestHigh = ta.highest(high, breakoutLength)
+
+
+// === CONDITIONS ===
+
+breakout = close > highestHigh[1]
+
+volumeSpike = volume > avgVolume * volumeMultiplier
+
+momentum = rsi > 60
+
+trend = close > ema20
+
+
+longCondition = breakout and volumeSpike and momentum and trend
+
+
+// === ENTRY ===
+
+if longCondition
+    strategy.entry("LONG", strategy.long)
+
+
+// === EXIT ===
+
+longSL = strategy.position_avg_price - atr * slATR
+
+longTP = strategy.position_avg_price + atr * tpATR
+
+
+strategy.exit("EXIT", "LONG", stop=longSL, limit=longTP)
+
+
+// EMA EXIT
+
+if close < ema20
+    strategy.close("LONG")
+
+
+// === VISUAL ===
+
+plot(ema20, title="EMA20")
+
+plotshape(longCondition, title="BUY", style=shape.labelup, text="BUY")

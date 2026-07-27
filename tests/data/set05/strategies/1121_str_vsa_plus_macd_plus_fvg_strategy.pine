@@ -1,0 +1,98 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/量化交易VSA体积分析与MACD动量指标结合公平价值缺口策略-Quantitative-Trading-Strategy-Combining-VSA-Volume-Analysis-MACD-Momentum-Indicator-and-Fair-Value-Gap-Detection.md
+// content_hash: b58276f9f1c3d8d8
+// collected: 2026-07-27
+strategy("VSA+MACD+FVG Strategy", overlay=true)
+
+// === Inputs ===
+// MACD Inputs
+fastLength = input.int(12, "MACD Fast Length", minval=1, group="MACD Settings")
+slowLength = input.int(26, "MACD Slow Length", minval=1, group="MACD Settings")
+signalLength = input.int(9, "MACD Signal Length", minval=1, group="MACD Settings")
+
+// VSA Inputs
+volumeLookback = input.int(20, "Volume SMA Period", minval=1, group="VSA Settings")
+priceLookback = input.int(5, "Price Lookback Period", minval=1, group="VSA Settings")
+
+// FVG Inputs
+fvgLookback = input.int(3, "FVG Lookback", minval=1, group="FVG Settings")
+fvgColor = input.color(color.blue, "FVG Color", group="FVG Settings")
+fvgTransparency = input.int(90, "FVG Transparency", minval=0, maxval=100, group="FVG Settings")
+
+// Signal Colors
+buyColor = input.color(color.green, "Buy Signal Color", group="Display Settings")
+sellColor = input.color(color.red, "Sell Signal Color", group="Display Settings")
+
+// === MACD Calculation ===
+[macdLine, signalLine, hist] = ta.macd(close, fastLength, slowLength, signalLength)
+macdBullish = macdLine > signalLine and macdLine > 0
+macdBearish = macdLine < signalLine and macdLine < 0
+
+// === VSA Implementation ===
+vsaBullish = close > open and volume > ta.sma(volume, volumeLookback) and close > ta.highest(high, priceLookback)[2]
+vsaBearish = close < open and volume > ta.sma(volume, volumeLookback) and close < ta.lowest(low, priceLookback)[2]
+
+// === FVG (Fair Value Gap) Detection ===
+fvgUpCondition = low > high[fvgLookback] and close[1] > open[1]
+fvgDownCondition = high < low[fvgLookback] and close[1] < open[1]
+
+var float fvgTop = 0.0
+var float fvgBottom = 0.0
+var bool inFVG = false
+
+// Detect and Store FVG
+if fvgUpCondition
+    fvgTop := low
+    fvgBottom := high[fvgLookback]
+    inFVG := true
+else if fvgDownCondition
+    fvgTop := low[fvgLookback]
+    fvgBottom := high
+    inFVG := true
+
+// Check if price is in FVG
+priceInFVG = (high >= fvgBottom and low <= fvgTop)
+
+// === Position Tracking ===
+isLongOpen = strategy.position_size > 0
+isShortOpen = strategy.position_size < 0
+
+// === Trading Conditions ===
+buySignal = vsaBullish and macdBullish and priceInFVG and not isLongOpen
+sellSignal = vsaBearish and macdBearish and priceInFVG and not isShortOpen
+
+// === Execute Trades ===
+if buySignal
+    strategy.entry("Buy", strategy.long)
+
+if sellSignal
+    strategy.entry("Sell", strategy.short)
+
+// === Visual Markers ===
+if buySignal
+    label.new(bar_index, low, "BUY", 
+              color=buyColor, 
+              textcolor=color.white, 
+              style=label.style_label_up)
+
+if sellSignal
+    label.new(bar_index, high, "SELL", 
+              color=sellColor, 
+              textcolor=color.white, 
+              style=label.style_label_down)
+
+// === Plot MACD for reference ===
+plot(macdLine, "MACD", color=color.blue, title="MACD Line")
+plot(signalLine, "Signal", color=color.orange, title="Signal Line")
+plot(hist, "Histogram", style=plot.style_histogram, color=color.gray, title="Histogram")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/484579
+
+> Last Modified
+
+2025-03-03 09:52:54

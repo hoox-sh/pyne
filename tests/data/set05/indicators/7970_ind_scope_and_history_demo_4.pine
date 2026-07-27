@@ -1,0 +1,11 @@
+//@version=5
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/v5/language/matrices.md::matrices.md#block31
+// content_hash: 301b66958d273cf8
+// collected: 2026-07-27
+indicator("Scope and history demo", "Bar ratio comparison")
+
+int length = input.int(10, "Length", 1)
+
+//@variable A global matrix.

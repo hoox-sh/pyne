@@ -1,0 +1,46 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于均线交叉的止损止盈策略Moving-Average-Crossover-Strategy-with-Stop-Loss-and-Take-Profit.md
+// content_hash: e1cfef0873c0e210
+// collected: 2026-07-27
+strategy("MA Crossover Strategy with Stop-Loss and Take-Profit", overlay=true)
+
+// Input for selecting the length of the moving averages
+maShortLength = input(9, title="Short MA Length")
+maLongLength = input(55, title="Long MA Length")
+
+// Input for setting the risk-reward ratio
+riskRewardRatio = input(2, title="Risk-Reward Ratio")
+
+// Calculate moving averages
+maShort = ta.sma(close, maShortLength)
+maLong = ta.sma(close, maLongLength)
+
+// Buy condition: 9-period MA crosses above 55-period MA
+buyCondition = ta.crossover(maShort, maLong)
+
+// Sell condition: 9-period MA crosses below 55-period MA
+sellCondition = ta.crossunder(maShort, maLong)
+
+// Set stop-loss and take-profit levels
+atrValue = ta.atr(14)
+stopLossLevel = close - atrValue  // Use ATR for stop-loss (adjust as needed)
+takeProfitLevel = close + riskRewardRatio * atrValue  // Risk-reward ratio of 1:2
+
+// Execute buy and sell orders with stop-loss and take-profit
+strategy.entry("Buy", strategy.long, when = buyCondition)
+strategy.exit("Sell", from_entry="Buy", loss=stopLossLevel, profit=takeProfitLevel)
+
+// Plot moving averages on the chart
+plot(maShort, color=color.blue, title="Short MA")
+plot(maLong, color=color.red, title="Long MA")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/436140
+
+> Last Modified
+
+2023-12-21 15:52:57

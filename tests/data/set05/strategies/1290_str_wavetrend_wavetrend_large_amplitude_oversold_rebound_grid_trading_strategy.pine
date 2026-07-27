@@ -1,0 +1,89 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/Wavetrend-大幅指标超跌反弹网格交易策略-Wavetrend-Large-Amplitude-Oversold-Rebound-Grid-Trading-Strategy.md
+// content_hash: 0eb9700166653f76
+// collected: 2026-07-27
+// © And Isaac, all rights reserved. If there is any piracy, please call the police immediately. 
+
+strategy(title='wavetrend',shorttitle='DCA-High win rate quantitative trading')
+n1 = input(40,'channel length')
+n2 = input(60,'average length')
+Oblevel1 = input(40,'over bought level 1')
+Oblevel2 = input(50,'over bought level 1')
+Oblevel3 = input(70,'over bought level 1')
+Oblevel4 = input(80,'over bought level 1')
+Oblevel5 = input(100,'over bought level 2')
+oslevel1 = input(-40,'over sold level 1')
+oslevel2 = input(-45,'over sold level 1')
+oslevel3 = input(-50,'over sold level 1')
+oslevel4 = input(-55,'over sold level 1')
+oslevel5 = input(-65,'over sold level 1')
+oslevel6 = input(-75,'over sold level 1')
+oslevel7 = input(-85,'over sold level 1')
+oslevel8 = input(-100,'over sold level 2')
+
+ap = input(title="source",defval=hlc3)
+esa =ta.ema(ap, n1)
+d =ta.ema(math.abs(ap - esa),n1)
+ci = (ap - esa)/ (0.015 * d)
+tci = ta.ema(ci,n2)
+
+wt1 = tci
+wt2 = ta.sma(wt1, 4)
+
+plot(0,color=color.new(#787b86, 0 ))
+plot(Oblevel1, color=color.new(#89ff52, 53), linewidth = 2)
+plot(oslevel1, color=color.new(#89ff52, 53), linewidth = 2)
+plot(oslevel2, color=color.new(#89ff52, 53), linewidth = 2)
+plot(oslevel3, color=color.new(#89ff52, 53), linewidth = 2)
+plot(oslevel4, color=color.new(#89ff52, 53), linewidth = 2)
+plot(oslevel5, color=color.new(#89ff52, 53), linewidth = 2)
+plot(oslevel6, color=color.new(#89ff52, 53), linewidth = 2)
+plot(oslevel7, color=color.new(#89ff52, 53), linewidth = 2)
+plot(oslevel8, color=color.new(#89ff52, 53), linewidth = 2)
+plot(oslevel2, color=color.new(#89ff52, 53), linewidth = 2)
+plot(wt1, color=color.new(#ff5252,0))
+plot(wt2, color=color.new(#ffffff,0))
+plot(wt1 - wt2, color=color.new(#00bcd4, 30),style=plot.style_area)
+
+plot(ta.cross(wt1, wt2) ? wt2 : na, color=color.new(#ff5252,0) , style=plot.style_circles, linewidth=4 )
+
+// barcolor(cross(wt1, wt2) ? (wt2 - wt1 > 0 ? aqua : yellow) : na)
+barcolor(ta.cross(wt1, wt2) ? (wt2 - wt1 > 0 ? color.new(#ffffff,0) : color.new(#89ff52, 53)) : na)
+
+/////////////
+Long1 = wt2 < oslevel1 and wt1 < oslevel1 and wt1>wt2 and wt2 > oslevel3 and wt1>oslevel3
+Long5 = wt2 < oslevel5 and wt1 < oslevel5 and wt1>wt2 and wt2 > oslevel6 and wt1>oslevel6
+
+Long7 = wt2 < oslevel7 and wt1 < oslevel7 and wt1>wt2 and wt2 > oslevel8 and wt1>oslevel8
+Long8 = wt2 < oslevel8 and wt1 < oslevel8 and wt1>wt2
+LS1 = wt2 > Oblevel1 and wt1 > Oblevel1 and wt1<wt2
+
+
+
+if Long1
+    strategy.entry("L",strategy.long,comment = "做多1")
+
+
+if Long5
+    strategy.entry("L",strategy.long,comment = "做5")
+
+if Long7
+    strategy.entry("L",strategy.long,comment = "做多7")
+if Long8
+    strategy.entry("L",strategy.long,comment = "做多8")
+if LS1
+    strategy.close("L", qty_percent = 70,comment = "平多")
+
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/449445
+
+> Last Modified
+
+2024-04-25 17:13:39

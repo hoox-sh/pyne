@@ -1,0 +1,47 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于DI交叉的日内交易策略Dual-DI-Crossover-Daily-Trading-Strategy.md
+// content_hash: 1fa0d4e66bce286d
+// collected: 2026-07-27
+strategy("DI Crossing Daily Straregy HulkTrading", overlay=true)
+// ATR Multiplier. Recommended values between 1..4
+atr_multiplier = input(1, minval=1, title="ATR Multiplier") 
+//Length of DI. Recommended default value = 14
+length = input(14, minval=1, title="Length di")
+up = change(high)
+down = -change(low)
+range = rma(tr, 14)
+
+//DI+ and DI- Calculations
+di_plus = fixnan(100 * rma(up > down and up > 0 ? up : 0, length) / range)
+di_minus = fixnan(100 * rma(down > up and down > 0 ? down : 0, length) / range)
+
+//Long and short conditions
+longCond = crossover(di_plus,di_minus)
+shortCond = crossunder(di_plus,di_minus) 
+
+
+//Stop levels and take profits
+stop_level_long = strategy.position_avg_price - atr_multiplier*atr(14)
+take_level_long = strategy.position_avg_price + 2*atr_multiplier*atr(14)
+stop_level_short = strategy.position_avg_price + atr_multiplier*atr(14)
+take_level_short = strategy.position_avg_price - 2*atr_multiplier*atr(14)
+
+
+//Entries and exits 
+strategy.entry("Long", strategy.long, when=longCond)
+strategy.exit("Close Long","Long", stop=stop_level_long, limit = take_level_long)
+strategy.entry("Short", strategy.short, when=shortCond)
+strategy.exit("Close Short","Short", stop=stop_level_short, limit = take_level_short)
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/431923
+
+> Last Modified
+
+2023-11-13 11:32:08

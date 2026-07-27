@@ -1,0 +1,71 @@
+//@version=2
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于RSI指标的趋势跟随策略RSI-Trend-Following-Strategy.md
+// content_hash: 231bb55a5263e270
+// collected: 2026-07-27
+strategy(title = "Gidra's RSI or MFI Strategy v0.1", shorttitle = "Gidra's RSI or MFI v0.1", overlay = false, default_qty_type = strategy.percent_of_equity, default_qty_value = 100, pyramiding = 1)
+
+//Settings
+needlong = input(true, defval = true, title = "Long")
+needshort = input(true, defval = true, title = "Short")
+capital = input(100, defval = 100, minval = 1, maxval = 10000, title = "Lot, %")
+src = input(close, title="source")
+lengthRSI = input(14, title="RSI or MFI length")
+// RSI %B
+useRSI = input(true, title="use RSI or MFI")
+fromyear = input(2018, defval = 2018, minval = 1900, maxval = 2100, title = "From Year")
+toyear = input(2100, defval = 2100, minval = 1900, maxval = 2100, title = "To Year")
+frommonth = input(01, defval = 01, minval = 01, maxval = 12, title = "From Month")
+tomonth = input(12, defval = 12, minval = 01, maxval = 12, title = "To Month")
+fromday = input(01, defval = 01, minval = 01, maxval = 31, title = "From Day")
+today = input(31, defval = 31, minval = 01, maxval = 31, title = "To Day")
+
+//MFI
+upper = sum(volume * (change(src) <= 0 ? 0 : src), lengthRSI)
+lower = sum(volume * (change(src) >= 0 ? 0 : src), lengthRSI)
+mf = rsi(upper, lower)
+
+//RSI
+rsi = useRSI?rsi(src, lengthRSI): mf
+
+// %B
+length = input(50, minval=1, title="BB length")
+mult = input(1.618, minval=0.001, maxval=50)
+basis = sma(rsi, length)
+dev = mult * stdev(rsi, length)
+upperr = basis + dev
+lowerr = basis - dev
+bbr = (rsi - lowerr)/(upperr - lowerr)
+
+plot(bbr, color=black, transp=0, linewidth=2)
+// band1 = hline(1, color=white, linestyle=dashed)
+// band0 = hline(0, color=white, linestyle=dashed)
+// fill(band1, band0, color=teal)
+hline(0.5, color=white)
+
+//Signals
+up = bbr >= 0 and bbr[1] < 0
+dn = bbr <= 1 and bbr[1] > 1
+//exit = ((bbr[1] < 0.5 and bbr >= 0.5) or (bbr[1] > 0.5 and bbr <= 0.5))
+
+lot = strategy.position_size == 0 ? strategy.equity / close * capital / 100 : lot[1]
+
+//Trading
+if up
+    strategy.entry("Long", strategy.long, needlong == false ? 0 : lot, when=(time > timestamp(fromyear, frommonth, fromday, 00, 00) and time < timestamp(toyear, tomonth, today, 23, 59)))
+
+if dn
+    strategy.entry("Short", strategy.short, needshort == false ? 0 : lot, when=(time > timestamp(fromyear, frommonth, fromday, 00, 00) and time < timestamp(toyear, tomonth, today, 23, 59)))
+    
+if time > timestamp(toyear, tomonth, today, 23, 59)// or exit
+    strategy.close_all()
+```
+
+> Detail
+
+https://www.fmz.com/strategy/430252
+
+> Last Modified
+
+2023-10-26 15:44:15

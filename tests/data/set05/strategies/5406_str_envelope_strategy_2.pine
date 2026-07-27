@@ -1,0 +1,47 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动态通道百分比包络策略-Dynamic-Channel-Percentage-Envelope-Strategy.md
+// content_hash: 2ccfcc704c624993
+// collected: 2026-07-27
+strategy("Envelope Strategy", overlay=true)
+
+// Input parameters
+len = input(10, title="Length", minval=1)
+percent = input(10.0, title="Percent")
+src = input(close, title="Source")
+exponential = input(false, title="Use EMA")
+
+// Calculate basis, upper, and lower envelopes
+basis = exponential ? ema(src, len) : sma(src, len)
+k = percent / 100.0
+upper = basis * (1 + k)
+lower = basis * (1 - k)
+
+// Buy and Sell conditions
+buy_signal = crossover(src, lower)
+sell_signal = crossover(src, basis)
+
+// Plotting the basis, upper, and lower envelopes
+plot(basis, "Basis", color=color.orange)
+plot(upper, "Upper", color=color.blue)
+plot(lower, "Lower", color=color.blue)
+
+// Plotting buy and sell signals
+plotshape(buy_signal, title="Buy Signal", location=location.belowbar, color=color.green, style=shape.triangleup, size=size.small)
+plotshape(sell_signal, title="Sell Signal", location=location.abovebar, color=color.red, style=shape.triangledown, size=size.small)
+
+// Trading operations
+if (buy_signal and strategy.position_size == 0)
+    strategy.entry("Buy", strategy.long)
+if (sell_signal and strategy.position_size == 1)
+    strategy.close("Buy")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/454743
+
+> Last Modified
+
+2024-06-21 15:33:47

@@ -1,0 +1,75 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双EMA黄金交叉长线策略Dual-EMA-Golden-Cross-Long-Line-Strategy.md
+// content_hash: 3ad1401d2cda5363
+// collected: 2026-07-27
+strategy("Strategia EMA Long con Opzioni di Uscita Avanzate e Periodi EMA Personalizzabili", overlay=true)
+
+// Parametri di input generali
+useVolatilityFilter = input.bool(true, title="Usa Filtro di Volatilità")
+atrPeriods = input.int(14, title="Periodi ATR", minval=1)
+atrMultiplier = input.float(1.5, title="Moltiplicatore ATR", step=0.1)
+useTrailingStop = input.bool(true, title="Usa Trailing Stop")
+trailingStopPercent = input.float(15.0, title="Percentuale Trailing Stop", minval=0.1, step=0.1) / 100.0
+useEMAExit = input.bool(true, title="Usa Uscita EMA Corta incrocia EMA Media al Ribasso")
+
+// Parametri di input per periodi EMA personalizzabili
+emaLongTermPeriod = input.int(200, title="Periodo EMA Lungo Termine", minval=1)
+emaShortTermPeriod = input.int(5, title="Periodo EMA Breve Termine", minval=1)
+emaMidTermPeriod = input.int(10, title="Periodo EMA Medio Termine", minval=1)
+
+// Calcolo delle EMA con periodi personalizzabili
+longTermEMA = ta.ema(close, emaLongTermPeriod)
+shortTermEMA = ta.ema(close, emaShortTermPeriod)
+midTermEMA = ta.ema(close, emaMidTermPeriod)
+
+// Calcolo ATR e soglia di volatilità
+atr = ta.atr(atrPeriods)
+atrThreshold = ta.sma(atr, atrPeriods) * atrMultiplier
+
+// Condizione di entrata
+enterLongCondition = close > longTermEMA and shortTermEMA > midTermEMA
+enterLong = useVolatilityFilter ? (enterLongCondition and atr > atrThreshold) : enterLongCondition
+
+if (enterLong)
+    strategy.entry("Enter Long", strategy.long)
+
+// Tracking del prezzo di entrata e del massimo prezzo raggiunto per il trailing stop
+var float entryPrice = na
+var float maxPriceSinceEntry = na
+if (strategy.position_size > 0)
+    maxPriceSinceEntry := math.max(na(maxPriceSinceEntry) ? high : maxPriceSinceEntry, high)
+    entryPrice := na(entryPrice) ? strategy.position_avg_price : entryPrice
+else
+    maxPriceSinceEntry := na
+    entryPrice := na
+
+// Calcolo del valore del trailing stop
+trailStopPrice = maxPriceSinceEntry * (1 - trailingStopPercent)
+
+// Implementazione delle condizioni di uscita
+exitCrossUnder = close < longTermEMA
+emaCross = ta.crossunder(shortTermEMA, midTermEMA)
+
+if (useEMAExit and emaCross)
+    strategy.close("Enter Long", comment="EMA Cross Exit")
+
+if (useTrailingStop)
+    strategy.exit("Trailing Stop", from_entry="Enter Long", stop=trailStopPrice)
+
+// Visualizzazioni
+plot(longTermEMA, color=color.yellow, title="EMA Lungo Termine")
+plot(shortTermEMA, color=color.blue, title="EMA Breve Termine")
+plot(midTermEMA, color=color.green, title="EMA Medio Termine")
+plot(useVolatilityFilter ? atrThreshold : na, color=color.purple, title="ATR Threshold")
+plot(strategy.position_size > 0 ? trailStopPrice : na, color=color.orange, title="Trailing Stop Value", style=plot.style_linebr)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/442623
+
+> Last Modified
+
+2024-02-23 12:17:40

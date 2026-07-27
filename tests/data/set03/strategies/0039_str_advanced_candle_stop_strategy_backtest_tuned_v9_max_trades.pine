@@ -1,0 +1,129 @@
+//@version=6
+// set03 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/指数移动均线烛台停止交易策略-Exponential-Moving-Average-Candle-Stop-Trading-Strategy.md
+// content_hash: 5ab9f5032ef11bf3
+// collected: 2026-07-27
+strategy("Advanced Candle Stop Strategy Backtest - Tuned v9 - Max Trades", overlay=true)
+
+// --- EMA Variables ---
+ema5_length = 5
+ema20_length = 20
+ema90_length = 90
+
+ema5 = ta.ema(close, ema5_length)
+ema20 = ta.ema(close, ema20_length)
+ema90 = ta.ema(close, ema90_length)
+
+// --- Support, Resistance, and Volume Calculation ---
+lookback_support_resistance = 30
+support_level = ta.lowest(low, lookback_support_resistance)
+resistance_level = ta.highest(high, lookback_support_resistance)
+
+// --- Volume Condition for Short (Removed) ---
+avg_volume_lookback = 20
+avg_volume = ta.sma(volume, avg_volume_lookback)
+
+// --- RSI Condition for Short (Removed) ---
+rsi_length = 14
+rsi_overbought = 70
+rsi = ta.rsi(close, rsi_length)
+
+
+// --- Candle Stop Function ---
+is_candle_stop(trend) =>
+    body = math.abs(close - open)
+    upper_shadow = high - math.max(open, close)
+    lower_shadow = math.min(open, close) - low
+
+    if trend == "up"
+        lower_shadow >= 0.8 * body and upper_shadow < body and close > open // Shadow ratio reduced to 0.8 for longs
+    else if trend == "down"
+        upper_shadow >= 0.8 * body and lower_shadow < body and close < open // Shadow ratio reduced to 0.8 for shorts - EMA5 and Volume conditions removed
+    else
+        false
+
+// --- Trend Determination (only 15m, no 1H confirmation) ---
+trend = ema20 > ema90 ? "up" : ema20 < ema90 ? "down" : "neutral"
+final_trend = trend  // حذف تأیید با تایم‌فریم 1H
+
+// --- Breakout Detection ---
+var bool breakout_detected = false
+if final_trend == "up" and close > resistance_level
+    breakout_detected := true
+    alert("شکست صعودی تشخیص داده شد! منتظر پولبک ?", alert.freq_once_per_bar)
+else if final_trend == "down" and close < support_level
+    breakout_detected := true
+    alert("شکست نزولی تشخیص داده شد! منتظر پولبک ?", alert.freq_once_per_bar)
+
+// --- Entry and Exit Conditions ---
+var float position = 0.0
+var float entry_price = 0.0
+var float stop_loss_price = na
+var bool take_profit_long = false  // Declare take_profit_long
+var bool stop_loss_hit_long = false // Declare stop_loss_hit_long
+var bool take_profit_short = false // Declare take_profit_short
+var bool stop_loss_hit_short = false // Declare stop_loss_hit_short
+risk_per_trade_percent = 2.5  // افزایش ریسک به 2.5٪ برای موقعیت‌های بیشتر
+
+
+if not breakout_detected
+    if position == 0 and is_candle_stop(final_trend)
+        risk_amount_usd = strategy.initial_capital * (risk_per_trade_percent / 100)
+        if final_trend == "up"
+            stop_loss_price := close * 0.975 // Stop loss at 2.5% below entry for longs
+            if (close - stop_loss_price) != 0
+                position_size_usd = risk_amount_usd / (close - stop_loss_price)
+                amount = position_size_usd / close
+                strategy.entry("Long", strategy.long, qty=amount)
+                position := amount
+                entry_price := close
+        else if final_trend == "down"
+            stop_loss_price := close * 1.025 // Stop loss at 2.5% above entry for shorts
+            if (stop_loss_price - close) != 0
+                position_size_usd = risk_amount_usd / (stop_loss_price - close)
+                amount = position_size_usd / close
+                if rsi >= rsi_overbought // RSI condition for short entry - No Change, still using RSI but not enforcing it for now - Consider removing RSI condition as well for max trades
+                    strategy.entry("Short", strategy.short, qty=amount)
+                    position := amount
+                    entry_price := close
+
+if position > 0
+    profit_percent_long = (close - entry_price) / entry_price * 100
+    profit_percent_short = (entry_price - close) / entry_price * 100
+    loss_percent_long = (entry_price - close) / entry_price * 100
+    loss_percent_short = (close - entry_price) / entry_price * 100
+
+    risk_reward_long = loss_percent_long != 0 ? profit_percent_long / loss_percent_long : (profit_percent_long != 0 ? 99999 : 0)
+    risk_reward_short = loss_percent_short != 0 ? profit_percent_short / loss_percent_short : (profit_percent_short != 0 ? 99999 : 0)
+
+
+    take_profit_long := profit_percent_long >= 7 and risk_reward_long >= 3
+    stop_loss_hit_long := close <= stop_loss_price
+    take_profit_short := profit_percent_short >= 6 and risk_reward_short >= 3 // Reduced Take Profit for Shorts to 6% - No Change
+    stop_loss_hit_short := close >= stop_loss_price
+
+    if (final_trend == "up" and (take_profit_long or stop_loss_hit_long)) or (final_trend == "down" and (take_profit_short or stop_loss_hit_short))
+        if final_trend == "up"
+            strategy.close("Long")
+        else
+            strategy.close("Short")
+        position := 0
+        entry_price := 0.0
+        breakout_detected := false
+
+// --- Plotting EMAs and Support/Resistance Levels ---
+plot(ema5, color=color.blue, title="EMA5")
+plot(ema20, color=color.red, title="EMA20")
+plot(ema90, color=color.green, title="EMA90")
+plot(resistance_level, color=color.orange, style=plot.style_line, title="Resistance")
+plot(support_level, color=color.orange, style=plot.style_line, title="Support")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/483680
+
+> Last Modified
+
+2025-02-25 11:11:35

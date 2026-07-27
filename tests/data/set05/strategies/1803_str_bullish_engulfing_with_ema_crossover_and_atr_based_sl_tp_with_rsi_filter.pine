@@ -1,0 +1,70 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多周期均线穿越结合RSI动量与ATR波动率的趋势跟踪策略-Multi-Period-EMA-Crossover-with-RSI-Momentum-and-ATR-Volatility-Based-Trend-Following-Strategy.md
+// content_hash: 62767a9ff3f4a1fe
+// collected: 2026-07-27
+strategy("Bullish Engulfing with EMA Crossover and ATR-Based SL/TP with RSI Filter", overlay=true)
+
+// Inputs for moving averages
+short_ema_length = input.int(100, title="Short EMA Length")
+long_ema_length = input.int(200, title="Long EMA Length")
+
+// RSI Input
+rsi_length = input.int(14, title="RSI Length")
+rsi_threshold = input.float(50, title="RSI Threshold")
+
+// Calculate the Exponential Moving Averages (EMAs)
+short_ema = ta.ema(close, short_ema_length)
+long_ema = ta.ema(close, long_ema_length)
+
+// Plot EMAs on the chart
+plot(short_ema, color=color.blue, title="100 EMA")
+plot(long_ema, color=color.red, title="200 EMA")
+
+// Calculate RSI
+rsi_value = ta.rsi(close, rsi_length)
+
+// Plot RSI on a separate panel
+hline(rsi_threshold, "RSI Threshold", color=color.gray)
+plot(rsi_value, color=color.purple, title="RSI")
+
+// Bullish Engulfing Pattern
+bullish_engulfing = close > open[1] and open < close[1] and close > open
+
+// Define strategy entry condition with RSI filter
+long_condition = bullish_engulfing and short_ema > long_ema and rsi_value > rsi_threshold
+
+// Plot a buy signal when conditions are met
+plotshape(long_condition, style=shape.labelup, location=location.belowbar, color=color.green, title="Buy Signal", text="BUY")
+
+// ATR Calculation
+atr_length = input.int(14, title="ATR Length")
+atr_value = ta.atr(atr_length)
+
+// Define Stop Loss and Take Profit as levels
+stop_loss_level = 1.1 * atr_value
+take_profit_level = 2.0 * atr_value
+
+// Execute Strategy Entry
+if (long_condition)
+    strategy.entry("Buy", strategy.long)
+
+// Adjust SL and TP levels using the entry price
+if (strategy.position_size > 0)
+    // Calculate SL and TP relative to the entry price
+    stop_price = strategy.position_avg_price - stop_loss_level
+    limit_price = strategy.position_avg_price + take_profit_level
+
+    // Exit strategy with SL and TP
+    strategy.exit("Exit", from_entry="Buy", stop=stop_price, limit=limit_price)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/474959
+
+> Last Modified
+
+2024-12-13 10:33:00

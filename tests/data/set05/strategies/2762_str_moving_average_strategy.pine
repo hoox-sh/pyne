@@ -1,0 +1,50 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于双移动平均线交叉策略-Dual-Moving-Average-Crossover-Strategy.md
+// content_hash: 4fbe678c0b3195a8
+// collected: 2026-07-27
+strategy("Moving average strategy (이동평균선 전략)", overlay=true)
+
+// === INPUTS ===
+
+basisType   = input.string(defval = "EMA", title = "MA Type: SMA, EMA, DEMA, TEMA, WMA, VWMA ",options=["SMA", "EMA", "DEMA", "TEMA", "WMA", "VWMA"])
+shortLen    = input.int(defval = 1, title = "Short MA Period", minval = 1)
+longLen    = input.int(defval = 20, title = "Long MA Period", minval = 1)
+price       = input.string(defval = "Typical", title = "Price Type : Close, High, Open, Low, Typical, Center ",options=["Close", "High", "Open", "Low", "Typical", "Center"])
+
+// === BASE FUNCTIONS ===
+// 가격 종류 설정
+priceType(price) =>
+    Typical = (high+low+close)/3
+    Center  = (high+low) / 2
+    price=="High"?high : price=="Low"?low : price=="Open"?open : price=="Typical"?Typical : price=="Center"?Center : close
+
+// 이동평균선 종류 설정
+variant(type, src, len) =>
+    v1 = ta.sma(src, len)                                                  // Simple
+    v2 = ta.ema(src, len)                                                  // Exponential
+    v3 = 2 * v2 - ta.ema(v2, len)                                          // Double Exponential
+    v4 = 3 * (v2 - ta.ema(v2, len)) + ta.ema(ta.ema(v2, len), len)         // Triple Exponential
+    v5 = ta.wma(src, len)                                                  // Weighted
+    v6 = ta.vwma(src, len)                                                 // Volume Weighted
+    
+    type=="EMA"?v2 : type=="DEMA"?v3 : type=="TEMA"?v4 : type=="WMA"?v5 : type=="VWMA"?v6 : v1
+
+longCondition = ta.crossover(variant(basisType, priceType(price), shortLen), variant(basisType, priceType(price), longLen))
+if (longCondition)
+    strategy.entry("Long Entry", strategy.long)
+
+exitCondition = ta.crossunder(variant(basisType, priceType(price), shortLen), variant(basisType, priceType(price), longLen))
+if (exitCondition)
+    strategy.close("Long Entry","Long Exit")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/451389
+
+> Last Modified
+
+2024-05-14 15:37:54

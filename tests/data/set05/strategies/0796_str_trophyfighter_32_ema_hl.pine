@@ -1,0 +1,119 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/交叉突破型双均线系统策略-Cross-Breakout-Dual-EMA-System-Strategy.md
+// content_hash: c60ad20e94cb1744
+// collected: 2026-07-27
+strategy("TrophyFighter 32 EMA HL", overlay=true)
+
+// 32 EMA for high and low
+ema_high_32 = ta.ema(high, 32)
+ema_low_32 = ta.ema(low, 32)
+
+// Detect crossover and crossunder
+cross_above_high_ema = ta.crossover(close, ema_high_32)
+cross_below_low_ema = ta.crossunder(close, ema_low_32)
+
+// Identify no-touch candles
+no_touch_green = close > open and low > ema_high_32
+no_touch_red = close < open and high < ema_low_32
+
+// Track the high and low of no-touch candles
+var float first_green_high = na
+var float first_red_low = na
+var bool waiting_for_long = false
+var bool waiting_for_short = false
+var bool in_long_trade = false  // Whether a long trade is active
+var bool in_short_trade = false  // Whether a short trade is active
+var bool first_no_touch_green_shown = false  // First green diamond shown
+var bool first_no_touch_red_shown = false    // First red diamond shown
+
+if (cross_above_high_ema and not in_long_trade and not in_short_trade)
+    first_green_high := na
+    waiting_for_long := true
+    first_no_touch_green_shown := false  // Reset
+
+if (cross_below_low_ema and not in_long_trade and not in_short_trade)
+    first_red_low := na
+    waiting_for_short := true
+    first_no_touch_red_shown := false  // Reset
+
+if (no_touch_green and waiting_for_long and ta.valuewhen(cross_above_high_ema, bar_index, 0) > ta.valuewhen(no_touch_green, bar_index, 1))
+    first_green_high := high
+    first_no_touch_green_shown := true  // Set first green diamond
+
+if (no_touch_red and waiting_for_short and ta.valuewhen(cross_below_low_ema, bar_index, 0) > ta.valuewhen(no_touch_red, bar_index, 1))
+    first_red_low := low
+    first_no_touch_red_shown := true  // Set first red diamond
+
+// Identify breakout (on the previous candle) - using na() function
+long_breakout_check = high > ta.valuewhen(not na(first_green_high), first_green_high, 0) and not na(first_green_high) and waiting_for_long
+short_breakout_check = low < ta.valuewhen(not na(first_red_low), first_red_low, 0) and not na(first_red_low) and waiting_for_short
+
+// Buy and sell conditions (on the next same-colored candle)
+long_condition = long_breakout_check[1] and close > open and not in_long_trade and not in_short_trade  // Next green candle
+short_condition = short_breakout_check[1] and close < open and not in_long_trade and not in_short_trade  // Next red candle
+
+// Breakout check (only on the signal candle)
+long_breakout = long_condition  // Blue square only for signal
+short_breakout = short_condition  // White square only for signal
+
+// Signal for the first no-touch candle
+first_no_touch_green = no_touch_green and not first_no_touch_green_shown and waiting_for_long and ta.valuewhen(cross_above_high_ema, bar_index, 0) > ta.valuewhen(no_touch_green, bar_index, 1)
+first_no_touch_red = no_touch_red and not first_no_touch_red_shown and waiting_for_short and ta.valuewhen(cross_below_low_ema, bar_index, 0) > ta.valuewhen(no_touch_red, bar_index, 1)
+
+// When a trade starts
+if (long_condition)
+    waiting_for_long := false
+    in_long_trade := true  // Start long trade
+
+if (short_condition)
+    waiting_for_short := false
+    in_short_trade := true  // Start short trade
+
+// New exit rules
+long_exit = close < ema_low_32 and in_long_trade  // Price drops below EMA low
+short_exit = close > ema_high_32 and in_short_trade  // Price rises above EMA high
+
+// Reset when trade closes
+if (long_exit)
+    in_long_trade := false
+
+if (short_exit)
+    in_short_trade := false
+
+// Plot EMA and levels (cross style)
+plot(ema_high_32, color=color.green, title="EMA High 32")
+plot(ema_low_32, color=color.red, title="EMA Low 32")
+plot(first_green_high, color=color.yellow, style=plot.style_cross, linewidth=1, title="First Green High")
+plot(first_red_low, color=color.orange, style=plot.style_cross, linewidth=1, title="First Red Low")
+
+// Debugging signals
+plotshape(cross_above_high_ema, title="Cross Above EMA", location=location.belowbar, color=color.yellow, style=shape.circle, size=size.tiny)
+plotshape(cross_below_low_ema, title="Cross Below EMA", location=location.abovebar, color=color.orange, style=shape.circle, size=size.tiny)
+plotshape(first_no_touch_green, title="No Touch Green", location=location.belowbar, color=color.lime, style=shape.diamond, size=size.tiny)
+plotshape(first_no_touch_red, title="No Touch Red", location=location.abovebar, color=color.purple, style=shape.diamond, size=size.tiny)
+plotshape(long_breakout, title="Long Breakout", location=location.belowbar, color=color.blue, style=shape.square, size=size.tiny)
+plotshape(short_breakout, title="Short Breakout", location=location.abovebar, color=color.white, style=shape.square, size=size.tiny)
+plotshape(long_condition, title="Buy Signal", location=location.belowbar, color=color.green, style=shape.triangleup, size=size.small)
+plotshape(short_condition, title="Sell Signal", location=location.abovebar, color=color.red, style=shape.triangledown, size=size.small)
+
+// Execute trades
+if (long_condition)
+    strategy.entry("Long", strategy.long)
+if (short_condition)
+    strategy.entry("Short", strategy.short)
+if (long_exit)
+    strategy.close("Long", comment="Long Exit")
+if (short_exit)
+    strategy.close("Short", comment="Short Exit")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/488244
+
+> Last Modified
+
+2025-03-26 11:14:18

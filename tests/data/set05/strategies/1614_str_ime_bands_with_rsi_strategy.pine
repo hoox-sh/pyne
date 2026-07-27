@@ -1,0 +1,76 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双均线RSI动量突破交易策略-Dual-EMA-RSI-Momentum-Breakout-Trading-Strategy.md
+// content_hash: 99e28b914ecc83c3
+// collected: 2026-07-27
+strategy("IME-Bands with RSI Strategy", overlay=true)
+
+// === INPUTS ===
+src = close
+emaS_value = input.int(50, minval=1, title="EMA Small - Value")  // 50 EMA
+emaB_value = input.int(100, minval=1, title="EMA Big - Value")  // 100 EMA
+rsi_length = input.int(14, title="RSI Length")
+rsi_source = input.source(close, title="RSI Source")
+rsi_overbought = input.int(70, title="RSI Overbought Level")
+rsi_oversold = input.int(30, title="RSI Oversold Level")
+
+// === CALCULATIONS ===
+// EMAs
+emaS = ta.ema(close, emaS_value)
+emaB = ta.ema(close, emaB_value)
+
+// RSI
+rsi = ta.rsi(rsi_source, rsi_length)
+
+// IME-Band Cross Conditions
+isGreenCrossover = emaS > emaB  // Green band
+isRedCrossover = emaS < emaB    // Red band
+
+// Track Green Cross Confirmation
+var bool isGreenConfirmed = false
+if (isGreenCrossover and not isGreenCrossover[1])  // First green crossover
+    isGreenConfirmed := true
+
+if (not isGreenCrossover)
+    isGreenConfirmed := false
+
+// Entry Condition: RSI above 70 on second green candle
+entryCondition = isGreenConfirmed and rsi > rsi_overbought and isGreenCrossover
+
+// Exit Condition: Red band confirmed
+exitCondition = isRedCrossover
+
+// === STRATEGY RULES ===
+// Stop Loss: Lowest point of crossover
+var float stopLoss = na
+if (isGreenCrossover and not isGreenCrossover[1])
+    stopLoss := emaB  // Set stop loss to EMA Big (crossover point)
+
+// Entry and Exit Trades
+if (entryCondition)
+    strategy.entry("Buy", strategy.long)
+    stopLoss := na  // Reset stop loss after entry
+
+if (exitCondition)
+    strategy.close("Buy")
+
+// Stop Loss logic
+if (strategy.position_size > 0 and not na(stopLoss))
+    strategy.exit("Stop Loss", from_entry="Buy", stop=stopLoss)
+
+// Plotting
+plot(emaS, color=color.green, title="EMA Small (50)", linewidth=1)
+plot(emaB, color=color.red, title="EMA Big (100)", linewidth=1)
+hline(rsi_overbought, "RSI Overbought", color=color.new(color.red, 70), linestyle=hline.style_dotted)
+plot(rsi, color=color.blue, title="RSI")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/481393
+
+> Last Modified
+
+2025-02-10 16:54:48

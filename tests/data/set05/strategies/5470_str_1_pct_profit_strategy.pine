@@ -1,0 +1,44 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/均线黄金交叉1止盈策略1-Profit-Moving-Average-Cross-Strategy.md
+// content_hash: e34106da5397ad6c
+// collected: 2026-07-27
+strategy("1% Profit Strategy", overlay=true)
+
+// Input parameters
+fastLength = input(10, title="Fast MA Length")
+slowLength = input(30, title="Slow MA Length")
+profitPercentage = input(1, title="Profit Percentage")
+
+// Calculate moving averages
+fastMA = sma(close, fastLength)
+slowMA = sma(close, slowLength)
+
+// Plot moving averages on the chart
+plot(fastMA, color=color.blue, title="Fast MA")
+plot(slowMA, color=color.red, title="Slow MA")
+
+// Trading logic
+longCondition = crossover(fastMA, slowMA)
+if (longCondition)
+    strategy.entry("Buy", strategy.long)
+
+// Close long position when profit reaches 1%
+if (strategy.position_size > 0)
+    strategy.exit("Take Profit", from_entry="Buy", profit=profitPercentage / 100)
+
+// Plot Buy and Sell signals on the chart
+shortCondition = crossunder(fastMA, slowMA)
+if (shortCondition)
+    strategy.entry("Sell", strategy.short)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/434445
+
+> Last Modified
+
+2023-12-06 13:53:36

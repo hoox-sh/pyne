@@ -1,0 +1,14 @@
+//@version=6
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/language/variable-declarations.md::variable-declarations.md#block29
+// content_hash: 62bb5afbd6d46153
+// collected: 2026-07-27
+indicator("Cannot obscure namespaces demo")
+
+//@type A custom type with a single "int" field named `tickerid`.
+type myType
+    int tickerid = 1
+
+// This declaration causes an error.
+// A UDT variable with the name `syminfo` can obscure the `syminfo` namespace.

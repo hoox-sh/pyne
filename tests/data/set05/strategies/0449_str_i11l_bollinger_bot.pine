@@ -1,0 +1,39 @@
+//@version=5
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/I11L OIL Bot.pine
+// content_hash: c354291c869e1493
+// collected: 2026-07-27
+strategy("I11L Bollinger Bot",overlay=true, initial_capital=1000000,default_qty_value=1000000,default_qty_type=strategy.cash,commission_type=strategy.commission.percent,commission_value=0.00)
+mode = input.string(title="Which mode to Trade with?",defval="Outbreak",options=["Outbreak","Reversal"])
+invertBuyLogic = mode == "Outbreak" ? true : false
+leverage = input.float(1,"Leverage (x)",step=1)
+SL_Factor = 1 - input.float(1, "SL unlevered (%)", step=0.025) / 100
+TP_Factor = 1 + input.float(2.175, "TP unlevered (%)", step=0.025) / 100
+lookbackDistance = input.int(25)
+devMult = input.float(2,step=0.05)
+timeoutAfterTrade = input.int(6)
+var lastSellHour = 0
+var disableAdditionalBuysThisDay = false
+if(time > lastSellHour + 1000 * 60 * 60 * timeoutAfterTrade)
+    disableAdditionalBuysThisDay := false
+if(strategy.position_size != strategy.position_size[1])
+    disableAdditionalBuysThisDay := true
+    lastSellHour := time
+ 
+source = close
+//Trade Logic
+basis = ta.sma(source, lookbackDistance)
+dev = devMult * ta.stdev(source, lookbackDistance)
+upper = basis + dev
+lower = basis - dev
+isBuy = ta.crossover(source, lower)
+isBuyInverted = ta.crossunder(source, upper)
+plot(upper, color=invertBuyLogic ? color.green : color.gray)
+plot(lower, color=invertBuyLogic ? color.gray : color.green)
+if((invertBuyLogic ? isBuyInverted : isBuy) and not(disableAdditionalBuysThisDay))
+    strategy.entry("Long", strategy.long, (strategy.initial_capital / close) * leverage)
+if(strategy.position_size > 0)
+    strategy.exit("Exit", "Long", stop=strategy.position_avg_price * SL_Factor,limit=strategy.position_avg_price * TP_Factor)
+    //strategy.close("Long",  when=close > strategy.position_avg_price * TP_Factor, comment="TP Long")
+Expand (47 lines)

@@ -1,0 +1,62 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/布林带均值回归交易策略与成交量过滤-Bollinger-Bands-Mean-Reversion-Trading-Strategy-with-Volume-Filter.md
+// content_hash: 368fd894d4c313b5
+// collected: 2026-07-27
+strategy("Mean Regression Strategy", overlay=true)
+
+// Bollinger Bands
+length = input(20, title="Bollinger Bands Length")
+src = input(close, title="Source")
+mult = input(2.0, title="Bollinger Bands Multiplier")
+
+basis = ta.sma(src, length)
+dev = mult * ta.stdev(src, length)
+upper = basis + dev
+lower = basis - dev
+
+// Plotting Bollinger Bands
+plot(basis, title="Basis", color=color.blue)
+plot(upper, title="Upper Band", color=color.red)
+plot(lower, title="Lower Band", color=color.red)
+
+// Trading logic
+longCondition = ta.crossover(src, lower)
+shortCondition = ta.crossunder(src, upper)
+
+// Plotting signals
+plotshape(series=longCondition, title="Buy Signal", location=location.belowbar, color=color.green, style=shape.labelup, text="BUY")
+plotshape(series=shortCondition, title="Sell Signal", location=location.abovebar, color=color.red, style=shape.labeldown, text="SELL")
+
+// Strategy execution
+strategy.entry("Long", strategy.long, when=longCondition)
+strategy.close("Long", when=shortCondition)
+strategy.entry("Short", strategy.short, when=shortCondition)
+strategy.close("Short", when=longCondition)
+
+// Volume filter (optional)
+useVolumeFilter = input(true, title="Use Volume Filter")
+volumeThreshold = input(100000, title="Volume Threshold")
+
+volumeCondition = na(volume) ? na : volume > volumeThreshold
+
+if useVolumeFilter
+    longCondition := longCondition and volumeCondition
+    shortCondition := shortCondition and volumeCondition
+
+// Final execution with volume filter
+if useVolumeFilter
+    strategy.entry("Long", strategy.long, when=longCondition)
+    strategy.close("Long", when=shortCondition)
+    strategy.entry("Short", strategy.short, when=shortCondition)
+    strategy.close("Short", when=longCondition)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/454768
+
+> Last Modified
+
+2024-06-21 18:20:13

@@ -1,0 +1,63 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/RSI双周期均线反转策略与动态风险管理系统-RSI-Dual-Period-Moving-Average-Reversal-Strategy-with-Dynamic-Risk-Management-System.md
+// content_hash: 16bf5a19c21a0708
+// collected: 2026-07-27
+strategy("Estrategia JSV", overlay=true)
+
+// Parámetros de la estrategia
+rsiPeriod = input.int(2, title="Periodo del RSI")
+rsiOverbought = input.int(90, title="Zona de Sobrecompra del RSI", minval=50, maxval=100)
+rsiOversold = input.int(10, title="Zona de Sobreventa del RSI", minval=0, maxval=50)
+fastLength = input.int(10, title="Periodo de la Media Móvil Exponencial Rápida")
+slowLength = input.int(400, title="Periodo de la Media Móvil Exponencial Lenta")
+stopLossPerc = input.float(1.0, title="Stop Loss (%)")
+
+// Indicadores
+rsi = ta.rsi(close, rsiPeriod)
+emaFast = ta.ema(close, fastLength)
+emaSlow = ta.ema(close, slowLength)
+
+// Señales de entrada y salida
+longCondition = (close > emaSlow) and (close < emaFast) and (ta.crossover(rsi, rsiOversold))
+shortCondition = (close < emaSlow) and (close > emaFast) and (ta.crossunder(rsi, rsiOverbought))
+exitLongCondition = ta.crossover(close, emaFast)
+exitShortCondition = ta.crossunder(close, emaFast)
+
+// Estrategia Long
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+    // Cálculo del Stop Loss
+    strategy.exit("Exit Long", "Long", stop=close * (1 - stopLossPerc / 100))
+
+// Estrategia Short
+if (shortCondition)
+    strategy.entry("Short", strategy.short)
+    // Cálculo del Stop Loss
+    strategy.exit("Exit Short", "Short", stop=close * (1 + stopLossPerc / 100))
+
+// Salida de la posición cuando se cruza la media rápida
+if (exitLongCondition)
+    strategy.close("Long")
+
+if (exitShortCondition)
+    strategy.close("Short")
+
+// Marcas de entrada en el gráfico
+plotshape(series=longCondition, title="Long Entry", location=location.belowbar, color=color.green, style=shape.triangleup)
+plotshape(series=shortCondition, title="Short Entry", location=location.abovebar, color=color.red, style=shape.triangledown)
+
+// Plot de las medias móviles
+plot(emaFast, title="EMA Rápida", color=color.rgb(228, 177, 102))
+plot(emaSlow, title="EMA Lenta", color=color.rgb(193, 122, 0))
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/454727
+
+> Last Modified
+
+2024-06-21 14:01:11

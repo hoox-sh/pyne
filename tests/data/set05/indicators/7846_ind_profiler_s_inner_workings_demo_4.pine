@@ -1,0 +1,15 @@
+//@version=5
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/v5/writing/profiling-and-optimization.md::profiling-and-optimization.md#block18
+// content_hash: b913e0d311d346a7
+// collected: 2026-07-27
+indicator("Profiler's inner workings demo") // Declaration statements do not require profiling.
+
+int seedInput = input.int(12345, "Seed") // Variable declaration without significant calculation.
+
+type LCG        // Type declarations do not require profiling.
+    float state
+
+method generate(LCG this, int generations = 1) => // Function signature does not affect runtime.
+    float result = 0.0 // Variable declaration without significant calculation.

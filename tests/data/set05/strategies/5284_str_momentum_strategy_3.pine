@@ -1,0 +1,53 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动量策略Momentum-Strategy.md
+// content_hash: 4f2f0aea94c651c2
+// collected: 2026-07-27
+strategy("Momentum Strategy", overlay = false, precision = 2, initial_capital = 10000, default_qty_value = 10000, default_qty_type = strategy.cash, commission_type = strategy.commission.percent, commission_value = 0, calc_on_every_tick = true)
+
+// Calculate start/end date and time condition
+startDate  = input(timestamp("2021-01-02T00:00:00"), title = "Start Date", type = input.time)
+finishDate = input(timestamp("2021-12-31T00:00:00"), title = "End Date",type = input.time)
+ 
+time_cond  = true
+
+i_len           =       input(defval = 12,      title = "Length",       minval = 1)
+i_src           =       input(defval = close,   title = "Source")
+i_percent       =       input(defval = true,    title = "Percent?")
+i_mom           =       input(defval = "MOM2",  title = "MOM Choice",   options = ["MOM1", "MOM2"])
+
+momentum(seria, length, percent) =>
+	_mom        =       percent ? ( (seria / seria[length]) - 1) * 100 : seria - seria[length]
+	_mom
+
+mom0        =       momentum(i_src, i_len, i_percent)
+mom1        =       momentum(mom0, 1, i_percent)
+mom2        =       momentum(i_src, 1, i_percent)
+
+momX        =       mom1
+
+if i_mom == "MOM2"
+    momX    :=     mom2
+
+if (mom0 > 0 and momX > 0 and time_cond)
+    strategy.entry("MomLE", strategy.long, stop = high + syminfo.mintick, comment = "MomLE")
+else
+	strategy.cancel("MomLE")
+if (mom0 < 0 and momX < 0 and time_cond)
+	strategy.entry("MomSE", strategy.short, stop = low - syminfo.mintick, comment = "MomSE")
+else
+	strategy.cancel("MomSE")
+
+plot(mom0, color = #00bcd4, title = "MOM")
+plot(mom1, color = #00FF00, title = "MOM1", display = display.none)
+plot(mom2, color = #00FF00, title = "MOM2")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/427877
+
+> Last Modified
+
+2023-09-26 15:16:56

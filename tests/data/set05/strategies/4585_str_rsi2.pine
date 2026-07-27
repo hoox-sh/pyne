@@ -1,0 +1,93 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/RSI与EMA双重过滤策略RSI-and-EMA-Dual-Filter-Strategy.md
+// content_hash: 04f9fe93d88761f1
+// collected: 2026-07-27
+strategy("RSI2", overlay=true)
+
+// RSILength input
+len = input(2, minval=1, title="RSILength")
+
+// Threshold RSI up input
+RSIthreshUP = input(90, title="Threshold RSI up")
+
+// Threshold RSI down input
+RSIthreshDWN = input(10, title="Threshold RSI down")
+
+// Slow MA length input
+mmlen = input(200, title="Slow MA len")
+
+// Fast MA length input
+mmflen = input(50, title="Fast MA len")
+
+// Moving Average type input
+machoice = input("EMA", defval="EMA", options=["SMA", "EMA"])
+
+// Ticker size input
+tick=input(0.5,title="Ticker size",type=input.float)
+
+// Trend Filter input
+filter=input(true,title="Trend Filter",type=input.bool)
+
+// Trailing Stop percentage input
+ts_percent = input(1, title="TrailingStop%")
+
+// Stop Loss percentage input
+sl_percent = input(0.3, title="Stop Loss %")
+
+// Calculate RSI
+src = close
+up = rma(max(change(src), 0), len)
+down = rma(-min(change(src), 0), len)
+rsi = down == 0 ? 100 : up == 0 ? 0 : 100 - 100 / (1 + up / down)
+
+// Calculate moving averages
+mmslow = machoice == "SMA" ? sma(close, mmlen) : ema(close, mmlen)
+mmfast = machoice == "SMA" ? sma(close, mmflen) : ema(close, mmflen)
+
+// Plot moving averages
+plot(mmslow, color=color.white)
+plot(mmfast, color=color.yellow)
+
+// Conditions for entry and exit
+var lastLongEntryTime = 0
+var lastShortEntryTime = 0
+
+ConditionEntryL = if filter == true
+    mmfast > mmslow and close > mmslow and rsi < RSIthreshDWN
+else 
+    mmfast > mmslow and rsi < RSIthreshDWN
+    
+ConditionEntryS = if filter == true
+    mmfast < mmslow and close < mmslow and rsi > RSIthreshUP
+else
+    mmfast < mmslow and rsi > RSIthreshUP
+
+// Calculate trailing stop and stop loss
+ts_calc = close * (1/tick) * ts_percent * 0.01
+sl_price = close * (1 - sl_percent / 100)
+
+// Entry and exit management
+if ConditionEntryL and time - lastLongEntryTime > 1000 * 60 * 5 // 5 minutes
+    strategy.entry("RSILong", strategy.long)
+    lastLongEntryTime := time
+
+if ConditionEntryS and time - lastShortEntryTime > 1000 * 60 * 5 // 5 minutes
+    strategy.entry("RSIShort", strategy.short)
+    lastShortEntryTime := time
+
+lastLongEntryTimeExpired = time - lastLongEntryTime >= 1000 * 60 * 5
+lastShortEntryTimeExpired = time - lastShortEntryTime >= 1000 * 60 * 5
+
+strategy.exit("ExitLong", "RSILong", when=lastLongEntryTimeExpired, trail_points=0, trail_offset=ts_calc, stop=sl_price)
+strategy.exit("ExitShort", "RSIShort", when=lastShortEntryTimeExpired, trail_points=0, trail_offset=ts_calc, stop=sl_price)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/445832
+
+> Last Modified
+
+2024-03-22 15:37:08

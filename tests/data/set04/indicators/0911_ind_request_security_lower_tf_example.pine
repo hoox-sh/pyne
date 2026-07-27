@@ -1,0 +1,13 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block204
+// content_hash: a37bdf41875d55d5
+// collected: 2026-07-27
+indicator("`request.security_lower_tf()` Example", overlay = true)
+
+// If the current chart timeframe is set to 120 minutes, then the `arrayClose` array will contain two 'close' values from the 60 minute timeframe for each bar.
+arrClose = request.security_lower_tf(syminfo.tickerid, "60", close)
+
+if bar_index == last_bar_index - 1
+    label.new(bar_index, high, str.tostring(arrClose))

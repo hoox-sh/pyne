@@ -1,0 +1,31 @@
+//@version=5
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/SRJ RSI Outperformer Strategy.pine
+// content_hash: 9719643e3e3c8be3
+// collected: 2026-07-27
+strategy("SRJ RSI Outperformer Strategy", overlay=true)
+srcperiod1 = input.int(14, minval=1, title="Length Of Fast RSI")
+srcperiod2 = input.int(28, minval=1, title="Length Of Slow RSI")
+srcperiod3 = input.int(14, minval=1, title="Length Of Moving Average")
+srcperiod4 = input.int(100, minval=1, title="Length Of Deciding Moving Average")
+srcperiod5 = input.int(20, minval=1, title="Target Profit Percentage")
+srcperiod6 = input.int(10, minval=1, title="Stoploss Percentage")
+rsi1 = ta.rsi(close, srcperiod1)
+rsi2 = ta.rsi(close, srcperiod2)
+divergence1 = (rsi2/rsi1)
+divergence2 = (rsi1/divergence1)
+ma1 = ta.sma(rsi1, srcperiod3)
+ma2 = ta.sma(divergence2, srcperiod3)
+//Long Conditions//
+longcondition = (ta.crossover(ma2, ma1) and (close > ta.sma(close, srcperiod4)))
+    
+//Exit onditions//
+exitcondition = (ta.crossunder(ma2, ma1) or (ta.crossunder(close, ta.sma(close, srcperiod4))))
+if (longcondition)
+    strategy.entry("Long Entry", strategy.long)
+    
+if (exitcondition)
+    
+    strategy.exit("Long Exit", profit = close * (1+(srcperiod5/100)), loss = close * (1-(srcperiod6/100)))
+Expand (39 lines)

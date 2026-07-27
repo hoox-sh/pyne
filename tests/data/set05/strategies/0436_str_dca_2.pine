@@ -1,0 +1,41 @@
+//@version=5
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/DCA 220824.pine
+// content_hash: f23319d0c845da44
+// collected: 2026-07-27
+strategy ("DCA", initial_capital=44700, overlay=true)
+// To start script at a given date
+tz = 0 //timezone
+timeadj = time + tz * 60 * 60 * 1000 //adjust the time (unix)
+t1 = timeadj >= timestamp(2003, 03, 01, 0, 0) ? 1 : 0 //get the starting time
+// Variables
+var float lastRef = na
+if barstate.isfirst
+    lastRef := close
+var float cash = strategy.initial_capital  // available money
+var float sell_contracts = na
+var bool first_trade_done = false
+// Parameters
+var float sell_min = 200 //200 sell more than sell_min or sell all
+var float buy_dollars = 200
+var int bi = 90
+// LONGS
+// if bar_index < bi
+strategy.order("Long", strategy.long, int(buy_dollars/close))
+cash := cash - int(buy_dollars/close)*close
+// label.new(bar_index, na, na, xloc.bar_index, yloc.abovebar, color.blue, label.style_triangleup, color.blue, size.tiny)
+//plot(cash)
+// SHORTS
+// if longExit  
+//     if (strategy.position_size*sf*close > sell_min) and (strategy.position_size*sf >= 1)
+//         strategy.order ("Long", strategy.short, strategy.position_size*sf)
+//         cash := cash + strategy.position_size*sf*close
+//     else 
+//         strategy.order ("Long", strategy.short, strategy.position_size)
+//         cash := cash + strategy.position_size*close
+//     lastRef := close
+//     label.new(bar_index, na, na, xloc.bar_index, yloc.belowbar, color.red, label.style_triangledown, color.red, size.tiny)
+if bar_index == last_bar_index - 2 // bi
+    strategy.order ("Long", strategy.short, strategy.position_size)
+Expand (46 lines)

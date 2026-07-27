@@ -1,0 +1,21 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/language/variable-declarations.md::variable-declarations.md#block40
+// content_hash: f54e23924d8551df
+// collected: 2026-07-27
+strategy("`varip` vs. `var` in strategies demo")
+
+// This logic creates a new market order on each execution for demonstration purposes.
+if strategy.position_size <= 0
+    strategy.entry("Long", strategy.long)
+else
+    strategy.entry("Short", strategy.short)
+
+//@variable A persistent variable whose value increases by one on each bar.
+var int counter1 = 0
+//@variable A persistent variable whose value increases by one on each execution.
+varip int counter2 = 0
+
+// The result of this operation does not vary with the strategy's calculation behavior.
+// The variable's value consistently increases by one on each bar.

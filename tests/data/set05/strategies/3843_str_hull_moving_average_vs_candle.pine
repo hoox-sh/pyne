@@ -1,0 +1,47 @@
+//@version=4
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/Hull Moving Average vs Candle.pine
+// content_hash: ca6f26565c1d3cec
+// collected: 2026-07-27
+strategy("Hull Moving Average vs Candle",shorttitle="HMA-vs-Candle",overlay=true,default_qty_type=strategy.percent_of_equity,default_qty_value=100,commission_type=strategy.commission.cash_per_order,commission_value=1.00,slippage=1)
+Period=input(title="Hull MA Period",type=input.integer,defval=50,minval=1)
+Resolution=input(title="Candle Resolution", type=input.resolution,defval="D")
+Price=input(title="Source of Price",type=input.source,defval=open)
+HMA=hma(Price,Period)
+Candle=security(syminfo.tickerid,Resolution,Price,barmerge.gaps_off,barmerge.lookahead_off)
+change_color=HMA>Candle?color.green:color.red
+plot1=plot(Candle,color=change_color,title="Candle Line",linewidth=2,transp=50)
+plot2=plot(HMA[1],color=change_color,title="Hull MA Line",linewidth=2,transp=50)
+fill(plot1,plot2,color=change_color,transp=50)
+strategy.close("BUY",when=Price<HMA and HMA<Candle,comment="close buy entry")
+strategy.close("SELL",when=Price>HMA and HMA>Candle,comment="close sell entry")
+if (Price>HMA and HMA>Candle and Price>Price[1])
+    strategy.entry("BUY",strategy.long)
+if (Price<HMA and HMA<Candle and Price<Price[1])
+    strategy.entry("SELL",strategy.short)
+//                                                                   /L'-, 
+//                               ,'-.           /MM . .             /  L '-, 
+//     .                    _,--dMMMM\         /MMM  `..           /       '-, 
+//     :             _,--,  )MMMMMMMMM),.      `QMM   ,<>         /_      '-,' 
+//     ;     ___,--. \MM(    `-'   )M//MM\       `  ,',.;      .-'* ;     .' 
+//     |     \MMMMMM) \MM\       ,dM//MMM/     ___ < ,; `.      )`--'    / 
+//     |      \MM()M   MMM)__   /MM(/MP'  ___, \  \ `  `. `.   /__,    ,' 
+//     |       MMMM/   MMMMMM( /MMMMP'__, \     | /      `. `-,_\     / 
+//     |       MM     /MMM---' `--'_ \     |-'  |/         `./ .\----.___ 
+//     |      /MM'   `--' __,-  \""   |-'  |_,               `.__) . .F. )-. 
+//     |     `--'       \   \    |-'  |_,     _,-/            J . . . J-'-. `-., 
+//     |         __  \`. |   |   |         \    / _           |. . . . \   `-.  F 
+//     |   ___  /  \  | `|   '      __  \   |  /-'            F . . . . \     '` 
+//     |   \  \ \  /  |        __  /  \  |  |,-'        __,- J . . . . . \ 
+//     |    | /  |/     __,-  \  ) \  /  |_,-     __,--'     |. .__.----,' 
+//     |    |/    ___     \    |'.  |/      __,--'           `.-;;;;;;;;;\ 
+//     |     ___  \  \     |   |  `   __,--'                  /;;;;;;;;;;;;. 
+//     |     \  \  |-'\    '    __,--'                       /;;;;;;;;;;;;;;\ 
+// \   |      | /  |      __,--'                             `--;;/     \;-'\ 
+//  \  |      |/    __,--'                                   /  /         \  \ 
+//   \ |      __,--'                                        /  /           \  \ 
+//    \|__,--'                                          _,-;M-K,           ,;-;\ 
+//                                                     <;;;;;;;;           '-;;;; 
+//                                                                                        ~ priceless artwork by SeaSide420
+Expand (46 lines)

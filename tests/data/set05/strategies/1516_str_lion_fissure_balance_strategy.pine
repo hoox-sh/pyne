@@ -1,0 +1,79 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/狮子裂缝均衡策略Lion-Fissure-Balance-Strategy.md
+// content_hash: fcb5ac4755c39c5f
+// collected: 2026-07-27
+// strategy("Strategy BackTest Display Statistics - TraderHalai", overlay=true, default_qty_value= 5, default_qty_type = strategy.percent_of_equity, initial_capital=10000,  commission_type=strategy.commission.percent, commission_value=0.1)
+
+//DEMO basic strategy - Use your own strategy here -  Jaws Mean Reversion from my profile used here
+source = input(title = "Source", defval = close)
+smallMAPeriod = input(title = "Small Moving Average", defval = 2)
+bigMAPeriod = input(title = "Big Moving Average", defval = 8)
+percentBelowToBuy = input(title = "Percent below to buy %", defval = 1)
+
+smallMA = ta.sma(source, smallMAPeriod)
+bigMA =  ta.sma(source, bigMAPeriod) 
+buyMA = ((100 - percentBelowToBuy) / 100) * ta.sma(source, bigMAPeriod)[0]
+
+buy = ta.crossunder(smallMA, buyMA)
+if(buy)
+    strategy.entry("BUY", strategy.long)
+
+if(strategy.openprofit >= strategy.position_avg_price * 0.01) // 1% profit target
+    strategy.close("BUY")
+
+if(ta.barssince(buy) >= 7) //Timed Exit, if you fail to make 1 percent in 7 candles.
+    strategy.close("BUY")
+    
+///////////////////////////// --- BEGIN TESTER CODE --- ////////////////////////
+// COPY below into your strategy to enable display
+////////////////////////////////////////////////////////////////////////////////
+
+// strategy.initial_capital = 50000
+// // Declare performance tracking variables
+// drawTester = input.bool(true, "Draw Tester")
+// var balance = strategy.initial_capital
+// var drawdown = 0.0
+// var maxDrawdown = 0.0
+// var maxBalance = 0.0
+// var totalWins = 0
+// var totalLoss = 0
+
+// // Prepare stats table
+// var table testTable = table.new(position.top_right, 5, 2, border_width=1)
+// f_fillCell(_table, _column, _row, _title, _value, _bgcolor, _txtcolor) =>
+//     _cellText = _title + "\n" + _value
+//     table.cell(_table, _column, _row, _cellText, bgcolor=_bgcolor, text_color=_txtcolor)
+    
+// // Custom function to truncate (cut) excess decimal places
+// truncate(_number, _decimalPlaces) =>
+//     _factor = math.pow(10, _decimalPlaces)
+//     int(_number * _factor) / _factor
+    
+// // Draw stats table
+// var bgcolor = color.new(color.black,0)
+// if drawTester
+//     if barstate.islastconfirmedhistory
+//         // Update table
+//         dollarReturn = strategy.netprofit
+//         f_fillCell(testTable, 0, 0, "Total Trades:", str.tostring(strategy.closedtrades), bgcolor, color.white)
+//         f_fillCell(testTable, 0, 1, "Win Rate:", str.tostring(truncate((strategy.wintrades/strategy.closedtrades)*100,2)) + "%", bgcolor, color.white)
+//         f_fillCell(testTable, 1, 0, "Starting:", "$" + str.tostring(strategy.initial_capital), bgcolor, color.white)
+//         f_fillCell(testTable, 1, 1, "Ending:", "$" + str.tostring(truncate(strategy.initial_capital + strategy.netprofit,2)), bgcolor, color.white)
+//         f_fillCell(testTable, 2, 0, "Avg Win:", "$"+ str.tostring(truncate(strategy.grossprofit / strategy.wintrades, 2)), bgcolor, color.white)
+//         f_fillCell(testTable, 2, 1, "Avg Loss:", "$"+ str.tostring(truncate(strategy.grossloss / strategy.losstrades, 2)), bgcolor, color.white)
+//         f_fillCell(testTable, 3, 0, "Profit Factor:", str.tostring(truncate(strategy.grossprofit / strategy.grossloss,2)), strategy.grossprofit > strategy.grossloss ? color.green : color.red, color.white)
+//         f_fillCell(testTable, 3, 1, "Max Runup:",  str.tostring(truncate(strategy.max_runup, 2 )), bgcolor, color.white)
+//         f_fillCell(testTable, 4, 0, "Return:", (dollarReturn > 0 ? "+" : "") + str.tostring(truncate((dollarReturn / strategy.initial_capital)*100,2)) + "%", dollarReturn > 0 ? color.green : color.red, color.white)
+//         f_fillCell(testTable, 4, 1, "Max DD:", str.tostring(truncate((strategy.max_drawdown / strategy.equity) * 100 ,2)) + "%", color.red, color.white)
+// // --- END TESTER CODE --- ///////////////
+```
+
+> Detail
+
+https://www.fmz.com/strategy/430893
+
+> Last Modified
+
+2023-11-02 16:55:00

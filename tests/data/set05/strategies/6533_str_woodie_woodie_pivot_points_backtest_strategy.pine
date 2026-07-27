@@ -1,0 +1,43 @@
+//@version=2
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于Woodie支撑阻力的回测交易策略Woodie-Pivot-Points-Backtest-Strategy.md
+// content_hash: 0d729c1d68d9d4ae
+// collected: 2026-07-27
+////////////////////////////////////////////////////////////
+//  Copyright by HPotter v1.0 22/08/2018
+// Simply input the vales of the high, low and closing price of the previous 
+// period to calculate the Woodie pivot point and the associated resistance 
+// and support levels for the present period.
+//
+// You can change long to short in the Input Settings
+// WARNING:
+// - For purpose educate only
+// - This script to change bars colors.
+////////////////////////////////////////////////////////////
+strategy(title="Woodie Pivot Points Backtest", overlay = true)
+width = input(2, minval=1)
+xHigh  = security(syminfo.tickerid,"D", high[1])
+xLow   = security(syminfo.tickerid,"D", low[1])
+xClose = security(syminfo.tickerid,"D", close[1])
+reverse = input(false, title="Trade reverse")
+xPP = (xHigh+xLow+(xClose*2)) / 4
+pos = iff(close[1] < xPP[1] and close > xPP, 1,
+       iff(close < xPP, -1, nz(pos[1], 0))) 
+possig = iff(reverse and pos == 1, -1,
+          iff(reverse and pos == -1, 1, pos))       
+if (possig == 1) 
+    strategy.entry("Long", strategy.long)
+if (possig == -1)
+    strategy.entry("Short", strategy.short)	   	    
+barcolor(possig == -1 ? red: possig == 1 ? green : blue ) 
+plot(xPP, color=blue, title="WPP", style = circles, linewidth = width)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/427397
+
+> Last Modified
+
+2023-09-20 17:08:11

@@ -1,0 +1,28 @@
+//@version=5
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/RSI cross Strategy by alireza v1.1.1.pine
+// content_hash: c5baa7b4cb5c951e
+// collected: 2026-07-27
+strategy("RSI cross Strategy by alireza v1.1.1", overlay=true)
+length1 = input( 25 )
+length2 = input( 100 )
+price = close
+vrsi1 = ta.rsi(price, length1)
+vrsi2 = ta.rsi(price, length2)
+GC = (close > open)
+RC = (open > close)
+HH = (close > close[2])
+LL = (close < close[2])
+cu = ta.crossover(vrsi1, vrsi2)
+cd = ta.crossunder(vrsi1, vrsi2)
+if (not na(vrsi1))
+    if (cu) 
+        sll=price
+        strategy.entry("BUY", strategy.long )
+        strategy.exit("SL" , limit = sll )
+    if (cd)
+        sls=price
+        strategy.entry("SELL", strategy.short )
+        strategy.exit("SL" , limit = sls )
+Expand (35 lines)

@@ -1,0 +1,56 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/大红蜡烛突破买入策略-Big-Red-Candle-Breakout-Buy-Strategy.md
+// content_hash: 0ec0b507dd1485a6
+// collected: 2026-07-27
+strategy("Red Candle Breakout Buy Strategy", overlay=true, initial_capital=24000)
+
+// Inputs
+bigRedCandlePoints = input(20, title="Big Red Candle Points")
+defaultQuantity = input(1, title="Default Quantity")
+stopLossPoints = input(20, title="Stop Loss Points")
+targetPoints = input(50, title="Target Points")
+
+// Detect a big red candle
+bigRedCandle = (high - low >= bigRedCandlePoints) and (close < open)
+
+// Track the first big red candle
+var float firstRedCandleLow = na
+var bool firstRedCandleDetected = false
+if bigRedCandle
+    firstRedCandleLow := low
+    firstRedCandleDetected := true
+
+// Reset if a new big red candle is detected
+if bigRedCandle and firstRedCandleDetected
+    firstRedCandleLow := low
+
+// Generate buy signal on the second candle breaking the first red candle's low
+buySignal = (firstRedCandleDetected and low < firstRedCandleLow and close > open)
+
+// Variables to handle quantity adjustment
+var float lastEquity = strategy.initial_capital
+var float currentQuantity = defaultQuantity
+
+// Check for equity increase and adjust quantity
+if strategy.opentrades.profit(strategy.opentrades - 1) >= lastEquity * 1.50
+    currentQuantity := currentQuantity + 1
+    lastEquity := strategy.opentrades.profit(strategy.opentrades - 1)
+
+// Execute the strategy
+if buySignal
+    strategy.entry("Buy", strategy.long, qty=currentQuantity)
+
+// Define stop loss and profit target levels
+strategy.exit("Exit", from_entry="Buy", stop=close - stopLossPoints, limit=close + targetPoints)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/458026
+
+> Last Modified
+
+2024-07-29 13:31:00

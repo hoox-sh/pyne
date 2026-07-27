@@ -1,0 +1,14 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pine_script_execution_model.md::pine_script_execution_model.md#block13
+// content_hash: 8138cc82ef9a8dd6
+// collected: 2026-07-27
+indicator("History referencing in functions demo", overlay = true, behind_chart = false)
+//@variable The highest value from the `high` series across the 20 most recent bars.
+//          The `ta.highest()` call compares the current `high` to the last 19 committed values.
+float highest = ta.highest(high, 20)
+// Plot the `highest` series on the chart.
+plot(highest, "20-bar high", color.purple, 3)
+// Color the background of the last 20 bars, i.e., the bars used by the latest execution's `ta.highest()` call.
+bgcolor(color.new(color.blue, 70), show_last = 20, title = "Last 20 bar highlight")

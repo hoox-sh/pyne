@@ -1,0 +1,49 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于布林带B指标的长线交易策略Long-Term-Trading-Strategy-Based-on-Bollinger-Bands-B-Indicator.md
+// content_hash: e8c6a9db574c5fc3
+// collected: 2026-07-27
+strategy("Bollinger Bands %B Long Strategy", shorttitle="BB %B Long Strategy", overlay=true)
+
+// Girdiler
+length = input.int(20, title="BB Length")
+src = input(close, title="Source")
+dev = input.float(2.0, title="Deviation")
+kar_hedefi = input(5, title="Take Profit")
+zarar_durumu = input(100, title="Stop Loss")
+start_date = input(timestamp("01 Jan 2023 00:00 +0000"), "Start Date")
+end_date = input(timestamp("01 Jan 2024 00:00 +0000"), "End Date")
+altinda_kalirsa_long = input.float(0, title="hangi degerin altinda long alsin")
+
+// Bollinger Bantları %B göstergesi
+basis = ta.sma(src, length)
+stdDev = ta.stdev(src, length)
+upperBand = basis + dev * stdDev
+lowerBand = basis - dev * stdDev
+percentB = (src - lowerBand) / (upperBand - lowerBand)
+
+// Alım-Satım Sinyalleri
+longCondition = percentB < altinda_kalirsa_long
+
+// Kar/Zarar Hesaplama
+takeProfit = strategy.position_avg_price * (1 + kar_hedefi / 100)
+stopLoss = strategy.position_avg_price * (1 - zarar_durumu / 100)
+
+// Long (Alım) İşlemi
+if (longCondition )
+    strategy.entry("Long", strategy.long)
+    strategy.exit("Take Profit/Stop Loss", "Long", limit=takeProfit, stop=stopLoss)
+
+// Take Profit Seviyesi Çizgisi
+plot(takeProfit, title="Take Profit", color=color.green, linewidth=1, style=plot.style_linebr)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/440695
+
+> Last Modified
+
+2024-02-01 11:15:44

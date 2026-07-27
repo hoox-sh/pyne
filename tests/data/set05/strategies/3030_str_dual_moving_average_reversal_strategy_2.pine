@@ -1,0 +1,41 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/利用双均线反转策略Dual-Moving-Average-Reversal-Strategy.md
+// content_hash: a7adba1855cda12e
+// collected: 2026-07-27
+strategy(title="Mean reversion", shorttitle="MeanRev", precision=16 , overlay=true)
+
+moveLimit = input(70)
+maLength = input(200)
+
+ma = ta.sma(close, maLength)
+
+downBar = open > close
+isThreeDown = downBar and downBar[1] and downBar[2]
+isThreeUp = not downBar and not downBar[1] and not downBar[2]
+isBigMoveDown = ((open - close) / (0.001 + high - low)) > moveLimit / 100.0
+isBigMoveUp = ((close - open) / (0.001 + high - low)) > moveLimit / 100.0
+
+isLongBuy = isThreeDown and isBigMoveDown
+isLongExit = close > high[1]
+
+isShortBuy = isThreeUp and isBigMoveUp
+isShortExit = close < low[1]
+
+strategy.entry("Entry Long", strategy.long, when=isLongBuy)
+strategy.close("Entry Long", when=isLongExit)
+
+strategy.entry("Entry Short", strategy.short, when=close < ma and isShortBuy)
+strategy.close("Entry Short", when=isShortExit)
+
+plot(ma, color=color.gray)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/435519
+
+> Last Modified
+
+2023-12-15 16:38:33

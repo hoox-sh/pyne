@@ -1,0 +1,38 @@
+// set03 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/.claude/skills/pine-publisher/SKILL.md::SKILL.md#block5
+// content_hash: d96af0ebce4495ff
+// collected: 2026-07-27
+// built with PineScript Agents by TradersPost
+//@version=6
+//@description Comprehensive description of what the strategy does
+
+strategy(title="Professional Strategy Name - Clear Description v1.0",
+         shorttitle="PRO STRAT",
+         overlay=true)
+//@strategy_alert_message {{strategy.order.alert_message}}
+
+// ============================================================================
+// METADATA
+// ============================================================================
+// Author: Your Name / Username
+// Version: 1.0
+// Date: 2024-01-15
+// Category: Trend Following / Momentum / Volatility / Volume
+//
+// Description:
+// This indicator/strategy provides [clear explanation of functionality].
+// It uses [main components/calculations] to generate [type of signals].
+//
+// Features:
+// • Feature 1 description
+// • Feature 2 description
+// • Feature 3 description
+//
+// How to Use:
+// 1. Add to your chart
+// 2. Configure settings as needed
+// 3. Look for [signal types]
+// 4. Use in conjunction with [complementary analysis]
+//
+// ============================================================================

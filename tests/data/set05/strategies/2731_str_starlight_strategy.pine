@@ -1,0 +1,51 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/星光移动平均交叉策略-Starlight-Moving-Average-Crossover-Strategy.md
+// content_hash: ddea3ff8742d1fa6
+// collected: 2026-07-27
+strategy("Starlight Strategy", overlay=true)
+
+// Define the inputs for the moving averages
+shortLength = input.int(20, title="Short Moving Average Length")
+longLength = input.int(50, title="Long Moving Average Length")
+
+// Calculate the moving averages
+shortMA = ta.sma(close, shortLength)
+longMA = ta.sma(close, longLength)
+
+// Calculate MACD
+[macdLine, signalLine, _] = ta.macd(close, 12, 26, 9)
+
+// Plot the moving averages
+plot(shortMA, color=color.orange, title="Short Moving Average")
+plot(longMA, color=color.green, title="Long Moving Average")
+
+// Plot MACD on a separate chart
+hline(0, "Zero Line", color=color.gray)
+plot(macdLine, color=color.red, title="MACD Line")
+plot(signalLine, color=color.purple, title="Signal Line")
+
+// Generate buy and sell signals
+buySignal = ta.crossover(shortMA, longMA)
+sellSignal = ta.crossunder(shortMA, longMA)
+
+// Plot buy and sell signals
+plotshape(series=buySignal, title="Buy Signal", location=location.belowbar, color=color.green, style=shape.labelup, text="BUY")
+plotshape(series=sellSignal, title="Sell Signal", location=location.abovebar, color=color.red, style=shape.labeldown, text="SELL")
+
+// Strategy execution
+if (buySignal)
+    strategy.entry("Buy", strategy.long)
+if (sellSignal)
+    strategy.close("Buy")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/453277
+
+> Last Modified
+
+2024-06-03 16:45:08

@@ -1,0 +1,51 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于支撑位和阻力位的技术分析交易策略-Trading-Strategy-Based-on-Support-and-Resistance-Levels-Using-Technical-Analysis.md
+// content_hash: 954cba60afacc354
+// collected: 2026-07-27
+strategy("Торговая стратегия от уровней", overlay=true)
+
+// Функция для определения уровней поддержки и сопротивления
+findSR() =>
+    // Получаем данные для поиска уровней
+    data = request.security(syminfo.tickerid, "D", close)
+    // Находим уровни поддержки и сопротивления
+    pivot_high = ta.pivothigh(data, 7, 7)
+    pivot_low = ta.pivotlow(data, 7, 7)
+    [pivot_high, pivot_low]
+
+[support, resistance] = findSR()
+
+// Условия входа в длинную позицию
+longCondition = close > resistance
+// Условия входа в короткую позицию
+shortCondition = close < support and high[1] < support
+
+// Условия выхода из позиции
+exitCondition = close < resistance and close > support
+
+// Отображение уровней поддержки и сопротивления на графике
+plot(support, color=color.green, style=plot.style_stepline)
+plot(resistance, color=color.red, style=plot.style_stepline)
+
+// Вход в позицию
+if (longCondition)
+    strategy.entry("Длинная", strategy.long)
+if (shortCondition)
+    strategy.entry("Короткая", strategy.short)
+
+// Выход из позиции
+if (exitCondition)
+    strategy.close("Длинная")
+    strategy.close("Короткая")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/451028
+
+> Last Modified
+
+2024-05-11 11:53:34

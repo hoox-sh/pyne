@@ -1,0 +1,47 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/BMSB-布林麦克超级趋势交易策略-BMSB-Bollinger-SuperTrend-Trading-Strategy.md
+// content_hash: 182700cb75694583
+// collected: 2026-07-27
+strategy("BMSB Strategy Mejora", overlay=true)
+
+// Indicators
+src = close
+sma = ta.sma(src, 20)
+ema = ta.ema(src, 21)
+
+// Bull Super Market as var
+bmsbmayor = sma > ema ? sma : ema
+bmsbmenor = sma > ema ? ema : sma
+
+// Buy and Sell conditions
+buySignal = ta.crossover(close, bmsbmayor)
+sellSignal = ta.crossunder(close, bmsbmenor)
+
+// Buy and Sell orders
+if (buySignal)
+    if (strategy.position_size < 0)
+        strategy.close("Sell")
+    strategy.entry("Buy", strategy.long)
+
+if (sellSignal)
+    if (strategy.position_size > 0)
+        strategy.close("Buy")
+    strategy.entry("Sell", strategy.short)
+
+// Plot
+plot(bmsbmayor, color=color.green)
+plot(bmsbmenor, color=color.red)
+
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/451393
+
+> Last Modified
+
+2024-05-14 15:52:32

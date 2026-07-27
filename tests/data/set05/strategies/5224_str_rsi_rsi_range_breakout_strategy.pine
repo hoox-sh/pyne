@@ -1,0 +1,56 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/RSI区间突破策略RSI-Range-Breakout-Strategy.md
+// content_hash: 0c2efb6d774004b8
+// collected: 2026-07-27
+
+//strategy("Strategy RSI | Fadior", shorttitle="Strategy RSI", pyramiding=10, calc_on_order_fills=false, initial_capital=10000, default_qty_type=strategy.percent_of_equity, currency="USD", default_qty_value=100, overlay=false)
+ 
+len = input(3, minval=1, title="RSI Length") 
+threshLow = input(title="Treshold Low", defval=35)
+threshHigh = input(title="Treshold High", defval=80)
+rsiLength1 = input(title="RSI Smoothing 1", defval=3)
+rsiLength2 = input(title="RSI Smoothing 2", defval=5)
+SL = input(title="Stop loss %", type=float, defval=.026, step=.001)
+TP = input( defval=300)
+
+// 3 40 70 2
+// 14 40 70 2 16 0.05 50
+
+src = close
+  
+up = rma(max(change(src), 0), len)
+down = rma(-min(change(src), 0), len)
+rsi = down == 0 ? 100 : up == 0 ? 0 : 100 - (100 / (1 + up / down))
+
+plot(sma(rsi,rsiLength2), color=orange)
+plot(sma(rsi,rsiLength1), color=green)
+
+band1 = hline(threshHigh)
+band0 = hline(threshLow)
+fill(band1, band0, color=purple, transp=90)
+
+strategy = input(type=bool, title="Long only ?", defval=true)
+strategy.risk.allow_entry_in(strategy ? strategy.direction.long : strategy.direction.all)
+
+longCondition = sma(rsi,rsiLength1) < threshLow and sma(rsi,rsiLength2) > sma(rsi,rsiLength2)[1] 
+
+if (longCondition)
+    strategy.entry("Long", strategy.long) //, qty=10)
+    strategy.exit("Close Long", "Long", stop=src-close*SL, profit=TP)
+    
+shortCondition = sma(rsi,rsiLength1) > threshHigh and sma(rsi,rsiLength2) < sma(rsi,rsiLength2)[1]
+if (shortCondition)
+    strategy.entry("Short", strategy.short) //, qty=10)
+    strategy.exit("Close Short", "Short") //, stop=src-close*SL, profit=TP)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/428981
+
+> Last Modified
+
+2023-10-11 15:54:11

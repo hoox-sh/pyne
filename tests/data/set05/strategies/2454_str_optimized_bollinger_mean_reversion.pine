@@ -1,0 +1,57 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/强化波林格均值回归量化策略-Enhanced-Bollinger-Mean-Reversion-Quantitative-Strategy.md
+// content_hash: f4bf8f517a80d3ae
+// collected: 2026-07-27
+strategy("Optimized Bollinger Mean Reversion", overlay=true)
+
+// Bollinger Band Settings
+length = input.int(20, title="BB Length")
+src = input(close, title="Source")
+mult = input.float(2.0, title="BB Multiplier")
+
+// Bollinger Bands Calculation
+basis = ta.sma(src, length)
+dev = mult * ta.stdev(src, length)
+upper = basis + dev
+lower = basis - dev
+
+// Plot the Bollinger Bands
+plot(basis, color=color.blue)
+p1 = plot(upper, color=color.red)
+p2 = plot(lower, color=color.red)
+fill(p1, p2, color=color.rgb(41, 98, 255, 90))
+
+// Trend Filter - 50 EMA
+ema_filter = ta.ema(close, 50)
+
+// ATR for Dynamic Stop Loss/Take Profit
+atr_value = ta.atr(14)
+
+// Buy condition - price touches lower band and above 50 EMA
+buy_condition = ta.crossover(close, lower) and close > ema_filter
+
+// Sell condition - price touches upper band and below 50 EMA
+sell_condition = ta.crossunder(close, upper) and close < ema_filter
+
+// Strategy Execution
+if (buy_condition)
+    strategy.entry("Buy", strategy.long)
+
+if (sell_condition)
+    strategy.entry("Sell", strategy.short)
+
+// Exit with dynamic ATR-based stop loss and take profit
+strategy.exit("Take Profit/Stop Loss", from_entry="Buy", limit=2*atr_value, stop=1*atr_value)
+strategy.exit("Take Profit/Stop Loss", from_entry="Sell", limit=2*atr_value, stop=1*atr_value)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/472253
+
+> Last Modified
+
+2024-11-18 16:07:05

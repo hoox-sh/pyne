@@ -1,0 +1,45 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于EMA指标的双线交叉趋势交易策略Dual-EMA-Cross-Trend-Trading-Strategy.md
+// content_hash: ba17521b7d632ef9
+// collected: 2026-07-27
+strategy("EMA Cross Strategy", overlay=true)
+
+// 输入设置
+ema30_length = input.int(30, title="EMA 30 Length", minval=1)
+ema60_length = input.int(60, title="EMA 60 Length", minval=1)
+
+// 计算EMA
+ema30 = ta.ema(close, ema30_length)
+ema60 = ta.ema(close, ema60_length)
+
+// 绘制EMA
+plot(ema30, title="EMA 30", color=color.blue, linewidth=2)
+plot(ema60, title="EMA 60", color=color.red, linewidth=2)
+
+// 判断上升趋势
+uptrend = close > ema30 and ema30 > ema60
+
+// 买入条件
+buy_signal = ta.crossover(close, ema30) and close[1] < ema30[1] and close[1] > ema60[1] and uptrend
+
+// 止盈止损
+take_profit_level = ta.highest(high, 10)
+stop_loss_level = ema60
+
+// 执行交易
+if (buy_signal)
+    strategy.entry("Long", strategy.long)
+    strategy.exit("Exit", "Long", stop=stop_loss_level, limit=take_profit_level)
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/439747
+
+> Last Modified
+
+2024-01-23 14:43:46

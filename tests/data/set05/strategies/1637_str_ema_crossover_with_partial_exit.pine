@@ -1,0 +1,75 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双指数移动平均线趋势跟踪与分步退出交易策略-Dual-EMA-Trend-Following-Strategy-with-Staged-Position-Exit.md
+// content_hash: a4d7e721068a0beb
+// collected: 2026-07-27
+strategy("EMA Crossover with Partial Exit", overlay=true, default_qty_type=strategy.cash, default_qty_value=50)
+
+// Define lot sizes
+lotSize = 0.02   // Initial trade size
+partialLot = 0.01 // Half quantity to close at 20 pips profit
+profitTarget = 200 // 20 pips = 200 points (for Forex, adjust accordingly)
+
+// Define EMA lengths
+fastLength = 9
+slowLength = 21
+
+// Compute EMAs
+fastEMA = ta.ema(close, fastLength)
+slowEMA = ta.ema(close, slowLength)
+
+// Define crossover conditions
+longEntry = ta.crossover(fastEMA, slowEMA)   // Buy when 9 EMA crosses above 21 EMA
+shortEntry = ta.crossunder(fastEMA, slowEMA) // Sell when 9 EMA crosses below 21 EMA
+
+// Track trade state
+var float entryPrice = na
+var bool inTrade = false
+var bool isLong = false
+
+// Entry Logic (Enter with 0.02 lot size)
+if (longEntry and not inTrade)
+    strategy.entry("Long", strategy.long, qty=lotSize)
+    entryPrice := close
+    inTrade := true
+    isLong := true
+
+if (shortEntry and not inTrade)
+    strategy.entry("Short", strategy.short, qty=lotSize)
+    entryPrice := close
+    inTrade := true
+    isLong := false
+
+// Partial Exit Logic (Close 0.01 lot after 20 pips profit)
+if (isLong and inTrade and close >= entryPrice + profitTarget * syminfo.mintick)
+    strategy.close("Long", qty=partialLot)
+
+if (not isLong and inTrade and close <= entryPrice - profitTarget * syminfo.mintick)
+    strategy.close("Short", qty=partialLot)
+
+// Full Exit (Close remaining 0.01 lot at the next major crossover)
+if (isLong and shortEntry)
+    strategy.close("Long") // Close remaining position
+    inTrade := false
+
+if (not isLong and longEntry)
+    strategy.close("Short") // Close remaining position
+    inTrade := false
+
+// Plot EMAs
+plot(fastEMA, color=color.blue, title="9 EMA")
+plot(slowEMA, color=color.red, title="21 EMA")
+
+// Mark Buy/Sell Signals
+plotshape(series=longEntry, location=location.belowbar, color=color.green, style=shape.labelup, title="BUY Signal")
+plotshape(series=shortEntry, location=location.abovebar, color=color.red, style=shape.labeldown, title="SELL Signal")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/483526
+
+> Last Modified
+
+2025-02-24 10:23:24

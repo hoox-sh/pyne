@@ -1,0 +1,55 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/均线金叉死叉策略-Moving-Average-Crossover-Strategy.md
+// content_hash: ec28898b629a33a2
+// collected: 2026-07-27
+strategy("barreto es marica", overlay=true)
+
+// Parámetros de entrada
+fastLength = input(10, title="Periodo de la media rápida")
+slowLength = input(30, title="Periodo de la media lenta")
+
+// Cálculo de las medias móviles
+fastMA = sma(close, fastLength)
+slowMA = sma(close, slowLength)
+
+// Condiciones de entrada
+enterLong = crossover(fastMA, slowMA)
+enterShort = crossunder(fastMA, slowMA)
+
+// Condiciones de salida
+exitLong = crossunder(fastMA, slowMA)
+exitShort = crossover(fastMA, slowMA)
+
+// Gestión de posiciones
+if (enterLong)
+    strategy.entry("Long", strategy.long)
+
+if (enterShort)
+    strategy.entry("Short", strategy.short)
+
+if (exitLong)
+    strategy.close("Long")
+
+if (exitShort)
+    strategy.close("Short")
+
+// Stop loss y toma de ganancias
+stopLossLevel = strategy.position_avg_price * (1 - 0.01)
+takeProfitLevel = strategy.position_avg_price * (1 + 0.03)
+strategy.exit("Stop Loss/Take Profit", "Long", stop=stopLossLevel, limit=takeProfitLevel)
+strategy.exit("Stop Loss/Take Profit", "Short", stop=stopLossLevel, limit=takeProfitLevel)
+
+// Plotting
+plot(fastMA, color=color.blue, title="Media rápida")
+plot(slowMA, color=color.red, title="Media lenta")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/446560
+
+> Last Modified
+
+2024-03-29 16:38:33

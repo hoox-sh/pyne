@@ -1,0 +1,84 @@
+//@version=6
+// set03 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/滑动平均-RSI-交叉动量确认策略-Moving-Average-RSI-Crossover-Momentum-Confirmation-Strategy.md
+// content_hash: acb0640c7343bbed
+// collected: 2026-07-27
+strategy("SMA+RSI Strategy", overlay=true)
+
+// Customizable input settings
+smaShortPeriod = input.int(20, title="SMA Short Period", minval=1)
+smaLongPeriod = input.int(30, title="SMA Long Period", minval=1)
+rsiPeriod = input.int(14, title="RSI Period", minval=1)
+rsiOverbought = input.int(75, title="RSI Overbought Level", minval=1, maxval=100)
+rsiOversold = input.int(25, title="RSI Oversold Level", minval=1, maxval=100)
+takeProfitPerc = input.float(2.0, title="Take Profit (%)", minval=0.1, step=0.1) / 100  // Target profit percentage
+enableTakeProfit = input.bool(true, title="Enable Take Profit")  // Enable/disable take profit option
+halfPositionTakeProfit = input.bool(false, title="Enable Half Position Take Profit")  // Option to take profit on half position
+
+// Indicator calculations
+smaShort = ta.sma(close, smaShortPeriod)
+smaLong = ta.sma(close, smaLongPeriod)
+rsi = ta.rsi(close, rsiPeriod)
+
+// Buy and sell signals
+buySignal = ta.crossover(smaShort, smaLong) and rsi > rsiOversold
+sellSignal = ta.crossunder(smaShort, smaLong) and rsi < rsiOverbought
+
+// Variable to store current market state
+var bool inBuyState = false
+var bool inSellState = false
+
+// Store entry price
+var float entryPrice = na
+
+// Variable to track whether half position take profit has been executed
+var bool halfPositionTaken = false
+
+// Update market state based on signals
+if (buySignal)
+    inBuyState := true
+    inSellState := false
+    entryPrice := close  // Store entry price at buy signal
+    halfPositionTaken := false  // Reset half position take profit state when opening a new trade
+if (sellSignal)
+    inSellState := true
+    inBuyState := false
+    halfPositionTaken := false  // Reset half position take profit state when closing a trade
+
+// Calculate target take profit level
+takeProfitLevel = inBuyState ? entryPrice * (1 + takeProfitPerc) : na
+
+// Execute trades
+if (buySignal)
+    strategy.entry("Buy", strategy.long, comment="Buy")  // Comment when opening trade
+
+// Close half position at target if enabled and not yet taken
+if (inBuyState and enableTakeProfit and halfPositionTakeProfit and close >= takeProfitLevel and not halfPositionTaken)
+    strategy.close("Buy", qty_percent=50, comment="partialClose")  // Close half position
+    halfPositionTaken := true  // Update state to prevent re-execution
+
+// Close full position at target if half position take profit is disabled
+if (inBuyState and enableTakeProfit and not halfPositionTakeProfit and close >= takeProfitLevel)
+    strategy.close("Buy", comment="Close")  // Close full position
+
+// Close position on sell signal
+if (sellSignal)
+    strategy.close("Buy", comment="Close")  // Close position on sell signal
+
+// Plot moving averages on chart
+plot(smaShort, color=color.blue, title="SMA Short")
+plot(smaLong, color=color.red, title="SMA Long")
+
+// Change candle colors based on market state
+barcolor(inBuyState ? color.green : inSellState ? color.red : na)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/486566
+
+> Last Modified
+
+2025-03-14 09:35:47

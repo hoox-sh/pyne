@@ -1,0 +1,15 @@
+//@version=5
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/v5/primer/first-indicator.md::first-indicator.md#block1
+// content_hash: a81c18889e65eebe
+// collected: 2026-07-27
+indicator("MACD #1")
+fast = 12
+slow = 26
+fastMA = ta.ema(close, fast)
+slowMA = ta.ema(close, slow)
+macd = fastMA - slowMA
+signal = ta.ema(macd, 9)
+plot(macd, color = color.blue)
+plot(signal, color = color.orange)

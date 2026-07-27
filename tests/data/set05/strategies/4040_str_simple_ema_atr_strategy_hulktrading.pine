@@ -1,0 +1,29 @@
+//@version=4
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/Simple Ema_ATR Strategy HulkTrading.pine
+// content_hash: 7c993c8aea2451e3
+// collected: 2026-07-27
+strategy("Simple Ema_ATR Strategy HulkTrading", overlay=true)
+atr_multiplier = input(2, minval=1, title="ATR Multiplier") // ATR Multiplier. Recommended values between 1..4
+emaFast=ema(close,21)
+emaSlow=ema(close,55)
+//Basically long and short conditions
+//If long: 
+// 1) close must be less than open (because we are searching for a pullback)
+// 2) emaFast(21) must be bigger than emaSlow(55) - for a trend detection
+// 3) Difference between emaFast and emaSlow must be greater than ATR(14) - for excluding flat
+longCond = close < open and emaFast > emaSlow and abs(emaSlow-emaFast) > atr(14)  
+//For short conditions are opposite
+shortCond = close > open and emaFast < emaSlow and abs(emaSlow-emaFast) > atr(14) 
+//Stop levels and take profits, based on ATR multiplier
+stop_level_long = strategy.position_avg_price - atr_multiplier*atr(14)
+take_level_long = strategy.position_avg_price + atr_multiplier*atr(14)
+stop_level_short = strategy.position_avg_price + atr_multiplier*atr(14)
+take_level_short = strategy.position_avg_price - atr_multiplier*atr(14)
+//Entries and exits 
+strategy.entry("Long", strategy.long, when=longCond, limit = emaSlow)
+strategy.exit("Stop Loss/TP","Long", stop=stop_level_long, limit = take_level_long)
+strategy.entry("Short", strategy.short, when=shortCond, limit = emaSlow)
+strategy.exit("Stop Loss/TP","Short", stop=stop_level_short, limit = take_level_short)
+Expand (41 lines)

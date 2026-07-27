@@ -1,0 +1,17 @@
+//@version=6
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/visuals/overview.md::overview.md#block6
+// content_hash: 26f3ea3ceecf0007
+// collected: 2026-07-27
+indicator("`bgcolor()` and `barcolor()` demo")
+
+// Plot a new candle series for this script, separate to the main pane. Candles are set to main series OHLC values.
+plotcandle(open, high, low, close, color = color.silver)
+
+// Set the background color of the script pane. Color is set conditionally depending on divisibility of `bar_index` by 10 or 6.
+bgcolor(bar_index % 10 == 0 ? color.new(color.purple, 60) : bar_index % 6 == 0 ? color.new(color.teal, 60) : na)   
+
+// Set the bar color for the main series. Although script executes in a separate pane, this call executes on the main pane.
+// Bar's body color is set conditionally to highlight bars with price move of 10 or more.
+barcolor(math.abs(close - open) >= 10  ? color.orange : color.white)

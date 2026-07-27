@@ -1,0 +1,12 @@
+//@version=4
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/v4/language/expressions-declarations-and-statements.md::expressions-declarations-and-statements.md#block3
+// content_hash: c1d88c22613cda25
+// collected: 2026-07-27
+study("My Script")
+price = close
+if hl2 > price
+    price := hl2
+plot(price)
+if statement

@@ -1,0 +1,46 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/MACD长线反转策略MACD-Long-Reversal-Strategy.md
+// content_hash: 1563e583ccf7f4e4
+// collected: 2026-07-27
+strategy("MACD Long Strat", overlay=false)
+
+
+//fast = 12, slow = 26
+fast = 6, slow = 26
+fastMA = ema(close, fast)
+slowMA = ema(close, slow)
+macd = fastMA - slowMA
+signal = sma(macd, 9)
+histogram = macd-signal
+
+macdpos = histogram[0] > 0
+macdneg = histogram[0] < 0
+
+histogram_reversing_negative = histogram[1] > histogram[2]
+
+
+LongEntryCondition =  histogram > histogram[1] 
+ShortEntryCondition =  histogram < histogram[1]
+
+exitConditionLong = histogram[0] < histogram[2]
+
+if (LongEntryCondition and histogram_reversing_negative)
+    strategy.entry("Long", strategy.long)
+
+
+if (exitConditionLong)
+    strategy.close("Long")
+    
+plot(histogram)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/435495
+
+> Last Modified
+
+2023-12-15 13:55:38

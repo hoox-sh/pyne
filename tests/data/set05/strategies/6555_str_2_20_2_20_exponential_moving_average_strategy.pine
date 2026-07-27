@@ -1,0 +1,35 @@
+//@version=2
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/2-20指数移动平均策略2-20-Exponential-Moving-Average-Strategy.md
+// content_hash: bae40c66e9a429c9
+// collected: 2026-07-27
+////////////////////////////////////////////////////////////
+//  Copyright by HPotter v1.0 21/11/2016
+// This indicator plots 2/20 exponential moving average. For the Mov 
+// Avg X 2/20 Indicator, the EMA bar will be painted when the Alert criteria is met.
+////////////////////////////////////////////////////////////
+strategy(title="Strategy 2/20 Exponential Moving Average", overlay = true)
+Length = input(20, minval=1)
+xPrice = close
+xXA = ema(xPrice, Length)
+nHH = max(high, high[1])
+nLL = min(low, low[1])
+nXS = iff((nLL > xXA)or(nHH < xXA), nLL, nHH)
+pos = iff(nXS > close[1] , -1, iff(nXS < close[1] , 1, nz(pos[1], 0))) 
+if (pos == 1) 
+    strategy.entry("Long", strategy.long)
+if (pos == -1)
+    strategy.entry("Short", strategy.short)	    
+barcolor(pos == -1 ? red: pos == 1 ? green : blue )
+//plot(nXS, color=blue, title="XAverage")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/427276
+
+> Last Modified
+
+2023-09-19 17:02:20

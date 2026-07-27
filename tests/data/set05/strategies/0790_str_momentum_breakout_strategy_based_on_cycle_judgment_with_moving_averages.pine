@@ -1,0 +1,119 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于均线和周期判断的动量突破策略Momentum-Breakout-Strategy-Based-on-Cycle-Judgment-with-Moving-Averages.md
+// content_hash: 410957623914af55
+// collected: 2026-07-27
+strategy(title="[Salavi] | Andy Advance Pro Strategy",overlay = true)
+
+ema_short = ta.ema(close,5)
+ema_middle = ta.ema(close,20)
+ema_long = ta.ema(close,40)
+
+cycle_1 = ema_short>ema_middle and ema_middle>ema_long
+cycle_2 = ema_middle>ema_short and ema_short>ema_long
+cycle_3 = ema_middle>ema_long and ema_long>ema_short
+cycle_4 = ema_long>ema_middle and ema_middle>ema_short
+cycle_5 = ema_long>ema_short and ema_short>ema_middle
+cycle_6 = ema_short>ema_long and ema_long>ema_middle
+
+bull_cycle = cycle_1 or cycle_2 or cycle_3
+bear_cycle = cycle_4 or cycle_5 or cycle_6
+// label.new("cycle_1")
+// bgcolor(color=cycle_1?color.rgb(82, 255, 148, 60):na)
+// bgcolor(color=cycle_2?color.rgb(82, 255, 148, 70):na)
+// bgcolor(color=cycle_3?color.rgb(82, 255, 148, 80):na)
+// bgcolor(color=cycle_4?color.rgb(255, 82, 82, 80):na)
+// bgcolor(color=cycle_5?color.rgb(255, 82, 82, 70):na)
+// bgcolor(color=cycle_6?color.rgb(255, 82, 82, 60):na)
+
+// Inputs
+a = input(2, title='Key Vaule. \'This changes the sensitivity\'')
+c = input(7, title='ATR Period')
+h = false
+
+xATR = ta.atr(c)
+nLoss = a * xATR
+
+src = h ? request.security(ticker.heikinashi(syminfo.tickerid), timeframe.period, close, lookahead=barmerge.lookahead_off) : close
+
+xATRTrailingStop = 0.0
+iff_1 = src > nz(xATRTrailingStop[1], 0) ? src - nLoss : src + nLoss
+iff_2 = src < nz(xATRTrailingStop[1], 0) and src[1] < nz(xATRTrailingStop[1], 0) ? math.min(nz(xATRTrailingStop[1]), src + nLoss) : iff_1
+xATRTrailingStop := src > nz(xATRTrailingStop[1], 0) and src[1] > nz(xATRTrailingStop[1], 0) ? math.max(nz(xATRTrailingStop[1]), src - nLoss) : iff_2
+
+pos = 0
+iff_3 = src[1] > nz(xATRTrailingStop[1], 0) and src < nz(xATRTrailingStop[1], 0) ? -1 : nz(pos[1], 0)
+pos := src[1] < nz(xATRTrailingStop[1], 0) and src > nz(xATRTrailingStop[1], 0) ? 1 : iff_3
+
+xcolor = pos == -1 ? color.red : pos == 1 ? color.green : color.blue
+
+ema = ta.ema(src, 1)
+above = ta.crossover(ema, xATRTrailingStop)
+below = ta.crossover(xATRTrailingStop, ema)
+
+buy = src > xATRTrailingStop and above
+sell = src < xATRTrailingStop and below
+
+barbuy = src > xATRTrailingStop
+barsell = src < xATRTrailingStop
+
+
+
+
+atr = ta.atr(14)
+atr_length = input.int(25)
+atr_rsi = ta.rsi(atr,atr_length)
+atr_valid = atr_rsi>50
+
+long_condition =  buy and bull_cycle and atr_valid
+short_condition =  sell and bear_cycle and atr_valid
+
+Exit_long_condition = short_condition
+Exit_short_condition = long_condition
+
+if long_condition
+    strategy.entry("Andy Buy",strategy.long, limit=close,comment="Andy Buy Here")
+
+if Exit_long_condition
+    strategy.close("Andy Buy",comment="Andy Buy Out")
+    // strategy.entry("Andy fandan Short",strategy.short, limit=close,comment="Andy 翻單 short Here")
+    // strategy.close("Andy fandan Buy",comment="Andy short Out")
+
+
+if short_condition
+    strategy.entry("Andy Short",strategy.short, limit=close,comment="Andy short Here")
+
+
+// strategy.exit("STR","Long",stop=longstoploss)
+if Exit_short_condition
+    strategy.close("Andy Short",comment="Andy short Out")
+    // strategy.entry("Andy fandan Buy",strategy.long, limit=close,comment="Andy 翻單 Buy Here")
+    // strategy.close("Andy fandan Short",comment="Andy Buy Out")
+
+
+
+
+inLongTrade = strategy.position_size > 0
+inLongTradecolor = #58D68D
+notInTrade = strategy.position_size == 0
+inShortTrade = strategy.position_size < 0
+
+// bgcolor(color = inLongTrade?color.rgb(76, 175, 79, 70):inShortTrade?color.rgb(255, 82, 82, 70):na)
+plotshape(close!=0,location = location.bottom,color = inLongTrade?color.rgb(76, 175, 79, 70):inShortTrade?color.rgb(255, 82, 82, 70):na)
+
+
+plotshape(long_condition, title='Buy', text='Andy Buy', style=shape.labelup, location=location.belowbar, color=color.new(color.green, 0), textcolor=color.new(color.white, 0), size=size.tiny)
+plotshape(short_condition, title='Sell', text='Andy Sell', style=shape.labeldown, location=location.abovebar, color=color.new(color.red, 0), textcolor=color.new(color.white, 0), size=size.tiny)
+
+
+//atr > close *0.01* parameter
+```
+
+> Detail
+
+https://www.fmz.com/strategy/439749
+
+> Last Modified
+
+2024-01-23 14:51:27

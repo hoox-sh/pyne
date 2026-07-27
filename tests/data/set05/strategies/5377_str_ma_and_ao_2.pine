@@ -1,0 +1,49 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/均线震荡AO指标交易策略Moving-Average-AO-Indicator-Trading-Strategy.md
+// content_hash: a797a2ba53d9dc37
+// collected: 2026-07-27
+strategy("MA&AO", overlay = true, default_qty_type=strategy.percent_of_equity, default_qty_value=100, commission_type=strategy.commission.percent, commission_value=0.075, currency='USD')
+startP = timestamp(input(2017, "Start Year"), input(12, "Month"), input(17, "Day"), 0, 0)
+end   = timestamp(input(9999, "End Year"),   input(1, "Month"),   input(1, "Day"),   0, 0)
+_testPeriod() =>
+    true
+
+//Inputs
+fast_ma = input(8, title="Fast EMA", minval=2)
+slow_ma = input(20, minval=1, title="Slow SMA")
+AO_fast = input(5, minval=1, title="Awesome Length Fast")
+AO_slow = input(8, minval=1, title="Awesome Length Slow")
+
+//MA
+fast  = ema(close, fast_ma)
+slow =  sma(close, slow_ma)
+
+//AO
+AO_1 = sma(hl2, AO_fast)
+AO_2 = sma(hl2, AO_slow)
+dif = AO_1 - AO_2
+AO = dif>=0? dif > dif[1] ? 1 : 2 : dif > dif[1] ? -1 : -2
+
+long   =  crossover(fast, slow) and close > slow and abs(AO)==1
+short =   fast < slow and close < slow and abs(AO)==2
+
+long_condition =  long and _testPeriod() 
+strategy.entry('BUY', strategy.long, when=long_condition)  
+ 
+short_condition = short 
+strategy.close('BUY', when=short_condition)
+
+
+plot(fast, color=color.green)
+plot(slow, color=color.red)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/426500
+
+> Last Modified
+
+2023-09-12 16:09:01

@@ -1,0 +1,79 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多维度量化交易系统高级VSA-MACD-FVG策略分析与优化框架-Advanced-Quantitative-Trading-System-VSA-MACD-FVG-Strategy-Analysis-and-Optimization-Framework.md
+// content_hash: 6ce0a0dcd8693408
+// collected: 2026-07-27
+strategy("VSA_MACD_FVG Strategy", overlay=true)
+
+// === MACD Calculation ===
+[macdLine, signalLine, hist] = ta.macd(close, 12, 26, 9)
+macdBullish = macdLine > signalLine and macdLine > 0
+macdBearish = macdLine < signalLine and macdLine < 0
+
+// === VSA Basic Implementation ===
+vsaBullish = close > open and volume > ta.sma(volume, 20) and close > ta.highest(high, 5)[1]
+vsaBearish = close < open and volume > ta.sma(volume, 20) and close < ta.lowest(low, 5)[1]
+
+// === FVG (Fair Value Gap) Detection ===
+fvgUpCondition = low > high[2] and close[1] > open[1]
+fvgDownCondition = high < low[2] and close[1] < open[1]
+
+var float fvgTop = 0.0
+var float fvgBottom = 0.0
+var bool inFVG = false
+
+// Detect and Store FVG
+if fvgUpCondition
+    fvgTop := low
+    fvgBottom := high[2]
+    inFVG := true
+else if fvgDownCondition
+    fvgTop := low[2]
+    fvgBottom := high
+    inFVG := true
+
+// Check if price is in FVG
+priceInFVG = (high >= fvgBottom and low <= fvgTop)
+
+// === Position Tracking ===
+isLongOpen = strategy.position_size > 0
+isShortOpen = strategy.position_size < 0
+
+// === Trading Conditions ===
+buySignal = vsaBullish and macdBullish and priceInFVG and not isLongOpen
+sellSignal = vsaBearish and macdBearish and priceInFVG and not isShortOpen
+
+// === Execute Trades ===
+if buySignal
+    strategy.entry("Buy", strategy.long)
+
+if sellSignal
+    strategy.entry("Sell", strategy.short)
+
+// === Visual Markers ===
+if buySignal
+    label.new(bar_index, low, "BUY", 
+              color=color.green, 
+              textcolor=color.white, 
+              style=label.style_label_up)
+
+if sellSignal
+    label.new(bar_index, high, "SELL", 
+              color=color.red, 
+              textcolor=color.white, 
+              style=label.style_label_down)
+
+// === Plot MACD for reference ===
+plot(macdLine, "MACD", color=color.blue)
+plot(signalLine, "Signal", color=color.orange)
+plot(hist, "Histogram", style=plot.style_histogram, color=color.gray)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/484089
+
+> Last Modified
+
+2025-02-28 09:39:23

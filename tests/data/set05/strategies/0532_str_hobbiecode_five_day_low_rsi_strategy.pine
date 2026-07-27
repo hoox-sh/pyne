@@ -1,0 +1,26 @@
+//@version=5
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/Hobbiecode - Five Day Low RSI Strategy.pine
+// content_hash: 8dbc5482eb66be5f
+// collected: 2026-07-27
+strategy("Hobbiecode - Five Day Low RSI Strategy", overlay=true)
+// RSI parameters
+rsi_period = 2
+rsi_upper = 50
+// Calculate RSI
+rsi_val = ta.rsi(close, rsi_period)
+// Check if today's close is below yesterday's 5 day low
+conditionEntry = close < ta.lowest(low[1], 5) and strategy.position_size < 1
+if (conditionEntry)
+    strategy.entry("Buy", strategy.long)
+// Check if RSI closes above 50
+if (strategy.position_size > 0 and rsi_val > rsi_upper)
+    strategy.close("Buy")
+// If position held for more than 5 days without sell criteria, then close position
+if (strategy.position_size > 0 and ta.barssince(conditionEntry) >= 5)
+    strategy.close("Buy")
+// Plot RSI on chart
+plot(rsi_val, title="RSI", color=color.red)
+hline(rsi_upper, title="Overbought Level", color=color.blue)
+Expand (35 lines)

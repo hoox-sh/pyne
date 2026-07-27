@@ -1,0 +1,11 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block46
+// content_hash: 7520adf80fae241b
+// collected: 2026-07-27
+indicator("array.binary_search")
+a = array.from(5, -2, 0, 9, 1)
+array.sort(a) // [-2, 0, 1, 5, 9]
+position = array.binary_search(a, 0) // 1
+plot(position)

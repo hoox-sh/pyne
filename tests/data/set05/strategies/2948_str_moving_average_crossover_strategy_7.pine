@@ -1,0 +1,45 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/一种双均线交易策略Dual-Moving-Average-Crossover-Strategy.md
+// content_hash: 3883f1ff001a3739
+// collected: 2026-07-27
+strategy("Moving Average Crossover Strategy", overlay=true)
+
+// Input parameters
+fastLength = input(10, title="Fast MA Length")
+slowLength = input(21, title="Slow MA Length")
+stopLossPercent = input(1, title="Stop Loss Percentage")
+
+// Calculate moving averages
+fastMA = ta.sma(close, fastLength)
+slowMA = ta.sma(close, slowLength)
+
+// Plot the moving averages on the chart
+plot(fastMA, color=color.blue, title="Fast MA")
+plot(slowMA, color=color.red, title="Slow MA")
+
+// Define trading signals
+longCondition = ta.crossover(fastMA, slowMA)
+shortCondition = ta.crossunder(fastMA, slowMA)
+
+// Execute trades
+strategy.entry("Long", strategy.long, when=longCondition)
+strategy.entry("Short", strategy.short, when=shortCondition)
+
+// Implement stop loss
+strategy.exit("Stop Loss/Profit", from_entry="Long", loss=close * stopLossPercent / 100, profit=close * 2)
+
+// Plot buy and sell signals on the chart
+plotshape(series=longCondition, title="Buy Signal", color=color.green, style=shape.labelup, location=location.belowbar)
+plotshape(series=shortCondition, title="Sell Signal", color=color.red, style=shape.labeldown, location=location.abovebar)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/438048
+
+> Last Modified
+
+2024-01-08 15:59:34

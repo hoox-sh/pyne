@@ -1,0 +1,17 @@
+//@version=6
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/concepts/strings.md::strings.md#block5
+// content_hash: a4670684e99b7df6
+// collected: 2026-07-27
+indicator("Concatenation demo", overlay = true)
+
+if barstate.isfirst
+    // Declare two variables that hold concatenated literal strings.
+    string value1 = "\n\nThis 'string' is " + "the result "
+    string value2 = "of multiple " + "concatenation operations."
+
+    //@variable A string produced by concatenating `value1`, `value2`, and four literal strings. 
+    string displayText = value1 + value2 + "\n"
+
+    // Use two concatenation assignments to create new strings from `displayText` and literal strings.

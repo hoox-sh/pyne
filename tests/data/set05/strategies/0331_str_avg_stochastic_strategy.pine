@@ -1,0 +1,57 @@
+//@version=5
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/AVG Stochastic Strategy [M30 Backtesting].pine
+// content_hash: c824fd52483269bd
+// collected: 2026-07-27
+//1. AVG Stochastic Calculate
+//1.1 AVG %K is calculated by apply EMA with smooth K period on Average of Original Stochastic %k & %d
+//+ avg_k=ema((%k+%d)/2,smoothK)
+//1.2 AVG %D is calculated by apply EMA with %d period on AVG %K
+//+ avg_d=ema(avg_k,periodD)
+//2. Parameter
+//+ %K Length: 21
+//+ %K Smoothing: 3
+//+ %D Smoothing: 3
+//+ Symbol: BTC/USDT
+//+ Timeframe: M30
+//+ Pyramiding: Maximum 3 orders at the same direction.
+//3. Signal
+//3.1 Buy Signal
+//+ Entry: AVG %K crossover AVG %D and AVG %D < 20
+//+ Exit: AVG %D > 80 
+//3.2 Sell Signal
+//+ Entry: AVG %K crossunder AVG %D and AVG %D > 80
+//+ Exit: AVG %D < 20 
+strategy(title="AVG Stochastic Strategy [M30 Backtesting]", overlay=true, pyramiding=3)
+periodK = input.int(21, title="%K Length", minval=1)
+smoothK = input.int(3, title="%K Smoothing", minval=1)
+periodD = input.int(3, title="%D Smoothing", minval=1)
+k = ta.sma(ta.stoch(close, high, low, periodK), smoothK)
+d = ta.sma(k, periodD)
+_avg_k=ta.ema(math.avg(k,d),smoothK)
+_avg_d=ta.ema(_avg_k,periodD)
+up=
+   _avg_k[1]<_avg_d[1]
+   and _avg_k>_avg_d
+   and _avg_d<20
+dn=
+   _avg_k[1]>_avg_d[1]
+   and _avg_k<_avg_d
+   and _avg_d>80
+var arr_val=0
+if up
+    arr_val:=1
+    strategy.entry("Long", strategy.long)
+if dn
+    arr_val:=-1
+    strategy.entry("Short", strategy.short)
+if up[1] or dn[1]
+    arr_val:=0
+plotarrow(arr_val,title="Signal",colorup=color.green,colordown=color.red)
+if _avg_d>80 
+    strategy.close("Long")
+if _avg_d<20 
+    strategy.close("Short")
+//EOF
+Expand (51 lines)

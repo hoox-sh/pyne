@@ -1,0 +1,28 @@
+//@version=5
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/[Strategy Alert Webhook Demo] Buy One Sell One.pine
+// content_hash: 075ef2385450d616
+// collected: 2026-07-27
+strategy("Buy One Sell One", overlay = false, default_qty_type=strategy.percent_of_equity, default_qty_value=10)
+CONNECTOR_NAME = 'YOUR_CONNECTOR_NAME'
+CONNECTOR_TOKEN = 'YOUR_CONNECTOR_TOKEN'
+percent = str.tostring(10)
+cls = str.tostring(close)
+tp = str.tostring(strategy.position_avg_price * (1 + 0.1))
+sl = str.tostring(strategy.position_avg_price * (1 - 0.1))
+    
+if(bar_index % 2 == 0)
+    // DEMO FOR SENDING MESSAGE WITH alert_message()
+    // NEED TO ADD {{{strategy.order.alert_message}} to Message field at Create Alert box 
+    
+    // Add "limit" to open a LIMIT order instead of default MARKET
+    alert_message = '{"action":"openLong","percent":"' + percent + '","profit":"' + tp + '","loss":"' + sl + '","connectorName":"' + CONNECTOR_NAME + '","connectorToken":"' + CONNECTOR_TOKEN + '","log":"Open Long at price:' + cls + '"}'
+    strategy.entry('Enter Long',  strategy.long, alert_message = alert_message)
+else
+    // DEMO FOR SENDING MESSAGE WITH alert() 
+    strategy.entry('Enter Short', strategy.short)
+    // Add "limit" to open a LIMIT order instead of default MARKET
+    alert_message = '{"action":"closeLong","percent":"' + percent + '","profit":"' + sl + '","loss":"' + tp + '","connectorName":"' + CONNECTOR_NAME + '","connectorToken":"' + CONNECTOR_TOKEN + '","log":"Close long at price:' + cls + '"}'
+    alert(alert_message, alert.freq_once_per_bar)
+Expand (29 lines)

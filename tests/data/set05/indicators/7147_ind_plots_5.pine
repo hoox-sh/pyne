@@ -1,0 +1,9 @@
+//@version=6
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/visuals/plots.md::plots.md#block13
+// content_hash: 4a2e61ae42502f08
+// collected: 2026-07-27
+indicator("", "", true)
+plot(close, "Offset of -5 (in the past)",   color = color.red, offset = -5)
+plot(close, "Offset of +5 (in the future)", color = color.lime, offset = 5)

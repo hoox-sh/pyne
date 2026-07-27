@@ -1,0 +1,20 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/concepts/time.md::time.md#block46
+// content_hash: ab0f74eb61a5971e
+// collected: 2026-07-27
+indicator("Calculating time span for larger units demo")
+
+//@variable The starting date and time of the time span, input by the user.
+int startTimeInput = input.time(timestamp("3 Apr 2022 20:00 -0400"), "Start date", group = "Time between")
+//@variable The ending date and time of the time span, input by the user.
+int endTimeInput =   input.time(timestamp("3 Sep 2024 15:45 -0400"), "End date",   group = "Time between")
+
+//@function Returns the number of days in the `monthNumber` month of the `yearNumber` year.
+daysPerMonth(int yearNumber, int monthNumber) =>
+    //@variable Is `true` if the `yearNumber` represents a leap year.
+    bool leapYear = (yearNumber % 4 == 0 and yearNumber % 100 != 0) or (yearNumber % 400 == 0)
+    //@variable The number of days calculated for the month.
+    int result = switch
+        monthNumber == 2 => leapYear ? 29 : 28

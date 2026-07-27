@@ -1,0 +1,9 @@
+//@version=6
+// set05 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block1
+// content_hash: 3f34062e3a6c904b
+// collected: 2026-07-27
+indicator("bar_index")
+plot(bar_index)
+plot(bar_index > 5000 ? close : 0)

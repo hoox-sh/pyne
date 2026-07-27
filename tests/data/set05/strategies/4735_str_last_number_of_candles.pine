@@ -1,0 +1,83 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/最后N只烛的逆向逻辑策略Last-N-Candle-Reverse-Logic-Strategy.md
+// content_hash: ed9585c1a34d449c
+// collected: 2026-07-27
+strategy("Last Number of  Candles", overlay=true)
+
+// Define the condition for a green candle
+isGreenCandle(candle) =>
+    close[candle] > open[candle]
+
+// Define the condition for a red candle
+isRedCandle(candle) =>
+    close[candle] < open[candle]
+
+// Input to specify the number of candles to check
+numCandlesToCheck = input(5, title="Number of Candles to Check")
+numCandlesToExit = input(2, title="Number of Candles To Exit")  // Corrected the input title
+
+// Initialize variables to count consecutive green and red candles
+var int consecutiveGreenCandles = 0
+var int consecutiveRedCandles = 0
+
+// Initialize barsSinceEntry outside the loop
+var int barsSinceEntry = 0
+
+// Loop through the last "numCandlesToCheck" candles
+for i = 0 to numCandlesToCheck - 1
+    if isGreenCandle(i)
+        consecutiveGreenCandles := consecutiveGreenCandles + 1
+        consecutiveRedCandles := 0 // Reset the count for consecutive red candles
+    else if isRedCandle(i)
+        consecutiveRedCandles := consecutiveRedCandles + 1
+        consecutiveGreenCandles := 0 // Reset the count for consecutive green candles
+
+// Check if the last "numCandlesToCheck" candles are green or red
+lastNCandlesGreen = consecutiveGreenCandles >= numCandlesToCheck
+lastNCandlesRed = consecutiveRedCandles >= numCandlesToCheck
+
+// Calculate the quantity based on the investment value and current asset price
+investmentValue = input(10000, title="Investment Value")
+var assetPrice = close
+var quantity = investmentValue / assetPrice
+
+
+inverseLogic = input(false, title="inverseLogic")
+
+// Entry condition: Open a buy order if the last "numCandlesToCheck" candles are green
+if lastNCandlesGreen
+    if inverseLogic
+        strategy.entry("Short", strategy.long, qty = quantity)
+    else 
+        strategy.entry("Buy", strategy.long, qty = quantity)// Reset barsSinceEntry when entering a trade
+    barsSinceEntry := 0
+
+// Entry condition: Open a short order if the last "numCandlesToCheck" candles are red
+if lastNCandlesRed
+    if inverseLogic
+        strategy.entry("Buy", strategy.long, qty = quantity)
+
+    else 
+        strategy.entry("Short", strategy.short, qty = quantity)
+    // Reset barsSinceEntry when entering a trade
+    barsSinceEntry := 0
+
+// Increment barsSinceEntry
+barsSinceEntry := barsSinceEntry + 1
+
+// Exit condition: Close the position after 2 bars
+if barsSinceEntry >= numCandlesToExit
+    strategy.close("Buy")
+    strategy.close("Short")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/436604
+
+> Last Modified
+
+2023-12-26 11:00:29

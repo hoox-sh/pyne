@@ -1,0 +1,55 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于对数的价格预测策略Logarithmic-Price-Forecasting-Strategy.md
+// content_hash: a5871736b0e34895
+// collected: 2026-07-27
+strategy("Logistic", overlay=true )
+
+volume_pos = 0.0
+volume_neg = 0.0
+roc = roc(close, 1)
+
+for i = 0 to 100
+    if (roc > 0)
+        volume_pos := volume
+    else
+        volume_neg := volume
+    
+volume_net = volume_pos - volume_neg
+net_std    = stdev(volume_net, 100)
+net_sma    = sma(volume_net, 10)
+z          =  net_sma / net_std
+std        = stdev(close, 20)
+
+logistic(close, std, z) =>
+    m = (close + std)
+    a = std / close
+    pt = m / ( 1 + a*exp(-z))
+    pt
+    
+    
+pred = logistic(close, std, z)
+
+buy = pred > close * 1.005
+sell = pred < close * 0.995
+
+color = strategy.position_size > 0? #3BB3E4 : strategy.position_size == 0? #FF006E : #6b6b6b
+barcolor(color)
+
+
+if (buy == true)
+    strategy.entry("Long", strategy.long, comment="Open L")
+    
+if (sell == true)
+    strategy.close("Long", comment="Close L")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/435966
+
+> Last Modified
+
+2023-12-20 14:40:23

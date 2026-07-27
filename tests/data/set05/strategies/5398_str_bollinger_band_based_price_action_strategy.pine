@@ -1,0 +1,47 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于布林带的价格行为策略Bollinger-Band-based-Price-Action-Strategy.md
+// content_hash: 67747c6dab46ff54
+// collected: 2026-07-27
+// main codebody taken from Trader Noro - Noro's Crypto Pattern for H1
+// Intraday strategy- Exit at EOD at all cost
+
+strategy(title = "Price Action + Bollinger Strategy ",overlay=true)
+bar = close > open ? 1 : close < open ? -1 : 0
+body = abs(close - open)
+avgbody = sma(body, 100)
+
+//calculate simple moving average bollinger bands
+b_sma = input(21,minval=1,title=" SMA candle")
+b_sma_no_of_deviations = 2.1
+b_sma_signal = sma(close, b_sma)
+b_sma_deviation = b_sma_no_of_deviations * stdev(close, b_sma)
+b_sma_upper= b_sma_signal + b_sma_deviation
+b_sma_lower= b_sma_signal - b_sma_deviation
+
+up1 = body < body[1] / 2 and bar[1]==1 and bar == -1 and close[1] > b_sma_upper   
+dn1 = body < body[1] / 2 and bar[1]==-1 and bar == 1 and close[1] < b_sma_lower  
+up2 = false
+dn2 = false
+up2 := (up1[1] or up2[1]) and close < close[1]
+dn2 := (dn1[1] or dn2[1]) and close > close[1]
+plotarrow(up1 or up2 ? 1 : na, colorup = color.black, colordown = color.black, transp = 0)
+plotarrow(dn1 or dn2 ? -1 : na, colorup = color.black, colordown = color.black, transp = 0)
+
+strategy.entry("Buy", true, when = dn1)
+strategy.exit("exit", "Buy", profit = 3, loss = 1.5)
+
+strategy.entry("Short", false, when = up1)
+strategy.exit("exit", "Short", profit = 3, loss = 1.5)
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/435957
+
+> Last Modified
+
+2023-12-20 14:03:52

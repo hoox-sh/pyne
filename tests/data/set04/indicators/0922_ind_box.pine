@@ -1,0 +1,12 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block326
+// content_hash: 70e13223cde933fe
+// collected: 2026-07-27
+indicator("box")
+// Empty `box1` box ID.
+var box box1 = na
+// `box` type is unnecessary because `box.new()` returns a "box" type.
+var box2 = box.new(na, na, na, na)
+box3 = box.new(time, open, time + 60 * 60 * 24, close, xloc=xloc.bar_time)

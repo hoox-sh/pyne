@@ -1,0 +1,60 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/相对强弱指数多空策略Relative-Strength-Index-Long-Short-Strategy.md
+// content_hash: bfa30950d2c3e0d1
+// collected: 2026-07-27
+strategy('RSI correlation with cryptoindices [strategy version]', overlay=false)
+
+// Testing Start dates
+testStartYear = input(2016, 'Backtest Start Year')
+testStartMonth = input(1, 'Backtest Start Month')
+testStartDay = input(1, 'Backtest Start Day')
+testPeriodStart = timestamp(testStartYear, testStartMonth, testStartDay, 0, 0)
+//Stop date if you want to use a specific range of dates
+testStopYear = input(2030, 'Backtest Stop Year')
+testStopMonth = input(12, 'Backtest Stop Month')
+testStopDay = input(30, 'Backtest Stop Day')
+testPeriodStop = timestamp(testStopYear, testStopMonth, testStopDay, 0, 0)
+testPeriod() =>
+    time >= testPeriodStart and time <= testPeriodStop ? true : false
+
+len = input(4, title='length of rsi comparison')
+correlationcrossover = input(1, title='correlation crossover')
+IndexSwitch = input.string('CRYPTOCAP:TOTAL2', title='Index selection', options=['CRYPTOCAP:TOTAL2', 'CRYPTOCAP:TOTAL', 'CRYPTOCAP:OTHERS', 'CRYPTOCAP:USDT', 'CRYPTOINDEX:CIX100', 'CRYPTOCAP:BTC.D', 'CRYPTOCAP:BTC'])
+IndexHTF = input.string('120', title='higher time frame reference index', options=['1', '2', '5', '10', '15', '30', '45', '60', '90', '120', '150', '240', '360', '720', 'D', '3D', 'W', 'M'])
+switchColor = input(true, 'Color Hull according to trend?')
+ref = request.security(IndexSwitch, IndexHTF, close[1], lookahead=barmerge.lookahead_on)
+RSI_ref = ta.rsi(ref, len)
+RSI_close = ta.rsi(close, len)
+relative = RSI_ref / RSI_close
+plot(relative, color=color.new(color.blue, 0))
+long = ta.crossover(relative, correlationcrossover)
+short = ta.crossunder(relative, correlationcrossover)
+corr = plot(correlationcrossover, color=color.new(color.green, 0), linewidth=1)
+hullColor = switchColor ? relative > correlationcrossover ? #00ff00 : #ff0000 : #ff9800
+
+//PLOT
+///< Frame
+Fi1 = plot(relative, title='relative', color=hullColor, linewidth=1, transp=50)
+fill(Fi1, corr, title='Band Filler', color=hullColor, transp=50)
+
+if long and testPeriod()
+    strategy.entry("long", strategy.long)
+    
+if short and testPeriod()
+    strategy.entry("long", strategy.short)
+
+// alertcondition(long, title='long', message='long')
+// alertcondition(short, title='short', message='short')
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/432350
+
+> Last Modified
+
+2023-11-16 17:06:14

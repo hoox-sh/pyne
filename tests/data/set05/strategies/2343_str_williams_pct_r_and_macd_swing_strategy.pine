@@ -1,0 +1,59 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多重指标动量突破趋势交易策略-Multi-Indicator-Momentum-Breakout-Trend-Trading-Strategy.md
+// content_hash: 943b0e725ccb53e6
+// collected: 2026-07-27
+strategy("Williams %R & MACD Swing Strategy", overlay=true)
+
+// INPUTS
+length_wpr = input(14, title="Williams %R Length")
+overbought = input(-20, title="Overbought Level")
+oversold = input(-80, title="Oversold Level")
+
+// MACD Inputs
+fastLength = input(12, title="MACD Fast Length")
+slowLength = input(26, title="MACD Slow Length")
+signalSmoothing = input(9, title="MACD Signal Smoothing")
+
+// EMA for Trend Confirmation
+ema_length = input(55, title="EMA Length")
+ema55 = ta.ema(close, ema_length)
+
+// INDICATORS
+wpr = ta.wpr(length_wpr)
+[macdLine, signalLine, _] = ta.macd(close, fastLength, slowLength, signalSmoothing)
+
+// LONG ENTRY CONDITIONS
+longCondition = ta.crossover(wpr, oversold) and ta.crossover(macdLine, signalLine) and close > ema55
+if longCondition
+    strategy.entry("Long", strategy.long)
+
+// SHORT ENTRY CONDITIONS
+shortCondition = ta.crossunder(wpr, overbought) and ta.crossunder(macdLine, signalLine) and close < ema55
+if shortCondition
+    strategy.entry("Short", strategy.short)
+
+// RISK MANAGEMENT
+riskRewardRatio = input(1.5, title="Risk-Reward Ratio")
+stopLossPerc = input(2, title="Stop Loss %") / 100
+takeProfitPerc = stopLossPerc * riskRewardRatio
+
+longSL = strategy.position_avg_price * (1 - stopLossPerc)
+longTP = strategy.position_avg_price * (1 + takeProfitPerc)
+
+shortSL = strategy.position_avg_price * (1 + stopLossPerc)
+shortTP = strategy.position_avg_price * (1 - takeProfitPerc)
+
+strategy.exit("Take Profit / Stop Loss", from_entry="Long", loss=longSL, profit=longTP)
+strategy.exit("Take Profit / Stop Loss", from_entry="Short", loss=shortSL, profit=shortTP)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/483496
+
+> Last Modified
+
+2025-02-24 09:18:48

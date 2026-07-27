@@ -1,0 +1,56 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于ATR和斐波那契回撤止损的趋势跟踪策略ATR-Trailing-Stop-Strategy-with-Fibonacci-Retracement-Targets.md
+// content_hash: be62a3937e82fd52
+// collected: 2026-07-27
+strategy("ATR TrailStop with Fib Targets", overlay=true)
+
+// Input parameters
+atrPeriod = input(5, title="ATR Period")
+ATRFactor = input(3.5, title="ATR Factor")
+Fib1Level = input(61.8, title="Fib1 Level")
+Fib2Level = input(78.6, title="Fib2 Level")
+Fib3Level = input(88.6, title="Fib3 Level")
+
+// ATR Calculation
+atrValue = ta.atr(atrPeriod)
+
+// ATR TrailStop Calculation
+loss = ATRFactor * atrValue
+trendUp = close[1] > close[2] ? (close - loss > close[1] ? close - loss : close[1]) : close - loss
+trendDown = close[1] < close[2] ? (close + loss < close[1] ? close + loss : close[1]) : close + loss
+trend = close > close[2] ? 1 : close < close[2] ? -1 : 0
+trailStop = trend == 1 ? trendUp : trendDown
+
+// Fibonacci Levels Calculation
+ex = trend > trend[1] ? high : trend < trend[1] ? low : na
+fib1 = ex + (trailStop - ex) * Fib1Level / 100
+fib2 = ex + (trailStop - ex) * Fib2Level / 100
+fib3 = ex + (trailStop - ex) * Fib3Level / 100
+
+// Plotting
+plot(trailStop, title="TrailStop", color=color.red)
+plot(fib1, title="Fib1", color=color.white)
+plot(fib2, title="Fib2", color=color.white)
+plot(fib3, title="Fib3", color=color.white)
+
+// Buy and Sell Signals
+longCondition = close > trailStop and close[1] <= trailStop
+shortCondition = close < trailStop and close[1] >= trailStop
+
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+
+if (shortCondition)
+    strategy.entry("Short", strategy.short)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/443034
+
+> Last Modified
+
+2024-02-28 17:09:12

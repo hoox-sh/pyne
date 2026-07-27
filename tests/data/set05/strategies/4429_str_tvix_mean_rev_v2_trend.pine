@@ -1,0 +1,106 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双均线指标随机策略Dual-Moving-Average-Stochastic-Strategy.md
+// content_hash: f80c3ecd1344dc3b
+// collected: 2026-07-27
+strategy("TVIX MEAN REV V2 TREND", overlay=true)
+length = input(16, minval=1)
+OverBought = input(80)
+OverSold = input(20)
+TradeLong = input (true)
+TradeShort = input (true)
+
+OverBoughtClose = input(80)
+OverSoldClose = input(20)
+
+smoothK = 3
+smoothD = 3
+trail_points = input(50)
+
+k = sma(stoch(close, high, low, length), smoothK)
+d = sma(k, smoothD)
+k2 = sma(stoch(close, high, low, length), smoothK)
+d2 = sma(k, smoothD)
+
+
+// === GENERAL INPUTS ===
+// short Ema
+maFastSource = input(defval=close, title="Fast EMA Source")
+maFastLength = input(defval=1, title="Fast EMA Period", minval=1)
+// long Sma
+maSlowSource = input(defval=close, title="Slow SMA Source")
+maSlowLength = input(defval=100, title="Slow SMA Period", minval=1)
+// longer Sma
+maSlowerSource = input(defval=close, title="Slower SMA Source")
+maSlowerLength = input(defval=30, title="Slower SMA Period", minval=1)
+
+//ATR Stop Loss Indicator by Keith Larson
+atrDays = input(7, "ATR Days Lookback")
+theAtr = atr(atrDays)
+atrModifier = input(5.0, "ATR Modifier")
+//plot(atr * atrModifier, title="ATR")
+
+LstopLoss = close - (theAtr * atrModifier)
+SstopLoss = close + (theAtr * atrModifier)
+
+
+
+// === SERIES SETUP ===
+/// a couple of ma's..
+maFast = ema(maFastSource, maFastLength)
+maSlow = sma(maSlowSource, maSlowLength)
+maSlower = vwma(maSlowerSource, maSlowerLength)
+rsi = rsi(maSlowerSource, maSlowerLength)
+
+// === PLOTTING ===
+fast = plot(maFast, title="Fast MA", color=color.red, linewidth=2, style=plot.style_line, transp=30)
+slow = plot(maSlow, title="Slow MA", color=color.green, linewidth=2, style=plot.style_line, transp=30)
+slower = plot(maSlower, title="Slower MA", color=color.teal, linewidth=2, style=plot.style_line, transp=30)
+
+
+// === LOGIC === Basic - simply switches from long to short and vice-versa with each fast-slow MA cross
+LongFilter = maFast > maSlow
+ShortFilter = maSlow > maFast
+
+
+
+
+BUY=crossover(k, d) and k < OverSold
+SELL=crossunder(k, d) and k > OverBought
+
+SELLCLOSE=crossover(k, d) and k < OverSoldClose
+BUYCLOSE=crossunder(k, d) and k > OverBoughtClose
+
+Open = open
+
+
+if not na(k) and not na(d)
+    if crossover(k, d) and k < OverSold and LongFilter and TradeLong
+        strategy.entry("$", strategy.long, limit = Open, comment="Long")
+    
+    strategy.close("$",when = crossunder(k, d) and k > OverBoughtClose or open < LstopLoss  )
+    ///strategy.close("$",when = open < LstopLoss  )
+    
+if not na(k) and not na(d)
+    if crossunder(k, d) and k > OverBought and ShortFilter and TradeShort
+        strategy.entry("$1", strategy.short, limit = Open, comment="S")
+        
+    strategy.close ("$1", when = crossover(k, d) and k < OverSoldClose or open > SstopLoss  )
+    ///strategy.close ("$1", when = open < SstopLoss) 
+    
+  
+        
+
+
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/440322
+
+> Last Modified
+
+2024-01-29 11:54:10

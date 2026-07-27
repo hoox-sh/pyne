@@ -1,0 +1,15 @@
+//@version=5
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/Same high-low.pine
+// content_hash: aec0aa2c82c69c40
+// collected: 2026-07-27
+strategy("SHL", overlay=true, margin_long=100, margin_short=100,initial_capital=4,default_qty_type = strategy.cash,default_qty_value =40,commission_type = strategy.commission.percent,commission_value =0.04,currency="EUR")
+atr = input.int(title="ATR length", defval=5)
+plotshape(low == low[1], style=shape.triangleup, location=location.belowbar, color=color.blue, title="1 Setup")
+plotshape(high==high[1], style=shape.triangledown, location=location.abovebar, color=color.blue, title="1 Setup")
+plotshape(low == low[1] and low[1]==low[2], style=shape.triangleup, location=location.belowbar, color=color.red, title="Triple Setup")
+plotshape(low==high[1] or low==high[2] or low==high[3] or low==high[4] or low==high[5] or low==high[6], style=shape.triangleup, location=location.belowbar, color=color.green, title="Mirror Setup")
+plotshape(high==low[1] or high==low[2] or high==low[3] or high==low[4] or high==low[5] or high==low[6], style=shape.triangledown, location=location.abovebar, color=color.green, title="Mirror Setup")
+barcolor(high-low>2*ta.atr(atr)? color.yellow:na)
+Expand (13 lines)

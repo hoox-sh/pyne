@@ -1,0 +1,109 @@
+//@version=5  
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双指数平滑趋势跟踪交易系统-Dual-Exponential-Smoothing-Trend-Following-Trading-System.md
+// content_hash: 605b770a28f37c58
+// collected: 2026-07-27
+strategy("Dynamic Trend Navigator AI [CodingView]", overlay=true, initial_capital=100000, default_qty_type=strategy.percent_of_equity , default_qty_value=200 )  
+
+
+// ==================================================================================================  
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/  
+// © CodingView_23
+//  
+// Script Name: Dynamic Trend Navigator  
+// Developed by: theCodingView Team  
+// Contact: support@theCodingView.com  
+// Website: www.theCodingView.com  
+//  
+// Description: Implements an adaptive trend-following strategy using proprietary smoothing algorithms.  
+// Features include:  
+// - Dual timeframe trend analysis  
+// - Custom exponential smoothing technique  
+// - Integrated risk management (profit targets & stop-loss)  
+// - Visual trend direction indicators  
+// ==================================================================================================  
+
+
+
+// ====== Enhanced Input Configuration ======  
+primaryLookbackWindow = input.int(9, "Primary Trend Window", minval=2)  
+secondaryLookbackWindow = input.int(30, "Secondary Trend Window", minval=5)  
+
+// ====== Custom Exponential Smoothing Implementation ======  
+customSmoothingFactor(periods) =>  
+    smoothingWeight = 2.0 / (periods + 1)  
+    smoothingWeight  
+
+adaptivePricePosition(priceSource, lookback) =>  
+    weightedSum = 0.0  
+    smoothingCoefficient = customSmoothingFactor(lookback)  
+    cumulativeWeight = 0.0  
+    for iteration = 0 to lookback - 1 by 1  
+        historicalWeight = math.pow(1 - smoothingCoefficient, iteration)  
+        weightedSum := weightedSum + priceSource[iteration] * historicalWeight  
+        cumulativeWeight := cumulativeWeight + historicalWeight  
+    weightedSum / cumulativeWeight  
+
+// ====== Price Transformation Pipeline ======  
+modifiedClose = (high + low + close * 2) / 4  
+smoothedSeries1 = adaptivePricePosition(modifiedClose, primaryLookbackWindow)  
+smoothedSeries2 = adaptivePricePosition(modifiedClose, secondaryLookbackWindow)  
+
+// ====== Signal Detection System ======  
+trendDirectionUp = smoothedSeries1 > smoothedSeries2 and smoothedSeries1[1] <= smoothedSeries2[1]  
+trendDirectionDown = smoothedSeries1 < smoothedSeries2 and smoothedSeries1[1] >= smoothedSeries2[1]  
+
+// ====== Visual Representation Module ======  
+plot(smoothedSeries1, "Dynamic Trend Line", #4CAF50, 2)  
+plot(smoothedSeries2, "Market Phase Reference", #F44336, 2)  
+
+// ====== Risk Management Configuration ======  
+enableRiskParameters = input.bool(true, "Activate Risk Controls")  
+profitTargetUnits = input.float(30, "Profit Target Points")  
+lossLimitUnits = input.float(30, "Stop-Loss Points")  
+
+// ====== Position Management Logic ======  
+var float entryPrice = na  
+var float profitTarget = na  
+var float stopLoss = na  
+
+// ====== Long Position Logic ======  
+if trendDirectionUp  
+    strategy.close("Short", comment="Short Close")  
+    strategy.entry("Long", strategy.long)  
+    entryPrice := close  
+    profitTarget := close + profitTargetUnits  
+    stopLoss := close - lossLimitUnits  
+
+if enableRiskParameters  
+    strategy.exit("Long Exit", "Long", limit=profitTarget, stop=stopLoss)  
+
+// ====== Short Position Logic ======  
+if trendDirectionDown  
+    strategy.close("Long", comment="Long Close")  
+    strategy.entry("Short", strategy.short)  
+    entryPrice := close  
+    profitTarget := close - profitTargetUnits  
+    stopLoss := close + lossLimitUnits  
+
+if enableRiskParameters  
+    strategy.exit("Short Exit", "Short", limit=profitTarget, stop=stopLoss)  
+
+// ====== Visual Signals ======  
+plotshape(trendDirectionUp, "Bullish", shape.labelup, location.belowbar, #00C853, text="▲", textcolor=color.white)  
+plotshape(trendDirectionDown, "Bearish", shape.labeldown, location.abovebar, #D50000, text="▼", textcolor=color.white)  
+
+// ====== Branding Module ======  
+var brandingTable = table.new(position.bottom_right, 1, 1)  
+if barstate.islast  
+    table.cell(brandingTable, 0, 0, "Trading System v2.0", text_color=color.new(#607D8B, 50))
+```
+
+> Detail
+
+https://www.fmz.com/strategy/481355
+
+> Last Modified
+
+2025-02-10 14:46:36

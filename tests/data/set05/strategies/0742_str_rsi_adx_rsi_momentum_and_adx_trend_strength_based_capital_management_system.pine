@@ -1,0 +1,127 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于RSI动量和ADX趋势强度的资金管理系统-RSI-Momentum-and-ADX-Trend-Strength-Based-Capital-Management-System.md
+// content_hash: 09be31cfeb63afd2
+// collected: 2026-07-27
+strategy(title="Swing Strategy (<30% DD)", shorttitle="SwingStratDD", overlay=true)
+
+//-----------------------------------------------------
+// Example Indicators and Logic
+//-----------------------------------------------------
+emaLen   = input.int(200, "EMA Length", minval=1)
+emaValue = ta.ema(close, emaLen)
+
+plot(emaValue, color=color.yellow, linewidth=2, title="EMA 200")
+
+
+//-----------------------------------------------------
+// User Inputs
+//-----------------------------------------------------
+adxLen           = input.int(14,  "ADX Length",      minval=1)
+rsiLen           = input.int(14,  "RSI Length",      minval=1)
+atrLen           = input.int(14,  "ATR Length",      minval=1)
+
+rsiBuyThresh     = input.float(60, "RSI Buy Threshold",     minval=1, maxval=100)
+adxThresh        = input.float(25, "ADX Threshold (Trend)", minval=1, maxval=100)
+minVolume        = input.float(1e6,"Minimum Volume",         minval=1)
+minATR           = input.float(2,  "Minimum ATR(14)",        minval=0.1, step=0.1)
+
+stopLossPerc     = input.float(15, "Stop-Loss %",            minval=0.1, step=0.1)
+// We’ll do two partial take-profit levels to aim for consistent cashflow:
+takeProfit1Perc  = input.float(15, "Take-Profit1 %",         minval=0.1, step=0.1)
+takeProfit2Perc  = input.float(30, "Take-Profit2 %",         minval=0.1, step=0.1)
+
+ddLimit          = input.float(30, "Max Drawdown %",         minval=0.1, step=0.1)
+
+//-----------------------------------------------------
+// Indicators
+//-----------------------------------------------------
+
+rsiValue = ta.rsi(close, rsiLen)
+atrValue = ta.atr(atrLen)
+
+//--- Fully Manual ADX Calculation ---
+upMove      = high - high[1]
+downMove    = low[1] - low
+plusDM      = (upMove > downMove and upMove > 0) ? upMove : 0.0
+minusDM     = (downMove > upMove and downMove > 0) ? downMove : 0.0
+smPlusDM    = ta.rma(plusDM, adxLen)
+smMinusDM   = ta.rma(minusDM, adxLen)
+smTR        = ta.rma(ta.tr, adxLen)
+plusDI      = (smPlusDM / smTR) * 100
+minusDI     = (smMinusDM / smTR) * 100
+dx          = math.abs(plusDI - minusDI) / (plusDI + minusDI) * 100
+adxValue    = ta.rma(dx, adxLen)
+
+//-----------------------------------------------------
+// Screener-Like Conditions (Technical Only)
+//-----------------------------------------------------
+volumeCondition   = volume > minVolume
+adxCondition      = adxValue > adxThresh
+rsiCondition      = rsiValue > rsiBuyThresh
+atrCondition      = atrValue > minATR
+aboveEmaCondition = close > emaValue
+
+longCondition = volumeCondition and adxCondition and rsiCondition and atrCondition and aboveEmaCondition
+
+//-----------------------------------------------------
+// Strategy Entry / Exit Logic
+//-----------------------------------------------------
+var bool inTrade = false
+
+// Entry
+if longCondition and not inTrade
+    strategy.entry("Long", strategy.long)
+
+// Basic Exit Condition: RSI < 50 or Price < EMA
+exitCondition = (rsiValue < 50) or (close < emaValue)
+if inTrade and exitCondition
+    strategy.close("Long")
+
+// Update inTrade status
+inTrade := strategy.position_size > 0
+
+//-----------------------------------------------------
+// Multi-Level Stop-Loss & Partial Profits
+//-----------------------------------------------------
+if inTrade
+    float entryPrice = strategy.position_avg_price
+
+    // Stop-Loss
+    float stopPrice     = entryPrice * (1 - stopLossPerc / 100)
+
+    // Two partial take-profit levels
+    float tp1Price      = entryPrice * (1 + takeProfit1Perc / 100)
+    float tp2Price      = entryPrice * (1 + takeProfit2Perc / 100)
+
+    // Example approach: exit half at TP1, half at TP2
+    strategy.exit("TP1/SL",     from_entry="Long", stop=stopPrice,    limit=tp1Price, qty_percent=50)
+    strategy.exit("TP2",        from_entry="Long", limit=tp2Price,    qty_percent=50)
+
+//-----------------------------------------------------
+// Dynamic Drawdown Handling
+//-----------------------------------------------------
+var float peakEquity = strategy.equity
+peakEquity := math.max(peakEquity, strategy.equity)
+
+currentDrawdownPerc = (peakEquity - strategy.equity) / peakEquity * 100
+if currentDrawdownPerc > ddLimit
+    strategy.close_all("Max Drawdown Exceeded")
+
+//-----------------------------------------------------
+// Plotting
+//-----------------------------------------------------
+plot(emaValue, title="EMA 200", color=color.yellow, linewidth=2)
+plotchar(rsiValue, title="RSI", char='●', location=location.bottom, color=color.new(color.teal, 50))
+plot(adxValue, title="Manual ADX", color=color.orange)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/475594
+
+> Last Modified
+
+2024-12-20 14:24:34

@@ -1,0 +1,53 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/唐氏趋势策略Donchian-Trend-Strategy.md
+// content_hash: d33c68d7862fe59f
+// collected: 2026-07-27
+strategy(title="DON-SS-TREND", overlay=true,default_qty_type = strategy.percent_of_equity,default_qty_value=100,initial_capital=1000,pyramiding=0,commission_value=0.01)//@version=5
+length = input.int(42, minval=1)
+
+lower = ta.lowest(length)
+upper = ta.highest(length)
+basis = math.avg(upper, lower)
+
+updiff = upper - close
+downdiff = lower - close
+
+dontrend = updiff + downdiff   
+emalength = input.int(45, minval=1)
+emax = ta.ema(-dontrend,emalength)
+plot(-dontrend, "DON-SS", color=color.blue,style = plot.style_histogram)
+plot(emax, "EMA-SS", color=color.black)
+emalength1 = input.int(5, minval=1)
+emax1 = ta.ema(-dontrend,emalength1)
+plot(emax1, "EMA-FF", color=color.black)
+
+/////////////////////// STRATEGY
+// Check for Long Entry
+longCondition = ta.crossover(emax1,emax)  
+if longCondition
+    strategy.entry('Long', strategy.long, comment = "BUY")
+
+buyclose = ta.crossunder(emax1,emax)   
+// Exit condition with trailing stop and take profit
+strategy.close('Long', when=buyclose, comment = "BUY STOP")
+
+// Check for Short Entry
+ShortCondition = ta.crossunder(emax1,emax)
+if ShortCondition
+    strategy.entry('Short', strategy.short, comment = "SELL")
+
+sellclose = ta.crossover(emax1,emax)   
+// Exit condition with trailing stop and take profit
+strategy.close('Short', when=sellclose, comment = "SELL STOP")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/433561
+
+> Last Modified
+
+2023-11-28 15:13:00

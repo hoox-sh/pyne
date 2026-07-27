@@ -1,0 +1,9 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/skills/create/SKILL.md::SKILL.md#block2
+// content_hash: ceb1c7de1bdc7e5c
+// collected: 2026-07-27
+strategy("Title", overlay=true)
+//@strategy_alert_message {{strategy.order.alert_message}}
+// Implementation

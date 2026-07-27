@@ -1,0 +1,15 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block293
+// content_hash: b27abf1bb6f10156
+// collected: 2026-07-27
+indicator("A donut", overlay=true)
+if barstate.islast
+    colNum = 8, rowNum = 8
+    padding = "◯"
+    donutTable = table.new(position.middle_right, colNum, rowNum)
+    for c = 0 to colNum - 1
+        for r = 0 to rowNum - 1
+            table.cell(donutTable, c, r, text=padding, bgcolor=#face6e, text_color=color.new(color.black, 100))
+    table.clear(donutTable, 2, 2, 5, 5)

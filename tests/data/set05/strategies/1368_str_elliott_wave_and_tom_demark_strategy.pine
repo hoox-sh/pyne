@@ -1,0 +1,85 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于艾略特波浪与汤姆德马克顺势交易策略-Elliott-Wave-and-Tom-DeMark-Trend-Following-Trading-Strategy.md
+// content_hash: 89ee070de619c028
+// collected: 2026-07-27
+strategy("Elliott Wave and Tom DeMark Strategy", overlay=true)
+
+// Tom DeMark Sequential Settings
+td_length = input(9, title="TD Sequential Length")
+
+// Tom DeMark Sequential
+var int tdUpCount = 0
+var int tdDownCount = 0
+
+if close > close[4]
+    tdUpCount := na(tdUpCount) ? 1 : tdUpCount + 1
+    tdDownCount := 0
+else if close < close[4]
+    tdDownCount := na(tdDownCount) ? 1 : tdDownCount + 1
+    tdUpCount := 0
+else
+    tdUpCount := 0
+    tdDownCount := 0
+
+tdBuySetup = (tdDownCount == td_length)
+tdSellSetup = (tdUpCount == td_length)
+
+plotshape(series=tdBuySetup, title="TD Buy Signal", location=location.belowbar, color=color.green, style=shape.labelup, text="BUY")
+plotshape(series=tdSellSetup, title="TD Sell Signal", location=location.abovebar, color=color.red, style=shape.labeldown, text="SELL")
+
+// Elliott Wave Settings
+wave_length = input(21, title="EMA Length for Wave Identification")
+ema = ta.ema(close, wave_length)
+var int wave_trend = na
+
+wave_trend := ta.crossover(close, ema) ? 1 : ta.crossunder(close, ema) ? -1 : nz(wave_trend[1])
+
+var float wave1 = na
+var float wave2 = na
+var float wave3 = na
+var float wave4 = na
+var float wave5 = na
+
+wave1 := ta.valuewhen(wave_trend == 1, close, 0)
+wave2 := ta.valuewhen(wave_trend == -1, close, 0)
+wave3 := ta.valuewhen(wave_trend == 1, close, 0)
+wave4 := ta.valuewhen(wave_trend == -1, close, 0)
+wave5 := ta.valuewhen(wave_trend == 1, close, 0)
+
+fibonacciRetracement(level, waveStart, waveEnd) =>
+    waveStart + (waveEnd - waveStart) * level
+
+wave2Fib = fibonacciRetracement(0.618, wave1, wave2)
+wave4Fib = fibonacciRetracement(0.382, wave3, wave4)
+
+plot(wave1, title="Wave 1", color=color.blue, linewidth=2)
+plot(wave2, title="Wave 2", color=color.blue, linewidth=2)
+plot(wave3, title="Wave 3", color=color.blue, linewidth=2)
+plot(wave4, title="Wave 4", color=color.blue, linewidth=2)
+plot(wave5, title="Wave 5", color=color.blue, linewidth=2)
+
+plot(wave2Fib, title="Wave 2 Fib", color=color.yellow, linewidth=2)
+plot(wave4Fib, title="Wave 4 Fib", color=color.yellow, linewidth=2)
+
+// Strategy Conditions
+if (tdUpCount == td_length * 3 and not na(wave5))
+    strategy.entry("Buy", strategy.long)
+
+if (tdDownCount == td_length * 3 and not na(wave5))
+    strategy.entry("Sell", strategy.short)
+
+// Stop Loss and Take Profit
+strategy.exit("Take Profit/Stop Loss", from_entry="Buy", limit=wave3, stop=wave1)
+strategy.exit("Take Profit/Stop Loss", from_entry="Sell", limit=wave2, stop=wave4)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/458245
+
+> Last Modified
+
+2024-07-31 11:38:39

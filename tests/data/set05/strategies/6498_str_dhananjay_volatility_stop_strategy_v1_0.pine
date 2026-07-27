@@ -1,0 +1,47 @@
+//@version=2
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/ATR-动态止盈止损策略ATR-Dynamic-Profit-Target-and-Stop-Loss-Strategy.md
+// content_hash: 4004907d330bbca6
+// collected: 2026-07-27
+strategy("Dhananjay Volatility stop strategy v1.0", overlay=true)
+
+
+length = input(20)
+mult = input(1)
+atr_ = atr(length)
+max1 = max(nz(max_[1]), close)
+min1 = min(nz(min_[1]), close)
+is_uptrend_prev = nz(is_uptrend[1], true)
+stop = is_uptrend_prev ? max1 - mult * atr_ : min1 + mult * atr_
+vstop_prev = nz(vstop[1])
+vstop1 = is_uptrend_prev ? max(vstop_prev, stop) : min(vstop_prev, stop)
+is_uptrend = close - vstop1 >= 0
+is_trend_changed = is_uptrend != is_uptrend_prev
+max_ = is_trend_changed ? close : max1
+min_ = is_trend_changed ? close : min1
+vstop = is_trend_changed ? is_uptrend ? max_ - mult * atr_ : min_ + mult * atr_ : vstop1
+plot(vstop, color = is_uptrend ? green : red, style=line, linewidth=2)
+
+bearish = close < vstop 
+bullish = close > vstop 
+
+
+if (bullish)
+    strategy.entry("Buy", strategy.long, 1)
+    
+    
+
+if (bearish)
+    strategy.entry("Sell", strategy.short, 1)
+    
+    
+```
+
+> Detail
+
+https://www.fmz.com/strategy/426801
+
+> Last Modified
+
+2023-09-14 16:22:53

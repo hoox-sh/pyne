@@ -1,0 +1,82 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/Simple-Combined-Strategy-Pivot-Point-SuperTrend-and-DEMA-简单组合策略枢轴点超级趋势和双重指数移动平均线.md
+// content_hash: 2d978300c4741522
+// collected: 2026-07-27
+strategy("Simple Combined Strategy: Pivot Point SuperTrend and DEMA", overlay=true)
+
+// Pivot Point SuperTrend settings
+prd = input.int(2, title="Pivot Point Period", minval=1, maxval=50)
+Factor = input.float(3.0, title="ATR Factor", minval=1, step=0.1)
+Pd = input.int(10, title="ATR Period", minval=1)
+
+// Double EMA settings
+demaLength = input.int(200, title="DEMA Length", minval=1)
+src = input(close, title="Source")
+
+// Pip settings
+pipValue = input.float(0.0001, title="Pip Value")
+stopLossPips = input.int(15, title="Stop Loss (pips)")
+takeProfitPips = input.int(35, title="Take Profit (pips)")
+
+// Pivot Point SuperTrend Calculation
+float ph = ta.pivothigh(prd, prd)
+float pl = ta.pivotlow(prd, prd)
+var float center = na
+if not na(ph)
+    center := na(center) ? ph : (center * 2 + ph) / 3
+if not na(pl)
+    center := na(center) ? pl : (center * 2 + pl) / 3
+
+Up = center - (Factor * ta.atr(Pd))
+Dn = center + (Factor * ta.atr(Pd))
+var float TUp = na
+var float TDown = na
+var int Trend = na
+
+if na(Trend)
+    TUp := Up
+    TDown := Dn
+    Trend := close > Dn ? 1 : -1
+else
+    TUp := close[1] > TUp[1] ? math.max(Up, TUp[1]) : Up
+    TDown := close[1] < TDown[1] ? math.min(Dn, TDown[1]) : Dn
+    Trend := close > TDown[1] ? 1 : close < TUp[1] ? -1 : nz(Trend[1], 1)
+
+Trailingsl = Trend == 1 ? TUp : TDown
+linecolor = Trend == 1 ? color.lime : color.red
+plot(Trailingsl, color=linecolor, linewidth=2, title="PP SuperTrend")
+
+// Double EMA Calculation
+e1 = ta.ema(src, demaLength)
+e2 = ta.ema(e1, demaLength)
+dema = 2 * e1 - e2
+plot(dema, "DEMA", color=color.new(#43A047, 0))
+
+// Strategy Logic
+longCondition = close > Trailingsl and close > dema and strategy.position_size <= 0
+shortCondition = close < Trailingsl and close < dema and strategy.position_size >= 0
+
+// Plot signals
+plotshape(series=longCondition, title="Long", location=location.belowbar, color=color.green, style=shape.labelup, text="Long")
+plotshape(series=shortCondition, title="Short", location=location.abovebar, color=color.red, style=shape.labeldown, text="Short")
+
+// Strategy Entry and Exit
+if (longCondition)
+    strategy.entry("Long", strategy.long, stop=close - (stopLossPips * pipValue), limit=close + (takeProfitPips * pipValue))
+if (shortCondition)
+    strategy.entry("Short", strategy.short, stop=close + (stopLossPips * pipValue), limit=close - (takeProfitPips * pipValue))
+
+alertcondition(longCondition, title="Long Alert", message="Long Signal")
+alertcondition(shortCondition, title="Short Alert", message="Short Signal")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/454332
+
+> Last Modified
+
+2024-06-17 14:49:14

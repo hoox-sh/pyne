@@ -1,0 +1,58 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多重均线趋势追踪与SMMA验证交易策略-Multi-EMA-Trend-Following-Strategy-with-SMMA-Confirmation.md
+// content_hash: 76f57fbcbb5bf94c
+// collected: 2026-07-27
+strategy("EMA Crossover with SMMA and Additional EMAs", overlay=true)
+
+// Input parameters for EMAs and SMMA
+emaShortLength = input.int(10, title="Short EMA Length")
+emaLongLength = input.int(22, title="Long EMA Length")
+smmaLength = input.int(200, title="SMMA Length")
+
+// Additional EMA lengths
+ema1Length = input.int(50, title="EMA 1 Length")
+ema2Length = input.int(100, title="EMA 2 Length")
+ema3Length = input.int(200, title="EMA 3 Length")
+
+// Calculate EMAs and SMMA
+emaShort = ta.ema(close, emaShortLength)
+emaLong = ta.ema(close, emaLongLength)
+smma = ta.sma(ta.sma(close, smmaLength), 2) // SMMA approximation
+ema1 = ta.ema(close, ema1Length)
+ema2 = ta.ema(close, ema2Length)
+ema3 = ta.ema(close, ema3Length)
+
+// Plot EMAs and SMMA on the chart
+plot(emaShort, color=color.blue, linewidth=2, title="Short EMA")
+plot(emaLong, color=color.red, linewidth=2, title="Long EMA")
+plot(smma, color=color.white, linewidth=2, title="SMMA")
+plot(ema1, color=color.green, linewidth=1, title="EMA 1")
+plot(ema2, color=color.purple, linewidth=1, title="EMA 2")
+plot(ema3, color=color.yellow, linewidth=1, title="EMA 3")
+
+// Buy condition: Short EMA crosses above Long EMA and price is above SMMA
+buyCondition = ta.crossover(emaShort, emaLong) and close > smma
+
+// Sell condition: Short EMA crosses below Long EMA and price is below SMMA
+sellCondition = ta.crossunder(emaShort, emaLong) and close < smma
+
+// Execute Buy order
+if (buyCondition)
+    strategy.entry("Buy", strategy.long)
+    alert("Buy Signal: Short EMA crossed above Long EMA and price is above SMMA.", alert.freq_once_per_bar_close)
+
+// Execute Sell order
+if (sellCondition)
+    strategy.entry("Sell", strategy.short)
+    alert("Sell Signal: Short EMA crossed below Long EMA and price is below SMMA.", alert.freq_once_per_bar_close)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/474862
+
+> Last Modified
+
+2024-12-12 15:55:44

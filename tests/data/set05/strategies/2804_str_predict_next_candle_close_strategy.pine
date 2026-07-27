@@ -1,0 +1,49 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双K线预测闭合策略Dual-Candlestick-Prediction-Close-Strategy.md
+// content_hash: 6b53622dcb08e8bf
+// collected: 2026-07-27
+strategy("Predict Next Candle Close Strategy", overlay=true)
+
+// Function to predict next candle close based on previous two candles
+predictNextCandleClose(open1, close1, open2, close2) =>
+    if close1 > open1 and close2 > open2
+        // Bullish trend, predict next candle close to be bullish
+        close1 + (close1 - open1)
+    else if close1 < open1 and close2 < open2
+        // Bearish trend, predict next candle close to be bearish
+        close1 - (open1 - close1)
+    else
+        // Indecisive or ranging market, predict next candle close to be neutral
+        close1
+
+// Get previous two 30-minute candles' open and close prices
+open1 = request.security(syminfo.tickerid, "30", open[1])
+close1 = request.security(syminfo.tickerid, "30", close[1])
+open2 = request.security(syminfo.tickerid, "30", open[2])
+close2 = request.security(syminfo.tickerid, "30", close[2])
+
+// Predict next 15-minute candle close
+predictedClose = predictNextCandleClose(open1, close1, open2, close2)
+
+// Plot the predicted close as a line
+plot(predictedClose, color=color.blue, linewidth=2, title="Predicted Close")
+
+// Buy condition: Predicted close is higher than the current close
+buyCondition = predictedClose > close
+strategy.entry("Buy", strategy.long, when=buyCondition)
+
+// Sell condition: Predicted close is lower than the current close
+sellCondition = predictedClose < close
+strategy.entry("Sell", strategy.short, when=sellCondition)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/440056
+
+> Last Modified
+
+2024-01-26 10:58:03

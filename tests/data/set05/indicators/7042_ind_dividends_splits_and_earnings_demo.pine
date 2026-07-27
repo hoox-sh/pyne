@@ -1,0 +1,10 @@
+//@version=6
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/concepts/other-timeframes-and-data.md::other-timeframes-and-data.md#block60
+// content_hash: 9d89fc3ea99b93d9
+// collected: 2026-07-27
+indicator("Dividends, splits, and earnings demo", overlay = true)
+
+//@variable The size of the table's text.
+string tableSize = input.string(

@@ -1,0 +1,70 @@
+//@version=2
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/MACD配信交叉策略MACD-Crossover-with-Signal-Strategy.md
+// content_hash: b1d92875572b0920
+// collected: 2026-07-27
+strategy(title="MACD with Signal", shorttitle="MACD_with_Signal")
+source = close
+useCurrentRes = input(true, title="Use Current Chart Resolution?")
+resCustom = input(title="Use Different Timeframe? Uncheck Box Above", defval="60")
+smd = input(true, title="Show MacD & Signal Line? Also Turn Off Dots Below")
+sd = input(true, title="Show Dots When MacD Crosses Signal Line?")
+sh = input(true, title="Show Histogram?")
+macd_colorChange = input(true,title="Change MacD Line Color-Signal Line Cross?")
+hist_colorChange = input(true,title="MacD Histogram 4 Colors?")
+
+res = useCurrentRes ? timeframe.period : resCustom
+
+fastLength = input(12, minval=1), slowLength=input(26,minval=1)
+signalLength=input(9,minval=1)
+
+fastMA = ema(source, fastLength)
+slowMA = ema(source, slowLength)
+
+macd = fastMA - slowMA
+signal = sma(macd, signalLength)
+hist = macd - signal
+
+outMacD = request.security(syminfo.tickerid, res, macd)
+outSignal = request.security(syminfo.tickerid, res, signal)
+outHist = request.security(syminfo.tickerid, res, hist)
+
+histA_IsUp = outHist > outHist[1] and outHist > 0
+histA_IsDown = outHist < outHist[1] and outHist > 0
+histB_IsDown = outHist < outHist[1] and outHist <= 0
+histB_IsUp = outHist > outHist[1] and outHist <= 0
+
+//MacD Color Definitions
+macd_IsAbove = outMacD >= outSignal
+macd_IsBelow = outMacD < outSignal
+
+plot_color = hist_colorChange ? histA_IsUp ? green : histA_IsDown ? lime : histB_IsDown ? red : histB_IsUp ? maroon :yellow :gray
+macd_color = macd_colorChange ? macd_IsAbove ? green : red : red
+signal_color = macd_colorChange ? macd_IsAbove ? yellow : yellow : lime
+
+circleYPosition = outSignal
+ 
+plot(smd and outMacD ? outMacD : na, title="MACD", color=macd_color, linewidth=3)
+plot(smd and outSignal ? outSignal : na, title="Signal", color=blue, style=line ,linewidth=1)
+plot(sh and outHist ? outHist : na, title="", color=plot_color, style=columns, linewidth=4)
+//plot(sd and cross(outMacD, outSignal) ? circleYPosition : na, title="Cross", style=circles, linewidth=4, color=macd_color)
+hline(0, '0 Line',  linewidth=2, color=white)
+
+macd_chk=smd and outMacD ? outMacD : na
+checker=smd and outSignal ? outSignal : na
+if (crossover(macd_chk,checker))
+    strategy.entry("BBandLE", strategy.long)
+
+if (crossunder(macd_chk, checker))
+    strategy.entry("BBandSE", strategy.short)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/435271
+
+> Last Modified
+
+2023-12-13 16:58:15

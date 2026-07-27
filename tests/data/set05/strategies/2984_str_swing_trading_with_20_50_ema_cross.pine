@@ -1,0 +1,44 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/金叉死叉短线交易策略Swing-Trading-Strategy-with-20-50-EMA-Cross.md
+// content_hash: 5556e9be783fb760
+// collected: 2026-07-27
+strategy("Swing Trading with 20/50 EMA Cross", shorttitle = "EMA Cross", overlay = true)
+
+// Define input for stop-loss and take-profit levels
+var float stopLossPct = input.float(1, title = "Stop Loss (%)") / 100
+var float rewardRiskRatio = input.float(2, title = "Risk-Reward Ratio")
+takeProfitPct = stopLossPct * rewardRiskRatio
+
+// Calculate EMA values
+ema20 = ta.ema(close, 20)
+ema50 = ta.ema(close, 50)
+
+// Plot EMAs on the chart
+plot(ema20, title = "20 EMA", color = color.blue)
+plot(ema50, title = "50 EMA", color = color.red)
+
+// Trading conditions
+longCondition = ta.crossover(ema20, ema50)
+shortCondition = ta.crossunder(ema20, ema50)
+
+// Execute long and short trades
+strategy.entry("Long", strategy.long, when = longCondition)
+strategy.entry("Short", strategy.short, when = shortCondition)
+
+// Calculate stop-loss and take-profit levels based on risk-reward ratio
+stopLossPrice = close * (1 - stopLossPct)
+takeProfitPrice = close * (1 + takeProfitPct)
+
+strategy.exit("Take Profit/Stop Loss", stop = stopLossPrice, limit = takeProfitPrice)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/438459
+
+> Last Modified
+
+2024-01-12 11:22:33

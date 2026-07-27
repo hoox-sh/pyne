@@ -1,0 +1,20 @@
+//@version=5
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/USD Liquidity Conditions Index Swing Stock Strategy.pine
+// content_hash: 2074f7e0147ac7bf
+// collected: 2026-07-27
+strategy('USD Liquidity Conditions Index')
+fed = request.security("ECONOMICS:USCBBS", "D", close)/1000000000           // farbast
+rrp = request.security("FRED:RRPONTSYD", "D", close)   // rrr
+tag = request.security("FRED:WTREGEN", "D", close)     // cerb
+out=fed-(rrp)-tag
+plot(out, color=color.new(color.white, 50), title='X')
+length=input.int(150)
+top=ta.percentile_nearest_rank(out, length, 99)//input(99))
+bot=ta.percentile_nearest_rank(out, length, 4)//input(1))
+strategy.entry('long',strategy.long, when = bot > bot[1] or top>top[1] )
+strategy.close("long",when = ta.crossunder(out, top) and ta.crossunder(out,bot)  or (top < top[1]))
+strategy.entry('short',strategy.short, when = ta.crossunder(out, top) and ta.crossunder(out,bot))
+strategy.close("short",when = ta.crossover(out, top) and ta.crossover(out,bot))
+Expand (22 lines)

@@ -1,0 +1,128 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动量交易之双均线交叉策略-Momentum-Trading-with-Dual-Moving-Average-Crossover-Strategy.md
+// content_hash: ac615e896c12c0f0
+// collected: 2026-07-27
+strategy('Trend Following 8&21EMA with strategy tester [ukiuro7]', overlay=true, process_orders_on_close=true, calc_on_every_tick=true, initial_capital = 10000)
+
+//INPUTS
+lh3On = true
+hl3On = true
+emaOn = input(title='105ema / 30min', defval=true) 
+assistantOn = input(title='Assistant', defval=true)
+textOn = input(title='Text', defval=true)
+
+showRiskReward = input.bool(true, title='Show Risk/Reward Area', group="TP/SL")
+stopPerc = input.float(5.0, step=0.1, minval=0.1, title='Stop-Loss %:',group="TP/SL") / 100
+tpPerc = input.float(16.0, step=0.1, minval=0.1, title='Take-Profit %:',group="TP/SL") / 100
+
+backtestFilter = input(false, title='Backtest Entries to Date Range',group="Backtest Date Range")
+i_startTime = input(defval=timestamp('01 Jan 2022 00:00'), inline="b_1", title='Start',group="Backtest Date Range")
+i_endTime = input(defval=timestamp('01 Jan 2029 00:00'), inline="b_1", title='End',group="Backtest Date Range")
+inDateRange = true
+
+message_long_entry = input.string(title='Alert Msg: LONG Entry', defval ='', group='Alert Message')
+message_short_entry = input.string(title='Alert Msg: SHORT Entry', defval='', group='Alert Message')
+message_long_exit = input.string(title='Alert Msg: LONG SL/TP', defval='', group='Alert Message')
+message_short_exit = input.string(title='Alert Msg: SHORT SL/TP', defval='', group='Alert Message')  
+
+//CALCS
+threeHigherLows() =>
+    low[0] >= low[1] and low[1] >= low[2]
+
+threeLowerHighs() =>
+    high[2] >= high[1] and high[1] >= high[0]
+
+breakHigher() =>
+    padding = timeframe.isintraday ? .02 : .1
+    high >= high[1] + padding
+
+breakLower() =>
+    padding = timeframe.isintraday ? .02 : .1
+    low <= low[1] - padding
+
+lh3 = threeLowerHighs() and lh3On
+lh3bh = lh3[1] and breakHigher() and lh3On
+
+hl3 = threeHigherLows() and hl3On
+hl3bl = hl3[1] and breakLower() and hl3On
+
+ema8 = ta.ema(close, 8)
+ema21 = ta.ema(close, 21)
+
+//VARS
+var float longStop = na, var float longTp = na
+var float shortStop = na, var float shortTp = na
+
+//CONDS
+isUptrend = ema8 >= ema21
+isDowntrend = ema8 <= ema21
+trendChanging = ta.cross(ema8, ema21)
+
+buySignal = lh3bh and lh3[2] and lh3[3] and isUptrend and timeframe.isintraday
+sellSignal = hl3bl and hl3[2] and hl3[3] and isDowntrend and timeframe.isintraday
+
+goingDown = hl3 and isDowntrend and timeframe.isintraday
+goingUp = lh3 and isUptrend and timeframe.isintraday
+
+projectXBuy = trendChanging and isUptrend
+projectXSell = trendChanging and isDowntrend
+
+longCond = trendChanging and isUptrend and assistantOn
+shortCond = trendChanging and isDowntrend and assistantOn
+
+//STRATEGY
+if shortCond and strategy.position_size > 0 and barstate.isconfirmed
+    strategy.close('Long', comment='CLOSE LONG', alert_message=message_long_exit)
+
+if longCond and strategy.position_size < 0 and barstate.isconfirmed
+    strategy.close('Short', comment='CLOSE SHORT', alert_message=message_short_exit) 
+
+if longCond and strategy.position_size <= 0 and barstate.isconfirmed and inDateRange
+    longStop := close * (1 - stopPerc)
+    longTp := close * (1 + tpPerc)
+    strategy.entry('Long', strategy.long, comment='LONG', alert_message=message_long_entry)
+    strategy.exit('Long Exit', 'Long', comment_loss="SL LONG", comment_profit = "TP LONG", stop=longStop, limit=longTp, alert_message=message_long_exit)
+
+if shortCond and strategy.position_size >= 0 and barstate.isconfirmed and inDateRange
+    shortStop := close * (1 + stopPerc)
+    shortTp := close * (1 - tpPerc)
+    strategy.entry('Short', strategy.short, comment='SHORT', alert_message=message_short_entry)
+    strategy.exit('Short Exit', 'Short', comment_loss="SL SHORT", comment_profit="TP SHORT", stop=shortStop, limit=shortTp, alert_message=message_short_exit)
+
+//PLOTS
+plotshape(longCond, style=shape.triangleup, location=location.belowbar, color=color.new(color.green, 0), size=size.small, text='Buy')
+plotshape(shortCond, style=shape.triangledown, location=location.abovebar, color=color.new(color.red, 0), size=size.small, text='Sell')
+plotchar(trendChanging and isUptrend and close < open and assistantOn, char='!', location=location.abovebar, color=color.new(color.green, 0), size=size.small)
+
+aa = plot(ema8, linewidth=3, color=color.new(color.green, 0), editable=true)
+bb = plot(ema21, linewidth=3, color=color.new(color.red, 0), editable=true)
+fill(aa, bb, color=isUptrend ? color.new(color.green,90) : color.new(color.red,90))
+buyZone = isUptrend and lh3 and high < ema21 and timeframe.isintraday
+sellZone = isDowntrend and hl3 and low > ema21 and timeframe.isintraday
+
+L1 = plot(showRiskReward and strategy.position_size > 0 ? strategy.position_avg_price : na, color=color.new(color.green, 0), linewidth=1, style=plot.style_linebr, title='Long Entry Price')
+L2 = plot(showRiskReward and strategy.position_size > 0 ? longTp : na, color=color.new(color.green, 0), linewidth=1, style=plot.style_linebr, title='Long TP Price')
+L3 = plot(showRiskReward and strategy.position_size > 0 ? longStop : na, color=color.new(color.red, 0), linewidth=1, style=plot.style_linebr, title='Long Stop Price')
+
+S1 = plot(showRiskReward and strategy.position_size < 0 ? strategy.position_avg_price : na, color=color.new(color.teal, 0), linewidth=1, style=plot.style_linebr, title='Short Entry Price')
+S2 = plot(showRiskReward and strategy.position_size < 0 ? shortTp : na, color=color.new(color.teal, 0), linewidth=1, style=plot.style_linebr, title='Short TP Price')
+S3 = plot(showRiskReward and strategy.position_size < 0 ? shortStop : na, color=color.new(color.maroon, 0), linewidth=1, style=plot.style_linebr, title='Short Stop Price')
+
+fill(L1, L2, color=color.new(color.green, 90))
+fill(L1, L3, color=color.new(color.red, 90))
+fill(S1, S2, color=color.new(color.teal, 90))
+fill(S1, S3, color=color.new(color.maroon, 90))
+
+bgcolor(inDateRange == false ? color.new(color.red,90) : na, title="Backtest Off-Range") 
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/446763
+
+> Last Modified
+
+2024-04-01 11:53:14

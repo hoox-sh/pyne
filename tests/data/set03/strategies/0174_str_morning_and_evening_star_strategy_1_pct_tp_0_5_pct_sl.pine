@@ -1,0 +1,80 @@
+//@version=6
+// set03 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多重蜡烛形态识别与自动交易策略-Multi-Candlestick-Pattern-Recognition-and-Automated-Trading-Strategy.md
+// content_hash: a3b4cba858ae4377
+// collected: 2026-07-27
+strategy("Morning & Evening Star Strategy (1% TP, 0.5% SL)", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=10)
+
+// === Inputs ===
+slPercent = 0.5
+tpPercent = 1.0
+
+// === Helper Functions ===
+bullish(open, close) => close > open
+bearish(open, close) => close < open
+bodySize(open, close) => math.abs(close - open)
+candleRange(high, low) => high - low
+
+smallBody(open, close, high, low) =>
+    bodySize(open, close) < (candleRange(high, low) * 0.3)
+
+strongBody(open, close, high, low) =>
+    bodySize(open, close) > (candleRange(high, low) * 0.6)
+
+isMiddleReversalCandle(open, close, high, low) =>
+    bSize = bodySize(open, close)
+    cRange = candleRange(high, low)
+    upperWick = high - math.max(open, close)
+    lowerWick = math.min(open, close) - low
+    smallBody(open, close, high, low) or (bSize < cRange * 0.4 and (upperWick > cRange * 0.3 or lowerWick > cRange * 0.3))
+
+// === Candle Values for Last 3 Bars ===
+o3 = open[2]
+c3 = close[2]
+h3 = high[2]
+l3 = low[2]
+
+o2 = open[1]
+c2 = close[1]
+h2 = high[1]
+l2 = low[1]
+
+o1 = open
+c1 = close
+h1 = high
+l1 = low
+
+// === Pattern Conditions ===
+isMorningStar = bearish(o3, c3) and strongBody(o3, c3, h3, l3) and
+                 isMiddleReversalCandle(o2, c2, h2, l2) and
+                 bullish(o1, c1) and strongBody(o1, c1, h1, l1) and
+                 c1 > (o3 + c3) / 2
+
+isEveningStar = bullish(o3, c3) and strongBody(o3, c3, h3, l3) and
+                 isMiddleReversalCandle(o2, c2, h2, l2) and
+                 bearish(o1, c1) and strongBody(o1, c1, h1, l1) and
+                 c1 < (o3 + c3) / 2
+
+// === Entry & Exit ===
+if isMorningStar
+    strategy.entry("Long", strategy.long)
+    strategy.exit("TP/SL Long", from_entry="Long", loss=slPercent * close / 100, profit=tpPercent * close / 100)
+
+if isEveningStar
+    strategy.entry("Short", strategy.short)
+    strategy.exit("TP/SL Short", from_entry="Short", loss=slPercent * close / 100, profit=tpPercent * close / 100)
+
+// === Visual Labels ===
+plotshape(isMorningStar, title="Morning Star", location=location.belowbar, color=color.green, style=shape.labelup, text="MS")
+plotshape(isEveningStar, title="Evening Star", location=location.abovebar, color=color.red, style=shape.labeldown, text="ES")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/489295
+
+> Last Modified
+
+2025-04-03 11:10:20

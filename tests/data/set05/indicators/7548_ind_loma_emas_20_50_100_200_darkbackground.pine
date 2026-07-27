@@ -1,0 +1,40 @@
+//@version=5
+// set05 corpus entry
+// source_repo: tradingview-indicators-pine
+// source_path: tradingview-indicators-pine/Loma-EMAs-20-50-100-200-darkBackground.txt
+// content_hash: 342ea288d17726c3
+// collected: 2026-07-27
+
+indicator(title="Loma-EMA-d", shorttitle="Loma-EMA-d", overlay=false)
+
+//ema 20
+ema20Source = input(defval = close)
+ema20Length = input.int(defval = 20, minval = 1)
+
+//ema 50
+ema50Source = input(defval = close)
+ema50Length = input.int(defval = 50, minval = 1)
+
+// ema100
+ema100Source = input(defval = close)
+ema100Length = input.int(defval = 100, minval = 1)
+
+// ema200 - actually SMMA99
+ema200Source = input(defval = close)
+ema200Length = input.int(defval = 99, minval=1) 
+
+
+//Declare EMA
+ema20 = ta.ema(ema20Source, ema20Length)
+ema50 = ta.ema(ema50Source, ema50Length)
+ema100 = ta.ema(ema100Source, ema100Length)
+EMA200() => 
+    ema200 = 0.0
+    ema200 := na(ema200[1]) ? ta.sma(ema200Source, ema200Length) : (ema200[1] * (ema200Length - 1) + ema200Source) / ema200Length
+
+
+// Draw lines
+plot(series=ema20, title="EMA20", color=color.red, linewidth=2, style=plot.style_line)
+plot(series=ema50, title="EMA50", color=color.green, linewidth=2, style=plot.style_line)
+plot(series=ema100, title="EMA100", color=color.silver, linewidth=2, style=plot.style_line)
+plot(series=EMA200(), title="EMA200", color=color.new(color.blue, 0), linewidth=3)

@@ -1,0 +1,14 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block36
+// content_hash: d003e5c8d8a76a45
+// collected: 2026-07-27
+indicator("Price-Volume Trend")
+plot(ta.pvt, color=color.yellow)
+
+// the same on pine
+f_pvt() =>
+    ta.cum((ta.change(close) / close[1]) * volume)
+
+plot(f_pvt())

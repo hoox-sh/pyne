@@ -1,0 +1,63 @@
+//@version=4
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/RSI on VWAP Upgraded strategy.pine
+// content_hash: 912de2601b60ceb9
+// collected: 2026-07-27
+strategy("RSI on VWAP Upgraded strategy", overlay=false, pyramiding = 4, commission_value = 0.08)
+// pyramiding is the number of positions you can take before closing all of them (be carefull if using it with a trading bot)
+// commission_value is the commission taken for each buy/sell
+// ------------------------------------------ //
+// ----------------- Inputs ----------------- //
+// ------------------------------------------ //
+reso = input(title="Resolution", type=input.resolution, defval="")
+length = input(20, title="RSI Length", type=input.integer)
+ovrsld = input(30, "RSI Oversold level", type=input.float)
+ovrbgt = input(85, "RSI Overbought level", type=input.float)
+lateleave = input(28, "Number of candles", type=input.integer)
+// lateleave : numbers of bars in overbought/oversold zones where the position is closed. The position is closed when this number is reached or when the zone is left (the first condition).
+// best parameters BTCUSDTPERP M15 : 20 / 30 / 85 / 28
+stratbull = input(title="Enter longs ?", type = input.bool, defval=true)
+stratbear = input(title="Enter shorts ?", type = input.bool, defval=true)
+stratyear = input(2020, title = "Strategy Start Year")
+stratmonth = input(1, title = "Strategy Start Month")
+stratday = input(1, title = "Strategy Start Day")
+stratstart = timestamp(stratyear,stratmonth,stratday,0,0)
+// ------------------------------------------ //
+// --------------- Laguerre ----------------- //
+// ------------------------------------------ //
+laguerre = input(title="Use Laguerre on RSI ?", type=input.bool, defval=false)
+gamma = input(0.06, title="Laguerre Gamma")
+laguerre_cal(s,g) =>
+    l0 = 0.0
+    l1 = 0.0
+    l2 = 0.0
+    l3 = 0.0
+    l0 := (1 - g)*s+g*nz(l0[1])
+    l1 := -g*l0+nz(l0[1])+g*nz(l1[1])
+    l2 := -g*l1+nz(l1[1])+g*nz(l2[1])
+    l3 := -g*l2+nz(l2[1])+g*nz(l3[1])
+    (l0 + 2*l1 + 2*l2 + l3)/6
+// ------------------------------------------ //
+// ---------------- Rsi VWAP ---------------- //
+// ------------------------------------------ //
+rsiV = security(syminfo.tickerid, reso, rsi(vwap(close), length))
+rsiVWAP = laguerre ? laguerre_cal(rsiV,gamma) : rsiV
+// ------------------------------------------ //
+// ------------------ Plots ----------------- //
+// ------------------------------------------ //
+prsi = plot(rsiVWAP, color = rsiVWAP>ovrbgt ? color.red : rsiVWAP<ovrsld ? color.green : color.white, title="RSI on VWAP", linewidth=1, style=plot.style_line)
+hline = plot(ovrbgt, color = color.gray, style=plot.style_line)
+lline = plot(ovrsld, color = color.gray, style=plot.style_line)
+fill(prsi,hline, color = rsiVWAP > ovrbgt ? color.red : na, transp = 30)
+fill(prsi,lline, color = rsiVWAP < ovrsld ? color.green : na, transp = 30)
+// ------------------------------------------ //
+// ---------------- Positions --------------- //
+// ------------------------------------------ //
+timebull = stratbull and time > stratstart
+timebear = stratbear and time > stratstart
+strategy.entry("Long", true, when = timebull and crossover(rsiVWAP, ovrsld), comment="")
+strategy.close("Long", when = timebull and crossover(rsiVWAP, ovrbgt)[lateleave] or crossunder(rsiVWAP, ovrbgt), comment="")
+strategy.entry("Short", false, when = timebear and crossunder(rsiVWAP, ovrbgt), comment="")
+strategy.close("Short", when = timebear and crossunder(rsiVWAP, ovrsld)[lateleave] or crossover(rsiVWAP, ovrsld), comment="")
+Expand (85 lines)

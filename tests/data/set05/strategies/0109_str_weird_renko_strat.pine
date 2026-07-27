@@ -1,0 +1,95 @@
+//@version=5
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/Weird Renko Strat.pine
+// content_hash: e60963785c117831
+// collected: 2026-07-27
+strategy("Weird Renko Strat", overlay=true, initial_capital=10)
+margin_x = input.float(1, "Margin(x)")
+compound = input.bool(true, "Compound Yield")
+counter = input.bool(false, "Anti Strategy")
+param = input.float(10, "Param")
+renko_tickerid = ticker.renko(syminfo.tickerid, 'Traditional', param)
+renko_c = request.security(renko_tickerid, timeframe.period, close)
+renko_o = request.security(renko_tickerid, timeframe.period, open)
+renko_h = request.security(renko_tickerid, timeframe.period, high)
+renko_l = request.security(renko_tickerid, timeframe.period, low)
+color = renko_o < renko_c ? color.green : color.red
+down = input.float(1, "Drawdown (%)")
+drawdown = down/margin_x
+//Date
+fromMonth = input.int(defval = 1,    title = "From Month",  minval = 1, maxval = 12)
+fromDay   = input.int(defval = 1,    title = "From Day",    minval = 1, maxval = 31)
+fromYear  = input.int(defval = 2021, title = "From Year",   minval = 1970)
+thruMonth = input.int(defval = 1,    title = "Thru Month",  minval = 1, maxval = 12)
+thruDay   = input.int(defval = 1,    title = "Thru Day",    minval = 1, maxval = 31)
+thruYear  = input.int(defval = 2112, title = "Thru Year",   minval = 1970)
+showDate  = input(defval = true, title = "Show Date Range")
+start     = timestamp(fromYear, fromMonth, fromDay, 00, 00)            // backtest start  window
+finish    = timestamp(thruYear, thruMonth, thruDay, 23, 59)            // backtest finish window
+button    = input(defval = true, title = "Max Backtest Timeframe")     // use to deactivate window
+window()  => time >= start and time <= finish ? true : false           // create function "within window of time"
+windowOn  = if window()
+    true
+else
+    button
+//Turn on counter
+if counter
+    //Turn on compound
+    if compound
+        //Open Long
+        if ((renko_c[1] < renko_c) and (strategy.equity > 0) and (strategy.equity <= 1000000000000) and windowOn)
+            strategy.entry("Short", strategy.short, qty=((strategy.equity/open) * margin_x))
+        //Open Short
+        if ((renko_c[1] > renko_c) and (strategy.equity > 0) and (strategy.equity <= 1000000000000) and windowOn)
+            strategy.entry("Long", strategy.long, qty=((strategy.equity/open) * margin_x))
+        //Close Long
+        if ((renko_c[1] > renko_c) and (strategy.equity > 0) and (strategy.equity <= 1000000000000))
+            strategy.close("Short")    
+        //Close Short
+        if ((renko_c[1] < renko_c) and (strategy.equity > 0) and (strategy.equity <= 1000000000000))
+            strategy.close("Long")
+    else
+        //Open Long
+        if ((renko_c[1] < renko_c) and (strategy.equity > 0) and (strategy.equity <= 1000000000000) and windowOn)
+            strategy.entry("Short", strategy.short, qty=strategy.initial_capital/open)
+        //Open Short
+        if ((renko_c[1] > renko_c) and (strategy.equity > 0) and (strategy.equity <= 1000000000000) and windowOn)
+            strategy.entry("Long", strategy.long, qty=strategy.initial_capital/open)
+        //Close Long
+        if ((renko_c[1] > renko_c) and (strategy.equity > 0) and (strategy.equity <= 1000000000000))
+            strategy.close("Short")    
+        //Close Short
+        if ((renko_c[1] < renko_c) and (strategy.equity > 0) and (strategy.equity <= 1000000000000))
+            strategy.close("Long")
+else
+    if compound
+        //Open Long
+        if ((renko_c[1] < renko_c) and (strategy.equity > 0) and (strategy.equity <= 1000000000000) and windowOn)
+            strategy.entry("Long", strategy.long, qty=((strategy.equity/open) * margin_x))
+        //Open Short
+        if ((renko_c[1] > renko_c) and (strategy.equity > 0) and (strategy.equity <= 1000000000000) and windowOn)
+            strategy.entry("Short", strategy.short, qty=((strategy.equity/open) * margin_x))
+        //Close Long
+        if ((renko_c[1] > renko_c) and (strategy.equity > 0) and (strategy.equity <= 1000000000000))
+            strategy.close("Long")    
+        //Close Short
+        if ((renko_c[1] < renko_c) and (strategy.equity > 0) and (strategy.equity <= 1000000000000))
+            strategy.close("Short")
+    else
+        //Open Long
+        if ((renko_c[1] < renko_c) and (strategy.equity > 0) and (strategy.equity <= 1000000000000) and windowOn)
+            strategy.entry("Long", strategy.long, qty=strategy.initial_capital/open)
+        //Open Short
+        if ((renko_c[1] > renko_c) and (strategy.equity > 0) and (strategy.equity <= 1000000000000) and windowOn)
+            strategy.entry("Short", strategy.short, qty=strategy.initial_capital/open)
+        //Close Long
+        if ((renko_c[1] > renko_c) and (strategy.equity > 0) and (strategy.equity <= 1000000000000))
+            strategy.close("Long")    
+        //Close Short
+        if ((renko_c[1] < renko_c) and (strategy.equity > 0) and (strategy.equity <= 1000000000000))
+            strategy.close("Short")
+main = plot(strategy.position_avg_price, style=plot.style_stepline, linewidth=2, color=color.black, trackprice=true)
+sub = plot(strategy.position_entry_name=="Short" ? strategy.position_avg_price*(1+drawdown/100) : strategy.position_avg_price*(1-drawdown/100), style=plot.style_stepline, linewidth=1, color=color.navy, trackprice=true, display=display.none)
+fill(plot1=main, plot2=sub,color=color.new(color.red, 90),title="Unrealized Loss Area", display=display.none)
+Expand (108 lines)

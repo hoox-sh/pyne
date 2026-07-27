@@ -1,0 +1,45 @@
+//@version =4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双轨跟踪均线策略Double-Moving-Average-Crossover-Strategy.md
+// content_hash: 07345045bea8a893
+// collected: 2026-07-27
+strategy("Moving Average Cross", overlay=true)
+
+ema20 =  ema(close, 20)
+ema50 =ema(close, 50)
+
+long = ema20 > ema50
+short = ema20 < ema50
+
+longcondition = long and long[10] and not long[11]
+shortcondition = short and short[10] and not short[11]
+
+closelong = ema20 < ema50 and not long[11]
+closeshort = ema20 > ema50 and not short[11]
+
+
+plot(ema20, title="20", color=#00ffaa, linewidth=3)
+plot(ema50, title="50", color=#FFC1CC, linewidth=2)
+
+start = timestamp(2015,6,1,0,0)
+
+end = timestamp(2019,6,1,0,0)
+
+if true
+    strategy.entry("Long" ,strategy.long,  when = longcondition)
+    strategy.entry("Short" ,strategy.short, when = shortcondition)
+
+
+
+strategy.close("Long", when = closeshort)
+strategy.close("Short", when = closelong)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/430152
+
+> Last Modified
+
+2023-10-25 15:14:35

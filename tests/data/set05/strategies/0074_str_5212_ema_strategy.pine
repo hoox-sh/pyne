@@ -1,0 +1,101 @@
+//@version=5
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/5212 EMA Strategy.pine
+// content_hash: f9d646dec421c3ff
+// collected: 2026-07-27
+strategy(title='5212 EMA Strategy', shorttitle='5212 EMA', overlay=true, pyramiding=0, default_qty_type=strategy.percent_of_equity, default_qty_value=10, calc_on_every_tick=false)
+//**Backtest Date sof
+useStartPeriodTime  = input.bool(true                       , 'Start Date & Time'   , group='Date Range'    , inline='Start Period')
+startPeriodTime     = input.time(timestamp('16 Apr 2021')   , ''                    , group='Date Range'    , inline='Start Period')
+useEndPeriodTime    = input.bool(false                      , 'End Date & Time'     , group='Date Range'    , inline='End Period')
+endPeriodTime       = input.time(timestamp('31 Dec 2222')   , ''                    , group='Date Range'    , inline='End Period')
+enableHighlight     = input.bool(false                      , 'Highlight'           , group='Date Range'    , inline='Highlight')
+highlightType       = input.string('Anchors'                , ''                    , group='Date Range'    , inline='Highlight'    , options=['Anchors', 'Background'])
+highlightColor      = input.color(color.white               , ''                    , group='Date Range'    , inline='Highlight')
+start = useStartPeriodTime ? startPeriodTime >= time : false
+end = useEndPeriodTime ? endPeriodTime <= time : false
+calcPeriod = not start and not end
+var line startAnchor    = line.new(na, na, na, na, xloc.bar_time, extend.both, highlightColor, width=2)
+var line endAnchor      = line.new(na, na, na, na, xloc.bar_time, extend.both, highlightColor, width=2)
+useBgcolor = false
+if enableHighlight
+    if highlightType == 'Anchors'
+        if useStartPeriodTime
+            line.set_xy1(startAnchor, startPeriodTime, low)
+            line.set_xy2(startAnchor, startPeriodTime, high)
+        if useEndPeriodTime
+            line.set_xy1(endAnchor, calcPeriod ? time : line.get_x1(endAnchor), low)
+            line.set_xy2(endAnchor, calcPeriod ? time : line.get_x1(endAnchor), high)
+    if highlightType == 'Background'
+        useBgcolor := true
+        useBgcolor
+bgcolor(useBgcolor and calcPeriod ? color.new(highlightColor,90) : na, editable=false)
+//**Backtest Date eof
+src         =input(close    , 'Source'      , group='Support')
+showEMA     = input(true    , 'Show EMA'    , group='Support')
+//**Stochastic RSI sof
+smoothK     = input.int(6   , "K"               , group='Stochastic RSI'    , minval=1)
+smoothD     = input.int(6   , "D"               , group='Stochastic RSI'    , minval=1)
+lengthRSI   = input.int(28  , "RSI Length"      , group='Stochastic RSI'    , minval=1)
+lengthStoch = input.int(28  , "Stoch Length"    , group='Stochastic RSI'    , minval=1)
+rsi1    = ta.rsi(src, lengthRSI)
+k       = ta.sma(ta.stoch(rsi1, rsi1, rsi1, lengthStoch), smoothK)
+d       = ta.sma(k, smoothD)
+//**STochastic RSI eof
+//** EMA sof
+emain01     = input.int(50  , "EMAma Girang"    , group='Moving Average Exponential'    , minval=1)
+emain02     = input.int(100 , "EMAma Muda"      , group='Moving Average Exponential'    , minval=1)
+emain03     = input.int(200 , "EMAma Tua"       , group='Moving Average Exponential'    , minval=1)
+ema01 = ta.ema(src, emain01)
+ema02 = ta.ema(src, emain02)
+ema03 = ta.ema(src, emain03)
+plot(showEMA ? ema01 : na, 'EMAma Girang'   , color = color.new(color.orange, 0))
+plot(showEMA ? ema02 : na, 'EMAma Muda'     , color = color.new(color.blue, 0))
+plot(showEMA ? ema03 : na, 'EMAma Tua'      , color = color.new(color.red, 0))
+//** EMA eof
+//**Condition sof
+emaLong     = ema01 > ema02 and ema02 > ema03 and low > ema03
+emaShort    = ema01 < ema02 and ema02 < ema03 and high < ema03
+longCond    = ta.crossover(k,d) and k <= 23 and emaLong
+shortCond   = ta.crossunder(k,d) and k >= 77 and emaShort
+longClose   = ta.crossunder(k,d) and k <= 77
+shortClose  = ta.crossover(k,d) and k >= 23
+longCross   = ta.crossover(ema01, ema02)
+shortCross  = ta.crossunder(ema01, ema02)
+//**Condition eof
+//**Strategy sof
+if calcPeriod and longCond
+    strategy.entry('long', strategy.long, when=longCond, comment='EN Long')
+strategy.close('long', when=shortClose, comment='EX Long')
+strategy.close('long', when=shortCross, comment='MD Short')
+if calcPeriod and shortCond
+    strategy.entry('short', strategy.short, when=shortCond, comment='EN Short')
+strategy.close('short', when=longClose, comment='EX Short')
+strategy.close('short', when=longCross, comment='MD Long')
+if calcPeriod == false and ta.crossover(ema01, ema02) or ta.crossunder(ema01, ema02)
+    strategy.cancel('long')
+    strategy.cancel('short')
+//**Strategy eof
+//**Label sof
+entryText       = str.tostring(strategy.position_avg_price, '##.###')
+longText    = 'Long Entry : ' + entryText 
+shortText   = 'Short Entry : ' + entryText
+noTrade     = 'Sleeping Mode'
+LongTrade = strategy.position_size > 0
+ShortTrade = strategy.position_size < 0
+Tekslabel = LongTrade ? longText : ShortTrade ? shortText : noTrade
+xPosition = timenow + math.round(ta.change(time)*1)
+yPosition = ta.highest(1)
+labelColor = LongTrade ? color.new(color.aqua, 0) : ShortTrade ? color.new(color.red, 0) : color.new(color.gray, 0)
+textColor   = LongTrade ? color.new(color.black, 0) : ShortTrade ? color.new(color.white, 0) : color.new(color.white, 0)
+lab_l = label.new(
+          xPosition, yPosition, Tekslabel,
+          color=labelColor, 
+          textcolor=textColor, 
+          style =  label.style_label_left,
+          textalign=text.align_left,
+          xloc=xloc.bar_time, yloc = yloc.price)
+label.delete(lab_l[1])
+//**Strategy eof
+Expand (116 lines)

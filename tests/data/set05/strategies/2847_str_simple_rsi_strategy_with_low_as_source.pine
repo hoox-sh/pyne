@@ -1,0 +1,48 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于RSI的低价动态入场与止损策略-Dynamic-Low-Price-Entry-and-Stop-Loss-Strategy-Based-on-RSI.md
+// content_hash: fa101870a3874939
+// collected: 2026-07-27
+strategy("Simple RSI Strategy with Low as Source", overlay=true)
+
+// Input parameters
+rsiLength = input.int(14, title="RSI Length")
+rsiEntryLevel = input.int(24, title="RSI Entry Level")
+rsiExitLevel = input.int(72, title="RSI Exit Level")
+lossTolerance = input.float(20.0, title="Max Loss %")
+
+// Calculating RSI using the low price
+rsi = ta.rsi(low, rsiLength)
+
+// Entry condition
+longCondition = rsi < rsiEntryLevel
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+
+// Recording the entry price
+var float entryPrice = na
+if (longCondition)
+    entryPrice := low
+
+// Exit conditions
+percentFromEntry = 100 * (close - entryPrice) / entryPrice
+exitCondition1 = rsi > rsiExitLevel
+exitCondition2 = percentFromEntry <= -lossTolerance
+if (exitCondition1 or exitCondition2)
+    strategy.close("Long")
+
+// Plotting
+plot(rsi, "RSI", color=color.blue)
+hline(rsiEntryLevel, "Entry Level", color=color.green)
+hline(rsiExitLevel, "Exit Level", color=color.red)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/458023
+
+> Last Modified
+
+2024-07-29 13:22:37

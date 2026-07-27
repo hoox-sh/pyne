@@ -1,0 +1,68 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/高低突破策略结合Alpha趋势和移动平均线过滤-High-Low-Breakout-Strategy-with-Alpha-Trend-and-Moving-Average-Filter.md
+// content_hash: 7112db55eb6b0d4b
+// collected: 2026-07-27
+strategy("TRMUS", overlay=true)
+
+// Kullanıcının ayarlayabileceği mum sayısı
+length = input.int(20, minval=1, title="Number of Bars")
+
+// Stop Loss ve Take Profit seviyeleri
+stopLossPerc = input.float(2.0, title="Stop Loss %", minval=0.0) / 100.0
+takeProfitPerc = input.float(4.0, title="Take Profit %", minval=0.0) / 100.0
+
+// Trend filtresi için hareketli ortalama
+maLength = input.int(50, minval=1, title="Moving Average Length")
+ma = ta.sma(close, maLength)
+
+// ATR ve Alpha Trend parametreleri
+lengthATR = input.int(14, minval=1, title="ATR Length")
+multiplier = input.float(1.5, minval=0.1, step=0.1, title="Multiplier")
+
+// ATR hesaplaması
+atr = ta.atr(lengthATR)
+
+// Alpha Trend hesaplaması
+upperLevel = close + (multiplier * atr)
+lowerLevel = close - (multiplier * atr)
+
+var float alphaTrend = na
+alphaTrend := na(alphaTrend[1]) ? close : (close > lowerLevel[1] ? math.max(alphaTrend[1], lowerLevel) : close < upperLevel[1] ? math.min(alphaTrend[1], upperLevel) : alphaTrend[1])
+
+// Son belirlenen mumun en yüksek ve en düşük kapanış fiyatlarını hesaplayalım
+highestClose = ta.highest(close, length)
+lowestClose = ta.lowest(close, length)
+
+// Alım ve satım sinyalleri
+buySignal = close > highestClose[1] and close[1] <= highestClose[1] and close > ma and close > alphaTrend
+sellSignal = close < lowestClose[1] and close[1] >= lowestClose[1] and close < ma and close < alphaTrend
+
+// Alım işlemi
+if (buySignal)
+    strategy.entry("Buy", strategy.long, stop=close * (1 - stopLossPerc), limit=close * (1 + takeProfitPerc))
+
+// Satım işlemi
+if (sellSignal)
+    strategy.entry("Sell", strategy.short, stop=close * (1 + stopLossPerc), limit=close * (1 - takeProfitPerc))
+
+// Grafik üzerine göstergeler ekleyelim
+plot(highestClose, color=color.green, linewidth=2, title="Highest Close")
+plot(lowestClose, color=color.red, linewidth=2, title="Lowest Close")
+plot(ma, color=color.blue, linewidth=2, title="Moving Average")
+plot(alphaTrend, color=color.orange, linewidth=2, title="Alpha Trend")
+
+// Alım ve satım sinyalleri için işaretleyiciler ekleyelim
+plotshape(series=buySignal, location=location.belowbar, color=color.green, style=shape.labelup, title="Buy Signal", text="BUY")
+plotshape(series=sellSignal, location=location.abovebar, color=color.red, style=shape.labeldown, title="Sell Signal", text="SELL")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/458235
+
+> Last Modified
+
+2024-07-31 11:12:34

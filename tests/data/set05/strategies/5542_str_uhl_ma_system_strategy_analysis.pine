@@ -1,0 +1,38 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于Uhl-MA的自适应均线交叉策略Adaptive-Moving-Average-Crossover-Strategy-Based-on-Uhl-MA.md
+// content_hash: ebf086726bb0d896
+// collected: 2026-07-27
+strategy("Uhl MA System - Strategy Analysis")
+length = input(100),mult = input(1.),src = input(close)
+//----
+out = 0., cma = 0., cts = 0.
+Var = variance(src,length)           ,sma = sma(src,length)
+secma = pow(nz(sma - cma[1]),2)      ,sects = pow(nz(src - cts[1]),2) 
+ka = Var < secma ? 1 - Var/secma : 0 ,kb = Var < sects ? 1 - Var/sects : 0
+cma := ka*sma+(1-ka)*nz(cma[1],src)  ,cts := kb*src+(1-kb)*nz(cts[1],src)
+//----
+if crossover(cts,cma)
+    strategy.entry("Buy", strategy.long)
+if crossunder(cts,cma)
+    strategy.entry("Sell", strategy.short)
+//----
+cap = 50000
+eq = strategy.equity
+rmax = 0.
+rmax := max(eq,nz(rmax[1]))
+//----
+css = eq > cap ? #0cb51a : #e65100
+a = plot(eq,"Equity",#2196f3,2,transp=0)
+b = plot(rmax,"Maximum",css,2,transp=0)
+fill(a,b,css,80)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/427312
+
+> Last Modified
+
+2023-09-19 22:06:42

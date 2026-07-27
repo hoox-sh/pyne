@@ -1,0 +1,97 @@
+//@version=2
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于格林美分析指标的短期跟踪策略Short-term-Trend-Tracking-Strategy-Based-on-Gann-Me-Analysis-Indicator.md
+// content_hash: 06f8e55c3620763d
+// collected: 2026-07-27
+strategy(title="GMAE Original (By Kevin Manrrique)", overlay=false)
+/// This indicator was built and scripted by Kevin Manrrique. Please leave this copyright to the script at all times, if rebuilt please add your name onto the script.
+/// If you have any questions, please message me directly. Thank you.
+/// Sincerely,
+///
+/// Kevin Manrrique
+
+            ///ONE///
+len = input(3, minval=1, title="Length")
+src = input(close, title="Source")
+out = ema(src, len)
+//plot(out, title="EMA", color=blue)
+
+len2 = input(5, minval=1, title="Length")
+src2 = input(close, title="Source")
+out2 = ema(src2, len2)
+//plot(out2, title="EMA", color=blue)
+
+len3 = input(8, minval=1, title="Length")
+src3 = input(close, title="Source")
+out3 = ema(src3, len3)
+//plot(out3, title="EMA", color=blue)
+
+len4 = input(10, minval=1, title="Length")
+src4 = input(close, title="Source")
+out4 = ema(src4, len4)
+//plot(out4, title="EMA", color=blue)
+
+len5 = input(12, minval=1, title="Length")
+src5 = input(close, title="Source")
+out5 = ema(src5, len5)
+//plot(out5, title="EMA", color=blue)
+
+len6 = input(15, minval=1, title="Length")
+src6 = input(close, title="Source")
+out6 = ema(src6, len6)
+//plot(out6, title="EMA", color=blue)
+        ///TWO///
+len7 = input(30, minval=1, title="Length")
+src7 = input(close, title="Source")
+out7 = ema(src7, len7)
+//plot(out7, title="EMA", color=red)
+
+len8 = input(35, minval=1, title="Length")
+src8 = input(close, title="Source")
+out8 = ema(src8, len8)
+//plot(out8, title="EMA", color=red)
+
+len9 = input(40, minval=1, title="Length")
+src9 = input(close, title="Source")
+out9 = ema(src9, len9)
+//plot(out9, title="EMA", color=red)
+
+len10 = input(45, minval=1, title="Length")
+src10 = input(close, title="Source")
+out10 = ema(src10, len10)
+//plot(out10, title="EMA", color=red)
+
+len11 = input(50, minval=1, title="Length")
+src11 = input(close, title="Source")
+out11 = ema(src11, len11)
+//plot(out11, title="EMA", color=red)
+
+len12 = input(60, minval=1, title="Length")
+src12 = input(close, title="Source")
+out12 = ema(src12, len12)
+//plot(out12, title="EMA", color=red)
+
+g=out+out2+out3+out4+out5+out6
+mae=out7+out8+out9+out10+out11+out12
+gmae=mae-g
+plot(gmae, style=columns, color=green)
+baseline=0
+plot(baseline, style=line, color=black)
+
+longCondition = crossover(gmae, baseline)
+if (longCondition)
+    strategy.entry("long", strategy.long)
+
+shortCondition = crossunder(gmae, baseline)
+if (shortCondition)
+    strategy.entry("short", strategy.short)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/437542
+
+> Last Modified
+
+2024-01-03 16:10:08

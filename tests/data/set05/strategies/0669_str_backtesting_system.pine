@@ -1,0 +1,471 @@
+//@version=5
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/-Backtesting System.pine
+// content_hash: c053cfecc045900e
+// collected: 2026-07-27
+strategy('*Backtesting System',
+         overlay           = true,
+         initial_capital   = 10000,
+         commission_value  = 0.04,
+         default_qty_value = 10,
+         slippage          = 1,
+         pyramiding        = 0,
+         max_lines_count   = 500,
+         max_labels_count  = 500,
+         currency          = currency.USD,
+         default_qty_type  = strategy.percent_of_equity)
+MA(string _maType, float _maSource, simple int _maLength) =>
+    float ma = switch _maType
+        'ALMA' => ta.alma (_maSource, _maLength, 0.85, 6)
+        'EMA'  => ta.ema  (_maSource, _maLength)
+        'HMA'  => ta.hma  (_maSource, _maLength)
+        'RMA'  => ta.rma  (_maSource, _maLength)
+        'SMA'  => ta.sma  (_maSource, _maLength)
+        'VWMA' => ta.vwma (_maSource, _maLength)
+        'WMA'  => ta.wma  (_maSource, _maLength)
+    ma
+// ———————————————————————————————————————————————————————————————————————————————————————————————————————————————————————— \\
+// —————— ToolTips
+TText_source_    = '𝐄𝐱𝐭𝐞𝐫𝐧𝐚𝐥 𝐒𝐨𝐮𝐫𝐜𝐞 ➖ Here you must select your Indicator, having previously connected the "Connector" to it.\nIf the "Close" option is selected then you can test the backtest on regular MA crosses EMA 200 and EMA 50.'
+TTreversesignal  = '𝐖𝐚𝐢𝐭 𝐄𝐧𝐝 𝐃𝐞𝐚𝐥 ➖ Enable/Disable waiting for a trade to close at Stop Loss/Take Profit. Until the trade closes on the Stop Loss or Take Profit, no new trade will open. \n'
+                 + '𝐑𝐞𝐯𝐞𝐫𝐬𝐞 𝐃𝐞𝐚𝐥𝐬 ➖ If true strategy will go in the opposite direction from the signal.'
+TTreOpenDeal     = '𝐑𝐞𝐄𝐧𝐭𝐫𝐲 𝐃𝐞𝐚𝐥 ➖ If true trade was long and  SL/TP was reached then go long again and vice versa. \n'
+                 + '𝐑𝐞𝐎𝐩𝐞𝐧 𝐃𝐞𝐚𝐥 ➖ If true and Wait End Deal is false then in case you are in a Long position and a new signal to Long, you will reEnter a new Long position and vice versa for Shorts.'
+TTslType         = '𝐅𝐈𝐗𝐄𝐃 ％ ➖ Fixed SL/TP in percent. \n'
+                 + '𝐅𝐈𝐗𝐄𝐃 ＄ ➖ Fixed SL/TP in cash. \n'
+                 + '𝐓𝐑𝐀𝐈𝐋𝐈𝐍𝐆 ➖ Trailing stop in ％ like on exchanges. Regulated by the "𝗧𝗿𝗮𝗶𝗹𝗶𝗻𝗴 ％" parameter. \n'
+                 + '𝐅𝐀𝐒𝐓 𝐓𝐑𝐀𝐈𝐋 ➖ If in a long, it immediately follows the price when it rises otherwise it stands still. Vice versa for shorts. Regulated by the "𝗧𝗿𝗮𝗶𝗹𝗶𝗻𝗴 ％" parameter. \n'
+                 + '𝐀𝐓𝐑 ➖ Fixed TP/SL depending on the current ATR. It is regulated by the "𝗔𝗧𝗥 𝗣𝗲𝗿𝗶𝗼𝗱" | "𝗠𝘂𝗹𝘁𝗶𝗽𝗹𝗶𝗲𝗿" parameters. \n'
+                 + '𝗔𝗧𝗥 𝐓𝐑𝐀𝐈𝐋 ➖ Trailing Stop calculated on the basis of the ATR. It is regulated by the "𝗔𝗧𝗥 𝗣𝗲𝗿𝗶𝗼𝗱" | "𝗠𝘂𝗹𝘁𝗶𝗽𝗹𝗶𝗲𝗿" parameters. \n'
+                 + '𝗥:𝗥 ➖ Risk Reward sets the TP depending on the size of the SL. For example, if SL is ＄100, and R:R = 2, then the TP is ＄200. \n'
+                 + '𝐇𝐇 / 𝐋𝐋 ➖ Searches for the last Extremum (High/Low) for the specified number of bars and sets a fixed Take. \n'
+                 + '𝐋𝐎 / 𝐇𝐈 ➖ Sets the SL for High/Low candles. "𝗟𝗢/𝗛𝗜" = 1 Sets the SL for the last High/Low. \n'
+                 + '𝐌𝐀 ➖ Movieng Average SL. A very diverse type of SL.'
+// —————— Main Inputs
+groupset         = '➤ ＭＡＩＮ  ＳＥＴＴＩＮＧＳ'
+ext_source_      = input.source (close,       ' 𝐄𝐱𝐭𝐞𝐫𝐧𝐚𝐥 𝐒𝐨𝐮𝐫𝐜𝐞  ',    group=groupset, inline='esrc', tooltip=TText_source_)
+bullDeal         = input.bool   (true,        ' Long Deals    ',      group=groupset, inline='deal')    
+bearDeal         = input.bool   (true,        ' Short Deals',         group=groupset, inline='deal')    
+waitEndDeal      = input.bool   (true,        ' Wait End Deal ',      group=groupset, inline='ord1')    
+reversesignal    = input.bool   (false,       ' Reverse Deals',       group=groupset, inline='ord1', tooltip=TTreversesignal)   
+reEntryDeal      = input.bool   (false,       ' ReEntry Deal  ',      group=groupset, inline='ord2')
+reOpenDeal       = input.bool   (false,       ' ReOpen Deal',         group=groupset, inline='ord2', tooltip=TTreOpenDeal)
+tpType           = input.string ('R:R',       ' 𝐓𝐚𝐤𝐞 𝐏𝐫𝐨𝐟𝐢𝐭�',        group=groupset, inline='type', options=['None', 'FIXED ％', 'FIXED ＄', 'ATR', 'R:R', 'HH / LL']) 
+slType           = input.string ('ATR',       ' 𝐒𝐭𝐨𝐩 𝐋𝐨𝐬𝐬 ',          group=groupset, inline='type', options=['None', 'FIXED ％', 'FIXED ＄', 'TRAILING', 'FAST TRAIL', 'ATR', 'ATR TRAIL', 'LO / HI', 'MA'], tooltip=TTslType)
+grouptakes       = '                    ➤ Ｔａｋｅ Ｐｒｏｆｉｔ Ｌｅｖｅｌｓ'
+ontake1          = input.bool   (false,       '🇹🇵¹',                  group=grouptakes, inline='take')
+qtake1           = input.int    (20,          '�',                   group=grouptakes, inline='take', minval=1, step=5, maxval=100) 
+ontake2          = input.bool   (false,       '🇹🇵²',                  group=grouptakes, inline='take')
+qtake2           = input.int    (20,          '�',                   group=grouptakes, inline='take', minval=1, step=5, maxval=100)
+ontake3          = input.bool   (false,       '🇹🇵³',                  group=grouptakes, inline='take')
+qtake3           = input.int    (50,          '�',                   group=grouptakes, inline='take', minval=1, step=5, maxval=100)
+ontake4          = input.bool   (false,       '🇹🇵⁴',                  group=grouptakes, inline='take')
+qtake4           = input.int    (25,          '�',                   group=grouptakes, inline='take', minval=1, step=5, maxval=100)
+ontake5          = input.bool   (false,       '🇹🇵⁵ ',                 group=grouptakes, inline='take')
+qtake5           = input.int    (25,          '�',                   group=grouptakes, inline='take', minval=1, step=5, maxval=100)
+onstop0          = input.bool   (false,       '🇸🇱⁰ ',                 group=grouptakes, inline='take')
+qstop0           = input.int    (30,          '�',                   group=grouptakes, inline='take', minval=1, step=5, maxval=100)
+// Example Connector
+//Signal = buy ? +1 : sell ? -1 : 0
+//plot(Signal, "🔌Connector🔌", display = display.none)
+// —————— Variables Initialisation
+ext_source = nz(ext_source_)
+bull = ext_source == +1 // +1 is bull signal
+bear = ext_source == -1 // -1 is bear signal
+// ———————————————————————————————————————————————————————————————————————————————————————————————————————————————————————— \\
+// ————————————————————————————————————————————————— DATE RANGE ——————————————————————————————————————————————————————————— \\ // Credit @jason5480
+// ———————————————————————————————————————————————————————————————————————————————————————————————————————————————————————— \\
+grouptime             = '➤ ＴＩＭＥ  ＦＩＬＴＥＲＳ'
+src_timezone          = input.string ('Exchange',      'Timezones Src->Dst',    group=grouptime, inline='Timezone', options=['Exchange', 'UTC', 'America/Los_Angeles', 'America/Phoenix', 'America/Vancouver', 'America/El_Salvador', 'America/Bogota', 'America/Chicago', 'America/New_York', 'America/Toronto', 'America/Argentina/Buenos_Aires', 'America/Sao_Paulo', 'Etc/UTC', 'Europe/London', 'Europe/Berlin', 'Europe/Madrid', 'Europe/Paris', 'Europe/Warsaw', 'Europe/Athens', 'Europe/Moscow', 'Asia/Tehran', 'Asia/Dubai', 'Asia/Ashkhabad', 'Asia/Kolkata', 'Asia/Almaty', 'Asia/Bangkok', 'Asia/Hong_Kong', 'Asia/Shanghai', 'Asia/Singapore', 'Asia/Taipei', 'Asia/Seoul', 'Asia/Tokyo', 'Australia/ACT', 'Australia/Adelaide', 'Australia/Brisbane', 'Australia/Sydney', 'Pacific/Auckland', 'Pacific/Fakaofo', 'Pacific/Chatham', 'Pacific/Honolulu'])
+dst_timezone          = input.string ('Exchange',      '->',                    group=grouptime, inline='Timezone', options=['Exchange', 'UTC', 'America/Los_Angeles', 'America/Phoenix', 'America/Vancouver', 'America/El_Salvador', 'America/Bogota', 'America/Chicago', 'America/New_York', 'America/Toronto', 'America/Argentina/Buenos_Aires', 'America/Sao_Paulo', 'Etc/UTC', 'Europe/London', 'Europe/Berlin', 'Europe/Madrid', 'Europe/Paris', 'Europe/Warsaw', 'Europe/Athens', 'Europe/Moscow', 'Asia/Tehran', 'Asia/Dubai', 'Asia/Ashkhabad', 'Asia/Kolkata', 'Asia/Almaty', 'Asia/Bangkok', 'Asia/Hong_Kong', 'Asia/Shanghai', 'Asia/Singapore', 'Asia/Taipei', 'Asia/Seoul', 'Asia/Tokyo', 'Australia/ACT', 'Australia/Adelaide', 'Australia/Brisbane', 'Australia/Sydney', 'Pacific/Auckland', 'Pacific/Fakaofo', 'Pacific/Chatham', 'Pacific/Honolulu'], tooltip='The Src is the timezone to be used as a reference for the time settings. The Dst is the timezone to convert into (e.g. the charslPrice\' timezone)')
+usefromDate           = input.bool   (true,            'Srart From ',           group=grouptime, inline='From Date')
+fromDate              = input.time   (timestamp('01 Jan 2020 00:00'), '',       group=grouptime, inline='From Date')
+usetoDate             = input.bool   (false,           'End To       ',         group=grouptime, inline='To Date')
+toDate                = input.time   (timestamp('01 Jul 2025 00:00'), '',       group=grouptime, inline='To Date')
+useSessionDay         = input.bool   (false,           'Session Days',          group=grouptime, inline='Session Days')
+mon                   = input.bool   (true,            'Mon',                   group=grouptime, inline='Session Days')
+tue                   = input.bool   (true,            'Tue',                   group=grouptime, inline='Session Days')
+wed                   = input.bool   (true,            'Wed',                   group=grouptime, inline='Session Days')
+thu                   = input.bool   (true,            'Thu',                   group=grouptime, inline='Session Days')
+fri                   = input.bool   (true,            'Fri',                   group=grouptime, inline='Session Days')
+sat                   = input.bool   (false,           'Sat',                   group=grouptime, inline='Session Days')
+sun                   = input.bool   (false,           'Sun',                   group=grouptime, inline='Session Days')
+useSessionStart       = input.bool   (false,           'Session Start',         group=grouptime, inline='Session Start')
+sessionStartHour      = input.int    (12,              '',                      group=grouptime, inline='Session Start', minval=0, maxval=23, step=1)
+sessionStartMinute    = input.int    (00,              ':',                     group=grouptime, inline='Session Start', minval=0, maxval=59, step=1, tooltip='Start time of the session.')
+useSessionEnd         = input.bool   (false,           'Session End ',          group=grouptime, inline='Session End')
+sessionEndHour        = input.int    (20,              '',                      group=grouptime, inline='Session End', minval=0, maxval=23, step=1)
+sessionEndMinute      = input.int    (00,              ':',                     group=grouptime, inline='Session End', minval=0, maxval=59, step=1, tooltip='End time of the session.')
+// ———————————————————————————————————————————————————————————————————————————————————————————————————————————————————————— \\
+ex_timezone(simple string tz) =>
+    switch tz
+        'Exchange' => syminfo.timezone
+        => tz    
+if_in_date_range(simple bool usefromDate, simple int fromDate, simple bool usetoDate, simple int toDate, simple string src_timezone = 'Exchange', simple string dst_timezone = 'Exchange', int t = time_close) =>
+    var src_tz     = ex_timezone(src_timezone)
+    var dst_tz     = ex_timezone(dst_timezone)
+    var fromDateTz = timestamp(src_tz, year(fromDate, dst_tz), month(fromDate, dst_tz), dayofmonth(fromDate, dst_tz), hour(fromDate, dst_tz), minute(fromDate, dst_tz), second(fromDate, dst_tz))
+    var toDateTz   = timestamp(src_tz, year(toDate, dst_tz), month(toDate, dst_tz), dayofmonth(toDate, dst_tz), hour(toDate, dst_tz), minute(toDate, dst_tz), second(toDate, dst_tz))
+    (usefromDate ? t >= fromDateTz : true) and (usetoDate ? t < toDateTz : true)
+if_in_session(simple bool useSessionStart, simple int sessionStartHour, simple int sessionStartMinute, simple bool useSessionEnd, simple int sessionEndHour, simple int sessionEndMinute, simple bool useSessionDay = false, simple bool mon = true, simple bool tue = true, simple bool wed = true, simple bool thu = true, simple bool fri = true, simple bool sat = false, simple bool sun = false, simple string src_timezone = 'Exchange', simple string dst_timezone = 'Exchange', int t = time_close) =>
+    var one_day = 86400000
+    var utc_tz  = 'UTC'
+    var src_tz  = ex_timezone(src_timezone)
+    var dst_tz  = ex_timezone(dst_timezone)
+    start_hr    = sessionStartHour   + (hour(t, dst_tz)   - hour(t, src_tz))
+    start_min   = sessionStartMinute + (minute(t, dst_tz) - minute(t, src_tz))
+    end_hr      = sessionEndHour     + (hour(t, dst_tz)   - hour(t, src_tz))
+    end_min     = sessionEndMinute   + (minute(t, dst_tz) - minute(t, src_tz))
+    time_start_session   = timestamp(dst_tz, year(t, src_tz), month(t, src_tz), dayofmonth(t, src_tz), start_hr, start_min, second(t, src_tz))
+    time_end_session     = timestamp(dst_tz, year(t, src_tz), month(t, src_tz), dayofmonth(t, src_tz), end_hr,   end_min,   second(t, src_tz))
+    var bool isOvernight = time_start_session >= time_end_session
+    // in overnight sessions increase end time by one day
+    if (useSessionStart and useSessionEnd and isOvernight)
+        time_end_session := time_end_session + one_day
+    isSessionDay = switch dayofweek(t, src_tz)
+        dayofweek.monday    => mon
+        dayofweek.tuesday   => tue
+        dayofweek.wednesday => wed
+        dayofweek.thursday  => thu
+        dayofweek.friday    => fri
+        dayofweek.saturday  => sat
+        dayofweek.sunday    => sun
+        => false
+    (useSessionDay ? isSessionDay : true) and (useSessionStart ? t >= time_start_session : true) and (useSessionEnd ? t < time_end_session : true)
+// ———————————————————————————————————————————————————————————————————————————————————————————————————————————————————————— \\
+bool dateFilterApproval     = if_in_date_range(usefromDate, fromDate, usetoDate, toDate, src_timezone, dst_timezone)
+bool sessionFilterApproval  = if_in_session(useSessionStart, sessionStartHour, sessionStartMinute, useSessionEnd, sessionEndHour, sessionEndMinute, useSessionDay, mon, tue, wed, thu, fri, sat, sun, src_timezone, dst_timezone)
+bool timeFilterApproval     = dateFilterApproval and sessionFilterApproval
+// ———————————————————————————————————————————————————————————————————————————————————————————————————————————————————————— \\
+// ————————————————————————————————————————————— Signal Filters ——————————————————————————————————————————————————————————— \\ // Credit @pAulseperformance
+// ———————————————————————————————————————————————————————————————————————————————————————————————————————————————————————— \\
+groupsignal           = '➤ ＳＩＧＮＡＬ  ＦＩＬＴＥＲＳ'
+FilterType1           = input.bool   (false,           '1. ADX',                                           group=groupsignal, inline='FT1')
+FilterType1Len        = input.int    (17,              '',                                                 group=groupsignal, inline='FT1', minval=1 )
+FilterType1Smt        = input.int    (14,              '',                                                 group=groupsignal, inline='FT1', minval=1, maxval=50)
+FilterType1Tresh      = input.int    (20,              '',                                                 group=groupsignal, inline='FT1', minval=1, maxval=50, tooltip='ADX Lenght, Smooth, Level. \nTrade If ADX < Level')
+FilterType2           = input.bool   (false,           '2. MACD',                                          group=groupsignal, inline='FT2')
+FilterType2Len1       = input.int    (12,              '',                                                 group=groupsignal, inline='FT2')
+FilterType2Len2       = input.int    (26,              '',                                                 group=groupsignal, inline='FT2')
+FilterType2Len3       = input.int    (9,               '',                                                 group=groupsignal, inline='FT2', tooltip='Fast Len, Slow Len, Smooth. \nLong Filter: MACD > 0\nShort Filter: MACD < 0')
+FilterType3           = input.bool   (false,           '3. Bar direction=Trade direction',                 group=groupsignal, tooltip='Long filter: close>open\nShort Filter: close<open')
+FilterType4           = input.bool   (false,           '4. Rising Volume',                                 group=groupsignal, tooltip='Long Filter: Volume Increasing\nShort Filter: Volume Decreasing')
+FilterType5           = input.bool   (false,           '5. Rising/Falling MA',                             group=groupsignal, inline='FT5', tooltip='Long Filter: SMA is Rising\nShort Filter: SMA Falling \nRising/Falling - For N Bars')
+FilterType5Len        = input.int    (50,              'Length',                                           group=groupsignal, inline='FT5', minval=2)
+FilterType5Bars       = input.int    (1,               'Bars',                                             group=groupsignal, inline='FT5', minval=1)
+FilterType6           = input.bool   (false,           '6. High/Low Filter',                               group=groupsignal, inline='FT6')
+FilterType6Bars       = input.int    (10,              'Lookback',                                         group=groupsignal, inline='FT6', tooltip='If true then the signal bar must be the highest/lovest bar over X bars')
+FilterType7           = input.bool   (false,           '7. Maximum close change (％) allowed on entry',    group=groupsignal, inline='FT7')
+FilterType7IncPct     = input.float  (10.0,            '',                                                 group=groupsignal, inline='FT7', minval=0.0, step=0.5)
+FilterType8           = input.bool   (false,           '8. Minimum close change (％) allowed on entry',    group=groupsignal, inline='FT8')
+FilterType8IncPct     = input.float  (1.0,             '',                                                 group=groupsignal, inline='FT8', minval=0.0, step=0.5)
+FilterType9           = input.bool   (false,           '9. RSI OS/OB',                                     group=groupsignal, inline='FT9')
+FilterType9Len        = input.int    (20,              '',                                                 group=groupsignal, inline='FT9', minval=2)
+FilterType9OS         = input.int    (25,              '',                                                 group=groupsignal, inline='FT9', minval=0, maxval=100)
+FilterType9OB         = input.int    (75,              '',                                                 group=groupsignal, inline='FT9', minval=0, maxval=100, tooltip='RSI Length, OS Level, OB Level \nLong = RSI < OB\nShort = RSI > OS')
+FilterType10          = input.bool   (false,           '10. MA',                                           group=groupsignal, inline='FT10')
+FilterType10MAType    = input.string ('SMA',           '',                                                 group=groupsignal, inline='FT10', options=['ALMA', 'EMA', 'HMA', 'RMA', 'SMA', 'VWMA', 'WMA'])
+FilterType10Len       = input.int    (200,             '',                                                 group=groupsignal, inline='FT10', minval=1, tooltip='MA Type, MA Source, MA Length\nLong = close > MA\nShort = close < MA')
+// —————— Filter 1: ADX
+[dip, dim, adx] = ta.dmi(FilterType1Len, FilterType1Smt)
+Filter1Long     = FilterType1 ? adx < FilterType1Tresh : true
+Filter1Short    = Filter1Long
+// —————— Filter 2: MACD Hist
+_macdLine       = FilterType2 ? nz(MA('EMA', close, FilterType2Len1) - MA('EMA', close, FilterType2Len2)) : 0.
+_macdSignal     = FilterType2 ? nz(MA('EMA', _macdLine, FilterType2Len3)) : 0.
+_macdHist       = FilterType2 ? _macdLine - _macdSignal : 0.
+Filter2Long     = FilterType2 ? _macdHist > 0 : true
+Filter2Short    = FilterType2 ? _macdHist < 0 : true
+// —————— Filter 3: Bar direction
+Filter3Long     = FilterType3 ? close > open : true
+Filter3Short    = FilterType3 ? close < open : true
+// —————— Filter 4: Rising volume
+Filter4Long     = FilterType4 ? ta.rising(volume, 1) : true
+Filter4Short    = Filter4Long
+// —————— Filter 5: Rising/Falling MA
+Filter5Ma       = FilterType5 ? nz(MA('SMA', close, FilterType5Len)) : 0
+Filter5Long     = FilterType5 ? ta.rising(Filter5Ma, FilterType5Bars) : true
+Filter5Short    = FilterType5 ? ta.falling(Filter5Ma, FilterType5Bars) : true
+// —————— Filter 6: Check high & close filter
+Filter6Long     = FilterType6 ? high >= ta.highest(high, FilterType6Bars) : true
+Filter6Short    = FilterType6 ? low <= ta.lowest(low, FilterType6Bars) : true
+// —————— Filter 7: Maximum delta with previous close allowed at entry
+Filter7Long     = FilterType7 ? close < close[1] * (1 + FilterType7IncPct / 100) : true
+Filter7Short    = FilterType7 ? close > close[1] * (1 - FilterType7IncPct / 100) : true
+// —————— Filter 8: Minimum delta with previous close allowed at entry
+Filter8Long     = FilterType8 ? close > close[1] * (1 + FilterType8IncPct / 100) : true
+Filter8Short    = FilterType8 ? close < close[1] * (1 - FilterType8IncPct / 100) : true
+// —————— Filter 9: RSI OS/OB
+Rsi             = FilterType9 ? ta.rsi(close, FilterType9Len) : 0
+RsiOB           = Rsi > FilterType9OB
+RsiOS           = Rsi < FilterType9OS
+Filter9Long     = FilterType9 ? not RsiOB : true
+Filter9Short    = FilterType9 ? not RsiOS : true
+// —————— Filter 10: Moving Average
+Filter10Ma      = FilterType10 ? MA(FilterType10MAType, close, FilterType10Len) : 0.
+Filter10Long    = FilterType10 ? close > Filter10Ma : true
+Filter10Short   = FilterType10 ? close < Filter10Ma : true
+// —————— Assemble Filters
+FilterLongOK    = Filter1Long and Filter2Long and Filter3Long and Filter4Long and Filter5Long
+ and Filter6Long and Filter7Long and Filter8Long and Filter9Long and Filter10Long
+FilterShortOK   = Filter1Short and Filter2Short and Filter3Short and Filter4Short and Filter5Short
+ and Filter6Short and Filter7Short and Filter8Short and Filter9Short and Filter10Short
+// ———————————————————————————————————————————————————————————————————————————————————————————————————————————————————————— \\
+// ————————————————————————————————————————————————— Risk Managment ——————————————————————————————————————————————————————— \\ // Credit @Daveatt
+// ———————————————————————————————————————————————————————————————————————————————————————————————————————————————————————— \\
+grouprisk               = '➤ ＲＩＳＫ  ＭＡＮＡＧＥＭＥＮＴ'
+setmaxLosingStreak      = input.bool   (false,           '',                   group=grouprisk, inline='1')
+maxLosingStreak         = input.int    (15,              'Loss Streak   ',     group=grouprisk, inline='1', minval=1)
+setmaxWinStreak         = input.bool   (false,           '',                   group=grouprisk, inline='1')
+maxWinStreak            = input.int    (15,              'Win Streak   ',      group=grouprisk, inline='1', minval=1, tooltip='𝐋𝐨𝐬𝐬 𝐒𝐭𝐫𝐞𝐚𝐤 ➖ Set Max number of consecutive loss trades. \n𝐖𝐢𝐧 𝐒𝐭𝐫𝐞𝐚𝐤 ➖ Max Winning Streak Length.')
+setmaxLosingDaysStreak  = input.bool   (false,           '',                   group=grouprisk, inline='2')
+maxLosingDaysStreak     = input.int    (3,               'Row Loss InDay',     group=grouprisk, inline='2', minval=1)
+setMaxDrawdown          = input.bool   (false,           '',                   group=grouprisk, inline='2')
+maxPercDd               = input.int    (10,              'DrawDown ％',        group=grouprisk, inline='2', minval=1, maxval=100, tooltip='𝐑𝐨𝐰 𝐋𝐨𝐬𝐬 𝐈𝐧𝐃𝐚𝐲 ➖ Max of consecutive days with a loss in a row. \n𝐃𝐫𝐚𝐰𝐃𝐨𝐰𝐧％ ➖ Max DrawDown (in % of strategy equity).')
+setMaxIntradayLoss      = input.bool   (false,           '',                   group=grouprisk, inline='3')
+maxIntradayLoss         = input.int    (3,               'InDay Loss ％ ',     group=grouprisk, inline='3', minval=1, maxval=100)
+setNumberDailyTrades    = input.bool   (false,           '',                   group=grouprisk, inline='3')
+maxDailyTrades          = input.int    (10,              'Daily Trades  ',     group=grouprisk, inline='3', minval=1, maxval=100, tooltip='𝐈𝐧𝐃𝐚𝐲 𝐋𝐨𝐬𝐬 ％ ➖ Set Max Intraday Loss. \n𝐃𝐚𝐢𝐥𝐲 𝐓𝐫𝐚𝐝𝐞𝐬 ➖ Limit the number of MAX trades per day.')
+setNumberWeeklyTrades   = input.bool   (false,           '',                   group=grouprisk, inline='4')
+maxWeeklyTrades         = input.int    (50,              'Weekly Trades',      group=grouprisk, inline='4', minval=1, maxval=100, tooltip='𝐖𝐞𝐞𝐤𝐥𝐲 𝐓𝐫𝐚𝐝𝐞𝐬 ➖ Limit the number of MAX trades per week.')
+QTYMethod               = input.string ('EQUITY',        '     Order Size',    group=grouprisk, inline=' ', options=['NONE', 'EQUITY', 'SIZE', 'CONTRACTS'])
+useNetProfit            = input.bool   (true,            'Use Net Profit',     group=grouprisk, inline=' ', tooltip='𝐔𝐬𝐞 𝐍𝐞𝐭 𝐏𝐫𝐨𝐟𝐢𝐭 ➖ On/Off the use of profit in the following trades. *Only works if the type is EQUITY')
+riskPerc                = input.int    (10,              '​🇪​​🇶​​🇺​​🇮​​🇹​​🇾​',              group=grouprisk, inline='.', minval=1, maxval=100)
+riskSize                = input.int    (1000,            '​🇸​​🇮​​🇿​​🇪',                group=grouprisk, inline='.', minval=1)
+riskCntr                = input.int    (1,               '​🇨​​🇴​​🇳​​🇹​​🇷​​🇦​​🇨​​🇹​​🇸​',           group=grouprisk, inline='.', minval=1, tooltip='𝐎𝐫𝐝𝐞𝐫 𝐒𝐢𝐳𝐞: \n𝐍𝐎𝐍𝐄 ➖ Use the default position size settings in Tab "Properties". \n𝐄𝐐𝐔𝐈𝐓𝐘 ➖ ％ per trade from the initial capital. \n𝐒𝐈𝐙𝐄 ➖ Fixed size amount of trade. \n𝐂𝐎𝐍𝐓𝐑𝐀𝐂𝐓𝐒 ➖ The fixed amount of the deal in contracts. \n')
+// —————— Order Size
+eqty = switch QTYMethod
+    'NONE'      => na
+    'EQUITY'    => riskPerc / close
+    'SIZE'      => riskSize / close
+    'CONTRACTS' => riskCntr
+// ———————————————————————————————————————————————————————————————————————————————————————————————————————————————————————— \\
+// —————— Intraday Loss ％
+condintradayloss = setMaxIntradayLoss ? maxIntradayLoss : 100
+strategy.risk.max_intraday_loss(value=condintradayloss, type=strategy.percent_of_equity)
+// —————— Max Drawdown ％
+condmaxdrawdown = setMaxDrawdown ? maxPercDd : 100
+strategy.risk.max_drawdown(value=condmaxdrawdown, type=strategy.percent_of_equity)
+// —————— Daily trades calculation
+tradesIntradayCount = setNumberDailyTrades ? maxDailyTrades : 1000
+strategy.risk.max_intraday_filled_orders(count=tradesIntradayCount)
+// —————— Weekly trades calculation
+tradesLastWeek = 0
+tradesLastWeek := dayofweek == dayofweek.monday and dayofweek != dayofweek[1] ? strategy.closedtrades[1] + strategy.opentrades[1] : tradesLastWeek[1]
+// —————— Calculate number of trades this week
+weeklyTrades = strategy.closedtrades + strategy.opentrades - tradesLastWeek
+okToTradeWeekly = setNumberWeeklyTrades ? weeklyTrades < maxWeeklyTrades : true
+// —————— Consecutive loss days in a row
+countConsLossDays = setmaxLosingDaysStreak ? maxLosingDaysStreak : 1000
+strategy.risk.max_cons_loss_days(countConsLossDays)
+// —————— Calculate the total losing streaks
+newLoss = strategy.losstrades > strategy.losstrades[1] and strategy.wintrades == strategy.wintrades[1] and strategy.eventrades == strategy.eventrades[1]
+// —————— Determine current losing streak length
+streakLossLen = 0
+streakLossLen := newLoss ? nz(streakLossLen[1]) + 1 : strategy.wintrades > strategy.wintrades[1] or strategy.eventrades > strategy.eventrades[1] ? 0 : nz(streakLossLen[1])
+// —————— Check if losing streak is under max allowed
+okToTradeLossStreak = setmaxLosingStreak ? streakLossLen < maxLosingStreak : true
+// —————— Calculate the total winning streaks
+newWin = strategy.wintrades > strategy.wintrades[1] and strategy.losstrades == strategy.losstrades[1] and strategy.eventrades == strategy.eventrades[1]
+// —————— Figure out current winning streak length
+streakWinLen = 0
+streakWinLen := newWin ? nz(streakWinLen[1]) + 1 : strategy.losstrades > strategy.losstrades[1] or strategy.eventrades > strategy.eventrades[1] ? 0 : nz(streakWinLen[1])
+// —————— Check if winning streak is under max allowed
+okToTradeWinStreak = setmaxWinStreak ? streakWinLen < maxWinStreak : true
+// ———————————————————————————————————————————————————————————————————————————————————————————————————————————————————————— \\
+// ————————————————————————————————————————————————— STRATEGY ————————————————————————————————————————————————————————————— \\
+// ———————————————————————————————————————————————————————————————————————————————————————————————————————————————————————— \\
+percentTP    = input.float  (4.5,             ' Profit ％    ',            group=groupset, inline='fix', minval=0.1, step=0.1)
+percentSL    = input.float  (1.5,             ' Stop ％  ',                group=groupset, inline='fix', minval=0.1, step=0.1)
+moneyTP      = input.float  (333,             ' Profit ＄    ',            group=groupset, inline='mon', minval=1,   step=5)
+moneySL      = input.float  (100,             ' Stop ＄  ',                group=groupset, inline='mon', minval=1,   step=5)
+ATRLen       = input.int    (40,              ' ATR Period  ',             group=groupset, inline='atr', minval=1,   step=1)
+ATRMult      = input.float  (4,               ' Multiplier',               group=groupset, inline='atr', minval=0.1, step=0.1)
+trailPerc    = input.float  (3,               ' Trailing ％  ',            group=groupset, inline='trl', minval=0.1, step=0.1)
+riskReward   = input.float  (2,               ' R:R    1:',                group=groupset, inline='trl', minval=0.5, step=0.1)
+fixedRR      = input.bool   (true,            ' Fixed RR',                 group=groupset, inline='trl', tooltip='𝐅𝐢𝐱𝐞𝐝 𝗥:𝗥 ➖ If the stop loss is Dynamic (Trailing or MA) then R:R can also be made Dynamic')
+HHLL         = input.int    (200,             ' HH / LL   ',               group=groupset, inline='hls', minval=1,   step=5)
+LoHi         = input.int    (5,               '  LO / HI ',                group=groupset, inline='hls', minval=1,   step=1)
+addPerc      = input.bool   (false,           ' Add ％',                   group=groupset, inline='hls', tooltip='𝐀𝐝𝐝 ％ ➖ If true, then with the "𝗦𝘁𝗼𝗽 ％" parameter you can add percentages to any of the current SL. \nCan be especially useful when using Stop - 𝗔𝗧𝗥 or 𝗠𝗔 or 𝗟𝗢/𝗛𝗜. \nFor example with 𝗟𝗢/𝗛𝗜 to put a stop for the last High/Low and add 0.5% additional Stoploss')
+maStopType   = input.string ('SMA',           ' MA Stop',                  group=groupset, inline='mas', options=['ALMA', 'EMA', 'HMA', 'RMA', 'SMA', 'VWMA', 'WMA'])
+maStopLen    = input.int    (15,              ' Len',                      group=groupset, inline='mas', minval=1,   step=2)
+maPerc       = input.float  (1.5,             ' Step',                     group=groupset, inline='mas', minval=0,   step=0.1, tooltip='𝐌𝐀 𝐒𝐭𝐨𝐩 ➖ allows to choose which MA to use. \n𝐋𝐞𝐧 ➖ Length of chosen MA. \n𝐒𝐭𝐞𝐩 ➖％ step of change MA. Step = 0 will use the selected MA without changes. \nWARNING: When 𝐀𝐝𝐝 ％ is on, the MA calculation changes..')
+bullcolor    = input.color  (#00bbd49a,     'Colors:  FG',               group=grouptakes, inline='col')
+bearcolor    = input.color  (#c2185c9a,     '',                          group=grouptakes, inline='col')
+bullcolorb   = input.color  (#00bbd426,     'BG',                        group=grouptakes, inline='col')
+bearcolorb   = input.color  (#c2185c27,     '',                          group=grouptakes, inline='col')
+TipLvl       = input.string ('——⤴—⤴—⤴',     '𝐓𝐈𝐏 𝐅𝐨𝐫 𝐓𝐏',                group=grouptakes, inline='col', tooltip='Here you can set up intermediate Takes Profit.\nIn each line next to the TP/SL activation, you specify what % of the current position you want to close. \nFor example, if there is a checkmark next to TP 3 and its value = 50, then at this level 50％ of the size of the current position will be closed.')
+slNumber     = input.int    (3,               ' SL 0 Position',            group=grouptakes, inline='pos', minval=1, maxval=5)
+ontpBE       = input.bool   (false,           '',                          group=grouptakes, inline='pos')
+tpBEnumber   = input.int    (3,               'Breakeven on TP',           group=grouptakes, inline='pos', minval=1, maxval=5, tooltip='𝐒𝐋 𝟎 𝐏𝐨𝐬𝐢𝐭𝐢𝐨𝐧 ➖ Changes the position of the intermediate Stop Loss.\nThe value = 3 - the middle. \n𝐁𝐫𝐞𝐚𝐤𝐞𝐯𝐞𝐧 𝐨𝐧 𝐓𝐏 ➖ If true Set StopLoss to Breakeven after the specified TakeProfit is reached.')
+barCoolDwn   = input.int    (0,               ' CoolDown # Bars',          group=grouptakes, inline='   ', minval=0, tooltip='Do Not open a new position until # bars have passed since the last trade.\nValue=0 - disables the function.')
+// ———————————————————————————————————————————————————————————————————————————————————————————————————————————————————————— \\
+// —————— Trade variables
+entry        = strategy.position_avg_price
+sizePos      = strategy.position_size
+inLong       = sizePos > 0
+inShort      = sizePos < 0
+inTrade      = inLong or inShort
+inPos        = (inLong and not inShort[1]) or (inShort and not inLong[1])
+var ID       = 'TradeID'
+var tpPrice  = float(na)
+var slPrice  = float(na)
+// —————— Signal
+bull        := ext_source_ == close ? ta.crossover (ta.ema(close, 50), ta.ema(close, 200)) : bull
+bear        := ext_source_ == close ? ta.crossunder(ta.ema(close, 50), ta.ema(close, 200)) : bear
+bull        := reversesignal ? bear : bull
+bear        := reversesignal ? bull : bear
+// —————— Entry solutions
+direction    = 0
+directionL   = bull and (nz(direction[1]) == 0 or nz(direction[1]) == -1)
+directionS   = bear and (nz(direction[1]) == 0 or nz(direction[1]) == +1)
+direction   := directionL ? +1 : directionS ? -1 : (reEntryDeal ? direction[1] : direction[0])
+checkCoolDwn = barCoolDwn >0 ? not inTrade[barCoolDwn] : true
+OkToTrade    = timeFilterApproval and okToTradeLossStreak and okToTradeWinStreak and checkCoolDwn
+goLong       = ( waitEndDeal ? not inTrade and direction==+1 : direction==+1 ) and bullDeal and OkToTrade and FilterLongOK 
+goShort      = ( waitEndDeal ? not inTrade and direction==-1 : direction==-1 ) and bearDeal and OkToTrade and FilterShortOK
+// ———————————————————————————————————————————————————————————————————————————————————————————————————————————————————————— \\
+DynamicStops = (slType == 'TRAILING' or slType == 'FAST TRAIL' or slType == 'ATR TRAIL' or slType == 'MA')
+// —————— Fixed SL/TP
+if tpType == 'FIXED ％'
+    tpPrice := inLong and not inTrade[1] ? entry * (1 + percentTP/100) : inShort and not inTrade[1] ? entry * (1 - percentTP/100) : tpPrice
+if slType == 'FIXED ％'
+    slPrice := inLong and not inTrade[1] ? entry * (1 - percentSL/100) : inShort and not inTrade[1] ? entry * (1 + percentSL/100) : slPrice
+// —————— Money SL/TP
+if tpType == 'FIXED ＄'
+    tpPrice := inLong and not inTrade[1] ? entry + (moneyTP / math.abs(sizePos)) : inShort and not inTrade[1] ? entry - (moneyTP / math.abs(sizePos)) : tpPrice
+if slType == 'FIXED ＄'
+    slPrice := inLong and not inTrade[1] ? entry - (moneySL / math.abs(sizePos)) : inShort and not inTrade[1] ? entry + (moneySL / math.abs(sizePos)) : slPrice
+// —————— Trailing Stop
+if slType == 'TRAILING'
+    StopL    = 0., StopS = 0.
+    StopL   := inLong  ? math.max(close * (1 - trailPerc/100), StopL[1]) : 0
+    StopS   := inShort ? math.min(close * (1 + trailPerc/100), StopS[1]) : 999999
+    slPrice := inLong  ? StopL : inShort ? StopS : slPrice
+// —————— Fast Trailing Stop
+if slType == 'FAST TRAIL'
+    var stop = float(na)
+    stop    := inLong and not inTrade[1] ? entry * (1 - trailPerc/100) : inShort and not inTrade[1] ? entry * (1 + trailPerc/100) : stop
+    stop    := inLong and close > close[1] ? stop + (close - close[1]) : inShort and close < close[1] ? stop + (close - close[1]) : stop
+    slPrice := stop
+// —————— ATR Fixed
+StopATR      = ta.atr(ATRLen) * ATRMult
+if tpType == 'ATR'
+    tpPrice := inLong and not inTrade[1] ? entry + StopATR : inShort and not inTrade[1] ? entry - StopATR : tpPrice
+if slType == 'ATR'
+    slPrice := inLong and not inTrade[1] ? entry - StopATR : inShort and not inTrade[1] ? entry + StopATR : slPrice
+// —————— ATR Trail Stop
+if slType == 'ATR TRAIL'
+    StopL    = 0., StopS = 0.
+    StopL   := inLong  ? math.max(close - StopATR, StopL[1]) : 0
+    StopS   := inShort ? math.min(close + StopATR, StopS[1]) : 999999
+    slPrice := inLong  ? StopL : inShort ? StopS : slPrice
+// —————— LO / HI Stop
+if slType == 'LO / HI'
+    HiStop   = ta.highest(high, LoHi)
+    LoStop   = ta.lowest (low,  LoHi)
+    slPrice := inLong and not inTrade[1] ? LoStop : inShort and not inTrade[1] ? HiStop : slPrice
+// —————— HH / LL Take
+if tpType == 'HH / LL'
+    HiStop   = ta.highest(high, HHLL)
+    LoStop   = ta.lowest (low,  HHLL)
+    tpPrice := inLong and not inTrade[1] ? HiStop : inShort and not inTrade[1] ? LoStop : tpPrice
+// —————— MA's Stops
+if slType == 'MA'
+    maSType  = MA(maStopType, close, maStopLen)
+    Stop     = maSType * (maPerc / 100)
+    slPrice := inLong  ? math.max(nz(slPrice[1], 0), maSType - Stop) : inShort ? math.min(nz(slPrice[1], 999999), maSType + Stop) : na
+// —————— Risk Reward Take
+if tpType == 'R:R'
+    check    = fixedRR ? not inTrade[1] : true
+    tpPrice := inLong and check ? entry + (entry - slPrice) * riskReward : inShort and check ? entry - (slPrice - entry) * riskReward : tpPrice
+// —————— Add Percents to SL
+if addPerc
+    check    = DynamicStops ? true : not inTrade[1]
+    slPrice := inLong and check ? slPrice * (1 - percentSL/100) : inShort and check ? slPrice * (1 + percentSL/100) : slPrice
+// ———————————————————————————————————————————————————————————————————————————————————————————————————————————————————————— \\
+// —————— TPSL's
+TypeStop = tpType != 'None' or slType == 'FIXED ％' or slType == 'FIXED ＄' or slType == 'ATR' or slType == 'LO / HI'
+BuildLeveles(take, nTake) => // Creating Intermediate Levels of the SL/TP - by shifting the current TP/SL to the entry level
+    nTakes = 6
+    var offset = float(na)
+    offset := not inPos[1] ? (entry - take) : offset
+    xentry = take + offset
+    levels = array.new_float()
+    for i = 1 to nTakes - 1
+        array.push(levels, xentry + (take - xentry) * i / (nTakes))
+    result = nTake >= 0 and nTake <= nTakes ? array.get(levels, nTake) : na
+CheckLevels(lvl, isTake) => // Check if the SL/TP is reached 
+    var float level = na
+    if isTake and ((inLong and high >= lvl) or (inShort and low <= lvl))
+        level := entry
+    if not isTake and ((inLong and low <= lvl) or (inShort and high >= lvl))
+        level := entry
+    if not inTrade
+        level := na
+    level
+// —————— Get and Check Levels
+stop0 = tpType != 'None' ? BuildLeveles(slPrice, slNumber-1) : slPrice , checkStop0 = TypeStop ? CheckLevels(stop0, false) : CheckLevels(stop0, true )
+take1 = BuildLeveles(TypeStop ? tpPrice : slPrice, 0)                  , checkTake1 = TypeStop ? CheckLevels(take1, true ) : CheckLevels(take1, false)
+take2 = BuildLeveles(TypeStop ? tpPrice : slPrice, 1)                  , checkTake2 = TypeStop ? CheckLevels(take2, true ) : CheckLevels(take2, false)
+take3 = BuildLeveles(TypeStop ? tpPrice : slPrice, 2)                  , checkTake3 = TypeStop ? CheckLevels(take3, true ) : CheckLevels(take3, false)
+take4 = BuildLeveles(TypeStop ? tpPrice : slPrice, 3)                  , checkTake4 = TypeStop ? CheckLevels(take4, true ) : CheckLevels(take4, false)
+take5 = BuildLeveles(TypeStop ? tpPrice : slPrice, 4)                  , checkTake5 = TypeStop ? CheckLevels(take5, true ) : CheckLevels(take5, false)
+// —————— Move Stop to Breakeven
+slbecheck = (tpBEnumber==1 and ontake1) or (tpBEnumber==2 and ontake2) or (tpBEnumber==3 and ontake3) or (tpBEnumber==4 and ontake4) or (tpBEnumber==5 and ontake5)
+if ontpBE and slbecheck and not DynamicStops
+    slbe     = TypeStop ? CheckLevels(BuildLeveles(tpPrice, tpBEnumber-1), true) : CheckLevels(BuildLeveles(slPrice, tpBEnumber-1), false)
+    slPrice := slbe > 0 ? slbe : slPrice
+    stop0   := slPrice == entry ? slPrice : stop0
+// ———————————————————————————————————————————————————————————————————————————————————————————————————————————————————————— \\
+// —————— Entry's
+eqty(qty) => QTYMethod=='EQUITY' ? qty / 100 * (strategy.initial_capital + (useNetProfit ? strategy.netprofit : 0)) : QTYMethod=='SIZE' ? qty / syminfo.pointvalue : qty
+if goLong 
+    ID := 'Long'
+    if reOpenDeal and inLong and goLong  
+        strategy.close(ID, comment='reOpen')
+    strategy.entry(ID, strategy.long,  qty=eqty(eqty), comment=ID, alert_message=ID + 'Entry')
+if goShort
+    ID := 'Short'
+    if reOpenDeal and inShort and goShort
+        strategy.close(ID, comment='reOpen')
+    strategy.entry(ID, strategy.short, qty=eqty(eqty), comment=ID, alert_message=ID + 'Entry')
+// —————— Exit's
+qty(perc) => math.abs(sizePos*perc/100)
+if inTrade
+    strategy.exit('End_0', onstop0 ? ID : 'na', qty=qty(qstop0), limit=tpPrice,                    stop=stop0,                      comment_profit='TP 0', comment_loss='SL 0', alert_message=ID + 'SL/TP 0 Trigger')
+    strategy.exit('End_1', ontake1 ? ID : 'na', qty=qty(qtake1), limit=TypeStop ? take1 : tpPrice, stop=TypeStop ? slPrice : take1, comment_profit='TP 1', comment_loss='SL 1', alert_message=ID + 'SL/TP 1 Trigger')
+    strategy.exit('End_2', ontake2 ? ID : 'na', qty=qty(qtake2), limit=TypeStop ? take2 : tpPrice, stop=TypeStop ? slPrice : take2, comment_profit='TP 2', comment_loss='SL 2', alert_message=ID + 'SL/TP 2 Trigger')
+    strategy.exit('End_3', ontake3 ? ID : 'na', qty=qty(qtake3), limit=TypeStop ? take3 : tpPrice, stop=TypeStop ? slPrice : take3, comment_profit='TP 3', comment_loss='SL 3', alert_message=ID + 'SL/TP 3 Trigger')
+    strategy.exit('End_4', ontake4 ? ID : 'na', qty=qty(qtake4), limit=TypeStop ? take4 : tpPrice, stop=TypeStop ? slPrice : take4, comment_profit='TP 4', comment_loss='SL 4', alert_message=ID + 'SL/TP 4 Trigger')
+    strategy.exit('End_5', ontake5 ? ID : 'na', qty=qty(qtake5), limit=TypeStop ? take5 : tpPrice, stop=TypeStop ? slPrice : take5, comment_profit='TP 5', comment_loss='SL 5', alert_message=ID + 'SL/TP 5 Trigger')
+    strategy.exit('End_6',           ID,                         limit=tpPrice,                    stop=slPrice,                    comment_profit='TP X', comment_loss='SL X', alert_message=ID + 'SL/TP X Trigger')
+// ========================================================================================================================
+// Plotting and Debugging
+// ========================================================================================================================
+plotColx = inLong ? bullcolor  : inShort ? bearcolor  : na
+plotColy = inLong ? bullcolorb : inShort ? bearcolorb : na
+tpcolor  = tpType != 'None' ? bullcolor : plotColx
+tp = plot(inPos ? tpPrice : na, 'Take', color=tpType != 'None' ? bullcolor : plotColx, style=plot.style_linebr, editable=false)
+sl = plot(inPos ? slPrice : na, 'Stop', color=tpType != 'None' ? bearcolor : plotColx, style=plot.style_linebr, editable=false)
+en = plot(TypeStop ? (inLong and slPrice > entry or inShort and slPrice < entry ? slPrice : entry) : inPos ? close : na, 'Price', color=TypeStop ? #787b86 : na, style=plot.style_linebr)
+fill(tp, en, color=TypeStop ? bullcolorb : plotColy, editable=false)
+fill(sl, en, color=TypeStop ? bearcolorb : plotColy, editable=false)
+plotchar(inPos and not inPos[1]? tpPrice : na, 'Take Start', color=tpType != 'None' ? bullcolor : plotColx, char='➤', location=location.absolute, size=size.tiny)
+plotchar(inPos and not inPos[1]? slPrice : na, 'Stop Start', color=tpType != 'None' ? bearcolor : plotColx, char='◉', location=location.absolute, size=size.tiny)
+plot(inPos and ontake1 and not checkTake1[1] ? take1 : na, 'TP 1', color=tpcolor,   style=plot.style_linebr, editable=false)
+plot(inPos and ontake2 and not checkTake2[1] ? take2 : na, 'TP 2', color=tpcolor,   style=plot.style_linebr, editable=false)
+plot(inPos and ontake3 and not checkTake3[1] ? take3 : na, 'TP 3', color=tpcolor,   style=plot.style_linebr, editable=false)
+plot(inPos and ontake4 and not checkTake4[1] ? take4 : na, 'TP 4', color=tpcolor,   style=plot.style_linebr, editable=false)
+plot(inPos and ontake5 and not checkTake5[1] ? take5 : na, 'TP 5', color=tpcolor,   style=plot.style_linebr, editable=false)
+plot(inPos and onstop0 and not checkStop0[1] ? stop0 : na, 'SL 0', color=bearcolor, style=plot.style_linebr, editable=false)
+plot(ext_source_ == close ? ta.ema(close, 50)  : na, 'MA 1', color=#ffeb3b93, editable=false)
+plot(ext_source_ == close ? ta.ema(close, 200) : na, 'MA 2', color=#ffeb3b93, editable=false)
+//plotchar(goLong  and not inPos, 'goLong' , char='✟', size=size.tiny, location=location.belowbar, color=#4caf4f )
+//plotchar(goShort and not inPos, 'goShort', char='✟', size=size.tiny, location=location.abovebar, color=#ff5252 )
+// Panel
+//var table panel = table.new(position = position.bottom_right, columns = 2, rows = 1, bgcolor = #363A45, border_width = 1)
+//table.cell(panel, 1, 0, text=str.tostring(0), text_color = #ffa726, bgcolor = #363A45)
+// ———————————————————————————————————————————————————————————————————————————————————————————————————————————————————————— \\
+Expand (513 lines)

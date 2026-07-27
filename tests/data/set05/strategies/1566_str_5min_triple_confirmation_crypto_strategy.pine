@@ -1,0 +1,77 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/五分钟三重确认趋势交易策略与风险管理系统-Five-Minute-Triple-Confirmation-Trend-Trading-Strategy-with-Risk-Management-System.md
+// content_hash: eb9161ae354daa4e
+// collected: 2026-07-27
+strategy("5min Triple Confirmation Crypto Strategy", overlay=true, margin_long=100, margin_short=100)
+
+// ===== Inputs =====
+fast_length = input.int(9, "Fast EMA Length")
+slow_length = input.int(21, "Slow EMA Length")
+rsi_length = input.int(14, "RSI Length")
+volume_ma_length = input.int(20, "Volume MA Length")
+atr_length = input.int(14, "ATR Length")
+risk_reward = input.float(2.0, "Risk:Reward Ratio")
+
+// ===== 1. Trend Confirmation (EMA Crossover) =====
+fast_ema = ta.ema(close, fast_length)
+slow_ema = ta.ema(close, slow_length)
+bullish_trend = ta.crossover(fast_ema, slow_ema)
+bearish_trend = ta.crossunder(fast_ema, slow_ema)
+
+// ===== 2. Momentum Confirmation (RSI + MACD) =====
+rsi = ta.rsi(close, rsi_length)
+[macd_line, signal_line, _] = ta.macd(close, 12, 26, 9)
+
+bullish_momentum = rsi > 50 and ta.crossover(macd_line, signal_line)
+bearish_momentum = rsi < 50 and ta.crossunder(macd_line, signal_line)
+
+// ===== 3. Volume Confirmation (Volume Spike + OBV) =====
+volume_ma = ta.sma(volume, volume_ma_length)
+volume_spike = volume > 1.8 * volume_ma
+obv = ta.obv
+obv_trend = ta.ema(obv, 5) > ta.ema(obv, 13)
+
+// ===== Entry Conditions =====
+long_condition = 
+  bullish_trend and 
+  bullish_momentum and 
+  volume_spike and 
+  obv_trend
+
+short_condition = 
+  bearish_trend and 
+  bearish_momentum and 
+  volume_spike and 
+  not obv_trend
+
+// ===== Risk Management =====
+atr = ta.atr(atr_length)
+long_stop = low - 1.5 * atr
+long_target = close + (1.5 * atr * risk_reward)
+short_stop = high + 1.5 * atr
+short_target = close - (1.5 * atr * risk_reward)
+
+// ===== Strategy Execution =====
+strategy.entry("Long", strategy.long, when=long_condition)
+strategy.exit("Long Exit", "Long", stop=long_stop, limit=long_target)
+
+strategy.entry("Short", strategy.short, when=short_condition)
+strategy.exit("Short Exit", "Short", stop=short_stop, limit=short_target)
+
+// ===== Visual Alerts =====
+plotshape(long_condition, style=shape.triangleup, location=location.belowbar, color=color.green, size=size.small)
+plotshape(short_condition, style=shape.triangledown, location=location.abovebar, color=color.red, size=size.small)
+
+plot(fast_ema, "Fast EMA", color=color.blue)
+plot(slow_ema, "Slow EMA", color=color.orange)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/482867
+
+> Last Modified
+
+2025-02-20 15:53:54

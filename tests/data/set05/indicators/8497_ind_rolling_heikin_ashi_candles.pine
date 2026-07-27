@@ -1,0 +1,33 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/Rolling-Heikin-Ashi-Candles.md
+// content_hash: f5f81aa0d78b719e
+// collected: 2026-07-27
+study(title='Rolling Heikin Ashi Candles', shorttitle='Rolling Heikin Ashi')
+
+tf = input(5, 'Timeframe Multiplier', minval=1, step=1, type = input.integer)
+
+haclose = (open[tf-1]+highest(high,tf)+lowest(low,tf)+close)/4
+haopen = (open[tf-1] + close)/2
+if(not na(haopen[2*tf-1]))
+    haopen := (haopen[2*tf-1] + haclose[tf]) / 2
+hahigh = max(highest(high,tf), max(haopen,haclose))
+halow = min(lowest(low,tf), min(haopen,haclose))
+
+Color = haopen > haclose ? #ef5350 : #26a69a
+//plotcandle(haopen, hahigh, halow, haclose, title='Rolling Heikin Ashi', color=Color, wickcolor=Color, bordercolor=Color)
+
+if haopen > haclose
+    strategy.entry("Enter Long", strategy.long)
+else if haopen < haclose
+    strategy.entry("Enter Short", strategy.short)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/362649
+
+> Last Modified
+
+2022-05-12 16:42:15

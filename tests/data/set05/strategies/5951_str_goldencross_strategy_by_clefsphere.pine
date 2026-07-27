@@ -1,0 +1,59 @@
+//@version=3
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双均线黄金交叉策略Golden-Cross-Strategy.md
+// content_hash: 57898fb0e8f5a589
+// collected: 2026-07-27
+
+
+strategy("GoldenCross Strategy by Clefsphere",overlay=true, initial_capital=10000,default_qty_type=strategy.percent_of_equity,default_qty_value=100)
+
+// testStartYear = input(2013, "Start Year")
+// testStartMonth = input(3, "Start Month")
+// testStartDay = input(1, "Start Day")
+// testPeriodStart = timestamp(testStartYear,testStartMonth,testStartDay,0,0)
+
+// testStopYear = input(2018, "Stop Year")
+// testStopMonth = input(8, "Stop Month")
+// testStopDay = input(5, "Stop Day")
+// testPeriodStop = timestamp(testStopYear,testStopMonth,testStopDay,0,0)
+
+// testPeriodBackground = input(title="Background", type=bool, defval=true)
+// testPeriodBackgroundColor = testPeriodBackground and (time >= testPeriodStart) and (time <= testPeriodStop) ? #00FF00 : na
+
+
+sma1Period = input(50, "Fast EMA Buy")
+sma2Period = input(200, "Slow SMA Buy")
+
+// testPeriod() =>
+//     time >= testPeriodStart and time <= testPeriodStop ? true : false
+
+sma1val=sma(close,sma1Period)
+sma2val=sma(close,sma2Period)
+
+
+plot(sma1val,color=blue,linewidth=1)
+plot(sma2val,color=orange,linewidth=1)
+
+long=crossover(sma1val,sma2val)
+short=crossunder(sma1val,sma2val)
+
+
+// if testPeriod()
+if long
+    strategy.entry("buy",strategy.long)
+    
+if short
+    strategy.close("buy")
+        
+plot(low,color= sma1val > sma2val ? green:  red,style=columns,transp=90,linewidth=1)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/426925
+
+> Last Modified
+
+2023-09-15 15:50:20

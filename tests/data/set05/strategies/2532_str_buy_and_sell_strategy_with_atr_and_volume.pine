@@ -1,0 +1,55 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/ATR和交易量结合的动态信号线趋势跟踪策略-Dynamic-Signal-Line-Trend-Following-Strategy-Combining-ATR-and-Volume.md
+// content_hash: 0221c3b88580d475
+// collected: 2026-07-27
+strategy("Buy and Sell Strategy with ATR and Volume", overlay=true)
+
+// Input Parameters
+length = input.int(50, title="SMA Length")
+atr_length = input.int(20, title="ATR Length")
+signal_line_offset = input.int(1, title="Signal Line ATR Offset", minval=0)
+volume_multiplier = input.float(1.5, title="Volume Multiplier")
+
+// Calculations
+sma_close = ta.sma(close, length)
+atr_val = ta.atr(atr_length)
+signal_line = sma_close - atr_val * signal_line_offset
+avg_volume = ta.sma(volume, length)
+
+// Conditions
+buy_condition = ta.crossover(low, signal_line) and volume > avg_volume * volume_multiplier
+sell_condition = ta.crossunder(high, signal_line) and volume > avg_volume * volume_multiplier
+
+// Strategy Execution
+if (buy_condition)
+    strategy.entry("Buy", strategy.long)
+if (sell_condition)
+    strategy.entry("Sell", strategy.short)
+
+// Exit Conditions
+exit_buy_condition = strategy.position_size > 0 and close < low[1]
+exit_sell_condition = strategy.position_size < 0 and close > high[1]
+
+if (exit_buy_condition)
+    strategy.close("Buy")
+if (exit_sell_condition)
+    strategy.close("Sell")
+
+// Plot Signals
+plot(signal_line, color=color.green, title="Signal Line")
+plotshape(series=buy_condition ? low : na, style=shape.triangleup, color=color.green, size=size.small, location=location.belowbar, title="Buy Signal")
+plotshape(series=sell_condition ? high : na, style=shape.triangledown, color=color.red, size=size.small, location=location.abovebar, title="Sell Signal")
+plotshape(series=exit_buy_condition ? close : na, style=shape.triangledown, color=color.orange, size=size.small, location=location.abovebar, title="Exit Buy Signal", text="Exit Buy")
+plotshape(series=exit_sell_condition ? close : na, style=shape.triangleup, color=color.blue, size=size.small, location=location.belowbar, title="Exit Sell Signal", text="Exit Sell")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/458177
+
+> Last Modified
+
+2024-07-30 16:01:40

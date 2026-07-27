@@ -1,0 +1,24 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pine_script_execution_model.md::pine_script_execution_model.md#block17
+// content_hash: 1bbaf6293d649718
+// collected: 2026-07-27
+indicator("Consistent historical references demo")
+//@function  Returns `color.blue` if `source` is above its last committed value; `color.orange` otherwise.
+//           For consistent results, this function should execute on *every bar*, because it uses the
+//           history-referencing operator on the `source` series.
+upDownColor(float source) =>
+    source > source[1] ? color.blue : color.orange
+//@variable The value by which to divide the `bar_index` value.
+int divisorInput = input.int(5, "Divisor", 1)
+//@variable The remainder of dividing `bar_index` by `divisorInput`.
+float remainder = bar_index % divisorInput
+//@variable Is `color.blue` if `remainder` is above its previous value, and `color.orange` otherwise.
+color secondColor = upDownColor(remainder)
+//@variable `color.orange` if `remainder` equals 0, and `secondColor` otherwise.
+//          This ternary operation no longer causes a warning. The scope of the `upDownColor()` call executes on
+//          every bar, meaning its historical buffer consistently includes data for consecutive past bars.
+color plotColor = remainder == 0 ? color.gray : secondColor
+// Plot the `remainder` series and color it using `plotColor`. The plot is now blue or gray, but never orange.
+plot(remainder, "Remainder", plotColor, 5)

@@ -1,0 +1,23 @@
+//@version=4
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/Fibonacci EMA averages (21, 34, 55, 89, 144).pine
+// content_hash: fbe0bacc726ce628
+// collected: 2026-07-27
+strategy("Fibonacci EMA averages",overlay=true)
+ema21 = 21
+ema34 = 34
+ema55 = 55
+ema89 = 89
+ema144 = 144
+ema_21 = ema(close, ema21)
+ema_34 = ema(close, ema34)
+ema_55 = ema(close, ema55)
+ema_89 = ema(close, ema89)
+ema_144 = ema(close, ema144)
+plot(ema_21, color=color.red)
+plot(ema_34, color=color.yellow)
+plot(ema_55, color=color.green)
+plot(ema_89, color=color.blue)
+plot(ema_144, color=color.fuchsia)
+Expand (22 lines)

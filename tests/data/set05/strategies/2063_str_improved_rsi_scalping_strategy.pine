@@ -1,0 +1,64 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于RSI和AI自定义条件进行交易的高级策略Improved-RSI-Scalping-Strategy-based-on-Relative-Strength-Index.md
+// content_hash: a5b5e3bae8944acd
+// collected: 2026-07-27
+strategy("Improved RSI Scalping Strategy", overlay=true)
+
+// Parameters
+rsiLength = input.int(14, title="RSI Length")
+rsiOverbought = input.int(70, title="RSI Overbought Threshold")
+rsiOversold = input.int(30, title="RSI Oversold Threshold")
+takeProfitPips = input.int(10, title="Take Profit (Pips)")
+stopLossPips = input.int(5, title="Stop Loss (Pips)")
+riskPercentage = input.float(1, title="Risk Percentage", minval=0, maxval=100, step=0.1)
+
+// Calculate RSI
+rsiValue = ta.rsi(close, rsiLength)
+
+// Custom AI Conditions
+aiCondition1Long = ta.crossover(rsiValue, 50)
+aiCondition1Short = ta.crossunder(rsiValue, 50)
+
+// Add more AI conditions here
+var aiCondition2Long = ta.crossover(rsiValue, 30)
+var aiCondition2Short = ta.crossunder(rsiValue, 70)
+
+// Combine AI conditions with RSI
+longCondition = aiCondition1Long or aiCondition2Long or ta.crossover(rsiValue, rsiOversold)
+shortCondition = aiCondition1Short or aiCondition2Short or ta.crossunder(rsiValue, rsiOverbought)
+
+// Calculate position size based on risk percentage
+equity = strategy.equity
+riskAmount = (equity * riskPercentage) / 100
+positionSize = riskAmount / (stopLossPips * syminfo.mintick)
+
+// Calculate Take Profit and Stop Loss levels
+takeProfitLevel = close + takeProfitPips * syminfo.mintick
+stopLossLevel = close - stopLossPips * syminfo.mintick
+
+// Long entry
+strategy.entry("Long Entry", strategy.long, when=longCondition[1] and not longCondition, qty=1)
+strategy.exit("Take Profit/Stop Loss", from_entry="Long Entry", limit=takeProfitLevel, stop=stopLossLevel)
+
+// Short entry
+strategy.entry("Short Entry", strategy.short, when=shortCondition[1] and not shortCondition, qty=1)
+strategy.exit("Take Profit/Stop Loss", from_entry="Short Entry", limit=takeProfitLevel, stop=stopLossLevel)
+
+// Alerts
+alertcondition(longCondition, title="Long Entry Signal", message="Long Entry Signal")
+alertcondition(shortCondition, title="Short Entry Signal", message="Short Entry Signal")
+
+// Plot RSI on the chart
+plot(rsiValue, title="RSI", color=color.blue)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/437674
+
+> Last Modified
+
+2024-01-04 17:20:57

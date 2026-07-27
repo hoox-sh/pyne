@@ -1,0 +1,74 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于相对强弱指数RSI和滑动平均SMA的波动率标准差DEV交易策略-Standard-Deviation-DEV-Trading-Strategy-Based-on-Relative-Strength-Index-RSI-and-Simple-Moving-Average-SMA.md
+// content_hash: 0f4a13ed9d7e77a0
+// collected: 2026-07-27
+strategy("Estratégia de Desvio Padrão com RSI", overlay=true, margin_long=100, margin_short=100)
+
+// Parâmetros
+length = input.int(20, title="Período do Desvio Padrão")
+thresholdEntry = input.float(1.5, title="Limite de Entrada")
+thresholdExit = input.float(0.5, title="Limite de Saída")
+rsiLength = input.int(14, title="Período do RSI")
+rsiOverbought = input.int(70, title="RSI Overbought")
+rsiOversold = input.int(30, title="RSI Oversold")
+
+// Cálculo do Desvio Padrão
+price = close
+stdDev = ta.stdev(price, length)
+
+// Média Móvel Simples
+sma = ta.sma(price, length)
+
+// Limites baseados no Desvio Padrão
+upperLimit = sma + thresholdEntry * stdDev
+lowerLimit = sma - thresholdEntry * stdDev
+exitUpperLimit = sma + thresholdExit * stdDev
+exitLowerLimit = sma - thresholdExit * stdDev
+
+// Cálculo do RSI
+rsi = ta.rsi(price, rsiLength)
+
+// Condições de Entrada com RSI
+longCondition = ta.crossover(price, lowerLimit) and rsi < rsiOversold
+shortCondition = ta.crossunder(price, upperLimit) and rsi > rsiOverbought
+
+// Condições de Saída com RSI
+exitLongCondition = ta.crossunder(price, exitLowerLimit) or rsi > rsiOverbought
+exitShortCondition = ta.crossover(price, exitUpperLimit) or rsi < rsiOversold
+
+// Plotar Linhas
+plot(upperLimit, color=color.red, title="Limite Superior")
+plot(lowerLimit, color=color.green, title="Limite Inferior")
+plot(exitUpperLimit, color=color.orange, title="Limite de Saída Superior")
+plot(exitLowerLimit, color=color.blue, title="Limite de Saída Inferior")
+plot(sma, color=color.gray, title="SMA")
+hline(rsiOverbought, "RSI Overbought", color=color.red)
+hline(rsiOversold, "RSI Oversold", color=color.green)
+plot(rsi, title="RSI", color=color.purple)
+
+// Estratégia de Trade
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+
+if (shortCondition)
+    strategy.entry("Short", strategy.short)
+
+if (exitLongCondition)
+    strategy.close("Long")
+
+if (exitShortCondition)
+    strategy.close("Short")
+
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/452691
+
+> Last Modified
+
+2024-05-28 10:57:06

@@ -1,0 +1,146 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多时间周期RSI-SMA动态交叉自适应交易系统-Multi-Timeframe-RSI-SMA-Dynamic-Crossover-Adaptive-Trading-System.md
+// content_hash: ffdeb0272e4052fe
+// collected: 2026-07-27
+strategy("Multi-Timeframe RSI-SMA Strategy [EB]", overlay=true, precision=2, initial_capital=10000, default_qty_type=strategy.percent_of_equity, default_qty_value=100)
+
+//▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
+//             SMART PARAMETER ADJUSTMENT
+//▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
+
+// Zaman Dilimi Tespiti
+currentTF = timeframe.period
+
+// Parametreler için ayrı switch yapıları
+rsiPeriod = switch currentTF
+    "1"  => 10
+    "5"  => 12
+    "15" => 14
+    "30" => 16
+    "60" => 18
+    "240" => 20
+    "D"  => 22
+    "W"  => 24
+    "M"  => 28
+    => 14
+
+smaPeriod = switch currentTF
+    "1"  => 20
+    "5"  => 25
+    "15" => 30
+    "30" => 40
+    "60" => 50
+    "240" => 60
+    "D"  => 100
+    "W"  => 150
+    "M"  => 200
+    => 50
+
+atrMult = switch currentTF
+    "1"  => 1.5
+    "5"  => 1.8
+    "15" => 2.0
+    "30" => 2.2
+    "60" => 2.5
+    "240" => 3.0
+    "D"  => 3.5
+    "W"  => 4.0
+    "M"  => 4.5
+    => 2.0
+
+tpPerc = switch currentTF
+    "1"  => 3.0
+    "5"  => 3.5
+    "15" => 4.0
+    "30" => 4.5
+    "60" => 5.0
+    "240" => 6.0
+    "D"  => 7.0
+    "W"  => 8.0
+    "M"  => 10.0
+    => 4.0
+
+volMultiplier = switch currentTF
+    "1"  => 2.0
+    "5"  => 1.8
+    "15" => 1.5
+    "30" => 1.3
+    "60" => 1.2
+    "240" => 1.0
+    "D"  => 0.8
+    "W"  => 0.6
+    "M"  => 0.5
+    => 1.0
+
+//▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
+//             DYNAMIC INDICATORS
+//▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
+
+// Akıllı Hacim Filtresi
+avgVol = ta.sma(volume, 20)
+minVol = avgVol * volMultiplier
+
+// Adaptif RSI-SMA
+rsi = ta.rsi(close, rsiPeriod)
+rsiSMA = ta.sma(rsi, smaPeriod)
+
+// Volatilite Analizi
+atr = ta.atr(14)
+dynamicATR = atr * atrMult
+
+// Trend Filtresi
+emaFast = ta.ema(close, int(smaPeriod * 0.7))
+emaSlow = ta.ema(close, smaPeriod * 2)
+trendUp = emaFast > emaSlow
+
+//▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
+//             TRADE LOGIC
+//▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
+
+entryCondition = 
+  ta.crossover(rsi, rsiSMA) and
+  volume > minVol and
+  trendUp and
+  close > open and
+  close > ta.highest(high, 5)[1]
+
+exitCondition = 
+  ta.crossunder(rsi, rsiSMA) or 
+  close < ta.lowest(low, 5)[1]
+
+//▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
+//             RISK MANAGEMENT
+//▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
+
+var float entryPrice = na
+var float stopLoss = na
+var float takeProfit = na
+
+if entryCondition
+    entryPrice := close
+    stopLoss := close - dynamicATR
+    takeProfit := close + (dynamicATR * (tpPerc / 100))
+    strategy.entry("Long", strategy.long)
+    strategy.exit("Exit", "Long", stop=stopLoss, limit=takeProfit)
+
+if exitCondition
+    strategy.close("Long")
+
+//▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
+//             VISUALIZATION
+//▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
+
+plotshape(entryCondition, "Buy", shape.labelup, location.belowbar, color.green, 0, "LONG", textcolor=color.white)
+plot(stopLoss, "Stop", color.red, 2, plot.style_linebr)
+plot(takeProfit, "Take Profit", color.green, 2, plot.style_linebr)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/488502
+
+> Last Modified
+
+2025-03-28 11:36:12

@@ -1,0 +1,60 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于OBVCMO和Coppock曲线的交易策略OBV-CMO-and-Coppock-Curve-Based-Trading-Strategy.md
+// content_hash: 8c40fb9f4deae6cf
+// collected: 2026-07-27
+strategy("RB - OBV Coppock CMO Strategy", overlay=true)
+
+// Input for CMO period
+cmo_period = input(14, title="Chande Momentum Oscillator Period")
+// Input for Coppock Curve periods
+coppock_long = input(14, title="Coppock Curve Long ROC Period")
+coppock_short = input(11, title="Coppock Curve Short ROC Period")
+coppock_wma = input(10, title="Coppock Curve WMA Period")
+// Thresholds for CMO
+cmo_buy_threshold = input(50, title="CMO Buy Threshold")
+cmo_sell_threshold = input(-50, title="CMO Sell Threshold")
+
+// Calculating OBV
+obv = cum(close > close[1] ? volume : close < close[1] ? -volume : 0)
+
+// Calculating Coppock Curve
+roc_long = roc(close, coppock_long)
+roc_short = roc(close, coppock_short)
+coppock_curve = wma(roc_long + roc_short, coppock_wma)
+
+// Calculating Chande Momentum Oscillator
+cmo = cmo(close, cmo_period)
+
+// Generate buy and sell signals
+buy_signal = obv > obv[1] and coppock_curve > 0 and coppock_curve > coppock_curve[1] and cmo > cmo_buy_threshold
+sell_signal = obv < obv[1] and coppock_curve < 0 and coppock_curve < coppock_curve[1] and cmo < cmo_sell_threshold
+
+// Plotting signals on the chart
+plotshape(series=buy_signal, title="Buy Signal", location=location.belowbar, color=color.green, style=shape.labelup, text="BUY")
+plotshape(series=sell_signal, title="Sell Signal", location=location.abovebar, color=color.red, style=shape.labeldown, text="SELL")
+
+// Setting up the strategy entry and exit points
+if (buy_signal)
+    strategy.entry("Buy", strategy.long)
+
+if (sell_signal)
+    strategy.close("Buy")
+
+// Plot OBV and Coppock Curve for reference
+plot(obv, title="On Balance Volume", color=color.blue)
+hline(0, "Zero Line", color=color.gray)
+plot(coppock_curve, title="Coppock Curve", color=color.purple)
+plot(series=cmo, title="Chande Momentum Oscillator", color=color.orange)
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/442212
+
+> Last Modified
+
+2024-02-20 11:26:46

@@ -1,0 +1,43 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/Bollinger带动量突破策略Bollinger-Bands-Momentum-Breakout-Strategy.md
+// content_hash: a6fd4c343ba552c1
+// collected: 2026-07-27
+strategy(title="NoScoobies Bollinger Bands", overlay=true)
+source = close
+length = input(20, minval=1, title = "Period") //Length of the Bollinger Band 
+mult = input(1.5, minval=0.001, maxval=50, title = "Standard Deviation") // Use 1.5 SD for 20 period MA; Use 2 SD for 10 period MA 
+
+basis = sma(source, length)
+dev = mult * stdev(source, length)
+
+upper = basis + dev
+lower = basis - dev
+
+long=crossover(source, basis)
+short=crossunder(source, basis)
+close_long=crossunder(source, upper)
+close_short=crossover(source, lower)
+
+if long
+    strategy.entry("Long", strategy.long)
+    strategy.close("Long", when = close_long)
+
+if short
+    strategy.entry("Short", strategy.short)
+    strategy.close("Short", when = close_short)
+
+plot(basis, color=color.red,title= "SMA")
+p1 = plot(upper, color=color.blue,title= "UB")
+p2 = plot(lower, color=color.blue,title= "LB")
+fill(p1, p2)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/435903
+
+> Last Modified
+
+2023-12-19 16:24:24

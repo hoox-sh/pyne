@@ -1,0 +1,10 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block120
+// content_hash: 3cf8393bc04cb7f0
+// collected: 2026-07-27
+indicator("input.time", overlay=true)
+i_date = input.time(timestamp("20 Jul 2021 00:00 +0300"), "Date")
+l = label.new(i_date, high, "Date", xloc=xloc.bar_time)
+label.delete(l[1])

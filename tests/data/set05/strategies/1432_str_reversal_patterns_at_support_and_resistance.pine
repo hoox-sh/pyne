@@ -1,0 +1,83 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于支撑位和阻力位反转形态的量化交易策略-Quantitative-Trading-Strategy-Based-on-Reversal-Patterns-at-Support-and-Resistance-Levels.md
+// content_hash: 01ad243a76341587
+// collected: 2026-07-27
+strategy("Reversal Patterns at Support and Resistance", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=100)
+
+// Parameters
+support_resistance_lookback = input.int(50, title="Support/Resistance Lookback Period")
+reversal_tolerance = input.float(0.01, title="Reversal Tolerance (percent)", step=0.01) / 100
+take_profit_percent = input.float(3, title="Take Profit (%)") / 100
+stop_loss_percent = input.float(1, title="Stop Loss (%)") / 100
+
+// Functions to identify key support and resistance levels
+findSupport() =>
+    ta.lowest(low, support_resistance_lookback)
+
+findResistance() =>
+    ta.highest(high, support_resistance_lookback)
+
+// Identify reversal patterns
+isHammer() =>
+    body = math.abs(close - open)
+    lowerWick = open > close ? (low < close ? close - low : open - low) : (low < open ? open - low : close - low)
+    upperWick = high - math.max(open, close)
+    lowerWick > body * 2 and upperWick < body
+
+isEngulfing() =>
+    (close[1] < open[1] and close > open and close > open[1] and open < close[1]) 
+    (close[1] > open[1] and close < open and close < open[1] and open > close[1])
+
+isDoji() =>
+    math.abs(open - close) <= (high - low) * 0.1
+
+// Identify support and resistance levels
+support = findSupport()
+resistance = findResistance()
+
+// Check for reversal patterns at support and resistance
+hammerAtSupport = isHammer() and (low <= support * (1 + reversal_tolerance))
+engulfingAtSupport = isEngulfing() and (low <= support * (1 + reversal_tolerance))
+dojiAtSupport = isDoji() and (low <= support * (1 + reversal_tolerance))
+
+hammerAtResistance = isHammer() and (high >= resistance * (1 - reversal_tolerance))
+engulfingAtResistance = isEngulfing() and (high >= resistance * (1 - reversal_tolerance))
+dojiAtResistance = isDoji() and (high >= resistance * (1 - reversal_tolerance))
+
+// Trading logic
+if (hammerAtSupport or engulfingAtSupport or dojiAtSupport)
+    strategy.entry("Long", strategy.long)
+    stop_level = low * (1 - stop_loss_percent)
+    take_profit_level = close * (1 + take_profit_percent)
+    strategy.exit("Take Profit/Stop Loss", from_entry="Long", stop=stop_level, limit=take_profit_level)
+
+if (hammerAtResistance or engulfingAtResistance or dojiAtResistance)
+    strategy.entry("Short", strategy.short)
+    stop_level = high * (1 + stop_loss_percent)
+    take_profit_level = close * (1 - take_profit_percent)
+    strategy.exit("Take Profit/Stop Loss", from_entry="Short", stop=stop_level, limit=take_profit_level)
+
+// Plot support and resistance levels for visualization
+plot(support, color=color.green, linewidth=1, title="Support Level")
+plot(resistance, color=color.red, linewidth=1, title="Resistance Level")
+
+// Plot reversal patterns on the chart for visualization
+plotshape(series=hammerAtSupport, location=location.belowbar, color=color.green, style=shape.labelup, text="Hammer at Support")
+plotshape(series=engulfingAtSupport, location=location.belowbar, color=color.green, style=shape.labelup, text="Engulfing at Support")
+plotshape(series=dojiAtSupport, location=location.belowbar, color=color.green, style=shape.labelup, text="Doji at Support")
+
+plotshape(series=hammerAtResistance, location=location.abovebar, color=color.red, style=shape.labeldown, text="Hammer at Resistance")
+plotshape(series=engulfingAtResistance, location=location.abovebar, color=color.red, style=shape.labeldown, text="Engulfing at Resistance")
+plotshape(series=dojiAtResistance, location=location.abovebar, color=color.red, style=shape.labeldown, text="Doji at Resistance")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/453668
+
+> Last Modified
+
+2024-06-07 16:45:09

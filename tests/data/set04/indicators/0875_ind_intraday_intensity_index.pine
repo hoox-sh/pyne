@@ -1,0 +1,14 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block32
+// content_hash: acddab1d95c2fdad
+// collected: 2026-07-27
+indicator("Intraday Intensity Index")
+plot(ta.iii, color=color.yellow)
+
+// the same on pine
+f_iii() =>
+    (2 * close - high - low) / ((high - low) * volume)
+
+plot(f_iii())

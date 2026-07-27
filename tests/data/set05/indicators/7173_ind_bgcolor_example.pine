@@ -1,0 +1,8 @@
+//@version=6
+// set05 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block94
+// content_hash: 1a87bd43e8e89cc0
+// collected: 2026-07-27
+indicator("bgcolor example", overlay=true)
+bgcolor(close < open ? color.new(color.red,70) : color.new(color.green, 70))

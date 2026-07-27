@@ -1,0 +1,63 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于均线差值的趋势跟踪策略Trend-Following-Strategy-Based-on-Moving-Average-Difference.md
+// content_hash: a3b1d73edc037470
+// collected: 2026-07-27
+strategy(title='Devick', overlay=true)
+
+// Input parameters
+period = input(title='Period', defval=21)
+
+// Calculate moving averages
+n2ma = 2 * ta.ema(close, math.round(period / 2))
+nma = ta.ema(close, period)
+diff = n2ma - nma
+sqn = math.round(math.sqrt(period))
+
+n2maPrev = 2 * ta.ema(close[1], math.round(period / 2))
+nmaPrev = ta.ema(close[1], period)
+diffPrev = n2maPrev - nmaPrev
+sqnPrev = math.round(math.sqrt(period))
+
+n1 = ta.ema(diff, sqn)
+n2 = ta.ema(diffPrev, sqnPrev)
+
+// Determine color based on condition
+maColor = n1 > n2 ? color.green : color.red
+
+// Plot moving average
+ma = plot(n1, color=maColor, linewidth=2)
+
+// Signals
+buySignal = n1 > n2 and n1[1] <= n2[1]
+sellSignal = n1 <= n2 and n1[1] > n2[1]
+
+// Plot shapes for signals
+plotshape(series=buySignal, title='Buy Signal', style=shape.arrowup, location=location.belowbar, color=color.green, size=size.small)
+plotshape(series=sellSignal, title='Sell Signal', style=shape.arrowdown, location=location.abovebar, color=color.red, size=size.small)
+
+// Alerts
+alertcondition(condition=buySignal, title='Buy Signal', message='Buy Signal Detected')
+alertcondition(condition=sellSignal, title='Sell Signal', message='Sell Signal Detected')
+
+// Trading hours
+openHour = 16
+closeHour = 17
+
+// Open position at 4 pm
+openCondition = hour == openHour and minute == 0
+strategy.entry("Buy", strategy.long, when=buySignal)
+strategy.entry("Sell", strategy.short, when=sellSignal)
+// Close all positions at 5 pm
+closeCondition = hour == closeHour and minute == 0
+strategy.close_all(when=closeCondition)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/438499
+
+> Last Modified
+
+2024-01-12 14:42:06

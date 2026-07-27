@@ -1,0 +1,138 @@
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/一目均衡移动平均趋势追踪策略Ichimoku-Backtester-with-TP-SL-and-Cloud-Confirmation.md
+// content_hash: 8e117fd2061508ce
+// collected: 2026-07-27
+strategy("Ichimoku Backtester with TP and SL", overlay=true, 
+     currency = currency.USD, default_qty_type = strategy.percent_of_equity, 
+     default_qty_value = 95)
+//@version=4
+
+//Inputs
+ts_bars = input(9, minval=1, title="Tenkan-Sen Bars")
+ks_bars = input(26, minval=1, title="Kijun-Sen Bars")
+ssb_bars = input(52, minval=1, title="Senkou-Span B Bars")
+cs_offset = input(26, minval=1, title="Chikou-Span Offset")
+ss_offset = input(26, minval=1, title="Senkou-Span Offset")
+long_entry = input(true, title="Long Entry")
+short_entry = input(true, title="Short Entry")
+
+wait_for_cloud = input(true, title="Wait for Cloud Confirmation")
+
+use_short_stop_loss = input(true, title="Use Short Stop Loss")
+short_stop_loss = input(title="Short Stop Loss (%)", type=input.float, minval=0.0, step=0.1, 
+     defval=5) * 0.01
+use_long_stop_loss = input(true, title="Use Long Stop Loss")
+long_stop_loss = input(title="Long Stop Loss (%)", type=input.float, minval=0.0, step=0.1, 
+     defval=5) * 0.01
+     
+use_short_take_profit = input(true, title="Use Short Take Profit")
+short_take_profit = input(title="Short Take Profit (%)", type=input.float, minval=0.0, step=0.1,
+     defval = 20) * .01
+use_long_take_profit = input(true, title="Use Long Take Profit")
+long_take_profit = input(title="Long Take Profit (%)", type=input.float, minval=0.0, step=0.1,
+     defval = 20) * .01
+
+// === INPUT SHOW PLOT ===
+showDate  = input(defval = false, title = "Show Date Range", type = input.bool)
+
+// === INPUT BACKTEST RANGE ===
+fromMonth = input(defval = 1,    title = "From Month",      type = input.integer, minval = 1, maxval = 12)
+fromDay   = input(defval = 1,    title = "From Day",        type = input.integer, minval = 1, maxval = 31)
+fromYear  = input(defval = 2020, title = "From Year",       type = input.integer, minval = 1970)
+thruMonth = input(defval = 1,    title = "Thru Month",      type = input.integer, minval = 1, maxval = 12)
+thruDay   = input(defval = 1,    title = "Thru Day",        type = input.integer, minval = 1, maxval = 31)
+thruYear  = input(defval = 2112, title = "Thru Year",       type = input.integer, minval = 1970)
+
+
+
+// === FUNCTION EXAMPLE ===
+start     = timestamp(fromYear, fromMonth, fromDay, 00, 00)        // backtest start window
+finish    = timestamp(thruYear, thruMonth, thruDay, 23, 59)        // backtest finish window
+window()  => time >= start and time <= finish ? true : false       // create function "within window of time"
+
+middle(len) => avg(lowest(len), highest(len))
+
+// Ichimoku Components
+tenkan = middle(ts_bars)
+kijun = middle(ks_bars)
+senkouA = avg(tenkan, kijun)
+senkouB = middle(ssb_bars)
+
+bgcolor(color = showDate and window() ? color.gray : na, transp = 90)  // plot within time window
+
+// Plot Ichimoku Kinko Hyo
+plot(tenkan, color=#0496ff, title="Tenkan-Sen")
+plot(kijun, color=#991515, title="Kijun-Sen")
+plot(close, offset=-cs_offset+1, color=#459915, title="Chikou-Span")
+sa=plot(senkouA, offset=ss_offset-1, color=color.green, title="Senkou-Span A")
+sb=plot(senkouB, offset=ss_offset-1, color=color.red, title="Senkou-Span B")
+fill(sa, sb, color = senkouA > senkouB ? color.green : color.red, title="Cloud color")
+
+ss_high = max(senkouA[ss_offset-1], senkouB[ss_offset-1])
+ss_low = min(senkouA[ss_offset-1], senkouB[ss_offset-1])
+
+// Entry/Exit Signals
+tk_cross_bull = tenkan > kijun
+tk_cross_bear = tenkan < kijun
+cs_cross_bull = mom(close, cs_offset-1) > 0
+cs_cross_bear = mom(close, cs_offset-1) < 0
+price_above_kumo = close > ss_high
+price_below_kumo = close < ss_low
+senkou_green = senkouA > senkouB ? true : false
+
+bullish = tk_cross_bull and cs_cross_bull and price_above_kumo
+bearish = tk_cross_bear and cs_cross_bear and price_below_kumo
+
+if (wait_for_cloud)
+    bullish := bullish and senkou_green
+    bearish := bearish and not senkou_green
+
+longStopPrice  = strategy.position_avg_price * (1 - long_stop_loss)
+shortStopPrice = strategy.position_avg_price * (1 + short_stop_loss)
+longLimitPrice = strategy.position_avg_price * (1 + long_take_profit)
+shortLimitPrice = strategy.position_avg_price * (1 - short_take_profit)
+
+in_long = false
+in_long := in_long[1]
+
+
+open_long = bullish and not in_long
+open_short = bearish and in_long
+
+
+if (open_long)
+    in_long := true
+if (open_short)
+    in_long := false
+
+strategy.entry("Long", strategy.long, when=open_long and long_entry and  (showDate ? window() : true))
+strategy.entry("Short", strategy.short ,when=open_short and short_entry and (showDate ? window() : true))
+
+if (strategy.position_size > 0.0)
+    if (use_long_stop_loss and not use_long_take_profit)
+        strategy.exit("Long", stop = longStopPrice)
+    if (use_long_take_profit and not use_long_stop_loss)
+        strategy.exit("Long", limit = longLimitPrice)
+    if (use_long_take_profit and use_long_stop_loss)
+        strategy.exit("Long", stop = longStopPrice, limit=longLimitPrice)
+if (strategy.position_size < 0.0)
+    if (use_short_stop_loss and not use_short_take_profit)
+        strategy.exit("Short", stop = shortStopPrice)
+    if (use_short_take_profit and not use_short_stop_loss)
+        strategy.exit("Short", limit = shortLimitPrice)
+    if (use_short_take_profit and use_short_stop_loss)
+        strategy.exit("Short", stop = shortStopPrice, limit = shortLimitPrice)
+
+strategy.close("Long", when=bearish and not short_entry and (showDate ? window() : true))
+strategy.close("Short", when=bullish and not long_entry and (showDate ? window() : true))
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/433148
+
+> Last Modified
+
+2023-11-24 17:32:47

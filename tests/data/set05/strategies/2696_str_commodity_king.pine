@@ -1,0 +1,51 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多周期超级趋势动态交易策略-Multi-Period-SuperTrend-Dynamic-Trading-Strategy.md
+// content_hash: 96b155cbbccaab46
+// collected: 2026-07-27
+strategy("Commodity KIng", overlay=true)
+
+// Supertrend Parameters
+atr_period = 10  // Fixed ATR Period
+atr_multiplier = 2.0  // Fixed ATR Multiplier
+
+// Calculate Supertrend
+[supertrend, direction] = ta.supertrend(atr_multiplier, atr_period)
+
+// Plot Supertrend with reversed colors
+plot(supertrend, color=direction > 0 ? color.red : color.green, title="Supertrend", linewidth=2)
+
+// Buy and Sell Conditions
+longCondition = ta.crossover(close, supertrend)  // Buy when price crosses above Supertrend
+shortCondition = ta.crossunder(close, supertrend)  // Sell when price crosses below Supertrend
+
+// Execute Buy and Sell Orders
+if (longCondition)
+    strategy.entry("Buy", strategy.long)
+
+if (shortCondition)
+    strategy.entry("Sell", strategy.short)
+
+// Exit Conditions
+if (shortCondition)
+    strategy.close("Buy")  // Close long position if price crosses below Supertrend
+
+if (longCondition)
+    strategy.close("Sell")  // Close short position if price crosses above Supertrend
+
+// Alerts
+if (longCondition)
+    alert("Buy Signal: " + str.tostring(close), alert.freq_once_per_bar)
+
+if (shortCondition)
+    alert("Sell Signal: " + str.tostring(close), alert.freq_once_per_bar)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/474690
+
+> Last Modified
+
+2024-12-11 15:59:54

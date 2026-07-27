@@ -1,0 +1,24 @@
+//@version=4
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/MACD Crossover Strategy with EMA200 Trend Detection.pine
+// content_hash: 1d3774f619b1fd08
+// collected: 2026-07-27
+strategy("MACD Crossover", overlay=true)
+// eingabeparameter
+// macd besteht aus einem fast und einem slow moving average sowie einer signal line
+fastMA = input(title="Fast moving average", defval = 12, minval = 7)
+slowMA = input(title="Slow moving average", defval = 26, minval = 7)
+signalLength = input(9,minval=1)
+trendEMALength = input(title="Trend Indicator EMA", defval = 200, minval = 20)
+// berechnung macd & signal
+[currMacd,_,_] = macd(close[0], fastMA, slowMA, signalLength)
+signal = ema(currMacd, signalLength)
+trendEMA = ema(close[0], trendEMALength)
+crossoverBear = cross(currMacd, signal) and currMacd < signal and close[0] < trendEMA and currMacd > 0 and signal > 0 ? true : false
+crossoverBull = cross(currMacd, signal) and currMacd > signal and close[0] > trendEMA and currMacd < 0 and signal < 0 ? true : false
+plotshape(crossoverBear, title='MACD-BEAR', style=shape.triangledown, text='', location=location.abovebar, color=color.red, textcolor=color.white, size=size.normal) 
+plotshape(crossoverBull, title='MACD-BULL', style=shape.triangleup, text='', location=location.belowbar, color=color.green, textcolor=color.white, size=size.normal) 
+alertcondition(crossoverBear, "MACD Bear", "MACD Bearish Crossover")
+alertcondition(crossoverBull, "MACD Bull", "MACD Bullish Crossover")
+Expand (25 lines)

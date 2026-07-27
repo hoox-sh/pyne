@@ -1,0 +1,59 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/趋势跟踪型三重指数移动平均线量化交易策略-Triple-EMA-Trend-Following-Quantitative-Trading-Strategy.md
+// content_hash: 7f9abcd2936406c5
+// collected: 2026-07-27
+strategy("Estrategia de Largo con Medias Móviles", overlay=true)
+
+// Parámetros ajustables de las medias móviles
+fast_length = input.int(10, title="Período de Media Rápida", minval=3, maxval=20)
+mid_length = input.int(30, title="Período de Media Intermedia", minval=21, maxval=60)
+slow_length = input.int(130, title="Período de Media Lenta (EMA 130)", minval=130)
+
+// Calcular las medias móviles
+fast_ma = ta.ema(close, fast_length)
+mid_ma = ta.ema(close, mid_length)
+slow_ma = ta.ema(close, slow_length) // Media lenta exponencial de 130 periodos
+
+// Calcular la pendiente manualmente (restando el valor actual de la media móvil del valor de 1 barra anterior)
+slope_ma130 = slow_ma - slow_ma[1]  // Pendiente de la media lenta
+slope_mid_ma = mid_ma - mid_ma[1]   // Pendiente de la media intermedia
+
+// Condición para pendiente positiva de la media lenta
+slow_ma_trending_up = slope_ma130 > 0
+
+// Condición para pendiente positiva de la media intermedia
+mid_ma_trending_up = slope_mid_ma > 0
+
+// Condiciones para entrada en largo (Cruce de la media rápida sobre la media intermedia, solo si la media intermedia tiene pendiente positiva y la media lenta también tiene pendiente positiva)
+long_condition = ta.crossover(fast_ma, mid_ma) and mid_ma_trending_up and slow_ma_trending_up
+
+// Condiciones para entrada adicional (Cruce de la media rápida sobre la media lenta, solo si la media lenta tiene pendiente positiva)
+additional_long_condition = ta.crossover(fast_ma, slow_ma) and slow_ma_trending_up
+
+// Condiciones para cierre de la posición (Cruce de la media rápida por debajo de la media intermedia)
+exit_condition = ta.crossunder(fast_ma, mid_ma)
+
+// Abrir la posición si se cumplen las condiciones (incluyendo las pendientes de las medias)
+if (long_condition or additional_long_condition)
+    strategy.entry("Comprar", strategy.long)
+
+// Cerrar la posición si se cumplen las condiciones de salida
+if (exit_condition)
+    strategy.close("Comprar")
+
+// Mostrar las medias móviles en el gráfico
+plot(fast_ma, color=color.green, linewidth=1, title="EMA Rápida")
+plot(mid_ma, color=color.orange, linewidth=1, title="EMA Intermedia")
+plot(slow_ma, color=color.red, linewidth=2, title="EMA Lenta (130 Periodos)")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/473405
+
+> Last Modified
+
+2024-11-29 16:54:41

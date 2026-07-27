@@ -1,0 +1,70 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/Triple-EMA和Fisher-Transform趋势动量策略-Triple-EMA-and-Fisher-Transform-Trend-Momentum-Strategy.md
+// content_hash: 1d3d395bb32d3ede
+// collected: 2026-07-27
+strategy("Triple EMA (TEMA) + Fisher Transform Strategy", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=10)
+
+// ==== Triple EMA (TEMA) Settings ====
+temaLength = input.int(21, title="TEMA Length", minval=1)
+
+// Implementácia Triple EMA (TEMA)
+// TEMA = 3 * EMA(close, length) - 3 * EMA(EMA(close, length), length) + EMA(EMA(EMA(close, length), length), length)
+ema1 = ta.ema(close, temaLength)
+ema2 = ta.ema(ema1, temaLength)
+ema3 = ta.ema(ema2, temaLength)
+tema = 3 * ema1 - 3 * ema2 + ema3
+plot(tema, color=color.blue, title="TEMA")
+
+// ==== Fisher Transform Settings ====
+fisherLength = input.int(10, title="Fisher Length", minval=1)
+fisherSmooth = input.int(1, title="Fisher Smoothing", minval=1)  // Zvyčajne sa používa 1 alebo 2
+
+// Výpočet Fisher Transform
+// Krok 1: Normalizácia ceny
+price = (high + low) / 2
+maxPrice = ta.highest(price, fisherLength)
+minPrice = ta.lowest(price, fisherLength)
+value = 0.5 * (2 * ((price - minPrice) / (maxPrice - minPrice)) - 1)
+value := math.min(math.max(value, -0.999), 0.999)  // Orezanie hodnoty pre stabilitu
+
+// Krok 2: Výpočet Fisher Transform
+var float fisher = na
+fisher := 0.5 * math.log((1 + value) / (1 - value)) + 0.5 * nz(fisher[1])
+fisher := fisherSmooth > 1 ? ta.sma(fisher, fisherSmooth) : fisher
+plot(fisher, color=color.red, title="Fisher Transform", linewidth=2)
+
+// ==== Strategie Podmienky ====
+ // Long Condition: Cena prekročí TEMA smerom nahor a Fisher Transform prekročí 0 smerom nahor
+longCondition = ta.crossover(close, tema) and ta.crossover(fisher, 0)
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+
+ // Short Condition: Cena prekročí TEMA smerom nadol a Fisher Transform prekročí 0 smerom nadol
+shortCondition = ta.crossunder(close, tema) and ta.crossunder(fisher, 0)
+if (shortCondition)
+    strategy.entry("Short", strategy.short)
+
+// Exit Long Condition: Cena prekročí TEMA smerom nadol alebo Fisher Transform prekročí 0 smerom nadol
+exitLong = ta.crossunder(close, tema) or ta.crossunder(fisher, 0)
+if (exitLong)
+    strategy.close("Long")
+
+// Exit Short Condition: Cena prekročí TEMA smerom nahor alebo Fisher Transform prekročí 0 smerom nahor
+exitShort = ta.crossover(close, tema) or ta.crossover(fisher, 0)
+if (exitShort)
+    strategy.close("Short")
+
+// ==== Voliteľné: Vykreslenie Zero Line pre Fisher Transform ====
+hline(0, "Zero Line", color=color.gray, linestyle=hline.style_dotted)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/482919
+
+> Last Modified
+
+2025-02-20 17:41:02

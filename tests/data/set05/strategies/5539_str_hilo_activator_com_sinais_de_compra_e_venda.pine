@@ -1,0 +1,38 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/Hilo激活器买卖信号策略Hilo-Activator-Buy-Sell-Signals-Strategy.md
+// content_hash: 367196d493b46106
+// collected: 2026-07-27
+strategy("Hilo Activator com Sinais de Compra e Venda", overlay=true)
+
+// Entradas personalizadas
+period = input(8, title="Período")
+shift = input(1, title="Deslocamento")
+exp = input(false, title="Média Móvel Exponencial")
+max = exp ? ema(high[shift], period) : sma(high[shift], period)
+min = exp ? ema(low[shift], period) : sma(low[shift], period)
+pos = close > max ? -1 : close < min ? 1 : 0
+pos := pos == 0 ? na(pos[1]) ? 0 : pos[1] : pos
+hilo = pos == 1 ? max : min
+
+// Condições para sinais de compra e venda
+buySignal = crossover(close, hilo)
+sellSignal = crossunder(close, hilo)
+
+plotshape(buySignal, style=shape.triangleup, location=location.belowbar, color=color.green, size=size.small)
+plotshape(sellSignal, style=shape.triangledown, location=location.abovebar, color=color.red, size=size.small)
+
+// plotbar(hilo,hilo,hilo,hilo,color=pos==1?color.red:color.green)
+
+strategy.entry("Buy", strategy.long, when = buySignal)
+strategy.entry("Sell", strategy.short, when = sellSignal)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/439248
+
+> Last Modified
+
+2024-01-18 15:56:51

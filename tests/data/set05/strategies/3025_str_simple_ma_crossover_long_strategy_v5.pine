@@ -1,0 +1,42 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于均线交叉的长线追涨策略SMA-Crossover-Bullish-Trend-Following-Strategy.md
+// content_hash: 40e518f39cf6f819
+// collected: 2026-07-27
+strategy("Simple MA Crossover Long Strategy v5", overlay=true)
+
+// Define the short and long moving averages
+shortMa = ta.sma(close, 9)
+longMa = ta.sma(close, 21)
+
+// Plot the moving averages on the chart
+plot(shortMa, color=color.green)
+plot(longMa, color=color.orange)
+
+// Generate a long entry signal when the short MA crosses over the long MA
+longCondition = ta.crossover(shortMa, longMa)
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+
+// Define the take profit and stop loss as a percentage of the entry price
+takeProfitPerc = 1.5 / 100 // Take profit at 1.5% above entry price
+
+stopLossPerc = 1.0 / 100 // Stop loss at 1.0% below entry price
+
+// Calculate the take profit and stop loss price levels dynamically
+takeProfitLevel = strategy.position_avg_price * (1 + takeProfitPerc)
+stopLossLevel = strategy.position_avg_price * (1 - stopLossPerc)
+
+// Set the take profit and stop loss for the trade
+if (longCondition)
+    strategy.exit("Take Profit/Stop Loss", "Long", limit=takeProfitLevel, stop=stopLossLevel)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/440978
+
+> Last Modified
+
+2024-02-04 14:56:00

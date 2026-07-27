@@ -1,0 +1,65 @@
+// set02 corpus entry
+// source_repo: jbondata-pinescript-indicator-suite
+// source_path: jbondata-pinescript-indicator-suite/scripts/vertical-sessions.pine
+// content_hash: 261b6fd2c6d6a524
+// collected: 2026-07-27
+// This Pine Script code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// jbondata
+//@version=6
+indicator("Vertical Sessions by @jbondata", overlay = true, max_lines_count = 500)
+
+// Session inputs (6 configurable sessions)
+string session1 = input.session("1000-1200", "Session 1", group = "Sessions", tooltip = "Start-end time as HHMM-HHMM (e.g. 1000-1200 = 10:00 to 12:00). Vertical lines at start and end.")
+string session2 = input.session("1300-1500", "Session 2", group = "Sessions", tooltip = "Start-end time as HHMM-HHMM. Use 0000-0000 to disable.")
+string session3 = input.session("0900-0930", "Session 3", group = "Sessions", tooltip = "Start-end time as HHMM-HHMM. Use 0000-0000 to disable.")
+string session4 = input.session("0000-0000", "Session 4", group = "Sessions", tooltip = "Start-end time as HHMM-HHMM. Use 0000-0000 to disable.")
+string session5 = input.session("0000-0000", "Session 5", group = "Sessions", tooltip = "Start-end time as HHMM-HHMM. Use 0000-0000 to disable.")
+string session6 = input.session("0000-0000", "Session 6", group = "Sessions", tooltip = "Start-end time as HHMM-HHMM. Use 0000-0000 to disable.")
+
+// Timezone
+bool useNewYorkTime = input.bool(true, "Use New York (EST) time", group = "Timezone", tooltip = "When on, session start/end times are in America/New_York (EST/EDT). When off, chart/symbol timezone is used.")
+string tz = useNewYorkTime ? "America/New_York" : syminfo.timezone
+
+// Line style
+color lineColor = color.black
+int lineWidth = 1
+
+// Y range for vertical lines
+float yLo = ta.lowest(low, 500)
+float yHi = ta.highest(high, 500)
+
+// Parse "HHMM-HHMM" session string into start/end hour and minute
+parseSession(string s) =>
+    if str.length(s) >= 9
+        [str.tonumber(str.substring(s, 0, 2)), str.tonumber(str.substring(s, 2, 4)),
+         str.tonumber(str.substring(s, 5, 7)), str.tonumber(str.substring(s, 7, 9))]
+    else
+        [int(na), int(na), int(na), int(na)]
+
+// True if session is disabled (all zeros)
+sessionDisabled(int sh, int sm, int eh, int em) =>
+    (sh == 0 and sm == 0 and eh == 0 and em == 0)
+
+// True if current bar time matches the given hour and minute in the selected timezone
+atTime(int h, int m, string timezone) =>
+    hour(time, timezone) == h and minute(time, timezone) == m
+
+// Draw vertical line at current bar time (dotted black, full height)
+drawVerticalLine() =>
+    if barstate.isconfirmed
+        line.new(time, yLo, time, yHi, xloc = xloc.bar_time, color = lineColor, width = lineWidth, style = line.style_dotted, extend = extend.both)
+
+// Apply logic for one session: draw start and end vertical lines
+processSession(string sess, string timezone) =>
+    [startHour, startMin, endHour, endMin] = parseSession(sess)
+    if not sessionDisabled(int(startHour), int(startMin), int(endHour), int(endMin))
+        if atTime(int(startHour), int(startMin), timezone) or atTime(int(endHour), int(endMin), timezone)
+            drawVerticalLine()
+
+// Process all sessions
+processSession(session1, tz)
+processSession(session2, tz)
+processSession(session3, tz)
+processSession(session4, tz)
+processSession(session5, tz)
+processSession(session6, tz)

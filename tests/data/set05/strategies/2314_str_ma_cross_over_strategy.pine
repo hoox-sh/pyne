@@ -1,0 +1,59 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/自适应移动平均线交叉策略-Adaptive-Moving-Average-Crossover-Strategy.md
+// content_hash: 81afd0c388da6c10
+// collected: 2026-07-27
+strategy("MA Cross Over Strategy", overlay=true, initial_capital=10000, process_orders_on_close=true, default_qty_type=strategy.percent_of_equity, default_qty_value=100)
+
+// 参数：EMA的周期
+ema_length = input.int(120, title="MA Length")
+typeMA = input(title = "Method", defval = "SMA", options=["SMA", "EMA", "SMMA (RMA)", "WMA", "VWMA"], group="Smoothing")
+
+ma(source, length, type) =>
+    switch type
+        "SMA" => ta.sma(source, length)
+        "EMA" => ta.ema(source, length)
+        "SMMA (RMA)" => ta.rma(source, length)
+        "WMA" => ta.wma(source, length)
+        "VWMA" => ta.vwma(source, length)
+// 计算EMA
+ma_value = ma(close, ema_length, typeMA)
+
+// === INPUT BACKTEST RANGE ===
+// i_from = input.time(defval = timestamp("01 Jan 2020 00:00 +0000"), title = "From")
+// i_thru = input.time(defval = timestamp("01 Aug 2024 00:00 +0000"), title = "Thru")
+
+// === INPUT SHOW PLOT ===
+i_show = input     (defval = true, title = "Show Date Range")
+
+// === FUNCTION EXAMPLE ===
+date() => true
+
+// 生成交易信号
+var int position = na
+cv = ta.crossover(close, ma_value)
+cu = ta.crossunder(close, ma_value)
+if date() and cv
+    position := 1
+else if date() and cu
+    position := -1
+
+// 显示MA
+plot(ma_value, title='MA', color=color.blue, linewidth=2)
+
+
+// 策略实现
+if (position == 1)
+    strategy.entry("Buy", strategy.long)
+if (position == -1)
+    strategy.close("Buy")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/458085
+
+> Last Modified
+
+2024-07-29 17:29:52

@@ -1,0 +1,29 @@
+//@version=5
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/My Strategy.pine
+// content_hash: 533770e78e7080b2
+// collected: 2026-07-27
+//Script will identify inside candles (candles that don't go above/below previous range)
+strategy("My Strategy", overlay=true)
+shortSMA = ta.sma(close, 10)
+longSMA = ta.sma(close, 30)
+rsi = ta.rsi(close, 14)
+longCondition = ta.crossover(shortSMA, longSMA)
+shortCondition = ta.crossunder(shortSMA, longSMA)
+atr = ta.atr(14)
+if (longCondition)
+    stopLoss = low - atr * 2
+    takeProfit = high + atr * 2
+    strategy.entry("long", strategy.long, 100, when = rsi > 50)
+    strategy.exit("exit", "long", stop=stopLoss, limit=takeProfit)
+if (shortCondition)
+    stopLoss = high + atr * 2
+    takeProfit = low - atr * 2
+    strategy.entry("short", strategy.short, 100, when = rsi < 50)
+    strategy.exit("exit", "short", stop=stopLoss, limit=takeProfit)
+    
+    
+    
+    
+Expand (26 lines)

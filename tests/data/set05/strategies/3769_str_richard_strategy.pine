@@ -1,0 +1,55 @@
+//@version=4
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/Richard's Strategy.pine
+// content_hash: 13a8371b541495bf
+// collected: 2026-07-27
+strategy("Richard Strategy", overlay=true)
+// User input
+variable_for_stoploss = input(4,title="stop loss var")
+lenght = input(20,title="lenght")
+// high_low
+_20_day_highest = highest(nz(close[1]), lenght)
+_20_day_lowest = lowest(nz(close[1]), lenght)
+_10_day_low = lowest(nz(close[1]), lenght/2)
+_10_day_high = highest(nz(close[1]), lenght/2)
+//indicators
+atr20 = atr(20)
+ema_atr20 = ema(atr20,20)
+//vars
+var traded = "false"
+var buy_sell = "none"
+var buyExit = false
+var sellExit = false
+var stoploss = 0
+buyCon = close > _20_day_highest and traded == "false"
+plotshape(buyCon,style = shape.triangleup,location = location.belowbar, color = color.green )
+if (buyCon)
+    strategy.entry("long", strategy.long, when = buyCon)
+    traded := "true"
+    buy_sell := "buy"
+    stoploss := round(close - variable_for_stoploss * ema_atr20)
+    
+sellCon = close < _20_day_lowest and  traded == "false"
+plotshape(sellCon,style = shape.triangledown, color = color.red )
+if (sellCon)
+    strategy.entry("short", strategy.short)
+    traded := "true"
+    buy_sell := "sell"
+    stoploss := round(close - variable_for_stoploss * ema_atr20)
+if traded == "true"
+    if buy_sell == "buy" and ((close<stoploss)or(close<_10_day_low))
+        strategy.close("long")
+        buyExit := true
+        traded := "false"
+        
+    if buy_sell == "sell" and ((close>stoploss)or(close>_10_day_high))
+        strategy.close("short")
+        sellExit := true
+        traded := "false"
+        
+plotshape(buyExit,style = shape.triangleup,location = location.belowbar, color = color.yellow )
+buyExit := false
+plotshape(sellExit,style = shape.triangledown, color = color.yellow )
+sellExit := false
+Expand (59 lines)

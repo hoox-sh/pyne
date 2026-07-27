@@ -1,0 +1,56 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多重趋势动量交叉策略结合波动率优化系统-Multi-Trend-Momentum-Crossover-Strategy-with-Volatility-Optimization-System.md
+// content_hash: 9565bafb38552efb
+// collected: 2026-07-27
+strategy("Estratégia Cripto - 1D", shorttitle="Estratégia Cripto", overlay=true)
+
+// Definição das Médias Móveis Exponenciais (EMA)
+ema9 = ta.ema(close, 9)
+ema21 = ta.ema(close, 21)
+
+// Definição do MACD
+[macdLine, signalLine, _] = ta.macd(close, 12, 26, 9)
+
+// Definição do RSI
+rsi = ta.rsi(close, 14)
+
+// Volume médio
+volMedio = ta.sma(volume, 14)
+
+// Definição das Bollinger Bands
+basis = ta.sma(close, 20)
+dev = ta.stdev(close, 20)
+upperBand = basis + 2 * dev
+lowerBand = basis - 2 * dev
+
+// Condições de Compra (Long)
+longCondition = (ema9 > ema21) and (macdLine > signalLine) and (macdLine > 0) and (volume > volMedio) and (rsi > 40 and rsi < 70) and (close > ema9)
+if (longCondition)
+    strategy.entry("Compra", strategy.long)
+
+// Condições de Venda (Short)
+shortCondition = (ema9 < ema21) and (macdLine < signalLine) and (macdLine < 0) and (volume > volMedio) and (rsi < 60 and rsi > 30) and (close < ema9)
+if (shortCondition)
+    strategy.entry("Venda", strategy.short)
+
+// Stop Loss e Take Profit
+strategy.exit("Take Profit/Stop Loss", from_entry="Compra", loss=200, profit=400)
+strategy.exit("Take Profit/Stop Loss", from_entry="Venda", loss=200, profit=400)
+
+// Plotagem das Médias Móveis e Bollinger Bands
+plot(ema9, color=color.green, title="EMA 9")
+plot(ema21, color=color.red, title="EMA 21")
+plot(upperBand, color=color.blue, title="Upper Band")
+plot(lowerBand, color=color.blue, title="Lower Band")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/473382
+
+> Last Modified
+
+2024-11-29 16:07:17

@@ -1,0 +1,17 @@
+//@version=5
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/v5/language/objects.md::objects.md#block5
+// content_hash: b3ed9d9e176e8880
+// collected: 2026-07-27
+indicator("")
+type pivotPoint
+    int x
+    float y
+pivot1 = pivotPoint.new()
+pivot1.x := 1000
+pivot2 = pivot1
+pivot2.x := 2000
+// Both plot the value 2000.
+plot(pivot1.x)
+plot(pivot2.x)

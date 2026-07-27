@@ -1,0 +1,126 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双EMA均线与ATR指标配合过滤的趋势跟随策略Dual-EMA-Crossover-Trend-Following-Strategy-with-ATR-and-ADX-Filters.md
+// content_hash: 847d062db6500e28
+// collected: 2026-07-27
+strategy("Refactored Advanced EMA Cross with Normalized ATR Filter, Controlling ADX", shorttitle="ALP V5", overlay=true)
+
+// Initialize variables to track if a buy order has been placed and number of periods since the last buy
+var bool hasBought = false
+var int barCountSinceBuy = 0
+
+// Define EMA periods
+emaShort = ta.ema(close, 8)
+emaLong = ta.ema(close, 20)
+
+// Define ATR period and normalization
+atrLength = 14
+atrValue = ta.atr(atrLength)
+maxHistoricalATR = ta.highest(atrValue, 20)
+minHistoricalATR = ta.lowest(atrValue, 20)
+normalizedATR = (atrValue - minHistoricalATR) / (maxHistoricalATR - minHistoricalATR)
+
+// Define ADX parameters
+adxValue = ta.rma(close, 14)
+adxHighLevel = 30
+isADXHigh = adxValue > adxHighLevel
+
+// Initialize risk management variables
+var float stopLossPercent = na
+var float takeProfitPercent = na
+var float trailingStop = na
+
+// Calculate USD strength (simplified)
+usd_strength = close / ta.ema(close, 50) - 1
+
+// Adjust risk parameters based on USD strength
+if (usd_strength > 0)
+    stopLossPercent := 3
+    takeProfitPercent := 6
+else
+    stopLossPercent := 4
+    takeProfitPercent := 8
+
+// Initialize position variable
+var float positionPrice = na
+
+// Volume filter
+minVolume = ta.sma(volume, 14) * 1.5
+isVolumeHigh = volume > minVolume
+
+
+
+// Piyasa yönü için süper trend göstergesi
+[supertrendValue, supertrendDirection] = ta.supertrend(4, 14)  // Use a factor of 3 and ATR period of 10
+bool isBullMarket = supertrendDirection < 0
+bool isBearMarket = supertrendDirection > 0
+
+// Yükselen piyasa için alım koşulu
+buyConditionBull = isBullMarket and ta.crossover(emaShort, emaLong) and normalizedATR > 0.2
+// Düşen piyasa için alım koşulu
+buyConditionBear = isBearMarket and ta.crossover(emaShort, emaLong) and normalizedATR > 0.5
+// Genel alım koşulu
+buyCondition = buyConditionBull or buyConditionBear
+
+// Yükselen ve düşen piyasalar için farklı satış koşulları
+sellConditionBull = isBullMarket and (ta.crossunder(emaShort, emaLong) or isADXHigh)
+sellConditionBear = isBearMarket and (ta.crossunder(emaShort, emaLong) or isADXHigh)
+// Genel satış koşulu
+sellCondition = sellConditionBull or sellConditionBear
+
+
+// Buy condition
+if (buyCondition)
+    strategy.entry("Buy", strategy.long)
+    positionPrice := close
+    hasBought := true // Set the flag to true when a buy order is placed
+    barCountSinceBuy := 0 // Reset the bar counter when a buy order is placed
+
+// Increase the bar counter if a buy has been executed
+if (hasBought)
+    barCountSinceBuy := barCountSinceBuy + 1
+
+// Calculate stop-loss and take-profit levels
+longStopLoss = positionPrice * (1 - stopLossPercent / 100)
+longTakeProfit = positionPrice * (1 + takeProfitPercent / 100)
+
+
+// Final Sell condition, now also checks if a buy has occurred before and if at least 5 periods have passed
+finalSellCondition = sellCondition and hasBought and barCountSinceBuy >= 3 and isVolumeHigh
+
+if (finalSellCondition)
+    strategy.close("Buy")
+    positionPrice := na
+    hasBought := false // Reset the flag when a sell order is placed
+    barCountSinceBuy := 0 // Reset the bar counter when a buy order is closed
+
+// Implement stop-loss, take-profit, and trailing stop
+strategy.exit("Stop Loss", "Buy", stop=longStopLoss)
+strategy.exit("Take Profit", "Buy", limit=longTakeProfit)
+//strategy.exit("Trailing Stop", "Buy", trail_price=close, trail_offset=trailingStop * close / 100)
+
+
+var label l = na
+
+if (buyCondition)
+    l := label.new(bar_index, high, text="buy triggered " + str.tostring(usd_strength))
+    label.delete(l[1])
+
+if (finalSellCondition)
+    l := label.new(bar_index, high, text="sell triggered " + str.tostring(usd_strength))
+    label.delete(l[1])
+
+// Plot signals
+plotshape(series=buyCondition, title="Buy Signal", location=location.belowbar, color=color.green, style=shape.labelup, text="Buy")
+plotshape(series=finalSellCondition, title="Sell Signal", location=location.abovebar, color=color.red, style=shape.labeldown, text="Sell")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/432212
+
+> Last Modified
+
+2023-11-15 15:53:57

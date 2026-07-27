@@ -1,0 +1,52 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/黄金快速突破EMA交易策略Gold-Fast-Breakthrough-EMA-Trading-Strategy.md
+// content_hash: adf37592f0da5be3
+// collected: 2026-07-27
+strategy("XAUUSD Trading Strategy", shorttitle="XAUUSD Strategy", overlay=true)
+
+// Inputs
+fastLength = input(9, title="Fast EMA Length")
+slowLength = input(21, title="Slow EMA Length")
+atrLength = input(2, title="ATR Length")
+atrMultiplier = input(2, title="ATR Multiplier")
+profitTarget = input(0.7, title="Profit Target") * 100 // in percentage
+commission = input(0.001, title="Commission") // 0.1% per trade
+
+// Calculations
+fastEMA = ema(close, fastLength)
+slowEMA = ema(close, slowLength)
+atr = atr(atrLength)
+
+// Entry rules
+longCondition = crossover(fastEMA, slowEMA) and close > slowEMA
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+
+shortCondition = crossunder(fastEMA, slowEMA) and close < slowEMA
+if (shortCondition)
+    strategy.entry("Short", strategy.short)
+
+// Stop loss and take profit
+longStop = lowest(atrLength) - atr * atrMultiplier
+longTakeProfit = highest(atrLength) + atr * atrMultiplier
+
+shortStop = highest(atrLength) + atr * atrMultiplier
+shortTakeProfit = lowest(atrLength) - atr * atrMultiplier
+
+strategy.exit("Exit Long", "Long", stop=longStop, limit=longTakeProfit)
+strategy.exit("Exit Short", "Short", stop=shortStop, limit=shortTakeProfit)
+
+// Plot EMAs
+plot(fastEMA, title="Fast EMA", color=color.blue)
+plot(slowEMA, title="Slow EMA", color=color.red)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/439190
+
+> Last Modified
+
+2024-01-18 11:37:10

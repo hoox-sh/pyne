@@ -1,0 +1,17 @@
+//@version=6
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/faq/strings-and-formatting.md::strings-and-formatting.md#block7
+// content_hash: 87d0888f76817ada
+// collected: 2026-07-27
+indicator("Text position demo", "", true)
+
+hideBackgroundInput = input.bool(false, "Hide Background")
+color backgroundColor = hideBackgroundInput ? color(na) : color.new(color.gray,70)
+// @function            Prints a label with the specified text at a specific position and alignment.
+// @param txt           (string) The text to be displayed in the label.
+// @param pos           (string) The label style.
+// @param align         (string) The horizontal alignment of text within the label.
+// @returns             (void) Function has no explicit return.
+print(string txt, string pos, string align) =>
+    var label lbl = label.new(na, na, na, xloc.bar_index, yloc.price, backgroundColor, pos, chart.fg_color,

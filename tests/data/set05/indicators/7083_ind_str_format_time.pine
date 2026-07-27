@@ -1,0 +1,10 @@
+//@version=6
+// set05 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block209
+// content_hash: 886c69b668743466
+// collected: 2026-07-27
+indicator("str.format_time")
+if timeframe.change("1D")
+    formattedTime = str.format_time(time, "yyyy-MM-dd HH:mm", syminfo.timezone)
+    label.new(bar_index, high, formattedTime)

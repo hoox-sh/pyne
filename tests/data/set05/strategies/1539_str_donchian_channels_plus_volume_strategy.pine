@@ -1,0 +1,78 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动态成交量辅助唐奇安通道趋势突破策略-Dynamic-Volume-Enhanced-Donchian-Channel-Trend-Breakout-Strategy.md
+// content_hash: 5d9c67537430bde8
+// collected: 2026-07-27
+strategy("Donchian Channels + Volume Strategy", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=10)
+
+// === Vstupy ===
+donchianPeriod = input.int(20, title="Donchian Period", minval=1)
+volumePeriod = input.int(20, title="Volume SMA Period", minval=1)
+
+// === Výpočty Indikátorov ===
+// Donchian Channels z predchádzajúceho baru
+upperDonchianPrev = ta.highest(high, donchianPeriod)[1]
+lowerDonchianPrev = ta.lowest(low, donchianPeriod)[1]
+
+// Aktuálne Donchian Channels
+upperDonchian = ta.highest(high, donchianPeriod)
+lowerDonchian = ta.lowest(low, donchianPeriod)
+
+// Volume SMA
+avgVolume = ta.sma(volume, volumePeriod)
+
+// === Podmienky Pre Vstupy ===
+// Long Condition: Close prekoná predchádzajúce Upper Donchian a objem > priemerný objem
+longCondition = ta.crossover(close, upperDonchianPrev) and volume > avgVolume
+
+// Short Condition: Close prekoná predchádzajúce Lower Donchian a objem > priemerný objem
+shortCondition = ta.crossunder(close, lowerDonchianPrev) and volume > avgVolume
+
+// === Vstupné Signály ===
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+
+if (shortCondition)
+    strategy.entry("Short", strategy.short)
+
+// === Výstupné Podmienky ===
+// Uzavretie Long pozície pri prekonaní aktuálneho Lower Donchian
+exitLongCondition = ta.crossunder(close, lowerDonchian)
+
+if (exitLongCondition)
+    strategy.close("Long")
+
+// Uzavretie Short pozície pri prekonaní aktuálneho Upper Donchian
+exitShortCondition = ta.crossover(close, upperDonchian)
+
+if (exitShortCondition)
+    strategy.close("Short")
+
+// === Vykreslenie Indikátorov na Grafe ===
+// Vykreslenie Donchian Channels
+upperPlot = plot(upperDonchian, color=color.red, title="Upper Donchian")
+lowerPlot = plot(lowerDonchian, color=color.green, title="Lower Donchian")
+fill(upperPlot, lowerPlot, color=color.rgb(173, 216, 230, 90), title="Donchian Fill")
+
+// Vykreslenie Volume SMA (skryté)
+plot(avgVolume, color=color.blue, title="Average Volume", display=display.none)
+
+// === Vizualizácia Signálov ===
+// Značky pre Long a Short vstupy
+plotshape(series=longCondition, title="Long Entry", location=location.belowbar, color=color.green, style=shape.labelup, text="Long")
+plotshape(series=shortCondition, title="Short Entry", location=location.abovebar, color=color.red, style=shape.labeldown, text="Short")
+
+// Značky pre Long a Short výstupy
+plotshape(series=exitLongCondition, title="Long Exit", location=location.abovebar, color=color.red, style=shape.labeldown, text="Exit Long")
+plotshape(series=exitShortCondition, title="Short Exit", location=location.belowbar, color=color.green, style=shape.labelup, text="Exit Short")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/481339
+
+> Last Modified
+
+2025-02-10 14:18:39

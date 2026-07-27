@@ -1,0 +1,11 @@
+//@version=6
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/concepts/strings.md::strings.md#block11
+// content_hash: 88f615c0a2dfd8e9
+// collected: 2026-07-27
+indicator("Quotes in formatting strings demo")
+
+if barstate.isfirst
+    //@variable A concatenated formatting string that contains apostrophes and placeholders.
+    string formatString =

@@ -1,0 +1,64 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/波段点检测与布林带震荡策略-Pivot-Point-Detection-with-Bollinger-Band-Oscillation-Strategy.md
+// content_hash: aeff33c9b47f8c7c
+// collected: 2026-07-27
+strategy("Pivot Point Detection", overlay=true)
+
+// === INPUT PARAMETERS ===
+lookback = input(20, title="Bollinger Bands Lookback")
+std_factor = input(2, title="Bollinger Bands Std Dev")
+atr_lookback = input(14, title="ATR Lookback")
+bb_percentile = input(25, title="BB Width Percentile") / 100  // Convert to decimal
+atr_percentile = input(30, title="ATR Percentile") / 100  // Convert to decimal
+
+// === BOLLINGER BANDS CALCULATION ===
+ma = ta.sma(close, lookback)
+bb_std = ta.stdev(close, lookback)
+upper_bb = ma + (std_factor * bb_std)
+lower_bb = ma - (std_factor * bb_std)
+bb_width = (upper_bb - lower_bb) / ma
+
+// === ATR & NORMALIZED ATR ===
+atr = ta.atr(atr_lookback)
+nATR = atr / close
+
+// === APPROXIMATING PERCENTILE USING ROLLING LOWEST & HIGHEST ===
+// This approximates the percentile value by interpolating within a rolling window.
+bb_width_min = ta.lowest(bb_width, lookback)
+bb_width_max = ta.highest(bb_width, lookback)
+bb_threshold = bb_width_min + (bb_width_max - bb_width_min) * bb_percentile
+
+nATR_min = ta.lowest(nATR, lookback)
+nATR_max = ta.highest(nATR, lookback)
+atr_threshold = nATR_min + (nATR_max - nATR_min) * atr_percentile
+
+// === SIDEWAYS MARKET CONFIRMATION ===
+sideways = bb_width < bb_threshold
+
+// === BUY SIGNAL LOGIC ===
+middle_bb = (upper_bb + lower_bb) / 2
+close_to_middle = math.abs(close - middle_bb) / close < 0.02  // Within 2% of middle BB
+
+buy_signal = sideways and (nATR < atr_threshold) and close_to_middle
+
+// === PLOT BOLLINGER BANDS ===
+plot(upper_bb, color=color.gray, linewidth=1, title="Upper BB")
+plot(lower_bb, color=color.gray, linewidth=1, title="Lower BB")
+
+// === PLOT BUY SIGNALS ===
+plotshape(buy_signal, location=location.belowbar, color=color.green, style=shape.labelup, size=size.small, title="Buy Signal")
+
+// === STRATEGY EXECUTION ===
+strategy.entry("Buy", strategy.long, when=buy_signal)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/488136
+
+> Last Modified
+
+2025-03-25 13:39:27

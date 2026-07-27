@@ -1,0 +1,72 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/增强型EMA-WMA交叉策略与综合退出条件Enhanced-EMA-WMA-Crossover-Strategy-with-Comprehensive-Exit-Conditions.md
+// content_hash: 0e3c45c808fe570d
+// collected: 2026-07-27
+//X version 11
+strategy("EMA9/WMA30 Crossover Strategy with Enhanced Exit Conditions", shorttitle="EMA9/WMA30 Enhanced Exit", overlay=true)
+
+// Inputs
+lengthEma = input.int(9, title="Length for EMA")
+lengthWma = input.int(30, title="Length for WMA")
+fastLength = input.int(12, title="Fast Length for MACD")
+slowLength = input.int(26, title="Slow Length for MACD")
+macdLength = input.int(9, title="Signal Smoothing for MACD")
+pointsGainGoal = input.float(33.00, title="Points Gain Goal")
+pointsLossGoal = input.float(-50.00, title="Points Loss Goal")
+
+// Calculating EMA, WMA, and MACD
+EMA9 = ta.ema(close, lengthEma)
+WMA30 = ta.wma(close, lengthWma)
+[macdLine, signalLine, _] = ta.macd(close, fastLength, slowLength, macdLength)
+
+// Adding 200 SMA, 21 EMA, and VWAP
+SMA200 = ta.sma(close, 200)
+EMA21 = ta.ema(close, 21)
+VWAPValue = ta.vwap(close)
+
+// Buy Signal based on EMA/WMA Crossover and MACD confirmation
+crossover = ta.crossover(EMA9, WMA30)
+buySignal = crossover and macdLine > signalLine
+
+// Entry
+var float entryPrice = na
+if (buySignal)
+    strategy.entry("Buy", strategy.long)
+    entryPrice := close
+
+// Counters for consecutive closes below EMA9 and WMA30
+var int belowEMA9Count = 0
+var int belowWMA30Count = 0
+belowEMA9Count := close < EMA9 ? belowEMA9Count + 1 : 0
+belowWMA30Count := close < WMA30 ? belowWMA30Count + 1 : 0
+
+// Exit Conditions
+MACDBearishCross = ta.crossunder(macdLine, signalLine)
+exitCondition1 = belowEMA9Count >= 2 and belowWMA30Count >= 1
+exitCondition2 = MACDBearishCross
+
+// Exit
+if (strategy.position_size > 0)
+    if (exitCondition1 or exitCondition2)
+        strategy.close("Buy")
+        entryPrice := na
+        belowEMA9Count := 0
+        belowWMA30Count := 0
+
+// Visualization
+plot(EMA9, title="EMA 9", color=color.blue)
+plot(WMA30, title="WMA 30", color=color.red)
+plot(SMA200, title="SMA 200", color=color.orange)
+plot(EMA21, title="EMA 21", color=color.purple)
+plot(VWAPValue, title="VWAP", color=color.green)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/458275
+
+> Last Modified
+
+2024-07-31 14:47:01

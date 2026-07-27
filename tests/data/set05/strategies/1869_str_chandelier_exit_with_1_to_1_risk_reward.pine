@@ -1,0 +1,68 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动态平仓止损均线策略Dynamic-Stop-Loss-Moving-Average-Strategy.md
+// content_hash: 8aa93a84e8e9a449
+// collected: 2026-07-27
+strategy("Chandelier Exit with 1-to-1 Risk-Reward", shorttitle='CE', overlay=true)
+
+// Chandelier Exit Logic
+length = input.int(title='ATR Period', defval=22)
+mult = input.float(title='ATR Multiplier', step=0.1, defval=3.0)
+useClose = input.bool(title='Use Close Price for Extremums', defval=true)
+
+atr = mult * ta.atr(length)
+
+longStop = (useClose ? ta.highest(close, length) : ta.highest(length)) - atr
+longStopPrev = nz(longStop[1], longStop)
+longStop := close[1] > longStopPrev ? math.max(longStop, longStopPrev) : longStop
+
+shortStop = (useClose ? ta.lowest(close, length) : ta.lowest(length)) + atr
+shortStopPrev = nz(shortStop[1], shortStop)
+shortStop := close[1] < shortStopPrev ? math.min(shortStop, shortStopPrev) : shortStop
+
+var int dir = 1
+dir := close > shortStopPrev ? 1 : close < longStopPrev ? -1 : dir
+
+// Risk-Reward Ratio
+riskRewardRatio = input.int(1, title="Risk-Reward Ratio", minval=1, maxval=10, step=1)
+
+// Calculate Take Profit and Stop Loss Levels
+takeProfitLevel = atr * riskRewardRatio
+stopLossLevel = atr
+
+// Entry Conditions
+longCondition = dir == 1 and dir[1] == -1
+shortCondition = dir == -1 and dir[1] == 1
+
+// Entry Signals
+if (longCondition)
+    strategy.entry("Long", strategy.long, stop=close - stopLossLevel, limit=close + takeProfitLevel)
+if (shortCondition)
+    strategy.entry("Short", strategy.short, stop=close + stopLossLevel, limit=close - takeProfitLevel)
+
+longStopPlot = plot(dir == 1 ? longStop : na, title='Long Stop', style=plot.style_linebr, linewidth=2, color=color.green)
+shortStopPlot = plot(dir == 1 ? na : shortStop, title='Short Stop', style=plot.style_linebr, linewidth=2, color=color.red)
+
+midPricePlot = plot(ohlc4, title='', style=plot.style_circles, linewidth=0, display=display.none, editable=false)
+
+fill(midPricePlot, longStopPlot, color=color.new(color.green, 90), title='Long State Filling')
+fill(midPricePlot, shortStopPlot, color=color.new(color.red, 90), title='Short State Filling')
+
+// Alerts
+if (dir != dir[1])
+    strategy.entry("Direction Change", strategy.long, comment="Chandelier Exit has changed direction!")
+if (longCondition)
+    strategy.entry("Buy Signal", strategy.long, comment="Chandelier Exit Buy!")
+if (shortCondition)
+    strategy.entry("Sell Signal", strategy.short, comment="Chandelier Exit Sell!")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/440360
+
+> Last Modified
+
+2024-01-29 15:52:43

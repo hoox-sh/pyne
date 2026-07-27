@@ -1,0 +1,42 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/EMA指标的趋势跟踪策略EMA-Crossover-Trend-Following-Strategy.md
+// content_hash: adb82cc58f04d176
+// collected: 2026-07-27
+strategy("EMA Crossover Strategy", overlay=true)
+
+// Input parameters
+shortPeriod = input(9, title="Short EMA Period")
+longPeriod = input(21, title="Long EMA Period")
+stopLossPercent = input(1, title="Stop Loss (%)") / 100
+takeProfitMultiplier = input(2, title="Take Profit Multiplier")
+
+// Calculate EMAs
+emaShort = ema(close, shortPeriod)
+emaLong = ema(close, longPeriod)
+
+// Plot EMAs
+plot(emaShort, color=color.blue, title="Short EMA")
+plot(emaLong, color=color.red, title="Long EMA")
+
+// Strategy logic
+strategy.entry("Buy", strategy.long, when=crossover(emaShort, emaLong))
+strategy.close("Buy", when=crossunder(emaShort, emaLong))
+
+// Risk management
+atrValue = atr(14)
+stopLossLevel = close * (1 - stopLossPercent)
+takeProfitLevel = close * takeProfitMultiplier
+
+strategy.exit("Take Profit/Stop Loss", from_entry="Buy", loss=stopLossLevel, profit=takeProfitLevel)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/440683
+
+> Last Modified
+
+2024-02-01 10:39:56

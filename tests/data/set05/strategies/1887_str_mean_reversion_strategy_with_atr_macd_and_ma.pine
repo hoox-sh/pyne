@@ -1,0 +1,68 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多指标融合均值回归趋势跟踪策略-Multi-Indicator-Fusion-Mean-Reversion-Trend-Following-Strategy.md
+// content_hash: 6fddadc05b005b97
+// collected: 2026-07-27
+strategy("Mean Reversion Strategy with ATR, MACD and MA", overlay=true)
+
+// === Настройки для индикаторов ===
+// Параметры скользящей средней (MA)
+maLength = input.int(30, title="Период скользящей средней (MA)")
+maType = input.string("EMA", title="Тип скользящей средней", options=["SMA", "EMA"])
+
+// Параметры ATR
+atrLength = input.int(10, title="Период ATR")
+atrMultiplier = input.float(10, title="ATR множитель для стоп-лосса")
+
+// Параметры MACD
+macdFastLength = input.int(8, title="Период быстрой EMA для MACD")
+macdSlowLength = input.int(26, title="Период медленной EMA для MACD")
+macdSignalLength = input.int(5, title="Период сигнальной линии MACD")
+
+// === Рассчёт индикаторов ===
+// Скользящая средняя
+ma = if maType == "SMA"
+    ta.sma(close, maLength)
+else
+    ta.ema(close, maLength)
+
+// ATR (Средний истинный диапазон)
+atr = ta.atr(atrLength)
+
+// MACD
+[macdLine, signalLine, _] = ta.macd(close, macdFastLength, macdSlowLength, macdSignalLength)
+
+// Условия для входа на покупку и продажу
+longCondition = ta.crossover(macdLine, signalLine) and close < ma
+shortCondition = ta.crossunder(macdLine, signalLine) and close > ma
+
+// === Управление позициями ===
+if (longCondition)
+    strategy.entry("Buy", strategy.long)
+    // Стоп-лосс на основе ATR
+    stopLossLevel = close - atr * atrMultiplier
+    strategy.exit("Take Profit/Stop Loss", "Buy", stop=stopLossLevel)
+
+if (shortCondition)
+    strategy.entry("Sell", strategy.short)
+    // Стоп-лосс на основе ATR
+    stopLossLevel = close + atr * atrMultiplier
+    strategy.exit("Take Profit/Stop Loss", "Sell", stop=stopLossLevel)
+
+// Визуализация
+plot(ma, title="MA", color=color.blue, linewidth=2)
+plot(macdLine, title="MACD Line", color=color.green)
+plot(signalLine, title="Signal Line", color=color.red)
+hline(0, "Zero Line", color=color.gray)
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/471687
+
+> Last Modified
+
+2024-11-12 14:30:35

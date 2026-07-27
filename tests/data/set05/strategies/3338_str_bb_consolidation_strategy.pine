@@ -1,0 +1,146 @@
+//@version=4
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/[KL] Bollinger Bands Consolidation Strategy.pine
+// content_hash: 8a4624256af108ac
+// collected: 2026-07-27
+strategy("[KL] BB Consolidation Strategy",overlay=true,pyramiding=1)
+// Timeframe {
+backtest_timeframe_start = input(defval = timestamp("01 Apr 2016 13:30 +0000"), title = "Backtest Start Time", type = input.time)
+USE_ENDTIME = input(false,title="Define backtest end-time (If false, will test up to most recent candle)")
+backtest_timeframe_end = input(defval = timestamp("19 Apr 2021 19:30 +0000"), title = "Backtest End Time (if checked above)", type = input.time)
+within_timeframe = time >= backtest_timeframe_start and (time <= backtest_timeframe_end or not USE_ENDTIME)
+// }
+// Bollinger bands (sdv=2, len=20) {
+BOLL_length = 20, BOLL_src = close, SMA20 = sma(BOLL_src, BOLL_length), BOLL_sDEV_x2 = 2 * stdev(BOLL_src, BOLL_length)
+BOLL_upper = SMA20 + BOLL_sDEV_x2, BOLL_lower = SMA20 - BOLL_sDEV_x2
+plot(SMA20, "Basis", color=#872323, offset = 0)
+BOLL_p1 = plot(BOLL_upper, "BOLL Upper", color=color.navy, offset = 0, transp=50)
+BOLL_p2 = plot(BOLL_lower, "BOLL Lower", color=color.navy, offset = 0, transp=50)
+fill(BOLL_p1, BOLL_p2, title = "Background", color=#198787, transp=85)
+// }
+// Volatility Indicators {
+ATR_x2 = atr(BOLL_length) * 2 // multiplier aligns with BOLL
+avg_atr = sma(ATR_x2, input(1,title="No. of candles to lookback when determining ATR is decreasing"))
+plot(SMA20+ATR_x2, "SMA20 + ATR_x2", color=color.gray, offset = 0, transp=50)
+plot(SMA20-ATR_x2, "SMA20 - ATR_x2", color=color.gray, offset = 0, transp=50)
+plotchar(ATR_x2, "ATR_x2", "", location = location.bottom)
+//}
+// Trailing stop loss {
+var entry_price = float(0), var stop_loss_price = float(0), trail_profit_line_color = color.green
+var trailing_SL_buffer = float(0)
+var risk_value = trailing_SL_buffer //declared separately; trailing_SL_buffer may be tightened subsequently
+UPDATE_ATR_LEN = input(true, title="Update the size of stoploss after entry")
+if UPDATE_ATR_LEN and strategy.position_size > 0 and close < open
+    trailing_SL_buffer := ATR_x2
+TSL_source = input(title="Source of TSL", defval="low", options=["close","low","middle of both"])
+get_TSL_src() =>
+    result = float(-1)
+    case = TSL_source
+    if case == "close"
+        result := close
+    else if case == "low"
+        result := low
+    else if case == "middle of both"
+        result := avg(low, close)
+    
+if strategy.position_size == 0 or not within_timeframe
+    trail_profit_line_color := color.black          // make TSL line less visible
+    stop_loss_price := get_TSL_src() - ATR_x2       //  "   
+else if strategy.position_size > 0
+    stop_loss_price := max(stop_loss_price, get_TSL_src() - trailing_SL_buffer)
+if strategy.position_size > 0 and stop_loss_price > stop_loss_price[1]
+    alert("Stop loss limit raised", alert.freq_once_per_bar)
+// } end of Trailing stop loss
+//Buy setup - Long positions {
+is_squeezing = ATR_x2 > BOLL_sDEV_x2
+if is_squeezing and within_timeframe and not is_squeezing[1]
+    alert("BOLL bands are squeezing", alert.freq_once_per_bar)
+else if not is_squeezing and within_timeframe and is_squeezing[1]
+    alert("BOLL bands stopped squeezing", alert.freq_once_per_bar)
+ema_trend = ema(close, 20)
+VERBOSE = input(true, title="Show text descriptions of buy/sell orders")
+concat(a, b) =>
+    concat = " "
+    if VERBOSE
+        concat := a
+        if a != ""
+            concat := concat + ", "
+        concat := concat + b
+    concat
+// } end of Buy setup - Long positions
+// Sell setup - Long position {
+REWARD_RATIO_EXIT = input(3, title="Reward ratio for exit (if selected above)")
+IGNORE_EXIT_CONSOL = input(true,title="Ignore sell signals during consolidation (unless hitting stop loss)")
+bearish_candle1 = (close - open)/(high - low) < -0.5 and high > max(close[1],open[1]) and abs(open-close) > BOLL_sDEV_x2/2
+gapped_down = high < low[1] and close < open
+is_bearish = bearish_candle1 or gapped_down
+reward_met = close >= (entry_price + (REWARD_RATIO_EXIT * risk_value))
+rsi10 = rsi(close, 10), rsi14 = rsi(close, 14)
+overbought = rsi14 > 70 and rsi10 > rsi14
+EXIT_OVERBOUGHT = input(false,title="Exit position when overbought")
+TIGHTEN_TSL_BEARISH = input(true,title="Tighten TSL instead of exiting when candle is bearish")
+// } end of Sell setup - Long position
+// MAIN:
+if within_timeframe
+    entry_msg = ""
+    exit_msg = ""
+    // ENTRY
+    confirm_entry = false
+    conf_count = 0
+    
+    if avg_atr <= avg_atr[1] // "decreased volatility"
+        conf_count := conf_count + 1
+    if open < close // "Green candlestick"
+        conf_count := conf_count + 1
+        entry_msg := concat(entry_msg, "green")
+    else if abs(close-open)/abs(high-low) < 0.1 //"Doji"
+        conf_count := conf_count + 1
+        entry_msg := concat(entry_msg, "doji")
+    if ema_trend > ema_trend[1] //"Upward EMA20"
+        conf_count := conf_count + 1
+        entry_msg := concat(entry_msg, "+ve ema20")
+    confirm_entry := conf_count >= 2
+    
+    if is_squeezing and confirm_entry and strategy.position_size == 0
+        strategy.entry("Long",strategy.long, comment=entry_msg)
+        entry_price := close
+        trailing_SL_buffer := ATR_x2
+        risk_value := trailing_SL_buffer // may be adjusted during holding-period
+        stop_loss_price := get_TSL_src() - trailing_SL_buffer
+        
+    // EXIT
+    if strategy.position_size > 0
+        SL_hit = low < stop_loss_price
+        bExit = false
+        if close > entry_price and SL_hit
+            exit_msg := concat(exit_msg, "profit [TSL]")
+            bExit := true
+        else if close <= entry_price and SL_hit
+            exit_msg := concat(exit_msg, "stop loss")
+            bExit := true
+        else if (not IGNORE_EXIT_CONSOL or not is_squeezing) and is_bearish and not TIGHTEN_TSL_BEARISH
+            exit_msg := concat(exit_msg, "bearish")
+            bExit := true
+        
+        if reward_met
+            exit_msg := concat(exit_msg, "reward met")
+            bExit := true
+        else if overbought
+            exit_msg := concat(exit_msg, "overbought")
+            bExit := EXIT_OVERBOUGHT
+        
+        if TIGHTEN_TSL_BEARISH and is_bearish
+            stop_loss_price := max(low-(low-stop_loss_price)*0.9,stop_loss_price)
+        else if overbought and not EXIT_OVERBOUGHT
+            stop_loss_price := max(low-(low-stop_loss_price)*0.7,stop_loss_price)
+        strategy.close("Long", when=bExit, comment=exit_msg)
+// plot TSL line
+plot(stop_loss_price, color=trail_profit_line_color)
+// CLEAN UP:
+if strategy.position_size == 0 and not is_squeezing
+    entry_price := 0
+    trailing_SL_buffer := float(0)
+    stop_loss_price := float(0)
+    risk_value := 0
+Expand (163 lines)

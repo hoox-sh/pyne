@@ -1,0 +1,112 @@
+//@version=3
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/渦涡震荡器趋势追踪策略The-Vortex-Oscillator-Trend-Following-Strategy.md
+// content_hash: 0dd12786ccc8e915
+// collected: 2026-07-27
+//swap strategy line for study line to enable backtesting
+strategy(title="Vortex Ocillator" )
+//study(title = "Vortex Oscillator", precision = 6)
+
+// Component Code Start
+// Example usage:
+// if testPeriod()
+//   strategy.entry("LE", strategy.long)
+testStartYear = input(2017, "Backtest Start Year")
+testStartMonth = input(01, "Backtest Start Month")
+testStartDay = input(2, "Backtest Start Day")
+testPeriodStart = timestamp(testStartYear,testStartMonth,testStartDay,0,0)
+
+testStopYear = input(2048, "Backtest Stop Year")
+testStopMonth = input(7, "Backtest Stop Month")
+testStopDay = input(30, "Backtest Stop Day")
+testPeriodStop = timestamp(testStopYear,testStopMonth,testStopDay,0,0)
+
+// A switch to control background coloring of the test period
+testPeriodBackground = input(title="Color Background?", type=bool, defval=true)
+testPeriodBackgroundColor = testPeriodBackground and (time >= testPeriodStart) and (time <= testPeriodStop) ? #00FF00 : na
+bgcolor(testPeriodBackgroundColor, transp=97)
+
+testPeriod() => true
+// Component Code Stop
+
+//vortex histogram
+short_input = input(6, minval = 1)
+long_input = input(27, minval = 1)
+longer_input = input(72, minval = 1)
+longest_input = input(234, minval = 1)
+
+short = sma(close, short_input)
+long = sma(close, long_input)
+longer = sma(close, longer_input)
+longest = sma(close, longest_input)
+
+hist = short - long
+longhist = short - longer
+longesthist = short - longest
+
+hist_fractal = input(3, minval = 0)
+longhist_fractal = input(2, minval = 0)
+longesthist_fractal = input(4, minval = 0)
+
+vortexhist = avg((hist / hist_fractal), (longhist / longhist_fractal), (longesthist / longesthist_fractal))
+
+crossover_calc = vortexhist > 0 and vortexhist[1] < 0
+crossunder_calc = vortexhist < 0 and vortexhist[1] > 0
+
+crossover2 = crossover(vortexhist, 0)
+crossunder2 = crossunder(vortexhist, 0)
+
+hist_color = hist > 0? fuchsia : purple
+longhist_color = longhist > 0? olive : orange
+longesthist_color = longesthist > 0? teal : blue
+vortexhist_color = vortexhist >= 0? green : red
+
+plot(longesthist, "Longest Ocillator", style = histogram, color = longesthist_color, transp = 5)
+plot(longhist, "Longer Ocillator", style = histogram, color = longhist_color, transp = 30)
+plot(hist, "Short Ocillator", style = histogram, color = hist_color, transp = 30)
+plot(vortexhist, "Vortex Ocillator", style = columns, color = vortexhist_color, transp = 40)
+plotshape(crossover_calc,title = "Crossover",location = location.bottom, style = shape.triangleup, size = size.small, color = green)
+plotshape(crossunder_calc,title = "Crossunder",location = location.bottom, style = shape.triangledown, size = size.small, color = red)
+
+//micro
+micro_ema_length = input(6,"Micro EMA Length")
+micro = ema(vortexhist, micro_ema_length)
+plot(micro, title = "micro", linewidth = 1, color = white)
+microup = crossover(vortexhist, micro)
+microdown = crossunder(vortexhist, micro)
+
+//new micro signals
+xmicroup = microup and vortexhist >=0 or crossover_calc
+xmicrodown = microdown and vortexhist >=0 or crossunder_calc
+plotshape(xmicroup, title = "Micro up", style = shape.circle, color = olive, location = location.bottom, size = size.tiny)
+plotshape(xmicrodown, title = "Micro down", style = shape.circle, color = fuchsia, location = location.bottom, size = size.tiny)
+
+//optional strategy options for backtesting, comment out the alertcondition rows and swap the top study row for the strategy row to compile as strategy
+if testPeriod()
+    strategy.entry("buy", true, 1, when = xmicroup, limit = low)
+if testPeriod()
+    strategy.close("buy", when = xmicrodown)
+
+   
+
+//if (xmicroup)
+    //strategy.entry("My Long Entry Id", strategy.long)
+//if (xmicroup)
+    //strategy.exit("My Short Exit Id", "My Short Entry Id")
+//if (xmicrodown)
+    //strategy.exit("My Long Exit Id", "My Long Entry Id")
+
+  
+
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/434583
+
+> Last Modified
+
+2023-12-07 16:48:45

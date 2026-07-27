@@ -1,0 +1,517 @@
+// set03 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/projects/market-structure-sd-strategy.pine
+// content_hash: 51c691deb9fbbc4c
+// collected: 2026-07-27
+// built with PineScript Agents by TradersPost
+//@version=6
+indicator("Market Structure + Supply/Demand", shorttitle="MS+SD", overlay=true, max_boxes_count=500, max_lines_count=500, max_labels_count=500)
+
+// ============================================================================
+// INPUTS
+// ============================================================================
+
+// Pivot Detection
+pivotLength = input.int(5, "Pivot Length", minval=1, maxval=50, group="Swing Point Detection", tooltip="Number of bars to left/right for pivot detection")
+confirmBars = input.int(0, "Confirmation Bars", minval=0, maxval=10, group="Swing Point Detection", tooltip="Additional bars to wait after pivot detection (0 = realtime, higher = less repainting)")
+showUnvalidated = input.bool(true, "Show Unvalidated Swings", group="Swing Point Detection", tooltip="Display swing points that haven't been validated yet")
+
+// Consolidation Settings
+consolidationBars = input.int(3, "Consolidation Bars", minval=2, maxval=20, group="Zone Detection", tooltip="Minimum bars to form a consolidation pattern")
+consolidationThreshold = input.float(0.5, "Consolidation ATR Multiplier", minval=0.1, maxval=2.0, step=0.1, group="Zone Detection", tooltip="Range must be less than ATR * this value to qualify as consolidation")
+
+// Impulse Detection
+impulseThreshold = input.float(1.5, "Impulse ATR Multiplier", minval=0.5, maxval=5.0, step=0.1, group="Zone Detection", tooltip="Move must exceed ATR * this value to qualify as impulse")
+atrLength = input.int(14, "ATR Length", minval=5, maxval=50, group="Zone Detection")
+
+// Zone Management
+maxZones = input.int(10, "Maximum Active Zones", minval=3, maxval=20, group="Zone Detection", tooltip="Maximum number of supply/demand zones to display")
+zoneExpiry = input.int(100, "Zone Expiry Bars", minval=20, maxval=500, group="Zone Detection", tooltip="Remove zones after this many bars if not tested")
+
+// Entry Rules
+allowRetest = input.bool(true, "Allow Multiple Retests", group="Signal Generation", inline="entry")
+firstTouchOnly = input.bool(false, "First Touch Only", group="Signal Generation", inline="entry", tooltip="Only signal on first retest of zone")
+
+// Risk Management
+minRR = input.float(2.5, "Minimum R:R Ratio", minval=1.0, maxval=10.0, step=0.1, group="Signal Generation", tooltip="Minimum risk-to-reward ratio required for signal")
+stopLossBuffer = input.float(0.1, "Stop Loss Buffer %", minval=0, maxval=5.0, step=0.1, group="Signal Generation", tooltip="Extra space beyond zone boundary for stop loss")
+
+// Swing Point Colors
+colorValidatedHigh = input.color(color.red, "Validated High", group="Swing Points", inline="vh")
+colorValidatedLow = input.color(color.green, "Validated Low", group="Swing Points", inline="vl")
+colorUnvalidatedHigh = input.color(color.new(color.red, 60), "Unvalidated High", group="Swing Points", inline="uh")
+colorUnvalidatedLow = input.color(color.new(color.green, 60), "Unvalidated Low", group="Swing Points", inline="ul")
+
+// Zone Colors
+colorDemandZone = input.color(color.new(color.green, 85), "Demand Zone", group="Zones", inline="dz")
+colorSupplyZone = input.color(color.new(color.red, 85), "Supply Zone", group="Zones", inline="sz")
+colorTestedZone = input.color(color.new(color.gray, 90), "Tested Zone", group="Zones", inline="tz")
+
+// Signal Colors
+colorLongSignal = input.color(color.green, "Long Signal", group="Signals", inline="ls")
+colorShortSignal = input.color(color.red, "Short Signal", group="Signals", inline="ss")
+colorEntryLine = input.color(color.blue, "Entry Line", group="Signals", inline="el")
+colorStopLine = input.color(color.red, "Stop Loss", group="Signals", inline="sl")
+colorTargetLine = input.color(color.green, "Take Profit", group="Signals", inline="tp")
+
+// Dashboard
+showDashboard = input.bool(true, "Show Dashboard", group="Display")
+dashPosition = input.string("top_right", "Dashboard Position", options=["top_left", "top_center", "top_right", "middle_left", "middle_center", "middle_right", "bottom_left", "bottom_center", "bottom_right"], group="Display")
+showTrendBG = input.bool(false, "Show Trend Background", group="Display")
+bgTransparency = input.int(95, "Background Transparency", minval=80, maxval=98, group="Display")
+
+// Alerts
+alertOnLong = input.bool(true, "Long Entry Alert", group="Alerts", inline="long")
+alertOnShort = input.bool(true, "Short Entry Alert", group="Alerts", inline="short")
+alertOnTrendChange = input.bool(false, "Trend Change Alert", group="Alerts", inline="trend")
+
+// ============================================================================
+// DATA STRUCTURES
+// ============================================================================
+
+type SwingPoint
+    float price
+    int barIndex
+    bool isHigh
+    bool isValidated
+    int validatedBar
+
+type Zone
+    float top
+    float bottom
+    int startBar
+    int impulseBar
+    bool isSupply
+    bool isActive
+    bool isTested
+    int testCount
+    box visual
+    label info
+
+type TradeSignal
+    bool isLong
+    float entry
+    float stopLoss
+    float takeProfit
+    float rrRatio
+    int zoneId
+    line entryLine
+    line slLine
+    line tpLine
+    label signalLabel
+
+// ============================================================================
+// GLOBAL VARIABLES
+// ============================================================================
+
+var array<SwingPoint> validatedHighs = array.new<SwingPoint>()
+var array<SwingPoint> validatedLows = array.new<SwingPoint>()
+var array<SwingPoint> unvalidatedHighs = array.new<SwingPoint>()
+var array<SwingPoint> unvalidatedLows = array.new<SwingPoint>()
+var array<Zone> demandZones = array.new<Zone>()
+var array<Zone> supplyZones = array.new<Zone>()
+var string currentTrend = "undefined"
+var float trendInvalidationLevel = na
+var bool wasInConsolidation = false
+var float consolidationLow = na
+var float consolidationHigh = na
+var int consolidationStartBar = na
+var string previousTrend = "undefined"
+
+const int MAX_TRACKED_SWINGS = 20
+
+// ============================================================================
+// HELPER FUNCTIONS
+// ============================================================================
+
+getDashPosition() =>
+    switch dashPosition
+        "top_right" => position.top_right
+        "top_left" => position.top_left
+        "top_center" => position.top_center
+        "middle_right" => position.middle_right
+        "middle_left" => position.middle_left
+        "middle_center" => position.middle_center
+        "bottom_right" => position.bottom_right
+        "bottom_left" => position.bottom_left
+        => position.bottom_center
+
+// ============================================================================
+// CALCULATIONS
+// ============================================================================
+
+// Cache ATR value for performance (used multiple times)
+atrValue = ta.atr(atrLength)
+
+// ============================================================================
+// SWING POINT DETECTION
+// ============================================================================
+
+// Detect pivot highs and lows
+pivotHigh = ta.pivothigh(high, pivotLength, pivotLength)
+pivotLow = ta.pivotlow(low, pivotLength, pivotLength)
+
+// Wait for confirmation bars if specified
+confirmedPivotHigh = confirmBars > 0 ? pivotHigh[confirmBars] : pivotHigh
+confirmedPivotLow = confirmBars > 0 ? pivotLow[confirmBars] : pivotLow
+
+// Store new unvalidated swing points
+if not na(confirmedPivotHigh)
+    swingPoint = SwingPoint.new(confirmedPivotHigh, bar_index - pivotLength - confirmBars, true, false, na)
+    array.push(unvalidatedHighs, swingPoint)
+
+if not na(confirmedPivotLow)
+    swingPoint = SwingPoint.new(confirmedPivotLow, bar_index - pivotLength - confirmBars, false, false, na)
+    array.push(unvalidatedLows, swingPoint)
+
+// ============================================================================
+// SWING POINT VALIDATION
+// ============================================================================
+
+// Validate lows when price breaks above previous high
+if array.size(unvalidatedLows) > 0
+    for i = array.size(unvalidatedLows) - 1 to 0
+        swing = array.get(unvalidatedLows, i)
+        if array.size(validatedHighs) > 0
+            previousHigh = array.get(validatedHighs, array.size(validatedHighs) - 1)
+            if high > previousHigh.price
+                swing.isValidated := true
+                swing.validatedBar := bar_index
+                array.push(validatedLows, swing)
+                array.remove(unvalidatedLows, i)
+                break
+
+// Validate highs when price breaks below previous low
+if array.size(unvalidatedHighs) > 0
+    for i = array.size(unvalidatedHighs) - 1 to 0
+        swing = array.get(unvalidatedHighs, i)
+        if array.size(validatedLows) > 0
+            previousLow = array.get(validatedLows, array.size(validatedLows) - 1)
+            if low < previousLow.price
+                swing.isValidated := true
+                swing.validatedBar := bar_index
+                array.push(validatedHighs, swing)
+                array.remove(unvalidatedHighs, i)
+                break
+
+// Array cleanup - keep only most recent swings
+if array.size(validatedHighs) > MAX_TRACKED_SWINGS
+    array.shift(validatedHighs)
+
+if array.size(validatedLows) > MAX_TRACKED_SWINGS
+    array.shift(validatedLows)
+
+// ============================================================================
+// MARKET STRUCTURE ANALYSIS
+// ============================================================================
+
+if array.size(validatedHighs) >= 2 and array.size(validatedLows) >= 2
+    lastHigh = array.get(validatedHighs, array.size(validatedHighs) - 1)
+    previousHigh = array.get(validatedHighs, array.size(validatedHighs) - 2)
+    lastLow = array.get(validatedLows, array.size(validatedLows) - 1)
+    previousLow = array.get(validatedLows, array.size(validatedLows) - 2)
+
+    higherHigh = lastHigh.price > previousHigh.price
+    higherLow = lastLow.price > previousLow.price
+    lowerHigh = lastHigh.price < previousHigh.price
+    lowerLow = lastLow.price < previousLow.price
+
+    if higherHigh and higherLow
+        currentTrend := "bullish"
+        trendInvalidationLevel := lastLow.price
+    else if lowerHigh and lowerLow
+        currentTrend := "bearish"
+        trendInvalidationLevel := lastHigh.price
+
+// Check for trend change
+trendChanged = false
+if currentTrend == "bullish" and not na(trendInvalidationLevel)
+    if low < trendInvalidationLevel
+        trendChanged := true
+        currentTrend := "undefined"
+else if currentTrend == "bearish" and not na(trendInvalidationLevel)
+    if high > trendInvalidationLevel
+        trendChanged := true
+        currentTrend := "undefined"
+
+// Track trend changes for alerts
+if currentTrend != previousTrend and currentTrend != "undefined"
+    previousTrend := currentTrend
+
+// ============================================================================
+// ZONE DETECTION
+// ============================================================================
+
+// Detect consolidation patterns
+rangeHigh = ta.highest(high, consolidationBars)
+rangeLow = ta.lowest(low, consolidationBars)
+rangeSize = rangeHigh - rangeLow
+isConsolidating = rangeSize < (atrValue * consolidationThreshold)
+
+// Track consolidation state
+if isConsolidating and not wasInConsolidation
+    consolidationStartBar := bar_index - consolidationBars
+    consolidationLow := rangeLow
+    consolidationHigh := rangeHigh
+    wasInConsolidation := true
+else if not isConsolidating and wasInConsolidation
+    breakoutMove = close - close[1]
+    isBullishImpulse = breakoutMove > (atrValue * impulseThreshold)
+    isBearishImpulse = breakoutMove < -(atrValue * impulseThreshold)
+
+    if isBullishImpulse and currentTrend == "bullish"
+        zone = Zone.new(consolidationHigh, consolidationLow, consolidationStartBar, bar_index, false, true, false, 0, na, na)
+        array.push(demandZones, zone)
+    else if isBearishImpulse and currentTrend == "bearish"
+        zone = Zone.new(consolidationHigh, consolidationLow, consolidationStartBar, bar_index, true, true, false, 0, na, na)
+        array.push(supplyZones, zone)
+
+    wasInConsolidation := false
+
+// ============================================================================
+// ZONE MANAGEMENT
+// ============================================================================
+
+// Update demand zones
+for i = array.size(demandZones) - 1 to 0
+    zone = array.get(demandZones, i)
+    if zone.isActive
+        inZone = low <= zone.top and high >= zone.bottom
+        if inZone
+            zone.isTested := true
+            zone.testCount := zone.testCount + 1
+            if firstTouchOnly
+                zone.isActive := false
+        zoneBreak = close < zone.bottom
+        if zoneBreak
+            zone.isActive := false
+        if bar_index - zone.impulseBar > zoneExpiry
+            zone.isActive := false
+    if not zone.isActive and array.size(demandZones) > maxZones
+        if not na(zone.visual)
+            box.delete(zone.visual)
+        if not na(zone.info)
+            label.delete(zone.info)
+        array.remove(demandZones, i)
+
+// Update supply zones
+for i = array.size(supplyZones) - 1 to 0
+    zone = array.get(supplyZones, i)
+    if zone.isActive
+        inZone = low <= zone.top and high >= zone.bottom
+        if inZone
+            zone.isTested := true
+            zone.testCount := zone.testCount + 1
+            if firstTouchOnly
+                zone.isActive := false
+        zoneBreak = close > zone.top
+        if zoneBreak
+            zone.isActive := false
+        if bar_index - zone.impulseBar > zoneExpiry
+            zone.isActive := false
+    if not zone.isActive and array.size(supplyZones) > maxZones
+        if not na(zone.visual)
+            box.delete(zone.visual)
+        if not na(zone.info)
+            label.delete(zone.info)
+        array.remove(supplyZones, i)
+
+// ============================================================================
+// SIGNAL GENERATION
+// ============================================================================
+
+var TradeSignal currentSignal = na
+var bool signalActive = false
+signalActive := false
+
+// Check demand zones for long entries (uptrend only)
+if currentTrend == "bullish"
+    for i = 0 to array.size(demandZones) - 1
+        zone = array.get(demandZones, i)
+        if zone.isActive
+            inZone = low <= zone.top and high >= zone.bottom
+            if inZone and (allowRetest or zone.testCount == 0)
+                entry = close
+                stopLoss = zone.bottom * (1 - stopLossBuffer / 100)
+                if array.size(validatedHighs) > 0
+                    lastHigh = array.get(validatedHighs, array.size(validatedHighs) - 1)
+                    takeProfit = lastHigh.price
+                    risk = entry - stopLoss
+                    reward = takeProfit - entry
+                    rrRatio = risk > 0 ? (reward / risk) : 0
+                    if rrRatio >= minRR and not signalActive
+                        currentSignal := TradeSignal.new(true, entry, stopLoss, takeProfit, rrRatio, i, na, na, na, na)
+                        signalActive := true
+                        break
+
+// Check supply zones for short entries (downtrend only)
+if currentTrend == "bearish" and not signalActive
+    for i = 0 to array.size(supplyZones) - 1
+        zone = array.get(supplyZones, i)
+        if zone.isActive
+            inZone = low <= zone.top and high >= zone.bottom
+            if inZone and (allowRetest or zone.testCount == 0)
+                entry = close
+                stopLoss = zone.top * (1 + stopLossBuffer / 100)
+                if array.size(validatedLows) > 0
+                    lastLow = array.get(validatedLows, array.size(validatedLows) - 1)
+                    takeProfit = lastLow.price
+                    risk = stopLoss - entry
+                    reward = entry - takeProfit
+                    rrRatio = risk > 0 ? (reward / risk) : 0
+                    if rrRatio >= minRR and not signalActive
+                        currentSignal := TradeSignal.new(false, entry, stopLoss, takeProfit, rrRatio, i, na, na, na, na)
+                        signalActive := true
+                        break
+
+// ============================================================================
+// VISUALIZATIONS - SWING POINTS
+// ============================================================================
+
+// Draw newly validated swing points (only when they're created)
+if array.size(validatedHighs) > 0
+    lastSwing = array.get(validatedHighs, array.size(validatedHighs) - 1)
+    if not na(lastSwing.validatedBar) and lastSwing.validatedBar == bar_index
+        label.new(lastSwing.barIndex, lastSwing.price, text="HH", style=label.style_label_down, color=colorValidatedHigh, textcolor=color.white, size=size.small, tooltip="Validated Swing High")
+
+if array.size(validatedLows) > 0
+    lastSwing = array.get(validatedLows, array.size(validatedLows) - 1)
+    if not na(lastSwing.validatedBar) and lastSwing.validatedBar == bar_index
+        label.new(lastSwing.barIndex, lastSwing.price, text="LL", style=label.style_label_up, color=colorValidatedLow, textcolor=color.white, size=size.small, tooltip="Validated Swing Low")
+
+// Draw newly detected unvalidated swings (only when they're created)
+if showUnvalidated
+    if not na(confirmedPivotHigh)
+        label.new(bar_index - pivotLength - confirmBars, confirmedPivotHigh, text="H?", style=label.style_label_down, color=colorUnvalidatedHigh, textcolor=color.white, size=size.tiny, tooltip="Unvalidated High")
+
+    if not na(confirmedPivotLow)
+        label.new(bar_index - pivotLength - confirmBars, confirmedPivotLow, text="L?", style=label.style_label_up, color=colorUnvalidatedLow, textcolor=color.white, size=size.tiny, tooltip="Unvalidated Low")
+
+// ============================================================================
+// VISUALIZATIONS - ZONES
+// ============================================================================
+
+// Draw demand zones
+for zone in demandZones
+    if na(zone.visual)
+        zoneColor = zone.isActive ? colorDemandZone : colorTestedZone
+        zone.visual := box.new(zone.startBar, zone.top, bar_index, zone.bottom, bgcolor=zoneColor, border_color=color.new(color.green, 0), border_width=1, extend=extend.right)
+        zone.info := label.new(zone.impulseBar, zone.top, text="DEMAND", style=label.style_label_down, color=color.green, textcolor=color.white, size=size.small)
+    else
+        box.set_right(zone.visual, bar_index)
+        zoneColor = zone.isActive ? colorDemandZone : colorTestedZone
+        box.set_bgcolor(zone.visual, zoneColor)
+
+// Draw supply zones
+for zone in supplyZones
+    if na(zone.visual)
+        zoneColor = zone.isActive ? colorSupplyZone : colorTestedZone
+        zone.visual := box.new(zone.startBar, zone.top, bar_index, zone.bottom, bgcolor=zoneColor, border_color=color.new(color.red, 0), border_width=1, extend=extend.right)
+        zone.info := label.new(zone.impulseBar, zone.bottom, text="SUPPLY", style=label.style_label_up, color=color.red, textcolor=color.white, size=size.small)
+    else
+        box.set_right(zone.visual, bar_index)
+        zoneColor = zone.isActive ? colorSupplyZone : colorTestedZone
+        box.set_bgcolor(zone.visual, zoneColor)
+
+// ============================================================================
+// VISUALIZATIONS - SIGNALS
+// ============================================================================
+
+// Draw entry signals
+if signalActive and not na(currentSignal)
+    labelText = currentSignal.isLong ? "LONG\nR:R " + str.tostring(currentSignal.rrRatio, "#.##") : "SHORT\nR:R " + str.tostring(currentSignal.rrRatio, "#.##")
+    labelColor = currentSignal.isLong ? colorLongSignal : colorShortSignal
+    labelStyle = currentSignal.isLong ? label.style_label_up : label.style_label_down
+    labelY = currentSignal.isLong ? low : high
+    tooltipText = "Entry: " + str.tostring(currentSignal.entry) + "\nSL: " + str.tostring(currentSignal.stopLoss) + "\nTP: " + str.tostring(currentSignal.takeProfit) + "\nR:R: " + str.tostring(currentSignal.rrRatio, "#.##") + ":1"
+    label.new(bar_index, labelY, text=labelText, style=labelStyle, color=labelColor, textcolor=color.white, size=size.normal, tooltip=tooltipText)
+    line.new(bar_index, currentSignal.entry, bar_index + 20, currentSignal.entry, color=colorEntryLine, width=2, style=line.style_solid)
+    line.new(bar_index, currentSignal.stopLoss, bar_index + 20, currentSignal.stopLoss, color=colorStopLine, width=2, style=line.style_dashed)
+    line.new(bar_index, currentSignal.takeProfit, bar_index + 20, currentSignal.takeProfit, color=colorTargetLine, width=2, style=line.style_dashed)
+
+// ============================================================================
+// DASHBOARD
+// ============================================================================
+
+var table dashboard = na
+
+if showDashboard and barstate.islast
+    if na(dashboard)
+        position = getDashPosition()
+        dashboard := table.new(position, 2, 6, border_width=2, border_color=color.gray, frame_width=2, frame_color=color.gray)
+
+    table.cell(dashboard, 0, 0, "Market Structure", bgcolor=color.new(color.blue, 70), text_color=color.white, text_size=size.normal)
+    table.cell(dashboard, 1, 0, "", bgcolor=color.new(color.blue, 70))
+
+    trendText = switch currentTrend
+        "bullish" => "BULLISH"
+        "bearish" => "BEARISH"
+        => "UNDEFINED"
+
+    trendColor = switch currentTrend
+        "bullish" => color.green
+        "bearish" => color.red
+        => color.gray
+
+    table.cell(dashboard, 0, 1, "Trend:", text_color=color.white, bgcolor=color.new(color.gray, 80))
+    table.cell(dashboard, 1, 1, trendText, text_color=color.white, bgcolor=color.new(trendColor, 70))
+
+    invalidationText = not na(trendInvalidationLevel) ? str.tostring(trendInvalidationLevel, format.mintick) : "N/A"
+    table.cell(dashboard, 0, 2, "Invalidation:", text_color=color.white, bgcolor=color.new(color.gray, 80))
+    table.cell(dashboard, 1, 2, invalidationText, text_color=color.white, bgcolor=color.new(color.gray, 80))
+
+    activeDemand = 0
+    for zone in demandZones
+        if zone.isActive
+            activeDemand := activeDemand + 1
+
+    activeSupply = 0
+    for zone in supplyZones
+        if zone.isActive
+            activeSupply := activeSupply + 1
+
+    table.cell(dashboard, 0, 3, "Demand Zones:", text_color=color.white, bgcolor=color.new(color.gray, 80))
+    table.cell(dashboard, 1, 3, str.tostring(activeDemand), text_color=color.white, bgcolor=color.new(color.green, 70))
+
+    table.cell(dashboard, 0, 4, "Supply Zones:", text_color=color.white, bgcolor=color.new(color.gray, 80))
+    table.cell(dashboard, 1, 4, str.tostring(activeSupply), text_color=color.white, bgcolor=color.new(color.red, 70))
+
+    signalText = signalActive ? (currentSignal.isLong ? "LONG (" + str.tostring(currentSignal.rrRatio, "#.##") + ":1)" : "SHORT (" + str.tostring(currentSignal.rrRatio, "#.##") + ":1)") : "No Signal"
+    signalColor = signalActive ? (currentSignal.isLong ? color.green : color.red) : color.gray
+
+    table.cell(dashboard, 0, 5, "Signal:", text_color=color.white, bgcolor=color.new(color.gray, 80))
+    table.cell(dashboard, 1, 5, signalText, text_color=color.white, bgcolor=color.new(signalColor, 70))
+
+// ============================================================================
+// TREND BACKGROUND & PLOTS
+// ============================================================================
+
+trendBG = showTrendBG ? (currentTrend == "bullish" ? color.new(color.green, bgTransparency) : currentTrend == "bearish" ? color.new(color.red, bgTransparency) : na) : na
+bgcolor(trendBG)
+
+// Plot shapes for signals (for easy visual identification)
+plotshape(longSignal, title="Long Signal", style=shape.triangleup, location=location.belowbar, color=colorLongSignal, size=size.small)
+plotshape(shortSignal, title="Short Signal", style=shape.triangledown, location=location.abovebar, color=colorShortSignal, size=size.small)
+
+// ============================================================================
+// ALERTS
+// ============================================================================
+
+longSignal = signalActive and not na(currentSignal) and currentSignal.isLong
+shortSignal = signalActive and not na(currentSignal) and not currentSignal.isLong
+
+// Build alert messages with proper na handling
+var string longAlertMsg = ""
+var string shortAlertMsg = ""
+
+if longSignal
+    longAlertMsg := "LONG signal triggered!\nEntry: " + str.tostring(currentSignal.entry) + "\nStop Loss: " + str.tostring(currentSignal.stopLoss) + "\nTake Profit: " + str.tostring(currentSignal.takeProfit) + "\nR:R: " + str.tostring(currentSignal.rrRatio, "#.##") + ":1"
+
+if shortSignal
+    shortAlertMsg := "SHORT signal triggered!\nEntry: " + str.tostring(currentSignal.entry) + "\nStop Loss: " + str.tostring(currentSignal.stopLoss) + "\nTake Profit: " + str.tostring(currentSignal.takeProfit) + "\nR:R: " + str.tostring(currentSignal.rrRatio, "#.##") + ":1"
+
+alertcondition(longSignal and alertOnLong, title="Long Entry Signal", message="{{ticker}} - LONG Entry Signal\nPrice: {{close}}\nTime: {{time}}\nR:R: 2.5+:1\nCheck indicator for exact levels")
+
+alertcondition(shortSignal and alertOnShort, title="Short Entry Signal", message="{{ticker}} - SHORT Entry Signal\nPrice: {{close}}\nTime: {{time}}\nR:R: 2.5+:1\nCheck indicator for exact levels")
+
+alertcondition(trendChanged and alertOnTrendChange, title="Trend Change", message="{{ticker}} - Trend changed to " + (currentTrend == "bullish" ? "BULLISH" : currentTrend == "bearish" ? "BEARISH" : "UNDEFINED"))

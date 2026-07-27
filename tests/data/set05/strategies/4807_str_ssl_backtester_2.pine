@@ -1,0 +1,80 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于ATR和资金管理的SSL通道回测策略SSL-Channel-Backtester-Strategy-With-ATR-and-Money-Management.md
+// content_hash: de2ddfcc6037039d
+// collected: 2026-07-27
+strategy("SSL Backtester", overlay=false)
+
+//--This strategy will simply test the effectiveness of the SSL using
+//--money management and an ATR-derived stop loss
+
+//--USER INPUTS
+
+two_digit = input(false, "Check this for 2-digit pairs (JPY, Gold, Etc)")
+ssl_period = input(16, "SSL Period")
+atr_period = input(14, "ATR Period")
+atr_stop_factor = input(1.5, "ATR Stop Loss Factor")
+atr_target_factor = input(1.0, "ATR Target Factor")
+use_mm = input(true, "Check this to use Money Management")
+position_size = input(1000, "Position size (for Fixed Risk)")
+risk = input(0.01, "Risk % in Decimal Form")
+
+//--INDICATORS------------------------------------------------------------
+
+    //--SSL
+    
+sma_high = sma(high, ssl_period)
+sma_low = sma(low, ssl_period)
+ssl_value = 0
+ssl_value := close > sma_high ? 1 : close < sma_low ? -1 : ssl_value[1]
+ssl_low = ssl_value < 0 ? sma_high : sma_low
+ssl_high = ssl_value < 0 ? sma_low : sma_high
+
+    //--Average True Range
+    
+atr = atr(atr_period)
+
+//--TRADE LOGIC----------------------------------------------------------
+
+signal_long = ssl_value > 0 and ssl_value[1] < 0
+signal_short = ssl_value < 0 and ssl_value[1] > 0
+
+//--RISK MANAGMENT-------------------------------------------------------
+strategy.initial_capital = 50000
+balance = strategy.netprofit + strategy.initial_capital
+risk_pips = atr*10000*atr_stop_factor
+if(two_digit)
+    risk_pips := risk_pips / 100
+risk_in_value = balance * risk
+point_value = syminfo.pointvalue
+risk_lots = risk_in_value / point_value / risk_pips
+final_risk = use_mm ? risk_lots * 10000 : position_size
+
+//--TRADE EXECUTION-----------------------------------------------------
+
+if (signal_long)
+    stop_loss = close - atr * atr_stop_factor
+    target = close + atr * atr_target_factor
+    strategy.entry("Long", strategy.long, final_risk)
+    strategy.exit("X", "Long", stop=stop_loss, limit=target)
+if (signal_short)
+    stop_loss = close + atr * atr_stop_factor
+    target = close - atr * atr_target_factor
+    strategy.entry("Short", strategy.short, final_risk)
+    strategy.exit("X", "Short", stop=stop_loss, limit=target)
+    
+//--PLOTTING-----------------------------------------------------------
+
+plot(ssl_low, "SSL", color.red, linewidth=1)
+plot(ssl_high, "SSL", color.lime, linewidth=1)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/432965
+
+> Last Modified
+
+2023-11-23 10:26:58

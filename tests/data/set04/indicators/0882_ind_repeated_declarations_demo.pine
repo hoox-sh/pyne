@@ -1,0 +1,14 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pine_script_execution_model.md::pine_script_execution_model.md#block2
+// content_hash: 95f913c39f01c279
+// collected: 2026-07-27
+indicator("Repeated declarations demo")
+//@variable A user-defined variable. The script declares this variable and initializes it to 0 on *every* execution.
+int x = 0
+// Increase the value of `x` by 10 on every bar.
+x += 10
+// Plot the value of `x`.
+// Because `x` begins at 0 on every execution, and the script adds 10 to that value, the plotted value is always 10.
+plot(x, "`x` value", color.blue, 3)

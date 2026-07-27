@@ -1,0 +1,59 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多重均线与RSI交叉交易策略Multiple-Moving-Averages-and-RSI-Crossover-Trading-Strategy.md
+// content_hash: 5a75a7d9cc233a00
+// collected: 2026-07-27
+strategy("Candle Genie Strategy", shorttitle="CGS", overlay=true)
+
+// Parameters
+fastLength = input(9, title="Fast MA Length")
+slowLength = input(21, title="Slow MA Length")
+rsiLength = input(14, title="RSI Length")
+rsiOverboughtLevel = input(70, title="RSI Overbought Level")
+rsiOversoldLevel = input(30, title="RSI Oversold Level")
+macdFast = input(12, title="MACD Fast Length")
+macdSlow = input(26, title="MACD Slow Length")
+macdSignal = input(9, title="MACD Signal Length")
+
+// Indicators
+fastMA = ta.ema(close, fastLength)
+slowMA = ta.ema(close, slowLength)
+rsi = ta.rsi(close, rsiLength)
+[macdLine, signalLine, _] = ta.macd(close, macdFast, macdSlow, macdSignal)
+
+// Trend Conditions
+bullishTrend = fastMA > slowMA
+bearishTrend = fastMA < slowMA
+
+// Trading Conditions
+longCondition = bullishTrend and rsi < rsiOverboughtLevel and ta.crossover(macdLine, signalLine)
+shortCondition = bearishTrend and rsi > rsiOversoldLevel and ta.crossunder(macdLine, signalLine)
+
+// Entry Conditions
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+
+if (shortCondition)
+    strategy.entry("Short", strategy.short)
+
+// Exit Conditions
+strategy.close("Long", when = bearishTrend or rsi > rsiOverboughtLevel)
+strategy.close("Short", when = bullishTrend or rsi < rsiOversoldLevel)
+
+// Plotting
+plot(fastMA, color=color.blue, title="Fast MA")
+plot(slowMA, color=color.red, title="Slow MA")
+hline(rsiOverboughtLevel, "Overbought Level", color=color.red)
+hline(rsiOversoldLevel, "Oversold Level", color=color.blue)
+plot(macdLine - signalLine, color=color.purple, title="MACD Histogram")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/445819
+
+> Last Modified
+
+2024-03-22 14:38:19

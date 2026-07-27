@@ -1,0 +1,61 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/指数移动平均线交叉结合动态止损策略-EMA-Crossover-Strategy-with-Dynamic-Trailing-Stop-Loss.md
+// content_hash: 5ebb02168b7b17f2
+// collected: 2026-07-27
+strategy("EMA 68 with Trailing Stop-Loss", overlay=true)
+
+// Inputs for customization
+length_ema = input(68, title="EMA Length")
+initial_stop_loss_points = input(20, title="Initial Stop Loss in Points")
+trail_distance = input(10, title="Trailing Stop Adjustment in Points")
+
+ema68 = ta.ema(close, length_ema)
+
+// Plot EMA
+plot(ema68, color=color.blue, title="68-Day EMA")
+
+var float entry_price = na // Store entry price
+var bool is_long = false // Track if we are in a long trade
+var bool is_short = false // Track if we are in a short trade
+
+// Buy Condition: Close above 68-day EMA
+if ta.crossover(close, ema68)
+    strategy.entry("Long", strategy.long)
+    entry_price := close
+    is_long := true
+    is_short := false
+
+// Sell Condition: Close below 68-day EMA
+if ta.crossunder(close, ema68)
+    strategy.entry("Short", strategy.short)
+    entry_price := close
+    is_long := false
+    is_short := true
+
+// Long Exit Conditions
+if is_long
+    stop_loss = entry_price - initial_stop_loss_points
+    trail_price = entry_price + initial_stop_loss_points
+    if close >= trail_price
+        stop_loss := entry_price + trail_distance
+    strategy.exit("LongExit", "Long", stop=stop_loss, when=close < ema68)
+
+// Short Exit Conditions
+if is_short
+    stop_loss = entry_price + initial_stop_loss_points
+    trail_price = entry_price - initial_stop_loss_points
+    if close <= trail_price
+        stop_loss := entry_price - trail_distance
+    strategy.exit("ShortExit", "Short", stop=stop_loss, when=close > ema68)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/482840
+
+> Last Modified
+
+2025-02-20 14:17:56

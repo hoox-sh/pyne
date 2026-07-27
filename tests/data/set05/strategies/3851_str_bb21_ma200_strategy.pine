@@ -1,0 +1,46 @@
+//@version=4
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/BB21_MA200_Strategy.pine
+// content_hash: 77867fca945f0e85
+// collected: 2026-07-27
+strategy(title="BB9_MA200_Strategy", overlay=true, pyramiding=0,       initial_capital=10000,  default_qty_type=strategy.cash, default_qty_value=100, currency=currency.USD)  //default_qty_value=10, default_qty_type=strategy.fixed, 
+var stopLossVal=0.00
+//var qty1=0.00
+//variables BEGIN
+smaLength=input(200,title="MA Length")
+bbLength=input(21,title="BB Length")  
+bbsrc = input(close, title="BB Source")
+mult = input(2.0, minval=0.001, maxval=50, title="StdDev")
+stopLoss = input(title="Stop Loss%", defval=5, minval=1)
+riskCapital = input(title="Risk % of capital  == Based on this trade size is claculated    numberOfShares = (AvailableCapital*risk/100) / stopLossPoints", defval=10, minval=1)
+sma200=ema(close,smaLength)
+plot(sma200, title="SMA 200", color=color.orange)
+//bollinger calculation
+basis = sma(bbsrc, bbLength)
+dev = mult * stdev(bbsrc, bbLength)
+upperBand = basis + dev
+lowerBand = basis - dev
+offset = input(0, "Offset", type = input.integer, minval = -500, maxval = 500)
+//plot bb
+plot(basis, "Basis", color=color.teal, style=plot.style_circles , offset = offset)
+p1 = plot(upperBand, "Upper", color=color.teal, offset = offset)
+p2 = plot(lowerBand, "Lower", color=color.teal, offset = offset)
+fill(p1, p2, title = "Background", color=color.teal, transp=95)
+//Echeck how many units can be purchased based on risk manage ment and stop loss
+qty1 = (strategy.equity  * riskCapital / 100 ) /  (close*stopLoss/100)  
+//check if cash is sufficient  to buy qty1  , if capital not available use the available capital only
+qty1:= (qty1 * close >= strategy.equity ) ? (strategy.equity / close) : qty1
+//strategy.risk.max_position_size(100)
+strategy.entry(id="LE", comment="LE  equity="+tostring(strategy.equity ,"######.##")+"  risk = " +tostring(strategy.equity * riskCapital * 0.01, "####") + "  SL = " +tostring(close * stopLoss * 0.01, "####.##"), qty=qty1 , long=true,  when=strategy.position_size<1 and upperBand>sma200 and lowerBand > sma200 and crossover(close, basis) )     //  // aroonOsc<0  //(strategy.initial_capital * 0.10)/close
+barcolor(color=strategy.position_size>=1? color.blue: na)
+//partial Exit
+tpVal=strategy.position_size>1 ? strategy.position_avg_price * (1+(stopLoss/100) ) : 0.00
+strategy.close(id="LE", comment="Partial points="+tostring(close - strategy.position_avg_price, "####.##"),  qty_percent=30 , when=abs(strategy.position_size)>=1 and close>tpVal and crossunder(lowerBand, sma200)   )   //close<ema55 and rsi5Val<20 //ema34<ema55
+//close All on stop loss
+//stoploss
+stopLossVal:=   strategy.position_size>1 ? strategy.position_avg_price * (1-(stopLoss/100) ) : 0.00
+strategy.close_all( comment="SL Exit points="+tostring(close - strategy.position_avg_price, "####.##"),  when=abs(strategy.position_size)>=1 and close < stopLossVal  )  //close<ema55 and rsi5Val<20 //ema34<ema55  //close<ema89//
+strategy.close_all( comment="BB9 X SMA200 points="+tostring(close - strategy.position_avg_price, "####.##"),  when=abs(strategy.position_size)>=1 and  crossunder(basis, sma200)  )  //close<ema55 and rsi5Val<20 //ema34<ema55  //close<ema89
+    
+Expand (70 lines)

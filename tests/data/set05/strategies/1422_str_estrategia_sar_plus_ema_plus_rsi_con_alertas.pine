@@ -1,0 +1,83 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多因子趋势追踪量化策略-Multi-Factor-Trend-Following-Quantitative-Strategy.md
+// content_hash: 5196891f8ef73662
+// collected: 2026-07-27
+strategy("? Estrategia SAR+EMA+RSI con Alertas", overlay=true)
+
+// ———— PARÁMETROS ————
+riskPerTrade = input.float(2.0, title="Riesgo por operación (%)", minval=0.5, step=0.5)
+sarStart = input.float(0.02, title="SAR Start", minval=0.001)
+sarIncrement = input.float(0.02, title="SAR Increment", minval=0.001)
+sarMax = input.float(0.2, title="SAR Max", minval=0.1)
+rsiLength = input.int(6, title="RSI Length", minval=3, maxval=10)
+emaFastLength = input.int(2, title="EMA Rápida", minval=1, maxval=5)
+adxThreshold = input.int(30, title="ADX mínimo", minval=20, maxval=50)
+atrMultiplier = input.float(1.5, title="Multiplicador ATR para SL", step=0.1)
+
+// ———— INDICADORES ————
+sar = ta.sar(sarStart, sarIncrement, sarMax)
+emaFast = ta.ema(close, emaFastLength)
+rsi = ta.rsi(close, rsiLength)
+[diplus, diminus, adx] = ta.dmi(14, 14) // Ahora pasamos length y adxSmoothing
+
+atr = ta.atr(14)
+
+// ———— CONDICIONES ————
+longCondition = ta.crossover(close, sar) and close > emaFast and rsi > 60 and adx >= adxThreshold
+shortCondition = ta.crossunder(close, sar) and close < emaFast and rsi < 40 and adx >= adxThreshold
+
+// ———— FUNCIÓN MENSAJE ALERTA ————
+getAlertMessage(isLong) =>
+    slPoints = atr * atrMultiplier
+    message = (isLong ? "? COMPRA " : "? VENTA ") + syminfo.ticker + "\n" +
+      "Precio: " + str.tostring(math.round(close, 2)) + "\n" +
+      "SL: " + str.tostring(math.round(isLong ? (close - slPoints) : (close + slPoints), 2)) + "\n" +
+      "TP: " + str.tostring(math.round(isLong ? (close + slPoints * 2) : (close - slPoints * 2), 2)) + "\n" +
+      "RSI: " + str.tostring(math.round(rsi, 1)) + "\n" +
+      "ADX: " + str.tostring(math.round(adx, 1))
+    message
+
+// ———— ALERTAS ————
+if (longCondition)
+    alert(getAlertMessage(true), alert.freq_once_per_bar_close)
+
+if (shortCondition)
+    alert(getAlertMessage(false), alert.freq_once_per_bar_close)
+
+
+
+if (longCondition)
+    alert(getAlertMessage(true), alert.freq_once_per_bar_close)
+
+if (shortCondition)
+    alert(getAlertMessage(false), alert.freq_once_per_bar_close)
+
+// ———— ENTRADAS DE ESTRATEGIA ————
+riskAmount = strategy.equity * (riskPerTrade / 100)
+slPoints = atr * atrMultiplier
+qty = riskAmount / close
+
+if (longCondition)
+    strategy.entry("Long", strategy.long, qty=qty)
+    strategy.exit("Exit Long", "Long", stop=close - slPoints, limit=close + slPoints * 2)
+
+if (shortCondition)
+    strategy.entry("Short", strategy.short, qty=qty)
+    strategy.exit("Exit Short", "Short", stop=close + slPoints, limit=close - slPoints * 2)
+
+// ———— VISUALIZACIÓN ————
+plot(sar, title="SAR", color=color.red, style=plot.style_cross)
+plot(emaFast, title="EMA Rápida", color=color.blue)
+bgcolor(longCondition ? color.new(color.green, 90) : shortCondition ? color.new(color.red, 90) : na)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/491897
+
+> Last Modified
+
+2025-04-24 17:23:29

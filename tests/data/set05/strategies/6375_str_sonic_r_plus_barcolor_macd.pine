@@ -1,0 +1,61 @@
+//@version=2
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于价格通道和MACD的多时间框架交易策略Price-Channel-and-MACD-Based-Multi-Timeframe-Trading-Strategy.md
+// content_hash: 4064f8437b193f8d
+// collected: 2026-07-27
+strategy("Sonic R + Barcolor MACD", overlay=true)
+HiLoLen     = input(34, minval=2,title="High Low channel Length")
+pacL        = ema(low,HiLoLen)
+pacH        = ema(high,HiLoLen)
+// Plot the Price Action Channel (PAC) base on EMA high,low and close//
+L=plot(pacL, color=yellow, linewidth=1, title="High PAC EMA",transp=0)
+H=plot(pacH, color=yellow, linewidth=1, title="Low PAC EMA",transp=0)
+fastLength = input(12)
+slowlength = input(26)
+MACDLength = input(9)
+MACD = ema(close, fastLength) - ema(close, slowlength)
+aMACD = ema(MACD, MACDLength)
+delta = MACD - aMACD
+hisup= iff(delta>delta[1] and delta>0, 1,
+	     iff(delta<delta[1], -1, nz(hisup[1], 0)))
+hisdown = iff(delta<delta[1] and delta<0, 1,
+	     iff(delta>delta[1], -1, nz(hisdown[1], 0)))
+barcolor(hisup==1 and MACD>0 ? lime: hisdown==1 and MACD<0 ? red : blue )
+//SR
+PeriodLookBack = input(34)
+xHighest = highest(PeriodLookBack)
+xLowest = lowest(PeriodLookBack)
+Trend= close>xHighest[1] ? 1: close< xLowest[1]?-1 : nz(Trend[1],0)
+// Strategy//
+conbuy= hisdown==1 or MACD<0 ? 1: hisup[5]==1 and MACD[5]>0 ?-1 : nz(conbuy[1],0)
+gobuy= conbuy==1 and close-open<2*(pacH-pacL) and high-close<(pacH-pacL)/2 and hisup==1 and MACD>0 and close-pacH<1.5*(pacH-pacL) and close>open and high-close<close-open and close>pacH
+consell= hisup==1 or MACD>0 ?1 : hisdown[5]==1 and MACD[5]<0 ?-1 : nz(consell[1],0)
+gosell= consell==1 and open-close<2*(pacH-pacL) and close-low<(pacH-pacL)/2 and hisdown==1 and MACD<0 and pacL-close<1.5*(pacH-pacL) and close<open and close-low<open-close and close<pacL
+if(gobuy)
+    strategy.entry("Buy",strategy.long)
+if(gosell)
+    strategy.entry("Sell",strategy.short)
+//if(Trend==-1 and close<pacL)
+//    strategy.close("Buy")
+//if(Trend==1 and close>pacH)
+//    strategy.close("Sell")
+ ////////////// TP and SL//
+SL = input(defval=100.00, title="Stop Loss Point", type=float, step=1)
+rr= input(defval=0.1,title="Reward/Risk",type=float)
+useTPandSL = input(defval = false, title = "Use exit order strategy?")
+Stop = SL
+Take=SL*rr
+Q = 100
+if(useTPandSL)
+    strategy.exit("Out Long", "Buy", qty_percent=Q, profit= Take, loss=Stop)
+    strategy.exit("Out Short", "Sell", qty_percent=Q, profit= Take, loss=Stop)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/434699
+
+> Last Modified
+
+2023-12-08 15:15:37

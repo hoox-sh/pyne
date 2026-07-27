@@ -1,0 +1,10 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block124
+// content_hash: 41c099d446379898
+// collected: 2026-07-27
+indicator("label.get_x")
+my_label = label.new(time, open, text="Open bar text", xloc=xloc.bar_time)
+a = label.get_x(my_label)
+plot(time - label.get_x(my_label)) //draws zero plot

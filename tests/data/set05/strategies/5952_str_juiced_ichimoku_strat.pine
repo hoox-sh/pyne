@@ -1,0 +1,59 @@
+//@version=3
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于均线的震荡突破策略Oscillation-Breakthrough-Strategy-Based-on-Moving-Average.md
+// content_hash: d3bafa84696933c9
+// collected: 2026-07-27
+strategy("Juiced Ichimoku Strat", overlay=true)
+
+USE_TRADESESSION = input(title='Use Trading Session?', type=bool, defval=true)
+trade_session = input(title='Trade Session:', defval='0800-1600', confirm=false)
+istradingsession = not USE_TRADESESSION ? false : not na(time('1', trade_session))
+bgcolor(istradingsession?gray:na)
+
+varLo = input(title="Fast (Conversion) Line",  defval=9, minval=1, maxval=99999)
+varHi = input(title="Slow (Base) Line",  defval=26, minval=1, maxval=99999)
+emafreq = input(title="Ema on price frequency",  defval=2, minval=1, maxval=99999)
+
+a = lowest(varLo)
+b = highest(varLo)
+c = (a + b ) / 2
+
+d = lowest(varHi)
+e = highest(varHi)
+f = (d + e) / 2
+
+//g = ((c + f) / 2)[varHi]
+//h = ((highest(varHi * 2) + lowest(varHi * 2)) / 2)[varHi]
+
+z = ema(close, emafreq)
+
+bgcolor(z > c and z > f ? green : z < c and z < f ? red : yellow, transp=70)
+plot(z, title="ema on Price", color=black)
+plot(c, title="Fast (Conversion) Line", color=green)
+plot(f, title="Slow (Base) Line", color=red)
+
+long = z > c and z > f and (USE_TRADESESSION ? istradingsession : true)
+short = z < c and z < f and (USE_TRADESESSION ? istradingsession : true)
+//exit = z < c and z > f or z > c and z < f
+
+closelong = z < c and z > f or z > c and z < f and (USE_TRADESESSION ? istradingsession : true)
+if (closelong)
+    strategy.close("Long")
+closeshort = z < c and z > f or z > c and z < f and (USE_TRADESESSION ? istradingsession : true)
+if (closeshort)
+    strategy.close("Short")
+strategy.entry("long", strategy.long, when=long)
+strategy.entry("short", strategy.short, when=short)
+
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/439752
+
+> Last Modified
+
+2024-01-23 15:13:31

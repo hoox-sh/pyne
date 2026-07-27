@@ -1,0 +1,53 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/下跌趋势短线交易策略Short-Trading-Strategy-in-Downtrend.md
+// content_hash: d2f520e6968ff92d
+// collected: 2026-07-27
+strategy(shorttitle='Short In Downtrend',title='Short In Downtrend Below MA100', overlay=true, initial_capital = 1000, process_orders_on_close=true, default_qty_type = strategy.percent_of_equity, default_qty_value = 100)
+
+//Backtest dates
+fromMonth = input(defval = 1,    title = "From Month",      type = input.integer, minval = 1, maxval = 12)
+fromDay   = input(defval = 10,    title = "From Day",        type = input.integer, minval = 1, maxval = 31)
+fromYear  = input(defval = 2019, title = "From Year",       type = input.integer, minval = 1970)
+thruMonth = input(defval = 1,    title = "Thru Month",      type = input.integer, minval = 1, maxval = 12)
+thruDay   = input(defval = 1,    title = "Thru Day",        type = input.integer, minval = 1, maxval = 31)
+thruYear  = input(defval = 2112, title = "Thru Year",       type = input.integer, minval = 1970)
+
+showDate  = input(defval = true, title = "Show Date Range", type = input.bool)
+
+start     = timestamp(fromYear, fromMonth, fromDay, 00, 00)        // backtest start window
+finish    = timestamp(thruYear, thruMonth, thruDay, 23, 59)        // backtest finish window
+window()  => true       // create function "within window of time"
+
+//MA inputs and calculations
+inSignal=input(50, title='MASignal')
+
+MA= sma(close, inSignal)
+
+// RSI inputs and calculations
+lengthRSI = input(14, title = 'RSI period', minval=1)
+RSI = rsi(close, lengthRSI)
+
+
+//Entry 
+strategy.entry(id="short", long = false, when = close < MA and RSI > 30)
+
+//Exit
+shortStopPrice  = strategy.position_avg_price * (1 + 0.03)
+shortTakeProfit = strategy.position_avg_price * (1 - 0.02)
+
+strategy.close("short", when = close > shortStopPrice or close < shortTakeProfit and window())
+
+
+plot(MA, color=color.purple, linewidth=2)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/431428
+
+> Last Modified
+
+2023-11-07 17:06:59

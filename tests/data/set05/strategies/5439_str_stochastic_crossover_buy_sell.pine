@@ -1,0 +1,46 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/随机交叉指标动量交易策略-Stochastic-Crossover-Indicator-Momentum-Trading-Strategy.md
+// content_hash: 807fa96533c548bd
+// collected: 2026-07-27
+strategy("Stochastic Crossover Buy/Sell", shorttitle="Stochastic Crossover", overlay=true)
+
+// Stochastic Oscillator Parameters
+length = input(14, title="Stochastic Length")
+smoothK = input(3, title="Stochastic %K Smoothing")
+smoothD = input(3, title="Stochastic %D Smoothing")
+
+// Calculate %K and %D
+stoch = stoch(close, high, low, length)
+k = sma(stoch, smoothK)
+d = sma(k, smoothD)
+
+// Plot Stochastic Lines
+plot(k, color=color.blue, linewidth=2, title="%K")
+plot(d, color=color.red, linewidth=2, title="%D")
+
+// Stochastic Crossover Buy/Sell Signals
+buySignal = crossover(k, d) and k < 20 // Buy when %K crosses above %D and %K is below 20
+sellSignal = crossunder(k, d) and k > 80 // Sell when %K crosses below %D and %K is above 80
+
+// Plot Buy/Sell Arrows
+plotshape(series=buySignal, style=shape.triangleup, location=location.belowbar, color=color.green, size=size.small, title="Buy Signal")
+plotshape(series=sellSignal, style=shape.triangledown, location=location.abovebar, color=color.red, size=size.small, title="Sell Signal")
+
+// Entry and Exit Points
+strategy.entry("Buy", strategy.long, when=buySignal)
+strategy.close("Buy", when=sellSignal)
+
+strategy.entry("Sell", strategy.short, when=sellSignal)
+strategy.close("Sell", when=buySignal)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/449698
+
+> Last Modified
+
+2024-04-28 11:57:14

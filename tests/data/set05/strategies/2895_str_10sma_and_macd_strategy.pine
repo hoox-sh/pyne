@@ -1,0 +1,46 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/10SMA与MACD双重趋势跟踪交易策略-10SMA-and-MACD-Dual-Trend-Following-Trading-Strategy.md
+// content_hash: 45f83299f644a385
+// collected: 2026-07-27
+strategy("10SMA and MACD Strategy", overlay=true)
+
+// Input parameters
+length = input(10, title="SMA Length")
+macdFastLength = input(12, title="MACD Fast Length")
+macdSlowLength = input(26, title="MACD Slow Length")
+macdSignalSmoothing = input(9, title="MACD Signal Smoothing")
+
+// Calculate 10SMA
+sma10 = ta.sma(close, length)
+plot(sma10, title="10SMA", color=color.blue)
+
+// Calculate MACD
+[macdLine, signalLine, _] = ta.macd(close, macdFastLength, macdSlowLength, macdSignalSmoothing)
+plot(macdLine, title="MACD Line", color=color.red)
+plot(signalLine, title="Signal Line", color=color.green)
+
+// Strategy conditions
+longCondition = ta.crossover(close, sma10) and ta.crossover(macdLine, signalLine)
+shortCondition = ta.crossunder(close, sma10) and ta.crossunder(macdLine, signalLine)
+
+// Plot buy and sell signals
+plotshape(series=longCondition, location=location.belowbar, color=color.green, style=shape.labelup, text="BUY")
+plotshape(series=shortCondition, location=location.abovebar, color=color.red, style=shape.labeldown, text="SELL")
+
+// Strategy execution
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+
+if (shortCondition)
+    strategy.close("Long")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/453645
+
+> Last Modified
+
+2024-06-07 14:46:36

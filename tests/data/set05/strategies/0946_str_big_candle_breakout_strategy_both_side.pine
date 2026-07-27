@@ -1,0 +1,108 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/大幅波动突破型双向交易策略基于点位阈值的多空进场系统-Large-Volatility-Breakout-Dual-Direction-Trading-Strategy-Point-Based-Threshold-Entry-System.md
+// content_hash: 9b1d14b8881abf11
+// collected: 2026-07-27
+strategy("Big Candle Breakout Strategy Both Side", overlay=true)  
+
+// Input for the point move threshold
+point_move_in = input.int(100, title="Point Move Threshold")
+point_target = input.int(100, title="Point Target")
+point_stoploss = input.int(100, title="Point Stop Loss")
+point_buffer = input.int(5, title="Point Buffer")
+
+point_move = point_buffer + point_move_in
+
+// Define the start and end times for trading
+start_hour = 9
+start_minute = 15
+end_hour = 14
+end_minute = 30
+
+// Function to check if the current time is within the allowed trading window
+in_time_range = (hour(time('30')) > start_hour or (hour(time('30')) == start_hour and minute(time('30')) >= start_minute)) and (hour(time('30')) < end_hour or (hour(time('30')) == end_hour and minute(time('30')) <= end_minute))
+
+// Retrieve the open, high, low, and close prices of 30-minute candles
+open_30m = request.security(syminfo.tickerid, "30", open)
+high_30m = request.security(syminfo.tickerid, "30", high)
+low_30m = request.security(syminfo.tickerid, "30", low)
+close_30m = request.security(syminfo.tickerid, "30", close)
+
+// Calculate the range of the candle
+candle_range_long = (close_30m - open_30m)
+candle_range_short = (open_30m - close_30m)
+
+// Determine if the candle meets the criteria to be marked
+big_candle_long = candle_range_long >= point_move_in
+big_candle_short = candle_range_short >= point_move_in
+
+// Variables to store the state of the trade
+var float long_entry_price = na
+var float long_target_price = na
+var float long_stop_loss_price = na
+
+var float short_entry_price = na
+var float short_target_price = na
+var float short_stop_loss_price = na
+
+// Check if there are no active trades
+no_active_trades = (strategy.opentrades == 0)
+
+// Long entry condition
+if (big_candle_long and na(long_entry_price) and in_time_range and no_active_trades)
+    long_entry_price := high_30m+point_buffer
+    long_target_price := long_entry_price + point_target
+    long_stop_loss_price := long_entry_price - point_stoploss
+    strategy.entry("Buy", strategy.long, stop=long_entry_price, limit=long_target_price)
+
+plot(long_entry_price, style=plot.style_linebr, color=color.blue, linewidth=2, title="Entry Price")
+plot(long_target_price, style=plot.style_linebr, color=color.green, linewidth=2, title="Target Price")
+plot(long_stop_loss_price, style=plot.style_linebr, color=color.red, linewidth=2, title="Stop Loss Price")
+
+// Short entry condition
+if (big_candle_short and na(short_entry_price) and in_time_range and no_active_trades)
+    short_entry_price := low_30m - point_buffer
+    short_target_price := short_entry_price - point_target
+    short_stop_loss_price := short_entry_price + point_stoploss
+    strategy.entry("Sell", strategy.short, stop=short_entry_price, limit=short_target_price)
+
+plot(short_entry_price, style=plot.style_linebr, color=color.blue, linewidth=2, title="Short Entry Price")
+plot(short_target_price, style=plot.style_linebr, color=color.green, linewidth=2, title="Short Target Price")
+plot(short_stop_loss_price, style=plot.style_linebr, color=color.red, linewidth=2, title="Short Stop Loss Price") 
+
+// Long exit conditions
+if (not na(long_entry_price))
+    strategy.exit("Long Exit", from_entry="Buy", limit=long_target_price, stop=long_stop_loss_price)
+   
+// Short exit conditions
+if (not na(short_entry_price))
+    strategy.exit("Short Exit", from_entry="Sell", limit=short_target_price, stop=short_stop_loss_price)
+
+// Reset trade status
+if (strategy.position_size == 0)
+    long_entry_price := na
+    long_target_price := na
+    long_stop_loss_price := na
+
+    short_entry_price := na
+    short_target_price := na
+    short_stop_loss_price := na
+
+// Plot the big candle and entry/exit levels
+plotshape(series=big_candle_long, location=location.abovebar, style=shape.circle, color=color.green)
+plotshape(series=big_candle_short, location=location.abovebar, style=shape.circle, color=color.red)
+
+//plot(long_entry_price, style=plot.style_stepline, color=color.blue, linewidth=2, title="Entry Price")
+//plot(long_target_price, style=plot.style_stepline, color=color.green, linewidth=2, title="Target Price")
+//plot(long_stop_loss_price, style=plot.style_stepline, color=color.red, linewidth=2, title="Stop Loss Price")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/472254
+
+> Last Modified
+
+2024-11-18 16:11:21

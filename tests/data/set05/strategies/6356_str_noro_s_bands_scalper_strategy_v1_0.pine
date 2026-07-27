@@ -1,0 +1,63 @@
+//@version=2
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/诺罗波动通道scalping策略Noros-Price-Channel-Scalping-Strategy.md
+// content_hash: b6271ad594fa3866
+// collected: 2026-07-27
+strategy("Noro's Bands Scalper Strategy v1.0", shorttitle = "Scalper str 1.0", overlay=true, default_qty_type = strategy.percent_of_equity, default_qty_value=100.0, pyramiding=0)
+
+//Settings
+needlong = input(true, defval = true, title = "Long")
+needshort = input(true, defval = true, title = "Short")
+len = input(20, defval = 20, minval = 2, maxval = 200, title = "Period")
+needbb = input(true, defval = true, title = "Show Bands")
+needbg = input(true, defval = true, title = "Show Background")
+src = close
+
+//PriceChannel
+lasthigh = highest(src, len)
+lastlow = lowest(src, len)
+center = (lasthigh + lastlow) / 2
+
+//Distance
+dist = abs(src - center)
+distsma = sma(dist, len)
+hd = center + distsma
+ld = center - distsma
+hd2 = center + distsma * 2
+ld2 = center - distsma * 2
+
+//Trend
+trend = close < ld and high < hd ? -1 : close > hd and low > ld ? 1 : trend[1]
+
+//Lines
+colo = needbb == false ? na : black
+plot(hd, color = colo, linewidth = 1, transp = 0, title = "High band")
+plot(center, color = colo, linewidth = 1, transp = 0, title = "center")
+plot(ld, color = colo, linewidth = 1, transp = 0, title = "Low band")
+
+//Background
+col = needbg == false ? na : trend == 1 ? lime : red
+bgcolor(col, transp = 80)
+
+//Signals
+bar = close > open ? 1 : close < open ? -1 : 0
+up7 = trend == 1 and bar == -1 and bar[1] == -1 ? 1 : 0
+dn7 = trend == 1 and bar == 1 and bar[1] == 1 and close > strategy.position_avg_price ? 1 : 0
+up8 = trend == -1 and bar == -1 and bar[1] == -1 and close < strategy.position_avg_price ? 1 : 0
+dn8 = trend == -1 and bar == 1 and bar[1] == 1 ? 1 : 0
+
+if up7 == 1 or up8 == 1
+    strategy.entry("Long", strategy.long, needlong == false ? 0 : trend == -1 ? 0 : na)
+
+if dn7 == 1 or dn8 == 1
+    strategy.entry("Short", strategy.short, needshort == false ? 0 : trend == 1 ? 0 : na)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/435019
+
+> Last Modified
+
+2023-12-11 17:06:27

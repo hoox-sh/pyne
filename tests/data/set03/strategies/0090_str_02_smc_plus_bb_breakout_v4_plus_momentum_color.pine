@@ -1,0 +1,102 @@
+//@version=6
+// set03 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动量驱动型布林带突破与智能资金概念融合策略-Momentum-Driven-Bollinger-Breakout-with-Smart-Money-Concepts-Integration-Strategy.md
+// content_hash: 46f9c88d1e56cba7
+// collected: 2026-07-27
+strategy('02 SMC + BB Breakout v4 + Momentum Color', overlay=true, initial_capital=100000)
+
+// Inputs
+length = input.int(55, title='Bollinger Bands Length')
+mult = input.float(2.0, title='Standard Deviation Multiplier')
+higher_tf = input.timeframe('1D', title='Higher Timeframe Confirmation')
+confirm_trend = input.bool(true, title='Use Higher Timeframe Trend')
+show_smc = input.bool(true, title='Show SMC Elements')
+ob_length = input.int(20, title="Order Block Lookback", minval=5)
+swing_length = input.int(12, title="Swing Lookback", minval=5)
+momentum_filter = input.bool(true, title="Require Momentum Candle for Entry")
+momentum_body_percent = input.float(70, title="Momentum Candle Body %", minval=1, maxval=100) / 100.0 // Percentage of the candle's range that must be the body
+
+// Bollinger Bands Calculation
+basis = ta.sma(close, length)
+upper_band = basis + mult * ta.stdev(close, length)
+lower_band = basis - mult * ta.stdev(close, length)
+
+// Higher Timeframe Confirmation
+higher_tf_close = request.security(syminfo.tickerid, higher_tf, close)
+higher_tf_sma = ta.sma(higher_tf_close, length)
+higher_tf_trend = higher_tf_close > higher_tf_sma
+
+// Smart Money Concepts (SMC)
+// Order Blocks (Simplified as recent price clusters)
+order_block_high = ta.highest(high, ob_length)
+order_block_low = ta.lowest(low, ob_length)
+
+// Liquidity Zones
+recent_swing_high = ta.highest(high, swing_length)
+recent_swing_low = ta.lowest(low, swing_length)
+
+// Market Structure Shift (MSS)
+previous_high = ta.valuewhen(high > ta.highest(high[1], swing_length), high[1], 0)
+previous_low = ta.valuewhen(low < ta.lowest(low[1], swing_length), low[1], 0)
+shift_to_bullish = close > previous_high
+shift_to_bearish = close < previous_low
+
+// Momentum Candle Check (Strong Body)
+candle_range = high - low
+candle_body = math.abs(close - open)
+body_percentage = candle_range > 0 ? candle_body / candle_range : 0 // Avoid division by zero if range is 0
+
+long_momentum = body_percentage >= momentum_body_percent and close > open
+short_momentum = body_percentage >= momentum_body_percent and close < open
+
+// --- START: Momentum Candle Coloring ---
+// Use color.lime for a neon green effect and color.red for neon red.
+bullish_momentum_color = long_momentum ? color.lime : na
+bearish_momentum_color = short_momentum ? color.red : na
+barcolor(bullish_momentum_color, title="Bullish Momentum Candle")
+barcolor(bearish_momentum_color, title="Bearish Momentum Candle")
+// --- END: Momentum Candle Coloring ---
+
+// Entry Conditions
+long_condition = ta.crossover(close, upper_band) and (not confirm_trend or higher_tf_trend) and shift_to_bullish and (not momentum_filter or long_momentum)
+short_condition = ta.crossunder(close, lower_band) and (not confirm_trend or not higher_tf_trend) and shift_to_bearish and (not momentum_filter or short_momentum)
+
+// Exit Conditions (TWEAKED)
+exit_long = ta.crossunder(close, basis) or close < (order_block_low * 0.99)
+exit_short = ta.crossover(close, basis) or close > (order_block_high * 1.01)
+
+// Calculate 5% of equity for position size
+risk_percent = 5.0 // Use float for percentage calculation
+capital_per_trade = (strategy.equity * risk_percent) / 100
+trade_qty = capital_per_trade / close
+trade_qty := trade_qty < 0.000001 ? 0.000001 : trade_qty // Ensure minimum trade quantity if calculated qty is too small
+
+// Strategy Execution
+if long_condition
+    strategy.entry('Long', strategy.long, qty=trade_qty)
+if short_condition
+    strategy.entry('Short', strategy.short, qty=trade_qty)
+if exit_long
+    strategy.close('Long', comment="Exit Long")
+if exit_short
+    strategy.close('Short', comment="Exit Short")
+
+// Plotting Bollinger Bands (Improved)
+p1 = plot(upper_band, color=color.rgb(76, 175, 80), title='Upper BB', linewidth=2)
+p2 = plot(lower_band, color=color.rgb(244, 67, 54), title='Lower BB', linewidth=2)
+plot(basis, color=color.rgb(33, 150, 243), title='Basis BB', linewidth=2)
+
+
+//plot entry and exit shapes
+plotshape(long_condition, title="Long Entry", location=location.belowbar, color=color.new(color.green, 0), style=shape.triangleup, size=size.small)
+plotshape(short_condition, title="Short Entry", location=location.abovebar, color=color.new(color.red, 0), style=shape.triangledown, size=size.small)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/489975
+
+> Last Modified
+
+2025-04-10 16:12:38

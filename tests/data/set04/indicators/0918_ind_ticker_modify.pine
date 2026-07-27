@@ -1,0 +1,13 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block301
+// content_hash: c20a742b86905271
+// collected: 2026-07-27
+indicator("ticker_modify", overlay=true)
+t1 = ticker.new(syminfo.prefix, syminfo.ticker, session.regular, adjustment.splits)
+c1 = request.security(t1, "D", close)
+t2 = ticker.modify(t1, session.extended)
+c2 = request.security(t2, "2D", close)
+plot(c1)
+plot(c2)

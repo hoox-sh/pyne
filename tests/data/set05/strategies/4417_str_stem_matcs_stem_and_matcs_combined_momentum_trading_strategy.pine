@@ -1,0 +1,107 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/STEM和MATCS组合动量交易策略STEM-and-MATCS-Combined-Momentum-Trading-Strategy.md
+// content_hash: 4ed2cfc1dda4b926
+// collected: 2026-07-27
+// strategy("STRAT_STEM_MATCS_BTC", overlay=true, pyramiding = 0, default_qty_value = 20, slippage = 5)
+
+
+ST_EMA_PERIOD = input(1, minval=1)
+ST_EMA = ema(close, ST_EMA_PERIOD)
+
+LENGTH = input(title="ATR_PERIOD", type=input.integer, defval=95)
+ATR_TUNE = input(title="ATR_TUNE", type=input.float, step=0.1, defval=2.1)
+showLabels = input(title="Show_Buy/Sell_Labels ?", type=input.bool, defval=true)
+highlightState = input(title="Highlight_State ?", type=input.bool, defval=true)
+
+ATR = ATR_TUNE * atr(LENGTH)
+
+longStop = ST_EMA - ATR
+longStopPrev = nz(longStop[1], longStop)
+longStop := (close[1]) > longStopPrev ? max(longStop, longStopPrev) : longStop
+
+shortStop = ST_EMA + ATR
+shortStopPrev = nz(shortStop[1], shortStop)
+shortStop := (close[1]) < shortStopPrev ? min(shortStop, shortStopPrev) : shortStop
+
+dir = 1
+dir := nz(dir[1], dir)
+dir := dir == -1 and (close) > shortStopPrev ? 1 : dir == 1 and (close) < longStopPrev ? -1 : dir
+
+
+fastLength = input(3, minval=1), medLength=input(9, minval=1), slowLength=input(12, minval=1), signalLength=input(16,minval=1)
+fastMA = ema(close, fastLength), medMA = ema(close, medLength), slowMA = ema(close, slowLength)
+
+macd = fastMA - slowMA
+fmacd = fastMA - medMA
+smacd = slowMA - medMA
+
+signal = ema(macd, signalLength)
+fsignal = ema(fmacd, signalLength)
+ssignal = ema(smacd, signalLength)
+
+
+SetStopLossShort = 0.0
+SetStopLossShort := if(strategy.position_size < 0)
+    StopLossShort = shortStop
+    min(StopLossShort,SetStopLossShort[1])
+
+SetStopLossLong = 0.0
+SetStopLossLong := if(strategy.position_size > 0)
+    StopLossLong = longStop
+    max(StopLossLong,SetStopLossLong[1])
+
+
+ATR_CrossOver_Period = input(5, type=input.integer, minval=1, maxval=2000)
+ATR_SIGNAL_FINE_TUNE = input(0.962, type=input.float)  
+ATR_CS = atr(ATR_CrossOver_Period)*ATR_SIGNAL_FINE_TUNE
+
+StopLoss_Initial_Short = input(0.0, type=input.float) 
+StopLoss_Initial_Long = input(0.0, type=input.float) 
+
+StopLoss_Long_Adjust = input(0.0, type=input.float) 
+StopLoss_Short_Adjust = input(0.0, type=input.float) 
+
+VOLUME_CHECK = input(200)
+
+//Custom Time Interval
+fromMinute = input(defval = 0, title = "From Minute", minval = 0, maxval = 60)
+fromHour = input(defval = 0, title = "From Hour", minval = 0, maxval = 24)
+fromDay = input(defval = 1, title = "From Day", minval = 1)
+fromMonth = input(defval = 1, title = "From Month", minval = 1)
+fromYear = input(defval = 2019, title = "From Year", minval = 1900)
+tillMinute = input(defval = 0, title = "Till Minute", minval = 0, maxval = 60)
+tillHour = input(defval = 0, title = "Till Hour", minval = 0, maxval = 24)
+tillDay = input(defval = 1, title = "Till Day", minval = 1)
+tillMonth = input(defval = 1, title = "Till Month", minval = 1)
+tillYear = input(defval = 2020, title = "Till Year", minval = 1900)
+timestampStart = timestamp(fromYear,fromMonth,fromDay,fromHour,fromMinute)
+timestampEnd = timestamp(tillYear,tillMonth,tillDay,tillHour,tillMinute)
+
+
+//Custom Buy Signal Code --  This is where you design your own buy and sell signals. You now have millions of possibilites with the use of simple if/and/or statements.
+if (  dir==1 and dir[1]==-1  and volume > VOLUME_CHECK and ((fsignal[1] -fsignal) <= 0) and  cross(fmacd, smacd) )
+    strategy.exit("SELL")
+    strategy.entry("BUY", strategy.long)
+    strategy.exit("BUY_STOP","BUY", stop = close - StopLoss_Initial_Long)
+
+//Custom Sell Signal Code
+if  ( dir == -1 and dir[1] == 1 and dir[2] == 1 and dir[3] == 1 and dir[4] == 1 and  cross(fmacd, smacd) )
+    strategy.exit( "BUY")
+    strategy.entry("SELL", strategy.short)
+    strategy.exit("SELL_STOP","SELL", stop = close + StopLoss_Initial_Short)
+
+//Slight adjustments to ST for fine tuning
+if (strategy.opentrades > 0 )
+    strategy.exit("BUY_TRAIL_STOP","BUY", stop = longStop - StopLoss_Long_Adjust)
+    strategy.exit("SELL_TRAIL_STOP","SELL", stop = shortStop + StopLoss_Short_Adjust)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/426931
+
+> Last Modified
+
+2023-09-15 16:22:48

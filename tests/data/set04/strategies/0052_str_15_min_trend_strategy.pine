@@ -1,0 +1,61 @@
+//@version=6
+// set04 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多周期趋势跟踪与随机震荡优化策略-Multi-Timeframe-Trend-Following-with-Stochastic-Oscillator-Strategy.md
+// content_hash: 7d6f66562ce000e7
+// collected: 2026-07-27
+strategy("15-Min Trend Strategy", overlay=true, default_qty_type=strategy.fixed, default_qty_value=1)
+
+// Define EMA for trend confirmation
+ema50 = ta.ema(close, 50)
+trendLong = close > ema50
+trendShort = close < ema50
+
+// Stochastic settings
+length = 14
+smoothK = 3
+smoothD = 3
+stochK = ta.sma(ta.stoch(close, high, low, length), smoothK)
+stochD = ta.sma(stochK, smoothD)
+
+// Entry conditions
+longCondition = stochK < 30 and trendLong
+shortCondition = stochK > 70 and trendShort
+
+// ATR-based stop-loss calculation
+atrValue = ta.atr(14)
+stopLossLong = close - (1.5 * atrValue)
+stopLossShort = close + (1.5 * atrValue)
+takeProfitLong = close + (2 * atrValue)
+takeProfitShort = close - (2 * atrValue)
+
+// Execute trades
+if longCondition
+    strategy.entry("Long", strategy.long, qty=2)
+    strategy.exit("TP Long 1", from_entry="Long", qty=1, stop=stopLossLong, limit=takeProfitLong)
+    strategy.exit("TP Long 2", from_entry="Long", qty=1, stop=stopLossLong, limit=takeProfitLong * 1.5)
+
+if shortCondition
+    strategy.entry("Short", strategy.short, qty=2)
+    strategy.exit("TP Short 1", from_entry="Short", qty=1, stop=stopLossShort, limit=takeProfitShort)
+    strategy.exit("TP Short 2", from_entry="Short", qty=1, stop=stopLossShort, limit=takeProfitShort * 1.5)
+
+// Move SL to breakeven after 50% move to target
+if strategy.position_size > 0
+    if strategy.position_avg_price != 0
+        moveToBELong = close >= (strategy.position_avg_price + (takeProfitLong - strategy.position_avg_price) * 0.5)
+        if moveToBELong
+            strategy.exit("BE Long", from_entry="Long", qty=1, stop=strategy.position_avg_price)
+        
+        moveToBEShort = close <= (strategy.position_avg_price - (strategy.position_avg_price - takeProfitShort) * 0.5)
+        if moveToBEShort
+            strategy.exit("BE Short", from_entry="Short", qty=1, stop=strategy.position_avg_price)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/482456
+
+> Last Modified
+
+2025-02-18 15:09:41

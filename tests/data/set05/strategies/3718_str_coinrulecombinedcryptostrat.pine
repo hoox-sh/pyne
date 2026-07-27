@@ -1,0 +1,60 @@
+//@version=4
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/CoinruleCombinedCryptoStrat.pine
+// content_hash: 65eae1373878bc39
+// collected: 2026-07-27
+strategy(shorttitle='CoinruleCombinedCryptoStrat',title='CoinruleCombinedCryptoStrat', overlay=true, initial_capital = 10000, pyramiding = 1000, process_orders_on_close=true, default_qty_type = strategy.percent_of_equity, default_qty_value = 2, commission_type=strategy.commission.percent, commission_value=0.35)
+// RSI inputs and calculations
+lengthRSI = 14
+RSI = rsi(close, lengthRSI)
+//Normal
+oversold = input(35)
+overbought =  input(70)
+res = input(title="Additional Timescale", defval="60", options=["5", "15", "60", "360", "1D"])
+//ALGO
+//oversold= input(26)
+//overbought= input(80)
+//sell pct
+SellPct = input(15)
+ExitPct = input(50)
+//MA inputs and calculations
+movingaverage_signal = sma(close, input(9))
+movingaverage_fast = sma(close, input(50))
+movingaverage_slow = sma(close, input(200))
+movingaverage_mid= sma(close, input(100))
+long_ma_signal = security(syminfo.tickerid, res, sma(close, input(9)), lookahead=barmerge.lookahead_on)
+long_ma_fast = security(syminfo.tickerid, res, sma(close, input(50)), lookahead=barmerge.lookahead_on)
+long_ma_slow = security(syminfo.tickerid, res, sma(close, input(200)), lookahead=barmerge.lookahead_on)
+long_ma_mid= security(syminfo.tickerid, res, sma(close, input(100)), lookahead=barmerge.lookahead_on)
+//Look Back
+inp_lkb = input(12, title='Lookback Long Period')
+inp_lkb_2 = input(2, title='Lookback Short Period')
+ 
+perc_change(lkb) =>
+    overall_change = ((close[0] - close[lkb]) / close[lkb]) * 100
+//Entry 
+//MA
+bullish = crossover(movingaverage_signal, movingaverage_fast)
+//Execute buy
+strategy.entry(id="long", long = true, when = (RSI < oversold) and movingaverage_signal < movingaverage_mid, comment="BuyIn")
+//when = crossover(close, movingaverage_signal) and movingaverage_signal < movingaverage_slow and RSI < oversold)
+//Exit
+//RSI
+Stop_loss= ((input (4))/100)
+longStopPrice  = strategy.position_avg_price * (1 - Stop_loss)
+//MA
+bearish = crossunder(close, long_ma_mid)
+//Execute sell
+strategy.close("long", qty_percent = SellPct, when = RSI > overbought and movingaverage_fast > movingaverage_mid, comment="SmallSell")
+strategy.close("long", qty_percent = ExitPct, when = bearish, comment="StopLoss")
+//strategy.close("long", qty_percent = ExitPct, when = bearish )
+//when = (crossunder(low, movingaverage_signal) and movingaverage_fast > movingaverage_slow and RSI > overbought) or (movingaverage_signal < movingaverage_fast and crossunder(low, movingaverage_fast)) or (low < longStopPrice))
+//PLOT
+plot(movingaverage_signal, color=color.white, linewidth=2, title="signal")
+plot(movingaverage_fast, color=color.orange, linewidth=2, title="fast")
+plot(movingaverage_slow, color=color.purple, linewidth=2, title="slow")
+plot(movingaverage_mid, color=color.blue, linewidth=2, title="mid")
+plot(long_ma_signal, color=color.yellow, linewidth=1, title="long signal")
+plot(long_ma_mid, color=color.red, linewidth=1, title="long slow")
+Expand (71 lines)

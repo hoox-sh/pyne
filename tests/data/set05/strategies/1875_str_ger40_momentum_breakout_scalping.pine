@@ -1,0 +1,68 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于日内价格区间突破的动量交易策略结合EMAs指标优化-Price-Range-Breakout-Momentum-Trading-Strategy-with-EMAs-Optimization.md
+// content_hash: dd88f7b5a7a11966
+// collected: 2026-07-27
+strategy("GER40 Momentum Breakout Scalping", overlay=true, initial_capital=10000, default_qty_type=strategy.percent_of_equity, default_qty_value=1)
+
+//———— Input Parameters —————
+stopLossPoints = input.int(30, title="Stop Loss (Pips)", minval=1)  // Updated to 30 pips
+riskReward    = input.float(2.0, title="Risk Reward Ratio", step=0.1)
+useTimeFilter = input.bool(false, title="Use Time Filter? (Sessions in SAST)")
+// Define sessions (SAST) if needed
+session1 = "0900-1030"
+session2 = "1030-1200"
+session3 = "1530-1730"
+
+//———— Time Filter Function —————
+inSession = true
+if useTimeFilter
+    // TradingView's session function uses the chart's timezone.
+    // Adjust the session times if your chart timezone is not SAST.
+    inSession = time(timeframe.period, session1) or time(timeframe.period, session2) or time(timeframe.period, session3)
+
+//———— Get Previous Day's High/Low —————
+// Fetch the previous day's high/low using the daily timeframe. [1] refers to the previous completed day.
+prevHigh = request.security(syminfo.tickerid, "D", high[1])
+prevLow  = request.security(syminfo.tickerid, "D", low[1])
+
+//———— Calculate EMAs on the 1-minute chart —————
+emaFast = ta.ema(close, 9)
+emaSlow = ta.ema(close, 21)
+
+//———— Define Breakout Conditions —————
+longCondition  = close > prevHigh and emaFast > emaSlow
+shortCondition = close < prevLow  and emaFast < emaSlow
+
+//———— Entry & Exit Rules —————
+if inSession
+    // Long breakout: Price breaks above previous day's high
+    if (longCondition)
+        strategy.entry("Long", strategy.long)
+        strategy.exit("Exit Long", "Long", 
+          stop = strategy.position_avg_price - stopLossPoints * syminfo.mintick, 
+          limit = strategy.position_avg_price + stopLossPoints * riskReward * syminfo.mintick)
+    
+    // Short breakout: Price breaks below previous day's low
+    if (shortCondition)
+        strategy.entry("Short", strategy.short)
+        strategy.exit("Exit Short", "Short", 
+          stop = strategy.position_avg_price + stopLossPoints * syminfo.mintick, 
+          limit = strategy.position_avg_price - stopLossPoints * riskReward * syminfo.mintick)
+
+//———— Plot Indicators & Levels —————
+plot(emaFast, color=color.blue, title="EMA 9")
+plot(emaSlow, color=color.red, title="EMA 21")
+plot(prevHigh, color=color.green, style=plot.style_linebr, title="Prev Day High")
+plot(prevLow, color=color.maroon, style=plot.style_linebr, title="Prev Day Low")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/483092
+
+> Last Modified
+
+2025-02-21 13:20:45

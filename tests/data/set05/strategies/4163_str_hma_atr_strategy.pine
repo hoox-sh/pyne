@@ -1,0 +1,12 @@
+//@version=4
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/HMA_ATR Strategy.pine
+// content_hash: e96e4f685b5be61d
+// collected: 2026-07-27
+strategy("HMA_ATR Strategy",shorttitle="HMAATR",overlay=true,default_qty_type=strategy.percent_of_equity,default_qty_value=50,commission_type=strategy.commission.percent,commission_value=0.5)
+length=input(9)
+numATRs=input(0.75,step=0.01)
+atrs=hma(tr,length)*numATRs
+strategy.entry("A buy",strategy.long,stop=open+atrs,comment = "buy",alert_message="buy")
+strategy.entry("A sell",strategy.short,stop=open-atrs,comment = "sell",alert_message="sell")

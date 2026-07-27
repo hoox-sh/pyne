@@ -1,0 +1,87 @@
+//@version=6
+// set03 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多指标联动SAR反转策略与过滤入场模型-Multi-Indicator-Synergistic-SAR-Reversal-Strategy-with-Filtered-Entry-Model.md
+// content_hash: 88dca155bbdc887c
+// collected: 2026-07-27
+strategy("SAR Reversal Strategy with Filtered Entries & Opposite Exits", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=10)
+
+// === Input Parameters ===
+start = input(0.02, "SAR Start")
+increment = input(0.02, "SAR Increment")
+maximum = input(0.2, "SAR Maximum")
+
+rsiPeriod = input(14, "RSI Period")
+rsiOverbought = input(70, "RSI Overbought Level")
+rsiOversold = input(30, "RSI Oversold Level")
+
+stochLength = input(14, "Stoch RSI Length")
+stochOverbought = input(80, "Stoch Overbought Level")
+stochOversold = input(20, "Stoch Oversold Level")
+
+lsmaLength = input(4, title="LSMA Length")  // LSMA period input
+lsmaOffset = input(9, title="LSMA Offset")  // LSMA offset input
+
+rsi = ta.rsi(close, rsiPeriod)
+
+// === Stochastic RSI for Additional Confirmation ===
+stochRsi = ta.stoch(rsi, rsi, rsi, stochLength)
+
+
+// === Calculate Indicators ===
+psar = ta.sar(start, increment, maximum)
+
+[macdLine, signalLine, _] = ta.macd(close, 12, 26, 9)
+
+// === LSMA Calculation ===
+lsma = ta.linreg(close, lsmaLength, 0)  // Least Squares Moving Average (LSMA)
+
+// === Shift LSMA by User-Defined Offset ===
+lsmaOffsetted = lsma[lsmaOffset]
+
+// === Detect SAR Reversals ===
+sarReversalUp = ta.crossover(close, psar)  // SAR flips below price → long entry signal
+sarReversalDown = ta.crossunder(close, psar)  // SAR flips above price → short entry signal
+
+// === Only Allow SAR Reversals If RSI & MACD Are Favorable ===
+validLong = sarReversalUp and rsi > rsiOversold and macdLine > signalLine and stochRsi > stochOversold and close > lsmaOffsetted
+validShort = sarReversalDown and rsi < rsiOverbought and macdLine < signalLine and stochRsi < stochOverbought and close < lsmaOffsetted
+
+
+// === Execute Trades Only at SAR Reversals ===
+if validLong
+    strategy.close("Short")  // Close any short position
+    strategy.entry("Long", strategy.long)
+
+if validShort
+    strategy.close("Long")  // Close any long position
+    strategy.entry("Short", strategy.short)
+
+// === Plot Indicators ===
+plot(psar, title="Parabolic SAR", style=plot.style_cross, color=color.orange, linewidth=2)
+hline(rsiOverbought, "RSI Overbought", color=color.red)
+hline(rsiOversold, "RSI Oversold", color=color.green)
+plot(rsi, title="RSI", color=color.purple)
+plot(macdLine, title="MACD Line", color=color.green)
+plot(signalLine, title="Signal Line", color=color.red)
+hline(stochOverbought,"stochRsi", color = color.yellow)
+hline(stochOversold,"stochRsi", color = color.yellow)
+
+// === Plot LSMA and Offset LSMA for Visualization ===
+//...not in valid long/short check.... plot(lsma, title="LSMA", color=color.blue, linewidth=2)
+plot(lsmaOffsetted, title="Offset LSMA", color=color.red, linewidth=2)
+plot(stochRsi, title="stochRsi",color=color.yellow, linewidth=2)
+
+// ✅ Floating Label for Stoch RSI (Top-Right of Chart)
+var label stochLabel = na
+label.delete(stochLabel)  // Delete previous label to prevent duplicates
+// experiment to show label above value at top of chart (only showed last value at end) stochLabel := label.new( bar_index, ta.highest(high, 10),    text="Stoch RSI: " + str.tostring(stochRsi, "#.##"),     color=color.blue, textcolor=color.white, size=size.small, style=label.style_label_upper_right)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/488527
+
+> Last Modified
+
+2025-03-28 16:36:09

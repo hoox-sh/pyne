@@ -1,0 +1,13 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block358
+// content_hash: 151a16f84e73c2e2
+// collected: 2026-07-27
+indicator("Pine v6 Indicator")
+plot(close)
+
+//This indicator has no version annotation, so it will try to use v1.
+//Pine Script® v1 has no function named `indicator()`, so the script will not compile.
+indicator("Pine v1 Indicator")
+plot(close)

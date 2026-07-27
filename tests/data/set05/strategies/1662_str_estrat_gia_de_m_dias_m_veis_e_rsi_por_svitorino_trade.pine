@@ -1,0 +1,74 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/移动平均线与RSI综合交易策略-Moving-Average-and-RSI-Comprehensive-Trading-Strategy.md
+// content_hash: 732b7d540584038f
+// collected: 2026-07-27
+strategy("Estratégia de Médias Móveis e RSI (por Svitorino_trade)", shorttitle="Estratégia-Médias Móveis", overlay=true)
+
+len1 = input.int(9, minval=1, title="Length 1")
+len2 = input.int(21, minval=1, title="Length 2")
+len3 = input.int(25, minval=1, title="Length 3")
+len4 = input.int(99, minval=1, title="Length 4")
+rsi_length = input.int(14, minval=1, title="RSI Length")
+rsi_oversold = input.float(30, minval=0, maxval=100, title="RSI Oversold Level")
+rsi_overbought = input.float(70, minval=0, maxval=100, title="RSI Overbought Level")
+
+src = input(close, title="Source")
+
+ama(src, length) =>
+    sum = 0.0
+    for i = 0 to length - 1
+        sum := sum + src[i]
+    sum / length
+
+avg1 = ama(src, len1)
+avg2 = ama(src, len2)
+avg3 = ama(src, len3)
+avg4 = ama(src, len4)
+
+rsi_value = ta.rsi(src, rsi_length)
+
+// Condições de entrada e saída para períodos de 9 e 21
+cruzamento_9_21_acima = avg1 > avg2 and avg1[1] <= avg2[1]
+cruzamento_9_21_abaixo = avg1 < avg2 and avg1[1] >= avg2[1]
+
+// Condições de entrada e saída para períodos de 25 e 99
+cruzamento_25_99_acima = avg3 > avg4 and avg3[1] <= avg4[1]
+cruzamento_25_99_abaixo = avg3 < avg4 and avg3[1] >= avg4[1]
+
+// Plotando os sinais de entrada e saída
+plotshape(series=cruzamento_9_21_acima, style=shape.triangleup, color=color.green, size=size.small, location=location.belowbar)
+plotshape(series=cruzamento_9_21_abaixo, style=shape.triangledown, color=color.red, size=size.small, location=location.abovebar)
+plotshape(series=cruzamento_25_99_acima, style=shape.triangleup, color=color.green, size=size.small, location=location.belowbar)
+plotshape(series=cruzamento_25_99_abaixo, style=shape.triangledown, color=color.red, size=size.small, location=location.abovebar)
+
+// Entradas e saídas para períodos de 9 e 21
+if cruzamento_9_21_acima and rsi_value > rsi_overbought
+    strategy.entry("Venda Curta", strategy.short)
+if cruzamento_9_21_abaixo and rsi_value < rsi_oversold
+    strategy.entry("Compra Curta", strategy.long)
+if cruzamento_9_21_acima
+    strategy.close("Compra Curta")
+if cruzamento_9_21_abaixo
+    strategy.close("Venda Curta")
+
+// Entradas e saídas para períodos de 25 e 99
+if cruzamento_25_99_acima and rsi_value > rsi_overbought
+    strategy.entry("Compra Forte", strategy.long)
+if cruzamento_25_99_abaixo and rsi_value < rsi_oversold
+    strategy.entry("Venda Forte", strategy.short)
+if cruzamento_25_99_acima
+    strategy.close("Venda Forte")
+if cruzamento_25_99_abaixo
+    strategy.close("Compra Forte")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/449955
+
+> Last Modified
+
+2024-04-30 16:31:24

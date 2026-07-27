@@ -1,0 +1,82 @@
+//@version=3
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/三线形态突破策略Three-Line-Breakout-Strategy.md
+// content_hash: 305f09bd8ba2d709
+// collected: 2026-07-27
+////////////////////////////////////////////////////////////
+//  Copyright by HPotter v1.0 31/05/2019
+// This is a modified version of the three line break price representation. 
+// It is composed with 2 lines made of Close price values forming a “cloud”.
+//    If the trend is bullish and the price breach the lower level of the green 
+//       cloud, a new bearish trend is taking place.
+//    If the current trend is bearish and the price breakout the upper band of 
+//       the cloud, a new bullish trend is forming.
+// This is a “price action” indicator, signals may be filtered by long term trend 
+// analysis with other indicators such as Supertrend for instance.
+//
+// WARNING:
+// - For purpose educate only
+// - This script to change bars colors.
+////////////////////////////////////////////////////////////
+strategy(title="Three Line Break", overlay = true)
+reverse = input(false, title="Trade reverse")
+xtrend = 1
+xu = close
+xu1 = close
+xu2 = close
+xu3 = close
+if xtrend[1] == 1
+    if close > xu[1]
+        xu3 := xu2[1]
+        xu2 := xu1[1]
+        xu1 := xu[1]
+        xu := close
+        xtrend := 1
+    else 
+        if close < xu3[1]
+            xu3 := xu1[1]
+            xu2 := xu1[1]
+            xu1 := xu1[1]
+            xu := close
+            xtrend := -1        
+        else
+            xtrend := 1
+else
+    if close > xu3[1]
+        xu3 := xu1[1]
+        xu2 := xu1[1]
+        xu1 := xu1[1]
+        xu := close
+        xtrend := 1
+    else
+        if close < xu[1] 
+            xu3 := xu2[1]
+            xu2 := xu1[1]
+            xu1 := xu[1]
+            xu := close
+            xtrend := -1
+        else
+            xtrend := -1
+colorm = xtrend == -1 ? red: xtrend == 1 ? green : blue 
+possig = iff(reverse and xtrend == 1, -1,
+          iff(reverse and xtrend == -1, 1, xtrend))	   
+if (possig == 1) 
+    strategy.entry("Long", strategy.long)
+if (possig == -1)
+    strategy.entry("Short", strategy.short)	 
+if (possig == 0) 
+    strategy.close_all()
+barcolor(possig == -1 ? red: possig == 1 ? green : blue ) 		
+p1 = plot(xu, color=colorm)
+p2 = plot(xu3, color=colorm)
+fill(p1, p2, color=colorm)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/427684
+
+> Last Modified
+
+2023-09-23 16:02:20

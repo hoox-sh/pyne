@@ -1,0 +1,61 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/自适应三重超级趋势策略Adaptive-Triple-Supertrend-Strategy.md
+// content_hash: 09b543b3cadc0920
+// collected: 2026-07-27
+strategy("Custom Supertrend Strategy", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=15, shorttitle="Supertrend Strategy")
+
+// Define the parameters for Supertrend 1
+factor1 = input.float(3.0, "Factor 1", step = 0.01)
+atrPeriod1 = input(12, "ATR Length 1")
+
+// Define the parameters for Supertrend 2
+factor2 = input.float(1.0, "Factor 2", step = 0.01)
+atrPeriod2 = input(10, "ATR Length 2")
+
+// Define the parameters for Supertrend 3
+factor3 = input.float(2.0, "Factor 3", step = 0.01)
+atrPeriod3 = input(11, "ATR Length 3")
+
+[_, direction1] = ta.supertrend(factor1, atrPeriod1)
+[_, direction2] = ta.supertrend(factor2, atrPeriod2)
+[_, direction3] = ta.supertrend(factor3, atrPeriod3)
+
+// Define the start and end dates as Unix timestamps (in seconds)
+start_date = timestamp("2023-01-01T00:00:00")
+end_date = timestamp("2023-10-01T00:00:00")
+
+// Determine Buy and Sell conditions within the specified date range
+in_date_range = true
+buy_condition = direction1 > 0 and direction2 > 0 and direction3 > 0 and in_date_range
+sell_condition = direction1 < 0 or direction2 < 0 or direction3 < 0
+
+// Track the position with a variable
+var isLong = false
+
+if buy_condition and not isLong
+    strategy.entry("Long Entry", strategy.long)
+    isLong := true
+
+if sell_condition and isLong
+    // Define take profit and stop loss percentages
+    take_profit_percentage = 10 // Increased to 10%
+    stop_loss_percentage = 1
+
+    // Calculate take profit and stop loss levels
+    take_profit_level = close * (1 + take_profit_percentage / 100)
+    stop_loss_level = close * (1 - stop_loss_percentage / 100)
+
+    // Exit the long position with take profit and stop loss
+    strategy.exit("Take Profit/Stop Loss", from_entry="Long Entry", limit=take_profit_level, stop=stop_loss_level)
+    isLong := false
+```
+
+> Detail
+
+https://www.fmz.com/strategy/440109
+
+> Last Modified
+
+2024-01-26 16:33:37

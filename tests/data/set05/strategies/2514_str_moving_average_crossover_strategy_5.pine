@@ -1,0 +1,56 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于双均线交叉的移动平均线策略-Moving-Average-Crossover-Strategy-Based-on-Dual-Moving-Averages.md
+// content_hash: 5b41024fb781e6ea
+// collected: 2026-07-27
+strategy("Moving Average Crossover Strategy", overlay=true)
+
+// Input parameters
+shortLength = input.int(9, title="Short Moving Average Length")
+longLength = input.int(21, title="Long Moving Average Length")
+capital = input.float(100000, title="Initial Capital")
+risk_per_trade = input.float(1.0, title="Risk Per Trade (%)")
+
+// Calculate Moving Averages
+shortMA = ta.sma(close, shortLength)
+longMA = ta.sma(close, longLength)
+
+// Plot Moving Averages
+plot(shortMA, title="Short MA", color=color.blue, linewidth=2)
+plot(longMA, title="Long MA", color=color.red, linewidth=2)
+
+// Generate Buy/Sell signals
+longCondition = ta.crossover(shortMA, longMA)
+shortCondition = ta.crossunder(shortMA, longMA)
+
+// Plot Buy/Sell signals
+plotshape(series=longCondition, title="Buy Signal", location=location.belowbar, color=color.green, style=shape.labelup, text="BUY")
+plotshape(series=shortCondition, title="Sell Signal", location=location.abovebar, color=color.red, style=shape.labeldown, text="SELL")
+
+// Risk management: calculate position size
+risk_amount = capital * (risk_per_trade / 100)
+position_size = risk_amount / close
+
+// Execute Buy/Sell orders with position size
+if (longCondition)
+    strategy.entry("Buy", strategy.long, qty=1, comment="Buy")
+if (shortCondition)
+    strategy.close("Buy", comment="Sell")
+
+// Display the initial capital and risk per trade on the chart
+var label initialLabel = na
+if (na(initialLabel))
+    initialLabel := label.new(x=bar_index, y=high, text="Initial Capital: " + str.tostring(capital) + "\nRisk Per Trade: " + str.tostring(risk_per_trade) + "%", style=label.style_label_down, color=color.white, textcolor=color.black)
+else
+    label.set_xy(initialLabel, x=bar_index, y=high)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/453273
+
+> Last Modified
+
+2024-06-03 16:39:08

@@ -1,0 +1,66 @@
+//@version=2
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/季节范围均线RSI策略Seasonal-Range-Moving-Average-RSI-Strategy.md
+// content_hash: eb74a718859989c6
+// collected: 2026-07-27
+strategy(title = " RSI of MA Strategy ",shorttitle="MARSI Strategy",default_qty_type = strategy.percent_of_equity, default_qty_value = 100,commission_type=strategy.commission.percent,commission_value=0.1,initial_capital=1)
+
+
+
+lengthofma = input(15,minval=1,title="Length of MA")
+len = input(14, minval=1, title="Length")
+upperband = input(70,minval=1,title='Upper Band for RSI')
+lowerband = input(30,minval=1,title="Lower Band for RSI")
+
+src=sma(close,lengthofma)
+up = rma(max(change(src), 0), len)
+down = rma(-min(change(src), 0), len)
+rsi = down == 0 ? 100 : up == 0 ? 0 : 100 - (100 / (1 + up / down))
+plot(rsi, color=purple)
+
+band1 = hline(upperband)
+band0 = hline(lowerband)
+fill(band1, band0, color=purple, transp=90)
+
+
+
+longCond =  crossover(rsi,lowerband)
+
+shortCond =  crossunder(rsi,upperband)
+
+
+
+
+monthfrom =input(1)
+monthuntil =input(12)
+dayfrom=input(1)
+dayuntil=input(31)
+
+if (  longCond ) 
+    strategy.entry("LONG", strategy.long, stop=close, oca_name="TREND",  comment="LONG")
+    
+else
+    strategy.cancel(id="LONG")
+    
+
+
+
+if ( shortCond ) 
+
+    strategy.entry("SHORT", strategy.short,stop=close, oca_name="TREND",  comment="SHORT")
+else
+    strategy.cancel(id="SHORT")
+
+
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/430365
+
+> Last Modified
+
+2023-10-27 16:04:21

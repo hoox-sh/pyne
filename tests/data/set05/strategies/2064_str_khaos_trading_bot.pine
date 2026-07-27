@@ -1,0 +1,64 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多均线趋势追踪与ATR风险管理量化交易策略-Multi-Moving-Average-Trend-Following-with-ATR-Risk-Management-Quantitative-Trading-Strategy.md
+// content_hash: 9143cdaab563354c
+// collected: 2026-07-27
+strategy("Khaos Trading Bot", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=1)
+
+// Input parameters
+riskPercentage = input.float(1.0, title="Risk Percentage per Trade", minval=0.1, maxval=100)
+ATRMultiplier = input.float(2.0, title="ATR Multiplier for Stop-Loss")
+RiskRewardRatio = input.float(2.0, title="Risk-Reward Ratio")
+FastMMA = input.int(20, title="Fast Moving Average (MMA)")
+SlowMMA = input.int(50, title="Slow Moving Average (MMA)")
+TrailingStopPips = input.int(50, title="Trailing Stop (in pips)")
+
+// Calculate ATR (Average True Range) for stop-loss calculation
+atrValue = ta.atr(14)
+
+// Moving Averages
+fastMA = ta.sma(close, FastMMA)
+slowMA = ta.sma(close, SlowMMA)
+
+// Determine trend based on moving averages
+longCondition = fastMA > slowMA
+shortCondition = fastMA < slowMA
+
+// Calculate Stop-Loss and Take-Profit
+stopLoss = atrValue * ATRMultiplier
+takeProfit = stopLoss * RiskRewardRatio
+
+// Risk Management: Position sizing based on percentage risk per trade
+capitalRisk = strategy.equity * (riskPercentage / 100)
+lotSize = capitalRisk / stopLoss
+
+// Entry Rules
+if longCondition
+    strategy.entry("Buy", strategy.long)
+
+if shortCondition
+    strategy.entry("Sell", strategy.short)
+
+// Exit Rules with Take-Profit and Stop-Loss
+strategy.exit("Exit Buy", from_entry="Buy", stop=close - stopLoss, limit=close + takeProfit)
+strategy.exit("Exit Sell", from_entry="Sell", stop=close + stopLoss, limit=close - takeProfit)
+
+// Trailing stop
+trailStop = stopLoss * 10 * syminfo.mintick // Adjusting for the trailing stop
+strategy.exit("Exit Buy Trail", from_entry="Buy", trail_offset=trailStop, trail_price=close)
+strategy.exit("Exit Sell Trail", from_entry="Sell", trail_offset=trailStop, trail_price=close)
+
+// Plot Moving Averages for visualization
+plot(fastMA, color=color.blue, title="Fast MMA")
+plot(slowMA, color=color.red, title="Slow MMA")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/488152
+
+> Last Modified
+
+2025-03-25 14:46:55

@@ -1,0 +1,69 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双均线滞后突破策略Dual-Moving-Average-Lagging-Breakout-Strategy.md
+// content_hash: 4be07aec5fee9811
+// collected: 2026-07-27
+strategy(title="2 Moving Averages", shorttitle="2MA", overlay=true)
+
+// Moving Averages
+len = input(14, minval=1, title="Length MA1")
+src = input(close, title="Source MA1")
+ma1 = sma(src, len)
+
+len2 = input(50, minval=1, title="Length MA2")
+src2 = input(close, title="Source MA2")
+ma2 = sma(src2, len2)
+
+// Plotting Moving Averages
+plot(ma1, color=#0b6ce5, title="MA1")
+plot(ma2, color=#00ff80, linewidth=2, title="MA2")
+
+// ATR Bands
+atrLength = input(14, title="ATR Length")
+atrMultiplier = input(1.5, title="ATR Multiplier")
+upperBand = high + atr(atrLength) * atrMultiplier
+lowerBand = low - atr(atrLength) * atrMultiplier
+
+u =plot(upperBand, color=color.rgb(217, 220, 223, 84), title="ATR Upper Band")
+l = plot(lowerBand, color=color.rgb(217, 220, 223, 84), title="ATR Lower Band")
+fill(u, l, color=#471eb821, title="ATR Background")
+
+// Conditions for plotting arrows
+upArrowCondition = ma1 > ma2 and crossover(close, ma1)
+downArrowCondition = ma1 < ma2 and crossunder(close, ma1)
+
+// Plotting arrows
+plotshape(upArrowCondition, style=shape.arrowup, color=color.rgb(66, 45, 255), size=size.normal, location=location.belowbar, title="Up Arrow")
+plotshape(downArrowCondition, style=shape.arrowdown, color=color.red, size=size.normal, location=location.abovebar, title="Down Arrow")
+// Checkbox for trade execution
+showTrades = input(true, title="Hiển thị giao dịch")
+
+// Buy Condition
+if (upArrowCondition and showTrades)
+    strategy.entry("Buy", strategy.long)
+
+// Sell Condition
+if (downArrowCondition and showTrades)
+    strategy.entry("Sell", strategy.short)
+
+// Stop Loss and Take Profit
+stopLossBuy = low - atr(14) * atrMultiplier
+takeProfitBuy = close + (close - stopLossBuy) * 2
+
+stopLossSell = high + atr(14) * atrMultiplier
+takeProfitSell = close - (stopLossSell - close) * 2
+
+strategy.exit("Exit Buy", "Buy", stop=stopLossBuy, limit=takeProfitBuy)
+strategy.exit("Exit Sell", "Sell", stop=stopLossSell, limit=takeProfitSell)
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/446764
+
+> Last Modified
+
+2024-04-01 11:58:55

@@ -1,0 +1,12 @@
+//@version=4
+// set05 corpus entry
+// source_repo: thanhnguyennguyen-tradingview-pine-scripts
+// source_path: thanhnguyennguyen-tradingview-pine-scripts/scripts/obv.pine
+// content_hash: 89f0ef1fb8e7a8a9
+// collected: 2026-07-27
+study(title="On Balance Volume", shorttitle="OBV", overlay=false)
+
+col = close > open ? color.lime : color.red
+plot(obv, color=col, title="OBV")
+
+

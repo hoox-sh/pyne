@@ -1,0 +1,43 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于布林带的智能追踪交易策略Bollinger-Bands-Based-Intelligent-Tracking-Trading-Strategy.md
+// content_hash: 74bb94de348fbfb1
+// collected: 2026-07-27
+strategy("Bollinger Bands Strategy with alerts (incl. pending orders) via TradingConnector to Forex", overlay=true)
+source = close
+length = input.int(20, minval=1)
+mult = input.float(2.0, minval=0.001, maxval=50)
+basis = ta.sma(source, length)
+dev = mult * ta.stdev(source, length)
+upper = basis + dev
+lower = basis - dev
+buyEntry = ta.crossover(source, lower)
+sellEntry = ta.crossunder(source, upper)
+if (ta.crossover(source, lower))
+	strategy.entry("BBandLE", strategy.long, stop=lower, oca_name="BollingerBands", comment="BBandLE")
+    alert(message='long price='+str.tostring(lower), freq=alert.freq_once_per_bar_close)
+else
+	strategy.cancel(id="BBandLE")
+    alert(message='cancel long', freq=alert.freq_once_per_bar_close)
+if (ta.crossunder(source, upper))
+	strategy.entry("BBandSE", strategy.short, stop=upper, oca_name="BollingerBands", comment="BBandSE")
+    alert(message='short price='+str.tostring(upper), freq=alert.freq_once_per_bar_close)
+else
+	strategy.cancel(id="BBandSE")
+    alert(message='cancel short', freq=alert.freq_once_per_bar_close)
+//plot(strategy.equity, title="equity", color=color.red, linewidth=2, style=plot.style_areabr)
+
+//Lines of code added to the original built-in script: 14, 17, 20 and 23 only.
+//They trigger alerts ready to be executed on real markets through TradingConnector
+//available for Forex, indices, crypto, stocks - anything your broker offers for trading via MetaTrader4/5
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/439066
+
+> Last Modified
+
+2024-01-17 14:05:36

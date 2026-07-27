@@ -1,0 +1,85 @@
+//@version=3
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于移动快慢均线交叉策略Moving-Average-Crossover-Strategy.md
+// content_hash: 62d6a6e447628b78
+// collected: 2026-07-27
+// Simple yet effective MA cross strategy.
+// You'll have to tune the parameters to get an optimal win ratio.
+// If JPY or XAU or any other currency with pips defined as the 
+// second decimal digit are involved, do not forget to set the respective flag on.
+//
+// Created by vitelot/yanez/Vts, who's the same fellow with different user names
+// December 2018 -- Merry Xmas
+//
+strategy("MA cross strategy Vts", overlay=true, initial_capital=1000, currency="EUR", pyramiding=0)
+
+yr  = input(2016, title="Starting year to analyse")
+src = input(close, title="Source")
+maType = input( defval="EMA", title="MA Type", options=["SMA","EMA","HMA","McG","WMA"])
+//
+isJPY = input(false, title="Is JPY or XAU involved?") // JPY and Gold have the pips defined as the 2 decimal digit
+
+maPar1 = input(26, minval=1, title="MA fast period")
+maPar2 = input(51, minval=2, title="MA slow period")
+
+atrPar = input(14,minval=1, title="ATR period")
+atrMulSL = input(1.5, title="SL ATR multiplicator")
+atrMulTP = input(1.0, title="TP ATR multiplicator")
+
+hma(sig, n) => // Hull moving average definition
+    wma( 2*wma(sig,round(n/2))-wma(sig,n), round(sqrt(n)))
+
+mcg(sig,length) => // Mc Ginley MA definition
+    mg = 0.0
+    mg := na(mg[1]) ? ema(sig, length) : mg[1] + (sig - mg[1]) / (length * pow(sig/mg[1], 4))
+
+ma(t,sig,len) =>
+    if t =="SMA"
+        sma(sig,len)
+    else
+        if t == "EMA"
+            ema(sig,len)
+        else
+            if t == "HMA"
+                hma(sig,len)
+            else
+                if t == "McG" // Mc Ginley
+                    mcg(sig,len)
+                else
+                    wma(sig,len)
+                    
+        
+sig1 = ma(maType, src, maPar1)
+sig2 = ma(maType, src, maPar2)
+
+tickFactor = isJPY? 1e3: 1e5
+sl = atrMulSL*atr(atrPar)*tickFactor
+tp = atrMulTP*atr(atrPar)*tickFactor
+
+plot(sig1, color=aqua, title="MA1", linewidth=2)
+plot(sig2, color=orange, title="MA2", linewidth=2)
+
+longCondition = crossunder(sig2, sig1) and year>=yr // change the >= to == if you like exact years not a range
+if (longCondition)
+    strategy.entry("Long", strategy.long, qty=1) // exit trade when SL and TP are hit
+    strategy.exit("Exit Long", "Long", loss=sl, profit=tp)
+if (crossunder(sig1, sig2)) // or when the short condition is met
+    strategy.close("Long")
+
+shortCondition = crossover(sig2,sig1) and year>=yr // change the >= to == if you like exact years not a range
+if (shortCondition)
+    strategy.entry("Short", strategy.short, qty=1)
+    strategy.exit("Exit Short", "Short", loss=sl, profit=tp)
+if (crossover(sig1,sig2))
+    strategy.close("Short")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/432913
+
+> Last Modified
+
+2023-11-22 16:38:26

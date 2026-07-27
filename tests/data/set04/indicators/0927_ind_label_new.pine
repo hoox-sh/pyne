@@ -1,0 +1,12 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block125
+// content_hash: 6f874f09dc7a5e82
+// collected: 2026-07-27
+indicator("label.new")
+var label1 = label.new(bar_index, low, text="Hello, world!", style=label.style_circle)
+label.set_x(label1, 0)
+label.set_xloc(label1, time, xloc.bar_time)
+label.set_color(label1, color.red)
+label.set_size(label1, size.large)

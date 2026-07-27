@@ -1,0 +1,74 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动量指标与SuperTrend组合交易策略Momentum-and-SuperTrend-Combination-Trading-Strategy.md
+// content_hash: 7a8a4a58e6f5ffa9
+// collected: 2026-07-27
+strategy("Momentum + SuperTrend Strategy", overlay=true)
+
+// Momentum Strategy
+length = input(12)
+price = close
+momentum(seria, length) =>
+    mom = seria - seria[length]
+    mom
+mom0 = momentum(price, length)
+mom1 = momentum(mom0, 1)
+momLongCondition = mom0 > 0 and mom1 > 0
+momShortCondition = mom0 < 0 and mom1 < 0
+
+// SuperTrend Strategy
+Periods = input(10)
+Multiplier = input(3.0)
+changeATR = input(true)
+src = input(hl2)
+atr2 = sma(tr, Periods)
+atr = changeATR ? atr(Periods) : atr2
+up = src - (Multiplier * atr)
+up1 = nz(up[1], up)
+up := close[1] > up1 ? max(up, up1) : up
+dn = src + (Multiplier * atr)
+dn1 = nz(dn[1], dn)
+dn := close[1] < dn1 ? min(dn, dn1) : dn
+trend = 1
+trend := nz(trend[1], trend)
+trend := trend == -1 and close > dn1 ? 1 : trend == 1 and close < up1 ? -1 : trend
+buySignal = trend == 1 and trend[1] == -1
+sellSignal = trend == -1 and trend[1] == 1
+
+// Combined Entry Conditions
+longCondition = momLongCondition and buySignal
+shortCondition = momShortCondition and sellSignal
+
+// Strategy Entries
+if (longCondition)
+    strategy.entry("MomLE", strategy.long, stop=high+syminfo.mintick, comment="MomLE")
+else
+    strategy.cancel("MomLE")
+
+if (shortCondition)
+    strategy.entry("MomSE", strategy.short, stop=low-syminfo.mintick, comment="MomSE")
+else
+    strategy.cancel("MomSE")
+
+// Plot SuperTrend on the chart
+upPlot = plot(trend == 1 ? up : na, title="SuperTrend Up", color=color.green, linewidth=2)
+dnPlot = plot(trend == -1 ? dn : na, title="SuperTrend Down", color=color.red, linewidth=2)
+
+// Highlight the SuperTrend region
+fill(upPlot, dnPlot, color = trend == 1 ? color.new(color.green, 90) : color.new(color.red, 90), title="SuperTrend Highlight")
+
+// Plot SuperTrend Buy/Sell signals on the chart
+plotshape(series=buySignal, title="SuperTrend Buy Signal", color=color.green, style=shape.triangleup, size=size.small)
+plotshape(series=sellSignal, title="SuperTrend Sell Signal", color=color.red, style=shape.triangledown, size=size.small)
+// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © naveen1119
+```
+
+> Detail
+
+https://www.fmz.com/strategy/436782
+
+> Last Modified
+
+2023-12-27 16:37:58

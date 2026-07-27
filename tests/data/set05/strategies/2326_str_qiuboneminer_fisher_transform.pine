@@ -1,0 +1,59 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/Fisher变换动态阈值趋势跟踪策略-Fisher-Transform-Dynamic-Threshold-Trend-Following-Strategy.md
+// content_hash: 5d0e5e2d22fd629c
+// collected: 2026-07-27
+strategy("Qiuboneminer -  Fisher Transform", overlay=true)
+
+// Parámetros
+Len = input.int(10, minval=1)
+mult1 = input.int(1, minval=1)
+threshold = 2.6
+
+// Función Fisher Transform
+fish(Length, timeMultiplier) =>
+    var float nValue1 = na
+    var float nFish = na
+    xHL2 = hl2
+    xMaxH = ta.highest(xHL2, Length * timeMultiplier)
+    xMinL = ta.lowest(xHL2, Length * timeMultiplier)
+    nValue1 := 0.33 * 2 * ((xHL2 - xMinL) / (xMaxH - xMinL) - 0.5) + 0.67 * nz(nValue1[1])
+    nValue2 = if nValue1 > 0.99
+        0.999
+    else if nValue1 < -0.99
+        -0.999
+    else
+        nValue1
+    nFish := 0.5 * math.log((1 + nValue2) / (1 - nValue2)) + 0.5 * nz(nFish[1])
+    nFish
+
+// Cálculo del Fisher Transform para mult1
+Fisher1 = fish(Len, mult1)
+
+// Condiciones de entrada y salida
+longCondition = Fisher1 > nz(Fisher1[1]) and nz(Fisher1[1]) <= nz(Fisher1[2]) and Fisher1 < -threshold
+shortCondition = Fisher1 < nz(Fisher1[1]) and nz(Fisher1[1]) >= nz(Fisher1[2]) and Fisher1 > threshold
+
+// Estrategia de entrada
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+if (shortCondition)
+    strategy.entry("Short", strategy.short)
+
+// Ploteo del Fisher Transform
+plot(Fisher1, color=(Fisher1 > nz(Fisher1[1]) ? color.rgb(34, 255, 0) : color.rgb(255, 0, 212)), title="Fisher TF:1")
+
+// Ploteo de líneas de umbral
+hline(threshold, "Umbral Superior", color=color.rgb(255, 0, 0), linestyle=hline.style_dotted)
+hline(-threshold, "Umbral Inferior", color=#008704, linestyle=hline.style_dotted)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/454341
+
+> Last Modified
+
+2024-06-17 15:01:19

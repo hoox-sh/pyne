@@ -1,0 +1,81 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/EMA均线交叉策略EMA-Crossover-Strategy.md
+// content_hash: c2c7e082bbe1bf8f
+// collected: 2026-07-27
+strategy(
+     "EMA Cross Strategy with Custom Buy/Sell Conditions",
+     overlay=true
+     )
+
+// INPUT:
+
+// Options to enter fast Exponential Moving Average (EMA) value
+emaFast = 1
+
+// Options to enter slow EMAs for buy and sell signals
+slowEMABuy = input(title="Slow EMA for Buy Signals",  defval=20, minval=1, maxval=9999)
+slowEMASell = input(title="Slow EMA for Sell Signals",  defval=30, minval=1, maxval=9999)
+
+// Option to select trade directions
+tradeDirection = input(title="Trade Direction", options=["Long", "Short", "Both"], defval="Both")
+
+// Options that configure the backtest date range
+startDate = input(title="Start Date", type=input.time, defval=timestamp("01 Jan 2018 00:00"))
+endDate = input(title="End Date", type=input.time, defval=timestamp("31 Dec 2025 23:59"))
+
+
+// CALCULATIONS:
+
+// Use a fixed fast EMA of 1 and calculate slow EMAs for buy and sell signals
+fastEMA = ema(close, emaFast)
+slowEMABuyValue = ema(close, slowEMABuy)
+slowEMASellValue = ema(close, slowEMASell)
+
+
+// PLOT:
+
+// Draw the EMA lines on the chart
+plot(series=fastEMA, color=color.orange, linewidth=2)
+plot(series=slowEMABuyValue, color=color.blue, linewidth=2, title="Slow EMA for Buy Signals")
+plot(series=slowEMASellValue, color=color.red, linewidth=2, title="Slow EMA for Sell Signals")
+
+
+// CONDITIONS:
+
+// Check if the close time of the current bar falls inside the date range
+inDateRange = true
+
+// Translate input into trading conditions for buy and sell signals
+buyCondition = crossunder(slowEMABuyValue, fastEMA)
+sellCondition = crossover(slowEMASellValue, fastEMA)
+
+// Translate input into overall trading conditions
+longOK  = (tradeDirection == "Long") or (tradeDirection == "Both")
+shortOK = (tradeDirection == "Short") or (tradeDirection == "Both")
+
+
+// ORDERS:
+
+// Submit entry (or reverse) orders based on buy and sell conditions
+if (buyCondition and inDateRange)
+    strategy.entry("Buy", strategy.long)
+
+if (sellCondition and inDateRange)
+    strategy.close("Buy")
+
+// Submit exit orders based on opposite trade conditions
+if (strategy.position_size > 0 and sellCondition)
+    strategy.close("Sell")
+if (strategy.position_size < 0 and buyCondition)
+    strategy.close("Sell")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/431678
+
+> Last Modified
+
+2023-11-10 15:05:22

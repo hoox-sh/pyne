@@ -1,0 +1,57 @@
+//@version=5
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/Swing Stock designed for Monthly-Yearly Trading.pine
+// content_hash: 2322be07219e1e34
+// collected: 2026-07-27
+strategy(title="World Indicators Testing", overlay=true, calc_on_every_tick=true )
+// Personal Consumption Expenditures
+// FRED/PCE
+// Real Retail and Food Services Sales
+// FRED/RRSFS
+// Leading Index for the United States
+// FRED/USSLIND
+// All Employees: Total Nonfarm Payrolls
+// FRED/PAYEMS
+// Real Gross Domestic Product
+// FRED/GDPC1
+// Gross Domestic Product
+// FRED/GDP
+pce= request.quandl('FRED/PCE', barmerge.gaps_off,0)
+long_pce = pce>pce[1]
+short_pce =pce<pce[1]
+rrfss=request.quandl('FRED/RRSFS', barmerge.gaps_off,0)
+long_rrfss = rrfss>rrfss[1]
+short_rrfss = rrfss<rrfss[1]
+li=request.quandl('FRED/USSLIND', barmerge.gaps_off,0)
+long_li = li>0
+short_li = li<0
+ae=request.quandl('FRED/PAYEMS', barmerge.gaps_off,0)
+long_ae= ae>ae[1]
+short_ae = ae<ae[1]
+rgdp=request.quandl('FRED/GDPC1', barmerge.gaps_off,0)
+long_rgdp = rgdp>rgdp[1]
+short_rgdp = rgdp<rgdp[1]
+gdp=request.quandl('FRED/GDP', barmerge.gaps_off,0)
+long_gdp=gdp>gdp[1]
+short_gdp=gdp<gdp[1]
+long=  long_rgdp or long_gdp //or long_rrfss
+short = short_gdp or short_rgdp// or short_rrfss
+fromDay = input.int(defval=1, title='From Day', minval=1, maxval=31, group="Time Condition")
+fromMonth = input.int(defval=1, title='From Month', minval=1, maxval=12, group="Time Condition")
+fromYear = input.int(defval=2000, title='From Year', minval=1970, group="Time Condition")
+//monday and session 
+// To Date Inputs
+toDay = input.int(defval=31, title='To Day', minval=1, maxval=31, group="Time Condition")
+toMonth = input.int(defval=12, title='To Month', minval=1, maxval=12, group="Time Condition")
+toYear = input.int(defval=2025, title='To Year', minval=1970, group="Time Condition")
+startDate = timestamp(fromYear, fromMonth, fromDay, 00, 00)
+finishDate = timestamp(toYear, toMonth, toDay, 00, 00)
+time_cond = time >= startDate and time <= finishDate
+if(time_cond)
+    strategy.entry("long",strategy.long,when=long )
+    strategy.entry('short',strategy.short,when=short)
+if(not time_cond)
+    strategy.close_all()
+ 
+Expand (77 lines)

@@ -1,0 +1,62 @@
+//@version=3
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/计算RSI指标和平滑移动平均线反转策略RSI-Reversal-Strategy.md
+// content_hash: 9a7551ec5db93e5a
+// collected: 2026-07-27
+strategy(title="RSI Reverse", shorttitle="RSI Reverse")
+
+
+RSI_main = input(14, title="RSI Main Period")
+RSI_smooth = input(5, title="RSI Smooth Period")
+
+//Functions
+RVS(input) => (exp(2*input)-1) / (exp(2*input)+1)
+
+//RSI Calculation
+raw_RSI=0.1*(rsi(close,RSI_main)-50)
+wma_RSI=wma(raw_RSI,RSI_smooth)
+RVS_RSI = RVS(wma_RSI)
+
+
+threshold1 = RVS_RSI < 0.8? 1 : 0
+threshold2 = -0.8
+
+
+plot(RVS_RSI,color=red)
+plot(threshold1,color=blue)
+plot(threshold2,color=blue)
+
+buycon = crossover(RVS_RSI,threshold2)
+sellcon = crossunder(RVS_RSI , threshold1)
+
+monthfrom =input(6)
+monthuntil =input(12)
+dayfrom=input(1)
+dayuntil=input(31)
+
+
+if (  buycon  ) 
+    strategy.entry("BUY", strategy.long, stop=close, oca_name="TREND", comment="BUY")
+    
+else
+    strategy.cancel(id="BUY")
+
+
+if ( sellcon) 
+
+    strategy.close("BUY")
+    
+
+
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/439347
+
+> Last Modified
+
+2024-01-19 14:24:09

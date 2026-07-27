@@ -1,0 +1,50 @@
+//@version=3
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/Ichimoku云带动量均线交叉策略Ichimoku-Cloud-with-Dual-Moving-Average-Crossover-Strategy.md
+// content_hash: 43d126c84a46ef05
+// collected: 2026-07-27
+strategy("13/21 EMA + Ichimoku Kinko Hyo Strategy", shorttitle="EMI", overlay=true, default_qty_type=strategy.percent_of_equity, max_bars_back=1000, default_qty_value=100, calc_on_order_fills= true, calc_on_every_tick=true, pyramiding=0)
+
+TenkanSenPeriods = input(9, minval=1, title="Tenkan Sen Periods")
+KijunSenPeriods = input(26, minval=1, title="Kijun Sen Periods")
+SenkouSpanBPeriods = input(52, minval=1, title="Senkou Span B Periods")
+displacement = input(26, minval=1, title="Displacement")
+donchian(len) => avg(lowest(len), highest(len))
+TenkanSen = donchian(TenkanSenPeriods)
+KijunSen = donchian(KijunSenPeriods)
+SenkouSpanA = avg(TenkanSen, KijunSen)
+SenkouSpanB = donchian(SenkouSpanBPeriods)
+ChikouSpan = close[displacement-1]
+
+Sema = ema(close, 13)
+Mema = ema(close, 21)
+Lema = ema(close, 89)
+XLema = ema(close, 233)
+
+plot(Sema, color=blue, title="13 EMA", linewidth = 2)
+plot(Mema, color=fuchsia, title="21 EMA", linewidth = 1)
+plot(Lema, color=orange, title="89 EMA", linewidth = 2)
+plot(XLema, color=teal, title="233 EMA", linewidth = 2)
+plot(KijunSen, color=maroon, title="Kijun Sen", linewidth = 3)
+plot(close, offset = -displacement, color=lime, title="Chikou Span", linewidth = 2)
+sa=plot (SenkouSpanA, offset = displacement, color=green,  title="Senkou Span A", linewidth = 1)
+sb=plot (SenkouSpanB, offset = displacement, color=red,  title="Senkou Span B", linewidth = 3)
+fill(sa, sb, color = SenkouSpanA > SenkouSpanB ? green : red)
+
+longCondition = close>ChikouSpan and Sema>KijunSen and Sema>Mema and SenkouSpanA>SenkouSpanB
+strategy.entry("Long",strategy.long,when = longCondition)
+strategy.close("Long", when = (close<KijunSen and close<ChikouSpan and Sema<Mema))
+
+shortCondition = close<ChikouSpan and Sema<KijunSen and Sema<Mema and SenkouSpanA<SenkouSpanB
+strategy.entry("Short",strategy.short, when = shortCondition)
+strategy.close("Short", when = (close>KijunSen and close>ChikouSpan and Sema>Mema))
+```
+
+> Detail
+
+https://www.fmz.com/strategy/436651
+
+> Last Modified
+
+2023-12-26 16:10:24

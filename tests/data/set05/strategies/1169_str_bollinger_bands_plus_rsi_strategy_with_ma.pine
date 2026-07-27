@@ -1,0 +1,95 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/布林带RSI多均线趋势策略-Bollinger-Bands-RSI-Multi-MA-Trend-Strategy.md
+// content_hash: 6bf0709ad1206aca
+// collected: 2026-07-27
+strategy("Bollinger Bands + RSI Strategy with MA", overlay=true)
+
+// Bollinger Bands
+length = input.int(20, title="BB Length")
+mult = input.float(2.0, title="BB Mult")
+basis = ta.sma(close, length)
+dev = mult * ta.stdev(close, length)
+upper_band = basis + dev
+lower_band = basis - dev
+
+// RSI
+rsi_length = input.int(14, title="RSI Length")
+rsi_oversold = input.int(30, title="RSI Oversold", minval=0, maxval=100)
+rsi_overbought = input.int(70, title="RSI Overbought", minval=0, maxval=100)
+rsi = ta.rsi(close, rsi_length)
+
+// RSI Divergence
+rsi_divergence_bottom = ta.crossunder(rsi, rsi_oversold)
+rsi_divergence_peak = ta.crossunder(rsi_overbought, rsi)
+
+// Moving Averages
+ma34 = ta.sma(close, 34)
+ma89 = ta.sma(close, 89)
+ma144 = ta.sma(close, 144)
+ma233 = ta.sma(close, 233)
+ma377 = ta.sma(close, 377)
+ma610 = ta.sma(close, 610)
+
+// MACD Calculation
+[macd_line, signal_line, _] = ta.macd(close, 12, 26, 9)
+macd_histogram = macd_line - signal_line
+
+// MACD Divergence
+macd_divergence_bottom = ta.crossunder(macd_histogram, 0)
+macd_divergence_peak = ta.crossover(macd_histogram, 0)
+
+// Conditions for Buy and Sell
+basis_gt_ma34 = basis > ma34
+ma34_gt_ma89 = ma34 > ma89
+
+// Entry condition
+buy_condition = basis_gt_ma34 and ma34_gt_ma89 
+sell_condition =  basis <ma34
+
+// Calculate position size
+position_size = 1.0  // 100% capital initially
+
+// Update position size based on conditions
+if (sell_condition)
+    position_size := 0.5  // Sell half of the position
+if (not basis_gt_ma34)
+    position_size := 0.0  // Sell all if basis < ma34
+
+// Entry and exit strategy
+if (buy_condition)
+    strategy.entry("Buy", strategy.long, qty=position_size)
+if (sell_condition)
+    strategy.close("Buy")
+
+// Plot Bollinger Bands and Moving Averages
+bb_fill_color = basis > basis[1] ? color.new(color.blue, 90) : color.new(color.blue, 10)
+plot(basis, color=color.blue, title="Basis")
+plot(upper_band, color=color.red, title="Upper Band")
+plot(lower_band, color=color.green, title="Lower Band")
+fill(plot1=plot(upper_band), plot2=plot(lower_band), color=bb_fill_color, title="BB Fill")
+plot(ma34, color=color.orange, title="MA34")
+plot(ma89, color=color.purple, title="MA89")
+plot(ma144, color=color.gray, title="MA144")
+plot(ma233, color=color.blue, title="MA233")
+plot(ma377, color=color.red, title="MA377")
+plot(ma610, color=color.green, title="MA610")
+
+// Plot RSI Divergence
+plotshape(series=rsi_divergence_bottom, style=shape.triangleup, location=location.abovebar, color=color.green, size=size.small)
+plotshape(series=rsi_divergence_peak, style=shape.triangledown, location=location.belowbar, color=color.red, size=size.small)
+
+// Plot MACD Histogram Divergence
+plotshape(series=macd_divergence_bottom, style=shape.triangleup, location=location.belowbar, color=color.green, size=size.small)
+plotshape(series=macd_divergence_peak, style=shape.triangledown, location=location.abovebar, color=color.red, size=size.small)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/452615
+
+> Last Modified
+
+2024-05-27 15:20:40

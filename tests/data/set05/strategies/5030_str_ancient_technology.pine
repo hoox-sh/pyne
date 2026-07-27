@@ -1,0 +1,66 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/布林带海克隆阿什短线策略Bollinger-Bands-Heiken-Ashi-Short-term-Trading-Strategy.md
+// content_hash: 506c16a8d3c38f1e
+// collected: 2026-07-27
+strategy("ANCIENT TECHNOLOGY", overlay=true)
+
+// Input for the number of consecutive candles
+consecutiveCandles = input(1, title="Number of Consecutive Candles", minval=1, maxval=6)
+
+// Bollinger Band parameters
+lengthBB = input(4, title="Bollinger Band Length")
+multBB = input(20, title="Bollinger Band Multiplier")
+volatilityThreshold = input(0.2, title="Volatility Threshold")
+
+// Calculate Bollinger Bands
+basisBB = sma(close, lengthBB)
+devBB = multBB * stdev(close, lengthBB)
+upperBB = basisBB + devBB
+lowerBB = basisBB - devBB
+bandWidth = upperBB - lowerBB
+
+// Initialize Heiken Ashi variables
+var float haOpen = na
+var float haClose = na
+
+// Update Heiken Ashi calculations
+if (na(haOpen))
+    haOpen := (open + close) / 2
+else
+    haOpen := (haOpen + haClose) / 2
+haClose := (open + high + low + close) / 4
+
+// Function to check for consecutive green or red Heiken Ashi candles
+f_consecutive(dir, len) =>
+    count = 0
+    for i = 0 to len - 1
+        if (dir == "green" and haClose[i] > haOpen[i]) or (dir == "red" and haClose[i] < haOpen[i])
+            count := count + 1
+    count == len
+
+// Trading conditions based on Heiken Ashi and Bollinger Band width
+longCondition = f_consecutive("green", consecutiveCandles) and bandWidth > volatilityThreshold
+shortCondition = f_consecutive("red", consecutiveCandles) and bandWidth > volatilityThreshold
+
+// Trading logic
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+
+if (shortCondition)
+    strategy.entry("Short", strategy.short)
+
+// Plot entry signals on the chart for visualization
+plotshape(series=longCondition, title="Long Signal", location=location.belowbar, color=color.green, style=shape.labelup, text="BUY")
+plotshape(series=shortCondition, title="Short Signal", location=location.abovebar, color=color.red, style=shape.labeldown, text="SELL")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/436772
+
+> Last Modified
+
+2023-12-27 15:52:08

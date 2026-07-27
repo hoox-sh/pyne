@@ -1,0 +1,48 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/移动平均线的趋势跟踪策略trend-following-strategy-based-on-moving-averages.md
+// content_hash: 5336135b023c9677
+// collected: 2026-07-27
+strategy("Simple Moving Average Crossover", overlay=true)
+
+// Input parameters
+fast_length = input(10, title="Fast MA Length")
+slow_length = input(50, title="Slow MA Length")
+stop_loss_pct = input(1, title="Stop Loss Percentage", minval=0, maxval=5) / 100
+
+// Calculate moving averages
+fast_ma = sma(close, fast_length)
+slow_ma = sma(close, slow_length)
+
+// Plot moving averages
+plot(fast_ma, color=color.blue, title="Fast MA")
+plot(slow_ma, color=color.red, title="Slow MA")
+
+// Strategy logic
+long_condition = crossover(fast_ma, slow_ma)
+short_condition = crossunder(fast_ma, slow_ma)
+
+// Execute trades
+if (long_condition)
+    strategy.entry("Long", strategy.long)
+
+if (short_condition)
+    strategy.entry("Short", strategy.short)
+
+// Set stop loss
+long_stop_price = close * (1 - stop_loss_pct)
+short_stop_price = close * (1 + stop_loss_pct)
+
+strategy.exit("Stop Loss/Profit", from_entry="Long", stop=long_stop_price)
+strategy.exit("Stop Loss/Profit", from_entry="Short", stop=short_stop_price)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/430658
+
+> Last Modified
+
+2023-10-31 14:00:47

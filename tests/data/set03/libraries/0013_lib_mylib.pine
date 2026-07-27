@@ -1,0 +1,11 @@
+// set03 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/.claude/skills/pine-developer/SKILL.md::SKILL.md#block10
+// content_hash: c8e7d344e73e4bb0
+// collected: 2026-07-27
+// In library:
+//@version=6
+library("MyLib")
+export const float PI = 3.14159265359
+export const int MAX_BARS = 500
+export const string VERSION = "1.0.0"

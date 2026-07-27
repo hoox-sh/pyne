@@ -1,0 +1,14 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block10
+// content_hash: c6ca71ecd8d0d5c4
+// collected: 2026-07-27
+strategy("`session.islastbar_regular` Example", overlay = true)
+longCondition = year >= 2022
+// Place a long order at the `close` of the trading session's first bar.
+if session.isfirstbar and longCondition
+    strategy.entry("Long", strategy.long)
+// Close the long position at the `close` of the trading session's last bar.
+if session.islastbar_regular and barstate.isconfirmed
+    strategy.close("Long", immediately = true)

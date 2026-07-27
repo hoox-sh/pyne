@@ -1,0 +1,15 @@
+//@version=5
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/v5/concepts/time.md::time.md#block26
+// content_hash: cefb7ca29aeeb19a
+// collected: 2026-07-27
+indicator("Testing session time zones demo", overlay = true)
+
+//@variable The timeframe of the analyzed bars. 
+string timeframeInput = input.timeframe("60", "Timeframe")
+//@variable The session to check. Features four interval options. 
+string sessionInput = input.session("1300-1700", "Session", ["0000-0400", "0930-1400", "1300-1700", "1700-2100"])
+//@variable An IANA identifier representing the time zone of the `sessionInput`. Fetures four preset options. 
+string timezoneInput = input.string("America/New_York", "Time zone", 
+     ["America/Vancouver", "America/New_York", "Asia/Dubai", "Australia/Sydney"]

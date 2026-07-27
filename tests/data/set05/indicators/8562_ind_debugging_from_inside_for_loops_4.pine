@@ -1,0 +1,15 @@
+//@version=4
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/v4/debugging.md::debugging.md#block13
+// content_hash: 51306610fb947127
+// collected: 2026-07-27
+study("Debugging from inside `for` loops")
+i_lookBack = input(20, minval = 0)
+
+float trBalance = 0
+for _i = 1 to i_lookBack
+    trBalance := trBalance + sign(tr - tr[_i])
+
+hline(0)
+plot(trBalance)

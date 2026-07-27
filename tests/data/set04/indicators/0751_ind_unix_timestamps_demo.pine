@@ -1,0 +1,20 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/concepts/time.md::time.md#block1
+// content_hash: f307792198aad7d7
+// collected: 2026-07-27
+indicator("UNIX timestamps demo")
+
+//@variable A UNIX time value representing the specific point 1,723,472,500,000 ms after the UNIX Epoch. 
+int unixTimestamp = 1723472500000
+
+// These are a few different ways to express the `unixTimestamp` in a relative, human-readable format.
+// Despite their format and time zone differences, all the calculated strings represent the SAME distinct point: 
+string isoExchange  = str.format_time(unixTimestamp)
+string utcDateTime  = str.format_time(unixTimestamp, "MM/dd/yyyy HH:mm:ss.S", "UTC+0")
+string utc4TimeDate = str.format_time(unixTimestamp, "hh:mm:ss a, MMMM dd, yyyy z", "UTC+4")
+
+// Log the `unixTimestamp` and the custom "string" representations on the first bar.
+if barstate.isfirst
+    log.info(

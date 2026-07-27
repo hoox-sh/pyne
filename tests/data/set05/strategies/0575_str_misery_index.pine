@@ -1,0 +1,18 @@
+//@version=5
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/Misery index strategy.pine
+// content_hash: fc30da30b3c1e7f2
+// collected: 2026-07-27
+strategy("Misery index", overlay=false)
+unemployment = request.security("FRED:UNRATE","M",close) 
+inflation = request.security("ECONOMICS:USIRYY","M",close)
+misery = unemployment+inflation
+plot(misery)
+longCondition = misery<misery[1]
+if (longCondition)
+    strategy.entry("My Long Entry Id", strategy.long)
+shortCondition = misery>misery[1]
+if (shortCondition)
+    strategy.entry("My Short Entry Id", strategy.short)
+Expand (16 lines)

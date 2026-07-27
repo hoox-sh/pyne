@@ -1,0 +1,93 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于布林带和分形突破的动态转折点策略-Dynamic-Reversal-Point-Strategy-Based-on-Bollinger-Bands-and-Fractal-Breakouts.md
+// content_hash: 0eb7495587b3e0d6
+// collected: 2026-07-27
+strategy("Breakdown and Breakup Strategy", overlay=true)
+
+// Bollinger Bands settings
+length = input.int(20, title="Bollinger Bands Length")
+src = close
+mult = input.float(2.0, title="Bollinger Bands Multiplier")
+
+// Calculate Bollinger Bands
+basis = ta.sma(src, length)
+dev = mult * ta.stdev(src, length)
+upper = basis + dev
+lower = basis - dev
+
+plot(upper, color=color.red, linewidth=1)
+plot(lower, color=color.red, linewidth=1)
+plot(basis, color=color.blue, linewidth=1)
+
+// Fractals identification
+isBullishFractal = ta.highest(high, 5)[2] == high[2] and high[2] > high[1] and high[2] > high[3]
+isBearishFractal = ta.lowest(low, 5)[2] == low[2] and low[2] < low[1] and low[2] < low[3]
+
+// Variables to store the latest fractal values
+var float latestBullishFractal = na
+var float latestBearishFractal = na
+
+if (isBullishFractal)
+    latestBullishFractal := high[2]
+    
+if (isBearishFractal)
+    latestBearishFractal := low[2]
+
+// Conditions
+breakdownCondition = close < lower
+breakupCondition = close > latestBullishFractal
+breakupUpperCondition = close > upper
+breakdownBearishCondition = close < latestBearishFractal
+
+// Variables to track state
+var bool breakdownOccurred = false
+var bool breakupUpperOccurred = false
+
+// Signals
+var bool plotBreakupSignal = false
+var bool plotBreakdownSignal = false
+
+// Logic for breakdown and breakup above bullish fractal
+if (breakdownCondition)
+    breakdownOccurred := true
+
+if (breakdownOccurred and breakupCondition)
+    plotBreakupSignal := true
+    breakdownOccurred := false
+
+// Logic for breakup and breakdown below bearish fractal
+if (breakupUpperCondition)
+    breakupUpperOccurred := true
+
+if (breakupUpperOccurred and breakdownBearishCondition)
+    plotBreakdownSignal := true
+    breakupUpperOccurred := false
+
+// Plot signals as icons
+plotshape(series=plotBreakupSignal, location=location.abovebar, color=color.green, style=shape.triangleup, title="Breakup", size=size.small)
+plotshape(series=plotBreakdownSignal, location=location.belowbar, color=color.red, style=shape.triangledown, title="Breakdown", size=size.small)
+
+// Plotting fractals for reference
+plotshape(series=isBullishFractal, location=location.abovebar, color=color.green, style=shape.triangleup, title="Bullish Fractal", offset=-2)
+plotshape(series=isBearishFractal, location=location.belowbar, color=color.red, style=shape.triangledown, title="Bearish Fractal", offset=-2)
+
+// Reset signals
+plotBreakupSignal := false
+plotBreakdownSignal := false
+
+
+if isBullishFractal
+    strategy.entry("Enter Long", strategy.long)
+else if isBearishFractal
+    strategy.entry("Enter Short", strategy.short)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/455357
+
+> Last Modified
+
+2024-06-28 15:06:36

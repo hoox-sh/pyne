@@ -1,0 +1,69 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于线性回归和移动平均线的趋势跟踪交易策略Trend-Following-Regression-Trading-Strategy-Based-on-Linear-Regression-and-Moving-Average.md
+// content_hash: 15c2d14048cc8cc5
+// collected: 2026-07-27
+strategy(title="Regression Trading Strategy", shorttitle="RTS", overlay=true)
+
+// Input parameters
+n = input(14, title="SMA Period")
+stop_loss_percentage = input(2, title="Stop Loss Percentage")
+take_profit_percentage = input(2, title="Take Profit Percentage")
+
+// Calculate the SMA
+sma = sma(close, n)
+
+// Linear regression function
+linear_regression(src, length) =>
+    sumX = 0.0
+    sumY = 0.0
+    sumXY = 0.0
+    sumX2 = 0.0
+    for i = 0 to length - 1
+        sumX := sumX + i
+        sumY := sumY + src[i]
+        sumXY := sumXY + i * src[i]
+        sumX2 := sumX2 + i * i
+    slope = (length * sumXY - sumX * sumY) / (length * sumX2 - sumX * sumX)
+    intercept = (sumY - slope * sumX) / length
+    line = slope * length + intercept
+    line
+
+// Calculate the linear regression
+regression_line = linear_regression(close, n)
+
+// Plot the SMA and regression line
+plot(sma, title="SMA", color=color.blue)
+plot(regression_line, title="Regression Line", color=color.red)
+
+// Trading strategy conditions
+long_condition = crossover(close, sma) and close > regression_line
+short_condition = crossunder(close, sma) and close < regression_line
+
+// Exit conditions
+stop_loss_price = close * (1 - stop_loss_percentage / 100)
+take_profit_price = close * (1 + take_profit_percentage / 100)
+
+// Plot entry and exit points on the chart
+plotshape(series=long_condition, title="Long Entry", location=location.belowbar, color=color.green, style=shape.triangleup, size=size.small)
+plotshape(series=short_condition, title="Short Entry", location=location.abovebar, color=color.red, style=shape.triangledown, size=size.small)
+plotshape(series=crossunder(close, stop_loss_price), title="Stop Loss", location=location.abovebar, color=color.red, style=shape.labeldown, text="SL")
+plotshape(series=crossover(close, take_profit_price), title="Take Profit", location=location.belowbar, color=color.green, style=shape.labelup, text="TP")
+
+// Strategy orders
+strategy.entry("Long", strategy.long, when = long_condition)
+strategy.entry("Short", strategy.short, when = short_condition)
+strategy.exit("Exit", from_entry = "Long", when = crossover(close, stop_loss_price) or crossover(close, take_profit_price))
+strategy.exit("Exit", from_entry = "Short", when = crossunder(close, stop_loss_price) or crossunder(close, take_profit_price))
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/435771
+
+> Last Modified
+
+2023-12-18 17:34:29

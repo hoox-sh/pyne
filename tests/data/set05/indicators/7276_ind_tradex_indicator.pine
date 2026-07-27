@@ -1,0 +1,478 @@
+// set05 corpus entry
+// source_repo: dexcextrade-TradingView-PineScripts
+// source_path: dexcextrade-TradingView-PineScripts/liqiudity indicator main
+// content_hash: 78feb9bed29ab634
+// collected: 2026-07-27
+
+
+//@version=6
+indicator("tradex indicator", "tradex", overlay = true, max_boxes_count = 500, max_labels_count = 20, behind_chart = false)
+
+lookback = input.int(200, "Profile Lookback", group = "Main Settings", tooltip = "Number of chart bars used to build the active profiles, absorption zones, and stored intrabar sample. Higher values make the profiles smoother and more historically anchored, but increase calculation load and make zones less reactive. Lower values make the profiles more responsive to recent activity.")
+intragran = input.int(10, "Bar Granularity", minval = 1, maxval = 100, group = "Main Settings", tooltip = "Controls the lower-timeframe sampling depth. The script requests approximately the chart timeframe divided by this value. Higher values request smaller intrabars for more detail, but may increase runtime load and can require seconds data on very low chart timeframes. Lower values are lighter but less granular.")
+allowSeconds = input.bool(false, "Allow Seconds", group = "Main Settings", tooltip = "Allows the script to request seconds-based lower timeframes when the calculated granularity requires them. Disable this for accounts or symbols where seconds data may cause runtime errors. When disabled, requests are clamped to one minute or the current seconds chart timeframe.")
+
+strengthFilter = input.int(97, "Strength Filter", minval = 0, maxval = 100, group = "Strength Settings", tooltip = "Percentile threshold used to classify strong buying and selling by absolute intrabar volume. A value of 97 means only the top 3% of intrabar volume samples are considered strong. Higher values make strong bars rarer; lower values include more activity as strong.")
+strongOnly = input.bool(false, "Strong Only", group = "Strength Settings", tooltip = "When enabled, the volume profile hides weak buy and weak sell segments and normalizes only strong buying and strong selling. When disabled, the profile displays all four segments: strong buy, weak buy, weak sell, and strong sell.")
+
+profileBins = input.int(35, "Profile Resolution", minval = 2, maxval = 70, group = "Profile Settings", tooltip = "Number of vertical price bins used for the volume, delta, absorption, and heatmap calculations. Higher values create finer price detail but use more boxes and increase visual/object load. Lower values create broader, smoother zones.")
+profileWidth = input.int(100, "Profile Width", minval = 1, maxval = 450, group = "Profile Settings", tooltip = "Maximum horizontal width of the volume and absorption profiles measured in bars. Higher values make the profiles longer and easier to compare. Lower values make the profiles more compact.")
+profileOffset = input.int(120, "Profile Offset", minval = 0, maxval = 550, group = "Profile Settings", tooltip = "Horizontal offset, in bars, between the current bar and the right edge of the volume profile. Higher values push the live profile further into the future/right side of the chart. Lower values keep it closer to price.")
+
+detectValueArea = input.bool(false, "Detect Value Area", group = "Value Area Settings", tooltip = "Enables value-area detection on the active volume and absorption profiles. Value-area bins reduce transparency by 25 points for a brighter appearance. Non-value-area bins are faded by 30 points, and volume-profile segments outside the value area are flattened to a shared transparency so strong and weak bars have minimal contrast.")
+valueAreaPercent = input.int(30, "Value Area Percent", minval = 1, maxval = 99, group = "Value Area Settings", tooltip = "Target share of active profile volume used to build the value area. The range is 1 to 99. The calculation starts from the highest-volume bin and expands outward to adjacent higher-volume candidates until the target percentage is reached. Default is 30%.")
+
+showVolumeProfile = input.bool(true, "Show Volume Profile", group = "Appearance", tooltip = "Toggles the stacked buy/sell volume profile. This controls the main horizontal profile made of strong buy, weak buy, weak sell, and strong sell segments.")
+showDeltaProfile = input.bool(true, "Show Delta Profile", group = "Appearance", tooltip = "Toggles the delta heatmap next to the volume profile. Delta is calculated per price bin as total buy volume minus total sell volume, with cell text showing the signed delta value.")
+showAbsorptionProfile = input.bool(true, "Show Absorption Profile", group = "Appearance", tooltip = "Toggles the absorption profile next to the delta heatmap. Absorption is calculated from bullish volume in upper wicks and bearish volume in lower wicks, then aggregated by price bin.")
+showLevels = input.bool(true, "Show Levels", group = "Appearance", tooltip = "Toggles absorption-derived support/resistance zones. Zones are drawn when an absorption bin is higher than both neighboring absorption bins, highlighting local absorption peaks across the lookback range.")
+showBubbles = input.bool(false, "Show Bubbles", group = "Appearance", tooltip = "Toggles strong buy/sell bubbles on chart bars. Bubbles are plotted at the price of the strongest qualifying intrabar volume and scale by percentile tier above the Strength Filter.")
+showAbsorptionHeatmap = input.bool(false, "Show Absorption Heatmap", group = "Appearance", tooltip = "Toggles the historical absorption heatmap. Every 5 bars, the script creates a past-5-bar heatmap snapshot from the current absorption profile and leaves it on the chart until TradingView's box limit removes older boxes.")
+green = input.color(#00ffbb, "Bullish Colour", group = "Appearance", tooltip = "Color used for bullish/positive elements, including buy volume, positive delta, and the middle of the absorption heatmap gradient.")
+red = input.color(#ff1100, "Bearish Colour", group = "Appearance", tooltip = "Color used for bearish/negative elements, including sell volume and negative delta.")
+
+absorptionHeatmapColor(norm) =>
+    clippedNorm = math.max(0.0, math.min(1.0, norm))
+    clippedNorm <= 0.5 ? color.from_gradient(clippedNorm, 0.0, 0.5, color.rgb(140, 0, 255), green) : color.from_gradient(clippedNorm, 0.5, 1.0, green, color.rgb(255, 230, 0))
+
+formatDelta(deltaValue) =>
+    sign = deltaValue >= 0 ? "+" : "-"
+    "△" + sign + str.tostring(math.abs(deltaValue), format.volume)
+
+clampTransparency(transparency) =>
+    int(math.max(0, math.min(100, transparency)))
+
+valueAreaTransparency(baseTransparency, inValueArea) =>
+    adjustment = detectValueArea ? (inValueArea ? -25 : 30) : 0
+    clampTransparency(baseTransparency + adjustment)
+
+valueAreaVolumeTransparency(baseTransparency, inValueArea) =>
+    detectValueArea and not inValueArea ? valueAreaTransparency(55, false) : valueAreaTransparency(baseTransparency, inValueArea)
+
+chartTfSeconds = timeframe.in_seconds()
+targetTfSeconds = math.max(1, int(chartTfSeconds * 1.0 / intragran))
+useChartTf = not allowSeconds and timeframe.isseconds
+tfSeconds = useChartTf ? chartTfSeconds : allowSeconds ? targetTfSeconds : math.max(60, targetTfSeconds)
+tf = useChartTf ? timeframe.period : timeframe.from_seconds(tfSeconds)
+rowLimit = lookback * math.max(1, int(math.ceil(chartTfSeconds / tfSeconds)))
+
+dir = close > open ? 1 : -1
+upperWickBase = math.max(open, close)
+lowerWickBase = math.min(open, close)
+hasUpperWick = high > upperWickBase
+hasLowerWick = low < lowerWickBase
+
+var matrix<float> data = matrix.new<float>(0, 4)
+var array<box> strongBullBoxes = array.new<box>()
+var array<box> weakBullBoxes = array.new<box>()
+var array<box> weakBearBoxes = array.new<box>()
+var array<box> strongBearBoxes = array.new<box>()
+var array<box> deltaHeatmapBoxes = array.new<box>()
+var array<box> absorptionBoxes = array.new<box>()
+var array<box> absorptionZoneBoxes = array.new<box>()
+var label volumeProfileLabel = na
+var label deltaProfileLabel = na
+var label absorptionProfileLabel = na
+
+array<int> dir_ = array.new<int>()
+array<float> vol_ = array.new<float>()
+array<float> close_ = array.new<float>()
+
+if tfSeconds <= chartTfSeconds
+    [dirData, volData, closeData] = request.security_lower_tf(syminfo.tickerid, tf, [dir, volume, close])
+    dir_ := dirData
+    vol_ := volData
+    close_ := closeData
+
+if tfSeconds <= chartTfSeconds and barstate.isconfirmed and dir_.size() > 0
+    for i = 0 to dir_.size() - 1
+        rowDir = dir_.get(i)
+        rowVol = vol_.get(i)
+        rowClose = close_.get(i)
+        absorptionVol = (rowDir > 0 and hasUpperWick and rowClose >= upperWickBase and rowClose <= high) or (rowDir < 0 and hasLowerWick and rowClose <= lowerWickBase and rowClose >= low) ? rowVol : 0.0
+        row = array.from(float(rowDir), rowVol, rowClose, absorptionVol)
+        matrix.add_row(data, matrix.rows(data), row)
+
+while matrix.rows(data) > rowLimit
+    matrix.remove_row(data, 0)
+
+if showAbsorptionHeatmap and barstate.isconfirmed and bar_index % 5 == 0 and matrix.rows(data) > 0
+    absorptionHeatmapRows = matrix.rows(data)
+    absorptionHeatmapMinPrice = matrix.get(data, 0, 2)
+    absorptionHeatmapMaxPrice = matrix.get(data, 0, 2)
+
+    for r = 0 to absorptionHeatmapRows - 1
+        absorptionHeatmapPrice = matrix.get(data, r, 2)
+        absorptionHeatmapMinPrice := math.min(absorptionHeatmapMinPrice, absorptionHeatmapPrice)
+        absorptionHeatmapMaxPrice := math.max(absorptionHeatmapMaxPrice, absorptionHeatmapPrice)
+
+    absorptionHeatmapPriceRange = math.max(absorptionHeatmapMaxPrice - absorptionHeatmapMinPrice, syminfo.mintick)
+    absorptionHeatmapStep = absorptionHeatmapPriceRange / profileBins
+    absorptionHeatmapBins = array.new<float>(profileBins, 0.0)
+
+    for r = 0 to absorptionHeatmapRows - 1
+        absorptionHeatmapClose = matrix.get(data, r, 2)
+        absorptionHeatmapValue = matrix.get(data, r, 3)
+        absorptionHeatmapBinIndex = int(math.floor((absorptionHeatmapClose - absorptionHeatmapMinPrice) / absorptionHeatmapStep))
+        absorptionHeatmapBinIndex := math.max(0, math.min(profileBins - 1, absorptionHeatmapBinIndex))
+        if absorptionHeatmapValue > 0
+            array.set(absorptionHeatmapBins, absorptionHeatmapBinIndex, array.get(absorptionHeatmapBins, absorptionHeatmapBinIndex) + absorptionHeatmapValue)
+
+    absorptionHeatmapMaxValue = 0.0
+    for i = 0 to profileBins - 1
+        absorptionHeatmapMaxValue := math.max(absorptionHeatmapMaxValue, array.get(absorptionHeatmapBins, i))
+
+    absorptionHeatmapLeft = bar_index - 5
+    absorptionHeatmapRight = bar_index
+
+    if absorptionHeatmapMaxValue > 0
+        for i = 0 to profileBins - 1
+            absorptionHeatmapBinValue = array.get(absorptionHeatmapBins, i)
+            absorptionHeatmapBinBottom = absorptionHeatmapMinPrice + absorptionHeatmapStep * i
+            absorptionHeatmapBinTop = absorptionHeatmapMinPrice + absorptionHeatmapStep * (i + 1)
+            isRangeTouched = false
+            for barOffset = 0 to 4
+                if not na(high[barOffset]) and not na(low[barOffset])
+                    isRangeTouched := isRangeTouched or (absorptionHeatmapBinBottom <= high[barOffset] and absorptionHeatmapBinTop >= low[barOffset])
+            if absorptionHeatmapBinValue > 0 and not isRangeTouched
+                absorptionHeatmapNorm = absorptionHeatmapBinValue / absorptionHeatmapMaxValue
+                box.new(absorptionHeatmapLeft, absorptionHeatmapBinTop, absorptionHeatmapRight, absorptionHeatmapBinBottom, border_color = na, bgcolor = color.new(absorptionHeatmapColor(absorptionHeatmapNorm), 33))
+
+float strengthThreshold = na
+float bubbleThreshold2 = na
+float bubbleThreshold3 = na
+float bubbleThreshold4 = na
+if matrix.rows(data) > 0
+    volumesForPercentile = array.new<float>()
+    for r = 0 to matrix.rows(data) - 1
+        array.push(volumesForPercentile, matrix.get(data, r, 1))
+    array.sort(volumesForPercentile, order.ascending)
+    percentileSpan = 100.0 - strengthFilter
+    bubblePercentile1 = float(strengthFilter)
+    bubblePercentile2 = strengthFilter + percentileSpan * 0.25
+    bubblePercentile3 = strengthFilter + percentileSpan * 0.50
+    bubblePercentile4 = strengthFilter + percentileSpan * 0.75
+    percentileIndex1 = math.min(array.size(volumesForPercentile) - 1, math.max(0, int(math.floor(array.size(volumesForPercentile) * bubblePercentile1 / 100.0))))
+    percentileIndex2 = math.min(array.size(volumesForPercentile) - 1, math.max(0, int(math.floor(array.size(volumesForPercentile) * bubblePercentile2 / 100.0))))
+    percentileIndex3 = math.min(array.size(volumesForPercentile) - 1, math.max(0, int(math.floor(array.size(volumesForPercentile) * bubblePercentile3 / 100.0))))
+    percentileIndex4 = math.min(array.size(volumesForPercentile) - 1, math.max(0, int(math.floor(array.size(volumesForPercentile) * bubblePercentile4 / 100.0))))
+    strengthThreshold := array.get(volumesForPercentile, percentileIndex1)
+    bubbleThreshold2 := array.get(volumesForPercentile, percentileIndex2)
+    bubbleThreshold3 := array.get(volumesForPercentile, percentileIndex3)
+    bubbleThreshold4 := array.get(volumesForPercentile, percentileIndex4)
+
+strongBuyingPrice1 = float(na)
+strongBuyingPrice2 = float(na)
+strongBuyingPrice3 = float(na)
+strongBuyingPrice4 = float(na)
+strongSellingPrice1 = float(na)
+strongSellingPrice2 = float(na)
+strongSellingPrice3 = float(na)
+strongSellingPrice4 = float(na)
+maxStrongBuyingVolume1 = 0.0
+maxStrongBuyingVolume2 = 0.0
+maxStrongBuyingVolume3 = 0.0
+maxStrongBuyingVolume4 = 0.0
+maxStrongSellingVolume1 = 0.0
+maxStrongSellingVolume2 = 0.0
+maxStrongSellingVolume3 = 0.0
+maxStrongSellingVolume4 = 0.0
+if not na(strengthThreshold) and dir_.size() > 0
+    for i = 0 to dir_.size() - 1
+        intrabarVol = vol_.get(i)
+        intrabarPrice = close_.get(i)
+        intrabarDir = dir_.get(i)
+        isStrongIntrabar = intrabarVol >= strengthThreshold
+        if isStrongIntrabar
+            bubbleTier = intrabarVol >= bubbleThreshold4 ? 4 : intrabarVol >= bubbleThreshold3 ? 3 : intrabarVol >= bubbleThreshold2 ? 2 : 1
+            if intrabarDir > 0
+                if bubbleTier == 4 and intrabarVol > maxStrongBuyingVolume4
+                    maxStrongBuyingVolume4 := intrabarVol
+                    strongBuyingPrice4 := intrabarPrice
+                else if bubbleTier == 3 and intrabarVol > maxStrongBuyingVolume3
+                    maxStrongBuyingVolume3 := intrabarVol
+                    strongBuyingPrice3 := intrabarPrice
+                else if bubbleTier == 2 and intrabarVol > maxStrongBuyingVolume2
+                    maxStrongBuyingVolume2 := intrabarVol
+                    strongBuyingPrice2 := intrabarPrice
+                else if bubbleTier == 1 and intrabarVol > maxStrongBuyingVolume1
+                    maxStrongBuyingVolume1 := intrabarVol
+                    strongBuyingPrice1 := intrabarPrice
+            else
+                if bubbleTier == 4 and intrabarVol > maxStrongSellingVolume4
+                    maxStrongSellingVolume4 := intrabarVol
+                    strongSellingPrice4 := intrabarPrice
+                else if bubbleTier == 3 and intrabarVol > maxStrongSellingVolume3
+                    maxStrongSellingVolume3 := intrabarVol
+                    strongSellingPrice3 := intrabarPrice
+                else if bubbleTier == 2 and intrabarVol > maxStrongSellingVolume2
+                    maxStrongSellingVolume2 := intrabarVol
+                    strongSellingPrice2 := intrabarPrice
+                else if bubbleTier == 1 and intrabarVol > maxStrongSellingVolume1
+                    maxStrongSellingVolume1 := intrabarVol
+                    strongSellingPrice1 := intrabarPrice
+
+if array.size(strongBullBoxes) == 0
+    for i = 0 to profileBins - 1
+        array.push(strongBullBoxes, box.new(bar_index, close, bar_index, close, border_color = na, bgcolor = na))
+        array.push(weakBullBoxes, box.new(bar_index, close, bar_index, close, border_color = na, bgcolor = na))
+        array.push(weakBearBoxes, box.new(bar_index, close, bar_index, close, border_color = na, bgcolor = na))
+        array.push(strongBearBoxes, box.new(bar_index, close, bar_index, close, border_color = na, bgcolor = na))
+        array.push(deltaHeatmapBoxes, box.new(bar_index, close, bar_index, close, border_color = na, bgcolor = na))
+        array.push(absorptionBoxes, box.new(bar_index, close, bar_index, close, border_color = na, bgcolor = na))
+        array.push(absorptionZoneBoxes, box.new(bar_index, close, bar_index, close, border_color = na, bgcolor = na))
+
+valueAreaTouchAlert = false
+absorptionLevelTouchAlert = false
+bullishDeltaDominanceAlert = false
+bearishDeltaDominanceAlert = false
+
+if barstate.islast and matrix.rows(data) > 0 and array.size(strongBullBoxes) == profileBins and array.size(weakBullBoxes) == profileBins and array.size(weakBearBoxes) == profileBins and array.size(strongBearBoxes) == profileBins and array.size(deltaHeatmapBoxes) == profileBins and array.size(absorptionBoxes) == profileBins and array.size(absorptionZoneBoxes) == profileBins
+    rows = matrix.rows(data)
+    minPrice = matrix.get(data, 0, 2)
+    maxPrice = matrix.get(data, 0, 2)
+
+    for r = 0 to rows - 1
+        price = matrix.get(data, r, 2)
+        minPrice := math.min(minPrice, price)
+        maxPrice := math.max(maxPrice, price)
+
+    priceRange = math.max(maxPrice - minPrice, syminfo.mintick)
+    step = priceRange / profileBins
+    strongBullBins = array.new<float>(profileBins, 0.0)
+    weakBullBins = array.new<float>(profileBins, 0.0)
+    weakBearBins = array.new<float>(profileBins, 0.0)
+    strongBearBins = array.new<float>(profileBins, 0.0)
+    absorptionBins = array.new<float>(profileBins, 0.0)
+    profileVolumeBins = array.new<float>(profileBins, 0.0)
+
+    for r = 0 to rows - 1
+        rowDir = matrix.get(data, r, 0)
+        rowVol = matrix.get(data, r, 1)
+        rowClose = matrix.get(data, r, 2)
+        rowAbsorption = matrix.get(data, r, 3)
+        isStrong = rowVol >= strengthThreshold
+        binIndex = int(math.floor((rowClose - minPrice) / step))
+        binIndex := math.max(0, math.min(profileBins - 1, binIndex))
+
+        if rowDir > 0 and isStrong
+            array.set(strongBullBins, binIndex, array.get(strongBullBins, binIndex) + rowVol)
+        else if rowDir > 0
+            array.set(weakBullBins, binIndex, array.get(weakBullBins, binIndex) + rowVol)
+        else if isStrong
+            array.set(strongBearBins, binIndex, array.get(strongBearBins, binIndex) + rowVol)
+        else
+            array.set(weakBearBins, binIndex, array.get(weakBearBins, binIndex) + rowVol)
+
+        if rowAbsorption > 0
+            array.set(absorptionBins, binIndex, array.get(absorptionBins, binIndex) + rowAbsorption)
+
+    maxBinVolume = 0.0
+    maxAbsDelta = 0.0
+    maxAbsorptionVolume = 0.0
+    totalProfileVolume = 0.0
+    pocVolume = 0.0
+    pocIndex = 0
+    for i = 0 to profileBins - 1
+        strongBullVolumeScan = array.get(strongBullBins, i)
+        weakBullVolumeScan = array.get(weakBullBins, i)
+        weakBearVolumeScan = array.get(weakBearBins, i)
+        strongBearVolumeScan = array.get(strongBearBins, i)
+        binVolume = strongOnly ? strongBullVolumeScan + strongBearVolumeScan : strongBullVolumeScan + weakBullVolumeScan + weakBearVolumeScan + strongBearVolumeScan
+        buyVolumeScan = strongBullVolumeScan + weakBullVolumeScan
+        sellVolumeScan = strongBearVolumeScan + weakBearVolumeScan
+        deltaScan = buyVolumeScan - sellVolumeScan
+        array.set(profileVolumeBins, i, binVolume)
+        totalProfileVolume += binVolume
+        if binVolume > pocVolume
+            pocVolume := binVolume
+            pocIndex := i
+        maxBinVolume := math.max(maxBinVolume, binVolume)
+        maxAbsDelta := math.max(maxAbsDelta, math.abs(deltaScan))
+        maxAbsorptionVolume := math.max(maxAbsorptionVolume, array.get(absorptionBins, i))
+
+    valueAreaBins = array.new<bool>(profileBins, false)
+    if detectValueArea and totalProfileVolume > 0
+        targetValueAreaVolume = totalProfileVolume * float(valueAreaPercent) / 100.0
+        accumulatedValueAreaVolume = array.get(profileVolumeBins, pocIndex)
+        lowerValueAreaIndex = pocIndex
+        upperValueAreaIndex = pocIndex
+        array.set(valueAreaBins, pocIndex, true)
+
+        while accumulatedValueAreaVolume < targetValueAreaVolume and (lowerValueAreaIndex > 0 or upperValueAreaIndex < profileBins - 1)
+            lowerCandidateVolume = lowerValueAreaIndex > 0 ? array.get(profileVolumeBins, lowerValueAreaIndex - 1) : -1.0
+            upperCandidateVolume = upperValueAreaIndex < profileBins - 1 ? array.get(profileVolumeBins, upperValueAreaIndex + 1) : -1.0
+            if upperCandidateVolume >= lowerCandidateVolume
+                upperValueAreaIndex += 1
+                accumulatedValueAreaVolume += upperCandidateVolume
+                array.set(valueAreaBins, upperValueAreaIndex, true)
+            else
+                lowerValueAreaIndex -= 1
+                accumulatedValueAreaVolume += lowerCandidateVolume
+                array.set(valueAreaBins, lowerValueAreaIndex, true)
+
+    profileRight = bar_index + profileOffset
+    deltaWidth = math.max(1, int(math.round(profileWidth / 10.0)))
+    deltaLeft = profileRight + 1
+    deltaRight = deltaLeft + deltaWidth
+    absorptionProfileWidth = profileWidth
+    absorptionLeft = deltaRight + 1
+    volumeLabelX = int(math.round(profileRight - profileWidth * 0.5))
+    deltaLabelX = int(math.round((deltaLeft + deltaRight) * 0.5))
+    absorptionLabelX = int(math.round(absorptionLeft + absorptionProfileWidth * 0.5))
+    labelY = maxPrice + priceRange * 0.05
+
+    if na(volumeProfileLabel)
+        volumeProfileLabel := label.new(volumeLabelX, labelY, showVolumeProfile ? "Volume Profile" : "", style = label.style_label_down, textcolor = showVolumeProfile ? chart.fg_color : color.new(chart.fg_color, 100), color = showVolumeProfile ? chart.bg_color : color.new(chart.bg_color, 100), size = size.small)
+    else
+        label.set_x(volumeProfileLabel, volumeLabelX)
+        label.set_y(volumeProfileLabel, labelY)
+        label.set_text(volumeProfileLabel, showVolumeProfile ? "Volume Profile" : "")
+        label.set_textcolor(volumeProfileLabel, showVolumeProfile ? chart.fg_color : color.new(chart.fg_color, 100))
+        label.set_color(volumeProfileLabel, showVolumeProfile ? chart.bg_color : color.new(chart.bg_color, 100))
+
+    if na(deltaProfileLabel)
+        deltaProfileLabel := label.new(deltaLabelX, labelY, showDeltaProfile ? "Delta" : "", style = label.style_label_down, textcolor = showDeltaProfile ? chart.fg_color : color.new(chart.fg_color, 100), color = showDeltaProfile ? chart.bg_color : color.new(chart.bg_color, 100), size = size.small)
+    else
+        label.set_x(deltaProfileLabel, deltaLabelX)
+        label.set_y(deltaProfileLabel, labelY)
+        label.set_text(deltaProfileLabel, showDeltaProfile ? "Delta" : "")
+        label.set_textcolor(deltaProfileLabel, showDeltaProfile ? chart.fg_color : color.new(chart.fg_color, 100))
+        label.set_color(deltaProfileLabel, showDeltaProfile ? chart.bg_color : color.new(chart.bg_color, 100))
+
+    if na(absorptionProfileLabel)
+        absorptionProfileLabel := label.new(absorptionLabelX, labelY, showAbsorptionProfile ? "Absorption Profile" : "", style = label.style_label_down, textcolor = showAbsorptionProfile ? chart.fg_color : color.new(chart.fg_color, 100), color = showAbsorptionProfile ? chart.bg_color : color.new(chart.bg_color, 100), size = size.small)
+    else
+        label.set_x(absorptionProfileLabel, absorptionLabelX)
+        label.set_y(absorptionProfileLabel, labelY)
+        label.set_text(absorptionProfileLabel, showAbsorptionProfile ? "Absorption Profile" : "")
+        label.set_textcolor(absorptionProfileLabel, showAbsorptionProfile ? chart.fg_color : color.new(chart.fg_color, 100))
+        label.set_color(absorptionProfileLabel, showAbsorptionProfile ? chart.bg_color : color.new(chart.bg_color, 100))
+
+    for i = 0 to profileBins - 1
+        binBottom = minPrice + step * i
+        binTop = minPrice + step * (i + 1)
+        isCurrentPriceInBin = close >= binBottom and close <= binTop
+        strongBullVolume = array.get(strongBullBins, i)
+        weakBullVolumeRaw = array.get(weakBullBins, i)
+        weakBearVolumeRaw = array.get(weakBearBins, i)
+        strongBearVolume = array.get(strongBearBins, i)
+        weakBullVolume = strongOnly ? 0.0 : weakBullVolumeRaw
+        weakBearVolume = strongOnly ? 0.0 : weakBearVolumeRaw
+        absorptionVolume = array.get(absorptionBins, i)
+        totalVolume = strongBullVolume + weakBullVolume + weakBearVolume + strongBearVolume
+        inValueArea = detectValueArea and array.get(valueAreaBins, i)
+        strongTransparency = valueAreaVolumeTransparency(40, inValueArea)
+        weakTransparency = valueAreaVolumeTransparency(70, inValueArea)
+        absorptionTransparency = valueAreaTransparency(55, inValueArea)
+        valueAreaTouchAlert := valueAreaTouchAlert or (inValueArea and isCurrentPriceInBin)
+        totalLength = maxBinVolume > 0 ? int(math.round((totalVolume / maxBinVolume) * profileWidth)) : 0
+        strongBullLength = totalVolume > 0 ? int(math.round(totalLength * strongBullVolume / totalVolume)) : 0
+        weakBullLength = totalVolume > 0 ? int(math.round(totalLength * weakBullVolume / totalVolume)) : 0
+        weakBearLength = totalVolume > 0 ? int(math.round(totalLength * weakBearVolume / totalVolume)) : 0
+        strongBearLength = totalLength - strongBullLength - weakBullLength - weakBearLength
+        buyVolume = strongBullVolume + weakBullVolumeRaw
+        sellVolume = strongBearVolume + weakBearVolumeRaw
+        delta = buyVolume - sellVolume
+        deltaAbs = math.abs(delta)
+        isDominantDeltaBin = maxAbsDelta > 0 and deltaAbs >= maxAbsDelta
+        bullishDeltaDominanceAlert := bullishDeltaDominanceAlert or (isCurrentPriceInBin and isDominantDeltaBin and delta > 0)
+        bearishDeltaDominanceAlert := bearishDeltaDominanceAlert or (isCurrentPriceInBin and isDominantDeltaBin and delta < 0)
+        deltaTransparency = maxAbsDelta > 0 ? 90 - int(math.round((deltaAbs / maxAbsDelta) * 90.0)) : 90
+        deltaColor = delta >= 0 ? green : red
+        absorptionLength = maxAbsorptionVolume > 0 ? int(math.round((absorptionVolume / maxAbsorptionVolume) * absorptionProfileWidth)) : 0
+        absorptionRight = absorptionLeft + absorptionLength
+
+        strongBullRight = profileRight
+        strongBullLeft = strongBullRight - strongBullLength
+        weakBullRight = strongBullLeft
+        weakBullLeft = weakBullRight - weakBullLength
+        weakBearRight = weakBullLeft
+        weakBearLeft = weakBearRight - weakBearLength
+        strongBearRight = weakBearLeft
+        strongBearLeft = strongBearRight - strongBearLength
+
+        strongBullBox = array.get(strongBullBoxes, i)
+        box.set_left(strongBullBox, strongBullLeft)
+        box.set_right(strongBullBox, strongBullRight)
+        box.set_top(strongBullBox, binTop)
+        box.set_bottom(strongBullBox, binBottom)
+        box.set_bgcolor(strongBullBox, showVolumeProfile and strongBullLength > 0 ? color.new(green, strongTransparency) : na)
+        box.set_border_color(strongBullBox, showVolumeProfile and strongBullLength > 0 ? color.new(green, 100) : na)
+
+        weakBullBox = array.get(weakBullBoxes, i)
+        box.set_left(weakBullBox, weakBullLeft)
+        box.set_right(weakBullBox, weakBullRight)
+        box.set_top(weakBullBox, binTop)
+        box.set_bottom(weakBullBox, binBottom)
+        box.set_bgcolor(weakBullBox, showVolumeProfile and not strongOnly and weakBullLength > 0 ? color.new(green, weakTransparency) : na)
+        box.set_border_color(weakBullBox, showVolumeProfile and not strongOnly and weakBullLength > 0 ? color.new(green, 100) : na)
+
+        weakBearBox = array.get(weakBearBoxes, i)
+        box.set_left(weakBearBox, weakBearLeft)
+        box.set_right(weakBearBox, weakBearRight)
+        box.set_top(weakBearBox, binTop)
+        box.set_bottom(weakBearBox, binBottom)
+        box.set_bgcolor(weakBearBox, showVolumeProfile and not strongOnly and weakBearLength > 0 ? color.new(red, weakTransparency) : na)
+        box.set_border_color(weakBearBox, showVolumeProfile and not strongOnly and weakBearLength > 0 ? color.new(red, 100) : na)
+
+        strongBearBox = array.get(strongBearBoxes, i)
+        box.set_left(strongBearBox, strongBearLeft)
+        box.set_right(strongBearBox, strongBearRight)
+        box.set_top(strongBearBox, binTop)
+        box.set_bottom(strongBearBox, binBottom)
+        box.set_bgcolor(strongBearBox, showVolumeProfile and strongBearLength > 0 ? color.new(red, strongTransparency) : na)
+        box.set_border_color(strongBearBox, showVolumeProfile and strongBearLength > 0 ? color.new(red, 100) : na)
+
+        deltaHeatmapBox = array.get(deltaHeatmapBoxes, i)
+        box.set_left(deltaHeatmapBox, deltaLeft)
+        box.set_right(deltaHeatmapBox, deltaRight)
+        box.set_top(deltaHeatmapBox, binTop)
+        box.set_bottom(deltaHeatmapBox, binBottom)
+        box.set_bgcolor(deltaHeatmapBox, showDeltaProfile and deltaAbs > 0 ? color.new(deltaColor, deltaTransparency) : na)
+        box.set_border_color(deltaHeatmapBox, na)
+        box.set_text(deltaHeatmapBox, showDeltaProfile and deltaAbs > 0 ? formatDelta(delta) : "")
+        box.set_text_color(deltaHeatmapBox, showDeltaProfile and deltaAbs > 0 ? chart.fg_color : color.new(chart.fg_color, 100))
+        box.set_text_size(deltaHeatmapBox, size.tiny)
+        box.set_text_halign(deltaHeatmapBox, text.align_center)
+        box.set_text_valign(deltaHeatmapBox, text.align_center)
+
+        absorptionBox = array.get(absorptionBoxes, i)
+        box.set_left(absorptionBox, absorptionLeft)
+        box.set_right(absorptionBox, absorptionRight)
+        box.set_top(absorptionBox, binTop)
+        box.set_bottom(absorptionBox, binBottom)
+        box.set_bgcolor(absorptionBox, showAbsorptionProfile and absorptionLength > 0 ? color.new(chart.fg_color, absorptionTransparency) : na)
+        box.set_border_color(absorptionBox, showAbsorptionProfile and absorptionLength > 0 ? color.new(chart.fg_color, 100) : na)
+
+        isAbsorptionPeak = i > 0 and i < profileBins - 1 and absorptionVolume > array.get(absorptionBins, i - 1) and absorptionVolume > array.get(absorptionBins, i + 1)
+        absorptionLevelTouchAlert := absorptionLevelTouchAlert or (isAbsorptionPeak and isCurrentPriceInBin)
+        absorptionZoneBox = array.get(absorptionZoneBoxes, i)
+        box.set_left(absorptionZoneBox, bar_index - lookback)
+        box.set_right(absorptionZoneBox, bar_index)
+        box.set_top(absorptionZoneBox, binTop)
+        box.set_bottom(absorptionZoneBox, binBottom)
+        box.set_bgcolor(absorptionZoneBox, showLevels and isAbsorptionPeak ? color.new(close > math.avg(binTop, binBottom) ? green : red, 90) : na)
+        box.set_border_color(absorptionZoneBox, showLevels and isAbsorptionPeak ? color.new(chart.fg_color, 100) : na)
+
+bubblesTransp = 90
+
+plotchar(showBubbles ? strongBuyingPrice1 : na, title = "Strong Buying Tier 1", char = "●", location = location.absolute, color = color.new(green, bubblesTransp), size = size.small)
+plotchar(showBubbles ? strongBuyingPrice2 : na, title = "Strong Buying Tier 2", char = "●", location = location.absolute, color = color.new(green, bubblesTransp), size = size.normal)
+plotchar(showBubbles ? strongBuyingPrice3 : na, title = "Strong Buying Tier 3", char = "●", location = location.absolute, color = color.new(green, bubblesTransp), size = size.large)
+plotchar(showBubbles ? strongBuyingPrice4 : na, title = "Strong Buying Tier 4", char = "●", location = location.absolute, color = color.new(green, bubblesTransp), size = size.huge)
+plotchar(showBubbles ? strongSellingPrice1 : na, title = "Strong Selling Tier 1", char = "●", location = location.absolute, color = color.new(red, bubblesTransp), size = size.small)
+plotchar(showBubbles ? strongSellingPrice2 : na, title = "Strong Selling Tier 2", char = "●", location = location.absolute, color = color.new(red, bubblesTransp), size = size.normal)
+plotchar(showBubbles ? strongSellingPrice3 : na, title = "Strong Selling Tier 3", char = "●", location = location.absolute, color = color.new(red, bubblesTransp), size = size.large)
+plotchar(showBubbles ? strongSellingPrice4 : na, title = "Strong Selling Tier 4", char = "●", location = location.absolute, color = color.new(red, bubblesTransp), size = size.huge)
+
+// Alerts
+strongBuyingAlert = not na(strongBuyingPrice1) or not na(strongBuyingPrice2) or not na(strongBuyingPrice3) or not na(strongBuyingPrice4)
+strongSellingAlert = not na(strongSellingPrice1) or not na(strongSellingPrice2) or not na(strongSellingPrice3) or not na(strongSellingPrice4)
+
+alertcondition(strongBuyingAlert, title = "Strong Buying")
+alertcondition(strongSellingAlert, title = "Strong Selling")
+alertcondition(valueAreaTouchAlert, title = "Value Area Touch")
+alertcondition(bullishDeltaDominanceAlert, title = "Bullish Delta Dominance")
+alertcondition(bearishDeltaDominanceAlert, title = "Bearish Delta Dominance")
+alertcondition(absorptionLevelTouchAlert, title = "Absorption Level Touch")

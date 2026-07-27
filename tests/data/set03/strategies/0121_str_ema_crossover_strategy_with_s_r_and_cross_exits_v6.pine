@@ -1,0 +1,93 @@
+//@version=6
+// set03 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多重时框EMA交叉趋势跟踪策略结合支阻力与智能追踪止损系统-Multi-Timeframe-EMA-Crossover-Trend-Following-Strategy-with-Support-Resistance-and-Smart-Trailing-Stop-System.md
+// content_hash: 7f78274c65efebb9
+// collected: 2026-07-27
+strategy("EMA Crossover Strategy with S/R and Cross Exits v6", overlay=true, margin_long=100, margin_short=100)
+
+// Eingabeparameter
+trailOffset = input.float(0.10, "Trailing Stop Offset (%)", minval=0.01, maxval=1, step=0.01)
+
+// EMA Berechnungen
+ema5 = ta.ema(close, 5)
+ema8 = ta.ema(close, 8)
+ema13 = ta.ema(close, 13)
+
+// Plot der EMAs
+plot(ema5, "EMA 5", color.rgb(7, 7, 7), 2)
+plot(ema8, "EMA 8", color.new(color.blue, 0), 2)
+plot(ema13, "EMA 13", color.new(color.red, 0), 2)
+
+// Unterstützungs- und Widerstandsniveaus aus dem 1-Stunden-Chart
+hourlyHigh = request.security(syminfo.tickerid, "60", high[1], gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_on)
+hourlyLow = request.security(syminfo.tickerid, "60", low[1], gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_on)
+
+// Plot der Unterstützungs- und Widerstandsniveaus
+plot(hourlyHigh, "Hourly Resistance", color.new(color.red, 0), linewidth=2)
+plot(hourlyLow, "Hourly Support", color.new(color.green, 0), linewidth=2)
+
+// Signalerkennung
+buySignal = ta.crossover(ema5, ema8) and ta.crossover(ema5, ema13)
+sellSignal = ta.crossunder(ema5, ema8) and ta.crossunder(ema5, ema13)
+
+// Trailing Stop Berechnungen
+var float longStop = na
+var float shortStop = na
+var float maxHigh = na
+var float minLow = na
+
+if strategy.position_size > 0
+    if strategy.position_size[1] <= 0
+        maxHigh := high
+        longStop := high * (1 - trailOffset)
+    else
+        maxHigh := math.max(maxHigh, high)
+        longStop := math.max(longStop, maxHigh * (1 - trailOffset))
+else
+    maxHigh := na
+    longStop := na
+
+if strategy.position_size < 0
+    if strategy.position_size[1] >= 0
+        minLow := low
+        shortStop := low * (1 + trailOffset)
+    else
+        minLow := math.min(minLow, low)
+        shortStop := math.min(shortStop, minLow * (1 + trailOffset))
+else
+    minLow := na
+    shortStop := na
+
+// Ausführung der Orders
+if (buySignal)
+    strategy.entry("Long", strategy.long)
+if (sellSignal)
+    strategy.entry("Short", strategy.short)
+
+// Schließen bei gegenteiligem Signal
+if (buySignal)
+    strategy.close("Short")
+if (sellSignal)
+    strategy.close("Long")
+
+// Trailing Stop Anwendung
+strategy.exit("Long Exit", "Long", stop = longStop)
+strategy.exit("Short Exit", "Short", stop = shortStop)
+
+// Exit-Punkte im Chart mit Kreuzen markieren
+plotshape(series=strategy.position_size[1] > 0 and strategy.position_size == 0, title="Long Exit", location=location.belowbar, color=color.red, style=shape.cross, text="Exit Long", textcolor=color.rgb(5, 5, 5), size=size.small)
+plotshape(series=strategy.position_size[1] < 0 and strategy.position_size == 0, title="Short Exit", location=location.abovebar, color=color.green, style=shape.cross, text="Exit Short", textcolor=color.rgb(7, 7, 7), size=size.small)
+
+// Plot der Trailing Stops
+plot(strategy.position_size > 0 ? longStop : na, "Long Stop", color.green, style=plot.style_circles)
+plot(strategy.position_size < 0 ? shortStop : na, "Short Stop", color.red, style=plot.style_circles)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/484571
+
+> Last Modified
+
+2025-03-03 09:25:58

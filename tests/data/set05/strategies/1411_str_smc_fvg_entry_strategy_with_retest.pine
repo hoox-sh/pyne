@@ -1,0 +1,84 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/Adaptive-FVG-Detection-and-MA-Trend-Trading-Strategy-with-Dynamic-Resistance-基于时适-FVG-检测与移动平均趋势的动态阻力交易策略.md
+// content_hash: 6c6cde5636204706
+// collected: 2026-07-27
+strategy("SMC FVG Entry Strategy with Retest", overlay=true)
+
+// Parametreler
+stopLossPercent = input(2, title="Stop Loss (%)") / 100
+lookbackPeriod = input(50, title="Güçlü Direnç İçin Geriye Dönük Süre")
+fvgLength = input.timeframe("60", title="FVG Zaman Dilimi")  // 1 saatlik zaman dilimi
+maPeriod = input(20, title="MA Dönemi")  // Trend yönü için MA dönemi
+
+// FVG'leri Hesapla
+var float fvgLow = na
+var float fvgHigh = na
+var bool fvgFilled = false
+
+// Seçilen zaman diliminde FVG'leri kontrol et
+if (ta.change(time(fvgLength)))
+    bull_fvg = low > high[2] and close[1] > high[2]
+    bear_fvg = high < low[2] and close[1] < low[2]
+    
+    if (bull_fvg)
+        fvgLow := low[2]
+        fvgHigh := high
+        fvgFilled := true
+    else if (bear_fvg)
+        fvgLow := low
+        fvgHigh := high[2]
+        fvgFilled := true
+
+// Trend Yönü Kontrolü (MA kullanarak)
+ma = ta.sma(close, maPeriod)
+trendUp = close > ma
+trendDown = close < ma
+
+// Dönüş Mumu Kontrolü
+bullishReversal = close > open and close[1] < open[1] and fvgFilled and close > fvgHigh
+bearishReversal = close < open and close[1] > open[1] and fvgFilled and close < fvgLow
+
+// İlk güçlü direnç noktası
+resistanceLevel = ta.highest(high, lookbackPeriod)
+
+// Giriş Koşulları
+if (bullishReversal and trendUp)
+    entryPrice = close
+    stopLoss = entryPrice * (1 - stopLossPercent)
+    takeProfit = resistanceLevel
+    strategy.entry("Long", strategy.long)
+    strategy.exit("TP", "Long", limit=takeProfit, stop=stopLoss)
+
+if (bearishReversal and trendDown)
+    entryPrice = close
+    stopLoss = entryPrice * (1 + stopLossPercent)
+    takeProfit = resistanceLevel
+    strategy.entry("Short", strategy.short)
+    strategy.exit("TP", "Short", limit=takeProfit, stop=stopLoss)
+
+// FVG'leri Grafik Üzerinde Göster
+// if (fvgFilled)
+//     var box fvgBox = na
+//     if (na(fvgBox))
+//         fvgBox := box.new(left=bar_index[1], top=fvgHigh, bottom=fvgLow, right=bar_index, bgcolor=color.new(color.green, 90), border_color=color.green)
+//     else
+//         box.set_top(fvgBox, fvgHigh)
+//         box.set_bottom(fvgBox, fvgLow)
+//         box.set_left(fvgBox, bar_index[1])
+//         box.set_right(fvgBox, bar_index)
+
+// Direnç Noktasını Göster
+plot(resistanceLevel, color=color.blue, title="Direnç Noktası", linewidth=2)
+plot(ma, color=color.red, title="Hareketli Ortalama", linewidth=2)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/473346
+
+> Last Modified
+
+2024-11-29 14:50:09

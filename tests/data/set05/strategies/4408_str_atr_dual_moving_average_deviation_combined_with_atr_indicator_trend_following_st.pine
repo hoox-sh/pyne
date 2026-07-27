@@ -1,0 +1,142 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双重均线偏差配合ATR指标的趋势跟随策略Dual-Moving-Average-Deviation-Combined-with-ATR-Indicator-Trend-Following-Strategy.md
+// content_hash: 79a0dc415d4319dc
+// collected: 2026-07-27
+// **********************************************
+// PtahX EMA/ATR Strategy Public Release
+// EMA Strategy with ATR & "Fear Factor" built in 
+// written by PtahX October 2019
+// * modifications welcome 
+// * please let me know if you improve it so I can continue to learn :) 
+// * use at your own risk - I'm a new programmer and still learning
+// * Best of luck on your trades!!
+
+// Take Profit (TP) option based on ATR or MA Crossover 
+//***********************************************
+
+strategy(title="PtahX EMA/ATR Strategy", overlay=true, pyramiding=1, calc_on_every_tick=true, default_qty_value=1, initial_capital=10000, slippage=2)
+
+//***************************** 
+// Global Inputs
+//***************************** 
+
+fastMA = input(title="Fast Moving Average", defval=20, step=1)
+slowMA = input(title="Slow Moving Average", defval=55, step=1)
+source = input(close, title="Source")
+atrLength = input(title="ATR Length", defval=14, minval=7, step=1)
+slMultiplier = input(title="Stop Loss Multiple", type=input.float, defval=3, minval=1, step=0.2)
+tpMultiplier = input(title= "Take Profit Multiple", type=input.float, defval=3, minval=1, step=0.2)
+maPlot = input(true, title="Plot EMA?")
+maCrossoverExit =  input(false, title="Exit with Slow MA Crossover?")
+atrExit = input(true, title="Exit with ATR?")
+//***********************************
+// ATR
+//***********************************
+atr = atr(atrLength)
+
+
+//***********************************
+// Volatility Filter
+//**********************************
+// During uptrends the ATR indicator tends to post lower volatility. 
+// During downtrends, the ATR indicator tends to post higher volatility
+
+volatilityBullish = atr < atr[1] 
+volatilityBearish = atr > atr[1]
+
+
+//***********************************
+// Moving Averages
+//***********************************
+    
+// Double Line Plot Code (used for Entries & Exits not plotted by default)
+fast = ema(source, fastMA)
+slow = ema(source, slowMA)
+maLong = crossover(fast, slow)
+maShort = crossunder(fast, slow) 
+
+// Single Line Plot Code
+bullish = slow > slow[1]
+bearish = slow < slow[1]
+barColor = bullish ? color.green : bearish ? color.red : color.blue
+
+
+//***************************** 
+// Entries
+//***************************** 
+
+entryLong = maLong and volatilityBullish
+entryShort = maShort and volatilityBearish
+
+if entryLong
+    sLoss = source - atr * slMultiplier
+    strategy.entry("Long", strategy.long, qty=10)
+    strategy.exit("Long Exit", "Long", stop=sLoss)
+
+
+if entryShort
+    sLoss = source + atr * slMultiplier
+    tProfit = close > slowMA
+    strategy.entry("Short", strategy.short, qty=10)
+    strategy.exit("Short Exit", "Short", stop=sLoss)
+
+
+//***************************** 
+// Exits
+//*****************************
+
+exitLong = 0
+exitShort = 0
+
+if maCrossoverExit
+    exitLong = maShort
+    exitShort = maLong
+    strategy.exit("Long Exit", "Long", when = exitLong)
+    strategy.exit("Short Exit", "Short", when = exitShort)
+
+if atrExit
+    exitLong = source + atr * tpMultiplier
+    exitShort = source - atr * tpMultiplier
+    strategy.exit("Long Exit", "Long", limit = exitLong)
+    strategy.exit("Short Exit", "Short", limit = exitShort)
+
+
+//******************************
+// ATR Based Exit/ Stop Plotting 
+//******************************
+
+// Stop Loss Calculations
+longStopLoss = source - atr(atrLength) * slMultiplier
+shortStopLoss = source + atr(atrLength) * slMultiplier
+
+longTakeProfit = source - atr(atrLength) * slMultiplier
+shortTakeProfit = source + atr(atrLength) * slMultiplier
+  
+
+//*********************************
+//Chart Plotting
+//*********************************
+
+//ATR Based Stop Losses
+plot(shortStopLoss, color=color.fuchsia, offset=0, transp=0, show_last=5, linewidth=2, style=plot.style_stepline, title="Short Stop Loss")
+plot(longStopLoss, color=color.fuchsia, offset=0, transp=0, show_last=5, linewidth=2, style=plot.style_stepline, title="Long Stop Loss")
+
+
+// Single Slow EMA Option
+plot(slow and maPlot ? slow : na, title="EMA", color=barColor, linewidth=3)
+
+
+
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/432313
+
+> Last Modified
+
+2023-11-16 11:25:23

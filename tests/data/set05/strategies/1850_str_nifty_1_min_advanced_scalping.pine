@@ -1,0 +1,69 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多指标趋势跟随与动量结合的高级量化交易策略-Advanced-Multi-Indicator-Trend-Following-and-Momentum-Quantitative-Trading-Strategy.md
+// content_hash: a2643d15ffddf5ff
+// collected: 2026-07-27
+strategy("Nifty 1-Min Advanced Scalping", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=200)
+
+// Indicators
+vwap = ta.vwap(close)
+ema20 = ta.ema(close, 20)
+supertrendFactor = 2
+supertrendLength = 10
+[superTrend, superTrendDirection] = ta.supertrend(supertrendFactor, supertrendLength)
+atr = ta.atr(14)
+psar = ta.sar(0.02, 0.2, 0.2)
+rsi = ta.rsi(close, 14)
+[bbMid, bbUpper, bbLower] = ta.bb(close, 20, 2)
+[macdLine, macdSignal, _] = ta.macd(close, 12, 26, 9)
+[adx, _, _] = ta.dmi(14, 14)
+stochRsi = ta.stoch(close, 14, 3, 3)
+
+// Buy Condition
+buyCondition = close > vwap and close > ema20 and superTrendDirection == 1 and rsi > 50 and close > bbMid and close > psar and macdLine > macdSignal and adx > 25 and stochRsi > 20
+
+// Sell Condition
+sellCondition = close < vwap and close < ema20 and superTrendDirection == -1 and rsi < 50 and close < bbMid and close < psar and macdLine < macdSignal and adx > 25 and stochRsi < 80
+
+// Stop Loss & Take Profit
+sl = atr * 1.5
+long_sl = close - sl
+short_sl = close + sl
+tp = sl * 1.5
+long_tp = close + tp
+short_tp = close - tp
+
+// Execute Trades
+if buyCondition
+    strategy.entry("Long", strategy.long)
+    strategy.exit("Long Exit", from_entry="Long", stop=long_sl, limit=long_tp)
+
+if sellCondition
+    strategy.entry("Short", strategy.short)
+    strategy.exit("Short Exit", from_entry="Short", stop=short_sl, limit=short_tp)
+
+// Plot indicators
+plot(vwap, title="VWAP", color=color.blue)
+plot(ema20, title="EMA 20", color=color.orange)
+plot(superTrend, title="SuperTrend", color=color.green)
+plot(psar, title="Parabolic SAR", color=color.red, style=plot.style_cross)
+plot(bbMid, title="Bollinger Mid", color=color.purple)
+plot(macdLine, title="MACD Line", color=color.blue)
+plot(macdSignal, title="MACD Signal", color=color.red)
+plot(adx, title="ADX", color=color.green)
+plot(stochRsi, title="Stochastic RSI", color=color.orange)
+
+// Alerts
+alertcondition(buyCondition, title="Buy Signal", message="Buy Signal Triggered")
+alertcondition(sellCondition, title="Sell Signal", message="Sell Signal Triggered")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/481368
+
+> Last Modified
+
+2025-02-10 15:13:07

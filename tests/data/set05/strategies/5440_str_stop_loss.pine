@@ -1,0 +1,46 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/Noro平移均线止损策略Noro-Shifted-Moving-Average-Stop-Loss-Strategy.md
+// content_hash: f116378b77c356ff
+// collected: 2026-07-27
+strategy("Stop-loss", overlay = true, default_qty_type = strategy.percent_of_equity, default_qty_value = 100, pyramiding = 0)
+
+//Settings
+lo = input(-5.0, title = "Long-line, %")
+tp = input(5.0, title = "Take-profit")
+sl = input(2.0, title = "Stop-loss")
+
+//SMA
+ma = sma(ohlc4, 3)
+long = ma + ((ma / 100) * lo)
+
+//Orders
+avg = strategy.position_avg_price
+if ma > 0
+    strategy.entry("Long", strategy.long, limit = long)
+    strategy.entry("Take", strategy.short, 0, limit = avg + ((avg / 100) * tp))
+    strategy.entry("Stop", strategy.short, 0, stop = avg - ((avg / 100) * sl))
+    
+//Cancel order
+if strategy.position_size == 0
+    strategy.cancel("Take")
+    strategy.cancel("Stop")
+
+//Lines
+plot(long, offset = 1, color = color.black, transp = 0)
+take = avg != 0 ? avg + ((avg / 100) * tp) : long + ((long / 100) * tp)
+stop = avg != 0 ? avg - ((avg / 100) * sl) : long - ((long / 100) * sl)
+takelinecolor = avg == avg[1] and avg != 0 ? color.lime : na
+stoplinecolor = avg == avg[1] and avg != 0 ? color.red : na
+plot(take, offset = 1, color = takelinecolor, linewidth = 3, transp = 0)
+plot(stop, offset = 1, color = stoplinecolor, linewidth = 3, transp = 0)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/440438
+
+> Last Modified
+
+2024-01-30 15:49:34

@@ -1,0 +1,53 @@
+//@version=4
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/Simple and efficient 1h strategy.pine
+// content_hash: 598aca22e24ce2bd
+// collected: 2026-07-27
+fromDay = input(defval = 1, title = "From Day", minval = 1, maxval = 31)
+fromMonth = input(defval = 1, title = "From Month", minval = 1, maxval = 12)
+fromYear = input(defval = 2000, title = "From Year", minval = 1970)
+ 
+// To Date Inputs
+toDay = input(defval = 1, title = "To Day", minval = 1, maxval = 31)
+toMonth = input(defval = 8, title = "To Month", minval = 1, maxval = 12)
+toYear = input(defval = 2021, title = "To Year", minval = 1970)
+ 
+// Calculate start/end date and time condition
+DST = 1 //day light saving for usa
+//--- Europe
+London = iff(DST==0,"0000-0900","0100-1000")
+//--- America
+NewYork = iff(DST==0,"0400-1300","0500-1400")
+//--- Pacific
+Sydney = iff(DST==0,"1300-2200","1400-2300")
+//--- Asia
+Tokyo = iff(DST==0,"1500-2400","1600-0100")
+//-- Time In Range
+timeinrange(res, sess) => time(res, sess) != 0
+london = timeinrange(timeframe.period, London)
+newyork = timeinrange(timeframe.period, NewYork)
+startDate = timestamp(fromYear, fromMonth, fromDay, 00, 00)
+finishDate = timestamp(toYear, toMonth, toDay, 00, 00)
+time_cond = time >= startDate and time <= finishDate and (london or newyork)
+strategy("4 8 RSI", overlay=true)
+len = input(10, minval=1, title="Length")
+src = input(hl2, "Source", type = input.source)
+up = rma(max(change(src), 0), len)
+down = rma(-min(change(src), 0), len)
+rsi = down == 0 ? 100 : up == 0 ? 0 : 100 - (100 / (1 + up / down))
+tp=input(500,"tp pip")
+sl=input(500,"sl pip")
+longCondition = crossover(ema(close, 4), ema(close, 8)) and rsi > rsi[1] and crossover(rsi,50) and time_cond
+if (longCondition)
+    strategy.entry("My Long Entry Id", strategy.long)
+    strategy.exit("longtp","long",profit=tp,loss=sl)
+  // strategy.close("long",when=crossunder(ema(close, 4), ema(close, 8)) or crossover(rsi,50), comment="cross_short")
+shortCondition = crossunder(ema(close, 4), ema(close, 8))  and rsi < rsi[1] and crossunder(rsi,50) and time_cond
+if (shortCondition)
+    strategy.entry("My Short Entry Id", strategy.short)
+    strategy.exit("shorttp","short",profit=tp,loss=sl)
+  //  strategy.close("short", when=crossover(ema(close, 4), ema(close, 8)) or crossover(rsi,50), comment="cross_long")
+    
+strategy.close_all(when = not time_cond, comment="time", alert_message="time")
+Expand (60 lines)

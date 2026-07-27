@@ -1,0 +1,96 @@
+//@version=3
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多指标组合震荡定位突破策略Oscillation-Positioning-Breakthrough-Strategy-with-Multiple-Indicators.md
+// content_hash: 3cebd38979e2e6cc
+// collected: 2026-07-27
+// @author GianlucaBezziccheri
+
+strategy(title="Stoch.RSI+RSI+DoubleStrategy+CMWilliamsVixFix+MFI", shorttitle="Stoch.RSI+RSI+DoubleStrategy+CMWilliamsVixFix+MFI")
+
+
+///STOCH.RSI///
+smoothK = input(3, minval=1, title="Stochastic %K Smoothing")
+smoothD = input(3, minval=1, title="Stochastic %K Moving Average")
+lengthRSI = input(14, minval=1, title="RSI Lenght")
+lengthStoch = input(14, minval=1, title="Stochastic Lenght")
+RSIprice = close
+rsi1 = rsi(RSIprice, lengthRSI)
+k = sma(stoch(rsi1, rsi1, rsi1, lengthStoch), smoothK)
+d = sma(k, smoothD)
+plot(k, color=blue, linewidth=2)
+plot(d, color=silver, linewidth=2)
+h0 = hline(80)
+h1 = hline(20)
+fill(h0, h1, color=purple, transp=78)
+
+
+///RSI///
+up = rma(max(change(RSIprice), 0), lengthRSI)
+down = rma(-min(change(RSIprice), 0), lengthRSI)
+rsi2 = down == 0 ? 100 : up == 0 ? 0 : 100 - (100 / (1 + up / down))
+plot(rsi2, color=fuchsia, linewidth=2)
+band0 = hline(70)
+band1 = hline(30)
+fill(band0, band1, color=purple, transp=100)
+
+
+///OVERBOUGHT-OVERSOLD STRATEGY///
+StochOverBought = input(80, title="Stochastic RSI overbought")
+StochOverSold = input(20, title="Stochastic RSI oversold")
+ks = sma(stoch(close, high, low, lengthStoch), smoothK)
+ds = sma(k, smoothD)
+RSIOverBought = input( 70  , title="RSI overbought")
+RSIOverSold = input( 30  , title="RSI oversold")
+vrsi = rsi(RSIprice, lengthRSI)
+if (not na(ks) and not na(ds))
+    if (crossover(ks,ds) and k < StochOverSold)
+        if (not na(vrsi)) and (crossover(vrsi, RSIOverSold))
+            strategy.entry("LONG", strategy.long, comment="LONG")
+if (crossunder(ks,ds) and ks > StochOverBought)
+    if (crossunder(vrsi, RSIOverBought))
+        strategy.entry("SHORT", strategy.short, comment="SHORT")
+ 
+ 
+///CM WILLIAMS VIX FIX///
+pd = input(22, title="LookBack Period Standard Deviation High")
+bbl = input(20, title="Bollinger Band Length")
+mult = input(2.0    , minval=1, maxval=5, title="Bollinger Band Standard Devaition Up")
+lb = input(50  , title="Look Back Period Percentile High")
+ph = input(.85, title="Highest Percentile - 0.90=90%, 0.95=95%, 0.99=99%")
+pl = input(1.01, title="Lowest Percentile - 1.10=90%, 1.05=95%, 1.01=99%")
+hp = input(false, title="Show High Range (Based on Percentile and LookBack Period)?")
+sd = input(false, title="Show Standard Deviation Line?")
+wvf = ((highest(close, pd)-low)/(highest(close, pd)))*100
+sDev = mult * stdev(wvf, bbl)
+midLine = sma(wvf, bbl)
+lowerBand = midLine - sDev
+upperBand = midLine + sDev
+rangeHigh = (highest(wvf, lb)) * ph
+rangeLow = (lowest(wvf, lb)) * pl
+col = wvf >= upperBand or wvf >= rangeHigh ? lime : gray
+plot(hp and rangeHigh ? rangeHigh : na, title="Range High Percentile", style=line, linewidth=4, color=orange)
+plot(hp and rangeLow ? rangeLow : na, title="Range High Percentile", style=line, linewidth=4, color=orange)
+plot(wvf, title="Williams Vix Fix", style=columns, linewidth = 4, color=col, transp=85)
+plot(sd and upperBand ? upperBand : na, title="Upper Band", style=line, linewidth = 3, color=aqua)
+
+
+///MONETARY FLOW INDEX
+length4 = input(title="MFI Length", defval=14, minval=1, maxval=2000)
+src4 = hlc3
+upper4 = sum(volume * (change(src4) <= 0 ? 0 : src4), length4)
+lower4 = sum(volume * (change(src4) >= 0 ? 0 : src4), length4)
+mf4 = rsi(upper4, lower4)
+plot(mf4, color=yellow, style=line, linewidth=2, title="Monetary Flow Index")
+overbought=hline(70, title="MFI Overbought", color=yellow)
+oversold=hline(30, title="MFI Oversold", color=yellow)
+fill(overbought, oversold, color=#9915ff, transp=100)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/433958
+
+> Last Modified
+
+2023-12-01 17:49:34

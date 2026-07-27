@@ -1,0 +1,78 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双重指数移动平均云交叉自动交易策略Dual-Exponential-Moving-Average-Cloud-Crossover-Automated-Trading-Strategy.md
+// content_hash: 3ece490a8622d833
+// collected: 2026-07-27
+strategy("Ripster EMA Clouds with Alerts + Automated Trading Bot", overlay=true)
+
+// Ripster EMA Clouds with Alerts script parameters
+matype = input.string(title="MA Type", defval="EMA", options=["EMA", "SMA"])
+
+ma_len1 = input.int(title="Short EMA1 Length", defval=8)
+ma_len2 = input.int(title="Long EMA1 Length", defval=9)
+ma_len3 = input.int(title="Short EMA2 Length", defval=5)
+ma_len4 = input.int(title="Long EMA2 Length", defval=13)
+ma_len5 = input.int(title="Short EMA3 Length", defval=34)
+ma_len6 = input.int(title="Long EMA3 Length", defval=50)
+ma_len7 = input.int(title="Short EMA4 Length", defval=72)
+ma_len8 = input.int(title="Long EMA4 Length", defval=89)
+ma_len9 = input.int(title="Short EMA5 Length", defval=180)
+ma_len10 = input.int(title="Long EMA5 Length", defval=200)
+
+src = input.source(title="Source", defval=hl2)
+
+f_ma(malen) =>
+    float result = 0
+    if (matype == "EMA")
+        result := ta.ema(src, malen)
+    if (matype == "SMA")
+        result := ta.sma(src, malen)
+    result
+
+htf_ma1 = f_ma(ma_len1)
+htf_ma2 = f_ma(ma_len2)
+htf_ma3 = f_ma(ma_len3)
+htf_ma4 = f_ma(ma_len4)
+htf_ma5 = f_ma(ma_len5)
+htf_ma6 = f_ma(ma_len6)
+htf_ma7 = f_ma(ma_len7)
+htf_ma8 = f_ma(ma_len8)
+htf_ma9 = f_ma(ma_len9)
+htf_ma10 = f_ma(ma_len10)
+
+// Define crossover and crossunder conditions for Ripster EMA Clouds with Alerts
+long_condition = ta.crossover(htf_ma1, htf_ma2)
+short_condition = ta.crossunder(htf_ma1, htf_ma2)
+
+// Create alerts for Ripster EMA Clouds with Alerts
+alertcondition(long_condition, title="Buy Signal", message="Buy Signal")
+alertcondition(short_condition, title="Sell Signal", message="Sell Signal")
+
+// Moving Average Crossover Bot parameters
+shortMA = ta.sma(close, 20)
+longMA = ta.sma(close, 50)
+
+// Define buy and sell signals for Moving Average Crossover Bot
+buySignal = ta.crossover(shortMA, longMA)
+sellSignal = ta.crossunder(shortMA, longMA)
+
+// Execute trades for Moving Average Crossover Bot
+if (buySignal)
+    strategy.entry("Buy", strategy.long)
+    
+if (sellSignal)
+    strategy.close("Buy")
+
+// Plot moving averages for visualization
+plot(shortMA, color=color.blue, title="Short MA")
+plot(longMA, color=color.red, title="Long MA")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/445825
+
+> Last Modified
+
+2024-03-22 15:06:32

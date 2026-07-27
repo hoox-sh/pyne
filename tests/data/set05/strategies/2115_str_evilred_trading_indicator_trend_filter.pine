@@ -1,0 +1,63 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/EMA趋势过滤策略EMA-Trend-Filter-Strategy.md
+// content_hash: 5cf248528be3bf59
+// collected: 2026-07-27
+strategy("EvilRed Trading Indicator Trend Filter", overlay=true)
+
+// Parameters Definition
+fastLength = input(9, title="Fast EMA Length")
+slowLength = input(21, title="Slow EMA Length")
+trendFilterLength = input(200, title="Trend Filter EMA Length")
+
+// Moving Averages Calculation
+fastEMA = ta.ema(close, fastLength)
+slowEMA = ta.ema(close, slowLength)
+trendEMA = ta.ema(close, trendFilterLength)
+
+// Volatility Calculation
+volatility = ta.stdev(close, 20)
+
+// Add Fukuiz Trend Indicator
+fukuizTrend = ta.ema(close, 14)
+fukuizColor = fukuizTrend > fukuizTrend[1] ? color.green : color.red
+plot(fukuizTrend, color=fukuizColor, title="Fukuiz Trend")
+
+// Plotting Moving Averages
+plot(fastEMA, color=color.blue, title="Fast EMA")
+plot(slowEMA, color=color.red, title="Slow EMA")
+plot(trendEMA, color=color.orange, title="Trend Filter")
+
+// Plotting Buy and Sell Signals
+buySignal = ta.crossover(fastEMA, slowEMA) and fastEMA > slowEMA and close > trendEMA
+sellSignal = ta.crossunder(fastEMA, slowEMA) and fastEMA < slowEMA and close < trendEMA
+
+// Entry and Exit Conditions
+if (strategy.position_size > 0 and fukuizColor == color.red)
+    strategy.close("Long", comment="Fukuiz Trend is Red")
+
+if (strategy.position_size < 0 and fukuizColor == color.green)
+    strategy.close("Short", comment="Fukuiz Trend is Green")
+
+if (buySignal)
+    strategy.entry("Long", strategy.long)
+    
+if (sellSignal)
+    strategy.entry("Short", strategy.short)
+
+
+
+
+plotshape(buySignal, style=shape.triangleup, location=location.belowbar, color=color.green, size=size.small, title="Buy Signal")
+plotshape(sellSignal, style=shape.triangledown, location=location.abovebar, color=color.red, size=size.small, title="Sell Signal")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/454151
+
+> Last Modified
+
+2024-06-14 15:51:05

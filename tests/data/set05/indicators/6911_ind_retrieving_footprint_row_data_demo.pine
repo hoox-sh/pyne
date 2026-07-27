@@ -1,0 +1,14 @@
+//@version=6
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/concepts/other-timeframes-and-data.md::other-timeframes-and-data.md#block73
+// content_hash: d61bf2393174d836
+// collected: 2026-07-27
+indicator("Retrieving footprint row data demo", max_boxes_count = 500)
+
+//@variable The size of each footprint row, expressed in ticks.
+int numTicksInput = input.int(100, "Ticks per footprint row", 1)
+//@variable The percentage difference in opposing volume between rows for detecting volume imbalances.
+int imbalanceInput = input.int(300, "Imbalance percentage", 1)
+
+//@variable References a `footprint` object for the current bar, or holds `na` if no footprint data is available.

@@ -1,0 +1,74 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/RSI均线双金叉震荡策略RSI-Moving-Average-Double-Cross-Oscillation-Strategy.md
+// content_hash: 9d1a9438f0cb3d98
+// collected: 2026-07-27
+strategy("RSI slowma Ismael", overlay=false, default_qty_type=strategy.percent_of_equity, default_qty_value=100)
+
+// Definir la longitud del RSI
+rsi_length = input(title='RSI Length', defval=14)
+
+//media 
+Fast = input(title='Fast', defval=7)
+slow = input(title='Slow', defval=2)
+
+// Definir los niveles de sobrecompra y sobreventa del RSI
+rsi_overbought = input(title='RSI Overbought Level', defval=72)
+rsi_oversold = input(title='RSI Oversold Level', defval=29)
+
+// Definir la longitud y la desviación estándar de las Bandas de Bollinger
+bb_length = input(title="Bollinger Bands Length", defval=14)
+bb_stddev = input(title="Bollinger Bands StdDev", defval=2)
+
+// Calcular RSI
+rsi_value = ta.rsi(close, rsi_length)
+
+// Calcular Bandas de Bollinger
+bb_upper = ta.sma(rsi_value, bb_length) + bb_stddev* ta.stdev(rsi_value, bb_length)
+bb_lower = ta.sma(rsi_value, bb_length) - bb_stddev * ta.stdev(rsi_value, bb_length)
+
+//media movil adelantada
+fastMA = ta.sma(rsi_value, Fast)
+slowMA = ta.sma(rsi_value, slow)
+
+// Definir la señal de compra y venta
+buy_signal = (ta.crossover(rsi_value, slowMA) and rsi_value < bb_lower and rsi_value < rsi_oversold) or (rsi_value < bb_lower and rsi_value < rsi_oversold)
+sell_signal = (ta.crossunder(rsi_value, slowMA) and rsi_value > bb_upper and rsi_value > rsi_overbought) or (rsi_value > bb_upper and rsi_value > rsi_overbought)
+
+// Configurar las condiciones de entrada y salida del mercado
+if buy_signal
+    strategy.entry("Buy", strategy.long)
+
+if sell_signal
+    strategy.close("Buy")
+
+// Configurar el stop loss y el take profit
+stop_loss = input.float(title='Stop Loss (%)', step=0.01, defval=3)
+take_profit = input.float(title='Take Profit (%)', step=0.01, defval=8)
+
+strategy.exit("Exit Long", "Buy", stop=close - close * stop_loss / 100, limit=close + close * take_profit / 100)
+
+// Configurar la visualización del gráfico
+plot(slowMA, title='RSISMA', color=color.rgb(75, 243, 33), linewidth=1)
+plot(fastMA, title='RSIFMA', color=color.rgb(75, 243, 33), linewidth=1)
+plot(rsi_value, title='RSI', color=color.purple, linewidth=1)
+
+// Marcar las zonas de sobrecompra y sobreventa en el grafico del RSI
+hl= hline(rsi_overbought, title='Overbought', color=color.purple, linestyle=hline.style_dotted, linewidth=1)
+hll= hline(rsi_oversold, title='Oversold', color=color.purple, linestyle=hline.style_dotted, linewidth=1)
+fill(hl,hll, color= color.new(color.purple, 91))
+
+bbfill = plot(bb_upper, title='Bollinger Bands up', color=color.blue, linewidth=1)
+bbfill1= plot(bb_lower, title='Bollinger Bands down', color=color.blue, linewidth=1)
+fill(bbfill,bbfill1, color= color.new(#2bb5ec, 91))
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/442637
+
+> Last Modified
+
+2024-02-23 14:07:43

@@ -1,0 +1,39 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动量突破回测支持阻力策略Momentum-Breakout-Backtesting-Support-Resistance-Strategy.md
+// content_hash: 435846dcb38a2bec
+// collected: 2026-07-27
+strategy("Support and Resistance with Backtesting", overlay=true)
+
+// Function to calculate support and resistance levels
+calculateSupportResistance() =>
+    highPrevDay = request.security(syminfo.tickerid, "D", high[1], lookahead=barmerge.lookahead_on)
+    lowPrevDay = request.security(syminfo.tickerid, "D", low[1], lookahead=barmerge.lookahead_on)
+    closePrevDay = request.security(syminfo.tickerid, "D", close[1], lookahead=barmerge.lookahead_on)
+    [highPrevDay, lowPrevDay, closePrevDay]
+
+// Call the function to get support and resistance levels
+[supResHigh, supResLow, supResClose] = calculateSupportResistance()
+
+// Plotting support and resistance levels
+plot(supResHigh, color=color.red, linewidth=2, title="Previous Day High")
+plot(supResLow, color=color.green, linewidth=2, title="Previous Day Low")
+plot(supResClose, color=color.blue, linewidth=2, title="Previous Day Close")
+
+// Backtesting logic
+backtestCondition = close[1] < supResLow and close > supResLow
+strategy.entry("Long", strategy.long, when=backtestCondition)
+
+// Plotting buy/sell arrows for backtesting
+plotarrow(backtestCondition ? 1 : na, colorup=color.green, offset=-1, transp=0)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/442528
+
+> Last Modified
+
+2024-02-22 16:07:14

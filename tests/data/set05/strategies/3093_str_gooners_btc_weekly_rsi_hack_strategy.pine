@@ -1,0 +1,28 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/Gooners-BTC-Weekly-RSI-Hack-Strategy.md
+// content_hash: 448c3ebb473557c4
+// collected: 2026-07-27
+strategy("Gooners BTC Weekly RSI Hack Strategy", overlay = true, default_qty_value = 100, default_qty_type = strategy.percent_of_equity, initial_capital = 1000000)
+length = input( 14 )
+buylevel = input( 52 )
+selllevel = input( 52 )
+price = close
+rsi = ta.rsi(price, length)
+co = ta.crossover(rsi, buylevel)
+cu = ta.crossunder(rsi, selllevel)
+if (not na(rsi))
+	if (co)
+		strategy.entry("RsiLE", strategy.long, comment="RsiLE")
+	if (cu)
+		strategy.close("RsiLE", comment="RsiLC")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/380277
+
+> Last Modified
+
+2022-08-27 21:19:13

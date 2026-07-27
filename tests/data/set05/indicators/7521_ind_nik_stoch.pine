@@ -1,0 +1,48 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/Nik-Stoch.md
+// content_hash: 52951e3096f2c12a
+// collected: 2026-07-27
+indicator('Nik Stoch')
+lookback_period = input.int(14, minval=1)
+m1 = input.int(3, minval=1)
+m2 = input.int(3, minval=1)
+
+k = ta.sma(ta.stoch(close, high, low, lookback_period), m1)
+d = ta.sma(k, m2)
+//plot(k)
+//plot(d, color=color.red)
+h0 = hline(15)
+h1 = hline(85)
+h2 = hline(50)
+h3 = hline(30)
+h4 = hline(70)
+
+fill(h0, h1, color=color.new(color.purple, 95))
+
+/////stoch fast
+lookback_period1 = input.int(5, minval=1)
+m3 = input.int(3, minval=1)
+m4 = input.int(3, minval=1)
+
+k1 = ta.sma(ta.stoch(close, high, low, lookback_period1), m3)
+d1 = ta.sma(k1, m4)
+plot(k1, color=color.new(color.aqua, 0))
+plot(d1, color=color.new(color.red, 0))
+
+
+if k1[1] < d1[1] and k1 > d1
+    strategy.entry("Enter Short", strategy.short)
+else if k1[1] > d1[1] and k1 < d1
+    strategy.entry("Enter Long", strategy.long)
+    
+```
+
+> Detail
+
+https://www.fmz.com/strategy/362172
+
+> Last Modified
+
+2022-05-10 14:08:03

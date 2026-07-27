@@ -1,0 +1,20 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block305
+// content_hash: e5c5e49cbf78d80f
+// collected: 2026-07-27
+indicator("ticker.standard", overlay = true)
+// This script should be run on a non-standard chart such as HA, Renko...
+
+// Requests data from the chart type the script is running on.
+chartTypeValue = request.security(syminfo.tickerid, "1D", close)
+
+// Request data from the standard chart type, regardless of the chart type the script is running on.
+standardChartValue = request.security(ticker.standard(syminfo.tickerid), "1D", close)
+
+// This will not use a standard ticker ID because the `symbol` argument contains only the ticker — not the prefix (exchange).
+standardChartValue2 = request.security(ticker.standard(syminfo.ticker), "1D", close)
+
+plot(chartTypeValue)
+plot(standardChartValue, color = color.green)

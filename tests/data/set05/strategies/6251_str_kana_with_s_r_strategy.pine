@@ -1,0 +1,81 @@
+//@version=2
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于均线和支撑阻力的日本蜡烛快速跳空策略Kana-Candle-Breakout-Strategy-Based-on-Moving-Average-and-Support-Resistance.md
+// content_hash: c01990c9b71adb8d
+// collected: 2026-07-27
+strategy("Kana with S/R Strategy", title = "KANA with S/R", overlay=true)
+
+len = input(20, minval=1, title="Length")
+multiplier1 = input(1, minval=1, title="multiplier1")
+multiplier2 = input(2, minval=1, title="multiplier2")
+multiplier3 = input(3, minval=1, title="multiplier3") 
+srTimeFrame = input(240, minval=1, title="Support Resistance TimeFrame")
+useSR = input(true, type = bool, title="Use Support/Resistance")
+tpPercent = input(0.5, type=float, title = "Take Profit Percent")
+useTP = input(false, type=bool, title = "Use Take Profit")
+tp = (close * tpPercent / 100) / syminfo.mintick
+
+src = input(close, title="Source")
+mid = sma(src, len)
+plot(mid, title="SMA", color=blue)
+
+trend = ema(close, 200)
+plot(trend, title="Trend", color=green)
+
+
+upper1 = mid + atr(200) * multiplier1
+upper2 = mid + atr(200) * multiplier2
+upper3 = mid + atr(200) * multiplier3
+
+lower1 = mid - atr(200) * multiplier1
+lower2 = mid - atr(200) * multiplier2
+lower3 = mid - atr(200) * multiplier3
+
+plot(upper1, color = orange)
+plot(upper3, color = red)
+
+plot(lower1, color = orange)
+plot(lower3, color = red)
+
+haClose = request.security(heikinashi(syminfo.tickerid), timeframe.period, close)
+haOpen = request.security(heikinashi(syminfo.tickerid), timeframe.period, open)
+
+resistance = request.security(syminfo.tickerid,tostring(srTimeFrame), high)
+support  = request.security(syminfo.tickerid,tostring(srTimeFrame), low)
+rsPos = (close - support[srTimeFrame]) / (resistance[srTimeFrame] - support[srTimeFrame])
+
+MACD = ema(close, 120) - ema(close, 260)
+aMACD = ema(MACD, 90)
+hisline = MACD - aMACD
+
+longCondition = (mid > trend) and (haOpen[1] < haClose[1]) and (mid > mid[1]) and (close < upper1) and hisline > 0 and (useSR == true ? (rsPos > 100) : true)
+shortCondition = (mid < trend) and (haOpen[1] > haClose[1]) and (mid < mid[1]) and (close > lower1) and hisline < 0 and (useSR == true ? (rsPos < 0) : true)
+
+longExit = (close > upper3 ) or (close < lower2)
+shortExit = (close < lower3) or (close > upper2)
+
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+    if (useTP)
+        strategy.exit("Exit Long", "Long", profit = tp)
+        
+if (longExit)
+    strategy.close("Long")
+    
+if (shortCondition)
+    strategy.entry("Short", strategy.short)
+    if (useTP)
+        strategy.exit("Exit Short", "Short", profit = tp)
+    
+if (shortExit)
+    strategy.close("Short")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/436764
+
+> Last Modified
+
+2023-12-27 15:27:45

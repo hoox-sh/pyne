@@ -1,0 +1,17 @@
+//@version=4
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/sonu1997.pine
+// content_hash: 25043eac04b20488
+// collected: 2026-07-27
+//@version=5
+strategy('moving average strategy', overlay=true)
+ema50 =ema(close, 50)
+ema200 =ema(close, 200)
+long = ema50 > ema200
+short = ema50 < ema200
+strategy.entry('long', strategy.long, 100, 0, when=long)
+strategy.entry('short', strategy.short, 100, 0, when=short)
+strategy.close('long', when=short)
+strategy.close('short', when=long)
+Expand (21 lines)

@@ -1,0 +1,57 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多重均线突破策略Multi-Moving-Average-Breakout-Strategy.md
+// content_hash: 9345b55595510740
+// collected: 2026-07-27
+strategy("DolarBasar by AlperDursun", shorttitle="DOLARBASAR", overlay=true)
+
+// Input for Moving Averages
+ma21 = ta.sma(close, 21)
+ma50 = ta.sma(close, 50)
+ma100 = ta.sma(close, 100)
+ma200 = ta.sma(close, 200)
+
+// Calculate the lowest point of the previous candle for stop loss
+lowestLow = ta.lowest(low, 2)
+
+// Calculate the highest point of the previous candle for stop loss
+highestHigh = ta.highest(high, 2)
+
+// Calculate take profit levels
+takeProfitLong = lowestLow - 3 * (lowestLow - highestHigh)
+takeProfitShort = highestHigh + 3 * (lowestLow - highestHigh)
+
+// Entry Conditions
+longCondition = ta.crossover(close, ma21) or ta.crossover(close, ma50) or ta.crossover(close, ma100) or ta.crossover(close, ma200)
+shortCondition = ta.crossunder(close, ma21) or ta.crossunder(close, ma50) or ta.crossunder(close, ma100) or ta.crossunder(close, ma200)
+
+// Stop Loss Levels
+stopLossLong = lowestLow * 0.995
+stopLossShort = highestHigh * 1.005
+
+// Exit Conditions
+longExitCondition = low < stopLossLong or high > takeProfitLong
+shortExitCondition = high > stopLossShort or low < takeProfitShort
+
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+
+if (shortCondition)
+    strategy.entry("Short", strategy.short)
+
+if (longExitCondition)
+    strategy.exit("Long Exit", from_entry="Long", stop=stopLossLong, limit=takeProfitLong)
+
+if (shortExitCondition)
+    strategy.exit("Short Exit", from_entry="Short", stop=stopLossShort, limit=takeProfitShort)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/432874
+
+> Last Modified
+
+2023-11-22 13:41:38

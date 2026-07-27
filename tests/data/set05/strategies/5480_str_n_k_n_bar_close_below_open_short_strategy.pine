@@ -1,0 +1,44 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/连续N根K线收阴策略N-Bar-Close-Below-Open-Short-Strategy.md
+// content_hash: 5975961f6b337a8a
+// collected: 2026-07-27
+////////////////////////////////////////////////////////////
+//  Copyright by HPotter v1.0 05/02/2020
+// Evaluates for n number of consecutive lower closes. Returns a value 
+// of 1 when the condition is true or 0 when false.
+//
+// WARNING:
+// - For purpose educate only
+// - This script to change bars colors.
+////////////////////////////////////////////////////////////
+strategy(title="N Bars Down", shorttitle="NBD Backtest", overlay = false) 
+nLength = input(4, minval=1)
+input_takeprofit = input(20, title="Take Profit pip", step=0.01)
+input_stoploss = input(10, title="Stop Loss pip", step=0.01)
+nCounter = 0
+nCounter := iff(close[1] <= open[1], nz(nCounter[1],0)+1,
+             iff(close[1] > open[1], 0, nCounter))
+C2 = iff(nCounter >= nLength, 1, 0)
+posprice = 0.0
+pos = 0
+barcolor(nz(pos[1], 0) == -1 ? color.red: nz(pos[1], 0) == 1 ? color.green : color.blue ) 
+posprice := iff(C2== 1, close, nz(posprice[1], 0)) 
+pos := iff(posprice > 0, -1, 0)
+if (pos == 0) 
+    strategy.close_all()
+if (pos == -1)
+    strategy.entry("Short", strategy.short)
+posprice := iff(low <= posprice - input_takeprofit and posprice > 0, 0 ,  nz(posprice, 0))
+posprice := iff(high >= posprice + input_stoploss and posprice > 0, 0 ,  nz(posprice, 0))
+plot(C2, title='NBD', color=color.red)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/436599
+
+> Last Modified
+
+2023-12-26 10:29:12

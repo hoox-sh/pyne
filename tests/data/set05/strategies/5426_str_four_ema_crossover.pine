@@ -1,0 +1,46 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/四均线金叉死叉策略Four-EMA-Crossover-Strategy.md
+// content_hash: 4e94768831aee27d
+// collected: 2026-07-27
+strategy("Four EMA Crossover", overlay=true)
+
+// Input parameters
+fast1Length = input(9, title="Fast EMA 1 Length")
+fast2Length = input(21, title="Fast EMA 2 Length")
+slow1Length = input(50, title="Slow EMA 1 Length")
+slow2Length = input(200, title="Slow EMA 2 Length")
+
+// Calculate EMAs
+fastEMA1 = ema(close, fast1Length)
+fastEMA2 = ema(close, fast2Length)
+slowEMA1 = ema(close, slow1Length)
+slowEMA2 = ema(close, slow2Length)
+
+// Plot EMAs on the chart
+plot(fastEMA1, color=color.blue, title="Fast EMA 1")
+plot(fastEMA2, color=color.green, title="Fast EMA 2")
+plot(slowEMA1, color=color.red, title="Slow EMA 1")
+plot(slowEMA2, color=color.purple, title="Slow EMA 2")
+
+// Strategy logic - Buy when fast EMA crosses above slow EMA and sell when fast EMA crosses below slow EMA
+longCondition = crossover(fastEMA1, slowEMA1) and crossover(fastEMA2, slowEMA2)
+shortCondition = crossunder(fastEMA1, slowEMA1) and crossunder(fastEMA2, slowEMA2)
+
+strategy.entry("Long", strategy.long, when = longCondition)
+strategy.entry("Short", strategy.short, when = shortCondition)
+
+// Plot strategy entry points on the chart
+plotshape(series=longCondition, title="Buy Signal", color=color.green, style=shape.triangleup, location=location.belowbar)
+plotshape(series=shortCondition, title="Sell Signal", color=color.red, style=shape.triangledown, location=location.abovebar)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/435485
+
+> Last Modified
+
+2023-12-15 11:55:36

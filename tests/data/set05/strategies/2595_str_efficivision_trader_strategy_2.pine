@@ -1,0 +1,54 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于双均线交叉和止损策略的高效交易策略An-Efficient-Trading-Strategy-Based-on-Dual-Moving-Average-Crossover-and-Stop-Loss.md
+// content_hash: b9181be5b34b32fa
+// collected: 2026-07-27
+strategy("EfficiVision Trader Strategy", overlay=true)
+
+// Input parameters
+// Define the conditions for entering a long trade and a short trade
+longCondition = ta.crossover(ta.sma(close, 10), ta.sma(close, 20)) // Long condition: 10 SMA crosses above 20 SMA
+shortCondition = ta.crossunder(ta.sma(close, 10), ta.sma(close, 20)) // Short condition: 10 SMA crosses below 20 SMA
+stopLossPerc = input(2.0, title="Stop Loss Percentage") // Percentage for calculating stop loss
+
+var float entryPrice = na // Price at which the trade is entered
+var float stopLossPrice = na // Price at which the stop loss is set
+
+// Calculate stop loss based on the current price and the stop loss percentage
+if (longCondition)
+    entryPrice := close
+    stopLossPrice := close * (1 - stopLossPerc / 100) // Calculate stop loss for long trades
+if (shortCondition)
+    entryPrice := close
+    stopLossPrice := close * (1 + stopLossPerc / 100) // Calculate stop loss for short trades
+
+// Enter long trade when long condition is met
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+
+// Enter short trade when short condition is met
+if (shortCondition)
+    strategy.entry("Short", strategy.short)
+
+// Exit long trade when stop loss price is reached
+strategy.exit("Exit Long", "Long", stop=stopLossPrice)
+
+// Exit short trade when stop loss price is reached
+strategy.exit("Exit Short", "Short", stop=stopLossPrice)
+
+// Plot entry and stop-loss levels on the chart
+plotshape(series=longCondition, location=location.belowbar, color=color.green, style=shape.labelup, text="Long Entry")
+plotshape(series=shortCondition, location=location.abovebar, color=color.red, style=shape.labeldown, text="Short Entry")
+plot(entryPrice, color=color.blue, style=plot.style_stepline, linewidth=2, title="Entry Price")
+plot(stopLossPrice, color=color.red, style=plot.style_stepline, linewidth=2, title="Stop Loss Price")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/444001
+
+> Last Modified
+
+2024-03-08 14:55:01

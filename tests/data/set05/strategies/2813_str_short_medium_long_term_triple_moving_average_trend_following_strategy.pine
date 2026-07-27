@@ -1,0 +1,49 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/短中长期三重移动平均线趋势跟踪策略-Short-Medium-Long-Term-Triple-Moving-Average-Trend-Following-Strategy.md
+// content_hash: e678f053709b78b9
+// collected: 2026-07-27
+strategy(title="Estratégia de Médias Móveis - Entrada/Saída Simples", shorttitle="MM3", overlay=true)
+
+// Parâmetros de entrada para a data de início e final do backtest
+var start_date_input = input(title="Data de Início", defval=timestamp("01 Jan 2020 00:00 +0000"))
+var end_date_input = input(title="Data Final", defval=timestamp("01 Jan 2021 00:00 +0000"))
+
+// Convertendo as datas de entrada para formato de tempo
+start_date = timestamp(year(start_date_input), month(start_date_input), dayofmonth(start_date_input), 0, 0)
+end_date = timestamp(year(end_date_input), month(end_date_input), dayofmonth(end_date_input), 23, 59)
+
+// Definindo as Médias Móveis
+min_ma_3 = ta.sma(low, 3)
+max_ma_3 = ta.sma(high, 3)
+close_ma_30 = ta.sma(close, 30)
+
+// Condição de Entrada: Fechamento abaixo da Média de 3 Mínimas e acima da Média de 30 Fechamentos
+entry_condition = close < min_ma_3 and close > close_ma_30
+
+// Condição de Saída: Fechamento acima da Média de 3 Máximas
+exit_condition = close > max_ma_3
+
+// Sinal de Compra: Entrada na próxima vela após a condição de entrada ser verdadeira
+if (entry_condition )
+    strategy.entry("Buy", strategy.long)
+
+// Sinal de Venda: Saída na próxima vela após a condição de saída ser verdadeira
+if (exit_condition)
+    strategy.close("Buy")
+
+// Plotando as Médias Móveis e os Sinais de Entrada/Saída
+plot(min_ma_3, color=color.red, linewidth=2, title="Média de 3 Mínimas")
+plot(max_ma_3, color=color.blue, linewidth=2, title="Média de 3 Máximas")
+plot(close_ma_30, color=color.orange, linewidth=2, title="Média de 30 Fechamentos")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/451032
+
+> Last Modified
+
+2024-05-11 12:04:27

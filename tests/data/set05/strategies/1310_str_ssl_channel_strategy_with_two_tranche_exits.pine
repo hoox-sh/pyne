@@ -1,0 +1,162 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/SSL通道双阶梯利润策略-SSL-Channel-Dual-Tranche-Profit-Strategy.md
+// content_hash: f29d4900258a27a7
+// collected: 2026-07-27
+strategy("SSL Channel Strategy with Two-Tranche Exits", overlay=true)
+
+// Inputs
+len = input.int(10, title="Period")
+atrPeriod = input.int(14, title="ATR Period")
+
+// Calculate SMAs and ATR
+smaHigh = ta.sma(high, len)
+smaLow = ta.sma(low, len)
+atrValue = ta.atr(atrPeriod)
+
+// Trend state (Hlv)
+var int Hlv = na
+Hlv := close > smaHigh ? 1 : close < smaLow ? -1 : Hlv[1]
+
+// SSL channel lines
+sslDown = Hlv < 0 ? smaHigh : smaLow
+sslUp   = Hlv < 0 ? smaLow : smaHigh
+
+// Plot SSL lines
+plot(sslDown, title="SSL Down", color=color.red, linewidth=2)
+plot(sslUp, title="SSL Up", color=color.lime, linewidth=2)
+
+// Trading signals
+buySignal = Hlv[1] == -1 and Hlv == 1
+sellSignal = Hlv[1] == 1 and Hlv == -1
+
+// Plot signals for debugging
+plotshape(buySignal, title="Buy Signal", style=shape.triangleup, location=location.belowbar, color=color.green, size=size.small)
+plotshape(sellSignal, title="Sell Signal", style=shape.triangledown, location=location.abovebar, color=color.red, size=size.small)
+
+// Variables for long trade management
+var float longEntryPrice = na
+var float longAtrAtEntry = na
+var float longEntryQty = na
+var bool longFirstTrancheTaken = false
+var float longTrailingStopPrice = na
+var int longTrailingStartBar = na
+
+// Variables for short trade management
+var float shortEntryPrice = na
+var float shortAtrAtEntry = na
+var float shortEntryQty = na
+var bool shortFirstTrancheTaken = false
+var float shortTrailingStopPrice = na
+var int shortTrailingStartBar = na
+
+// Reset variables when no position is open
+if strategy.position_size == 0
+    longEntryPrice := na
+    longAtrAtEntry := na
+    longEntryQty := na
+    longFirstTrancheTaken := false
+    longTrailingStopPrice := na
+    longTrailingStartBar := na
+    shortEntryPrice := na
+    shortAtrAtEntry := na
+    shortEntryQty := na
+    shortFirstTrancheTaken := false
+    shortTrailingStopPrice := na
+    shortTrailingStartBar := na
+
+// **Long Trade Logic**
+
+// Entry for long trades
+if buySignal and strategy.position_size == 0
+    strategy.entry("Long", strategy.long)
+    longEntryPrice := close
+    longAtrAtEntry := atrValue
+    longEntryQty := strategy.position_size
+    longFirstTrancheTaken := false
+    longTrailingStartBar := na
+    // Set take-profit for first tranche (50%) at 1x ATR
+    strategy.exit("Long TP1", "Long", limit=longEntryPrice + longAtrAtEntry, qty=longEntryQty / 2)
+    // Set initial stop-loss at 1.5x ATR below entry
+    strategy.exit("Long SL", "Long", stop=longEntryPrice - 1.5 * longAtrAtEntry)
+
+// Manage long trade
+if strategy.position_size > 0
+    // Detect if first tranche has been taken
+    if not longFirstTrancheTaken and strategy.position_size < longEntryQty
+        longFirstTrancheTaken := true
+        // Move stop-loss to breakeven
+        strategy.exit("Long SL", "Long", stop=longEntryPrice)
+        // Add a label for debugging
+        label.new(bar_index, high, "First Tranche Taken", color=color.blue, style=label.style_label_down)
+    
+    // After first tranche, manage the remaining 50%
+    if longFirstTrancheTaken
+        // Initiate trailing stop at 2x ATR
+        if close >= longEntryPrice + 2 * longAtrAtEntry and na(longTrailingStartBar)
+            longTrailingStartBar := bar_index
+            // Add a label for debugging
+            label.new(bar_index, high, "Trailing Stop Initiated", color=color.purple, style=label.style_label_down)
+        // Update trailing stop
+        if not na(longTrailingStartBar)
+            highestCloseSinceTrail = ta.highest(close, bar_index - longTrailingStartBar + 1)
+            longTrailingStopPrice := highestCloseSinceTrail - longAtrAtEntry
+            strategy.exit("Long SL", "Long", stop=longTrailingStopPrice)
+            
+
+// Exit long trade on SSL channel flip
+if strategy.position_size > 0 and sellSignal
+    strategy.close("Long", comment="SSL Flip")
+
+// **Short Trade Logic**
+
+// Entry for short trades
+if sellSignal and strategy.position_size == 0
+    strategy.entry("Short", strategy.short)
+    shortEntryPrice := close
+    shortAtrAtEntry := atrValue
+    shortEntryQty := strategy.position_size
+    shortFirstTrancheTaken := false
+    shortTrailingStartBar := na
+    // Set take-profit for first tranche (50%) at 1x ATR below entry
+    strategy.exit("Short TP1", "Short", limit=shortEntryPrice - shortAtrAtEntry, qty=math.abs(shortEntryQty) / 2)
+    // Set initial stop-loss at 1.5x ATR above entry
+    strategy.exit("Short SL", "Short", stop=shortEntryPrice + 1.5 * shortAtrAtEntry)
+
+// Manage short trade
+if strategy.position_size < 0
+    // Detect if first tranche has been taken
+    if not shortFirstTrancheTaken and strategy.position_size > shortEntryQty
+        shortFirstTrancheTaken := true
+        // Move stop-loss to breakeven
+        strategy.exit("Short SL", "Short", stop=shortEntryPrice)
+        // Add a label for debugging
+        label.new(bar_index, low, "First Tranche Taken", color=color.blue, style=label.style_label_up)
+    
+    // After first tranche, manage the remaining 50%
+    if shortFirstTrancheTaken
+        // Initiate trailing stop at 2x ATR
+        if close <= shortEntryPrice - 2 * shortAtrAtEntry and na(shortTrailingStartBar)
+            shortTrailingStartBar := bar_index
+            // Add a label for debugging
+            label.new(bar_index, low, "Trailing Stop Initiated", color=color.purple, style=label.style_label_up)
+        // Update trailing stop
+        if not na(shortTrailingStartBar)
+            lowestCloseSinceTrail = ta.lowest(close, bar_index - shortTrailingStartBar + 1)
+            shortTrailingStopPrice := lowestCloseSinceTrail + shortAtrAtEntry
+            strategy.exit("Short SL", "Short", stop=shortTrailingStopPrice)
+        
+
+// Exit short trade on SSL channel flip
+if strategy.position_size < 0 and buySignal
+    strategy.close("Short", comment="SSL Flip")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/483937
+
+> Last Modified
+
+2025-04-03 15:25:40

@@ -1,0 +1,86 @@
+//@version=2
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/Ichimoku云量化短线策略Ichimoku-Cloud-Quant-Scalping-Strategy.md
+// content_hash: 3b1743c33bad6b69
+// collected: 2026-07-27
+strategy(title='[STRATEGY][RS]Spot/Binary Scalper V0', shorttitle='IC', overlay=true, initial_capital=100000, currency=currency.USD)
+//  ||  Adapted from:
+//  ||      http://www.binaryoptionsedge.com/topic/1414-ta-spot-scalping-it-works-damn-good/?hl=singh
+
+//  ||  Ichimoku cloud:
+conversionPeriods = input(title='Conversion Periods:',  defval=7, minval=1),
+basePeriods = 26//input(title='Base Periods',  defval=26, minval=1)
+laggingSpan2Periods = 52//input(title='Lagging Span:',  defval=52, minval=1),
+displacement = 26//input(title='Displacement:',  defval=26, minval=1)
+
+f_donchian(_len) => avg(lowest(_len), highest(_len))
+
+f_ichimoku_cloud(_conversion_periods, _base_periods, _lagging_span)=>
+    _conversion_line = f_donchian(_conversion_periods)
+    _base_line = f_donchian(_base_periods)
+    _lead_line1 = avg(_conversion_line, _base_line)
+    _lead_line2 = f_donchian(_lagging_span)
+    [_conversion_line, _base_line, _lead_line1, _lead_line2]
+
+[conversionLine, baseLine, leadLine1, leadLine2] = f_ichimoku_cloud(conversionPeriods, basePeriods, laggingSpan2Periods)
+
+//ps0 = plot(title='A', series=leadLine1, color=green, linewidth=2)
+//ps1 = plot(title='B', series=leadLine2, color=red, linewidth=2)
+//fill(title='AB', plot1=ps0, plot2=ps1, color=blue, transp=80)
+//plot(title='Base', series=baseLine, color=blue, linewidth=1, offset=displacement)
+plot(title='Conversion', series=conversionLine, color=blue, linewidth=1)
+//  ||----------------------------------------------------------------------------------------------------------------------------------------------||
+//  ||  ADX
+len = input(title="Length",  defval=14)
+th = input(title="threshold",  defval=20)
+
+TrueRange = max(max(high-low, abs(high-nz(close[1]))), abs(low-nz(close[1])))
+DirectionalMovementPlus = high-nz(high[1]) > nz(low[1])-low ? max(high-nz(high[1]), 0): 0
+DirectionalMovementMinus = nz(low[1])-low > high-nz(high[1]) ? max(nz(low[1])-low, 0): 0
+
+
+SmoothedTrueRange = nz(SmoothedTrueRange[1]) - (nz(SmoothedTrueRange[1])/len) + TrueRange
+SmoothedDirectionalMovementPlus = nz(SmoothedDirectionalMovementPlus[1]) - (nz(SmoothedDirectionalMovementPlus[1])/len) + DirectionalMovementPlus
+SmoothedDirectionalMovementMinus = nz(SmoothedDirectionalMovementMinus[1]) - (nz(SmoothedDirectionalMovementMinus[1])/len) + DirectionalMovementMinus
+
+DIPlus = SmoothedDirectionalMovementPlus / SmoothedTrueRange * 100
+DIMinus = SmoothedDirectionalMovementMinus / SmoothedTrueRange * 100
+DX = abs(DIPlus-DIMinus) / (DIPlus+DIMinus)*100
+ADX = sma(DX, len)
+//  ||----------------------------------------------------------------------------------------------------------------------------------------------||
+//  ||  Trade session:
+USE_TRADESESSION = input(title='Use Trading Session?', type=bool, defval=true)
+trade_session = input(title='Trade Session:', defval='0400-1500', confirm=false)
+istradingsession = not USE_TRADESESSION ? false : not na(time('1', trade_session))
+bgcolor(istradingsession?gray:na)
+//  ||----------------------------------------------------------------------------------------------------------------------------------------------||
+//  ||  Strategy:
+trade_size = input(title='Trade Size:',  defval=1)
+stop_loss_in_ticks = input(title='Stop Loss in ticks:',  defval=150)
+take_profit_in_ticks = input(title='Take Profit in ticks:',  defval=200)
+
+buy_icloud_signal = open < conversionLine and close > conversionLine
+buy_adx_signal = DIPlus > 20
+buy_signal = istradingsession and buy_icloud_signal and buy_adx_signal
+
+sel_icloud_signal = open > conversionLine and close < conversionLine
+sel_adx_signal = DIMinus > 20
+sel_signal = istradingsession and sel_icloud_signal and sel_adx_signal
+
+
+strategy.order('buy', long=true, qty=trade_size, comment='buy', when=buy_signal)
+strategy.order('sel', long=false, qty=trade_size, comment='sel', when=sel_signal)
+
+strategy.exit('exit buy', from_entry='buy', profit=take_profit_in_ticks, loss=stop_loss_in_ticks)
+strategy.exit('exit sel', from_entry='sel', profit=take_profit_in_ticks, loss=stop_loss_in_ticks)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/436096
+
+> Last Modified
+
+2023-12-21 11:13:15

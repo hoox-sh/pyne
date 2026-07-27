@@ -1,0 +1,188 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于交叉移动均线的趋势追踪自适应期望值评估策略-Trend-Following-Adaptive-Expected-Value-Assessment-Strategy-Based-on-Crossover-Moving-Averages.md
+// content_hash: 0e4943dd9b9072ad
+// collected: 2026-07-27
+strategy("Expected Value Panel", overlay=true)
+
+// ロングエントリー条件 / Long entry condition
+longCondition = ta.crossover(ta.sma(close, 14), ta.sma(close, 28))
+if (longCondition)
+    strategy.entry("My Long Entry Id", strategy.long)
+
+// ショートエントリー条件 / Short entry condition
+shortCondition = ta.crossunder(ta.sma(close, 14), ta.sma(close, 28))
+if (shortCondition)
+    strategy.entry("My Short Entry Id", strategy.short)
+
+
+
+// ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
+// Please copy the code below and paste it into the strategy where you want to display the expected value.
+// 以下のコードをコピーして期待値を表示させたいストラテジーに貼り付けて下さい。
+// ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
+
+// 表示選択 / Display selection
+show_performance = input.bool(true, '期待値ON/OFF (Show Expected Value)', group='Expected Value / ©ir0nantc2')
+transparency = input.int(50, '透過度 (Transparency)', minval=0, maxval=100, group='Expected Value / ©ir0nantc2')
+prec = 2
+
+// 背景色 / Background color
+bg_color(value) =>
+    na(value) ? color.new(color.gray, transparency) : value > 0.0 ? color.new(color.green, transparency) :
+   value < 0.0 ? color.new(color.red, transparency) :color.new(color.gray, transparency)
+
+// 利益と損失の追跡 / Track profits and losses
+var float total_monthly_profit = 0.0
+var float total_yearly_profit = 0.0
+
+if show_performance
+    new_month = month(time) != month(time[1])
+    new_year  = year(time)  != year(time[1])
+    cur_month_pnl = 0.0, cur_year_pnl  = 0.0
+    eq = strategy.equity
+    bar_pnl = eq / eq[1] - 1
+
+    // 月次・年次 期待値 / Monthly & Yearly Expected Value
+    cur_month_pnl := new_month ? 0.0 : (1 + cur_month_pnl[1]) * (1 + bar_pnl) - 1 
+    cur_year_pnl := new_year ? 0.0 : (1 + cur_year_pnl[1]) * (1 + bar_pnl) - 1  
+    
+    // 年次および月次期待値を格納 / Store monthly and yearly expected values
+    var month_pnl  = array.new_float(), var month_time = array.new_int()
+    var year_pnl  = array.new_float(), var year_time = array.new_int()
+    
+    // 期待値計算の変数 / Variables for expected value calculation
+    var month_wins = array.new_int(), var month_losses = array.new_int()
+    var month_avg_win = array.new_float(), var month_avg_loss = array.new_float()
+    var year_wins = array.new_int(), var year_losses = array.new_int()
+    var year_avg_win = array.new_float(), var year_avg_loss = array.new_float()
+
+    // 月次および年次期待値の配列更新 / Update arrays for monthly and yearly expected values
+    bool last_computed = false
+    if (not na(cur_month_pnl[1]) and (new_month or barstate.islastconfirmedhistory))
+        if (last_computed and array.size(month_pnl) > 0)
+            array.pop(month_pnl), array.pop(month_time)
+            array.pop(month_wins), array.pop(month_losses)
+            array.pop(month_avg_win), array.pop(month_avg_loss)
+
+        array.push(month_pnl, cur_month_pnl[1]), array.push(month_time, time[1])
+        array.push(month_wins, 0), array.push(month_losses, 0)
+        array.push(month_avg_win, 0.0), array.push(month_avg_loss, 0.0)
+    
+    if (not na(cur_year_pnl[1]) and (new_year or barstate.islastconfirmedhistory))
+        if (last_computed and array.size(year_pnl) > 0)
+            array.pop(year_pnl), array.pop(year_time)
+            array.pop(year_wins), array.pop(year_losses)
+            array.pop(year_avg_win), array.pop(year_avg_loss)
+
+        array.push(year_pnl, cur_year_pnl[1]), array.push(year_time, time[1])
+        array.push(year_wins, 0), array.push(year_losses, 0)
+        array.push(year_avg_win, 0.0), array.push(year_avg_loss, 0.0)
+
+    last_computed := barstate.islastconfirmedhistory ? true : last_computed
+
+    // 勝ち取引と負け取引を追跡 / Track winning and losing trades
+    if (strategy.closedtrades > 0 and na(strategy.closedtrades[1]) == false)
+        closed_profit = strategy.netprofit - strategy.netprofit[1]
+        if closed_profit > 0
+            if array.size(month_wins) > 0
+                wins = array.get(month_wins, array.size(month_wins) - 1) + 1
+                avg_win = (array.get(month_avg_win, array.size(month_avg_win) - 1) * (wins - 1) + closed_profit) / wins
+                array.set(month_wins, array.size(month_wins) - 1, wins)
+                array.set(month_avg_win, array.size(month_avg_win) - 1, avg_win)
+            if array.size(year_wins) > 0
+                wins = array.get(year_wins, array.size(year_wins) - 1) + 1
+                avg_win = (array.get(year_avg_win, array.size(year_avg_win) - 1) * (wins - 1) + closed_profit) / wins
+                array.set(year_wins, array.size(year_wins) - 1, wins)
+                array.set(year_avg_win, array.size(year_avg_win) - 1, avg_win)
+        else
+            if array.size(month_losses) > 0
+                losses = array.get(month_losses, array.size(month_losses) - 1) + 1
+                avg_loss = (array.get(month_avg_loss, array.size(month_avg_loss) - 1) * (losses - 1) + closed_profit) / losses
+                array.set(month_losses, array.size(month_losses) - 1, losses)
+                array.set(month_avg_loss, array.size(month_avg_loss) - 1, avg_loss)
+            if array.size(year_losses) > 0
+                losses = array.get(year_losses, array.size(year_losses) - 1) + 1
+                avg_loss = (array.get(year_avg_loss, array.size(year_avg_loss) - 1) * (losses - 1) + closed_profit) / losses
+                array.set(year_losses, array.size(year_losses) - 1, losses)
+                array.set(year_avg_loss, array.size(year_avg_loss) - 1, avg_loss)
+
+    // 月次テーブル / Monthly table
+    var monthly_table = table(na)
+    if (barstate.islastconfirmedhistory)
+        monthly_table := table.new(position.bottom_right, columns = 14, rows = array.size(year_time) + 1, border_width = 1)
+        table.cell(monthly_table, 0,  0, "",     bgcolor = #bbbbbb00)
+        table.cell(monthly_table, 1,  0, "Jan",  bgcolor = #bbbbbb)
+        table.cell(monthly_table, 2,  0, "Feb",  bgcolor = #bbbbbb)
+        table.cell(monthly_table, 3,  0, "Mar",  bgcolor = #bbbbbb)
+        table.cell(monthly_table, 4,  0, "Apr",  bgcolor = #bbbbbb)
+        table.cell(monthly_table, 5,  0, "May",  bgcolor = #bbbbbb)
+        table.cell(monthly_table, 6,  0, "Jun",  bgcolor = #bbbbbb)
+        table.cell(monthly_table, 7,  0, "Jul",  bgcolor = #bbbbbb)
+        table.cell(monthly_table, 8,  0, "Aug",  bgcolor = #bbbbbb)
+        table.cell(monthly_table, 9,  0, "Sep",  bgcolor = #bbbbbb)
+        table.cell(monthly_table, 10, 0, "Oct",  bgcolor = #bbbbbb)
+        table.cell(monthly_table, 11, 0, "Nov",  bgcolor = #bbbbbb)
+        table.cell(monthly_table, 12, 0, "Dec",  bgcolor = #bbbbbb)
+        table.cell(monthly_table, 13, 0, "Year", bgcolor = #bbbbbb)
+    
+        // 年次データの集計 / Collecting yearly data
+        var year_total_pnl = array.new_float()
+        var year_exp_val = array.new_float()
+        
+        for yt = 0 to array.size(year_time) - 1
+            total_year_wins = 0, total_year_losses = 0
+            total_year_avg_win = 0.0, total_year_avg_loss = 0.0
+            total_year_pnl = 0.0
+
+            for mt = 1 to 12
+                idx = -1
+                for j = 0 to array.size(month_time) - 1
+                    if year(array.get(month_time, j)) == year(array.get(year_time, yt)) and month(array.get(month_time, j)) == mt
+                        idx := j
+                        break
+                if idx != -1
+                    total_year_pnl := total_year_pnl + array.get(month_pnl, idx)
+                    total_year_wins := total_year_wins + array.get(month_wins, idx)
+                    total_year_losses := total_year_losses + array.get(month_losses, idx)
+                    total_year_avg_win := total_year_avg_win + (array.get(month_avg_win, idx) * array.get(month_wins, idx))
+                    total_year_avg_loss := total_year_avg_loss + (array.get(month_avg_loss, idx) * array.get(month_losses, idx))
+            
+            total_year_avg_win := total_year_wins > 0 ? total_year_avg_win / total_year_wins : 0.0
+            total_year_avg_loss := total_year_losses > 0 ? total_year_avg_loss / total_year_losses : 0.0
+            win_rate = total_year_wins + total_year_losses > 0 ? total_year_wins / (total_year_wins + total_year_losses) : na
+            exp_val = win_rate ? (win_rate * total_year_avg_win) - ((1 - win_rate) * math.abs(total_year_avg_loss)) : na
+            array.push(year_total_pnl, total_year_pnl)
+            array.push(year_exp_val, exp_val)
+            
+        for yt = 0 to array.size(year_time) - 1
+            table.cell(monthly_table, 0,  yt + 1, str.tostring(year(array.get(year_time, yt))), bgcolor = #bbbbbb)
+            
+            y_color = bg_color(array.get(year_exp_val, yt))
+            value_to_display = na(array.get(year_exp_val, yt)) ? "" : str.tostring(math.round(array.get(year_exp_val, yt) * 100, prec))
+            table.cell(monthly_table, 13, yt + 1, value_to_display, bgcolor = y_color, text_color=color.new(color.white, 0))
+            
+        for mt = 0 to array.size(month_time) - 1
+            m_row = year(array.get(month_time, mt)) - year(array.get(year_time, 0)) + 1
+            m_col = month(array.get(month_time, mt))
+            
+            if array.size(month_wins) > mt and array.size(month_losses) > mt and array.size(month_avg_win) > mt and array.size(month_avg_loss) > mt
+                win_rate = array.get(month_wins, mt) / (array.get(month_wins, mt) + array.get(month_losses, mt))
+                exp_val = (win_rate * array.get(month_avg_win, mt)) - ((1 - win_rate) * math.abs(array.get(month_avg_loss, mt)))
+                m_color = bg_color(exp_val)
+                value_to_display = na(exp_val) ? "" : str.tostring(math.round(exp_val * 100, prec))
+                table.cell(monthly_table, m_col, m_row, value_to_display, bgcolor = m_color, text_color=color.new(color.white, 0))
+            else
+                table.cell(monthly_table, m_col, m_row, "", bgcolor = color.new(color.gray, transparency), text_color=color.new(color.white, 0))
+// [EOF]
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/454362
+
+> Last Modified
+
+2024-06-17 16:29:02

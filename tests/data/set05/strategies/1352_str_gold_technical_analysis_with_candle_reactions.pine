@@ -1,0 +1,86 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动态止损止盈的双均线趋势跟踪与蜡烛图反应策略-Dynamic-Stop-Loss-and-Take-Profit-Dual-Moving-Average-Trend-Following-Strategy-with-Candlestick-Reactions.md
+// content_hash: 8b62011ae4decea3
+// collected: 2026-07-27
+strategy("Gold Technical Analysis with Candle Reactions", overlay=true)
+
+// Parameters for Stop Loss and Take Profit
+stopLossPercent = input.float(2, title="Stop Loss Percentage", minval=0.1) / 100
+takeProfitPercent = input.float(4, title="Take Profit Percentage", minval=0.1) / 100
+
+// Fetch Gold data
+gold = request.security("BTC_USDT:swap", "D", close)
+
+// Moving Averages
+sma20 = ta.sma(gold, 20)
+sma50 = ta.sma(gold, 50)
+
+// Relative Strength Index
+rsi = ta.rsi(gold, 14)
+
+// Candlestick Patterns
+bullish_engulfing = (close[1] < open[1]) and (close > open) and (close >= open[1]) and (open <= close[1])
+bearish_engulfing = (close[1] > open[1]) and (close < open) and (close <= open[1]) and (open >= close[1])
+
+// Plot Moving Averages
+plot(sma20, title="SMA 20", color=color.blue, linewidth=2)
+plot(sma50, title="SMA 50", color=color.red, linewidth=2)
+
+// RSI Plot
+hline(70, "Overbought", color=color.red)
+hline(30, "Oversold", color=color.green)
+plot(rsi, title="RSI", color=color.purple, linewidth=2, style=plot.style_line)
+
+// Candlestick Pattern Detection
+bgcolor(bullish_engulfing ? color.new(color.green, 90) : na)
+bgcolor(bearish_engulfing ? color.new(color.red, 90) : na)
+
+// User Reaction Logic
+var string reaction = na
+var string action = na
+var float stopLossLevel = na
+var float takeProfitLevel = na
+
+if (bullish_engulfing)
+    reaction := "Positive sentiment, consider buying opportunities."
+    action := "Long Buy"
+    stopLossLevel := close * (1 - stopLossPercent)
+    takeProfitLevel := close * (1 + takeProfitPercent)
+    strategy.entry("Long", strategy.long)
+    strategy.exit("Take Profit/Stop Loss", "Long", limit=takeProfitLevel, stop=stopLossLevel)
+else if (bearish_engulfing)
+    reaction := "Negative sentiment, consider selling opportunities."
+    action := "Short Sell"
+    stopLossLevel := close * (1 + stopLossPercent)
+    takeProfitLevel := close * (1 - takeProfitPercent)
+    strategy.entry("Short", strategy.short)
+    strategy.exit("Take Profit/Stop Loss", "Short", limit=takeProfitLevel, stop=stopLossLevel)
+
+// Display Reaction and Action for the most recent pattern
+var label last_label = na
+if (reaction != na and action != na)
+    if (not na(last_label))
+        label.delete(last_label)
+    last_label := label.new(x=bar_index, y=high, text=reaction + " Action: " + action, style=label.style_label_down, color=color.white, textcolor=color.black)
+
+// Plot buy/sell arrows on the chart for past data
+plotshape(series=bullish_engulfing, title="Long Buy", location=location.belowbar, color=color.green, style=shape.labelup, text="BUY", textcolor=color.white)
+plotshape(series=bearish_engulfing, title="Short Sell", location=location.abovebar, color=color.red, style=shape.labeldown, text="SELL", textcolor=color.white)
+
+// Plot Stop Loss and Take Profit Levels
+plot(series=(bullish_engulfing ? stopLossLevel : na), title="Stop Loss Long", style=plot.style_line, color=color.red, linewidth=1)
+plot(series=(bullish_engulfing ? takeProfitLevel : na), title="Take Profit Long", style=plot.style_line, color=color.green, linewidth=1)
+plot(series=(bearish_engulfing ? stopLossLevel : na), title="Stop Loss Short", style=plot.style_line, color=color.red, linewidth=1)
+plot(series=(bearish_engulfing ? takeProfitLevel : na), title="Take Profit Short", style=plot.style_line, color=color.green, linewidth=1)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/454764
+
+> Last Modified
+
+2024-06-21 18:03:18

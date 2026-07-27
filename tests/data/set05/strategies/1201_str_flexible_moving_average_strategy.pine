@@ -1,0 +1,94 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/灵活多周期均线交叉策略高级版-Advanced-Flexible-Multi-Period-Moving-Average-Crossover-Strategy.md
+// content_hash: 760826c99b924eee
+// collected: 2026-07-27
+strategy("Flexible Moving Average Strategy", overlay=true, initial_capital=10000, default_qty_type=strategy.percent_of_equity, default_qty_value=100)
+
+// Input to select the review frequency (Daily, Weekly, Monthly)
+check_frequency = input.string("Weekly", title="Review Frequency", options=["Daily", "Weekly", "Monthly"])
+
+// Input to select the Moving Average method (SMA, EMA, WMA, HMA, SMMA)
+ma_method = input.string("EMA", title="Moving Average Method", options=["SMA", "EMA", "WMA", "HMA", "SMMA"])
+
+// Input to select the length of the Moving Average
+ma_length = input.int(30, title="Moving Average Length", minval=1)
+
+// Input to select the timeframe for Moving Average calculation
+ma_timeframe = input.string("W", title="Moving Average Timeframe", options=["D", "W", "M"])
+
+// Calculate all Moving Averages on the selected timeframe
+sma_value = request.security(syminfo.tickerid, ma_timeframe, ta.sma(close, ma_length), lookahead=barmerge.lookahead_off)
+ema_value = request.security(syminfo.tickerid, ma_timeframe, ta.ema(close, ma_length), lookahead=barmerge.lookahead_off)
+wma_value = request.security(syminfo.tickerid, ma_timeframe, ta.wma(close, ma_length), lookahead=barmerge.lookahead_off)
+hma_value = request.security(syminfo.tickerid, ma_timeframe, ta.hma(close, ma_length), lookahead=barmerge.lookahead_off)
+smma_value = request.security(syminfo.tickerid, ma_timeframe, ta.rma(close, ma_length), lookahead=barmerge.lookahead_off) // Smoothed Moving Average (SMMA)
+
+// Select the appropriate Moving Average based on user input
+ma = ma_method == "SMA" ? sma_value : 
+     ma_method == "EMA" ? ema_value :
+     ma_method == "WMA" ? wma_value :
+     ma_method == "HMA" ? hma_value :
+     smma_value  // Default to SMMA
+
+// Variable initialization
+var float previous_close = na
+var float previous_ma = na
+var float close_to_compare = na
+var float ma_to_compare = na
+
+// Detect the end of the period (Daily, Weekly, or Monthly) based on the selected frequency
+var bool is_period_end = false
+
+if check_frequency == "Daily"
+    is_period_end := ta.change(time('D')) != 0
+else if check_frequency == "Weekly"
+    is_period_end := ta.change(time('W')) != 0
+else if check_frequency == "Monthly"
+    is_period_end := ta.change(time('M')) != 0
+
+// Store the close and Moving Average values at the end of the period
+if is_period_end
+    previous_close := close[0]  // Closing price of the last day of the period
+    previous_ma := ma[0]  // Moving Average value at the end of the period
+
+// Strategy logic
+is_period_start = is_period_end
+
+// Check if this is the first bar of the backtest
+is_first_bar = barstate.isfirst
+
+if (is_period_start or is_first_bar)
+    // If the previous period values are not available, use current values
+    close_to_compare := not na(previous_close) ? previous_close : close[0]
+    ma_to_compare := not na(previous_ma) ? previous_ma : ma[0]
+    
+    if close_to_compare < ma_to_compare
+        // Close price below the MA -> Sell
+        if strategy.position_size > 0
+            strategy.close("Long")
+    else
+        // Close price above the MA -> Buy/Hold
+        if strategy.position_size == 0
+            strategy.entry("Long", strategy.long)
+
+// Close all positions at the end of the backtest period
+if barstate.islastconfirmedhistory
+    strategy.close_all(comment="Backtest End")
+
+// Plot the previous period's close price for comparison
+plot(previous_close, color=color.red, title="Previous Period Close", style=plot.style_stepline)
+plot(close_to_compare, color=color.blue, title="Close to Compare", style=plot.style_line)
+
+// Plot the selected Moving Average
+plot(ma, color=color.white, title="Moving Average", style=plot.style_line, linewidth=3)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/473238
+
+> Last Modified
+
+2024-11-28 15:18:47

@@ -1,0 +1,52 @@
+//@version=2
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双均线Stoch指标二元期权交易策略Dual-Moving-Average-Stochastic-Indicator-Binary-Options-Trading-Strategy.md
+// content_hash: 1847e61954551f0c
+// collected: 2026-07-27
+strategy("Binary Option EMA/Stoch strategy Corrected", overlay=true)
+
+//stoch
+
+length1 = input(14, minval=1), smoothK = input(1, minval=1), smoothD = input(3, minval=1)
+k = sma(stoch(close, high, low, length1), smoothK)
+d = sma(k, smoothD)
+
+
+len = input(4, minval=1, title="Length")
+src = input(high, title="Source")
+out = ema(src, len)
+HIGH = out
+
+len1 = input(4, minval=1, title="Length")
+src1 = input(low, title="Source")
+out1 = ema(src1, len1)
+LOW = out1
+
+
+HL2 = (HIGH+LOW)/2
+
+len2 = input(21, minval=1, title="Length")
+src2 = input(close, title="Source")
+out2 = ema(src2, len2)
+EMA = out2
+
+
+x = close < LOW and open < HL2 and close < EMA  and d < 50 and k < 50 
+
+y =   close > HIGH and open > HL2 and close > EMA and d > 50 and k > 50
+
+if (x)
+    strategy.entry("UP", strategy.long)
+
+if (y)
+    strategy.entry("DOWN", strategy.short)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/432228
+
+> Last Modified
+
+2023-11-15 16:56:47

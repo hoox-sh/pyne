@@ -1,0 +1,48 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/20水平突破策略20-Level-Breakout-Strategy.md
+// content_hash: 7327a144e906c862
+// collected: 2026-07-27
+
+
+//@version=4
+strategy("20 Level Breakout", overlay=true)
+
+baseLevel = math.floor(close * 100) /100
+eigthylevel = baseLevel - 0.002
+twentyLevel = baseLevel + 0.002
+takeprofitL = baseLevel - 0.01
+stoplossL = baseLevel + 0.02 
+takeprofitS = baseLevel + 0.015
+stoplossS = baseLevel - 0.02
+
+isPriceAboveLevel(price, level) =>
+    price > level
+
+breakout = close > twentyLevel and close > baseLevel
+breakoutl = close < eigthylevel and close < baseLevel
+// Entry condition: Only enter if there are no open trades and the close is between baseLevel and baseLevel + 0.01
+isLong = breakout and close > baseLevel and close <= (baseLevel + 0.01) and ta.rsi(close, 14) > 40 and ta.ema(close,50)<close
+isShort = breakoutl and close < baseLevel and close >= (baseLevel - 0.01)
+// Debugging
+plot(isLong ? 1 : 0, color=color.blue, style=plot.style_histogram)
+plotshape(isLong, style=shape.triangledown, color=color.green, size=size.small)
+plotshape(isShort, style = shape.triangleup, color =  color.red, size = size.small)
+// Plotting the stop loss line
+plot(stoplossL, color=color.red, linewidth=2, title="Take Profit")
+plot(stoplossS, color=color.green, linewidth = 2, title = " Take Profit")
+strategy.entry("Short", strategy.short, when=isLong, stop =twentyLevel)
+strategy.exit("Stop Loss/Profit", "Short", stop = stoplossL , limit = takeprofitL)
+
+strategy.entry("Long",strategy.long, when=isShort , stop = eigthylevel )
+strategy.exit("Stop loss/Profit", "Long", stop = stoplossS , limit = takeprofitS)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/442868
+
+> Last Modified
+
+2024-02-26 17:27:50

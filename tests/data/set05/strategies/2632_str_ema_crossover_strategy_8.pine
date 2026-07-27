@@ -1,0 +1,53 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多重EMA交叉趋势跟踪策略Multi-EMA-Crossover-Trend-Following-Strategy.md
+// content_hash: 1245fcbee8ae7cb1
+// collected: 2026-07-27
+strategy("EMA Crossover Strategy", overlay=true)
+
+// 定义EMA
+ema21 = ta.ema(close, 21)
+ema55 = ta.ema(close, 55)
+ema100 = ta.ema(close, 100)
+ema200 = ta.ema(close, 200)
+
+// 绘制EMA
+plot(ema21, title="EMA 21", color=color.red)
+plot(ema55, title="EMA 55", color=color.black)
+plot(ema100, title="EMA 100", color=color.black)
+plot(ema200, title="EMA 200", color=color.black)
+
+// 入场条件
+longCondition = ta.crossover(ema21, ema55)
+shortCondition = ta.crossunder(ema21, ema55)
+
+// 多头策略
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+
+// 空头策略
+if (shortCondition)
+    strategy.entry("Short", strategy.short)
+
+// 入场条件
+longCondition2 = ta.crossover(ema55, ema200)
+shortCondition2 = ta.crossunder(ema55, ema200)
+
+// 多头策略2
+if (longCondition2)
+    strategy.entry("longCondition2", strategy.long)
+
+// 空头策略2
+if (shortCondition2)
+    strategy.entry("shortCondition2", strategy.short)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/457796
+
+> Last Modified
+
+2024-07-26 16:24:07

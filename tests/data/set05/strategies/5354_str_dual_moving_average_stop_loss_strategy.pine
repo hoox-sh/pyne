@@ -1,0 +1,50 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双移动均线止损策略Dual-Moving-Average-Stop-Loss-Strategy.md
+// content_hash: 55cdf362c1e0052c
+// collected: 2026-07-27
+strategy(title = "Robot WhiteBox StopMA", shorttitle = "Robot WhiteBox StopMA", overlay = true, default_qty_type = strategy.percent_of_equity, default_qty_value = 100, pyramiding = 0)
+
+//Settings
+needlong = input(true, defval = true, title = "Long")
+needshort = input(false, defval = false, title = "Short")
+len = input(50)
+src = input(ohlc4)
+elpercent = input(5.0, minval = 0, maxval = 100, title = "Shift long, %")
+espercent = input(-5.0, minval = -100, maxval = 0, title = "Shift short, %")
+showlines = input(true, defval = true, title = "Show lines")
+showbg = input(true, defval = true, title = "Show background")
+
+//Levels
+ma = sma(src, len)
+el = ma + ((ma / 100) * elpercent)
+es = ma + ((ma / 100) * espercent)
+
+//Lines
+colel = showlines ? color.lime : na
+colma = showlines ? color.blue : na
+coles = showlines ? color.red : na
+plot(el, color = colel, offset = 1)
+plot(ma, color = colma, offset = 1)
+plot(es, color = coles, offset = 1)
+
+//Background
+trend = 0
+trend := high > el[1] ? 1 : low < es[1] ? -1 : trend[1]
+colbg = showbg == false ? na : trend == 1 ? color.lime : trend == -1 ? color.red : na
+bgcolor(colbg, transp = 80)
+
+//Trading
+if ma > 0
+    strategy.entry("Long", strategy.long, needlong ? na : 0, stop = el)
+    strategy.entry("Short", strategy.short, needshort ? na : 0, stop = es)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/432211
+
+> Last Modified
+
+2023-11-15 15:44:48

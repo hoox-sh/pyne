@@ -1,0 +1,90 @@
+//@version=6
+// set03 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双指数移动平均交叉策略优化器-Dual-Exponential-Moving-Average-Crossover-Strategy-Optimizer.md
+// content_hash: 5b4f0c019a09d19f
+// collected: 2026-07-27
+strategy(
+     "gosho bot Strategy",
+     overlay=true,
+     calc_on_every_tick=true,
+     currency=currency.USD
+     )
+
+// INPUT:
+
+// Options to enter fast and slow Exponential Moving Average (EMA) values
+emaFast = input.int(title="Fast EMA",  defval=6, minval=1, maxval=9999)
+emaSlow = input.int(title="Slow EMA",  defval=16, minval=1, maxval=9999)
+
+// Option to select trade directions
+tradeDirection = input.string(title="Trade Direction", defval="Both", options=["Long", "Short", "Both"])
+
+
+
+
+// CALCULATIONS:
+
+// Use the built-in function to calculate two EMA lines
+fastEMA = ta.ema(close, emaFast)
+slowEMA = ta.ema(close, emaSlow)
+
+
+// PLOT:
+
+// Draw the EMA lines on the chart
+plot(series=fastEMA, color=color.orange, linewidth=2)
+plot(series=slowEMA, color=color.blue, linewidth=2)
+percentageDiff = (fastEMA - slowEMA) / slowEMA * 100
+
+
+
+
+
+
+
+// Translate input into trading conditions
+longOK  = (tradeDirection == "Long") or (tradeDirection == "Both")
+shortOK = (tradeDirection == "Short") or (tradeDirection == "Both")
+
+// Decide if we should go long or short using the built-in functions
+longCondition = ta.crossover(fastEMA, slowEMA)
+shortCondition = ta.crossunder(fastEMA, slowEMA)
+
+
+profit_long = input.float(4, "Profit_long %", minval=0.0, step=0.1) * 0.01
+profit_short = input.float(4, "Profit_short %", minval=0.0, step=0.1) * 0.01
+short_stop_profit = strategy.position_avg_price * (1 - profit_short)
+long_stop_profit = strategy.position_avg_price * (1 + profit_long)
+
+
+
+
+
+
+// ORDERS:
+
+// Submit entry (or reverse) orders
+if (longCondition and close > open )
+    strategy.entry(" Long ", strategy.long)
+if (shortCondition and close < open )
+    strategy.entry(" Short ", strategy.short)
+    
+// Submit exit orders in the cases where we trade only long or only short
+if (strategy.position_size > 0 and shortCondition   )
+    strategy.exit(id="exit long", stop=close)
+if (strategy.position_size < 0 and longCondition         )
+    strategy.exit(id="exit short", stop=close)
+
+
+plot(short_stop_profit)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/489050
+
+> Last Modified
+
+2025-04-01 16:09:05

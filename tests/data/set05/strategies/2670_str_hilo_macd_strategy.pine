@@ -1,0 +1,52 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动态波动趋势捕捉策略-Dynamic-Oscillation-Trend-Capture-Strategy.md
+// content_hash: c33c9f429e2ac75c
+// collected: 2026-07-27
+strategy("Hilo MACD Strategy", overlay=true)
+
+// Parâmetros do Hilo Activator
+hiloPeriod = input.int(4, title="Hilo Period")
+
+// Cálculo do Hilo Activator
+hiloHigh = ta.highest(high, hiloPeriod)
+hiloLow = ta.lowest(low, hiloPeriod)
+hiloActivator = ta.valuewhen(close > hiloHigh[1] and close[1] < hiloHigh[2], hiloHigh, hiloPeriod)
+hiloActivator := na(hiloActivator) ? ta.valuewhen(close < hiloLow[1] and close[1] > hiloLow[2], hiloLow, hiloPeriod) : hiloActivator
+hiloActivator := na(hiloActivator) ? ta.valuewhen(close[1] > hiloHigh[1] and close < hiloLow[1], hiloLow, hiloPeriod) : hiloActivator
+
+hiloColor = hiloActivator > close ? color.red : color.green
+plot(hiloActivator, title="Hilo Activator", color=hiloColor, linewidth=2)
+
+// Parâmetros do MACD
+fastLength = input.int(12, title="MACD Fast Length")
+slowLength = input.int(26, title="MACD Slow Length")
+signalSmoothing = input.int(9, title="MACD Signal Smoothing")
+
+// Cálculo do MACD
+[macdLine, signalLine, _] = ta.macd(close, fastLength, slowLength, signalSmoothing)
+
+// Plot MACD para visualização
+plot(macdLine, title="MACD Line", color=color.blue)
+plot(signalLine, title="Signal Line", color=color.orange)
+
+// Condições de entrada e saída
+longCondition = ta.crossover(macdLine, signalLine) and hiloColor == color.green
+shortCondition = ta.crossunder(macdLine, signalLine) and hiloColor == color.red
+
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+
+if (shortCondition)
+    strategy.entry("Short", strategy.short)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/454746
+
+> Last Modified
+
+2024-06-21 15:40:25

@@ -1,0 +1,69 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多时间框架融合型指数均线交叉策略-Multi-Timeframe-Exponential-Moving-Average-Crossover-Strategy-with-Risk-Reward-Optimization.md
+// content_hash: 7624dde3b0fa4df4
+// collected: 2026-07-27
+strategy("Simplified MTF Strategy with RR Ratio", overlay=true)
+
+// ????? ??????????
+fastEMA = input.int(9, "Fast EMA")
+slowEMA = input.int(21, "Slow EMA")
+atrPeriod = input.int(14, "ATR Period")
+rrRatio = input.float(5.0, "Risk-Reward Ratio", minval=1.0, step=0.1)
+
+// ?????????? ?? ????
+ema_fast = ta.ema(close, fastEMA)
+ema_slow = ta.ema(close, slowEMA)
+atr = ta.atr(atrPeriod)
+
+// ???? ????????? EMA
+htf_ema_fast = request.security(syminfo.tickerid, "240", ta.ema(close, fastEMA))
+htf_ema_slow = request.security(syminfo.tickerid, "240", ta.ema(close, slowEMA))
+
+// ?????? ???????
+upTrend = ema_fast > ema_slow and close > htf_ema_fast
+downTrend = ema_fast < ema_slow and close < htf_ema_slow
+
+// ?????? ???????
+longCondition = upTrend and ta.crossover(close, ema_slow)
+shortCondition = downTrend and ta.crossunder(close, ema_slow)
+
+// ????? ?? ??????? ?? ????
+riskAmount = atr * 1.5
+rewardAmount = riskAmount * rrRatio
+
+// ???????? ?????
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+    strategy.exit("Exit Long", "Long", stop=strategy.position_avg_price - riskAmount, limit=strategy.position_avg_price + rewardAmount)
+
+if (shortCondition)
+    strategy.entry("Short", strategy.short)
+    strategy.exit("Exit Short", "Short", stop=strategy.position_avg_price + riskAmount, limit=strategy.position_avg_price - rewardAmount)
+
+// ????????
+plot(ema_fast, color=color.blue, title="Fast EMA")
+plot(ema_slow, color=color.red, title="Slow EMA")
+plot(htf_ema_fast, color=color.green, title="HTF Fast EMA")
+plot(htf_ema_slow, color=color.yellow, title="HTF Slow EMA")
+
+plotshape(longCondition, style=shape.triangleup, location=location.belowbar, color=color.green, size=size.small, title="Long Signal")
+plotshape(shortCondition, style=shape.triangledown, location=location.abovebar, color=color.red, size=size.small, title="Short Signal")
+
+// ?????-??????? ?????? ????
+if (strategy.position_size != 0)
+    label.new(bar_index, high, text="RR: 1:" + str.tostring(rrRatio, "#.##"), color=color.blue, textcolor=color.white, style=label.style_label_down, yloc=yloc.abovebar)
+
+// ???????
+alertcondition(longCondition, title="Long Signal", message="Potential long entry")
+alertcondition(shortCondition, title="Short Signal", message="Potential short entry")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/458040
+
+> Last Modified
+
+2024-07-29 14:20:16

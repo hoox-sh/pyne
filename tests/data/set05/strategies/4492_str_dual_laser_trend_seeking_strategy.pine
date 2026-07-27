@@ -1,0 +1,150 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多空寻趋势双重激光策略Dual-Laser-Trend-seeking-Strategy.md
+// content_hash: 40912a3140c26476
+// collected: 2026-07-27
+strategy(title="M-SQUEEZE", overlay = true)
+
+//study(title="M-SQUEEZE", overlay = true)
+
+src = input(close, "SOURCE", type = input.source)
+
+// ███▓▒░░ VARIABLES ░░▒▓███
+
+var bool longCond = na, var bool shortCond = na
+var int CondIni_long0 = 0, var int CondIni_short0 = 0
+var int CondIni_long = 0, var int CondIni_short = 0
+var float last_open_longCondition = na, var float last_open_shortCondition = na
+var int last_longCondition0 = na, var int last_shortCondition0 = na
+var int last_longCondition = na, var int last_shortCondition = na
+var bool long_tp = na, var bool short_tp = na
+var int last_long_tp = na, var int last_short_tp = na
+var bool Final_Long_tp = na, var bool Final_Short_tp = na
+var bool SMI_longCond = na, var bool SMI_shortCond = na
+var bool RSI_longCond = na, var bool RSI_shortCond = na
+var bool ADX_longCond = na, var bool ADX_shortCond = na
+var bool SAR_longCond = na, var bool SAR_shortCond = na
+var bool Final_longCondition0 = na, var bool Final_shortCondition0 = na
+var bool Final_longCondition = na, var bool Final_shortCondition = na
+
+// ███▓▒░░ SQUEEZE MOMENTUM INDICATOR ░░▒▓███
+
+Act_SMI = input(true, "SQUEEZE MOMENTUM INDICATOR")
+BB_length = input(85, title="BOLLINGER BANDS LENGTH", minval = 1)
+BB_mult = input(2.1, title="BOLLINGER BANDS MULTI-FACTOR", minval = 0.1, step = 0.1)
+KC_length = input(38, title="KELTNER CHANNEL LENGTH", minval = 1)
+KC_mult = input(2.0, title="KELTNER CHANNEL MULTI-FACTOR", minval = 0.1, step = 0.1)
+
+SQUEEZE_M(_src,_BB_length,_BB_mult,_KC_length,_KC_mult)=>
+
+    // Calculate BB
+    basis = sma(_src, _BB_length)
+    dev = _BB_mult * stdev(_src, _BB_length)
+    upperBB = basis + dev
+    lowerBB = basis - dev
+    // Calculate KC
+    ma = sma(src, _KC_length)
+    rangema = sma(tr, _KC_length)
+    upperKC = ma + rangema * _KC_mult
+    lowerKC = ma - rangema * _KC_mult
+    // Squeeze
+    sqzOn = lowerBB > lowerKC and upperBB < upperKC
+    sqzOff = lowerBB < lowerKC and upperBB > upperKC
+    nosqz = sqzOn == false and sqzOff == false
+    // Linear Regression curve
+    val = linreg(_src - avg(avg(highest(high, _KC_length), lowest(low, _KC_length)), sma(close, _KC_length)), _KC_length, 0)
+    [nosqz,val]
+    
+[NOSQZ,VAL] = SQUEEZE_M(src,BB_length,BB_mult,KC_length,KC_mult)
+
+barcolor(iff(VAL > 0, iff(VAL > nz(VAL[1]), color.lime, color.green), iff(VAL < nz(VAL[1]), color.red, color.maroon)))
+
+// ███▓▒░░ SAR ░░▒▓███
+
+Act_SAR = input(true, "PARABOLIC SAR")
+Sst = input (0.73, "SAR STAR", step=0.01, minval = 0.01)
+Sinc = input (0.5, "SAR INC", step=0.01, minval = 0.01)
+Smax = input (0.06, "SAR MAX", step=0.01, minval = 0.01)
+
+SAR = sar(Sst, Sinc, Smax)
+plot(SAR, style = plot.style_cross, title = "SAR")
+
+// ███▓▒░░ RSI VOLUME WEIGHTED ░░▒▓███
+
+Act_RSI = input(true, "RSI VOLUME WEIGHTED")
+RSI_len = input(22, "RSI LENGHT", minval = 1)
+RSI_obos = input(45,title="RSI CENTER LINE", type=input.integer, minval = 1)
+
+WiMA(_src, _length)=> 
+    var float MA_s=0.0
+    MA_s:=(_src + nz(MA_s[1] * (_length-1)))/_length
+    MA_s
+
+RSI_Volume(fv, length)=>	
+	up=iff(fv>fv[1],abs(fv-fv[1])*volume,0)
+	dn=iff(fv<fv[1],abs(fv-fv[1])*volume,0)
+	upt=WiMA(up,length)
+	dnt=WiMA(dn,length)
+	100*(upt/(upt+dnt))
+
+RSI_V = RSI_Volume(src, RSI_len)
+
+// ███▓▒░░ STRATEGY ░░▒▓███
+
+SMI_longCond := (Act_SMI ? (VAL > 0 and (VAL > nz(VAL[1])) and not NOSQZ) : RSI_longCond) 
+RSI_longCond := (Act_RSI ? (RSI_V > RSI_obos) : SAR_longCond)
+SAR_longCond := (Act_SAR ? (SAR < close) : SMI_longCond)
+
+SMI_shortCond := (Act_SMI ? (VAL < 0 and (VAL < nz(VAL[1])) and not NOSQZ) : RSI_shortCond) 
+RSI_shortCond := (Act_RSI ? (RSI_V < RSI_obos) : SAR_shortCond)
+SAR_shortCond := (Act_SAR ? (SAR > close) : SMI_shortCond)
+
+longCond := SMI_longCond and RSI_longCond and SAR_longCond
+shortCond := SMI_shortCond and RSI_shortCond and SAR_shortCond
+
+CondIni_long0 := longCond ? 1 : shortCond ? -1 : CondIni_long0[1]
+CondIni_short0 := longCond ? 1 : shortCond ? -1 : CondIni_short0[1]
+
+longCondition0 = (longCond and CondIni_long0[1] == -1)
+shortCondition0 = (shortCond and CondIni_short0[1] == 1)
+
+CondIni_long := longCond[1] ? 1 : shortCond[1] ? -1 : CondIni_long[1]
+CondIni_short := longCond[1] ? 1 : shortCond[1] ? -1 : CondIni_short[1]
+
+longCondition = (longCond[1] and CondIni_long[1] == -1)
+shortCondition = (shortCond[1] and CondIni_short[1] == 1)
+
+// ███▓▒░░ ALERTS & SIGNALS ░░▒▓███
+
+plotshape(longCondition, title = "Long Signal", style = shape.triangleup, location = location.belowbar, color = color.blue, transp = 0, size = size.tiny)
+plotshape(shortCondition, title = "Short Signal", style = shape.triangledown, location = location.abovebar, color = #FF0000, transp = 0, size = size.tiny)
+
+//alertcondition(longCondition, title="Long Alert", message = "LONG") 
+//alertcondition(shortCondition, title="Short Alert", message = "SHORT")
+
+// ███▓▒░░ BACKTESTING ░░▒▓███
+
+testStartYear = input(2018, "BACKTEST START YEAR", minval = 1980, maxval = 2222) 
+testStartMonth = input(01, "BACKTEST START MONTH", minval = 1, maxval = 12)
+testStartDay = input(01, "BACKTEST START DAY", minval = 1, maxval = 31)
+testPeriodStart = timestamp(testStartYear,testStartMonth,testStartDay,0,0)
+testStopYear = input(2222, "BACKTEST STOP YEAR", minval=1980, maxval = 2222)
+testStopMonth = input(12, "BACKTEST STOP MONTH", minval=1, maxval=12)
+testStopDay = input(31, "BACKTEST STOP DAY", minval=1, maxval=31)
+testPeriodStop = timestamp(testStopYear, testStopMonth, testStopDay, 0, 0)
+
+testPeriod = time >= testPeriodStart and time <= testPeriodStop ? true : false
+
+strategy.entry("Long", strategy.long, when = longCondition0 and testPeriod)
+strategy.entry("Short", strategy.short, when = shortCondition0 and testPeriod)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/431218
+
+> Last Modified
+
+2023-11-06 10:01:42

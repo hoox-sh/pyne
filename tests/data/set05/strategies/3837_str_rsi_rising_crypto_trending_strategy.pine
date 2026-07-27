@@ -1,0 +1,48 @@
+//@version=4
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/RSI Rising Crypto Trending Strategy.pine
+// content_hash: 51cb16c53f421e39
+// collected: 2026-07-27
+strategy(title = "RSI Rising", overlay = true, initial_capital = 100, default_qty_type= strategy.percent_of_equity, default_qty_value = 100, slippage=0,commission_type=strategy.commission.percent,commission_value=0.03)
+/////////////////////
+source          = close
+bb_length       = 20
+bb_mult         = 1.0
+basis           = sma(source, bb_length)
+dev             = bb_mult * stdev(source, bb_length)
+upperx           = basis + dev
+lowerx           = basis - dev
+bbr             = (source - lowerx)/(upperx - lowerx)
+bbr_len         = 21
+bbr_std         = stdev(bbr, bbr_len)
+bbr_std_thresh  = 0.1
+is_sideways     = (bbr > 0.0 and bbr < 1.0) and bbr_std <= bbr_std_thresh
+////////////////
+fromDay = input(defval = 1, title = "From Day", minval = 1, maxval = 31)
+fromMonth = input(defval = 1, title = "From Month", minval = 1, maxval = 12)
+fromYear = input(defval = 2010, title = "From Year", minval = 1970)
+ //monday and session 
+// To Date Inputs
+toDay = input(defval = 31, title = "To Day", minval = 1, maxval = 31)
+toMonth = input(defval = 12, title = "To Month", minval = 1, maxval = 12)
+toYear = input(defval = 2021, title = "To Year", minval = 1970)
+startDate = timestamp(fromYear, fromMonth, fromDay, 00, 00)
+finishDate = timestamp(toYear, toMonth, toDay, 00, 00)
+time_cond = time >= startDate and time <= finishDate
+sourcex = close
+length = 2
+pcntChange = 1
+roc = 100 * (sourcex - sourcex[length])/sourcex[length]
+emaroc = ema(roc, length/2)
+isMoving() => emaroc > (pcntChange / 2) or emaroc < (0 - (pcntChange / 2))
+periods = input(19)
+smooth = input(14, title="RSI Length" )
+src = input(low, title="Source" )
+rsiClose = rsi(ema(src, periods), smooth)
+long=rising(rsiClose,2) and not is_sideways and isMoving()
+short=not rising(rsiClose,2) and not is_sideways and isMoving()
+if(time_cond)
+    strategy.entry('long',1,when=long)
+    strategy.entry('short',0,when=short)
+Expand (60 lines)

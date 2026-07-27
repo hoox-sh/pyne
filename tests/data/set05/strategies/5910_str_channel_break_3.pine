@@ -1,0 +1,63 @@
+//@version=3
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/突破通道趋势追踪策略Trend-Tracking-Strategy-Based-on-Channel-Breakouts.md
+// content_hash: 876d781d404dc432
+// collected: 2026-07-27
+
+
+initial_capital = 1000,
+default_qty_value = 90,
+default_qty_type = strategy.percent_of_equity,
+pyramiding = 0,
+commission_value = 0.002,
+commission_type = strategy.commission.percent,
+calc_on_every_tick = true
+length_val = 2
+max_bars_back = 1440
+risk_max_drawdown = 9
+
+
+strategy("Channel Break",max_bars_back=max_bars_back,initial_capital = initial_capital,default_qty_value = default_qty_value,default_qty_type = default_qty_type,pyramiding = pyramiding,commission_value = commission_value,commission_type = commission_type,calc_on_every_tick = calc_on_every_tick)
+// strategy.risk.max_drawdown(risk_max_drawdown, strategy.percent_of_equity) 
+
+length = input(title="Length",  minval=1, maxval=1000, defval=length_val)
+
+upBound = highest(high, length)
+downBound = lowest(low, length)
+
+//plot (upBound)
+//plot (downBound)
+//plot (close, color=red)
+//plot (ema(close,length * 2), color=green)
+//
+if (not na(close[length]) and time>timestamp(2018, 02, 24, 0, 00) )
+    strategy.entry("Buy", strategy.long, stop=upBound + syminfo.mintick, comment="Buy")
+    strategy.entry("Short", strategy.short, stop=downBound - syminfo.mintick, comment="Short")
+    
+position = strategy.position_size
+    
+    
+//plot(position , title="equity", color=red,style=cross,linewidth=4)
+plot(variance(position,2)>0?1:0,style=circles,linewidth=4)
+
+message = ""
+
+if (position > 0) 
+    message = "BTCUSD L: " + tostring(strategy.position_size)
+    na(position)
+    
+if (position < 0) 
+    message = "BTCUSD S: " + tostring(strategy.position_size)
+    na(position)
+
+alertcondition(variance(strategy.position_size,2) > 0, "test", message )
+```
+
+> Detail
+
+https://www.fmz.com/strategy/432994
+
+> Last Modified
+
+2023-11-23 14:04:59

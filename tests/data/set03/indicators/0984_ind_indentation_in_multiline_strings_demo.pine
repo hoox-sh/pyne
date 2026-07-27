@@ -1,0 +1,27 @@
+//@version=6
+// set03 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/release_notes.md::release_notes.md#block2
+// content_hash: 076e483889d9ce8e
+// collected: 2026-07-27
+indicator("Indentation in multiline strings demo")
+
+//@variable A multiline string with indentation defined in the global scope.
+string globalIndentedStr = """No indentation.
+Also no indentation.
+ Indented by one space.
+    Indented by four spaces.
+            Indented by 12 spaces.
+"""
+
+if barstate.islastconfirmedhistory
+    //@variable A multiline string with indentation defined in a local block.
+    //          Although the block requires four spaces of intendation for its statements, the string itself does not.
+    //          Any indentation in the definition is still included literally in the string.
+    string localIndentedStr = """---
+No indentation.
+    Indented by four spaces. 
+    """
+
+    // Concatenate both strings and display the result in a label.
+    label.new(bar_index, 0, globalIndentedStr + localIndentedStr, textalign = text.align_left)

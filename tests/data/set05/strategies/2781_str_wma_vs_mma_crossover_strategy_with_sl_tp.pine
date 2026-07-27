@@ -1,0 +1,50 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动静交织的移动平均线交叉策略The-Interwoven-Moving-Average-Crossover-Strategy.md
+// content_hash: 3b58871677834e46
+// collected: 2026-07-27
+strategy("WMA vs MMA Crossover Strategy with SL/TP", shorttitle="WMA_MMA_Cross_SL_TP", overlay=true, initial_capital=10000, default_qty_type=strategy.percent_of_equity, default_qty_value=10)
+
+// Définition des périodes pour les moyennes mobiles
+wmaLength = input.int(9, title="WMA Length")
+mmaLength = input.int(21, title="MMA Length")
+
+// Paramètres de Stop Loss et Take Profit en pourcentage
+stopLossPercentage = input.float(5, title="Stop Loss (%)") / 100
+takeProfitPercentage = input.float(5, title="Take Profit (%)") / 100
+
+// Calcul des moyennes mobiles
+wmaValue = ta.wma(close, wmaLength)
+mmaValue = ta.sma(close, mmaLength)
+
+// Conditions pour les signaux d'achat et de vente
+buySignal = ta.crossover(wmaValue, mmaValue)
+sellSignal = ta.crossunder(wmaValue, mmaValue)
+
+// Génération des ordres en fonction des signaux
+if buySignal
+    strategy.entry("Buy", strategy.long)
+    strategy.exit("Exit Buy", "Buy", stop=strategy.position_avg_price * (1 - stopLossPercentage), limit=strategy.position_avg_price * (1 + takeProfitPercentage))
+
+if sellSignal
+    strategy.entry("Sell", strategy.short)
+    strategy.exit("Exit Sell", "Sell", stop=strategy.position_avg_price * (1 + stopLossPercentage), limit=strategy.position_avg_price * (1 - takeProfitPercentage))
+
+// Affichage des moyennes mobiles sur le graphique
+plot(wmaValue, color=color.blue, title="WMA")
+plot(mmaValue, color=color.red, title="MMA")
+
+// Affichage des signaux sur le graphique pour référence
+plotshape(series=buySignal, location=location.belowbar, color=color.green, style=shape.labelup, title="Buy Signal", text="BUY")
+plotshape(series=sellSignal, location=location.abovebar, color=color.red, style=shape.labeldown, title="Sell Signal", text="SELL")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/442110
+
+> Last Modified
+
+2024-02-19 14:21:10

@@ -1,0 +1,13 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block131
+// content_hash: 6871817ba75ff253
+// collected: 2026-07-27
+indicator("line.new")
+var line1 = line.new(0, low, bar_index, high, extend=extend.right)
+var line2 = line.new(time, open, time + 60 * 60 * 24, close, xloc=xloc.bar_time, style=line.style_dashed)
+line.set_x2(line1, 0)
+line.set_xloc(line1, time, time + 60 * 60 * 24, xloc.bar_time)
+line.set_color(line2, color.green)
+line.set_width(line2, 5)

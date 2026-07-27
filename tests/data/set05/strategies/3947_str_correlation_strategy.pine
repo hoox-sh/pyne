@@ -1,0 +1,213 @@
+//@version=4
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/Correlation Strategy.pine
+// content_hash: a4e32899e6f68d67
+// collected: 2026-07-27
+strategy("Correlation Strategy", 
+     overlay=true, 
+     default_qty_type=strategy.percent_of_equity, 
+     default_qty_value=100, 
+     initial_capital=10000, 
+     commission_value=0.04, 
+     calc_on_every_tick=false, 
+     slippage=0)
+direction = input(1, title = "Strategy Direction", type=input.integer, minval=-1, maxval=1)
+strategy.risk.allow_entry_in(direction == 0 ? strategy.direction.all : 
+ (direction < 0 ? strategy.direction.short : strategy.direction.long))
+// Bought and Sold Boolean Signal
+bought = strategy.position_size > strategy.position_size[1] 
+ or strategy.position_size < strategy.position_size[1]
+/////////////////////// STRATEGY INPUTS ////////////////////////////////////////
+title1=input(true, "-----------------Strategy Inputs-------------------")  
+length=input(11, "Correl Length")
+symbol=input("BTCUSDTPERP", "Symbol", type=input.symbol)
+i_smalen=input(14, "SMA Length")
+i_rsilen=input(14, "RSI Length")
+OS=input(30)
+OB=input(70)
+useRSI=input(false, "Use RSI instead of SMA")
+i_correl=input(20, "Correlation Threshold", step=10)
+usesamelen=input(true, "Use Correl Length as SMA/RSI Length")
+///////////////////WALK FORWARD ANALYSIS////////////////////////////////////////
+title3=input(true, "---------------Walk Forward Analysis----------------") 
+//Total Bars Calc
+totalbars=input(10000)
+plot(bar_index, title="Current Bar", transp=100)
+period1in_start=0
+period1in_end=0.5
+period1out_start=0.5
+period1out_end=0.75
+period2in_start=0.25
+period2in_end=0.75
+period2out_start=0.75
+period2out_end=1
+pretrade_start=0.5
+pretrade_end=1
+Period1In=bar_index > (totalbars*period1in_start) and bar_index < (totalbars*period1in_end)
+Period1Out=bar_index > (totalbars*period1out_start) and bar_index < (totalbars*period1out_end)
+Period2In=bar_index > (totalbars*period2in_start) and bar_index < (totalbars*period2in_end)
+Period2Out=bar_index > (totalbars*period2out_start) and bar_index < (totalbars*period2out_end)
+PreTrade=bar_index > (totalbars*pretrade_start) and bar_index < (totalbars*pretrade_end)
+PeriodInTest = input(defval="1", type=input.string, title="Select In-Sample", options=['1', '2', 'PreTrade', 'All'])
+WFAwindowSelector(_strat) =>
+    if _strat == '1'
+        Period1In       
+        [Period1In]
+    else if _strat == '2'
+        Period2In       
+        [Period2In]
+    else if _strat == 'PreTrade'
+        PreTrade      
+        [PreTrade]
+    else if _strat == 'All'
+        all=bar_index > 0 and bar_index < (totalbars + 1)
+        [all]
+    else
+        [na]
+WFA=input(false)
+if WFA
+    if Period1In or Period1Out
+        p1=input(false, title="1")
+        length:=input(11, "Correl Length")
+        i_correl:=input(20, "Correlation Threshold", step=10)
+    if Period2Out
+        p2=input(false, title="2")
+        length:=input(11, "Correl Length")
+        i_correl:=input(20, "Correlation Threshold", step=10)
+/////////////////////// BACKTESTER /////////////////////////////////////////////
+title2=input(true, "-----------------General Inputs-------------------")  
+// Backtester General Inputs
+i_SL=input(true, title="Use Stop Loss and Take Profit")
+TS=input(false, title="Use Trailing Stop")
+i_SLType=input(defval="ATR Stop", title="Type Of Stop", options=["Strategy Stop", "Swing Lo/Hi", "ATR Stop"])
+i_SPL=input(defval=10, title="Swing Point Lookback")
+i_PercIncrement=input(defval=3, step=.1, title="Swing Point SL Perc Increment")*0.01
+i_ATR = input(14, title="ATR Length")
+i_ATRMult = input(2, step=.1, title="ATR Multiple")
+i_TPRRR = input(1, step=.1, title="Take Profit Risk Reward Ratio")
+DPR=input(true, "Allow Stop and Reverse")
+reverse=input(false, "Reverse Trades")
+BarsExit=input(false, "Use X Bars Exit")
+XBars=input(1, minval=1, maxval=50, title="X Bars")
+// Swing Points Stop and Take Profit
+SwingStopProfit() =>
+    LL=(lowest(i_SPL))*(1-i_PercIncrement)
+    HH=(highest(i_SPL))*(1+i_PercIncrement)
+    LL_price = valuewhen(bought, LL, 0)
+    HH_price = valuewhen(bought, HH, 0)
+    entry_LL_price = strategy.position_size > 0 ? LL_price : na 
+    entry_HH_price = strategy.position_size < 0 ? HH_price : na 
+    tp=strategy.position_avg_price + (strategy.position_avg_price - entry_LL_price)*i_TPRRR
+    stp=strategy.position_avg_price - (entry_HH_price - strategy.position_avg_price)*i_TPRRR
+    [entry_LL_price, entry_HH_price, tp, stp]
+// ATR Stop
+ATRStop() =>
+    ATR=atr(i_ATR)*i_ATRMult
+    ATRLong = ohlc4 - ATR
+    ATRShort = ohlc4 + ATR
+    ATRLongStop = valuewhen(bought, ATRLong, 0)
+    ATRShortStop = valuewhen(bought, ATRShort, 0)
+    LongSL_ATR_price = strategy.position_size > 0 ? ATRLongStop : na 
+    ShortSL_ATR_price = strategy.position_size < 0 ? ATRShortStop : na 
+    ATRtp=strategy.position_avg_price + (strategy.position_avg_price - LongSL_ATR_price)*i_TPRRR
+    ATRstp=strategy.position_avg_price - (ShortSL_ATR_price - strategy.position_avg_price)*i_TPRRR
+    [LongSL_ATR_price, ShortSL_ATR_price, ATRtp, ATRstp]
+    
+// Strategy Stop
+StrategyStop() =>
+    float LongStop = na
+    float ShortStop = na
+    float StratTP = na
+    float StratSTP = na
+    [LongStop, ShortStop, StratTP, StratSTP]
+    
+// Random Exit
+BoughtBarsCount(XBars) =>
+    EnoughBars=barssince(bought)==XBars
+    [EnoughBars]
+//TrailingStop
+TrailingStop(SL,SSL) =>
+    dif=(valuewhen(strategy.position_size>0 and strategy.position_size[1]<=0, high,0))
+     -strategy.position_avg_price
+    trailOffset     = strategy.position_avg_price - SL
+    var tstop = float(na)
+    if strategy.position_size > 0
+        tstop := high- trailOffset - dif
+        if tstop<tstop[1]
+            tstop:=tstop[1]
+    else
+        tstop := na
+    StrailOffset     = SSL - strategy.position_avg_price
+    var Ststop = float(na)
+    Sdif=strategy.position_avg_price-(valuewhen(strategy.position_size<0 
+     and strategy.position_size[1]>=0, low,0))
+    if strategy.position_size < 0
+        Ststop := low+ StrailOffset + Sdif
+        if Ststop>Ststop[1]
+            Ststop:=Ststop[1]
+    else
+        Ststop := na
+    [tstop, Ststop]
+  
+//Stop Loss & Take Profit Switches  
+SLTPLogic(LongStop, ShortStop, StratTP, StratSTP, LongSL_ATR_price, ShortSL_ATR_price, ATRtp, ATRstp,
+ entry_LL_price, entry_HH_price, tp, stp) =>
+    SL= i_SLType == "Swing Lo/Hi" ? entry_LL_price : i_SLType == "ATR Stop" ? LongSL_ATR_price : LongStop
+    SSL= i_SLType == "Swing Lo/Hi" ? entry_HH_price : i_SLType == "ATR Stop" ? ShortSL_ATR_price : ShortStop
+    TP= i_SLType == "Swing Lo/Hi" ? tp : i_SLType == "ATR Stop" ? ATRtp : StratTP
+    STP= i_SLType == "Swing Lo/Hi" ? stp : i_SLType == "ATR Stop" ? ATRstp : StratSTP
+    [SL, SSL, TP, STP]
+/////////////////////// STRATEGY LOGIC /////////////////////////////////////////
+security=security(symbol,"", close)
+correl=correlation(security, close, length)*100
+smalen= usesamelen ? length : i_smalen
+rsi=rsi(close, usesamelen ? length : i_rsilen)
+plot(correl, transp=100)
+BUY=correl < i_correl and (useRSI? rsi < OS : close < sma(close, smalen))
+SELL=correl < i_correl and (useRSI? rsi > OB : close > sma(close, smalen))
+/////////////////////// FUNCTION CALLS /////////////////////////////////////////
+// Stops and Profits
+[entry_LL_price, entry_HH_price, tp, stp] = SwingStopProfit()
+[LongSL_ATR_price, ShortSL_ATR_price, ATRtp, ATRstp] = ATRStop()
+[LongStop, ShortStop, StratTP, StratSTP] = StrategyStop()
+[SL, SSL, TP, STP] = SLTPLogic(LongStop, ShortStop, StratTP, StratSTP, 
+ LongSL_ATR_price, ShortSL_ATR_price, ATRtp, ATRstp, entry_LL_price, entry_HH_price, tp, stp)
+[tstop, Ststop] = TrailingStop(SL,SSL)
+[window] = WFAwindowSelector(PeriodInTest)  
+[EnoughBars] = BoughtBarsCount(XBars)
+// Entries
+if reverse
+    if not DPR and window
+        strategy.entry("long", strategy.long, when=SELL and strategy.position_size == 0)
+        strategy.entry("short", strategy.short, when=BUY and strategy.position_size == 0)
+    else if window     
+        strategy.entry("long", strategy.long, when=SELL)
+        strategy.entry("short", strategy.short, when=BUY)
+else
+    if not DPR and window
+        strategy.entry("long", strategy.long, when=BUY and strategy.position_size == 0)
+        strategy.entry("short", strategy.short, when=SELL and strategy.position_size == 0)
+    else if window
+        strategy.entry("long", strategy.long, when=BUY)
+        strategy.entry("short", strategy.short, when=SELL)
+// Exits
+if i_SL and not BarsExit
+    strategy.exit("TP & SL", "long", limit=TP, stop=TS? tstop : SL)
+    strategy.exit("TP & SL", "short", limit=STP, stop=TS? Ststop : SSL)
+if BarsExit and not i_SL
+    strategy.close_all(when=EnoughBars)
+/////////////////////// PLOTS //////////////////////////////////////////////////
+plot(i_SL and strategy.position_size > 0 and not TS ? SL : i_SL and 
+ strategy.position_size > 0 and TS ? tstop : na , title='SL', style=plot.style_cross, color=color.red)
+plot(i_SL and strategy.position_size < 0 and not TS ? SSL : i_SL and 
+ strategy.position_size < 0 and TS ? Ststop : na , title='SSL', style=plot.style_cross, color=color.red)
+plot(i_SL and strategy.position_size > 0 ? TP : na, title='TP', style=plot.style_cross, color=color.green)
+plot(i_SL and strategy.position_size < 0 ? STP : na, title='STP', style=plot.style_cross, color=color.green)
+// Draw price action setup arrows
+plotshape(BUY ? 1 : na, style=shape.triangleup, location=location.belowbar, 
+ color=color.green, title="Bullish Setup", size=size.auto)
+plotshape(SELL ? 1 : na, style=shape.triangledown, location=location.abovebar, 
+ color=color.red, title="Bearish Setup", size=size.auto)
+ 
+Expand (264 lines)

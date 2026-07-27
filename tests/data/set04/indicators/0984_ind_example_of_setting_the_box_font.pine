@@ -1,0 +1,10 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block97
+// content_hash: 8acd330dc10e396c
+// collected: 2026-07-27
+indicator("Example of setting the box font")
+if barstate.islastconfirmedhistory
+    b = box.new(bar_index, open-ta.tr, bar_index-50, open-ta.tr*5, text="monospace")
+    box.set_text_font_family(b, font.family_monospace)

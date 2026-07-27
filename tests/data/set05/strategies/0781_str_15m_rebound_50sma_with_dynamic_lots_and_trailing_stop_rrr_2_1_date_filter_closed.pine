@@ -1,0 +1,131 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动态仓位跟踪止损SMA交叉回撤策略-Dynamic-Position-Size-and-Trailing-Stop-SMA-Rebound-Strategy.md
+// content_hash: 911cce8fbe88ec8f
+// collected: 2026-07-27
+strategy("15m - Rebound 50SMA with Dynamic Lots & Trailing Stop, RRR 2:1, Date Filter (Closed Bars Only)", 
+     overlay=true, 
+     initial_capital=50000, 
+     default_qty_type=strategy.fixed, 
+     default_qty_value=1, 
+     pyramiding=0, 
+     calc_on_order_fills=true)
+
+// ===== INPUTS =====
+sma50Period  = input.int(50, "50 SMA Period", minval=1)
+sma200Period = input.int(200, "200 SMA Period", minval=1)
+
+// ===== CALCULATE SMAs =====
+sma50  = ta.sma(close, sma50Period)
+sma200 = ta.sma(close, sma200Period)
+
+// ===== PLOT SMAs =====
+plot(sma50, color=color.red, title="50 SMA")
+plot(sma200, color=color.blue, title="200 SMA")
+
+// ===== DEFINE TRADING SESSIONS =====
+// Trading is allowed 15 minutes after market open:
+//   - New York: 09:45–16:00 (America/New_York)
+//   - London:   08:15–16:00 (Europe/London)
+nySession     = not na(time("15", "0945-1600", "America/New_York"))
+londonSession = not na(time("15", "0815-1600", "Europe/London"))
+inSession     = nySession or londonSession
+
+// ===== DEFINE DATE RANGE =====
+// Only allow orders on or after January 1, 2024.
+// (We include seconds in the timestamp for proper parsing.)
+startDate   = timestamp("UTC", 2024, 1, 1, 0, 0, 0)
+inDateRange = time >= startDate
+
+// ===== DEFINE ENTRY CONDITIONS =====
+// ----- LONG ENTRY CONDITION -----
+// A long entry is triggered when:
+//   - The previous candle closed below the 50 SMA and the current candle closes above it,
+//   - And the 50 SMA is above the 200 SMA.
+longCondition = (close[1] < sma50[1]) and (close > sma50) and (sma50 > sma200)
+
+// ----- SHORT ENTRY CONDITION -----
+// A short entry is triggered when:
+//   - The previous candle closed above the 50 SMA and the current candle closes below it,
+//   - And the 50 SMA is below the 200 SMA.
+shortCondition = (close[1] > sma50[1]) and (close < sma50) and (sma50 < sma200)
+
+// ===== DEBUG PLOTS =====
+plotshape(longCondition and barstate.isconfirmed, title="Long Signal", location=location.belowbar, color=color.green, style=shape.triangleup, size=size.tiny)
+plotshape(shortCondition and barstate.isconfirmed, title="Short Signal", location=location.abovebar, color=color.red, style=shape.triangledown, size=size.tiny)
+
+// ===== VARIABLES FOR STOP LOSS MANAGEMENT =====
+// For long positions.
+var float initialLongStop = na   // Set at entry: low of the rebound candle.
+var float trailStopLong   = na   // Updated trailing stop for long.
+// For short positions.
+var float initialShortStop = na  // Set at entry: high of the rebound candle.
+var float trailStopShort   = na  // Updated trailing stop for short.
+
+// ===== DYNAMIC LOT SIZE =====
+// If current profit (strategy.equity - 50000) exceeds 4000, lot size becomes 3; otherwise, 2.
+lotSize = (strategy.equity - 50000 > 4000) ? 3 : 2
+
+// ===== ENTRY LOGIC (EXECUTED ON CONFIRMED BARS) =====
+if barstate.isconfirmed and inSession and inDateRange and longCondition and strategy.position_size <= 0
+    initialLongStop := low
+    trailStopLong   := initialLongStop
+    if strategy.position_size < 0
+        strategy.close("Short", comment="Close Short before Long")
+    // Submit a market order entry (no offset).
+    strategy.entry("Long", strategy.long, qty=lotSize, comment="Enter Long")
+    
+if barstate.isconfirmed and inSession and inDateRange and shortCondition and strategy.position_size >= 0
+    initialShortStop := high
+    trailStopShort   := initialShortStop
+    if strategy.position_size > 0
+        strategy.close("Long", comment="Close Long before Short")
+    // Submit a market order entry (no offset).
+    strategy.entry("Short", strategy.short, qty=lotSize, comment="Enter Short")
+    
+// ===== TRAILING STOP LOGIC & EXIT ORDERS (ON CLOSED BARS) =====
+
+if barstate.isconfirmed and strategy.position_size > 0
+    // For Long Positions:
+    floatingProfitLong = (close - strategy.position_avg_price) / syminfo.mintick
+    newTrailLong = trailStopLong  // Default: no change.
+    if floatingProfitLong >= 20 and floatingProfitLong < 30
+        newTrailLong := initialLongStop + 5 * syminfo.mintick
+    else if floatingProfitLong >= 31 and floatingProfitLong < 40
+        newTrailLong := initialLongStop + 10 * syminfo.mintick
+    else if floatingProfitLong >= 41 and floatingProfitLong < 50
+        newTrailLong := initialLongStop + 15 * syminfo.mintick
+    // Update trailing stop only if the new value is more favorable.
+    trailStopLong := math.max(trailStopLong, newTrailLong)
+    
+    longRisk = strategy.position_avg_price - trailStopLong
+    tpLong   = strategy.position_avg_price + 2.5 * longRisk
+    strategy.exit("Exit Long", from_entry="Long", stop=trailStopLong, limit=tpLong)
+
+if barstate.isconfirmed and strategy.position_size < 0
+    // For Short Positions:
+    floatingProfitShort = (strategy.position_avg_price - close) / syminfo.mintick
+    newTrailShort = trailStopShort  // Default: no change.
+    if floatingProfitShort >= 20 and floatingProfitShort < 30
+        newTrailShort := initialShortStop - 5 * syminfo.mintick
+    else if floatingProfitShort >= 31 and floatingProfitShort < 40
+        newTrailShort := initialShortStop - 10 * syminfo.mintick
+    else if floatingProfitShort >= 41 and floatingProfitShort < 50
+        newTrailShort := initialShortStop - 15 * syminfo.mintick
+    // Update trailing stop only if the new value is more favorable.
+    trailStopShort := math.min(trailStopShort, newTrailShort)
+    
+    shortRisk = trailStopShort - strategy.position_avg_price
+    tpShort = strategy.position_avg_price - 2.5 * shortRisk
+    strategy.exit("Exit Short", from_entry="Short", stop=trailStopShort, limit=tpShort)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/483109
+
+> Last Modified
+
+2025-02-21 13:51:50

@@ -1,0 +1,64 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动量市场情绪指标策略Momentum-Market-Sentiment-Indicator-Strategy.md
+// content_hash: 442d6828feae6304
+// collected: 2026-07-27
+strategy("Sentiment Oscillator", "Sentiment", overlay=false, initial_capital=100, default_qty_type=strategy.percent_of_equity, default_qty_value=100, commission_type=strategy.commission.percent, commission_value=0.08)
+
+
+//Inputs
+msLen = input(49, type=input.integer, title="Market Sentiment Lookback Length")
+emaLen1 = input(40, type=input.integer, title="Fast EMA Length")
+emaLen2 = input(204, type=input.integer, title="Slow EMA Length")
+signalLen = input(20, type=input.integer, title="Signal Length")
+showMs = input(false, type=input.bool, title="Show Market Sentiment?")
+showHist = input(true, type=input.bool, title="Show Momentum?")
+showMacd = input(false, type=input.bool, title="Show MACD Line?")
+showSignal = input(false, type=input.bool, title="Show Signal Line?")
+showCpv = input(false, type=input.bool, title="(Show Change/Volume for Each Bar?)")
+showEma1 = input(false, type=input.bool, title="(Show Fast EMA?)")
+showEma2 = input(false, type=input.bool, title="(Show Slow EMA?)")
+
+//Calculations
+priceChange = close - close[1]
+changePerVolume = (priceChange/volume) * 10000000  // (The 1000000 doesn't have any significance, it's just to avoid color-change errors when the values are too emall.)
+priceChangeEma = ema(priceChange, msLen)
+volumeEma = ema(volume, msLen)
+marketSentiment = priceChangeEma/volumeEma * 100000000
+msEma1 = ema(marketSentiment, emaLen1)
+msEma2 = ema(marketSentiment, emaLen2)
+macd = msEma1-msEma2
+signal = ema(macd, signalLen)
+hist = macd-signal
+
+//Plot colors
+col_grow_above = #26A69A
+col_grow_below = #FFCDD2
+col_fall_above = #B2DFDB
+col_fall_below = #EF5350
+col_macd = #0094ff
+col_signal = #ff6a00
+
+//Drawings
+plot(showHist ? hist : na, title="Histogram", style=plot.style_area, color=(hist>=0 ? (hist[1] < hist ? col_grow_above : col_fall_above) : (hist[1] < hist ? col_grow_below : col_fall_below)), transp=0 )
+plot(showMacd ? macd : na, title="MACD", color=col_macd, transp=0)
+plot(showSignal ? signal : na, title="Signal", color=col_signal, transp=0)
+plot(showCpv ? changePerVolume : na, color=changePerVolume > changePerVolume[1] ? color.teal : color.red)
+plot(0, color=color.white, transp=80)
+plot(showEma1 ? msEma1 : na, color=color.aqua)
+plot(showEma2 ? msEma2 : na, color=color.yellow)
+plot(showMs ? marketSentiment : na, color=color.lime)
+
+//Strategy
+strategy.entry("Buy", strategy.long, when=crossover(hist, 0))
+strategy.close("Buy", when=crossunder(hist, 0))
+```
+
+> Detail
+
+https://www.fmz.com/strategy/431970
+
+> Last Modified
+
+2023-11-13 17:51:20

@@ -1,0 +1,8 @@
+//@version=4
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/v4/essential/drawings.md::drawings.md#block17
+// content_hash: 73e83ab4d652530c
+// collected: 2026-07-27
+study("My Script", overlay=true, max_labels_count=100)
+label.new(bar_index, high)

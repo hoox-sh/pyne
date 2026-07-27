@@ -1,0 +1,102 @@
+//@version=6
+// set03 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于量化动量的微回调突破策略-Quantitative-Momentum-Based-Micropullback-Breakout-Strategy.md
+// content_hash: 6f9f4a98b86b4ce1
+// collected: 2026-07-27
+strategy(title="Micropullback Detector w/ Stop Buy & Exits", shorttitle="MicroPB Det+Exits", overlay=true)
+
+// USER INPUTS
+volLookback = input.int(20, "Volume SMA Period", minval=1)
+volMultiplier = input.float(1.5, "Volume Multiplier for High Volume", minval=1.0)
+largeCandleATR = input.float(0.5, "Fraction of ATR to define 'Large Candle'", minval=0.1)
+maxRedPullback = input.int(3, "Max Consecutive Red Candles in Pullback")
+maxRetracementPc = input.float(50, "Max Retracement % for pullback", minval=1.0, maxval=100.0)
+
+// CALCULATIONS
+fastAtr = ta.atr(14)
+avgVolume = ta.sma(volume, volLookback)
+isLargeGreenCandle = (close > open) and ((close - open) > fastAtr * largeCandleATR) and (volume > avgVolume * volMultiplier) and (volume > 200000)
+
+// HELPER FLAGS
+isGreen = close >= open
+isRed   = close < open
+
+// STATE VARIABLES
+var int   state = 0
+var float waveStartPrice   = na
+var float waveHighestPrice = na
+var float largestGreenVol  = na
+var int   consecutiveRedPulls = 0
+var bool  triggerSignal    = false
+var float wavePullbackLow  = na
+
+if barstate.isnew
+    triggerSignal:=false
+    if state==0
+        wavePullbackLow:=na
+        if isLargeGreenCandle
+            state:=1
+            waveStartPrice:=open
+            waveHighestPrice:=high
+            largestGreenVol:=volume
+            consecutiveRedPulls:=0
+    else if state==1
+        if isGreen
+            waveHighestPrice:=math.max(waveHighestPrice,high)
+            if volume>largestGreenVol
+                largestGreenVol:=volume
+        else
+            state:=2
+            consecutiveRedPulls:=1
+            wavePullbackLow:=low
+    else if state==2
+        if isRed
+            if volume>largestGreenVol
+                state:=0
+            consecutiveRedPulls+=1
+            if consecutiveRedPulls>=maxRedPullback+1
+                state:=0
+            retracementLevel=waveStartPrice+(maxRetracementPc/100.0)*(waveHighestPrice-waveStartPrice)
+            wavePullbackLow:=math.min(wavePullbackLow,low)
+            if close<retracementLevel
+                state:=0
+        else
+            consecutiveRedPulls:=0
+            if high>high[1]
+                triggerSignal:=true
+                state:=3
+    else if state==3
+        state:=0
+
+// Plot shapes for signals (last 1440 bars ~ 1 day at 1-min TF)
+plotshape(isLargeGreenCandle, title="Large Green Candle", style=shape.diamond, location=location.belowbar, color=color.new(color.blue, 0), offset=0, size=size.small, show_last=1440)
+plotshape(triggerSignal, title="MicroPB Entry", style=shape.arrowdown, location=location.abovebar, color=color.new(color.green, 0), offset=0, size=size.large, show_last=1440)
+
+// ENTRY & EXITS
+if triggerSignal
+    // Stop Buy above the previous bar's high
+    entryPrice = high[1]
+    strategy.order("MicroPullback Long", strategy.long, limit=entryPrice, oca_name="MicroPullback")
+
+    // Stoploss slightly below pullback low
+    stopPrice = wavePullbackLow - 2*syminfo.mintick
+
+    // Risk & take-profit calculations
+    risk = entryPrice - stopPrice
+    tpPrice = entryPrice + 2 * risk
+
+    // Exit: stop or TP
+    strategy.exit("SL+TP", "MicroPullback Long", stop=stopPrice, limit=tpPrice, qty_percent=100)
+
+// ALERT
+alertcondition(triggerSignal, title="MicroPullback LONG", message="Micropullback Long Signal Detected!")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/482666
+
+> Last Modified
+
+2025-02-19 17:25:25

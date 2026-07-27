@@ -1,0 +1,12 @@
+//@version=4
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/v4/annotations/plotting-shapes-chars-and-arrows.md::plotting-shapes-chars-and-arrows.md#block1
+// content_hash: 6997575f8b5ea70c
+// collected: 2026-07-27
+study('plotshape example 2', overlay=true)
+data = close >= open
+plotshape(data, style=shape.triangleup,
+                 location=location.abovebar, color=color.green)
+plotshape(not data, style=shape.triangledown,
+                 location=location.belowbar, color=color.red)

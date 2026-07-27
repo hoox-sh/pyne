@@ -1,0 +1,13 @@
+//@version=5
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/v5/language/type-system.md::type-system.md#block14
+// content_hash: d11fd0e23865d4c2
+// collected: 2026-07-27
+indicator("Formatted string demo", overlay = true)
+
+//@variable A "series string" value representing the bar's OHLC data.
+string ohlcString = str.format("Open: {0}\nHigh: {1}\nLow: {2}\nClose: {3}", open, high, low, close)
+
+// Draw a label containing the `ohlcString`.
+label.new(bar_index, high, ohlcString, textcolor = color.white)

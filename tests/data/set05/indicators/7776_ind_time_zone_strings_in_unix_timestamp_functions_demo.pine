@@ -1,0 +1,18 @@
+//@version=5
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/v5/concepts/time.md::time.md#block5
+// content_hash: 52e2d3f510999a26
+// collected: 2026-07-27
+indicator("Time zone strings in UNIX timestamp functions demo", overlay = true)
+
+//@variable The `timezone` argument of the `timestamp()` call, which sets the time zone of all date and time parameters.
+string timezoneInput = input.string("Etc/UTC", "Time zone")
+
+//@variable The UNIX timestamp corresponding to a specific calendar date and time.
+//          The specified `year`, `month`, `day`, `hour`, `minute`, and `second` represent calendar values in the 
+//          `timezoneInput` time zone. 
+//          Different `timezone` arguments produce different UNIX timestamps because an identical date in another 
+//          time zone does NOT represent the same absolute point in time.
+int unixTimestamp = timestamp(
+     timezone = timezoneInput, year = 2024, month = 10, day = 31, hour = 0, minute = 0, second = 0

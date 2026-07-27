@@ -1,0 +1,57 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多重均线交叉动量风险比优化策略-Multi-EMA-Crossover-Momentum-Strategy-with-Risk-Reward-Optimization.md
+// content_hash: aef91c172c9a1cad
+// collected: 2026-07-27
+strategy("Golden Cross & Death Cross Strategy with SL & TP", overlay=true)
+
+// Define EMAs
+ema50 = ta.ema(close, 50)
+ema200 = ta.ema(close, 200)
+
+// Define Golden Cross & Death Cross conditions
+goldenCross = ta.crossover(ema50, ema200)  // 50 EMA crosses above 200 EMA
+deathCross = ta.crossunder(ema50, ema200)  // 50 EMA crosses below 200 EMA
+
+// Risk-Reward Parameters
+riskRewardRatio = 2  // Set desired risk-reward ratio (1:2 by default)
+stopLossPercent = 1  // Set SL as 1% of entry price
+takeProfitPercent = stopLossPercent * riskRewardRatio  // TP = 2x SL
+
+// Calculate Stop-Loss & Take-Profit
+longStopLoss = close * (1 - stopLossPercent / 100)
+longTakeProfit = close * (1 + takeProfitPercent / 100)
+shortStopLoss = close * (1 + stopLossPercent / 100)
+shortTakeProfit = close * (1 - takeProfitPercent / 100)
+
+// Buy Signal (Golden Cross)
+if (goldenCross)
+    strategy.entry("Buy", strategy.long)
+    strategy.exit("TakeProfit_Long", from_entry="Buy", stop=longStopLoss, limit=longTakeProfit)
+
+// Sell Signal (Death Cross)
+if (deathCross)
+    strategy.entry("Sell", strategy.short)
+    strategy.exit("TakeProfit_Short", from_entry="Sell", stop=shortStopLoss, limit=shortTakeProfit)
+
+// Plot EMAs
+plot(ema50, title="50 EMA", color=color.blue, linewidth=2)
+plot(ema200, title="200 EMA", color=color.red, linewidth=2)
+
+// Plot Buy & Sell signals
+plotshape(series=goldenCross, location=location.belowbar, color=color.green, style=shape.labelup, title="Golden Cross")
+plotshape(series=deathCross, location=location.abovebar, color=color.red, style=shape.labeldown, title="Death Cross")
+
+// Set Alerts
+alertcondition(goldenCross, title="Golden Cross Alert", message="Golden Cross: Buy Signal!")
+alertcondition(deathCross, title="Death Cross Alert", message="Death Cross: Sell Signal!")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/489154
+
+> Last Modified
+
+2025-04-02 11:19:50

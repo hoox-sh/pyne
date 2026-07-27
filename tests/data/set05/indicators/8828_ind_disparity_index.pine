@@ -1,0 +1,19 @@
+//@version=3
+// set05 corpus entry
+// source_repo: tradingview-custom-indicators
+// source_path: tradingview-custom-indicators/oscillators/disparity_index.pine
+// content_hash: ecae9d2fb6209a81
+// collected: 2026-07-27
+// Copyright (c) 2018-present, Alex Orekhov (everget)
+// Disparity Index script may be freely distributed under the MIT license.
+study("Disparity Index", shorttitle="DI")
+
+length = input(title="Length", type=integer, minval=1, defval=14)
+src = input(title="Source", type=source, defval=close)
+
+di = 100 * (src - sma(src, length)) / sma(src, length)
+
+diColor = di >= 0.0 ? #0ebb23 : #ff0000
+plot(di, title="Disparity Index", linewidth=2, color=diColor, transp=0)
+
+hline(0, title="Zero Level", linestyle=dotted, color=#989898)

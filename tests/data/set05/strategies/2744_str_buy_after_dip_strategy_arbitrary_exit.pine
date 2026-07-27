@@ -1,0 +1,50 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多重确认反转买入策略-Multi-Confirmation-Reversal-Buy-Strategy.md
+// content_hash: b9a09b338659e7bb
+// collected: 2026-07-27
+strategy("Buy After Dip Strategy (Arbitrary Exit) [nn1]", overlay=true)
+
+// Parameters
+lookback = input.int(3, "Lookback Period")
+maFast = input.int(10, "Fast MA Period")
+maSlow = input.int(20, "Slow MA Period")
+
+// Calculate indicators
+fastMA = ta.sma(close, maFast)
+slowMA = ta.sma(close, maSlow)
+rsi = ta.rsi(close, 14)
+
+// Function to check if candle is bullish
+isBullish = close > open
+
+// Function to check if current close is highest in lookback period
+isHighestClose = close == ta.highest(close, lookback)
+
+// Check for increasing volume
+volumeIncreasing = volume > ta.sma(volume, 5)
+
+// Entry conditions
+entryCondition = isBullish and isHighestClose and rsi > 50 and close > fastMA and fastMA > slowMA and volumeIncreasing
+
+// Plot moving averages
+plot(fastMA, "Fast MA", color.blue)
+plot(slowMA, "Slow MA", color.red)
+
+// Entry logic
+if (entryCondition)
+    strategy.entry("Long", strategy.long)
+
+// Arbitrary Exit Logic: Exit 10 bars later
+if (ta.barssince(strategy.position_size == 0) >= 10)
+    strategy.close("Long")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/458143
+
+> Last Modified
+
+2024-07-30 12:06:29

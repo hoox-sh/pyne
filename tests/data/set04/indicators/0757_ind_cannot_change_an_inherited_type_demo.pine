@@ -1,0 +1,19 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/language/variable-declarations.md::variable-declarations.md#block11
+// content_hash: a7cda35d79b6ee93
+// collected: 2026-07-27
+indicator("Cannot change an inherited type demo")
+
+//@variable The natural logarithm of bars remaining until the script reaches the latest bar.
+//          The expression returns a "series int" value. Therefore, the variable automatically inherits the "int" type.
+//          You can hover over the `myVar` identifier to confirm the type.
+myVar = last_bar_index - bar_index
+
+// This line causes a compilation error. The `myVar` variable already inherited the type "int", so the script cannot
+// later assign it the "float" value returned by `math.log()`.
+myVar := nz(math.log(myVar))
+
+// Plot the value on the chart.
+plot(myVar, "Log of bars remaining", color.purple, 3)

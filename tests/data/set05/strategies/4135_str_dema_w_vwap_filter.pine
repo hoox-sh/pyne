@@ -1,0 +1,19 @@
+//@version=4
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/dEMA w- VWAP filter.pine
+// content_hash: ea3cf38e9cc13b9c
+// collected: 2026-07-27
+strategy("dEMA w/ VWAP filter", overlay=true, default_qty_type=strategy.cash, initial_capital=500)
+len = input(34, "EMA Length")
+ma = ema(close, len)
+longCondition = change(ma) > 0 and ma < vwap
+if (longCondition)
+    strategy.entry("Buy", true, 1)
+shortCondition = (change(ma) < 0 and close > vwap) or (crossunder(ma, vwap) and change(ma) > 0)
+if (shortCondition)
+    strategy.close("Buy")
+plot (vwap, color=color.fuchsia)
+plot (ma)
+    
+Expand (21 lines)

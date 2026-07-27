@@ -1,0 +1,67 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/MyQuant趋势识别策略MyQuant-Trend-Identifier-Strategy.md
+// content_hash: 35a5759f7a2aa821
+// collected: 2026-07-27
+
+strategy(title="Trend Identifier Strategy", shorttitle="Trend Identifier Strategy", format=format.price, precision=4, overlay = false, initial_capital = 1000, pyramiding = 10, default_qty_type = strategy.percent_of_equity, default_qty_value = 100, commission_type = strategy.commission.percent, commission_value = 0.03)
+
+//start-end time
+startyear = input.int(2020,"start year")
+startmonth = input.int(1,"start month")
+startday = input.int(1,"start day")
+endyear = input.int(2025,"end year")
+endmonth = input.int(1,"end month")
+endday = input.int(1,"end day")
+
+timeEnd = time <= timestamp(syminfo.timezone,endyear,endmonth,endday,0,0)
+timeStart = time >= timestamp(syminfo.timezone,startyear,startmonth,startday,0,0)
+choosetime = input(false,"Choose Time Interval")
+condTime = (choosetime ? (timeStart and timeEnd) : true)
+
+// time frame?
+tfc = 1
+if timeframe.isdaily
+    tfc := 24
+
+// indicators: price normalized alma, and its 1st and 2nd derivatives
+ema = ta.alma(close,140,1.1,6)
+dema = (ema-ema[1])/ema
+stodema = ta.ema(ta.ema(ta.stoch(dema,dema,dema,100),3),3)
+
+d2ema = ta.ema(dema-dema[1],5)
+stod2ema = ta.ema(ta.ema(ta.stoch(d2ema,d2ema,d2ema,100),3),3)
+
+ind = (close-ta.ema(close,120*24/tfc))/close
+heat = ta.ema(ta.stoch(ind,ind,ind,120*24/tfc),3)
+index = ta.ema(heat,7*24/tfc)
+
+//plot graph
+green = color.rgb(20,255,100)
+yellow = color.yellow
+red = color.red
+blue = color.rgb(20,120,255)
+tcolor = (dema>0) and (d2ema>0)? green : (dema>0) and (d2ema<0) ? yellow : (dema < 0) and (d2ema<0) ? red : (dema < 0) and (d2ema>0) ? blue : color.black
+demaema = ta.ema(dema,21)
+plot(demaema, color = tcolor)
+
+//strategy buy-sell conditions
+cond1a = strategy.position_size <= 0
+cond1b = strategy.position_size > 0
+
+if (condTime and cond1a and ( ( ((tcolor[1] == red and demaema<0.02) or (tcolor[1] == blue and demaema < 0.02) or (tcolor[1] == yellow and demaema>-0.02) ) and tcolor == green) or (tcolor[1] == red and tcolor == blue and demaema < -0.01) ) and index<85 and ind<0.4)
+    strategy.entry("buy",strategy.long, (strategy.equity-strategy.position_size*close)/1/close)
+    
+if (condTime and cond1b and ( (((tcolor[1] == yellow and demaema > -0.02) or (tcolor[1] == blue and demaema < 0.02) or (tcolor[1] == green and demaema < 0.02)) and tcolor == red) or (tcolor[1] == green and tcolor == yellow and demaema > 0.015) ) and index>15 and ind>-0.1)
+    strategy.order("sell",strategy.short, strategy.position_size)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/442527
+
+> Last Modified
+
+2024-02-22 16:04:04

@@ -1,0 +1,14 @@
+//@version=5
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/v5/writing/profiling-and-optimization.md::profiling-and-optimization.md#block25
+// content_hash: 188c100062fd7639
+// collected: 2026-07-27
+indicator("Reducing repetition demo")
+
+//@function Counts the number of elements in `this` array above the element at a specified `index`.
+method valuesAbove(array<float> this, int index) =>
+    int result = 0
+    float reference = this.get(index)
+    for [i, value] in this
+        if i == index

@@ -1,0 +1,33 @@
+// set04 corpus entry
+// source_repo: QuanTAlib
+// source_path: QuanTAlib/lib/numerics/accel/accel.pine
+// content_hash: b4dc0ecaf2425633
+// collected: 2026-07-27
+// Licensed under the Apache License, Version 2.0
+// © mihakralj
+//@version=6
+indicator("Second Derivative / Acceleration (ACCEL)", "ACCEL", overlay=false, precision=8)
+
+//@function Calculates the second finite difference (acceleration): Accel = V[t] - 2*V[t-1] + V[t-2]
+//@param src Source series
+//@returns Second difference. Returns 0.0 until 3 bars are available.
+//@optimized Uses direct history access and FMA-equivalent for zero-allocation streaming.
+accel(series float src) =>
+    float v0 = src
+    float v1 = src[1]
+    float v2 = src[2]
+    if na(v1) or na(v2)
+        0.0
+    else
+        v0 - 2.0 * v1 + v2
+
+// ---------- Main loop ----------
+
+// Inputs
+i_source = input.source(close, "Source")
+
+// Calculation
+a = accel(i_source)
+
+// Plot
+plot(a, "Accel", color=color.yellow, linewidth=2)

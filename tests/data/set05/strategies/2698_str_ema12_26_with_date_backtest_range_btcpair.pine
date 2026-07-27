@@ -1,0 +1,51 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/EMA追踪趋势交易策略EMA-Trend-Following-Trading-Strategy.md
+// content_hash: d69b3ca73b8024ed
+// collected: 2026-07-27
+
+strategy("EMA12/26 with date backtest range (BTCpair)", overlay=true,initial_capital = 1,commission_type = strategy.commission.percent,currency = currency.BTC)
+
+//input date and time
+useDateFilter = input.bool(true, title="Filter Date Range of Backtest",
+     group="Backtest Time Period")
+backtestStartDate = input(timestamp("1 Jan 2021"), 
+     title="Start Date", group="Backtest Time Period",
+     tooltip="This start date is in the time zone of the exchange " + 
+     "where the chart's instrument trades. It doesn't use the time " + 
+     "zone of the chart or of your computer.")
+backtestEndDate = input(timestamp("1 Jan 2022"),
+     title="End Date", group="Backtest Time Period",
+     tooltip="This end date is in the time zone of the exchange " + 
+     "where the chart's instrument trades. It doesn't use the time " + 
+     "zone of the chart or of your computer.")
+     
+//check date and time option
+inTradeWindow =  true
+/// plot and indicator
+fastEMA = ta.ema(close,12), slowEMA=ta.ema(close,26)
+plot(fastEMA,color=color.green,linewidth = 2)
+plot(slowEMA,color=color.red,linewidth=2)
+
+//entry when condition
+longCondition = ta.crossover(fastEMA,slowEMA)
+if (longCondition) and inTradeWindow
+    strategy.entry("buy", strategy.long)
+
+if ta.crossunder(ta.ema(close, 12), ta.ema(close, 26)) and inTradeWindow
+    strategy.close("buy")
+    
+// trades and cancel all unfilled pending orders
+if not inTradeWindow and inTradeWindow[1]
+    strategy.cancel_all()
+    strategy.close_all(comment="Date Range Exit")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/427291
+
+> Last Modified
+
+2023-09-19 19:38:53

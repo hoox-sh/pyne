@@ -1,0 +1,46 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/Supertrend和EMA交叉量化交易策略Supertrend-and-EMA-Crossover-Quantitative-Trading-Strategy.md
+// content_hash: af1a8be448211ec7
+// collected: 2026-07-27
+strategy("Supertrend and 44 EMA Strategy", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=100)
+
+// Inputs for Supertrend
+atrPeriod = input.int(10, title="ATR Period")
+factor = input.float(3.0, title="Factor")
+
+// Supertrend calculation
+[supertrend, direction] = ta.supertrend(factor, atrPeriod)
+plot(supertrend, color=direction > 0 ? color.green : color.red, linewidth=2)
+
+// 44 EMA calculation
+ema44 = ta.ema(close, 44)
+plot(ema44, color=color.blue, linewidth=1)
+
+// Entry and exit conditions
+longCondition = ta.crossover(close, ema44) and direction > 0
+shortCondition = ta.crossunder(close, ema44) and direction < 0
+
+// Target and Stop Loss
+strategy.risk.max_position_size(1)
+targetPercent = 0.01
+stopPercent = 0.01
+
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+    strategy.exit("Take Profit/Stop Loss", from_entry="Long", limit=close * (1 + targetPercent), stop=close * (1 - stopPercent))
+
+if (shortCondition)
+    strategy.entry("Short", strategy.short)
+    strategy.exit("Take Profit/Stop Loss", from_entry="Short", limit=close * (1 - targetPercent), stop=close * (1 + stopPercent))
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/458274
+
+> Last Modified
+
+2024-07-31 14:43:38

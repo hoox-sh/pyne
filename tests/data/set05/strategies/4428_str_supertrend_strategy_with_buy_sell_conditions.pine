@@ -1,0 +1,106 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/SuperTrend策略优化动态波动率跟踪与交易信号增强系统-SuperTrend-Strategy-Optimization-Dynamic-Volatility-Tracking-and-Enhanced-Trading-Signal-System.md
+// content_hash: 4d5fcb0febd87766
+// collected: 2026-07-27
+strategy("SuperTrend STRATEGY with Buy/Sell Conditions", overlay=true)
+
+// User input parameters
+Periods = input(title="ATR Period", type=input.integer, defval=10)
+src = input(hl2, title="Source")
+Multiplier = input(title="ATR Multiplier", type=input.float, step=0.1, defval=3.0)
+changeATR= input(title="Change ATR Calculation Method?", type=input.bool, defval=true)
+showsignals = input(title="Show Buy/Sell Signals?", type=input.bool, defval=true)
+highlighting = input(title="Highlighter On/Off?", type=input.bool, defval=true)
+barcoloring = input(title="Bar Coloring On/Off?", type=input.bool, defval=true)
+
+// ATR calculation
+atr2 = sma(tr, Periods)
+atr = changeATR ? atr(Periods) : atr2
+
+// SuperTrend calculation
+up = src - (Multiplier * atr)
+up1 = nz(up[1], up)
+up := close[1] > up1 ? max(up, up1) : up
+dn = src + (Multiplier * atr)
+dn1 = nz(dn[1], dn)
+dn := close[1] < dn1 ? min(dn, dn1) : dn
+
+// Trend determination
+trend = 1
+trend := nz(trend[1], trend)
+trend := trend == -1 and close > dn1 ? 1 : trend == 1 and close < up1 ? -1 : trend
+
+// Plot SuperTrend
+upPlot = plot(trend == 1 ? up : na, title="Up Trend", style=plot.style_linebr, linewidth=2, color=color.green)
+dnPlot = plot(trend == 1 ? na : dn, title="Down Trend", style=plot.style_linebr, linewidth=2, color=color.red)
+
+// Buy/Sell signal conditions
+buySignal = trend == 1 and trend[1] == -1
+sellSignal = trend == -1 and trend[1] == 1
+
+// State variables to track alerts
+var bool buyAlertTriggered = false
+var bool sellAlertTriggered = false
+
+// Check if a buy signal has been triggered and reset after it becomes false
+if (buySignal)
+    buyAlertTriggered := true
+else
+    buyAlertTriggered := false
+
+// Check if a sell signal has been triggered and reset after it becomes false
+if (sellSignal)
+    sellAlertTriggered := true
+else
+    sellAlertTriggered := false
+
+// Plot buy/sell signals on the chart
+plotshape(buySignal and not buyAlertTriggered ? up : na, title="UpTrend Begins", location=location.absolute, style=shape.circle, size=size.tiny, color=color.green, transp=0)
+plotshape(buySignal and showsignals and not buyAlertTriggered ? up : na, title="Buy", text="Buy", location=location.absolute, style=shape.labelup, size=size.tiny, color=color.green, textcolor=color.white, transp=0)
+
+plotshape(sellSignal and not sellAlertTriggered ? dn : na, title="DownTrend Begins", location=location.absolute, style=shape.circle, size=size.tiny, color=color.red, transp=0)
+plotshape(sellSignal and showsignals and not sellAlertTriggered ? dn : na, title="Sell", text="Sell", location=location.absolute, style=shape.labeldown, size=size.tiny, color=color.red, textcolor=color.white, transp=0)
+
+// Highlighting and bar coloring
+mPlot = plot(ohlc4, title="", style=plot.style_circles, linewidth=0)
+longFillColor = highlighting ? (trend == 1 ? color.green : color.white) : color.white
+shortFillColor = highlighting ? (trend == -1 ? color.red : color.white) : color.white
+fill(mPlot, upPlot, title="UpTrend Highlighter", color=longFillColor)
+fill(mPlot, dnPlot, title="DownTrend Highlighter", color=shortFillColor)
+
+// Bar coloring based on buy/sell signals
+buy1 = barssince(buySignal)
+sell1 = barssince(sellSignal)
+color1 = buy1[1] < sell1[1] ? color.green : buy1[1] > sell1[1] ? color.red : na
+barcolor(barcoloring ? color1 : na)
+
+// Trading window input parameters
+FromMonth = input(defval=9, title="From Month", minval=1, maxval=12)
+FromDay = input(defval=1, title="From Day", minval=1, maxval=31)
+FromYear = input(defval=2018, title="From Year", minval=999)
+ToMonth = input(defval=1, title="To Month", minval=1, maxval=12)
+ToDay = input(defval=1, title="To Day", minval=1, maxval=31)
+ToYear = input(defval=9999, title="To Year", minval=999)
+
+start = timestamp(FromYear, FromMonth, FromDay, 00, 00)
+finish = timestamp(ToYear, ToMonth, ToDay, 23, 59)
+window() => time >= start and time <= finish ? true : false
+
+// Entry conditions based on the SuperTrend signals and within the trading window
+if (buySignal and window())
+    strategy.entry("BUY", strategy.long)
+
+if (sellSignal and window())
+    strategy.entry("SELL", strategy.short)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/454742
+
+> Last Modified
+
+2024-06-21 15:30:04

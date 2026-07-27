@@ -1,0 +1,81 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多指标趋势动量交易策略基于布林带斐波那契和ATR的优化量化交易系统-Multi-Indicator-Trend-Momentum-Trading-Strategy-An-Optimized-Quantitative-Trading-System-Based-on-Bollinger-Bands-Fibonacci-and-ATR.md
+// content_hash: 1ba03de92eef6039
+// collected: 2026-07-27
+strategy("Optimized Advanced Strategy", overlay=true)
+
+// Bollinger Bandı
+length = input(20, title="Bollinger Band Length")
+src = close
+mult = input.float(2.0, title="Bollinger Band Multiplier")
+basis = ta.sma(src, length)
+dev = mult * ta.stdev(src, length)
+upper = basis + dev
+lower = basis - dev
+
+// RSI
+rsi = ta.rsi(close, 14)
+
+// MACD
+[macdLine, signalLine, _] = ta.macd(close, 12, 26, 9)
+
+// EMA
+emaFast = ta.ema(close, 9)
+emaSlow = ta.ema(close, 21)
+
+// ATR
+atr = ta.atr(14)
+
+// Fibonacci Seviyeleri
+lookback = input(100, title="Fibonacci Lookback Period")
+highPrice = ta.highest(high, lookback)
+lowPrice = ta.lowest(low, lookback)
+fiboLevel618 = lowPrice + (highPrice - lowPrice) * 0.618
+fiboLevel382 = lowPrice + (highPrice - lowPrice) * 0.382
+fiboLevel786 = lowPrice + (highPrice - lowPrice) * 0.786
+
+// Kullanıcı Ayarlı Stop-Loss ve Take-Profit
+stopLossATR = atr * 1.5
+takeProfitATR = atr * 3
+
+// İşlem Koşulları
+longCondition = (rsi < 55) and (macdLine > signalLine) and (emaFast > emaSlow) and (close >= fiboLevel382 and close <= fiboLevel618)
+shortCondition = (rsi > 45) and (macdLine < signalLine) and (emaFast < emaSlow) and (close >= fiboLevel618 and close <= fiboLevel786)
+
+// İşlem Girişleri
+if (longCondition)
+    strategy.entry("Long", strategy.long, stop=close - stopLossATR, limit=close + takeProfitATR, comment="LONG SIGNAL")
+
+if (shortCondition)
+    strategy.entry("Short", strategy.short, stop=close + stopLossATR, limit=close - takeProfitATR, comment="SHORT SIGNAL")
+
+// Bollinger Bandını Çizdir
+plot(upper, color=color.red, title="Bollinger Upper Band")
+plot(basis, color=color.blue, title="Bollinger Basis")
+plot(lower, color=color.green, title="Bollinger Lower Band")
+
+// Fibonacci Seviyelerini Çizdir
+// line.new(x1=bar_index[1], y1=fiboLevel382, x2=bar_index, y2=fiboLevel382, color=color.blue, width=1, style=line.style_dotted)
+// line.new(x1=bar_index[1], y1=fiboLevel618, x2=bar_index, y2=fiboLevel618, color=color.orange, width=1, style=line.style_dotted)
+// line.new(x1=bar_index[1], y1=fiboLevel786, x2=bar_index, y2=fiboLevel786, color=color.purple, width=1, style=line.style_dotted)
+
+// Göstergeleri Görselleştir
+plot(macdLine, color=color.blue, title="MACD Line")
+plot(signalLine, color=color.orange, title="MACD Signal Line")
+plot(emaFast, color=color.green, title="EMA Fast (9)")
+plot(emaSlow, color=color.red, title="EMA Slow (21)")
+
+// İşlem İşaretleri
+plotshape(series=longCondition, location=location.belowbar, color=color.green, style=shape.labelup, title="Long Entry")
+plotshape(series=shortCondition, location=location.abovebar, color=color.red, style=shape.labeldown, title="Short Entry")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/477972
+
+> Last Modified
+
+2025-01-10 16:22:55

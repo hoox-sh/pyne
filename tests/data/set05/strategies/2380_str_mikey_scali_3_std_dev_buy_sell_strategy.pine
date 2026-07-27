@@ -1,0 +1,58 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/三标准差动量反转交易策略-Triple-Standard-Deviation-Momentum-Reversal-Trading-Strategy.md
+// content_hash: 278bfe803c5dcc6c
+// collected: 2026-07-27
+strategy("MikEy Scali 3 STD Dev Buy/Sell Strategy", overlay=true)
+
+// Input parameters
+length = input.int(20, title="Standard Deviation Length", minval=1)
+src = input(close, title="Source")
+mult = input.float(3.0, title="Standard Deviation Multiplier", step=0.1)
+
+// Calculate the moving average and standard deviation
+ma = ta.sma(src, length)
+std_dev = ta.stdev(src, length)
+
+// Calculate upper and lower bands
+upper_band = ma + (std_dev * mult)
+lower_band = ma - (std_dev * mult)
+
+// Buy and Sell conditions
+// Buy when the price is below the lower band (3 std devs below MA)
+buyCondition = ta.crossover(src, lower_band)
+// Sell when the price is above the upper band (3 std devs above MA)
+sellCondition = ta.crossunder(src, upper_band)
+
+// Plot the buy and sell signals on the chart
+plotshape(series=buyCondition, location=location.belowbar, color=color.green, style=shape.labelup, text="BUY")
+plotshape(series=sellCondition, location=location.abovebar, color=color.red, style=shape.labeldown, text="SELL")
+
+// Execute buy and sell orders based on the conditions
+if (buyCondition)
+    strategy.entry("Buy", strategy.long)
+if (sellCondition)
+    strategy.close("Buy")
+
+// Plot the moving average and the bands
+plot(ma, color=color.blue, title="Moving Average")
+plot(upper_band, color=color.red, title="Upper Band (3 STD)")
+plot(lower_band, color=color.green, title="Lower Band (3 STD)")
+
+// Optional: Plot the source
+plot(src, color=color.gray, title="Source")
+
+// Add labels for clarity
+bgcolor(buyCondition ? color.new(color.green, 90) : na, offset=-1, title="Buy Signal Background")
+bgcolor(sellCondition ? color.new(color.red, 90) : na, offset=-1, title="Sell Signal Background")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/454738
+
+> Last Modified
+
+2024-06-21 14:44:54

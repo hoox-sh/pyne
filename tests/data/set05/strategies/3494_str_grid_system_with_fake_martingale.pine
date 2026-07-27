@@ -1,0 +1,81 @@
+//@version=4
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/STRATEGY TESTER ENGINE - ON CHART DISPLAY - PLUG & PLAY.pine
+// content_hash: 47f1db315e892919
+// collected: 2026-07-27
+strategy("Grid System With Fake Martingale",process_orders_on_close=true, initial_capital=100)
+point = input(1.)
+os    = input(1,"Order Size")
+mf    = input(2.,"Martingale Multiplier")
+anti  = input(false,"Anti Martingale")
+//------------------------------------------------------------------------------
+baseline = 0.
+baseline := nz(close > baseline[1] + point or close < baseline[1] - point ? 
+  close : baseline[1],close)
+//------------------------------------------------------------------------------
+size = 0.
+lossnew = change(strategy.losstrades)
+win = change(strategy.wintrades)
+if anti
+    size := win ? size[1]*mf : lossnew ? 1 : nz(size[1],os)
+else
+    size := lossnew ? size[1]*mf : win ? 1 : nz(size[1],os)
+upper = baseline + point*size
+lower = baseline - point*size
+//------------------------------------------------------------------------------
+if baseline > baseline[1] and strategy.opentrades == 0
+    strategy.entry("Buy",strategy.long,qty=os)
+    strategy.exit("buy/tp/sl","Buy",stop=lower,limit=upper)
+if baseline < baseline[1] and strategy.opentrades == 0
+    strategy.entry("Sell",strategy.short,qty=os)
+    strategy.exit("sell/tp/sl","Sell",stop=upper,limit=lower)
+    
+    
+//------------------------------------------------------------------------------
+// STRATEGY TESTER ENGINE - ON CHART DISPLAY - PLUG & PLAY
+//@FiatDropout   
+eq = strategy.equity //+ strategy.openprofit //USE THIS IF YOU NEED TO CHECK MAX GAINED BASED ON UNREALISED PnL and CANDLE MOVEMENT. THIS WILL CHANGE DD CALCCULATION AS WELL // CURRENT EQUITY
+loss = strategy.grossloss //GROSS LOSS SINCE START 
+gain = strategy.grossprofit //GROSS LOSS SINCE START
+in = strategy.initial_capital-100 //STARTING CAPITAL IN PERCENT
+total = strategy.closedtrades
+winners = strategy.wintrades
+losers = strategy.losstrades
+rmax = 0.
+rmax := max(eq,nz(rmax[1]))
+lmax = 0.
+lmax := max(loss,nz(loss[1]))
+gmax = 0.
+gmax := max(gain,nz(gain[1]))
+inmax = 0.
+inmax := max(in,nz(in[1]))
+tmax = 0.
+tmax := max(total,nz(total[1]))
+dd = -((rmax-eq)/rmax*100) //CURRENT DRAWDOWN
+ddm = lowest(dd,200) //MAX DRAWDOWN
+pfactor = gmax/lmax //PROFIT FACTOR
+ppercent = winners/total*100 //PROFIT PERCENTAGE
+//----
+css = eq > in ? #0cb51a : #e65100
+css2 = eq > loss ? color.blue : color.blue
+css3 = dd > 0 ? color.red : color.red
+css4 = dd > ddm ? color.orange : na
+a = plot(eq,"Current Profit(%)",#2196f3,2,transp=0)
+b = plot(rmax,"Maximum Gained(%)",css,2,transp=0)
+c = plot(inmax, "Starting Cap(%)", color.white,2,transp=0)
+d = plot(dd, "Current Drawdown(%)", color.fuchsia,2,transp=0)
+e = plot(ddm, "Max Drawdown(%)", color.red,2,transp=0)
+plot(lmax, "Gross Loss(%)", color.red,2,transp=0)
+plot(gmax, "Gross Gain(%)", color.green,2,transp=0)
+plot(pfactor, "Profit Factor", color.orange,2,transp=0)
+plot(tmax,"Total CLosed Trades", color.aqua,2,transp=0)
+plot(winners,"Trades Won", color.green,2,transp=0)
+plot(losers, "Trades Lost", color.red,2,transp=0)
+plot(ppercent,"Profit Percentage(%)", color.lime,2,transp=0)
+bgcolor(eq <= 0 and dd <= -100 ? color.red : na,title= "LIQUIDATION",transp=55)
+fill(a,b,css,80)
+fill(a,c,css2,60)
+fill(c,d,css3,35)
+fill(d,e,css4,30)
+Expand (104 lines)

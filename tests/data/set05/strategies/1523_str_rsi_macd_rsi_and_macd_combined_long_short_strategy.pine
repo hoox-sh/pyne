@@ -1,0 +1,79 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/RSI与MACD结合的多空策略-RSI-and-MACD-Combined-Long-Short-Strategy.md
+// content_hash: 457d18302ddb1f09
+// collected: 2026-07-27
+strategy(title="RSI & MACD Strategy", shorttitle="RSI & MACD", overlay=true)
+
+// Définition des entrées
+rsi_length = 14
+rsi_overbought = 70
+rsi_oversold = 30
+macd_fast_length = 12
+macd_slow_length = 26
+macd_signal_length = 9
+
+// Fonction pour calculer le RSI
+calculate_rsi(source, length) =>
+    price_change = ta.change(source)
+    up = ta.rma(price_change > 0 ? price_change : 0, length)
+    down = ta.rma(price_change < 0 ? -price_change : 0, length)
+    rs = up / down
+    rsi = 100 - (100 / (1 + rs))
+    rsi
+
+// Fonction pour calculer le MACD
+calculate_macd(source, fast_length, slow_length, signal_length) =>
+    fast_ma = ta.ema(source, fast_length)
+    slow_ma = ta.ema(source, slow_length)
+    macd = fast_ma - slow_ma
+    signal = ta.ema(macd, signal_length)
+    hist = macd - signal
+    [macd, signal, hist]
+
+// Calcul des indicateurs
+rsi_value = calculate_rsi(close, rsi_length)
+[macd_line, signal_line, _] = calculate_macd(close, macd_fast_length, macd_slow_length, macd_signal_length)
+
+// Conditions d'entrée et de sortie
+// Entrée en vente : RSI passe de >= 70 à < 70
+sell_entry_condition = ta.crossunder(rsi_value, rsi_overbought)
+
+// Sortie en vente : MACD fast MA croise au-dessus de slow MA
+sell_exit_condition = ta.crossover(macd_line, signal_line)
+
+// Entrée en achat : RSI passe de <= 30 à > 30
+buy_entry_condition = ta.crossover(rsi_value, rsi_oversold)
+
+// Sortie en achat : MACD fast MA croise en-dessous de slow MA
+buy_exit_condition = ta.crossunder(macd_line, signal_line)
+
+// Affichage des signaux sur le graphique
+plotshape(series=sell_entry_condition, title="Sell Entry", location=location.belowbar, color=color.red, style=shape.triangleup, size=size.small)
+plotshape(series=sell_exit_condition, title="Sell Exit", location=location.abovebar, color=color.green, style=shape.triangledown, size=size.small)
+plotshape(series=buy_entry_condition, title="Buy Entry", location=location.abovebar, color=color.green, style=shape.triangleup, size=size.small)
+plotshape(series=buy_exit_condition, title="Buy Exit", location=location.belowbar, color=color.red, style=shape.triangledown, size=size.small)
+
+// Entrées et sorties de la stratégie
+if (sell_entry_condition)
+    strategy.entry("Short", strategy.short)
+    
+if (sell_exit_condition)
+    strategy.close("Short")
+
+if (buy_entry_condition)
+    strategy.entry("Long", strategy.long)
+    
+if (buy_exit_condition)
+    strategy.close("Long")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/451706
+
+> Last Modified
+
+2024-05-17 11:04:03

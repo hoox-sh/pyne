@@ -1,0 +1,66 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于吞噬模型与量化指标的高级趋势跟踪策略Advanced-Trend-Tracking-Strategy-Based-on-Engulfing-Pattern-and-Quantitative-Indicators.md
+// content_hash: 89085fb9e8481cf6
+// collected: 2026-07-27
+strategy("Engulfing Candles with Fractals, Moving Average, Demand & Supply", overlay=true)
+
+// Input parameters
+emaLength = input(14, title="EMA Length")
+demandSupplyLength = input(20, title="Demand & Supply Length")
+
+// Calculate EMA
+emaValue = ta.ema(close, emaLength)
+
+// Calculate Demand and Supply Zones
+demandZone = ta.lowest(low, demandSupplyLength)
+supplyZone = ta.highest(high, demandSupplyLength)
+
+// Plot Demand and Supply Zones
+plot(demandZone, color=color.new(color.green, 90), linewidth=2, title="Demand Zone")
+plot(supplyZone, color=color.new(color.red, 90), linewidth=2, title="Supply Zone")
+
+// Determine Engulfing Candles
+bullishEngulfing = close[1] > open[1] and open < close and close > open[1] and open[1] > close[1]
+bearishEngulfing = close[1] < open[1] and open > close and close < open[1] and open[1] < close[1]
+
+// Plot Engulfing Candle Bars
+bgcolor(bullishEngulfing ? color.new(color.green, 90) : na)
+bgcolor(bearishEngulfing ? color.new(color.red, 90) : na)
+
+// Plot Moving Average
+plot(emaValue, color=color.blue, title="EMA")
+
+// Fractal Indicator
+fractalUp = ta.pivothigh(high, 2, 2)
+fractalDown = ta.pivotlow(low, 2, 2)
+
+// Plot Buy and Sell Fractals
+plotshape(series=fractalUp, title="Buy Fractal", location=location.belowbar, color=color.green, style=shape.labelup, text="Buy")
+plotshape(series=fractalDown, title="Sell Fractal", location=location.abovebar, color=color.red, style=shape.labeldown, text="Sell")
+
+// Strategy logic
+buySignal = bullishEngulfing and close > emaValue and close > supplyZone
+sellSignal = bearishEngulfing and close < emaValue and close < demandZone
+
+// Execute strategy
+if (fractalUp)
+    strategy.entry("Buy", strategy.long)
+
+if (fractalDown)
+    strategy.entry("Sell", strategy.short)
+
+// Plot strategy entry points on the chart
+plotshape(series=buySignal ? 1 : na, title="Buy Signal", color=color.green, style=shape.triangleup, location=location.belowbar, size=size.small)
+plotshape(series=sellSignal ? 1 : na, title="Sell Signal", color=color.red, style=shape.triangledown, location=location.abovebar, size=size.small)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/440845
+
+> Last Modified
+
+2024-02-02 16:48:30

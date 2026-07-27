@@ -1,0 +1,103 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双均线动量交易策略基于时间优化的趋势跟踪系统-Dual-Moving-Average-Momentum-Trading-Strategy-Time-Optimized-Trend-Following-System.md
+// content_hash: c25bc54db92f4cc5
+// collected: 2026-07-27
+strategy("Gold Trend Trader", shorttitle="Gold Trader", overlay=true)
+
+// User-defined input for moving averages
+shortMA = input.int(10, minval=1, title="Short MA Period")
+longMA = input.int(100, minval=1, title="Long MA Period")
+target_1 = input.int(100, minval=1, title="Target_1")
+target_2 = input.int(150, minval=1, title="Target_2")
+
+// User-defined input for the start and end times with default values
+startTimeInput = input.int(12, title="Start Time for Session (UTC, in hours)", minval=0, maxval=23)
+endTimeInput = input.int(17, title="End Time Session (UTC, in hours)", minval=0, maxval=23)
+// Convert the input hours to minutes from midnight
+startTime = startTimeInput * 60 
+endTime = endTimeInput * 60  
+
+// Function to convert the current exchange time to UTC time in minutes
+toUTCTime(exchangeTime) =>
+    exchangeTimeInMinutes = exchangeTime / 60000
+    // Adjust for UTC time
+    utcTime = exchangeTimeInMinutes % 1440
+    utcTime
+
+// Get the current time in UTC in minutes from midnight
+utcTime = toUTCTime(time)
+
+// Check if the current UTC time is within the allowed timeframe
+isAllowedTime = (utcTime >= startTime and utcTime < endTime)
+
+// Calculating moving averages
+shortMAValue = ta.sma(close, shortMA)
+longMAValue = ta.sma(close, longMA)
+
+// Plotting the MAs
+plot(shortMAValue, title="Short MA", color=color.blue)
+plot(longMAValue, title="Long MA", color=color.red)
+
+// Tracking buy and sell signals
+var float buyEntryPrice_1 = na
+var float buyEntryPrice_2 = na
+var float sellEntryPrice_1 = na
+var float sellEntryPrice_2 = na
+
+// Logic for Buy and Sell signals
+buySignal = ta.crossover(shortMAValue, longMAValue) and isAllowedTime
+sellSignal = ta.crossunder(shortMAValue, longMAValue) and isAllowedTime
+
+// Entry conditions for long and short trades
+if (buySignal)
+    strategy.entry("Buy_1", strategy.long)
+    strategy.exit("TP_1", "Buy_1", limit=close + target_1, stop=close - 100)
+
+    strategy.entry("Buy_2", strategy.long)
+    strategy.exit("TP_2", "Buy_2", limit=close + target_2, stop=close - 1500)
+
+if (sellSignal)
+    strategy.entry("Sell_1", strategy.short)
+    strategy.exit("TP_3", "Sell_1", limit=close - target_1, stop=close + 100)
+
+    strategy.entry("Sell_2", strategy.short)
+    strategy.exit("TP_4", "Sell_2", limit=close - target_2, stop=close + 150)
+
+// Apply background color for entry candles
+barcolor(buySignal ? color.green : sellSignal ? color.red : na)
+
+// Creating buy and sell labels
+if (buySignal)
+    label.new(bar_index, low, text="BUY", style=label.style_label_up, color=color.green, textcolor=color.white, yloc=yloc.belowbar)
+
+if (sellSignal)
+    label.new(bar_index, high, text="SELL", style=label.style_label_down, color=color.red, textcolor=color.white, yloc=yloc.abovebar)
+
+// Creating labels for 100-point movement
+if (not na(buyEntryPrice_1) and close >= buyEntryPrice_1 + target_1)
+    label.new(bar_index, high, text=str.tostring(target_1), style=label.style_label_down, color=color.green, textcolor=color.white, yloc=yloc.abovebar)
+    buyEntryPrice_1 := na // Reset after label is created
+
+if (not na(buyEntryPrice_2) and close >= buyEntryPrice_2 + target_2)
+    label.new(bar_index, high, text=str.tostring(target_2), style=label.style_label_down, color=color.green, textcolor=color.white, yloc=yloc.abovebar)
+    buyEntryPrice_2 := na // Reset after label is created
+
+if (not na(sellEntryPrice_1) and close <= sellEntryPrice_1 - target_1)
+    label.new(bar_index, low, text=str.tostring(target_1), style=label.style_label_up, color=color.red, textcolor=color.white, yloc=yloc.belowbar)
+    sellEntryPrice_1 := na // Reset after label is created
+
+if (not na(sellEntryPrice_2) and close <= sellEntryPrice_2 - target_2)
+    label.new(bar_index, low, text=str.tostring(target_2), style=label.style_label_up, color=color.red, textcolor=color.white, yloc=yloc.belowbar)
+    sellEntryPrice_2 := na // Reset after label is created
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/458276
+
+> Last Modified
+
+2024-07-31 14:50:26

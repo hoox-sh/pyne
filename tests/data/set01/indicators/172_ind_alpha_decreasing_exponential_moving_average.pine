@@ -1,0 +1,16 @@
+//@version=4
+// set01 corpus entry
+// source_repo: https://github.com/everget/tradingview-pinescript-indicators
+// source_path: tradingview-pinescript-indicators/movings/alpha_decreasing_exponential_moving_average.pine
+// content_hash: 5a646e7e3301983f
+// collected: 2026-07-27
+// Copyright (c) 2019-present, Alex Orekhov (everget)
+// Alpha-Decreasing Exponential Moving Average script may be freely distributed under the terms of the GPL-3.0 license.
+study("Alpha-Decreasing Exponential Moving Average", shorttitle="ADEMA", overlay=true)
+
+alpha = 2 / (int(bar_index) + 1)
+
+ema = close
+ema := alpha * ema + (1 - alpha) * nz(ema[1], ema)
+
+plot(ema, title="ADEMA", linewidth=2, color=color.orange)

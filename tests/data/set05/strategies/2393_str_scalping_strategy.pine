@@ -1,0 +1,58 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/EMA交叉动量短线交易策略-EMA-Crossover-Momentum-Scalping-Strategy.md
+// content_hash: bfc404979bd0768f
+// collected: 2026-07-27
+strategy("Scalping Strategy", overlay=true)
+
+// Parameters
+length_fast = input.int(9, title="Fast EMA Length", minval=1)
+length_slow = input.int(21, title="Slow EMA Length", minval=1)
+stop_loss_pct = 0.7 // Risk 0.7% of capital
+take_profit_pct = 0.5 // Target 0.5% of capital
+
+// Calculate EMAs
+ema_fast = ta.ema(close, length_fast)
+ema_slow = ta.ema(close, length_slow)
+
+// Plot EMAs
+plot(ema_fast, color=color.blue, title="Fast EMA")
+plot(ema_slow, color=color.red, title="Slow EMA")
+
+// Trading logic
+long_condition = ta.crossover(ema_fast, ema_slow)
+short_condition = ta.crossunder(ema_fast, ema_slow)
+
+// Calculate stop loss and take profit levels
+stop_loss_long = strategy.position_avg_price * (1 - stop_loss_pct / 100)
+take_profit_long = strategy.position_avg_price * (1 + take_profit_pct / 100)
+
+stop_loss_short = strategy.position_avg_price * (1 + stop_loss_pct / 100)
+take_profit_short = strategy.position_avg_price * (1 - take_profit_pct / 100)
+
+// Enter and exit trades
+if (long_condition)
+    strategy.entry("Long", strategy.long)
+if (short_condition)
+    strategy.entry("Short", strategy.short)
+
+// Exit long trades
+if (strategy.position_size > 0)
+    strategy.exit("Take Profit Long", "Long", limit=take_profit_long)
+    strategy.exit("Stop Loss Long", "Long", stop=stop_loss_long)
+
+// Exit short trades
+if (strategy.position_size < 0)
+    strategy.exit("Take Profit Short", "Short", limit=take_profit_short)
+    strategy.exit("Stop Loss Short", "Short", stop=stop_loss_short)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/454143
+
+> Last Modified
+
+2024-06-14 15:24:46

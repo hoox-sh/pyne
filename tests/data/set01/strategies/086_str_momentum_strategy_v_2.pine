@@ -1,0 +1,53 @@
+//@version=3
+// set01 corpus entry
+// source_repo: https://github.com/capissimo/Pinescript-Laboratory
+// source_path: Pinescript-Laboratory/scripts/014-Momentum-Strategy-(v2).pine
+// content_hash: 0005fa7de77b4d0c
+// collected: 2026-07-27
+strategy("Momentum Strategy (v.2)", overlay=true)
+
+//
+// Data
+//
+src = input(close)
+lookback = input(20)
+cscheme=input(1, title="Bar color scheme", options=[1,2])
+
+//
+// Functions
+//
+momentum(ts, p) => (ts - ts[p]) / ts[p]
+
+normalize(src, len) =>
+    hi  = highest(src, len)
+    lo  = lowest(src, len)
+    res = (src - lo)/(hi - lo)
+
+//
+// Main
+//
+price = close
+mid = sma(src, lookback)
+mom = normalize(momentum(price, lookback),100)
+
+//
+// Bar Colors
+//
+clr1 = cscheme==1?black: red
+clr2 = cscheme==1?white: green
+barcolor(close < open ? clr1 : clr2)
+
+//
+// Strategy
+//
+if (mom > .5 and price > mid )
+    strategy.entry("MomLE", strategy.long, stop=high+syminfo.mintick, comment="MomLE")
+else
+    strategy.cancel("MomLE")
+
+if (mom < .5 and price < mid )
+    strategy.entry("MomSE", strategy.short, stop=low-syminfo.mintick, comment="MomSE")
+else
+    strategy.cancel("MomSE")
+
+//plot(strategy.equity, title="equity", color=red, linewidth=2, style=areabr)

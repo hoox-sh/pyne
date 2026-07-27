@@ -1,0 +1,64 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多指标组合动态止损趋势跟踪策略-Multi-Indicator-Dynamic-Stop-Loss-Trend-Following-Strategy.md
+// content_hash: d433d30b6d672ad9
+// collected: 2026-07-27
+strategy('SVMKR_UT_HMA_ORB_Strategy', overlay=true)
+
+// Inputs
+a = input(2, title='UT Key Value. \'This changes the sensitivity\'')
+c = input(1, title='UT ATR Period')
+h = input(false, title='Signals from Heikin Ashi Candles')
+
+// UT Bot Logic
+xATR = ta.atr(c)
+nLoss = a * xATR
+src = h ? request.security(ticker.heikinashi(syminfo.tickerid), timeframe.period, close, lookahead=barmerge.lookahead_off) : close
+
+xATRTrailingStop = 0.0
+iff_1 = src > nz(xATRTrailingStop[1], 0) ? src - nLoss : src + nLoss
+iff_2 = src < nz(xATRTrailingStop[1], 0) and src[1] < nz(xATRTrailingStop[1], 0) ? math.min(nz(xATRTrailingStop[1]), src + nLoss) : iff_1
+xATRTrailingStop := src > nz(xATRTrailingStop[1], 0) and src[1] > nz(xATRTrailingStop[1], 0) ? math.max(nz(xATRTrailingStop[1]), src - nLoss) : iff_2
+
+pos = 0
+iff_3 = src[1] > nz(xATRTrailingStop[1], 0) and src < nz(xATRTrailingStop[1], 0) ? -1 : nz(pos[1], 0)
+pos := src[1] < nz(xATRTrailingStop[1], 0) and src > nz(xATRTrailingStop[1], 0) ? 1 : iff_3
+
+ema = ta.ema(src, 1)
+above = ta.crossover(ema, xATRTrailingStop)
+below = ta.crossover(xATRTrailingStop, ema)
+
+// Hull Moving Average Calculation
+n = input(31, title='Hull MA Period')
+n2ma = 2 * ta.wma(close, math.round(n / 2))
+nma = ta.wma(close, n)
+diff = n2ma - nma
+sqn = math.round(math.sqrt(n))
+
+n1 = ta.wma(diff, sqn)
+c1 = n1 > n1[1] ? color.green : color.red
+
+plot(n1, color=c1, linewidth=2, title='HullMA')
+
+// Strategy Buy and Sell Conditions
+buyCondition = src > xATRTrailingStop and above and close > n1 and c1 == color.green
+sellCondition = src < xATRTrailingStop and below and close < n1 and c1 == color.red
+
+// Execute Strategy Orders
+if buyCondition
+    strategy.entry('Buy', strategy.long)
+
+if sellCondition
+    strategy.entry('Sell', strategy.short)
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/468331
+
+> Last Modified
+
+2024-09-26 16:03:18

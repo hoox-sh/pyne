@@ -1,0 +1,48 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于均线的追踪策略Dual-Moving-Average-Chasing-Strategy.md
+// content_hash: b4f3d23a298c8b68
+// collected: 2026-07-27
+strategy("平均K腳本交易策略", overlay=true)
+
+// 定義 Heikin Ashi 指標
+ha_open = security(heikinashi(syminfo.tickerid), "60", open)
+ha_high = security(heikinashi(syminfo.tickerid), "60", high)
+ha_low = security(heikinashi(syminfo.tickerid), "60", low)
+ha_close = security(heikinashi(syminfo.tickerid), "60", close)
+
+// 確定 Heikin Ashi 指標的顏色
+isGreen = ha_open < ha_close
+
+// 定義加碼次數
+var int add_on_buy = 10
+var int add_on_sell = 10
+
+// 定義進場和出場條件
+long_condition = crossover(ha_close, ha_open) and isGreen and ha_low == ha_open
+short_condition = crossunder(ha_close, ha_open) and not isGreen and ha_high == ha_open
+exit_condition = crossover(ha_open, ha_close) or crossunder(ha_open, ha_close)
+
+// 如果條件符合，進行進場和出場操作
+if (long_condition)
+    strategy.entry("Buy", strategy.long)
+if (short_condition)
+    strategy.entry("Sell", strategy.short)
+if (exit_condition)
+    strategy.close("Buy")
+    strategy.close("Sell")
+
+// 繪製 Heikin Ashi 蠟燭圖
+plotcandle(iff(ha_open < ha_close, ha_open, na), ha_high, ha_low, ha_close, title='Green Candles', color=#53b987, wickcolor=#53b987, bordercolor=#53b987)
+plotcandle(iff(ha_open >= ha_close, ha_open, na), ha_high, ha_low, ha_close, title='Red Candles', color=#eb4d5c, wickcolor=#eb4d5c, bordercolor=#eb4d5c)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/442228
+
+> Last Modified
+
+2024-02-20 14:11:31

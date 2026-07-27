@@ -1,0 +1,16 @@
+//@version=5
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/Swing VWAP Crypto and Stocks Strategy.pine
+// content_hash: b2f26ce19ca2dcaa
+// collected: 2026-07-27
+strategy('VWAP strategy ', overlay=true, initial_capital=100, default_qty_type=strategy.percent_of_equity, default_qty_value=100, calc_on_every_tick=true, commission_type=strategy.commission.percent, commission_value=0.03)
+long = close> ta.vwap and close[1] < ta.vwap
+stopPer = input.float(10.0, title='LONG Stop Loss % ', group='Fixed Risk Management') / 100
+takePer = input.float(29.0, title='LONG Take Profit %', group='Fixed Risk Management') / 100
+longStop = strategy.position_avg_price * (1 - stopPer)
+longTake = strategy.position_avg_price * (1 + takePer)
+strategy.entry("long",strategy.long,when=long and dayofweek==dayofweek.monday)
+strategy.exit('LONG EXIT', "long", limit=longTake, stop=longStop)
+strategy.close_all(when=dayofweek==dayofweek.sunday)
+Expand (25 lines)

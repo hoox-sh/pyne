@@ -1,0 +1,67 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多重技术指标交叉动量量化交易策略-基于EMARSI和ADX的整合分析-Multi-Technical-Indicator-Crossover-Momentum-Quantitative-Trading-Strategy-Integration-Analysis-Based-on-EMA-RSI-and-ADX.md
+// content_hash: 33dc3f765876153c
+// collected: 2026-07-27
+strategy("Enhanced EMA + RSI + ADX Strategy", overlay=true)
+
+// Input parameters
+lenFast = input.int(9, title="Fast EMA Length", minval=1)
+lenSlow = input.int(21, title="Slow EMA Length", minval=1)
+rsiPeriod = input.int(14, title="RSI Period")
+adxPeriod = input.int(14, title="ADX Period")
+adxSmoothing = input.int(1, title="ADX Smoothing")
+adxThreshold = input.int(20, title="ADX Threshold")
+riskRewardRatio = input.float(2.0, title="Risk/Reward Ratio")
+
+// EMA Calculations
+fastEMA = ta.ema(close, lenFast)
+slowEMA = ta.ema(close, lenSlow)
+
+// RSI Calculation
+rsiValue = ta.rsi(close, rsiPeriod)
+
+// ADX Calculation
+[plusDI, minusDI, adxValue] = ta.dmi(adxPeriod, adxSmoothing)
+
+// Entry Conditions
+buyCondition = ta.crossover(fastEMA, slowEMA) and rsiValue < 60 and adxValue > adxThreshold
+sellCondition = ta.crossunder(fastEMA, slowEMA) and rsiValue > 40 and adxValue > adxThreshold
+
+// Entry logic
+if (buyCondition)
+    strategy.entry("Buy", strategy.long)
+    strategy.exit("Sell", from_entry="Buy", limit=close + (close - strategy.position_avg_price) * riskRewardRatio, stop=close - (close - strategy.position_avg_price))
+
+if (sellCondition)
+    strategy.close("Buy")
+
+// Plotting EMAs (thinner lines)
+plot(fastEMA, color=color.new(color.green, 0), title="Fast EMA", linewidth=1)
+plot(slowEMA, color=color.new(color.red, 0), title="Slow EMA", linewidth=1)
+
+// Entry and exit markers (larger shapes)
+plotshape(series=buyCondition, style=shape.triangleup, location=location.belowbar, color=color.new(color.green, 0), size=size.normal, title="Buy Signal")
+plotshape(series=sellCondition, style=shape.triangledown, location=location.abovebar, color=color.new(color.red, 0), size=size.normal, title="Sell Signal")
+
+// Displaying price labels for buy/sell signals
+if (buyCondition)
+    label.new(bar_index, low, text="Buy\n" + str.tostring(close), color=color.new(color.green, 0), style=label.style_label_down, textcolor=color.white)
+
+if (sellCondition)
+    label.new(bar_index, high, text="Sell\n" + str.tostring(close), color=color.new(color.red, 0), style=label.style_label_up, textcolor=color.white)
+
+// Optional: Add alerts for entry signals
+alertcondition(buyCondition, title="Buy Alert", message="Buy signal triggered")
+alertcondition(sellCondition, title="Sell Alert", message="Sell signal triggered")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/471697
+
+> Last Modified
+
+2024-11-12 15:14:13

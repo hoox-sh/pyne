@@ -1,0 +1,42 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双移动均线与RSI反转交易策略Dual-Moving-Average-and-RSI-Reversal-Trading-Strategy.md
+// content_hash: 3cf410983b8f5cea
+// collected: 2026-07-27
+//Based on Larry Connors RSI-2 Strategy - Lower RSI
+strategy(title="_CM_RSI_2_Strat_Low", shorttitle="_CM_RSI_2_Strategy_Lower", overlay=false)
+src = close, 
+
+//RSI CODE
+up = rma(max(change(src), 0), 30)
+down = rma(-min(change(src), 0), 30)
+rsi = down == 0 ? 100 : up == 0 ? 0 : 100 - (100 / (1 + up / down))
+//Criteria for Moving Avg rules
+ma50= vwma(close,30)
+ma200= vwma(close,200)
+
+//Rule for RSI Color
+col = ma50 > ma200 and rsi <=53?lime: ma50 < ma200  and rsi >= 60?red : silver
+long = ma50 > ma200 and rsi <= 53
+short = ma50 < ma200  and rsi >= 60
+//plot(rsi, title="RSI", style=line, linewidth=1,color=col)
+//plot(100, title="Upper Line 100",style=line, linewidth=3, color=aqua)
+//plot(0, title="Lower Line 0",style=line, linewidth=3, color=aqua)
+
+//band1 = plot(60, title="Upper Line 60",style=line, linewidth=1, color=aqua)
+//band0 = plot(44, title="Lower Line 40",style=line, linewidth=1, color=aqua)
+//fill(band1, band0, color=silver, transp=90)
+strategy.entry ("buy", strategy.long, when=long)
+strategy.entry ("sell", strategy.short, when=short)
+plot(long,"long",color=green,linewidth=1)
+plot(short,"short",color=red,linewidth=1)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/429562
+
+> Last Modified
+
+2023-10-18 11:08:35

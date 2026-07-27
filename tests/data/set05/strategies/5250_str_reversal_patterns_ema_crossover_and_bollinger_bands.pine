@@ -1,0 +1,55 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双EMA穿越与布林带回转策略Reversal-Trading-Strategy-with-EMA-Crossover-and-Bollinger-Bands.md
+// content_hash: 68394b107dc3e050
+// collected: 2026-07-27
+strategy("Reversal Patterns, EMA Crossover, and Bollinger Bands", shorttitle="RP-EMABB", overlay=true)
+
+// Input parameters
+emaShortPeriod = input(50, title="Short EMA Period", minval=1)
+emaLongPeriod = input(200, title="Long EMA Period", minval=1)
+bbLength = input(20, title="Bollinger Bands Length", minval=1)
+bbMultiplier = input(2.0, title="Bollinger Bands Multiplier", minval=0.1, maxval=5.0)
+
+// Calculate EMAs
+emaShort = ema(close, emaShortPeriod)
+emaLong = ema(close, emaLongPeriod)
+
+// Calculate Bollinger Bands
+bbUpper = sma(close, bbLength) + bbMultiplier * stdev(close, bbLength)
+bbLower = sma(close, bbLength) - bbMultiplier * stdev(close, bbLength)
+
+// EMA Crossover and Crossunder
+emaCrossover = crossover(emaShort, emaLong)
+emaCrossunder = crossunder(emaShort, emaLong)
+
+// Bollinger Bands Crossing
+bbUpperCross = crossover(close, bbUpper)
+bbLowerCross = crossunder(close, bbLower)
+
+// Buy and Sell signals
+strategy.entry("Buy", strategy.long, when=emaCrossover or bbLowerCross)
+strategy.entry("Sell", strategy.short, when=emaCrossunder or bbUpperCross)
+
+// Plot EMAs on the chart
+plot(emaShort, color=color.blue, title="50 EMA")
+plot(emaLong, color=color.red, title="200 EMA")
+
+// Plot Bollinger Bands
+plot(bbUpper, color=color.green, title="Bollinger Bands Upper")
+plot(bbLower, color=color.red, title="Bollinger Bands Lower")
+
+// Highlight Buy and Sell signals on the chart
+bgcolor(emaCrossover or bbLowerCross ? color.green : na, transp=90)
+bgcolor(emaCrossunder or bbUpperCross ? color.red : na, transp=90)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/442401
+
+> Last Modified
+
+2024-02-21 16:12:18

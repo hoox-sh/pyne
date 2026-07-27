@@ -1,0 +1,156 @@
+//@version=3
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于SSL通道指标的趋势跟踪策略No-Nonsense-SSL-Channel-Trading-Strategy.md
+// content_hash: 0119e5f106b77711
+// collected: 2026-07-27
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//Designed per No Nonsense Forex VP rules
+//For testing your individual indicators before the full system
+//Originated from causecelebre
+//Tried to put in as much VP rules as possible
+
+///////////////////////////////////////////////////
+//Rules Implemented:
+///////////////////////////////////////////////////
+// - SL 1.5 x ATR
+// - TP 1 x ATR
+//
+// - Entry conditions
+//// - Entry from 1 x confirmation
+// - Exit conditions
+//// - Exit on confirmation flip 
+
+///////////////////////////////////////////////////
+//Trades entries
+///////////////////////////////////////////////////
+// - First entry L1 or S1 with standard SL and TP
+
+///////////////////////////////////////////////////
+//Included Indicators and settings
+///////////////////////////////////////////////////
+// - Confirmtion = SSL 10
+
+///////////////////////////////////////////////////
+//Credits
+// Strategy causecelebre https://www.tradingview.com/u/causecelebre/
+// SSL Channel ErwinBeckers https://www.tradingview.com/u/ErwinBeckers/
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//Change log
+//First release. Testing of indicators
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+strategy(title="NNFX Strategy Indicator | jh", overlay = true )
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//  **** Set the main stuff  ****
+///////////////////////////////////////////////////
+
+//Price
+price = close
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// ATR stuff
+///////////////////////////////////////////////////
+
+slMultiplier = input(1.5, "SL")
+tpMultiplier = input(1, "TP")
+
+atrlength = input(title="ATR Length", defval=14, minval=1)
+atrsmoothing = input(title="Smoothing", defval="SMA", options=["RMA", "SMA", "EMA", "WMA"])
+
+ma_function(source, atrlength) => 
+    if atrsmoothing == "RMA"
+        rma(source, atrlength)
+    else
+        if atrsmoothing == "SMA"
+            sma(source, atrlength)
+        else
+            if atrsmoothing == "EMA"
+                ema(source, atrlength)
+            else
+                wma(source, atrlength)
+
+//plot(ma_function(tr(true), atrlength), title = "ATR", color=#991515, transp=0)
+
+atr = ma_function(tr(true), atrlength)
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//  **** Confirmation ****
+///////////////////////////////////////////////////
+
+ssllen=input(title="SSL Length Period", defval=10)
+smaHigh=sma(high, ssllen)
+smaLow=sma(low, ssllen)
+Hlv = na
+Hlv := close > smaHigh ? 1 : close < smaLow ? -1 : Hlv[1]
+sslDown = Hlv < 0 ? smaHigh: smaLow
+sslUp   = Hlv < 0 ? smaLow : smaHigh
+
+plot(sslDown, "SSL Down", linewidth=1, color=red)
+plot(sslUp, "SSL Up", linewidth=1, color=lime)
+
+///////////////////////////////////////////////////
+//Confirm Signals
+///////////////////////////////////////////////////
+
+c_Up = sslUp
+c_Down = sslDown
+
+//Signals based on crossover
+c_Long = crossover(c_Up, c_Down)
+c_Short = crossover(c_Down, c_Up)
+
+//Signals based on signal position
+trendLong = c_Up > c_Down ? 1 : 0
+trendShort = c_Down > c_Up ? 1 : 0
+
+confirmLong = c_Long
+confirmShort = c_Short
+
+plotshape(trendLong, color = green, style=shape.triangleup, location=location.bottom)
+plotshape(trendShort, color = red, style=shape.triangledown, location=location.bottom)
+
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//Entries and Exits
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+if (year>2009)
+
+    //Long entries with standard 1.5 ATR for SL, 1 ATR for TP
+    long_sl = price - (atr * slMultiplier)
+    long_tp = price + (atr * tpMultiplier)
+    strategy.order("L1", strategy.long, when = confirmLong)
+    strategy.close("L1", when = confirmShort)
+    strategy.exit("L Limit Exit", "L1", stop = long_sl, limit = long_tp)
+
+    
+    //Short entries with standard 1.5 ATR for SL, 1 ATR for TP
+    short_sl = price + (atr * slMultiplier)
+    short_tp = price - (atr * tpMultiplier)
+    strategy.order("S1", strategy.short, when = confirmShort)
+    strategy.close("S1", when = confirmLong)
+    strategy.exit("S Limit Exit", "S1", stop = short_sl, limit = short_tp)
+
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//End
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+
+    
+
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/433439
+
+> Last Modified
+
+2023-11-27 16:42:34

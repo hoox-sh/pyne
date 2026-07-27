@@ -1,0 +1,155 @@
+//@version=6
+// set02 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/templates/strategies/mean-reversion.pine
+// content_hash: 900f531d2bafdf71
+// collected: 2026-07-27
+strategy("Mean Reversion Strategy Template", overlay=true,
+         default_qty_type=strategy.percent_of_equity,
+         default_qty_value=10,
+         commission_type=strategy.commission.percent,
+         commission_value=0.1)
+//@strategy_alert_message {{strategy.order.alert_message}}
+
+// ============================================================================
+// INPUTS
+// ============================================================================
+// Mean Settings
+meanType = input.string("SMA", "Mean Type", options=["SMA", "EMA", "VWAP"], group="Mean", tooltip="Type of moving average for mean")
+meanLength = input.int(20, "Mean Length", minval=5, maxval=200, group="Mean")
+deviationType = input.string("StdDev", "Deviation Type", options=["StdDev", "ATR", "Percent"], group="Mean")
+deviationMultiplier = input.float(2.0, "Deviation Multiplier", minval=0.5, maxval=5.0, step=0.5, group="Mean")
+deviationPercent = input.float(2.0, "Deviation %", minval=0.5, maxval=10.0, step=0.5, group="Mean")
+
+// Entry Settings
+entryMode = input.string("Bounce", "Entry Mode", options=["Bounce", "Touch", "Cross"], group="Entry", tooltip="Bounce: wait for reversal candle, Touch: enter on touch, Cross: enter on band cross")
+confirmReversal = input.bool(true, "Confirm Reversal", group="Entry", tooltip="Wait for a bullish/bearish candle before entry")
+
+// Filter Settings
+useRSIFilter = input.bool(true, "RSI Filter", group="Filters", tooltip="Require RSI extreme before entry")
+rsiLength = input.int(14, "RSI Length", minval=1, group="Filters")
+rsiOversold = input.int(30, "RSI Oversold", minval=1, maxval=50, group="Filters")
+rsiOverbought = input.int(70, "RSI Overbought", minval=50, maxval=99, group="Filters")
+
+useTrendFilter = input.bool(false, "Trend Filter", group="Filters", tooltip="Only trade in direction of larger trend")
+trendLength = input.int(50, "Trend MA Length", minval=20, maxval=200, group="Filters")
+
+// Risk Management
+useStopLoss = input.bool(true, "Use Stop Loss", group="Risk Management")
+stopLossATR = input.float(1.5, "Stop Loss ATR", minval=0.5, maxval=5.0, step=0.5, group="Risk Management")
+atrLength = input.int(14, "ATR Length", minval=1, group="Risk Management")
+
+targetMode = input.string("Mean", "Target Mode", options=["Mean", "Opposite Band", "Fixed RR"], group="Risk Management")
+fixedRR = input.float(2.0, "Fixed R:R", minval=0.5, maxval=10.0, step=0.5, group="Risk Management")
+
+// Direction
+longOnly = input.bool(false, "Long Only", group="Direction")
+shortOnly = input.bool(false, "Short Only", group="Direction")
+
+// ============================================================================
+// CALCULATIONS
+// ============================================================================
+// Mean calculation
+mean = switch meanType
+    "SMA" => ta.sma(close, meanLength)
+    "EMA" => ta.ema(close, meanLength)
+    "VWAP" => ta.vwap(hlc3)
+
+// Deviation calculation
+atr = ta.atr(atrLength)
+stdDev = ta.stdev(close, meanLength)
+
+deviation = switch deviationType
+    "StdDev" => stdDev * deviationMultiplier
+    "ATR" => atr * deviationMultiplier
+    "Percent" => mean * deviationPercent / 100
+
+upperBand = mean + deviation
+lowerBand = mean - deviation
+
+// Filters
+rsi = ta.rsi(close, rsiLength)
+rsiOversoldCondition = rsi < rsiOversold or not useRSIFilter
+rsiOverboughtCondition = rsi > rsiOverbought or not useRSIFilter
+
+trendMA = ta.sma(close, trendLength)
+bullishTrend = close > trendMA or not useTrendFilter
+bearishTrend = close < trendMA or not useTrendFilter
+
+// Reversal detection
+bullishCandle = close > open
+bearishCandle = close < open
+
+// Entry conditions based on mode
+touchedLowerBand = low <= lowerBand
+touchedUpperBand = high >= upperBand
+crossedBelowLower = ta.crossunder(close, lowerBand)
+crossedAboveUpper = ta.crossover(close, upperBand)
+
+longEntry = switch entryMode
+    "Bounce" => touchedLowerBand[1] and bullishCandle and (not confirmReversal or close > high[1])
+    "Touch" => touchedLowerBand
+    "Cross" => crossedBelowLower[1] and close > lowerBand
+
+shortEntry = switch entryMode
+    "Bounce" => touchedUpperBand[1] and bearishCandle and (not confirmReversal or close < low[1])
+    "Touch" => touchedUpperBand
+    "Cross" => crossedAboveUpper[1] and close < upperBand
+
+// ============================================================================
+// STRATEGY CONDITIONS
+// ============================================================================
+longCondition = longEntry and rsiOversoldCondition and bullishTrend and not shortOnly
+shortCondition = shortEntry and rsiOverboughtCondition and bearishTrend and not longOnly
+
+// ============================================================================
+// STRATEGY EXECUTION
+// ============================================================================
+if longCondition
+    stopPrice = close - atr * stopLossATR
+    riskAmount = close - stopPrice
+
+    targetPrice = switch targetMode
+        "Mean" => mean
+        "Opposite Band" => upperBand
+        "Fixed RR" => close + riskAmount * fixedRR
+
+    strategy.entry("Long", strategy.long, alert_message="Long mean reversion entry")
+
+    if useStopLoss
+        strategy.exit("Long Exit", "Long", stop=stopPrice, limit=targetPrice, alert_message="Long exit")
+    else
+        strategy.exit("Long TP", "Long", limit=targetPrice, alert_message="Long take profit")
+
+if shortCondition
+    stopPrice = close + atr * stopLossATR
+    riskAmount = stopPrice - close
+
+    targetPrice = switch targetMode
+        "Mean" => mean
+        "Opposite Band" => lowerBand
+        "Fixed RR" => close - riskAmount * fixedRR
+
+    strategy.entry("Short", strategy.short, alert_message="Short mean reversion entry")
+
+    if useStopLoss
+        strategy.exit("Short Exit", "Short", stop=stopPrice, limit=targetPrice, alert_message="Short exit")
+    else
+        strategy.exit("Short TP", "Short", limit=targetPrice, alert_message="Short take profit")
+
+// ============================================================================
+// PLOTS
+// ============================================================================
+meanPlot = plot(mean, "Mean", color=color.blue, linewidth=2)
+upperPlot = plot(upperBand, "Upper Band", color=color.red, linewidth=1)
+lowerPlot = plot(lowerBand, "Lower Band", color=color.green, linewidth=1)
+
+// Fill between bands
+fill(upperPlot, lowerPlot, color=color.new(color.blue, 90), title="Band Fill")
+
+// Entry markers
+plotshape(longCondition, "Long Signal", shape.triangleup, location.belowbar, color.green, size=size.small)
+plotshape(shortCondition, "Short Signal", shape.triangledown, location.abovebar, color.red, size=size.small)
+
+// Extreme zones
+bgcolor(touchedLowerBand ? color.new(color.green, 90) : touchedUpperBand ? color.new(color.red, 90) : na)

@@ -1,0 +1,93 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/综合多空自动期货交易策略Comprehensive-Futures-Automated-Trading-Strategy-for-Both-Long-and-Short.md
+// content_hash: 6db81b22a6eef901
+// collected: 2026-07-27
+//author：盧振興 芙蓉中華中學畢業 育達科技大學畢業碩士
+//參考資料 : QQE MOD By:Mihkel00 ,SuperTrend By:KivancOzbilgic , TrendIndicator A-V2 By:Dziwne
+
+strategy("綜合交易策略", shorttitle="Comprehensive Strategy", overlay=true)
+
+// 添加單邊或多空參數
+OnlyLong = input(true, title="單邊")
+
+// SuperTrend 参数
+PeriodsST = input(9, title="ST ATR Period")
+MultiplierST = input(3.9, title="ST ATR Multiplier")
+srcST = input(hl2, title="ST Source")
+
+atrST = atr(PeriodsST)
+upST = srcST - (MultiplierST * atrST)
+upST := close[2] > upST[1] ? max(upST, upST[1]) : upST
+dnST = srcST + (MultiplierST * atrST)
+dnST := close[2] < dnST[1] ? min(dnST, dnST[1]) : dnST
+trendST = 1
+trendST := nz(trendST[1], trendST)
+trendST := trendST == -1 and close[2] > dnST[1] ? 1 : trendST == 1 and close[2] < upST[1] ? -1 : trendST
+
+// QQE 参数
+RSI_PeriodQQE = input(6, title='QQE RSI Length')
+SFQQE = input(5, title='QQE RSI Smoothing')
+QQE = input(3, title='QQE Fast Factor')
+ThreshHoldQQE = input(3, title="QQE Thresh-hold")
+srcQQE = input(close, title="QQE RSI Source")
+
+Wilders_PeriodQQE = RSI_PeriodQQE * 2 - 1
+
+RsiQQE = rsi(srcQQE, RSI_PeriodQQE)
+RsiMaQQE = ema(RsiQQE, SFQQE)
+AtrRsiQQE = abs(RsiMaQQE[1] - RsiMaQQE)
+MaAtrRsiQQE = ema(AtrRsiQQE, Wilders_PeriodQQE)
+darQQE = ema(MaAtrRsiQQE, Wilders_PeriodQQE) * QQE
+
+basisQQE = sma(RsiMaQQE - 50, 50)
+devQQE = 0.35 * stdev(RsiMaQQE - 50, 50)
+upperQQE = basisQQE + devQQE
+lowerQQE = basisQQE - devQQE
+
+qqeCondition = RsiMaQQE[1] - 50 > upperQQE[1] ? true : RsiMaQQE[1] - 50 < lowerQQE[1] ? false : na
+
+// Trend Indicator A-V2 参数
+ma_periodA_V2 = input(52, title="TIA-V2 EMA Period")
+oA_V2 = ema(open, ma_periodA_V2)
+cA_V2 = ema(close, ma_periodA_V2)
+trendIndicatorAV2Condition = cA_V2[1] >= oA_V2[1] ? true : false
+
+// 综合交易逻辑
+longCondition = trendST == 1 and qqeCondition and trendIndicatorAV2Condition
+shortCondition = trendST == -1 and not qqeCondition and not trendIndicatorAV2Condition
+
+// 针对多单的开平仓逻辑
+if (OnlyLong)
+    if (longCondition)
+        strategy.entry("Buy", strategy.long)        
+    else
+        strategy.close("Buy")
+
+// 多空都做时的逻辑
+if (not OnlyLong)
+    if (longCondition)
+        strategy.entry("Buy", strategy.long)
+    else if (shortCondition)
+        strategy.entry("Sell",strategy.short)
+
+    // 添加多空平仓逻辑
+    if (not longCondition)
+        strategy.close("Buy")
+    if (not shortCondition)
+        strategy.close("Sell")
+
+// 可视化信号
+plotshape(series=longCondition, title="Buy Signal", location=location.belowbar, color=color.green, style=shape.labelup, text="BUY")
+plotshape(series=shortCondition and not OnlyLong, title="Sell Signal", location=location.abovebar, color=color.red, style=shape.labeldown, text="SELL")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/441988
+
+> Last Modified
+
+2024-02-18 14:25:04

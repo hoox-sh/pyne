@@ -1,0 +1,77 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于双均线和动态订单块检测的智能资金流量化交易策略-Quantitative-Smart-Money-Flow-Trading-Strategy-with-Dual-EMA-and-Dynamic-Order-Block-Detection.md
+// content_hash: 73d3b0099aad5612
+// collected: 2026-07-27
+strategy("XAU/EUR Beginner-Friendly Strategy", overlay=true, margin_long=100, margin_short=100)
+
+// Input parameters with tooltips
+ema_fast = input.int(50, "Fast EMA Length ?")
+ema_slow = input.int(200, "Slow EMA Length ?")
+risk_reward = input.float(2.0, "Risk/Reward Ratio ⚖️")
+show_labels = input.bool(true, "Show Trading Labels ?️")
+
+// Trend Following Components
+fast_ema = ta.ema(close, ema_fast)
+slow_ema = ta.ema(close, ema_slow)
+trend_up = fast_ema > slow_ema
+trend_down = fast_ema < slow_ema
+
+// Smart Money Components
+swing_high = ta.highest(high, 5)
+swing_low = ta.lowest(low, 5)
+order_block_bullish = (low[2] == swing_low[2]) and (close[2] > open[2])
+order_block_bearish = (high[2] == swing_high[2]) and (close[2] < open[2])
+
+// Entry Conditions
+long_condition = trend_up and order_block_bullish
+short_condition = trend_down and order_block_bearish
+
+// Risk Management Calculations
+stop_loss = long_condition ? swing_low : short_condition ? swing_high : na
+take_profit = long_condition ? close + (close - stop_loss) * risk_reward : short_condition ? close - (stop_loss - close) * risk_reward : na
+
+// Visual Elements
+bgcolor(trend_up ? color.new(color.green, 90) : color.new(color.red, 90), title="Trend Background")
+
+if show_labels
+    if long_condition
+        label.new(
+             bar_index, low,
+             text="BUY ?\nEntry: " + str.tostring(close, "#.##") + 
+             "\nSL: " + str.tostring(stop_loss, "#.##") +
+             "\nTP: " + str.tostring(take_profit, "#.##"),
+             color=color.green, textcolor=color.white,
+             style=label.style_label_up, yloc=yloc.belowbar)
+    
+    if short_condition
+        label.new(
+             bar_index, high,
+             text="SELL ?\nEntry: " + str.tostring(close, "#.##") + 
+             "\nSL: " + str.tostring(stop_loss, "#.##") +
+             "\nTP: " + str.tostring(take_profit, "#.##"),
+             color=color.red, textcolor=color.white,
+             style=label.style_label_down, yloc=yloc.abovebar)
+
+// Strategy Execution
+if (long_condition)
+    strategy.entry("Long", strategy.long)
+    strategy.exit("Long Exit", "Long", stop=stop_loss, limit=take_profit)
+
+if (short_condition)
+    strategy.entry("Short", strategy.short)
+    strategy.exit("Short Exit", "Short", stop=stop_loss, limit=take_profit)
+
+// Simplified EMA Plotting
+plot(fast_ema, "Fast EMA", color=color.new(color.blue, 0), linewidth=2)
+plot(slow_ema, "Slow EMA", color=color.new(color.orange, 0), linewidth=2)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/483114
+
+> Last Modified
+
+2025-02-21 14:10:33

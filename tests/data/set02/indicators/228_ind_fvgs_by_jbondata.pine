@@ -1,0 +1,50 @@
+// set02 corpus entry
+// source_repo: jbondata-pinescript-indicator-suite
+// source_path: jbondata-pinescript-indicator-suite/scripts/fvgs.pine
+// content_hash: fb1a57b63b2a315b
+// collected: 2026-07-27
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// Made by @jbondata. FVG boxes only.
+//@version=6
+indicator("FVGs by @jbondata", overlay=true, max_boxes_count=500)
+
+// Inputs
+ShowTopFVG = input.bool(true, "Show Bearish FVG (SIBI)", group = "FVG")
+ShowBottomFVG = input.bool(true, "Show Bullish FVG (BISI)", group = "FVG")
+colourDown = input.color(color.new(color.red, 50), "Bearish FVG (SIBI)", group = "Colors")
+colourUp = input.color(color.new(color.blue, 50), "Bullish FVG (BISI)", group = "Colors")
+
+// FVG detection
+up = close > open
+down = open > close
+doji = close == open
+
+ddd = down[2] and down[1] and down[0]
+ddj = down[2] and down[1] and doji[0]
+jdd = doji[2] and down[1] and down[0]
+udj = up[2] and down[1] and doji[0]
+jdu = doji[2] and down[1] and up[0]
+udd = up[2] and down[1] and down[0]
+ddu = down[2] and down[1] and up[0]
+udu = up[2] and down[1] and up[0]
+
+dud = down[2] and up[1] and down[0]
+duj = down[2] and up[1] and doji[0]
+jud = doji[2] and up[1] and down[0]
+uuj = up[2] and up[1] and doji[0]
+juu = doji[2] and up[1] and up[0]
+uud = up[2] and up[1] and down[0]
+duu = down[2] and up[1] and up[0]
+uuu = up[2] and up[1] and up[0]
+
+TopFVG = ddd or ddj or jdd or udj or jdu or udd or ddu or udu
+BottomFVG = dud or duj or jud or uuj or juu or uud or duu or uuu
+
+TopSize = low[2] - high[0]
+BottomSize = low[0] - high[2]
+
+// Draw boxes
+if TopFVG and TopSize > 0 and ShowTopFVG
+    box.new(bar_index[1], low[2], bar_index[0], high[0], border_color=na, bgcolor=colourDown)
+if BottomFVG and BottomSize > 0 and ShowBottomFVG
+    box.new(bar_index[1], low[0], bar_index[0], high[2], border_color=na, bgcolor=colourUp)

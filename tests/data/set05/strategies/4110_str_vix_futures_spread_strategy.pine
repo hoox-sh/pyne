@@ -1,0 +1,23 @@
+//@version=4
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/VIX Futures Spread Strategy.pine
+// content_hash: c37b11d314c6b2a2
+// collected: 2026-07-27
+strategy("VIX Futures Spread Strategy", overlay=false, pyramiding=10, initial_capital=10000, commission_type=strategy.commission.percent, commission_value=0.005, slippage = 2)
+spr = security("CBOE:VIX3M", "W", hl2) - security("TVC:VIX", "W", hl2)
+plot(spr, title="VIX 3M - VIX", color=color.gray, style=plot.style_columns, linewidth=2, transp=30)
+h2 = hline(0, color=color.green)
+h3 = hline(3, color=color.red)
+// This strategy buys when the VIX futures spread is negative
+// It sells when the VIX futures spread is above 3, but only sells to close a position
+vixSpread = spr
+// Entry rules
+longCondition = (vixSpread < 0) and (year > 2018) and (barstate.isconfirmed)
+if longCondition
+    strategy.entry("Long", strategy.long, qty=10)
+// Exit rules
+shortCondition = (vixSpread > 3) and strategy.position_size > 0
+if shortCondition
+    strategy.close("Long")
+Expand (25 lines)

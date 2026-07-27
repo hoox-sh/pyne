@@ -1,0 +1,64 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/智能累加买入策略Intelligent-Accumulator-Buy-Strategy.md
+// content_hash: 292c011c362f0bde
+// collected: 2026-07-27
+strategy("TTP Intelligent Accumulator", overlay=true)
+
+maxEntries = 0.0
+
+if not na(maxEntries[1])
+    maxEntries := maxEntries[1]
+
+rsi = ta.rsi(close, 7)
+rsima = ta.sma(rsi, 14)
+bbstd = ta.stdev(rsi, 14)
+
+// plot(rsi)
+// plot(rsima)
+// plot(rsima - bbstd)
+// plot(rsima + bbstd)
+
+intEntry = rsi < rsima - bbstd
+intExit = rsi > rsima + bbstd
+
+maxEntries := math.max(strategy.opentrades, maxEntries)
+plot(maxEntries, "maxEntries")
+
+addWhileInProfit = input.bool(false, "Add while in profit")
+
+extLong = input.bool(false, "", inline = "long")
+entry = input.source(close,"entry", inline = "long") == 1
+
+if not extLong
+    entry := intEntry
+longCondition = entry and (strategy.opentrades == 0 or (not addWhileInProfit or close < strategy.position_avg_price))
+
+
+if (longCondition)
+    strategy.entry("long", strategy.long)
+
+minProfit = input.float(0.0, "Required profit % to exit")
+exitPxcandle = input.float(100.0,"% exit per candle")
+
+extShort = input.bool(false, "", inline = "exit")
+
+exit = input.source(close,"exit", inline = "exit") == 1
+if not extShort
+    exit := intExit
+
+shortCondition = exit
+if (shortCondition and strategy.opentrades > 0)
+    strategy.close("long", qty_percent = exitPxcandle)
+
+plot(strategy.position_avg_price, "Avg")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/442835
+
+> Last Modified
+
+2024-02-26 13:59:57

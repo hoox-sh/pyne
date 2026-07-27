@@ -1,0 +1,85 @@
+//@version=3
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双均线金叉死叉算法交易策略Dual-Moving-Average-Crossover-Trading-Strategy.md
+// content_hash: ee5d32652a46c9c9
+// collected: 2026-07-27
+strategy(shorttitle = "ALGO 3-1-2", title="ALGO 3h, 1h, 2h", overlay=true)
+
+bool startLONGBOTandDEAL = false
+bool stopLONGBOTandDEAL = false
+bool openLONG = false
+bool closeLONG = false
+bool startSHORTBOTandDEAL = false
+bool stopSHORTBOTandDEAL = false
+bool openSHORT = false
+bool closeSHORT = false
+
+MA1Period = ema(close, 10)
+MA2Period = ema(close, 200)
+MA3Period = ema(close, 200)
+
+MA1 = security(syminfo.tickerid, "180", MA1Period)
+MA2 = security(syminfo.tickerid, "60", MA2Period)
+MA3 = security(syminfo.tickerid, "120", MA3Period)
+
+MA12Crossover = crossover(MA1, MA2)
+MA12Crossunder = crossunder(MA1, MA2)
+MA23Crossover = crossover(MA2, MA3)
+MA23Crossunder = crossunder(MA2, MA3)
+
+if MA23Crossover
+    startLONGBOTandDEAL := true //stop shortBOT and DEAL code in the TV alert as well, probably stop first w/ a delay on startlong
+    lblBull = label.new(bar_index, na, ' BULL Time Open LONG', color=color.blue, textcolor=color.black, style=label.style_label_up, size=size.small)
+    label.set_y(lblBull, MA2)  
+    strategy.close("go Short")
+    strategy.entry("go Long", strategy.long, comment="go Long")
+if MA23Crossunder
+    //not sure if i should set alert for stop and start each bot, or just put start appropriate bot and stop its opposite in the same alert.
+    startSHORTBOTandDEAL := true
+    lblBull = label.new(bar_index, na, ' BEAR Time - Open SHORT', color=color.orange, textcolor=color.black, style=label.style_label_down, size=size.small)
+    label.set_y(lblBull, MA2)
+    strategy.close("go Long")
+    strategy.entry("go Short", strategy.short, comment="go Short")
+if MA12Crossover
+    if MA2 >= MA3
+        openLONG := true
+        lup1 = label.new(bar_index, na, ' OPEN LONG ', color=color.green, textcolor=color.white, style=label.style_label_up, size=size.small, yloc=yloc.belowbar)
+        strategy.entry("go Long", strategy.long, comment="go Long")
+    if MA2 <= MA3
+        closeSHORT := true
+        lup1 = label.new(bar_index, na, ' CLOSE SHORT ', color=color.gray, textcolor=color.black, style=label.style_label_up, size=size.small, yloc=yloc.belowbar)
+        strategy.close("go Short")
+    
+if MA12Crossunder
+    if MA2 >= MA3
+        closeLONG := true
+        lun1 = label.new(bar_index, na, ' CLOSE LONG ', color=color.red, textcolor=color.white, style=label.style_label_down, size=size.small, yloc=yloc.abovebar)
+        strategy.close("go Long")
+    if MA2 <= MA3
+        openSHORT := true
+        lun1 = label.new(bar_index, na, ' OPEN SHORT ', color=color.red, textcolor=color.white, style=label.style_label_down, size=size.small, yloc=yloc.abovebar)
+        strategy.entry("go Short", strategy.short, comment="go Short")
+
+
+plot(MA1, color=color.green, linewidth=2, title="MA1")
+plot(MA2, color=color.yellow, linewidth=3, title="MA2")
+plot(MA3, color=color.red, linewidth=4, title="MA3")
+
+
+alertcondition(startLONGBOTandDEAL, title="Start LONG BOT and DEAL", message="Start Long Bot and Deal")
+alertcondition(stopLONGBOTandDEAL, title="Stop LONG BOT and DEAL", message="Stop Long Bot and Deal")
+alertcondition(openLONG, title="Open LONG DEAL", message="Open Long Deal")
+alertcondition(closeLONG, title="Close LONG DEAL", message="Close Long Deal")
+alertcondition(stopSHORTBOTandDEAL, title="Stop SHORT BOT and DEAL", message="Stop Short Bot and Deal")
+alertcondition(openSHORT, title="Open SHORT DEAL", message="Open Short Deal")
+alertcondition(closeSHORT, title="Close SHORT DEAL", message="Close Short Deal")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/440345
+
+> Last Modified
+
+2024-01-29 15:11:58

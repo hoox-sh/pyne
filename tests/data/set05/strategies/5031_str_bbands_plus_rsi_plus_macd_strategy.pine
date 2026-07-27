@@ -1,0 +1,66 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/反转布林带RSI-MACD量化策略Reversal-Bollinger-Band-RSI-MACD-Quant-Strategy.md
+// content_hash: 43ee70a03a36d13e
+// collected: 2026-07-27
+strategy("BBands + RSI + MACD Strategy", overlay=true)
+
+// Bollinger Bands
+lengthBB = input(20, title="BB Length")
+multBB = input(2.0, title="BB Standard Deviation")
+basis = sma(close, lengthBB)
+dev = multBB * stdev(close, lengthBB)
+upperBB = basis + dev
+lowerBB = basis - dev
+
+// RSI
+lengthRSI = input(14, title="RSI Length")
+oversold = input(30, title="Oversold Threshold")
+overbought = input(70, title="Overbought Threshold")
+rsi = rsi(close, lengthRSI)
+
+// MACD
+fastLength = input(12, title="MACD Fast Length")
+slowLength = input(26, title="MACD Slow Length")
+signalLength = input(9, title="MACD Signal Smoothing")
+[macdLine, signalLine, _] = macd(close, fastLength, slowLength, signalLength)
+
+// Conditions
+longCondition = close < lowerBB and rsi < oversold and macdLine < signalLine
+shortCondition = close > upperBB and rsi > overbought and macdLine > signalLine
+
+// Strategy Entry and Exit
+if (longCondition)
+    strategy.entry("Buy", strategy.long)
+if (shortCondition)
+    strategy.entry("Sell", strategy.short)
+
+// Plotting Bollinger Bands
+plot(upperBB, color=color.blue)
+plot(lowerBB, color=color.red)
+
+// Plotting RSI
+plot(rsi, color=color.orange)
+
+// Plotting MACD
+plot(macdLine, color=color.green)
+plot(signalLine, color=color.red)
+
+
+
+// 200-period SMA
+sma200 = sma(close, 200)
+
+// Determine Color Change
+plot(sma200, color=close > sma200 ? color.green : color.red, linewidth=2)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/442639
+
+> Last Modified
+
+2024-02-23 14:16:58

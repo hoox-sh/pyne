@@ -1,0 +1,55 @@
+//@version=6
+// set03 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/concepts/strings.md::strings.md#block37
+// content_hash: 9b834b02588d9cd6
+// collected: 2026-07-27
+indicator("Processing inputs with regex demo")
+
+//@variable A string containing a list of symbols separated by commas and optional spaces. 
+string listInput = input.text_area("AMEX:SPY, AMEX:GLD, NASDAQ:TLT, CME:BTC1!, NYMEX:CL1!, TVC:US10Y", "Symbol list")
+
+//@function Checks a string value for a pattern of symbols separated by commas and optional space characters. 
+//          If the specified `list` does not match this format, the function raises a runtime error. 
+//          Otherwise, it returns an array of substrings representing each listed symbol. 
+processList(string list) =>
+    //@variable A pattern for an optional group of one or more word characters (`\w` class) followed by a colon (`:`).
+    //          This pattern matches a symbol's exchange prefix, if listed 
+    //          (e.g., "NASDAQ:" for "NASDAQ:AAPL" or "" for "AAPL").
+    //           - `(?:...)` defines a non-capturing group. 
+    //           - `\\w` is an ASCII digit, letter, or low line. 
+    //           - The `+` means the regex checks for one or more consecutive matches of the previous token (`\w`).
+    //           - The `?` at the end makes the group optional.
+    var string exchange = "(?:\\w+:)?"
+
+    //@variable A pattern for 1+ word characters, with 0-2 extra word sequences divided by `.`, then an optional `!`.
+    //          This pattern matches symbols without the exchange prefix
+    //          (e.g., "AAPL" for "NASDAQ:AAPL", "BTC.D" for "CRYPTOCAP:BTC.D", "ES1!" for "CME_MINI:ES1!").
+    //           - `\\w+` means one or more word characters.
+    //           - `\\.` makes the `.` character literal. When not escaped, it matches any character. 
+    //           - `{0,2}` means the regex matches the group's pattern (`\.\w+`) zero to two times. 
+    //           - The `?` makes the `!` character optional. 
+    var string symbol = "\\w+(?:\\.\\w+){0,2}!?"
+
+    //@variable A pattern that matches a symbol or comma-separated list of symbols with optional spaces. 
+    //          (e.g., "AAPL, OANDA:EURUSD, BATS:SPY, BINANCE:BTCUSDT.P")
+    //           - `^` at the beginning matches the start of the text line.
+    //           - `*` after the spaces and group construction `(?:...)` mean the regex matches them zero or more times.
+    //           - `$` at the end matches the end of the text line. 
+    //          The formatted result combines `exchange` and `symbol` to form this regex pattern:
+    //          `^ *(?:(?:\w+:)?\w+(?:\.\w+){0,2}!? *, *)*(?:\w+:)?\w+(?:\.\w+){0,2}!? *$`
+    var string matchPattern = str.format("^ *(?:{0}{1} *, *)*{0}{1} *$", exchange, symbol) 
+
+    //@variable A copy of the `list` if the `matchPattern` produces a match. Otherwise, an empty string.
+    string match = str.match(list, matchPattern)
+
+    // If the `match` is empty, meaning the `list` does not have the required format, raise a runtime error.
+    if match == ""
+        runtime.error("Invalid list. The value must represent a comma-separated list of symbols with optional spaces.")
+
+    // Log an `info` message showing the pattern and the match.  
+    log.info("\n\nThe pattern:\n\n{0}\n\nmatches:\n\n{1}", matchPattern, match)    
+
+    //@variable A copy of the `match` without space characters. 
+    string noSpaces = str.replace_all(match, " ", "")
+    //@variable An array of substrings formed by splitting the `noSpaces` value by its commas.

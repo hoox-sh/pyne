@@ -1,0 +1,18 @@
+//@version=5
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/v5/concepts/time.md::time.md#block29
+// content_hash: 1c298684eeda4e3c
+// collected: 2026-07-27
+indicator("`dayofmonth()` demo", overlay = false)
+
+//@variable An "int" representing the current bar's opening calendar day in the exchange time zone. 
+//          Equivalent to the `dayofmonth` variable. 
+int openingDay = dayofmonth(time)
+
+//@variable An "int" representing the current bar's opening calendar day in the "Australia/Sydney" time zone.
+int openingDaySydney = dayofmonth(time, "Australia/Sydney")
+
+// Plot the calendar day values.
+plot(openingDay,       "Day of Month (Exchange)", linewidth = 6, color = color.blue)
+plot(openingDaySydney, "Day of Month (Sydney)",   linewidth = 3, color = color.orange)

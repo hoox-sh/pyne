@@ -1,0 +1,17 @@
+//@version=6
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/language/variable-declarations.md::variable-declarations.md#block34
+// content_hash: 27194b0d821d2ed7
+// collected: 2026-07-27
+indicator("Inefficient line management demo", overlay = true)
+
+//@variable Holds `true` on the first bar in a "1D" period, and `false` on all other bars.
+bool newPeriod = timeframe.change("1D")
+
+// Retrieve the `time` and `open` values from the last bar where the `newPeriod` value was `true`,
+// and assign the results to variables.
+int   openTime  = ta.valuewhen(newPeriod, time, 0)
+float openPrice = ta.valuewhen(newPeriod, open, 0)
+
+// Declare a variable to reference the latest line.

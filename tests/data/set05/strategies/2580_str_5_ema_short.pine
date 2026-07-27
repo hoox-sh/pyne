@@ -1,0 +1,54 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/5EMA趋势跟踪动态止盈止损策略5EMA-Trend-Following-Strategy-with-Dynamic-Stop-Loss-and-Take-Profit.md
+// content_hash: c5bff1e29dfbb4ac
+// collected: 2026-07-27
+strategy("5 EMA Short", overlay=true)
+
+// Input
+emaLength = input.int(5, "EMA Length", minval=1)
+riskRewardRatio = input.float(3.0, "Risk-Reward Ratio", minval=1.0, step=0.1)
+
+// Calculate 5 EMA
+ema5 = ta.ema(close, emaLength)
+
+// Identify alert candle
+isAlertCandle = low > ema5 and low[1] > ema5[1]
+
+// Entry condition
+entryCondition = isAlertCandle[1] and low <= low[1]
+
+// Calculate stop loss and take profit
+stopLoss = high[1]
+entryPrice = low[1]  // Entry price is the low of the alert candle
+target = entryPrice - (stopLoss - entryPrice) * riskRewardRatio
+
+// Variables to store trade information
+var float tradeEntry = na
+var float tradeSL = na
+var float tradeTarget = na
+
+// Execute strategy and store trade information
+if (entryCondition)
+    strategy.entry("Short", strategy.short, stop=stopLoss, limit=target)
+    tradeEntry := entryPrice
+    tradeSL := stopLoss
+    tradeTarget := target
+
+// Plot 5 EMA
+plot(ema5, color=color.blue, linewidth=1, title="5 EMA")
+
+// Plot entry, stop loss, and target only when a trade is triggered
+plotshape(series=tradeEntry, title="Entry", location=location.absolute, color=color.yellow, style=shape.circle, size=size.tiny)
+plotshape(series=tradeSL, title="Stop Loss", location=location.absolute, color=color.red, style=shape.circle, size=size.tiny)
+plotshape(series=tradeTarget, title="Target", location=location.absolute, color=color.green, style=shape.circle, size=size.tiny)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/455373
+
+> Last Modified
+
+2024-06-28 17:01:34

@@ -1,0 +1,41 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/SMART专业量化交易策略SMART-Professional-Quantitative-Trading-Strategy.md
+// content_hash: 744ba062bdd97d99
+// collected: 2026-07-27
+strategy("Smart Money Concept Strategy", overlay=true)
+
+// Smart Money Concept: On-Balance Volume (OBV)
+obv_value = request.security(syminfo.tickerid, "D", close)
+obv_slope = obv_value - obv_value[1]
+
+// Define conditions for smart money accumulation/distribution
+smart_money_buy_condition = obv_slope > 0
+smart_money_sell_condition = obv_slope < 0
+
+// Plot signals
+plotshape(series=smart_money_buy_condition, title="Buy Signal", color=color.green, style=shape.labelup, location=location.belowbar)
+plotshape(series=smart_money_sell_condition, title="Sell Signal", color=color.red, style=shape.labeldown, location=location.abovebar)
+
+// Strategy Logic
+if (smart_money_buy_condition)
+    strategy.entry("Long", strategy.long)
+
+if (smart_money_sell_condition)
+    strategy.entry("Short", strategy.short)
+
+// Strategy Exit Logic
+strategy.close("ExitLong")
+strategy.close("ExitShort")
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/440503
+
+> Last Modified
+
+2024-01-31 10:28:34

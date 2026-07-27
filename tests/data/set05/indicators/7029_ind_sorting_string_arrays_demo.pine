@@ -1,0 +1,11 @@
+//@version=6
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/language/arrays.md::arrays.md#block24
+// content_hash: 890f09b3b2cfbfd2
+// collected: 2026-07-27
+indicator("Sorting string arrays demo")
+
+if barstate.isfirst
+
+    //@variable An array of arbitrary "string" values.

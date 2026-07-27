@@ -1,0 +1,50 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于两个市场价格关系的套利交易策略-Price-Relationship-based-Arbitrage-Trading-Strategy-Between-Two-Markets.md
+// content_hash: 5bd0da7226d6fd1d
+// collected: 2026-07-27
+strategy("DXY/BTC Arbitrage Strategy", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=10)
+
+// Input for Take Profit and Stop Loss
+tp_percent = input.float(1.0, title="Take Profit (%)")
+sl_percent = input.float(1.0, title="Stop Loss (%)")
+
+// Fetching DXY data on a 4-hour interval
+dxy = request.security("BTC_USDT:swap", "30", close)
+dxy_open = request.security("BTC_USDT:swap", "30", open)
+
+// Calculate the price change percentage
+price_change_percent = (dxy - dxy_open) / dxy_open * 100
+
+// Plot the price change percentage on the chart
+plot(price_change_percent, title="DXY 4-hour Price Change (%)", color=color.blue, linewidth=2)
+
+// Define trade entry conditions
+short_condition = price_change_percent <= -0.1
+long_condition = price_change_percent >= 0.1
+
+// Initiate short BTC if DXY has a red candle of -0.1%
+if (short_condition)
+    strategy.entry("Short BTC", strategy.short)
+    // Setting Take Profit and Stop Loss for short
+    strategy.exit("Take Profit/Stop Loss Short", "Short BTC", limit=close * (1 - tp_percent / 100), stop=close * (1 + sl_percent / 100))
+
+// Initiate long BTC if DXY has a green candle of 0.1%
+if (long_condition)
+    strategy.entry("Long BTC", strategy.long)
+    // Setting Take Profit and Stop Loss for long
+    strategy.exit("Take Profit/Stop Loss Long", "Long BTC", limit=close * (1 + tp_percent / 100), stop=close * (1 - sl_percent / 100))
+
+// Visualization
+bgcolor(short_condition ? color.new(color.red, 90) : na, title="Short BTC Signal")
+bgcolor(long_condition ? color.new(color.green, 90) : na, title="Long BTC Signal")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/453651
+
+> Last Modified
+
+2024-06-07 15:11:15

@@ -1,0 +1,19 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/concepts/strings.md::strings.md#block19
+// content_hash: 3275392d1a268c59
+// collected: 2026-07-27
+indicator("Trimming whitespaces demo")
+
+if barstate.islastconfirmedhistory
+    //@variable A literal string containing space, newline, and tab characters. 
+    string originalString = "\n\n\t\tABC DEF\t  \n\n   "
+    //@variable A copy of the `originalString` that contains only `ABC DEF` without the other whitespaces.
+    string trimmedString = str.trim(originalString)
+
+    //@variable A formatted string containing the `originalString` and `trimmedString` values.
+    string displayText = str.format("Original: \"{0}\"\n---\n\nTrimmed: \"{1}\"", originalString, trimmedString)
+
+    // Draw a label to show the `displayText`.
+    label.new(bar_index, 0, displayText, style = label.style_label_center, size = 30, textalign = text.align_left)

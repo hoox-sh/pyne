@@ -1,0 +1,63 @@
+//@version= 2
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于StochRSI的量化交易策略StochRSI-Based-Quantitative-Trading-Strategy.md
+// content_hash: 1ee4207aba9cc12f
+// collected: 2026-07-27
+strategy("STOCHRSI JURE", overlay=false)
+lengthrsi = input(10)
+overSold = input( 1 )
+overBought = input(99)
+
+call_trail_stop = input(300)
+call_trail_offset = input(0)
+call_sl = input(10000)
+
+price = ohlc4
+vrsi = rsi(price, lengthrsi)
+
+smoothK = input(3, minval=1)
+smoothD = input(3, minval=1)
+lengthRSI = input(14, minval=1)
+lengthStoch = input(14, minval=1)
+src = input(close, title="RSI Source")
+
+rsi1 = rsi(src, lengthRSI)
+k = sma(stoch(rsi1, rsi1, rsi1, lengthStoch), smoothK)
+d = sma(k, smoothD)
+
+
+plot( k, color=blue, linewidth=1, title="K")
+plot( d, color=red, linewidth=1, title="D")
+
+if (crossover(k, overSold) ) 
+    strategy.entry("BUY", strategy.long, stop=close, oca_name="TREND",  comment="BUY")
+    strategy.exit("BUY EXIT", "BUY", trail_points=call_trail_stop, trail_offset=call_trail_offset, loss = call_sl)
+
+
+if (crossunder(k, overBought) ) 
+    strategy.entry("SELL", strategy.short,stop=close, oca_name="TREND", comment="SELL")
+    strategy.exit("SELL EXIT", "SELL", trail_points=call_trail_stop, trail_offset=call_trail_offset, loss = call_sl)
+    
+
+//if (  ( crossover(k,d)) and ( (vrsi<overSold) or crossover(vrsi,overSold) )  and   year >= yearfrom and year <= yearuntil and month>=monthfrom and month <=monthuntil and dayofmonth>=dayfrom and dayofmonth < dayuntil) 
+//    strategy.entry("BUY", strategy.long, stop=close, oca_name="TREND", oca_type=strategy.oca.cancel, comment="BUY")
+//else
+//    strategy.cancel(id="BUY")
+
+//if ( ( crossunder(k,d) ) and ( (vrsi >overBought) or crossunder(vrsi,overBought) ) and   year >= yearfrom and year <= yearuntil and month>=monthfrom and month <=monthuntil and dayofmonth>=dayfrom and dayofmonth < dayuntil ) 
+//    strategy.entry("SELL", strategy.short,stop=close, oca_name="TREND", oca_type=strategy.oca.cancel, comment="SELL")
+//else
+//    strategy.cancel(id="SELL")
+    
+    
+    
+```
+
+> Detail
+
+https://www.fmz.com/strategy/434567
+
+> Last Modified
+
+2023-12-07 16:05:17

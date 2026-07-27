@@ -1,0 +1,21 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/language/user-defined-functions.md::user-defined-functions.md#block33
+// content_hash: 53ccb0b9003a24dc
+// collected: 2026-07-27
+indicator("Global variables in functions demo")
+
+//@variable A global variable that holds a pseudorandom value.
+var float globalVar = math.random()
+
+//@function Multiplies `x` by a pseudorandom value, adds the value of `globalVar`, then returns the result.
+//          This function can use `globalVar` in its body because the script declares the variable *first*.
+myFun(float x = 10) =>
+    math.random() * x + globalVar
+
+// Assign the result of a default `myFun()` call to a new variable. The call uses `globalVar` internally.
+float result = myFun()
+
+// Plot the `result` series.
+plot(result, "`result` series", color.teal, 3)

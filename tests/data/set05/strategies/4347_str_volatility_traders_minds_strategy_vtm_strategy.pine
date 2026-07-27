@@ -1,0 +1,114 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/价格震荡突破策略Volatility-Breakthrough-Strategy.md
+// content_hash: 480d350ae047908b
+// collected: 2026-07-27
+strategy("Volatility Traders Minds Strategy (VTM Strategy)", shorttitle="VTM",overlay=true)
+source = input(close)
+//MA
+ma48 = sma(source,48)
+//MACD
+fastLength = input(12)
+slowlength = input(26)
+MACDLength = input(9)
+
+MACD = ema(source, fastLength) - ema(source, slowlength)
+aMACD = ema(MACD, MACDLength)
+delta = MACD - aMACD
+
+//BB
+
+length = input(20, minval=1)
+mult = input(2.0, minval=0.001, maxval=50)
+
+basis = sma(source, length)
+dev = mult * stdev(source, length)
+
+upper = basis + dev
+lower = basis - dev
+
+//ADX
+adxThreshold = input(title="ADX Threshold", type=input.integer, defval=25, minval=1)
+adxlen = input(14, title="ADX Smoothing")
+dilen = input(14, title="DI Length")
+dirmov(len) =>
+	up = change(high)
+	down = -change(low)
+	plusDM = na(up) ? na : (up > down and up > 0 ? up : 0)
+    minusDM = na(down) ? na : (down > up and down > 0 ? down : 0)
+	truerange = rma(tr, len)
+	plus = fixnan(100 * rma(plusDM, len) / truerange)
+	minus = fixnan(100 * rma(minusDM, len) / truerange)
+	[plus, minus]
+
+adx(dilen, adxlen) =>
+	[plus, minus] = dirmov(dilen)
+	sum = plus + minus
+	adx = 100 * rma(abs(plus - minus) / (sum == 0 ? 1 : sum), adxlen)
+
+sig = adx(dilen, adxlen)
+
+//  Strategy: (Thanks to JayRogers)
+// === STRATEGY RELATED INPUTS ===
+//tradeInvert     = input(defval = false, title = "Invert Trade Direction?")
+// the risk management inputs
+inpTakeProfit   = input(defval = 0, title = "Take Profit Points", minval = 0)
+inpStopLoss     = input(defval = 0, title = "Stop Loss Points", minval = 0)
+inpTrailStop    = input(defval = 0, title = "Trailing Stop Loss Points", minval = 0)
+inpTrailOffset  = input(defval = 0, title = "Trailing Stop Loss Offset Points", minval = 0)
+
+// === RISK MANAGEMENT VALUE PREP ===
+// if an input is less than 1, assuming not wanted so we assign 'na' value to disable it.
+useTakeProfit   = inpTakeProfit  >= 1 ? inpTakeProfit  : na
+useStopLoss     = inpStopLoss    >= 1 ? inpStopLoss    : na
+useTrailStop    = inpTrailStop   >= 1 ? inpTrailStop   : na
+useTrailOffset  = inpTrailOffset >= 1 ? inpTrailOffset : na
+
+// === STRATEGY - LONG POSITION EXECUTION ===
+enterLong() => close>ma48 and close>basis and delta>0 and sig>adxThreshold  // functions can be used to wrap up and work out complex conditions
+//exitLong() => jaw>teeth or jaw>lips or teeth>lips
+strategy.entry(id = "Buy", long = true, when = enterLong() )    // use function or simple condition to decide when to get in
+//strategy.close(id = "Buy", when = exitLong() )                  // ...and when to get out
+
+// === STRATEGY - SHORT POSITION EXECUTION ===
+enterShort() => close<ma48 and close<basis and delta<0 and sig>adxThreshold
+//exitShort() => jaw<teeth or jaw<lips or teeth<lips
+strategy.entry(id = "Sell", long = false, when = enterShort())
+//strategy.close(id = "Sell", when = exitShort() )
+
+// === STRATEGY RISK MANAGEMENT EXECUTION ===
+// finally, make use of all the earlier values we got prepped
+strategy.exit("Exit Buy", from_entry = "Buy", profit = useTakeProfit, loss = useStopLoss, trail_points = useTrailStop, trail_offset = useTrailOffset)
+strategy.exit("Exit Sell", from_entry = "Sell", profit = useTakeProfit, loss = useStopLoss, trail_points = useTrailStop, trail_offset = useTrailOffset)
+
+// === Backtesting Dates === thanks to Trost
+
+testPeriodSwitch = input(false, "Custom Backtesting Dates")
+testStartYear = input(2020, "Backtest Start Year")
+testStartMonth = input(1, "Backtest Start Month")
+testStartDay = input(1, "Backtest Start Day")
+testStartHour = input(0, "Backtest Start Hour")
+testPeriodStart = timestamp(testStartYear,testStartMonth,testStartDay,testStartHour,0)
+testStopYear = input(2020, "Backtest Stop Year")
+testStopMonth = input(12, "Backtest Stop Month")
+testStopDay = input(31, "Backtest Stop Day")
+testStopHour = input(23, "Backtest Stop Hour")
+testPeriodStop = timestamp(testStopYear,testStopMonth,testStopDay,testStopHour,0)
+testPeriod() =>
+    time >= testPeriodStart and time <= testPeriodStop ? true : false
+isPeriod = testPeriodSwitch == true ? testPeriod() : true
+// === /END
+
+if not isPeriod
+    strategy.cancel_all()
+    strategy.close_all()
+```
+
+> Detail
+
+https://www.fmz.com/strategy/435232
+
+> Last Modified
+
+2023-12-13 14:36:04

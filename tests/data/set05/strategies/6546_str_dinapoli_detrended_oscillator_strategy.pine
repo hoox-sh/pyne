@@ -1,0 +1,38 @@
+//@version = 2
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/迪纳波利去趋势震荡器策略DiNapoli-Detrended-Oscillator-Strategy.md
+// content_hash: 74206b36ad520977
+// collected: 2026-07-27
+////////////////////////////////////////////////////////////
+//  Copyright by HPotter v1.0 05/12/2016
+// DiNapoli Detrended Oscillator Strategy
+// You can change long to short in the Input Settings
+// Please, use it only for learning or paper trading. Do not for real trading.
+////////////////////////////////////////////////////////////
+strategy(title="DiNapoli Detrended Oscillator Strategy Backtest")
+Length = input(14, minval=1)
+Trigger = input(0)
+reverse = input(true, title="Trade reverse")
+hline(Trigger, color=gray, linestyle=line)
+xSMA = sma(close, Length)
+nRes = close - xSMA
+pos = iff(nRes > Trigger, 1,
+	   iff(nRes <= Trigger, -1, nz(pos[1], 0))) 
+possig = iff(reverse and pos == 1, -1,
+         iff(reverse and pos == -1, 1, pos))	   
+if (possig == 1) 
+    strategy.entry("Long", strategy.long)
+if (possig == -1)
+    strategy.entry("Short", strategy.short)	   	    
+plot(nRes, color=blue, title="DiNapoli")
+barcolor(possig == -1 ? red: possig == 1 ? green : blue )
+```
+
+> Detail
+
+https://www.fmz.com/strategy/427679
+
+> Last Modified
+
+2023-09-23 15:48:40

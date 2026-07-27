@@ -1,0 +1,13 @@
+//@version=5
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/release-notes.md::release-notes.md#block23
+// content_hash: 5f2f66c8684720af
+// collected: 2026-07-27
+indicator("array.new<float> example")
+length = 5
+var a = array.new<float>(length, close)
+if array.size(a) == length
+    array.remove(a, 0)
+    array.push(a, close)
+plot(array.sum(a) / length, "SMA")

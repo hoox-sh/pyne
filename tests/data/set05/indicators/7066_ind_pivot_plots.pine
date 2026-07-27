@@ -1,0 +1,10 @@
+//@version=6
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/visuals/plots.md::plots.md#block11
+// content_hash: 8b3054f08a9d6238
+// collected: 2026-07-27
+indicator("Pivot plots", "", true)
+pivotHigh = fixnan(ta.pivothigh(3,3))
+plot(pivotHigh, "High pivot", ta.change(pivotHigh) != 0 ? na : color.olive, 3)
+plotchar(ta.change(pivotHigh), "ta.change(pivotHigh)", "•", location.top, size = size.small)

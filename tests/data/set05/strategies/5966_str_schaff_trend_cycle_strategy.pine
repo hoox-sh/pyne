@@ -1,0 +1,57 @@
+//@version=3
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于MACD与随机指标的加密货币交易策略Cryptocurrency-Trading-Strategy-Based-on-MACD-and-Stochastic-Indicators.md
+// content_hash: 7e443914d7f77fcc
+// collected: 2026-07-27
+strategy("Schaff Trend Cycle Strategy", shorttitle="STC Backtest", overlay=true)
+
+fastLength = input(title="MACD Fast Length",  defval=23)
+slowLength = input(title="MACD Slow Length",  defval=50)
+cycleLength = input(title="Cycle Length",  defval=10)
+d1Length = input(title="1st %D Length",  defval=3)
+d2Length = input(title="2nd %D Length",  defval=3)
+src = input(title="Source", defval=close)
+highlightBreakouts = input(title="Highlight Breakouts ?", type=bool, defval=true)
+
+macd = ema(src, fastLength) - ema(src, slowLength)
+k = nz(fixnan(stoch(macd, macd, macd, cycleLength)))
+d = ema(k, d1Length)
+kd = nz(fixnan(stoch(d, d, d, cycleLength)))
+
+stc = ema(kd, d2Length)
+stc := 	stc > 100 ? 100 : stc < 0 ? 0 : stc
+
+upper = input(75, defval=75)
+lower = input(25, defval=25)
+
+long =  crossover(stc, lower) ? lower : na
+short = crossunder(stc, upper) ? upper : na
+
+long_filt = long and not short
+short_filt = short and not long
+
+prev = 0
+prev := long_filt ? 1 : short_filt ? -1 : prev[1]
+
+long_final = long_filt and prev[1] == -1
+short_final = short_filt and prev[1] == 1
+
+//alertcondition(long_final, "Long", message="Long")
+//alertcondition(short_final,"Short", message="Short")
+
+//plotshape(long_final, style=shape.arrowup, text="Long", color=green, location=location.belowbar)
+//plotshape(short_final, style=shape.arrowdown, text="Short", color=red, location=location.abovebar)
+
+strategy.entry("long", strategy.long, when = long )
+strategy.entry("short", strategy.short, when = short)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/440703
+
+> Last Modified
+
+2024-02-01 11:52:15

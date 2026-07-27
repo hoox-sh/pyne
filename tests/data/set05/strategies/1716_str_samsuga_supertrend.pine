@@ -1,0 +1,73 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于超级趋势和MACD的风险控制策略Samsuga-SuperTrend-MACD-Strategy.md
+// content_hash: ca4a4a8cbd5b5bfc
+// collected: 2026-07-27
+strategy("Samsuga supertrend", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=100)
+
+
+atrPeriod = input.int(7,    "ATR Length", minval = 1)
+factor =    input.float(1.0, "Factor",     minval = 0.01, step = 0.01)
+
+[supertrend, direction] = ta.supertrend(factor, atrPeriod)
+
+supertrend := barstate.isfirst ? na : supertrend
+upTrend =    plot(direction <= 0 ? supertrend : na, "Up Trend",   color = color.green, style = plot.style_linebr)
+downTrend =  plot(direction <= 0 ? na : supertrend, "Down Trend", color = color.red,   style = plot.style_linebr)
+bodyMiddle = plot(barstate.isfirst ? na : (open + close) / 2, "Body Middle",display = display.none)
+longcondition = direction[1] > direction 
+shortCondition = direction[1] < direction 
+
+macdp1 = 3
+macdp2=10
+macdp3=6
+
+[macdLine, signalLine, histLine] =request.security(symbol = syminfo.tickerid, timeframe = "30",expression = ta.macd(close,macdp1,macdp2,macdp3),lookahead=barmerge.lookahead_on)
+// plot(macdLine,   title = "MACD",   color = #2962FF)
+// plot(signalLine, title = "Signal", color = #FF6D00)
+// 8, 21, 5
+// 8,13,9
+// 12,26,9
+//  1--> 3, 17, 5
+// 3, 10, 16
+// log.info(str.tostring(syminfo.tickerid)+str.tostring(histLine[0]))
+//  /////////----------------METHOD 1-----------------////////////////
+// if(longcondition)
+//     if(strategy.opentrades>0)
+//         strategy.close("Long","Prev Exit", immediately = true)
+//     if( histLine[0] > 0.1)
+//         strategy.entry(id= "Long", direction=strategy.long,  comment = "update long")
+
+    
+// else if(shortCondition and strategy.openprofit<=0.1) 
+//     strategy.close("Long",comment = "Close",immediately = true)
+//  /////////----------------METHOD 2-----------------////////////////
+// if(longcondition)
+//     if(histLine[0] > 0)
+//         strategy.entry(id= "Long", direction=strategy.long,  comment = "update long" )
+//         strategy.exit("Long", loss = close*0.2)
+
+
+    
+// else if(shortCondition ) 
+//     strategy.close("Long",comment = "Close",immediately = true)
+//  /////////----------------METHOD 3-----------------////////////////
+// log.info(str.tostring(syminfo.tickerid)+str.tostring(histLine[0]))
+if(longcondition)
+    if(histLine[0] > 0)    
+        strategy.close("Short",comment = "E-S", alert_message = "E-S",disable_alert = true)
+        strategy.entry(id= "Long", direction=strategy.long,  comment = "L",alert_message = "L")
+else if(shortCondition) 
+    if(histLine[0] < 0)    
+        strategy.close("Long",comment = "E-L",alert_message = "E-L",disable_alert = true)
+        strategy.entry(id= "Short", direction=strategy.short,  comment = "S",alert_message = "S")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/444350
+
+> Last Modified
+
+2024-03-11 11:24:20

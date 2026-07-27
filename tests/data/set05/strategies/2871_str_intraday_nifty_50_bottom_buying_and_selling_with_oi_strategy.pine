@@ -1,0 +1,47 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于支持阻力动态调仓的Nifty-50量化交易策略Nifty-50-Quantitative-Trading-Strategy-Based-on-Dynamic-Position-Adjustment-with-Support-and-Resistance-Levels.md
+// content_hash: 02b54d48050c2293
+// collected: 2026-07-27
+strategy("Intraday Nifty 50 Bottom Buying and Selling with OI Strategy", overlay=true)
+
+// Input parameters
+niftySymbol = input("NIFTY50", title="Nifty 50 Symbol")
+oiLength = input(14, title="Open Interest Length")
+supportLevel = input(15000, title="Support Level")
+resistanceLevel = input(16000, title="Resistance Level")
+buyThreshold = input(1, title="Buy Threshold")
+sellThreshold = input(-1, title="Sell Threshold")
+
+// Fetch Nifty 50 open interest
+oi = request.security(niftySymbol, "D", close)
+
+// Calculate open interest change
+oiChange = oi - ta.sma(oi, oiLength)
+
+// Plot support and resistance levels
+plot(supportLevel, color=color.green, title="Support Level")
+plot(resistanceLevel, color=color.red, title="Resistance Level")
+
+// Plot open interest and open interest change
+plot(oi, color=color.blue, title="Open Interest")
+plot(oiChange, color=color.green, title="Open Interest Change")
+
+// Trading logic
+buySignal = close < supportLevel and oiChange > buyThreshold
+sellSignal = close > resistanceLevel and oiChange < sellThreshold
+
+// Execute trades
+strategy.entry("Buy", strategy.long, when=buySignal)
+strategy.entry("Sell", strategy.short, when=sellSignal)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/442525
+
+> Last Modified
+
+2024-02-22 15:57:28

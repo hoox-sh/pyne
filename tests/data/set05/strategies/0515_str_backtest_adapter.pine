@@ -1,0 +1,28 @@
+//@version=5
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/Backtest Adapter.pine
+// content_hash: ce800cc74d31557c
+// collected: 2026-07-27
+strategy("Backtest Adapter", overlay=true)
+useDateFilter = input.bool(true, title="Begin Backtest at Start Date", group="Backtest Time Period")
+backtestStartDate = input.time(timestamp("11 May 2022"), title="Start Date", group="Backtest Time Period")
+inTradeWindow = not useDateFilter or time >= backtestStartDate
+src = input.source(title="Source", defval=close, tooltip="Source of the input data", group="General Settings")
+// Set up your entry and exit conditions for positions based on the indicator stream. 
+// The values here must correspond to the values in the Source indicator.
+startLongTrade = src == 1
+endLongTrade = src == 2
+startShortTrade = src == -1
+endShortTrade = src == -2
+transactionQty = 1
+if startLongTrade and inTradeWindow
+    strategy.order("Enter Long", strategy.long, qty=transactionQty) 
+    
+if endLongTrade and strategy.position_size > 0 and inTradeWindow
+    strategy.order("Exit Long", strategy.short, qty=transactionQty)
+if startShortTrade and inTradeWindow
+    strategy.order("Enter Short", strategy.short, qty=transactionQty)
+if endShortTrade and strategy.position_size < 0 and inTradeWindow
+    strategy.order("Exit Short", strategy.long, qty=transactionQty)
+Expand (29 lines)

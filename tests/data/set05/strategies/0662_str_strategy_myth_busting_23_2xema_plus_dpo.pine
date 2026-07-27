@@ -1,0 +1,424 @@
+//@version=5
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/Strategy Myth-Busting #23 - 2xEMA+DPO- [MYN].pine
+// content_hash: 98f6a46edcd49d42
+// collected: 2026-07-27
+strategy('Strategy Myth-Busting #23 - 2xEMA+DPO- [MYN]', max_bars_back=5000, overlay=true, pyramiding=0, initial_capital=1000, currency='NONE', default_qty_type=strategy.percent_of_equity, default_qty_value=1.0, commission_value=0.075, use_bar_magnifier = false)
+//░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+// indicators:
+// EMA 40
+// EMA 12
+// Untrend Price DPO indicator ( jTradeuh ), on style  untick the DPOvalue
+// Entry rules:
+// Longs: EMA 12 have to cross EMA 40 and need to be above it and the Untrend price DPO indicator has to have multiple green bars,
+// Shorts: EMA 12 have to cross EMA 40 and need to be under it and the Untrend price DPO indicator has to have multiple reed bars,
+// SL recent swing high/low
+// TP 2.5 risk reward ratio.
+// Second confluence using Untrend Price DPO 
+// 2 EMA
+//░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+len1 = input.int(40, minval=1, title="Length", group="EMA 1")
+src1 = input(close, title="Source")
+offset1 = input.int(title="Offset", defval=0, minval=-500, maxval=500)
+out1 = ta.ema(src1, len1)
+plot(out1, title="EMA 1", color=color.white, offset=offset1, linewidth=2)
+len2 = input.int(12, minval=1, title="Length", group="EMA 2")
+src2 = input(close, title="Source")
+offset2 = input.int(title="Offset", defval=0, minval=-500, maxval=500)
+out2 = ta.ema(src2, len2)
+plot(out2, title="EMA 2", color=color.yellow, offset=offset2, linewidth=2)
+emaLongEntry = ta.crossover(source1=out2 , source2 =out1 ) 
+emaShortEntry = ta.crossunder(source1=out2 , source2 =out1 ) 
+//  Uptrend Price DPO indicator
+//░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+period_ = input.int(21, title='Period', minval=1,group="UpTrend DPO")
+isCentered = input(false)
+barsback = period_ / 2 + 1
+ma = ta.sma(close, period_)
+dpo = isCentered ? close[barsback] - ma : close - ma[barsback]
+sma = ta.ema(dpo, 30)
+COLOR = dpo > 0 ? color.lime : color.red
+//plot(sma, offset=isCentered ? -barsback : 0, title='DPO', color=COLOR, style=plot.style_histogram)
+//hline(0, title='Zero')
+// Last 2 bars at least need to be green
+upTrenndDPOEntryLong = dpo > 0 and dpo[1] > 0 and dpo[2] > 0
+// Last 2 bars at least need to be red
+upTrendDPOEntryShort = dpo < 0 and dpo[1] < 0 and dpo[2] < 0
+// Put Your Strategy Rules Below
+//░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+longCondition =  emaLongEntry and upTrenndDPOEntryLong         // default: false
+shortCondition = emaShortEntry and upTrendDPOEntryShort         // default: false
+//define as 0 if do not want to have a conditional close
+closeLongCondition = false      // default: 0
+closeShortCondition = false    // default: 0
+// EMA Filter
+//░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+i_emaFilterEnabled = input.bool(defval = false , title = "Enable EMA Filter", tooltip = "Enable if you would like to conditionally have entries incorporate EMA as a filter where source is above/below the EMA line", group ="EMA Filter" ) 
+i_emaLength = input.int(200, title="EMA Length", minval=1, group ="EMA Filter")
+i_emaSource = input.source(close,"EMA Source" , group ="EMA Filter")
+emaValue = i_emaFilterEnabled ? ta.ema(i_emaSource, i_emaLength) : na
+bool isEMAFilterEnabledAndCloseAboveMA = i_emaFilterEnabled ? i_emaSource > emaValue : true
+bool isEMAFilterEnabledAndCloseBelowMA = i_emaFilterEnabled ? i_emaSource < emaValue : true
+// ADX Filter
+//░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+i_adxFilterEnabled = input.bool(defval = false , title = "Enable ADX Filter", tooltip = "Enable if you would like to conditionally have entries incorporate ADX as a filter", group ="ADX Filter" ) 
+i_adxVariant = input.string('ORIGINAL', title='ADX Variant', options=['ORIGINAL', 'MASANAKAMURA'], group ="ADX Filter" )
+i_adxSmoothing = input.int(14, title="ADX Smoothing", group="ADX Filter")
+i_adxDILength = input.int(14, title="DI Length", group="ADX Filter")
+i_adxLowerThreshold = input.float(25, title="ADX Threshold", step=.5, group="ADX Filter")
+calcADX_Masanakamura(int _len) =>
+    _smoothedTrueRange = 0.0
+    _smoothedDirectionalMovementPlus = 0.0
+    _smoothed_directionalMovementMinus = 0.0
+    _trueRange = math.max(math.max(high - low, math.abs(high - nz(close[1]))), math.abs(low - nz(close[1])))
+    _directionalMovementPlus = high - nz(high[1]) > nz(low[1]) - low ? math.max(high - nz(high[1]), 0) : 0
+    _directionalMovementMinus = nz(low[1]) - low > high - nz(high[1]) ? math.max(nz(low[1]) - low, 0) : 0
+    _smoothedTrueRange := nz(_smoothedTrueRange[1]) - nz(_smoothedTrueRange[1]) / _len + _trueRange
+    _smoothedDirectionalMovementPlus := nz(_smoothedDirectionalMovementPlus[1]) - nz(_smoothedDirectionalMovementPlus[1]) / _len + _directionalMovementPlus
+    _smoothed_directionalMovementMinus := nz(_smoothed_directionalMovementMinus[1]) - nz(_smoothed_directionalMovementMinus[1]) / _len + _directionalMovementMinus
+    DIP = _smoothedDirectionalMovementPlus / _smoothedTrueRange * 100
+    DIM = _smoothed_directionalMovementMinus / _smoothedTrueRange * 100
+    _DX = math.abs(DIP - DIM) / (DIP + DIM) * 100
+    adx = ta.sma(_DX, _len)
+    [DIP, DIM, adx]
+[DIPlusO, DIMinusO, ADXO] = ta.dmi(i_adxDILength, i_adxSmoothing)
+[DIPlusM, DIMinusM, ADXM] = calcADX_Masanakamura(i_adxDILength)
+adx = i_adxFilterEnabled and i_adxVariant == "ORIGINAL" ? ADXO : ADXM
+bool isADXFilterEnabledAndAboveThreshold = i_adxFilterEnabled ? adx > i_adxLowerThreshold : true
+// Start / End Time Periods
+//░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+i_startPeriodEnabled = input.bool(true, 'Start', group='Date Range', inline='Start Period')
+i_startPeriodTime = input.time(timestamp('1 Jan 2019'), '', group='Date Range', inline='Start Period')
+i_endPeriodEnabled = input.bool(true, 'End', group='Date Range', inline='End Period')
+i_endPeriodTime = input.time(timestamp('31 Dec 2030'), '', group='Date Range', inline='End Period')
+isStartPeriodEnabledAndInRange = i_startPeriodEnabled ? i_startPeriodTime <= time : true
+isEndPeriodEnabledAndInRange = i_endPeriodEnabled ? i_endPeriodTime >= time : true
+// Time-Of-Day Window
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+// Inspired from https://www.tradingview.com/script/3BmID7aW-Highlight-Trading-Window-Simple-Hours-Time-of-Day-Filter/
+i_timeFilterEnabled = input.bool(defval = false , title = "Enable Time-Of-Day Window", tooltip = "Limit the time of day for trade execution", group ="Time Window" ) 
+i_timeZone = input.string(title="Select Local Time Zone", defval="GMT-5", options=["GMT-8","GMT-7", "GMT-6", "GMT-5", "GMT-4", "GMT-3", "GMT-2", "GMT-1", "GMT", "GMT+1", "GMT+2",  "GMT+3","GMT+4","GMT+5","GMT+6","GMT+7","GMT+8","GMT+9","GMT+10","GMT+11","GMT+12","GMT+13"], group="Time Window")
+i_betweenTime = input.session('0700-0900',  title = "Time Filter", group="Time Window")   // '0000-0000' is anytime to enter
+isWithinWindowOfTime(_position) =>                                                      
+    currentTimeIsWithinWindowOfTime = not na(time(timeframe.period, _position + ':1234567', i_timeZone))
+bool isTimeFilterEnabledAndInRange = i_timeFilterEnabled ? isWithinWindowOfTime(i_betweenTime) : true
+isStartEndPeriodsAndTimeInRange = isStartPeriodEnabledAndInRange and isEndPeriodEnabledAndInRange and isTimeFilterEnabledAndInRange
+// Trade Direction and State Management
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+i_tradeDirection = input.string('Long and Short', title='Trade Direction', options=['Long and Short', 'Long Only', 'Short Only'], group='Trade Direction')
+// Todo Add logic to reenter trade only if condition is still met only on TP
+//i_reenterPosition = input.bool(defval=true, title='Re-Enter Position on TP' , group='Trade Direction')
+//longConditionFinal = i_reenterPosition ? longCondition : longCondition and not longCondition[1]
+//shortConditionFinal = i_reenterPosition ? shortCondition : shortCondition and not shortCondition[1]
+isInLongPosition = strategy.position_size > 0
+isInShortPosition = strategy.position_size < 0
+longConditionFinal = (longCondition and isADXFilterEnabledAndAboveThreshold and isEMAFilterEnabledAndCloseAboveMA) and i_tradeDirection != 'Short Only' and isInLongPosition == false
+shortConditionFinal = (shortCondition and isADXFilterEnabledAndAboveThreshold and isEMAFilterEnabledAndCloseBelowMA) and i_tradeDirection != 'Long Only' and isInShortPosition == false
+// Trade Entry variables (not in position yet)
+bool openingLongPosition = longConditionFinal and not (strategy.opentrades.size(strategy.opentrades - 1) > 0) 
+bool openingShortPosition = shortConditionFinal and not (strategy.opentrades.size(strategy.opentrades - 1) < 0) 
+bool openingAnyPosition = openingLongPosition or openingShortPosition
+float closePriceWhenPositionOpened = ta.valuewhen(openingAnyPosition,close,0)
+// Stop Loss
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+// Todo: Consider moving the strategy.entry calls above where the TP/SL close orders so that close orders can be executed on same bar.
+var groupStopLoss = "🛑 Stop Loss"
+i_useStopLoss = input.bool (title="Use Stop Loss", defval = true, group=groupStopLoss)
+i_typeOfStopLoss = input.string (title="Type Of Stop Loss", defval="Last Swing High/Low", options=["Fixed %","Last Swing High/Low","ATR"], group=groupStopLoss)
+i_fixedPercentSL = input.float(title='Fixed %', defval=1, minval=0, step=0.5, group=groupStopLoss) * 0.01
+i_swingHighLowLookbackSL = input.int(21, title="Swing High/Low Lookback", group=groupStopLoss)
+i_atrLengthSL = input.int(title="ATR Length", defval=14, minval = 1, inline="ATR SL", group=groupStopLoss)
+i_atrMultiplierSL = input.float(title="ATR Multiplier", defval=1, minval = 0, step=0.1, inline="ATR SL", group=groupStopLoss)
+// Fixed Percent Stop Loss
+float fixedPercentSLPriceWhenLongPositionEntered = ta.valuewhen(openingLongPosition,close,0) * (1 - i_fixedPercentSL)
+float fixedPercentSLPriceWhenShortPositionEntered = ta.valuewhen(openingShortPosition,close,0) * (1 + i_fixedPercentSL)
+// Swing High/Low Stop Loss
+float swingLowPriceWhenLongPostionEntered = ta.valuewhen(openingLongPosition, source = ta.lowest(low, i_swingHighLowLookbackSL), occurrence = 0)
+float swingHighPriceWhenShortPositionEntered = ta.valuewhen(openingShortPosition, source = ta.highest(high, i_swingHighLowLookbackSL), occurrence = 0)
+// Debug Start
+// drawLabel(_offset, _pivot, _style, _color) =>
+//     if not na(_pivot)
+//         label.new(bar_index[_offset], _pivot, str.tostring(_pivot, format.mintick), style=_style, color=_color, textcolor=#131722)
+// drawLabel(i_swingHighLowLookbackSL, ta.pivothigh(high, i_swingHighLowLookbackSL, i_swingHighLowLookbackSL), label.style_label_down, color.red)
+// drawLabel(i_swingHighLowLookbackSL, ta.pivotlow(low, i_swingHighLowLookbackSL, i_swingHighLowLookbackSL), label.style_label_up, color.blue)
+// Debug End
+//ATR
+//todo determine if close should be source for both long/short or if high/low should be used?
+float ATRSLPriceWhenLongPositionEntered = ta.valuewhen(openingLongPosition, close - (ta.atr(i_atrLengthSL) * i_atrMultiplierSL) ,0)
+float ATRSLPriceWhenShortPositionEntered = ta.valuewhen(openingShortPosition, close + (ta.atr(i_atrLengthSL) * i_atrMultiplierSL) ,0)
+//plot(close + (ta.atr(i_atrLengthSL) * i_atrMultiplierSL), color=color.new(color.green, 0))
+//plot(close - (ta.atr(i_atrLengthSL) * i_atrMultiplierSL), color=color.new(color.red, 0))
+f_calculateStopLoss(string direction, string typeOfStopLoss) =>
+    // TODO init these to be 0 and "" as slPriceLong/Short is referenced by TP Risk:Reward calculation
+    float slOrderClosePrice = na  
+    string slOrderComment = na
+    switch typeOfStopLoss
+        "Fixed %" =>
+            slOrderClosePrice := direction == "long" ? fixedPercentSLPriceWhenLongPositionEntered : fixedPercentSLPriceWhenShortPositionEntered
+            slOrderComment := direction == "long" ? "SL Fixed % Long" : "SL Fixed % Short"
+        "Last Swing High/Low" =>
+            slOrderClosePrice := direction == "long" ? swingLowPriceWhenLongPostionEntered : swingHighPriceWhenShortPositionEntered
+            slOrderComment := direction == "long" ? "SL Swing Low Long" : "SL Swing High Short"
+        "ATR" =>                     
+            slOrderClosePrice := direction == "long" ? ATRSLPriceWhenLongPositionEntered : ATRSLPriceWhenShortPositionEntered
+            slOrderComment := direction == "long" ? "SL ATR Long" : "SL ATR Short"
+        
+    [slOrderClosePrice,slOrderComment]
+        
+[slPriceLong, slCommentLong] = f_calculateStopLoss( "long",i_typeOfStopLoss)  
+[slPriceShort, slCommentShort] = f_calculateStopLoss("short",i_typeOfStopLoss)  
+slLongCondition = close <= slPriceLong
+slShortCondition = close >= slPriceShort
+// Take Profit 
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+var groupTakeProfit = "🟢 Take Profit"
+i_useTakeProfit = input.bool (title="Use Take Profit", defval = true, group=groupTakeProfit)
+i_typeOfTakeProfit = input.string (title="Type Of Take Profit", defval="Risk:Reward Ratio", options=["Single Fixed %","Multiple Fixed %","Risk:Reward Ratio","ATR"], group=groupTakeProfit)
+i_fixedPercentTP = input.float(title='Single Fixed %', defval=1, minval=0, step=0.5, group=groupTakeProfit) * 0.01
+i_takeProfitTargetPercent1 = input.float(title='Take Profit 1 - Target %', defval=100, minval=0.0, step=0.5, group=groupTakeProfit, inline='Take Profit 1')
+i_takeProfitQuantityPercent1 = input.int(title='% Of Position', defval=100, minval=0, group=groupTakeProfit, inline='Take Profit 1')
+i_takeProfitTargetPercent2 = input.float(title='Take Profit 2 - Target %', defval=100, minval=0.0, step=0.5, group=groupTakeProfit, inline='Take Profit 2')
+i_takeProfitQuantityPercent2 = input.int(title='% Of Position', defval=100, minval=0, group=groupTakeProfit, inline='Take Profit 2')
+i_takeProfitTargetPercent3 = input.float(title='Take Profit 3 - Target %', defval=100, minval=0.0, step=0.5, group=groupTakeProfit, inline='Take Profit 3')
+i_takeProfitQuantityPercent3 = input.int(title='% Of Position', defval=100, minval=0, group=groupTakeProfit, inline='Take Profit 3')
+i_takeProfitTargetPercent4 = input.float(title='Take Profit 4 - Target %', defval=100, minval=0.0, step=0.5, group=groupTakeProfit)
+i_RiskRewardRatioTP = input.float(title="Risk:Reward Ratio 1:#", defval=2.5, minval=0 , step=0.1, group=groupTakeProfit)
+i_atrLengthTP = input.int(title="ATR Length", defval=14, minval = 1, inline="ATR TP", group=groupTakeProfit)
+i_atrMultiplierTP = input.float(title="ATR Multiplier", defval=1, minval = 0, step=0.1, inline="ATR TP", group=groupTakeProfit)
+// Single Fixed Percent Take Profit
+float fixedPercentTPPriceWhenLongPositionEntered = ta.valuewhen(openingLongPosition,close,0) * (1 + i_fixedPercentTP)
+float fixedPercentTPPriceWhenShortPositionEntered = ta.valuewhen(openingShortPosition,close,0) * (1 - i_fixedPercentTP)
+// Multiple
+// Risk:Reward Ratio Take Profit
+tpRRPriceWhenLongPositionEntered = closePriceWhenPositionOpened + ((closePriceWhenPositionOpened - slPriceLong) * i_RiskRewardRatioTP)
+tpRRPriceWhenShortPositionEntered = closePriceWhenPositionOpened + ((closePriceWhenPositionOpened - slPriceShort) * i_RiskRewardRatioTP)
+//ATR
+//todo determine if close should be source for both long/short or if high/low should be used?
+float ATRTPPriceWhenLongPositionEntered = ta.valuewhen(openingLongPosition, close + (ta.atr(i_atrLengthTP) * i_atrMultiplierTP) ,0)
+float ATRTPPriceWhenShortPositionEntered = ta.valuewhen(openingShortPosition, close - (ta.atr(i_atrLengthTP) * i_atrMultiplierTP) ,0)
+// plot(close + (ta.atr(i_atrLengthTP) * i_atrMultiplierTP), color=color.new(color.green, 0))
+// plot(close - (ta.atr(i_atrLengthTP) * i_atrMultiplierTP), color=color.new(color.red, 0))
+f_calculateTakeProfit(string direction, string typeOfTakeProfit) =>
+    float tpOrderClosePrice = na  
+    string tpOrderComment = na
+    switch typeOfTakeProfit
+        "Single Fixed %" =>
+            tpOrderClosePrice := direction == "long" ? fixedPercentTPPriceWhenLongPositionEntered : fixedPercentTPPriceWhenShortPositionEntered
+            tpOrderComment := direction == "long" ? "TP Single Fixed % Long" : "TP Single Fixed % Short"
+        "Multiple Fixed %" =>
+            tpOrderClosePrice := na
+            tpOrderComment := ""
+        "Risk:Reward Ratio" =>
+            tpOrderClosePrice := direction == "long" ? tpRRPriceWhenLongPositionEntered : tpRRPriceWhenShortPositionEntered
+            tpOrderComment := direction == "long" ? "TP R:R Long" : "TP R:R Short"
+        "ATR" =>                             
+            tpOrderClosePrice := direction == "long" ? ATRTPPriceWhenLongPositionEntered : ATRTPPriceWhenShortPositionEntered
+            tpOrderComment := direction == "long" ? "TP ATR Long" : "TP ATR Short"
+        
+    [tpOrderClosePrice,tpOrderComment]
+        
+[tpPriceLong, tpCommentLong] = f_calculateTakeProfit( "long",i_typeOfTakeProfit)  
+[tpPriceShort, tpCommentShort] = f_calculateTakeProfit("short",i_typeOfTakeProfit)  
+tpLongCondition = close >= tpPriceLong
+tpShortCondition = close <= tpPriceShort
+// Functions
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+per(pcnt) =>
+    strategy.position_size != 0 ? math.round(pcnt / 100 * strategy.position_avg_price / syminfo.mintick) : float(na)
+// Plotting
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+//Plot SL and TP
+i_plotTPSL=input(true, title="Plot TP and SL", group='Plotting')
+slbp=plot(i_plotTPSL and i_useStopLoss and strategy.position_size > 0 ? slPriceLong[1] : na, color=color.red, style=plot.style_linebr, title="SL")
+tpbp=plot(i_plotTPSL and i_useTakeProfit and strategy.position_size > 0 ? tpPriceLong[1] : na, color=color.lime, style=plot.style_linebr, title="TP")
+epbp=plot(i_plotTPSL and strategy.position_size > 0 ? strategy.position_avg_price : na, color=color.gray, style=plot.style_linebr, title="Entry")
+fill(slbp, epbp, color=color.new(color.red, 90))
+fill(tpbp, epbp, color=color.new(color.green, 90))
+slsp=plot(i_plotTPSL and i_useStopLoss and strategy.position_size < 0 ? slPriceShort[1] : na, color=color.red, style=plot.style_linebr, title="SL")
+tpsp=plot(i_plotTPSL and i_useTakeProfit and strategy.position_size < 0 ? tpPriceShort[1] : na, color=color.lime, style=plot.style_linebr, title="TP")
+epsp=plot(i_plotTPSL and strategy.position_size < 0 ? strategy.position_avg_price : na, color=color.gray, style=plot.style_linebr, title="Entry")
+fill(slsp, epsp, color=color.new(color.red, 90))
+fill(tpsp, epsp, color=color.new(color.green, 90))
+/// Leverage
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+i_leverage = input.float(1, 'Leverage', step=.5, group='Leverage')
+i_percentOfEquityToTrade = input.float(100, "% of Equity to Stake Per Trade", minval=0.01, maxval=100, step=5, group='Leverage') * .01
+contracts = (i_percentOfEquityToTrade * strategy.equity / close * i_leverage)
+/// ProfitView Alert Syntax String Generation
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+i_alertSyntaxPrefix = input.string(defval='CRYPTANEX_99FTX_Strategy-Name-Here', title='Alert Syntax Prefix', group='ProfitView Alert Syntax')
+alertSyntaxBase = i_alertSyntaxPrefix + '\n#' + str.tostring(open) + ',' + str.tostring(high) + ',' + str.tostring(low) + ',' + str.tostring(close) + ',' + str.tostring(volume) + ','
+/// Trade Execution
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+if isStartEndPeriodsAndTimeInRange
+    if longConditionFinal 
+        strategy.entry('Long', strategy.long, qty=contracts)
+        alert(message=alertSyntaxBase + 'side:long', freq=alert.freq_once_per_bar_close)
+    if shortConditionFinal
+        strategy.entry('Short', strategy.short, qty=contracts)
+        alert(message=alertSyntaxBase + 'side:short', freq=alert.freq_once_per_bar_close)
+    
+    if i_useTakeProfit
+        //Inspired from Multiple %% profit exits example by adolgo https://www.tradingview.com/script/kHhCik9f-Multiple-profit-exits-example/
+        if i_typeOfTakeProfit == "Multiple Fixed %"
+            strategy.exit('TP1', qty_percent=i_takeProfitQuantityPercent1, profit=per(i_takeProfitTargetPercent1))
+            strategy.exit('TP2', qty_percent=i_takeProfitQuantityPercent2, profit=per(i_takeProfitTargetPercent2))
+            strategy.exit('TP3', qty_percent=i_takeProfitQuantityPercent3, profit=per(i_takeProfitTargetPercent3))
+            strategy.exit('i_takeProfitTargetPercent4', profit=per(i_takeProfitTargetPercent4))
+        else
+            strategy.close('Long', comment=tpCommentLong, when=tpLongCondition)
+            strategy.close('Short', comment=tpCommentShort, when=tpShortCondition)
+    
+    if i_useStopLoss 
+        strategy.close('Long', comment=slCommentLong, when=slLongCondition)
+        strategy.close('Short', comment=slCommentShort, when=slShortCondition)
+        
+    // Conditional Closes
+    strategy.close('Long', comment='Conditional Close Long', when=closeLongCondition)
+    strategy.close('Short', comment='Conditional Close Short', when=closeShortCondition)
+// Global Dashboard Variables
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+// Dashboard Table Text Size
+i_tableTextSize = input.string(title="Dashboard Size", defval="Small", options=["Auto",  "Huge",  "Large", "Normal", "Small", "Tiny"], group="Dashboards")
+table_text_size(s) =>
+    switch s
+        "Auto"   => size.auto   
+        "Huge"   => size.huge   
+        "Large"  => size.large  
+        "Normal" => size.normal 
+        "Small"  => size.small
+        => size.tiny
+tableTextSize = table_text_size(i_tableTextSize)
+/// Performance Summary Dashboard
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+// Inspired by https://www.tradingview.com/script/uWqKX6A2/ - Thanks VertMT
+i_showDashboard = input.bool(title="Performance Summary", defval=true, group="Dashboards", inline="Show Dashboards")
+f_fillCell(_table, _column, _row, _title, _value, _bgcolor, _txtcolor) =>
+    _cellText = _title + "\n" + _value
+    table.cell(_table, _column, _row, _cellText, bgcolor=_bgcolor, text_color=_txtcolor, text_size=tableTextSize)
+// Draw dashboard table
+if i_showDashboard
+    var bgcolor = color.new(color.black,0)
+    
+    // Keep track of Wins/Losses streaks
+    newWin  = (strategy.wintrades  > strategy.wintrades[1]) and (strategy.losstrades == strategy.losstrades[1]) and (strategy.eventrades == strategy.eventrades[1])
+    newLoss = (strategy.wintrades == strategy.wintrades[1]) and (strategy.losstrades  > strategy.losstrades[1]) and (strategy.eventrades == strategy.eventrades[1])
+    varip int winRow     = 0
+    varip int lossRow    = 0
+    varip int maxWinRow  = 0
+    varip int maxLossRow = 0
+    if newWin
+        lossRow := 0
+        winRow := winRow + 1
+    if winRow > maxWinRow
+        maxWinRow := winRow
+        
+    if newLoss
+        winRow := 0
+        lossRow := lossRow + 1
+    if lossRow > maxLossRow
+        maxLossRow := lossRow
+    // Prepare stats table
+    var table dashTable = table.new(position.top_right, 1, 15, border_width=1)
+   
+    if barstate.islastconfirmedhistory
+        // Update table
+        lastTime = strategy.position_size == 0 ? strategy.closedtrades.exit_time(strategy.closedtrades-1) : time
+        dollarReturn = strategy.netprofit
+        f_fillCell(dashTable, 0, 0, "Start:", str.format("{0,date,long}", strategy.closedtrades.entry_time(0)) , bgcolor, color.white) // + str.format(" {0,time,HH:mm}", strategy.closedtrades.entry_time(0)) 
+        f_fillCell(dashTable, 0, 1, "End:", str.format("{0,date,long}", lastTime) , bgcolor, color.white) // + str.format(" {0,time,HH:mm}", strategy.opentrades.entry_time(0))
+        _profit = (strategy.netprofit / strategy.initial_capital) * 100
+        f_fillCell(dashTable, 0, 2, "Net Profit:", str.tostring(_profit, '##.##') + "%", _profit > 0 ? color.teal : color.maroon, color.white)
+        _numOfDaysInStrategy = (lastTime - strategy.closedtrades.entry_time(0)) / (1000 * 3600 * 24)
+        f_fillCell(dashTable, 0, 3, "Percent Per Day", str.tostring(_profit / _numOfDaysInStrategy, '#########################.#####')+"%", _profit > 0 ? color.teal : color.maroon, color.white)
+        _winRate = ( strategy.wintrades / strategy.closedtrades ) * 100
+        f_fillCell(dashTable, 0, 4, "Percent Profitable:", str.tostring(_winRate, '##.##') + "%", _winRate < 50 ? color.maroon : _winRate < 75 ? #999900 : color.teal, color.white)
+        f_fillCell(dashTable, 0, 5, "Profit Factor:", str.tostring(strategy.grossprofit / strategy.grossloss,  '##.###'), strategy.grossprofit > strategy.grossloss ? color.teal : color.maroon, color.white)
+        f_fillCell(dashTable, 0, 6, "Total Trades:", str.tostring(strategy.closedtrades), bgcolor, color.white)
+        f_fillCell(dashTable, 0, 8, "Max Wins In A Row:", str.tostring(maxWinRow, '######') , bgcolor, color.white)
+        f_fillCell(dashTable, 0, 9, "Max Losses In A Row:", str.tostring(maxLossRow, '######') , bgcolor, color.white)
+// Monthly Table Performance Dashboard By @QuantNomad
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+i_showMonthlyPerformance = input.bool(true, 'Monthly Performance', group='Dashboards', inline="Show Dashboards")
+i_monthlyReturnPercision = 2
+if i_showMonthlyPerformance
+    new_month = month(time) != month(time[1])
+    new_year  = year(time)  != year(time[1])
+    
+    eq = strategy.equity
+    
+    bar_pnl = eq / eq[1] - 1
+    
+    cur_month_pnl = 0.0
+    cur_year_pnl  = 0.0
+    
+    // Current Monthly P&L
+    cur_month_pnl := new_month ? 0.0 : 
+                     (1 + cur_month_pnl[1]) * (1 + bar_pnl) - 1 
+    
+    // Current Yearly P&L
+    cur_year_pnl := new_year ? 0.0 : 
+                     (1 + cur_year_pnl[1]) * (1 + bar_pnl) - 1  
+    
+    // Arrays to store Yearly and Monthly P&Ls
+    var month_pnl  = array.new_float(0)
+    var month_time = array.new_int(0)
+    
+    var year_pnl  = array.new_float(0)
+    var year_time = array.new_int(0)
+    
+    last_computed = false
+    
+    if (not na(cur_month_pnl[1]) and (new_month or barstate.islastconfirmedhistory))
+        if (last_computed[1])
+            array.pop(month_pnl)
+            array.pop(month_time)
+            
+        array.push(month_pnl , cur_month_pnl[1])
+        array.push(month_time, time[1])
+    
+    if (not na(cur_year_pnl[1]) and (new_year or barstate.islastconfirmedhistory))
+        if (last_computed[1])
+            array.pop(year_pnl)
+            array.pop(year_time)
+            
+        array.push(year_pnl , cur_year_pnl[1])
+        array.push(year_time, time[1])
+    
+    last_computed := barstate.islastconfirmedhistory ? true : nz(last_computed[1])
+    
+    // Monthly P&L Table    
+    var monthly_table = table(na)
+    
+    if (barstate.islastconfirmedhistory)
+        monthly_table := table.new(position.bottom_right, columns = 14, rows = array.size(year_pnl) + 1, border_width = 1)
+    
+        table.cell(monthly_table, 0,  0, "",     bgcolor = #cccccc, text_size=tableTextSize)
+        table.cell(monthly_table, 1,  0, "Jan",  bgcolor = #cccccc, text_size=tableTextSize)
+        table.cell(monthly_table, 2,  0, "Feb",  bgcolor = #cccccc, text_size=tableTextSize)
+        table.cell(monthly_table, 3,  0, "Mar",  bgcolor = #cccccc, text_size=tableTextSize)
+        table.cell(monthly_table, 4,  0, "Apr",  bgcolor = #cccccc, text_size=tableTextSize)
+        table.cell(monthly_table, 5,  0, "May",  bgcolor = #cccccc, text_size=tableTextSize)
+        table.cell(monthly_table, 6,  0, "Jun",  bgcolor = #cccccc, text_size=tableTextSize)
+        table.cell(monthly_table, 7,  0, "Jul",  bgcolor = #cccccc, text_size=tableTextSize)
+        table.cell(monthly_table, 8,  0, "Aug",  bgcolor = #cccccc, text_size=tableTextSize)
+        table.cell(monthly_table, 9,  0, "Sep",  bgcolor = #cccccc, text_size=tableTextSize)
+        table.cell(monthly_table, 10, 0, "Oct",  bgcolor = #cccccc, text_size=tableTextSize)
+        table.cell(monthly_table, 11, 0, "Nov",  bgcolor = #cccccc, text_size=tableTextSize)
+        table.cell(monthly_table, 12, 0, "Dec",  bgcolor = #cccccc, text_size=tableTextSize)
+        table.cell(monthly_table, 13, 0, "Year", bgcolor = #999999, text_size=tableTextSize)
+    
+        for yi = 0 to array.size(year_pnl) - 1
+            table.cell(monthly_table, 0,  yi + 1, str.tostring(year(array.get(year_time, yi))), bgcolor = #cccccc, text_size=tableTextSize)
+            
+            y_color = array.get(year_pnl, yi) > 0 ? color.new(color.teal, transp = 40) : color.new(color.gray, transp = 40)
+            table.cell(monthly_table, 13, yi + 1, str.tostring(math.round(array.get(year_pnl, yi) * 100, i_monthlyReturnPercision)), bgcolor = y_color, text_color=color.new(color.white, 0),text_size=tableTextSize)
+            
+        for mi = 0 to array.size(month_time) - 1
+            m_row   = year(array.get(month_time, mi))  - year(array.get(year_time, 0)) + 1
+            m_col   = month(array.get(month_time, mi)) 
+            m_color = array.get(month_pnl, mi) > 0 ? color.new(color.teal, transp = 40) : color.new(color.maroon, transp = 40)
+            
+            table.cell(monthly_table, m_col, m_row, str.tostring(math.round(array.get(month_pnl, mi) * 100, i_monthlyReturnPercision)), bgcolor = m_color, text_color=color.new(color.white, 0), text_size=tableTextSize)
+Expand (524 lines)

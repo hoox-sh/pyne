@@ -1,0 +1,57 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多重指数均线自动交易跟踪止盈系统-Multi-EMA-Automated-Trading-System-with-Trailing-Profit-Lock.md
+// content_hash: 1184e8a382424034
+// collected: 2026-07-27
+strategy("Automated EMA Strategy with Hierarchical Conditions", overlay=true)
+
+// Inputs for EMA lengths
+length_5 = 5
+length_20 = 20
+length_50 = 50
+
+// Calculating EMAs
+ema_5 = ta.ema(close, length_5)
+ema_20_high = ta.ema(high, length_20)
+ema_20_low = ta.ema(low, length_20)
+ema_20_close = ta.ema(close, length_20)
+ema_50 = ta.ema(close, length_50)
+
+// Buy condition: 50 EMA < 20 EMA (Close) < 20 EMA (High) < 20 EMA (Low) < 5 EMA
+// and LTP above all EMAs
+buy_condition = ema_50 < ema_20_low and ema_20_low < ema_20_close and ema_20_close < ema_20_high and ema_20_high < ema_5 and close > ema_5 and close > ema_20_close and close > ema_20_high and close > ema_20_low and close > ema_50
+
+// Stop-loss and target levels
+stop_loss = ema_20_low
+
+// Target condition: Close below 5 EMA
+target_condition = close < ema_5
+
+// Check if there's an open position
+is_in_position = strategy.position_size > 0
+
+// Execute Buy Signal only if no position is open
+if (buy_condition and not is_in_position)
+    strategy.entry("Buy", strategy.long)
+
+// Exit conditions: Stop-loss or target (close below 5 EMA)
+if (is_in_position and (target_condition or close < stop_loss))
+    strategy.close("Buy")
+
+// Plotting the EMAs
+plot(ema_5, color=color.blue, title="5 EMA")
+plot(ema_20_high, color=color.green, title="20 EMA (High)")
+plot(ema_20_low, color=color.red, title="20 EMA (Low)")
+plot(ema_20_close, color=color.purple, title="20 EMA (Close)")
+plot(ema_50, color=color.orange, title="50 EMA")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/473943
+
+> Last Modified
+
+2024-12-04 15:35:32

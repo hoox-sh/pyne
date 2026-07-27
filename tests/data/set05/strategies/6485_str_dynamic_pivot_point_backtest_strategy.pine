@@ -1,0 +1,48 @@
+//@version=2
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/动态支撑阻力回测策略Dynamic-Pivot-Point-Backtest-Strategy.md
+// content_hash: 6b0d17c4b8e53d73
+// collected: 2026-07-27
+////////////////////////////////////////////////////////////
+//  Copyright by HPotter v1.0 14/06/2018
+// This Pivot points is calculated on the current day.
+// Pivot points simply took the high, low, and closing price from the previous period and 
+// divided by 3 to find the pivot. From this pivot, traders would then base their 
+// calculations for three support, and three resistance levels. The calculation for the most 
+// basic flavor of pivot points, known as ‘floor-trader pivots’, along with their support and 
+// resistance levels.
+//
+// You can change long to short in the Input Settings
+// WARNING:
+// - For purpose educate only
+// - This script to change bars colors.
+////////////////////////////////////////////////////////////
+strategy(title="Dynamic Pivot Point Backtest", shorttitle="Dynamic Pivot Point", overlay = true)
+reverse = input(false, title="Trade reverse")
+xHigh  = request.security(syminfo.tickerid,"D", high[1])
+xLow   = request.security(syminfo.tickerid,"D", low[1])
+xClose = request.security(syminfo.tickerid,"D", close[1])
+vPP = (xHigh+xLow+xClose) / 3
+vR1 = vPP+(vPP-xLow)
+vS1 = vPP-(xHigh - vPP)
+pos = iff(close > vR1, 1,
+       iff(close < vS1, -1, nz(pos[1], 0))) 
+possig = iff(reverse and pos == 1, -1,
+          iff(reverse and pos == -1, 1, pos))	   
+if (possig == 1) 
+    strategy.entry("Long", strategy.long)
+if (possig == -1)
+    strategy.entry("Short", strategy.short)	   	    
+barcolor(possig == -1 ? red: possig == 1 ? green : blue ) 
+plot(vS1, color=#ff0000, title="S1", style = circles, linewidth = 1)
+plot(vR1, color=#009600, title="R1", style = circles, linewidth = 1)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/437018
+
+> Last Modified
+
+2023-12-29 15:50:57

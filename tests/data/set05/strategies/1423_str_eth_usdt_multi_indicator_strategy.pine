@@ -1,0 +1,83 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多指标动态平衡量化交易系统-Multi-Indicator-Dynamic-Equilibrium-Quantitative-Trading-System.md
+// content_hash: 4b7837c7a857e7da
+// collected: 2026-07-27
+strategy("ETH/USDT Multi-Indicator Strategy", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=250)
+
+// Parametri za RSI
+rsiPeriod = 14
+rsiOversold = 30
+rsiOverbought = 70
+
+// Parametri za Bollinger Bands
+bbLength = 20
+bbStdDev = 2
+
+// Parametri za EMA
+emaShort = 50
+emaLong = 200
+
+// Parametri za MACD
+[macdLine, signalLine, _] = ta.macd(close, 12, 26, 9)
+
+// RSI izračun
+rsi = ta.rsi(close, rsiPeriod)
+
+// Bollinger Bands izračun
+basis = ta.sma(close, bbLength)
+upperBand = basis + bbStdDev * ta.stdev(close, bbLength)
+lowerBand = basis - bbStdDev * ta.stdev(close, bbLength)
+
+// EMA izračun
+emaFast = ta.ema(close, emaShort)
+emaSlow = ta.ema(close, emaLong)
+
+// Pravilo 1: RSI prelazi iznad 30 nakon preprodatosti
+rsiSignal = rsi < rsiOversold
+
+// Pravilo 2: Cena dotakne donju Bollinger traku
+bbSignal = close < lowerBand
+
+// Pravilo 3: EMA crossover (zlatni krst)
+emaSignal = emaFast > emaSlow
+
+// Pravilo 4: MACD prelazak iznad signalne linije
+macdSignal = macdLine > signalLine
+
+// Kombinovani signal za kupovinu (bar dva uslova ispunjena)
+buySignal = (rsiSignal and bbSignal) or (emaSignal and macdSignal)
+
+// Pravilo za prodaju (RSI prekupljen ili cena iznad gornje Bollinger trake)
+sellSignal = rsi > rsiOverbought or close > upperBand
+
+// Vizualizacija signala
+plotshape(series=buySignal, title="Buy Signal", location=location.belowbar, color=color.green, style=shape.labelup, text="BUY")
+plotshape(series=sellSignal, title="Sell Signal", location=location.abovebar, color=color.red, style=shape.labeldown, text="SELL")
+
+// Strategija: Otvaranje i zatvaranje pozicija
+if (buySignal)
+    strategy.entry("Buy", strategy.long)
+
+if (sellSignal)
+    strategy.close("Buy")
+
+// Bollinger Bands vizualizacija
+plot(upperBand, color=color.new(color.blue, 50), title="Upper Band")
+plot(lowerBand, color=color.new(color.blue, 50), title="Lower Band")
+plot(basis, color=color.blue, title="Basis")
+
+// EMA vizualizacija
+plot(emaFast, color=color.orange, title="EMA Short")
+plot(emaSlow, color=color.red, title="EMA Long")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/482441
+
+> Last Modified
+
+2025-02-18 14:44:29

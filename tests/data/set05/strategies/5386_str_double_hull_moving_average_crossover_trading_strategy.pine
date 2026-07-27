@@ -1,0 +1,48 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/黄金交叉与死叉双均线交叉交易策略Double-Hull-Moving-Average-Crossover-Trading-Strategy.md
+// content_hash: 83d4ad5697a3425f
+// collected: 2026-07-27
+strategy(title = "Hull MA", shorttitle="Junior2", overlay = true)
+
+//HULL MA 1
+
+length = input(60, minval=1,title="HULL MA 1 LENGTH")
+src = input(close, title="Source")
+hullma = wma(2*wma(src, length/2)-wma(src, length), round(sqrt(length)))
+
+plot(hullma, color=color.green)
+
+//HULLMA 2
+
+alength = input(175, minval=1,title="HULL MA 2 LENGTH")
+asrc = input(close, title="Source")
+ahullma = wma(2*wma(asrc, alength/2)-wma(asrc, alength), round(sqrt(alength)))
+
+plot(ahullma, color=color.green)
+
+c1up= crossover(hullma,ahullma)
+c1down= crossunder(hullma,ahullma)
+
+longCondition = c1up
+if longCondition
+
+    strategy.entry("L", strategy.long)
+
+
+shortCondition = c1down 
+if shortCondition
+
+    strategy.entry("S", strategy.short)
+
+plot(close)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/428969
+
+> Last Modified
+
+2023-10-11 14:49:54

@@ -1,0 +1,93 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/移动平均聚合动量云策略-Moving-Average-Convergence-Momentum-Cloud-Strategy.md
+// content_hash: af3f087586470537
+// collected: 2026-07-27
+strategy("Enhanced Starlight Analysis Strategy", overlay=true)
+
+// Inputs for moving averages
+shortLength = input.int(5, title="Short Moving Average Length")
+longLength = input.int(20, title="Long Moving Average Length")
+
+// Calculate moving averages
+ma1 = ta.sma(close, shortLength)
+ma2 = ta.sma(close, longLength)
+
+// Determine the fill color based on the relationship between ma1 and ma2
+fillColor = ma1 > ma2 ? color.new(color.green, 90) : color.new(color.red, 90)
+
+// Plot the moving averages and fill the space between them
+plot(ma1, "5-bar SMA", color=color.blue)
+plot(ma2, "20-bar SMA", color=color.orange)
+fill(plot(ma1), plot(ma2), fillColor, "SMA plot fill")
+
+// Additional Analysis: Bollinger Bands
+bbLength = input.int(20, title="BB Length")
+bbMult = input.float(2.0, title="BB Multiplier")
+[bbUpper, bbMiddle, bbLower] = ta.bb(close, bbLength, bbMult)
+plot(bbUpper, color=color.red, title="BB Upper")
+plot(bbMiddle, color=color.green, title="BB Middle")
+plot(bbLower, color=color.red, title="BB Lower")
+
+// Additional Analysis: RSI
+rsiLength = input.int(14, title="RSI Length")
+rsi = ta.rsi(close, rsiLength)
+plot(rsi, color=color.purple, title="RSI")
+hline(70, "Overbought", color=color.red)
+hline(30, "Oversold", color=color.green)
+
+// Ichimoku Cloud
+tenkan = ta.sma((high + low) / 2, 9)
+kijun = ta.sma((high + low) / 2, 26)
+senkouA = ta.sma((tenkan + kijun) / 2, 26)
+senkouB = ta.sma((high + low) / 2, 52)
+plot(tenkan, color=color.red, title="Tenkan")
+plot(kijun, color=color.blue, title="Kijun")
+plot(senkouA, color=color.green, title="Senkou A")
+plot(senkouB, color=color.red, title="Senkou B")
+fill(plot(senkouA, "Senkou A", color=color.green), plot(senkouB, "Senkou B", color=color.red), color.new(color.purple, 80), title="Kumo (Cloud)")
+
+// Signals and Alerts
+crossAbove = ta.crossover(ma1, ma2)
+crossBelow = ta.crossunder(ma1, ma2)
+plotshape(series=crossAbove, location=location.abovebar, color=color.green, style=shape.triangleup, title="Buy Signal")
+plotshape(series=crossBelow, location=location.belowbar, color=color.red, style=shape.triangledown, title="Sell Signal")
+
+alertcondition(crossAbove, title="Buy Alert", message="MA1 has crossed above MA2 - Buy Signal")
+alertcondition(crossBelow, title="Sell Alert", message="MA1 has crossed below MA2 - Sell Signal")
+
+// Strategy Logic: Execute Buy and Sell Orders
+if (crossAbove)
+    strategy.entry("Buy", strategy.long)
+if (crossBelow)
+    strategy.close("Buy")
+
+// Equations for Further Analysis
+// Example: Calculating Momentum
+momentum = close - close[1]
+plot(momentum, color=color.yellow, title="Momentum")
+
+// Example: Calculating Rate of Change (ROC)
+rocLength = input.int(12, title="ROC Length")
+roc = (close - close[rocLength]) / close[rocLength] * 100
+plot(roc, color=color.black, title="Rate of Change (ROC)")
+
+// Display Summary Label
+var label summaryLabel = label.new(x=bar_index, y=na, text="", xloc=xloc.bar_index, yloc=yloc.price, color=color.green, textcolor=color.white, size=size.small)
+if (bar_index % 10 == 0)  // Update label every 10 bars
+    label.set_xy(summaryLabel, bar_index, high)
+    label.set_text(summaryLabel, "Short MA: " + str.tostring(ma1) + "\nLong MA: " + str.tostring(ma2) + "\nRSI: " + str.tostring(rsi) + "\nMomentum: " + str.tostring(momentum) + "\nROC: " + str.tostring(roc))
+
+// Plot title for the indicator
+plot(close, title="Enhanced Starlight Analysis Strategy", color=color.white)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/453237
+
+> Last Modified
+
+2024-06-03 11:05:44

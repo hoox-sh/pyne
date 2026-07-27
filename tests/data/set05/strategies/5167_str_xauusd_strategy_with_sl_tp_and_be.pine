@@ -1,0 +1,59 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/移动平均线交叉金策略Moving-Average-Crossover-Gold-Strategy.md
+// content_hash: eb0c762d031b98a4
+// collected: 2026-07-27
+strategy("XAUUSD Strategy with SL, TP, and BE", shorttitle="EA", overlay=true)
+
+// Define strategy parameters
+fastLength = input(9, title="Fast EMA Length")
+slowLength = input(21, title="Slow EMA Length")
+stopLossPercent = input(1, title="Stop Loss (%)", minval=0, maxval=5) / 100
+takeProfitPercent = input(2, title="Take Profit (%)", minval=0, maxval=5) / 100
+breakEvenPercent = input(1, title="Break Even (%)", minval=0, maxval=5) / 100
+
+// Calculate EMAs
+fastEMA = ema(close, fastLength)
+slowEMA = ema(close, slowLength)
+
+// Plot EMAs on the chart
+plot(fastEMA, color=color.blue, title="Fast EMA")
+plot(slowEMA, color=color.red, title="Slow EMA")
+
+// Strategy logic
+enterLong = crossover(fastEMA, slowEMA)
+exitLong = crossunder(fastEMA, slowEMA)
+
+enterShort = crossunder(fastEMA, slowEMA)
+exitShort = crossover(fastEMA, slowEMA)
+
+// Calculate stop loss, take profit, and break-even levels
+longStopLoss = close * (1 - stopLossPercent)
+longTakeProfit = close * (1 + takeProfitPercent)
+shortStopLoss = close * (1 + stopLossPercent)
+shortTakeProfit = close * (1 - takeProfitPercent)
+
+longBreakEven = close * (1 + breakEvenPercent)
+shortBreakEven = close * (1 - breakEvenPercent)
+
+// Execute strategy with stop loss, take profit, and break-even
+strategy.entry("Long", strategy.long, when = enterLong)
+strategy.exit("Take Profit/Stop Loss Long", from_entry="Long", profit = longTakeProfit, loss = longStopLoss)
+
+strategy.entry("Short", strategy.short, when = enterShort)
+strategy.exit("Take Profit/Stop Loss Short", from_entry="Short", profit = shortTakeProfit, loss = shortStopLoss)
+
+// Move stop loss to break even when price reaches break-even level
+strategy.exit("Break Even Long", from_entry="Long", loss = longBreakEven)
+strategy.exit("Break Even Short", from_entry="Short", loss = shortBreakEven)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/436773
+
+> Last Modified
+
+2023-12-27 15:56:12

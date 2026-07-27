@@ -1,0 +1,55 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/卖涨回落策略Sell-the-Rallies-Strategy.md
+// content_hash: d2d55502a273e2db
+// collected: 2026-07-27
+strategy("Sell the Rallies", overlay=true, initial_capital=212, commission_type=strategy.commission.percent, commission_value=0, pyramiding=2)
+
+// Backtest dates
+fromMonth = input(1, "From Month")
+fromDay = input(10, "From Day")
+fromYear = input(2020, "From Year")
+thruMonth = input(2, "Thru Month")
+thruDay = input(21, "Thru Day")
+thruYear = input(2024, "Thru Year")
+
+// Define window of time for backtest
+start = timestamp(fromYear, fromMonth, fromDay, 00, 00)
+finish = timestamp(thruYear, thruMonth, thruDay, 23, 59)
+withinWindow() => true
+
+inp_lkb = input(1, "Lookback Period")
+
+// Calculate percentage change
+perc_change(lkb) =>
+    overall_change = ((close - ta.valuewhen(withinWindow(), close, lkb)) / ta.valuewhen(withinWindow(), close, lkb)) * 100
+
+// Call the function
+overall = perc_change(inp_lkb)
+
+// Entry
+rally = input(2, "Rally")
+
+if ta.crossover(overall, rally) and withinWindow()
+    strategy.entry("Short", strategy.short)
+
+// Exit
+stopLoss = input(2, "Stop Loss (%)") / 100
+takeProfit = input(2, "Take Profit (%)") / 100
+
+shortStopPrice  = strategy.position_avg_price * (1 + stopLoss)
+shortTakeProfit = strategy.position_avg_price * (1 - takeProfit)
+
+strategy.exit("Exit", "Short", stop=shortStopPrice, limit=shortTakeProfit)
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/442926
+
+> Last Modified
+
+2024-02-27 14:18:57

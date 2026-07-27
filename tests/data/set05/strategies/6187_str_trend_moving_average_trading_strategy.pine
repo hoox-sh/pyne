@@ -1,0 +1,97 @@
+//@version=2
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/趋势均线交易策略Trend-Moving-Average-Trading-Strategy.md
+// content_hash: 26487848b0d117f2
+// collected: 2026-07-27
+strategy(title = "Noro's Trend MAs Strategy v2.3", shorttitle = "Trend MAs str 2.3", overlay=true, default_qty_type = strategy.percent_of_equity, default_qty_value=100.0, pyramiding=0)
+
+//Settings
+needlong = input(true, "long")
+needshort = input(true, "short")
+needstops = input(false, "stops")
+stoppercent = input(5, defval = 5, minval = 1, maxval = 50, title = "Stop, %")
+usefastsma = input(true, "Use fast MA Filter")
+fastlen = input(5, defval = 5, minval = 1, maxval = 50, title = "fast MA Period")
+slowlen = input(21, defval = 20, minval = 2, maxval = 200, title = "slow MA Period")
+bars = input(2, defval = 2, minval = 0, maxval = 3, title = "Bars Q")
+needbg = input(false, defval = false, title = "Need trend Background?")
+needex = input(true, defval = true, title = "Need extreme? (crypto/fiat only!!!)")
+fromyear = input(1900, defval = 1900, minval = 1900, maxval = 2100, title = "From Year")
+toyear = input(2100, defval = 2100, minval = 1900, maxval = 2100, title = "To Year")
+frommonth = input(01, defval = 01, minval = 01, maxval = 12, title = "From Month")
+tomonth = input(12, defval = 12, minval = 01, maxval = 12, title = "To Month")
+fromday = input(01, defval = 01, minval = 01, maxval = 31, title = "From day")
+today = input(31, defval = 31, minval = 01, maxval = 31, title = "To day")
+
+src = close
+
+//PriceChannel 1
+lasthigh = highest(src, slowlen)
+lastlow = lowest(src, slowlen)
+center = (lasthigh + lastlow) / 2
+
+//PriceChannel 2
+lasthigh2 = highest(src, fastlen)
+lastlow2 = lowest(src, fastlen)
+center2 = (lasthigh2 + lastlow2) / 2
+
+//Trend
+trend = low > center and low[1] > center[1] ? 1 : high < center and high[1] < center[1] ? -1 : trend[1]
+
+//Bars
+bar = close > open ? 1 : close < open ? -1 : 0
+redbars = bars == 0 ? 1 : bars == 1 and bar == -1 ? 1 : bars == 2 and bar == -1 and bar[1] == -1 ? 1 : bars == 3 and bar == -1 and bar[1] == -1 and bar[2] == -1 ? 1 : 0
+greenbars = bars == 0 ? 1 : bars == 1 and bar == 1 ? 1 : bars == 2 and bar == 1 and bar[1] == 1 ? 1 : bars == 3 and bar == 1 and bar[1] == 1 and bar[2] == 1 ? 1 : 0
+
+//Fast RSI
+fastup = rma(max(change(close), 0), 2)
+fastdown = rma(-min(change(close), 0), 2)
+fastrsi = fastdown == 0 ? 100 : fastup == 0 ? 0 : 100 - (100 / (1 + fastup / fastdown))
+
+//CryptoBottom
+mac = sma(close, 10)
+len = abs(close - mac)
+sma = sma(len, 100)
+max = max(open, close)
+min = min(open, close)
+
+//Signals
+up1 = trend == 1 and (low < center2 or usefastsma == false) and redbars == 1
+dn1 = trend == -1 and (high > center2 or usefastsma == false) and greenbars == 1
+up2 = high < center and high < center2 and bar == -1 and needex
+dn2 = low > center and low > center2 and bar == 1 and needex
+up3 = close < open and len > sma * 3 and min < min[1] and fastrsi < 10 ? 1 : 0
+
+//Lines
+plot(center2, color = red, linewidth = 3, transp = 0, title = "Fast MA")
+plot(center, color = blue, linewidth = 3, transp = 0, title = "Slow MA")
+
+//Background
+col = needbg == false ? na : trend == 1 ? lime : red
+bgcolor(col, transp = 80)
+
+//Trading
+stoplong = up1 == 1 and needstops == true ? close - (close / 100 * stoppercent) : stoplong[1]
+stopshort = dn1 == 1 and needstops == true ? close + (close / 100 * stoppercent) : stopshort[1]
+
+if up1 or up2 or up3
+    strategy.entry("Long", strategy.long, needlong == false ? 0 : na, when=(time > timestamp(fromyear, frommonth, fromday, 00, 00) and time < timestamp(toyear, tomonth, today, 23, 59)))
+    strategy.exit("Stop Long", "Long", stop = stoplong)
+
+if dn1
+    strategy.entry("Short", strategy.short, needshort == false ? 0 : na, when=(time > timestamp(fromyear, frommonth, fromday, 00, 00) and time < timestamp(toyear, tomonth, today, 23, 59)))
+    strategy.exit("Stop Short", "Short", stop = stopshort)
+    
+if time > timestamp(toyear, tomonth, today, 23, 59)
+    strategy.close_all()
+    
+```
+
+> Detail
+
+https://www.fmz.com/strategy/427506
+
+> Last Modified
+
+2023-09-21 20:34:43

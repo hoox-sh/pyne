@@ -1,0 +1,88 @@
+//@version=3
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/MA Crossover Strategy with MA Turning Point Exits + ADX filter.pine
+// content_hash: 22c7bfcf054902a3
+// collected: 2026-07-27
+//study(title="MA Crossover Strategy", overlay = true)
+strategy("MA Crossover Strategy with MA Turning Point Exits", overlay=true)
+src = input(open, title="Source")
+price = security(tickerid, period, src)
+ma1 = input(5, title="1st MA Length")
+type1 = input("HMA", "1st MA Type", options=["SMA", "EMA", "HMA"])
+ma2 = input(7, title="2nd MA Length")
+type2 = input("HMA", "2nd MA Type", options=["SMA", "EMA", "HMA"])
+adxlen = input(14, title="ADX Smoothing")
+dilen = input(14, title="DI Length")
+adxthreshold = input(20, title="ADX threshold")
+dirmov(len) =>
+    up = change(high)
+    down = -change(low)
+    plusDM = na(up) ? na : (up > down and up > 0 ? up : 0)
+    minusDM = na(down) ? na : (down > up and down > 0 ? down : 0)
+    truerange = rma(tr, len)
+    plus = fixnan(100 * rma(plusDM, len) / truerange)
+    minus = fixnan(100 * rma(minusDM, len) / truerange)
+    [plus, minus]
+adx(dilen, adxlen) =>
+    [plus, minus] = dirmov(dilen)
+    sum = plus + minus
+    adx = 100 * rma(abs(plus - minus) / (sum == 0 ? 1 : sum), adxlen)
+    
+sig = adx(dilen, adxlen)
+//study("Average Directional Index", shorttitle="ADX", format=format.price, precision=2, resolution="")
+//plot(sig, color=color.red, title="ADX")
+f_hma(_src, _length)=>
+    _return = wma((2*wma(_src, _length/2))-wma(_src, _length), round(sqrt(_length)))
+price1 = if (type1 == "SMA")
+    sma(price, ma1)
+else
+    if (type1 == "EMA")
+        ema(price, ma1)
+    else
+        f_hma(price, ma1)
+    
+price2 = if (type2 == "SMA")
+    sma(price, ma2)
+else
+    if (type2 == "EMA")
+        ema(price, ma2)
+    else
+        f_hma(price, ma2)
+//plot(series=price, style=line,  title="Price", color=black, linewidth=1, transp=0)
+plot(series=price1, style=line,  title="1st MA", color=blue, linewidth=2, transp=0)
+plot(series=price2, style=line, title="2nd MA", color=green, linewidth=2, transp=0)
+//longCondition = price1> price2
+longCondition = price1> price2 and sig > adxthreshold
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+shortCondition = price1 < price2 and sig > adxthreshold
+if (shortCondition)
+    strategy.entry("Short", strategy.short)
+lookback1 = input(1, "Lookback 1")
+roc1 = roc(price1, lookback1)
+ma1up = false
+ma1down = false
+ma2up = false
+ma2down = false
+ma1up := nz(ma1up[1])
+ma1down := nz(ma1down[1])
+ma2up := nz(ma2up[1])
+ma2down := nz(ma2down[1])
+trendStrength1 = input(2, title="Minimum slope magnitude * 100", type=float) * 0.01
+if crossover(roc1, trendStrength1)
+    ma1up := true
+    ma1down := false
+    
+if crossunder(roc1, -trendStrength1) 
+    ma1up := false
+    ma1down := true
+shortexitCondition = ma1up and ma1down[1] and sig > adxthreshold
+if (shortexitCondition)
+    strategy.close("Short")
+longexitCondition = ma1down and ma1up[1] and sig > adxthreshold
+if (longexitCondition)
+    strategy.close("Long")
+    
+    
+Expand (102 lines)

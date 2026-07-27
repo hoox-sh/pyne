@@ -1,0 +1,10 @@
+//@version=6
+// set05 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block130
+// content_hash: d0c194acef43bfc3
+// collected: 2026-07-27
+indicator("line.get_x1")
+my_line = line.new(time, open, time + 60 * 60 * 24, close, xloc=xloc.bar_time)
+a = line.get_x1(my_line)
+plot(time - line.get_x1(my_line)) //draws zero plot

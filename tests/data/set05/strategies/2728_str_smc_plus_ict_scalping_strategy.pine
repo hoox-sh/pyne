@@ -1,0 +1,51 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/智能机构交易结构动量策略-Intelligent-Institutional-Trading-Structure-Momentum-Strategy.md
+// content_hash: 83c1ed0bd7ccbc9c
+// collected: 2026-07-27
+strategy("SMC + ICT Scalping Strategy", overlay=true)
+
+// إعداد المتوسطات المتحركة
+ema_fast = ta.ema(close, 9)
+ema_slow = ta.ema(close, 21)
+
+// تحديد الهيكل السوقي (الاتجاه)
+bullish_structure = ta.crossover(ema_fast, ema_slow)
+bearish_structure = ta.crossunder(ema_fast, ema_slow)
+
+// تحديد مناطق السيولة (Liquidity Zones)
+liquidity_high = ta.highest(high, 50)
+liquidity_low = ta.lowest(low, 50)
+
+// تحديد الشموع المؤسسية (Institutional Candles)
+is_institutional_bullish = close > open and volume > ta.sma(volume, 50)
+is_institutional_bearish = close < open and volume > ta.sma(volume, 50)
+
+// إشارة الدخول
+long_entry = bullish_structure and is_institutional_bullish
+short_entry = bearish_structure and is_institutional_bearish
+
+// تنفيذ صفقات الشراء
+if (long_entry)
+    strategy.entry("Long", strategy.long, stop=liquidity_low, comment="BUY")
+
+// تنفيذ صفقات البيع
+if (short_entry)
+    strategy.entry("Short", strategy.short, stop=liquidity_high, comment="SELL")
+
+// رسم المتوسطات المتحركة
+plot(ema_fast, color=color.blue, linewidth=1)
+plot(ema_slow, color=color.red, linewidth=1)
+
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/468321
+
+> Last Modified
+
+2024-09-26 15:35:59

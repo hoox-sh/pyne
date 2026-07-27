@@ -1,0 +1,39 @@
+//@version=4
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/HiLo Extension.pine
+// content_hash: c41a8adf50226fde
+// collected: 2026-07-27
+strategy(title="HiLoExtn", shorttitle="HiLoExtn", overlay=true)
+T1 = time(timeframe.period, "0915-0916")
+Y = bar_index
+Z1 = valuewhen(T1, bar_index, 0)
+L = Y-Z1 + 1
+tim = time(timeframe.period, "1015-1510")
+exitt= time(timeframe.period, "1511-1530")
+//VWMA 20
+plot(vwma(close,20), color=color.blue)
+length = L
+lower = lowest(length)
+upper = highest(length)
+u = plot(upper, "Upper", color=color.green)
+l = plot(lower, "Lower", color=color.red)
+//**** RSI
+len = 14
+src = close
+up = rma(max(change(src), 0), len)
+down = rma(-min(change(src), 0), len)
+rsi = down == 0 ? 100 : up == 0 ? 0 : 100 - (100 / (1 + up / down))
+// Buy above Buy Line
+if ( (upper==high) and rsi>50 and   tim and close>open )
+    strategy.entry("Buy", strategy.long, comment="Buy")
+    
+// Exit Long Below Vwap
+strategy.close("Buy", when = close < vwma(close,20) or exitt) 
+// Sell above Buy Line
+if ((lower==low) and rsi<50 and   tim  and close<open)
+    strategy.entry("Sell", strategy.short, comment="Sell")
+    
+// Exit Short above Vwap    
+strategy.close("Sell", when = close > vwma(close,20) or exitt)
+Expand (55 lines)

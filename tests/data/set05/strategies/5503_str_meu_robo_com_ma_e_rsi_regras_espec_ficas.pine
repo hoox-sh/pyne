@@ -1,0 +1,42 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/均线穿越RSI金叉死叉交易策略SMA-Crossing-RSI-Golden-Cross-Death-Cross-Trading-Strategy.md
+// content_hash: 4a2f67d481ae2950
+// collected: 2026-07-27
+strategy("Meu Robo com MA e RSI (Regras Específicas)", overlay=true)
+
+// Configuração da Média Móvel
+lengthMA = 200
+sma200 = sma(close, lengthMA)
+
+// Configuração do RSI
+lengthRSI = 14
+rsiValue = rsi(close, lengthRSI)
+overBought = 70
+overSold = 30
+
+// Condições para compra
+longCondition = close < sma200 and crossover(rsiValue, overSold)
+if (longCondition)
+    strategy.entry("Compra", strategy.long)
+
+// Condições para venda
+shortCondition = close > sma200 and crossunder(rsiValue, overBought)
+if (shortCondition)
+    strategy.close("Compra")
+
+// Plot das Médias Móveis e sinais
+plot(sma200, title="SMA 200", color=color.blue)
+plotshape(series=longCondition, title="Sinal de Compra", location=location.belowbar, color=color.green, style=shape.labelup, text="Compra")
+plotshape(series=shortCondition, title="Sinal de Venda", location=location.abovebar, color=color.red, style=shape.labeldown, text="Venda")
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/430039
+
+> Last Modified
+
+2023-10-24 14:33:51

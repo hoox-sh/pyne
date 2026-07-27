@@ -1,0 +1,56 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双均线趋势判断与波动率止损策略-Dual-Moving-Average-Trend-Detection-with-Volatility-Based-Stop-Loss-Strategy.md
+// content_hash: 549d86cd52b5b3e1
+// collected: 2026-07-27
+strategy("EMA 9/21 + ATR SL Strategy", shorttitle="EMA+ATR", overlay=true)
+
+// ===== Input Parameters ===== //
+emaFastLen  = input.int(9,  "Fast EMA")
+emaSlowLen  = input.int(21, "Slow EMA")
+atrLen      = input.int(14, "ATR Length")
+atrMult     = input.float(1.5, "ATR Multiplier")
+
+// ===== EMA Calculation ===== //
+emaFast = ta.ema(close, emaFastLen)
+emaSlow = ta.ema(close, emaSlowLen)
+
+// ===== ATR Calculation ===== //
+atrValue = ta.atr(atrLen)
+
+// ===== Conditions for Entry ===== //
+longCondition  = ta.crossover(emaFast, emaSlow)   // Long when 9 EMA crosses above 21 EMA
+shortCondition = ta.crossunder(emaFast, emaSlow)  // Short when 9 EMA crosses below 21 EMA
+
+// ===== Entry Commands ===== //
+if longCondition
+    strategy.entry("Long", strategy.long)
+
+if shortCondition
+    strategy.entry("Short", strategy.short)
+
+// ===== Set Stop-Loss Using ATR ===== //
+//
+// For LONG: stop-loss = entry price - (atrMult * ATR)
+// For SHORT: stop-loss = entry price + (atrMult * ATR)
+//
+// Note: You can adjust the atrMult values based on market volatility
+//
+if strategy.position_size > 0
+    // If holding LONG, define stop-loss below the entry price
+    strategy.exit("Exit Long", "Long", stop = strategy.position_avg_price - atrMult * atrValue)
+
+if strategy.position_size < 0
+    // If holding SHORT, define stop-loss above the entry price
+    strategy.exit("Exit Short", "Short", stop = strategy.position_avg_price + atrMult * atrValue)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/482669
+
+> Last Modified
+
+2025-02-27 17:57:02

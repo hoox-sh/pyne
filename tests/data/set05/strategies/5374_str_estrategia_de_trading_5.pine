@@ -1,0 +1,49 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/趋势追踪移动平均策略Trend-Following-Moving-Average-Strategy.md
+// content_hash: 960ef8c1ad9aac37
+// collected: 2026-07-27
+strategy("Estrategia de Trading", overlay=true)
+
+// Definir las EMA y SMA
+ema50 = ema(close, 50)
+sma100 = sma(close, 100)
+
+// Definir el RSI
+rsiLength = input(14, title="RSI Length")
+overbought = input(70, title="Overbought Level")
+oversold = input(30, title="Oversold Level")
+rsi = rsi(close, rsiLength)
+
+// Condiciones de Compra
+buyCondition = crossover(ema50, sma100) // EMA de 50 cruza SMA de 100 hacia arriba
+
+// Condiciones de Venta
+sellCondition = crossunder(ema50, sma100) // EMA de 50 cruza SMA de 100 hacia abajo
+
+// Salida de Operaciones
+exitBuyCondition = rsi >= overbought // RSI en niveles de sobrecompra
+exitSellCondition = rsi <= oversold // RSI en niveles de sobreventa
+
+// Lógica de Trading
+if (buyCondition)
+    strategy.entry("Buy", strategy.long)
+    
+if (sellCondition)
+    strategy.entry("Sell", strategy.short)
+    
+if (exitBuyCondition)
+    strategy.close("Buy")
+    
+if (exitSellCondition)
+    strategy.close("Sell")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/443244
+
+> Last Modified
+
+2024-03-01 12:21:13

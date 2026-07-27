@@ -1,0 +1,52 @@
+//@version=3
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/MACD趋势追踪策略MACD-Trend-Following-Strategy.md
+// content_hash: 0dc2b676113b4855
+// collected: 2026-07-27
+strategy("MACD")
+
+// Getting inputs
+fastLength = input(title="Fast Length",  defval=12)
+slowlength = input(title="Slow Length",  defval=26)
+src = input(title="Source",  defval=close)
+signalLength = input(title="Signal Smoothing",  minval = 1, maxval = 50, defval = 9)
+
+// Calculating
+macd = ema(close, fastLength) - ema(close, slowlength)
+signal = ema(macd, signalLength)
+delta = macd - signal
+
+// Plot colors
+col_grow_above = #26A69A
+col_grow_below = #FFCDD2
+col_fall_above = #B2DFDB
+col_fall_below = #EF5350
+col_macd = #0094ff
+col_signal = #ff6a00
+
+// Plot histogram
+plot(delta, title="Histogram", style=columns, color=(delta>=0 ? (delta[1] < delta ? col_grow_above : col_fall_above) : (delta[1] < delta ? col_grow_below : col_fall_below) ), transp=0 )
+plot(macd, title="MACD", color=col_macd, transp=0)
+plot(signal, title="Signal", color=col_signal, transp=0)
+
+// Plot orders
+if (crossover(delta, 0))
+    strategy.entry("buy", strategy.long)
+if (crossunder(delta, 0))
+    strategy.entry("sell", strategy.short)
+
+
+
+
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/433124
+
+> Last Modified
+
+2023-11-24 15:51:39

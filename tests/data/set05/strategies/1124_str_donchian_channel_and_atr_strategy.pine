@@ -1,0 +1,97 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多周期唐奇安通道与ATR动态间隔波动跟踪交易策略-Multi-Timeframe-Donchian-Channel-and-ATR-Dynamic-Interval-Volatility-Following-Trading-Strategy.md
+// content_hash: 1f064c0850b6f0a7
+// collected: 2026-07-27
+strategy("Donchian Channel and ATR Strategy", overlay=true, currency="USDT", commission_type=strategy.commission.percent, commission_value=0.1)
+
+// 用pine编写策略，实时执行。
+// 获得suiusdt合约的4小时K线，用4小时k线20周期，计算唐奇安通道 和ATR。
+// 最新的 ATR * 2 为间隔。每次买卖金额都是5.1usdt，根据金额计算交易数量。
+
+// 策略基于1分钟k线执行。
+// 开始时，baseprice为空。
+// 如果 唐奇安通道中轨 - 当前价格  > 间隔， 则市价买入5.1usdt，记录成交价格为 baseprice。
+// 重新计算计算唐奇安通道 和ATR, 还是使用4小时K线的20个周期。
+
+// baseprice不为空，
+// 如果 baseprice - 当前价格  > 间隔， 则市价买入5.1usdt，记录成交价格为 baseprice；
+// 如果 当前价格 - baseprice > 间隔， 则市价卖出5.1usdt，记录成交价格为 baseprice。
+// 卖出时，判断仓位是否足够卖出，不够则卖出剩余的仓位。卖出后，如果没有仓位了，设置baseprice为空。
+
+// 标签和日志记录：买还是卖（buy/sell），初次买入标记为initBuy，价格，间隔，买入的数量，买入后仓位的总数量。
+// 用不同颜色区分买卖。
+
+
+
+// 获取4小时K线数据
+resolution_4h = "240"  // 4小时K线
+high_4h = request.security(syminfo.tickerid, resolution_4h, high)
+low_4h = request.security(syminfo.tickerid, resolution_4h, low)
+close_4h = request.security(syminfo.tickerid, resolution_4h, close)
+
+// 计算唐奇安通道和ATR（基于4小时K线）
+length = 20
+donchian_upper = ta.highest(high_4h, length)
+donchian_lower = ta.lowest(low_4h, length)
+donchian_middle = ta.sma(close_4h, length)
+atr_value = ta.atr(length)  // 使用4小时K线计算ATR
+
+// 设置交易参数
+trade_amount = 5.1  // 每次交易金额（USDT）
+var float baseprice = na  // 当前基准价格
+var float total_position_qty = 0  // 总仓位数量
+
+// 日志记录函数
+log_trade(action, price, interval, qty, total_qty, color) =>
+    log_text = str.format("{0} @ {1} | Interval: {2} | Qty: {3} | Total Qty: {4}", 
+                          action, str.tostring(price), str.tostring(interval), 
+                          str.tostring(qty), str.tostring(total_qty))
+
+
+// 策略逻辑
+interval = atr_value * 2  // 间隔 = ATR * 2
+if (na(baseprice))
+    if (donchian_middle - close > interval)  // 使用1分钟K线的close价格判断
+        qty = trade_amount / close  // 计算交易数量
+        strategy.entry("Buy", strategy.long, qty=qty)
+        baseprice := close  // 更新基准价格
+        total_position_qty += qty  // 更新总仓位数量
+        log_trade("initBuy", baseprice, interval, qty, total_position_qty, color.green)  // 记录日志和标签
+
+else
+    if (baseprice - close > interval)  // 使用1分钟K线的close价格判断
+        qty = trade_amount / close
+        strategy.entry("Buy", strategy.long, qty=qty)
+        baseprice := close
+        total_position_qty += qty
+        log_trade("Buy", baseprice, interval, qty, total_position_qty, color.blue)
+
+    else if (close - baseprice > interval)
+        if (total_position_qty > 0)
+            qty = trade_amount / close
+            if (total_position_qty >= qty)
+                strategy.close("Buy", qty=qty)
+                total_position_qty -= qty
+                log_trade("Sell", baseprice, interval, qty, total_position_qty, color.red)
+            else
+                strategy.close("Buy")
+                total_position_qty := 0
+                log_trade("Sell (Full Position)", baseprice, interval, total_position_qty, 0, color.red)
+        baseprice := na  // 清空基准价格
+
+// 绘制唐奇安通道和ATR（基于4小时K线）
+plot(donchian_upper, title="Donchian Upper", color=color.blue, linewidth=2)
+plot(donchian_middle, title="Donchian Middle", color=color.orange, linewidth=2)
+plot(donchian_lower, title="Donchian Lower", color=color.blue, linewidth=2)
+plot(atr_value, title="ATR", color=color.red, linewidth=2)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/489150
+
+> Last Modified
+
+2025-04-02 11:05:13

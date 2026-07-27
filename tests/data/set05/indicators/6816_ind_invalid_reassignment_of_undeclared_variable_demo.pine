@@ -1,0 +1,16 @@
+//@version=6
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/language/variable-declarations.md::variable-declarations.md#block17
+// content_hash: ab8d6b9d92909a3d
+// collected: 2026-07-27
+indicator("Invalid reassignment of undeclared variable demo")
+
+// This operation causes a compilation error.
+// The `myVar` identifier does not refer to a valid variable in this part of the code.
+myVar := 10
+
+// The reassignment operation must occur *after* this declaration.
+int myVar = 0
+
+plot(myVar, "Plotted value", color.teal, 4)

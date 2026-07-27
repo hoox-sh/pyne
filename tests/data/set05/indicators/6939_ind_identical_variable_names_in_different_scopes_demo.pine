@@ -1,0 +1,13 @@
+//@version=6
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/language/variable-declarations.md::variable-declarations.md#block22
+// content_hash: a5a12c0d4abc6b06
+// collected: 2026-07-27
+indicator("Identical variable names in different scopes demo")
+
+//@variable Stores the total number of up bars if `close > open`, and `na` otherwise.
+int risingCount = if close > close[1]
+    // Declare a local variable named `counter` and increment its value.
+    // This variable is a unique entity that exists only in this `if` structure's scope. No other scopes can access it.
+    var int counter = 0

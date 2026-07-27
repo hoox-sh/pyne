@@ -1,0 +1,76 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/自适应趋势跟踪与多重确认交易策略Adaptive-Trend-Following-and-Multi-Confirmation-Trading-Strategy.md
+// content_hash: 92c39fd9c4a2592c
+// collected: 2026-07-27
+strategy("Coral Tides Strategy", shorttitle="CoralTidesStrat", overlay=true)
+
+// === Inputs ===
+dlen = input.int(defval=20, title="Donchian Channel Period", minval=10)
+coralPeriod = input.int(defval=14, title="Coral Trend Period")
+
+// === Functions ===
+// Coral Trend Calculation
+coralTrend(period) =>
+    smooth = (high + low + close) / 3
+    coral = ta.ema(smooth, period)
+    trend = 0
+    trend := close > coral ? 1 : close < coral ? -1 : trend[1]
+    [trend, coral]
+
+// Donchian Trend Calculation
+donchianTrend(len) =>
+    hh = ta.highest(high, len)
+    ll = ta.lowest(low, len)
+    trend = 0
+    trend := close > hh[1] ? 1 : close < ll[1] ? -1 : trend[1]
+    trend
+
+// === Trend Calculation ===
+[coralTrendVal, coralLine] = coralTrend(coralPeriod)
+donchianTrendVal = donchianTrend(dlen)
+
+// === Signal Logic ===
+var int trendState = 0
+buySignal = false
+sellSignal = false
+
+if (coralTrendVal == 1 and donchianTrendVal == 1 and trendState != 1)
+    buySignal := true
+    sellSignal := false
+    trendState := 1
+else if (coralTrendVal == -1 and donchianTrendVal == -1 and trendState != -1)
+    sellSignal := true
+    buySignal := false
+    trendState := -1
+else
+    buySignal := false
+    sellSignal := false
+
+// === Strategy Execution ===
+// Entry Signals
+if (buySignal)
+    strategy.entry("Long", strategy.long)
+if (sellSignal)
+    strategy.entry("Short", strategy.short)
+
+// === Plots ===
+// Coral Trend Line
+plot(coralLine, color=color.green, linewidth=2, title="Coral Trend Line")
+
+// Buy/Sell Signal Labels
+if buySignal
+    label.new(bar_index, low, "BUY", color=color.green, textcolor=color.white, style=label.style_label_down, size=size.normal)
+if sellSignal
+    label.new(bar_index, high, "SELL", color=color.red, textcolor=color.white, style=label.style_label_up, size=size.normal)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/478743
+
+> Last Modified
+
+2025-01-17 16:29:24

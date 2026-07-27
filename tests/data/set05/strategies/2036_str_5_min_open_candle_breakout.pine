@@ -1,0 +1,64 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/五分钟开盘突破ATR动态止盈止损量化交易策略-Five-Minute-Opening-Breakout-Strategy-with-Dynamic-ATR-Based-Stop-Loss-and-Take-Profit.md
+// content_hash: 7b7bf909a39a801b
+// collected: 2026-07-27
+strategy("5-Min Open Candle Breakout", overlay=true)
+
+// Get the current bar's year, month, and day
+currentYear = year
+currentMonth = month
+currentDay = dayofmonth
+
+// Define session start time (adjust based on market)
+sessionStart = timestamp(currentYear, currentMonth, currentDay, 9, 30) // 9:30 AM for NYSE
+
+// Identify the first 5-minute candle
+isFirstCandle = (time >= sessionStart and time < sessionStart + 300000)  // 5 min = 300,000 ms
+
+var float openPrice = na
+var float highPrice = na
+var float lowPrice = na
+
+if isFirstCandle
+    openPrice := open
+    highPrice := high
+    lowPrice := low
+
+// Breakout Conditions
+longEntry = ta.crossover(close, highPrice)
+shortEntry = ta.crossunder(close, lowPrice)
+
+// Define Stop Loss & Take Profit (Ratio 1:1.5)
+slFactor = 1.0  // Stop Loss Multiplier
+tpFactor = 1.5  // Take Profit Multiplier
+
+atrValue = ta.atr(14)  // Fix: Use ta.atr() instead of atr()
+
+longSL = lowPrice - atrValue * slFactor
+longTP = highPrice + (highPrice - lowPrice) * tpFactor
+
+shortSL = highPrice + atrValue * slFactor
+shortTP = lowPrice - (highPrice - lowPrice) * tpFactor
+
+// Execute Trades
+strategy.entry("Long", strategy.long, when=longEntry)
+strategy.exit("Exit Long", from_entry="Long", stop=longSL, limit=longTP)
+
+strategy.entry("Short", strategy.short, when=shortEntry)
+strategy.exit("Exit Short", from_entry="Short", stop=shortSL, limit=shortTP)
+
+// Plot High/Low of First Candle
+plot(highPrice, title="First 5m High", color=color.green, linewidth=2)
+plot(lowPrice, title="First 5m Low", color=color.red, linewidth=2)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/482863
+
+> Last Modified
+
+2025-02-27 17:33:35

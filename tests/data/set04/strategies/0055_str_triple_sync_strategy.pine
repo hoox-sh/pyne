@@ -1,0 +1,61 @@
+//@version=6
+// set04 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多重技术指标动态交叉趋势识别策略-Dynamic-Multi-Indicator-Trend-Recognition-Strategy-with-Triple-Sync-Analysis.md
+// content_hash: 5074ddde4e7e0b42
+// collected: 2026-07-27
+strategy("Triple Sync Strategy", overlay=false)
+ 
+// Inputs
+length    = input.int(14, "Base Period")
+dynLen    = input.int(100, "Dynamic Lookback")
+ 
+// DMI/ADX
+dmiPlus   = ta.rma(math.max(ta.change(high), 0), length)
+dmiMinus  = ta.rma(math.max(-ta.change(low), 0), length)
+dx        = (math.abs(dmiPlus - dmiMinus) / (dmiPlus + dmiMinus)) * 100
+adx       = ta.rma(dx, length)
+ 
+// Stoch RSI
+rsiValue  = ta.rsi(close, length)
+stochRsi  = (rsiValue - ta.lowest(rsiValue, length)) / (ta.highest(rsiValue, length) - ta.lowest(rsiValue, length))
+ 
+// CCI
+cci       = ta.cci(close, length)
+ 
+// Combined
+snakeLine = (adx + stochRsi * 100 + cci) / 3
+ 
+// Dynamic Levels
+sh = ta.highest(snakeLine, dynLen)
+sl = ta.lowest(snakeLine, dynLen)
+dr = sh - sl
+upperLevel = sl + dr * 0.8
+lowerLevel = sl + dr * 0.2
+ 
+// Plots
+plot(snakeLine, color=color.blue, linewidth=2)
+plot(upperLevel, color=color.red)
+plot(lowerLevel, color=color.green)
+ 
+// Conditions
+longCond  = ta.crossover(snakeLine, lowerLevel)
+shortCond = ta.crossunder(snakeLine, upperLevel)
+ 
+// Strategy Entries/Exits
+if longCond
+    strategy.close("Short")
+    strategy.entry("Long", strategy.long)
+if shortCond
+    strategy.close("Long")
+    strategy.entry("Short", strategy.short)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/483038
+
+> Last Modified
+
+2025-02-21 10:31:53

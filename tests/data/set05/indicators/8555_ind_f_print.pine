@@ -1,0 +1,16 @@
+//@version=4
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/v4/debugging.md::debugging.md#block7
+// content_hash: da5a506d903d3269
+// collected: 2026-07-27
+study("f_print()", "", true)
+f_print(_text) =>
+    // Create label on the first bar.
+    var _label = label.new(bar_index, na, _text, xloc.bar_index, yloc.price, color(na), label.style_none, color.gray, size.large, text.align_left)
+    // On next bars, update the label's x and y position, and the text it displays.
+    label.set_xy(_label, bar_index, highest(10)[1])
+    label.set_text(_label, _text)
+
+f_print("Multiplier = " + tostring(timeframe.multiplier) + "\nPeriod = " + timeframe.period + "\nHigh = " + tostring(high))
+f_print("Hello world!\n\n\n\n")

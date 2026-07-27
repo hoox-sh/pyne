@@ -1,0 +1,14 @@
+//@version=5
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/v5/language/matrices.md::matrices.md#block19
+// content_hash: b04a8f815e84278d
+// collected: 2026-07-27
+indicator("for...in loop demo", "Average OHLC", overlay = true)
+
+//@variable The number of terms in the average.
+int length = input.int(20, "Length", minval = 1)
+
+//@function Calculates the average of each matrix row.
+method rowWiseAvg(matrix<float> this) =>
+    //@variable An array with elements corresponding to each row's average.

@@ -1,0 +1,58 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于SMA和ATR的跟踪止损策略SMA-ATR-Dynamic-Trailing-Stop-Strategy.md
+// content_hash: 96f88312323f3a7c
+// collected: 2026-07-27
+strategy("SMA+ATR Strategie", overlay=true)
+
+// Benutzer-Inputs für SMA, ATR und die Anzeigeoption
+smaLength = input(200, title="SMA Länge")
+atrLength = input(14, title="ATR Länge")
+showSMAandATR = input(true, title="Zeige SMA und ATR-Bänder")
+
+// Berechnung von SMA und ATR
+sma = ta.sma(close, smaLength)
+atr = ta.atr(atrLength)
+
+// Kauf- und Verkaufslogik basierend auf SMA und ATR
+buyCondition = close > sma + atr
+sellCondition = close < sma - atr
+
+// Variable zum Speichern des Eintrittspreises
+var float entryPrice = na
+
+// Kauf- und Verkaufssignale
+if (buyCondition)
+    strategy.entry("Buy", strategy.long)
+    entryPrice := close // Speichere den Eintrittspreis
+
+if (sellCondition)
+    // Nur wenn ein Kauf stattgefunden hat
+    if not na(entryPrice)
+        // Berechne die Performance seit dem Kaufsignal
+        performanceSinceBuy = ((close - entryPrice) / entryPrice) * 100
+        // Anzeigen der Performance
+        // Wähle die Box-Farbe basierend auf dem Vorzeichen der Performance
+        plColor = performanceSinceBuy >= 0 ? color.green : color.red
+        // Anzeigen der Performance in der entsprechenden Farbe
+        plBox = "P/L: " + str.tostring(performanceSinceBuy, "#.##") + "%"
+        label.new(bar_index, high, text=plBox, color=plColor, textcolor=color.white, style=label.style_label_center, yloc=yloc.price)
+        
+    // Schließe den Trade und setze den Eintrittspreis zurück
+    strategy.close("Buy")
+    entryPrice := na
+
+// Optionale Anzeige von SMA und ATR-Band
+plot(showSMAandATR ? sma : na, color=color.blue, title="SMA 200")
+plot(showSMAandATR ? sma + atr : na, color=color.green, title="SMA 200 + ATR")
+plot(showSMAandATR ? sma - atr : na, color=color.red, title="SMA 200 - ATR")
+```
+
+> Detail
+
+https://www.fmz.com/strategy/441143
+
+> Last Modified
+
+2024-02-06 10:06:29

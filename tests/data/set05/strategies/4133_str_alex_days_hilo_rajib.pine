@@ -1,0 +1,19 @@
+//@version=4
+// set05 corpus entry
+// source_repo: hasnocool-tradingview-pine-scripts
+// source_path: hasnocool-tradingview-pine-scripts/Alex Days HiLo Rajib.pine
+// content_hash: 174c6d7395b1a68c
+// collected: 2026-07-27
+strategy(title="Alex Days HiLo Rajib", overlay = true)
+length = input(20)
+hh = highest(high, length)
+ll = lowest(low, length)
+plot(hh[1], color=color.green, title="HH")
+plot(ll[1], color=color.red, title="LL")
+//bgColour = (high > hh) ? color.blue :
+    // (low < ll) ? color.yellow :
+    // na
+//bgcolor(color=bgColour, transp=90)
+plotshape(high>hh[1] ? hh + 5:na, color=#FF0000,location=location.absolute, style=shape.arrowdown)
+plotshape(low< ll[1] ? ll-5: na, color=#00FF00, location=location.absolute, style=shape.arrowup)
+Expand (21 lines)

@@ -1,0 +1,9 @@
+//@version=4
+// set05 corpus entry
+// source_repo: pinescript-agents
+// source_path: pinescript-agents/docs/docs/v4/essential/sessions-and-time-functions.md::sessions-and-time-functions.md#block3
+// content_hash: 3fee0a45bc735f45
+// collected: 2026-07-27
+study("new 30 min bar")
+is_newbar(res) =>
+    t = time(res)

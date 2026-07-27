@@ -1,0 +1,66 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/克特纳通道止盈止损策略Keltner-Channel-Stop-Loss-Take-Profit-Strategy.md
+// content_hash: 973ebb634ee7c9b3
+// collected: 2026-07-27
+strategy(title="Optimized Keltner Channels Strategy for BTC", overlay=true)
+length = input(9, minval=1)
+mult = input(1.0, "Multiplier")
+src = input(close, title="Source")
+exp = input(true, "Use Exponential MA")
+BandsStyle = input("Average True Range", options = ["Average True Range", "True Range", "Range"], title="Bands Style")
+atrlength = input(18, "ATR Length")
+sl = input(defval=22, minval=0, title="Stop Loss (%)")
+tp = input(defval=21, minval=0, title="Take Profit (%)")
+
+esma(source, length)=>
+	s = sma(source, length)
+	e = ema(source, length)
+	exp ? e : s
+ma = esma(src, length)
+rangema = BandsStyle == "True Range" ? rma(tr(true), length) : BandsStyle == "Average True Range" ? atr(atrlength) : rma(high - low, length)
+upper = ma + rangema * mult
+lower = ma - rangema * mult
+c = color.blue
+u = plot(upper, color=color.green, title="Upper")
+plot(ma, color=#0094FF, title="Basis")
+l = plot(lower, color=color.red, title="Lower")
+fill(u, l, color=#0094FF, transp=95, title="Background")
+crossUpper = crossover(src, upper)
+crossLower = crossunder(src, lower)
+bprice = 0.0
+bprice := crossUpper ? close+syminfo.mintick : nz(bprice[1])
+sprice = 0.0
+sprice := crossLower ? close-syminfo.mintick : nz(sprice[1])
+crossBcond = false
+crossBcond := crossUpper ? true
+     : na(crossBcond[1]) ? false : crossBcond[1]
+crossScond = false
+crossScond := crossLower ? true
+     : na(crossScond[1]) ? false : crossScond[1]
+cancelBcond = crossBcond and (src < ma or high >= bprice )
+cancelScond = crossScond and (src > ma or low <= sprice )
+if (cancelBcond)
+	strategy.cancel("KltChLE")
+if (crossUpper)
+	strategy.entry("KltChLE", strategy.long, stop=bprice, comment="Long")
+if (cancelScond)
+	strategy.cancel("KltChSE")
+if (crossLower)
+	strategy.entry("KltChSE", strategy.short, stop=sprice, comment="Short")
+
+strategy.exit("long exit", "KltChLE", profit = close * tp * 0.01 / syminfo.mintick, loss = close * sl * 0.01 / syminfo.mintick)
+strategy.exit("Short exit", "KltChSE", profit = close * tp * 0.01 / syminfo.mintick, loss = close * sl * 0.01 / syminfo.mintick)
+
+plot(bprice, color=color.green)
+plot(sprice, color=color.red)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/426909
+
+> Last Modified
+
+2023-09-15 14:41:46

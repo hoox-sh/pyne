@@ -1,0 +1,72 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/双EMA金叉死叉策略Dual-EMA-Crossover-Strategy.md
+// content_hash: d3e8e5d4974a6622
+// collected: 2026-07-27
+
+strategy("EMA Strategy", shorttitle="EMA Strategy", overlay=true, pyramiding=0, default_qty_type=strategy.percent_of_equity, default_qty_value=100)
+
+
+// === Inputs ===
+// short ma
+maFastSource = input(defval=close, title="Fast MA Source")
+maFastLength = input(defval=3, title="Fast MA Period", minval=1)
+
+// long ma
+maSlowSource = input(defval=close, title="Slow MA Source")
+maSlowLength = input(defval=9, title="Slow MA Period", minval=1)
+
+// invert trade direction
+shorting = input(defval=false, title="Allow Shorting?")
+// risk management
+useStop = input(defval=false, title="Use Initial Stop Loss?")
+slPoints = input(defval=25, title="Initial Stop Loss Points", minval=1)
+useTS = input(defval=false, title="Use Trailing Stop?")
+tslPoints = input(defval=120, title="Trail Points", minval=1)
+useTSO = input(defval=false, title="Use Offset For Trailing Stop?")
+tslOffset = input(defval=20, title="Trail Offset Points", minval=1)
+
+// Messages for buy and sell
+message_buy  = input("Buy message", title="Buy Alert Message")
+message_sell   = input("Sell message", title="Sell Alert Message")
+
+// Calculate start/end date and time condition
+startDate  = input(timestamp("2021-01-01T00:00:00"), type = input.time)
+finishDate = input(timestamp("2021-12-31T00:00:00"), type = input.time)
+ 
+time_cond  = true
+
+// === Vars and Series ===
+fastMA = ema(maFastSource, maFastLength)
+slowMA = ema(maSlowSource, maSlowLength)
+
+plot(fastMA, color=color.blue)
+plot(slowMA, color=color.purple)
+
+goLong() =>
+    crossover(fastMA, slowMA)
+killLong() =>
+    crossunder(fastMA, slowMA)
+strategy.entry("Buy", strategy.long, when=goLong() and time_cond, alert_message = message_buy)
+strategy.close("Buy", when=killLong() and time_cond, alert_message = message_sell)
+
+// Shorting if using
+if shorting
+    strategy.entry("Sell", strategy.short, when=killLong() and time_cond, alert_message = message_sell)
+    strategy.close("Sell", when=goLong() and time_cond, alert_message = message_buy)
+
+if useStop
+    strategy.exit("XLS", from_entry="Buy", stop=strategy.position_avg_price / 1.08)
+    strategy.exit("XSS", from_entry="Sell", stop=strategy.position_avg_price * 1.08)
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/429389
+
+> Last Modified
+
+2023-10-16 16:15:38

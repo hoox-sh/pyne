@@ -1,0 +1,47 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/基于价格行为的机构交易策略Institutional-Trader-Strategy-Based-on-Price-Action.md
+// content_hash: 6fd019f2b6ea063d
+// collected: 2026-07-27
+strategy("ICT Strategy", overlay=true)
+
+// Input variables
+length = input.int(20, minval=1, title="Order Block Length")
+fairValuePeriod = input.int(60, minval=1, title="Fair Value Period")
+
+// Calculate fair value
+fairValue = ta.sma(close, fairValuePeriod)
+
+// Determine order blocks
+isOrderBlock(high, low) =>
+    highestHigh = ta.highest(high, length)
+    lowestLow = ta.lowest(low, length)
+    absHighLowDiff = highestHigh - lowestLow
+    absCloseFairValueDiff = (close - fairValue)
+    (absCloseFairValueDiff <= 0.382 * absHighLowDiff)
+
+isBuyBlock = isOrderBlock(high, low) and close > fairValue
+isSellBlock = isOrderBlock(high, low) and close < fairValue
+
+// Plot fair value and order blocks
+plot(fairValue, color=color.blue, title="Fair Value")
+plotshape(isBuyBlock, style=shape.triangleup, location=location.belowbar, color=color.green, size=size.small)
+plotshape(isSellBlock, style=shape.triangledown, location=location.abovebar, color=color.red, size=size.small)
+
+// Strategy logic
+if (isBuyBlock)
+    strategy.entry("Buy", strategy.long)
+    
+if (isSellBlock)
+    strategy.entry("Sell", strategy.short)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/442653
+
+> Last Modified
+
+2024-02-23 15:04:39

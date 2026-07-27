@@ -1,0 +1,32 @@
+//@version=6
+// set03 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block173
+// content_hash: 1a75c8692cd7ff6e
+// collected: 2026-07-27
+indicator("matrix_remove_col", overlay = true)
+
+// Create a 2x2 matrix with ones.
+var matrixOrig = matrix.new<int>(2, 2, 1)
+
+// Set values to the 'matrixOrig' matrix.
+matrix.set(matrixOrig, 0, 1, 2)
+matrix.set(matrixOrig, 1, 0, 3)
+matrix.set(matrixOrig, 1, 1, 4)
+
+
+// Create a copy of the 'matrixOrig' matrix.
+matrixCopy = matrix.copy(matrixOrig)
+
+// Remove the first column from the `matrixCopy` matrix.
+arr = matrix.remove_col(matrixCopy, 0)
+
+// Display matrix elements.
+if barstate.islastconfirmedhistory
+    var t = table.new(position.top_right, 3, 2, color.green)
+    table.cell(t, 0, 0, "Original Matrix:")
+    table.cell(t, 0, 1, str.tostring(matrixOrig))
+    table.cell(t, 1, 0, "Removed Elements:")
+    table.cell(t, 1, 1, str.tostring(arr))
+    table.cell(t, 2, 0, "Result Matrix:")
+    table.cell(t, 2, 1, str.tostring(matrixCopy))

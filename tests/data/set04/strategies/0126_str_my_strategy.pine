@@ -1,0 +1,24 @@
+//@version=6
+// set04 corpus entry
+// source_repo: pinescriptv6
+// source_path: pinescriptv6/pinescriptv6_complete_reference.md::pinescriptv6_complete_reference.md#block132
+// content_hash: 391458ffcca70d63
+// collected: 2026-07-27
+strategy("My strategy", overlay = true, process_orders_on_close = true)
+bracketTickSizeInput = input.int(1000, "Stoploss/Take-Profit distance (in ticks)")
+
+longCondition = ta.crossover(ta.sma(close, 14), ta.sma(close, 28))
+if (longCondition)
+    limitLevel = close * 1.01
+    log.info("Long limit order has been placed at {0}", limitLevel)
+    strategy.order("My Long Entry Id", strategy.long, limit = limitLevel)
+
+    log.info("Exit orders have been placed: Take-profit at {0}, Stop-loss at {1}", close, limitLevel)
+    strategy.exit("Exit", "My Long Entry Id", profit = bracketTickSizeInput, loss = bracketTickSizeInput)
+
+if strategy.opentrades > 10
+    log.warning("{0} positions opened in the same direction in a row. Try adjusting `bracketTickSizeInput`", strategy.opentrades)
+
+last10Perc = strategy.initial_capital / 10 > strategy.equity
+if (last10Perc and not last10Perc[1])
+    log.error("The strategy has lost 90% of the initial capital!")

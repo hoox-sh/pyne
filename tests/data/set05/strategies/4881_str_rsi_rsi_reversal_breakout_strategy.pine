@@ -1,0 +1,77 @@
+//@version=4
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/RSI反转突破策略RSI-Reversal-Breakout-Strategy.md
+// content_hash: 07cb3acc0d92b351
+// collected: 2026-07-27
+// strategy("My Script", overlay=true, initial_capital=10000, default_qty_value=100)
+min = input(title="Valor minimo de entrada", defval=25)
+qtdAtivos = input(title="Quantidade de ações", defval=1)
+
+// overBuyLine = hline(80)
+// overSellLine = hline(min)
+
+var comprado = false
+var valorComprado = 0.0
+var qtdDiasComprado = 0
+var valorLucro = 0.0
+
+valueRsi = rsi(close, 2)
+valueSma = sma(close, 200)
+valueEma = ema(close, 200)
+lastHighPrice = high[2]
+
+buyValidation = valueRsi <= min
+sellValidation = close >= lastHighPrice
+
+
+
+// plot(lastHighPrice, trackprice=true, offset=-99999, color=color.olive, linewidth=3, style=plot.style_area)
+// plot(valueRsi)
+// plot(valueSma)
+// plot(valueEma)
+// plotshape(sellValidation, style=shape.triangledown, color=color.blue)
+// plotshape(comprado, style=shape.triangledown, color=color.blue)
+
+startDate = input(title="Inicio Dia", type=input.integer, defval=1, minval=1, maxval=31)
+startMonth = input(title="Inicio Mes", type=input.integer, defval=1, minval=1, maxval=12)
+startYear = input(title="Inicio Ano", type=input.integer, defval=2018, minval=1800, maxval=2100)
+
+endDate = input(title="Final Dia", type=input.integer, defval=1, minval=1, maxval=31)
+endMonth = input(title="Final Mes", type=input.integer, defval=12, minval=1, maxval=12)
+endYear = input(title="Final Ano", type=input.integer,  defval=2020, minval=1800, maxval=2100)
+
+inDateRange = true
+
+if inDateRange
+
+    if close >= valueEma
+    
+        if comprado == false and buyValidation
+            qtdDiasComprado := 0
+            comprado := true
+            valorComprado := close
+            strategy.order("buy", true, qtdAtivos, when=buyValidation)
+        
+        if sellValidation and comprado == true
+            comprado := false
+            valorLucro := valorLucro + (close - valorComprado)
+            valorComprado := 0
+            strategy.order("sell", false, qtdAtivos, when=sellValidation)
+        
+        if comprado == true and sellValidation == false
+            qtdDiasComprado := qtdDiasComprado + 1
+
+// plot(valorLucro, color=color.lime)
+
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/428698
+
+> Last Modified
+
+2023-10-08 14:16:57

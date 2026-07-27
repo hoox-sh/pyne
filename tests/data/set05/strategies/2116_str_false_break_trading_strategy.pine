@@ -1,0 +1,63 @@
+//@version=5
+// set05 corpus entry
+// source_repo: fmzquant-strategies
+// source_path: fmzquant-strategies/多重均线支撑位假突破策略结合ATR止损系统-Multi-SMA-Support-Level-False-Breakout-Strategy-with-ATR-Stop-Loss-System.md
+// content_hash: 964e9f60170e1e62
+// collected: 2026-07-27
+strategy("False Break Trading Strategy", overlay=true)
+
+// Define inputs for strategy parameters
+sma50Length = input.int(50, title="SMA 50 Length")
+sma200Length = input.int(200, title="SMA 200 Length")
+atrLength = input.int(14, title="ATR Length")
+lookbackPeriod = input.int(10, title="Swing High Lookback Period")
+
+// Calculate SMAs
+sma50 = ta.sma(close, sma50Length)
+sma200 = ta.sma(close, sma200Length)
+
+// Calculate ATR
+atr = ta.atr(atrLength)
+
+// Check if we are in an uptrend
+isUptrend = sma50 > sma200
+
+// Calculate Pivot, Support, and Target Profit (Swing High)
+pivot = (high[1] + low[1] + close[1]) / 3
+support = (2 * pivot) - high[1]
+swingHigh = ta.highest(high, lookbackPeriod)
+
+// Create signals for entry
+var float entryPrice = na
+var float stopLoss = na
+var float targetProfit = na
+longCondition = isUptrend and low[1] < support and close > support
+
+if (longCondition)
+    entryPrice := open
+    stopLoss := low - atr
+    targetProfit := swingHigh
+
+// Plot signals and lines on chart
+plotshape(longCondition, title="Buy Signal", location=location.belowbar, color=color.green, style=shape.labelup, text="BUY")
+
+// Plot levels for entry, stop loss, and target
+plot(entryPrice, title="Entry Price", color=color.blue, linewidth=2, style=plot.style_linebr)
+plot(stopLoss, title="Stop Loss", color=color.red, linewidth=2, style=plot.style_linebr)
+plot(targetProfit, title="Target Profit", color=color.green, linewidth=2, style=plot.style_linebr)
+
+// Backtest: Simulate exit points for the strategy
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+    if (na(stopLoss) == false and na(targetProfit) == false)
+        strategy.exit("Take Profit/Stop Loss", "Long", stop=stopLoss, limit=targetProfit)
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/473148
+
+> Last Modified
+
+2024-11-27 16:17:17
