@@ -235,6 +235,9 @@ class RequestBuiltinsMixin(BuiltinDispatchMixin):
             "request.currency_rate": self._handle_request_currency_rate,
             "request.seed": self._handle_request_seed,
             "request.footprint": self._handle_request_footprint,
+            # Pine v3/v4 bare names (pre-request.* namespace)
+            "security": self._handle_request_security,
+            "security_lower_tf": self._handle_request_security_lower_tf,
         }
 
     def _get_expression_prices(self, expression: str, prices: list[float]) -> list[float]:
@@ -256,6 +259,10 @@ class RequestBuiltinsMixin(BuiltinDispatchMixin):
             arg = arg[-1] if arg else default
         if arg is None:
             return default
+        # TickerInfo from ticker.* / heikinashi() / renko() etc.
+        symbol_attr = getattr(arg, "symbol", None)
+        if isinstance(symbol_attr, str) and symbol_attr:
+            return symbol_attr.upper()
         return str(arg).upper()
 
     def _get_request_data(self):

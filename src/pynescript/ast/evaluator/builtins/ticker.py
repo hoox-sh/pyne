@@ -262,6 +262,36 @@ def ticker_standard(ticker_str: str) -> TickerInfo:
     return TickerInfo(str(ticker_str))
 
 
+def tickerid_v4(
+    prefix: str | None = None,
+    ticker: str | None = None,
+    *extra: object,
+    **kwargs: object,
+) -> str:
+    """Pine v3/v4 bare ``tickerid(prefix, ticker)`` constructor.
+
+    Builds an exchange:symbol identifier string. Replaced in v5+ by
+    ``ticker.new`` / ``syminfo.tickerid``.
+
+    Forms:
+    - ``tickerid(prefix, ticker)`` → ``"PREFIX:TICKER"``
+    - ``tickerid(ticker)`` → ``"TICKER"`` (single-arg form)
+    """
+    if kwargs:
+        prefix = kwargs.get("prefix", prefix)  # type: ignore[assignment]
+        ticker = kwargs.get("ticker", kwargs.get("symbol", ticker))  # type: ignore[assignment]
+    p = str(prefix).strip() if prefix is not None else ""
+    t = str(ticker).strip() if ticker is not None else ""
+    if p and t:
+        return f"{p}:{t}"
+    if t:
+        return t
+    if p and not t:
+        # Single-arg call often passes the full ticker as the first parameter.
+        return p
+    return ""
+
+
 def register_ticker_functions(namespace: dict) -> None:
     """Register all ticker functions in the given namespace.
 
@@ -279,3 +309,10 @@ def register_ticker_functions(namespace: dict) -> None:
     namespace["ticker.renko"] = _as_builtin_handler(ticker_renko)
     namespace["ticker.standard"] = _as_builtin_handler(ticker_standard)
     namespace["ticker.inherit"] = _as_builtin_handler(ticker_inherit)
+    # Pine v3/v4 bare aliases
+    namespace["tickerid"] = _as_builtin_handler(tickerid_v4)
+    namespace["heikinashi"] = _as_builtin_handler(ticker_heikinashi)
+    namespace["kagi"] = _as_builtin_handler(ticker_kagi)
+    namespace["linebreak"] = _as_builtin_handler(ticker_linebreak)
+    namespace["pointfigure"] = _as_builtin_handler(ticker_pointfigure)
+    namespace["renko"] = _as_builtin_handler(ticker_renko)
