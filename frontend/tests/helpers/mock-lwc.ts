@@ -19,6 +19,8 @@ export type FakeChart = {
   timeScale: () => {
     fitContent: () => void;
     subscribeVisibleLogicalRangeChange: (cb: (r: unknown) => void) => void;
+    unsubscribeVisibleLogicalRangeChange: (cb: (r: unknown) => void) => void;
+    getVisibleLogicalRange: () => { from: number; to: number } | null;
     setVisibleLogicalRange: (r: unknown) => void;
     setVisibleRange: (r: unknown) => void;
     timeToCoordinate: (t: unknown) => number | null;
@@ -51,6 +53,10 @@ export function makeFakeChart(): FakeChart {
       subscribeVisibleLogicalRangeChange: (cb) => {
         rangeCb = cb;
       },
+      unsubscribeVisibleLogicalRangeChange: () => {
+        rangeCb = null;
+      },
+      getVisibleLogicalRange: () => ({ from: 0, to: 10 }),
       setVisibleLogicalRange: () => {},
       setVisibleRange: () => {},
       timeToCoordinate: () => 10,

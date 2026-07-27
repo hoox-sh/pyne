@@ -1,8 +1,9 @@
-import { Component, Show, createEffect, createMemo, onMount, onCleanup } from 'solid-js';
+import { Component, Show, createEffect, createMemo, onMount, onCleanup, untrack } from 'solid-js';
 import { PaneManager } from './pane-manager';
 import { DrawingToolbar } from './DrawingToolbar';
 import { PineTableHud } from './PineTableHud';
 import { store } from '../store';
+import { HooxLoader } from '../ui/HooxLoader';
 import {
   getManager,
   setManager,
@@ -46,14 +47,20 @@ export const ChartHost: Component = () => {
     manager.syncCrosshair(() => {});
 
     if (store.bars.length) {
-      setDataToChart(store.bars);
+      setDataToChart(store.bars, { fit: true });
     }
   });
 
-  // Keep series in sync if bars change without going through loadSymbolData
+  // Full history reloads only (loadBars bumps chartDataGen). Live ticks use
+  // manager.appendBar via multiplex — never full setData + fitContent here.
+  // untrack(bars) is required: reading store.bars would re-subscribe to every tick.
   createEffect(() => {
-    const bars = store.bars;
-    if (getManager() && bars.length) setDataToChart(bars);
+    const gen = store.chartDataGen;
+    void gen;
+    if (!getManager()) return;
+    untrack(() => {
+      if (store.bars.length) setDataToChart(store.bars, { fit: true });
+    });
   });
 
   // Keep tool in sync when store changes from toolbar
@@ -105,8 +112,12 @@ export const ChartHost: Component = () => {
               <div class="text-[11px] text-text-faint/80 font-mono text-center max-w-md">{hint().sub}</div>
             </Show>
             <Show when={store.status === 'loading' || store.status === 'running'}>
-              <div class="mt-2 w-24 h-0.5 bg-border overflow-hidden">
-                <div class="h-full w-1/2 bg-accent animate-pulse" />
+              <div class="mt-3">
+                <HooxLoader
+                  size="l"
+                  layout="stack"
+                  label={store.status === 'running' ? 'Running' : 'Loading'}
+                />
               </div>
             </Show>
           </div>

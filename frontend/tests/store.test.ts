@@ -24,6 +24,8 @@ import {
   resizePane,
   reorderPanes,
   appendBar,
+  noteTick,
+  recordRunLatency,
   setLive,
   toggleTheme,
   setEditorWidth,
@@ -128,6 +130,27 @@ describe('logs and status', () => {
   it('setLastRun captures meta.ms', () => {
     setLastRun({ status: 'success', plots: [], events: [], meta: { ms: 42.5 } });
     expect(store.lastRunMs).toBe(42.5);
+  });
+});
+
+describe('telemetry', () => {
+  it('loadBars bumps chartDataGen without changing on appendBar', () => {
+    const g0 = store.chartDataGen;
+    loadBars(SAMPLE_BARS, 'ETHUSDT', '1h', 'binance');
+    expect(store.chartDataGen).toBe(g0 + 1);
+    const g1 = store.chartDataGen;
+    appendBar({ time: 9_999_999, open: 1, high: 1, low: 1, close: 1 });
+    expect(store.chartDataGen).toBe(g1);
+  });
+
+  it('noteTick and recordRunLatency update telemetry', () => {
+    noteTick(100, 1);
+    expect(store.telemetry.lastTick?.price).toBe(100);
+    noteTick(101, 2);
+    expect(store.telemetry.lastTick?.dir).toBe('up');
+    recordRunLatency(55);
+    expect(store.telemetry.engine.latencyMs).toBe(55);
+    expect(store.telemetry.runLatencySamples.at(-1)).toBe(55);
   });
 });
 

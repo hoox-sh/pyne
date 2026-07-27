@@ -9,7 +9,12 @@ import type {
   LogLevel,
   Drawing,
   DrawingToolId,
+  PlaneTelemetry,
+  ConnState,
+  TransportClass,
+  TelemetryState,
 } from './types';
+import { idlePlane, pushSample } from '../ui/telemetry';
 
 // Stable ID generation — uses timestamp prefix + counter to survive reloads
 let idCounter = 0;
@@ -32,6 +37,7 @@ const DEFAULT_WATCHLIST = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT'
 
 const DEFAULTS: AppState = {
   bars: [],
+  chartDataGen: 0,
   symbol: 'BTCUSDT',
   interval: '1d',
   exchange: 'binance',
@@ -50,7 +56,14 @@ const DEFAULTS: AppState = {
     { id: 'price', type: 'price', height: 0, order: 0, visible: true, label: 'Price' },
     { id: 'volume', type: 'volume', height: 120, order: 1, visible: true, label: 'Volume' },
   ],
-  live: { active: false, needsRerun: false, lastBarTime: 0, streamId: 'binance-ws' },
+  live: {
+    active: false,
+    needsRerun: false,
+    lastBarTime: 0,
+    streamId: 'binance-ws',
+    preferAfterLoad: false,
+    rerunOn: 'every-tick',
+  },
   theme: 'dark',
   editor: { open: true, width: 460, mode: 'docked' },
   watchlist: { open: true, width: 200, symbols: [...DEFAULT_WATCHLIST], refreshSec: 15 },
@@ -65,6 +78,15 @@ const DEFAULTS: AppState = {
   logs: [],
   drawingTool: 'cursor',
   drawings: [],
+  telemetry: {
+    source: idlePlane('binance-rest', 'Binance REST', 'rest'),
+    stream: idlePlane('binance-ws', 'Binance WebSocket', 'ws'),
+    engine: idlePlane('server', 'Server-Side', 'rest'),
+    storage: idlePlane('local', 'Local', 'local'),
+    runLatencySamples: [],
+    lastTick: null,
+    hud: { compact: false, overlay: false },
+  },
 };
 
 function readLocalStorage(key: string): string | null {
@@ -118,7 +140,14 @@ function loadPersisted(): Partial<AppState> {
       return {
         ...DEFAULTS,
         ...parsed,
-        live: { ...DEFAULTS.live, ...parsed.live },
+        live: {
+          ...DEFAULTS.live,
+          ...parsed.live,
+          // Never hydrate "live active" as running — user must re-enable
+          active: false,
+          preferAfterLoad: !!parsed.live?.preferAfterLoad,
+          rerunOn: parsed.live?.rerunOn === 'bar-close' ? 'bar-close' : 'every-tick',
+        },
         editor: { ...DEFAULTS.editor, ...parsed.editor },
         watchlist: {
           ...DEFAULTS.watchlist,
@@ -143,9 +172,18 @@ function loadPersisted(): Partial<AppState> {
           storage: parsed.activePlugins?.storage || DEFAULTS.activePlugins.storage,
         },
         pluginsConfig: parsed.pluginsConfig || DEFAULTS.pluginsConfig,
-        // Do not hydrate lastRun / logs from storage
+        // Do not hydrate lastRun / logs / telemetry / bars from storage
         lastRun: null,
         logs: [],
+        bars: [],
+        chartDataGen: 0,
+        telemetry: {
+          ...DEFAULTS.telemetry,
+          hud: {
+            ...DEFAULTS.telemetry.hud,
+            ...(parsed.telemetry?.hud || {}),
+          },
+        },
         drawingTool: 'cursor',
         drawings: Array.isArray(parsed.drawings) ? parsed.drawings : [],
       };
@@ -163,6 +201,16 @@ export function setActivePlugin(
   if (kind === 'source') setStore('source', id);
   if (kind === 'engine') setStore('engine', id);
   if (kind === 'stream') setStore('live', 'streamId', id);
+  // Keep telemetry plane ids in sync (names/transport refined by loaders)
+  if (store.telemetry?.[kind]) {
+    setStore('telemetry', kind, 'id', id);
+    if (kind === 'stream' && !store.live.active) {
+      setStore('telemetry', 'stream', 'state', 'idle');
+    }
+    if (kind === 'engine') {
+      setStore('telemetry', 'engine', 'state', 'idle');
+    }
+  }
   persist();
 }
 
@@ -176,13 +224,30 @@ export function persist() {
   if (persistTimer) clearTimeout(persistTimer);
   persistTimer = setTimeout(() => {
     try {
-      // Omit bars + lastRun + logs from persistence (size); keep layout prefs
-      const { bars: _b, lastRun: _r, logs: _l, ...rest } = store as AppState & {
+      // Omit bars + lastRun + logs + high-churn gens; keep only telemetry.hud prefs
+      const {
+        bars: _b,
+        lastRun: _r,
+        logs: _l,
+        chartDataGen: _g,
+        telemetry,
+        ...rest
+      } = store as AppState & {
         bars: unknown;
         lastRun: unknown;
         logs: unknown;
+        chartDataGen?: unknown;
+        telemetry?: AppState['telemetry'];
       };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(rest));
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({
+          ...rest,
+          telemetry: {
+            hud: telemetry?.hud || DEFAULTS.telemetry.hud,
+          },
+        }),
+      );
     } catch {}
   }, 200);
 }
@@ -232,6 +297,7 @@ export function setStatus(status: AppState['status'], message?: string) {
 
 export function loadBars(bars: Bar[], symbol: string, interval: string, exchange: string) {
   setStore('bars', bars);
+  setStore('chartDataGen', (g) => (typeof g === 'number' ? g + 1 : 1));
   setStore('symbol', symbol);
   setStore('interval', interval);
   setStore('exchange', exchange);
@@ -311,6 +377,46 @@ export function appendBar(bar: Bar) {
 export function setLive(active: boolean) {
   setStore('live', 'active', active);
   persist();
+}
+
+/* ── Telemetry helpers (ephemeral Connection HUD) ───────────────── */
+
+export type TelemetryPlane = keyof Pick<TelemetryState, 'source' | 'stream' | 'engine' | 'storage'>;
+
+export function setTelemetryPlane(
+  plane: TelemetryPlane,
+  patch: Partial<PlaneTelemetry> & { id?: string; name?: string; transport?: TransportClass },
+) {
+  const cur = store.telemetry?.[plane] || idlePlane(patch.id || '', patch.name || plane);
+  setStore('telemetry', plane, {
+    ...cur,
+    ...patch,
+    id: patch.id ?? cur.id,
+    name: patch.name ?? cur.name,
+    transport: patch.transport ?? cur.transport,
+  });
+}
+
+export function setTelemetryState(plane: TelemetryPlane, state: ConnState, extra?: Partial<PlaneTelemetry>) {
+  setTelemetryPlane(plane, { state, ...extra, lastEventAt: extra?.lastEventAt ?? Date.now() });
+}
+
+export function recordRunLatency(ms: number) {
+  if (!Number.isFinite(ms) || ms < 0) return;
+  setStore('telemetry', 'runLatencySamples', (s) => pushSample(s || [], ms));
+  setTelemetryPlane('engine', { latencyMs: ms, lastEventAt: Date.now() });
+  setStore('lastRunMs', ms);
+}
+
+export function noteTick(price: number, time: number) {
+  const prev = store.telemetry?.lastTick?.price;
+  let dir: 'up' | 'down' | 'flat' = 'flat';
+  if (prev != null) {
+    if (price > prev) dir = 'up';
+    else if (price < prev) dir = 'down';
+  }
+  setStore('telemetry', 'lastTick', { time, price, dir, at: Date.now() });
+  setTelemetryPlane('stream', { lastEventAt: Date.now() });
 }
 
 export function toggleTheme() {

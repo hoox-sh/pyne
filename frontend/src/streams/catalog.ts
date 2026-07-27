@@ -6,6 +6,7 @@
 import type { Bar } from '../store/types';
 import type { StreamPlugin as UnifiedStreamPlugin } from '../plugins/types';
 import { registry } from '../plugins/registry';
+import { openReconnectableWs } from './reconnect-ws';
 
 /** @deprecated Prefer importing StreamPlugin from plugins/types */
 export type StreamPlugin = UnifiedStreamPlugin;
@@ -33,49 +34,35 @@ export const binanceStream: StreamPlugin = {
   name: 'Binance WebSocket',
   kind: 'stream',
   builtIn: true,
-  description: 'Real-time klines via wss://stream.binance.com',
-  capabilities: { needsNetwork: true },
+  description: 'Real-time klines via wss://stream.binance.com (auto-reconnect).',
+  capabilities: { needsNetwork: true, transport: 'ws' },
   configSchema: {},
   start({ symbol, interval, onBar, onStatus, onError }) {
     const wsInterval = INTERVAL_MAP[interval] || interval;
     const url = `wss://stream.binance.com:9443/ws/${symbol.toLowerCase()}@kline_${wsInterval}`;
-    let ws: WebSocket;
-    try {
-      ws = new WebSocket(url);
-    } catch (e) {
-      onError(e instanceof Error ? e : new Error(String(e)));
-      return () => {};
-    }
-
-    ws.onopen = () => onStatus({ state: 'open', detail: url });
-    ws.onerror = () => onError(new Error('WebSocket error'));
-    ws.onclose = () => onStatus({ state: 'closed' });
-
-    ws.onmessage = (e) => {
-      try {
-        const data = JSON.parse(e.data as string);
-        const k = data.k;
-        if (!k) return;
-        onBar({
-          time: Math.floor(k.t / 1000),
-          open: +k.o,
-          high: +k.h,
-          low: +k.l,
-          close: +k.c,
-          volume: +k.v,
-        });
-      } catch {
-        /* ignore */
-      }
-    };
-
-    return () => {
-      try {
-        ws.close();
-      } catch {
-        /* ignore */
-      }
-    };
+    return openReconnectableWs({
+      url,
+      onStatus,
+      onError,
+      onMessage: (e) => {
+        try {
+          const data = JSON.parse(e.data as string);
+          const k = data.k;
+          if (!k) return;
+          onBar({
+            time: Math.floor(k.t / 1000),
+            open: +k.o,
+            high: +k.h,
+            low: +k.l,
+            close: +k.c,
+            volume: +k.v,
+            closed: !!k.x,
+          });
+        } catch {
+          /* ignore */
+        }
+      },
+    });
   },
 };
 
@@ -86,7 +73,7 @@ export const mockPollStream: StreamPlugin = {
   kind: 'stream',
   builtIn: true,
   description: 'Synthetic live bars (offline). Good with Mock Walk source.',
-  capabilities: { offline: true },
+  capabilities: { offline: true, transport: 'local' },
   configSchema: {},
   start({ interval, onBar, onStatus, lastBar }) {
     const step = intervalToSec(interval);
@@ -105,11 +92,9 @@ export const mockPollStream: StreamPlugin = {
 
     const tick = () => {
       const now = Math.floor(Date.now() / 1000);
-      // Align to interval slots
       const slot = Math.floor(now / step) * step;
       const drift = (Math.random() - 0.48) * cur.close * 0.008;
       if (slot === cur.time) {
-        // Update open bar
         const close = Math.max(0.01, cur.close + drift);
         cur = {
           ...cur,
@@ -117,9 +102,10 @@ export const mockPollStream: StreamPlugin = {
           low: Math.min(cur.low, close, cur.open),
           close,
           volume: (cur.volume ?? 0) + Math.random() * 50,
+          closed: false,
         };
       } else {
-        // New bar
+        // New interval slot — multiplex treats time advance as bar-close
         const open = cur.close;
         const close = Math.max(0.01, open + drift);
         cur = {
@@ -129,12 +115,12 @@ export const mockPollStream: StreamPlugin = {
           low: Math.min(open, close),
           close,
           volume: 50 + Math.random() * 200,
+          closed: true,
         };
       }
       onBar({ ...cur });
     };
 
-    // Immediate tick so live feels responsive
     tick();
     const id = setInterval(tick, 1000);
     return () => {
@@ -151,7 +137,7 @@ export const okxStream: StreamPlugin = {
   kind: 'stream',
   builtIn: true,
   description: 'OKX public candle channel (wss://ws.okx.com:8443/ws/v5/business).',
-  capabilities: { needsNetwork: true },
+  capabilities: { needsNetwork: true, transport: 'ws' },
   configSchema: {},
   start({ symbol, interval, onBar, onStatus, onError }) {
     const instId = (() => {
@@ -170,49 +156,39 @@ export const okxStream: StreamPlugin = {
     };
     const channel = barMap[interval] || 'candle1D';
     const url = 'wss://ws.okx.com:8443/ws/v5/business';
-    let ws: WebSocket;
-    try {
-      ws = new WebSocket(url);
-    } catch (e) {
-      onError(e instanceof Error ? e : new Error(String(e)));
-      return () => {};
-    }
-    ws.onopen = () => {
-      onStatus({ state: 'open', detail: url });
-      ws.send(
-        JSON.stringify({
-          op: 'subscribe',
-          args: [{ channel, instId }],
-        }),
-      );
-    };
-    ws.onerror = () => onError(new Error('OKX WebSocket error'));
-    ws.onclose = () => onStatus({ state: 'closed' });
-    ws.onmessage = (e) => {
-      try {
-        const msg = JSON.parse(e.data as string);
-        const row = msg?.data?.[0];
-        if (!row || !Array.isArray(row)) return;
-        // [ts, o, h, l, c, vol, ...]
-        onBar({
-          time: Math.floor(Number(row[0]) / 1000),
-          open: +row[1],
-          high: +row[2],
-          low: +row[3],
-          close: +row[4],
-          volume: +row[5],
-        });
-      } catch {
-        /* ignore */
-      }
-    };
-    return () => {
-      try {
-        ws.close();
-      } catch {
-        /* ignore */
-      }
-    };
+    return openReconnectableWs({
+      url,
+      onStatus,
+      onError,
+      onOpen: (ws) => {
+        ws.send(
+          JSON.stringify({
+            op: 'subscribe',
+            args: [{ channel, instId }],
+          }),
+        );
+      },
+      onMessage: (e) => {
+        try {
+          const msg = JSON.parse(e.data as string);
+          const row = msg?.data?.[0];
+          if (!row || !Array.isArray(row)) return;
+          // [ts, o, h, l, c, vol, volCcy, volCcyQuote, confirm]
+          const confirm = row[8];
+          onBar({
+            time: Math.floor(Number(row[0]) / 1000),
+            open: +row[1],
+            high: +row[2],
+            low: +row[3],
+            close: +row[4],
+            volume: +row[5],
+            closed: confirm === '1' || confirm === 1 || confirm === true,
+          });
+        } catch {
+          /* ignore */
+        }
+      },
+    });
   },
 };
 
@@ -223,7 +199,7 @@ export const bybitStream: StreamPlugin = {
   kind: 'stream',
   builtIn: true,
   description: 'Bybit public kline stream (wss://stream.bybit.com/v5/public/spot).',
-  capabilities: { needsNetwork: true },
+  capabilities: { needsNetwork: true, transport: 'ws' },
   configSchema: {},
   start({ symbol, interval, onBar, onStatus, onError }) {
     const ivMap: Record<string, string> = {
@@ -238,54 +214,44 @@ export const bybitStream: StreamPlugin = {
     const iv = ivMap[interval] || 'D';
     const topic = `kline.${iv}.${symbol.toUpperCase()}`;
     const url = 'wss://stream.bybit.com/v5/public/spot';
-    let ws: WebSocket;
-    try {
-      ws = new WebSocket(url);
-    } catch (e) {
-      onError(e instanceof Error ? e : new Error(String(e)));
-      return () => {};
-    }
-    ws.onopen = () => {
-      onStatus({ state: 'open', detail: topic });
-      ws.send(JSON.stringify({ op: 'subscribe', args: [topic] }));
-    };
-    ws.onerror = () => onError(new Error('Bybit WebSocket error'));
-    ws.onclose = () => onStatus({ state: 'closed' });
-    ws.onmessage = (e) => {
-      try {
-        const msg = JSON.parse(e.data as string);
-        const row = msg?.data?.[0];
-        if (!row) return;
-        onBar({
-          time: Math.floor(Number(row.start) / 1000),
-          open: +row.open,
-          high: +row.high,
-          low: +row.low,
-          close: +row.close,
-          volume: +row.volume,
-        });
-      } catch {
-        /* ignore */
-      }
-    };
-    return () => {
-      try {
-        ws.close();
-      } catch {
-        /* ignore */
-      }
-    };
+    return openReconnectableWs({
+      url,
+      onStatus,
+      onError,
+      onOpen: (ws) => {
+        ws.send(JSON.stringify({ op: 'subscribe', args: [topic] }));
+      },
+      onMessage: (e) => {
+        try {
+          const msg = JSON.parse(e.data as string);
+          const row = msg?.data?.[0];
+          if (!row) return;
+          onBar({
+            time: Math.floor(Number(row.start) / 1000),
+            open: +row.open,
+            high: +row.high,
+            low: +row.low,
+            close: +row.close,
+            volume: +row.volume,
+            closed: row.confirm === true || row.confirm === 'true',
+          });
+        } catch {
+          /* ignore */
+        }
+      },
+    });
   },
 };
 
-/** Coinbase Exchange ticker → 1s synthetic bar updates (public WS). */
+/** Coinbase Exchange ticker → synthetic bar updates (public WS). */
 export const coinbaseStream: StreamPlugin = {
   id: 'coinbase-ws',
   name: 'Coinbase WebSocket',
   kind: 'stream',
   builtIn: true,
-  description: 'Coinbase Exchange ticker (wss://ws-feed.exchange.coinbase.com) aggregated into live bars.',
-  capabilities: { needsNetwork: true },
+  description:
+    'Coinbase Exchange ticker (wss://ws-feed.exchange.coinbase.com) aggregated into live bars.',
+  capabilities: { needsNetwork: true, transport: 'ws' },
   configSchema: {},
   start({ symbol, interval, onBar, onStatus, onError, lastBar }) {
     const product = (() => {
@@ -296,64 +262,55 @@ export const coinbaseStream: StreamPlugin = {
     })();
     const step = intervalToSec(interval);
     const url = 'wss://ws-feed.exchange.coinbase.com';
-    let ws: WebSocket;
     let cur: Bar | null = lastBar ? { ...lastBar } : null;
-    try {
-      ws = new WebSocket(url);
-    } catch (e) {
-      onError(e instanceof Error ? e : new Error(String(e)));
-      return () => {};
-    }
-    ws.onopen = () => {
-      onStatus({ state: 'open', detail: product });
-      ws.send(
-        JSON.stringify({
-          type: 'subscribe',
-          product_ids: [product],
-          channels: ['ticker'],
-        }),
-      );
-    };
-    ws.onerror = () => onError(new Error('Coinbase WebSocket error'));
-    ws.onclose = () => onStatus({ state: 'closed' });
-    ws.onmessage = (e) => {
-      try {
-        const msg = JSON.parse(e.data as string);
-        if (msg.type !== 'ticker' || msg.price == null) return;
-        const price = +msg.price;
-        const vol = msg.last_size != null ? +msg.last_size : 0;
-        const now = Math.floor(Date.now() / 1000);
-        const slot = Math.floor(now / step) * step;
-        if (!cur || cur.time !== slot) {
-          cur = {
-            time: slot,
-            open: price,
-            high: price,
-            low: price,
-            close: price,
-            volume: vol,
-          };
-        } else {
-          cur = {
-            ...cur,
-            high: Math.max(cur.high, price),
-            low: Math.min(cur.low, price),
-            close: price,
-            volume: (cur.volume ?? 0) + vol,
-          };
+    return openReconnectableWs({
+      url,
+      onStatus,
+      onError,
+      onOpen: (ws) => {
+        ws.send(
+          JSON.stringify({
+            type: 'subscribe',
+            product_ids: [product],
+            channels: ['ticker'],
+          }),
+        );
+      },
+      onMessage: (e) => {
+        try {
+          const msg = JSON.parse(e.data as string);
+          if (msg.type !== 'ticker' || msg.price == null) return;
+          const price = +msg.price;
+          const vol = msg.last_size != null ? +msg.last_size : 0;
+          const now = Math.floor(Date.now() / 1000);
+          const slot = Math.floor(now / step) * step;
+          if (!cur || cur.time !== slot) {
+            cur = {
+              time: slot,
+              open: price,
+              high: price,
+              low: price,
+              close: price,
+              volume: vol,
+              // New slot — time advance is treated as bar-close by multiplex
+              closed: true,
+            };
+          } else {
+            cur = {
+              ...cur,
+              high: Math.max(cur.high, price),
+              low: Math.min(cur.low, price),
+              close: price,
+              volume: (cur.volume ?? 0) + vol,
+              closed: false,
+            };
+          }
+          onBar({ ...cur });
+        } catch {
+          /* ignore */
         }
-        onBar({ ...cur });
-      } catch {
-        /* ignore */
-      }
-    };
-    return () => {
-      try {
-        ws.close();
-      } catch {
-        /* ignore */
-      }
-    };
+      },
+    });
   },
 };
 
@@ -364,12 +321,11 @@ export const krakenStream: StreamPlugin = {
   kind: 'stream',
   builtIn: true,
   description: 'Kraken public OHLC (wss://ws.kraken.com/).',
-  capabilities: { needsNetwork: true },
+  capabilities: { needsNetwork: true, transport: 'ws' },
   configSchema: {},
   start({ symbol, interval, onBar, onStatus, onError }) {
     const pair = (() => {
       const s = symbol.toUpperCase().replace(/[-_/]/g, '');
-      // Kraken uses XBT for BTC on many pairs
       let base = s;
       let quote = 'USD';
       if (s.endsWith('USDT')) {
@@ -393,51 +349,41 @@ export const krakenStream: StreamPlugin = {
     };
     const intervalMin = ivMap[interval] || 1440;
     const url = 'wss://ws.kraken.com/';
-    let ws: WebSocket;
-    try {
-      ws = new WebSocket(url);
-    } catch (e) {
-      onError(e instanceof Error ? e : new Error(String(e)));
-      return () => {};
-    }
-    ws.onopen = () => {
-      onStatus({ state: 'open', detail: pair });
-      ws.send(
-        JSON.stringify({
-          event: 'subscribe',
-          pair: [pair],
-          subscription: { name: 'ohlc', interval: intervalMin },
-        }),
-      );
-    };
-    ws.onerror = () => onError(new Error('Kraken WebSocket error'));
-    ws.onclose = () => onStatus({ state: 'closed' });
-    ws.onmessage = (e) => {
-      try {
-        const msg = JSON.parse(e.data as string);
-        // [channelID, [time, etime, o, h, l, c, vwap, volume, count], "ohlc-*", "PAIR"]
-        if (!Array.isArray(msg) || !Array.isArray(msg[1])) return;
-        const row = msg[1];
-        if (row.length < 8) return;
-        onBar({
-          time: Math.floor(Number(row[1])), // etime
-          open: +row[2],
-          high: +row[3],
-          low: +row[4],
-          close: +row[5],
-          volume: +row[7],
-        });
-      } catch {
-        /* ignore */
-      }
-    };
-    return () => {
-      try {
-        ws.close();
-      } catch {
-        /* ignore */
-      }
-    };
+    return openReconnectableWs({
+      url,
+      onStatus,
+      onError,
+      onOpen: (ws) => {
+        ws.send(
+          JSON.stringify({
+            event: 'subscribe',
+            pair: [pair],
+            subscription: { name: 'ohlc', interval: intervalMin },
+          }),
+        );
+      },
+      onMessage: (e) => {
+        try {
+          const msg = JSON.parse(e.data as string);
+          // [channelID, [time, etime, o, h, l, c, vwap, volume, count], "ohlc-*", "PAIR"]
+          if (!Array.isArray(msg) || !Array.isArray(msg[1])) return;
+          const row = msg[1];
+          if (row.length < 8) return;
+          onBar({
+            time: Math.floor(Number(row[1])), // etime
+            open: +row[2],
+            high: +row[3],
+            low: +row[4],
+            close: +row[5],
+            volume: +row[7],
+            // Kraken does not always send a closed flag; multiplex uses time advance fallback
+            closed: false,
+          });
+        } catch {
+          /* ignore */
+        }
+      },
+    });
   },
 };
 
@@ -490,7 +436,10 @@ export function unregisterDynamicStream(id: string): boolean {
 
 export function listDynamicStreamIds(): string[] {
   ensureStreamsRegistered();
-  return registry.listStreams().filter((s) => !s.builtIn).map((s) => s.id);
+  return registry
+    .listStreams()
+    .filter((s) => !s.builtIn)
+    .map((s) => s.id);
 }
 
 /** Pick a sensible stream for the current historical source. */

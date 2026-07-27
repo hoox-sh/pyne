@@ -18,6 +18,7 @@ import { setActivePlugin, store, setStore, persist, appendLog, setStatus } from 
 import { pluginKey } from '../plugins/types';
 import { DEFAULT_GIT_CONFIG, type GitConfig } from '../storage/git-config';
 import { Icons } from './icons';
+import { HooxLoader } from './HooxLoader';
 
 function cloudCfg(): { endpoint: string; apiKey: string } {
   const pc = store.pluginsConfig || {};
@@ -395,7 +396,7 @@ export const ScriptLibraryPanel: Component<ScriptLibraryPanelProps> = (props) =>
           onClick={() => void refresh()}
           disabled={busy()}
         >
-          {busy() ? <Icons.loader size={12} class="animate-spin" /> : null}
+          {busy() ? <HooxLoader size="xs" /> : null}
           Refresh
         </button>
         <button class="sc-btn sc-btn-ghost text-[10px]" onClick={() => void onExport()}>

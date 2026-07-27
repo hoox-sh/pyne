@@ -4,7 +4,8 @@
 
 import type { PluginBase, PluginCapabilities } from '../plugins/types';
 
-export type CapKey = keyof PluginCapabilities;
+/** Boolean capability flags shown as badges (excludes transport string). */
+export type CapKey = 'offline' | 'needsNetwork' | 'needsAuth' | 'needsProxy';
 
 export const CAP_META: Record<
   CapKey,
@@ -34,7 +35,7 @@ export const CAP_META: Record<
 
 export function capabilityKeys(caps?: PluginCapabilities | null): CapKey[] {
   if (!caps) return [];
-  return (Object.keys(CAP_META) as CapKey[]).filter((k) => caps[k]);
+  return (Object.keys(CAP_META) as CapKey[]).filter((k) => !!caps[k]);
 }
 
 export function engineOptionLabel(p: PluginBase): string {

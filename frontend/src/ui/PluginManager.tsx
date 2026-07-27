@@ -16,6 +16,7 @@ import { listStorages } from '../storage/catalog';
 import { ScriptLibraryPanel } from './ScriptLibraryPanel';
 import { CapabilityBadges, engineOptionLabel } from './plugin-badges';
 import { Icons } from './icons';
+import { HooxLoader } from './HooxLoader';
 import { persist, setStore, setActivePlugin, store } from '../store';
 import type { PluginBase } from '../plugins/types';
 
@@ -290,7 +291,7 @@ export const PluginManager: Component<Props> = (props) => {
                     onClick={() => load()}
                   >
                     {busy() ? (
-                      <Icons.loader size={13} class="animate-spin" />
+                      <HooxLoader size="xs" />
                     ) : (
                       <Icons.download size={13} />
                     )}

@@ -497,6 +497,25 @@ class Runtime:
         except Exception:
             drawings = []
 
+        # Script declaration → AXIS pane routing (indicator default overlay=false)
+        decl = getattr(evaluator, "_script_declaration", None)
+        overlay = True
+        script_name = "plot"
+        script_type = "indicator"
+        if decl is not None:
+            script_type = str(getattr(decl, "script_type", "indicator") or "indicator")
+            title = str(getattr(decl, "title", "") or "").strip()
+            if title:
+                script_name = title
+            if hasattr(decl, "overlay"):
+                overlay = bool(decl.overlay)
+            else:
+                kw = getattr(decl, "kwargs", None) or {}
+                if "overlay" in kw:
+                    overlay = bool(kw["overlay"])
+                else:
+                    overlay = script_type == "strategy"
+
         return {
             "plots": final_series,
             "series": series_map,
@@ -507,6 +526,14 @@ class Runtime:
             "script_id": script_id,
             "run_id": self._run_id,
             "mode": "interpret",
+            "overlay": overlay,
+            "script_name": script_name,
+            "script_type": script_type,
+            "meta": {
+                "overlay": overlay,
+                "script_name": script_name,
+                "script_type": script_type,
+            },
         }
 
     def _run_compiled(self, source_code: str, ohlcv_data: list[dict]) -> dict:

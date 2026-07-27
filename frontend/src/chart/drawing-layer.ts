@@ -117,18 +117,18 @@ export class DrawingLayer {
 
   setDrawings(drawings: Drawing[]) {
     this.drawings = drawings.slice();
-    this.redraw();
+    this.redrawUser();
   }
 
-  /** Pine line/label/box from last /run (not user-editable). */
+  /** Pine line/label/box from last /run (not user-editable). Atomic replace — no empty frame. */
   setScriptDrawings(raw: unknown[] | undefined | null) {
     this.scriptDrawings = normalizeScriptDrawings(raw);
-    this.redraw();
+    this.redrawScript();
   }
 
   clearScriptDrawings() {
     this.scriptDrawings = [];
-    this.redraw();
+    this.redrawScript();
   }
 
   getDrawings(): Drawing[] {
@@ -489,14 +489,39 @@ export class DrawingLayer {
 
   private redraw() {
     this.syncSize();
-    this.gScript.innerHTML = '';
-    this.gDraw.innerHTML = '';
+    this.redrawScriptInner();
+    this.redrawUserInner();
+  }
+
+  /** Full redraw (range/crosshair) — both layers. */
+  private redrawScript() {
+    this.syncSize();
+    this.redrawScriptInner();
+  }
+
+  private redrawUser() {
+    this.syncSize();
+    this.redrawUserInner();
+  }
+
+  private redrawScriptInner() {
+    // Build off-DOM then swap once to avoid a blank frame during live re-runs
+    const next = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    next.setAttribute('class', 'axis-pine-drawings');
     for (const sd of this.scriptDrawings) {
-      this.paintScriptDrawing(this.gScript, sd);
+      this.paintScriptDrawing(next, sd);
     }
+    this.gScript.replaceWith(next);
+    this.gScript = next;
+  }
+
+  private redrawUserInner() {
+    const next = document.createElementNS('http://www.w3.org/2000/svg', 'g');
     for (const d of this.drawings) {
-      this.paintDrawing(this.gDraw, d, d.id === this.selectedId);
+      this.paintDrawing(next, d, d.id === this.selectedId);
     }
+    this.gDraw.replaceWith(next);
+    this.gDraw = next;
   }
 
   private paintScriptDrawing(g: SVGGElement, d: ScriptDrawing) {

@@ -1,6 +1,7 @@
 import { Component, For, createEffect, createSignal, Show, createMemo } from 'solid-js';
 import { store, setStore, persist, setStatus, setActivePlugin } from '../store';
 import { Icons } from './icons';
+import { HooxLoader } from './HooxLoader';
 import { probeEndpoint } from '../indicators/runner';
 import { listEngines } from '../engines/catalog';
 import { listStorages } from '../storage/catalog';
@@ -23,6 +24,11 @@ export const SettingsDialog: Component<Props> = (props) => {
   const [storage, setStorage] = createSignal(store.activePlugins?.storage || 'local');
   const [chartInterval, setChartInterval] = createSignal(store.interval);
   const [refreshSec, setRefreshSec] = createSignal(store.watchlist.refreshSec || 15);
+  const [preferAfterLoad, setPreferAfterLoad] = createSignal(!!store.live.preferAfterLoad);
+  const [rerunOn, setRerunOn] = createSignal<'every-tick' | 'bar-close'>(
+    store.live.rerunOn === 'bar-close' ? 'bar-close' : 'every-tick',
+  );
+  const [hudCompact, setHudCompact] = createSignal(!!store.telemetry?.hud?.compact);
   const [probing, setProbing] = createSignal(false);
   const [probeMsg, setProbeMsg] = createSignal('');
 
@@ -43,6 +49,9 @@ export const SettingsDialog: Component<Props> = (props) => {
       setStorage(store.activePlugins?.storage || 'local');
       setChartInterval(store.interval);
       setRefreshSec(store.watchlist.refreshSec || 15);
+      setPreferAfterLoad(!!store.live.preferAfterLoad);
+      setRerunOn(store.live.rerunOn === 'bar-close' ? 'bar-close' : 'every-tick');
+      setHudCompact(!!store.telemetry?.hud?.compact);
       setProbeMsg('');
     }
   });
@@ -55,12 +64,15 @@ export const SettingsDialog: Component<Props> = (props) => {
     setStore('endpoint', endpoint().trim());
     setStore('interval', nextInterval);
     setStore('watchlist', 'refreshSec', nextRefresh);
+    setStore('live', 'preferAfterLoad', preferAfterLoad());
+    setStore('live', 'rerunOn', rerunOn());
+    setStore('telemetry', 'hud', 'compact', hudCompact());
     setActivePlugin('engine', engine());
     setActivePlugin('storage', storage());
     persist();
     setStatus(
       'ready',
-      `Settings saved · ${nextInterval} · refresh ${nextRefresh}s · engine=${engine()}`,
+      `Settings saved · ${nextInterval} · refresh ${nextRefresh}s · engine=${engine()} · live re-run=${rerunOn()}`,
     );
     // Reload chart bars if default interval changed
     if (nextInterval !== prevInterval && store.symbol) {
@@ -168,11 +180,7 @@ export const SettingsDialog: Component<Props> = (props) => {
                     onClick={testEndpoint}
                     title="GET / health probe"
                   >
-                    {probing() ? (
-                      <Icons.loader size={13} class="animate-spin" />
-                    ) : (
-                      <Icons.activity size={13} />
-                    )}
+                    {probing() ? <HooxLoader size="xs" /> : <Icons.activity size={13} />}
                     Test
                   </button>
                 </div>
@@ -242,6 +250,70 @@ export const SettingsDialog: Component<Props> = (props) => {
                   Used when loading symbols from the watchlist and top bar. Changing this reloads
                   the active chart.
                 </p>
+              </div>
+
+              <div class="border-t border-border-soft pt-3 flex flex-col gap-3">
+                <div class="text-[10px] text-text-dim uppercase tracking-wider font-semibold">
+                  Live stream
+                </div>
+
+                <label class="flex items-start gap-2 cursor-pointer" for="axis-prefer-live">
+                  <input
+                    id="axis-prefer-live"
+                    type="checkbox"
+                    class="mt-0.5"
+                    checked={preferAfterLoad()}
+                    onChange={(e) => setPreferAfterLoad(e.currentTarget.checked)}
+                  />
+                  <span>
+                    <span class="text-[12px] text-text">Auto-start live after Load</span>
+                    <span class="block text-[10px] text-text-faint mt-0.5">
+                      Prefer WebSocket feed immediately after historical REST load. Off by default
+                      to avoid surprise sockets.
+                    </span>
+                  </span>
+                </label>
+
+                <div class="flex flex-col gap-1">
+                  <label
+                    class="text-[10px] text-text-dim uppercase tracking-wider"
+                    for="axis-rerun-on"
+                  >
+                    Indicator re-run on live bars
+                  </label>
+                  <select
+                    id="axis-rerun-on"
+                    class="sc-input w-full"
+                    value={rerunOn()}
+                    onChange={(e) =>
+                      setRerunOn(
+                        e.currentTarget.value === 'bar-close' ? 'bar-close' : 'every-tick',
+                      )
+                    }
+                  >
+                    <option value="every-tick">Every tick (responsive)</option>
+                    <option value="bar-close">Bar close only (lighter)</option>
+                  </select>
+                  <p class="text-[10px] text-text-faint mt-0.5">
+                    Bar-close uses venue closed flags (Binance/OKX/Bybit) or bar time advance.
+                  </p>
+                </div>
+
+                <label class="flex items-start gap-2 cursor-pointer" for="axis-hud-compact">
+                  <input
+                    id="axis-hud-compact"
+                    type="checkbox"
+                    class="mt-0.5"
+                    checked={hudCompact()}
+                    onChange={(e) => setHudCompact(e.currentTarget.checked)}
+                  />
+                  <span>
+                    <span class="text-[12px] text-text">Compact connection HUD</span>
+                    <span class="block text-[10px] text-text-faint mt-0.5">
+                      Hide SRC/STR/ENG/STO plane chips; keep Live · Tick · Engine latency.
+                    </span>
+                  </span>
+                </label>
               </div>
 
               <div class="flex flex-col gap-1">

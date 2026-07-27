@@ -32,6 +32,8 @@ class ScriptDeclaration:
     script_type: str  # "indicator", "strategy", or "library"
     title: str = ""
     description: str = ""
+    # Pine defaults: indicator overlay=false, strategy overlay=true
+    overlay: bool = False
     # v6 additions
     behind_chart: bool = False
     force_overlay: bool = False
@@ -42,6 +44,16 @@ class ScriptDeclaration:
     max_boxes_count: int | None = None
     # Full kwargs for strategy broker settings (commission, slippage, …)
     kwargs: dict[str, Any] | None = None
+
+
+def _overlay_default(script_type: str, kwargs: dict[str, Any]) -> bool:
+    """Resolve ``overlay`` flag with Pine-compatible defaults."""
+    if "overlay" in kwargs:
+        return bool(kwargs["overlay"])
+    # force_overlay implies drawing on main chart
+    if kwargs.get("force_overlay"):
+        return True
+    return script_type == "strategy"
 
 
 def indicator(title: str = "", description: str = "", **kwargs: Any) -> ScriptDeclaration:
@@ -59,6 +71,7 @@ def indicator(title: str = "", description: str = "", **kwargs: Any) -> ScriptDe
         script_type="indicator",
         title=str(title),
         description=str(description),
+        overlay=_overlay_default("indicator", kwargs),
         behind_chart=bool(kwargs.get("behind_chart", False)),
         force_overlay=bool(kwargs.get("force_overlay", False)),
         dynamic_requests=kwargs.get("dynamic_requests", True),
@@ -85,6 +98,7 @@ def strategy(title: str = "", description: str = "", **kwargs: Any) -> ScriptDec
         script_type="strategy",
         title=str(title),
         description=str(description),
+        overlay=_overlay_default("strategy", kwargs),
         behind_chart=bool(kwargs.get("behind_chart", False)),
         force_overlay=bool(kwargs.get("force_overlay", False)),
         dynamic_requests=kwargs.get("dynamic_requests", True),
@@ -111,6 +125,7 @@ def library(title: str = "", description: str = "", **kwargs: Any) -> ScriptDecl
         script_type="library",
         title=str(title),
         description=str(description),
+        overlay=_overlay_default("library", kwargs),
         behind_chart=bool(kwargs.get("behind_chart", False)),
         force_overlay=bool(kwargs.get("force_overlay", False)),
         dynamic_requests=kwargs.get("dynamic_requests", True),

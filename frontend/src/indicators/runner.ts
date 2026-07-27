@@ -1,4 +1,15 @@
-import { store, setStore, addIndicator, addPane, setStatus, setLastRun, appendLog } from '../store';
+import {
+  store,
+  setStore,
+  addIndicator,
+  addPane,
+  setStatus,
+  setLastRun,
+  appendLog,
+  recordRunLatency,
+  setTelemetryPlane,
+  setTelemetryState,
+} from '../store';
 import { getManager } from '../chart/manager-access';
 import { PLOT_PALETTE } from '../chart/series-factory';
 import { normalizeStrategyEvents, eventsToMarkers, buildEquityCurve } from '../results/events';
@@ -6,6 +17,7 @@ import { buildStrategyReport } from '../results/strategy';
 import { getActiveDrawingLayer } from '../chart/drawing-layer';
 import { getActiveEngine, getActiveEngineConfig } from '../plugins/active';
 import type { RunResult as EngineRunResult } from '../plugins/types';
+import { classifyTransport } from '../ui/telemetry';
 
 export type RunResult = EngineRunResult & {
   series: Record<string, (number | null)[]>;
@@ -25,6 +37,16 @@ export async function runScript(script: string, opts: RunOptions = {}): Promise<
   try {
     const engine = getActiveEngine();
     const config = getActiveEngineConfig();
+    const transport = classifyTransport('engine', engine.id, engine.capabilities);
+    const mode = String(config?.mode || 'interpret');
+    setTelemetryPlane('engine', {
+      id: engine.id,
+      name: engine.name,
+      transport,
+      state: 'connecting',
+      detail: mode,
+      error: null,
+    });
     const timeoutMs = silent
       ? 45_000
       : Math.min(180_000, Math.max(60_000, 30_000 + (store.bars?.length || 0) * 80));
@@ -35,8 +57,21 @@ export async function runScript(script: string, opts: RunOptions = {}): Promise<
       signal: AbortSignal.timeout(timeoutMs),
     });
     const ms = result.meta?.ms ?? performance.now() - t0;
+    const runTransport =
+      result.meta?.transport === 'ws'
+        ? 'ws'
+        : result.meta?.transport === 'local'
+          ? 'local'
+          : transport;
+    recordRunLatency(ms);
     if (result.status === 'error') {
       const msg = result.error || 'Engine error';
+      setTelemetryState('engine', 'error', {
+        error: msg,
+        latencyMs: ms,
+        detail: mode,
+        transport: runTransport,
+      });
       if (!silent) setStatus('error', msg);
       else appendLog('error', `Live re-run failed: ${msg}`, 'live');
       return {
@@ -46,6 +81,12 @@ export async function runScript(script: string, opts: RunOptions = {}): Promise<
         meta: { ...result.meta, ms },
       };
     }
+    setTelemetryState('engine', 'open', {
+      latencyMs: ms,
+      detail: `${mode} · ${runTransport} · ${ms.toFixed(0)}ms`,
+      error: null,
+      transport: runTransport,
+    });
     if (!silent) setStatus('ready', `Completed in ${ms.toFixed(0)}ms`);
     return {
       ...result,
@@ -60,6 +101,9 @@ export async function runScript(script: string, opts: RunOptions = {}): Promise<
     };
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
+    const ms = performance.now() - t0;
+    recordRunLatency(ms);
+    setTelemetryState('engine', 'error', { error: msg, latencyMs: ms });
     if (!silent) setStatus('error', msg);
     else appendLog('error', `Live re-run: ${msg}`, 'live');
     return {
@@ -68,7 +112,7 @@ export async function runScript(script: string, opts: RunOptions = {}): Promise<
       series: {},
       events: [],
       error: msg,
-      meta: { ms: performance.now() - t0 },
+      meta: { ms },
     };
   }
 }
@@ -97,20 +141,34 @@ export async function runAndApply(
   const manager = getManager();
   if (!manager) return result;
 
-  const overlay = result.meta?.overlay !== false;
-  const paneId = overlay ? 'price' : 'indicator';
-  const scriptName = result.meta?.script_name || 'Indicator';
-
-  if (!overlay && !manager.getPane('indicator')) {
-    addPane('indicator', scriptName);
-    manager.createPane('indicator', 'indicator', scriptName, 120);
-    manager.syncTimeScales();
+  // Pine: indicator defaults overlay=false; strategy defaults overlay=true.
+  // Explicit false must never be coerced to true.
+  const overlayFlag = result.meta?.overlay;
+  const overlay = overlayFlag !== false && overlayFlag !== 0 && overlayFlag !== 'false';
+  const existing = indicatorId
+    ? store.scripts.find((s) => s.id === indicatorId)
+    : undefined;
+  const scriptName = String(result.meta?.script_name || existing?.name || 'Indicator');
+  let paneId = 'price';
+  if (!overlay) {
+    paneId =
+      existing?.paneId && existing.paneId !== 'price' ? existing.paneId : 'indicator';
+    if (!manager.getPane(paneId)) {
+      // Keep store panes list in sync
+      if (!store.panes.some((p) => p.id === 'indicator')) {
+        addPane('indicator', scriptName);
+      }
+      manager.createPane('indicator', 'indicator', scriptName, 140);
+      paneId = 'indicator';
+      manager.syncTimeScales();
+    } else {
+      try {
+        manager.setLabel(paneId, scriptName);
+      } catch {
+        /* ignore */
+      }
+    }
   }
-
-  manager.removeOverlays(paneId);
-  manager.clearTradeMarkers();
-  // Clear previous Pine drawings; re-apply after plots if present
-  getActiveDrawingLayer()?.clearScriptDrawings();
 
   const ohlcvTimes = store.bars.map((b) => b.time);
   const plotMeta = (result.meta?.plot_meta || {}) as Record<
@@ -131,7 +189,12 @@ export async function runAndApply(
       })
       .filter(Boolean) as { time: number; value: number }[];
 
-  // Prefer multi-series from API; fall back to single plots[] list
+  // Stable overlay sync: update-in-place when keys match (no remove→blank→add flash)
+  const overlayLines: Array<{
+    name: string;
+    data: { time: number; value: number }[];
+    color?: string;
+  }> = [];
   if (seriesEntries.length > 0) {
     let colorIdx = 0;
     for (const [k, arr] of seriesEntries) {
@@ -142,11 +205,30 @@ export async function runAndApply(
         (meta?.color && String(meta.color)) ||
         PLOT_PALETTE[colorIdx % PLOT_PALETTE.length];
       colorIdx += 1;
-      manager.addOverlayLine(paneId, k, data, color);
+      overlayLines.push({ name: k, data, color });
     }
   } else if (result.plots.length) {
     const data = toLineData(result.plots as (number | null)[]);
-    if (data.length) manager.addOverlayLine(paneId, scriptName, data, PLOT_PALETTE[0]);
+    if (data.length) overlayLines.push({ name: scriptName, data, color: PLOT_PALETTE[0] });
+  }
+  manager.syncOverlayLines(paneId, overlayLines);
+
+  // Non-overlay scripts must not leave series on the price pane
+  if (!overlay && paneId !== 'price') {
+    const pricePane = manager.getPane('price');
+    if (pricePane) {
+      for (const line of overlayLines) {
+        const key = `overlay_${line.name}`;
+        if (pricePane.series[key]) {
+          try {
+            pricePane.chart.removeSeries(pricePane.series[key]);
+          } catch {
+            /* ignore */
+          }
+          delete pricePane.series[key];
+        }
+      }
+    }
   }
 
   // Strategy: markers on price pane + equity curve
@@ -171,22 +253,29 @@ export async function runAndApply(
         );
       }
     } else {
-      manager.hideEquityPane();
-      if (!silent && markers.length) {
-        appendLog('ok', `Strategy events: ${events.length} · ${markers.length} markers`, 'strategy');
+      // Live silent re-runs: skip hide to avoid equity pane thrash
+      if (!silent) {
+        manager.hideEquityPane();
+        if (markers.length) {
+          appendLog('ok', `Strategy events: ${events.length} · ${markers.length} markers`, 'strategy');
+        }
       }
     }
-  } else {
+  } else if (!silent) {
     manager.hideEquityPane();
   }
 
-  // Pine line.new / label.new / box.new from interpret runtime
+  // Pine drawings: atomic replace (no clear→empty→set flash)
   const drawings = (result as RunResult & { drawings?: unknown[] }).drawings;
+  const layer = getActiveDrawingLayer();
   if (drawings?.length) {
-    getActiveDrawingLayer()?.setScriptDrawings(drawings);
+    layer?.setScriptDrawings(drawings);
     if (!silent) {
       appendLog('ok', `Pine drawings: ${drawings.length} object(s)`, 'drawings');
     }
+  } else if (!silent) {
+    // Only clear on interactive full runs when engine returned none
+    layer?.clearScriptDrawings();
   }
 
   if (indicatorId === undefined) {

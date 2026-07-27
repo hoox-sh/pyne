@@ -45,6 +45,12 @@ export const PLOT_PALETTE = [
   '#8b8e9c',
 ];
 
+/**
+ * Fixed right price-scale width shared by every pane so plot areas share the
+ * same right edge (price labels, 0–100 indicators, volume, equity).
+ */
+export const RIGHT_PRICE_SCALE_WIDTH = 72;
+
 export function createBaseChart(container: HTMLElement, options?: Record<string, unknown>): IChartApi {
   return createChart(container, {
     layout: {
@@ -62,7 +68,7 @@ export function createBaseChart(container: HTMLElement, options?: Record<string,
       borderVisible: true,
       textColor: TV.textDim,
       entireTextOnly: false,
-      minimumWidth: 54,
+      minimumWidth: RIGHT_PRICE_SCALE_WIDTH,
       scaleMargins: { top: 0.06, bottom: 0.06 },
     },
     leftPriceScale: {
@@ -75,6 +81,10 @@ export function createBaseChart(container: HTMLElement, options?: Record<string,
       timeVisible: true,
       secondsVisible: false,
       ticksVisible: true,
+      // Never auto-scroll when a live bar is appended / updated
+      shiftVisibleRangeOnNewBar: false,
+      allowShiftVisibleRangeOnWhitespaceReplacement: false,
+      rightBarStaysOnScroll: true,
     },
     crosshair: {
       mode: CrosshairMode.Normal,
@@ -116,23 +126,28 @@ export function createCandleSeries(chart: IChartApi, paneIndex?: number): ISerie
   chart.priceScale('right').applyOptions({
     borderColor: TV.border,
     textColor: TV.textDim,
+    minimumWidth: RIGHT_PRICE_SCALE_WIDTH,
   });
   return series;
 }
 
 export function createVolumeSeries(chart: IChartApi, paneIndex?: number): ISeriesApi<'Histogram'> {
+  // Use the main right scale (same width as price pane) so chart edges align
   const opts = {
     priceFormat: { type: 'volume' as const },
-    priceScaleId: '',
-    lastValueVisible: false,
+    priceScaleId: 'right',
+    lastValueVisible: true,
     priceLineVisible: false,
   };
   const series = paneIndex !== undefined
     ? chart.addSeries(HistogramSeries, opts, paneIndex)
     : chart.addSeries(HistogramSeries, opts);
-  series.priceScale().applyOptions({
-    scaleMargins: { top: 0.72, bottom: 0 },
-    borderVisible: false,
+  chart.priceScale('right').applyOptions({
+    scaleMargins: { top: 0.12, bottom: 0.02 },
+    borderVisible: true,
+    borderColor: TV.border,
+    textColor: TV.textDim,
+    minimumWidth: RIGHT_PRICE_SCALE_WIDTH,
   });
   return series;
 }

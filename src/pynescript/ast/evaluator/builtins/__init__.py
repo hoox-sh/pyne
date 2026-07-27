@@ -96,24 +96,34 @@ class BuiltinEvaluator(
         register_color_functions(dispatch)
         register_timeframe_functions(dispatch)
         register_script_declaration_functions(dispatch)
-        # Wire strategy() declaration → broker settings on StrategyState
-        raw_strategy = dispatch.get("strategy")
-        if raw_strategy is not None and hasattr(self, "_apply_strategy_declaration"):
+        # Capture indicator()/strategy()/library() → evaluator._script_declaration
+        # so runtimes can expose overlay + title in the API response.
+        for _name in ("indicator", "study", "strategy", "library"):
+            _raw = dispatch.get(_name)
+            if _raw is None:
+                continue
 
-            def _strategy_decl_handler(
+            def _decl_handler(
                 args: list,
                 kwargs: dict | None = None,
-                _raw=raw_strategy,
+                *,
+                _raw_fn=_raw,
                 _self=self,
+                _is_strategy=_name == "strategy",
             ):
-                decl = _raw(args, kwargs)
+                decl = _raw_fn(args, kwargs)
                 try:
-                    _self._apply_strategy_declaration(decl)
+                    _self._script_declaration = decl  # type: ignore[attr-defined]
                 except Exception:
                     pass
+                if _is_strategy and hasattr(_self, "_apply_strategy_declaration"):
+                    try:
+                        _self._apply_strategy_declaration(decl)
+                    except Exception:
+                        pass
                 return decl
 
-            dispatch["strategy"] = _strategy_decl_handler
+            dispatch[_name] = _decl_handler
         return dispatch
 
     @staticmethod

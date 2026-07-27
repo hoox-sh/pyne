@@ -32,6 +32,8 @@ export interface PluginCapabilities {
   needsAuth?: boolean;
   needsNetwork?: boolean;
   needsProxy?: boolean;
+  /** Optional transport hint for Connection HUD (else inferred from id). */
+  transport?: 'ws' | 'rest' | 'local' | 'broker';
 }
 
 export interface PluginBase {

@@ -20,6 +20,8 @@ import { listEngines, preloadPyodide } from '../engines/catalog';
 import { setUploadedBars, getUploadedFileName } from '../sources/upload-store';
 import { engineOptionLabel } from './plugin-badges';
 import { Icons } from './icons';
+import { HooxLogo } from './HooxLogo';
+import { HooxLoader } from './HooxLoader';
 import { WATCHLIST_INTERVALS } from '../data/watchlist-tickers';
 
 const INTERVALS = [...WATCHLIST_INTERVALS];
@@ -123,9 +125,16 @@ export const Topbar: Component<{
       class="flex items-center gap-2.5 px-2.5 py-1 bg-bg-panel border-b-2 border-border flex-shrink-0 min-h-[36px] flex-wrap"
       data-testid="axis-topbar"
     >
-      <div class="font-semibold text-sm text-text tracking-tight mr-1" data-testid="axis-brand">
-        AXIS
-        <span class="text-text-faint font-normal text-[11px] ml-1.5">chart</span>
+      <div
+        class="flex items-center gap-1.5 mr-1.5 min-w-0"
+        data-testid="axis-brand"
+        title="HOOX · AXIS"
+      >
+        <HooxLogo size="xs" class="text-text flex-shrink-0" data-testid="axis-hoox-logo" />
+        <div class="font-semibold text-sm text-text tracking-tight leading-none">
+          AXIS
+          <span class="text-text-faint font-normal text-[11px] ml-1.5">chart</span>
+        </div>
       </div>
 
       <button
@@ -225,7 +234,7 @@ export const Topbar: Component<{
             : `Load bars from ${store.source}`
         }
       >
-        {loading() ? <Icons.loader size={13} class="animate-spin" /> : <Icons.download size={13} />}
+        {loading() ? <HooxLoader size="xs" /> : <Icons.download size={13} />}
         {loading() ? 'Loading…' : 'Load'}
       </button>
 

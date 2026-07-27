@@ -49,8 +49,8 @@ export const serverEngine: EnginePlugin = {
   kind: 'engine',
   builtIn: true,
   description:
-    'Sends the script + bars to the configured backend (Flask or Cloudflare Worker) and renders its response.',
-  capabilities: { needsNetwork: true },
+    'Sends the script + bars to the configured backend (Flask or Cloudflare Worker). Prefers WebSocket /ws/run when available, falls back to POST /run.',
+  capabilities: { needsNetwork: true, transport: 'rest' },
   configSchema: {
     endpoint: { type: 'string', default: 'http://localhost:5002', label: 'Backend URL' },
     mode: {
@@ -58,6 +58,11 @@ export const serverEngine: EnginePlugin = {
       options: ['interpret', 'compile'],
       default: 'interpret',
       label: 'Execution mode',
+    },
+    preferWs: {
+      type: 'boolean',
+      default: true,
+      label: 'Prefer WebSocket (/ws/run)',
     },
   },
   async isReady() {
@@ -67,7 +72,18 @@ export const serverEngine: EnginePlugin = {
         method: 'GET',
         signal: AbortSignal.timeout(8_000),
       });
-      return res.ok;
+      if (!res.ok) return false;
+      // Best-effort warm WS when health advertises it
+      try {
+        const j = (await res.clone().json()) as { websocket?: boolean };
+        if (j.websocket) {
+          const { probeEngineWs } = await import('./engine-ws');
+          void probeEngineWs(endpoint, 3_000);
+        }
+      } catch {
+        /* health body optional */
+      }
+      return true;
     } catch {
       return false;
     }
@@ -80,12 +96,67 @@ export const serverEngine: EnginePlugin = {
     ).replace(/\/$/, '');
     const cfg = resolveConfig(this.configSchema, { ...(config || {}), endpoint });
     const mode = String(cfg.mode || 'interpret');
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    const preferWs = cfg.preferWs !== false;
     const t0 = performance.now();
     const timeoutMs = Math.min(
       180_000,
       Math.max(60_000, 30_000 + (bars?.length || 0) * 80),
     );
+
+    // ── WSS-first path ────────────────────────────────────────────
+    if (preferWs && typeof WebSocket !== 'undefined') {
+      try {
+        const { getEngineWsClient } = await import('./engine-ws');
+        const client = getEngineWsClient(endpoint);
+        if (!client.isDead) {
+          const wsResult = await client.run(
+            { script, data: bars as unknown[], mode },
+            timeoutMs,
+          );
+          const ms = performance.now() - t0;
+          if (wsResult.status === 'error') {
+            return {
+              status: 'error',
+              plots: [],
+              events: [],
+              series: {},
+              error: wsResult.error || wsResult.message || 'WS engine error',
+              meta: { ms, transport: 'ws' },
+            } satisfies RunResult;
+          }
+          const wsOverlay =
+            wsResult.overlay ??
+            (wsResult.meta as { overlay?: boolean } | undefined)?.overlay ??
+            true;
+          const wsName =
+            (wsResult.script_name as string) ||
+            (wsResult.meta as { script_name?: string } | undefined)?.script_name ||
+            'plot';
+          return {
+            status: 'success',
+            plots: (wsResult.plots as (number | null)[]) || [],
+            series: (wsResult.series as Record<string, (number | null)[]>) || {},
+            events: (wsResult.events as RunResult['events']) || [],
+            drawings: (wsResult.drawings as RunResult['drawings']) || [],
+            meta: {
+              ms,
+              transport: 'ws',
+              mode: wsResult.mode || mode,
+              script_id: wsResult.script_id,
+              run_id: wsResult.run_id,
+              overlay: wsOverlay !== false,
+              script_name: wsName,
+              plot_meta: wsResult.plot_meta || {},
+            },
+          } satisfies RunResult;
+        }
+      } catch {
+        // Fall through to REST
+      }
+    }
+
+    // ── REST fallback ─────────────────────────────────────────────
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     try {
       const res = await fetch(`${endpoint}/run?mode=${encodeURIComponent(mode)}`, {
         method: 'POST',
@@ -101,9 +172,13 @@ export const serverEngine: EnginePlugin = {
           events: [],
           series: {},
           error: payload.message || `HTTP ${res.status}`,
-          meta: { ms: performance.now() - t0 },
+          meta: { ms: performance.now() - t0, transport: 'rest' },
         } satisfies RunResult;
       }
+      const restOverlay =
+        payload.overlay ?? payload.meta?.overlay ?? true;
+      const restName =
+        payload.script_name || payload.meta?.script_name || 'plot';
       return {
         status: 'success',
         plots: payload.plots || [],
@@ -113,11 +188,12 @@ export const serverEngine: EnginePlugin = {
         meta: {
           ...(payload.meta || {}),
           ms: performance.now() - t0,
+          transport: 'rest',
           mode: payload.mode,
           script_id: payload.script_id,
           run_id: payload.run_id,
-          overlay: payload.meta?.overlay ?? true,
-          script_name: payload.meta?.script_name || 'plot',
+          overlay: restOverlay !== false,
+          script_name: restName,
           plot_meta: payload.plot_meta || {},
         },
       } satisfies RunResult;
@@ -129,7 +205,7 @@ export const serverEngine: EnginePlugin = {
         events: [],
         series: {},
         error: msg,
-        meta: { ms: performance.now() - t0 },
+        meta: { ms: performance.now() - t0, transport: 'rest' },
       } satisfies RunResult;
     }
   },
@@ -319,12 +395,25 @@ export const pyodideEngine: EnginePlugin & {
       const resultJson = py.runPython(
         `run_script(${JSON.stringify(script)}, ${JSON.stringify(bars)})`,
       );
-      const result = JSON.parse(resultJson) as RunResult;
+      const result = JSON.parse(resultJson) as RunResult & {
+        overlay?: boolean;
+        script_name?: string;
+      };
+      const overlay =
+        result.overlay ?? result.meta?.overlay ?? true;
+      const scriptName =
+        result.script_name || result.meta?.script_name || 'plot';
       return {
         ...result,
         series: result.series || {},
         events: result.events || [],
-        meta: { ...(result.meta || {}), ms: performance.now() - t0 },
+        meta: {
+          ...(result.meta || {}),
+          ms: performance.now() - t0,
+          overlay: overlay !== false,
+          script_name: scriptName,
+          transport: 'local',
+        },
       };
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);

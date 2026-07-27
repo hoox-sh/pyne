@@ -420,18 +420,43 @@ def _run_interpret(script: str, bars: list[dict]) -> dict:
                 in_pos = False
         equity_curve.append({"time": ev["time"], "value": equity})
 
+    # Script declaration → pane routing (indicator default overlay=false)
+    decl = getattr(evaluator, "_script_declaration", None)
+    overlay = True
+    script_name = "plot"
+    script_type = "indicator"
+    if decl is not None:
+        script_type = str(getattr(decl, "script_type", "indicator") or "indicator")
+        title = str(getattr(decl, "title", "") or "").strip()
+        if title:
+            script_name = title
+        if hasattr(decl, "overlay"):
+            overlay = bool(decl.overlay)
+        else:
+            kw = getattr(decl, "kwargs", None) or {}
+            if "overlay" in kw:
+                overlay = bool(kw["overlay"])
+            else:
+                overlay = script_type == "strategy"
+
     return {
         "status": "success",
         "plots": plots_main,
         "series": series,
         "events": all_events,
         "equity_curve": equity_curve,
+        "overlay": overlay,
+        "script_name": script_name,
+        "script_type": script_type,
         "meta": {
             "mode": "interpret",
             "count": len(bars),
             "ms": (time.perf_counter() - t0) * 1000,
             "script_id": script_id,
             "run_id": run_id,
+            "overlay": overlay,
+            "script_name": script_name,
+            "script_type": script_type,
         },
     }
 

@@ -259,3 +259,195 @@ button.sc-btn:focus-visible {
   background: var(--color-accent);
   opacity: 1;
 }
+
+/* ── HOOX brand mark + CRT flicker loaders ─────────────────────────
+   Ported from hoox-landing-page logo-flicker / crt-flicker / stat-flicker.
+   Path stagger uses opposite geometric pairs (1↔2, 3↔4) + center.
+*/
+
+.hoox-logo {
+  color: var(--color-text);
+  overflow: visible;
+}
+
+.hoox-logo path[data-geom] {
+  fill: currentColor;
+  transform-origin: 50% 50%;
+  transform-box: fill-box;
+}
+
+/* Accent edge — brand orange on loaders, soft text tint on mark */
+.hoox-logo .hoox-logo-accent,
+.hoox-logo path[data-accent] {
+  fill: var(--color-accent-3);
+  fill-opacity: 0.95;
+}
+
+.hoox-logo:not(.hoox-logo--loader) path[data-accent] {
+  fill: currentColor;
+  fill-opacity: 0.88;
+}
+
+/* Continuous CRT path flicker (loader mode) — deliberately slow / ambient */
+@keyframes hoox-path-flicker {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  8% {
+    opacity: 0.55;
+  }
+  14% {
+    opacity: 0.92;
+  }
+  22% {
+    opacity: 0.35;
+  }
+  30% {
+    opacity: 1;
+  }
+  52% {
+    opacity: 0.88;
+  }
+  60% {
+    opacity: 0.45;
+  }
+  68% {
+    opacity: 1;
+  }
+  82% {
+    opacity: 0.7;
+  }
+  90% {
+    opacity: 0.5;
+  }
+  96% {
+    opacity: 1;
+  }
+}
+
+@keyframes hoox-logo-crt {
+  0%,
+  100% {
+    opacity: 0.97;
+    filter: drop-shadow(0 0 0 transparent);
+  }
+  12% {
+    opacity: 0.72;
+  }
+  18% {
+    opacity: 1;
+    filter: drop-shadow(0 0 5px color-mix(in oklch, var(--color-accent) 40%, transparent));
+  }
+  40% {
+    opacity: 0.9;
+  }
+  48% {
+    opacity: 0.55;
+  }
+  56% {
+    opacity: 0.98;
+  }
+  78% {
+    opacity: 0.85;
+  }
+  88% {
+    opacity: 0.6;
+  }
+  94% {
+    opacity: 1;
+  }
+}
+
+@keyframes hoox-glow-pulse {
+  0%,
+  100% {
+    opacity: 0.12;
+    transform: scale(0.94);
+  }
+  45% {
+    opacity: 0.38;
+    transform: scale(1.06);
+  }
+  75% {
+    opacity: 0.18;
+    transform: scale(1);
+  }
+}
+
+.hoox-logo--loader {
+  /* ~5× slower than first pass — ambient CRT, not seizure-grade */
+  animation: hoox-logo-crt 6.5s ease-in-out infinite;
+  color: var(--color-text);
+}
+
+.hoox-logo--loader path[data-geom] {
+  animation: hoox-path-flicker 7.2s ease-in-out infinite;
+}
+
+/* Opposite-pair stagger (landing logo-flicker order), stretched */
+.hoox-logo--loader path[data-idx='0'] {
+  animation-delay: 0ms;
+}
+.hoox-logo--loader path[data-idx='1'] {
+  animation-delay: 320ms;
+}
+.hoox-logo--loader path[data-idx='2'] {
+  animation-delay: 480ms;
+}
+.hoox-logo--loader path[data-idx='3'] {
+  animation-delay: 800ms;
+}
+.hoox-logo--loader path[data-idx='4'] {
+  animation-delay: 960ms;
+}
+
+.hoox-logo--loader path[data-accent] {
+  fill: var(--color-accent-3);
+  animation-name: hoox-path-flicker;
+  animation-duration: 5.8s;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+  animation-delay: 960ms;
+}
+
+.hoox-loader-glow {
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    color-mix(in oklch, var(--color-accent) 35%, transparent) 0%,
+    transparent 70%
+  );
+  animation: hoox-glow-pulse 6.5s ease-in-out infinite;
+}
+
+.hoox-loader[data-size='xs'] .hoox-loader-glow {
+  animation-duration: 5.5s;
+}
+.hoox-loader[data-size='l'] .hoox-loader-glow {
+  animation-duration: 7.5s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hoox-logo--loader,
+  .hoox-logo--loader path[data-geom],
+  .hoox-logo--loader path[data-accent],
+  .hoox-loader-glow {
+    animation: none !important;
+    opacity: 1 !important;
+    filter: none !important;
+  }
+}
+
+/* Screen-reader only (if not provided by utility layer) */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}

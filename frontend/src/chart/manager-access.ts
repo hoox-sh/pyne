@@ -35,19 +35,40 @@ function ensureDrawingLayer() {
   if (!pricePane || !candle) return;
   const el = typeof document !== 'undefined' ? document.getElementById('pane-price') : null;
   if (!el) return;
+  // happy-dom / minimal test envs may lack createElementNS
+  if (typeof document.createElementNS !== 'function') return;
 
-  drawingLayer = new DrawingLayer(el, pricePane.chart, candle as never);
-  drawingLayer.setDrawings(store.drawings);
-  drawingLayer.setTool(store.drawingTool);
-  drawingLayer.setOnChange((list) => setDrawings(list));
+  try {
+    drawingLayer = new DrawingLayer(el, pricePane.chart, candle as never);
+    drawingLayer.setDrawings(store.drawings);
+    drawingLayer.setTool(store.drawingTool);
+    drawingLayer.setOnChange((list) => setDrawings(list));
+  } catch {
+    drawingLayer = undefined;
+  }
 }
 
-export function setDataToChart(bars: Bar[]) {
+export type SetDataToChartOpts = {
+  /** Reset viewport to fit all bars (full loads only; never live ticks). Default true. */
+  fit?: boolean;
+  /** Clear trade markers before applying OHLCV. Default true for full loads. */
+  clearMarkers?: boolean;
+};
+
+/**
+ * Full OHLCV replace for history loads / symbol changes.
+ * Do **not** call this on every live tick — use PaneManager.appendBar instead.
+ */
+export function setDataToChart(bars: Bar[], opts: SetDataToChartOpts = {}) {
   if (!manager) return;
+  const fit = opts.fit !== false;
+  const clearMarkers = opts.clearMarkers !== false;
   const pricePane = manager.getPane('price');
   const volPane = manager.getPane('volume');
 
-  manager.clearTradeMarkers();
+  if (clearMarkers) {
+    manager.clearTradeMarkers();
+  }
 
   if (pricePane && !pricePane.series['candle']) {
     pricePane.series['candle'] = createCandleSeries(pricePane.chart);
@@ -69,7 +90,9 @@ export function setDataToChart(bars: Bar[]) {
         priceLineColor: up ? TV.up : TV.down,
       });
     }
-    pricePane.chart.timeScale().fitContent();
+    if (fit) {
+      pricePane.chart.timeScale().fitContent();
+    }
   }
 
   if (volPane && !volPane.series['volume']) {

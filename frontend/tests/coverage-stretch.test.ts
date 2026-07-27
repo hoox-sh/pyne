@@ -181,13 +181,17 @@ describe('load-symbol stretch', () => {
     const calls: string[] = [];
     setManager({
       fitContent: () => calls.push('fit'),
-      getPane: () => undefined,
-      clearTradeMarkers: () => {},
+      getPane: (id: string) => {
+        calls.push(`pane:${id}`);
+        return undefined;
+      },
+      clearTradeMarkers: () => calls.push('clearMarkers'),
     } as never);
-    // setDataToChart will no-op without panes; still exercises manager branch
+    // setDataToChart runs when manager is present (panes may be empty)
     const ok = await loadSymbolData('BTC', '1d', 'mock-walk');
     expect(ok).toBe(true);
-    expect(calls).toContain('fit');
+    // Full loads apply via setDataToChart (getPane for price/volume), not a second fitContent call
+    expect(calls.some((c) => c.startsWith('pane:'))).toBe(true);
   });
 });
 

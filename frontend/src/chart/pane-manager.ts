@@ -11,6 +11,7 @@ import {
   createLineSeries,
   createAreaSeries,
   PLOT_PALETTE,
+  RIGHT_PRICE_SCALE_WIDTH,
   TV,
 } from './series-factory';
 import type { Bar } from '../store/types';
@@ -33,6 +34,8 @@ export class PaneManager {
   private suppressSync = false;
   /** LWC v5 markers plugin attached to the price candle series */
   private candleMarkers: ISeriesMarkersPluginApi<any> | null = null;
+  /** One-way range sync unsubscribers */
+  private timeSyncUnsubs: Array<() => void> = [];
 
   constructor(container: HTMLElement) {
     this.container = container;
@@ -76,28 +79,76 @@ export class PaneManager {
     const chart = createBaseChart(div, {
       timeScale:
         type === 'volume' || type === 'indicator' || type === 'equity'
-          ? { visible: false, borderColor: '#3a3d4a', borderVisible: false }
+          ? {
+              visible: false,
+              borderColor: '#3a3d4a',
+              borderVisible: false,
+              shiftVisibleRangeOnNewBar: false,
+              allowShiftVisibleRangeOnWhitespaceReplacement: false,
+            }
           : undefined,
-      rightPriceScale:
-        type === 'volume'
-          ? { borderColor: '#3a3d4a', scaleMargins: { top: 0.15, bottom: 0.02 }, minimumWidth: 54 }
-          : type === 'equity'
-            ? { borderColor: TV.border, scaleMargins: { top: 0.1, bottom: 0.05 }, minimumWidth: 54 }
-            : undefined,
+      rightPriceScale: {
+        borderColor: TV.border,
+        borderVisible: true,
+        textColor: TV.textDim,
+        minimumWidth: RIGHT_PRICE_SCALE_WIDTH,
+        scaleMargins:
+          type === 'volume'
+            ? { top: 0.12, bottom: 0.02 }
+            : type === 'equity'
+              ? { top: 0.1, bottom: 0.05 }
+              : type === 'indicator'
+                ? { top: 0.08, bottom: 0.08 }
+                : { top: 0.06, bottom: 0.06 },
+      },
     });
+
+    // Lock right scale width so all pane plot areas share the same right edge
+    try {
+      chart.priceScale('right').applyOptions({
+        minimumWidth: RIGHT_PRICE_SCALE_WIDTH,
+        borderVisible: true,
+      });
+    } catch {
+      /* ignore */
+    }
 
     const ro = new ResizeObserver(() => {
       const rect = div.getBoundingClientRect();
       if (rect.width > 0 && rect.height > 0) {
         chart.applyOptions({ width: rect.width, height: rect.height });
+        // Re-assert scale width after resize (LWC may recompute)
+        try {
+          chart.priceScale('right').applyOptions({ minimumWidth: RIGHT_PRICE_SCALE_WIDTH });
+        } catch {
+          /* ignore */
+        }
       }
     });
     ro.observe(div);
 
     const pane: ManagedPane = { id, type, chart, series: {}, visible: true, label, resizeObserver: ro };
     this.panes.set(id, pane);
+    this.alignRightScales();
 
     return pane;
+  }
+
+  /** Force identical right price-scale width on every pane (plot area alignment). */
+  alignRightScales() {
+    for (const pane of this.getAllPanes()) {
+      if (!pane.visible) continue;
+      try {
+        pane.chart.priceScale('right').applyOptions({
+          minimumWidth: RIGHT_PRICE_SCALE_WIDTH,
+          borderVisible: true,
+          borderColor: TV.border,
+          textColor: TV.textDim,
+        });
+      } catch {
+        /* ignore */
+      }
+    }
   }
 
   destroyPane(id: string) {
@@ -234,13 +285,25 @@ export class PaneManager {
   }
 
   syncTimeScales() {
-    // Include equity so trade curve tracks price/volume range
+    // Clear previous subscriptions (createPane may call this repeatedly)
+    for (const u of this.timeSyncUnsubs) {
+      try {
+        u();
+      } catch {
+        /* ignore */
+      }
+    }
+    this.timeSyncUnsubs = [];
+
+    // Prefer price as the range source so all sub-panes match its logical range
     const panes = this.getAllPanes().filter((p) => p.visible);
     if (panes.length < 2) return;
-    const src = panes[0].chart;
-    for (let i = 1; i < panes.length; i++) {
-      const target = panes[i].chart;
-      src.timeScale().subscribeVisibleLogicalRangeChange((range) => {
+    const src = (this.panes.get('price')?.visible ? this.panes.get('price') : panes[0])!.chart;
+
+    for (const pane of panes) {
+      if (pane.chart === src) continue;
+      const target = pane.chart;
+      const handler = (range: { from: number; to: number } | null) => {
         if (this.suppressSync || !range) return;
         this.suppressSync = true;
         try {
@@ -248,8 +311,24 @@ export class PaneManager {
         } finally {
           this.suppressSync = false;
         }
+      };
+      src.timeScale().subscribeVisibleLogicalRangeChange(handler);
+      this.timeSyncUnsubs.push(() => {
+        try {
+          src.timeScale().unsubscribeVisibleLogicalRangeChange(handler);
+        } catch {
+          /* ignore */
+        }
       });
+      // Initial align
+      try {
+        const cur = src.timeScale().getVisibleLogicalRange();
+        if (cur) target.timeScale().setVisibleLogicalRange(cur);
+      } catch {
+        /* ignore */
+      }
     }
+    this.alignRightScales();
   }
 
   /**
@@ -421,6 +500,71 @@ export class PaneManager {
     }
   }
 
+  /**
+   * Update overlay lines in place when keys match — avoids destroy/recreate flash
+   * during live re-runs. Removes only stale keys; creates missing ones.
+   */
+  syncOverlayLines(
+    paneId: string,
+    lines: Array<{ name: string; data: { time: number; value: number }[]; color?: string }>,
+  ) {
+    const pane = this.panes.get(paneId);
+    if (!pane) return;
+
+    // Preserve viewport — setData must not auto-reposition on live re-runs
+    let savedRange: { from: number; to: number } | null = null;
+    try {
+      savedRange = pane.chart.timeScale().getVisibleLogicalRange();
+    } catch {
+      savedRange = null;
+    }
+
+    const want = new Set(lines.map((l) => `overlay_${l.name}`));
+    for (const k of Object.keys(pane.series)) {
+      if (!k.startsWith('overlay_')) continue;
+      if (!want.has(k)) {
+        try {
+          pane.chart.removeSeries(pane.series[k]);
+        } catch {
+          /* ignore */
+        }
+        delete pane.series[k];
+      }
+    }
+
+    let colorIdx = 0;
+    for (const line of lines) {
+      const key = `overlay_${line.name}`;
+      const mapped = line.data.map((d) => ({ time: d.time as UTCTimestamp, value: d.value }));
+      const existing = pane.series[key];
+      if (existing) {
+        existing.setData(mapped);
+        if (line.color) {
+          try {
+            existing.applyOptions({ color: line.color });
+          } catch {
+            /* ignore */
+          }
+        }
+      } else {
+        const c = line.color || PLOT_PALETTE[colorIdx % PLOT_PALETTE.length];
+        const series = createLineSeries(pane.chart, line.name, c);
+        series.setData(mapped);
+        pane.series[key] = series;
+      }
+      colorIdx += 1;
+    }
+
+    if (savedRange) {
+      try {
+        pane.chart.timeScale().setVisibleLogicalRange(savedRange);
+      } catch {
+        /* ignore */
+      }
+    }
+    this.alignRightScales();
+  }
+
   addOverlayLine(paneId: string, name: string, data: { time: number; value: number }[], color?: string) {
     const pane = this.panes.get(paneId);
     if (!pane) return;
@@ -434,6 +578,14 @@ export class PaneManager {
 
   dispose() {
     this.candleMarkers = null;
+    for (const u of this.timeSyncUnsubs) {
+      try {
+        u();
+      } catch {
+        /* ignore */
+      }
+    }
+    this.timeSyncUnsubs = [];
     for (const pane of this.getAllPanes()) {
       this.destroyPane(pane.id);
     }
