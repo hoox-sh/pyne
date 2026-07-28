@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import hashlib
 
+from collections import OrderedDict
 from dataclasses import dataclass
 from dataclasses import field
 from typing import Any
@@ -47,9 +48,9 @@ try:
 except ImportError:  # pragma: no cover
     _HAS_NUMBA = False
 
-# Bounded cache: source sha256 → CompiledScript (populated after class defined)
-_COMPILE_CACHE: dict[str, Any] = {}
-_COMPILE_CACHE_MAX = 32
+# LRU cache: source sha256 → CompiledScript (populated after class defined)
+_COMPILE_CACHE: OrderedDict[str, Any] = OrderedDict()
+_COMPILE_CACHE_MAX = 128
 
 
 def has_numba() -> bool:
@@ -72,6 +73,13 @@ def transpile(source: str) -> str:
     return code
 
 
+def _as_f64(x: np.ndarray | list[float]) -> np.ndarray:
+    """Convert to contiguous float64 without copying when already correct."""
+    if isinstance(x, np.ndarray) and x.dtype == np.float64 and x.flags.c_contiguous:
+        return x
+    return np.asarray(x, dtype=np.float64)
+
+
 @dataclass
 class CompiledScript:
     """A compiled Pine script ready to run over OHLCV arrays."""
@@ -91,20 +99,50 @@ class CompiledScript:
         volume: np.ndarray | list[float] | None = None,
     ) -> dict[str, Any]:
         """Execute over full series; returns plots (+ optional ``__drawings``)."""
-        o = np.asarray(open_, dtype=np.float64)
-        h = np.asarray(high, dtype=np.float64)
-        l = np.asarray(low, dtype=np.float64)
-        c = np.asarray(close, dtype=np.float64)
+        o = _as_f64(open_)
+        h = _as_f64(high)
+        l = _as_f64(low)
+        c = _as_f64(close)
         if volume is None:
             v = np.ones(len(c), dtype=np.float64)
         else:
-            v = np.asarray(volume, dtype=np.float64)
+            v = _as_f64(volume)
         n = len(c)
         if not (len(o) == len(h) == len(l) == n == len(v)):
             msg = "OHLCV arrays must have the same length"
             raise ValueError(msg)
         raw = self.execute(o, h, l, c, v)
+        return self._pack_result(raw)
+
+    def _pack_result(self, raw: Any) -> dict[str, Any]:
+        """Map execute() output to the public plot-title dict.
+
+        Numeric mode returns a tuple of plot arrays (avoids Numba typed.Dict).
+        Object mode still returns a mapping (drawings / strategy extras).
+        """
+        if isinstance(raw, tuple):
+            out: dict[str, Any] = {}
+            for i, title in enumerate(self.plot_titles):
+                if i >= len(raw):
+                    break
+                out[title] = _coerce_plot_array(raw[i])
+            return out
         return _normalize_result(raw)
+
+
+def _coerce_plot_array(v: Any) -> Any:
+    """Ensure plot series are float64 arrays without redundant copies."""
+    if isinstance(v, np.ndarray):
+        if v.dtype == np.float64:
+            return v
+        try:
+            return v.astype(np.float64, copy=False)
+        except (TypeError, ValueError):
+            return v
+    try:
+        return np.asarray(v, dtype=np.float64)
+    except (TypeError, ValueError):
+        return v
 
 
 def _normalize_result(raw: Any) -> dict[str, Any]:
@@ -115,20 +153,24 @@ def _normalize_result(raw: Any) -> dict[str, Any]:
     """
     if raw is None:
         return {}
+    if isinstance(raw, tuple):
+        # Bare tuple without titles context — index keys (legacy / direct call)
+        return {f"plot_{i}": _coerce_plot_array(v) for i, v in enumerate(raw)}
     try:
         items = raw.items()
     except Exception:
-        return {"plot": np.asarray(raw, dtype=np.float64)}
+        return {"plot": _coerce_plot_array(raw)}
     out: dict[str, Any] = {}
     for k, v in items:
         key = str(k)
-        if key == "__drawings":
+        if key in ("__drawings", "__events"):
             out[key] = list(v) if v is not None else []
             continue
-        try:
-            out[key] = np.asarray(v, dtype=np.float64)
-        except (TypeError, ValueError):
+        if key.startswith("__") and not isinstance(v, (list, np.ndarray)):
+            # strategy scalars: __equity, __netprofit, __position_size
             out[key] = v
+            continue
+        out[key] = _coerce_plot_array(v)
     return out
 
 
@@ -138,11 +180,13 @@ def compile_script(source: str, *, use_cache: bool = True) -> CompiledScript:
     Uses Numba when the script is pure-numeric; object-mode (UDT/map/drawing)
     uses a pure-Python numpy bar loop (still much faster than AST walking).
 
-    Results are cached by source hash (max 32) so repeated ``Runtime.run(...,
-    mode="compile")`` of the same script skips re-transpile and re-JIT warm-up.
+    Results are cached by source hash (max 128, LRU) so repeated
+    ``Runtime.run(..., mode="compile")`` of the same script skips re-transpile
+    and re-JIT warm-up.
     """
     cache_key = hashlib.sha256(source.encode("utf-8")).hexdigest()
     if use_cache and cache_key in _COMPILE_CACHE:
+        _COMPILE_CACHE.move_to_end(cache_key)
         return _COMPILE_CACHE[cache_key]
 
     tree = parse(source, mode="exec")
@@ -166,12 +210,13 @@ def compile_script(source: str, *, use_cache: bool = True) -> CompiledScript:
         msg = "generated code missing execute_script_compiled()"
         raise RuntimeError(msg)
 
-    # Warm-up (JIT or first-run)
-    dummy = np.arange(16, dtype=np.float64)
-    try:
-        fn(dummy, dummy, dummy, dummy, dummy)
-    except Exception:
-        pass
+    # Warm-up JIT only for numeric mode (object mode is pure Python).
+    if not object_mode:
+        dummy = np.arange(16, dtype=np.float64)
+        try:
+            fn(dummy, dummy, dummy, dummy, dummy)
+        except Exception:
+            pass
 
     compiled = CompiledScript(
         source=source,
@@ -183,10 +228,11 @@ def compile_script(source: str, *, use_cache: bool = True) -> CompiledScript:
     if use_cache:
         if len(_COMPILE_CACHE) >= _COMPILE_CACHE_MAX:
             try:
-                _COMPILE_CACHE.pop(next(iter(_COMPILE_CACHE)))
-            except StopIteration:
+                _COMPILE_CACHE.popitem(last=False)
+            except KeyError:
                 pass
         _COMPILE_CACHE[cache_key] = compiled
+        _COMPILE_CACHE.move_to_end(cache_key)
     return compiled
 
 

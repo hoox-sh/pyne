@@ -243,6 +243,32 @@ def numba_nz(val, replacement):
         return replacement
     return val
 
+@numba.njit(cache=True)
+def numba_store(arr, i, value):
+    """Write ``value`` into ``arr[i]`` and return it.
+
+    Expression-safe substitute for ``arr[i] = value`` so ``plot()`` can appear
+    inside dict/call arguments (e.g. ``fill(plot(a), plot(b))``).
+    """
+    arr[i] = value
+    return value
+
+
+@numba.njit(cache=True)
+def numba_store_src(dst, val, i):
+    """Write scalar ``val`` into ``dst[i]`` and return ``dst`` for TA consumers.
+
+    Materializes expression sources (e.g. ``math.abs(mom)``, ``close * 2``)
+    into a synthetic series so ``numba_ema`` / ``numba_sma`` can index history.
+    Uses ``val + 0.0`` so bool/int promote under nopython.
+    """
+    v = val + 0.0
+    if v != v:  # NaN
+        dst[i] = np.nan
+    else:
+        dst[i] = v
+    return dst
+
 
 @numba.njit(cache=True)
 def numba_abs(val):
@@ -773,3 +799,542 @@ def numba_roc(arr, length, i):
     if np.isnan(baseline) or baseline == 0.0 or np.isnan(arr[i]):
         return np.nan
     return 100.0 * (arr[i] - baseline) / baseline
+
+
+@numba.njit(cache=True)
+def numba_sum(arr, period, i):
+    period = int(period)
+    """Rolling sum of last ``period`` bars ending at ``i``."""
+    if period <= 0 or i < period - 1:
+        return np.nan
+    s = 0.0
+    for j in range(period):
+        v = arr[i - j]
+        if np.isnan(v):
+            return np.nan
+        s += v
+    return s
+
+
+@numba.njit(cache=True)
+def numba_variance(arr, period, i):
+    period = int(period)
+    """Sample variance (n-1) over last ``period`` bars — ``stdev**2``."""
+    if period <= 1 or i < period - 1:
+        return np.nan
+    mean = 0.0
+    for j in range(period):
+        v = arr[i - j]
+        if np.isnan(v):
+            return np.nan
+        mean += v
+    mean /= period
+    var = 0.0
+    for j in range(period):
+        d = arr[i - j] - mean
+        var += d * d
+    return var / (period - 1)
+
+
+@numba.njit(cache=True)
+def numba_dev(arr, period, i):
+    period = int(period)
+    """Mean absolute deviation from SMA over last ``period`` bars."""
+    if period <= 0 or i < period - 1:
+        return np.nan
+    mean = 0.0
+    for j in range(period):
+        v = arr[i - j]
+        if np.isnan(v):
+            return np.nan
+        mean += v
+    mean /= period
+    md = 0.0
+    for j in range(period):
+        md += abs(arr[i - j] - mean)
+    return md / period
+
+
+@numba.njit(cache=True)
+def numba_correlation(a, b, period, i):
+    period = int(period)
+    """Pearson correlation of series ``a`` and ``b`` over last ``period`` bars."""
+    if period < 2 or i < period - 1:
+        return np.nan
+    mean_a = 0.0
+    mean_b = 0.0
+    for j in range(period):
+        va = a[i - j]
+        vb = b[i - j]
+        if np.isnan(va) or np.isnan(vb):
+            return np.nan
+        mean_a += va
+        mean_b += vb
+    mean_a /= period
+    mean_b /= period
+    num = 0.0
+    den_a = 0.0
+    den_b = 0.0
+    for j in range(period):
+        da = a[i - j] - mean_a
+        db = b[i - j] - mean_b
+        num += da * db
+        den_a += da * da
+        den_b += db * db
+    if den_a == 0.0 or den_b == 0.0:
+        return np.nan
+    return num / np.sqrt(den_a * den_b)
+
+
+@numba.njit(cache=True)
+def numba_alma(arr, length, offset, sigma, i):
+    length = int(length)
+    """Arnaud Legoux Moving Average over last ``length`` bars ending at ``i``.
+
+    Weights: Gaussian centered at ``m = offset * (length - 1)`` with
+    ``s = length / sigma`` (TV defaults offset=0.85, sigma=6).
+    Index 0 in the weight loop is the oldest bar in the window.
+    """
+    if length <= 0 or i < length - 1:
+        return np.nan
+    if sigma == 0.0:
+        return np.nan
+    m = offset * (length - 1)
+    s = length / sigma
+    s2 = 2.0 * s * s
+    wsum = 0.0
+    total = 0.0
+    for k in range(length):
+        # k=0 oldest … k=length-1 newest
+        v = arr[i - length + 1 + k]
+        if np.isnan(v):
+            return np.nan
+        d = float(k) - m
+        w = np.exp(-(d * d) / s2)
+        total += v * w
+        wsum += w
+    if wsum == 0.0:
+        return np.nan
+    return total / wsum
+
+
+@numba.njit(cache=True)
+def _numba_wma_at(arr, end_idx, period):
+    """WMA ending at ``end_idx`` with length ``period`` (newest weight = period)."""
+    period = int(period)
+    if period <= 0 or end_idx < period - 1:
+        return np.nan
+    weighted = 0.0
+    total_w = 0.0
+    for j in range(period):
+        w = float(period - j)
+        v = arr[end_idx - j]
+        if np.isnan(v):
+            return np.nan
+        weighted += v * w
+        total_w += w
+    if total_w == 0.0:
+        return np.nan
+    return weighted / total_w
+
+
+@numba.njit(cache=True)
+def numba_hma(arr, length, i):
+    length = int(length)
+    """Hull Moving Average: WMA(2*WMA(n/2) - WMA(n), sqrt(n)) at bar ``i``."""
+    if length <= 0 or i < length - 1:
+        return np.nan
+    half = length // 2
+    if half < 1:
+        half = 1
+    sqrt_n = int(np.sqrt(float(length)))
+    if sqrt_n < 1:
+        sqrt_n = 1
+    # Full WMA needs ``length`` bars at each of last sqrt_n ends
+    if i < length + sqrt_n - 2:
+        return np.nan
+
+    diffs = np.empty(sqrt_n, dtype=np.float64)
+    for t in range(sqrt_n):
+        end = i - t
+        wh = _numba_wma_at(arr, end, half)
+        wf = _numba_wma_at(arr, end, length)
+        if np.isnan(wh) or np.isnan(wf):
+            return np.nan
+        diffs[t] = 2.0 * wh - wf
+    weighted = 0.0
+    total_w = 0.0
+    for j in range(sqrt_n):
+        w = float(sqrt_n - j)
+        weighted += diffs[j] * w
+        total_w += w
+    if total_w == 0.0:
+        return np.nan
+    return weighted / total_w
+
+
+@numba.njit(cache=True)
+def numba_tsi(arr, short_len, long_len, i):
+    short_len = int(short_len)
+    long_len = int(long_len)
+    """True Strength Index: double-smoothed momentum / double-smoothed |mom|.
+
+    TV: ``ta.tsi(source, short_length, long_length)`` —
+    ``100 * EMA(EMA(mom, long), short) / EMA(EMA(|mom|, long), short)``.
+    EMAs use SMA seed (same as ``numba_ema``).
+    """
+    if short_len <= 0 or long_len <= 0:
+        return np.nan
+    need = long_len + short_len - 1
+    if i < need:
+        return np.nan
+
+    alpha_l = 2.0 / (long_len + 1.0)
+    alpha_s = 2.0 / (short_len + 1.0)
+
+    sum_m = 0.0
+    sum_a = 0.0
+    for j in range(1, long_len + 1):
+        mom = arr[j] - arr[j - 1]
+        sum_m += mom
+        sum_a += abs(mom)
+    ema_m = sum_m / long_len
+    ema_a = sum_a / long_len
+
+    seed_sm = ema_m
+    seed_sa = ema_a
+    seed_count = 1
+    short_m = 0.0
+    short_a = 0.0
+    short_ready = False
+
+    for j in range(long_len + 1, i + 1):
+        mom = arr[j] - arr[j - 1]
+        ema_m = alpha_l * mom + (1.0 - alpha_l) * ema_m
+        ema_a = alpha_l * abs(mom) + (1.0 - alpha_l) * ema_a
+        if not short_ready:
+            seed_sm += ema_m
+            seed_sa += ema_a
+            seed_count += 1
+            if seed_count == short_len:
+                short_m = seed_sm / short_len
+                short_a = seed_sa / short_len
+                short_ready = True
+        else:
+            short_m = alpha_s * ema_m + (1.0 - alpha_s) * short_m
+            short_a = alpha_s * ema_a + (1.0 - alpha_s) * short_a
+
+    if not short_ready:
+        return np.nan
+    if short_a == 0.0:
+        return 0.0
+    return 100.0 * (short_m / short_a)
+
+
+# ---------------------------------------------------------------------------
+# Object-mode coercion helpers (pure Python; never called under njit)
+# ---------------------------------------------------------------------------
+
+def safe_float(x):
+    """Best-effort float cast for plot/series stores in object mode.
+
+    UDT dicts, hline handles, callables, version strings, and sequences
+    must not raise — return NaN (or first element for length-1+ sequences).
+    """
+    try:
+        if x is None:
+            return np.nan
+        if isinstance(x, bool):
+            return 1.0 if x else 0.0
+        if isinstance(x, (int, float, np.integer, np.floating)):
+            return float(x)
+        if isinstance(x, (dict, set)):
+            return np.nan
+        if isinstance(x, (list, tuple)):
+            if len(x) == 0:
+                return np.nan
+            # "setting an array element with a sequence" — take first element
+            return safe_float(x[0])
+        if callable(x) and not isinstance(x, type):
+            return np.nan
+        if isinstance(x, str):
+            # version strings like '0.0.1' are not floats
+            s = x.strip()
+            if not s or s.count(".") > 1:
+                return np.nan
+            return float(s)
+        return float(x)
+    except Exception:
+        return np.nan
+
+
+def safe_int(x):
+    """Best-effort int cast; NaN/invalid → 0 (Pine-ish fallback)."""
+    try:
+        f = safe_float(x)
+        if f != f:  # NaN
+            return 0
+        return int(f)
+    except Exception:
+        return 0
+
+@numba.njit(cache=True)
+def numba_ema_inc(arr, period, i, st):
+    """Incremental EMA. ``st`` is length-2: [ema, last_i]; last_i nan → none.
+
+    Sequential bar calls are O(1) amortized; gaps catch up from last_i+1.
+    """
+    period = int(period)
+    if period <= 0 or i < 0:
+        return np.nan
+    if np.isnan(st[1]):
+        last = -1
+    else:
+        last = int(st[1])
+    if i < last:
+        last = -1
+        st[0] = np.nan
+    alpha = 2.0 / (period + 1.0)
+    ema = st[0]
+    for j in range(last + 1, i + 1):
+        if j == period - 1:
+            sum_val = 0.0
+            for k in range(period):
+                sum_val += arr[k]
+            ema = sum_val / period
+        elif j >= period:
+            ema = alpha * arr[j] + (1.0 - alpha) * ema
+    st[0] = ema
+    st[1] = float(i)
+    if i < period - 1:
+        return np.nan
+    return ema
+@numba.njit(cache=True)
+def numba_rma_inc(arr, period, i, st):
+    """Incremental Wilder RMA. ``st``: [rma, last_i]."""
+    period = int(period)
+    if period <= 0 or i < 0:
+        return np.nan
+    if np.isnan(st[1]):
+        last = -1
+    else:
+        last = int(st[1])
+    if i < last:
+        last = -1
+        st[0] = np.nan
+    alpha = 1.0 / period
+    rma = st[0]
+    for j in range(last + 1, i + 1):
+        if j == period - 1:
+            s = 0.0
+            for k in range(period):
+                s += arr[k]
+            rma = s / period
+        elif j >= period:
+            rma = alpha * arr[j] + (1.0 - alpha) * rma
+    st[0] = rma
+    st[1] = float(i)
+    if i < period - 1:
+        return np.nan
+    return rma
+@numba.njit(cache=True)
+def numba_atr_inc(high, low, close, period, i, st):
+    """Incremental ATR. ``st``: [acc, last_i] (warm sum or EMA).
+
+    Matches ``numba_atr``: mean(TR) while ``i < period``, else EMA-of-TR
+    seeded with the first TR value.
+    """
+    period = int(period)
+    if period <= 0 or i < 1:
+        return np.nan
+    if np.isnan(st[1]):
+        last = 0
+    else:
+        last = int(st[1])
+    if i < last:
+        last = 0
+        st[0] = np.nan
+
+    alpha = 2.0 / (period + 1.0)
+    acc = st[0]
+    start = 1 if last < 1 else last + 1
+
+    for j in range(start, i + 1):
+        tr = max(
+            high[j] - low[j],
+            abs(high[j] - close[j - 1]),
+            abs(low[j] - close[j - 1]),
+        )
+        if j < period:
+            if j == 1 or np.isnan(acc) or last < 1:
+                s = 0.0
+                for k in range(1, j + 1):
+                    s += max(
+                        high[k] - low[k],
+                        abs(high[k] - close[k - 1]),
+                        abs(low[k] - close[k - 1]),
+                    )
+                acc = s
+            else:
+                acc = acc + tr
+        elif j == period:
+            # Switch to EMA seeded with first TR (not the warm mean).
+            acc = max(high[1] - low[1], abs(high[1] - close[0]), abs(low[1] - close[0]))
+            for k in range(2, j + 1):
+                trk = max(
+                    high[k] - low[k],
+                    abs(high[k] - close[k - 1]),
+                    abs(low[k] - close[k - 1]),
+                )
+                acc = alpha * trk + (1.0 - alpha) * acc
+        else:
+            if np.isnan(acc) or last < period:
+                acc = max(high[1] - low[1], abs(high[1] - close[0]), abs(low[1] - close[0]))
+                for k in range(2, j + 1):
+                    trk = max(
+                        high[k] - low[k],
+                        abs(high[k] - close[k - 1]),
+                        abs(low[k] - close[k - 1]),
+                    )
+                    acc = alpha * trk + (1.0 - alpha) * acc
+            else:
+                acc = alpha * tr + (1.0 - alpha) * acc
+
+    st[0] = acc
+    st[1] = float(i)
+    if i < period:
+        return acc / i
+    return acc
+@numba.njit(cache=True)
+def numba_macd_inc(arr, fast, slow, signal, i, st):
+    """Incremental MACD. ``st``: [ema_f, ema_s, sig, last_i].
+
+    Amortized O(1) per sequential bar; matches ``numba_macd`` values.
+    """
+    fast = int(fast)
+    slow = int(slow)
+    signal = int(signal)
+    if fast <= 0 or slow <= 0 or signal <= 0 or i < 0:
+        return np.nan, np.nan, np.nan
+
+    if np.isnan(st[3]):
+        last = -1
+    else:
+        last = int(st[3])
+    if i < last:
+        last = -1
+        st[0] = np.nan
+        st[1] = np.nan
+        st[2] = np.nan
+
+    alpha_f = 2.0 / (fast + 1.0)
+    alpha_s = 2.0 / (slow + 1.0)
+    alpha_sig = 2.0 / (signal + 1.0)
+
+    ema_f = st[0]
+    ema_s = st[1]
+    sig = st[2]
+
+    for j in range(last + 1, i + 1):
+        # Fast EMA: seed at fast-1, advance on later bars (including through slow-1)
+        if j == fast - 1:
+            sum_f = 0.0
+            for k in range(fast):
+                sum_f += arr[k]
+            ema_f = sum_f / fast
+        elif j >= fast:
+            ema_f = alpha_f * arr[j] + (1.0 - alpha_f) * ema_f
+
+        # Slow EMA + signal: seed at slow-1, then joint advance
+        if j == slow - 1:
+            sum_s = 0.0
+            for k in range(slow):
+                sum_s += arr[k]
+            ema_s = sum_s / slow
+            macd_val = ema_f - ema_s
+            sig = macd_val
+        elif j >= slow:
+            # ema_f already advanced above for this j
+            ema_s = alpha_s * arr[j] + (1.0 - alpha_s) * ema_s
+            macd_val = ema_f - ema_s
+            sig = alpha_sig * macd_val + (1.0 - alpha_sig) * sig
+
+    st[0] = ema_f
+    st[1] = ema_s
+    st[2] = sig
+    st[3] = float(i)
+
+    if i < slow - 1:
+        return np.nan, np.nan, np.nan
+    macd_val = ema_f - ema_s
+    return macd_val, sig, macd_val - sig
+@numba.njit(cache=True)
+def numba_cum_inc(arr, i, st):
+    """Incremental cum. ``st``: [sum, last_i]."""
+    if i < 0:
+        return np.nan
+    if np.isnan(st[1]):
+        last = -1
+    else:
+        last = int(st[1])
+    if i < last:
+        last = -1
+        st[0] = 0.0
+    s = 0.0 if np.isnan(st[0]) or last < 0 else st[0]
+    for j in range(last + 1, i + 1):
+        v = arr[j]
+        if not np.isnan(v):
+            s += v
+    st[0] = s
+    st[1] = float(i)
+    return s
+@numba.njit(cache=True)
+def numba_vwap_inc(src, vol, i, st):
+    """Incremental VWAP. ``st``: [cum_pv, cum_v, last_i]."""
+    if i < 0:
+        return np.nan
+    if np.isnan(st[2]):
+        last = -1
+    else:
+        last = int(st[2])
+    if i < last:
+        last = -1
+        st[0] = 0.0
+        st[1] = 0.0
+    cum_pv = 0.0 if last < 0 or np.isnan(st[0]) else st[0]
+    cum_v = 0.0 if last < 0 or np.isnan(st[1]) else st[1]
+    for j in range(last + 1, i + 1):
+        p = src[j]
+        v = vol[j]
+        if np.isnan(p) or np.isnan(v):
+            continue
+        cum_pv += p * v
+        cum_v += v
+    st[0] = cum_pv
+    st[1] = cum_v
+    st[2] = float(i)
+    if cum_v == 0.0:
+        return np.nan
+    return cum_pv / cum_v
+@numba.njit(cache=True)
+def numba_obv_inc(close, vol, i, st):
+    """Incremental OBV. ``st``: [obv, last_i]."""
+    if i < 0:
+        return np.nan
+    if np.isnan(st[1]):
+        last = 0
+    else:
+        last = int(st[1])
+    if i < last:
+        last = 0
+        st[0] = 0.0
+    obv = 0.0 if last <= 0 or np.isnan(st[0]) else st[0]
+    start = 1 if last < 1 else last + 1
+    for j in range(start, i + 1):
+        if close[j] > close[j - 1]:
+            obv += vol[j]
+        elif close[j] < close[j - 1]:
+            obv -= vol[j]
+    st[0] = obv
+    st[1] = float(i)
+    return obv

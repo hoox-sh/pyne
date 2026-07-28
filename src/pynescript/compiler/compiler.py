@@ -62,6 +62,31 @@ _NS = frozenset(
         "runtime",
         "barmerge",
         "barstate",
+        "complex",
+    }
+)
+
+# Bare color identifiers (v3/v4 style: plot(..., color=green))
+_COLOR_NAMES = frozenset(
+    {
+        "red",
+        "green",
+        "blue",
+        "white",
+        "black",
+        "gray",
+        "grey",
+        "orange",
+        "purple",
+        "yellow",
+        "aqua",
+        "lime",
+        "maroon",
+        "navy",
+        "olive",
+        "silver",
+        "teal",
+        "fuchsia",
     }
 )
 
@@ -204,18 +229,49 @@ class CompilerVisitor(NodeVisitor):
         self.user_funcs: set[str] = set()  # user-defined function names
         self.series_params: set[str] = set()  # UDF params used as series (history)
         self.series_locals: set[str] = set()  # UDF locals used with history (current fn)
+        self.param_names: set[str] = set()  # current UDF formal parameter names
+        self.loop_counters: set[str] = set()  # active for-loop counter names (scalars)
         self.func_series_params: dict[str, set[str]] = {}
         self.func_series_locals: dict[str, list[str]] = {}  # func -> local names needing state arr
         self.func_st_params: dict[str, list[str]] = {}  # func -> transitive __st_* params
         self.func_param_names: dict[str, list[str]] = {}
+        self.func_param_defaults: dict[str, dict[str, str]] = {}
+        self.func_free_series: dict[str, list[str]] = {}
         self.func_needs_bar: dict[str, bool] = {}
         self.func_needs_strategy: dict[str, bool] = {}
         self.string_series: set[str] = set()  # per-bar string/color series (object dtype)
         self._expr_cum_i: int = 0  # synthetic state arrays for cum(expr)
+        self._expr_src_i: int = 0  # synthetic series for non-array TA sources
+        self._ta_state_i: int = 0  # synthetic fixed-size state for incremental TA
+        # Fixed-size state vectors: (name, length) allocated once outside bar loop
+        self.fixed_state: list[tuple[str, int]] = []
+        self._current_func_name: str | None = None  # active UDF for __st_* src arrays
         # Pine name → safe Python identifier within current UDF scope
         self.ident_map: dict[str, str] = {}
         # When True, visit_If emits `return` on tail expressions (UDF result if-expr)
         self.if_return_mode: bool = False
+
+
+    @staticmethod
+    def _is_simple_default_expr(expr: str) -> bool:
+        """True if expr is safe to put as a Python default (literal-ish)."""
+        e = expr.strip()
+        if e in ("True", "False", "None", "np.nan"):
+            return True
+        if len(e) >= 2 and e[0] in ("'", '"') and e[-1] == e[0]:
+            return True
+        try:
+            float(e)
+            return True
+        except ValueError:
+            return False
+
+    def _alloc_fixed_state(self, prefix: str, size: int) -> str:
+        """Allocate a small float state vector for amortized-O(1) TA kernels."""
+        name = f"__{prefix}{self._ta_state_i}_st"
+        self._ta_state_i += 1
+        self.fixed_state.append((name, size))
+        return name
 
     @staticmethod
     def _safe_ident(name: str) -> str:
@@ -268,6 +324,46 @@ class CompilerVisitor(NodeVisitor):
                 break
         return out
 
+
+    @staticmethod
+    def _strip_bar_idx(expr: str) -> str:
+        """Strip only a trailing ``[__bar_idx]`` from a pure series ref."""
+        suffix = "[__bar_idx]"
+        if expr.endswith(suffix):
+            return expr[: -len(suffix)]
+        return expr
+
+    def _is_series_arr_expr(self, expr: str) -> bool:
+        """True when expr is a pure series array ref (optionally bar-indexed)."""
+        a = self._strip_bar_idx(expr)
+        if a.endswith("_arr") or a in (
+            "open_arr",
+            "high_arr",
+            "low_arr",
+            "close_arr",
+            "vol_arr",
+        ):
+            return True
+        if expr.endswith("[__bar_idx]") and re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", a):
+            return True
+        return False
+
+    def _materialize_series_source(self, expr: str) -> str:
+        """Ensure a TA source is a full series array for numba_* history.
+
+        Pure array refs pass through. Compounds (numba_abs(...), close*2) are
+        written into a synthetic series via numba_store_src.
+        """
+        if self._is_series_arr_expr(expr):
+            return self._strip_bar_idx(expr)
+        if self.in_function and self._current_func_name:
+            sid = f"__st_{self._current_func_name}__src{self._expr_src_i}"
+        else:
+            sid = f"__src{self._expr_src_i}_arr"
+        self._expr_src_i += 1
+        self.arrays.add(sid)
+        return f"numba_store_src({sid}, ({expr}) + 0.0, __bar_idx)"
+
     # ------------------------------------------------------------------ script
     def visit_Script(self, node: ast.Script):
         body_lines: list[str] = []
@@ -275,6 +371,10 @@ class CompilerVisitor(NodeVisitor):
             val = self.visit(stmt)
             if val:
                 body_lines.append(val)
+
+        # String/color/UDT/map series must never enter njit (non-precise pyobject).
+        if self.string_series or self.udt_vars or self.map_vars or self.scalar_vars:
+            self.object_mode = True
 
         if self.object_mode:
             return self._emit_object_mode(body_lines)
@@ -302,6 +402,7 @@ class CompilerVisitor(NodeVisitor):
         for arr in sorted(self.arrays):
             lines.append(f"    {arr} = np.full(n_bars, np.nan)")
         self._emit_series_local_state(lines, indent="    ")
+        self._emit_fixed_state(lines, indent="    ")
         for idx in range(len(self.plots)):
             lines.append(f"    plot_{idx} = np.full(n_bars, np.nan)")
         lines.append("    for __bar_idx in range(n_bars):")
@@ -311,8 +412,14 @@ class CompilerVisitor(NodeVisitor):
             line = line.replace("\n", "\n        ")
             lines.append(f"        {line}")
 
-        dict_items = [f"'{p['title']}': plot_{i}" for i, p in enumerate(self.plots)]
-        lines.append("    return {" + ", ".join(dict_items) + "}")
+        # Tuple return avoids Numba typed.Dict construction/iteration overhead.
+        if self.plots:
+            plots_tuple = ", ".join(f"plot_{i}" for i in range(len(self.plots)))
+            if len(self.plots) == 1:
+                plots_tuple += ","
+            lines.append(f"    return ({plots_tuple})")
+        else:
+            lines.append("    return ()")
         return "\n".join(lines)
 
     def _emit_object_mode(self, body_lines: list[str]) -> str:
@@ -360,6 +467,7 @@ class CompilerVisitor(NodeVisitor):
             else:
                 lines.append(f"    {arr} = np.full(n_bars, np.nan)")
         self._emit_series_local_state(lines, indent="    ")
+        self._emit_fixed_state(lines, indent="    ")
         for name in sorted(self.map_vars | self.scalar_vars):
             lines.append(f"    {name} = None")
         for idx in range(len(self.plots)):
@@ -408,6 +516,11 @@ class CompilerVisitor(NodeVisitor):
         for func_name, slocs in sorted(self.func_series_locals.items()):
             for s in slocs:
                 lines.append(f"{indent}__st_{func_name}_{s} = np.full(n_bars, np.nan)")
+
+    def _emit_fixed_state(self, lines: list[str], *, indent: str = "    ") -> None:
+        """Preallocate small state vectors for incremental TA kernels."""
+        for name, size in self.fixed_state:
+            lines.append(f"{indent}{name} = np.full({size}, np.nan)")
 
     # ---------------------------------------------------------------- statements
     def visit_TypeDef(self, node: ast.TypeDef):
@@ -521,15 +634,13 @@ class CompilerVisitor(NodeVisitor):
                 return f"if __bar_idx == 0:\n    {name} = {{}}"
             return f"{name} = {{}}"
 
-        # array.new*/from/copy/slice / matrix.new* → scalar handle (object mode)
+        # array.new*/from/copy/slice / matrix.new* / drawing handles → scalar
         if self._is_drawing_new(node.value):
             self.object_mode = True
             self.scalar_vars.add(name)
             if is_var:
                 return f"if __bar_idx == 0:\n    {name} = {val}"
             return f"{name} = {val}"
-
-
 
         if self._is_array_or_matrix_handle(node.value):
             self.object_mode = True
@@ -538,10 +649,41 @@ class CompilerVisitor(NodeVisitor):
                 return f"if __bar_idx == 0:\n    {name} = {val}"
             return f"{name} = {val}"
 
+        # Sequence / list RHS must not land in float64 series
+        # ("setting an array element with a sequence")
+        if self._looks_like_sequence_expr(val) or self._is_sequence_producing_call(node.value):
+            self.object_mode = True
+            self.scalar_vars.add(name)
+            if is_var:
+                return f"if __bar_idx == 0:\n    {name} = {val}"
+            return f"{name} = {val}"
+
+        # Non-numeric cast results / opaque object handles → safe float series
+        if val and (val.startswith("safe_float(") or val.startswith("safe_int(")):
+            self.object_mode = True
+            self.arrays.add(f"{name}_arr")
+            if is_var:
+                return (
+                    f"{name}_arr[__bar_idx] = {val} if __bar_idx == 0 "
+                    f"else {name}_arr[__bar_idx-1]"
+                )
+            return f"{name}_arr[__bar_idx] = {val}"
+
+        if not val:
+            return ""
+
         self.arrays.add(f"{name}_arr")
+        # Coerce suspicious RHS into float series via safe cast (object mode)
+        store_val = val
+        if not self._is_safe_numeric_expr(val) and not self.in_function:
+            self.object_mode = True
+            store_val = f"safe_float({val})"
         if is_var:
-            return f"{name}_arr[__bar_idx] = {val} if __bar_idx == 0 else {name}_arr[__bar_idx-1]"
-        return f"{name}_arr[__bar_idx] = {val}"
+            return (
+                f"{name}_arr[__bar_idx] = {store_val} if __bar_idx == 0 "
+                f"else {name}_arr[__bar_idx-1]"
+            )
+        return f"{name}_arr[__bar_idx] = {store_val}"
 
     _STRINGY_INPUT_ATTRS = frozenset(
         {
@@ -551,7 +693,19 @@ class CompilerVisitor(NodeVisitor):
             "symbol",
             "timeframe",
             "session",
+            # note: "source" is a series (close/hl2/…) — NOT a string
+        }
+    )
+
+    _NUMERIC_INPUT_ATTRS = frozenset(
+        {
+            "int",
+            "integer",
+            "float",
+            "bool",
             "source",
+            "price",
+            "time",
         }
     )
 
@@ -567,6 +721,8 @@ class CompilerVisitor(NodeVisitor):
                 return True
             return False
         if isinstance(node, ast.Name):
+            if node.id in _COLOR_NAMES:
+                return True
             return node.id in self.scalar_vars or node.id in self.string_series
         if isinstance(node, ast.Conditional):
             # Ternary colors/strings: either branch stringy is enough
@@ -587,14 +743,80 @@ class CompilerVisitor(NodeVisitor):
                 if ns == "str" and attr in (
                     "tostring",
                     "format",
+                    "format_time",
+                    "repeat",
                     "replace",
+                    "replace_all",
                     "lower",
                     "upper",
                     "trim",
                     "tostring_all",
                 ):
                     return True
-            if isinstance(f, ast.Name) and f.id in ("str", "tostring"):
+            if isinstance(f, ast.Name) and f.id in ("str", "tostring", "string"):
+                return True
+            # bare input(...) — Pine AST packs kwargs as Arg(name=..., value=...)
+            if isinstance(f, ast.Name) and f.id == "input":
+                return self._is_stringy_input_call(node)
+        return False
+
+    def _input_call_named_args(self, node) -> dict[str, object]:
+        """Extract name→expr from a Pine ``input``/``input.*`` Call node."""
+        out: dict[str, object] = {}
+        for raw in getattr(node, "args", ()) or []:
+            if hasattr(raw, "name") and getattr(raw, "name", None) and hasattr(raw, "value"):
+                out[str(raw.name)] = raw.value
+            elif not out and not hasattr(raw, "name"):
+                # first bare positional is often defval for input(defval, title)
+                out.setdefault("defval", raw if not hasattr(raw, "value") else raw.value)
+        for kw in getattr(node, "keywords", ()) or ():
+            if getattr(kw, "arg", None):
+                out[str(kw.arg)] = kw.value
+        return out
+
+    def _is_stringy_input_call(self, node) -> bool:
+        """True only for string/color/symbol inputs — not int/float/bool/source."""
+        named = self._input_call_named_args(node)
+        type_expr = named.get("type")
+        if isinstance(type_expr, ast.Attribute) and isinstance(type_expr.value, ast.Name):
+            if type_expr.value.id == "input" and type_expr.attr in self._NUMERIC_INPUT_ATTRS:
+                return False
+            if type_expr.value.id == "input" and type_expr.attr in self._STRINGY_INPUT_ATTRS:
+                return True
+        defval = named.get("defval")
+        if defval is not None:
+            if isinstance(defval, ast.Constant) and isinstance(defval.value, str):
+                return True
+            if isinstance(defval, ast.Constant) and isinstance(defval.value, (int, float, bool)):
+                return False
+            if isinstance(defval, ast.Name) and defval.id in (
+                "close",
+                "open",
+                "high",
+                "low",
+                "volume",
+                "hl2",
+                "hlc3",
+                "ohlc4",
+                "true",
+                "false",
+            ):
+                return False
+            # color / string names
+            if self._is_stringy_value(defval):
+                return True
+            return False
+        # input("title only") / input with sole string positional → stringy
+        args = list(getattr(node, "args", ()) or [])
+        if len(args) == 1:
+            a0 = args[0]
+            aval = a0.value if hasattr(a0, "value") and getattr(a0, "name", None) is None else a0
+            if hasattr(a0, "name") and a0.name:  # keyword-only single arg
+                aval = a0.value
+            if isinstance(aval, ast.Constant) and isinstance(aval.value, str):
+                # title= alone is not a string input; bare input("hello") is
+                if hasattr(a0, "name") and a0.name in ("title", "tooltip", "group", "inline"):
+                    return False
                 return True
         return False
 
@@ -619,6 +841,8 @@ class CompilerVisitor(NodeVisitor):
                     return True
             return False
         if isinstance(node, ast.Name):
+            if node.id in _COLOR_NAMES:
+                return True
             return node.id in self.scalar_vars
         # Conditional / BinOp concat / series refs → per-bar
         return False
@@ -637,11 +861,16 @@ class CompilerVisitor(NodeVisitor):
 
         if not isinstance(val, str) or not val:
             return False
+        # Drawing handles / dict events contain quotes but are not string series
+        if "__drawings" in val or "'kind':" in val or '"kind":' in val:
+            return False
+        if val.startswith("numba_store(") or val.startswith("numba_store_src("):
+            return False
         if CompilerVisitor._is_quoted_string_expr(val):
             return True
         # ternary of colors: ('#x' if ... else '#y') or ('green' if ... else 'red')
         if ("'" in val or '"' in val) and ("#" in val or " if " in val):
-            if any(tok in val for tok in ("_arr", "numba_", "np.")):
+            if any(tok in val for tok in ("_arr", "numba_", "np.", "safe_float", "safe_int")):
                 if re.search(r"""['\"]#""", val) or re.search(
                     r"""['\"][A-Za-z#]""", val
                 ):
@@ -651,14 +880,122 @@ class CompilerVisitor(NodeVisitor):
         return False
 
     def _is_drawing_new(self, node) -> bool:
-        """True when RHS is label/line/box/table/polyline/linefill.new(...)."""
+        """True when RHS is a drawing constructor / handle (not a float series)."""
+        if not isinstance(node, ast.Call):
+            return False
+        f = node.func
+        if isinstance(f, ast.Specialize):
+            f = f.value
+        if isinstance(f, ast.Name) and f.id in (
+            "hline",
+            "bgcolor",
+            "barcolor",
+            "fill",
+            "plotshape",
+            "plotchar",
+            "plotarrow",
+        ):
+            return True
+        if isinstance(f, ast.Attribute) and isinstance(f.value, ast.Name):
+            if f.value.id in ("label", "line", "box", "table", "polyline", "linefill") and f.attr == "new":
+                return True
+        return False
+
+    @staticmethod
+    def _looks_like_sequence_expr(val: str) -> bool:
+        """Visited Python expr that is a list/tuple literal or slice (sequence)."""
+        if not isinstance(val, str):
+            return False
+        s = val.strip()
+        if s.startswith("[") and s.endswith("]"):
+            return True
+        if s.startswith("(") and s.endswith(")") and "," in s:
+            inner = s[1:-1]
+            if " if " not in inner and " else " not in inner:
+                return True
+        return False
+
+    def _is_sequence_producing_call(self, node) -> bool:
+        """array.from / copy / slice etc. produce sequence handles."""
         if not isinstance(node, ast.Call):
             return False
         f = node.func
         if isinstance(f, ast.Specialize):
             f = f.value
         if isinstance(f, ast.Attribute) and isinstance(f.value, ast.Name):
-            if f.value.id in ("label", "line", "box", "table", "polyline", "linefill") and f.attr == "new":
+            if f.value.id == "array" and f.attr in (
+                "from",
+                "copy",
+                "slice",
+                "new",
+                "new_float",
+                "new_int",
+                "new_bool",
+                "new_string",
+                "new_color",
+            ):
+                return True
+        return False
+
+    def _is_safe_numeric_expr(self, val: str) -> bool:
+        """Heuristic: visited expr is safe to store in float64 / use under njit float()."""
+        if not isinstance(val, str) or not val:
+            return False
+        s = val.strip()
+        if s in ("np.nan", "True", "False"):
+            return True
+        if s in ("None",):
+            return False
+        try:
+            float(s)
+            return True
+        except ValueError:
+            pass
+        if s.endswith("[__bar_idx]") or "_arr[" in s:
+            if s.endswith("[__bar_idx]"):
+                base = s[: -len("[__bar_idx]")]
+                if base.endswith("_arr"):
+                    name = base[: -len("_arr")]
+                    if name in self.string_series or name in self.udt_vars:
+                        return False
+            return True
+        if s.startswith("numba_") or s.startswith("np."):
+            return True
+        if s in ("__bar_idx", "n_bars") or s.startswith("float(__bar_idx") or s.startswith(
+            "float(n_bars"
+        ):
+            return True
+        if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", s):
+            if s in self.user_funcs or s in self.scalar_vars or s in self.map_vars:
+                return False
+            if s in self.string_series or s in self.udt_vars:
+                return False
+            # Unknown bare name might be a function or handle — not safe
+            return False
+        if ("'" in s or '"' in s or "{" in s or "[" in s):
+            return False
+        if re.search(
+            r"\b(str|dict|list|append|__drawings|__type__|safe_float|safe_int)\b", s
+        ):
+            return False
+        for uf in self.user_funcs:
+            if re.search(rf"\b{re.escape(uf)}\b(?!\s*\()", s):
+                return False
+        if re.fullmatch(r"[\w\s\+\-\*/%\(\)\.\,\<\>\=\!\&\|?:]+", s):
+            return True
+        return False
+
+    @staticmethod
+    def _looks_like_version_string(val: str) -> bool:
+        """True for quoted version-like defaults such as '0.0.1' / \"1.2.3\"."""
+        if not isinstance(val, str):
+            return False
+        s = val.strip()
+        if len(s) >= 2 and s[0] == s[-1] and s[0] in ("'", '"'):
+            inner = s[1:-1]
+            if re.fullmatch(r"\d+\.\d+\.\d+[\w\.\-]*", inner):
+                return True
+            if inner.count(".") >= 2 and re.fullmatch(r"[\d\.]+", inner):
                 return True
         return False
 
@@ -706,7 +1043,7 @@ class CompilerVisitor(NodeVisitor):
         if isinstance(node.value, ast.Call):
             call_code = self.visit(node.value)
             # Multi-return forms emit a temp unpack
-            if call_code.startswith("numba_bb(") or call_code.startswith("numba_macd("):
+            if call_code.startswith(("numba_bb(", "numba_macd(", "numba_macd_inc(")):
                 lines = [f"__tup = {call_code}"]
                 for i, name in enumerate(names):
                     lines.append(f"{name}_arr[__bar_idx] = __tup[{i}]")
@@ -780,7 +1117,8 @@ class CompilerVisitor(NodeVisitor):
         if node.id == "tr":
             return "numba_tr(high_arr, low_arr, close_arr, __bar_idx)"
         if node.id == "obv":
-            return "numba_obv(close_arr, vol_arr, __bar_idx)"
+            st = self._alloc_fixed_state("obv", 2)
+            return f"numba_obv_inc(close_arr, vol_arr, __bar_idx, {st})"
         if node.id == "na":
             return "np.nan"
         if node.id == "color":
@@ -799,6 +1137,12 @@ class CompilerVisitor(NodeVisitor):
                 "((open_arr[__bar_idx] + high_arr[__bar_idx] + "
                 "low_arr[__bar_idx] + close_arr[__bar_idx]) / 4.0)"
             )
+        if node.id == "hlcc4":
+            # (high + low + close + close) / 4
+            return (
+                "((high_arr[__bar_idx] + low_arr[__bar_idx] + "
+                "close_arr[__bar_idx] + close_arr[__bar_idx]) / 4.0)"
+            )
         if node.id in ("bar_index",):
             return "__bar_idx"
         # Built-in time series / calendar scalars (no time_arr allocation)
@@ -809,8 +1153,64 @@ class CompilerVisitor(NodeVisitor):
         if node.id == "time":
             # ms timestamp stub: bar index * 60_000
             return "(float(__bar_idx) * 60000.0)"
+        if node.id == "time_close":
+            return "(float(__bar_idx) * 60000.0 + 59999.0)"
         if node.id == "timenow":
             return "(float(n_bars) * 60000.0)"
+        if node.id in ("PI", "pi"):
+            return "np.pi"
+        if node.id == "max_bars_back":
+            return "n_bars"
+        if node.id == "tz":
+            self.object_mode = True
+            return repr("UTC")
+        # Bare color names (green, red, …) — not series arrays
+        if node.id in _COLOR_NAMES:
+            self.object_mode = True
+            cname = "gray" if node.id == "grey" else node.id
+            return repr(self._color_const(cname))
+        # syminfo_* / timeframe_* flattened scalars (legacy / import style)
+        if node.id.startswith("syminfo_"):
+            attr = node.id[len("syminfo_") :]
+            stubs = {
+                "mintick": "0.01",
+                "pointvalue": "1.0",
+                "ticker": repr("SYMBOL"),
+                "tickerid": repr("SYMBOL"),
+                "currency": repr("USD"),
+                "basecurrency": repr("USD"),
+                "type": repr("stock"),
+                "timezone": repr("UTC"),
+                "session": repr("0930-1600"),
+                "period": repr("1D"),
+            }
+            if attr in stubs:
+                val = stubs[attr]
+                if val.startswith("'") or val.startswith('"'):
+                    self.object_mode = True
+                return val
+            return "0.0"
+        if node.id.startswith("timeframe_"):
+            attr = node.id[len("timeframe_") :]
+            if attr == "period":
+                self.object_mode = True
+                return repr("1D")
+            if attr == "multiplier":
+                return "1"
+            if attr in (
+                "isintraday",
+                "isdaily",
+                "isweekly",
+                "ismonthly",
+                "isseconds",
+                "isminutes",
+                "ishours",
+            ):
+                return "True" if attr == "isdaily" else "False"
+            if attr == "in_seconds":
+                return "86400.0"
+            self.object_mode = True
+            return repr(attr)
         if node.id in (
             "year",
             "month",
@@ -850,7 +1250,8 @@ class CompilerVisitor(NodeVisitor):
             if node.attr == "tr":
                 return "numba_tr(high_arr, low_arr, close_arr, __bar_idx)"
             if node.attr == "obv":
-                return "numba_obv(close_arr, vol_arr, __bar_idx)"
+                st = self._alloc_fixed_state("obv", 2)
+                return f"numba_obv_inc(close_arr, vol_arr, __bar_idx, {st})"
         if isinstance(node.value, ast.Name) and node.value.id == "color":
             return repr(self._color_const(node.attr))
         # Must run before fallthrough (visit Name label → "label" then "label_style_x").
@@ -1078,6 +1479,12 @@ class CompilerVisitor(NodeVisitor):
         if func_name == "array_copy":
             a = ra(args, kwargs, ("id",))
             return f"list({a[0]})" if a else "[]"
+        if func_name == "array_covariance":
+            # Stub: real cov needs two arrays + means; enough to avoid NameError
+            return "0.0"
+        if func_name == "matrix_copy":
+            a = ra(args, kwargs, ("id",))
+            return f"[list(__row) for __row in {a[0]}]" if a else "[]"
         if func_name == "array_slice":
             a = ra(args, kwargs, ("id", "index_from", "index_to"))
             if len(a) >= 3:
@@ -1254,6 +1661,7 @@ class CompilerVisitor(NodeVisitor):
             "white": "#FFFFFF",
             "black": "#000000",
             "gray": "#787B86",
+            "grey": "#787B86",
             "yellow": "#FDD835",
             "orange": "#FF6D00",
             "purple": "#7B1FA2",
@@ -1336,17 +1744,52 @@ class CompilerVisitor(NodeVisitor):
             return ""
 
         if func_name == "input" or func_name.startswith("input_"):
-            # Prefer explicit defval; else first positional (never title/group strings)
-            if "defval" in kwargs:
-                return kwargs["defval"]
-            if args:
-                return args[0]
+            # Prefer explicit defval; else first positional value
+            # (v5: input.int(2, title=..., group=...) — title/group are kwargs only)
+            defval = kwargs.get("defval")
+            if defval is None and args:
+                # Skip title-like string positionals only when no numeric/bool defval
+                # is present: first positional is almost always the default value.
+                defval = args[0]
+            # input.source → series (default close)
+            if func_name == "input_source" or (
+                func_name == "input" and kwargs.get("type", "").endswith("source")
+            ):
+                if defval is not None:
+                    return defval
+                return "close_arr[__bar_idx]"
+            # Version-like / string defaults stay as string (object mode)
+            if defval is not None and (
+                self._looks_like_version_string(defval)
+                or self._is_quoted_string_expr(defval)
+                or func_name
+                in (
+                    "input_string",
+                    "input_text_area",
+                    "input_color",
+                    "input_symbol",
+                    "input_timeframe",
+                    "input_session",
+                )
+            ):
+                self.object_mode = True
+                return defval if defval is not None else "''"
+            if defval is not None:
+                return defval
             # string/bool inputs without defval
             if func_name in ("input_string", "input_text_area"):
                 self.object_mode = True
                 return "''"
             if func_name == "input_bool":
                 return "False"
+            if func_name in (
+                "input_color",
+                "input_symbol",
+                "input_timeframe",
+                "input_session",
+            ):
+                self.object_mode = True
+                return "''"
             return "0.0"
 
         # strategy.entry / close / order / cancel …
@@ -1363,10 +1806,24 @@ class CompilerVisitor(NodeVisitor):
             elif len(args) > 1 and args[1]:
                 title = args[1].strip("\"'")
             series_expr = args[0] if args else "np.nan"
+            # Non-numeric plot sources (UDT, hline handle, string, sequence, color)
+            # must use safe cast and object mode so float64 stores never raise.
+            needs_safe = not self._is_safe_numeric_expr(series_expr)
+            if series_expr in self.scalar_vars:
+                needs_safe = True
+            if series_expr.endswith("[__bar_idx]"):
+                base = series_expr[: -len("[__bar_idx]")]
+                if base.endswith("_arr"):
+                    base_name = base[: -len("_arr")]
+                    if base_name in self.string_series or base_name in self.udt_vars:
+                        needs_safe = True
+            if needs_safe and not series_expr.startswith("safe_float("):
+                self.object_mode = True
+                series_expr = f"safe_float({series_expr})"
             # UDT field already expanded
             self.plots.append({"expr": series_expr, "title": title})
             idx = len(self.plots) - 1
-            return f"plot_{idx}[__bar_idx] = {series_expr}"
+            return f"numba_store(plot_{idx}, __bar_idx, {series_expr})"
 
         if (
             func_name.startswith("label_set_")
@@ -1419,8 +1876,8 @@ class CompilerVisitor(NodeVisitor):
             self.object_mode = True
             if len(args) >= 5:
                 return (
-                    f"({args[4]} if float({args[0]}) > "
-                    f"(float({args[1]}) + float({args[2]})) / 2.0 else {args[3]})"
+                    f"({args[4]} if safe_float({args[0]}) > "
+                    f"(safe_float({args[1]}) + safe_float({args[2]})) / 2.0 else {args[3]})"
                 )
             if len(args) >= 4:
                 return args[3]
@@ -1446,7 +1903,7 @@ class CompilerVisitor(NodeVisitor):
 
         # UDF calls win over bare TA aliases (sma, …) and bare math (max/min/abs)
         if func_name in self.user_funcs:
-            return self._emit_user_func_call(func_name, args)
+            return self._emit_user_func_call(func_name, args, kwargs)
 
         # table.cell / table.cell_set / … (table_new already in drawing path)
         if func_name == "table_cell":
@@ -1513,6 +1970,17 @@ class CompilerVisitor(NodeVisitor):
         if func_name == "str_trim":
             self.object_mode = True
             return f"str({args[0]}).strip()" if args else "''"
+        if func_name == "str_repeat":
+            self.object_mode = True
+            if len(args) >= 2:
+                return f"(str({args[0]}) * int({args[1]}))"
+            return "''"
+        if func_name == "str_format_time":
+            # str.format_time(time, format, timezone?) — stub empty / simple str
+            self.object_mode = True
+            if args:
+                return f"str({args[0]})"
+            return "''"
 
         # timeframe.in_seconds(...)
         if func_name == "timeframe_in_seconds":
@@ -1559,6 +2027,7 @@ class CompilerVisitor(NodeVisitor):
             "highest": "ta_highest",
             "lowest": "ta_lowest",
             "stdev": "ta_stdev",
+            "dev": "ta_dev",
             "change": "ta_change",
             "atr": "ta_atr",
             "crossover": "ta_crossover",
@@ -1573,6 +2042,8 @@ class CompilerVisitor(NodeVisitor):
             "tr": "ta_tr",
             "sar": "ta_sar",
             "cum": "ta_cum",
+            "sum": "ta_sum",
+            "correlation": "ta_correlation",
             "percentile_nearest_rank": "ta_percentile_nearest_rank",
             "barssince": "ta_barssince",
             "linreg": "ta_linreg",
@@ -1586,31 +2057,20 @@ class CompilerVisitor(NodeVisitor):
             "obv": "ta_obv",
             "wma": "ta_wma",
             "roc": "ta_roc",
+            "variance": "ta_variance",
+            "alma": "ta_alma",
+            "hma": "ta_hma",
+            "tsi": "ta_tsi",
         }
         if func_name in _BARE_TA and func_name not in self.user_funcs:
             func_name = _BARE_TA[func_name]
 
         def _arr(expr: str) -> str:
-            """Strip only a trailing ``[__bar_idx]`` from a pure series ref.
-
-            Must not globally replace inside compounds — that turns
-            ``(1 if isPnF_arr[__bar_idx] else 0)`` into ``(1 if isPnF_arr else 0)``
-            and triggers array truth-value errors.
-            """
-            suffix = "[__bar_idx]"
-            if expr.endswith(suffix):
-                return expr[: -len(suffix)]
-            return expr
+            """Strip trailing bar index or materialize non-array TA sources."""
+            return self._materialize_series_source(expr)
 
         def _is_series_arr(expr: str) -> bool:
-            a = _arr(expr)
-            return a.endswith("_arr") or a in (
-                "open_arr",
-                "high_arr",
-                "low_arr",
-                "close_arr",
-                "vol_arr",
-            )
+            return self._is_series_arr_expr(expr)
 
         if func_name == "ta_sma":
             if not args:
@@ -1621,12 +2081,14 @@ class CompilerVisitor(NodeVisitor):
             if not args:
                 return "np.nan"
             period = kwargs.get("length", args[1] if len(args) > 1 else "14")
-            return f"numba_ema({_arr(args[0])}, int({period}), __bar_idx)"
+            st = self._alloc_fixed_state("ema", 2)
+            return f"numba_ema_inc({_arr(args[0])}, int({period}), __bar_idx, {st})"
         if func_name == "ta_rma":
             if not args:
                 return "np.nan"
             period = kwargs.get("length", args[1] if len(args) > 1 else "14")
-            return f"numba_rma({_arr(args[0])}, int({period}), __bar_idx)"
+            st = self._alloc_fixed_state("rma", 2)
+            return f"numba_rma_inc({_arr(args[0])}, int({period}), __bar_idx, {st})"
         if func_name == "ta_wma":
             if not args:
                 return "np.nan"
@@ -1668,13 +2130,16 @@ class CompilerVisitor(NodeVisitor):
         if func_name == "ta_atr":
             # ta.atr(length) uses high/low/close from chart arrays
             length = kwargs.get("length", args[0] if args else "14")
+            st = self._alloc_fixed_state("atr", 2)
             if len(args) >= 4:
                 # legacy ta.atr(high, low, close, length)
                 return (
-                    f"numba_atr({_arr(args[0])}, {_arr(args[1])}, {_arr(args[2])}, "
-                    f"{args[3]}, __bar_idx)"
+                    f"numba_atr_inc({_arr(args[0])}, {_arr(args[1])}, {_arr(args[2])}, "
+                    f"int({args[3]}), __bar_idx, {st})"
                 )
-            return f"numba_atr(high_arr, low_arr, close_arr, int({length}), __bar_idx)"
+            return (
+                f"numba_atr_inc(high_arr, low_arr, close_arr, int({length}), __bar_idx, {st})"
+            )
         if func_name == "ta_bb":
             # ta.bb(source, length, mult) or ta.bb(length, mult)
             if len(args) >= 3:
@@ -1690,49 +2155,54 @@ class CompilerVisitor(NodeVisitor):
             fast = args[1] if len(args) > 1 else "12"
             slow = args[2] if len(args) > 2 else "26"
             signal = args[3] if len(args) > 3 else "9"
-            return f"numba_macd({_arr(src)}, int({fast}), int({slow}), int({signal}), __bar_idx)"
-        if func_name == "ta_crossover":
-            a = _arr(args[0]) if args else "close_arr"
-            b = _arr(args[1]) if len(args) > 1 else "0.0"
-            # scalar series vs series: if b is not an array name, use constant path
-            if b.endswith("_arr") or b in (
-                "open_arr",
-                "high_arr",
-                "low_arr",
-                "close_arr",
-                "vol_arr",
-            ):
-                return f"numba_crossover({a}, {b}, __bar_idx)"
-            return f"numba_crossover_scalar({a}, float({b}), __bar_idx)"
-        if func_name == "ta_crossunder":
-            a = _arr(args[0]) if args else "close_arr"
-            b = _arr(args[1]) if len(args) > 1 else "0.0"
-            if b.endswith("_arr") or b in (
-                "open_arr",
-                "high_arr",
-                "low_arr",
-                "close_arr",
-                "vol_arr",
-            ):
-                return f"numba_crossunder({a}, {b}, __bar_idx)"
-            return f"numba_crossunder_scalar({a}, float({b}), __bar_idx)"
-        if func_name == "ta_cross":
-            a = _arr(args[0]) if args else "close_arr"
-            b = _arr(args[1]) if len(args) > 1 else "0.0"
-            if b.endswith("_arr") or b in (
-                "open_arr",
-                "high_arr",
-                "low_arr",
-                "close_arr",
-                "vol_arr",
-            ):
-                return (
-                    f"(numba_crossover({a}, {b}, __bar_idx) or "
-                    f"numba_crossunder({a}, {b}, __bar_idx))"
-                )
+            st = self._alloc_fixed_state("macd", 4)
             return (
-                f"(numba_crossover_scalar({a}, float({b}), __bar_idx) or "
-                f"numba_crossunder_scalar({a}, float({b}), __bar_idx))"
+                f"numba_macd_inc({_arr(src)}, int({fast}), int({slow}), int({signal}), "
+                f"__bar_idx, {st})"
+            )
+        def _is_scalar_const(expr: str) -> bool:
+            e = expr.strip()
+            if e in ("True", "False", "None", "np.nan", "np.pi", "np.e"):
+                return True
+            return bool(re.fullmatch(r"[-+]?(\d+\.?\d*|\d*\.\d+)([eE][-+]?\d+)?", e))
+
+        def _cross_pair(a_expr: str, b_expr: str, *, under: bool = False) -> str:
+            """Series-vs-series or series-vs-scalar crossover/under."""
+            a = _arr(a_expr) if a_expr else "close_arr"
+            b_raw = b_expr if b_expr else "0.0"
+            fn = "numba_crossunder" if under else "numba_crossover"
+            fn_s = f"{fn}_scalar"
+            if _is_scalar_const(b_raw):
+                return f"{fn_s}({a}, float({b_raw}), __bar_idx)"
+            # Materialized expr (numba_store_src) or pure array → series path
+            b = _arr(b_raw)
+            if (
+                b.endswith("_arr")
+                or b in ("open_arr", "high_arr", "low_arr", "close_arr", "vol_arr")
+                or b.startswith("numba_store_src(")
+            ):
+                return f"{fn}({a}, {b}, __bar_idx)"
+            # Last resort: treat as scalar (bool/int expressions)
+            return f"{fn_s}({a}, float({b_raw}), __bar_idx)"
+
+        if func_name == "ta_crossover":
+            return _cross_pair(
+                args[0] if args else "close_arr",
+                args[1] if len(args) > 1 else "0.0",
+                under=False,
+            )
+        if func_name == "ta_crossunder":
+            return _cross_pair(
+                args[0] if args else "close_arr",
+                args[1] if len(args) > 1 else "0.0",
+                under=True,
+            )
+        if func_name == "ta_cross":
+            a0 = args[0] if args else "close_arr"
+            b0 = args[1] if len(args) > 1 else "0.0"
+            return (
+                f"({_cross_pair(a0, b0, under=False)} or "
+                f"{_cross_pair(a0, b0, under=True)})"
             )
         if func_name == "ta_tr":
             # ta.tr() / ta.tr(handle_na) — chart high/low/close; optional bool ignored
@@ -1744,13 +2214,75 @@ class CompilerVisitor(NodeVisitor):
         if func_name == "ta_cum":
             src = args[0] if args else "close_arr[__bar_idx]"
             if _is_series_arr(src):
-                return f"numba_cum({_arr(src)}, __bar_idx)"
+                st = self._alloc_fixed_state("cum", 2)
+                return f"numba_cum_inc({_arr(src)}, __bar_idx, {st})"
             # Expression / ternary: accumulate scalar-at-bar into synthetic series.
             # (numba_cum needs a full array; global _arr strip is unsafe on compounds.)
             sid = f"__cum{self._expr_cum_i}_arr"
             self._expr_cum_i += 1
             self.arrays.add(sid)
             return f"numba_cum_expr({sid}, float({src}), __bar_idx)"
+        if func_name == "ta_sum":
+            # ta.sum(source, length) == rolling sum over length bars
+            if not args:
+                return "np.nan"
+            period = kwargs.get("length", args[1] if len(args) > 1 else "14")
+            return f"numba_sum({_arr(args[0])}, int({period}), __bar_idx)"
+        if func_name == "ta_dev":
+            # Mean absolute deviation from SMA
+            if not args:
+                return "np.nan"
+            period = kwargs.get("length", args[1] if len(args) > 1 else "14")
+            return f"numba_dev({_arr(args[0])}, int({period}), __bar_idx)"
+        if func_name == "ta_variance":
+            # Sample variance (n-1) — stdev**2
+            if not args:
+                return "np.nan"
+            period = kwargs.get("length", args[1] if len(args) > 1 else "14")
+            return f"numba_variance({_arr(args[0])}, int({period}), __bar_idx)"
+        if func_name == "ta_correlation":
+            # ta.correlation(source1, source2, length) Pearson
+            if len(args) >= 3:
+                return (
+                    f"numba_correlation({_arr(args[0])}, {_arr(args[1])}, "
+                    f"int({args[2]}), __bar_idx)"
+                )
+            if len(args) == 2:
+                return (
+                    f"numba_correlation({_arr(args[0])}, close_arr, "
+                    f"int({args[1]}), __bar_idx)"
+                )
+            return "np.nan"
+        if func_name == "ta_alma":
+            # ta.alma(source, length, offset=0.85, sigma=6)
+            if not args:
+                return "np.nan"
+            src = args[0]
+            length = args[1] if len(args) > 1 else "9"
+            offset = args[2] if len(args) > 2 else "0.85"
+            sigma = args[3] if len(args) > 3 else "6.0"
+            return (
+                f"numba_alma({_arr(src)}, int({length}), float({offset}), "
+                f"float({sigma}), __bar_idx)"
+            )
+        if func_name == "ta_hma":
+            # ta.hma(source, length)
+            if not args:
+                return "np.nan"
+            if len(args) >= 2:
+                return f"numba_hma({_arr(args[0])}, int({args[1]}), __bar_idx)"
+            if not _is_series_arr(args[0]):
+                return f"numba_hma(close_arr, int({args[0]}), __bar_idx)"
+            return f"numba_hma({_arr(args[0])}, 9, __bar_idx)"
+        if func_name == "ta_tsi":
+            # ta.tsi(source, short, long) or ta.tsi(short, long) on close
+            if len(args) >= 3 and _is_series_arr(args[0]):
+                return (
+                    f"numba_tsi({_arr(args[0])}, int({args[1]}), int({args[2]}), __bar_idx)"
+                )
+            if len(args) >= 2:
+                return f"numba_tsi(close_arr, int({args[0]}), int({args[1]}), __bar_idx)"
+            return "np.nan"
         if func_name == "ta_valuewhen":
             # Prefer real history scan when cond is a series array; else current source
             if len(args) >= 2 and _is_series_arr(args[0]):
@@ -1789,11 +2321,12 @@ class CompilerVisitor(NodeVisitor):
             return f"numba_cci(close_arr, int({length}), __bar_idx)"
         if func_name == "ta_vwap":
             # ta.vwap / ta.vwap(source) — cumulative typical*vol / cum vol
+            st = self._alloc_fixed_state("vwap", 3)
             if args and _is_series_arr(args[0]):
-                return f"numba_vwap({_arr(args[0])}, vol_arr, __bar_idx)"
+                return f"numba_vwap_inc({_arr(args[0])}, vol_arr, __bar_idx, {st})"
             # default source = hlc3; approximate with (h+l+c)/3 via close as MVP if no src
             # Use close for bare form; better: build from chart (still correct enough)
-            return "numba_vwap(close_arr, vol_arr, __bar_idx)"
+            return f"numba_vwap_inc(close_arr, vol_arr, __bar_idx, {st})"
         if func_name == "ta_sar":
             # ta.sar(start, inc, max) using chart high/low
             start = args[0] if args else "0.02"
@@ -1895,9 +2428,10 @@ class CompilerVisitor(NodeVisitor):
             return "np.nan"
         if func_name == "ta_obv":
             # ta.obv / ta.obv() / ta.obv(close, volume)
+            st = self._alloc_fixed_state("obv", 2)
             if len(args) >= 2 and _is_series_arr(args[0]):
-                return f"numba_obv({_arr(args[0])}, {_arr(args[1])}, __bar_idx)"
-            return "numba_obv(close_arr, vol_arr, __bar_idx)"
+                return f"numba_obv_inc({_arr(args[0])}, {_arr(args[1])}, __bar_idx, {st})"
+            return f"numba_obv_inc(close_arr, vol_arr, __bar_idx, {st})"
         if func_name == "ta_roc":
             # ta.roc(source, length)
             if len(args) >= 2:
@@ -1911,7 +2445,30 @@ class CompilerVisitor(NodeVisitor):
             if not args:
                 return "0.0"
             repl = args[1] if len(args) > 1 else "0.0"
+            # String/object series: avoid numba_nz (isnan on unicode fails)
+            if (
+                not self._is_safe_numeric_expr(args[0])
+                or self._looks_like_string_expr(args[0])
+                or args[0] in self.scalar_vars
+            ):
+                self.object_mode = True
+                return (
+                    f"({args[0]} if ({args[0]}) is not None "
+                    f"and not (isinstance({args[0]}, float) "
+                    f"and ({args[0]}) != ({args[0]})) else {repl})"
+                )
             return f"numba_nz({args[0]}, {repl})"
+        if func_name == "fixnan":
+            # Full history carry-forward is expensive; nz(x, 0) stub is enough
+            if not args:
+                return "0.0"
+            return f"numba_nz({args[0]}, 0.0)"
+        if func_name in ("complex_new", "complex_arr_new"):
+            # complex.new(real, imag) → object dict handle
+            self.object_mode = True
+            real = args[0] if args else "0.0"
+            imag = args[1] if len(args) > 1 else "0.0"
+            return "{'real': float(%s), 'imag': float(%s)}" % (real, imag)
         if func_name in ("math_abs", "abs"):
             return f"numba_abs({args[0]})" if args else "np.nan"
         if func_name in ("math_max", "max"):
@@ -1928,13 +2485,13 @@ class CompilerVisitor(NodeVisitor):
             if not args:
                 return "np.nan"
             return "(" + "+".join(args) + f") / {len(args)}"
-        if func_name == "math_exp":
+        if func_name in ("math_exp", "exp"):
             return f"np.exp({args[0]})" if args else "np.nan"
-        if func_name == "math_log":
+        if func_name in ("math_log", "log"):
             return f"np.log({args[0]})" if args else "np.nan"
-        if func_name == "math_log10":
+        if func_name in ("math_log10", "log10"):
             return f"np.log10({args[0]})" if args else "np.nan"
-        if func_name == "math_pow":
+        if func_name in ("math_pow", "pow"):
             if not args:
                 return "np.nan"
             return f"({args[0]} ** {args[1]})" if len(args) > 1 else f"({args[0]} ** 2)"
@@ -1944,12 +2501,15 @@ class CompilerVisitor(NodeVisitor):
             return f"float(np.floor({args[0]}))" if args else "0.0"
         if func_name in ("math_ceil", "ceil"):
             return f"float(np.ceil({args[0]}))" if args else "0.0"
-        if func_name == "math_sign":
+        if func_name in ("math_sign", "sign"):
             return f"float(np.sign({args[0]}))" if args else "0.0"
+        if func_name == "math_round_to_mintick":
+            # Without symbol mintick series, round to integer ticks stub
+            return f"float(np.round({args[0]}))" if args else "0.0"
         if func_name == "math_sum":
             period = args[1] if len(args) > 1 else "14"
             src_e = args[0] if args else "close_arr[__bar_idx]"
-            return f"(numba_sma({_arr(src_e)}, int({period}), __bar_idx) * float(int({period})))"
+            return f"numba_sum({_arr(src_e)}, int({period}), __bar_idx)"
         if func_name == "math_avg":
             period = args[1] if len(args) > 1 else "14"
             src_e = args[0] if args else "close_arr[__bar_idx]"
@@ -1984,35 +2544,102 @@ class CompilerVisitor(NodeVisitor):
                 # NaN-safe: x != x is True for float NaN; also treat None as na
                 return f"(({args[0]}) is None or ({args[0]}) != ({args[0]}))"
             return "True"
-        if func_name in ("float", "int", "bool", "string"):
-            return args[0] if args else "np.nan"
+        if func_name == "float":
+            if not args:
+                return "np.nan"
+            arg = args[0]
+            # Known-numeric path: identity (float of float series / literals)
+            if self._is_safe_numeric_expr(arg) and not self.object_mode:
+                return arg
+            # Object / UDT / hline handle / function / string → safe cast
+            self.object_mode = True
+            return f"safe_float({arg})"
+        if func_name == "int":
+            if not args:
+                return "0"
+            arg = args[0]
+            if self._is_safe_numeric_expr(arg) and not self.object_mode:
+                return f"int({arg})" if not arg.isdigit() else arg
+            self.object_mode = True
+            return f"safe_int({arg})"
+        if func_name == "bool":
+            if not args:
+                return "False"
+            arg = args[0]
+            if self._is_safe_numeric_expr(arg) and not self.object_mode:
+                return f"bool({arg})"
+            self.object_mode = True
+            return (
+                f"(bool(safe_float({arg})) if not isinstance({arg}, str) "
+                f"else bool({arg}))"
+            )
+        if func_name == "string":
+            self.object_mode = True
+            return f"str({args[0]})" if args else "''"
 
         # Unknown call: object mode so we don't hard-fail under nopython
         # (still may NameError — better than invalid njit)
         if func_name not in ("unknown_func",):
             self.object_mode = True
         return f"{func_name}({', '.join(args)})"
-    def _emit_user_func_call(self, func_name: str, args: list[str]) -> str:
-        """Emit a call to a user-defined function with series/state plumbing."""
+    def _emit_user_func_call(
+        self,
+        func_name: str,
+        args: list[str],
+        kwargs: dict[str, str] | None = None,
+    ) -> str:
+        """Emit a call to a user-defined function with series/state plumbing.
+
+        Maps keyword args by param name, fills missing params from declared
+        defaults, and pads remaining gaps with ``np.nan``.
+        """
+        kwargs = kwargs or {}
         param_names = self.func_param_names.get(func_name, [])
+        defaults = self.func_param_defaults.get(func_name, {})
         series_set = self.func_series_params.get(func_name, set())
         series_locals = self.func_series_locals.get(func_name, [])
         st_params = self.func_st_params.get(func_name, [])
-        call_args: list[str] = []
-        for i, a in enumerate(args):
-            pname = param_names[i] if i < len(param_names) else None
+
+        def _series_strip(pname: str | None, a: str) -> str:
             if pname and pname in series_set and a.endswith("[__bar_idx]"):
-                call_args.append(a[: -len("[__bar_idx]")])
-            else:
+                return a[: -len("[__bar_idx]")]
+            return a
+
+        call_args: list[str] = []
+        if param_names:
+            for i, pname in enumerate(param_names):
+                if i < len(args):
+                    val = args[i]
+                elif pname in kwargs:
+                    val = kwargs[pname]
+                elif pname in defaults:
+                    val = defaults[pname]
+                else:
+                    val = "np.nan"
+                call_args.append(_series_strip(pname, val))
+            for i in range(len(param_names), len(args)):
+                call_args.append(args[i])
+        else:
+            for a in args:
                 call_args.append(a)
-        # Own series-local state arrays (allocated in execute_script_compiled)
+            for k in sorted(kwargs):
+                if k not in param_names:
+                    call_args.append(kwargs[k])
+
         for s in series_locals:
             call_args.append(f"__st_{func_name}_{s}")
-        # Transitive series-local state from nested UDF calls
         for st in st_params:
             call_args.append(st)
-        # Chart series / bar index are free vars under njit — pass explicitly
-        if self.func_needs_bar.get(func_name) or series_set or series_locals or st_params:
+        free_series = getattr(self, "func_free_series", {}).get(func_name, [])
+        for fs in free_series:
+            call_args.append(fs)
+        if (
+            self.func_needs_bar.get(func_name)
+            or series_set
+            or series_locals
+            or st_params
+            or free_series
+        ):
             for extra in (
                 "open_arr",
                 "high_arr",
@@ -2023,6 +2650,8 @@ class CompilerVisitor(NodeVisitor):
             ):
                 call_args.append(extra)
         return f"{func_name}({', '.join(call_args)})"
+
+
     def _emit_strategy_call(self, func_name: str, args: list[str], kwargs: dict[str, str]) -> str:
         """Emit CompileStrategyBroker method call; force object mode."""
         self.object_mode = True
@@ -2259,13 +2888,25 @@ class CompilerVisitor(NodeVisitor):
             if k not in ("title", "color"):
                 parts.append(f"{k!r}: {v}")
         event = f"{{{', '.join(parts)}}}"
-        # Object constructors return a handle dict so later set_* can reference it.
-        if func_name.endswith("_new"):
+        # Object constructors + hline return a handle dict so later set_* /
+        # float(handle) can reference it (float → na via safe_float).
+        if func_name.endswith("_new") or func_name == "hline":
             return f"(__drawings.append(__d := {event}) or __d)"
-        return f"__drawings.append({event})"
+        return f"(__drawings.append(__d := {event}) or __d)"
+
     def visit_BinOp(self, node: ast.BinOp):
         left = self.visit(node.left)
         right = self.visit(node.right)
+        left_str = self._is_stringy_value(node.left) or self._looks_like_string_expr(left)
+        right_str = self._is_stringy_value(node.right) or self._looks_like_string_expr(right)
+        # Color/string arithmetic: force object mode; never emit str-str subtraction
+        if left_str or right_str:
+            self.object_mode = True
+            if isinstance(node.op, ast.Add):
+                # string concatenation
+                return f"(str({left}) + str({right}))"
+            # Sub/Mult/Div/Mod on strings or colors → na
+            return "np.nan"
         # Pine division by zero → na (not Python ZeroDivisionError)
         if isinstance(node.op, ast.Div):
             return f"(({left}) / ({right}) if ({right}) != 0 else np.nan)"
@@ -2320,8 +2961,45 @@ class CompilerVisitor(NodeVisitor):
         off = self._safe_history_offset(offset_expr)
         return f"({base}[__bar_idx - ({off})] if __bar_idx >= ({off}) else np.nan)"
 
+    @staticmethod
+    def _is_numeric_or_bool_literal(expr: str) -> bool:
+        s = expr.strip()
+        if s in ("True", "False", "None", "np.nan"):
+            return True
+        return bool(re.fullmatch(r"-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?", s))
+
+    @staticmethod
+    def _is_series_array_base(expr: str) -> bool:
+        """True when *expr* is a full series buffer (with or without bar index)."""
+        if expr.endswith("[__bar_idx]"):
+            return True
+        if expr in ("open_arr", "high_arr", "low_arr", "close_arr", "vol_arr"):
+            return True
+        # Allocated user series: foo_arr (not foo_arr[i] Python list indexing)
+        if expr.endswith("_arr") and "[" not in expr:
+            return True
+        return False
+
+    def _scalar_history_fallback(self, value_expr: str, offset_expr: str) -> str:
+        """History on a non-series value.
+
+        Literals/constants are bar-invariant → return the value when the offset
+        is in range, else na. Function results / strategy stubs / other scalars
+        cannot be rewound without a temp series → na (avoids getitem TypeError).
+        """
+        off = self._safe_history_offset(offset_expr)
+        if self._is_numeric_or_bool_literal(value_expr):
+            return f"({value_expr} if __bar_idx >= ({off}) else np.nan)"
+        return "np.nan"
+
     def visit_Subscript(self, node: ast.Subscript):
-        # History on UDF params/locals: use array base, never index a scalar float
+        """Pine ``[]`` is the history operator — always route series via
+        :meth:`_history_subscript` with a NaN-safe int offset. Never emit
+        ``scalar[i]`` (Numba ``invalid index to scalar`` / Python TypeError).
+        """
+        slice_val = self.visit(node.slice)
+
+        # --- UDF params / locals -------------------------------------------------
         if (
             self.in_function
             and isinstance(node.value, ast.Name)
@@ -2329,26 +3007,82 @@ class CompilerVisitor(NodeVisitor):
         ):
             name = node.value.id
             py = self._py_ident(name)
-            slice_val = self.visit(node.slice)
             if name in self.series_params:
-                base = py
-            elif name in self.series_locals:
-                base = f"{py}_arr"
-            else:
-                # Late discovery (param history): keep param-as-array convention
+                return self._history_subscript(py, slice_val)
+            if name in self.series_locals:
+                return self._history_subscript(f"{py}_arr", slice_val)
+            # Loop counters are pure scalars — history is na
+            if name in self.loop_counters:
+                return self._scalar_history_fallback(py, slice_val)
+            # Late discovery: only formal params become series arrays
+            if name in self.param_names:
                 self.series_params.add(name)
-                base = py
-            return self._history_subscript(base, slice_val)
+                return self._history_subscript(py, slice_val)
+            # Assigned local without series allocation (or counter already local)
+            return self._scalar_history_fallback(py, slice_val)
+
+        # --- Script-level Name: ensure series buffer exists for history --------
+        if isinstance(node.value, ast.Name):
+            name = node.value.id
+            if name in self.scalar_vars or name in self.map_vars:
+                # Array/map handle: not a float series. History → na (array uses
+                # array.get; map uses methods). Avoids float/None getitem.
+                return "np.nan"
+            if name in self.loop_counters:
+                return self._scalar_history_fallback(
+                    self._py_ident(name) if name in self.ident_map else name,
+                    slice_val,
+                )
+            # First sight of history on a bare series name → allocate buffer
+            if (
+                name not in _NS
+                and name not in _COLOR_NAMES
+                and name not in (
+                    "open",
+                    "high",
+                    "low",
+                    "close",
+                    "volume",
+                    "na",
+                    "tr",
+                    "obv",
+                    "hl2",
+                    "hlc3",
+                    "ohlc4",
+                    "hlcc4",
+                    "bar_index",
+                    "time",
+                    "timenow",
+                    "time_close",
+                    "true",
+                    "True",
+                    "false",
+                    "False",
+                    "PI",
+                    "pi",
+                )
+                and name not in self.udt_types
+                and f"{name}_arr" not in self.arrays
+                and name not in self.string_series
+            ):
+                self.arrays.add(f"{name}_arr")
 
         arr = self.visit(node.value)
-        slice_val = self.visit(node.slice)
+
+        # Series element at current bar → history on the underlying buffer
         if arr.endswith("[__bar_idx]"):
-            base_arr = arr[:-11]
-            return self._history_subscript(base_arr, slice_val)
-        # Guard: never emit None[i] from a strategy stub — prefer np.nan
+            return self._history_subscript(arr[: -len("[__bar_idx]")], slice_val)
+
+        # Bare series array (rare; e.g. after stripping)
+        if self._is_series_array_base(arr):
+            return self._history_subscript(arr, slice_val)
+
+        # None / na stubs from strategy / missing APIs
         if arr in ("None", "np.nan"):
             return "np.nan"
-        return f"{arr}[{slice_val}]"
+
+        # Strategy / broker scalars, call results, arithmetic, literals, …
+        return self._scalar_history_fallback(arr, slice_val)
     def visit_If(self, node: ast.If):
         test = self.visit(node.test)
         lines = [f"if {test}:"]
@@ -2405,9 +3139,21 @@ class CompilerVisitor(NodeVisitor):
             self.object_mode = True
         prev_series = set(self.series_params)
         prev_series_locals = set(self.series_locals)
+        prev_param_names = set(self.param_names)
         prev_ident = dict(self.ident_map)
         self.in_function = True
+        self._current_func_name = func_name
         self.local_vars = set(args)
+        # Capture optional param defaults for call-site fill
+        defaults_map: dict[str, str] = {}
+        for arg in node.args:
+            if not hasattr(arg, "name"):
+                continue
+            d = getattr(arg, "default", None)
+            if d is not None:
+                defaults_map[arg.name] = self.visit(d)
+        self.func_param_defaults[func_name] = defaults_map
+        self.param_names = set(args)
         # Rename params that shadow Python builtins (len, sum, id, …)
         self.ident_map = {a: self._safe_ident(a) for a in args}
 
@@ -2427,12 +3173,18 @@ class CompilerVisitor(NodeVisitor):
         for stmt in node.body:
             self._mark_series_params(stmt)
         # Only param names from this function count as series_params for body gen
+        # (never promote loop counters / non-params via history_names alone)
         series_for_func = {a for a in args if a in self.series_params or a in history_names}
         # Body gen sees only this function's series params (avoid cross-fn name clash)
         self.series_params = set(series_for_func)
 
         # Assigned non-params used with history → series_locals (persistent state arrs)
-        series_locals = sorted(n for n in history_names if n in assigned and n not in arg_set)
+        # Exclude names that are only loop counters (not true series state)
+        series_locals = sorted(
+            n
+            for n in history_names
+            if n in assigned and n not in arg_set and n not in self.loop_counters
+        )
         self.series_locals = set(series_locals)
         self.local_vars |= assigned
 
@@ -2460,10 +3212,12 @@ class CompilerVisitor(NodeVisitor):
                 body_lines.append(val)
 
         self.in_function = False
+        self._current_func_name = None
         self.local_vars = set()
         # Restore + accumulate series_params for call-site lowering of this fn's args
         self.series_params = prev_series | series_for_func
         self.series_locals = prev_series_locals
+        self.param_names = prev_param_names
         self.func_series_params[func_name] = series_for_func
         self.func_series_locals[func_name] = list(series_locals)
         self.func_param_names[func_name] = list(args)
@@ -2486,18 +3240,55 @@ class CompilerVisitor(NodeVisitor):
 
         # series-local params use safe base name + _arr
         sl_params = [f"{self.ident_map.get(s, s)}_arr" for s in series_locals]
+        # Free script-level series referenced inside the UDF (e.g. hma3 uses outer `lag`)
+        # Functions are emitted at module scope, so they cannot close over execute_script locals.
+        _chart = {"open_arr", "high_arr", "low_arr", "close_arr", "vol_arr"}
+        free_series = sorted(
+            {
+                m
+                for m in re.findall(r"\b([A-Za-z_][A-Za-z0-9_]*_arr)\b", body_text)
+                if m not in _chart
+                and m not in sl_params
+                and not m.startswith("__st_")
+                and m not in {f"{self._py_ident(a)}_arr" for a in args}
+                and m not in {self._py_ident(a) for a in args if a in series_for_func}
+            }
+            | {
+                # Incremental TA state buffers (__ema0_st, __atr0_st, …)
+                m
+                for m in re.findall(r"\b(__[A-Za-z][A-Za-z0-9_]*_st)\b", body_text)
+                if m not in sl_params
+            }
+        )
+        # Also bare series-param style names already covered; store for call site
+        if not hasattr(self, "func_free_series"):
+            self.func_free_series: dict[str, list[str]] = {}
+        self.func_free_series[func_name] = free_series
+        # Ensure free series arrays are allocated in execute_script_compiled
+        for fs in free_series:
+            self.arrays.add(fs)
+
         needs_ctx = (
             any(tok in body_text for tok in _ctx_tokens)
             or bool(series_for_func)
             or bool(series_locals)
             or bool(st_refs)
+            or bool(free_series)
         )
-        # Emit safe Python param names for user-facing args
-        param_list = [self.ident_map.get(a, a) for a in args]
+        # Emit safe Python param names for user-facing args.
+        # Never put ``=default`` on the def when trailing required params
+        # (series state / chart context) would follow — invalid Python.
+        # Defaults are still applied at call sites via func_param_defaults.
+        param_list = []
+        for a in args:
+            param_list.append(self._py_ident(a))
         for p in sl_params:
             if p not in param_list:
                 param_list.append(p)
         for p in st_refs:
+            if p not in param_list:
+                param_list.append(p)
+        for p in free_series:
             if p not in param_list:
                 param_list.append(p)
         if needs_ctx:
@@ -2738,6 +3529,9 @@ class CompilerVisitor(NodeVisitor):
         # (``base = close_arr[i]``) which then failed on history (``base[1]``).
         added_local = False
         added_scalar = False
+        # Always track as loop counter so history on the counter never treats it
+        # as a series array (``i[1]`` → na, not ``i[__bar_idx-1]``).
+        self.loop_counters.add(target)
         if self.in_function:
             if target not in self.local_vars:
                 self.local_vars.add(target)
@@ -2751,11 +3545,14 @@ class CompilerVisitor(NodeVisitor):
             f"__step_{target} = {step}",
             f"while ({target} <= {end}) if __step_{target} > 0 else ({target} >= {end}):",
         ]
-        for stmt in node.body:
-            val = self.visit(stmt)
-            if val:
-                val = val.replace("\n", "\n    ")
-                lines.append(f"    {val}")
+        try:
+            for stmt in node.body:
+                val = self.visit(stmt)
+                if val:
+                    val = val.replace("\n", "\n    ")
+                    lines.append(f"    {val}")
+        finally:
+            self.loop_counters.discard(target)
         lines.append(f"    {target} += __step_{target}")
         if added_local:
             self.local_vars.discard(target)

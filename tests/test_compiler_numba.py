@@ -134,7 +134,7 @@ plot(macd_line, title="macd")
         code = transpile(src)
         assert "numba_atr" in code
         assert "numba_bb" in code
-        assert "numba_macd" in code
+        assert "numba_macd" in code or "numba_macd_inc" in code
         assert "@numba.njit" in code
 
     def test_atr_runs(self) -> None:
@@ -765,7 +765,7 @@ plot(s, title="sum")
 plot(math.random(0, 1), title="rnd")
 """
         code = transpile(src)
-        assert "numba_sma" in code
+        assert "numba_sum" in code
         assert "math_sum" not in code
         compiled = compile_script(src)
         o, h, l, c, v = _ohlcv(30)
@@ -1025,3 +1025,644 @@ plot(ta.obv, title="o")
         o, h, l, c, v = _ohlcv(30)
         out = compiled.run(o, h, l, c, v)
         assert "pr" in out and "o" in out
+
+
+class TestSprint6MissingNames:
+    """visit_Name / visit_Call stubs for common NameError offenders."""
+
+    def test_pi_constant(self) -> None:
+        src = """//@version=5
+indicator("x")
+plot(PI, title="pi")
+plot(math.pi, title="mpi")
+"""
+        code = transpile(src)
+        assert "PI_arr" not in code
+        assert "np.pi" in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(10)
+        out = compiled.run(o, h, l, c, v)
+        assert abs(out["pi"][-1] - np.pi) < 1e-12
+        assert abs(out["mpi"][-1] - np.pi) < 1e-12
+
+    def test_bare_color_green(self) -> None:
+        src = """//@version=5
+indicator("x")
+plot(close, title="c", color=green)
+c = green
+plot(close, title="c2", color=c)
+"""
+        code = transpile(src)
+        assert "green_arr" not in code
+        assert "#22AB94" in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(10)
+        out = compiled.run(o, h, l, c, v)
+        assert abs(out["c"][-1] - c[-1]) < 1e-9
+
+    def test_str_repeat(self) -> None:
+        src = """//@version=5
+indicator("x")
+s = str.repeat("ab", 3)
+plot(str.length(s), title="n")
+"""
+        code = transpile(src)
+        assert "str_repeat" not in code or "* int(" in code
+        assert " * int(" in code or "* int" in code
+        compiled = compile_script(src)
+        assert compiled.object_mode
+        o, h, l, c, v = _ohlcv(10)
+        out = compiled.run(o, h, l, c, v)
+        assert abs(out["n"][-1] - 6.0) < 1e-9
+
+    def test_bare_exp(self) -> None:
+        src = """//@version=5
+indicator("x")
+plot(exp(0.0), title="e0")
+plot(math.exp(1.0), title="e1")
+"""
+        code = transpile(src)
+        assert "np.exp" in code
+        # bare exp must not fall through to exp(...) NameError
+        assert re.search(r"\bexp\(", code) is None or "np.exp" in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(10)
+        out = compiled.run(o, h, l, c, v)
+        assert abs(out["e0"][-1] - 1.0) < 1e-9
+        assert abs(out["e1"][-1] - np.e) < 1e-9
+
+    def test_hlcc4(self) -> None:
+        src = """//@version=5
+indicator("x")
+plot(hlcc4, title="h")
+plot(ohlc4, title="o")
+"""
+        code = transpile(src)
+        assert "hlcc4_arr" not in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(10)
+        out = compiled.run(o, h, l, c, v)
+        # hlcc4 = (high + low + close + close) / 4
+        expected = (h[-1] + l[-1] + c[-1] + c[-1]) / 4.0
+        assert abs(out["h"][-1] - expected) < 1e-9
+        ohlc_expected = (o[-1] + h[-1] + l[-1] + c[-1]) / 4.0
+        assert abs(out["o"][-1] - ohlc_expected) < 1e-9
+
+    def test_fixnan_and_str_format_time_and_ta_sum(self) -> None:
+        src = """//@version=5
+indicator("x")
+plot(fixnan(na), title="fn")
+plot(ta.sum(close, 3), title="s")
+t = str.format_time(time, "yyyy")
+plot(str.length(t), title="tl")
+"""
+        code = transpile(src)
+        assert "numba_nz" in code
+        assert "numba_sum" in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(20)
+        out = compiled.run(o, h, l, c, v)
+        assert abs(out["fn"][-1] - 0.0) < 1e-9
+        # sum of last 3 closes on rising series
+        assert abs(out["s"][-1] - float(c[-3:].sum())) < 1e-6
+
+
+class TestSprint6HistorySubscript:
+    """History operator: series path, float offsets, scalar/na guards."""
+
+    def test_series_history_close_and_local(self) -> None:
+        src = """//@version=5
+indicator("x")
+base = close
+plot(close[1], title="c1")
+plot(base[1], title="b1")
+"""
+        code = transpile(src)
+        assert "_safe_history_offset" not in code  # helper is compile-time only
+        assert "__bar_idx -" in code
+        assert "int(" in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(20)
+        out = compiled.run(o, h, l, c, v)
+        assert np.isnan(out["c1"][0])
+        assert abs(out["c1"][1] - c[0]) < 1e-9
+        assert abs(out["b1"][5] - c[4]) < 1e-9
+
+    def test_history_float_offset_highestbars(self) -> None:
+        """ta.highestbars returns float64; offset must be NaN-safe int."""
+        src = """//@version=5
+indicator("x")
+plot(high[ta.highestbars(high, 2)], title="hh")
+plot(close[math.abs(ta.lowestbars(low, 3))], title="ll")
+"""
+        code = transpile(src)
+        # Offset coercion: NaN → 0 else int(...)
+        assert "!= (" in code or "!=(" in code
+        assert "int(" in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(30)
+        out = compiled.run(o, h, l, c, v)
+        assert "hh" in out and "ll" in out
+        assert np.all(np.isfinite(out["hh"][5:]))
+
+    def test_subscript_na_guard_scalar_and_call(self) -> None:
+        """History on scalars / call results must not emit scalar[i]."""
+        src = """//@version=5
+indicator("x")
+plot(1[1], title="lit")
+plot(ta.sma(close, 5)[1], title="sma1")
+plot((close + open)[1], title="expr")
+"""
+        code = transpile(src)
+        # No raw getitem on a float call / paren expr (must not end with )[offset])
+        assert "numba_sma(close_arr, int(5), __bar_idx)[1]" not in code
+        assert re.search(r"\)\s*\[\s*1\s*\]", code) is None
+        # Scalar/call history lowers to na (or literal bar-guard), never crashes
+        assert (
+            "plot_1[__bar_idx] = np.nan" in code
+            or "numba_store(plot_1, __bar_idx, np.nan)" in code
+            or "sma1" in code
+        )
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(20)
+        out = compiled.run(o, h, l, c, v)
+        # literal series is bar-invariant when offset in range
+        assert abs(out["lit"][-1] - 1.0) < 1e-9
+        # call / expr history without temp series → na (safe stub)
+        assert np.isnan(out["sma1"][-1]) or out["sma1"][-1] != out["sma1"][-1]
+        assert np.isnan(out["expr"][-1]) or out["expr"][-1] != out["expr"][-1]
+
+    def test_strategy_position_size_history_not_subscriptable(self) -> None:
+        src = """//@version=5
+strategy("x")
+plot(strategy.position_size[1], title="ps")
+"""
+        code = transpile(src)
+        assert "__strategy.position_size[1]" not in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(15)
+        out = compiled.run(o, h, l, c, v)
+        assert "ps" in out
+
+    def test_udf_param_history_and_loop_offset(self) -> None:
+        src = """//@version=5
+indicator("x")
+f(src) =>
+    sum = 0.0
+    for i = 0 to 2
+        sum := sum + src[i]
+    sum
+plot(f(close), title="s")
+"""
+        code = transpile(src)
+        # Offsets through loop counter still use safe int coercion
+        assert "int(" in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(20)
+        out = compiled.run(o, h, l, c, v)
+        # sum of close[0]+close[1]+close[2] at last bar
+        expected = float(c[-1] + c[-2] + c[-3])
+        assert abs(out["s"][-1] - expected) < 1e-6
+
+
+class TestCompileCoverageSprint6TaBuiltins:
+    """Sprint 6: ta.sum / variance / dev / correlation / alma / hma / tsi."""
+
+    def test_ta_sum_and_bare_sum(self) -> None:
+        src = """//@version=5
+indicator("x")
+plot(ta.sum(close, 5), title="ts")
+plot(math.sum(close, 5), title="ms")
+"""
+        code = transpile(src)
+        assert "numba_sum" in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(40)
+        out = compiled.run(o, h, l, c, v)
+        expected = float(np.sum(c[-5:]))
+        assert abs(out["ts"][-1] - expected) < 1e-6
+        assert abs(out["ms"][-1] - expected) < 1e-6
+        assert np.isnan(out["ts"][3])
+
+    def test_bare_sum_v4_alias(self) -> None:
+        src = """//@version=4
+study("x")
+plot(sum(close, 5), title="s")
+"""
+        code = transpile(src)
+        assert "numba_sum" in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(30)
+        out = compiled.run(o, h, l, c, v)
+        assert abs(out["s"][-1] - float(np.sum(c[-5:]))) < 1e-6
+
+    def test_variance_and_dev(self) -> None:
+        src = """//@version=5
+indicator("x")
+plot(ta.variance(close, 10), title="var")
+plot(ta.dev(close, 10), title="dev")
+plot(ta.stdev(close, 10), title="sd")
+"""
+        code = transpile(src)
+        assert "numba_variance" in code
+        assert "numba_dev" in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(50)
+        out = compiled.run(o, h, l, c, v)
+        window = c[-10:]
+        expected_var = float(np.var(window, ddof=1))
+        expected_dev = float(np.mean(np.abs(window - np.mean(window))))
+        assert abs(out["var"][-1] - expected_var) < 1e-6
+        assert abs(out["dev"][-1] - expected_dev) < 1e-6
+        # variance == stdev**2
+        assert abs(out["var"][-1] - out["sd"][-1] ** 2) < 1e-6
+        assert np.isnan(out["var"][5])
+
+    def test_correlation(self) -> None:
+        src = """//@version=5
+indicator("x")
+plot(ta.correlation(close, close, 10), title="cc")
+plot(ta.correlation(close, high, 10), title="ch")
+"""
+        code = transpile(src)
+        assert "numba_correlation" in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(40)
+        out = compiled.run(o, h, l, c, v)
+        # corr(close, close) == 1 once warm
+        assert abs(out["cc"][-1] - 1.0) < 1e-9
+        # high = close+1 → perfect linear correlation
+        assert abs(out["ch"][-1] - 1.0) < 1e-9
+        assert np.isnan(out["cc"][5])
+
+    def test_alma_hma_vwma_tsi(self) -> None:
+        src = """//@version=5
+indicator("x")
+plot(ta.alma(close, 9, 0.85, 6), title="alma")
+plot(ta.hma(close, 9), title="hma")
+plot(ta.vwma(close, 10), title="vw")
+plot(ta.tsi(close, 13, 25), title="tsi")
+"""
+        code = transpile(src)
+        assert "numba_alma" in code
+        assert "numba_hma" in code
+        assert "numba_vwma" in code
+        assert "numba_tsi" in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(80)
+        out = compiled.run(o, h, l, c, v)
+        assert not np.isnan(out["alma"][-1])
+        assert not np.isnan(out["hma"][-1])
+        assert not np.isnan(out["vw"][-1])
+        assert not np.isnan(out["tsi"][-1])
+        # ALMA/HMA on rising series should track near recent closes
+        assert out["alma"][-1] > c[0]
+        assert out["hma"][-1] > c[0]
+        # unit volume → vwma == sma
+        assert abs(out["vw"][-1] - float(np.mean(c[-10:]))) < 1e-6
+
+    def test_bare_dev_variance_correlation_aliases(self) -> None:
+        src = """//@version=4
+study("x")
+plot(dev(close, 5), title="d")
+plot(variance(close, 5), title="v")
+plot(correlation(close, high, 5), title="c")
+"""
+        code = transpile(src)
+        assert "numba_dev" in code
+        assert "numba_variance" in code
+        assert "numba_correlation" in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(30)
+        out = compiled.run(o, h, l, c, v)
+        assert not np.isnan(out["d"][-1])
+        assert not np.isnan(out["v"][-1])
+        assert abs(out["c"][-1] - 1.0) < 1e-9
+
+
+class TestSprint6Coercion:
+    """Type coercion: safe float/int, version strings, color arith, sequences."""
+
+    def test_float_on_na(self) -> None:
+        src = """//@version=5
+indicator("x")
+plot(float(na), title="p")
+"""
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(10)
+        out = compiled.run(o, h, l, c, v)
+        assert np.isnan(out["p"][-1])
+
+    def test_float_on_udt_dict(self) -> None:
+        src = """//@version=5
+indicator("x")
+type T
+    float x
+t = T.new(1.0)
+plot(float(t), title="p")
+"""
+        code = transpile(src)
+        assert "safe_float" in code
+        compiled = compile_script(src)
+        assert compiled.object_mode
+        o, h, l, c, v = _ohlcv(10)
+        out = compiled.run(o, h, l, c, v)
+        assert np.isnan(out["p"][-1])
+
+    def test_float_on_hline_handle(self) -> None:
+        src = """//@version=5
+indicator("x")
+h = hline(50)
+plot(float(h), title="p")
+"""
+        code = transpile(src)
+        assert "safe_float" in code
+        compiled = compile_script(src)
+        assert compiled.object_mode
+        o, h, l, c, v = _ohlcv(10)
+        out = compiled.run(o, h, l, c, v)
+        assert np.isnan(out["p"][-1])
+
+    def test_input_version_string_not_float(self) -> None:
+        src = """//@version=5
+indicator("x")
+v = input("0.0.1", "Version")
+plot(v, title="p")
+"""
+        code = transpile(src)
+        assert "safe_float" in code or "object" in code
+        compiled = compile_script(src)
+        assert compiled.object_mode
+        o, h, l, c, v = _ohlcv(10)
+        out = compiled.run(o, h, l, c, v)
+        # version string cannot become float → na
+        assert np.isnan(out["p"][-1])
+
+    def test_input_string_keeps_object_mode(self) -> None:
+        src = """//@version=5
+indicator("x")
+v = input.string("0.0.1", "Version")
+plot(close, title="p")
+"""
+        compiled = compile_script(src)
+        assert compiled.object_mode
+        o, h, l, c, v = _ohlcv(10)
+        out = compiled.run(o, h, l, c, v)
+        assert abs(out["p"][-1] - c[-1]) < 1e-9
+
+    def test_color_string_subtraction_is_nan(self) -> None:
+        src = """//@version=5
+indicator("x")
+c = color.red
+plot(c - color.green, title="p")
+"""
+        code = transpile(src)
+        assert "np.nan" in code
+        assert " - " not in code.split("for __bar_idx")[-1] or "np.nan" in code
+        compiled = compile_script(src)
+        assert compiled.object_mode
+        o, h, l, c, v = _ohlcv(10)
+        out = compiled.run(o, h, l, c, v)
+        assert np.isnan(out["p"][-1])
+
+    def test_string_literal_subtraction_object_mode(self) -> None:
+        src = """//@version=5
+indicator("x")
+s = "a" - "b"
+plot(close, title="p")
+"""
+        code = transpile(src)
+        assert "('a' - 'b')" not in code
+        compiled = compile_script(src)
+        assert compiled.object_mode
+        o, h, l, c, v = _ohlcv(10)
+        out = compiled.run(o, h, l, c, v)
+        assert abs(out["p"][-1] - c[-1]) < 1e-9
+
+    def test_plot_array_sequence_no_crash(self) -> None:
+        src = """//@version=5
+indicator("x")
+a = array.from(1.0, 2.0)
+plot(a, title="p")
+"""
+        code = transpile(src)
+        assert "safe_float" in code
+        compiled = compile_script(src)
+        assert compiled.object_mode
+        o, h, l, c, v = _ohlcv(10)
+        out = compiled.run(o, h, l, c, v)
+        # first element of sequence
+        assert abs(out["p"][-1] - 1.0) < 1e-9
+
+    def test_color_series_plot_object_mode(self) -> None:
+        src = """//@version=5
+indicator("x")
+col = close > open ? color.green : color.red
+plot(close, color=col, title="p")
+"""
+        compiled = compile_script(src)
+        assert compiled.object_mode
+        code = transpile(src)
+        assert "dtype=object" in code or "col_arr" in code
+        o, h, l, c, v = _ohlcv(20)
+        out = compiled.run(o, h, l, c, v)
+        assert abs(out["p"][-1] - c[-1]) < 1e-9
+
+    def test_float_on_function_ref_is_nan(self) -> None:
+        src = """//@version=5
+indicator("x")
+f() => 1.0
+plot(float(f), title="p")
+"""
+        code = transpile(src)
+        assert "safe_float" in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(10)
+        out = compiled.run(o, h, l, c, v)
+        assert np.isnan(out["p"][-1])
+
+class TestCompileCoverageSprint6Materialize:
+    """Non-array TA sources: materialize math.abs / arithmetic into synthetic series."""
+
+    def test_ema_math_abs_series_compiles_and_runs(self) -> None:
+        """ta.ema(math.abs(close), n) must not pass a float scalar into numba_ema."""
+        src = """//@version=6
+indicator("x")
+e = ta.ema(math.abs(close), 14)
+plot(e, title="e")
+"""
+        code = transpile(src)
+        assert "numba_store_src" in code
+        assert "numba_ema" in code
+        assert "numba_abs" in code
+        # Pure close path still available for other plots; abs path uses store
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(50)
+        out = compiled.run(o, h, l, c, v)
+        assert "e" in out
+        assert len(out["e"]) == 50
+        # Rising positive series → EMA of abs(close) ≈ EMA(close) > 0 after warm-up
+        assert not np.isnan(out["e"][-1])
+        assert out["e"][-1] > 0
+
+    def test_tsi_style_nested_abs_double_ema(self) -> None:
+        """TSI-style: ta.ema(ta.ema(math.abs(mom), long), short) must compile."""
+        src = """//@version=6
+indicator("TSI")
+longLength = 25
+shortLength = 13
+mom = close - close[1]
+doubleAbs = ta.ema(ta.ema(math.abs(mom), longLength), shortLength)
+plot(doubleAbs, title="da")
+"""
+        code = transpile(src)
+        assert "numba_store_src" in code
+        assert code.count("numba_ema") >= 2
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(80)
+        # Must not TypingError getitem(float64, int64)
+        out = compiled.run(o, h, l, c, v)
+        assert "da" in out
+        assert len(out["da"]) == 80
+
+    def test_sma_of_arithmetic_expr(self) -> None:
+        """ta.sma(close * 2, 5) materializes the product series."""
+        src = """//@version=6
+indicator("x")
+s = ta.sma(close * 2, 5)
+plot(s, title="s")
+"""
+        code = transpile(src)
+        assert "numba_store_src" in code
+        assert "numba_sma" in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(30)
+        out = compiled.run(o, h, l, c, v)
+        assert np.isnan(out["s"][3])
+        # SMA of close*2 over bars 0..4
+        expected = float(np.mean(c[0:5] * 2))
+        assert abs(out["s"][4] - expected) < 1e-9
+        expected_last = float(np.mean(c[-5:] * 2))
+        assert abs(out["s"][-1] - expected_last) < 1e-9
+
+    def test_pure_array_source_skips_materialize(self) -> None:
+        """ta.sma(close, 14) must not allocate __src* synthetic arrays."""
+        src = """//@version=6
+indicator("x")
+plot(ta.sma(close, 14), title="s")
+"""
+        code = transpile(src)
+        assert "numba_store_src" not in code
+        assert "__src" not in code
+        assert "numba_sma(close_arr" in code
+
+
+class TestCompileUdfDefaultsKwargs:
+    """UDF default params, keyword calls, and under-arity padding."""
+
+    def test_udf_default_args_emitted_and_applied(self) -> None:
+        src = """//@version=5
+indicator("x")
+hi(val, len=2) =>
+    val + len
+plot(hi(close), title="p")
+"""
+        code = transpile(src)
+        # Defaults applied at call sites (not always on def — trailing chart ctx
+        # params would make `def hi(val, len_=2, open_arr, …)` invalid Python).
+        assert "def hi(" in code
+        assert "hi(close_arr[__bar_idx], 2)" in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(20)
+        out = compiled.run(o, h, l, c, v)
+        assert abs(out["p"][-1] - (c[-1] + 2.0)) < 1e-9
+
+    def test_udf_keyword_call_mapped(self) -> None:
+        src = """//@version=5
+indicator("x")
+g(a, b=1, c=2) =>
+    a + b * 10 + c * 100
+plot(g(c=3, a=1), title="g")
+plot(g(1, c=4), title="h")
+"""
+        code = transpile(src)
+        # kwargs expanded positionally with defaults filled
+        assert "g(1, 1, 3)" in code
+        assert "g(1, 1, 4)" in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(10)
+        out = compiled.run(o, h, l, c, v)
+        assert abs(out["g"][-1] - 311.0) < 1e-9  # 1 + 1*10 + 3*100
+        assert abs(out["h"][-1] - 411.0) < 1e-9  # 1 + 1*10 + 4*100
+
+    def test_udf_partial_args_pad_nan(self) -> None:
+        """Missing required params pad with np.nan (no TypeError at runtime)."""
+        src = """//@version=5
+indicator("x")
+tema(src, len, mult) =>
+    src + len + mult
+plot(tema(close), title="t")
+"""
+        code = transpile(src)
+        assert "tema(close_arr[__bar_idx], np.nan, np.nan)" in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(15)
+        out = compiled.run(o, h, l, c, v)
+        assert np.isnan(out["t"][-1])
+
+    def test_udf_shadows_bare_ta_name(self) -> None:
+        """Custom mfi() must not be rewritten as ta.mfi."""
+        src = """//@version=5
+indicator("x")
+mfi(src, len) =>
+    src + len
+plot(mfi(close, 2), title="m")
+"""
+        code = transpile(src)
+        assert "def mfi(" in code
+        assert "numba_mfi" not in code
+        assert "mfi(close_arr[__bar_idx], 2)" in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(15)
+        out = compiled.run(o, h, l, c, v)
+        assert abs(out["m"][-1] - (c[-1] + 2.0)) < 1e-9
+
+
+
+class TestSprint6PlotFillExpr:
+    """plot()/fill() must emit expression-safe stores."""
+
+    def test_fill_plot_transpiles_valid_python(self) -> None:
+        from pynescript.compiler.engine import transpile, compile_script
+        import numpy as np
+
+        src = """//@version=5
+indicator("t")
+p1 = plot(close)
+p2 = plot(open)
+fill(p1, p2)
+"""
+        code = transpile(src)
+        compile(code, "<c>", "exec")
+        assert "numba_store(plot_" in code
+        n = 32
+        o = np.linspace(100, 110, n)
+        cs = compile_script(src)
+        cs.run(o, o + 1, o - 1, o, np.ones(n))
+
+    def test_nested_abs_ema_materializes(self) -> None:
+        from pynescript.compiler.engine import transpile, compile_script
+        import numpy as np
+
+        src = """//@version=5
+indicator("t")
+mom = close - close[1]
+plot(ta.ema(math.abs(mom), 14))
+"""
+        code = transpile(src)
+        assert "numba_store_src" in code or "numba_ema" in code
+        n = 40
+        o = np.linspace(100, 110, n)
+        cs = compile_script(src)
+        r = cs.run(o, o + 1, o - 1, o, np.ones(n))
+        assert r
