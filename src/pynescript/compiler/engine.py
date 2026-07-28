@@ -25,6 +25,8 @@ Falls back with a clear error if ``numba`` is unavailable.
 
 from __future__ import annotations
 
+import hashlib
+
 from dataclasses import dataclass
 from dataclasses import field
 from typing import Any
@@ -42,9 +44,18 @@ try:
 except ImportError:  # pragma: no cover
     _HAS_NUMBA = False
 
+# Bounded cache: source sha256 → CompiledScript (populated after class defined)
+_COMPILE_CACHE: dict[str, Any] = {}
+_COMPILE_CACHE_MAX = 32
+
 
 def has_numba() -> bool:
     return _HAS_NUMBA
+
+
+def clear_compile_cache() -> None:
+    """Drop all cached compiled scripts (tests / hot-reload)."""
+    _COMPILE_CACHE.clear()
 
 
 def transpile(source: str) -> str:
@@ -118,12 +129,19 @@ def _normalize_result(raw: Any) -> dict[str, Any]:
     return out
 
 
-def compile_script(source: str) -> CompiledScript:
+def compile_script(source: str, *, use_cache: bool = True) -> CompiledScript:
     """Transpile Pine source and load the compiled entry point.
 
     Uses Numba when the script is pure-numeric; object-mode (UDT/map/drawing)
     uses a pure-Python numpy bar loop (still much faster than AST walking).
+
+    Results are cached by source hash (max 32) so repeated ``Runtime.run(...,
+    mode="compile")`` of the same script skips re-transpile and re-JIT warm-up.
     """
+    cache_key = hashlib.sha256(source.encode("utf-8")).hexdigest()
+    if use_cache and cache_key in _COMPILE_CACHE:
+        return _COMPILE_CACHE[cache_key]
+
     tree = parse(source, mode="exec")
     visitor = CompilerVisitor()
     code = visitor.visit(tree)
@@ -152,13 +170,21 @@ def compile_script(source: str) -> CompiledScript:
     except Exception:
         pass
 
-    return CompiledScript(
+    compiled = CompiledScript(
         source=source,
         generated_code=code,
         execute=fn,
         plot_titles=titles,
         object_mode=object_mode,
     )
+    if use_cache:
+        if len(_COMPILE_CACHE) >= _COMPILE_CACHE_MAX:
+            try:
+                _COMPILE_CACHE.pop(next(iter(_COMPILE_CACHE)))
+            except StopIteration:
+                pass
+        _COMPILE_CACHE[cache_key] = compiled
+    return compiled
 
 
 def run_script(

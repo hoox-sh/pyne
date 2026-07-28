@@ -113,3 +113,74 @@ plot(ta.sma(close, 10), title="sma")
         assert result["count"] == 40
         assert len(result["plots"]) == 40
         assert "sma" in result.get("series", {})
+
+
+class TestExpandedNumericSurface:
+    def test_transpile_atr_bb_macd(self) -> None:
+        src = """//@version=5
+indicator("x")
+a = ta.atr(14)
+[u, m, l] = ta.bb(close, 20, 2)
+[macd_line, sig, hist] = ta.macd(close, 12, 26, 9)
+plot(a, title="atr")
+plot(m, title="bb_mid")
+plot(macd_line, title="macd")
+"""
+        code = transpile(src)
+        assert "numba_atr" in code
+        assert "numba_bb" in code
+        assert "numba_macd" in code
+        assert "@numba.njit" in code
+
+    def test_atr_runs(self) -> None:
+        src = """//@version=5
+indicator("ATR")
+plot(ta.atr(14), title="atr")
+"""
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(80)
+        out = compiled.run(o, h, l, c, v)
+        atr = out["atr"]
+        assert len(atr) == 80
+        assert np.isnan(atr[0])
+        assert atr[-1] > 0
+
+    def test_bb_tuple_unpack(self) -> None:
+        src = """//@version=5
+indicator("BB")
+[u, m, l] = ta.bb(close, 20, 2)
+plot(m, title="mid")
+plot(u, title="up")
+"""
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(50)
+        out = compiled.run(o, h, l, c, v)
+        mid = out["mid"]
+        up = out["up"]
+        assert np.isnan(mid[10])
+        assert up[-1] >= mid[-1]
+
+    def test_macd_tuple_unpack(self) -> None:
+        src = """//@version=5
+indicator("MACD")
+[macd_line, signal_line, hist] = ta.macd(close, 12, 26, 9)
+plot(macd_line, title="macd")
+plot(signal_line, title="sig")
+"""
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(100)
+        out = compiled.run(o, h, l, c, v)
+        assert "macd" in out and "sig" in out
+        assert len(out["macd"]) == 100
+
+    def test_compile_cache_reuses(self) -> None:
+        from pynescript.compiler.engine import clear_compile_cache
+
+        clear_compile_cache()
+        src = """//@version=5
+indicator("c")
+plot(ta.sma(close, 5), title="s")
+"""
+        a = compile_script(src)
+        b = compile_script(src)
+        assert a is b

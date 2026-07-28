@@ -234,6 +234,10 @@ class CompilerVisitor(NodeVisitor):
         return ""
 
     def visit_Assign(self, node: ast.Assign):
+        # Tuple unpack: [a, b, c] = ta.macd(...) / ta.bb(...)
+        if isinstance(node.target, ast.Tuple):
+            return self._visit_tuple_assign(node)
+
         if not isinstance(node.target, ast.Name):
             # field assign obj.field := handled via ReAssign/Attribute
             if isinstance(node.target, ast.Attribute):
@@ -283,6 +287,36 @@ class CompilerVisitor(NodeVisitor):
         if is_var:
             return f"{name}_arr[__bar_idx] = {val} if __bar_idx == 0 else {name}_arr[__bar_idx-1]"
         return f"{name}_arr[__bar_idx] = {val}"
+
+    def _visit_tuple_assign(self, node: ast.Assign) -> str:
+        """Lower ``[a,b,c] = ta.bb(...)`` / ``ta.macd(...)`` to per-series stores."""
+        elts = list(node.target.elts)
+        names: list[str] = []
+        for el in elts:
+            if not isinstance(el, ast.Name):
+                return ""
+            names.append(el.id)
+            self.arrays.add(f"{el.id}_arr")
+
+        # Prefer structured multi-return for known multi-value TA
+        if isinstance(node.value, ast.Call):
+            call_code = self.visit(node.value)
+            # Multi-return forms emit a temp unpack
+            if call_code.startswith("numba_bb(") or call_code.startswith("numba_macd("):
+                lines = [f"__tup = {call_code}"]
+                for i, name in enumerate(names):
+                    lines.append(f"{name}_arr[__bar_idx] = __tup[{i}]")
+                return "\n".join(lines)
+
+        # Fallback: visit RHS once if it is a simple tuple literal
+        if isinstance(node.value, ast.Tuple):
+            lines = []
+            for name, el in zip(names, node.value.elts, strict=False):
+                lines.append(f"{name}_arr[__bar_idx] = {self.visit(el)}")
+            return "\n".join(lines)
+
+        # Unknown multi-assign — leave empty (numeric path may break; prefer object later)
+        return ""
 
     def _looks_like_udt_ctor(self, node) -> bool:
         if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
@@ -519,6 +553,9 @@ class CompilerVisitor(NodeVisitor):
         if func_name == "ta_ema":
             period = kwargs.get("length", args[1] if len(args) > 1 else "14")
             return f"numba_ema({_arr(args[0])}, {period}, __bar_idx)"
+        if func_name == "ta_rma":
+            period = kwargs.get("length", args[1] if len(args) > 1 else "14")
+            return f"numba_rma({_arr(args[0])}, {period}, __bar_idx)"
         if func_name == "ta_rsi":
             period = kwargs.get("length", args[1] if len(args) > 1 else "14")
             return f"numba_rsi({_arr(args[0])}, {period}, __bar_idx)"
@@ -528,6 +565,38 @@ class CompilerVisitor(NodeVisitor):
         if func_name == "ta_lowest":
             period = kwargs.get("length", args[1] if len(args) > 1 else "14")
             return f"numba_lowest({_arr(args[0])}, {period}, __bar_idx)"
+        if func_name == "ta_stdev":
+            period = kwargs.get("length", args[1] if len(args) > 1 else "14")
+            return f"numba_stdev({_arr(args[0])}, {period}, __bar_idx)"
+        if func_name == "ta_change":
+            length = kwargs.get("length", args[1] if len(args) > 1 else "1")
+            return f"numba_change({_arr(args[0])}, {length}, __bar_idx)"
+        if func_name == "ta_atr":
+            # ta.atr(length) uses high/low/close from chart arrays
+            length = kwargs.get("length", args[0] if args else "14")
+            if len(args) >= 4:
+                # legacy ta.atr(high, low, close, length)
+                return (
+                    f"numba_atr({_arr(args[0])}, {_arr(args[1])}, {_arr(args[2])}, "
+                    f"{args[3]}, __bar_idx)"
+                )
+            return f"numba_atr(high_arr, low_arr, close_arr, {length}, __bar_idx)"
+        if func_name == "ta_bb":
+            # ta.bb(source, length, mult) or ta.bb(length, mult)
+            if len(args) >= 3:
+                src, length, mult = args[0], args[1], args[2]
+            elif len(args) == 2:
+                src, length, mult = "close_arr[__bar_idx]", args[0], args[1]
+            else:
+                src, length, mult = "close_arr[__bar_idx]", "20", "2.0"
+            return f"numba_bb({_arr(src)}, {length}, float({mult}), __bar_idx)"
+        if func_name == "ta_macd":
+            # ta.macd(source, fast, slow, signal)
+            src = args[0] if args else "close_arr[__bar_idx]"
+            fast = args[1] if len(args) > 1 else "12"
+            slow = args[2] if len(args) > 2 else "26"
+            signal = args[3] if len(args) > 3 else "9"
+            return f"numba_macd({_arr(src)}, {fast}, {slow}, {signal}, __bar_idx)"
 
         if func_name in ("nz",):
             repl = args[1] if len(args) > 1 else "0.0"
