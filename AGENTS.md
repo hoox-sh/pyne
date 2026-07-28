@@ -1,8 +1,8 @@
 # AGENTS.md
 
-Compact guide for AI agents working in the **pynescript** repo. Read this first
-to avoid common mistakes; dive into `.opencode/context/project-intelligence/`
-for deeper reference.
+Compact guide for AI agents working in the **pyne** repo (package name
+`pynescript`). Read this first to avoid common mistakes; dive into
+`.opencode/context/project-intelligence/` for deeper reference.
 
 ## What this is
 
@@ -10,6 +10,10 @@ Python toolchain for TradingView Pine Script: parser, AST, evaluator, linter,
 LSP server, Flask Pro API, VS Code extension. Source under `src/pynescript/`
 (src-layout package), ANTLR4 grammar, ASDL-generated AST nodes, Nuitka-compiled
 LSP binary, optional cloud backend.
+
+**AXIS** (charting PWA) is **not** in this repo — see
+[jango-blockchained/axis](https://github.com/jango-blockchained/axis)
+(`/home/jango/Git/axis`).
 
 ## Quick Commands
 
@@ -64,6 +68,7 @@ Hatch equivalents: `hatch run test:test`, `hatch run lint:style`,
 - The VS Code extension is a separate Node 22 project under `vscode-extension/`.
   Build with `make build-vscode` (or `npm ci && npm run compile && npx vsce package`).
 - `pine-worker/` is the colocated TypeScript port of the evaluator + a Python→TS converter tool. Treat it as an extra tool of the main repo (Bun + tests + parity with the Python oracle).
+- **Do not recreate `frontend/`.** AXIS was extracted to the `axis` repo (2026-07).
 
 ## Codebase Entry Points
 
@@ -142,7 +147,8 @@ All repos below are part of the **HOOX** project — a modular, production-ready
 |---|---|---|
 | `hoox-setup` | `/home/jango/Git/hoox-setup` | Monorepo: all Cloudflare Workers (gateway, execution, D1, analytics, etc.), Docker, CI/CD |
 | `hoox-landing-page` | `/home/jango/Git/hoox-landing-page` | Marketing landing site (Next.js 16, GSAP + Framer Motion + Lenis) |
-| `pynescript` | `/home/jango/Git/pynescript` | Pine Script parser/evaluator (Python, ANTLR4, Flask Pro API, VS Code extension) |
+| `pyne` | `/home/jango/Git/pynescript` → pyne | Pine Script parser/evaluator (Python, ANTLR4, Flask Pro API, VS Code extension) |
+| `axis` | `/home/jango/Git/axis` | AXIS charting PWA (Solid + Vite + CF Worker); uses pyne Pro API |
 | `pyne-worker` | `/home/jango/Git/pyne-worker` | Python Cloudflare Worker — Pine Script evaluation on the edge (depends on `pynescript`) |
 | `pine-worker` | `/home/jango/Git/pine-worker` | TypeScript Cloudflare Worker — Pine Script evaluator + trade event emitter (depends on `@jango-blockchained/hoox-shared` from `hoox-setup`) |
 

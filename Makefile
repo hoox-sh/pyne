@@ -1,51 +1,40 @@
 # Copyright (C) 2024-2026 jango_blockchained
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-# Makefile for Pynescript development
+# Makefile for pyne (Pine Script Python toolchain) development
 
-.PHONY: help install test lint fmt build run clean docker-build docker-run run-frontend run-axis worker-install worker-dev worker-deploy worker-typecheck pages-deploy test-frontend typecheck
+.PHONY: help install test lint fmt build run clean docker-build docker-run test-lsp test-backend typecheck build-check build-vscode
 
 help:
-	@echo "Pynescript Development Commands (Bun-first)"
+	@echo "pyne — Pine Script™ Python toolchain"
 	@echo ""
-	@echo "  install          Install Python deps"
-	@echo "  install-bun      Install root + worker Bun deps"
-	@echo "  test             Run all tests (Python + Bun)"
-	@echo "  test-frontend    Run AXIS unit + worker tests (frontend/)"
-	@echo "  test-lsp         Run LSP tests only"
-	@echo "  test-backend     Run backend tests only"
-	@echo "  lint             Run linting"
-	@echo "  typecheck        Typecheck all TS (root + worker)"
-	@echo "  build            Build LSP binary (requires nuitka)"
+	@echo "  install          Install Python package (editable + LSP extra)"
+	@echo "  test             Run pytest (tests/)"
+	@echo "  test-lsp         LSP unit + e2e tests"
+	@echo "  test-backend     Backend / Pro API tests"
+	@echo "  lint             ruff check"
+	@echo "  fmt              ruff format"
+	@echo "  build            Nuitka LSP binary"
+	@echo "  build-check      Fast import check (no compile)"
 	@echo "  build-vscode     Package VS Code extension"
-	@echo "  run              Run the API server"
-	@echo "  run-lsp          Run the LSP server"
-	@echo "  run-axis         AXIS product path: Vite dev (Solid, port 3000)"
-	@echo "  run-frontend     Legacy static shell only (Bun server.ts, port 8081)"
-	@echo "  worker-install   Install Cloudflare Worker Bun deps"
-	@echo "  worker-dev       Run wrangler dev for the Worker (port 8787)"
-	@echo "  worker-typecheck Typecheck the Worker (tsc --noEmit)"
-	@echo "  worker-deploy    Deploy the Worker to Cloudflare"
-	@echo "  pages-deploy     Build AXIS dist/ and deploy to Cloudflare Pages"
-	@echo "  docker-build      Build API Docker image"
-	@echo "  docker-run        Run API in Docker"
+	@echo "  run              Flask Pro API (:5002)"
+	@echo "  run-lsp          Language server (stdio)"
+	@echo "  docker-build     Build API Docker image"
+	@echo "  docker-run       Run API via docker compose"
 	@echo "  clean            Clean build artifacts"
+	@echo ""
+	@echo "AXIS charting UI lives in the sister repo:"
+	@echo "  https://github.com/jango-blockchained/axis"
+	@echo "  (local: ../axis  or  /home/jango/Git/axis)"
 
 install:
 	pip install -e ".[lsp]"
 
-install-bun:
-	bun install
-	cd frontend/worker && bun install
-
 install-lsp:
 	pip install -e ".[lsp]"
 
-test: test-frontend
+test:
 	python -m pytest tests/ -v --tb=short
-
-test-frontend:
-	cd frontend && bun run test
 
 test-lsp:
 	python -m pytest tests/test_langserver.py tests/test_lsp_features.py -v
@@ -58,10 +47,6 @@ lint:
 
 fmt:
 	ruff format src/ tests/ backend/
-
-typecheck:
-	bunx tsc -p tsconfig.json
-	cd frontend/worker && bunx tsc --noEmit
 
 build:
 	python scripts/build/compile.py --jobs=4
@@ -77,32 +62,6 @@ run:
 
 run-lsp:
 	python -m pynescript.langserver
-
-run-axis:
-	@echo "AXIS (Solid + Vite) on http://127.0.0.1:3000"
-	@echo "(proxies /run → :5002 — start with 'make run' in another terminal)"
-	cd frontend && bun run dev
-
-run-frontend:
-	@echo "Legacy static shell on http://127.0.0.1:8081 (not the AXIS product path)"
-	@echo "Prefer: make run-axis  or  cd frontend && bun run dev"
-	@echo "(requires the backend on :5002 for /run — start with 'make run' in another terminal)"
-	bun run frontend/server.ts
-
-worker-install:
-	cd frontend/worker && bun install
-
-worker-dev:
-	cd frontend/worker && bun run dev
-
-worker-typecheck:
-	cd frontend/worker && bun run typecheck
-
-worker-deploy:
-	cd frontend/worker && bun run deploy
-
-pages-deploy:
-	cd frontend && bun run build && bunx --yes wrangler pages deploy dist --project-name=pynescript-superchart
 
 docker-build:
 	docker build -f Dockerfile.api -t pynescript-api .

@@ -79,10 +79,8 @@ pine-worker/dist/
 pine-worker/*.log
 pine-worker/node_modules/
 pine-worker/.wrangler/
-# frontend PWA + Cloudflare Worker
-frontend/worker/node_modules/
-frontend/worker/.wrangler/
-frontend/worker/dist/
+# AXIS charting UI was extracted to https://github.com/jango-blockchained/axis
+# (do not re-add a local frontend/ tree here)
 pip-delete-this-directory.txt
 pip-log.txt
 *.pot
@@ -139,3 +137,7 @@ wheels/
 # Bun
 node_modules/
 bun.lockb
+
+# Local private notes / agent sessions
+.private/
+.opencode/sessions/

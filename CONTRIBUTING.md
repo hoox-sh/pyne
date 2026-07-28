@@ -1,4 +1,6 @@
-# Contributing to PyneScript
+# Contributing to pyne
+
+> Charting UI contributions go to **[axis](https://github.com/jango-blockchained/axis)**.
 
 Thank you for your interest in contributing to PyneScript!
 

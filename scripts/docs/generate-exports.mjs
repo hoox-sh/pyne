@@ -170,7 +170,7 @@ const PRODUCTS = {
     docsRoot: path.join(DOCS, "axis"),
     publicBase: "/axis/docs",
     publicUrl: `${SITE}/axis/docs`,
-    repoPath: "docs/axis",
+    repoPath: process.env.AXIS_DOCS || "../axis/docs",
     accent: "#A78BFA",
     accentDark: "#7C3AED",
     brandPack: "void",
@@ -720,9 +720,10 @@ function findChrome() {
 
 async function loadPlaywright() {
   const candidates = [
-    path.join(ROOT, "frontend/node_modules/playwright-core/index.js"),
+    path.join(ROOT, "../axis/node_modules/playwright-core/index.js"),
     path.join(ROOT, "node_modules/playwright-core/index.js"),
-    path.resolve("/home/jango/Git/pynescript/frontend/node_modules/playwright-core/index.js"),
+    path.join(ROOT, "node_modules/playwright-core/index.js"),
+    path.resolve("/home/jango/Git/axis/node_modules/playwright-core/index.js"),
   ]
   for (const p of candidates) {
     if (existsSync(p)) {
@@ -730,7 +731,7 @@ async function loadPlaywright() {
     }
   }
   throw new Error(
-    "playwright-core not found (expected under frontend/node_modules). Install it or keep frontend deps.",
+    "playwright-core not found (expected under ../axis/node_modules or root). Install axis deps for PDF exports.",
   )
 }
 
