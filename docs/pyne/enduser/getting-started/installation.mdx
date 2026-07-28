@@ -1,3 +1,22 @@
+# Copyright (C) 2024-2026 jango_blockchained
+#
+# This file is part of pynescript.
+#
+# pynescript is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# pynescript is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with pynescript.  If not, see <https://www.gnu.org/licenses/>.
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 ---
 title: "Installation"
 description: "Install pynescript from PyPI or a source checkout, select extras for LSP and market data, and verify the CLI and library imports."
@@ -144,7 +163,7 @@ Base runtime dependencies (core):
 
 ## Invariants & edge cases
 
-- **License.** Package license is **LGPL-3.0-or-later** (`pyproject.toml`). Link dynamically against the library; respect LGPL obligations if you modify and redistribute.
+- **License.** Package license is **AGPL-3.0-or-later** (`pyproject.toml`). Network use triggers AGPL source-offer obligations (see GNU AGPL §13); consult your counsel for commercial embedding.
 - **Src layout.** Imports are `pynescript.*`, not a flat package. Editable install requires hatchling to map `src/`.
 - **LSP is not a CLI subcommand of `pynescript` in the current Click group.** README sometimes says `pynescript lsp`; the registered script is **`pynescript-lsp`**. {/* TODO: verify if a `lsp` subcommand was added later */}
 - **Pro API is not a pip extra.** Run from monorepo with backend deps, or call a hosted endpoint. Local: `make run` binds `HOST`/`PORT` (default `127.0.0.1:5002`).

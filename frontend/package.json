@@ -2,6 +2,8 @@
   "name": "axis-chart",
   "version": "2.0.0",
   "private": true,
+  "license": "AGPL-3.0-or-later",
+  "author": "jango_blockchained",
   "type": "module",
   "scripts": {
     "dev": "vite",

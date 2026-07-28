@@ -3,6 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "license": "AGPL-3.0-or-later",
+  "author": "jango_blockchained",
   "description": "Pynescript repo — root Bun scripts. The Python toolchain lives in pyproject.toml; the Cloudflare Worker lives in frontend/worker/.",
   "scripts": {
     "dev:frontend": "bun run frontend/server.ts",

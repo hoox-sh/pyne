@@ -2,6 +2,8 @@
   "name": "pine-worker",
   "version": "1.0.0",
   "description": "TypeScript port of the pynescript evaluator (Plan 2 of pine-worker-strategy-events). Extra tool colocated in the main pynescript repo.",
+  "license": "AGPL-3.0-or-later",
+  "author": "jango_blockchained",
   "type": "module",
   "scripts": {
     "test": "bun test",

@@ -1,5 +1,6 @@
-# Copyright (C) 2025 jango-blockchained. All Rights Reserved.
-#
+# Copyright (C) 2024-2026 jango_blockchained
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 # Google Cloud Build configuration for Pynescript Pro API
 # Deploys to Cloud Run on every push to main
 

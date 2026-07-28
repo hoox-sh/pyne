@@ -1,3 +1,6 @@
+# Copyright (C) 2024-2026 jango_blockchained
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 # Use an official Python runtime as a parent image
 FROM python:3.12-slim
 

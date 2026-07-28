@@ -4,6 +4,8 @@
   "description": "Pine Script language support with LSP diagnostics, autocomplete, hover, and more",
   "version": "1.0.0",
   "publisher": "pynescript",
+  "license": "AGPL-3.0-or-later",
+  "author": "jango_blockchained",
   "engines": {
     "vscode": "^1.85.0"
   },

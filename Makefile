@@ -1,5 +1,6 @@
-# Copyright (C) 2025 jango-blockchained. All Rights Reserved.
-#
+# Copyright (C) 2024-2026 jango_blockchained
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 # Makefile for Pynescript development
 
 .PHONY: help install test lint fmt build run clean docker-build docker-run run-frontend run-axis worker-install worker-dev worker-deploy worker-typecheck pages-deploy test-frontend typecheck

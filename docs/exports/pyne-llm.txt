@@ -3271,7 +3271,7 @@ click>=..
 requests
 tqdm
 Invariants & edge cases
-License. Package license is LGPL-.-or-later (pyproject.toml). Link dynamically against the library; respect LGPL obligations if you modify and redistribute.
+License. Package license is AGPL-3.0-or-later (pyproject.toml). Link dynamically against the library; network use of modified versions requires offering corresponding source (AGPL §13).
 Src layout. Imports are pynescript., not a flat package. Editable install requires hatchling to map src/.
 LSP is not a CLI subcommand of pynescript in the current Click group. README sometimes says pynescript lsp; the registered script is pynescript-lsp.
 Pro API is not a pip extra. Run from monorepo with backend deps, or call a hosted endpoint. Local: make run binds HOST/PORT (default ...:).
@@ -4778,9 +4778,9 @@ pine-worker — TypeScript port / tool in this monorepo (pine-worker/)
 pyne-worker — Python Cloudflare Worker sister repo depending on pynescript
 Both aim at edge evaluate; different runtimes.
 What license is pynescript?
-LGPL-.-or-later per pyproject.toml. Understand dynamic linking / modification obligations before embedding in proprietary products; consult your counsel.
+AGPL-3.0-or-later per pyproject.toml. Proprietary embedding usually needs a commercial license; consult your counsel.
 Can I use this commercially?
-LGPL permits commercial use under its terms. Hosted Pro API terms (if any) are separate from the library license.
+AGPL permits commercial use under its terms. Hosted Pro API terms (if any) are separate from the library license.
 Why is parse slow on huge files?
 ANTLR parse + AST build scale with file size and nesting. Deep expression nests also stress recursion (limit temporarily raised to ≥). Split libraries when possible.
 Round-trip changed my spacing — is that a bug?
