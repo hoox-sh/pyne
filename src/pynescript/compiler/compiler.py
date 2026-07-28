@@ -2352,6 +2352,7 @@ class CompilerVisitor(NodeVisitor):
             "change": "ta_change",
             "atr": "ta_atr",
             "dmi": "ta_dmi",
+            "supertrend": "ta_supertrend",
             "crossover": "ta_crossover",
             "crossunder": "ta_crossunder",
             "cross": "ta_cross",
@@ -2457,8 +2458,10 @@ class CompilerVisitor(NodeVisitor):
             return f"numba_change({_arr(args[0])}, {length}, __bar_idx)"
         if func_name == "ta_dmi":
             # ta.dmi(diLength, adxSmoothing) → (diplus, diminus, adx) stub
-            # Enough for direction/filters without full Wilder DI implementation.
             return "(0.0, 0.0, 25.0)"
+        if func_name == "ta_supertrend":
+            # ta.supertrend(factor, atrPeriod) → (value, direction) stub
+            return "(close_arr[__bar_idx], 1.0)"
         if func_name == "ta_atr":
             # ta.atr(length) uses high/low/close from chart arrays
             length = kwargs.get("length", args[0] if args else "14")
