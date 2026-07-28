@@ -651,6 +651,121 @@ class TechnicalHelpers:
             st["value"] = None
         return st.get("value")
 
+    def _stoch_k_inc_update(
+        self,
+        source: list[Any],
+        highs: list[Any],
+        lows: list[Any],
+        length: int,
+    ) -> float | None:
+        """Incremental Stochastic %K matching ``_stoch_k`` (last bar)."""
+        if length <= 0:
+            return None
+        slot = self._ta_next_slot()
+        key = ("stoch_k", slot, length)
+        bucket = self._ta_state_bucket()
+        st = bucket.get(key)
+        if st is None:
+            st = {
+                "h_win": deque(maxlen=length),
+                "l_win": deque(maxlen=length),
+                "value": None,
+            }
+            bucket[key] = st
+        c = self._series_last(source)
+        h = self._series_last(highs)
+        l = self._series_last(lows)
+        h_win: deque[Any] = st["h_win"]
+        l_win: deque[Any] = st["l_win"]
+        h_win.append(h)
+        l_win.append(l)
+        # Match full ``_stoch_k``: use available history (partial window OK).
+        window_h = [v for v in h_win if v is not None]
+        window_l = [v for v in l_win if v is not None]
+        if c is None or not window_h or not window_l:
+            st["value"] = None
+            return None
+        try:
+            hh = max(float(v) for v in window_h)
+            ll = min(float(v) for v in window_l)
+            if hh == ll:
+                st["value"] = 50.0
+                return 50.0
+            st["value"] = 100.0 * (float(c) - ll) / (hh - ll)
+        except (TypeError, ValueError):
+            st["value"] = None
+        return st.get("value")
+
+    def _vwma_inc_update(
+        self,
+        series: list[Any],
+        volume: list[Any],
+        period: int,
+    ) -> float | None:
+        """Incremental volume-weighted MA: sum(src*vol)/sum(vol) over period."""
+        if period <= 0:
+            return None
+        slot = self._ta_next_slot()
+        key = ("vwma", slot, period)
+        bucket = self._ta_state_bucket()
+        st = bucket.get(key)
+        if st is None:
+            st = {
+                "s_win": deque(maxlen=period),
+                "v_win": deque(maxlen=period),
+                "sum_pv": 0.0,
+                "sum_v": 0.0,
+                "value": None,
+            }
+            bucket[key] = st
+        x = self._series_last(series)
+        v = self._series_last(volume) if volume else None
+        s_win: deque[Any] = st["s_win"]
+        v_win: deque[Any] = st["v_win"]
+        # Dropping old sample from running sums when window full
+        if len(s_win) == period:
+            old_s = s_win[0]
+            old_v = v_win[0]
+            if old_s is not None and old_v is not None:
+                try:
+                    st["sum_pv"] -= float(old_s) * float(old_v)
+                    st["sum_v"] -= float(old_v)
+                except (TypeError, ValueError):
+                    pass
+        s_win.append(x)
+        v_win.append(v)
+        if x is not None and v is not None:
+            try:
+                st["sum_pv"] += float(x) * float(v)
+                st["sum_v"] += float(v)
+            except (TypeError, ValueError):
+                st["value"] = None
+                return None
+        if len(s_win) < period:
+            st["value"] = None
+            return None
+        # Any None in window → recompute carefully (match NaN windows)
+        if any(a is None or b is None for a, b in zip(s_win, v_win, strict=True)):
+            sp = 0.0
+            sv = 0.0
+            for a, b in zip(s_win, v_win, strict=True):
+                if a is None or b is None:
+                    st["value"] = None
+                    return None
+                try:
+                    sp += float(a) * float(b)
+                    sv += float(b)
+                except (TypeError, ValueError):
+                    st["value"] = None
+                    return None
+            st["sum_pv"] = sp
+            st["sum_v"] = sv
+        if st["sum_v"] == 0.0:
+            st["value"] = None
+            return None
+        st["value"] = st["sum_pv"] / st["sum_v"]
+        return st.get("value")
+
     def _finalize_series(self, values: list[Any]) -> Any:
         """Return full series list, or current scalar in bar mode."""
         if not self._bar_mode():

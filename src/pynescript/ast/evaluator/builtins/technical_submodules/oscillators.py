@@ -91,6 +91,8 @@ class OscillatorIndicators(TechnicalHelpers):
         """Compute current Stochastic %K for the last bar."""
         if length <= 0 or not source:
             return None
+        if self._use_incremental_ta():
+            return self._stoch_k_inc_update(source, highs, lows, length)
         n = len(source)
         start = max(0, n - length)
         window_h = [highs[i] for i in range(start, min(n, len(highs))) if highs[i] is not None]

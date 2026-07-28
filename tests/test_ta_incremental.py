@@ -596,3 +596,67 @@ plot(ta.tr)
             if a is None or b is None:
                 continue
             assert a == pytest.approx(b, rel=1e-9, abs=1e-9), f"{key} bar {i}: {a} != {b}"
+
+
+def _bar_walk_full_stoch(
+    source: list[float], highs: list[float], lows: list[float], length: int
+) -> list[float | None]:
+    ev = _FullTA()
+    out: list[float | None] = []
+    for i in range(len(source)):
+        out.append(ev._stoch_k(source[: i + 1], highs[: i + 1], lows[: i + 1], length))
+    return out
+
+
+def _bar_walk_inc_stoch(
+    source: list[float], highs: list[float], lows: list[float], length: int
+) -> list[float | None]:
+    ev = _IncTA()
+    out: list[float | None] = []
+    for i in range(len(source)):
+        ev._ta_call_i = 0
+        out.append(ev._stoch_k_inc_update(source[: i + 1], highs[: i + 1], lows[: i + 1], length))
+    return out
+
+
+def test_incremental_stoch_matches_full() -> None:
+    highs, lows, closes = _ohlc(120)
+    for length in (5, 14):
+        _assert_series_close(
+            _bar_walk_inc_stoch(closes, highs, lows, length),
+            _bar_walk_full_stoch(closes, highs, lows, length),
+        )
+
+
+def _bar_walk_full_vwma(src: list[float], vol: list[float], period: int) -> list[float | None]:
+    ev = _FullTA()
+    ev.current_series = {"volume": vol}
+    out: list[float | None] = []
+    for i in range(len(src)):
+        ev.current_series = {"volume": vol[: i + 1]}
+        full = ev._vwma(src[: i + 1], period)
+        if not full:
+            out.append(None)
+        else:
+            last = full[-1]
+            out.append(None if (isinstance(last, float) and math.isnan(last)) else last)
+    return out
+
+
+def _bar_walk_inc_vwma(src: list[float], vol: list[float], period: int) -> list[float | None]:
+    ev = _IncTA()
+    out: list[float | None] = []
+    for i in range(len(src)):
+        ev._ta_call_i = 0
+        out.append(ev._vwma_inc_update(src[: i + 1], vol[: i + 1], period))
+    return out
+
+
+def test_incremental_vwma_matches_full() -> None:
+    src = _series(100)
+    vol = [1000.0 + (i % 7) * 10 for i in range(len(src))]
+    for period in (5, 14):
+        _assert_series_close(
+            _bar_walk_inc_vwma(src, vol, period),
+            _bar_walk_full_vwma(src, vol, period),
+        )

@@ -79,14 +79,21 @@ class MovingAverageIndicators(TechnicalHelpers):
         if len(args) == UNARY and self._is_period_like(args[0]):
             series = self._context_series("close")
             period = self._expect_int(args[0], "Period must be an integer")
+            vol = self._context_series("volume")
+            if self._use_incremental_ta() and vol:
+                return self._vwma_inc_update(series, vol, period)
             return self._finalize_series(self._vwma(series, period))
         if len(args) == TERNARY:
-            # Community / library form: (src, vol, period) — volume ignored if
-            # _vwma uses chart volume internally; still accept for arity.
             series = self._as_series(args[0])
             period = self._expect_int(args[2], "Period must be an integer")
+            vol = self._as_series(args[1]) if not self._is_period_like(args[1]) else self._context_series("volume")
+            if self._use_incremental_ta() and vol:
+                return self._vwma_inc_update(series, vol, period)
             return self._finalize_series(self._vwma(series, period))
         series, period = self._expect_series(args, length=BINARY)
+        vol = self._context_series("volume")
+        if self._use_incremental_ta() and vol:
+            return self._vwma_inc_update(series, vol, period)
         return self._finalize_series(self._vwma(series, period))
 
     def _builtin_ta_kama(self, args: list[Any]) -> list[float | None]:
@@ -302,5 +309,28 @@ class MovingAverageIndicators(TechnicalHelpers):
         return self._wma(diff, sqrt_period)
 
     def _vwma(self, series: list[float], period: int) -> list[float]:
-        """Volume Weighted Moving Average."""
-        return self._sma(series, period)
+        """Volume Weighted Moving Average: sum(src*vol)/sum(vol).
+
+        Falls back to SMA when chart volume is missing or too short.
+        """
+        vol = (getattr(self, "current_series", None) or {}).get("volume") or []
+        if not vol or len(vol) < period or len(series) < period:
+            return self._sma(series, period)
+        out: list[float] = []
+        for i in range(len(series)):
+            if i + 1 < period:
+                out.append(float("nan"))
+                continue
+            window_s = series[i + 1 - period : i + 1]
+            window_v = vol[i + 1 - period : i + 1]
+            if any(x is None or y is None for x, y in zip(window_s, window_v, strict=True)):
+                out.append(float("nan"))
+                continue
+            try:
+                sp = sum(float(x) * float(y) for x, y in zip(window_s, window_v, strict=True))
+                sv = sum(float(y) for y in window_v)
+            except (TypeError, ValueError):
+                out.append(float("nan"))
+                continue
+            out.append(sp / sv if sv else float("nan"))
+        return out

@@ -43,3 +43,12 @@ Full writeups: `perf_agent_parse.md`, `perf_agent_unparse.md`,
 
 Compile execute (n=5000, median): SMA ~0.04 ms, RSI ~0.08 ms, MULTI ~0.21 ms, BB ~0.15 ms, TSI ~0.11 ms.
 Kernel parity vs full recompute: max abs err ~1e-11 (float noise) / 0 for RSI & TSI.
+
+### Follow-up 2
+
+| Area | Change |
+|---|---|
+| **Compile** | `highest/lowest/vwma/stoch/wma_inc` (amortized / O(1) rolling) |
+| **Evaluate** | Incremental `ta.stoch` %K + real `ta.vwma` (was SMA stub) + `_vwma_inc_update` |
+
+Bench n=5000: highest/lowest ~0.23 ms, stoch ~0.22 ms, vwma ~0.10 ms, wma ~0.08 ms.

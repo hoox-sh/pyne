@@ -76,12 +76,21 @@ class BasicIndicators(TechnicalHelpers):
         if len(args) == 1 and self._is_period_like(args[0]):
             series = self._context_series("close")
             period = self._expect_int(args[0], "Period must be an integer")
+            vol = self._context_series("volume")
+            if self._use_incremental_ta() and vol:
+                return self._vwma_inc_update(series, vol, period)
             return self._finalize_series(self._vwma(series, period))
         if len(args) == 3:
             series = self._as_series(args[0])
             period = self._expect_int(args[2], "Period must be an integer")
+            vol = self._as_series(args[1]) if not self._is_period_like(args[1]) else self._context_series("volume")
+            if self._use_incremental_ta() and vol:
+                return self._vwma_inc_update(series, vol, period)
             return self._finalize_series(self._vwma(series, period))
         series, period = self._expect_series(args, length=BINARY)
+        vol = self._context_series("volume")
+        if self._use_incremental_ta() and vol:
+            return self._vwma_inc_update(series, vol, period)
         return self._finalize_series(self._vwma(series, period))
 
     def _builtin_ta_hma(self, args: list[Any]) -> float | None:
