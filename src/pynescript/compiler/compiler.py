@@ -346,15 +346,12 @@ class CompilerVisitor(NodeVisitor):
         # Object-mode state
         self.object_mode = False
         self.uses_strategy = False
-        self.uses_drawing = False  # label/line/box/plotshape/…
         self.strategy_kwargs: dict[str, str] = {}
         self.udt_types: dict[str, list[str]] = {}  # type name -> field names
         self.udt_vars: set[str] = set()  # series names holding UDT instances
         self.map_vars: set[str] = set()  # var map names (single object, not series)
         self.scalar_vars: set[str] = set()  # non-series locals (map handles, etc.)
         self.user_funcs: set[str] = set()  # user-defined function names
-        self.func_returns_sequence: set[str] = set()  # UDF → list/array/tuple (not float)
-        self.local_sequence_vars: set[str] = set()  # current-UDF locals holding sequences
         self.series_params: set[str] = set()  # UDF params used as series (history)
         self.series_locals: set[str] = set()  # UDF locals used with history (current fn)
         self.param_names: set[str] = set()  # current UDF formal parameter names
@@ -366,11 +363,11 @@ class CompilerVisitor(NodeVisitor):
         self.func_param_defaults: dict[str, dict[str, str]] = {}
         self.func_free_series: dict[str, list[str]] = {}
         self.func_free_scalars: dict[str, list[str]] = {}
+        self.func_returns_sequence: set[str] = set()
+        self.local_sequence_vars: set[str] = set()
         self._free_scalars_current: set[str] = set()
         self.func_needs_bar: dict[str, bool] = {}
         self.func_needs_strategy: dict[str, bool] = {}
-        self.func_needs_drawings: dict[str, bool] = {}
-        self.func_needs_n_bars: dict[str, bool] = {}
         self.string_series: set[str] = set()  # per-bar string/color series (object dtype)
         self._expr_cum_i: int = 0  # synthetic state arrays for cum(expr)
         self._expr_src_i: int = 0  # synthetic series for non-array TA sources
@@ -570,26 +567,18 @@ class CompilerVisitor(NodeVisitor):
             lines.append(cleaned)
             lines.append("")
 
-        # Contiguous float64 fast-path: engine already normalizes, but direct
-        # execute() callers may pass lists — only copy when needed.
         lines.extend(
             [
                 "def execute_script_compiled(open_arr, high_arr, low_arr, close_arr, vol_arr):",
                 "    n_bars = len(close_arr)",
-                "    if not (isinstance(open_arr, np.ndarray) and open_arr.dtype == np.float64 and open_arr.flags.c_contiguous):",
-                "        open_arr = np.asarray(open_arr, dtype=np.float64)",
-                "    if not (isinstance(high_arr, np.ndarray) and high_arr.dtype == np.float64 and high_arr.flags.c_contiguous):",
-                "        high_arr = np.asarray(high_arr, dtype=np.float64)",
-                "    if not (isinstance(low_arr, np.ndarray) and low_arr.dtype == np.float64 and low_arr.flags.c_contiguous):",
-                "        low_arr = np.asarray(low_arr, dtype=np.float64)",
-                "    if not (isinstance(close_arr, np.ndarray) and close_arr.dtype == np.float64 and close_arr.flags.c_contiguous):",
-                "        close_arr = np.asarray(close_arr, dtype=np.float64)",
-                "    if not (isinstance(vol_arr, np.ndarray) and vol_arr.dtype == np.float64 and vol_arr.flags.c_contiguous):",
-                "        vol_arr = np.asarray(vol_arr, dtype=np.float64)",
+                "    open_arr = np.asarray(open_arr, dtype=np.float64)",
+                "    high_arr = np.asarray(high_arr, dtype=np.float64)",
+                "    low_arr = np.asarray(low_arr, dtype=np.float64)",
+                "    close_arr = np.asarray(close_arr, dtype=np.float64)",
+                "    vol_arr = np.asarray(vol_arr, dtype=np.float64)",
+                "    __drawings = []",
             ]
         )
-        if self.uses_drawing:
-            lines.append("    __drawings = []")
         if self.uses_strategy:
             # Broker ctor kwargs from strategy() declaration when present
             sk = self.strategy_kwargs
@@ -601,13 +590,8 @@ class CompilerVisitor(NodeVisitor):
             ctor = ", ".join(ctor_args)
             lines.append(f"    __strategy = CompileStrategyBroker({ctor})")
         for arr in sorted(self.arrays):
-            base = arr[:-4] if arr.endswith("_arr") else arr
-            # UDT series: plain Python list is faster than np.object_ stores and
-            # supports the same ``arr[i]`` / ``arr[i-k]`` history pattern.
-            if base in self.udt_vars:
-                lines.append(f"    {arr} = [None] * n_bars")
-            elif base in self.string_series:
-                # Keep dtype=object (tests + safe unicode stores; not float64).
+            # object series use object dtype
+            if arr[:-4] in self.udt_vars or arr[:-4] in self.string_series:
                 lines.append(f"    {arr} = np.empty(n_bars, dtype=object)")
             else:
                 lines.append(f"    {arr} = np.full(n_bars, np.nan)")
@@ -620,32 +604,33 @@ class CompilerVisitor(NodeVisitor):
 
         lines.append("    for __bar_idx in range(n_bars):")
         if self.uses_strategy:
-            # Single call: set OHLC + fill pendings (interpreter order: process → body).
-            # Pre-index OHLC once; broker uses values as-is (no float() per field).
+            # Update OHLC then fill pending orders before script body
+            # (same order as interpreter Runtime: process → evaluate).
             lines.append(
-                "        __strategy.begin_bar("
-                "__bar_idx, open_arr[__bar_idx], high_arr[__bar_idx], "
-                "low_arr[__bar_idx], close_arr[__bar_idx])"
+                "        __strategy.set_bar("
+                "__bar_idx, 0, float(close_arr[__bar_idx]), "
+                "open_=float(open_arr[__bar_idx]), "
+                "high=float(high_arr[__bar_idx]), "
+                "low=float(low_arr[__bar_idx]), "
+                "close=float(close_arr[__bar_idx]))"
+            )
+            lines.append(
+                "        __strategy.process_pending_orders("
+                "open_=float(open_arr[__bar_idx]), "
+                "high=float(high_arr[__bar_idx]), "
+                "low=float(low_arr[__bar_idx]), "
+                "close=float(close_arr[__bar_idx]))"
             )
         if not body_lines and not self.uses_strategy:
             lines.append("        pass")
-        # Bare plot stores: avoid numba_store() call overhead in pure-Python mode.
-        # Expression form ``x = numba_store(plot_i, …)`` is left intact (needs return).
-        _store_re = re.compile(r"^numba_store\((plot_\d+), __bar_idx, (.+)\)$")
         for line in body_lines:
-            m = _store_re.match(line) if "\n" not in line else None
-            if m is not None:
-                line = f"{m.group(1)}[__bar_idx] = {m.group(2)}"
             line = line.replace("\n", "\n        ")
             lines.append(f"        {line}")
         if not body_lines and self.uses_strategy:
             lines.append("        pass")
 
         dict_items = [f"'{p['title']}': plot_{i}" for i, p in enumerate(self.plots)]
-        if self.uses_drawing:
-            extras = ["'__drawings': __drawings"]
-        else:
-            extras = ["'__drawings': []"]
+        extras = ["'__drawings': __drawings"]
         if self.uses_strategy:
             extras.append("'__events': __strategy.to_events()")
             extras.append("'__position_size': __strategy.position_size")
@@ -681,6 +666,77 @@ class CompilerVisitor(NodeVisitor):
         self.object_mode = True
         return ""
 
+    def _rhs_is_sequence(self, node, val: str | None = None) -> bool:
+        """True when RHS is/list-like and must not be stored into float64 series."""
+        if self._is_array_or_matrix_handle(node) or self._is_sequence_producing_call(node):
+            return True
+        if isinstance(node, ast.Tuple):
+            return True
+        if isinstance(node, ast.Name) and node.id in self.local_sequence_vars:
+            return True
+        if isinstance(node, ast.Name) and node.id in self.scalar_vars:
+            # Re-bind of an existing array handle scalar (still a sequence at runtime
+            # only if it was one — keep non-sequence scalars numeric via other paths).
+            pass
+        if val is not None and self._looks_like_sequence_expr(val):
+            return True
+        # UDF call text still looks like ``knn(...)`` — catch even if AST name missed
+        if isinstance(val, str) and val:
+            for uf in self.func_returns_sequence:
+                if re.search(rf"\b{re.escape(uf)}\s*\(", val):
+                    return True
+        return False
+
+    def _func_body_returns_sequence(
+        self, node, last_ast, body_lines: list[str]
+    ) -> bool:
+        """Infer UDF returns a list/array/tuple from last AST node / body text."""
+        ret_expr = None
+        if isinstance(last_ast, ast.Expr):
+            ret_expr = last_ast.value
+        elif isinstance(last_ast, (ast.Assign, ast.ReAssign)):
+            t = last_ast.target
+            if isinstance(t, ast.Name) and t.id in self.local_sequence_vars:
+                return True
+            ret_expr = last_ast.value
+        if ret_expr is not None:
+            if isinstance(ret_expr, ast.Tuple):
+                return True
+            if isinstance(ret_expr, ast.Name) and ret_expr.id in self.local_sequence_vars:
+                return True
+            if self._is_array_or_matrix_handle(ret_expr) or self._is_sequence_producing_call(
+                ret_expr
+            ):
+                return True
+        for line in reversed(body_lines):
+            stripped = line.strip()
+            if stripped.startswith("return "):
+                expr = stripped[len("return ") :].strip()
+                if self._looks_like_sequence_expr(expr):
+                    return True
+                if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", expr):
+                    pine = expr
+                    for k, v in self.ident_map.items():
+                        if v == expr:
+                            pine = k
+                            break
+                    if pine in self.local_sequence_vars or expr in self.local_sequence_vars:
+                        return True
+                break
+            if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", stripped):
+                pine = stripped
+                for k, v in self.ident_map.items():
+                    if v == stripped:
+                        pine = k
+                        break
+                if pine in self.local_sequence_vars or stripped in self.local_sequence_vars:
+                    return True
+                break
+            if self._looks_like_sequence_expr(stripped):
+                return True
+            break
+        return False
+
     def visit_Assign(self, node: ast.Assign):
         # Tuple unpack: [a, b, c] = ta.macd(...) / ta.bb(...)
         if isinstance(node.target, ast.Tuple):
@@ -702,18 +758,72 @@ class CompilerVisitor(NodeVisitor):
         # Explicit type annotation: `color x = …` / `string s = …`
         type_node = getattr(node, "type", None)
         type_id = type_node.id if isinstance(type_node, ast.Name) else None
-        typed_stringy = type_id in ("color", "string", "str", "line", "label", "box")
+        typed_stringy = type_id in ("color", "string", "str")
+        # Drawing / table handles must never land in float64 series
+        # (numpy float() on dict → TypeError).
+        typed_drawing = type_id in (
+            "line",
+            "label",
+            "box",
+            "table",
+            "polyline",
+            "linefill",
+            "hline",
+        )
+        typed_udt = type_id is not None and type_id in self.udt_types
 
         if self.in_function:
             self.local_vars.add(name)
-            # Track array/list locals so UDF return-type inference can mark
-            # functions that yield sequences (knn → nearest_neighbors list).
-            if self._rhs_is_sequence(node.value, val):
-                self.local_sequence_vars.add(name)
             py = self._py_ident(name)
+            # Array/list handles inside UDFs must be tracked as sequence locals
+            # so the UDF is marked sequence-returning (knn → nearest_neighbors).
+            if hasattr(self, "_rhs_is_sequence") and self._rhs_is_sequence(node.value, val):
+                self.object_mode = True
+                self.local_sequence_vars.add(name)
+                return f"{py} = {val}"
             if name in self.series_locals:
+                # Drawing handles into series-local float arrays crash — keep scalar
+                if val and ("__drawings" in val or val.startswith("{")):
+                    self.object_mode = True
+                    self.local_sequence_vars.add(name)
+                    return f"{py} = {val}"
                 return f"{py}_arr[__bar_idx] = {val}"
             return f"{py} = {val}"
+
+        # `var table t = na` / `label l = na` → scalar handle (not float series)
+        if typed_drawing:
+            self.object_mode = True
+            self.scalar_vars.add(name)
+            self.arrays.discard(f"{name}_arr")
+            if is_var:
+                return f"if __bar_idx == 0:\n    {name} = {val}"
+            return f"{name} = {val}"
+
+        # `var MyState s = na` → object-dtype UDT series (not float64)
+        if typed_udt:
+            self.object_mode = True
+            self.udt_vars.add(name)
+            self.arrays.add(f"{name}_arr")
+            if is_var:
+                return (
+                    f"if __bar_idx == 0:\n"
+                    f"    {name}_arr[__bar_idx] = {val}\n"
+                    f"else:\n"
+                    f"    {name}_arr[__bar_idx] = {name}_arr[__bar_idx - 1]"
+                )
+            return f"{name}_arr[__bar_idx] = {val}"
+
+        # UDF/list/array handle RHS → scalar handle (never float64 series)
+        if hasattr(self, "_rhs_is_sequence") and self._rhs_is_sequence(node.value, val):
+            self.object_mode = True
+            self.scalar_vars.add(name)
+            if self.in_function:
+                self.local_vars.add(name)
+                self.local_sequence_vars.add(name)
+                return f"{self._py_ident(name)} = {val}"
+            if is_var:
+                return f"if {name} is None:\n    {name} = {val}"
+            return f"{name} = {val}"
 
         # String / non-numeric const → scalar (object mode), not float series
         if isinstance(node.value, ast.Constant) and isinstance(node.value.value, str):
@@ -792,9 +902,10 @@ class CompilerVisitor(NodeVisitor):
             return f"{name} = {{}}"
 
         # array.new*/from/copy/slice / matrix.new* / drawing handles → scalar
-        if self._is_drawing_new(node.value):
+        if self._is_drawing_new(node.value) or self._looks_like_drawing_handle_expr(val):
             self.object_mode = True
             self.scalar_vars.add(name)
+            self.arrays.discard(f"{name}_arr")
             if is_var:
                 return f"if __bar_idx == 0:\n    {name} = {val}"
             return f"{name} = {val}"
@@ -802,15 +913,17 @@ class CompilerVisitor(NodeVisitor):
         if self._is_array_or_matrix_handle(node.value):
             self.object_mode = True
             self.scalar_vars.add(name)
+            self.arrays.discard(f"{name}_arr")
             if is_var:
                 return f"if __bar_idx == 0:\n    {name} = {val}"
             return f"{name} = {val}"
 
-        # Sequence / list / UDF-returning-array RHS must not land in float64 series
+        # Sequence / list RHS must not land in float64 series
         # ("setting an array element with a sequence")
-        if self._rhs_is_sequence(node.value, val):
+        if self._looks_like_sequence_expr(val) or self._is_sequence_producing_call(node.value):
             self.object_mode = True
             self.scalar_vars.add(name)
+            self.arrays.discard(f"{name}_arr")
             if is_var:
                 return f"if __bar_idx == 0:\n    {name} = {val}"
             return f"{name} = {val}"
@@ -1058,97 +1171,58 @@ class CompilerVisitor(NodeVisitor):
                 return True
         return False
 
-    # Array methods that return a new list/array handle (not a scalar float).
-    _ARRAY_SEQ_RESULT_ATTRS = frozenset(
-        {
-            "from",
-            "copy",
-            "slice",
-            "concat",
-            "new",
-            "new_float",
-            "new_int",
-            "new_bool",
-            "new_string",
-            "new_color",
-            "new_line",
-            "new_label",
-            "new_box",
-        }
-    )
+    @staticmethod
+    def _looks_like_drawing_handle_expr(val: str | None) -> bool:
+        """Visited expr that yields a drawing/table handle dict (not a float)."""
+        if not isinstance(val, str) or not val:
+            return False
+        s = val.strip()
+        if "__drawings.append" in s:
+            return True
+        if "'kind':" in s or '"kind":' in s:
+            return True
+        return False
 
     @staticmethod
     def _looks_like_sequence_expr(val: str) -> bool:
-        """Visited Python expr that is a list/tuple literal or list-building expr."""
+        """Visited Python expr that is a list/tuple literal or slice (sequence)."""
         if not isinstance(val, str):
             return False
         s = val.strip()
-        if not s:
-            return False
-        # list / matrix literals
         if s.startswith("[") and s.endswith("]"):
             return True
-        if s.startswith("list(") or s.startswith("tuple("):
-            return True
-        # array.new* → ``([fill] * int(n) if int(n) > 0 else [])``
-        if s.endswith("else [])") or s.endswith("else []"):
-            return True
-        # matrix.new → ``[[fill] for …]``
-        if s.startswith("[[") or "for _c in range" in s or "for _r in range" in s:
-            return True
-        # plain tuple literal ``(a, b)`` — not a ternary
         if s.startswith("(") and s.endswith(")") and "," in s:
             inner = s[1:-1]
             if " if " not in inner and " else " not in inner:
                 return True
+        # array.concat / extend lambdas return list handles
+        if ".extend(" in s or ("list(" in s and "+" in s):
+            return True
         return False
 
     def _is_sequence_producing_call(self, node) -> bool:
-        """array.from/copy/slice/new* / method form / UDF that returns a sequence."""
+        """array.from / copy / slice / concat etc. produce sequence handles."""
         if not isinstance(node, ast.Call):
             return False
         f = node.func
         if isinstance(f, ast.Specialize):
             f = f.value
-        # Bare UDF: knn(...) where knn returns an array
-        if isinstance(f, ast.Name) and f.id in self.func_returns_sequence:
-            return True
-        if isinstance(f, ast.Attribute):
-            # User method: x.knn() if knn marked sequence-returning
-            if f.attr in self.func_returns_sequence:
+        if isinstance(f, ast.Attribute) and isinstance(f.value, ast.Name):
+            if f.value.id == "array" and f.attr in (
+                "from",
+                "copy",
+                "slice",
+                "concat",
+                "new",
+                "new_float",
+                "new_int",
+                "new_bool",
+                "new_string",
+                "new_color",
+            ):
                 return True
-            # array.from / array.copy / array.new_float / …
-            if isinstance(f.value, ast.Name) and f.value.id in ("array", "matrix"):
-                if f.value.id == "array" and f.attr in self._ARRAY_SEQ_RESULT_ATTRS:
-                    return True
-                if f.value.id == "matrix" and (
-                    f.attr.startswith("new") or f.attr in ("copy", "row", "col", "transpose")
-                ):
-                    return True
-            # Method form: arr.copy() / arr.slice(a,b) / arr.concat(other)
-            if f.attr in ("copy", "slice", "concat"):
-                return True
-        return False
-
-    def _rhs_is_sequence(self, node, val: str | None = None) -> bool:
-        """True when RHS is/list-like and must not be stored into float64 series."""
-        if self._is_array_or_matrix_handle(node) or self._is_sequence_producing_call(node):
+        if isinstance(f, ast.Attribute) and f.attr in ("concat", "copy", "slice", "from"):
             return True
-        if isinstance(node, ast.Tuple):
-            return True
-        if isinstance(node, ast.Name) and node.id in self.local_sequence_vars:
-            return True
-        if isinstance(node, ast.Name) and node.id in self.scalar_vars:
-            # Re-bind of an existing array handle scalar (still a sequence at runtime
-            # only if it was one — keep non-sequence scalars numeric via other paths).
-            pass
-        if val is not None and self._looks_like_sequence_expr(val):
-            return True
-        # UDF call text still looks like ``knn(...)`` — catch even if AST name missed
-        if isinstance(val, str) and val:
-            for uf in self.func_returns_sequence:
-                if re.search(rf"\b{re.escape(uf)}\s*\(", val):
-                    return True
         return False
 
     def _is_safe_numeric_expr(self, val: str) -> bool:
@@ -1192,16 +1266,9 @@ class CompilerVisitor(NodeVisitor):
             r"\b(str|dict|list|append|__drawings|__type__|safe_float|safe_int)\b", s
         ):
             return False
-        # Sequence-returning UDF calls must never be treated as float-safe
-        # (otherwise ``knn(...)`` matches the permissive arithmetic regex below).
-        for uf in self.func_returns_sequence:
-            if re.search(rf"\b{re.escape(uf)}\s*\(", s):
-                return False
         for uf in self.user_funcs:
             if re.search(rf"\b{re.escape(uf)}\b(?!\s*\()", s):
                 return False
-        if self._looks_like_sequence_expr(s):
-            return False
         if re.fullmatch(r"[\w\s\+\-\*/%\(\)\.\,\<\>\=\!\&\|?:]+", s):
             return True
         return False
@@ -1233,6 +1300,8 @@ class CompilerVisitor(NodeVisitor):
                 "from",
                 "copy",
                 "slice",
+                "concat",
+                "copy",
                 "new_float",
                 "new_int",
                 "new_bool",
@@ -1245,6 +1314,14 @@ class CompilerVisitor(NodeVisitor):
                 return True
             if f.value.id == "matrix" and f.attr.startswith("new"):
                 return True
+        # Method form: a.concat(b) / a.copy() / a.slice(...)
+        if isinstance(f, ast.Attribute) and f.attr in (
+            "concat",
+            "copy",
+            "slice",
+            "from",
+        ):
+            return True
         return False
 
     # Back-compat alias
@@ -1404,6 +1481,34 @@ class CompilerVisitor(NodeVisitor):
             py = self._py_ident(node.target.id)
             val = self.visit(node.value)
             return f"{py} = {val}"
+        # Script-level: drawing/table handle must not setitem float64 series
+        # (var table t = na; t := table.new(...) was t_arr[i] = dict → float(dict)).
+        if isinstance(node.target, ast.Name):
+            name = node.target.id
+            val = self.visit(node.value)
+            if (
+                name in self.scalar_vars
+                or name in self.map_vars
+                or self._is_drawing_new(node.value)
+                or self._looks_like_drawing_handle_expr(val)
+            ):
+                self.object_mode = True
+                self.scalar_vars.add(name)
+                self.arrays.discard(f"{name}_arr")
+                return f"{name} = {val}"
+            if name in self.string_series or name in self.udt_vars:
+                self.object_mode = True
+                self.arrays.add(f"{name}_arr")
+                return f"{name}_arr[__bar_idx] = {val}"
+            # Default series reassign
+            if f"{name}_arr" in self.arrays or name not in self.scalar_vars:
+                self.arrays.add(f"{name}_arr")
+                store_val = val
+                if not self._is_safe_numeric_expr(val):
+                    self.object_mode = True
+                    store_val = f"safe_float({val})"
+                return f"{name}_arr[__bar_idx] = {store_val}"
+            return f"{name} = {val}"
         target = self.visit(node.target)
         val = self.visit(node.value)
         return f"{target} = {val}"
@@ -1567,9 +1672,7 @@ class CompilerVisitor(NodeVisitor):
         if node.id in self.user_funcs:
             return node.id
         if node.id in self.udt_vars or node.id in self.string_series:
-            arr = f"{node.id}_arr"
-            self.arrays.add(arr)
-            return f"{arr}[__bar_idx]"
+            return f"{node.id}_arr[__bar_idx]"
         # Inside UDF: free outer vars → bare name (scalar/color) unless history series
         if self.in_function and node.id not in self.local_vars:
             if node.id in self.series_params or node.id in self.series_locals:
@@ -1580,23 +1683,30 @@ class CompilerVisitor(NodeVisitor):
             if node.id not in getattr(self, "history_names_current", set()):
                 self._free_scalars_current.add(node.id)
                 return self._py_ident(node.id)
-            # History free series: allocate outer array for execute_script
-            arr = f"{self._py_ident(node.id)}_arr"
-            self.arrays.add(arr)
-            return f"{arr}[__bar_idx]"
-        # Script-level series ref: always allocate so call sites never NameError
-        # even when the assign was dropped (e.g. unhandled Switch RHS).
-        arr = f"{node.id}_arr"
-        self.arrays.add(arr)
-        return f"{arr}[__bar_idx]"
+        return f"{node.id}_arr[__bar_idx]"
     def visit_Attribute(self, node: ast.Attribute):
         # color.red etc.
         if isinstance(node.value, ast.Name) and node.value.id == "ta":
+            # Bare series-style TA attrs (no Call) — always emit a call expr, never
+            # the dead identifier ``ta_vwap`` / ``ta_obv`` / ``ta_tr``.
             if node.attr == "tr":
                 return "numba_tr(high_arr, low_arr, close_arr, __bar_idx)"
             if node.attr == "obv":
                 st = self._alloc_fixed_state("obv", 2)
                 return f"numba_obv_inc(close_arr, vol_arr, __bar_idx, {st})"
+            if node.attr == "vwap":
+                st = self._alloc_fixed_state("vwap", 3)
+                return f"numba_vwap_inc(close_arr, vol_arr, __bar_idx, {st})"
+            if node.attr == "accdist":
+                return (
+                    "((close_arr[__bar_idx] - low_arr[__bar_idx]) - "
+                    "(high_arr[__bar_idx] - close_arr[__bar_idx])) / "
+                    "((high_arr[__bar_idx] - low_arr[__bar_idx]) "
+                    "if (high_arr[__bar_idx] - low_arr[__bar_idx]) != 0 else np.nan) "
+                    "* vol_arr[__bar_idx]"
+                )
+            # Method attrs used as Call targets (ta.sma → ta_sma) stay as identifiers.
+            return f"ta_{node.attr}"
         if isinstance(node.value, ast.Name) and node.value.id == "color":
             return repr(self._color_const(node.attr))
         # alert.freq_once_per_bar_close / alert.freq_all
@@ -1607,12 +1717,16 @@ class CompilerVisitor(NodeVisitor):
         if isinstance(node.value, ast.Name) and node.value.id in _STYLE_NS:
             if node.attr.startswith("style_"):
                 return repr(node.attr)
-        # math.pi / math.e
+        # math.pi / math.e / math.isfinite (bare) — predicates also handled in Call
         if isinstance(node.value, ast.Name) and node.value.id == "math":
             if node.attr == "pi":
                 return "np.pi"
             if node.attr == "e":
                 return "np.e"
+            if node.attr == "isfinite":
+                return "np.isfinite"
+            if node.attr == "isnan":
+                return "np.isnan"
             # leave method attrs for Call (math.abs → math_abs)
             return f"math_{node.attr}"
         # dayofweek.monday … dayofweek.sunday — integer constants (TV: Sunday=1 … Saturday=7)
@@ -1749,18 +1863,49 @@ class CompilerVisitor(NodeVisitor):
                 return repr(node.attr)
 
         val = self.visit(node.value)
-        # UDT field read: p.x → p['x'] in object mode
-        if self.object_mode:
+        # UDT field read: p.x → p['x'] in object mode (na-safe: float/None → na).
+        # Use a tuple bind so the name is bound *before* isinstance (walrus in the
+        # true-branch of a ternary leaves __u unbound when the cond runs first).
+        def _udt_field(base: str, attr: str) -> str:
+            return (
+                f"((__u := ({base}), "
+                f"__u[{attr!r}] if isinstance(__u, dict) else np.nan)[1])"
+            )
+
+        if self.object_mode or (
+            isinstance(node.value, ast.Name) and node.value.id in self.udt_vars
+        ):
+            self.object_mode = True
             # strip series indexing for type-ish access
             if val.endswith("[__bar_idx]"):
-                # could be series field or udt series
-                base = val
-                # If base is a UDT instance expression ending with [__bar_idx]
-                return f"{base}[{node.attr!r}]"
+                # UDT series element may be na (nan) — never subscript a scalar
+                return _udt_field(val, node.attr)
             if val in self.map_vars or val in self.scalar_vars:
-                return f"{val}[{node.attr!r}]"
+                return _udt_field(val, node.attr)
+            # Other object handles (e.g. array.get returning UDT)
+            if not self._is_safe_numeric_expr(val):
+                return _udt_field(val, node.attr)
         if val.endswith("[__bar_idx]"):
             val = val[:-11]
+        # Avoid dead identifiers like ``numba_sma_inc(..._st)_rma`` when an
+        # Attribute is applied to a numba_* call result (should be a call).
+        if val.startswith("numba_") and "(" in val:
+            attr = node.attr
+            if attr == "tr":
+                return "numba_tr(high_arr, low_arr, close_arr, __bar_idx)"
+            if attr == "obv":
+                st = self._alloc_fixed_state("obv", 2)
+                return f"numba_obv_inc(close_arr, vol_arr, __bar_idx, {st})"
+            if attr == "vwap":
+                st = self._alloc_fixed_state("vwap", 3)
+                src = self._materialize_series_source(val)
+                return f"numba_vwap_inc({src}, vol_arr, __bar_idx, {st})"
+            if attr in ("max", "min"):
+                src = self._materialize_series_source(val)
+                nb = "numba_highest" if attr == "max" else "numba_lowest"
+                return f"{nb}({src}, __bar_idx + 1, __bar_idx)"
+            # Unknown attr on numba result → function call form, not val_attr
+            return f"{attr}({val})"
         return f"{val}_{node.attr}"
     def _emit_barstate(self, attr: str) -> str:
         """barstate.* flags for compile path."""
@@ -1828,6 +1973,20 @@ class CompilerVisitor(NodeVisitor):
         if func_name == "array_copy":
             a = ra(args, kwargs, ("id",))
             return f"list({a[0]})" if a else "[]"
+        if func_name == "array_concat":
+            # array.concat(id1, id2) — append id2 onto id1 (mutate) and return id1
+            a = ra(
+                args,
+                kwargs,
+                ("id1", "id2"),
+                aliases={"id": "id1", "other": "id2"},
+            )
+            if len(a) >= 2:
+                return (
+                    f"((lambda __a, __b: (__a.extend(list(__b or [])), __a)[1])"
+                    f"({a[0]} if {a[0]} is not None else [], {a[1]}))"
+                )
+            return f"list({a[0]} or [])" if a else "[]"
         if func_name == "array_covariance":
             # Stub: real cov needs two arrays + means; enough to avoid NameError
             return "0.0"
@@ -2012,6 +2171,15 @@ class CompilerVisitor(NodeVisitor):
             "closedtrades": "__strategy.closed_trades",
             "opentrades": "0 if __strategy.position_size == 0 else 1",
             "initial_capital": "__strategy.initial_capital",
+            "max_drawdown": "__strategy.max_drawdown",
+            "max_runup": "__strategy.max_runup",
+            "max_drawdown_percent": "__strategy.max_drawdown_percent",
+            "max_runup_percent": "__strategy.max_runup_percent",
+            "openprofit": "__strategy.openprofit",
+            "grossprofit": "__strategy.grossprofit",
+            "grossloss": "__strategy.grossloss",
+            "wintrades": "__strategy.wintrades",
+            "losstrades": "__strategy.losstrades",
         }
         if attr in series_map:
             self.object_mode = True
@@ -2090,6 +2258,37 @@ class CompilerVisitor(NodeVisitor):
                 # User method: ``x.mg(6)`` / ``Close.linreg(8).mg(6)`` → mg(src, 6)
                 method_src = self.visit(func.value)
                 func_name = func.attr
+            elif func.attr in ("max", "min"):
+                # Float/series .max/.min must not steal array.max/array.min.
+                #  - no extra args → ta.max/min (running extreme of series)
+                #  - extra arg looks like length/const → ta.max(src, len)
+                #  - extra arg is another series/value → math.max(a, b)
+                #  - receiver is array/list handle → array.max/min
+                method_src = self.visit(func.value)
+                recv_name = (
+                    func.value.id if isinstance(func.value, ast.Name) else None
+                )
+                recv_is_array_name = recv_name is not None and (
+                    recv_name in self.scalar_vars or recv_name in self.map_vars
+                )
+                looks_series = (
+                    method_src.endswith("[__bar_idx]")
+                    or self._is_series_arr_expr(method_src)
+                    or method_src.startswith("numba_")
+                    or method_src.startswith("np.")
+                )
+                if recv_is_array_name or not looks_series:
+                    func_name = _ARRAY_METHODS[func.attr]
+                    self.object_mode = True
+                elif not node.args:
+                    func_name = f"ta_{func.attr}"
+                else:
+                    first = node.args[0]
+                    raw = first.value if hasattr(first, "value") else first
+                    is_len = isinstance(raw, ast.Constant) and isinstance(
+                        getattr(raw, "value", None), (int, float)
+                    )
+                    func_name = f"ta_{func.attr}" if is_len else f"math_{func.attr}"
             elif func.attr in _ARRAY_METHODS:
                 method_src = self.visit(func.value)
                 func_name = _ARRAY_METHODS[func.attr]
@@ -2264,7 +2463,6 @@ class CompilerVisitor(NodeVisitor):
             func_name.startswith(p) for p in ("label", "line", "box", "table", "polyline")
         ):
             self.object_mode = True
-            self.uses_drawing = True
             return self._emit_drawing(func_name, args, kwargs)
 
         if func_name.startswith("map_"):
@@ -2480,6 +2678,8 @@ class CompilerVisitor(NodeVisitor):
             "alma": "ta_alma",
             "hma": "ta_hma",
             "tsi": "ta_tsi",
+            "macd": "ta_macd",
+            "bb": "ta_bb",
         }
         if func_name in _BARE_TA and func_name not in self.user_funcs:
             func_name = _BARE_TA[func_name]
@@ -2496,57 +2696,57 @@ class CompilerVisitor(NodeVisitor):
                 return "np.nan"
             period = kwargs.get("length", args[1] if len(args) > 1 else "14")
             st = self._alloc_fixed_state("sma", 2)
-            return f"numba_sma_inc({_arr(args[0])}, int({period}), __bar_idx, {st})"
+            return f"numba_sma_inc({_arr(args[0])}, {self._emit_period(period)}, __bar_idx, {st})"
         if func_name == "ta_ema":
             if not args:
                 return "np.nan"
             period = kwargs.get("length", args[1] if len(args) > 1 else "14")
             st = self._alloc_fixed_state("ema", 2)
-            return f"numba_ema_inc({_arr(args[0])}, int({period}), __bar_idx, {st})"
+            return f"numba_ema_inc({_arr(args[0])}, {self._emit_period(period)}, __bar_idx, {st})"
         if func_name == "ta_rma":
             if not args:
                 return "np.nan"
             period = kwargs.get("length", args[1] if len(args) > 1 else "14")
             st = self._alloc_fixed_state("rma", 2)
-            return f"numba_rma_inc({_arr(args[0])}, int({period}), __bar_idx, {st})"
+            return f"numba_rma_inc({_arr(args[0])}, {self._emit_period(period)}, __bar_idx, {st})"
         if func_name == "ta_wma":
             if not args:
                 return "np.nan"
             period = kwargs.get("length", args[1] if len(args) > 1 else "14")
             st = self._alloc_fixed_state("wma", 3)
-            return f"numba_wma_inc({_arr(args[0])}, int({period}), __bar_idx, {st})"
+            return f"numba_wma_inc({_arr(args[0])}, {self._emit_period(period)}, __bar_idx, {st})"
         if func_name == "ta_rsi":
             if not args:
                 return "np.nan"
             period = kwargs.get("length", args[1] if len(args) > 1 else "14")
             st = self._alloc_fixed_state("rsi", 3)
-            return f"numba_rsi_inc({_arr(args[0])}, int({period}), __bar_idx, {st})"
+            return f"numba_rsi_inc({_arr(args[0])}, {self._emit_period(period)}, __bar_idx, {st})"
         if func_name == "ta_highest":
             # ta.highest(source, length) or ta.highest(length) → high source
             st = self._alloc_fixed_state("hh", 3)
             if len(args) >= 2:
                 period = kwargs.get("length", args[1])
-                return f"numba_highest_inc({_arr(args[0])}, int({period}), __bar_idx, {st})"
+                return f"numba_highest_inc({_arr(args[0])}, {self._emit_period(period)}, __bar_idx, {st})"
             if len(args) == 1:
                 return f"numba_highest_inc(high_arr, int({args[0]}), __bar_idx, {st})"
             period = kwargs.get("length", "14")
-            return f"numba_highest_inc(high_arr, int({period}), __bar_idx, {st})"
+            return f"numba_highest_inc(high_arr, {self._emit_period(period)}, __bar_idx, {st})"
         if func_name == "ta_lowest":
             # ta.lowest(source, length) or ta.lowest(length) → low source
             st = self._alloc_fixed_state("ll", 3)
             if len(args) >= 2:
                 period = kwargs.get("length", args[1])
-                return f"numba_lowest_inc({_arr(args[0])}, int({period}), __bar_idx, {st})"
+                return f"numba_lowest_inc({_arr(args[0])}, {self._emit_period(period)}, __bar_idx, {st})"
             if len(args) == 1:
                 return f"numba_lowest_inc(low_arr, int({args[0]}), __bar_idx, {st})"
             period = kwargs.get("length", "14")
-            return f"numba_lowest_inc(low_arr, int({period}), __bar_idx, {st})"
+            return f"numba_lowest_inc(low_arr, {self._emit_period(period)}, __bar_idx, {st})"
         if func_name == "ta_stdev":
             if not args:
                 return "np.nan"
             period = kwargs.get("length", args[1] if len(args) > 1 else "14")
             st = self._alloc_fixed_state("stdev", 3)
-            return f"numba_stdev_inc({_arr(args[0])}, int({period}), __bar_idx, {st})"
+            return f"numba_stdev_inc({_arr(args[0])}, {self._emit_period(period)}, __bar_idx, {st})"
         if func_name == "ta_change":
             if not args:
                 return "np.nan"
@@ -2569,7 +2769,7 @@ class CompilerVisitor(NodeVisitor):
                     f"int({args[3]}), __bar_idx, {st})"
                 )
             return (
-                f"numba_atr_inc(high_arr, low_arr, close_arr, int({length}), __bar_idx, {st})"
+                f"numba_atr_inc(high_arr, low_arr, close_arr, {self._emit_period(length)}, __bar_idx, {st})"
             )
         if func_name == "ta_bb":
             # ta.bb(source, length, mult) or ta.bb(length, mult)
@@ -2581,7 +2781,7 @@ class CompilerVisitor(NodeVisitor):
                 src, length, mult = "close_arr[__bar_idx]", "20", "2.0"
             st = self._alloc_fixed_state("bb", 3)
             return (
-                f"numba_bb_inc({_arr(src)}, int({length}), float({mult}), __bar_idx, {st})"
+                f"numba_bb_inc({_arr(src)}, {self._emit_period(length)}, float({mult}), __bar_idx, {st})"
             )
         if func_name == "ta_macd":
             # ta.macd(source, fast, slow, signal)
@@ -2662,21 +2862,21 @@ class CompilerVisitor(NodeVisitor):
                 return "np.nan"
             period = kwargs.get("length", args[1] if len(args) > 1 else "14")
             st = self._alloc_fixed_state("sum", 2)
-            return f"numba_sum_inc({_arr(args[0])}, int({period}), __bar_idx, {st})"
+            return f"numba_sum_inc({_arr(args[0])}, {self._emit_period(period)}, __bar_idx, {st})"
         if func_name == "ta_dev":
             # Mean absolute deviation from SMA
             if not args:
                 return "np.nan"
             period = kwargs.get("length", args[1] if len(args) > 1 else "14")
             st = self._alloc_fixed_state("dev", 2)
-            return f"numba_dev_inc({_arr(args[0])}, int({period}), __bar_idx, {st})"
+            return f"numba_dev_inc({_arr(args[0])}, {self._emit_period(period)}, __bar_idx, {st})"
         if func_name == "ta_variance":
             # Sample variance (n-1) — stdev**2
             if not args:
                 return "np.nan"
             period = kwargs.get("length", args[1] if len(args) > 1 else "14")
             st = self._alloc_fixed_state("var", 3)
-            return f"numba_variance_inc({_arr(args[0])}, int({period}), __bar_idx, {st})"
+            return f"numba_variance_inc({_arr(args[0])}, {self._emit_period(period)}, __bar_idx, {st})"
         if func_name == "ta_correlation":
             # ta.correlation(source1, source2, length) Pearson
             st = self._alloc_fixed_state("corr", 6)
@@ -2700,26 +2900,18 @@ class CompilerVisitor(NodeVisitor):
             offset = args[2] if len(args) > 2 else "0.85"
             sigma = args[3] if len(args) > 3 else "6.0"
             return (
-                f"numba_alma({_arr(src)}, int({length}), float({offset}), "
+                f"numba_alma({_arr(src)}, {self._emit_period(length)}, float({offset}), "
                 f"float({sigma}), __bar_idx)"
             )
         if func_name == "ta_hma":
-            # ta.hma(source, length) — multi-stage WMA + intermediate series buffer
+            # ta.hma(source, length)
             if not args:
                 return "np.nan"
-            st = self._alloc_fixed_state("hma", 7)
-            raw = f"__hma_raw{self._ta_state_i}_arr"
-            self._ta_state_i += 1
-            self.arrays.add(raw)
             if len(args) >= 2:
-                return (
-                    f"numba_hma_inc({_arr(args[0])}, int({args[1]}), __bar_idx, {st}, {raw})"
-                )
+                return f"numba_hma({_arr(args[0])}, int({args[1]}), __bar_idx)"
             if not _is_series_arr(args[0]):
-                return (
-                    f"numba_hma_inc(close_arr, int({args[0]}), __bar_idx, {st}, {raw})"
-                )
-            return f"numba_hma_inc({_arr(args[0])}, 9, __bar_idx, {st}, {raw})"
+                return f"numba_hma(close_arr, int({args[0]}), __bar_idx)"
+            return f"numba_hma({_arr(args[0])}, 9, __bar_idx)"
         if func_name == "ta_tsi":
             # ta.tsi(source, short, long) or ta.tsi(short, long) on close
             st = self._alloc_fixed_state("tsi", 6)
@@ -2764,7 +2956,7 @@ class CompilerVisitor(NodeVisitor):
                 )
             length = args[0] if args else "14"
             return (
-                f"numba_stoch_inc(close_arr, high_arr, low_arr, int({length}), "
+                f"numba_stoch_inc(close_arr, high_arr, low_arr, {self._emit_period(length)}, "
                 f"__bar_idx, {st})"
             )
         if func_name == "ta_cci":
@@ -2774,7 +2966,7 @@ class CompilerVisitor(NodeVisitor):
                 return f"numba_cci_inc({_arr(args[0])}, int({args[1]}), __bar_idx, {st})"
             length = args[0] if args else "20"
             # typical price via (h+l+c)/3 not available as array — use close MVP
-            return f"numba_cci_inc(close_arr, int({length}), __bar_idx, {st})"
+            return f"numba_cci_inc(close_arr, {self._emit_period(length)}, __bar_idx, {st})"
         if func_name == "ta_vwap":
             # ta.vwap / ta.vwap(source) — cumulative typical*vol / cum vol
             st = self._alloc_fixed_state("vwap", 3)
@@ -2783,6 +2975,25 @@ class CompilerVisitor(NodeVisitor):
             # default source = hlc3; approximate with (h+l+c)/3 via close as MVP if no src
             # Use close for bare form; better: build from chart (still correct enough)
             return f"numba_vwap_inc(close_arr, vol_arr, __bar_idx, {st})"
+        if func_name == "ta_max":
+            # ta.max(source) → all-time high of series; ta.max(source, length) → highest
+            if not args:
+                return "np.nan"
+            if len(args) >= 2:
+                period = kwargs.get("length", args[1])
+                st = self._alloc_fixed_state("hh", 3)
+                return f"numba_highest_inc({_arr(args[0])}, {self._emit_period(period)}, __bar_idx, {st})"
+            # Running max from bar 0..i (scan form; no fixed window state)
+            return f"numba_highest({_arr(args[0])}, __bar_idx + 1, __bar_idx)"
+        if func_name == "ta_min":
+            # ta.min(source) → all-time low; ta.min(source, length) → lowest
+            if not args:
+                return "np.nan"
+            if len(args) >= 2:
+                period = kwargs.get("length", args[1])
+                st = self._alloc_fixed_state("ll", 3)
+                return f"numba_lowest_inc({_arr(args[0])}, {self._emit_period(period)}, __bar_idx, {st})"
+            return f"numba_lowest({_arr(args[0])}, __bar_idx + 1, __bar_idx)"
         if func_name == "ta_sar":
             # ta.sar(start, inc, max) using chart high/low
             start = args[0] if args else "0.02"
@@ -2807,7 +3018,7 @@ class CompilerVisitor(NodeVisitor):
                 )
             src = args[0] if args else "close_arr[__bar_idx]"
             length = args[1] if len(args) > 1 else "14"
-            return f"numba_percentile_nearest_rank({_arr(src)}, int({length}), 50.0, __bar_idx)"
+            return f"numba_percentile_nearest_rank({_arr(src)}, {self._emit_period(length)}, 50.0, __bar_idx)"
 
 
         if func_name == "ta_barssince":
@@ -2825,7 +3036,7 @@ class CompilerVisitor(NodeVisitor):
             offset = args[2] if len(args) > 2 else "0"
             st = self._alloc_fixed_state("linreg", 3)
             return (
-                f"numba_linreg_inc({_arr(src)}, int({length}), int({offset}), "
+                f"numba_linreg_inc({_arr(src)}, {self._emit_period(length)}, int({offset}), "
                 f"__bar_idx, {st})"
             )
         if func_name == "ta_vwma":
@@ -2837,7 +3048,7 @@ class CompilerVisitor(NodeVisitor):
                     f"__bar_idx, {st})"
                 )
             length = args[0] if args else "14"
-            return f"numba_vwma_inc(close_arr, vol_arr, int({length}), __bar_idx, {st})"
+            return f"numba_vwma_inc(close_arr, vol_arr, {self._emit_period(length)}, __bar_idx, {st})"
         if func_name == "ta_mfi":
             # ta.mfi(length) | ta.mfi(source, length) | ta.mfi(h, l, c, v, length)
             st = self._alloc_fixed_state("mfi", 3)
@@ -2854,7 +3065,7 @@ class CompilerVisitor(NodeVisitor):
                 )
             length = args[0] if args else "14"
             return (
-                f"numba_mfi_inc(high_arr, low_arr, close_arr, vol_arr, int({length}), "
+                f"numba_mfi_inc(high_arr, low_arr, close_arr, vol_arr, {self._emit_period(length)}, "
                 f"__bar_idx, {st})"
             )
         if func_name == "ta_rising":
@@ -2879,27 +3090,27 @@ class CompilerVisitor(NodeVisitor):
             if len(args) >= 2:
                 period = kwargs.get("length", args[1])
                 return (
-                    f"numba_highestbars_inc({_arr(args[0])}, int({period}), "
+                    f"numba_highestbars_inc({_arr(args[0])}, {self._emit_period(period)}, "
                     f"__bar_idx, {st})"
                 )
             if len(args) == 1:
                 # One-arg form is always length (even if the expr is a series scalar like amp_arr[i])
                 return f"numba_highestbars_inc(high_arr, int({args[0]}), __bar_idx, {st})"
             period = kwargs.get("length", "14")
-            return f"numba_highestbars_inc(high_arr, int({period}), __bar_idx, {st})"
+            return f"numba_highestbars_inc(high_arr, {self._emit_period(period)}, __bar_idx, {st})"
         if func_name == "ta_lowestbars":
             # ta.lowestbars(source, length) or ta.lowestbars(length) → low source
             st = self._alloc_fixed_state("lbars", 3)
             if len(args) >= 2:
                 period = kwargs.get("length", args[1])
                 return (
-                    f"numba_lowestbars_inc({_arr(args[0])}, int({period}), "
+                    f"numba_lowestbars_inc({_arr(args[0])}, {self._emit_period(period)}, "
                     f"__bar_idx, {st})"
                 )
             if len(args) == 1:
                 return f"numba_lowestbars_inc(low_arr, int({args[0]}), __bar_idx, {st})"
             period = kwargs.get("length", "14")
-            return f"numba_lowestbars_inc(low_arr, int({period}), __bar_idx, {st})"
+            return f"numba_lowestbars_inc(low_arr, {self._emit_period(period)}, __bar_idx, {st})"
         if func_name == "ta_percentrank":
             # ta.percentrank(source, length)
             if len(args) >= 2:
@@ -2953,13 +3164,28 @@ class CompilerVisitor(NodeVisitor):
         if func_name in ("math_abs", "abs"):
             return f"numba_abs({args[0]})" if args else "np.nan"
         if func_name in ("math_max", "max"):
-            if len(args) >= 2:
-                return f"numba_max({args[0]}, {args[1]})"
-            return args[0] if args else "np.nan"
+            if not args:
+                return "np.nan"
+            if len(args) == 1:
+                return args[0]
+            # math.max takes 2+ values — nest pairwise numba_max
+            expr = args[0]
+            for a in args[1:]:
+                expr = f"numba_max({expr}, {a})"
+            return expr
         if func_name in ("math_min", "min"):
-            if len(args) >= 2:
-                return f"numba_min({args[0]}, {args[1]})"
-            return args[0] if args else "np.nan"
+            if not args:
+                return "np.nan"
+            if len(args) == 1:
+                return args[0]
+            expr = args[0]
+            for a in args[1:]:
+                expr = f"numba_min({expr}, {a})"
+            return expr
+        if func_name in ("math_isfinite", "isfinite"):
+            return f"np.isfinite({args[0]})" if args else "False"
+        if func_name in ("math_isnan", "isnan"):
+            return f"np.isnan({args[0]})" if args else "True"
         if func_name in ("math_sqrt", "sqrt"):
             return f"np.sqrt({args[0]})" if args else "np.nan"
         if func_name == "avg":
@@ -2988,17 +3214,13 @@ class CompilerVisitor(NodeVisitor):
             # Without symbol mintick series, round to integer ticks stub
             return f"float(np.round({args[0]}))" if args else "0.0"
         if func_name == "math_sum":
-            # Rolling sum (series, length) — same kernel as ta.sum
             period = args[1] if len(args) > 1 else "14"
             src_e = args[0] if args else "close_arr[__bar_idx]"
-            st = self._alloc_fixed_state("msum", 2)
-            return f"numba_sum_inc({_arr(src_e)}, int({period}), __bar_idx, {st})"
+            return f"numba_sum({_arr(src_e)}, {self._emit_period(period)}, __bar_idx)"
         if func_name == "math_avg":
-            # Rolling average (series, length) — same as ta.sma
             period = args[1] if len(args) > 1 else "14"
             src_e = args[0] if args else "close_arr[__bar_idx]"
-            st = self._alloc_fixed_state("mavg", 2)
-            return f"numba_sma_inc({_arr(src_e)}, int({period}), __bar_idx, {st})"
+            return f"numba_sma({_arr(src_e)}, {self._emit_period(period)}, __bar_idx)"
         if func_name == "math_random":
             self.object_mode = True
             return "0.5"
@@ -3124,12 +3346,13 @@ class CompilerVisitor(NodeVisitor):
                 if k not in param_names:
                     call_args.append(kwargs[k])
 
+        # Param order must match visit_FunctionDef:
+        #   formals, series_locals, st_refs, free_scalars, free_series,
+        #   [__drawings], [n_bars], [chart...], [__strategy]
         for s in series_locals:
             call_args.append(f"__st_{func_name}_{s}")
         for st in st_params:
             call_args.append(st)
-        # Order must match visit_FunctionDef param_list: free_scalars then free_series
-        free_series = getattr(self, "func_free_series", {}).get(func_name, [])
         free_scalars = getattr(self, "func_free_scalars", {}).get(func_name, [])
         for sc in free_scalars:
             # Prefer current bar of a series array when the outer var is series-like
@@ -3145,24 +3368,15 @@ class CompilerVisitor(NodeVisitor):
                 else:
                     # May be input.color scalar assigned later — pass bare name
                     call_args.append(sc)
+        free_series = getattr(self, "func_free_series", {}).get(func_name, [])
         for fs in free_series:
             call_args.append(fs)
-            # Ensure free series arrays exist even if assign was dropped (switch, etc.)
-            if fs.endswith("_arr"):
-                self.arrays.add(fs)
-        # Module-level UDFs cannot close over execute_script locals
         if getattr(self, "func_needs_drawings", {}).get(func_name):
             call_args.append("__drawings")
         if getattr(self, "func_needs_n_bars", {}).get(func_name):
             call_args.append("n_bars")
-        if (
-            self.func_needs_bar.get(func_name)
-            or series_set
-            or series_locals
-            or st_params
-            or free_series
-            or free_scalars
-        ):
+        # Chart context only when the def was emitted with it (func_needs_bar).
+        if self.func_needs_bar.get(func_name):
             for extra in (
                 "open_arr",
                 "high_arr",
@@ -3343,7 +3557,6 @@ class CompilerVisitor(NodeVisitor):
         return f"{func_name}({', '.join(args)})" if args else "np.nan"
 
     def _emit_drawing_set(self, func_name: str, args: list[str], kwargs: dict[str, str]) -> str:
-        self.uses_drawing = True
         """Emit a drawing update event for label/line/box/table/polyline set_*.
 
         Records the mutator on ``__drawings`` so object-mode runs don't NameError.
@@ -3369,7 +3582,6 @@ class CompilerVisitor(NodeVisitor):
         kind = func_name.replace("_new", "").replace("_delete", "")
         if func_name.endswith("_delete"):
             return ""  # MVP: no-op deletes in compile path
-        self.uses_drawing = True
         # Build event dict
         parts = [f"'kind': {kind!r}", "'bar': __bar_idx"]
         # positional common patterns
@@ -3684,9 +3896,41 @@ class CompilerVisitor(NodeVisitor):
             else:
                 expr = f"({case_val} if ({pat_v}) else {expr})"
         return expr
+    def _as_bool_cond(self, expr: str, *, node=None) -> str:
+        """Coerce a condition so bare series arrays never hit Python truth tests.
 
+        - Full series buffers (``foo_arr``, ``close_arr``) → ``bool(foo_arr[__bar_idx])``
+        - Already indexed / scalar comparisons pass through.
+        - Defensive: ndarray truth is never taken (np.any for multi-element).
+        """
+        e = (expr or "").strip()
+        if not e:
+            return "False"
+        # Already a comparison / boolean op / unary not — leave alone
+        if any(op in e for op in ("==", "!=", "<=", ">=", " < ", " > ", " and ", " or ")):
+            # Still may be `(arr) != 0` where arr is full series from a bad free-scalar
+            # pass-through; wrap only plain `name_arr` tokens used as the sole test.
+            pass
+        if e.endswith("[__bar_idx]"):
+            return e
+        # Bare series array identifier
+        if self._is_series_array_base(e) and not e.endswith("[__bar_idx]"):
+            return f"bool({e}[__bar_idx])"
+        # Name that is a tracked series → index current bar
+        if node is not None and isinstance(node, ast.Name):
+            nid = node.id
+            if f"{nid}_arr" in self.arrays or nid in self.string_series:
+                return f"bool({nid}_arr[__bar_idx])"
+            if nid in self.series_params:
+                return f"bool({self._py_ident(nid)}[__bar_idx])"
+            if nid in self.series_locals:
+                return f"bool({self._py_ident(nid)}_arr[__bar_idx])"
+        # Identifier ending in _arr without index (free var / param mishap)
+        if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*_arr", e):
+            return f"bool({e}[__bar_idx])"
+        return e
     def visit_If(self, node: ast.If):
-        test = self.visit(node.test)
+        test = self._as_bool_cond(self.visit(node.test), node=node.test)
         lines = [f"if {test}:"]
         ret_mode = self.if_return_mode
 
@@ -3818,9 +4062,16 @@ class CompilerVisitor(NodeVisitor):
         free_scalars = sorted(
             n
             for n in self._free_scalars_current
-            if n not in arg_set and n not in assigned and n not in self.user_funcs
+            if n not in arg_set
+            and n not in assigned
+            and n not in self.user_funcs
+            and n not in self.loop_counters
         )
         self.func_free_scalars[func_name] = free_scalars
+        if self._func_body_returns_sequence(node, last_ast, body_lines) if hasattr(self, "_func_body_returns_sequence") else False:
+            self.func_returns_sequence.add(func_name)
+        # clear sequence locals for next function
+        self.local_sequence_vars = set()
         self._free_scalars_current = set()
         self.history_names_current = set()
 
@@ -3856,15 +4107,22 @@ class CompilerVisitor(NodeVisitor):
         # Free script-level series referenced inside the UDF (e.g. hma3 uses outer `lag`)
         # Functions are emitted at module scope, so they cannot close over execute_script locals.
         _chart = {"open_arr", "high_arr", "low_arr", "close_arr", "vol_arr"}
+        _scalar_arrs = {
+            f"{n}_arr"
+            for n in (self.scalar_vars | self.map_vars | self.loop_counters)
+        }
         free_series = sorted(
             {
                 m
                 for m in re.findall(r"\b([A-Za-z_][A-Za-z0-9_]*_arr)\b", body_text)
                 if m not in _chart
                 and m not in sl_params
+                and m not in _scalar_arrs
                 and not m.startswith("__st_")
                 and m not in {f"{self._py_ident(a)}_arr" for a in args}
                 and m not in {self._py_ident(a) for a in args if a in series_for_func}
+                # Drop fake series for bare locals assigned inside the UDF
+                and m[: -len("_arr")] not in assigned
             }
             | {
                 # Incremental TA state buffers (__ema0_st, __atr0_st, …)
@@ -3878,17 +4136,11 @@ class CompilerVisitor(NodeVisitor):
             self.func_free_series: dict[str, list[str]] = {}
         self.func_free_series[func_name] = free_series
         # Ensure free series arrays are allocated in execute_script_compiled
+        # (skip __*_st — those are sized by _alloc_fixed_state, not n_bars)
         for fs in free_series:
+            if fs.endswith("_st") and fs.startswith("__"):
+                continue
             self.arrays.add(fs)
-
-        # Free runtime context: drawings surface + bar count (not chart OHLC)
-        needs_drawings = "__drawings" in body_text
-        needs_n_bars = bool(re.search(r"\bn_bars\b", body_text))
-        self.func_needs_drawings[func_name] = needs_drawings
-        self.func_needs_n_bars[func_name] = needs_n_bars
-        if needs_drawings:
-            self.uses_drawing = True
-            self.object_mode = True
 
         needs_ctx = (
             any(tok in body_text for tok in _ctx_tokens)
@@ -3902,9 +4154,6 @@ class CompilerVisitor(NodeVisitor):
         # Never put ``=default`` on the def when trailing required params
         # (series state / chart context) would follow — invalid Python.
         # Defaults are still applied at call sites via func_param_defaults.
-        # Order must match _emit_user_func_call:
-        #   args, sl, st, free_scalars, free_series, [__drawings], [n_bars],
-        #   [chart...], [__strategy]
         param_list = []
         for a in args:
             param_list.append(self._py_ident(a))
@@ -3921,10 +4170,6 @@ class CompilerVisitor(NodeVisitor):
         for p in free_series:
             if p not in param_list:
                 param_list.append(p)
-        if needs_drawings and "__drawings" not in param_list:
-            param_list.append("__drawings")
-        if needs_n_bars and "n_bars" not in param_list:
-            param_list.append("n_bars")
         if needs_ctx:
             extra = ["open_arr", "high_arr", "low_arr", "close_arr", "vol_arr", "__bar_idx"]
             param_list.extend(e for e in extra if e not in param_list)
@@ -4173,6 +4418,19 @@ class CompilerVisitor(NodeVisitor):
             else:
                 self._collect_history_names(child, out)
 
+
+    def _emit_period(self, expr: str, default: str = "0") -> str:
+        """NaN-safe period/length coercion for TA and for-loops."""
+        e = (expr or "").strip()
+        if not e:
+            return default
+        # plain int literal
+        if re.fullmatch(r"-?\d+", e):
+            return e
+        if self.object_mode:
+            return f"safe_period({e}, {default})"
+        return f"(0 if ({e}) != ({e}) else int({e}))"
+
     def visit_ForTo(self, node: ast.ForTo):
         target = node.target.id if isinstance(node.target, ast.Name) else self.visit(node.target)
         start = self.visit(node.start)
@@ -4213,6 +4471,47 @@ class CompilerVisitor(NodeVisitor):
         if added_scalar:
             self.scalar_vars.discard(target)
         return "\n".join(lines)
+
+    def visit_ForIn(self, node: ast.ForIn):
+        """``for eachLine in id`` — iterate array/collection handles (object mode)."""
+        self.object_mode = True
+        target = (
+            node.target.id
+            if isinstance(node.target, ast.Name)
+            else self.visit(node.target)
+        )
+        iterable = self.visit(node.iter)
+        added_local = False
+        added_scalar = False
+        # Loop variable is a per-iteration handle/scalar, never a free outer param.
+        self.loop_counters.add(target)
+        if self.in_function:
+            if target not in self.local_vars:
+                self.local_vars.add(target)
+                added_local = True
+        else:
+            if target not in self.scalar_vars:
+                self.scalar_vars.add(target)
+                added_scalar = True
+        lines = [f"for {target} in ({iterable} or []):"]
+        try:
+            n = 0
+            for stmt in node.body:
+                val = self.visit(stmt)
+                if val:
+                    val = val.replace("\n", "\n    ")
+                    lines.append(f"    {val}")
+                    n += 1
+            if n == 0:
+                lines.append("    pass")
+        finally:
+            self.loop_counters.discard(target)
+        if added_local:
+            self.local_vars.discard(target)
+        if added_scalar:
+            self.scalar_vars.discard(target)
+        return "\n".join(lines)
+
     def visit_While(self, node: ast.While):
         test = self.visit(node.test)
         # Keep ambient in_function; do not force True (same rationale as ForTo).

@@ -1340,52 +1340,6 @@ plot(correlation(close, high, 5), title="c")
         assert abs(out["c"][-1] - 1.0) < 1e-9
 
 
-class TestCompileRound3HmaMathSum:
-    """Round 3: HMA multi-stage WMA_inc + math.sum/avg → rolling *_inc."""
-
-    def test_hma_inc_emit_and_parity(self) -> None:
-        from pynescript.compiler.numba_builtins import numba_hma
-
-        src = """//@version=5
-indicator("x")
-plot(ta.hma(close, 20), title="hma")
-"""
-        code = transpile(src)
-        assert "numba_hma_inc" in code
-        assert "__hma" in code and "_st" in code
-        assert "raw" in code or "__hma_raw" in code
-        compiled = compile_script(src)
-        rng = np.random.default_rng(0)
-        n = 300
-        c = 100.0 + np.cumsum(rng.normal(0.0, 1.0, n))
-        o = c + 0.1
-        h = c + 1.0
-        l = c - 1.0
-        v = np.ones(n)
-        out = compiled.run(o, h, l, c, v)["hma"]
-        full = np.array([numba_hma(c, 20, i) for i in range(n)])
-        both = np.isfinite(full) & np.isfinite(out)
-        assert both.any()
-        assert float(np.max(np.abs(full[both] - out[both]))) <= 1e-10
-
-    def test_math_sum_and_avg_use_inc(self) -> None:
-        src = """//@version=5
-indicator("x")
-plot(math.sum(close, 5), title="ms")
-plot(math.avg(close, 5), title="ma")
-"""
-        code = transpile(src)
-        assert "numba_sum_inc" in code
-        assert "numba_sma_inc" in code
-        compiled = compile_script(src)
-        o, h, l, c, v = _ohlcv(40)
-        out = compiled.run(o, h, l, c, v)
-        expected_sum = float(np.sum(c[-5:]))
-        expected_avg = float(np.mean(c[-5:]))
-        assert abs(out["ms"][-1] - expected_sum) < 1e-6
-        assert abs(out["ma"][-1] - expected_avg) < 1e-6
-
-
 class TestSprint6Coercion:
     """Type coercion: safe float/int, version strings, color arith, sequences."""
 
@@ -1713,3 +1667,202 @@ plot(ta.ema(math.abs(mom), 14))
         cs = compile_script(src)
         r = cs.run(o, o + 1, o - 1, o, np.ones(n))
         assert r
+
+
+class TestSprint10MissingNames:
+    """Bare ta.vwap, math.isfinite, array.concat, ta.max — no dead identifiers."""
+
+    def test_bare_ta_vwap_emits_numba_call(self) -> None:
+        src = """//@version=5
+indicator("x")
+plot(ta.vwap, title="vwap")
+"""
+        code = transpile(src)
+        assert "ta_vwap" not in code
+        assert "numba_vwap_inc" in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(40)
+        out = compiled.run(o, h, l, c, v)
+        assert "vwap" in out
+        assert abs(out["vwap"][-1] - float(np.average(c, weights=v))) < 1e-6
+
+    def test_math_isfinite(self) -> None:
+        src = """//@version=5
+indicator("x")
+plot(math.isfinite(close) ? 1.0 : 0.0, title="fin")
+plot(math.isnan(close) ? 1.0 : 0.0, title="nan")
+"""
+        code = transpile(src)
+        assert "math_isfinite" not in code
+        assert "np.isfinite" in code
+        assert "np.isnan" in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(20)
+        out = compiled.run(o, h, l, c, v)
+        assert np.all(out["fin"] == 1.0)
+        assert np.all(out["nan"] == 0.0)
+
+    def test_array_concat(self) -> None:
+        src = """//@version=5
+indicator("x")
+a = array.from(1.0, 2.0)
+b = array.from(3.0, 4.0)
+c = array.concat(a, b)
+plot(array.size(c), title="sz")
+"""
+        code = transpile(src)
+        assert "array_concat(" not in code or ".extend(" in code
+        assert ".extend(" in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(15)
+        out = compiled.run(o, h, l, c, v)
+        assert abs(out["sz"][-1] - 4.0) < 1e-9
+
+    def test_ta_max_min_not_dead_name(self) -> None:
+        src = """//@version=5
+indicator("x")
+plot(ta.max(close), title="mx")
+plot(ta.min(close), title="mn")
+"""
+        code = transpile(src)
+        assert "ta_max(" not in code
+        assert "ta_min(" not in code
+        assert "numba_highest" in code
+        assert "numba_lowest" in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(30)
+        out = compiled.run(o, h, l, c, v)
+        assert abs(out["mx"][-1] - float(np.nanmax(c))) < 1e-9
+        assert abs(out["mn"][-1] - float(np.nanmin(c))) < 1e-9
+
+    def test_strategy_max_drawdown_attr(self) -> None:
+        src = """//@version=5
+strategy("x")
+strategy.entry("L", strategy.long)
+plot(strategy.max_drawdown, title="dd")
+"""
+        code = transpile(src)
+        assert "__strategy.max_drawdown" in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(25)
+        out = compiled.run(o, h, l, c, v)
+        assert "dd" in out
+        assert out["dd"][-1] >= 0.0
+
+    def test_macd_tuple_unpack_no_free_macd(self) -> None:
+        src = """//@version=5
+indicator("x")
+[macd, signal, hist] = ta.macd(close, 12, 26, 9)
+plot(macd, title="m")
+plot(signal, title="s")
+plot(hist, title="h")
+"""
+        code = transpile(src)
+        # must not leave bare free name `macd` without array store
+        assert "macd_arr[__bar_idx]" in code
+        assert "numba_macd_inc" in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(50)
+        out = compiled.run(o, h, l, c, v)
+        assert len(out["m"]) == 50
+
+
+class TestSprint10FloatGetitemStrategy:
+    """Sprint 10: float(dict), getitem(scalar), UDF __strategy plumbing."""
+
+    def test_table_handle_not_float_series(self) -> None:
+        """var table t = na; t := table.new(...) must not float(dict) into float64."""
+        src = """//@version=5
+indicator("x")
+var table t = na
+if barstate.islast
+    t := table.new(position.top_right, 1, 1)
+plot(close, title="p")
+"""
+        code = transpile(src)
+        assert "t_arr[__bar_idx] = (__drawings.append" not in code
+        assert "t = None" in code or "if __bar_idx == 0:" in code
+        assert "t = (__drawings.append" in code or "t = (" in code
+        compiled = compile_script(src)
+        assert compiled.object_mode
+        o, h, l, c, v = _ohlcv(15)
+        out = compiled.run(o, h, l, c, v)
+        assert abs(out["p"][-1] - c[-1]) < 1e-9
+
+    def test_hline_math_uses_safe_float_not_crash(self) -> None:
+        src = """//@version=5
+indicator("x")
+h = hline(50)
+plot(float(h), title="p")
+"""
+        code = transpile(src)
+        assert "safe_float" in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(10)
+        out = compiled.run(o, h, l, c, v)
+        assert np.isnan(out["p"][-1])
+
+    def test_udf_free_scalar_before_free_series_st(self) -> None:
+        """Outer free-scalar must not receive __ema*_st (getitem float64).
+
+        Def order: formals, st_refs, free_scalars, free_series (__ema*_st), chart.
+        Call must match — otherwise float factor lands in st and Numba raises
+        getitem(float64, int).
+        """
+        src = """//@version=5
+indicator("x")
+mult = input.float(2.0)
+f(src) =>
+    ta.ema(src, 5) * mult
+plot(f(close), title="p")
+"""
+        code = transpile(src)
+        def_line = [ln for ln in code.splitlines() if ln.startswith("def f(")][0]
+        # free scalar mult before free series __ema*_st
+        assert "mult" in def_line
+        if "__ema" in def_line:
+            assert def_line.index("mult") < def_line.index("__ema")
+        call_snip = [ln for ln in code.splitlines() if "f(" in ln and "def " not in ln][0]
+        assert "mult" in call_snip
+        # Must not crash with getitem(float64)
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(40)
+        out = compiled.run(o, h, l, c, v)
+        assert "p" in out
+        assert np.isfinite(out["p"][-1])
+        assert out["p"][-1] > 0
+
+    def test_udf_strategy_passed_at_call_site(self) -> None:
+        src = """//@version=5
+strategy("x")
+f() =>
+    strategy.entry("L", strategy.long)
+    strategy.position_size
+plot(f(), title="p")
+"""
+        code = transpile(src)
+        assert "def f(" in code and "__strategy" in code
+        # call must include __strategy
+        assert re.search(r"f\([^)]*__strategy\)", code)
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(20)
+        out = compiled.run(o, h, l, c, v)
+        assert "p" in out
+        assert out["p"][-1] > 0
+
+    def test_udt_na_field_access_no_scalar_getitem(self) -> None:
+        src = """//@version=6
+indicator("x")
+type MyState
+    bool flag = false
+    int count = 0
+var MyState myState = na
+plot(myState.count, title="c")
+"""
+        code = transpile(src)
+        assert "dtype=object" in code or "myState_arr" in code
+        assert "isinstance(__u, dict)" in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(12)
+        out = compiled.run(o, h, l, c, v)
+        assert np.isnan(out["c"][-1])

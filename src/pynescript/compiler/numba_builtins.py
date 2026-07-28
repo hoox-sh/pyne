@@ -1168,8 +1168,8 @@ def numba_tsi(arr, short_len, long_len, i):
 def safe_float(x):
     """Best-effort float cast for plot/series stores in object mode.
 
-    UDT dicts, hline handles, callables, version strings, and sequences
-    must not raise — return NaN (or first element for length-1+ sequences).
+    UDT dicts, hline/label/table handles, callables, version strings, ndarrays,
+    and sequences must not raise — return NaN (or first element when useful).
     """
     try:
         if x is None:
@@ -1178,8 +1178,14 @@ def safe_float(x):
             return 1.0 if x else 0.0
         if isinstance(x, (int, float, np.integer, np.floating)):
             return float(x)
+        # Drawing / UDT / map handles
         if isinstance(x, (dict, set)):
             return np.nan
+        # Full series buffers or multi-d arrays must not hit bare float()
+        if isinstance(x, np.ndarray):
+            if x.size == 0:
+                return np.nan
+            return safe_float(x.reshape(-1)[0])
         if isinstance(x, (list, tuple)):
             if len(x) == 0:
                 return np.nan
@@ -1195,6 +1201,16 @@ def safe_float(x):
             ):
                 return np.nan
             return float(s)
+        # array-like with shape (e.g. some matrix stubs)
+        shape = getattr(x, "shape", None)
+        if shape is not None:
+            try:
+                flat = np.asarray(x).reshape(-1)
+                if flat.size == 0:
+                    return np.nan
+                return safe_float(flat[0])
+            except Exception:
+                return np.nan
         return float(x)
     except Exception:
         return np.nan
@@ -1209,6 +1225,22 @@ def safe_int(x):
         return int(f)
     except Exception:
         return 0
+
+def safe_period(x, default: int = 0) -> int:
+    """Coerce a TA length / for-loop bound to a plain int.
+
+    Handles float NaN (``int(nan)`` raises), multi-d ndarrays
+    (``only 0-dimensional arrays…``), None, and non-numeric junk.
+    Returns *default* (0) on failure so callers can treat ``period <= 0``
+    as “not ready” without crashing the bar loop.
+    """
+    try:
+        f = safe_float(x)
+        if f != f:  # NaN
+            return int(default)
+        return int(f)
+    except Exception:
+        return int(default)
 
 @numba.njit(cache=True)
 def numba_ema_inc(arr, period, i, st):
