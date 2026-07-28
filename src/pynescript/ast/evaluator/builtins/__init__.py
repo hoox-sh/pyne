@@ -111,6 +111,12 @@ class BuiltinEvaluator(
                 _self=self,
                 _is_strategy=_name == "strategy",
             ):
+                # Script declaration is constant — skip re-build after bar 0
+                # (Runtime sets ``_pine_defs_locked`` after the first visit).
+                if getattr(_self, "_pine_defs_locked", False):
+                    existing = getattr(_self, "_script_declaration", None)
+                    if existing is not None:
+                        return existing
                 decl = _raw_fn(args, kwargs)
                 try:
                     _self._script_declaration = decl  # type: ignore[attr-defined]

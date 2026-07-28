@@ -53,7 +53,13 @@ class InputBuiltinsMixin(BuiltinDispatchMixin):
         }
 
     def _record_input(self, meta: dict[str, Any]) -> None:
-        """Append input metadata for hosts (UI, LSP, settings panels)."""
+        """Append input metadata for hosts (UI, LSP, settings panels).
+
+        After the first bar (``_pine_defs_locked``), skip re-recording so
+        multi-thousand-bar runs do not grow an O(bars × inputs) list.
+        """
+        if getattr(self, "_pine_defs_locked", False):
+            return
         decls = getattr(self, "_input_declarations", None)
         if decls is None:
             decls = []

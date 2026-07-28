@@ -20,6 +20,7 @@
 from __future__ import annotations
 
 import hashlib
+import re
 import uuid
 
 from typing import Any
@@ -29,6 +30,11 @@ from pynescript.util.time_parts import apply_utc_parts_to_context
 
 from .evaluator import CustomEvaluator
 from .series import PineSeries
+
+# Crude scan: skip calendar field fill when script never names them
+_CAL_NAME_RE = re.compile(
+    r"\b(year|month|dayofmonth|hour|minute|second|dayofweek)\b",
+)
 
 # Parse tree cache (source sha256 → AST). Bounded to avoid unbounded growth.
 _PARSE_CACHE: dict[str, Any] = {}
@@ -325,14 +331,23 @@ class Runtime:
         script_id = hashlib.sha256(source_code.encode("utf-8")).hexdigest()[:16]
 
         n_bars = len(ohlcv_data)
+        # Pre-extract columns once (avoid per-bar dict.get in the hot loop)
+        col_open = [b.get("open") for b in ohlcv_data]
+        col_high = [b.get("high") for b in ohlcv_data]
+        col_low = [b.get("low") for b in ohlcv_data]
+        col_close = [b.get("close") for b in ohlcv_data]
+        col_vol = [b.get("volume", 0.0) for b in ohlcv_data]
+        col_time = [b.get("time", 0) or 0 for b in ohlcv_data]
+        need_calendar = bool(_CAL_NAME_RE.search(source_code))
+
         visit = evaluator.visit  # localize hot-path method
-        for bar_index, bar in enumerate(ohlcv_data):
+        for bar_index in range(n_bars):
             # Update series state
-            o = bar.get("open")
-            h = bar.get("high")
-            l = bar.get("low")
-            c = bar.get("close")
-            v = bar.get("volume", 0.0)
+            o = col_open[bar_index]
+            h = col_high[bar_index]
+            l = col_low[bar_index]
+            c = col_close[bar_index]
+            v = col_vol[bar_index]
             open_series.update(o)
             high_series.update(h)
             low_series.update(l)
@@ -376,15 +391,16 @@ class Runtime:
             _series_lists["tr"].append(tr_val)
 
             # Update per-bar counters and time components
-            bar_time = bar.get("time", 0) or 0
+            bar_time = col_time[bar_index]
             if bar_index + 1 < n_bars:
-                time_close = ohlcv_data[bar_index + 1].get("time", bar_time) or bar_time
+                time_close = col_time[bar_index + 1] or bar_time
             else:
                 time_close = int(bar_time) + 86_400_000
             context["bar_index"] = bar_index
             context["time"] = bar_time
             context["time_close"] = time_close
-            apply_utc_parts_to_context(context, bar_time)
+            if need_calendar:
+                apply_utc_parts_to_context(context, bar_time)
 
             barstate.isfirst = bar_index == 0
             barstate.islast = bar_index == n_bars - 1
@@ -395,6 +411,7 @@ class Runtime:
             barstate.isrealtime = False
 
             # Update bid/ask if available (February 2025)
+            bar = ohlcv_data[bar_index]
             if "bid" in bar:
                 self._bid = bar["bid"]
             if "ask" in bar:
@@ -418,7 +435,7 @@ class Runtime:
                         close=c,
                     )
             except Exception as e:
-                return {"error": f"Order fill error at bar {bar.get('time')}: {e!s}"}
+                return {"error": f"Order fill error at bar {bar_time}: {e!s}"}
 
             # Execute script
             try:
@@ -426,7 +443,7 @@ class Runtime:
             except Exception as e:
                 # In a real engine we might handle runtime errors more gracefully
                 # e.g. propagate 'na' or halt
-                return {"error": f"Runtime Error at bar {bar.get('time')}: {e!s}"}
+                return {"error": f"Runtime Error at bar {bar_time}: {e!s}"}
 
             # After the first bar, lock function/type/import registration.
             # Re-visiting Console-scale method tables every bar used to append
