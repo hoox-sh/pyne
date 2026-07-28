@@ -22,13 +22,33 @@ from __future__ import annotations
 import hashlib
 import uuid
 
-from datetime import datetime
-from datetime import timezone
+from typing import Any
 
 from pynescript.ast.helper import parse
+from pynescript.util.time_parts import apply_utc_parts_to_context
 
 from .evaluator import CustomEvaluator
 from .series import PineSeries
+
+# Parse tree cache (source sha256 → AST). Bounded to avoid unbounded growth.
+_PARSE_CACHE: dict[str, Any] = {}
+_PARSE_CACHE_MAX = 64
+
+
+def _parse_script(source_code: str) -> Any:
+    key = hashlib.sha256(source_code.encode("utf-8")).hexdigest()
+    tree = _PARSE_CACHE.get(key)
+    if tree is not None:
+        return tree
+    tree = parse(source_code, mode="exec")
+    if len(_PARSE_CACHE) >= _PARSE_CACHE_MAX:
+        # Drop oldest insertion (CPython 3.7+ dict order)
+        try:
+            _PARSE_CACHE.pop(next(iter(_PARSE_CACHE)))
+        except StopIteration:
+            pass
+    _PARSE_CACHE[key] = tree
+    return tree
 
 
 class Syminfo:
@@ -218,9 +238,9 @@ class Runtime:
             # Non-fatal: request.* falls back to built-in mocks
             pass
 
-        # Parse once
+        # Parse once (cached by source hash for multi-run hosts)
         try:
-            tree = parse(source_code, mode="exec")
+            tree = _parse_script(source_code)
         except Exception as e:
             return {"error": f"Parse Error: {e!s}"}
 
@@ -305,6 +325,7 @@ class Runtime:
         script_id = hashlib.sha256(source_code.encode("utf-8")).hexdigest()[:16]
 
         n_bars = len(ohlcv_data)
+        visit = evaluator.visit  # localize hot-path method
         for bar_index, bar in enumerate(ohlcv_data):
             # Update series state
             o = bar.get("open")
@@ -363,17 +384,7 @@ class Runtime:
             context["bar_index"] = bar_index
             context["time"] = bar_time
             context["time_close"] = time_close
-            try:
-                dt = datetime.fromtimestamp(int(bar_time) / 1000, tz=timezone.utc)
-                context["year"] = dt.year
-                context["month"] = dt.month
-                context["dayofmonth"] = dt.day
-                context["hour"] = dt.hour
-                context["minute"] = dt.minute
-                context["second"] = dt.second
-                context["dayofweek"] = ((dt.weekday() + 1) % 7) + 1
-            except (ValueError, OSError, OverflowError):
-                pass
+            apply_utc_parts_to_context(context, bar_time)
 
             barstate.isfirst = bar_index == 0
             barstate.islast = bar_index == n_bars - 1
@@ -401,17 +412,17 @@ class Runtime:
             try:
                 if hasattr(evaluator, "process_pending_orders"):
                     evaluator.process_pending_orders(
-                        open_=bar.get("open"),
-                        high=bar.get("high"),
-                        low=bar.get("low"),
-                        close=bar.get("close"),
+                        open_=o,
+                        high=h,
+                        low=l,
+                        close=c,
                     )
             except Exception as e:
                 return {"error": f"Order fill error at bar {bar.get('time')}: {e!s}"}
 
             # Execute script
             try:
-                evaluator.visit(tree)
+                visit(tree)
             except Exception as e:
                 # In a real engine we might handle runtime errors more gracefully
                 # e.g. propagate 'na' or halt
