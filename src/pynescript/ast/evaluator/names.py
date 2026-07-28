@@ -111,14 +111,19 @@ class NameEvaluator:
             The value from context if the name is defined, otherwise returns the name string itself
             (allowing it to be resolved as a string literal or builtin reference)
         """
-        # Check if the name is defined in the current context (variables, functions, classes, etc.)
-        if node.id in self.context:
-            return self.context[node.id]
+        # Hot path: single dict lookup for bar-mode series (close/open/…) and locals.
+        # Prefer ``.get`` + sentinel over ``in`` + ``[]`` (one hash vs two).
+        name = node.id
+        ctx = self.context
+        try:
+            return ctx[name]
+        except KeyError:
+            pass
         # Bare-name series builtins only (not functions like strategy/indicator that take args)
-        if node.id in _BARE_SERIES_BUILTINS and self._is_registered_builtin(node.id):
-            return self._call_builtin(node.id, [])
+        if name in _BARE_SERIES_BUILTINS and self._is_registered_builtin(name):
+            return self._call_builtin(name, [])
         # Return the name as a string if not in context - allows for lazy evaluation
-        return node.id
+        return name
 
     def visit_Attribute(self: EvaluatorProtocol, node: ast.Attribute) -> Any:
         """Evaluate an attribute access node (e.g., obj.attr, module.function).
@@ -212,15 +217,15 @@ class NameEvaluator:
                 return ("_array_method", receiver, node.attr)
 
         # Drawing instance methods: ``la.get_text()`` → ``label.get_text(la)``
-        for cls, ns in _DRAWING_METHOD_NS.items():
-            if isinstance(value, cls):
-                drawing_qual = f"{ns}.{node.attr}"
-                if self._is_registered_builtin(drawing_qual):  # type: ignore[attr-defined]
-                    return ("_ns_method", value, drawing_qual)
-                break
+        # Exact type lookup (drawing classes are concrete; avoids isinstance chain).
+        drawing_ns = _DRAWING_METHOD_NS.get(type(value))
+        if drawing_ns is not None:
+            drawing_qual = f"{drawing_ns}.{node.attr}"
+            if self._is_registered_builtin(drawing_qual):  # type: ignore[attr-defined]
+                return ("_ns_method", value, drawing_qual)
 
         # Matrix instance methods: ``m.rows()`` → ``matrix.rows(m)``
-        if isinstance(value, Matrix):
+        if type(value) is Matrix or isinstance(value, Matrix):
             matrix_qual = f"matrix.{node.attr}"
             if self._is_registered_builtin(matrix_qual):  # type: ignore[attr-defined]
                 return ("_ns_method", value, matrix_qual)

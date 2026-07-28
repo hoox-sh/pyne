@@ -681,8 +681,10 @@ class BasicIndicators(TechnicalHelpers):
         return total
 
     def _builtin_ta_dev(self, args: list[Any]) -> float | None:
-        """Deviation from mean (standard deviation)."""
+        """Deviation from mean (mean absolute deviation)."""
         series, period = self._expect_series(args, length=2)
+        if self._use_incremental_ta():
+            return self._dev_inc_update(series, period)
         return self._dev(series, period)
 
     def _builtin_ta_median(self, args: list[Any]) -> float | None:
@@ -752,6 +754,8 @@ class BasicIndicators(TechnicalHelpers):
     def _builtin_ta_variance(self, args: list[Any]) -> float | None:
         """Variance over a period."""
         series, period = self._expect_series(args, length=2)
+        if self._use_incremental_ta():
+            return self._variance_inc_update(series, period)
         return self._variance(series, period)
 
     def _builtin_ta_barssince(self, args: list[Any]) -> int | None:

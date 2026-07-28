@@ -45,13 +45,14 @@ class NodeVisitor:
     def __init__(self):
         """Initialize the visitor with empty method cache."""
         super().__init__()
-        # Optimize: cache visitor methods to avoid repeated getattr calls
-        self._visitor_cache: dict[str, Callable[[AST], Any]] = {}
+        # Type-object keyed cache (faster than class-name strings; matches unparser).
+        self._visitor_cache: dict[type, Callable[[AST], Any]] = {}
 
     def visit(self, node: AST) -> Any:
         """Visit an AST node and dispatch to appropriate handler.
 
         Looks up and caches visit_<NodeType> methods for performance.
+        Cache is keyed by ``type(node)`` to avoid per-call ``__name__`` strings.
 
         Args:
             node: The AST node to visit
@@ -59,14 +60,12 @@ class NodeVisitor:
         Returns:
             Result from the visit_<NodeType> method (implementation-dependent)
         """
-        node_class = node.__class__.__name__
-        # Try cache first
-        visitor = self._visitor_cache.get(node_class)
+        cache = self._visitor_cache
+        cls = node.__class__
+        visitor = cache.get(cls)
         if visitor is None:
-            # Cache miss, look up and cache the method
-            method = "visit_" + node_class
-            visitor = getattr(self, method, self.generic_visit)
-            self._visitor_cache[node_class] = visitor
+            visitor = getattr(self, "visit_" + cls.__name__, self.generic_visit)
+            cache[cls] = visitor
         return visitor(node)
 
     def generic_visit(self, node: AST) -> Any:

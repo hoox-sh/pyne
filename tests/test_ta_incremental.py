@@ -687,3 +687,199 @@ def _bar_walk_inc_cum(src: list[float]) -> list[float | None]:
 def test_incremental_cum_matches_full() -> None:
     src = _series(80)
     _assert_series_close(_bar_walk_inc_cum(src), _bar_walk_full_cum(src))
+
+
+# ---------------------------------------------------------------------------
+# Round 2: cci, tsi, roc, wpr, dev, variance
+# ---------------------------------------------------------------------------
+
+
+def _bar_walk_full_cci(
+    highs: list[float], lows: list[float], closes: list[float], period: int
+) -> list[float]:
+    ev = _FullTA()
+    return [ev._cci(highs[: i + 1], lows[: i + 1], closes[: i + 1], period) for i in range(len(closes))]
+
+
+def _bar_walk_inc_cci(
+    highs: list[float], lows: list[float], closes: list[float], period: int
+) -> list[float]:
+    ev = _IncTA()
+    out: list[float] = []
+    for i in range(len(closes)):
+        ev._ta_call_i = 0
+        out.append(ev._cci_inc_update(highs[: i + 1], lows[: i + 1], closes[: i + 1], period))
+    return out
+
+
+def _bar_walk_full_tsi(src: list[float], long_p: int, short_p: int) -> list[float | None]:
+    ev = _FullTA()
+    out: list[float | None] = []
+    for i in range(len(src)):
+        v = ev._tsi(src[: i + 1], long_p, short_p)
+        out.append(v)
+    return out
+
+
+def _bar_walk_inc_tsi(src: list[float], long_p: int, short_p: int) -> list[float | None]:
+    ev = _IncTA()
+    out: list[float | None] = []
+    for i in range(len(src)):
+        ev._ta_call_i = 0
+        out.append(ev._tsi_inc_update(src[: i + 1], long_p, short_p))
+    return out
+
+
+def _bar_walk_full_roc(src: list[float], period: int) -> list[float]:
+    ev = _FullTA()
+    return [ev._roc(src[: i + 1], period) for i in range(len(src))]
+
+
+def _bar_walk_inc_roc(src: list[float], period: int) -> list[float]:
+    ev = _IncTA()
+    out: list[float] = []
+    for i in range(len(src)):
+        ev._ta_call_i = 0
+        out.append(ev._roc_inc_update(src[: i + 1], period))
+    return out
+
+
+def _bar_walk_full_wpr(
+    highs: list[float], lows: list[float], closes: list[float], period: int
+) -> list[float]:
+    ev = _FullTA()
+    return [ev._wpr(highs[: i + 1], lows[: i + 1], closes[: i + 1], period) for i in range(len(closes))]
+
+
+def _bar_walk_inc_wpr(
+    highs: list[float], lows: list[float], closes: list[float], period: int
+) -> list[float]:
+    ev = _IncTA()
+    out: list[float] = []
+    for i in range(len(closes)):
+        ev._ta_call_i = 0
+        out.append(ev._wpr_inc_update(highs[: i + 1], lows[: i + 1], closes[: i + 1], period))
+    return out
+
+
+def _bar_walk_full_dev(src: list[float], period: int) -> list[float | None]:
+    ev = _FullTA()
+    return [ev._dev(src[: i + 1], period) for i in range(len(src))]
+
+
+def _bar_walk_inc_dev(src: list[float], period: int) -> list[float | None]:
+    ev = _IncTA()
+    out: list[float | None] = []
+    for i in range(len(src)):
+        ev._ta_call_i = 0
+        out.append(ev._dev_inc_update(src[: i + 1], period))
+    return out
+
+
+def _bar_walk_full_variance(src: list[float], period: int) -> list[float | None]:
+    ev = _FullTA()
+    return [ev._variance(src[: i + 1], period) for i in range(len(src))]
+
+
+def _bar_walk_inc_variance(src: list[float], period: int) -> list[float | None]:
+    ev = _IncTA()
+    out: list[float | None] = []
+    for i in range(len(src)):
+        ev._ta_call_i = 0
+        out.append(ev._variance_inc_update(src[: i + 1], period))
+    return out
+
+
+def test_incremental_cci_matches_full() -> None:
+    highs, lows, closes = _ohlc(150)
+    for period in (10, 14, 20):
+        _assert_series_close(
+            _bar_walk_inc_cci(highs, lows, closes, period),
+            _bar_walk_full_cci(highs, lows, closes, period),
+        )
+
+
+def test_incremental_tsi_matches_full() -> None:
+    src = _series(150)
+    for long_p, short_p in ((25, 13), (15, 7), (10, 5)):
+        _assert_series_close(
+            _bar_walk_inc_tsi(src, long_p, short_p),
+            _bar_walk_full_tsi(src, long_p, short_p),
+        )
+
+
+def test_incremental_roc_matches_full() -> None:
+    src = _series(120)
+    for period in (1, 5, 10, 14):
+        _assert_series_close(
+            _bar_walk_inc_roc(src, period),
+            _bar_walk_full_roc(src, period),
+        )
+
+
+def test_incremental_wpr_matches_full() -> None:
+    highs, lows, closes = _ohlc(120)
+    for period in (7, 14):
+        _assert_series_close(
+            _bar_walk_inc_wpr(highs, lows, closes, period),
+            _bar_walk_full_wpr(highs, lows, closes, period),
+        )
+
+
+def test_incremental_dev_matches_full() -> None:
+    src = _series(120)
+    for period in (5, 14, 20):
+        _assert_series_close(
+            _bar_walk_inc_dev(src, period),
+            _bar_walk_full_dev(src, period),
+        )
+
+
+def test_incremental_variance_matches_full() -> None:
+    src = _series(120)
+    for period in (5, 14, 20):
+        _assert_series_close(
+            _bar_walk_inc_variance(src, period),
+            _bar_walk_full_variance(src, period),
+        )
+
+
+def test_runtime_cci_roc_wpr_tsi_dev_incremental_vs_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
+    from backend.runtime import Runtime
+
+    bars = [
+        {
+            "open": 100 + i * 0.1,
+            "high": 101.5 + i * 0.1 + (i % 5) * 0.05,
+            "low": 98.5 + i * 0.1 - (i % 3) * 0.05,
+            "close": 100.5 + i * 0.1 + math.sin(i / 7.0) * 0.2,
+            "volume": 1000 + i,
+            "time": 1_000_000 + i * 86_400_000,
+        }
+        for i in range(120)
+    ]
+    src = """//@version=5
+indicator("round2 osc")
+plot(ta.cci(close, 14))
+plot(ta.roc(close, 10))
+plot(ta.wpr(14))
+plot(ta.tsi(close, 13, 25))
+plot(ta.dev(close, 14))
+plot(ta.variance(close, 14))
+"""
+    monkeypatch.delenv("PYNE_TA_INCREMENTAL", raising=False)
+    r_on = Runtime(symbol="T").run(src, bars)
+    assert "error" not in r_on, r_on.get("error")
+    monkeypatch.setenv("PYNE_TA_INCREMENTAL", "0")
+    r_off = Runtime(symbol="T").run(src, bars)
+    assert "error" not in r_off, r_off.get("error")
+    monkeypatch.delenv("PYNE_TA_INCREMENTAL", raising=False)
+
+    assert set(r_on["series"]) == set(r_off["series"])
+    for key in r_on["series"]:
+        for i, (a, b) in enumerate(zip(r_on["series"][key], r_off["series"][key], strict=True)):
+            if a is None and b is None:
+                continue
+            if a is None or b is None:
+                continue
+            assert a == pytest.approx(b, rel=1e-9, abs=1e-9), f"{key} bar {i}: {a} != {b}"

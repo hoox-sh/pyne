@@ -786,6 +786,332 @@ class TechnicalHelpers:
         st["value"] = st["sum_pv"] / st["sum_v"]
         return st.get("value")
 
+    def _cci_inc_update(
+        self,
+        highs: list[Any],
+        lows: list[Any],
+        closes: list[Any],
+        period: int,
+    ) -> float:
+        """Incremental CCI matching full ``_cci`` (last value).
+
+        Window of typical price; SMA via running sum; mean absolute deviation
+        recomputed over the window each bar (O(period)). Full path returns
+        ``0.0`` when under-warmed or mean deviation is zero/undefined.
+        """
+        if period <= 0:
+            return 0.0
+        slot = self._ta_next_slot()
+        key = ("cci", slot, period)
+        bucket = self._ta_state_bucket()
+        st = bucket.get(key)
+        if st is None:
+            st = {
+                "window": deque(),
+                "sum": 0.0,
+                "count": 0,
+                "last_mean_dev": None,  # last non-zero mean abs dev
+                "value": 0.0,
+            }
+            bucket[key] = st
+        h = self._series_last(highs)
+        l = self._series_last(lows)
+        c = self._series_last(closes)
+        tp: float | None
+        if h is None or l is None or c is None:
+            tp = None
+        else:
+            try:
+                tp = (float(h) + float(l) + float(c)) / 3.0
+            except (TypeError, ValueError):
+                tp = None
+        window: deque[float | None] = st["window"]
+        if len(window) == period:
+            old = window.popleft()
+            if old is not None:
+                st["sum"] -= old
+                st["count"] -= 1
+        window.append(tp)
+        if tp is not None:
+            st["sum"] += tp
+            st["count"] += 1
+        if len(window) < period or st["count"] <= 0:
+            st["value"] = 0.0
+            return 0.0
+        sma = float(st["sum"]) / int(st["count"])
+        # Mean abs dev over non-None samples vs current SMA (matches full path)
+        acc = 0.0
+        n_valid = 0
+        for v in window:
+            if v is None:
+                continue
+            acc += abs(float(v) - sma)
+            n_valid += 1
+        if n_valid <= 0:
+            st["value"] = 0.0
+            return 0.0
+        mean_dev = acc / n_valid
+        if mean_dev not in {None, 0, 0.0}:
+            st["last_mean_dev"] = mean_dev
+        last_mean_dev = st["last_mean_dev"]
+        if last_mean_dev is None or last_mean_dev == 0:
+            st["value"] = 0.0
+            return 0.0
+        last_tp = next((v for v in reversed(window) if v is not None), 0.0)
+        st["value"] = (float(last_tp) - sma) / (0.015 * float(last_mean_dev))
+        return st["value"]
+
+    def _tsi_inc_update(
+        self,
+        series: list[Any],
+        long_period: int,
+        short_period: int,
+    ) -> float | None:
+        """Incremental TSI matching full ``_tsi`` (double EMA of mom / |mom|).
+
+        Full path returns ``None`` while ``len(series) < long + short``.
+        """
+        if long_period <= 0 or short_period <= 0:
+            return None
+        slot = self._ta_next_slot()
+        key = ("tsi", slot, long_period, short_period)
+        bucket = self._ta_state_bucket()
+        st = bucket.get(key)
+        if st is None:
+            st = {
+                "prev": None,
+                "n_bars": 0,
+                "ema_mom": self._ema_state_new(),
+                "ema_ema_mom": self._ema_state_new(),
+                "ema_abs": self._ema_state_new(),
+                "ema_ema_abs": self._ema_state_new(),
+                "value": None,
+            }
+            bucket[key] = st
+        raw = self._series_last(series)
+        try:
+            x = float(raw) if raw is not None else None
+        except (TypeError, ValueError):
+            x = None
+        st["n_bars"] = int(st["n_bars"]) + 1
+        prev = st["prev"]
+        st["prev"] = x
+        if prev is None or x is None:
+            # No momentum yet (or na source); still count bars for warm-up gate
+            if int(st["n_bars"]) < long_period + short_period:
+                st["value"] = None
+                return None
+            # After warm-up with missing sample: carry last value
+            return st.get("value")
+        mom = float(x) - float(prev)
+        abs_mom = abs(mom)
+        e1 = self._ema_state_step(st["ema_mom"], mom, long_period)
+        e2 = self._ema_state_step(st["ema_ema_mom"], e1, short_period)
+        a1 = self._ema_state_step(st["ema_abs"], abs_mom, long_period)
+        a2 = self._ema_state_step(st["ema_ema_abs"], a1, short_period)
+        if int(st["n_bars"]) < long_period + short_period:
+            st["value"] = None
+            return None
+        if a2 is None or a2 == 0:
+            st["value"] = 0.0 if a2 == 0 else None
+            return st.get("value")
+        if e2 is None:
+            st["value"] = None
+            return None
+        st["value"] = 100.0 * (float(e2) / float(a2))
+        return st.get("value")
+
+    def _roc_inc_update(self, series: list[Any], period: int) -> float:
+        """Incremental Rate of Change matching full ``_roc`` (last value).
+
+        Full path quirks (preserved exactly):
+        - returns ``0.0`` when ``len(series) <= period`` or baseline is None/0
+        - denominator prefers ``series[-(period+2)]`` when that bar is non-None
+          and non-zero; otherwise uses baseline ``series[-(period+1)]``
+        """
+        if period <= 0:
+            return 0.0
+        slot = self._ta_next_slot()
+        key = ("roc", slot, period)
+        bucket = self._ta_state_bucket()
+        st = bucket.get(key)
+        if st is None:
+            # Need baseline at -(period+1) and optional earlier at -(period+2)
+            st = {"window": deque(maxlen=period + 2), "value": 0.0}
+            bucket[key] = st
+        x = self._series_last(series)
+        window: deque[Any] = st["window"]
+        window.append(x)
+        if len(window) <= period:
+            st["value"] = 0.0
+            return 0.0
+        # baseline = series[len - period - 1] == window[-(period+1)]
+        baseline = window[-(period + 1)]
+        if baseline in {None, 0}:
+            st["value"] = 0.0
+            return 0.0
+        denominator = baseline
+        if len(window) >= period + 2:
+            earlier = window[-(period + 2)]
+            if earlier not in {None, 0}:
+                denominator = earlier
+        current = window[-1]
+        if current is None:
+            st["value"] = 0.0
+            return 0.0
+        try:
+            change = float(current) - float(baseline)
+            st["value"] = 100.0 * change / float(denominator)
+        except (TypeError, ValueError, ZeroDivisionError):
+            st["value"] = 0.0
+        return float(st["value"])
+
+    def _wpr_inc_update(
+        self,
+        highs: list[Any],
+        lows: list[Any],
+        closes: list[Any],
+        period: int,
+    ) -> float:
+        """Incremental Williams %R matching full ``_wpr`` (last value).
+
+        Full path returns ``0.0`` when under-warmed or high==low.
+        """
+        if period <= 0:
+            return 0.0
+        slot = self._ta_next_slot()
+        key = ("wpr", slot, period)
+        bucket = self._ta_state_bucket()
+        st = bucket.get(key)
+        if st is None:
+            st = {
+                "h_win": deque(maxlen=period),
+                "l_win": deque(maxlen=period),
+                "value": 0.0,
+            }
+            bucket[key] = st
+        h = self._series_last(highs)
+        l = self._series_last(lows)
+        c = self._series_last(closes)
+        h_win: deque[Any] = st["h_win"]
+        l_win: deque[Any] = st["l_win"]
+        h_win.append(h)
+        l_win.append(l)
+        if len(h_win) < period:
+            st["value"] = 0.0
+            return 0.0
+        try:
+            # Match full path: max/min over raw window (no None filter)
+            hh = max(float(v) for v in h_win)
+            ll = min(float(v) for v in l_win)
+            if hh == ll:
+                st["value"] = 0.0
+                return 0.0
+            if c is None:
+                st["value"] = 0.0
+                return 0.0
+            st["value"] = -100.0 * (hh - float(c)) / (hh - ll)
+        except (TypeError, ValueError):
+            st["value"] = 0.0
+        return float(st["value"])
+
+    def _dev_inc_update(self, series: list[Any], period: int) -> float | None:
+        """Incremental mean absolute deviation matching full ``_dev``.
+
+        Running sum for the mean; MAD recomputed over the window (O(period)).
+        """
+        if period <= 0:
+            return None
+        slot = self._ta_next_slot()
+        key = ("dev", slot, period)
+        bucket = self._ta_state_bucket()
+        st = bucket.get(key)
+        if st is None:
+            st = {"window": deque(), "sum": 0.0, "count": 0, "value": None}
+            bucket[key] = st
+        raw = self._series_last(series)
+        x: float | None
+        if raw is None:
+            x = None
+        else:
+            try:
+                x = float(raw)
+            except (TypeError, ValueError):
+                x = None
+        window: deque[float | None] = st["window"]
+        if len(window) == period:
+            old = window.popleft()
+            if old is not None:
+                st["sum"] -= old
+                st["count"] -= 1
+        window.append(x)
+        if x is not None:
+            st["sum"] += x
+            st["count"] += 1
+        if len(window) < period or st["count"] <= 0:
+            st["value"] = None
+            return None
+        mean = float(st["sum"]) / int(st["count"])
+        acc = 0.0
+        n = 0
+        for v in window:
+            if v is None:
+                continue
+            acc += abs(float(v) - mean)
+            n += 1
+        if n <= 0:
+            st["value"] = None
+            return None
+        st["value"] = acc / n
+        return st.get("value")
+
+    def _variance_inc_update(self, series: list[Any], period: int) -> float | None:
+        """Incremental sample variance matching full ``_variance`` (ddof=1).
+
+        Same running sum/sumsq window as ``_stdev_inc_update`` without sqrt.
+        """
+        if period <= 0:
+            return None
+        slot = self._ta_next_slot()
+        key = ("variance", slot, period)
+        bucket = self._ta_state_bucket()
+        st = bucket.get(key)
+        if st is None:
+            st = {"window": deque(), "sum": 0.0, "sumsq": 0.0, "count": 0, "value": None}
+            bucket[key] = st
+        raw = self._series_last(series)
+        x: float | None
+        if raw is None:
+            x = None
+        else:
+            try:
+                x = float(raw)
+            except (TypeError, ValueError):
+                x = None
+        window: deque[float | None] = st["window"]
+        if len(window) == period:
+            old = window.popleft()
+            if old is not None:
+                st["sum"] -= old
+                st["sumsq"] -= old * old
+                st["count"] -= 1
+        window.append(x)
+        if x is not None:
+            st["sum"] += x
+            st["sumsq"] += x * x
+            st["count"] += 1
+        n = int(st["count"])
+        if len(window) < period or n < 2:
+            st["value"] = None
+            return None
+        s = float(st["sum"])
+        ss = float(st["sumsq"])
+        var = (ss - (s * s) / n) / (n - 1)
+        if var < 0.0:
+            var = 0.0
+        st["value"] = var
+        return st.get("value")
+
     def _finalize_series(self, values: list[Any]) -> Any:
         """Return full series list, or current scalar in bar mode."""
         if not self._bar_mode():

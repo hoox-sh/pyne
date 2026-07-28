@@ -2208,3 +2208,447 @@ def numba_sar_inc(high, low, start, increment, maximum, i, st):
     st[3] = trend
     st[4] = float(i)
     return sar
+
+
+@numba.njit(cache=True)
+def numba_cci_inc(arr, length, i, st):
+    """Incremental CCI. ``st``: [sum, last_i].
+
+    Rolling mean is O(1); mean absolute deviation rescans the window (O(length)).
+    Matches ``numba_cci``.
+    """
+    length = int(length)
+    if length <= 0 or i < 0:
+        return np.nan
+    if np.isnan(st[1]):
+        last = -1
+    else:
+        last = int(st[1])
+    if i < last:
+        last = -1
+        st[0] = np.nan
+    s = st[0]
+    for j in range(last + 1, i + 1):
+        if j < length - 1:
+            s = np.nan
+        elif j == length - 1:
+            s = 0.0
+            ok = True
+            for k in range(length):
+                v = arr[k]
+                if np.isnan(v):
+                    ok = False
+                    break
+                s += v
+            if not ok:
+                s = np.nan
+        else:
+            if np.isnan(s):
+                s = 0.0
+                ok = True
+                for k in range(length):
+                    v = arr[j - k]
+                    if np.isnan(v):
+                        ok = False
+                        break
+                    s += v
+                if not ok:
+                    s = np.nan
+            else:
+                old = arr[j - length]
+                new = arr[j]
+                if np.isnan(old) or np.isnan(new):
+                    s = np.nan
+                else:
+                    s = s - old + new
+    st[0] = s
+    st[1] = float(i)
+    if i < length - 1 or np.isnan(s):
+        return np.nan
+    mean = s / length
+    md = 0.0
+    for j in range(length):
+        v = arr[i - j]
+        if np.isnan(v):
+            return np.nan
+        md += abs(v - mean)
+    md /= length
+    if md == 0.0:
+        return 0.0
+    return (arr[i] - mean) / (0.015 * md)
+
+
+@numba.njit(cache=True)
+def numba_dev_inc(arr, period, i, st):
+    """Incremental mean abs dev from SMA. ``st``: [sum, last_i]. Matches ``numba_dev``."""
+    period = int(period)
+    if period <= 0 or i < 0:
+        return np.nan
+    if np.isnan(st[1]):
+        last = -1
+    else:
+        last = int(st[1])
+    if i < last:
+        last = -1
+        st[0] = np.nan
+    s = st[0]
+    for j in range(last + 1, i + 1):
+        if j < period - 1:
+            s = np.nan
+        elif j == period - 1:
+            s = 0.0
+            ok = True
+            for k in range(period):
+                v = arr[k]
+                if np.isnan(v):
+                    ok = False
+                    break
+                s += v
+            if not ok:
+                s = np.nan
+        else:
+            if np.isnan(s):
+                s = 0.0
+                ok = True
+                for k in range(period):
+                    v = arr[j - k]
+                    if np.isnan(v):
+                        ok = False
+                        break
+                    s += v
+                if not ok:
+                    s = np.nan
+            else:
+                old = arr[j - period]
+                new = arr[j]
+                if np.isnan(old) or np.isnan(new):
+                    s = np.nan
+                else:
+                    s = s - old + new
+    st[0] = s
+    st[1] = float(i)
+    if i < period - 1 or np.isnan(s):
+        return np.nan
+    mean = s / period
+    md = 0.0
+    for j in range(period):
+        v = arr[i - j]
+        if np.isnan(v):
+            return np.nan
+        md += abs(v - mean)
+    return md / period
+
+
+@numba.njit(cache=True)
+def numba_mfi_inc(high, low, close, vol, length, i, st):
+    """O(1) sliding Money Flow Index. ``st``: [pos, neg, last_i]. Matches ``numba_mfi``."""
+    length = int(length)
+    if length <= 0 or i < 0:
+        return np.nan
+    if np.isnan(st[2]):
+        last = -1
+    else:
+        last = int(st[2])
+    if i < last:
+        last = -1
+        st[0] = np.nan
+        st[1] = np.nan
+    pos = st[0]
+    neg = st[1]
+
+    for j in range(last + 1, i + 1):
+        if j < length:
+            pos = np.nan
+            neg = np.nan
+        elif j == length:
+            pos = 0.0
+            neg = 0.0
+            ok = True
+            for k in range(j - length + 1, j + 1):
+                tp = (high[k] + low[k] + close[k]) / 3.0
+                tp_prev = (high[k - 1] + low[k - 1] + close[k - 1]) / 3.0
+                vv = vol[k]
+                if np.isnan(tp) or np.isnan(tp_prev) or np.isnan(vv):
+                    ok = False
+                    break
+                mf = tp * vv
+                if tp > tp_prev:
+                    pos += mf
+                elif tp < tp_prev:
+                    neg += mf
+            if not ok:
+                pos = np.nan
+                neg = np.nan
+        else:
+            if np.isnan(pos):
+                pos = 0.0
+                neg = 0.0
+                ok = True
+                for k in range(j - length + 1, j + 1):
+                    tp = (high[k] + low[k] + close[k]) / 3.0
+                    tp_prev = (high[k - 1] + low[k - 1] + close[k - 1]) / 3.0
+                    vv = vol[k]
+                    if np.isnan(tp) or np.isnan(tp_prev) or np.isnan(vv):
+                        ok = False
+                        break
+                    mf = tp * vv
+                    if tp > tp_prev:
+                        pos += mf
+                    elif tp < tp_prev:
+                        neg += mf
+                if not ok:
+                    pos = np.nan
+                    neg = np.nan
+            else:
+                k_old = j - length
+                tp = (high[k_old] + low[k_old] + close[k_old]) / 3.0
+                tp_prev = (high[k_old - 1] + low[k_old - 1] + close[k_old - 1]) / 3.0
+                vv = vol[k_old]
+                if np.isnan(tp) or np.isnan(tp_prev) or np.isnan(vv):
+                    pos = np.nan
+                    neg = np.nan
+                else:
+                    mf = tp * vv
+                    if tp > tp_prev:
+                        pos -= mf
+                    elif tp < tp_prev:
+                        neg -= mf
+                    k = j
+                    tp = (high[k] + low[k] + close[k]) / 3.0
+                    tp_prev = (high[k - 1] + low[k - 1] + close[k - 1]) / 3.0
+                    vv = vol[k]
+                    if np.isnan(tp) or np.isnan(tp_prev) or np.isnan(vv):
+                        pos = np.nan
+                        neg = np.nan
+                    else:
+                        mf = tp * vv
+                        if tp > tp_prev:
+                            pos += mf
+                        elif tp < tp_prev:
+                            neg += mf
+
+    st[0] = pos
+    st[1] = neg
+    st[2] = float(i)
+    if i < length or np.isnan(pos):
+        return np.nan
+    if neg == 0.0:
+        if pos == 0.0:
+            return 50.0
+        return 100.0
+    ratio = pos / neg
+    return 100.0 - (100.0 / (1.0 + ratio))
+
+
+@numba.njit(cache=True)
+def numba_highestbars_inc(arr, length, i, st):
+    """Amortized highestbars. ``st``: [max_val, max_idx, last_i].
+
+    On ties prefers the most recent bar (matches ``numba_highestbars``).
+    """
+    length = int(length)
+    if length <= 0 or i < 0:
+        return 0.0
+    if np.isnan(st[2]):
+        last = -1
+    else:
+        last = int(st[2])
+    if i < last:
+        last = -1
+        st[0] = np.nan
+        st[1] = np.nan
+    m = st[0]
+    mi = -1 if np.isnan(st[1]) else int(st[1])
+    for j in range(last + 1, i + 1):
+        start = j - length + 1
+        if start < 0:
+            start = 0
+        if j == 0 or np.isnan(m) or mi < start:
+            m = arr[start]
+            mi = start
+            for k in range(start + 1, j + 1):
+                v = arr[k]
+                # >= prefers most recent on ties (non-nan); nan loses to real
+                if np.isnan(m):
+                    m = v
+                    mi = k
+                elif (not np.isnan(v)) and v >= m:
+                    m = v
+                    mi = k
+        else:
+            v = arr[j]
+            if np.isnan(m):
+                m = v
+                mi = j
+            elif (not np.isnan(v)) and v >= m:
+                m = v
+                mi = j
+    st[0] = m
+    st[1] = float(mi)
+    st[2] = float(i)
+    if np.isnan(m):
+        return 0.0
+    return float(i - mi)
+
+
+@numba.njit(cache=True)
+def numba_lowestbars_inc(arr, length, i, st):
+    """Amortized lowestbars. ``st``: [min_val, min_idx, last_i].
+
+    On ties prefers the most recent bar (matches ``numba_lowestbars``).
+    """
+    length = int(length)
+    if length <= 0 or i < 0:
+        return 0.0
+    if np.isnan(st[2]):
+        last = -1
+    else:
+        last = int(st[2])
+    if i < last:
+        last = -1
+        st[0] = np.nan
+        st[1] = np.nan
+    m = st[0]
+    mi = -1 if np.isnan(st[1]) else int(st[1])
+    for j in range(last + 1, i + 1):
+        start = j - length + 1
+        if start < 0:
+            start = 0
+        if j == 0 or np.isnan(m) or mi < start:
+            m = arr[start]
+            mi = start
+            for k in range(start + 1, j + 1):
+                v = arr[k]
+                if np.isnan(m):
+                    m = v
+                    mi = k
+                elif (not np.isnan(v)) and v <= m:
+                    m = v
+                    mi = k
+        else:
+            v = arr[j]
+            if np.isnan(m):
+                m = v
+                mi = j
+            elif (not np.isnan(v)) and v <= m:
+                m = v
+                mi = j
+    st[0] = m
+    st[1] = float(mi)
+    st[2] = float(i)
+    if np.isnan(m):
+        return 0.0
+    return float(i - mi)
+
+
+@numba.njit(cache=True)
+def numba_correlation_inc(a, b, period, i, st):
+    """O(1) sliding Pearson correlation. ``st``: [sa, sb, saa, sbb, sab, last_i]."""
+    period = int(period)
+    if period < 2 or i < 0:
+        return np.nan
+    if np.isnan(st[5]):
+        last = -1
+    else:
+        last = int(st[5])
+    if i < last:
+        last = -1
+        st[0] = np.nan
+        st[1] = np.nan
+        st[2] = np.nan
+        st[3] = np.nan
+        st[4] = np.nan
+    sa = st[0]
+    sb = st[1]
+    saa = st[2]
+    sbb = st[3]
+    sab = st[4]
+    n = float(period)
+    for j in range(last + 1, i + 1):
+        if j < period - 1:
+            sa = np.nan
+            sb = np.nan
+            saa = np.nan
+            sbb = np.nan
+            sab = np.nan
+        elif j == period - 1:
+            sa = 0.0
+            sb = 0.0
+            saa = 0.0
+            sbb = 0.0
+            sab = 0.0
+            ok = True
+            for k in range(period):
+                va = a[k]
+                vb = b[k]
+                if np.isnan(va) or np.isnan(vb):
+                    ok = False
+                    break
+                sa += va
+                sb += vb
+                saa += va * va
+                sbb += vb * vb
+                sab += va * vb
+            if not ok:
+                sa = np.nan
+                sb = np.nan
+                saa = np.nan
+                sbb = np.nan
+                sab = np.nan
+        else:
+            if np.isnan(sa):
+                sa = 0.0
+                sb = 0.0
+                saa = 0.0
+                sbb = 0.0
+                sab = 0.0
+                ok = True
+                for k in range(period):
+                    va = a[j - k]
+                    vb = b[j - k]
+                    if np.isnan(va) or np.isnan(vb):
+                        ok = False
+                        break
+                    sa += va
+                    sb += vb
+                    saa += va * va
+                    sbb += vb * vb
+                    sab += va * vb
+                if not ok:
+                    sa = np.nan
+                    sb = np.nan
+                    saa = np.nan
+                    sbb = np.nan
+                    sab = np.nan
+            else:
+                oa = a[j - period]
+                ob = b[j - period]
+                na_ = a[j]
+                nb_ = b[j]
+                if np.isnan(oa) or np.isnan(ob) or np.isnan(na_) or np.isnan(nb_):
+                    sa = np.nan
+                    sb = np.nan
+                    saa = np.nan
+                    sbb = np.nan
+                    sab = np.nan
+                else:
+                    sa = sa - oa + na_
+                    sb = sb - ob + nb_
+                    saa = saa - oa * oa + na_ * na_
+                    sbb = sbb - ob * ob + nb_ * nb_
+                    sab = sab - oa * ob + na_ * nb_
+    st[0] = sa
+    st[1] = sb
+    st[2] = saa
+    st[3] = sbb
+    st[4] = sab
+    st[5] = float(i)
+    if i < period - 1 or np.isnan(sa):
+        return np.nan
+    # Centered sums: match two-pass numba_correlation
+    num = sab - sa * sb / n
+    den_a = saa - sa * sa / n
+    den_b = sbb - sb * sb / n
+    if den_a <= 0.0 or den_b <= 0.0:
+        return np.nan
+    return num / np.sqrt(den_a * den_b)

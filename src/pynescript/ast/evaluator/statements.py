@@ -95,17 +95,22 @@ def _param_type_tags(node: ast.FunctionDef) -> list[str | None]:
     return tags
 
 
+_SERIES_TYPE_NAMES = frozenset({"PineSeries", "_SeriesResult"})
+_UNWRAP_MISSING = object()
+
+
 def _unwrap_series_receiver(receiver: Any) -> Any:
     """If *receiver* is a PineSeries-like wrapper, return its current scalar."""
-    if receiver is None:
-        return None
-    # Avoid treating lists/strings as series
-    if isinstance(receiver, (list, tuple, str, bytes, dict, bool, int, float)):
+    t = type(receiver)
+    if t is float or t is int or receiver is None or t is bool:
         return receiver
-    if type(receiver).__name__ in {"PineSeries", "_SeriesResult"} or (
-        hasattr(receiver, "history") and hasattr(receiver, "current")
-    ):
-        return getattr(receiver, "current", receiver)
+    if t is list or t is str or t is tuple or t is dict or t is bytes:
+        return receiver
+    if t.__name__ in _SERIES_TYPE_NAMES:
+        return receiver.current
+    current = getattr(receiver, "current", _UNWRAP_MISSING)
+    if current is not _UNWRAP_MISSING and hasattr(receiver, "history"):
+        return current
     return receiver
 
 

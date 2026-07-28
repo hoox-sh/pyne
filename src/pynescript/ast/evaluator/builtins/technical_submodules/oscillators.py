@@ -146,12 +146,18 @@ class OscillatorIndicators(TechnicalHelpers):
             lows = self._context_series("low")
             closes = self._context_series("close")
             if highs and lows and closes:
+                if self._use_incremental_ta():
+                    return self._cci_inc_update(highs, lows, closes, period)
                 return self._cci(highs, lows, closes, period)
             series = self._context_series("hlc3") or closes
+            if self._use_incremental_ta():
+                return self._cci_inc_update(series, series, series, period)
             return self._cci(series, series, series, period)
         if len(args) == BINARY:
             series, period = self._expect_series(args, length=BINARY)
             # Approximate CCI from a single source series (typical price)
+            if self._use_incremental_ta():
+                return self._cci_inc_update(series, series, series, period)
             return self._cci(series, series, series, period)
         msg = "ta.cci expects source, length (or high, low, close, length)"
         if len(args) != QUATERNARY:
@@ -160,11 +166,15 @@ class OscillatorIndicators(TechnicalHelpers):
         lows = self._expect_list(args[1], msg)
         closes = self._expect_list(args[2], msg)
         length = self._expect_int(args[3], msg)
+        if self._use_incremental_ta():
+            return self._cci_inc_update(highs, lows, closes, length)
         return self._cci(highs, lows, closes, length)
 
     def _builtin_ta_roc(self, args: list[Any]) -> float:
         """Rate of Change."""
         series, period = self._expect_series(args, length=BINARY)
+        if self._use_incremental_ta():
+            return self._roc_inc_update(series, period)
         return self._roc(series, period)
 
     def _builtin_ta_wpr(self, args: list[Any]) -> float | None:
@@ -174,6 +184,8 @@ class OscillatorIndicators(TechnicalHelpers):
             highs = self._context_series("high")
             lows = self._context_series("low")
             closes = self._context_series("close")
+            if self._use_incremental_ta():
+                return self._wpr_inc_update(highs, lows, closes, length)
             return self._wpr(highs, lows, closes, length)
         msg = "ta.wpr expects length (or high, low, close, length)"
         if len(args) != QUATERNARY:
@@ -182,6 +194,8 @@ class OscillatorIndicators(TechnicalHelpers):
         lows = self._expect_list(args[1], msg)
         closes = self._expect_list(args[2], msg)
         length = self._expect_int(args[3], msg)
+        if self._use_incremental_ta():
+            return self._wpr_inc_update(highs, lows, closes, length)
         return self._wpr(highs, lows, closes, length)
 
     def _builtin_ta_tsi(self, args: list[Any]) -> float | None:
@@ -197,6 +211,8 @@ class OscillatorIndicators(TechnicalHelpers):
             short_period = self._expect_int(args[0], msg)
             long_period = self._expect_int(args[1], msg)
             series = self._context_series("close")
+            if self._use_incremental_ta():
+                return self._tsi_inc_update(series, long_period, short_period)
             return self._tsi(series, long_period, short_period)
         if len(args) != TERNARY:
             self._error(msg)
@@ -204,6 +220,8 @@ class OscillatorIndicators(TechnicalHelpers):
         # TV docs: ta.tsi(source, short_length, long_length)
         short_period = self._expect_int(args[1], msg)
         long_period = self._expect_int(args[2], msg)
+        if self._use_incremental_ta():
+            return self._tsi_inc_update(series, long_period, short_period)
         return self._tsi(series, long_period, short_period)
 
     def _builtin_ta_valuewhen(self, args: list[Any]) -> Any:

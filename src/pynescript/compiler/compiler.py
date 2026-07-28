@@ -1173,25 +1173,109 @@ class CompilerVisitor(NodeVisitor):
             if not isinstance(el, ast.Name):
                 return ""
             names.append(el.id)
-            self.arrays.add(f"{el.id}_arr")
+            if not self.in_function:
+                self.arrays.add(f"{el.id}_arr")
+            else:
+                self.local_vars.add(el.id)
+
+        def _store(name: str, expr: str) -> str:
+            if self.in_function:
+                # Locals used as TA sources: keep as bar scalar (materialize does the rest)
+                return f"{self._py_ident(name)} = {expr}"
+            return f"{name}_arr[__bar_idx] = {expr}"
 
         # Prefer structured multi-return for known multi-value TA
         if isinstance(node.value, ast.Call):
-            call_code = self.visit(node.value)
-            # Multi-return forms emit a temp unpack
-            if call_code.startswith(
-                ("numba_bb(", "numba_bb_inc(", "numba_macd(", "numba_macd_inc(")
+            func = node.value.func
+            if isinstance(func, ast.Specialize):
+                func = func.value
+            # request.security(sym, tf, [close, low, high]) — same-symbol unpack
+            is_sec = False
+            if isinstance(func, ast.Name) and func.id in ("security",):
+                is_sec = True
+            if (
+                isinstance(func, ast.Attribute)
+                and isinstance(func.value, ast.Name)
+                and func.value.id == "request"
+                and func.attr in ("security", "security_lower_tf", "seed")
             ):
+                is_sec = True
+            if is_sec:
+                # expression is 3rd positional (or named `expression`)
+                expr_node = None
+                pos = []
+                for raw in node.value.args or []:
+                    if hasattr(raw, "name") and getattr(raw, "name", None):
+                        if str(raw.name) in ("expression", "expr"):
+                            expr_node = raw.value
+                    else:
+                        pos.append(raw.value if hasattr(raw, "value") else raw)
+                if expr_node is None and len(pos) >= 3:
+                    expr_node = pos[2]
+                if isinstance(expr_node, ast.Tuple):
+                    lines = []
+                    for name, el in zip(names, expr_node.elts, strict=False):
+                        lines.append(_store(name, self.visit(el)))
+                    return "\n".join(lines) if lines else ""
+                # Non-tuple expression: assign first name only
+                if expr_node is not None and names:
+                    return _store(names[0], self.visit(expr_node))
+
+            call_code = self.visit(node.value)
+            # Multi-return forms emit a temp unpack.
+            # IMPORTANT: do NOT match bare "(" alone — nearly every parenthesized
+            # numeric expr starts with "(" and would store a sequence into float.
+            known_multi = call_code.startswith(
+                (
+                    "numba_bb(",
+                    "numba_bb_inc(",
+                    "numba_macd(",
+                    "numba_macd_inc(",
+                    "numba_dmi(",
+                )
+            )
+            # Explicit multi-value stubs like "(0.0, 0.0, 25.0)" only
+            stub_multi = (
+                call_code.startswith("(")
+                and call_code.rstrip().endswith(")")
+                and "," in call_code
+                and re.fullmatch(
+                    r"\([^()]*\)",
+                    call_code.strip(),
+                )
+                is not None
+            )
+            if known_multi or stub_multi:
                 lines = [f"__tup = {call_code}"]
                 for i, name in enumerate(names):
-                    lines.append(f"{name}_arr[__bar_idx] = __tup[{i}]")
+                    lines.append(_store(name, f"__tup[{i}]"))
                 return "\n".join(lines)
+
+            # Multi-target from UDF / unknown call: may return a tuple at runtime.
+            # Always unpack safely in object mode (avoids float64 setitem sequence).
+            if len(names) > 1:
+                self.object_mode = True
+                lines = [f"__tup = {call_code}"]
+                for i, name in enumerate(names):
+                    lines.append(
+                        _store(
+                            name,
+                            f"(__tup[{i}] if isinstance(__tup, (tuple, list)) "
+                            f"and len(__tup) > {i} else "
+                            f"(__tup if {i} == 0 and not isinstance(__tup, (tuple, list)) "
+                            f"else np.nan))",
+                        )
+                    )
+                return "\n".join(lines)
+
+            # Single-target call
+            return _store(names[0], call_code) if names else ""
 
         # Fallback: visit RHS once if it is a simple tuple literal
         if isinstance(node.value, ast.Tuple):
             lines = []
             for name, el in zip(names, node.value.elts, strict=False):
-                lines.append(f"{name}_arr[__bar_idx] = {self.visit(el)}")
+                lines.append(_store(name, self.visit(el)))
             return "\n".join(lines)
 
         # Unknown multi-assign — leave empty (numeric path may break; prefer object later)
@@ -2267,6 +2351,7 @@ class CompilerVisitor(NodeVisitor):
             "dev": "ta_dev",
             "change": "ta_change",
             "atr": "ta_atr",
+            "dmi": "ta_dmi",
             "crossover": "ta_crossover",
             "crossunder": "ta_crossunder",
             "cross": "ta_cross",
@@ -2370,6 +2455,10 @@ class CompilerVisitor(NodeVisitor):
                 return "np.nan"
             length = kwargs.get("length", args[1] if len(args) > 1 else "1")
             return f"numba_change({_arr(args[0])}, {length}, __bar_idx)"
+        if func_name == "ta_dmi":
+            # ta.dmi(diLength, adxSmoothing) → (diplus, diminus, adx) stub
+            # Enough for direction/filters without full Wilder DI implementation.
+            return "(0.0, 0.0, 25.0)"
         if func_name == "ta_atr":
             # ta.atr(length) uses high/low/close from chart arrays
             length = kwargs.get("length", args[0] if args else "14")
@@ -2480,7 +2569,8 @@ class CompilerVisitor(NodeVisitor):
             if not args:
                 return "np.nan"
             period = kwargs.get("length", args[1] if len(args) > 1 else "14")
-            return f"numba_dev({_arr(args[0])}, int({period}), __bar_idx)"
+            st = self._alloc_fixed_state("dev", 2)
+            return f"numba_dev_inc({_arr(args[0])}, int({period}), __bar_idx, {st})"
         if func_name == "ta_variance":
             # Sample variance (n-1) — stdev**2
             if not args:
@@ -2490,15 +2580,16 @@ class CompilerVisitor(NodeVisitor):
             return f"numba_variance_inc({_arr(args[0])}, int({period}), __bar_idx, {st})"
         if func_name == "ta_correlation":
             # ta.correlation(source1, source2, length) Pearson
+            st = self._alloc_fixed_state("corr", 6)
             if len(args) >= 3:
                 return (
-                    f"numba_correlation({_arr(args[0])}, {_arr(args[1])}, "
-                    f"int({args[2]}), __bar_idx)"
+                    f"numba_correlation_inc({_arr(args[0])}, {_arr(args[1])}, "
+                    f"int({args[2]}), __bar_idx, {st})"
                 )
             if len(args) == 2:
                 return (
-                    f"numba_correlation({_arr(args[0])}, close_arr, "
-                    f"int({args[1]}), __bar_idx)"
+                    f"numba_correlation_inc({_arr(args[0])}, close_arr, "
+                    f"int({args[1]}), __bar_idx, {st})"
                 )
             return "np.nan"
         if func_name == "ta_alma":
@@ -2571,11 +2662,12 @@ class CompilerVisitor(NodeVisitor):
             )
         if func_name == "ta_cci":
             # ta.cci(source, length) or ta.cci(length) → hlc3 approx as close
+            st = self._alloc_fixed_state("cci", 2)
             if len(args) >= 2:
-                return f"numba_cci({_arr(args[0])}, int({args[1]}), __bar_idx)"
+                return f"numba_cci_inc({_arr(args[0])}, int({args[1]}), __bar_idx, {st})"
             length = args[0] if args else "20"
             # typical price via (h+l+c)/3 not available as array — use close MVP
-            return f"numba_cci(close_arr, int({length}), __bar_idx)"
+            return f"numba_cci_inc(close_arr, int({length}), __bar_idx, {st})"
         if func_name == "ta_vwap":
             # ta.vwap / ta.vwap(source) — cumulative typical*vol / cum vol
             st = self._alloc_fixed_state("vwap", 3)
@@ -2641,16 +2733,23 @@ class CompilerVisitor(NodeVisitor):
             return f"numba_vwma_inc(close_arr, vol_arr, int({length}), __bar_idx, {st})"
         if func_name == "ta_mfi":
             # ta.mfi(length) | ta.mfi(source, length) | ta.mfi(h, l, c, v, length)
+            st = self._alloc_fixed_state("mfi", 3)
             if len(args) >= 5 and _is_series_arr(args[0]):
                 return (
-                    f"numba_mfi({_arr(args[0])}, {_arr(args[1])}, {_arr(args[2])}, "
-                    f"{_arr(args[3])}, int({args[4]}), __bar_idx)"
+                    f"numba_mfi_inc({_arr(args[0])}, {_arr(args[1])}, {_arr(args[2])}, "
+                    f"{_arr(args[3])}, int({args[4]}), __bar_idx, {st})"
                 )
             if len(args) >= 2 and _is_series_arr(args[0]):
                 src = _arr(args[0])
-                return f"numba_mfi({src}, {src}, {src}, vol_arr, int({args[1]}), __bar_idx)"
+                return (
+                    f"numba_mfi_inc({src}, {src}, {src}, vol_arr, int({args[1]}), "
+                    f"__bar_idx, {st})"
+                )
             length = args[0] if args else "14"
-            return f"numba_mfi(high_arr, low_arr, close_arr, vol_arr, int({length}), __bar_idx)"
+            return (
+                f"numba_mfi_inc(high_arr, low_arr, close_arr, vol_arr, int({length}), "
+                f"__bar_idx, {st})"
+            )
         if func_name == "ta_rising":
             if len(args) >= 2:
                 return f"numba_rising({_arr(args[0])}, int({args[1]}), __bar_idx)"
@@ -2669,23 +2768,31 @@ class CompilerVisitor(NodeVisitor):
             return "numba_falling(close_arr, 1, __bar_idx)"
         if func_name == "ta_highestbars":
             # ta.highestbars(source, length) or ta.highestbars(length) → high source
+            st = self._alloc_fixed_state("hbars", 3)
             if len(args) >= 2:
                 period = kwargs.get("length", args[1])
-                return f"numba_highestbars({_arr(args[0])}, int({period}), __bar_idx)"
+                return (
+                    f"numba_highestbars_inc({_arr(args[0])}, int({period}), "
+                    f"__bar_idx, {st})"
+                )
             if len(args) == 1:
                 # One-arg form is always length (even if the expr is a series scalar like amp_arr[i])
-                return f"numba_highestbars(high_arr, int({args[0]}), __bar_idx)"
+                return f"numba_highestbars_inc(high_arr, int({args[0]}), __bar_idx, {st})"
             period = kwargs.get("length", "14")
-            return f"numba_highestbars(high_arr, int({period}), __bar_idx)"
+            return f"numba_highestbars_inc(high_arr, int({period}), __bar_idx, {st})"
         if func_name == "ta_lowestbars":
             # ta.lowestbars(source, length) or ta.lowestbars(length) → low source
+            st = self._alloc_fixed_state("lbars", 3)
             if len(args) >= 2:
                 period = kwargs.get("length", args[1])
-                return f"numba_lowestbars({_arr(args[0])}, int({period}), __bar_idx)"
+                return (
+                    f"numba_lowestbars_inc({_arr(args[0])}, int({period}), "
+                    f"__bar_idx, {st})"
+                )
             if len(args) == 1:
-                return f"numba_lowestbars(low_arr, int({args[0]}), __bar_idx)"
+                return f"numba_lowestbars_inc(low_arr, int({args[0]}), __bar_idx, {st})"
             period = kwargs.get("length", "14")
-            return f"numba_lowestbars(low_arr, int({period}), __bar_idx)"
+            return f"numba_lowestbars_inc(low_arr, int({period}), __bar_idx, {st})"
         if func_name == "ta_percentrank":
             # ta.percentrank(source, length)
             if len(args) >= 2:
@@ -2875,10 +2982,15 @@ class CompilerVisitor(NodeVisitor):
         series_locals = self.func_series_locals.get(func_name, [])
         st_params = self.func_st_params.get(func_name, [])
 
-        def _series_strip(pname: str | None, a: str) -> str:
-            if pname and pname in series_set and a.endswith("[__bar_idx]"):
+        def _series_arg(pname: str | None, a: str) -> str:
+            """Pass full series arrays for series params; materialize exprs."""
+            if not pname or pname not in series_set:
+                return a
+            if a.endswith("[__bar_idx]"):
                 return a[: -len("[__bar_idx]")]
-            return a
+            # Expression / scalar → materialize into synthetic series so
+            # numba_* / history inside the UDF can index full arrays.
+            return self._materialize_series_source(a)
 
         call_args: list[str] = []
         if param_names:
@@ -2891,7 +3003,7 @@ class CompilerVisitor(NodeVisitor):
                     val = defaults[pname]
                 else:
                     val = "np.nan"
-                call_args.append(_series_strip(pname, val))
+                call_args.append(_series_arg(pname, val))
             for i in range(len(param_names), len(args)):
                 call_args.append(args[i])
         else:
@@ -3190,14 +3302,24 @@ class CompilerVisitor(NodeVisitor):
         right = self.visit(node.right)
         left_str = self._is_stringy_value(node.left) or self._looks_like_string_expr(left)
         right_str = self._is_stringy_value(node.right) or self._looks_like_string_expr(right)
-        # Color/string arithmetic: force object mode; never emit str-str subtraction
-        if left_str or right_str:
-            self.object_mode = True
-            if isinstance(node.op, ast.Add):
-                # string concatenation
-                return f"(str({left}) + str({right}))"
-            # Sub/Mult/Div/Mod on strings or colors → na
-            return "np.nan"
+        # Numeric array / numba results must never be treated as strings —
+        # but only when the AST side is not actually stringy (color series).
+        left_num = self._looks_like_numeric_expr(left) and not left_str
+        right_num = self._looks_like_numeric_expr(right) and not right_str
+        # Color/string arithmetic only when a side is stringy and not both clearly numeric
+        # (false-positive stringy on `basis_arr[i] + dev` must stay numeric).
+        if (left_str or right_str) and not (left_num and right_num):
+            # If one side is clearly numeric (and not stringy), prefer numeric op
+            if (left_num or right_num) and not (left_str and right_str):
+                pass  # fall through to numeric
+            else:
+                self.object_mode = True
+                if isinstance(node.op, ast.Add) and (left_str or right_str):
+                    # pure string concat when either side is stringy and neither numeric
+                    if not left_num and not right_num:
+                        return f"(str({left}) + str({right}))"
+                # Sub/Mult/Div/Mod on strings or colors → na
+                return "np.nan"
         # Pine division by zero → na (not Python ZeroDivisionError)
         if isinstance(node.op, ast.Div):
             return f"(({left}) / ({right}) if ({right}) != 0 else np.nan)"
@@ -3209,6 +3331,35 @@ class CompilerVisitor(NodeVisitor):
             ast.Mult: "*",
         }.get(type(node.op), "+")
         return f"({left} {op} {right})"
+
+    @staticmethod
+    def _looks_like_numeric_expr(val: str) -> bool:
+        """True when visited expr is clearly a numeric series/scalar."""
+        if not isinstance(val, str) or not val:
+            return False
+        if val.startswith("numba_") or val.startswith("np.") or val.startswith("safe_float"):
+            return True
+        if val.endswith("_arr[__bar_idx]") or val in (
+            "open_arr[__bar_idx]",
+            "high_arr[__bar_idx]",
+            "low_arr[__bar_idx]",
+            "close_arr[__bar_idx]",
+            "vol_arr[__bar_idx]",
+            "__bar_idx",
+            "np.nan",
+            "True",
+            "False",
+        ):
+            return True
+        try:
+            float(val)
+            return True
+        except ValueError:
+            pass
+        # bare local that is arithmetic-shaped
+        if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", val):
+            return True  # locals like dev, basis used in arithmetic
+        return False
 
     def visit_Compare(self, node: ast.Compare):
         left = self.visit(node.left)
@@ -3622,13 +3773,17 @@ class CompilerVisitor(NodeVisitor):
         else:
             # Only wrap a pure expression result — never `if`/`for`/`while` as `return if …`
             # (if-expr results already contain return statements via if_return_mode)
+            # Also return the value of a final Assign/ReAssign (Pine `out := expr` UDFs).
             returnable = (
-                isinstance(last_ast, ast.Expr)
-                and not isinstance(
-                    getattr(last_ast, "value", None),
-                    (ast.If, ast.ForTo, ast.While, ast.ForIn),
+                (
+                    isinstance(last_ast, ast.Expr)
+                    and not isinstance(
+                        getattr(last_ast, "value", None),
+                        (ast.If, ast.ForTo, ast.While, ast.ForIn),
+                    )
+                    and not last_is_if_expr
                 )
-                and not last_is_if_expr
+                or isinstance(last_ast, (ast.Assign, ast.ReAssign))
             )
             for i, line in enumerate(body_lines):
                 is_last = i == len(body_lines) - 1
@@ -3649,7 +3804,13 @@ class CompilerVisitor(NodeVisitor):
                 else:
                     lines.append(f"    {line}")
                     if is_last and returnable and looks_assign:
-                        lines.append("    return np.nan")
+                        # Pine UDF ending in `out := expr` should return that value
+                        # (e.g. custom _rma). Prefer LHS read-back over np.nan.
+                        lhs = stripped.split("=", 1)[0].strip()
+                        if lhs and not lhs.startswith(("if ", "for ", "while ")):
+                            lines.append(f"    return {lhs}")
+                        else:
+                            lines.append("    return np.nan")
         self.functions.append("\n".join(lines))
         self.ident_map = prev_ident
         return ""

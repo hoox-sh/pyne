@@ -61,3 +61,14 @@ Bench n=5000: highest/lowest ~0.23 ms, stoch ~0.22 ms, vwma ~0.10 ms, wma 
 | **Evaluate** | `_cum_inc_update` for `ta.cum` in bar mode |
 
 Bench n=5000: SAR ~0.04 ms, linreg ~0.18 ms (was O(n·period) style pressure).
+
+### Follow-up 4 (4-agent round)
+
+| Agent | Wins |
+|---|---|
+| **Compile** | `cci/dev/mfi/highestbars/lowestbars/correlation_inc` — MFI ~4–65×, corr ~3–39× @ n=5000 |
+| **Evaluate** | Incremental CCI, TSI, ROC, WPR, dev (+ golden tests) |
+| **Runtime** | Bar-loop pre-bind, in-place series cap, lighter plots — minimal **+36%**, TA multi **+21%** |
+| **Dispatch** | Type-keyed visitor, op maps, scalar fast path — expression walks **~2–7×** |
+
+Reports: `docs/perf_agent_{compile,runtime,dispatch}_round2.md`

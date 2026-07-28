@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import operator
 
+from collections.abc import Callable
 from typing import Any
 
 from pynescript.ast import node as ast
@@ -28,27 +29,37 @@ from pynescript.ast.evaluator.types import EvaluatorProtocol
 from pynescript.ast.type_system import ObjectInstance
 from pynescript.ast.type_system import UserDefinedType
 
+
 # Sentinel: attribute-call recovery did not apply
 _ATTR_CALL_MISS = object()
+_MISSING = object()
+
+# Series wrapper type names (avoid allocating a set on every operand unwrap)
+_SERIES_TYPE_NAMES = frozenset({"PineSeries", "_SeriesResult"})
 
 
-# Optimize: Pre-cache operator references at module level
-# These imports reduce attribute lookup overhead for frequent operations
 def _as_scalar_operand(value):
     """Coerce PineSeries-like objects to their current scalar for arithmetic.
 
     Always unwrap series wrappers — including when ``current`` is ``None`` (na) —
     so comparisons do not attempt ``None < None`` via object fallbacks.
+
+    Fast paths use identity type checks (``type(x) is float``) for the common
+    bar-mode case where hosts inject bare floats into context.
     """
-    if value is None:
-        return None
-    if isinstance(value, (list, tuple, str, bytes, dict, bool, int, float)):
+    t = type(value)
+    # Dominant bar-mode path: bare numerics / None
+    if t is float or t is int or value is None or t is bool:
         return value
-    # PineSeries / _SeriesResult / similar wrappers
-    if type(value).__name__ in {"PineSeries", "_SeriesResult"} or (
-        hasattr(value, "history") and hasattr(value, "current")
-    ):
+    if t is list or t is str or t is tuple or t is dict or t is bytes:
+        return value
+    # Named series wrappers (PineSeries from backend.series, etc.)
+    if t.__name__ in _SERIES_TYPE_NAMES:
         return value.current
+    # Duck-type rare wrappers that expose .current + .history
+    current = getattr(value, "current", _MISSING)
+    if current is not _MISSING and hasattr(value, "history"):
+        return current
     return value
 
 
@@ -59,11 +70,41 @@ def _elementwise_binary(op, a, b):
     - Two lists → element-wise (zip from the end when lengths differ).
     - List + scalar → broadcast.
     - Scalars → normal op.
+
+    Pure numeric operands take a zero-allocation fast path (no list/series work).
     """
+    ta = a.__class__
+    tb = b.__class__
+    # Ultra-fast path: bare int/float arithmetic (most bar-mode BinOps)
+    if ta is float or ta is int:
+        if tb is float or tb is int:
+            try:
+                return op(a, b)
+            except TypeError:
+                return None
+        if b is None:
+            return None
+    elif a is None and (tb is float or tb is int or b is None):
+        return None
+
     a = _as_scalar_operand(a)
     b = _as_scalar_operand(b)
 
-    if isinstance(a, list) and isinstance(b, list):
+    # Re-check after unwrap (series → scalar)
+    ta = a.__class__
+    tb = b.__class__
+    if ta is float or ta is int:
+        if tb is float or tb is int:
+            try:
+                return op(a, b)
+            except TypeError:
+                return None
+        if b is None:
+            return None
+    elif a is None and (tb is float or tb is int or b is None):
+        return None
+
+    if ta is list and tb is list:
         if len(a) == len(b):
             return [None if x is None or y is None else op(x, y) for x, y in zip(a, b)]
         # Align on the trailing edge (most recent bars)
@@ -74,12 +115,12 @@ def _elementwise_binary(op, a, b):
             return [None] * (len(a) - n) + body
         return [None] * (len(b) - n) + body
 
-    if isinstance(a, list) and not isinstance(b, list):
+    if ta is list:
         if b is None:
             return [None] * len(a)
         return [None if x is None else op(x, b) for x in a]
 
-    if isinstance(b, list) and not isinstance(a, list):
+    if tb is list:
         if a is None:
             return [None] * len(b)
         return [None if y is None else op(a, y) for y in b]
@@ -106,8 +147,13 @@ def _na_safe_unary(op):
     """Return None-safe unary operator; maps over series lists."""
 
     def wrapper(a):
+        t = type(a)
+        if t is float or t is int or t is bool:
+            return op(a)
+        if a is None:
+            return None
         a = _as_scalar_operand(a)
-        if isinstance(a, list):
+        if type(a) is list:
             return [None if x is None else op(x) for x in a]
         if a is None:
             return None
@@ -125,6 +171,8 @@ _OPERATOR_GE = _na_safe_binary(operator.ge)
 _OPERATOR_ADD = _na_safe_binary(operator.add)
 _OPERATOR_SUB = _na_safe_binary(operator.sub)
 _OPERATOR_MUL = _na_safe_binary(operator.mul)
+
+
 def _safe_truediv(a, b):
     """Division with Pine NA / zero-divisor semantics (returns na, not exception)."""
     try:
@@ -140,6 +188,28 @@ _OPERATOR_MOD = _na_safe_binary(operator.mod)
 _OPERATOR_NOT = _na_safe_unary(operator.not_)
 _OPERATOR_POS = _na_safe_unary(operator.pos)
 _OPERATOR_NEG = _na_safe_unary(operator.neg)
+
+# Module-level type → operator maps (avoid isinstance chains + visit(op) on Compare)
+_BINOP_DISPATCH: dict[type, Callable[[Any, Any], Any]] = {
+    ast.Add: _OPERATOR_ADD,
+    ast.Sub: _OPERATOR_SUB,
+    ast.Mult: _OPERATOR_MUL,
+    ast.Div: _OPERATOR_DIV,
+    ast.Mod: _OPERATOR_MOD,
+}
+_UNARYOP_DISPATCH: dict[type, Callable[[Any], Any]] = {
+    ast.Not: _OPERATOR_NOT,
+    ast.UAdd: _OPERATOR_POS,
+    ast.USub: _OPERATOR_NEG,
+}
+_CMPOP_DISPATCH: dict[type, Callable[[Any, Any], Any]] = {
+    ast.Eq: _OPERATOR_EQ,
+    ast.NotEq: _OPERATOR_NE,
+    ast.Lt: _OPERATOR_LT,
+    ast.LtE: _OPERATOR_LE,
+    ast.Gt: _OPERATOR_GT,
+    ast.GtE: _OPERATOR_GE,
+}
 
 _METHOD_CALL_TUPLE_LENGTH = 3
 
@@ -169,11 +239,10 @@ class ExpressionEvaluator:
         Returns:
             Boolean result of the operation
         """
-        # Evaluate 'and' operation with short-circuit: return first falsy or last value
-        if isinstance(node.op, ast.And):
+        op_t = type(node.op)
+        if op_t is ast.And:
             return all(self.visit(value) for value in node.values)
-        # Evaluate 'or' operation with short-circuit: return first truthy or last value
-        if isinstance(node.op, ast.Or):
+        if op_t is ast.Or:
             return any(self.visit(value) for value in node.values)
         msg = f"unexpected node operator: {node.op}"
         raise ValueError(msg)
@@ -192,29 +261,13 @@ class ExpressionEvaluator:
         Raises:
             NotImplementedError: If operator is not supported
         """
-        # Evaluate both operands
         left = self.visit(node.left)
         right = self.visit(node.right)
-
-        # Dispatch to the appropriate operator function
-        if isinstance(node.op, ast.Add):
-            # Addition: numbers, string concatenation, or list concatenation
-            return _OPERATOR_ADD(left, right)
-        elif isinstance(node.op, ast.Sub):
-            # Subtraction: numeric only
-            return _OPERATOR_SUB(left, right)
-        elif isinstance(node.op, ast.Mult):
-            # Multiplication: numbers, string/list repetition
-            return _OPERATOR_MUL(left, right)
-        elif isinstance(node.op, ast.Div):
-            # Division: always true division (/)
-            return _OPERATOR_DIV(left, right)
-        elif isinstance(node.op, ast.Mod):
-            # Modulo: remainder after division
-            return _OPERATOR_MOD(left, right)
-        else:
+        op_fn = _BINOP_DISPATCH.get(type(node.op))
+        if op_fn is None:
             msg = f"Unsupported binary operator: {type(node.op)}"
             raise ValueError(msg)
+        return op_fn(left, right)
 
     def visit_UnaryOp(self: EvaluatorProtocol, node: ast.UnaryOp):
         """Evaluate unary operations (not, negation, positive).
@@ -228,17 +281,11 @@ class ExpressionEvaluator:
         Raises:
             ValueError: If operator is not recognized
         """
-        # Logical negation: inverts boolean value
-        if isinstance(node.op, ast.Not):
-            return _OPERATOR_NOT(self.visit(node.operand))
-        # Unary positive: no-op but validates operand is numeric
-        if isinstance(node.op, ast.UAdd):
-            return _OPERATOR_POS(self.visit(node.operand))
-        # Unary negation: negates numeric value
-        if isinstance(node.op, ast.USub):
-            return _OPERATOR_NEG(self.visit(node.operand))
-        msg = f"unexpected node operator: {node.op}"
-        raise ValueError(msg)
+        op_fn = _UNARYOP_DISPATCH.get(type(node.op))
+        if op_fn is None:
+            msg = f"unexpected node operator: {node.op}"
+            raise ValueError(msg)
+        return op_fn(self.visit(node.operand))
 
     def visit_Conditional(self: EvaluatorProtocol, node: ast.Conditional) -> Any:
         test_result = self.visit(node.test)
@@ -261,14 +308,15 @@ class ExpressionEvaluator:
         Returns:
             True if all comparisons are true, False otherwise
         """
-        # Evaluate the first operand (leftmost)
         left = self.visit(node.left)
+        cmp_dispatch = _CMPOP_DISPATCH
 
-        # Iterate through pairs of (operator, right_operand)
-        # This loop implements short-circuiting: if any comparison fails,
-        # we return False immediately and stop evaluating remaining operands.
+        # Short-circuit: stop at first failed comparison
         for op_node, comparator_node in zip(node.ops, node.comparators, strict=True):
-            op = self.visit(op_node)
+            # Type-map dispatch — skip full visitor for Eq/Lt/… operator nodes
+            op = cmp_dispatch.get(type(op_node))
+            if op is None:
+                op = self.visit(op_node)
             right = self.visit(comparator_node)
 
             result = op(left, right)
@@ -276,14 +324,13 @@ class ExpressionEvaluator:
             # chained bool context so `if a < b` is false when either side is na.
             if result is None:
                 return False
-            if isinstance(result, list):
+            if type(result) is list:
                 # Element-wise series compare — truthy only if any True (rare path)
                 if not any(result):
                     return False
             elif not result:
                 return False
 
-            # The right operand becomes the left operand for the next comparison
             left = right
 
         return True
@@ -474,11 +521,17 @@ class ExpressionEvaluator:
         Used by ``visit_Call`` to recognize qualified attribute references
         to builtins (e.g. ``strategy.long``) BEFORE ``visit_Attribute``
         eagerly evaluates them. See subtask 1.1.2.
+
+        Caches ``_builtin_dispatch`` after first use (shared with ``_call_builtin``).
         """
-        if getattr(self, "_builtin_dispatch", None) is None and hasattr(self, "_build_builtin_map"):
-            self._builtin_dispatch = self._build_builtin_map()
-        dispatch = getattr(self, "_builtin_dispatch", None)
-        return dispatch is not None and name in dispatch
+        dispatch = self.__dict__.get("_builtin_dispatch")
+        if dispatch is None:
+            build = getattr(self, "_build_builtin_map", None)
+            if build is None:
+                return False
+            dispatch = build()
+            self._builtin_dispatch = dispatch
+        return name in dispatch
 
     def _recover_instance_attr_call(
         self: EvaluatorProtocol,

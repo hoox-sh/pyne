@@ -1,0 +1,1 @@
+# Evaluate residual TA round 2\n\nIncremental bar-mode helpers for CCI, TSI, ROC, WPR, and dev.\n\nSee `tests/test_ta_incremental.py` golden parity.\n
