@@ -221,14 +221,21 @@ class Runtime:
             ohlcv_data: List of dicts with 'open', 'high', 'low', 'close', 'time'.
             data_feed: Optional realtime DataFeed for request.* live data.
             data_provider: Optional historical provider for request.* .
-            mode: ``"interpret"`` (default AST walker) or ``"compile"`` (Numba
-                bar-loop for a supported subset: ta.sma/ema/rsi, plots, math).
+            mode:
+                ``"interpret"`` — AST walker (default).
+                ``"compile"`` — Numba/object bar loop (supported subset).
+                ``"auto"`` — try compile; on any failure fall back to interpret.
 
         Returns:
             dict with 'series': list of plotted values for each bar.
         """
-        if mode == "compile":
+        mode_norm = (mode or "interpret").strip().lower()
+        if mode_norm == "compile":
             return self._run_compiled(source_code, ohlcv_data)
+        if mode_norm == "auto":
+            return self._run_auto(source_code, ohlcv_data, data_feed=data_feed, data_provider=data_provider)
+        if mode_norm not in ("interpret",):
+            return {"error": f"Unknown mode: {mode!r} (use interpret|compile|auto)"}
 
         # Wire request.* sources: chart bars as historical provider when unset
         try:
@@ -575,6 +582,59 @@ class Runtime:
                 "script_type": script_type,
             },
         }
+
+    @staticmethod
+    def _compile_eligible(source_code: str) -> tuple[bool, str]:
+        """Cheap prefilter before attempting compile (auto mode).
+
+        Returns ``(eligible, reason_if_not)``.
+        """
+        try:
+            from pynescript.compiler.engine import has_numba
+        except ImportError:
+            return False, "compiler package unavailable"
+        if not has_numba():
+            return False, "numba not installed"
+        src = source_code or ""
+        # Import / request.* often need interpreter library + data plumbing
+        if re.search(r"(?m)^\s*import\s+\S+", src):
+            return False, "import statements not supported in compile path"
+        if "request." in src:
+            return False, "request.* not supported in compile path"
+        return True, ""
+
+    def _run_auto(
+        self,
+        source_code: str,
+        ohlcv_data: list[dict],
+        data_feed=None,
+        data_provider=None,
+    ) -> dict:
+        """Try compile; fall back to interpret on eligibility fail or any error."""
+        eligible, reason = self._compile_eligible(source_code)
+        compile_err: str | None = reason or None
+        if eligible:
+            compiled_result = self._run_compiled(source_code, ohlcv_data)
+            if "error" not in compiled_result:
+                compiled_result["mode"] = "compile"
+                compiled_result["auto_backend"] = "compile"
+                return compiled_result
+            compile_err = str(compiled_result.get("error") or "compile failed")
+
+        # Interpret fallback (full host semantics)
+        result = self.run(
+            source_code,
+            ohlcv_data,
+            data_feed=data_feed,
+            data_provider=data_provider,
+            mode="interpret",
+        )
+        if isinstance(result, dict):
+            result["mode"] = result.get("mode") or "interpret"
+            result["auto_backend"] = "interpret"
+            if compile_err:
+                result["compile_fallback_reason"] = compile_err
+        return result
 
     def _run_compiled(self, source_code: str, ohlcv_data: list[dict]) -> dict:
         """Execute via Numba-compiled bar loop (supported subset of Pine)."""

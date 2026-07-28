@@ -184,3 +184,57 @@ plot(ta.sma(close, 5), title="s")
         a = compile_script(src)
         b = compile_script(src)
         assert a is b
+
+
+class TestRuntimeAutoMode:
+    def _bars(self, n: int = 50):
+        return [
+            {
+                "open": float(100 + i),
+                "high": float(101 + i),
+                "low": float(99 + i),
+                "close": float(100 + i),
+                "volume": 1.0,
+                "time": i * 86_400_000,
+            }
+            for i in range(n)
+        ]
+
+    def test_auto_uses_compile_for_sma(self) -> None:
+        from backend.runtime import Runtime
+
+        src = """//@version=5
+indicator("x")
+plot(ta.sma(close, 10), title="sma")
+"""
+        r = Runtime(symbol="T").run(src, self._bars(), mode="auto")
+        assert "error" not in r, r.get("error")
+        assert r.get("auto_backend") == "compile"
+        assert r.get("mode") == "compile"
+        assert len(r["plots"]) == 50
+
+    def test_auto_falls_back_on_import(self) -> None:
+        from backend.runtime import Runtime
+
+        # import is prefiltered as not compile-eligible
+        src = """//@version=5
+indicator("x")
+import user/Lib/1 as L
+plot(close)
+"""
+        r = Runtime(symbol="T").run(src, self._bars(10), mode="auto")
+        # May error on interpret too if lib missing — key is auto_backend interpret
+        assert r.get("auto_backend") == "interpret"
+        assert "import" in (r.get("compile_fallback_reason") or "").lower()
+
+    def test_auto_falls_back_on_request(self) -> None:
+        from backend.runtime import Runtime
+
+        src = """//@version=5
+indicator("x")
+s = request.security(syminfo.tickerid, "D", close)
+plot(s)
+"""
+        r = Runtime(symbol="T").run(src, self._bars(20), mode="auto")
+        assert r.get("auto_backend") == "interpret"
+        assert "request" in (r.get("compile_fallback_reason") or "").lower()

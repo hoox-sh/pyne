@@ -82,7 +82,17 @@ The compiled engine does not use `PineSeries` deques. Built-in price and volume 
 
 The module `src/pynescript/compiler/engine.py` provides the stable entry points: `transpile` returns the generated source; `compile_script` executes that source in a private namespace and returns a `CompiledScript` whose `run` method accepts OHLCV arrays; `run_script` performs a one-shot compile-and-run. Numeric mode requires Numba; object mode does not.
 
-`Runtime.run()` accepts `mode="compile"` in addition to the default interpretive path. When compile mode is selected, the runtime converts bar dictionaries to arrays, invokes `compile_script`, and reshapes the result into the familiar response envelope (`plots`, `series`, `drawings`, `count`, identifiers), including `object_mode` and the generated source for inspection and debugging.
+`Runtime.run()` accepts `mode="interpret"` (default), `mode="compile"`, and `mode="auto"`. Compile mode converts bar dictionaries to arrays, invokes `compile_script`, and reshapes the result into the familiar response envelope (`plots`, `series`, `drawings`, `count`, identifiers), including `object_mode` and the generated source for inspection and debugging.
+
+**`mode="auto"` (2026-07-28):** tries the compile path when eligible (Numba present; no top-level `import` / `request.*`), and on any compile or compiled-runtime error falls back to interpret. Response fields:
+
+| Field | Meaning |
+| --- | --- |
+| `auto_backend` | `"compile"` or `"interpret"` — backend that produced the result |
+| `compile_fallback_reason` | Present when auto fell back; human-readable cause |
+| `mode` | `"compile"` or `"interpret"` matching the successful backend |
+
+pyne-worker `Runtime.run(..., mode=...)` mirrors the same contract.
 
 ## Benefits
 

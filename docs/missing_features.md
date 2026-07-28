@@ -18,7 +18,7 @@
 
 **Current Status (as of 2026-07-28):** Strong core support (parser + evaluator + 1100+ tests). Open-source corpus set01–04 Runtime ~90% OK; interpret bar-loop performance hardened without semantic change. Not 100% for all post-v6 launch / platform edges.
 
-**Last Updated:** 2026-07-28 (corpus parse/Runtime hardening; incremental bar-mode TA: sma/ema/rma/rsi/macd/atr; Runtime host hygiene)
+**Last Updated:** 2026-07-28 (corpus + incremental TA + `Runtime mode=auto` compile route with interpret fallback)
 
 **Overall Support Assessment:** ~99%+ for core v6. Multiline strings + `export const` integrated. Remaining gaps are mostly by-design (mock request data, platform/editor-only) plus long-tail Runtime fails on truncated scrape sources.
 - Parser: Excellent for v5/v6 core + multiline, soft keywords, bitwise, typed UDF returns.
