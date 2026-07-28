@@ -386,7 +386,9 @@ class Runtime:
                 tr_val = None
             tr_series.update(tr_val)
 
-            # One append per series per bar (shared with evaluator.current_series)
+            # One append per series per bar (shared with evaluator.current_series).
+            # Cap to evaluator _SERIES_MAX (+slack) so multi-thousand-bar runs do not
+            # grow lists unboundedly; TA helpers only need the recent window.
             _series_lists["open"].append(o)
             _series_lists["high"].append(h)
             _series_lists["low"].append(l)
@@ -396,6 +398,11 @@ class Runtime:
             _series_lists["hlc3"].append(hlc3_val)
             _series_lists["ohlc4"].append(ohlc4_val)
             _series_lists["tr"].append(tr_val)
+            _series_cap = getattr(evaluator, "_SERIES_MAX", 256)
+            if len(_series_lists["close"]) > _series_cap + 64:
+                keep = _series_cap
+                for _sk in _series_lists:
+                    _series_lists[_sk] = _series_lists[_sk][-keep:]
 
             # Update per-bar counters and time components
             bar_time = col_time[bar_index]

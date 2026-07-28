@@ -1554,7 +1554,8 @@ plot(ta.sma(close, 14), title="s")
         code = transpile(src)
         assert "numba_store_src" not in code
         assert "__src" not in code
-        assert "numba_sma(close_arr" in code
+        # Incremental SMA still uses close_arr directly (no materialize)
+        assert "numba_sma_inc(close_arr" in code or "numba_sma(close_arr" in code
 
 
 class TestCompileUdfDefaultsKwargs:

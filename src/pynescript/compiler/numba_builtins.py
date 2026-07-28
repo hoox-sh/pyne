@@ -1338,3 +1338,412 @@ def numba_obv_inc(close, vol, i, st):
     st[0] = obv
     st[1] = float(i)
     return obv
+
+
+@numba.njit(cache=True)
+def numba_sma_inc(arr, period, i, st):
+    """O(1) rolling SMA. ``st``: [sum, last_i]. Matches ``numba_sma``."""
+    period = int(period)
+    if period <= 0 or i < 0:
+        return np.nan
+    if np.isnan(st[1]):
+        last = -1
+    else:
+        last = int(st[1])
+    if i < last:
+        last = -1
+        st[0] = np.nan
+    s = st[0]
+    for j in range(last + 1, i + 1):
+        if j < period - 1:
+            s = np.nan
+        elif j == period - 1:
+            s = 0.0
+            ok = True
+            for k in range(period):
+                v = arr[k]
+                if np.isnan(v):
+                    ok = False
+                    break
+                s += v
+            if not ok:
+                s = np.nan
+        else:
+            if np.isnan(s):
+                s = 0.0
+                ok = True
+                for k in range(period):
+                    v = arr[j - k]
+                    if np.isnan(v):
+                        ok = False
+                        break
+                    s += v
+                if not ok:
+                    s = np.nan
+            else:
+                old = arr[j - period]
+                new = arr[j]
+                if np.isnan(old) or np.isnan(new):
+                    s = np.nan
+                else:
+                    s = s - old + new
+    st[0] = s
+    st[1] = float(i)
+    if i < period - 1 or np.isnan(s):
+        return np.nan
+    return s / period
+
+
+@numba.njit(cache=True)
+def numba_sum_inc(arr, period, i, st):
+    """O(1) rolling sum. ``st``: [sum, last_i]. Matches ``numba_sum``."""
+    # Same window sum as SMA without divide
+    period = int(period)
+    if period <= 0 or i < 0:
+        return np.nan
+    if np.isnan(st[1]):
+        last = -1
+    else:
+        last = int(st[1])
+    if i < last:
+        last = -1
+        st[0] = np.nan
+    s = st[0]
+    for j in range(last + 1, i + 1):
+        if j < period - 1:
+            s = np.nan
+        elif j == period - 1:
+            s = 0.0
+            ok = True
+            for k in range(period):
+                v = arr[k]
+                if np.isnan(v):
+                    ok = False
+                    break
+                s += v
+            if not ok:
+                s = np.nan
+        else:
+            if np.isnan(s):
+                s = 0.0
+                ok = True
+                for k in range(period):
+                    v = arr[j - k]
+                    if np.isnan(v):
+                        ok = False
+                        break
+                    s += v
+                if not ok:
+                    s = np.nan
+            else:
+                old = arr[j - period]
+                new = arr[j]
+                if np.isnan(old) or np.isnan(new):
+                    s = np.nan
+                else:
+                    s = s - old + new
+    st[0] = s
+    st[1] = float(i)
+    if i < period - 1 or np.isnan(s):
+        return np.nan
+    return s
+
+
+@numba.njit(cache=True)
+def numba_stdev_inc(arr, period, i, st):
+    """O(1) sample stdev. ``st``: [sum, sumsq, last_i]. Matches ``numba_stdev``."""
+    period = int(period)
+    if period <= 1 or i < 0:
+        return np.nan
+    if np.isnan(st[2]):
+        last = -1
+    else:
+        last = int(st[2])
+    if i < last:
+        last = -1
+        st[0] = np.nan
+        st[1] = np.nan
+    s = st[0]
+    sq = st[1]
+    for j in range(last + 1, i + 1):
+        if j < period - 1:
+            s = np.nan
+            sq = np.nan
+        elif j == period - 1:
+            s = 0.0
+            sq = 0.0
+            ok = True
+            for k in range(period):
+                v = arr[k]
+                if np.isnan(v):
+                    ok = False
+                    break
+                s += v
+                sq += v * v
+            if not ok:
+                s = np.nan
+                sq = np.nan
+        else:
+            if np.isnan(s):
+                s = 0.0
+                sq = 0.0
+                ok = True
+                for k in range(period):
+                    v = arr[j - k]
+                    if np.isnan(v):
+                        ok = False
+                        break
+                    s += v
+                    sq += v * v
+                if not ok:
+                    s = np.nan
+                    sq = np.nan
+            else:
+                old = arr[j - period]
+                new = arr[j]
+                if np.isnan(old) or np.isnan(new):
+                    s = np.nan
+                    sq = np.nan
+                else:
+                    s = s - old + new
+                    sq = sq - old * old + new * new
+    st[0] = s
+    st[1] = sq
+    st[2] = float(i)
+    if i < period - 1 or np.isnan(s):
+        return np.nan
+    mean = s / period
+    var = (sq - s * mean) / (period - 1)
+    if var < 0.0:
+        # floating cancellation
+        var = 0.0
+    return np.sqrt(var)
+
+
+@numba.njit(cache=True)
+def numba_variance_inc(arr, period, i, st):
+    """O(1) sample variance. ``st``: [sum, sumsq, last_i]. Matches ``numba_variance``."""
+    period = int(period)
+    if period <= 1 or i < 0:
+        return np.nan
+    if np.isnan(st[2]):
+        last = -1
+    else:
+        last = int(st[2])
+    if i < last:
+        last = -1
+        st[0] = np.nan
+        st[1] = np.nan
+    s = st[0]
+    sq = st[1]
+    for j in range(last + 1, i + 1):
+        if j < period - 1:
+            s = np.nan
+            sq = np.nan
+        elif j == period - 1:
+            s = 0.0
+            sq = 0.0
+            ok = True
+            for k in range(period):
+                v = arr[k]
+                if np.isnan(v):
+                    ok = False
+                    break
+                s += v
+                sq += v * v
+            if not ok:
+                s = np.nan
+                sq = np.nan
+        else:
+            if np.isnan(s):
+                s = 0.0
+                sq = 0.0
+                ok = True
+                for k in range(period):
+                    v = arr[j - k]
+                    if np.isnan(v):
+                        ok = False
+                        break
+                    s += v
+                    sq += v * v
+                if not ok:
+                    s = np.nan
+                    sq = np.nan
+            else:
+                old = arr[j - period]
+                new = arr[j]
+                if np.isnan(old) or np.isnan(new):
+                    s = np.nan
+                    sq = np.nan
+                else:
+                    s = s - old + new
+                    sq = sq - old * old + new * new
+    st[0] = s
+    st[1] = sq
+    st[2] = float(i)
+    if i < period - 1 or np.isnan(s):
+        return np.nan
+    mean = s / period
+    var = (sq - s * mean) / (period - 1)
+    if var < 0.0:
+        var = 0.0
+    return var
+
+
+@numba.njit(cache=True)
+def numba_bb_inc(arr, period, mult, i, st):
+    """Incremental Bollinger. ``st``: [sum, sumsq, last_i]. Matches ``numba_bb``."""
+    period = int(period)
+    sd = numba_stdev_inc(arr, period, i, st)
+    if np.isnan(sd):
+        return np.nan, np.nan, np.nan
+    # st[0] is sum after stdev_inc
+    mid = st[0] / period
+    return mid + mult * sd, mid, mid - mult * sd
+
+
+@numba.njit(cache=True)
+def numba_rsi_inc(arr, period, i, st):
+    """O(1) simple-window RSI. ``st``: [gain, loss, last_i]. Matches ``numba_rsi``."""
+    period = int(period)
+    if period <= 0 or i < 0:
+        return np.nan
+    if np.isnan(st[2]):
+        last = -1
+    else:
+        last = int(st[2])
+    if i < last:
+        last = -1
+        st[0] = np.nan
+        st[1] = np.nan
+    gain = st[0]
+    loss = st[1]
+    for j in range(last + 1, i + 1):
+        if j < period:
+            gain = np.nan
+            loss = np.nan
+        elif j == period:
+            gain = 0.0
+            loss = 0.0
+            for k in range(j - period + 1, j + 1):
+                delta = arr[k] - arr[k - 1]
+                if delta >= 0.0:
+                    gain += delta
+                else:
+                    loss -= delta
+        else:
+            if np.isnan(gain):
+                gain = 0.0
+                loss = 0.0
+                for k in range(j - period + 1, j + 1):
+                    delta = arr[k] - arr[k - 1]
+                    if delta >= 0.0:
+                        gain += delta
+                    else:
+                        loss -= delta
+            else:
+                old_d = arr[j - period] - arr[j - period - 1]
+                new_d = arr[j] - arr[j - 1]
+                if old_d >= 0.0:
+                    gain -= old_d
+                else:
+                    loss += old_d
+                if new_d >= 0.0:
+                    gain += new_d
+                else:
+                    loss -= new_d
+    st[0] = gain
+    st[1] = loss
+    st[2] = float(i)
+    if i < period or np.isnan(gain):
+        return np.nan
+    avg_gain = gain / period
+    avg_loss = loss / period
+    if avg_loss == 0.0:
+        return 100.0
+    rs = avg_gain / avg_loss
+    return 100.0 - (100.0 / (1.0 + rs))
+
+
+@numba.njit(cache=True)
+def numba_tsi_inc(arr, short_len, long_len, i, st):
+    """Incremental TSI. ``st``: [ema_m, ema_a, short_m, short_a, phase, last_i].
+
+    ``phase`` is the short-seed sample count (0..short_len). When equal to
+    ``short_len``, short_* hold EMA values; while 0 < phase < short_len they
+    hold the running sum for the short SMA seed (matching ``numba_tsi``).
+    """
+    short_len = int(short_len)
+    long_len = int(long_len)
+    if short_len <= 0 or long_len <= 0 or i < 0:
+        return np.nan
+    need = long_len + short_len - 1
+    if np.isnan(st[5]):
+        last = 0
+    else:
+        last = int(st[5])
+    if i < last:
+        last = 0
+        st[0] = np.nan
+        st[1] = np.nan
+        st[2] = np.nan
+        st[3] = np.nan
+        st[4] = 0.0
+
+    alpha_l = 2.0 / (long_len + 1.0)
+    alpha_s = 2.0 / (short_len + 1.0)
+    ema_m = st[0]
+    ema_a = st[1]
+    short_m = st[2]
+    short_a = st[3]
+    phase = 0 if np.isnan(st[4]) else int(st[4])
+
+    # Replay from last+1, but long seed needs bars 1..long_len first
+    start = last + 1 if last > 0 else 1
+    for j in range(start, i + 1):
+        if j < long_len:
+            continue
+        if j == long_len:
+            sum_m = 0.0
+            sum_a = 0.0
+            for k in range(1, long_len + 1):
+                mom = arr[k] - arr[k - 1]
+                sum_m += mom
+                sum_a += abs(mom)
+            ema_m = sum_m / long_len
+            ema_a = sum_a / long_len
+            # Begin short SMA seed with this first long-EMA sample
+            short_m = ema_m
+            short_a = ema_a
+            phase = 1
+            if phase == short_len:
+                # short_len == 1: already final short EMA seed
+                pass
+            continue
+        # j > long_len
+        mom = arr[j] - arr[j - 1]
+        ema_m = alpha_l * mom + (1.0 - alpha_l) * ema_m
+        ema_a = alpha_l * abs(mom) + (1.0 - alpha_l) * ema_a
+        if phase < short_len:
+            short_m = short_m + ema_m
+            short_a = short_a + ema_a
+            phase += 1
+            if phase == short_len:
+                short_m = short_m / short_len
+                short_a = short_a / short_len
+        else:
+            short_m = alpha_s * ema_m + (1.0 - alpha_s) * short_m
+            short_a = alpha_s * ema_a + (1.0 - alpha_s) * short_a
+
+    st[0] = ema_m
+    st[1] = ema_a
+    st[2] = short_m
+    st[3] = short_a
+    st[4] = float(phase)
+    st[5] = float(i)
+
+    if i < need or phase < short_len:
+        return np.nan
+    if short_a == 0.0:
+        return 0.0
+    return 100.0 * (short_m / short_a)

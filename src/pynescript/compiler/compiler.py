@@ -185,6 +185,66 @@ _STYLE_NS = frozenset(
     }
 )
 
+# Bare linestyle / plot style tokens used as identifiers (v3–v4 style)
+_LINESTYLE_NAMES = frozenset(
+    {
+        "solid",
+        "dotted",
+        "dashed",
+        "arrowup",
+        "arrowdown",
+        "circles",
+        "cross",
+        "linebr",
+        "area",
+        "columns",
+        "histogram",
+        "stepline",
+        "steplinebr",
+    }
+)
+
+# Method-style TA: ``expr.rma(p)`` / ``(x).sma(14)`` → ``ta.rma(expr, p)``
+_METHOD_TA = frozenset(
+    {
+        "sma",
+        "ema",
+        "rma",
+        "wma",
+        "vwma",
+        "rsi",
+        "stdev",
+        "stoch",
+        "cci",
+        "atr",
+        "change",
+        "roc",
+        "mom",
+        "highest",
+        "lowest",
+        "highestbars",
+        "lowestbars",
+        "cum",
+        "sum",
+        "dev",
+        "variance",
+        "linreg",
+        "percentrank",
+        "barssince",
+        "rising",
+        "falling",
+        "alma",
+        "hma",
+        "tsi",
+        "obv",
+        "vwap",
+        "tr",
+        "correlation",
+        "fixnan",
+        "nz",
+    }
+)
+
 _DRAWING_FUNCS = frozenset(
     {
         "hline",
@@ -237,6 +297,8 @@ class CompilerVisitor(NodeVisitor):
         self.func_param_names: dict[str, list[str]] = {}
         self.func_param_defaults: dict[str, dict[str, str]] = {}
         self.func_free_series: dict[str, list[str]] = {}
+        self.func_free_scalars: dict[str, list[str]] = {}
+        self._free_scalars_current: set[str] = set()
         self.func_needs_bar: dict[str, bool] = {}
         self.func_needs_strategy: dict[str, bool] = {}
         self.string_series: set[str] = set()  # per-bar string/color series (object dtype)
@@ -1043,7 +1105,9 @@ class CompilerVisitor(NodeVisitor):
         if isinstance(node.value, ast.Call):
             call_code = self.visit(node.value)
             # Multi-return forms emit a temp unpack
-            if call_code.startswith(("numba_bb(", "numba_macd(", "numba_macd_inc(")):
+            if call_code.startswith(
+                ("numba_bb(", "numba_bb_inc(", "numba_macd(", "numba_macd_inc(")
+            ):
                 lines = [f"__tup = {call_code}"]
                 for i, name in enumerate(names):
                     lines.append(f"{name}_arr[__bar_idx] = __tup[{i}]")
@@ -1124,9 +1188,9 @@ class CompilerVisitor(NodeVisitor):
         if node.id == "color":
             self.object_mode = True
             return repr("#000000")
-        if node.id in ("open", "high", "low", "close"):
-            return f"{node.id}_arr[__bar_idx]"
-        if node.id == "volume":
+        if node.id in ("open", "high", "low", "close", "Open", "High", "Low", "Close"):
+            return f"{node.id.lower()}_arr[__bar_idx]"
+        if node.id in ("volume", "Volume"):
             return "vol_arr[__bar_idx]"
         if node.id == "hl2":
             return "((high_arr[__bar_idx] + low_arr[__bar_idx]) * 0.5)"
@@ -1169,6 +1233,10 @@ class CompilerVisitor(NodeVisitor):
             self.object_mode = True
             cname = "gray" if node.id == "grey" else node.id
             return repr(self._color_const(cname))
+        # Bare linestyle / plot style identifiers (linestyle=dotted)
+        if node.id in _LINESTYLE_NAMES:
+            self.object_mode = True
+            return repr(node.id)
         # syminfo_* / timeframe_* flattened scalars (legacy / import style)
         if node.id.startswith("syminfo_"):
             attr = node.id[len("syminfo_") :]
@@ -1243,6 +1311,16 @@ class CompilerVisitor(NodeVisitor):
             return node.id
         if node.id in self.udt_vars or node.id in self.string_series:
             return f"{node.id}_arr[__bar_idx]"
+        # Inside UDF: free outer vars → bare name (scalar/color) unless history series
+        if self.in_function and node.id not in self.local_vars:
+            if node.id in self.series_params or node.id in self.series_locals:
+                py = self._py_ident(node.id)
+                return f"{py}_arr[__bar_idx]" if node.id in self.series_locals else f"{py}[__bar_idx]"
+            # History in this UDF → series free param (handled via free_series *_arr)
+            # Bare free → scalar free param (colBull, settings, …)
+            if node.id not in getattr(self, "history_names_current", set()):
+                self._free_scalars_current.add(node.id)
+                return self._py_ident(node.id)
         return f"{node.id}_arr[__bar_idx]"
     def visit_Attribute(self, node: ast.Attribute):
         # color.red etc.
@@ -1603,6 +1681,27 @@ class CompilerVisitor(NodeVisitor):
                     f"for __r in {a[0]} for __c in range(len(__r))]"
                 )
             return ""
+        if func_name == "array_fill":
+            a = ra(args, kwargs, ("id", "value", "index_from", "index_to"))
+            if not a:
+                return ""
+            val = a[1] if len(a) > 1 else "np.nan"
+            # Full fill (common); range form ignored for MVP
+            return f"[__a.__setitem__(__i, {val}) for __a in [{a[0]}] for __i in range(len(__a))]"
+        if func_name == "array_stdev":
+            a = ra(args, kwargs, ("id",))
+            if a:
+                return (
+                    f"(float(np.std({a[0]})) if {a[0]} and len({a[0]}) > 0 else np.nan)"
+                )
+            return "np.nan"
+        if func_name == "array_variance":
+            a = ra(args, kwargs, ("id",))
+            if a:
+                return (
+                    f"(float(np.var({a[0]})) if {a[0]} and len({a[0]}) > 0 else np.nan)"
+                )
+            return "np.nan"
         if func_name == "array_avg":
             a = ra(args, kwargs, ("id",))
             return f"(sum({a[0]}) / len({a[0]}) if {a[0]} else np.nan)" if a else "np.nan"
@@ -1686,6 +1785,7 @@ class CompilerVisitor(NodeVisitor):
         if isinstance(func, ast.Specialize):
             func = func.value
 
+        method_src: str | None = None  # set for method-style TA (expr.rma(p))
         if isinstance(func, ast.Name):
             func_name = func.id
         elif isinstance(func, ast.Attribute):
@@ -1708,6 +1808,13 @@ class CompilerVisitor(NodeVisitor):
                 return self._emit_udt_new(func.value.id, node)
             elif isinstance(func.value, ast.Name) and func.value.id in _NS:
                 func_name = f"{func.value.id}_{func.attr}"
+            elif func.attr in _METHOD_TA:
+                # Method-style TA: ``(expr).rma(p)`` → ta.rma(expr, p)
+                method_src = self.visit(func.value)
+                if func.attr in ("fixnan", "nz"):
+                    func_name = func.attr
+                else:
+                    func_name = f"ta_{func.attr}"
             else:
                 val = self.visit(func.value)
                 if val.endswith("[__bar_idx]"):
@@ -1727,6 +1834,8 @@ class CompilerVisitor(NodeVisitor):
                     args.append(expr)
             else:
                 args.append(self.visit(arg))
+        if method_src is not None:
+            args = [method_src] + args
 
         if func_name in ("indicator", "study"):
             return ""
@@ -1882,8 +1991,9 @@ class CompilerVisitor(NodeVisitor):
             if len(args) >= 4:
                 return args[3]
             return repr("#000000")
-        if func_name == "color_new":
-            # color.new(base, transp) — keep base color string
+        if func_name in ("color_new", "color"):
+            # color.new(base, transp) / v3–v4 color(base, transp) — keep base color string
+            self.object_mode = True
             return args[0] if args else repr("#000000")
 
         if func_name == "time":
@@ -2076,7 +2186,8 @@ class CompilerVisitor(NodeVisitor):
             if not args:
                 return "np.nan"
             period = kwargs.get("length", args[1] if len(args) > 1 else "14")
-            return f"numba_sma({_arr(args[0])}, int({period}), __bar_idx)"
+            st = self._alloc_fixed_state("sma", 2)
+            return f"numba_sma_inc({_arr(args[0])}, int({period}), __bar_idx, {st})"
         if func_name == "ta_ema":
             if not args:
                 return "np.nan"
@@ -2098,7 +2209,8 @@ class CompilerVisitor(NodeVisitor):
             if not args:
                 return "np.nan"
             period = kwargs.get("length", args[1] if len(args) > 1 else "14")
-            return f"numba_rsi({_arr(args[0])}, int({period}), __bar_idx)"
+            st = self._alloc_fixed_state("rsi", 3)
+            return f"numba_rsi_inc({_arr(args[0])}, int({period}), __bar_idx, {st})"
         if func_name == "ta_highest":
             # ta.highest(source, length) or ta.highest(length) → high source
             if len(args) >= 2:
@@ -2121,7 +2233,8 @@ class CompilerVisitor(NodeVisitor):
             if not args:
                 return "np.nan"
             period = kwargs.get("length", args[1] if len(args) > 1 else "14")
-            return f"numba_stdev({_arr(args[0])}, int({period}), __bar_idx)"
+            st = self._alloc_fixed_state("stdev", 3)
+            return f"numba_stdev_inc({_arr(args[0])}, int({period}), __bar_idx, {st})"
         if func_name == "ta_change":
             if not args:
                 return "np.nan"
@@ -2148,7 +2261,10 @@ class CompilerVisitor(NodeVisitor):
                 src, length, mult = "close_arr[__bar_idx]", args[0], args[1]
             else:
                 src, length, mult = "close_arr[__bar_idx]", "20", "2.0"
-            return f"numba_bb({_arr(src)}, int({length}), float({mult}), __bar_idx)"
+            st = self._alloc_fixed_state("bb", 3)
+            return (
+                f"numba_bb_inc({_arr(src)}, int({length}), float({mult}), __bar_idx, {st})"
+            )
         if func_name == "ta_macd":
             # ta.macd(source, fast, slow, signal)
             src = args[0] if args else "close_arr[__bar_idx]"
@@ -2227,7 +2343,8 @@ class CompilerVisitor(NodeVisitor):
             if not args:
                 return "np.nan"
             period = kwargs.get("length", args[1] if len(args) > 1 else "14")
-            return f"numba_sum({_arr(args[0])}, int({period}), __bar_idx)"
+            st = self._alloc_fixed_state("sum", 2)
+            return f"numba_sum_inc({_arr(args[0])}, int({period}), __bar_idx, {st})"
         if func_name == "ta_dev":
             # Mean absolute deviation from SMA
             if not args:
@@ -2239,7 +2356,8 @@ class CompilerVisitor(NodeVisitor):
             if not args:
                 return "np.nan"
             period = kwargs.get("length", args[1] if len(args) > 1 else "14")
-            return f"numba_variance({_arr(args[0])}, int({period}), __bar_idx)"
+            st = self._alloc_fixed_state("var", 3)
+            return f"numba_variance_inc({_arr(args[0])}, int({period}), __bar_idx, {st})"
         if func_name == "ta_correlation":
             # ta.correlation(source1, source2, length) Pearson
             if len(args) >= 3:
@@ -2276,12 +2394,17 @@ class CompilerVisitor(NodeVisitor):
             return f"numba_hma({_arr(args[0])}, 9, __bar_idx)"
         if func_name == "ta_tsi":
             # ta.tsi(source, short, long) or ta.tsi(short, long) on close
+            st = self._alloc_fixed_state("tsi", 6)
             if len(args) >= 3 and _is_series_arr(args[0]):
                 return (
-                    f"numba_tsi({_arr(args[0])}, int({args[1]}), int({args[2]}), __bar_idx)"
+                    f"numba_tsi_inc({_arr(args[0])}, int({args[1]}), int({args[2]}), "
+                    f"__bar_idx, {st})"
                 )
             if len(args) >= 2:
-                return f"numba_tsi(close_arr, int({args[0]}), int({args[1]}), __bar_idx)"
+                return (
+                    f"numba_tsi_inc(close_arr, int({args[0]}), int({args[1]}), "
+                    f"__bar_idx, {st})"
+                )
             return "np.nan"
         if func_name == "ta_valuewhen":
             # Prefer real history scan when cond is a series array; else current source
@@ -2544,6 +2667,14 @@ class CompilerVisitor(NodeVisitor):
                 # NaN-safe: x != x is True for float NaN; also treat None as na
                 return f"(({args[0]}) is None or ({args[0]}) != ({args[0]}))"
             return "True"
+        if func_name == "iff":
+            # v3 iff(cond, then, else)
+            if len(args) >= 3:
+                return f"({args[1]} if {args[0]} else {args[2]})"
+            return "np.nan"
+        if func_name == "heikinashi":
+            # ticker transform stub — pass through expression / symbol
+            return args[0] if args else "close_arr[__bar_idx]"
         if func_name == "float":
             if not args:
                 return "np.nan"
@@ -2633,12 +2764,28 @@ class CompilerVisitor(NodeVisitor):
         free_series = getattr(self, "func_free_series", {}).get(func_name, [])
         for fs in free_series:
             call_args.append(fs)
+        free_scalars = getattr(self, "func_free_scalars", {}).get(func_name, [])
+        for sc in free_scalars:
+            # Prefer current bar of a series array when the outer var is series-like
+            arr = f"{sc}_arr"
+            if arr in self.arrays or sc in self.string_series or sc in self.udt_vars:
+                call_args.append(f"{arr}[__bar_idx]")
+            elif sc in self.scalar_vars or sc in self.map_vars:
+                call_args.append(self._py_ident(sc) if sc in self.ident_map else sc)
+            else:
+                # Outer series written every bar as *_arr, or scalar not yet known
+                if any(a == arr or a.startswith(sc) for a in self.arrays):
+                    call_args.append(f"{arr}[__bar_idx]")
+                else:
+                    # May be input.color scalar assigned later — pass bare name
+                    call_args.append(sc)
         if (
             self.func_needs_bar.get(func_name)
             or series_set
             or series_locals
             or st_params
             or free_series
+            or free_scalars
         ):
             for extra in (
                 "open_arr",
@@ -3163,6 +3310,7 @@ class CompilerVisitor(NodeVisitor):
         for stmt in node.body:
             self._collect_assigned_names(stmt, assigned)
             self._collect_history_names(stmt, history_names)
+        self.history_names_current = set(history_names)
 
         # Safe names for assigned locals (sum, max, min, …)
         for n in assigned:
@@ -3187,6 +3335,7 @@ class CompilerVisitor(NodeVisitor):
         )
         self.series_locals = set(series_locals)
         self.local_vars |= assigned
+        self._free_scalars_current = set()
 
         body_lines = []
         last_ast = node.body[-1] if node.body else None
@@ -3210,6 +3359,15 @@ class CompilerVisitor(NodeVisitor):
                 val = self.visit(stmt)
             if val:
                 body_lines.append(val)
+
+        free_scalars = sorted(
+            n
+            for n in self._free_scalars_current
+            if n not in arg_set and n not in assigned and n not in self.user_funcs
+        )
+        self.func_free_scalars[func_name] = free_scalars
+        self._free_scalars_current = set()
+        self.history_names_current = set()
 
         self.in_function = False
         self._current_func_name = None
@@ -3274,6 +3432,7 @@ class CompilerVisitor(NodeVisitor):
             or bool(series_locals)
             or bool(st_refs)
             or bool(free_series)
+            or bool(free_scalars)
         )
         # Emit safe Python param names for user-facing args.
         # Never put ``=default`` on the def when trailing required params
@@ -3288,6 +3447,10 @@ class CompilerVisitor(NodeVisitor):
         for p in st_refs:
             if p not in param_list:
                 param_list.append(p)
+        for p in free_scalars:
+            py = self._py_ident(p)
+            if py not in param_list:
+                param_list.append(py)
         for p in free_series:
             if p not in param_list:
                 param_list.append(p)

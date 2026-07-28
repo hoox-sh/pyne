@@ -33,3 +33,13 @@ Full writeups: `perf_agent_parse.md`, `perf_agent_unparse.md`,
 
 - Interpret incremental TA: default **on**; disable with `PYNE_TA_INCREMENTAL=0`
 - Compile path always uses incremental kernels for ema/rma/atr/macd/cum/vwap/obv when those builtins are emitted
+
+## Follow-up (same day)
+
+| Area | Change |
+|---|---|
+| **Compile rolling O(1)** | `numba_sma/sum/stdev/variance/bb/rsi/tsi_inc` wired in `CompilerVisitor` |
+| **Runtime series cap** | `backend/runtime.py` (+ pyne-worker twin) trims `current_series` to `_SERIES_MAX`+slack |
+
+Compile execute (n=5000, median): SMA ~0.04 ms, RSI ~0.08 ms, MULTI ~0.21 ms, BB ~0.15 ms, TSI ~0.11 ms.
+Kernel parity vs full recompute: max abs err ~1e-11 (float noise) / 0 for RSI & TSI.
