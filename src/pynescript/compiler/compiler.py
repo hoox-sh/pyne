@@ -617,13 +617,17 @@ class CompilerVisitor(NodeVisitor):
         val = self.visit(node.value)
         is_var = hasattr(node, "mode") and isinstance(node.mode, (ast.Var, ast.VarIp))
 
+        # Explicit type annotation: `color x = …` / `string s = …`
+        type_node = getattr(node, "type", None)
+        type_id = type_node.id if isinstance(type_node, ast.Name) else None
+        typed_stringy = type_id in ("color", "string", "str", "line", "label", "box")
+
         if self.in_function:
             self.local_vars.add(name)
             py = self._py_ident(name)
             if name in self.series_locals:
                 return f"{py}_arr[__bar_idx] = {val}"
             return f"{py} = {val}"
-
 
         # String / non-numeric const → scalar (object mode), not float series
         if isinstance(node.value, ast.Constant) and isinstance(node.value.value, str):
@@ -636,14 +640,19 @@ class CompilerVisitor(NodeVisitor):
         # String/color RHS: bar-constant → scalar; per-bar (ternary colors, …) →
         # object-dtype series. Avoids float64 stores like m_arr[i] = 'EMA' or
         # color_arr[i] = '#22AB94' (TypingError setitem unicode / str→float).
-        if self._is_stringy_value(node.value) or self._looks_like_string_expr(val):
+        if (
+            typed_stringy
+            or self._is_stringy_value(node.value)
+            or self._looks_like_string_expr(val)
+        ):
             self.object_mode = True
-            if self._is_bar_constant_stringy(node.value):
+            if not typed_stringy and self._is_bar_constant_stringy(node.value):
                 self.scalar_vars.add(name)
                 if is_var:
                     return f"if __bar_idx == 0:\n    {name} = {val}"
                 return f"{name} = {val}"
             # Per-bar string/color series (e.g. close > open ? color.green : color.red)
+            # Also `color x = f()` where UDF returns a color string.
             self.string_series.add(name)
             self.arrays.add(f"{name}_arr")
             if is_var:
@@ -1175,6 +1184,11 @@ class CompilerVisitor(NodeVisitor):
             if node.id in self.series_locals:
                 return f"{py}_arr[__bar_idx]"
             return py
+        # Script-level scalars used inside a UDF must be free params (module-level
+        # functions cannot close over execute_script locals).
+        if self.in_function and node.id in (self.map_vars | self.scalar_vars):
+            self._free_scalars_current.add(node.id)
+            return self._py_ident(node.id) if node.id in self.ident_map else node.id
         if node.id in self.map_vars or node.id in self.scalar_vars:
             return self._py_ident(node.id) if node.id in self.ident_map else node.id
         # Built-in series / scalars (never allocate bare *_arr)
@@ -1183,6 +1197,15 @@ class CompilerVisitor(NodeVisitor):
         if node.id == "obv":
             st = self._alloc_fixed_state("obv", 2)
             return f"numba_obv_inc(close_arr, vol_arr, __bar_idx, {st})"
+        if node.id in ("accdist", "ad", "accumulation_distribution"):
+            # Chaikin A/D line stub — volume-weighted mid position (good enough for src=)
+            return (
+                "((close_arr[__bar_idx] - low_arr[__bar_idx]) - "
+                "(high_arr[__bar_idx] - close_arr[__bar_idx])) / "
+                "((high_arr[__bar_idx] - low_arr[__bar_idx]) "
+                "if (high_arr[__bar_idx] - low_arr[__bar_idx]) != 0 else np.nan) "
+                "* vol_arr[__bar_idx]"
+            )
         if node.id == "na":
             return "np.nan"
         if node.id == "color":
@@ -1815,11 +1838,15 @@ class CompilerVisitor(NodeVisitor):
                     func_name = func.attr
                 else:
                     func_name = f"ta_{func.attr}"
+            elif func.attr in self.user_funcs:
+                # User method: ``x.mg(6)`` / ``Close.linreg(8).mg(6)`` → mg(src, 6)
+                method_src = self.visit(func.value)
+                func_name = func.attr
             else:
-                val = self.visit(func.value)
-                if val.endswith("[__bar_idx]"):
-                    val = val[:-11]
-                func_name = f"{val}_{func.attr}"
+                # Unknown method on a value — still call as func(src, …) not ``src_meth``
+                method_src = self.visit(func.value)
+                func_name = func.attr
+                self.object_mode = True
         else:
             func_name = "unknown_func"
 
@@ -2204,7 +2231,8 @@ class CompilerVisitor(NodeVisitor):
             if not args:
                 return "np.nan"
             period = kwargs.get("length", args[1] if len(args) > 1 else "14")
-            return f"numba_wma({_arr(args[0])}, int({period}), __bar_idx)"
+            st = self._alloc_fixed_state("wma", 3)
+            return f"numba_wma_inc({_arr(args[0])}, int({period}), __bar_idx, {st})"
         if func_name == "ta_rsi":
             if not args:
                 return "np.nan"
@@ -2213,22 +2241,24 @@ class CompilerVisitor(NodeVisitor):
             return f"numba_rsi_inc({_arr(args[0])}, int({period}), __bar_idx, {st})"
         if func_name == "ta_highest":
             # ta.highest(source, length) or ta.highest(length) → high source
+            st = self._alloc_fixed_state("hh", 3)
             if len(args) >= 2:
                 period = kwargs.get("length", args[1])
-                return f"numba_highest({_arr(args[0])}, int({period}), __bar_idx)"
+                return f"numba_highest_inc({_arr(args[0])}, int({period}), __bar_idx, {st})"
             if len(args) == 1:
-                return f"numba_highest(high_arr, int({args[0]}), __bar_idx)"
+                return f"numba_highest_inc(high_arr, int({args[0]}), __bar_idx, {st})"
             period = kwargs.get("length", "14")
-            return f"numba_highest(high_arr, int({period}), __bar_idx)"
+            return f"numba_highest_inc(high_arr, int({period}), __bar_idx, {st})"
         if func_name == "ta_lowest":
             # ta.lowest(source, length) or ta.lowest(length) → low source
+            st = self._alloc_fixed_state("ll", 3)
             if len(args) >= 2:
                 period = kwargs.get("length", args[1])
-                return f"numba_lowest({_arr(args[0])}, int({period}), __bar_idx)"
+                return f"numba_lowest_inc({_arr(args[0])}, int({period}), __bar_idx, {st})"
             if len(args) == 1:
-                return f"numba_lowest(low_arr, int({args[0]}), __bar_idx)"
+                return f"numba_lowest_inc(low_arr, int({args[0]}), __bar_idx, {st})"
             period = kwargs.get("length", "14")
-            return f"numba_lowest(low_arr, int({period}), __bar_idx)"
+            return f"numba_lowest_inc(low_arr, int({period}), __bar_idx, {st})"
         if func_name == "ta_stdev":
             if not args:
                 return "np.nan"
@@ -2428,13 +2458,17 @@ class CompilerVisitor(NodeVisitor):
             return f"{nb}({default_src}, 5, 5, __bar_idx)"
         if func_name == "ta_stoch":
             # ta.stoch(source, high, low, length) or ta.stoch(length)
+            st = self._alloc_fixed_state("stoch", 5)
             if len(args) >= 4:
                 return (
-                    f"numba_stoch({_arr(args[0])}, {_arr(args[1])}, {_arr(args[2])}, "
-                    f"int({args[3]}), __bar_idx)"
+                    f"numba_stoch_inc({_arr(args[0])}, {_arr(args[1])}, {_arr(args[2])}, "
+                    f"int({args[3]}), __bar_idx, {st})"
                 )
             length = args[0] if args else "14"
-            return f"numba_stoch(close_arr, high_arr, low_arr, int({length}), __bar_idx)"
+            return (
+                f"numba_stoch_inc(close_arr, high_arr, low_arr, int({length}), "
+                f"__bar_idx, {st})"
+            )
         if func_name == "ta_cci":
             # ta.cci(source, length) or ta.cci(length) → hlc3 approx as close
             if len(args) >= 2:
@@ -2491,10 +2525,14 @@ class CompilerVisitor(NodeVisitor):
             return f"numba_linreg({_arr(src)}, int({length}), int({offset}), __bar_idx)"
         if func_name == "ta_vwma":
             # ta.vwma(source, length) or ta.vwma(length) on close
+            st = self._alloc_fixed_state("vwma", 3)
             if len(args) >= 2 and _is_series_arr(args[0]):
-                return f"numba_vwma({_arr(args[0])}, vol_arr, int({args[1]}), __bar_idx)"
+                return (
+                    f"numba_vwma_inc({_arr(args[0])}, vol_arr, int({args[1]}), "
+                    f"__bar_idx, {st})"
+                )
             length = args[0] if args else "14"
-            return f"numba_vwma(close_arr, vol_arr, int({length}), __bar_idx)"
+            return f"numba_vwma_inc(close_arr, vol_arr, int({length}), __bar_idx, {st})"
         if func_name == "ta_mfi":
             # ta.mfi(length) | ta.mfi(source, length) | ta.mfi(h, l, c, v, length)
             if len(args) >= 5 and _is_series_arr(args[0]):

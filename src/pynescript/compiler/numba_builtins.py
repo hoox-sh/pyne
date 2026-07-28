@@ -1058,9 +1058,11 @@ def safe_float(x):
         if callable(x) and not isinstance(x, type):
             return np.nan
         if isinstance(x, str):
-            # version strings like '0.0.1' are not floats
+            # version strings / colors / labels are not floats
             s = x.strip()
-            if not s or s.count(".") > 1:
+            if not s or s.count(".") > 1 or s.startswith("#") or not (
+                s[0].isdigit() or s[0] in "+-" or s[0] == "."
+            ):
                 return np.nan
             return float(s)
         return float(x)
@@ -1747,3 +1749,290 @@ def numba_tsi_inc(arr, short_len, long_len, i, st):
     if short_a == 0.0:
         return 0.0
     return 100.0 * (short_m / short_a)
+
+
+@numba.njit(cache=True)
+def numba_highest_inc(arr, period, i, st):
+    """Amortized sliding-window max. ``st``: [max_val, max_idx, last_i]."""
+    period = int(period)
+    if period <= 0 or i < 0:
+        return np.nan
+    if np.isnan(st[2]):
+        last = -1
+    else:
+        last = int(st[2])
+    if i < last:
+        last = -1
+        st[0] = np.nan
+        st[1] = np.nan
+    m = st[0]
+    mi = -1 if np.isnan(st[1]) else int(st[1])
+    for j in range(last + 1, i + 1):
+        start = j - period + 1
+        if start < 0:
+            start = 0
+        if j == 0 or np.isnan(m) or mi < start:
+            m = arr[start]
+            mi = start
+            for k in range(start + 1, j + 1):
+                v = arr[k]
+                if v > m or np.isnan(m):
+                    m = v
+                    mi = k
+        else:
+            v = arr[j]
+            if v > m or np.isnan(m):
+                m = v
+                mi = j
+    st[0] = m
+    st[1] = float(mi)
+    st[2] = float(i)
+    return m
+
+
+@numba.njit(cache=True)
+def numba_lowest_inc(arr, period, i, st):
+    """Amortized sliding-window min. ``st``: [min_val, min_idx, last_i]."""
+    period = int(period)
+    if period <= 0 or i < 0:
+        return np.nan
+    if np.isnan(st[2]):
+        last = -1
+    else:
+        last = int(st[2])
+    if i < last:
+        last = -1
+        st[0] = np.nan
+        st[1] = np.nan
+    m = st[0]
+    mi = -1 if np.isnan(st[1]) else int(st[1])
+    for j in range(last + 1, i + 1):
+        start = j - period + 1
+        if start < 0:
+            start = 0
+        if j == 0 or np.isnan(m) or mi < start:
+            m = arr[start]
+            mi = start
+            for k in range(start + 1, j + 1):
+                v = arr[k]
+                if v < m or np.isnan(m):
+                    m = v
+                    mi = k
+        else:
+            v = arr[j]
+            if v < m or np.isnan(m):
+                m = v
+                mi = j
+    st[0] = m
+    st[1] = float(mi)
+    st[2] = float(i)
+    return m
+
+
+@numba.njit(cache=True)
+def numba_vwma_inc(src, vol, length, i, st):
+    """O(1) rolling VWMA. ``st``: [sum_pv, sum_v, last_i]. Matches ``numba_vwma``."""
+    length = int(length)
+    if length <= 0 or i < 0:
+        return np.nan
+    if np.isnan(st[2]):
+        last = -1
+    else:
+        last = int(st[2])
+    if i < last:
+        last = -1
+        st[0] = np.nan
+        st[1] = np.nan
+    sp = st[0]
+    sv = st[1]
+    for j in range(last + 1, i + 1):
+        if j < length - 1:
+            sp = np.nan
+            sv = np.nan
+        elif j == length - 1:
+            sp = 0.0
+            sv = 0.0
+            ok = True
+            for k in range(length):
+                p = src[k]
+                v = vol[k]
+                if np.isnan(p) or np.isnan(v):
+                    ok = False
+                    break
+                sp += p * v
+                sv += v
+            if not ok:
+                sp = np.nan
+                sv = np.nan
+        else:
+            if np.isnan(sp):
+                sp = 0.0
+                sv = 0.0
+                ok = True
+                for k in range(length):
+                    p = src[j - k]
+                    v = vol[j - k]
+                    if np.isnan(p) or np.isnan(v):
+                        ok = False
+                        break
+                    sp += p * v
+                    sv += v
+                if not ok:
+                    sp = np.nan
+                    sv = np.nan
+            else:
+                po = src[j - length]
+                vo = vol[j - length]
+                pn = src[j]
+                vn = vol[j]
+                if np.isnan(po) or np.isnan(vo) or np.isnan(pn) or np.isnan(vn):
+                    sp = np.nan
+                    sv = np.nan
+                else:
+                    sp = sp - po * vo + pn * vn
+                    sv = sv - vo + vn
+    st[0] = sp
+    st[1] = sv
+    st[2] = float(i)
+    if i < length - 1 or np.isnan(sp) or sv == 0.0:
+        return np.nan
+    return sp / sv
+
+
+@numba.njit(cache=True)
+def numba_stoch_inc(source, high, low, length, i, st):
+    """Incremental stochastic %K. ``st``: [hh, hi, ll, li, last_i]."""
+    length = int(length)
+    if length <= 0 or i < 0:
+        return np.nan
+    if np.isnan(st[4]):
+        last = -1
+    else:
+        last = int(st[4])
+    if i < last:
+        last = -1
+        st[0] = np.nan
+        st[1] = np.nan
+        st[2] = np.nan
+        st[3] = np.nan
+    hh = st[0]
+    hi = -1 if np.isnan(st[1]) else int(st[1])
+    ll = st[2]
+    li = -1 if np.isnan(st[3]) else int(st[3])
+    for j in range(last + 1, i + 1):
+        start = j - length + 1
+        if start < 0:
+            start = 0
+        # high max
+        if j == 0 or np.isnan(hh) or hi < start:
+            hh = high[start]
+            hi = start
+            for k in range(start + 1, j + 1):
+                v = high[k]
+                if v > hh or np.isnan(hh):
+                    hh = v
+                    hi = k
+        else:
+            v = high[j]
+            if v > hh or np.isnan(hh):
+                hh = v
+                hi = j
+        # low min
+        if j == 0 or np.isnan(ll) or li < start:
+            ll = low[start]
+            li = start
+            for k in range(start + 1, j + 1):
+                v = low[k]
+                if v < ll or np.isnan(ll):
+                    ll = v
+                    li = k
+        else:
+            v = low[j]
+            if v < ll or np.isnan(ll):
+                ll = v
+                li = j
+    st[0] = hh
+    st[1] = float(hi)
+    st[2] = ll
+    st[3] = float(li)
+    st[4] = float(i)
+    if i < length - 1:
+        return np.nan
+    if np.isnan(hh) or np.isnan(ll) or np.isnan(source[i]):
+        return np.nan
+    if hh == ll:
+        return 50.0
+    return 100.0 * (source[i] - ll) / (hh - ll)
+
+
+@numba.njit(cache=True)
+def numba_wma_inc(arr, length, i, st):
+    """O(1) WMA via running sum + weighted sum. ``st``: [sum, wsum, last_i].
+
+    Weights: oldest=1 … newest=length (matches ``numba_wma``).
+    """
+    length = int(length)
+    if length <= 0 or i < 0:
+        return np.nan
+    if np.isnan(st[2]):
+        last = -1
+    else:
+        last = int(st[2])
+    if i < last:
+        last = -1
+        st[0] = np.nan
+        st[1] = np.nan
+    s = st[0]
+    ws = st[1]
+    total_w = length * (length + 1) / 2.0
+    for j in range(last + 1, i + 1):
+        if j < length - 1:
+            s = np.nan
+            ws = np.nan
+        elif j == length - 1:
+            s = 0.0
+            ws = 0.0
+            ok = True
+            for k in range(length):
+                v = arr[k]
+                if np.isnan(v):
+                    ok = False
+                    break
+                s += v
+                ws += v * (k + 1)
+            if not ok:
+                s = np.nan
+                ws = np.nan
+        else:
+            if np.isnan(s):
+                s = 0.0
+                ws = 0.0
+                ok = True
+                for k in range(length):
+                    v = arr[j - length + 1 + k]
+                    if np.isnan(v):
+                        ok = False
+                        break
+                    s += v
+                    ws += v * (k + 1)
+                if not ok:
+                    s = np.nan
+                    ws = np.nan
+            else:
+                old = arr[j - length]
+                new = arr[j]
+                if np.isnan(old) or np.isnan(new):
+                    s = np.nan
+                    ws = np.nan
+                else:
+                    # Drop oldest (weight 1), demote remaining weights by 1, add new at length
+                    # ws_new = ws - old*1 - (s - old) + new*length
+                    # = ws - old - s + old + new*length = ws - s + new*length
+                    ws = ws - s + new * length
+                    s = s - old + new
+    st[0] = s
+    st[1] = ws
+    st[2] = float(i)
+    if i < length - 1 or np.isnan(ws):
+        return np.nan
+    return ws / total_w
