@@ -56,13 +56,22 @@ class TechnicalHelpers:
         Enabled when ``_pine_bar_mode`` and ``_pine_ta_incremental`` (default
         True in Runtime hosts). Disable with env ``PYNE_TA_INCREMENTAL=0`` or
         ``evaluator._pine_ta_incremental = False``.
+
+        Resolved once per evaluator instance (hot path is called many times/bar).
         """
+        cached = getattr(self, "_pine_ta_inc_cached", None)
+        if cached is not None:
+            return cached
         if not self._bar_mode():
+            self._pine_ta_inc_cached = False  # type: ignore[attr-defined]
             return False
         env = os.environ.get("PYNE_TA_INCREMENTAL", "1").strip().lower()
         if env in {"0", "false", "no", "off"}:
+            self._pine_ta_inc_cached = False  # type: ignore[attr-defined]
             return False
-        return bool(getattr(self, "_pine_ta_incremental", True))
+        result = bool(getattr(self, "_pine_ta_incremental", True))
+        self._pine_ta_inc_cached = result  # type: ignore[attr-defined]
+        return result
 
     def _ta_next_slot(self) -> int:
         """Per-bar call-site index (reset by Runtime each bar, like crossover)."""
@@ -388,11 +397,18 @@ class TechnicalHelpers:
             return None
         return values[-1]
 
+    def _cap_series_list(self, series: list[Any]) -> list[Any]:
+        """Return chronological series capped to ``_SERIES_MAX`` (no copy if short)."""
+        n = len(series)
+        if n > self._SERIES_MAX:
+            return series[-self._SERIES_MAX :]
+        return series
+
     def _as_series(self, value: Any) -> list[Any]:
         """Convert a Pine-series-like object to a list.
 
         Accepts:
-        - ``list`` — returned as-is.
+        - ``list`` — returned as-is (capped to ``_SERIES_MAX``).
         - Any object with a ``history`` attribute (e.g. ``PineSeries``) —
           its history is converted to a reversed list (chronological order),
           truncated to the most recent ``_SERIES_MAX`` elements to avoid
@@ -402,7 +418,7 @@ class TechnicalHelpers:
         - Otherwise wraps the value in a single-element list.
         """
         if isinstance(value, list):
-            return value
+            return self._cap_series_list(value)
         # Duck-type PineSeries: has a deque/iterable history
         if hasattr(value, "history"):
             raw = list(reversed(value.history))
@@ -412,7 +428,11 @@ class TechnicalHelpers:
         # Named series reference — look up from the pre-loaded dict
         series_map = getattr(self, "current_series", None) or {}
         if isinstance(value, str) and value in series_map:
-            return list(series_map[value])
+            src = series_map[value]
+            # Prefer view/cap without full copy when already a list
+            if isinstance(src, list):
+                return self._cap_series_list(src)
+            return list(src)
         # Unknown — wrap as single-element
         return [value]
 
@@ -424,7 +444,10 @@ class TechnicalHelpers:
         """
         series_map = getattr(self, "current_series", None) or {}
         if name in series_map and series_map[name]:
-            return list(series_map[name])
+            src = series_map[name]
+            if isinstance(src, list):
+                return self._cap_series_list(src)
+            return list(src)
         # Fall back to empty — callers treat short series as na
         return []
 

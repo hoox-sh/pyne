@@ -244,10 +244,12 @@ plot(ta.rsi(close, 14))
 
 def test_env_disable_uses_full_path(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("PYNE_TA_INCREMENTAL", "0")
-    ev = _IncTA()
-    assert ev._use_incremental_ta() is False
+    ev_off = _IncTA()
+    assert ev_off._use_incremental_ta() is False
     monkeypatch.delenv("PYNE_TA_INCREMENTAL", raising=False)
-    assert ev._use_incremental_ta() is True
+    # Flag is resolved once per evaluator instance
+    ev_on = _IncTA()
+    assert ev_on._use_incremental_ta() is True
 
 
 def _ohlc(n: int = 120) -> tuple[list[float], list[float], list[float]]:
@@ -323,6 +325,41 @@ def test_incremental_atr_matches_full() -> None:
             _bar_walk_inc_atr(highs, lows, closes, period),
             _bar_walk_full_atr(highs, lows, closes, period),
         )
+
+
+def _bar_walk_full_bb(
+    src: list[float], period: int, mult: float
+) -> list[tuple[float | None, float | None, float | None]]:
+    ev = _FullTA()
+    out: list[tuple[float | None, float | None, float | None]] = []
+    for i in range(len(src)):
+        out.append(ev._bollinger_bands(src[: i + 1], period, mult))
+    return out
+
+
+def _bar_walk_inc_bb(
+    src: list[float], period: int, mult: float
+) -> list[tuple[float | None, float | None, float | None]]:
+    ev = _IncTA()
+    out: list[tuple[float | None, float | None, float | None]] = []
+    for i in range(len(src)):
+        ev._ta_call_i = 0
+        out.append(ev._bollinger_bands(src[: i + 1], period, mult))
+    return out
+
+
+def test_incremental_bb_matches_full() -> None:
+    src = _series(150)
+    for period, mult in ((20, 2.0), (10, 1.5)):
+        got = _bar_walk_inc_bb(src, period, mult)
+        exp = _bar_walk_full_bb(src, period, mult)
+        assert len(got) == len(exp)
+        for i, (g, e) in enumerate(zip(got, exp, strict=True)):
+            for j in range(3):
+                if e[j] is None:
+                    assert g[j] is None, f"bb bar {i} component {j}"
+                else:
+                    assert g[j] == pytest.approx(e[j], rel=1e-9, abs=1e-9), f"bb bar {i} c{j}"
 
 
 def test_runtime_macd_atr_incremental_vs_disabled(monkeypatch: pytest.MonkeyPatch) -> None:

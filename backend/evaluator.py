@@ -80,7 +80,8 @@ class CustomEvaluator(NodeLiteralEvaluator):
             return None
 
     def reset_plots(self):
-        self.plot_outputs = []
+        # Reuse list to cut per-bar allocations (values are copied into results)
+        self.plot_outputs.clear()
 
     def reset_var_declarations(self):
         """Reset var declarations set for per-run (from plan branch var support)."""

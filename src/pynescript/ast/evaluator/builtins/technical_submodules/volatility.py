@@ -615,9 +615,16 @@ class VolatilityIndicators(TechnicalHelpers):
         period: int,
         multiplier: float,
     ) -> tuple[float | None, float | None, float | None]:
-        """Bollinger Bands calculation."""
-        sma_values = self._sma(series, period)
-        middle = sma_values[-1] if sma_values else None
+        """Bollinger Bands calculation.
+
+        In bar-mode incremental hosts, middle uses call-site SMA state (O(1)
+        after warm-up) instead of full-history ``_sma`` each bar.
+        """
+        if self._use_incremental_ta():
+            middle = self._sma_inc_update(series, period)
+        else:
+            sma_values = self._sma(series, period)
+            middle = sma_values[-1] if sma_values else None
         deviation = self._stdev(series, period)
         if middle is None or deviation is None:
             return None, None, None
