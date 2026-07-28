@@ -1340,6 +1340,52 @@ plot(correlation(close, high, 5), title="c")
         assert abs(out["c"][-1] - 1.0) < 1e-9
 
 
+class TestCompileRound3HmaMathSum:
+    """Round 3: HMA multi-stage WMA_inc + math.sum/avg → rolling *_inc."""
+
+    def test_hma_inc_emit_and_parity(self) -> None:
+        from pynescript.compiler.numba_builtins import numba_hma
+
+        src = """//@version=5
+indicator("x")
+plot(ta.hma(close, 20), title="hma")
+"""
+        code = transpile(src)
+        assert "numba_hma_inc" in code
+        assert "__hma" in code and "_st" in code
+        assert "raw" in code or "__hma_raw" in code
+        compiled = compile_script(src)
+        rng = np.random.default_rng(0)
+        n = 300
+        c = 100.0 + np.cumsum(rng.normal(0.0, 1.0, n))
+        o = c + 0.1
+        h = c + 1.0
+        l = c - 1.0
+        v = np.ones(n)
+        out = compiled.run(o, h, l, c, v)["hma"]
+        full = np.array([numba_hma(c, 20, i) for i in range(n)])
+        both = np.isfinite(full) & np.isfinite(out)
+        assert both.any()
+        assert float(np.max(np.abs(full[both] - out[both]))) <= 1e-10
+
+    def test_math_sum_and_avg_use_inc(self) -> None:
+        src = """//@version=5
+indicator("x")
+plot(math.sum(close, 5), title="ms")
+plot(math.avg(close, 5), title="ma")
+"""
+        code = transpile(src)
+        assert "numba_sum_inc" in code
+        assert "numba_sma_inc" in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(40)
+        out = compiled.run(o, h, l, c, v)
+        expected_sum = float(np.sum(c[-5:]))
+        expected_avg = float(np.mean(c[-5:]))
+        assert abs(out["ms"][-1] - expected_sum) < 1e-6
+        assert abs(out["ma"][-1] - expected_avg) < 1e-6
+
+
 class TestSprint6Coercion:
     """Type coercion: safe float/int, version strings, color arith, sequences."""
 

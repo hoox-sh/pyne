@@ -62,11 +62,15 @@ class CommonIndicators(TechnicalHelpers):
     def _builtin_ta_falling(self, args: list[Any]) -> bool:
         """Check if series is falling for length bars."""
         series, period = self._expect_series(args, length=BINARY)
+        if self._use_incremental_ta():
+            return self._falling_inc_update(series, period)
         return self._falling(series, period)
 
     def _builtin_ta_rising(self, args: list[Any]) -> bool:
         """Check if series is rising for length bars."""
         series, period = self._expect_series(args, length=BINARY)
+        if self._use_incremental_ta():
+            return self._rising_inc_update(series, period)
         return self._rising(series, period)
 
     # -- Extremes functions -------------------------------------------------
@@ -132,6 +136,8 @@ class CommonIndicators(TechnicalHelpers):
     def _builtin_ta_median(self, args: list[Any]) -> float | None:
         """Median value over a period."""
         series, period = self._expect_series(args, length=BINARY)
+        if self._use_incremental_ta():
+            return self._median_inc_update(series, period)
         return self._median(series, period)
 
     def _builtin_ta_mode(self, args: list[Any]) -> float | None:
@@ -142,6 +148,8 @@ class CommonIndicators(TechnicalHelpers):
     def _builtin_ta_percentrank(self, args: list[Any]) -> float | None:
         """Percentile rank of current value in period."""
         series, period = self._expect_series(args, length=BINARY)
+        if self._use_incremental_ta():
+            return self._percentrank_inc_update(series, period)
         return self._percentrank(series, period)
 
     def _builtin_ta_variance(self, args: list[Any]) -> float | None:

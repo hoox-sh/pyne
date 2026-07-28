@@ -28,6 +28,68 @@ from .base import BuiltinDispatchMixin
 from .base import BuiltinHandler
 
 
+# ── export helpers (module-level: no per-call nested-def cost) ──────────────
+
+
+def _export_num(v: Any) -> float | int | None:
+    if v is None:
+        return None
+    if hasattr(v, "current"):
+        v = getattr(v, "current", None)
+    if v is None:
+        return None
+    if isinstance(v, bool):
+        return int(v)
+    if isinstance(v, (int, float)):
+        if isinstance(v, float) and v != v:  # NaN
+            return None
+        return v
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None
+
+
+def _export_x_to_time(x: Any, xloc: str, times: list[int]) -> int | float | None:
+    xv = _export_num(x)
+    if xv is None:
+        return None
+    loc = (xloc or "bar_index").lower()
+    if "time" in loc:
+        return xv
+    # bar_index → wall time
+    idx = int(xv)
+    if 0 <= idx < len(times):
+        return times[idx]
+    # already looks like unix seconds / ms
+    if xv > 1_000_000_000:
+        return xv
+    return None
+
+
+def _export_color(c: Any) -> str:
+    if c is None:
+        return "#939fff"
+    if isinstance(c, str) and c:
+        return c
+    if isinstance(c, int):
+        # 0xAARRGGBB or 0xRRGGBB
+        if c > 0xFFFFFF:
+            r = (c >> 16) & 0xFF
+            g = (c >> 8) & 0xFF
+            b = c & 0xFF
+            return f"#{r:02X}{g:02X}{b:02X}"
+        return f"#{c & 0xFFFFFF:06X}"
+    return str(c)
+
+
+def _export_extend(e: Any) -> str:
+    s = str(e or "none").lower().replace("extend.", "").strip()
+    if s in {"none", "left", "right", "both"}:
+        return s
+    return "none"
+
+
 # Drawing object registries
 class DrawingRegistry:
     """Global registry for drawing objects."""
@@ -53,68 +115,35 @@ class DrawingRegistry:
         PlotRegistry.reset()
 
     @classmethod
+    def is_empty(cls) -> bool:
+        """True when no drawing objects exist (O(1) list-length checks).
+
+        Used by Runtime to skip ``export_for_api`` and bar_times materialization.
+        """
+        # truthiness of a list is len != 0 — no iteration
+        return not (
+            cls.lines or cls.boxes or cls.labels or cls.tables or cls.polylines or cls.linefills
+        )
+
+    @classmethod
     def export_for_api(cls, bar_times: list[int] | None = None) -> list[dict[str, Any]]:
         """Serialize active drawing objects for the Pro API / AXIS chart.
 
         ``bar_times`` maps ``xloc=bar_index`` coordinates to unix seconds.
+
+        Fast path: empty registry returns ``[]`` without allocating helpers or
+        walking collections (most indicator scripts never draw).
         """
+        # Exportable collections only (linefills are not serialized today)
+        if not (cls.lines or cls.boxes or cls.labels or cls.tables or cls.polylines):
+            return []
+
         out: list[dict[str, Any]] = []
-        times = bar_times or []
-
-        def _num(v: Any) -> float | int | None:
-            if v is None:
-                return None
-            if hasattr(v, "current"):
-                v = getattr(v, "current", None)
-            if v is None:
-                return None
-            if isinstance(v, bool):
-                return int(v)
-            if isinstance(v, (int, float)):
-                if isinstance(v, float) and v != v:  # NaN
-                    return None
-                return v
-            try:
-                return float(v)
-            except (TypeError, ValueError):
-                return None
-
-        def _x_to_time(x: Any, xloc: str) -> int | float | None:
-            xv = _num(x)
-            if xv is None:
-                return None
-            loc = (xloc or "bar_index").lower()
-            if "time" in loc:
-                return xv
-            # bar_index → wall time
-            idx = int(xv)
-            if 0 <= idx < len(times):
-                return times[idx]
-            # already looks like unix seconds / ms
-            if xv > 1_000_000_000:
-                return xv
-            return None
-
-        def _color(c: Any) -> str:
-            if c is None:
-                return "#939fff"
-            if isinstance(c, str) and c:
-                return c
-            if isinstance(c, int):
-                # 0xAARRGGBB or 0xRRGGBB
-                if c > 0xFFFFFF:
-                    r = (c >> 16) & 0xFF
-                    g = (c >> 8) & 0xFF
-                    b = c & 0xFF
-                    return f"#{r:02X}{g:02X}{b:02X}"
-                return f"#{c & 0xFFFFFF:06X}"
-            return str(c)
-
-        def _extend(e: Any) -> str:
-            s = str(e or "none").lower().replace("extend.", "").strip()
-            if s in {"none", "left", "right", "both"}:
-                return s
-            return "none"
+        times = bar_times if bar_times is not None else []
+        _num = _export_num
+        _x_to_time = _export_x_to_time
+        _color = _export_color
+        _extend = _export_extend
 
         for ln in cls.lines:
             if getattr(ln, "deleted", False):
@@ -123,8 +152,8 @@ class DrawingRegistry:
             # Guard mis-merged kwargs (color hex landed in xloc)
             if xloc.startswith("#") or xloc.startswith("rgb"):
                 xloc = "bar_index"
-            t1 = _x_to_time(ln.x1, xloc)
-            t2 = _x_to_time(ln.x2, xloc)
+            t1 = _x_to_time(ln.x1, xloc, times)
+            t2 = _x_to_time(ln.x2, xloc, times)
             y1 = _num(ln.y1)
             y2 = _num(ln.y2)
             if t1 is None or t2 is None or y1 is None or y2 is None:
@@ -149,8 +178,8 @@ class DrawingRegistry:
             xloc = str(getattr(bx, "xloc", "bar_index") or "bar_index")
             if xloc.startswith("#") or xloc.startswith("rgb"):
                 xloc = "bar_index"
-            t1 = _x_to_time(bx.left, xloc)
-            t2 = _x_to_time(bx.right, xloc)
+            t1 = _x_to_time(bx.left, xloc, times)
+            t2 = _x_to_time(bx.right, xloc, times)
             top = _num(bx.top)
             bottom = _num(bx.bottom)
             if t1 is None or t2 is None or top is None or bottom is None:
@@ -175,7 +204,7 @@ class DrawingRegistry:
             xloc = str(getattr(lb, "xloc", "bar_index") or "bar_index")
             if xloc.startswith("#") or xloc.startswith("rgb"):
                 xloc = "bar_index"
-            t = _x_to_time(lb.x, xloc)
+            t = _x_to_time(lb.x, xloc, times)
             y = _num(lb.y)
             if t is None or y is None:
                 continue
@@ -204,7 +233,7 @@ class DrawingRegistry:
                 if getattr(pt, "time", None) is not None:
                     t = _num(pt.time)
                 elif getattr(pt, "index", None) is not None:
-                    t = _x_to_time(pt.index, xloc)
+                    t = _x_to_time(pt.index, xloc, times)
                 else:
                     t = None
                 if t is None:

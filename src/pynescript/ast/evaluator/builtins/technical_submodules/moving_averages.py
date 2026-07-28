@@ -66,6 +66,8 @@ class MovingAverageIndicators(TechnicalHelpers):
     def _builtin_ta_hma(self, args: list[Any]) -> float | None:
         """Hull Moving Average - reduces lag."""
         series, period = self._expect_series(args, length=BINARY)
+        if self._use_incremental_ta():
+            return self._hma_inc_update(series, period)
         return self._hma(series, period)
 
     def _builtin_ta_vwma(self, args: list[Any]) -> list[float | None]:
@@ -298,15 +300,31 @@ class MovingAverageIndicators(TechnicalHelpers):
     # Helper implementations
 
     def _hma(self, series: list[float], period: int) -> float | None:
-        """Hull Moving Average calculation."""
-        half_period = period // 2
-        sqrt_period = int(math.sqrt(period))
-        wma_half = self._wma(series, half_period)
-        wma_full = self._wma(series, period)
-        if wma_half is None or wma_full is None:
+        """Hull Moving Average: WMA(2*WMA(n/2) - WMA(n), sqrt(n)) last value.
+
+        Requires ``period + sqrt(period) - 1`` samples before the first
+        non-None output (inner full WMA + outer sqrt-length WMA).
+        """
+        if period <= 0:
             return None
-        diff = [2 * wma_half[i] - wma_full[i] for i in range(min(len(wma_half), len(wma_full)))]
-        return self._wma(diff, sqrt_period)
+        half = max(1, period // 2)
+        sqrt_n = max(1, int(math.sqrt(period)))
+        need = period + sqrt_n - 1
+        if len(series) < need:
+            return None
+        # Last ``sqrt_n`` raw-diff samples (oldest → newest), each ending at
+        # successive bars so the outer WMA matches TV/numba readiness.
+        diffs: list[float] = []
+        n = len(series)
+        for t in range(sqrt_n - 1, -1, -1):
+            end = n - t  # exclusive end index into series
+            sub = series[:end]
+            wh = self._wma(sub, half)
+            wf = self._wma(sub, period)
+            if wh is None or wf is None:
+                return None
+            diffs.append(2.0 * float(wh) - float(wf))
+        return self._wma(diffs, sqrt_n)
 
     def _vwma(self, series: list[float], period: int) -> list[float]:
         """Volume Weighted Moving Average: sum(src*vol)/sum(vol).

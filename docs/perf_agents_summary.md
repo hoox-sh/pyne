@@ -72,3 +72,14 @@ Bench n=5000: SAR ~0.04 ms, linreg ~0.18 ms (was O(n·period) style pressure
 | **Dispatch** | Type-keyed visitor, op maps, scalar fast path — expression walks **~2–7×** |
 
 Reports: `docs/perf_agent_{compile,runtime,dispatch}_round2.md`
+
+### Follow-up 5 (4-agent round 3)
+
+| Agent | Wins |
+|---|---|
+| **Compile** | `hma_inc` (**12–134×**), `math_sum`/`math_avg` → `*_inc` |
+| **Evaluate** | `_as_series` same-bar cache; HMA/rising/falling/median/percentrank inc |
+| **Object-mode** | strategy begin_bar + lighter emit — strategy **4.5–6×**, UDT/draw **~2.5×** |
+| **Plot/draw** | O(plots) registry upsert; skip empty DrawingRegistry export |
+
+Reports: `docs/perf_agent_*_round3.md`

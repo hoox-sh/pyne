@@ -493,9 +493,10 @@ class Runtime:
             reset_plots()
             if strategy_events:
                 strategy_events.clear()
-            # Bar-mode call-site indices (crossover + incremental ta.*)
+            # Bar-mode call-site indices (crossover + incremental ta.* + plot reuse)
             evaluator._cross_call_i = 0  # type: ignore[attr-defined]
             evaluator._ta_call_i = 0  # type: ignore[attr-defined]
+            evaluator._plot_call_i = 0  # type: ignore[attr-defined]
 
             # Broker sim: only when there are pending limit/stop orders
             if process_pending is not None and pending_orders:
@@ -585,14 +586,16 @@ class Runtime:
         elif series_map:
             final_series = next(iter(series_map.values()))
 
-        # Serialize Pine drawing objects (line/label/box) for AXIS overlay
+        # Serialize Pine drawing objects (line/label/box) for AXIS overlay.
+        # Fast path: skip bar_times materialization + export when registry empty
+        # (most indicator scripts never call line/label/box/table/polyline).
         drawings: list[dict] = []
         try:
             from pynescript.ast.evaluator.builtins.drawing import DrawingRegistry
 
-            # Reuse pre-extracted times when available
-            bar_times = [int(t or 0) for t in col_time]
-            drawings = DrawingRegistry.export_for_api(bar_times)
+            if not DrawingRegistry.is_empty():
+                bar_times = [int(t or 0) for t in col_time]
+                drawings = DrawingRegistry.export_for_api(bar_times)
         except Exception:
             drawings = []
 

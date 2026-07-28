@@ -974,6 +974,136 @@ def numba_hma(arr, length, i):
 
 
 @numba.njit(cache=True)
+def _wma_window_sums(arr, end_idx, period):
+    """Return (sum, weighted_sum) for WMA window ending at ``end_idx``, or (nan,nan)."""
+    period = int(period)
+    s = 0.0
+    ws = 0.0
+    start = end_idx - period + 1
+    for k in range(period):
+        v = arr[start + k]
+        if np.isnan(v):
+            return np.nan, np.nan
+        s += v
+        ws += v * (k + 1)
+    return s, ws
+
+
+@numba.njit(cache=True)
+def numba_hma_inc(arr, length, i, st, raw):
+    """Amortized-O(1) HMA via multi-stage incremental WMA.
+
+    ``st``: [half_s, half_ws, full_s, full_ws, outer_s, outer_ws, last_i]
+    ``raw``: intermediate series buffer (same length as ``arr``); filled with
+    ``2*WMA(half) - WMA(full)`` for each bar as we advance.
+
+    Half/full/outer sliding sums reseed from the window every ``length`` bars to
+    bound float drift (parity vs ``numba_hma`` ≤ 1e-10). Catch-up / rewind safe.
+    """
+    length = int(length)
+    if length <= 0 or i < 0:
+        return np.nan
+    half = length // 2
+    if half < 1:
+        half = 1
+    sqrt_n = int(np.sqrt(float(length)))
+    if sqrt_n < 1:
+        sqrt_n = 1
+    half_tw = half * (half + 1) / 2.0
+    full_tw = length * (length + 1) / 2.0
+    outer_tw = sqrt_n * (sqrt_n + 1) / 2.0
+    need = length + sqrt_n - 2
+    # Reseed cadence: at least every `length` bars (amortized O(1))
+    reseed_every = length if length > 0 else 1
+
+    if np.isnan(st[6]):
+        last = -1
+    else:
+        last = int(st[6])
+    if i < last:
+        last = -1
+        st[0] = np.nan
+        st[1] = np.nan
+        st[2] = np.nan
+        st[3] = np.nan
+        st[4] = np.nan
+        st[5] = np.nan
+
+    hs = st[0]
+    hws = st[1]
+    fs = st[2]
+    fws = st[3]
+    os_ = st[4]
+    ows = st[5]
+
+    for j in range(last + 1, i + 1):
+        # --- half WMA ---
+        if j < half - 1:
+            hs = np.nan
+            hws = np.nan
+        elif j == half - 1 or np.isnan(hs) or (j % reseed_every == 0):
+            hs, hws = _wma_window_sums(arr, j, half)
+        else:
+            old = arr[j - half]
+            new = arr[j]
+            if np.isnan(old) or np.isnan(new):
+                hs = np.nan
+                hws = np.nan
+            else:
+                hws = hws - hs + new * half
+                hs = hs - old + new
+
+        # --- full WMA ---
+        if j < length - 1:
+            fs = np.nan
+            fws = np.nan
+        elif j == length - 1 or np.isnan(fs) or (j % reseed_every == 0):
+            fs, fws = _wma_window_sums(arr, j, length)
+        else:
+            old = arr[j - length]
+            new = arr[j]
+            if np.isnan(old) or np.isnan(new):
+                fs = np.nan
+                fws = np.nan
+            else:
+                fws = fws - fs + new * length
+                fs = fs - old + new
+
+        # intermediate raw = 2*half - full (both must be valid)
+        if np.isnan(hws) or np.isnan(fws) or j < length - 1:
+            raw[j] = np.nan
+        else:
+            raw[j] = 2.0 * (hws / half_tw) - (fws / full_tw)
+
+        # --- outer WMA of raw over sqrt_n ---
+        if j < need:
+            os_ = np.nan
+            ows = np.nan
+        elif j == need or np.isnan(os_) or (j % reseed_every == 0):
+            os_, ows = _wma_window_sums(raw, j, sqrt_n)
+        else:
+            old = raw[j - sqrt_n]
+            new = raw[j]
+            if np.isnan(old) or np.isnan(new):
+                os_ = np.nan
+                ows = np.nan
+            else:
+                ows = ows - os_ + new * sqrt_n
+                os_ = os_ - old + new
+
+    st[0] = hs
+    st[1] = hws
+    st[2] = fs
+    st[3] = fws
+    st[4] = os_
+    st[5] = ows
+    st[6] = float(i)
+    if i < need or np.isnan(ows):
+        return np.nan
+    return ows / outer_tw
+
+
+@numba.njit(cache=True)
 def numba_tsi(arr, short_len, long_len, i):
     short_len = int(short_len)
     long_len = int(long_len)

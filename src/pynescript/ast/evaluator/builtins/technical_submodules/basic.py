@@ -96,6 +96,8 @@ class BasicIndicators(TechnicalHelpers):
     def _builtin_ta_hma(self, args: list[Any]) -> float | None:
         """Hull Moving Average."""
         series, period = self._expect_series(args, length=BINARY)
+        if self._use_incremental_ta():
+            return self._hma_inc_update(series, period)
         return self._hma(series, period)
 
     def _builtin_ta_vwap(self, args: list[Any]) -> float | None:
@@ -154,11 +156,15 @@ class BasicIndicators(TechnicalHelpers):
     def _builtin_ta_falling(self, args: list[Any]) -> bool:
         """Falling check."""
         series, period = self._expect_series(args, length=BINARY)
+        if self._use_incremental_ta():
+            return self._falling_inc_update(series, period)
         return self._falling(series, period)
 
     def _builtin_ta_rising(self, args: list[Any]) -> bool:
         """Rising check."""
         series, period = self._expect_series(args, length=BINARY)
+        if self._use_incremental_ta():
+            return self._rising_inc_update(series, period)
         return self._rising(series, period)
 
     def _builtin_ta_highest(self, args: list[Any]) -> Any:
@@ -690,6 +696,8 @@ class BasicIndicators(TechnicalHelpers):
     def _builtin_ta_median(self, args: list[Any]) -> float | None:
         """Median value over a period."""
         series, period = self._expect_series(args, length=2)
+        if self._use_incremental_ta():
+            return self._median_inc_update(series, period)
         return self._median(series, period)
 
     def _builtin_ta_mode(self, args: list[Any]) -> float | None:
@@ -700,6 +708,8 @@ class BasicIndicators(TechnicalHelpers):
     def _builtin_ta_percentrank(self, args: list[Any]) -> float | None:
         """Percentile rank of current value in period."""
         series, period = self._expect_series(args, length=2)
+        if self._use_incremental_ta():
+            return self._percentrank_inc_update(series, period)
         return self._percentrank(series, period)
 
     def _builtin_ta_percentile_linear_interpolation(self, args: list[Any]) -> float | None:

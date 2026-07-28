@@ -883,3 +883,205 @@ plot(ta.variance(close, 14))
             if a is None or b is None:
                 continue
             assert a == pytest.approx(b, rel=1e-9, abs=1e-9), f"{key} bar {i}: {a} != {b}"
+
+
+# ---------------------------------------------------------------------------
+# Round 3: hma, rising/falling, median, percentrank + _as_series hygiene
+# ---------------------------------------------------------------------------
+
+
+def _bar_walk_full_hma(src: list[float], period: int) -> list[float | None]:
+    ev = _FullTA()
+    return [ev._hma(src[: i + 1], period) for i in range(len(src))]
+
+
+def _bar_walk_inc_hma(src: list[float], period: int) -> list[float | None]:
+    ev = _IncTA()
+    out: list[float | None] = []
+    for i in range(len(src)):
+        ev._ta_call_i = 0
+        out.append(ev._hma_inc_update(src[: i + 1], period))
+    return out
+
+
+def _bar_walk_full_rising(src: list[float], period: int) -> list[bool]:
+    ev = _FullTA()
+    return [bool(ev._rising(src[: i + 1], period)) for i in range(len(src))]
+
+
+def _bar_walk_inc_rising(src: list[float], period: int) -> list[bool]:
+    ev = _IncTA()
+    out: list[bool] = []
+    for i in range(len(src)):
+        ev._ta_call_i = 0
+        out.append(bool(ev._rising_inc_update(src[: i + 1], period)))
+    return out
+
+
+def _bar_walk_full_falling(src: list[float], period: int) -> list[bool]:
+    ev = _FullTA()
+    return [bool(ev._falling(src[: i + 1], period)) for i in range(len(src))]
+
+
+def _bar_walk_inc_falling(src: list[float], period: int) -> list[bool]:
+    ev = _IncTA()
+    out: list[bool] = []
+    for i in range(len(src)):
+        ev._ta_call_i = 0
+        out.append(bool(ev._falling_inc_update(src[: i + 1], period)))
+    return out
+
+
+def _bar_walk_full_median(src: list[float], period: int) -> list[float | None]:
+    ev = _FullTA()
+    return [ev._median(src[: i + 1], period) for i in range(len(src))]
+
+
+def _bar_walk_inc_median(src: list[float], period: int) -> list[float | None]:
+    ev = _IncTA()
+    out: list[float | None] = []
+    for i in range(len(src)):
+        ev._ta_call_i = 0
+        out.append(ev._median_inc_update(src[: i + 1], period))
+    return out
+
+
+def _bar_walk_full_percentrank(src: list[float], period: int) -> list[float | None]:
+    ev = _FullTA()
+    return [ev._percentrank(src[: i + 1], period) for i in range(len(src))]
+
+
+def _bar_walk_inc_percentrank(src: list[float], period: int) -> list[float | None]:
+    ev = _IncTA()
+    out: list[float | None] = []
+    for i in range(len(src)):
+        ev._ta_call_i = 0
+        out.append(ev._percentrank_inc_update(src[: i + 1], period))
+    return out
+
+
+def test_incremental_hma_matches_full() -> None:
+    src = _series(150)
+    for period in (9, 14, 20):
+        _assert_series_close(
+            _bar_walk_inc_hma(src, period),
+            _bar_walk_full_hma(src, period),
+        )
+
+
+def test_incremental_rising_falling_matches_full() -> None:
+    src = _series(100)
+    # Strict mono sequences exercise consecutive comparisons.
+    rising_src = [float(i) for i in range(40)]
+    falling_src = [float(40 - i) for i in range(40)]
+    for period in (3, 5, 10):
+        assert _bar_walk_inc_rising(src, period) == _bar_walk_full_rising(src, period)
+        assert _bar_walk_inc_falling(src, period) == _bar_walk_full_falling(src, period)
+        assert _bar_walk_inc_rising(rising_src, period) == _bar_walk_full_rising(rising_src, period)
+        assert _bar_walk_inc_falling(falling_src, period) == _bar_walk_full_falling(falling_src, period)
+
+
+def test_incremental_median_matches_full() -> None:
+    src = _series(120)
+    for period in (5, 14, 21):
+        _assert_series_close(
+            _bar_walk_inc_median(src, period),
+            _bar_walk_full_median(src, period),
+        )
+
+
+def test_incremental_percentrank_matches_full() -> None:
+    src = _series(120)
+    for period in (5, 14, 20):
+        _assert_series_close(
+            _bar_walk_inc_percentrank(src, period),
+            _bar_walk_full_percentrank(src, period),
+        )
+
+
+def test_as_series_pineseries_cache_and_cap() -> None:
+    """PineSeries materialization is chronological, capped, and same-bar cached."""
+    from collections import deque
+
+    class _FakePS:
+        def __init__(self, n: int) -> None:
+            # Newest-first like backend.series.PineSeries
+            self.history: deque[float] = deque(maxlen=2000)
+            self.current: float | None = None
+            for i in range(n):
+                self.current = float(i)
+                self.history.appendleft(float(i))
+
+    ev = _FullTA()
+    ps = _FakePS(500)
+    a = ev._as_series(ps)
+    b = ev._as_series(ps)
+    assert a is b  # same-bar cache returns identical list object
+    assert len(a) == ev._SERIES_MAX
+    # Chronological: oldest of window … newest
+    assert a[-1] == ps.current
+    assert a[0] == float(500 - ev._SERIES_MAX)
+    # Length/head change invalidates
+    ps.current = 999.0
+    ps.history.appendleft(999.0)
+    c = ev._as_series(ps)
+    assert c is not a
+    assert c[-1] == 999.0
+
+
+def test_series_last_accepts_pineseries_without_list() -> None:
+    from collections import deque
+
+    class _FakePS:
+        def __init__(self) -> None:
+            self.current = 42.5
+            self.history: deque[float] = deque([42.5, 41.0, 40.0])
+
+    assert _FullTA()._series_last(_FakePS()) == 42.5
+    assert _FullTA()._series_last([1.0, 2.0, 3.0]) == 3.0
+    assert _FullTA()._series_last([]) is None
+
+
+def test_runtime_hma_median_rank_rising_incremental_vs_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from backend.runtime import Runtime
+
+    bars = [
+        {
+            "open": 100 + i * 0.1,
+            "high": 101.5 + i * 0.1 + (i % 5) * 0.05,
+            "low": 98.5 + i * 0.1 - (i % 3) * 0.05,
+            "close": 100.5 + i * 0.1 + math.sin(i / 7.0) * 0.2,
+            "volume": 1000 + i,
+            "time": 1_000_000 + i * 86_400_000,
+        }
+        for i in range(150)
+    ]
+    src = """//@version=5
+indicator("round3 residual")
+plot(ta.hma(close, 9))
+plot(ta.median(close, 14))
+plot(ta.percentrank(close, 14))
+plot(ta.rising(close, 5) ? 1.0 : 0.0)
+plot(ta.falling(close, 5) ? 1.0 : 0.0)
+plot(ta.variance(close, 14))
+plot(ta.dev(close, 14))
+plot(ta.cci(close, 14))
+"""
+    monkeypatch.delenv("PYNE_TA_INCREMENTAL", raising=False)
+    r_on = Runtime(symbol="T").run(src, bars)
+    assert "error" not in r_on, r_on.get("error")
+    monkeypatch.setenv("PYNE_TA_INCREMENTAL", "0")
+    r_off = Runtime(symbol="T").run(src, bars)
+    assert "error" not in r_off, r_off.get("error")
+    monkeypatch.delenv("PYNE_TA_INCREMENTAL", raising=False)
+
+    assert set(r_on["series"]) == set(r_off["series"])
+    for key in r_on["series"]:
+        for i, (a, b) in enumerate(zip(r_on["series"][key], r_off["series"][key], strict=True)):
+            if a is None and b is None:
+                continue
+            if a is None or b is None:
+                continue
+            assert a == pytest.approx(b, rel=1e-9, abs=1e-9), f"{key} bar {i}: {a} != {b}"

@@ -38,6 +38,9 @@ QUINARY = 5
 
 MIN_SERIES_LENGTH = 2
 
+# Sentinel for ``_series_last`` getattr default (distinct from None / na).
+_MISSING: Any = object()
+
 
 class TechnicalHelpers:
     """Shared technical analysis helpers and validation methods."""
@@ -101,11 +104,35 @@ class TechnicalHelpers:
         return state
 
     @staticmethod
-    def _series_last(series: list[Any]) -> Any:
-        """Current-bar source sample (bar mode feeds one update per call)."""
-        if not series:
+    def _series_last(series: Any) -> Any:
+        """Current-bar source sample (bar mode feeds one update per call).
+
+        Accepts:
+        - ``list`` / sequence — last element
+        - objects with ``.current`` (e.g. ``PineSeries``)
+        - objects with newest-first ``.history`` (deque) — ``history[0]``
+        - bare scalars — returned as-is
+        """
+        if series is None:
             return None
-        return series[-1]
+        if isinstance(series, list):
+            if not series:
+                return None
+            return series[-1]
+        # PineSeries / series wrapper: prefer .current (avoids history access)
+        current = getattr(series, "current", _MISSING)
+        if current is not _MISSING:
+            return current
+        hist = getattr(series, "history", None)
+        if hist is not None:
+            try:
+                if len(hist) == 0:
+                    return None
+                # Newest-first (PineSeries deque) → index 0 is current bar
+                return hist[0]
+            except TypeError:
+                pass
+        return series
 
     def _sma_inc_update(self, series: list[Any], period: int) -> float | None:
         """Incremental SMA matching full ``_sma`` NA-window rules (last value).
@@ -1112,6 +1139,172 @@ class TechnicalHelpers:
         st["value"] = var
         return st.get("value")
 
+    @staticmethod
+    def _wma_from_window(window: deque[Any] | list[Any], period: int) -> float | None:
+        """WMA over a fixed-length window matching full ``_wma`` last-value rules."""
+        if period <= 0 or len(window) < period:
+            return None
+        has_none = any(v is None for v in window)
+        if has_none:
+            valid = [(i + 1, v) for i, v in enumerate(window) if v is not None]
+            if not valid:
+                return None
+            total_w = sum(w for w, _ in valid)
+            return sum(w * float(v) for w, v in valid) / total_w
+        total_w = period * (period + 1) / 2.0
+        acc = 0.0
+        for i, v in enumerate(window):
+            acc += float(v) * (i + 1)
+        return acc / total_w
+
+    def _hma_inc_update(self, series: list[Any], period: int) -> float | None:
+        """Incremental Hull MA: WMA(2*WMA(n/2)-WMA(n), sqrt(n)) last value.
+
+        One call-site slot owns three windows (half / full / outer). Matches
+        full ``_hma`` readiness: first non-None when ``period + sqrt_n - 1``
+        samples have been seen.
+        """
+        if period <= 0:
+            return None
+        half = max(1, period // 2)
+        sqrt_n = max(1, int(math.sqrt(period)))
+        slot = self._ta_next_slot()
+        key = ("hma", slot, period)
+        bucket = self._ta_state_bucket()
+        st = bucket.get(key)
+        if st is None:
+            st = {
+                "half_win": deque(maxlen=half),
+                "full_win": deque(maxlen=period),
+                "diff_win": deque(maxlen=sqrt_n),
+                "bars": 0,
+                "value": None,
+            }
+            bucket[key] = st
+        x = self._series_last(series)
+        st["half_win"].append(x)
+        st["full_win"].append(x)
+        st["bars"] = int(st["bars"]) + 1
+        wh = self._wma_from_window(st["half_win"], half)
+        wf = self._wma_from_window(st["full_win"], period)
+        if wh is None or wf is None:
+            st["value"] = None
+            return None
+        diff = 2.0 * float(wh) - float(wf)
+        st["diff_win"].append(diff)
+        # Outer WMA needs sqrt_n consecutive valid diffs (full path readiness).
+        st["value"] = self._wma_from_window(st["diff_win"], sqrt_n)
+        return st.get("value")
+
+    def _rising_inc_update(self, series: list[Any], period: int) -> bool:
+        """Incremental ``ta.rising`` matching full ``_rising`` last-value semantics."""
+        if period < 1:
+            return False
+        slot = self._ta_next_slot()
+        key = ("rising", slot, period)
+        bucket = self._ta_state_bucket()
+        st = bucket.get(key)
+        if st is None:
+            st = {"window": deque(maxlen=period), "value": False}
+            bucket[key] = st
+        x = self._series_last(series)
+        window: deque[Any] = st["window"]
+        window.append(x)
+        if len(window) < period:
+            st["value"] = False
+            return False
+        # Delegate to full helper so MRO / oracle semantics stay identical.
+        st["value"] = bool(self._rising(list(window), period))
+        return bool(st["value"])
+
+    def _falling_inc_update(self, series: list[Any], period: int) -> bool:
+        """Incremental ``ta.falling`` matching full ``_falling`` last-value semantics."""
+        if period < 1:
+            return False
+        slot = self._ta_next_slot()
+        key = ("falling", slot, period)
+        bucket = self._ta_state_bucket()
+        st = bucket.get(key)
+        if st is None:
+            st = {"window": deque(maxlen=period), "value": False}
+            bucket[key] = st
+        x = self._series_last(series)
+        window: deque[Any] = st["window"]
+        window.append(x)
+        if len(window) < period:
+            st["value"] = False
+            return False
+        st["value"] = bool(self._falling(list(window), period))
+        return bool(st["value"])
+
+    def _median_inc_update(self, series: list[Any], period: int) -> float | None:
+        """Incremental rolling median matching full ``_median`` (last value)."""
+        if period <= 0:
+            return None
+        slot = self._ta_next_slot()
+        key = ("median", slot, period)
+        bucket = self._ta_state_bucket()
+        st = bucket.get(key)
+        if st is None:
+            st = {"window": deque(maxlen=period), "value": None}
+            bucket[key] = st
+        raw = self._series_last(series)
+        x: float | None
+        if raw is None:
+            x = None
+        else:
+            try:
+                x = float(raw)
+            except (TypeError, ValueError):
+                x = None
+        window: deque[float | None] = st["window"]
+        window.append(x)
+        if len(window) < period:
+            st["value"] = None
+            return None
+        valid = sorted(v for v in window if v is not None)
+        if not valid:
+            st["value"] = None
+            return None
+        st["value"] = statistics.median(valid)
+        return st.get("value")
+
+    def _percentrank_inc_update(self, series: list[Any], period: int) -> float | None:
+        """Incremental percentrank matching full ``_percentrank`` (last value)."""
+        if period <= 0:
+            return None
+        slot = self._ta_next_slot()
+        key = ("percentrank", slot, period)
+        bucket = self._ta_state_bucket()
+        st = bucket.get(key)
+        if st is None:
+            st = {"window": deque(maxlen=period), "value": None}
+            bucket[key] = st
+        raw = self._series_last(series)
+        x: float | None
+        if raw is None:
+            x = None
+        else:
+            try:
+                x = float(raw)
+            except (TypeError, ValueError):
+                x = None
+        window: deque[float | None] = st["window"]
+        window.append(x)
+        if len(window) < period:
+            st["value"] = None
+            return None
+        valid = sorted(v for v in window if v is not None)
+        if not valid or len(valid) < 2:
+            st["value"] = 50.0
+            return 50.0
+        if x is None:
+            st["value"] = None
+            return None
+        count_below = sum(1 for v in valid if v < x)
+        st["value"] = (count_below / len(valid)) * 100.0
+        return st.get("value")
+
     def _finalize_series(self, values: list[Any]) -> Any:
         """Return full series list, or current scalar in bar mode."""
         if not self._bar_mode():
@@ -1139,15 +1332,49 @@ class TechnicalHelpers:
         - Falls back to ``self.current_series`` lookup by name when the
           value is a string matching a known key.
         - Otherwise wraps the value in a single-element list.
+
+        **Performance (interpret / bar mode):**
+        - Same-bar cache keyed by ``id(value)`` + length + head sample so
+          multiple ``ta.*`` calls on the same ``PineSeries`` reverse once.
+        - Only the newest ``_SERIES_MAX`` samples are reversed (no full-history
+          reverse then slice).
+        - Pure-incremental kernels only need ``series[-1]``; they go through
+          ``_series_last`` which accepts ``PineSeries`` without materializing.
         """
         if isinstance(value, list):
             return self._cap_series_list(value)
-        # Duck-type PineSeries: has a deque/iterable history
-        if hasattr(value, "history"):
-            raw = list(reversed(value.history))
-            if len(raw) > self._SERIES_MAX:
-                raw = raw[-self._SERIES_MAX :]
-            return raw
+        # Duck-type PineSeries: newest-first history (deque or list)
+        hist = getattr(value, "history", None)
+        if hist is not None:
+            try:
+                n = len(hist)
+            except TypeError:
+                n = -1
+            if n == 0:
+                cur = getattr(value, "current", None)
+                return [cur] if cur is not None else []
+            if n > 0:
+                cap = self._SERIES_MAX
+                take = n if n <= cap else cap
+                # Same-bar cache: many ta.* calls share one PineSeries per bar.
+                head = hist[0]
+                cache = getattr(self, "_pine_as_series_cache", None)
+                if cache is None:
+                    cache = {}
+                    self._pine_as_series_cache = cache  # type: ignore[attr-defined]
+                key = id(value)
+                ent = cache.get(key)
+                if ent is not None and ent[0] == n and ent[1] is head and ent[2] == take:
+                    return ent[3]
+                # Newest-first → take first `take` then reverse to chronological.
+                # Avoid list(reversed(full_history)) when n >> SERIES_MAX.
+                if take == n:
+                    raw = list(reversed(hist))
+                else:
+                    # hist[0] newest … hist[take-1] oldest among window
+                    raw = [hist[i] for i in range(take - 1, -1, -1)]
+                cache[key] = (n, head, take, raw)
+                return raw
         # Named series reference — look up from the pre-loaded dict
         series_map = getattr(self, "current_series", None) or {}
         if isinstance(value, str) and value in series_map:
