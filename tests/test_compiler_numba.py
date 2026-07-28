@@ -21,6 +21,8 @@
 
 from __future__ import annotations
 
+import re
+
 import numpy as np
 import pytest
 
@@ -241,3 +243,671 @@ plot(s)
         r = Runtime(symbol="T").run(src, self._bars(20), mode="auto")
         assert r.get("auto_backend") == "interpret"
         assert "request" in (r.get("compile_fallback_reason") or "").lower()
+
+
+class TestCompileCoverageSprint:
+    """High-ROI compile surface gaps closed against corpus buckets."""
+
+    def test_study_alias_and_na_hlc3_volume(self) -> None:
+        src = """//@version=4
+study("x")
+a = na
+plot(hlc3, title="hlc3")
+plot(nz(a), title="na")
+plot(volume, title="vol")
+"""
+        code = transpile(src)
+        assert "study(" not in code
+        assert "na_arr" not in code
+        assert "hlc3_arr" not in code
+        assert "vol_arr[__bar_idx]" in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(30)
+        out = compiled.run(o, h, l, c, v)
+        assert "hlc3" in out
+        # hlc3 = (h+l+c)/3
+        assert abs(out["hlc3"][-1] - (h[-1] + l[-1] + c[-1]) / 3.0) < 1e-9
+
+    def test_const_string_input_no_float_coercion(self) -> None:
+        src = """//@version=5
+indicator("H")
+const string g = "Calculation"
+amplitude = input.int(2, title="Amplitude", group=g)
+plot(amplitude, title="amp")
+"""
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(20)
+        out = compiled.run(o, h, l, c, v)
+        assert abs(out["amp"][-1] - 2.0) < 1e-9
+
+    def test_crossover_and_math_pi(self) -> None:
+        src = """//@version=5
+indicator("x")
+c = ta.crossover(close, ta.sma(close, 5))
+plot(math.pi, title="pi")
+plot(c ? 1.0 : 0.0, title="xover")
+"""
+        code = transpile(src)
+        assert "numba_crossover" in code
+        assert "np.pi" in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(40)
+        out = compiled.run(o, h, l, c, v)
+        assert abs(out["pi"][-1] - np.pi) < 1e-9
+
+    def test_udf_series_history(self) -> None:
+        src = """//@version=5
+indicator("x")
+f(s) =>
+    x = 0.0
+    if s > s[1]
+        x := 1.0
+    else
+        x := 0.0
+    x
+plot(f(close), title="ud")
+"""
+        code = transpile(src)
+        assert "return if" not in code
+        assert "__bar_idx" in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(20)
+        out = compiled.run(o, h, l, c, v)
+        # rising series → cross up every bar after first
+        assert out["ud"][0] == 0.0
+        assert out["ud"][1] == 1.0
+
+    def test_array_new_object_mode(self) -> None:
+        src = """//@version=5
+indicator("x")
+a = array.new_float(2, 0.0)
+array.push(a, 1.0)
+plot(array.size(a), title="sz")
+"""
+        compiled = compile_script(src)
+        assert compiled.object_mode
+        o, h, l, c, v = _ohlcv(10)
+        out = compiled.run(o, h, l, c, v)
+        assert out["sz"][-1] == 3.0
+
+    def test_math_trig_functions(self) -> None:
+        src = """//@version=5
+indicator("x")
+plot(math.cos(0.0), title="cos")
+plot(math.sin(0.0), title="sin")
+plot(math.tan(0.0), title="tan")
+plot(math.asin(0.0), title="asin")
+"""
+        code = transpile(src)
+        assert "np.cos" in code
+        assert "np.sin" in code
+        assert "np.tan" in code
+        assert "np.arcsin" in code
+        assert "math_cos" not in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(20)
+        out = compiled.run(o, h, l, c, v)
+        assert abs(out["cos"][-1] - 1.0) < 1e-9
+        assert abs(out["sin"][-1] - 0.0) < 1e-9
+        assert abs(out["tan"][-1] - 0.0) < 1e-9
+        assert abs(out["asin"][-1] - 0.0) < 1e-9
+
+    def test_bare_v4_sma_alias(self) -> None:
+        src = """//@version=4
+study("x")
+plot(sma(close, 5), title="s")
+"""
+        code = transpile(src)
+        assert "numba_sma" in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(30)
+        out = compiled.run(o, h, l, c, v)
+        assert "s" in out
+        expected = float(np.mean(c[-5:]))
+        assert abs(out["s"][-1] - expected) < 1e-6
+
+    def test_plotshape_enum_string_constants(self) -> None:
+        """shape.*/size.*/location.* must emit string constants, not series names."""
+        src = """//@version=5
+indicator("x")
+plotshape(true, style=shape.triangleup, size=size.small, location=location.abovebar)
+plot(1.0, title="p")
+"""
+        code = transpile(src)
+        assert "shape_arr" not in code
+        assert "size_arr" not in code
+        assert "'triangleup'" in code or '"triangleup"' in code
+        assert "'small'" in code or '"small"' in code
+        assert "'abovebar'" in code or '"abovebar"' in code
+        compiled = compile_script(src)
+        assert compiled.object_mode
+        o, h, l, c, v = _ohlcv(10)
+        out = compiled.run(o, h, l, c, v)
+        assert abs(out["p"][-1] - 1.0) < 1e-9
+
+    def test_input_string_color_scalar_not_float_series(self) -> None:
+        """input.string / input.color must be scalars, not float64 series stores."""
+        src = """//@version=5
+indicator("H")
+const string g = "Calculation"
+m = input.string("EMA", "Method", group=g)
+c = input.color(color.red, "C")
+plot(close, title="p")
+"""
+        code = transpile(src)
+        assert "m_arr" not in code
+        assert "c_arr" not in code
+        compiled = compile_script(src)
+        assert compiled.object_mode is True
+        o, h, l, c, v = _ohlcv(20)
+        out = compiled.run(o, h, l, c, v)
+        assert abs(out["p"][-1] - c[-1]) < 1e-9
+
+    def test_udf_free_chart_series(self) -> None:
+        """UDF body referencing close/high must get chart arrays + __bar_idx under njit."""
+        src = """//@version=5
+indicator("x")
+f() =>
+    close + high
+plot(f(), title="f")
+"""
+        code = transpile(src)
+        assert "def f(open_arr, high_arr, low_arr, close_arr, vol_arr, __bar_idx)" in code
+        assert "f(open_arr, high_arr, low_arr, close_arr, vol_arr, __bar_idx)" in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(20)
+        out = compiled.run(o, h, l, c, v)
+        assert abs(out["f"][-1] - (c[-1] + h[-1])) < 1e-9
+        assert abs(out["f"][0] - (c[0] + h[0])) < 1e-9
+
+    def test_nested_udf_chart_series_propagation(self) -> None:
+        """Caller UDF must also receive chart ctx when callee needs it."""
+        src = """//@version=5
+indicator("x")
+g() =>
+    close
+f() =>
+    g() + high
+plot(f(), title="n")
+"""
+        code = transpile(src)
+        assert "def g(open_arr, high_arr, low_arr, close_arr, vol_arr, __bar_idx)" in code
+        assert "def f(open_arr, high_arr, low_arr, close_arr, vol_arr, __bar_idx)" in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(15)
+        out = compiled.run(o, h, l, c, v)
+        assert abs(out["n"][-1] - (c[-1] + h[-1])) < 1e-9
+
+    def test_array_from_object_mode(self) -> None:
+        src = """//@version=5
+indicator("x")
+a = array.from(1.0, 2.0, 3.0)
+plot(array.size(a), title="sz")
+plot(array.get(a, 0), title="g0")
+"""
+        compiled = compile_script(src)
+        assert compiled.object_mode
+        o, h, l, c, v = _ohlcv(10)
+        out = compiled.run(o, h, l, c, v)
+        assert out["sz"][-1] == 3.0
+        assert out["g0"][-1] == 1.0
+
+    def test_matrix_get_set_object_mode(self) -> None:
+        src = """//@version=5
+indicator("x")
+m = matrix.new<float>(2, 2, 0.0)
+matrix.set(m, 0, 0, 1.5)
+plot(matrix.get(m, 0, 0), title="g")
+"""
+        compiled = compile_script(src)
+        assert compiled.object_mode
+        o, h, l, c, v = _ohlcv(10)
+        out = compiled.run(o, h, l, c, v)
+        assert out["g"][-1] == 1.5
+
+    def test_request_security_syminfo_time_stubs(self) -> None:
+        src = """//@version=5
+indicator("x")
+r = request.security(syminfo.tickerid, "D", close)
+plot(r, title="r")
+plot(syminfo.mintick, title="mt")
+plot(time, title="t")
+"""
+        code = transpile(src)
+        assert "request_arr_security" not in code
+        assert "syminfo_mintick" not in code
+        assert "time_arr" not in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(20)
+        out = compiled.run(o, h, l, c, v)
+        assert abs(out["r"][-1] - c[-1]) < 1e-9
+        assert abs(out["mt"][-1] - 0.01) < 1e-9
+        assert abs(out["t"][-1] - (len(c) - 1) * 60000.0) < 1e-6
+
+
+class TestCompileCoverageSprint3:
+    """Sprint 3 high-ROI compile surface."""
+
+    def test_strategy_exit_no_duplicate_id_kwarg(self) -> None:
+        """strategy.exit first arg is exit name; from_entry → id (no repeated id=)."""
+        src = """//@version=5
+strategy("x")
+if bar_index == 10
+    strategy.entry("L", strategy.long)
+if bar_index == 20
+    strategy.exit("XL", from_entry="L", loss=10, profit=20)
+plot(strategy.position_size, title="ps")
+"""
+        code = transpile(src)
+        assert "id=" in code
+        # Must not emit two id= kwargs on the same call
+        close_lines = [ln for ln in code.splitlines() if "__strategy.close(" in ln]
+        assert close_lines, code
+        for ln in close_lines:
+            assert ln.count("id=") == 1, ln
+            assert "from_entry=" not in ln
+            assert "id='L'" in ln or 'id="L"' in ln or "id='L'" in ln.replace('"', "'")
+            assert "loss=10" in ln
+            assert "profit=20" in ln
+        # Compiles and runs without SyntaxError
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(30)
+        out = compiled.run(o, h, l, c, v)
+        assert "ps" in out
+        assert len(out["ps"]) == 30
+
+    def test_strategy_opentrades_entry_price_stub(self) -> None:
+        """strategy.opentrades.entry_price(n) must not become 1_entry_price(n)."""
+        src = """//@version=5
+strategy("x")
+if bar_index == 10
+    strategy.entry("L", strategy.long)
+plot(strategy.opentrades.entry_price(0), title="ep")
+"""
+        code = transpile(src)
+        assert "1_entry_price" not in code
+        assert "position_avg_price" in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(20)
+        out = compiled.run(o, h, l, c, v)
+        assert "ep" in out
+        # Flat bars → nan; after entry → avg price near close at entry
+        assert np.isnan(out["ep"][0]) or out["ep"][0] != out["ep"][0]
+        assert not np.isnan(out["ep"][15])
+
+    def test_dayofweek_enum_constants_not_invalid_literal(self) -> None:
+        """dayofweek.monday must emit int 2, not 1_monday (invalid decimal)."""
+        src = """//@version=5
+indicator("x")
+mo = dayofweek.monday
+su = dayofweek.sunday
+plot(mo, title="mo")
+plot(su, title="su")
+plot(dayofweek, title="dow")
+plot(dayofweek(time), title="dowt")
+"""
+        code = transpile(src)
+        assert "1_monday" not in code
+        assert "1_sunday" not in code
+        # Enum members are integer constants
+        assert "mo_arr[__bar_idx] = 2" in code or "= 2" in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(20)
+        out = compiled.run(o, h, l, c, v)
+        assert abs(out["mo"][-1] - 2.0) < 1e-9
+        assert abs(out["su"][-1] - 1.0) < 1e-9
+        # bare dayofweek series stub
+        assert abs(out["dow"][-1] - 1.0) < 1e-9
+        # dayofweek(time) call stub (Monday-ish)
+        assert abs(out["dowt"][-1] - 2.0) < 1e-9
+
+    def test_calendar_call_and_name_stubs(self) -> None:
+        """hour/minute/month/year names and call forms must not NameError."""
+        src = """//@version=5
+indicator("x")
+plot(hour, title="h")
+plot(minute, title="mi")
+plot(month, title="m")
+plot(year, title="y")
+plot(hour(time), title="ht")
+plot(month(time), title="mt")
+"""
+        code = transpile(src)
+        assert "hour_arr" not in code
+        assert "month_arr" not in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(15)
+        out = compiled.run(o, h, l, c, v)
+        assert abs(out["h"][-1] - 0.0) < 1e-9
+        assert abs(out["mi"][-1] - 0.0) < 1e-9
+        assert abs(out["m"][-1] - 1.0) < 1e-9
+        assert abs(out["y"][-1] - 2020.0) < 1e-9
+        assert abs(out["ht"][-1] - 0.0) < 1e-9
+        assert abs(out["mt"][-1] - 1.0) < 1e-9
+
+    def test_month_enum_constants(self) -> None:
+        src = """//@version=5
+indicator("x")
+plot(month.january, title="jan")
+plot(month.december, title="dec")
+"""
+        code = transpile(src)
+        assert "1_january" not in code
+        assert "1_december" not in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(10)
+        out = compiled.run(o, h, l, c, v)
+        assert abs(out["jan"][-1] - 1.0) < 1e-9
+        assert abs(out["dec"][-1] - 12.0) < 1e-9
+
+    def test_color_ternary_series_object_dtype(self) -> None:
+        """Per-bar color ternary must not store unicode into float64 (nopython setitem)."""
+        src = """//@version=5
+indicator("x")
+c = close > open ? color.green : color.red
+plot(close, color=c, title="p")
+"""
+        code = transpile(src)
+        assert "dtype=object" in code
+        assert "c_arr" in code
+        assert "@numba.njit" not in code
+        compiled = compile_script(src)
+        assert compiled.object_mode is True
+        o, h, l, c, v = _ohlcv(20)
+        # make open > close on some bars so both branches execute
+        o = c + 1.0
+        o[::2] = c[::2] - 1.0
+        out = compiled.run(o, h, l, c, v)
+        assert abs(out["p"][-1] - c[-1]) < 1e-9
+
+    def test_nested_hex_color_ternary(self) -> None:
+        """Nested ternary with hex color literals → object series, not float64."""
+        src = """//@version=5
+indicator("x")
+highlight = true
+spma21 = ta.sma(close, 21)
+spma21Color = highlight ? (spma21 > spma21[1] ? #22AB94 : #F23645) : color.blue
+plot(spma21, color=spma21Color, title="p")
+"""
+        code = transpile(src)
+        assert "dtype=object" in code
+        assert "spma21Color_arr" in code
+        assert "np.full(n_bars, np.nan)" not in code or "spma21Color" in code
+        # color series must be object, not float full
+        assert re.search(r"spma21Color_arr\s*=\s*np\.empty\(n_bars,\s*dtype=object\)", code)
+        compiled = compile_script(src)
+        assert compiled.object_mode is True
+        o, h, l, c, v = _ohlcv(40)
+        out = compiled.run(o, h, l, c, v)
+        assert "p" in out
+        assert len(out["p"]) == 40
+
+    def test_input_session_scalar_not_float_series(self) -> None:
+        """input.session string must not become float series (str→float)."""
+        src = """//@version=5
+indicator("x")
+s = input.session("0900-1530:1234567", "sess")
+plot(close, title="p")
+"""
+        code = transpile(src)
+        assert "s_arr" not in code
+        assert "0900-1530:1234567" in code
+        compiled = compile_script(src)
+        assert compiled.object_mode is True
+        o, h, l, c, v = _ohlcv(10)
+        out = compiled.run(o, h, l, c, v)
+        assert abs(out["p"][-1] - c[-1]) < 1e-9
+
+    def test_udf_series_local_history_ema(self) -> None:
+        """UDF locals used with history (out[1]) must be persistent arrays, not scalars."""
+        src = """//@version=5
+indicator("x")
+_ema(src, alpha) =>
+    out = src
+    out := alpha * out + (1.0 - alpha) * nz(out[1], out)
+    out
+plot(_ema(close, 0.5), title="e")
+"""
+        code = transpile(src)
+        assert "out_arr" in code
+        assert "__st__ema_out" in code
+        # Must not index a bare scalar `out` with __bar_idx
+        assert "out[__bar_idx" not in code or "out_arr[__bar_idx" in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(30)
+        out = compiled.run(o, h, l, c, v)
+        e = out["e"]
+        assert len(e) == 30
+        # bar 0: out = src (nz fallback)
+        assert abs(e[0] - c[0]) < 1e-9
+        # subsequent bars finite recursive EMA
+        assert np.all(np.isfinite(e))
+        # manual step for bar 1
+        expected1 = 0.5 * c[1] + 0.5 * e[0]
+        assert abs(e[1] - expected1) < 1e-9
+        expected2 = 0.5 * c[2] + 0.5 * e[1]
+        assert abs(e[2] - expected2) < 1e-9
+
+    def test_alertcondition_noop(self) -> None:
+        src = """//@version=5
+indicator("x")
+alertcondition(close > open, title="up", message="up bar")
+alert(close > open, "alert msg")
+plot(close, title="c")
+"""
+        code = transpile(src)
+        assert "alertcondition" not in code
+        assert "alert(" not in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(20)
+        out = compiled.run(o, h, l, c, v)
+        assert abs(out["c"][-1] - c[-1]) < 1e-9
+
+    def test_str_tostring_and_format(self) -> None:
+        src = """//@version=5
+indicator("x")
+s = str.tostring(close)
+plot(str.length(s), title="len")
+"""
+        code = transpile(src)
+        assert "str_tostring" not in code or "str(" in code
+        compiled = compile_script(src)
+        assert compiled.object_mode
+        o, h, l, c, v = _ohlcv(15)
+        out = compiled.run(o, h, l, c, v)
+        assert out["len"][-1] > 0
+
+    def test_tostring_bare_alias(self) -> None:
+        src = """//@version=4
+study("x")
+s = tostring(close)
+plot(close, title="c")
+"""
+        code = transpile(src)
+        assert "tostring(" not in code or "str(" in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(10)
+        out = compiled.run(o, h, l, c, v)
+        assert abs(out["c"][-1] - c[-1]) < 1e-9
+
+    def test_timeframe_in_seconds(self) -> None:
+        src = """//@version=5
+indicator("x")
+sec = timeframe.in_seconds("D")
+plot(sec, title="sec")
+"""
+        code = transpile(src)
+        assert "timeframe_in_seconds" not in code or "86400" in code
+        assert "86400" in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(20)
+        out = compiled.run(o, h, l, c, v)
+        assert abs(out["sec"][-1] - 86400.0) < 1e-9
+
+    def test_bare_security_passthrough(self) -> None:
+        src = """//@version=3
+study("x")
+r = security(tickerid, "D", close)
+plot(r, title="r")
+"""
+        code = transpile(src)
+        assert "security(" not in code or "close_arr" in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(20)
+        out = compiled.run(o, h, l, c, v)
+        assert abs(out["r"][-1] - c[-1]) < 1e-9
+
+    def test_math_sum_and_random(self) -> None:
+        src = """//@version=5
+indicator("x")
+s = math.sum(close, 5)
+plot(s, title="sum")
+plot(math.random(0, 1), title="rnd")
+"""
+        code = transpile(src)
+        assert "numba_sma" in code
+        assert "math_sum" not in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(30)
+        out = compiled.run(o, h, l, c, v)
+        # rising close 100.. → sum of last 5 ≈ 5 * mean
+        expected = float(np.sum(c[-5:]))
+        assert abs(out["sum"][-1] - expected) < 1e-6
+        assert abs(out["rnd"][-1] - 0.5) < 1e-9
+
+    def test_chart_fg_bg_color(self) -> None:
+        src = """//@version=5
+indicator("x")
+fg = chart.fg_color
+bg = chart.bg_color
+plot(close, title="c", color=fg)
+"""
+        code = transpile(src)
+        assert "chart_fg_color" not in code
+        assert "#000000" in code
+        assert "#FFFFFF" in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(10)
+        out = compiled.run(o, h, l, c, v)
+        assert abs(out["c"][-1] - c[-1]) < 1e-9
+
+    def test_table_cell_object_mode(self) -> None:
+        src = """//@version=5
+indicator("x")
+t = table.new(position.top_right, 1, 1)
+table.cell(t, 0, 0, "hi")
+plot(1.0, title="p")
+"""
+        compiled = compile_script(src)
+        assert compiled.object_mode
+        o, h, l, c, v = _ohlcv(10)
+        out = compiled.run(o, h, l, c, v)
+        assert abs(out["p"][-1] - 1.0) < 1e-9
+
+    def test_color_rgb_stub(self) -> None:
+        src = """//@version=5
+indicator("x")
+c = color.rgb(255, 0, 0)
+plot(close, title="p", color=c)
+"""
+        code = transpile(src)
+        assert "color_rgb" not in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(10)
+        out = compiled.run(o, h, l, c, v)
+        assert abs(out["p"][-1] - c[-1]) < 1e-9
+
+    def test_tr_and_cum_run(self) -> None:
+        src = """//@version=5
+indicator("x")
+plot(ta.tr(true), title="tr")
+plot(ta.cum(close), title="cum")
+"""
+        code = transpile(src)
+        assert "numba_tr" in code
+        assert "numba_cum" in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(40)
+        out = compiled.run(o, h, l, c, v)
+        assert np.isnan(out["tr"][0])
+        # high-low=2, abs(high-prev_close)=2, abs(low-prev_close)=0 → tr=2
+        assert abs(out["tr"][-1] - 2.0) < 1e-9
+        # cum(close) over rising series: sum(100..139) for n=40
+        expected_cum = float(np.nansum(c))
+        assert abs(out["cum"][-1] - expected_cum) < 1e-6
+
+    def test_pivothigh_no_nameerror(self) -> None:
+        src = """//@version=5
+indicator("x")
+ph = ta.pivothigh(close, 2, 2)
+pl = ta.pivotlow(2, 2)
+plot(ph, title="ph")
+plot(pl, title="pl")
+"""
+        code = transpile(src)
+        assert "numba_pivothigh" in code
+        assert "numba_pivotlow" in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(30)
+        out = compiled.run(o, h, l, c, v)
+        assert len(out["ph"]) == 30
+        # Monotone rising close → no pivot high confirmed
+        assert np.all(np.isnan(out["ph"]))
+
+    def test_stoch_runs(self) -> None:
+        src = """//@version=5
+indicator("x")
+plot(ta.stoch(close, high, low, 14), title="k")
+"""
+        code = transpile(src)
+        assert "numba_stoch" in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(50)
+        out = compiled.run(o, h, l, c, v)
+        k = out["k"]
+        assert np.isnan(k[10])
+        # Rising close near high of window → stoch near 100? source=close, high=close+1
+        assert not np.isnan(k[-1])
+        assert 0.0 <= k[-1] <= 100.0
+
+    def test_valuewhen_no_nameerror(self) -> None:
+        src = """//@version=5
+indicator("x")
+cond = close > close[1]
+v = ta.valuewhen(cond, close, 0)
+plot(v, title="vw")
+plot(ta.valuewhen(close > open, high, 1), title="vw2")
+"""
+        code = transpile(src)
+        assert "numba_valuewhen" in code or "vw" in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(30)
+        out = compiled.run(o, h, l, c, v)
+        assert len(out["vw"]) == 30
+        # cond stored as series → real valuewhen; rising series always true after bar0
+        assert abs(out["vw"][-1] - c[-1]) < 1e-9
+
+    def test_cci_vwap_sar_percentile(self) -> None:
+        src = """//@version=5
+indicator("x")
+plot(ta.cci(close, 20), title="cci")
+plot(ta.vwap(close), title="vwap")
+plot(ta.sar(0.02, 0.02, 0.2), title="sar")
+plot(ta.percentile_nearest_rank(close, 10, 50), title="p50")
+plot(cum(close), title="bare_cum")
+"""
+        code = transpile(src)
+        assert "numba_cci" in code
+        assert "numba_vwap" in code
+        assert "numba_sar" in code
+        assert "numba_percentile_nearest_rank" in code
+        assert "numba_cum" in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(60)
+        out = compiled.run(o, h, l, c, v)
+        assert not np.isnan(out["cci"][-1])
+        assert abs(out["vwap"][-1] - float(np.average(c, weights=v))) < 1e-6
+        assert not np.isnan(out["sar"][-1])
+        assert not np.isnan(out["p50"][-1])
+        assert abs(out["bare_cum"][-1] - float(np.nansum(c))) < 1e-6
+

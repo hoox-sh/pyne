@@ -250,3 +250,249 @@ def numba_min(a, b):
     if a < b:
         return a
     return b
+
+
+@numba.njit(cache=True)
+def numba_crossover(a, b, i):
+    """True when series ``a`` crosses over series ``b`` on bar ``i``."""
+    if i < 1:
+        return False
+    return a[i] > b[i] and a[i - 1] <= b[i - 1]
+
+
+@numba.njit(cache=True)
+def numba_crossunder(a, b, i):
+    """True when series ``a`` crosses under series ``b`` on bar ``i``."""
+    if i < 1:
+        return False
+    return a[i] < b[i] and a[i - 1] >= b[i - 1]
+
+
+@numba.njit(cache=True)
+def numba_crossover_scalar(a, level, i):
+    """True when series ``a`` crosses over constant ``level``."""
+    if i < 1:
+        return False
+    return a[i] > level and a[i - 1] <= level
+
+
+@numba.njit(cache=True)
+def numba_crossunder_scalar(a, level, i):
+    """True when series ``a`` crosses under constant ``level``."""
+    if i < 1:
+        return False
+    return a[i] < level and a[i - 1] >= level
+
+
+@numba.njit(cache=True)
+def numba_tr(high, low, close, i):
+    """True range at bar ``i`` (NaN on first bar)."""
+    if i < 1:
+        return np.nan
+    return max(
+        high[i] - low[i],
+        abs(high[i] - close[i - 1]),
+        abs(low[i] - close[i - 1]),
+    )
+
+
+@numba.njit(cache=True)
+def numba_cum(arr, i):
+    """Running sum of ``arr[0..i]`` (NaNs treated as 0)."""
+    s = 0.0
+    for j in range(i + 1):
+        v = arr[j]
+        if not np.isnan(v):
+            s += v
+    return s
+
+
+@numba.njit(cache=True)
+def numba_valuewhen(cond_arr, src_arr, occ, i):
+    """Return source at the ``occ``-th most recent true condition (0 = latest)."""
+    if occ < 0:
+        return np.nan
+    left = occ
+    for j in range(i, -1, -1):
+        c = cond_arr[j]
+        if np.isnan(c) or c == 0.0:
+            continue
+        if left == 0:
+            return src_arr[j]
+        left -= 1
+    return np.nan
+
+
+@numba.njit(cache=True)
+def numba_pivothigh(arr, left, right, i):
+    """Pivot high confirmed at bar ``i`` (center = i - right)."""
+    if left < 0 or right < 0:
+        return np.nan
+    c = i - right
+    if c < left or i < left + right:
+        return np.nan
+    val = arr[c]
+    if np.isnan(val):
+        return np.nan
+    for j in range(c - left, c + right + 1):
+        if j == c:
+            continue
+        if arr[j] >= val:
+            return np.nan
+    return val
+
+
+@numba.njit(cache=True)
+def numba_pivotlow(arr, left, right, i):
+    """Pivot low confirmed at bar ``i`` (center = i - right)."""
+    if left < 0 or right < 0:
+        return np.nan
+    c = i - right
+    if c < left or i < left + right:
+        return np.nan
+    val = arr[c]
+    if np.isnan(val):
+        return np.nan
+    for j in range(c - left, c + right + 1):
+        if j == c:
+            continue
+        if arr[j] <= val:
+            return np.nan
+    return val
+
+
+@numba.njit(cache=True)
+def numba_stoch(source, high, low, length, i):
+    """Stochastic %K: (src - lowest(low)) / (highest(high) - lowest(low)) * 100."""
+    if length <= 0 or i < length - 1:
+        return np.nan
+    hh = high[i]
+    ll = low[i]
+    for j in range(1, length):
+        h = high[i - j]
+        l = low[i - j]
+        if h > hh or np.isnan(hh):
+            hh = h
+        if l < ll or np.isnan(ll):
+            ll = l
+    if np.isnan(hh) or np.isnan(ll) or np.isnan(source[i]):
+        return np.nan
+    if hh == ll:
+        return 50.0
+    return 100.0 * (source[i] - ll) / (hh - ll)
+
+
+@numba.njit(cache=True)
+def numba_cci(arr, length, i):
+    """CCI on a single source series (typical price or explicit source)."""
+    if length <= 0 or i < length - 1:
+        return np.nan
+    mean = 0.0
+    for j in range(length):
+        v = arr[i - j]
+        if np.isnan(v):
+            return np.nan
+        mean += v
+    mean /= length
+    md = 0.0
+    for j in range(length):
+        md += abs(arr[i - j] - mean)
+    md /= length
+    if md == 0.0:
+        return 0.0
+    return (arr[i] - mean) / (0.015 * md)
+
+
+@numba.njit(cache=True)
+def numba_vwap(src, vol, i):
+    """Cumulative VWAP: sum(src*vol) / sum(vol) from bar 0..i."""
+    cum_pv = 0.0
+    cum_v = 0.0
+    for j in range(i + 1):
+        p = src[j]
+        v = vol[j]
+        if np.isnan(p) or np.isnan(v):
+            continue
+        cum_pv += p * v
+        cum_v += v
+    if cum_v == 0.0:
+        return np.nan
+    return cum_pv / cum_v
+
+
+@numba.njit(cache=True)
+def numba_sar(high, low, start, increment, maximum, i):
+    """Simple Parabolic SAR rebuilt from bar 0..i (O(i))."""
+    if i < 0 or len(high) == 0:
+        return np.nan
+    n = i + 1
+    if n < 1:
+        return np.nan
+    # Seed: long trend, SAR = first low, EP = first high
+    sar = low[0]
+    ep = high[0]
+    af = start
+    trend = 1  # 1 = long, -1 = short
+    if n == 1:
+        return sar
+    for idx in range(1, n):
+        hi = high[idx]
+        lo = low[idx]
+        prev = sar
+        if trend == 1:
+            sar = prev + af * (ep - prev)
+            if hi > ep:
+                ep = hi
+                af = af + increment
+                if af > maximum:
+                    af = maximum
+            if sar > lo:
+                trend = -1
+                sar = ep
+                ep = lo
+                af = start
+        else:
+            sar = prev - af * (prev - ep)
+            if lo < ep:
+                ep = lo
+                af = af + increment
+                if af > maximum:
+                    af = maximum
+            if sar < hi:
+                trend = 1
+                sar = ep
+                ep = hi
+                af = start
+    return sar
+
+
+@numba.njit(cache=True)
+def numba_percentile_nearest_rank(arr, length, percentage, i):
+    """Nearest-rank percentile over last ``length`` bars ending at ``i``."""
+    if length <= 0 or i < length - 1:
+        return np.nan
+    # Copy window and insertion-sort (numba-friendly)
+    window = np.empty(length, dtype=np.float64)
+    count = 0
+    for j in range(length):
+        v = arr[i - j]
+        if not np.isnan(v):
+            window[count] = v
+            count += 1
+    if count == 0:
+        return np.nan
+    # insertion sort first count elements
+    for a in range(1, count):
+        key = window[a]
+        b = a - 1
+        while b >= 0 and window[b] > key:
+            window[b + 1] = window[b]
+            b -= 1
+        window[b + 1] = key
+    # Nearest rank: ceil(p/100 * n), 1-indexed
+    rank = int((percentage / 100.0) * count + 0.999999)
+    if rank < 1:
+        rank = 1
+    if rank > count:
+        rank = count
+    return window[rank - 1]
