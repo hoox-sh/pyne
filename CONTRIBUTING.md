@@ -1,8 +1,9 @@
 # Contributing to pyne
 
+> Part of **[HOOX](https://hoox.sh)**: [pyne](https://hoox.sh/pyne) · [axis](https://hoox.sh/axis) · [hoox](https://hoox.sh)  
 > Charting UI contributions go to **[axis](https://github.com/jango-blockchained/axis)**.
 
-Thank you for your interest in contributing to PyneScript!
+Thank you for your interest in contributing to pyne!
 
 ## Getting Started
 

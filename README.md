@@ -1,12 +1,33 @@
-# Pynescript
+# pyne
 
 > Parse, analyze, and regenerate TradingView® Pine Script™ with a modern Python toolchain.
 > Built-in Language Server Protocol (LSP) for VS Code, Neovim, Zed, and Emacs.
 
+**Website:** [hoox.sh/pyne](https://hoox.sh/pyne) · **Docs:** [hoox.sh/pyne/docs](https://hoox.sh/pyne/docs) · **Repo:** [jango-blockchained/pyne](https://github.com/jango-blockchained/pyne)
+
 _Pine Script™ and TradingView® are trademarks of TradingView, Inc. This project is an independent effort and is not affiliated with or endorsed by TradingView, Inc._
+
+## Ecosystem
+
+Part of the **[HOOX](https://hoox.sh)** open trading stack:
+
+| Product | Role | Repo | Website |
+|---------|------|------|---------|
+| **HOOX** | Edge trading framework (Cloudflare Workers) | [jango-blockchained/hoox](https://github.com/jango-blockchained/hoox) | [hoox.sh](https://hoox.sh) · [docs](https://docs.hoox.sh) |
+| **PYNE** | Pine Script™ toolchain + Pro API (this repo) | [jango-blockchained/pyne](https://github.com/jango-blockchained/pyne) | [hoox.sh/pyne](https://hoox.sh/pyne) · [docs](https://hoox.sh/pyne/docs) |
+| **AXIS** | Installable charting PWA | [jango-blockchained/axis](https://github.com/jango-blockchained/axis) | [hoox.sh/axis](https://hoox.sh/axis) · [docs](https://hoox.sh/axis/docs) |
+
+Local clone layout (typical):
+
+```text
+/home/jango/Git/hoox          # edge stack
+/home/jango/Git/pynescript    # this repo (github: pyne)
+/home/jango/Git/axis          # charting PWA
+```
 
 ## Table of Contents
 
+- [Ecosystem](#ecosystem)
 - [Overview](#overview)
 - [Language Server (LSP)](#language-server-lsp)
 - [Pro API](#pro-api)
@@ -22,7 +43,7 @@ _Pine Script™ and TradingView® are trademarks of TradingView, Inc. This proje
 
 ## Overview
 
-Pynescript is a Python toolchain for TradingView® Pine Script™ that provides:
+**pyne** (Python package `pynescript`) is a toolchain for TradingView® Pine Script™ that provides:
 
 - **Parser & AST** — Parse Pine Script into a navigable Python AST
 - **LSP Server** — Full language server for professional IDE integration
@@ -109,7 +130,9 @@ Cloud API for live chart previews and strategy backtesting:
 
 The installable charting PWA (**AXIS**) is a **sister repository**:
 
-**https://github.com/jango-blockchained/axis**
+- Repo: [jango-blockchained/axis](https://github.com/jango-blockchained/axis)
+- Product: [hoox.sh/axis](https://hoox.sh/axis)
+- Docs: [hoox.sh/axis/docs](https://hoox.sh/axis/docs)
 
 It talks to this repo’s Pro API in local dev:
 
@@ -131,7 +154,7 @@ cd ../axis && bun install && bun run dev   # Vite on :3000
 | Pro | $29/mo | 50,000 | + equity curves, backtests |
 | Team | $99/mo | 200,000 | + multi-user |
 
-Get an API key at [pynescript.ai](https://pynescript.ai).
+Product site: [hoox.sh/pyne](https://hoox.sh/pyne).
 
 ### SDK Usage
 

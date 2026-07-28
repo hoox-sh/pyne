@@ -139,43 +139,35 @@ annotations` is mandatory (also via ruff isort `required-imports`).
 
 ---
 
-## Sister Repos
+## Sister Repos & websites
 
-All repos below are part of the **HOOX** project — a modular, production-ready algorithmic trading framework for Cloudflare Workers. When working on any HOOX repo, be aware of the others.
+**Site:** [hoox.sh](https://hoox.sh) — marketing + product docs for the stack.
+
+| Product | GitHub | Local path | Website |
+|---|---|---|---|
+| **HOOX** | [jango-blockchained/hoox](https://github.com/jango-blockchained/hoox) | `/home/jango/Git/hoox` | [hoox.sh](https://hoox.sh) · [docs.hoox.sh](https://docs.hoox.sh) |
+| **PYNE** (this repo) | [jango-blockchained/pyne](https://github.com/jango-blockchained/pyne) | `/home/jango/Git/pynescript` | [hoox.sh/pyne](https://hoox.sh/pyne) · [docs](https://hoox.sh/pyne/docs) |
+| **AXIS** | [jango-blockchained/axis](https://github.com/jango-blockchained/axis) | `/home/jango/Git/axis` | [hoox.sh/axis](https://hoox.sh/axis) · [docs](https://hoox.sh/axis/docs) |
+
+Related:
 
 | Repo | Path | Purpose |
 |---|---|---|
-| `hoox-setup` | `/home/jango/Git/hoox-setup` | Monorepo: all Cloudflare Workers (gateway, execution, D1, analytics, etc.), Docker, CI/CD |
-| `hoox-landing-page` | `/home/jango/Git/hoox-landing-page` | Marketing landing site (Next.js 16, GSAP + Framer Motion + Lenis) |
-| `pyne` | `/home/jango/Git/pynescript` → pyne | Pine Script parser/evaluator (Python, ANTLR4, Flask Pro API, VS Code extension) |
-| `axis` | `/home/jango/Git/axis` | AXIS charting PWA (Solid + Vite + CF Worker); uses pyne Pro API |
-| `pyne-worker` | `/home/jango/Git/pyne-worker` | Python Cloudflare Worker — Pine Script evaluation on the edge (depends on `pynescript`) |
-| `pine-worker` | `/home/jango/Git/pine-worker` | TypeScript Cloudflare Worker — Pine Script evaluator + trade event emitter (depends on `@jango-blockchained/hoox-shared` from `hoox-setup`) |
+| `hoox-landing-page` | `/home/jango/Git/hoox-landing-page` | Marketing site source for [hoox.sh](https://hoox.sh) |
+| `pyne-worker` | `/home/jango/Git/pyne-worker` | Python CF Worker — edge eval (depends on `pynescript`) |
+| `pine-worker` | `/home/jango/Git/pine-worker` | TypeScript CF Worker — Pine eval + trade events |
 
 **Key dependency links:**
-- `pyne-worker` → `pynescript` (editable install, same `pynescript` package)
-- `pine-worker` → `@jango-blockchained/hoox-shared` (workspace dep from `hoox-setup`)
+- AXIS UI → pyne Pro API (`make run` on `:5002`) or AXIS Worker
+- `pyne-worker` → `pynescript` package (editable install)
+- HOOX trade path can consume Pine signals from edge workers
 
 ```
-hoox-setup (workers)
-    ├── trade-worker ←──────────┐
-    ├── hoox (gateway) ────────┐│
-    ├── d1-worker ─────────────┐││
-    ├── agent-worker ──────────┐││
-    ├── telegram-worker ───────┐││
-    ├── web3-wallet-worker ────┐││
-    ├── email-worker ──────────┐││
-    ├── analytics-worker ──────┐││
-    ├── report-worker ─────────┐││
-    └── dashboard (Next.js) ────┘││
-                                  ││
-                     pynescript ──┘│
-                      (Pine Script  │
-                       parser/      │
-                       evaluator)   │
-                            │       │
-                            ▼       ▼
-                       pyne-worker  pine-worker
-                       (Python CF   (TypeScript CF
-                        Worker)      Worker)
+                    https://hoox.sh
+           ┌──────────────┼──────────────┐
+           ▼              ▼              ▼
+         HOOX            PYNE           AXIS
+    (edge execution)  (this repo)   (charting UI)
+           │              │              │
+           └──────────────┴──────────────┘
 ```

@@ -5,12 +5,12 @@
   "type": "module",
   "license": "AGPL-3.0-or-later",
   "author": "jango_blockchained",
-  "description": "pyne — Pine Script™ Python toolchain (parser, evaluator, LSP, Pro API). Charting UI: jango-blockchained/axis.",
+  "description": "pyne \u2014 Pine Script\u2122 Python toolchain (parser, evaluator, LSP, Pro API). Part of HOOX: hoox.sh",
   "repository": {
     "type": "git",
     "url": "https://github.com/jango-blockchained/pyne.git"
   },
-  "homepage": "https://github.com/jango-blockchained/pyne#readme",
+  "homepage": "https://hoox.sh/pyne",
   "bugs": {
     "url": "https://github.com/jango-blockchained/pyne/issues"
   },
