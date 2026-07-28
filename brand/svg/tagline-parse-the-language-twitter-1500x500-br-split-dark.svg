@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="500" viewBox="0 0 1500 500" version="1.1">
+  <style type="text/css">
+    @font-face {
+      font-family: "IBM Plex Mono";
+      src: url("file:///mnt/data/home/jango/Git/pynescript/brand/fonts/ibm-plex-mono-v20-latin-500.ttf") format("truetype");
+      font-weight: 500;
+      font-style: normal;
+    }
+  </style>
+  <defs>
+    <pattern id="micro" width="5" height="5" patternUnits="userSpaceOnUse">
+      <path d="M 5 0 L 0 0 0 5" fill="none" stroke="#FFFFFF" stroke-opacity="0.07" stroke-width="0.52"/>
+    </pattern>
+    <pattern id="major" width="30" height="30" patternUnits="userSpaceOnUse">
+      <path d="M 30 0 L 0 0 0 30" fill="none" stroke="#FFFFFF" stroke-opacity="0.095" stroke-width="0.6"/>
+    </pattern>
+    <filter id="monoNoise" x="0" y="0" width="100%" height="100%" filterUnits="objectBoundingBox" color-interpolation-filters="sRGB">
+      <feTurbulence type="fractalNoise" baseFrequency="1.25" numOctaves="2" seed="17" stitchTiles="stitch" result="n"/>
+      <feColorMatrix in="n" type="matrix"
+        values="0 0 0 0 1
+                0 0 0 0 1
+                0 0 0 0 1
+                0 0 0 0.06 0"/>
+    </filter>
+  </defs>
+  <rect width="1500" height="500" fill="#050505"/>
+  <rect width="1500" height="500" fill="url(#micro)"/>
+  <rect width="1500" height="500" fill="url(#major)"/>
+  <rect width="1500" height="500" filter="url(#monoNoise)"/>
+  <g stroke="#FFFFFF" stroke-width="1" opacity="0.2" fill="none" stroke-linecap="square">
+    <path d="M 12 28 V 12 H 28"/>
+    <path d="M 1488 472 V 488 H 1472"/>
+  </g>
+  <g transform="translate(1350.0,375.0)">
+    <circle r="43.199999999999996" fill="none" stroke="#FFFFFF" stroke-opacity="0.22" stroke-width="1.5"/>
+    <circle r="33.696" fill="none" stroke="#FFFFFF" stroke-opacity="0.12" stroke-width="1"/>
+    <text x="0" y="0" fill="#F5F5F5" font-family='"IBM Plex Mono", "JetBrains Mono", ui-monospace, monospace' font-size="64.8" font-weight="500"
+          letter-spacing="0.04em" text-anchor="middle" dominant-baseline="central">P</text>
+  </g>
+  <text x="105.00000000000001" y="80.0" fill="rgba(245,245,245,0.92)" font-family='"IBM Plex Mono", "JetBrains Mono", ui-monospace, monospace' font-size="26" font-weight="500"
+        letter-spacing="3.12" text-anchor="start" dominant-baseline="hanging"><tspan x="105.00000000000001" dy="0">PARSE THE LANGUAGE.</tspan><tspan x="105.00000000000001" dy="1.35em">OWN THE AST.</tspan></text>
+</svg>

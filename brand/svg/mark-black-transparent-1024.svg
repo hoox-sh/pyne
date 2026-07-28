@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" version="1.1">
+  <style type="text/css">
+    @font-face {
+      font-family: "IBM Plex Mono";
+      src: url("file:///mnt/data/home/jango/Git/pynescript/brand/fonts/ibm-plex-mono-v20-latin-500.ttf") format("truetype");
+      font-weight: 500;
+      font-style: normal;
+    }
+  </style>
+  <g transform="translate(512,512)">
+    <circle r="344.06399999999996" fill="none" stroke="#0A0A0A" stroke-opacity="0.22" stroke-width="1.5"/>
+    <circle r="268.36992" fill="none" stroke="#0A0A0A" stroke-opacity="0.12" stroke-width="1"/>
+
+    <text x="0" y="0" fill="#0A0A0A" font-family='"IBM Plex Mono", "JetBrains Mono", ui-monospace, monospace' font-size="516.096" font-weight="500"
+          letter-spacing="0.04em" text-anchor="middle" dominant-baseline="central">P</text>
+  </g>
+</svg>

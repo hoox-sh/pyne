@@ -1,5 +1,9 @@
 #!/usr/bin/env node
 /**
+ * Copyright (c) 2026 HOOX · PYNE · jango-blockchained
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ */
+/**
  * PYNE + AXIS documentation export pipeline (HOOX-style)
  *
  * Generates per product:
