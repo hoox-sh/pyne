@@ -1567,7 +1567,9 @@ class CompilerVisitor(NodeVisitor):
         if node.id in self.user_funcs:
             return node.id
         if node.id in self.udt_vars or node.id in self.string_series:
-            return f"{node.id}_arr[__bar_idx]"
+            arr = f"{node.id}_arr"
+            self.arrays.add(arr)
+            return f"{arr}[__bar_idx]"
         # Inside UDF: free outer vars → bare name (scalar/color) unless history series
         if self.in_function and node.id not in self.local_vars:
             if node.id in self.series_params or node.id in self.series_locals:
@@ -1578,7 +1580,15 @@ class CompilerVisitor(NodeVisitor):
             if node.id not in getattr(self, "history_names_current", set()):
                 self._free_scalars_current.add(node.id)
                 return self._py_ident(node.id)
-        return f"{node.id}_arr[__bar_idx]"
+            # History free series: allocate outer array for execute_script
+            arr = f"{self._py_ident(node.id)}_arr"
+            self.arrays.add(arr)
+            return f"{arr}[__bar_idx]"
+        # Script-level series ref: always allocate so call sites never NameError
+        # even when the assign was dropped (e.g. unhandled Switch RHS).
+        arr = f"{node.id}_arr"
+        self.arrays.add(arr)
+        return f"{arr}[__bar_idx]"
     def visit_Attribute(self, node: ast.Attribute):
         # color.red etc.
         if isinstance(node.value, ast.Name) and node.value.id == "ta":
@@ -3639,6 +3649,42 @@ class CompilerVisitor(NodeVisitor):
 
         # Strategy / broker scalars, call results, arithmetic, literals, …
         return self._scalar_history_fallback(arr, slice_val)
+    def visit_Switch(self, node: ast.Switch):
+        """Lower ``switch`` / ``switch subject`` to a nested Python ternary.
+
+        Pattern cases with a subject become ``(body if subject == pat else …)``.
+        Subject-less switches treat each pattern as a boolean condition.
+        Default case (``pattern is None``) is the final else value.
+        """
+        subject = self.visit(node.subject) if getattr(node, "subject", None) is not None else None
+
+        def _case_value(case) -> str:
+            body = getattr(case, "body", None) or []
+            if not body:
+                return "np.nan"
+            # Prefer last statement as the value (Pine case bodies are expressions)
+            last = body[-1]
+            val = self.visit(last)
+            if not val:
+                return "np.nan"
+            # Multi-stmt cases rare; only the value expr is used as switch result
+            return val
+
+        # Build from the end so default becomes the innermost else
+        expr = "np.nan"
+        for case in reversed(list(node.cases or [])):
+            case_val = _case_value(case)
+            pat = getattr(case, "pattern", None)
+            if pat is None:
+                expr = case_val
+                continue
+            pat_v = self.visit(pat)
+            if subject is not None:
+                expr = f"({case_val} if ({subject}) == ({pat_v}) else {expr})"
+            else:
+                expr = f"({case_val} if ({pat_v}) else {expr})"
+        return expr
+
     def visit_If(self, node: ast.If):
         test = self.visit(node.test)
         lines = [f"if {test}:"]
