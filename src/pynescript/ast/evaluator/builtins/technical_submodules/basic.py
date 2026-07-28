@@ -56,6 +56,8 @@ class BasicIndicators(TechnicalHelpers):
     def _builtin_ta_wma(self, args: list[Any]) -> float | None:
         """Weighted Moving Average."""
         series, period = self._expect_series(args, length=BINARY)
+        if self._use_incremental_ta():
+            return self._wma_inc_update(series, period)
         return self._wma(series, period)
 
     def _builtin_ta_rma(self, args: list[Any]) -> list[float]:
@@ -155,6 +157,8 @@ class BasicIndicators(TechnicalHelpers):
         series, period = self._expect_series(
             args, length=BINARY, default_source="high", allow_period_only=True
         )
+        if self._use_incremental_ta():
+            return self._highest_inc_update(series, period)
         return self._highest(series, period)
 
     def _builtin_ta_lowest(self, args: list[Any]) -> Any:
@@ -162,6 +166,8 @@ class BasicIndicators(TechnicalHelpers):
         series, period = self._expect_series(
             args, length=BINARY, default_source="low", allow_period_only=True
         )
+        if self._use_incremental_ta():
+            return self._lowest_inc_update(series, period)
         return self._lowest(series, period)
 
     def _builtin_ta_highestbars(self, args: list[Any]) -> int:
@@ -186,6 +192,8 @@ class BasicIndicators(TechnicalHelpers):
         period = self._expect_int(args[1], "Second argument must be an integer") if len(args) > 1 else 1
         if isinstance(period, float) and period == int(period):
             period = int(period)
+        if self._use_incremental_ta():
+            return self._change_inc_update(source, period)
         return self._change(source, period)
 
     def _builtin_ta_mom(self, args: list[Any]) -> float:
@@ -196,6 +204,8 @@ class BasicIndicators(TechnicalHelpers):
     def _builtin_ta_stdev(self, args: list[Any]) -> float | None:
         """Standard Deviation."""
         series, period = self._expect_series(args, length=BINARY)
+        if self._use_incremental_ta():
+            return self._stdev_inc_update(series, period)
         return self._stdev(series, period)
 
     def _builtin_ta_swma(self, args: list[Any]) -> float | None:
@@ -216,6 +226,8 @@ class BasicIndicators(TechnicalHelpers):
             highs = self._context_series("high")
             lows = self._context_series("low")
             closes = self._context_series("close")
+            if self._use_incremental_ta():
+                return self._tr_inc_update(highs, lows, closes)
             return self._finalize_series(self._tr(highs, lows, closes))
         msg = "ta.tr expects high, low, and close (or 0–1 handle_na args)"
         if len(args) != TERNARY:
@@ -223,6 +235,8 @@ class BasicIndicators(TechnicalHelpers):
         highs = self._expect_list(args[0], msg)
         lows = self._expect_list(args[1], msg)
         closes = self._expect_list(args[2], msg)
+        if self._use_incremental_ta():
+            return self._tr_inc_update(highs, lows, closes)
         return self._finalize_series(self._tr(highs, lows, closes))
 
     def _builtin_ta_sar(self, args: list[Any]) -> Any:
@@ -255,7 +269,9 @@ class BasicIndicators(TechnicalHelpers):
             length = self._expect_int(args[0], msg)
             multiplier = args[1]
         elif len(args) == TERNARY:
-            series = self._expect_list(args[0], msg)
+            # Chronological via ``_as_series`` (PineSeries.history is newest-first).
+            # ``_expect_list`` would leave reverse order and break incremental last-sample.
+            series = self._as_series(args[0]) if hasattr(self, "_as_series") else self._expect_list(args[0], msg)
             length = self._expect_int(args[1], msg)
             multiplier = args[2]
         else:

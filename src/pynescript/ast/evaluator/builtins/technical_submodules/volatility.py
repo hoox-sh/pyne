@@ -39,6 +39,8 @@ class VolatilityIndicators(TechnicalHelpers):
     def _builtin_ta_stdev(self, args: list[Any]) -> float | None:
         """Standard Deviation."""
         series, period = self._expect_series(args, length=BINARY)
+        if self._use_incremental_ta():
+            return self._stdev_inc_update(series, period)
         return self._stdev(series, period)
 
     def _builtin_ta_atr(self, args: list[Any]) -> Any:
@@ -72,6 +74,8 @@ class VolatilityIndicators(TechnicalHelpers):
             highs = self._context_series("high")
             lows = self._context_series("low")
             closes = self._context_series("close")
+            if self._use_incremental_ta():
+                return self._tr_inc_update(highs, lows, closes)
             return self._finalize_series(self._tr(highs, lows, closes))
         msg = "ta.tr expects high, low, and close"
         if len(args) != TERNARY:
@@ -79,6 +83,8 @@ class VolatilityIndicators(TechnicalHelpers):
         highs = self._expect_list(args[0], msg)
         lows = self._expect_list(args[1], msg)
         closes = self._expect_list(args[2], msg)
+        if self._use_incremental_ta():
+            return self._tr_inc_update(highs, lows, closes)
         return self._finalize_series(self._tr(highs, lows, closes))
 
     def _builtin_ta_bb(
@@ -635,11 +641,13 @@ class VolatilityIndicators(TechnicalHelpers):
         after warm-up) instead of full-history ``_sma`` each bar.
         """
         if self._use_incremental_ta():
+            # Two call-site slots: SMA then stdev (order fixed for parity).
             middle = self._sma_inc_update(series, period)
+            deviation = self._stdev_inc_update(series, period)
         else:
             sma_values = self._sma(series, period)
             middle = sma_values[-1] if sma_values else None
-        deviation = self._stdev(series, period)
+            deviation = self._stdev(series, period)
         if middle is None or deviation is None:
             return None, None, None
         upper = middle + deviation * multiplier

@@ -30,6 +30,10 @@ from typing import Any
 from antlr4 import CommonTokenStream
 from antlr4 import FileStream
 from antlr4 import InputStream
+from antlr4.atn.PredictionMode import PredictionMode
+from antlr4.error.Errors import ParseCancellationException
+from antlr4.error.ErrorStrategy import BailErrorStrategy
+from antlr4.error.ErrorStrategy import DefaultErrorStrategy
 
 from pynescript.ast import node as ast
 from pynescript.ast.builder import PinescriptASTBuilder
@@ -39,6 +43,11 @@ from pynescript.ast.grammar.antlr4.parser import PinescriptParser
 from pynescript.ast.node import AST
 from pynescript.ast.node import Expression
 from pynescript.util.itertools import grouper
+
+
+# Deeply nested Pine expressions (e.g. long ternary chains) need a higher
+# recursion limit during ANTLR walk + AST builder visits.
+_PARSE_RECURSION_LIMIT = 5000
 
 
 def _add_annotations(script, statements, comments):
@@ -161,6 +170,13 @@ def _collect_comment_nodes(builder: PinescriptASTBuilder, token_stream: CommonTo
     return comments
 
 
+def _parse_rule(parser: PinescriptParser, mode: str):
+    """Invoke the start rule for the given parse mode."""
+    if mode == "exec":
+        return parser.start_script()
+    return parser.start_expression()
+
+
 def _parse(
     stream: InputStream,
     mode: str = "exec",
@@ -169,7 +185,7 @@ def _parse(
 
     Orchestrates the ANTLR lexer/parser pipeline and AST construction:
     1. Lexes the input stream into tokens
-    2. Parses tokens according to Pinescript grammar
+    2. Parses tokens according to Pinescript grammar (SLL first, LL fallback)
     3. Builds AST nodes from parse tree
     4. Collects annotations from comments (in exec mode)
 
@@ -194,7 +210,11 @@ def _parse(
     # Temporarily increase recursion limit for deeply nested expressions
     # (e.g., hundreds of nested ternary operators)
     old_limit = sys.getrecursionlimit()
-    sys.setrecursionlimit(max(old_limit, 5000))
+    if old_limit < _PARSE_RECURSION_LIMIT:
+        sys.setrecursionlimit(_PARSE_RECURSION_LIMIT)
+        restore_recursion = True
+    else:
+        restore_recursion = False
 
     try:
         lexer = PinescriptLexer(stream)
@@ -207,21 +227,34 @@ def _parse(
         lexer.addErrorListener(error_listener)
         parser.addErrorListener(error_listener)
 
-        rule = {
-            "exec": parser.start_script,
-            "eval": parser.start_expression,
-        }[mode]()
+        # Two-stage parse: SLL is much faster on unambiguous input; on SLL
+        # failure (BailErrorStrategy → ParseCancellationException) reset and
+        # re-parse with full LL. Produces identical trees to pure-LL on success.
+        parser._interp.predictionMode = PredictionMode.SLL
+        parser._errHandler = BailErrorStrategy()
+        try:
+            rule = _parse_rule(parser, mode)
+        except ParseCancellationException:
+            token_stream.seek(0)
+            parser.reset()
+            parser._errHandler = DefaultErrorStrategy()
+            parser._interp.predictionMode = PredictionMode.LL
+            rule = _parse_rule(parser, mode)
 
         builder = PinescriptASTBuilder()
         node = builder.visit(rule)
 
         if mode == "exec":
+            # Annotation comments always contain '@' (e.g. //@version=5).
+            # Skip statement/comment collection when none can exist.
+            src_text = getattr(stream, "strdata", None)
+            if src_text is not None and "@" not in src_text:
+                return node
+
+            # Deferred import: collector → visitor → helper (circular at module load)
             from pynescript.ast.collector import StatementCollector
 
-            statement_collector = StatementCollector()
-
-            statements = statement_collector.visit(node)
-            statements = list(statements)
+            statements = list(StatementCollector().visit(node))
 
             if not statements:
                 return node
@@ -235,7 +268,8 @@ def _parse(
 
         return node
     finally:
-        sys.setrecursionlimit(old_limit)
+        if restore_recursion:
+            sys.setrecursionlimit(old_limit)
 
 
 def _get_absolute_path(filename: str) -> str:
@@ -732,10 +766,10 @@ def walk(node: AST) -> Iterator[AST]:
 
 
 def unparse(node: AST):
-    from pynescript.ast.unparser import NodeUnparser
+    # Reuse a per-thread NodeUnparser (warm visitor cache). Public API unchanged.
+    from pynescript.ast.unparser import unparse_node
 
-    unparser = NodeUnparser()
-    return unparser.visit(node)
+    return unparse_node(node)
 
 
 __all__ = [

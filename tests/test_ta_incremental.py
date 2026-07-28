@@ -415,3 +415,184 @@ plot(ta.atr(14))
             if a is None or b is None:
                 continue
             assert a == pytest.approx(b, rel=1e-9, abs=1e-9), f"{key} bar {i}: {a} != {b}"
+
+
+def _bar_walk_full_stdev(src: list[float], period: int) -> list[float | None]:
+    ev = _FullTA()
+    out: list[float | None] = []
+    for i in range(len(src)):
+        out.append(ev._stdev(src[: i + 1], period))
+    return out
+
+
+def _bar_walk_inc_stdev(src: list[float], period: int) -> list[float | None]:
+    ev = _IncTA()
+    out: list[float | None] = []
+    for i in range(len(src)):
+        ev._ta_call_i = 0
+        out.append(ev._stdev_inc_update(src[: i + 1], period))
+    return out
+
+
+def _bar_walk_full_highest(src: list[float], period: int) -> list[float | None]:
+    ev = _FullTA()
+    return [ev._highest(src[: i + 1], period) for i in range(len(src))]
+
+
+def _bar_walk_inc_highest(src: list[float], period: int) -> list[float | None]:
+    ev = _IncTA()
+    out: list[float | None] = []
+    for i in range(len(src)):
+        ev._ta_call_i = 0
+        out.append(ev._highest_inc_update(src[: i + 1], period))
+    return out
+
+
+def _bar_walk_full_lowest(src: list[float], period: int) -> list[float | None]:
+    ev = _FullTA()
+    return [ev._lowest(src[: i + 1], period) for i in range(len(src))]
+
+
+def _bar_walk_inc_lowest(src: list[float], period: int) -> list[float | None]:
+    ev = _IncTA()
+    out: list[float | None] = []
+    for i in range(len(src)):
+        ev._ta_call_i = 0
+        out.append(ev._lowest_inc_update(src[: i + 1], period))
+    return out
+
+
+def _bar_walk_full_wma(src: list[float], period: int) -> list[float | None]:
+    ev = _FullTA()
+    return [ev._wma(src[: i + 1], period) for i in range(len(src))]
+
+
+def _bar_walk_inc_wma(src: list[float], period: int) -> list[float | None]:
+    ev = _IncTA()
+    out: list[float | None] = []
+    for i in range(len(src)):
+        ev._ta_call_i = 0
+        out.append(ev._wma_inc_update(src[: i + 1], period))
+    return out
+
+
+def _bar_walk_full_tr(
+    highs: list[float], lows: list[float], closes: list[float]
+) -> list[float | None]:
+    ev = _FullTA()
+    out: list[float | None] = []
+    for i in range(len(closes)):
+        full = ev._tr(highs[: i + 1], lows[: i + 1], closes[: i + 1])
+        out.append(full[-1] if full else None)
+    return out
+
+
+def _bar_walk_inc_tr(
+    highs: list[float], lows: list[float], closes: list[float]
+) -> list[float | None]:
+    ev = _IncTA()
+    out: list[float | None] = []
+    for i in range(len(closes)):
+        ev._ta_call_i = 0
+        out.append(ev._tr_inc_update(highs[: i + 1], lows[: i + 1], closes[: i + 1]))
+    return out
+
+
+def _bar_walk_full_change(src: list[float], length: int) -> list[float | None]:
+    ev = _FullTA()
+    return [ev._change(src[: i + 1], length) for i in range(len(src))]
+
+
+def _bar_walk_inc_change(src: list[float], length: int) -> list[float | None]:
+    ev = _IncTA()
+    out: list[float | None] = []
+    for i in range(len(src)):
+        ev._ta_call_i = 0
+        out.append(ev._change_inc_update(src[: i + 1], length))
+    return out
+
+
+def test_incremental_stdev_matches_full() -> None:
+    src = _series(150)
+    for period in (5, 14, 20):
+        _assert_series_close(
+            _bar_walk_inc_stdev(src, period),
+            _bar_walk_full_stdev(src, period),
+            rel=1e-9,
+            abs_=1e-9,
+        )
+
+
+def test_incremental_highest_lowest_matches_full() -> None:
+    src = _series(120)
+    for period in (5, 20, 50):
+        _assert_series_close(_bar_walk_inc_highest(src, period), _bar_walk_full_highest(src, period))
+        _assert_series_close(_bar_walk_inc_lowest(src, period), _bar_walk_full_lowest(src, period))
+
+
+def test_incremental_wma_matches_full() -> None:
+    src = _series(120)
+    for period in (5, 14, 20):
+        _assert_series_close(_bar_walk_inc_wma(src, period), _bar_walk_full_wma(src, period))
+
+
+def test_incremental_tr_matches_full() -> None:
+    highs, lows, closes = _ohlc(120)
+    _assert_series_close(
+        _bar_walk_inc_tr(highs, lows, closes),
+        _bar_walk_full_tr(highs, lows, closes),
+    )
+
+
+def test_incremental_change_matches_full() -> None:
+    src = _series(100)
+    for length in (1, 3, 10):
+        _assert_series_close(
+            _bar_walk_inc_change(src, length),
+            _bar_walk_full_change(src, length),
+        )
+
+
+def test_runtime_stdev_bb_hl_wma_incremental_vs_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
+    from backend.runtime import Runtime
+
+    bars = [
+        {
+            "open": 100 + i * 0.1,
+            "high": 101.5 + i * 0.1 + (i % 5) * 0.05,
+            "low": 98.5 + i * 0.1 - (i % 3) * 0.05,
+            "close": 100.5 + i * 0.1 + math.sin(i / 7.0) * 0.2,
+            "volume": 1000 + i,
+            "time": 1_000_000 + i * 86_400_000,
+        }
+        for i in range(120)
+    ]
+    src = """//@version=5
+indicator("stdev bb hl wma")
+[u, m, l] = ta.bb(close, 20, 2.0)
+plot(u)
+plot(m)
+plot(l)
+plot(ta.stdev(close, 20))
+plot(ta.highest(high, 20))
+plot(ta.lowest(low, 20))
+plot(ta.wma(close, 14))
+plot(ta.change(close, 1))
+plot(ta.tr)
+"""
+    monkeypatch.delenv("PYNE_TA_INCREMENTAL", raising=False)
+    r_on = Runtime(symbol="T").run(src, bars)
+    assert "error" not in r_on, r_on.get("error")
+    monkeypatch.setenv("PYNE_TA_INCREMENTAL", "0")
+    r_off = Runtime(symbol="T").run(src, bars)
+    assert "error" not in r_off, r_off.get("error")
+    monkeypatch.delenv("PYNE_TA_INCREMENTAL", raising=False)
+
+    assert set(r_on["series"]) == set(r_off["series"])
+    for key in r_on["series"]:
+        for i, (a, b) in enumerate(zip(r_on["series"][key], r_off["series"][key], strict=True)):
+            if a is None and b is None:
+                continue
+            if a is None or b is None:
+                continue
+            assert a == pytest.approx(b, rel=1e-9, abs=1e-9), f"{key} bar {i}: {a} != {b}"

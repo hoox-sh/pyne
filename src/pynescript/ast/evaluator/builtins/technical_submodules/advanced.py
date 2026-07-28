@@ -22,7 +22,6 @@
 from __future__ import annotations
 
 import math
-import statistics
 
 from typing import Any
 
@@ -717,22 +716,15 @@ class AdvancedIndicators(TechnicalHelpers):
         return uo_val
 
     def _builtin_ta_stdev(self, args: list[Any]) -> float | None:
-        """Standard Deviation."""
-        expected_args = BINARY
-        if len(args) < expected_args:
-            msg = "ta.stdev() requires 2 arguments: series, period"
-            self._error(msg)
+        """Standard Deviation (delegates to core helper / incremental path).
 
-        series = args[0] if isinstance(args[0], list) else [args[0]]
-        period = self._expect_int(args[1], "period must be integer")
-
-        if len(series) < period:
-            return None
-
-        try:
-            return statistics.stdev(series[-period:])
-        except (ValueError, statistics.StatisticsError):
-            return None
+        AdvancedIndicators wins MRO over Volatility/Basic for this name; keep
+        semantics aligned with ``_stdev`` / ``_stdev_inc_update``.
+        """
+        series, period = self._expect_series(args, length=BINARY)
+        if self._use_incremental_ta():
+            return self._stdev_inc_update(series, period)
+        return self._stdev(series, period)
 
     def _builtin_ta_momentum_divergence(self, args: list[Any]) -> dict[str, Any]:
         """Momentum Divergence - Multi-timeframe momentum divergence.

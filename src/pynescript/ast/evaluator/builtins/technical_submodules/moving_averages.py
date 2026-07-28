@@ -52,6 +52,8 @@ class MovingAverageIndicators(TechnicalHelpers):
     def _builtin_ta_wma(self, args: list[Any]) -> float | None:
         """Weighted Moving Average."""
         series, period = self._expect_series(args, length=BINARY)
+        if self._use_incremental_ta():
+            return self._wma_inc_update(series, period)
         return self._wma(series, period)
 
     def _builtin_ta_rma(self, args: list[Any]) -> list[float]:

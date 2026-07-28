@@ -32,9 +32,8 @@ Main Classes:
 from __future__ import annotations
 
 import json
+import threading
 
-from contextlib import contextmanager
-from contextlib import nullcontext
 from enum import IntEnum
 from enum import auto
 from typing import ClassVar
@@ -43,12 +42,68 @@ from pynescript.ast import node as ast
 from pynescript.ast.visitor import NodeVisitor
 
 
+# Precomputed indent prefixes (4 spaces per level). Avoids repeated "    " * n.
+_INDENT_CACHE: tuple[str, ...] = tuple("    " * i for i in range(64))
+
+class _NullCM:
+    """Zero-allocation no-op context manager (replaces contextlib.nullcontext)."""
+
+    __slots__ = ()
+
+    def __enter__(self):
+        return None
+
+    def __exit__(self, *exc):
+        return False
+
+
+_NULL_CM = _NullCM()
+
+
+class _DelimitCM:
+    """Lightweight start/end delimiter without contextlib.contextmanager."""
+
+    __slots__ = ("_end", "_src")
+
+    def __init__(self, src: list[str], start: str, end: str):
+        self._src = src
+        self._end = end
+        src.append(start)
+
+    def __enter__(self):
+        return None
+
+    def __exit__(self, *exc):
+        self._src.append(self._end)
+        return False
+
+
+class _BlockCM:
+    """Indent block without contextlib.contextmanager."""
+
+    __slots__ = ("_u",)
+
+    def __init__(self, unparser: NodeUnparser, extra: str | None):
+        self._u = unparser
+        if extra:
+            unparser._source.append(extra)
+        unparser._indent += 1
+
+    def __enter__(self):
+        return None
+
+    def __exit__(self, *exc):
+        self._u._indent -= 1
+        return False
+
+
 class Precedence(IntEnum):
     """Operator precedence levels for correct parenthesization in output.
 
     Higher values bind tighter. Used to determine when to add parentheses
     around sub-expressions to preserve evaluation order.
     """
+
     TEST = auto()  # '?', ':' - ternary conditional (lowest)
     OR = auto()  # 'or'
     AND = auto()  # 'and'
@@ -68,10 +123,19 @@ class Precedence(IntEnum):
 
     def next(self):
         """Get the next higher precedence level."""
-        try:
-            return self.__class__(self + 1)
-        except ValueError:
-            return self
+        return _PRECEDENCE_NEXT[self]
+
+
+# Precomputed successor map so next() never raises / constructs via try/except.
+_PRECEDENCE_NEXT: dict[Precedence, Precedence] = {}
+for _p in Precedence:
+    try:
+        _PRECEDENCE_NEXT[_p] = Precedence(_p + 1)
+    except ValueError:
+        _PRECEDENCE_NEXT[_p] = _p
+# Aliases share the same int value; ensure all members resolve.
+for _p in Precedence:
+    _PRECEDENCE_NEXT.setdefault(_p, _p)
 
 
 class NodeUnparser(NodeVisitor):
@@ -79,9 +143,11 @@ class NodeUnparser(NodeVisitor):
 
     def __init__(self):
         super().__init__()  # Initialize visitor cache
-        self._source = []
-        self._precedences = {}
+        self._source: list[str] = []
+        self._precedences: dict = {}
         self._indent = 0
+        # Type-object keyed dispatch (faster than class-name strings).
+        self._type_visitor_cache: dict[type, object] = {}
 
     def interleave(self, inter, f, seq):
         seq = iter(seq)
@@ -94,73 +160,93 @@ class NodeUnparser(NodeVisitor):
                 inter()
                 f(x)
 
+    def _write_comma_space(self):
+        self._source.append(", ")
+
     def items_view(self, traverser, items, *, single: bool = False):
         if len(items) == 1:
             traverser(items[0])
             if single:
-                self.write(",")
+                self._source.append(",")
         else:
-            self.interleave(lambda: self.write(", "), traverser, items)
+            self.interleave(self._write_comma_space, traverser, items)
 
     def maybe_newline(self):
         if self._source:
-            self.write("\n")
+            self._source.append("\n")
 
     def fill(self, text=""):
-        self.maybe_newline()
-        self.write("    " * self._indent + text)
+        src = self._source
+        if src:
+            src.append("\n")
+        ind = self._indent
+        prefix = _INDENT_CACHE[ind] if ind < len(_INDENT_CACHE) else "    " * ind
+        if text:
+            src.append(prefix + text)
+        else:
+            src.append(prefix)
 
     def write(self, *text):
-        self._source.extend(text)
+        src = self._source
+        n = len(text)
+        if n == 1:
+            src.append(text[0])
+        elif n == 0:
+            return
+        else:
+            # Multi-arg path (hot call sites mostly use 1 arg / direct append).
+            src.extend(text)
 
-    @contextmanager
     def buffered(self, buffer=None):
+        # Kept for API compatibility; rarely used. Manual enter/exit pair.
         if buffer is None:
             buffer = []
-        original_source = self._source
-        self._source = buffer
-        yield buffer
-        self._source = original_source
+        return _BufferedCM(self, buffer)
 
-    @contextmanager
     def block(self, *, extra=None):
-        if extra:
-            self.write(extra)
-        self._indent += 1
-        yield
-        self._indent -= 1
+        return _BlockCM(self, extra)
 
-    @contextmanager
     def delimit(self, start, end):
-        self.write(start)
-        yield
-        self.write(end)
+        return _DelimitCM(self._source, start, end)
 
     def delimit_if(self, start, end, condition):
         if condition:
-            return self.delimit(start, end)
-        else:
-            return nullcontext()
+            return _DelimitCM(self._source, start, end)
+        return _NULL_CM
 
     def require_parens(self, precedence, node):
-        return self.delimit_if("(", ")", self.get_precedence(node) > precedence)
+        if self._precedences.get(node, Precedence.TEST) > precedence:
+            return _DelimitCM(self._source, "(", ")")
+        return _NULL_CM
 
     def get_precedence(self, node):
         return self._precedences.get(node, Precedence.TEST)
 
     def set_precedence(self, precedence, *nodes):
+        prec = self._precedences
         for node in nodes:
-            self._precedences[node] = precedence
+            prec[node] = precedence
 
     def traverse(self, node):
-        if isinstance(node, list):
+        # Lists are statement/arg containers; exact type check avoids ABC overhead.
+        if node.__class__ is list:
             for item in node:
                 self.traverse(item)
-        else:
-            super().visit(node)
+            return
+        # Inline type-keyed visitor dispatch (avoids name-string cache + super()).
+        cache = self._type_visitor_cache
+        cls = node.__class__
+        visitor = cache.get(cls)
+        if visitor is None:
+            visitor = getattr(self, "visit_" + cls.__name__, self.generic_visit)
+            cache[cls] = visitor
+        visitor(node)  # type: ignore[operator]
 
     def visit(self, node):
+        # Full reset so a single NodeUnparser instance can be reused safely.
         self._source = []
+        self._precedences = {}
+        self._indent = 0
         self.traverse(node)
         return "".join(self._source)
 
@@ -180,14 +266,14 @@ class NodeUnparser(NodeVisitor):
                 self.fill(annotation)
             self.fill()
         if node.export:
-            self.write("export ")
+            self._source.append("export ")
         if node.method:
-            self.write("method ")
-        self.write(node.name)
+            self._source.append("method ")
+        self._source.append(node.name)
         with self.delimit("(", ")"):
             if node.args:
                 self.items_view(self.traverse, node.args)
-        self.write(" => ")
+        self._source.append(" => ")
         if len(node.body) == 1 and isinstance(node.body[0], ast.Expr):
             self.traverse(node.body[0].value)
         else:
@@ -201,9 +287,9 @@ class NodeUnparser(NodeVisitor):
                 self.fill(annotation)
             self.fill()
         if node.export:
-            self.write("export ")
-        self.write("type ")
-        self.write(node.name)
+            self._source.append("export ")
+        self._source.append("type ")
+        self._source.append(node.name)
         with self.block():
             # Split body into fields and methods for better organization
             fields = []
@@ -227,9 +313,9 @@ class NodeUnparser(NodeVisitor):
                 self.fill(annotation)
             self.fill()
         if node.export:
-            self.write("export ")
-        self.write("enum ")
-        self.write(node.name)
+            self._source.append("export ")
+        self._source.append("enum ")
+        self._source.append(node.name)
         with self.block():
             self.traverse(node.body)
 
@@ -240,61 +326,61 @@ class NodeUnparser(NodeVisitor):
                 self.fill(annotation)
             self.fill()
         if getattr(node, "export", None):
-            self.write("export ")
+            self._source.append("export ")
         if node.mode:
             self.traverse(node.mode)
-            self.write(" ")
+            self._source.append(" ")
         if node.type:
             self.traverse(node.type)
-            self.write(" ")
+            self._source.append(" ")
         self.traverse(node.target)
         if node.value:
-            self.write(" = ")
+            self._source.append(" = ")
             self.traverse(node.value)
 
     def visit_ReAssign(self, node: ast.ReAssign):
         self.fill()
         self.traverse(node.target)
-        self.write(" := ")
+        self._source.append(" := ")
         self.traverse(node.value)
 
     def visit_AugAssign(self, node: ast.AugAssign):
         self.fill()
         self.traverse(node.target)
-        self.write(" ")
+        self._source.append(" ")
         self.traverse(node.op)
-        self.write("= ")
+        self._source.append("= ")
         self.traverse(node.value)
 
     def visit_ForTo(self, node: ast.ForTo):
-        self.write("for ")
+        self._source.append("for ")
         self.traverse(node.target)
-        self.write(" = ")
+        self._source.append(" = ")
         self.traverse(node.start)
-        self.write(" to ")
+        self._source.append(" to ")
         self.traverse(node.end)
         if node.step:
-            self.write(" by ")
+            self._source.append(" by ")
             self.traverse(node.step)
         with self.block():
             self.traverse(node.body)
 
     def visit_ForIn(self, node: ast.ForIn):
-        self.write("for ")
+        self._source.append("for ")
         self.traverse(node.target)
-        self.write(" in ")
+        self._source.append(" in ")
         self.traverse(node.iter)
         with self.block():
             self.traverse(node.body)
 
     def visit_While(self, node: ast.While):
-        self.write("while ")
+        self._source.append("while ")
         self.traverse(node.test)
         with self.block():
             self.traverse(node.body)
 
     def visit_If(self, node: ast.If):
-        self.write("if ")
+        self._source.append("if ")
         self.traverse(node.test)
         with self.block():
             self.traverse(node.body)
@@ -315,24 +401,25 @@ class NodeUnparser(NodeVisitor):
                 self.traverse(node.orelse)
 
     def visit_Switch(self, node: ast.Switch):
-        self.write("switch")
+        self._source.append("switch")
         if node.subject:
-            self.write(" ")
+            self._source.append(" ")
             self.traverse(node.subject)
         with self.block():
             self.traverse(node.cases)
 
     def visit_Import(self, node: ast.Import):
         self.fill()
-        self.write("import ")
-        self.write(node.namespace)
-        self.write("/")
-        self.write(node.name)
-        self.write("/")
-        self.write(str(node.version))
+        src = self._source
+        src.append("import ")
+        src.append(node.namespace)
+        src.append("/")
+        src.append(node.name)
+        src.append("/")
+        src.append(str(node.version))
         if node.alias:
-            self.write(" as ")
-            self.write(node.alias)
+            src.append(" as ")
+            src.append(node.alias)
 
     def visit_Expr(self, node: ast.Expr):
         self.fill()
@@ -344,9 +431,10 @@ class NodeUnparser(NodeVisitor):
     def visit_Continue(self, node: ast.Continue):
         self.fill("continue")
 
+    # Type-keyed operator tables (avoid per-node __class__.__name__ strings).
     boolops: ClassVar = {
-        "And": "and",
-        "Or": "or",
+        ast.And: "and",
+        ast.Or: "or",
     }
 
     boolop_precedence: ClassVar = {
@@ -354,31 +442,38 @@ class NodeUnparser(NodeVisitor):
         "or": Precedence.OR,
     }
 
-    def visit_BoolOp(self, node: ast.BoolOp):
-        operator = self.boolops[node.op.__class__.__name__]
-        operator_precedence = self.boolop_precedence[operator]
+    # Spaced forms for hot binary/bool ops.
+    _BOOLOP_SPACED: ClassVar = {
+        ast.And: " and ",
+        ast.Or: " or ",
+    }
 
-        def increasing_level_traverse(node):
+    def visit_BoolOp(self, node: ast.BoolOp):
+        op_type = type(node.op)
+        operator = self.boolops[op_type]
+        operator_precedence = self.boolop_precedence[operator]
+        spaced = self._BOOLOP_SPACED[op_type]
+
+        def increasing_level_traverse(child):
             nonlocal operator_precedence
             operator_precedence = operator_precedence.next()
-            self.set_precedence(operator_precedence, node)
-            self.traverse(node)
+            self._precedences[child] = operator_precedence
+            self.traverse(child)
 
         with self.require_parens(operator_precedence, node):
-            s = f" {operator} "
-            self.interleave(lambda: self.write(s), increasing_level_traverse, node.values)
+            self.interleave(lambda: self._source.append(spaced), increasing_level_traverse, node.values)
 
     binop: ClassVar = {
-        "Add": "+",
-        "Sub": "-",
-        "Mult": "*",
-        "Div": "/",
-        "Mod": "%",
-        "BitAnd": "&",
-        "BitOr": "|",
-        "BitXor": "^",
-        "LShift": "<<",
-        "RShift": ">>",
+        ast.Add: "+",
+        ast.Sub: "-",
+        ast.Mult: "*",
+        ast.Div: "/",
+        ast.Mod: "%",
+        ast.BitAnd: "&",
+        ast.BitOr: "|",
+        ast.BitXor: "^",
+        ast.LShift: "<<",
+        ast.RShift: ">>",
     }
 
     binop_precedence: ClassVar = {
@@ -394,23 +489,37 @@ class NodeUnparser(NodeVisitor):
         ">>": Precedence.SHIFT,
     }
 
+    _BINOP_SPACED: ClassVar = {
+        ast.Add: " + ",
+        ast.Sub: " - ",
+        ast.Mult: " * ",
+        ast.Div: " / ",
+        ast.Mod: " % ",
+        ast.BitAnd: " & ",
+        ast.BitOr: " | ",
+        ast.BitXor: " ^ ",
+        ast.LShift: " << ",
+        ast.RShift: " >> ",
+    }
+
     def visit_BinOp(self, node: ast.BinOp):
-        operator = self.binop[node.op.__class__.__name__]
+        op_type = type(node.op)
+        operator = self.binop[op_type]
         operator_precedence = self.binop_precedence[operator]
         with self.require_parens(operator_precedence, node):
             left_precedence = operator_precedence
             right_precedence = operator_precedence.next()
-            self.set_precedence(left_precedence, node.left)
+            self._precedences[node.left] = left_precedence
             self.traverse(node.left)
-            self.write(f" {operator} ")
-            self.set_precedence(right_precedence, node.right)
+            self._source.append(self._BINOP_SPACED[op_type])
+            self._precedences[node.right] = right_precedence
             self.traverse(node.right)
 
     unop: ClassVar = {
-        "Not": "not",
-        "UAdd": "+",
-        "USub": "-",
-        "Invert": "~",
+        ast.Not: "not",
+        ast.UAdd: "+",
+        ast.USub: "-",
+        ast.Invert: "~",
     }
 
     unop_precedence: ClassVar = {
@@ -421,32 +530,35 @@ class NodeUnparser(NodeVisitor):
     }
 
     def visit_UnaryOp(self, node: ast.UnaryOp):
-        operator = self.unop[node.op.__class__.__name__]
+        operator = self.unop[type(node.op)]
         operator_precedence = self.unop_precedence[operator]
         with self.require_parens(operator_precedence, node):
-            self.write(operator)
+            self._source.append(operator)
             if isinstance(node.op, ast.Not):
-                self.write(" ")
-            self.set_precedence(operator_precedence, node.operand)
+                self._source.append(" ")
+            self._precedences[node.operand] = operator_precedence
             self.traverse(node.operand)
 
     def visit_Conditional(self, node: ast.Conditional):
         with self.require_parens(Precedence.TEST, node):
-            self.set_precedence(Precedence.TEST.next(), node.test, node.body)
+            next_prec = Precedence.TEST.next()
+            prec = self._precedences
+            prec[node.test] = next_prec
+            prec[node.body] = next_prec
             self.traverse(node.test)
-            self.write(" ? ")
+            self._source.append(" ? ")
             self.traverse(node.body)
-            self.write(" : ")
-            self.set_precedence(Precedence.TEST, node.orelse)
+            self._source.append(" : ")
+            prec[node.orelse] = Precedence.TEST
             self.traverse(node.orelse)
 
     cmpops: ClassVar = {
-        "Eq": "==",
-        "NotEq": "!=",
-        "Lt": "<",
-        "LtE": "<=",
-        "Gt": ">",
-        "GtE": ">=",
+        ast.Eq: "==",
+        ast.NotEq: "!=",
+        ast.Lt: "<",
+        ast.LtE: "<=",
+        ast.Gt: ">",
+        ast.GtE: ">=",
     }
 
     cmpop_precedence: ClassVar = {
@@ -458,59 +570,77 @@ class NodeUnparser(NodeVisitor):
         ">=": Precedence.INEQ,
     }
 
+    _CMPOP_SPACED: ClassVar = {
+        ast.Eq: " == ",
+        ast.NotEq: " != ",
+        ast.Lt: " < ",
+        ast.LtE: " <= ",
+        ast.Gt: " > ",
+        ast.GtE: " >= ",
+    }
+
     def visit_Compare(self, node: ast.Compare):
         with self.require_parens(Precedence.CMP, node):
-            self.set_precedence(Precedence.CMP.next(), node.left, *node.comparators)
+            next_prec = Precedence.CMP.next()
+            prec = self._precedences
+            prec[node.left] = next_prec
+            for c in node.comparators:
+                prec[c] = next_prec
             self.traverse(node.left)
+            src = self._source
+            spaced = self._CMPOP_SPACED
             for o, e in zip(node.ops, node.comparators, strict=True):
-                operator = self.cmpops[o.__class__.__name__]
-                self.write(f" {operator} ")
+                src.append(spaced[type(o)])
                 self.traverse(e)
 
     def visit_Call(self, node: ast.Call):
-        self.set_precedence(Precedence.ATOM, node.func)
+        self._precedences[node.func] = Precedence.ATOM
         self.traverse(node.func)
         with self.delimit("(", ")"):
             if node.args:
                 self.items_view(self.traverse, node.args)
 
     def visit_Constant(self, node: ast.Constant):
+        src = self._source
         if node.kind:
-            self.write(node.value)
-        elif isinstance(node.value, bool):
-            if node.value:
-                self.write("true")
-            else:
-                self.write("false")
-        elif isinstance(node.value, str):
+            src.append(node.value)
+            return
+        value = node.value
+        # Identity checks for bools (bool is int subclass; must precede numeric paths).
+        if value is True:
+            src.append("true")
+        elif value is False:
+            src.append("false")
+        elif isinstance(value, str):
             # Prefer Pine v6 triple-quoted form when the value contains newlines so
             # unparse preserves readable multiline literals. Fall back to escaped
             # single-line form otherwise (and always when the value itself contains
             # both quote styles that would break triple delimiters).
-            if "\n" in node.value or "\r" in node.value:
-                if '"""' not in node.value:
-                    self.write('"""')
-                    self.write(node.value)
-                    self.write('"""')
-                elif "'''" not in node.value:
-                    self.write("'''")
-                    self.write(node.value)
-                    self.write("'''")
+            if "\n" in value or "\r" in value:
+                if '"""' not in value:
+                    src.append('"""')
+                    src.append(value)
+                    src.append('"""')
+                elif "'''" not in value:
+                    src.append("'''")
+                    src.append(value)
+                    src.append("'''")
                 else:
                     # Both triple delimiters appear in content — escape as JSON.
-                    self.write(json.dumps(node.value, ensure_ascii=False))
-            elif '"' in node.value and "'" not in node.value:
-                self.write(repr(node.value))
+                    src.append(json.dumps(value, ensure_ascii=False))
+            elif '"' in value and "'" not in value:
+                src.append(repr(value))
             else:
-                self.write(json.dumps(node.value, ensure_ascii=False))
+                src.append(json.dumps(value, ensure_ascii=False))
         else:
-            self.write(repr(node.value))
+            src.append(repr(value))
 
     def visit_Attribute(self, node: ast.Attribute):
-        self.set_precedence(Precedence.ATOM, node.value)
+        self._precedences[node.value] = Precedence.ATOM
         self.traverse(node.value)
-        self.write(".")
-        self.write(node.attr)
+        src = self._source
+        src.append(".")
+        src.append(node.attr)
 
     def visit_Subscript(self, node: ast.Subscript):
         self.traverse(node.value)
@@ -522,7 +652,7 @@ class NodeUnparser(NodeVisitor):
                     self.traverse(node.slice)
 
     def visit_Name(self, node: ast.Name):
-        self.write(node.id)
+        self._source.append(node.id)
 
     def visit_Tuple(self, node: ast.Tuple):
         with self.delimit("[", "]"):
@@ -531,7 +661,7 @@ class NodeUnparser(NodeVisitor):
 
     def visit_Qualify(self, node: ast.Qualify):
         self.traverse(node.qualifier)
-        self.write(" ")
+        self._source.append(" ")
         self.traverse(node.value)
 
     def visit_Specialize(self, node: ast.Specialize):
@@ -544,92 +674,93 @@ class NodeUnparser(NodeVisitor):
                     self.traverse(node.args)
 
     def visit_Var(self, node: ast.Var):
-        self.write("var")
+        self._source.append("var")
 
     def visit_VarIp(self, node: ast.VarIp):
-        self.write("varip")
+        self._source.append("varip")
 
     def visit_Const(self, node: ast.Const):
-        self.write("const")
+        self._source.append("const")
 
     def visit_Input(self, node: ast.Input):
-        self.write("input")
+        self._source.append("input")
 
     def visit_Sipmle(self, node: ast.Simple):
-        self.write("simple")
+        self._source.append("simple")
 
     def visit_Series(self, node: ast.Series):
-        self.write("series")
+        self._source.append("series")
 
     def visit_And(self, node: ast.And):
-        self.write("and")
+        self._source.append("and")
 
     def visit_Or(self, node: ast.Or):
-        self.write("or")
+        self._source.append("or")
 
     def visit_Add(self, node: ast.Add):
-        self.write("+")
+        self._source.append("+")
 
     def visit_Sub(self, node: ast.Sub):
-        self.write("-")
+        self._source.append("-")
 
     def visit_Mult(self, node: ast.Mult):
-        self.write("*")
+        self._source.append("*")
 
     def visit_Div(self, node: ast.Div):
-        self.write("/")
+        self._source.append("/")
 
     def visit_Mod(self, node: ast.Mod):
-        self.write("%")
+        self._source.append("%")
 
     def visit_Not(self, node: ast.Not):
-        self.write("not")
+        self._source.append("not")
 
     def visit_UAdd(self, node: ast.UAdd):
-        self.write("+")
+        self._source.append("+")
 
     def visit_USub(self, node: ast.USub):
-        self.write("-")
+        self._source.append("-")
 
     def visit_Eq(self, node: ast.Eq):
-        self.write("==")
+        self._source.append("==")
 
     def visit_NotEq(self, node: ast.NotEq):
-        self.write("!=")
+        self._source.append("!=")
 
     def visit_Lt(self, node: ast.Lt):
-        self.write("<")
+        self._source.append("<")
 
     def visit_LtE(self, node: ast.LtE):
-        self.write("<=")
+        self._source.append("<=")
 
     def visit_Gt(self, node: ast.Gt):
-        self.write(">")
+        self._source.append(">")
 
     def visit_GtE(self, node: ast.GtE):
-        self.write(">=")
+        self._source.append(">=")
 
     def visit_Param(self, node: ast.Param):
         if node.type:
             self.traverse(node.type)
-            self.write(" ")
-        self.write(node.name)
+            self._source.append(" ")
+        self._source.append(node.name)
         if node.default:
-            self.write("=")
+            self._source.append("=")
             self.traverse(node.default)
 
     def visit_Arg(self, node: ast.Arg):
         if node.name:
-            self.write(node.name)
-            self.write("=")
+            src = self._source
+            src.append(node.name)
+            src.append("=")
         self.traverse(node.value)
 
     def visit_Case(self, node: ast.Case):
         self.fill()
         if node.pattern:
             self.traverse(node.pattern)
-            self.write(" ")
-        self.write("=> ")
+            self._source.append(" ")
+        self._source.append("=> ")
         if len(node.body) == 1 and isinstance(node.body[0], ast.Expr):
             self.traverse(node.body[0].value)
         else:
@@ -638,3 +769,36 @@ class NodeUnparser(NodeVisitor):
 
     def visit_Comment(self, node: ast.Comment):
         self.fill(node.value)
+
+
+class _BufferedCM:
+    """Swap the active source buffer for the duration of the context."""
+
+    __slots__ = ("_buf", "_orig", "_u")
+
+    def __init__(self, unparser: NodeUnparser, buffer: list):
+        self._u = unparser
+        self._buf = buffer
+        self._orig = None
+
+    def __enter__(self):
+        self._orig = self._u._source
+        self._u._source = self._buf
+        return self._buf
+
+    def __exit__(self, *exc):
+        self._u._source = self._orig
+        return False
+
+
+# Thread-local reused unparser: keeps type-visitor cache warm across calls.
+_tls = threading.local()
+
+
+def unparse_node(node: ast.AST) -> str:
+    """Unparse *node* to Pine source, reusing a per-thread NodeUnparser."""
+    u = getattr(_tls, "unparser", None)
+    if u is None:
+        u = NodeUnparser()
+        _tls.unparser = u
+    return u.visit(node)

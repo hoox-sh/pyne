@@ -112,6 +112,8 @@ class TechnicalHelpers:
 
         One sample per call-site per bar (``series[-1]``). Does not depend on
         full series length — safe with ``_SERIES_MAX`` truncation.
+
+        Maintains a running sum/count of non-None samples for O(1) updates.
         """
         if period <= 0:
             return None
@@ -120,16 +122,27 @@ class TechnicalHelpers:
         bucket = self._ta_state_bucket()
         st = bucket.get(key)
         if st is None:
-            st = {"window": deque(maxlen=period), "value": None}
+            st = {"window": deque(), "sum": 0.0, "count": 0, "value": None}
             bucket[key] = st
         x = self._series_last(series)
         window: deque[Any] = st["window"]
+        if len(window) == period:
+            old = window.popleft()
+            if old is not None:
+                st["sum"] -= float(old)
+                st["count"] -= 1
         window.append(x)
-        if len(window) < period:
+        if x is not None:
+            try:
+                st["sum"] += float(x)
+                st["count"] += 1
+            except (TypeError, ValueError):
+                # Treat non-numeric as na: replace with None in window
+                window[-1] = None
+        if len(window) < period or st["count"] <= 0:
             st["value"] = None
         else:
-            valid = [v for v in window if v is not None]
-            st["value"] = (sum(valid) / len(valid)) if valid else None
+            st["value"] = st["sum"] / st["count"]
         return st.get("value")
 
     def _ema_inc_update(self, series: list[Any], period: int) -> float | None:
@@ -401,6 +414,241 @@ class TechnicalHelpers:
             st["value"] = st["ema"].get("ema")
             return st.get("value")
         st["value"] = self._ema_state_step(st["ema"], tr, period)
+        return st.get("value")
+
+    def _stdev_inc_update(self, series: list[Any], period: int) -> float | None:
+        """Incremental sample stdev matching full ``_stdev`` (last value).
+
+        Uses running sum / sum-of-squares over the non-None samples in the
+        period window (``statistics.stdev`` sample variance, ddof=1).
+        """
+        if period <= 0:
+            return None
+        slot = self._ta_next_slot()
+        key = ("stdev", slot, period)
+        bucket = self._ta_state_bucket()
+        st = bucket.get(key)
+        if st is None:
+            st = {"window": deque(), "sum": 0.0, "sumsq": 0.0, "count": 0, "value": None}
+            bucket[key] = st
+        raw = self._series_last(series)
+        x: float | None
+        if raw is None:
+            x = None
+        else:
+            try:
+                x = float(raw)
+            except (TypeError, ValueError):
+                x = None
+        window: deque[float | None] = st["window"]
+        if len(window) == period:
+            old = window.popleft()
+            if old is not None:
+                st["sum"] -= old
+                st["sumsq"] -= old * old
+                st["count"] -= 1
+        window.append(x)
+        if x is not None:
+            st["sum"] += x
+            st["sumsq"] += x * x
+            st["count"] += 1
+        n = int(st["count"])
+        if len(window) < period or n < 2:
+            st["value"] = None
+            return None
+        # sample variance: (sumsq - sum^2/n) / (n-1)
+        s = float(st["sum"])
+        ss = float(st["sumsq"])
+        var = (ss - (s * s) / n) / (n - 1)
+        if var < 0.0:
+            # floating-point cancellation guard
+            var = 0.0
+        st["value"] = math.sqrt(var)
+        return st.get("value")
+
+    def _highest_inc_update(self, series: list[Any], period: int) -> float | None:
+        """Incremental highest matching full ``_highest`` (last value)."""
+        if period <= 0:
+            return None
+        slot = self._ta_next_slot()
+        key = ("highest", slot, period)
+        bucket = self._ta_state_bucket()
+        st = bucket.get(key)
+        if st is None:
+            st = {"window": deque(), "value": None}
+            bucket[key] = st
+        x = self._series_last(series)
+        window: deque[Any] = st["window"]
+        if len(window) == period:
+            window.popleft()
+        window.append(x)
+        if len(window) < period:
+            st["value"] = None
+            return None
+        best: float | None = None
+        for v in window:
+            if v is None:
+                continue
+            try:
+                fv = float(v)
+            except (TypeError, ValueError):
+                continue
+            if best is None or fv > best:
+                best = fv
+        st["value"] = best
+        return best
+
+    def _lowest_inc_update(self, series: list[Any], period: int) -> float | None:
+        """Incremental lowest matching full ``_lowest`` (last value)."""
+        if period <= 0:
+            return None
+        slot = self._ta_next_slot()
+        key = ("lowest", slot, period)
+        bucket = self._ta_state_bucket()
+        st = bucket.get(key)
+        if st is None:
+            st = {"window": deque(), "value": None}
+            bucket[key] = st
+        x = self._series_last(series)
+        window: deque[Any] = st["window"]
+        if len(window) == period:
+            window.popleft()
+        window.append(x)
+        if len(window) < period:
+            st["value"] = None
+            return None
+        best: float | None = None
+        for v in window:
+            if v is None:
+                continue
+            try:
+                fv = float(v)
+            except (TypeError, ValueError):
+                continue
+            if best is None or fv < best:
+                best = fv
+        st["value"] = best
+        return best
+
+    def _wma_inc_update(self, series: list[Any], period: int) -> float | None:
+        """Incremental WMA matching full ``_wma`` (last value).
+
+        Weights positions 1..period within the window (oldest weight 1).
+        None samples are dropped from the weighted sum (same as full path).
+        """
+        if period <= 0:
+            return None
+        slot = self._ta_next_slot()
+        key = ("wma", slot, period)
+        bucket = self._ta_state_bucket()
+        st = bucket.get(key)
+        if st is None:
+            st = {"window": deque(), "value": None}
+            bucket[key] = st
+        x = self._series_last(series)
+        window: deque[Any] = st["window"]
+        if len(window) == period:
+            window.popleft()
+        window.append(x)
+        if len(window) < period:
+            st["value"] = None
+            return None
+        # Match full path: if any None, weight by (i+1) among full period positions
+        # for non-None only; else classic 1..period weights.
+        has_none = any(v is None for v in window)
+        if has_none:
+            valid = [(i + 1, v) for i, v in enumerate(window) if v is not None]
+            if not valid:
+                st["value"] = None
+                return None
+            total_w = sum(w for w, _ in valid)
+            st["value"] = sum(w * float(v) for w, v in valid) / total_w
+            return st.get("value")
+        # series[-1]*period + series[-2]*(period-1) + ... + series[-period]*1
+        total_w = period * (period + 1) / 2.0
+        acc = 0.0
+        for i, v in enumerate(window):
+            acc += float(v) * (i + 1)
+        st["value"] = acc / total_w
+        return st.get("value")
+
+    def _tr_inc_update(
+        self,
+        highs: list[Any],
+        lows: list[Any],
+        closes: list[Any],
+    ) -> float | None:
+        """Incremental True Range last value (matches ``_tr`` bar-mode finalize).
+
+        First bar is always ``None`` (full path seeds ``[None, ...]``).
+        """
+        slot = self._ta_next_slot()
+        key = ("tr", slot)
+        bucket = self._ta_state_bucket()
+        st = bucket.get(key)
+        if st is None:
+            st = {"prev_close": None, "started": False, "value": None}
+            bucket[key] = st
+        h = self._series_last(highs)
+        l = self._series_last(lows)
+        c = self._series_last(closes)
+        prev_c = st["prev_close"]
+        st["prev_close"] = c
+        if not st["started"]:
+            # First sample: no TR (matches full ``_tr`` result[0] = None)
+            st["started"] = True
+            st["value"] = None
+            return None
+        if h is None or l is None or prev_c is None:
+            st["value"] = None
+            return None
+        try:
+            tr = max(
+                float(h) - float(l),
+                abs(float(h) - float(prev_c)),
+                abs(float(l) - float(prev_c)),
+            )
+        except (TypeError, ValueError):
+            st["value"] = None
+            return None
+        st["value"] = tr
+        return tr
+
+    def _change_inc_update(self, source: list[Any], length: int = 1) -> float | None:
+        """Incremental ``ta.change`` matching full ``_change`` (last value)."""
+        if length < 0:
+            return None
+        if length == 0:
+            # change over 0 bars is always 0 when source defined
+            x = self._series_last(source)
+            if x is None:
+                return None
+            try:
+                float(x)
+            except (TypeError, ValueError):
+                return None
+            return 0.0
+        slot = self._ta_next_slot()
+        key = ("change", slot, length)
+        bucket = self._ta_state_bucket()
+        st = bucket.get(key)
+        if st is None:
+            st = {"window": deque(maxlen=length + 1), "value": None}
+            bucket[key] = st
+        x = self._series_last(source)
+        window: deque[Any] = st["window"]
+        window.append(x)
+        if len(window) <= length:
+            st["value"] = None
+            return None
+        a, b = window[-1], window[0]
+        if a is None or b is None:
+            st["value"] = None
+            return None
+        try:
+            st["value"] = float(a) - float(b)
+        except (TypeError, ValueError):
+            st["value"] = None
         return st.get("value")
 
     def _finalize_series(self, values: list[Any]) -> Any:

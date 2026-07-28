@@ -1020,7 +1020,8 @@ def test_evaluator_ta_tr(expression, expected):
     ast = helper.parse(expression, mode="eval")
     evaluator = NodeLiteralEvaluator()
     result = evaluator.visit(ast.body)
-    assert math.isnan(result[0])
+    # First bar TR is na (None or nan depending on path)
+    assert result[0] is None or (isinstance(result[0], float) and math.isnan(result[0]))
     assert result[1:] == pytest.approx(expected[1:])
 
 

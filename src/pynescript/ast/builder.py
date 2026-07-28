@@ -68,16 +68,19 @@ class PinescriptASTLocator:
         """
         start = ctx.start
         stop = ctx.stop
+        stop_text = stop.text
         stop_len = stop.stop - stop.start + 1
-        stop_nls = stop.text.count("\n")
-        stop_nlpos = stop.text.rfind("\n")
-        lineno = start.line
-        col_offset = start.column
-        end_lineno = stop.line + stop_nls
-        end_col_offset = stop_len - stop_nlpos + 1 if stop_nls > 0 else stop.column + stop_len
+        if stop_text is not None and "\n" in stop_text:
+            stop_nls = stop_text.count("\n")
+            stop_nlpos = stop_text.rfind("\n")
+            end_lineno = stop.line + stop_nls
+            end_col_offset = stop_len - stop_nlpos + 1
+        else:
+            end_lineno = stop.line
+            end_col_offset = stop.column + stop_len
         return {
-            "lineno": lineno,
-            "col_offset": col_offset,
+            "lineno": start.line,
+            "col_offset": start.column,
             "end_lineno": end_lineno,
             "end_col_offset": end_col_offset,
         }
@@ -92,20 +95,23 @@ class PinescriptASTLocator:
         Returns:
             The modified node with location info attached
         """
-        # Optimized: directly set attributes without creating intermediate dict
+        # Optimized: directly set attributes; cache stop.text (hot path)
         start = ctx.start
         stop = ctx.stop
+        stop_text = stop.text
         stop_len = stop.stop - stop.start + 1
-        stop_nls = stop.text.count("\n")
 
         node.lineno = start.line  # type: ignore[attr-defined]
         node.col_offset = start.column  # type: ignore[attr-defined]
-        node.end_lineno = stop.line + stop_nls  # type: ignore[attr-defined]
 
-        if stop_nls > 0:
-            stop_nlpos = stop.text.rfind("\n")
+        # Most tokens are single-line; avoid count/rfind when no newline present
+        if stop_text is not None and "\n" in stop_text:
+            stop_nls = stop_text.count("\n")
+            stop_nlpos = stop_text.rfind("\n")
+            node.end_lineno = stop.line + stop_nls  # type: ignore[attr-defined]
             node.end_col_offset = stop_len - stop_nlpos + 1  # type: ignore[attr-defined]
         else:
+            node.end_lineno = stop.line  # type: ignore[attr-defined]
             node.end_col_offset = stop.column + stop_len  # type: ignore[attr-defined]
 
         return node
