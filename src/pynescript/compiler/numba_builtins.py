@@ -27,6 +27,7 @@ import numba
 
 @numba.njit(cache=True)
 def numba_sma(arr, period, i):
+    period = int(period)
     if period <= 0 or i < period - 1:
         return np.nan
     sum_val = 0.0
@@ -40,6 +41,7 @@ def numba_sma(arr, period, i):
 
 @numba.njit(cache=True)
 def numba_ema(arr, period, i):
+    period = int(period)
     if period <= 0 or i < period - 1:
         return np.nan
     alpha = 2.0 / (period + 1.0)
@@ -55,6 +57,7 @@ def numba_ema(arr, period, i):
 
 @numba.njit(cache=True)
 def numba_rma(arr, period, i):
+    period = int(period)
     """Wilder RMA: seed = mean of first ``period`` samples, then recursive."""
     if period <= 0 or i < period - 1:
         return np.nan
@@ -70,6 +73,7 @@ def numba_rma(arr, period, i):
 
 @numba.njit(cache=True)
 def numba_rsi(arr, period, i):
+    period = int(period)
     if period <= 0 or i < period:
         return np.nan
     gain = 0.0
@@ -90,6 +94,7 @@ def numba_rsi(arr, period, i):
 
 @numba.njit(cache=True)
 def numba_highest(arr, period, i):
+    period = int(period)
     if period <= 0:
         return np.nan
     start = i - period + 1
@@ -104,6 +109,7 @@ def numba_highest(arr, period, i):
 
 @numba.njit(cache=True)
 def numba_lowest(arr, period, i):
+    period = int(period)
     if period <= 0:
         return np.nan
     start = i - period + 1
@@ -118,6 +124,7 @@ def numba_lowest(arr, period, i):
 
 @numba.njit(cache=True)
 def numba_stdev(arr, period, i):
+    period = int(period)
     """Sample standard deviation (n-1) over last ``period`` bars ending at ``i``."""
     if period <= 1 or i < period - 1:
         return np.nan
@@ -135,6 +142,7 @@ def numba_stdev(arr, period, i):
 
 @numba.njit(cache=True)
 def numba_atr(high, low, close, period, i):
+    period = int(period)
     """ATR matching interpret path: mean(TR) while warming; else EMA-of-TR.
 
     EMA seeds with the first TR value (same as interpret ``_ema``), not SMA.
@@ -168,6 +176,7 @@ def numba_atr(high, low, close, period, i):
 
 @numba.njit(cache=True)
 def numba_change(arr, length, i):
+    length = int(length)
     if length <= 0 or i < length:
         return np.nan
     return arr[i] - arr[i - length]
@@ -175,6 +184,7 @@ def numba_change(arr, length, i):
 
 @numba.njit(cache=True)
 def numba_bb(arr, period, mult, i):
+    period = int(period)
     """Return (upper, middle, lower) Bollinger bands."""
     mid = numba_sma(arr, period, i)
     sd = numba_stdev(arr, period, i)
@@ -185,6 +195,9 @@ def numba_bb(arr, period, mult, i):
 
 @numba.njit(cache=True)
 def numba_macd(arr, fast, slow, signal, i):
+    fast = int(fast)
+    slow = int(slow)
+    signal = int(signal)
     """Return (macd, signal, hist) at bar ``i`` in a single O(i) pass.
 
     Fast/slow EMAs use SMA seed (same as ``numba_ema``). Signal uses
@@ -308,7 +321,28 @@ def numba_cum(arr, i):
 
 
 @numba.njit(cache=True)
+def numba_cum_expr(state_arr, val, i):
+    """Running sum of a per-bar scalar expression (NaNs treated as 0).
+
+    Used when ``cum(expr)`` cannot pass a pure series array (e.g. ternaries).
+    ``state_arr`` is a synthetic series allocated by the compiler; this bar's
+    value is written then returned so the assign target gets the cumulative.
+    """
+    v = 0.0 if np.isnan(val) else val
+    if i <= 0:
+        state_arr[0] = v
+        return v
+    prev = state_arr[i - 1]
+    if np.isnan(prev):
+        prev = 0.0
+    s = prev + v
+    state_arr[i] = s
+    return s
+
+
+@numba.njit(cache=True)
 def numba_valuewhen(cond_arr, src_arr, occ, i):
+    occ = int(occ)
     """Return source at the ``occ``-th most recent true condition (0 = latest)."""
     if occ < 0:
         return np.nan
@@ -325,6 +359,8 @@ def numba_valuewhen(cond_arr, src_arr, occ, i):
 
 @numba.njit(cache=True)
 def numba_pivothigh(arr, left, right, i):
+    left = int(left)
+    right = int(right)
     """Pivot high confirmed at bar ``i`` (center = i - right)."""
     if left < 0 or right < 0:
         return np.nan
@@ -344,6 +380,8 @@ def numba_pivothigh(arr, left, right, i):
 
 @numba.njit(cache=True)
 def numba_pivotlow(arr, left, right, i):
+    left = int(left)
+    right = int(right)
     """Pivot low confirmed at bar ``i`` (center = i - right)."""
     if left < 0 or right < 0:
         return np.nan
@@ -363,6 +401,7 @@ def numba_pivotlow(arr, left, right, i):
 
 @numba.njit(cache=True)
 def numba_stoch(source, high, low, length, i):
+    length = int(length)
     """Stochastic %K: (src - lowest(low)) / (highest(high) - lowest(low)) * 100."""
     if length <= 0 or i < length - 1:
         return np.nan
@@ -384,6 +423,7 @@ def numba_stoch(source, high, low, length, i):
 
 @numba.njit(cache=True)
 def numba_cci(arr, length, i):
+    length = int(length)
     """CCI on a single source series (typical price or explicit source)."""
     if length <= 0 or i < length - 1:
         return np.nan
@@ -468,6 +508,7 @@ def numba_sar(high, low, start, increment, maximum, i):
 
 @numba.njit(cache=True)
 def numba_percentile_nearest_rank(arr, length, percentage, i):
+    length = int(length)
     """Nearest-rank percentile over last ``length`` bars ending at ``i``."""
     if length <= 0 or i < length - 1:
         return np.nan
@@ -496,3 +537,174 @@ def numba_percentile_nearest_rank(arr, length, percentage, i):
     if rank > count:
         rank = count
     return window[rank - 1]
+
+
+@numba.njit(cache=True)
+def numba_barssince(cond_arr, i):
+    """Bars since ``cond_arr`` was last true (non-zero / non-nan)."""
+    for j in range(i, -1, -1):
+        c = cond_arr[j]
+        if np.isnan(c) or c == 0.0:
+            continue
+        return float(i - j)
+    return np.nan
+
+
+@numba.njit(cache=True)
+def numba_linreg(arr, length, offset, i):
+    length = int(length)
+    offset = int(offset)
+    """Least-squares linear regression of ``arr`` over ``length``, value at offset.
+
+    x runs 0..length-1 (oldest->newest). Result is the fitted value at
+    ``x = length - 1 - offset`` (offset=0 -> current bar on the regression line).
+    """
+    if length < 2 or i < length - 1:
+        return np.nan
+    n = float(length)
+    sum_x = 0.0
+    sum_y = 0.0
+    sum_xy = 0.0
+    sum_xx = 0.0
+    for j in range(length):
+        x = float(j)
+        y = arr[i - length + 1 + j]
+        if np.isnan(y):
+            return np.nan
+        sum_x += x
+        sum_y += y
+        sum_xy += x * y
+        sum_xx += x * x
+    denom = n * sum_xx - sum_x * sum_x
+    if denom == 0.0:
+        return sum_y / n
+    slope = (n * sum_xy - sum_x * sum_y) / denom
+    intercept = (sum_y - slope * sum_x) / n
+    return intercept + slope * (n - 1.0 - float(offset))
+
+
+@numba.njit(cache=True)
+def numba_vwma(src, vol, length, i):
+    length = int(length)
+    """Volume-weighted MA: sum(src*vol) / sum(vol) over last ``length`` bars."""
+    if length <= 0 or i < length - 1:
+        return np.nan
+    sum_pv = 0.0
+    sum_v = 0.0
+    for j in range(length):
+        p = src[i - j]
+        v = vol[i - j]
+        if np.isnan(p) or np.isnan(v):
+            return np.nan
+        sum_pv += p * v
+        sum_v += v
+    if sum_v == 0.0:
+        return np.nan
+    return sum_pv / sum_v
+
+
+@numba.njit(cache=True)
+def numba_mfi(high, low, close, vol, length, i):
+    length = int(length)
+    """Money Flow Index over ``length`` money-flow samples ending at ``i``.
+
+    Needs ``length + 1`` typical-price samples (direction vs previous bar).
+    """
+    if length <= 0 or i < length:
+        return np.nan
+    pos = 0.0
+    neg = 0.0
+    for j in range(length):
+        k = i - j
+        tp = (high[k] + low[k] + close[k]) / 3.0
+        tp_prev = (high[k - 1] + low[k - 1] + close[k - 1]) / 3.0
+        if np.isnan(tp) or np.isnan(tp_prev) or np.isnan(vol[k]):
+            return np.nan
+        mf = tp * vol[k]
+        if tp > tp_prev:
+            pos += mf
+        elif tp < tp_prev:
+            neg += mf
+        # tp == tp_prev -> neither (TV convention)
+    if neg == 0.0:
+        if pos == 0.0:
+            return 50.0
+        return 100.0
+    ratio = pos / neg
+    return 100.0 - (100.0 / (1.0 + ratio))
+
+
+@numba.njit(cache=True)
+def numba_rising(arr, length, i):
+    length = int(length)
+    """True if ``arr`` rose strictly for ``length`` consecutive bars."""
+    if length <= 0 or i < length:
+        return False
+    for j in range(length):
+        a = arr[i - j]
+        b = arr[i - j - 1]
+        if np.isnan(a) or np.isnan(b) or a <= b:
+            return False
+    return True
+
+
+@numba.njit(cache=True)
+def numba_falling(arr, length, i):
+    length = int(length)
+    """True if ``arr`` fell strictly for ``length`` consecutive bars."""
+    if length <= 0 or i < length:
+        return False
+    for j in range(length):
+        a = arr[i - j]
+        b = arr[i - j - 1]
+        if np.isnan(a) or np.isnan(b) or a >= b:
+            return False
+    return True
+
+
+@numba.njit(cache=True)
+def numba_highestbars(arr, length, i):
+    length = int(length)
+    """Bars since highest value in window (0 = current is highest).
+
+    On ties, prefers the most recent bar (smallest offset).
+    """
+    if length <= 0:
+        return np.nan
+    start = i - length + 1
+    if start < 0:
+        start = 0
+    best = arr[i]
+    best_off = 0
+    for j in range(1, i - start + 1):
+        v = arr[i - j]
+        if np.isnan(best) or (not np.isnan(v) and v > best):
+            best = v
+            best_off = j
+    if np.isnan(best):
+        return np.nan
+    return float(best_off)
+
+
+@numba.njit(cache=True)
+def numba_lowestbars(arr, length, i):
+    length = int(length)
+    """Bars since lowest value in window (0 = current is lowest).
+
+    On ties, prefers the most recent bar (smallest offset).
+    """
+    if length <= 0:
+        return np.nan
+    start = i - length + 1
+    if start < 0:
+        start = 0
+    best = arr[i]
+    best_off = 0
+    for j in range(1, i - start + 1):
+        v = arr[i - j]
+        if np.isnan(best) or (not np.isnan(v) and v < best):
+            best = v
+            best_off = j
+    if np.isnan(best):
+        return np.nan
+    return float(best_off)

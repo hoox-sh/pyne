@@ -911,3 +911,80 @@ plot(cum(close), title="bare_cum")
         assert not np.isnan(out["p50"][-1])
         assert abs(out["bare_cum"][-1] - float(np.nansum(c))) < 1e-6
 
+
+class TestCompileCoverageSprint4:
+    """Sprint 4 high-ROI: cum expr, time(), int periods, new TA, styles."""
+
+    def test_cum_ternary_no_array_truth(self) -> None:
+        src = """//@version=5
+indicator("x")
+cond = close > open
+c = ta.cum(cond ? 1.0 : 0.0)
+plot(c, title="c")
+"""
+        code = transpile(src)
+        assert "if isPnF_arr else" not in code
+        assert "numba_cum_expr" in code or "numba_cum(" in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(30)
+        out = compiled.run(o, h, l, c, v)
+        assert out["c"][-1] >= 0
+
+    def test_time_call_and_last_bar_index(self) -> None:
+        src = """//@version=5
+indicator("x")
+t = time("1D")
+plot(t, title="t")
+plot(last_bar_index, title="lbi")
+"""
+        code = transpile(src)
+        assert "time(" not in code or "float(__bar_idx)" in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(20)
+        out = compiled.run(o, h, l, c, v)
+        assert abs(out["lbi"][-1] - 19) < 1e-9
+
+    def test_int_period_from_input(self) -> None:
+        src = """//@version=5
+indicator("x")
+length = input.int(14)
+plot(ta.highest(close, length), title="h")
+plot(ta.atr(length), title="a")
+"""
+        code = transpile(src)
+        assert "int(" in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(40)
+        out = compiled.run(o, h, l, c, v)
+        assert "h" in out and "a" in out
+
+    def test_barssince_linreg_aliases(self) -> None:
+        src = """//@version=5
+indicator("x")
+plot(ta.barssince(close > open), title="bs")
+plot(ta.linreg(close, 10, 0), title="lr")
+plot(ta.vwma(close, 10), title="vw")
+plot(ta.rising(close, 2) ? 1.0 : 0.0, title="r")
+"""
+        code = transpile(src)
+        assert "numba_barssince" in code or "0.0 if" in code
+        assert "numba_linreg" in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(40)
+        out = compiled.run(o, h, l, c, v)
+        assert "lr" in out
+
+    def test_label_style_and_sqrt(self) -> None:
+        src = """//@version=5
+indicator("x")
+label.new(bar_index, high, "x", style=label.style_label_down)
+plot(sqrt(close), title="s")
+"""
+        code = transpile(src)
+        assert "label_style_label_down" not in code
+        assert "np.sqrt" in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(15)
+        out = compiled.run(o, h, l, c, v)
+        assert abs(out["s"][-1] - (c[-1] ** 0.5)) < 1e-6
+

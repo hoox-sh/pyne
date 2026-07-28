@@ -26,6 +26,7 @@ Two backends:
 
 from __future__ import annotations
 
+import keyword
 import re
 
 from pynescript.ast import node as ast
@@ -57,6 +58,73 @@ _NS = frozenset(
         "barcolor",
         "fill",
         "request",
+        "runtime",
+        "barmerge",
+        "barstate",
+    }
+)
+
+# Pine identifiers that collide with Python builtins used in emitted code
+# (e.g. param `len` shadows `len(buffer)` inside array.get emission).
+_PY_RESERVED = frozenset(
+    {
+        "len",
+        "max",
+        "min",
+        "sum",
+        "abs",
+        "round",
+        "int",
+        "float",
+        "bool",
+        "str",
+        "list",
+        "dict",
+        "set",
+        "type",
+        "id",
+        "open",
+        "input",
+        "map",
+        "filter",
+        "range",
+        "all",
+        "any",
+        "zip",
+        "sorted",
+        "reversed",
+        "enumerate",
+        "print",
+        "format",
+        "pow",
+        "hash",
+        "vars",
+        "dir",
+        "next",
+        "iter",
+        "slice",
+        "callable",
+        "super",
+        "object",
+        "property",
+        "bytes",
+        "bytearray",
+        "complex",
+        "divmod",
+        "bin",
+        "hex",
+        "oct",
+        "ord",
+        "chr",
+        "ascii",
+        "repr",
+        "eval",
+        "exec",
+        "compile",
+        "globals",
+        "locals",
+        "memoryview",
+        "frozenset",
     }
 )
 
@@ -76,6 +144,18 @@ _ENUM_NS = frozenset(
         "order",
         "text",
         "session",
+    }
+)
+
+_STYLE_NS = frozenset(
+    {
+        "label",
+        "plot",
+        "line",
+        "box",
+        "table",
+        "hline",
+        "polyline",
     }
 )
 
@@ -129,6 +209,62 @@ class CompilerVisitor(NodeVisitor):
         self.func_param_names: dict[str, list[str]] = {}
         self.func_needs_bar: dict[str, bool] = {}
         self.string_series: set[str] = set()  # per-bar string/color series (object dtype)
+        self._expr_cum_i: int = 0  # synthetic state arrays for cum(expr)
+        # Pine name → safe Python identifier within current UDF scope
+        self.ident_map: dict[str, str] = {}
+        # When True, visit_If emits `return` on tail expressions (UDF result if-expr)
+        self.if_return_mode: bool = False
+
+    @staticmethod
+    def _safe_ident(name: str) -> str:
+        """Avoid shadowing Python builtins/keywords used in generated code."""
+        if not name:
+            return name
+        if name in _PY_RESERVED or keyword.iskeyword(name):
+            return f"{name}_"
+        return name
+
+    def _py_ident(self, name: str) -> str:
+        """Resolve a Pine local/param name to the emitted Python identifier."""
+        if name in self.ident_map:
+            return self.ident_map[name]
+        safe = self._safe_ident(name)
+        if safe != name:
+            self.ident_map[name] = safe
+        return safe
+
+    @staticmethod
+    def _resolve_args(
+        args: list[str],
+        kwargs: dict[str, str],
+        names: tuple[str, ...],
+        *,
+        aliases: dict[str, str] | None = None,
+    ) -> list[str]:
+        """Merge positional + keyword args into Pine parameter order.
+
+        Keyword-only calls like ``array.get(id=x, index=0)`` otherwise leave
+        ``args`` empty and crash on ``args[0]``.
+        """
+        aliases = aliases or {}
+        out: list[str] = []
+        for i, name in enumerate(names):
+            if i < len(args):
+                out.append(args[i])
+                continue
+            if name in kwargs:
+                out.append(kwargs[name])
+                continue
+            # common aliases (initial_value → fill, etc.)
+            found = False
+            for alt, canon in aliases.items():
+                if canon == name and alt in kwargs:
+                    out.append(kwargs[alt])
+                    found = True
+                    break
+            if not found:
+                break
+        return out
 
     # ------------------------------------------------------------------ script
     def visit_Script(self, node: ast.Script):
@@ -306,9 +442,10 @@ class CompilerVisitor(NodeVisitor):
 
         if self.in_function:
             self.local_vars.add(name)
+            py = self._py_ident(name)
             if name in self.series_locals:
-                return f"{name}_arr[__bar_idx] = {val}"
-            return f"{name} = {val}"
+                return f"{py}_arr[__bar_idx] = {val}"
+            return f"{py} = {val}"
 
 
         # String / non-numeric const → scalar (object mode), not float series
@@ -593,25 +730,35 @@ class CompilerVisitor(NodeVisitor):
             and node.target.id in self.series_locals
         ):
             val = self.visit(node.value)
-            return f"{node.target.id}_arr[__bar_idx] = {val}"
+            py = self._py_ident(node.target.id)
+            return f"{py}_arr[__bar_idx] = {val}"
+        if self.in_function and isinstance(node.target, ast.Name):
+            self.local_vars.add(node.target.id)
+            py = self._py_ident(node.target.id)
+            val = self.visit(node.value)
+            return f"{py} = {val}"
         target = self.visit(node.target)
         val = self.visit(node.value)
         return f"{target} = {val}"
 
     def visit_Name(self, node: ast.Name):
         if self.in_function and node.id in self.local_vars:
+            py = self._py_ident(node.id)
             # Series-style UDF params are full arrays indexed by current bar
             if node.id in self.series_params:
-                return f"{node.id}[__bar_idx]"
+                return f"{py}[__bar_idx]"
             # Series locals: persistent state array passed as {name}_arr
             if node.id in self.series_locals:
-                return f"{node.id}_arr[__bar_idx]"
-            return node.id
+                return f"{py}_arr[__bar_idx]"
+            return py
         if node.id in self.map_vars or node.id in self.scalar_vars:
-            return node.id
+            return self._py_ident(node.id) if node.id in self.ident_map else node.id
         # Built-in series / scalars (never allocate bare *_arr)
         if node.id == "na":
             return "np.nan"
+        if node.id == "color":
+            self.object_mode = True
+            return repr("#000000")
         if node.id in ("open", "high", "low", "close"):
             return f"{node.id}_arr[__bar_idx]"
         if node.id == "volume":
@@ -628,6 +775,10 @@ class CompilerVisitor(NodeVisitor):
         if node.id in ("bar_index",):
             return "__bar_idx"
         # Built-in time series / calendar scalars (no time_arr allocation)
+        if node.id == "last_bar_index":
+            return "(n_bars - 1)"
+        if node.id == "last_bar_time":
+            return "(float(n_bars - 1) * 60000.0)"
         if node.id == "time":
             # ms timestamp stub: bar index * 60_000
             return "(float(__bar_idx) * 60000.0)"
@@ -660,6 +811,9 @@ class CompilerVisitor(NodeVisitor):
             return node.id  # type name for .new
         if node.id in _NS:
             return node.id
+        # UDF names used as values (rare) — not series
+        if node.id in self.user_funcs:
+            return node.id
         if node.id in self.udt_vars or node.id in self.string_series:
             return f"{node.id}_arr[__bar_idx]"
         return f"{node.id}_arr[__bar_idx]"
@@ -667,6 +821,10 @@ class CompilerVisitor(NodeVisitor):
         # color.red etc.
         if isinstance(node.value, ast.Name) and node.value.id == "color":
             return repr(self._color_const(node.attr))
+        # Must run before fallthrough (visit Name label → "label" then "label_style_x").
+        if isinstance(node.value, ast.Name) and node.value.id in _STYLE_NS:
+            if node.attr.startswith("style_"):
+                return repr(node.attr)
         # math.pi / math.e
         if isinstance(node.value, ast.Name) and node.value.id == "math":
             if node.attr == "pi":
@@ -841,7 +999,13 @@ class CompilerVisitor(NodeVisitor):
     def _emit_array_or_matrix(
         self, func_name: str, args: list[str], kwargs: dict[str, str]
     ) -> str:
-        """Minimal array/matrix surface in object mode."""
+        """Minimal array/matrix surface in object mode.
+
+        Resolves keyword-only calls (``array.get(id=…, index=…)``) and guards
+        short arg lists so transpile never raises IndexError.
+        """
+        ra = self._resolve_args
+
         if func_name in (
             "array_new",
             "array_new_float",
@@ -853,89 +1017,163 @@ class CompilerVisitor(NodeVisitor):
             "array_new_label",
             "array_new_box",
         ):
-            size = args[0] if args else "0"
-            fill = args[1] if len(args) > 1 else "np.nan"
+            a = ra(
+                args,
+                kwargs,
+                ("size", "initial_value"),
+                aliases={"initial": "initial_value", "value": "initial_value"},
+            )
+            size = a[0] if a else (kwargs.get("size") or "0")
+            fill = a[1] if len(a) > 1 else "np.nan"
             return f"([{fill}] * int({size}) if int({size}) > 0 else [])"
         if func_name == "array_from":
             return f"[{', '.join(args)}]" if args else "[]"
         if func_name == "array_copy":
-            return f"list({args[0]})" if args else "[]"
+            a = ra(args, kwargs, ("id",))
+            return f"list({a[0]})" if a else "[]"
         if func_name == "array_slice":
-            if len(args) >= 3:
-                return f"({args[0]}[int({args[1]}):int({args[2]})])"
-            if len(args) == 2:
-                return f"({args[0]}[int({args[1]}):])"
-            return f"list({args[0]})" if args else "[]"
+            a = ra(args, kwargs, ("id", "index_from", "index_to"))
+            if len(a) >= 3:
+                return f"({a[0]}[int({a[1]}):int({a[2]})])"
+            if len(a) == 2:
+                return f"({a[0]}[int({a[1]}):])"
+            return f"list({a[0]})" if a else "[]"
         if func_name == "array_push":
-            return f"{args[0]}.append({args[1]})" if len(args) > 1 else f"{args[0]}.append(np.nan)"
+            a = ra(args, kwargs, ("id", "value"))
+            if len(a) > 1:
+                return f"{a[0]}.append({a[1]})"
+            if a:
+                return f"{a[0]}.append(np.nan)"
+            return ""
         if func_name == "array_pop":
-            return f"({args[0]}.pop() if {args[0]} else np.nan)"
+            a = ra(args, kwargs, ("id",))
+            return f"({a[0]}.pop() if {a[0]} else np.nan)" if a else "np.nan"
         if func_name == "array_shift":
-            return f"({args[0]}.pop(0) if {args[0]} else np.nan)"
+            a = ra(args, kwargs, ("id",))
+            return f"({a[0]}.pop(0) if {a[0]} else np.nan)" if a else "np.nan"
         if func_name == "array_unshift":
-            if len(args) > 1:
-                return f"{args[0]}.insert(0, {args[1]})"
-            return f"{args[0]}.insert(0, np.nan)" if args else ""
+            a = ra(args, kwargs, ("id", "value"))
+            if len(a) > 1:
+                return f"{a[0]}.insert(0, {a[1]})"
+            if a:
+                return f"{a[0]}.insert(0, np.nan)"
+            return ""
         if func_name == "array_get":
-            return f"({args[0]}[int({args[1]})] if 0 <= int({args[1]}) < len({args[0]}) else np.nan)"
-        if func_name == "array_set":
-            return (
-                f"{args[0]}.__setitem__(int({args[1]}), {args[2]})"
-                if len(args) > 2
-                else ""
-            )
-        if func_name == "array_size":
-            return f"len({args[0]})"
-        if func_name == "array_clear":
-            return f"{args[0]}.clear()"
-        if func_name == "array_remove":
-            if len(args) > 1:
+            a = ra(args, kwargs, ("id", "index"))
+            if len(a) >= 2:
                 return (
-                    f"({args[0]}.pop(int({args[1]})) "
-                    f"if 0 <= int({args[1]}) < len({args[0]}) else np.nan)"
+                    f"({a[0]}[int({a[1]})] if 0 <= int({a[1]}) < len({a[0]}) else np.nan)"
                 )
-            return f"({args[0]}.pop() if {args[0]} else np.nan)" if args else "np.nan"
+            return "np.nan"
+        if func_name == "array_set":
+            a = ra(args, kwargs, ("id", "index", "value"))
+            if len(a) > 2:
+                return f"{a[0]}.__setitem__(int({a[1]}), {a[2]})"
+            return ""
+        if func_name == "array_size":
+            a = ra(args, kwargs, ("id",))
+            return f"len({a[0]})" if a else "0"
+        if func_name == "array_clear":
+            a = ra(args, kwargs, ("id",))
+            return f"{a[0]}.clear()" if a else ""
+        if func_name == "array_remove":
+            a = ra(args, kwargs, ("id", "index"))
+            if len(a) > 1:
+                return (
+                    f"({a[0]}.pop(int({a[1]})) "
+                    f"if 0 <= int({a[1]}) < len({a[0]}) else np.nan)"
+                )
+            if a:
+                return f"({a[0]}.pop() if {a[0]} else np.nan)"
+            return "np.nan"
         if func_name == "array_includes":
-            if len(args) > 1:
-                return f"({args[1]} in {args[0]})"
+            a = ra(args, kwargs, ("id", "value"))
+            if len(a) > 1:
+                return f"({a[1]} in {a[0]})"
             return "False"
         if func_name == "array_join":
-            if len(args) > 1:
-                return f"(str({args[1]}).join(str(x) for x in {args[0]}))"
-            return f"(''.join(str(x) for x in {args[0]}))" if args else "''"
+            a = ra(args, kwargs, ("id", "separator"))
+            if len(a) > 1:
+                return f"(str({a[1]}).join(str(x) for x in {a[0]}))"
+            if a:
+                return f"(''.join(str(x) for x in {a[0]}))"
+            return "''"
         if func_name in ("matrix_new", "matrix_new_float", "matrix_new_int"):
-            rows = args[0] if args else "0"
-            cols = args[1] if len(args) > 1 else "0"
-            fill = args[2] if len(args) > 2 else "np.nan"
+            a = ra(
+                args,
+                kwargs,
+                ("rows", "columns", "initial_value"),
+                aliases={
+                    "cols": "columns",
+                    "initial": "initial_value",
+                    "value": "initial_value",
+                },
+            )
+            rows = a[0] if a else "0"
+            cols = a[1] if len(a) > 1 else "0"
+            fill = a[2] if len(a) > 2 else "np.nan"
             return f"[[{fill} for _c in range(int({cols}))] for _r in range(int({rows}))]"
         if func_name == "matrix_get":
-            if len(args) >= 3:
+            a = ra(args, kwargs, ("id", "row", "column"), aliases={"col": "column"})
+            if len(a) >= 3:
                 return (
-                    f"({args[0]}[int({args[1]})][int({args[2]})] "
-                    f"if 0 <= int({args[1]}) < len({args[0]}) "
-                    f"and 0 <= int({args[2]}) < (len({args[0]}[0]) if {args[0]} else 0) "
+                    f"({a[0]}[int({a[1]})][int({a[2]})] "
+                    f"if 0 <= int({a[1]}) < len({a[0]}) "
+                    f"and 0 <= int({a[2]}) < (len({a[0]}[0]) if {a[0]} else 0) "
                     f"else np.nan)"
                 )
             return "np.nan"
         if func_name == "matrix_set":
-            if len(args) >= 4:
-                return f"{args[0]}[int({args[1]})][int({args[2]})] = {args[3]}"
+            a = ra(
+                args,
+                kwargs,
+                ("id", "row", "column", "value"),
+                aliases={"col": "column"},
+            )
+            if len(a) >= 4:
+                return f"{a[0]}[int({a[1]})][int({a[2]})] = {a[3]}"
             return ""
         if func_name == "matrix_rows":
-            return f"len({args[0]})" if args else "0"
+            a = ra(args, kwargs, ("id",))
+            return f"len({a[0]})" if a else "0"
         if func_name == "matrix_columns":
-            if args:
-                return f"(len({args[0]}[0]) if {args[0]} else 0)"
+            a = ra(args, kwargs, ("id",))
+            if a:
+                return f"(len({a[0]}[0]) if {a[0]} else 0)"
             return "0"
         if func_name == "matrix_fill":
-            if len(args) >= 2:
+            a = ra(args, kwargs, ("id", "value"))
+            if len(a) >= 2:
                 return (
-                    f"[__r.__setitem__(__c, {args[1]}) "
-                    f"for __r in {args[0]} for __c in range(len(__r))]"
+                    f"[__r.__setitem__(__c, {a[1]}) "
+                    f"for __r in {a[0]} for __c in range(len(__r))]"
                 )
             return ""
-        return f"{func_name}({', '.join(args)})"
-
+        if func_name == "array_avg":
+            a = ra(args, kwargs, ("id",))
+            return f"(sum({a[0]}) / len({a[0]}) if {a[0]} else np.nan)" if a else "np.nan"
+        if func_name == "array_min":
+            a = ra(args, kwargs, ("id",))
+            return f"(min({a[0]}) if {a[0]} else np.nan)" if a else "np.nan"
+        if func_name == "array_max":
+            a = ra(args, kwargs, ("id",))
+            return f"(max({a[0]}) if {a[0]} else np.nan)" if a else "np.nan"
+        if func_name == "array_sum":
+            a = ra(args, kwargs, ("id",))
+            return f"(sum({a[0]}) if {a[0]} else 0)" if a else "0"
+        if func_name == "array_first":
+            a = ra(args, kwargs, ("id",))
+            return f"({a[0]}[0] if {a[0]} else np.nan)" if a else "np.nan"
+        if func_name == "array_last":
+            a = ra(args, kwargs, ("id",))
+            return f"({a[0]}[-1] if {a[0]} else np.nan)" if a else "np.nan"
+        # Unknown array_*/matrix_* — no-op-ish stub rather than crash
+        if args:
+            return f"{func_name}({', '.join(args)})"
+        if kwargs:
+            parts = [f"{k}={v}" for k, v in kwargs.items()]
+            return f"{func_name}({', '.join(parts)})"
+        return "np.nan"
     def _emit_strategy_attr(self, attr: str) -> str:
         """Map strategy.long/position_size/… for compile path."""
         if attr in ("long", "short"):
@@ -1035,7 +1273,11 @@ class CompilerVisitor(NodeVisitor):
             else:
                 args.append(self.visit(arg))
 
-        if func_name in ("indicator", "library", "study"):
+        if func_name in ("indicator", "study"):
+            return ""
+        if func_name == "library":
+            # Libraries: force object mode; unknown imports/exports no-op rather than crash
+            self.object_mode = True
             return ""
         if func_name == "strategy":
             # Capture declaration kwargs for CompileStrategyBroker
@@ -1107,12 +1349,24 @@ class CompilerVisitor(NodeVisitor):
             # color.new(base, transp) — keep base color string
             return args[0] if args else repr("#000000")
 
+        if func_name == "time":
+            return "(float(__bar_idx) * 60000.0)"
+        if func_name in ("time_close",):
+            return "(float(__bar_idx) * 60000.0 + 59999.0)"
+        if func_name == "timeframe_from_seconds":
+            return repr("1D")
+        if func_name == "timeframe_change":
+            return "False"
         if func_name == "timestamp":
             self.object_mode = True
             return "0"
 
         if func_name in ("alertcondition", "alert"):
             return ""
+
+        # UDF calls win over bare TA aliases (sma, …) and bare math (max/min/abs)
+        if func_name in self.user_funcs:
+            return self._emit_user_func_call(func_name, args)
 
         # table.cell / table.cell_set / … (table_new already in drawing path)
         if func_name == "table_cell":
@@ -1208,7 +1462,8 @@ class CompilerVisitor(NodeVisitor):
         if func_name in ("dayofmonth", "dayofyear"):
             return "1"
 
-        # Bare v3/v4 TA aliases (sma, ema, …) → ta_* so one handler path
+        # Bare v3/v4 TA aliases (sma, ema, …) → ta_* so one handler path.
+        # Prefer user-defined functions when the same name is declared (e.g. custom sma).
         _BARE_TA = {
             "sma": "ta_sma",
             "ema": "ta_ema",
@@ -1232,12 +1487,29 @@ class CompilerVisitor(NodeVisitor):
             "sar": "ta_sar",
             "cum": "ta_cum",
             "percentile_nearest_rank": "ta_percentile_nearest_rank",
+            "barssince": "ta_barssince",
+            "linreg": "ta_linreg",
+            "vwma": "ta_vwma",
+            "mfi": "ta_mfi",
+            "rising": "ta_rising",
+            "falling": "ta_falling",
+            "highestbars": "ta_highestbars",
+            "lowestbars": "ta_lowestbars",
         }
-        if func_name in _BARE_TA:
+        if func_name in _BARE_TA and func_name not in self.user_funcs:
             func_name = _BARE_TA[func_name]
 
         def _arr(expr: str) -> str:
-            return expr.replace("[__bar_idx]", "")
+            """Strip only a trailing ``[__bar_idx]`` from a pure series ref.
+
+            Must not globally replace inside compounds — that turns
+            ``(1 if isPnF_arr[__bar_idx] else 0)`` into ``(1 if isPnF_arr else 0)``
+            and triggers array truth-value errors.
+            """
+            suffix = "[__bar_idx]"
+            if expr.endswith(suffix):
+                return expr[: -len(suffix)]
+            return expr
 
         def _is_series_arr(expr: str) -> bool:
             a = _arr(expr)
@@ -1250,27 +1522,51 @@ class CompilerVisitor(NodeVisitor):
             )
 
         if func_name == "ta_sma":
+            if not args:
+                return "np.nan"
             period = kwargs.get("length", args[1] if len(args) > 1 else "14")
-            return f"numba_sma({_arr(args[0])}, {period}, __bar_idx)"
+            return f"numba_sma({_arr(args[0])}, int({period}), __bar_idx)"
         if func_name == "ta_ema":
+            if not args:
+                return "np.nan"
             period = kwargs.get("length", args[1] if len(args) > 1 else "14")
-            return f"numba_ema({_arr(args[0])}, {period}, __bar_idx)"
+            return f"numba_ema({_arr(args[0])}, int({period}), __bar_idx)"
         if func_name == "ta_rma":
+            if not args:
+                return "np.nan"
             period = kwargs.get("length", args[1] if len(args) > 1 else "14")
-            return f"numba_rma({_arr(args[0])}, {period}, __bar_idx)"
+            return f"numba_rma({_arr(args[0])}, int({period}), __bar_idx)"
         if func_name == "ta_rsi":
+            if not args:
+                return "np.nan"
             period = kwargs.get("length", args[1] if len(args) > 1 else "14")
-            return f"numba_rsi({_arr(args[0])}, {period}, __bar_idx)"
+            return f"numba_rsi({_arr(args[0])}, int({period}), __bar_idx)"
         if func_name == "ta_highest":
-            period = kwargs.get("length", args[1] if len(args) > 1 else "14")
-            return f"numba_highest({_arr(args[0])}, {period}, __bar_idx)"
+            # ta.highest(source, length) or ta.highest(length) → high source
+            if len(args) >= 2:
+                period = kwargs.get("length", args[1])
+                return f"numba_highest({_arr(args[0])}, int({period}), __bar_idx)"
+            if len(args) == 1:
+                return f"numba_highest(high_arr, int({args[0]}), __bar_idx)"
+            period = kwargs.get("length", "14")
+            return f"numba_highest(high_arr, int({period}), __bar_idx)"
         if func_name == "ta_lowest":
-            period = kwargs.get("length", args[1] if len(args) > 1 else "14")
-            return f"numba_lowest({_arr(args[0])}, {period}, __bar_idx)"
+            # ta.lowest(source, length) or ta.lowest(length) → low source
+            if len(args) >= 2:
+                period = kwargs.get("length", args[1])
+                return f"numba_lowest({_arr(args[0])}, int({period}), __bar_idx)"
+            if len(args) == 1:
+                return f"numba_lowest(low_arr, int({args[0]}), __bar_idx)"
+            period = kwargs.get("length", "14")
+            return f"numba_lowest(low_arr, int({period}), __bar_idx)"
         if func_name == "ta_stdev":
+            if not args:
+                return "np.nan"
             period = kwargs.get("length", args[1] if len(args) > 1 else "14")
-            return f"numba_stdev({_arr(args[0])}, {period}, __bar_idx)"
+            return f"numba_stdev({_arr(args[0])}, int({period}), __bar_idx)"
         if func_name == "ta_change":
+            if not args:
+                return "np.nan"
             length = kwargs.get("length", args[1] if len(args) > 1 else "1")
             return f"numba_change({_arr(args[0])}, {length}, __bar_idx)"
         if func_name == "ta_atr":
@@ -1282,7 +1578,7 @@ class CompilerVisitor(NodeVisitor):
                     f"numba_atr({_arr(args[0])}, {_arr(args[1])}, {_arr(args[2])}, "
                     f"{args[3]}, __bar_idx)"
                 )
-            return f"numba_atr(high_arr, low_arr, close_arr, {length}, __bar_idx)"
+            return f"numba_atr(high_arr, low_arr, close_arr, int({length}), __bar_idx)"
         if func_name == "ta_bb":
             # ta.bb(source, length, mult) or ta.bb(length, mult)
             if len(args) >= 3:
@@ -1291,14 +1587,14 @@ class CompilerVisitor(NodeVisitor):
                 src, length, mult = "close_arr[__bar_idx]", args[0], args[1]
             else:
                 src, length, mult = "close_arr[__bar_idx]", "20", "2.0"
-            return f"numba_bb({_arr(src)}, {length}, float({mult}), __bar_idx)"
+            return f"numba_bb({_arr(src)}, int({length}), float({mult}), __bar_idx)"
         if func_name == "ta_macd":
             # ta.macd(source, fast, slow, signal)
             src = args[0] if args else "close_arr[__bar_idx]"
             fast = args[1] if len(args) > 1 else "12"
             slow = args[2] if len(args) > 2 else "26"
             signal = args[3] if len(args) > 3 else "9"
-            return f"numba_macd({_arr(src)}, {fast}, {slow}, {signal}, __bar_idx)"
+            return f"numba_macd({_arr(src)}, int({fast}), int({slow}), int({signal}), __bar_idx)"
         if func_name == "ta_crossover":
             a = _arr(args[0]) if args else "close_arr"
             b = _arr(args[1]) if len(args) > 1 else "0.0"
@@ -1351,7 +1647,14 @@ class CompilerVisitor(NodeVisitor):
             return "numba_tr(high_arr, low_arr, close_arr, __bar_idx)"
         if func_name == "ta_cum":
             src = args[0] if args else "close_arr[__bar_idx]"
-            return f"numba_cum({_arr(src)}, __bar_idx)"
+            if _is_series_arr(src):
+                return f"numba_cum({_arr(src)}, __bar_idx)"
+            # Expression / ternary: accumulate scalar-at-bar into synthetic series.
+            # (numba_cum needs a full array; global _arr strip is unsafe on compounds.)
+            sid = f"__cum{self._expr_cum_i}_arr"
+            self._expr_cum_i += 1
+            self.arrays.add(sid)
+            return f"numba_cum_expr({sid}, float({src}), __bar_idx)"
         if func_name == "ta_valuewhen":
             # Prefer real history scan when cond is a series array; else current source
             if len(args) >= 2 and _is_series_arr(args[0]):
@@ -1421,24 +1724,99 @@ class CompilerVisitor(NodeVisitor):
             return f"numba_percentile_nearest_rank({_arr(src)}, int({length}), 50.0, __bar_idx)"
 
 
+        if func_name == "ta_barssince":
+            # Prefer history scan when condition is a series array; else weak current stub
+            if args and _is_series_arr(args[0]):
+                return f"numba_barssince({_arr(args[0])}, __bar_idx)"
+            if args:
+                return f"(0.0 if ({args[0]}) else np.nan)"
+            return "np.nan"
+        if func_name == "ta_linreg":
+            # ta.linreg(source, length, offset=0)
+            src = args[0] if args else "close_arr[__bar_idx]"
+            length = args[1] if len(args) > 1 else "14"
+            offset = args[2] if len(args) > 2 else "0"
+            return f"numba_linreg({_arr(src)}, int({length}), int({offset}), __bar_idx)"
+        if func_name == "ta_vwma":
+            # ta.vwma(source, length) or ta.vwma(length) on close
+            if len(args) >= 2 and _is_series_arr(args[0]):
+                return f"numba_vwma({_arr(args[0])}, vol_arr, int({args[1]}), __bar_idx)"
+            length = args[0] if args else "14"
+            return f"numba_vwma(close_arr, vol_arr, int({length}), __bar_idx)"
+        if func_name == "ta_mfi":
+            # ta.mfi(length) | ta.mfi(source, length) | ta.mfi(h, l, c, v, length)
+            if len(args) >= 5 and _is_series_arr(args[0]):
+                return (
+                    f"numba_mfi({_arr(args[0])}, {_arr(args[1])}, {_arr(args[2])}, "
+                    f"{_arr(args[3])}, int({args[4]}), __bar_idx)"
+                )
+            if len(args) >= 2 and _is_series_arr(args[0]):
+                src = _arr(args[0])
+                return f"numba_mfi({src}, {src}, {src}, vol_arr, int({args[1]}), __bar_idx)"
+            length = args[0] if args else "14"
+            return f"numba_mfi(high_arr, low_arr, close_arr, vol_arr, int({length}), __bar_idx)"
+        if func_name == "ta_rising":
+            if len(args) >= 2:
+                return f"numba_rising({_arr(args[0])}, int({args[1]}), __bar_idx)"
+            if args and not _is_series_arr(args[0]):
+                return f"numba_rising(close_arr, int({args[0]}), __bar_idx)"
+            if args:
+                return f"numba_rising({_arr(args[0])}, 1, __bar_idx)"
+            return "numba_rising(close_arr, 1, __bar_idx)"
+        if func_name == "ta_falling":
+            if len(args) >= 2:
+                return f"numba_falling({_arr(args[0])}, int({args[1]}), __bar_idx)"
+            if args and not _is_series_arr(args[0]):
+                return f"numba_falling(close_arr, int({args[0]}), __bar_idx)"
+            if args:
+                return f"numba_falling({_arr(args[0])}, 1, __bar_idx)"
+            return "numba_falling(close_arr, 1, __bar_idx)"
+        if func_name == "ta_highestbars":
+            if len(args) >= 2:
+                return f"numba_highestbars({_arr(args[0])}, int({args[1]}), __bar_idx)"
+            if args and not _is_series_arr(args[0]):
+                return f"numba_highestbars(high_arr, int({args[0]}), __bar_idx)"
+            if args:
+                return f"numba_highestbars({_arr(args[0])}, 14, __bar_idx)"
+            return "numba_highestbars(high_arr, 14, __bar_idx)"
+        if func_name == "ta_lowestbars":
+            if len(args) >= 2:
+                return f"numba_lowestbars({_arr(args[0])}, int({args[1]}), __bar_idx)"
+            if args and not _is_series_arr(args[0]):
+                return f"numba_lowestbars(low_arr, int({args[0]}), __bar_idx)"
+            if args:
+                return f"numba_lowestbars({_arr(args[0])}, 14, __bar_idx)"
+            return "numba_lowestbars(low_arr, 14, __bar_idx)"
         if func_name in ("nz",):
+            if not args:
+                return "0.0"
             repl = args[1] if len(args) > 1 else "0.0"
             return f"numba_nz({args[0]}, {repl})"
         if func_name in ("math_abs", "abs"):
-            return f"numba_abs({args[0]})"
+            return f"numba_abs({args[0]})" if args else "np.nan"
         if func_name in ("math_max", "max"):
-            return f"numba_max({args[0]}, {args[1]})"
+            if len(args) >= 2:
+                return f"numba_max({args[0]}, {args[1]})"
+            return args[0] if args else "np.nan"
         if func_name in ("math_min", "min"):
-            return f"numba_min({args[0]}, {args[1]})"
-        if func_name == "math_sqrt":
-            return f"np.sqrt({args[0]})"
+            if len(args) >= 2:
+                return f"numba_min({args[0]}, {args[1]})"
+            return args[0] if args else "np.nan"
+        if func_name in ("math_sqrt", "sqrt"):
+            return f"np.sqrt({args[0]})" if args else "np.nan"
+        if func_name == "avg":
+            if not args:
+                return "np.nan"
+            return "(" + "+".join(args) + f") / {len(args)}"
         if func_name == "math_exp":
-            return f"np.exp({args[0]})"
+            return f"np.exp({args[0]})" if args else "np.nan"
         if func_name == "math_log":
-            return f"np.log({args[0]})"
+            return f"np.log({args[0]})" if args else "np.nan"
         if func_name == "math_log10":
-            return f"np.log10({args[0]})"
+            return f"np.log10({args[0]})" if args else "np.nan"
         if func_name == "math_pow":
+            if not args:
+                return "np.nan"
             return f"({args[0]} ** {args[1]})" if len(args) > 1 else f"({args[0]} ** 2)"
         if func_name in ("math_round", "round"):
             return f"float(np.round({args[0]}))" if args else "0.0"
@@ -1481,47 +1859,50 @@ class CompilerVisitor(NodeVisitor):
                 return f"np.arctan2({args[0]}, {args[1]})"
             return "np.nan"
         if func_name == "na":
-            return "np.nan"
+            # Pine na(x) → bool; bare `na` constant is visit_Name → np.nan
+            if args:
+                # NaN-safe: x != x is True for float NaN; also treat None as na
+                return f"(({args[0]}) is None or ({args[0]}) != ({args[0]}))"
+            return "True"
         if func_name in ("float", "int", "bool", "string"):
             return args[0] if args else "np.nan"
-
-        # User-defined function: pass full series arrays for series-style params
-        if func_name in self.user_funcs:
-            param_names = self.func_param_names.get(func_name, [])
-            series_set = self.func_series_params.get(func_name, set())
-            series_locals = self.func_series_locals.get(func_name, [])
-            st_params = self.func_st_params.get(func_name, [])
-            call_args: list[str] = []
-            for i, a in enumerate(args):
-                pname = param_names[i] if i < len(param_names) else None
-                if pname and pname in series_set and a.endswith("[__bar_idx]"):
-                    call_args.append(a[: -len("[__bar_idx]")])
-                else:
-                    call_args.append(a)
-            # Own series-local state arrays (allocated in execute_script_compiled)
-            for s in series_locals:
-                call_args.append(f"__st_{func_name}_{s}")
-            # Transitive series-local state from nested UDF calls
-            for st in st_params:
-                call_args.append(st)
-            # Chart series / bar index are free vars under njit — pass explicitly
-            if self.func_needs_bar.get(func_name) or series_set or series_locals or st_params:
-                for extra in (
-                    "open_arr",
-                    "high_arr",
-                    "low_arr",
-                    "close_arr",
-                    "vol_arr",
-                    "__bar_idx",
-                ):
-                    call_args.append(extra)
-            return f"{func_name}({', '.join(call_args)})"
 
         # Unknown call: object mode so we don't hard-fail under nopython
         # (still may NameError — better than invalid njit)
         if func_name not in ("unknown_func",):
             self.object_mode = True
         return f"{func_name}({', '.join(args)})"
+    def _emit_user_func_call(self, func_name: str, args: list[str]) -> str:
+        """Emit a call to a user-defined function with series/state plumbing."""
+        param_names = self.func_param_names.get(func_name, [])
+        series_set = self.func_series_params.get(func_name, set())
+        series_locals = self.func_series_locals.get(func_name, [])
+        st_params = self.func_st_params.get(func_name, [])
+        call_args: list[str] = []
+        for i, a in enumerate(args):
+            pname = param_names[i] if i < len(param_names) else None
+            if pname and pname in series_set and a.endswith("[__bar_idx]"):
+                call_args.append(a[: -len("[__bar_idx]")])
+            else:
+                call_args.append(a)
+        # Own series-local state arrays (allocated in execute_script_compiled)
+        for s in series_locals:
+            call_args.append(f"__st_{func_name}_{s}")
+        # Transitive series-local state from nested UDF calls
+        for st in st_params:
+            call_args.append(st)
+        # Chart series / bar index are free vars under njit — pass explicitly
+        if self.func_needs_bar.get(func_name) or series_set or series_locals or st_params:
+            for extra in (
+                "open_arr",
+                "high_arr",
+                "low_arr",
+                "close_arr",
+                "vol_arr",
+                "__bar_idx",
+            ):
+                call_args.append(extra)
+        return f"{func_name}({', '.join(call_args)})"
     def _emit_strategy_call(self, func_name: str, args: list[str], kwargs: dict[str, str]) -> str:
         """Emit CompileStrategyBroker method call; force object mode."""
         self.object_mode = True
@@ -1647,32 +2028,45 @@ class CompilerVisitor(NodeVisitor):
         return "{" + ", ".join(items) + "}"
 
     def _emit_map(self, func_name: str, args: list[str], kwargs: dict[str, str]) -> str:
+        ra = self._resolve_args
         if func_name == "map_new":
             return "{}"
         if func_name == "map_put":
-            # map.put(id, key, value)
-            m, key, val = args[0], args[1], args[2]
-            return f"{m}.__setitem__({key}, {val})"
+            a = ra(args, kwargs, ("id", "key", "value"))
+            if len(a) >= 3:
+                return f"{a[0]}.__setitem__({a[1]}, {a[2]})"
+            return ""
         if func_name == "map_get":
-            m, key = args[0], args[1]
-            return f"{m}.get({key}, np.nan)"
+            a = ra(args, kwargs, ("id", "key"))
+            if len(a) >= 2:
+                return f"{a[0]}.get({a[1]}, np.nan)"
+            return "np.nan"
         if func_name == "map_contains":
-            m, key = args[0], args[1]
-            return f"({key} in {m})"
+            a = ra(args, kwargs, ("id", "key"))
+            if len(a) >= 2:
+                return f"({a[1]} in {a[0]})"
+            return "False"
         if func_name == "map_remove":
-            m, key = args[0], args[1]
-            return f"{m}.pop({key}, None)"
+            a = ra(args, kwargs, ("id", "key"))
+            if len(a) >= 2:
+                return f"{a[0]}.pop({a[1]}, None)"
+            return "None"
         if func_name == "map_clear":
-            return f"{args[0]}.clear()"
+            a = ra(args, kwargs, ("id",))
+            return f"{a[0]}.clear()" if a else ""
         if func_name == "map_size":
-            return f"len({args[0]})"
+            a = ra(args, kwargs, ("id",))
+            return f"len({a[0]})" if a else "0"
         if func_name == "map_keys":
-            return f"list({args[0]}.keys())"
+            a = ra(args, kwargs, ("id",))
+            return f"list({a[0]}.keys())" if a else "[]"
         if func_name == "map_values":
-            return f"list({args[0]}.values())"
+            a = ra(args, kwargs, ("id",))
+            return f"list({a[0]}.values())" if a else "[]"
         if func_name == "map_copy":
-            return f"dict({args[0]})"
-        return f"{func_name}({', '.join(args)})"
+            a = ra(args, kwargs, ("id",))
+            return f"dict({a[0]})" if a else "{}"
+        return f"{func_name}({', '.join(args)})" if args else "np.nan"
 
     def _emit_drawing(self, func_name: str, args: list[str], kwargs: dict[str, str]) -> str:
         kind = func_name.replace("_new", "").replace("_delete", "")
@@ -1728,12 +2122,15 @@ class CompilerVisitor(NodeVisitor):
     def visit_BinOp(self, node: ast.BinOp):
         left = self.visit(node.left)
         right = self.visit(node.right)
+        # Pine division by zero → na (not Python ZeroDivisionError)
+        if isinstance(node.op, ast.Div):
+            return f"(({left}) / ({right}) if ({right}) != 0 else np.nan)"
+        if isinstance(node.op, ast.Mod):
+            return f"(({left}) % ({right}) if ({right}) != 0 else np.nan)"
         op = {
             ast.Add: "+",
             ast.Sub: "-",
             ast.Mult: "*",
-            ast.Div: "/",
-            ast.Mod: "%",
         }.get(type(node.op), "+")
         return f"({left} {op} {right})"
 
@@ -1772,15 +2169,16 @@ class CompilerVisitor(NodeVisitor):
             and node.value.id in self.local_vars
         ):
             name = node.value.id
+            py = self._py_ident(name)
             slice_val = self.visit(node.slice)
             if name in self.series_params:
-                base = name
+                base = py
             elif name in self.series_locals:
-                base = f"{name}_arr"
+                base = f"{py}_arr"
             else:
                 # Late discovery (param history): keep param-as-array convention
                 self.series_params.add(name)
-                base = name
+                base = py
             return f"({base}[__bar_idx - {slice_val}] if __bar_idx >= {slice_val} else np.nan)"
 
         arr = self.visit(node.value)
@@ -1788,29 +2186,55 @@ class CompilerVisitor(NodeVisitor):
         if arr.endswith("[__bar_idx]"):
             base_arr = arr[:-11]
             return f"({base_arr}[__bar_idx - {slice_val}] if __bar_idx >= {slice_val} else np.nan)"
+        # Guard: never emit None[i] from a strategy stub — prefer np.nan
+        if arr in ("None", "np.nan"):
+            return "np.nan"
         return f"{arr}[{slice_val}]"
 
     def visit_If(self, node: ast.If):
         test = self.visit(node.test)
         lines = [f"if {test}:"]
-        for stmt in node.body:
-            val = self.visit(stmt)
-            if val:
-                val = val.replace("\n", "\n    ")
-                lines.append(f"    {val}")
-        if len(lines) == 1:
-            lines.append("    pass")
-        if node.orelse:
-            lines.append("else:")
-            n = 0
-            for stmt in node.orelse:
-                val = self.visit(stmt)
+        ret_mode = self.if_return_mode
+
+        def _emit_branch(stmts) -> list[str]:
+            out: list[str] = []
+            for i, stmt in enumerate(stmts):
+                is_tail = i == len(stmts) - 1
+                prev = self.if_return_mode
+                # Keep return-mode only for tail nested if / if-expr
+                if ret_mode and is_tail and (
+                    isinstance(stmt, ast.If)
+                    or (isinstance(stmt, ast.Expr) and isinstance(stmt.value, ast.If))
+                ):
+                    self.if_return_mode = True
+                    target = stmt.value if isinstance(stmt, ast.Expr) else stmt
+                    val = self.visit(target)
+                else:
+                    self.if_return_mode = False
+                    val = self.visit(stmt)
+                    if ret_mode and is_tail and val and isinstance(stmt, ast.Expr):
+                        stripped = val.lstrip()
+                        if not stripped.startswith(
+                            ("if ", "for ", "while ", "return ", "else:", "elif ")
+                        ):
+                            val = f"return {val}"
+                self.if_return_mode = prev
                 if val:
                     val = val.replace("\n", "\n    ")
-                    lines.append(f"    {val}")
-                    n += 1
-            if n == 0:
-                lines.append("    pass")
+                    out.append(f"    {val}")
+            if not out:
+                out.append("    return np.nan" if ret_mode else "    pass")
+            elif ret_mode and not any("return " in ln for ln in out):
+                out.append("    return np.nan")
+            return out
+
+        lines.extend(_emit_branch(node.body))
+        if node.orelse:
+            lines.append("else:")
+            lines.extend(_emit_branch(node.orelse))
+        elif ret_mode:
+            lines.append("else:")
+            lines.append("    return np.nan")
         return "\n".join(lines)
 
     def visit_FunctionDef(self, node: ast.FunctionDef):
@@ -1818,10 +2242,16 @@ class CompilerVisitor(NodeVisitor):
         args = [arg.name for arg in node.args if hasattr(arg, "name")]
         arg_set = set(args)
         self.user_funcs.add(func_name)
+        if getattr(node, "export", None):
+            # export methods in libraries → always object mode
+            self.object_mode = True
         prev_series = set(self.series_params)
         prev_series_locals = set(self.series_locals)
+        prev_ident = dict(self.ident_map)
         self.in_function = True
         self.local_vars = set(args)
+        # Rename params that shadow Python builtins (len, sum, id, …)
+        self.ident_map = {a: self._safe_ident(a) for a in args}
 
         # Pass 0: assigned locals + names used under history subscript
         assigned: set[str] = set()
@@ -1829,6 +2259,10 @@ class CompilerVisitor(NodeVisitor):
         for stmt in node.body:
             self._collect_assigned_names(stmt, assigned)
             self._collect_history_names(stmt, history_names)
+
+        # Safe names for assigned locals (sum, max, min, …)
+        for n in assigned:
+            self.ident_map[n] = self._safe_ident(n)
 
         # Params used with history → series_params (full arrays from caller)
         self.series_params = set()
@@ -1845,8 +2279,25 @@ class CompilerVisitor(NodeVisitor):
         self.local_vars |= assigned
 
         body_lines = []
-        for stmt in node.body:
-            val = self.visit(stmt)
+        last_ast = node.body[-1] if node.body else None
+        # Pine if-expression as function result: emit returns on branches
+        last_is_if_expr = isinstance(last_ast, ast.Expr) and isinstance(
+            getattr(last_ast, "value", None), ast.If
+        )
+        last_is_if_stmt = isinstance(last_ast, ast.If)
+        for i, stmt in enumerate(node.body):
+            is_last = i == len(node.body) - 1
+            if is_last and (last_is_if_expr or last_is_if_stmt):
+                self.if_return_mode = True
+                try:
+                    if last_is_if_expr:
+                        val = self.visit(stmt.value)
+                    else:
+                        val = self.visit(stmt)
+                finally:
+                    self.if_return_mode = False
+            else:
+                val = self.visit(stmt)
             if val:
                 body_lines.append(val)
 
@@ -1875,14 +2326,16 @@ class CompilerVisitor(NodeVisitor):
         st_refs = sorted(set(re.findall(r"__st_[A-Za-z_][A-Za-z0-9_]*", body_text)))
         self.func_st_params[func_name] = st_refs
 
-        sl_params = [f"{s}_arr" for s in series_locals]
+        # series-local params use safe base name + _arr
+        sl_params = [f"{self.ident_map.get(s, s)}_arr" for s in series_locals]
         needs_ctx = (
             any(tok in body_text for tok in _ctx_tokens)
             or bool(series_for_func)
             or bool(series_locals)
             or bool(st_refs)
         )
-        param_list = list(args)
+        # Emit safe Python param names for user-facing args
+        param_list = [self.ident_map.get(a, a) for a in args]
         for p in sl_params:
             if p not in param_list:
                 param_list.append(p)
@@ -1903,23 +2356,28 @@ class CompilerVisitor(NodeVisitor):
         if not body_lines:
             lines.append("    pass")
         else:
-            last_ast = node.body[-1] if node.body else None
             # Only wrap a pure expression result — never `if`/`for`/`while` as `return if …`
-            returnable = isinstance(last_ast, ast.Expr) and not isinstance(
-                getattr(last_ast, "value", None),
-                (ast.If, ast.ForTo, ast.While, ast.ForIn),
+            # (if-expr results already contain return statements via if_return_mode)
+            returnable = (
+                isinstance(last_ast, ast.Expr)
+                and not isinstance(
+                    getattr(last_ast, "value", None),
+                    (ast.If, ast.ForTo, ast.While, ast.ForIn),
+                )
+                and not last_is_if_expr
             )
             for i, line in enumerate(body_lines):
                 is_last = i == len(body_lines) - 1
                 line = line.replace("\n", "\n    ")
                 stripped = line.lstrip()
                 if is_last and returnable and not stripped.startswith(
-                    ("if ", "for ", "while ", "else:", "elif ", "try:", "with ")
+                    ("if ", "for ", "while ", "else:", "elif ", "try:", "with ", "return ")
                 ):
                     lines.append(f"    return {line}")
                 else:
                     lines.append(f"    {line}")
         self.functions.append("\n".join(lines))
+        self.ident_map = prev_ident
         return ""
 
     def _mark_series_params(self, node) -> None:
