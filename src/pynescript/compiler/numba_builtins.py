@@ -2036,3 +2036,175 @@ def numba_wma_inc(arr, length, i, st):
     if i < length - 1 or np.isnan(ws):
         return np.nan
     return ws / total_w
+
+
+@numba.njit(cache=True)
+def numba_barssince_inc(cond_arr, i, st):
+    """O(1) bars-since. ``st``: [last_true_i, last_proc_i]."""
+    if i < 0:
+        return np.nan
+    if np.isnan(st[1]):
+        lp = -1
+    else:
+        lp = int(st[1])
+    if i < lp:
+        st[0] = np.nan
+        lp = -1
+    lt = -1 if np.isnan(st[0]) else int(st[0])
+    for j in range(lp + 1, i + 1):
+        c = cond_arr[j]
+        if not (np.isnan(c) or c == 0.0):
+            lt = j
+    st[0] = float(lt) if lt >= 0 else np.nan
+    st[1] = float(i)
+    if lt < 0:
+        return np.nan
+    return float(i - lt)
+
+
+@numba.njit(cache=True)
+def numba_linreg_inc(arr, length, offset, i, st):
+    """O(1) rolling linreg. ``st``: [sum_y, sum_xy, last_i]."""
+    length = int(length)
+    offset = int(offset)
+    if length < 2 or i < 0:
+        return np.nan
+    n = float(length)
+    sum_x = n * (n - 1.0) / 2.0
+    sum_xx = (n - 1.0) * n * (2.0 * n - 1.0) / 6.0
+    if np.isnan(st[2]):
+        last = -1
+    else:
+        last = int(st[2])
+    if i < last:
+        last = -1
+        st[0] = np.nan
+        st[1] = np.nan
+    sy = st[0]
+    sxy = st[1]
+    for j in range(last + 1, i + 1):
+        if j < length - 1:
+            sy = np.nan
+            sxy = np.nan
+        elif j == length - 1:
+            sy = 0.0
+            sxy = 0.0
+            ok = True
+            for k in range(length):
+                y = arr[k]
+                if np.isnan(y):
+                    ok = False
+                    break
+                sy += y
+                sxy += float(k) * y
+            if not ok:
+                sy = np.nan
+                sxy = np.nan
+        else:
+            if np.isnan(sy):
+                sy = 0.0
+                sxy = 0.0
+                ok = True
+                base = j - length + 1
+                for k in range(length):
+                    y = arr[base + k]
+                    if np.isnan(y):
+                        ok = False
+                        break
+                    sy += y
+                    sxy += float(k) * y
+                if not ok:
+                    sy = np.nan
+                    sxy = np.nan
+            else:
+                y0 = arr[j - length]
+                yn = arr[j]
+                if np.isnan(y0) or np.isnan(yn):
+                    sy = np.nan
+                    sxy = np.nan
+                else:
+                    sxy = sxy - sy + y0 + yn * (n - 1.0)
+                    sy = sy - y0 + yn
+    st[0] = sy
+    st[1] = sxy
+    st[2] = float(i)
+    if i < length - 1 or np.isnan(sy):
+        return np.nan
+    denom = n * sum_xx - sum_x * sum_x
+    if denom == 0.0:
+        return sy / n
+    slope = (n * sxy - sum_x * sy) / denom
+    intercept = (sy - slope * sum_x) / n
+    return intercept + slope * (n - 1.0 - float(offset))
+
+
+@numba.njit(cache=True)
+def numba_sar_inc(high, low, start, increment, maximum, i, st):
+    """Incremental Parabolic SAR. ``st``: [sar, ep, af, trend, last_i]."""
+    if i < 0 or len(high) == 0:
+        return np.nan
+    if np.isnan(st[4]):
+        last = -1
+    else:
+        last = int(st[4])
+    if i < last:
+        last = -1
+        st[0] = np.nan
+        st[1] = np.nan
+        st[2] = np.nan
+        st[3] = np.nan
+
+    if last < 0:
+        sar = low[0]
+        ep = high[0]
+        af = start
+        trend = 1.0
+        last = 0
+        st[0] = sar
+        st[1] = ep
+        st[2] = af
+        st[3] = trend
+        st[4] = 0.0
+        if i == 0:
+            return sar
+    else:
+        sar = st[0]
+        ep = st[1]
+        af = st[2]
+        trend = st[3]
+
+    for idx in range(last + 1, i + 1):
+        hi = high[idx]
+        lo = low[idx]
+        prev = sar
+        if trend > 0.0:
+            sar = prev + af * (ep - prev)
+            if hi > ep:
+                ep = hi
+                af = af + increment
+                if af > maximum:
+                    af = maximum
+            if sar > lo:
+                trend = -1.0
+                sar = ep
+                ep = lo
+                af = start
+        else:
+            sar = prev - af * (prev - ep)
+            if lo < ep:
+                ep = lo
+                af = af + increment
+                if af > maximum:
+                    af = maximum
+            if sar < hi:
+                trend = 1.0
+                sar = ep
+                ep = hi
+                af = start
+
+    st[0] = sar
+    st[1] = ep
+    st[2] = af
+    st[3] = trend
+    st[4] = float(i)
+    return sar

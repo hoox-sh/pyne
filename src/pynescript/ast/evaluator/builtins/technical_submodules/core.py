@@ -696,6 +696,26 @@ class TechnicalHelpers:
             st["value"] = None
         return st.get("value")
 
+    def _cum_inc_update(self, series: list[Any]) -> float | None:
+        """Incremental cumulative sum matching bar-mode ``ta.cum`` (last value)."""
+        slot = self._ta_next_slot()
+        key = ("cum", slot)
+        bucket = self._ta_state_bucket()
+        st = bucket.get(key)
+        if st is None:
+            st = {"total": 0.0, "value": None}
+            bucket[key] = st
+        x = self._series_last(series)
+        if x is None:
+            # Skip None like full path; total unchanged
+            return st.get("value")
+        try:
+            st["total"] = float(st["total"]) + float(x)
+            st["value"] = st["total"]
+        except (TypeError, ValueError):
+            return st.get("value")
+        return st.get("value")
+
     def _vwma_inc_update(
         self,
         series: list[Any],

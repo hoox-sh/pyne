@@ -52,3 +52,12 @@ Kernel parity vs full recompute: max abs err ~1e-11 (float noise) / 0 for RSI & 
 | **Evaluate** | Incremental `ta.stoch` %K + real `ta.vwma` (was SMA stub) + `_vwma_inc_update` |
 
 Bench n=5000: highest/lowest ~0.23 ms, stoch ~0.22 ms, vwma ~0.10 ms, wma ~0.08 ms.
+
+### Follow-up 3
+
+| Area | Change |
+|---|---|
+| **Compile** | `barssince_inc`, `linreg_inc`, `sar_inc` (O(1) / amortized) |
+| **Evaluate** | `_cum_inc_update` for `ta.cum` in bar mode |
+
+Bench n=5000: SAR ~0.04 ms, linreg ~0.18 ms (was O(n·period) style pressure).

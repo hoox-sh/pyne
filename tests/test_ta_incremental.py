@@ -660,3 +660,30 @@ def test_incremental_vwma_matches_full() -> None:
             _bar_walk_inc_vwma(src, vol, period),
             _bar_walk_full_vwma(src, vol, period),
         )
+
+
+def _bar_walk_full_cum(src: list[float]) -> list[float | None]:
+    ev = _FullTA()
+    out: list[float | None] = []
+    for i in range(len(src)):
+        total = 0.0
+        for v in src[: i + 1]:
+            if v is None:
+                continue
+            total += float(v)
+        out.append(total)
+    return out
+
+
+def _bar_walk_inc_cum(src: list[float]) -> list[float | None]:
+    ev = _IncTA()
+    out: list[float | None] = []
+    for i in range(len(src)):
+        ev._ta_call_i = 0
+        out.append(ev._cum_inc_update(src[: i + 1]))
+    return out
+
+
+def test_incremental_cum_matches_full() -> None:
+    src = _series(80)
+    _assert_series_close(_bar_walk_inc_cum(src), _bar_walk_full_cum(src))

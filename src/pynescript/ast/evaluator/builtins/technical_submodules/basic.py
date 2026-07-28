@@ -668,6 +668,8 @@ class BasicIndicators(TechnicalHelpers):
         series = self._as_series(args[0])
         if not series:
             return None
+        if self._use_incremental_ta():
+            return self._cum_inc_update(series)
         total = 0.0
         for v in series:
             if v is None:

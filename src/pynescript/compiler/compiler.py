@@ -2489,14 +2489,15 @@ class CompilerVisitor(NodeVisitor):
             start = args[0] if args else "0.02"
             inc = args[1] if len(args) > 1 else "0.02"
             maximum = args[2] if len(args) > 2 else "0.2"
+            st = self._alloc_fixed_state("sar", 5)
             if len(args) >= 5 and _is_series_arr(args[0]):
                 return (
-                    f"numba_sar({_arr(args[0])}, {_arr(args[1])}, float({args[2]}), "
-                    f"float({args[3]}), float({args[4]}), __bar_idx)"
+                    f"numba_sar_inc({_arr(args[0])}, {_arr(args[1])}, float({args[2]}), "
+                    f"float({args[3]}), float({args[4]}), __bar_idx, {st})"
                 )
             return (
-                f"numba_sar(high_arr, low_arr, float({start}), float({inc}), "
-                f"float({maximum}), __bar_idx)"
+                f"numba_sar_inc(high_arr, low_arr, float({start}), float({inc}), "
+                f"float({maximum}), __bar_idx, {st})"
             )
         if func_name == "ta_percentile_nearest_rank":
             # ta.percentile_nearest_rank(source, length, percentage)
@@ -2513,7 +2514,8 @@ class CompilerVisitor(NodeVisitor):
         if func_name == "ta_barssince":
             # Prefer history scan when condition is a series array; else weak current stub
             if args and _is_series_arr(args[0]):
-                return f"numba_barssince({_arr(args[0])}, __bar_idx)"
+                st = self._alloc_fixed_state("barsince", 2)
+                return f"numba_barssince_inc({_arr(args[0])}, __bar_idx, {st})"
             if args:
                 return f"(0.0 if ({args[0]}) else np.nan)"
             return "np.nan"
@@ -2522,7 +2524,11 @@ class CompilerVisitor(NodeVisitor):
             src = args[0] if args else "close_arr[__bar_idx]"
             length = args[1] if len(args) > 1 else "14"
             offset = args[2] if len(args) > 2 else "0"
-            return f"numba_linreg({_arr(src)}, int({length}), int({offset}), __bar_idx)"
+            st = self._alloc_fixed_state("linreg", 3)
+            return (
+                f"numba_linreg_inc({_arr(src)}, int({length}), int({offset}), "
+                f"__bar_idx, {st})"
+            )
         if func_name == "ta_vwma":
             # ta.vwma(source, length) or ta.vwma(length) on close
             st = self._alloc_fixed_state("vwma", 3)
