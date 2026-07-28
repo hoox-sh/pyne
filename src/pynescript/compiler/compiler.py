@@ -245,6 +245,71 @@ _METHOD_TA = frozenset(
     }
 )
 
+# Method form: arr.push(x) / m.put(k,v) / t.cell(...) → array_push / map_put / table_cell
+_ARRAY_METHODS: dict[str, str] = {
+    "push": "array_push",
+    "pop": "array_pop",
+    "shift": "array_shift",
+    "unshift": "array_unshift",
+    "get": "array_get",
+    "set": "array_set",
+    "remove": "array_remove",
+    "clear": "array_clear",
+    "size": "array_size",
+    "fill": "array_fill",
+    "includes": "array_includes",
+    "join": "array_join",
+    "sort": "array_sort",
+    "reverse": "array_reverse",
+    "slice": "array_slice",
+    "copy": "array_copy",
+    "concat": "array_concat",
+    "indexof": "array_indexof",
+    "lastindexof": "array_lastindexof",
+    "insert": "array_insert",
+    "first": "array_first",
+    "last": "array_last",
+    "avg": "array_avg",
+    "min": "array_min",
+    "max": "array_max",
+    "sum": "array_sum",
+    "stdev": "array_stdev",
+    "variance": "array_variance",
+    "median": "array_median",
+    "covariance": "array_covariance",
+}
+_MAP_METHODS: dict[str, str] = {
+    "put": "map_put",
+    "get": "map_get",
+    "remove": "map_remove",
+    "clear": "map_clear",
+    "contains": "map_contains",
+    "keys": "map_keys",
+    "values": "map_values",
+    "size": "map_size",
+    "copy": "map_copy",
+}
+_TABLE_METHODS: dict[str, str] = {
+    "cell": "table_cell",
+    "cell_set": "table_cell_set",
+    "clear": "table_clear",
+    "delete": "table_delete",
+    "merge_cells": "table_merge_cells",
+}
+# Bare library-style verbs (no receiver) — avoid sum/min/max/size/clear clashes
+_BARE_COLLECTION: dict[str, str] = {
+    "push": "array_push",
+    "pop": "array_pop",
+    "shift": "array_shift",
+    "unshift": "array_unshift",
+    "includes": "array_includes",
+    "indexof": "array_indexof",
+    "lastindexof": "array_lastindexof",
+    "concat": "array_concat",
+    "put": "map_put",
+    "cell": "table_cell",
+}
+
 _DRAWING_FUNCS = frozenset(
     {
         "hline",
@@ -1355,6 +1420,10 @@ class CompilerVisitor(NodeVisitor):
                 return f"numba_obv_inc(close_arr, vol_arr, __bar_idx, {st})"
         if isinstance(node.value, ast.Name) and node.value.id == "color":
             return repr(self._color_const(node.attr))
+        # alert.freq_once_per_bar_close / alert.freq_all
+        if isinstance(node.value, ast.Name) and node.value.id == "alert":
+            self.object_mode = True
+            return repr(node.attr)
         # Must run before fallthrough (visit Name label → "label" then "label_style_x").
         if isinstance(node.value, ast.Name) and node.value.id in _STYLE_NS:
             if node.attr.startswith("style_"):
@@ -1842,6 +1911,18 @@ class CompilerVisitor(NodeVisitor):
                 # User method: ``x.mg(6)`` / ``Close.linreg(8).mg(6)`` → mg(src, 6)
                 method_src = self.visit(func.value)
                 func_name = func.attr
+            elif func.attr in _ARRAY_METHODS:
+                method_src = self.visit(func.value)
+                func_name = _ARRAY_METHODS[func.attr]
+                self.object_mode = True
+            elif func.attr in _MAP_METHODS:
+                method_src = self.visit(func.value)
+                func_name = _MAP_METHODS[func.attr]
+                self.object_mode = True
+            elif func.attr in _TABLE_METHODS:
+                method_src = self.visit(func.value)
+                func_name = _TABLE_METHODS[func.attr]
+                self.object_mode = True
             else:
                 # Unknown method on a value — still call as func(src, …) not ``src_meth``
                 method_src = self.visit(func.value)
@@ -1863,6 +1944,25 @@ class CompilerVisitor(NodeVisitor):
                 args.append(self.visit(arg))
         if method_src is not None:
             args = [method_src] + args
+
+        # Bare collection verbs: push(arr, x) / put(map, k, v) / cell(...)
+        if method_src is None and func_name in _BARE_COLLECTION:
+            func_name = _BARE_COLLECTION[func_name]
+            self.object_mode = True
+        if func_name in ("from_index", "chart_point_from_index", "point_from_index"):
+            self.object_mode = True
+            if len(args) >= 3:
+                return f"{{'x': {args[1]}, 'y': {args[2]}}}"
+            if len(args) >= 2:
+                return f"{{'x': {args[0]}, 'y': {args[1]}}}"
+            return "{'x': __bar_idx, 'y': np.nan}"
+        if func_name in ("modify", "ticker_modify"):
+            self.object_mode = True
+            return args[0] if args else repr("SYMBOL")
+        if func_name in ("max_bars_back", "max_bars_back_all"):
+            return ""
+        if func_name == "alert":
+            return ""
 
         if func_name in ("indicator", "study"):
             return ""
@@ -3534,12 +3634,22 @@ class CompilerVisitor(NodeVisitor):
                 is_last = i == len(body_lines) - 1
                 line = line.replace("\n", "\n    ")
                 stripped = line.lstrip()
-                if is_last and returnable and not stripped.startswith(
-                    ("if ", "for ", "while ", "else:", "elif ", "try:", "with ", "return ")
+                looks_assign = bool(
+                    re.search(r"(?<![=!<>])=(?!=)", stripped.split("\n", 1)[0])
+                )
+                if (
+                    is_last
+                    and returnable
+                    and not looks_assign
+                    and not stripped.startswith(
+                        ("if ", "for ", "while ", "else:", "elif ", "try:", "with ", "return ")
+                    )
                 ):
                     lines.append(f"    return {line}")
                 else:
                     lines.append(f"    {line}")
+                    if is_last and returnable and looks_assign:
+                        lines.append("    return np.nan")
         self.functions.append("\n".join(lines))
         self.ident_map = prev_ident
         return ""
