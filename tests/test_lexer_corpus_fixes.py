@@ -70,3 +70,45 @@ indicator("t")
 plot(基于RSI)
 """
     )
+
+
+def test_soft_keyword_as_identifier():
+    """`as` is a keyword (import alias) but valid as a variable name."""
+    _roundtrip(
+        """//@version=5
+indicator("t")
+as = 10
+plot(as)
+"""
+    )
+
+
+def test_bitwise_ops_shift_and_or():
+    tree = parse(
+        """//@version=5
+indicator("t")
+r = 0
+x = 3
+r := (r << 1) | (x & 1)
+x := x >> 1
+y = ~x ^ 1
+plot(r)
+"""
+    )
+    unparse(tree)
+
+
+def test_typed_function_return_and_params():
+    """Pine v5+ UDFs may declare return and parameter types."""
+    tree = parse(
+        """//@version=5
+indicator("t")
+int ilog2(int n) =>
+    int p = 0
+    p
+void noop(float[] re, int N) =>
+    0
+plot(ilog2(8))
+"""
+    )
+    unparse(tree)

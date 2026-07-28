@@ -1,0 +1,136 @@
+---
+title: "Runtime"
+description: "Bar-loop evaluator, series model, builtins, strategy events, and the optional Numba compile path."
+---
+
+# Runtime
+
+## Abstract
+
+PYNE’s runtime is the deterministic **bar-loop** that turns a parsed ASDL AST into series values, drawing side-effects, and strategy events. It is deliberately host-agnostic: the same visitor mixins power the library API, the Flask Pro API (`Runtime.run`), browser Pyodide, and edge workers. A second path—source-to-source compilation into a Numba or object-mode bar loop—trades interpretive flexibility for throughput on long histories.
+
+This section documents **semantics**, not the chart. AXIS consumes plots; HOOX consumes strategy events; neither is required to evaluate a script.
+
+## Conceptual model
+
+```mermaid
+flowchart TB
+  subgraph host [Host]
+    OHLCV[OHLCV bars]
+    IN[input overrides / data_feed]
+  end
+  subgraph runtime [Runtime]
+    CTX[Context + PineSeries]
+    EV[NodeLiteralEvaluator]
+    BUILTIN[Builtin dispatch]
+    STRAT[StrategyState]
+    PLOT[PlotRegistry / DrawingRegistry]
+  end
+  subgraph out [Outputs]
+    SERIES[Plot series]
+    EVENTS[StrategyEvent list]
+    META[inputs / drawings]
+  end
+  OHLCV --> CTX
+  IN --> EV
+  CTX --> EV
+  EV --> BUILTIN
+  BUILTIN --> STRAT
+  BUILTIN --> PLOT
+  EV --> SERIES
+  STRAT --> EVENTS
+  PLOT --> META
+```
+
+**Two execution modes** share the same parse tree:
+
+| Mode | Entry | Bar loop | Typical use |
+| --- | --- | --- | --- |
+| **Interpret** | `NodeLiteralEvaluator.visit(tree)` per bar | Host updates `PineSeries` / context, re-visits AST | Full language surface, strategy, drawings |
+| **Compile** | `pynescript.compiler.engine.compile_script` | Generated `for __bar_idx in range(n)` | Numeric indicators (Numba) or object-mode subset |
+
+## Interface surface
+
+| Concern | Start here |
+| --- | --- |
+| Series history, `[]`, `var`/`varip`, `na` | [Series & history](/pyne/docs/runtime/series-and-history) |
+| Expressions, statements, control flow | [Expressions & statements](/pyne/docs/runtime/expressions-statements) |
+| Builtin namespaces (`ta.*`, `strategy.*`, …) | [Builtins hub](/pyne/docs/runtime/builtins) |
+| Library `export` / `import` | [Libraries](/pyne/docs/runtime/libraries) |
+| `StrategyEvent` parity contract | [Events](/pyne/docs/runtime/events) |
+| Numba / object-mode compiler | [Compiler overview](/pyne/docs/runtime/compiler/overview) |
+
+Library callers typically use `NodeLiteralEvaluator` (or the Pro API `Runtime`) rather than wiring the bar loop by hand:
+
+```python
+from pynescript.ast.evaluator import NodeLiteralEvaluator
+
+ev = NodeLiteralEvaluator(context={"close": [1.0, 2.0, 3.0], "bar_index": 2})
+result = ev.evaluate_script('//@version=5\nindicator("x")\nplot(close)')
+```
+
+Hosts that own OHLCV (Pro API, workers) implement the loop: push bar → fill pending orders → `visit(tree)` → drain events → collect plots. See `backend/runtime.py` for the reference implementation.
+
+## Internals
+
+| Path | Role |
+| --- | --- |
+| `src/pynescript/ast/evaluator/` | Mixin evaluators (base, names, expressions, statements, libraries, events) |
+| `src/pynescript/ast/evaluator/builtins/` | Builtin dispatch tables |
+| `src/pynescript/compiler/` | `CompilerVisitor`, Numba builtins, strategy broker, engine façade |
+| `backend/runtime.py` | Production bar loop + `mode="compile"` bridge |
+| `tests/test_evaluator.py`, `tests/test_parity.py`, `tests/test_strategy_*.py` | Semantic oracles |
+
+Composition of the full interpreter:
+
+```
+BaseEvaluator
+  + LiteralEvaluator
+  + NameEvaluator
+  + ExpressionEvaluator
+  + StatementEvaluator
+  + BuiltinEvaluator
+  → NodeLiteralEvaluator
+```
+
+`BuiltinEvaluator` itself aggregates mixins (`TechnicalAnalysisMixin`, `StrategyBuiltinsMixin`, `PlottingFunctionsMixin`, …) into one dispatch map built at construction time.
+
+## Invariants & edge cases
+
+1. **Bar re-entrancy.** The AST is visited once per bar. Function/type definitions lock after bar 0 (`_pine_defs_locked`) so multi-dispatch tables do not grow \(O(\text{bars}^2)\).
+2. **Order of broker steps.** Pending limit/stop fills run **before** script body evaluation on each bar (interpreter and compile object-mode agree).
+3. **`na` is `None`.** Unresolved missing data, OOB history, and arithmetic with missing operands produce Python `None`, not IEEE NaN—except on the Numba path, which uses `np.nan` as the array sentinel.
+4. **Strategy state is per-evaluator.** `StrategyState` lives on the instance (`evaluator._strategy_state`), never as a process-global singleton—required for concurrent runs and parity tests.
+5. **Drawing/plot registries are side channels.** Visual objects do not participate in pure expression values except where `plot()` returns a plot id for `fill()`.
+
+## Worked example — minimal bar loop mental model
+
+```text
+for bar_index, bar in ohlcv:
+    open/high/low/close.update(bar)
+    context[bar_index, time, barstate, …] = …
+    process_pending_orders(OHLC)   # broker sim
+    evaluator.visit(ast)           # script body
+    events += drain_events()
+    series.append(plot values)
+```
+
+Compile mode collapses this into one generated function over full arrays, with `__bar_idx` standing in for `bar_index`.
+
+## Failure modes
+
+| Symptom | Likely cause |
+| --- | --- |
+| `unexpected type of node: …` | AST node not implemented in any mixin’s `visit_*` |
+| `Unknown built-in function: …` | Missing dispatch key or wrong qualified-name resolution |
+| Divergent strategy events vs TV | Partial-fill / OCA / risk settings, or fill timing vs bar |
+| Numba path raises / falls back | Script uses UDT/map/drawing → object mode; or Numba not installed |
+| Plots empty but no error | Host forgot to collect `plot_outputs` / `PlotRegistry` after visit |
+
+## See also
+
+- [Language core](/pyne/docs/core) — grammar, AST, types before evaluation
+- [Pro API runtime bridge](/pyne/docs/api/runtime-bridge)
+- [Numerical validation](/pyne/docs/reference/numerical-validation)
+- [pine-worker parity](/pyne/docs/pine-worker)
+- [AXIS docs](/axis/docs) — optional AXIS for series/drawings

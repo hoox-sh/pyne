@@ -8,8 +8,10 @@
 from __future__ import annotations
 
 import math
+import os
 import statistics
 
+from collections import deque
 from typing import Any
 
 
@@ -47,6 +49,336 @@ class TechnicalHelpers:
         numeric per bar without relying only on plot unwrap.
         """
         return bool(getattr(self, "_pine_bar_mode", False))
+
+    def _use_incremental_ta(self) -> bool:
+        """Use O(1)/O(period) call-site TA state in bar mode.
+
+        Enabled when ``_pine_bar_mode`` and ``_pine_ta_incremental`` (default
+        True in Runtime hosts). Disable with env ``PYNE_TA_INCREMENTAL=0`` or
+        ``evaluator._pine_ta_incremental = False``.
+        """
+        if not self._bar_mode():
+            return False
+        env = os.environ.get("PYNE_TA_INCREMENTAL", "1").strip().lower()
+        if env in {"0", "false", "no", "off"}:
+            return False
+        return bool(getattr(self, "_pine_ta_incremental", True))
+
+    def _ta_next_slot(self) -> int:
+        """Per-bar call-site index (reset by Runtime each bar, like crossover)."""
+        i = int(getattr(self, "_ta_call_i", 0) or 0)
+        self._ta_call_i = i + 1  # type: ignore[attr-defined]
+        return i
+
+    def _ta_state_bucket(self) -> dict[tuple[Any, ...], dict[str, Any]]:
+        state = getattr(self, "_ta_inc_state", None)
+        if state is None:
+            state = {}
+            self._ta_inc_state = state  # type: ignore[attr-defined]
+        return state
+
+    @staticmethod
+    def _series_last(series: list[Any]) -> Any:
+        """Current-bar source sample (bar mode feeds one update per call)."""
+        if not series:
+            return None
+        return series[-1]
+
+    def _sma_inc_update(self, series: list[Any], period: int) -> float | None:
+        """Incremental SMA matching full ``_sma`` NA-window rules (last value).
+
+        One sample per call-site per bar (``series[-1]``). Does not depend on
+        full series length — safe with ``_SERIES_MAX`` truncation.
+        """
+        if period <= 0:
+            return None
+        slot = self._ta_next_slot()
+        key = ("sma", slot, period)
+        bucket = self._ta_state_bucket()
+        st = bucket.get(key)
+        if st is None:
+            st = {"window": deque(maxlen=period), "value": None}
+            bucket[key] = st
+        x = self._series_last(series)
+        window: deque[Any] = st["window"]
+        window.append(x)
+        if len(window) < period:
+            st["value"] = None
+        else:
+            valid = [v for v in window if v is not None]
+            st["value"] = (sum(valid) / len(valid)) if valid else None
+        return st.get("value")
+
+    def _ema_inc_update(self, series: list[Any], period: int) -> float | None:
+        """Incremental EMA matching full ``_ema`` seed/carry rules (last value)."""
+        if period <= 0:
+            return None
+        slot = self._ta_next_slot()
+        key = ("ema", slot, period)
+        bucket = self._ta_state_bucket()
+        st = bucket.get(key)
+        if st is None:
+            st = {"ema": None, "seeded": False}
+            bucket[key] = st
+        x = self._series_last(series)
+        alpha = 2.0 / (period + 1)
+        if not st["seeded"]:
+            if x is None:
+                return None
+            st["ema"] = float(x)
+            st["seeded"] = True
+            return st["ema"]
+        if x is None:
+            return st.get("ema")
+        prev = st["ema"]
+        if prev is None:
+            st["ema"] = float(x)
+        else:
+            st["ema"] = alpha * float(x) + (1.0 - alpha) * float(prev)
+        return st.get("ema")
+
+    def _rma_inc_update(self, series: list[Any], period: int) -> float | None:
+        """Incremental RMA (Wilder) matching full ``_rma`` seed rules (last value).
+
+        Seed = mean of first ``period`` non-nan samples after the first valid
+        bar; then ``alpha * x + (1-alpha) * rma`` with alpha=1/period.
+        """
+        if period <= 0:
+            return None
+        slot = self._ta_next_slot()
+        key = ("rma", slot, period)
+        bucket = self._ta_state_bucket()
+        st = bucket.get(key)
+        if st is None:
+            st = {
+                "seed_buf": [],
+                "rma": None,
+                "seeded": False,
+                "started": False,
+                "value": None,
+            }
+            bucket[key] = st
+        raw = self._series_last(series)
+        if raw is None:
+            x = math.nan
+        else:
+            try:
+                x = float(raw)
+            except (TypeError, ValueError):
+                x = math.nan
+        alpha = 1.0 / period
+        if not st["started"]:
+            if math.isnan(x):
+                st["value"] = None
+                return None
+            st["started"] = True
+        if not st["seeded"]:
+            if not math.isnan(x):
+                st["seed_buf"].append(x)
+            if len(st["seed_buf"]) < period:
+                st["value"] = None
+                return None
+            seed = sum(st["seed_buf"][:period]) / period
+            st["rma"] = seed
+            st["seeded"] = True
+            st["value"] = seed
+            st["seed_buf"] = []
+            return seed
+        if math.isnan(x):
+            st["value"] = st["rma"]
+            return st.get("value")
+        st["rma"] = alpha * x + (1.0 - alpha) * float(st["rma"])
+        st["value"] = st["rma"]
+        return st.get("value")
+
+    def _rsi_inc_update(self, series: list[Any], period: int) -> float | None:
+        """Incremental RSI using RMA of gains/losses (matches ``_rsi`` structure)."""
+        if period <= 0:
+            return None
+        slot = self._ta_next_slot()
+        key = ("rsi", slot, period)
+        bucket = self._ta_state_bucket()
+        st = bucket.get(key)
+        if st is None:
+            st = {
+                "prev": None,
+                "gain_seed": [],
+                "loss_seed": [],
+                "avg_gain": None,
+                "avg_loss": None,
+                "seeded": False,
+                "value": None,
+            }
+            bucket[key] = st
+        raw = self._series_last(series)
+        try:
+            x = float(raw) if raw is not None else None
+        except (TypeError, ValueError):
+            x = None
+        prev = st["prev"]
+        st["prev"] = x
+        if prev is None:
+            st["value"] = None
+            return None
+        if x is None:
+            gain, loss = 0.0, 0.0
+        else:
+            change = x - prev
+            gain = change if change > 0 else 0.0
+            loss = -change if change < 0 else 0.0
+        alpha = 1.0 / period
+        if not st["seeded"]:
+            st["gain_seed"].append(gain)
+            st["loss_seed"].append(loss)
+            if len(st["gain_seed"]) < period:
+                st["value"] = None
+                return None
+            st["avg_gain"] = sum(st["gain_seed"][:period]) / period
+            st["avg_loss"] = sum(st["loss_seed"][:period]) / period
+            st["seeded"] = True
+            st["gain_seed"] = []
+            st["loss_seed"] = []
+        else:
+            st["avg_gain"] = alpha * gain + (1.0 - alpha) * float(st["avg_gain"])
+            st["avg_loss"] = alpha * loss + (1.0 - alpha) * float(st["avg_loss"])
+        avg_gain = float(st["avg_gain"])
+        avg_loss = float(st["avg_loss"])
+        if avg_loss == 0.0:
+            st["value"] = 100.0
+        else:
+            rs = avg_gain / avg_loss
+            st["value"] = 100.0 - (100.0 / (1.0 + rs))
+        return st.get("value")
+
+    @staticmethod
+    def _ema_state_new() -> dict[str, Any]:
+        return {"ema": None, "seeded": False}
+
+    @staticmethod
+    def _ema_state_step(st: dict[str, Any], x: Any, period: int) -> float | None:
+        """One EMA sample step matching full ``_ema`` (no call-site slot)."""
+        if period <= 0:
+            return None
+        alpha = 2.0 / (period + 1)
+        if not st["seeded"]:
+            if x is None:
+                return None
+            st["ema"] = float(x)
+            st["seeded"] = True
+            return st["ema"]
+        if x is None:
+            return st.get("ema")
+        prev = st["ema"]
+        if prev is None:
+            st["ema"] = float(x)
+        else:
+            st["ema"] = alpha * float(x) + (1.0 - alpha) * float(prev)
+        return st.get("ema")
+
+    def _macd_inc_update(
+        self,
+        series: list[Any],
+        fast: int,
+        slow: int,
+        signal: int,
+    ) -> tuple[float, float, float]:
+        """Incremental MACD matching full ``_macd`` (last macd/signal/hist).
+
+        Uses one call-site slot with three internal EMA states (fast/slow/signal).
+        """
+        if fast <= 0 or slow <= 0 or signal <= 0:
+            return 0.0, 0.0, 0.0
+        slot = self._ta_next_slot()
+        key = ("macd", slot, fast, slow, signal)
+        bucket = self._ta_state_bucket()
+        st = bucket.get(key)
+        if st is None:
+            st = {
+                "fast": self._ema_state_new(),
+                "slow": self._ema_state_new(),
+                "sig": self._ema_state_new(),
+            }
+            bucket[key] = st
+        x = self._series_last(series)
+        ef = self._ema_state_step(st["fast"], x, fast)
+        es = self._ema_state_step(st["slow"], x, slow)
+        if ef is None or es is None:
+            macd_val: float | None = None
+        else:
+            macd_val = float(ef) - float(es)
+        sig_val = self._ema_state_step(st["sig"], macd_val, signal)
+        if macd_val is None:
+            last_macd = 0.0
+        else:
+            last_macd = float(macd_val)
+        last_signal = float(sig_val) if sig_val is not None else 0.0
+        if macd_val is not None and sig_val is not None:
+            last_hist = float(macd_val) - float(sig_val)
+        else:
+            last_hist = 0.0
+        return last_macd, last_signal, last_hist
+
+    def _atr_inc_update(
+        self,
+        highs: list[Any],
+        lows: list[Any],
+        closes: list[Any],
+        period: int,
+    ) -> float | None:
+        """Incremental ATR matching full ``_atr`` (EMA of TR after warm-up).
+
+        Full path: while ``len(tr) < period`` return mean(tr); once
+        ``len(tr) >= period`` return ``_ema(tr, period)[-1]``.
+        """
+        if period <= 0:
+            return None
+        slot = self._ta_next_slot()
+        key = ("atr", slot, period)
+        bucket = self._ta_state_bucket()
+        st = bucket.get(key)
+        if st is None:
+            st = {
+                "prev_close": None,
+                "trs": [],
+                "ema": self._ema_state_new(),
+                "ema_mode": False,
+                "value": None,
+            }
+            bucket[key] = st
+        h = self._series_last(highs)
+        l = self._series_last(lows)
+        c = self._series_last(closes)
+        prev_c = st["prev_close"]
+        st["prev_close"] = c
+        if prev_c is None:
+            st["value"] = None
+            return None
+        if h is None or l is None or c is None:
+            st["value"] = None
+            return st.get("value")
+        try:
+            tr = max(
+                float(h) - float(l),
+                abs(float(h) - float(prev_c)),
+                abs(float(l) - float(prev_c)),
+            )
+        except (TypeError, ValueError):
+            st["value"] = None
+            return None
+        if not st["ema_mode"]:
+            st["trs"].append(tr)
+            if len(st["trs"]) < period:
+                st["value"] = statistics.mean(st["trs"])
+                return st["value"]
+            # Bootstrap EMA over all TR samples so far (matches full _ema(tr, period))
+            for t in st["trs"]:
+                self._ema_state_step(st["ema"], t, period)
+            st["ema_mode"] = True
+            st["trs"] = []
+            st["value"] = st["ema"].get("ema")
+            return st.get("value")
+        st["value"] = self._ema_state_step(st["ema"], tr, period)
+        return st.get("value")
 
     def _finalize_series(self, values: list[Any]) -> Any:
         """Return full series list, or current scalar in bar mode."""
@@ -163,8 +495,11 @@ class TechnicalHelpers:
             if type(value).__name__ == "_NaValue":
                 self._error(f"{message}. Got: na")
             value = cur
-        if isinstance(value, list) and len(value) == 1:
-            value = value[0]
+        if isinstance(value, list):
+            if not value:
+                self._error(f"{message}. Got: empty series")
+            # series length expressions → use current (last) bar
+            value = value[-1]
         if value is None:
             self._error(f"{message}. Got: na")
         if isinstance(value, float):
@@ -172,12 +507,22 @@ class TechnicalHelpers:
             value = int(math.floor(value))
         if isinstance(value, bool):
             value = int(value)
+        # String digits (rare, from input/str.tonumber paths)
+        if isinstance(value, str):
+            try:
+                value = int(float(value))
+            except ValueError:
+                self._error(f"{message}. Got: str")
         if not isinstance(value, int):
             self._error(f"{message}. Got: {type(value).__name__}")
         return value
 
     def _expect_number(self, value: Any, message: str) -> float:
         """Validate that value is numeric and return as float."""
+        if hasattr(value, "current") and not isinstance(value, (list, tuple, str, bytes, int, float)):
+            value = value.current
+        if isinstance(value, list) and value:
+            value = value[-1]
         if not isinstance(value, int | float):
             self._error(f"{message}. Got: {type(value).__name__}")
         return float(value)

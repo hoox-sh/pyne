@@ -1,0 +1,131 @@
+---
+title: "App Lifecycle"
+description: "Flask application setup: MAX_CONTENT_LENGTH, CORS policy, blueprints, error handlers, and process entry."
+---
+
+# App Lifecycle
+
+## Abstract
+
+`backend/app.py` constructs a single global `Flask` app, applies security-minded defaults (body size, CORS allowlist), registers free and Pro routes, and exposes a module `__main__` for local development. There is no multi-app factory pattern today — import `app` for WSGI (gunicorn) or run the module for the built-in server.
+
+## Conceptual model
+
+```mermaid
+flowchart TB
+  BOOT[import backend.app] --> CFG[MAX_CONTENT_LENGTH + CORS]
+  CFG --> ROUTES[register / · /run · /auth]
+  ROUTES --> BP[register preview_bp + backtest_bp]
+  BP --> ERR[404 / 500 JSON handlers]
+  ERR --> SERVE{entry}
+  SERVE -->|gunicorn| WSGI[app:app]
+  SERVE -->|python -m backend.app| DEV[HOST/PORT env]
+```
+
+## Interface surface
+
+### Process entry
+
+```bash
+make run
+# equivalent
+python -m backend.app
+```
+
+Environment:
+
+| Variable | Default | Role |
+| --- | --- | --- |
+| `HOST` | `127.0.0.1` | Bind address (localhost-first for dev) |
+| `PORT` | `5002` | Listen port |
+| `ALLOWED_ORIGINS` | `https://pynescript.ai`, `https://app.pynescript.ai`, localhost regex | CORS origins (comma-separated; regex allowed) |
+| `API_KEY_STORE` | `/root/pynescript/data/api_keys.json` | JSON key store path (file-backed default) |
+| `ADMIN_TOKEN` | unset | Documented for admin create_key (see auth) |
+
+`debug=False` always on the dev runner.
+
+### Health
+
+`GET /` → JSON:
+
+```json
+{
+  "status": "healthy",
+  "service": "pynescript-pro-api",
+  "version": "1.0.0",
+  "timestamp": 0,
+  "endpoints": { "…": "…" }
+}
+```
+
+### Hard limits
+
+- **`MAX_CONTENT_LENGTH = 5 * 1024 * 1024`** — reject oversized bodies before JSON parse fills memory (audit 2026-07-05 / S1).
+- CORS methods: `GET`, `POST` only.
+- Allow headers: `Content-Type`, `Authorization`, `X-Admin-Token`.
+- `supports_credentials=False`.
+
+Localhost regex used in the default origin list:
+
+```text
+^https?://(?:localhost|127\.0\.0\.1)(?::\d+)?$
+```
+
+Same-origin / no `Origin` header (curl, server-to-server) remains usable under flask-cors behavior.
+
+### Blueprints
+
+```python
+app.register_blueprint(preview_bp)   # url_prefix=/preview
+app.register_blueprint(backtest_bp)  # url_prefix=/backtest
+```
+
+Defined in `backend/api/preview.py`.
+
+### Error handlers
+
+| Code | Body code | Message |
+| --- | --- | --- |
+| 404 | `NOT_FOUND` | `Endpoint {path} not found.` |
+| 500 | `INTERNAL_ERROR` | `Internal server error.` |
+
+Both return JSON with `status: "error"`.
+
+## Internals
+
+| Path | Role |
+| --- | --- |
+| `backend/app.py` | App object, free routes, auth routes |
+| `backend/api/preview.py` | Pro blueprints |
+| `backend/middleware/schemas.py` | Request validation for `/run*` and auth |
+| `backend/requirements.txt` | Flask, flask-cors, numpy, matplotlib, … |
+
+Recommended production: gunicorn/uvicorn-class WSGI with multiple workers; for multi-worker key consistency prefer SQLite/Redis stores over the default in-memory/file singleton assumptions — see [auth](/pyne/docs/api/auth-and-keys).
+
+## Invariants and edge cases
+
+1. **Import side effects:** creating `app` configures CORS immediately from env.
+2. **Body too large** → Flask 413 before route logic (not custom JSON).
+3. **Unknown fields** on schema-validated routes → `UNKNOWN_FIELDS` 400 (`/run`, auth); preview routes currently use looser `get_json()` (schemas exist but are not always applied in handlers).
+4. **Dev bind default is loopback** — set `HOST=0.0.0.0` only when intentional.
+
+## Worked example — smoke test
+
+```bash
+curl -s http://127.0.0.1:5002/ | jq .status
+# "healthy"
+```
+
+## Failure modes
+
+| Symptom | Cause |
+| --- | --- |
+| Browser CORS errors | Origin not in `ALLOWED_ORIGINS` |
+| 413 on large OHLCV | Exceeded 5 MB — downsample or paginate |
+| Import errors for matplotlib | Missing backend deps — `pip install -r backend/requirements.txt` |
+
+## See also
+
+- [Auth and keys](/pyne/docs/api/auth-and-keys)
+- [Run endpoint](/pyne/docs/api/endpoints/run)
+- [Docker / CI](/pyne/docs/devops/docker)

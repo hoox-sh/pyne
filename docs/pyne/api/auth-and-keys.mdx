@@ -1,0 +1,149 @@
+---
+title: "Auth and Keys"
+description: "API key model, tiers, require_api_key / track_usage decorators, JSON/SQLite/Redis stores, and admin create_key."
+---
+
+# Auth and Keys
+
+## Abstract
+
+Pro routes authenticate with a **raw API key** presented as `Authorization: Bearer …`, `Authorization: ApiKey …`, or `?api_key=`. Keys are minted as `pyn_` + url-safe secret, stored with a short `key_id` and SHA-256 hash metadata, and tracked against **monthly-ish call limits** by tier. Free `/run` does not require a key.
+
+## Conceptual model
+
+```mermaid
+flowchart LR
+  REQ[HTTP request] --> HDR{Authorization / query}
+  HDR --> VAL[store.validate_key]
+  VAL -->|miss| U401[401 UNAUTHORIZED]
+  VAL -->|hit + over limit| U429[429 RATE_LIMITED]
+  VAL -->|ok| G[g.api_key]
+  G --> H[handler]
+  H --> TRACK[increment_calls on success]
+```
+
+## Interface surface
+
+### Tiers (`_TIER_LIMITS`)
+
+| Tier | `calls_limit` |
+| --- | --- |
+| `free` | `0` (treated as unlimited in `is_rate_limited` — limit 0 means “no cap”) |
+| `hobby` | 5 000 |
+| `pro` | 50 000 |
+| `team` | 200 000 |
+| `enterprise` | `inf` |
+
+`calls_remaining()` returns `inf` when limit is 0.
+
+### Endpoints
+
+#### `POST /auth/create_key`
+
+Body schema `CREATE_KEY_SCHEMA`: optional `tier` (default `"hobby"`).
+
+Response:
+
+```json
+{
+  "status": "success",
+  "api_key": "pyn_…",
+  "key_id": "12hexchars",
+  "tier": "hobby",
+  "message": "Store this API key securely. It will not be shown again."
+}
+```
+
+Decorated with `@require_admin_token`. **Implementation note:** `require_admin_token` currently sets `g.is_admin = True` unconditionally (placeholder); production deployments should enforce `ADMIN_TOKEN` / role checks before exposing this route. App docstring describes `X-Admin-Token` + `ADMIN_TOKEN` env as the intended design.
+
+#### `GET /auth/usage`
+
+`@require_api_key` — returns `key_id`, `tier`, and usage block (`calls_used`, `calls_limit`, `calls_remaining`, timestamps).
+
+#### `POST /auth/validate`
+
+Body: `{ "api_key": "…" }` — validates without incrementing usage. Returns tier info, `active`, `rate_limited`.
+
+### Decorators
+
+| Decorator | Behavior |
+| --- | --- |
+| `require_api_key` | Resolve key → 401 / 429 or set `g.api_key` |
+| `track_usage` | Wraps `require_api_key`; increments calls when response status &lt; 400 (tuple responses) or always for bare Response |
+| `require_admin_token` | Placeholder admin gate for create_key |
+
+### Client presentation
+
+```bash
+curl -H "Authorization: Bearer $API_KEY" \
+  -H "Content-Type: application/json" \
+  -d @body.json \
+  http://127.0.0.1:5002/preview/chart
+```
+
+## Internals
+
+### `APIKey` dataclass
+
+Fields: `key_id`, `key_hash`, `tier`, `calls_used`, `calls_limit`, `created_at`, `last_used`.
+
+Helpers: `is_active()` (always True today), `is_rate_limited()`, `get_tier_info()`, `increment_calls()`.
+
+### Stores
+
+| Module | Use |
+| --- | --- |
+| `middleware/auth.py` → `APIKeyStore` | Default JSON file store (`API_KEY_STORE` path) |
+| `middleware/key_store_sqlite.py` | Hash-only rows, WAL, multi-worker friendly |
+| `middleware/key_store_redis.py` | Redis-backed alternative |
+
+Default `get_key_store()` returns the JSON-file `APIKeyStore` singleton. JSON store currently keeps raw keys as dict keys in the file (dev convenience); SQLite module documents **hash-only** storage for safer leaks.
+
+Key minting:
+
+```text
+raw_key = "pyn_" + secrets.token_urlsafe(32)
+key_id  = sha256(raw_key).hexdigest()[:12]
+key_hash = sha256(raw_key).hexdigest()
+```
+
+### Schemas
+
+`CREATE_KEY_SCHEMA`, `VALIDATE_KEY_SCHEMA` in `middleware/schemas.py` — strict types, reject unknown fields.
+
+## Invariants and edge cases
+
+1. **`/run` is unauthenticated** — rate-limit at reverse proxy if exposed publicly.
+2. **Limit 0 means unlimited**, not “zero calls” — free tier limit value is 0 with that semantics.
+3. **Usage increments only after handler returns** — failed auth never bills; handler 4xx under `track_usage` skips increment when returned as `(response, status)`.
+4. **Revocation** exists on the store API (`revoke_key`); no public HTTP revoke route in `app.py`.
+5. **Admin decorator gap** — do not assume create_key is locked in all deployments until the TODO is closed.
+
+## Worked example
+
+```bash
+# create (when admin gate is open / local tests)
+curl -s -X POST http://127.0.0.1:5002/auth/create_key \
+  -H 'Content-Type: application/json' \
+  -d '{"tier":"hobby"}'
+
+# validate
+curl -s -X POST http://127.0.0.1:5002/auth/validate \
+  -H 'Content-Type: application/json' \
+  -d '{"api_key":"pyn_…"}'
+```
+
+## Failure modes
+
+| Code | Meaning |
+| --- | --- |
+| `UNAUTHORIZED` | Missing/invalid key |
+| `RATE_LIMITED` | `calls_used >= calls_limit` (finite limits) |
+| `INVALID_TIER` | create_key with unknown tier string |
+| `INVALID_KEY` | validate endpoint miss |
+
+## See also
+
+- [App lifecycle](/pyne/docs/api/app-lifecycle)
+- [Preview](/pyne/docs/api/endpoints/preview)
+- [Security (DevOps)](/pyne/docs/devops/security)

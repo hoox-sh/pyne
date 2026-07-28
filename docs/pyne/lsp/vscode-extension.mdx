@@ -1,0 +1,155 @@
+---
+title: "VS Code Extension"
+description: "vscode-extension package: language id, TextMate grammar, LanguageClient wiring, settings, and VSIX build."
+---
+
+# VS Code Extension
+
+## Abstract
+
+The VS Code extension is a **LanguageClient host** plus a TextMate grammar. It does not reimplement diagnostics or completion in TypeScript; it spawns `pynescript-lsp` (or a configured command) over STDIO via `vscode-languageclient`, maps `*.pine` / `*.pinev5` / `*.pinev6` to language id `pinescript`, and exposes a small settings surface for enablement and feature toggles.
+
+## Conceptual model
+
+```mermaid
+flowchart LR
+  VS[VS Code] --> EXT[extension.ts activate]
+  EXT --> LC[LanguageClient]
+  LC -->|stdio| LSP[pynescript-lsp]
+  EXT --> TM[TextMate grammar]
+  TM --> HL[Token colors]
+  LSP --> DIAG[Diagnostics / completion / …]
+```
+
+## Interface surface
+
+### Package identity
+
+From `vscode-extension/package.json`:
+
+| Field | Value |
+| --- | --- |
+| name | `pynescript` |
+| displayName | Pine Script |
+| engines.vscode | `^1.85.0` |
+| main | `./out/extension.js` |
+| dependency | `vscode-languageclient` ^9 |
+
+### Language contribution
+
+- **id:** `pinescript`
+- **extensions:** `.pine`, `.pinev5`, `.pinev6`
+- **configuration:** `language-configuration.json`
+- **grammar:** `syntaxes/pinescript.tmLanguage.json` (`scopeName: source.pinescript`)
+
+### Activation
+
+```text
+onLanguage:pinescript
+workspaceContains:**/*.pine
+workspaceContains:**/*.pinev5
+workspaceContains:**/*.pinev6
+```
+
+### Settings (`pynescript.*`)
+
+| Key | Default | Meaning |
+| --- | --- | --- |
+| `lsp.enabled` | `true` | Skip activation when false |
+| `lsp.command` | `pynescript-lsp` | Server executable |
+| `formatting.enabled` | `true` | Passed as init option |
+| `diagnostics.enabled` | `true` | Passed as init option |
+| `completion.snippets` | `true` | Passed as init option |
+
+Initialization options object:
+
+```json
+{
+  "formattingEnabled": true,
+  "snippetsEnabled": true,
+  "diagnosticsEnabled": true
+}
+```
+
+{/* TODO: verify server-side consumption of initializationOptions flags */}
+
+### Commands
+
+| Command | Action |
+| --- | --- |
+| `pynescript.restartServer` | `client.stop()` then `client.start()` |
+| `pynescript.formatDocument` | `editor.action.formatDocument` |
+
+### Client options
+
+- Document selector: `pinescript` for `file` and `untitled` schemes
+- File watcher: `**/*.pine` (not automatically the v5/v6 suffixes)
+- Diagnostic collection name: `pynescript`
+
+## Internals
+
+| Path | Role |
+| --- | --- |
+| `vscode-extension/src/extension.ts` | Activate / deactivate / client |
+| `vscode-extension/package.json` | Contributes + scripts |
+| `vscode-extension/syntaxes/pinescript.tmLanguage.json` | Grammar |
+| `vscode-extension/language-configuration.json` | Brackets / comments |
+| `out/extension.js` | Compiled JS |
+
+Server launch:
+
+```typescript
+const serverOptions: ServerOptions = {
+  command: lspCommand,           // default pynescript-lsp
+  args: ['--parent-dir', scriptPath],
+  transport: TransportKind.stdio,
+  options: { env: { ...process.env, PYTHONPATH: scriptPath } },
+};
+```
+
+`scriptPath` is resolved to `../src/pynescript/langserver` relative to the extension for monorepo development. Release packaging typically expects `pynescript-lsp` on `PATH` (pip or Nuitka binary).
+
+### Build
+
+```bash
+cd vscode-extension
+npm ci
+npm run compile          # tsc → out/
+npx vsce package         # VSIX
+# or monorepo:
+make build-vscode
+```
+
+Requires Node 22 tooling as noted in project agents docs for packaging.
+
+## Invariants and edge cases
+
+1. **`lsp.enabled === false` short-circuits activate** — no client, no restart command registration beyond early return (commands not registered).
+2. **Binary vs module:** production users should install `pynescript[lsp]` or the Nuitka onefile and set `pynescript.lsp.command` if not on PATH.
+3. **Grammar works without LSP** — open a `.pine` file offline and still get TextMate highlighting.
+4. File watcher only lists `**/*.pine`; v5/v6 still activate via language id on open.
+
+## Worked example — extension development
+
+```bash
+pip install -e ".[lsp]"
+cd vscode-extension && npm ci && npm run compile
+# Launch Extension Development Host pointing at vscode-extension
+```
+
+Open a fixture `.pine` file; confirm Problems panel shows parse/lint diagnostics from the Python server.
+
+## Failure modes
+
+| Symptom | Cause |
+| --- | --- |
+| “Language client failed to start” | `pynescript-lsp` missing / wrong command |
+| No squiggles, highlighting OK | LSP disabled or server crash; check Output → Pine Script Language Server |
+| Restart does nothing | Client never started (`lsp.enabled` false) |
+
+## See also
+
+- [Clients](/pyne/docs/lsp/clients) — non-VS Code hosts
+- [Architecture](/pyne/docs/lsp/architecture)
+- [Nuitka build](/pyne/docs/devops/nuitka-build)
+- [Editors guide](/pyne/docs/enduser/guides/editors)

@@ -307,8 +307,22 @@ class ExpressionEvaluator:
         # visiting the name: hosts often inject scalar ``time``/``year`` into
         # context for series use, which would otherwise make ``year(ts)``
         # resolve to a non-callable int and soft-fail to na.
+        #
+        # User-defined functions/methods in context take precedence over bare
+        # ta.* aliases (v3/v4 mirrors like ``cmf``, ``rsi``, ``linreg``). Local
+        # ``cmf(len)`` / ``vwma(src, vol, period)`` must not route to ``ta.cmf``.
         if isinstance(node.func, ast.Name) and self._is_registered_builtin(node.func.id):
             args, kwargs = self._collect_call_args(node)
+            ctx = getattr(self, "context", None)
+            user = ctx.get(node.func.id) if isinstance(ctx, dict) else None
+            if callable(user):
+                try:
+                    return user(*args, **kwargs)
+                except TypeError:
+                    try:
+                        return user(*args)
+                    except TypeError:
+                        return None
             return self._call_builtin(node.func.id, args, kwargs=kwargs)
 
         func = self.visit(node.func)

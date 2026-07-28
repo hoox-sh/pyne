@@ -52,13 +52,17 @@ class Precedence(IntEnum):
     TEST = auto()  # '?', ':' - ternary conditional (lowest)
     OR = auto()  # 'or'
     AND = auto()  # 'and'
+    BITOR = auto()  # '|'
+    BITXOR = auto()  # '^'
+    BITAND = auto()  # '&'
     EQ = auto()  # '==', '!='
     INEQ = auto()  # '>', '<', '>=', '<='
     CMP = INEQ  # Alias for comparison
+    SHIFT = auto()  # '<<', '>>'
     EXPR = auto()
     ARITH = auto()  # '+', '-'
     TERM = auto()  # '*', '/', '%'
-    FACTOR = auto()  # unary '+', unary '-', 'not'
+    FACTOR = auto()  # unary '+', unary '-', 'not', '~'
     NOT = FACTOR  # Alias for unary not
     ATOM = auto()  # Highest precedence - literals, names, parenthesized exprs
 
@@ -370,6 +374,11 @@ class NodeUnparser(NodeVisitor):
         "Mult": "*",
         "Div": "/",
         "Mod": "%",
+        "BitAnd": "&",
+        "BitOr": "|",
+        "BitXor": "^",
+        "LShift": "<<",
+        "RShift": ">>",
     }
 
     binop_precedence: ClassVar = {
@@ -378,6 +387,11 @@ class NodeUnparser(NodeVisitor):
         "*": Precedence.TERM,
         "/": Precedence.TERM,
         "%": Precedence.TERM,
+        "&": Precedence.BITAND,
+        "|": Precedence.BITOR,
+        "^": Precedence.BITXOR,
+        "<<": Precedence.SHIFT,
+        ">>": Precedence.SHIFT,
     }
 
     def visit_BinOp(self, node: ast.BinOp):
@@ -396,12 +410,14 @@ class NodeUnparser(NodeVisitor):
         "Not": "not",
         "UAdd": "+",
         "USub": "-",
+        "Invert": "~",
     }
 
     unop_precedence: ClassVar = {
         "not": Precedence.NOT,
         "+": Precedence.FACTOR,
         "-": Precedence.FACTOR,
+        "~": Precedence.FACTOR,
     }
 
     def visit_UnaryOp(self, node: ast.UnaryOp):

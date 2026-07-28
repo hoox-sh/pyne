@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+from typing import Any
 
 # Hex color string lengths
 HEX_COLOR_SHORT_LEN = 6
@@ -94,18 +95,26 @@ class Color:
 
 
 def color_new(
-    color: int | str | Color | None,
+    color: int | str | Color | None = None,
     transp: int | None = None,
+    *extra: Any,
+    **kwargs: Any,
 ) -> Color | None:
     """Create a new color with optional transparency.
 
     Args:
         color: Color value as integer, hex string, Color, or ``na`` (None)
         transp: Transparency percentage (0-100, where 100 is fully transparent)
+        *extra/**kwargs: ignored (scripts sometimes leak plot() kwargs into color.new)
 
     Returns:
         Color object, or None when *color* is na (``color(na)`` → na)
     """
+    # Allow color= from kwargs when first positional omitted
+    if color is None and "color" in kwargs:
+        color = kwargs["color"]
+    if transp is None and "transp" in kwargs:
+        transp = kwargs["transp"]
     # Pine: color(na) / color.new(na, ...) yields na (no color)
     if color is None:
         return None

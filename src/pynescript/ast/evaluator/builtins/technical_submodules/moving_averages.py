@@ -14,6 +14,7 @@ from typing import Any
 from .core import BINARY
 from .core import QUATERNARY
 from .core import TERNARY
+from .core import UNARY
 from .core import TechnicalHelpers
 
 
@@ -23,11 +24,15 @@ class MovingAverageIndicators(TechnicalHelpers):
     def _builtin_ta_sma(self, args: list[Any]) -> list[float | None]:
         """Simple Moving Average."""
         series, period = self._expect_series(args, length=BINARY)
+        if self._use_incremental_ta():
+            return self._sma_inc_update(series, period)
         return self._finalize_series(self._sma(series, period))
 
     def _builtin_ta_ema(self, args: list[Any]) -> list[float | None]:
         """Exponential Moving Average."""
         series, period = self._expect_series(args, length=BINARY)
+        if self._use_incremental_ta():
+            return self._ema_inc_update(series, period)
         return self._finalize_series(self._ema(series, period))
 
     def _builtin_ta_wma(self, args: list[Any]) -> float | None:
@@ -38,6 +43,8 @@ class MovingAverageIndicators(TechnicalHelpers):
     def _builtin_ta_rma(self, args: list[Any]) -> list[float]:
         """Recursive Moving Average (Wilder's smoothing)."""
         series, period = self._expect_series(args, length=BINARY)
+        if self._use_incremental_ta():
+            return self._rma_inc_update(series, period)
         return self._finalize_series(self._rma(series, period))
 
     def _builtin_ta_hma(self, args: list[Any]) -> float | None:
@@ -46,7 +53,23 @@ class MovingAverageIndicators(TechnicalHelpers):
         return self._hma(series, period)
 
     def _builtin_ta_vwma(self, args: list[Any]) -> list[float | None]:
-        """Volume Weighted Moving Average."""
+        """Volume Weighted Moving Average.
+
+        Forms:
+        - ``ta.vwma(source, length)`` — volume from chart context
+        - ``ta.vwma(source, volume, length)`` — explicit volume (community form)
+        - ``ta.vwma(length)`` — source=close, volume from context
+        """
+        if len(args) == UNARY and self._is_period_like(args[0]):
+            series = self._context_series("close")
+            period = self._expect_int(args[0], "Period must be an integer")
+            return self._finalize_series(self._vwma(series, period))
+        if len(args) == TERNARY:
+            # Community / library form: (src, vol, period) — volume ignored if
+            # _vwma uses chart volume internally; still accept for arity.
+            series = self._as_series(args[0])
+            period = self._expect_int(args[2], "Period must be an integer")
+            return self._finalize_series(self._vwma(series, period))
         series, period = self._expect_series(args, length=BINARY)
         return self._finalize_series(self._vwma(series, period))
 

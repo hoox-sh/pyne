@@ -1,0 +1,297 @@
+---
+title: "Pro API Usage"
+description: "Call the PYNE Flask Pro API as a consumer: health, /run, /run/batch, chart preview, indicator preview, quick backtest, and auth."
+---
+
+# Pro API Usage
+
+## Abstract
+
+The Pro API is the **HTTP evaluate contract** for PYNE: POST Pine source plus OHLCV, receive plots, series, events, and drawings. Free-tier evaluate endpoints (`/run`, `/run/batch`) are usable without a key; Pro preview/backtest routes track usage via API keys. This page is for **callers** (AXIS, scripts, workers). Server lifecycle and auth design are under [API](/pyne/docs/api).
+
+## Conceptual model
+
+```mermaid
+flowchart LR
+  C[Client] -->|POST JSON| F[Flask app]
+  F --> V[schema validate]
+  V --> R[Runtime.run]
+  R --> J[JSON plots/series/events]
+  F --> PV[preview / backtest services]
+  PV --> PNG[base64 charts / metrics]
+  AK[API key middleware] --> PV
+```
+
+| Endpoint | Auth | Purpose |
+| --- | --- | --- |
+| `GET /` | none | Health + endpoint map |
+| `POST /run` | none (free) | Single script evaluate |
+| `POST /run/batch` | none (free) | ≤8 scripts, shared OHLCV |
+| `POST /preview/chart` | Pro usage | Chart thumbnail |
+| `POST /preview/indicator` | Pro usage | Indicator-style preview |
+| `POST /backtest/quick` | Pro usage | Equity / summary |
+| `POST /auth/create_key` | admin token | Mint key |
+| `GET /auth/usage` | Pro | Usage stats |
+| `POST /auth/validate` | body key | Validate key |
+
+Default local bind: `127.0.0.1:5002`.
+
+## Interface surface
+
+### Run the server (local)
+
+```bash
+pip install -r backend/requirements.txt
+export API_KEY_STORE="$PWD/.data/api_keys.json"
+python -m backend.app
+# or: make run
+```
+
+### Health
+
+```bash
+curl -s http://127.0.0.1:5002/ | python -m json.tool
+```
+
+### `POST /run`
+
+**Schema** (`RUN_SCHEMA`):
+
+| Field | Type | Required | Default |
+| --- | --- | --- | --- |
+| `script` | string | yes | |
+| `data` | list (OHLCV bars) | yes | |
+| `symbol` | string | no | `"CHART"` |
+| `data_source` | string | no | `""` |
+| `data_options` | object | no | `{}` |
+| `mode` | string | no | `"interpret"` |
+
+Bar objects are expected to carry at least open/high/low/close/time (volume optional depending on script). {/* TODO: verify required bar keys in Runtime */}
+
+```bash
+curl -s -X POST http://127.0.0.1:5002/run \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "script": "//@version=5\nindicator(\"Demo\")\nplot(ta.sma(close, 3))",
+    "symbol": "AAPL",
+    "mode": "interpret",
+    "data": [
+      {"time": 1, "open": 10, "high": 11, "low": 9, "close": 10.5, "volume": 1000},
+      {"time": 2, "open": 10.5, "high": 12, "low": 10, "close": 11.5, "volume": 1100},
+      {"time": 3, "open": 11.5, "high": 12.5, "low": 11, "close": 12, "volume": 1200}
+    ]
+  }'
+```
+
+Success shape (conceptual):
+
+```json
+{
+  "status": "success",
+  "plots": [],
+  "series": {},
+  "plot_meta": {},
+  "events": [],
+  "drawings": [],
+  "script_id": "...",
+  "run_id": "...",
+  "count": 3,
+  "mode": "interpret",
+  "data_source": "chart"
+}
+```
+
+Error codes include `NO_SCRIPT`, `NO_DATA`, `DATA_SOURCE_ERROR`, `EXECUTION_ERROR`, plus schema codes `INVALID_BODY`, `MISSING_FIELD`, `INVALID_FIELD`, `UNKNOWN_FIELDS`.
+
+### `POST /run/batch`
+
+Shared OHLCV, multiple scripts (max **8**). Envelope:
+
+```json
+{
+  "scripts": [
+    {"id": "sma", "script": "//@version=5\nindicator(\"s\")\nplot(ta.sma(close, 5))"},
+    {"id": "rsi", "script": "//@version=5\nindicator(\"r\")\nplot(ta.rsi(close, 14))"}
+  ],
+  "data": [/* bars */],
+  "symbol": "AAPL",
+  "mode": "interpret"
+}
+```
+
+String entries in `scripts` are accepted and auto-id’d as `script_0`, …. Per-script errors do not necessarily fail the whole HTTP status (route returns 200 with per-item status — verify against deployment).
+
+### `POST /preview/chart` (Pro)
+
+```json
+{
+  "script": "",
+  "data": {"close": [100, 101, 102], "volume": [1, 2, 3]},
+  "options": {
+    "type": "line",
+    "color": "#2196F3",
+    "width": 600,
+    "height": 300,
+    "show_volume": false
+  }
+}
+```
+
+Response includes base64 PNG `chart` + `meta`. Width/height clamped (e.g. max 1200×600).
+
+### `POST /preview/indicator` (Pro)
+
+```json
+{
+  "expression": "ta.sma(close, 20)",
+  "data": {"close": [/* ... */]},
+  "options": {}
+}
+```
+
+### `POST /backtest/quick` (Pro)
+
+```json
+{
+  "script": "//@version=5\nstrategy(\"x\")\n...",
+  "data": {},
+  "initial_capital": 10000.0,
+  "mock_data": true,
+  "mock_bars": 252
+}
+```
+
+### Auth helpers
+
+```bash
+# Mint key (admin)
+curl -s -X POST http://127.0.0.1:5002/auth/create_key \
+  -H "Content-Type: application/json" \
+  -H "X-Admin-Token: $ADMIN_TOKEN" \
+  -d '{"tier":"hobby"}'
+
+# Validate
+curl -s -X POST http://127.0.0.1:5002/auth/validate \
+  -H "Content-Type: application/json" \
+  -d '{"api_key":"pyn_..."}'
+```
+
+Send Pro requests with the key as required by middleware (typically `Authorization` bearer or documented header — {/* TODO: verify exact header name in auth.py */}).
+
+### Hosted SDK (if published)
+
+README sketches:
+
+```python
+from pynescript.api import PynescriptAPI  # {/* TODO: verify package path exists in your version */}
+
+api = PynescriptAPI(api_key="pyn_...")
+chart = api.preview.chart(data={"close": [...]}, options={"type": "line"})
+result = api.backtest.quick(script="...", mock_data=True, mock_bars=252)
+```
+
+If the client module is not present in your install, use raw HTTP as above.
+
+## Internals (repo paths)
+
+| Path | Role |
+| --- | --- |
+| `backend/app.py` | Routes `/`, `/run`, `/run/batch`, auth |
+| `backend/api/preview.py` | `/preview/*`, `/backtest/quick` |
+| `backend/middleware/schemas.py` | Strict request schemas |
+| `backend/middleware/auth.py` | Keys, usage, admin token |
+| `backend/runtime.py` | Evaluate bridge |
+| `backend/services/chart_renderer.py` | PNG rendering |
+| `backend/services/backtest.py` | Quick backtest + mock OHLCV |
+
+## Invariants & edge cases
+
+- **Max body 5 MiB** — oversized JSON → Flask 413.
+- **Strict schemas** — unknown fields rejected.
+- **CORS** — browser clients need listed origins; server-to-server without `Origin` is fine.
+- **`mode=compile`** — subset only; prefer `interpret` unless you know the script is in the compiled surface.
+- **Batch cap 8** — `TOO_MANY_SCRIPTS` if exceeded.
+- **Free `/run` is still CPU-expensive** — rate-limit at your reverse proxy in production.
+- AXIS multi-indicator UIs prefer `/run/batch` to share bar payloads.
+
+## Worked examples
+
+### Python `requests` client for `/run`
+
+```python
+import requests
+
+SCRIPT = """
+//@version=5
+indicator("SMA", overlay=true)
+plot(ta.sma(close, 5))
+"""
+
+bars = [
+    {"time": i, "open": 100 + i, "high": 101 + i, "low": 99 + i, "close": 100.5 + i, "volume": 1000}
+    for i in range(30)
+]
+
+r = requests.post(
+    "http://127.0.0.1:5002/run",
+    json={"script": SCRIPT, "data": bars, "symbol": "DEMO", "mode": "interpret"},
+    timeout=60,
+)
+r.raise_for_status()
+payload = r.json()
+assert payload["status"] == "success", payload
+print(payload["count"], list(payload.get("series", {})))
+```
+
+### Batch two indicators
+
+```python
+r = requests.post(
+    "http://127.0.0.1:5002/run/batch",
+    json={
+        "scripts": [
+            {"id": "sma", "script": "//@version=5\nindicator(\"s\")\nplot(ta.sma(close, 5))"},
+            {"id": "ema", "script": "//@version=5\nindicator(\"e\")\nplot(ta.ema(close, 5))"},
+        ],
+        "data": bars,
+    },
+    timeout=120,
+)
+print(r.json())
+```
+
+### Wire optional CCXT data source
+
+```json
+{
+  "script": "...",
+  "data": [/* chart bars */],
+  "symbol": "BTC/USDT",
+  "data_source": "ccxt",
+  "data_options": {"exchange": "binance"}
+}
+```
+
+Requires server environment with `ccxt` installed.
+
+## Failure modes
+
+| Code / HTTP | Meaning | Action |
+| --- | --- | --- |
+| 400 `MISSING_FIELD` | No `script`/`data` | Fix body |
+| 400 `UNKNOWN_FIELDS` | Extra keys | Strip undocumented fields |
+| 400 `DATA_SOURCE_ERROR` | Provider config | Fix `data_options` / deps |
+| 500 `EXECUTION_ERROR` | Runtime exception | Simplify script; check message |
+| 403 on create_key | `ADMIN_TOKEN` unset/wrong | Export token |
+| 413 | Body too large | Fewer bars / compress strategy |
+| CORS browser error | Origin not allowed | Update `ALLOWED_ORIGINS` |
+| Empty series | Script never plotted | Add `plot` / check declaration |
+
+## See also
+
+- [Evaluate scripts](/pyne/docs/enduser/guides/evaluate-scripts)
+- [Configuration](/pyne/docs/enduser/getting-started/configuration)
+- [API contract](/pyne/docs/api/contract)
+- [Auth and keys](/pyne/docs/api/auth-and-keys)
+- [AXIS](/axis/docs) — AXIS over `/run` results
+- [HOOX](/docs) — edge mesh after strategy events

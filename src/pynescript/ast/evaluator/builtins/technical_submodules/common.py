@@ -74,11 +74,19 @@ class CommonIndicators(TechnicalHelpers):
 
     def _builtin_ta_max(self, args: list[Any]) -> float | None:
         """Maximum value over a period (alias for ta.highest)."""
+        if len(args) == UNARY:
+            series = self._as_series(args[0])
+            valid = [v for v in series if v is not None and isinstance(v, (int, float))]
+            return max(valid) if valid else None
         series, period = self._expect_series(args, length=BINARY)
         return self._highest(series, period)
 
     def _builtin_ta_min(self, args: list[Any]) -> float | None:
         """Minimum value over a period (alias for ta.lowest)."""
+        if len(args) == UNARY:
+            series = self._as_series(args[0])
+            valid = [v for v in series if v is not None and isinstance(v, (int, float))]
+            return min(valid) if valid else None
         series, period = self._expect_series(args, length=BINARY)
         return self._lowest(series, period)
 
@@ -375,10 +383,33 @@ class CommonIndicators(TechnicalHelpers):
 
         return float(source) if source is not None else None
 
-    def _builtin_ta_pivot_point_levels(self, args: list[Any]) -> dict[str, float] | None:
-        """Calculate pivot point levels."""
+    def _builtin_ta_pivot_point_levels(self, args: list[Any]) -> Any:
+        """Calculate pivot point levels — delegates to BasicIndicators TV form."""
+        # Prefer BasicIndicators implementation via MRO when available.
+        # Keep a minimal local fallback for composition without BasicIndicators.
+        if args and isinstance(args[0], str):
+            highs = self._context_series("high")
+            lows = self._context_series("low")
+            closes = self._context_series("close")
+            if not highs or not lows or not closes:
+                return []
+            high = highs[-1]
+            low = lows[-1]
+            close = closes[-1]
+            if high is None or low is None or close is None:
+                return []
+            high_f, low_f, close_f = float(high), float(low), float(close)
+            pivot = (high_f + low_f + close_f) / 3.0
+            diff = high_f - low_f
+            r1 = 2 * pivot - low_f
+            s1 = 2 * pivot - high_f
+            r2 = pivot + diff
+            s2 = pivot - diff
+            r3 = high_f + 2 * (pivot - low_f)
+            s3 = low_f - 2 * (high_f - pivot)
+            return [pivot, r1, s1, r2, s2, r3, s3]
         if len(args) < 3:
-            msg = "ta.pivot_point_levels() requires at least 3 arguments: high, low, close"
+            msg = "ta.pivot_point_levels() requires type+anchor or high, low, close"
             self._error(msg)
 
         high = self._expect_number(args[0], "high must be numeric")
@@ -434,24 +465,36 @@ class CommonIndicators(TechnicalHelpers):
             return math.nan
         return -num_sum / den_sum
 
-    def _builtin_ta_dmi(self, args: list[Any]) -> tuple[float, float]:
-        """Directional Movement Index (returns +DI, -DI)."""
-        if len(args) != QUATERNARY:
-            self._error("ta.dmi takes high, low, close series and length")
+    def _builtin_ta_dmi(self, args: list[Any]) -> tuple[float, float, float]:
+        """Directional Movement Index — see BasicIndicators for TV 2-arg form.
 
-        highs = self._expect_list(args[0], "ta.dmi takes high, low, close series and length")
-        lows = self._expect_list(args[1], "ta.dmi takes high, low, close series and length")
-        closes = self._expect_list(args[2], "ta.dmi takes high, low, close series and length")
-        length = self._expect_int(args[3], "ta.dmi takes high, low, close series and length")
+        Returns ``(+DI, -DI, ADX)``.
+        """
+        import math
 
-        if length < 1:
+        if len(args) == BINARY:
+            di_len = self._expect_int(args[0], "ta.dmi diLength must be int")
+            adx_smooth = self._expect_int(args[1], "ta.dmi adxSmoothing must be int")
+            highs = self._context_series("high")
+            lows = self._context_series("low")
+            closes = self._context_series("close")
+        elif len(args) == QUATERNARY:
+            highs = self._expect_list(args[0], "ta.dmi takes high, low, close series and length")
+            lows = self._expect_list(args[1], "ta.dmi takes high, low, close series and length")
+            closes = self._expect_list(args[2], "ta.dmi takes high, low, close series and length")
+            di_len = self._expect_int(args[3], "ta.dmi takes high, low, close series and length")
+            adx_smooth = di_len
+        else:
+            self._error("ta.dmi takes (diLength, adxSmoothing) or (high, low, close, length)")
+            return math.nan, math.nan, math.nan
+
+        if di_len < 1:
             self._error("ta.dmi length must be positive")
-        if not (len(highs) == len(lows) == len(closes)):
-            self._error("ta.dmi series must have equal length")
+        if not highs or not (len(highs) == len(lows) == len(closes)):
+            return math.nan, math.nan, math.nan
 
-        plus_dm = []
-        minus_dm = []
-
+        plus_dm: list[float] = []
+        minus_dm: list[float] = []
         for i in range(len(highs)):
             if i == 0:
                 plus_dm.append(0.0)
@@ -465,13 +508,16 @@ class CommonIndicators(TechnicalHelpers):
                 minus_dm.append(low_diff if low_diff > high_diff and low_diff > 0 else 0.0)
 
         tr_series = self._tr(highs, lows, closes)
-        atr_series = self._rma(tr_series, length)
+        atr_series = self._rma(tr_series, di_len)
         atr_val = atr_series[-1] if atr_series else 1
-
-        plus_di = 100 * (sum(plus_dm[-length:]) / length) / atr_val if atr_val else 0
-        minus_di = 100 * (sum(minus_dm[-length:]) / length) / atr_val if atr_val else 0
-
-        return plus_di, minus_di
+        plus_rma = self._rma(plus_dm, di_len)
+        minus_rma = self._rma(minus_dm, di_len)
+        pd = plus_rma[-1] if plus_rma else 0.0
+        md = minus_rma[-1] if minus_rma else 0.0
+        plus_di = 100 * pd / atr_val if atr_val else 0.0
+        minus_di = 100 * md / atr_val if atr_val else 0.0
+        adx = float(self._adx(highs, lows, closes, adx_smooth) or 0)
+        return float(plus_di), float(minus_di), adx
 
     def _builtin_ta_supertrend(self, args: list[Any]) -> tuple[float, float, int]:
         """Supertrend indicator (returns final_lowerband, final_upperband, direction)."""
@@ -524,8 +570,26 @@ class CommonIndicators(TechnicalHelpers):
         return recent_high, recent_low, 1 if percent_change > threshold else direction
 
     def _builtin_ta_adx(self, args: list[Any]) -> float:
-        """Average Directional Index."""
-        msg = "ta.adx expects high, low, close, and length"
+        """Average Directional Index.
+
+        Forms:
+        - ``ta.adx(length)`` / ``ta.adx(diLength, adxSmoothing)`` — chart OHLC
+        - ``ta.adx(high, low, close, length)`` — legacy explicit series
+        """
+        msg = "ta.adx expects length, (diLength, adxSmoothing), or high/low/close/length"
+        if len(args) == UNARY and self._is_period_like(args[0]):
+            length = self._expect_int(args[0], msg)
+            highs = self._context_series("high")
+            lows = self._context_series("low")
+            closes = self._context_series("close")
+            return self._adx(highs, lows, closes, length)
+        if len(args) == BINARY and self._is_period_like(args[0]) and self._is_period_like(args[1]):
+            # diLength + adxSmoothing — use adxSmoothing for the final ADX period
+            adx_len = self._expect_int(args[1], msg)
+            highs = self._context_series("high")
+            lows = self._context_series("low")
+            closes = self._context_series("close")
+            return self._adx(highs, lows, closes, adx_len)
         if len(args) != QUATERNARY:
             self._error(msg)
         highs = self._expect_list(args[0], msg)

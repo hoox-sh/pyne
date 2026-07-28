@@ -1,0 +1,99 @@
+---
+title: "PYNE Documentation"
+description: "Open-source Pine Script™ evaluation framework — grammar, AST, bar-loop runtime, LSP, Pro API, and edge workers."
+---
+
+# PYNE Documentation
+
+**PYNE** is the open evaluation stack for TradingView® Pine Script™: a formal ANTLR4 grammar, an ASDL algebraic AST, a deterministic bar-loop evaluator, a Language Server Protocol surface, a Flask Pro API, and edge workers that share one evaluate contract.
+
+_Pine Script™ and TradingView® are trademarks of TradingView, Inc. This project is independent and not affiliated with or endorsed by TradingView, Inc._
+
+## Abstract
+
+Where closed hosts couple the language to a proprietary charting host, PYNE treats the language as an inspectable pipeline:
+
+```
+Source (.pine)
+  → ANTLR4 lexer/parser (resource grammar)
+  → ASDL AST (builder)
+  → bar-loop evaluator (builtins, strategy, drawings)
+  → plots / events / metrics
+```
+
+The same pipeline powers the desk CLI, the LSP binary, the Pro API, browser Pyodide (via AXIS), and Cloudflare® workers. Round-trip fidelity (`parse → unparse`) and a large builtin corpus are first-class invariants, not marketing claims — see [compatibility](/pyne/docs/reference/compatibility) and [implementation status](/pyne/docs/reference/implementation-status).
+
+## Product map
+
+| Surface | Role | Start here |
+| --- | --- | --- |
+| **Library + CLI** | Parse, lint, unparse, evaluate on your machine | [End User hub](/pyne/docs/enduser) |
+| **Language core** | Grammar, AST, visitors, type system | [Core](/pyne/docs/core) |
+| **Runtime** | Series model, builtins, strategy, compiler | [Runtime](/pyne/docs/runtime) |
+| **LSP** | Diagnostics, completion, hover, format | [LSP](/pyne/docs/lsp) |
+| **Pro API** | HTTP `/run`, preview, backtest | [API](/pyne/docs/api) |
+| **Ops** | CI, Docker, Nuitka, secrets, GCP | [DevOps](/pyne/docs/devops) |
+| **AXIS** (separate product) | Charting PWA AXIS | [AXIS docs](/axis/docs) |
+| **HOOX** | Edge trade mesh | [HOOX docs](/docs) |
+
+## Conceptual model
+
+```mermaid
+flowchart LR
+  S[Pine source] --> P[ANTLR4 parse]
+  P --> A[ASDL AST]
+  A --> E[Bar-loop evaluator]
+  A --> L[LSP features]
+  A --> U[Unparser]
+  E --> R[Plots / strategy events]
+  E --> API[Pro API / workers]
+  R --> AXIS[AXIS optional]
+  R --> HOOX[HOOX trade-worker]
+```
+
+**Invariant:** evaluation never requires a proprietary chart host. AXIS is an optional *AXIS*; HOOX is an optional *execution mesh*.
+
+## Tracks
+
+### End User
+
+Install the package, run the CLI, embed the library API, wire an editor, or call the Pro API as a consumer.
+
+→ [End User hub](/pyne/docs/enduser)
+
+### Core / Runtime / LSP / API
+
+Contributor and systems manuals: how the front-end, semantics, editor protocol, and HTTP bridge are built.
+
+### DevOps
+
+CI matrices, Fernet metadata encryption, Nuitka LSP binaries, containers, Cloud Build.
+
+→ [DevOps hub](/pyne/docs/devops)
+
+### Reference
+
+Compatibility guarantees, missing surface, numerical validation, TypeScript `pine-worker` parity tool.
+
+## Sister surfaces
+
+- **pyne-worker** (separate repo) — Python Cloudflare® Worker for production `/run`.
+- **pine-worker** (this monorepo, `pine-worker/`) — TypeScript port + converter; see [pine-worker](/pyne/docs/pine-worker).
+- **AXIS** (`frontend/`) — installable PWA; documented at [hoox.sh/axis/docs](/axis/docs).
+
+## Offline & agent exports
+
+Auto-generated like HOOX manuals (`bun run docs:exports`):
+
+| Kind | Path |
+| --- | --- |
+| Full-corpus LLM pack | [`llm.txt`](/pyne/docs/llm.txt) |
+| LLM site map ([llmstxt.org](https://llmstxt.org/)) | [`llms.txt`](/pyne/docs/llms.txt) |
+| Track PDFs (A4) | [`/exports/pyne-*-manual.pdf`](/exports/manifest.json) |
+
+## See also
+
+- [Installation](/pyne/docs/enduser/getting-started/installation)
+- [Quick start](/pyne/docs/enduser/getting-started/quick-start)
+- [Grammar pipeline](/pyne/docs/core/grammar-antlr4)
+- [Evaluate contract](/pyne/docs/api/contract)

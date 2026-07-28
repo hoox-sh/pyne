@@ -1,0 +1,117 @@
+---
+title: "Troubleshooting"
+description: "Diagnose empty charts, CORS, engine failures, Pyodide assets, streams, storage, and PWA cache issues in AXIS."
+---
+
+# Troubleshooting
+
+Systematic triage for AXIS. Prefer logs drawer + Network tab + status bar before reinstalling.
+
+## Abstract
+
+Failure domains:
+
+1. **Data plane** — source / stream  
+2. **Calc plane** — engine / endpoint / Pyodide assets  
+3. **Shell plane** — store, SW cache, plugins  
+4. **Storage plane** — library backends  
+
+## Decision tree
+
+```mermaid
+flowchart TD
+  A[Problem] --> B{Chart empty?}
+  B -->|yes| C[Source / Load / CORS / symbol]
+  B -->|no| D{Run fails?}
+  D -->|yes| E[Engine endpoint / Pyodide / script error]
+  D -->|no| F{Live dead?}
+  F -->|yes| G[Stream id / WS / none]
+  F -->|no| H{Library fail?}
+  H -->|yes| I[Storage auth / IDB]
+  H -->|no| J[UI / SW / plugin]
+```
+
+## Data plane
+
+| Symptom | Checks | Fix |
+| --- | --- | --- |
+| Infinite loading | Network klines; status message | Correct symbol; try `mock-walk` |
+| CORS on REST | Binance/public APIs usually OK; custom sources may fail | Proxy plugin or Worker |
+| CSV no bars | Parse error in status | Fix columns/time; re-upload |
+| Wrong interval bars | Store interval vs request | Settings interval + Load |
+
+## Calc plane — server engine
+
+| Symptom | Checks | Fix |
+| --- | --- | --- |
+| Failed fetch `/run` | Endpoint, CORS preflight | `ALLOWED_ORIGINS`; Settings probe |
+| HTTP 4xx/5xx | Response JSON `message` | Fix script; backend logs |
+| Timeout | Bar count × complexity | Shorter history; raise server resources |
+| Plots missing | `status: success` but empty series | Script has no plots; check Raw |
+
+Probe: Settings → Test endpoint (health GET).
+
+## Calc plane — Pyodide
+
+| Symptom | Checks | Fix |
+| --- | --- | --- |
+| HTML instead of wheel | Content-Type / ZIP magic | Deploy `public/vendor`, `public/pyodide` into `dist/` |
+| Slow first run | Cold runtime | Wait; `preloadPyodide` on idle |
+| Offline fail first visit | Assets never cached | One online warm-up |
+| Interpreter error | Results Raw / logs | Language issue → [PYNE](/pyne/docs) |
+
+## Live streams
+
+| Symptom | Checks | Fix |
+| --- | --- | --- |
+| Live toggle no effect | Stream = `none`? | Select `binance-ws` or `mock-poll` |
+| WS errors | Console; venue symbol format | Uppercase `BTCUSDT` style |
+| Reconnect loop | Network flap | Logs drawer; stop/start Live |
+| DO stream | Worker session query | Worker docs; example plugin |
+
+## Storage / library
+
+| Symptom | Checks | Fix |
+| --- | --- | --- |
+| Save no-op | Active storage; errors in panel | Read status line |
+| Cloud 401 | Bearer key | Settings/library key field |
+| Git denied | Token scopes | PAT permissions |
+| Lost local scripts | Cleared site data | Import JSON backup |
+
+## Shell / PWA
+
+| Symptom | Checks | Fix |
+| --- | --- | --- |
+| Old UI after deploy | Service Worker | Unregister SW; hard reload |
+| State weird | `localStorage['pynescript.axis.v1']` | Export scripts; clear key; reload |
+| Plugin vanished | URL install list | Re-install URL |
+| Theme wrong | `data-theme` | Toggle theme once |
+
+## Logging
+
+- **System logs** drawer: boot, pyodide ready, live re-run errors (`appendLog`)  
+- **Status bar**: ready / loading / running / error + short message  
+- **Results → Raw**: last engine payload  
+
+## Security-related
+
+- Poisoned localStorage: app should tolerate parse failures (see security tests)  
+- Plugin URL schemes restricted  
+- Never paste production PATs into shared screen recordings  
+
+## Internals for deeper digs
+
+| Area | Path |
+| --- | --- |
+| Load history | `data/load-symbol.ts` |
+| Run pipeline | `indicators/runner.ts` |
+| Streams | `streams/multiplex.ts` |
+| Engines | `engines/catalog.ts` |
+| Store | `store/index.ts` |
+
+## See also
+
+- [Installation](/axis/docs/enduser/getting-started/installation)
+- [FAQ](/axis/docs/enduser/reference/faq)
+- [DevOps](/axis/docs/devops)
+- [Worker](/axis/docs/worker)

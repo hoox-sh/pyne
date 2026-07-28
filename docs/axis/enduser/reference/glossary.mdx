@@ -1,0 +1,85 @@
+---
+title: "Glossary"
+description: "AXIS end-user glossary: axes, AXIS, plugins, engines, storage keys, and result terms."
+---
+
+# Glossary
+
+Terms as used in AXIS documentation and UI. Language runtime terms → [PYNE](/pyne/docs).
+
+## Product
+
+| Term | Definition |
+| --- | --- |
+| **AXIS** | Charting PWA product (formerly SuperChart Lite): chart, editor, panels, and store—not the language engine. |
+| **UI track** | Docs track for presentation surfaces (chart host, editor, shell, store) under `/axis/docs/ui`. |
+| **PYNE** | Pine Script™ toolchain (parse/eval); engines embed or call it. |
+| **Active set** | Tuple `{ source, stream, engine, storage }` currently selected. |
+| **Compose / recipe** | A purposeful active set for a workflow (offline lab, desk, edge, …). |
+
+## Plugin kinds
+
+| Term | Definition |
+| --- | --- |
+| **Source** | Historical OHLCV provider (`fetchHistorical`). |
+| **Stream** | Live bar/tick push (`start` → dispose). |
+| **Engine** | Calculator (`isReady`, `run`). |
+| **Storage** | Script library backend (`list`/`read`/`write`/`remove`). |
+| **Component** | Reserved UI slot plugins (phase 2). |
+| **Registry** | In-memory catalog of plugins by kind (`PluginRegistry`). |
+| **configSchema** | Declarative field schema for Settings / plugin config UI. |
+| **Capabilities** | Flags: offline, needsAuth, needsNetwork, needsProxy. |
+
+## Engines & backends
+
+| Term | Definition |
+| --- | --- |
+| **server engine** | `POST {endpoint}/run` with script + bars. |
+| **pyodide engine** | In-browser Python + pynescript wheels. |
+| **Pro API / Flask** | Local Python backend (`make run`, typically `:5002`). |
+| **Worker** | Cloudflare Worker data plane for AXIS. |
+| **Endpoint** | Base URL the server engine (and often cloud storage) calls. |
+
+## Data & chart
+
+| Term | Definition |
+| --- | --- |
+| **Bar** | `{ time, open, high, low, close, volume? }` |
+| **Pane** | Chart strip: price, volume, indicator, equity. |
+| **Overlay** | Plot drawn on price pane (`meta.overlay !== false`). |
+| **User drawing** | Interactive annotation tool geometry. |
+| **Script drawing** | Engine-emitted line/label/box objects. |
+| **Marker** | Trade/event marker on series. |
+| **Watchlist** | Side panel of symbols + quote refresh. |
+
+## Results
+
+| Term | Definition |
+| --- | --- |
+| **lastRun** | In-memory last engine payload. |
+| **Event** | Strategy/order/plot-adjacent event from engine. |
+| **Closed trade** | Paired entry/exit with PnL in the viewer. |
+| **Equity curve** | Cumulative PnL series derived from trades/events. |
+
+## Persistence
+
+| Term | Definition |
+| --- | --- |
+| **`pynescript.axis.v1`** | Primary localStorage app state key. |
+| **`pynescript.superchart.*`** | Legacy keys; migrated on read. |
+| **pluginsConfig** | Per-plugin configuration map. |
+| **Library export** | JSON dump of storage documents. |
+
+## Infrastructure names
+
+| Term | Definition |
+| --- | --- |
+| **`pynescript-superchart`** | Frozen CF Wrangler/Pages project id. |
+| **`pynescript-axis-worker`** | Health JSON service identity. |
+| **void** | Brand pack / dark chrome aesthetic for AXIS docs/UI. |
+
+## See also
+
+- [FAQ](/axis/docs/enduser/reference/faq)
+- [State namespaces](/axis/docs/architecture/state-namespaces)
+- [Architecture overview](/axis/docs/architecture/overview)

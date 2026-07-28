@@ -38,7 +38,7 @@ class PinescriptLexerBase(Lexer):
     def __init__(self, input: InputStream, output: TextIO = sys.stdout):
         super().__init__(input, output)
 
-        # operators that are followed by terms
+        # operators that are followed by terms (line-join after these)
         self._operators = {
             self.AND,
             self.COLON,
@@ -63,6 +63,13 @@ class PinescriptLexerBase(Lexer):
             self.SLASHEQUAL,
             self.STAR,
             self.STAREQUAL,
+            # bitwise / shift (Pine v5+)
+            self.AMP,
+            self.PIPE,
+            self.CARET,
+            self.LSHIFT,
+            self.RSHIFT,
+            self.TILDE,
         }
 
         # indent specific parameters

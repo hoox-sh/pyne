@@ -38,6 +38,8 @@ class VolatilityIndicators(TechnicalHelpers):
             highs = self._context_series("high")
             lows = self._context_series("low")
             closes = self._context_series("close")
+            if self._use_incremental_ta():
+                return self._atr_inc_update(highs, lows, closes, length)
             return self._finalize_series(self._atr(highs, lows, closes, length))
         msg = "ta.atr expects length, or high, low, close, and length"
         if len(args) != QUATERNARY:
@@ -46,6 +48,8 @@ class VolatilityIndicators(TechnicalHelpers):
         lows = self._expect_list(args[1], msg)
         closes = self._expect_list(args[2], msg)
         length = self._expect_int(args[3], msg)
+        if self._use_incremental_ta():
+            return self._atr_inc_update(highs, lows, closes, length)
         return self._finalize_series(self._atr(highs, lows, closes, length))
 
     def _builtin_ta_tr(self, args: list[Any]) -> Any:
@@ -67,13 +71,27 @@ class VolatilityIndicators(TechnicalHelpers):
         self,
         args: list[Any],
     ) -> tuple[float | None, float | None, float | None]:
-        """Bollinger Bands."""
+        """Bollinger Bands.
+
+        Forms:
+        - ``ta.bb(length, mult)`` — source defaults to close
+        - ``ta.bb(source, length, mult)``
+        """
         msg = "ta.bb expects series, length, and multiplier"
-        if len(args) != TERNARY:
+        if len(args) == BINARY and self._is_period_like(args[0]):
+            series = self._context_series("close")
+            length = self._expect_int(args[0], msg)
+            multiplier = args[1]
+        elif len(args) == TERNARY:
+            series = self._as_series(args[0]) if hasattr(self, "_as_series") else self._expect_list(args[0], msg)
+            length = self._expect_int(args[1], msg)
+            multiplier = args[2]
+        else:
             self._error(msg)
-        series = self._as_series(args[0]) if hasattr(self, "_as_series") else self._expect_list(args[0], msg)
-        length = self._expect_int(args[1], msg)
-        multiplier = args[2]
+            return None, None, None
+        # Unwrap series/wrappers for mult
+        if hasattr(multiplier, "current") and not isinstance(multiplier, (list, tuple, str, bytes, int, float)):
+            multiplier = multiplier.current
         if not isinstance(multiplier, int | float):
             self._error("ta.bb expects numeric multiplier")
         return self._bollinger_bands(series, length, multiplier)
@@ -81,10 +99,10 @@ class VolatilityIndicators(TechnicalHelpers):
     def _builtin_ta_bbw(self, args: list[Any]) -> float | None:
         """Bollinger Band Width: (upper - lower) / middle.
 
-        ta.bbw(source, length, mult)
+        Forms: ``ta.bbw(source, length, mult)`` or ``ta.bbw(length, mult)``.
         """
         msg = "ta.bbw expects series, length, and multiplier"
-        if len(args) != TERNARY:
+        if len(args) not in {BINARY, TERNARY}:
             self._error(msg)
         middle, upper, lower = self._builtin_ta_bb(args)
         if middle is None or upper is None or lower is None:
@@ -185,38 +203,66 @@ class VolatilityIndicators(TechnicalHelpers):
         return num / (denx * deny)
 
     def _builtin_ta_kc(self, args: list[Any]) -> tuple[float, float, float]:
-        """Keltner Channels."""
-        if len(args) not in {TERNARY, QUATERNARY}:
-            self._error("ta.kc takes high, low, close series, length, and optional offset_percent")
+        """Keltner Channels.
 
-        highs = self._expect_list(args[0], "ta.kc takes high, low, close series, length")
-        lows = self._expect_list(args[1], "ta.kc takes high, low, close series, length")
-        closes = self._expect_list(args[2], "ta.kc takes high, low, close series, length")
-        length = self._expect_int(args[3], "ta.kc length must be integer") if len(args) > TERNARY else 0
-        offset_percent = 1.0 if len(args) < QUINARY else (args[4] if isinstance(args[4], (int, float)) else 1.0)
+        TradingView: ``ta.kc(series, length, mult) → [middle, upper, lower]``
+        using ATR of chart H/L/C. Legacy 4-arg ``(high, low, close, length)``
+        still accepted (mult defaults to 1).
+        """
+        mult = 1.0
+        if len(args) == TERNARY and self._is_period_like(args[1]):
+            # TV form: source, length, mult
+            closes = self._as_series(args[0])
+            length = self._expect_int(args[1], "ta.kc length must be integer")
+            m = args[2]
+            current = getattr(m, "current", None)
+            if current is not None and not isinstance(m, (list, tuple, str, bytes, int, float)):
+                m = current
+            if isinstance(m, (int, float)) and not isinstance(m, bool):
+                mult = float(m)
+            highs = self._context_series("high") or closes
+            lows = self._context_series("low") or closes
+        elif len(args) in {TERNARY, QUATERNARY} and not self._is_period_like(args[1]):
+            # Legacy: high, low, close [, length]
+            highs = self._expect_list(args[0], "ta.kc takes high, low, close series, length")
+            lows = self._expect_list(args[1], "ta.kc takes high, low, close series, length")
+            closes = self._expect_list(args[2], "ta.kc takes high, low, close series, length")
+            length = (
+                self._expect_int(args[3], "ta.kc length must be integer")
+                if len(args) > TERNARY
+                else 20
+            )
+        elif len(args) >= QUATERNARY:
+            highs = self._expect_list(args[0], "ta.kc takes high, low, close series, length")
+            lows = self._expect_list(args[1], "ta.kc takes high, low, close series, length")
+            closes = self._expect_list(args[2], "ta.kc takes high, low, close series, length")
+            length = self._expect_int(args[3], "ta.kc length must be integer")
+            if len(args) > QUATERNARY and isinstance(args[4], (int, float)):
+                mult = float(args[4])
+        else:
+            self._error("ta.kc takes (series, length, mult) or (high, low, close, length)")
+            return math.nan, math.nan, math.nan
 
         if length < 1:
             self._error("ta.kc length must be positive")
 
-        # Middle line = EMA of closes
+        # Align series lengths on the trailing edge
+        n = min(len(highs), len(lows), len(closes)) if highs and lows and closes else 0
+        if n == 0:
+            return math.nan, math.nan, math.nan
+        highs, lows, closes = highs[-n:], lows[-n:], closes[-n:]
+
         ema_vals = self._ema(closes, length)
         middle = ema_vals[-1] if ema_vals else math.nan
-
-        # ATR for channel width
         atr_series = self._atr(highs, lows, closes, length)
         atr_val = atr_series[-1] if atr_series else 0
-
-        channel_width = atr_val * offset_percent
-        upper = middle + channel_width if middle is not None else math.nan
-        lower = middle - channel_width if middle is not None else math.nan
-
+        channel_width = (atr_val or 0) * mult
+        upper = middle + channel_width if middle is not None and middle == middle else math.nan
+        lower = middle - channel_width if middle is not None and middle == middle else math.nan
         return middle, upper, lower
 
     def _builtin_ta_kcw(self, args: list[Any]) -> float:
         """Keltner Channels Width."""
-        if len(args) not in {TERNARY, QUATERNARY}:
-            self._error("ta.kcw takes high, low, close series, length, and optional offset_percent")
-
         _, upper, lower = self._builtin_ta_kc(args)
         if math.isnan(upper) or math.isnan(lower):
             return math.nan

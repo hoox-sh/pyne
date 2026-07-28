@@ -49,8 +49,9 @@ module Pinescript
      bool_op = And | Or
 
      operator = Add | Sub | Mult | Div | Mod
+              | BitAnd | BitOr | BitXor | LShift | RShift
 
-     unary_op = Not | UAdd | USub
+     unary_op = Not | UAdd | USub | Invert
 
      compare_op = Eq | NotEq | Lt | LtE | Gt | GtE
 

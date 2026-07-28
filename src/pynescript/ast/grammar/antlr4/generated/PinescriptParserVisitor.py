@@ -299,6 +299,21 @@ class PinescriptParserVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
+    # Visit a parse tree produced by PinescriptParser#bitwise_or_expression.
+    def visitBitwise_or_expression(self, ctx:PinescriptParser.Bitwise_or_expressionContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by PinescriptParser#bitwise_xor_expression.
+    def visitBitwise_xor_expression(self, ctx:PinescriptParser.Bitwise_xor_expressionContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by PinescriptParser#bitwise_and_expression.
+    def visitBitwise_and_expression(self, ctx:PinescriptParser.Bitwise_and_expressionContext):
+        return self.visitChildren(ctx)
+
+
     # Visit a parse tree produced by PinescriptParser#equality_expression.
     def visitEquality_expression(self, ctx:PinescriptParser.Equality_expressionContext):
         return self.visitChildren(ctx)
@@ -346,6 +361,16 @@ class PinescriptParserVisitor(ParseTreeVisitor):
 
     # Visit a parse tree produced by PinescriptParser#greater_than_trailing_pair.
     def visitGreater_than_trailing_pair(self, ctx:PinescriptParser.Greater_than_trailing_pairContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by PinescriptParser#shift_expression.
+    def visitShift_expression(self, ctx:PinescriptParser.Shift_expressionContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by PinescriptParser#shift_op.
+    def visitShift_op(self, ctx:PinescriptParser.Shift_opContext):
         return self.visitChildren(ctx)
 
 

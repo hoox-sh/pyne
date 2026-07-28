@@ -56,84 +56,93 @@ def _overlay_default(script_type: str, kwargs: dict[str, Any]) -> bool:
     return script_type == "strategy"
 
 
-def indicator(title: str = "", description: str = "", **kwargs: Any) -> ScriptDeclaration:
-    """Declare an indicator script.
+def _split_declaration_args(
+    args: tuple[Any, ...],
+    kwargs: dict[str, Any],
+    script_type: str,
+) -> tuple[str, str, dict[str, Any]]:
+    """Normalize Pine positional forms.
 
-    Args:
-        title: Full title of the indicator
-        description: Description of the indicator
-        **kwargs: Additional parameters accepted by PineScript (v6: behind_chart, force_overlay, etc.)
+    Supported shapes (TV-compatible)::
 
-    Returns:
-        ScriptDeclaration object with script metadata
+        indicator("Title")
+        indicator("Title", "Short")
+        indicator("Title", "Short", true)           # 3rd pos = overlay
+        indicator("Title", "Short", true, format=…) # extra positionals ignored
+        strategy("Title", "Short", overlay=true, pyramiding=0, …)
     """
+    title = ""
+    description = ""
+    merged = dict(kwargs)
+    if len(args) >= 1 and args[0] is not None:
+        title = str(args[0])
+    if len(args) >= 2 and args[1] is not None:
+        # shorttitle is often passed as 2nd positional; store as description too
+        description = str(args[1])
+        merged.setdefault("shorttitle", args[1])
+    if len(args) >= 3 and "overlay" not in merged:
+        # 3rd positional is historically overlay (bool)
+        merged["overlay"] = bool(args[2])
+    # Further positionals (format, precision, …) are rare; map common 4th=precision
+    if len(args) >= 4 and "precision" not in merged and isinstance(args[3], (int, float)):
+        merged["precision"] = int(args[3])
+    return title, description, merged
+
+
+def indicator(*args: Any, **kwargs: Any) -> ScriptDeclaration:
+    """Declare an indicator script (accepts multi-positional TV form)."""
+    title, description, kw = _split_declaration_args(args, kwargs, "indicator")
     return ScriptDeclaration(
         script_type="indicator",
-        title=str(title),
-        description=str(description),
-        overlay=_overlay_default("indicator", kwargs),
-        behind_chart=bool(kwargs.get("behind_chart", False)),
-        force_overlay=bool(kwargs.get("force_overlay", False)),
-        dynamic_requests=kwargs.get("dynamic_requests", True),
-        max_bars_back=kwargs.get("max_bars_back"),
-        max_lines_count=kwargs.get("max_lines_count"),
-        max_labels_count=kwargs.get("max_labels_count"),
-        max_boxes_count=kwargs.get("max_boxes_count"),
-        kwargs=dict(kwargs),
+        title=title,
+        description=description,
+        overlay=_overlay_default("indicator", kw),
+        behind_chart=bool(kw.get("behind_chart", False)),
+        force_overlay=bool(kw.get("force_overlay", False)),
+        dynamic_requests=kw.get("dynamic_requests", True),
+        max_bars_back=kw.get("max_bars_back"),
+        max_lines_count=kw.get("max_lines_count"),
+        max_labels_count=kw.get("max_labels_count"),
+        max_boxes_count=kw.get("max_boxes_count"),
+        kwargs=dict(kw),
     )
 
 
-def strategy(title: str = "", description: str = "", **kwargs: Any) -> ScriptDeclaration:
-    """Declare a strategy script.
-
-    Args:
-        title: Full title of the strategy
-        description: Description of the strategy
-        **kwargs: Additional strategy parameters (pyramiding, commission_*, slippage, etc.)
-
-    Returns:
-        ScriptDeclaration object with script metadata
-    """
+def strategy(*args: Any, **kwargs: Any) -> ScriptDeclaration:
+    """Declare a strategy script (accepts multi-positional TV form)."""
+    title, description, kw = _split_declaration_args(args, kwargs, "strategy")
     return ScriptDeclaration(
         script_type="strategy",
-        title=str(title),
-        description=str(description),
-        overlay=_overlay_default("strategy", kwargs),
-        behind_chart=bool(kwargs.get("behind_chart", False)),
-        force_overlay=bool(kwargs.get("force_overlay", False)),
-        dynamic_requests=kwargs.get("dynamic_requests", True),
-        max_bars_back=kwargs.get("max_bars_back"),
-        max_lines_count=kwargs.get("max_lines_count"),
-        max_labels_count=kwargs.get("max_labels_count"),
-        max_boxes_count=kwargs.get("max_boxes_count"),
-        kwargs=dict(kwargs),
+        title=title,
+        description=description,
+        overlay=_overlay_default("strategy", kw),
+        behind_chart=bool(kw.get("behind_chart", False)),
+        force_overlay=bool(kw.get("force_overlay", False)),
+        dynamic_requests=kw.get("dynamic_requests", True),
+        max_bars_back=kw.get("max_bars_back"),
+        max_lines_count=kw.get("max_lines_count"),
+        max_labels_count=kw.get("max_labels_count"),
+        max_boxes_count=kw.get("max_boxes_count"),
+        kwargs=dict(kw),
     )
 
 
-def library(title: str = "", description: str = "", **kwargs: Any) -> ScriptDeclaration:
-    """Declare a library script.
-
-    Args:
-        title: Full title of the library
-        description: Description of the library
-        **kwargs: Additional parameters accepted by PineScript (v6: behind_chart etc.)
-
-    Returns:
-        ScriptDeclaration object with script metadata
-    """
+def library(*args: Any, **kwargs: Any) -> ScriptDeclaration:
+    """Declare a library script."""
+    title, description, kw = _split_declaration_args(args, kwargs, "library")
     return ScriptDeclaration(
         script_type="library",
-        title=str(title),
-        description=str(description),
-        overlay=_overlay_default("library", kwargs),
-        behind_chart=bool(kwargs.get("behind_chart", False)),
-        force_overlay=bool(kwargs.get("force_overlay", False)),
-        dynamic_requests=kwargs.get("dynamic_requests", True),
-        max_bars_back=kwargs.get("max_bars_back"),
-        max_lines_count=kwargs.get("max_lines_count"),
-        max_labels_count=kwargs.get("max_labels_count"),
-        max_boxes_count=kwargs.get("max_boxes_count"),
-        kwargs=dict(kwargs),
+        title=title,
+        description=description,
+        overlay=_overlay_default("library", kw),
+        behind_chart=bool(kw.get("behind_chart", False)),
+        force_overlay=bool(kw.get("force_overlay", False)),
+        dynamic_requests=kw.get("dynamic_requests", True),
+        max_bars_back=kw.get("max_bars_back"),
+        max_lines_count=kw.get("max_lines_count"),
+        max_labels_count=kw.get("max_labels_count"),
+        max_boxes_count=kw.get("max_boxes_count"),
+        kwargs=dict(kw),
     )
 
 

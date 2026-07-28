@@ -1,0 +1,119 @@
+---
+title: "Implementation status"
+description: "Checklist-style status of Pine Script™ series, strategy, builtins, and language constructs in PYNE."
+---
+
+# Implementation status
+
+## Abstract
+
+This annex summarizes the **feature matrix** maintained in `docs/pinescript_implementation_status.md`: a large ✅/❌/🔄 inventory of series variables, strategy fields, and related surfaces. It is the human-readable twin of the [full surface inventory](/pyne/docs/reference/pine-v6-surface) (dispatch-oriented, auto-countable).
+
+Status here is **implementation judgment**, not marketing completion percentage.
+
+## Conceptual model
+
+```mermaid
+flowchart LR
+  TV[TradingView v6 surface] --> INV[Inventory docs]
+  INV --> DISP[Evaluator dispatch map]
+  INV --> CTX[Default context series]
+  INV --> AST[Grammar / ASDL]
+  DISP --> TESTS[pytest]
+  CTX --> TESTS
+  AST --> TESTS
+```
+
+## Interface surface
+
+### Legend
+
+| Mark | Meaning |
+| --- | --- |
+| ✅ | Implemented and usable |
+| 🔄 | Partial / stub / mock |
+| ❌ | Missing |
+| ⚙️ | By design out of scope |
+| ⬜ | Editor/platform N/A |
+
+### Component rollup
+
+| Component | Posture (2026-07 consolidation) |
+| --- | --- |
+| Parser (ANTLR4) | Complete for v5/v6 core + recent multiline / export work |
+| Evaluator | Full bar-loop with var/varip, reassignment |
+| Builtins | 224+ historical count; **640 callables** on live dispatch inventory (2026-07-25) |
+| TA | 150+ `ta.*` keys in inventory |
+| Collections | array / matrix / map complete on exercised surface |
+| Strategy events | `StrategyEvent`, parity corpus, risk enforcement |
+| Drawing / plot | Registry effects; AXIS is external |
+| Linter | Present (`pynescript lint`) |
+| Data providers | Mock, Yahoo, AlphaVantage, CCXT + datafeed wiring |
+| LSP | Diagnostics, completion, hover, format, symbols, defs/refs, … |
+| pine-worker | Colocated TS port (skeleton → growing) |
+| Numba compile path | MVP + object-mode fallback |
+
+### Series & context (illustrative ✅ families)
+
+Fully listed in the source doc; representative groups:
+
+- **Price:** `open`/`high`/`low`/`close`/`volume`/`hl2`/`ohlc4`/…
+- **Time:** `year`…`second`, `time_close`, `timenow`, …
+- **Barstate / chart:** `bar_index`, `barstate.*`, `last_bar_*`
+- **syminfo.*** ticker, mintick, session, fundamentals fields tracked as ✅
+- **session.*** / **dividends.*** / **earnings.*** context fields tracked as ✅
+- **strategy.*** position, trades, equity, risk, OCA, commission constants
+
+### July 2026 enhancements called out in source
+
+- Full strategy event emission with bar context
+- `strategy.long` / `strategy.short` constants
+- `var` / `varip` + `:=` reassignment
+- Parity fixtures for cross-implementation validation
+- Risk helpers and performance series expansion
+
+## Internals
+
+| Path | Role |
+| --- | --- |
+| `docs/pinescript_implementation_status.md` | Exhaustive checklist (do not paste wholesale here) |
+| `docs/pine_v6_full_surface_inventory.md` | Dispatch-centric inventory |
+| `src/pynescript/ast/evaluator/builtins/` | Per-namespace implementations |
+| `scripts/regenerate_inventory_summary.py` | Inventory regeneration aid |
+
+## Invariants & edge cases
+
+1. **Checklist lag:** a ✅ may trail a commit by a day; prefer tests when shipping.
+2. **Context fields may be defaults** rather than live exchange feeds.
+3. **Partial stubs still appear callable** — inventory marks 🔄 when docstrings/heuristics say mock.
+4. **Namespace counts ≠ quality.** Many drawing setters are thin mutators; TA is heavier.
+
+## Worked examples
+
+### Smoke a strategy series field
+
+```python
+from pynescript.ast.helper import parse
+# evaluate via Runtime / library API with OHLCV — see runtime docs
+```
+
+### Regenerate inventory summary
+
+```bash
+python scripts/regenerate_inventory_summary.py
+```
+
+## Failure modes
+
+| Symptom | Action |
+| --- | --- |
+| Doc says ✅, runtime AttributeError | File bug; fix dispatcher or demote status |
+| Partial mock accepted silently | Assert data_feed wiring in tests |
+| Status doc conflicts inventory | Prefer live dispatch + tests |
+
+## See also
+
+- [Compatibility](/pyne/docs/reference/compatibility)
+- [Missing features](/pyne/docs/reference/missing-features)
+- [Pine v6 surface](/pyne/docs/reference/pine-v6-surface)
+- [Roadmap](/pyne/docs/reference/roadmap)

@@ -1,0 +1,87 @@
+---
+title: "Semantic Tokens"
+description: "textDocument/semanticTokens/full — capability, legend, and current stub implementation."
+---
+
+# Semantic Tokens
+
+## Abstract
+
+Semantic tokens let the server paint identifiers with roles richer than TextMate scopes (e.g. distinguish library functions from user variables). PYNE **advertises** a full semantic-tokens provider with a standard legend, and implements `textDocument/semanticTokens/full` as a **safe stub**: parse succeeds, `data` is an empty integer array. Editors that require tokens degrade to grammar-only highlighting without protocol errors.
+
+## Conceptual model
+
+```mermaid
+flowchart LR
+  REQ[semanticTokens/full] --> SRC{source?}
+  SRC -->|empty| EMPTY[SemanticTokens data=[]]
+  SRC -->|present| PARSE[parse]
+  PARSE -->|fail| EMPTY
+  PARSE -->|ok| STUB[SemanticTokens data=[]  // future visitor]
+  STUB -.->|planned| ENC["delta encoding: line, col, len, type, mods"]
+```
+
+## Interface surface
+
+Capability (`config.py` → `semantic_tokens_provider`):
+
+```text
+legend.token_types:
+  namespace, type, class, enum, interface, struct, typeParameter,
+  parameter, variable, property, enumMember, event, function,
+  method, macro, keyword, modifier, comment, string, number,
+  regexp, operator
+
+legend.token_modifiers:
+  declaration, definition, readonly, static, deprecated,
+  abstract, async, modification, documentation, defaultLibrary
+
+range: false
+full: true
+```
+
+Handler: `features/semantic_tokens.py` → `handle_semantic_tokens`.
+
+Response type: `lsp.SemanticTokens(data=[...])` — LSP-encoded five-tuples as a flat `int` array.
+
+## Internals
+
+| Path | Role |
+| --- | --- |
+| `features/semantic_tokens.py` | Stub handler |
+| `config.py` | Legend + capability |
+| `server.py` | `TEXT_DOCUMENT_SEMANTIC_TOKENS_FULL` registration |
+
+The module docstring states intent: a visitor would emit `(line, col, len, token_type_index, modifiers_bitfield)` with relative line/character deltas per the LSP spec.
+
+Until that lands, **TextMate** highlighting from `vscode-extension/syntaxes/pinescript.tmLanguage.json` remains the primary colorization path for VS Code.
+
+## Invariants and edge cases
+
+1. **Never throws** — exceptions from parse yield empty data.
+2. **No range provider** — clients must not request `semanticTokens/range`.
+3. **Legend is fixed** at initialize; changing indices later would break cached clients.
+4. Empty `data` is valid protocol, not an error.
+
+## Worked example
+
+Request `textDocument/semanticTokens/full` for any open buffer:
+
+```json
+{ "data": [] }
+```
+
+Client falls back to TextMate / tree-sitter grammar scopes.
+
+## Failure modes
+
+| Symptom | Cause |
+| --- | --- |
+| “Semantic highlighting” setting appears on but changes nothing | Stub returns empty data — expected |
+| Client errors on range request | `range=False` in capabilities; client should not call it |
+
+## See also
+
+- [VS Code extension](/pyne/docs/lsp/vscode-extension) — TextMate grammar
+- [Architecture](/pyne/docs/lsp/architecture)
+- [Inlay hints](/pyne/docs/lsp/features/inlay-hints) — complementary visual annotations

@@ -10,14 +10,15 @@ Collected open-source Pine for parser / evaluator / linter regression.
 | [set04](./set04/) | 1000 | 750 | 250 | 0 | v5:21, v6:979 |
 | [set05](./set05/) | 9131 | 2363 | 6768 | 0 | full remainder · v1:11, v2:487, v3:671, v4:2978, v5:4133, v6:520, vNone:331 |
 
-**Total: 11631 unique scripts** (no content-hash overlap across sets).
+**Total: ~11591 scripts** after dropping oversized sources (≥80 KB; hang/timeout risk).
 
 | Path | Role |
 | --- | --- |
-| `set01/` … `set04/` | Curated batches (250 / 250 / 1000 / 1000) |
+| `set01/` … `set04/` | Curated batches (was 250 / 250 / 1000 / 1000) |
 | `set05/` | Full drain of remaining pool uniques |
 | `builtin_scripts/` | Official TradingView builtins (separate) |
 | `library/` | Existing local reference stash (not re-imported) |
 
 Rebuild / expand: `scripts/collect_pine_corpus.py`  
-Per-set provenance: each set’s `SOURCES.md` + `MANIFEST.json`.
+Per-set provenance: each set’s `SOURCES.md` + `MANIFEST.json`.  
+Removed large files listed in `.cache/removed_large_pine.txt` (40 files).

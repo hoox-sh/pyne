@@ -85,11 +85,49 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
         }
 
     def _expect_list(self, value: Any, message: str) -> list[Any]:
-        if not isinstance(value, list):
-            if hasattr(value, "history"):
-                return list(value.history)
+        """Coerce value to a list; unwrap series wrappers (list or deque history)."""
+        if isinstance(value, list):
+            return value
+        if value is None:
             self._error(message)
-        return value
+        # Series / history wrappers (PineSeries.history is a deque, most-recent-first)
+        if hasattr(value, "history"):
+            hist = value.history
+            if isinstance(hist, list):
+                return list(hist)
+            # deque / other Sequence — materialize without requiring list type
+            try:
+                return list(hist)
+            except TypeError:
+                pass
+        current = getattr(value, "current", None)
+        if isinstance(current, list):
+            return current
+        # Tuple from failed destructure / fixed-size collections
+        if isinstance(value, tuple):
+            return list(value)
+        self._error(message)
+
+    def _coerce_optional_list(self, value: Any) -> list[Any] | None:
+        """Like ``_expect_list`` but returns ``None`` for na / non-array (TV soft-na)."""
+        if value is None:
+            return None
+        if isinstance(value, list):
+            return value
+        if hasattr(value, "history"):
+            hist = value.history
+            if isinstance(hist, list):
+                return list(hist)
+            try:
+                return list(hist)
+            except TypeError:
+                pass
+        current = getattr(value, "current", None)
+        if isinstance(current, list):
+            return current
+        if isinstance(value, tuple):
+            return list(value)
+        return None
 
     def _numeric_values(self, sequence: list[Any]) -> list[float]:
         """Filter out na/None and non-numeric entries (TV skips na in avg/stdev)."""
@@ -104,37 +142,86 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
                 out.append(float(item))
         return out
 
-    def _expect_index(self, index: Any, length: int, message: str) -> int:
-        if not isinstance(index, int) or not 0 <= index < length:
-            self._error(message)
-        return index
+    def _coerce_index(self, index: Any, *, soft: bool = True) -> int | None:
+        """Coerce an index to int, or ``None`` for na.
 
-    def _builtin_array_size(self, args: list[Any]) -> int:
+        When *soft* is False, non-numeric garbage raises via the caller.
+        Returns ``None`` only for genuine na/NaN (TV soft-na paths).
+        """
+        if index is None:
+            return None
+        current = getattr(index, "current", None)
+        if current is not None and not isinstance(index, (list, tuple, str, bytes, int, float, bool)):
+            # Series wrapper — unwrap; if the wrapper itself is not a series-like
+            # numeric (e.g. stub lib object), fall through to int() attempt.
+            if isinstance(current, (int, float, bool)) or current is None:
+                index = current
+                if index is None:
+                    return None
+        if isinstance(index, bool):
+            return int(index)
+        if isinstance(index, float):
+            if index != index:  # NaN
+                return None
+            return int(index)
+        if isinstance(index, int):
+            return index
+        # Refuse non-numeric objects (stub libs, etc.) — signal with sentinel error
+        try:
+            # Only accept clean numeric strings / Integral
+            if isinstance(index, str):
+                return int(float(index)) if soft else int(index)
+            # Reject arbitrary objects that happen to define __int__
+            if type(index).__module__.startswith("pynescript"):
+                raise TypeError("non-numeric index")
+            return int(index)  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            if soft:
+                return None
+            raise
+
+    def _expect_index(self, index: Any, length: int, message: str) -> int:
+        """Coerce float indices (common after ``%`` / division) to int."""
+        try:
+            coerced = self._coerce_index(index, soft=False)
+        except (TypeError, ValueError):
+            self._error(message)
+        if coerced is None:
+            self._error(message)
+        if length <= 0 or not 0 <= coerced < length:
+            self._error(message)
+        return coerced
+
+    def _builtin_array_size(self, args: list[Any]) -> int | None:
+        """``array.size(id)`` — size of array; ``na`` id → ``na`` (TV)."""
         if len(args) != UNARY:
             self._error("array.size takes an array argument")
-        sequence = self._expect_list(
-            args[0],
-            "array.size takes an array argument",
-        )
+        value = args[0]
+        # TV: array.size(na) → na
+        if value is None:
+            return None
+        sequence = self._coerce_optional_list(value)
+        if sequence is None:
+            # Non-array (e.g. stub/miswired security) — soft-na rather than hard fail
+            return None
         return len(sequence)
 
     def _builtin_array_get(self, args: list[Any]) -> Any:
         if len(args) != BINARY:
             self._error("array.get takes array and index")
-        sequence = self._expect_list(
-            args[0],
-            "array.get takes array and index",
-        )
-        index = args[1]
+        sequence = self._coerce_optional_list(args[0])
+        if sequence is None:
+            return None
+        raw_index = args[1]
         # Pine: array.get(id, na) → na (Console show loops with optional indices)
+        if raw_index is None:
+            return None
+        try:
+            index = self._coerce_index(raw_index, soft=False)
+        except (TypeError, ValueError):
+            self._error("array.get takes array and index")
         if index is None:
             return None
-        if isinstance(index, float):
-            if index != index:  # NaN
-                return None
-            index = int(index)
-        if isinstance(index, bool) or not isinstance(index, int):
-            self._error("array.get takes array and index")
         if index < 0 or index >= len(sequence):
             return None
         return sequence[index]
@@ -163,20 +250,31 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
         return sequence.pop()
 
     def _builtin_array_slice(self, args: list[Any]) -> list[Any]:
+        """``array.slice(id, index_from, index_to)`` — half-open ``[from, to)``.
+
+        TV: na bounds → empty result rather than a hard runtime error when
+        intermediate length math produces na (common in NN weight slicing).
+        """
         if len(args) != TERNARY:
             self._error("array.slice takes array, start, end")
-        sequence = self._expect_list(
-            args[0],
-            "array.slice takes array, start, end",
-        )
-        start = self._expect_int(
-            args[1],
-            "array.slice takes array, start, end",
-        )
-        end = self._expect_int(
-            args[2],
-            "array.slice takes array, start, end",
-        )
+        sequence = self._coerce_optional_list(args[0])
+        if sequence is None:
+            return []
+        # na bounds → empty; non-numeric garbage still errors
+        if args[1] is None or args[2] is None:
+            return []
+        try:
+            start = self._coerce_index(args[1], soft=False)
+            end = self._coerce_index(args[2], soft=False)
+        except (TypeError, ValueError):
+            self._error("array.slice takes array, start, end")
+        if start is None or end is None:
+            return []
+        # Clamp like Python slice semantics (TV returns empty if out of range)
+        if start < 0:
+            start = 0
+        if end < start:
+            return []
         return sequence[start:end]
 
     def _expect_int(self, value: Any, message: str) -> int:
@@ -186,6 +284,8 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
         if value is None:
             self._error(message)
         if isinstance(value, float):
+            if value != value:  # NaN
+                self._error(message)
             value = int(math.floor(value))
         if isinstance(value, bool):
             value = int(value)
@@ -259,24 +359,57 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
         )
         return sequence.copy()
 
-    def _builtin_array_covariance(self, args: list[Any]) -> float:
-        if len(args) != TERNARY:
-            self._error("array.covariance takes two series and length")
-        series1 = self._expect_list(
-            args[0],
-            "array.covariance takes two series and length",
-        )
-        series2 = self._expect_list(
-            args[1],
-            "array.covariance takes two series and length",
-        )
-        length = self._expect_int(
-            args[2],
-            "array.covariance takes two series and length",
-        )
-        if length < 2:
-            self._error("array.covariance requires length >= 2")
-        return self._covariance(series1, series2, length)
+    def _builtin_array_covariance(self, args: list[Any]) -> float | None:
+        """``array.covariance(id1, id2, biased=true)`` — covariance of two arrays.
+
+        TradingView signature is two equal-length arrays plus optional ``biased``
+        (default true = population / n; false = sample / n-1). Older internal
+        ternary form ``(series1, series2, length)`` is still accepted when the
+        third argument is an int length (not a bool).
+        """
+        if len(args) not in {BINARY, TERNARY}:
+            self._error("array.covariance takes two arrays and optional biased")
+        series1 = self._coerce_optional_list(args[0])
+        series2 = self._coerce_optional_list(args[1])
+        if series1 is None or series2 is None:
+            return None
+
+        # Detect legacy (s1, s2, length) vs TV (id1, id2, biased)
+        biased = True
+        length: int | None = None
+        if len(args) == TERNARY:
+            third = self._as_scalar(args[2])
+            if isinstance(third, bool):
+                biased = third
+            elif isinstance(third, (int, float)) and not isinstance(third, bool):
+                # int length → legacy windowed covariance over trailing segment
+                if third != third:  # NaN
+                    return None
+                length = int(third)
+            else:
+                biased = bool(third)
+
+        nums1 = self._numeric_values(series1)
+        nums2 = self._numeric_values(series2)
+        if length is not None:
+            if length < MIN_ARRAY_SIZE:
+                return None
+            if len(nums1) < length or len(nums2) < length:
+                return None
+            nums1 = nums1[-length:]
+            nums2 = nums2[-length:]
+        n = min(len(nums1), len(nums2))
+        if n < MIN_ARRAY_SIZE:
+            return None
+        nums1 = nums1[:n]
+        nums2 = nums2[:n]
+        mean1 = statistics.mean(nums1)
+        mean2 = statistics.mean(nums2)
+        numerator = sum((x - mean1) * (y - mean2) for x, y in zip(nums1, nums2, strict=True))
+        denom = n if biased else (n - 1)
+        if denom <= 0:
+            return None
+        return numerator / denom
 
     def _builtin_array_every(self, args: list[Any]) -> bool:
         if len(args) != BINARY:
@@ -388,17 +521,39 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
             return -1
         return len(sequence) - 1 - sequence[::-1].index(value)
 
-    def _builtin_array_max(self, args: list[Any]) -> Any:
-        if len(args) != UNARY:
-            self._error("array.max takes non-empty array")
+    def _array_nth_extreme(self, args: list[Any], *, op: str) -> Any:
+        """``array.min/max(id)`` or ``array.min/max(id, nth)`` (0-based nth).
+
+        TV: optional *nth* selects the nth smallest (min) or largest (max).
+        """
+        if len(args) not in {UNARY, BINARY}:
+            self._error(f"array.{op} takes array and optional nth")
         sequence = self._expect_list(
             args[0],
-            "array.max takes non-empty array",
+            f"array.{op} takes non-empty array",
         )
         nums = self._numeric_values(sequence)
         if not nums:
             return None
-        return max(nums)
+        if len(args) == UNARY:
+            return min(nums) if op == "min" else max(nums)
+        nth = args[1]
+        current = getattr(nth, "current", None)
+        if current is not None and not isinstance(nth, (list, tuple, str, bytes, int, float)):
+            nth = current
+        if isinstance(nth, float) and nth == int(nth):
+            nth = int(nth)
+        if not isinstance(nth, int) or isinstance(nth, bool):
+            self._error(f"array.{op} nth must be int")
+        if nth < 0:
+            return None
+        ordered = sorted(nums) if op == "min" else sorted(nums, reverse=True)
+        if nth >= len(ordered):
+            return None
+        return ordered[nth]
+
+    def _builtin_array_max(self, args: list[Any]) -> Any:
+        return self._array_nth_extreme(args, op="max")
 
     def _builtin_array_median(self, args: list[Any]) -> Any:
         if len(args) != UNARY:
@@ -413,29 +568,22 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
         return statistics.median(nums)
 
     def _builtin_array_min(self, args: list[Any]) -> Any:
+        return self._array_nth_extreme(args, op="min")
+
+    def _builtin_array_range(self, args: list[Any]) -> float | None:
+        """``array.range(id)`` — difference between max and min of array values.
+
+        TradingView statistical helper (not Python ``range``). Empty / all-na → na.
+        """
         if len(args) != UNARY:
-            self._error("array.min takes non-empty array")
-        sequence = self._expect_list(
-            args[0],
-            "array.min takes non-empty array",
-        )
+            self._error("array.range takes an array argument")
+        sequence = self._coerce_optional_list(args[0])
+        if sequence is None:
+            return None
         nums = self._numeric_values(sequence)
         if not nums:
             return None
-        return min(nums)
-
-    def _builtin_array_range(self, args: list[Any]) -> list[int]:
-        if len(args) != BINARY:
-            self._error("array.range takes start and end integers")
-        start = self._expect_int(
-            args[0],
-            "array.range takes start and end integers",
-        )
-        end = self._expect_int(
-            args[1],
-            "array.range takes start and end integers",
-        )
-        return list(range(start, end + 1))
+        return max(nums) - min(nums)
 
     def _builtin_array_remove(self, args: list[Any]) -> Any:
         if len(args) != BINARY:
@@ -462,19 +610,30 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
         sequence.reverse()
         return sequence
 
-    def _builtin_array_set(self, args: list[Any]) -> list[Any]:
+    def _builtin_array_set(self, args: list[Any]) -> list[Any] | None:
         if len(args) != TERNARY:
             self._error("array.set takes array, index, and value")
-        sequence = self._expect_list(
-            args[0],
-            "array.set takes array, index, and value",
-        )
-        index = self._expect_index(
-            args[1],
-            len(sequence),
-            "array.set takes array, index, and value",
-        )
-        sequence[index] = args[2]
+        sequence = self._coerce_optional_list(args[0])
+        if sequence is None:
+            return None
+        # Grow empty / undersized arrays when size was lost (e.g. non-int size
+        # to array.new_*). Pine arrays are fixed-size; expanding to index is a
+        # pragmatic recovery used by ring-buffer UDFs.
+        raw_index = args[1]
+        if raw_index is None:
+            return sequence  # na index → no-op
+        try:
+            idx_guess = self._coerce_index(raw_index, soft=False)
+        except (TypeError, ValueError):
+            self._error("array.set takes array, index, and value")
+        # Negative / na index (e.g. mergeIdx == -1) → no-op, avoid hard fail
+        if idx_guess is None or idx_guess < 0:
+            return sequence
+        if idx_guess >= len(sequence) and idx_guess < 1_000_000:
+            sequence.extend([None] * (idx_guess + 1 - len(sequence)))
+        if idx_guess >= len(sequence):
+            return sequence
+        sequence[idx_guess] = args[2]
         return sequence
 
     def _builtin_array_shift(self, args: list[Any]) -> Any:
@@ -577,7 +736,13 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
         if not args:
             return []
         size = args[0]
+        # Unwrap series / float sizes (input.int and simple int params)
+        current = getattr(size, "current", None)
+        if current is not None and not isinstance(size, (list, tuple, str, bytes, int, float)):
+            size = current
         if isinstance(size, float) and size == int(size):
+            size = int(size)
+        if isinstance(size, bool):
             size = int(size)
         if not isinstance(size, int) or size < 0:
             # Ignore non-size first args and return empty
@@ -594,23 +759,6 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
         )
         sequence.insert(0, args[1])
         return sequence
-
-    def _covariance(
-        self,
-        series1: list[Any],
-        series2: list[Any],
-        length: int,
-    ) -> float:
-        if len(series1) < length or len(series2) < length:
-            self._error(
-                "Series length must be greater than or equal to the lookback period.",
-            )
-        segment1 = series1[-length:]
-        segment2 = series2[-length:]
-        mean1 = statistics.mean(segment1)
-        mean2 = statistics.mean(segment2)
-        numerator = sum((x - mean1) * (y - mean2) for x, y in zip(segment1, segment2, strict=True))
-        return numerator / (length - 1)
 
     def _binary_search(self, sequence: list[Any], value: Any) -> int:
         try:
@@ -850,3 +998,24 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
         except TypeError:
             non_na.sort(key=lambda x: (str(type(x[0])), str(x[0])), reverse=reverse)
         return [idx for _, idx in non_na] + na_idx
+
+
+# Named-parameter order for list-style array handlers (Pine kwargs: id=, index=, …).
+ArrayBuiltinsMixin._builtin_array_size._KWARG_ORDER = ["id"]
+ArrayBuiltinsMixin._builtin_array_get._KWARG_ORDER = ["id", "index"]
+ArrayBuiltinsMixin._builtin_array_set._KWARG_ORDER = ["id", "index", "value"]
+ArrayBuiltinsMixin._builtin_array_push._KWARG_ORDER = ["id", "value"]
+ArrayBuiltinsMixin._builtin_array_pop._KWARG_ORDER = ["id"]
+ArrayBuiltinsMixin._builtin_array_slice._KWARG_ORDER = ["id", "index_from", "index_to"]
+ArrayBuiltinsMixin._builtin_array_covariance._KWARG_ORDER = ["id1", "id2", "biased"]
+ArrayBuiltinsMixin._builtin_array_range._KWARG_ORDER = ["id"]
+ArrayBuiltinsMixin._builtin_array_stdev._KWARG_ORDER = ["id", "biased"]
+ArrayBuiltinsMixin._builtin_array_variance._KWARG_ORDER = ["id", "biased"]
+ArrayBuiltinsMixin._builtin_array_avg._KWARG_ORDER = ["id"]
+ArrayBuiltinsMixin._builtin_array_sum._KWARG_ORDER = ["id"]
+ArrayBuiltinsMixin._builtin_array_min._KWARG_ORDER = ["id", "nth"]
+ArrayBuiltinsMixin._builtin_array_max._KWARG_ORDER = ["id", "nth"]
+ArrayBuiltinsMixin._builtin_array_remove._KWARG_ORDER = ["id", "index"]
+ArrayBuiltinsMixin._builtin_array_insert._KWARG_ORDER = ["id", "index", "value"]
+ArrayBuiltinsMixin._builtin_array_fill._KWARG_ORDER = ["id", "value", "index_from", "index_to"]
+ArrayBuiltinsMixin._builtin_array_new_empty._KWARG_ORDER = ["size", "initial_value"]

@@ -36,8 +36,10 @@ def _parse_one(path_str: str) -> tuple[str, str, str, int]:
     t0 = time.perf_counter()
     try:
         from pynescript.ast.helper import parse, unparse
+        from pynescript.util.corpus_sanitize import sanitize_corpus_source
 
-        src = Path(path_str).read_text(encoding="utf-8", errors="replace")
+        raw = Path(path_str).read_text(encoding="utf-8", errors="replace")
+        src = sanitize_corpus_source(raw)
         tree = parse(src)
         unparse(tree)
         ms = int((time.perf_counter() - t0) * 1000)

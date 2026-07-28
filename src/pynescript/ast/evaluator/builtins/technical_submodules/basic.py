@@ -28,11 +28,15 @@ class BasicIndicators(TechnicalHelpers):
     def _builtin_ta_sma(self, args: list[Any]) -> list[float | None]:
         """Simple Moving Average."""
         series, period = self._expect_series(args, length=BINARY)
+        if self._use_incremental_ta():
+            return self._sma_inc_update(series, period)
         return self._finalize_series(self._sma(series, period))
 
     def _builtin_ta_ema(self, args: list[Any]) -> list[float | None]:
         """Exponential Moving Average."""
         series, period = self._expect_series(args, length=BINARY)
+        if self._use_incremental_ta():
+            return self._ema_inc_update(series, period)
         return self._finalize_series(self._ema(series, period))
 
     def _builtin_ta_wma(self, args: list[Any]) -> float | None:
@@ -43,10 +47,24 @@ class BasicIndicators(TechnicalHelpers):
     def _builtin_ta_rma(self, args: list[Any]) -> list[float]:
         """Rolling Moving Average."""
         series, period = self._expect_series(args, length=BINARY)
+        if self._use_incremental_ta():
+            return self._rma_inc_update(series, period)
         return self._finalize_series(self._rma(series, period))
 
     def _builtin_ta_vwma(self, args: list[Any]) -> list[float | None]:
-        """Volume Weighted Moving Average."""
+        """Volume Weighted Moving Average.
+
+        ``ta.vwma(source, length)``, ``ta.vwma(length)``, or community
+        ``ta.vwma(source, volume, length)``.
+        """
+        if len(args) == 1 and self._is_period_like(args[0]):
+            series = self._context_series("close")
+            period = self._expect_int(args[0], "Period must be an integer")
+            return self._finalize_series(self._vwma(series, period))
+        if len(args) == 3:
+            series = self._as_series(args[0])
+            period = self._expect_int(args[2], "Period must be an integer")
+            return self._finalize_series(self._vwma(series, period))
         series, period = self._expect_series(args, length=BINARY)
         return self._finalize_series(self._vwma(series, period))
 
@@ -216,13 +234,21 @@ class BasicIndicators(TechnicalHelpers):
         self,
         args: list[Any],
     ) -> tuple[float | None, float | None, float | None]:
-        """Bollinger Bands."""
+        """Bollinger Bands. ``ta.bb(source, length, mult)`` or ``ta.bb(length, mult)``."""
         msg = "ta.bb expects series, length, and multiplier"
-        if len(args) != TERNARY:
+        if len(args) == BINARY and self._is_period_like(args[0]):
+            series = self._context_series("close")
+            length = self._expect_int(args[0], msg)
+            multiplier = args[1]
+        elif len(args) == TERNARY:
+            series = self._expect_list(args[0], msg)
+            length = self._expect_int(args[1], msg)
+            multiplier = args[2]
+        else:
             self._error(msg)
-        series = self._expect_list(args[0], msg)
-        length = self._expect_int(args[1], msg)
-        multiplier = args[2]
+            return None, None, None
+        if hasattr(multiplier, "current") and not isinstance(multiplier, (list, tuple, str, bytes, int, float)):
+            multiplier = multiplier.current
         if not isinstance(multiplier, int | float):
             self._error("ta.bb expects numeric multiplier")
         return self._bollinger_bands(series, length, multiplier)
@@ -234,6 +260,8 @@ class BasicIndicators(TechnicalHelpers):
             highs = self._context_series("high")
             lows = self._context_series("low")
             closes = self._context_series("close")
+            if self._use_incremental_ta():
+                return self._atr_inc_update(highs, lows, closes, length)
             return self._finalize_series(self._atr(highs, lows, closes, length))
         msg = "ta.atr expects length, or high, low, close, and length"
         if len(args) != QUATERNARY:
@@ -242,64 +270,95 @@ class BasicIndicators(TechnicalHelpers):
         lows = self._expect_list(args[1], msg)
         closes = self._expect_list(args[2], msg)
         length = self._expect_int(args[3], msg)
+        if self._use_incremental_ta():
+            return self._atr_inc_update(highs, lows, closes, length)
         return self._finalize_series(self._atr(highs, lows, closes, length))
 
     def _builtin_ta_kc(self, args: list[Any]) -> tuple[float, float, float]:
-        """Keltner Channels (returns middle, upper, lower)."""
-        if len(args) not in {TERNARY, QUATERNARY}:
-            self._error("ta.kc takes high, low, close series, length, and optional offset_percent")
+        """Keltner Channels (returns middle, upper, lower).
 
-        highs = self._expect_list(args[0], "ta.kc takes high, low, close series, length")
-        lows = self._expect_list(args[1], "ta.kc takes high, low, close series, length")
-        closes = self._expect_list(args[2], "ta.kc takes high, low, close series, length")
-        length = self._expect_int(args[3], "ta.kc length must be integer") if len(args) > 3 else 0
-        offset_percent = 1.0 if len(args) < 5 else (args[4] if isinstance(args[4], (int, float)) else 1.0)
+        TV: ``ta.kc(series, length, mult)``; legacy ``(high, low, close, length)``.
+        """
+        mult = 1.0
+        if len(args) == TERNARY and self._is_period_like(args[1]):
+            closes = self._as_series(args[0])
+            length = self._expect_int(args[1], "ta.kc length must be integer")
+            m = args[2]
+            current = getattr(m, "current", None)
+            if current is not None and not isinstance(m, (list, tuple, str, bytes, int, float)):
+                m = current
+            if isinstance(m, (int, float)) and not isinstance(m, bool):
+                mult = float(m)
+            highs = self._context_series("high") or closes
+            lows = self._context_series("low") or closes
+        elif len(args) >= QUATERNARY:
+            highs = self._expect_list(args[0], "ta.kc takes high, low, close series, length")
+            lows = self._expect_list(args[1], "ta.kc takes high, low, close series, length")
+            closes = self._expect_list(args[2], "ta.kc takes high, low, close series, length")
+            length = self._expect_int(args[3], "ta.kc length must be integer")
+            if len(args) > QUATERNARY and isinstance(args[4], (int, float)):
+                mult = float(args[4])
+        else:
+            self._error("ta.kc takes (series, length, mult) or (high, low, close, length)")
+            return math.nan, math.nan, math.nan
 
         if length < 1:
             self._error("ta.kc length must be positive")
+        n = min(len(highs), len(lows), len(closes)) if highs and lows and closes else 0
+        if n == 0:
+            return math.nan, math.nan, math.nan
+        highs, lows, closes = highs[-n:], lows[-n:], closes[-n:]
 
-        # Middle line = EMA of closes
         ema_vals = self._ema(closes, length)
         middle = ema_vals[-1] if ema_vals else math.nan
-
-        # ATR for channel width
         atr_series = self._builtin_ta_atr([highs, lows, closes, length])
-        atr_val = atr_series[-1] if atr_series else 0
-
-        channel_width = atr_val * offset_percent
-        upper = middle + channel_width if middle is not None else math.nan
-        lower = middle - channel_width if middle is not None else math.nan
-
+        atr_val = atr_series[-1] if isinstance(atr_series, list) and atr_series else (atr_series or 0)
+        if isinstance(atr_val, list):
+            atr_val = atr_val[-1] if atr_val else 0
+        channel_width = (atr_val or 0) * mult
+        upper = middle + channel_width if middle is not None and middle == middle else math.nan
+        lower = middle - channel_width if middle is not None and middle == middle else math.nan
         return middle, upper, lower
 
     def _builtin_ta_kcw(self, args: list[Any]) -> float:
         """Keltner Channels Width."""
-        if len(args) not in {TERNARY, QUATERNARY}:
-            self._error("ta.kcw takes high, low, close series, length, and optional offset_percent")
-
         _, upper, lower = self._builtin_ta_kc(args)
         if math.isnan(upper) or math.isnan(lower):
             return math.nan
         return upper - lower
 
-    def _builtin_ta_dmi(self, args: list[Any]) -> tuple[float, float]:
-        """Directional Movement Index (returns +DI, -DI)."""
-        if len(args) != QUATERNARY:
-            self._error("ta.dmi takes high, low, close series and length")
+    def _builtin_ta_dmi(self, args: list[Any]) -> tuple[float, float, float]:
+        """Directional Movement Index.
 
-        highs = self._expect_list(args[0], "ta.dmi takes high, low, close series and length")
-        lows = self._expect_list(args[1], "ta.dmi takes high, low, close series and length")
-        closes = self._expect_list(args[2], "ta.dmi takes high, low, close series and length")
-        length = self._expect_int(args[3], "ta.dmi takes high, low, close series and length")
+        TradingView: ``ta.dmi(diLength, adxSmoothing) → [+DI, -DI, ADX]`` using
+        chart high/low/close. Legacy 4-arg ``(high, low, close, length)`` still
+        accepted (adxSmoothing defaults to diLength).
+        """
+        import math
 
-        if length < 1:
+        if len(args) == BINARY:
+            di_len = self._expect_int(args[0], "ta.dmi diLength must be int")
+            adx_smooth = self._expect_int(args[1], "ta.dmi adxSmoothing must be int")
+            highs = self._context_series("high")
+            lows = self._context_series("low")
+            closes = self._context_series("close")
+        elif len(args) == QUATERNARY:
+            highs = self._expect_list(args[0], "ta.dmi takes high, low, close series and length")
+            lows = self._expect_list(args[1], "ta.dmi takes high, low, close series and length")
+            closes = self._expect_list(args[2], "ta.dmi takes high, low, close series and length")
+            di_len = self._expect_int(args[3], "ta.dmi takes high, low, close series and length")
+            adx_smooth = di_len
+        else:
+            self._error("ta.dmi takes (diLength, adxSmoothing) or (high, low, close, length)")
+            return math.nan, math.nan, math.nan
+
+        if di_len < 1:
             self._error("ta.dmi length must be positive")
-        if not (len(highs) == len(lows) == len(closes)):
-            self._error("ta.dmi series must have equal length")
+        if not (len(highs) == len(lows) == len(closes)) or not highs:
+            return math.nan, math.nan, math.nan
 
-        plus_dm = []
-        minus_dm = []
-
+        plus_dm: list[float] = []
+        minus_dm: list[float] = []
         for i in range(len(highs)):
             if i == 0:
                 plus_dm.append(0.0)
@@ -312,13 +371,34 @@ class BasicIndicators(TechnicalHelpers):
                 plus_dm.append(high_diff if high_diff > low_diff and high_diff > 0 else 0.0)
                 minus_dm.append(low_diff if low_diff > high_diff and low_diff > 0 else 0.0)
 
-        atr_series = self._builtin_ta_atr([highs, lows, closes, length])
-        atr_val = atr_series[-1] if atr_series else 1
+        tr_series = self._tr(highs, lows, closes) if hasattr(self, "_tr") else []
+        if not tr_series:
+            atr_series = self._builtin_ta_atr([highs, lows, closes, di_len])
+            atr_val = atr_series[-1] if isinstance(atr_series, list) and atr_series else atr_series or 1
+            if isinstance(atr_val, list):
+                atr_val = atr_val[-1] if atr_val else 1
+            plus_di = 100 * (sum(plus_dm[-di_len:]) / di_len) / atr_val if atr_val else 0
+            minus_di = 100 * (sum(minus_dm[-di_len:]) / di_len) / atr_val if atr_val else 0
+            adx = abs(plus_di - minus_di) / (plus_di + minus_di) * 100 if (plus_di + minus_di) else 0
+            return float(plus_di), float(minus_di), float(adx)
 
-        plus_di = 100 * (sum(plus_dm[-length:]) / length) / atr_val if atr_val else 0
-        minus_di = 100 * (sum(minus_dm[-length:]) / length) / atr_val if atr_val else 0
-
-        return plus_di, minus_di
+        # Preferred path via RMA-smoothed ADX when helpers exist
+        if hasattr(self, "_adx"):
+            adx = float(self._adx(highs, lows, closes, adx_smooth) or 0)
+        else:
+            adx = 0.0
+        atr_series = self._rma(tr_series, di_len) if hasattr(self, "_rma") else [1.0]
+        atr_val = atr_series[-1] if atr_series else 1.0
+        plus_rma = self._rma(plus_dm, di_len) if hasattr(self, "_rma") else plus_dm
+        minus_rma = self._rma(minus_dm, di_len) if hasattr(self, "_rma") else minus_dm
+        pd = plus_rma[-1] if plus_rma else 0.0
+        md = minus_rma[-1] if minus_rma else 0.0
+        plus_di = 100 * pd / atr_val if atr_val else 0.0
+        minus_di = 100 * md / atr_val if atr_val else 0.0
+        if not hasattr(self, "_adx"):
+            denom = plus_di + minus_di
+            adx = abs(plus_di - minus_di) / denom * 100 if denom else 0.0
+        return float(plus_di), float(minus_di), float(adx)
 
     def _builtin_ta_supertrend(self, args: list[Any]) -> tuple[float, int]:
         """Supertrend indicator.
@@ -516,12 +596,28 @@ class BasicIndicators(TechnicalHelpers):
         return self._range(series, period)
 
     def _builtin_ta_max(self, args: list[Any]) -> float | None:
-        """Maximum value over a period (alias for ta.highest)."""
+        """Maximum value over a period (alias for ta.highest).
+
+        Also accepts a single series arg (extension methods like
+        ``method max(float data) => ta.max(data)``) — returns the max of
+        available history, or the scalar itself.
+        """
+        if len(args) == 1:
+            series = self._as_series(args[0])
+            valid = [v for v in series if v is not None and isinstance(v, (int, float))]
+            return max(valid) if valid else None
         series, period = self._expect_series(args, length=2)
         return self._highest(series, period)
 
     def _builtin_ta_min(self, args: list[Any]) -> float | None:
-        """Minimum value over a period (alias for ta.lowest)."""
+        """Minimum value over a period (alias for ta.lowest).
+
+        Single-arg form mirrors ``ta.max`` (full-history min / scalar).
+        """
+        if len(args) == 1:
+            series = self._as_series(args[0])
+            valid = [v for v in series if v is not None and isinstance(v, (int, float))]
+            return min(valid) if valid else None
         series, period = self._expect_series(args, length=2)
         return self._lowest(series, period)
 
@@ -726,14 +822,30 @@ class BasicIndicators(TechnicalHelpers):
 
         return float(source) if source is not None else None
 
-    def _builtin_ta_pivot_point_levels(self, args: list[Any]) -> dict[str, float] | None:
+    def _builtin_ta_pivot_point_levels(self, args: list[Any]) -> Any:
         """Calculate pivot point levels.
 
-        ta.pivot_point_levels(high, low, close, is_traditional)
-        Returns a dictionary with pivot point levels.
+        TV: ``ta.pivot_point_levels(type, anchor, developing?)`` → array of floats
+        using chart high/low/close. Legacy: ``(high, low, close, is_traditional)``.
         """
+        # TV form: type is a string ("Traditional", "Fibonacci", …)
+        if args and isinstance(args[0], str):
+            ptype = args[0]
+            highs = self._context_series("high")
+            lows = self._context_series("low")
+            closes = self._context_series("close")
+            if not highs or not lows or not closes:
+                return []
+            high = float(highs[-1]) if highs[-1] is not None else None
+            low = float(lows[-1]) if lows[-1] is not None else None
+            close = float(closes[-1]) if closes[-1] is not None else None
+            if high is None or low is None or close is None:
+                return []
+            levels = self._pivot_levels_for_type(ptype, high, low, close)
+            return levels
+
         if len(args) < 3:
-            msg = "ta.pivot_point_levels() requires at least 3 arguments: high, low, close"
+            msg = "ta.pivot_point_levels() requires type+anchor or high, low, close"
             self._error(msg)
 
         high = self._expect_number(args[0], "high must be numeric")
@@ -774,6 +886,66 @@ class BasicIndicators(TechnicalHelpers):
             "r3": r3,
             "s3": s3,
         }
+
+    def _pivot_levels_for_type(
+        self,
+        ptype: str,
+        high: float,
+        low: float,
+        close: float,
+    ) -> list[float]:
+        """Return pivot levels as a flat list (TV array order: P, R1, S1, R2, S2, R3, S3)."""
+        pivot = (high + low + close) / 3.0
+        diff = high - low
+        kind = (ptype or "Traditional").strip().lower()
+        if kind in {"fibonacci", "fib"}:
+            r1 = pivot + 0.382 * diff
+            s1 = pivot - 0.382 * diff
+            r2 = pivot + 0.618 * diff
+            s2 = pivot - 0.618 * diff
+            r3 = pivot + diff
+            s3 = pivot - diff
+        elif kind in {"woodie", "woodies"}:
+            pivot = (high + low + 2 * close) / 4.0
+            r1 = 2 * pivot - low
+            s1 = 2 * pivot - high
+            r2 = pivot + diff
+            s2 = pivot - diff
+            r3 = high + 2 * (pivot - low)
+            s3 = low - 2 * (high - pivot)
+        elif kind in {"classic"}:
+            r1 = 2 * pivot - low
+            s1 = 2 * pivot - high
+            r2 = pivot + diff
+            s2 = pivot - diff
+            r3 = high + 2 * (pivot - low)
+            s3 = low - 2 * (high - pivot)
+        elif kind in {"dm"}:
+            # DeMark (simplified without open series)
+            x = high + low + 2 * close
+            pivot = x / 4.0
+            r1 = x / 2.0 - low
+            s1 = x / 2.0 - high
+            return [pivot, r1, s1]
+        elif kind in {"camarilla"}:
+            r1 = close + diff * 1.1 / 12.0
+            s1 = close - diff * 1.1 / 12.0
+            r2 = close + diff * 1.1 / 6.0
+            s2 = close - diff * 1.1 / 6.0
+            r3 = close + diff * 1.1 / 4.0
+            s3 = close - diff * 1.1 / 4.0
+            r4 = close + diff * 1.1 / 2.0
+            s4 = close - diff * 1.1 / 2.0
+            return [pivot, r1, s1, r2, s2, r3, s3, r4, s4]
+        else:
+            # Traditional
+            r1 = 2 * pivot - low
+            s1 = 2 * pivot - high
+            r2 = pivot + diff
+            s2 = pivot - diff
+            r3 = high + 2 * (pivot - low)
+            s3 = low - 2 * (high - pivot)
+        return [pivot, r1, s1, r2, s2, r3, s3]
 
     # Helper implementations
 

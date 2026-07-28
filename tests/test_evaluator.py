@@ -854,7 +854,9 @@ def test_evaluator_array_min(expression, expected):
 @pytest.mark.parametrize(
     ("expression", "expected"),
     [
-        ("array.range(1, 5)", [1, 2, 3, 4, 5]),
+        # TV: array.range(id) = max - min of array elements
+        ("array.range(array.from(1.0, 5.0, 3.0))", 4.0),
+        ("array.range(array.from(2, 2, 2))", 0.0),
     ],
 )
 def test_evaluator_array_range(expression, expected):
@@ -1177,7 +1179,8 @@ def test_evaluator_array_percentrank(expression, expected):
     ("expression", "check"),
     [
         ("array.stdev([1, 2, 3, 4, 5])", lambda x: x > 1.4 and x < 1.6),
-        ("array.variance([1, 2, 3, 4, 5])", lambda x: x > 2.0 and x < 2.6),
+        # TV default biased=true → population variance = 2.0 for 1..5
+        ("array.variance([1, 2, 3, 4, 5])", lambda x: x >= 2.0 and x < 2.6),
     ],
 )
 def test_evaluator_array_stdev_variance(expression, check):

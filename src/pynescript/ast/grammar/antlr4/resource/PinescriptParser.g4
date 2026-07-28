@@ -78,16 +78,20 @@ compound_reassignment:  primary_expression COLONEQUAL structure_expression;
 compound_augassignment: primary_expression augassign_op structure_expression;
 
 // FUNCTION DECLARATION
+// Optional leading type_specification is the return type (Pine v5+/v6 UDFs):
+//   int ilog2(int n) => ...
+//   void fft_inplace(float[] re, float[] im, int N) => ...
 
 function_declaration
-    : EXPORT? name LPAR parameter_list? RPAR RARROW local_block;
+    : EXPORT? type_specification? name LPAR parameter_list? RPAR RARROW local_block;
 
 parameter_list:       parameter_definition (COMMA parameter_definition)* COMMA?;
 parameter_definition: type_specification? name_store (EQUAL expression)?;
 
 // METHOD DECLARATION
 
-method_declaration: EXPORT? METHOD name LPAR method_parameter_list? RPAR RARROW local_block;
+method_declaration
+    : EXPORT? METHOD type_specification? name LPAR method_parameter_list? RPAR RARROW local_block;
 
 method_parameter_list: method_parameter_definition (COMMA method_parameter_definition)* COMMA?;
 method_parameter_definition: type_specification name_store | parameter_definition;
@@ -172,7 +176,9 @@ simple_variable_initialization
 simple_name_initialization:  EXPORT? variable_declaration EQUAL expression;
 simple_tuple_initialization: tuple_declaration EQUAL expression;
 
-simple_reassignment:  primary_expression COLONEQUAL expression;
+// Pine uses := for reassignment; many real-world scripts also use = for
+// attribute / subscript targets (e.g. strategy.initial_capital = 50000).
+simple_reassignment:  primary_expression (COLONEQUAL | EQUAL) expression;
 simple_augassignment: primary_expression augassign_op expression;
 
 // EXPRESSIONS
@@ -188,7 +194,22 @@ conditional_expression: disjunction_expression (QUESTION expression COLON expres
 
 disjunction_expression: conjunction_expression (OR conjunction_expression)*;
 
-conjunction_expression: equality_expression (AND equality_expression)*;
+// Logical AND binds less tightly than bitwise OR (C-like / Pine bitwise).
+conjunction_expression: bitwise_or_expression (AND bitwise_or_expression)*;
+
+// BITWISE EXPRESSIONS (Pine v5+): |  ^  &  << >>  between logical and compare
+
+bitwise_or_expression
+    : bitwise_or_expression PIPE bitwise_xor_expression
+    | bitwise_xor_expression;
+
+bitwise_xor_expression
+    : bitwise_xor_expression CARET bitwise_and_expression
+    | bitwise_and_expression;
+
+bitwise_and_expression
+    : bitwise_and_expression AMP equality_expression
+    | equality_expression;
 
 // COMPARISON EXPRESSIONS
 
@@ -199,7 +220,7 @@ equality_trailing_pair: equal_trailing_pair | not_equal_trailing_pair;
 equal_trailing_pair:     EQEQUAL inequality_expression;
 not_equal_trailing_pair: NOTEQUAL inequality_expression;
 
-inequality_expression: additive_expression inequality_trailing_pair*;
+inequality_expression: shift_expression inequality_trailing_pair*;
 
 inequality_trailing_pair
     : less_than_equal_trailing_pair
@@ -207,10 +228,18 @@ inequality_trailing_pair
     | greater_than_equal_trailing_pair
     | greater_than_trailing_pair;
 
-less_than_equal_trailing_pair:    LESSEQUAL additive_expression;
-less_than_trailing_pair:          LESS additive_expression;
-greater_than_equal_trailing_pair: GREATEREQUAL additive_expression;
-greater_than_trailing_pair:       GREATER additive_expression;
+less_than_equal_trailing_pair:    LESSEQUAL shift_expression;
+less_than_trailing_pair:          LESS shift_expression;
+greater_than_equal_trailing_pair: GREATEREQUAL shift_expression;
+greater_than_trailing_pair:       GREATER shift_expression;
+
+// SHIFT EXPRESSIONS
+
+shift_expression
+    : shift_expression shift_op additive_expression
+    | additive_expression;
+
+shift_op: LSHIFT | RSHIFT;
 
 // ARITHMETIC EXPRESSIONS
 
@@ -228,7 +257,8 @@ multiplicative_op: STAR | SLASH | PERCENT;
 
 unary_expression: unary_op unary_expression | primary_expression;
 
-unary_op: NOT | PLUS | MINUS;
+// ~ is bitwise NOT (Invert); not/+/ - unchanged
+unary_op: NOT | PLUS | MINUS | TILDE;
 
 // PRIMARY EXPRESSIONS
 
@@ -309,8 +339,22 @@ array_type_suffix:    LSQB RSQB;
 type_argument_list: type_specification (COMMA type_specification)* COMMA?;
 
 // NAME WITH SOFT KEYWORDS
+// Pine allows many reserved words as identifiers outside their keyword position
+// (e.g. `as = input(...)`, `by = 1`). Keep structural keywords (if/for/...) hard.
 
-name: NAME | TYPE | METHOD | CONST | INPUT | SIMPLE | SERIES | ENUM;
+name
+    : NAME
+    | TYPE
+    | METHOD
+    | CONST
+    | INPUT
+    | SIMPLE
+    | SERIES
+    | ENUM
+    | AS
+    | BY
+    | TO
+    ;
 
 name_load:  name;
 name_store: name;

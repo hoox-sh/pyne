@@ -5,6 +5,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from .base import BuiltinDispatchMixin
 from .base import BuiltinHandler
 from .technical_submodules.advanced import AdvancedIndicators
@@ -89,6 +91,8 @@ class TechnicalAnalysisMixin(
             "ta.min": self._builtin_ta_min,
             "ta.mom": self._builtin_ta_mom,
             "ta.cum": self._builtin_ta_cum,
+            # Community / older scripts use ta.sum as rolling sum (alias of math.sum)
+            "ta.sum": self._builtin_ta_sum,
             "ta.dev": self._builtin_ta_dev,
             "ta.median": self._builtin_ta_median,
             "ta.mode": self._builtin_ta_mode,
@@ -210,7 +214,7 @@ class TechnicalAnalysisMixin(
         # Pine v3/v4 used bare names (sma, ema, rsi, …) before the ta. namespace.
         # Mirror every ta.* entry as a bare alias unless already registered.
         # Skip names that are also built-in series (tr) or clash with math (max/min).
-        skip_bare = {"max", "min", "tr", "range"}
+        skip_bare = {"max", "min", "tr", "range", "sum"}
         for key, handler in list(m.items()):
             if not key.startswith("ta."):
                 continue
@@ -219,3 +223,29 @@ class TechnicalAnalysisMixin(
                 continue
             m[bare] = handler
         return m
+
+    def _builtin_ta_sum(self, args: list[Any]) -> Any:
+        """Rolling sum ``ta.sum(source, length)`` — alias of ``math.sum(source, length)``.
+
+        Community scripts often use ``ta.sum``; TV documents ``math.sum`` for the
+        same rolling window sum over a series.
+        """
+        if hasattr(self, "_builtin_math_sum"):
+            return self._builtin_math_sum(args)
+        # Fallback if numeric mixin not composed (should not happen)
+        if len(args) != 2:
+            self._error("ta.sum takes source and length")  # type: ignore[attr-defined]
+        series, length = args[0], args[1]
+        if hasattr(series, "history"):
+            series = list(reversed(series.history))
+        elif not isinstance(series, list):
+            series = [series]
+        if isinstance(length, float) and length == int(length):
+            length = int(length)
+        if not isinstance(length, int) or length <= 0:
+            return None
+        window = [v for v in series[-length:] if v is not None]
+        try:
+            return sum(float(v) for v in window)
+        except (TypeError, ValueError):
+            return None

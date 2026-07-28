@@ -530,6 +530,33 @@ class PinescriptParserListener(ParseTreeListener):
         pass
 
 
+    # Enter a parse tree produced by PinescriptParser#bitwise_or_expression.
+    def enterBitwise_or_expression(self, ctx:PinescriptParser.Bitwise_or_expressionContext):
+        pass
+
+    # Exit a parse tree produced by PinescriptParser#bitwise_or_expression.
+    def exitBitwise_or_expression(self, ctx:PinescriptParser.Bitwise_or_expressionContext):
+        pass
+
+
+    # Enter a parse tree produced by PinescriptParser#bitwise_xor_expression.
+    def enterBitwise_xor_expression(self, ctx:PinescriptParser.Bitwise_xor_expressionContext):
+        pass
+
+    # Exit a parse tree produced by PinescriptParser#bitwise_xor_expression.
+    def exitBitwise_xor_expression(self, ctx:PinescriptParser.Bitwise_xor_expressionContext):
+        pass
+
+
+    # Enter a parse tree produced by PinescriptParser#bitwise_and_expression.
+    def enterBitwise_and_expression(self, ctx:PinescriptParser.Bitwise_and_expressionContext):
+        pass
+
+    # Exit a parse tree produced by PinescriptParser#bitwise_and_expression.
+    def exitBitwise_and_expression(self, ctx:PinescriptParser.Bitwise_and_expressionContext):
+        pass
+
+
     # Enter a parse tree produced by PinescriptParser#equality_expression.
     def enterEquality_expression(self, ctx:PinescriptParser.Equality_expressionContext):
         pass
@@ -617,6 +644,24 @@ class PinescriptParserListener(ParseTreeListener):
 
     # Exit a parse tree produced by PinescriptParser#greater_than_trailing_pair.
     def exitGreater_than_trailing_pair(self, ctx:PinescriptParser.Greater_than_trailing_pairContext):
+        pass
+
+
+    # Enter a parse tree produced by PinescriptParser#shift_expression.
+    def enterShift_expression(self, ctx:PinescriptParser.Shift_expressionContext):
+        pass
+
+    # Exit a parse tree produced by PinescriptParser#shift_expression.
+    def exitShift_expression(self, ctx:PinescriptParser.Shift_expressionContext):
+        pass
+
+
+    # Enter a parse tree produced by PinescriptParser#shift_op.
+    def enterShift_op(self, ctx:PinescriptParser.Shift_opContext):
+        pass
+
+    # Exit a parse tree produced by PinescriptParser#shift_op.
+    def exitShift_op(self, ctx:PinescriptParser.Shift_opContext):
         pass
 
 

@@ -1,0 +1,213 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "mint",
+  "name": "PYNE",
+  "description": "Open-source Pine Script™ evaluation framework — grammar, AST, evaluator, LSP, Pro API, and edge workers.",
+  "colors": {
+    "primary": "#A3E635",
+    "light": "#BEF264",
+    "dark": "#65A30D"
+  },
+  "appearance": {
+    "default": "dark"
+  },
+  "seo": {
+    "indexing": "navigable",
+    "metatags": {
+      "og:site_name": "PYNE Docs",
+      "og:title": "PYNE — Open Pine Script™ Evaluation",
+      "og:description": "Grammar-driven parser, bar-loop evaluator, LSP, Pro API, and edge workers. Self-host the runtime.",
+      "og:type": "website",
+      "canonical": "https://hoox.sh/pyne/docs",
+      "robots": "index, follow"
+    }
+  },
+  "search": {
+    "prompt": "Search PYNE docs..."
+  },
+  "navbar": {
+    "primary": {
+      "type": "button",
+      "label": "GitHub",
+      "href": "https://github.com/jango-blockchained/pynescript"
+    }
+  },
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "End User",
+        "groups": [
+          {
+            "group": "End User",
+            "pages": [
+              "index",
+              "enduser/index",
+              {
+                "group": "Getting Started",
+                "pages": [
+                  "enduser/getting-started/installation",
+                  "enduser/getting-started/quick-start",
+                  "enduser/getting-started/configuration"
+                ]
+              },
+              {
+                "group": "Guides",
+                "pages": [
+                  "enduser/guides/cli",
+                  "enduser/guides/library-api",
+                  "enduser/guides/evaluate-scripts",
+                  "enduser/guides/editors",
+                  "enduser/guides/pro-api-usage",
+                  "enduser/guides/troubleshooting"
+                ]
+              },
+              {
+                "group": "Reference",
+                "pages": [
+                  "enduser/reference/cli-commands",
+                  "enduser/reference/glossary",
+                  "enduser/reference/faq"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Core",
+        "groups": [
+          {
+            "group": "Language Core",
+            "pages": [
+              "core/index",
+              "core/grammar-antlr4",
+              "core/asdl-schema",
+              "core/builder",
+              "core/helper-api",
+              "core/unparser",
+              "core/visitor-transformer",
+              "core/type-system",
+              "core/linter",
+              "core/error-model"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Runtime",
+        "groups": [
+          {
+            "group": "Evaluator",
+            "pages": [
+              "runtime/index",
+              "runtime/series-and-history",
+              "runtime/expressions-statements",
+              "runtime/builtins/index",
+              "runtime/builtins/technical",
+              "runtime/builtins/strategy",
+              "runtime/builtins/collections",
+              "runtime/builtins/drawing-plotting",
+              "runtime/builtins/request-input",
+              "runtime/libraries",
+              "runtime/events"
+            ]
+          },
+          {
+            "group": "Compiler",
+            "pages": [
+              "runtime/compiler/overview",
+              "runtime/compiler/numba",
+              "runtime/compiler/strategy-broker"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "LSP",
+        "groups": [
+          {
+            "group": "Language Server",
+            "pages": [
+              "lsp/index",
+              "lsp/architecture",
+              "lsp/features/diagnostics",
+              "lsp/features/completion",
+              "lsp/features/hover",
+              "lsp/features/navigation",
+              "lsp/features/formatting",
+              "lsp/features/semantic-tokens",
+              "lsp/features/inlay-hints",
+              "lsp/builtin-metadata",
+              "lsp/vscode-extension",
+              "lsp/clients"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API",
+        "groups": [
+          {
+            "group": "Pro API",
+            "pages": [
+              "api/index",
+              "api/app-lifecycle",
+              "api/auth-and-keys",
+              "api/endpoints/run",
+              "api/endpoints/preview",
+              "api/endpoints/backtest",
+              "api/services/chart-renderer",
+              "api/runtime-bridge",
+              "api/contract"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "DevOps",
+        "groups": [
+          {
+            "group": "DevOps",
+            "pages": [
+              "devops/index",
+              "devops/local-dev",
+              "devops/ci",
+              "devops/release",
+              "devops/docker",
+              "devops/nuitka-build",
+              "devops/metadata-crypto",
+              "devops/gcp",
+              "devops/observability",
+              "devops/security"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Reference",
+        "groups": [
+          {
+            "group": "Status & Parity",
+            "pages": [
+              "reference/compatibility",
+              "reference/implementation-status",
+              "reference/missing-features",
+              "reference/pine-v6-surface",
+              "reference/numerical-validation",
+              "reference/roadmap",
+              "contributing"
+            ]
+          },
+          {
+            "group": "pine-worker",
+            "pages": [
+              "pine-worker/index",
+              "pine-worker/converter",
+              "pine-worker/testing"
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

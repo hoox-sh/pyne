@@ -6,11 +6,33 @@
 from __future__ import annotations
 
 from datetime import datetime
+from datetime import timedelta
 from datetime import timezone
+from functools import lru_cache
 from typing import Any
 
 from .base import BuiltinDispatchMixin
 from .base import BuiltinHandler
+
+
+@lru_cache(maxsize=4096)
+def _timestamp_ms_from_components(
+    year: int,
+    month: int,
+    day: int,
+    hour: int,
+    minute: int,
+    second: int,
+) -> int:
+    """UTC ms for calendar components (day overflow rolls months, matching TV).
+
+    Cached: scripts often call ``timestamp(y, m, d, h, mi, s)`` with the same
+    literals inside hot loops (e.g. TradingView "loop is too long" samples).
+    """
+    # Anchor on day 1 then add (day-1) so day overflow/underflow rolls months.
+    base = datetime(int(year), int(month), 1, int(hour), int(minute), int(second), tzinfo=timezone.utc)
+    dt = base + timedelta(days=int(day) - 1)
+    return int(dt.timestamp() * 1000)
 
 
 class UtilityFunctionsMixin(BuiltinDispatchMixin):
@@ -88,13 +110,17 @@ class UtilityFunctionsMixin(BuiltinDispatchMixin):
     def _resolve_timestamp_arg(self, args: list[Any], *, name: str) -> float | None:
         """Resolve optional timestamp arg; bare form uses chart ``time``.
 
+        Accepts optional timezone as 2nd arg (``hour(time, \"UTC-5\")``) and
+        ignores it — chart timestamps are treated as UTC ms.
+
         Returns ``None`` (Pine ``na``) when the timestamp is missing — TV's
         ``year(na)`` / ``month(na)`` yield ``na`` rather than runtime.error.
         """
         if len(args) == 0:
             return float(self._bar_time_ms("time"))
-        if len(args) != 1:
+        if len(args) > 2:
             self._error(f"{name}() takes zero or one argument (timestamp)")
+        # args[1] may be timezone string — ignored
         ts = args[0]
         # Unwrap series wrappers
         current = getattr(ts, "current", None)
@@ -225,32 +251,176 @@ class UtilityFunctionsMixin(BuiltinDispatchMixin):
             self._error("timestamp() arguments must be numeric")
             return None
 
+    def _parse_timestamp_string(self, text: str) -> int | None:
+        """Parse TV-style date strings including optional timezone suffixes.
+
+        Supported examples:
+        - ``Dec 01 2021 23:59:59``
+        - ``08 April 2024 00:00`` (full month, no seconds)
+        - ``January 1, 2024`` / ``Jan 1, 2024`` (US comma form)
+        - ``2023-01-01`` / ``2023-01-01T12:00:00`` (ISO)
+        - ``01 Jan 2000 00:00:00 GMT+10``, ``UTC-5``, ``+0300``, ``+03:00``
+        """
+        import re
+        from datetime import datetime
+        from datetime import timedelta
+        from datetime import timezone
+
+        s0 = text.strip()
+        if not s0:
+            return None
+
+        formats = (
+            # Month name first
+            "%b %d %Y %H:%M:%S",
+            "%B %d %Y %H:%M:%S",
+            "%b %d %Y %H:%M",
+            "%B %d %Y %H:%M",
+            "%b %d %Y",
+            "%B %d %Y",
+            # US comma forms: "January 1, 2024", "Jan 1, 2024 00:00"
+            "%b %d, %Y %H:%M:%S",
+            "%B %d, %Y %H:%M:%S",
+            "%b %d, %Y %H:%M",
+            "%B %d, %Y %H:%M",
+            "%b %d, %Y",
+            "%B %d, %Y",
+            # Day first
+            "%d %b %Y %H:%M:%S",
+            "%d %B %Y %H:%M:%S",
+            "%d %b %Y %H:%M",
+            "%d %B %Y %H:%M",
+            "%d %b %Y",
+            "%d %B %Y",
+            # Day first with comma after month name
+            "%d %b, %Y %H:%M:%S",
+            "%d %B, %Y %H:%M:%S",
+            "%d %b, %Y %H:%M",
+            "%d %B, %Y %H:%M",
+            "%d %b, %Y",
+            "%d %B, %Y",
+            # ISO
+            "%Y-%m-%d %H:%M:%S",
+            "%Y-%m-%d %H:%M",
+            "%Y-%m-%dT%H:%M:%S",
+            "%Y-%m-%dT%H:%M",
+            "%Y-%m-%d",
+        )
+
+        def _try_formats(s: str, tz_offset: timedelta) -> int | None:
+            for fmt in formats:
+                try:
+                    # Interpret naive datetime in the stated offset, then convert to UTC ms
+                    dt_local = datetime.strptime(s, fmt)
+                    dt_utc = (dt_local - tz_offset).replace(tzinfo=timezone.utc)
+                    return int(dt_utc.timestamp() * 1000)
+                except ValueError:
+                    continue
+            return None
+
+        # Try without timezone first so ISO dates like "2023-01-01" are not
+        # misread as a bare "-01" UTC offset by the suffix stripper below.
+        parsed = _try_formats(s0, timedelta(0))
+        if parsed is not None:
+            return parsed
+
+        s = s0
+        tz_offset = timedelta(0)
+
+        # Timezone suffixes. Order matters:
+        # 1) GMT/UTC[+/-H[:MM]] — may omit space: "GMT+10", "UTC-5"
+        # 2) bare +HH:MM / +HHMM — require leading whitespace so we never eat
+        #    the day part of "yyyy-mm-dd" (e.g. trailing "-01").
+        m = re.search(
+            r"\s*(?:GMT|UTC)\s*([+-])(\d{1,2})(?::?(\d{2}))?\s*$",
+            s,
+            re.I,
+        )
+        if m:
+            sign = 1 if m.group(1) == "+" else -1
+            hours = int(m.group(2))
+            mins = int(m.group(3) or 0)
+            tz_offset = sign * timedelta(hours=hours, minutes=mins)
+            s = s[: m.start()].strip()
+        else:
+            m = re.search(r"\s+([+-])(\d{1,2}):(\d{2})\s*$", s)
+            if m:
+                sign = 1 if m.group(1) == "+" else -1
+                tz_offset = sign * timedelta(hours=int(m.group(2)), minutes=int(m.group(3)))
+                s = s[: m.start()].strip()
+            else:
+                m = re.search(r"\s+([+-])(\d{2})(\d{2})\s*$", s)
+                if m:
+                    sign = 1 if m.group(1) == "+" else -1
+                    tz_offset = sign * timedelta(hours=int(m.group(2)), minutes=int(m.group(3)))
+                    s = s[: m.start()].strip()
+                else:
+                    # Drop bare GMT/UTC without offset
+                    s = re.sub(r"\s+(?:GMT|UTC)\s*$", "", s, flags=re.I).strip()
+
+        return _try_formats(s, tz_offset)
+
     def _builtin_timestamp(self, args: list[Any]) -> int:
-        """Create Unix timestamp from date/time components.
+        """Create Unix timestamp from date/time components or a date string.
+
+        Forms:
+        - ``timestamp(\"Dec 01 2021 23:59:59\")``
+        - ``timestamp(\"01 Jan 2000 00:00:00 GMT+10\")``
+        - ``timestamp(year, month, day[, hour, minute, second])``
+        - ``timestamp(timezone, year, month, day[, hour, minute, second])``
+          e.g. ``timestamp(\"GMT\", 2019, 8, 5, 12, 0)`` or
+          ``timestamp(syminfo.timezone, y, m, d, 0, 0)``
 
         Accepts overflow/underflow on day (e.g. day=40 or day=-5) via month
         rollover, matching TradingView ``timestamp`` arithmetic used by scripts
         such as dividend_yield.
         """
-        if len(args) < 3:
+        # Single string form
+        if len(args) == 1 and isinstance(args[0], str):
+            parsed = self._parse_timestamp_string(args[0])
+            if parsed is not None:
+                return parsed
+            self._error("timestamp() could not parse date string")
+        if len(args) == 1:
+            # series/int ms pass-through
+            c = self._coerce_timestamp_component(args[0], required=True)
+            return int(c or 0)
+
+        # Optional leading timezone (string or non-year): ignored — components as UTC
+        # e.g. timestamp("GMT", 2019, 8, 5, 12, 0) or timestamp(syminfo.timezone, y, m, d, 0, 0)
+        comp = list(args)
+        if comp:
+            first = comp[0]
+            if isinstance(first, str):
+                if len(comp) >= 4:
+                    comp = comp[1:]
+                else:
+                    parsed = self._parse_timestamp_string(str(first))
+                    if parsed is not None:
+                        return parsed
+                    self._error("timestamp() could not parse date string")
+            elif len(comp) >= 4:
+                # Non-string timezone placeholder (None / enum) before year
+                year_guess = self._coerce_timestamp_component(first, required=False)
+                if year_guess is None or not (1900 <= year_guess <= 2200):
+                    comp = comp[1:]
+
+        if len(comp) < 3:
             msg = "timestamp() requires year, month, day"
             self._error(msg)
-        year = self._coerce_timestamp_component(args[0], required=True)
-        month = self._coerce_timestamp_component(args[1], required=True)
-        day = self._coerce_timestamp_component(args[2], required=True)
-        hour = self._coerce_timestamp_component(args[3] if len(args) > 3 else 0, default=0)
-        minute = self._coerce_timestamp_component(args[4] if len(args) > 4 else 0, default=0)
-        second = self._coerce_timestamp_component(args[5] if len(args) > 5 else 0, default=0)
+        year = self._coerce_timestamp_component(comp[0], required=True)
+        month = self._coerce_timestamp_component(comp[1], required=True)
+        day = self._coerce_timestamp_component(comp[2], required=True)
+        hour = self._coerce_timestamp_component(comp[3] if len(comp) > 3 else 0, default=0)
+        minute = self._coerce_timestamp_component(comp[4] if len(comp) > 4 else 0, default=0)
+        second = self._coerce_timestamp_component(comp[5] if len(comp) > 5 else 0, default=0)
         assert year is not None and month is not None and day is not None
         assert hour is not None and minute is not None and second is not None
 
         try:
-            # Anchor on day 1 then add (day-1) so day overflow/underflow rolls months.
-            from datetime import timedelta
-
-            base = datetime(int(year), int(month), 1, int(hour), int(minute), int(second), tzinfo=timezone.utc)
-            dt = base + timedelta(days=int(day) - 1)
-            return int(dt.timestamp() * 1000)
+            return _timestamp_ms_from_components(
+                int(year), int(month), int(day), int(hour), int(minute), int(second)
+            )
         except (ValueError, OSError, OverflowError) as e:
             self._error(f"Invalid date/time arguments: {e}")
             return 0

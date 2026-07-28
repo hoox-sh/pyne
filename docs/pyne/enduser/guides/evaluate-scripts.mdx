@@ -1,0 +1,242 @@
+---
+title: "Evaluate Scripts"
+description: "Run Pine expressions and multi-bar scripts with literal_eval, the AST evaluator, backend Runtime, data providers, and strategy events."
+---
+
+# Evaluate Scripts
+
+## Abstract
+
+Evaluation is the second half of the PYNE pipeline: given an AST (or source) and **market context**, produce plots, series, strategy events, and drawings. End users typically choose among three graded tools:
+
+1. **`literal_eval`** — pure/builtin expressions, optional series context  
+2. **AST evaluator** (`NodeLiteralEvaluator` / full evaluator mixins) — script-shaped evaluation in-process  
+3. **`backend.runtime.Runtime`** or **Pro API `POST /run`** — bar-loop over OHLCV with shared evaluate contract  
+
+This guide stays at the consumer level; series semantics and builtin inventories are under [Runtime](/pyne/docs/runtime).
+
+## Conceptual model
+
+```mermaid
+flowchart TB
+  SRC[Source] --> PARSE[parse]
+  PARSE --> AST[AST]
+  AST --> LE[literal_eval]
+  AST --> NE[NodeEvaluator / bar visit]
+  OHLCV[OHLCV bars] --> RT[Runtime.run]
+  AST --> RT
+  RT --> PLOTS[plots / series / plot_meta]
+  RT --> EV[strategy events]
+  RT --> DR[drawings]
+  DF[data_feed / data_provider] --> RT
+  DF --> LE
+```
+
+| Mode | Bar loop | Strategy | Typical use |
+| --- | --- | --- | --- |
+| `literal_eval` | no (single shot) | limited | TA on arrays, math, strings |
+| Evaluator in tests / tools | optional | yes via state | Unit tests, notebooks |
+| `Runtime.run` / `/run` | yes | yes | Charts, AXIS, backtests |
+| `mode="compile"` | yes (subset) | limited | Faster SMA/EMA/RSI-style paths |
+
+## Interface surface
+
+### Expression evaluation
+
+```python
+from pynescript.ast.helper import literal_eval
+
+literal_eval("1 + 2 * 3")
+literal_eval("math.max(1, 5, 3)")
+literal_eval('str.upper("hi")')
+literal_eval("array.size([1, 2, 3])")
+
+prices = [100, 102, 101, 103, 105, 104, 106, 108, 107, 110]
+literal_eval(f"ta.sma({prices}, 5)")
+literal_eval(f"ta.rsi({prices}, 9)")
+bb = literal_eval(f"ta.bb({prices}, 5, 2)")  # middle, upper, lower
+```
+
+Series history context (Pine-style `[0]` current / `[1]` previous as implemented):
+
+```python
+context = {
+    "close": [100, 102, 101, 103, 105],
+    "open": [99, 101, 100, 102, 104],
+    "high": [101, 103, 102, 104, 106],
+    "low": [98, 100, 99, 101, 103],
+}
+literal_eval("close[0]", context)
+literal_eval("close[0] - close[1]", context)
+```
+
+Optional live/historical wiring:
+
+```python
+literal_eval(expr, context, data_feed=feed, data_provider=provider)
+```
+
+### Script evaluation helper
+
+```python
+from pynescript.ast.evaluator import NodeLiteralEvaluator
+
+ev = NodeLiteralEvaluator()
+result = ev.evaluate_script(
+    """
+//@version=5
+indicator("demo")
+// body depends on what the evaluator implements for statements
+"""
+)
+```
+
+Libraries:
+
+```python
+ev.register_library_source(namespace="MyNs", name="Lib", version=1, source=lib_source)
+mod = ev.lookup_library(namespace="MyNs", name="Lib", version=1)
+```
+
+### Bar-loop Runtime (HTTP contract shape)
+
+```python
+from backend.runtime import Runtime  # monorepo; not always installed as package path
+
+runtime = Runtime(symbol="AAPL")
+ohlcv = [
+    {"time": 1_700_000_000, "open": 100, "high": 101, "low": 99, "close": 100.5, "volume": 1_000},
+    {"time": 1_700_086_400, "open": 100.5, "high": 102, "low": 100, "close": 101.5, "volume": 1_200},
+]
+result = runtime.run(
+    source_code='//@version=5\nindicator("t")\nplot(close)\n',
+    ohlcv_data=ohlcv,
+    mode="interpret",  # or "compile" for supported subset
+)
+# result: plots, series, plot_meta, events, drawings, script_id, run_id, count, ...
+# or {"error": "..."}
+```
+
+Pro API wraps the same runtime — see [Pro API usage](/pyne/docs/enduser/guides/pro-api-usage).
+
+### Data providers and feeds
+
+Historical CLI/library:
+
+```python
+from pynescript.util.data import get_provider
+
+prov = get_provider("mock")
+# or yahoo / alphavantage / ccxt with kwargs
+bars = prov.fetch("AAPL", "6mo", "1d")
+# bars: dict with close/open/... lists
+```
+
+Realtime (requires ccxt / pro):
+
+```python
+# examples/realtime_datafeed.py
+from pynescript.util.datafeed import get_datafeed
+
+feed = get_datafeed("ccxtpro", exchange="binance")
+# async with feed: async for candle in feed.watch_ohlcv("BTC/USDT", "1m"): ...
+```
+
+### Educational bar executor
+
+`examples/execute_script.py` implements a **teaching** RSI strategy executor with a custom visitor and pandas history (`examples/historical_data.py` / yfinance). It is not the production `Runtime`, but demonstrates bar iteration patterns.
+
+## Internals (repo paths)
+
+| Path | Role |
+| --- | --- |
+| `src/pynescript/ast/helper.py` | `literal_eval` |
+| `src/pynescript/ast/evaluator/base.py` | Context, series, visitor base |
+| `src/pynescript/ast/evaluator/__init__.py` | `NodeLiteralEvaluator` composition |
+| `src/pynescript/ast/evaluator/builtins/` | `ta.*`, `strategy.*`, arrays, … |
+| `src/pynescript/ast/evaluator/events.py` | Event emission hooks |
+| `backend/runtime.py` | Multi-bar `Runtime.run` |
+| `backend/series.py` | `PineSeries` history model |
+| `src/pynescript/util/data.py` | Providers + `resolve_request_sources` |
+| `src/pynescript/util/datafeed.py` | Realtime feeds |
+| `examples/evaluate_expressions.py` | Expression gallery |
+| `examples/execute_script.py` | Didactic strategy loop |
+| `examples/rsi_strategy.pine` | Sample strategy source |
+
+## Invariants & edge cases
+
+- **Determinism.** Same source + same OHLCV + same mode should yield reproducible series (mock providers seedable via options where supported).
+- **`na` / warmup.** TA functions need enough bars; early bars may be `na`/None-like — guard like Pine (`not na(x)`).
+- **`mode="compile"`** only supports a **subset** (docs in runtime: sma/ema/rsi, plots, math). Unsupported constructs fall back or error — {/* TODO: verify exact failure path */}.
+- **History indexing.** Confirm `[0]`/`[1]` semantics against your evaluator version before porting TV scripts that assume closed-bar rules.
+- **Strategy events** include run/script ids when stamped by Runtime — useful for HOOX downstream.
+- **Body size / bar count.** HTTP path caps payload size (5 MiB); very long histories should be downsampled or chunked.
+
+## Worked examples
+
+### RSI on a synthetic series
+
+```python
+from pynescript.ast.helper import literal_eval
+
+closes = [float(x) for x in range(100, 130)]
+print(literal_eval(f"ta.rsi({closes}, 14)"))
+```
+
+### Multi-indicator expressions
+
+```python
+highs = [c + 1 for c in closes]
+lows = [c - 1 for c in closes]
+macd, signal, hist = literal_eval(f"ta.macd({closes}, 12, 26, 9)")
+atr = literal_eval(f"ta.atr({highs}, {lows}, {closes}, 14)")
+```
+
+### Full script via Runtime (monorepo)
+
+```python
+from pathlib import Path
+from backend.runtime import Runtime
+
+script = Path("examples/rsi_strategy.pine").read_text(encoding="utf-8")
+# Build ohlcv list from your provider...
+rt = Runtime(symbol="EXAMPLE")
+out = rt.run(script, ohlcv_data=ohlcv, mode="interpret")
+if "error" in out:
+    raise RuntimeError(out["error"])
+print(out.get("count"), len(out.get("events", [])), out.get("series", {}).keys())
+```
+
+### Strategy event inspection
+
+```python
+for ev in out.get("events", []):
+    # shape depends on StrategyState / event schema
+    print(ev)
+```
+
+### request.* with resolved sources
+
+When calling `/run` or Runtime, pass `data_source` / providers so `request.security` and friends resolve; without configuration they may use chart bars or mocks.
+
+## Failure modes
+
+| Symptom | Interpretation |
+| --- | --- |
+| `NotImplementedError` / incomplete builtin | Expression outside supported surface — check [missing features](/pyne/docs/reference/missing-features) |
+| `{"error": "Parse Error: ..."}` | Runtime caught parse failure |
+| `EXECUTION_ERROR` via HTTP | Exception during bar loop |
+| Empty plots | No `plot`/`plotshape` executed; wrong declaration type |
+| Numerical mismatch vs TV | Warmup, float path, or builtin parity gap — [numerical validation](/pyne/docs/reference/numerical-validation) |
+| `DataProviderError` | Provider misconfig |
+| Async feed errors | Missing ccxt.pro / network |
+
+## See also
+
+- [Pro API usage](/pyne/docs/enduser/guides/pro-api-usage)
+- [Library API](/pyne/docs/enduser/guides/library-api)
+- [Runtime series model](/pyne/docs/runtime/series-and-history)
+- [Strategy builtins](/pyne/docs/runtime/builtins/strategy)
+- [Evaluate contract](/pyne/docs/api/contract)
+- [AXIS](/axis/docs) — visualizing series
+- [HOOX](/docs) — consuming strategy events on the edge

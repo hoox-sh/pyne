@@ -1,0 +1,142 @@
+---
+title: "Compile strategy broker"
+description: "CompileStrategyBroker: pending orders, OHLC fills, OCA, commission, and event export."
+---
+
+# Compile strategy broker
+
+## Abstract
+
+When `CompilerVisitor` detects strategy usage, object-mode emission instantiates **`CompileStrategyBroker`**—a lightweight broker aligned with the interpreter’s fill-before-script cadence, but designed for generated loops (no AST, no full `StrategyState` metric surface). It supports market entry/close and pending limit/stop/stop-limit orders with per-bar OHLC triggers, OCA cancel/reduce, commission, and slippage.
+
+## Conceptual model
+
+```mermaid
+sequenceDiagram
+  participant Loop as Generated for __bar_idx
+  participant B as CompileStrategyBroker
+  Loop->>B: set_bar(idx, OHLC)
+  Loop->>B: process_pending_orders(OHLC)
+  Loop->>B: entry/close/order… (script body)
+  Note over B: events[], pending_orders, position_*
+  Loop->>B: to_events() at return
+```
+
+## Interface surface
+
+### Construction (from `strategy()` kwargs when lowered)
+
+```python
+CompileStrategyBroker(
+    initial_capital=100_000.0,
+    commission_value=0.0,
+    commission_type="percent",  # percent | cash_per_order | cash_per_contract
+    slippage_ticks=0,
+    mintick=0.01,
+)
+```
+
+### Bar context
+
+```python
+broker.set_bar(bar_index, bar_time, mark, open_=…, high=…, low=…, close=…)
+broker.process_pending_orders(open_=…, high=…, low=…, close=…)
+```
+
+### Orders
+
+| Method | Role |
+| --- | --- |
+| `entry(...)` | Market or pending entry; reverse flattens opposite |
+| `close` / `close_all` | Reduce/flat with optional price |
+| Pending book | `PendingOrder` with type, direction, qty, limit/stop, OCA, `max_fill_per_bar`, `is_entry` |
+
+### Fill logic (`_trigger_price`)
+
+| Type | Long trigger | Short trigger | Fill price idea |
+| --- | --- | --- | --- |
+| market | — | — | close (immediate path) |
+| limit | `low <= limit` | `high >= limit` | gap-aware vs open |
+| stop | `high >= stop` | `low <= stop` | gap-aware vs open |
+| stop-limit | stop traded and limit available | symmetric | limit price |
+
+Partial fills: `max_fill_per_bar` caps quantity per bar; residual stays pending.
+
+### OCA
+
+After a fill, siblings in the same `oca_name`:
+
+- **`cancel`** — remove sibling, emit `cancel`
+- **`reduce`** — decrease sibling qty by fill size
+- **`none`** — no interaction
+
+### Economics
+
+- **Slippage:** `± slippage_ticks * mintick` by direction on fills.
+- **Commission:** percent of notional, cash per order, or cash per contract.
+- **Position:** signed `position_size`, `position_avg_price`, `netprofit`, `equity` helpers for return payload.
+
+### Events
+
+`_emit` appends dicts with keys compatible with strategy event serialization (`kind`, `id`, `direction`, `qty`, `order_type`, `limit`, `stop`, `oca_name`, `comment`, `bar_index`, `bar_time`, `ohlc`). Object-mode return includes `'__events': __strategy.to_events()` plus position/netprofit/equity snapshots.
+
+## Internals
+
+| Path | Role |
+| --- | --- |
+| `src/pynescript/compiler/strategy_broker.py` | Broker implementation |
+| `src/pynescript/compiler/compiler.py` | Emits `__strategy` wiring in object mode |
+| `src/pynescript/ast/evaluator/builtins/strategy.py` | Interpreter counterpart (richer) |
+| `tests/test_compiler_strategy.py` | Compile strategy coverage |
+
+NA helpers treat `None`, blank/`na` strings, and float NaN as missing prices when classifying order types.
+
+## Invariants & edge cases
+
+1. **Same order as interpreter:** `set_bar` → `process_pending_orders` → script body.
+2. **Not a full metric engine.** Prefer interpret mode for `strategy.closedtrades.profit(i)` style analytics until parity is complete.
+3. **Direction normalization** accepts `strategy.long`, `long`, `1`, `buy`, etc.
+4. **Reverse on opposite entry** via `close_all(comment="reverse")` then open.
+5. **Event dicts are mutable lists**—fine for run output; not frozen dataclasses.
+
+## Worked examples
+
+### Generated prologue (illustrative)
+
+```python
+__strategy = CompileStrategyBroker(initial_capital=100000.0)
+for __bar_idx in range(n_bars):
+    __strategy.set_bar(__bar_idx, 0, float(close_arr[__bar_idx]),
+        open_=float(open_arr[__bar_idx]), high=float(high_arr[__bar_idx]),
+        low=float(low_arr[__bar_idx]), close=float(close_arr[__bar_idx]))
+    __strategy.process_pending_orders(...)
+    # lowered strategy.entry / close calls
+return {..., '__events': __strategy.to_events(),
+        '__position_size': __strategy.position_size,
+        '__netprofit': __strategy.netprofit,
+        '__equity': __strategy.equity}
+```
+
+### Limit buy pending
+
+```pine
+strategy.entry("L", strategy.long, limit=low - syminfo.mintick)
+```
+
+Object-mode lowers to a pending limit; subsequent bars fill when `low` trades through.
+
+## Failure modes
+
+| Symptom | Cause |
+| --- | --- |
+| No fills | Triggers never met; or market path not invoked |
+| OCA sibling remains | `oca_type` none / name mismatch |
+| PnL vs interpret drift | Commission/slippage/mintick defaults differ |
+| Missing events in API envelope | Host only maps plots—not `__events` |
+
+## See also
+
+- [Strategy builtins (interpret)](/pyne/docs/runtime/builtins/strategy)
+- [Events](/pyne/docs/runtime/events)
+- [Compiler overview](/pyne/docs/runtime/compiler/overview)
+- [Numba path](/pyne/docs/runtime/compiler/numba)

@@ -1,0 +1,201 @@
+---
+title: "FAQ"
+description: "Frequently asked questions about pynescript install, Pine version support, TradingView parity, CLI vs library, LSP, Pro API, licensing, and ecosystem boundaries."
+---
+
+# FAQ
+
+## Abstract
+
+Short answers to questions that recur when adopting PYNE as a **consumer**. Where behavior is evolving, answers point at status docs rather than overclaiming parity.
+
+## Conceptual model
+
+Questions group into: install & package shape, language coverage, evaluation fidelity, tooling surfaces, and product boundaries (AXIS / HOOX / workers).
+
+## Interface surface
+
+No dedicated FAQ API — pointers only.
+
+## Internals (repo paths)
+
+Answers cite:
+
+- `pyproject.toml` — version, extras, license  
+- `src/pynescript/__main__.py` — CLI reality  
+- `docs/missing_features.md` / reference status pages — coverage  
+- `backend/app.py` — HTTP contract  
+
+## Invariants & edge cases
+
+- Prefer reading code + status docs over README marketing tables when they disagree; mark drift with issues.
+- Trademark disclaimer lives on the product index once — not repeated here in full.
+
+## Questions
+
+### What is PYNE vs pynescript?
+
+**pynescript** is the Python package / repo name. **PYNE** is the product documentation brand for the open evaluate stack (grammar → AST → runtime → LSP → Pro API → workers). You still `pip install pynescript`.
+
+### What Python versions are supported?
+
+`requires-python = ">=3.10"`. Classifiers list 3.10–3.12. Newer CPython may work; CI matrices evolve — {/* TODO: verify 3.13 in your branch */}.
+
+### How do I install just the parser?
+
+```bash
+pip install pynescript
+```
+
+No extra required for `parse` / `unparse` / `lint` / basic `literal_eval`.
+
+### How do I install the LSP?
+
+```bash
+pip install "pynescript[lsp]"
+```
+
+Run `pynescript-lsp` (not a Click subcommand of `pynescript` in current code).
+
+### Why is `pynescript lsp` missing?
+
+The registered entry point is the separate script **`pynescript-lsp`**. Some docs historically mentioned a `lsp` subcommand; trust `pyproject.toml` `[project.scripts]` and `__main__.py` for ground truth.
+
+### Which Pine versions are supported?
+
+v5 is the primary surface; v6 features land incrementally (e.g. multiline strings). See [implementation status](/pyne/docs/reference/implementation-status), [missing features](/pyne/docs/reference/missing-features), and [pine v6 surface](/pyne/docs/reference/pine-v6-surface).
+
+### Is this affiliated with TradingView?
+
+No. Independent open-source toolchain. Pine Script™ and TradingView® are trademarks of TradingView, Inc.
+
+### Will my TradingView strategy produce identical PnL?
+
+Not guaranteed. Broker emulator rules, fill models, request.* data, and some builtins differ. Use PYNE for offline analysis, CI, and self-hosted evaluate; validate critical strategies numerically ([numerical validation](/pyne/docs/reference/numerical-validation)).
+
+### Can I format Pine like Black?
+
+`parse-and-unparse` / LSP format normalize via the AST unparser. There is no rich style config comparable to Black’s profile system.
+
+### Does the CLI evaluate strategies?
+
+No evaluate subcommand today. Use:
+
+- `literal_eval` for expressions  
+- `backend.runtime.Runtime` or `POST /run` for bar-loops  
+- `examples/execute_script.py` as a didactic sample  
+
+### How do I lint in CI?
+
+```bash
+pynescript lint --fail-on errors path/to/script.pine
+```
+
+Loop files yourself; the CLI is single-file / stdin.
+
+### What lint rules exist?
+
+Syntax (`E001`), version (`W001`–`W002`), deprecated patterns (`W101`–), style/naming (`C001`–`C004`). See `src/pynescript/ast/linter.py` and the [library API](/pyne/docs/enduser/guides/library-api) guide.
+
+### How do I get market data?
+
+```bash
+pynescript data AAPL --provider yahoo
+pip install "pynescript[data]"  # for ccxt
+```
+
+Or providers in Python via `pynescript.util.data.get_provider`.
+
+### What is the Pro API free tier?
+
+`POST /run` and `POST /run/batch` are exposed as free evaluate endpoints (still your CPU if self-hosted). Preview/backtest routes are Pro-tier with API keys. Hosted pricing in README is product-side — {/* TODO: verify live tiers */}.
+
+### How do I self-host the API?
+
+Install backend requirements, set `API_KEY_STORE` / `ALLOWED_ORIGINS` / optional `ADMIN_TOKEN`, run `python -m backend.app` or `make run`. See [configuration](/pyne/docs/enduser/getting-started/configuration) and [Pro API usage](/pyne/docs/enduser/guides/pro-api-usage).
+
+### What is AXIS?
+
+Optional charting PWA that can call the evaluate contract and render series. Docs: [AXIS](/axis/docs). PYNE evaluates without AXIS.
+
+### What is HOOX?
+
+Optional edge trading mesh (webhooks, trade-worker, etc.). Docs: [HOOX](/docs). Strategy events from PYNE can feed HOOX; not required for parsing/eval.
+
+### What is pine-worker vs pyne-worker?
+
+- **pine-worker** — TypeScript port / tool in this monorepo (`pine-worker/`)  
+- **pyne-worker** — Python Cloudflare Worker sister repo depending on pynescript  
+
+Both aim at edge evaluate; different runtimes.
+
+### What license is pynescript?
+
+**LGPL-3.0-or-later** per `pyproject.toml`. Understand dynamic linking / modification obligations before embedding in proprietary products; consult your counsel.
+
+### Can I use this commercially?
+
+LGPL permits commercial use under its terms. Hosted Pro API terms (if any) are separate from the library license.
+
+### Why is parse slow on huge files?
+
+ANTLR parse + AST build scale with file size and nesting. Deep expression nests also stress recursion (limit temporarily raised to ≥5000). Split libraries when possible.
+
+### Round-trip changed my spacing — is that a bug?
+
+Usually no. Unparser emits a normalized style. File a bug if **semantics** change (identifiers, call structure, annotations lost).
+
+### Where is the builtin list for autocomplete?
+
+Generated metadata used by the LSP (`scripts/generate_builtin_metadata.py`). Do not hand-edit encrypted release blobs.
+
+### How do I report a grammar bug?
+
+Minimal `.pine` repro + expected TV behavior + PYNE version. Prefer failing pytest if contributing.
+
+### Is Jupyter supported?
+
+README mentions magic commands — {/* TODO: verify current jupyter extension path */}. You can always `parse` / `literal_eval` in notebooks with the library.
+
+### Can I transform scripts programmatically?
+
+Yes — `NodeVisitor` / `NodeTransformer` on the AST, then `unparse`. See [library API](/pyne/docs/enduser/guides/library-api).
+
+## Worked examples
+
+### “Is my install healthy?”
+
+```bash
+python -c "from pynescript.ast import parse, unparse; print(unparse(parse('//@version=5\nindicator(\"t\")\nplot(close)\n')))"
+pynescript lint - <<< $'//@version=5\nindicator("t")\nplot(close)\n'
+```
+
+### “Does HTTP evaluate work?”
+
+```bash
+curl -s http://127.0.0.1:5002/ | python -m json.tool
+```
+
+### “Is LSP importable?”
+
+```bash
+python -c "import pygls; from pynescript.langserver.server import PynescriptLanguageServer"
+```
+
+## Failure modes
+
+If an FAQ answer appears wrong against your checkout:
+
+1. Check package version (`pynescript --version`).  
+2. Read the cited source file.  
+3. Prefer `__main__.py` / `pyproject.toml` over secondary docs.  
+4. Open an issue or PR against the MDX page.
+
+## See also
+
+- [End User hub](/pyne/docs/enduser)
+- [Installation](/pyne/docs/enduser/getting-started/installation)
+- [Troubleshooting](/pyne/docs/enduser/guides/troubleshooting)
+- [Glossary](/pyne/docs/enduser/reference/glossary)
+- [Compatibility](/pyne/docs/reference/compatibility)
+- [CLI commands](/pyne/docs/enduser/reference/cli-commands)

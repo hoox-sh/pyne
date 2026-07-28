@@ -657,7 +657,7 @@ class PinescriptASTBuilder(
         return self.visit(exprs[0])
 
     def visitConjunction_expression(self, ctx: PinescriptParser.Conjunction_expressionContext):
-        exprs = ctx.equality_expression()
+        exprs = ctx.bitwise_or_expression()
         if len(exprs) > 1:
             exprs = [self.visit(expr) for expr in exprs]
             expr = ast.BoolOp(
@@ -667,6 +667,33 @@ class PinescriptASTBuilder(
             self._setLocations(expr, ctx)
             return expr
         return self.visit(exprs[0])
+
+    def visitBitwise_or_expression(self, ctx: PinescriptParser.Bitwise_or_expressionContext):
+        if ctx.bitwise_or_expression() is not None:
+            left = self.visit(ctx.bitwise_or_expression())
+            right = self.visit(ctx.bitwise_xor_expression())
+            expr = ast.BinOp(left=left, op=ast.BitOr(), right=right)
+            self._setLocations(expr, ctx)
+            return expr
+        return self.visit(ctx.bitwise_xor_expression())
+
+    def visitBitwise_xor_expression(self, ctx: PinescriptParser.Bitwise_xor_expressionContext):
+        if ctx.bitwise_xor_expression() is not None:
+            left = self.visit(ctx.bitwise_xor_expression())
+            right = self.visit(ctx.bitwise_and_expression())
+            expr = ast.BinOp(left=left, op=ast.BitXor(), right=right)
+            self._setLocations(expr, ctx)
+            return expr
+        return self.visit(ctx.bitwise_and_expression())
+
+    def visitBitwise_and_expression(self, ctx: PinescriptParser.Bitwise_and_expressionContext):
+        if ctx.bitwise_and_expression() is not None:
+            left = self.visit(ctx.bitwise_and_expression())
+            right = self.visit(ctx.equality_expression())
+            expr = ast.BinOp(left=left, op=ast.BitAnd(), right=right)
+            self._setLocations(expr, ctx)
+            return expr
+        return self.visit(ctx.equality_expression())
 
     def visitEquality_expression(self, ctx: PinescriptParser.Equality_expressionContext):
         expr = ctx.inequality_expression()
@@ -685,7 +712,7 @@ class PinescriptASTBuilder(
         return expr
 
     def visitInequality_expression(self, ctx: PinescriptParser.Inequality_expressionContext):
-        expr = ctx.additive_expression()
+        expr = ctx.shift_expression()
         expr = self.visit(expr)
         pairs = ctx.inequality_trailing_pair()
         if pairs:
@@ -699,6 +726,22 @@ class PinescriptASTBuilder(
             )
             self._setLocations(expr, ctx)
         return expr
+
+    def visitShift_op(self, ctx: PinescriptParser.Shift_opContext):
+        if ctx.LSHIFT():
+            return ast.LShift()
+        if ctx.RSHIFT():
+            return ast.RShift()
+
+    def visitShift_expression(self, ctx: PinescriptParser.Shift_expressionContext):
+        if ctx.shift_op():
+            op = self.visit(ctx.shift_op())
+            left = self.visit(ctx.shift_expression())
+            right = self.visit(ctx.additive_expression())
+            expr = ast.BinOp(left=left, op=op, right=right)
+            self._setLocations(expr, ctx)
+            return expr
+        return self.visit(ctx.additive_expression())
 
     def visitElse_block(self, ctx: PinescriptParser.Else_blockContext):
         return self.visit(ctx.local_block())
@@ -827,16 +870,16 @@ class PinescriptASTBuilder(
         return (ast.NotEq(), self.visit(ctx.inequality_expression()))
 
     def visitLess_than_equal_trailing_pair(self, ctx: PinescriptParser.Less_than_equal_trailing_pairContext):
-        return (ast.LtE(), self.visit(ctx.additive_expression()))
+        return (ast.LtE(), self.visit(ctx.shift_expression()))
 
     def visitLess_than_trailing_pair(self, ctx: PinescriptParser.Less_than_trailing_pairContext):
-        return (ast.Lt(), self.visit(ctx.additive_expression()))
+        return (ast.Lt(), self.visit(ctx.shift_expression()))
 
     def visitGreater_than_equal_trailing_pair(self, ctx: PinescriptParser.Greater_than_equal_trailing_pairContext):
-        return (ast.GtE(), self.visit(ctx.additive_expression()))
+        return (ast.GtE(), self.visit(ctx.shift_expression()))
 
     def visitGreater_than_trailing_pair(self, ctx: PinescriptParser.Greater_than_trailing_pairContext):
-        return (ast.Gt(), self.visit(ctx.additive_expression()))
+        return (ast.Gt(), self.visit(ctx.shift_expression()))
 
     def visitAdditive_op(self, ctx: PinescriptParser.Additive_opContext):
         if ctx.PLUS():
@@ -895,6 +938,8 @@ class PinescriptASTBuilder(
             return ast.UAdd()
         if ctx.MINUS():
             return ast.USub()
+        if ctx.TILDE():
+            return ast.Invert()
 
     def visitUnary_expression(self, ctx: PinescriptParser.Unary_expressionContext):
         if ctx.unary_op():

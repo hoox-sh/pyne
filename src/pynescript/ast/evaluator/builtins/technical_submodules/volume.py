@@ -13,6 +13,7 @@ from .core import BINARY
 from .core import QUATERNARY
 from .core import QUINARY
 from .core import TERNARY
+from .core import UNARY
 from .core import TechnicalHelpers
 
 
@@ -21,42 +22,62 @@ class VolumeIndicators(TechnicalHelpers):
 
     # -- Public API (builtin_ta_ prefix) ------------------------------------
 
-    def _builtin_ta_obv(self, args: list[Any]) -> int:
-        """On-Balance Volume indicator.
+    def _builtin_ta_obv(self, args: list[Any]) -> Any:
+        """On-Balance Volume.
 
-        ta.obv(close, volume)
-        Accumulates volume based on price direction.
-        Returns OBV value.
+        Forms:
+        - ``ta.obv`` / ``ta.obv()`` — chart close + volume
+        - ``ta.obv(close, volume)`` — explicit series
         """
-        msg = "ta.obv expects close and volume series"
-        if len(args) != BINARY:
+        msg = "ta.obv expects close and volume series (or no args)"
+        if len(args) == 0:
+            closes = self._context_series("close")
+            volumes = self._context_series("volume")
+            if not volumes:
+                volumes = [0.0] * len(closes)
+        elif len(args) == BINARY:
+            closes = self._expect_list(args[0], msg)
+            volumes = self._expect_list(args[1], msg)
+        else:
             self._error(msg)
-        closes = self._expect_list(args[0], msg)
-        volumes = self._expect_list(args[1], msg)
-        return self._obv(closes, volumes)
+            return None
+        if not closes:
+            return None
+        n = min(len(closes), len(volumes)) if volumes else 0
+        if n == 0:
+            return None
+        # _obv returns the current cumulative scalar (bar-mode friendly)
+        return self._obv(closes[-n:], volumes[-n:])
 
     def _builtin_ta_mfi(self, args: list[Any]) -> float | None:
         """Money Flow Index.
 
-        TV: ``ta.mfi(source, length)`` or legacy 5-arg HLC+volume+length.
-
-        Single-series form uses *source* as typical price and volume from the
-        bar context. Series lengths are aligned from the end (``_as_series``
-        may truncate to ``_SERIES_MAX`` while context volume is full history).
+        Forms:
+        - ``ta.mfi(length)`` / bare ``mfi(length)`` — hlc3 + volume from context
+        - ``ta.mfi(source, length)`` — source as typical price + context volume
+        - legacy 5-arg HLC+volume+length
         """
+        if len(args) == UNARY and self._is_period_like(args[0]):
+            length = self._expect_int(args[0], "ta.mfi length must be int")
+            highs = self._context_series("high")
+            lows = self._context_series("low")
+            closes = self._context_series("close")
+            volumes = self._context_series("volume") or [0.0] * len(closes)
+            n = min(len(highs), len(lows), len(closes), len(volumes))
+            if n == 0:
+                return None
+            return self._mfi(highs[-n:], lows[-n:], closes[-n:], volumes[-n:], length)
         if len(args) == BINARY:
             series = self._as_series(args[0])
             length = self._expect_int(args[1], "ta.mfi length must be int")
             volumes = self._context_series("volume")
             if not volumes:
                 volumes = [0.0] * len(series)
-            # Align source and volume to the common most-recent window
             n = min(len(series), len(volumes))
             if n == 0:
                 return None
             series = series[-n:]
             volumes = volumes[-n:]
-            # Source is already typical price (e.g. hlc3); reuse for H/L/C
             return self._mfi(series, series, series, volumes, length)
         msg = "ta.mfi expects source, length (or high, low, close, volume, length)"
         if len(args) != QUINARY:
@@ -92,34 +113,54 @@ class VolumeIndicators(TechnicalHelpers):
     def _builtin_ta_wad(self, args: list[Any]) -> list[float | None]:
         """Williams Accumulation/Distribution - volume accumulation index.
 
-        ta.wad(high, low, close, volume)
-        Returns the WAD series.
+        Forms:
+        - ``ta.wad`` / ``ta.wad()`` — chart high/low/close/volume
+        - ``ta.wad(high, low, close, volume)`` — explicit series
         """
-        if len(args) < QUATERNARY:
-            msg = "ta.wad() requires 4 arguments: high, low, close, volume"
-            self._error(msg)
-
-        high_series = args[0] if isinstance(args[0], list) else [args[0]]
-        low_series = args[1] if isinstance(args[1], list) else [args[1]]
-        close_series = args[2] if isinstance(args[2], list) else [args[2]]
-        volume_series = args[3] if isinstance(args[3], list) else [args[3]]
+        if len(args) == 0:
+            high_series = self._context_series("high")
+            low_series = self._context_series("low")
+            close_series = self._context_series("close")
+            volume_series = self._context_series("volume") or [0.0] * len(close_series)
+        elif len(args) >= QUATERNARY:
+            high_series = self._as_series(args[0])
+            low_series = self._as_series(args[1])
+            close_series = self._as_series(args[2])
+            volume_series = self._as_series(args[3])
+        else:
+            self._error("ta.wad() requires 0 or 4 arguments: high, low, close, volume")
+            return []
 
         return self._wad(high_series, low_series, close_series, volume_series)
 
     def _builtin_ta_wvad(self, args: list[Any]) -> list[float | None]:
         """Williams Volume Accumulation/Distribution - normalized WAD.
 
-        ta.wvad(high, low, close, volume, period)
-        Returns the WVAD series.
+        Forms:
+        - ``ta.wvad(period)`` — H/L/C/V from context
+        - ``ta.wvad(high, low, close, volume, period?)``
         """
+        if len(args) == UNARY and self._is_period_like(args[0]):
+            period = self._expect_int(args[0], "period must be integer")
+            high_series = self._context_series("high")
+            low_series = self._context_series("low")
+            close_series = self._context_series("close")
+            volume_series = self._context_series("volume") or [0.0] * len(close_series)
+            return self._wvad(high_series, low_series, close_series, volume_series, period)
+        if len(args) == 0:
+            high_series = self._context_series("high")
+            low_series = self._context_series("low")
+            close_series = self._context_series("close")
+            volume_series = self._context_series("volume") or [0.0] * len(close_series)
+            return self._wvad(high_series, low_series, close_series, volume_series, 20)
         if len(args) < QUATERNARY:
-            msg = "ta.wvad() requires at least 4 arguments: high, low, close, volume"
-            self._error(msg)
+            self._error("ta.wvad() requires 0, 1, or 4+ arguments: [high, low, close, volume,] period")
+            return []
 
-        high_series = args[0] if isinstance(args[0], list) else [args[0]]
-        low_series = args[1] if isinstance(args[1], list) else [args[1]]
-        close_series = args[2] if isinstance(args[2], list) else [args[2]]
-        volume_series = args[3] if isinstance(args[3], list) else [args[3]]
+        high_series = self._as_series(args[0])
+        low_series = self._as_series(args[1])
+        close_series = self._as_series(args[2])
+        volume_series = self._as_series(args[3])
         period_arg_idx = QUATERNARY
         default_period = 20
         period = (
@@ -133,18 +174,27 @@ class VolumeIndicators(TechnicalHelpers):
     def _builtin_ta_cmf(self, args: list[Any]) -> list[float | None]:
         """Chaikin Money Flow indicator.
 
-        ta.cmf(close, high, low, volume, period)
-        Measures money flow into/out of security.
-        Returns CMF series.
+        Forms:
+        - ``ta.cmf(period)`` — H/L/C/V from chart context
+        - ``ta.cmf(close, high, low, volume, period)`` — explicit series
         """
+        if len(args) == UNARY and self._is_period_like(args[0]):
+            period = self._expect_int(args[0], "ta.cmf period must be integer")
+            high_series = self._context_series("high")
+            low_series = self._context_series("low")
+            close_series = self._context_series("close")
+            volume_series = self._context_series("volume") or [0.0] * len(close_series)
+            return self._cmf(close_series, high_series, low_series, volume_series, period)
         if len(args) < QUINARY:
-            msg = "ta.cmf() requires 5 arguments: close, high, low, volume, period"
-            self._error(msg)
+            self._error(
+                "ta.cmf() requires 1 argument (period) or 5: close, high, low, volume, period"
+            )
+            return []
 
-        close_series = args[0] if isinstance(args[0], list) else [args[0]]
-        high_series = args[1] if isinstance(args[1], list) else [args[1]]
-        low_series = args[2] if isinstance(args[2], list) else [args[2]]
-        volume_series = args[3] if isinstance(args[3], list) else [args[3]]
+        close_series = self._as_series(args[0])
+        high_series = self._as_series(args[1])
+        low_series = self._as_series(args[2])
+        volume_series = self._as_series(args[3])
         period = self._expect_int(args[4], "ta.cmf period must be integer")
 
         return self._cmf(close_series, high_series, low_series, volume_series, period)
@@ -234,39 +284,62 @@ class VolumeIndicators(TechnicalHelpers):
     def _builtin_ta_iii(self, args: list[Any]) -> float | None:
         """Intraday Intensity Index - measures money flow without volume data.
 
-        ta.iii(high, low, close)
-        Returns the intraday intensity index value.
+        Forms:
+        - ``ta.iii`` / ``ta.iii()`` — chart high/low/close
+        - ``ta.iii(high, low, close)`` — explicit values/series (current bar)
         """
-        if len(args) < TERNARY:
-            msg = "ta.iii() requires 3 arguments: high, low, close"
-            self._error(msg)
-
-        high = self._expect_number(args[0], "high must be numeric")
-        low = self._expect_number(args[1], "low must be numeric")
-        close = self._expect_number(args[2], "close must be numeric")
+        if len(args) == 0:
+            highs = self._context_series("high")
+            lows = self._context_series("low")
+            closes = self._context_series("close")
+            if not highs or not lows or not closes:
+                return None
+            high = highs[-1]
+            low = lows[-1]
+            close = closes[-1]
+        elif len(args) >= TERNARY:
+            high = args[0][-1] if isinstance(args[0], list) and args[0] else args[0]
+            low = args[1][-1] if isinstance(args[1], list) and args[1] else args[1]
+            close = args[2][-1] if isinstance(args[2], list) and args[2] else args[2]
+            high = self._expect_number(high, "high must be numeric")
+            low = self._expect_number(low, "low must be numeric")
+            close = self._expect_number(close, "close must be numeric")
+        else:
+            self._error("ta.iii() requires 0 or 3 arguments: high, low, close")
+            return None
 
         if high is None or low is None or close is None:
             return None
+        try:
+            high_f = float(high)
+            low_f = float(low)
+            close_f = float(close)
+        except (TypeError, ValueError):
+            return None
 
-        tr = high - low
+        tr = high_f - low_f
         if tr == 0:
             return 0.0
 
-        iii = 2 * close - high - low
+        iii = 2 * close_f - high_f - low_f
         return iii / tr if tr != 0 else 0.0
 
     def _builtin_ta_nvi(self, args: list[Any]) -> list[float | None]:
         """Negative Volume Index - cumulative index when volume decreases.
 
-        ta.nvi(close, volume, period)
-        Returns the NVI series.
+        Forms:
+        - ``ta.nvi`` / ``ta.nvi()`` — chart close + volume
+        - ``ta.nvi(close, volume)`` — explicit series
         """
-        if len(args) < BINARY:
-            msg = "ta.nvi() requires at least 2 arguments: close, volume"
-            self._error(msg)
-
-        close_series = args[0] if isinstance(args[0], list) else [args[0]]
-        volume_series = args[1] if isinstance(args[1], list) else [args[1]]
+        if len(args) == 0:
+            close_series = self._context_series("close")
+            volume_series = self._context_series("volume") or [0.0] * len(close_series)
+        elif len(args) >= BINARY:
+            close_series = self._as_series(args[0])
+            volume_series = self._as_series(args[1])
+        else:
+            self._error("ta.nvi() requires 0 or 2+ arguments: close, volume")
+            return []
 
         if len(close_series) != len(volume_series):
             return [None]
@@ -300,15 +373,19 @@ class VolumeIndicators(TechnicalHelpers):
     def _builtin_ta_pvi(self, args: list[Any]) -> list[float | None]:
         """Positive Volume Index - cumulative index when volume increases.
 
-        ta.pvi(close, volume, period)
-        Returns the PVI series.
+        Forms:
+        - ``ta.pvi`` / ``ta.pvi()`` — chart close + volume
+        - ``ta.pvi(close, volume)`` — explicit series
         """
-        if len(args) < BINARY:
-            msg = "ta.pvi() requires at least 2 arguments: close, volume"
-            self._error(msg)
-
-        close_series = args[0] if isinstance(args[0], list) else [args[0]]
-        volume_series = args[1] if isinstance(args[1], list) else [args[1]]
+        if len(args) == 0:
+            close_series = self._context_series("close")
+            volume_series = self._context_series("volume") or [0.0] * len(close_series)
+        elif len(args) >= BINARY:
+            close_series = self._as_series(args[0])
+            volume_series = self._as_series(args[1])
+        else:
+            self._error("ta.pvi() requires 0 or 2+ arguments: close, volume")
+            return []
 
         if len(close_series) != len(volume_series):
             return [None]

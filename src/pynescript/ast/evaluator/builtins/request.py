@@ -396,6 +396,21 @@ class RequestBuiltinsMixin(BuiltinDispatchMixin):
         intrabar_prices = [100.0 + i * 0.25 for i in range(10)]
         if isinstance(expression, str):
             return self._get_expression_prices(str(expression), intrabar_prices)
+        # TV: expression may be a tuple/list of series → return a tuple of arrays
+        # so destructure like ``[o,h,l,c] = request.security_lower_tf(..., [open,high,low,close])`` works.
+        if isinstance(expression, (list, tuple)) and expression:
+            n = len(expression)
+            out: list[list[float]] = []
+            for i, item in enumerate(expression):
+                if isinstance(item, str):
+                    out.append(self._get_expression_prices(str(item), intrabar_prices))
+                elif isinstance(item, (int, float)) and not isinstance(item, bool):
+                    base = float(item)
+                    out.append([base + j * 0.05 for j in range(10)])
+                else:
+                    # Distinct mock series per component when values are already scalars/series
+                    out.append([100.0 + i + j * 0.25 for j in range(10)])
+            return out if n != 1 else out[0]
         return intrabar_prices
 
     def _handle_request_dividends(self, args: list[Any]) -> float:

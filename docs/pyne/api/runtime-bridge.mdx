@@ -1,0 +1,139 @@
+---
+title: "Runtime Bridge"
+description: "backend.runtime.Runtime — bar-loop evaluate façade, PineSeries context, compile mode, and result packaging."
+---
+
+# Runtime Bridge
+
+## Abstract
+
+`backend.runtime.Runtime` is the HTTP stack’s **evaluate façade**. It owns symbol metadata namespaces (`syminfo`, `timeframe`, `barstate`, …), walks OHLCV bars, updates `PineSeries` for OHLC, visits a shared `CustomEvaluator` on the parsed AST each bar, drains strategy events, and packages multi-plot series for AXIS. Compile mode optionally swaps the AST walker for a Numba-backed subset engine.
+
+This is the bridge between Flask handlers and the language core — not a second semantics.
+
+## Conceptual model
+
+```mermaid
+flowchart TB
+  SRC[Pine source] --> PARSE[parse mode=exec]
+  OHLCV[bar list] --> LOOP[for each bar]
+  PARSE --> LOOP
+  LOOP --> SER[PineSeries.update OHLC]
+  LOOP --> CTX[context bar_index time barstate]
+  LOOP --> FILL[process_pending_orders]
+  LOOP --> VISIT[evaluator.visit tree]
+  VISIT --> PLOTS[plot_outputs]
+  VISIT --> EV[strategy events]
+  LOOP --> PACK[series map + plot_meta + drawings]
+```
+
+## Interface surface
+
+### Construction
+
+```python
+Runtime(symbol: str = "AAPL", run_id: str | None = None)
+```
+
+- Sets `syminfo.tickerid` / `name` / `prefix` (prefix from `EXCHANGE:SYMBOL` form).
+- Generates `run_id` as `uuid4().hex[:16]` when omitted.
+
+Helpers: `configure_footprint`, `update_bid_ask`.
+
+### `run(source_code, ohlcv_data, data_feed=None, data_provider=None, mode="interpret")`
+
+| Arg | Role |
+| --- | --- |
+| `source_code` | Pine text |
+| `ohlcv_data` | `list[dict]` with open/high/low/close/time[/volume/bid/ask] |
+| `data_feed` / `data_provider` | `request.*` wiring; auto-resolved from chart bars when unset |
+| `mode` | `"interpret"` (default) or `"compile"` |
+
+#### Interpret path (default)
+
+1. Resolve request sources (non-fatal on failure).
+2. `parse(source_code, mode="exec")` — on failure `{ "error": "Parse Error: …" }`.
+3. Init `PineSeries` for OHLC + context dict (timeframe daily defaults, barstate, chart colors).
+4. Construct `CustomEvaluator(context=…, data_feed=…, data_provider=…)`, reset var declarations + drawing registry.
+5. Per bar:
+   - Update series + calendar fields from timestamp
+   - Update barstate flags (`isfirst` / `islast` / history confirmed)
+   - `process_pending_orders` when available
+   - `evaluator.visit(tree)` — on failure `{ "error": "Runtime Error at bar …" }`
+   - Lock pine defs after first bar (`_pine_defs_locked`) to avoid multi-dispatch blow-ups
+   - Drain strategy events; stamp `script_id` / `run_id`
+   - Capture plot outputs
+6. Build `series` / `plot_meta` from all plot indices (disambiguate duplicate titles with `_2` suffixes).
+7. Export drawings via `DrawingRegistry.export_for_api(bar_times)`.
+
+Return keys: `plots`, `series`, `plot_meta`, `events`, `drawings`, `count`, `script_id`, `run_id`, `mode`.
+
+#### Compile path
+
+1. Import `pynescript.compiler.engine` — missing → error string.
+2. Require `has_numba()`.
+3. `compile_script` + `compiled.run(opens, highs, lows, closes, volumes)`.
+4. Pop internal keys (`__drawings`, `__events`, position meta).
+5. Return similar envelope with `mode: "compile"`, plus `object_mode` / `generated_code` when present.
+
+### `PineSeries` (`backend/series.py`)
+
+History deque (default maxlen 1000), `series[0]` current / `series[n]` lookback, arithmetic on **current** values, `None` propagates as na-like absence. Negative indices raise — Pine does not allow them.
+
+### Context namespaces
+
+Defined in `runtime.py`: `Syminfo`, `Chartinfo`, `Timeframe`, `Barstate`, `Chart` — attribute names aim at Pine v5/v6 surface (`timeframe.isdaily`, `syminfo.isin`, …).
+
+## Internals
+
+| Path | Role |
+| --- | --- |
+| `backend/runtime.py` | `Runtime` |
+| `backend/evaluator.py` | `CustomEvaluator` specialization |
+| `backend/series.py` | `PineSeries` |
+| `src/pynescript/ast/helper.py` | `parse` |
+| `src/pynescript/ast/evaluator/**` | Builtin + strategy semantics |
+| `src/pynescript/compiler/engine.py` | Compile mode |
+
+Flask wiring: `backend/app.py` constructs a **fresh** `Runtime` per request (and per batch job) so `run_id` and drawing registries do not leak across users.
+
+## Invariants and edge cases
+
+1. **Parse once, visit many** — AST is not re-parsed per bar.
+2. **Defs locked after bar 0** — performance invariant for large function tables.
+3. **Drawing registry reset** at run start — isolation between requests.
+4. **Primary `plots` list** is plot index 0 for backward compatibility; AXIS should prefer `series` + `plot_meta`.
+5. **Errors are dicts**, not exceptions, for control-flow at the HTTP boundary (`"error" in result`).
+6. Compile mode supports a **subset** (documented in engine — ta/math/plots family); unsupported scripts should use interpret.
+
+## Worked example
+
+```python
+from backend.runtime import Runtime
+
+rt = Runtime(symbol="NASDAQ:AAPL")
+out = rt.run(
+    '//@version=5\nindicator("x")\nplot(close, "C")',
+    [{"time": i, "open": 1, "high": 2, "low": 0.5, "close": 1.0 + i * 0.01, "volume": 1} for i in range(50)],
+)
+assert "error" not in out
+assert out["count"] == 50
+assert "C" in out["series"] or "plot_0" in out["series"]
+```
+
+## Failure modes
+
+| Message prefix | Cause |
+| --- | --- |
+| `Parse Error:` | Grammar / syntax |
+| `Runtime Error at bar` | Evaluator exception |
+| `Order fill error at bar` | Broker sim pending orders |
+| `Compile mode requires numba` | Missing dependency |
+| `Compile Error:` / `Compiled Runtime Error:` | Engine path |
+
+## See also
+
+- [Contract](/pyne/docs/api/contract)
+- [Run endpoint](/pyne/docs/api/endpoints/run)
+- [Series and history](/pyne/docs/runtime/series-and-history)
+- [Strategy events](/pyne/docs/runtime/events)

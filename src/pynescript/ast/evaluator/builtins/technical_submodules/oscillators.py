@@ -25,20 +25,37 @@ class OscillatorIndicators(TechnicalHelpers):
     def _builtin_ta_rsi(self, args: list[Any]) -> float | None:
         """Relative Strength Index."""
         series, period = self._expect_series(args, length=BINARY)
+        if self._use_incremental_ta():
+            return self._rsi_inc_update(series, period)
         return self._rsi(series, period)
 
     def _builtin_ta_stoch(self, args: list[Any]) -> Any:
         """Stochastic %K.
 
-        TradingView: ``ta.stoch(source, high, low, length)`` → float %K.
-        Legacy unit-test form: ``(high, low, close, length, smooth)``.
+        Forms:
+        - ``ta.stoch(length)`` — source=close, high/low from context
+        - ``ta.stoch(source, high, low, length)`` → float %K
+        - Legacy: ``(high, low, close, length, smooth)``
         """
+        if len(args) == UNARY and self._is_period_like(args[0]):
+            length = self._expect_int(args[0], "ta.stoch length must be an integer")
+            source = self._context_series("close")
+            highs = self._context_series("high")
+            lows = self._context_series("low")
+            return self._stoch_k(source, highs, lows, length)
         # TV form: source, high, low, length
         if len(args) == QUATERNARY:
             source = self._as_series(args[0])
             highs = self._as_series(args[1])
             lows = self._as_series(args[2])
             length = self._expect_int(args[3], "ta.stoch length must be an integer")
+            return self._stoch_k(source, highs, lows, length)
+        # Two-arg community form sometimes used as (kLength, dPeriod) — return %K only
+        if len(args) == BINARY and self._is_period_like(args[0]) and self._is_period_like(args[1]):
+            length = self._expect_int(args[0], "ta.stoch length must be an integer")
+            source = self._context_series("close")
+            highs = self._context_series("high")
+            lows = self._context_series("low")
             return self._stoch_k(source, highs, lows, length)
         msg = "ta.stoch expects source, high, low, length (or high, low, close, length, smooth)"
         if len(args) != QUINARY:
@@ -77,22 +94,45 @@ class OscillatorIndicators(TechnicalHelpers):
             return None
 
     def _builtin_ta_macd(self, args: list[Any]) -> tuple[float, float, float]:
-        """MACD (Moving Average Convergence Divergence)."""
+        """MACD (Moving Average Convergence Divergence).
+
+        TradingView: ``ta.macd(source, fastlen, slowlen, siglen)`` →
+        ``[macdLine, signalLine, histLine]``.
+
+        Accepts:
+        - Full form with series + three lengths (defaults 12/26/9 if omitted).
+        - Series may be a list, PineSeries, or scalar wrapper (bar-mode input).
+        - Extra / unknown kwargs are ignored by the call site (ta.* path).
+        """
         msg = "ta.macd expects series and three lengths"
-        if len(args) != QUATERNARY:
+        if not args:
             self._error(msg)
-        series = self._expect_list(args[0], msg)
-        fast = self._expect_int(args[1], msg)
-        slow = self._expect_int(args[2], msg)
-        signal = self._expect_int(args[3], msg)
+        series = self._as_series(args[0])
+        # Defaults match TradingView when lengths are omitted
+        fast = self._expect_int(args[1], msg) if len(args) > 1 else 12
+        slow = self._expect_int(args[2], msg) if len(args) > 2 else 26
+        signal = self._expect_int(args[3], msg) if len(args) > 3 else 9
+        if self._use_incremental_ta():
+            return self._macd_inc_update(series, fast, slow, signal)
         return self._macd(series, fast, slow, signal)
 
     def _builtin_ta_cci(self, args: list[Any]) -> float | None:
         """Commodity Channel Index.
 
-        TradingView: ``ta.cci(source, length)``. Also accepts legacy
-        ``(high, low, close, length)``.
+        Forms:
+        - ``ta.cci(length)`` — typical price (hlc3) from context
+        - ``ta.cci(source, length)``
+        - legacy ``(high, low, close, length)``
         """
+        if len(args) == UNARY and self._is_period_like(args[0]):
+            period = self._expect_int(args[0], "ta.cci length must be int")
+            highs = self._context_series("high")
+            lows = self._context_series("low")
+            closes = self._context_series("close")
+            if highs and lows and closes:
+                return self._cci(highs, lows, closes, period)
+            series = self._context_series("hlc3") or closes
+            return self._cci(series, series, series, period)
         if len(args) == BINARY:
             series, period = self._expect_series(args, length=BINARY)
             # Approximate CCI from a single source series (typical price)
@@ -129,13 +169,25 @@ class OscillatorIndicators(TechnicalHelpers):
         return self._wpr(highs, lows, closes, length)
 
     def _builtin_ta_tsi(self, args: list[Any]) -> float | None:
-        """True Strength Index."""
+        """True Strength Index.
+
+        Forms:
+        - ``ta.tsi(short, long)`` — source defaults to close
+        - ``ta.tsi(source, short, long)`` — TV order (short then long)
+        - Also accepts legacy ``(source, long, short)`` when 3 period-like after series
+        """
         msg = "ta.tsi expects series and two lengths"
+        if len(args) == BINARY and self._is_period_like(args[0]) and self._is_period_like(args[1]):
+            short_period = self._expect_int(args[0], msg)
+            long_period = self._expect_int(args[1], msg)
+            series = self._context_series("close")
+            return self._tsi(series, long_period, short_period)
         if len(args) != TERNARY:
             self._error(msg)
-        series = self._expect_list(args[0], msg)
-        long_period = self._expect_int(args[1], msg)
-        short_period = self._expect_int(args[2], msg)
+        series = self._as_series(args[0])
+        # TV docs: ta.tsi(source, short_length, long_length)
+        short_period = self._expect_int(args[1], msg)
+        long_period = self._expect_int(args[2], msg)
         return self._tsi(series, long_period, short_period)
 
     def _builtin_ta_valuewhen(self, args: list[Any]) -> Any:
@@ -619,3 +671,12 @@ class OscillatorIndicators(TechnicalHelpers):
         if not indices or occurrence >= len(indices):
             return None
         return source[indices[-(occurrence + 1)]]
+
+
+# TV parameter names for kwargs → positional merge in BuiltinDispatchMixin
+OscillatorIndicators._builtin_ta_macd._KWARG_ORDER = [  # type: ignore[attr-defined]
+    "source",
+    "fastlen",
+    "slowlen",
+    "siglen",
+]

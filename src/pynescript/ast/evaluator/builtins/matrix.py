@@ -548,10 +548,18 @@ class Matrix(Generic[T]):
                     result.set(i, j, None)
         return result
 
+    def _numpy(self):
+        """Import numpy or raise a Pine-friendly error when missing."""
+        try:
+            import numpy as np
+        except ImportError as exc:
+            msg = "matrix linear-algebra ops require numpy (pip install numpy)"
+            raise ValueError(msg) from exc
+        return np
+
     def det(self) -> float:
         """Determinant of a square matrix."""
-        import numpy as np
-
+        np = self._numpy()
         if self.rows_count != self.cols_count:
             msg = "matrix.det requires a square matrix"
             raise ValueError(msg)
@@ -562,8 +570,7 @@ class Matrix(Generic[T]):
 
     def inv(self) -> Matrix[T]:
         """Inverse of a square matrix."""
-        import numpy as np
-
+        np = self._numpy()
         if self.rows_count != self.cols_count:
             msg = "matrix.inv requires a square matrix"
             raise ValueError(msg)
@@ -573,16 +580,14 @@ class Matrix(Generic[T]):
 
     def pinv(self) -> Matrix[T]:
         """Moore–Penrose pseudoinverse."""
-        import numpy as np
-
+        np = self._numpy()
         arr = np.array(self._as_float_grid(), dtype=float)
         pin = np.linalg.pinv(arr)
         return self._from_float_grid(pin.tolist())
 
     def eigenvalues(self) -> list[float]:
         """Eigenvalues of a square matrix as a list."""
-        import numpy as np
-
+        np = self._numpy()
         if self.rows_count != self.cols_count:
             msg = "matrix.eigenvalues requires a square matrix"
             raise ValueError(msg)
@@ -592,8 +597,7 @@ class Matrix(Generic[T]):
 
     def eigenvectors(self) -> Matrix[T]:
         """Eigenvectors as columns of a matrix."""
-        import numpy as np
-
+        np = self._numpy()
         if self.rows_count != self.cols_count:
             msg = "matrix.eigenvectors requires a square matrix"
             raise ValueError(msg)
@@ -605,8 +609,7 @@ class Matrix(Generic[T]):
 
     def kron(self, other: Matrix[T]) -> Matrix[T]:
         """Kronecker product."""
-        import numpy as np
-
+        np = self._numpy()
         a = np.array(self._as_float_grid(), dtype=float)
         b = np.array(other._as_float_grid(), dtype=float)
         k = np.kron(a, b)
@@ -614,8 +617,7 @@ class Matrix(Generic[T]):
 
     def pow(self, n: int) -> Matrix[T]:
         """Matrix power (square matrix raised to non-negative integer)."""
-        import numpy as np
-
+        np = self._numpy()
         if self.rows_count != self.cols_count:
             msg = "matrix.pow requires a square matrix"
             raise ValueError(msg)

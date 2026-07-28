@@ -1,0 +1,148 @@
+---
+title: "Nuitka LSP build"
+description: "Compile pynescript-lsp with Nuitka — onefile vs standalone, CI build script, Anaconda quirks, and artifact layout."
+---
+
+# Nuitka LSP build
+
+## Abstract
+
+The Language Server can run as pure Python (`python -m pynescript.langserver`) or as a **Nuitka-compiled binary** for editor distribution. Compilation freezes the pygls server, providers, and (when configured) encrypted builtin metadata into a deployable artifact under `dist/`.
+
+Primary tools: `scripts/build/compile.py` (local) and `scripts/build/ci_build.py` (CI/Cloud Build).
+
+## Conceptual model
+
+```mermaid
+flowchart TB
+  META[generate_builtin_metadata.py] --> JSON[builtin_metadata.json]
+  JSON --> ENC[Fernet encrypt → .enc + .sha256]
+  JSON --> PLAIN[plaintext for dev]
+  SRC[src/pynescript/langserver] --> NUITKA[nuitka --onefile|--standalone]
+  ENC --> NUITKA
+  NUITKA --> BIN[dist/…/pynescript-lsp]
+  BIN --> VSIX[optional VSIX bundle]
+```
+
+## Interface surface
+
+### Commands
+
+```bash
+# Prerequisites
+pip install nuitka cryptography
+
+# Full onefile build (default path via Make)
+make build
+# ≡ python scripts/build/compile.py --jobs=4
+
+# Fast import check only (~30s)
+make build-check
+# ≡ python scripts/build/compile.py --check
+
+# Explicit modes
+python scripts/build/compile.py --standalone
+python scripts/build/compile.py --onefile --jobs 8
+python scripts/build/ci_build.py --jobs=4
+```
+
+### Build modes (approx. wall time)
+
+| Mode | Time | Notes |
+| --- | --- | --- |
+| `--check` | ~30s | Import resolution / no full compile |
+| `--standalone` | 5–15 min | Directory distribution, faster iteration |
+| `--onefile` | 10–30 min | Self-extracting single binary |
+| CI 8 cores | 5–15 min | High parallelism |
+
+### Expected layout
+
+```text
+dist/
+├── lsp/
+│   └── pynescript-lsp          # onefile (path may vary by script)
+├── vsix/
+│   └── pynescript-lsp.vsix     # optional bundle
+└── pynescript-lsp              # ci_build final move target (script-dependent)
+```
+
+Also see `scripts/build/README.md`.
+
+## Internals
+
+### Key Nuitka flags (`compile.py`)
+
+- `--static-libpython=no` — default; critical for many Linux/Anaconda envs
+- `--python-flag=no_site,no_docstrings`
+- `--include-data-dir=…/providers=pynescript/langserver/providers`
+- `--lto=auto`, `--jobs=N`
+- `--onefile` or `--standalone`
+- `--follow-imports` on local compile path
+
+### Entry module
+
+Compilation targets `src/pynescript/langserver` (package entry), product name `pynescript-lsp`.
+
+### Metadata stage
+
+Before compile, scripts may:
+
+1. Run `scripts/generate_builtin_metadata.py` if plaintext metadata missing
+2. Fernet-encrypt to `builtin_metadata.json.enc`
+3. Write truncated SHA256 sidecar
+4. Write `scripts/build/.metadata.key` (gitignored) or consume `CRYPTO_KEY` env in CI
+
+### Anaconda
+
+If static libpython is unavailable:
+
+```bash
+conda install libpython-static
+# or rely on --static-libpython=no (already the default in compile.py)
+```
+
+## Invariants & edge cases
+
+1. **C compiler required** (gcc/clang/MSVC). Containers need `build-essential` or equivalent if compiling inside Docker.
+2. **Python 3.10+**; release workflow pins **3.12**.
+3. **Providers data dir must ship** — completion/hover collapse without metadata.
+4. **Onefile startup cost** includes extract-to-temp; standalone is snappier for local soak tests.
+5. **Do not commit** `scripts/build/.metadata.key`.
+
+## Worked examples
+
+### Local onefile with explicit jobs
+
+```bash
+python scripts/build/compile.py --jobs "$(nproc)"
+find dist -name 'pynescript-lsp*' -type f
+```
+
+### CI-shaped build
+
+```bash
+export CRYPTO_KEY="$METADATA_KEY_STABLE"
+python scripts/build/ci_build.py --jobs=4
+```
+
+### Verify without compile
+
+```bash
+python scripts/build/compile.py --check
+```
+
+## Failure modes
+
+| Symptom | Cause | Fix |
+| --- | --- | --- |
+| Link error on libpython | Anaconda static lib missing | Install static lib or keep `--static-libpython=no` |
+| Binary missing builtins | Data dir not included | Confirm `--include-data-dir` providers path |
+| Huge binary | Full stdlib pull-in | Review Nuitka plugins / unused deps |
+| CI timeout | Low cores / onefile | Raise jobs; use larger runner; prefer standalone intermediate |
+| Decrypt fail at runtime | Key not embedded / env unset | See [Metadata crypto](/pyne/docs/devops/metadata-crypto) |
+
+## See also
+
+- [Metadata crypto](/pyne/docs/devops/metadata-crypto)
+- [Release](/pyne/docs/devops/release)
+- [LSP builtin metadata](/pyne/docs/lsp/builtin-metadata)

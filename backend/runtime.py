@@ -274,6 +274,21 @@ class Runtime:
         evaluator = CustomEvaluator(context=context, data_feed=data_feed, data_provider=data_provider)
         evaluator.reset_var_declarations()
 
+        # Append-only chronological OHLCV lists for ta.* helpers (oldest → newest).
+        # Avoid rebuilding via list(reversed(PineSeries.history)) every bar.
+        _series_lists: dict[str, list] = {
+            "open": [],
+            "high": [],
+            "low": [],
+            "close": [],
+            "volume": [],
+            "hl2": [],
+            "hlc3": [],
+            "ohlc4": [],
+            "tr": [],
+        }
+        evaluator.current_series = _series_lists
+
         # Fresh drawing registries so leftover labels/lines from prior runs
         # (or tests) do not leak into this response.
         try:
@@ -303,13 +318,16 @@ class Runtime:
             close_series.update(c)
             volume_series.update(v)
             try:
-                hl2_series.update((float(h) + float(l)) / 2.0)
-                hlc3_series.update((float(h) + float(l) + float(c)) / 3.0)
-                ohlc4_series.update((float(o) + float(h) + float(l) + float(c)) / 4.0)
+                hl2_val: float | None = (float(h) + float(l)) / 2.0
+                hlc3_val: float | None = (float(h) + float(l) + float(c)) / 3.0
+                ohlc4_val: float | None = (float(o) + float(h) + float(l) + float(c)) / 4.0
             except (TypeError, ValueError):
-                hl2_series.update(None)
-                hlc3_series.update(None)
-                ohlc4_series.update(None)
+                hl2_val = None
+                hlc3_val = None
+                ohlc4_val = None
+            hl2_series.update(hl2_val)
+            hlc3_series.update(hlc3_val)
+            ohlc4_series.update(ohlc4_val)
             # True range: max(h-l, |h-prev_c|, |l-prev_c|)
             try:
                 if bar_index == 0 or close_series[1] is None:
@@ -324,6 +342,17 @@ class Runtime:
             except (TypeError, ValueError):
                 tr_val = None
             tr_series.update(tr_val)
+
+            # One append per series per bar (shared with evaluator.current_series)
+            _series_lists["open"].append(o)
+            _series_lists["high"].append(h)
+            _series_lists["low"].append(l)
+            _series_lists["close"].append(c)
+            _series_lists["volume"].append(v)
+            _series_lists["hl2"].append(hl2_val)
+            _series_lists["hlc3"].append(hlc3_val)
+            _series_lists["ohlc4"].append(ohlc4_val)
+            _series_lists["tr"].append(tr_val)
 
             # Update per-bar counters and time components
             bar_time = bar.get("time", 0) or 0
@@ -359,30 +388,13 @@ class Runtime:
                 self._bid = bar["bid"]
             if "ask" in bar:
                 self._ask = bar["ask"]
-            # Keep ta helpers' current_series in sync (high/low/close history)
-            def _hist(series_obj):
-                try:
-                    return list(reversed(series_obj.history))
-                except Exception:
-                    return []
-
-            evaluator.current_series = {
-                "open": _hist(open_series),
-                "high": _hist(high_series),
-                "low": _hist(low_series),
-                "close": _hist(close_series),
-                "volume": _hist(volume_series),
-                "hl2": _hist(hl2_series),
-                "hlc3": _hist(hlc3_series),
-                "ohlc4": _hist(ohlc4_series),
-                "tr": _hist(tr_series),
-            }
 
             # Reset plot capture and event buffer for this bar
             evaluator.reset_plots()
             evaluator.reset_events()
-            # Bar-mode ta.crossover/crossunder call-index (stateful prev pair)
+            # Bar-mode call-site indices (crossover + incremental ta.*)
             evaluator._cross_call_i = 0  # type: ignore[attr-defined]
+            evaluator._ta_call_i = 0  # type: ignore[attr-defined]
 
             # Fill pending strategy.order limit/stop against this bar's OHLC
             # before script re-evaluation (broker sim step).

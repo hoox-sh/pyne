@@ -1,0 +1,30 @@
+{
+  "generatedAt": "2026-07-28T01:08:15.100Z",
+  "site": "https://hoox.sh",
+  "repository": "https://github.com/jango-blockchained/pynescript",
+  "products": {
+    "axis": {
+      "name": "AXIS",
+      "docs": "https://hoox.sh/axis/docs",
+      "marketing": "https://hoox.sh/axis",
+      "pdfs": {
+        "enduser": "/exports/axis-enduser-manual.pdf",
+        "architecture": "/exports/axis-architecture-manual.pdf",
+        "plugins": "/exports/axis-plugins-manual.pdf",
+        "ui": "/exports/axis-ui-manual.pdf",
+        "worker": "/exports/axis-worker-manual.pdf",
+        "devops": "/exports/axis-devops-manual.pdf",
+        "reference": "/exports/axis-reference-manual.pdf"
+      },
+      "llm": "/docs/axis/llm.txt",
+      "llms": "/docs/axis/llms.txt",
+      "exportLlm": "/exports/axis-llm.txt",
+      "exportLlms": "/exports/axis-llms.txt",
+      "agents": {
+        "llms": "docs/axis/llms.txt",
+        "llm": "docs/axis/llm.txt",
+        "bytes": 160398
+      }
+    }
+  }
+}

@@ -16,14 +16,14 @@
 
 # Missing Features - Pine Script v6 Implementation
 
-**Current Status (as of 2026-07):** Strong core support (parser + evaluator + 1142+ tests passing). Full suite: 1142 passed. Not 100% for all post-v6 launch features.
+**Current Status (as of 2026-07-28):** Strong core support (parser + evaluator + 1100+ tests). Open-source corpus set01–04 Runtime ~90% OK; interpret bar-loop performance hardened without semantic change. Not 100% for all post-v6 launch / platform edges.
 
-**Last Updated:** 2026-07-20 (multiline triple-quoted strings fully wired; library `export const` parse/AST/unparse; tests no longer placeholders)
+**Last Updated:** 2026-07-28 (corpus parse/Runtime hardening; incremental bar-mode TA: sma/ema/rma/rsi/macd/atr; Runtime host hygiene)
 
-**Overall Support Assessment:** ~99%+ for core v6. Multiline strings + `export const` integrated (grammar/lexer + builder/unparser). Remaining gaps are mostly by-design (mock request data, platform/editor-only). 
-- Parser: Excellent for v5/v6 core + multiline, dynamic etc.
-- Evaluator/Builtins: Broad coverage + data context injection.
-- Recent: datafeed (CCXTPro/Mock/Composite + Broker + evaluator wiring) + backend/runtime support, enums type kind + improved access.
+**Overall Support Assessment:** ~99%+ for core v6. Multiline strings + `export const` integrated. Remaining gaps are mostly by-design (mock request data, platform/editor-only) plus long-tail Runtime fails on truncated scrape sources.
+- Parser: Excellent for v5/v6 core + multiline, soft keywords, bitwise, typed UDF returns.
+- Evaluator/Builtins: Broad coverage + data context injection + **incremental hot-path TA**.
+- Recent: corpus sanitize, Runtime append-only series lists, `_pine_defs_locked`, pyne-worker bar-mode align.
 - Full test runs + lint clean targeted. See details.
 
 ---
@@ -124,13 +124,53 @@ Pine Script v6 launched December 2024, followed by monthly updates. Key sources:
 - ✅ **Compile pending fills**: limit/stop/stop-limit/market pending orders + OCA reduce/cancel; `process_pending_orders` each bar before script body (interpreter-aligned)
 - ✅ **Datafeed wiring**: `ChartOHLCVProvider` from Runtime bars; `resolve_request_sources()`; Composite sync `fetch_latest_*`; `/run` accepts `data_source`/`data_options`/`symbol`
 
+### Corpus + Runtime performance (2026-07-28)
+
+Open-source Pine corpus (`tests/data/set01`–`set04`) and bar-loop throughput work. Plan:
+`.opencode/plans/2026-07-28-runtime-performance.md`, skill `.grok/skills/pynescript-perf/`.
+
+#### Parser / sanitize (closed)
+- ✅ Soft keywords, bitwise ops, `=` reassignment, typed UDF returns (`int f(n) => …`)
+- ✅ `corpus_sanitize` for scrape chrome (fences, FMZ footers, missing commas between `var` decls)
+- ✅ Parse rate set01–04 ≈ **94.8%**; residual **PARSE_FAIL ~118** almost all truncated/non-Pine stubs (not grammar holes)
+
+#### Runtime host hygiene (closed — no semantic change)
+- ✅ `_pine_defs_locked` after first bar (pynescript backend + **pyne-worker**) — stops O(bars²) FunctionDef/method multi-dispatch growth
+- ✅ Append-only `current_series` OHLCV lists (no per-bar `list(reversed(history))` rebuild)
+- ✅ One-pass derived prices (`hl2`/`hlc3`/…) per bar on worker host
+- ✅ Worker aligns with backend: `_pine_bar_mode` + `_pine_ta_incremental` (default on)
+
+#### Incremental bar-mode TA (closed — golden ≡ full recompute)
+Call-site state (`_ta_call_i` reset each bar), one sample per site per bar (safe with `_SERIES_MAX`):
+
+| Builtin | Notes |
+| --- | --- |
+| ✅ `ta.sma` / `ta.ema` / `ta.rma` / `ta.rsi` | O(period) / O(1) vs full-history recompute |
+| ✅ `ta.macd` | Fast/slow/signal internal EMAs, one slot |
+| ✅ `ta.atr` | Matches current full path (EMA of TR after warm-up mean) |
+
+- Golden: `tests/test_ta_incremental.py` (inc ≡ full last values; Runtime on vs `PYNE_TA_INCREMENTAL=0`)
+- Disable: env **`PYNE_TA_INCREMENTAL=0`**
+- Bench (≈3264 BTC daily bars, worker Runtime): **~9.5×** `ta_sma`, **~4.9×** sma+ema+rsi, **~3×** macd, **~10×** atr, **~8.5×** macd+atr+rsi+sma combo vs flag off
+
+#### Still open / residual (not “missing syntax”)
+- ⚙️ Corpus Runtime residual: TIMEOUT / long-tail `RUN_FAIL` (arity/log/str edge cases, truncated files) — not closed as grammar gaps
+- ⬜ Incremental for remaining heavy kernels (`ta.bb` full path, nested full-list helpers that still call `_ema`/`_sma` internally outside builtins)
+- ⬜ Unify Runtime host into single package module (backend vs pyne-worker copy drift)
+- ⬜ Cap unbounded `current_series` lists to `max_bars_back` / documented max
+- ⚠️ `ta.atr` still uses **EMA-of-TR** (historical pynescript oracle); true TV Wilder RMA-ATR is a **correctness** item if we re-baseline, not a silent perf tweak
+- ⚠️ Bit-identical every recursive smoother vs live TV remains a numerical-parity track (see numerical validation)
+
+#### Corpus Runtime snapshot (set01–set04, pyne-worker, 50 bars)
+- Projected OK after re-run of prior fails: **~2224 / 2477 (89.8%)**
+- PARSE_FAIL bucket ≈ 118 (stubs); TIMEOUT + RUN_FAIL remain the actionable execution tail
+
 ## Recommendations
-- **Grammar first**: Add triple-quoted multiline string support to `PinescriptLexer.g4` + handling in lexer/parser.
-- **Arrays/Drawing**: Implement `sort_field` logic + full text_formatting.
-- **Request/Types**: Flesh out footprint objects and dynamic handling.
+- Prefer **golden tests vs current oracle** before changing TA seed rules (ATR→RMA, VWMA volume, etc.).
+- Land evaluator/TA math in `src/pynescript/ast/evaluator/`; keep pyne-worker as thin host (timeout/R2/CF).
+- Re-run corpus fails only via `scripts/corpus_rerun_fails.py` / pyne-worker `scripts/corpus_rerun_fails.py` after each fix.
 - Update `pinescript_implementation_status.md` and this file after each addition.
-- Add dedicated tests for multiline strings and UDT sort_field once implemented.
-- Current overall: Excellent for most real-world scripts (parser + common builtins). Not drop-in 100% for latest 2026 syntax/features.
+- Current overall: Excellent for most real-world scripts (parser + common builtins + bar Runtime). Not drop-in 100% for latest 2026 platform/editor-only or exotic broker edges.
 
 See also:
 - `docs/pine_v6_full_surface_inventory.md` — **full schema + every inventory name** (dispatch, series, language, graphs)
@@ -388,9 +428,9 @@ PyneScript core is mature, with significant July 2026 enhancements:
 - var / varip declaration modes and ReAssign handling.
 - Updated test coverage with dedicated `test_strategy_events.py` and `test_parity.py`.
 
-**Conclusion:** PyneScript has successfully implemented all core Pine Script features. The project provides a robust, well-tested foundation. July 2026 work added first-class strategy events and a colocated TS port. Future work focuses on enhancements (perf, LSP polish, converters, real data) per the consolidation plan.
+**Conclusion:** PyneScript has successfully implemented all core Pine Script features. The project provides a robust, well-tested foundation. July 2026 work added first-class strategy events, a colocated TS port, open-source corpus hardening, and interpret-mode TA performance (incremental hot path). Future work focuses on residual Runtime tail, Runtime host unify, optional TV-oracle re-baselines, LSP polish, converters, and real data adapters.
 
 ---
 
-_Last updated: 2026-07-09_  
-_Version: 1.1_
+_Last updated: 2026-07-28_  
+_Version: 1.2_

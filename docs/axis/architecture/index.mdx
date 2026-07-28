@@ -1,0 +1,75 @@
+---
+title: "Architecture"
+description: "AXIS system architecture: AXIS vs engine, plugin registry, topologies, ADRs, and state namespaces."
+---
+
+# Architecture
+
+AXIS architecture is the discipline of **separable axes**—price history, live time, calculation, and library storage—coordinated by a Solid AXIS UI that never owns a closed interpreter.
+
+## Abstract
+
+| Layer | Responsibility |
+| --- | --- |
+| AXIS | UI, store, plugin orchestration, chart apply |
+| Plugin contracts | `source \| stream \| engine \| storage` (+ reserved component) |
+| Engines | PYNE evaluation (browser Pyodide or remote `/run`) |
+| Optional edge | Cloudflare Pages + Worker + DO/KV/D1/R2 |
+| Optional desk API | Flask Pro API |
+
+**Invariant:** AXIS ≠ engine. Evaluation always crosses an engine plugin boundary.
+
+## Track map
+
+| Page | Contents |
+| --- | --- |
+| [Overview](/axis/docs/architecture/overview) | End-to-end data/control flow |
+| [ADRs](/axis/docs/architecture/adrs) | ADR-001 … ADR-013 |
+| [Topologies](/axis/docs/architecture/topologies) | Dev, static, edge deploy shapes |
+| [State namespaces](/axis/docs/architecture/state-namespaces) | Keys, migration, hash, IDB |
+
+## Conceptual model
+
+```mermaid
+flowchart TB
+  subgraph AxisUI["Browser AXIS"]
+    UI[Solid UI]
+    ST[store pynescript.axis.v1]
+    REG[PluginRegistry]
+    UI --> ST
+    UI --> REG
+  end
+  REG --> SRC[Sources]
+  REG --> STR[Streams]
+  REG --> ENG[Engines]
+  REG --> STO[Storages]
+  ENG -->|server| API[Flask or Worker proxy]
+  ENG -->|pyodide| PY[In-browser PYNE]
+  STO -->|cloud| API
+  STO -->|git| FORGE[GitHub/GitLab]
+  STO -->|local| IDB[(IndexedDB)]
+```
+
+## Formal namespaces
+
+```text
+Contract namespace:  pynescript.axis.plugins.v1
+App state key:      pynescript.axis.v1
+Legacy prefixes:    pynescript.superchart.*
+CF project id:      pynescript-superchart   (frozen)
+Health service id:  pynescript-axis-worker
+```
+
+## Related tracks
+
+- [End User](/axis/docs/enduser) — operator workflows  
+- [UI](/axis/docs/ui) — UI subsystem design  
+- [Plugins](/axis/docs/plugins) — contracts & catalogs  
+- [Worker](/axis/docs/worker) — edge data plane  
+- [DevOps](/axis/docs/devops) — build & CORS  
+- [PYNE runtime](/pyne/docs/runtime) — language evaluation  
+
+## See also
+
+- `frontend/README.md` — package-level map  
+- `frontend/LEGACY.md` — pre-Solid shell boundary  

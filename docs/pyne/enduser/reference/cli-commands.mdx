@@ -1,0 +1,254 @@
+---
+title: "CLI Commands Reference"
+description: "Complete option reference for the pynescript Click CLI: parse-and-dump, parse-and-unparse, lint, data, and download-builtin-scripts."
+---
+
+# CLI Commands Reference
+
+## Abstract
+
+Machine-oriented reference for every command registered on the `pynescript` Click group in `src/pynescript/__main__.py`. For workflows and pipelines, see the [CLI guide](/pyne/docs/enduser/guides/cli). The language server is a **separate** console script (`pynescript-lsp`) and is documented under [Editors](/pyne/docs/enduser/guides/editors).
+
+## Conceptual model
+
+```text
+pynescript [--version] COMMAND [ARGS]...
+```
+
+| Command | Short help (Click) |
+| --- | --- |
+| `parse-and-dump` | Parse pinescript file to AST tree. |
+| `parse-and-unparse` | Parse pinescript file and unparse back to pinescript. |
+| `download-builtin-scripts` | Download builtin scripts. |
+| `lint` | Lint Pine Script file for issues. |
+| `data` | Fetch market data from providers. |
+
+Global:
+
+```bash
+pynescript --help
+pynescript --version
+```
+
+Version source: package version option on the Click group (`@click.version_option()`), aligned with `pynescript.__about__.__version__`.
+
+## Interface surface
+
+### `pynescript parse-and-dump`
+
+Parse a file and print an AST dump.
+
+| Kind | Name | Type / default | Description |
+| --- | --- | --- | --- |
+| argument | `PATH` | existing readable file | Input `.pine` path |
+| option | `--encoding` | str, default `utf-8` | File text encoding |
+| option | `--indent` | int, default `2` | Indent width for dump |
+| option | `--output-file` | path or `-`, default `-` | Output path; `-` = stdout |
+
+**Semantics:** `parse(text, filename)` then `dump(node, indent=indent)`; write with same encoding.
+
+**Examples:**
+
+```bash
+pynescript parse-and-dump strategy.pine
+pynescript parse-and-dump strategy.pine --indent 4 --output-file tree.txt
+pynescript parse-and-dump strategy.pine --encoding utf-8 --output-file -
+```
+
+**Exit codes:** Click/path errors non-zero; uncaught parse exceptions propagate (non-zero).
+
+---
+
+### `pynescript parse-and-unparse`
+
+Parse a file and emit regenerated source.
+
+| Kind | Name | Type / default | Description |
+| --- | --- | --- | --- |
+| argument | `PATH` | existing readable file | Input path |
+| option | `--encoding` | str, default `utf-8` | Text encoding |
+| option | `--output-file` | path or `-`, default `-` | Output path; `-` = stdout |
+
+**Semantics:** `parse` → `unparse` → write.
+
+**Examples:**
+
+```bash
+pynescript parse-and-unparse messy.pine
+pynescript parse-and-unparse messy.pine --output-file clean.pine
+```
+
+---
+
+### `pynescript lint`
+
+Lint a file or stdin.
+
+| Kind | Name | Type / default | Description |
+| --- | --- | --- | --- |
+| argument | `PATH` | optional string | File path; omit or `-` for stdin |
+| option | `--encoding` | str, default `utf-8` | File encoding (ignored for stdin) |
+| option | `--fix` | flag | Attempt to fix issues where possible {/* TODO: verify implementation */} |
+| option | `--fail-on` | choice `errors`\|`warnings`\|`all`, default `errors` | Non-zero exit threshold |
+
+**Semantics:**
+
+1. Read source (stdin if `PATH` is missing or `-`).
+2. `warnings = lint_script(source, filename)`.
+3. If empty → print `No issues found.` and return.
+4. Print each issue with emoji prefix by severity; print summary count.
+5. Raise `click.ClickException` when threshold met:
+
+| `--fail-on` | Fails when |
+| --- | --- |
+| `errors` | any `severity == "error"` |
+| `warnings` | any error or warning |
+| `all` | any issue |
+
+**Examples:**
+
+```bash
+pynescript lint strategy.pine
+pynescript lint --fail-on warnings strategy.pine
+pynescript lint --fail-on all strategy.pine
+pynescript lint -
+cat strategy.pine | pynescript lint
+pynescript lint --encoding utf-8 strategy.pine
+```
+
+**Issue line format (via `LintWarning.__str__`):**
+
+```text
+{severity}: [{code}] {message} at line {n}|unknown location
+```
+
+CLI prefixes `❌` (error) or `⚠️` (other).
+
+---
+
+### `pynescript data`
+
+Fetch market data for a symbol and print a short summary.
+
+| Kind | Name | Type / default | Description |
+| --- | --- | --- | --- |
+| argument | `SYMBOL` | string | Ticker / market symbol |
+| option | `--provider` | `mock`\|`yahoo`\|`alphavantage`\|`ccxt`, default `mock` | Backend |
+| option | `--period` | str, default `1y` | e.g. `1d`, `1w`, `1mo`, `3mo`, `6mo`, `1y`, `2y`, `5y` |
+| option | `--interval` | str, default `1d` | e.g. `1m`, `5m`, `15m`, `30m`, `60m`, `1d`, `1w` |
+| option | `--api-key` | str, default `""` | Alpha Vantage or CCXT |
+| option | `--secret` | str, default `""` | CCXT secret |
+| option | `--exchange` | str, default `binance` | CCXT exchange id |
+
+**Semantics:**
+
+1. Build provider kwargs (AV demo key warning if missing; CCXT exchange/key/secret).
+2. `get_provider(provider, **kwargs).fetch(symbol, period, interval)`.
+3. Print symbol, bar count, first/last close, average volume.
+
+**Examples:**
+
+```bash
+pynescript data AAPL
+pynescript data AAPL --provider=yahoo --period=6mo
+pynescript data EUR/USD --provider=alphavantage --api-key=YOUR_KEY
+pynescript data BTC/USDT --provider=ccxt --exchange=binance
+```
+
+**Errors:** `DataProviderError` → `ClickException` with message.
+
+**Deps:** `ccxt` providers require `pip install "pynescript[data]"`.
+
+---
+
+### `pynescript download-builtin-scripts`
+
+Download TradingView® reference scripts used for tests/corpus.
+
+| Kind | Name | Type / default | Description |
+| --- | --- | --- | --- |
+| option | `--script-dir` | writable directory path | **Required.** Destination (e.g. `tests/data/builtin_scripts`) |
+
+**Semantics:** `pynescript.util.pine_facade.download_builtin_scripts(script_dir)`.
+
+**Examples:**
+
+```bash
+pynescript download-builtin-scripts --script-dir tests/data/builtin_scripts
+pynescript download-builtin-scripts --script-dir /tmp/pine_corpus
+```
+
+**Notes:** Network-dependent; not required for ordinary desk use.
+
+---
+
+### Related: `pynescript-lsp` (not a subcommand)
+
+```bash
+pynescript-lsp
+python -m pynescript.langserver
+```
+
+Entry: `pynescript.langserver.__main__:main` → `PynescriptLanguageServer().start_io()`.
+
+## Internals (repo paths)
+
+| Item | Path |
+| --- | --- |
+| CLI group | `src/pynescript/__main__.py` |
+| Script entry | `pyproject.toml` → `[project.scripts] pynescript = ...` |
+| parse/dump/unparse | `src/pynescript/ast/helper.py` |
+| lint | `src/pynescript/ast/linter.py` |
+| data | `src/pynescript/util/data.py` |
+| download | `src/pynescript/util/pine_facade.py` |
+
+## Invariants & edge cases
+
+- File arguments for parse commands use `click.Path(exists=True, file_okay=True, dir_okay=False)` — **no directory recursion**.
+- `lint` deliberately accepts a free string path so stdin modes work; invalid paths surface as open errors.
+- Dump indent is passed as integer spaces to `dump(..., indent=indent)`.
+- Output files are opened with Click `open_file` (creates/truncates as applicable).
+- There is currently **no** `pynescript evaluate` / `pynescript run` CLI subcommand — evaluation is library or HTTP.
+
+## Worked examples
+
+### CI lint gate
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+for f in "$@"; do
+  pynescript lint --fail-on errors "$f"
+done
+```
+
+### Normalize and re-dump for structural snapshot tests
+
+```bash
+pynescript parse-and-unparse in.pine --output-file /tmp/norm.pine
+pynescript parse-and-dump /tmp/norm.pine --indent 2 --output-file /tmp/norm.ast
+```
+
+### Offline data smoke
+
+```bash
+pynescript data TEST --provider mock --period 1mo --interval 1d
+```
+
+## Failure modes
+
+| Situation | Result |
+| --- | --- |
+| Missing input file | Click path validation error |
+| Parse error in dump/unparse | Python traceback / non-zero |
+| Lint threshold exceeded | `Error: Lint failed with ...` |
+| Provider failure | `Error: <DataProviderError message>` |
+| Missing `--script-dir` | Click missing option error |
+| Unknown provider | Click choice validation error |
+
+## See also
+
+- [CLI guide](/pyne/docs/enduser/guides/cli)
+- [Library API](/pyne/docs/enduser/guides/library-api)
+- [Configuration](/pyne/docs/enduser/getting-started/configuration)
+- [FAQ](/pyne/docs/enduser/reference/faq)

@@ -1,0 +1,137 @@
+# PYNE — llms.txt
+# https://llmstxt.org/ — machine-readable project map for LLMs
+# Generated 2026-07-28
+
+# PYNE
+> Open-source Pine Script evaluation framework
+
+Grammar-driven parser, ASDL AST, bar-loop evaluator, LSP, Pro API, and edge workers. Self-host the runtime.
+
+## Primary
+
+- [Marketing](https://hoox.sh/pyne): Product landing
+- [Docs](https://hoox.sh/pyne/docs): Full documentation hub
+- [Repository](https://github.com/jango-blockchained/pynescript): Source monorepo
+- [Docs tree](https://github.com/jango-blockchained/pynescript/tree/main/docs/pyne): MDX source of truth
+- [llm.txt](https://hoox.sh/pyne/docs/llm.txt): Full-corpus minified context
+- [llms.txt](https://hoox.sh/pyne/docs/llms.txt): This file
+- [AXIS docs](https://hoox.sh/axis/docs): Charting PWA (separate product)
+- [HOOX docs](https://hoox.sh/docs): Edge trade mesh
+
+## Documentation tracks
+
+### End User
+
+- [Overview](https://hoox.sh/pyne/docs)
+- [Overview](https://hoox.sh/pyne/docs/enduser)
+- [Installation](https://hoox.sh/pyne/docs/enduser/getting-started/installation)
+- [Quick Start](https://hoox.sh/pyne/docs/enduser/getting-started/quick-start)
+- [Configuration](https://hoox.sh/pyne/docs/enduser/getting-started/configuration)
+- [Cli](https://hoox.sh/pyne/docs/enduser/guides/cli)
+- [Library Api](https://hoox.sh/pyne/docs/enduser/guides/library-api)
+- [Evaluate Scripts](https://hoox.sh/pyne/docs/enduser/guides/evaluate-scripts)
+- [Editors](https://hoox.sh/pyne/docs/enduser/guides/editors)
+- [Pro Api Usage](https://hoox.sh/pyne/docs/enduser/guides/pro-api-usage)
+- [Troubleshooting](https://hoox.sh/pyne/docs/enduser/guides/troubleshooting)
+- [Cli Commands](https://hoox.sh/pyne/docs/enduser/reference/cli-commands)
+- [Glossary](https://hoox.sh/pyne/docs/enduser/reference/glossary)
+- [Faq](https://hoox.sh/pyne/docs/enduser/reference/faq)
+
+### Core
+
+- [Overview](https://hoox.sh/pyne/docs/core)
+- [Grammar Antlr4](https://hoox.sh/pyne/docs/core/grammar-antlr4)
+- [Asdl Schema](https://hoox.sh/pyne/docs/core/asdl-schema)
+- [Builder](https://hoox.sh/pyne/docs/core/builder)
+- [Helper Api](https://hoox.sh/pyne/docs/core/helper-api)
+- [Unparser](https://hoox.sh/pyne/docs/core/unparser)
+- [Visitor Transformer](https://hoox.sh/pyne/docs/core/visitor-transformer)
+- [Type System](https://hoox.sh/pyne/docs/core/type-system)
+- [Linter](https://hoox.sh/pyne/docs/core/linter)
+- [Error Model](https://hoox.sh/pyne/docs/core/error-model)
+
+### Runtime
+
+- [Overview](https://hoox.sh/pyne/docs/runtime)
+- [Series And History](https://hoox.sh/pyne/docs/runtime/series-and-history)
+- [Expressions Statements](https://hoox.sh/pyne/docs/runtime/expressions-statements)
+- [Overview](https://hoox.sh/pyne/docs/runtime/builtins)
+- [Technical](https://hoox.sh/pyne/docs/runtime/builtins/technical)
+- [Strategy](https://hoox.sh/pyne/docs/runtime/builtins/strategy)
+- [Collections](https://hoox.sh/pyne/docs/runtime/builtins/collections)
+- [Drawing Plotting](https://hoox.sh/pyne/docs/runtime/builtins/drawing-plotting)
+- [Request Input](https://hoox.sh/pyne/docs/runtime/builtins/request-input)
+- [Libraries](https://hoox.sh/pyne/docs/runtime/libraries)
+- [Events](https://hoox.sh/pyne/docs/runtime/events)
+- [Overview](https://hoox.sh/pyne/docs/runtime/compiler/overview)
+- [Numba](https://hoox.sh/pyne/docs/runtime/compiler/numba)
+- [Strategy Broker](https://hoox.sh/pyne/docs/runtime/compiler/strategy-broker)
+
+### LSP
+
+- [Overview](https://hoox.sh/pyne/docs/lsp)
+- [Architecture](https://hoox.sh/pyne/docs/lsp/architecture)
+- [Diagnostics](https://hoox.sh/pyne/docs/lsp/features/diagnostics)
+- [Completion](https://hoox.sh/pyne/docs/lsp/features/completion)
+- [Hover](https://hoox.sh/pyne/docs/lsp/features/hover)
+- [Navigation](https://hoox.sh/pyne/docs/lsp/features/navigation)
+- [Formatting](https://hoox.sh/pyne/docs/lsp/features/formatting)
+- [Semantic Tokens](https://hoox.sh/pyne/docs/lsp/features/semantic-tokens)
+- [Inlay Hints](https://hoox.sh/pyne/docs/lsp/features/inlay-hints)
+- [Builtin Metadata](https://hoox.sh/pyne/docs/lsp/builtin-metadata)
+- [Vscode Extension](https://hoox.sh/pyne/docs/lsp/vscode-extension)
+- [Clients](https://hoox.sh/pyne/docs/lsp/clients)
+
+### API
+
+- [Overview](https://hoox.sh/pyne/docs/api)
+- [App Lifecycle](https://hoox.sh/pyne/docs/api/app-lifecycle)
+- [Auth And Keys](https://hoox.sh/pyne/docs/api/auth-and-keys)
+- [Run](https://hoox.sh/pyne/docs/api/endpoints/run)
+- [Preview](https://hoox.sh/pyne/docs/api/endpoints/preview)
+- [Backtest](https://hoox.sh/pyne/docs/api/endpoints/backtest)
+- [Chart Renderer](https://hoox.sh/pyne/docs/api/services/chart-renderer)
+- [Runtime Bridge](https://hoox.sh/pyne/docs/api/runtime-bridge)
+- [Contract](https://hoox.sh/pyne/docs/api/contract)
+
+### DevOps
+
+- [Overview](https://hoox.sh/pyne/docs/devops)
+- [Local Dev](https://hoox.sh/pyne/docs/devops/local-dev)
+- [Ci](https://hoox.sh/pyne/docs/devops/ci)
+- [Release](https://hoox.sh/pyne/docs/devops/release)
+- [Docker](https://hoox.sh/pyne/docs/devops/docker)
+- [Nuitka Build](https://hoox.sh/pyne/docs/devops/nuitka-build)
+- [Metadata Crypto](https://hoox.sh/pyne/docs/devops/metadata-crypto)
+- [Gcp](https://hoox.sh/pyne/docs/devops/gcp)
+- [Observability](https://hoox.sh/pyne/docs/devops/observability)
+- [Security](https://hoox.sh/pyne/docs/devops/security)
+
+### Reference
+
+- [Compatibility](https://hoox.sh/pyne/docs/reference/compatibility)
+- [Implementation Status](https://hoox.sh/pyne/docs/reference/implementation-status)
+- [Missing Features](https://hoox.sh/pyne/docs/reference/missing-features)
+- [Pine V6 Surface](https://hoox.sh/pyne/docs/reference/pine-v6-surface)
+- [Numerical Validation](https://hoox.sh/pyne/docs/reference/numerical-validation)
+- [Roadmap](https://hoox.sh/pyne/docs/reference/roadmap)
+- [Contributing](https://hoox.sh/pyne/docs/contributing)
+- [Overview](https://hoox.sh/pyne/docs/pine-worker)
+- [Converter](https://hoox.sh/pyne/docs/pine-worker/converter)
+- [Testing](https://hoox.sh/pyne/docs/pine-worker/testing)
+
+## PDF manuals
+
+- [End User Manual (A4 PDF)](https://hoox.sh/exports/pyne-enduser-manual.pdf)
+- [Language Core Manual (A4 PDF)](https://hoox.sh/exports/pyne-core-manual.pdf)
+- [Runtime Manual (A4 PDF)](https://hoox.sh/exports/pyne-runtime-manual.pdf)
+- [Language Server Manual (A4 PDF)](https://hoox.sh/exports/pyne-lsp-manual.pdf)
+- [Pro API Manual (A4 PDF)](https://hoox.sh/exports/pyne-api-manual.pdf)
+- [DevOps Manual (A4 PDF)](https://hoox.sh/exports/pyne-devops-manual.pdf)
+- [Reference Manual (A4 PDF)](https://hoox.sh/exports/pyne-reference-manual.pdf)
+
+## Optional
+
+- [HOOX llms.txt](https://hoox.sh/llms.txt)
+- [HOOX ai.txt](https://hoox.sh/ai.txt)
+- [Exports manifest](https://hoox.sh/exports/manifest.json)

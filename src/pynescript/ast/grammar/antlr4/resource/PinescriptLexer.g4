@@ -63,13 +63,16 @@ RPAR: ')';
 LSQB: '[';
 RSQB: ']';
 
+// Multi-char ops first so ANTLR longest-match prefers them over '<' / '>'.
+LSHIFT:       '<<';
+RSHIFT:       '>>';
+LESSEQUAL:    '<=';
+GREATEREQUAL: '>=';
+EQEQUAL:      '==';
+NOTEQUAL:     '!=';
 LESS:         '<';
 GREATER:      '>';
 EQUAL:        '=';
-EQEQUAL:      '==';
-NOTEQUAL:     '!=';
-LESSEQUAL:    '<=';
-GREATEREQUAL: '>=';
 
 RARROW: '=>';
 
@@ -77,6 +80,12 @@ DOT:      '.';
 COMMA:    ',';
 COLON:    ':';
 QUESTION: '?';
+
+// Bitwise (Pine v5+): ~ unary, & | ^ binary, << >> shifts (above).
+TILDE:  '~';
+AMP:    '&';
+PIPE:   '|';
+CARET:  '^';
 
 PLUS:    '+';
 MINUS:   '-';

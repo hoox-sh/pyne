@@ -1,0 +1,3925 @@
+AXIS CONSOLIDATED DOCUMENTATION — LLM CONTEXT PACK
+Generated: 2026-07-28
+Source: docs/axis
+Public: https://hoox.sh/axis/docs
+Repository: https://github.com/jango-blockchained/pynescript
+
+FILE: docs/axis/architecture/adrs.mdx
+Architecture Decision Records
+Formal ADRs for AXIS (product + frontend/). Status values: Accepted unless noted. Dates are conceptual product epochs (SuperChart → AXIS), not git archaeology.
+Index
+| ID | Title |
+| --- | --- |
+| ADR- | Pluggable unified registry |
+| ADR- | AXIS ≠ engine |
+| ADR- | Solid + Vite product UI |
+| ADR- | Dual engines (server + Pyodide) |
+| ADR- | Declarative configSchema |
+| ADR- | URL-loadable plugins |
+| ADR- | Storage as a plugin |
+| ADR- | Frozen CF project id pynescript-superchart |
+| ADR- | Worker proxies first |
+| ADR- | Durable Object stream fan-out |
+| ADR- | State namespace migration |
+| ADR- | CORS as deploy concern |
+| ADR- | Results export in AXIS |
+| ADR- | Transport preference + connection telemetry |
+---
+ADR-: Pluggable unified registry
+Context
+Early SuperChart registered sources/streams/engines in separate ad hoc maps. Operators and authors needed one mental model and one install path.
+Decision
+Adopt a unified PluginRegistry (frontend/src/plugins/registry.ts) with kinds:
+source | stream | engine | storage | component(reserved)
+Every plugin shares PluginBase (id, name, kind, description, version, builtIn, configSchema, capabilities, lifecycle hooks). Registration is ordered; listeners observe register/unregister.
+Consequences
+Active selection lives in the Solid store, not the registry.
+Built-ins protected from casual unregister.
+Catalogs (sources/catalog.ts, …) become registration facades.
+Contract docs under Plugins.
+---
+ADR-: AXIS ≠ engine
+Context
+Closed chart hosts couple rendering and language runtime. That blocks offline mode, alternate evaluators, and headless reuse of PYNE.
+Decision
+AXIS never embeds a closed interpreter. All evaluation goes through EnginePlugin.run. UI modules call getActiveEngine() / runAndApply, not Python bindings directly (except inside the pyodide engine module).
+Consequences
+Language fidelity owned by PYNE.
+AXIS docs do not duplicate grammar theory.
+New engines (tiny demo, remote Worker, future WASM) are additive plugins.
+---
+ADR-: Solid + Vite product UI
+Context
+Legacy vanilla JS shell (main.js, style.css) mixed DOM wiring with business logic and aged TV-blue tokens.
+Decision
+Product path is SolidJS + Vite + Tailwind , entry src/index.tsx / app.tsx. Imperative chart library (lightweight-charts) is isolated in ChartHost / PaneManager so Solid reconciliation does not thrash canvas DOM.
+Consequences
+Legacy files retained for smoke/static tests only (LEGACY.md).
+Icons via lucide-solid.
+Deploy artifact is Vite dist/, not repo-root static tree.
+---
+ADR-: Dual engines (server + Pyodide)
+Context
+Researchers need server fidelity and offline demos. A single transport cannot satisfy both without compromise.
+Decision
+Ship two built-in engines:
+| Id | Role |
+| --- | --- |
+| server | POST {endpoint}/run?mode= with { script, data: bars } |
+| pyodide | Browser Python + vendored pynescript / antlr wheels |
+Both implement the same EnginePlugin contract and return RunResult.
+Consequences
+Endpoint field only for server-like engines.
+Pyodide requires correct static asset deployment (ZIP integrity checks).
+Timeouts unified at runner layer.
+---
+ADR-: Declarative configSchema
+Context
+Per-plugin settings UIs do not scale; custom React/Solid forms per plugin forks the manager.
+Decision
+Plugins declare optional configSchema: map of field name → { type, default, label, options, min, max, ... }. Settings and library panels resolve defaults + pluginsConfig overrides via shared resolve helpers.
+Consequences
+New plugins get settings UI without shell changes (within field types).
+Types: string | number | boolean | select initially.
+Invalid user values remain a plugin responsibility at runtime.
+---
+ADR-: URL-loadable plugins
+Context
+Third-party sources/engines should not require rebuild of the PWA for experiments.
+Decision
+Support loadPluginFromUrl: fetch ES module, validate shape, register, persist install metadata for restore on boot. Example plugins published under public/plugins/.
+Consequences
+Browser origin trust model: URL plugins are code execution.
+Security tests constrain schemes and storage-via-URL footguns.
+Offline restore needs prior successful fetch/cache.
+---
+ADR-: Storage as a plugin
+Context
+Script library began as localStorage-only; cloud and git were bolted differently.
+Decision
+Storage is a first-class plugin kind with list/read/write/remove (+ optional draft/sync/status). Built-ins: local (IDB), cloud (Worker /api/scripts), git (GitHub/GitLab Contents API). Active storage in activePlugins.storage.
+Consequences
+Manager Script Library is backend-agnostic.
+Git commits only on explicit save; drafts local.
+Cloud uses Bearer Pro keys and optional optimistic concurrency.
+---
+ADR-: Frozen CF project id pynescript-superchart
+Context
+Renaming Cloudflare Pages/Worker projects severs KV/D/R bindings, custom domains, and CI secrets. Product brand evolved to AXIS.
+Decision
+Keep infrastructure name pynescript-superchart. Brand in UI/manifest/docs is AXIS. Health JSON may identify pynescript-axis-worker. Optional DNS aliases (axis.) point at the same project without rename.
+Consequences
+wrangler.toml name and Pages --project-name stay frozen.
+Docs call out the freeze explicitly (this ADR).
+npm package name may lag brand.
+---
+ADR-: Worker proxies first
+Context
+In-Worker Pyodide is attractive but heavy; production needed a path immediately.
+Decision
+Worker /api/run proxies to an external Python backend first (EXTERNALBACKEND). In-Worker runtime remains scaffolded/gated. Keys, usage metering, scripts API, and stream DO can ship independently of full edge evaluation.
+Consequences
+AXIS server engine talks to Worker URL transparently.
+Operational dependency on Flask (or equivalent) until edge runtime matures.
+Clear layering: Worker is data plane + auth, not necessarily the interpreter.
+---
+ADR-: Durable Object stream fan-out
+Context
+N browser clients each opening venue WebSockets waste connections and risk rate limits.
+Decision
+SessionDO Durable Object: one upstream WS per session key; fan-out to N client sockets via /api/stream. Hibernation-friendly design on CF.
+Consequences
+Stream plugins may target DO URLs (example plugin provided).
+Session/symbol/interval query params are part of the contract.
+Not a historical source—live only.
+---
+ADR-: State namespace migration
+Context
+Rename SuperChart → AXIS would brick user layouts and libraries if keys changed hard.
+Decision
+Canonical key pynescript.axis.v. On read, fall back to pynescript.superchart.v / v (and parallel library/editor keys), then write forward to AXIS keys. Do not keep dual-write forever.
+Consequences
+Seamless upgrade for existing browsers.
+Persistence strips bars/lastRun/logs.
+Tests cover migration (tests/state.test.ts patterns).
+---
+ADR-: CORS as deploy concern
+Context
+Browser AXIS on origin A calling Pro API on origin B fails without CORS. Hardcoding origins in AXIS is wrong.
+Decision
+CORS is a backend/deploy configuration (ALLOWEDORIGINS on Flask; Worker headers as deployed). AXIS documents required origins; ops sets explicit lists in production (avoid perpetual ` outside demos).
+Consequences
+Localhost regex for dev.
+Troubleshooting centers on preflight, not engine code.
+Static file server does not replace API CORS.
+---
+ADR-: Results export in AXIS
+Context
+Researchers need artifacts (trades CSV, run JSON) without a separate analytics service.
+Decision
+Results panel owns export: download JSON of lastRun, CSV of closed trades, clipboard helpers. Strategy pairing and stats run client-side from engine events (results/strategy.ts, results/events.ts).
+Consequences
+Export fidelity bounded by engine event quality.
+No server-side report store required for MVP.
+Viewer metrics ≠ broker statements (documented for operators).
+---
+ADR-: Transport preference + connection telemetry
+Context
+Operators need to see how data and calculation move (WS vs REST vs local vs brokered), whether the live socket is actually open, and engine run latency. Naively “prefer WebSocket everywhere” is wrong: venues expose history over REST and live klines over WSS. Server engines batch-run over HTTP; Pyodide is local WASM.
+Decision
+. Transport policy
+History → REST (or local mock/CSV).
+Live → WebSocket first, paired per source via defaultStreamForSource (binance-rest → binance-ws, …).
+Engine → prefer WS /ws/run on the Pro API when available (flask-sock); fall back to HTTP POST /run. Pyodide remains local.
+Brokered → CF Durable Object / needsProxy streams surface as transport class broker.
+. Honest stream state — connecting until onStatus({ state: 'open' }); reconnect uses reconnecting / degraded telemetry, not false green.
+. Venue streams use reconnect with exponential backoff (streams/reconnect-ws.ts).
+. Connection HUD — StatusBar second row (ConnectionHud) reads ephemeral store.telemetry (SRC/STR/ENG/STO chips, tick pulse, engine latency). Persist only telemetry.hud prefs + live.preferAfterLoad / live.rerunOn.
+. Live re-run modes — every-tick (default) or bar-close (venue Bar.closed or bar time advance).
+. Chart stability — full setDataToChart only on history load (chartDataGen); live uses appendBar; overlay/script drawings update in place to avoid hide/show flash.
+Consequences
+UI never claims WS for historical load.
+Auto-live after Load is opt-in (preferAfterLoad, default off).
+Plugin capabilities may declare transport`; otherwise HUD classifies from id/capabilities.
+See Streams, UI shell, Overview.
+---
+ADR lifecycle
+New ADRs should:
+. State context, decision, consequences.
+. Cross-link code paths.
+. Avoid re-litigating ADR- without supersession note.
+See also
+Overview
+Topologies
+Plugins contracts
+---
+FILE: docs/axis/architecture/index.mdx
+Architecture
+AXIS architecture is the discipline of separable axes—price history, live time, calculation, and library storage—coordinated by a Solid AXIS UI that never owns a closed interpreter.
+Abstract
+| Layer | Responsibility |
+| --- | --- |
+| AXIS | UI, store, plugin orchestration, chart apply |
+| Plugin contracts | source \| stream \| engine \| storage (+ reserved component) |
+| Engines | PYNE evaluation (browser Pyodide or remote /run) |
+| Optional edge | Cloudflare Pages + Worker + DO/KV/D/R |
+| Optional desk API | Flask Pro API |
+Invariant: AXIS ≠ engine. Evaluation always crosses an engine plugin boundary.
+Track map
+| Page | Contents |
+| --- | --- |
+| Overview | End-to-end data/control flow |
+| ADRs | ADR- … ADR- |
+| Topologies | Dev, static, edge deploy shapes |
+| State namespaces | Keys, migration, hash, IDB |
+Conceptual model
+Formal namespaces
+``text
+Contract namespace: pynescript.axis.plugins.v
+App state key: pynescript.axis.v
+Legacy prefixes: pynescript.superchart.
+CF project id: pynescript-superchart (frozen)
+Health service id: pynescript-axis-worker
+`
+Related tracks
+End User — operator workflows
+UI — UI subsystem design
+Plugins — contracts & catalogs
+Worker — edge data plane
+DevOps — build & CORS
+PYNE runtime — language evaluation
+See also
+frontend/README.md — package-level map
+frontend/LEGACY.md` — pre-Solid shell boundary
+---
+FILE: docs/axis/architecture/overview.mdx
+Architecture overview
+Abstract
+AXIS is a composition host. The product thesis: own the axes (history, live, calc, library), swap the implementations. Shipping UI is Solid + Vite + lightweight-charts + CodeMirror ; calculation is never inlined into UI components.
+Conceptual model
+Interface surface (module map)
+| Concern | Primary paths |
+| --- | --- |
+| Entry | frontend/src/index.tsx, app.tsx |
+| State | frontend/src/store/ |
+| Plugins | frontend/src/plugins/{registry,types,loader,bootstrap,active}.ts |
+| Catalogs | sources/catalog.ts, streams/, engines/catalog.ts, storage/ |
+| Chart | chart/ChartHost.tsx, pane-manager.ts, drawing-layer.ts |
+| Editor | editor/ |
+| Run apply | indicators/runner.ts |
+| Results | results/, ui/ResultsPanel.tsx |
+| Worker | frontend/worker/ |
+Legacy parallel: state.js, registry.js, main.js — not product path. See repo frontend/LEGACY.md.
+Control plane vs data plane
+| Plane | What moves | Who owns it |
+| --- | --- | --- |
+| Control | activePlugins, endpoint, theme, layout | Solid store + localStorage |
+| Historical data | Bar arrays | Source plugins → store.bars |
+| Live data | Bar updates | Stream plugins → multiplex → bars/chart |
+| Calculation | script + bars → RunResult | Engine plugins |
+| Library | ScriptDocument | Storage plugins |
+| Telemetry | plane connectivity / latency / ticks | Ephemeral store.telemetry + Connection HUD |
+Transport preference (ADR-)
+| Path | Preferred transport | Notes |
+| --- | --- | --- |
+| Load (history) | REST / local | Venue kline HTTP, CSV, mock walk |
+| Live | WebSocket | Venue WSS with reconnect; mock-poll local; DO = brokered |
+| Engine server | HTTP | POST /run batch; latency in HUD |
+| Engine pyodide | Local | Offline-capable after asset cache |
+Live pairs with history via defaultStreamForSource. Optional live.preferAfterLoad auto-starts WS after Load (default off).
+Dual engines
+| Engine | Transport | Fidelity host |
+| --- | --- | --- |
+| server | HTTP JSON { script, data } → /run | Flask or Worker→Flask |
+| pyodide | In-worker-thread-ish browser Python | Self-hosted wheels + pynescript_runtime.py |
+Timeout policy in runner scales with bar length (clamped). Live re-runs use shorter silent timeouts.
+Chart apply pipeline
+runAndApply:
+. getActiveEngine().run(...)
+. setLastRun
+. Optionally open results
+. Sync overlays in place (syncOverlayLines) — no blank destroy frame
+. Markers + strategy report side effects
+. Atomic Pine script drawings replace
+. Equity pane when appropriate (skip hide thrash on silent live re-runs)
+History vs live data path: loadBars bumps chartDataGen → ChartHost full setDataToChart + fit. Live ticks only manager.appendBar (never full setData/fitContent).
+PaneManager is imperative DOM under a Solid-owned outer shell—Solid must not reconcile the pane root (ChartHost invariant).
+Plugin registry
+PluginRegistry holds ordered maps per kind; events registered / unregistered. Built-ins register once (ensureBuiltins / catalog ensureRegistered). Dynamic plugins via loadPluginFromUrl. Active selection is not inside the registry—it is store state.
+Contract namespace conceptually: pynescript.axis.plugins.v (fields: id, name, kind, configSchema, capabilities, kind-specific methods).
+Edge plane (optional)
+Cloudflare project pynescript-superchart:
+Pages: static dist/
+Worker: /api/run proxy, keys/usage KV, scripts D, stream DO fan-out
+AXIS still speaks engine/storage plugins—not raw CF APIs in UI components
+Invariants
+. AXIS ≠ engine
+. Bars/logs/lastRun not fully persisted
+. Storage and engine endpoints may coincide (Worker) but remain separate plugin roles
+. Legacy SuperChart keys migrate forward, never the reverse on write
+Failure modes (architectural)
+| Mode | Manifestation | Mitigation |
+| --- | --- | --- |
+| God-object UI | Logic in components | Keep runner/registry pure modules |
+| Engine leakage | Fetch /run from random widgets | Only engine plugins perform calc I/O |
+| Registry/store split brain | Flat engine ≠ activePlugins.engine | setActivePlugin keeps alignment |
+| SPA asset fallback | Pyodide loads HTML | Assert ZIP magic on assets |
+See also
+ADRs
+Topologies
+State namespaces
+AXIS store
+---
+FILE: docs/axis/architecture/state-namespaces.mdx
+State namespaces
+AXIS persistence is multi-homed: layout/config in localStorage, script library in IndexedDB (or remotes), ephemeral run data in memory, optional URL hash for shareable slices.
+Abstract
+| Namespace | Medium | Purpose |
+| --- | --- | --- |
+| pynescript.axis.v | localStorage | App shell state |
+| pynescript.axis.editor.doc | localStorage | Editor document backup |
+| pynescript.axis.storage | IndexedDB | Local library |
+| pynescript.axis.library.v | localStorage fallback | Library if no IDB |
+| pynescript.axis.library.draft | localStorage | Draft buffer |
+| Plugin install list | localStorage | URL plugins restore |
+| store.bars / lastRun / logs | memory | Session only |
+Contract / product identifiers (not storage keys):
+``text
+pynescript.axis.plugins.v conceptual plugin contract id
+pynescript-superchart CF project id (infra)
+`
+Conceptual model
+App state key pynescript.axis.v
+Solid store (frontend/src/store/index.ts):
+Persisted (representative):
+Market: symbol, interval, exchange, source, engine, endpoint
+activePlugins { source, stream, engine, storage }
+pluginsConfig
+Layout: theme, editor, watchlist, panel open/width/height
+panes, scripts (indicator list metadata)
+live.streamId (and related live flags carefully)
+drawings (user annotations)
+Flat mirrors: source / engine aligned via setActivePlugin
+Explicitly omitted on persist:
+bars
+lastRun
+logs
+Debounced write (~ms).
+Legacy migration
+Read order:
+. pynescript.axis.v
+. else pynescript.superchart.v
+. else pynescript.superchart.v
+On legacy hit: copy forward into AXIS key. Editor doc migrates similarly from pynescript.superchart.editor.doc.
+Legacy vanilla state.js uses the same STORAGE_KEY constant for the pre-Solid shell.
+pluginsConfig
+Map of configuration objects. Preferred keys:
+`text
+${kind}:${id} e.g. storage:cloud, storage:git, engine:server
+`
+Bare ids may still be read for compatibility (cloud, git). Values feed configSchema resolution inside plugins.
+Sensitive fields: apiKey, git token — browser-local; treat profile as secret store.
+Editor document
+| Key | Role |
+| --- | --- |
+| pynescript.axis.editor.doc | Draft / shared doc |
+| Bridge messages | Popout synchronization |
+Popout mode uses editor-bridge + shared storage so detached windows share source without re-fetching library.
+Local library IDB
+| Constant | Value |
+| --- | --- |
+| DB name | pynescript.axis.storage |
+| Version | |
+| Stores | scripts, kv |
+Migration flags (pynescript.axis.library.migrated) prevent re-import loops from SuperChart library keys:
+pynescript.superchart.library.v
+pynescript.axis.library.legacy
+Cloud / git (remote namespaces)
+Not browser keys—server-side partitions:
+| Backend | Partitioning |
+| --- | --- |
+| cloud | Hash of API key on Worker; D table or memory |
+| git | owner/repo@branch + basePath |
+Revisions: cloud may expose revision / If-Match; git uses blob SHAs via forge APIs.
+URL hash state (legacy helper)
+frontend/src/state-hash.js (legacy state path):
+| Feature | Detail |
+| --- | --- |
+| Keys | symbol, interval, engine, source, stream, timeRange |
+| Script | base in hash if short |
+| Cap | ~ chars |
+| API | applyHashState, pushHashState, watchHashState |
+Solid-first product may not wire this by default; treat as optional share mechanism. Prefer library export + recipe docs for durable shares.
+Invariants
+. Migration is read-repair to AXIS keys.
+. Never persist full OHLCV in axis.v.
+. setActivePlugin keeps flat fields coherent.
+. Logs panel open state forced closed on hydrate (noise control).
+. Drawing tool resets to cursor on hydrate; geometries restore.
+Failure modes
+| Issue | Effect | Mitigation |
+| --- | --- | --- |
+| QuotaExceeded | persist no-op | Export library; shrink drawings |
+| Poisoned JSON | load defaults | Security tests; clear key |
+| Split profiles | “missing” library | Same browser profile |
+| Stale activePlugins id | missing plugin | Fall back / reselect built-in |
+Internals
+| Path | Role |
+| --- | --- |
+| frontend/src/store/index.ts | Solid persistence |
+| frontend/src/store/types.ts | AppState |
+| frontend/src/state.js | Legacy state |
+| frontend/src/state-hash.js | Hash sync |
+| frontend/src/storage/local.ts | IDB library |
+| frontend/src/plugins/loader.ts` | Installed plugin list |
+See also
+ADR-
+AXIS store
+Script library
+---
+FILE: docs/axis/architecture/topologies.mdx
+Topologies
+Concrete process and network shapes for AXIS. Choose a topology; then compose plugins inside it (recipes).
+Abstract
+| Topology | AXIS | Calc | Live | Library |
+| --- | --- | --- | --- | --- |
+| Dev desk | Vite : | Flask : | Binance WS direct | local |
+| Static demo | axispwaserver : | Flask or remote | venue / mock | local |
+| Edge | CF Pages | Worker → Flask | DO fan-out optional | cloud |
+| Offline lab | any AXIS | Pyodide | mock-poll | local |
+Topology A — Dev desk
+Bring-up
+``bash
+make run
+cd frontend && bun install && bun run dev
+`
+Notes: Vite may proxy /run; Settings endpoint can still point absolute at :. CORS must allow Vite origin.
+Topology B — Static PWA + Pro API
+`bash
+cd frontend && bun run build
+python axispwaserver.py
+make run separate process
+`
+VPS demo pattern: systemd units for axis-pwa and pynescript-api; ALLOWEDORIGINS includes AXIS origin.
+Topology C — Cloudflare AXIS at the edge
+Deploy sketch
+`bash
+cd frontend/worker && wrangler deploy
+cd frontend && bun run build
+wrangler pages deploy dist --project-name=pynescript-superchart
+`
+Frozen id: never rename pynescript-superchart lightly (ADR-).
+AXIS config:
+Engine server, endpoint = Worker origin
+Storage cloud, same origin + API key
+Stream: direct venue or DO-backed plugin
+Topology D — Offline lab
+No Flask, no venue. Requires vendored pyodide + wheels on origin once.
+Topology E — Git-centric research
+Any of A–C for calc/data; storage axis = git. Forges are orthogonal network peers:
+`text
+AXIS --storage:git--> api.github.com | gitlab
+AXIS --engine:server--> Flask/Worker
+AXIS --source--> venue or CSV
+`
+Port map (defaults)
+| Service | Port |
+| --- | --- |
+| Vite dev | |
+| Flask Pro API | |
+| Static PWA server | |
+| Wrangler Worker | |
+Comparison
+| Concern | A Dev | B Static | C Edge | D Offline |
+| --- | --- | --- | --- | --- |
+| HMR | yes | no | no | n/a |
+| PWA SW realism | partial | full | full | full |
+| Multi-tenant keys | no | no | yes | no |
+| Ops complexity | low | medium | high | low |
+| Fidelity | high (Flask) | high | high via proxy | engine-dependent |
+Failure modes by topology
+| Topology | Typical break |
+| --- | --- |
+| A | Flask not running; CORS localhost vs ... mismatch |
+| B | Stale SW; missing dist pyodide assets |
+| C | Unbound KV/D; wrong project name; EXTERNALBACKEND down |
+| D | First visit offline; SPA fallback for wheels |
+Internals
+| Path | Role |
+| --- | --- |
+| frontend/vite.config.ts | Dev/build |
+| frontend/axispwaserver.py | Static host |
+| frontend/worker/wrangler.toml | CF name + bindings |
+| frontend/worker/README.md` | Edge ops |
+See also
+ADR-, , ,
+Installation
+Worker
+DevOps
+---
+FILE: docs/axis/devops/build-and-serve.mdx
+Build and serve
+Abstract
+Production AXIS assets are a static site produced by Vite (bun run build → frontend/dist). Serve them with any static host, Cloudflare Pages, or the repo’s axispwaserver.py SPA-aware server.
+Critical requirement: real binary assets for Pyodide (.wasm, .whl, .zip) must not be rewritten to index.html.
+Conceptual model
+Interface surface
+package.json scripts
+``json
+"dev": "vite",
+"build": "vite build",
+"preview": "vite preview",
+"test": "bun test tests/ worker/tests/",
+"test:coverage:gate": "bun run test:coverage && bun scripts/check-coverage.mjs ",
+"test:security": "bun test tests/security/",
+"test:ee:smoke": "playwright test --grep @smoke",
+"test:all": "bun run test:coverage:gate && bun run test:security"
+`
+axispwaserver.py
+`bash
+cd frontend
+bun run build
+python axispwaserver.py
+HOST / PORT env; default ...: → dist/
+`
+Behavior (frontend/axispwaserver.py):
+| Rule | Detail |
+| --- | --- |
+| Root | Serves frontend/dist |
+| Cache | /assets/ → immutable long cache; else no-cache |
+| SPA fallback | Unknown paths → /index.html |
+| Never rewrite | /assets/, /plugins/, /vendor/, /pyodide/, or extensions including .js/.css/.whl/.wasm/.zip/.py/.json… |
+This SPA exception list exists because Pyodide + micropip die with opaque BadZipFile when HTML is returned for a wheel URL. The engine’s assertZipAsset detects that class of failure early.
+Expected public assets
+| Path (public → dist) | Purpose |
+| --- | --- |
+| /plugins/.js | Example dynamic plugins |
+| /vendor/.whl | pynescript + antlr wheels |
+| /pyodide/v../ | Self-hosted Pyodide |
+| /pyodide/pynescriptruntime.py | Browser run bridge |
+Internals
+| Path | Role |
+| --- | --- |
+| frontend/package.json | Build scripts |
+| frontend/axispwaserver.py | Threading HTTP SPA server |
+| frontend/src/engines/catalog.ts | Asset URL expectations |
+| frontend/LEGACY.md | Product path vs old shell |
+Makefile note
+make pages-deploy may historically deploy the wrong tree — prefer:
+`bash
+cd frontend && bun run build
+wrangler pages deploy dist --project-name=pynescript-superchart
+`
+Worked example — static desk demo
+`bash
+cd frontend
+bun install
+bun run build
+PORT= python axispwa_server.py
+another terminal
+make run Flask :
+`
+Open http://...:, engine endpoint http://...:.
+Invariants & edge cases
+. Service workers / offline — product path uses Vite PWA assets; legacy root sw.js is not the shipping SW.
+. Relative pyodide index — resolves against location.origin.
+. Do not hand-edit dist — regenerate from build.
+Failure modes
+| Symptom | Cause |
+| --- | --- |
+| Blank routes on refresh | Server lacks SPA fallback |
+| Pyodide HTML wheel error | Fallback rewriting .whl or missing vendor |
+| Missing plugins | public/plugins` not copied (check Vite publicDir) |
+See also
+Local dev
+Cloudflare
+Engines
+---
+FILE: docs/axis/devops/ci-and-testing.mdx
+CI and testing
+Abstract
+AXIS quality gates live primarily under frontend/ (Bun tests) and frontend/worker/tests/, orchestrated by GitHub Actions (.github/workflows/ci.yml, axis-nightly.yml). Deep test conventions are documented in Testing reference and frontend/TESTING.md.
+Conceptual model
+Interface surface — local commands
+``bash
+cd frontend
+bun run test tests/ + worker/tests/
+bun run test:unit
+bun run test:coverage:gate lcov + scripts/check-coverage.mjs
+bun run test:security
+bun run test:ee:smoke
+bun run test:ee:critical
+bun run test:ee
+bun run test:all gate + security
+`
+Worker:
+`bash
+cd frontend/worker
+npm run typecheck
+`
+Repo Makefile:
+`bash
+make test-frontend
+make worker-typecheck
+`
+CI workflows
+ci.yml (excerpted jobs)
+| Job (names vary) | What |
+| --- | --- |
+| Frontend tests / coverage | Bun install, coverage, artifact axis-coverage-lcov |
+| axis-ee | Playwright @smoke on PR |
+| Worker typecheck | frontend/worker tsc |
+| Related | Python suite remains for pynescript core |
+axis-nightly.yml
+| Job | What |
+| --- | --- |
+| Playwright full | all ee specs |
+| Security + coverage gate | test:coverage:gate + test:security |
+Schedule: UTC + workflow_dispatch.
+Internals
+| Path | Role |
+| --- | --- |
+| frontend/TESTING.md | Authoritative testing guide |
+| frontend/scripts/check-coverage.mjs | Scoped line gate |
+| frontend/playwright.config.ts | webServer build+preview : |
+| frontend/ee/ | Specs with @smoke / @critical tags |
+| frontend/worker/tests/ | auth, keys, scripts, runtime |
+| .github/workflows/ci.yml | PR gates |
+| .github/workflows/axis-nightly.yml | Nightly |
+Coverage policy (summary)
+Gate: % lines on a scoped core (plugins, storage minus idb, store, results, sources, streams, data, selected chart helpers, worker auth/keys/runtime/scripts).
+Excluded from gate: heavy chart UI, pyodide boot, legacy JS, Solid .tsx surfaces (unit-tested elsewhere or deferred).
+EE design
+Builds production preview; baseURL http://...:.
+Mocks /run and Binance where possible so smoke does not need live Pro API.
+Selectors use data-testid (axis-btn-load, axis-manager, …).
+Invariants & edge cases
+. No real network in unit tests — mock fetch / WebSocket.
+. Import ./setup first when touching store/plugins.
+. CI Bun version pinned in workflows (e.g. .).
+. Playwright browsers installed with --with-deps` on CI.
+Failure modes
+| CI red | Likely |
+| --- | --- |
+| Coverage gate | New untested code in scoped paths |
+| Smoke timeout | Build slow; webServer s |
+| Worker tsc | Env typing / DO exports |
+| Flaky ee | Missing testid; race without mock |
+See also
+Testing reference
+Local dev
+---
+FILE: docs/axis/devops/cloudflare.mdx
+Cloudflare deployment
+Abstract
+Production AXIS on Cloudflare is a split deploy:
+| Piece | Role |
+| --- | --- |
+| Pages | Static PWA (frontend/dist) |
+| Worker | JSON API + WebSocket (frontend/worker) |
+Project id: pynescript-superchart — frozen infrastructure name (dashboard, wrangler, CI). Do not rename without a full binding/domain migration.
+Evaluation truth: Worker /api/run proxies to EXTERNALBACKEND unless the gated Pyodide path is fully implemented and enabled. You still need a Python host (VPS Flask, container, etc.) for real Pine fidelity today.
+Conceptual model
+Deploy procedure
+. Provision bindings (once)
+See Worker bindings:
+KV APIKEYS, USAGE
+D pynescript + schema
+Optional R, Durable Objects
+. Configure secrets / vars
+Production checklist:
+| Setting | Production guidance |
+| --- | --- |
+| EXTERNALBACKEND | Public HTTPS URL of Flask/PYNE API |
+| ALLOWEDORIGIN | Exact Pages origin (e.g. https://…pages.dev or custom) |
+| ADMINTOKEN | Secret, strong |
+| ALLOWOPENKEYS | "" or unset |
+| PYODIDEINWORKER | "disabled" until wheel pipeline ready |
+. Deploy Worker
+``bash
+cd frontend/worker
+npm install
+npx wrangler deploy
+`
+. Build & deploy Pages
+`bash
+cd frontend
+bun install
+bun run build
+npx wrangler pages deploy dist --project-name=pynescript-superchart
+`
+Worker package also defines:
+`json
+"deploy:pages": "wrangler pages deploy ../dist --project-name=pynescript-superchart"
+`
+. Point the PWA
+Engine endpoint: Worker URL (if path-mapped to /run) or Flask URL directly
+Cloud storage endpoint: Worker origin
+Ensure CORS allows Pages origin
+Internals
+| Path | Role |
+| --- | --- |
+| frontend/worker/wrangler.toml | Worker name + bindings |
+| frontend/worker/README.md | Ops narrative |
+| frontend/worker/package.json | deploy scripts |
+| Makefile worker-deploy / pages-deploy | Convenience (verify Pages path) |
+Health check
+`bash
+curl -sS https:///health
+service: pynescript-axis-worker
+`
+Invariants & edge cases
+. Pages ≠ Worker host — CORS required unless same-origin routing via custom domain routes.
+. Localhost EXTERNALBACKEND is useless from the edge.
+. DO migrations apply on deploy when uncommented.
+. Observability enabled in wrangler for log tails (wrangler tail).
+Failure modes
+| Issue | Fix |
+| --- | --- |
+| NOBACKEND | Set reachable EXTERNALBACKEND |
+| CORS blocked | ALLOWEDORIGIN mismatch |
+| SPA HTML for wheels | Pages must serve /vendor and /pyodide` as static files |
+| Stream NODO | Enable SessionDO bindings |
+See also
+Worker
+CORS
+VPS demo (backend co-host)
+---
+FILE: docs/axis/devops/cors-and-origins.mdx
+CORS and origins
+Abstract
+AXIS is a browser product that talks to cross-origin backends (Flask, Worker, venues). CORS misconfiguration is the local-deploy footgun after missing wheels.
+The Worker implements an explicit origin picker; Flask and venue APIs have their own rules.
+Conceptual model
+Worker behavior
+From frontend/worker/src/index.ts:
+Always echoed (dev allowlist):
+http://localhost:
+http://...:
+http://localhost:
+http://...:
+Otherwise: env.ALLOWEDORIGIN or default https://pynescript.ai.
+CORS headers applied:
+``
+Access-Control-Allow-Origin:
+Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS
+Access-Control-Allow-Headers: Content-Type, Authorization, X-Admin-Token, If-Match
+Access-Control-Max-Age:
+Vary: Origin
+`
+OPTIONS → preflight.
+Scripts handler duplicates allow headers for consistency.
+Production implication
+If Pages is https://pynescript-superchart.pages.dev (example), set:
+`
+ALLOWEDORIGIN = "https://pynescript-superchart.pages.dev"
+`
+or your custom domain. Exact string match — no wildcard logic in code.
+Flask / server engine
+The server engine posts from the browser to the configured endpoint. Flask Pro API must:
+. Answer OPTIONS preflight if cross-origin.
+. Reflect or allow the PWA origin.
+. Accept Content-Type: application/json.
+Same-origin reverse proxy (VPS demo) eliminates CORS for /run.
+Venue sources/streams
+Public Binance/OKX/etc. REST must send CORS headers usable by browsers. If blocked:
+. Use offline mock-walk / mock-poll.
+. Add a same-origin proxy on Worker/Flask (not a general open proxy — scope carefully).
+. Prefer DO relay only for WS fan-out (WS is not CORS in the XHR sense, but still network-reachable).
+Dynamic plugins
+Module import of plugin JS: needs CORS on the script origin (same-origin /plugins/ is safe).
+fetch inside plugin: subject to third-party CORS independently.
+Invariants & edge cases
+. Credentials — Worker CORS does not set Allow-Credentials: true; use Bearer headers, not cookies.
+. Multiple prod domains — code picks a single ALLOWED_ORIGIN`; multi-domain needs code change or edge rewrite.
+. Vite vs — both covered for Worker; Flask config must match whichever you use.
+. Health checks from curl omit Origin — still work; browser calls need correct ACAO.
+Failure modes
+| Browser console | Meaning |
+| --- | --- |
+| blocked by CORS policy | Origin not allowlisted |
+| preflight | Server lacks OPTIONS |
+| No ACAO on error body | Some error paths forgot headers (Worker try/catch mostly covered) |
+See also
+Worker bindings
+Local dev
+Dynamic loader
+---
+FILE: docs/axis/devops/index.mdx
+DevOps
+Abstract
+AXIS DevOps spans three runnable surfaces:
+. Vite + Solid PWA (frontend/) — product UI
+. Static server (axispwaserver.py or Vite preview) — production-like assets
+. Cloudflare Worker (frontend/worker/) — edge API / WS
+Python evaluation for desk workflows still often uses the Flask Pro API (make run on :). The Worker proxies there when EXTERNALBACKEND is set.
+Conceptual model
+Topology cheat sheet
+| Mode | Command sketch | Ports |
+| --- | --- | --- |
+| Dev AXIS | cd frontend && bun run dev | Vite (often :) |
+| Dev + Flask | + make run | : |
+| Static dist | bun run build + python axispwa_server.py | : |
+| Worker | cd frontend/worker && npm run dev | : |
+| CF prod | Pages pynescript-superchart + Worker same name family | HTTPS |
+Page map
+| Page | Topic |
+| --- | --- |
+| Local dev | Day-to-day loop |
+| Build and serve | Vite build, SPA server, assets |
+| Cloudflare | Pages + Worker deploy |
+| VPS demo | Single-box static + Flask |
+| CORS and origins | Allowed origins matrix |
+| CI and testing | GitHub Actions, coverage, ee |
+Frozen names
+| Surface | Value |
+| --- | --- |
+| CF project | pynescript-superchart |
+| Health service | pynescript-axis-worker |
+See also
+Worker
+Testing reference
+AXIS hub
+---
+FILE: docs/axis/devops/local-dev.mdx
+Local development
+Abstract
+Local AXIS development is a multi-process topology. AXIS is a Solid app under Vite; evaluation usually hits Flask; optional cloud/storage/stream features hit the Worker.
+Conceptual model
+Interface surface — commands
+Frontend (preferred product path)
+``bash
+cd frontend
+bun install
+bun run dev Vite + Solid → typically http://...:
+`
+Flask Pro API (engine backend)
+From repo root:
+`bash
+make run python -m backend.app → :
+or hatch / documented backend entry
+`
+Set PWA endpoint to http://...: for the server engine.
+Worker
+`bash
+cd frontend/worker
+npm install or bun
+npm run dev http://...:
+`
+Point cloud storage / Worker endpoint at http://...:. For /api/run proxy, set Worker EXTERNALBACKEND=http://...: (works on local wrangler; not on CF edge).
+Makefile helpers
+| Target | Intent |
+| --- | --- |
+| make run-frontend | Historical Bun static server (frontend/server.ts) on : — legacy shell path |
+| make worker-dev | Wrangler dev |
+| make worker-install | Install worker deps |
+| make test-frontend | Bun unit tests under frontend/tests/ |
+For the Solid product, prefer bun run dev / bun run build over the legacy server.ts unless you are debugging the old tree (legacy shell).
+Internals — useful paths
+| Path | Role |
+| --- | --- |
+| frontend/src/index.tsx | App entry |
+| frontend/vite.config. | Vite / Solid plugin |
+| frontend/src/engines/catalog.ts | Default engine endpoint |
+| frontend/worker/wrangler.toml | Local vars |
+| frontend/public/plugins/ | Example modules served at /plugins/ |
+Worked loop
+. Terminal A: make run (Flask).
+. Terminal B: cd frontend && bun run dev.
+. Open Vite URL; set engine Server-Side, endpoint http://...:.
+. Load mock-walk if venues are blocked.
+. Optional Terminal C: Worker with ALLOWOPENKEYS= for cloud library experiments.
+Load an example plugin
+With Vite or static server:
+`
+http://...:/plugins/example-coingecko-source.js
+`
+Manager → Plugins → Load from URL.
+Invariants & edge cases
+. CORS — Flask must allow the Vite origin; Worker pickOrigin allows : and :.
+. Pyodide local — needs vendor wheels under public/ (copied to dist on build).
+. Two endpoints — topbar endpoint for engine vs cloud storage plugin config can differ (Flask vs Worker).
+. Legacy Makefile message still mentions SuperChart Lite and : Bun server.
+Failure modes
+| Issue | Fix |
+| --- | --- |
+| Engine not ready | Flask down / wrong port |
+| CORS errors | Align origins; see CORS |
+| Plugin | File only under src/plugins/ not public/plugins/ |
+| Worker scripts | Set open keys or mint pn` key |
+See also
+Build and serve
+Worker local
+Plugin examples
+---
+FILE: docs/axis/devops/vps-demo.mdx
+VPS demo topology
+Abstract
+A VPS demo is the lowest-surprise production-like setup for Pine evaluation: one machine runs Flask (PYNE) and serves the static AXIS build. Optional nginx/caddy terminates TLS and reverse-proxies /run same-origin to avoid CORS.
+No Worker required. Cloud storage and DO streams will not work without the Worker.
+Conceptual model
+Interface surface
+Processes
+| Process | Command | Port |
+| --- | --- | --- |
+| Build (CI or once) | cd frontend && bun run build | — |
+| Static | PORT= python axispwaserver.py | |
+| API | make run / python -m backend.app | |
+Same-origin proxy sketch (Caddy)
+``caddy
+axis.example.com {
+handle /run {
+reverseproxy ...:
+}
+handle {
+reverseproxy ...:
+}
+}
+`
+Then PWA endpoint = https://axis.example.com and the server engine posts to /run on the same host.
+Minimal without TLS
+Static :, Flask :
+Set endpoint http://VPSIP:
+Open firewall; accept CORS from static origin (configure Flask accordingly)
+Internals
+| Concern | Notes |
+| --- | --- |
+| Pyodide offline | Ship full dist including vendor + pyodide |
+| Process supervisor | systemd units for flask + axispwaserver |
+| Updates | Rebuild dist artifact; restart static only |
+| Secrets | Flask admin / pro keys separate from Worker |
+Worked example — systemd sketch
+`ini
+/etc/systemd/system/axis-pwa.service
+[Service]
+WorkingDirectory=/opt/axis/frontend
+Environment=PORT=
+ExecStart=/usr/bin/python axispwaserver.py
+Restart=on-failure
+`
+Pair with an existing backend unit for Flask.
+Invariants & edge cases
+. CPU/RAM — Pyodide is browser-side; VPS load is Flask evaluate concurrency.
+. Do not expose open admin tokens.
+. Disk — dist + wheels are tens of MB.
+. Hybrid: VPS Flask as EXTERNALBACKEND` for a CF Worker still works if VPS has a public URL.
+Failure modes
+| Issue | Fix |
+| --- | --- |
+| Mixed content | HTTPS page calling HTTP Flask blocked |
+| CORS | Prefer same-origin proxy |
+| on /run | Flask crashed; check journalctl |
+See also
+Build and serve
+Cloudflare
+CORS
+---
+FILE: docs/axis/enduser/getting-started/compose-recipes.mdx
+Compose recipes
+AXIS treats composition as the product. This page lists recipes—complete four-tuples with intent, constraints, and failure modes—not marketing tiers.
+Abstract
+Formal active set:
+``text
+Active set = { source, stream, engine, storage }
+`
+Built-in ids (catalog may grow via URL plugins):
+| Kind | Built-ins |
+| --- | --- |
+| Source | binance-rest, mock-walk, csv-upload, (+ examples e.g. CoinGecko) |
+| Stream | binance-ws, mock-poll, none, (+ CF DO example) |
+| Engine | server, pyodide |
+| Storage | local, cloud, git |
+Recipe matrix
+| Recipe | Source | Stream | Engine | Storage | Needs net | Needs backend |
+| --- | --- | --- | --- | --- | --- | --- |
+| Offline lab | mock-walk | mock-poll | pyodide | local | first boot only | no |
+| Desk research | binance-rest | binance-ws | server → Flask | local | yes | Flask |
+| Multi-venue desk | binance-rest + URL sources | binance-ws / none | server | local | yes | Flask |
+| CSV desk | csv-upload | none / mock-poll | server or pyodide | local | no | optional |
+| AXIS at the edge | venue REST | venue WS / DO | server → Worker | cloud | yes | Worker (+ optional Flask proxy) |
+| Repo library | any | any | any | git | yes (save/list) | git host API |
+\CSV needs local file; engine may still call network if server.
+---
+Offline lab
+Intent: airplane mode, demos, CI-less teaching, pure AXIS UX.
+| Axis | Id | Why |
+| --- | --- | --- |
+| Source | mock-walk | Synthetic OHLCV in-process |
+| Stream | mock-poll | Synthetic bar advance |
+| Engine | pyodide | In-browser pynescript via Pyodide |
+| Storage | local | IndexedDB script library |
+Setup
+. Install static or dev AXIS with public/pyodide + public/vendor present.
+. Select the four-tuple in topbar / settings.
+. Load → Run while online once (warm Pyodide).
+. DevTools → Offline; re-run.
+Invariants: no POST /run; no exchange traffic; drawings + library remain local.
+Failure modes: missing wheels → HTML SPA fallback errors; cold start timeout on huge bar sets.
+---
+Desk research
+Intent: real venue history + live klines + full PYNE server fidelity.
+| Axis | Id | Why |
+| --- | --- | --- |
+| Source | binance-rest | Public REST klines |
+| Stream | binance-ws | Public WS kline stream |
+| Engine | server | Flask Pro API POST {endpoint}/run |
+| Storage | local | Fast offline library |
+Setup
+`bash
+make run :
+cd frontend && bun run dev
+`
+Settings → Backend URL http://localhost: → Test. Symbol like BTCUSDT, interval h / d.
+CORS: AXIS origin must be allowed by Flask ALLOWED_ORIGINS.
+Failure modes: rate limits; symbol not on venue; CORS; engine timeout on long history (AXIS scales timeout with bar count).
+---
+Multi-venue / multi-source
+Intent: compare feeds without forking the AXIS.
+| Axis | Pattern |
+| --- | --- |
+| Source | Built-in binance-rest or Manager → Install URL plugin (e.g. CoinGecko example) → Use |
+| Stream | Match venue when available; else none for historical-only |
+| Engine | Usually server for parity |
+| Storage | local or git for shared research |
+Workflow
+. Manager → Catalog → capability badges (offline / auth / network / proxy).
+. Use sets active source.
+. Load and Run as usual.
+Dynamic plugins rehydrate from localStorage install list on boot (restoreInstalledPlugins).
+Failure modes: plugin URL not CORS-readable; invalid export shape; built-ins cannot be unregistered without force flags.
+---
+CSV desk
+Intent: proprietary or offline CSV/OHLCV files.
+| Axis | Id |
+| --- | --- |
+| Source | csv-upload |
+| Stream | none (typical) or mock-poll for artificial advance |
+| Engine | pyodide (airgap) or server |
+| Storage | local |
+Workflow
+. Source → CSV upload (file picker opens if no file yet).
+. AXIS parses via parseOhlcvFile into upload store.
+. Load injects bars; symbol field less critical for synthetic series.
+. Run strategies against that tape.
+Invariants: bars stay in memory/session upload store—not the long-lived app state blob (size).
+Failure modes: bad headers/time units; empty parse; re-select same file requires clearing input (AXIS resets file input after pick).
+---
+AXIS at the edge
+Intent: browser AXIS + Cloudflare Worker data plane (keys, usage, optional D scripts, DO fan-out).
+| Axis | Id | Why |
+| --- | --- | --- |
+| Source | venue REST (built-in or proxy-aware) | History |
+| Stream | venue WS or DO-backed example stream | Single upstream → N clients |
+| Engine | server endpoint = Worker | Worker proxies /api/run → Flask or future in-worker runtime |
+| Storage | cloud | /api/scripts + Bearer Pro key |
+Setup
+. wrangler dev / deploy Worker project pynescript-superchart (frozen name).
+. Endpoint → Worker origin.
+. Storage cloud → API key from admin /api/keys.
+. Script Library uses cloud list/read/write; If-Match on concurrent writes.
+Invariants: CF project id is infrastructure, not brand; health JSON may say pynescript-axis-worker.
+Failure modes: missing Bearer key; D unbound → memory store (dev only); DO session query params wrong.
+---
+Git library
+Intent: Pine sources as first-class repo files; Save = commit.
+| Axis | Id |
+| --- | --- |
+| Source / Stream / Engine | any research tuple |
+| Storage | git |
+Config (Manager → Script Library or pluginsConfig)
+| Field | Notes |
+| --- | --- |
+| provider | github \| gitlab |
+| token | contents:write / api |
+| owner, repo | GitHub path; GitLab projectId optional |
+| branch | default main |
+| basePath | default pine-library |
+| apiBaseUrl | self-hosted forges |
+Invariants: drafts stay local; only explicit Save/remove hit the remote. Commit message template supports {{name}} / {{iso}}.
+Failure modes: token scope; wrong base path; GitLab path vs numeric id confusion.
+---
+Choosing a recipe
+Internals
+| Concern | Path |
+| --- | --- |
+| Active selection | frontend/src/store activePlugins |
+| Built-in catalogs | sources/catalog.ts, streams/, engines/catalog.ts, storage/catalog.ts |
+| URL plugins | plugins/loader.ts |
+| Compose UI | ui/Topbar.tsx, ui/PluginManager.tsx, ui/SettingsDialog.tsx` |
+See also
+Plugin contracts
+Manager and settings
+Topologies
+ADR- pluggable registry
+---
+FILE: docs/axis/enduser/getting-started/installation.mdx
+Installation
+AXIS ships as the frontend/ package (axis-chart). Primary path is Vite + Solid. Legacy static shell (main.js, root style.css) is not the product UI—prefer bun run dev or built dist/.
+Abstract
+Three operator modes:
+| Mode | Command surface | When |
+| --- | --- | --- |
+| Dev AXIS | Vite : | Day-to-day UI work |
+| Static PWA | dist/ + axispwaserver.py : | Offline demo / VPS |
+| AXIS at the edge | CF Pages + Worker | Production topology |
+Backend is optional when Engine = Client-Side (Pyodide) and sources/streams are mock or CSV.
+Prerequisites
+Bun (or Node +) for package install and Vite
+Python .+ if you use Flask Pro API (make run) or axispwaserver.py
+Modern Chromium / Firefox / Safari (PWA install works best on Chromium)
+Dev AXIS (recommended)
+``bash
+Terminal — Pro API (server engine)
+make run Flask :
+Terminal — AXIS
+cd frontend
+bun install
+bun run dev Vite :, proxies /run → : when configured
+`
+Open http://localhost:. Default symbol BTCUSDT, engine often server with endpoint http://localhost: (or a demo host if preconfigured).
+Production build (static)
+`bash
+cd frontend
+bun install
+bun run build → frontend/dist/
+python axispwaserver.py serves dist/ on :
+`
+Confirm:
+App shell loads; chart requests history
+DevTools → Application → Manifest + Service Worker
+Icons / from public/assets/
+Pyodide assets and vendor wheels under public/pyodide/ and public/vendor/ must be present in dist/ for offline engine—bun run build copies them via Vite public/.
+Offline-first lab (no Flask)
+. Source → Mock Walk
+. Stream → Mock Poll (or None)
+. Engine → Client-Side (Pyodide)
+. Storage → Local
+Disable network in DevTools; Run still executes. First Pyodide boot downloads/loads self-hosted runtime from the origin—allow that once while online, then go offline.
+Cloudflare Worker endpoint
+`bash
+cd frontend/worker
+npm install
+npm run dev wrangler :
+`
+In AXIS Settings, set Backend URL to http://...: (or /api path as your Worker routes). Production project id is frozen as pynescript-superchart—see topologies.
+CORS when using server engine
+Browser origin → Pro API must allow your AXIS origin. Flask uses ALLOWEDORIGINS. Localhost regex is typically included; for a VPS demo host, set an explicit origin list. Symptom of failure: POST /run blocked in Network tab (no Access-Control-Allow-Origin).
+PWA install
+Manifest: void theme ab, name AXIS
+Service Worker: cache-first shell; network-first /api/; offline API returns structured failure so Pyodide path remains usable
+Chrome/Edge: install icon in the omnibox
+Verification checklist
+| Check | Expect |
+| --- | --- |
+| Load | Bars on chart for default symbol |
+| Topbar | Source / Stream / Engine pickers populated |
+| Run (server) | Flask or Worker responds; plots overlay |
+| Run (pyodide) | Offline OK after warm-up |
+| Manager | Catalog lists built-ins |
+| Theme | Dark/light toggle persists |
+Failure modes
+| Symptom | Likely cause | Fix |
+| --- | --- | --- |
+| Empty chart | Source network / CORS / wrong symbol | Load again; try mock-walk |
+| Engine errors immediately | Endpoint down or wrong URL | Settings → Test endpoint |
+| Pyodide “BadZipFile” / HTML | SPA fallback instead of wheels | Ensure public/vendor and pyodide in dist/ |
+| SW stale UI | Aggressive cache | Unregister SW or hard reload |
+Internals (repo paths)
+| Path | Role |
+| --- | --- |
+| frontend/src/index.tsx, app.tsx | Solid entry |
+| frontend/vite.config.ts | Build |
+| frontend/axispwa_server.py | Static host |
+| frontend/manifest.webmanifest, sw.js | PWA |
+| frontend/worker/` | CF Worker data plane |
+See also
+Quick start
+Compose recipes
+DevOps local dev
+Worker
+---
+FILE: docs/axis/enduser/getting-started/quick-start.mdx
+Quick start
+Fifteen-minute path from empty AXIS to plots, strategy stats, and optional live updates.
+Abstract
+. Ensure AXIS is running (Installation).
+. Load bars for a symbol.
+. Paste or write a minimal indicator / strategy.
+. Run → inspect chart overlays + Results.
+. Optionally enable Live.
+Conceptual model
+Interface surface
+. Load history
+Topbar fields that matter:
+| Control | Default-ish | Notes |
+| --- | --- | --- |
+| Symbol | BTCUSDT | Venue-specific for binance-rest |
+| Interval | d | Watchlist + chart share interval vocabulary |
+| Source | binance-rest | Or mock / CSV |
+| Stream | binance-ws | Paused until Live |
+| Engine | server or pyodide | Settings for endpoint |
+Click Load (or pick a watchlist row). Status bar should move through loading → ready with bar count context.
+CSV path: Source = CSV upload → pick file when prompted → bars inject via upload store.
+. Minimal script
+Open the editor (docked right by default). Example indicator:
+``pine
+//@version=
+indicator("AXIS smoke", overlay=true)
+plot(close, "close")
+plot(ta.sma(close, ), "sma")
+`
+Strategy smoke (events for Results → Strategy):
+`pine
+//@version=
+strategy("AXIS strat smoke", overlay=true)
+longCond = ta.crossover(ta.sma(close, ), ta.sma(close, ))
+if longCond
+strategy.entry("L", strategy.long)
+if ta.crossunder(ta.sma(close, ), ta.sma(close, ))
+strategy.close("L")
+`
+Language semantics: PYNE runtime.
+. Run
+Run (topbar or editor). Pipeline:
+. Active engine run({ script, bars, config })
+. lastRun stored in memory (not fully persisted)
+. Results drawer opens
+. Chart applies overlay lines, trade markers, Pine drawings
+Success: status “Completed in Nms”; plots on price pane (or dedicated indicator pane if non-overlay).
+. Read Results
+Tabs:
+| Tab | Content |
+| --- | --- |
+| Events | Normalized entry/exit/order stream |
+| Strategy | Closed trades + win rate, PF, max DD |
+| Plots | Series names, point counts, last value |
+| Metrics | Runtime, engine, bar count, errors |
+| Raw | Full JSON payload |
+Export: JSON run dump; trades CSV. Click a trade to scroll the chart to entry/exit time.
+. Live (optional)
+Toggle Live. Stream plugin pushes bars; AXIS may re-run silently when needsRerun is set. Stream = None freezes time. Mock poll works offline after engine warm-up.
+. Save a script (optional)
+Manager → Script Library → name → Save. Backend is active storage (local default = IndexedDB). See Script library.
+Worked example: offline lab
+| Setting | Value |
+| --- | --- |
+| Source | mock-walk |
+| Stream | mock-poll |
+| Engine | pyodide |
+| Storage | local |
+Load → Run smoke indicator → toggle Live. No Flask required.
+Worked example: desk + Flask
+| Setting | Value |
+| --- | --- |
+| Source | binance-rest |
+| Stream | binance-ws |
+| Engine | server |
+| Endpoint | http://localhost: |
+| Storage | local |
+make run in repo root; Vite or static AXIS as installed.
+Invariants
+Empty editor Run is a no-op.
+Errors set status error and still populate Results Metrics/Raw when payload exists.
+Switching source auto-aligns default stream (e.g. mock-walk → mock-poll).
+Failure modes
+| Symptom | Action |
+| --- | --- |
+| CORS on /run | Fix ALLOWED_ORIGINS / use Pyodide |
+| No trades in Strategy | Need entry+exit pair events; open strategy script |
+| Live no updates | Stream not none`; network; check logs drawer |
+| Pyodide first run slow | Expected warm-up; assets self-hosted under origin |
+See also
+Compose recipes
+Strategy and results
+Troubleshooting
+---
+FILE: docs/axis/enduser/guides/drawings.mdx
+Drawings
+AXIS supports user drawings (interactive tools on the chart) and script drawings (objects returned by the engine). They share a canvas layer but different lifecycles.
+Abstract
+| Class | Origin | Cleared when | Persisted |
+| --- | --- | --- | --- |
+| User drawings | Drawing toolbar | Explicit delete / clear | Yes (store.drawings in pynescript.axis.v) |
+| Script drawings | Engine drawings[] | Next Run (re-applied) | No (recomputed) |
+Conceptual model
+Tools
+| Tool id | Kind | Geometry |
+| --- | --- | --- |
+| cursor | — | Select / pan mode (not a drawable) |
+| hline | hline | Horizontal price |
+| trend | trend | Two points |
+| ray | ray | Two points (extends) |
+| rect | rect | Two corners |
+| fib | fib | Two points; levels , ., ., ., ., ., |
+| measure | measure | Two points (delta readout) |
+| text | text | Anchor + label |
+Colors: default accent fff, up/down/measure variants in DRAWINGCOLORS.
+Interface surface
+Toolbar on chart host (DrawingToolbar)
+Active tool in store; layer sync via createEffect on store.drawingTool
+Pane manager hosts price chart; drawings bind to time/price coordinates (not pixel-only)
+Workflows
+Annotate a level
+. Select Horizontal line.
+. Click price.
+. Reload page—line remains (persisted drawings array).
+Fibonacci between swing points
+. Select Fib.
+. Click swing low → swing high (or reverse).
+. Levels render from FIBLEVELS.
+After Run with Pine lines/labels
+. Run script that emits drawings.
+. Layer clears previous script drawings, then applies new set.
+. User drawings remain.
+Internals
+| Path | Role |
+| --- | --- |
+| frontend/src/chart/drawing-types.ts | Tool ids, types, fib levels |
+| frontend/src/chart/drawing-layer.ts | Interaction + render |
+| frontend/src/chart/DrawingToolbar.tsx | UI |
+| frontend/src/chart/pine-drawings.ts | Map engine drawings → layer |
+| frontend/src/chart/ChartHost.tsx | Mount / dispose |
+Invariants
+. User drawings ≠ strategy results; deleting drawings does not alter lastRun.
+. Time base is bar time (unix-compatible chart times).
+. cursor never creates geometry.
+. Persistence omits bars/logs but includes drawings—large freehand-less sets only.
+Failure modes
+| Symptom | Fix |
+| --- | --- |
+| Clicks do nothing | Tool is cursor; chart empty (no bars/time scale) |
+| Drawings vanish on Run | Those were script drawings—re-run or convert notes to user tools |
+| Lost after wipe | Cleared site data / different browser profile |
+See also
+AXIS — charting
+Strategy and results
+---
+FILE: docs/axis/enduser/guides/manager-and-settings.mdx
+Manager and settings
+Two orthogonal surfaces configure AXIS: the Plugin Manager (what exists and is active) and Settings (endpoint, engine, storage, interval defaults). Neither embeds language semantics.
+Abstract
+| Surface | Opens from | Mutates |
+| --- | --- | --- |
+| Plugin Manager | Topbar Plugins | Registry membership, active source via Use, library ops |
+| Settings | Topbar gear | endpoint, active engine/storage, chart interval, watchlist refresh |
+Active plugins live in store.activePlugins; per-plugin fields in store.pluginsConfig keyed by ` ${kind}:${id} .
+Conceptual model
+Plugin Manager
+Catalog
+Lists sources, streams, engines, storages from the unified registry.
+| Action | Effect |
+| --- | --- |
+| Use | setActivePlugin(kind, id) for that row’s kind |
+| Capability badges | offline, needsAuth, needsNetwork, needsProxy from plugin.capabilities |
+| Built-in flag | Built-ins resist casual unregister |
+Status bar shows active engine id and storage backend after changes.
+Install (URL)
+Paste a module URL exporting a default plugin object (kind, id, name, contract methods). AXIS:
+. Fetches and validates export
+. Registers into the TypeScript registry
+. Persists install record so restoreInstalledPlugins() reloads next visit
+Security notes (operator-level): only https/http schemes suitable for module load; treat third-party URLs as code execution in your browser origin. See security tests under frontend/tests/security/.
+Example plugins ship in public/plugins/:
+example-coingecko-source.js
+example-tiny-pine-engine.js
+example-cf-do-stream.js
+Script Library tab
+See Script library. Manager hosts the panel so library and plugins share one modal.
+Settings dialog
+| Field | Behavior |
+| --- | --- |
+| Backend URL | Shown when engine is server or has configSchema.endpoint |
+| Test / Probe | GET health against endpoint; status message |
+| Engine | Registry engine list; labels via engineOptionLabel |
+| Storage | local \| cloud \| git |
+| Default interval | Updates store; may reload bars for current symbol |
+| Watchlist refresh | Clamp – seconds |
+Save persists via Solid store persist() into pynescript.axis.v. Escape closes; Ctrl/Cmd+Enter saves.
+Pyodide engines hide endpoint—calculation is same-origin assets, not Flask.
+Interface surface (UI map)
+| Control | Store field |
+| --- | --- |
+| Engine select | activePlugins.engine, flat engine |
+| Storage select | activePlugins.storage |
+| Endpoint | endpoint |
+| Source/stream topbar | activePlugins., source, live.streamId |
+| Theme toggle | theme + data-theme on |
+Internals
+| Path | Role |
+| --- | --- |
+| frontend/src/ui/PluginManager.tsx | Manager modal |
+| frontend/src/ui/SettingsDialog.tsx | Settings |
+| frontend/src/ui/plugin-badges.tsx | Capability badges |
+| frontend/src/plugins/registry.ts | Unified registry |
+| frontend/src/plugins/loader.ts | URL load + restore |
+| frontend/src/plugins/bootstrap.ts | Built-ins |
+Invariants
+. Settings never write script bodies—only layout/config.
+. Catalog Use does not auto-Run; Load/Run remain explicit.
+. Source change may re-default stream (defaultStreamForSource).
+. API keys for cloud/git belong in pluginsConfig, not in git-committed defaults.
+Worked examples
+Point AXIS at local Worker
+. Settings → Engine Server-Side → Endpoint http://...:
+. Probe → OK
+. Save → Run
+Install example source
+. Manager → Install → URL to .../plugins/example-coingecko-source.js` (served origin)
+. Catalog → Source appears → Use → Load
+Failure modes
+| Symptom | Fix |
+| --- | --- |
+| Empty catalog | Built-ins not registered—hard reload; check console |
+| URL install fails | CORS on plugin host; bad export; mixed content |
+| Probe fails | Backend down; wrong path; HTTPS mixed content |
+| Settings not sticky | localStorage blocked / quota |
+See also
+Script library
+Compose recipes
+Plugins
+---
+FILE: docs/axis/enduser/guides/script-library.mdx
+Script library
+The script library is the operator-facing surface of storage plugins. The editor holds the working document; the library is durable, named documents with metadata.
+Abstract
+| Backend | Id | Medium | Auth |
+| --- | --- | --- | --- |
+| Local | local | IndexedDB (pynescript.axis.storage), LS fallback | none |
+| Cloud | cloud | Worker /api/scripts (D or memory) | Bearer Pro API key |
+| Git | git | GitHub/GitLab Contents API | PAT |
+Active backend: store.activePlugins.storage (Settings or library picker).
+Conceptual model
+Service layer (listScripts, readScript, writeScript, …) never talks to engines.
+Interface surface
+Manager → Script Library:
+| Control | Behavior |
+| --- | --- |
+| Backend select | setActivePlugin('storage', id) |
+| Refresh | list() |
+| Name / description | Metadata for next write |
+| Save | Write current editor doc |
+| Load | read → inject editor (loadLibraryDoc / setDoc) |
+| Delete | remove |
+| Export JSON | Full library dump |
+| Import JSON | Bulk write |
+| Cloud endpoint + key | Saved under pluginsConfig['storage:cloud'] |
+| Git fields | provider, token, owner, repo, branch, basePath, … |
+Status line: backend · remote · branch · connected · count.
+Local backend
+DB name pynescript.axis.storage v stores scripts + kv
+Legacy SuperChart library keys migrate once
+Drafts: optional saveDraft / loadDraft without polluting remote backends
+Works fully offline
+Invariant: browser profile wipe deletes local library—export JSON for backup.
+Cloud backend
+Authorization: Bearer
+Scripts partitioned by key hash on Worker
+Concurrent updates may use If-Match / revision → HTTP on conflict
+Default endpoint falls back to store.endpoint or http://...:
+Configure key in library panel or Settings-related config; keys stay in this browser’s localStorage state blob.
+Git backend
+| Invariant | Detail |
+| --- | --- |
+| Save commits | Each write/remove is a commit (+ push via API) |
+| Drafts local | No remote commit for draft buffer |
+| basePath | Default pine-library/ |
+| Providers | github, gitlab (+ self-hosted apiBaseUrl) |
+Token scopes: GitHub contents:write; GitLab api or write_repository.
+Worked examples
+Solo offline library
+. Storage = local
+. Write indicator in editor
+. Name sma-ribbon → Save
+. Reload page → Library → Load
+Team cloud
+. Admin creates key on Worker
+. Storage = cloud; paste endpoint + key
+. Save shared strategies
+. Second browser: same key → list
+Research monorepo
+. Storage = git; GitHub owner/repo; basePath research/pine
+. Save → commit message from template
+. PR review on GitHub UI
+Internals
+| Path | Role |
+| --- | --- |
+| frontend/src/ui/ScriptLibraryPanel.tsx | UI |
+| frontend/src/storage/service.ts | Facade |
+| frontend/src/storage/local.ts | IDB |
+| frontend/src/storage/cloud.ts | Worker API |
+| frontend/src/storage/git.ts | Git plugin |
+| frontend/src/storage/git-github.ts, git-gitlab.ts | Forges |
+Contract: Plugin types StoragePlugin.
+Failure modes
+| Symptom | Cause | Mitigation |
+| --- | --- | --- |
+| Empty list after switch | Wrong backend / auth | Check status line + key |
+| cloud | Bad/missing key | Regenerate; re-save config |
+| cloud | Revision conflict | Re-read then write |
+| Git | Wrong owner/repo/basePath | Fix config |
+| Quota local | Huge scripts in LS fallback | Prefer IDB; export prune |
+See also
+Manager and settings
+Compose recipes — git / edge
+State namespaces
+---
+FILE: docs/axis/enduser/guides/strategy-and-results.mdx
+Strategy and results
+After Run, the engine returns a structured payload. AXIS AXIS normalizes events, pairs trades, paints markers, and exposes a Results drawer. Strategy math here is a viewer—not a brokerage.
+Abstract
+Engine RunResult (simplified):
+``text
+status: success | error
+plots[] | series{}
+events[] — entries, exits, orders, custom
+drawings[] — Pine line/label/box objects
+meta{} — ms, overlay, scriptname, plotmeta, …
+error?
+`
+AXIS stores this as store.lastRun (in-memory; not fully rehydrated from localStorage).
+Conceptual model
+Results drawer tabs
+| Tab | Operator value |
+| --- | --- |
+| Events | Chronological normalized stream (kind, time, price, id, dir) |
+| Strategy | Closed trades table + summary metrics |
+| Plots | Series inventory (points, last value) |
+| Metrics | Runtime, status, engine, source, bars, high-level stats |
+| Raw | Pretty-printed JSON for support / diffs |
+Strategy metrics
+Computed by buildStrategyReport:
+| Stat | Definition (viewer) |
+| --- | --- |
+| totalPnl | Sum of closed trade PnL (price units) |
+| winRate | % wins among closed trades |
+| profitFactor | Gross profit / gross loss |
+| avgTrade / avgWin / avgLoss | Means over closed set |
+| maxDD | Peak-to-trough on cumulative trade PnL path |
+| wins / losses / trades | Counts |
+Pairing rules: entry-like kinds open by id; exit/close kinds match id or sole open trade. Direction flips short PnL. Missing prices drop the event from pairing (with normalization attempting OHLC fill from bars when available).
+Chart coupling
+Trade markers on price pane (eventsToMarkers)
+Scroll-to-time on trade row click
+Equity curve series when strategy events warrant (buildEquityCurve)
+Status bar snippet: closed trade count · net PnL when available
+Export
+| Export | Content |
+| --- | --- |
+| JSON | Full lastRun |
+| CSV | Closed trades (tradesToCsv) |
+| Clipboard | CSV of trades when supported |
+Filenames: axis-run-.json, axis-trades-.csv.
+Interface surface
+Drawer height persisted (resultsPanel.height); open state toggled after runs (openResults default true for interactive runs)
+Silent live re-runs can skip auto-open
+Equity / indicator panes created on demand when non-overlay or strategy paths need them
+Worked example
+. Load BTCUSDT daily history.
+. Run a crossover strategy (see Quick start).
+. Results → Strategy: inspect win rate.
+. Click a green trade → chart jumps to entry.
+. Export CSV for a notebook.
+Internals
+| Path | Role |
+| --- | --- |
+| frontend/src/ui/ResultsPanel.tsx | Drawer UI |
+| frontend/src/results/strategy.ts | Trade pairing + stats |
+| frontend/src/results/events.ts | Normalize events, markers, equity |
+| frontend/src/indicators/runner.ts | runAndApply orchestration |
+| frontend/src/chart/series-factory.ts | Plot colors / series |
+Language-level strategy semantics: PYNE runtime.
+Invariants
+. Results are a function of last successful/error payload + current bars—changing bars without re-run can desync prices used for fill.
+. Viewer PnL is not currency-normalized; treat as relative tape units.
+. meta.overlay === false routes plots to an indicator pane, not price.
+. Pine drawings (script) are distinct from user drawing tools (Drawings).
+Failure modes
+| Symptom | Explanation |
+| --- | --- |
+| Events but trades | Only entries, or unpaired ids |
+| Empty plots | Series all null / name filtered (__` prefix hidden) |
+| Markers missing | Manager not mounted or events lack times |
+| Huge Raw JSON | Many events—export file rather than copy |
+See also
+Quick start
+AXIS — results and strategy
+AXIS — indicators
+---
+FILE: docs/axis/enduser/guides/troubleshooting.mdx
+Troubleshooting
+Systematic triage for AXIS. Prefer logs drawer + Network tab + status bar before reinstalling.
+Abstract
+Failure domains:
+. Data plane — source / stream
+. Calc plane — engine / endpoint / Pyodide assets
+. Shell plane — store, SW cache, plugins
+. Storage plane — library backends
+Decision tree
+Data plane
+| Symptom | Checks | Fix |
+| --- | --- | --- |
+| Infinite loading | Network klines; status message | Correct symbol; try mock-walk |
+| CORS on REST | Binance/public APIs usually OK; custom sources may fail | Proxy plugin or Worker |
+| CSV no bars | Parse error in status | Fix columns/time; re-upload |
+| Wrong interval bars | Store interval vs request | Settings interval + Load |
+Calc plane — server engine
+| Symptom | Checks | Fix |
+| --- | --- | --- |
+| Failed fetch /run | Endpoint, CORS preflight | ALLOWED_ORIGINS; Settings probe |
+| HTTP xx/xx | Response JSON message | Fix script; backend logs |
+| Timeout | Bar count × complexity | Shorter history; raise server resources |
+| Plots missing | status: success but empty series | Script has no plots; check Raw |
+Probe: Settings → Test endpoint (health GET).
+Calc plane — Pyodide
+| Symptom | Checks | Fix |
+| --- | --- | --- |
+| HTML instead of wheel | Content-Type / ZIP magic | Deploy public/vendor, public/pyodide into dist/ |
+| Slow first run | Cold runtime | Wait; preloadPyodide on idle |
+| Offline fail first visit | Assets never cached | One online warm-up |
+| Interpreter error | Results Raw / logs | Language issue → PYNE |
+Live streams
+| Symptom | Checks | Fix |
+| --- | --- | --- |
+| Live toggle no effect | Stream = none? | Select binance-ws or mock-poll |
+| WS errors | Console; venue symbol format | Uppercase BTCUSDT style |
+| Reconnect loop | Network flap | Logs drawer; stop/start Live |
+| DO stream | Worker session query | Worker docs; example plugin |
+Storage / library
+| Symptom | Checks | Fix |
+| --- | --- | --- |
+| Save no-op | Active storage; errors in panel | Read status line |
+| Cloud | Bearer key | Settings/library key field |
+| Git denied | Token scopes | PAT permissions |
+| Lost local scripts | Cleared site data | Import JSON backup |
+Shell / PWA
+| Symptom | Checks | Fix |
+| --- | --- | --- |
+| Old UI after deploy | Service Worker | Unregister SW; hard reload |
+| State weird | localStorage['pynescript.axis.v'] | Export scripts; clear key; reload |
+| Plugin vanished | URL install list | Re-install URL |
+| Theme wrong | data-theme | Toggle theme once |
+Logging
+System logs drawer: boot, pyodide ready, live re-run errors (appendLog)
+Status bar: ready / loading / running / error + short message
+Results → Raw: last engine payload
+Security-related
+Poisoned localStorage: app should tolerate parse failures (see security tests)
+Plugin URL schemes restricted
+Never paste production PATs into shared screen recordings
+Internals for deeper digs
+| Area | Path |
+| --- | --- |
+| Load history | data/load-symbol.ts |
+| Run pipeline | indicators/runner.ts |
+| Streams | streams/multiplex.ts |
+| Engines | engines/catalog.ts |
+| Store | store/index.ts |
+See also
+Installation
+FAQ
+DevOps
+Worker
+---
+FILE: docs/axis/enduser/index.mdx
+End User
+AXIS is an installable charting PWA: load history, stream the present, evaluate Pine Script through a pluggable engine, and keep a script library on disk, IndexedDB, cloud, or git. This track is for operators and researchers who use the AXIS—not for plugin authors or Worker deployers.
+Language fidelity (grammar, builtins, runtime semantics) lives in PYNE. AXIS never reimplements the language; it hosts evaluation via engine plugins.
+Abstract
+You compose four axes:
+| Axis | Question it answers |
+| --- | --- |
+| Source | Where do historical OHLCV bars come from? |
+| Stream | How does the live bar advance? |
+| Engine | Who evaluates the script? |
+| Storage | Where do saved scripts live? |
+Any lawful combination is valid. Offline lab, desk research against Binance + Flask, AXIS at the edge through a Cloudflare Worker, and a git-backed library are all first-class recipes—see Compose recipes.
+Conceptual model
+The shell (topbar, chart, editor, results, manager) is AXIS. Calculation is always engine.run({ script, bars, config }). Persistence of scripts is always a storage plugin.
+Interface surface
+| Surface | Role |
+| --- | --- |
+| Topbar | Symbol, interval, source/stream/engine pickers, Load, Run, Live |
+| Watchlist | Quick symbol switch + quote poll |
+| Chart | lightweight-charts panes, drawings, trade markers |
+| Editor | CodeMirror Pine document (docked / popout) |
+| Results | Events, Strategy, Plots, Metrics, Raw + export |
+| Manager | Plugin catalog, URL install, Script Library |
+| Settings | Endpoint, engine, storage, interval defaults |
+Getting started
+. Installation — Vite dev, static dist/, or hosted PWA
+. Quick start — first load + first Run
+. Compose recipes — offline, desk, multi-venue, CSV, edge, git
+Guides
+Manager and settings
+Script library
+Strategy and results
+Drawings
+Troubleshooting
+Reference
+Glossary
+FAQ
+Invariants (operator-facing)
+. AXIS ≠ engine — switching engine does not change the chart library; switching source does not change the language runtime.
+. Active set is four-tuple — source, stream, engine, storage are selected independently (with sensible defaults when source implies stream).
+. API keys stay in the browser — cloud storage and Pro keys are not uploaded by the shell except as request headers you configure.
+. OHLCV bars are not persisted — reload re-fetches history; layout, script draft, and drawings survive in pynescript.axis.v.
+See also
+Architecture — ADRs and topologies
+UI — chart, editor, store internals
+Plugins — contracts and catalogs
+PYNE runtime — evaluation semantics
+---
+FILE: docs/axis/enduser/reference/faq.mdx
+FAQ
+Product scope
+Is AXIS TradingView?
+No. AXIS is an independent charting PWA. Pine Script and TradingView are trademarks of TradingView, Inc. This project is not affiliated with or endorsed by TradingView, Inc. Trademark notice appears on the AXIS docs home.
+Does AXIS implement Pine Script?
+Evaluation is performed by engines that call PYNE (or proxies that do). The AXIS does not embed a closed interpreter. See PYNE for language fidelity.
+AXIS vs engine?
+AXIS = UI + orchestration. Engine = run(script, bars). You can swap engines without rewriting the chart host. That is ADR- territory—ADRs.
+Running & offline
+Can I use AXIS fully offline?
+Yes, with recipe Offline lab: mock-walk + mock-poll + pyodide + local, after one warm-up so Pyodide assets cache. Server engine and live venue streams require network.
+Why is first Pyodide run slow?
+Bootstraps Python + wheels in-browser. Subsequent runs reuse the runtime when still warm. Assets are self-hosted under the PWA origin when deployed correctly.
+Default endpoint points at a VPS—is that required?
+No. Change Settings → Backend URL to http://localhost: or your Worker. Defaults may reference a public demo API host for convenience.
+Data & privacy
+Where do API keys live?
+In this browser’s localStorage state / pluginsConfig. They are sent as HTTP headers only to endpoints you configure (cloud storage, etc.). They are not part of the Pine script body.
+Are OHLCV bars uploaded?
+Server engine sends script + bars to the configured endpoint for that run. Pyodide keeps bars local. Choose engine accordingly.
+Are bars saved on disk?
+App state persistence omits bars, lastRun, and logs to control size. History is re-fetched on Load.
+Features
+How do I share a setup?
+Legacy hash state (state-hash.js) can encode symbol/interval/engine/source/stream (and short scripts). Prefer documenting the four-tuple + library export for durable sharing. URL-load plugins are re-fetched by install list.
+Can I use my own data vendor?
+Yes—implement a source plugin (and optional stream) and install via URL or built-in registration. See Plugins.
+Why Strategy tab shows no trades?
+Need paired entry/exit-style events with prices. Indicators that only plot will fill Plots/Metrics, not Strategy stats.
+Drawings disappeared after Run
+Script drawings are cleared and re-applied each run. User toolbar drawings persist across runs.
+Popout editor out of sync?
+Editor bridge uses shared document storage + message bridge between windows. Use Reattach on the main AXIS if the popout closed uncleanly.
+Ops
+What is pynescript-superchart?
+Frozen Cloudflare project name. Renaming breaks bindings and CI. Brand is AXIS; infrastructure id stays.
+Legacy SuperChart localStorage?
+Migrated automatically into pynescript.axis.v and library keys. See State namespaces.
+Tests for the PWA?
+``bash
+cd frontend && bun run test:unit
+bun run test:ee:smoke
+`
+See frontend/TESTING.md`.
+See also
+Troubleshooting
+Glossary
+Compose recipes
+---
+FILE: docs/axis/enduser/reference/glossary.mdx
+Glossary
+Terms as used in AXIS documentation and UI. Language runtime terms → PYNE.
+Product
+| Term | Definition |
+| --- | --- |
+| AXIS | Charting PWA product (formerly SuperChart Lite): chart, editor, panels, and store—not the language engine. |
+| UI track | Docs track for presentation surfaces (chart host, editor, shell, store) under /axis/docs/ui. |
+| PYNE | Pine Script toolchain (parse/eval); engines embed or call it. |
+| Active set | Tuple { source, stream, engine, storage } currently selected. |
+| Compose / recipe | A purposeful active set for a workflow (offline lab, desk, edge, …). |
+Plugin kinds
+| Term | Definition |
+| --- | --- |
+| Source | Historical OHLCV provider (fetchHistorical). |
+| Stream | Live bar/tick push (start → dispose). |
+| Engine | Calculator (isReady, run). |
+| Storage | Script library backend (list/read/write/remove). |
+| Component | Reserved UI slot plugins (phase ). |
+| Registry | In-memory catalog of plugins by kind (PluginRegistry). |
+| configSchema | Declarative field schema for Settings / plugin config UI. |
+| Capabilities | Flags: offline, needsAuth, needsNetwork, needsProxy. |
+Engines & backends
+| Term | Definition |
+| --- | --- |
+| server engine | POST {endpoint}/run with script + bars. |
+| pyodide engine | In-browser Python + pynescript wheels. |
+| Pro API / Flask | Local Python backend (make run, typically :). |
+| Worker | Cloudflare Worker data plane for AXIS. |
+| Endpoint | Base URL the server engine (and often cloud storage) calls. |
+Data & chart
+| Term | Definition |
+| --- | --- |
+| Bar | { time, open, high, low, close, volume? } |
+| Pane | Chart strip: price, volume, indicator, equity. |
+| Overlay | Plot drawn on price pane (meta.overlay !== false). |
+| User drawing | Interactive annotation tool geometry. |
+| Script drawing | Engine-emitted line/label/box objects. |
+| Marker | Trade/event marker on series. |
+| Watchlist | Side panel of symbols + quote refresh. |
+Results
+| Term | Definition |
+| --- | --- |
+| lastRun | In-memory last engine payload. |
+| Event | Strategy/order/plot-adjacent event from engine. |
+| Closed trade | Paired entry/exit with PnL in the viewer. |
+| Equity curve | Cumulative PnL series derived from trades/events. |
+Persistence
+| Term | Definition |
+| --- | --- |
+| pynescript.axis.v | Primary localStorage app state key. |
+| pynescript.superchart. | Legacy keys; migrated on read. |
+| pluginsConfig | Per-plugin configuration map. |
+| Library export | JSON dump of storage documents. |
+Infrastructure names
+| Term | Definition |
+| --- | --- |
+| pynescript-superchart | Frozen CF Wrangler/Pages project id. |
+| pynescript-axis-worker | Health JSON service identity. |
+| void | Brand pack / dark chrome aesthetic for AXIS docs/UI. |
+See also
+FAQ
+State namespaces
+Architecture overview
+---
+FILE: docs/axis/index.mdx
+AXIS Documentation
+AXIS (formerly SuperChart Lite) is an installable charting PWA that treats price, time, and calculation as separable axes. Sources load history. Streams advance the present. Engines evaluate Pine Script via PYNE. Storage keeps your script library. Compose any lawful combination without a proprietary charting host.
+Pine Script and TradingView are trademarks of TradingView, Inc. This project is independent and not affiliated with or endorsed by TradingView, Inc.
+Abstract
+AXIS is a charting PWA, not a language rewrite. Language fidelity lives in PYNE. The PWA contributes:
+. A unified plugin registry (source | stream | engine | storage)
+. A Solid + Vite product UI (chart, editor, results, manager)
+. Optional backends: local Flask, offline Pyodide, Cloudflare Worker (+ DO/KV/D/R)
+Invariant (AXIS ≠ engine): the shell never embeds a closed interpreter. Evaluation is always an engine plugin.
+Product map
+| Track | Role | Start here |
+| --- | --- | --- |
+| End User | Install, compose recipes, research workflows | End User hub |
+| Architecture | ADRs, topologies, state namespaces | Architecture |
+| Plugins | Contracts and built-in catalogs | Plugins |
+| UI | Chart, editor, panels, store | UI |
+| Worker | CF Pages + Worker data plane | Worker |
+| DevOps | Build, VPS, CORS, CI | DevOps |
+| PYNE (separate) | Grammar & evaluator | PYNE docs |
+Conceptual model
+Formal active set:
+``
+Active set = { source, stream, engine, storage }
+Contract namespace: pynescript.axis.plugins.v
+App state: pynescript.axis.v (migrates from pynescript.superchart.)
+`
+Compose in one glance
+| Recipe | Source | Stream | Engine | Storage |
+| --- | --- | --- | --- | --- |
+| Offline lab | mock-walk | mock-poll | pyodide | local |
+| Desk research | binance-rest | binance-ws | server → Flask | local |
+| AXIS at the edge | venue REST | venue WS / DO | server → Worker | cloud |
+| Repo library | any | any | any | git |
+Full recipes: Compose recipes.
+Infrastructure names (do not rename lightly)
+| Surface | Value |
+| --- | --- |
+| CF Wrangler / Pages project | pynescript-superchart (frozen) |
+| Health JSON service | pynescript-axis-worker |
+| Product brand | AXIS |
+Demo topologies
+Dev: Vite : + Flask :
+Static: bun run build + axispwaserver.py :
+Worker: wrangler on :
+See topologies and local dev.
+Offline & agent exports
+Auto-generated like HOOX manuals (bun run docs:exports):
+| Kind | Path |
+| --- | --- |
+| Full-corpus LLM pack | llm.txt |
+| LLM site map (llmstxt.org) | llms.txt |
+| Track PDFs (A) | /exports/axis--manual.pdf` |
+See also
+Quick start
+Plugin contracts
+ADRs
+PYNE runtime
+---
+FILE: docs/axis/plugins/contracts.mdx
+Plugin contracts
+Abstract
+All AXIS plugins share PluginBase and a discriminant kind. Contracts live in frontend/src/plugins/types.ts. Catalogs and the dynamic loader assert these shapes before registration; the UI never calls plugins that failed assertion.
+Namespace (localStorage / config): pynescript.axis.plugins.v.
+Conceptual model
+Interface surface
+PluginKind
+``ts
+type PluginKind = 'source' | 'stream' | 'engine' | 'storage' | 'component';
+`
+PluginBase
+| Field | Type | Notes |
+| --- | --- | --- |
+| id | string | Stable registry key within kind |
+| name | string | UI label |
+| kind | PluginKind | Discriminant |
+| description? | string | Manager catalog |
+| version? | string | Optional semver |
+| builtIn? | boolean | Protects against unregister |
+| configSchema? | ConfigSchema | Settings form |
+| capabilities? | PluginCapabilities | Badges: offline / needsAuth / needsNetwork / needsProxy |
+| init? / dispose? | lifecycle | Optional host hooks |
+ConfigSchema / FieldSchema
+Each config field:
+| Field | Values |
+| --- | --- |
+| type | 'string' \| 'number' \| 'boolean' \| 'select' |
+| default? | primitive |
+| label?, description?, placeholder? | UI |
+| min?, max?, step? | numbers |
+| options? | select strings |
+PluginContext
+Passed to init when used:
+getConfig(): Record
+setStatus(msg, level?)
+host.fetch? — injectable fetch for tests / workers
+pluginKey
+`ts
+pluginKey(kind, id) → ${kind}:${id}
+`
+Used for store.pluginsConfig lookup (active.ts).
+---
+SourcePlugin
+`ts
+interface SourceOpts {
+symbol: string;
+interval: string;
+limit?: number;
+config?: Record;
+}
+interface SourcePlugin extends PluginBase {
+kind: 'source';
+fetchHistorical(opts: SourceOpts): Promise;
+searchSymbols?(query: string, config?: Record): Promise;
+}
+`
+Bar shape (from store/types): { time, open, high, low, close, volume? } with time in unix seconds.
+Registry asserts: object, id, name, kind === 'source', fetchHistorical is a function.
+---
+StreamPlugin
+`ts
+interface StreamOpts {
+symbol: string;
+interval: string;
+config?: Record;
+lastBar?: Bar | null;
+onBar: (b: Bar) => void;
+onError: (e: Error) => void;
+onStatus: (s: {
+state: 'open' | 'closed' | 'reconnecting' | string;
+url?: string;
+detail?: string;
+}) => void;
+}
+interface StreamPlugin extends PluginBase {
+kind: 'stream';
+start(opts: StreamOpts): () => void; // stop
+}
+`
+Invariant: start must return a stop function that closes sockets / clears timers. The AXIS calls stop on symbol change or unmount.
+---
+EnginePlugin
+`ts
+interface EngineOpts {
+script: string;
+bars: Bar[];
+config?: Record;
+signal?: AbortSignal;
+}
+interface RunResult {
+status: 'success' | 'error';
+plots: (number | null)[];
+series?: Record;
+events: Array;
+drawings?: Array>;
+error?: string;
+meta?: { mode?; scriptid?; runid?; ms?; overlay?; script_name?; [k: string]: unknown };
+}
+interface EnginePlugin extends PluginBase {
+kind: 'engine';
+isReady(): Promise;
+run(opts: EngineOpts): Promise;
+}
+`
+Notes:
+plots is the primary overlay series; multi-series engines also fill series.
+Strategy fills / orders appear in events.
+Pine line/label/box objects may appear in drawings from the interpret runtime.
+Prefer returning status: 'error' with error string over throwing for UI-friendly paths (built-in engines do both patterns carefully).
+---
+StoragePlugin
+`ts
+interface ScriptMeta {
+id: string;
+name: string;
+description?: string;
+path?: string;
+updatedAt: number;
+createdAt?: number;
+revision?: string;
+tags?: string[];
+}
+interface ScriptDocument extends ScriptMeta {
+content: string;
+}
+interface StoragePlugin extends PluginBase {
+kind: 'storage';
+list(opts?): Promise;
+read(id, config?): Promise;
+write(doc, config?): Promise;
+remove(id, config?): Promise;
+saveDraft?(doc, config?): Promise;
+loadDraft?(config?): Promise;
+sync?(direction: 'push' | 'pull' | 'both', config?): Promise;
+getStatus?(config?): Promise;
+}
+`
+Registry requires list, read, write, remove. Draft/sync/status are optional.
+---
+ComponentPlugin (reserved)
+`ts
+interface ComponentPlugin extends PluginBase {
+kind: 'component';
+slots: Array;
+mount(slot: string, el: HTMLElement, api: Record): () => void;
+}
+`
+Registered in the registry but not yet driven by the Manager UX. Do not rely on slots in production plugins.
+---
+Capabilities
+`ts
+interface PluginCapabilities {
+offline?: boolean;
+needsAuth?: boolean;
+needsNetwork?: boolean;
+needsProxy?: boolean;
+}
+`
+Manager badges (plugin-badges.tsx) surface these for composition decisions (e.g. offline lab vs desk research).
+Invariants & edge cases
+. Export shape for dynamic modules — default export, named plugin, or the module root object (loader.asPlugin).
+. Config merge — catalogs merge configSchema defaults with runtime config / store.pluginsConfig.
+. AbortSignal — server engine honors signal / adaptive timeouts; custom engines should too for long runs.
+. Revision / If-Match — cloud storage uses revision strings for optimistic concurrency (Worker If-Match).
+Failure modes
+| Error | Contract violation |
+| --- | --- |
+| source: fetchHistorical() required | Missing method on register |
+| Unknown plugin kind | Typo or future kind not supported by loader |
+| Custom storage plugins via URL are not supported yet` | Dynamic storage blocked by design |
+See also
+Registry
+Dynamic loader
+Plugin examples
+---
+FILE: docs/axis/plugins/dynamic-loader.mdx
+Dynamic plugin loader
+Abstract
+The loader (frontend/src/plugins/loader.ts) lets users install third-party or example source/stream/engine plugins at runtime via dynamic import(). Installed URLs persist in localStorage under:
+| Key | Role |
+| --- | --- |
+| pynescript.axis.plugins.v | Current |
+| pynescript.superchart.plugins.v | Legacy read fallback |
+On boot, restoreInstalledPlugins() re-imports every saved URL.
+Conceptual model
+Interface surface
+``ts
+loadPluginFromUrl(url: string): Promise
+removePlugin(id: string, kind?: string): void
+getInstalledPlugins(): InstalledPlugin[]
+restoreInstalledPlugins(): Promise
+normalizePluginUrl(url: string): string
+assertSafePluginUrl(href: string): void
+PLUGINSKEY // 'pynescript.axis.plugins.v'
+`
+InstalledPlugin
+`ts
+{ url, id, name, kind, description? }
+`
+Module export shapes accepted
+. export default plugin
+. export const plugin = …
+. Module namespace object that is the plugin
+Must include id and kind. Required methods:
+| kind | Method |
+| --- | --- |
+| source | fetchHistorical |
+| stream | start |
+| engine | run |
+| storage | Rejected — “not supported yet” |
+Internals
+URL normalization
+`ts
+// /src/plugins/foo.js → /plugins/foo.js
+href.replace(/(^|\/)src\/plugins\//, '$plugins/');
+`
+Dev-only Vite paths never ship in dist/; production examples live under public/plugins/ → /plugins/….
+Safety
+assertSafePluginUrl rejects:
+javascript:
+vbscript:
+data:text/html…
+This is not a full sandbox. Dynamic plugins run with the page’s privileges (network, DOM). Treat plugin URLs like executable code supply chain.
+Dedup on install
+List filters out same URL or same (kind, id) before append — reloading an updated module replaces the entry.
+Unregister
+removePlugin calls unregisterDynamic for the resolved kind (or all kinds if unknown) and rewrites the installed list.
+Bootstrap coupling
+loadPluginFromUrl / restoreInstalledPlugins call ensureBuiltins() first so catalogs exist before dynamic ids land.
+Manager UX (product)
+From frontend/src/plugins/README.md:
+. Manager → Plugins → Load from URL
+. Example: http://localhost:/plugins/example-coingecko-source.js
+. Export installed / Import… for machine migration
+. Auto-activate patterns for source/stream/engine after install (Manager catalog Use)
+Shipped examples (also under public/plugins/):
+| File | Kind |
+| --- | --- |
+| example-coingecko-source.js | source |
+| example-tiny-pine-engine.js | engine |
+| example-cf-do-stream.js | stream |
+Invariants & edge cases
+. CORS on module URL — the JS file origin must allow module import (same-origin is easiest).
+. CORS on plugin’s own API — separate problem; may need proxy (see plugins README).
+. Partial restore — one bad URL logs error and continues others.
+. No code signing — trust the URL owner.
+Worked example
+`bash
+After bun run build + axispwa_server.py
+Load:
+http://...:/plugins/example-coingecko-source.js
+`
+Then select CoinGecko in the source picker (id coingecko).
+Failure modes
+| Error | Meaning |
+| --- | --- |
+| URL required | Empty input |
+| Plugin URL scheme not allowed | Dangerous scheme |
+| Module did not export a plugin object | Wrong export shape |
+| Plugin needs id and kind | Incomplete object |
+| Source plugin needs fetchHistorical() | Incomplete source |
+| Unknown plugin kind` | Typo / component |
+| Restore log errors | , network, syntax error in remote JS |
+See also
+Plugin examples
+Registry
+CORS and origins
+---
+FILE: docs/axis/plugins/engines.mdx
+Engines
+Abstract
+An engine evaluates a script against bars and returns plots, series, events, and optional drawings. AXIS ships two built-ins in frontend/src/engines/catalog.ts:
+| id | Name | Where Python runs |
+| --- | --- | --- |
+| server | Server-Side | External Flask Pro API or Cloudflare Worker that proxies/evaluates |
+| pyodide | Client-Side (Pyodide) | Browser WebAssembly via self-hosted Pyodide |
+There is no third built-in engine in AXIS itself. Worker in-process Pyodide is a separate, feature-gated path on the edge (PYODIDEINWORKER) and is not production-ready — see Worker runtime.
+Conceptual model
+Interface surface
+``ts
+isReady(): Promise
+run({ script, bars, config?, signal? }): Promise
+`
+RunResult is defined in contracts.
+server engine
+Config schema
+| Key | Default | Notes |
+| --- | --- | --- |
+| endpoint | http://localhost: | Overridden by topbar / store.endpoint |
+| mode | interpret | interpret \| compile |
+HTTP contract
+POST ${endpoint}/run?mode=…
+Body: { script, data: bars }
+Success JSON: plots, series?, events?, drawings?, meta?, mode, scriptid, runid
+Error: non-OK status or status: 'error' → mapped to RunResult with error
+WebSocket contract (preferred when available)
+URL: ws(s)://host/ws/run (derived from endpoint; requires flask-sock on the Pro API)
+Client → { type: "run", id, script, data, mode? }
+Server → { type: "result", id, status: "success", plots, series, … } or { type: "error", id, message }
+AXIS server engine tries WS first (preferWs, default true), then REST. Health GET / reports "websocket": true when the route is mounted.
+meta.transport is "ws" or "rest" so the Connection HUD can show the path used.
+Readiness: GET ${endpoint}/ within s.
+Timeouts: adaptive min(s, max(s, s + bars×ms)).
+Note on Worker path: the PWA’s server engine posts to /run on whatever endpoint you set. The Worker exposes POST /api/run. When pointing the PWA at a Worker, either put a reverse-proxy path rewrite in front, or set the endpoint so the engine path matches your deployment. Worker handleRun validates { script, data, mode? } and today prefers proxying to EXTERNALBACKEND (Flask). In-worker Pyodide only if PYODIDEINWORKER=enabled and the wheel pipeline works.
+pyodide engine
+Config
+| Key | Default |
+| --- | --- |
+| indexUrl | /pyodide/v../ (self-hosted) |
+Boot pipeline (ensure)
+. Prefetch assets (prefetchPyodideAssets) — wasm, stdlib zip, micropip wheels.
+. loadPyodide({ indexURL }).
+. micropip.install same-origin /vendor/pynescript-..-py-none-any.whl and antlr runtime wheel.
+. Fetch /pyodide/pynescriptruntime.py and runPythonAsync it.
+. run calls runscript(script, bars) in Python and JSON.parses the result.
+Guards: assertZipAsset rejects HTML SPA fallbacks (classic deploy footgun when public/vendor is missing from dist/).
+Capabilities: { offline: true, needsNetwork: false } after assets are cached same-origin.
+Helpers: preloadPyodide(), LOCALPYODIDEVERSION = '..'.
+Internals
+| Path | Role |
+| --- | --- |
+| frontend/src/engines/catalog.ts | serverEngine, pyodideEngine, registration |
+| frontend/src/indicators/runner.ts | UI run orchestration |
+| frontend/public/vendor/.whl | Shipped wheels |
+| frontend/public/pyodide/ | Self-hosted Pyodide + runtime py |
+| frontend/worker/src/runtime.ts | Edge /api/run |
+| frontend/worker/RUNTIME.md | In-worker Python plan |
+Invariants & edge cases
+. AXIS never imports pynescript Python except through engines.
+. Abort — pass signal from UI cancel; server engine respects it.
+. Error as data — both engines often return status: 'error' instead of throwing so the Results panel can show messages.
+. Pyodide size — ~MB self-hosted index; first ready can take seconds; preload on idle.
+Worked examples
+Desk research (Flask)
+Active engine: server
+Endpoint: http://...:
+Backend: make run (Flask Pro API)
+Offline lab
+Source mock-walk, stream mock-poll, engine pyodide, storage local
+Requires dist/ (or Vite public) to serve /pyodide/ and /vendor/
+Tiny non-Python engine
+See plugin examples — example-tiny-pine-engine.js implements a JS DSL with sma / ema / rsi for demos without PYNE.
+Failure modes
+| Symptom | Cause |
+| --- | --- |
+| pynescript wheel returned HTML | SPA fallback; deploy vendor into dist; static server must not rewrite .whl |
+| loadPyodide not available | Missing pyodide.js / blocked script |
+| HTTP error from server | Flask down; wrong endpoint; CORS |
+| Worker NOBACKEND | EXTERNALBACKEND` empty and Pyodide path disabled/failed |
+See also
+Worker runtime
+Build and serve
+PYNE runtime
+---
+FILE: docs/axis/plugins/index.mdx
+Plugins
+Abstract
+AXIS is a plugin-composed charting PWA. Historical bars, live ticks, Pine evaluation, and the script library are not hard-coded product features — they are interchangeable modules that share one contract namespace:
+``
+pynescript.axis.plugins.v
+`
+The shell (AXIS) never embeds a closed interpreter. Evaluation is always an engine plugin. Data arrives only through source and stream. Persistence goes through storage. Compose any lawful active set without a proprietary charting host.
+Conceptual model
+| Kind | Role | Required surface |
+| --- | --- | --- |
+| source | Historical OHLCV | fetchHistorical(opts) → Bar[] |
+| stream | Live bar updates | start(opts) → stop() |
+| engine | Pine / DSL evaluation | isReady(), run(opts) → RunResult |
+| storage | Script library | list / read / write / remove |
+| component | UI slots (phase , reserved) | mount(slot, el, api) |
+Built-ins register at bootstrap (frontend/src/plugins/bootstrap.ts). Dynamic plugins install from URL (loader.ts) and persist under localStorage key pynescript.axis.plugins.v.
+Interface surface
+| Module | Path |
+| --- | --- |
+| Contracts | frontend/src/plugins/types.ts |
+| Registry | frontend/src/plugins/registry.ts |
+| Bootstrap | frontend/src/plugins/bootstrap.ts |
+| Active resolution | frontend/src/plugins/active.ts |
+| Dynamic loader | frontend/src/plugins/loader.ts |
+| Public barrel | frontend/src/plugins/index.ts |
+| Source catalog | frontend/src/sources/catalog.ts |
+| Stream catalog | frontend/src/streams/catalog.ts |
+| Engine catalog | frontend/src/engines/catalog.ts |
+| Storage catalog | frontend/src/storage/catalog.ts |
+Built-in inventory (quick)
+| Kind | Built-in IDs |
+| --- | --- |
+| Sources | binance-rest, okx-rest, bybit-rest, coinbase-rest, mock-walk, csv-upload |
+| Streams | binance-ws, okx-ws, bybit-ws, coinbase-ws, kraken-ws, mock-poll |
+| Engines | server, pyodide |
+| Storage | local, cloud, git |
+Defaults when selection is missing (active.ts): source binance-rest, stream binance-ws, engine server, storage local.
+Invariants
+. AXIS ≠ engine — the UI never ships a private Pine runtime; engines are plugins.
+. Registry is the single source of truth — catalogs write into PluginRegistry; UI lists come from listSources() / etc.
+. Built-ins resist casual unregister — unregister(id) returns false for builtIn: true unless allowBuiltIn: true.
+. Config keys — prefer pluginKey(kind, id) → ${kind}:${id} (e.g. engine:server).
+. Storage via URL is rejected — dynamic loader refuses kind: 'storage' until a hardened path exists.
+. Legacy key migration — installed plugins may still be read from pynescript.superchart.plugins.v.
+Compose recipes (plugin view)
+| Recipe | Source | Stream | Engine | Storage |
+| --- | --- | --- | --- | --- |
+| Offline lab | mock-walk | mock-poll | pyodide | local |
+| Desk research | binance-rest | binance-ws | server → Flask | local |
+| AXIS at the edge | venue REST | venue WS / DO | server → Worker | cloud |
+| Repo library | any | any | any | git |
+Failure modes
+| Symptom | Likely cause |
+| --- | --- |
+| Empty source dropdown | ensureBuiltins() never ran at app entry |
+| Dynamic plugin vanishes after reload | URL or CORS; check System Logs (plugins channel) |
+| Engine “not ready” | Flask/Worker down (server) or missing /vendor/.whl / /pyodide/ (pyodide) |
+| Cloud library | Missing Bearer pn… key or unbound APIKEYS` KV in production |
+See also
+Contracts
+Registry
+Sources · Streams · Engines · Storage
+Dynamic loader
+Plugin examples
+Worker (cloud storage + stream relay)
+---
+FILE: docs/axis/plugins/registry.mdx
+Plugin registry
+Abstract
+PluginRegistry (frontend/src/plugins/registry.ts) is the single in-memory source of truth for every installed plugin of every kind. Catalogs, the dynamic loader, active resolution, and Manager UI all read/write through this class (or thin wrappers that call it).
+Conceptual model
+Interface surface
+Singleton
+``ts
+import { registry, PluginRegistry } from './plugins/registry';
+// or from './plugins' barrel
+`
+Per-kind API (pattern)
+| Method | Behavior |
+| --- | --- |
+| registerSource(p) | Assert contract; set map; append order if new; emit registered |
+| getSource(id) | Map lookup |
+| listSources() | Registration order, not insertion-hash order |
+| unregisterSource(id, { allowBuiltIn? }) | Refuses builtIn unless opted in |
+| Same pattern for stream / engine / storage | |
+| registerComponent / listComponents | Phase- components (unordered Map values) |
+Bulk
+| Method | Behavior |
+| --- | --- |
+| register(plugin: AnyPlugin) | Dispatch on kind |
+| unregister(kind, id, opts?) | Kind switch |
+| clear() | Wipe all maps and order arrays (tests) |
+| summary() | { sources, streams, engines, storages } lightweight summaries |
+| on(listener) | Subscribe to { type, kind, id }; returns unsubscribe |
+Order preservation
+Private arrays sourceOrder, streamOrder, engineOrder, storageOrder ensure UI dropdowns stay stable when plugins re-register (idempotent set without reordering).
+Built-in protection
+`ts
+if (p.builtIn && !opts?.allowBuiltIn) return false;
+`
+Dynamic uninstall paths must never silently delete binance-rest / server / local.
+Internals (repo paths)
+| Concern | Path |
+| --- | --- |
+| Class + singleton | frontend/src/plugins/registry.ts |
+| Idempotent builtins | frontend/src/plugins/bootstrap.ts → ensureBuiltins() |
+| Active set | frontend/src/plugins/active.ts |
+| Dynamic register helpers | sources/catalog.ts registerDynamicSource, etc. |
+Bootstrap
+`ts
+// bootstrap.ts — once per page lifetime
+ensureSourcesRegistered();
+ensureStreamsRegistered();
+ensureEnginesRegistered();
+ensureStoragesRegistered();
+`
+Safe to call repeatedly: catalogs use a local registered flag; bootstrap uses done.
+Active resolution defaults
+| Slot | Default id |
+| --- | --- |
+| source | binance-rest |
+| stream | binance-ws |
+| engine | server |
+| storage | local |
+Fallbacks chain: store.activePlugins. → legacy store fields → default → registry get with hard fallback id → throw if still missing (source/stream/engine). Storage returns undefined if nothing registered (should not happen after builtins).
+Engine endpoint surface
+getActiveEngineConfig() injects store.endpoint when the engine has an endpoint config field or id is server — keeps the topbar Endpoint field and engine config aligned.
+Invariants & edge cases
+. Re-register same id — overwrites the plugin object; does not duplicate order entry.
+. Listener errors are swallowed — one bad subscriber cannot break registration.
+. clear() does not reset bootstrap/catalog flags — tests use resetBootstrapFlag / resetRegistrationFlag helpers.
+. Components — no order array; listComponents is Map iteration order.
+Worked examples
+Register a test source
+`ts
+import { registry } from '../plugins/registry';
+registry.registerSource({
+id: 'fixture',
+name: 'Fixture',
+kind: 'source',
+async fetchHistorical() {
+return [{ time: , open: , high: , low: , close: }];
+},
+});
+`
+Listen for dynamic installs
+`ts
+const off = registry.on((ev) => {
+if (ev.type === 'registered' && ev.kind === 'engine') {
+console.log('engine ready', ev.id);
+}
+});
+// later: off()
+`
+Failure modes
+| Symptom | Cause |
+| --- | --- |
+| source: kind must be 'source' | Wrong discriminant on register |
+| Dropdown empty after clear() in test | Forgot re-ensureBuiltins` / reset flags |
+| Unregister returns false | Built-in protection |
+See also
+Contracts
+Dynamic loader
+Plugins hub
+---
+FILE: docs/axis/plugins/sources.mdx
+Sources
+Abstract
+A source loads a finite window of OHLCV bars for the chart and engine. Sources live in frontend/src/sources/catalog.ts and register into the unified registry via ensureSourcesRegistered().
+Conceptual model
+Built-in catalog
+| id | Name | Network | Notes |
+| --- | --- | --- | --- |
+| binance-rest | Binance REST | yes | Public klines; synthetic walk fallback when fallback: true (default) |
+| okx-rest | OKX REST | yes | Candles; symbol BTCUSDT → BTC-USDT; max bars |
+| bybit-rest | Bybit REST | yes | Spot v klines; newest-first reversed |
+| coinbase-rest | Coinbase REST | yes | Exchange candles; USDT pair rewritten to USD product |
+| mock-walk | Mock Walk | no | Offline random walk; optional Mulberry-like seed |
+| csv-upload | CSV / JSON Upload | no | Reads last upload from upload-store |
+UI order is BUILTINSOURCES array order (Binance first).
+Interface surface
+Every source implements SourcePlugin (contracts):
+``ts
+fetchHistorical({ symbol, interval, limit?, config? }): Promise
+`
+Config highlights
+binance-rest
+| Key | Default | Meaning |
+| --- | --- | --- |
+| baseUrl | https://api.binance.com | Override for mirrors/proxies |
+| limit | | – |
+| fallback | true | On network error, synthesizeWalk |
+mock-walk
+| Key | Default | Meaning |
+| --- | --- | --- |
+| seed | | = non-deterministic; non-zero = deterministic PRNG |
+| startPrice | | Walk origin |
+| limit | | Bar count |
+csv-upload
+No schema fields. User must Upload a CSV (time,open,high,low,close[,volume]) or JSON array first; otherwise throws a clear error.
+Internals
+| Path | Role |
+| --- | --- |
+| frontend/src/sources/catalog.ts | Definitions + register/list/get |
+| frontend/src/sources/upload-store.ts | In-memory last upload for csv-upload |
+| frontend/src/data/load-symbol.ts | App pipeline that calls active source |
+| frontend/src/data/parse-bars.ts | CSV/JSON normalization |
+Interval → venue codes
+Helpers map AXIS intervals (m, m, m, h, h, d, w) to OKX bar, Bybit interval codes, Coinbase granularity seconds. Unmapped intervals fall back to daily-ish defaults — check venue docs if you add exotic TFs.
+Dynamic registration
+`ts
+registerDynamicSource(plugin) // from catalog / loader
+unregisterDynamicSource(id)
+listDynamicSourceIds()
+`
+Loader path: kind === 'source' + fetchHistorical required.
+Invariants & edge cases
+. Time unit — always seconds unix (Binance ms ÷ ).
+. Binance fallback — offline demos “work” but are not real prices; disable fallback for strict desk research.
+. CORS — browser → public venue APIs must allow CORS; corporate proxies may require a Worker /api/proxy (not shipped as a general proxy today — plan carefully).
+. Newest-first venues (OKX, Bybit, Coinbase) — catalog reverses/sorts ascending by time for the chart.
+Worked example
+`js
+// Minimal custom source (ES module for loader)
+export default {
+id: 'static-two',
+name: 'Two Bars',
+kind: 'source',
+async fetchHistorical() {
+return [
+{ time: , open: , high: , low: ., close: ., volume: },
+{ time: _, open: ., high: , low: , close: ., volume: },
+];
+},
+};
+`
+Failure modes
+| Error / symptom | Fix |
+| --- | --- |
+| No uploaded file… | Use Upload before selecting csv-upload |
+| Empty chart + Binance down | Expected synthetic walk if fallback on |
+| OKX code !== ''` | Symbol format / region block |
+| CORS blocked | Proxy or different source |
+See also
+Streams
+Contracts
+Plugin examples (CoinGecko)
+---
+FILE: docs/axis/plugins/storage.mdx
+Storage
+Abstract
+Storage plugins persist the user’s Pine library and drafts. Built-ins: local, cloud, git — registered from frontend/src/storage/catalog.ts. High-level UI/editor APIs go through frontend/src/storage/service.ts, which always dual-writes drafts to local for crash recovery.
+Dynamic kind: 'storage' install via URL is not supported (loader.ts throws).
+Conceptual model
+Built-in plugins
+local (frontend/src/storage/local.ts)
+| Concern | Detail |
+| --- | --- |
+| Primary | IndexedDB pynescript.axis.storage — stores scripts, kv |
+| Fallback | localStorage keys pynescript.axis.library.v, draft keys |
+| Migration | Legacy SuperChart keys (pynescript.superchart.library.v, editor docs) |
+| Memory | In-process maps when neither IDB nor LS exist (tests/SSR) |
+| Capabilities | Offline-friendly |
+cloud (frontend/src/storage/cloud.ts)
+| Concern | Detail |
+| --- | --- |
+| Transport | fetch to Worker /api/scripts |
+| Auth | Authorization: Bearer (pn…) |
+| Config | endpoint (default http://...:), apiKey |
+| Concurrency | If-Match revision headers on write |
+| Partition | Worker hashes key → userId; rows scoped per user |
+git (frontend/src/storage/git.ts)
+| Concern | Detail |
+| --- | --- |
+| Providers | GitHub Contents API / GitLab repository files |
+| Config | provider, token, owner, repo, branch, basePath (default pine-library), commit template |
+| Commit boundary | Explicit Save only — not every keystroke |
+| Drafts | saveDraft / loadDraft are no-ops; local dual-write handles drafts |
+| Capabilities | needsNetwork, needsAuth |
+Interface surface
+Contract: StoragePlugin.
+service.ts API (UI-facing)
+| Function | Behavior |
+| --- | --- |
+| listScripts(prefix?) | Active backend list |
+| readScript / writeScript / removeScript | CRUD + log |
+| saveDraft / loadDraft | Local first; also active if supported |
+| exportLibraryJson / importLibraryJson | Portable backup |
+| getStorageStatus | Connected / dirty / remote hints |
+Catalog helpers
+``ts
+ensureStoragesRegistered()
+getStorage(id)
+listStorages()
+registerDynamicStorage(plugin) // in-process only (tests / future)
+unregisterDynamicStorage(id)
+`
+Internals
+| Path | Role |
+| --- | --- |
+| storage/catalog.ts | Registration |
+| storage/local.ts | IDB + LS |
+| storage/idb.ts | Promise wrappers for IDB |
+| storage/cloud.ts | Worker client |
+| storage/git.ts | Orchestration |
+| storage/git-github.ts / git-gitlab.ts | Provider APIs |
+| storage/git-config.ts | Config normalize |
+| storage/service.ts | Facade |
+| worker/src/scripts.ts | Cloud API implementation |
+| worker/schemas/scripts.sql | D schema |
+D schema (cloud)
+`sql
+PRIMARY KEY (userid, id)
+-- scripts + scriptdrafts tables
+`
+Without D, Worker keeps per-isolate in-memory maps (fine for wrangler dev).
+Invariants & edge cases
+. Draft recovery — never rely solely on remote drafts; service always hits local.
+. Git PAT scope — GitHub contents:write; GitLab api / writerepository.
+. Revisions — local uses local-${timestamp}; cloud/git use remote revisions for conflict detection.
+. Active default — getActiveStorageId() → local when unset.
+Worked examples
+Export / import
+`ts
+const docs = await exportLibraryJson();
+// …move machine…
+await importLibraryJson(docs, { forceNewIds: true });
+`
+Point cloud at local Worker
+. cd frontend/worker && npm run dev → :
+. Manager → storage cloud
+. Config endpoint http://...:, key from /api/keys or ALLOWOPENKEYS= demo key
+Failure modes
+| Error | Cause |
+| --- | --- |
+| Cloud storage requires an API key | Empty apiKey |
+| NOKEY / INVALIDKEY | Auth path; see Worker auth |
+| on write | If-Match` revision conflict |
+| Git / | Token, owner/repo, or basePath wrong |
+| Quota errors on localStorage | Large libraries should prefer IDB (automatic when available) |
+See also
+Worker data plane
+Worker auth
+Contracts
+---
+FILE: docs/axis/plugins/streams.mdx
+Streams
+Abstract
+A stream advances the chart’s present. It opens a connection (or timer), emits onBar updates, and returns a stop function. Built-ins live in frontend/src/streams/catalog.ts. An optional Cloudflare Durable Object relay lives as a loadable example (example-cf-do-stream.js) plus Worker SessionDO.
+Conceptual model
+Built-in catalog
+| id | Name | Offline | Upstream |
+| --- | --- | --- | --- |
+| binance-ws | Binance WebSocket | no | wss://stream.binance.com:/ws/{symbol}@kline{interval} |
+| okx-ws | OKX WebSocket | no | wss://ws.okx.com:/ws/v/business candle channels |
+| bybit-ws | Bybit WebSocket | no | Public linear/spot kline topics |
+| coinbase-ws | Coinbase WebSocket | no | Exchange WS ticker/candles path |
+| kraken-ws | Kraken WebSocket | no | Public OHLC channel |
+| mock-poll | Mock Poll | yes | s synthetic updates from lastBar |
+UI order: venues first, mock-poll last (BUILTINSTREAMS).
+Interface surface
+``ts
+start(opts: StreamOpts): () => void
+`
+Callbacks:
+| Callback | Use |
+| --- | --- |
+| onBar | OHLCV update (seconds) |
+| onError | Hard failure (connect / parse) |
+| onStatus | { state: 'open' \| 'closed' \| …, url?, detail? } |
+Config is usually empty for venue streams; custom streams may declare configSchema (e.g. DO endpoint).
+Internals
+| Path | Role |
+| --- | --- |
+| frontend/src/streams/catalog.ts | Built-ins + register helpers |
+| frontend/src/streams/binance.ts | Shared Binance helpers (if split) |
+| frontend/src/streams/multiplex.ts | Multi-symbol helpers |
+| frontend/worker/src/durable-objects/session.ts | SessionDO fan-out |
+| frontend/public/plugins/example-cf-do-stream.js | Loadable DO client stream |
+Binance kline mapping
+`ts
+onBar({
+time: Math.floor(k.t / ),
+open: +k.o, high: +k.h, low: +k.l, close: +k.c, volume: +k.v,
+});
+`
+Open bars may update repeatedly for the same time until the kline closes — chart series should treat same-time updates as replace, not append-only.
+mock-poll behavior
+Aligns bar time to interval slots.
+Updates high/low/close within the open slot; advances on slot change.
+Immediate first tick so live mode feels responsive offline.
+Cloudflare DO stream (example plugin)
+Not built-in. After load:
+. Config endpoint = Worker origin (https://…workers.dev or local http://...:).
+. Client opens wss://…/api/stream?session=…&symbol=…&interval=….
+. Worker routes to SessionDO; DO opens one Binance upstream and broadcasts raw kline JSON.
+Requires SESSIONS Durable Object binding (often commented in wrangler.toml until provisioned).
+Reconnect & status honesty
+Built-in venue streams use openReconnectableWs (frontend/src/streams/reconnect-ws.ts):
+Exponential backoff (s base, s cap, attempts default).
+onStatus({ state: 'reconnecting', detail }) between attempts.
+Hard onError only on construct failure or reconnect exhausted.
+Multiplex keeps stream green only after state: 'open'; starts as connecting.
+Optional Bar.closed (Binance k.x, OKX confirm, Bybit confirm) feeds live re-run mode bar-close (settings). Multiplex also treats bar time advance as a close for venues without a flag.
+Invariants & edge cases
+. Always return stop — stop cancels reconnect timers and closes the socket.
+. Symbol casing — Binance lowercases stream symbols; OKX uses BTC-USDT inst ids.
+. Browser WS limits — many tabs × many symbols hit connection caps; DO relay amortizes upstream sockets.
+. Reconnect is built-in for venue WS — mock-poll does not reconnect (timer only).
+Failure modes
+| Symptom | Cause |
+| --- | --- |
+| Stream never opens | CORS N/A for WS; check firewall / venue geo blocks |
+| DO stream NO_DO | SESSIONS` binding missing |
+| Silent no bars | Message shape mismatch (non-kline payloads) |
+See also
+Sources
+Worker durable objects
+Plugin examples
+---
+FILE: docs/axis/reference/feature-atlas.mdx
+Feature atlas
+Abstract
+This atlas is a path index for AXIS. Use it to jump from a product feature to the code that implements it. Prefer Solid product paths over legacy static shell files.
+Conceptual model
+Atlas tables
+Plugin system
+| Feature | Primary paths |
+| --- | --- |
+| Contracts | frontend/src/plugins/types.ts |
+| Registry | frontend/src/plugins/registry.ts |
+| Bootstrap | frontend/src/plugins/bootstrap.ts |
+| Active set | frontend/src/plugins/active.ts |
+| Dynamic install | frontend/src/plugins/loader.ts |
+| Barrel | frontend/src/plugins/index.ts |
+| Manager UI | frontend/src/ui/PluginManager.tsx, plugin-badges.tsx |
+| Docs (in-tree) | frontend/src/plugins/README.md |
+Data plugins
+| Feature | Primary paths |
+| --- | --- |
+| Sources | frontend/src/sources/catalog.ts, upload-store.ts |
+| Streams | frontend/src/streams/catalog.ts, multiplex.ts |
+| Engines | frontend/src/engines/catalog.ts |
+| Load symbol | frontend/src/data/load-symbol.ts, parse-bars.ts |
+| Indicator run | frontend/src/indicators/runner.ts |
+Storage / library
+| Feature | Primary paths |
+| --- | --- |
+| Catalog | frontend/src/storage/catalog.ts |
+| Local IDB | frontend/src/storage/local.ts, idb.ts |
+| Cloud | frontend/src/storage/cloud.ts |
+| Git | frontend/src/storage/git.ts, git-github.ts, git-gitlab.ts |
+| Service façade | frontend/src/storage/service.ts |
+| Library panel | frontend/src/ui/ScriptLibraryPanel.tsx |
+UI (UI)
+| Feature | Primary paths |
+| --- | --- |
+| Entry | frontend/src/index.tsx, app.tsx |
+| Chart host | frontend/src/chart/ChartHost.tsx, manager-access.ts, pane-manager.ts, series-factory.ts |
+| Drawings | frontend/src/chart/drawing-layer.ts, pine-drawings.ts |
+| Editor | frontend/src/editor/ |
+| Results | frontend/src/results/, ui/ResultsPanel.tsx |
+| Store | frontend/src/store/index.ts, types.ts |
+| Topbar / settings | frontend/src/ui/Topbar.tsx, SettingsDialog.tsx |
+Worker
+| Feature | Primary paths |
+| --- | --- |
+| Router | frontend/worker/src/index.ts |
+| Run | frontend/worker/src/runtime.ts, pyodideruntime.ts |
+| Auth / keys | frontend/worker/src/auth.ts, keys.ts |
+| Scripts | frontend/worker/src/scripts.ts, schemas/scripts.sql |
+| Session DO | frontend/worker/src/durable-objects/session.ts |
+| Config | frontend/worker/wrangler.toml, RUNTIME.md, README.md |
+Build / ops
+| Feature | Primary paths |
+| --- | --- |
+| Package scripts | frontend/package.json (test:, build, dev) |
+| Static server | frontend/axispwa_server.py |
+| Public assets | frontend/public/plugins, public/vendor, public/pyodide |
+| Makefile | run-axis (Vite), pages-deploy → dist/, test-frontend |
+| CI | .github/workflows/ci.yml (coverage + ee smoke), axis-nightly.yml |
+| Coverage gate | frontend/scripts/check-coverage.mjs (scoped core ≥%) |
+Examples & tests
+| Feature | Primary paths |
+| --- | --- |
+| Example plugins | frontend/public/plugins/.js, src/plugins/example-.js |
+| Unit tests | frontend/tests/ |
+| Worker tests | frontend/worker/tests/ |
+| EE | frontend/ee/, playwright.config.ts |
+| Testing guide | frontend/TESTING.md |
+| Legacy notes | frontend/LEGACY.md |
+Namespaces & keys
+| Key / namespace | Use |
+| --- | --- |
+| pynescript.axis.plugins.v | Installed dynamic plugins |
+| pynescript.axis.library.v | Local library LS fallback |
+| pynescript.axis.storage | IDB database name |
+| pynescript.axis.v | App state (target; migrates from superchart) |
+| pynescript.superchart. | Legacy keys still read for migration |
+| Contract ns | pynescript.axis.plugins.v (conceptual) |
+Infrastructure constants
+| Name | Value |
+| --- | --- |
+| CF project | pynescript-superchart |
+| Health service | pynescript-axis-worker |
+| Pyodide version | .. (self-hosted path) |
+See also
+Plugins
+Worker
+Legacy shell
+---
+FILE: docs/axis/reference/legacy-shell.mdx
+Legacy shell
+Abstract
+AXIS’s shipping product path is Solid + Vite. An older static shell remains in the repo for historical scripts and some Bun tests. Do not document or extend the legacy shell as the primary UI.
+Source of truth: frontend/LEGACY.md.
+Conceptual model
+What is legacy
+| Path | Role |
+| --- | --- |
+| frontend/src/main.js | Old bootstrap (chart.js, topbar.js, …) |
+| frontend/style.css | TV-blue-era tokens |
+| frontend/pine-editor.js | Pre-Solid CM wiring |
+| frontend/server.ts | Bun static server for old tree |
+| Root / frontend sw.js (static shell SW) | Service worker for old shell |
+Makefile make run-frontend still prints SuperChart Lite and runs bun run frontend/server.ts on : — useful for legacy debugging, not the Solid product path.
+What is current
+| Path | Role |
+| --- | --- |
+| frontend/src/index.tsx, app.tsx | Solid app |
+| frontend/src/chart/ChartHost.tsx | LWC panes |
+| frontend/src/ui/ | Topbar, Settings, Results, Manager, … |
+| frontend/public/ + bun run build | Production PWA assets |
+| frontend/axispwaserver.py | Serve dist for demos |
+Migration residue
+| Residue | Handling |
+| --- | --- |
+| pynescript.superchart.plugins.v | Loader still reads |
+| pynescript.superchart.library.v | Local storage migrates |
+| pynescript.superchart.editor.doc | Draft migration |
+| CF project pynescript-superchart | Frozen name despite product rebrand |
+| Some docs/Makefile strings | Still say SuperChart Lite |
+App state target namespace: pynescript.axis.v (migrates from pynescript.superchart.).
+Invariants
+. Do not port new features into main.js.
+. Prefer Solid store (src/store) over state.js.
+. Plugin registry is the Solid path (src/plugins/registry.ts); dual registries in old JS should be treated as dead ends.
+. Pages deploy should use Vite dist/, not the repo root static tree.
+Failure modes
+| Confusion | Clarification |
+| --- | --- |
+| “UI doesn’t match docs” | You may be serving the legacy shell |
+| Plugin manager missing | Legacy topbar lacks Solid Manager |
+| Tests pass, UI wrong | Unit tests may still import legacy helpers |
+See also
+Feature atlas
+Build and serve
+AXIS hub
+---
+FILE: docs/axis/reference/plugin-examples.mdx
+Plugin examples
+Abstract
+AXIS ships three loadable example plugins as ES modules under frontend/public/plugins/ (also mirrored for reference under frontend/src/plugins/example-.js). They are not built-ins; install via Manager → Plugins → Load from URL.
+Full narrative: frontend/src/plugins/README.md.
+Conceptual model
+Loading
+. Serve the PWA (Vite dev, preview, or axispwaserver.py on dist).
+. Open Manager → Plugins.
+. Paste a same-origin URL, for example:
+``
+http://...:/plugins/example-coingecko-source.js
+http://...:/plugins/example-tiny-pine-engine.js
+http://...:/plugins/example-cf-do-stream.js
+`
+. Load — registry updates; pickers show the new plugin.
+. Persistence: localStorage pynescript.axis.plugins.v restores on next visit.
+You may host modules on any origin that allows module CORS (same-origin is simplest).
+Example catalog
+| File | id | kind | Purpose |
+| --- | --- | --- | --- |
+| example-coingecko-source.js | coingecko | source | Public CoinGecko marketchart → synthetic OHLC |
+| example-tiny-pine-engine.js | tiny-pine | engine | In-browser JS DSL: sma/ema/rsi/plot/strategy |
+| example-cf-do-stream.js | cf-do | stream | WS to Worker /api/stream SessionDO |
+Paths:
+Served: frontend/public/plugins/
+Source copies: frontend/src/plugins/example-.js
+---
+CoinGecko source
+Contract: kind: 'source', fetchHistorical.
+Config: baseUrl (default CoinGecko v), vsCurrency (default usd).
+Behavior:
+Maps common symbols (BTC → bitcoin, …).
+Requests marketchart for a day window derived from interval × bar budget.
+Synthesizes OHLC from consecutive price points (API is not full candles).
+Limits: public rate limits (~– calls/min); CORS depends on CoinGecko policy.
+Use when: demo custom source without a key.
+---
+Tiny Pine engine
+Contract: kind: 'engine', isReady, run.
+Behavior:
+Tokenizes a tiny expression language.
+Built-ins: close, open, high, low, volume, sma, ema, rsi, plot, strategy.entry / strategy.close.
+Returns RunResult with plots/events — not full PYNE fidelity.
+Use when: offline demos without loading ~MB Pyodide or hitting Flask.
+---
+Cloudflare DO stream
+Contract: kind: 'stream', start → stop.
+Config: endpoint — Worker base URL (https://… or http://...:). Empty → error.
+URL built:
+`
+{endpoint as wss}/api/stream?session={symbol}@{interval}&symbol=…&interval=…
+`
+Requires: Worker with SESSIONS Durable Object bound and deployed (durable objects).
+Use when: many tabs share one upstream Binance kline subscription.
+---
+Minimal authoring templates
+Source
+`js
+export default {
+id: 'my-source',
+name: 'My Source',
+kind: 'source',
+description: 'Shown in Manager',
+configSchema: {
+baseUrl: { type: 'string', default: 'https://example.com', label: 'Base URL' },
+},
+async fetchHistorical({ symbol, interval, config }) {
+const res = await fetch(${config.baseUrl}/bars?symbol=${symbol}&interval=${interval});
+return res.json(); // Bar[]
+},
+};
+`
+Stream
+`js
+export default {
+id: 'my-stream',
+name: 'My Stream',
+kind: 'stream',
+start({ symbol, interval, onBar, onError, onStatus }) {
+const ws = new WebSocket('wss://example.com/stream');
+ws.onopen = () => onStatus({ state: 'open' });
+ws.onmessage = (ev) => {
+const b = JSON.parse(ev.data);
+onBar({ time: b.t, open: b.o, high: b.h, low: b.l, close: b.c, volume: b.v });
+};
+ws.onerror = () => onError(new Error('ws error'));
+return () => ws.close();
+},
+};
+`
+Engine
+`js
+export default {
+id: 'my-engine',
+name: 'My Engine',
+kind: 'engine',
+async isReady() { return true; },
+async run({ script, bars }) {
+return { status: 'success', plots: bars.map((b) => b.close), events: [], series: {}, meta: {} };
+},
+};
+`
+Storage plugins cannot be loaded from URL yet.
+Invariants & edge cases
+. Treat plugin URLs as executable code.
+. normalizePluginUrl rewrites /src/plugins/ → /plugins/ for production.
+. Dangerous schemes rejected (javascript:, vbscript:, data:text/html`).
+. After load, window may emit product-specific events (see README) for UI extensions.
+Failure modes
+| Issue | Fix |
+| --- | --- |
+| Failed to restore URL | after deploy path change |
+| CORS on CoinGecko | Offline mock or proxy |
+| DO stream errors | Bind SessionDO; set endpoint |
+| Tiny engine parse errors | Unsupported DSL constructs |
+See also
+Dynamic loader
+Contracts
+Worker durable objects
+---
+FILE: docs/axis/reference/testing.mdx
+Testing reference
+Abstract
+AXIS tests are Bun-first under frontend/, with Playwright for browser smoke and a scoped coverage ratchet. Canonical human guide: frontend/TESTING.md. This page is the reference map for agents and contributors.
+Conceptual model
+Commands
+``bash
+cd frontend
+bun run test unit + worker tests
+bun run test:unit frontend/tests only
+bun run test:coverage lcov + text → coverage/
+bun run test:coverage:gate coverage + % scoped gate
+bun run test:security tests/security/
+bun run test:ee:smoke Playwright @smoke
+bun run test:ee:critical @smoke|@critical
+bun run test:ee all
+bun run test:all gate + security
+`
+Root:
+`bash
+bun run test:frontend
+bun run test:frontend:coverage
+make test-frontend
+`
+Layout
+`
+frontend/tests/
+setup.ts
+fixtures/
+helpers/
+.test.ts
+integration/
+security/
+frontend/scripts/check-coverage.mjs
+frontend/ee/
+smoke.spec.ts
+frontend/playwright.config.ts
+frontend/worker/tests/
+auth.test.ts
+keys-.test.ts
+scripts.test.ts
+…
+`
+Coverage policy
+| Item | Policy |
+| --- | --- |
+| Gate | % lines on scoped core |
+| Ratchet history | → → → → → |
+| Include | plugins, storage (minus idb), store, results, sources, streams, data, chart pure helpers + series-factory/manager-access, worker auth/keys/runtime/scripts |
+| Exclude from gate | drawing-layer.ts, pane-manager (unit elsewhere), runner chart apply, pyodide boot, legacy JS, Solid UI .tsx |
+| Full report | bun test --coverage unscoped |
+Conventions
+. import './setup' first when tests touch store/plugins/storage.
+. No real network — mock fetch / WebSocket.
+. Table-driven tests for catalog built-ins.
+. Plugin fixtures in tests/fixtures/plugins/.
+. Prefer calling handlers with fake params over full browser for unit scope.
+Playwright
+Config (playwright.config.ts):
+testDir: ./ee
+Chromium project
+webServer: bun run build && bun run preview -- --host ... --port
+baseURL: http://...: (override AXISEEBASE)
+Timeout s; CI retries
+Smoke mocks /run and Binance. Use data-testid attributes (axis-btn-load, axis-manager, …).
+Security suite
+bun run test:security covers:
+Plugin URL scheme rejection
+Storage-via-URL rejection
+Poisoned localStorage
+Worker partition isolation
+If-Match
+Admin keys
+Adding a unit test
+. Create frontend/tests/.test.ts.
+. Import setup if needed.
+. Use fixtures under tests/fixtures/.
+. Run bun run test:unit and bun run test:coverage:gate`.
+CI linkage
+See CI and testing for workflow job names and nightly schedule.
+Failure modes
+| Failure | Mitigation |
+| --- | --- |
+| Coverage drop | Add tests in scoped files or deliberately exclude only with policy change |
+| EE flake | Mock network; single worker; stable testids |
+| IDB in unit | Local storage falls back to memory maps |
+See also
+CI and testing
+Plugin contracts
+Worker auth
+---
+FILE: docs/axis/ui/charting.mdx
+Charting
+Charting is the spatial surface for OHLCV, overlays, and annotations. Implementation is imperative under a Solid shell so lightweight-charts owns its DOM subtree.
+Abstract
+| Module | Role |
+| --- | --- |
+| ChartHost.tsx | Solid mount; empty-state overlay; lifecycle |
+| pane-manager.ts | Multi-pane LWC charts, time sync |
+| series-factory.ts | Candle/volume/line series helpers + palette |
+| drawing-layer.ts | User + script drawings |
+| crosshair-sync.ts | Cross-pane crosshair |
+| pine-drawings.ts | Engine drawing objects → layer |
+| manager-access.ts | Process-wide manager/layer getters |
+Conceptual model
+Interface surface
+Panes
+store.panes: { id, type, height, order, visible, label }.
+| type | Typical series |
+| --- | --- |
+| price | Candles + overlay lines + markers + drawings |
+| volume | Histogram |
+| indicator | Non-overlay plots |
+| equity | Strategy equity curve |
+Defaults: price + volume. Indicator/equity created on demand.
+Empty / status overlay
+When bars.length === , ChartHost shows contextual title/sub from store.status (loading, error, running, or “Load data to begin”).
+Drawings toolbar
+See operator guide Drawings. Tools: cursor, hline, trend, ray, rect, fib, measure, text.
+Crosshair & time
+syncTimeScales / syncCrosshair keep multi-pane navigation coherent. scrollToTime used from Results trade clicks.
+Internals
+Solid vs imperative boundary
+``text
+// ChartHost — Solid owns outer shell
+// PaneManager only mutates panesEl — never put Solid children inside panesEl
+`
+On cleanup: destroy drawing layer, dispose manager, clear accessors.
+Data path
+setDataToChart(bars) applies OHLCV; createEffect on store.bars re-applies if bars change outside load helper.
+Run apply (chart side)
+From runAndApply (indicators):
+syncOverlayLines — update existing overlay series in place (avoids destroy→blank→add flash on live re-runs)
+Markers from normalized events (set in place)
+Script drawings atomic replace via DrawingLayer (setScriptDrawings without empty frame)
+Equity series when strategy report warrants (silent live runs skip hide thrash)
+History vs live bars
+Full loads: loadBars → chartDataGen++ → setDataToChart + fitContent
+Live: multiplex → appendBar + manager.appendBar only (no fitContent, no full setData)
+series-factory
+Centralizes series construction options and color palette so Results plot summary and chart stay chromatically related.
+Invariants
+. Solid reconciliation must not rewrite pane roots.
+. Script drawings ephemeral per run; user drawings store-backed.
+. Overlay default true unless meta.overlay === false.
+. Manager may be null before mount—runner no-ops chart apply safely.
+Failure modes
+| Symptom | Cause |
+| --- | --- |
+| Blank panes after hot reload | Manager disposed; full remount |
+| Overlays stack forever | Old path skipped removeOverlays |
+| Fib/tools ignore clicks | No bars / time scale; wrong tool |
+| Markers at t= | Event times not bar-aligned |
+Worked example (dev)
+`ts
+import { getManager } from './chart/manager-access';
+getManager()?.scrollToTime(barTime);
+``
+See also
+Indicators
+Results and strategy
+End-user drawings
+---
+FILE: docs/axis/ui/editor.mdx
+Editor
+The editor is the source axis of intent: Pine text the operator authorizes the engine to run. It is not a language server host by default in the PWA path (LSP lives in the broader pynescript project).
+Abstract
+| Module | Role |
+| --- | --- |
+| EditorPane.tsx | Docked/standalone chrome, resize, detach |
+| tabbed-editor.tsx | Multi-tab document UX |
+| PineEditor.tsx | CM mount |
+| pine-language.ts | StreamLanguage / highlighting |
+| editor-bridge.ts | Cross-window doc + run messages |
+| cm-void.ts | Void-theme CM styling |
+Conceptual model
+Why run on main? Chart, bars, and pane manager live in the main window. Popout is a pure editing surface.
+Interface surface
+Docked mode
+Right column in app.tsx when editor.open && mode === 'docked'
+Resize via ResizeHandle → editor.width
+Hide chevron → setEditorOpen(false)
+Detach → popup or tab (openEditorWindow)
+Popout mode
+Main shows “Editor detached” chip + Reattach
+Shared doc key + bridge messages: hello, doc, run, run-status, reattach, popout-opened, popout-closed
+Stale popout mode after reload: main waits for editor hello
+Run entry points
+Editor Run control → onRun(doc) → runAndApply
+Topbar Run uses same editorRef.getDoc()
+Popout Run → bridge → main executes
+Library load
+loadLibraryDoc(doc, name) (when provided on ref) injects storage reads without fighting CM transaction history poorly—panel calls through App wiring.
+Internals
+editorRef pattern
+App holds a mutable ref object { getDoc, setDoc?, loadLibraryDoc? } populated by child mount—avoids over-reactive store writes on every keystroke for the full document (doc also optionally mirrored to EDITORDOCKEY).
+Language package
+pine-language.ts supplies CM language support sufficient for editing comfort; semantic diagnostics are not a substitute for engine errors (Results / status).
+Persistence
+Layout: store.editor in pynescript.axis.v
+Text: pynescript.axis.editor.doc (+ legacy migration)
+Invariants
+. Empty doc Run is no-op at topbar/editor handlers.
+. Popout does not own PaneManager.
+. Reattach restores shared doc into docked CM.
+. AXIS ≠ engine: editor never evaluates Pine itself.
+Failure modes
+| Symptom | Mitigation |
+| --- | --- |
+| Two editors diverge | Prefer bridge doc events; reattach |
+| Detached but no window | Popup blocked; allow popups; reattach |
+| Lost text on crash | editor.doc localStorage; library Save |
+See also
+UI shell
+Indicators
+Script library
+---
+FILE: docs/axis/ui/index.mdx
+UI
+UI is the AXIS browser presentation layer: everything the operator sees and clicks that is not language evaluation. Engines are plugins; AXIS applies their outputs to panes, markers, and drawers.
+Abstract
+| Subsystem | Responsibility |
+| --- | --- |
+| Charting | lightweight-charts panes, drawings, crosshair |
+| Editor | CodeMirror Pine surface, dock/popout |
+| UI shell | Topbar, watchlist, status, manager chrome |
+| Indicators | Run pipeline, overlay apply, indicator list |
+| Results & strategy | Event normalize, trades, export |
+| Store | Solid store, persistence, active plugins |
+Conceptual model
+Invariant (AXIS ≠ engine): no Solid component imports PYNE directly; only engine modules talk to Python/HTTP runtimes.
+Interface surface (visual map)
+``text
+┌─ Topbar ──────────────────────────────────────────────┐
+├─ Watchlist ─┬─ ChartHost + drawings ─┬─ Indicators ─┬─ Editor ─┤
+├─ Results drawer ──────────────────────────────────────┤
+├─ System logs ─────────────────────────────────────────┤
+└─ StatusBar ───────────────────────────────────────────┘
+Settings modal + Plugin Manager modal
+`
+Implemented in frontend/src/app.tsx.
+Stack
+| Concern | Choice |
+| --- | --- |
+| Framework | SolidJS . |
+| Bundler | Vite + vite-plugin-solid |
+| Charts | lightweight-charts |
+| Editor | CodeMirror |
+| Icons | lucide-solid |
+| Style | Tailwind + void tokens (data-theme) |
+Relation to other tracks
+Operators: End User
+Structure: Architecture
+Contracts: Plugins
+Language: PYNE runtime
+See also
+frontend/LEGACY.md — what is not the AXIS product path
+frontend/TESTING.md` — unit/ee around UI modules
+---
+FILE: docs/axis/ui/indicators.mdx
+Indicators
+“Indicators” in AXIS terms means scripts applied to the chart, whether indicator() or strategy() in Pine. The module boundary is indicators/runner.ts plus list UI—not the PYNE evaluator.
+Abstract
+| Piece | Role |
+| --- | --- |
+| runScript | Engine invocation + status/timeouts |
+| runAndApply | Chart + lastRun + results open |
+| probeEndpoint | Settings health check helper |
+| IndicatorPanel | List/toggle scripts in store |
+| IndicatorCard | Per-script UI chrome |
+Language semantics: PYNE runtime.
+Conceptual model
+Interface surface
+runScript options
+| Option | Default | Meaning |
+| --- | --- | --- |
+| silent | false | Quiet status; live re-run logging |
+| timeout | derived | Interactive: scales with bars (–s); silent s |
+runAndApply options
+| Option | Default | Meaning |
+| --- | --- | --- |
+| openResults | !silent | Open results drawer |
+| indicatorId | optional | Update existing store indicator |
+Overlay routing
+``text
+overlay = result.meta.overlay !== false
+paneId = overlay ? 'price' : 'indicator'
+`
+Non-overlay creates indicator pane if missing (addPane + manager createPane).
+Series selection
+Prefer result.series entries whose keys do not start with / . Fallback: single plots[] array as one line named from scriptname.
+Colors: plotmeta[k].color or PLOTPALETTE[i].
+Indicator panel
+Side list of store.scripts (Indicator: id, name, code, paneId, visible, plots). Visibility toggles affect display intent; re-run still engine-driven.
+Active engine binding
+`ts
+// plugins/active.ts pattern
+getActiveEngine() // registry lookup by activePlugins.engine
+getActiveEngineConfig() // pluginsConfig + store.endpoint merge
+`
+Switching engines mid-session does not auto-rerun; operator hits Run.
+Live re-run coupling
+Streams may set live.needsRerun; multiplex/runner path can call runAndApply with silent: true so the status bar is not spammed. Failures go to logs.
+Internals
+| Path | Role |
+| --- | --- |
+| frontend/src/indicators/runner.ts | Pipeline |
+| frontend/src/indicators/IndicatorPanel.tsx | List UI |
+| frontend/src/plugins/active.ts | Active engine/source helpers |
+| frontend/src/engines/catalog.ts | Built-in engines |
+Invariants
+. Runner is the only chart-facing calc orchestrator (avoid duplicate apply logic in components).
+. Errors still setLastRun with status: 'error' when possible.
+. Clearing overlays happens before re-adding—no unbounded series leak.
+. AXIS does not interpret Pine; it only maps RunResult`.
+Failure modes
+| Symptom | Layer |
+| --- | --- |
+| Engine exception | Results error + status |
+| Success empty plots | Script/meta—not runner |
+| Manager null | Chart not mounted; run still sets lastRun |
+| AbortError | Timeout—reduce bars or optimize script |
+See also
+Charting
+Results and strategy
+ADR- / ADR-
+---
+FILE: docs/axis/ui/results-and-strategy.mdx
+Results and strategy
+Results UI turns opaque engine payloads into operator-consumable tables, metrics, and files. It is a pure-ish viewer layer over lastRun + bars.
+Abstract
+| Module | Role |
+| --- | --- |
+| results/events.ts | Normalize heterogeneous event shapes; markers; equity series |
+| results/strategy.ts | Pair trades; stats; CSV helpers |
+| ui/ResultsPanel.tsx | Tabs, export, jump-to-time |
+| ui/StatusBar.tsx | Compact trade summary |
+Conceptual model
+Event normalization
+Engines may emit Pro API parity fields (kind, bar_time, direction, ohlc) or legacy UI fields (type, time, dir, price). Normalizer:
+Unifies time/price/dir/id
+Optionally fills price from bars when OHLC present/empty
+Can include order-like events for the Events tab
+Trade pairing algorithm
+Sketch (buildStrategyReport):
+. Sort by time.
+. On entry-like kind → open map by id.
+. On exit/close-like → match id, else sole open trade.
+. PnL = Δprice × long/short sign.
+. Aggregate win rate, profit factor, max DD on cumulative PnL.
+Not modeled: fees, funding, partial fills, portfolio multi-symbol—viewer honesty.
+ResultsPanel tabs
+| Tab | Data source |
+| --- | --- |
+| Events | normalizedEvents |
+| Strategy | report.trades + report.stats |
+| Plots | series / plots summary |
+| Metrics | meta + context + stats subset |
+| Raw | JSON.stringify(lastRun) |
+Interactions: copy, export, scrollToTime on trade rows.
+Equity
+buildEquityCurve feeds chart equity pane when runner/strategy path requests it—derived series, not engine-native unless also provided.
+Export (ADR-)
+| Artifact | Function |
+| --- | --- |
+| axis-run-.json | Full payload |
+| axis-trades-.csv | tradesToCsv |
+| Clipboard | CSV when permitted |
+Invariants
+. Results recompute from lastRun reactively; they do not re-query engines.
+. Changing bars without re-run can change normalization fills—re-run after Load.
+. lastRun not rehydrated from localStorage (session artifact).
+. Infinite profit factor when no losses but profits exist—display must tolerate non-finite.
+Failure modes
+| Symptom | AXIS explanation |
+| --- | --- |
+| Events > , trades = | Unpaired or missing prices |
+| CSV disabled | No closed trades |
+| Jump no-ops | Manager unmounted / invalid time |
+Internals cross-links
+Operator narrative: Strategy and results.
+Architecture: ADR-.
+See also
+Indicators
+Charting
+---
+FILE: docs/axis/ui/store.mdx
+Store
+The Solid store is the control-plane nexus of AXIS. Plugins read configuration from it; UI binds reactively; persistence snapshots a safe subset to pynescript.axis.v.
+Abstract
+| Export | Role |
+| --- | --- |
+| store / setStore | createStore |
+| persist | Debounced localStorage write |
+| setActivePlugin | Kinded selection + flat field mirrors |
+| appendLog / status helpers | Operator-visible telemetry |
+| STORAGEKEY | pynescript.axis.v |
+Types: frontend/src/store/types.ts.
+Conceptual model
+AppState map
+| Field | Persistence | Notes |
+| --- | --- | --- |
+| bars | no | Session history |
+| symbol, interval, exchange | yes | Market context |
+| source, engine | yes | Flat mirrors |
+| endpoint | yes | Server engine base URL |
+| activePlugins | yes | Canonical four-tuple |
+| pluginsConfig | yes | Per-plugin fields |
+| scripts, panes | yes | Indicator list + layout |
+| live | partial | streamId important |
+| theme | yes | dark/light |
+| editor, watchlist, panels | yes | Chrome geometry |
+| stream.status | yes/volatile | Connection hint |
+| status, statusMessage, lastRunMs | yes | UX; ok to restore |
+| lastRun | no | Forced null on hydrate |
+| logs | no | Forced empty |
+| drawingTool | reset cursor | On hydrate |
+| drawings | yes | User annotations |
+\Status fields may restore but boot also appends fresh logs.
+Defaults (product)
+Representative defaults from store:
+| Key | Default |
+| --- | --- |
+| symbol | BTCUSDT |
+| interval | d |
+| source / active source | binance-rest |
+| stream | binance-ws |
+| engine | server |
+| storage | local |
+| endpoint | demo/API host or localhost depending on build era |
+| editor width | docked open |
+| watchlist | majors, s refresh |
+Treat demo endpoints as overridable—operators should set local URLs in desk topology.
+setActivePlugin
+``text
+setActivePlugin(kind, id):
+activePlugins[kind] = id
+if source → source = id
+if engine → engine = id
+if stream → live.streamId = id
+persist()
+`
+Prevents registry/store split brain (architecture overview).
+Logging
+`text
+appendLog(level, message, source?)
+levels: info | ok | warn | error
+MAXLOGS =
+`
+setStatus maps app status to log levels for important transitions.
+Legacy dual path
+Vanilla state.js remains for legacy shell with the same storage key family. Product AXIS uses Solid store only—do not dual-write new features to state.js unless maintaining legacy.
+Invariants
+. Hydrate never restores lastRun or logs.
+. Persist strips bars.
+. Migration from SuperChart keys is read-repair (state namespaces).
+. pluginsConfig keys prefer ${kind}:${id} .
+. Store is not a plugin registry—ids must exist in registry to function at runtime.
+Failure modes
+| Mode | Behavior |
+| --- | --- |
+| JSON parse fail | Defaults |
+| localStorage throws | No-op persist |
+| Unknown plugin id | UI may show id; run/load fails at getActive |
+| Oversized drawings | Quota risk—export/clear |
+Testing notes
+Import tests/setup.ts` for localStorage stubs
+Unit coverage includes store + migration patterns
+Do not require real IDB in pure store tests
+See also
+State namespaces
+ADR-
+UI shell
+---
+FILE: docs/axis/ui/ui-shell.mdx
+UI shell
+The shell is the non-canvas chrome: navigation of axes, market selection, modals, and status. It binds human gestures to store + plugins without owning calculation.
+Abstract
+| Component | Path | Role |
+| --- | --- | --- |
+| Topbar | ui/Topbar.tsx | Axes pickers, Load/Run/Live, theme, modals |
+| Watchlist | ui/Watchlist.tsx | Symbols, quotes, click-to-load |
+| StatusBar | ui/StatusBar.tsx | Status, engine/storage badges, trade snippet |
+| SettingsDialog | ui/SettingsDialog.tsx | Endpoint, engine, storage, intervals |
+| PluginManager | ui/PluginManager.tsx | Catalog / install / library |
+| SystemLogs | ui/SystemLogs.tsx | Ring buffer of store.logs |
+| ResultsPanel | ui/ResultsPanel.tsx | Bottom drawer (see results doc) |
+| Icons | ui/icons.tsx | Lucide wrappers |
+| ResizeHandle | ui/ResizeHandle.tsx | Panel widths/heights |
+Conceptual model
+Topbar responsibilities
+| Control | Effect |
+| --- | --- |
+| Symbol / interval | Store + Load |
+| Source select | setActivePlugin('source') + default stream |
+| Stream select | live.streamId / active stream |
+| Engine select | Active engine (+ pyodide preload side effects) |
+| CSV file | parseOhlcvFile → upload-store → load |
+| Load | Historical fetch |
+| Run | Editor doc → runAndApply |
+| Live | multiplex start/stop |
+| Editor / watchlist toggles | Layout flags |
+| Settings / Plugins | Modal open |
+| Detach editor | Bridge + popout |
+catalogTick forces memo re-list when plugins install/remove.
+Watchlist
+Default universe includes majors (BTCUSDT, …)
+refreshSec clamped –
+Source-aware labels (e.g. CSV mode)
+Click sets symbol and loads through active source
+Status bar
+Single row:
+Left — Connection HUD (ConnectionHud, data-testid="axis-connection-hud")
+LIVE badge (off / connecting / live / err)
+Tick pulse (fixed-width price + age; ping does not resize layout)
+Engine chip (id · interpret/compile · latency)
+Plane chips SRC / STR / ENG / STO with transport badges WS / REST / LOCAL / BROKER
+Sourcestream pairing warning when mismatched
+Right — status / statusMessage, strategy snippet, log toggle, bar/ind/pane counts
+Telemetry is ephemeral (store.telemetry); HUD compact mode and live prefs persist via settings.
+Live settings (Settings dialog)
+| Setting | Default | Effect |
+| --- | --- | --- |
+| Auto-start live after Load | off | live.preferAfterLoad → multiplex after successful Load |
+| Indicator re-run | every-tick | or bar-close only |
+| Compact connection HUD | off | hide plane chips |
+Logs
+appendLog(level, message, source)
+Cap MAX_LOGS ()
+Not persisted
+Boot messages, pyodide ready, live errors
+Theming
+store.theme → document.documentElement data-theme (dark \| light). Void dark is default product aesthetic.
+Accessibility / test hooks
+EE selectors use data-testid on critical controls (axis-btn-load, axis-manager, …) per TESTING.md.
+Invariants
+. Shell never calls Python.
+. Plugin lists always come from registry facades (listSources, …).
+. Modal settings persist only on Save (not on every keystroke of endpoint field until save).
+. Live off leaves historical bars intact.
+Failure modes
+| Symptom | Shell-side check |
+| --- | --- |
+| Pickers empty | Builtins not registered at boot |
+| Live ignores click | Stream none or multiplex error in logs |
+| Settings probe fails | Network / CORS—not topbar bug |
+See also
+Manager and settings
+Store
+Architecture overview
+---
+FILE: docs/axis/worker/auth.mdx
+Worker auth
+Abstract
+AXIS Worker auth is API-key based, not session cookies. Keys are created by admins (X-Admin-Token), validated via KV when bound, and used as Authorization: Bearer on script library and optionally on /api/run (usage metering).
+Core helpers: frontend/worker/src/auth.ts. Key CRUD: frontend/worker/src/keys.ts.
+Conceptual model
+Interface surface
+AuthContext
+``ts
+{ key: string; userId: string; tier: string }
+`
+userId is a truncated SHA- of the key (stable partition id).
+extractBearer
+. Authorization: Bearer
+. Else query ?key=
+requireApiKey
+Returns either { ok: true, ctx } or { ok: false, status, code, message }.
+| Code | HTTP | When |
+| --- | --- | --- |
+| NOKEY | | Empty |
+| INVALIDKEY | | Unknown in KV / malformed |
+Admin keys API (/api/keys)
+| Action | Auth | Behavior |
+| --- | --- | --- |
+| create (POST or ?action=create) | X-Admin-Token === env.ADMINTOKEN | Mint pn + hex, store key:{key} in KV (y TTL) with tier |
+| validate (GET or ?action=validate) | Bearer or ?key= | Tier + createdat if known |
+Tiers: free \| hobby \| pro \| team \| enterprise.
+Without ADMINTOKEN set, create always fails (isAdmin false).
+Without KV on validate: accepts well-formed pn[a-f-]{} as hobby (dev).
+ALLOWOPENKEYS
+wrangler.toml defaults local demos to "":
+accept any non-empty Bearer key for /api/scripts
+Never leave open in production. Prefer bound APIKEYS + real admin-minted keys.
+Internals
+| Path | Role |
+| --- | --- |
+| src/auth.ts | Bearer, hash, requireApiKey |
+| src/keys.ts | Admin create / validate |
+| src/runtime.ts | Optional usage increment by Bearer |
+| src/scripts.ts | requireApiKey gate |
+Key format
+`ts
+'pn' + random bytes as hex // hex chars
+`
+Invariants & edge cases
+. Admin token is a shared secret — rotate via wrangler secrets in production, not committed vars.
+. KV record shape — JSON { key, tier, createdAt } under key:${apiKey}.
+. No OAuth / cookies — PWA stores the key in plugin config (storage:cloud).
+. Stream DO unauthenticated — public market data only.
+Worked examples
+Create a key (admin)
+`bash
+curl -sS -X POST 'http://...:/api/keys?action=create' \
+-H "X-Admin-Token: $ADMINTOKEN" \
+-H 'content-type: application/json' \
+-d '{"tier":"hobby"}'
+`
+Validate
+`bash
+curl -sS 'http://...:/api/keys?action=validate' \
+-H "Authorization: Bearer pn_…"
+``
+Failure modes
+| Symptom | Cause |
+| --- | --- |
+| create | Wrong/missing admin token |
+| scripts | Open keys off + no KV + bad shape |
+| Cross-user leakage tests fail | Partition hash regression |
+See also
+Data plane
+Bindings
+Security tests
+---
+FILE: docs/axis/worker/bindings.mdx
+Worker bindings
+Abstract
+Bindings and vars for the AXIS Worker are declared in frontend/worker/wrangler.toml. Many production bindings ship commented so clone-and-dev does not require Cloudflare resources; wrangler dev synthesizes local substitutes where possible.
+Project name is frozen: name = "pynescript-superchart".
+Conceptual model
+Interface surface — Env
+From src/index.ts:
+``ts
+interface Env {
+APIKEYS?: KVNamespace;
+USAGE?: KVNamespace;
+DB?: DDatabase;
+BUNDLES?: RBucket;
+SESSIONS?: DurableObjectNamespace;
+EXTERNALBACKEND?: string;
+ALLOWEDORIGIN?: string;
+ADMINTOKEN?: string;
+PYODIDEINWORKER?: string;
+ALLOWOPENKEYS?: string;
+}
+`
+Vars ([vars])
+| Var | Default (repo) | Role |
+| --- | --- | --- |
+| EXTERNALBACKEND | "" | Flask (or other) base URL for /api/run proxy |
+| ALLOWEDORIGIN | https://pynescript.ai | CORS allow when Origin not local |
+| ADMINTOKEN | "" | Shared secret for key minting |
+| PYODIDEINWORKER | "disabled" | Gate in-worker Python |
+| ALLOWOPENKEYS | "" | Local demos; set "" in prod |
+Prefer secrets for ADMINTOKEN and production backends:
+`bash
+wrangler secret put ADMINTOKEN
+wrangler secret put EXTERNALBACKEND
+`
+Provision recipes
+KV
+`bash
+wrangler kv namespace create APIKEYS
+wrangler kv namespace create USAGE
+paste ids into wrangler.toml [[kvnamespaces]]
+`
+D
+`bash
+wrangler d create pynescript
+[[ddatabases]] binding = "DB" (name MUST be DB)
+wrangler d execute pynescript --remote --file=schemas/scripts.sql
+`
+Repo may already contain a databaseid for the project’s D — treat IDs as environment-specific when forking.
+R (optional)
+`bash
+wrangler r bucket create indicator-bundles
+binding BUNDLES
+`
+Durable Objects
+Uncomment bindings + migrations in wrangler.toml, then:
+`bash
+wrangler deploy
+`
+Class: SessionDO exported from src/index.ts.
+Other wrangler settings
+| Setting | Value |
+| --- | --- |
+| main | src/index.ts |
+| compatibilitydate | -- |
+| compatibilityflags | nodejscompat |
+| [observability] | enabled = true |
+Static PWA assets are not served by this Worker in the documented split: Pages serves dist/, Worker serves API/WS. Project name for Pages deploy remains pynescript-superchart.
+Deploy commands
+`bash
+cd frontend/worker
+wrangler deploy
+Pages (from frontend/)
+bun run build
+wrangler pages deploy dist --project-name=pynescript-superchart
+or npm run deploy:pages from worker package
+`
+Makefile: make worker-deploy, make pages-deploy (note: some Makefile targets still point at legacy tree — prefer dist/ from Vite build; see build and serve).
+Invariants & edge cases
+. Do not rename CF project without migrating all binding IDs, custom domains, and CI.
+. Local wrangler auto-provisions mock KV/D; production needs real IDs.
+. EXTERNALBACKEND=localhost on CF cannot reach your laptop — use a public tunnel or co-located VPS.
+. Health reports which optional bindings are present.
+Failure modes
+| Deploy / runtime issue | Fix |
+| --- | --- |
+| Deploy fails placeholder KV | Uncomment only after create, or leave commented |
+| Scripts empty | Apply SQL schema |
+| Stream | Enable DO binding + migration |
+| CORS fails prod origin | Set ALLOWED_ORIGIN` to exact Pages origin |
+See also
+Cloudflare DevOps
+Runtime
+CORS
+---
+FILE: docs/axis/worker/data-plane.mdx
+Worker data plane
+Abstract
+The Worker data plane for user scripts is frontend/worker/src/scripts.ts — REST under /api/scripts with Bearer auth (auth). Persistence prefers D (env.DB); without D, per-isolate in-memory maps support local wrangler dev.
+The PWA cloud storage plugin is the primary client.
+Conceptual model
+Interface surface
+All routes require valid API key unless noted.
+| Path | Methods | Behavior |
+| --- | --- | --- |
+| /api/scripts | GET | List meta for userId |
+| /api/scripts | POST | Create script |
+| /api/scripts/:id | GET | Read full document |
+| /api/scripts/:id | PUT | Upsert; honors If-Match revision |
+| /api/scripts/:id | DELETE | Remove |
+| /api/scripts/draft | GET/PUT | Per-user draft buffer |
+Document fields
+| Field | Notes |
+| --- | --- |
+| id | Client or server assigned |
+| name, description, path | Meta |
+| content | Pine source |
+| revision | Opaque string (rev…) for concurrency |
+| createdat / updatedat | ms epochs (API may camelCase in JSON) |
+Concurrency
+PUT with If-Match: rejects mismatched revisions ( path covered in security tests). Fresh writes mint newRevision().
+Internals
+D schema (schemas/scripts.sql)
+``sql
+CREATE TABLE scripts (
+userid TEXT NOT NULL,
+id TEXT NOT NULL,
+name TEXT NOT NULL,
+description TEXT,
+path TEXT,
+content TEXT NOT NULL,
+revision TEXT NOT NULL,
+createdat INTEGER NOT NULL,
+updatedat INTEGER NOT NULL,
+PRIMARY KEY (userid, id)
+);
+CREATE TABLE scriptdrafts (
+userid TEXT PRIMARY KEY,
+content TEXT NOT NULL,
+name TEXT,
+updatedat INTEGER NOT NULL
+);
+`
+Apply:
+`bash
+wrangler d execute pynescript --remote --file=schemas/scripts.sql
+wrangler d execute pynescript --local --file=schemas/scripts.sql
+`
+Binding name in wrangler.toml must be DB (code uses env.DB). Database name can be pynescript.
+Partitioning
+userId = SHA-(apikey).hex.slice(, ) — raw keys are not stored as D partition ids.
+Health feature flags
+`json
+{
+"status": "healthy",
+"service": "pynescript-axis-worker",
+"features": { "scripts": true, "d": true/false, "keys": true/false }
+}
+`
+Optional R
+BUNDLES R is reserved for indicator / pynescript wheels (RUNTIME.md). Not required for scripts CRUD.
+Invariants & edge cases
+. Memory store is not multi-isolate durable — production needs D.
+. Drafts ≠ commits — drafts are crash buffers; library list is separate.
+. CORS — scripts handler sets allow headers including If-Match`.
+. Cloud plugin dual-write — browser still saves drafts to local storage.
+Failure modes
+| Code / symptom | Meaning |
+| --- | --- |
+| | Missing/invalid Bearer |
+| | Unknown script id for user |
+| | Revision conflict |
+| Empty list after deploy | Schema not applied / wrong DB id |
+See also
+Storage plugins
+Auth
+Bindings
+---
+FILE: docs/axis/worker/durable-objects.mdx
+Durable Objects
+Abstract
+SessionDO (frontend/worker/src/durable-objects/session.ts) is a per-session WebSocket relay. Browsers connect to the Worker at /api/stream; the Worker pins a Durable Object by session name and the DO opens one upstream Binance kline socket, broadcasting payloads to connected clients.
+Goal: survive browser per-origin WebSocket connection limits and share upstream subscriptions.
+Conceptual model
+Interface surface
+Client → Worker
+``
+wss:///api/stream?session=&symbol=BTCUSDT&interval=m
+`
+frontend/worker/src/index.ts:
+Requires env.SESSIONS binding; else NODO.
+idFromName(session || 'default').
+Rewrites request to DO path /ws?… and returns upgrade response.
+DO HTTP surface
+| Path | Role |
+| --- | --- |
+| /ws | Only path; requires Upgrade: websocket (else ) |
+Query: symbol (default BTCUSDT), interval (default m).
+Client → DO messages (JSON)
+| Message | Effect |
+| --- | --- |
+| { "action": "subscribe", "symbol", "interval" } | Rebind upstream if changed |
+| { "action": "ping" } | { action: "pong", t } |
+DO → client
+Raw Binance kline JSON (same as direct venue WS).
+Status: { type: 'status', state: 'open'|'closed', url? }
+Errors: { type: 'error', message }
+Example plugin
+frontend/public/plugins/example-cf-do-stream.js maps kline fields to Bar and builds the Worker URL from config endpoint.
+Internals
+| Topic | Detail |
+| --- | --- |
+| Upstream URL | wss://stream.binance.com:/ws/{symbol}@kline{interval} |
+| Client lifecycle | acceptWebSocket; on last client close → closeUpstream |
+| Hibernation | Comment intent: hibernate when empty; implementation uses explicit close |
+| Fan-out | broadcast to all clients |
+wrangler binding (often commented until ready)
+`toml
+[[durableobjects.bindings]]
+name = "SESSIONS"
+classname = "SessionDO"
+[[migrations]]
+tag = "v"
+newsqliteclasses = ["SessionDO"]
+`
+SessionDO is re-exported from src/index.ts for the Workers runtime class registry.
+Invariants & edge cases
+. Session key — example plugin uses symbol@interval as session name so like-minded tabs share one DO.
+. No auth on stream today — treat as public relay of public market data; do not put secrets in query strings.
+. Upstream hard-coded Binance — not a generic multiprovider DO yet.
+. Binding optional in local — without SESSIONS, stream API fails closed with NODO.
+Failure modes
+| Symptom | Cause |
+| --- | --- |
+| NODO | Binding commented / not deployed |
+| expected websocket | Non-upgrade GET |
+| No bars | Upstream block or wrong interval string |
+| Stale symbol | Client did not send subscribe` after change |
+See also
+Streams
+Bindings
+Plugin examples
+---
+FILE: docs/axis/worker/index.mdx
+Worker
+Abstract
+The AXIS Cloudflare Worker (frontend/worker/) is the edge data plane for the PWA: JSON APIs, optional script library (D), API keys (KV), usage meters, and a WebSocket session relay (Durable Objects). It is not a full Pine interpreter in production today.
+Honest runtime fact: POST /api/run proxies to EXTERNALBACKEND (typically Flask) unless PYODIDEINWORKER=enabled and the in-worker path succeeds. In-worker Pyodide is planned / feature-gated — see Runtime and frontend/worker/RUNTIME.md.
+Conceptual model
+Infrastructure names (frozen)
+| Surface | Value |
+| --- | --- |
+| Wrangler / Pages project | pynescript-superchart — do not rename lightly |
+| npm package | pynescript-superchart-worker |
+| Health JSON service | pynescript-axis-worker |
+| Product brand | AXIS |
+Custom domains / aliases may say axis.; leave the CF project id stable so KV/D IDs and CI stay valid.
+Interface surface
+| Path | Method | Role |
+| --- | --- | --- |
+| /, /health | GET | Health + feature flags (scripts, d, keys) |
+| /api/run | POST | Run script (proxy / gated Pyodide) |
+| /api/keys | GET/POST | Validate / create keys (X-Admin-Token for create) |
+| /api/usage | GET | Usage stub / KV-backed counters |
+| /api/scripts… | CRUD | Script library (Bearer) |
+| /api/stream | WS | Session DO relay |
+Entry: frontend/worker/src/index.ts.
+Local entrypoints
+``bash
+cd frontend/worker
+npm install or bun install
+npm run dev wrangler dev → http://...:
+`
+Makefile: make worker-dev, make worker-deploy.
+Implementation status
+| Feature | Status |
+| --- | --- |
+| /api/run → EXTERNALBACKEND | Works today |
+| Admin /api/keys | Works (KV or shape-check) |
+| Usage KV increment on run | Works when USAGE bound |
+| SessionDO + /api/stream | Implemented; binding often commented until provisioned |
+| /api/scripts + D schema | Implemented; memory fallback without D |
+| Pyodide scaffold | pyodide_runtime.ts + flag; wheel pipeline incomplete |
+| Response cache for /api/run | Deferred |
+Page map
+| Page | Topic |
+| --- | --- |
+| Runtime | /api/run, proxy, Pyodide plan |
+| Durable Objects | Stream fan-out |
+| Data plane | Scripts, D, drafts |
+| Auth | Bearer keys, admin token |
+| Bindings | wrangler.toml, vars, provision |
+See also
+Cloudflare deploy
+Engines
+Worker README: frontend/worker/README.md`
+---
+FILE: docs/axis/worker/runtime.mdx
+Worker runtime
+Abstract
+frontend/worker/src/runtime.ts implements handleRun for POST /api/run. Execution preference is documented in-file:
+. PYODIDEINWORKER=enabled → tryRunInWorker (pyodideruntime.ts)
+. Else EXTERNALBACKEND set → HTTP proxy to ${EXTERNALBACKEND}/run
+. Else NOBACKEND with a pointer at env vars and RUNTIME.md
+Production reality: ships as a proxy to Flask (or another Python host). In-worker Pyodide is a scaffold, not a complete wheel-upload pipeline.
+Conceptual model
+Interface surface
+Request body
+``ts
+{
+script: string; // required non-empty
+data: Bar[]; // required non-empty OHLCV array
+mode?: 'interpret' | 'compile';
+}
+`
+Invalid bodies → { status: 'error', code: 'BADREQUEST', message }.
+Success / upstream
+Proxy returns upstream status and body verbatim (JSON content-type, CORS origin header). Flask Pro API is the usual upstream.
+Error codes (Worker-originated)
+| Code | HTTP | Meaning |
+| --- | --- | --- |
+| BADREQUEST | | Validation |
+| NOBACKEND | | No external backend and Pyodide path off/failed path to proxy |
+| (Pyodide) | body error | tryRunInWorker may return { status: 'error', error } JSON |
+Usage metering
+If Authorization: Bearer … and USAGE KV bound:
+`
+usage:{key} → count++, TTL days
+`
+Internals
+| Path | Role |
+| --- | --- |
+| src/runtime.ts | validate, meter, dispatch |
+| src/pyodideruntime.ts | gated boot + runscript stub path |
+| RUNTIME.md | architecture plan for wheels / R / cold start |
+| wrangler.toml [vars] | EXTERNALBACKEND, PYODIDEINWORKER |
+pyodideruntime scaffold
+When enabled:
+Lazy-loads Pyodide from jsDelivr v.. (dev fallback).
+Production intent: R wheels + module-level cache (RUNTIME.md).
+Calls runscript(script, bars) via runPythonAsync — requires runtime bootstrap that is not fully wired like the browser engine’s pynescriptruntime.py + micropip install.
+Do not enable in production without completing the wheel pipeline and load testing CPU/memory limits.
+Constraints (from RUNTIME.md)
+| Resource | Budget |
+| --- | --- |
+| CPU (paid) | s limit; typical bars ≪ s target |
+| Memory | MB; Pyodide ~ MB + wheel ~ MB |
+| Cold start | ~s first Pyodide boot (plan) |
+Roll-out flag
+RUNTIME.md also mentions RUNTIMEMODE=in-worker as product language; code checks PYODIDEINWORKER === 'enabled'. Prefer the code flag when configuring.
+Invariants & edge cases
+. Body stream — request body is consumed once; proxy re-serializes the already-parsed object.
+. CORS — run responses set Access-Control-Allow-Origin from pickOrigin (see CORS).
+. PWA path mismatch — browser server engine posts to {endpoint}/run; Worker route is /api/run. Align via gateway rewrite or endpoint base path convention.
+. No response caching yet — README lists cache for identical (script, datahash) as deferred.
+Worked examples
+Local proxy to Flask
+`toml
+wrangler.toml [vars]
+EXTERNALBACKEND = "http://...:"
+PYODIDEINWORKER = "disabled"
+`
+`bash
+curl -sS -X POST http://...:/api/run \
+-H 'content-type: application/json' \
+-d '{"script":"//@version=\nindicator(\"t\")\nplot(close)","data":[{"time":,"open":,"high":,"low":,"close":}]}'
+`
+Force for missing backend
+Unset EXTERNALBACKEND, keep Pyodide disabled → expect NOBACKEND message referencing RUNTIME.md.
+Failure modes
+| Symptom | Fix |
+| --- | --- |
+| NOBACKEND | Set EXTERNALBACKEND or finish Pyodide path |
+| Proxy /connection refused | Flask not listening; wrong URL from Worker (use tunnel/public URL in CF, not localhost) |
+| Pyodide enabled but errors | Wheel missing; CDN blocked; incomplete run_script` bootstrap |
+See also
+Bindings
+Engines
+Auth (Bearer on run for metering)
+---

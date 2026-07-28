@@ -35,6 +35,8 @@ class CustomEvaluator(NodeLiteralEvaluator):
         self.plot_outputs = []
         # Bar-by-bar mode: TA helpers return current scalar instead of full series
         self._pine_bar_mode = True
+        # O(1)/O(period) call-site TA for sma/ema/rma/rsi (disable via PYNE_TA_INCREMENTAL=0)
+        self._pine_ta_incremental = True
         # OHLCV history lists for ta helpers that read high/low/close by name
         self.current_series: dict[str, list] = {}
         if not hasattr(self, "_var_declarations"):

@@ -1,0 +1,123 @@
+---
+title: "Installation"
+description: "Run AXIS as Vite+Solid dev, static dist PWA, or against Flask / Cloudflare Worker backends."
+---
+
+# Installation
+
+AXIS ships as the `frontend/` package (`axis-chart`). Primary path is **Vite + Solid**. Legacy static shell (`main.js`, root `style.css`) is not the product UI—prefer `bun run dev` or built `dist/`.
+
+## Abstract
+
+Three operator modes:
+
+| Mode | Command surface | When |
+| --- | --- | --- |
+| Dev AXIS | Vite `:3000` | Day-to-day UI work |
+| Static PWA | `dist/` + `axis_pwa_server.py` `:8081` | Offline demo / VPS |
+| AXIS at the edge | CF Pages + Worker | Production topology |
+
+Backend is optional when **Engine = Client-Side (Pyodide)** and sources/streams are mock or CSV.
+
+## Prerequisites
+
+- **Bun** (or Node 22+) for package install and Vite
+- **Python 3.10+** if you use Flask Pro API (`make run`) or `axis_pwa_server.py`
+- Modern Chromium / Firefox / Safari (PWA install works best on Chromium)
+
+## Dev AXIS (recommended)
+
+```bash
+# Terminal 1 — Pro API (server engine)
+make run              # Flask :5002
+
+# Terminal 2 — AXIS
+cd frontend
+bun install
+bun run dev           # Vite :3000, proxies /run → :5002 when configured
+```
+
+Open `http://localhost:3000`. Default symbol `BTCUSDT`, engine often `server` with endpoint `http://localhost:5002` (or a demo host if preconfigured).
+
+## Production build (static)
+
+```bash
+cd frontend
+bun install
+bun run build         # → frontend/dist/
+python3 axis_pwa_server.py   # serves dist/ on :8081
+```
+
+Confirm:
+
+- App shell loads; chart requests history
+- DevTools → Application → Manifest + Service Worker
+- Icons 192/512 from `public/assets/`
+
+Pyodide assets and vendor wheels under `public/pyodide/` and `public/vendor/` must be present in `dist/` for offline engine—`bun run build` copies them via Vite `public/`.
+
+## Offline-first lab (no Flask)
+
+1. Source → **Mock Walk**
+2. Stream → **Mock Poll** (or **None**)
+3. Engine → **Client-Side (Pyodide)**
+4. Storage → **Local**
+
+Disable network in DevTools; **Run** still executes. First Pyodide boot downloads/loads self-hosted runtime from the origin—allow that once while online, then go offline.
+
+## Cloudflare Worker endpoint
+
+```bash
+cd frontend/worker
+npm install
+npm run dev           # wrangler :8787
+```
+
+In AXIS Settings, set **Backend URL** to `http://127.0.0.1:8787` (or `/api` path as your Worker routes). Production project id is frozen as `pynescript-superchart`—see [topologies](/axis/docs/architecture/topologies).
+
+## CORS when using server engine
+
+Browser origin → Pro API must allow your AXIS origin. Flask uses `ALLOWED_ORIGINS`. Localhost regex is typically included; for a VPS demo host, set an explicit origin list. Symptom of failure: `POST /run` blocked in Network tab (no `Access-Control-Allow-Origin`).
+
+## PWA install
+
+- Manifest: void theme `#0a0b10`, name AXIS
+- Service Worker: cache-first shell; network-first `/api/*`; offline API returns structured failure so Pyodide path remains usable
+- Chrome/Edge: install icon in the omnibox
+
+## Verification checklist
+
+| Check | Expect |
+| --- | --- |
+| Load | Bars on chart for default symbol |
+| Topbar | Source / Stream / Engine pickers populated |
+| Run (server) | Flask or Worker responds; plots overlay |
+| Run (pyodide) | Offline OK after warm-up |
+| Manager | Catalog lists built-ins |
+| Theme | Dark/light toggle persists |
+
+## Failure modes
+
+| Symptom | Likely cause | Fix |
+| --- | --- | --- |
+| Empty chart | Source network / CORS / wrong symbol | Load again; try mock-walk |
+| Engine errors immediately | Endpoint down or wrong URL | Settings → Test endpoint |
+| Pyodide “BadZipFile” / HTML | SPA fallback instead of wheels | Ensure `public/vendor` and pyodide in `dist/` |
+| SW stale UI | Aggressive cache | Unregister SW or hard reload |
+
+## Internals (repo paths)
+
+| Path | Role |
+| --- | --- |
+| `frontend/src/index.tsx`, `app.tsx` | Solid entry |
+| `frontend/vite.config.ts` | Build |
+| `frontend/axis_pwa_server.py` | Static host |
+| `frontend/manifest.webmanifest`, `sw.js` | PWA |
+| `frontend/worker/` | CF Worker data plane |
+
+## See also
+
+- [Quick start](/axis/docs/enduser/getting-started/quick-start)
+- [Compose recipes](/axis/docs/enduser/getting-started/compose-recipes)
+- [DevOps local dev](/axis/docs/devops/local-dev)
+- [Worker](/axis/docs/worker)

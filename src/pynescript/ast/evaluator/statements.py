@@ -786,9 +786,16 @@ class StatementEvaluator:
         return self.visit(node.value)  # type: ignore[attr-defined]
 
     def visit_While(self, node: ast.While):
-        """Execute a while loop. v6 strict bool."""
+        """Execute a while loop. v6 strict bool.
+
+        Caps iterations at 1_000_000 (same as ``for``) so a non-terminating
+        condition cannot hang the evaluator indefinitely.
+        """
         last_result = None
-        while True:
+        max_iters = 1_000_000
+        iters = 0
+        while iters < max_iters:
+            iters += 1
             test_val = self.visit(node.test)  # type: ignore[attr-defined]
             if test_val is None:
                 test_val = False

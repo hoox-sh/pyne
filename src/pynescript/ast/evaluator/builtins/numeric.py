@@ -97,10 +97,26 @@ class NumericBuiltinsMixin(BuiltinDispatchMixin):
 
     def _as_scalar(self, value: Any) -> Any:
         """Extract the scalar value from PineSeries, _SeriesResult-like, or list."""
-        if hasattr(value, "current"):
-            return value.current
-        if isinstance(value, list) and len(value) > 0:
-            return value[-1]
+        # Walk wrappers (PineSeries / _SeriesResult may nest)
+        for _ in range(4):
+            if value is None or isinstance(value, (bool, int, float, str)):
+                break
+            name = type(value).__name__
+            if name in {"PineSeries", "_SeriesResult", "_NaValue"} or hasattr(value, "current"):
+                cur = getattr(value, "current", None)
+                # Some series expose history without a useful current
+                if cur is None and hasattr(value, "history"):
+                    hist = value.history
+                    if hist:
+                        cur = hist[0] if not isinstance(hist, list) else hist[-1]
+                if cur is value:
+                    break
+                value = cur
+                continue
+            if isinstance(value, list) and value:
+                value = value[-1]
+                continue
+            break
         return value
 
     def _require_len(
@@ -318,9 +334,28 @@ class NumericBuiltinsMixin(BuiltinDispatchMixin):
         return self._math_unary(args, "math.toradians", math.radians)
 
     def _builtin_math_random(self, args: list[Any]) -> Any:
-        if args:
-            self._error("math.random takes no arguments")
-        return random.random()
+        """Uniform random.
+
+        Forms:
+        - ``math.random()`` → [0, 1)
+        - ``math.random(min, max)`` → [min, max] (TV docs; both inclusive floats)
+        """
+        if not args:
+            return random.random()
+        if len(args) == 1:
+            # Treat single arg as max with min=0
+            hi = self._as_num(args[0])
+            if hi is None:
+                return None
+            return random.uniform(0.0, float(hi))
+        if len(args) >= 2:
+            lo = self._as_num(args[0])
+            hi = self._as_num(args[1])
+            if lo is None or hi is None:
+                return None
+            return random.uniform(float(lo), float(hi))
+        self._error("math.random takes 0 or 2 arguments")
+
 
     def _builtin_color_new(self, args: list[Any]) -> Any:
         self._require_len(args, UNARY, "color.new takes one argument")

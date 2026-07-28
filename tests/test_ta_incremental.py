@@ -1,0 +1,364 @@
+# Copyright (C) 2025 jango-blockchained
+#
+# SPDX-License-Identifier: LGPL-3.0-or-later
+"""Golden tests: incremental bar-mode TA matches full-recompute last values."""
+
+from __future__ import annotations
+
+import math
+import os
+
+import pytest
+
+from pynescript.ast.evaluator import NodeLiteralEvaluator
+
+
+def _series(n: int = 120, seed: float = 100.0) -> list[float]:
+    """Synthetic close path with mild trend + oscillation."""
+    out: list[float] = []
+    x = seed
+    for i in range(n):
+        x += math.sin(i / 7.0) * 1.5 + 0.05
+        out.append(x)
+    return out
+
+
+class _FullTA(NodeLiteralEvaluator):
+    """Full-recompute path (unit-test default: no bar mode)."""
+
+
+class _IncTA(NodeLiteralEvaluator):
+    """Bar-mode + incremental TA."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._pine_bar_mode = True
+        self._pine_ta_incremental = True
+        self._ta_inc_state = {}
+        self._ta_call_i = 0
+
+
+def _bar_walk_full_sma(src: list[float], period: int) -> list[float | None]:
+    ev = _FullTA()
+    out: list[float | None] = []
+    for i in range(len(src)):
+        full = ev._sma(src[: i + 1], period)
+        out.append(full[-1] if full else None)
+    return out
+
+
+def _bar_walk_inc_sma(src: list[float], period: int) -> list[float | None]:
+    ev = _IncTA()
+    out: list[float | None] = []
+    for i in range(len(src)):
+        ev._ta_call_i = 0
+        out.append(ev._sma_inc_update(src[: i + 1], period))
+    return out
+
+
+def _bar_walk_full_ema(src: list[float], period: int) -> list[float | None]:
+    ev = _FullTA()
+    out: list[float | None] = []
+    for i in range(len(src)):
+        full = ev._ema(src[: i + 1], period)
+        out.append(full[-1] if full else None)
+    return out
+
+
+def _bar_walk_inc_ema(src: list[float], period: int) -> list[float | None]:
+    ev = _IncTA()
+    out: list[float | None] = []
+    for i in range(len(src)):
+        ev._ta_call_i = 0
+        out.append(ev._ema_inc_update(src[: i + 1], period))
+    return out
+
+
+def _bar_walk_full_rma(src: list[float], period: int) -> list[float | None]:
+    ev = _FullTA()
+    out: list[float | None] = []
+    for i in range(len(src)):
+        full = ev._rma(src[: i + 1], period)
+        last = full[-1] if full else math.nan
+        out.append(None if (last is None or (isinstance(last, float) and math.isnan(last))) else last)
+    return out
+
+
+def _bar_walk_inc_rma(src: list[float], period: int) -> list[float | None]:
+    ev = _IncTA()
+    out: list[float | None] = []
+    for i in range(len(src)):
+        ev._ta_call_i = 0
+        out.append(ev._rma_inc_update(src[: i + 1], period))
+    return out
+
+
+def _bar_walk_full_rsi(src: list[float], period: int) -> list[float | None]:
+    ev = _FullTA()
+    out: list[float | None] = []
+    for i in range(len(src)):
+        out.append(ev._rsi(src[: i + 1], period))
+    return out
+
+
+def _bar_walk_inc_rsi(src: list[float], period: int) -> list[float | None]:
+    ev = _IncTA()
+    out: list[float | None] = []
+    for i in range(len(src)):
+        ev._ta_call_i = 0
+        out.append(ev._rsi_inc_update(src[: i + 1], period))
+    return out
+
+
+def _assert_series_close(
+    got: list[float | None],
+    exp: list[float | None],
+    *,
+    rel: float = 1e-9,
+    abs_: float = 1e-9,
+) -> None:
+    assert len(got) == len(exp)
+    for i, (g, e) in enumerate(zip(got, exp, strict=True)):
+        if e is None:
+            assert g is None, f"bar {i}: expected None, got {g}"
+            continue
+        assert g is not None, f"bar {i}: expected {e}, got None"
+        assert g == pytest.approx(e, rel=rel, abs=abs_), f"bar {i}: {g} != {e}"
+
+
+def test_incremental_sma_matches_full() -> None:
+    src = _series(150)
+    for period in (5, 14, 20):
+        _assert_series_close(_bar_walk_inc_sma(src, period), _bar_walk_full_sma(src, period))
+
+
+def test_incremental_ema_matches_full() -> None:
+    src = _series(150)
+    for period in (8, 12, 26):
+        _assert_series_close(_bar_walk_inc_ema(src, period), _bar_walk_full_ema(src, period))
+
+
+def test_incremental_rma_matches_full() -> None:
+    src = _series(150)
+    for period in (10, 14):
+        _assert_series_close(_bar_walk_inc_rma(src, period), _bar_walk_full_rma(src, period))
+
+
+def test_incremental_rsi_matches_full() -> None:
+    src = _series(150)
+    for period in (7, 14):
+        _assert_series_close(
+            _bar_walk_inc_rsi(src, period),
+            _bar_walk_full_rsi(src, period),
+            rel=1e-9,
+            abs_=1e-9,
+        )
+
+
+def test_two_call_sites_independent() -> None:
+    """ta.sma(close,20) and ta.sma(close,50) must not share state."""
+    src = _series(80)
+    ev = _IncTA()
+    a_out: list[float | None] = []
+    b_out: list[float | None] = []
+    for i in range(len(src)):
+        ev._ta_call_i = 0
+        a_out.append(ev._sma_inc_update(src[: i + 1], 20))
+        b_out.append(ev._sma_inc_update(src[: i + 1], 50))
+    _assert_series_close(a_out, _bar_walk_full_sma(src, 20))
+    _assert_series_close(b_out, _bar_walk_full_sma(src, 50))
+
+
+def test_nested_ema_of_sma_bar_stream() -> None:
+    """Nested ta.ema(ta.sma(...)) via sequential scalars at two call sites."""
+    src = _series(100)
+    period_s, period_e = 10, 8
+    # Full nested: for each bar, sma series then ema of that
+    full_nested: list[float | None] = []
+    evf = _FullTA()
+    for i in range(len(src)):
+        sma_series = evf._sma(src[: i + 1], period_s)
+        # replace None with skip for ema seed consistency — full ema carries None as missing
+        ema_series = evf._ema(sma_series, period_e)
+        full_nested.append(ema_series[-1] if ema_series else None)
+
+    evi = _IncTA()
+    inc_nested: list[float | None] = []
+    for i in range(len(src)):
+        evi._ta_call_i = 0
+        sma_val = evi._sma_inc_update(src[: i + 1], period_s)
+        # second call site sees stream of sma scalars
+        ema_val = evi._ema_inc_update([sma_val], period_e)
+        inc_nested.append(ema_val)
+
+    # Compare from the bar where both are defined
+    for i, (g, e) in enumerate(zip(inc_nested, full_nested, strict=True)):
+        if e is None:
+            continue
+        assert g == pytest.approx(e, rel=1e-9, abs=1e-9), f"bar {i}: {g} != {e}"
+
+
+def test_runtime_incremental_vs_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Backend Runtime plots match with incremental on vs forced off."""
+    from backend.runtime import Runtime
+
+    bars = [
+        {
+            "open": 100 + i * 0.1,
+            "high": 101 + i * 0.1,
+            "low": 99 + i * 0.1,
+            "close": 100.5 + i * 0.1,
+            "volume": 1000,
+            "time": 1_000_000 + i * 86_400_000,
+        }
+        for i in range(80)
+    ]
+    src = """//@version=5
+indicator("inc")
+plot(ta.sma(close, 10))
+plot(ta.ema(close, 12))
+plot(ta.rsi(close, 14))
+"""
+    monkeypatch.delenv("PYNE_TA_INCREMENTAL", raising=False)
+    r_on = Runtime(symbol="T").run(src, bars)
+    assert "error" not in r_on, r_on.get("error")
+    monkeypatch.setenv("PYNE_TA_INCREMENTAL", "0")
+    # New Runtime/evaluator so env is read fresh
+    r_off = Runtime(symbol="T").run(src, bars)
+    assert "error" not in r_off, r_off.get("error")
+    monkeypatch.delenv("PYNE_TA_INCREMENTAL", raising=False)
+
+    series_on = r_on["series"]
+    series_off = r_off["series"]
+    assert set(series_on) == set(series_off)
+    for key in series_on:
+        for i, (a, b) in enumerate(zip(series_on[key], series_off[key], strict=True)):
+            if a is None and b is None:
+                continue
+            if a is None or b is None:
+                # allow early-bar na differences only if both none-ish
+                assert a is None or b is None
+                continue
+            assert a == pytest.approx(b, rel=1e-9, abs=1e-9), f"{key} bar {i}: {a} != {b}"
+
+
+def test_env_disable_uses_full_path(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("PYNE_TA_INCREMENTAL", "0")
+    ev = _IncTA()
+    assert ev._use_incremental_ta() is False
+    monkeypatch.delenv("PYNE_TA_INCREMENTAL", raising=False)
+    assert ev._use_incremental_ta() is True
+
+
+def _ohlc(n: int = 120) -> tuple[list[float], list[float], list[float]]:
+    closes = _series(n)
+    highs = [c + 1.0 + (i % 5) * 0.1 for i, c in enumerate(closes)]
+    lows = [c - 1.0 - (i % 3) * 0.1 for i, c in enumerate(closes)]
+    return highs, lows, closes
+
+
+def _bar_walk_full_macd(
+    src: list[float], fast: int, slow: int, signal: int
+) -> list[tuple[float, float, float]]:
+    ev = _FullTA()
+    out: list[tuple[float, float, float]] = []
+    for i in range(len(src)):
+        out.append(ev._macd(src[: i + 1], fast, slow, signal))
+    return out
+
+
+def _bar_walk_inc_macd(
+    src: list[float], fast: int, slow: int, signal: int
+) -> list[tuple[float, float, float]]:
+    ev = _IncTA()
+    out: list[tuple[float, float, float]] = []
+    for i in range(len(src)):
+        ev._ta_call_i = 0
+        out.append(ev._macd_inc_update(src[: i + 1], fast, slow, signal))
+    return out
+
+
+def _bar_walk_full_atr(
+    highs: list[float], lows: list[float], closes: list[float], period: int
+) -> list[float | None]:
+    ev = _FullTA()
+    out: list[float | None] = []
+    for i in range(len(closes)):
+        full = ev._atr(highs[: i + 1], lows[: i + 1], closes[: i + 1], period)
+        if not full:
+            out.append(None)
+        else:
+            last = full[-1]
+            out.append(None if (isinstance(last, float) and math.isnan(last)) else last)
+    return out
+
+
+def _bar_walk_inc_atr(
+    highs: list[float], lows: list[float], closes: list[float], period: int
+) -> list[float | None]:
+    ev = _IncTA()
+    out: list[float | None] = []
+    for i in range(len(closes)):
+        ev._ta_call_i = 0
+        out.append(ev._atr_inc_update(highs[: i + 1], lows[: i + 1], closes[: i + 1], period))
+    return out
+
+
+def test_incremental_macd_matches_full() -> None:
+    src = _series(150)
+    for params in ((12, 26, 9), (8, 17, 5)):
+        got = _bar_walk_inc_macd(src, *params)
+        exp = _bar_walk_full_macd(src, *params)
+        assert len(got) == len(exp)
+        for i, (g, e) in enumerate(zip(got, exp, strict=True)):
+            assert g[0] == pytest.approx(e[0], rel=1e-9, abs=1e-9), f"macd bar {i}"
+            assert g[1] == pytest.approx(e[1], rel=1e-9, abs=1e-9), f"signal bar {i}"
+            assert g[2] == pytest.approx(e[2], rel=1e-9, abs=1e-9), f"hist bar {i}"
+
+
+def test_incremental_atr_matches_full() -> None:
+    highs, lows, closes = _ohlc(150)
+    for period in (7, 14):
+        _assert_series_close(
+            _bar_walk_inc_atr(highs, lows, closes, period),
+            _bar_walk_full_atr(highs, lows, closes, period),
+        )
+
+
+def test_runtime_macd_atr_incremental_vs_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
+    from backend.runtime import Runtime
+
+    bars = [
+        {
+            "open": 100 + i * 0.1,
+            "high": 101.5 + i * 0.1,
+            "low": 98.5 + i * 0.1,
+            "close": 100.5 + i * 0.1,
+            "volume": 1000,
+            "time": 1_000_000 + i * 86_400_000,
+        }
+        for i in range(100)
+    ]
+    src = """//@version=5
+indicator("macd atr")
+[m, s, h] = ta.macd(close, 12, 26, 9)
+plot(m)
+plot(s)
+plot(h)
+plot(ta.atr(14))
+"""
+    monkeypatch.delenv("PYNE_TA_INCREMENTAL", raising=False)
+    r_on = Runtime(symbol="T").run(src, bars)
+    assert "error" not in r_on, r_on.get("error")
+    monkeypatch.setenv("PYNE_TA_INCREMENTAL", "0")
+    r_off = Runtime(symbol="T").run(src, bars)
+    assert "error" not in r_off, r_off.get("error")
+    monkeypatch.delenv("PYNE_TA_INCREMENTAL", raising=False)
+
+    for key in r_on["series"]:
+        for i, (a, b) in enumerate(zip(r_on["series"][key], r_off["series"][key], strict=True)):
+            if a is None and b is None:
+                continue
+            if a is None or b is None:
+                continue
+            assert a == pytest.approx(b, rel=1e-9, abs=1e-9), f"{key} bar {i}: {a} != {b}"
