@@ -664,13 +664,15 @@ def numba_falling(arr, length, i):
 
 @numba.njit(cache=True)
 def numba_highestbars(arr, length, i):
-    length = int(length)
     """Bars since highest value in window (0 = current is highest).
 
     On ties, prefers the most recent bar (smallest offset).
+    Returns float of a non-negative int so callers can ``int()`` for indexing;
+    invalid length / all-NaN window -> 0.0 (index-friendly; not NaN).
     """
+    length = int(length)
     if length <= 0:
-        return np.nan
+        return 0.0
     start = i - length + 1
     if start < 0:
         start = 0
@@ -682,19 +684,21 @@ def numba_highestbars(arr, length, i):
             best = v
             best_off = j
     if np.isnan(best):
-        return np.nan
+        return 0.0
     return float(best_off)
 
 
 @numba.njit(cache=True)
 def numba_lowestbars(arr, length, i):
-    length = int(length)
     """Bars since lowest value in window (0 = current is lowest).
 
     On ties, prefers the most recent bar (smallest offset).
+    Returns float of a non-negative int so callers can ``int()`` for indexing;
+    invalid length / all-NaN window -> 0.0 (index-friendly; not NaN).
     """
+    length = int(length)
     if length <= 0:
-        return np.nan
+        return 0.0
     start = i - length + 1
     if start < 0:
         start = 0
@@ -706,5 +710,66 @@ def numba_lowestbars(arr, length, i):
             best = v
             best_off = j
     if np.isnan(best):
-        return np.nan
+        return 0.0
     return float(best_off)
+
+@numba.njit(cache=True)
+def numba_percentrank(arr, length, i):
+    length = int(length)
+    """Percent of values in the last ``length`` bars that are <= arr[i]."""
+    if length <= 0 or i < length - 1:
+        return np.nan
+    v = arr[i]
+    if np.isnan(v):
+        return np.nan
+    cnt = 0
+    for j in range(length):
+        if arr[i - j] <= v:
+            cnt += 1
+    return 100.0 * cnt / length
+
+
+@numba.njit(cache=True)
+def numba_obv(close, vol, i):
+    """On-Balance Volume rebuilt as a running sum from bar 0..i."""
+    if i < 0:
+        return np.nan
+    obv = 0.0
+    for j in range(1, i + 1):
+        if close[j] > close[j - 1]:
+            obv += vol[j]
+        elif close[j] < close[j - 1]:
+            obv -= vol[j]
+    return obv
+
+
+@numba.njit(cache=True)
+def numba_wma(arr, length, i):
+    length = int(length)
+    """Linear weighted MA: newest bar weight = length, oldest weight = 1."""
+    if length <= 0 or i < length - 1:
+        return np.nan
+    weighted = 0.0
+    total_w = 0.0
+    for j in range(length):
+        w = float(length - j)
+        v = arr[i - j]
+        if np.isnan(v):
+            return np.nan
+        weighted += v * w
+        total_w += w
+    if total_w == 0.0:
+        return np.nan
+    return weighted / total_w
+
+
+@numba.njit(cache=True)
+def numba_roc(arr, length, i):
+    length = int(length)
+    """Rate of Change: 100 * (arr[i] - arr[i-length]) / arr[i-length]."""
+    if length <= 0 or i < length:
+        return np.nan
+    baseline = arr[i - length]
+    if np.isnan(baseline) or baseline == 0.0 or np.isnan(arr[i]):
+        return np.nan
+    return 100.0 * (arr[i] - baseline) / baseline

@@ -988,3 +988,40 @@ plot(sqrt(close), title="s")
         out = compiled.run(o, h, l, c, v)
         assert abs(out["s"][-1] - (c[-1] ** 0.5)) < 1e-6
 
+class TestCompileCoverageSprint5:
+    def test_sprint5_udf_ta_source(self) -> None:
+        src = """//@version=5
+indicator("x")
+scale(x, p) =>
+    lo = ta.lowest(x, p)
+    hi = ta.highest(x, p)
+    (x - lo) / (hi - lo)
+plot(scale(close, 14), title="s")
+"""
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(40)
+        out = compiled.run(o, h, l, c, v)
+        assert "s" in out
+
+    def test_sprint5_history_offset_int(self) -> None:
+        src = """//@version=5
+indicator("x")
+plot(high[ta.highestbars(high, 2)], title="hh")
+"""
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(30)
+        out = compiled.run(o, h, l, c, v)
+        assert "hh" in out
+
+    def test_sprint5_percentrank_obv(self) -> None:
+        src = """//@version=5
+indicator("x")
+plot(ta.percentrank(close, 10), title="pr")
+plot(ta.obv, title="o")
+"""
+        code = transpile(src)
+        assert "numba_percentrank" in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(30)
+        out = compiled.run(o, h, l, c, v)
+        assert "pr" in out and "o" in out
