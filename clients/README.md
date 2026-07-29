@@ -4,30 +4,41 @@ This directory contains LSP client configurations for popular editors.
 
 ## VS Code
 
-Install from the [VS Code Marketplace](https://marketplace.visualstudio.com/) (coming soon), or build from source:
+Extension lives in [`../vscode-extension`](../vscode-extension) (PYNE — Pine Script).
+
+**Prerequisite:** language server installed:
+
+```bash
+pip install "pynescript[lsp]"
+```
+
+**Build & install VSIX:**
 
 ```bash
 cd vscode-extension
 npm install
-npm run compile
-code --extension-development ./out
+npm run package
+code --install-extension pyne-pinescript-*.vsix
+```
+
+**Dev:**
+
+```bash
+cd vscode-extension && npm run compile
+code --extensionDevelopmentPath=.
 ```
 
 **Features:**
 - Syntax highlighting (TextMate grammar)
-- LSP diagnostics (lint squiggles)
-- Autocomplete (482 builtins)
-- Hover documentation
-- Go-to-definition / Find references
-- Document outline (symbols)
-- Formatting (Shift+Alt+F)
+- LSP diagnostics, autocomplete, hover, symbols, formatting
+- Status bar + auto-detect `pynescript-lsp` or `python -m pynescript.langserver`
 
 **Configuration:**
 - `pynescript.lsp.enabled` — Toggle LSP (default: true)
-- `pynescript.lsp.command` — LSP binary path (default: `pynescript-lsp`)
-- `pynescript.formatting.enabled` — Enable formatting (default: true)
-- `pynescript.diagnostics.enabled` — Enable diagnostics (default: true)
-- `pynescript.completion.snippets` — Enable snippet completions (default: true)
+- `pynescript.lsp.command` — `auto` (default) or path to binary
+- `pynescript.lsp.python` — Python for module launch (default: `python3`)
+- `pynescript.lsp.args` — Extra args
+- `pynescript.formatting.enabled` / `diagnostics.enabled` / `completion.snippets`
 
 ## Neovim
 

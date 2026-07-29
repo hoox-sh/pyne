@@ -1,23 +1,35 @@
 {
-  "name": "pynescript",
-  "displayName": "Pine Script",
-  "description": "Pine Script language support with LSP diagnostics, autocomplete, hover, and more",
-  "version": "1.0.0",
-  "publisher": "pynescript",
+  "name": "pyne-pinescript",
+  "displayName": "PYNE — Pine Script",
+  "description": "Pine Script™ language support for VS Code: LSP diagnostics, autocomplete, hover, formatting. Part of HOOX / PYNE (pynescript).",
+  "version": "1.1.0",
+  "publisher": "jango-blockchained",
   "license": "AGPL-3.0-or-later",
   "author": "jango_blockchained",
+  "homepage": "https://hoox.sh/pyne",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jango-blockchained/pyne.git",
+    "directory": "vscode-extension"
+  },
+  "bugs": {
+    "url": "https://github.com/jango-blockchained/pyne/issues"
+  },
   "engines": {
     "vscode": "^1.85.0"
   },
   "categories": [
     "Programming Languages",
     "Linters",
-    "Intelligence"
+    "Other"
   ],
   "keywords": [
     "pinescript",
-    "tradingview",
     "pine script",
+    "tradingview",
+    "pyne",
+    "pynescript",
+    "hoox",
     "lsp",
     "trading"
   ],
@@ -32,8 +44,16 @@
     "languages": [
       {
         "id": "pinescript",
-        "aliases": ["Pine Script", "pinescript"],
-        "extensions": [".pine", ".pinev5", ".pinev6"],
+        "aliases": [
+          "Pine Script",
+          "pinescript",
+          "Pine"
+        ],
+        "extensions": [
+          ".pine",
+          ".pinev5",
+          ".pinev6"
+        ],
         "configuration": "./language-configuration.json"
       }
     ],
@@ -46,56 +66,84 @@
     ],
     "configuration": {
       "type": "object",
-      "title": "Pine Script",
+      "title": "PYNE Pine Script",
       "properties": {
         "pynescript.lsp.enabled": {
           "type": "boolean",
           "default": true,
-          "description": "Enable/disable the Pine Script language server"
+          "description": "Enable the PYNE / pynescript language server (completion, hover, diagnostics)."
         },
         "pynescript.lsp.command": {
           "type": "string",
-          "default": "pynescript-lsp",
-          "description": "Command to launch the LSP server"
+          "default": "auto",
+          "description": "LSP launch command. Use \"auto\" to try pynescript-lsp on PATH, then python -m pynescript.langserver. Or set an absolute path to the binary."
+        },
+        "pynescript.lsp.python": {
+          "type": "string",
+          "default": "python3",
+          "description": "Python interpreter used when lsp.command is auto and pynescript-lsp is not on PATH (must have: pip install pynescript[lsp])."
+        },
+        "pynescript.lsp.args": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Extra arguments passed to the language server process."
         },
         "pynescript.formatting.enabled": {
           "type": "boolean",
           "default": true,
-          "description": "Enable formatting support"
+          "description": "Enable formatting support (when the server supports it)."
         },
         "pynescript.diagnostics.enabled": {
           "type": "boolean",
           "default": true,
-          "description": "Enable diagnostic squiggles"
+          "description": "Enable diagnostic squiggles from the language server."
         },
         "pynescript.completion.snippets": {
           "type": "boolean",
           "default": true,
-          "description": "Enable snippet completions for builtin functions"
+          "description": "Enable snippet completions for builtin functions."
         }
       }
     },
     "commands": [
       {
         "command": "pynescript.restartServer",
-        "title": "Pine Script: Restart Language Server",
-        "category": "Pine Script"
+        "title": "Restart Language Server",
+        "category": "PYNE"
       },
       {
         "command": "pynescript.formatDocument",
-        "title": "Pine Script: Format Document",
-        "category": "Pine Script"
+        "title": "Format Document",
+        "category": "PYNE"
+      },
+      {
+        "command": "pynescript.showLspOutput",
+        "title": "Show Language Server Output",
+        "category": "PYNE"
+      },
+      {
+        "command": "pynescript.showLspCommand",
+        "title": "Show Resolved LSP Launch Command",
+        "category": "PYNE"
       }
     ],
     "menus": {
       "commandPalette": [
         {
-          "command": "pynescript.restartServer",
-          "when": "editorLangId == pinescript"
+          "command": "pynescript.restartServer"
         },
         {
           "command": "pynescript.formatDocument",
           "when": "editorLangId == pinescript"
+        },
+        {
+          "command": "pynescript.showLspOutput"
+        },
+        {
+          "command": "pynescript.showLspCommand"
         }
       ]
     }
@@ -104,6 +152,7 @@
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
+    "package": "npm run compile && npx --yes @vscode/vsce package --no-dependencies --allow-missing-repository",
     "lint": "eslint src --ext ts"
   },
   "devDependencies": {
