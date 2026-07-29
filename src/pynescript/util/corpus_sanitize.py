@@ -89,11 +89,16 @@ _PROSE_CONTINUE_RE = re.compile(
     r"Tips?:?|"
     r"Let['']s\s|"
     r"We\s+(use|set|provide|define|call|populate|offer|create|do|pass)|"
-    r"To\s+(color|plot|use|create|exit|exit|build)|"
+    r"To\s+(color|plot|use|create|exit|exit|build|learn)|"
     r"You\s+(can|may|will|should)|"
-    r"This\s+(example|plots?|script|configuration|function)|"
+    r"This\s+(example|plots?|script|configuration|function|parameter)|"
     r"When\s+(creating|populating|the)|"
-    r"The\s+(signature|script|color|maximum|initialization)|"
+    r"The\s+(signature|script|color|maximum|initialization|first|second|third|next|last)|"
+    r"There\s+are\s+|"
+    r"It['']s\s+(important|also|possible|useful)|"
+    r"Specifies\s+|"
+    r"Controls\s+the\s+|"
+    r"Looking\s+(two|one|at)\s+|"
     r"Plotting\s|"
     r"Coloring\s|"
     r"Remember\s|"
@@ -204,11 +209,19 @@ def _strip_html_comments(text: str) -> str:
     return _HTML_COMMENT_RE.sub("", text)
 
 
+# Invisible / exotic spaces that break the ANTLR lexer as unknown tokens.
+_UNICODE_SPACE_RE = re.compile(
+    "[\u00a0\u1680\u2000-\u200b\u202f\u205f\u3000\ufeff]"  # nbsp, hair, ZWSP, BOM, …
+)
+
+
 def _normalize_chrome(text: str) -> str:
     """Drop HTML comments and trademark noise that breaks the lexer."""
     text = _strip_html_comments(text)
-    # ® only appears as Pine Script® chrome in this corpus — strip globally.
-    text = text.replace("®", "")
+    # ® / ™ only appear as Pine Script®/™ chrome in this corpus — strip globally.
+    text = text.replace("®", "").replace("™", "").replace("\u2122", "")
+    # Normalize exotic unicode spaces (hair space in ``import x as y`` scrapes).
+    text = _UNICODE_SPACE_RE.sub(" ", text)
     return text
 
 
@@ -366,11 +379,11 @@ def _has_usable_pine(text: str) -> bool:
 
 
 # Docs chrome glued onto code lines (Mintlify / TV pages).
-# Require ≥2 spaces before the nav word and end-of-line — do NOT match English
-# mid-sentence ``next to`` / ``previous high`` inside tooltips/strings.
+# Case-sensitive Capitalized nav words after ≥2 spaces; may be followed by more
+# title-case sidebar junk (``Previous Strategies Next Techniques …``).
+# Do NOT use IGNORECASE — English ``next to`` must not match.
 _DOCS_NAV_TRAIL_RE = re.compile(
-    r"[ \t]{2,}(Next|Previous|On this page)\b[ \t.]*$",
-    re.I,
+    r"[ \t]{2,}(Next|Previous|On this page)\b.*$"
 )
 # Placeholder ellipsis lines from incomplete examples: `...`
 _ELLIPSIS_ONLY_RE = re.compile(r"^\s*\.\.\.\s*$")
@@ -657,7 +670,7 @@ def _looks_like_expr_continuation(ns: str) -> bool:
 def _line_has_arg_continuation(line: str, lines: list[str], index: int) -> bool:
     """True if a following non-empty line continues this statement (indent/join)."""
     j = index + 1
-    while j < len(lines) and not lines[j].strip():
+    while j < len(lines) and (not lines[j].strip() or lines[j].lstrip().startswith("//")):
         j += 1
     if j >= len(lines):
         return False
@@ -682,11 +695,17 @@ def _line_has_arg_continuation(line: str, lines: list[str], index: int) -> bool:
     #   ``… +`` / ``… -`` / ``… *`` / ``… /`` / ``… and`` / ``… or``
     # next term may start with a digit (``2 * x``) or identifier (``td == …``).
     mop = _TRAILING_BINOP_RE.match(prev)
-    if mop and nxt_indent >= base_indent and _looks_like_expr_continuation(ns):
-        return True
+    if mop and _looks_like_expr_continuation(ns):
+        if nxt_indent >= base_indent:
+            return True
+        # Scrape often reduces indent mid-expression under a function body:
+        #   ``    a and``
+        #   ``  b and``   (2 spaces < 4, still part of the same bool chain)
+        if base_indent >= 2 and 1 <= nxt_indent < base_indent:
+            return True
     # Also bare endswith for ops that may have no space: ``x+`` rare but ``x +`` covered.
-    if prev.endswith(("+", "-", "*", "/")) and nxt_indent >= base_indent:
-        if _looks_like_expr_continuation(ns):
+    if prev.endswith(("+", "-", "*", "/")) and _looks_like_expr_continuation(ns):
+        if nxt_indent >= base_indent or (base_indent >= 2 and 1 <= nxt_indent < base_indent):
             return True
     return False
 
@@ -818,15 +837,47 @@ def _fix_truncated_syntax(text: str) -> str:
             i += 1
             continue
 
-        # Empty function / lambda body: ``upDownColor(float source) =>`` at cut
-        if (
-            re.search(r"=>\s*$", stripped_nl)
-            and not stripped_nl.lstrip().startswith("//")
-            and not _line_has_arg_continuation(line, lines, i)
-        ):
-            out.append(stripped_nl.rstrip() + " na" + eol)
-            i += 1
-            continue
+        # Empty function / lambda body: ``f(...) =>`` at cut, ``f() =>  // comment``,
+        # or body is only //@variable / comments until next real stmt / EOF.
+        code_no_comment = re.sub(r"//.*$", "", stripped_nl).rstrip()
+        if re.search(r"=>\s*$", code_no_comment) and not stripped_nl.lstrip().startswith("//"):
+            j = i + 1
+            only_comments = True
+            while j < len(lines):
+                nxt = lines[j]
+                if not nxt.strip():
+                    j += 1
+                    continue
+                if nxt.lstrip().startswith("//"):
+                    j += 1
+                    continue
+                only_comments = False
+                break
+            if only_comments:
+                # Keep header + comment-only body, then inject ``na``.
+                out.append(line if line.endswith("\n") else line + "\n")
+                k = i + 1
+                while k < len(lines):
+                    nxt = lines[k]
+                    if not nxt.strip() or nxt.lstrip().startswith("//"):
+                        out.append(nxt if nxt.endswith("\n") else nxt + "\n")
+                        k += 1
+                        continue
+                    break
+                indent = re.match(r"^(\s*)", stripped_nl).group(1)  # type: ignore[union-attr]
+                child = "\t" if "\t" in stripped_nl else "    "
+                out.append(indent + child + "na\n")
+                i = k
+                continue
+            if not _line_has_arg_continuation(line, lines, i):
+                # Preserve trailing // comment if present.
+                if "//" in stripped_nl:
+                    head, _, cmt = stripped_nl.partition("//")
+                    out.append(head.rstrip() + " na  //" + cmt + eol)
+                else:
+                    out.append(stripped_nl.rstrip() + " na" + eol)
+                i += 1
+                continue
 
         # Mid-expression cut on binary/logical op: ``x = a or`` / ``s = "a" +``
         mop = _TRAILING_BINOP_RE.match(stripped_nl)
@@ -1050,8 +1101,105 @@ def _is_effectively_empty_script(body: str) -> bool:
     return False
 
 
+def _dedent_if_leading_indent(body: str) -> str:
+    """Strip a shared leading indent when the first code line is indented.
+
+    Docs / error examples often paste whole scripts indented under a fence::
+
+        //@version=4
+            study("My Script")
+            plot(close)
+
+    The lexer rejects a first statement that starts with INDENT.
+    """
+    lines = body.splitlines(keepends=True)
+    code_idxs: list[int] = []
+    for i, ln in enumerate(lines):
+        s = ln.strip()
+        if not s or s.startswith("//"):
+            continue
+        # Skip version pragma for indent measurement
+        if re.match(r"^//@version\b", s):
+            continue
+        code_idxs.append(i)
+    if not code_idxs:
+        return body
+    first = lines[code_idxs[0]]
+    if not first[:1].isspace():
+        return body
+    # Common prefix of pure whitespace across all code lines
+    indents = []
+    for i in code_idxs:
+        ln = lines[i]
+        if not ln.strip():
+            continue
+        m = re.match(r"^([ \t]+)", ln)
+        if not m:
+            return body  # mixed: some code at column 0
+        indents.append(m.group(1))
+    if not indents:
+        return body
+    # Longest common prefix of indent strings
+    prefix = indents[0]
+    for ind in indents[1:]:
+        while prefix and not ind.startswith(prefix):
+            prefix = prefix[:-1]
+        if not prefix:
+            return body
+    if not prefix:
+        return body
+    n = len(prefix)
+    out: list[str] = []
+    for ln in lines:
+        if ln.startswith(prefix):
+            out.append(ln[n:])
+        else:
+            out.append(ln)
+    return "".join(out)
+
+
+def _fix_empty_type_body(body: str) -> str:
+    """``type Wrapper`` with no fields (truncated docs) → add a dummy field."""
+    lines = body.splitlines(keepends=True)
+    if not lines:
+        return body
+    out: list[str] = []
+    i = 0
+    while i < len(lines):
+        ln = lines[i]
+        m = re.match(r"^(\s*)type\s+([A-Za-z_]\w*)\s*$", ln.rstrip("\n"))
+        if m and not ln.lstrip().startswith("//"):
+            indent, name = m.group(1), m.group(2)
+            j = i + 1
+            has_field = False
+            while j < len(lines):
+                nxt = lines[j]
+                if not nxt.strip():
+                    j += 1
+                    continue
+                ni = len(nxt) - len(nxt.lstrip(" \t"))
+                if ni <= len(indent) and nxt.strip():
+                    break
+                if nxt.lstrip().startswith("//"):
+                    j += 1
+                    continue
+                has_field = True
+                break
+            out.append(ln if ln.endswith("\n") else ln + "\n")
+            if not has_field:
+                child = "    "
+                out.append(f"{indent}{child}float _pad = na\n")
+            i += 1
+            continue
+        out.append(ln)
+        i += 1
+    return "".join(out)
+
+
 def _finalize(provenance: list[str], body: str, ends_with_nl: bool) -> str:
+    body = _dedent_if_leading_indent(body)
     body = _fix_truncated_syntax(_fix_missing_decl_commas(body))
+    body = _fix_empty_type_body(body)
     if not _has_usable_pine(body) or _is_effectively_empty_script(body):
         body = _MINIMAL_STUB
     return _compose(provenance, body, ends_with_nl)

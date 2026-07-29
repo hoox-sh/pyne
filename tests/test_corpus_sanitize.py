@@ -415,6 +415,60 @@ plot(filter)
     _roundtrip(cleaned)
 
 
+def test_strips_docs_previous_nav_trail() -> None:
+    raw = """//@version=6
+indicator("t")
+plot(c)         Previous       Methods      Next   Matrices
+"""
+    cleaned = sanitize_corpus_source(raw)
+    assert "Previous" not in cleaned
+    assert "plot(c)" in cleaned
+    _roundtrip(cleaned)
+
+
+def test_strips_trademark_and_hair_space() -> None:
+    raw = """//@version=6
+strategy("x")
+import foo/bar/1\u200aas lib
+// Pine Script™ strategy
+plot(close)
+"""
+    cleaned = sanitize_corpus_source(raw)
+    assert "™" not in cleaned
+    assert "\u200a" not in cleaned
+    assert "import foo/bar/1 as lib" in cleaned or "as lib" in cleaned
+    _roundtrip(cleaned)
+
+
+def test_dedents_leading_indented_script() -> None:
+    raw = """//@version=4
+    study("My Script")
+    plot(close)
+"""
+    cleaned = sanitize_corpus_source(raw)
+    assert not cleaned.lstrip("/@version=4\n").startswith(" ")
+    assert 'study("My Script")' in cleaned
+    # first code line at column 0
+    for ln in cleaned.splitlines():
+        if ln.strip() and not ln.lstrip().startswith("//"):
+            assert not ln[0].isspace(), repr(ln)
+            break
+    _roundtrip(cleaned)
+
+
+def test_empty_method_body_with_annotation_gets_na() -> None:
+    raw = """//@version=6
+indicator("t")
+method rowWiseAvg(matrix<float> this) =>
+    //@variable An array of averages.
+plot(close)
+"""
+    cleaned = sanitize_corpus_source(raw)
+    assert "=>" in cleaned
+    assert "na" in cleaned
+    _roundtrip(cleaned)
+
+
 def test_promotes_same_indent_if_else_body_from_docs() -> None:
     """Docs scrapes often omit indent under if/else — promote sibling lines."""
     raw = """//@version=6

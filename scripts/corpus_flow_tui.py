@@ -2,12 +2,17 @@
 # Copyright (C) 2024-2026 jango_blockchained
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
-"""Animated full corpus flow CLI — parse → re-run fails → Runtime → report.
+"""Animated full corpus flow CLI — parse → re-run fails → Runtime → recompile → report.
 
 Usage (from repo root)::
 
     # set05 full pipeline (recommended)
     .venv/bin/python scripts/corpus_flow_tui.py --sets set05
+
+    # re-run only scripts that already OK'd under a prior runtime CSV (warm compile)
+    .venv/bin/python scripts/corpus_flow_tui.py --sets set05 \\
+        --phases recompile,report \\
+        --recompile-from .cache/corpus_flow_set05_runtime_auto.csv
 
     # full corpus, resume, compile runtime
     .venv/bin/python scripts/corpus_flow_tui.py --sets set01,set02,set03,set04,set05 \\
@@ -18,10 +23,11 @@ Usage (from repo root)::
 
 Phases
 ------
-1. **parse**   — sanitize + parse + unparse (parallel pool)
-2. **rerun**   — re-check FAIL/TIMEOUT rows after parse
-3. **runtime** — ``backend.runtime.Runtime`` (interpret|compile|auto)
-4. **report**  — summary panel + paths to CSVs
+1. **parse**      — sanitize + parse + unparse (parallel pool)
+2. **rerun**      — re-check FAIL/TIMEOUT rows after parse
+3. **runtime**    — ``backend.runtime.Runtime`` (interpret|compile|auto)
+4. **recompile**  — re-run only prior OK scripts (warm Numba / compile path)
+5. **report**     — summary panel + paths to CSVs
 
 Requires ``rich`` (``pip install rich``). Falls back to plain tqdm-less text.
 """
@@ -195,6 +201,27 @@ def _load_fail_rows(csv_path: Path) -> list[dict[str, str]]:
             if st in {"FAIL", "TIMEOUT", "PARSE_FAIL", "RUN_FAIL"}:
                 rows.append(dict(row))
     return rows
+
+
+def _load_ok_paths(csv_path: Path) -> list[Path]:
+    """Paths that previously finished OK (for recompile / warm re-run)."""
+    out: list[Path] = []
+    seen: set[str] = set()
+    if not csv_path.exists():
+        return out
+    with csv_path.open(encoding="utf-8", newline="") as fp:
+        for row in csv.DictReader(fp):
+            st = (row.get("status") or "").upper()
+            if st != "OK":
+                continue
+            rel = (row.get("file") or "").strip()
+            if not rel or rel in seen:
+                continue
+            seen.add(rel)
+            p = DATA / rel
+            if p.is_file():
+                out.append(p)
+    return out
 
 
 def _collect_files(sets: list[str]) -> list[Path]:
@@ -559,7 +586,8 @@ def _build_layout(state: FlowState) -> Any:
         "parse": "① PARSE",
         "rerun": "② RE-RUN FAILS",
         "runtime": "③ RUNTIME",
-        "report": "④ REPORT",
+        "recompile": "④ RECOMPILE OK",
+        "report": "⑤ REPORT",
     }
     for i, ph in enumerate(state.phases):
         label = phase_labels.get(ph, ph.upper())
@@ -707,24 +735,48 @@ def _plain_print(state: FlowState) -> None:
 
 def main() -> int:
     ap = argparse.ArgumentParser(
-        description="Animated full corpus flow: parse → re-run fails → runtime → report",
+        description="Animated full corpus flow: parse → re-run fails → runtime → recompile → report",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__,
     )
     ap.add_argument("--sets", default="set05", help="Comma-separated sets under tests/data/")
     ap.add_argument(
         "--phases",
-        default="parse,rerun,runtime,report",
-        help="Comma subset of: parse,rerun,runtime,report",
+        default="parse,rerun,runtime,recompile,report",
+        help="Comma subset of: parse,rerun,runtime,recompile,report",
     )
     ap.add_argument("--timeout", type=float, default=12.0, help="Per-file timeout (parse)")
     ap.add_argument("--runtime-timeout", type=float, default=10.0, help="Per-file timeout (runtime)")
+    ap.add_argument(
+        "--recompile-timeout",
+        type=float,
+        default=8.0,
+        help="Per-file timeout for recompile phase (warm path; keep short)",
+    )
     ap.add_argument("--workers", type=int, default=4)
     ap.add_argument("--bars", type=int, default=50, help="OHLCV bars for Runtime")
     ap.add_argument(
         "--runtime-mode",
         choices=("interpret", "compile", "auto", "parse", "run"),
         default="auto",
+    )
+    ap.add_argument(
+        "--recompile-mode",
+        choices=("compile", "auto", "interpret"),
+        default="compile",
+        help="Mode used when re-running previously OK scripts (default: compile)",
+    )
+    ap.add_argument(
+        "--recompile-from",
+        type=Path,
+        default=None,
+        help="CSV of prior runtime results (default: this run's runtime CSV)",
+    )
+    ap.add_argument(
+        "--recompile-limit",
+        type=int,
+        default=0,
+        help="Max OK scripts to recompile (0 = all). Useful for a quick smoke.",
     )
     ap.add_argument("--resume", action="store_true", help="Resume CSVs if present")
     ap.add_argument("--plain", action="store_true", help="Disable Live UI (CI-friendly)")
@@ -733,15 +785,17 @@ def main() -> int:
 
     sets = [s.strip() for s in args.sets.split(",") if s.strip()]
     phases = [p.strip() for p in args.phases.split(",") if p.strip()]
+    valid = {"parse", "rerun", "runtime", "recompile", "report"}
     for p in phases:
-        if p not in {"parse", "rerun", "runtime", "report"}:
-            print(f"unknown phase: {p}", file=sys.stderr)
+        if p not in valid:
+            print(f"unknown phase: {p} (choose from {sorted(valid)})", file=sys.stderr)
             return 2
 
     tag = args.tag or "_".join(sets)
     parse_csv = CACHE / f"corpus_flow_{tag}_parse.csv"
     rerun_csv = CACHE / f"corpus_flow_{tag}_rerun.csv"
     runtime_csv = CACHE / f"corpus_flow_{tag}_runtime_{args.runtime_mode}.csv"
+    recompile_csv = CACHE / f"corpus_flow_{tag}_recompile_{args.recompile_mode}.csv"
 
     state = FlowState(sets=sets, phases=phases)
     for ph in phases:
@@ -760,12 +814,18 @@ def main() -> int:
     elif not _has_rich() and not args.plain:
         print("tip: pip install rich  →  animated Live UI", flush=True)
 
+    _last_refresh = [0.0]
+
     def refresh() -> None:
+        # Throttle Live redraws so huge corpora don't stall the UI thread.
+        now = time.perf_counter()
+        cur = state.current
+        force = cur is None or cur.finished or (cur.done % 10 == 0)
         if live is not None:
-            live.update(_build_layout(state))
+            if force or (now - _last_refresh[0]) >= 0.15:
+                live.update(_build_layout(state))
+                _last_refresh[0] = now
         elif args.plain or not use_live:
-            # throttle plain logs
-            cur = state.current
             if cur and (cur.done % 25 == 0 or cur.finished):
                 _plain_print(state)
 
@@ -862,6 +922,50 @@ def main() -> int:
             _write_summary(st, sets, f"runtime_{mode}")
             state.message = f"runtime done · {st.rate_pct:.1f}% OK"
             refresh()
+
+        # ---- RECOMPILE previously OK scripts (warm path) ----
+        if "recompile" in phases:
+            state.phase_idx = phases.index("recompile")
+            st = state.phases_stats["recompile"]
+            src_csv = args.recompile_from or runtime_csv
+            ok_files = _load_ok_paths(src_csv)
+            if args.recompile_limit and args.recompile_limit > 0:
+                ok_files = ok_files[: args.recompile_limit]
+            mode = args.recompile_mode
+            if not ok_files:
+                state.message = (
+                    f"phase 4 · recompile skip — no OK rows in {src_csv.name if src_csv else '?'}"
+                )
+                st.total = 0
+                st.finished = True
+                st.csv_path = recompile_csv
+                refresh()
+            else:
+                state.message = (
+                    f"phase 4 · recompile {len(ok_files):,} prior OK · mode={mode} "
+                    f"(from {src_csv.name})"
+                )
+                # Always fresh CSV for this verification pass
+                if recompile_csv.exists():
+                    recompile_csv.unlink()
+                refresh()
+                _run_pool(
+                    files=ok_files,
+                    worker=_runtime_one,
+                    worker_args=lambda p: (str(p), mode, args.bars),
+                    timeout=args.recompile_timeout,
+                    workers=args.workers,
+                    out=recompile_csv,
+                    resume=False,
+                    stats=st,
+                    on_progress=refresh,
+                )
+                _write_summary(st, sets, f"recompile_{mode}")
+                state.message = (
+                    f"recompile done · {st.ok:,}/{st.total:,} still OK "
+                    f"({st.rate_pct:.1f}%) · mode={mode}"
+                )
+                refresh()
 
         # ---- REPORT ----
         if "report" in phases:

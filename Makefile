@@ -7,7 +7,7 @@
 	docker-build docker-build-all docker-buildx docker-run docker-up docker-up-full \
 	docker-prod docker-down docker-logs docker-smoke \
 	test-lsp test-backend typecheck build-check build-vscode \
-	corpus-flow corpus-flow-set05
+	corpus-flow corpus-flow-set05 corpus-recompile
 
 help:
 	@echo "pyne — Pine Script™ Python toolchain"
@@ -36,6 +36,7 @@ help:
 	@echo "  clean            Clean build artifacts"
 	@echo "  corpus-flow      Animated full corpus flow (SETS=set05 MODE=auto)"
 	@echo "  corpus-flow-set05  shorthand for set05 full pipeline"
+	@echo "  corpus-recompile   re-run prior OK scripts (FROM=… LIMIT=0)"
 	@echo ""
 	@echo "AXIS charting UI lives in the sister repo:"
 	@echo "  https://github.com/jango-blockchained/axis"
@@ -93,7 +94,18 @@ corpus-flow:
 
 corpus-flow-set05:
 	python scripts/corpus_flow_tui.py --sets set05 --workers $(WORKERS) \
-		--runtime-mode $(MODE) --bars $(BARS) --timeout 12 --runtime-timeout 10 --resume
+		--runtime-mode $(MODE) --bars $(BARS) --timeout 12 --runtime-timeout 10 \
+		--recompile-timeout 8 --resume
+
+# Re-run only scripts that already OK'd under a prior runtime CSV (warm compile path).
+# Example: make corpus-recompile SETS=set05 FROM=.cache/corpus_flow_set05_runtime_auto.csv
+FROM ?= .cache/corpus_flow_set05_runtime_auto.csv
+LIMIT ?= 0
+corpus-recompile:
+	python scripts/corpus_flow_tui.py --sets $(SETS) --workers $(WORKERS) \
+		--phases recompile,report --recompile-mode compile \
+		--recompile-from $(FROM) --recompile-timeout 8 --bars $(BARS) \
+		$(if $(filter-out 0,$(LIMIT)),--recompile-limit $(LIMIT),)
 
 # Docker / buildx -----------------------------------------------------------
 # Prefer a dedicated builder for multi-platform: docker buildx create --use --name pynescript
