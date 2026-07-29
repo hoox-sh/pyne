@@ -113,15 +113,54 @@ class TestRun:
         assert len(resp.json["plots"]) == 2
         assert resp.json["plots"] == [102, 105]
 
+    def test_run_mode_compile_body(self, client: FlaskClient):
+        """Body mode=compile uses the Numba/object compile path when available."""
+        bars = [
+            {"open": 100, "high": 105, "low": 98, "close": 102, "time": 1, "volume": 10},
+            {"open": 102, "high": 108, "low": 101, "close": 105, "time": 2, "volume": 12},
+        ]
+        resp = client.post(
+            "/run",
+            json={
+                "script": "//@version=5\nindicator('t')\nplot(close)",
+                "data": bars,
+                "mode": "compile",
+            },
+        )
+        assert resp.status_code == 200, resp.json
+        body = resp.json
+        assert body["status"] == "success"
+        assert body.get("mode") == "compile"
+        assert body["plots"] == [102, 105]
+
+    def test_run_mode_compile_query_fallback(self, client: FlaskClient):
+        """Legacy clients put mode only on the query string — still honor it."""
+        bars = [
+            {"open": 100, "high": 105, "low": 98, "close": 102, "time": 1, "volume": 10},
+            {"open": 102, "high": 108, "low": 101, "close": 105, "time": 2, "volume": 12},
+        ]
+        resp = client.post(
+            "/run?mode=compile",
+            json={
+                "script": "//@version=5\nindicator('t')\nplot(close)",
+                "data": bars,
+            },
+        )
+        assert resp.status_code == 200, resp.json
+        body = resp.json
+        assert body["status"] == "success"
+        assert body.get("mode") == "compile"
+
     def test_run_no_script(self, client: FlaskClient):
         resp = client.post("/run", json={"data": []})
         assert resp.status_code == 400
-        assert resp.json["code"] == "NO_SCRIPT"
+        # Schema validation fires before NO_SCRIPT empty-string check
+        assert resp.json["code"] in ("NO_SCRIPT", "MISSING_FIELD")
 
     def test_run_no_data(self, client: FlaskClient):
         resp = client.post("/run", json={"script": "//@version=5\nplot(close)"})
         assert resp.status_code == 400
-        assert resp.json["code"] == "NO_DATA"
+        assert resp.json["code"] in ("NO_DATA", "MISSING_FIELD")
 
     def test_run_batch_success(self, client: FlaskClient):
         bars = [

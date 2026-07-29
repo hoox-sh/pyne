@@ -3,5 +3,7 @@ flask-cors>=4.0.0
 flask-sock>=0.7.0
 simple-websocket>=1.0.0
 numpy>=1.26.0
+# Compile mode (Runtime.run mode=compile|auto) — required for AXIS Execution mode
+numba>=0.59.0
 matplotlib>=3.8.0
 gunicorn>=21.0.0

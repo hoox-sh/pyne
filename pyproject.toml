@@ -47,6 +47,22 @@ data = [
 datafeed = [
   "ccxt>=4.0.0",
 ]
+# Numba JIT path for Runtime.run(mode="compile"|"auto") / AXIS Execution mode
+compile = [
+  "numpy>=1.26.0",
+  "numba>=0.59.0",
+]
+# Pro API stack (Flask + compile path)
+pro = [
+  "flask>=3.0.0",
+  "flask-cors>=4.0.0",
+  "flask-sock>=0.7.0",
+  "simple-websocket>=1.0.0",
+  "numpy>=1.26.0",
+  "numba>=0.59.0",
+  "matplotlib>=3.8.0",
+  "gunicorn>=21.0.0",
+]
 
 [project.urls]
 
@@ -71,6 +87,8 @@ dependencies = [
   "pygls>=2.0.0",
   "pytest-lsp>=0.1.0",
   "flask-cors>=4.0.0",
+  "numpy>=1.26.0",
+  "numba>=0.59.0",
 ]
 [tool.hatch.envs.test.scripts]
 test = [

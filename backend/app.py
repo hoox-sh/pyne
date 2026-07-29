@@ -208,8 +208,17 @@ def health_check():
 
 @app.route("/run", methods=["POST"])
 def run_pine_script():
-    """Execute Pine Script with provided data. Free tier endpoint."""
-    body, status = execute_run_payload(request.get_json(silent=True) or {})
+    """Execute Pine Script with provided data. Free tier endpoint.
+
+    ``mode`` is read from the JSON body (preferred). Query-string
+    ``?mode=compile`` is accepted as a legacy fallback when the body omits
+    ``mode`` (older AXIS clients only put mode on the URL).
+    """
+    payload: dict[str, Any] = dict(request.get_json(silent=True) or {})
+    qmode = request.args.get("mode")
+    if qmode and not payload.get("mode"):
+        payload["mode"] = qmode
+    body, status = execute_run_payload(payload)
     return jsonify(body), status
 
 
