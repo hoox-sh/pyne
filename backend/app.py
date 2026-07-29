@@ -99,9 +99,71 @@ def _parse_allowed_origins() -> list[str] | str:
 
 
 ALLOWED_ORIGINS = _parse_allowed_origins()
+# Free browser surface used by AXIS (VPS UI → local pyne is a first-class setup).
+# Always reflect Origin on these paths so OPTIONS preflight never fails CORS.
+_FREE_CORS_PATH_PREFIXES = (
+    "/",
+    "/run",
+    "/lsp/",
+    "/ws/",
+)
+
+
+def _path_is_free_cors(path: str) -> bool:
+    if path == "/" or path == "":
+        return True
+    for p in _FREE_CORS_PATH_PREFIXES:
+        if p != "/" and path.startswith(p.rstrip("/") if p.endswith("/") else p):
+            # /run, /run/batch, /lsp/*, /ws/*
+            if p.endswith("/"):
+                return path.startswith(p) or path == p.rstrip("/")
+            return path == p or path.startswith(p + "/")
+    return False
+
+
+def _origin_allowed(origin: str) -> bool:
+    if not origin:
+        return False
+    allowed = ALLOWED_ORIGINS
+    if allowed == "*":
+        return True
+    if not isinstance(allowed, list):
+        return False
+    import re
+
+    for pat in allowed:
+        if pat == "*" or pat == origin:
+            return True
+        try:
+            if re.match(pat + ("" if pat.endswith("$") else "$"), origin) or re.match(
+                pat, origin
+            ):
+                return True
+        except re.error:
+            continue
+    return False
+
+
+def _apply_cors_headers(resp, origin: str | None = None):  # type: ignore[no-untyped-def]
+    origin = origin or request.headers.get("Origin")
+    if not origin:
+        return resp
+    path = request.path or "/"
+    # Free AXIS endpoints: always allow any browser Origin (local compile from VPS UI)
+    if _path_is_free_cors(path) or _origin_allowed(origin):
+        resp.headers["Access-Control-Allow-Origin"] = origin
+        resp.headers["Vary"] = "Origin"
+        resp.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS, HEAD"
+        resp.headers["Access-Control-Allow-Headers"] = (
+            "Content-Type, Authorization, X-Admin-Token, Accept"
+        )
+        resp.headers["Access-Control-Max-Age"] = "86400"
+    return resp
+
+
 CORS(
     app,
-    origins=ALLOWED_ORIGINS,
+    origins=ALLOWED_ORIGINS if ALLOWED_ORIGINS != "*" else "*",
     methods=["GET", "POST", "OPTIONS", "HEAD"],
     allow_headers=["Content-Type", "Authorization", "X-Admin-Token", "Accept"],
     expose_headers=["Content-Type"],
@@ -110,48 +172,24 @@ CORS(
 )
 
 
+@app.before_request
+def _cors_preflight():  # type: ignore[no-untyped-def]
+    """Answer OPTIONS early with full CORS headers (browser preflight)."""
+    if request.method != "OPTIONS":
+        return None
+    from flask import make_response
+
+    resp = make_response("", 204)
+    return _apply_cors_headers(resp)
+
+
 @app.after_request
 def _ensure_cors_headers(resp):  # type: ignore[no-untyped-def]
-    """Safety net: always echo ACAO for allowed Origins (fixes list-['*'] footgun)."""
-    origin = request.headers.get("Origin")
-    if not origin:
-        return resp
-    allowed = ALLOWED_ORIGINS
-    ok = False
-    if allowed == "*":
-        ok = True
-    elif isinstance(allowed, list):
-        import re
-
-        for pat in allowed:
-            if pat == "*":
-                ok = True
-                break
-            if pat == origin:
-                ok = True
-                break
-            try:
-                if re.match(pat, origin):
-                    ok = True
-                    break
-            except re.error:
-                continue
-    if ok:
-        resp.headers["Access-Control-Allow-Origin"] = origin
-        resp.headers["Vary"] = "Origin"
-        resp.headers.setdefault(
-            "Access-Control-Allow-Methods",
-            "GET, POST, OPTIONS, HEAD",
-        )
-        resp.headers.setdefault(
-            "Access-Control-Allow-Headers",
-            "Content-Type, Authorization, X-Admin-Token, Accept",
-        )
-    return resp
+    """Echo ACAO on every response for free paths / allowlisted Origins."""
+    return _apply_cors_headers(resp)
 
 
 sock = Sock(app) if _SOCK_AVAILABLE and Sock is not None else None
-
 def execute_run_payload(data: dict[str, Any]) -> tuple[dict[str, Any], int]:
     """Shared run logic for POST /run and WS /ws/run.
 
