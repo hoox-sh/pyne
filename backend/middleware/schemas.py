@@ -63,7 +63,7 @@ RUN_SCHEMA: dict[str, tuple[type, bool, Any]] = {
     "symbol": (str, False, "CHART"),
     "data_source": (str, False, ""),  # ""|mock|ccxt|ccxtpro|yahoo|alphavantage
     "data_options": (dict, False, {}),  # exchange, api_key, seed, start_price, …
-    "mode": (str, False, "interpret"),  # interpret|compile|auto
+    "mode": (str, False, "auto"),  # interpret|compile|auto (default auto = compile+fallback)
     # Pine input.* overrides keyed by title (AXIS Script Settings)
     "inputs": (dict, False, {}),
 }
@@ -76,7 +76,7 @@ RUN_BATCH_SCHEMA: dict[str, tuple[type, bool, Any]] = {
     "symbol": (str, False, "CHART"),
     "data_source": (str, False, ""),
     "data_options": (dict, False, {}),
-    "mode": (str, False, "interpret"),
+    "mode": (str, False, "auto"),
 }
 
 # Hard cap to keep free-tier /run/batch bounded.

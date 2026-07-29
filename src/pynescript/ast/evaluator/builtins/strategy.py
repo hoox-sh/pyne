@@ -113,6 +113,9 @@ class StrategyState:
         self.commission_value: float = 0.0
         self.slippage_ticks: int = 0
         self.pyramiding: int = 0  # 0 = one entry; >0 max additional entries
+        # default_qty_type: fixed | percent_of_equity | cash (strategy() declaration)
+        self.default_qty_type: str = "fixed"
+        self.default_qty_value: float = 1.0
         self.mintick: float = 0.01
         self.closedtrades_first_index: int = 0
         self.max_contracts_held_all: float = 0.0
@@ -473,6 +476,27 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
             return float(price)
         return self._coerce_number(price, default=100.0)
 
+    def _resolve_default_entry_qty(self, fill_price: float) -> float:
+        """Resolve entry size from strategy() ``default_qty_type`` / ``default_qty_value``.
+
+        - ``fixed``: contracts = default_qty_value (Pine default 1)
+        - ``percent_of_equity``: contracts = equity * (pct/100) / price
+        - ``cash``: contracts = cash_amount / price
+        """
+        st = self._strategy_state
+        dqt = (st.default_qty_type or "fixed").replace("strategy.", "").lower()
+        val = float(st.default_qty_value or 0.0)
+        price = float(fill_price) if fill_price and fill_price > 0 else self._mark_price()
+        if price <= 0:
+            price = 1.0
+        if dqt in {"percent_of_equity", "percent", "percentage"}:
+            equity = float(st.equity(price)) if hasattr(st, "equity") else float(st.risk_free_capital)
+            return max(0.0, (equity * (val / 100.0)) / price)
+        if dqt == "cash":
+            return max(0.0, val / price)
+        # fixed (default)
+        return max(0.0, val if val > 0 else 1.0)
+
     def _mintick(self) -> float:
         ctx = getattr(self, "context", {}) or {}
         sym = ctx.get("syminfo")
@@ -538,6 +562,7 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
                 "initial_capital",
                 "currency",
                 "default_qty_value",
+                "default_qty_type",
             ):
                 if hasattr(decl, key):
                     mapping[key] = getattr(decl, key)
@@ -559,6 +584,14 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
             st.pyramiding = int(src["pyramiding"])
         if "currency" in src and src["currency"] is not None:
             st.account_currency = str(src["currency"])
+        if "default_qty_type" in src and src["default_qty_type"] is not None:
+            dqt = str(src["default_qty_type"]).replace("strategy.", "").strip().lower()
+            if dqt in {"fixed", "percent_of_equity", "cash", "percent", "percentage"}:
+                if dqt in {"percent", "percentage"}:
+                    dqt = "percent_of_equity"
+                st.default_qty_type = dqt
+        if "default_qty_value" in src and src["default_qty_value"] is not None:
+            st.default_qty_value = float(src["default_qty_value"])
 
     def _bar_index(self) -> int:
         ctx = getattr(self, "context", {}) or {}
@@ -601,7 +634,6 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
             direction = "long"
         elif direction in {"strategy.short", "-1", "short"}:
             direction = "short"
-        qty = self._coerce_number(kw.get("qty", args[2] if len(args) > 2 else 1.0), default=1.0)
         # Positional limit is rare; prefer kwargs. stop= for stop-entry is common.
         limit_price = self._coerce_optional_price(kw.get("limit", args[3] if len(args) > 3 else None))
         stop_price = self._coerce_optional_price(kw.get("stop", args[4] if len(args) > 4 else None))
@@ -609,6 +641,12 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
         fill_price = float(limit_price) if limit_price is not None else self._mark_price()
         bar_index = self._bar_index()
         bar_time = self._bar_time()
+
+        # Explicit qty= / positional qty wins; else strategy() default_qty_type/value
+        if "qty" in kw or len(args) > 2:
+            qty = self._coerce_number(kw.get("qty", args[2] if len(args) > 2 else 1.0), default=1.0)
+        else:
+            qty = self._resolve_default_entry_qty(fill_price)
 
         # --- Risk gates (allow_entry_in / entries_blocked / drawdown) ---
         if not self._risk_allows_entry(direction, fill_price):

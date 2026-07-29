@@ -192,19 +192,27 @@ class Barstate:
 
 
 class Chart:
-    """Chart namespace for Pine Script builtins."""
+    """Chart namespace for Pine Script builtins.
+
+    Pine uses ununderscored names (``is_heikinashi``); keep snake_case aliases
+    for older hosts and bind both on instances.
+    """
 
     fg_color: str = "#000000"
     bg_color: str = "#FFFFFF"
     resolution: str = "D"
 
-    # Chart display mode
+    # Chart display mode (Python-style + Pine-style aliases)
     is_heikin_ashi: bool = False
+    is_heikinashi: bool = False
     is_kagi: bool = False
     is_line_break: bool = False
+    is_linebreak: bool = False
     is_point_figure: bool = False
+    is_pointfigure: bool = False
     is_renko: bool = False
     is_range: bool = False
+    is_standard: bool = True
 
 
 class Runtime:
@@ -263,7 +271,7 @@ class Runtime:
         ohlcv_data: list[dict],
         data_feed=None,
         data_provider=None,
-        mode: str = "interpret",
+        mode: str | None = None,
         inputs: dict | None = None,
     ):
         """
@@ -275,14 +283,20 @@ class Runtime:
             data_feed: Optional realtime DataFeed for request.* live data.
             data_provider: Optional historical provider for request.* .
             mode:
-                ``"interpret"`` — AST walker (default).
+                ``"interpret"`` — AST walker.
                 ``"compile"`` — Numba/object bar loop (supported subset).
                 ``"auto"`` — try compile; on any failure fall back to interpret.
+                Default: ``PYNE_RUNTIME_MODE`` env, else ``"interpret"`` (tests/API
+                callers that omit mode: Pro API schema defaults to ``auto``).
             inputs: Optional Pine ``input.*`` overrides keyed by title.
 
         Returns:
             dict with 'series': list of plotted values for each bar.
         """
+        import os
+
+        if mode is None or mode == "":
+            mode = os.environ.get("PYNE_RUNTIME_MODE", "interpret")
         mode_norm = (mode or "interpret").strip().lower()
         if mode_norm == "compile":
             return self._run_compiled(source_code, ohlcv_data)

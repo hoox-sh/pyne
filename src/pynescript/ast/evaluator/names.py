@@ -71,6 +71,16 @@ _BARE_SERIES_BUILTINS = frozenset(
     }
 )
 
+# Pine host attr name → Python attribute when the two spellings differ.
+_HOST_ATTR_ALIASES: dict[str, str] = {
+    "is_heikinashi": "is_heikin_ashi",
+    "is_heikin_ashi": "is_heikinashi",
+    "is_linebreak": "is_line_break",
+    "is_line_break": "is_linebreak",
+    "is_pointfigure": "is_point_figure",
+    "is_point_figure": "is_pointfigure",
+}
+
 
 def ast_qualified_name(expr: ast.AST) -> str | None:
     """Build ``a.b.c`` from Attribute/Name AST nodes without evaluating values.
@@ -249,13 +259,25 @@ class NameEvaluator:
             if not isinstance(value, ObjectInstance):
                 return ("_ext_method", value, node.attr)
 
-        # Fallback: try getattr for plain Python objects (Syminfo, Timeframe, etc.)
+        # Fallback: try getattr for plain Python objects (Syminfo, Timeframe, Chart, …).
         # None has no attributes worth reflecting.
         if value is not None and hasattr(value, node.attr):
             return getattr(value, node.attr)
 
-        # Last resort: return qualified name string for later resolution
-        return qualified_name if qualified_name is not None else f"{value}.{node.attr}"
+        # Chart / host object aliases: Pine ``is_heikinashi`` vs ``is_heikin_ashi``.
+        if value is not None and not isinstance(value, (str, int, float, bool, list, dict, tuple)):
+            alias = _HOST_ATTR_ALIASES.get(node.attr)
+            if alias is not None and hasattr(value, alias):
+                return getattr(value, alias)
+
+        # Last resort:
+        # - If the qualified path is a *registered* builtin, keep the string so
+        #   later Call dispatch can resolve it (historical lazy path).
+        # - Otherwise return ``None`` (na). Returning a truthy string for unknown
+        #   attrs (e.g. ``chart.is_heikinashi``) made booleans always true.
+        if qualified_name and self._is_registered_builtin(qualified_name):
+            return qualified_name
+        return None
 
     def visit_Subscript(self: EvaluatorProtocol, node: ast.Subscript) -> Any:
         """Evaluate a subscript/index access node (e.g., series[index], array[0]).

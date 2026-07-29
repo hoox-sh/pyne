@@ -228,7 +228,8 @@ def execute_run_payload(data: dict[str, Any]) -> tuple[dict[str, Any], int]:
     symbol = validated.get("symbol") or "CHART"
     data_source = validated.get("data_source") or None
     data_options = validated.get("data_options") or {}
-    mode = validated.get("mode") or "interpret"
+    # Prefer compile with interpret fallback for production throughput.
+    mode = validated.get("mode") or "auto"
     if isinstance(data_source, str) and not data_source.strip():
         data_source = None
 
@@ -472,7 +473,7 @@ def run_pine_script_batch():
     symbol = data.get("symbol") or "CHART"
     data_source = data.get("data_source") or None
     data_options = data.get("data_options") or {}
-    mode = data.get("mode") or "interpret"
+    mode = data.get("mode") or "auto"
     if isinstance(data_source, str) and not data_source.strip():
         data_source = None
 

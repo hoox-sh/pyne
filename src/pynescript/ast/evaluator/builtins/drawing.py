@@ -431,6 +431,8 @@ class Polyline:
     width: int = 1
     style: str = "solid"
     force_overlay: bool = False  # v6
+    curved: bool = False
+    fill_color: str | None = None
     deleted: bool = False
 
 
@@ -566,6 +568,17 @@ class DrawingBuiltinsMixin(BuiltinDispatchMixin):
             # Polyline functions
             "polyline.new": self._handle_polyline_new,
             "polyline.delete": self._handle_polyline_delete,
+            "polyline.get_points": self._handle_polyline_get_points,
+            "polyline.set_points": self._handle_polyline_set_points,
+            "polyline.set_line_color": self._handle_polyline_set_line_color,
+            "polyline.set_line_width": self._handle_polyline_set_line_width,
+            "polyline.set_line_style": self._handle_polyline_set_line_style,
+            "polyline.set_fill_color": self._handle_polyline_set_fill_color,
+            "polyline.set_curved": self._handle_polyline_set_curved,
+            "polyline.set_force_overlay": self._handle_polyline_set_force_overlay,
+            "polyline.set_closed": self._handle_polyline_set_closed,
+            "polyline.set_xloc": self._handle_polyline_set_xloc,
+            "polyline.copy": self._handle_polyline_copy,
             # Collection accessors (array of non-deleted objects)
             "line.all": self._handle_line_all,
             "box.all": self._handle_box_all,
@@ -1438,6 +1451,8 @@ class DrawingBuiltinsMixin(BuiltinDispatchMixin):
         width = kw.get("width", args[4] if len(args) > 4 else 1)
         style = kw.get("style", args[5] if len(args) > 5 else "solid")
         force_overlay = kw.get("force_overlay", args[6] if len(args) > 6 else False)
+        curved = kw.get("curved", False)
+        fill_color = kw.get("fill_color")
         # Normalize xloc enums like xloc.bar_index
         xloc_s = str(xloc or "bar_index").replace("xloc.", "")
         pts = list(points) if isinstance(points, list) else []
@@ -1452,6 +1467,8 @@ class DrawingBuiltinsMixin(BuiltinDispatchMixin):
             width=int(width) if width is not None else 1,
             style=str(style or "solid"),
             force_overlay=bool(force_overlay),
+            curved=bool(curved),
+            fill_color=None if fill_color is None else str(fill_color),
         )
         DrawingRegistry.polylines.append(polyline)
         return polyline
@@ -1462,6 +1479,87 @@ class DrawingBuiltinsMixin(BuiltinDispatchMixin):
         if isinstance(polyline, Polyline):
             polyline.deleted = True
 
+    def _handle_polyline_get_points(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> list[Any]:
+        """polyline.get_points(id) → array of chart.point."""
+        pl = args[0] if args else None
+        if isinstance(pl, Polyline) and not pl.deleted:
+            return list(pl.points)
+        return []
+
+    def _handle_polyline_set_points(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> None:
+        """polyline.set_points(id, points)."""
+        pl = args[0] if args else None
+        points = args[1] if len(args) > 1 else (kwargs or {}).get("points")
+        if isinstance(pl, Polyline):
+            pts = list(points) if isinstance(points, list) else []
+            pl.points = [p for p in pts if p is not None]
+
+    def _handle_polyline_set_line_color(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> None:
+        pl = args[0] if args else None
+        color = args[1] if len(args) > 1 else (kwargs or {}).get("color")
+        if isinstance(pl, Polyline) and color is not None:
+            pl.color = str(color)
+
+    def _handle_polyline_set_line_width(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> None:
+        pl = args[0] if args else None
+        width = args[1] if len(args) > 1 else (kwargs or {}).get("width")
+        if isinstance(pl, Polyline) and width is not None:
+            pl.width = int(width)
+
+    def _handle_polyline_set_line_style(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> None:
+        pl = args[0] if args else None
+        style = args[1] if len(args) > 1 else (kwargs or {}).get("style")
+        if isinstance(pl, Polyline) and style is not None:
+            pl.style = str(style).replace("line.style_", "")
+
+    def _handle_polyline_set_fill_color(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> None:
+        pl = args[0] if args else None
+        color = args[1] if len(args) > 1 else (kwargs or {}).get("fill_color", (kwargs or {}).get("color"))
+        if isinstance(pl, Polyline):
+            pl.fill_color = None if color is None else str(color)
+
+    def _handle_polyline_set_curved(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> None:
+        pl = args[0] if args else None
+        curved = args[1] if len(args) > 1 else (kwargs or {}).get("curved", True)
+        if isinstance(pl, Polyline):
+            pl.curved = bool(curved)
+
+    def _handle_polyline_set_force_overlay(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> None:
+        pl = args[0] if args else None
+        fo = args[1] if len(args) > 1 else (kwargs or {}).get("force_overlay", True)
+        if isinstance(pl, Polyline):
+            pl.force_overlay = bool(fo)
+
+    def _handle_polyline_set_closed(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> None:
+        pl = args[0] if args else None
+        closed = args[1] if len(args) > 1 else (kwargs or {}).get("closed", True)
+        if isinstance(pl, Polyline):
+            pl.closed = bool(closed)
+
+    def _handle_polyline_set_xloc(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> None:
+        pl = args[0] if args else None
+        xloc = args[1] if len(args) > 1 else (kwargs or {}).get("xloc")
+        if isinstance(pl, Polyline) and xloc is not None:
+            pl.xloc = str(xloc).replace("xloc.", "")
+
+    def _handle_polyline_copy(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> Polyline | None:
+        """polyline.copy(id) → new polyline with copied fields."""
+        pl = args[0] if args else None
+        if not isinstance(pl, Polyline):
+            return None
+        clone = Polyline(
+            points=list(pl.points),
+            closed=pl.closed,
+            xloc=pl.xloc,
+            color=pl.color,
+            width=pl.width,
+            style=pl.style,
+            force_overlay=pl.force_overlay,
+            curved=pl.curved,
+            fill_color=pl.fill_color,
+        )
+        DrawingRegistry.polylines.append(clone)
+        return clone
 
     # ========== MISSING TV SURFACE HANDLERS ==========
 

@@ -50,6 +50,10 @@ class StrategyConstantsMixin(BuiltinDispatchMixin):
             "strategy.direction.long": self._handle_strategy_long,
             "strategy.direction.short": self._handle_strategy_short,
             "strategy.direction.all": self._handle_direction_all,
+            # default_qty_type sentinels (strategy(..., default_qty_type=...))
+            "strategy.fixed": self._handle_qty_fixed,
+            "strategy.percent_of_equity": self._handle_qty_percent_of_equity,
+            "strategy.cash": self._handle_qty_cash,
         }
 
     def _handle_strategy_long(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> str:
@@ -78,3 +82,12 @@ class StrategyConstantsMixin(BuiltinDispatchMixin):
 
     def _handle_direction_all(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> str:
         return "all"
+
+    def _handle_qty_fixed(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> str:
+        return "fixed"
+
+    def _handle_qty_percent_of_equity(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> str:
+        return "percent_of_equity"
+
+    def _handle_qty_cash(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> str:
+        return "cash"

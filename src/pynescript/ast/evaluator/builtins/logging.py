@@ -21,6 +21,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 
 class Logger:
     """Simple logger for PineScript logging functions."""
@@ -30,35 +32,19 @@ class Logger:
         self.logs = []
 
     def error(self, message: str) -> None:
-        """Log an error message.
-
-        Args:
-            message: The error message to log
-        """
+        """Log an error message."""
         self.logs.append(("ERROR", str(message)))
 
     def info(self, message: str) -> None:
-        """Log an info message.
-
-        Args:
-            message: The info message to log
-        """
+        """Log an info message."""
         self.logs.append(("INFO", str(message)))
 
     def warning(self, message: str) -> None:
-        """Log a warning message.
-
-        Args:
-            message: The warning message to log
-        """
+        """Log a warning message."""
         self.logs.append(("WARNING", str(message)))
 
     def get_logs(self) -> list[tuple[str, str]]:
-        """Get all logged messages.
-
-        Returns:
-            List of (level, message) tuples
-        """
+        """Get all logged messages as ``(level, message)`` tuples."""
         return self.logs.copy()
 
     def clear(self) -> None:
@@ -70,52 +56,64 @@ class Logger:
 _logger = Logger()
 
 
-def log_error(message: str) -> None:
-    """Log an error message.
+def _pine_log_arg(value: Any) -> Any:
+    """Coerce a Pine value for string formatting (``na`` → ``\"na\"``)."""
+    if value is None:
+        return "na"
+    return value
 
-    In PineScript, errors are logged to the console and script execution may halt.
 
-    Args:
-        message: The error message to log
+def format_log_message(*parts: Any) -> str:
+    """Format a Pine ``log.*`` / ``runtime.error`` message.
+
+    Supports:
+    - single arg: ``log.info("hello")``
+    - ``str.format`` style: ``log.info("x={0}", close)``
+    - printf ``%`` style: ``log.info("x=%s", close)``
+    - multi-arg fallback: join with spaces
     """
-    _logger.error(message)
+    if not parts:
+        return ""
+    if len(parts) == 1:
+        return str(parts[0] if parts[0] is not None else "na")
+    fmt = str(parts[0] if parts[0] is not None else "")
+    args = [_pine_log_arg(p) for p in parts[1:]]
+    try:
+        return fmt.format(*args)
+    except (IndexError, KeyError, ValueError):
+        pass
+    try:
+        return fmt % tuple(args)
+    except (TypeError, ValueError):
+        pass
+    return " ".join(str(a) for a in (_pine_log_arg(p) for p in parts))
 
 
-def log_info(message: str) -> None:
-    """Log an info message.
-
-    In PineScript, info messages are logged to the console.
-
-    Args:
-        message: The info message to log
-    """
-    _logger.info(message)
+def log_error(*parts: Any) -> None:
+    """Log an error message (printf / format varargs supported)."""
+    _logger.error(format_log_message(*parts))
 
 
-def log_warning(message: str) -> None:
-    """Log a warning message.
+def log_info(*parts: Any) -> None:
+    """Log an info message (printf / format varargs supported)."""
+    _logger.info(format_log_message(*parts))
 
-    In PineScript, warnings are logged to the console.
 
-    Args:
-        message: The warning message to log
-    """
-    _logger.warning(message)
+def log_warning(*parts: Any) -> None:
+    """Log a warning message (printf / format varargs supported)."""
+    _logger.warning(format_log_message(*parts))
 
 
 def get_logger() -> Logger:
-    """Get the global logger instance.
-
-    Returns:
-        The Logger instance
-    """
+    """Get the global logger instance."""
     return _logger
 
 
-def runtime_error(message: str) -> None:
+def runtime_error(*parts: Any) -> None:
     """Halt script execution with an error message (Pine ``runtime.error``)."""
-    _logger.error(message)
-    raise RuntimeError(str(message))
+    msg = format_log_message(*parts)
+    _logger.error(msg)
+    raise RuntimeError(msg)
 
 
 def register_logging_functions(namespace: dict) -> None:
