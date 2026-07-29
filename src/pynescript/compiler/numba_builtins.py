@@ -289,6 +289,36 @@ def numba_nz(val, replacement):
         return replacement
     return val
 
+
+def nz_py(val, replacement=0.0):
+    """Object-mode ``nz`` / ``fixnan`` stub — never calls ``isnan`` on unicode.
+
+    Used when the compiler has already forced object mode or the value may be
+    a color/string/UDT handle. Numba's ``numba_nz`` rejects ``unicode_type``.
+    """
+    if val is None:
+        return replacement
+    # Fast path: Python float NaN
+    if isinstance(val, float) and val != val:
+        return replacement
+    # Strings, colors, dicts, lists — pass through (never isnan)
+    if isinstance(val, (str, bytes, dict, list, tuple, set)):
+        return val
+    try:
+        if isinstance(val, (int, np.integer, bool, np.bool_)):
+            return val
+        if isinstance(val, (np.floating,)):
+            f = float(val)
+            if f != f:
+                return replacement
+            return f
+        # Avoid np.isnan on object/unicode (raises / TypingError under njit paths)
+        if isinstance(val, (np.ndarray,)) and getattr(val, "dtype", None) is not None:
+            return replacement if val.size == 0 else nz_py(val.reshape(-1)[0], replacement)
+    except Exception:
+        return replacement
+    return val
+
 @numba.njit(cache=True)
 def numba_store(arr, i, value):
     """Write ``value`` into ``arr[i]`` and return it.
@@ -1268,6 +1298,25 @@ def safe_float(x):
         return np.nan
 
 
+def na_num(x):
+    """Fast None→nan coercion for object-mode arithmetic / comparisons.
+
+    Hot path: ``None`` → ``nan``; bare ``float``/``int`` identity (no alloc).
+    Everything else falls through to :func:`safe_float` (handles bool, str,
+    UDT dicts, sequences, …). Never raises — used in generated bar loops.
+    """
+    if x is None:
+        return np.nan
+    # CPython exact types (Pine scalars are usually these)
+    t = type(x)
+    if t is float or t is int:
+        return x
+    if t is bool:
+        return 1.0 if x else 0.0
+    if t is np.float64 or t is np.int64:
+        return float(x)
+    return safe_float(x)
+
 def safe_int(x):
     """Best-effort int cast; NaN/invalid → 0 (Pine-ish fallback)."""
     try:
@@ -1458,6 +1507,32 @@ def _pine_is_descending(order) -> bool:
         return order.lower() in ("descending", "desc")
     return False
 
+
+def safe_list_set(arr, index, value):
+    """Pine ``array.set(id, index, value)`` with soft OOB recovery.
+
+    Matches the interpret-path ``_builtin_array_set`` policy used by corpus
+    Runtime: grow undersized lists up to a sanity cap, no-op on negative /
+    non-int index or non-list handles. Avoids ``list assignment index out of
+    range`` from raw ``__setitem__`` in object-mode compile.
+    """
+    if not isinstance(arr, list):
+        return arr
+    if index is None:
+        return arr
+    try:
+        idx = int(index)
+    except (TypeError, ValueError):
+        return arr
+    if idx < 0:
+        return arr
+    if idx >= len(arr):
+        if idx >= 1_000_000:
+            return arr
+        arr.extend([None] * (idx + 1 - len(arr)))
+    if idx < len(arr):
+        arr[idx] = value
+    return arr
 
 def safe_list_append(arr, value):
     """Append to a real list; no-op when *arr* is float/None (misclassified series)."""
@@ -3576,3 +3651,22 @@ def numba_running_min_inc(arr, i, st):
     st[0] = m
     st[1] = float(i)
     return m
+
+def array_range(arr):
+    """Pine ``array.range(id)`` — max − min of numeric elements; empty → na.
+
+    Not Python ``range`` / ``list(range(...))``. Used by compile object-mode
+    so ``float_range / n`` never becomes ``list / int``.
+    """
+    if arr is None:
+        return np.nan
+    if not isinstance(arr, (list, tuple, np.ndarray)) and not hasattr(arr, "__iter__"):
+        return np.nan
+    if isinstance(arr, (float, int, np.floating, np.integer, bool)):
+        return np.nan
+    lo = safe_min(arr)
+    hi = safe_max(arr)
+    if lo != lo or hi != hi:  # NaN
+        return np.nan
+    return hi - lo
+

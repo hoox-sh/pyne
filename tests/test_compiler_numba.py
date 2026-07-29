@@ -2337,7 +2337,8 @@ plot(math.avg(close, 10), title="avg")
         code = transpile(src)
         assert "numba_hma_inc" in code
         assert "numba_sum_inc" in code
-        assert "numba_sma_inc" in code
+        # Pine math.avg is multi-arg mean (close+10)/2 — not ta.sma
+        assert "np.divide" in code or "np.add" in code or "na_num" in code or "safe_float" in code
         assert "__hma_raw" in code
         compiled = compile_script(src)
         assert not compiled.object_mode
@@ -2345,7 +2346,7 @@ plot(math.avg(close, 10), title="avg")
         out = compiled.run(o, h, l, c, v)
         assert not np.isnan(out["hma"][-1])
         assert abs(out["sum"][-1] - float(np.sum(c[-10:]))) < 1e-6
-        assert abs(out["avg"][-1] - float(np.mean(c[-10:]))) < 1e-6
+        assert abs(out["avg"][-1] - float((c[-1] + 10.0) / 2.0)) < 1e-6
 
     def test_rising_falling_running_max_min_emit_and_parity(self) -> None:
         from pynescript.compiler import numba_builtins as nb
@@ -2506,4 +2507,219 @@ plot(pvsraClose, title="c")
         # volume series is ones from _ohlcv; close is the price series
         assert abs(float(out["vol"][-1]) - 1.0) < 1e-9
         assert abs(float(out["c"][-1]) - float(c[-1])) < 1e-9
+
+
+class TestNaSafeArithmetic:
+    """Object-mode None/na must not TypeError on arithmetic or comparisons."""
+
+    def test_na_num_helper(self) -> None:
+        from pynescript.compiler.numba_builtins import na_num, safe_float
+
+        assert np.isnan(na_num(None))
+        assert na_num(3.5) == 3.5
+        assert na_num(2) == 2
+        assert na_num(True) == 1.0
+        assert na_num(False) == 0.0
+        assert np.isnan(na_num({}))  # UDT/handle → same as safe_float
+        assert abs(na_num("1.25") - 1.25) < 1e-12
+        # non-na path parity with safe_float for floats
+        assert na_num(1.0) == safe_float(1.0)
+
+    def test_compare_none_scalar_no_typeerror(self) -> None:
+        """``src > ma`` when ma is a scalar still None (tuple unpack) → no crash.
+
+        Mirrors set05 ColorRVI: ``rvi > rviMA`` with rviMA from multi-return
+        before enough bars — scalar local is ``None``, not float nan.
+        """
+        src = """//@version=5
+indicator("cmp")
+f() =>
+    [na, na]
+[ma, _] = f()
+// force object mode before compare so na_num wraps apply
+hline(50)
+col = close > ma ? 1.0 : 0.0
+plot(col, title="c")
+"""
+        code = transpile(src)
+        assert "na_num(" in code
+        compiled = compile_script(src)
+        assert compiled.object_mode
+        o, h, l, c, v = _ohlcv(12)
+        out = compiled.run(o, h, l, c, v)
+        # ma is always na/None → comparison false → 0.0
+        assert np.allclose(out["c"], 0.0)
+
+    def test_mult_none_literal_is_nan(self) -> None:
+        """Missing TA / import stubs lower to None; ``None * 0.25`` must be nan."""
+        src = """//@version=5
+indicator("mul")
+import user/Lib/1 as Lib
+x = na
+plot(x * 0.25, title="p")
+plot(close * 2.0, title="ok")
+"""
+        code = transpile(src)
+        assert "np.nan" in code or "na_num" in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(10)
+        out = compiled.run(o, h, l, c, v)
+        assert np.all(np.isnan(out["p"]))
+        np.testing.assert_allclose(out["ok"], c * 2.0)
+
+    def test_sub_none_operand_is_nan(self) -> None:
+        src = """//@version=5
+indicator("sub")
+float q = na
+plot(close - q, title="d")
+hline(0)
+"""
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(8)
+        out = compiled.run(o, h, l, c, v)
+        assert np.all(np.isnan(out["d"]))
+
+    def test_numeric_mode_sma_unaffected(self) -> None:
+        """Pure numeric njit path must stay bare (no na_num in hot loop)."""
+        src = """//@version=5
+indicator("sma")
+plot(ta.sma(close, 14), title="s")
+"""
+        code = transpile(src)
+        assert "na_num" not in code
+        assert "@numba.njit" in code
+        compiled = compile_script(src)
+        assert not compiled.object_mode
+        o, h, l, c, v = _ohlcv(40)
+        out = compiled.run(o, h, l, c, v)
+        assert "s" in out
+        assert np.isfinite(out["s"][-1])
+
+
+class TestSet05OobListArithmetic:
+    """Compile-path soft OOB list set, series clamp, array.range max−min.
+
+    Corpus: 7020/7965 out-of-bounds demos, 8242 LeMan future index, 7303 KDE.
+    """
+
+    def test_safe_list_set_grows_on_oob(self) -> None:
+        from pynescript.compiler.numba_builtins import safe_list_set
+
+        a: list = [None, None, None]
+        safe_list_set(a, 3, 3.0)  # TV docs demo: size 3, set index 3
+        assert len(a) == 4
+        assert a[3] == 3.0
+        safe_list_set(a, -1, 9)  # negative → no-op
+        assert a[0] is None
+        assert safe_list_set(1.0, 0, 1) == 1.0  # non-list identity
+
+    def test_array_range_is_max_minus_min_not_python_range(self) -> None:
+        from pynescript.compiler.numba_builtins import array_range
+
+        assert array_range([1.0, 5.0, 3.0]) == 4.0
+        assert array_range([2, 2, 2]) == 0.0
+        assert array_range([]) != array_range([])  # na
+        assert array_range(None) != array_range(None)
+
+    def test_array_set_oob_compile_grows_not_crash(self) -> None:
+        """TV docs 'Out of bounds index' demo soft-fails via grow (corpus Runtime)."""
+        src = """//@version=5
+indicator("Out of bounds index")
+a = array.new<float>(3)
+for i = 1 to 3
+    array.set(a, i, i)
+plot(array.pop(a), title="p")
+"""
+        code = transpile(src)
+        assert "safe_list_set" in code
+        assert ".__setitem__" not in code or "safe_list_set" in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(50)
+        out = compiled.run(o, h, l, c, v)
+        # After sets at 1,2,3 then pop → last element was 3
+        assert abs(float(out["p"][-1]) - 3.0) < 1e-9
+
+    def test_array_range_compile_scalar_not_list(self) -> None:
+        src = """//@version=5
+indicator("kde range")
+var float[] observations = array.new_float(0)
+if barstate.isfirst
+    array.push(observations, 93)
+    array.push(observations, 102)
+float _range = array.range(observations)
+plot(_range / 2, title="half")
+plot(_range, title="r")
+"""
+        code = transpile(src)
+        assert "array_range(observations)" in code or "array_range(" in code
+        assert "list(range(" not in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(50)
+        out = compiled.run(o, h, l, c, v)
+        # max 102 - min 93 = 9; half = 4.5
+        assert abs(float(out["r"][-1]) - 9.0) < 1e-9
+        assert abs(float(out["half"][-1]) - 4.5) < 1e-9
+
+    def test_history_negative_offset_clamps_upper_bound(self) -> None:
+        """``high[-highestbars(...)]`` must not OOB at series end (LeMan pattern)."""
+        src = """//@version=4
+study("LeMan")
+Min = 13
+high1 = high[-highestbars(high[1], Min)]
+plot(high1, title="h1")
+plot(high, title="h")
+"""
+        code = transpile(src)
+        assert "len(" in code
+        assert "__bar_idx -" in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(50)
+        out = compiled.run(o, h, l, c, v)
+        assert "h1" in out
+        # No crash; finite values on early bars (future still in series),
+        # na allowed near end when offset past last bar.
+        assert len(out["h1"]) == 50
+
+    def test_runtime_compile_oob_demos_and_kde(self) -> None:
+        from backend.runtime import Runtime
+
+        bars = [
+            {
+                "open": float(100 + i),
+                "high": float(101 + i),
+                "low": float(99 + i),
+                "close": float(100 + i),
+                "volume": 1.0,
+                "time": i * 60_000,
+            }
+            for i in range(50)
+        ]
+        oob = """//@version=6
+indicator("Out of bounds index")
+a = array.new<float>(3)
+for i = 1 to 3
+    array.set(a, i, i)
+plot(array.pop(a))
+"""
+        kde = """//@version=5
+indicator("KDE mini")
+var float[] observations = array.new_float(0)
+if barstate.isfirst
+    array.push(observations, 93)
+    array.push(observations, 102)
+float _range = array.range(observations)
+float _step = _range / 20
+plot(_step, title="step")
+"""
+        leman = """//@version=4
+study("LeMan mini")
+high1 = high[-highestbars(high[1], 13)]
+plot(high1)
+"""
+        rt = Runtime()
+        for src in (oob, kde, leman):
+            res = rt.run(src, bars, mode="compile")
+            assert not res.get("error"), res.get("error")
+            assert res.get("mode") == "compile"
+
 

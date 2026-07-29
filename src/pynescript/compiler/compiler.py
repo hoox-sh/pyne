@@ -361,7 +361,7 @@ _DRAWING_FUNCS = frozenset(
 
 
 class CompilerVisitor(NodeVisitor):
-    def __init__(self):
+    def __init__(self, *, force_object_mode: bool = False):
         super().__init__()
         self.arrays: set[str] = set()
         self.plots: list[dict] = []
@@ -369,7 +369,11 @@ class CompilerVisitor(NodeVisitor):
         self.in_function = False
         self.local_vars: set[str] = set()
         # Object-mode state
-        self.object_mode = False
+        # force_object_mode: engine recovery when nopython JIT cannot type the
+        # generated body (pyobject arrays / unicode ops). Still walks AST the
+        # same way; only the final emit path is pinned to object mode.
+        self.force_object_mode = bool(force_object_mode)
+        self.object_mode = bool(force_object_mode)
         self.uses_strategy = False
         self.strategy_kwargs: dict[str, str] = {}
         self.udt_types: dict[str, list[str]] = {}  # type name -> field names
@@ -543,9 +547,24 @@ class CompilerVisitor(NodeVisitor):
         Pure array refs pass through. Compounds (numba_abs(...), close*2) are
         written into a synthetic series via numba_store_src.
         Object mode uses store_src_py so list/str handles never do ``list + 0.0``.
+
+        Object-dtype series (string/UDT) must never be passed to njit TA kernels
+        (``array(pyobject)`` TypingError) — re-materialize as float64 via
+        ``store_src_py``.
         """
         if self._is_series_arr_expr(expr):
-            return self._strip_bar_idx(expr)
+            base = self._strip_bar_idx(expr)
+            if self._is_object_dtype_arr(base):
+                # Rebuild a float64 synthetic series from object cells.
+                if self.in_function and self._current_func_name:
+                    sid = f"__st_{self._current_func_name}__src{self._expr_src_i}"
+                else:
+                    sid = f"__src{self._expr_src_i}_arr"
+                self._expr_src_i += 1
+                self.arrays.add(sid)
+                self.object_mode = True
+                return f"store_src_py({sid}, {base}[__bar_idx], __bar_idx)"
+            return base
         if self.in_function and self._current_func_name:
             sid = f"__st_{self._current_func_name}__src{self._expr_src_i}"
         else:
@@ -586,6 +605,8 @@ class CompilerVisitor(NodeVisitor):
 
         # String/color/UDT/map series must never enter njit (non-precise pyobject).
         if self.string_series or self.udt_vars or self.map_vars or self.scalar_vars:
+            self.object_mode = True
+        if self.force_object_mode:
             self.object_mode = True
 
         if self.object_mode:
@@ -2857,6 +2878,7 @@ class CompilerVisitor(NodeVisitor):
         if func_name == "array_set":
             # Method ``m.set(row, col, val)`` → 4 args after id prepend.
             # Method ``a.set(index, val)`` → 3 args.
+            # Use safe_list_set (grow/no-op) so OOB indices soft-fail like interpret.
             a = ra(
                 args,
                 kwargs,
@@ -2864,29 +2886,26 @@ class CompilerVisitor(NodeVisitor):
                 aliases={"col": "column", "row": "index"},
             )
             if len(args) >= 4:
-                # Expression-safe matrix cell write (no bare ``=`` in call/ternary)
                 return (
                     f"{args[0]}[int({args[1]})].__setitem__(int({args[2]}), {args[3]})"
                 )
             if len(args) >= 3:
-                return f"{args[0]}.__setitem__(int({args[1]}), {args[2]})"
+                return f"safe_list_set({args[0]}, {args[1]}, {args[2]})"
             if len(a) >= 3:
-                return f"{a[0]}.__setitem__(int({a[1]}), {a[2]})"
+                return f"safe_list_set({a[0]}, {a[1]}, {a[2]})"
             return ""
         if func_name == "array_size":
             a = ra(args, kwargs, ("id",))
             # safe_len: scalars (misclassified array handles) → 0, not TypeError
             return f"safe_len({a[0]})" if a else "0"
         if func_name == "array_range":
-            # array.range(start, stop) / array.range(length)
-            if len(args) >= 2:
-                return (
-                    f"list(range(int(safe_float({args[0]})), "
-                    f"int(safe_float({args[1]}))))"
-                )
+            # Pine array.range(id) = max - min; not Python range()
+            a = ra(args, kwargs, ("id",))
+            if a:
+                return f"array_range({a[0]})"
             if args:
-                return f"list(range(int(safe_float({args[0]}))))"
-            return "[]"
+                return f"array_range({args[0]})"
+            return "np.nan"
         if func_name == "array_clear":
             a = ra(args, kwargs, ("id",))
             return f"safe_list_clear({a[0]})" if a else ""
@@ -4530,22 +4549,38 @@ class CompilerVisitor(NodeVisitor):
             repl = args[1] if len(args) > 1 else "0.0"
             # String/object series: avoid numba_nz (isnan on unicode fails)
             if (
-                not self._is_safe_numeric_expr(args[0])
+                self.object_mode
+                or not self._is_safe_numeric_expr(args[0])
                 or self._looks_like_string_expr(args[0])
+                or self._looks_like_string_expr(repl)
                 or args[0] in self.scalar_vars
+                or args[0] in self.string_series
+                or args[0] in self.string_scalars
             ):
                 self.object_mode = True
-                return (
-                    f"({args[0]} if ({args[0]}) is not None "
-                    f"and not (isinstance({args[0]}, float) "
-                    f"and ({args[0]}) != ({args[0]})) else {repl})"
-                )
+                return f"nz_py({args[0]}, {repl})"
             return f"numba_nz({args[0]}, {repl})"
         if func_name == "fixnan":
             # Full history carry-forward is expensive; nz(x, 0) stub is enough
+            # for numeric series. Color/string series must not use numba_nz
+            # (TypingError: isnan(unicode_type)).
             if not args:
                 return "0.0"
-            return f"numba_nz({args[0]}, 0.0)"
+            arg = args[0]
+            if (
+                self.object_mode
+                or not self._is_safe_numeric_expr(arg)
+                or self._looks_like_string_expr(arg)
+                or arg in self.string_series
+                or arg in self.string_scalars
+            ):
+                self.object_mode = True
+                # None replacement keeps color/string na as None (plot skips);
+                # numeric na → 0.0 matches the numeric stub / evaluator.
+                if self._looks_like_string_expr(arg):
+                    return f"nz_py({arg}, None)"
+                return f"nz_py({arg}, 0.0)"
+            return f"numba_nz({arg}, 0.0)"
         if func_name in ("complex_new", "complex_arr_new"):
             # complex.new(real, imag) → object dict handle
             self.object_mode = True
@@ -4623,12 +4658,34 @@ class CompilerVisitor(NodeVisitor):
                 f"numba_sum_inc({_arr(src_e)}, {self._emit_period(period)}, __bar_idx, {st})"
             )
         if func_name == "math_avg":
-            period = args[1] if len(args) > 1 else "14"
-            src_e = args[0] if args else "close_arr[__bar_idx]"
-            st = self._alloc_fixed_state("mavg", 2)
-            return (
-                f"numba_sma_inc({_arr(src_e)}, {self._emit_period(period)}, __bar_idx, {st})"
+            # TV ``math.avg(number0, number1, ...)`` — arithmetic mean of the
+            # arguments (not a rolling window; use ta.sma / math.sum for that).
+            # Prior emit treated the 2-arg form as SMA(source, length), which
+            # crashed on ``math.avg(get, array.get(levels, j+1))`` by feeding
+            # object-dtype series into numba_sma_inc.
+            if not args:
+                return "np.nan"
+            if len(args) == 1:
+                a0 = args[0]
+                if self.object_mode or not self._is_safe_numeric_expr(a0):
+                    self.object_mode = True
+                    return f"safe_float({a0})"
+                return f"({a0})"
+            needs_safe = self.object_mode or any(
+                not self._is_safe_numeric_expr(a) for a in args
             )
+            if needs_safe:
+                self.object_mode = True
+                joined = " + ".join(f"safe_float({a})" for a in args)
+                return f"(({joined}) / {len(args)})"
+            # Emit via np.add/np.divide so the whole expr is ``_is_safe_numeric``
+            # (startswith ``np.``) and stays on the nopython path. A raw
+            # ``(a+b)/n`` form contains ``[`` from series loads and would force
+            # object mode at plot/store sites.
+            acc = args[0]
+            for a in args[1:]:
+                acc = f"np.add({acc}, {a})"
+            return f"np.divide({acc}, {float(len(args))})"
         if func_name == "math_random":
             self.object_mode = True
             return "0.5"
@@ -5095,6 +5152,31 @@ class CompilerVisitor(NodeVisitor):
             return f"(__drawings.append(__d := {event}) or __d)"
         return f"(__drawings.append(__d := {event}) or __d)"
 
+    def _na_wrap_num(self, expr: str) -> str:
+        """Coerce possible ``None`` operands to float for object-mode arithmetic.
+
+        Numeric njit path leaves exprs bare (float64 / nan only — never None).
+        Object mode uses :func:`na_num` (None→nan, identity for float/int).
+        """
+        if not self.object_mode:
+            return expr
+        if not isinstance(expr, str):
+            return expr
+        e = expr.strip()
+        if not e or e == "np.nan":
+            return expr
+        # Pine ``na`` lowers to Python ``None`` — must wrap (not a numeric literal)
+        if e == "None":
+            return "np.nan"
+        if e in ("True", "False", "__bar_idx", "n_bars"):
+            return expr
+        if e.startswith("na_num(") or e.startswith("safe_float(") or e.startswith("safe_int("):
+            return expr
+        # Pure numeric / bool literals (not None) need no wrap
+        if e not in ("None",) and self._is_numeric_or_bool_literal(e):
+            return expr
+        return f"na_num({expr})"
+
     def visit_BinOp(self, node: ast.BinOp):
         left = self.visit(node.left)
         right = self.visit(node.right)
@@ -5117,6 +5199,9 @@ class CompilerVisitor(NodeVisitor):
             else:
                 # Sub/Mult/Div/Mod on strings or colors → na
                 return "np.nan"
+        # Object-mode: None (Pine na) must not raise TypeError on +/*/-/…
+        left = self._na_wrap_num(left)
+        right = self._na_wrap_num(right)
         # Pine division by zero → na (not Python ZeroDivisionError)
         if isinstance(node.op, ast.Div):
             return f"(({left}) / ({right}) if ({right}) != 0 else np.nan)"
@@ -5159,8 +5244,15 @@ class CompilerVisitor(NodeVisitor):
         return False
 
     def visit_Compare(self, node: ast.Compare):
-        left = self.visit(node.left)
+        left_raw = self.visit(node.left)
+        # String / color equality must stay unwrapped (na_num("A") → nan breaks
+        # ``matrix.get(...) == "A"``). Numeric relational ops need None→nan.
+        left_str = self._is_stringy_value(node.left) or self._looks_like_string_expr(
+            left_raw
+        )
         ops = []
+        wrap_all_numeric = True
+        raw_rights: list[str] = []
         for op, comp in zip(node.ops, node.comparators):
             op_str = {
                 ast.Gt: ">",
@@ -5170,7 +5262,29 @@ class CompilerVisitor(NodeVisitor):
                 ast.Eq: "==",
                 ast.NotEq: "!=",
             }.get(type(op), "==")
-            ops.append(f" {op_str} {self.visit(comp)}")
+            right_raw = self.visit(comp)
+            right_str = self._is_stringy_value(comp) or self._looks_like_string_expr(
+                right_raw
+            )
+            if left_str or right_str or isinstance(op, (ast.Eq, ast.NotEq)):
+                # Eq/NotEq: only wrap when neither side looks stringy and both
+                # look numeric (or unknown) — still avoid wrapping pure strings.
+                if left_str or right_str:
+                    wrap_all_numeric = False
+            raw_rights.append((op_str, right_raw, right_str))
+        if wrap_all_numeric and not left_str:
+            # Relational (and non-string Eq): na-safe numeric compare
+            left = self._na_wrap_num(left_raw)
+            for op_str, right_raw, right_str in raw_rights:
+                if right_str:
+                    right = right_raw
+                else:
+                    right = self._na_wrap_num(right_raw)
+                ops.append(f" {op_str} {right}")
+        else:
+            left = left_raw
+            for op_str, right_raw, _rs in raw_rights:
+                ops.append(f" {op_str} {right_raw}")
         return f"({left}{''.join(ops)})"
 
     def visit_Constant(self, node: ast.Constant):
@@ -5196,9 +5310,20 @@ class CompilerVisitor(NodeVisitor):
         return f"(0 if ({offset_expr}) != ({offset_expr}) else int({offset_expr}))"
 
     def _history_subscript(self, base: str, offset_expr: str) -> str:
-        """Emit ``base[bar - offset]`` with float/NaN-safe offset coercion."""
+        """Emit ``base[bar - offset]`` with float/NaN-safe offset coercion.
+
+        Also clamps the computed index to ``[0, len(base))`` so negative
+        offsets (future references, e.g. ``high[-highestbars(...)]``) do not
+        raise ``index N is out of bounds for axis 0 with size M`` near series
+        end — soft-fail to na instead.
+        """
         off = self._safe_history_offset(offset_expr)
-        return f"({base}[__bar_idx - ({off})] if __bar_idx >= ({off}) else np.nan)"
+        # idx = bar - offset; require 0 <= idx < len(base)
+        return (
+            f"({base}[__bar_idx - ({off})] "
+            f"if (__bar_idx >= ({off}) and (__bar_idx - ({off})) < len({base})) "
+            f"else np.nan)"
+        )
 
     @staticmethod
     def _is_numeric_or_bool_literal(expr: str) -> bool:
@@ -6063,8 +6188,9 @@ class CompilerVisitor(NodeVisitor):
                 )
                 or last_is_assign
             )
-            # Pine ``for … in …`` as last stmt: last body expr is the loop value
-            # (e.g. ``for x in arr\n    result`` returns last ``result``).
+            # Pine ``for … in …`` / ``for i = a to b`` as last stmt: last body
+            # expr is the loop value (e.g. ``for x in arr\n    result`` or
+            # factorial ``for i = 1 to n\n    r := r * i\n    r``).
             last_is_for = isinstance(last_ast, (ast.ForIn, ast.ForTo)) or isinstance(
                 last_val, (ast.ForIn, ast.ForTo)
             )
@@ -6074,13 +6200,20 @@ class CompilerVisitor(NodeVisitor):
                 # (``for x in arr\n    result`` → return result). Do NOT fall back
                 # to arbitrary assigned locals (``zone_color = …`` mid-loop is not
                 # the function result and may be unbound).
+                # ForTo emission appends ``i += __step_i`` after the body — skip
+                # that auto-increment so ``r`` (the Pine result) is still found.
                 last_line = body_lines[-1]
                 phys_lines = [ln.strip() for ln in last_line.split("\n") if ln.strip()]
-                if phys_lines:
-                    tail = phys_lines[-1]
+                _step_inc = re.compile(
+                    r"^[A-Za-z_][A-Za-z0-9_]*\s*\+=\s*__step_[A-Za-z_][A-Za-z0-9_]*$"
+                )
+                for tail in reversed(phys_lines):
+                    if _step_inc.match(tail):
+                        continue
                     m_tail = re.fullmatch(r"([A-Za-z_][A-Za-z0-9_]*)", tail)
                     if m_tail:
                         for_ret_name = m_tail.group(1)
+                    break
             for i, line in enumerate(body_lines):
                 is_last = i == len(body_lines) - 1
                 line = line.replace("\n", "\n    ")
@@ -6474,6 +6607,9 @@ class CompilerVisitor(NodeVisitor):
         operand = self.visit(node.operand)
         if isinstance(node.op, ast.Not):
             return f"(not {operand})"
+        # Object-mode: ``-None`` / ``+None`` must not TypeError
+        if isinstance(node.op, (ast.UAdd, ast.USub)):
+            operand = self._na_wrap_num(operand)
         if isinstance(node.op, ast.UAdd):
             return f"(+{operand})"
         if isinstance(node.op, ast.USub):

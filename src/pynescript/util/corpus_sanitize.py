@@ -45,7 +45,8 @@ import re
 # Minimal script used when scrape content is foreign / empty of real Pine.
 _MINIMAL_STUB = '//@version=5\nindicator("x")\nplot(close)\n'
 
-_EXPAND_RE = re.compile(r"^\s*Expand\s*\(\s*\d+\s*lines?\s*\)\s*$", re.I)
+# TV community "Expand (N lines)" UI stub — often at EOF; closing ``)`` may be cut.
+_EXPAND_RE = re.compile(r"^\s*Expand\s*\(\s*\d+\s*lines?\s*\)?\s*$", re.I)
 _HR_RE = re.compile(r"^\s*([-*_])\1{2,}\s*$")  # --- *** ___
 _URL_ONLY_RE = re.compile(r"^\s*https?://\S+\s*$", re.I)
 _FENCE_RE = re.compile(r"^\s*```")
@@ -548,6 +549,13 @@ def _line_filter(source: str) -> str:
                 break
             continue
 
+        # ``Expand (N lines)`` after real code = collapsed / truncated UI residual.
+        # Drop the stub and stop so any trailing page chrome cannot re-enter.
+        if _EXPAND_RE.match(line):
+            if saw_pine:
+                break
+            continue
+
         cleaned = _strip_line_chrome(line)
         if cleaned is None:
             # Footer / docs chrome after substantial pine body → stop
@@ -890,9 +898,10 @@ def _fix_truncated_syntax(text: str) -> str:
             i += 1
             continue
 
-        # Assignment to empty structure: ``x = switch`` / ``x = switch expr`` / ``x = if c``
+        # Assignment to empty structure: ``x = switch`` / ``x = if c`` / ``x = for …`` /
+        # ``x = while …`` with no body (truncated TV docs demos).
         m_as = re.match(
-            r"^(\s*.*?\S)\s*=\s*(switch|if)\b(.*)$",
+            r"^(\s*.*?\S)\s*=\s*(switch|if|for|while)\b(.*)$",
             stripped_nl,
         )
         if (
@@ -995,7 +1004,77 @@ def _fix_truncated_syntax(text: str) -> str:
                     continue
         out.append(line)
         i += 1
-    return _ensure_truncated_function_arrow(_append_missing_closers("".join(out)))
+    repaired = _append_missing_closers("".join(out))
+    repaired = _collapse_na_only_control_expr_assignments(repaired)
+    return _ensure_truncated_function_arrow(repaired)
+
+
+# Statement / expression leaves that do not constitute a real truncated-demo body.
+_NA_ONLY_LEAF_RE = re.compile(r"^(na|continue|break)\s*$")
+_CTRL_HEAD_RE = re.compile(r"^(if|else if|else|for|while|switch)\b")
+
+
+def _collapse_na_only_control_expr_assignments(text: str) -> str:
+    """Collapse ``lhs = for|while|if|switch …`` bodies that are only ``na`` / empty ctrls.
+
+    Truncated TV docs leave expression-for loops such as::
+
+        string finalLabelText = for number in randomArray
+            if number == 8
+                na
+
+    These parse after empty-body injection but the compiler cannot emit
+    ``x = for …`` as Python. When every non-comment leaf under the RHS is bare
+    ``na`` / ``continue`` / ``break`` (or nested empty controls), rewrite to
+    ``lhs = na``. Real expression-for bodies (any other statement/expr) are kept.
+    """
+    lines = text.splitlines(keepends=True)
+    if not lines:
+        return text
+    out: list[str] = []
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        stripped = line.rstrip("\n")
+        m = re.match(
+            r"^(\s*)(.*?\S)\s*=\s*(for|while|if|switch)\b(.*)$",
+            stripped,
+        )
+        if (
+            m
+            and not stripped.lstrip().startswith("//")
+            and "=>" not in m.group(4)
+        ):
+            indent, lhs = m.group(1), m.group(2)
+            j = i + 1
+            has_code = False
+            only_na_or_ctrl = True
+            while j < len(lines):
+                nxt = lines[j]
+                if not nxt.strip():
+                    j += 1
+                    continue
+                ni = len(nxt) - len(nxt.lstrip(" \t"))
+                if ni <= len(indent) and nxt.strip():
+                    break
+                if nxt.lstrip().startswith("//"):
+                    j += 1
+                    continue
+                has_code = True
+                ns = nxt.lstrip().rstrip("\n").rstrip()
+                if _CTRL_HEAD_RE.match(ns) or _NA_ONLY_LEAF_RE.match(ns):
+                    j += 1
+                    continue
+                only_na_or_ctrl = False
+                break
+            if not has_code or only_na_or_ctrl:
+                eol = "\n" if line.endswith("\n") else ""
+                out.append(f"{indent}{lhs} = na{eol}")
+                i = j
+                continue
+        out.append(line)
+        i += 1
+    return "".join(out)
 
 
 # A single typed parameter line inside a function signature (docs scrape cut).

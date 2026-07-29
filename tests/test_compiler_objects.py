@@ -306,3 +306,37 @@ plot(f(close), title="ok")
         o, h, l, c, v = _ohlcv(6)
         out = compiled.run(o, h, l, c, v)
         assert np.allclose(out["ok"], 1.0)
+
+
+class TestObjectModeNaArithmetic:
+    """None (Pine na) arithmetic in object-mode bar loop."""
+
+    def test_unary_neg_none_is_nan(self) -> None:
+        src = """//@version=5
+indicator("u")
+float x = na
+plot(-x, title="n")
+hline(0)
+"""
+        code = transpile(src)
+        assert "na_num" in code or "safe_float" in code
+        compiled = compile_script(src)
+        assert compiled.object_mode
+        o, h, l, c, v = _ohlcv(5)
+        out = compiled.run(o, h, l, c, v)
+        assert np.all(np.isnan(out["n"]))
+
+    def test_add_mul_chain_with_na(self) -> None:
+        src = """//@version=5
+indicator("ch")
+float a = na
+float b = 2.0
+plot((a + 1.0) * b, title="p")
+hline(1)
+"""
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(5)
+        out = compiled.run(o, h, l, c, v)
+        assert np.all(np.isnan(out["p"]))
+
+

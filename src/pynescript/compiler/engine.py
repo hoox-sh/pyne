@@ -174,29 +174,43 @@ def _normalize_result(raw: Any) -> dict[str, Any]:
     return out
 
 
-def compile_script(source: str, *, use_cache: bool = True) -> CompiledScript:
-    """Transpile Pine source and load the compiled entry point.
+def _is_numba_nopython_failure(exc: BaseException) -> bool:
+    """True when *exc* looks like a Numba nopython / typing failure.
 
-    Uses Numba when the script is pure-numeric; object-mode (UDT/map/drawing)
-    uses a pure-Python numpy bar loop (still much faster than AST walking).
-
-    Results are cached by source hash (max 128, LRU) so repeated
-    ``Runtime.run(..., mode="compile")`` of the same script skips re-transpile
-    and re-JIT warm-up.
+    Used to re-emit object mode when pure-numeric njit cannot accept the
+    generated code (pyobject arrays, unicode ``isnan``, missing impls, …).
     """
-    cache_key = hashlib.sha256(source.encode("utf-8")).hexdigest()
-    if use_cache and cache_key in _COMPILE_CACHE:
-        _COMPILE_CACHE.move_to_end(cache_key)
-        return _COMPILE_CACHE[cache_key]
+    name = type(exc).__name__
+    if name in ("TypingError", "NumbaError", "NumbaTypeError", "LoweringError"):
+        return True
+    msg = str(exc)
+    markers = (
+        "Failed in nopython mode",
+        "non-precise type array(pyobject",
+        "No implementation of function",
+        "cannot determine Numba type",
+        "TypingError",
+        "isnan(unicode_type)",
+        "unicode_type",
+        "array(pyobject",
+    )
+    return any(m in msg for m in markers)
 
+
+def _compile_once(
+    source: str,
+    *,
+    force_object_mode: bool = False,
+) -> CompiledScript:
+    """Parse → transpile → exec once. Internal helper for :func:`compile_script`."""
     tree = parse(source, mode="exec")
-    visitor = CompilerVisitor()
+    visitor = CompilerVisitor(force_object_mode=force_object_mode)
     code = visitor.visit(tree)
     if not isinstance(code, str) or not code.strip():
         msg = "CompilerVisitor produced empty code"
         raise RuntimeError(msg)
 
-    object_mode = bool(visitor.object_mode)
+    object_mode = bool(visitor.object_mode) or force_object_mode
     if not object_mode and not _HAS_NUMBA:
         msg = "numba is required for numeric compile mode (pip install numba)"
         raise RuntimeError(msg)
@@ -210,21 +224,55 @@ def compile_script(source: str, *, use_cache: bool = True) -> CompiledScript:
         msg = "generated code missing execute_script_compiled()"
         raise RuntimeError(msg)
 
-    # Warm-up JIT only for numeric mode (object mode is pure Python).
-    if not object_mode:
-        dummy = np.arange(16, dtype=np.float64)
-        try:
-            fn(dummy, dummy, dummy, dummy, dummy)
-        except Exception:
-            pass
-
-    compiled = CompiledScript(
+    return CompiledScript(
         source=source,
         generated_code=code,
         execute=fn,
         plot_titles=titles,
         object_mode=object_mode,
     )
+
+
+def compile_script(source: str, *, use_cache: bool = True) -> CompiledScript:
+    """Transpile Pine source and load the compiled entry point.
+
+    Uses Numba when the script is pure-numeric; object-mode (UDT/map/drawing)
+    uses a pure-Python numpy bar loop (still much faster than AST walking).
+
+    If nopython JIT warm-up fails (pyobject arrays, unicode ops, …), re-emits
+    the same script in object mode so ``mode=compile`` still runs.
+
+    Results are cached by source hash (max 128, LRU) so repeated
+    ``Runtime.run(..., mode="compile")`` of the same script skips re-transpile
+    and re-JIT warm-up.
+
+    Scraped corpus sources are sanitized first (same as parse/runtime interpret)
+    so docs chrome / Expand stubs do not fail compile-only paths.
+    """
+    try:
+        from pynescript.util.corpus_sanitize import sanitize_corpus_source
+
+        source = sanitize_corpus_source(source)
+    except Exception:
+        pass
+    cache_key = hashlib.sha256(source.encode("utf-8")).hexdigest()
+    if use_cache and cache_key in _COMPILE_CACHE:
+        _COMPILE_CACHE.move_to_end(cache_key)
+        return _COMPILE_CACHE[cache_key]
+
+    compiled = _compile_once(source, force_object_mode=False)
+
+    # Warm-up JIT only for numeric mode (object mode is pure Python).
+    if not compiled.object_mode:
+        dummy = np.arange(16, dtype=np.float64)
+        try:
+            compiled.execute(dummy, dummy, dummy, dummy, dummy)
+        except Exception as exc:
+            if _is_numba_nopython_failure(exc):
+                # Structural recovery: re-emit pure-Python object bar loop.
+                compiled = _compile_once(source, force_object_mode=True)
+            # else: leave as-is; first real run will surface the error
+
     if use_cache:
         if len(_COMPILE_CACHE) >= _COMPILE_CACHE_MAX:
             try:

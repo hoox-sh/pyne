@@ -21,6 +21,8 @@
 
 from __future__ import annotations
 
+import re
+
 from pynescript.ast.helper import parse, unparse
 from pynescript.util.corpus_sanitize import sanitize_corpus_source
 
@@ -543,4 +545,160 @@ timeWithinAllowedRange(
     cleaned = sanitize_corpus_source(raw)
     assert "=> na" in cleaned
     assert "timeWithinAllowedRange(" in cleaned
+    _roundtrip(cleaned)
+
+
+def test_strips_expand_ui_stub_incomplete_paren() -> None:
+    """Scrape cut mid-``Expand (N lines`` must not leave a bare call for the lexer."""
+    raw = """//@version=6
+indicator("T")
+plot(close)
+Expand (152 lines
+"""
+    cleaned = sanitize_corpus_source(raw)
+    assert "Expand" not in cleaned
+    _roundtrip(cleaned)
+
+
+def test_expand_after_pine_stops_trailing_chrome() -> None:
+    """``Expand (N lines)`` after real code ends the script (collapsed UI residual)."""
+    raw = """//@version=5
+indicator("AI SuperTrend Clustering Oscillator")
+hline(0, linestyle = hline.style_solid)
+//-----------------------------------------------------------------------------}
+Expand (152 lines)
+> Detail
+https://www.fmz.com/strategy/1
+"""
+    cleaned = sanitize_corpus_source(raw)
+    assert "Expand" not in cleaned
+    assert "Detail" not in cleaned
+    assert "fmz.com" not in cleaned
+    assert "hline(0" in cleaned
+    _roundtrip(cleaned)
+
+
+def test_fmz_else_if_strategy_entry_with_fence() -> None:
+    """FMZ scrapes: ``if cond`` / ``else if`` + strategy.entry + closing fence + footer."""
+    raw = """//@version=5
+indicator("Fukuiz Octa-EMA")
+buy2 = close > open
+sell2 = close < open
+if buy2
+    strategy.entry("Enter Long", strategy.long)
+else if sell2
+    strategy.entry("Enter Short", strategy.short)
+
+
+
+
+```
+
+> Detail
+
+https://www.fmz.com/strategy/363588
+
+> Last Modified
+
+2022-05-16 18:21:00
+"""
+    cleaned = sanitize_corpus_source(raw)
+    assert "```" not in cleaned
+    assert "Detail" not in cleaned
+    assert "Last Modified" not in cleaned
+    assert 'strategy.entry("Enter Long"' in cleaned
+    assert "else if sell2" in cleaned
+    # body under else if must remain indented
+    assert re.search(r"else if sell2\n\s+strategy\.entry", cleaned)
+    _roundtrip(cleaned)
+
+
+def test_fmz_else_if_pivot_strategy_entry() -> None:
+    """Same FMZ pattern with ``else if ph`` (pivot trailing maxima scrape)."""
+    raw = """//@version=5
+indicator("Pivot Based Trailing Maxima", overlay=true)
+ph = ta.pivothigh(14, 14)
+pl = ta.pivotlow(14, 14)
+if pl
+    strategy.entry("Enter Long", strategy.long)
+else if ph
+    strategy.entry("Enter Short", strategy.short)
+```
+
+> Detail
+
+https://www.fmz.com/strategy/365719
+"""
+    cleaned = sanitize_corpus_source(raw)
+    assert "```" not in cleaned
+    assert "else if ph" in cleaned
+    assert 'strategy.entry("Enter Short"' in cleaned
+    _roundtrip(cleaned)
+
+
+def test_empty_if_under_for_in_expression_assignment() -> None:
+    """Truncated loops.md demo: ``x = for …`` / empty ``if`` → collapse to ``x = na``.
+
+    Empty-body injection alone yields a for-expression that parses but cannot be
+    emitted as Python (``x = for …``). Collapse na-only control RHS to ``na``.
+    """
+    raw = """//@version=5
+indicator("Loop keywords and variable assignment demo")
+var array<int> randomArray = array.from(1, 5, 2, -3, 14, 7, 9, 8, 15, 12)
+if barstate.islastconfirmedhistory
+    string tempString = ""
+    string finalLabelText = for number in randomArray
+        // Stop the current iteration if number is 8.
+        if number == 8
+"""
+    cleaned = sanitize_corpus_source(raw)
+    assert "Expand" not in cleaned
+    assert "finalLabelText = na" in cleaned
+    assert "for number in randomArray" not in cleaned
+    _roundtrip(cleaned)
+
+
+def test_injects_na_for_empty_for_while_if_statements() -> None:
+    """Bare empty for/while/if statement demos need an INDENT body (DEDENT fix)."""
+    raw = """//@version=5
+indicator("t")
+for i = 0 to 10
+while true
+if close > open
+plot(1)
+"""
+    cleaned = sanitize_corpus_source(raw)
+    # empty for/while get ``na``; same-indent ``plot(1)`` is promoted under ``if``
+    assert "for i = 0 to 10\n    na" in cleaned or "for i = 0 to 10\n\tna" in cleaned
+    assert "while true\n    na" in cleaned or "while true\n\tna" in cleaned
+    assert "plot(1)" in cleaned
+    _roundtrip(cleaned)
+
+
+def test_injects_na_for_empty_if_at_eof() -> None:
+    """Trailing empty ``if`` / ``for`` at EOF (DEDENT expecting INDENT)."""
+    raw = """//@version=5
+indicator("t")
+if barstate.islast
+    for number in array.from(1, 2, 8)
+        if number == 8
+"""
+    cleaned = sanitize_corpus_source(raw)
+    assert "na" in cleaned
+    _roundtrip(cleaned)
+
+
+def test_preserves_real_for_in_expression_with_body() -> None:
+    """Non-truncated expression-for with a real leaf must not collapse to na."""
+    raw = """//@version=5
+indicator("t")
+arr = array.from(1, 2, 3)
+total = for v in arr
+    v + 1
+plot(total)
+"""
+    cleaned = sanitize_corpus_source(raw)
+    assert "for v in arr" in cleaned
+    assert "v + 1" in cleaned
+    assert "total = na" not in cleaned
     _roundtrip(cleaned)
