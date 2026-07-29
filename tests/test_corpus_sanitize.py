@@ -381,6 +381,72 @@ plot(close)
     _roundtrip(cleaned)
 
 
+def test_preserves_same_indent_and_or_chains() -> None:
+    """Multi-line ``and``/``or`` at same indent must not get ``na`` injected mid-chain."""
+    raw = """//@version=6
+indicator("t")
+gaps = td == mo and yd != su or
+         td == tu and yd != mo or
+         td == we and yd != tu
+plot(gaps ? 1 : 0)
+"""
+    cleaned = sanitize_corpus_source(raw)
+    assert "or na" not in cleaned
+    assert "and na" not in cleaned
+    assert "td == we" in cleaned
+    _roundtrip(cleaned)
+
+
+def test_preserves_digit_start_arithmetic_continuation() -> None:
+    """``… +`` / next ``2 * …`` (digit start) is a real continuation."""
+    raw = """//@version=6
+indicator("t")
+var float filter = 0.0
+filter :=
+     pow(alpha, 2) * close +
+     2 * (1 - alpha) * filter -
+     pow(1 - alpha, 2) * filter
+plot(filter)
+"""
+    cleaned = sanitize_corpus_source(raw)
+    assert "+ na" not in cleaned
+    assert "- na" not in cleaned
+    assert "2 * (1 - alpha)" in cleaned
+    _roundtrip(cleaned)
+
+
+def test_promotes_same_indent_if_else_body_from_docs() -> None:
+    """Docs scrapes often omit indent under if/else — promote sibling lines."""
+    raw = """//@version=6
+indicator("t", "", true)
+if barstate.isfirst
+table.cell(t, 0, 0, "a")
+else if barstate.islast
+table.cell_set_text(t, 0, 0, "b")
+plot(close)
+"""
+    cleaned = sanitize_corpus_source(raw)
+    assert "    table.cell(t, 0, 0, \"a\")" in cleaned or "\ttable.cell" in cleaned
+    assert "else if barstate.islast" in cleaned
+    _roundtrip(cleaned)
+
+
+def test_docs_nav_does_not_cut_tooltip_next_to() -> None:
+    """English ``next to`` inside tooltips must not match docs ``Next`` chrome."""
+    raw = """//@version=6
+indicator("t")
+showQ = input.bool(false, "Show Q",
+     tooltip="Adds a 0-100 quality score next to each marker.")
+plot(close)
+"""
+    cleaned = sanitize_corpus_source(raw)
+    assert "next to each marker" in cleaned
+    assert 'tooltip="Adds a 0-100 quality score' in cleaned
+    # must not truncate mid-sentence
+    assert "quality score\n" not in cleaned.split("tooltip=")[-1][:80]
+    _roundtrip(cleaned)
+
+
 def test_preserves_multiline_ternary_same_indent_arms() -> None:
     """Same-indent nested ternary arms must not get ``: na`` injected."""
     raw = """//@version=6

@@ -366,7 +366,12 @@ def _has_usable_pine(text: str) -> bool:
 
 
 # Docs chrome glued onto code lines (Mintlify / TV pages).
-_DOCS_NAV_TRAIL_RE = re.compile(r"\s+(Next|Previous|On this page)\b.*$", re.I)
+# Require ≥2 spaces before the nav word and end-of-line — do NOT match English
+# mid-sentence ``next to`` / ``previous high`` inside tooltips/strings.
+_DOCS_NAV_TRAIL_RE = re.compile(
+    r"[ \t]{2,}(Next|Previous|On this page)\b[ \t.]*$",
+    re.I,
+)
 # Placeholder ellipsis lines from incomplete examples: `...`
 _ELLIPSIS_ONLY_RE = re.compile(r"^\s*\.\.\.\s*$")
 # Trailing binary/logical operators left by mid-expression scrapes.
@@ -375,6 +380,69 @@ _ELLIPSIS_ONLY_RE = re.compile(r"^\s*\.\.\.\s*$")
 _TRAILING_BINOP_RE = re.compile(
     r"^(?P<head>.*\S)\s+(?P<op>or|and|\+|\-|\*|/)\s*$"
 )
+
+
+# Unicode operators / punctuation that break the ANTLR lexer outside strings.
+_UNICODE_OP_MAP = str.maketrans(
+    {
+        "\u2212": "-",  # − minus
+        "\u2013": "-",  # –
+        "\u2014": "-",  # —
+        "\u00d7": "*",  # ×
+        "\u00f7": "/",  # ÷
+        "\u00b1": "+/-",  # ± (multi-char via replace below)
+        "\u2022": "*",  # •
+        "\uff1b": ";",  # fullwidth semicolon
+    }
+)
+
+
+def _normalize_unicode_ops(line: str) -> str:
+    """Map fancy math punctuation to ASCII outside of string literals."""
+    if not any(ord(c) > 127 for c in line):
+        return line
+    out: list[str] = []
+    in_str: str | None = None
+    esc = False
+    i = 0
+    while i < len(line):
+        ch = line[i]
+        if esc:
+            out.append(ch)
+            esc = False
+            i += 1
+            continue
+        if in_str:
+            if ch == "\\":
+                out.append(ch)
+                esc = True
+            elif ch == in_str:
+                out.append(ch)
+                in_str = None
+            else:
+                out.append(ch)
+            i += 1
+            continue
+        if ch in "\"'":
+            in_str = ch
+            out.append(ch)
+            i += 1
+            continue
+        if ch == "\u00b1":  # ±
+            out.append("+/-")
+            i += 1
+            continue
+        if ch in _UNICODE_OP_MAP:
+            out.append(ch.translate(_UNICODE_OP_MAP))
+            i += 1
+            continue
+        # Strip statement-terminator semicolon (not Pine syntax)
+        if ch == ";" and (i + 1 >= len(line) or line[i + 1] in " \t\r\n"):
+            i += 1
+            continue
+        out.append(ch)
+        i += 1
+    return "".join(out)
 
 
 def _polish_code_line(line: str) -> str:
@@ -394,6 +462,7 @@ def _polish_code_line(line: str) -> str:
     # Safe: real multi-value arms are ``=> a, b`` (no trailing comma after last).
     if "=>" in line and not line.lstrip().startswith("//"):
         line = re.sub(r",\s*$", "", line)
+    line = _normalize_unicode_ops(line)
     return line
 
 
@@ -553,6 +622,38 @@ _INCOMPLETE_ASSIGN_RE = re.compile(
 _TRUNCATED_METHOD_RE = re.compile(r"^(\s*(?:export\s+)?method\s+[A-Za-z_]\w*)\s*\(\s*$")
 
 
+def _looks_like_expr_continuation(ns: str) -> bool:
+    """True if *ns* (lstripped) continues a binary/logical expression, not a new stmt."""
+    if not ns or ns.startswith("//"):
+        return False
+    if re.match(r"^(if|for|while|switch|else|type|enum|import|export|method|var|varip)\b", ns):
+        return False
+    # Reassignment always starts a new statement.
+    if re.match(r"^[A-Za-z_]\w*\s*:=", ns):
+        return False
+    # ``name = …`` (not ``==`` / ``!=`` / ``>=`` / ``<=``) is a new statement.
+    if re.match(r"^[A-Za-z_]\w*\s*=(?![=<>])", ns):
+        return False
+    # Function / UDF definition at same indent is not a bool/math continuation:
+    #   ``upDownColor(float source) =>`` / ``export f(int x) =>``
+    if "=>" in ns and re.match(r"^(?:export\s+)?(?:method\s+)?[A-Za-z_]\w*\s*\(", ns):
+        return False
+    if re.match(
+        r"^(?:export\s+)?(?:method\s+)?[A-Za-z_]\w*\s*\(\s*"
+        r"(?:(?:series|simple|const)\s+)?"
+        r"(?:int|float|bool|string|color|line|label|box|table)\b",
+        ns,
+    ):
+        return False
+    # Expression-ish starts: id, number, string, paren, unary, not/na
+    if re.match(
+        r"""^(not\b|na\b|[A-Za-z_"'(\[0-9+\-~]|math\.|ta\.|str\.|color\.|input\.)""",
+        ns,
+    ):
+        return True
+    return False
+
+
 def _line_has_arg_continuation(line: str, lines: list[str], index: int) -> bool:
     """True if a following non-empty line continues this statement (indent/join)."""
     j = index + 1
@@ -577,16 +678,16 @@ def _line_has_arg_continuation(line: str, lines: list[str], index: int) -> bool:
             ("if ", "for ", "while ", "switch ", "else", "type ", "enum ", "import ", "export ")
         ):
             return True
-    # Same-indent arithmetic / string concat: ``... +`` / ``... -`` / next term.
-    # (Multi-line scores, tooltips; ``or``/``and`` stay indent-only to avoid gluing
-    # the next statement onto a bool expr.)
-    if prev.endswith(("+", "-")) and nxt_indent >= base_indent:
-        if re.match(r"""^[A-Za-z_"'(\[]""", ns) and not re.match(
-            r"^(if|for|while|switch|else|type|enum|import|export)\b", ns
-        ):
-            # New assignment at same indent is a separate statement, not a concat piece.
-            if not re.match(r"^[A-Za-z_]\w*\s*=", ns):
-                return True
+    # Same-indent arithmetic / logical / concat after a trailing binary op:
+    #   ``… +`` / ``… -`` / ``… *`` / ``… /`` / ``… and`` / ``… or``
+    # next term may start with a digit (``2 * x``) or identifier (``td == …``).
+    mop = _TRAILING_BINOP_RE.match(prev)
+    if mop and nxt_indent >= base_indent and _looks_like_expr_continuation(ns):
+        return True
+    # Also bare endswith for ops that may have no space: ``x+`` rare but ``x +`` covered.
+    if prev.endswith(("+", "-", "*", "/")) and nxt_indent >= base_indent:
+        if _looks_like_expr_continuation(ns):
+            return True
     return False
 
 
@@ -777,12 +878,15 @@ def _fix_truncated_syntax(text: str) -> str:
             if "=>" not in rest:
                 j = i + 1
                 has_body = False
+                first_same: int | None = None
                 while j < len(lines):
                     nxt = lines[j]
                     if not nxt.strip():
                         j += 1
                         continue
-                    if len(nxt) - len(nxt.lstrip(" \t")) <= len(indent) and nxt.strip():
+                    ni = len(nxt) - len(nxt.lstrip(" \t"))
+                    if ni <= len(indent) and nxt.strip():
+                        first_same = j
                         break
                     if nxt.lstrip().startswith("//"):
                         j += 1
@@ -795,6 +899,42 @@ def _fix_truncated_syntax(text: str) -> str:
                         if any("\t" in ln for ln in lines[i : min(i + 5, len(lines))])
                         else "    "
                     )
+                    # Docs scrapes often put the then/else body at the *same* indent
+                    # as ``if`` / ``else if`` (no INDENT tokens). Promote those lines
+                    # as a real body until the next sibling ``else`` / control / dedent.
+                    if (
+                        first_same is not None
+                        and kw in {"if", "else if", "else", "for", "while"}
+                        and not lines[first_same].lstrip().startswith(
+                            ("else", "else if", "if ", "for ", "while ", "switch ", "type ", "enum ")
+                        )
+                    ):
+                        out.append(line if line.endswith("\n") else line + "\n")
+                        k = first_same
+                        while k < len(lines):
+                            ln = lines[k]
+                            if not ln.strip():
+                                out.append(ln if ln.endswith("\n") else ln + "\n")
+                                k += 1
+                                continue
+                            li = len(ln) - len(ln.lstrip(" \t"))
+                            if li < len(indent):
+                                break
+                            ns = ln.lstrip()
+                            if li == len(indent) and ns.startswith(
+                                ("else", "else if", "if ", "for ", "while ", "switch ", "type ", "enum ")
+                            ):
+                                break
+                            if li == len(indent):
+                                piece = indent + child + ns
+                                out.append(piece if piece.endswith("\n") else piece + "\n")
+                                k += 1
+                                continue
+                            # Already deeper than if — keep as-is
+                            out.append(ln if ln.endswith("\n") else ln + "\n")
+                            k += 1
+                        i = k
+                        continue
                     if kw == "switch":
                         out.append(indent + "na" + eol)
                     else:
