@@ -36,17 +36,66 @@ dist/
 
 ## Encrypted Metadata
 
-The `builtin_metadata.json` is encrypted with Fernet during the build:
+The `builtin_metadata.json` is encrypted with Fernet during the build so Nuitka
+binaries can ship metadata without plaintext on disk.
 
 ```
 src/pynescript/langserver/providers/
-├── builtin_metadata.json          # Plaintext (git-tracked, open)
+├── builtin_metadata.json          # Plaintext (git-tracked, open; preferred in dev)
 ├── builtin_metadata.json.enc      # Encrypted (git-tracked)
-├── builtin_metadata.json.sha256   # Integrity hash
-scripts/build/.metadata.key         # Fernet key (NOT git-tracked)
+├── builtin_metadata.json.sha256   # Integrity hash (16-char SHA-256 prefix)
+scripts/build/.metadata.key         # Fernet key (gitignored — never commit)
 ```
 
-The key is generated at build time and stored locally. For CI/CD, store the key as a secret.
+### Key resolution (stable / reproducible)
+
+`compile.py` and `ci_build.py` resolve the key in this order:
+
+1. `CRYPTO_KEY` env  
+2. `PYNESCRIPT_METADATA_KEY` env  
+3. `METADATA_KEY` env  
+4. Existing `scripts/build/.metadata.key`  
+5. Generate a new key and write `.metadata.key` (local first-time only)
+
+Use the **same** key in every CI run so `.enc` blobs stay reproducible across
+rebuilds of the same JSON.
+
+### Local first-time setup
+
+```bash
+pip install cryptography
+
+# Option A — let the build create a key once
+python scripts/build/compile.py --check   # generates .metadata.key + encrypts
+
+# Option B — generate explicitly
+python -c "from cryptography.fernet import Fernet; from pathlib import Path; \
+  p=Path('scripts/build/.metadata.key'); p.write_bytes(Fernet.generate_key()); p.chmod(0o600); print(p.read_text())"
+
+# Re-encrypt after regenerating JSON
+python scripts/generate_builtin_metadata.py
+python -c "from scripts.build.compile import encrypt_metadata; encrypt_metadata()"
+```
+
+### GitHub Actions secret
+
+Store the **same** key bytes as repository secrets:
+
+| Secret name | Used as |
+|-------------|---------|
+| `METADATA_KEY` | `CRYPTO_KEY: ${{ secrets.METADATA_KEY }}` in release/CI |
+| `CRYPTO_KEY` | optional alias (same value) |
+
+```bash
+# After scripts/build/.metadata.key exists:
+gh secret set METADATA_KEY -R jango-blockchained/pyne < scripts/build/.metadata.key
+gh secret set CRYPTO_KEY -R jango-blockchained/pyne < scripts/build/.metadata.key
+```
+
+### Google Cloud Build
+
+Set substitution `_METADATA_KEY` to the same Fernet key string (see `cloudbuild.yaml`:
+`CRYPTO_KEY=${_METADATA_KEY}`).
 
 ## CI/CD
 
@@ -65,6 +114,8 @@ The key is generated at build time and stored locally. For CI/CD, store the key 
 steps:
   - name: python
     args: [python, scripts/build/ci_build.py, --jobs=4]
+    env:
+      - 'CRYPTO_KEY=${_METADATA_KEY}'
 ```
 
 ## Build Time

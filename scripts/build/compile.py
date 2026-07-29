@@ -77,8 +77,45 @@ def generate_metadata() -> None:
         print(f"  ERROR: Metadata generation failed")
 
 
+def _resolve_fernet_key() -> bytes:
+    """Resolve a stable Fernet key for metadata encryption.
+
+    Priority:
+    1. ``CRYPTO_KEY`` env (CI: GitHub ``secrets.METADATA_KEY``, Cloud Build ``_METADATA_KEY``)
+    2. ``PYNESCRIPT_METADATA_KEY`` env (runtime decrypt fallback, same material)
+    3. Existing ``scripts/build/.metadata.key``
+    4. Generate a new key and write it to ``.metadata.key`` (local first-time setup)
+
+    Returns:
+        Raw Fernet key bytes (url-safe base64, 44 chars when decoded as ascii).
+    """
+    for env_name in ("CRYPTO_KEY", "PYNESCRIPT_METADATA_KEY", "METADATA_KEY"):
+        raw = (os.environ.get(env_name) or "").strip()
+        if raw:
+            key = raw.encode("ascii") if not isinstance(raw, bytes) else raw
+            print(f"  Key: from env {env_name}")
+            # Persist for tools that only read the file (Nuitka data embed path)
+            BUILD_DIR.mkdir(parents=True, exist_ok=True)
+            KEY_FILE.write_bytes(key)
+            os.chmod(KEY_FILE, 0o600)
+            return key
+
+    if KEY_FILE.exists():
+        print(f"  Key: {KEY_FILE}")
+        return KEY_FILE.read_bytes()
+
+    from cryptography.fernet import Fernet
+
+    key = Fernet.generate_key()
+    BUILD_DIR.mkdir(parents=True, exist_ok=True)
+    KEY_FILE.write_bytes(key)
+    os.chmod(KEY_FILE, 0o600)
+    print(f"  Key: generated {KEY_FILE} (export as CRYPTO_KEY / GitHub secrets.METADATA_KEY)")
+    return key
+
+
 def encrypt_metadata() -> bool:
-    """Encrypt builtin_metadata.json with Fernet."""
+    """Encrypt builtin_metadata.json with Fernet using a stable key."""
     if not METADATA_JSON.exists():
         return False
     try:
@@ -88,11 +125,7 @@ def encrypt_metadata() -> bool:
         print("  Run: pip install cryptography")
         return False
 
-    key = Fernet.generate_key()
-    KEY_FILE.write_bytes(key)
-    os.chmod(KEY_FILE, 0o600)
-    print(f"  Key: {KEY_FILE}")
-
+    key = _resolve_fernet_key()
     encrypted_path = PROVIDERS_DIR / "builtin_metadata.json.enc"
     fernet = Fernet(key)
     plaintext = METADATA_JSON.read_bytes()

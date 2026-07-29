@@ -54,25 +54,44 @@ def run(cmd, cwd=None, env=None, capture=False):
     return result
 
 
+def _resolve_fernet_key() -> bytes:
+    """Stable Fernet key: CRYPTO_KEY env → .metadata.key → generate once."""
+    for env_name in ("CRYPTO_KEY", "PYNESCRIPT_METADATA_KEY", "METADATA_KEY"):
+        raw = (os.environ.get(env_name) or "").strip()
+        if raw:
+            key = raw.encode("ascii")
+            BUILD_DIR.mkdir(parents=True, exist_ok=True)
+            KEY_FILE.write_bytes(key)
+            os.chmod(KEY_FILE, 0o600)
+            print(f"  Key: from env {env_name}")
+            return key
+
+    if KEY_FILE.exists():
+        print(f"  Key: {KEY_FILE}")
+        return KEY_FILE.read_bytes()
+
+    from cryptography.fernet import Fernet
+
+    key = Fernet.generate_key()
+    BUILD_DIR.mkdir(parents=True, exist_ok=True)
+    KEY_FILE.write_bytes(key)
+    os.chmod(KEY_FILE, 0o600)
+    print(f"  Key: generated {KEY_FILE} (set secrets.METADATA_KEY for reproducible CI)")
+    return key
+
+
 def stage_metadata():
     """Generate and encrypt metadata."""
     gen_script = ROOT / "scripts" / "generate_builtin_metadata.py"
     if gen_script.exists():
         run([sys.executable, str(gen_script)])
 
-    key_file = BUILD_DIR / ".metadata.key"
-    if not key_file.exists():
-        from cryptography.fernet import Fernet
-
-        key = Fernet.generate_key()
-        key_file.write_bytes(key)
-        os.chmod(key_file, 0o600)
-
-    enc_path = PROVIDERS_DIR / "builtin_metadata.json.enc"
-    plaintext = (PROVIDERS_DIR / "builtin_metadata.json").read_bytes()
     from cryptography.fernet import Fernet
 
-    fernet = Fernet(key_file.read_bytes())
+    key = _resolve_fernet_key()
+    enc_path = PROVIDERS_DIR / "builtin_metadata.json.enc"
+    plaintext = (PROVIDERS_DIR / "builtin_metadata.json").read_bytes()
+    fernet = Fernet(key)
     encrypted = fernet.encrypt(plaintext)
     enc_path.write_bytes(encrypted)
     sha = hashlib.sha256(plaintext).hexdigest()[:16]
