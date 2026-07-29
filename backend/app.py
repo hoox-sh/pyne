@@ -190,6 +190,15 @@ def _ensure_cors_headers(resp):  # type: ignore[no-untyped-def]
 
 
 sock = Sock(app) if _SOCK_AVAILABLE and Sock is not None else None
+if sock is None:
+    import logging as _logging
+
+    _logging.getLogger(__name__).warning(
+        "flask-sock not installed — WS /ws/run disabled (AXIS falls back to POST /run). "
+        "Install: pip install 'pynescript[pro]'  or  pip install flask-sock simple-websocket"
+    )
+
+
 def execute_run_payload(data: dict[str, Any]) -> tuple[dict[str, Any], int]:
     """Shared run logic for POST /run and WS /ws/run.
 
@@ -707,6 +716,15 @@ def server_error(e):
 if __name__ == "__main__":
     # Audit 2026-07-05 / S11: default to localhost for the dev runner. Use
     # HOST=0.0.0.0 to expose the dev server to other machines if needed.
+    import logging
+
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
     host = os.environ.get("HOST", "127.0.0.1")
     port = int(os.environ.get("PORT", "5002"))
+    logging.getLogger(__name__).info(
+        "Pro API on http://%s:%s  websocket=%s",
+        host,
+        port,
+        sock is not None,
+    )
     app.run(host=host, port=port, debug=False)

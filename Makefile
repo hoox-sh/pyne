@@ -39,10 +39,14 @@ help:
 	@echo "  (local: ../axis  or  /home/jango/Git/axis)"
 
 install:
-	pip install -e ".[lsp]"
+	pip install -e ".[lsp,pro]"
 
 install-lsp:
 	pip install -e ".[lsp]"
+
+install-pro:
+	pip install -e ".[pro]"
+	pip install -r backend/requirements.txt
 
 test:
 	python -m pytest tests/ -v --tb=short
