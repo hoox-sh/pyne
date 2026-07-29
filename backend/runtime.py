@@ -21,7 +21,9 @@ from __future__ import annotations
 
 import hashlib
 import math
+import os
 import re
+import time
 import uuid
 
 from typing import Any
@@ -746,10 +748,19 @@ class Runtime:
         if not ohlcv_data:
             return {"plots": [], "events": [], "count": 0, "mode": "compile", "series": {}}
 
+        # Detect cache hit before compile (engine LRU is process-local).
+        from pynescript.compiler.engine import _COMPILE_CACHE  # noqa: PLC0415
+
+        cache_key = hashlib.sha256(source_code.encode("utf-8")).hexdigest()
+        script_id = cache_key[:16]
+        was_cached = cache_key in _COMPILE_CACHE
+
+        t_compile0 = time.perf_counter()
         try:
             compiled = compile_script(source_code)
         except Exception as e:
             return {"error": f"Compile Error: {e!s}"}
+        compile_ms = (time.perf_counter() - t_compile0) * 1000.0
 
         opens = [float(b.get("open", 0.0)) for b in ohlcv_data]
         highs = [float(b.get("high", 0.0)) for b in ohlcv_data]
@@ -757,10 +768,12 @@ class Runtime:
         closes = [float(b.get("close", 0.0)) for b in ohlcv_data]
         volumes = [float(b.get("volume", 1.0)) for b in ohlcv_data]
 
+        t_run0 = time.perf_counter()
         try:
             series_map = compiled.run(opens, highs, lows, closes, volumes)
         except Exception as e:
             return {"error": f"Compiled Runtime Error: {e!s}"}
+        run_ms = (time.perf_counter() - t_run0) * 1000.0
 
         drawings = series_map.pop("__drawings", []) if isinstance(series_map, dict) else []
         events = series_map.pop("__events", []) if isinstance(series_map, dict) else []
@@ -782,7 +795,6 @@ class Runtime:
         if json_series:
             final_series = next(iter(json_series.values()))
 
-        script_id = hashlib.sha256(source_code.encode("utf-8")).hexdigest()[:16]
         # Stamp script/run ids on strategy events
         if isinstance(events, list):
             for ev in events:
@@ -790,7 +802,10 @@ class Runtime:
                     ev.setdefault("script_id", script_id)
                     ev.setdefault("run_id", self._run_id)
 
-        return {
+        # Do NOT return generated_code by default — large scripts + cold Numba make
+        # JSON responses multi-MB and can trip AXIS/gunicorn timeouts. Opt-in via
+        # PYNESCRIPT_RETURN_GENERATED_CODE=1 for debugging.
+        out: dict[str, Any] = {
             "plots": final_series,
             "series": json_series,
             "drawings": drawings,
@@ -800,5 +815,10 @@ class Runtime:
             "run_id": self._run_id,
             "mode": "compile",
             "object_mode": compiled.object_mode,
-            "generated_code": compiled.generated_code,
+            "compile_ms": round(compile_ms, 2),
+            "run_ms": round(run_ms, 2),
+            "compile_cached": was_cached,
         }
+        if os.environ.get("PYNESCRIPT_RETURN_GENERATED_CODE", "").strip() in {"1", "true", "yes"}:
+            out["generated_code"] = compiled.generated_code
+        return out
