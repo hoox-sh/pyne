@@ -35,6 +35,7 @@ from flask import jsonify
 from flask import request
 from flask_cors import CORS
 
+from backend.api.lsp_http import bp as lsp_bp
 from backend.api.preview import backtest_bp
 from backend.api.preview import preview_bp
 from backend.middleware.auth import get_key_store
@@ -186,6 +187,8 @@ def health_check():
         "GET /": "This health check",
         "POST /run": "Run Pine Script (free)",
         "POST /run/batch": "Run multiple Pine scripts on shared OHLCV (free)",
+        "POST /lsp/completion": "Pine completion (free, AXIS editor)",
+        "POST /lsp/hover": "Pine hover docs (free, AXIS editor)",
         "POST /preview/chart": "Chart thumbnail (Pro)",
         "POST /preview/indicator": "Indicator preview (Pro)",
         "POST /backtest/quick": "Quick backtest (Pro)",
@@ -571,6 +574,7 @@ def validate_api_key():
 
 app.register_blueprint(preview_bp)
 app.register_blueprint(backtest_bp)
+app.register_blueprint(lsp_bp)
 
 
 @app.errorhandler(404)
