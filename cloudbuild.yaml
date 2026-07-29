@@ -8,13 +8,17 @@ substitutions:
   _SERVICE_NAME: pynescript-pro-api
   _REGION: us-central1
   _REPOSITORY: pynescript
+  _PYNESCRIPT_VERSION: "0.2.0"
 
 steps:
-  # Build the container image
+  # Build the production Pro API image (Dockerfile target: api)
   - name: gcr.io/cloud-builders/docker
     id: build
     args:
       - build
+      - --target=api
+      - --build-arg=GIT_SHA=$COMMIT_SHA
+      - --build-arg=PYNESCRIPT_VERSION=$_PYNESCRIPT_VERSION
       - --tag=gcr.io/$PROJECT_ID/$_REPOSITORY/$_SERVICE_NAME:$COMMIT_SHA
       - --tag=gcr.io/$PROJECT_ID/$_REPOSITORY/$_SERVICE_NAME:latest
       - --cache-from=gcr.io/$PROJECT_ID/$_REPOSITORY/$_SERVICE_NAME:latest

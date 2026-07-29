@@ -7,3 +7,5 @@ numpy>=1.26.0
 numba>=0.59.0
 matplotlib>=3.8.0
 gunicorn>=21.0.0
+# Optional key-store backend (compose profile redis / REDIS_URL)
+redis>=5.0.0

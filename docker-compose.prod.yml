@@ -1,0 +1,44 @@
+# Copyright (C) 2024-2026 jango_blockchained
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# Production-ish overlay for the Pro API.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up --build -d
+#
+# No source mounts; gunicorn via target `api`; tighter resource limits.
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: api
+      args:
+        PYNESCRIPT_VERSION: ${PYNESCRIPT_VERSION:-0.2.0}
+        GIT_SHA: ${GIT_SHA:-unknown}
+    image: pynescript-api:${TAG:-latest}
+    environment:
+      HOST: "0.0.0.0"
+      PORT: "8080"
+      FLASK_ENV: production
+      FLASK_DEBUG: "0"
+      API_KEY_STORE: /data/api_keys.json
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-https://hoox.sh,https://hoox.sh/axis,https://pynescript.ai,https://app.pynescript.ai}
+      ADMIN_TOKEN: ${ADMIN_TOKEN:?ADMIN_TOKEN must be set for production compose}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      GUNICORN_WORKERS: ${GUNICORN_WORKERS:-2}
+      GUNICORN_THREADS: ${GUNICORN_THREADS:-4}
+      GUNICORN_TIMEOUT: ${GUNICORN_TIMEOUT:-60}
+      PYTHONPATH: /app/src:/app
+    # Drop live source mounts from the base compose file
+    volumes:
+      - api_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    restart: unless-stopped
+    mem_limit: ${API_MEM_LIMIT:-1g}
+    cpus: ${API_CPUS:-1.0}

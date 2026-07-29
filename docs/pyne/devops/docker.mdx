@@ -19,65 +19,116 @@
 
 ---
 title: "Docker"
-description: "Dev and production container images for the PYNE Pro API, compose profiles, and Cloud Run image contract."
+description: "Buildx multi-target images, Compose profiles, and Cloud Run production contract for the PYNE Pro API."
 ---
 
 # Docker
 
 ## Abstract
 
-Containers package the **Pro API** (Flask + evaluator) for reproducible local runs and Cloud Run deploys. Two Dockerfiles express different trade-offs: a simple single-stage image for development, and a multi-stage production image with non-root user, gunicorn, and healthchecks.
-
-Compose wires volume mounts and optional Redis/LSP profiles for desk development.
+Containers package the **Pro API** (Flask + evaluator) for reproducible local runs and Cloud Run deploys. A single multi-stage `Dockerfile` exposes named targets; **Docker Buildx Bake** (`docker-bake.hcl`) drives local loads and multi-platform release builds. Compose wires volume mounts and optional Redis/LSP profiles for desk development, with a production overlay for gunicorn.
 
 ## Conceptual model
 
 ```mermaid
 flowchart LR
-  subgraph Images
-    D1[Dockerfile single-stage]
-    D2[Dockerfile.api multi-stage]
+  subgraph Bake
+    B[docker buildx bake]
+  end
+  subgraph Targets
+    T1[api gunicorn]
+    T2[api-dev Flask]
+    T3[lsp stdio]
   end
   subgraph Runtime
-    DEV[python -m backend.app]
-    PROD[gunicorn backend.app:app]
+    CR[Cloud Run :8080]
+    CMP[compose :5002]
   end
-  D1 --> DEV
-  D2 --> PROD
-  PROD --> CR[Cloud Run :8080]
-  COMPOSE[docker-compose.yml] --> D1
-  MAKE[make docker-build] --> D2
+  B --> T1
+  B --> T2
+  B --> T3
+  T1 --> CR
+  T2 --> CMP
+  COMPOSE[docker-compose.yml] --> T2
+  PROD[docker-compose.prod.yml] --> T1
 ```
 
 ## Interface surface
 
-### Dockerfiles
+### Dockerfile targets
 
-| File | Audience | Process model |
+| Target | Process model | Audience |
 | --- | --- | --- |
-| `Dockerfile` | Local / compose | `CMD ["python", "-m", "backend.app"]`, Python 3.12-slim, exposes 8080 |
-| `Dockerfile.api` | Production / `make docker-build` | Multi-stage; `USER appuser`; gunicorn 2 workers × 4 threads; healthcheck `curl` |
+| `api` | `entrypoint-api.sh` → gunicorn (`0.0.0.0:$PORT`) | Production / Cloud Run / compose prod |
+| `api-dev` | `python -m backend.app` with `HOST=0.0.0.0` | Local compose (source mounts) |
+| `lsp` | `python -m pynescript.langserver` (stdio) | Compose profile `lsp` |
 
-### Make / compose
+All targets: Python 3.12-slim, non-root `appuser` (uid 1000), `API_KEY_STORE=/data/api_keys.json`, `MPLBACKEND=Agg`, healthcheck via `curl` (HTTP targets).
+
+### Buildx Bake (`docker-bake.hcl`)
 
 ```bash
-make docker-build   # docker build -f Dockerfile.api -t pynescript-api .
-make docker-run     # docker compose up api --build
+# Local load (host platform)
+docker buildx bake api                 # production image → pynescript-api:latest
+docker buildx bake                     # default group: api + api-dev
+docker buildx bake all                 # api + api-dev + lsp
+
+# Multi-platform (amd64 + arm64). Set REGISTRY to push:
+REGISTRY=gcr.io/$PROJECT/pynescript TAG=$COMMIT_SHA docker buildx bake release
 ```
 
-`docker-compose.yml` services:
+Make wrappers:
+
+```bash
+make docker-build       # bake api
+make docker-build-all   # bake all targets
+make docker-buildx      # bake release (multi-platform)
+```
+
+One-time multi-platform builder (if needed):
+
+```bash
+docker buildx create --use --name pynescript
+```
+
+### Compose
+
+```bash
+cp .env.example .env   # optional overrides
+
+make docker-up         # api-dev on host :5002
+make docker-up-full    # + redis + lsp profiles
+make docker-prod       # requires ADMIN_TOKEN; gunicorn, no source mounts
+make docker-smoke      # curl http://127.0.0.1:5002/
+make docker-down
+```
 
 | Service | Profile | Notes |
 | --- | --- | --- |
-| `api` | default | Port `5002:8080`, `FLASK_ENV=development`, ro mounts of `src/` + `backend/` |
-| `redis` | `with-redis` | redis:7-alpine on 6379 |
-| `lsp` | `with-lsp` | Same image, `python -m pynescript.langserver` |
+| `api` | default | Port `${API_PORT:-5002}:8080`, ro mounts of `src/` + `backend/`, volume `api_data` → `/data` |
+| `redis` | `redis` | redis:7-alpine, AOF, `${REDIS_PORT:-6379}` |
+| `lsp` | `lsp` | stdio; prefer `docker compose run --rm lsp` |
 
 Network name: `pynescript-dev`.
 
+Production overlay (`docker-compose.prod.yml`): target `api`, no source mounts, mem/cpu caps, requires `ADMIN_TOKEN`.
+
+### Environment variables
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `PORT` | `8080` | Listen port inside the container |
+| `HOST` | `0.0.0.0` | Bind address (dev Flask runner) |
+| `FLASK_ENV` | `production` / `development` | App mode by target |
+| `API_KEY_STORE` | `/data/api_keys.json` | JSON key store path (writable volume) |
+| `ALLOWED_ORIGINS` | see `.env.example` | CORS allow-list |
+| `ADMIN_TOKEN` | unset | Required for admin key minting / prod compose |
+| `REDIS_URL` | `redis://redis:6379/0` | Optional Redis (when profile active) |
+| `GUNICORN_WORKERS` / `THREADS` / `TIMEOUT` | `2` / `4` / `60` | Prod entrypoint knobs |
+
 ### Cloud Build image tags
 
-From `cloudbuild.yaml`:
+From `cloudbuild.yaml` (builds **`--target api`**):
 
 ```
 gcr.io/$PROJECT_ID/pynescript/pynescript-pro-api:$COMMIT_SHA
@@ -86,68 +137,73 @@ gcr.io/$PROJECT_ID/pynescript/pynescript-pro-api:latest
 
 ## Internals
 
-### Production stages (`Dockerfile.api`)
+### Build stages
 
-1. **Builder:** install `build-essential`, `pip install --prefix=/install -r backend/requirements.txt`
-2. **Runtime:** copy install prefix, copy `backend/` + `src/`, `pip install .`, drop privileges to `appuser`
-3. **Env:** `PORT=8080`, `FLASK_ENV=production`
-4. **Healthcheck:** HTTP GET `/` every 30s
-5. **CMD:**
+1. **base** — slim image, `curl` + freetype/png for matplotlib Agg, `appuser`, `/data`
+2. **builder** — `build-essential`, pip cache mounts, install `backend/requirements.txt` then `pip install ".[lsp]"` into `/install` (requires `pyproject.toml`, `README.md`, `LICENSE`, `NOTICE`, `src/`, `backend/`)
+3. **runtime** — copy prefix + sources, `PYTHONPATH=/app/src:/app` so compose mounts override site-packages
+4. **api / api-dev / lsp** — final CMDs and healthchecks
 
-```text
-gunicorn --bind :8080 --workers 2 --threads 4 --timeout 60 backend.app:app
-```
+### `.dockerignore`
 
-### Dev image (`Dockerfile`)
-
-Copies `backend/requirements.txt`, `pyproject.toml`, README/LICENSE, installs requirements, copies `src` + `backend`, `pip install .`, exposes 8080.
+Keeps context small by excluding `tests/` (corpus), `docs/`, `brand/`, node modules, compiler `*.nbc`/`*.nbi` caches, venvs, and IDE cruft.
 
 ### Compose healthchecks
 
-API: `curl -f http://localhost:8080/` (inside container). Redis: `redis-cli ping`.
+API: `curl -fsS http://127.0.0.1:8080/`. Redis: `redis-cli ping`.
 
 ## Invariants & edge cases
 
-1. **Host port 5002 vs container 8080.** AXIS local docs assume API on 5002 when using compose; Cloud Run uses 8080.
-2. **Read-only mounts in compose** mean image reinstall is required for dependency changes; source edits hot-reload only if the process reloads Python modules.
-3. **Production image installs the package non-editable** — good for immutability, bad for live code mount (use compose + `Dockerfile` for that).
-4. **Non-root `appuser`** cannot write arbitrary paths; configure `API_KEY_STORE` to a writable volume if using file-backed keys.
-5. **Cloud Build currently builds context `.` with default Dockerfile** in `cloudbuild.yaml` — confirm which Dockerfile is intended for production deploys when changing images. `{/* TODO: verify */}` if Cloud Build should pin `-f Dockerfile.api`.
+1. **Host port 5002 vs container 8080.** AXIS local docs assume API on 5002 via compose; Cloud Run uses 8080.
+2. **Read-only mounts in compose** mean dependency changes need image rebuild; source edits are visible via `PYTHONPATH` precedence.
+3. **Production target is immutable** — no live mounts; use the prod overlay or Cloud Run.
+4. **Non-root `appuser`** cannot write arbitrary paths; keep `API_KEY_STORE` under `/data`.
+5. **Cloud Build always builds `--target api`** (gunicorn). Do not point it at `api-dev`.
+6. **LSP is stdio** — not an HTTP service; use `docker compose run --rm lsp` rather than expecting a published port.
 
 ## Worked examples
 
-### Production-like local API
+### Production-like local API (bake)
 
 ```bash
-docker build -f Dockerfile.api -t pynescript-api .
+docker buildx bake api
 docker run --rm -p 8080:8080 \
   -e FLASK_ENV=production \
   -e ALLOWED_ORIGINS=http://localhost:8081 \
-  pynescript-api
+  pynescript-api:latest
 curl -s http://127.0.0.1:8080/ | jq .
 ```
 
 ### Compose with Redis
 
 ```bash
-docker compose --profile with-redis up --build
+docker compose --profile redis up --build
 ```
 
 ### Optional LSP container
 
 ```bash
-docker compose --profile with-lsp up lsp
+docker compose --profile lsp run --rm lsp
+```
+
+### Production overlay
+
+```bash
+export ADMIN_TOKEN=change-me
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up --build -d
 ```
 
 ## Failure modes
 
 | Symptom | Cause | Fix |
 | --- | --- | --- |
-| Healthcheck fails | curl missing in image | Production Dockerfile installs curl; slim custom images may not |
-| Permission denied writing keys | Running as `appuser` | Mount writable volume; set `API_KEY_STORE` |
-| Import errors after mount | PYTHONPATH / non-editable install | Prefer compose dev Dockerfile + `pip install -e` patterns |
-| OOM under load | Single small instance | Raise Cloud Run memory; reduce concurrency |
+| Healthcheck fails | process not listening / curl missing | Use image targets from this Dockerfile; check `docker compose logs api` |
+| Connection refused on host port | Flask bound to `127.0.0.1` | Dev target sets `HOST=0.0.0.0`; do not override to localhost |
+| Permission denied writing keys | Running as `appuser` outside `/data` | Set `API_KEY_STORE=/data/...` and mount `api_data` |
+| Import errors after mount | PYTHONPATH / stale site-packages | `PYTHONPATH=/app/src:/app`; rebuild after dependency changes |
+| OOM under load | Small memory cap | Raise `API_MEM_LIMIT` / Cloud Run memory; reduce concurrency |
 | CORS failures from PWA | Origin not allowed | Set `ALLOWED_ORIGINS` |
+| Huge build context | Missing `.dockerignore` | Ensure `.dockerignore` is present (corpus/docs excluded) |
 
 ## See also
 

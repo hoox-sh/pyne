@@ -1,0 +1,108 @@
+# Copyright (C) 2024-2026 jango_blockchained
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+# VCS / IDE
+.git
+.github
+.gitattributes
+.gitignore
+.opencode
+.claude
+.cursor
+.vscode
+.idea
+*.swp
+*~
+
+# Python envs & caches
+.venv
+venv
+.env
+.env.*
+!.env.example
+__pycache__
+*.py[cod]
+*$py.class
+*.egg-info
+.eggs
+.mypy_cache
+.pytest_cache
+.ruff_cache
+.coverage
+.coverage.*
+coverage.lcov
+coverage.xml
+htmlcov
+.tox
+.nox
+.cache
+*.egg
+
+# Build / dist artifacts
+dist
+build
+*.whl
+*.tar.gz
+
+# Test corpus (huge) — not needed for runtime images
+tests
+reports
+
+# Docs, brand assets, marketing
+docs
+brand
+MARKETING.md
+
+# Sister-tool frontends (not part of the API image)
+vscode-extension
+pine-worker
+clients
+examples
+debug_evaluator.py
+
+# Node / Bun
+node_modules
+**/node_modules
+bun.lock
+package.json
+package-lock.json
+tsconfig.json
+
+# Compiler intermediate caches (Nuitka)
+src/pynescript/compiler/**/*.nbc
+src/pynescript/compiler/**/*.nbi
+**/*.nbc
+**/*.nbi
+
+# Logs & local data
+logs
+*.log
+data
+
+# Docker noise (avoid recursive context)
+docker-compose*.yml
+docker-bake.hcl
+Dockerfile.api
+
+# Misc
+*.md
+!README.md
+!NOTICE
+CHANGELOG.md
+COMPATIBILITY.md
+CODE_OF_CONDUCT.md
+CONTRIBUTING.md
+SECURITY.md
+DESIGN.md
+Makefile
+cloudbuild.yaml
+scripts
+*.pine
+*.vsix
+*.pdf
+*.svg
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.webp

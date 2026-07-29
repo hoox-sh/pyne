@@ -35,7 +35,7 @@ This page codifies the as-checked-in config and the cost envelope from `docs/gcp
 ```mermaid
 flowchart LR
   GIT[push main] --> CB[Cloud Build]
-  CB --> DOCKER[docker build]
+  CB --> DOCKER["docker build --target api"]
   DOCKER --> GCR[gcr.io project/repo/service]
   GCR --> RUN[Cloud Run deploy]
   CB --> LSP[optional Nuitka ci_build]
@@ -89,7 +89,7 @@ timeout: 1200s
 | Path | Role |
 | --- | --- |
 | `cloudbuild.yaml` | Pipeline definition |
-| `Dockerfile` / `Dockerfile.api` | Image recipes (confirm which Cloud Build uses) |
+| `Dockerfile` target `api` | Production image recipe used by Cloud Build |
 | `backend/app.py` | Health `/`, CORS, body size limit |
 | `docs/gcp_cost_estimate.md` | Scenario costs (April 2026 draft) |
 

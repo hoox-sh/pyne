@@ -71,12 +71,13 @@ flowchart TB
 | `GITHUB_TOKEN` | Release asset upload |
 | `PYNESCRIPT_METADATA_KEY` | Runtime decrypt env fallback |
 
-### Container hardening (`Dockerfile.api`)
+### Container hardening (`Dockerfile` target `api`)
 
 - Multi-stage build (no compiler toolchain in final image)
-- Non-root `appuser`
-- Production env flags
+- Non-root `appuser` (uid 1000)
+- Production env flags + gunicorn entrypoint
 - Healthcheck without privileged ops
+- Writable data only under `/data` (`API_KEY_STORE`)
 
 ## Internals
 

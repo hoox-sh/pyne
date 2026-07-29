@@ -72,7 +72,7 @@ flowchart TB
 | Local install & loops | `Makefile`, hatch envs | [Local development](/pyne/docs/devops/local-dev) |
 | PR / push CI | `.github/workflows/ci.yml` | [CI](/pyne/docs/devops/ci) |
 | Versioned LSP + VSIX | `.github/workflows/release.yml` | [Release](/pyne/docs/devops/release) |
-| Pro API containers | `Dockerfile`, `Dockerfile.api`, `docker-compose.yml` | [Docker](/pyne/docs/devops/docker) |
+| Pro API containers | `Dockerfile` (targets api/api-dev/lsp), `docker-bake.hcl`, `docker-compose.yml` | [Docker](/pyne/docs/devops/docker) |
 | Compiled LSP | `scripts/build/compile.py`, `ci_build.py` | [Nuitka build](/pyne/docs/devops/nuitka-build) |
 | Builtin metadata crypto | Fernet key + `.enc` | [Metadata crypto](/pyne/docs/devops/metadata-crypto) |
 | Cloud Run | `cloudbuild.yaml` | [GCP](/pyne/docs/devops/gcp) |
@@ -88,7 +88,7 @@ flowchart TB
 | `.github/workflows/` | `ci.yml`, `release.yml`, `axis-nightly.yml` |
 | `scripts/build/` | Nuitka compile + CI build + Fernet metadata stage |
 | `scripts/generate_builtin_metadata.py` | Regenerates LSP `builtin_metadata.json` from live builtins |
-| `Dockerfile` / `Dockerfile.api` | Dev vs multi-stage production API images |
+| `Dockerfile` / `docker-bake.hcl` | Multi-target Buildx images (api, api-dev, lsp) |
 | `docker-compose.yml` | Local API (+ optional Redis / LSP profiles) |
 | `cloudbuild.yaml` | Build → GCR push → Cloud Run deploy; optional LSP compile |
 | `vscode-extension/` | Node 22 extension package / vsce |
@@ -110,8 +110,9 @@ make lint
 make test-lsp
 make build-check   # import check only, ~30s, no Nuitka compile
 
-# API in Docker (production Dockerfile)
+# API in Docker (production target via buildx bake)
 make docker-build
+make docker-up
 make docker-run
 ```
 
@@ -121,7 +122,7 @@ make docker-run
 | --- | --- | --- |
 | CI lint red, local green | Different ruff/mypy versions | Match CI install pins in workflow |
 | Metadata decrypt fails in binary | Missing key at runtime | Set `PYNESCRIPT_METADATA_KEY` or embed key at build |
-| Cloud Run 502 after deploy | Image missing deps / gunicorn bind | Confirm `Dockerfile.api` CMD and `PORT=8080` |
+| Cloud Run 502 after deploy | Image missing deps / gunicorn bind | Confirm `Dockerfile` target `api` CMD and `PORT=8080` |
 | VSIX empty / missing | `npm ci` / vsce not run | Use `make build-vscode` or release job artifacts |
 | Nuitka Anaconda link error | Static libpython missing | `conda install libpython-static` or keep `--static-libpython=no` |
 

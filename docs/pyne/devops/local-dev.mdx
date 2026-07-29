@@ -60,7 +60,13 @@ flowchart LR
 | `make run` | `python -m backend.app` |
 | `make run-lsp` | `python -m pynescript.langserver` |
 | `make run-frontend` | AXIS PWA on `:8081` (expects API on `:5002`) |
-| `make docker-build` / `docker-run` | Production API image / compose |
+| `make docker-build` | `docker buildx bake api` (production image) |
+| `make docker-build-all` | bake api + api-dev + lsp |
+| `make docker-buildx` | multi-platform release bake |
+| `make docker-up` / `docker-run` | compose API on `:5002` (dev target) |
+| `make docker-up-full` | compose with redis + lsp profiles |
+| `make docker-prod` | gunicorn overlay (needs `ADMIN_TOKEN`) |
+| `make docker-smoke` | curl healthcheck on `:5002` |
 
 ### Hatch equivalents
 
