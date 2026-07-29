@@ -28,7 +28,6 @@ from typing import Any
 
 from .core import BINARY
 from .core import QUATERNARY
-from .core import QUINARY
 from .core import TERNARY
 from .core import TechnicalHelpers
 

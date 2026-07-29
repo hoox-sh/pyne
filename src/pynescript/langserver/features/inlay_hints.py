@@ -211,6 +211,6 @@ def _call_type(call: ast.Call) -> str | None:
             # `ta.sma(series, int) → series float` — take everything after `→`.
             if "→" in detail:
                 return detail.split("→", 1)[1].strip()
-        return f"series"
+        return "series"
 
     return None

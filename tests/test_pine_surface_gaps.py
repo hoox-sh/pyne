@@ -24,11 +24,9 @@ from __future__ import annotations
 import pytest
 
 from backend.runtime import Runtime
-from pynescript.ast import helper
 from pynescript.ast.evaluator import NodeLiteralEvaluator
 from pynescript.ast.evaluator.builtins.drawing import Box
 from pynescript.ast.evaluator.builtins.drawing import DrawingRegistry
-from pynescript.ast.evaluator.builtins.drawing import Line
 from pynescript.ast.evaluator.builtins.drawing import LineFill
 from tests.fixtures.parity.ohlcv import OHLCV
 

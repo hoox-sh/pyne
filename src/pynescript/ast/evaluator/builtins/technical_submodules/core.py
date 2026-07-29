@@ -1768,7 +1768,7 @@ class TechnicalHelpers:
         for idx in range(1, period):
             cmp = self._cmp_lt(series[-idx], series[-idx - 1])  # current < previous? falling means lower
             # falling: series[-idx] < series[-idx-1] is wrong; falling means each is lower than previous
-            # i.e. series[-1] < series[-2] < ... 
+            # i.e. series[-1] < series[-2] < ...
             a, b = series[-idx], series[-idx - 1]
             if a is None or b is None:
                 return False
