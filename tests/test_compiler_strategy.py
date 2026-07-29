@@ -174,3 +174,34 @@ plot(ta.sma(close, 5), title="s")
     assert "@numba.njit" in code
     compiled = compile_script(src)
     assert compiled.object_mode is False
+
+
+class TestStrategyRiskAndQtyNameErrors:
+    def test_risk_methods_are_noop(self) -> None:
+        src = """//@version=5
+strategy("t")
+strategy.risk.max_cons_loss_days(15)
+strategy.risk.max_drawdown(10, strategy.percent_of_equity)
+plot(strategy.max_drawdown, title="dd")
+"""
+        code = transpile(src)
+        assert "max_cons_loss_days(" not in code
+        assert "max_drawdown(strategy_risk" not in code
+        assert "__strategy.max_drawdown" in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(15)
+        out = compiled.run(o, h, l, c, v)
+        assert "dd" in out
+
+    def test_default_entry_qty_stub(self) -> None:
+        src = """//@version=5
+strategy("t")
+qty = strategy.default_entry_qty(close)
+plot(qty, title="q")
+"""
+        code = transpile(src)
+        assert "qty_arr" in code or "1.0" in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(12)
+        out = compiled.run(o, h, l, c, v)
+        assert abs(out["q"][-1] - 1.0) < 1e-9

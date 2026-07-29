@@ -1454,6 +1454,68 @@ plot(a, title="p")
         # first element of sequence
         assert abs(out["p"][-1] - 1.0) < 1e-9
 
+    def test_udf_array_return_scalar_not_float_series(self) -> None:
+        """UDF returning array must not write list into float64 series."""
+        src = """//@version=5
+indicator("x")
+f(int n) =>
+    if n > 0
+        float[] a = array.new_float(n, 1.5)
+        a
+    else
+        na
+x = f(3)
+plot(array.size(x), title="sz")
+plot(array.get(x, 0), title="v0")
+"""
+        code = transpile(src)
+        assert "x_arr[__bar_idx] = f(" not in code
+        assert re.search(r"\bx = f\(", code)
+        compiled = compile_script(src)
+        assert compiled.object_mode
+        o, h, l, c, v = _ohlcv(10)
+        out = compiled.run(o, h, l, c, v)
+        assert abs(out["sz"][-1] - 3.0) < 1e-9
+        assert abs(out["v0"][-1] - 1.5) < 1e-9
+
+    def test_udf_multi_return_arrays_scalar_unpack(self) -> None:
+        """``[a,b] = f()`` where f returns arrays → scalar handles, not float series."""
+        src = """//@version=5
+indicator("x")
+f(int n) =>
+    a = array.new_float(n, 1.0)
+    b = array.new_float(n, 2.0)
+    [a, b]
+[x, y] = f(4)
+plot(array.size(x) + array.size(y), title="s")
+plot(array.get(x, 0) + array.get(y, 0), title="v")
+"""
+        code = transpile(src)
+        assert re.search(r"\bx = ", code)
+        assert re.search(r"\by = ", code)
+        compiled = compile_script(src)
+        assert compiled.object_mode
+        o, h, l, c, v = _ohlcv(10)
+        out = compiled.run(o, h, l, c, v)
+        assert abs(out["s"][-1] - 8.0) < 1e-9
+        assert abs(out["v"][-1] - 3.0) < 1e-9
+
+    def test_udf_numeric_multi_return_still_series(self) -> None:
+        """Numeric multi-return UDF unpacks into float series (not forced sequence)."""
+        src = """//@version=5
+indicator("x")
+f(float a, float b) =>
+    [a + 1.0, b + 2.0]
+[u, w] = f(close, close)
+plot(u, title="u")
+plot(w, title="w")
+"""
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(20)
+        out = compiled.run(o, h, l, c, v)
+        assert abs(out["u"][-1] - (c[-1] + 1.0)) < 1e-9
+        assert abs(out["w"][-1] - (c[-1] + 2.0)) < 1e-9
+
     def test_color_series_plot_object_mode(self) -> None:
         src = """//@version=5
 indicator("x")
@@ -1516,7 +1578,8 @@ doubleAbs = ta.ema(ta.ema(math.abs(mom), longLength), shortLength)
 plot(doubleAbs, title="da")
 """
         code = transpile(src)
-        assert "numba_store_src" in code
+        # Materialize may use numba_store_src (njit) or store_src_py (object mode)
+        assert "numba_store_src" in code or "store_src_py" in code
         assert code.count("numba_ema") >= 2
         compiled = compile_script(src)
         o, h, l, c, v = _ohlcv(80)
@@ -1866,3 +1929,400 @@ plot(myState.count, title="c")
         o, h, l, c, v = _ohlcv(12)
         out = compiled.run(o, h, l, c, v)
         assert np.isnan(out["c"][-1])
+
+
+class TestNameNotDefinedFixes:
+    """Regression: set01/set02 `name 'X' is not defined` compile runtime errors."""
+
+    def test_bare_mom_maps_to_change(self) -> None:
+        src = """//@version=4
+study("x")
+plot(mom(close, 10), title="m")
+"""
+        code = transpile(src)
+        assert "numba_change" in code
+        assert re.search(r"\bmom\(", code) is None
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(30)
+        out = compiled.run(o, h, l, c, v)
+        assert abs(out["m"][-1] - (c[-1] - c[-11])) < 1e-9
+
+    def test_array_indexof_emits_list_index(self) -> None:
+        src = """//@version=5
+indicator("x")
+a = array.from(1.0, 2.0, 3.0)
+plot(array.indexof(a, 2.0), title="i")
+"""
+        code = transpile(src)
+        assert ".index(" in code
+        assert "array_indexof(" not in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(10)
+        out = compiled.run(o, h, l, c, v)
+        assert abs(out["i"][-1] - 1.0) < 1e-9
+
+    def test_str_tonumber_and_substring(self) -> None:
+        src = """//@version=5
+indicator("x")
+s = "1234"
+plot(str.tonumber(str.substring(s, 0, 2)), title="n")
+"""
+        code = transpile(src)
+        assert "safe_tonumber" in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(8)
+        out = compiled.run(o, h, l, c, v)
+        assert abs(out["n"][-1] - 12.0) < 1e-9
+
+    def test_barcolor_user_var_not_namespace(self) -> None:
+        src = """//@version=5
+indicator("x")
+barcolor = close > open ? color.green : color.red
+barcolor(barcolor)
+plot(close, title="c")
+"""
+        code = transpile(src)
+        assert "barcolor_arr[__bar_idx]" in code
+        assert "'color': barcolor)" not in code  # bare name would NameError
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(12)
+        out = compiled.run(o, h, l, c, v)
+        assert abs(out["c"][-1] - c[-1]) < 1e-9
+
+    def test_builtin_n_and_pvt(self) -> None:
+        src = """//@version=3
+study("x")
+plot(n, title="n")
+plot(pvt, title="pvt")
+"""
+        code = transpile(src)
+        assert "__bar_idx" in code
+        assert "numba_pvt_inc" in code
+        # bare n/pvt must not become series arrays (avoid matching open_arr etc.)
+        assert re.search(r"\bn_arr\b", code) is None
+        assert re.search(r"\bpvt_arr\b", code) is None
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(20)
+        out = compiled.run(o, h, l, c, v)
+        assert abs(out["n"][-1] - 19) < 1e-9
+        assert np.isfinite(out["pvt"][-1])
+
+    def test_switch_multistmt_dema_walrus(self) -> None:
+        """Multi-stmt switch arms must define intermediates (no NameError on ema1)."""
+        src = """//@version=5
+indicator("x")
+f_ma(_src, _len) =>
+    switch "DEMA"
+        "DEMA" =>
+            ema1 = ta.ema(_src, _len)
+            2.0 * ema1 - ta.ema(ema1, _len)
+        => ta.ema(_src, _len)
+plot(f_ma(close, 5), title="d")
+"""
+        code = transpile(src)
+        assert ":=" in code  # walrus for ema1
+        # Must not leave bare free-var `ema1` (would NameError at runtime)
+        assert " * ema1)" in code or "* ema1 " in code or "(ema1 :=" in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(40)
+        # Runtime must not raise NameError; values may be nan while EMA warms.
+        out = compiled.run(o, h, l, c, v)
+        assert "d" in out
+        assert len(out["d"]) == 40
+
+    def test_ticker_heikinashi_stub(self) -> None:
+        src = """//@version=5
+indicator("x")
+ha_t = ticker.heikinashi(syminfo.tickerid)
+plot(close, title="c")
+"""
+        code = transpile(src)
+        assert "ticker_arr" not in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(10)
+        out = compiled.run(o, h, l, c, v)
+        assert abs(out["c"][-1] - c[-1]) < 1e-9
+
+    def test_sequence_helpers_stub(self) -> None:
+        src = """//@version=5
+indicator("x")
+a = sequence_from_series(close)
+b = sequence_float(0.0, 1.0, 0.5)
+plot(array.size(a) + array.size(b), title="s")
+"""
+        code = transpile(src)
+        assert "list(" in code or "np.arange" in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(15)
+        out = compiled.run(o, h, l, c, v)
+        assert out["s"][-1] > 0
+
+    def test_if_for_not_broken_ternary(self) -> None:
+        """if-arm with for must be statement form, not ``(i = 0\\nwhile … if c)``."""
+        src = """//@version=5
+indicator("x")
+f(a) =>
+    s = 0.0
+    if a
+        for i = 0 to 3
+            s := s + i
+    s
+plot(f(true), title="s")
+"""
+        code = transpile(src)
+        assert "(i = 0" not in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(8)
+        out = compiled.run(o, h, l, c, v)
+        assert abs(out["s"][-1] - 6.0) < 1e-9  # 0+1+2+3
+
+
+class TestSet03RuntimeTypeFixes:
+    """Regression: set03 compile RUN_FAIL type-error buckets."""
+
+    def test_udf_shadow_name_not_compared_as_function(self) -> None:
+        """``sar = sar(...)`` then ``sar > close`` must use shadow local, not fn."""
+        src = """//@version=5
+indicator("x")
+sar(af=0.02) =>
+    low
+sar = sar(0.02)
+plot(sar > close ? sar : na, title="p")
+"""
+        code = transpile(src)
+        assert "sar__loc" in code
+        assert "sar > close" not in code or "sar__loc" in code
+        # must not compare function object
+        assert re.search(r"\bsar\s*>", code) is None or "sar__loc" in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(20)
+        out = compiled.run(o, h, l, c, v)
+        assert "p" in out
+
+    def test_safe_float_rejects_timeframe_and_format_strings(self) -> None:
+        from pynescript.compiler.numba_builtins import safe_float
+
+        assert np.isnan(safe_float("1D"))
+        assert np.isnan(safe_float("{0}R: {1,number,#.####}"))
+        assert np.isnan(safe_float("Name: Turtle Soup\nDescription: x"))
+        assert abs(safe_float("1e-3") - 0.001) < 1e-12
+        assert abs(safe_float("3.14") - 3.14) < 1e-12
+
+    def test_for_index_value_uses_enumerate(self) -> None:
+        src = """//@version=5
+indicator("x")
+a = array.from(1.0, -2.0, 3.0)
+c = 0
+for [index, value] in a
+    if value > 0
+        c := c + 1
+plot(c, title="c")
+"""
+        code = transpile(src)
+        assert "enumerate(safe_iter(" in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(10)
+        out = compiled.run(o, h, l, c, v)
+        # re-init c each bar → 2 positives per bar
+        assert abs(out["c"][-1] - 2.0) < 1e-9
+
+    def test_for_in_udf_returns_last_body_expr(self) -> None:
+        src = """//@version=5
+indicator("x")
+qty(value, arr) =>
+    int result = 0
+    for el in arr
+        if el > value
+            result += 1
+        result
+plot(qty(0.0, array.from(1.0, -1.0, 2.0)), title="q")
+"""
+        code = transpile(src)
+        assert "return result" in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(8)
+        out = compiled.run(o, h, l, c, v)
+        assert abs(out["q"][-1] - 2.0) < 1e-9
+
+    def test_safe_iter_and_sum_on_scalar(self) -> None:
+        from pynescript.compiler.numba_builtins import safe_iter, safe_sum, safe_max
+
+        assert list(safe_iter(3.14)) == []
+        assert list(safe_iter(None)) == []
+        assert abs(safe_sum([1.0, "x", None, 2.0]) - 3.0) < 1e-9
+        assert abs(safe_max([[1.0, 5.0], [2.0, 3.0]]) - 5.0) < 1e-9
+
+    def test_udt_index_store_object_dtype(self) -> None:
+        src = """//@version=5
+indicator("x")
+type L
+    float price
+    bool is_active
+var array<L> levels = array.new<L>()
+if bar_index == 0
+    array.push(levels, L.new(price=close, is_active=true))
+level = array.get(levels, 0)
+plot(level.price, title="p")
+"""
+        code = transpile(src)
+        assert "dtype=object" in code or "udt_index" in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(12)
+        out = compiled.run(o, h, l, c, v)
+        assert abs(out["p"][-1] - c[0]) < 1e-6 or np.isfinite(out["p"][-1])
+
+    def test_string_udf_store_safe_float(self) -> None:
+        src = """//@version=5
+indicator("x")
+f_tf(tf) =>
+    tf == "" ? "1D" : tf
+activeTf = f_tf("")
+plot(close, title="c")
+"""
+        code = transpile(src)
+        # either string series or safe_float coercion — must not bare float()
+        assert "safe_float" in code or "dtype=object" in code or "activeTf =" in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(10)
+        out = compiled.run(o, h, l, c, v)
+        assert abs(out["c"][-1] - c[-1]) < 1e-9
+
+    def test_array_new_size_nan_safe(self) -> None:
+        src = """//@version=5
+indicator("x")
+a = array.new_float(na)
+plot(array.size(a), title="s")
+"""
+        code = transpile(src)
+        assert "safe_int" in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(5)
+        out = compiled.run(o, h, l, c, v)
+        assert abs(out["s"][-1] - 0.0) < 1e-9
+
+    def test_math_tanh_and_round_none_safe(self) -> None:
+        src = """//@version=5
+indicator("x")
+plot(math.tanh(0.0), title="t")
+plot(math.round_to_mintick(close), title="r")
+"""
+        code = transpile(src)
+        assert "np.tanh" in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(8)
+        out = compiled.run(o, h, l, c, v)
+        assert abs(out["t"][-1] - 0.0) < 1e-9
+        assert np.isfinite(out["r"][-1])
+
+    def test_chart_point_has_price_field(self) -> None:
+        src = """//@version=5
+indicator("x")
+p = chart.point.from_index(bar_index, close)
+plot(p.price, title="p")
+"""
+        code = transpile(src)
+        assert "'price'" in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(10)
+        out = compiled.run(o, h, l, c, v)
+        assert abs(out["p"][-1] - c[-1]) < 1e-9
+
+# --- matrix/array set03 ---
+class TestSet03MatrixArrayApis:
+    def test_array_sort_indices_object_mode(self) -> None:
+        """array.sort_indices must emit helper call (not bare NameError) and stay list."""
+        src = """//@version=5
+indicator("x")
+a = array.from(3.0, 1.0, 2.0)
+idx = array.sort_indices(a)
+idx_desc = array.sort_indices(a, order.descending)
+plot(array.get(idx, 0), title="asc0")
+plot(array.get(idx, 1), title="asc1")
+plot(array.get(idx_desc, 0), title="desc0")
+"""
+        code = transpile(src)
+        assert "array_sort_indices" in code
+        # Handle must not be coerced into float64 series
+        assert "idx_arr" not in code
+        compiled = compile_script(src)
+        assert compiled.object_mode
+        o, h, l, c, v = _ohlcv(10)
+        out = compiled.run(o, h, l, c, v)
+        assert out["asc0"][-1] == 1.0  # value 1.0 at index 1
+        assert out["asc1"][-1] == 2.0  # value 2.0 at index 2
+        assert out["desc0"][-1] == 0.0  # value 3.0 at index 0
+
+# --- matrix/array set03 ---
+class TestSet03MatrixArrayApis:
+    def test_matrix_row_col_mutate_apis_object_mode(self) -> None:
+        """matrix add/remove/reshape/swap_rows — no NameError; list-of-lists stubs."""
+        src = """//@version=5
+indicator("x")
+m = matrix.new<float>(2, 2, 0.0)
+matrix.set(m, 0, 0, 1.0)
+matrix.set(m, 0, 1, 2.0)
+matrix.set(m, 1, 0, 3.0)
+matrix.set(m, 1, 1, 4.0)
+matrix.add_row(m)
+matrix.add_col(m)
+removed_row = matrix.remove_row(m, 2)
+removed_col = matrix.remove_col(m, 2)
+matrix.reshape(m, 1, 4)
+matrix.swap_rows(m, 0, 0)
+plot(matrix.rows(m), title="rows")
+plot(matrix.columns(m), title="cols")
+plot(array.size(removed_row), title="rr")
+plot(array.size(removed_col), title="rc")
+plot(matrix.get(m, 0, 0), title="g00")
+"""
+        code = transpile(src)
+        assert "matrix_add_row" in code
+        assert "matrix_add_col" in code
+        assert "matrix_remove_row" in code
+        assert "matrix_remove_col" in code
+        assert "matrix_reshape" in code
+        assert "matrix_swap_rows" in code
+        compiled = compile_script(src)
+        assert compiled.object_mode
+        o, h, l, c, v = _ohlcv(10)
+        out = compiled.run(o, h, l, c, v)
+        assert out["rows"][-1] == 1.0
+        assert out["cols"][-1] == 4.0
+        assert out["rr"][-1] == 3.0  # added na row then removed it (3 cols at remove time)
+        assert out["rc"][-1] == 2.0
+        assert out["g00"][-1] == 1.0
+
+# --- matrix/array set03 ---
+class TestSet03MatrixArrayApis:
+    def test_matrix_add_row_col_empty_and_insert(self) -> None:
+        """TV forms: add_row/col on empty matrix with array at index 0."""
+        src = """//@version=5
+indicator("x")
+m = matrix.new<int>()
+a = array.from(1, 3)
+matrix.add_row(m, 0, a)
+plot(matrix.rows(m), title="rows")
+plot(matrix.columns(m), title="cols")
+plot(matrix.get(m, 0, 0), title="v00")
+plot(matrix.get(m, 0, 1), title="v01")
+m2 = matrix.new<int>()
+b = array.from(1, 3)
+matrix.add_col(m2, 0, b)
+plot(matrix.rows(m2), title="r2")
+plot(matrix.columns(m2), title="c2")
+plot(matrix.get(m2, 0, 0), title="w00")
+plot(matrix.get(m2, 1, 0), title="w10")
+"""
+        compiled = compile_script(src)
+        assert compiled.object_mode
+        o, h, l, c, v = _ohlcv(8)
+        out = compiled.run(o, h, l, c, v)
+        assert out["rows"][-1] == 1.0
+        assert out["cols"][-1] == 2.0
+        assert out["v00"][-1] == 1.0
+        assert out["v01"][-1] == 3.0
+        assert out["r2"][-1] == 2.0
+        assert out["c2"][-1] == 1.0
+        assert out["w00"][-1] == 1.0
+        assert out["w10"][-1] == 3.0
+

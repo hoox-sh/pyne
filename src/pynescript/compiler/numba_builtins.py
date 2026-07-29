@@ -183,6 +183,52 @@ def numba_change(arr, length, i):
 
 
 @numba.njit(cache=True)
+def numba_pvt_inc(close, vol, i, st):
+    """Price Volume Trend (incremental): cum((c-c1)/c1 * volume).
+
+    ``st[0]`` holds previous PVT, ``st[1]`` previous bar index for catch-up.
+    """
+    if i <= 0:
+        st[0] = 0.0
+        st[1] = float(i)
+        return 0.0
+    prev_i = int(st[1]) if not np.isnan(st[1]) else -1
+    if prev_i == i:
+        return st[0]
+    if prev_i != i - 1:
+        pvt = 0.0
+        for j in range(1, i + 1):
+            c0 = close[j - 1]
+            if c0 == 0.0 or np.isnan(c0) or np.isnan(close[j]) or np.isnan(vol[j]):
+                continue
+            pvt = pvt + ((close[j] - c0) / c0) * vol[j]
+        st[0] = pvt
+        st[1] = float(i)
+        return pvt
+    c0 = close[i - 1]
+    if c0 == 0.0 or np.isnan(c0) or np.isnan(close[i]) or np.isnan(vol[i]):
+        st[1] = float(i)
+        return st[0]
+    pvt = st[0] + ((close[i] - c0) / c0) * vol[i]
+    st[0] = pvt
+    st[1] = float(i)
+    return pvt
+
+
+def safe_tonumber(x):
+    """Parse Pine str.tonumber — non-numeric / empty → NaN."""
+    try:
+        if x is None:
+            return np.nan
+        s = str(x).strip()
+        if s == "" or s.lower() in ("nan", "none", "na"):
+            return np.nan
+        return float(s)
+    except (TypeError, ValueError):
+        return np.nan
+
+
+@numba.njit(cache=True)
 def numba_bb(arr, period, mult, i):
     period = int(period)
     """Return (upper, middle, lower) Bollinger bands."""
@@ -1174,7 +1220,8 @@ def safe_float(x):
     try:
         if x is None:
             return np.nan
-        if isinstance(x, bool):
+        # bool and numpy.bool_ (not a subclass of bool on recent NumPy)
+        if isinstance(x, (bool, np.bool_)):
             return 1.0 if x else 0.0
         if isinstance(x, (int, float, np.integer, np.floating)):
             return float(x)
@@ -1194,9 +1241,14 @@ def safe_float(x):
         if callable(x) and not isinstance(x, type):
             return np.nan
         if isinstance(x, str):
-            # version strings / colors / labels are not floats
+            # version strings / colors / labels / size enums are not floats
             s = x.strip()
-            if not s or s.count(".") > 1 or s.startswith("#") or not (
+            if not s or s.startswith("#"):
+                return np.nan
+            # Reject pure words (Round, Neutral, small, tiny, …)
+            if any(c.isalpha() for c in s) and not any(c.isdigit() for c in s):
+                return np.nan
+            if s.count(".") > 1 or not (
                 s[0].isdigit() or s[0] in "+-" or s[0] == "."
             ):
                 return np.nan
@@ -1241,6 +1293,449 @@ def safe_period(x, default: int = 0) -> int:
         return int(f)
     except Exception:
         return int(default)
+
+
+def safe_len(x) -> int:
+    """Pine-friendly length: arrays/lists/strings ok; scalar → 0 (not TypeError)."""
+    if x is None:
+        return 0
+    if isinstance(x, (list, tuple, str, dict, set)):
+        return len(x)
+    if isinstance(x, np.ndarray):
+        return int(x.size) if x.ndim == 0 else int(x.shape[0])
+    # float/int series values are not collections
+    return 0
+
+
+def safe_iter(x):
+    """Iterate only real collections; scalars/NaN → empty (no TypeError)."""
+    if x is None:
+        return ()
+    if isinstance(x, (list, tuple, str, dict, set)):
+        return x
+    if isinstance(x, np.ndarray):
+        if x.ndim == 0:
+            return ()
+        return x
+    if isinstance(x, (float, int, bool, complex, np.floating, np.integer)):
+        return ()
+    try:
+        iter(x)
+        return x
+    except TypeError:
+        return ()
+
+def safe_sum(x):
+    """Sum numeric elements of a collection; skip str/dict/None (no TypeError)."""
+    if x is None:
+        return 0.0
+    if isinstance(x, (float, int, np.floating, np.integer, bool)):
+        f = safe_float(x)
+        return 0.0 if f != f else f
+    total = 0.0
+    n = 0
+    try:
+        items = safe_iter(x)
+    except Exception:
+        return 0.0
+    for e in items:
+        if isinstance(e, (list, tuple, np.ndarray)):
+            total += safe_sum(e)
+            n += 1
+            continue
+        f = safe_float(e)
+        if f == f:  # not NaN
+            total += f
+            n += 1
+    return total
+
+
+def safe_max(x):
+    """Max of numeric elements; empty / non-numeric → NaN."""
+    if x is None:
+        return np.nan
+    if isinstance(x, (float, int, np.floating, np.integer, bool)):
+        return safe_float(x)
+    best = np.nan
+    for e in safe_iter(x):
+        if isinstance(e, (list, tuple, np.ndarray)):
+            # matrix row/col: use first numeric leaf or flatten
+            f = safe_max(e)
+        else:
+            f = safe_float(e)
+        if f != f:
+            continue
+        if best != best or f > best:
+            best = f
+    return best
+
+
+def safe_min(x):
+    """Min of numeric elements; empty / non-numeric → NaN."""
+    if x is None:
+        return np.nan
+    if isinstance(x, (float, int, np.floating, np.integer, bool)):
+        return safe_float(x)
+    best = np.nan
+    for e in safe_iter(x):
+        if isinstance(e, (list, tuple, np.ndarray)):
+            f = safe_min(e)
+        else:
+            f = safe_float(e)
+        if f != f:
+            continue
+        if best != best or f < best:
+            best = f
+    return best
+
+
+def udt_index(obj, idx):
+    """Index a Pine UDT dict or list/array: dict uses ordered values, list uses int."""
+    try:
+        i = int(idx)
+    except (TypeError, ValueError):
+        i = 0
+    if isinstance(obj, dict):
+        vals = list(obj.values())
+        if 0 <= i < len(vals):
+            return vals[i]
+        return np.nan
+    if isinstance(obj, (list, tuple)):
+        if 0 <= i < len(obj):
+            return obj[i]
+        return np.nan
+    if isinstance(obj, np.ndarray) and obj.ndim >= 1:
+        if 0 <= i < len(obj):
+            return obj[i]
+        return np.nan
+    return np.nan
+
+
+def pine_raise(msg) -> None:
+    """Expression-safe ``runtime.error`` for generated code.
+
+    Pine ``runtime.error(...)`` appears in statement and expression contexts
+    (ternary/switch arms, ``return runtime.error(...)``). Python ``raise`` is
+    only a statement, so emitted code calls this helper instead.
+
+    Named without a leading underscore so ``from numba_builtins import *``
+    (used by compiled prologs) exports it.
+    """
+    raise RuntimeError(str(msg))
+
+
+def str_split(value, sep=None):
+    """Pine ``str.split(source, separator?)``.
+
+    Python forbids ``str.split("")`` (empty separator). Pine uses empty
+    separator to mean "split into characters" — return ``list(s)``.
+    """
+    s = "" if value is None else str(value)
+    if sep is None:
+        return s.split()
+    sep_s = str(sep)
+    if sep_s == "":
+        return list(s)
+    return s.split(sep_s)
+
+
+def store_src_py(dst, val, i):
+    """Object-mode series materialize: coerce non-numeric (list/str/…) to NaN.
+
+    Avoids ``list + 0.0`` / TypeError when a Pine array handle is fed to TA.
+    """
+    dst[i] = safe_float(val)
+    return dst
+
+
+def _pine_is_descending(order) -> bool:
+    """True when *order* is descending (``order.descending`` / -1 / True / …)."""
+    if order is None:
+        return False
+    if order is True or order == -1:
+        return True
+    if isinstance(order, str):
+        return order.lower() in ("descending", "desc")
+    return False
+
+
+def array_sort_indices(arr, order="ascending"):
+    """Pine ``array.sort_indices(id, order?)`` → list of indices (na last).
+
+    Object-mode helper used by the Numba compiler emit path.
+    """
+    if arr is None:
+        return []
+    try:
+        seq = list(arr)
+    except TypeError:
+        return []
+    if not seq:
+        return []
+    reverse = _pine_is_descending(order)
+
+    def _is_na(v) -> bool:
+        if v is None:
+            return True
+        try:
+            return v != v  # NaN
+        except Exception:
+            return False
+
+    non_na = [(val, idx) for idx, val in enumerate(seq) if not _is_na(val)]
+    na_idx = [idx for idx, val in enumerate(seq) if _is_na(val)]
+    try:
+        non_na.sort(key=lambda x: x[0], reverse=reverse)
+    except TypeError:
+        non_na.sort(key=lambda x: (str(type(x[0])), str(x[0])), reverse=reverse)
+    return [idx for _, idx in non_na] + na_idx
+
+
+def _matrix_ncols(m) -> int:
+    if not m:
+        return 0
+    try:
+        return len(m[0]) if m[0] is not None else 0
+    except (TypeError, IndexError):
+        return 0
+
+
+def _matrix_ensure(m):
+    """Coerce *m* to a mutable list-of-lists matrix handle."""
+    if m is None:
+        return []
+    if isinstance(m, list):
+        return m
+    try:
+        return [list(row) for row in m]
+    except TypeError:
+        return []
+
+
+def matrix_add_row(m, *rest):
+    """Pine ``matrix.add_row(id)`` / ``(id, array)`` / ``(id, row, array)``.
+
+    Mutates list-of-lists *m* in place and returns it.
+    """
+    m = _matrix_ensure(m)
+    row_idx = None
+    row_data = None
+    if len(rest) == 1:
+        if isinstance(rest[0], (list, tuple)):
+            row_data = list(rest[0])
+        else:
+            try:
+                row_idx = int(rest[0])
+            except (TypeError, ValueError):
+                row_idx = None
+    elif len(rest) >= 2:
+        try:
+            row_idx = int(rest[0]) if rest[0] is not None else None
+        except (TypeError, ValueError):
+            row_idx = None
+        if isinstance(rest[1], (list, tuple)):
+            row_data = list(rest[1])
+        elif rest[1] is not None:
+            try:
+                row_data = list(rest[1])
+            except TypeError:
+                row_data = None
+
+    cols = _matrix_ncols(m)
+    if row_data is None:
+        row_data = [np.nan] * cols
+    elif cols > 0:
+        if len(row_data) < cols:
+            row_data = list(row_data) + [np.nan] * (cols - len(row_data))
+        elif len(row_data) > cols:
+            row_data = list(row_data[:cols])
+    else:
+        row_data = list(row_data)
+
+    if row_idx is None or row_idx >= len(m):
+        m.append(row_data)
+    else:
+        m.insert(max(0, int(row_idx)), row_data)
+    return m
+
+
+def matrix_add_col(m, *rest):
+    """Pine ``matrix.add_col(id)`` / ``(id, array)`` / ``(id, column, array)``.
+
+    Mutates list-of-lists *m* in place and returns it.
+    """
+    m = _matrix_ensure(m)
+    col_idx = None
+    col_data = None
+    if len(rest) == 1:
+        if isinstance(rest[0], (list, tuple)):
+            col_data = list(rest[0])
+        else:
+            try:
+                col_idx = int(rest[0])
+            except (TypeError, ValueError):
+                col_idx = None
+    elif len(rest) >= 2:
+        try:
+            col_idx = int(rest[0]) if rest[0] is not None else None
+        except (TypeError, ValueError):
+            col_idx = None
+        if isinstance(rest[1], (list, tuple)):
+            col_data = list(rest[1])
+        elif rest[1] is not None:
+            try:
+                col_data = list(rest[1])
+            except TypeError:
+                col_data = None
+
+    nrows = len(m)
+    if col_data is None:
+        col_data = [np.nan] * nrows
+    else:
+        col_data = list(col_data)
+
+    # Empty matrix: column data defines row count (one element per new row).
+    if nrows == 0:
+        for v in col_data:
+            m.append([v])
+        return m
+
+    if len(col_data) < nrows:
+        col_data = col_data + [np.nan] * (nrows - len(col_data))
+    elif len(col_data) > nrows:
+        col_data = col_data[:nrows]
+
+    ncols = _matrix_ncols(m)
+    insert_at = ncols if col_idx is None else max(0, min(int(col_idx), ncols))
+    for i, row in enumerate(m):
+        if not isinstance(row, list):
+            row = list(row)
+            m[i] = row
+        row.insert(insert_at, col_data[i])
+    return m
+
+
+def matrix_remove_row(m, index=0):
+    """Pine ``matrix.remove_row(id, row)`` → removed row as list; mutates *m*."""
+    m = _matrix_ensure(m)
+    try:
+        i = int(index)
+    except (TypeError, ValueError):
+        i = 0
+    if not m or not (0 <= i < len(m)):
+        return []
+    return list(m.pop(i))
+
+
+def matrix_remove_col(m, index=0):
+    """Pine ``matrix.remove_col(id, column)`` → removed col as list; mutates *m*."""
+    m = _matrix_ensure(m)
+    try:
+        i = int(index)
+    except (TypeError, ValueError):
+        i = 0
+    ncols = _matrix_ncols(m)
+    if not m or not (0 <= i < ncols):
+        return []
+    removed = []
+    for row in m:
+        if isinstance(row, list) and 0 <= i < len(row):
+            removed.append(row.pop(i))
+        else:
+            removed.append(np.nan)
+    # Drop empty rows if matrix becomes 0-col (keep row shells for handle stability)
+    return removed
+
+
+def matrix_reshape(m, rows, cols):
+    """Pine ``matrix.reshape(id, rows, columns)`` — in-place reshape; returns *m*."""
+    m = _matrix_ensure(m)
+    try:
+        rows_i = int(rows)
+        cols_i = int(cols)
+    except (TypeError, ValueError):
+        return m
+    if rows_i < 0 or cols_i < 0:
+        return m
+    flat = [elem for row in m for elem in (row if isinstance(row, (list, tuple)) else [row])]
+    need = rows_i * cols_i
+    if len(flat) < need:
+        flat = flat + [np.nan] * (need - len(flat))
+    else:
+        flat = flat[:need]
+    new_data = [
+        [flat[r * cols_i + c] for c in range(cols_i)] for r in range(rows_i)
+    ]
+    m.clear()
+    m.extend(new_data)
+    return m
+
+
+def matrix_swap_rows(m, row1, row2):
+    """Pine ``matrix.swap_rows(id, row1, row2)`` — in-place; returns *m*."""
+    m = _matrix_ensure(m)
+    try:
+        r1 = int(row1)
+        r2 = int(row2)
+    except (TypeError, ValueError):
+        return m
+    n = len(m)
+    if 0 <= r1 < n and 0 <= r2 < n:
+        m[r1], m[r2] = m[r2], m[r1]
+    return m
+
+
+def matrix_swap_columns(m, col1, col2):
+    """Pine ``matrix.swap_columns(id, col1, col2)`` — in-place; returns *m*."""
+    m = _matrix_ensure(m)
+    try:
+        c1 = int(col1)
+        c2 = int(col2)
+    except (TypeError, ValueError):
+        return m
+    ncols = _matrix_ncols(m)
+    if not (0 <= c1 < ncols and 0 <= c2 < ncols):
+        return m
+    for row in m:
+        if isinstance(row, list) and c1 < len(row) and c2 < len(row):
+            row[c1], row[c2] = row[c2], row[c1]
+    return m
+
+
+def sequence_from_series(src, length=None, shift=0, direction_forward=True, i=None):
+    """Best-effort ``*.sequence_from_series`` stub → list of recent values.
+
+    ``src`` may be a full float series array or a scalar. Used by library
+    helpers that sample a window; length defaults to available history.
+    """
+    try:
+        length_i = int(length) if length is not None else 0
+    except (TypeError, ValueError):
+        length_i = 0
+    try:
+        shift_i = int(shift) if shift is not None else 0
+    except (TypeError, ValueError):
+        shift_i = 0
+    if isinstance(src, (list, tuple)):
+        data = list(src)
+    elif isinstance(src, np.ndarray):
+        data = src.tolist()
+    else:
+        return [safe_float(src)]
+    n = len(data)
+    if n == 0:
+        return []
+    end = n - 1 - shift_i if i is None else int(i) - shift_i
+    if end < 0:
+        return []
+    if length_i <= 0:
+        length_i = end + 1
+    start = max(0, end - length_i + 1)
+    window = [safe_float(data[j]) for j in range(start, end + 1)]
+    if not direction_forward:
+        window.reverse()
+    return window
+
 
 @numba.njit(cache=True)
 def numba_ema_inc(arr, period, i, st):

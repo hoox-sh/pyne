@@ -165,3 +165,170 @@ strategy.exit("exit", "long", profit = 10, loss = 5)
     assert "strategy.exit(\"exit\"" in cleaned
     assert "It is a command" not in cleaned
     _roundtrip(cleaned)
+
+
+def test_stubs_shell_script_without_extractable_pine() -> None:
+    raw = """// set03 corpus entry
+// source_path: hooks/before-write.sh
+#!/bin/bash
+FILE_PATH="$1"
+if [ -f "$FILE_PATH" ]; then
+    echo "ok"
+    exit 0
+fi
+"""
+    cleaned = sanitize_corpus_source(raw)
+    assert 'indicator("x")' in cleaned
+    assert "#!/bin" not in cleaned
+    assert "echo" not in cleaned
+    _roundtrip(cleaned)
+
+
+def test_stubs_pytest_module() -> None:
+    raw = '''// set03 corpus entry
+// source_path: tests/test_process.py
+"""Tests for process_docs."""
+import pytest
+
+@pytest.fixture
+def tmp_docs(tmp_path):
+    return tmp_path
+
+def test_x(tmp_docs):
+    assert tmp_docs is not None
+'''
+    cleaned = sanitize_corpus_source(raw)
+    assert 'indicator("x")' in cleaned
+    assert "@pytest" not in cleaned
+    _roundtrip(cleaned)
+
+
+def test_extracts_pine_from_shell_heredoc() -> None:
+    raw = """// set03 corpus entry
+// source_path: hooks/startup.sh
+#!/bin/bash
+if [ ! -f projects/blank.pine ]; then
+    cat > projects/blank.pine << 'EOF'
+//@version=6
+indicator("Blank Template", overlay=true)
+plot(close)
+EOF
+fi
+echo "done"
+"""
+    cleaned = sanitize_corpus_source(raw)
+    assert 'indicator("Blank Template"' in cleaned
+    assert "plot(close)" in cleaned
+    assert "#!/bin" not in cleaned
+    assert "EOF" not in cleaned
+    _roundtrip(cleaned)
+
+
+def test_strips_tv_docs_trademark_and_prose() -> None:
+    raw = """//@version=6
+indicator("Single-color candles")
+plotcandle(open, high, low, close)
+image
+
+To color them green or red, we can use the following code:
+
+Pine Script®
+Copied
+//@version=6
+indicator("Example 2")
+paletteColor = close >= open ? color.lime : color.red
+plotbar(open, high, low, close, color = paletteColor)
+image
+
+Note that the color parameter accepts series color arguments.
+"""
+    cleaned = sanitize_corpus_source(raw)
+    assert "®" not in cleaned
+    assert "Pine Script" not in cleaned or "indicator(" in cleaned
+    assert "Copied" not in cleaned
+    assert "Note that" not in cleaned
+    assert "paletteColor" in cleaned or "plotcandle" in cleaned
+    _roundtrip(cleaned)
+
+
+def test_strips_html_comments_and_checklist_markdown() -> None:
+    raw = """//@version=6`
+// set03 corpus entry
+- [ ] Single line function calls
+- [ ] Proper variable assignment
+
+## Testing
+<!-- Add screenshots of the indicator -->
+- [ ] Code compiles without errors
+"""
+    cleaned = sanitize_corpus_source(raw)
+    assert "<!--" not in cleaned
+    assert "- [ ]" not in cleaned
+    assert 'indicator("x")' in cleaned or "indicator(" in cleaned
+    _roundtrip(cleaned)
+
+
+def test_repairs_empty_switch_body() -> None:
+    raw = """//@version=5
+indicator("Inputs", overlay=true)
+ma(series float source, simple int length, simple string maType) =>
+    switch maType
+"""
+    cleaned = sanitize_corpus_source(raw)
+    assert "switch maType" not in cleaned or "=>" in cleaned
+    # Incomplete switch replaced with na so the function body parses
+    assert "ma(" in cleaned
+    _roundtrip(cleaned)
+
+
+def test_preserves_real_pine_without_stubbing() -> None:
+    raw = """//@version=5
+indicator("RSI", overlay=false)
+len = input.int(14)
+plot(ta.rsi(close, len))
+"""
+    cleaned = sanitize_corpus_source(raw)
+    assert 'indicator("x")' not in cleaned
+    assert "ta.rsi" in cleaned
+    _roundtrip(cleaned)
+
+
+def test_closes_truncated_call_at_eof() -> None:
+    """Docs scrapes often cut mid-call: ``log.info(`` / ``label.new(`` at EOF."""
+    raw = """//@version=6
+indicator("t")
+if barstate.isconfirmed
+    log.info(
+"""
+    cleaned = sanitize_corpus_source(raw)
+    assert "log.info(na)" in cleaned
+    _roundtrip(cleaned)
+
+def test_closes_truncated_call_in_switch_arm() -> None:
+    raw = """//@version=6
+indicator("t")
+switch
+    true => label.new(
+"""
+    cleaned = sanitize_corpus_source(raw)
+    assert "label.new(na)" in cleaned
+    _roundtrip(cleaned)
+
+def test_closes_truncated_nested_open_parens() -> None:
+    raw = """//@version=6
+indicator("t")
+plot(math.max(
+"""
+    cleaned = sanitize_corpus_source(raw)
+    assert "math.max(na)" in cleaned
+    _roundtrip(cleaned)
+
+def test_closes_truncated_method_definition() -> None:
+    raw = """//@version=6
+indicator("t")
+method debugLabel(
+"""
+    cleaned = sanitize_corpus_source(raw)
+    assert "method debugLabel() => na" in cleaned
+    assert "debugLabel(na)" not in cleaned
+    _roundtrip(cleaned)
