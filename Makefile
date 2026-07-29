@@ -6,7 +6,8 @@
 .PHONY: help install test lint fmt build run clean \
 	docker-build docker-build-all docker-buildx docker-run docker-up docker-up-full \
 	docker-prod docker-down docker-logs docker-smoke \
-	test-lsp test-backend typecheck build-check build-vscode
+	test-lsp test-backend typecheck build-check build-vscode \
+	corpus-flow corpus-flow-set05
 
 help:
 	@echo "pyne — Pine Script™ Python toolchain"
@@ -33,6 +34,8 @@ help:
 	@echo "  docker-smoke     health-check curl against :5002"
 	@echo "  docker-run       alias for docker-up"
 	@echo "  clean            Clean build artifacts"
+	@echo "  corpus-flow      Animated full corpus flow (SETS=set05 MODE=auto)"
+	@echo "  corpus-flow-set05  shorthand for set05 full pipeline"
 	@echo ""
 	@echo "AXIS charting UI lives in the sister repo:"
 	@echo "  https://github.com/jango-blockchained/axis"
@@ -77,6 +80,20 @@ run:
 
 run-lsp:
 	python -m pynescript.langserver
+
+# Animated corpus pipeline: parse → re-run fails → runtime → report
+# Override: make corpus-flow SETS=set05 WORKERS=6 MODE=auto
+SETS ?= set05
+WORKERS ?= 4
+MODE ?= auto
+BARS ?= 50
+corpus-flow:
+	python scripts/corpus_flow_tui.py --sets $(SETS) --workers $(WORKERS) \
+		--runtime-mode $(MODE) --bars $(BARS) --resume
+
+corpus-flow-set05:
+	python scripts/corpus_flow_tui.py --sets set05 --workers $(WORKERS) \
+		--runtime-mode $(MODE) --bars $(BARS) --timeout 12 --runtime-timeout 10 --resume
 
 # Docker / buildx -----------------------------------------------------------
 # Prefer a dedicated builder for multi-platform: docker buildx create --use --name pynescript
