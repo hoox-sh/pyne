@@ -5,7 +5,8 @@
 #
 #   docker compose -f docker-compose.yml -f docker-compose.prod.yml up --build -d
 #
-# No source mounts; gunicorn via target `api`; tighter resource limits.
+# No source mounts (volumes: !override); gunicorn via target `api`; tighter limits.
+# Multi-worker key store defaults to SQLite on the shared /data volume.
 
 services:
   api:
@@ -22,16 +23,21 @@ services:
       PORT: "8080"
       FLASK_ENV: production
       FLASK_DEBUG: "0"
+      # sqlite is multi-worker safe on a shared volume; use redis for multi-host
+      STORE_BACKEND: ${STORE_BACKEND:-sqlite}
       API_KEY_STORE: /data/api_keys.json
+      API_KEY_STORE_SQLITE: /data/api_keys.db
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-https://hoox.sh,https://hoox.sh/axis,https://pynescript.ai,https://app.pynescript.ai}
       ADMIN_TOKEN: ${ADMIN_TOKEN:?ADMIN_TOKEN must be set for production compose}
-      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      # Only set when STORE_BACKEND=redis (and redis profile / Memorystore is up)
+      REDIS_URL: ${REDIS_URL:-}
       GUNICORN_WORKERS: ${GUNICORN_WORKERS:-2}
       GUNICORN_THREADS: ${GUNICORN_THREADS:-4}
       GUNICORN_TIMEOUT: ${GUNICORN_TIMEOUT:-60}
       PYTHONPATH: /app/src:/app
-    # Drop live source mounts from the base compose file
-    volumes:
+    # Compose merges volumes by mount *target*; !override replaces the base
+    # list so ./src and ./backend binds from docker-compose.yml are dropped.
+    volumes: !override
       - api_data:/data
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/"]

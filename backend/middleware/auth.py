@@ -22,13 +22,17 @@
 from __future__ import annotations
 
 import hashlib
+import hmac
+import json
 import os
+import secrets
 import time
 
 from dataclasses import dataclass
 from dataclasses import field
 from functools import wraps
 from typing import Any
+from typing import Protocol
 
 from flask import g
 from flask import jsonify
@@ -44,17 +48,20 @@ class APIKey:
     calls_limit: int | float = 0
     created_at: float = field(default_factory=time.time)
     last_used: float = 0.0
+    # Set by the store so increment_calls can persist without the caller knowing
+    # which backend is active.
+    _store: Any = field(default=None, repr=False, compare=False)
 
     def is_active(self) -> bool:
         return True
 
     def calls_remaining(self) -> int | float:
-        if self.calls_limit == 0:
+        if self.calls_limit == 0 or self.calls_limit == float("inf"):
             return float("inf")
         return max(0, self.calls_limit - self.calls_used)
 
     def is_rate_limited(self) -> bool:
-        if self.calls_limit == 0:
+        if self.calls_limit == 0 or self.calls_limit == float("inf"):
             return False
         return self.calls_used >= self.calls_limit
 
@@ -62,7 +69,7 @@ class APIKey:
         return {
             "tier": self.tier,
             "calls_used": self.calls_used,
-            "calls_limit": self.calls_limit,
+            "calls_limit": self.calls_limit if self.calls_limit != float("inf") else 0,
             "calls_remaining": self.calls_remaining(),
             "reset_at": self._get_reset_time(),
         }
@@ -77,6 +84,9 @@ class APIKey:
     def increment_calls(self, count: int = 1) -> None:
         self.calls_used += count
         self.last_used = time.time()
+        store = self._store
+        if store is not None:
+            store.persist_usage(self)
 
 
 _TIER_LIMITS = {
@@ -88,20 +98,62 @@ _TIER_LIMITS = {
 }
 
 
+class _HashBackend(Protocol):
+    """Minimal protocol shared by SQLiteKeyStore and RedisKeyStore."""
+
+    def create(self, key_id: str, key_hash: str, tier: str, calls_limit: int | float) -> None: ...
+
+    def get_by_hash(self, key_hash: str) -> dict[str, Any] | None: ...
+
+    def get_by_id(self, key_id: str) -> dict[str, Any] | None: ...
+
+    def delete_by_hash(self, key_hash: str) -> bool: ...
+
+    def update_calls(self, key_id: str, calls_used: int, last_used: float) -> None: ...
+
+
+def _limit_for_backend(limit: int | float) -> int | float:
+    """Map unlimited (inf) to 0 for backends that store numeric limits."""
+    if limit == float("inf"):
+        return 0
+    return limit
+
+
+def _limit_from_backend(limit: int | float) -> int | float:
+    """0 means unlimited in store semantics (matches free / enterprise)."""
+    if limit == 0:
+        return 0
+    return limit
+
+
 class APIKeyStore:
-    """JSON-file-backed API key store."""
+    """API key store with pluggable persistence.
 
-    _STORE_PATH = os.environ.get("API_KEY_STORE", "/root/pynescript/data/api_keys.json")
+    Backends:
 
-    def __init__(self):
+    * ``json`` (default) — single-process JSON file. Stores raw keys as object
+      keys (dev convenience only; not multi-worker safe).
+    * ``sqlite`` — hash-only SQLite (WAL). Safe for multi-worker single host
+      when the DB path is on a shared volume (e.g. ``/data/api_keys.db``).
+    * ``redis`` — hash-only Redis. Safe for multi-replica (Cloud Run + Memorystore).
+
+    Select via ``STORE_BACKEND`` (see :func:`get_key_store`).
+    """
+
+    _DEFAULT_JSON_PATH = "/data/api_keys.json"
+
+    def __init__(self, backend: _HashBackend | None = None, store_path: str | None = None) -> None:
+        self._backend = backend
+        # Read env at init time so tests can monkeypatch API_KEY_STORE.
+        self._store_path = store_path or os.environ.get("API_KEY_STORE", self._DEFAULT_JSON_PATH)
+        # JSON mode only:
         self._keys: dict[str, APIKey] = {}
         self._key_by_id: dict[str, str] = {}
-        self._load()
+        if self._backend is None:
+            self._load()
 
     def _load(self) -> None:
-        import json
-
-        path = self._STORE_PATH
+        path = self._store_path
         if not os.path.exists(path):
             return
         try:
@@ -116,17 +168,20 @@ class APIKeyStore:
                     calls_limit=info.get("calls_limit", 0),
                     created_at=info.get("created_at", 0.0),
                     last_used=info.get("last_used", 0.0),
+                    _store=self,
                 )
                 self._keys[raw_key] = api_key
                 self._key_by_id[api_key.key_id] = raw_key
-        except Exception:
-            pass
+        except (OSError, json.JSONDecodeError, KeyError, TypeError, ValueError):
+            # Corrupt or partial store — start empty rather than crash the API.
+            self._keys.clear()
+            self._key_by_id.clear()
 
     def _save(self) -> None:
-        import json
-
-        path = self._STORE_PATH
-        os.makedirs(os.path.dirname(path), exist_ok=True)
+        path = self._store_path
+        parent = os.path.dirname(path)
+        if parent:
+            os.makedirs(parent, exist_ok=True)
         data = {}
         for raw_key, api_key in self._keys.items():
             data[raw_key] = {
@@ -134,35 +189,76 @@ class APIKeyStore:
                 "key_hash": api_key.key_hash,
                 "tier": api_key.tier,
                 "calls_used": api_key.calls_used,
-                "calls_limit": api_key.calls_limit,
+                "calls_limit": api_key.calls_limit if api_key.calls_limit != float("inf") else 0,
                 "created_at": api_key.created_at,
                 "last_used": api_key.last_used,
             }
         with open(path, "w") as f:
             json.dump(data, f, indent=2)
 
-    def create_key(self, tier: str = "hobby") -> tuple[str, str]:
-        import secrets
+    def persist_usage(self, api_key: APIKey) -> None:
+        """Write call counters after :meth:`APIKey.increment_calls`."""
+        if self._backend is not None:
+            self._backend.update_calls(api_key.key_id, api_key.calls_used, api_key.last_used)
+            return
+        self._save()
 
+    def create_key(self, tier: str = "hobby") -> tuple[str, str]:
         raw_key = f"pyn_{secrets.token_urlsafe(32)}"
         key_id = hashlib.sha256(raw_key.encode()).hexdigest()[:12]
         key_hash = self._hash_key(raw_key)
+        calls_limit = _TIER_LIMITS.get(tier, 0)
+
+        if self._backend is not None:
+            self._backend.create(
+                key_id=key_id,
+                key_hash=key_hash,
+                tier=tier,
+                calls_limit=_limit_for_backend(calls_limit),
+            )
+            return raw_key, key_id
 
         api_key = APIKey(
             key_id=key_id,
             key_hash=key_hash,
             tier=tier,
-            calls_limit=_TIER_LIMITS.get(tier, 0),
+            calls_limit=calls_limit,
+            _store=self,
         )
         self._keys[raw_key] = api_key
         self._key_by_id[key_id] = raw_key
         self._save()
         return raw_key, key_id
 
+    def _api_key_from_record(self, record: dict[str, Any]) -> APIKey:
+        limit = _limit_from_backend(record.get("calls_limit", 0))
+        return APIKey(
+            key_id=record["key_id"],
+            key_hash=record["key_hash"],
+            tier=record.get("tier", "free"),
+            calls_used=int(record.get("calls_used", 0)),
+            calls_limit=limit,
+            created_at=float(record.get("created_at", 0.0)),
+            last_used=float(record.get("last_used", 0.0)),
+            _store=self,
+        )
+
     def get_key(self, raw_key: str) -> APIKey | None:
+        if self._backend is not None:
+            if not raw_key:
+                return None
+            record = self._backend.get_by_hash(self._hash_key(raw_key))
+            if record is None:
+                return None
+            return self._api_key_from_record(record)
         return self._keys.get(raw_key)
 
     def get_by_id(self, key_id: str) -> APIKey | None:
+        if self._backend is not None:
+            record = self._backend.get_by_id(key_id)
+            if record is None:
+                return None
+            return self._api_key_from_record(record)
         raw_key = self._key_by_id.get(key_id)
         if raw_key:
             return self._keys.get(raw_key)
@@ -171,12 +267,16 @@ class APIKeyStore:
     def validate_key(self, raw_key: str) -> APIKey | None:
         if not raw_key:
             return None
-        api_key = self._keys.get(raw_key)
+        api_key = self.get_key(raw_key)
         if api_key and api_key.is_active():
             return api_key
         return None
 
     def revoke_key(self, raw_key: str) -> bool:
+        if self._backend is not None:
+            if not raw_key:
+                return False
+            return self._backend.delete_by_hash(self._hash_key(raw_key))
         if raw_key in self._keys:
             key_id = self._keys[raw_key].key_id
             del self._keys[raw_key]
@@ -190,14 +290,64 @@ class APIKeyStore:
         return hashlib.sha256(raw_key.encode()).hexdigest()
 
 
-_key_store: APIKeyStore | None = None
+class _KeyStoreHolder:
+    """Process-local holder so we avoid module-level ``global`` assignments."""
+
+    store: APIKeyStore | None = None
+
+
+def reset_key_store() -> None:
+    """Drop the process-local singleton (tests / reconfiguration)."""
+    _KeyStoreHolder.store = None
+
+
+def _default_sqlite_path() -> str:
+    # Prefer dedicated env; fall back next to JSON path with .db suffix.
+    explicit = os.environ.get("API_KEY_STORE_SQLITE")
+    if explicit:
+        return explicit
+    json_path = os.environ.get("API_KEY_STORE", "/data/api_keys.json")
+    if json_path.endswith(".json"):
+        return json_path[: -len(".json")] + ".db"
+    return "/data/api_keys.db"
+
+
+def _build_key_store() -> APIKeyStore:
+    backend_name = (os.environ.get("STORE_BACKEND") or "json").strip().lower()
+    if backend_name in {"sqlite", "sql", "db"}:
+        from backend.middleware.key_store_sqlite import SQLiteKeyStore  # noqa: PLC0415
+
+        path = _default_sqlite_path()
+        parent = os.path.dirname(path)
+        if parent and path != ":memory:":
+            os.makedirs(parent, exist_ok=True)
+        return APIKeyStore(backend=SQLiteKeyStore(path))
+    if backend_name in {"redis", "memorystore"}:
+        from backend.middleware.key_store_redis import RedisKeyStore  # noqa: PLC0415
+
+        url = os.environ.get("REDIS_URL", "").strip()
+        if not url:
+            msg = "STORE_BACKEND=redis requires REDIS_URL to be set"
+            raise RuntimeError(msg)
+        return APIKeyStore(backend=RedisKeyStore(url=url))
+    return APIKeyStore()
 
 
 def get_key_store() -> APIKeyStore:
-    global _key_store
-    if _key_store is None:
-        _key_store = APIKeyStore()
-    return _key_store
+    """Return the process-local key store singleton.
+
+    Backend selection (``STORE_BACKEND``, case-insensitive):
+
+    * ``json`` (default) — file at ``API_KEY_STORE``
+    * ``sqlite`` — ``API_KEY_STORE_SQLITE`` or ``API_KEY_STORE`` with ``.db``
+    * ``redis`` — ``REDIS_URL`` (required)
+
+    For multi-worker gunicorn use ``sqlite`` on a shared volume; for multi-replica
+    Cloud Run use ``redis`` (e.g. Memorystore).
+    """
+    if _KeyStoreHolder.store is None:
+        _KeyStoreHolder.store = _build_key_store()
+    return _KeyStoreHolder.store
 
 
 def require_api_key(f):
@@ -252,7 +402,7 @@ def track_usage(f):
         result = f(*args, **kwargs)
         if isinstance(result, tuple):
             response, status_code = result
-            if status_code < 400:
+            if status_code < 400:  # noqa: PLR2004 — HTTP success range
                 api_key.increment_calls()
             return response, status_code
         api_key.increment_calls()
@@ -261,16 +411,52 @@ def track_usage(f):
     return decorated
 
 
-def require_admin_token(f):
-    """Decorator to require admin privileges (placeholder for consolidation).
+def _provided_admin_token() -> str:
+    """Extract admin credential from request headers."""
+    header = (request.headers.get("X-Admin-Token") or "").strip()
+    if header:
+        return header
+    auth = (request.headers.get("Authorization") or "").strip()
+    if auth.startswith("Bearer "):
+        return auth[7:].strip()
+    if auth.lower().startswith("admintoken "):
+        return auth[11:].strip()
+    return ""
 
-    In production this would check a special admin key or role.
-    For now it allows the call (tests + dev).
+
+def require_admin_token(f):
+    """Require ``ADMIN_TOKEN`` via ``X-Admin-Token`` (or Bearer).
+
+    Fail closed:
+
+    * ``ADMIN_TOKEN`` unset/empty → 403 (admin minting disabled)
+    * header missing or mismatch → 403
+
+    Comparison uses :func:`hmac.compare_digest` (constant-time).
     """
 
     @wraps(f)
     def decorated(*args, **kwargs):
-        # TODO: implement real admin check using key store or env
+        expected = (os.environ.get("ADMIN_TOKEN") or "").strip()
+        if not expected:
+            return jsonify(
+                {
+                    "status": "error",
+                    "code": "FORBIDDEN",
+                    "message": "Admin access is disabled (ADMIN_TOKEN not configured).",
+                }
+            ), 403
+
+        provided = _provided_admin_token()
+        if not provided or not hmac.compare_digest(provided, expected):
+            return jsonify(
+                {
+                    "status": "error",
+                    "code": "FORBIDDEN",
+                    "message": "Invalid or missing admin token (X-Admin-Token).",
+                }
+            ), 403
+
         g.is_admin = True
         return f(*args, **kwargs)
 

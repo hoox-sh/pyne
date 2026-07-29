@@ -97,21 +97,24 @@ docker buildx create --use --name pynescript
 cp .env.example .env   # optional overrides
 
 make docker-up         # api-dev on host :5002
-make docker-up-full    # + redis + lsp profiles
+make docker-up-full    # + redis profile (api + redis)
 make docker-prod       # requires ADMIN_TOKEN; gunicorn, no source mounts
 make docker-smoke      # curl http://127.0.0.1:5002/
 make docker-down
+
+# stdio LSP (not a long-running compose service)
+docker compose --profile lsp run --rm lsp
 ```
 
 | Service | Profile | Notes |
 | --- | --- | --- |
 | `api` | default | Port `${API_PORT:-5002}:8080`, ro mounts of `src/` + `backend/`, volume `api_data` → `/data` |
 | `redis` | `redis` | redis:7-alpine, AOF, `${REDIS_PORT:-6379}` |
-| `lsp` | `lsp` | stdio; prefer `docker compose run --rm lsp` |
+| `lsp` | `lsp` | stdio; use `docker compose run --rm lsp` (not detached `up`) |
 
 Network name: `pynescript-dev`.
 
-Production overlay (`docker-compose.prod.yml`): target `api`, no source mounts, mem/cpu caps, requires `ADMIN_TOKEN`.
+Production overlay (`docker-compose.prod.yml`): target `api`, **`volumes: !override`** so only `api_data:/data` remains (dev source binds are dropped), SQLite key store on `/data`, mem/cpu caps, requires `ADMIN_TOKEN`.
 
 ### Environment variables
 
@@ -119,12 +122,16 @@ Production overlay (`docker-compose.prod.yml`): target `api`, no source mounts, 
 | --- | --- | --- |
 | `PORT` | `8080` | Listen port inside the container |
 | `HOST` | `0.0.0.0` | Bind address (dev Flask runner) |
+| `API_PORT` | `5002` | Host port published to container `8080` |
 | `FLASK_ENV` | `production` / `development` | App mode by target |
-| `API_KEY_STORE` | `/data/api_keys.json` | JSON key store path (writable volume) |
+| `STORE_BACKEND` | `json` (prod overlay: `sqlite`) | `json` \| `sqlite` \| `redis` |
+| `API_KEY_STORE` | `/data/api_keys.json` | JSON key store path (`STORE_BACKEND=json`) |
+| `API_KEY_STORE_SQLITE` | `/data/api_keys.db` | SQLite path (`STORE_BACKEND=sqlite`) |
 | `ALLOWED_ORIGINS` | see `.env.example` | CORS allow-list |
-| `ADMIN_TOKEN` | unset | Required for admin key minting / prod compose |
-| `REDIS_URL` | `redis://redis:6379/0` | Optional Redis (when profile active) |
-| `GUNICORN_WORKERS` / `THREADS` / `TIMEOUT` | `2` / `4` / `60` | Prod entrypoint knobs |
+| `ADMIN_TOKEN` | unset | Required for `POST /auth/create_key` (`X-Admin-Token`) and prod compose |
+| `REDIS_URL` | empty in prod; compose dev default `redis://redis:6379/0` | Required when `STORE_BACKEND=redis` |
+| `GUNICORN_WORKERS` / `GUNICORN_THREADS` / `GUNICORN_TIMEOUT` | `2` / `4` / `60` | Prod entrypoint knobs |
+| `GUNICORN_BIND` | `0.0.0.0:${PORT}` | Optional gunicorn bind override |
 
 ### Cloud Build image tags
 

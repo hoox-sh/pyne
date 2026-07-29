@@ -77,15 +77,28 @@ flowchart TB
 - Non-root `appuser` (uid 1000)
 - Production env flags + gunicorn entrypoint
 - Healthcheck without privileged ops
-- Writable data only under `/data` (`API_KEY_STORE`)
+- Intended mutable path `/data` (key store); prod compose uses SQLite there for multi-worker
+
+### Admin minting
+
+- `POST /auth/create_key` requires `ADMIN_TOKEN` env **and** matching `X-Admin-Token` header (constant-time compare)
+- Unset `ADMIN_TOKEN` → 403 (fail closed, not open access)
+
+### Key store backends (`STORE_BACKEND`)
+
+| Value | Use |
+| --- | --- |
+| `json` (default) | Single-process / tests; file may hold raw keys |
+| `sqlite` | Multi-worker single host (shared volume); **hash-only** |
+| `redis` | Multi-replica; needs `REDIS_URL`; **hash-only** |
 
 ## Internals
 
 | Path | Role |
 | --- | --- |
 | `backend/app.py` | CORS, body limit, blueprint registration |
-| `backend/middleware/auth.py` | Key store, tiers, decorators |
-| `backend/middleware/key_store_redis.py` / `key_store_sqlite.py` | Alternative stores |
+| `backend/middleware/auth.py` | Key store selection, tiers, decorators, admin gate |
+| `backend/middleware/key_store_redis.py` / `key_store_sqlite.py` | Hash-only shared stores |
 | `backend/middleware/schemas.py` | Request validation schemas |
 | `src/pynescript/langserver/providers/metadata_decrypt.py` | Encrypted metadata load |
 | `.github/workflows/*.yml` | Secret consumption |

@@ -73,7 +73,11 @@ Response:
 }
 ```
 
-Decorated with `@require_admin_token`. **Implementation note:** `require_admin_token` currently sets `g.is_admin = True` unconditionally (placeholder); production deployments should enforce `ADMIN_TOKEN` / role checks before exposing this route. App docstring describes `X-Admin-Token` + `ADMIN_TOKEN` env as the intended design.
+Decorated with `@require_admin_token`:
+
+- Requires non-empty `ADMIN_TOKEN` env (unset → **403**, minting disabled)
+- Client must send matching `X-Admin-Token` (or `Authorization: Bearer …` / `AdminToken …`)
+- Comparison uses `hmac.compare_digest`
 
 #### `GET /auth/usage`
 
@@ -89,7 +93,7 @@ Body: `{ "api_key": "…" }` — validates without incrementing usage. Returns t
 | --- | --- |
 | `require_api_key` | Resolve key → 401 / 429 or set `g.api_key` |
 | `track_usage` | Wraps `require_api_key`; increments calls when response status &lt; 400 (tuple responses) or always for bare Response |
-| `require_admin_token` | Placeholder admin gate for create_key |
+| `require_admin_token` | Fail-closed admin gate (`ADMIN_TOKEN` + `X-Admin-Token`) |
 
 ### Client presentation
 
@@ -112,11 +116,19 @@ Helpers: `is_active()` (always True today), `is_rate_limited()`, `get_tier_info(
 
 | Module | Use |
 | --- | --- |
-| `middleware/auth.py` → `APIKeyStore` | Default JSON file store (`API_KEY_STORE` path) |
+| `middleware/auth.py` → `APIKeyStore` + `get_key_store()` | Facade; selects backend via `STORE_BACKEND` |
 | `middleware/key_store_sqlite.py` | Hash-only rows, WAL, multi-worker friendly |
-| `middleware/key_store_redis.py` | Redis-backed alternative |
+| `middleware/key_store_redis.py` | Hash-only Redis; multi-replica |
 
-Default `get_key_store()` returns the JSON-file `APIKeyStore` singleton. JSON store currently keeps raw keys as dict keys in the file (dev convenience); SQLite module documents **hash-only** storage for safer leaks.
+`get_key_store()` backends (`STORE_BACKEND`):
+
+| Value | Persistence |
+| --- | --- |
+| `json` (default) | File at `API_KEY_STORE`; raw keys as object keys (dev only) |
+| `sqlite` | `API_KEY_STORE_SQLITE` (or `.db` beside JSON path); hash-only |
+| `redis` | `REDIS_URL` required; hash-only |
+
+Prod compose defaults to `sqlite` on `/data/api_keys.db` so gunicorn workers share state.
 
 Key minting:
 
@@ -136,13 +148,15 @@ key_hash = sha256(raw_key).hexdigest()
 2. **Limit 0 means unlimited**, not “zero calls” — free tier limit value is 0 with that semantics.
 3. **Usage increments only after handler returns** — failed auth never bills; handler 4xx under `track_usage` skips increment when returned as `(response, status)`.
 4. **Revocation** exists on the store API (`revoke_key`); no public HTTP revoke route in `app.py`.
-5. **Admin decorator gap** — do not assume create_key is locked in all deployments until the TODO is closed.
+5. **Admin minting is fail-closed** — unset `ADMIN_TOKEN` or wrong `X-Admin-Token` → 403.
 
 ## Worked example
 
 ```bash
-# create (when admin gate is open / local tests)
+# create (requires ADMIN_TOKEN env + matching header)
+export ADMIN_TOKEN=change-me
 curl -s -X POST http://127.0.0.1:5002/auth/create_key \
+  -H "X-Admin-Token: $ADMIN_TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{"tier":"hobby"}'
 

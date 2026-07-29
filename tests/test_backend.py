@@ -26,22 +26,34 @@ import pytest
 from flask.testing import FlaskClient
 
 from backend.app import app
+from backend.middleware.auth import reset_key_store
 from backend.services.backtest import generate_mock_ohlcv
 from backend.services.backtest import run_backtest
 from backend.services.chart_renderer import render_equity_curve
 from backend.services.chart_renderer import render_line_chart
 
 
+# Admin minting is fail-closed without ADMIN_TOKEN; tests set a fixed value.
+_TEST_ADMIN_TOKEN = "test-admin-token-for-backend-suite"  # noqa: S105
+_ADMIN_HEADERS = {"X-Admin-Token": _TEST_ADMIN_TOKEN, "Content-Type": "application/json"}
+
+
 @pytest.fixture
-def client() -> FlaskClient:
+def client(tmp_path, monkeypatch) -> FlaskClient:
     app.config["TESTING"] = True
+    monkeypatch.setenv("ADMIN_TOKEN", _TEST_ADMIN_TOKEN)
+    monkeypatch.setenv("STORE_BACKEND", "json")
+    monkeypatch.setenv("API_KEY_STORE", str(tmp_path / "api_keys.json"))
+    reset_key_store()
     with app.test_client() as client:
         yield client
+    reset_key_store()
 
 
 @pytest.fixture
 def api_key(client: FlaskClient) -> str:
-    resp = client.post("/auth/create_key", json={"tier": "hobby"})
+    resp = client.post("/auth/create_key", json={"tier": "hobby"}, headers=_ADMIN_HEADERS)
+    assert resp.status_code == 200, resp.json
     return resp.json["api_key"]
 
 
@@ -55,20 +67,40 @@ class TestHealth:
 
 class TestAuth:
     def test_create_key(self, client: FlaskClient):
-        resp = client.post("/auth/create_key", json={"tier": "pro"})
+        resp = client.post("/auth/create_key", json={"tier": "pro"}, headers=_ADMIN_HEADERS)
         assert resp.status_code == 200
         assert resp.json["status"] == "success"
         assert resp.json["tier"] == "pro"
         assert resp.json["api_key"].startswith("pyn_")
         assert len(resp.json["api_key"]) > 30
 
+    def test_create_key_requires_admin_token(self, client: FlaskClient):
+        resp = client.post("/auth/create_key", json={"tier": "hobby"})
+        assert resp.status_code == 403
+        assert resp.json["code"] == "FORBIDDEN"
+
+    def test_create_key_rejects_wrong_admin_token(self, client: FlaskClient):
+        resp = client.post(
+            "/auth/create_key",
+            json={"tier": "hobby"},
+            headers={"X-Admin-Token": "wrong-token"},
+        )
+        assert resp.status_code == 403
+        assert resp.json["code"] == "FORBIDDEN"
+
+    def test_create_key_disabled_without_admin_env(self, client: FlaskClient, monkeypatch):
+        monkeypatch.delenv("ADMIN_TOKEN", raising=False)
+        resp = client.post("/auth/create_key", json={"tier": "hobby"}, headers=_ADMIN_HEADERS)
+        assert resp.status_code == 403
+        assert "not configured" in resp.json["message"]
+
     def test_create_key_invalid_tier(self, client: FlaskClient):
-        resp = client.post("/auth/create_key", json={"tier": "invalid"})
+        resp = client.post("/auth/create_key", json={"tier": "invalid"}, headers=_ADMIN_HEADERS)
         assert resp.status_code == 400
         assert resp.json["code"] == "INVALID_TIER"
 
     def test_validate_key(self, client: FlaskClient):
-        resp = client.post("/auth/create_key", json={"tier": "hobby"})
+        resp = client.post("/auth/create_key", json={"tier": "hobby"}, headers=_ADMIN_HEADERS)
         raw_key = resp.json["api_key"]
 
         resp = client.post("/auth/validate", json={"api_key": raw_key})
@@ -94,6 +126,23 @@ class TestAuth:
     def test_unauthorized_access(self, client: FlaskClient):
         resp = client.post("/preview/chart", json={"data": {"close": [100, 101, 102]}})
         assert resp.status_code == 401
+
+    def test_sqlite_backend_roundtrip(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("ADMIN_TOKEN", _TEST_ADMIN_TOKEN)
+        monkeypatch.setenv("STORE_BACKEND", "sqlite")
+        monkeypatch.setenv("API_KEY_STORE_SQLITE", str(tmp_path / "keys.db"))
+        reset_key_store()
+        app.config["TESTING"] = True
+        with app.test_client() as client:
+            resp = client.post("/auth/create_key", json={"tier": "pro"}, headers=_ADMIN_HEADERS)
+            assert resp.status_code == 200, resp.json
+            raw_key = resp.json["api_key"]
+            # New store instance (simulates another worker) still sees the key
+            reset_key_store()
+            resp = client.post("/auth/validate", json={"api_key": raw_key})
+            assert resp.status_code == 200
+            assert resp.json["tier"] == "pro"
+        reset_key_store()
 
 
 class TestRun:

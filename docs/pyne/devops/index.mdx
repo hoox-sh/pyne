@@ -110,10 +110,13 @@ make lint
 make test-lsp
 make build-check   # import check only, ~30s, no Nuitka compile
 
-# API in Docker (production target via buildx bake)
-make docker-build
+# API in Docker — local *dev* stack (api-dev + source mounts)
 make docker-up
-make docker-run
+make docker-smoke
+
+# Production image bake (load local) + optional prod compose overlay
+make docker-build
+# export ADMIN_TOKEN=… && make docker-prod
 ```
 
 ## Failure modes
@@ -122,7 +125,7 @@ make docker-run
 | --- | --- | --- |
 | CI lint red, local green | Different ruff/mypy versions | Match CI install pins in workflow |
 | Metadata decrypt fails in binary | Missing key at runtime | Set `PYNESCRIPT_METADATA_KEY` or embed key at build |
-| Cloud Run 502 after deploy | Image missing deps / gunicorn bind | Confirm `Dockerfile` target `api` CMD and `PORT=8080` |
+| Cloud Run 502 after deploy | Image missing deps / gunicorn bind | Confirm `Dockerfile` target `api` ENTRYPOINT + `PORT` / `GUNICORN_BIND` |
 | VSIX empty / missing | `npm ci` / vsce not run | Use `make build-vscode` or release job artifacts |
 | Nuitka Anaconda link error | Static libpython missing | `conda install libpython-static` or keep `--static-libpython=no` |
 

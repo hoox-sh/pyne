@@ -17,12 +17,19 @@ maintainers = [
   { name = "jango_blockchained" },
 ]
 classifiers = [
-  "Development Status :: 2 - Pre-Alpha",
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
   "License :: OSI Approved :: GNU Affero General Public License v3 or later (AGPLv3+)",
+  "Operating System :: OS Independent",
   "Programming Language :: Python",
+  "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Software Development :: Compilers",
+  "Topic :: Software Development :: Libraries :: Python Modules",
+  "Typing :: Typed",
 ]
 dependencies = [
   "antlr4-python3-runtime>=4.13.1",
@@ -52,7 +59,7 @@ compile = [
   "numpy>=1.26.0",
   "numba>=0.59.0",
 ]
-# Pro API stack (Flask + compile path)
+# Pro API stack (Flask + compile path + optional Redis key store)
 pro = [
   "flask>=3.0.0",
   "flask-cors>=4.0.0",
@@ -62,9 +69,15 @@ pro = [
   "numba>=0.59.0",
   "matplotlib>=3.8.0",
   "gunicorn>=21.0.0",
+  "redis>=5.0.0",
 ]
 
 [project.urls]
+Homepage = "https://hoox.sh/pyne"
+Documentation = "https://hoox.sh/pyne/docs"
+Repository = "https://github.com/jango-blockchained/pyne"
+Issues = "https://github.com/jango-blockchained/pyne/issues"
+Changelog = "https://github.com/jango-blockchained/pyne/blob/main/CHANGELOG.md"
 
 [project.scripts]
 pynescript = "pynescript.__main__:cli"
@@ -76,6 +89,23 @@ pinescript = "pynescript.ext.pygments.lexers:PinescriptLexer"
 [tool.hatch.version]
 path = "src/pynescript/__about__.py"
 
+[tool.hatch.build.targets.sdist]
+exclude = [
+  "/.github",
+  "/.opencode",
+  "/.private",
+  "/brand",
+  "/docs/exports",
+  "/docs/_build",
+  "/logs",
+  "/reports",
+  "/vscode-extension/node_modules",
+  "/pine-worker/node_modules",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/pynescript"]
+
 [tool.hatch.envs.test]
 dependencies = [
   "coverage[toml]>=7.4.2",
@@ -83,10 +113,15 @@ dependencies = [
   "pytest-cov>=4.1.0",
   "pytest-xdist>=3.5.0",
   "flask>=3.0.0",
+  "flask-cors>=4.0.0",
+  "flask-sock>=0.7.0",
+  "simple-websocket>=1.0.0",
+  "gunicorn>=21.0.0",
+  "matplotlib>=3.8.0",
+  "redis>=5.0.0",
   "lsprotocol>=2024.0.0",
   "pygls>=2.0.0",
   "pytest-lsp>=0.1.0",
-  "flask-cors>=4.0.0",
   "numpy>=1.26.0",
   "numba>=0.59.0",
 ]

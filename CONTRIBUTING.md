@@ -28,3 +28,25 @@ We use `ruff` and `black` for code formatting. Please ensure your code passes th
 ## Reporting Issues
 
 If you find a bug or have a feature request, please open an issue on GitHub.
+
+## Release / PyPI publication
+
+Package name on PyPI: **`pynescript`** (repo product name: **pyne**).
+
+1. Bump `__version__` in `src/pynescript/__about__.py` and update `CHANGELOG.md`.
+2. Ensure CI is green on `main`.
+3. Tag and push: `git tag vX.Y.Z && git push origin vX.Y.Z`.
+4. GitHub Actions **Publish** builds sdist/wheel and uploads to PyPI via
+   [Trusted Publishing](https://docs.pypi.org/trusted-publishers/)
+   (environment `pypi`, workflow `publish.yml`).
+
+Dry-run (build only, no upload): Actions → Publish → Run workflow → `dry_run=true`.
+
+Local check:
+
+```bash
+python -m build && twine check dist/*
+```
+
+AXIS charting UI releases are handled in
+[jango-blockchained/axis](https://github.com/jango-blockchained/axis), not here.

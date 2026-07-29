@@ -1,0 +1,77 @@
+# Publish the pynescript package to PyPI on version tags (v*).
+#
+# Prerequisites (one-time):
+#   1. Create a PyPI project "pynescript" (or Trusted Publisher pending first upload).
+#   2. On PyPI → project → Publishing → add GitHub Trusted Publisher:
+#        Owner: jango-blockchained  Repo: pyne  Workflow: publish.yml  Environment: pypi
+#   3. Create GitHub environment "pypi" (optional protection rules).
+#
+# Usage:
+#   git tag v0.2.0 && git push origin v0.2.0
+#   # or: Actions → Publish → Run workflow
+
+name: Publish
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Build and check only (skip PyPI upload)"
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build distributions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Build sdist + wheel
+        run: |
+          pip install build twine
+          python -m build
+          twine check dist/*
+
+      - name: Upload dist
+        uses: actions/upload-artifact@v4
+        with:
+          name: pynescript-release-dist
+          path: dist/*
+
+  publish-pypi:
+    name: Upload to PyPI
+    needs: [build]
+    runs-on: ubuntu-latest
+    # Skip dry-run dispatches; always publish on real version tags.
+    if: >
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
+      (github.event_name == 'workflow_dispatch' && inputs.dry_run == false)
+    environment:
+      name: pypi
+      url: https://pypi.org/project/pynescript/
+    permissions:
+      id-token: write  # Trusted Publishing (OIDC)
+    steps:
+      - name: Download dist
+        uses: actions/download-artifact@v4
+        with:
+          name: pynescript-release-dist
+          path: dist
+
+      - name: Publish package
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/

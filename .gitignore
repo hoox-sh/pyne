@@ -141,3 +141,12 @@ bun.lockb
 # Local private notes / agent sessions
 .private/
 .opencode/sessions/
+
+# Local runtime / compose data
+logs/
+data/
+*.log
+
+# Docker / compose local overrides
+.env.local
+.env.*.local

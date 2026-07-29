@@ -26,8 +26,8 @@ help:
 	@echo "  docker-build-all buildx bake api + api-dev + lsp"
 	@echo "  docker-buildx    multi-platform release bake (amd64+arm64)"
 	@echo "  docker-up        compose up API (dev target, port 5002)"
-	@echo "  docker-up-full   compose up with redis + lsp profiles"
-	@echo "  docker-prod      compose prod overlay (gunicorn, no mounts)"
+	@echo "  docker-up-full   compose up with redis profile (not lsp)"
+	@echo "  docker-prod      compose prod overlay (gunicorn, no source mounts)"
 	@echo "  docker-down      compose down"
 	@echo "  docker-logs      follow API logs"
 	@echo "  docker-smoke     health-check curl against :5002"
@@ -94,9 +94,10 @@ docker-up:
 
 docker-run: docker-up
 
+# Redis only — LSP is stdio and must be started with `docker compose run --rm lsp`
 docker-up-full:
 	GIT_SHA=$(GIT_SHA) PYNESCRIPT_VERSION=$(PYNESCRIPT_VERSION) \
-		docker compose --profile redis --profile lsp up --build -d
+		docker compose --profile redis up --build -d
 
 docker-prod:
 	@test -n "$${ADMIN_TOKEN:-}" || (echo "Set ADMIN_TOKEN for production compose" >&2; exit 1)

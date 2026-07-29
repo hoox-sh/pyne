@@ -64,9 +64,10 @@ flowchart LR
 | `make docker-build-all` | bake api + api-dev + lsp |
 | `make docker-buildx` | multi-platform release bake |
 | `make docker-up` / `docker-run` | compose API on `:5002` (dev target) |
-| `make docker-up-full` | compose with redis + lsp profiles |
-| `make docker-prod` | gunicorn overlay (needs `ADMIN_TOKEN`) |
+| `make docker-up-full` | compose with redis profile (not lsp) |
+| `make docker-prod` | gunicorn overlay, no source mounts (needs `ADMIN_TOKEN`) |
 | `make docker-smoke` | curl healthcheck on `:5002` |
+| `make docker-down` / `docker-logs` | stop stack / follow API logs |
 
 ### Hatch equivalents
 
