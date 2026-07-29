@@ -332,3 +332,95 @@ method debugLabel(
     assert "method debugLabel() => na" in cleaned
     assert "debugLabel(na)" not in cleaned
     _roundtrip(cleaned)
+
+
+def test_strips_trailing_comma_on_switch_arms() -> None:
+    """Python-style trailing commas after switch arms appear in community scrapes."""
+    raw = """//@version=6
+indicator("t")
+atrValue = ta.atr(14)
+atrSL = switch syminfo.ticker
+    "EURUSD" => 3.0 * atrValue,
+    "USDJPY" => 2.5 * atrValue,
+    => 2.0 * atrValue
+plot(atrSL)
+"""
+    cleaned = sanitize_corpus_source(raw)
+    assert "atrValue," not in cleaned
+    assert '"EURUSD" => 3.0 * atrValue' in cleaned
+    _roundtrip(cleaned)
+
+
+def test_strips_docs_ellipsis_and_nav_chrome() -> None:
+    raw = """//@version=6
+strategy("My Strategy", process_orders_on_close = true, ...)
+//-------------------------------------------
+...
+//-------------------------------------------
+label.new(bar_index, high, "Pivot High")          Next
+plot(close)
+"""
+    cleaned = sanitize_corpus_source(raw)
+    assert "..." not in cleaned
+    assert "Next" not in cleaned
+    assert 'strategy("My Strategy", process_orders_on_close = true)' in cleaned
+    _roundtrip(cleaned)
+
+
+def test_repairs_trailing_binop_and_empty_arrow_body() -> None:
+    raw = """//@version=6
+indicator("t")
+bool isTargetHour = timeframe.isdwm or
+upDownColor(float source) =>
+plot(close)
+"""
+    cleaned = sanitize_corpus_source(raw)
+    # ``or`` at EOL with no indented continuation → append na; empty ``=>`` body too.
+    assert "or na" in cleaned or "isdwm or na" in cleaned
+    assert "upDownColor(float source) => na" in cleaned
+    _roundtrip(cleaned)
+
+
+def test_preserves_multiline_ternary_same_indent_arms() -> None:
+    """Same-indent nested ternary arms must not get ``: na`` injected."""
+    raw = """//@version=6
+indicator("t")
+ma(src, len, maType) =>
+    maType == "EMA" ? ta.ema(src, len) :
+    maType == "SMA" ? ta.sma(src, len) :
+    maType == "WMA" ? ta.wma(src, len) : na
+plot(ma(close, 14, "EMA"))
+"""
+    cleaned = sanitize_corpus_source(raw)
+    assert ": na\n    maType" not in cleaned  # no false injection between arms
+    assert 'maType == "WMA"' in cleaned
+    _roundtrip(cleaned)
+
+
+def test_repairs_dangling_plus_before_closer() -> None:
+    """Docs scrapes cut mid-concat: ``str.tostring(a) +)``."""
+    raw = """//@version=6
+indicator("t")
+if barstate.islast
+    label.new(bar_index, 0, "a: " + str.tostring(close) +)
+plot(1)
+"""
+    cleaned = sanitize_corpus_source(raw)
+    assert "+)" not in cleaned
+    assert "str.tostring(close)" in cleaned
+    _roundtrip(cleaned)
+
+
+def test_repairs_truncated_typed_function_header() -> None:
+    """Docs scrapes often cut after parameter list with no ``=>`` body."""
+    raw = """//@version=6
+strategy("t")
+timeWithinAllowedRange(
+     int    startTime, int endTime,
+     bool   useDateFilter = true,
+     string timeZone      = "GMT-0"
+"""
+    cleaned = sanitize_corpus_source(raw)
+    assert "=> na" in cleaned
+    assert "timeWithinAllowedRange(" in cleaned
+    _roundtrip(cleaned)

@@ -433,6 +433,14 @@ class CompilerVisitor(NodeVisitor):
         return name
 
     @staticmethod
+    def _try_nonneg_int_const(expr: str) -> int | None:
+        """Parse a non-negative integer literal from an emitted expr, else None."""
+        e = (expr or "").strip()
+        if re.fullmatch(r"\d+", e):
+            return int(e)
+        return None
+
+    @staticmethod
     def _safe_ident(name: str) -> str:
         """Avoid shadowing Python builtins/keywords used in generated code."""
         if not name:
@@ -680,22 +688,13 @@ class CompilerVisitor(NodeVisitor):
 
         lines.append("    for __bar_idx in range(n_bars):")
         if self.uses_strategy:
-            # Update OHLC then fill pending orders before script body
-            # (same order as interpreter Runtime: process → evaluate).
+            # One-call bar setup + pending fill (same order as Runtime:
+            # process pending → evaluate body). Broker uses _mark for market fills.
             lines.append(
-                "        __strategy.set_bar("
-                "__bar_idx, 0, float(close_arr[__bar_idx]), "
-                "open_=float(open_arr[__bar_idx]), "
-                "high=float(high_arr[__bar_idx]), "
-                "low=float(low_arr[__bar_idx]), "
-                "close=float(close_arr[__bar_idx]))"
-            )
-            lines.append(
-                "        __strategy.process_pending_orders("
-                "open_=float(open_arr[__bar_idx]), "
-                "high=float(high_arr[__bar_idx]), "
-                "low=float(low_arr[__bar_idx]), "
-                "close=float(close_arr[__bar_idx]))"
+                "        __strategy.begin_bar("
+                "__bar_idx, "
+                "open_arr[__bar_idx], high_arr[__bar_idx], "
+                "low_arr[__bar_idx], close_arr[__bar_idx])"
             )
         if not body_lines and not self.uses_strategy:
             lines.append("        pass")
@@ -4047,14 +4046,20 @@ class CompilerVisitor(NodeVisitor):
                 f"float({sigma}), __bar_idx)"
             )
         if func_name == "ta_hma":
-            # ta.hma(source, length)
+            # ta.hma(source, length) — multi-stage incremental WMA + raw series
             if not args:
                 return "np.nan"
+            st = self._alloc_fixed_state("hma", 7)
+            raw = f"__hma_raw{self._ta_state_i}_arr"
+            self._ta_state_i += 1
+            self.arrays.add(raw)
             if len(args) >= 2:
-                return f"numba_hma({_arr(args[0])}, int({args[1]}), __bar_idx)"
+                return (
+                    f"numba_hma_inc({_arr(args[0])}, int({args[1]}), __bar_idx, {st}, {raw})"
+                )
             if not _is_series_arr(args[0]):
-                return f"numba_hma(close_arr, int({args[0]}), __bar_idx)"
-            return f"numba_hma({_arr(args[0])}, 9, __bar_idx)"
+                return f"numba_hma_inc(close_arr, int({args[0]}), __bar_idx, {st}, {raw})"
+            return f"numba_hma_inc({_arr(args[0])}, 9, __bar_idx, {st}, {raw})"
         if func_name == "ta_tsi":
             # ta.tsi(source, short, long) or ta.tsi(short, long) on close
             st = self._alloc_fixed_state("tsi", 6)
@@ -4073,6 +4078,14 @@ class CompilerVisitor(NodeVisitor):
             # Prefer real history scan when cond is a series array; else current source
             if len(args) >= 2 and _is_series_arr(args[0]):
                 occ = args[2] if len(args) > 2 else "0"
+                occ_c = self._try_nonneg_int_const(occ)
+                if occ_c is not None:
+                    # Packed ring: [n_found, head, last_i, hist_0..hist_occ]
+                    st = self._alloc_fixed_state("vw", 3 + occ_c + 1)
+                    return (
+                        f"numba_valuewhen_inc({_arr(args[0])}, {_arr(args[1])}, "
+                        f"int({occ}), __bar_idx, {st})"
+                    )
                 return (
                     f"numba_valuewhen({_arr(args[0])}, {_arr(args[1])}, "
                     f"int({occ}), __bar_idx)"
@@ -4126,8 +4139,9 @@ class CompilerVisitor(NodeVisitor):
                 period = kwargs.get("length", args[1])
                 st = self._alloc_fixed_state("hh", 3)
                 return f"numba_highest_inc({_arr(args[0])}, {self._emit_period(period)}, __bar_idx, {st})"
-            # Running max from bar 0..i (scan form; no fixed window state)
-            return f"numba_highest({_arr(args[0])}, __bar_idx + 1, __bar_idx)"
+            # Running max from bar 0..i — O(1) incremental (was O(i) full scan)
+            st = self._alloc_fixed_state("rmax", 2)
+            return f"numba_running_max_inc({_arr(args[0])}, __bar_idx, {st})"
         if func_name == "ta_min":
             # ta.min(source) → all-time low; ta.min(source, length) → lowest
             if not args:
@@ -4136,7 +4150,8 @@ class CompilerVisitor(NodeVisitor):
                 period = kwargs.get("length", args[1])
                 st = self._alloc_fixed_state("ll", 3)
                 return f"numba_lowest_inc({_arr(args[0])}, {self._emit_period(period)}, __bar_idx, {st})"
-            return f"numba_lowest({_arr(args[0])}, __bar_idx + 1, __bar_idx)"
+            st = self._alloc_fixed_state("rmin", 2)
+            return f"numba_running_min_inc({_arr(args[0])}, __bar_idx, {st})"
         if func_name == "ta_sar":
             # ta.sar(start, inc, max) using chart high/low
             start = args[0] if args else "0.02"
@@ -4212,21 +4227,23 @@ class CompilerVisitor(NodeVisitor):
                 f"__bar_idx, {st})"
             )
         if func_name == "ta_rising":
+            st = self._alloc_fixed_state("rise", 2)
             if len(args) >= 2:
-                return f"numba_rising({_arr(args[0])}, int({args[1]}), __bar_idx)"
+                return f"numba_rising_inc({_arr(args[0])}, int({args[1]}), __bar_idx, {st})"
             if args and not _is_series_arr(args[0]):
-                return f"numba_rising(close_arr, int({args[0]}), __bar_idx)"
+                return f"numba_rising_inc(close_arr, int({args[0]}), __bar_idx, {st})"
             if args:
-                return f"numba_rising({_arr(args[0])}, 1, __bar_idx)"
-            return "numba_rising(close_arr, 1, __bar_idx)"
+                return f"numba_rising_inc({_arr(args[0])}, 1, __bar_idx, {st})"
+            return f"numba_rising_inc(close_arr, 1, __bar_idx, {st})"
         if func_name == "ta_falling":
+            st = self._alloc_fixed_state("fall", 2)
             if len(args) >= 2:
-                return f"numba_falling({_arr(args[0])}, int({args[1]}), __bar_idx)"
+                return f"numba_falling_inc({_arr(args[0])}, int({args[1]}), __bar_idx, {st})"
             if args and not _is_series_arr(args[0]):
-                return f"numba_falling(close_arr, int({args[0]}), __bar_idx)"
+                return f"numba_falling_inc(close_arr, int({args[0]}), __bar_idx, {st})"
             if args:
-                return f"numba_falling({_arr(args[0])}, 1, __bar_idx)"
-            return "numba_falling(close_arr, 1, __bar_idx)"
+                return f"numba_falling_inc({_arr(args[0])}, 1, __bar_idx, {st})"
+            return f"numba_falling_inc(close_arr, 1, __bar_idx, {st})"
         if func_name == "ta_highestbars":
             # ta.highestbars(source, length) or ta.highestbars(length) → high source
             st = self._alloc_fixed_state("hbars", 3)
@@ -4370,11 +4387,17 @@ class CompilerVisitor(NodeVisitor):
         if func_name == "math_sum":
             period = args[1] if len(args) > 1 else "14"
             src_e = args[0] if args else "close_arr[__bar_idx]"
-            return f"numba_sum({_arr(src_e)}, {self._emit_period(period)}, __bar_idx)"
+            st = self._alloc_fixed_state("msum", 2)
+            return (
+                f"numba_sum_inc({_arr(src_e)}, {self._emit_period(period)}, __bar_idx, {st})"
+            )
         if func_name == "math_avg":
             period = args[1] if len(args) > 1 else "14"
             src_e = args[0] if args else "close_arr[__bar_idx]"
-            return f"numba_sma({_arr(src_e)}, {self._emit_period(period)}, __bar_idx)"
+            st = self._alloc_fixed_state("mavg", 2)
+            return (
+                f"numba_sma_inc({_arr(src_e)}, {self._emit_period(period)}, __bar_idx, {st})"
+            )
         if func_name == "math_random":
             self.object_mode = True
             return "0.5"
@@ -4673,7 +4696,8 @@ class CompilerVisitor(NodeVisitor):
             if exit_id is not None and "comment" not in seen:
                 seen["comment"] = exit_id
 
-        seen["price"] = "float(close_arr[__bar_idx])"
+        # Do not default price=float(close) — begin_bar already set _mark=close.
+        # Explicit price= from user kwargs still passes through via ``seen``.
         parts = [f"{k}={v}" for k, v in seen.items()]
         return f"__strategy.{broker_method}({', '.join(parts)})"
 

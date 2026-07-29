@@ -38,10 +38,19 @@ from .series import PineSeries
 _CAL_NAME_RE = re.compile(
     r"\b(year|month|dayofmonth|hour|minute|second|dayofweek)\b",
 )
+# fill() needs plot() to return Plot handles (PlotRegistry).
+_FILL_CALL_RE = re.compile(r"\bfill\s*\(")
+# Derived built-in series — skip update/append when script never names them.
+_HL2_RE = re.compile(r"\bhl2\b")
+_HLC3_RE = re.compile(r"\bhlc3\b")
+_OHLC4_RE = re.compile(r"\bohlc4\b")
 
 # Parse tree cache (source sha256 → AST). Bounded to avoid unbounded growth.
 _PARSE_CACHE: dict[str, Any] = {}
 _PARSE_CACHE_MAX = 64
+
+# Cached numba availability for mode=auto prefilter (None = not probed yet).
+_HAS_NUMBA: bool | None = None
 
 
 def _json_safe_number(x: Any) -> float | None:
@@ -368,6 +377,9 @@ class Runtime:
         except Exception:
             pass
 
+        # fill() needs plot() → Plot handles; skip PlotRegistry otherwise (big host win).
+        evaluator._pine_need_plot_ids = bool(_FILL_CALL_RE.search(source_code))  # type: ignore[attr-defined]
+
         # Append-only chronological OHLCV lists for ta.* helpers (oldest → newest).
         # Avoid rebuilding via list(reversed(PineSeries.history)) every bar.
         _series_lists: dict[str, list] = {
@@ -392,10 +404,6 @@ class Runtime:
         except Exception:
             pass
 
-        # Per-bar plot snapshots (list of plot-dict lists). Avoids per-bar result
-        # dicts and f"plot_{i}" keys; series_map is built once after the loop.
-        plot_rows: list[list[dict[str, Any]]] = []
-        plot_rows_append = plot_rows.append
         all_events: list[dict] = []
         all_events_append = all_events.append
 
@@ -413,6 +421,9 @@ class Runtime:
         col_vol = [b.get("volume", 0.0) for b in ohlcv_data]
         col_time = [b.get("time", 0) or 0 for b in ohlcv_data]
         need_calendar = bool(_CAL_NAME_RE.search(source_code))
+        need_hl2 = bool(_HL2_RE.search(source_code))
+        need_hlc3 = bool(_HLC3_RE.search(source_code))
+        need_ohlc4 = bool(_OHLC4_RE.search(source_code))
         # Only touch bid/ask when feed actually provides them (rare for historical).
         has_bid_ask = any(("bid" in b) or ("ask" in b) for b in ohlcv_data)
 
@@ -427,17 +438,15 @@ class Runtime:
         sl_ohlc4 = _series_lists["ohlc4"]
         sl_tr = _series_lists["tr"]
         # Keep a tuple of list refs for in-place series-cap trim (no rebind).
-        _series_list_refs = (
-            sl_open,
-            sl_high,
-            sl_low,
-            sl_close,
-            sl_vol,
-            sl_hl2,
-            sl_hlc3,
-            sl_ohlc4,
-            sl_tr,
-        )
+        # Only include lists that are actually appended each bar.
+        _series_list_refs_list = [sl_open, sl_high, sl_low, sl_close, sl_vol, sl_tr]
+        if need_hl2:
+            _series_list_refs_list.append(sl_hl2)
+        if need_hlc3:
+            _series_list_refs_list.append(sl_hlc3)
+        if need_ohlc4:
+            _series_list_refs_list.append(sl_ohlc4)
+        _series_list_refs = tuple(_series_list_refs_list)
         series_cap = int(getattr(evaluator, "_SERIES_MAX", 256) or 256)
         series_cap_limit = series_cap + 64
 
@@ -459,7 +468,7 @@ class Runtime:
 
         visit = evaluator.visit
         reset_plots = evaluator.reset_plots
-        plot_outputs = evaluator.plot_outputs
+        finish_bar_plots = evaluator.finish_bar_plots
         strategy_state = evaluator._strategy_state
         pending_orders = strategy_state.pending_orders
         strategy_events = strategy_state._events
@@ -481,9 +490,9 @@ class Runtime:
                 hf = float(h)
                 lf = float(l)
                 cf = float(c)
-                hl2_val: float | None = (hf + lf) * 0.5
-                hlc3_val = (hf + lf + cf) / 3.0
-                ohlc4_val = (of + hf + lf + cf) * 0.25
+                hl2_val: float | None = (hf + lf) * 0.5 if need_hl2 else None
+                hlc3_val = (hf + lf + cf) / 3.0 if need_hlc3 else None
+                ohlc4_val = (of + hf + lf + cf) * 0.25 if need_ohlc4 else None
                 if prev_close_f is None:
                     tr_val: float | None = hf - lf
                 else:
@@ -504,9 +513,15 @@ class Runtime:
             low_update(l)
             close_update(c)
             volume_update(v)
-            hl2_update(hl2_val)
-            hlc3_update(hlc3_val)
-            ohlc4_update(ohlc4_val)
+            if need_hl2:
+                hl2_update(hl2_val)
+                sl_hl2.append(hl2_val)
+            if need_hlc3:
+                hlc3_update(hlc3_val)
+                sl_hlc3.append(hlc3_val)
+            if need_ohlc4:
+                ohlc4_update(ohlc4_val)
+                sl_ohlc4.append(ohlc4_val)
             tr_update(tr_val)
 
             # Append-only chronological lists for ta.* (shared with evaluator.current_series).
@@ -516,9 +531,6 @@ class Runtime:
             sl_low.append(l)
             sl_close.append(c)
             sl_vol.append(v)
-            sl_hl2.append(hl2_val)
-            sl_hlc3.append(hlc3_val)
-            sl_ohlc4.append(ohlc4_val)
             sl_tr.append(tr_val)
             n_hist = len(sl_close)
             if n_hist > series_cap_limit:
@@ -550,7 +562,7 @@ class Runtime:
                 if "ask" in bar:
                     self._ask = bar["ask"]
 
-            # Reset plot capture; clear strategy event buffer without extra list alloc
+            # Reset per-bar plot index; clear strategy event buffer without extra list alloc
             reset_plots()
             if strategy_events:
                 strategy_events.clear()
@@ -571,6 +583,9 @@ class Runtime:
             except Exception as e:
                 return {"error": f"Runtime Error at bar {bar_time}: {e!s}"}
 
+            # Pad short plot columns for call sites not hit this bar
+            finish_bar_plots()
+
             # Lock function/type/import registration after first bar (O(bars²) guard)
             if set_defs_locked:
                 evaluator._pine_defs_locked = True  # type: ignore[attr-defined]
@@ -585,13 +600,14 @@ class Runtime:
                     ev_dict["run_id"] = run_id
                     all_events_append(ev_dict)
 
-            # Snapshot plot() outputs for this bar (copy so next-bar clear is safe)
-            plot_rows_append(plot_outputs[:])
-
-        # Build multi-series map for AXIS (all plot() calls, not just first)
+        # Build multi-series map from columnar plot capture (value cols + once-only meta)
         series_map: dict[str, list[Any]] = {}
         plot_meta: dict[str, dict[str, Any]] = {}
-        n_result_bars = len(plot_rows)
+        value_cols: list[list[Any]] = getattr(evaluator, "_plot_value_cols", None) or []
+        meta_list: list[dict[str, Any]] = getattr(evaluator, "_plot_meta_list", None) or []
+        n_result_bars = n_bars
+        if value_cols:
+            n_result_bars = len(value_cols[0])
 
         def _color_str(c: Any) -> str | None:
             if c is None:
@@ -638,62 +654,38 @@ class Runtime:
                 return v
             return _color_str(v) if hasattr(v, "to_rgba") or hasattr(v, "to_hex") else v
 
-        max_plots = 0
-        for plots in plot_rows:
-            plen = len(plots)
-            if plen > max_plots:
-                max_plots = plen
-
+        max_plots = len(value_cols)
         for pi in range(max_plots):
-            title = f"plot_{pi}"
-            color = None
-            linewidth = 1
-            kind = "plot"
-            style = None
-            linestyle = None
-            location = None
-            text = None
-            char = None
-            for plots in plot_rows:
-                if pi < len(plots):
-                    p0 = plots[pi]
-                    t = p0.get("title")
-                    if t:
-                        title = str(t)
-                    if p0.get("color") is not None:
-                        color = _color_str(p0.get("color"))
-                    if p0.get("linewidth"):
-                        linewidth = int(p0["linewidth"] or 1)
-                    # Prefer kind; fall back to type (plot/hline/bgcolor/plotshape/…)
-                    raw_kind = p0.get("kind") or p0.get("type") or "plot"
-                    kind = str(raw_kind or "plot")
-                    if p0.get("style") is not None:
-                        style = str(p0.get("style"))
-                    if p0.get("linestyle") is not None:
-                        linestyle = str(p0.get("linestyle"))
-                    if p0.get("location") is not None:
-                        location = str(p0.get("location"))
-                    if p0.get("text") is not None:
-                        text = str(p0.get("text"))
-                    if p0.get("char") is not None:
-                        char = str(p0.get("char"))
-                    break
-            # Prefer first non-null color across bars (conditional bgcolor/plotshape)
-            if color is None:
-                for plots in plot_rows:
-                    if pi < len(plots) and plots[pi].get("color") is not None:
-                        color = _color_str(plots[pi].get("color"))
-                        if color is not None:
-                            break
+            m0 = meta_list[pi] if pi < len(meta_list) else {}
+            title = str(m0.get("title") or "") or f"plot_{pi}"
+            color = m0.get("color")
+            if color is not None:
+                color = _color_str(color)
+            linewidth = int(m0.get("linewidth") or 1)
+            kind = str(m0.get("kind") or m0.get("type") or "plot")
+            style = m0.get("style")
+            if style is not None:
+                style = str(style)
+            linestyle = m0.get("linestyle")
+            if linestyle is not None:
+                linestyle = str(linestyle)
+            location = m0.get("location")
+            if location is not None:
+                location = str(location)
+            text = m0.get("text")
+            if text is not None:
+                text = str(text)
+            char = m0.get("char")
+            if char is not None:
+                char = str(char)
+
             base = title
             suffix = 2
             while title in series_map:
                 title = f"{base}_{suffix}"
                 suffix += 1
-            values: list[Any] = [None] * n_result_bars
-            for bi, plots in enumerate(plot_rows):
-                if pi < len(plots):
-                    values[bi] = _json_plot_value(plots[pi].get("value"), kind)
+            raw_col = value_cols[pi]
+            values = [_json_plot_value(v, kind) for v in raw_col]
             # hline: constant price — fill gaps with last known price so AXIS
             # can render a full-width level (or read price from meta).
             if kind == "hline":
@@ -734,7 +726,7 @@ class Runtime:
         # Primary plots list = first plot series (backward compatible)
         final_series: list[Any] = []
         if max_plots > 0:
-            final_series = [row[0].get("value") if row else None for row in plot_rows]
+            final_series = list(value_cols[0])
         elif series_map:
             final_series = next(iter(series_map.values()))
 
@@ -824,12 +816,19 @@ class Runtime:
 
         Returns ``(eligible, reason_if_not)``.
         """
-        try:
-            from pynescript.compiler.engine import has_numba
-        except ImportError:
-            return False, "compiler package unavailable"
-        if not has_numba():
+        global _HAS_NUMBA
+        if _HAS_NUMBA is False:
             return False, "numba not installed"
+        if _HAS_NUMBA is None:
+            try:
+                from pynescript.compiler.engine import has_numba
+
+                _HAS_NUMBA = bool(has_numba())
+            except ImportError:
+                _HAS_NUMBA = False
+                return False, "compiler package unavailable"
+            if not _HAS_NUMBA:
+                return False, "numba not installed"
         src = source_code or ""
         # Import / request.* often need interpreter library + data plumbing
         if re.search(r"(?m)^\s*import\s+\S+", src):

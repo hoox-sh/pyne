@@ -78,11 +78,15 @@ class CommonIndicators(TechnicalHelpers):
     def _builtin_ta_highestbars(self, args: list[Any]) -> int:
         """Offset to the highest value over length bars."""
         series, period = self._expect_series(args, length=BINARY)
+        if self._use_incremental_ta():
+            return self._highestbars_inc_update(series, period)
         return self._highestbars(series, period)
 
     def _builtin_ta_lowestbars(self, args: list[Any]) -> int:
         """Offset to the lowest value over length bars."""
         series, period = self._expect_series(args, length=BINARY)
+        if self._use_incremental_ta():
+            return self._lowestbars_inc_update(series, period)
         return self._lowestbars(series, period)
 
     def _builtin_ta_range(self, args: list[Any]) -> float | None:
@@ -118,6 +122,8 @@ class CommonIndicators(TechnicalHelpers):
     def _builtin_ta_mom(self, args: list[Any]) -> float | None:
         """Momentum = current value - previous value at specified length."""
         series, period = self._expect_series(args, length=BINARY)
+        if self._use_incremental_ta():
+            return self._mom_inc_update(series, period)
         return self._momentum(series, period)
 
     def _builtin_ta_cum(self, args: list[Any]) -> float:
@@ -336,6 +342,8 @@ class CommonIndicators(TechnicalHelpers):
             msg = "ta.barssince() takes exactly one argument"
             self._error(msg)
         condition = args[0]
+        if self._use_incremental_ta():
+            return self._barssince_inc_update(condition)
         # If condition is a list (series), check from the end backwards
         if isinstance(condition, list):
             for i in range(len(condition) - 1, -1, -1):
@@ -343,7 +351,7 @@ class CommonIndicators(TechnicalHelpers):
                 if is_true:
                     return len(condition) - 1 - i
             return len(condition) - 1
-        # If condition is boolean, return 0 if true, 1 if false
+        # If condition is boolean without bar-mode state, return 0 if true, 1 if false
         is_true = condition is True or (condition is not None and condition is not False)
         if is_true:
             return 0

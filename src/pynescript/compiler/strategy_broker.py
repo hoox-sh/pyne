@@ -21,6 +21,12 @@
 
 Supports market entry/close plus pending limit/stop/stop-limit orders with
 per-bar OHLC fills (aligned with the interpreter's process_pending_orders).
+
+Hot-path notes (round 4):
+- ``begin_bar`` folds set_bar + process_pending into one call (less float churn).
+- Empty pending skips work; market entry skips classify/opt_float.
+- ``_emit`` builds the event dict without intermediate ``**fields`` packing.
+- Event order and dict shape are preserved (tests / Runtime consumers).
 """
 
 from __future__ import annotations
@@ -32,27 +38,40 @@ from typing import Any
 def _is_na(value: Any) -> bool:
     if value is None:
         return True
+    # Hot path: plain float/int (including numpy float64 via float subclass)
+    t = type(value)
+    if t is float:
+        return value != value  # NaN
+    if t is int:
+        return False
+    if isinstance(value, float):
+        return value != value
     if isinstance(value, str) and value.lower() in {"", "na", "nan", "none"}:
         return True
-    try:
-        # NaN float
-        if isinstance(value, float) and value != value:
-            return True
-    except Exception:
-        pass
     return False
 
 
 def _opt_float(value: Any) -> float | None:
-    if _is_na(value):
+    if value is None:
+        return None
+    t = type(value)
+    if t is float:
+        return None if value != value else value
+    if t is int:
+        return float(value)
+    if isinstance(value, str) and value.lower() in {"", "na", "nan", "none"}:
         return None
     try:
-        return float(value)
+        f = float(value)
+        return None if f != f else f
     except (TypeError, ValueError):
         return None
 
 
 def _norm_dir(direction: Any) -> str:
+    # Compile path almost always passes "long" / "short" already.
+    if direction == "long" or direction == "short":
+        return direction  # type: ignore[return-value]
     d = str(direction).lower()
     if d in {"strategy.long", "long", "1", "buy"}:
         return "long"
@@ -123,6 +142,38 @@ class CompileStrategyBroker:
         self._max_drawdown_percent: float = 0.0
         self._max_runup_percent: float = 0.0
 
+    def begin_bar(
+        self,
+        bar_index: int,
+        open_: float,
+        high: float,
+        low: float,
+        close: float,
+        bar_time: int = 0,
+    ) -> None:
+        """One-call bar setup + pending fill (compile hot path).
+
+        Prefer this over separate ``set_bar`` + ``process_pending_orders`` —
+        avoids re-float of OHLC and skips pending walk when empty.
+        """
+        o = float(open_)
+        h = float(high)
+        l = float(low)
+        c = float(close)
+        self._bar_index = int(bar_index)
+        self._bar_time = int(bar_time)
+        self._open = o
+        self._high = h
+        self._low = l
+        self._close = c
+        self._mark = c
+        # Equity only changes mid-run when position open (mark-to-market) or
+        # after closes (netprofit). Flat → constant; skip peak/trough work.
+        if self.position_size != 0.0:
+            self._update_equity_extremes()
+        if self.pending_orders:
+            self._process_pending_ohlc(o, h, l, c)
+
     def set_bar(
         self,
         bar_index: int,
@@ -142,7 +193,8 @@ class CompileStrategyBroker:
         l = float(low if low is not None else min(o, c))
         self._open, self._high, self._low, self._close = o, h, l, c
         self._mark = c
-        self._update_equity_extremes()
+        if self.position_size != 0.0:
+            self._update_equity_extremes()
 
     def process_pending_orders(
         self,
@@ -152,11 +204,23 @@ class CompileStrategyBroker:
         close: float | None = None,
     ) -> list[str]:
         """Fill pending orders against this bar's OHLC. Returns fully filled ids."""
+        if not self.pending_orders:
+            return []
         o = float(open_ if open_ is not None else self._open)
         h = float(high if high is not None else self._high)
         l = float(low if low is not None else self._low)
         c = float(close if close is not None else self._close)
+        return self._process_pending_ohlc(o, h, l, c)
+
+    def _process_pending_ohlc(
+        self,
+        o: float,
+        h: float,
+        l: float,
+        c: float,
+    ) -> list[str]:
         fully: list[str] = []
+        # Snapshot keys — OCA may delete siblings mid-loop
         for oid in list(self.pending_orders.keys()):
             order = self.pending_orders.get(oid)
             if order is None:
@@ -278,7 +342,8 @@ class CompileStrategyBroker:
         entry_id: str,
         comment: str | None,
     ) -> None:
-        d = _norm_dir(direction)
+        # direction is already "long"/"short" from callers after _norm_dir
+        d = direction if direction == "long" or direction == "short" else _norm_dir(direction)
         q = abs(float(qty))
         # Reverse if opposite
         if (d == "long" and self.position_size < 0) or (d == "short" and self.position_size > 0):
@@ -296,41 +361,67 @@ class CompileStrategyBroker:
 
     def _slip(self, price: float, direction: str) -> float:
         if self.slippage_ticks <= 0:
-            return float(price)
+            return price
         slip = self.slippage_ticks * self.mintick
+        if direction == "long":
+            return price + slip
+        if direction == "short":
+            return price - slip
         d = _norm_dir(direction)
-        return float(price) + slip if d == "long" else float(price) - slip
+        return price + slip if d == "long" else price - slip
 
     def _commission(self, qty: float, price: float) -> float:
         val = self.commission_value
         if val == 0:
             return 0.0
-        q, p = abs(float(qty)), abs(float(price))
-        ct = self.commission_type.lower()
-        if ct in {"percent", "strategy.commission.percent"}:
+        q, p = abs(qty), abs(price)
+        ct = self.commission_type
+        # Avoid .lower() when already a plain token
+        if ct == "percent" or ct == "strategy.commission.percent":
             return q * p * (val / 100.0)
-        if ct in {"cash_per_order", "strategy.commission.cash_per_order"}:
+        if ct == "cash_per_order" or ct == "strategy.commission.cash_per_order":
             return val
-        if ct in {"cash_per_contract", "strategy.commission.cash_per_contract"}:
+        if ct == "cash_per_contract" or ct == "strategy.commission.cash_per_contract":
+            return val * q
+        ct_l = ct.lower()
+        if ct_l in {"percent", "strategy.commission.percent"}:
+            return q * p * (val / 100.0)
+        if ct_l in {"cash_per_order", "strategy.commission.cash_per_order"}:
+            return val
+        if ct_l in {"cash_per_contract", "strategy.commission.cash_per_contract"}:
             return val * q
         return 0.0
 
-    def _emit(self, kind: str, **fields: Any) -> None:
-        ev = {
-            "kind": kind,
-            "id": fields.get("id"),
-            "direction": fields.get("direction"),
-            "qty": fields.get("qty"),
-            "order_type": fields.get("order_type"),
-            "limit": fields.get("limit"),
-            "stop": fields.get("stop"),
-            "oca_name": fields.get("oca_name"),
-            "comment": fields.get("comment"),
-            "bar_index": self._bar_index,
-            "bar_time": self._bar_time,
-            "ohlc": [self._open, self._high, self._low, self._close],
-        }
-        self.events.append(ev)
+    def _emit(
+        self,
+        kind: str,
+        *,
+        id: Any = None,
+        direction: Any = None,
+        qty: Any = None,
+        order_type: Any = None,
+        limit: Any = None,
+        stop: Any = None,
+        oca_name: Any = None,
+        comment: Any = None,
+    ) -> None:
+        # Explicit kwargs (no **fields) + single dict alloc; shape matches prior API.
+        self.events.append(
+            {
+                "kind": kind,
+                "id": id,
+                "direction": direction,
+                "qty": qty,
+                "order_type": order_type,
+                "limit": limit,
+                "stop": stop,
+                "oca_name": oca_name,
+                "comment": comment,
+                "bar_index": self._bar_index,
+                "bar_time": self._bar_time,
+                "ohlc": [self._open, self._high, self._low, self._close],
+            }
+        )
 
     def _classify_order_type(self, limit: Any, stop: Any) -> str:
         lim, stp = _opt_float(limit), _opt_float(stop)
@@ -355,6 +446,17 @@ class CompileStrategyBroker:
     ) -> None:
         d = _norm_dir(direction)
         q = abs(float(qty))
+        # Market fast path: no limit/stop → skip classify + opt_float.
+        if limit is None and stop is None:
+            if price is None or _is_na(price):
+                px = self._mark
+            else:
+                px = float(price)
+            if self.slippage_ticks > 0:
+                px = self._slip(px, d)
+            self._open_or_add(d, q, px, str(id), comment)
+            return
+
         ot = self._classify_order_type(limit, stop)
         if ot != "market":
             # Pending stop/limit entry
@@ -379,9 +481,15 @@ class CompileStrategyBroker:
                 comment=comment,
             )
             return
-        # Market entry — immediate
-        px = float(price if price is not None and not _is_na(price) else self._mark)
-        px = self._slip(px, d)
+        # Market entry — immediate (limit/stop were NA-ish)
+        if price is None or _is_na(price):
+            px = self._mark
+        else:
+            px = float(price)
+        if self.slippage_ticks > 0:
+            px = self._slip(px, d)
+        else:
+            px = float(px)
         self._open_or_add(d, q, px, str(id), comment)
 
     def close(
@@ -395,7 +503,10 @@ class CompileStrategyBroker:
         if self.position_size == 0:
             self._emit("close", id=id, qty=0.0, comment=comment)
             return
-        px = float(price if price is not None and not _is_na(price) else self._mark)
+        if price is None or _is_na(price):
+            px = self._mark
+        else:
+            px = float(price)
         close_qty = abs(self.position_size) if qty is None else min(abs(float(qty)), abs(self.position_size))
         if close_qty <= 0:
             return
@@ -496,19 +607,21 @@ class CompileStrategyBroker:
     def equity(self) -> float:
         mark = self._mark
         open_pnl = 0.0
-        if self.position_size > 0 and mark == mark:
-            open_pnl = (mark - self.position_avg_price) * self.position_size
-        elif self.position_size < 0 and mark == mark:
-            open_pnl = (self.position_avg_price - mark) * abs(self.position_size)
+        ps = self.position_size
+        if ps > 0 and mark == mark:
+            open_pnl = (mark - self.position_avg_price) * ps
+        elif ps < 0 and mark == mark:
+            open_pnl = (self.position_avg_price - mark) * (-ps)
         return self.initial_capital + self.netprofit + open_pnl
 
     @property
     def openprofit(self) -> float:
         mark = self._mark
-        if self.position_size > 0 and mark == mark:
-            return (mark - self.position_avg_price) * self.position_size
-        if self.position_size < 0 and mark == mark:
-            return (self.position_avg_price - mark) * abs(self.position_size)
+        ps = self.position_size
+        if ps > 0 and mark == mark:
+            return (mark - self.position_avg_price) * ps
+        if ps < 0 and mark == mark:
+            return (self.position_avg_price - mark) * (-ps)
         return 0.0
 
     def _update_equity_extremes(self) -> None:
@@ -548,4 +661,5 @@ class CompileStrategyBroker:
         return float(self._max_runup_percent)
 
     def to_events(self) -> list[dict[str, Any]]:
-        return list(self.events)
+        # Broker is single-use per compiled run; return live list (no copy).
+        return self.events

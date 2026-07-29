@@ -1790,8 +1790,9 @@ plot(ta.min(close), title="mn")
         code = transpile(src)
         assert "ta_max(" not in code
         assert "ta_min(" not in code
-        assert "numba_highest" in code
-        assert "numba_lowest" in code
+        # bare ta.max/min → O(1) running extreme (or legacy full highest/lowest)
+        assert "numba_running_max_inc" in code or "numba_highest" in code
+        assert "numba_running_min_inc" in code or "numba_lowest" in code
         compiled = compile_script(src)
         o, h, l, c, v = _ohlcv(30)
         out = compiled.run(o, h, l, c, v)
@@ -2321,4 +2322,111 @@ plot(matrix.get(m2, 1, 0), title="w10")
         assert out["c2"][-1] == 1.0
         assert out["w00"][-1] == 1.0
         assert out["w10"][-1] == 3.0
+
+
+class TestCompileRound4IncKernels:
+    """Round 4: wire hma/math_sum + rising/falling/valuewhen/running max-min."""
+
+    def test_hma_math_sum_avg_emit_inc(self) -> None:
+        src = """//@version=5
+indicator("x")
+plot(ta.hma(close, 20), title="hma")
+plot(math.sum(close, 10), title="sum")
+plot(math.avg(close, 10), title="avg")
+"""
+        code = transpile(src)
+        assert "numba_hma_inc" in code
+        assert "numba_sum_inc" in code
+        assert "numba_sma_inc" in code
+        assert "__hma_raw" in code
+        compiled = compile_script(src)
+        assert not compiled.object_mode
+        o, h, l, c, v = _ohlcv(80)
+        out = compiled.run(o, h, l, c, v)
+        assert not np.isnan(out["hma"][-1])
+        assert abs(out["sum"][-1] - float(np.sum(c[-10:]))) < 1e-6
+        assert abs(out["avg"][-1] - float(np.mean(c[-10:]))) < 1e-6
+
+    def test_rising_falling_running_max_min_emit_and_parity(self) -> None:
+        from pynescript.compiler import numba_builtins as nb
+
+        src = """//@version=5
+indicator("x")
+plot(ta.rising(close, 3) ? 1.0 : 0.0, title="r")
+plot(ta.falling(close, 2) ? 1.0 : 0.0, title="f")
+plot(ta.max(close), title="mx")
+plot(ta.min(close), title="mn")
+"""
+        code = transpile(src)
+        assert "numba_rising_inc" in code
+        assert "numba_falling_inc" in code
+        assert "numba_running_max_inc" in code
+        assert "numba_running_min_inc" in code
+        compiled = compile_script(src)
+        assert not compiled.object_mode
+        # non-monotone series
+        rng = np.random.default_rng(7)
+        n = 120
+        c = 100.0 + np.cumsum(rng.normal(0, 1, n))
+        o, h, l, v = c, c + 1, c - 1, np.ones(n)
+        out = compiled.run(o, h, l, c, v)
+        for i in range(n):
+            er = 1.0 if nb.numba_rising(c, 3, i) else 0.0
+            ef = 1.0 if nb.numba_falling(c, 2, i) else 0.0
+            assert abs(out["r"][i] - er) < 1e-12
+            assert abs(out["f"][i] - ef) < 1e-12
+            assert abs(out["mx"][i] - nb.numba_highest(c, i + 1, i)) < 1e-12
+            assert abs(out["mn"][i] - nb.numba_lowest(c, i + 1, i)) < 1e-12
+
+    def test_valuewhen_inc_kernel_parity(self) -> None:
+        from pynescript.compiler import numba_builtins as nb
+
+        rng = np.random.default_rng(3)
+        n = 300
+        arr = 100.0 + np.cumsum(rng.normal(0, 1, n))
+        cond = (arr > np.median(arr)).astype(np.float64)
+        for occ in (0, 1, 4):
+            st = np.full(3 + occ + 1, np.nan)
+            for i in range(n):
+                a = nb.numba_valuewhen(cond, arr, occ, i)
+                b = nb.numba_valuewhen_inc(cond, arr, occ, i, st)
+                if np.isnan(a) and np.isnan(b):
+                    continue
+                assert abs(float(a) - float(b)) < 1e-12
+            # gap to end + rewind mid
+            st = np.full(3 + occ + 1, np.nan)
+            assert (
+                abs(
+                    float(nb.numba_valuewhen(cond, arr, occ, n - 1))
+                    - float(nb.numba_valuewhen_inc(cond, arr, occ, n - 1, st))
+                )
+                < 1e-12
+                or (
+                    np.isnan(nb.numba_valuewhen(cond, arr, occ, n - 1))
+                    and np.isnan(nb.numba_valuewhen_inc(cond, arr, occ, n - 1, st))
+                )
+            )
+            mid = n // 2
+            b = nb.numba_valuewhen_inc(cond, arr, occ, mid, st)
+            a = nb.numba_valuewhen(cond, arr, occ, mid)
+            if not (np.isnan(a) and np.isnan(b)):
+                assert abs(float(a) - float(b)) < 1e-12
+
+    def test_hma_inc_parity_large_period(self) -> None:
+        from pynescript.compiler import numba_builtins as nb
+
+        rng = np.random.default_rng(11)
+        n = 500
+        arr = 100.0 + np.cumsum(rng.normal(0, 1, n))
+        for period in (9, 50, 100):
+            st = np.full(7, np.nan)
+            raw = np.full(n, np.nan)
+            max_err = 0.0
+            for i in range(n):
+                a = nb.numba_hma(arr, period, i)
+                b = nb.numba_hma_inc(arr, period, i, st, raw)
+                if np.isnan(a) and np.isnan(b):
+                    continue
+                max_err = max(max_err, abs(float(a) - float(b)))
+            assert max_err <= 1e-10, f"period={period} max_err={max_err}"
 

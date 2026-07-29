@@ -49,6 +49,27 @@ from pynescript.util.itertools import grouper
 # recursion limit during ANTLR walk + AST builder visits.
 _PARSE_RECURSION_LIMIT = 5000
 
+# Reuse strategy instances: BailErrorStrategy holds no cross-parse state of
+# interest after parser.reset(); DefaultErrorStrategy is only used on the
+# uncommon LL fallback path (and reset() clears recovery flags).
+_BAIL_ERROR_STRATEGY = BailErrorStrategy()
+_DEFAULT_ERROR_STRATEGY = DefaultErrorStrategy()
+
+# Builder is stateless across visits — reuse one instance to skip alloc.
+_SHARED_BUILDER = PinescriptASTBuilder()
+
+# Cached after first annotation pass (avoids circular import at module load).
+_StatementCollector = None
+
+
+def _get_statement_collector_cls():
+    global _StatementCollector
+    if _StatementCollector is None:
+        from pynescript.ast.collector import StatementCollector as _SC
+
+        _StatementCollector = _SC
+    return _StatementCollector
+
 
 def _add_annotations(script, statements, comments):
     """Attach annotation comments to AST nodes.
@@ -123,10 +144,11 @@ def _add_annotations(script, statements, comments):
 
 
 def _collect_comment_nodes(builder: PinescriptASTBuilder, token_stream: CommonTokenStream) -> list[ast.Comment]:
-    """Extract comment nodes from the token stream.
+    """Extract annotation-relevant comment nodes from the token stream.
 
-    Parses all COMMENT tokens and creates Comment AST nodes with metadata.
-    Uses PinescriptASTBuilder to parse comment syntax (extracts kind from format like //@version).
+    Only comments containing ``@`` can become annotations (``//@version``,
+    ``//@description``, …). Plain ``//`` comments and ``//# region`` markers
+    are skipped — ``_add_annotations`` would ignore them anyway.
 
     Args:
         builder: PinescriptASTBuilder instance with comment parsing capability
@@ -139,26 +161,26 @@ def _collect_comment_nodes(builder: PinescriptASTBuilder, token_stream: CommonTo
     token_stream.fill()
     comments: list[ast.Comment] = []
 
-    # Optimize: cache COMMENT type lookup to avoid repeated attribute access
     comment_type = PinescriptLexer.COMMENT
+    parse_comment = builder._parseComment
 
-    # Iterate through all tokens looking for COMMENT type tokens
     for token in token_stream.tokens:
         if token is None or token.type != comment_type:
             continue
 
-        # Extract comment text from token
-        text = token.text or ""
-        # Parse comment syntax to extract kind (e.g., "version" from //@version)
-        kind, _parts = builder._parseComment(text)
-        # Create Comment node with parsed metadata
+        text = token.text
+        if not text or "@" not in text:
+            continue
+
+        kind, _parts = parse_comment(text)
+        # Only @-annotations are attached; skip if pattern did not match.
+        if not kind.startswith("@"):
+            continue
+
         comment = ast.Comment(
             value=text,
             kind=kind,
         )
-
-        # Attach position information from token metadata
-        # Optimize: cache text length to calculate end_col_offset
         text_len = len(text)
         comment.lineno = token.line  # type: ignore[attr-defined]
         comment.col_offset = token.column  # type: ignore[attr-defined]
@@ -231,17 +253,17 @@ def _parse(
         # failure (BailErrorStrategy → ParseCancellationException) reset and
         # re-parse with full LL. Produces identical trees to pure-LL on success.
         parser._interp.predictionMode = PredictionMode.SLL
-        parser._errHandler = BailErrorStrategy()
+        parser._errHandler = _BAIL_ERROR_STRATEGY
         try:
             rule = _parse_rule(parser, mode)
         except ParseCancellationException:
             token_stream.seek(0)
             parser.reset()
-            parser._errHandler = DefaultErrorStrategy()
+            parser._errHandler = _DEFAULT_ERROR_STRATEGY
             parser._interp.predictionMode = PredictionMode.LL
             rule = _parse_rule(parser, mode)
 
-        builder = PinescriptASTBuilder()
+        builder = _SHARED_BUILDER
         node = builder.visit(rule)
 
         if mode == "exec":
@@ -251,10 +273,7 @@ def _parse(
             if src_text is not None and "@" not in src_text:
                 return node
 
-            # Deferred import: collector → visitor → helper (circular at module load)
-            from pynescript.ast.collector import StatementCollector
-
-            statements = list(StatementCollector().visit(node))
+            statements = list(_get_statement_collector_cls()().visit(node))
 
             if not statements:
                 return node

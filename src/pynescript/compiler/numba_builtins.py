@@ -3309,3 +3309,167 @@ def numba_correlation_inc(a, b, period, i, st):
     if den_a <= 0.0 or den_b <= 0.0:
         return np.nan
     return num / np.sqrt(den_a * den_b)
+
+
+@numba.njit(cache=True)
+def numba_rising_inc(arr, length, i, st):
+    """O(1) consecutive-rise streak. ``st``: [streak, last_i].
+
+    Matches ``numba_rising``: True iff ``arr`` rose strictly for ``length``
+    consecutive steps ending at ``i`` (needs ``i >= length``).
+    """
+    length = int(length)
+    if length <= 0 or i < 0:
+        return False
+    if np.isnan(st[1]):
+        last = -1
+    else:
+        last = int(st[1])
+    if i < last:
+        last = -1
+        st[0] = 0.0
+    streak = 0.0 if np.isnan(st[0]) else st[0]
+    for j in range(last + 1, i + 1):
+        if j <= 0:
+            streak = 0.0
+            continue
+        a = arr[j]
+        b = arr[j - 1]
+        if np.isnan(a) or np.isnan(b) or a <= b:
+            streak = 0.0
+        else:
+            streak = streak + 1.0
+    st[0] = streak
+    st[1] = float(i)
+    return i >= length and streak >= float(length)
+
+
+@numba.njit(cache=True)
+def numba_falling_inc(arr, length, i, st):
+    """O(1) consecutive-fall streak. ``st``: [streak, last_i].
+
+    Matches ``numba_falling``.
+    """
+    length = int(length)
+    if length <= 0 or i < 0:
+        return False
+    if np.isnan(st[1]):
+        last = -1
+    else:
+        last = int(st[1])
+    if i < last:
+        last = -1
+        st[0] = 0.0
+    streak = 0.0 if np.isnan(st[0]) else st[0]
+    for j in range(last + 1, i + 1):
+        if j <= 0:
+            streak = 0.0
+            continue
+        a = arr[j]
+        b = arr[j - 1]
+        if np.isnan(a) or np.isnan(b) or a >= b:
+            streak = 0.0
+        else:
+            streak = streak + 1.0
+    st[0] = streak
+    st[1] = float(i)
+    return i >= length and streak >= float(length)
+
+
+@numba.njit(cache=True)
+def numba_valuewhen_inc(cond_arr, src_arr, occ, i, st):
+    """Amortized-O(1) valuewhen via ring of recent true bar indices.
+
+    ``st`` layout (size >= 3 + occ + 1):
+      [n_found, head, last_i, hist_0, ..., hist_occ]
+    ``hist`` is a ring of bar indices (write at ``head % cap``).
+    Matches ``numba_valuewhen`` for sequential / gap / rewind bars.
+    """
+    occ = int(occ)
+    if occ < 0 or i < 0:
+        return np.nan
+    cap = occ + 1
+    # Require packed hist after the 3 control slots
+    if len(st) < 3 + cap:
+        return numba_valuewhen(cond_arr, src_arr, occ, i)
+
+    if np.isnan(st[2]):
+        last = -1
+    else:
+        last = int(st[2])
+    if i < last:
+        last = -1
+        st[0] = 0.0
+        st[1] = 0.0
+
+    n_found = 0 if np.isnan(st[0]) else int(st[0])
+    head = 0 if np.isnan(st[1]) else int(st[1])
+
+    for j in range(last + 1, i + 1):
+        c = cond_arr[j]
+        if np.isnan(c) or c == 0.0:
+            continue
+        st[3 + (head % cap)] = float(j)
+        head += 1
+        if n_found < cap:
+            n_found += 1
+
+    st[0] = float(n_found)
+    st[1] = float(head)
+    st[2] = float(i)
+
+    if n_found <= occ:
+        return np.nan
+    # occ-th most recent true: head-1-occ
+    bar_i = int(st[3 + ((head - 1 - occ) % cap)])
+    return src_arr[bar_i]
+
+
+@numba.njit(cache=True)
+def numba_running_max_inc(arr, i, st):
+    """O(1) all-time max of ``arr[0..i]``. ``st``: [max_val, last_i].
+
+    Matches ``numba_highest(arr, i+1, i)`` (NaN ignored when a finite exists).
+    """
+    if i < 0:
+        return np.nan
+    if np.isnan(st[1]):
+        last = -1
+    else:
+        last = int(st[1])
+    if i < last:
+        last = -1
+        st[0] = np.nan
+    m = st[0]
+    for j in range(last + 1, i + 1):
+        v = arr[j]
+        if np.isnan(m) or (not np.isnan(v) and v > m):
+            m = v
+    st[0] = m
+    st[1] = float(i)
+    return m
+
+
+@numba.njit(cache=True)
+def numba_running_min_inc(arr, i, st):
+    """O(1) all-time min of ``arr[0..i]``. ``st``: [min_val, last_i].
+
+    Matches ``numba_lowest(arr, i+1, i)``.
+    """
+    if i < 0:
+        return np.nan
+    if np.isnan(st[1]):
+        last = -1
+    else:
+        last = int(st[1])
+    if i < last:
+        last = -1
+        st[0] = np.nan
+    m = st[0]
+    for j in range(last + 1, i + 1):
+        v = arr[j]
+        if np.isnan(m) or (not np.isnan(v) and v < m):
+            m = v
+    st[0] = m
+    st[1] = float(i)
+    return m

@@ -112,11 +112,11 @@ class NameEvaluator:
             (allowing it to be resolved as a string literal or builtin reference)
         """
         # Hot path: single dict lookup for bar-mode series (close/open/…) and locals.
-        # Prefer ``.get`` + sentinel over ``in`` + ``[]`` (one hash vs two).
+        # ``try/except KeyError`` is faster than ``in`` + ``[]`` when the key hits
+        # (dominant case after hosts inject OHLCV every bar).
         name = node.id
-        ctx = self.context
         try:
-            return ctx[name]
+            return self.context[name]
         except KeyError:
             pass
         # Bare-name series builtins only (not functions like strategy/indicator that take args)
@@ -273,44 +273,59 @@ class NameEvaluator:
             ValueError: If negative indices are used (not supported in PineScript)
             NotImplementedError: If subscripting is not supported for the value type
         """
+        visit = self.visit
         # Evaluate the collection being indexed (e.g., array, series)
-        value = self.visit(node.value)
+        value = visit(node.value)
         # Evaluate the index/slice expression
-        slice_ = self.visit(node.slice) if node.slice else None  # type: ignore[arg-type]
+        slice_node = node.slice
+        slice_ = visit(slice_node) if slice_node is not None else None  # type: ignore[arg-type]
 
+        st = type(slice_)
         # Pine coerces float offsets (e.g. ``depth / 2``) to int for series[i]
-        if isinstance(slice_, float):
+        if st is float:
             if slice_ != slice_:  # NaN
                 return None
             slice_ = int(slice_)
-        elif isinstance(slice_, bool):
+            st = int
+        elif st is bool:
             # bool is int subclass; keep 0/1 but avoid treating as generic truthy
             slice_ = int(slice_)
+            st = int
 
-        # Handle Matrix indexing: m[row, col]
-        if isinstance(value, Matrix):
-            # slice_ should be a list [row, col] (from Tuple evaluation)
-            if isinstance(slice_, list) and len(slice_) == _MATRIX_INDEX_DIMENSIONS:
-                return value[(slice_[0], slice_[1])]
-            msg = f"Invalid matrix index: {slice_}. Expected [row, col]."
-            raise ValueError(msg)
+        vt = type(value)
 
-        # Handle list/array indexing with integer indices
-        if isinstance(value, list) and isinstance(slice_, int):
+        # Fast path: list/array with integer index (history series / array.get style)
+        if vt is list and st is int:
             # PineScript doesn't support negative indices (backwards indexing)
             if slice_ < 0:
                 msg = "Negative indices not supported in PineScript"
                 raise ValueError(msg)
-            # Convert PineScript index to Python index:
-            # PineScript: series[0] = current (latest), series[1] = previous
-            # Python: list[0] = first (oldest), list[-1] = last (latest)
-            # So series[i] -> list[-(i+1)]
-            index = -(slice_ + 1)
-            # Check bounds and return None (PineScript 'na') for out-of-bounds access
-            if abs(index) > len(value):
-                return None  # PineScript returns na for out of bounds
-            return value[index]
-        elif hasattr(value, "__getitem__"):
+            # Pine: series[0] = current (latest) → list[-1]; series[i] → list[-(i+1)]
+            # Bounds: slice_ >= len → na (equivalent to abs(-(i+1)) > len)
+            n = len(value)
+            if slice_ >= n:
+                return None
+            return value[-(slice_ + 1)]
+
+        # Handle Matrix indexing: m[row, col]
+        if isinstance(value, Matrix):
+            # slice_ should be a list [row, col] (from Tuple evaluation)
+            if type(slice_) is list and len(slice_) == _MATRIX_INDEX_DIMENSIONS:
+                return value[(slice_[0], slice_[1])]
+            msg = f"Invalid matrix index: {slice_}. Expected [row, col]."
+            raise ValueError(msg)
+
+        # list subclasses (rare) — same Pine reverse-index semantics
+        if isinstance(value, list) and st is int:
+            if slice_ < 0:
+                msg = "Negative indices not supported in PineScript"
+                raise ValueError(msg)
+            n = len(value)
+            if slice_ >= n:
+                return None
+            return value[-(slice_ + 1)]
+
+        if hasattr(value, "__getitem__"):
             try:
                 return value[slice_]
             except Exception as e:
@@ -319,12 +334,11 @@ class NameEvaluator:
         # When subscripting a non-collection type (scalar), match PineScript
         # semantics: series[0] = current (the scalar itself), series[offset>0]
         # with no history returns None (PineScript 'na').
-        if isinstance(slice_, int) and slice_ >= 0:
+        if st is int:
+            if slice_ < 0:
+                msg = "Negative indices not supported in PineScript"
+                raise ValueError(msg)
             return None if slice_ > 0 else value
-        # Negative indexing not supported in PineScript
-        if isinstance(slice_, int) and slice_ < 0:
-            msg = "Negative indices not supported in PineScript"
-            raise ValueError(msg)
         value_type = type(value)
         slice_type = type(slice_)
         msg = f"Subscript not supported for {value_type} with {slice_type}"

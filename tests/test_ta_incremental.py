@@ -1084,3 +1084,256 @@ plot(ta.cci(close, 14))
             if a is None or b is None:
                 continue
             assert a == pytest.approx(b, rel=1e-9, abs=1e-9), f"{key} bar {i}: {a} != {b}"
+
+
+# ---------------------------------------------------------------------------
+# Round 4: mom, swma, highestbars/lowestbars, vwap, barssince, linreg
+# ---------------------------------------------------------------------------
+
+
+def _bar_walk_full_mom(src: list[float], period: int) -> list[float | None]:
+    ev = _FullTA()
+    return [ev._mom(src[: i + 1], period) for i in range(len(src))]
+
+
+def _bar_walk_inc_mom(src: list[float], period: int) -> list[float | None]:
+    ev = _IncTA()
+    out: list[float | None] = []
+    for i in range(len(src)):
+        ev._ta_call_i = 0
+        out.append(ev._mom_inc_update(src[: i + 1], period))
+    return out
+
+
+def _bar_walk_full_swma(src: list[float]) -> list[float | None]:
+    ev = _FullTA()
+    return [ev._swma(src[: i + 1]) for i in range(len(src))]
+
+
+def _bar_walk_inc_swma(src: list[float]) -> list[float | None]:
+    ev = _IncTA()
+    out: list[float | None] = []
+    for i in range(len(src)):
+        ev._ta_call_i = 0
+        out.append(ev._swma_inc_update(src[: i + 1]))
+    return out
+
+
+def _bar_walk_full_highestbars(src: list[float], period: int) -> list[int]:
+    ev = _FullTA()
+    return [ev._highestbars(src[: i + 1], period) for i in range(len(src))]
+
+
+def _bar_walk_inc_highestbars(src: list[float], period: int) -> list[int]:
+    ev = _IncTA()
+    out: list[int] = []
+    for i in range(len(src)):
+        ev._ta_call_i = 0
+        out.append(ev._highestbars_inc_update(src[: i + 1], period))
+    return out
+
+
+def _bar_walk_full_lowestbars(src: list[float], period: int) -> list[int]:
+    ev = _FullTA()
+    return [ev._lowestbars(src[: i + 1], period) for i in range(len(src))]
+
+
+def _bar_walk_inc_lowestbars(src: list[float], period: int) -> list[int]:
+    ev = _IncTA()
+    out: list[int] = []
+    for i in range(len(src)):
+        ev._ta_call_i = 0
+        out.append(ev._lowestbars_inc_update(src[: i + 1], period))
+    return out
+
+
+def _bar_walk_full_vwap(src: list[float], vol: list[float]) -> list[float | None]:
+    """Full cumulative VWAP last value per bar (matches _builtin_ta_vwap loop)."""
+    out: list[float | None] = []
+    for i in range(len(src)):
+        cum_pv = 0.0
+        cum_v = 0.0
+        last = None
+        for j in range(i + 1):
+            price = src[j]
+            if price is None:
+                continue
+            v = vol[j] if j < len(vol) and vol[j] is not None else 0.0
+            try:
+                v = float(v)
+                price = float(price)
+            except (TypeError, ValueError):
+                continue
+            cum_pv += price * v
+            cum_v += v
+            last = (cum_pv / cum_v) if cum_v else price
+        out.append(last)
+    return out
+
+
+def _bar_walk_inc_vwap(src: list[float], vol: list[float]) -> list[float | None]:
+    ev = _IncTA()
+    out: list[float | None] = []
+    for i in range(len(src)):
+        ev._ta_call_i = 0
+        out.append(ev._vwap_inc_update(src[: i + 1], vol[: i + 1]))
+    return out
+
+
+def _bar_walk_full_barssince(cond: list[bool]) -> list[int | None]:
+    """Full list-scan barssince on growing prefix."""
+    out: list[int | None] = []
+    for i in range(len(cond)):
+        condition = cond[: i + 1]
+        found = None
+        for j in range(len(condition) - 1, -1, -1):
+            c = condition[j]
+            is_true = c is True or (c is not None and c is not False)
+            if is_true:
+                found = len(condition) - 1 - j
+                break
+        if found is None:
+            found = len(condition) - 1
+        out.append(found)
+    return out
+
+
+def _bar_walk_inc_barssince(cond: list[bool]) -> list[int | None]:
+    ev = _IncTA()
+    out: list[int | None] = []
+    for i in range(len(cond)):
+        ev._ta_call_i = 0
+        out.append(ev._barssince_inc_update(cond[i]))
+    return out
+
+
+def _bar_walk_full_linreg(src: list[float], length: int) -> list[float]:
+    ev = _FullTA()
+    out: list[float] = []
+    for i in range(len(src)):
+        series = src[: i + 1]
+        if len(series) < length:
+            out.append(float("nan"))
+            continue
+        window = series[-length:]
+        valid = [v for v in window if v is not None]
+        if len(valid) < 2:
+            out.append(float("nan"))
+            continue
+        x = list(range(len(valid)))
+        mean_x = sum(x) / len(x)
+        mean_y = sum(valid) / len(valid)
+        num = sum((xi - mean_x) * (yi - mean_y) for xi, yi in zip(x, valid, strict=True))
+        den = sum((xi - mean_x) ** 2 for xi in x)
+        if den == 0:
+            out.append(mean_y)
+        else:
+            slope = num / den
+            out.append(slope * (len(valid) - 1) + mean_y)
+    return out
+
+
+def _bar_walk_inc_linreg(src: list[float], length: int) -> list[float]:
+    ev = _IncTA()
+    out: list[float] = []
+    for i in range(len(src)):
+        ev._ta_call_i = 0
+        out.append(ev._linreg_inc_update(src[: i + 1], length))
+    return out
+
+
+def test_incremental_mom_matches_full() -> None:
+    src = _series(120)
+    for period in (1, 5, 10, 14):
+        _assert_series_close(
+            _bar_walk_inc_mom(src, period),
+            _bar_walk_full_mom(src, period),
+        )
+
+
+def test_incremental_swma_matches_full() -> None:
+    src = _series(80)
+    _assert_series_close(_bar_walk_inc_swma(src), _bar_walk_full_swma(src))
+
+
+def test_incremental_highestbars_lowestbars_matches_full() -> None:
+    src = _series(120)
+    for period in (5, 14, 20):
+        assert _bar_walk_inc_highestbars(src, period) == _bar_walk_full_highestbars(src, period)
+        assert _bar_walk_inc_lowestbars(src, period) == _bar_walk_full_lowestbars(src, period)
+
+
+def test_incremental_vwap_matches_full() -> None:
+    src = _series(100)
+    vol = [1000.0 + (i % 7) * 10 for i in range(len(src))]
+    _assert_series_close(_bar_walk_inc_vwap(src, vol), _bar_walk_full_vwap(src, vol))
+
+
+def test_incremental_barssince_matches_full() -> None:
+    # Periodic true every 10 bars, plus all-false prefix and dense trues
+    cond = [(i % 10 == 0) for i in range(60)]
+    assert _bar_walk_inc_barssince(cond) == _bar_walk_full_barssince(cond)
+    cond2 = [False] * 20 + [True] + [False] * 15
+    assert _bar_walk_inc_barssince(cond2) == _bar_walk_full_barssince(cond2)
+    cond3 = [True] * 10
+    assert _bar_walk_inc_barssince(cond3) == _bar_walk_full_barssince(cond3)
+
+
+def test_incremental_linreg_matches_full() -> None:
+    src = _series(150)
+    for length in (5, 14, 20):
+        got = _bar_walk_inc_linreg(src, length)
+        exp = _bar_walk_full_linreg(src, length)
+        assert len(got) == len(exp)
+        for i, (g, e) in enumerate(zip(got, exp, strict=True)):
+            if isinstance(e, float) and math.isnan(e):
+                assert isinstance(g, float) and math.isnan(g), f"bar {i}: expected nan, got {g}"
+            else:
+                assert g == pytest.approx(e, rel=1e-9, abs=1e-9), f"bar {i}: {g} != {e}"
+
+
+def test_runtime_round4_incremental_vs_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
+    from backend.runtime import Runtime
+
+    bars = [
+        {
+            "open": 100 + i * 0.1,
+            "high": 101.5 + i * 0.1 + (i % 5) * 0.05,
+            "low": 98.5 + i * 0.1 - (i % 3) * 0.05,
+            "close": 100.5 + i * 0.1 + math.sin(i / 7.0) * 0.2,
+            "volume": 1000 + i * 3,
+            "time": 1_000_000 + i * 86_400_000,
+        }
+        for i in range(150)
+    ]
+    # Note: ta.barssince is intentionally omitted here — the non-incremental
+    # scalar path returns only 0/1 and cannot match the correct O(1) state
+    # machine (covered by unit golden tests above).
+    src = """//@version=5
+indicator("round4 residual")
+plot(ta.mom(close, 10))
+plot(ta.swma(close))
+plot(ta.highestbars(high, 14))
+plot(ta.lowestbars(low, 14))
+plot(ta.vwap(close))
+plot(ta.linreg(close, 14, 0))
+"""
+    monkeypatch.delenv("PYNE_TA_INCREMENTAL", raising=False)
+    r_on = Runtime(symbol="T").run(src, bars)
+    assert "error" not in r_on, r_on.get("error")
+    monkeypatch.setenv("PYNE_TA_INCREMENTAL", "0")
+    r_off = Runtime(symbol="T").run(src, bars)
+    assert "error" not in r_off, r_off.get("error")
+    monkeypatch.delenv("PYNE_TA_INCREMENTAL", raising=False)
+
+    assert set(r_on["series"]) == set(r_off["series"])
+    for key in r_on["series"]:
+        for i, (a, b) in enumerate(zip(r_on["series"][key], r_off["series"][key], strict=True)):
+            if a is None and b is None:
+                continue
+            if a is None or b is None:
+                continue
+            # linreg warmup yields nan; pytest.approx does not treat nan == nan
+            if isinstance(a, float) and isinstance(b, float) and math.isnan(a) and math.isnan(b):
+                continue
+            assert a == pytest.approx(b, rel=1e-9, abs=1e-9), f"{key} bar {i}: {a} != {b}"

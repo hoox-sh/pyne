@@ -45,6 +45,25 @@ from pynescript.ast.visitor import NodeVisitor
 # Precomputed indent prefixes (4 spaces per level). Avoids repeated "    " * n.
 _INDENT_CACHE: tuple[str, ...] = tuple("    " * i for i in range(64))
 
+# Characters that force the slow json.dumps / repr path for string constants.
+# Plain strings without these are emitted as "..." without encoding overhead.
+_STR_SPECIAL: frozenset[str] = frozenset('\\"\n\r\t\x08\x0c')
+
+
+def _is_plain_string(value: str) -> bool:
+    """True when *value* needs no escapes inside double quotes."""
+    special = _STR_SPECIAL
+    for ch in value:
+        if ch in special:
+            return False
+    return True
+
+
+def _quote_plain_string(value: str) -> str:
+    """Double-quote a string known to need no escapes (matches json.dumps form)."""
+    return '"' + value + '"'
+
+
 class _NullCM:
     """Zero-allocation no-op context manager (replaces contextlib.nullcontext)."""
 
@@ -148,6 +167,8 @@ class NodeUnparser(NodeVisitor):
         self._indent = 0
         # Type-object keyed dispatch (faster than class-name strings).
         self._type_visitor_cache: dict[type, object] = {}
+        # Scratch for BoolOp interleave (avoids per-call lambda).
+        self._boolop_spaced: str = " and "
 
     def interleave(self, inter, f, seq):
         seq = iter(seq)
@@ -163,11 +184,22 @@ class NodeUnparser(NodeVisitor):
     def _write_comma_space(self):
         self._source.append(", ")
 
+    def _write_boolop_spaced(self):
+        self._source.append(self._boolop_spaced)
+
     def items_view(self, traverser, items, *, single: bool = False):
-        if len(items) == 1:
+        n = len(items)
+        if n == 1:
             traverser(items[0])
             if single:
                 self._source.append(",")
+        elif n == 0:
+            return
+        elif n == 2:  # noqa: PLR2004  # hot arity fast-path for Call/tuple
+            # Common Call/tuple arity: avoid interleave iterator overhead.
+            traverser(items[0])
+            self._source.append(", ")
+            traverser(items[1])
         else:
             self.interleave(self._write_comma_space, traverser, items)
 
@@ -180,7 +212,8 @@ class NodeUnparser(NodeVisitor):
         if src:
             src.append("\n")
         ind = self._indent
-        prefix = _INDENT_CACHE[ind] if ind < len(_INDENT_CACHE) else "    " * ind
+        cache = _INDENT_CACHE
+        prefix = cache[ind] if ind < len(cache) else "    " * ind
         if text:
             src.append(prefix + text)
         else:
@@ -219,6 +252,9 @@ class NodeUnparser(NodeVisitor):
             return _DelimitCM(self._source, "(", ")")
         return _NULL_CM
 
+    def _needs_parens(self, precedence, node) -> bool:
+        return self._precedences.get(node, Precedence.TEST) > precedence
+
     def get_precedence(self, node):
         return self._precedences.get(node, Precedence.TEST)
 
@@ -244,11 +280,13 @@ class NodeUnparser(NodeVisitor):
 
     def visit(self, node):
         # Full reset so a single NodeUnparser instance can be reused safely.
-        self._source = []
-        self._precedences = {}
+        # clear() reuses list/dict capacity across calls (less allocator churn).
+        src = self._source
+        src.clear()
+        self._precedences.clear()
         self._indent = 0
         self.traverse(node)
-        return "".join(self._source)
+        return "".join(src)
 
     def visit_Script(self, node: ast.Script):
         if node.annotations:
@@ -265,20 +303,22 @@ class NodeUnparser(NodeVisitor):
             for annotation in node.annotations:
                 self.fill(annotation)
             self.fill()
+        src = self._source
         if node.export:
-            self._source.append("export ")
+            src.append("export ")
         if node.method:
-            self._source.append("method ")
-        self._source.append(node.name)
-        with self.delimit("(", ")"):
-            if node.args:
-                self.items_view(self.traverse, node.args)
-        self._source.append(" => ")
-        if len(node.body) == 1 and isinstance(node.body[0], ast.Expr):
-            self.traverse(node.body[0].value)
+            src.append("method ")
+        src.append(node.name)
+        src.append("(")
+        if node.args:
+            self.items_view(self.traverse, node.args)
+        src.append(") => ")
+        body = node.body
+        if len(body) == 1 and body[0].__class__ is ast.Expr:
+            self.traverse(body[0].value)
         else:
             with self.block():
-                self.traverse(node.body)
+                self.traverse(body)
 
     def visit_TypeDef(self, node: ast.TypeDef):
         self.fill()
@@ -448,20 +488,36 @@ class NodeUnparser(NodeVisitor):
         ast.Or: " or ",
     }
 
+    # Type → precedence (skip string intermediate lookup on hot path).
+    _BOOLOP_PREC: ClassVar = {
+        ast.And: Precedence.AND,
+        ast.Or: Precedence.OR,
+    }
+
     def visit_BoolOp(self, node: ast.BoolOp):
         op_type = type(node.op)
-        operator = self.boolops[op_type]
-        operator_precedence = self.boolop_precedence[operator]
-        spaced = self._BOOLOP_SPACED[op_type]
+        operator_precedence = self._BOOLOP_PREC[op_type]
+        # Save/restore so nested BoolOps don't clobber the interleave token.
+        prev_spaced = self._boolop_spaced
+        self._boolop_spaced = self._BOOLOP_SPACED[op_type]
+        prec_level = operator_precedence
+        needs = self._needs_parens(operator_precedence, node)
+        src = self._source
+        if needs:
+            src.append("(")
 
         def increasing_level_traverse(child):
-            nonlocal operator_precedence
-            operator_precedence = operator_precedence.next()
-            self._precedences[child] = operator_precedence
+            nonlocal prec_level
+            prec_level = prec_level.next()
+            self._precedences[child] = prec_level
             self.traverse(child)
 
-        with self.require_parens(operator_precedence, node):
-            self.interleave(lambda: self._source.append(spaced), increasing_level_traverse, node.values)
+        try:
+            self.interleave(self._write_boolop_spaced, increasing_level_traverse, node.values)
+        finally:
+            self._boolop_spaced = prev_spaced
+        if needs:
+            src.append(")")
 
     binop: ClassVar = {
         ast.Add: "+",
@@ -502,18 +558,36 @@ class NodeUnparser(NodeVisitor):
         ast.RShift: " >> ",
     }
 
+    _BINOP_PREC: ClassVar = {
+        ast.Add: Precedence.ARITH,
+        ast.Sub: Precedence.ARITH,
+        ast.Mult: Precedence.TERM,
+        ast.Div: Precedence.TERM,
+        ast.Mod: Precedence.TERM,
+        ast.BitAnd: Precedence.BITAND,
+        ast.BitOr: Precedence.BITOR,
+        ast.BitXor: Precedence.BITXOR,
+        ast.LShift: Precedence.SHIFT,
+        ast.RShift: Precedence.SHIFT,
+    }
+
     def visit_BinOp(self, node: ast.BinOp):
         op_type = type(node.op)
-        operator = self.binop[op_type]
-        operator_precedence = self.binop_precedence[operator]
-        with self.require_parens(operator_precedence, node):
-            left_precedence = operator_precedence
-            right_precedence = operator_precedence.next()
-            self._precedences[node.left] = left_precedence
-            self.traverse(node.left)
-            self._source.append(self._BINOP_SPACED[op_type])
-            self._precedences[node.right] = right_precedence
-            self.traverse(node.right)
+        operator_precedence = self._BINOP_PREC[op_type]
+        needs = self._needs_parens(operator_precedence, node)
+        src = self._source
+        if needs:
+            src.append("(")
+        left_precedence = operator_precedence
+        right_precedence = operator_precedence.next()
+        prec = self._precedences
+        prec[node.left] = left_precedence
+        self.traverse(node.left)
+        src.append(self._BINOP_SPACED[op_type])
+        prec[node.right] = right_precedence
+        self.traverse(node.right)
+        if needs:
+            src.append(")")
 
     unop: ClassVar = {
         ast.Not: "not",
@@ -529,28 +603,50 @@ class NodeUnparser(NodeVisitor):
         "~": Precedence.FACTOR,
     }
 
+    _UNOP_TOKEN: ClassVar = {
+        ast.Not: "not ",
+        ast.UAdd: "+",
+        ast.USub: "-",
+        ast.Invert: "~",
+    }
+
+    _UNOP_PREC: ClassVar = {
+        ast.Not: Precedence.NOT,
+        ast.UAdd: Precedence.FACTOR,
+        ast.USub: Precedence.FACTOR,
+        ast.Invert: Precedence.FACTOR,
+    }
+
     def visit_UnaryOp(self, node: ast.UnaryOp):
-        operator = self.unop[type(node.op)]
-        operator_precedence = self.unop_precedence[operator]
-        with self.require_parens(operator_precedence, node):
-            self._source.append(operator)
-            if isinstance(node.op, ast.Not):
-                self._source.append(" ")
-            self._precedences[node.operand] = operator_precedence
-            self.traverse(node.operand)
+        op_type = type(node.op)
+        operator_precedence = self._UNOP_PREC[op_type]
+        needs = self._needs_parens(operator_precedence, node)
+        src = self._source
+        if needs:
+            src.append("(")
+        src.append(self._UNOP_TOKEN[op_type])
+        self._precedences[node.operand] = operator_precedence
+        self.traverse(node.operand)
+        if needs:
+            src.append(")")
 
     def visit_Conditional(self, node: ast.Conditional):
-        with self.require_parens(Precedence.TEST, node):
-            next_prec = Precedence.TEST.next()
-            prec = self._precedences
-            prec[node.test] = next_prec
-            prec[node.body] = next_prec
-            self.traverse(node.test)
-            self._source.append(" ? ")
-            self.traverse(node.body)
-            self._source.append(" : ")
-            prec[node.orelse] = Precedence.TEST
-            self.traverse(node.orelse)
+        needs = self._needs_parens(Precedence.TEST, node)
+        src = self._source
+        if needs:
+            src.append("(")
+        next_prec = Precedence.TEST.next()
+        prec = self._precedences
+        prec[node.test] = next_prec
+        prec[node.body] = next_prec
+        self.traverse(node.test)
+        src.append(" ? ")
+        self.traverse(node.body)
+        src.append(" : ")
+        prec[node.orelse] = Precedence.TEST
+        self.traverse(node.orelse)
+        if needs:
+            src.append(")")
 
     cmpops: ClassVar = {
         ast.Eq: "==",
@@ -580,25 +676,33 @@ class NodeUnparser(NodeVisitor):
     }
 
     def visit_Compare(self, node: ast.Compare):
-        with self.require_parens(Precedence.CMP, node):
-            next_prec = Precedence.CMP.next()
-            prec = self._precedences
-            prec[node.left] = next_prec
-            for c in node.comparators:
-                prec[c] = next_prec
-            self.traverse(node.left)
-            src = self._source
-            spaced = self._CMPOP_SPACED
-            for o, e in zip(node.ops, node.comparators, strict=True):
-                src.append(spaced[type(o)])
-                self.traverse(e)
+        needs = self._needs_parens(Precedence.CMP, node)
+        src = self._source
+        if needs:
+            src.append("(")
+        next_prec = Precedence.CMP.next()
+        prec = self._precedences
+        prec[node.left] = next_prec
+        for c in node.comparators:
+            prec[c] = next_prec
+        self.traverse(node.left)
+        spaced = self._CMPOP_SPACED
+        for o, e in zip(node.ops, node.comparators, strict=True):
+            src.append(spaced[type(o)])
+            self.traverse(e)
+        if needs:
+            src.append(")")
 
     def visit_Call(self, node: ast.Call):
         self._precedences[node.func] = Precedence.ATOM
         self.traverse(node.func)
-        with self.delimit("(", ")"):
-            if node.args:
-                self.items_view(self.traverse, node.args)
+        # Manual delimit — Call is the hottest paren site; skip _DelimitCM alloc.
+        src = self._source
+        src.append("(")
+        args = node.args
+        if args:
+            self.items_view(self.traverse, args)
+        src.append(")")
 
     def visit_Constant(self, node: ast.Constant):
         src = self._source
@@ -611,23 +715,22 @@ class NodeUnparser(NodeVisitor):
             src.append("true")
         elif value is False:
             src.append("false")
-        elif isinstance(value, str):
+        elif value.__class__ is str:
             # Prefer Pine v6 triple-quoted form when the value contains newlines so
             # unparse preserves readable multiline literals. Fall back to escaped
             # single-line form otherwise (and always when the value itself contains
             # both quote styles that would break triple delimiters).
             if "\n" in value or "\r" in value:
                 if '"""' not in value:
-                    src.append('"""')
-                    src.append(value)
-                    src.append('"""')
+                    src.append('"""' + value + '"""')
                 elif "'''" not in value:
-                    src.append("'''")
-                    src.append(value)
-                    src.append("'''")
+                    src.append("'''" + value + "'''")
                 else:
                     # Both triple delimiters appear in content — escape as JSON.
                     src.append(json.dumps(value, ensure_ascii=False))
+            elif _is_plain_string(value):
+                # Fast path: plain string → "..." (byte-identical to json.dumps).
+                src.append(_quote_plain_string(value))
             elif '"' in value and "'" not in value:
                 src.append(repr(value))
             else:
@@ -638,26 +741,30 @@ class NodeUnparser(NodeVisitor):
     def visit_Attribute(self, node: ast.Attribute):
         self._precedences[node.value] = Precedence.ATOM
         self.traverse(node.value)
-        src = self._source
-        src.append(".")
-        src.append(node.attr)
+        self._source.append("." + node.attr)
 
     def visit_Subscript(self, node: ast.Subscript):
         self.traverse(node.value)
-        with self.delimit("[", "]"):
-            if node.slice:
-                if isinstance(node.slice, ast.Tuple):
-                    self.items_view(self.traverse, node.slice.elts)
-                else:
-                    self.traverse(node.slice)
+        src = self._source
+        src.append("[")
+        sl = node.slice
+        if sl:
+            if sl.__class__ is ast.Tuple:
+                self.items_view(self.traverse, sl.elts)
+            else:
+                self.traverse(sl)
+        src.append("]")
 
     def visit_Name(self, node: ast.Name):
         self._source.append(node.id)
 
     def visit_Tuple(self, node: ast.Tuple):
-        with self.delimit("[", "]"):
-            if node.elts:
-                self.items_view(self.traverse, node.elts)
+        src = self._source
+        src.append("[")
+        elts = node.elts
+        if elts:
+            self.items_view(self.traverse, elts)
+        src.append("]")
 
     def visit_Qualify(self, node: ast.Qualify):
         self.traverse(node.qualifier)
@@ -666,12 +773,15 @@ class NodeUnparser(NodeVisitor):
 
     def visit_Specialize(self, node: ast.Specialize):
         self.traverse(node.value)
-        with self.delimit("<", ">"):
-            if node.args:
-                if isinstance(node.args, ast.Tuple):
-                    self.items_view(self.traverse, node.args.elts)
-                else:
-                    self.traverse(node.args)
+        src = self._source
+        src.append("<")
+        args = node.args
+        if args:
+            if args.__class__ is ast.Tuple:
+                self.items_view(self.traverse, args.elts)
+            else:
+                self.traverse(args)
+        src.append(">")
 
     def visit_Var(self, node: ast.Var):
         self._source.append("var")
@@ -749,10 +859,9 @@ class NodeUnparser(NodeVisitor):
             self.traverse(node.default)
 
     def visit_Arg(self, node: ast.Arg):
-        if node.name:
-            src = self._source
-            src.append(node.name)
-            src.append("=")
+        name = node.name
+        if name:
+            self._source.append(name + "=")
         self.traverse(node.value)
 
     def visit_Case(self, node: ast.Case):

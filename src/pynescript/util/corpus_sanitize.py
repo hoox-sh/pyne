@@ -365,6 +365,38 @@ def _has_usable_pine(text: str) -> bool:
     return bool(_SCRIPT_DECL_RE.search(text))
 
 
+# Docs chrome glued onto code lines (Mintlify / TV pages).
+_DOCS_NAV_TRAIL_RE = re.compile(r"\s+(Next|Previous|On this page)\b.*$", re.I)
+# Placeholder ellipsis lines from incomplete examples: `...`
+_ELLIPSIS_ONLY_RE = re.compile(r"^\s*\.\.\.\s*$")
+# Trailing binary/logical operators left by mid-expression scrapes.
+# NOTE: deliberately excludes ``?`` / ``:`` — multi-line ternaries use those as
+# line-join operators with same-indent continuations; injecting ``na`` breaks them.
+_TRAILING_BINOP_RE = re.compile(
+    r"^(?P<head>.*\S)\s+(?P<op>or|and|\+|\-|\*|/)\s*$"
+)
+
+
+def _polish_code_line(line: str) -> str:
+    """Fix common scrape typos on an otherwise kept code line."""
+    # Drop docs nav glued after real code: ``label.new(...)          Next``
+    line = _DOCS_NAV_TRAIL_RE.sub("", line)
+    # Trailing bare backtick (fence leak): ``plot(close)` ``
+    if line.rstrip().endswith("`") and line.count("`") == 1:
+        line = line.rstrip()[:-1].rstrip()
+    # Docs placeholder args: ``strategy("x", process_orders_on_close=true, ...)``
+    line = re.sub(r",\s*\.\.\.\s*\)", ")", line)
+    line = re.sub(r"\(\s*\.\.\.\s*\)", "()", line)
+    # Dangling ``+`` / ``,`` immediately before a closer (cut mid-concat / mid-args).
+    line = re.sub(r"\+\s*([\)\]])", r"\1", line)
+    line = re.sub(r",\s*([\)\]])", r"\1", line)
+    # Python-style trailing commas on switch arms (``"EURUSD" => 3.0 * atr,``).
+    # Safe: real multi-value arms are ``=> a, b`` (no trailing comma after last).
+    if "=>" in line and not line.lstrip().startswith("//"):
+        line = re.sub(r",\s*$", "", line)
+    return line
+
+
 def _strip_line_chrome(line: str) -> str | None:
     """Return cleaned line, or None to drop it."""
     stripped = line.lstrip()
@@ -385,6 +417,8 @@ def _strip_line_chrome(line: str) -> str | None:
         return None
     if stripped in ("[trans]", "[/trans]", "||"):
         return None
+    if _ELLIPSIS_ONLY_RE.match(line):
+        return None
     if _PROSE_LABEL_RE.match(line):
         return None
     if _FOOTER_LABELS.match(line) or _ISO_DT_RE.match(line):
@@ -404,7 +438,7 @@ def _strip_line_chrome(line: str) -> str | None:
         if _PROSE_LABEL_RE.match(">" + inner) or _FOOTER_LABELS.match(inner):
             return None
         if _CODEISH_RE.match(inner) or "=" in inner or "(" in inner:
-            return inner
+            return _polish_code_line(inner)
         return None
 
     # Clean broken scrape on version pragma: //@version=6`
@@ -412,7 +446,7 @@ def _strip_line_chrome(line: str) -> str | None:
     if m:
         return m.group(1)
 
-    return line
+    return _polish_code_line(line)
 
 
 def _is_pine_start_line(cleaned: str) -> bool:
@@ -532,8 +566,27 @@ def _line_has_arg_continuation(line: str, lines: list[str], index: int) -> bool:
     ns = nxt.lstrip()
     if nxt_indent > base_indent:
         return True
-    if ns.startswith(("'", '"', "+", "-", "*", "/", "and ", "or ", "?", ":", "//")):
+    if ns.startswith(
+        ("'", '"', "+", "-", "*", "/", "and ", "or ", "?", ":", "//", "(", "[", ".")
+    ):
         return True
+    prev = line.rstrip()
+    # Same-indent ternary arm continuation: ``x = a ? b :`` / next ``c ? d : e``.
+    if nxt_indent == base_indent and prev.endswith(("?", ":")):
+        if not ns.startswith(
+            ("if ", "for ", "while ", "switch ", "else", "type ", "enum ", "import ", "export ")
+        ):
+            return True
+    # Same-indent arithmetic / string concat: ``... +`` / ``... -`` / next term.
+    # (Multi-line scores, tooltips; ``or``/``and`` stay indent-only to avoid gluing
+    # the next statement onto a bool expr.)
+    if prev.endswith(("+", "-")) and nxt_indent >= base_indent:
+        if re.match(r"""^[A-Za-z_"'(\[]""", ns) and not re.match(
+            r"^(if|for|while|switch|else|type|enum|import|export)\b", ns
+        ):
+            # New assignment at same indent is a separate statement, not a concat piece.
+            if not re.match(r"^[A-Za-z_]\w*\s*=", ns):
+                return True
     return False
 
 
@@ -627,6 +680,8 @@ def _fix_truncated_syntax(text: str) -> str:
     - Truncated ``method name(`` → ``method name() => na``
     - Nested open calls left unbalanced → append ``)``
     - ``if cond`` / ``switch`` with empty/comment body → inject ``na``
+    - Trailing ``or`` / ``and`` / ``+`` … without continuation → append ``na``
+    - Empty function body ``f(...) =>`` at EOF → ``f(...) => na``
     """
     lines = text.splitlines(keepends=True)
     out: list[str] = []
@@ -634,11 +689,11 @@ def _fix_truncated_syntax(text: str) -> str:
     while i < len(lines):
         line = lines[i]
         stripped_nl = line.rstrip("\n")
+        eol = "\n" if line.endswith("\n") else ""
 
         # Truncated method definition: ``method debugLabel(``
         mm = _TRUNCATED_METHOD_RE.match(stripped_nl)
         if mm and not _line_has_arg_continuation(line, lines, i):
-            eol = "\n" if line.endswith("\n") else ""
             out.append(mm.group(1) + "() => na" + eol)
             i += 1
             continue
@@ -649,7 +704,6 @@ def _fix_truncated_syntax(text: str) -> str:
             and not stripped_nl.lstrip().startswith("//")
             and not _line_has_arg_continuation(line, lines, i)
         ):
-            eol = "\n" if line.endswith("\n") else ""
             core = _close_trailing_opens_on_line(stripped_nl.rstrip())
             out.append(core + eol)
             i += 1
@@ -659,10 +713,62 @@ def _fix_truncated_syntax(text: str) -> str:
         if _INCOMPLETE_ASSIGN_RE.match(stripped_nl) and not _line_has_arg_continuation(
             line, lines, i
         ):
-            eol = "\n" if line.endswith("\n") else ""
             out.append(stripped_nl.rstrip() + " na" + eol)
             i += 1
             continue
+
+        # Empty function / lambda body: ``upDownColor(float source) =>`` at cut
+        if (
+            re.search(r"=>\s*$", stripped_nl)
+            and not stripped_nl.lstrip().startswith("//")
+            and not _line_has_arg_continuation(line, lines, i)
+        ):
+            out.append(stripped_nl.rstrip() + " na" + eol)
+            i += 1
+            continue
+
+        # Mid-expression cut on binary/logical op: ``x = a or`` / ``s = "a" +``
+        mop = _TRAILING_BINOP_RE.match(stripped_nl)
+        if (
+            mop
+            and not stripped_nl.lstrip().startswith("//")
+            and not _line_has_arg_continuation(line, lines, i)
+        ):
+            out.append(stripped_nl.rstrip() + " na" + eol)
+            i += 1
+            continue
+
+        # Assignment to empty structure: ``x = switch`` / ``x = switch expr`` / ``x = if c``
+        m_as = re.match(
+            r"^(\s*.*?\S)\s*=\s*(switch|if)\b(.*)$",
+            stripped_nl,
+        )
+        if (
+            m_as
+            and not stripped_nl.lstrip().startswith("//")
+            and "=>" not in m_as.group(3)
+            and not _line_has_arg_continuation(line, lines, i)
+        ):
+            indent = re.match(r"^(\s*)", stripped_nl).group(1)  # type: ignore[union-attr]
+            j = i + 1
+            has_body = False
+            while j < len(lines):
+                nxt = lines[j]
+                if not nxt.strip():
+                    j += 1
+                    continue
+                if len(nxt) - len(nxt.lstrip(" \t")) <= len(indent) and nxt.strip():
+                    break
+                if nxt.lstrip().startswith("//"):
+                    j += 1
+                    continue
+                has_body = True
+                break
+            if not has_body:
+                # Replace RHS structure with na (structure body was truncated).
+                out.append(m_as.group(1) + " = na" + eol)
+                i += 1
+                continue
 
         # Control header with empty/comment-only body (includes switch)
         m = re.match(r"^(\s*)(if|else if|else|for|while|switch)\b(.*)$", stripped_nl)
@@ -684,7 +790,6 @@ def _fix_truncated_syntax(text: str) -> str:
                     has_body = True
                     break
                 if not has_body:
-                    eol = "\n" if line.endswith("\n") else ""
                     child = (
                         "\t"
                         if any("\t" in ln for ln in lines[i : min(i + 5, len(lines))])
@@ -699,7 +804,80 @@ def _fix_truncated_syntax(text: str) -> str:
                     continue
         out.append(line)
         i += 1
-    return _append_missing_closers("".join(out))
+    return _ensure_truncated_function_arrow(_append_missing_closers("".join(out)))
+
+
+# A single typed parameter line inside a function signature (docs scrape cut).
+_TYPED_PARAM_LINE_RE = re.compile(
+    r"^\s*(?:(?:series|simple|const)\s+)?"
+    r"(?:int|float|bool|string|color|line|label|box|table|chart\.point|"
+    r"array(?:\s*<[^>\n]*>)?|matrix(?:\s*<[^>\n]*>)?|map(?:\s*<[^>\n]*>)?)"
+    r"\s+[A-Za-z_]\w*"
+)
+_FUNC_OPEN_LINE_RE = re.compile(
+    r"^\s*(?:export\s+)?(?:method\s+)?[A-Za-z_]\w*\s*\(\s*$"
+)
+
+
+def _ensure_truncated_function_arrow(text: str) -> str:
+    """Append `` => na`` when a typed multi-line function header has no body.
+
+    Matches only this shape at EOF (after paren closers may have been added)::
+
+        timeWithinAllowedRange(
+             int    startTime, int endTime,
+             bool   useDateFilter = true,
+             string timeZone      = "GMT-0")
+
+    Never treats ``plot(...)`` / ``hline(...)`` / method *calls* as definitions:
+    those lack typed ``int x`` parameter lines between ``name(`` and ``)``.
+    """
+    if re.search(r"=>\s*\S", text.rstrip()[-120:]):
+        return text
+
+    lines = text.splitlines()
+    code_idxs = [
+        i for i, ln in enumerate(lines) if ln.strip() and not ln.lstrip().startswith("//")
+    ]
+    if len(code_idxs) < 3:
+        return text
+
+    last_i = code_idxs[-1]
+    last = lines[last_i].rstrip()
+    if not last.endswith(")"):
+        return text
+
+    # Walk back over typed param lines (last line may be ``string x = "GMT-0")``).
+    def _is_param_line(ln: str) -> bool:
+        # Strip trailing ``)`` / ``,`` for the closing param line.
+        core = ln.rstrip()
+        if core.endswith(")"):
+            core = core[:-1].rstrip()
+        core = core.rstrip(",").rstrip()
+        if not core:
+            return False
+        return bool(_TYPED_PARAM_LINE_RE.match(core))
+
+    # Last line must itself be a typed param (with optional closing paren).
+    if not _is_param_line(lines[last_i]):
+        return text
+
+    k = len(code_idxs) - 2  # index into code_idxs
+    while k >= 0 and _is_param_line(lines[code_idxs[k]]):
+        k -= 1
+    if k < 0:
+        return text
+
+    header_i = code_idxs[k]
+    if not _FUNC_OPEN_LINE_RE.match(lines[header_i]):
+        return text
+
+    # At least one typed param between header and close (already verified last).
+    if (len(code_idxs) - 1) - k < 2:
+        return text
+
+    eol = "\n" if text.endswith("\n") else ""
+    return text.rstrip("\n") + " => na" + eol
 
 
 def _compose(provenance: list[str], body: str, ends_with_nl: bool) -> str:
@@ -713,9 +891,28 @@ def _compose(provenance: list[str], body: str, ends_with_nl: bool) -> str:
     return text
 
 
+def _is_effectively_empty_script(body: str) -> bool:
+    """True for stubs like bare ``library().`` / ``library(...)`` with no body."""
+    # Strip comments and blanks
+    code = []
+    for ln in body.splitlines():
+        s = ln.strip()
+        if not s or s.startswith("//"):
+            continue
+        code.append(s)
+    if not code:
+        return True
+    if len(code) == 1 and re.match(r"^(indicator|strategy|library|study)\s*\(.*\)\s*\.?\s*$", code[0]):
+        # ``library().`` or ``strategy("x", ...)`` alone with no executable body — keep
+        # declaration-only scripts that already parse; only stub broken tails.
+        if code[0].endswith(").") or code[0].endswith("..."):
+            return True
+    return False
+
+
 def _finalize(provenance: list[str], body: str, ends_with_nl: bool) -> str:
     body = _fix_truncated_syntax(_fix_missing_decl_commas(body))
-    if not _has_usable_pine(body):
+    if not _has_usable_pine(body) or _is_effectively_empty_script(body):
         body = _MINIMAL_STUB
     return _compose(provenance, body, ends_with_nl)
 

@@ -33,6 +33,10 @@ from antlr4.Token import CommonToken
 from pynescript.ast.error import IndentationError as PinescriptIndentationError
 from pynescript.ast.error import SyntaxError as PinescriptSyntaxError
 
+# Precompiled once — only applied to line-wrapped single/double-quoted strings.
+_STRING_COLLAPSE_NL = re.compile(r"(\r?\n)+")
+_STRING_STRIP_WRAP_INDENT = re.compile(r"(\r?\n)(\s)+")
+
 
 class PinescriptLexerBase(Lexer):
     # ruff: noqa: N802, N806, A002
@@ -49,42 +53,51 @@ class PinescriptLexerBase(Lexer):
     - handle multiline string literal correctly (ignore <newline + indentation for line wrapping>)
     """
 
+    # Built lazily on first lexer instance of each concrete subclass (token ids differ by grammar).
+    _operator_types: frozenset[int] | None = None
+
     def __init__(self, input: InputStream, output: TextIO = sys.stdout):
         super().__init__(input, output)
 
-        # operators that are followed by terms (line-join after these)
-        self._operators = {
-            self.AND,
-            self.COLON,
-            self.COLONEQUAL,
-            self.COMMA,
-            self.EQEQUAL,
-            self.EQUAL,
-            self.GREATER,
-            self.GREATEREQUAL,
-            self.LESS,
-            self.LESSEQUAL,
-            self.MINEQUAL,
-            self.MINUS,
-            self.NOTEQUAL,
-            self.OR,
-            self.PERCENT,
-            self.PERCENTEQUAL,
-            self.PLUS,
-            self.PLUSEQUAL,
-            self.QUESTION,
-            self.SLASH,
-            self.SLASHEQUAL,
-            self.STAR,
-            self.STAREQUAL,
-            # bitwise / shift (Pine v5+)
-            self.AMP,
-            self.PIPE,
-            self.CARET,
-            self.LSHIFT,
-            self.RSHIFT,
-            self.TILDE,
-        }
+        cls = type(self)
+        ops = cls._operator_types
+        if ops is None:
+            ops = frozenset(
+                {
+                    self.AND,
+                    self.COLON,
+                    self.COLONEQUAL,
+                    self.COMMA,
+                    self.EQEQUAL,
+                    self.EQUAL,
+                    self.GREATER,
+                    self.GREATEREQUAL,
+                    self.LESS,
+                    self.LESSEQUAL,
+                    self.MINEQUAL,
+                    self.MINUS,
+                    self.NOTEQUAL,
+                    self.OR,
+                    self.PERCENT,
+                    self.PERCENTEQUAL,
+                    self.PLUS,
+                    self.PLUSEQUAL,
+                    self.QUESTION,
+                    self.SLASH,
+                    self.SLASHEQUAL,
+                    self.STAR,
+                    self.STAREQUAL,
+                    # bitwise / shift (Pine v5+)
+                    self.AMP,
+                    self.PIPE,
+                    self.CARET,
+                    self.LSHIFT,
+                    self.RSHIFT,
+                    self.TILDE,
+                }
+            )
+            cls._operator_types = ops
+        self._operators = ops
 
         # indent specific parameters
         self._tabLength: int = 4
@@ -94,8 +107,8 @@ class PinescriptLexerBase(Lexer):
         self._currentToken: CommonToken | None = None
         self._followingToken: CommonToken | None = None
 
-        # keep pending tokens
-        self._pendingTokens: list[CommonToken] = []
+        # keep pending tokens (deque: O(1) popleft vs list.pop(0))
+        self._pendingTokens: deque[CommonToken] = deque()
 
         # track last pending token types
         self._lastPendingTokenType: int = 0
@@ -107,45 +120,52 @@ class PinescriptLexerBase(Lexer):
         # track indentations
         self._indentLengthStack: deque[int] = deque()
 
+        # True after start-of-input indent bootstrap has run
+        self._inputStarted: bool = False
+
     def _resetInternalStates(self):
         self._currentToken = None
         self._followingToken = None
-        self._pendingTokens = []
+        self._pendingTokens = deque()
         self._lastPendingTokenType = 0
         self._lastPendingTokenTypeFromDefaultChannel = 0
         self._numOpens = 0
         self._indentLengthStack = deque()
+        self._inputStarted = False
 
     def nextToken(self) -> CommonToken:
         self._checkNextToken()
         return self._popPendingToken()
 
     def _checkNextToken(self) -> None:
-        if self._reachedEndOfFile():
+        if self._lastPendingTokenType == Token.EOF:
             return
 
         self._setNextInternalTokens()
-        self._handleStartOfInputIfNecessary()
+        if not self._inputStarted:
+            self._handleStartOfInputIfNecessary()
 
-        match self._currentToken.type:
-            case self.LPAR | self.LSQB:
-                self._numOpens += 1
-                self._addPendingToken(self._currentToken)
-            case self.RPAR | self.RSQB:
-                self._numOpens -= 1
-                self._addPendingToken(self._currentToken)
-            case self.NEWLINE:
-                self._handle_NEWLINE_token()
-            case self.STRING:
-                self._handle_STRING_token()
-            case self.ERROR_TOKEN:
-                message = "token recognition error at: '" + self._currentToken.text + "'"
-                self._reportLexerError(message, self._currentToken, PinescriptSyntaxError)
-                self._addPendingToken(self._currentToken)
-            case Token.EOF:
-                self._handle_EOF_token()
-            case _:
-                self._addPendingToken(self._currentToken)
+        tok_type = self._currentToken.type
+        # Hot path: most tokens are identifiers / keywords / numbers / ops.
+        # if/elif is slightly cheaper than match for dense integer dispatch.
+        if tok_type == self.LPAR or tok_type == self.LSQB:
+            self._numOpens += 1
+            self._addPendingToken(self._currentToken)
+        elif tok_type == self.RPAR or tok_type == self.RSQB:
+            self._numOpens -= 1
+            self._addPendingToken(self._currentToken)
+        elif tok_type == self.NEWLINE:
+            self._handle_NEWLINE_token()
+        elif tok_type == self.STRING:
+            self._handle_STRING_token()
+        elif tok_type == self.ERROR_TOKEN:
+            message = "token recognition error at: '" + self._currentToken.text + "'"
+            self._reportLexerError(message, self._currentToken, PinescriptSyntaxError)
+            self._addPendingToken(self._currentToken)
+        elif tok_type == Token.EOF:
+            self._handle_EOF_token()
+        else:
+            self._addPendingToken(self._currentToken)
 
     def _reachedEndOfFile(self) -> bool:
         return self._lastPendingTokenType == Token.EOF
@@ -155,8 +175,9 @@ class PinescriptLexerBase(Lexer):
         self._followingToken = self._currentToken if self._currentToken.type == Token.EOF else super().nextToken()
 
     def _handleStartOfInputIfNecessary(self):
-        if len(self._indentLengthStack) > 0:
+        if self._inputStarted:
             return
+        self._inputStarted = True
         self._indentLengthStack.append(0)
         while self._currentToken.type != Token.EOF:
             if self._currentToken.channel == Token.DEFAULT_CHANNEL:
@@ -179,14 +200,14 @@ class PinescriptLexerBase(Lexer):
 
     def _getIndentationLength(self, text: str) -> int:
         length = 0
+        tab = self._tabLength
         for ch in text:
-            match ch:
-                case " ":
-                    length += 1
-                case "\t":
-                    length += self._tabLength
-                case "\f":
-                    length = 0
+            if ch == " ":
+                length += 1
+            elif ch == "\t":
+                length += tab
+            elif ch == "\f":
+                length = 0
         return length
 
     def _createAndAddPendingToken(self, type: int, channel: int, text: str | None, base_token: CommonToken):
@@ -208,7 +229,7 @@ class PinescriptLexerBase(Lexer):
         self._addPendingToken(token)
 
     def _popPendingToken(self) -> CommonToken:
-        return self._pendingTokens.pop(0)
+        return self._pendingTokens.popleft()
 
     def _handle_NEWLINE_token(self):
         # Use last *default-channel* token so trailing spaces after operators
@@ -216,35 +237,34 @@ class PinescriptLexerBase(Lexer):
         # not clear the operator-continuation state.
         if self._numOpens > 0 or self._lastPendingTokenTypeFromDefaultChannel in self._operators:
             self._hideAndAddPendingToken(self._currentToken)
-        else:
-            nl_token: CommonToken = self._currentToken
-            is_looking_ahead: bool = self._followingToken.type == self.WS
+            return
 
+        nl_token: CommonToken = self._currentToken
+        following_type = self._followingToken.type
+        is_looking_ahead: bool = following_type == self.WS
+
+        if is_looking_ahead:
+            self._setNextInternalTokens()
+            following_type = self._followingToken.type
+
+        if following_type == self.NEWLINE or following_type == self.COMMENT:
+            self._hideAndAddPendingToken(nl_token)
             if is_looking_ahead:
-                self._setNextInternalTokens()
-
-            match self._followingToken.type:
-                case self.NEWLINE | self.COMMENT:
-                    self._hideAndAddPendingToken(nl_token)
-                    if is_looking_ahead:
-                        self._addPendingToken(self._currentToken)
-                case _:
-                    if is_looking_ahead:
-                        indentation_length: int = (
-                            0
-                            if self._followingToken.type == Token.EOF
-                            else self._getIndentationLength(self._currentToken.text)
-                        )
-                        if self._isValidIndent(indentation_length):
-                            self._addPendingToken(nl_token)
-                            self._addPendingToken(self._currentToken)
-                            self._insertIndentOrDedentToken(indentation_length)
-                        else:
-                            self._hideAndAddPendingToken(nl_token)
-                            self._addPendingToken(self._currentToken)
-                    else:
-                        self._addPendingToken(nl_token)
-                        self._insertIndentOrDedentToken(0)
+                self._addPendingToken(self._currentToken)
+        elif is_looking_ahead:
+            indentation_length: int = (
+                0 if following_type == Token.EOF else self._getIndentationLength(self._currentToken.text)
+            )
+            if indentation_length % self._indentLength == 0:
+                self._addPendingToken(nl_token)
+                self._addPendingToken(self._currentToken)
+                self._insertIndentOrDedentToken(indentation_length)
+            else:
+                self._hideAndAddPendingToken(nl_token)
+                self._addPendingToken(self._currentToken)
+        else:
+            self._addPendingToken(nl_token)
+            self._insertIndentOrDedentToken(0)
 
     def _isValidIndent(self, indent_length: int):
         return indent_length % self._indentLength == 0
@@ -276,10 +296,14 @@ class PinescriptLexerBase(Lexer):
             self._addPendingToken(self._currentToken)
             return
 
-        replacedText: str = text
-        replacedText = re.sub(r"(\r?\n)+", r"\1", replacedText)
-        replacedText = re.sub(r"(\r?\n)(\s)+", "", replacedText)
-        if len(self._currentToken.text) == len(replacedText):
+        # Fast path: ordinary single-line strings (vast majority) need no rewrite.
+        if "\n" not in text and "\r" not in text:
+            self._addPendingToken(self._currentToken)
+            return
+
+        replacedText = _STRING_COLLAPSE_NL.sub(r"\1", text)
+        replacedText = _STRING_STRIP_WRAP_INDENT.sub("", replacedText)
+        if len(text) == len(replacedText):
             self._addPendingToken(self._currentToken)
         else:
             originalToken: CommonToken = self._currentToken.clone()
@@ -288,11 +312,9 @@ class PinescriptLexerBase(Lexer):
             self._hideAndAddPendingToken(originalToken)
 
     def _insertTrailingTokens(self):
-        match self._lastPendingTokenTypeFromDefaultChannel:
-            case self.NEWLINE | self.DEDENT:
-                pass
-            case _:
-                self._createAndAddPendingToken(self.NEWLINE, Token.DEFAULT_CHANNEL, None, self._followingToken)
+        last = self._lastPendingTokenTypeFromDefaultChannel
+        if last != self.NEWLINE and last != self.DEDENT:
+            self._createAndAddPendingToken(self.NEWLINE, Token.DEFAULT_CHANNEL, None, self._followingToken)
         self._insertIndentOrDedentToken(0)
 
     def _handle_EOF_token(self):

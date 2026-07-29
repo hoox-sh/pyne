@@ -31,7 +31,6 @@ to this dataclass must be reflected in
 
 from __future__ import annotations
 
-from dataclasses import asdict
 from dataclasses import dataclass
 from typing import Literal
 
@@ -85,10 +84,25 @@ class StrategyEvent:
         Every field is included, with ``None`` preserved for unspecified
         fields (the parity contract with the TS port requires the key to
         always be present).
+
+        Manual construction (not ``dataclasses.asdict``) — asdict walks fields
+        via reflection and dominates warm strategy event drains.
         """
-        d = asdict(self)
-        # ``ohlc`` is a tuple in the dataclass for fixed-size safety, but
-        # JSON serialization always produces a list. Convert eagerly so that
-        # ``json.load`` round-trips cleanly (tuple != list in Python).
-        d["ohlc"] = list(d["ohlc"])
-        return d
+        ohlc = self.ohlc
+        return {
+            "kind": self.kind,
+            "id": self.id,
+            "direction": self.direction,
+            "qty": self.qty,
+            "order_type": self.order_type,
+            "limit": self.limit,
+            "stop": self.stop,
+            "oca_name": self.oca_name,
+            "comment": self.comment,
+            "bar_index": self.bar_index,
+            "bar_time": self.bar_time,
+            # tuple → list for JSON / parity round-trip
+            "ohlc": [ohlc[0], ohlc[1], ohlc[2], ohlc[3]],
+            "script_id": self.script_id,
+            "run_id": self.run_id,
+        }

@@ -63,11 +63,27 @@ class CustomEvaluator(NodeLiteralEvaluator):
     """
     Evaluator that captures plot commands.
     Supports optional data_feed / data_provider for request.* integration.
+
+    Plot capture (bar mode / Runtime host):
+      - Values go into columnar ``_plot_value_cols`` (one list per call-site order).
+      - Meta (title/color/kind/…) is recorded once in ``_plot_meta_list``.
+      - ``plot_outputs`` stays as a per-bar legacy buffer (cleared each bar) for
+        any mid-bar readers; Runtime prefers columns when present.
+      - ``PlotRegistry`` (super()) is optional: Runtime disables it when the
+        script has no ``fill()`` so plot() need not return Plot handles.
     """
 
     def __init__(self, context=None, data_feed=None, data_provider=None):
         super().__init__(context, data_feed=data_feed, data_provider=data_provider)
-        self.plot_outputs = []
+        self.plot_outputs: list[Any] = []
+        # Columnar capture (preferred by Runtime post-process)
+        self._plot_value_cols: list[list[Any]] = []
+        self._plot_meta_list: list[dict[str, Any]] = []
+        self._plot_capture_i = 0
+        self._plot_bars_done = 0
+        # When False, skip PlotRegistry super() path (fill() needs True).
+        # Default True so non-Runtime CustomEvaluator users keep registry semantics.
+        self._pine_need_plot_ids = True
         # Bar-by-bar mode: TA helpers return current scalar instead of full series
         self._pine_bar_mode = True
         # O(1)/O(period) call-site TA for sma/ema/rma/rsi (disable via PYNE_TA_INCREMENTAL=0)
@@ -77,7 +93,61 @@ class CustomEvaluator(NodeLiteralEvaluator):
         if not hasattr(self, "_var_declarations"):
             self._var_declarations = set()
 
-    def _builtin_plot(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> None:
+    def _capture_plot(
+        self,
+        kind: str,
+        value: Any,
+        title: str | None,
+        color_s: str | None,
+        linewidth: int = 1,
+        **extra: Any,
+    ) -> None:
+        """Append one plot cell for this bar into columnar buffers."""
+        i = self._plot_capture_i
+        self._plot_capture_i = i + 1
+        cols = self._plot_value_cols
+        meta = self._plot_meta_list
+        if i >= len(cols):
+            # New call-site order index: pad prior bars with None
+            cols.append([None] * self._plot_bars_done)
+            entry: dict[str, Any] = {
+                "type": kind,
+                "kind": kind,
+                "title": title,
+                "color": color_s,
+                "linewidth": int(linewidth or 1),
+            }
+            for k, v in extra.items():
+                if v is not None:
+                    entry[k] = v
+            meta.append(entry)
+        else:
+            m = meta[i]
+            if m.get("color") is None and color_s is not None:
+                m["color"] = color_s
+            for k, v in extra.items():
+                if v is not None and m.get(k) is None:
+                    m[k] = v
+        cols[i].append(value)
+
+    def finish_bar_plots(self) -> None:
+        """Pad short columns for call sites not hit this bar; advance bar counter."""
+        n = self._plot_capture_i
+        cols = self._plot_value_cols
+        for j in range(n, len(cols)):
+            cols[j].append(None)
+        self._plot_bars_done += 1
+        self._plot_capture_i = 0
+
+    def _maybe_registry(self, method_name: str, args: list[Any], kwargs: dict[str, Any] | None) -> Any:
+        if not self._pine_need_plot_ids:
+            return None
+        try:
+            return getattr(super(), method_name)(args, kwargs)
+        except Exception:
+            return None
+
+    def _builtin_plot(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> Any:
         """Capture plot value + title/color for multi-series AXIS response."""
         kwargs = kwargs or {}
         if not args and "series" not in kwargs:
@@ -88,22 +158,10 @@ class CustomEvaluator(NodeLiteralEvaluator):
         color = kwargs.get("color", args[2] if len(args) > 2 else None)
         linewidth = kwargs.get("linewidth", args[5] if len(args) > 5 else 1)
         color_s = _serialize_color(color) if color is not None else None
+        title_s = str(title or "") or None
 
-        self.plot_outputs.append(
-            {
-                "type": "plot",
-                "kind": "plot",
-                "value": value,
-                "title": str(title or "") or None,
-                "color": color_s,
-                "linewidth": int(linewidth or 1),
-            }
-        )
-        # Still register on PlotRegistry for parity/backends that inspect it
-        try:
-            return super()._builtin_plot(args, kwargs)
-        except Exception:
-            return None
+        self._capture_plot("plot", value, title_s, color_s, int(linewidth or 1))
+        return self._maybe_registry("_builtin_plot", args, kwargs)
 
     def _builtin_hline(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> Any:
         """Capture hline as a constant-price series for AXIS (kind=hline)."""
@@ -118,44 +176,32 @@ class CustomEvaluator(NodeLiteralEvaluator):
         linewidth = kwargs.get("linewidth", args[4] if len(args) > 4 else 1)
         color_s = _serialize_color(color) if color is not None else None
 
-        self.plot_outputs.append(
-            {
-                "type": "hline",
-                "kind": "hline",
-                "value": price,
-                "title": str(title or "") or "hline",
-                "color": color_s,
-                "linewidth": int(linewidth or 1),
-                "linestyle": str(linestyle or "linestyle_solid"),
-                "style": "hline",
-            }
+        self._capture_plot(
+            "hline",
+            price,
+            str(title or "") or "hline",
+            color_s,
+            int(linewidth or 1),
+            linestyle=str(linestyle or "linestyle_solid"),
+            style="hline",
         )
-        try:
-            return super()._builtin_hline(args, kwargs)
-        except Exception:
-            return None
+        return self._maybe_registry("_builtin_hline", args, kwargs)
 
-    def _builtin_bgcolor(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> None:
+    def _builtin_bgcolor(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> Any:
         """Capture bgcolor per-bar color for AXIS background bands."""
         kwargs = kwargs or {}
         color = _unwrap_scalar(kwargs.get("color", args[0] if args else None))
         title = kwargs.get("title", args[1] if len(args) > 1 else "bgcolor")
         color_s = _serialize_color(color)
-        self.plot_outputs.append(
-            {
-                "type": "bgcolor",
-                "kind": "bgcolor",
-                "value": color_s,
-                "title": str(title or "") or "bgcolor",
-                "color": color_s,
-            }
+        self._capture_plot(
+            "bgcolor",
+            color_s,
+            str(title or "") or "bgcolor",
+            color_s,
         )
-        try:
-            return super()._builtin_bgcolor(args, kwargs)
-        except Exception:
-            return None
+        return self._maybe_registry("_builtin_bgcolor", args, kwargs)
 
-    def _builtin_plotshape(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> None:
+    def _builtin_plotshape(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> Any:
         """Capture plotshape condition + style for AXIS bar markers."""
         kwargs = kwargs or {}
         if not args and "series" not in kwargs:
@@ -166,24 +212,18 @@ class CustomEvaluator(NodeLiteralEvaluator):
         location = kwargs.get("location", args[3] if len(args) > 3 else "")
         color = _unwrap_scalar(kwargs.get("color", args[4] if len(args) > 4 else None))
         text = kwargs.get("text", None)
-        self.plot_outputs.append(
-            {
-                "type": "plotshape",
-                "kind": "plotshape",
-                "value": value,
-                "title": str(title or "") or "shape",
-                "color": _serialize_color(color) if color is not None else None,
-                "style": str(style or "") if style is not None else "",
-                "location": str(location or "") if location is not None else "",
-                "text": str(text) if text is not None else "",
-            }
+        self._capture_plot(
+            "plotshape",
+            value,
+            str(title or "") or "shape",
+            _serialize_color(color) if color is not None else None,
+            style=str(style or "") if style is not None else "",
+            location=str(location or "") if location is not None else "",
+            text=str(text) if text is not None else "",
         )
-        try:
-            return super()._builtin_plotshape(args, kwargs)
-        except Exception:
-            return None
+        return self._maybe_registry("_builtin_plotshape", args, kwargs)
 
-    def _builtin_plotchar(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> None:
+    def _builtin_plotchar(self, args: list[Any], kwargs: dict[str, Any] | None = None) -> Any:
         """Capture plotchar condition + char for AXIS bar markers."""
         kwargs = kwargs or {}
         if not args and "series" not in kwargs:
@@ -194,27 +234,23 @@ class CustomEvaluator(NodeLiteralEvaluator):
         location = kwargs.get("location", args[3] if len(args) > 3 else "")
         color = _unwrap_scalar(kwargs.get("color", args[4] if len(args) > 4 else None))
         char_s = str(char or "") if char is not None else ""
-        self.plot_outputs.append(
-            {
-                "type": "plotchar",
-                "kind": "plotchar",
-                "value": value,
-                "title": str(title or "") or "char",
-                "color": _serialize_color(color) if color is not None else None,
-                "style": "char",
-                "location": str(location or "") if location is not None else "",
-                "text": char_s,
-                "char": char_s,
-            }
+        self._capture_plot(
+            "plotchar",
+            value,
+            str(title or "") or "char",
+            _serialize_color(color) if color is not None else None,
+            style="char",
+            location=str(location or "") if location is not None else "",
+            text=char_s,
+            char=char_s,
         )
-        try:
-            return super()._builtin_plotchar(args, kwargs)
-        except Exception:
-            return None
+        return self._maybe_registry("_builtin_plotchar", args, kwargs)
 
     def reset_plots(self):
-        # Reuse list to cut per-bar allocations (values are copied into results)
+        # Per-bar index reset; columns accumulate across the run.
+        # Legacy plot_outputs kept empty (Runtime uses columns).
         self.plot_outputs.clear()
+        self._plot_capture_i = 0
 
     def reset_var_declarations(self):
         """Reset var declarations set for per-run (from plan branch var support)."""

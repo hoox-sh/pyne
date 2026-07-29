@@ -622,25 +622,19 @@ class StatementEvaluator:
         # Handle simple variable augmented assignment (x += 1, x -= 1, etc.)
         if isinstance(node.target, ast.Name):
             var_name = node.target.id
-            if var_name in self.context:  # type: ignore[attr-defined]
-                current = self.context[var_name]  # type: ignore[attr-defined]
+            ctx = self.context  # type: ignore[attr-defined]
+            if var_name in ctx:
+                current = ctx[var_name]
                 rhs = self.visit(node.value)  # type: ignore[attr-defined]
+                # Direct elementwise path (no wrapper frame); matches visit_BinOp.
                 from pynescript.ast.evaluator.expressions import (
-                    _OPERATOR_ADD,
-                    _OPERATOR_SUB,
-                    _OPERATOR_MUL,
-                    _OPERATOR_DIV,
+                    _BINOP_RAW,
+                    _elementwise_binary,
                 )
 
-                _AUGOP_MAP: dict = {
-                    ast.Add: _OPERATOR_ADD,
-                    ast.Sub: _OPERATOR_SUB,
-                    ast.Mult: _OPERATOR_MUL,
-                    ast.Div: _OPERATOR_DIV,
-                }
-                op_fn = _AUGOP_MAP.get(type(node.op))
-                if op_fn:
-                    self.context[var_name] = op_fn(current, rhs)  # type: ignore[attr-defined]
+                raw = _BINOP_RAW.get(type(node.op))
+                if raw is not None:
+                    ctx[var_name] = _elementwise_binary(raw, current, rhs)
                     return
 
         msg = f"Unsupported augmented assignment: {type(node.target)}"

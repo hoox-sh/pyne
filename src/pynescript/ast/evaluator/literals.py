@@ -43,11 +43,14 @@ class LiteralEvaluator:
         Raises:
             ValueError: If the constant has an unexpected kind modifier
         """
+        # Hot path: plain numeric / bool / str / None literals have kind=None.
+        kind = node.kind
+        if kind is None:
+            return node.value
         # Allow color literals (kind="#")
-        if node.kind and node.kind != "#":
-            msg = f"unexpected constant kind: {node.kind!s}"
+        if kind != "#":
+            msg = f"unexpected constant kind: {kind!s}"
             raise ValueError(msg)
-        # Return the literal value directly
         return node.value
 
     def visit_Tuple(self, node: ast.Tuple) -> Any:

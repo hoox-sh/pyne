@@ -106,6 +106,18 @@ class BasicIndicators(TechnicalHelpers):
         TradingView: ``ta.vwap(source)`` or ``ta.vwap`` (defaults to hlc3).
         Extra anchor/args beyond the source are ignored for now.
         """
+        if self._use_incremental_ta():
+            # O(1) cumulative — only need last price/volume samples.
+            if len(args) == 0:
+                series_map = getattr(self, "current_series", None) or {}
+                source = series_map.get("hlc3") or series_map.get("close")
+            else:
+                source = args[0]
+            if source is None or source == []:
+                return None
+            series_map = getattr(self, "current_series", None) or {}
+            volume = series_map.get("volume")
+            return self._vwap_inc_update(source, volume if volume else None)
         if len(args) == 0:
             source = self._context_series("hlc3") or self._context_series("close")
         else:
@@ -187,6 +199,19 @@ class BasicIndicators(TechnicalHelpers):
 
     def _builtin_ta_highestbars(self, args: list[Any]) -> int:
         """Offset to highest value."""
+        if self._use_incremental_ta():
+            if len(args) == 1 and self._is_period_like(args[0]):
+                period = self._expect_int(args[0], "Period must be an integer")
+                src = (getattr(self, "current_series", None) or {}).get("high") or []
+            elif len(args) >= BINARY:
+                period = self._expect_int(args[1], "Second argument must be an integer (period)")
+                src = args[0]
+            else:
+                series, period = self._expect_series(
+                    args, length=BINARY, default_source="high", allow_period_only=True
+                )
+                src = series
+            return self._highestbars_inc_update(src, period)
         series, period = self._expect_series(
             args, length=BINARY, default_source="high", allow_period_only=True
         )
@@ -194,6 +219,19 @@ class BasicIndicators(TechnicalHelpers):
 
     def _builtin_ta_lowestbars(self, args: list[Any]) -> int:
         """Offset to lowest value."""
+        if self._use_incremental_ta():
+            if len(args) == 1 and self._is_period_like(args[0]):
+                period = self._expect_int(args[0], "Period must be an integer")
+                src = (getattr(self, "current_series", None) or {}).get("low") or []
+            elif len(args) >= BINARY:
+                period = self._expect_int(args[1], "Second argument must be an integer (period)")
+                src = args[0]
+            else:
+                series, period = self._expect_series(
+                    args, length=BINARY, default_source="low", allow_period_only=True
+                )
+                src = series
+            return self._lowestbars_inc_update(src, period)
         series, period = self._expect_series(
             args, length=BINARY, default_source="low", allow_period_only=True
         )
@@ -213,6 +251,11 @@ class BasicIndicators(TechnicalHelpers):
 
     def _builtin_ta_mom(self, args: list[Any]) -> float:
         """Momentum."""
+        if self._use_incremental_ta():
+            if len(args) != BINARY:
+                self._error("ta.mom requires series and period")
+            period = self._expect_int(args[1], "Second argument must be an integer (period)")
+            return self._mom_inc_update(args[0], period)
         series, period = self._expect_series(args, length=BINARY)
         return self._mom(series, period)
 
@@ -227,6 +270,8 @@ class BasicIndicators(TechnicalHelpers):
         """Symmetrically Weighted Moving Average. TV: ``ta.swma(source)``."""
         if len(args) != UNARY:
             self._error("ta.swma expects one source argument")
+        if self._use_incremental_ta():
+            return self._swma_inc_update(args[0])
         return self._swma(self._as_series(args[0]))
 
     def _builtin_ta_tr(self, args: list[Any]) -> Any:
@@ -493,6 +538,14 @@ class BasicIndicators(TechnicalHelpers):
 
         TV: ``ta.linreg(source, length, offset)`` — offset is optional (default 0).
         """
+        if self._use_incremental_ta():
+            if len(args) < BINARY:
+                self._error("ta.linreg requires source and length")
+            length = self._expect_int(args[1], "ta.linreg length must be int")
+            if length < 2:
+                self._error("ta.linreg length must be at least 2")
+            return self._linreg_inc_update(args[0], length)
+
         if len(args) == TERNARY:
             series = self._as_series(args[0])
             length = self._expect_int(args[1], "ta.linreg length must be int")
@@ -574,6 +627,8 @@ class BasicIndicators(TechnicalHelpers):
     def _builtin_ta_swma(self, args: list[Any]) -> float | None:
         """Symmetric Weighted Moving Average (TV: one-arg source)."""
         if len(args) >= 1:
+            if self._use_incremental_ta():
+                return self._swma_inc_update(args[0])
             return self._swma(self._as_series(args[0]))
         self._error("ta.swma expects a source series")
         return None
@@ -774,6 +829,8 @@ class BasicIndicators(TechnicalHelpers):
             msg = "ta.barssince() takes exactly one argument"
             self._error(msg)
         condition = args[0]
+        if self._use_incremental_ta():
+            return self._barssince_inc_update(condition)
         # If condition is a list (series), check from the end backwards
         if isinstance(condition, list):
             for i in range(len(condition) - 1, -1, -1):
@@ -781,7 +838,7 @@ class BasicIndicators(TechnicalHelpers):
                 if is_true:
                     return len(condition) - 1 - i
             return len(condition) - 1
-        # If condition is boolean, return 0 if true, 1 if false
+        # If condition is boolean without bar-mode state, return 0 if true, 1 if false
         is_true = condition is True or (condition is not None and condition is not False)
         if is_true:
             return 0

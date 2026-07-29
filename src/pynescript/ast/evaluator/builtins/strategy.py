@@ -138,6 +138,13 @@ class StrategyState:
         self._max_drawdown_percent: float = 0.0
         self._max_runup_percent: float = 0.0
         self._events: list[StrategyEvent] = []
+        # Running aggregates — O(1) netprofit/wintrades (avoid re-summing closed_trades)
+        self._netprofit: float = 0.0
+        self._grossprofit: float = 0.0
+        self._grossloss: float = 0.0
+        self._wintrades: int = 0
+        self._losstrades: int = 0
+        self._eventrades: int = 0
 
     def drain_events(self) -> list[StrategyEvent]:
         """Return all captured events and clear the internal buffer."""
@@ -183,20 +190,42 @@ class StrategyState:
             return -float(self.position_size)
         return 0.0
 
+    def note_closed_profit(self, profit: float) -> None:
+        """Update O(1) aggregates when a closed trade is recorded."""
+        p = float(profit)
+        self._netprofit += p
+        if p > 0:
+            self._grossprofit += p
+            self._wintrades += 1
+        elif p < 0:
+            self._grossloss += -p
+            self._losstrades += 1
+        else:
+            self._eventrades += 1
+
     def netprofit(self) -> float:
-        return float(sum(t.profit for t in self.closed_trades))
+        return self._netprofit
 
     def openprofit(self, mark_price: float) -> float:
+        trades = self.open_trades
+        if not trades:
+            return 0.0
+        # Fast path: single open trade (common)
+        if len(trades) == 1:
+            t = trades[0]
+            if t.direction == "long":
+                return (mark_price - t.entry_price) * t.size - t.commission
+            return (t.entry_price - mark_price) * t.size - t.commission
         total = 0.0
-        for t in self.open_trades:
+        for t in trades:
             if t.direction == "long":
                 total += (mark_price - t.entry_price) * t.size - t.commission
             else:
                 total += (t.entry_price - mark_price) * t.size - t.commission
-        return float(total)
+        return total
 
     def equity(self, mark_price: float) -> float:
-        eq = float(self.initial_capital + self.netprofit() + self.openprofit(mark_price))
+        eq = self.initial_capital + self._netprofit + self.openprofit(mark_price)
         self._track_equity_curve(eq)
         return eq
 
@@ -220,20 +249,20 @@ class StrategyState:
                 self._max_runup_percent = 100.0 * ru / self._equity_trough
 
     def grossprofit(self) -> float:
-        return float(sum(t.profit for t in self.closed_trades if t.profit > 0))
+        return self._grossprofit
 
     def grossloss(self) -> float:
         # Pine reports gross loss as a positive number
-        return float(sum(-t.profit for t in self.closed_trades if t.profit < 0))
+        return self._grossloss
 
     def wintrades(self) -> int:
-        return sum(1 for t in self.closed_trades if t.profit > 0)
+        return self._wintrades
 
     def losstrades(self) -> int:
-        return sum(1 for t in self.closed_trades if t.profit < 0)
+        return self._losstrades
 
     def eventrades(self) -> int:
-        return sum(1 for t in self.closed_trades if t.profit == 0)
+        return self._eventrades
 
     def _pct_of_initial(self, amount: float) -> float:
         if self.initial_capital == 0:
@@ -279,21 +308,50 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
         If ``ohlc`` was left as zeros (legacy call sites), fill from the
         current bar so AXIS markers / equity can resolve a fill price without
         a host-side bar join.
-        """
-        from dataclasses import replace
 
-        if event.ohlc == (0.0, 0.0, 0.0, 0.0):
-            event = replace(event, ohlc=self._bar_ohlc())
+        Avoids ``dataclasses.replace`` (field reflection) — rebuild only when
+        needed with a single OHLC cache per bar.
+        """
+        ohlc = event.ohlc
+        if ohlc[0] == 0.0 and ohlc[1] == 0.0 and ohlc[2] == 0.0 and ohlc[3] == 0.0:
+            event = StrategyEvent(
+                kind=event.kind,
+                id=event.id,
+                direction=event.direction,
+                qty=event.qty,
+                order_type=event.order_type,
+                limit=event.limit,
+                stop=event.stop,
+                oca_name=event.oca_name,
+                comment=event.comment,
+                bar_index=event.bar_index,
+                bar_time=event.bar_time,
+                ohlc=self._bar_ohlc(),
+                script_id=event.script_id,
+                run_id=event.run_id,
+            )
         self._strategy_state._events.append(event)
 
     def _bar_ohlc(self) -> tuple[float, float, float, float]:
-        """OHLC of the bar currently being evaluated (for StrategyEvent.ohlc)."""
+        """OHLC of the bar currently being evaluated (for StrategyEvent.ohlc).
+
+        Caches per bar_index so multiple events on the same bar share one
+        coerce pass (entry+close, OCA cancels, …).
+        """
         ctx = getattr(self, "context", {}) or {}
+        bi = ctx.get("bar_index", 0)
+        if getattr(self, "_ohlc_cache_bar", None) == bi:
+            cached = getattr(self, "_ohlc_cache", None)
+            if cached is not None:
+                return cached  # type: ignore[return-value]
         o = self._coerce_number(ctx.get("open"), default=0.0)
         h = self._coerce_number(ctx.get("high"), default=0.0)
         lo = self._coerce_number(ctx.get("low"), default=0.0)
         c = self._coerce_number(ctx.get("close"), default=self._mark_price())
-        return (float(o), float(h), float(lo), float(c))
+        tup = (float(o), float(h), float(lo), float(c))
+        self._ohlc_cache_bar = bi  # type: ignore[attr-defined]
+        self._ohlc_cache = tup  # type: ignore[attr-defined]
+        return tup
 
     def _strategy_builtin_map(self) -> dict[str, BuiltinHandler]:
         return {
@@ -1015,6 +1073,9 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
         """
         if not hasattr(self, "_strategy_state"):
             return []
+        pending = self._strategy_state.pending_orders
+        if not pending:
+            return []
         ctx = getattr(self, "context", {}) or {}
         o = self._coerce_number(open_ if open_ is not None else ctx.get("open"), default=self._mark_price())
         h = self._coerce_number(high if high is not None else ctx.get("high"), default=o)
@@ -1023,7 +1084,7 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
 
         fully_filled: list[str] = []
         # Snapshot ids — OCA may delete siblings mid-loop
-        for order_id in list(self._strategy_state.pending_orders.keys()):
+        for order_id in list(pending.keys()):
             order = self._strategy_state.pending_orders.get(order_id)
             if order is None:
                 continue
@@ -1329,6 +1390,7 @@ class StrategyBuiltinsMixin(BuiltinDispatchMixin):
                     entry_id=ot.entry_id,
                 )
             )
+            self._strategy_state.note_closed_profit(profit)
             self._strategy_state.note_closed_trade_day(exit_time, profit)
             leftover = ot.size - close_qty
             if leftover > 1e-12:

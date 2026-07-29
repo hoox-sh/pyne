@@ -83,3 +83,20 @@ Reports: `docs/perf_agent_{compile,runtime,dispatch}_round2.md`
 | **Plot/draw** | O(plots) registry upsert; skip empty DrawingRegistry export |
 
 Reports: `docs/perf_agent_*_round3.md`
+
+### Follow-up 6 (10-agent round 4 — 2026-07-29)
+
+| Agent | Wins |
+|---|---|
+| **Corpus** | set01–04 parse **99.64%** OK (sanitize polish; 9 residual scrapes) |
+| **Parse** | Large script **~14%**; builder **~33%** |
+| **Unparse** | **~1.28×** this round (byte-identical set01) |
+| **Evaluate TA** | vwap/mom/swma/barssince/hlbars/linreg inc — Runtime mix **~1.9–2.2×** |
+| **Compile** | HMA/math/rising/falling/valuewhen/running max·min `*_inc` |
+| **Runtime host** | Minimal **~20–23%**; columnar plots + fill-gated registry |
+| **Dispatch** | Mixed expr **~2.1×** |
+| **Coverage audit** | Runtime fidelity ~84% weighted; P0 gaps listed |
+| **Strategy** | Compile **~1.75×** / interpret **~1.54×** |
+| **Bottleneck map** | `scripts/bench_pipeline.py` + `docs/perf_round4/` |
+
+Full writeups: `docs/perf_round4/00_summary.md` and `01`–`10_*.md`.

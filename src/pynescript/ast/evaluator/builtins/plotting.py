@@ -223,7 +223,10 @@ class PlottingFunctionsMixin(BuiltinDispatchMixin):
         and no per-bar dataclass allocation after the first bar.
         """
         if getattr(self, "_pine_bar_mode", False):
-            i = int(getattr(self, "_plot_call_i", 0) or 0)
+            # _plot_call_i is always an int in Runtime; avoid int() / or 0 each plot
+            i = getattr(self, "_plot_call_i", 0)
+            if i is None:
+                i = 0
             self._plot_call_i = i + 1  # type: ignore[attr-defined]
             plots = PlotRegistry.plots
             if i < len(plots):

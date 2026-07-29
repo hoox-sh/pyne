@@ -189,7 +189,25 @@ _OPERATOR_NOT = _na_safe_unary(operator.not_)
 _OPERATOR_POS = _na_safe_unary(operator.pos)
 _OPERATOR_NEG = _na_safe_unary(operator.neg)
 
-# Module-level type → operator maps (avoid isinstance chains + visit(op) on Compare)
+# Raw ops for direct ``_elementwise_binary(op, a, b)`` — skips the
+# ``_na_safe_binary`` wrapper frame on the BinOp / Compare hot path.
+_BINOP_RAW: dict[type, Callable[[Any, Any], Any]] = {
+    ast.Add: operator.add,
+    ast.Sub: operator.sub,
+    ast.Mult: operator.mul,
+    ast.Div: _safe_truediv,
+    ast.Mod: operator.mod,
+}
+_CMPOP_RAW: dict[type, Callable[[Any, Any], Any]] = {
+    ast.Eq: operator.eq,
+    ast.NotEq: operator.ne,
+    ast.Lt: operator.lt,
+    ast.LtE: operator.le,
+    ast.Gt: operator.gt,
+    ast.GtE: operator.ge,
+}
+
+# Full NA-safe callables (AugAssign, visit_Eq fallbacks, external imports)
 _BINOP_DISPATCH: dict[type, Callable[[Any, Any], Any]] = {
     ast.Add: _OPERATOR_ADD,
     ast.Sub: _OPERATOR_SUB,
@@ -233,6 +251,9 @@ class ExpressionEvaluator:
         - 'and': stops at first falsy value
         - 'or': stops at first truthy value
 
+        Returns a Python ``bool`` (same as ``all``/``any``). Manual loop avoids
+        generator + ``all``/``any`` frame overhead on the hot path.
+
         Args:
             node: BoolOp node with operator and list of values
 
@@ -240,10 +261,19 @@ class ExpressionEvaluator:
             Boolean result of the operation
         """
         op_t = type(node.op)
+        values = node.values
+        visit = self.visit
         if op_t is ast.And:
-            return all(self.visit(value) for value in node.values)
+            # Mirror ``all(...)``: na / 0 / False short-circuit to False
+            for value in values:
+                if not visit(value):
+                    return False
+            return True
         if op_t is ast.Or:
-            return any(self.visit(value) for value in node.values)
+            for value in values:
+                if visit(value):
+                    return True
+            return False
         msg = f"unexpected node operator: {node.op}"
         raise ValueError(msg)
 
@@ -252,6 +282,9 @@ class ExpressionEvaluator:
 
         Supports: +, -, *, /, % (modulo), and bitwise operations.
 
+        Dominant bar-mode path (bare int/float) is inlined to avoid the
+        ``_na_safe_binary`` wrapper frame and most of ``_elementwise_binary``.
+
         Args:
             node: BinOp node with left operand, right operand, and operator
 
@@ -259,15 +292,43 @@ class ExpressionEvaluator:
             Result of applying the binary operator to the operands
 
         Raises:
-            NotImplementedError: If operator is not supported
+            ValueError: If operator is not supported
         """
-        left = self.visit(node.left)
-        right = self.visit(node.right)
-        op_fn = _BINOP_DISPATCH.get(type(node.op))
-        if op_fn is None:
+        visit = self.visit
+        left = visit(node.left)
+        right = visit(node.right)
+        op_t = type(node.op)
+
+        # Ultra-fast path: bare numeric pair (hosts inject floats per bar)
+        tl = type(left)
+        if tl is float or tl is int:
+            tr = type(right)
+            if tr is float or tr is int:
+                if op_t is ast.Add:
+                    return left + right
+                if op_t is ast.Sub:
+                    return left - right
+                if op_t is ast.Mult:
+                    return left * right
+                if op_t is ast.Div:
+                    return _safe_truediv(left, right)
+                if op_t is ast.Mod:
+                    try:
+                        return left % right
+                    except ZeroDivisionError:
+                        return None
+            elif right is None:
+                return None
+        elif left is None:
+            tr = type(right)
+            if tr is float or tr is int or right is None:
+                return None
+
+        raw = _BINOP_RAW.get(op_t)
+        if raw is None:
             msg = f"Unsupported binary operator: {type(node.op)}"
             raise ValueError(msg)
-        return op_fn(left, right)
+        return _elementwise_binary(raw, left, right)
 
     def visit_UnaryOp(self: EvaluatorProtocol, node: ast.UnaryOp):
         """Evaluate unary operations (not, negation, positive).
@@ -281,18 +342,31 @@ class ExpressionEvaluator:
         Raises:
             ValueError: If operator is not recognized
         """
-        op_fn = _UNARYOP_DISPATCH.get(type(node.op))
+        operand = self.visit(node.operand)
+        op_t = type(node.op)
+        t = type(operand)
+        # Scalar / bool fast path — no wrapper frame
+        if t is float or t is int or t is bool:
+            if op_t is ast.USub:
+                return -operand
+            if op_t is ast.UAdd:
+                return +operand
+            if op_t is ast.Not:
+                return not operand
+        if operand is None:
+            # Pine: unary ops on na propagate na (including ``not na`` → na)
+            return None
+        op_fn = _UNARYOP_DISPATCH.get(op_t)
         if op_fn is None:
             msg = f"unexpected node operator: {node.op}"
             raise ValueError(msg)
-        return op_fn(self.visit(node.operand))
+        return op_fn(operand)
 
     def visit_Conditional(self: EvaluatorProtocol, node: ast.Conditional) -> Any:
-        test_result = self.visit(node.test)
-        if test_result:
-            return self.visit(node.body)
-        else:
-            return self.visit(node.orelse)
+        visit = self.visit
+        if visit(node.test):
+            return visit(node.body)
+        return visit(node.orelse)
 
     def visit_Compare(self: EvaluatorProtocol, node: ast.Compare) -> Any:
         """Evaluate comparison operations with short-circuiting.
@@ -308,18 +382,46 @@ class ExpressionEvaluator:
         Returns:
             True if all comparisons are true, False otherwise
         """
-        left = self.visit(node.left)
-        cmp_dispatch = _CMPOP_DISPATCH
+        visit = self.visit
+        left = visit(node.left)
+        ops = node.ops
+        comparators = node.comparators
+        n = len(ops)
 
         # Short-circuit: stop at first failed comparison
-        for op_node, comparator_node in zip(node.ops, node.comparators, strict=True):
-            # Type-map dispatch — skip full visitor for Eq/Lt/… operator nodes
-            op = cmp_dispatch.get(type(op_node))
-            if op is None:
-                op = self.visit(op_node)
-            right = self.visit(comparator_node)
+        for i in range(n):
+            op_t = type(ops[i])
+            right = visit(comparators[i])
 
-            result = op(left, right)
+            tl = type(left)
+            tr = type(right)
+            # Scalar numeric compare — dominant after series unwrap / bar inject
+            if (tl is float or tl is int) and (tr is float or tr is int):
+                if op_t is ast.Lt:
+                    result = left < right
+                elif op_t is ast.LtE:
+                    result = left <= right
+                elif op_t is ast.Gt:
+                    result = left > right
+                elif op_t is ast.GtE:
+                    result = left >= right
+                elif op_t is ast.Eq:
+                    result = left == right
+                elif op_t is ast.NotEq:
+                    result = left != right
+                else:
+                    raw = _CMPOP_RAW.get(op_t)
+                    if raw is None:
+                        result = visit(ops[i])(left, right)
+                    else:
+                        result = _elementwise_binary(raw, left, right)
+            else:
+                raw = _CMPOP_RAW.get(op_t)
+                if raw is None:
+                    result = visit(ops[i])(left, right)
+                else:
+                    result = _elementwise_binary(raw, left, right)
+
             # Pine: comparison with na yields na (None). Treat as failed for
             # chained bool context so `if a < b` is false when either side is na.
             if result is None:

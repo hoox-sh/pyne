@@ -1305,6 +1305,230 @@ class TechnicalHelpers:
         st["value"] = (count_below / len(valid)) * 100.0
         return st.get("value")
 
+    def _mom_inc_update(self, series: list[Any], period: int) -> float | None:
+        """Incremental ``ta.mom`` — identical lag math to ``ta.change``."""
+        return self._change_inc_update(series, period)
+
+    def _swma_inc_update(self, series: list[Any]) -> float | None:
+        """Incremental 4-period SWMA matching full ``_swma`` (last value)."""
+        slot = self._ta_next_slot()
+        key = ("swma", slot)
+        bucket = self._ta_state_bucket()
+        st = bucket.get(key)
+        if st is None:
+            st = {"window": deque(maxlen=4), "value": None}
+            bucket[key] = st
+        x = self._series_last(series)
+        window: deque[Any] = st["window"]
+        window.append(x)
+        if len(window) < 4:
+            st["value"] = None
+            return None
+        w = list(window)
+        if any(v is None for v in w):
+            st["value"] = None
+            return None
+        try:
+            st["value"] = (float(w[0]) + 2 * float(w[1]) + 2 * float(w[2]) + float(w[3])) / 6.0
+        except (TypeError, ValueError):
+            st["value"] = None
+        return st.get("value")
+
+    def _highestbars_inc_update(self, series: list[Any], period: int) -> int:
+        """Incremental highestbars matching full ``_highestbars`` (last offset)."""
+        if period <= 0:
+            return -1
+        slot = self._ta_next_slot()
+        key = ("highestbars", slot, period)
+        bucket = self._ta_state_bucket()
+        st = bucket.get(key)
+        if st is None:
+            st = {"window": deque(maxlen=period), "value": -1}
+            bucket[key] = st
+        x = self._series_last(series)
+        window: deque[Any] = st["window"]
+        window.append(x)
+        if len(window) < period:
+            st["value"] = -1
+            return -1
+        best_i: int | None = None
+        best_v: float | None = None
+        for i, v in enumerate(window):
+            if v is None:
+                continue
+            try:
+                fv = float(v)
+            except (TypeError, ValueError):
+                continue
+            if best_v is None or fv > best_v:
+                best_v = fv
+                best_i = i
+        if best_i is None:
+            st["value"] = -1
+            return -1
+        # Offset from current bar: 0 = current, -1 = previous, ...
+        st["value"] = best_i - (period - 1)
+        return int(st["value"])
+
+    def _lowestbars_inc_update(self, series: list[Any], period: int) -> int:
+        """Incremental lowestbars matching full ``_lowestbars`` (last offset)."""
+        if period <= 0:
+            return -1
+        slot = self._ta_next_slot()
+        key = ("lowestbars", slot, period)
+        bucket = self._ta_state_bucket()
+        st = bucket.get(key)
+        if st is None:
+            st = {"window": deque(maxlen=period), "value": -1}
+            bucket[key] = st
+        x = self._series_last(series)
+        window: deque[Any] = st["window"]
+        window.append(x)
+        if len(window) < period:
+            st["value"] = -1
+            return -1
+        best_i: int | None = None
+        best_v: float | None = None
+        for i, v in enumerate(window):
+            if v is None:
+                continue
+            try:
+                fv = float(v)
+            except (TypeError, ValueError):
+                continue
+            if best_v is None or fv < best_v:
+                best_v = fv
+                best_i = i
+        if best_i is None:
+            st["value"] = -1
+            return -1
+        st["value"] = best_i - (period - 1)
+        return int(st["value"])
+
+    def _vwap_inc_update(self, source: list[Any], volume: list[Any] | None = None) -> float | None:
+        """Incremental cumulative VWAP matching bar-mode full recompute last value.
+
+        Sums price*volume / sum(volume) over all bars seen at this call site.
+        None prices are skipped (same as full ``_builtin_ta_vwap`` loop).
+        """
+        slot = self._ta_next_slot()
+        key = ("vwap", slot)
+        bucket = self._ta_state_bucket()
+        st = bucket.get(key)
+        if st is None:
+            st = {"cum_pv": 0.0, "cum_v": 0.0, "value": None, "n": 0}
+            bucket[key] = st
+        price_raw = self._series_last(source)
+        if price_raw is None:
+            return st.get("value")
+        try:
+            price = float(price_raw)
+        except (TypeError, ValueError):
+            return st.get("value")
+        v = 0.0
+        if volume is not None:
+            v_raw = self._series_last(volume)
+            if v_raw is not None:
+                try:
+                    v = float(v_raw)
+                except (TypeError, ValueError):
+                    v = 0.0
+        st["cum_pv"] = float(st["cum_pv"]) + price * v
+        st["cum_v"] = float(st["cum_v"]) + v
+        st["n"] = int(st["n"]) + 1
+        if st["cum_v"]:
+            st["value"] = st["cum_pv"] / st["cum_v"]
+        else:
+            st["value"] = price
+        return st.get("value")
+
+    def _barssince_inc_update(self, condition: Any) -> int | None:
+        """Incremental ``ta.barssince`` for bar-mode scalar conditions.
+
+        Matches full list-walk semantics when fed one sample per bar:
+        - true → 0
+        - never true after *k* bars → *k* - 1
+        - true then *d* falses → *d*
+        """
+        slot = self._ta_next_slot()
+        key = ("barssince", slot)
+        bucket = self._ta_state_bucket()
+        st = bucket.get(key)
+        if st is None:
+            st = {"bars_since": 0, "ever_true": False, "bars_seen": 0, "value": None}
+            bucket[key] = st
+
+        # Series form: fall back to full scan of provided list (same as non-inc).
+        if isinstance(condition, list):
+            for i in range(len(condition) - 1, -1, -1):
+                c = condition[i]
+                is_true = c is True or (c is not None and c is not False)
+                if is_true:
+                    st["value"] = len(condition) - 1 - i
+                    return int(st["value"])
+            st["value"] = len(condition) - 1 if condition else None
+            return st.get("value")
+
+        is_true = condition is True or (condition is not None and condition is not False)
+        st["bars_seen"] = int(st["bars_seen"]) + 1
+        if is_true:
+            st["ever_true"] = True
+            st["bars_since"] = 0
+            st["value"] = 0
+            return 0
+        st["bars_since"] = int(st["bars_since"]) + 1
+        if st["ever_true"]:
+            st["value"] = int(st["bars_since"])
+        else:
+            # Never true: list path returns len-1 after k samples → k-1
+            st["value"] = int(st["bars_seen"]) - 1
+        return int(st["value"])
+
+    def _linreg_inc_update(self, series: list[Any], length: int) -> float:
+        """Incremental linear-regression endpoint matching full ``ta.linreg``.
+
+        Maintains a rolling window; recomputes slope/intercept on non-None
+        samples with x re-indexed 0..m-1 (same as full path). O(period).
+        """
+        if length < 2:
+            return math.nan
+        slot = self._ta_next_slot()
+        key = ("linreg", slot, length)
+        bucket = self._ta_state_bucket()
+        st = bucket.get(key)
+        if st is None:
+            st = {"window": deque(maxlen=length), "value": math.nan}
+            bucket[key] = st
+        x = self._series_last(series)
+        window: deque[Any] = st["window"]
+        window.append(x)
+        if len(window) < length:
+            st["value"] = math.nan
+            return math.nan
+        valid_values: list[float] = []
+        for v in window:
+            if v is None:
+                continue
+            try:
+                valid_values.append(float(v))
+            except (TypeError, ValueError):
+                continue
+        if len(valid_values) < 2:
+            st["value"] = math.nan
+            return math.nan
+        n = len(valid_values)
+        xs = list(range(n))
+        mean_x = sum(xs) / n
+        mean_y = sum(valid_values) / n
+        numerator = sum((xi - mean_x) * (yi - mean_y) for xi, yi in zip(xs, valid_values, strict=True))
+        denominator = sum((xi - mean_x) ** 2 for xi in xs)
+        if denominator == 0:
+            st["value"] = mean_y
+            return mean_y
+        slope = numerator / denominator
+        st["value"] = slope * (n - 1) + mean_y
+        return float(st["value"])
+
     def _finalize_series(self, values: list[Any]) -> Any:
         """Return full series list, or current scalar in bar mode."""
         if not self._bar_mode():

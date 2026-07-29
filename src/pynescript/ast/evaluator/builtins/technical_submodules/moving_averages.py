@@ -183,7 +183,10 @@ class MovingAverageIndicators(TechnicalHelpers):
         Also accepts optional length for compatibility.
         """
         if len(args) == 1:
-            return self._swma(self._as_series(args[0]))
+            series = self._as_series(args[0])
+            if self._use_incremental_ta():
+                return self._swma_inc_update(series)
+            return self._swma(series)
         series, length = self._expect_series(args, length=BINARY)
 
         if length < 1:

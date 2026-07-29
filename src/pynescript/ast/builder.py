@@ -47,6 +47,70 @@ from pynescript.ast import node as ast
 from pynescript.ast.grammar.antlr4.parser import PinescriptParser
 from pynescript.ast.grammar.antlr4.visitor import PinescriptParserVisitor
 
+# Empty context/op nodes are immutable in practice (only type is used). Reuse
+# singletons to cut allocation pressure on the builder hot path.
+_LOAD = ast.Load()
+_STORE = ast.Store()
+_ADD = ast.Add()
+_SUB = ast.Sub()
+_MULT = ast.Mult()
+_DIV = ast.Div()
+_MOD = ast.Mod()
+_BIT_OR = ast.BitOr()
+_BIT_XOR = ast.BitXor()
+_BIT_AND = ast.BitAnd()
+_LSHIFT = ast.LShift()
+_RSHIFT = ast.RShift()
+_OR = ast.Or()
+_AND = ast.And()
+_NOT = ast.Not()
+_UADD = ast.UAdd()
+_USUB = ast.USub()
+_INVERT = ast.Invert()
+_EQ = ast.Eq()
+_NOT_EQ = ast.NotEq()
+_LT = ast.Lt()
+_LT_E = ast.LtE()
+_GT = ast.Gt()
+_GT_E = ast.GtE()
+
+
+def _parse_number_literal(text: str):
+    """Parse a Pine number token without always paying for ast.literal_eval."""
+    # Underscore digit separators (Pine / Python-style): strip for fast paths.
+    if "_" in text:
+        compact = text.replace("_", "")
+    else:
+        compact = text
+
+    # Leading-zero decimal ints (e.g. 01) — literal_eval rejects these.
+    if compact.isdigit():
+        return int(compact)
+
+    if len(compact) > 2 and compact[0] == "0":
+        base_ch = compact[1]
+        if base_ch in "xX":
+            return int(compact, 16)
+        if base_ch in "bB":
+            return int(compact, 2)
+        if base_ch in "oO":
+            return int(compact, 8)
+
+    # Common float / scientific forms (incl. ``1.`` / ``.5``)
+    if "." in compact or "e" in compact or "E" in compact:
+        try:
+            return float(compact)
+        except ValueError:
+            pass
+
+    # Imaginary / other exotic forms → literal_eval (may still fail on 01)
+    try:
+        return literal_eval(text if "_" not in text else compact)
+    except (ValueError, SyntaxError):
+        if compact.isdigit():
+            return int(compact)
+        return float(compact)
+
 
 class PinescriptASTLocator:
     """Extract and manage position metadata from ANTLR parse tree tokens.
@@ -195,7 +259,7 @@ class PinescriptASTBuilder(
 
     def _set_store_ctx(self, node):
         if hasattr(node, "ctx"):
-            node.ctx = ast.Store()
+            node.ctx = _STORE
         if isinstance(node, ast.Tuple):
             for elt in node.elts:
                 self._set_store_ctx(elt)
@@ -371,7 +435,7 @@ class PinescriptASTBuilder(
         elts = [self.visit(elt) for elt in elts]
         tup = ast.Tuple(
             elts=elts,
-            ctx=ast.Store(),
+            ctx=_STORE,
         )
         self._setLocations(tup, ctx)
         return tup
@@ -390,7 +454,7 @@ class PinescriptASTBuilder(
         attr = ast.Attribute(
             value=value,
             attr=name.id,
-            ctx=ast.Store(),
+            ctx=_STORE,
         )
         self._setLocations(attr, ctx)
         return attr
@@ -403,7 +467,7 @@ class PinescriptASTBuilder(
         sub = ast.Subscript(
             value=value,
             slice=items,
-            ctx=ast.Store(),
+            ctx=_STORE,
         )
         self._setLocations(sub, ctx)
         return sub
@@ -416,15 +480,15 @@ class PinescriptASTBuilder(
 
     def visitAugassign_op(self, ctx: PinescriptParser.Augassign_opContext):
         if ctx.STAREQUAL():
-            return ast.Mult()
+            return _MULT
         if ctx.SLASHEQUAL():
-            return ast.Div()
+            return _DIV
         if ctx.PERCENTEQUAL():
-            return ast.Mod()
+            return _MOD
         if ctx.PLUSEQUAL():
-            return ast.Add()
+            return _ADD
         if ctx.MINEQUAL():
-            return ast.Sub()
+            return _SUB
 
     def visitFunction_declaration(self, ctx: PinescriptParser.Function_declarationContext):
         name = ctx.name()
@@ -655,7 +719,7 @@ class PinescriptASTBuilder(
         if len(exprs) > 1:
             exprs = [self.visit(expr) for expr in exprs]
             expr = ast.BoolOp(
-                op=ast.Or(),
+                op=_OR,
                 values=exprs,
             )
             self._setLocations(expr, ctx)
@@ -667,7 +731,7 @@ class PinescriptASTBuilder(
         if len(exprs) > 1:
             exprs = [self.visit(expr) for expr in exprs]
             expr = ast.BoolOp(
-                op=ast.And(),
+                op=_AND,
                 values=exprs,
             )
             self._setLocations(expr, ctx)
@@ -678,7 +742,7 @@ class PinescriptASTBuilder(
         if ctx.bitwise_or_expression() is not None:
             left = self.visit(ctx.bitwise_or_expression())
             right = self.visit(ctx.bitwise_xor_expression())
-            expr = ast.BinOp(left=left, op=ast.BitOr(), right=right)
+            expr = ast.BinOp(left=left, op=_BIT_OR, right=right)
             self._setLocations(expr, ctx)
             return expr
         return self.visit(ctx.bitwise_xor_expression())
@@ -687,7 +751,7 @@ class PinescriptASTBuilder(
         if ctx.bitwise_xor_expression() is not None:
             left = self.visit(ctx.bitwise_xor_expression())
             right = self.visit(ctx.bitwise_and_expression())
-            expr = ast.BinOp(left=left, op=ast.BitXor(), right=right)
+            expr = ast.BinOp(left=left, op=_BIT_XOR, right=right)
             self._setLocations(expr, ctx)
             return expr
         return self.visit(ctx.bitwise_and_expression())
@@ -696,7 +760,7 @@ class PinescriptASTBuilder(
         if ctx.bitwise_and_expression() is not None:
             left = self.visit(ctx.bitwise_and_expression())
             right = self.visit(ctx.equality_expression())
-            expr = ast.BinOp(left=left, op=ast.BitAnd(), right=right)
+            expr = ast.BinOp(left=left, op=_BIT_AND, right=right)
             self._setLocations(expr, ctx)
             return expr
         return self.visit(ctx.equality_expression())
@@ -735,9 +799,9 @@ class PinescriptASTBuilder(
 
     def visitShift_op(self, ctx: PinescriptParser.Shift_opContext):
         if ctx.LSHIFT():
-            return ast.LShift()
+            return _LSHIFT
         if ctx.RSHIFT():
-            return ast.RShift()
+            return _RSHIFT
 
     def visitShift_expression(self, ctx: PinescriptParser.Shift_expressionContext):
         if ctx.shift_op():
@@ -870,28 +934,28 @@ class PinescriptASTBuilder(
         return stmt
 
     def visitEqual_trailing_pair(self, ctx: PinescriptParser.Equal_trailing_pairContext):
-        return (ast.Eq(), self.visit(ctx.inequality_expression()))
+        return (_EQ, self.visit(ctx.inequality_expression()))
 
     def visitNot_equal_trailing_pair(self, ctx: PinescriptParser.Not_equal_trailing_pairContext):
-        return (ast.NotEq(), self.visit(ctx.inequality_expression()))
+        return (_NOT_EQ, self.visit(ctx.inequality_expression()))
 
     def visitLess_than_equal_trailing_pair(self, ctx: PinescriptParser.Less_than_equal_trailing_pairContext):
-        return (ast.LtE(), self.visit(ctx.shift_expression()))
+        return (_LT_E, self.visit(ctx.shift_expression()))
 
     def visitLess_than_trailing_pair(self, ctx: PinescriptParser.Less_than_trailing_pairContext):
-        return (ast.Lt(), self.visit(ctx.shift_expression()))
+        return (_LT, self.visit(ctx.shift_expression()))
 
     def visitGreater_than_equal_trailing_pair(self, ctx: PinescriptParser.Greater_than_equal_trailing_pairContext):
-        return (ast.GtE(), self.visit(ctx.shift_expression()))
+        return (_GT_E, self.visit(ctx.shift_expression()))
 
     def visitGreater_than_trailing_pair(self, ctx: PinescriptParser.Greater_than_trailing_pairContext):
-        return (ast.Gt(), self.visit(ctx.shift_expression()))
+        return (_GT, self.visit(ctx.shift_expression()))
 
     def visitAdditive_op(self, ctx: PinescriptParser.Additive_opContext):
         if ctx.PLUS():
-            return ast.Add()
+            return _ADD
         if ctx.MINUS():
-            return ast.Sub()
+            return _SUB
 
     def visitAdditive_expression(self, ctx: PinescriptParser.Additive_expressionContext):
         if ctx.additive_op():
@@ -913,11 +977,11 @@ class PinescriptASTBuilder(
 
     def visitMultiplicative_op(self, ctx: PinescriptParser.Multiplicative_opContext):
         if ctx.STAR():
-            return ast.Mult()
+            return _MULT
         if ctx.SLASH():
-            return ast.Div()
+            return _DIV
         if ctx.PERCENT():
-            return ast.Mod()
+            return _MOD
 
     def visitMultiplicative_expression(self, ctx: PinescriptParser.Multiplicative_expressionContext):
         if ctx.multiplicative_op():
@@ -939,13 +1003,13 @@ class PinescriptASTBuilder(
 
     def visitUnary_op(self, ctx: PinescriptParser.Unary_opContext):
         if ctx.NOT():
-            return ast.Not()
+            return _NOT
         if ctx.PLUS():
-            return ast.UAdd()
+            return _UADD
         if ctx.MINUS():
-            return ast.USub()
+            return _USUB
         if ctx.TILDE():
-            return ast.Invert()
+            return _INVERT
 
     def visitUnary_expression(self, ctx: PinescriptParser.Unary_expressionContext):
         if ctx.unary_op():
@@ -970,7 +1034,7 @@ class PinescriptASTBuilder(
         expr = ast.Subscript(
             value=value,
             slice=items,
-            ctx=ast.Load(),
+            ctx=_LOAD,
         )
         self._setLocations(expr, ctx)
         return expr
@@ -1006,7 +1070,7 @@ class PinescriptASTBuilder(
         expr = ast.Attribute(
             value=value,
             attr=name.id,
-            ctx=ast.Load(),
+            ctx=_LOAD,
         )
         self._setLocations(expr, ctx)
         return expr
@@ -1038,7 +1102,7 @@ class PinescriptASTBuilder(
         else:
             items = ast.Tuple(
                 elts=items,
-                ctx=ast.Load(),
+                ctx=_LOAD,
             )
             self._setLocations(items, ctx)
         return items
@@ -1055,15 +1119,7 @@ class PinescriptASTBuilder(
         return expr
 
     def visitLiteral_number(self, ctx: PinescriptParser.Literal_numberContext):
-        text = ctx.getText()
-        # Handle leading zeros in decimal integers (e.g., 01, 001)
-        # Pine Script allows these, but Python's ast.literal_eval does not
-        if text.isdigit() and len(text) > 1 and text[0] == "0":
-            # Convert to int directly, which handles leading zeros
-            number = int(text)
-        else:
-            number = literal_eval(text)
-        return number
+        return _parse_number_literal(ctx.getText())
 
     def visitLiteral_string(self, ctx: PinescriptParser.Literal_stringContext):
         text = ctx.getText()
@@ -1071,12 +1127,8 @@ class PinescriptASTBuilder(
         # but we normalize here for consistency.
         if (text.startswith('"""') and text.endswith('"""')) or (text.startswith("'''") and text.endswith("'''")):
             # Strip the triple quotes, keep content as-is (newlines and indents preserved)
-            inner = text[3:-3]
-            # Handle escaped quotes inside if any, but literal for now
-            string = inner  # literal content
-        else:
-            string = literal_eval(text)
-        return string
+            return text[3:-3]
+        return literal_eval(text)
 
     def visitLiteral_bool(self, ctx: PinescriptParser.Literal_boolContext):
         if ctx.TRUE():
@@ -1096,7 +1148,7 @@ class PinescriptASTBuilder(
         elts = [self.visit(elt) for elt in elts]
         expr = ast.Tuple(
             elts=elts,
-            ctx=ast.Load(),
+            ctx=_LOAD,
         )
         self._setLocations(expr, ctx)
         return expr
@@ -1186,7 +1238,7 @@ class PinescriptASTBuilder(
             ident = ast.Attribute(
                 value=value,
                 attr=attr.id,
-                ctx=ast.Load(),
+                ctx=_LOAD,
                 lineno=value.lineno,
                 col_offset=value.col_offset,
                 end_lineno=attr.end_lineno,
@@ -1196,7 +1248,7 @@ class PinescriptASTBuilder(
                 ident = ast.Attribute(
                     value=ident,
                     attr=attr.id,
-                    ctx=ast.Load(),
+                    ctx=_LOAD,
                     lineno=ident.lineno,
                     col_offset=ident.col_offset,
                     end_lineno=attr.end_lineno,
@@ -1217,29 +1269,27 @@ class PinescriptASTBuilder(
         else:
             args = ast.Tuple(
                 elts=args,
-                ctx=ast.Load(),
+                ctx=_LOAD,
             )
             self._setLocations(args, ctx)
         return args
 
     def visitName(self, ctx: PinescriptParser.NameContext):
-        name = ctx.getText()
-        return name
+        return ctx.getText()
 
     def visitName_load(self, ctx: PinescriptParser.Name_loadContext):
-        name = self.visit(ctx.name())
+        # Inline name text: avoids an extra visit() hop for every identifier.
         name = ast.Name(
-            id=name,
-            ctx=ast.Load(),
+            id=ctx.name().getText(),
+            ctx=_LOAD,
         )
         self._setLocations(name, ctx)
         return name
 
     def visitName_store(self, ctx: PinescriptParser.Name_storeContext):
-        name = self.visit(ctx.name())
         name = ast.Name(
-            id=name,
-            ctx=ast.Store(),
+            id=ctx.name().getText(),
+            ctx=_STORE,
         )
         self._setLocations(name, ctx)
         return name

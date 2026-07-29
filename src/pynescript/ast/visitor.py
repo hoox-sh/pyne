@@ -60,8 +60,9 @@ class NodeVisitor:
         Returns:
             Result from the visit_<NodeType> method (implementation-dependent)
         """
+        # Local binds shave attribute lookups on the deepest recursive path.
         cache = self._visitor_cache
-        cls = node.__class__
+        cls = type(node)
         visitor = cache.get(cls)
         if visitor is None:
             visitor = getattr(self, "visit_" + cls.__name__, self.generic_visit)
