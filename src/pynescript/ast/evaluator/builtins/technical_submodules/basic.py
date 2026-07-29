@@ -844,18 +844,51 @@ class BasicIndicators(TechnicalHelpers):
             return 0
         return 1
 
+    @staticmethod
+    def _pivot_scalar(value: Any) -> float | None:
+        """Coerce a pivot sample to float, unwrapping PineSeries-like wrappers."""
+        if value is None:
+            return None
+        t = type(value)
+        if t is float:
+            return value
+        if t is int and t is not bool:
+            return float(value)
+        # PineSeries / _SeriesResult: use .current (may itself be na)
+        current = getattr(value, "current", None)
+        if current is not None and t.__name__ in {"PineSeries", "_SeriesResult"}:
+            value = current
+        elif current is not None and hasattr(value, "history"):
+            value = current
+        if value is None:
+            return None
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return None
+
+    def _pivot_source_series(self, source: Any) -> list[Any]:
+        """Materialize pivot source as chronological list (list / PineSeries / scalar)."""
+        if isinstance(source, list):
+            return self._cap_series_list(source)
+        # PineSeries and other history wrappers → chronological via _as_series
+        return self._as_series(source)
+
     def _builtin_ta_pivothigh(self, args: list[Any]) -> float | None:
         """Find the highest point (pivot high) in a window.
 
         TV: ``ta.pivothigh(leftbars, rightbars)`` (source=high) or
         ``ta.pivothigh(source, leftbars, rightbars)``.
+
+        Source may be a list (``current_series``), a ``PineSeries`` from the
+        runtime host, or a bare scalar; always materialize before float().
         """
         if len(args) == BINARY and self._is_period_like(args[0]) and self._is_period_like(args[1]):
             source = self._context_series("high")
             left_bars = self._expect_int(args[0], "leftbars must be integer")
             right_bars = self._expect_int(args[1], "rightbars must be integer")
         elif len(args) >= 3:
-            source = args[0]
+            source = self._pivot_source_series(args[0])
             left_bars = self._expect_int(args[1], "leftbars must be integer")
             right_bars = self._expect_int(args[2], "rightbars must be integer")
         else:
@@ -863,44 +896,44 @@ class BasicIndicators(TechnicalHelpers):
             self._error(msg)
             return None
 
-        # If source is a list (series), check if current value is a pivot high
-        if isinstance(source, list):
-            if len(source) <= left_bars + right_bars:
+        if not isinstance(source, list):
+            source = self._pivot_source_series(source)
+
+        if len(source) <= left_bars + right_bars:
+            return None
+
+        # Get current value (last in chronological series)
+        current_idx = len(source) - 1
+        current = self._pivot_scalar(source[current_idx])
+        if current is None:
+            return None
+
+        # Check left bars (strict local max)
+        for i in range(1, left_bars + 1):
+            if current_idx - i < 0:
+                return None
+            left_val = self._pivot_scalar(source[current_idx - i])
+            if left_val is not None and left_val >= current:
                 return None
 
-            # Get current value (last in series)
-            current_idx = len(source) - 1
-            current = source[current_idx]
-
-            if current is None:
-                return None
-
-            # Check left bars
-            for i in range(1, left_bars + 1):
-                if current_idx - i < 0:
-                    return None
-                left_val = source[current_idx - i]
-                if left_val is not None and left_val >= current:
-                    return None
-
-            # Check right bars - would need future bars
-            # For now, only check left bars
-            return float(current)
-
-        return float(source) if source is not None else None
+        # Check right bars - would need future bars
+        # For now, only check left bars
+        return current
 
     def _builtin_ta_pivotlow(self, args: list[Any]) -> float | None:
         """Find the lowest point (pivot low) in a window.
 
         TV: ``ta.pivotlow(leftbars, rightbars)`` (source=low) or
         ``ta.pivotlow(source, leftbars, rightbars)``.
+
+        Source may be a list, ``PineSeries``, or scalar — see pivothigh.
         """
         if len(args) == BINARY and self._is_period_like(args[0]) and self._is_period_like(args[1]):
             source = self._context_series("low")
             left_bars = self._expect_int(args[0], "leftbars must be integer")
             right_bars = self._expect_int(args[1], "rightbars must be integer")
         elif len(args) >= 3:
-            source = args[0]
+            source = self._pivot_source_series(args[0])
             left_bars = self._expect_int(args[1], "leftbars must be integer")
             right_bars = self._expect_int(args[2], "rightbars must be integer")
         else:
@@ -908,31 +941,27 @@ class BasicIndicators(TechnicalHelpers):
             self._error(msg)
             return None
 
-        # If source is a list (series), check if current value is a pivot low
-        if isinstance(source, list):
-            if len(source) <= left_bars + right_bars:
+        if not isinstance(source, list):
+            source = self._pivot_source_series(source)
+
+        if len(source) <= left_bars + right_bars:
+            return None
+
+        current_idx = len(source) - 1
+        current = self._pivot_scalar(source[current_idx])
+        if current is None:
+            return None
+
+        for i in range(1, left_bars + 1):
+            if current_idx - i < 0:
+                return None
+            left_val = self._pivot_scalar(source[current_idx - i])
+            if left_val is not None and left_val <= current:
                 return None
 
-            # Get current value (last in series)
-            current_idx = len(source) - 1
-            current = source[current_idx]
-
-            if current is None:
-                return None
-
-            # Check left bars
-            for i in range(1, left_bars + 1):
-                if current_idx - i < 0:
-                    return None
-                left_val = source[current_idx - i]
-                if left_val is not None and left_val <= current:
-                    return None
-
-            # Check right bars - would need future bars
-            # For now, only check left bars
-            return float(current)
-
-        return float(source) if source is not None else None
+        # Check right bars - would need future bars
+        # For now, only check left bars
+        return current
 
     def _builtin_ta_pivot_point_levels(self, args: list[Any]) -> Any:
         """Calculate pivot point levels.

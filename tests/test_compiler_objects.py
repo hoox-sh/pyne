@@ -150,3 +150,159 @@ plot(ta.sma(close, 5), title="s")
         compiled = compile_script(src)
         assert compiled.object_mode is False
         assert "@numba.njit" in compiled.generated_code
+
+
+class TestSet05MissingNames:
+    """Object-mode stubs for set05 recompile NameErrors / float64 handle bugs."""
+
+    def test_udt_copy_independent(self) -> None:
+        """Type.copy(instance) is a shallow dict clone, not list(TypeName)."""
+        src = """//@version=6
+indicator("")
+type pivotPoint
+    int x
+    float y
+pivot1 = pivotPoint.new()
+pivot1.x := 1000
+pivot2 = pivotPoint.copy(pivot1)
+pivot2.x := 2000
+plot(pivot1.x, title="p1")
+plot(pivot2.x, title="p2")
+"""
+        code = transpile(src)
+        assert "list(pivotPoint)" not in code
+        assert "dict(" in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(8)
+        out = compiled.run(o, h, l, c, v)
+        assert np.allclose(out["p1"], 1000.0)
+        assert np.allclose(out["p2"], 2000.0)
+
+    def test_udt_reference_share(self) -> None:
+        """pivot2 = pivot1 shares the handle; field write mutates both."""
+        src = """//@version=6
+indicator("")
+type pivotPoint
+    int x
+    float y
+pivot1 = pivotPoint.new()
+pivot1.x := 1000
+pivot2 = pivot1
+pivot2.x := 2000
+plot(pivot1.x, title="p1")
+plot(pivot2.x, title="p2")
+"""
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(8)
+        out = compiled.run(o, h, l, c, v)
+        assert np.allclose(out["p1"], 2000.0)
+        assert np.allclose(out["p2"], 2000.0)
+
+    def test_nested_function_def_params_not_series(self) -> None:
+        """Nested UDF defs must not clobber outer params into x_arr NameError."""
+        src = """//@version=6
+indicator("nested")
+f(x, y) =>
+    g(a, b) => math.sqrt(a * a + b * b)
+    g(x, y) / (x + y)
+plot(f(3.0, 4.0), title="r")
+"""
+        code = transpile(src)
+        assert "x_arr" not in code
+        assert "def g(" in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(5)
+        out = compiled.run(o, h, l, c, v)
+        # 5 / 7
+        assert abs(out["r"][-1] - 5.0 / 7.0) < 1e-9
+
+    def test_math_rphi_constant(self) -> None:
+        src = """//@version=5
+indicator("r")
+plot(math.rphi, title="r")
+plot(1.0 - math.rphi, title="c")
+"""
+        code = transpile(src)
+        assert "math_rphi" not in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(4)
+        out = compiled.run(o, h, l, c, v)
+        rphi = 2.0 / (1.0 + np.sqrt(5.0))
+        assert abs(out["r"][-1] - rphi) < 1e-12
+        assert abs(out["c"][-1] - (1.0 - rphi)) < 1e-12
+
+    def test_barmerge_constants(self) -> None:
+        src = """//@version=4
+study("b")
+bm = barmerge.lookahead_on
+gp = barmerge.gaps_off
+plot(bm ? 1 : 0, title="bm")
+plot(gp ? 1 : 0, title="gp")
+"""
+        code = transpile(src)
+        assert "barmerge_lookahead" not in code
+        assert "name 'barmerge'" not in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(4)
+        out = compiled.run(o, h, l, c, v)
+        assert np.allclose(out["bm"], 1.0)
+        assert np.allclose(out["gp"], 0.0)
+
+    def test_array_mode(self) -> None:
+        src = """//@version=5
+indicator("m")
+a = array.from(1.0, 2.0, 1.0)
+plot(array.mode(a), title="mode")
+"""
+        code = transpile(src)
+        assert "array_mode" in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(4)
+        out = compiled.run(o, h, l, c, v)
+        assert out["mode"][-1] == 1.0
+
+    def test_label_all_size(self) -> None:
+        src = """//@version=5
+indicator("la")
+if bar_index == 0
+    label.new(0, 0, "x")
+n = label.all.size()
+plot(n, title="n")
+"""
+        code = transpile(src)
+        assert "label.all" not in code or "__drawings" in code
+        assert "(__u := (label)" not in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(5)
+        out = compiled.run(o, h, l, c, v)
+        # one label created on bar 0; count persists via __drawings appends
+        assert out["n"][-1] >= 1.0
+
+    def test_array_new_table_and_push(self) -> None:
+        src = """//@version=6
+indicator("t")
+tables = array.new_table()
+array.push(tables, table.new(position.top_left, 1, 2))
+plot(array.size(tables), title="sz")
+"""
+        code = transpile(src)
+        assert "tables_arr" not in code or "safe_list_append" in code
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(5)
+        out = compiled.run(o, h, l, c, v)
+        assert np.allclose(out["sz"], 1.0)
+
+    def test_safe_list_clear_on_scalar(self) -> None:
+        """array.clear on a non-list (security_lower_tf stub) must not AttributeError."""
+        src = """//@version=5
+indicator("c")
+f(src) =>
+    a = src
+    array.clear(a)
+    1.0
+plot(f(close), title="ok")
+"""
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(6)
+        out = compiled.run(o, h, l, c, v)
+        assert np.allclose(out["ok"], 1.0)

@@ -360,58 +360,85 @@ class CommonIndicators(TechnicalHelpers):
     # -- Phase 7 Missing Indicators -----------------------------------------
 
     def _builtin_ta_pivothigh(self, args: list[Any]) -> float | None:
-        """Find the highest point (pivot high) in a window."""
+        """Find the highest point (pivot high) in a window.
+
+        Fallback when BasicIndicators is not in the MRO. Accepts list or
+        PineSeries-like sources (materialized via ``_as_series``).
+        """
         if len(args) < 3:
             msg = "ta.pivothigh() requires 3 arguments: source, leftbars, rightbars"
             self._error(msg)
 
-        source = args[0]
+        source = self._as_series(args[0])
         left_bars = self._expect_int(args[1], "leftbars must be integer")
         right_bars = self._expect_int(args[2], "rightbars must be integer")
 
-        if isinstance(source, list):
-            if len(source) <= left_bars + right_bars:
-                return None
-            current_idx = len(source) - 1
-            current = source[current_idx]
+        if len(source) <= left_bars + right_bars:
+            return None
+        current_idx = len(source) - 1
+        current = source[current_idx]
+        if current is None:
+            return None
+        # Unwrap nested series wrappers if present
+        cur_attr = getattr(current, "current", None)
+        if cur_attr is not None and hasattr(current, "history"):
+            current = cur_attr
             if current is None:
                 return None
-            for i in range(1, left_bars + 1):
-                if current_idx - i < 0:
+        for i in range(1, left_bars + 1):
+            if current_idx - i < 0:
+                return None
+            left_val = source[current_idx - i]
+            lv = getattr(left_val, "current", left_val) if left_val is not None and hasattr(left_val, "history") else left_val
+            try:
+                if lv is not None and float(lv) >= float(current):
                     return None
-                left_val = source[current_idx - i]
-                if left_val is not None and left_val >= current:
-                    return None
+            except (TypeError, ValueError):
+                return None
+        try:
             return float(current)
-
-        return float(source) if source is not None else None
+        except (TypeError, ValueError):
+            return None
 
     def _builtin_ta_pivotlow(self, args: list[Any]) -> float | None:
-        """Find the lowest point (pivot low) in a window."""
+        """Find the lowest point (pivot low) in a window.
+
+        Fallback when BasicIndicators is not in the MRO. Accepts list or
+        PineSeries-like sources (materialized via ``_as_series``).
+        """
         if len(args) < 3:
             msg = "ta.pivotlow() requires 3 arguments: source, leftbars, rightbars"
             self._error(msg)
 
-        source = args[0]
+        source = self._as_series(args[0])
         left_bars = self._expect_int(args[1], "leftbars must be integer")
         right_bars = self._expect_int(args[2], "rightbars must be integer")
 
-        if isinstance(source, list):
-            if len(source) <= left_bars + right_bars:
-                return None
-            current_idx = len(source) - 1
-            current = source[current_idx]
+        if len(source) <= left_bars + right_bars:
+            return None
+        current_idx = len(source) - 1
+        current = source[current_idx]
+        if current is None:
+            return None
+        cur_attr = getattr(current, "current", None)
+        if cur_attr is not None and hasattr(current, "history"):
+            current = cur_attr
             if current is None:
                 return None
-            for i in range(1, left_bars + 1):
-                if current_idx - i < 0:
+        for i in range(1, left_bars + 1):
+            if current_idx - i < 0:
+                return None
+            left_val = source[current_idx - i]
+            lv = getattr(left_val, "current", left_val) if left_val is not None and hasattr(left_val, "history") else left_val
+            try:
+                if lv is not None and float(lv) <= float(current):
                     return None
-                left_val = source[current_idx - i]
-                if left_val is not None and left_val <= current:
-                    return None
+            except (TypeError, ValueError):
+                return None
+        try:
             return float(current)
-
-        return float(source) if source is not None else None
+        except (TypeError, ValueError):
+            return None
 
     def _builtin_ta_pivot_point_levels(self, args: list[Any]) -> Any:
         """Calculate pivot point levels — delegates to BasicIndicators TV form."""

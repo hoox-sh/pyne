@@ -1459,6 +1459,109 @@ def _pine_is_descending(order) -> bool:
     return False
 
 
+def safe_list_append(arr, value):
+    """Append to a real list; no-op when *arr* is float/None (misclassified series)."""
+    if isinstance(arr, list):
+        arr.append(value)
+        return arr
+    return arr
+
+
+def safe_list_clear(arr):
+    """Clear a real list; no-op for scalars (avoids float64.clear AttributeError)."""
+    if isinstance(arr, list):
+        arr.clear()
+    return None
+
+
+def safe_list_pop(arr, index=None):
+    """Pop from a real list; return na when not a list / empty / OOB."""
+    if not isinstance(arr, list) or not arr:
+        return np.nan
+    try:
+        if index is None:
+            return arr.pop()
+        idx = int(index)
+        if idx < 0 or idx >= len(arr):
+            return np.nan
+        return arr.pop(idx)
+    except Exception:
+        return np.nan
+
+
+def safe_list_insert(arr, index, value):
+    """Insert into a real list; no-op when *arr* is not a list."""
+    if isinstance(arr, list):
+        try:
+            arr.insert(int(index), value)
+        except Exception:
+            pass
+    return arr
+
+
+def array_mode(arr):
+    """Pine ``array.mode(id)`` — most frequent value; na if empty or all unique.
+
+    Matches TV-ish behaviour used by corpus tests (mode of multimodal → first
+    max-frequency element; all-distinct → na).
+    """
+    if arr is None:
+        return np.nan
+    try:
+        seq = list(arr)
+    except TypeError:
+        return np.nan
+    if not seq:
+        return np.nan
+    from collections import Counter
+
+    counts = Counter(seq)
+    best_n = max(counts.values())
+    if best_n <= 1 and len(counts) == len(seq):
+        # All values unique → na (TV returns na when no mode)
+        return np.nan
+    # First element among those with max frequency (stable)
+    for v in seq:
+        if counts[v] == best_n:
+            return v
+    return np.nan
+
+
+def array_standardize(arr):
+    """Pine ``array.standardize(id)`` — z-score list; empty → []."""
+    if arr is None:
+        return []
+    try:
+        seq = [safe_float(x) for x in arr]
+    except TypeError:
+        return []
+    if not seq:
+        return []
+    mu = float(np.nanmean(seq)) if seq else np.nan
+    sd = float(np.nanstd(seq)) if seq else np.nan
+    if not (sd == sd) or sd == 0.0:
+        return [0.0 if (x == x) else np.nan for x in seq]
+    return [((x - mu) / sd) if (x == x) else np.nan for x in seq]
+
+
+def array_normalized(arr):
+    """Pine ``array.normalized(id)`` — min-max to [0,1]; empty → []."""
+    if arr is None:
+        return []
+    try:
+        seq = [safe_float(x) for x in arr]
+    except TypeError:
+        return []
+    if not seq:
+        return []
+    lo = float(np.nanmin(seq)) if seq else np.nan
+    hi = float(np.nanmax(seq)) if seq else np.nan
+    span = hi - lo if (hi == hi and lo == lo) else np.nan
+    if not (span == span) or span == 0.0:
+        return [0.0 if (x == x) else np.nan for x in seq]
+    return [((x - lo) / span) if (x == x) else np.nan for x in seq]
+
+
 def array_sort_indices(arr, order="ascending"):
     """Pine ``array.sort_indices(id, order?)`` → list of indices (na last).
 

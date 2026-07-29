@@ -2430,3 +2430,80 @@ plot(ta.min(close), title="mn")
                 max_err = max(max_err, abs(float(a) - float(b)))
             assert max_err <= 1e-10, f"period={period} max_err={max_err}"
 
+    def test_matrix_var_shadows_namespace_free_scalar_udf(self) -> None:
+        """``var matrix = matrix.new…`` used inside a UDF must not NameError.
+
+        Corpus set05 ICT scanners name the handle ``matrix`` (shadows the
+        builtin namespace). Module-scope UDFs cannot close over execute_script
+        locals — the handle must be a free-scalar parameter.
+        """
+        src = """//@version=5
+indicator("x")
+var matrix = matrix.new<string>(0, 6, na)
+mtxFun(symbol, _time, price, signal) =>
+    matrix.add_row(matrix, 0, array.from(symbol, _time, price, signal, "x", "1"))
+if bar_index == 0
+    mtxFun("A", "t", "1", "1")
+plot(matrix.rows(matrix), title="rows")
+plot(matrix.get(matrix, 0, 0) == "A" ? 1.0 : 0.0, title="ok")
+"""
+        code = transpile(src)
+        assert "def mtxFun(" in code
+        # free-scalar param present on def + call site
+        assert re.search(r"def mtxFun\([^)]*\bmatrix\b", code)
+        assert "matrix_add_row(matrix," in code
+        compiled = compile_script(src)
+        assert compiled.object_mode
+        o, h, l, c, v = _ohlcv(50)
+        out = compiled.run(o, h, l, c, v)
+        assert out["rows"][-1] == 1.0
+        assert out["ok"][-1] == 1.0
+
+    def test_array_var_shadows_namespace_free_scalar_udf(self) -> None:
+        """Same free-scalar plumbing for ``var array = array.new…`` inside UDF."""
+        src = """//@version=5
+indicator("x")
+var array = array.new_float(0)
+push1() =>
+    array.push(array, 1.0)
+    array.size(array)
+plot(push1(), title="s")
+"""
+        code = transpile(src)
+        assert re.search(r"def push1\([^)]*\barray\b", code)
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(10)
+        out = compiled.run(o, h, l, c, v)
+        assert out["s"][-1] == 10.0
+
+    def test_tuple_unpack_udf_shadow_not_callable_none(self) -> None:
+        """``[pvsraVolume, ...] = pvsraVolume(...)`` must not rebind the UDF to None.
+
+        set05 corpus (Total Recall / Nebula / Insane Oscillator) defines a UDF
+        and multi-unpacks into the same name → ``'NoneType' object is not callable``.
+        """
+        src = """//@version=5
+indicator("x")
+pvsraVolume(overrideSymbolX, pvsraSymbolX, tickerIdX) =>
+    [volume, high, low, close, open]
+[pvsraVolume, pvsraHigh, pvsraLow, pvsraClose, pvsraOpen] = pvsraVolume(false, "", syminfo.tickerid)
+plot(pvsraVolume, title="vol")
+plot(pvsraClose, title="c")
+"""
+        code = transpile(src)
+        assert "def pvsraVolume(" in code
+        assert "pvsraVolume__loc" in code
+        # Call site still targets the function, store goes to shadow local
+        assert re.search(r"__tup\s*=\s*pvsraVolume\s*\(", code)
+        assert re.search(r"pvsraVolume__loc\s*=", code)
+        # Must not initialize a local that shadows the def before the call
+        assert re.search(r"^\s*pvsraVolume\s*=\s*None\s*$", code, re.M) is None
+        compiled = compile_script(src)
+        o, h, l, c, v = _ohlcv(30)
+        out = compiled.run(o, h, l, c, v)
+        assert "vol" in out
+        assert "c" in out
+        # volume series is ones from _ohlcv; close is the price series
+        assert abs(float(out["vol"][-1]) - 1.0) < 1e-9
+        assert abs(float(out["c"][-1]) - float(c[-1])) < 1e-9
+

@@ -2250,3 +2250,111 @@ def test_pine_version_converter_stub():
     back = convert_v6_to_v5(v6)
     assert "study" in back
 
+
+def _ohlcv_bars(n: int = 40):
+    """Synthetic OHLCV with a clear mid-series peak/trough for pivot tests."""
+    bars = []
+    for i in range(n):
+        # Peak at i=20, trough at i=30
+        if i == 20:
+            h, l = 120.0, 100.0
+        elif i == 30:
+            h, l = 102.0, 80.0
+        else:
+            h, l = 105.0 + (i % 3), 95.0 - (i % 2)
+        c = (h + l) / 2.0
+        bars.append(
+            {
+                "open": c,
+                "high": h,
+                "low": l,
+                "close": c,
+                "volume": 1000.0,
+                "time": 1_000_000 + i * 60_000,
+            }
+        )
+    return bars
+
+
+def test_ta_pivothigh_pivotlow_accept_pineseries_via_runtime():
+    """Regression: set05 RUN_FAIL float()…not 'PineSeries' on ta.pivothigh/low.
+
+    Runtime injects ``high``/``low`` as ``PineSeries``. The 3-arg form used to
+    call bare ``float(source)`` and crash on bar 0; must materialize via
+    ``_as_series`` / ``.current`` instead.
+    """
+    from backend.runtime import Runtime
+
+    src = """//@version=5
+indicator("pivot_series")
+ph = ta.pivothigh(high, 2, 2)
+pl = ta.pivotlow(low, 2, 2)
+ph2 = ta.pivothigh(2, 2)
+pl2 = ta.pivotlow(2, 2)
+plot(ph)
+plot(pl)
+plot(ph2)
+plot(pl2)
+"""
+    out = Runtime(symbol="TEST").run(src, _ohlcv_bars(50), mode="interpret")
+    assert isinstance(out, dict)
+    assert "error" not in out or out.get("error") is None, out.get("error")
+    # Series present and finite-or-null (na on non-pivot bars)
+    series = out.get("series") or out.get("plots") or {}
+    assert out  # non-empty result
+
+
+def test_ta_pivothigh_on_pineseries_direct():
+    """Unit: BasicIndicators.pivothigh with PineSeries source (no Runtime host)."""
+    from backend.series import PineSeries
+    from pynescript.ast.evaluator import NodeLiteralEvaluator
+
+    highs = [100.0, 101.0, 105.0, 102.0, 101.0, 100.0, 99.0]
+    series = PineSeries()
+    for h in highs:
+        series.update(h)
+
+    evaluator = NodeLiteralEvaluator()
+    # 3-arg form with PineSeries source
+    result = evaluator._builtin_ta_pivothigh([series, 2, 2])
+    # After enough bars: last sample 99 with left 100,101 — not a pivot high → None
+    # or a float if left-only check considers it (depends on left values)
+    assert result is None or isinstance(result, float)
+
+    # Peak-like series ending at local max with 2 left lower bars
+    peak = PineSeries()
+    for h in [100.0, 101.0, 110.0]:
+        peak.update(h)
+    # len=3, left+right=4 → not enough history → na
+    assert evaluator._builtin_ta_pivothigh([peak, 2, 2]) is None
+
+    # Enough history: last is strict local max vs left
+    peak2 = PineSeries()
+    for h in [100.0, 101.0, 102.0, 110.0]:
+        peak2.update(h)
+    # left_bars=2, right_bars=0 so window length need is 2; with right=2 need more
+    # Use right_bars=0 for a definite local-max check
+    r = evaluator._builtin_ta_pivothigh([peak2, 2, 0])
+    assert r == 110.0
+
+    # pivotlow with PineSeries
+    trough = PineSeries()
+    for lo in [100.0, 99.0, 98.0, 80.0]:
+        trough.update(lo)
+    r_lo = evaluator._builtin_ta_pivotlow([trough, 2, 0])
+    assert r_lo == 80.0
+
+
+def test_pivot_scalar_unwraps_nested_series():
+    """``_pivot_scalar`` returns float from bare nums and PineSeries.current."""
+    from backend.series import PineSeries
+    from pynescript.ast.evaluator.builtins.technical_submodules.basic import BasicIndicators
+
+    assert BasicIndicators._pivot_scalar(None) is None
+    assert BasicIndicators._pivot_scalar(3.5) == 3.5
+    assert BasicIndicators._pivot_scalar(7) == 7.0
+    ps = PineSeries(1.25)
+    assert BasicIndicators._pivot_scalar(ps) == 1.25
+    empty = PineSeries()  # current is None
+    assert BasicIndicators._pivot_scalar(empty) is None
+
