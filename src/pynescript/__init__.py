@@ -25,7 +25,8 @@ live under :mod:`pynescript.ast` (helpers often imported as
 
 **Console scripts** (see ``pyproject.toml`` ``[project.scripts]``):
 
-- ``pynescript`` → :func:`pynescript.__main__.cli` (Click CLI group)
+- ``pynescript`` → :func:`pynescript.__main__.cli` (Click: check, format,
+  lint, compile, run, data, info, …)
 - ``pynescript-lsp`` → :func:`pynescript.langserver.__main__.main` (stdio LSP)
 
 **Module entrypoints:**
@@ -36,6 +37,7 @@ live under :mod:`pynescript.ast` (helpers often imported as
 **Subpackages:**
 
 - :mod:`pynescript.ast` — parse, unparse, evaluate, lint
+- :mod:`pynescript.compiler` — Numba / object-mode compile pipeline
 - :mod:`pynescript.langserver` — pygls LSP (optional ``[lsp]`` extra)
 - :mod:`pynescript.ext` — Pygments lexer and integrations
 - :mod:`pynescript.util` — data providers, Pine facade helpers
