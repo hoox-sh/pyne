@@ -5,7 +5,8 @@
 # ANTLR4
 #  before PyInstaller builds the exe, so as to inject date/other infos into it.
 #  be found at https://github.com/github/gitignore/blob/main/Global/JetBrains.gitignore
-build/
+# Root build artifacts only (do not match scripts/build/)
+/build/
 # Byte-compiled / optimized / DLL files
 .cache
 celerybeat.pid
