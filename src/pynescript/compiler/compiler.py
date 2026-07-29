@@ -1027,7 +1027,8 @@ class CompilerVisitor(NodeVisitor):
                 self.object_mode = True
                 obj = self.visit(node.target.value)
                 val = self.visit(node.value)
-                return f"{obj}[{node.target.attr!r}] = {val}"
+                # na-safe: nested UDT field may be nan (motion: this.__timer.offset)
+                return f"udt_set_field({obj}, {node.target.attr!r}, {val})"
             return ""
 
         name = node.target.id
@@ -2162,12 +2163,14 @@ class CompilerVisitor(NodeVisitor):
             if isinstance(node.value, ast.If):
                 tern = self._try_if_as_ternary(node.value)
                 if tern is not None:
-                    return f"{obj}[{node.target.attr!r}] = {tern}"
+                    return f"udt_set_field({obj}, {node.target.attr!r}, {tern})"
+                # Multi-stmt if → assign via temp then udt_set_field is hard;
+                # fall back to direct dict write only when obj is a plain name.
                 target = f"{obj}[{node.target.attr!r}]"
                 return self._emit_if_assign(target, node.value)
             val = self.visit(node.value)
-            # UDT field write: p.x := 1
-            return f"{obj}[{node.target.attr!r}] = {val}"
+            # UDT field write: p.x := 1 (na-safe for nested handles)
+            return f"udt_set_field({obj}, {node.target.attr!r}, {val})"
         # Series locals must write through their persistent array
         if (
             self.in_function
@@ -2291,8 +2294,11 @@ class CompilerVisitor(NodeVisitor):
             self.object_mode = True
             obj = self.visit(node.target.value)
             key = node.target.attr
+            # Single-eval of *obj* (may contain walrus binds) then na-safe RMW.
             return (
-                f"{obj}[{key!r}] = (({obj}[{key!r}]) {op_s} ({val}))"
+                f"(lambda __o: udt_set_field(__o, {key!r}, "
+                f"((__o.get({key!r}, np.nan) if isinstance(__o, dict) else np.nan) "
+                f"{op_s} ({val}))))({obj})"
             )
         target = self.visit(node.target)
         return f"{target} = (({target}) {op_s} ({val}))"

@@ -419,17 +419,29 @@ class InputBuiltinsMixin(BuiltinDispatchMixin):
         return value
 
     def _handle_input_enum(self, args: list[Any]) -> Any:
-        """input.enum(defval, title, options, ...) → selected enum value."""
+        """input.enum(defval, title, options?, ...) → selected enum value.
+
+        Pine signature (v5/v6)::
+
+            input.enum(defval, title, options, tooltip, inline, group, confirm, display, active)
+
+        ``options`` is optional. When omitted, TradingView populates the dropdown
+        from the enum type of ``defval``. Keyword-only calls like
+        ``input.enum(Easing.linear, title="…", group="…")`` leave a sparse
+        kwargs merge hole at the ``options`` slot (``None``), which must not be
+        treated as an iterable.
+        """
         defval = args[0] if len(args) > 0 else ""
         title = args[1] if len(args) > 1 else ""
-        options = args[2] if len(args) > 2 else []
-        tooltip = args[3] if len(args) > 3 else ""
+        # Sparse kwargs merge pads missing slots with None — treat as omitted.
+        options = args[2] if len(args) > 2 else None
+        tooltip = args[3] if len(args) > 3 and args[3] is not None else ""
         inline = args[4] if len(args) > 4 else None
         group = args[5] if len(args) > 5 else None
-        confirm = args[6] if len(args) > 6 else False
-        active = args[7] if len(args) > 7 else True
+        confirm = args[6] if len(args) > 6 and args[6] is not None else False
+        active = args[7] if len(args) > 7 and args[7] is not None else True
         value = self._resolve_override(title or None, defval)
-        opt_list = list(options) if not isinstance(options, list) else options
+        opt_list = self._coerce_input_enum_options(options, defval)
         self._record_input(
             {
                 "type": "enum",
@@ -445,6 +457,37 @@ class InputBuiltinsMixin(BuiltinDispatchMixin):
             }
         )
         return value
+
+    def _coerce_input_enum_options(self, options: Any, defval: Any) -> list[Any]:
+        """Normalize ``input.enum`` options; infer members from ``defval`` when omitted.
+
+        Args:
+            options: Explicit options list/tuple, or ``None`` when not provided.
+            defval: Default enum member (often ``"EnumName.member"`` string).
+
+        Returns:
+            A list of option values suitable for the Inputs UI / overrides.
+        """
+        if options is None:
+            # Infer full enum member list from defval when possible.
+            enum_name: str | None = None
+            if isinstance(defval, str) and "." in defval:
+                enum_name = defval.split(".", 1)[0]
+            ctx = getattr(self, "context", None)
+            if enum_name and isinstance(ctx, dict):
+                enum_def = ctx.get(enum_name)
+                if isinstance(enum_def, dict):
+                    return list(enum_def.values())
+            return []
+        if isinstance(options, list):
+            return options
+        if isinstance(options, tuple):
+            return list(options)
+        # array.* wrappers / generic sequences
+        try:
+            return list(options)
+        except TypeError:
+            return []
 
     def _handle_input_text_area(self, args: list[Any]) -> str:
         """input.text_area(defval, title, ...) → multiline string value."""

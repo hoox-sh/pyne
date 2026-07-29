@@ -87,13 +87,19 @@ class StringBuiltinsMixin(BuiltinDispatchMixin):
             self._error(message)
         return value
 
-    def _builtin_str_length(self, args: list[Any]) -> int:
+    def _builtin_str_length(self, args: list[Any]) -> int | None:
+        """str.length(string) → int, or ``na`` when *string* is ``na``.
+
+        Motion uses ``str.length(seqArr.get(pointer))``; out-of-range / unset
+        ``array.get`` yields ``na`` and must not hard-fail the bar.
+        """
         if len(args) != UNARY:
             self._error("str.length takes a string argument")
-        value = self._expect_string(
-            args[0],
-            "str.length takes a string argument",
-        )
+        value = args[0]
+        if value is None:
+            return None
+        if not isinstance(value, str):
+            value = str(value)
         return len(value)
 
     def _builtin_str_upper(self, args: list[Any]) -> str:
@@ -140,32 +146,29 @@ class StringBuiltinsMixin(BuiltinDispatchMixin):
         )
         return value.startswith(prefix)
 
-    def _builtin_str_substring(self, args: list[Any]) -> str:
+    def _builtin_str_substring(self, args: list[Any]) -> str | None:
+        """str.substring(source, begin_pos, end_pos?) → substring or ``na``.
+
+        Any ``na`` argument propagates ``na`` (motion: ``sub_start`` /
+        ``sub_length`` often unset → end becomes ``na``).
+        """
+        if len(args) not in (BINARY, TERNARY):
+            self._error("str.substring takes string and 1-2 ints")
+        raw = args[0]
+        if raw is None:
+            return None
+        value = raw if isinstance(raw, str) else str(raw)
+        start = args[1]
+        if start is None:
+            return None
+        start_i = self._expect_int(start, "str.substring takes string and 1-2 ints")
         if len(args) == BINARY:
-            value = self._expect_string(
-                args[0],
-                "str.substring takes string and 1-2 ints",
-            )
-            start = self._expect_int(
-                args[1],
-                "str.substring takes string and 1-2 ints",
-            )
-            return value[start:]
-        if len(args) == TERNARY:
-            value = self._expect_string(
-                args[0],
-                "str.substring takes string and 1-2 ints",
-            )
-            start = self._expect_int(
-                args[1],
-                "str.substring takes string and 1-2 ints",
-            )
-            end = self._expect_int(
-                args[2],
-                "str.substring takes string and 1-2 ints",
-            )
-            return value[start:end]
-        self._error("str.substring takes string and 1-2 ints")
+            return value[start_i:]
+        end = args[2]
+        if end is None:
+            return None
+        end_i = self._expect_int(end, "str.substring takes string and 1-2 ints")
+        return value[start_i:end_i]
 
     def _builtin_str_endswith(self, args: list[Any]) -> bool:
         if len(args) != BINARY:
@@ -180,18 +183,18 @@ class StringBuiltinsMixin(BuiltinDispatchMixin):
         )
         return value.endswith(suffix)
 
-    def _builtin_str_repeat(self, args: list[Any]) -> str:
+    def _builtin_str_repeat(self, args: list[Any]) -> str | None:
+        """str.repeat(source, num) → string, or ``na`` if either arg is ``na``."""
         if len(args) != BINARY:
             self._error("str.repeat takes string and int")
-        value = self._expect_string(
-            args[0],
-            "str.repeat takes string and int",
-        )
-        count = self._expect_int(
-            args[1],
-            "str.repeat takes string and int",
-        )
-        return value * count
+        raw, count = args[0], args[1]
+        if raw is None or count is None:
+            return None
+        value = raw if isinstance(raw, str) else str(raw)
+        n = self._expect_int(count, "str.repeat takes string and int")
+        if n < 0:
+            n = 0
+        return value * n
 
     def _builtin_str_replace(self, args: list[Any]) -> str:
         if len(args) != TERNARY:
@@ -228,23 +231,34 @@ class StringBuiltinsMixin(BuiltinDispatchMixin):
         return value.replace(old, new)
 
     def _builtin_str_split(self, args: list[Any]) -> list[str]:
+        """str.split(source, separator?) → array of substrings.
+
+        Aligns with :func:`pynescript.compiler.numba_builtins.str_split`:
+
+        - ``na`` / ``None`` source → empty string (so ``x.isset(str.split(na, …))``
+          patterns in motion/console libraries do not hard-fail while evaluating
+          the fallback).
+        - empty separator → split into characters (Python forbids ``"".split("")``).
+        """
+        if len(args) not in (UNARY, BINARY):
+            self._error("str.split takes str and opt separator")
+        raw = args[0]
+        if raw is None:
+            value = ""
+        elif isinstance(raw, str):
+            value = raw
+        else:
+            # Coerce numbers / series scalars rather than hard-fail (TV tostring-ish)
+            value = str(raw)
         if len(args) == UNARY:
-            value = self._expect_string(
-                args[0],
-                "str.split takes str and opt separator",
-            )
             return value.split()
-        if len(args) == BINARY:
-            value = self._expect_string(
-                args[0],
-                "str.split takes str and opt separator",
-            )
-            sep = self._expect_string(
-                args[1],
-                "str.split takes str and opt separator",
-            )
-            return value.split(sep)
-        self._error("str.split takes str and opt separator")
+        sep_raw = args[1]
+        if sep_raw is None:
+            return value.split()
+        sep = sep_raw if isinstance(sep_raw, str) else str(sep_raw)
+        if sep == "":
+            return list(value)
+        return value.split(sep)
 
     def _builtin_str_trim(self, args: list[Any]) -> str:
         if len(args) != UNARY:

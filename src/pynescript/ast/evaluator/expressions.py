@@ -847,7 +847,14 @@ class ExpressionEvaluator:
         applies defaults, executes the method body, then restores prior
         bindings. Does **not** ``dict.copy()`` the context — hosts mutate
         ``bar_index`` / OHLCV on the same dict each bar.
+
+        Built-in ``copy`` (no user body) returns a shallow :class:`ObjectInstance`
+        clone — required by motion/console ``option.copy()`` / ``theme.copy()``.
         """
+        # Built-in UDT methods (not user-defined method bodies)
+        if method_name == "copy":
+            return obj_instance.copy()
+
         # Get the method definition from the UDT
         udt = obj_instance.udt
         if not hasattr(udt, "_method_defs") or method_name not in udt._method_defs:  # type: ignore

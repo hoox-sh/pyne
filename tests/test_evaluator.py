@@ -1593,6 +1593,55 @@ def test_evaluator_input_enum():
     assert meta["options"] == ["A", "B", "C"]
 
 
+def test_evaluator_input_enum_kwargs_without_options():
+    """Sparse kwargs must not leave options=None (motion library style)."""
+    # Simulate merge hole: defval, title, None, tooltip, None, group
+    from pynescript.ast.evaluator import NodeLiteralEvaluator
+
+    ev = NodeLiteralEvaluator()
+    # enum dict as TradingView-style member map
+    ev.context["Easing"] = {
+        "linear": "Easing.linear",
+        "ease": "Easing.ease",
+    }
+    result = ev._handle_input_enum(  # type: ignore[attr-defined]
+        ["Easing.linear", "Easing", None, "tip", None, "ACTION"]
+    )
+    assert result == "Easing.linear"
+    meta = ev._input_declarations[0]
+    assert meta["type"] == "enum"
+    assert meta["title"] == "Easing"
+    assert meta["tooltip"] == "tip"
+    assert meta["group"] == "ACTION"
+    assert meta["options"] == ["Easing.linear", "Easing.ease"]
+
+
+def test_evaluator_input_enum_keyword_call_via_parse():
+    src = """//@version=5
+indicator("e")
+enum Easing
+    linear
+    ease
+e = input.enum(Easing.linear, title="Easing", tooltip="t", group="G")
+plot(1)
+"""
+    tree = helper.parse(src)
+    ev = NodeLiteralEvaluator()
+    # bar context for indicator/plot
+    ev.context["close"] = 1.0
+    ev.context["bar_index"] = 0
+    ev.visit(tree)
+    enums = [d for d in ev._input_declarations if d.get("type") == "enum"]
+    assert enums, "expected input.enum declaration"
+    assert enums[0]["title"] == "Easing"
+    assert enums[0]["group"] == "G"
+    # options inferred from enum or empty — must not crash
+    assert isinstance(enums[0]["options"], list)
+    assert enums[0]["value"] in ("Easing.linear", "linear") or str(enums[0]["value"]).endswith(
+        "linear"
+    )
+
+
 def test_evaluator_input_with_all_parameters():
     """input.int returns value; full optional metadata is recorded."""
     ast = helper.parse(

@@ -501,16 +501,26 @@ class ArrayBuiltinsMixin(BuiltinDispatchMixin):
         return sequence
 
     def _builtin_array_join(self, args: list[Any]) -> str:
-        if len(args) != BINARY:
-            self._error("array.join takes array and separator string")
+        """array.join(id, separator?) / id.join(separator?) → concatenated string.
+
+        Separator defaults to ``""`` when omitted (common in motion: ``this.join()``).
+        ``na`` elements are stringified as empty.
+        """
+        if len(args) not in (UNARY, BINARY):
+            self._error("array.join takes array and optional separator string")
         sequence = self._expect_list(
             args[0],
-            "array.join takes array and separator string",
+            "array.join takes array and optional separator string",
         )
-        separator = args[1]
-        if not isinstance(separator, str):
-            self._error("array.join takes array and separator string")
-        return separator.join(str(item) for item in sequence)
+        if len(args) == UNARY:
+            separator = ""
+        else:
+            separator = args[1]
+            if separator is None:
+                separator = ""
+            elif not isinstance(separator, str):
+                separator = str(separator)
+        return separator.join("" if item is None else str(item) for item in sequence)
 
     def _builtin_array_last(self, args: list[Any]) -> Any:
         if len(args) != UNARY:

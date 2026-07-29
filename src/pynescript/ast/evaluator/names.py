@@ -211,6 +211,19 @@ class NameEvaluator:
                 # Return a bound method marker - tuple of (marker, instance, method_name)
                 # This will be interpreted by call evaluation to bind the instance
                 return ("_method_call", value, node.attr)
+            # Built-in UDT methods always available (not stored in type.methods):
+            # ``instance.copy()`` — shallow clone (motion: ``__opt.copy()``).
+            if node.attr == "copy":
+                return ("_method_call", value, "copy")
+            # Extension methods defined as free ``method foo(Type this, …)``
+            # (motion: ``timer.isset(timer.new())``, ``option.isset(...)``).
+            # Must run *before* field lookup so missing fields don't shadow them.
+            ext = self.context.get(node.attr) if hasattr(self, "context") else None
+            if callable(ext) and (
+                getattr(ext, "__pine_method__", False)
+                or getattr(ext, "__pine_overloads__", None)
+            ):
+                return ("_ext_method", value, node.attr)
             # Otherwise try to get field (property or attribute of the UDT instance)
             return value.get_field(node.attr)
 

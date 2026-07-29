@@ -1501,6 +1501,19 @@ def udt_index(obj, idx):
     return np.nan
 
 
+def udt_set_field(obj, key, val):
+    """Assign ``obj[key] = val`` when *obj* is a UDT dict; no-op for na/scalars.
+
+    Nested field writes like ``this.__timer.offset := x`` emit
+    ``udt_set_field(this['__timer'], 'offset', x)``. When ``__timer`` is still
+    ``na`` (``np.nan``), a raw ``nan['offset'] = x`` would raise
+    ``'float' object does not support item assignment`` (motion library).
+    """
+    if isinstance(obj, dict):
+        obj[key] = val
+    return val
+
+
 def pine_raise(msg) -> None:
     """Expression-safe ``runtime.error`` for generated code.
 
