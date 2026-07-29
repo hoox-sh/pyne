@@ -66,24 +66,91 @@ app.config["MAX_CONTENT_LENGTH"] = 5 * 1024 * 1024  # 5 MB
 # changes. The same-origin case (no Origin header, e.g. server-to-server or
 # curl) is always allowed.
 # flask-cors supports regex origins; use a pattern that covers any localhost port.
+#
+# IMPORTANT: env ALLOWED_ORIGINS=* must be the string "*", not the list ["*"].
+# A list containing the single string "*" only matches Origin: * literally and
+# breaks AXIS on VPS/local cross-port setups (completion/hover/run preflight).
 LOCALHOST_RE = r"^https?://(?:localhost|127\.0\.0\.1)(?::\d+)?$"
-ALLOWED_ORIGINS = [
-    o.strip()
-    for o in os.environ.get("ALLOWED_ORIGINS", "https://pynescript.ai,https://app.pynescript.ai," + LOCALHOST_RE).split(
-        ","
-    )
-    if o.strip()
-]
+# Private LAN / demo VPS HTTP origins (any port) — safe enough for Pro API demos
+PRIVATE_HTTP_RE = (
+    r"^https?://(?:"
+    r"10\.\d{1,3}\.\d{1,3}\.\d{1,3}|"
+    r"192\.168\.\d{1,3}\.\d{1,3}|"
+    r"172\.(?:1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}|"
+    r"162\.254\.38\.194"  # AXIS/pyne public demo host
+    r")(?::\d+)?$"
+)
+
+
+def _parse_allowed_origins() -> list[str] | str:
+    raw = os.environ.get(
+        "ALLOWED_ORIGINS",
+        "https://pynescript.ai,https://app.pynescript.ai," + LOCALHOST_RE,
+    ).strip()
+    if raw == "*" or raw.lower() == "any":
+        return "*"
+    parts = [o.strip() for o in raw.split(",") if o.strip()]
+    # Always keep local-dev regex even when an explicit list is provided
+    if LOCALHOST_RE not in parts:
+        parts.append(LOCALHOST_RE)
+    if PRIVATE_HTTP_RE not in parts and raw != "*":
+        parts.append(PRIVATE_HTTP_RE)
+    return parts
+
+
+ALLOWED_ORIGINS = _parse_allowed_origins()
 CORS(
     app,
     origins=ALLOWED_ORIGINS,
-    methods=["GET", "POST"],
-    allow_headers=["Content-Type", "Authorization", "X-Admin-Token"],
+    methods=["GET", "POST", "OPTIONS", "HEAD"],
+    allow_headers=["Content-Type", "Authorization", "X-Admin-Token", "Accept"],
+    expose_headers=["Content-Type"],
     supports_credentials=False,
+    max_age=86400,
 )
 
-sock = Sock(app) if _SOCK_AVAILABLE and Sock is not None else None
 
+@app.after_request
+def _ensure_cors_headers(resp):  # type: ignore[no-untyped-def]
+    """Safety net: always echo ACAO for allowed Origins (fixes list-['*'] footgun)."""
+    origin = request.headers.get("Origin")
+    if not origin:
+        return resp
+    allowed = ALLOWED_ORIGINS
+    ok = False
+    if allowed == "*":
+        ok = True
+    elif isinstance(allowed, list):
+        import re
+
+        for pat in allowed:
+            if pat == "*":
+                ok = True
+                break
+            if pat == origin:
+                ok = True
+                break
+            try:
+                if re.match(pat, origin):
+                    ok = True
+                    break
+            except re.error:
+                continue
+    if ok:
+        resp.headers["Access-Control-Allow-Origin"] = origin
+        resp.headers["Vary"] = "Origin"
+        resp.headers.setdefault(
+            "Access-Control-Allow-Methods",
+            "GET, POST, OPTIONS, HEAD",
+        )
+        resp.headers.setdefault(
+            "Access-Control-Allow-Headers",
+            "Content-Type, Authorization, X-Admin-Token, Accept",
+        )
+    return resp
+
+
+sock = Sock(app) if _SOCK_AVAILABLE and Sock is not None else None
 
 def execute_run_payload(data: dict[str, Any]) -> tuple[dict[str, Any], int]:
     """Shared run logic for POST /run and WS /ws/run.
