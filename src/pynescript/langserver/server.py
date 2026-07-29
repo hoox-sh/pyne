@@ -32,6 +32,7 @@ from typing import Any
 from lsprotocol import types as lsp
 from pygls.lsp.server import LanguageServer
 
+from pynescript.__about__ import __version__
 from pynescript.langserver import config
 from pynescript.langserver.features import completion as completion_feature
 from pynescript.langserver.features import definitions as definitions_feature
@@ -39,9 +40,8 @@ from pynescript.langserver.features import formatting as formatting_feature
 from pynescript.langserver.features import hover as hover_feature
 from pynescript.langserver.features import inlay_hints as inlay_hints_feature
 from pynescript.langserver.features import references as references_feature
-from pynescript.langserver.features import symbols as symbols_feature
-# semantic tokens stub for now
 from pynescript.langserver.features import semantic_tokens as semantic_tokens_feature
+from pynescript.langserver.features import symbols as symbols_feature
 from pynescript.langserver.workspace import Workspace
 
 
@@ -58,7 +58,7 @@ class PynescriptLanguageServer(LanguageServer):
     def __init__(self) -> None:
         super().__init__(
             name="Pynescript",
-            version="0.1.0",
+            version=__version__,
         )
 
         self.pine_workspace = Workspace()
@@ -131,7 +131,7 @@ class PynescriptLanguageServer(LanguageServer):
                 capabilities=capabilities,
                 server_info=lsp.ServerInfo(
                     name="Pynescript Language Server",
-                    version="0.1.0",
+                    version=__version__,
                 ),
             )
 

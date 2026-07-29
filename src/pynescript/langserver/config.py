@@ -24,6 +24,8 @@ Declares which LSP features the Pynescript Language Server supports.
 
 from __future__ import annotations
 
+from typing import Any
+
 from lsprotocol import types as lsp
 
 
@@ -64,35 +66,46 @@ def get_server_capabilities() -> lsp.ServerCapabilities:
         inlay_hint_provider=lsp.InlayHintOptions(
             resolve_provider=False,
         ),
+        # Legend indices must match semantic_tokens.TOKEN_TYPES order.
         semantic_tokens_provider=lsp.SemanticTokensOptions(
             legend=lsp.SemanticTokensLegend(
-                token_types=[
-                    "namespace", "type", "class", "enum", "interface",
-                    "struct", "typeParameter", "parameter", "variable",
-                    "property", "enumMember", "event", "function",
-                    "method", "macro", "keyword", "modifier", "comment",
-                    "string", "number", "regexp", "operator",
-                ],
-                token_modifiers=["declaration", "definition", "readonly", "static", "deprecated", "abstract", "async", "modification", "documentation", "defaultLibrary"],
+                token_types=list(semantic_token_types()),
+                token_modifiers=list(semantic_token_modifiers()),
             ),
             range=False,
             full=True,
         ),
-        signature_help_provider=lsp.SignatureHelpOptions(
-            trigger_characters=["(", ","],
-            retrigger_characters=[","],
-        ),
-        code_action_provider=lsp.CodeActionOptions(
-            code_action_kinds=[
-                lsp.CodeActionKind.QuickFix,
-                lsp.CodeActionKind.Refactor,
-                lsp.CodeActionKind.SourceOrganizeImports,
-            ],
-        ),
+        # signatureHelp / codeAction intentionally omitted until handlers exist.
     )
 
 
-from typing import Any
+def semantic_token_types() -> tuple[str, ...]:
+    """Token types advertised to clients (keep in sync with semantic_tokens.py)."""
+    return (
+        "namespace",
+        "type",
+        "class",
+        "function",
+        "method",
+        "variable",
+        "parameter",
+        "property",
+        "keyword",
+        "string",
+        "number",
+        "operator",
+        "comment",
+    )
+
+
+def semantic_token_modifiers() -> tuple[str, ...]:
+    """Token modifiers advertised to clients."""
+    return (
+        "declaration",
+        "definition",
+        "readonly",
+        "defaultLibrary",
+    )
 
 
 def get_filter_options() -> Any:

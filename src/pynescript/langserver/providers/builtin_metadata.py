@@ -25,44 +25,63 @@ Loads and serves builtin function metadata for LSP features.
 from __future__ import annotations
 
 import json
+import logging
 
 from pathlib import Path
 from typing import Any
 
 
-_metadata: dict[str, Any] | None = None
+logger = logging.getLogger(__name__)
+
+
+class _MetadataCache:
+    """Process-local metadata cache (avoids module-level ``global``)."""
+
+    data: dict[str, Any] | None = None
+
+
+def reset_metadata_cache() -> None:
+    """Drop the in-process cache (tests / after regenerating JSON)."""
+    _MetadataCache.data = None
 
 
 def get_metadata() -> dict[str, Any]:
     """Get the builtin metadata dictionary.
 
-    Loads from JSON on first call, then caches in memory.
-    Supports encrypted metadata (for compiled binary) and plaintext (for development).
+    Load order:
+    1. Plaintext ``builtin_metadata.json`` (dev / wheel install)
+    2. Encrypted blob (Nuitka binary) via :mod:`metadata_decrypt`
 
     Returns:
         Dictionary mapping builtin names to metadata.
     """
-    global _metadata
-
-    if _metadata is None:
+    if _MetadataCache.data is None:
         providers_dir = Path(__file__).parent
         plain_path = providers_dir / "builtin_metadata.json"
         enc_path = providers_dir / "builtin_metadata.json.enc"
 
-        if enc_path.exists():
+        loaded: dict[str, Any] | None = None
+
+        # Prefer plaintext when present so regenerating JSON always wins in dev.
+        if plain_path.exists():
             try:
-                from pynescript.langserver.providers.metadata_decrypt import get_metadata_cached
+                with open(plain_path, encoding="utf-8") as f:
+                    loaded = json.load(f)
+            except (OSError, json.JSONDecodeError) as exc:
+                logger.warning("Failed to load plaintext builtin metadata: %s", exc)
 
-                _metadata = get_metadata_cached()
-            except Exception:
-                _metadata = {}
-        elif plain_path.exists():
-            with open(plain_path, encoding="utf-8") as f:
-                _metadata = json.load(f)
-        else:
-            _metadata = {}
+        if loaded is None and enc_path.exists():
+            try:
+                # Lazy: only needed for Nuitka binary path
+                from pynescript.langserver.providers import metadata_decrypt  # noqa: PLC0415
 
-    return _metadata
+                loaded = metadata_decrypt.load_encrypted_metadata()
+            except Exception as exc:
+                logger.warning("Failed to decrypt builtin metadata: %s", exc)
+
+        _MetadataCache.data = loaded if isinstance(loaded, dict) else {}
+
+    return _MetadataCache.data
 
 
 def get_builtin(name: str) -> dict[str, Any] | None:
@@ -99,7 +118,7 @@ def get_all_categories() -> list[str]:
     """
     metadata = get_metadata()
     categories = {info.get("category") for info in metadata.values()}
-    return sorted(categories)
+    return sorted(c for c in categories if c is not None)
 
 
 def fuzzy_filter(query: str, items: list[dict[str, Any]], limit: int = 50) -> list[dict[str, Any]]:
@@ -124,7 +143,6 @@ def fuzzy_filter(query: str, items: list[dict[str, Any]], limit: int = 50) -> li
         category = item.get("category", "").lower()
         brief = item.get("brief", "").lower()
 
-        # Check for substring matches
         score = 0
         if label == query_lower:
             score = 1000
@@ -140,6 +158,5 @@ def fuzzy_filter(query: str, items: list[dict[str, Any]], limit: int = 50) -> li
         if score > 0:
             results.append((score, item))
 
-    # Sort by score descending
     results.sort(key=lambda x: x[0], reverse=True)
     return [item for _, item in results[:limit]]
