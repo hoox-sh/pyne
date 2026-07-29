@@ -20,13 +20,26 @@
 """Strategy event capture primitives.
 
 A :class:`StrategyEvent` is the structured representation of one
-``strategy.*`` call emitted during Pine script execution. The shape is the
-parity contract between the Python reference implementation (this repo) and
-the TypeScript port in ``pine-worker`` (Plan 2 of
+``strategy.*`` call emitted during bar-by-bar Pine execution. Events are
+buffered on the evaluator's ``StrategyState._events`` and drained by hosts
+(backend Runtime, pyne-worker) after each bar or run.
+
+**Kinds** (``StrategyEventKind``) map to builtin entry points:
+
+| kind | Typical builtin |
+| --- | --- |
+| ``entry`` | ``strategy.entry`` |
+| ``exit`` | ``strategy.exit`` |
+| ``close`` | ``strategy.close`` |
+| ``close_all`` | ``strategy.close_all`` |
+| ``cancel`` | ``strategy.cancel`` |
+| ``cancel_all`` | ``strategy.cancel_all`` |
+| ``order`` | ``strategy.order`` |
+
+Parity contract with the TypeScript port in ``pine-worker`` (Plan 2 of
 ``.opencode/plans/2026-07-05-pine-worker-strategy-events.md``). Any change
 to this dataclass must be reflected in
-``pine-worker/src/evaluator/events.ts`` and the parity test corpus under
-``tests/fixtures/parity/``.
+``pine-worker/src/evaluator/events.ts`` and ``tests/fixtures/parity/``.
 """
 
 from __future__ import annotations
@@ -53,11 +66,15 @@ StrategyOrderType = Literal["market", "limit", "stop"]
 
 @dataclass(frozen=True)
 class StrategyEvent:
-    """A single ``strategy.*`` call, captured at the bar it was emitted.
+    """One ``strategy.*`` emission, frozen at the bar where it was recorded.
 
-    The dataclass is frozen so events are immutable once recorded; the
-    runtime consumes them via :meth:`to_dict` for serialization to the
-    trade-worker boundary (Plan 3).
+    Order fields (``id``, ``direction``, ``qty``, ``order_type``, ``limit``,
+    ``stop``, ``oca_name``, ``comment``) come from the builtin call.
+    Context fields (``bar_index``, ``bar_time``, ``ohlc``, ``script_id``,
+    ``run_id``) are filled by the strategy dispatch layer from the current
+    bar-loop state.
+
+    Hosts serialize via :meth:`to_dict` (all keys present; ``None`` preserved).
     """
 
     kind: StrategyEventKind

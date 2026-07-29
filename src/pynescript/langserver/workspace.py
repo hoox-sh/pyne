@@ -17,9 +17,18 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Document workspace manager.
+"""In-memory workspace for open Pine Script documents.
 
-Tracks open documents, caches parsed ASTs, and manages document state.
+The Language Server keeps one :class:`Workspace` on
+:attr:`~pynescript.langserver.server.PynescriptLanguageServer.pine_workspace`.
+On open/change it parses with :func:`pynescript.ast.parse` and lints with
+:func:`pynescript.ast.linter.lint_script`, storing results on
+:class:`TextDocumentState`.
+
+Feature handlers typically call :meth:`Workspace.get_source` and re-parse if
+needed; diagnostics are converted to LSP via :meth:`Workspace.get_all_diagnostics`
+/ internal ``_lint_warnings_to_diagnostics`` (publish + pull paths in
+:mod:`pynescript.langserver.server`).
 """
 
 from __future__ import annotations
@@ -38,7 +47,17 @@ from pynescript.ast.linter import lint_script
 
 @dataclass
 class TextDocumentState:
-    """Holds parsed state for a single document."""
+    """Cached parse/lint state for a single open document URI.
+
+    Attributes:
+        uri: Document URI (usually ``file://…``).
+        source: Current buffer text.
+        version: LSP textDocument version.
+        ast: Parsed AST, or ``None`` if the last parse failed.
+        diagnostics: :class:`~pynescript.ast.linter.LintWarning` list (not LSP types).
+        parse_error: Human-readable parse failure message when ``ast`` is ``None``.
+        parse_error_line: 1-based line from the error string, if detected.
+    """
 
     uri: str
     source: str
@@ -50,16 +69,20 @@ class TextDocumentState:
 
     @property
     def path(self) -> Path | None:
-        """Get the file path from the URI."""
+        """Filesystem path for ``file://`` URIs; otherwise ``None``."""
         if self.uri.startswith("file://"):
             return Path(self.uri[7:])
         return None
 
 
 class Workspace:
-    """Manages the document workspace.
+    """URI-keyed store of open documents with parse/lint cache.
 
-    Tracks open documents, caches ASTs, and handles document change events.
+    Public surface used by the server:
+
+    - :meth:`get_document` / :meth:`get_source` / :attr:`documents`
+    - :meth:`put_document` / :meth:`update_document` / :meth:`remove_document`
+    - :meth:`get_all_diagnostics` — LSP diagnostics for every open URI
     """
 
     def __init__(self) -> None:
@@ -67,17 +90,16 @@ class Workspace:
         self._parse_errors: set[str] = set()
 
     def get_document(self, uri: str) -> TextDocumentState | None:
-        """Get a document by URI."""
+        """Return state for *uri*, or ``None`` if not open."""
         return self._documents.get(uri)
 
     def get_source(self, uri: str) -> str | None:
-        """Get the source text for a document."""
+        """Return buffer text for *uri*, or ``None`` if not open."""
         doc = self._documents.get(uri)
         return doc.source if doc else None
 
     def put_document(self, uri: str, source: str, version: int = 1) -> TextDocumentState:
-        """Add or update a document."""
-        existing = self._documents.get(uri)
+        """Insert or replace a document, then parse and lint."""
         doc = TextDocumentState(
             uri=uri,
             source=source,
@@ -88,13 +110,17 @@ class Workspace:
         return doc
 
     def remove_document(self, uri: str) -> None:
-        """Remove a document from the workspace."""
+        """Drop *uri* from the workspace (no-op if missing)."""
         self._documents.pop(uri, None)
 
     def update_document(
         self, uri: str, changes: list[lsp.TextDocumentContentChangeEvent], version: int
     ) -> TextDocumentState:
-        """Apply incremental changes to a document."""
+        """Apply full-document or incremental LSP content changes, then re-lint.
+
+        Raises:
+            ValueError: If *uri* is not in the workspace.
+        """
         doc = self._documents.get(uri)
         if not doc:
             raise ValueError(f"Document {uri} not found in workspace")
@@ -138,11 +164,11 @@ class Workspace:
 
     @property
     def documents(self) -> dict[str, TextDocumentState]:
-        """Get all documents in the workspace."""
+        """Live mapping of URI → :class:`TextDocumentState` (do not replace wholesale)."""
         return self._documents
 
     def get_all_diagnostics(self) -> dict[str, list[lsp.Diagnostic]]:
-        """Get LSP diagnostics for all documents."""
+        """Map each open URI to LSP diagnostics (lint + parse error)."""
         result = {}
         for uri, doc in self._documents.items():
             result[uri] = self._lint_warnings_to_diagnostics(doc)

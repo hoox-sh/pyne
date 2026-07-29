@@ -17,10 +17,15 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Pine Script Syntax Error Reporting.
+"""Syntax errors raised by the Pine Script parser and related tools.
 
-Custom exception classes with source code context for helpful error messages.
-Includes line/column information and visual indicators of error location.
+:func:`pynescript.ast.helper.parse` raises :class:`SyntaxError` (this module's
+class, not :class:`builtins.SyntaxError`) when lexing or parsing fails. The
+exception carries optional :class:`SyntaxErrorDetails` and formats a caret
+under the offending source line in ``str(exc)``.
+
+These names intentionally mirror the stdlib for familiarity; import from
+``pynescript.ast.error`` (or the package re-export) to avoid shadowing.
 """
 
 from __future__ import annotations
@@ -30,16 +35,17 @@ from typing import NamedTuple
 
 
 class SyntaxErrorDetails(NamedTuple):
-    """Detailed information about a syntax error location.
+    """Location payload for a :class:`SyntaxError`.
 
     Attributes:
-        filename: Path to the file where error occurred
-        lineno: Line number (1-indexed)
-        offset: Column offset (0-indexed)
-        text: The source code line
-        end_lineno: End line number (for multi-line errors)
-        end_offset: End column offset
+        filename: Source path or label (e.g. ``"<unknown>"``).
+        lineno: 1-based line number.
+        offset: 0-based column of the error start.
+        text: Full source line (or excerpt) containing the error.
+        end_lineno: Optional 1-based end line for multi-line spans.
+        end_offset: Optional 0-based end column.
     """
+
     filename: str
     lineno: int
     offset: int
@@ -49,19 +55,18 @@ class SyntaxErrorDetails(NamedTuple):
 
 
 class SyntaxError(Exception):  # noqa: A001
-    """Pine Script syntax error with source code context.
+    """Pine Script syntax error with optional source location context.
 
-    Provides detailed error reporting with line/column information
-    and visual indicators of the error location.
+    Attributes:
+        message: Short error description.
+        details: :class:`SyntaxErrorDetails` when location was provided.
     """
 
-    def __init__(self, message: str, *details):
-        """Initialize syntax error with message and optional location details.
+    def __init__(self, message: str, *details: SyntaxErrorDetails | object) -> None:
+        """Create an error with *message* and optional location *details*.
 
-        Args:
-            message: Error message
-            *details: Either a SyntaxErrorDetails tuple or individual components
-                     (filename, lineno, offset, text, end_lineno, end_offset)
+        *details* may be a single :class:`SyntaxErrorDetails`, or the same
+        fields unpacked (``filename, lineno, offset, text[, end_lineno, end_offset]``).
         """
         self.message = message
         if details:
@@ -70,8 +75,8 @@ class SyntaxError(Exception):  # noqa: A001
             else:
                 self.details = SyntaxErrorDetails(*details)
 
-    def __str__(self):
-        """Generate formatted error message with source code excerpt."""
+    def __str__(self) -> str:
+        """Human-readable message including file, line, and caret underline."""
         f = StringIO()
         code = self.details.text.lstrip()
         offset = self.details.offset + len(code) - len(self.details.text)
@@ -86,7 +91,8 @@ class SyntaxError(Exception):  # noqa: A001
 
 
 class IndentationError(SyntaxError):  # noqa: A001
-    """Indentation-related syntax error in Pine Script."""
+    """Syntax error specifically about indentation (subclass of :class:`SyntaxError`)."""
+
     pass
 
 

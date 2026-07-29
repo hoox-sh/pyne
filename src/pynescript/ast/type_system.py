@@ -17,10 +17,17 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""
-Pine Script v6 Type System Implementation
+"""Pine Script type model (qualifiers, builtins, UDTs, registry).
 
-This module provides the core type system for Pine Script v6.
+Used by the evaluator and tooling to represent ``const``/``simple``/``series``/
+``input`` qualifiers, built-in kinds, collections (``array``/``matrix``/``map``),
+user-defined types, and runtime UDT instances. Not star-exported from
+:mod:`pynescript.ast`; import this module directly.
+
+Public highlights: :class:`Type`, :class:`BuiltinType`, :class:`UserDefinedType`,
+:class:`TypeRegistry`, :class:`ObjectInstance`, :class:`MethodResolver`, and
+factories :func:`int_type`, :func:`float_type`, :func:`bool_type`,
+:func:`string_type`, :func:`color_type`.
 """
 
 from __future__ import annotations
@@ -30,7 +37,7 @@ from typing import Any
 
 
 class TypeQualifier(Enum):
-    """Type qualifiers in Pine Script"""
+    """Pine type qualifier (const / simple / series / input)."""
 
     CONST = "const"  # Constant, known at compile time
     SIMPLE = "simple"  # Simple, not changing per bar
@@ -39,7 +46,7 @@ class TypeQualifier(Enum):
 
 
 class BuiltinTypeKind(Enum):
-    """Built-in type kinds"""
+    """Enumeration of built-in scalar type names."""
 
     INT = "int"
     FLOAT = "float"
@@ -51,7 +58,7 @@ class BuiltinTypeKind(Enum):
 
 
 class Type:
-    """Base class for all Pine Script types"""
+    """Base for all modeled Pine types (name + optional qualifier)."""
 
     def __init__(self, name: str, qualifier: TypeQualifier | None = None) -> None:
         self.name = name
@@ -63,14 +70,17 @@ class Type:
         return self.name
 
     def is_compatible_with(self, other: Type) -> bool:
-        """Check if this type is compatible with another type"""
+        """Return True if this type is assignment-compatible with *other*.
+
+        Default: only equal :class:`BuiltinType` instances are compatible.
+        """
         if isinstance(other, BuiltinType):
             return self == other
         return False
 
 
 class BuiltinType(Type):
-    """Represents a built-in Pine Script type"""
+    """Built-in scalar type keyed by :class:`BuiltinTypeKind`."""
 
     def __init__(
         self,
@@ -83,7 +93,7 @@ class BuiltinType(Type):
 
 
 class ArrayType(Type):
-    """Represents an array type: array<T>"""
+    """``array<T>`` collection type."""
 
     def __init__(
         self,
@@ -96,7 +106,7 @@ class ArrayType(Type):
 
 
 class MatrixType(Type):
-    """Represents a matrix type: matrix<T>"""
+    """``matrix<T>`` collection type."""
 
     def __init__(
         self,
@@ -109,7 +119,7 @@ class MatrixType(Type):
 
 
 class MapType(Type):
-    """Represents a map type: map<K, V>"""
+    """``map<K, V>`` collection type."""
 
     def __init__(
         self,
@@ -124,7 +134,7 @@ class MapType(Type):
 
 
 class Field:
-    """Represents a field in a user-defined type"""
+    """Field of a user-defined type (name, type, default, optional ``varip``)."""
 
     def __init__(
         self,
@@ -148,7 +158,7 @@ class Field:
 
 
 class MethodSignature:
-    """Represents a method signature"""
+    """Named method signature: parameters and optional return type."""
 
     def __init__(
         self,
@@ -169,7 +179,7 @@ class MethodSignature:
 
 
 class UserDefinedType(Type):
-    """Represents a user-defined type (UDT) in Pine Script"""
+    """User-defined type (UDT) with fields and methods."""
 
     def __init__(self, name: str, qualifier: TypeQualifier | None = None) -> None:
         super().__init__(name, qualifier)
@@ -178,19 +188,19 @@ class UserDefinedType(Type):
         self.is_exported = False
 
     def add_field(self, field: Field) -> None:
-        """Add a field to this UDT"""
+        """Register *field* under its name (overwrites same name)."""
         self.fields[field.name] = field
 
     def get_field(self, name: str) -> Field | None:
-        """Get a field by name"""
+        """Return the field named *name*, or ``None``."""
         return self.fields.get(name)
 
     def add_method(self, method: MethodSignature) -> None:
-        """Add a method to this UDT"""
+        """Register *method* under its name (overwrites same name)."""
         self.methods[method.name] = method
 
     def get_method(self, name: str) -> MethodSignature | None:
-        """Get a method by name"""
+        """Return the method named *name*, or ``None``."""
         return self.methods.get(name)
 
     def __repr__(self) -> str:
@@ -199,7 +209,7 @@ class UserDefinedType(Type):
 
 
 class ObjectInstance:
-    """Runtime representation of a UDT instance"""
+    """Runtime instance of a :class:`UserDefinedType`."""
 
     def __init__(self, udt: UserDefinedType) -> None:
         self.udt = udt
@@ -210,21 +220,29 @@ class ObjectInstance:
             self.fields[field_name] = field_def.default_value
 
     def get_field(self, name: str) -> Any:
-        """Get the value of a field"""
+        """Return the value of field *name*.
+
+        Raises:
+            AttributeError: If *name* is not a field of the UDT.
+        """
         if name not in self.udt.fields:
             msg = f"Field '{name}' not found on type '{self.udt.name}'"
             raise AttributeError(msg)
         return self.fields.get(name)
 
     def set_field(self, name: str, value: Any) -> None:
-        """Set the value of a field"""
+        """Set field *name* to *value*.
+
+        Raises:
+            AttributeError: If *name* is not a field of the UDT.
+        """
         if name not in self.udt.fields:
             msg = f"Field '{name}' not found on type '{self.udt.name}'"
             raise AttributeError(msg)
         self.fields[name] = value
 
     def copy(self) -> ObjectInstance:
-        """Create a shallow copy of this object instance"""
+        """Return a shallow copy (field dict copied; values shared)."""
         new_instance = ObjectInstance(self.udt)
         new_instance.fields = self.fields.copy()
         return new_instance
@@ -235,7 +253,7 @@ class ObjectInstance:
 
 
 class TypeRegistry:
-    """Registry for all user-defined types in a script"""
+    """Name → type map for builtins and registered UDTs in a script."""
 
     def __init__(self) -> None:
         self.types: dict[str, UserDefinedType] = {}
@@ -243,7 +261,7 @@ class TypeRegistry:
 
     @staticmethod
     def _init_builtin_types() -> dict[str, BuiltinType]:
-        """Initialize built-in types"""
+        """Return the default built-in name → :class:`BuiltinType` map."""
         return {
             "int": BuiltinType(BuiltinTypeKind.INT),
             "float": BuiltinType(BuiltinTypeKind.FLOAT),
@@ -255,21 +273,21 @@ class TypeRegistry:
         }
 
     def register_type(self, udt: UserDefinedType) -> None:
-        """Register a user-defined type"""
+        """Register *udt* under ``udt.name`` (overwrites same name)."""
         self.types[udt.name] = udt
 
     def get_type(self, name: str) -> Type | None:
-        """Get a type by name (checks built-ins first, then UDTs)"""
+        """Look up *name* among builtins first, then registered UDTs."""
         if name in self._builtin_types:
             return self._builtin_types[name]
         return self.types.get(name)
 
     def is_builtin_type(self, name: str) -> bool:
-        """Check if a name refers to a built-in type"""
+        """True if *name* is a built-in type name."""
         return name in self._builtin_types
 
     def is_user_defined_type(self, name: str) -> bool:
-        """Check if a name refers to a user-defined type"""
+        """True if *name* is a registered UDT."""
         return name in self.types
 
     def __repr__(self) -> str:
@@ -277,25 +295,20 @@ class TypeRegistry:
 
 
 class MethodResolver:
-    """Resolves method calls on UDT instances"""
+    """Resolve method names on UDT instances (including ``.new`` / ``.copy``)."""
 
     def __init__(self, type_registry: TypeRegistry) -> None:
         self.type_registry = type_registry
 
     def resolve_method(self, instance: ObjectInstance, method_name: str, args: list[Any]) -> Any:
-        """
-        Resolve and prepare a method call on a UDT instance.
+        """Resolve *method_name* on *instance*.
 
-        Args:
-            instance: The object instance
-            method_name: Name of the method
-            args: Arguments to pass to the method
-
-        Returns:
-            The method signature and prepared context for execution
+        Built-ins: ``new`` constructs an :class:`ObjectInstance` (positional
+        args map to field order); ``copy`` returns a shallow copy. Otherwise
+        returns the registered :class:`MethodSignature`.
 
         Raises:
-            AttributeError: If method not found on type
+            AttributeError: If the method is not defined on the UDT.
         """
         # Check for built-in methods first
         if method_name == "new":
@@ -313,7 +326,7 @@ class MethodResolver:
 
     @staticmethod
     def _handle_new(udt: UserDefinedType, args: list[Any]) -> ObjectInstance:
-        """Handle .new() constructor"""
+        """Construct a UDT instance; apply positional *args* to fields in order."""
         instance = ObjectInstance(udt)
 
         # Set fields from positional arguments
@@ -326,31 +339,31 @@ class MethodResolver:
 
     @staticmethod
     def _handle_copy(instance: ObjectInstance) -> ObjectInstance:
-        """Handle .copy() method"""
+        """Return ``instance.copy()`` for the ``.copy()`` method."""
         return instance.copy()
 
 
 # Module-level factory functions for common types
 def int_type(qualifier: TypeQualifier | None = None) -> BuiltinType:
-    """Create an int type"""
+    """Return a ``int`` :class:`BuiltinType` with optional *qualifier*."""
     return BuiltinType(BuiltinTypeKind.INT, qualifier)
 
 
 def float_type(qualifier: TypeQualifier | None = None) -> BuiltinType:
-    """Create a float type"""
+    """Return a ``float`` :class:`BuiltinType` with optional *qualifier*."""
     return BuiltinType(BuiltinTypeKind.FLOAT, qualifier)
 
 
 def bool_type(qualifier: TypeQualifier | None = None) -> BuiltinType:
-    """Create a bool type"""
+    """Return a ``bool`` :class:`BuiltinType` with optional *qualifier*."""
     return BuiltinType(BuiltinTypeKind.BOOL, qualifier)
 
 
 def string_type(qualifier: TypeQualifier | None = None) -> BuiltinType:
-    """Create a string type"""
+    """Return a ``string`` :class:`BuiltinType` with optional *qualifier*."""
     return BuiltinType(BuiltinTypeKind.STRING, qualifier)
 
 
 def color_type(qualifier: TypeQualifier | None = None) -> BuiltinType:
-    """Create a color type"""
+    """Return a ``color`` :class:`BuiltinType` with optional *qualifier*."""
     return BuiltinType(BuiltinTypeKind.COLOR, qualifier)

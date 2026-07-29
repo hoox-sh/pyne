@@ -17,6 +17,24 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
+"""Statement evaluation: script body, assignments, defs, imports, loops.
+
+:class:`StatementEvaluator` walks statement-level AST nodes. Hosts call
+``visit(Script)`` **once per bar** after updating OHLCV / ``bar_index`` in
+``context``. Across that loop:
+
+- **``var`` / ``varip``** run their initializer only the first time that
+  declaration executes (see ``_var_declarations``), then keep the stored
+  value on later bars — including when the first execution is not bar 0
+  (e.g. ``var`` inside ``if barstate.islast``).
+- **``FunctionDef`` / ``TypeDef`` / ``Import``** may be skipped after the host
+  sets ``_pine_defs_locked`` (avoids multi-dispatch table growth O(bars²)).
+- **UDF bodies** rebind parameters on the live ``context`` dict and restore
+  them on return (never replace ``self.context`` with a copy).
+- **``na``** is ``None``; unresolved optional args are normalized via
+  :func:`_normalize_na`.
+"""
+
 from __future__ import annotations
 
 from collections.abc import Sequence
@@ -385,39 +403,41 @@ def _pick_method_overload(overloads: list, receiver: Any, rest_args: tuple | lis
 
 
 class BreakLoop(Exception):
-    """Signal to break out of a loop."""
+    """Control-flow signal: exit the innermost loop (``break``)."""
 
     pass
 
 
 class ContinueLoop(Exception):
-    """Signal to continue to the next iteration of a loop."""
+    """Control-flow signal: skip to the next loop iteration (``continue``)."""
 
     pass
 
 
 class StatementEvaluator:
-    """Evaluates statement nodes: assignments, function definitions, type definitions, and control flow.
+    """Mixin: script body, assign/reassign, function/type/enum defs, import, loops.
 
-    Handles:
-    - Variable assignments and augmented assignments (+=, -=, etc.)
-    - Function and method definitions
-    - User-defined type (UDT) definitions with fields and methods
-    - Control flow (if/else, loops)
-    - Return statements
+    Expects ``context``, ``type_registry``, and (from
+    :class:`~pynescript.ast.evaluator.NodeLiteralEvaluator`)
+    ``_var_declarations`` / library registry attributes.
+
+    Multi-dispatch for overloaded ``method`` free functions stores a list of
+    callables under one context name; overload pick uses coarse param type tags
+    (``matrix.float``, ``label``, …).
     """
 
     context: dict[str, Any]
     type_registry: TypeRegistry
 
     def visit_Script(self, node: ast.Script):
-        """Execute all statements in a script.
+        """Execute every top-level statement; return the last value.
 
-        Tracks ``library(...)`` declarations and registers exported members
-        (``export const``, ``export f() => ...``) into the library registry.
+        Hosts re-enter this per bar. Also detects ``library("Title")`` and
+        registers ``export`` members into the in-process library registry at
+        the end of the visit.
 
         Args:
-            node: The Script node containing the body of statements
+            node: Root ``Script`` with ``body`` statement list
         """
         # Fresh library-export buffer for this script evaluation
         self._pending_library_exports = {}  # type: ignore[attr-defined]
@@ -451,20 +471,24 @@ class StatementEvaluator:
         pending[name] = value
 
     def visit_Assign(self, node: ast.Assign):
-        """Evaluate an assignment statement.
+        """Assignment, including ``var`` / ``varip`` / ``const`` and tuple unpack.
 
-        Assigns a value to a variable in the current context.
+        Modes:
 
-        ``var`` / ``varip`` declarations (``node.mode == Var/VarIp``) are
-        only executed on the first bar (``bar_index == 0``). On subsequent
-        bars the declaration is skipped so the variable retains its value
-        across bars — the canonical Pine Script ``var`` semantics.
+        - **``var`` / ``varip``** — initializer runs only the first time this
+          declaration executes (name recorded in ``_var_declarations``). Later
+          visits skip so the value persists across bars. Not limited to
+          ``bar_index == 0``: a ``var`` inside a conditional or function inits
+          on first *execution*, which may be a later bar.
+        - **``const``** — always initializes (no cross-bar skip like ``var``).
+        - **plain** — evaluate RHS and store; supports ``export`` for libraries
+          and ``[a, b] = …`` unpack (lists, multi-value series wrappers).
 
         Args:
-            node: The Assign node with target, value, and optional mode
+            node: Assign with target, value, optional mode / type / export
 
         Raises:
-            ValueError: If assignment target is not a simple name
+            ValueError: Unsupported target form
         """
         # -- Handle var / varip: initialize once (first time declaration runs) --
         # Pine ``var`` is not strictly bar_index==0: a ``var`` inside
@@ -600,12 +624,14 @@ class StatementEvaluator:
         self._error(msg)  # type: ignore[attr-defined]
 
     def visit_AugAssign(self, node: ast.AugAssign):
-        """Handle augmented assignment (e.g., obj.field := value).
+        """Augmented assignment (``x += 1``, UDT field write via attribute target).
 
-        Modifies existing values in-place using operators like +=, -=, etc.
+        Name targets use the same na/series element-wise ops as
+        :meth:`~.expressions.ExpressionEvaluator.visit_BinOp`. Attribute
+        targets set UDT fields when the object is an :class:`~pynescript.ast.type_system.ObjectInstance`.
 
         Args:
-            node: The AugAssign node with target, value, and operator
+            node: AugAssign with target, op, value
         """
         # Handle field mutation on UDT objects (obj.field := value)
         if isinstance(node.target, ast.Attribute):
@@ -641,7 +667,10 @@ class StatementEvaluator:
         self._error(msg)  # type: ignore[attr-defined]
 
     def visit_TypeDef(self, node: ast.TypeDef):
-        """Process a type definition and register it in the TypeRegistry"""
+        """Register a UDT (fields, methods, optional ``export``) in the type registry.
+
+        Skipped when ``_pine_defs_locked`` is set (multi-bar hosts after first bar).
+        """
         if getattr(self, "_pine_defs_locked", False):
             return
         type_name = node.name
@@ -723,7 +752,7 @@ class StatementEvaluator:
             self._register_export(type_name, udt)
 
     def _convert_type_spec_to_type(self, type_spec):
-        """Convert a type specification AST node to a Type object"""
+        """Map a type AST node (``Name``) to a :class:`~pynescript.ast.type_system.Type`."""
         # For now, handle simple cases
         if isinstance(type_spec, ast.Name):
             type_name = type_spec.id
@@ -747,6 +776,10 @@ class StatementEvaluator:
         return BuiltinType(BuiltinTypeKind.STRING)
 
     def visit_EnumDef(self, node: ast.EnumDef):
+        """Bind an enum as a ``dict`` of members in ``context`` (optional ``export``).
+
+        Skipped when ``_pine_defs_locked`` is set.
+        """
         if getattr(self, "_pine_defs_locked", False):
             return
         enum_name = node.name
@@ -935,21 +968,25 @@ class StatementEvaluator:
         return last_result
 
     def visit_Break(self, _node: ast.Break):
+        """Raise :class:`BreakLoop` for the enclosing loop runner."""
         raise BreakLoop
 
     def visit_Continue(self, _node: ast.Continue):
+        """Raise :class:`ContinueLoop` for the enclosing loop runner."""
         raise ContinueLoop
 
     def visit_FunctionDef(self, node: ast.FunctionDef):
-        """Define a user-defined function or method.
+        """Define a user function or standalone ``method`` (with multi-dispatch).
 
-        Pine ``method m(Type this, ...) => ...`` (outside a type body) is
-        registered on the UDT so ``instance.m()`` resolves. The same
-        callable is also stored under ``m`` for free-function form.
+        - Ordinary functions become callables in ``context[name]``.
+        - Pine ``method m(Type this, ...) => ...`` is also attached to the UDT
+          for ``instance.m()`` and tagged ``__pine_method__`` for extension
+          dispatch; overloads share one multi-dispatch entry.
+        - After the first bar, hosts set ``_pine_defs_locked`` so this visitor
+          no-ops and multi-dispatch tables do not grow O(bars²).
 
-        Bar-loop hosts re-visit the full script AST each bar. After the first
-        bar, ``_pine_defs_locked`` skips re-binding so multi-dispatch tables
-        do not grow unboundedly (Console ``tostring`` × N bars → timeout).
+        The generated callable rebinds parameters **in place** on ``context``
+        and restores prior values in ``finally`` (see nested ``user_function``).
         """
         # Already bound on a prior bar — keep existing callables.
         if getattr(self, "_pine_defs_locked", False):
@@ -962,14 +999,13 @@ class StatementEvaluator:
 
         # Create a closure
         def user_function(*args, **kwargs):
-            """Call a user function without replacing ``self.context``.
+            """Invoke a UDF with in-place param rebind on the live context.
 
-            Runtime hosts (pyne-worker) mutate the *same* context dict each bar
-            (``bar_index``, ``time``, …). Replacing ``self.context`` with
-            ``dict.copy()`` orphaned those updates so every function always
-            saw ``bar_index == 0``. Only parameter bindings are scoped; other
-            keys (including ``var`` locals) stay on the live context so they
-            persist across bars for the call site.
+            Hosts mutate the *same* ``context`` dict each bar (``bar_index``,
+            ``time``, OHLCV). Replacing ``self.context`` with ``dict.copy()``
+            would orphan those updates (every call would see bar 0). Only
+            parameter names are scoped; other keys — including ``var``
+            locals — remain on the shared dict across bars.
             """
             ctx = self.context  # type: ignore[attr-defined]
             params = [arg for arg in node.args if isinstance(arg, ast.Param)]
@@ -1263,7 +1299,12 @@ class StatementEvaluator:
         return result
 
     def visit_If(self, node: ast.If):
-        """Evaluate an if-else structure. v6: strict bool, na -> false."""
+        """Statement-style if/else via :meth:`_execute_block` (``na`` test → false).
+
+        Note: on :class:`~pynescript.ast.evaluator.NodeLiteralEvaluator`,
+        :class:`~.expressions.ExpressionEvaluator` precedes this mixin in the
+        MRO, so its ``visit_If`` is the one that actually runs.
+        """
         test_val = self.visit(node.test)  # type: ignore[attr-defined]
         if test_val is None:
             test_val = False
@@ -1277,7 +1318,11 @@ class StatementEvaluator:
         return None
 
     def visit_Switch(self, node: ast.Switch):
-        """Evaluate a switch structure."""
+        """Switch/case: equality match on subject, or truthy patterns when subject is absent.
+
+        Same MRO note as :meth:`visit_If` — ExpressionEvaluator's ``visit_Switch``
+        wins on the composed evaluator.
+        """
         subject_val = self.visit(node.subject) if node.subject else None  # type: ignore[attr-defined]
 
         for case in node.cases:
@@ -1297,7 +1342,11 @@ class StatementEvaluator:
         return None
 
     def _execute_loop_body(self, stmts: Sequence[ast.AST]) -> tuple[Any, bool]:
-        """Execute loop body. Returns (result, should_break)."""
+        """Run one loop iteration; map :class:`BreakLoop` / :class:`ContinueLoop`.
+
+        Returns:
+            ``(last_expr_result, should_break)``
+        """
         result = None
         should_break = False
         try:

@@ -24,7 +24,7 @@ After `sanitize_corpus_source`:
 | 7448 | **OK** | OK | same as 7410 |
 | 7739 | **OK** | **OK** (+ Runtime compile OK) | empty `if` → then collapse na-only `for` RHS → `finalLabelText = na` |
 
-Raw (unsanitized) still fails all four — sanitize is required on the corpus path (already wired in `corpus_run_runtime.py` / `corpus_flow_tui.py` / `corpus_parse_sets.py`).
+Raw (unsanitized) still fails all four — sanitize is required on the corpus path (already wired in `corpus_run_runtime.py` / `showcase.py` / `corpus_parse_sets.py`).
 
 ## Fixes landed
 

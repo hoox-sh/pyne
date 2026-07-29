@@ -17,21 +17,38 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Pine Script AST (Abstract Syntax Tree) manipulation module.
+"""Pine Script abstract syntax tree package.
 
-Core public API for parsing, analyzing, and transforming Pine Script code:
+Parse source, walk or rewrite trees, dump/unparse, and handle syntax errors.
 
-Key Functions:
-- parse(source, filename, mode): Parse Pine Script source into AST
-- dump(node, ...): Generate string representation of AST
-- unparse(node): Convert AST back to source code
-- literal_eval(node_or_string): Evaluate literal expressions
-- walk(node): Depth-first traversal of AST nodes
-- copy_location(new_node, old_node): Copy position info between nodes
+Re-exported public surface
+--------------------------
+From :mod:`pynescript.ast.helper` (see that module for full contracts):
 
-Key Classes:
-- All AST node classes (Script, FunctionDef, Assign, etc.)
-- Error handling and visitors
+* :func:`parse` — ``str`` source → :class:`~pynescript.ast.node.Script` /
+  :class:`~pynescript.ast.node.Expression` (``mode`` ``"exec"`` / ``"eval"``)
+* :func:`unparse` — AST → Pine source (semantic round-trip, not byte-identical)
+* :func:`dump`, :func:`literal_eval`, :func:`walk`
+* :func:`iter_fields`, :func:`iter_child_nodes`
+* :func:`copy_location`, :func:`fix_missing_locations`, :func:`increment_lineno`
+* :func:`get_source_segment`
+
+From :mod:`pynescript.ast.node`: all ASDL node types (``AST``, ``Script``, …).
+
+From :mod:`pynescript.ast.error`: :class:`SyntaxError`, :class:`IndentationError`,
+:class:`SyntaxErrorDetails` (raised by :func:`parse` on invalid syntax).
+
+From :mod:`pynescript.ast.visitor` / :mod:`pynescript.ast.transformer`:
+:class:`NodeVisitor`, :class:`NodeTransformer`.
+
+Related modules (import directly; not star-exported here)
+---------------------------------------------------------
+* :mod:`pynescript.ast.linter` — :func:`~pynescript.ast.linter.lint_script`, etc.
+* :mod:`pynescript.ast.type_system` — Pine type modeling for the evaluator
+* :mod:`pynescript.ast.collector` — :class:`~pynescript.ast.collector.StatementCollector`
+* :mod:`pynescript.ast.evaluator` — runtime evaluation
+
+Encoding: pass Unicode ``str`` to :func:`parse` (decode files as UTF-8).
 """
 
 from __future__ import annotations

@@ -17,6 +17,35 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
+"""Parse, dump, walk, and unparse Pine Script ASTs.
+
+Primary public surface of :mod:`pynescript.ast` (also re-exported from the
+package ``__init__``):
+
+* :func:`parse` — source string → AST (``Script`` or ``Expression``)
+* :func:`unparse` — AST → Pine source (semantic round-trip; not byte-identical)
+* :func:`dump` — debug string of an AST tree
+* :func:`literal_eval` — evaluate literal-only expressions
+* :func:`walk`, :func:`iter_fields`, :func:`iter_child_nodes` — tree traversal
+* :func:`copy_location`, :func:`fix_missing_locations`, :func:`increment_lineno`
+* :func:`get_source_segment` — slice original source by node location
+
+Contracts
+---------
+* **Input encoding**: :func:`parse` takes a Unicode ``str`` (decoded source).
+  File paths are not accepted here; callers that read disk should open with
+  ``utf-8`` (or use the internal file-stream path with the same default).
+* **Parse modes**: ``"exec"`` → full script (root :class:`~pynescript.ast.node.Script`);
+  ``"eval"`` → single expression (root :class:`~pynescript.ast.node.Expression`).
+* **Errors**: invalid ``mode`` → :class:`ValueError`; syntax failures →
+  :class:`pynescript.ast.error.SyntaxError` (with location when available).
+* **Annotations**: in ``exec`` mode, ``//@…`` comments are attached as
+  ``annotations`` on the script / function / type / assign nodes when present.
+* **Round-trip**: ``parse`` → ``unparse`` preserves structure and meaning;
+  whitespace, comment layout (except ``//@`` annotations on supported nodes),
+  and some formatting may differ from the original source.
+"""
+
 from __future__ import annotations
 
 import itertools
@@ -203,24 +232,11 @@ def _parse(
     stream: InputStream,
     mode: str = "exec",
 ) -> AST:
-    """Core parsing function: tokenize, parse, and build AST from input stream.
-
-    Orchestrates the ANTLR lexer/parser pipeline and AST construction:
-    1. Lexes the input stream into tokens
-    2. Parses tokens according to Pinescript grammar (SLL first, LL fallback)
-    3. Builds AST nodes from parse tree
-    4. Collects annotations from comments (in exec mode)
-
-    Args:
-        stream: ANTLR InputStream or FileStream to parse
-        mode: "exec" for statements (Script/Module), "eval" for single expressions
-
-    Returns:
-        Root AST node (Script for exec mode, Expression for eval mode)
+    """Core parse pipeline: lex → SLL/LL parse → AST build → annotations.
 
     Raises:
-        ValueError: If mode is invalid
-        SyntaxError: If parsing fails (from PinescriptErrorListener)
+        ValueError: Invalid *mode*.
+        pynescript.ast.error.SyntaxError: Lexer/parser failure.
     """
     import sys
 
@@ -372,27 +388,28 @@ def parse(
     filename: str = "<unknown>",
     mode: str = "exec",
 ) -> AST:
-    """Parse Pine Script source code into an AST.
+    """Parse Pine Script source into an AST.
 
-    PUBLIC API: Primary entry point for parsing Pine Script code.
+    Primary public entry point. ``source`` must be a decoded Unicode string
+    (not bytes). ``filename`` is used only in error messages and is normalized
+    to an absolute path when the path exists.
 
     Args:
-        source: The Pine Script source code as a string
-        filename: Optional filename for error reporting and debugging
-        mode: "exec" (default) for full script with statements, or "eval" for expression-only
+        source: Pine Script source (``str``, typically UTF-8-decoded).
+        filename: Path or label for diagnostics (default ``"<unknown>"``).
+        mode: ``"exec"`` (full script) or ``"eval"`` (single expression).
 
     Returns:
-        Root AST node:
-        - Script node for mode="exec" containing list of statements
-        - Expression node for mode="eval" containing a single expression
+        :class:`~pynescript.ast.node.Script` for ``mode="exec"``, or
+        :class:`~pynescript.ast.node.Expression` for ``mode="eval"``.
 
     Raises:
-        ValueError: If mode is not "exec" or "eval"
-        SyntaxError: If the source code has syntax errors
+        ValueError: If ``mode`` is not ``"exec"`` or ``"eval"``.
+        pynescript.ast.error.SyntaxError: On lexer/parser syntax errors.
 
     Examples:
-        >>> ast = parse("plot(close)")
-        >>> ast = parse("close > open", mode="eval")
+        >>> tree = parse("plot(close)")
+        >>> expr = parse("close > open", mode="eval")
     """
     # Delegate to stream-based parser
     return _parse_inputstream(source, filename, mode)
@@ -404,22 +421,25 @@ def literal_eval(
     data_feed: Any = None,
     data_provider: Any = None,
 ) -> Any:
-    """Safely evaluate an AST node or string containing only literal values.
+    """Evaluate a literal-only expression (AST node or source string).
 
-    Evaluates constant expressions (numbers, strings, booleans, tuples) and some built-in functions.
-    Does NOT execute arbitrary code - raises NotImplementedError for non-literal expressions.
+    Accepts numbers, strings, booleans, tuples, and a restricted set of
+    built-in calls. Strings are parsed with :func:`parse` in ``"eval"`` mode.
+    Not a general script executor — non-literal constructs raise.
 
     Args:
-        node_or_string: An AST node or string to evaluate
-        context: Optional context dict for variable/function lookups
-        data_feed: Optional realtime DataFeed (for request.* live data integration)
-        data_provider: Optional historical DataProvider
+        node_or_string: Expression AST, :class:`~pynescript.ast.node.Expression`
+            wrapper, or source string.
+        context: Optional name/function lookup dict for the evaluator.
+        data_feed: Optional realtime data feed for ``request.*`` in literal contexts.
+        data_provider: Optional historical data provider.
 
     Returns:
-        The evaluated Python value (int, str, bool, list, etc.)
+        Python value (``int``, ``str``, ``bool``, sequence, etc.).
 
     Raises:
-        ValueError: If the expression contains non-literal/unsafe operations
+        ValueError: Non-literal or unsafe construct.
+        pynescript.ast.error.SyntaxError: If a string input fails to parse.
 
     Examples:
         >>> literal_eval("42")
@@ -450,28 +470,20 @@ def dump(
     include_attributes: bool = False,
     indent: int | str | None = None,
 ) -> str:
-    """Generate a string representation of an AST node tree.
-
-    Converts an AST into a human-readable format showing the node structure.
-    Can optionally include field names, position attributes, and indentation.
+    """Return a debug string for an AST tree (Python-``ast.dump`` style).
 
     Args:
-        node: The root AST node to dump
-        annotate_fields: If True, include field names in output (e.g., "name='x'")
-        include_attributes: If True, include position metadata (lineno, col_offset, etc.)
-        indent: Optional indentation for pretty-printing (int for spaces or string)
+        node: Root AST node.
+        annotate_fields: Include field names (e.g. ``name='x'``).
+        include_attributes: Include location attrs (``lineno``, ``col_offset``, …).
+        indent: Pretty-print: ``int`` spaces per level, or an indent string;
+            ``None`` for a single line.
 
     Returns:
-        String representation of the AST tree
+        Structural string such as ``Script(body=[Assign(...)])``.
 
     Raises:
-        TypeError: If node is not an AST node
-
-    Examples:
-        >>> ast = parse("x = 1")
-        >>> print(dump(ast))
-        Script(body=[Assign(...)])
-        >>> print(dump(ast, indent=2))  # Pretty-printed with indentation
+        TypeError: If ``node`` is not an :class:`~pynescript.ast.node.AST`.
     """
     def _format(node, level=0):  # noqa: PLR0912
         # Prepare indentation and separator based on indent parameter
@@ -560,17 +572,13 @@ def dump(
 
 
 def copy_location(new_node: AST, old_node: AST) -> AST:
-    """Copy position metadata from one node to another.
+    """Copy source location attributes from *old_node* onto *new_node*.
 
-    Copies lineno, col_offset, end_lineno, and end_col_offset attributes
-    from old_node to new_node where they are defined.
-
-    Args:
-        new_node: The target node to copy location info into
-        old_node: The source node to copy location info from
+    Copies ``lineno``, ``col_offset``, ``end_lineno``, and ``end_col_offset``
+    when both nodes declare them in ``_attributes``. Mutates *new_node* in place.
 
     Returns:
-        The modified new_node with location info copied from old_node
+        *new_node* (same object).
     """
     # Iterate through all position attributes
     for attr in "lineno", "col_offset", "end_lineno", "end_col_offset":
@@ -584,16 +592,9 @@ def copy_location(new_node: AST, old_node: AST) -> AST:
 
 
 def iter_fields(node: AST) -> Iterator[tuple[str, Any]]:
-    """Iterate over all fields in an AST node.
+    """Yield ``(field_name, value)`` for each name in ``node._fields``.
 
-    Yields (fieldname, value) tuples for each field defined in the node's schema.
-    Skips fields that are not set on the node.
-
-    Args:
-        node: The AST node to iterate over
-
-    Yields:
-        Tuples of (field_name, field_value) for each defined field
+    Skips fields that raise :class:`AttributeError` (unset on the instance).
     """
     # Iterate through fields defined in the node's schema
     for field in node._fields:
@@ -606,15 +607,11 @@ def iter_fields(node: AST) -> Iterator[tuple[str, Any]]:
 
 
 def iter_child_nodes(node: AST) -> Iterator[AST]:
-    """Iterate over all direct child AST nodes.
+    """Yield direct child AST nodes (one level only).
 
-    Recursively yields child nodes, handling both single nodes and lists of nodes.
-
-    Args:
-        node: The parent AST node
-
-    Yields:
-        Direct child AST nodes
+    Field values that are AST instances or lists of ASTs are yielded;
+    non-AST field values are ignored. Does not walk grandchildren — use
+    :func:`walk` for a full traversal.
     """
     # Iterate over all fields and extract child nodes
     for _name, field in iter_fields(node):
@@ -686,16 +683,14 @@ def _fix_locations(  # noqa: PLR0912
 
 
 def fix_missing_locations(node: AST) -> AST:
-    """Fill in missing location information for an AST tree.
+    """Fill missing location attributes on *node* and descendants in place.
 
-    Ensures all nodes have lineno and col_offset attributes set,
-    using defaults (1, 0) for the root and propagating from parents.
-
-    Args:
-        node: The root AST node to process
+    Defaults for the root are line ``1``, column ``0``; children inherit
+    from the nearest parent that has a value. Useful after building or
+    transforming nodes without a full parse.
 
     Returns:
-        The modified node with location info filled in
+        *node* (same object).
     """
     # Start recursion with default line 1, column 0
     _fix_locations(node, 1, 0, 1, 0)
@@ -703,16 +698,13 @@ def fix_missing_locations(node: AST) -> AST:
 
 
 def increment_lineno(node: AST, n: int = 1) -> AST:
-    """Increment line numbers for all nodes in the tree.
+    """Add *n* to ``lineno`` / ``end_lineno`` on every node in the tree.
 
-    Useful for adjusting AST nodes when inserting code or adjusting to different contexts.
-
-    Args:
-        node: The root AST node to modify
-        n: Number of lines to increment (default: 1)
+    Mutates in place. Useful when splicing nodes into a different source
+    region.
 
     Returns:
-        The modified node tree with incremented line numbers
+        *node* (same object).
     """
     # Walk through all nodes in the tree and increment their line numbers
     for child in walk(node):
@@ -729,6 +721,7 @@ _line_pattern = re.compile(r"(.*?(?:\r\n|\n|\r|$))")
 
 
 def _splitlines_no_ff(source: str, maxlines: int | None = None) -> list[str]:
+    """Split *source* into lines, keeping terminators; stop after *maxlines*."""
     lines = []
     for lineno, match in enumerate(_line_pattern.finditer(source), 1):
         if maxlines is not None and lineno > maxlines:
@@ -738,6 +731,7 @@ def _splitlines_no_ff(source: str, maxlines: int | None = None) -> list[str]:
 
 
 def _pad_whitespace(source: str) -> str:
+    """Replace non-tab/form-feed characters with spaces (preserve width)."""
     result = ""
     for c in source:
         if c in "\f\t":
@@ -748,6 +742,21 @@ def _pad_whitespace(source: str) -> str:
 
 
 def get_source_segment(source: str, node: AST, *, padded: bool = False) -> str | None:
+    """Extract the original source slice corresponding to *node*.
+
+    Requires the node to have complete location attributes (``lineno``,
+    ``col_offset``, ``end_lineno``, ``end_col_offset``). Offsets are byte
+    offsets within the line (UTF-8), matching the parser.
+
+    Args:
+        source: Full source string that was parsed to produce *node*.
+        node: AST node with location attributes.
+        padded: If True, multi-line segments pad the first line so that
+            leading indentation aligns with the original column.
+
+    Returns:
+        The source segment, or ``None`` if location data is missing/incomplete.
+    """
     try:
         if node.end_lineno is None or node.end_col_offset is None:  # type: ignore[attr-defined]
             return None
@@ -777,6 +786,11 @@ def get_source_segment(source: str, node: AST, *, padded: bool = False) -> str |
 
 
 def walk(node: AST) -> Iterator[AST]:
+    """Breadth-first walk of *node* and all descendants (includes *node*).
+
+    Yields each AST node once. Safe for mutation of child links after a
+    node has been yielded (children are queued before yield returns).
+    """
     todo = deque([node])
     while todo:
         node = todo.popleft()
@@ -784,7 +798,16 @@ def walk(node: AST) -> Iterator[AST]:
         yield node
 
 
-def unparse(node: AST):
+def unparse(node: AST) -> str:
+    """Convert an AST back to Pine Script source text.
+
+    Semantic round-trip with :func:`parse` is supported for well-formed trees
+    (structure and meaning preserved). Exact whitespace, non-annotation
+    comments, and original formatting are not guaranteed.
+
+    Returns:
+        Pine Script source as a ``str``.
+    """
     # Reuse a per-thread NodeUnparser (warm visitor cache). Public API unchanged.
     from pynescript.ast.unparser import unparse_node
 

@@ -19,10 +19,34 @@
 
 """Lightweight strategy broker for the compile (object-mode) path.
 
-Supports market entry/close plus pending limit/stop/stop-limit orders with
-per-bar OHLC fills (aligned with the interpreter's process_pending_orders).
+Used only when :class:`~pynescript.compiler.compiler.CompilerVisitor` emits
+strategy APIs. Instantiated inside generated ``execute_script_compiled`` as
+``__strategy``; not used on the pure-numeric njit path.
 
-Hot-path notes (round 4):
+Public types
+------------
+- :class:`PendingOrder` — limit/stop/stop-limit (and market-pending) state.
+- :class:`CompileStrategyBroker` — position, equity, pending book, event log.
+
+Order / event contracts
+-----------------------
+Supports market entry/close plus pending limit/stop/stop-limit with per-bar
+OHLC fills (aligned with the interpreter's ``process_pending_orders``).
+
+Event dict shape (``kind`` ∈ entry/close/close_all/order/cancel/cancel_all)::
+
+    {
+      "kind", "id", "direction", "qty", "order_type",
+      "limit", "stop", "oca_name", "comment",
+      "bar_index", "bar_time", "ohlc": [o, h, l, c],
+    }
+
+Host result extras (object-mode return dict): ``__events`` (via
+:meth:`CompileStrategyBroker.to_events`), ``__position_size``, ``__netprofit``,
+``__equity``.
+
+Hot-path notes
+--------------
 - ``begin_bar`` folds set_bar + process_pending into one call (less float churn).
 - Empty pending skips work; market entry skips classify/opt_float.
 - ``_emit`` builds the event dict without intermediate ``**fields`` packing.
@@ -82,6 +106,20 @@ def _norm_dir(direction: Any) -> str:
 
 @dataclass
 class PendingOrder:
+    """One working order in the compile-path pending book.
+
+    Attributes
+    ----------
+    order_type:
+        ``market`` | ``limit`` | ``stop`` | ``stop-limit``.
+    direction:
+        ``long`` | ``short`` (normalized).
+    is_entry:
+        ``False`` for reduce-only / cover intent when opposite the open position.
+    oca_type:
+        ``none`` | ``cancel`` | ``reduce`` after normalization.
+    """
+
     order_id: str
     order_type: str  # market | limit | stop | stop-limit
     direction: str  # long | short
@@ -98,11 +136,21 @@ class PendingOrder:
 
     @property
     def remaining(self) -> float:
+        """Unfilled quantity (never negative)."""
         return max(0.0, float(self.quantity) - float(self.filled_qty))
 
 
 class CompileStrategyBroker:
-    """Per-run strategy state for compiled object-mode scripts."""
+    """Per-run strategy state for compiled object-mode scripts.
+
+    Public methods mirror Pine ``strategy.entry`` / ``close`` / ``order`` /
+    ``cancel`` surfaces enough for corpus + API consumers. Bar context is set
+    via :meth:`begin_bar` (preferred) or :meth:`set_bar` +
+    :meth:`process_pending_orders`.
+
+    Properties ``equity``, ``openprofit``, ``max_drawdown`` / ``max_runup``
+    (and percent variants) are mark-to-market against the current bar close.
+    """
 
     def __init__(
         self,
@@ -112,6 +160,11 @@ class CompileStrategyBroker:
         slippage_ticks: int = 0,
         mintick: float = 0.01,
     ) -> None:
+        """Construct broker state for one compiled run.
+
+        Parameters mirror Pine ``strategy()`` declaration kwargs when the
+        visitor captures them into the generated ctor call.
+        """
         self.initial_capital = float(initial_capital)
         self.commission_value = float(commission_value)
         self.commission_type = str(commission_type)
@@ -444,6 +497,7 @@ class CompileStrategyBroker:
         price: float | None = None,
         **_kwargs: Any,
     ) -> None:
+        """Pine ``strategy.entry`` — market fill now or pending limit/stop."""
         d = _norm_dir(direction)
         q = abs(float(qty))
         # Market fast path: no limit/stop → skip classify + opt_float.
@@ -500,6 +554,7 @@ class CompileStrategyBroker:
         price: float | None = None,
         **_kwargs: Any,
     ) -> None:
+        """Close (part of) the open position at mark or *price*; update PnL."""
         if self.position_size == 0:
             self._emit("close", id=id, qty=0.0, comment=comment)
             return
@@ -534,6 +589,7 @@ class CompileStrategyBroker:
         self._emit("close", id=id, qty=close_qty, comment=comment, direction=d)
 
     def close_all(self, comment: str | None = None, price: float | None = None, **_kwargs: Any) -> None:
+        """Flatten any open position then emit ``close_all``."""
         if self.position_size != 0:
             self.close(id=None, qty=abs(self.position_size), comment=comment, price=price)
         self._emit("close_all", comment=comment)
@@ -595,16 +651,19 @@ class CompileStrategyBroker:
         _ = price
 
     def cancel(self, id: str | None = None, **_kwargs: Any) -> None:
+        """Cancel a pending order by id (no-op if missing); always emits event."""
         if id is not None and str(id) in self.pending_orders:
             del self.pending_orders[str(id)]
         self._emit("cancel", id=id)
 
     def cancel_all(self, **_kwargs: Any) -> None:
+        """Clear the entire pending book."""
         self.pending_orders.clear()
         self._emit("cancel_all")
 
     @property
     def equity(self) -> float:
+        """Cash + closed netprofit + open MTM at current mark."""
         mark = self._mark
         open_pnl = 0.0
         ps = self.position_size
@@ -616,6 +675,7 @@ class CompileStrategyBroker:
 
     @property
     def openprofit(self) -> float:
+        """Unrealized PnL of the open position at current mark (0 if flat)."""
         mark = self._mark
         ps = self.position_size
         if ps > 0 and mark == mark:
@@ -646,20 +706,28 @@ class CompileStrategyBroker:
 
     @property
     def max_drawdown(self) -> float:
+        """Peak-to-trough equity drawdown (absolute currency units)."""
         return float(self._max_drawdown)
 
     @property
     def max_runup(self) -> float:
+        """Trough-to-peak equity run-up (absolute currency units)."""
         return float(self._max_runup)
 
     @property
     def max_drawdown_percent(self) -> float:
+        """Max drawdown as percent of equity peak when recorded."""
         return float(self._max_drawdown_percent)
 
     @property
     def max_runup_percent(self) -> float:
+        """Max run-up as percent of equity trough when recorded."""
         return float(self._max_runup_percent)
 
     def to_events(self) -> list[dict[str, Any]]:
-        # Broker is single-use per compiled run; return live list (no copy).
+        """Return the live event list for host packing as ``__events``.
+
+        Broker is single-use per compiled run; no copy (callers must not mutate
+        after the run returns if they retain the handle).
+        """
         return self.events

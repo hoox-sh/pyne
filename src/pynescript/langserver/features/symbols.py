@@ -17,9 +17,12 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Symbols feature — textDocument/documentSymbol handler.
+"""Symbols — ``textDocument/documentSymbol`` (document outline).
 
-Provides document outline (symbols tree) for Pine Script.
+Public handler: :func:`handle_document_symbols`. Hierarchical outline via
+:class:`DocumentSymbolCollector` (functions, types, assignments). Workspace-wide
+search is handled separately in :mod:`pynescript.langserver.server`
+(``workspace/symbol``).
 """
 
 from __future__ import annotations
@@ -33,17 +36,15 @@ from pynescript.ast import node as ast
 
 
 def handle_document_symbols(params: lsp.DocumentSymbolParams, source: str | None, uri: str) -> list[lsp.DocumentSymbol]:
-    """Handle textDocument/documentSymbol request.
-
-    Builds a hierarchical symbol tree for the document outline.
+    """Build a hierarchical symbol tree for the document outline view.
 
     Args:
-        params: The document symbol params.
-        source: The source text of the document.
-        uri: The document URI.
+        params: Client document-symbol params.
+        source: Document text, or ``None``.
+        uri: Document URI (used for context; symbols are position-based).
 
     Returns:
-        List of top-level document symbols.
+        Top-level :class:`~lsprotocol.types.DocumentSymbol` list (possibly empty).
     """
     if not source:
         return []

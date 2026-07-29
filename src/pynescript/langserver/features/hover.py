@@ -17,9 +17,11 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Hover feature — textDocument/hover handler.
+"""Hover — ``textDocument/hover`` for builtin documentation.
 
-Provides hover documentation for Pine Script symbols.
+Public handler: :func:`handle_hover`. Resolves the word under the cursor (and
+optional ``module.member`` form) against
+:func:`~pynescript.langserver.providers.builtin_metadata.get_builtin`.
 """
 
 from __future__ import annotations
@@ -31,14 +33,15 @@ from pynescript.langserver.providers.builtin_metadata import get_builtin
 
 
 def handle_hover(params: lsp.HoverParams, source: str | None) -> lsp.Hover | None:
-    """Handle textDocument/hover request.
+    """Return markdown hover for a builtin at the cursor, or ``None``.
 
     Args:
-        params: The hover params from the LSP client.
-        source: The source text of the document.
+        params: Client hover params (document URI + position).
+        source: Document text, or ``None``.
 
     Returns:
-        Hover with documentation or None if not found.
+        :class:`~lsprotocol.types.Hover` with builtin docs, or ``None`` if the
+        symbol is unknown / out of range.
     """
     position = params.position
 

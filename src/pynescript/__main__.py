@@ -17,6 +17,23 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
+"""Click CLI for the ``pynescript`` console script.
+
+Installed entry point: ``pynescript = pynescript.__main__:cli``
+(also ``python -m pynescript``).
+
+Commands:
+
+- ``parse-and-dump`` — parse a ``.pine`` file and print an AST dump
+- ``parse-and-unparse`` — parse then unparse back to source
+- ``download-builtin-scripts`` — fetch TradingView builtin scripts for tests
+- ``lint`` — run the Pine linter (file or stdin)
+- ``data`` — fetch OHLCV bars from mock/Yahoo/Alpha Vantage/CCXT
+
+The Language Server is a **separate** console script (``pynescript-lsp``), not
+a subcommand of this group. See :mod:`pynescript.langserver.__main__`.
+"""
+
 from __future__ import annotations
 
 import click
@@ -25,7 +42,7 @@ import click
 @click.group()
 @click.version_option()
 def cli():
-    pass
+    """Pyne / pynescript command-line interface."""
 
 
 @cli.command(short_help="Parse pinescript file to AST tree.")
@@ -53,6 +70,7 @@ def cli():
     default="-",
 )
 def parse_and_dump(filename, encoding, indent, output_file):
+    """Parse PATH and write a structured AST dump (see :func:`pynescript.ast.dump`)."""
     from pynescript.ast import dump
     from pynescript.ast import parse
 
@@ -84,6 +102,7 @@ def parse_and_dump(filename, encoding, indent, output_file):
     default="-",
 )
 def parse_and_unparse(filename, encoding, output_file):
+    """Parse PATH and unparse it back to Pine source (:func:`pynescript.ast.unparse`)."""
     from pynescript.ast import parse
     from pynescript.ast import unparse
 
@@ -104,6 +123,7 @@ def parse_and_unparse(filename, encoding, output_file):
     required=True,
 )
 def download_builtin_scripts(script_dir):
+    """Download TradingView builtin scripts into SCRIPT_DIR (test corpus helper)."""
     from pynescript.util.pine_facade import download_builtin_scripts as download
 
     download(script_dir)

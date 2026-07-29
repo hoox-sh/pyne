@@ -17,16 +17,49 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""AST to Pine Script Source Code Generator.
+"""AST → Pine Script source code generator (pretty-printer / unparser).
 
-Converts AST nodes back to syntactically correct Pine Script source code.
-Preserves formatting intent while handling operator precedence and special
-Pine Script syntax conventions.
+Turns :class:`~pynescript.ast.node.AST` trees into syntactically valid Pine
+Script text. Used for formatting (LSP), CLI round-trips, tests, and debugging.
 
-Main Classes:
-- Precedence: Operator precedence levels for parenthesization decisions
-- NodeUnparser: Main visitor that generates source code from AST nodes
-  (implements visit_* methods for each AST node type)
+Public entry points
+-------------------
+* **Preferred API:** :func:`pynescript.ast.helper.unparse` (also re-exported as
+  ``pynescript.unparse`` / ``pynescript.ast.unparse``). That thin wrapper calls
+  :func:`unparse_node` in this module.
+* **This module:** :func:`unparse_node` and :class:`NodeUnparser` for callers
+  that already depend on the unparser package (e.g. LSP formatting).
+
+``helper.unparse`` / ``unparse_node`` reuse a **per-thread**
+:class:`NodeUnparser` so the type→visitor cache stays warm. Prefer those over
+constructing a fresh unparser on every call unless you need a dedicated
+instance.
+
+Round-trip notes
+----------------
+* **Goal:** ``unparse(parse(source))`` yields readable, re-parsable Pine that
+  preserves program structure (statements, expressions, operator association).
+* **Not a byte-identical pretty-printer:** whitespace, comment placement, and
+  some surface forms are normalized (indent is 4 spaces; operators are spaced).
+* **Precedence:** binary / unary / boolean / comparison / ternary nodes record
+  child precedence so parentheses appear only when needed to keep evaluation
+  order. Binary ops assign ``precedence.next()`` on the RHS so chains stay
+  left-associative without redundant parens on the left.
+* **Multiline strings (v6):** string constants containing newlines prefer
+  Pine triple-quoted forms (double or single) so output stays readable;
+  otherwise escaped single-line forms are used.
+* **Version / annotation lines:** script- and declaration-level ``annotations``
+  (e.g. ``//@version=6``) are emitted as full lines before the body—not as
+  free-floating comments elsewhere.
+* **Known structural limits** live outside this file (e.g. AST fields the
+  parser/builder does not populate cannot reappear on unparse). Corpus tests
+  in ``tests/test_parse_and_unparse.py`` guard re-parse stability.
+
+Main types
+----------
+* :class:`Precedence` — operator binding levels for parenthesization.
+* :class:`NodeUnparser` — :class:`~pynescript.ast.visitor.NodeVisitor` that
+  appends source fragments and implements ``visit_*`` for each AST node kind.
 """
 
 from __future__ import annotations
@@ -117,13 +150,21 @@ class _BlockCM:
 
 
 class Precedence(IntEnum):
-    """Operator precedence levels for correct parenthesization in output.
+    """Operator precedence levels for parenthesization decisions.
 
-    Higher values bind tighter. Used to determine when to add parentheses
-    around sub-expressions to preserve evaluation order.
+    Higher enum values bind **tighter**. A child is wrapped in ``(...)`` when
+    its assigned precedence is **strictly greater** than the parent context
+    (see :meth:`NodeUnparser.require_parens` / :meth:`NodeUnparser._needs_parens`).
+    Default for unset nodes is :attr:`TEST` (loosest), so bare roots need no
+    outer parens.
+
+    :meth:`next` returns the next tighter level (or self at the top). Binary
+    operators use the current level for the left operand and ``next()`` for
+    the right so chains associate left-to-right without extra parens on the
+    left; boolean chains raise the level per value for the same reason.
     """
 
-    TEST = auto()  # '?', ':' - ternary conditional (lowest)
+    TEST = auto()  # '?', ':' - ternary conditional (lowest / loosest)
     OR = auto()  # 'or'
     AND = auto()  # 'and'
     BITOR = auto()  # '|'
@@ -138,10 +179,10 @@ class Precedence(IntEnum):
     TERM = auto()  # '*', '/', '%'
     FACTOR = auto()  # unary '+', unary '-', 'not', '~'
     NOT = FACTOR  # Alias for unary not
-    ATOM = auto()  # Highest precedence - literals, names, parenthesized exprs
+    ATOM = auto()  # Highest / tightest — literals, names, attr, calls
 
-    def next(self):
-        """Get the next higher precedence level."""
+    def next(self) -> Precedence:
+        """Return the next tighter precedence, or *self* if already :attr:`ATOM`."""
         return _PRECEDENCE_NEXT[self]
 
 
@@ -158,9 +199,46 @@ for _p in Precedence:
 
 
 class NodeUnparser(NodeVisitor):
+    """Pretty-print a Pine Script AST by appending fragments to an internal buffer.
+
+    Subclass of :class:`~pynescript.ast.visitor.NodeVisitor`. Most callers should
+    use :func:`unparse_node` or :func:`pynescript.ast.helper.unparse` rather than
+    constructing this class; those entry points reuse a thread-local instance.
+
+    Lifecycle
+    ---------
+    :meth:`visit` is the full-document API: it **resets** ``_source``,
+    ``_precedences``, and ``_indent``, walks the tree via :meth:`traverse`, and
+    returns ``"".join(_source)``. Nested walkers should call :meth:`traverse`
+    (or a ``visit_*`` method) so they do not wipe the buffer mid-render.
+
+    Formatting model
+    ----------------
+    * **Indent:** 4 spaces per :meth:`block` level; new statements usually start
+      with :meth:`fill` (newline + indent), then tokens via :meth:`write` /
+      direct ``_source.append``.
+    * **Precedence:** :meth:`set_precedence` / tables on expression nodes drive
+      :meth:`require_parens` so output keeps the same binding as the AST.
+    * **visit_* methods:** one per AST node class name; they encode Pine surface
+      syntax (``=>`` bodies, ``else if`` chains, ``var``/``varip``, etc.). Only
+      non-obvious ones carry extra docstrings below.
+
+    Attributes (instance)
+    ---------------------
+    ``_source``
+        List of string chunks assembled by :meth:`visit`.
+    ``_precedences``
+        Map of AST node → :class:`Precedence` for parenthesization.
+    ``_indent``
+        Current block depth (integer).
+    ``_type_visitor_cache``
+        ``type`` → ``visit_*`` callable (avoids string-based dispatch).
+    """
+
     # ruff: noqa: N802
 
-    def __init__(self):
+    def __init__(self) -> None:
+        """Create an empty unparser (empty buffer, zero indent, cold type cache)."""
         super().__init__()  # Initialize visitor cache
         self._source: list[str] = []
         self._precedences: dict = {}
@@ -170,7 +248,12 @@ class NodeUnparser(NodeVisitor):
         # Scratch for BoolOp interleave (avoids per-call lambda).
         self._boolop_spaced: str = " and "
 
-    def interleave(self, inter, f, seq):
+    def interleave(self, inter, f, seq) -> None:
+        """Call *f* on each item of *seq*, invoking *inter* between items.
+
+        Empty *seq* is a no-op. Used for comma-separated lists and boolean
+        chains where the separator is a callback (not a fixed string).
+        """
         seq = iter(seq)
         try:
             f(next(seq))
@@ -181,13 +264,22 @@ class NodeUnparser(NodeVisitor):
                 inter()
                 f(x)
 
-    def _write_comma_space(self):
+    def _write_comma_space(self) -> None:
+        """Append comma+space — bound method used as :meth:`interleave` separator."""
         self._source.append(", ")
 
-    def _write_boolop_spaced(self):
+    def _write_boolop_spaced(self) -> None:
+        """Append the current bool-op token (`` and `` / `` or ``) from ``_boolop_spaced``."""
         self._source.append(self._boolop_spaced)
 
-    def items_view(self, traverser, items, *, single: bool = False):
+    def items_view(self, traverser, items, *, single: bool = False) -> None:
+        """Emit a comma-separated sequence of *items* via *traverser*.
+
+        Fast-paths zero/one/two elements to avoid iterator overhead on hot
+        call/tuple sites. If *single* is true and there is exactly one item,
+        append a trailing comma (Python-style singleton tuple form; unused for
+        typical Pine lists but kept for API flexibility).
+        """
         n = len(items)
         if n == 1:
             traverser(items[0])
@@ -203,11 +295,19 @@ class NodeUnparser(NodeVisitor):
         else:
             self.interleave(self._write_comma_space, traverser, items)
 
-    def maybe_newline(self):
+    def maybe_newline(self) -> None:
+        """Append a newline only if the buffer is non-empty (avoid leading blank)."""
         if self._source:
             self._source.append("\n")
 
-    def fill(self, text=""):
+    def fill(self, text: str = "") -> None:
+        """Start a new indented line, optionally writing *text* after the indent.
+
+        If the buffer already has content, inserts ``\\n`` first, then the
+        current indent prefix (4 spaces × ``_indent``), then *text* when given.
+        Statement-level visitors use this so each stmt begins at column 0 of its
+        block (including bare indent when *text* is empty).
+        """
         src = self._source
         if src:
             src.append("\n")
@@ -219,7 +319,8 @@ class NodeUnparser(NodeVisitor):
         else:
             src.append(prefix)
 
-    def write(self, *text):
+    def write(self, *text: str) -> None:
+        """Append one or more string fragments to the source buffer (no newline)."""
         src = self._source
         n = len(text)
         if n == 1:
@@ -231,39 +332,70 @@ class NodeUnparser(NodeVisitor):
             src.extend(text)
 
     def buffered(self, buffer=None):
+        """Temporarily redirect ``_source`` into *buffer* (context manager).
+
+        Rarely used; kept for API compatibility. On exit, restores the previous
+        buffer so nested capture does not leak.
+        """
         # Kept for API compatibility; rarely used. Manual enter/exit pair.
         if buffer is None:
             buffer = []
         return _BufferedCM(self, buffer)
 
     def block(self, *, extra=None):
+        """Context manager: increase indent by one for a statement body.
+
+        If *extra* is set, it is appended before indenting (legacy hook). Body
+        visitors typically open a :meth:`block` after a header line such as
+        ``if cond`` or ``name(args) =>``.
+        """
         return _BlockCM(self, extra)
 
     def delimit(self, start, end):
+        """Context manager: write *start* on enter and *end* on exit (e.g. parens)."""
         return _DelimitCM(self._source, start, end)
 
     def delimit_if(self, start, end, condition):
+        """Like :meth:`delimit` when *condition* is true; otherwise a no-op CM."""
         if condition:
             return _DelimitCM(self._source, start, end)
         return _NULL_CM
 
     def require_parens(self, precedence, node):
+        """Return a paren-delimiting CM when *node* binds looser than *precedence*.
+
+        Uses ``_precedences[node]`` (default :attr:`Precedence.TEST`). Compare
+        is **strict greater than** parent level: equal precedence does not
+        parenthesize, matching left-associative chaining rules set by callers.
+        """
         if self._precedences.get(node, Precedence.TEST) > precedence:
             return _DelimitCM(self._source, "(", ")")
         return _NULL_CM
 
     def _needs_parens(self, precedence, node) -> bool:
+        """Same test as :meth:`require_parens` without allocating a context manager.
+
+        Hot expression paths (``BoolOp``, ``BinOp``, …) branch on this and append
+        ``(`` / ``)`` manually to avoid ``_DelimitCM`` allocation.
+        """
         return self._precedences.get(node, Precedence.TEST) > precedence
 
-    def get_precedence(self, node):
+    def get_precedence(self, node) -> Precedence:
+        """Return the precedence assigned to *node*, or :attr:`Precedence.TEST`."""
         return self._precedences.get(node, Precedence.TEST)
 
-    def set_precedence(self, precedence, *nodes):
+    def set_precedence(self, precedence, *nodes) -> None:
+        """Assign *precedence* to each of *nodes* before they are traversed."""
         prec = self._precedences
         for node in nodes:
             prec[node] = precedence
 
-    def traverse(self, node):
+    def traverse(self, node) -> None:
+        """Walk *node* (or each element if *node* is a ``list``) without resetting.
+
+        Unlike :meth:`visit`, does **not** clear the buffer—safe for nested
+        calls. Dispatches via ``_type_visitor_cache`` to ``visit_<ClassName>``.
+        """
         # Lists are statement/arg containers; exact type check avoids ABC overhead.
         if node.__class__ is list:
             for item in node:
@@ -278,7 +410,13 @@ class NodeUnparser(NodeVisitor):
             cache[cls] = visitor
         visitor(node)  # type: ignore[operator]
 
-    def visit(self, node):
+    def visit(self, node) -> str:
+        """Unparse *node* to a full source string (public instance entry point).
+
+        Resets buffer, precedence map, and indent so a single instance can be
+        reused safely across documents. Prefer :func:`unparse_node` for the
+        shared thread-local instance used by ``helper.unparse``.
+        """
         # Full reset so a single NodeUnparser instance can be reused safely.
         # clear() reuses list/dict capacity across calls (less allocator churn).
         src = self._source
@@ -288,16 +426,30 @@ class NodeUnparser(NodeVisitor):
         self.traverse(node)
         return "".join(src)
 
-    def visit_Script(self, node: ast.Script):
+    def visit_Script(self, node: ast.Script) -> None:
+        """Emit top-level annotations (e.g. ``//@version=6``) then the body.
+
+        Each annotation string is written as its own filled line so version and
+        other directive comments stay above the first statement—matching how the
+        parser attaches them to :class:`~pynescript.ast.node.Script`.
+        """
         if node.annotations:
             for annotation in node.annotations:
                 self.fill(annotation)
         self.traverse(node.body)
 
-    def visit_Expression(self, node: ast.Expression):
+    def visit_Expression(self, node: ast.Expression) -> None:
+        """Unparse a single expression root (no script wrapper or trailing newline)."""
         self.traverse(node.body)
 
-    def visit_FunctionDef(self, node: ast.FunctionDef):
+    def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+        """Emit ``export``/``method`` *name* ``(args) =>`` body.
+
+        Single-statement bodies that are :class:`~pynescript.ast.node.Expr` are
+        inlined after ``=>`` (expression form). Multi-statement bodies open a
+        :meth:`block` (indented multi-line form). Leading *annotations* are
+        emitted as filled lines before the signature.
+        """
         self.fill()
         if node.annotations:
             for annotation in node.annotations:
@@ -320,7 +472,13 @@ class NodeUnparser(NodeVisitor):
             with self.block():
                 self.traverse(body)
 
-    def visit_TypeDef(self, node: ast.TypeDef):
+    def visit_TypeDef(self, node: ast.TypeDef) -> None:
+        """Emit ``export type Name`` with fields first, then ``method`` members.
+
+        Reorders the type body so non-method statements (fields) appear before
+        method :class:`~pynescript.ast.node.FunctionDef` nodes for stable,
+        readable output regardless of original AST order.
+        """
         self.fill()
         if node.annotations:
             for annotation in node.annotations:
@@ -359,7 +517,13 @@ class NodeUnparser(NodeVisitor):
         with self.block():
             self.traverse(node.body)
 
-    def visit_Assign(self, node: ast.Assign):
+    def visit_Assign(self, node: ast.Assign) -> None:
+        """Emit declaration/assignment: annotations, optional ``export``, mode, type, ``=``.
+
+        *annotations* (compiler/version-style lines attached to the declaration)
+        are filled before the statement. *mode* is ``var`` / ``varip`` / ``const``
+        / etc.; *export* supports library ``export`` bindings when present.
+        """
         self.fill()
         if node.annotations:
             for annotation in node.annotations:
@@ -419,7 +583,13 @@ class NodeUnparser(NodeVisitor):
         with self.block():
             self.traverse(node.body)
 
-    def visit_If(self, node: ast.If):
+    def visit_If(self, node: ast.If) -> None:
+        """Emit ``if`` / ``else if`` / ``else`` with indented bodies.
+
+        Nested ``else`` branches that are a single expression-wrapped ``If`` are
+        flattened to ``else if`` chains so round-tripped source matches idiomatic
+        Pine rather than nested ``else`` + ``if`` blocks.
+        """
         self._source.append("if ")
         self.traverse(node.test)
         with self.block():
@@ -494,7 +664,14 @@ class NodeUnparser(NodeVisitor):
         ast.Or: Precedence.OR,
     }
 
-    def visit_BoolOp(self, node: ast.BoolOp):
+    def visit_BoolOp(self, node: ast.BoolOp) -> None:
+        """Emit ``and`` / ``or`` chains with left-associative parenthesization.
+
+        Each successive operand gets a **tighter** precedence via
+        :meth:`Precedence.next` so same-operator chains do not re-parenthesize
+        needlessly while mixed nesting still wraps correctly. Saves/restores
+        ``_boolop_spaced`` so nested bool-ops do not clobber the interleave token.
+        """
         op_type = type(node.op)
         operator_precedence = self._BOOLOP_PREC[op_type]
         # Save/restore so nested BoolOps don't clobber the interleave token.
@@ -571,7 +748,13 @@ class NodeUnparser(NodeVisitor):
         ast.RShift: Precedence.SHIFT,
     }
 
-    def visit_BinOp(self, node: ast.BinOp):
+    def visit_BinOp(self, node: ast.BinOp) -> None:
+        """Emit spaced binary operators with left-associative precedence rules.
+
+        Left child keeps the operator's precedence; right child uses
+        :meth:`Precedence.next` so ``a - b - c`` prints without parens while
+        ``a - (b - c)`` still parenthesizes the right subtree when required.
+        """
         op_type = type(node.op)
         operator_precedence = self._BINOP_PREC[op_type]
         needs = self._needs_parens(operator_precedence, node)
@@ -617,7 +800,8 @@ class NodeUnparser(NodeVisitor):
         ast.Invert: Precedence.FACTOR,
     }
 
-    def visit_UnaryOp(self, node: ast.UnaryOp):
+    def visit_UnaryOp(self, node: ast.UnaryOp) -> None:
+        """Emit unary ``not`` / ``+`` / ``-`` / ``~``; ``not`` includes a trailing space."""
         op_type = type(node.op)
         operator_precedence = self._UNOP_PREC[op_type]
         needs = self._needs_parens(operator_precedence, node)
@@ -630,7 +814,14 @@ class NodeUnparser(NodeVisitor):
         if needs:
             src.append(")")
 
-    def visit_Conditional(self, node: ast.Conditional):
+    def visit_Conditional(self, node: ast.Conditional) -> None:
+        """Emit ternary ``test ? body : orelse`` (loosest :attr:`Precedence.TEST`).
+
+        *test* and *body* use a tighter level so nested ternaries in those arms
+        parenthesize; *orelse* stays at :attr:`~Precedence.TEST` so
+        ``a ? b : c ? d : e`` associates rightward without extra parens on the
+        trailing conditional.
+        """
         needs = self._needs_parens(Precedence.TEST, node)
         src = self._source
         if needs:
@@ -675,7 +866,8 @@ class NodeUnparser(NodeVisitor):
         ast.GtE: " >= ",
     }
 
-    def visit_Compare(self, node: ast.Compare):
+    def visit_Compare(self, node: ast.Compare) -> None:
+        """Emit chained comparisons (``a < b <= c``) with spaced operators."""
         needs = self._needs_parens(Precedence.CMP, node)
         src = self._source
         if needs:
@@ -693,7 +885,8 @@ class NodeUnparser(NodeVisitor):
         if needs:
             src.append(")")
 
-    def visit_Call(self, node: ast.Call):
+    def visit_Call(self, node: ast.Call) -> None:
+        """Emit ``func(args)``; *func* is forced to :attr:`Precedence.ATOM`."""
         self._precedences[node.func] = Precedence.ATOM
         self.traverse(node.func)
         # Manual delimit — Call is the hottest paren site; skip _DelimitCM alloc.
@@ -704,7 +897,22 @@ class NodeUnparser(NodeVisitor):
             self.items_view(self.traverse, args)
         src.append(")")
 
-    def visit_Constant(self, node: ast.Constant):
+    def visit_Constant(self, node: ast.Constant) -> None:
+        """Emit literals: bools as ``true``/``false``, numbers via ``repr``, strings.
+
+        **String formatting rules (v6-aware):**
+
+        * If ``node.kind`` is set, *value* is emitted raw (pre-formatted token).
+        * Multiline values (newline / CR) prefer Pine triple-quoted forms
+          (triple double-quotes first, then triple single-quotes) so
+          round-trips stay readable. When the content contains both triple
+          delimiters, fall back to :func:`json.dumps` escapes on one line.
+        * Single-line plain strings (no escapes needed) use double quotes via
+          the fast path; strings with only double quotes use :func:`repr`
+          (single-quoted); otherwise JSON double-quoted escaping.
+        * Booleans use identity checks (``is True`` / ``is False``) before
+          numeric ``repr`` because ``bool`` subclasses ``int``.
+        """
         src = self._source
         if node.kind:
             src.append(node.value)
@@ -864,7 +1072,12 @@ class NodeUnparser(NodeVisitor):
             self._source.append(name + "=")
         self.traverse(node.value)
 
-    def visit_Case(self, node: ast.Case):
+    def visit_Case(self, node: ast.Case) -> None:
+        """Emit a switch arm: optional *pattern*, then ``=>`` expression or block.
+
+        Same single-:class:`~pynescript.ast.node.Expr` inlining rule as
+        :meth:`visit_FunctionDef` (expression form vs indented multi-statement).
+        """
         self.fill()
         if node.pattern:
             self.traverse(node.pattern)
@@ -876,7 +1089,8 @@ class NodeUnparser(NodeVisitor):
             with self.block():
                 self.traverse(node.body)
 
-    def visit_Comment(self, node: ast.Comment):
+    def visit_Comment(self, node: ast.Comment) -> None:
+        """Emit a full-line comment at the current indent (``node.value`` as stored)."""
         self.fill(node.value)
 
 
@@ -905,7 +1119,20 @@ _tls = threading.local()
 
 
 def unparse_node(node: ast.AST) -> str:
-    """Unparse *node* to Pine source, reusing a per-thread NodeUnparser."""
+    """Convert *node* to Pine Script source, reusing a per-thread :class:`NodeUnparser`.
+
+    This is the implementation behind :func:`pynescript.ast.helper.unparse`.
+    Thread-local reuse keeps ``_type_visitor_cache`` warm without sharing
+    mutable buffer state across threads (:meth:`NodeUnparser.visit` still
+    resets the buffer each call).
+
+    Args:
+        node: Any AST root (typically :class:`~pynescript.ast.node.Script` or
+            :class:`~pynescript.ast.node.Expression`).
+
+    Returns:
+        Syntactically valid Pine Script source string for *node*.
+    """
     u = getattr(_tls, "unparser", None)
     if u is None:
         u = NodeUnparser()

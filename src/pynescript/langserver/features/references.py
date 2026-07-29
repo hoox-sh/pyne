@@ -17,9 +17,10 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""References feature — textDocument/references handler.
+"""References — ``textDocument/references`` (find all references).
 
-Provides find-references for Pine Script symbols.
+Public handler: :func:`handle_references`. Same-document AST walk via
+:class:`ReferencesFinder`; respects ``context.include_declaration``.
 """
 
 from __future__ import annotations
@@ -34,17 +35,15 @@ from pynescript.langserver.protocol.utils import get_word_at_position
 
 
 def handle_references(params: lsp.ReferenceParams, source: str | None, uri: str) -> list[lsp.Location]:
-    """Handle textDocument/references request.
-
-    Finds all references to a symbol at the cursor position.
+    """Collect references to the symbol under the cursor.
 
     Args:
-        params: The references params from the LSP client.
-        source: The source text of the document.
-        uri: The document URI.
+        params: Client reference params (position + includeDeclaration).
+        source: Document text, or ``None``.
+        uri: Document URI for returned locations.
 
     Returns:
-        List of Locations (all references found).
+        List of :class:`~lsprotocol.types.Location` (empty if none / unparsable).
     """
     if not source:
         return []

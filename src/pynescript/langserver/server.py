@@ -17,10 +17,31 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Pynescript Language Server implementation using pygls.
+"""pygls Language Server for Pine Script.
 
-This module implements the Language Server Protocol for Pine Script,
-providing IDE features like diagnostics, completion, and hover.
+:class:`PynescriptLanguageServer` owns a :class:`~pynescript.langserver.workspace.Workspace`
+(open documents, AST, lint) and registers LSP method handlers in
+:meth:`PynescriptLanguageServer.setup_method_handlers`.
+
+**Lifecycle / sync**
+
+- ``initialize`` / ``initialized`` / ``shutdown``
+- ``textDocument/didOpen|didChange|didClose|didSave`` — update workspace,
+  publish diagnostics
+- ``textDocument/diagnostic`` and ``workspace/diagnostic`` — pull diagnostics
+
+**Feature handlers** (delegated to :mod:`pynescript.langserver.features`)
+
+- completion (+ resolve), hover, definition, references
+- documentSymbol, workspace/symbol
+- formatting / rangeFormatting
+- inlayHint, semanticTokens/full
+
+Advertised capabilities come from :func:`pynescript.langserver.config.get_server_capabilities`
+— only list methods that have implementations here.
+
+Entry: :func:`pynescript.langserver.__main__.main` or construct this class and
+call ``start_io()``.
 """
 
 from __future__ import annotations
@@ -49,13 +70,15 @@ logger = logging.getLogger(__name__)
 
 
 class PynescriptLanguageServer(LanguageServer):
-    """Pynescript Language Server.
+    """Pine Script LSP server (pygls :class:`~pygls.lsp.server.LanguageServer` subclass).
 
-    Implements the Language Server Protocol for Pine Script,
-    enabling IDE integration in VS Code, Neovim, and other editors.
+    Attributes:
+        pine_workspace: In-memory document store keyed by URI. Feature handlers
+            read source via :meth:`~pynescript.langserver.workspace.Workspace.get_source`.
     """
 
     def __init__(self) -> None:
+        """Create the server, empty workspace, and register all method handlers."""
         super().__init__(
             name="Pynescript",
             version=__version__,
@@ -66,7 +89,7 @@ class PynescriptLanguageServer(LanguageServer):
         self.setup_method_handlers()
 
     def setup_method_handlers(self) -> None:
-        """Register LSP method handlers."""
+        """Register lifecycle, diagnostics, and feature LSP method handlers."""
 
         @self.feature(lsp.TEXT_DOCUMENT_DID_OPEN)
         def did_open(params: lsp.DidOpenTextDocumentParams) -> None:

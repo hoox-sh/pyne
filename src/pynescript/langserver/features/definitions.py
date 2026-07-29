@@ -17,9 +17,11 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Definitions feature — textDocument/definition handler.
+"""Definitions — ``textDocument/definition`` (go-to-definition).
 
-Provides go-to-definition for Pine Script symbols.
+Public handler: :func:`handle_definition`. Parses *source*, walks the AST with
+:class:`DefinitionFinder`, and returns declaration locations for the word at
+the cursor (same-document only).
 """
 
 from __future__ import annotations
@@ -34,17 +36,15 @@ from pynescript.langserver.protocol.utils import get_word_at_position
 
 
 def handle_definition(params: lsp.DefinitionParams, source: str | None, uri: str) -> list[lsp.Location] | None:
-    """Handle textDocument/definition request.
-
-    Finds the definition of a symbol at the cursor position.
+    """Find definition location(s) for the symbol under the cursor.
 
     Args:
-        params: The definition params from the LSP client.
-        source: The source text of the document.
-        uri: The document URI.
+        params: Client definition params (position).
+        source: Document text, or ``None``.
+        uri: Document URI for returned :class:`~lsprotocol.types.Location` objects.
 
     Returns:
-        List of Locations (definitions found) or None.
+        Non-empty list of locations, or ``None`` if unknown / unparsable.
     """
     if not source:
         return None

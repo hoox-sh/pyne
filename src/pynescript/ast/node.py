@@ -17,18 +17,36 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""AST Node Class Definitions.
+"""Pine Script AST node types (ASDL-generated, re-exported).
 
-Auto-generated ASDL-based node classes for the Pine Script Abstract Syntax Tree.
-Each node type represents a language construct:
+All concrete node classes live in
+:mod:`pynescript.ast.grammar.asdl.generated.PinescriptASTNode` and are
+re-exported here so callers can use ``from pynescript.ast.node import …``
+or ``from pynescript.ast import node as ast``.
 
-- Script: Root module node
-- FunctionDef/TypeDef/EnumDef: Definitions
-- Assign/AugAssign/Return: Statements
-- If/While/For: Control flow
-- BinOp/UnaryOp/Compare: Expressions
-- Call/Subscript/Attribute: Member access
-- Constant/Name/Tuple: Literals and names
+Base contract
+-------------
+* :class:`AST` — root base; every node has class-level ``_fields`` (child /
+  data field names) and ``_attributes`` (location metadata when present).
+* Statement/expression nodes typically carry ``lineno``, ``col_offset``,
+  ``end_lineno``, ``end_col_offset`` (1-based lines; 0-based byte columns).
+* Nodes are dataclasses; construct with keyword field values as needed.
+
+Main kinds (non-exhaustive)
+---------------------------
+* Modules: ``Script`` (exec root), ``Expression`` (eval root)
+* Definitions: ``FunctionDef``, ``TypeDef``, ``EnumDef``
+* Statements: ``Assign``, ``ReAssign``, ``AugAssign``, ``Import``, ``Expr``,
+  ``Break``, ``Continue``
+* Control / blocks (as expressions in Pine): ``If``, ``While``, ``ForTo``,
+  ``ForIn``, ``Switch``, ``Case``
+* Expressions: ``BinOp``, ``UnaryOp``, ``BoolOp``, ``Compare``, ``Conditional``,
+  ``Call``, ``Attribute``, ``Subscript``, ``Name``, ``Constant``, ``Tuple``, …
+* Type markers: ``Qualify``, ``Specialize``; qualifiers ``Const``, ``Input``,
+  ``Simple``, ``Series``; decl modes ``Var``, ``VarIp``
+
+Do not edit the generated module under ``grammar/asdl/generated/`` by hand;
+regenerate from the ASDL resource when the grammar changes.
 """
 
 from __future__ import annotations

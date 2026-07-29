@@ -17,13 +17,15 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""AST Visitor Pattern Implementation.
+"""Visitor base for walking Pine Script ASTs.
 
-Base class for traversing and processing AST nodes using the visitor pattern.
-Subclasses implement visit_<NodeType> methods to handle specific node types.
+Subclass :class:`NodeVisitor` and implement ``visit_<NodeType>`` methods
+(e.g. ``visit_Assign``, ``visit_Call``). Dispatch is by concrete class name
+with a type-keyed method cache.
 
-The visitor dispatches to specialized methods based on node class name,
-with caching for performance optimization.
+Use :class:`~pynescript.ast.transformer.NodeTransformer` when you need to
+replace or remove nodes; use :func:`pynescript.ast.helper.walk` for a simple
+iterator over the tree without subclassing.
 """
 
 from __future__ import annotations
@@ -36,29 +38,25 @@ from pynescript.ast.node import AST
 
 
 class NodeVisitor:
-    """Base visitor for traversing AST nodes.
+    """Base class for AST traversal via the visitor pattern.
 
-    Implements the visitor pattern with method dispatch and caching.
-    Subclasses should override visit_<NodeType> methods for custom behavior.
+    Override ``visit_<ClassName>`` for node types of interest. Unhandled
+    types fall through to :meth:`generic_visit`, which recursively visits
+    all child AST fields. Return values are whatever each ``visit_*``
+    method returns (often ``None`` for pure analysis visitors).
     """
 
-    def __init__(self):
-        """Initialize the visitor with empty method cache."""
+    def __init__(self) -> None:
+        """Initialize an empty per-type visitor method cache."""
         super().__init__()
         # Type-object keyed cache (faster than class-name strings; matches unparser).
         self._visitor_cache: dict[type, Callable[[AST], Any]] = {}
 
     def visit(self, node: AST) -> Any:
-        """Visit an AST node and dispatch to appropriate handler.
-
-        Looks up and caches visit_<NodeType> methods for performance.
-        Cache is keyed by ``type(node)`` to avoid per-call ``__name__`` strings.
-
-        Args:
-            node: The AST node to visit
+        """Dispatch to ``visit_<type(node).__name__>`` or :meth:`generic_visit`.
 
         Returns:
-            Result from the visit_<NodeType> method (implementation-dependent)
+            Whatever the matched handler returns.
         """
         # Local binds shave attribute lookups on the deepest recursive path.
         cache = self._visitor_cache
@@ -70,12 +68,9 @@ class NodeVisitor:
         return visitor(node)
 
     def generic_visit(self, node: AST) -> Any:
-        """Called if no specific visit method exists for a node type.
+        """Default handler: recursively :meth:`visit` every child AST field.
 
-        Default implementation recursively visits all child AST nodes.
-
-        Args:
-            node: The AST node being visited
+        Does not return aggregated child results (return value is ``None``).
         """
         for _field, value in iter_fields(node):
             # Handle list of nodes

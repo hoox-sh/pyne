@@ -17,6 +17,22 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
+"""Expression evaluation: operators, comparisons, calls, conditionals.
+
+:class:`ExpressionEvaluator` implements ``visit_*`` for expression AST nodes.
+Cross-cutting rules used throughout this module:
+
+- **``na``** is ``None``. Arithmetic and comparisons with ``None`` propagate
+  ``na`` (comparisons that yield ``None`` are treated as false in bool chains).
+- **Series lists** use element-wise ops; lengths align on the trailing edge
+  (most recent bars) when they differ.
+- **Series wrappers** (``PineSeries`` / objects with ``.current`` + ``.history``)
+  unwrap to ``.current`` before scalar arithmetic.
+- **Calls** resolve builtins by qualified AST path before evaluating
+  intermediate attributes, so ``strategy.entry(...)`` is not broken by
+  zero-arg series like ``strategy.long``.
+"""
+
 from __future__ import annotations
 
 import operator
@@ -233,26 +249,27 @@ _METHOD_CALL_TUPLE_LENGTH = 3
 
 
 class ExpressionEvaluator:
-    """Evaluates expression AST nodes: boolean, binary, unary, comparisons, and calls.
+    """Mixin: boolean/binary/unary ops, comparisons, calls, ternary, if/switch expressions.
 
-    Handles all expression types including:
-    - Boolean operations (and, or)
-    - Binary operations (arithmetic, comparison)
-    - Unary operations (not, negation, positive)
-    - Function/method calls with argument handling
-    - Ternary conditionals
-    - List/tuple comprehensions
+    Designed for the bar-mode hot path (hosts inject bare floats for OHLCV).
+    Numeric pairs short-circuit into pure Python ops; series and ``na`` fall
+    through :func:`_elementwise_binary`.
+
+    Method-call markers produced by :class:`~.names.NameEvaluator`
+    (``_method_call``, ``_array_method``, ``_ns_method``, ``_ext_method``)
+    are interpreted in :meth:`visit_Call`. UDF and UDT method bodies rebind
+    parameters on the live ``context`` (see :meth:`_invoke_method`).
     """
 
     def visit_BoolOp(self: EvaluatorProtocol, node: ast.BoolOp):
         """Evaluate boolean operations (and, or).
 
         Implements short-circuit evaluation:
-        - 'and': stops at first falsy value
-        - 'or': stops at first truthy value
+        - ``and``: stops at first falsy value
+        - ``or``: stops at first truthy value
 
-        Returns a Python ``bool`` (same as ``all``/``any``). Manual loop avoids
-        generator + ``all``/``any`` frame overhead on the hot path.
+        ``None`` (na) is falsy in this context. Returns a Python ``bool``.
+        Manual loop avoids generator + ``all``/``any`` frame overhead.
 
         Args:
             node: BoolOp node with operator and list of values
@@ -278,21 +295,23 @@ class ExpressionEvaluator:
         raise ValueError(msg)
 
     def visit_BinOp(self: EvaluatorProtocol, node: ast.BinOp):
-        """Evaluate binary operations (arithmetic, bitwise).
+        """Evaluate binary arithmetic (``+ - * / %``) with Pine na/series rules.
 
-        Supports: +, -, *, /, % (modulo), and bitwise operations.
+        - Any ``None`` operand → ``None`` (na).
+        - Division by zero → ``None`` (not an exception).
+        - List operands → element-wise via :func:`_elementwise_binary`.
 
         Dominant bar-mode path (bare int/float) is inlined to avoid the
-        ``_na_safe_binary`` wrapper frame and most of ``_elementwise_binary``.
+        ``_na_safe_binary`` wrapper frame.
 
         Args:
-            node: BinOp node with left operand, right operand, and operator
+            node: BinOp with left, op, right
 
         Returns:
-            Result of applying the binary operator to the operands
+            Numeric result, list, or ``None``
 
         Raises:
-            ValueError: If operator is not supported
+            ValueError: If the operator type is not in the dispatch table
         """
         visit = self.visit
         left = visit(node.left)
@@ -331,16 +350,19 @@ class ExpressionEvaluator:
         return _elementwise_binary(raw, left, right)
 
     def visit_UnaryOp(self: EvaluatorProtocol, node: ast.UnaryOp):
-        """Evaluate unary operations (not, negation, positive).
+        """Evaluate unary ``not``, ``-``, ``+``.
+
+        Unary ops on ``na`` propagate ``na`` (including ``not na`` → ``None``),
+        matching Pine rather than Python's ``not None`` → ``True``.
 
         Args:
-            node: UnaryOp node with operand and operator
+            node: UnaryOp with op and operand
 
         Returns:
-            Result of applying the unary operator to the operand
+            Result, or ``None`` when the operand is na
 
         Raises:
-            ValueError: If operator is not recognized
+            ValueError: If the operator type is not recognized
         """
         operand = self.visit(node.operand)
         op_t = type(node.op)
@@ -363,24 +385,29 @@ class ExpressionEvaluator:
         return op_fn(operand)
 
     def visit_Conditional(self: EvaluatorProtocol, node: ast.Conditional) -> Any:
+        """Ternary ``cond ? body : orelse`` (Pine conditional expression).
+
+        The unused branch is not evaluated. ``na`` / falsy tests take
+        ``orelse`` (Python truthiness: ``None`` and ``0`` are false).
+        """
         visit = self.visit
         if visit(node.test):
             return visit(node.body)
         return visit(node.orelse)
 
     def visit_Compare(self: EvaluatorProtocol, node: ast.Compare) -> Any:
-        """Evaluate comparison operations with short-circuiting.
+        """Chained comparisons (``a < b < c``) with short-circuit and na rules.
 
-        Evaluates chained comparisons (e.g., a < b < c) efficiently:
-        - Evaluates operands left-to-right
-        - Stops as soon as a comparison fails (short-circuit)
-        - Only evaluates the right operand if the left comparison succeeded
+        Operands evaluate left-to-right. A comparison that yields ``None``
+        (operand was na) fails the chain → ``False`` so ``if a < b`` is false
+        when either side is na. Element-wise list results are truthy only if
+        any element is true.
 
         Args:
-            node: Compare node with left operand, operators, and comparators
+            node: Compare with left, ops, comparators
 
         Returns:
-            True if all comparisons are true, False otherwise
+            ``True`` if every link succeeds, else ``False``
         """
         visit = self.visit
         left = visit(node.left)
@@ -456,6 +483,29 @@ class ExpressionEvaluator:
         return _OPERATOR_GE
 
     def visit_Call(self: EvaluatorProtocol, node: ast.Call):
+        """Evaluate a function or method call.
+
+        Dispatch order (simplified):
+
+        1. **Qualified-attribute builtins** — ``strategy.entry(...)``,
+           ``ta.sma(...)`` resolved from the AST path *before* visiting
+           intermediate attributes (zero-arg series would otherwise collapse
+           the qualified name).
+        2. **Bare-name builtins** — ``year(ts)``, ``na(x)``; user callables in
+           ``context`` shadow bare ta.* aliases.
+        3. **Method markers** from :meth:`~.names.NameEvaluator.visit_Attribute`
+           — UDT methods, ``array.*``, drawing/matrix namespaces, extension
+           ``method`` free functions.
+        4. **``Type.new(...)``** UDT construction.
+        5. **Callable** in context / recovered instance attr; non-callables
+           soft-fail to ``None`` (na).
+
+        Args:
+            node: Call with func and argument list (positional + named)
+
+        Returns:
+            Call result, or ``None`` on soft-fail
+        """
         # Early-dispatch for qualified-attribute builtins (subtask 1.1.2):
         # when ``node.func`` is an ``Attribute`` whose qualified name is a
         # registered builtin, dispatch by qualified name and return the
@@ -768,7 +818,7 @@ class ExpressionEvaluator:
         args: list[Any],
         kwargs: dict[str, Any],
     ) -> ObjectInstance:
-        """Create a new instance of a UDT"""
+        """Construct a UDT instance (``TypeName.new(...)`` / positional + kwargs fields)."""
         instance = ObjectInstance(udt)
 
         # Set fields from positional arguments
@@ -791,7 +841,13 @@ class ExpressionEvaluator:
         args: list[Any],
         kwargs: dict[str, Any],
     ) -> Any:
-        """Invoke a method on a UDT instance"""
+        """Run a UDT method body with in-place parameter rebind on ``context``.
+
+        Binds the receiver as the first parameter (and always as ``this``),
+        applies defaults, executes the method body, then restores prior
+        bindings. Does **not** ``dict.copy()`` the context — hosts mutate
+        ``bar_index`` / OHLCV on the same dict each bar.
+        """
         # Get the method definition from the UDT
         udt = obj_instance.udt
         if not hasattr(udt, "_method_defs") or method_name not in udt._method_defs:  # type: ignore
@@ -884,13 +940,16 @@ class ExpressionEvaluator:
         return base
 
     def visit_If(self: EvaluatorProtocol, node: ast.If) -> Any:
-        """Evaluate an if-expression.
+        """Evaluate ``if`` / ``else``; return the last expression of the taken branch.
+
+        Body statements that are not ``Expr`` still run for side effects.
+        Uses Python truthiness (``None``/``0``/``False`` → else branch).
 
         Args:
-            node: If node with test, body, and orelse
+            node: If with test, body, orelse
 
         Returns:
-            The value of the last expression in the executed branch, or None
+            Last expression value of the taken branch, or ``None``
         """
         if self.visit(node.test):
             result = None

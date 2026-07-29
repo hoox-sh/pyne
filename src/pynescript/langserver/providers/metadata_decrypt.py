@@ -17,16 +17,29 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Encrypted metadata loader for the compiled LSP binary.
+"""Fernet decryption of ``builtin_metadata.json.enc`` (Nuitka / packaged LSP).
 
-When pynescript is compiled with Nuitka, the builtin_metadata.json is encrypted
-with Fernet. This module handles decryption at runtime using an embedded key.
+**When used:** :func:`pynescript.langserver.providers.builtin_metadata.get_metadata`
+falls back here only when plaintext JSON is missing or unreadable. Day-to-day
+dev keeps ``builtin_metadata.json`` next to this package and never decrypts.
 
-The key is generated during the build process (scripts/build/compile.py) and
-stored as a Python bytecode file that gets compiled into the binary.
+**Key resolution** (``_get_fernet_key``):
 
-This module is only used in the compiled binary. For development, the plaintext
-builtin_metadata.json is used directly.
+1. Cached key from a previous successful resolve
+2. ``.metadata.key`` beside this package, or under ``sys._MEIPASS`` when frozen
+3. ``PYNESCRIPT_METADATA_KEY`` environment variable (Fernet key material)
+
+Build-time encryption and key generation live in ``scripts/build/compile.py``
+(also honors ``CRYPTO_KEY`` / ``METADATA_KEY`` when writing the key). Never
+commit ``.metadata.key``.
+
+**Integrity:** if ``builtin_metadata.json.sha256`` exists, decrypted plaintext
+must match the 16-char SHA-256 prefix or load raises.
+
+Public API:
+
+- :func:`load_encrypted_metadata` — decrypt ``.enc`` → dict (raises on missing key/blob)
+- :func:`get_metadata_cached` — plaintext first, else encrypted (raises if neither)
 """
 
 from __future__ import annotations
@@ -73,7 +86,15 @@ def _get_fernet_key() -> bytes:
 
 
 def load_encrypted_metadata() -> dict[str, Any]:
-    """Load and decrypt the encrypted builtin metadata."""
+    """Decrypt ``builtin_metadata.json.enc`` and return the JSON object.
+
+    Validates optional ``builtin_metadata.json.sha256`` (16-char prefix).
+
+    Raises:
+        FileNotFoundError: Encrypted blob missing.
+        RuntimeError: No decryption key available.
+        ValueError: Integrity check failed.
+    """
     from cryptography.fernet import Fernet
 
     key = _get_fernet_key()
@@ -101,7 +122,12 @@ def load_encrypted_metadata() -> dict[str, Any]:
 
 
 def get_metadata_cached() -> dict[str, Any]:
-    """Load metadata, using plaintext if available, encrypted if not."""
+    """Load metadata preferring plaintext JSON, else decrypt the ``.enc`` blob.
+
+    Same plaintext-first contract as :func:`~pynescript.langserver.providers.builtin_metadata.get_metadata`,
+    but raises if neither artifact is available (unlike ``get_metadata``, which
+    returns ``{}``).
+    """
     if _METADATA_PLAIN.exists():
         import json
 

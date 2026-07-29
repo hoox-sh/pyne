@@ -17,7 +17,37 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Pine Script → Numba compile pipeline."""
+"""Pine Script → Numba / object-mode compile pipeline.
+
+This package is the **compile** path alternative to the AST evaluator
+(``mode="interpret"``). It lowers Pine to a bar-loop Python module, optionally
+JITs with Numba nopython, and runs over full OHLCV arrays.
+
+Public surface
+--------------
+- :func:`compile_script` / :func:`transpile` / :func:`run_script` — entry points
+  (implemented in :mod:`pynescript.compiler.engine`).
+- :class:`CompiledScript` — handle with ``.run(open, high, low, close, volume?)``
+  returning a plot-title → series dict (plus object-mode extras).
+- :class:`CompilerVisitor` — AST → source emitter (numeric or object backend).
+- :func:`has_numba` / :func:`clear_compile_cache` — capability and cache control.
+
+Interpret vs compile
+--------------------
+- **Interpret** (evaluator): walks the AST per bar with full Pine semantics
+  (UDT, map, drawing, strategy, libraries). Flexible; slower.
+- **Compile**: one-shot transpile → ``execute_script_compiled(...)``. Pure
+  numeric scripts use ``@numba.njit``; UDT/map/drawing/strategy force a pure-
+  Python bar loop (object mode). nopython warm-up failures automatically
+  re-emit object mode so ``mode="compile"`` still runs.
+
+Supporting modules (not re-exported here)
+-----------------------------------------
+- :mod:`pynescript.compiler.numba_builtins` — star-imported runtime helpers
+  (njit TA kernels, object-mode ``safe_*`` / matrix / ``na_num``).
+- :mod:`pynescript.compiler.strategy_broker` — :class:`CompileStrategyBroker`
+  used only by object-mode strategy emission.
+"""
 
 from __future__ import annotations
 

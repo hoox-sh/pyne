@@ -17,9 +17,16 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Server capability definitions.
+"""Advertised LSP server capabilities and semantic-token legend.
 
-Declares which LSP features the Pynescript Language Server supports.
+:func:`get_server_capabilities` is returned from the ``initialize`` handler in
+:mod:`pynescript.langserver.server`. Only declare providers that have working
+handlers — signature help and code actions are intentionally omitted until
+implemented.
+
+Semantic token type/modifier order in :func:`semantic_token_types` /
+:func:`semantic_token_modifiers` **must** stay aligned with indices used by
+:mod:`pynescript.langserver.features.semantic_tokens`.
 """
 
 from __future__ import annotations
@@ -30,10 +37,10 @@ from lsprotocol import types as lsp
 
 
 def get_server_capabilities() -> lsp.ServerCapabilities:
-    """Return the server capabilities declaration.
+    """Return :class:`lsprotocol.types.ServerCapabilities` for ``initialize``.
 
-    This defines which LSP methods the server responds to.
-    Update this as features are implemented.
+    Sync mode is incremental open/close/change with save text. Completion
+    triggers on ``.`` with resolve. Semantic tokens: full only (no range).
     """
     return lsp.ServerCapabilities(
         text_document_sync=lsp.TextDocumentSyncOptions(
@@ -109,7 +116,7 @@ def semantic_token_modifiers() -> tuple[str, ...]:
 
 
 def get_filter_options() -> Any:
-    """Return file filters for the language server."""
+    """Return document selector filters (``*.pine`` / ``*.pinev5`` / ``*.pinev6``)."""
     return [
         {
             "language": "pinescript",

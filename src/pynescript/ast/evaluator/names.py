@@ -17,6 +17,26 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
+"""Name, attribute, and subscript resolution for the Pine evaluator.
+
+:class:`NameEvaluator` turns identifiers and ``a.b[i]`` paths into runtime
+values or call markers consumed by :class:`~.expressions.ExpressionEvaluator`.
+
+**Series history indexing (Pine):**
+
+- For plain **lists** (the usual host bar-mode series: chronological, oldest
+  first, newest last): ``series[0]`` is the current bar (``list[-1]``),
+  ``series[1]`` is one bar ago (``list[-2]``), etc. Out of range → ``None``
+  (na). Negative indices are rejected.
+- Series **wrappers** with a ``history`` list often store **most-recent-first**
+  history; array-method recovery may reverse that to chronological order.
+- Scalars with no history: ``x[0]`` → ``x``, ``x[i>0]`` → ``None``.
+
+**``na``:** bare name ``na`` resolves via the zero-arg builtin path to
+``None``. Missing attributes soft-fail to ``None`` rather than a truthy
+placeholder string.
+"""
+
 from __future__ import annotations
 
 from typing import Any
@@ -101,25 +121,28 @@ def ast_qualified_name(expr: ast.AST) -> str | None:
 
 
 class NameEvaluator:
-    """Evaluates name-related AST nodes: identifiers, attributes, subscripts.
+    """Mixin: ``Name``, ``Attribute``, ``Subscript`` resolution.
 
-    Handles resolution of:
-    - Simple names (variables, functions) from context
-    - Qualified names (module.attribute) with fallback to context lookup
-    - User-Defined Type (UDT) fields and method calls
-    - Enum member access
-    - Subscript operations with PineScript-specific indexing semantics
+    Produces either concrete values or method-call markers
+    (``_method_call``, ``_array_method``, ``_ns_method``, ``_ext_method``)
+    that :meth:`~.expressions.ExpressionEvaluator.visit_Call` consumes.
     """
 
     def visit_Name(self: EvaluatorProtocol, node: ast.Name) -> Any:
-        """Evaluate a simple name node (variable or identifier reference).
+        """Resolve a bare identifier from ``context`` or as a zero-arg builtin.
+
+        Lookup order:
+
+        1. ``context[name]`` (hot path for OHLCV / locals each bar)
+        2. Bare-series builtins (``na``, ``last_bar_index``, calendar series, …)
+           via ``_call_builtin`` — so bare ``na`` yields ``None``
+        3. Else the name **string** (lazy path for later builtin/call resolution)
 
         Args:
-            node: The Name AST node containing the identifier string
+            node: Name with ``id``
 
         Returns:
-            The value from context if the name is defined, otherwise returns the name string itself
-            (allowing it to be resolved as a string literal or builtin reference)
+            Bound value, builtin result, or unresolved name string
         """
         # Hot path: single dict lookup for bar-mode series (close/open/…) and locals.
         # ``try/except KeyError`` is faster than ``in`` + ``[]`` when the key hits
@@ -136,19 +159,22 @@ class NameEvaluator:
         return name
 
     def visit_Attribute(self: EvaluatorProtocol, node: ast.Attribute) -> Any:
-        """Evaluate an attribute access node (e.g., obj.attr, module.function).
+        """Resolve ``obj.attr`` / ``module.member`` without breaking qualified calls.
 
-        Handles multiple attribute resolution strategies:
-        1. Direct context lookup for qualified names
-        2. UDT (User-Defined Type) field and method access with binding
-        3. Enum member access with validation
-        4. Fallback to qualified name string for module-level lookups
+        Prefer AST-only qualified paths (see :func:`ast_qualified_name`) and
+        registered zero-arg builtins **before** evaluating intermediate bases,
+        so ``strategy.opentrades.entry_price(...)`` is not collapsed by
+        evaluating ``strategy.opentrades`` to an int.
+
+        Also handles library exports, UDT fields/methods, enums, array/drawing/
+        matrix instance methods, and extension methods (including ``na``
+        receivers). Unknown non-builtin paths return ``None`` (na).
 
         Args:
-            node: The Attribute AST node with value and attr properties
+            node: Attribute with value and attr
 
         Returns:
-            The attribute value, a bound method marker, or a qualified name string
+            Value, method marker tuple, qualified-name string, or ``None``
         """
         # AST-based qualified path (does not evaluate intermediates)
         qualified_name = ast_qualified_name(node)
@@ -280,20 +306,26 @@ class NameEvaluator:
         return None
 
     def visit_Subscript(self: EvaluatorProtocol, node: ast.Subscript) -> Any:
-        """Evaluate a subscript/index access node (e.g., series[index], array[0]).
+        """Index a series, array, or matrix (``series[i]``, ``m[row, col]``).
 
-        PineScript has unique indexing semantics where series[0] refers to the current value,
-        series[1] refers to the previous value, etc. (reverse chronological order).
+        Pine series indexing (most-recent-first **offset**, not Python index):
+
+        - ``series[0]`` — current bar
+        - ``series[1]`` — previous bar
+        - ``series[i]`` with ``i >= len`` — ``None`` (na)
+
+        Host lists are stored **chronologically** (oldest first), so the
+        implementation maps offset ``i`` to ``list[-(i + 1)]``. Float offsets
+        coerce to int; negative offsets raise. Matrix uses ``[row, col]``.
 
         Args:
-            node: The Subscript AST node with value and slice properties
+            node: Subscript with value and slice
 
         Returns:
-            The indexed value, or None (na) if out of bounds (per PineScript spec)
+            Indexed element or ``None`` (na / out of range)
 
         Raises:
-            ValueError: If negative indices are used (not supported in PineScript)
-            NotImplementedError: If subscripting is not supported for the value type
+            ValueError: Negative index, bad matrix index, or unsupported pair
         """
         visit = self.visit
         # Evaluate the collection being indexed (e.g., array, series)

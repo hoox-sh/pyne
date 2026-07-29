@@ -17,14 +17,17 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""AST Statement Collector.
+"""Collect statement nodes for annotation attachment.
 
-Traverses an AST and collects top-level statements for annotation processing.
-Used to pair special comments (//@version, //@description, etc.) with their
-corresponding statement nodes.
+Used by :func:`pynescript.ast.helper.parse` (``exec`` mode) to pair
+``//@…`` comments with the statements that follow them. Not part of the
+package star-export; import as ``from pynescript.ast.collector import
+StatementCollector``.
 """
 
 from __future__ import annotations
+
+from collections.abc import Iterator
 
 from pynescript.ast import node as ast
 from pynescript.ast.visitor import NodeVisitor
@@ -41,88 +44,106 @@ Structure = (
 
 
 class StatementCollector(NodeVisitor):
-    """Collects all statements from an AST for annotation processing.
+    """Yield statement nodes in source order for annotation processing.
 
-    Visits an AST tree and yields all top-level statement nodes
-    (FunctionDef, TypeDef, EnumDef, Assign, etc.) in order,
-    enabling annotation comments to be matched to statements.
+    Call :meth:`~pynescript.ast.visitor.NodeVisitor.visit` on a
+    :class:`~pynescript.ast.node.Script` (or nested body). Yields definitions
+    (``FunctionDef``, ``TypeDef``, ``EnumDef``), assignments, imports, bare
+    expressions, ``Break``/``Continue``, and descends into control structures
+    so nested statements are included.
+
+    Return type of each ``visit_*`` is an iterator of AST nodes (generator).
     """
+
     # ruff: noqa: N802
 
-    def visit_Script(self, node):
-        """Visit script and yield all statements in order."""
+    def visit_Script(self, node: ast.Script) -> Iterator[ast.AST]:
+        """Yield every statement under the script body."""
         for stmt in node.body:
             yield from self.visit(stmt)
 
-    def visit_FunctionDef(self, node):
-        """Visit function definition and yield it plus inner statements."""
+    def visit_FunctionDef(self, node: ast.FunctionDef) -> Iterator[ast.AST]:
+        """Yield the function, then statements in its body."""
         yield node
         for stmt in node.body:
             yield from self.visit(stmt)
 
-    def visit_TypeDef(self, node):
-        """Visit type definition and yield it plus inner statements."""
+    def visit_TypeDef(self, node: ast.TypeDef) -> Iterator[ast.AST]:
+        """Yield the type def, then statements in its body."""
         yield node
         for stmt in node.body:
             yield from self.visit(stmt)
 
-    def visit_EnumDef(self, node):
-        """Visit enum definition and yield it plus inner statements."""
+    def visit_EnumDef(self, node: ast.EnumDef) -> Iterator[ast.AST]:
+        """Yield the enum def, then members/statements in its body."""
         yield node
         for stmt in node.body:
             yield from self.visit(stmt)
 
-    def visit_Assign(self, node):
+    def visit_Assign(self, node: ast.Assign) -> Iterator[ast.AST]:
+        """Yield the assign; descend if the value is a control structure."""
         yield node
         if isinstance(node.value, Structure):
             yield from self.visit(node.value)
 
-    def visit_ReAssign(self, node):
+    def visit_ReAssign(self, node: ast.ReAssign) -> Iterator[ast.AST]:
+        """Yield the reassignment; descend into structured values."""
         yield node
         if isinstance(node.value, Structure):
             yield from self.visit(node.value)
 
-    def visit_AugAssign(self, node):
+    def visit_AugAssign(self, node: ast.AugAssign) -> Iterator[ast.AST]:
+        """Yield the augmented assign; descend into structured values."""
         yield node
         if isinstance(node.value, Structure):
             yield from self.visit(node.value)
 
-    def visit_Import(self, node):
+    def visit_Import(self, node: ast.Import) -> Iterator[ast.AST]:
+        """Yield the import statement."""
         yield node
 
-    def visit_Expr(self, node):
+    def visit_Expr(self, node: ast.Expr) -> Iterator[ast.AST]:
+        """Yield the expression statement; descend into structured values."""
         yield node
         if isinstance(node.value, Structure):
             yield from self.visit(node.value)
 
-    def visit_Break(self, node):
+    def visit_Break(self, node: ast.Break) -> Iterator[ast.AST]:
+        """Yield ``break``."""
         yield node
 
-    def visit_Continue(self, node):
+    def visit_Continue(self, node: ast.Continue) -> Iterator[ast.AST]:
+        """Yield ``continue``."""
         yield node
 
-    def visit_ForTo(self, node):
+    def visit_ForTo(self, node: ast.ForTo) -> Iterator[ast.AST]:
+        """Yield statements inside a for-to loop body."""
         for stmt in node.body:
             yield from self.visit(stmt)
 
-    def visit_ForIn(self, node):
+    def visit_ForIn(self, node: ast.ForIn) -> Iterator[ast.AST]:
+        """Yield statements inside a for-in loop body."""
         for stmt in node.body:
             yield from self.visit(stmt)
 
-    def visit_While(self, node):
+    def visit_While(self, node: ast.While) -> Iterator[ast.AST]:
+        """Yield statements inside a while body."""
         for stmt in node.body:
             yield from self.visit(stmt)
 
-    def visit_If(self, node):
+    def visit_If(self, node: ast.If) -> Iterator[ast.AST]:
+        """Yield statements in then and else branches."""
         for stmt in node.body:
             yield from self.visit(stmt)
         for stmt in node.orelse:
             yield from self.visit(stmt)
 
-    def visit_Switch(self, node):
+    def visit_Switch(self, node: ast.Switch) -> Iterator[ast.AST]:
+        """Yield statements from each switch case."""
         for case in node.cases:
             yield from self.visit(case)
 
-    def visit_Case(self, node):
+    def visit_Case(self, node: ast.Case) -> Iterator[ast.AST]:
+        """Yield statements in a switch case body."""
         for stmt in node.body:
             yield from self.visit(stmt)

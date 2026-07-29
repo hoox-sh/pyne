@@ -17,12 +17,19 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""CLI entry point for the Pynescript Language Server.
+"""stdio entry point for the Pine Script Language Server.
 
-Usage:
+Installed as console script::
+
+    pynescript-lsp = pynescript.langserver.__main__:main
+
+Also runnable as::
+
     python -m pynescript.langserver
-    pynescript lsp
-    pynescript lsp --tcp --port 8765
+
+Constructs :class:`~pynescript.langserver.server.PynescriptLanguageServer` and
+calls ``start_io()`` (JSON-RPC over stdin/stdout). This is separate from the
+``pynescript`` Click CLI (:mod:`pynescript.__main__`).
 """
 
 from __future__ import annotations
@@ -31,7 +38,7 @@ from pynescript.langserver.server import PynescriptLanguageServer
 
 
 def main() -> None:
-    """Start the Pynescript Language Server."""
+    """Start the Language Server on stdio (blocking until the client exits)."""
     server = PynescriptLanguageServer()
     server.start_io()
 

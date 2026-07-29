@@ -17,9 +17,14 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Formatting feature — textDocument/formatting handlers.
+"""Formatting — ``textDocument/formatting`` and ``rangeFormatting``.
 
-Provides code formatting for Pine Script using the existing unparser.
+Public handlers:
+
+- :func:`handle_formatting` — full document via parse + :class:`~pynescript.ast.unparser.NodeUnparser`
+- :func:`handle_range_formatting` — same unparser, edit limited to the requested range
+
+Parse failures yield an empty edit list (no throw to the client).
 """
 
 from __future__ import annotations
@@ -28,16 +33,14 @@ from lsprotocol import types as lsp
 
 
 def handle_formatting(params: lsp.DocumentFormattingParams, source: str | None) -> list[lsp.TextEdit] | None:
-    """Handle textDocument/formatting request.
-
-    Formats the entire document using the AST unparser.
+    """Format the whole document; return one replace-edit or ``[]`` if unchanged/error.
 
     Args:
-        params: The formatting params with options.
-        source: The source text to format.
+        params: Client formatting options (tab size unused; unparser-driven).
+        source: Document text, or ``None``.
 
     Returns:
-        List of TextEdits to apply formatting, or None on error.
+        List of :class:`~lsprotocol.types.TextEdit`, or empty list on failure.
     """
     if not source:
         return []
@@ -73,16 +76,14 @@ def handle_formatting(params: lsp.DocumentFormattingParams, source: str | None) 
 
 
 def handle_range_formatting(params: lsp.DocumentRangeFormattingParams, source: str | None) -> list[lsp.TextEdit] | None:
-    """Handle textDocument/rangeFormatting request.
-
-    Formats a selection range using the AST unparser.
+    """Format the lines covering *params.range*; return a replace-edit or ``[]``.
 
     Args:
-        params: The range formatting params with options.
-        source: The source text to format.
+        params: Client range + formatting options.
+        source: Document text, or ``None``.
 
     Returns:
-        List of TextEdits to apply formatting, or None on error.
+        List of :class:`~lsprotocol.types.TextEdit`, or empty list on failure.
     """
     if not source:
         return []

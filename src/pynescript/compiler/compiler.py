@@ -17,11 +17,34 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Pine AST → Python/Numba source.
+"""Pine AST → Python/Numba source emitter.
 
-Two backends:
-- **numeric** (default): ``@numba.njit`` bar loop for series/math/ta/plot.
-- **object**: pure-Python bar loop when UDT, map, or drawing APIs appear.
+Two backends (selected by :class:`CompilerVisitor` while walking the tree):
+
+- **numeric** (default): module imports ``numba_builtins``, emits
+  ``@numba.njit(cache=False) def execute_script_compiled(...)`` with a
+  float64 bar loop. Plot results return as a **tuple** of series (host packs
+  titles). Requires Numba at compile/load time.
+- **object**: pure-Python bar loop when UDT, map, drawing, strategy, string/
+  color series, library imports, or :attr:`force_object_mode` appear. Still
+  star-imports :mod:`pynescript.compiler.numba_builtins` (``safe_*``, matrix,
+  ``na_num``, non-jitted TA). Returns a **dict** (plots + ``__drawings`` /
+  strategy extras).
+
+Host packing / contracts
+------------------------
+- Generated entry point is always ``execute_script_compiled(open, high, low,
+  close, vol)`` — the host is :mod:`pynescript.compiler.engine`.
+- nopython fallback: engine re-visits with ``force_object_mode=True`` after a
+  TypingError warm-up; this module only implements the emit switch.
+- UDF series state lives in ``__st_{func}_{local}`` arrays; free chart series
+  and fixed TA state (``__ema0_st``, …) are passed as explicit params (njit
+  forbids free vars / closures).
+- Pine ``na`` / ``None`` in object-mode arithmetic goes through :meth:`_na_wrap_num`
+  → ``na_num``; history uses :meth:`_history_subscript` (NaN-safe int offsets).
+
+This file is large by design (per-namespace call lowering). Prefer documenting
+entry points and non-obvious helpers — not every ``visit_*`` leaf.
 """
 
 from __future__ import annotations
@@ -361,6 +384,37 @@ _DRAWING_FUNCS = frozenset(
 
 
 class CompilerVisitor(NodeVisitor):
+    """Lower a Pine :class:`~pynescript.ast.node.Script` AST to executable Python.
+
+    Responsibilities
+    ----------------
+    - Walk statements/expressions and emit bar-loop body lines + nested UDFs.
+    - Track series buffers (``*_arr``), plots, UDT/map/string series, strategy.
+    - Flip :attr:`object_mode` when features are incompatible with nopython.
+    - Emit either :meth:`_emit_numeric_mode` or :meth:`_emit_object_mode` from
+      :meth:`visit_Script`.
+
+    Parameters
+    ----------
+    force_object_mode:
+        Engine recovery when nopython JIT cannot type the generated body
+        (pyobject arrays / unicode ops). AST walk is identical; only the final
+        emit path is pinned to object mode (strips ``@numba.njit`` from UDFs).
+
+    Key attributes (filled during visit)
+    ------------------------------------
+    ``plots``:
+        Ordered ``{"title": ...}`` entries used by the host for tuple→dict packing.
+    ``object_mode`` / ``force_object_mode``:
+        Backend selection flags.
+    ``functions``:
+        Pre-rendered UDF source strings (module scope above the bar loop).
+    ``func_*`` maps:
+        UDF metadata for call-site packing (series params/locals, free series/
+        scalars, chart/strategy/drawings context) — see :meth:`visit_FunctionDef`
+        and :meth:`_emit_user_func_call`.
+    """
+
     def __init__(self, *, force_object_mode: bool = False):
         super().__init__()
         self.arrays: set[str] = set()
@@ -589,6 +643,11 @@ class CompilerVisitor(NodeVisitor):
         return ""
 
     def visit_Script(self, node: ast.Script):
+        """Root: visit body, allocate any missed ``*_arr``, choose backend emit.
+
+        Forces object mode for string/UDT/map/scalar object handles or when
+        :attr:`force_object_mode` is set (engine nopython recovery).
+        """
         body_lines: list[str] = []
         for stmt in node.body:
             val = self.visit(stmt)
@@ -614,6 +673,11 @@ class CompilerVisitor(NodeVisitor):
         return self._emit_numeric_mode(body_lines)
 
     def _emit_numeric_mode(self, body_lines: list[str]) -> str:
+        """Emit njit bar-loop module; plots returned as a tuple for host packing.
+
+        ``@numba.njit(cache=False)`` — code is exec'd from ``<string>`` so disk
+        cache locators do not apply. Star-imports :mod:`numba_builtins`.
+        """
         lines = [
             "import numpy as np",
             "import numba",
@@ -759,6 +823,7 @@ class CompilerVisitor(NodeVisitor):
 
     # ---------------------------------------------------------------- statements
     def visit_TypeDef(self, node: ast.TypeDef):
+        """Register UDT field names; forces object mode. No runtime emit."""
         self.object_mode = True
         fields: list[str] = []
         for stmt in node.body:
@@ -768,6 +833,7 @@ class CompilerVisitor(NodeVisitor):
         return ""  # type definitions are compile-time only
 
     def visit_EnumDef(self, node: ast.EnumDef):
+        """Enums lower as string constants in object mode only."""
         # Enums as string constants in object mode
         self.object_mode = True
         return ""
@@ -3319,6 +3385,12 @@ class CompilerVisitor(NodeVisitor):
         return self.visit(node.value)
 
     def visit_Call(self, node: ast.Call):
+        """Lower Pine calls: ta/math/array/matrix/map/strategy/drawing/UDFs.
+
+        Large dispatch: namespace attrs, method-style TA, bare collection verbs,
+        strategy/drawing (force object mode), and :meth:`_emit_user_func_call`.
+        Unknown external methods stub to ``None`` in object mode.
+        """
         # Resolve function name (unwrap Specialize for map.new<K,V>())
         func = node.func
         if isinstance(func, ast.Specialize):
@@ -5020,6 +5092,7 @@ class CompilerVisitor(NodeVisitor):
             return "0.0"
         return "0.0"
     def _emit_udt_new(self, type_name: str, node: ast.Call) -> str:
+        """Construct a UDT as an ordered-field dict (object mode only)."""
         self.object_mode = True
         fields = self.udt_types.get(type_name, [])
         args: list[str] = []
@@ -5035,6 +5108,7 @@ class CompilerVisitor(NodeVisitor):
         return "{" + ", ".join(items) + "}"
 
     def _emit_map(self, func_name: str, args: list[str], kwargs: dict[str, str]) -> str:
+        """Lower map.* to dict operations (object mode)."""
         ra = self._resolve_args
         if func_name == "map_new":
             return "{}"
@@ -5098,6 +5172,11 @@ class CompilerVisitor(NodeVisitor):
     # ---------------------------------------------------------------- exprs
 
     def _emit_drawing(self, func_name: str, args: list[str], kwargs: dict[str, str]) -> str:
+        """Append a drawing/plotstyle event to ``__drawings``; return handle dict.
+
+        Forces object mode. ``*_new`` / ``hline`` return a handle so later
+        ``set_*`` and ``safe_float(handle)`` soft-fail to na.
+        """
         kind = func_name.replace("_new", "").replace("_delete", "")
         if func_name.endswith("_delete"):
             return ""  # MVP: no-op deletes in compile path
@@ -5869,6 +5948,23 @@ class CompilerVisitor(NodeVisitor):
         return "\n".join(lines)
 
     def visit_FunctionDef(self, node: ast.FunctionDef):
+        """Emit a module-scope UDF with series/state/context packing.
+
+        Analysis passes (in order):
+
+        1. Collect assigned locals + history subscript bases.
+        2. Mark series params (history / TA consumers) and series locals
+           (persistent ``__st_{fn}_{local}`` across bars).
+        3. Body gen with :attr:`ident_map` (keyword/builtin shadows, UDF name
+           collisions → ``__p`` / ``__loc`` suffixes).
+        4. Free scalars/series from outer script (UDFs cannot close over the
+           bar-loop frame under njit) plus transitive callee free vars.
+        5. Trailing params: drawings, ``n_bars``, chart OHLCV + ``__bar_idx``,
+           ``__strategy`` when referenced.
+
+        Call sites must match param order via :meth:`_emit_user_func_call`.
+        Numeric mode prefixes ``@numba.njit(cache=False)``; object mode omits it.
+        """
         # Pine name (may be a Python keyword like ``from``) + safe def name
         pine_name = node.name
         func_name = self._safe_ident(pine_name)

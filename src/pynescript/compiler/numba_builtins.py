@@ -17,7 +17,44 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Numba-compatible builtins used by CompilerVisitor-generated code."""
+"""Runtime helpers star-imported by :class:`CompilerVisitor` prologs.
+
+There is no central dict registry: generated modules do
+``from pynescript.compiler.numba_builtins import *``. Names must therefore be
+public (no leading underscore) when the emitter references them.
+
+Layers (what this module “registers” for the compile path)
+----------------------------------------------------------
+1. **njit TA / series kernels** (``@numba.njit(cache=True)``):
+   ``numba_sma``, ``numba_ema``, ``numba_rsi``, ``numba_macd``, … plus
+   expression helpers ``numba_nz``, ``numba_store``, ``numba_store_src``,
+   crossover/math scalars. Signature convention is usually
+   ``(series…, params…, bar_index i)``; warm-up bars return ``np.nan``.
+
+2. **Incremental ``*_inc`` kernels** (amortized O(1) per bar):
+   ``numba_sma_inc``, ``numba_ema_inc``, ``numba_atr_inc``, … take a small
+   float state vector ``st`` allocated by the visitor (``__ema0_st``, …).
+   Used when the emitter can prove fixed-size TA state.
+
+3. **Object-mode coercion / safety** (pure Python, never under njit):
+   ``safe_float``, ``safe_int``, ``safe_period``, ``safe_len``, ``safe_iter``,
+   ``safe_sum`` / ``safe_max`` / ``safe_min``, ``na_num`` (None→nan for
+   arithmetic), ``nz_py`` (unicode-safe nz), ``store_src_py``, ``udt_index``,
+   ``pine_raise``, list/matrix mutators (``safe_list_*``, ``matrix_*``),
+   array stats (``array_mode``, ``array_range``, …).
+
+Numba constraints
+-----------------
+- nopython kernels use only float64 series + scalars; no dicts/lists/str.
+- Object mode reuses the same import * and may call both njit and Python
+  helpers (Numba dispatches Python callables when not nested inside njit).
+- Prefer matching interpret-path seeding (EMA/ATR notes on individual kernels).
+
+Matrix / na
+-----------
+Matrices are list-of-lists handles. ``na_num`` / ``safe_float`` map Pine
+``na``/handles to float NaN so bar-loop arithmetic and plot stores never raise.
+"""
 
 from __future__ import annotations
 
@@ -27,6 +64,7 @@ import numba
 
 @numba.njit(cache=True)
 def numba_sma(arr, period, i):
+    """Simple moving average of last ``period`` bars ending at ``i``; else na."""
     period = int(period)
     if period <= 0 or i < period - 1:
         return np.nan
@@ -41,6 +79,7 @@ def numba_sma(arr, period, i):
 
 @numba.njit(cache=True)
 def numba_ema(arr, period, i):
+    """EMA with SMA seed over first ``period`` bars, then recursive to ``i``."""
     period = int(period)
     if period <= 0 or i < period - 1:
         return np.nan
@@ -57,8 +96,8 @@ def numba_ema(arr, period, i):
 
 @numba.njit(cache=True)
 def numba_rma(arr, period, i):
-    period = int(period)
     """Wilder RMA: seed = mean of first ``period`` samples, then recursive."""
+    period = int(period)
     if period <= 0 or i < period - 1:
         return np.nan
     s = 0.0
@@ -73,6 +112,7 @@ def numba_rma(arr, period, i):
 
 @numba.njit(cache=True)
 def numba_rsi(arr, period, i):
+    """RSI over the last ``period`` deltas ending at ``i`` (simple avg form)."""
     period = int(period)
     if period <= 0 or i < period:
         return np.nan
@@ -124,8 +164,8 @@ def numba_lowest(arr, period, i):
 
 @numba.njit(cache=True)
 def numba_stdev(arr, period, i):
-    period = int(period)
     """Sample standard deviation (n-1) over last ``period`` bars ending at ``i``."""
+    period = int(period)
     if period <= 1 or i < period - 1:
         return np.nan
     mean = 0.0
@@ -142,11 +182,11 @@ def numba_stdev(arr, period, i):
 
 @numba.njit(cache=True)
 def numba_atr(high, low, close, period, i):
-    period = int(period)
     """ATR matching interpret path: mean(TR) while warming; else EMA-of-TR.
 
     EMA seeds with the first TR value (same as interpret ``_ema``), not SMA.
     """
+    period = int(period)
     if period <= 0 or i < 1:
         return np.nan
     n_tr = i  # TR samples for bars 1..i
@@ -230,8 +270,8 @@ def safe_tonumber(x):
 
 @numba.njit(cache=True)
 def numba_bb(arr, period, mult, i):
-    period = int(period)
     """Return (upper, middle, lower) Bollinger bands."""
+    period = int(period)
     mid = numba_sma(arr, period, i)
     sd = numba_stdev(arr, period, i)
     if np.isnan(mid) or np.isnan(sd):
@@ -241,15 +281,15 @@ def numba_bb(arr, period, mult, i):
 
 @numba.njit(cache=True)
 def numba_macd(arr, fast, slow, signal, i):
-    fast = int(fast)
-    slow = int(slow)
-    signal = int(signal)
     """Return (macd, signal, hist) at bar ``i`` in a single O(i) pass.
 
     Fast/slow EMAs use SMA seed (same as ``numba_ema``). Signal uses
     first-value seed on the MACD line. Must not nest per-bar EMA rebuilds
     (that was O(n³) and hung multi-thousand-bar compiles).
     """
+    fast = int(fast)
+    slow = int(slow)
+    signal = int(signal)
     if fast <= 0 or slow <= 0 or signal <= 0 or i < slow - 1:
         return np.nan, np.nan, np.nan
 
@@ -285,6 +325,7 @@ def numba_macd(arr, fast, slow, signal, i):
 
 @numba.njit(cache=True)
 def numba_nz(val, replacement):
+    """nopython ``nz`` / ``fixnan``: replace float NaN only (not unicode-safe)."""
     if np.isnan(val):
         return replacement
     return val
@@ -1914,6 +1955,10 @@ def sequence_from_series(src, length=None, shift=0, direction_forward=True, i=No
         window.reverse()
     return window
 
+
+# ---------------------------------------------------------------------------
+# Incremental TA (``*_inc``) — fixed-size ``st`` vectors from CompilerVisitor
+# ---------------------------------------------------------------------------
 
 @numba.njit(cache=True)
 def numba_ema_inc(arr, period, i, st):

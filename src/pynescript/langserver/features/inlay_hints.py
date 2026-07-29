@@ -17,17 +17,18 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Inlay hints feature — textDocument/inlayHint handler.
+"""Inlay hints — ``textDocument/inlayHint`` (inferred declaration types).
 
-Shows inferred types inline next to variable declarations. For example:
+Public handler: :func:`handle_inlay_hints`. Shows simple inferred types next to
+variable declarations, e.g.::
 
     length = 14                       →   length: const int = 14
     rsi   = ta.rsi(close, 14)         →   rsi:   series float = ta.rsi(close, 14)
     n     = input.int(5, "n")         →   n:     input int = input.int(5, "n")
 
-The hint is positioned at the end of the target identifier (just before `=`).
-Type inference is intentionally simple — it looks at the shape of the RHS
-expression and only emits a hint when confident enough to be useful.
+Hints sit at the end of the target identifier (just before ``=``). Inference is
+shape-based on the RHS (literals, builtins, ``ta.*`` / ``input.*`` metadata);
+only confident cases are emitted. Capability: ``resolve_provider=False``.
 """
 
 from __future__ import annotations

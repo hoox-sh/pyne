@@ -17,6 +17,15 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
+"""Shared evaluator infrastructure: context, constants, type and library registries.
+
+:class:`BaseEvaluator` is the first mixin in :class:`~pynescript.ast.evaluator.NodeLiteralEvaluator`'s
+MRO. It owns the mutable execution environment that hosts update bar-by-bar
+(``close``, ``bar_index``, ``time``, …) and the registries for UDTs and
+``import`` libraries. Mixins that implement ``visit_*`` methods assume this
+base is present.
+"""
+
 from __future__ import annotations
 
 import math
@@ -89,15 +98,23 @@ _MATH_CONSTANTS = {
 
 
 class BaseEvaluator(NodeVisitor):
-    """Base class for AST node evaluation with context and type registry support.
+    """Visitor base: execution context, math defaults, UDT and library registries.
 
-    Provides common functionality for all evaluator subclasses:
-    - Context (variable, function, class definitions) management
-    - Math constants and built-in values
-    - Type registry for UDT and type checking
-    - Error handling with custom messages
+    Responsibilities shared by all evaluator mixins:
 
-    Subclasses should override visit_* methods to handle specific AST node types.
+    - **``context``** — flat ``dict`` of variables, callables, enums, and
+      dotted builtin keys (``strategy.position_size``, ``color.red``, …).
+      Hosts must mutate this dict in place between bars; UDF/method bodies
+      rebind parameters on the same object so bar series stay visible.
+    - **Math / chart defaults** — ``_MATH_CONSTANTS`` filled via ``setdefault``
+      so host values (real ``bid``/``ask``, inferred timeframe flags) win.
+    - **``type_registry``** — user-defined types (``type X``).
+    - **``_library_registry``** — ``library(...)`` / ``import`` resolution.
+    - **``_active_library`` / ``_pending_library_exports``** — buffer while
+      evaluating a library script for registration at end of ``visit_Script``.
+
+    Does not implement statement/expression visitors; those live on the other
+    mixins. Unhandled nodes raise via :meth:`generic_visit`.
     """
 
     def __init__(
@@ -106,13 +123,13 @@ class BaseEvaluator(NodeVisitor):
         data_feed: Any | None = None,
         data_provider: Any | None = None,
     ):
-        """Initialize the evaluator with an optional context and data sources.
+        """Build context and registries; optionally wire request.* data sources.
 
         Args:
-            context: Optional dictionary of pre-defined variables, functions, and classes
-                    (merged with built-in math constants)
-            data_feed: Optional realtime/historical feed for request.* (v6 dynamic requests)
-            data_provider: Optional historical data provider for request.*
+            context: Optional pre-seeded variables/functions (merged with
+                defaults; existing keys are never overwritten by constants).
+            data_feed: Optional realtime/historical feed for ``request.*``.
+            data_provider: Optional historical data provider for ``request.*``.
         """
         # Initialize visitor cache for tracking visited nodes
         super().__init__()
@@ -136,26 +153,24 @@ class BaseEvaluator(NodeVisitor):
         self._pending_library_exports: dict[str, Any] = {}
 
     def generic_visit(self, node: ast.AST):
-        """Handle unexpected node types not covered by visit_* methods.
+        """Fail closed on AST node types with no ``visit_*`` implementation.
 
         Args:
-            node: An AST node that couldn't be handled by a specific visitor
+            node: AST node that no mixin handled
 
         Raises:
-            ValueError: Always raised with a message identifying the unexpected node type
+            ValueError: Always, naming the unexpected Python type
         """
         msg = f"unexpected type of node: {type(node)}"
         raise ValueError(msg)
 
     def _error(self, msg: str):
-        """Raise a ValueError with a custom message.
-
-        Convenience method for consistent error handling in evaluators.
+        """Raise ``ValueError(msg)`` — shared failure path for mixins.
 
         Args:
-            msg: The error message to raise
+            msg: Human-readable error
 
         Raises:
-            ValueError: Always raised with the provided message
+            ValueError: Always
         """
         raise ValueError(msg)

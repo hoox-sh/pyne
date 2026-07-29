@@ -7,19 +7,19 @@
 Usage (from repo root)::
 
     # set05 full pipeline (recommended)
-    .venv/bin/python scripts/corpus_flow_tui.py --sets set05
+    .venv/bin/python scripts/showcase.py --sets set05
 
     # re-run only scripts that already OK'd under a prior runtime CSV (warm compile)
-    .venv/bin/python scripts/corpus_flow_tui.py --sets set05 \\
+    .venv/bin/python scripts/showcase.py --sets set05 \\
         --phases recompile,report \\
         --recompile-from .cache/corpus_flow_set05_runtime_auto.csv
 
     # full corpus, resume, compile runtime
-    .venv/bin/python scripts/corpus_flow_tui.py --sets set01,set02,set03,set04,set05 \\
+    .venv/bin/python scripts/showcase.py --sets set01,set02,set03,set04,set05 \\
         --resume --runtime-mode auto --workers 6
 
     # parse only, plain terminal (no Live redraw)
-    .venv/bin/python scripts/corpus_flow_tui.py --sets set05 --phases parse --plain
+    .venv/bin/python scripts/showcase.py --sets set05 --phases parse --plain
 
 Phases
 ------
@@ -544,8 +544,28 @@ def _write_summary(stats: PhaseStats, sets: list[str], kind: str) -> Path | None
 
 
 # ---------------------------------------------------------------------------
-# Rich UI
+# Rich UI — PYNE volt palette (hoox-landing-page app/globals.css)
+#
+# Product packs (lib/products.ts): HOOX=signal(orange) · PYNE=volt(lime) · AXIS=void
+# CSS tokens → hex for Rich (oklch → sRGB), data-color-pack="volt":
+#   --accent           oklch(0.88 0.22 125) → #B7EF09  volt lime
+#   --foreground       oklch(0.95 0.01 110) → #EFEFE8
+#   --muted-foreground oklch(0.84 0.02 110) → #CBCCBD
+#   --border           oklch(0.46 0.02 110) → #58594C
+#   --destructive      oklch(0.577 0.245 27)→ #E7000B
+#   accent_dim (pulse) oklch(0.65 0.18 125) → #76A000
+#   warn (terminal)    oklch(0.78 0.14 75)  → #EBA941  amber
 # ---------------------------------------------------------------------------
+
+# Brand hex — match /pyne volt pack on hoox-landing-page
+_PYNE_ACCENT = "#B7EF09"
+_PYNE_ACCENT_DIM = "#76A000"
+_PYNE_FG = "#EFEFE8"
+_PYNE_MUTED = "#CBCCBD"
+_PYNE_BORDER = "#58594C"
+_PYNE_FAIL = "#E7000B"
+_PYNE_OK = "#B7EF09"  # success = brand volt (same family as CTAs on /pyne)
+_PYNE_WARN = "#EBA941"
 
 
 def _has_rich() -> bool:
@@ -555,6 +575,25 @@ def _has_rich() -> bool:
         return True
     except ImportError:
         return False
+
+
+def _pyne_theme() -> Any:
+    """Rich Theme aligned with hoox-landing-page PYNE volt pack."""
+    from rich.theme import Theme
+
+    return Theme(
+        {
+            "pyne.accent": f"bold {_PYNE_ACCENT}",
+            "pyne.accent_dim": _PYNE_ACCENT_DIM,
+            "pyne.fg": _PYNE_FG,
+            "pyne.muted": _PYNE_MUTED,
+            "pyne.ok": f"bold {_PYNE_OK}",
+            "pyne.fail": f"bold {_PYNE_FAIL}",
+            "pyne.warn": f"bold {_PYNE_WARN}",
+            "pyne.border": _PYNE_BORDER,
+            "pyne.pulse": f"bold {_PYNE_ACCENT}",
+        }
+    )
 
 
 def _build_layout(state: FlowState) -> Any:
@@ -567,16 +606,16 @@ def _build_layout(state: FlowState) -> Any:
     state.banner_frame += 1
     fr = state.banner_frame
 
-    # Animated title
-    glow = "cyan" if (fr // 4) % 2 == 0 else "bright_cyan"
+    # Animated title — volt accent pulse (lime), not cyan/magenta
+    glow = _PYNE_ACCENT if (fr // 4) % 2 == 0 else _PYNE_ACCENT_DIM
     pulse = "▮" if (fr // 2) % 2 == 0 else "▯"
     title = Text()
     title.append("  ", style="bold")
     title.append("◆ PYNE", style=f"bold {glow}")
-    title.append("  corpus flow  ", style="bold white")
-    title.append(pulse, style="bold magenta")
+    title.append("  corpus flow  ", style=f"bold {_PYNE_FG}")
+    title.append(pulse, style=f"bold {_PYNE_ACCENT}")
     title.append("  ", style="bold")
-    title.append(" ".join(state.sets), style="dim italic")
+    title.append(" ".join(state.sets), style=f"italic {_PYNE_MUTED}")
 
     # Phase stepper
     step = Table.grid(padding=(0, 1))
@@ -593,18 +632,18 @@ def _build_layout(state: FlowState) -> Any:
         label = phase_labels.get(ph, ph.upper())
         st = state.phases_stats.get(ph)
         if i < state.phase_idx or (st and st.finished and i == state.phase_idx):
-            style = "bold green"
+            style = f"bold {_PYNE_OK}"
             mark = "✔"
         elif i == state.phase_idx:
-            style = "bold yellow"
+            style = f"bold {_PYNE_ACCENT}"
             mark = "▶"
         else:
-            style = "dim"
+            style = _PYNE_MUTED
             mark = "·"
         t = Text(f"{mark} {label}", style=style)
         cells.append(t)
         if i < len(state.phases) - 1:
-            cells.append(Text(" ── ", style="dim"))
+            cells.append(Text(" ── ", style=_PYNE_BORDER))
     step.add_row(*cells)
 
     body_parts: list[Any] = [Align.center(title), step, Text("")]
@@ -613,17 +652,23 @@ def _build_layout(state: FlowState) -> Any:
     if cur is not None:
         frac = cur.done / max(cur.total, 1)
         bar = _bar(frac, 40)
-        color = "green" if frac > 0.9 else ("yellow" if frac > 0.4 else "cyan")
+        # progress: accent while running → amber mid → green when nearly done
+        if frac > 0.9:
+            color = _PYNE_OK
+        elif frac > 0.4:
+            color = _PYNE_WARN
+        else:
+            color = _PYNE_ACCENT
         progress_line = Text()
         progress_line.append(f"  {bar} ", style=color)
         progress_line.append(f"{100 * frac:5.1f}%", style=f"bold {color}")
         progress_line.append(
             f"  {cur.done:,}/{cur.total:,}",
-            style="white",
+            style=_PYNE_FG,
         )
         eta = cur.eta_s
         eta_s = f"{eta:.0f}s" if eta is not None else "—"
-        progress_line.append(f"  ETA {eta_s}", style="dim")
+        progress_line.append(f"  ETA {eta_s}", style=_PYNE_MUTED)
         body_parts.append(progress_line)
 
         # Stats row
@@ -635,57 +680,71 @@ def _build_layout(state: FlowState) -> Any:
         stats_t.add_column(justify="center")
         stats_t.add_column(justify="center")
         stats_t.add_row(
-            Text(f"OK\n{cur.ok:,}", style="bold green", justify="center"),
-            Text(f"FAIL\n{cur.fail:,}", style="bold red", justify="center"),
-            Text(f"TIMEOUT\n{cur.timeout:,}", style="bold yellow", justify="center"),
-            Text(f"RATE\n{cur.rate_pct:.1f}%", style="bold cyan", justify="center"),
-            Text(f"SPEED\n{cur.fps:.1f}/s", style="bold magenta", justify="center"),
-            Text(f"ELAPSED\n{cur.elapsed:.0f}s", style="bold white", justify="center"),
+            Text(f"OK\n{cur.ok:,}", style=f"bold {_PYNE_OK}", justify="center"),
+            Text(f"FAIL\n{cur.fail:,}", style=f"bold {_PYNE_FAIL}", justify="center"),
+            Text(f"TIMEOUT\n{cur.timeout:,}", style=f"bold {_PYNE_WARN}", justify="center"),
+            Text(f"RATE\n{cur.rate_pct:.1f}%", style=f"bold {_PYNE_ACCENT}", justify="center"),
+            Text(f"SPEED\n{cur.fps:.1f}/s", style=f"bold {_PYNE_ACCENT_DIM}", justify="center"),
+            Text(f"ELAPSED\n{cur.elapsed:.0f}s", style=f"bold {_PYNE_FG}", justify="center"),
         )
-        body_parts.append(Panel(stats_t, title=f"[bold]{cur.name}[/]", border_style="bright_blue", padding=(0, 1)))
+        body_parts.append(
+            Panel(
+                stats_t,
+                title=f"[bold {_PYNE_ACCENT}]{cur.name}[/]",
+                border_style=_PYNE_ACCENT,
+                padding=(0, 1),
+            )
+        )
 
         # Sparkline
         spark = Text()
-        spark.append("  throughput  ", style="dim")
-        spark.append(_spark(cur.rate_hist, 32), style="bold cyan")
-        spark.append(f"  resume_skip={cur.skipped:,}", style="dim")
+        spark.append("  throughput  ", style=_PYNE_MUTED)
+        spark.append(_spark(cur.rate_hist, 32), style=f"bold {_PYNE_ACCENT}")
+        spark.append(f"  resume_skip={cur.skipped:,}", style=_PYNE_MUTED)
         body_parts.append(spark)
 
         # Recent files
         if cur.recent_files:
             recent = Table(show_header=False, box=None, padding=(0, 1))
-            recent.add_column(style="dim", width=12)
+            recent.add_column(style=_PYNE_MUTED, width=12)
             recent.add_column()
             for line in list(cur.recent_files)[:5]:
                 st_s, _, rest = line.partition(" ")
                 style = {
-                    "OK": "green",
-                    "FAIL": "red",
-                    "TIMEOUT": "yellow",
-                    "PARSE_FAIL": "red",
-                    "RUN_FAIL": "red",
-                }.get(st_s.strip(), "white")
-                recent.add_row(Text(st_s.strip(), style=style), Text(rest.strip(), style="dim"))
-            body_parts.append(Panel(recent, title="recent", border_style="dim", height=8))
+                    "OK": _PYNE_OK,
+                    "FAIL": _PYNE_FAIL,
+                    "TIMEOUT": _PYNE_WARN,
+                    "PARSE_FAIL": _PYNE_FAIL,
+                    "RUN_FAIL": _PYNE_FAIL,
+                }.get(st_s.strip(), _PYNE_FG)
+                recent.add_row(
+                    Text(st_s.strip(), style=f"bold {style}"),
+                    Text(rest.strip(), style=_PYNE_MUTED),
+                )
+            body_parts.append(
+                Panel(recent, title=f"[{_PYNE_MUTED}]recent[/]", border_style=_PYNE_BORDER, height=8)
+            )
 
         # Top errors
         if cur.err_bucket:
-            err_t = Table(show_header=True, header_style="bold", box=None, padding=(0, 1))
-            err_t.add_column("#", style="yellow", width=5, justify="right")
-            err_t.add_column("error", style="dim", overflow="ellipsis")
+            err_t = Table(show_header=True, header_style=f"bold {_PYNE_WARN}", box=None, padding=(0, 1))
+            err_t.add_column("#", style=_PYNE_WARN, width=5, justify="right")
+            err_t.add_column("error", style=_PYNE_MUTED, overflow="ellipsis")
             for msg, n in cur.err_bucket.most_common(5):
                 err_t.add_row(str(n), msg[:90])
-            body_parts.append(Panel(err_t, title="top errors", border_style="red"))
+            body_parts.append(
+                Panel(err_t, title=f"[bold {_PYNE_FAIL}]top errors[/]", border_style=_PYNE_FAIL)
+            )
 
     if state.message:
-        body_parts.append(Text(f"\n  {state.message}", style="italic bright_white"))
+        body_parts.append(Text(f"\n  {state.message}", style=f"italic {_PYNE_FG}"))
 
     if state.fatal:
-        body_parts.append(Text(f"\n  FATAL: {state.fatal}", style="bold red"))
+        body_parts.append(Text(f"\n  FATAL: {state.fatal}", style=f"bold {_PYNE_FAIL}"))
 
     # Footer phase results
     if any(s.finished for s in state.phases_stats.values()):
-        foot = Table(show_header=True, header_style="bold cyan", box=None)
+        foot = Table(show_header=True, header_style=f"bold {_PYNE_ACCENT}", box=None)
         foot.add_column("phase")
         foot.add_column("ok", justify="right")
         foot.add_column("fail", justify="right")
@@ -704,13 +763,15 @@ def _build_layout(state: FlowState) -> Any:
                 f"{st.elapsed:.0f}s",
                 str(st.csv_path.name) if st.csv_path else "—",
             )
-        body_parts.append(Panel(foot, title="pipeline", border_style="green"))
+        body_parts.append(
+            Panel(foot, title=f"[bold {_PYNE_OK}]pipeline[/]", border_style=_PYNE_OK)
+        )
 
     return Panel(
         Group(*body_parts),
-        title="[bold magenta]pynescript[/] · corpus flow",
-        subtitle="[dim]ctrl+c to abort · results under .cache/[/]",
-        border_style="bright_magenta",
+        title=f"[bold {_PYNE_ACCENT}]PYNE[/][bold {_PYNE_FG}] · corpus flow[/]",
+        subtitle=f"[{_PYNE_MUTED}]ctrl+c to abort · results under .cache/[/]",
+        border_style=_PYNE_ACCENT,
         padding=(1, 2),
     )
 
@@ -806,13 +867,20 @@ def main() -> int:
     live = None
 
     if use_live:
+        from rich.console import Console
         from rich.live import Live
 
-        live = Live(_build_layout(state), refresh_per_second=12, transient=False)
+        console = Console(theme=_pyne_theme())
+        live = Live(
+            _build_layout(state),
+            console=console,
+            refresh_per_second=12,
+            transient=False,
+        )
         live_cm = live
         live.__enter__()
     elif not _has_rich() and not args.plain:
-        print("tip: pip install rich  →  animated Live UI", flush=True)
+        print("tip: pip install rich  →  animated Live UI (PYNE volt palette)", flush=True)
 
     _last_refresh = [0.0]
 

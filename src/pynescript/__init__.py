@@ -17,22 +17,31 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""PyneScript: Pine Script AST Parser and Code Generator.
+"""Pyne — TradingView Pine Script toolchain (PyPI package ``pynescript``).
 
-A comprehensive Python library for parsing, analyzing, and manipulating
-TradingView Pine Script code. Provides ANTLR-based parsing, AST manipulation,
-evaluation, and code generation capabilities.
+Library surface re-exports only the package version. Parse / dump / unparse
+live under :mod:`pynescript.ast` (helpers often imported as
+``from pynescript.ast.helper import parse, unparse``).
 
-Main Entry Points:
-  >>> from pynescript import parse, dump, unparse
-  >>> ast = parse("plot(close)")  # Parse Pine Script
-  >>> print(dump(ast))  # View AST structure
-  >>> print(unparse(ast))  # Generate source code
+**Console scripts** (see ``pyproject.toml`` ``[project.scripts]``):
 
-Submodules:
-- ast: Core AST parsing and manipulation
-- ext: Extensions (Pygments lexer, Nautilus Trader integration)
-- util: Utility functions
+- ``pynescript`` → :func:`pynescript.__main__.cli` (Click CLI group)
+- ``pynescript-lsp`` → :func:`pynescript.langserver.__main__.main` (stdio LSP)
+
+**Module entrypoints:**
+
+- ``python -m pynescript`` → same CLI as ``pynescript``
+- ``python -m pynescript.langserver`` → Language Server (stdio)
+
+**Subpackages:**
+
+- :mod:`pynescript.ast` — parse, unparse, evaluate, lint
+- :mod:`pynescript.langserver` — pygls LSP (optional ``[lsp]`` extra)
+- :mod:`pynescript.ext` — Pygments lexer and integrations
+- :mod:`pynescript.util` — data providers, Pine facade helpers
+
+Version is defined in :mod:`pynescript.__about__` and exported as
+:data:`__version__` (also used by the LSP server identity).
 """
 
 from __future__ import annotations

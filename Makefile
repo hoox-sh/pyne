@@ -89,11 +89,11 @@ WORKERS ?= 4
 MODE ?= auto
 BARS ?= 50
 corpus-flow:
-	python scripts/corpus_flow_tui.py --sets $(SETS) --workers $(WORKERS) \
+	python scripts/showcase.py --sets $(SETS) --workers $(WORKERS) \
 		--runtime-mode $(MODE) --bars $(BARS) --resume
 
 corpus-flow-set05:
-	python scripts/corpus_flow_tui.py --sets set05 --workers $(WORKERS) \
+	python scripts/showcase.py --sets set05 --workers $(WORKERS) \
 		--runtime-mode $(MODE) --bars $(BARS) --timeout 12 --runtime-timeout 10 \
 		--recompile-timeout 8 --resume
 
@@ -102,7 +102,7 @@ corpus-flow-set05:
 FROM ?= .cache/corpus_flow_set05_runtime_auto.csv
 LIMIT ?= 0
 corpus-recompile:
-	python scripts/corpus_flow_tui.py --sets $(SETS) --workers $(WORKERS) \
+	python scripts/showcase.py --sets $(SETS) --workers $(WORKERS) \
 		--phases recompile,report --recompile-mode compile \
 		--recompile-from $(FROM) --recompile-timeout 8 --bars $(BARS) \
 		$(if $(filter-out 0,$(LIMIT)),--recompile-limit $(LIMIT),)

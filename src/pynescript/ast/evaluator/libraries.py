@@ -22,12 +22,14 @@
 TradingView libraries are published as ``username/LibraryName/version``.
 pynescript resolves them from an in-process registry populated by:
 
-1. Evaluating a ``library("Title")`` script (auto-registers by title)
+1. Evaluating a ``library("Title")`` script (auto-registers by title via
+   :meth:`~.statements.StatementEvaluator.visit_Script`)
 2. Explicit ``register_library_source(namespace, name, version, source)``
+   on the evaluator (lazy load on first matching ``import``)
 
 Exported members (``export const``, ``export f() => ...``, exported types)
-are exposed on a :class:`LibraryModule` with attribute access for
-``alias.member`` resolution after ``import``.
+live on :class:`LibraryModule.exports` and resolve as ``alias.member`` after
+``import`` binds the module into ``context``.
 """
 
 from __future__ import annotations
@@ -39,7 +41,11 @@ from typing import Any
 
 @dataclass
 class LibraryModule:
-    """A loaded library with its exported members."""
+    """A loaded library: title/path identity plus exported callables and values.
+
+    Attribute access (``mod.member``) reads :attr:`exports` only; missing
+    members raise :class:`AttributeError`.
+    """
 
     title: str
     namespace: str | None = None
@@ -61,7 +67,11 @@ class LibraryModule:
 
 
 class LibraryRegistry:
-    """Maps library identity -> :class:`LibraryModule`."""
+    """Maps library identity (path and/or title) → :class:`LibraryModule`.
+
+    Also holds raw Pine source for path-keyed lazy loads
+    (:meth:`register_source` / :meth:`get_source`).
+    """
 
     def __init__(self) -> None:
         self._by_path: dict[tuple[str, str, int], LibraryModule] = {}
@@ -69,17 +79,18 @@ class LibraryRegistry:
         self._sources: dict[tuple[str, str, int], str] = {}
 
     def register(self, module: LibraryModule) -> None:
-        """Register or replace a loaded library module."""
+        """Register or replace a loaded library (by title and path when known)."""
         self._by_title[module.title] = module
         if module.namespace is not None and module.version is not None:
             key = (module.namespace, module.title, int(module.version))
             self._by_path[key] = module
 
     def register_source(self, namespace: str, name: str, version: int, source: str) -> None:
-        """Store Pine source for lazy load on import."""
+        """Store Pine source for lazy load on ``import namespace/name/version``."""
         self._sources[(namespace, name, int(version))] = source
 
     def get_source(self, namespace: str, name: str, version: int) -> str | None:
+        """Return registered source text, or ``None`` if unknown."""
         return self._sources.get((namespace, name, int(version)))
 
     def lookup(
@@ -89,7 +100,7 @@ class LibraryRegistry:
         name: str,
         version: int | None = None,
     ) -> LibraryModule | None:
-        """Resolve a library by path and/or title."""
+        """Resolve by ``(namespace, name, version)`` path first, then by title."""
         if namespace is not None and version is not None:
             mod = self._by_path.get((namespace, name, int(version)))
             if mod is not None:

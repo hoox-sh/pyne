@@ -17,7 +17,20 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Pine Script Linter - Static analysis and validation."""
+"""Lightweight static checks for Pine Script source.
+
+Public API:
+
+* :class:`LintWarning` — one finding (code, message, location, severity)
+* :class:`PineLinter` — stateful linter; call :meth:`PineLinter.lint`
+* :func:`lint_script` / :func:`lint_file` — one-shot helpers
+
+Rules are heuristic (regex + :func:`~pynescript.ast.helper.parse` for syntax).
+This is not a full type checker; see :mod:`pynescript.ast.type_system` for
+type modeling used by the evaluator.
+
+Rule code prefixes: ``E`` errors, ``W`` warnings (version/deprecated), ``C`` style.
+"""
 
 from __future__ import annotations
 
@@ -30,7 +43,15 @@ from pynescript.ast import parse
 
 @dataclass
 class LintWarning:
-    """A lint warning or error found in Pine Script code."""
+    """A single lint finding.
+
+    Attributes:
+        code: Stable rule id (e.g. ``E001``, ``W001``, ``C002``).
+        message: Human-readable description.
+        line: 1-based line if known.
+        column: 0-based column if known.
+        severity: ``"error"`` or ``"warning"`` (default).
+    """
 
     code: str
     message: str
@@ -44,20 +65,25 @@ class LintWarning:
 
 
 class PineLinter:
-    """Linter for Pine Script code with static analysis rules."""
+    """Run built-in static analysis rules on Pine Script source.
+
+    Each :meth:`lint` call resets :attr:`warnings` and returns the new list.
+    Source is expected as a decoded Unicode string (UTF-8 when loaded from disk).
+    """
 
     def __init__(self) -> None:
+        """Create a linter with an empty :attr:`warnings` list."""
         self.warnings: list[LintWarning] = []
 
     def lint(self, source: str, filename: str = "<input>") -> list[LintWarning]:
-        """Run all linting rules on Pine Script source.
+        """Run all rules on *source* and return findings.
 
         Args:
-            source: Pine Script source code
-            filename: Name of the file being linted (for error messages)
+            source: Full script text.
+            filename: Label passed to the parser for syntax diagnostics.
 
         Returns:
-            List of lint warnings found
+            List of :class:`LintWarning` (also stored on :attr:`warnings`).
         """
         self.warnings = []
 
@@ -77,11 +103,11 @@ class PineLinter:
         column: int | None = None,
         severity: str = "warning",
     ) -> None:
-        """Add a lint warning."""
+        """Append a :class:`LintWarning` to :attr:`warnings`."""
         self.warnings.append(LintWarning(code=code, message=message, line=line, column=column, severity=severity))
 
     def _check_syntax(self, source: str, filename: str) -> None:
-        """Check for syntax errors by parsing."""
+        """Parse *source*; emit ``E001`` if :func:`~pynescript.ast.helper.parse` fails."""
         try:
             parse(source, filename)
         except Exception as e:
@@ -92,7 +118,7 @@ class PineLinter:
             )
 
     def _check_version(self, source: str) -> None:
-        """Check version declaration."""
+        """Require ``//@version=…``; warn if version is below 5 (``W001``/``W002``)."""
         version_match = re.search(r"//\s*@version\s*=\s*(\d+)", source)
         if not version_match:
             self._add_warning(
@@ -110,7 +136,7 @@ class PineLinter:
                 )
 
     def _check_deprecated(self, source: str) -> None:
-        """Check for deprecated patterns."""
+        """Flag known deprecated call/init patterns (``W101``–``W103``)."""
         deprecated_patterns = [
             (r"\bsecurity\s*\(\s*'[A-Z]+:[A-Z]+'", "W101", "Use request.security() with explicit parameters"),
             (r"plot\(.*style=plot\.style_histogram", "W102", "Consider using plotcandle for better visualization"),
@@ -123,7 +149,7 @@ class PineLinter:
                 self._add_warning(code, message, line=line_num)
 
     def _check_naming(self, source: str) -> None:
-        """Check naming conventions."""
+        """Heuristic naming checks for ``ta.*`` assignments (``C001``)."""
         lines = source.split("\n")
         for i, line in enumerate(lines, 1):
             if match := re.search(r"(\w+)\s*=\s*ta\.", line):
@@ -136,7 +162,7 @@ class PineLinter:
                     )
 
     def _check_style(self, source: str) -> None:
-        """Check style guidelines."""
+        """Line length, if-style, and trailing-newline style rules (``C002``–``C004``)."""
         lines = source.split("\n")
         for i, line in enumerate(lines, 1):
             if len(line.rstrip()) > 120:
@@ -161,33 +187,33 @@ class PineLinter:
 
 
 def _to_camel(name: str) -> str:
-    """Convert snake_case to camelCase."""
+    """Convert snake_case *name* to camelCase for suggestion messages."""
     components = name.split("_")
     return components[0] + "".join(x.title() for x in components[1:])
 
 
 def lint_script(source: str, filename: str = "<input>") -> list[LintWarning]:
-    """Convenience function to lint Pine Script source.
+    """Lint a source string; convenience wrapper around :class:`PineLinter`.
 
     Args:
-        source: Pine Script source code
-        filename: Name of the file being linted
+        source: Decoded Pine Script text.
+        filename: Label for diagnostics.
 
     Returns:
-        List of lint warnings found
+        Findings from a fresh linter instance.
     """
     linter = PineLinter()
     return linter.lint(source, filename)
 
 
 def lint_file(filepath: str) -> list[LintWarning]:
-    """Lint a Pine Script file.
+    """Lint a file read as UTF-8.
 
     Args:
-        filepath: Path to the Pine Script file
+        filepath: Path to a ``.pine`` (or other) source file.
 
     Returns:
-        List of lint warnings found
+        Findings; *filepath* is used as the diagnostic filename.
     """
     with open(filepath, encoding="utf-8") as f:
         source = f.read()

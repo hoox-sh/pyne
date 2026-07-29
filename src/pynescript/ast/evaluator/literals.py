@@ -17,6 +17,13 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
+"""Literal evaluation: constants and tuple/list-like constructors.
+
+Pine **na** appears as a :class:`~pynescript.ast.node.Constant` whose
+``value`` is Python ``None``. Color hex literals use ``kind="#"``; other
+kinds are rejected.
+"""
+
 from __future__ import annotations
 
 from typing import Any
@@ -25,23 +32,19 @@ from pynescript.ast import node as ast
 
 
 class LiteralEvaluator:
-    """Evaluates literal value nodes (constants and tuples).
-
-    Handles direct value evaluation for constant expressions in the AST,
-    including numeric literals, string literals, boolean literals, and tuple literals.
-    """
+    """Mixin: evaluate ``Constant`` and ``Tuple`` AST nodes to Python values."""
 
     def visit_Constant(self, node: ast.Constant):
-        """Evaluate a constant literal node.
+        """Return the stored literal (numbers, strings, bools, ``None``/na, colors).
 
         Args:
-            node: The Constant AST node containing the literal value and optional kind
+            node: Constant with ``value`` and optional ``kind``
 
         Returns:
-            The literal value contained in the node
+            The Python value (``None`` means Pine na)
 
         Raises:
-            ValueError: If the constant has an unexpected kind modifier
+            ValueError: If ``kind`` is set to anything other than ``"#"`` (color)
         """
         # Hot path: plain numeric / bool / str / None literals have kind=None.
         kind = node.kind
@@ -54,16 +57,13 @@ class LiteralEvaluator:
         return node.value
 
     def visit_Tuple(self, node: ast.Tuple) -> Any:
-        """Evaluate a tuple literal node.
-
-        Recursively evaluates each element of the tuple.
+        """Evaluate each element; return a **list** (mutable Pine sequences).
 
         Args:
-            node: The Tuple AST node containing element nodes
+            node: Tuple with ``elts``
 
         Returns:
-            A list representing the evaluated tuple elements
-            (Note: Lists are used instead of tuples for mutability in PineScript context)
+            List of evaluated elements (not a Python ``tuple``)
         """
         # Evaluate each element in the tuple and return as a list
         # (PineScript uses lists for dynamic sequences)

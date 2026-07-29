@@ -19,11 +19,49 @@
 
 """Pine → Numba compile-and-run engine.
 
-Pipeline:
-  source  →  parse  →  CompilerVisitor.transpile  →  exec  →  njit callable
+Pipeline
+--------
+::
 
-Use :func:`compile_script` then :meth:`CompiledScript.run` with OHLCV arrays.
-Falls back with a clear error if ``numba`` is unavailable.
+    source → sanitize_corpus_source (best-effort)
+           → parse
+           → CompilerVisitor.transpile (numeric or object)
+           → exec → execute_script_compiled
+           → (numeric) warm-up njit; on TypingError → re-emit object mode
+           → CompiledScript
+
+Entry points
+------------
+- :func:`transpile` — parse + emit source string only (no exec / JIT).
+- :func:`compile_script` — full pipeline + LRU cache (sha256 of sanitized source).
+- :func:`run_script` — one-shot compile + :meth:`CompiledScript.run`.
+- :class:`CompiledScript` — holds generated code and the callable.
+
+Interpret vs compile contracts
+------------------------------
+- **Input OHLCV**: equal-length float64 series (lists coerced). Missing volume →
+  ones. Mismatched lengths → ``ValueError("OHLCV arrays must have the same length")``.
+- **Return shape** (``CompiledScript.run``):
+  - Numeric mode: ``dict[plot_title, float64 ndarray]`` (from a plot tuple; titles
+    come from ``CompilerVisitor.plots``).
+  - Object mode: same plot keys **plus** optional ``__drawings`` (list of event
+    dicts), and when strategy is used ``__events``, ``__position_size``,
+    ``__netprofit``, ``__equity``.
+  - Bare / legacy mappings may also carry other ``__*`` strategy scalars.
+- **Numba**: required only for pure-numeric mode. Object mode is pure Python +
+  numpy (still faster than AST interpret). Missing numba on a numeric emit raises
+  ``RuntimeError("numba is required for numeric compile mode …")``.
+- **Errors**: empty emit / missing ``execute_script_compiled`` → ``RuntimeError``.
+  nopython failures during warm-up are **not** raised; the engine falls back to
+  object mode. Non-nopython errors on warm-up are deferred to the first real run.
+- **Sanitize-on-compile**: scraped corpus chrome is stripped via
+  ``pynescript.util.corpus_sanitize.sanitize_corpus_source`` (same policy as
+  interpret paths). Failures are ignored.
+
+Cache
+-----
+In-process LRU (max 128) keyed by sha256 of the **sanitized** source.
+:func:`clear_compile_cache` for tests / hot-reload.
 """
 
 from __future__ import annotations
@@ -54,6 +92,11 @@ _COMPILE_CACHE_MAX = 128
 
 
 def has_numba() -> bool:
+    """Return whether Numba is importable in this process.
+
+    Numeric compile mode requires Numba. Object mode (UDT/map/drawing/strategy)
+    does not. Callers use this for capability checks before advertising compile.
+    """
     return _HAS_NUMBA
 
 
@@ -63,7 +106,11 @@ def clear_compile_cache() -> None:
 
 
 def transpile(source: str) -> str:
-    """Parse Pine source and return generated Python/Numba source string."""
+    """Parse Pine source and return generated Python/Numba source string.
+
+    Does **not** sanitize, exec, JIT, or cache. Useful for debugging the emitter.
+    Empty visitor output raises ``RuntimeError``.
+    """
     tree = parse(source, mode="exec")
     visitor = CompilerVisitor()
     code = visitor.visit(tree)
@@ -82,7 +129,23 @@ def _as_f64(x: np.ndarray | list[float]) -> np.ndarray:
 
 @dataclass
 class CompiledScript:
-    """A compiled Pine script ready to run over OHLCV arrays."""
+    """A compiled Pine script ready to run over OHLCV arrays.
+
+    Attributes
+    ----------
+    source:
+        Original Pine source (post-sanitize when produced by :func:`compile_script`).
+    generated_code:
+        Full Python module text (imports + UDFs + ``execute_script_compiled``).
+    execute:
+        Bound ``execute_script_compiled(open, high, low, close, volume)`` callable.
+        Numeric mode is an ``@numba.njit`` function; object mode is plain Python.
+    plot_titles:
+        Ordered titles used to map numeric-mode tuple returns onto dict keys.
+    object_mode:
+        ``True`` when the emit path (or nopython fallback) used the pure-Python
+        bar loop. Controls packing only indirectly — the callable already matches.
+    """
 
     source: str
     generated_code: str
@@ -98,7 +161,11 @@ class CompiledScript:
         close: np.ndarray | list[float],
         volume: np.ndarray | list[float] | None = None,
     ) -> dict[str, Any]:
-        """Execute over full series; returns plots (+ optional ``__drawings``)."""
+        """Execute over full series; returns plots (+ optional ``__drawings`` / strategy).
+
+        Coerces inputs to float64, defaults volume to ones, validates equal lengths,
+        then :meth:`_pack_result` on the raw ``execute`` return value.
+        """
         o = _as_f64(open_)
         h = _as_f64(high)
         l = _as_f64(low)
@@ -202,7 +269,11 @@ def _compile_once(
     *,
     force_object_mode: bool = False,
 ) -> CompiledScript:
-    """Parse → transpile → exec once. Internal helper for :func:`compile_script`."""
+    """Parse → transpile → exec once. Internal helper for :func:`compile_script`.
+
+    When *force_object_mode* is true, :class:`CompilerVisitor` pins object emit
+    (nopython recovery path). Requires Numba only if the result stays numeric.
+    """
     tree = parse(source, mode="exec")
     visitor = CompilerVisitor(force_object_mode=force_object_mode)
     code = visitor.visit(tree)
@@ -292,5 +363,10 @@ def run_script(
     close: np.ndarray | list[float],
     volume: np.ndarray | list[float] | None = None,
 ) -> dict[str, np.ndarray]:
-    """One-shot compile + run (re-compiles every call — prefer :func:`compile_script`)."""
+    """One-shot compile + run (re-compiles every call — prefer :func:`compile_script`).
+
+    Return type annotation is the common plot map; object-mode may also include
+    non-array extras (``__drawings``, strategy fields) as documented on
+    :meth:`CompiledScript.run`.
+    """
     return compile_script(source).run(open_, high, low, close, volume)

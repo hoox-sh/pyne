@@ -17,16 +17,17 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""AST Transformer for In-Place Tree Modification.
+"""In-place AST rewriting via the visitor pattern.
 
-Extends the visitor pattern to enable transforming (modifying) AST nodes in place.
-Subclasses implement visit_<NodeType> methods that return modified nodes.
+:class:`NodeTransformer` extends :class:`~pynescript.ast.visitor.NodeVisitor`.
+Override ``visit_<NodeType>`` and return a replacement according to:
 
-Transformation rules:
-- Return None to remove a node
-- Return an AST node to replace the node
-- Return a list to replace a single node with multiple nodes
-- Return the same node or leave unchanged to keep as-is
+* ``None`` — remove the node (from a list field, or delete a scalar field)
+* an :class:`~pynescript.ast.node.AST` — replace the visited node
+* a non-AST iterable (e.g. ``list``) — splice in place of one list item
+* the same node (or omit override) — leave unchanged
+
+Child transformation is applied bottom-up via :meth:`NodeTransformer.generic_visit`.
 """
 
 from __future__ import annotations
@@ -37,24 +38,18 @@ from pynescript.ast.visitor import NodeVisitor
 
 
 class NodeTransformer(NodeVisitor):
-    """Transforms an AST in place using the visitor pattern.
+    """Rewrite an AST by visiting nodes and returning replacements.
 
-    Enables rewriting AST structures by visiting nodes and optionally
-    replacing them. More powerful than visitors for AST optimization,
-    simplification, and normalization.
-
-    Subclasses should override visit_<NodeType> methods to return
-    modified nodes (or None to remove).
+    Mutates list fields in place and replaces/deletes scalar child fields
+    on the parent. Prefer this over :class:`~pynescript.ast.visitor.NodeVisitor`
+    for optimization, desugaring, or normalization passes.
     """
 
-    def generic_visit(self, node: AST):
-        """Visit and potentially transform all child nodes in place.
+    def generic_visit(self, node: AST) -> AST:
+        """Transform all children of *node*, then return *node*.
 
-        Args:
-            node: The parent AST node
-
-        Returns:
-            The modified node with transformed children
+        List fields are rewritten in place; scalar AST fields are replaced
+        or deleted according to child ``visit_*`` return values.
         """
         for field, old_value in iter_fields(node):
             # Handle list of nodes (e.g., function body statements)

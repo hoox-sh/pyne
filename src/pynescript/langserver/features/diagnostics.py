@@ -17,9 +17,15 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Diagnostics feature — lint warnings to LSP diagnostics conversion.
+"""Diagnostics helpers — convert linter output to LSP diagnostics.
 
-This module handles textDocument/publishDiagnostics and pull diagnostics.
+Publish and pull diagnostic paths in :mod:`pynescript.langserver.server` use
+:class:`~pynescript.langserver.workspace.Workspace` conversion primarily. This
+module provides shared helpers and optional quick-fix construction:
+
+- :func:`lint_warnings_to_diagnostics` — bulk :class:`~pynescript.ast.linter.LintWarning` → LSP
+- :func:`create_quick_fix` — CodeAction when a fix is available
+- :func:`create_diagnostic_related_info` — related locations for selected codes
 """
 
 from __future__ import annotations
@@ -30,14 +36,15 @@ from pynescript.ast.linter import LintWarning
 
 
 def lint_warnings_to_diagnostics(warnings: list[LintWarning], source: str) -> list[lsp.Diagnostic]:
-    """Convert LintWarning objects to LSP Diagnostic objects.
+    """Map linter warnings to LSP :class:`~lsprotocol.types.Diagnostic` objects.
 
     Args:
-        warnings: List of lint warnings from PineLinter.
-        source: The source text for line-based conversions.
+        warnings: Output of :func:`pynescript.ast.linter.lint_script`.
+        source: Document text (used for end-of-range column estimates).
 
     Returns:
-        List of LSP Diagnostic objects.
+        Diagnostics with ``source="PineScript"`` and severity mapped from the
+        warning's severity string.
     """
     diagnostics = []
 

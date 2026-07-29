@@ -17,14 +17,33 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Pynescript Language Server.
+"""Pine Script Language Server Protocol (LSP) package.
 
-Provides Language Server Protocol (LSP) support for Pine Script,
-enabling professional IDE integration in VS Code, Neovim, Zed, and more.
+pygls-based server for editors (VS Code extension, Neovim, Zed, etc.).
 
-Usage:
-    python -m pynescript.langserver
-    pynescript lsp
+**How to start**
+
+- Console script: ``pynescript-lsp`` → :func:`pynescript.langserver.__main__.main`
+- Module: ``python -m pynescript.langserver`` (stdio by default)
+
+**Public re-exports**
+
+- :class:`~pynescript.langserver.server.PynescriptLanguageServer` — server class
+- :class:`~pynescript.langserver.workspace.Workspace` — open-document store
+- :class:`~pynescript.langserver.workspace.TextDocumentState` — per-URI state
+
+**Layout**
+
+- :mod:`pynescript.langserver.server` — method registration / lifecycle
+- :mod:`pynescript.langserver.config` — advertised capabilities + token legend
+- :mod:`pynescript.langserver.workspace` — parse/lint cache for open docs
+- :mod:`pynescript.langserver.features` — request handlers (completion, hover, …)
+- :mod:`pynescript.langserver.providers` — builtin metadata + completion items
+
+Requires the ``[lsp]`` extra (``pygls``, ``lsprotocol``). Server identity
+``version`` uses :data:`pynescript.__version__` from :mod:`pynescript.__about__`;
+the module-level ``__version__`` below is a package-local constant for the
+langserver subpackage only.
 """
 
 from __future__ import annotations

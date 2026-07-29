@@ -17,9 +17,17 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Completion feature — textDocument/completion handler.
+"""Completion — ``textDocument/completion`` and ``completionItem/resolve``.
 
-Provides autocompletion for Pine Script builtins and user-defined symbols.
+Public handlers:
+
+- :func:`handle_completion` — prefix / ``.``-triggered builtins and modules
+- :func:`handle_completion_resolve` — fill documentation for a completion item
+
+Uses :mod:`pynescript.langserver.providers.builtin_metadata` and
+:mod:`pynescript.langserver.providers.completion_items`. Wired from
+:mod:`pynescript.langserver.server` with trigger character ``.`` and
+``resolve_provider=True``.
 """
 
 from __future__ import annotations
@@ -35,14 +43,17 @@ from pynescript.langserver.providers.completion_items import build_module_comple
 
 
 def handle_completion(params: lsp.CompletionParams, source: str | None) -> lsp.CompletionList:
-    """Handle textDocument/completion request.
+    """Return a completion list for the cursor position in *source*.
+
+    Dot-prefix paths (e.g. ``ta.``) complete module members; otherwise returns
+    filtered builtins for the typed prefix.
 
     Args:
-        params: The completion params from the LSP client.
-        source: The source text of the document (for position context).
+        params: Client ``CompletionParams`` (position / context).
+        source: Document text, or ``None`` if unknown.
 
     Returns:
-        CompletionList with completion items.
+        Always a :class:`~lsprotocol.types.CompletionList` (may be empty).
     """
     # Get context
     position = params.position

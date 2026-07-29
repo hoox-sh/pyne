@@ -17,6 +17,16 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
+"""Package version (single source of truth).
+
+:data:`__version__` is read by Hatch (``[tool.hatch.version]``), re-exported
+from :mod:`pynescript`, and used as the Language Server ``version`` string in
+:class:`~pynescript.langserver.server.PynescriptLanguageServer`.
+
+Bump this string when releasing; do not hardcode versions elsewhere for the
+package identity.
+"""
+
 from __future__ import annotations
 
 

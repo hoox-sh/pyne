@@ -17,13 +17,16 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Semantic tokens provider for Pine Script (textDocument/semanticTokens/full).
+"""Semantic tokens — ``textDocument/semanticTokens/full``.
 
-Emits a basic token stream from the AST so supporting editors can highlight
-builtins, user functions, types, and variables beyond TextMate grammar alone.
+Public handler: :func:`handle_semantic_tokens`. Walks the AST and emits an LSP
+delta-encoded token stream (line, start, length, type, modifiers) for builtins,
+user functions, types, and variables beyond TextMate alone.
 
-Encoding follows LSP: successive (delta_line, delta_start, length, type, mods).
-Token type indices must match ``config.semantic_token_types()``.
+**Contract:** token type indices must match
+:func:`pynescript.langserver.config.semantic_token_types` (and modifiers
+:func:`~pynescript.langserver.config.semantic_token_modifiers`). Legend is
+advertised in :func:`~pynescript.langserver.config.get_server_capabilities`.
 """
 
 from __future__ import annotations
@@ -81,7 +84,16 @@ def handle_semantic_tokens(
     _params: lsp.SemanticTokensParams,
     source: str | None,
 ) -> lsp.SemanticTokens | None:
-    """Handle textDocument/semanticTokens/full request."""
+    """Return full-document semantic tokens for *source*.
+
+    Args:
+        _params: Client params (document URI unused; source is passed in).
+        source: Document text, or ``None``.
+
+    Returns:
+        :class:`~lsprotocol.types.SemanticTokens` with encoded ``data``
+        (empty list if source missing or parse fails).
+    """
     if not source:
         return lsp.SemanticTokens(data=[])
 
