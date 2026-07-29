@@ -20,6 +20,7 @@
 from __future__ import annotations
 
 import hashlib
+import math
 import re
 import uuid
 
@@ -39,6 +40,46 @@ _CAL_NAME_RE = re.compile(
 # Parse tree cache (source sha256 → AST). Bounded to avoid unbounded growth.
 _PARSE_CACHE: dict[str, Any] = {}
 _PARSE_CACHE_MAX = 64
+
+
+def _json_safe_number(x: Any) -> float | None:
+    """Map NaN/±Inf (and numpy scalars) to ``None`` for strict JSON / browsers."""
+    if x is None:
+        return None
+    try:
+        # numpy scalar → python
+        if hasattr(x, "item") and not isinstance(x, (bytes, str, dict, list)):
+            x = x.item()
+    except Exception:  # noqa: BLE001
+        pass
+    if isinstance(x, bool):
+        return float(x)
+    if isinstance(x, (int, float)):
+        fx = float(x)
+        if math.isnan(fx) or math.isinf(fx):
+            return None
+        return fx
+    return None
+
+
+def _series_values_jsonable(values: Any) -> list[Any]:
+    """Convert a plot series (list / numpy) to JSON-safe list of floats|null."""
+    if values is None:
+        return []
+    if hasattr(values, "tolist"):
+        values = values.tolist()
+    if not isinstance(values, (list, tuple)):
+        return []
+    out: list[Any] = []
+    for x in values:
+        if x is None:
+            out.append(None)
+        elif isinstance(x, (int, float)) or (hasattr(x, "item") and not isinstance(x, (str, bytes))):
+            out.append(_json_safe_number(x))
+        else:
+            # Keep non-numeric as-is only if already JSON-friendly
+            out.append(x if isinstance(x, (str, bool, dict, list)) else None)
+    return out
 
 
 def _parse_script(source_code: str) -> Any:
@@ -728,12 +769,18 @@ class Runtime:
             if isinstance(series_map, dict):
                 series_map.pop(meta_key, None)
 
+        # JSON-safe series map (numpy NaN → null). Browsers reject bare NaN as invalid JSON.
+        json_series: dict[str, list[Any]] = {}
+        if isinstance(series_map, dict):
+            for k, v in series_map.items():
+                if k.startswith("__"):
+                    continue
+                json_series[str(k)] = _series_values_jsonable(v)
+
         # Primary plot series (first numeric plot) as list for frontend compatibility
         final_series: list = []
-        numeric = {k: v for k, v in series_map.items() if hasattr(v, "tolist")}
-        if numeric:
-            first = next(iter(numeric.values()))
-            final_series = [None if (isinstance(x, float) and x != x) else float(x) for x in first]
+        if json_series:
+            final_series = next(iter(json_series.values()))
 
         script_id = hashlib.sha256(source_code.encode("utf-8")).hexdigest()[:16]
         # Stamp script/run ids on strategy events
@@ -745,7 +792,7 @@ class Runtime:
 
         return {
             "plots": final_series,
-            "series": {k: (v.tolist() if hasattr(v, "tolist") else v) for k, v in series_map.items()},
+            "series": json_series,
             "drawings": drawings,
             "events": events if isinstance(events, list) else [],
             "count": len(ohlcv_data),

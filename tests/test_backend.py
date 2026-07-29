@@ -151,6 +151,42 @@ class TestRun:
         assert body["status"] == "success"
         assert body.get("mode") == "compile"
 
+    def test_run_compile_nan_series_is_json_null(self, client: FlaskClient):
+        """Warm-up NaNs must be null — browsers reject bare NaN as invalid JSON."""
+        bars = [
+            {
+                "open": 100.0 + i,
+                "high": 105.0 + i,
+                "low": 98.0 + i,
+                "close": 102.0 + i,
+                "time": i + 1,
+                "volume": 10,
+            }
+            for i in range(20)
+        ]
+        resp = client.post(
+            "/run",
+            json={
+                "script": "//@version=5\nindicator('sma')\nplot(ta.sma(close, 14))",
+                "data": bars,
+                "mode": "compile",
+            },
+        )
+        assert resp.status_code == 200, resp.get_data(as_text=True)[:500]
+        raw = resp.get_data(as_text=True)
+        assert "NaN" not in raw
+        assert "Infinity" not in raw
+        body = resp.get_json()
+        assert body["status"] == "success"
+        assert body.get("mode") == "compile"
+        series = body.get("series") or {}
+        assert series, "expected at least one plot series"
+        first = next(iter(series.values()))
+        assert isinstance(first, list)
+        # First bars of SMA(14) are null (warm-up), later bars are finite numbers
+        assert first[0] is None
+        assert any(isinstance(x, (int, float)) for x in first)
+
     def test_run_no_script(self, client: FlaskClient):
         resp = client.post("/run", json={"data": []})
         assert resp.status_code == 400
