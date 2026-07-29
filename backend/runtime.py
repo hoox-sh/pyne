@@ -77,11 +77,29 @@ def _series_values_jsonable(values: Any) -> list[Any]:
     """Convert a plot series (list / numpy) to JSON-safe list of floats|null."""
     if values is None:
         return []
+    # Fast path: numpy float arrays (dominant compile-mode plot output)
+    try:
+        import numpy as np  # noqa: PLC0415
+
+        if isinstance(values, np.ndarray) and values.dtype.kind in "fciu":
+            arr = np.asarray(values, dtype=np.float64)
+            # Vectorized nan/inf → None via object array would be slower; use list + map
+            flat = arr.ravel()
+            out: list[Any] = [None] * int(flat.size)
+            for i, x in enumerate(flat):
+                fx = float(x)
+                if math.isnan(fx) or math.isinf(fx):
+                    out[i] = None
+                else:
+                    out[i] = fx
+            return out
+    except Exception:
+        pass
     if hasattr(values, "tolist"):
         values = values.tolist()
     if not isinstance(values, (list, tuple)):
         return []
-    out: list[Any] = []
+    out = []
     for x in values:
         if x is None:
             out.append(None)
@@ -91,6 +109,25 @@ def _series_values_jsonable(values: Any) -> list[Any]:
             # Keep non-numeric as-is only if already JSON-friendly
             out.append(x if isinstance(x, (str, bool, dict, list)) else None)
     return out
+
+
+def _ohlcv_dicts_to_arrays(ohlcv_data: list[dict]) -> tuple[Any, Any, Any, Any, Any]:
+    """Pack OHLCV dict rows into float64 numpy arrays (single pass)."""
+    import numpy as np  # noqa: PLC0415
+
+    n = len(ohlcv_data)
+    opens = np.empty(n, dtype=np.float64)
+    highs = np.empty(n, dtype=np.float64)
+    lows = np.empty(n, dtype=np.float64)
+    closes = np.empty(n, dtype=np.float64)
+    volumes = np.empty(n, dtype=np.float64)
+    for i, b in enumerate(ohlcv_data):
+        opens[i] = float(b.get("open", 0.0) or 0.0)
+        highs[i] = float(b.get("high", 0.0) or 0.0)
+        lows[i] = float(b.get("low", 0.0) or 0.0)
+        closes[i] = float(b.get("close", 0.0) or 0.0)
+        volumes[i] = float(b.get("volume", 1.0) if b.get("volume") is not None else 1.0)
+    return opens, highs, lows, closes, volumes
 
 
 def _parse_script(source_code: str) -> Any:
@@ -914,11 +951,8 @@ class Runtime:
             return {"error": f"Compile Error: {e!s}"}
         compile_ms = (time.perf_counter() - t_compile0) * 1000.0
 
-        opens = [float(b.get("open", 0.0)) for b in ohlcv_data]
-        highs = [float(b.get("high", 0.0)) for b in ohlcv_data]
-        lows = [float(b.get("low", 0.0)) for b in ohlcv_data]
-        closes = [float(b.get("close", 0.0)) for b in ohlcv_data]
-        volumes = [float(b.get("volume", 1.0)) for b in ohlcv_data]
+        # Single-pass float64 packing (avoids 5 list comps + re-asarray in engine)
+        opens, highs, lows, closes, volumes = _ohlcv_dicts_to_arrays(ohlcv_data)
 
         t_run0 = time.perf_counter()
         try:

@@ -214,6 +214,63 @@ def test_unknown_attr_is_na_not_truthy_string() -> None:
     assert ev.visit(n) is None
 
 
+def test_ta_official_aliases_and_ao_aroon() -> None:
+    """ta.willr/ad/pvt aliases + ta.ao / ta.aroon produce values on Runtime."""
+    from backend.runtime import Runtime
+
+    bars = [
+        {
+            "open": 100 + i * 0.1,
+            "high": 101 + i * 0.2,
+            "low": 99 + i * 0.05,
+            "close": 100.5 + i * 0.1,
+            "volume": 1000 + i,
+            "time": i * 86_400_000,
+        }
+        for i in range(80)
+    ]
+    src = """//@version=6
+indicator("ta p1")
+w = ta.willr(14)
+ad = ta.ad
+pvt = ta.pvt
+ao = ta.ao
+[adown, aup] = ta.aroon(14)
+plot(w)
+plot(ao)
+plot(aup)
+"""
+    r = Runtime().run(src, bars, mode="interpret")
+    assert "error" not in r, r.get("error")
+    series = r.get("series") or {}
+    assert len(series) >= 2
+    # last values should be finite numbers
+    for vals in series.values():
+        assert vals
+        assert vals[-1] is not None
+
+
+def test_import_stub_emits_warning() -> None:
+    """Unresolved TradingView imports soft-stub and log a warning."""
+    from backend.runtime import Runtime
+    from pynescript.ast.evaluator.builtins.logging import get_logger
+
+    get_logger().clear()
+    bars = [
+        {"open": 1.0, "high": 1.0, "low": 1.0, "close": 1.0, "volume": 1.0, "time": i}
+        for i in range(3)
+    ]
+    src = """//@version=6
+indicator("imp")
+import TradingView/MissingLib/1 as mlib
+plot(1)
+"""
+    r = Runtime().run(src, bars, mode="interpret")
+    assert "error" not in r, r.get("error")
+    logs = get_logger().get_logs()
+    assert any("Unresolved import" in msg and "MissingLib" in msg for _, msg in logs)
+
+
 def test_chart_is_heikinashi_alias() -> None:
     """chart.is_heikinashi binds (Pine spelling) and is false by default."""
     from backend.runtime import Chart

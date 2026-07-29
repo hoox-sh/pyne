@@ -1177,6 +1177,9 @@ class StatementEvaluator:
                 # Chainable no-op stub so ``lib.Foo.new(...)`` / ``lib.bar()``
                 # do not raise. Missing libraries degrade to empty behaviour.
                 class _StubLib:
+                    __pine_import_stub__ = True
+                    __pine_import_path__ = path
+
                     def __getattr__(self, item: str) -> _StubLib:
                         return self
 
@@ -1208,8 +1211,28 @@ class StatementEvaluator:
                     def __rsub__(self, other):  # noqa: ANN001
                         return other
 
+                    def __repr__(self) -> str:
+                        return f"<PineImportStub {path}>"
+
                 stub = _StubLib()
                 self.context[alias] = stub  # type: ignore[attr-defined]
+                # Track for hosts / diagnostics (corpus Runtime, API tooling)
+                stubs = getattr(self, "_import_stubs", None)
+                if stubs is None:
+                    stubs = []
+                    self._import_stubs = stubs  # type: ignore[attr-defined]
+                stubs.append({"path": path, "alias": alias, "namespace": namespace, "name": name, "version": version})
+                # Surface once via log.warning when logger is available
+                try:
+                    from pynescript.ast.evaluator.builtins.logging import log_warning
+
+                    log_warning(
+                        "Unresolved import {0} as {1} — empty stub (register_library_source to load real lib)",
+                        path,
+                        alias,
+                    )
+                except Exception:
+                    pass
                 return stub
             except Exception:
                 msg = f"Unknown library import: {path}"

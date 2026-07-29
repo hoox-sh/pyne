@@ -74,6 +74,8 @@ class TechnicalAnalysisMixin(
             "ta.cci": self._builtin_ta_cci,
             "ta.roc": self._builtin_ta_roc,
             "ta.wpr": self._builtin_ta_wpr,
+            # Official TV alias for Williams %R
+            "ta.willr": self._builtin_ta_wpr,
             "ta.obv": self._builtin_ta_obv,
             "ta.mfi": self._builtin_ta_mfi,
             "ta.crossover": self._builtin_ta_crossover,
@@ -123,6 +125,8 @@ class TechnicalAnalysisMixin(
             "ta.nvi": self._builtin_ta_nvi,
             "ta.pvi": self._builtin_ta_pvi,
             "ta.accdist": self._builtin_ta_accdist,
+            # Official TV name for Accumulation/Distribution
+            "ta.ad": self._builtin_ta_accdist,
             "ta.wad": self._builtin_ta_wad,
             "ta.wvad": self._builtin_ta_wvad,
             # Phase 8 Tier 1: High-priority indicators
@@ -144,6 +148,11 @@ class TechnicalAnalysisMixin(
             "ta.uo": self._builtin_ta_uo,
             "ta.bb_pct": self._builtin_ta_bb_pct,
             "ta.vpt": self._builtin_ta_vpt,
+            # Official TV name (Price Volume Trend)
+            "ta.pvt": self._builtin_ta_vpt,
+            # Official TV gaps filled this round
+            "ta.ao": self._builtin_ta_ao,
+            "ta.aroon": self._builtin_ta_aroon,
             "ta.beta": self._builtin_ta_beta,
             "ta.r_squared": self._builtin_ta_r_squared,
             "ta.comovement": self._builtin_ta_comovement,

@@ -250,23 +250,23 @@ class VolumeIndicators(TechnicalHelpers):
         return self._apo(series, fast, slow)
 
     def _builtin_ta_vpt(self, args: list[Any]) -> float | None:
-        """Volume Price Trend.
+        """Volume Price Trend / Price Volume Trend.
 
-        ta.vpt(series)
-        Combines volume and price direction.
+        Forms:
+        - ``ta.vpt`` / ``ta.pvt`` / ``ta.vpt()`` — chart close + volume
+        - ``ta.vpt(series)`` — unused series arg for API compatibility (chart OHLCV used)
         """
-        unary = 1
-        if len(args) < unary:
-            msg = "ta.vpt() requires 1 argument: series"
-            self._error(msg)
-
-        series = args[0] if isinstance(args[0], list) else [args[0]]
-        closes = (getattr(self, "current_series", None) or {}).get("close", [])
-        volumes = (getattr(self, "current_series", None) or {}).get("volume", [])
-
-        if not closes or not volumes or len(series) < BINARY:
+        closes = self._context_series("close")
+        volumes = self._context_series("volume")
+        if not volumes and closes:
+            volumes = [0.0] * len(closes)
+        if not closes or not volumes:
+            # Fallback: host may only populate current_series
+            cs = getattr(self, "current_series", None) or {}
+            closes = cs.get("close", closes) or []
+            volumes = cs.get("volume", volumes) or []
+        if not closes or not volumes or len(closes) < 2:
             return None
-
         return self._vpt(closes, volumes)
 
     def _builtin_ta_emv(self, args: list[Any]) -> float | None:

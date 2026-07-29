@@ -198,6 +198,71 @@ class OscillatorIndicators(TechnicalHelpers):
             return self._wpr_inc_update(highs, lows, closes, length)
         return self._wpr(highs, lows, closes, length)
 
+    def _builtin_ta_ao(self, args: list[Any]) -> float | None:
+        """Awesome Oscillator: ``sma(hl2, 5) - sma(hl2, 34)`` (TV ``ta.ao``).
+
+        Optional args override fast/slow periods (default 5 / 34).
+        """
+        fast = 5
+        slow = 34
+        if len(args) >= 1 and self._is_period_like(args[0]):
+            fast = self._expect_int(args[0], "ta.ao fast must be int")
+        if len(args) >= 2 and self._is_period_like(args[1]):
+            slow = self._expect_int(args[1], "ta.ao slow must be int")
+        hl2 = self._context_series("hl2")
+        if not hl2:
+            highs = self._context_series("high")
+            lows = self._context_series("low")
+            n = min(len(highs), len(lows)) if highs and lows else 0
+            hl2 = [(float(highs[i]) + float(lows[i])) / 2.0 for i in range(n)] if n else []
+        if len(hl2) < slow or slow <= 0 or fast <= 0:
+            return None
+        if self._use_incremental_ta():
+            # Two independent SMA call sites (separate slots)
+            fast_v = self._sma_inc_update(hl2, fast)
+            slow_v = self._sma_inc_update(hl2, slow)
+        else:
+            fast_v = self._sma(hl2, fast)
+            slow_v = self._sma(hl2, slow)
+        if fast_v is None or slow_v is None:
+            return None
+        try:
+            return float(fast_v) - float(slow_v)
+        except (TypeError, ValueError):
+            return None
+
+    def _builtin_ta_aroon(self, args: list[Any]) -> tuple[float, float] | None:
+        """Aroon oscillator pair: ``[aroonDown, aroonUp]`` (TV ``ta.aroon(length)``).
+
+        ``aroonUp = 100 * (length - bars_since_hh) / length``
+        ``aroonDown = 100 * (length - bars_since_ll) / length``
+        """
+        length = 14
+        if len(args) >= 1 and self._is_period_like(args[0]):
+            length = self._expect_int(args[0], "ta.aroon length must be int")
+        if length <= 0:
+            return None
+        highs = self._context_series("high")
+        lows = self._context_series("low")
+        # Need length+1 bars of history for classic Aroon (window of length)
+        window = length + 1
+        if len(highs) < window or len(lows) < window:
+            return None
+        h_win = highs[-window:]
+        l_win = lows[-window:]
+        # Index of highest high / lowest low within window (0 = oldest)
+        try:
+            hh_i = max(range(window), key=lambda i: float(h_win[i]))
+            ll_i = min(range(window), key=lambda i: float(l_win[i]))
+        except (TypeError, ValueError):
+            return None
+        # bars since = distance from end of window
+        bars_since_hh = (window - 1) - hh_i
+        bars_since_ll = (window - 1) - ll_i
+        aroon_up = 100.0 * (length - bars_since_hh) / length
+        aroon_down = 100.0 * (length - bars_since_ll) / length
+        return (float(aroon_down), float(aroon_up))
+
     def _builtin_ta_tsi(self, args: list[Any]) -> float | None:
         """True Strength Index.
 
