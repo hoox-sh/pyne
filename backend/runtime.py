@@ -255,6 +255,7 @@ class Runtime:
         data_feed=None,
         data_provider=None,
         mode: str = "interpret",
+        inputs: dict | None = None,
     ):
         """
         Execute the script over the provided OHLCV data.
@@ -268,6 +269,7 @@ class Runtime:
                 ``"interpret"`` — AST walker (default).
                 ``"compile"`` — Numba/object bar loop (supported subset).
                 ``"auto"`` — try compile; on any failure fall back to interpret.
+            inputs: Optional Pine ``input.*`` overrides keyed by title.
 
         Returns:
             dict with 'series': list of plotted values for each bar.
@@ -276,7 +278,13 @@ class Runtime:
         if mode_norm == "compile":
             return self._run_compiled(source_code, ohlcv_data)
         if mode_norm == "auto":
-            return self._run_auto(source_code, ohlcv_data, data_feed=data_feed, data_provider=data_provider)
+            return self._run_auto(
+                source_code,
+                ohlcv_data,
+                data_feed=data_feed,
+                data_provider=data_provider,
+                inputs=inputs,
+            )
         if mode_norm not in ("interpret",):
             return {"error": f"Unknown mode: {mode!r} (use interpret|compile|auto)"}
 
@@ -349,6 +357,16 @@ class Runtime:
 
         evaluator = CustomEvaluator(context=context, data_feed=data_feed, data_provider=data_provider)
         evaluator.reset_var_declarations()
+        # Host UI overrides for input.* (keyed by title)
+        if inputs and isinstance(inputs, dict):
+            try:
+                evaluator._input_overrides = dict(inputs)  # type: ignore[attr-defined]
+            except Exception:
+                pass
+        try:
+            evaluator._input_declarations = []  # type: ignore[attr-defined]
+        except Exception:
+            pass
 
         # Append-only chronological OHLCV lists for ta.* helpers (oldest → newest).
         # Avoid rebuilding via list(reversed(PineSeries.history)) every bar.
@@ -578,11 +596,47 @@ class Runtime:
         def _color_str(c: Any) -> str | None:
             if c is None:
                 return None
+            to_rgba = getattr(c, "to_rgba", None)
+            if callable(to_rgba):
+                try:
+                    return str(to_rgba())
+                except Exception:
+                    pass
+            to_hex = getattr(c, "to_hex", None)
+            if callable(to_hex):
+                try:
+                    return str(to_hex())
+                except Exception:
+                    pass
             if isinstance(c, str) and c:
                 return c
             if isinstance(c, int):
                 return f"#{c & 0xFFFFFF:06X}"
-            return str(c)
+            s = str(c)
+            return s if s else None
+
+        def _json_plot_value(v: Any, kind: str) -> Any:
+            """JSON-safe series cell for plot / bgcolor / plotshape kinds."""
+            if v is None:
+                return None
+            if kind == "bgcolor":
+                return _color_str(v)
+            if kind in ("plotshape", "plotchar", "plotarrow"):
+                if isinstance(v, bool):
+                    return v
+                if isinstance(v, (int, float)):
+                    try:
+                        fv = float(v)
+                        if fv != fv:  # NaN
+                            return False
+                        return fv != 0.0
+                    except (TypeError, ValueError):
+                        return bool(v)
+                return bool(v)
+            # line / hline numeric (or pass through strings already serialized)
+            if isinstance(v, (int, float, str, bool)):
+                return v
+            return _color_str(v) if hasattr(v, "to_rgba") or hasattr(v, "to_hex") else v
 
         max_plots = 0
         for plots in plot_rows:
@@ -594,6 +648,12 @@ class Runtime:
             title = f"plot_{pi}"
             color = None
             linewidth = 1
+            kind = "plot"
+            style = None
+            linestyle = None
+            location = None
+            text = None
+            char = None
             for plots in plot_rows:
                 if pi < len(plots):
                     p0 = plots[pi]
@@ -604,7 +664,27 @@ class Runtime:
                         color = _color_str(p0.get("color"))
                     if p0.get("linewidth"):
                         linewidth = int(p0["linewidth"] or 1)
+                    # Prefer kind; fall back to type (plot/hline/bgcolor/plotshape/…)
+                    raw_kind = p0.get("kind") or p0.get("type") or "plot"
+                    kind = str(raw_kind or "plot")
+                    if p0.get("style") is not None:
+                        style = str(p0.get("style"))
+                    if p0.get("linestyle") is not None:
+                        linestyle = str(p0.get("linestyle"))
+                    if p0.get("location") is not None:
+                        location = str(p0.get("location"))
+                    if p0.get("text") is not None:
+                        text = str(p0.get("text"))
+                    if p0.get("char") is not None:
+                        char = str(p0.get("char"))
                     break
+            # Prefer first non-null color across bars (conditional bgcolor/plotshape)
+            if color is None:
+                for plots in plot_rows:
+                    if pi < len(plots) and plots[pi].get("color") is not None:
+                        color = _color_str(plots[pi].get("color"))
+                        if color is not None:
+                            break
             base = title
             suffix = 2
             while title in series_map:
@@ -613,14 +693,43 @@ class Runtime:
             values: list[Any] = [None] * n_result_bars
             for bi, plots in enumerate(plot_rows):
                 if pi < len(plots):
-                    values[bi] = plots[pi].get("value")
+                    values[bi] = _json_plot_value(plots[pi].get("value"), kind)
+            # hline: constant price — fill gaps with last known price so AXIS
+            # can render a full-width level (or read price from meta).
+            if kind == "hline":
+                fill = None
+                for v in values:
+                    if v is not None:
+                        fill = v
+                        break
+                if fill is not None:
+                    values = [fill if v is None else v for v in values]
             series_map[title] = values
-            plot_meta[title] = {
+            meta_entry: dict[str, Any] = {
                 "title": title,
                 "color": color,
                 "linewidth": linewidth,
                 "index": pi,
+                "kind": kind,
             }
+            if style is not None:
+                meta_entry["style"] = style
+            if linestyle is not None:
+                meta_entry["linestyle"] = linestyle
+            if location is not None:
+                meta_entry["location"] = location
+            if text is not None:
+                meta_entry["text"] = text
+            if char is not None:
+                meta_entry["char"] = char
+            if kind == "hline":
+                price_val = next((v for v in values if v is not None), None)
+                if price_val is not None:
+                    try:
+                        meta_entry["price"] = float(price_val)
+                    except (TypeError, ValueError):
+                        meta_entry["price"] = price_val
+            plot_meta[title] = meta_entry
 
         # Primary plots list = first plot series (backward compatible)
         final_series: list[Any] = []
@@ -661,12 +770,39 @@ class Runtime:
                 else:
                     overlay = script_type == "strategy"
 
+        # Export input.* declarations for AXIS Script Settings (dedupe by title)
+        input_defs: list[dict[str, Any]] = []
+        try:
+            decls = list(getattr(evaluator, "_input_declarations", None) or [])
+            seen_titles: set[str] = set()
+            for d in decls:
+                if not isinstance(d, dict):
+                    continue
+                t = str(d.get("title") or "")
+                if t and t in seen_titles:
+                    continue
+                if t:
+                    seen_titles.add(t)
+                # JSON-safe copy
+                safe: dict[str, Any] = {}
+                for k, v in d.items():
+                    if isinstance(v, (str, int, float, bool)) or v is None:
+                        safe[k] = v
+                    elif isinstance(v, (list, tuple)):
+                        safe[k] = [str(x) if not isinstance(x, (str, int, float, bool, type(None))) else x for x in v]
+                    else:
+                        safe[k] = str(v)
+                input_defs.append(safe)
+        except Exception:
+            input_defs = []
+
         return {
             "plots": final_series,
             "series": series_map,
             "plot_meta": plot_meta,
             "events": all_events,
             "drawings": drawings,
+            "inputs": input_defs,
             "count": n_result_bars,
             "script_id": script_id,
             "run_id": self._run_id,
@@ -678,6 +814,7 @@ class Runtime:
                 "overlay": overlay,
                 "script_name": script_name,
                 "script_type": script_type,
+                "inputs": input_defs,
             },
         }
 
@@ -707,6 +844,7 @@ class Runtime:
         ohlcv_data: list[dict],
         data_feed=None,
         data_provider=None,
+        inputs: dict | None = None,
     ) -> dict:
         """Try compile; fall back to interpret on eligibility fail or any error."""
         eligible, reason = self._compile_eligible(source_code)
@@ -726,6 +864,7 @@ class Runtime:
             data_feed=data_feed,
             data_provider=data_provider,
             mode="interpret",
+            inputs=inputs,
         )
         if isinstance(result, dict):
             result["mode"] = result.get("mode") or "interpret"

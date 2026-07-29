@@ -64,6 +64,8 @@ RUN_SCHEMA: dict[str, tuple[type, bool, Any]] = {
     "data_source": (str, False, ""),  # ""|mock|ccxt|ccxtpro|yahoo|alphavantage
     "data_options": (dict, False, {}),  # exchange, api_key, seed, start_price, …
     "mode": (str, False, "interpret"),  # interpret|compile|auto
+    # Pine input.* overrides keyed by title (AXIS Script Settings)
+    "inputs": (dict, False, {}),
 }
 
 # Shared OHLCV + many scripts (AXIS multi-indicator). Nested script objects

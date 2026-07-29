@@ -53,7 +53,36 @@ plot(ta.sma(close, 15), "slow", color=color.red)
     assert "fast" in r["series"] and "slow" in r["series"]
     assert r["plot_meta"]["fast"]["color"]
     assert r["plot_meta"]["slow"]["color"]
+    assert r["plot_meta"]["fast"].get("kind") in (None, "plot")
     assert len(r["series"]["fast"]) == 50
+
+
+def test_hline_in_series_and_plot_meta():
+    src = """
+//@version=5
+indicator("rsi-levels", overlay=false)
+r = ta.rsi(close, 14)
+plot(r, "RSI", color=color.purple, linewidth=2)
+hline(30, "Oversold", color=color.green, linewidth=1)
+hline(70, "Overbought", color=color.red, linewidth=1)
+"""
+    r = Runtime().run(src, _bars(50), mode="interpret")
+    assert "error" not in r, r.get("error")
+    assert "RSI" in r["series"], list(r["series"].keys())
+    assert "Oversold" in r["series"], list(r["series"].keys())
+    assert "Overbought" in r["series"], list(r["series"].keys())
+    meta_os = r["plot_meta"]["Oversold"]
+    meta_ob = r["plot_meta"]["Overbought"]
+    assert meta_os.get("kind") == "hline"
+    assert meta_ob.get("kind") == "hline"
+    assert meta_os.get("price") == 30 or float(meta_os.get("price")) == 30.0
+    assert meta_ob.get("price") == 70 or float(meta_ob.get("price")) == 70.0
+    assert meta_os.get("color")
+    assert r["plot_meta"]["RSI"].get("kind") in (None, "plot")
+    assert r["plot_meta"]["RSI"].get("linewidth") == 2
+    # Constant price repeated per bar
+    assert all(v == 30 or v == 30.0 for v in r["series"]["Oversold"] if v is not None)
+    assert all(v == 70 or v == 70.0 for v in r["series"]["Overbought"] if v is not None)
 
 
 def test_crossover_strategy_events():

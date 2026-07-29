@@ -264,6 +264,10 @@ def execute_run_payload(data: dict[str, Any]) -> tuple[dict[str, Any], int]:
             "message": f"Failed to configure data source: {e}",
         }, 400
 
+    inputs = validated.get("inputs") or {}
+    if not isinstance(inputs, dict):
+        inputs = {}
+
     runtime = Runtime(symbol=str(symbol))
     result = runtime.run(
         script,
@@ -271,6 +275,7 @@ def execute_run_payload(data: dict[str, Any]) -> tuple[dict[str, Any], int]:
         data_feed=data_feed,
         data_provider=data_provider,
         mode=str(mode),
+        inputs=inputs if inputs else None,
     )
 
     if "error" in result:
@@ -287,11 +292,19 @@ def execute_run_payload(data: dict[str, Any]) -> tuple[dict[str, Any], int]:
         "plot_meta": result.get("plot_meta", {}),
         "events": result.get("events", []),
         "drawings": result.get("drawings", []),
+        "inputs": result.get("inputs", []),
         "script_id": result.get("script_id", ""),
         "run_id": result.get("run_id", ""),
         "count": result.get("count", 0),
         "mode": result.get("mode", mode),
         "data_source": data_source or "chart",
+        "overlay": result.get("overlay", True),
+        "script_name": result.get("script_name", "plot"),
+        "meta": {
+            **(result.get("meta") or {}),
+            "inputs": result.get("inputs", []),
+            "plot_meta": result.get("plot_meta", {}),
+        },
     }, 200
 
 
