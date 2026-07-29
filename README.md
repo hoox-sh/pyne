@@ -17,12 +17,12 @@ Part of the **[HOOX](https://hoox.sh)** open trading stack:
 | **PYNE** | Pine Script™ toolchain + Pro API (this repo) | [jango-blockchained/pyne](https://github.com/jango-blockchained/pyne) | [hoox.sh/pyne](https://hoox.sh/pyne) · [docs](https://hoox.sh/pyne/docs) |
 | **AXIS** | Installable charting PWA | [jango-blockchained/axis](https://github.com/jango-blockchained/axis) | [hoox.sh/axis](https://hoox.sh/axis) · [docs](https://hoox.sh/axis/docs) |
 
-Local clone layout (typical):
+Local clone layout (typical sibling checkouts):
 
 ```text
-/home/jango/Git/hoox          # edge stack
-/home/jango/Git/pynescript    # this repo (github: pyne)
-/home/jango/Git/axis          # charting PWA
+~/Git/hoox          # edge stack
+~/Git/pynescript    # this repo (GitHub: pyne)
+~/Git/axis          # charting PWA
 ```
 
 ## Table of Contents
@@ -156,37 +156,27 @@ cd ../axis && bun install && bun run dev   # Vite on :3000
 
 Product site: [hoox.sh/pyne](https://hoox.sh/pyne).
 
-### SDK Usage
+### HTTP API (curl)
 
-```python
-from pynescript.api import PynescriptAPI
+```bash
+# Free run (no key)
+curl -s http://127.0.0.1:5002/run \
+  -H 'Content-Type: application/json' \
+  -d '{"script":"//@version=5\nplot(close)","data":[{"open":1,"high":2,"low":0.5,"close":1.5,"time":1}]}'
 
-api = PynescriptAPI(api_key="pyn_...")
-
-# Generate chart thumbnail
-chart = api.preview.chart(
-    data={"close": [100, 101, 102, 101, 103]},
-    options={"type": "line", "width": 600, "height": 300}
-)
-chart.save("chart.png")
-
-# Run quick backtest
-result = api.backtest.quick(
-    script="//@version=5\nstrategy('My Strategy')",
-    mock_data=True,
-    mock_bars=252
-)
-print(f"PnL: {result.summary.total_pnl}")
-print(f"Sharpe: {result.summary.sharpe_ratio}")
-result.equity_chart.save("equity.png")
+# Mint a Pro key (requires ADMIN_TOKEN env on the server)
+curl -s -X POST http://127.0.0.1:5002/auth/create_key \
+  -H "X-Admin-Token: $ADMIN_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"tier":"hobby"}'
 ```
 
 ## Features
 
-- **🔍 Complete Parsing**: Full Pine Script™ v5-v6 grammar via ANTLR4.
-- **💻 Language Server**: LSP with autocomplete, diagnostics, hover, navigation.
-- **📊 Pro API**: Live chart previews, equity curves, quick backtests.
-- **📈 482 Builtins**: ta.*, strategy.*, array.*, matrix.*, math.*, str.*, and more.
+- **Complete Parsing**: Full Pine Script™ v5–v6 grammar via ANTLR4.
+- **Language Server**: LSP with autocomplete, diagnostics, hover, navigation, semantic tokens.
+- **Pro API**: Live chart previews, equity curves, quick backtests.
+- **870+ Builtins**: ta.*, strategy.*, array.*, matrix.*, math.*, str.*, and more.
 - **🛠️ AST Manipulation**: Inspect and transform scripts with Python visitor patterns.
 - **🔄 Round-Trip**: Parse and unparse without losing formatting.
 - **⚡ Evaluator**: Deterministic expression evaluation with 1000+ tests.
@@ -199,14 +189,14 @@ result.equity_chart.save("equity.png")
 ## Installation
 
 ```bash
-# Core library
-pip install .
+# From PyPI (when published)
+pip install pynescript
+pip install "pynescript[lsp]"      # language server
+pip install "pynescript[pro]"      # Flask Pro API stack
 
-# With LSP support
-pip install "pynescript[lsp]"
-
-# Full installation (LSP + dev tools)
-pip install -e ".[dev-lsp]"
+# From a git clone (development)
+pip install -e ".[lsp,pro]"
+pip install -e ".[dev-lsp]"        # + pytest-lsp
 ```
 
 ## Quickstart

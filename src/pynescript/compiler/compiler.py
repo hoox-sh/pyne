@@ -291,8 +291,8 @@ _ARRAY_METHODS: dict[str, str] = {
     "reshape": "matrix_reshape",
     "swap_rows": "matrix_swap_rows",
     "swap_columns": "matrix_swap_columns",
-    "sort": "matrix_sort",
-    "reverse": "matrix_reverse",
+    # NOTE: matrix.sort/reverse share method names with array; array wins in this
+    # flat map. Type-aware dispatch would map m.sort → matrix_sort (tracked separately).
     "eigenvalues": "matrix_eigenvalues",
     "eigenvectors": "matrix_eigenvectors",
     "rank": "matrix_rank",
@@ -2145,7 +2145,7 @@ class CompilerVisitor(NodeVisitor):
             return "__bar_idx"
         # v1–v3: bare `n` is bar_index unless the script defines its own `n`
         if node.id == "n" and (
-            f"n_arr" not in self.arrays
+            "n_arr" not in self.arrays
             and "n" not in self.local_vars
             and "n" not in self.param_names
             and "n" not in self.scalar_vars

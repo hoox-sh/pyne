@@ -2252,8 +2252,6 @@ plot(array.get(idx_desc, 0), title="desc0")
         assert out["asc1"][-1] == 2.0  # value 2.0 at index 2
         assert out["desc0"][-1] == 0.0  # value 3.0 at index 0
 
-# --- matrix/array set03 ---
-class TestSet03MatrixArrayApis:
     def test_matrix_row_col_mutate_apis_object_mode(self) -> None:
         """matrix add/remove/reshape/swap_rows — no NameError; list-of-lists stubs."""
         src = """//@version=5
@@ -2292,8 +2290,6 @@ plot(matrix.get(m, 0, 0), title="g00")
         assert out["rc"][-1] == 2.0
         assert out["g00"][-1] == 1.0
 
-# --- matrix/array set03 ---
-class TestSet03MatrixArrayApis:
     def test_matrix_add_row_col_empty_and_insert(self) -> None:
         """TV forms: add_row/col on empty matrix with array at index 0."""
         src = """//@version=5
